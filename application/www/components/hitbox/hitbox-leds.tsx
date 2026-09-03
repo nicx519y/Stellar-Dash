@@ -8,8 +8,8 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
 import { ledAnimations } from "./hitbox-animation";
-import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
-import { useButtonMonitor } from '@/hooks/use-button-monitor';
+import { useHitboxButtonMonitor } from '@/hooks/use-hitbox-button-monitor';
+import { shouldStartButtonMonitoring } from '@/lib/button-monitor-lifecycle';
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
 const StyledSvg = styled.svg<{
@@ -96,7 +96,13 @@ interface HitboxLedsProps {
 export default function HitboxLeds(props: HitboxLedsProps) {
     const hasText = props.hasText ?? true;
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, wsConnected, hitboxLayout } = useGamepadConfig();
+    const {
+        contextJsReady,
+        setContextJsReady,
+        deviceConnected,
+        dataIsReady,
+        hitboxLayout,
+    } = useGamepadConfig();
 
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];
@@ -107,15 +113,28 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         }));
     }, [hitboxLayout]);
     const len = layout.length;
+    const shouldMonitorButtons = shouldStartButtonMonitoring({
+        enabled: props.isButtonMonitoringEnabled ?? false,
+        deviceConnected,
+        dataIsReady,
+        contextJsReady,
+        layoutLength: len,
+    });
 
     // 硬件按键状态管理
     const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
-    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(len).fill(-1));
+    const hardwareButtonStates = useHitboxButtonMonitor({
+        buttonCount: len,
+        interactiveIds: props.interactiveIds ?? [],
+        disabledIds: props.disabledKeys ?? [],
+        enabled: shouldMonitorButtons,
+        onButtonChange: props.onClick,
+        logPrefix: 'hitbox-leds',
+    });
 
     // 当 layout 长度变化时，重置状态数组
     useEffect(() => {
         setPressedButtonStates(Array(len).fill(-1));
-        setHardwareButtonStates(Array(len).fill(-1));
         pressedButtonListRef.current = Array(len).fill(-1);
         prevPressedButtonListRef.current = Array(len).fill(-1);
     }, [len]);
@@ -136,15 +155,6 @@ export default function HitboxLeds(props: HitboxLedsProps) {
 
     const scale = calculateScale();
 
-    const buttonStates: { [key: number]: number } = {};
-    if(props.interactiveIds) {
-        for(let i = 0; i < len; i++) {
-            if(props.interactiveIds.includes(i)) {
-                buttonStates[i] = -1;
-            }
-        }
-    }
-
     const disabledKeysRef = useRef(props.disabledKeys ?? []);
     const interactiveIdsRef = useRef(props.interactiveIds ?? []);
 
@@ -162,63 +172,17 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
     const colorListRef = useRef<GamePadColor[]>(Array(len));
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
+    const layoutRef = useRef(layout);
     const animationFrameRef = useRef<number>();
     const timerRef = useRef<number>(0);
 
+    // The animation loop can start before the asynchronously loaded layout is
+    // available. Keep the latest layout in a ref so an already-running RAF
+    // callback does not remain bound to the initial empty render.
+    layoutRef.current = layout;
+
     // ripple 列表
     const ripplesRef = useRef<{ centerIndex: number, startTime: number }[]>([]);
-
-    // 使用 useButtonMonitor hook
-    const { startMonitoring, stopMonitoring } = useButtonMonitor({
-        autoInitialize: false, // 不自动初始化，由组件控制
-        onButtonStatesChange: (data: ButtonStateBinaryData) => {
-            if (!data || !interactiveIdsRef.current) {
-                return;
-            }
-
-            // 检查每个在interactiveIds范围内的按键
-            interactiveIdsRef.current.forEach((buttonId) => {
-                // 禁用的按键不处理
-                if(disabledKeysRef.current.includes(buttonId)) {
-                    return;
-                }
-
-                const isPressed = isButtonTriggered(data.triggerMask, buttonId);
-                
-                // 使用ref获取当前真实状态，避免闭包陷阱
-                const wasPressed = (buttonStates[buttonId] === 1) || false;
-                if (isPressed !== wasPressed) {
-                    if (isPressed) {
-                        // 按键按下，模拟mousedown
-                        props.onClick?.(buttonId);
-                        setHardwareButtonStates(prev => {
-                            const newStates = [...prev];
-                            newStates[buttonId] = 1;
-                            return newStates;
-                        });
-                        console.log(`hitbox-leds: 硬件按键 ${buttonId} 按下`);
-                        buttonStates[buttonId] = 1;
-                    } else {
-                        // 按键释放，模拟mouseup
-                        props.onClick?.(-1);
-                        setHardwareButtonStates(prev => {
-                            const newStates = [...prev];
-                            newStates[buttonId] = -1;
-                            return newStates;
-                        });
-                        console.log(`hitbox-leds: 硬件按键 ${buttonId} 释放`);
-                        buttonStates[buttonId] = -1;
-                    }
-                }
-            });
-        },
-        onError: (error) => {
-            console.error('hitbox-leds: 按键监听错误:', error);
-        },
-        onMonitoringStateChange: (isActive) => {
-            console.log('hitbox-leds: 按键监听状态变化:', isActive);
-        }
-    });
 
     const handleClick = (event: React.MouseEvent<SVGElement>) => {
         const target = event.target as SVGElement;
@@ -271,37 +235,6 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             colorListRef.current[i] = backColor1Ref.current.clone();
         }
     }, [setContextJsReady, len]);
-
-    /**
-     * 管理按键监听的启动和停止
-     */
-    useEffect(() => {
-        const enabled = props.isButtonMonitoringEnabled ?? false;
-
-        if(wsConnected && contextJsReady) {
-            if(enabled) {
-                console.log("hitbox-leds: 启动按键监听");
-                startMonitoring().catch((error) => {
-                    console.error('启动按键监听失败:', error);
-                });
-            }
-
-            if(!enabled) {
-                setHardwareButtonStates(Array(len).fill(-1));
-                console.log("hitbox-leds: 停止按键监听");
-                stopMonitoring();
-            }
-        }
-
-        // 清理函数
-        return () => {
-            setHardwareButtonStates(Array(len).fill(-1));
-            console.log("hitbox-leds: 清理按键监听");
-            if(wsConnected && contextJsReady) {
-                stopMonitoring();
-            }
-        };
-    }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady, len]);
 
     useEffect(() => {
         defaultBackColorRef.current = colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000");
@@ -382,6 +315,8 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     const animate = () => {
         const now = new Date().getTime();
         const deltaTime = now - timerRef.current;
+        const currentLayout = layoutRef.current;
+        const currentLength = currentLayout.length;
         
         // 使用与C++端一致的动画进度计算方式
         // C++端: progress = (elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier; progress = fmod(progress, 1.0f);
@@ -411,10 +346,17 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             global = { ripples };
         }
 
-        for (let i = 0; i < len; i++) {
+        for (let i = 0; i < currentLength; i++) {
+            // The layout is loaded asynchronously on a direct route refresh.
+            // Animation can begin one frame before the length-dependent effect
+            // initializes this slot, so make the frame loop self-healing.
+            const currentColor = colorListRef.current[i]
+                ?? backColor1Ref.current.clone();
+            colorListRef.current[i] = currentColor;
+
             // 禁用的按键LED不亮，使用默认背景色
             if (isButtonDisabled(i)) {
-                colorListRef.current[i].setValue(defaultBackColorRef.current);
+                currentColor.setValue(defaultBackColorRef.current);
                 continue;
             }
 
@@ -430,16 +372,17 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                 effectStyle: effectStyleRef.current,
                 brightness: brightnessRef.current,
                 global,
-                layout,
+                layout: currentLayout,
             });
 
-            colorListRef.current[i].setValue(color);
+            currentColor.setValue(color);
         }
 
         // 更新按钮颜色
         circleRefs.current.forEach((circle, index) => {
             if (circle) {
-                circle.setAttribute('fill', colorListRef.current[index].toString('css'));
+                const color = colorListRef.current[index] ?? defaultBackColorRef.current;
+                circle.setAttribute('fill', color.toString('css'));
             }
         });
 
@@ -539,4 +482,4 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             </StyledSvg>
         </Box>
     );
-} 
+}

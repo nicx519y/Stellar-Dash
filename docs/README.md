@@ -2,6 +2,15 @@
 
 基于STM32 H750的双槽固件升级系统完整开发工具链，支持Bootloader、Application、WebResources的开发构建和发版打包。
 
+> V2 WebConfig 的本地实机调试、制造身份、生产公钥注入、KMS/Redis 部署和实机发布门禁分别见
+> [WEBCONFIG_LOCAL_HARDWARE_DEBUG.md](./WEBCONFIG_LOCAL_HARDWARE_DEBUG.md)、
+> [DEVICE_IDENTITY_PROVISIONING.md](./DEVICE_IDENTITY_PROVISIONING.md) 与
+> [WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md](./WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md)。
+> 新 PCB 当前已验证的启动、LCD/菜单 bring-up 架构、无锁开发构建和已知限制见
+> [PCB_V2_DISPLAY_MENU_BRINGUP.md](./PCB_V2_DISPLAY_MENU_BRINGUP.md)。
+> 仓库中的全零信任根和单进程内存认证存储只用于 fail-closed 开发基线，不代表
+> 量产安全配置。
+
 ## 目录
 
 - [项目结构](#项目结构)
@@ -13,6 +22,7 @@
 - [发版阶段：打包和分发](#发版阶段打包和分发)
 - [固件升级架构](#固件升级架构)
 - [故障排除](#故障排除)
+- [V2 安全制造与部署](./DEVICE_IDENTITY_PROVISIONING.md)
 
 ## 项目结构
 

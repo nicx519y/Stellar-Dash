@@ -37,28 +37,6 @@ static void enable_gpio_clock(GPIO_TypeDef* port)
     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
 }
 
-
-void ADC_Clock_Init(void)
-{
-    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
-
-    /** Initializes the peripherals clock
-     */
-    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-    PeriphClkInitStruct.PLL3.PLL3M = 2;
-    PeriphClkInitStruct.PLL3.PLL3N = 15;
-    PeriphClkInitStruct.PLL3.PLL3P = 2;
-    PeriphClkInitStruct.PLL3.PLL3Q = 4;
-    PeriphClkInitStruct.PLL3.PLL3R = 5;
-    PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
-    PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
-    PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
-    PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;  // ADC时钟频率 HSE: 24MHz，ADC时钟频率 = HSE / PLL3.PLL3M * PLL3.PLL3N / PLL3.PLL3R = 24MHz / 2 * 15 / 5 = 36MHz
-    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
-    {
-        Error_Handler();
-    }
-}
 /* USER CODE END 0 */
 
 ADC_HandleTypeDef hadc1;
@@ -68,8 +46,6 @@ DMA_HandleTypeDef hdma_adc1;
 DMA_HandleTypeDef hdma_adc2;
 DMA_HandleTypeDef hdma_adc3;
 
-static ADC_SamplingMode current_adc_mode = ADC_MODE_LOW_LATENCY;
-
 static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversion)
 {
     hadc->Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
@@ -78,27 +54,19 @@ static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversi
     hadc->Init.EOCSelection = ADC_EOC_SEQ_CONV;
     hadc->Init.LowPowerAutoWait = DISABLE;
 
-    if (current_adc_mode == ADC_MODE_CONTINUOUS) {
-        hadc->Init.ContinuousConvMode = ENABLE;
-        hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_CIRCULAR;
-        hadc->Init.Oversampling.Ratio = BOARD_ADC_CONTINUOUS_OVERSAMPLE_RATIO;
-        hadc->Init.Oversampling.RightBitShift = BOARD_ADC_CONTINUOUS_RIGHT_SHIFT;
-    } else {
-        hadc->Init.ContinuousConvMode = DISABLE;
-        hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_ONESHOT;
-        hadc->Init.Oversampling.Ratio = BOARD_ADC_LOWLAT_OVERSAMPLE_RATIO;
-        hadc->Init.Oversampling.RightBitShift = BOARD_ADC_LOWLAT_RIGHT_SHIFT;
-    }
+    /* One complete channel sequence is started by every TIM2 update event. */
+    hadc->Init.ContinuousConvMode = DISABLE;
+    hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_CIRCULAR;
+    hadc->Init.Oversampling.Ratio = BOARD_ADC_OVERSAMPLE_RATIO;
+    hadc->Init.Oversampling.RightBitShift = BOARD_ADC_OVERSAMPLE_RIGHT_SHIFT;
 
     hadc->Init.NbrOfConversion = nbrOfConversion;
     hadc->Init.DiscontinuousConvMode = DISABLE;
-    hadc->Init.ExternalTrigConv = ADC_SOFTWARE_START;
-    hadc->Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-    // ConversionDataManagement set above
+    hadc->Init.ExternalTrigConv = ADC_EXTERNALTRIG_T2_TRGO;
+    hadc->Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
     hadc->Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
     hadc->Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
     hadc->Init.OversamplingMode = ENABLE;
-    // Ratio and RightBitShift set above
     hadc->Init.Oversampling.TriggeredMode = ADC_TRIGGEREDMODE_SINGLE_TRIGGER;
     hadc->Init.Oversampling.OversamplingStopReset = ADC_REGOVERSAMPLING_CONTINUED_MODE;
 }
@@ -112,11 +80,7 @@ static void configure_dma_common(DMA_HandleTypeDef* hdma, uint32_t request)
     hdma->Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
     hdma->Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
     
-    if (current_adc_mode == ADC_MODE_CONTINUOUS) {
-        hdma->Init.Mode = DMA_CIRCULAR;
-    } else {
-        hdma->Init.Mode = DMA_NORMAL;
-    }
+    hdma->Init.Mode = DMA_CIRCULAR;
 
     hdma->Init.Priority = DMA_PRIORITY_VERY_HIGH;
     hdma->Init.FIFOMode = DMA_FIFOMODE_DISABLE;
@@ -267,7 +231,7 @@ void MX_ADC3_Init(void)
     
     /* USER CODE BEGIN ADC3_Init 1 */
     // ADC3 BDMA 中断配置
-    HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
     HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
     /* USER CODE END ADC3_Init 1 */
 }
@@ -276,8 +240,14 @@ static uint32_t HAL_RCC_ADC12_CLK_ENABLED = 0;
 
 void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 {
-
-    ADC_Clock_Init();
+    /*
+     * PLL3 is board-owned and configured once in board.c from the 25 MHz HSE.
+     * A peripheral driver must never retune it while another ADC is active.
+     */
+    if (HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_ADC) !=
+        BOARD_ADC_KERNEL_CLOCK_HZ) {
+        Error_Handler();
+    }
 
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -314,7 +284,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 
         /* USER CODE BEGIN ADC1_MspInit 1 */
         // ADC1 DMA 中断配置
-        HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+        HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
         HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
         /* USER CODE END ADC1_MspInit 1 */
     }
@@ -353,7 +323,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
         __HAL_LINKDMA(adcHandle, DMA_Handle, hdma_adc2);
         
         // 确保中断被正确配置
-        HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
+        HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
         HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
         
         // // 启用 ADC 中断
@@ -391,7 +361,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 
         /* USER CODE BEGIN ADC3_MspInit 1 */
         // ADC3 BDMA 中断配置
-        HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, 0, 0);
+        HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
         HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
         /* USER CODE END ADC3_MspInit 1 */
     }
@@ -458,26 +428,4 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef *adcHandle)
 }
 
 /* USER CODE BEGIN 1 */
-
-void ADC_SetMode(ADC_SamplingMode mode) {
-    if (current_adc_mode == mode) return;
-
-    current_adc_mode = mode;
-
-    // Stop any ongoing conversions and DMA
-    HAL_ADC_Stop_DMA(&hadc1);
-    HAL_ADC_Stop_DMA(&hadc2);
-    HAL_ADC_Stop_DMA(&hadc3);
-
-    // DeInit ADCs to reset state
-    HAL_ADC_DeInit(&hadc1);
-    HAL_ADC_DeInit(&hadc2);
-    HAL_ADC_DeInit(&hadc3);
-
-    // Re-Initialize ADCs
-    MX_ADC1_Init();
-    MX_ADC2_Init();
-    MX_ADC3_Init();
-}
-
 /* USER CODE END 1 */

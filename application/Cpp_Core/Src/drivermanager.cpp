@@ -1,6 +1,5 @@
 #include "enums.hpp"
 #include "drivermanager.hpp"
-#include "drivers/net/NetDriver.hpp"
 #include "drivers/xinput/XInputDriver.hpp"
 #include "drivers/switch/SwitchDriver.hpp"
 #include "drivers/ps4/PS4Driver.hpp"
@@ -21,9 +20,13 @@
 // #include "usbhostmanager.hpp"
 
 void DriverManager::setup(InputMode mode) { 
+    driver = nullptr;
+
     switch (mode) {
         case INPUT_MODE_CONFIG:
-            driver = new NetDriver();
+            /* WebConfig is a top-level CH585 WebHID state, not a TinyUSB
+             * network-class GPDriver. */
+            driver = nullptr;
             break;
         case INPUT_MODE_SWITCH:
             driver = new SwitchDriver();
@@ -71,11 +74,15 @@ void DriverManager::setup(InputMode mode) {
         //     driver = new XboxOriginalDriver();
         //     break;
         default:
-            return;
+            driver = new XInputDriver();
+            mode = INPUT_MODE_XINPUT;
+            break;
     }
 
     // Initialize our chosen driver
-    driver->initialize();
-    inputMode = mode;
+    if (driver != nullptr) {
+        driver->initialize();
+        inputMode = mode;
+    }
 
 }

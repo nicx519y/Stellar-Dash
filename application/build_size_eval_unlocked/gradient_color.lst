@@ -1,0 +1,493 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"gradient_color.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/leds/gradient_color.cpp"
+  19              		.section	.text._ZN13GradientColorC2Ev,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN13GradientColorC2Ev
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN13GradientColorC2Ev:
+  27              	.LVL0:
+  28              	.LFB1269:
+   1:Cpp_Core/Src/leds/gradient_color.cpp **** #include "leds/gradient_color.hpp"
+   2:Cpp_Core/Src/leds/gradient_color.cpp **** #include "utils.h"
+   3:Cpp_Core/Src/leds/gradient_color.cpp **** #include <stdio.h>
+   4:Cpp_Core/Src/leds/gradient_color.cpp **** #include <math.h>
+   5:Cpp_Core/Src/leds/gradient_color.cpp **** 
+   6:Cpp_Core/Src/leds/gradient_color.cpp **** // 定义 PI 常量
+   7:Cpp_Core/Src/leds/gradient_color.cpp **** #ifndef M_PI
+   8:Cpp_Core/Src/leds/gradient_color.cpp **** #define M_PI 3.14159265358979323846
+   9:Cpp_Core/Src/leds/gradient_color.cpp **** #endif
+  10:Cpp_Core/Src/leds/gradient_color.cpp **** 
+  11:Cpp_Core/Src/leds/gradient_color.cpp **** GradientColor::GradientColor() : 
+  29              		.loc 1 11 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		.loc 1 11 1 is_stmt 0 view .LVU1
+  34 0000 30B5     		push	{r4, r5, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 12
+  37              		.cfi_offset 4, -12
+  38              		.cfi_offset 5, -8
+  39              		.cfi_offset 14, -4
+  40              	.LBB2:
+  12:Cpp_Core/Src/leds/gradient_color.cpp ****     cr(0), cg(0), cb(0),
+  13:Cpp_Core/Src/leds/gradient_color.cpp ****     er(0), eg(0), eb(0),
+  14:Cpp_Core/Src/leds/gradient_color.cpp ****     b1(0), b2(0),
+  15:Cpp_Core/Src/leds/gradient_color.cpp ****     startTime(0),
+  16:Cpp_Core/Src/leds/gradient_color.cpp ****     animationCycle(1000) // 默认1秒
+  41              		.loc 1 16 5 view .LVU2
+  42 0002 0021     		movs	r1, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 2
+
+
+  12:Cpp_Core/Src/leds/gradient_color.cpp ****     cr(0), cg(0), cb(0),
+  43              		.loc 1 12 5 view .LVU3
+  44 0004 0024     		movs	r4, #0
+  45 0006 0025     		movs	r5, #0
+  46              		.loc 1 16 5 view .LVU4
+  47 0008 4FF47A72 		mov	r2, #1000
+  12:Cpp_Core/Src/leds/gradient_color.cpp ****     cr(0), cg(0), cb(0),
+  48              		.loc 1 12 5 view .LVU5
+  49 000c C0E90045 		strd	r4, [r0]
+  12:Cpp_Core/Src/leds/gradient_color.cpp ****     cr(0), cg(0), cb(0),
+  50              		.loc 1 12 12 view .LVU6
+  51 0010 C0E90245 		strd	r4, [r0, #8]
+  12:Cpp_Core/Src/leds/gradient_color.cpp ****     cr(0), cg(0), cb(0),
+  52              		.loc 1 12 19 view .LVU7
+  53 0014 C0E90445 		strd	r4, [r0, #16]
+  13:Cpp_Core/Src/leds/gradient_color.cpp ****     b1(0), b2(0),
+  54              		.loc 1 13 5 view .LVU8
+  55 0018 C0E90645 		strd	r4, [r0, #24]
+  13:Cpp_Core/Src/leds/gradient_color.cpp ****     b1(0), b2(0),
+  56              		.loc 1 13 12 view .LVU9
+  57 001c C0E90845 		strd	r4, [r0, #32]
+  13:Cpp_Core/Src/leds/gradient_color.cpp ****     b1(0), b2(0),
+  58              		.loc 1 13 19 view .LVU10
+  59 0020 C0E90A45 		strd	r4, [r0, #40]
+  14:Cpp_Core/Src/leds/gradient_color.cpp ****     startTime(0),
+  60              		.loc 1 14 5 view .LVU11
+  61 0024 C0E90C45 		strd	r4, [r0, #48]
+  14:Cpp_Core/Src/leds/gradient_color.cpp ****     startTime(0),
+  62              		.loc 1 14 12 view .LVU12
+  63 0028 C0E90E45 		strd	r4, [r0, #56]
+  64              		.loc 1 16 5 view .LVU13
+  65 002c C0E91012 		strd	r1, r2, [r0, #64]
+  66              	.LBE2:
+  17:Cpp_Core/Src/leds/gradient_color.cpp **** {}
+  67              		.loc 1 17 2 view .LVU14
+  68 0030 30BD     		pop	{r4, r5, pc}
+  69              		.cfi_endproc
+  70              	.LFE1269:
+  72              		.global	_ZN13GradientColorC1Ev
+  73              		.thumb_set _ZN13GradientColorC1Ev,_ZN13GradientColorC2Ev
+  74              		.section	.text._ZN13GradientColor5setupE8RGBColorS0_hhm,"ax",%progbits
+  75              		.align	1
+  76              		.global	_ZN13GradientColor5setupE8RGBColorS0_hhm
+  77              		.syntax unified
+  78              		.thumb
+  79              		.thumb_func
+  81              	_ZN13GradientColor5setupE8RGBColorS0_hhm:
+  82              	.LVL1:
+  83              	.LFB1271:
+  18:Cpp_Core/Src/leds/gradient_color.cpp **** 
+  19:Cpp_Core/Src/leds/gradient_color.cpp **** void GradientColor::setup(
+  20:Cpp_Core/Src/leds/gradient_color.cpp ****     const struct RGBColor color1, 
+  21:Cpp_Core/Src/leds/gradient_color.cpp ****     const struct RGBColor color2, 
+  22:Cpp_Core/Src/leds/gradient_color.cpp ****     const uint8_t brightness1,
+  23:Cpp_Core/Src/leds/gradient_color.cpp ****     const uint8_t brightness2, 
+  24:Cpp_Core/Src/leds/gradient_color.cpp ****     const uint32_t cycle
+  25:Cpp_Core/Src/leds/gradient_color.cpp **** ) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 3
+
+
+  84              		.loc 1 25 3 is_stmt 1 view -0
+  85              		.cfi_startproc
+  86              		@ args = 8, pretend = 0, frame = 8
+  87              		@ frame_needed = 0, uses_anonymous_args = 0
+  26:Cpp_Core/Src/leds/gradient_color.cpp ****     // 保存颜色参数
+  27:Cpp_Core/Src/leds/gradient_color.cpp ****     cr = static_cast<double_t>(color1.r);
+  88              		.loc 1 27 5 view .LVU16
+  25:Cpp_Core/Src/leds/gradient_color.cpp ****     // 保存颜色参数
+  89              		.loc 1 25 3 is_stmt 0 view .LVU17
+  90 0000 F7B5     		push	{r0, r1, r2, r4, r5, r6, r7, lr}
+  91              	.LCFI1:
+  92              		.cfi_def_cfa_offset 32
+  93              		.cfi_offset 4, -20
+  94              		.cfi_offset 5, -16
+  95              		.cfi_offset 6, -12
+  96              		.cfi_offset 7, -8
+  97              		.cfi_offset 14, -4
+  98              		.loc 1 27 10 view .LVU18
+  99 0002 CFB2     		uxtb	r7, r1
+  25:Cpp_Core/Src/leds/gradient_color.cpp ****     // 保存颜色参数
+ 100              		.loc 1 25 3 view .LVU19
+ 101 0004 06EE903A 		vmov	s13, r3	@ int
+  28:Cpp_Core/Src/leds/gradient_color.cpp ****     cg = static_cast<double_t>(color1.g);
+ 102              		.loc 1 28 10 view .LVU20
+ 103 0008 C1F30723 		ubfx	r3, r1, #8, #8
+ 104              	.LVL2:
+  29:Cpp_Core/Src/leds/gradient_color.cpp ****     cb = static_cast<double_t>(color1.b);
+ 105              		.loc 1 29 10 view .LVU21
+ 106 000c C1F30745 		ubfx	r5, r1, #16, #8
+  27:Cpp_Core/Src/leds/gradient_color.cpp ****     cg = static_cast<double_t>(color1.g);
+ 107              		.loc 1 27 10 view .LVU22
+ 108 0010 07EE907A 		vmov	s15, r7	@ int
+  30:Cpp_Core/Src/leds/gradient_color.cpp ****     er = static_cast<double_t>(color2.r);
+ 109              		.loc 1 30 10 view .LVU23
+ 110 0014 D6B2     		uxtb	r6, r2
+  25:Cpp_Core/Src/leds/gradient_color.cpp ****     // 保存颜色参数
+ 111              		.loc 1 25 3 view .LVU24
+ 112 0016 0446     		mov	r4, r0
+  27:Cpp_Core/Src/leds/gradient_color.cpp ****     cg = static_cast<double_t>(color1.g);
+ 113              		.loc 1 27 10 view .LVU25
+ 114 0018 B8EE677B 		vcvt.f64.u32	d7, s15
+ 115 001c 80ED007B 		vstr.64	d7, [r0]
+  28:Cpp_Core/Src/leds/gradient_color.cpp ****     cb = static_cast<double_t>(color1.b);
+ 116              		.loc 1 28 5 is_stmt 1 view .LVU26
+  28:Cpp_Core/Src/leds/gradient_color.cpp ****     cb = static_cast<double_t>(color1.b);
+ 117              		.loc 1 28 10 is_stmt 0 view .LVU27
+ 118 0020 07EE103A 		vmov	s14, r3	@ int
+  31:Cpp_Core/Src/leds/gradient_color.cpp ****     eg = static_cast<double_t>(color2.g);
+ 119              		.loc 1 31 10 view .LVU28
+ 120 0024 C2F30723 		ubfx	r3, r2, #8, #8
+  28:Cpp_Core/Src/leds/gradient_color.cpp ****     cb = static_cast<double_t>(color1.b);
+ 121              		.loc 1 28 10 view .LVU29
+ 122 0028 B8EE477B 		vcvt.f64.u32	d7, s14
+ 123 002c 80ED027B 		vstr.64	d7, [r0, #8]
+  29:Cpp_Core/Src/leds/gradient_color.cpp ****     er = static_cast<double_t>(color2.r);
+ 124              		.loc 1 29 5 is_stmt 1 view .LVU30
+  29:Cpp_Core/Src/leds/gradient_color.cpp ****     er = static_cast<double_t>(color2.r);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 4
+
+
+ 125              		.loc 1 29 10 is_stmt 0 view .LVU31
+ 126 0030 07EE905A 		vmov	s15, r5	@ int
+ 127 0034 B8EE677B 		vcvt.f64.u32	d7, s15
+ 128 0038 80ED047B 		vstr.64	d7, [r0, #16]
+  30:Cpp_Core/Src/leds/gradient_color.cpp ****     eg = static_cast<double_t>(color2.g);
+ 129              		.loc 1 30 5 is_stmt 1 view .LVU32
+  30:Cpp_Core/Src/leds/gradient_color.cpp ****     eg = static_cast<double_t>(color2.g);
+ 130              		.loc 1 30 10 is_stmt 0 view .LVU33
+ 131 003c 07EE906A 		vmov	s15, r6	@ int
+ 132 0040 B8EE677B 		vcvt.f64.u32	d7, s15
+ 133 0044 80ED067B 		vstr.64	d7, [r0, #24]
+ 134              		.loc 1 31 5 is_stmt 1 view .LVU34
+ 135              		.loc 1 31 10 is_stmt 0 view .LVU35
+ 136 0048 07EE103A 		vmov	s14, r3	@ int
+  32:Cpp_Core/Src/leds/gradient_color.cpp ****     eb = static_cast<double_t>(color2.b);
+  33:Cpp_Core/Src/leds/gradient_color.cpp ****     
+  34:Cpp_Core/Src/leds/gradient_color.cpp ****     // 保存亮度参数
+  35:Cpp_Core/Src/leds/gradient_color.cpp ****     b1 = static_cast<double_t>(brightness1);
+  36:Cpp_Core/Src/leds/gradient_color.cpp ****     b2 = static_cast<double_t>(brightness2);
+ 137              		.loc 1 36 10 view .LVU36
+ 138 004c 9DF82030 		ldrb	r3, [sp, #32]	@ zero_extendqisi2
+  31:Cpp_Core/Src/leds/gradient_color.cpp ****     eb = static_cast<double_t>(color2.b);
+ 139              		.loc 1 31 10 view .LVU37
+ 140 0050 B8EE477B 		vcvt.f64.u32	d7, s14
+ 141 0054 80ED087B 		vstr.64	d7, [r0, #32]
+  32:Cpp_Core/Src/leds/gradient_color.cpp ****     eb = static_cast<double_t>(color2.b);
+ 142              		.loc 1 32 5 is_stmt 1 view .LVU38
+  32:Cpp_Core/Src/leds/gradient_color.cpp ****     eb = static_cast<double_t>(color2.b);
+ 143              		.loc 1 32 10 is_stmt 0 view .LVU39
+ 144 0058 C2F30740 		ubfx	r0, r2, #16, #8
+ 145              	.LVL3:
+  32:Cpp_Core/Src/leds/gradient_color.cpp ****     eb = static_cast<double_t>(color2.b);
+ 146              		.loc 1 32 10 view .LVU40
+ 147 005c 07EE900A 		vmov	s15, r0	@ int
+ 148 0060 B8EE677B 		vcvt.f64.u32	d7, s15
+ 149 0064 84ED0A7B 		vstr.64	d7, [r4, #40]
+  35:Cpp_Core/Src/leds/gradient_color.cpp ****     b2 = static_cast<double_t>(brightness2);
+ 150              		.loc 1 35 5 is_stmt 1 view .LVU41
+  35:Cpp_Core/Src/leds/gradient_color.cpp ****     b2 = static_cast<double_t>(brightness2);
+ 151              		.loc 1 35 10 is_stmt 0 view .LVU42
+ 152 0068 B8EE667B 		vcvt.f64.u32	d7, s13
+ 153 006c 84ED0C7B 		vstr.64	d7, [r4, #48]
+ 154              		.loc 1 36 5 is_stmt 1 view .LVU43
+ 155              		.loc 1 36 10 is_stmt 0 view .LVU44
+ 156 0070 07EE103A 		vmov	s14, r3	@ int
+  37:Cpp_Core/Src/leds/gradient_color.cpp ****     
+  38:Cpp_Core/Src/leds/gradient_color.cpp ****     // 设置周期和开始时间
+  39:Cpp_Core/Src/leds/gradient_color.cpp ****     animationCycle = cycle;
+ 157              		.loc 1 39 20 view .LVU45
+ 158 0074 099B     		ldr	r3, [sp, #36]
+  36:Cpp_Core/Src/leds/gradient_color.cpp ****     
+ 159              		.loc 1 36 10 view .LVU46
+ 160 0076 B8EE477B 		vcvt.f64.u32	d7, s14
+ 161              		.loc 1 39 20 view .LVU47
+ 162 007a 6364     		str	r3, [r4, #68]
+  36:Cpp_Core/Src/leds/gradient_color.cpp ****     
+ 163              		.loc 1 36 10 view .LVU48
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 5
+
+
+ 164 007c 84ED0E7B 		vstr.64	d7, [r4, #56]
+ 165              		.loc 1 39 5 is_stmt 1 view .LVU49
+  40:Cpp_Core/Src/leds/gradient_color.cpp ****     startTime = HAL_GetTick();
+ 166              		.loc 1 40 5 view .LVU50
+ 167              		.loc 1 40 28 is_stmt 0 view .LVU51
+ 168 0080 FFF7FEFF 		bl	HAL_GetTick
+ 169              	.LVL4:
+ 170              		.loc 1 40 15 discriminator 1 view .LVU52
+ 171 0084 2064     		str	r0, [r4, #64]
+  41:Cpp_Core/Src/leds/gradient_color.cpp **** }
+ 172              		.loc 1 41 1 view .LVU53
+ 173 0086 03B0     		add	sp, sp, #12
+ 174              	.LCFI2:
+ 175              		.cfi_def_cfa_offset 20
+ 176              		@ sp needed
+ 177 0088 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 178              		.loc 1 41 1 view .LVU54
+ 179              		.cfi_endproc
+ 180              	.LFE1271:
+ 182              		.section	.text._ZN13GradientColor15getCurrentStateEv,"ax",%progbits
+ 183              		.align	1
+ 184              		.global	_ZN13GradientColor15getCurrentStateEv
+ 185              		.syntax unified
+ 186              		.thumb
+ 187              		.thumb_func
+ 189              	_ZN13GradientColor15getCurrentStateEv:
+ 190              	.LVL5:
+ 191              	.LFB1272:
+  42:Cpp_Core/Src/leds/gradient_color.cpp **** 
+  43:Cpp_Core/Src/leds/gradient_color.cpp **** struct GradientState GradientColor::getCurrentState() {
+ 192              		.loc 1 43 55 is_stmt 1 view -0
+ 193              		.cfi_startproc
+ 194              		@ args = 0, pretend = 0, frame = 24
+ 195              		@ frame_needed = 0, uses_anonymous_args = 0
+  44:Cpp_Core/Src/leds/gradient_color.cpp ****     // 计算当前时间点
+  45:Cpp_Core/Src/leds/gradient_color.cpp ****     uint32_t currentTime = HAL_GetTick();
+ 196              		.loc 1 45 5 view .LVU56
+  43:Cpp_Core/Src/leds/gradient_color.cpp ****     // 计算当前时间点
+ 197              		.loc 1 43 55 is_stmt 0 view .LVU57
+ 198 0000 10B5     		push	{r4, lr}
+ 199              	.LCFI3:
+ 200              		.cfi_def_cfa_offset 8
+ 201              		.cfi_offset 4, -8
+ 202              		.cfi_offset 14, -4
+ 203 0002 0446     		mov	r4, r0
+ 204 0004 86B0     		sub	sp, sp, #24
+ 205              	.LCFI4:
+ 206              		.cfi_def_cfa_offset 32
+ 207              		.loc 1 45 39 view .LVU58
+ 208 0006 FFF7FEFF 		bl	HAL_GetTick
+ 209              	.LVL6:
+  46:Cpp_Core/Src/leds/gradient_color.cpp ****     
+  47:Cpp_Core/Src/leds/gradient_color.cpp ****     // 我们只关心一个周期内的时间，所以直接用减法
+  48:Cpp_Core/Src/leds/gradient_color.cpp ****     // 即使发生溢出，模运算也能得到正确的周期内时间
+  49:Cpp_Core/Src/leds/gradient_color.cpp ****     uint32_t elapsedTime = currentTime - startTime;  
+ 210              		.loc 1 49 5 is_stmt 1 view .LVU59
+  50:Cpp_Core/Src/leds/gradient_color.cpp ****     
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 6
+
+
+  51:Cpp_Core/Src/leds/gradient_color.cpp ****     // 计算渐变比例 (0.0 - 1.0)
+  52:Cpp_Core/Src/leds/gradient_color.cpp ****     // 由于使用了模运算，所以不需要担心溢出问题
+  53:Cpp_Core/Src/leds/gradient_color.cpp ****     double_t phase = static_cast<double_t>(elapsedTime % animationCycle) / animationCycle;
+ 211              		.loc 1 53 5 view .LVU60
+  49:Cpp_Core/Src/leds/gradient_color.cpp ****     
+ 212              		.loc 1 49 14 is_stmt 0 view .LVU61
+ 213 000a D4E91023 		ldrd	r2, r3, [r4, #64]
+ 214 000e 801A     		subs	r0, r0, r2
+ 215              	.LVL7:
+ 216              		.loc 1 53 74 view .LVU62
+ 217 0010 06EE903A 		vmov	s13, r3	@ int
+ 218              		.loc 1 53 56 view .LVU63
+ 219 0014 B0FBF3F2 		udiv	r2, r0, r3
+ 220 0018 03FB1200 		mls	r0, r3, r2, r0
+ 221              	.LVL8:
+ 222              		.loc 1 53 74 view .LVU64
+ 223 001c B8EE666B 		vcvt.f64.u32	d6, s13
+ 224              		.loc 1 53 22 view .LVU65
+ 225 0020 07EE900A 		vmov	s15, r0	@ int
+ 226 0024 B8EE677B 		vcvt.f64.u32	d7, s15
+ 227              		.loc 1 53 14 view .LVU66
+ 228 0028 87EE060B 		vdiv.f64	d0, d7, d6
+  54:Cpp_Core/Src/leds/gradient_color.cpp ****     
+  55:Cpp_Core/Src/leds/gradient_color.cpp ****     // 使用正弦波计算渐变比例，只计算一次
+  56:Cpp_Core/Src/leds/gradient_color.cpp ****     double_t ratio = (sin(2.0 * M_PI * phase) + 1.0) / 2.0;
+ 229              		.loc 1 56 26 view .LVU67
+ 230 002c 9FED287B 		vldr.64	d7, .L4
+ 231 0030 20EE070B 		vmul.f64	d0, d0, d7
+ 232 0034 FFF7FEFF 		bl	sin
+ 233              	.LVL9:
+  57:Cpp_Core/Src/leds/gradient_color.cpp ****     
+  58:Cpp_Core/Src/leds/gradient_color.cpp ****     // 返回颜色和亮度
+  59:Cpp_Core/Src/leds/gradient_color.cpp ****     return {
+  60:Cpp_Core/Src/leds/gradient_color.cpp ****         .color = {
+  61:Cpp_Core/Src/leds/gradient_color.cpp ****             .r = static_cast<uint8_t>(cr + (er - cr) * ratio),
+  62:Cpp_Core/Src/leds/gradient_color.cpp ****             .g = static_cast<uint8_t>(cg + (eg - cg) * ratio),
+  63:Cpp_Core/Src/leds/gradient_color.cpp ****             .b = static_cast<uint8_t>(cb + (eb - cb) * ratio)
+  64:Cpp_Core/Src/leds/gradient_color.cpp ****         },
+  65:Cpp_Core/Src/leds/gradient_color.cpp ****         .brightness = static_cast<uint8_t>(b1 + (b2 - b1) * ratio)
+  66:Cpp_Core/Src/leds/gradient_color.cpp ****     };
+ 234              		.loc 1 66 5 discriminator 1 view .LVU68
+ 235 0038 0020     		movs	r0, #0
+  56:Cpp_Core/Src/leds/gradient_color.cpp ****     
+ 236              		.loc 1 56 47 discriminator 1 view .LVU69
+ 237 003a B7EE007B 		vmov.f64	d7, #1.0e+0
+  56:Cpp_Core/Src/leds/gradient_color.cpp ****     
+ 238              		.loc 1 56 14 discriminator 1 view .LVU70
+ 239 003e B6EE006B 		vmov.f64	d6, #5.0e-1
+  56:Cpp_Core/Src/leds/gradient_color.cpp ****     
+ 240              		.loc 1 56 47 discriminator 1 view .LVU71
+ 241 0042 30EE077B 		vadd.f64	d7, d0, d7
+  61:Cpp_Core/Src/leds/gradient_color.cpp ****             .g = static_cast<uint8_t>(cg + (eg - cg) * ratio),
+ 242              		.loc 1 61 48 view .LVU72
+ 243 0046 94ED065B 		vldr.64	d5, [r4, #24]
+  56:Cpp_Core/Src/leds/gradient_color.cpp ****     
+ 244              		.loc 1 56 14 discriminator 1 view .LVU73
+ 245 004a 27EE067B 		vmul.f64	d7, d7, d6
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 7
+
+
+ 246              	.LVL10:
+  59:Cpp_Core/Src/leds/gradient_color.cpp ****         .color = {
+ 247              		.loc 1 59 5 is_stmt 1 view .LVU74
+  61:Cpp_Core/Src/leds/gradient_color.cpp ****             .g = static_cast<uint8_t>(cg + (eg - cg) * ratio),
+ 248              		.loc 1 61 39 is_stmt 0 view .LVU75
+ 249 004e 94ED006B 		vldr.64	d6, [r4]
+  61:Cpp_Core/Src/leds/gradient_color.cpp ****             .g = static_cast<uint8_t>(cg + (eg - cg) * ratio),
+ 250              		.loc 1 61 48 view .LVU76
+ 251 0052 35EE465B 		vsub.f64	d5, d5, d6
+  61:Cpp_Core/Src/leds/gradient_color.cpp ****             .g = static_cast<uint8_t>(cg + (eg - cg) * ratio),
+ 252              		.loc 1 61 42 view .LVU77
+ 253 0056 A5EE076B 		vfma.f64	d6, d5, d7
+  62:Cpp_Core/Src/leds/gradient_color.cpp ****             .b = static_cast<uint8_t>(cb + (eb - cb) * ratio)
+ 254              		.loc 1 62 48 view .LVU78
+ 255 005a 94ED085B 		vldr.64	d5, [r4, #32]
+  61:Cpp_Core/Src/leds/gradient_color.cpp ****             .g = static_cast<uint8_t>(cg + (eg - cg) * ratio),
+ 256              		.loc 1 61 18 view .LVU79
+ 257 005e FCEEC66B 		vcvt.u32.f64	s13, d6
+ 258 0062 CDED006A 		vstr.32	s13, [sp]	@ int
+ 259              		.loc 1 66 5 discriminator 1 view .LVU80
+ 260 0066 9DF80030 		ldrb	r3, [sp]	@ zero_extendqisi2
+  62:Cpp_Core/Src/leds/gradient_color.cpp ****             .b = static_cast<uint8_t>(cb + (eb - cb) * ratio)
+ 261              		.loc 1 62 39 view .LVU81
+ 262 006a 94ED026B 		vldr.64	d6, [r4, #8]
+ 263              		.loc 1 66 5 discriminator 1 view .LVU82
+ 264 006e 63F30700 		bfi	r0, r3, #0, #8
+  62:Cpp_Core/Src/leds/gradient_color.cpp ****             .b = static_cast<uint8_t>(cb + (eb - cb) * ratio)
+ 265              		.loc 1 62 48 view .LVU83
+ 266 0072 35EE465B 		vsub.f64	d5, d5, d6
+  62:Cpp_Core/Src/leds/gradient_color.cpp ****             .b = static_cast<uint8_t>(cb + (eb - cb) * ratio)
+ 267              		.loc 1 62 42 view .LVU84
+ 268 0076 A5EE076B 		vfma.f64	d6, d5, d7
+  63:Cpp_Core/Src/leds/gradient_color.cpp ****         },
+ 269              		.loc 1 63 48 view .LVU85
+ 270 007a 94ED0A5B 		vldr.64	d5, [r4, #40]
+  62:Cpp_Core/Src/leds/gradient_color.cpp ****             .b = static_cast<uint8_t>(cb + (eb - cb) * ratio)
+ 271              		.loc 1 62 18 view .LVU86
+ 272 007e FCEEC66B 		vcvt.u32.f64	s13, d6
+ 273 0082 CDED016A 		vstr.32	s13, [sp, #4]	@ int
+ 274              		.loc 1 66 5 discriminator 1 view .LVU87
+ 275 0086 9DF80430 		ldrb	r3, [sp, #4]	@ zero_extendqisi2
+  63:Cpp_Core/Src/leds/gradient_color.cpp ****         },
+ 276              		.loc 1 63 39 view .LVU88
+ 277 008a 94ED046B 		vldr.64	d6, [r4, #16]
+ 278              		.loc 1 66 5 discriminator 1 view .LVU89
+ 279 008e 63F30F20 		bfi	r0, r3, #8, #8
+  63:Cpp_Core/Src/leds/gradient_color.cpp ****         },
+ 280              		.loc 1 63 48 view .LVU90
+ 281 0092 35EE465B 		vsub.f64	d5, d5, d6
+  63:Cpp_Core/Src/leds/gradient_color.cpp ****         },
+ 282              		.loc 1 63 42 view .LVU91
+ 283 0096 A5EE076B 		vfma.f64	d6, d5, d7
+  65:Cpp_Core/Src/leds/gradient_color.cpp ****     };
+ 284              		.loc 1 65 53 view .LVU92
+ 285 009a 94ED0E5B 		vldr.64	d5, [r4, #56]
+  63:Cpp_Core/Src/leds/gradient_color.cpp ****         },
+ 286              		.loc 1 63 18 view .LVU93
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 8
+
+
+ 287 009e FCEEC66B 		vcvt.u32.f64	s13, d6
+ 288 00a2 CDED026A 		vstr.32	s13, [sp, #8]	@ int
+ 289              		.loc 1 66 5 discriminator 1 view .LVU94
+ 290 00a6 9DF80830 		ldrb	r3, [sp, #8]	@ zero_extendqisi2
+  65:Cpp_Core/Src/leds/gradient_color.cpp ****     };
+ 291              		.loc 1 65 44 view .LVU95
+ 292 00aa 94ED0C6B 		vldr.64	d6, [r4, #48]
+ 293              		.loc 1 66 5 discriminator 1 view .LVU96
+ 294 00ae 63F31740 		bfi	r0, r3, #16, #8
+  65:Cpp_Core/Src/leds/gradient_color.cpp ****     };
+ 295              		.loc 1 65 53 view .LVU97
+ 296 00b2 35EE465B 		vsub.f64	d5, d5, d6
+  65:Cpp_Core/Src/leds/gradient_color.cpp ****     };
+ 297              		.loc 1 65 47 view .LVU98
+ 298 00b6 A5EE076B 		vfma.f64	d6, d5, d7
+  65:Cpp_Core/Src/leds/gradient_color.cpp ****     };
+ 299              		.loc 1 65 23 view .LVU99
+ 300 00ba FCEEC67B 		vcvt.u32.f64	s15, d6
+ 301 00be CDED037A 		vstr.32	s15, [sp, #12]	@ int
+ 302              		.loc 1 66 5 discriminator 1 view .LVU100
+ 303 00c2 9DF80C30 		ldrb	r3, [sp, #12]	@ zero_extendqisi2
+ 304 00c6 63F31F60 		bfi	r0, r3, #24, #8
+  67:Cpp_Core/Src/leds/gradient_color.cpp **** }
+ 305              		.loc 1 67 1 view .LVU101
+ 306 00ca 06B0     		add	sp, sp, #24
+ 307              	.LCFI5:
+ 308              		.cfi_def_cfa_offset 8
+ 309              		@ sp needed
+ 310 00cc 10BD     		pop	{r4, pc}
+ 311              	.LVL11:
+ 312              	.L5:
+ 313              		.loc 1 67 1 view .LVU102
+ 314 00ce 00BF     		.align	3
+ 315              	.L4:
+ 316 00d0 182D4454 		.word	1413754136
+ 317 00d4 FB211940 		.word	1075388923
+ 318              		.cfi_endproc
+ 319              	.LFE1272:
+ 321              		.text
+ 322              	.Letext0:
+ 323              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 324              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 325              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 326              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 327              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 328              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 329              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e-
+ 330              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 331              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 332              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 333              		.file 12 "Core/Inc/utils.h"
+ 334              		.file 13 "Cpp_Core/Inc/leds/gradient_color.hpp"
+ 335              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s 			page 9
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 gradient_color.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s:20     .text._ZN13GradientColorC2Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s:26     .text._ZN13GradientColorC2Ev:00000000 _ZN13GradientColorC2Ev
+C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s:26     .text._ZN13GradientColorC2Ev:00000000 _ZN13GradientColorC1Ev
+C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s:75     .text._ZN13GradientColor5setupE8RGBColorS0_hhm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s:81     .text._ZN13GradientColor5setupE8RGBColorS0_hhm:00000000 _ZN13GradientColor5setupE8RGBColorS0_hhm
+C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s:183    .text._ZN13GradientColor15getCurrentStateEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s:189    .text._ZN13GradientColor15getCurrentStateEv:00000000 _ZN13GradientColor15getCurrentStateEv
+C:\Users\nicx5\AppData\Local\Temp\ccMboOPP.s:316    .text._ZN13GradientColor15getCurrentStateEv:000000d0 $d
+
+UNDEFINED SYMBOLS
+HAL_GetTick
+sin

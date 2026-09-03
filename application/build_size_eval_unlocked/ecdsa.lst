@@ -1,0 +1,3222 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ecdsa.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/ecdsa.c"
+  19              		.section	.text.derive_mpi,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	derive_mpi:
+  26              	.LVL0:
+  27              	.LFB7:
+   1:Libs/mbedtls/library/ecdsa.c **** /*
+   2:Libs/mbedtls/library/ecdsa.c ****  *  Elliptic curve DSA
+   3:Libs/mbedtls/library/ecdsa.c ****  *
+   4:Libs/mbedtls/library/ecdsa.c ****  *  Copyright The Mbed TLS Contributors
+   5:Libs/mbedtls/library/ecdsa.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   6:Libs/mbedtls/library/ecdsa.c ****  */
+   7:Libs/mbedtls/library/ecdsa.c **** 
+   8:Libs/mbedtls/library/ecdsa.c **** /*
+   9:Libs/mbedtls/library/ecdsa.c ****  * References:
+  10:Libs/mbedtls/library/ecdsa.c ****  *
+  11:Libs/mbedtls/library/ecdsa.c ****  * SEC1 https://www.secg.org/sec1-v2.pdf
+  12:Libs/mbedtls/library/ecdsa.c ****  */
+  13:Libs/mbedtls/library/ecdsa.c **** 
+  14:Libs/mbedtls/library/ecdsa.c **** #include "common.h"
+  15:Libs/mbedtls/library/ecdsa.c **** 
+  16:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_C)
+  17:Libs/mbedtls/library/ecdsa.c **** 
+  18:Libs/mbedtls/library/ecdsa.c **** #include "mbedtls/ecdsa.h"
+  19:Libs/mbedtls/library/ecdsa.c **** #include "mbedtls/asn1write.h"
+  20:Libs/mbedtls/library/ecdsa.c **** 
+  21:Libs/mbedtls/library/ecdsa.c **** #include <string.h>
+  22:Libs/mbedtls/library/ecdsa.c **** 
+  23:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_DETERMINISTIC)
+  24:Libs/mbedtls/library/ecdsa.c **** #include "mbedtls/hmac_drbg.h"
+  25:Libs/mbedtls/library/ecdsa.c **** #endif
+  26:Libs/mbedtls/library/ecdsa.c **** 
+  27:Libs/mbedtls/library/ecdsa.c **** #include "mbedtls/platform.h"
+  28:Libs/mbedtls/library/ecdsa.c **** 
+  29:Libs/mbedtls/library/ecdsa.c **** #include "mbedtls/platform_util.h"
+  30:Libs/mbedtls/library/ecdsa.c **** #include "mbedtls/error.h"
+  31:Libs/mbedtls/library/ecdsa.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 2
+
+
+  32:Libs/mbedtls/library/ecdsa.c **** /* Parameter validation macros based on platform_util.h */
+  33:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_VALIDATE_RET(cond)    \
+  34:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_ECP_BAD_INPUT_DATA)
+  35:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_VALIDATE(cond)        \
+  36:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_INTERNAL_VALIDATE(cond)
+  37:Libs/mbedtls/library/ecdsa.c **** 
+  38:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+  39:Libs/mbedtls/library/ecdsa.c **** 
+  40:Libs/mbedtls/library/ecdsa.c **** /*
+  41:Libs/mbedtls/library/ecdsa.c ****  * Sub-context for ecdsa_verify()
+  42:Libs/mbedtls/library/ecdsa.c ****  */
+  43:Libs/mbedtls/library/ecdsa.c **** struct mbedtls_ecdsa_restart_ver {
+  44:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi u1, u2;     /* intermediate values  */
+  45:Libs/mbedtls/library/ecdsa.c ****     enum {                  /* what to do next?     */
+  46:Libs/mbedtls/library/ecdsa.c ****         ecdsa_ver_init = 0, /* getting started      */
+  47:Libs/mbedtls/library/ecdsa.c ****         ecdsa_ver_muladd,   /* muladd step          */
+  48:Libs/mbedtls/library/ecdsa.c ****     } state;
+  49:Libs/mbedtls/library/ecdsa.c **** };
+  50:Libs/mbedtls/library/ecdsa.c **** 
+  51:Libs/mbedtls/library/ecdsa.c **** /*
+  52:Libs/mbedtls/library/ecdsa.c ****  * Init verify restart sub-context
+  53:Libs/mbedtls/library/ecdsa.c ****  */
+  54:Libs/mbedtls/library/ecdsa.c **** static void ecdsa_restart_ver_init(mbedtls_ecdsa_restart_ver_ctx *ctx)
+  55:Libs/mbedtls/library/ecdsa.c **** {
+  56:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&ctx->u1);
+  57:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&ctx->u2);
+  58:Libs/mbedtls/library/ecdsa.c ****     ctx->state = ecdsa_ver_init;
+  59:Libs/mbedtls/library/ecdsa.c **** }
+  60:Libs/mbedtls/library/ecdsa.c **** 
+  61:Libs/mbedtls/library/ecdsa.c **** /*
+  62:Libs/mbedtls/library/ecdsa.c ****  * Free the components of a verify restart sub-context
+  63:Libs/mbedtls/library/ecdsa.c ****  */
+  64:Libs/mbedtls/library/ecdsa.c **** static void ecdsa_restart_ver_free(mbedtls_ecdsa_restart_ver_ctx *ctx)
+  65:Libs/mbedtls/library/ecdsa.c **** {
+  66:Libs/mbedtls/library/ecdsa.c ****     if (ctx == NULL) {
+  67:Libs/mbedtls/library/ecdsa.c ****         return;
+  68:Libs/mbedtls/library/ecdsa.c ****     }
+  69:Libs/mbedtls/library/ecdsa.c **** 
+  70:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&ctx->u1);
+  71:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&ctx->u2);
+  72:Libs/mbedtls/library/ecdsa.c **** 
+  73:Libs/mbedtls/library/ecdsa.c ****     ecdsa_restart_ver_init(ctx);
+  74:Libs/mbedtls/library/ecdsa.c **** }
+  75:Libs/mbedtls/library/ecdsa.c **** 
+  76:Libs/mbedtls/library/ecdsa.c **** /*
+  77:Libs/mbedtls/library/ecdsa.c ****  * Sub-context for ecdsa_sign()
+  78:Libs/mbedtls/library/ecdsa.c ****  */
+  79:Libs/mbedtls/library/ecdsa.c **** struct mbedtls_ecdsa_restart_sig {
+  80:Libs/mbedtls/library/ecdsa.c ****     int sign_tries;
+  81:Libs/mbedtls/library/ecdsa.c ****     int key_tries;
+  82:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi k;          /* per-signature random */
+  83:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi r;          /* r value              */
+  84:Libs/mbedtls/library/ecdsa.c ****     enum {                  /* what to do next?     */
+  85:Libs/mbedtls/library/ecdsa.c ****         ecdsa_sig_init = 0, /* getting started      */
+  86:Libs/mbedtls/library/ecdsa.c ****         ecdsa_sig_mul,      /* doing ecp_mul()      */
+  87:Libs/mbedtls/library/ecdsa.c ****         ecdsa_sig_modn,     /* mod N computations   */
+  88:Libs/mbedtls/library/ecdsa.c ****     } state;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 3
+
+
+  89:Libs/mbedtls/library/ecdsa.c **** };
+  90:Libs/mbedtls/library/ecdsa.c **** 
+  91:Libs/mbedtls/library/ecdsa.c **** /*
+  92:Libs/mbedtls/library/ecdsa.c ****  * Init verify sign sub-context
+  93:Libs/mbedtls/library/ecdsa.c ****  */
+  94:Libs/mbedtls/library/ecdsa.c **** static void ecdsa_restart_sig_init(mbedtls_ecdsa_restart_sig_ctx *ctx)
+  95:Libs/mbedtls/library/ecdsa.c **** {
+  96:Libs/mbedtls/library/ecdsa.c ****     ctx->sign_tries = 0;
+  97:Libs/mbedtls/library/ecdsa.c ****     ctx->key_tries = 0;
+  98:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&ctx->k);
+  99:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&ctx->r);
+ 100:Libs/mbedtls/library/ecdsa.c ****     ctx->state = ecdsa_sig_init;
+ 101:Libs/mbedtls/library/ecdsa.c **** }
+ 102:Libs/mbedtls/library/ecdsa.c **** 
+ 103:Libs/mbedtls/library/ecdsa.c **** /*
+ 104:Libs/mbedtls/library/ecdsa.c ****  * Free the components of a sign restart sub-context
+ 105:Libs/mbedtls/library/ecdsa.c ****  */
+ 106:Libs/mbedtls/library/ecdsa.c **** static void ecdsa_restart_sig_free(mbedtls_ecdsa_restart_sig_ctx *ctx)
+ 107:Libs/mbedtls/library/ecdsa.c **** {
+ 108:Libs/mbedtls/library/ecdsa.c ****     if (ctx == NULL) {
+ 109:Libs/mbedtls/library/ecdsa.c ****         return;
+ 110:Libs/mbedtls/library/ecdsa.c ****     }
+ 111:Libs/mbedtls/library/ecdsa.c **** 
+ 112:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&ctx->k);
+ 113:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&ctx->r);
+ 114:Libs/mbedtls/library/ecdsa.c **** }
+ 115:Libs/mbedtls/library/ecdsa.c **** 
+ 116:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_DETERMINISTIC)
+ 117:Libs/mbedtls/library/ecdsa.c **** /*
+ 118:Libs/mbedtls/library/ecdsa.c ****  * Sub-context for ecdsa_sign_det()
+ 119:Libs/mbedtls/library/ecdsa.c ****  */
+ 120:Libs/mbedtls/library/ecdsa.c **** struct mbedtls_ecdsa_restart_det {
+ 121:Libs/mbedtls/library/ecdsa.c ****     mbedtls_hmac_drbg_context rng_ctx;  /* DRBG state   */
+ 122:Libs/mbedtls/library/ecdsa.c ****     enum {                      /* what to do next?     */
+ 123:Libs/mbedtls/library/ecdsa.c ****         ecdsa_det_init = 0,     /* getting started      */
+ 124:Libs/mbedtls/library/ecdsa.c ****         ecdsa_det_sign,         /* make signature       */
+ 125:Libs/mbedtls/library/ecdsa.c ****     } state;
+ 126:Libs/mbedtls/library/ecdsa.c **** };
+ 127:Libs/mbedtls/library/ecdsa.c **** 
+ 128:Libs/mbedtls/library/ecdsa.c **** /*
+ 129:Libs/mbedtls/library/ecdsa.c ****  * Init verify sign_det sub-context
+ 130:Libs/mbedtls/library/ecdsa.c ****  */
+ 131:Libs/mbedtls/library/ecdsa.c **** static void ecdsa_restart_det_init(mbedtls_ecdsa_restart_det_ctx *ctx)
+ 132:Libs/mbedtls/library/ecdsa.c **** {
+ 133:Libs/mbedtls/library/ecdsa.c ****     mbedtls_hmac_drbg_init(&ctx->rng_ctx);
+ 134:Libs/mbedtls/library/ecdsa.c ****     ctx->state = ecdsa_det_init;
+ 135:Libs/mbedtls/library/ecdsa.c **** }
+ 136:Libs/mbedtls/library/ecdsa.c **** 
+ 137:Libs/mbedtls/library/ecdsa.c **** /*
+ 138:Libs/mbedtls/library/ecdsa.c ****  * Free the components of a sign_det restart sub-context
+ 139:Libs/mbedtls/library/ecdsa.c ****  */
+ 140:Libs/mbedtls/library/ecdsa.c **** static void ecdsa_restart_det_free(mbedtls_ecdsa_restart_det_ctx *ctx)
+ 141:Libs/mbedtls/library/ecdsa.c **** {
+ 142:Libs/mbedtls/library/ecdsa.c ****     if (ctx == NULL) {
+ 143:Libs/mbedtls/library/ecdsa.c ****         return;
+ 144:Libs/mbedtls/library/ecdsa.c ****     }
+ 145:Libs/mbedtls/library/ecdsa.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 4
+
+
+ 146:Libs/mbedtls/library/ecdsa.c ****     mbedtls_hmac_drbg_free(&ctx->rng_ctx);
+ 147:Libs/mbedtls/library/ecdsa.c **** 
+ 148:Libs/mbedtls/library/ecdsa.c ****     ecdsa_restart_det_init(ctx);
+ 149:Libs/mbedtls/library/ecdsa.c **** }
+ 150:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECDSA_DETERMINISTIC */
+ 151:Libs/mbedtls/library/ecdsa.c **** 
+ 152:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_RS_ECP    (rs_ctx == NULL ? NULL : &rs_ctx->ecp)
+ 153:Libs/mbedtls/library/ecdsa.c **** 
+ 154:Libs/mbedtls/library/ecdsa.c **** /* Utility macro for checking and updating ops budget */
+ 155:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_BUDGET(ops)   \
+ 156:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_ecp_check_budget(grp, ECDSA_RS_ECP, ops));
+ 157:Libs/mbedtls/library/ecdsa.c **** 
+ 158:Libs/mbedtls/library/ecdsa.c **** /* Call this when entering a function that needs its own sub-context */
+ 159:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_RS_ENTER(SUB)   do {                                 \
+ 160:Libs/mbedtls/library/ecdsa.c ****         /* reset ops count for this call if top-level */                 \
+ 161:Libs/mbedtls/library/ecdsa.c ****         if (rs_ctx != NULL && rs_ctx->ecp.depth++ == 0)                 \
+ 162:Libs/mbedtls/library/ecdsa.c ****         rs_ctx->ecp.ops_done = 0;                                    \
+ 163:Libs/mbedtls/library/ecdsa.c ****                                                                      \
+ 164:Libs/mbedtls/library/ecdsa.c ****         /* set up our own sub-context if needed */                       \
+ 165:Libs/mbedtls/library/ecdsa.c ****         if (mbedtls_ecp_restart_is_enabled() &&                          \
+ 166:Libs/mbedtls/library/ecdsa.c ****             rs_ctx != NULL && rs_ctx->SUB == NULL)                      \
+ 167:Libs/mbedtls/library/ecdsa.c ****         {                                                                \
+ 168:Libs/mbedtls/library/ecdsa.c ****             rs_ctx->SUB = mbedtls_calloc(1, sizeof(*rs_ctx->SUB));   \
+ 169:Libs/mbedtls/library/ecdsa.c ****             if (rs_ctx->SUB == NULL)                                    \
+ 170:Libs/mbedtls/library/ecdsa.c ****             return MBEDTLS_ERR_ECP_ALLOC_FAILED;                  \
+ 171:Libs/mbedtls/library/ecdsa.c ****                                                                    \
+ 172:Libs/mbedtls/library/ecdsa.c ****             ecdsa_restart_## SUB ##_init(rs_ctx->SUB);                 \
+ 173:Libs/mbedtls/library/ecdsa.c ****         }                                                                \
+ 174:Libs/mbedtls/library/ecdsa.c **** } while (0)
+ 175:Libs/mbedtls/library/ecdsa.c **** 
+ 176:Libs/mbedtls/library/ecdsa.c **** /* Call this when leaving a function that needs its own sub-context */
+ 177:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_RS_LEAVE(SUB)   do {                                 \
+ 178:Libs/mbedtls/library/ecdsa.c ****         /* clear our sub-context when not in progress (done or error) */ \
+ 179:Libs/mbedtls/library/ecdsa.c ****         if (rs_ctx != NULL && rs_ctx->SUB != NULL &&                     \
+ 180:Libs/mbedtls/library/ecdsa.c ****             ret != MBEDTLS_ERR_ECP_IN_PROGRESS)                         \
+ 181:Libs/mbedtls/library/ecdsa.c ****         {                                                                \
+ 182:Libs/mbedtls/library/ecdsa.c ****             ecdsa_restart_## SUB ##_free(rs_ctx->SUB);                 \
+ 183:Libs/mbedtls/library/ecdsa.c ****             mbedtls_free(rs_ctx->SUB);                                 \
+ 184:Libs/mbedtls/library/ecdsa.c ****             rs_ctx->SUB = NULL;                                          \
+ 185:Libs/mbedtls/library/ecdsa.c ****         }                                                                \
+ 186:Libs/mbedtls/library/ecdsa.c ****                                                                      \
+ 187:Libs/mbedtls/library/ecdsa.c ****         if (rs_ctx != NULL)                                             \
+ 188:Libs/mbedtls/library/ecdsa.c ****         rs_ctx->ecp.depth--;                                         \
+ 189:Libs/mbedtls/library/ecdsa.c **** } while (0)
+ 190:Libs/mbedtls/library/ecdsa.c **** 
+ 191:Libs/mbedtls/library/ecdsa.c **** #else /* MBEDTLS_ECP_RESTARTABLE */
+ 192:Libs/mbedtls/library/ecdsa.c **** 
+ 193:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_RS_ECP    NULL
+ 194:Libs/mbedtls/library/ecdsa.c **** 
+ 195:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_BUDGET(ops)     /* no-op; for compatibility */
+ 196:Libs/mbedtls/library/ecdsa.c **** 
+ 197:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_RS_ENTER(SUB)   (void) rs_ctx
+ 198:Libs/mbedtls/library/ecdsa.c **** #define ECDSA_RS_LEAVE(SUB)   (void) rs_ctx
+ 199:Libs/mbedtls/library/ecdsa.c **** 
+ 200:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECP_RESTARTABLE */
+ 201:Libs/mbedtls/library/ecdsa.c **** 
+ 202:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_DETERMINISTIC) || \
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 5
+
+
+ 203:Libs/mbedtls/library/ecdsa.c ****     !defined(MBEDTLS_ECDSA_SIGN_ALT)     || \
+ 204:Libs/mbedtls/library/ecdsa.c ****     !defined(MBEDTLS_ECDSA_VERIFY_ALT)
+ 205:Libs/mbedtls/library/ecdsa.c **** /*
+ 206:Libs/mbedtls/library/ecdsa.c ****  * Derive a suitable integer for group grp from a buffer of length len
+ 207:Libs/mbedtls/library/ecdsa.c ****  * SEC1 4.1.3 step 5 aka SEC1 4.1.4 step 3
+ 208:Libs/mbedtls/library/ecdsa.c ****  */
+ 209:Libs/mbedtls/library/ecdsa.c **** static int derive_mpi(const mbedtls_ecp_group *grp, mbedtls_mpi *x,
+ 210:Libs/mbedtls/library/ecdsa.c ****                       const unsigned char *buf, size_t blen)
+ 211:Libs/mbedtls/library/ecdsa.c **** {
+  28              		.loc 1 211 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+ 212:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+  32              		.loc 1 212 5 view .LVU1
+ 213:Libs/mbedtls/library/ecdsa.c ****     size_t n_size = (grp->nbits + 7) / 8;
+  33              		.loc 1 213 5 view .LVU2
+ 214:Libs/mbedtls/library/ecdsa.c ****     size_t use_size = blen > n_size ? n_size : blen;
+  34              		.loc 1 214 5 view .LVU3
+ 211:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+  35              		.loc 1 211 1 is_stmt 0 view .LVU4
+  36 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+  37              	.LCFI0:
+  38              		.cfi_def_cfa_offset 24
+  39              		.cfi_offset 3, -24
+  40              		.cfi_offset 4, -20
+  41              		.cfi_offset 5, -16
+  42              		.cfi_offset 6, -12
+  43              		.cfi_offset 7, -8
+  44              		.cfi_offset 14, -4
+ 213:Libs/mbedtls/library/ecdsa.c ****     size_t n_size = (grp->nbits + 7) / 8;
+  45              		.loc 1 213 33 view .LVU5
+  46 0002 C46D     		ldr	r4, [r0, #92]
+ 211:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+  47              		.loc 1 211 1 view .LVU6
+  48 0004 0E46     		mov	r6, r1
+  49 0006 0546     		mov	r5, r0
+  50 0008 1146     		mov	r1, r2
+  51              	.LVL1:
+ 213:Libs/mbedtls/library/ecdsa.c ****     size_t n_size = (grp->nbits + 7) / 8;
+  52              		.loc 1 213 33 view .LVU7
+  53 000a 0734     		adds	r4, r4, #7
+ 215:Libs/mbedtls/library/ecdsa.c **** 
+ 216:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_read_binary(x, buf, use_size));
+  54              		.loc 1 216 5 view .LVU8
+  55 000c 3046     		mov	r0, r6
+  56              	.LVL2:
+ 213:Libs/mbedtls/library/ecdsa.c ****     size_t use_size = blen > n_size ? n_size : blen;
+  57              		.loc 1 213 12 view .LVU9
+  58 000e E408     		lsrs	r4, r4, #3
+ 214:Libs/mbedtls/library/ecdsa.c **** 
+  59              		.loc 1 214 12 view .LVU10
+  60 0010 9C42     		cmp	r4, r3
+  61 0012 28BF     		it	cs
+  62 0014 1C46     		movcs	r4, r3
+  63              	.LVL3:
+  64              		.loc 1 216 5 is_stmt 1 view .LVU11
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 6
+
+
+  65              		.loc 1 216 5 view .LVU12
+  66 0016 2246     		mov	r2, r4
+  67              	.LVL4:
+  68              		.loc 1 216 5 is_stmt 0 view .LVU13
+  69 0018 FFF7FEFF 		bl	mbedtls_mpi_read_binary
+  70              	.LVL5:
+  71              		.loc 1 216 5 discriminator 1 view .LVU14
+  72 001c 0746     		mov	r7, r0
+  73 001e C8B9     		cbnz	r0, .L1
+  74              		.loc 1 216 5 is_stmt 1 discriminator 2 view .LVU15
+ 217:Libs/mbedtls/library/ecdsa.c ****     if (use_size * 8 > grp->nbits) {
+  75              		.loc 1 217 5 view .LVU16
+  76              		.loc 1 217 27 is_stmt 0 view .LVU17
+  77 0020 EB6D     		ldr	r3, [r5, #92]
+  78              		.loc 1 217 18 view .LVU18
+  79 0022 E100     		lsls	r1, r4, #3
+  80              		.loc 1 217 8 view .LVU19
+  81 0024 B3EBC40F 		cmp	r3, r4, lsl #3
+  82 0028 0DD3     		bcc	.L3
+  83              	.LVL6:
+  84              	.L5:
+ 218:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_shift_r(x, use_size * 8 - grp->nbits));
+  85              		.loc 1 218 9 is_stmt 1 discriminator 2 view .LVU20
+ 219:Libs/mbedtls/library/ecdsa.c ****     }
+ 220:Libs/mbedtls/library/ecdsa.c **** 
+ 221:Libs/mbedtls/library/ecdsa.c ****     /* While at it, reduce modulo N */
+ 222:Libs/mbedtls/library/ecdsa.c ****     if (mbedtls_mpi_cmp_mpi(x, &grp->N) >= 0) {
+  86              		.loc 1 222 5 view .LVU21
+  87              		.loc 1 222 9 is_stmt 0 view .LVU22
+  88 002a 4C35     		adds	r5, r5, #76
+  89              	.LVL7:
+  90              		.loc 1 222 9 view .LVU23
+  91 002c 3046     		mov	r0, r6
+  92 002e 2946     		mov	r1, r5
+  93 0030 FFF7FEFF 		bl	mbedtls_mpi_cmp_mpi
+  94              	.LVL8:
+  95              		.loc 1 222 8 discriminator 1 view .LVU24
+  96 0034 0028     		cmp	r0, #0
+  97 0036 0DDB     		blt	.L1
+ 223:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_sub_mpi(x, x, &grp->N));
+  98              		.loc 1 223 9 is_stmt 1 view .LVU25
+  99              		.loc 1 223 9 view .LVU26
+ 100 0038 2A46     		mov	r2, r5
+ 101 003a 3146     		mov	r1, r6
+ 102 003c 3046     		mov	r0, r6
+ 224:Libs/mbedtls/library/ecdsa.c ****     }
+ 225:Libs/mbedtls/library/ecdsa.c **** 
+ 226:Libs/mbedtls/library/ecdsa.c **** cleanup:
+ 227:Libs/mbedtls/library/ecdsa.c ****     return ret;
+ 228:Libs/mbedtls/library/ecdsa.c **** }
+ 103              		.loc 1 228 1 is_stmt 0 view .LVU27
+ 104 003e BDE8F840 		pop	{r3, r4, r5, r6, r7, lr}
+ 105              	.LCFI1:
+ 106              		.cfi_remember_state
+ 107              		.cfi_restore 14
+ 108              		.cfi_restore 7
+ 109              		.cfi_restore 6
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 7
+
+
+ 110              		.cfi_restore 5
+ 111              		.cfi_restore 4
+ 112              		.cfi_restore 3
+ 113              		.cfi_def_cfa_offset 0
+ 114              	.LVL9:
+ 223:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_sub_mpi(x, x, &grp->N));
+ 115              		.loc 1 223 9 view .LVU28
+ 116 0042 FFF7FEBF 		b	mbedtls_mpi_sub_mpi
+ 117              	.LVL10:
+ 118              	.L3:
+ 119              	.LCFI2:
+ 120              		.cfi_restore_state
+ 218:Libs/mbedtls/library/ecdsa.c ****     }
+ 121              		.loc 1 218 9 is_stmt 1 view .LVU29
+ 218:Libs/mbedtls/library/ecdsa.c ****     }
+ 122              		.loc 1 218 9 view .LVU30
+ 123 0046 C91A     		subs	r1, r1, r3
+ 124 0048 3046     		mov	r0, r6
+ 125              	.LVL11:
+ 218:Libs/mbedtls/library/ecdsa.c ****     }
+ 126              		.loc 1 218 9 is_stmt 0 view .LVU31
+ 127 004a FFF7FEFF 		bl	mbedtls_mpi_shift_r
+ 128              	.LVL12:
+ 218:Libs/mbedtls/library/ecdsa.c ****     }
+ 129              		.loc 1 218 9 discriminator 1 view .LVU32
+ 130 004e 0028     		cmp	r0, #0
+ 131 0050 EBD0     		beq	.L5
+ 218:Libs/mbedtls/library/ecdsa.c ****     }
+ 132              		.loc 1 218 9 view .LVU33
+ 133 0052 0746     		mov	r7, r0
+ 223:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_sub_mpi(x, x, &grp->N));
+ 134              		.loc 1 223 9 is_stmt 1 discriminator 3 view .LVU34
+ 227:Libs/mbedtls/library/ecdsa.c **** }
+ 135              		.loc 1 227 5 view .LVU35
+ 136              	.L2:
+ 137              	.LVL13:
+ 138              	.L1:
+ 139              		.loc 1 228 1 is_stmt 0 view .LVU36
+ 140 0054 3846     		mov	r0, r7
+ 141 0056 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 142              		.loc 1 228 1 view .LVU37
+ 143              		.cfi_endproc
+ 144              	.LFE7:
+ 146              		.section	.text.ecdsa_verify_restartable.isra.0,"ax",%progbits
+ 147              		.align	1
+ 148              		.syntax unified
+ 149              		.thumb
+ 150              		.thumb_func
+ 152              	ecdsa_verify_restartable.isra.0:
+ 153              	.LVL14:
+ 154              	.LFB22:
+ 229:Libs/mbedtls/library/ecdsa.c **** #endif /* ECDSA_DETERMINISTIC || !ECDSA_SIGN_ALT || !ECDSA_VERIFY_ALT */
+ 230:Libs/mbedtls/library/ecdsa.c **** 
+ 231:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_can_do(mbedtls_ecp_group_id gid)
+ 232:Libs/mbedtls/library/ecdsa.c **** {
+ 233:Libs/mbedtls/library/ecdsa.c ****     switch (gid) {
+ 234:Libs/mbedtls/library/ecdsa.c **** #ifdef MBEDTLS_ECP_DP_CURVE25519_ENABLED
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 8
+
+
+ 235:Libs/mbedtls/library/ecdsa.c ****         case MBEDTLS_ECP_DP_CURVE25519: return 0;
+ 236:Libs/mbedtls/library/ecdsa.c **** #endif
+ 237:Libs/mbedtls/library/ecdsa.c **** #ifdef MBEDTLS_ECP_DP_CURVE448_ENABLED
+ 238:Libs/mbedtls/library/ecdsa.c ****         case MBEDTLS_ECP_DP_CURVE448: return 0;
+ 239:Libs/mbedtls/library/ecdsa.c **** #endif
+ 240:Libs/mbedtls/library/ecdsa.c ****         default: return 1;
+ 241:Libs/mbedtls/library/ecdsa.c ****     }
+ 242:Libs/mbedtls/library/ecdsa.c **** }
+ 243:Libs/mbedtls/library/ecdsa.c **** 
+ 244:Libs/mbedtls/library/ecdsa.c **** #if !defined(MBEDTLS_ECDSA_SIGN_ALT)
+ 245:Libs/mbedtls/library/ecdsa.c **** /*
+ 246:Libs/mbedtls/library/ecdsa.c ****  * Compute ECDSA signature of a hashed message (SEC1 4.1.3)
+ 247:Libs/mbedtls/library/ecdsa.c ****  * Obviously, compared to SEC1 4.1.3, we skip step 4 (hash message)
+ 248:Libs/mbedtls/library/ecdsa.c ****  */
+ 249:Libs/mbedtls/library/ecdsa.c **** static int ecdsa_sign_restartable(mbedtls_ecp_group *grp,
+ 250:Libs/mbedtls/library/ecdsa.c ****                                   mbedtls_mpi *r, mbedtls_mpi *s,
+ 251:Libs/mbedtls/library/ecdsa.c ****                                   const mbedtls_mpi *d, const unsigned char *buf, size_t blen,
+ 252:Libs/mbedtls/library/ecdsa.c ****                                   int (*f_rng)(void *, unsigned char *, size_t), void *p_rng,
+ 253:Libs/mbedtls/library/ecdsa.c ****                                   int (*f_rng_blind)(void *, unsigned char *, size_t),
+ 254:Libs/mbedtls/library/ecdsa.c ****                                   void *p_rng_blind,
+ 255:Libs/mbedtls/library/ecdsa.c ****                                   mbedtls_ecdsa_restart_ctx *rs_ctx)
+ 256:Libs/mbedtls/library/ecdsa.c **** {
+ 257:Libs/mbedtls/library/ecdsa.c ****     int ret, key_tries, sign_tries;
+ 258:Libs/mbedtls/library/ecdsa.c ****     int *p_sign_tries = &sign_tries, *p_key_tries = &key_tries;
+ 259:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_point R;
+ 260:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi k, e, t;
+ 261:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi *pk = &k, *pr = r;
+ 262:Libs/mbedtls/library/ecdsa.c **** 
+ 263:Libs/mbedtls/library/ecdsa.c ****     /* Fail cleanly on curves such as Curve25519 that can't be used for ECDSA */
+ 264:Libs/mbedtls/library/ecdsa.c ****     if (!mbedtls_ecdsa_can_do(grp->id) || grp->N.p == NULL) {
+ 265:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 266:Libs/mbedtls/library/ecdsa.c ****     }
+ 267:Libs/mbedtls/library/ecdsa.c **** 
+ 268:Libs/mbedtls/library/ecdsa.c ****     /* Make sure d is in range 1..n-1 */
+ 269:Libs/mbedtls/library/ecdsa.c ****     if (mbedtls_mpi_cmp_int(d, 1) < 0 || mbedtls_mpi_cmp_mpi(d, &grp->N) >= 0) {
+ 270:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 271:Libs/mbedtls/library/ecdsa.c ****     }
+ 272:Libs/mbedtls/library/ecdsa.c **** 
+ 273:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_point_init(&R);
+ 274:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&k); mbedtls_mpi_init(&e); mbedtls_mpi_init(&t);
+ 275:Libs/mbedtls/library/ecdsa.c **** 
+ 276:Libs/mbedtls/library/ecdsa.c ****     ECDSA_RS_ENTER(sig);
+ 277:Libs/mbedtls/library/ecdsa.c **** 
+ 278:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 279:Libs/mbedtls/library/ecdsa.c ****     if (rs_ctx != NULL && rs_ctx->sig != NULL) {
+ 280:Libs/mbedtls/library/ecdsa.c ****         /* redirect to our context */
+ 281:Libs/mbedtls/library/ecdsa.c ****         p_sign_tries = &rs_ctx->sig->sign_tries;
+ 282:Libs/mbedtls/library/ecdsa.c ****         p_key_tries = &rs_ctx->sig->key_tries;
+ 283:Libs/mbedtls/library/ecdsa.c ****         pk = &rs_ctx->sig->k;
+ 284:Libs/mbedtls/library/ecdsa.c ****         pr = &rs_ctx->sig->r;
+ 285:Libs/mbedtls/library/ecdsa.c **** 
+ 286:Libs/mbedtls/library/ecdsa.c ****         /* jump to current step */
+ 287:Libs/mbedtls/library/ecdsa.c ****         if (rs_ctx->sig->state == ecdsa_sig_mul) {
+ 288:Libs/mbedtls/library/ecdsa.c ****             goto mul;
+ 289:Libs/mbedtls/library/ecdsa.c ****         }
+ 290:Libs/mbedtls/library/ecdsa.c ****         if (rs_ctx->sig->state == ecdsa_sig_modn) {
+ 291:Libs/mbedtls/library/ecdsa.c ****             goto modn;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 9
+
+
+ 292:Libs/mbedtls/library/ecdsa.c ****         }
+ 293:Libs/mbedtls/library/ecdsa.c ****     }
+ 294:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECP_RESTARTABLE */
+ 295:Libs/mbedtls/library/ecdsa.c **** 
+ 296:Libs/mbedtls/library/ecdsa.c ****     *p_sign_tries = 0;
+ 297:Libs/mbedtls/library/ecdsa.c ****     do {
+ 298:Libs/mbedtls/library/ecdsa.c ****         if ((*p_sign_tries)++ > 10) {
+ 299:Libs/mbedtls/library/ecdsa.c ****             ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+ 300:Libs/mbedtls/library/ecdsa.c ****             goto cleanup;
+ 301:Libs/mbedtls/library/ecdsa.c ****         }
+ 302:Libs/mbedtls/library/ecdsa.c **** 
+ 303:Libs/mbedtls/library/ecdsa.c ****         /*
+ 304:Libs/mbedtls/library/ecdsa.c ****          * Steps 1-3: generate a suitable ephemeral keypair
+ 305:Libs/mbedtls/library/ecdsa.c ****          * and set r = xR mod n
+ 306:Libs/mbedtls/library/ecdsa.c ****          */
+ 307:Libs/mbedtls/library/ecdsa.c ****         *p_key_tries = 0;
+ 308:Libs/mbedtls/library/ecdsa.c ****         do {
+ 309:Libs/mbedtls/library/ecdsa.c ****             if ((*p_key_tries)++ > 10) {
+ 310:Libs/mbedtls/library/ecdsa.c ****                 ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+ 311:Libs/mbedtls/library/ecdsa.c ****                 goto cleanup;
+ 312:Libs/mbedtls/library/ecdsa.c ****             }
+ 313:Libs/mbedtls/library/ecdsa.c **** 
+ 314:Libs/mbedtls/library/ecdsa.c ****             MBEDTLS_MPI_CHK(mbedtls_ecp_gen_privkey(grp, pk, f_rng, p_rng));
+ 315:Libs/mbedtls/library/ecdsa.c **** 
+ 316:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 317:Libs/mbedtls/library/ecdsa.c ****             if (rs_ctx != NULL && rs_ctx->sig != NULL) {
+ 318:Libs/mbedtls/library/ecdsa.c ****                 rs_ctx->sig->state = ecdsa_sig_mul;
+ 319:Libs/mbedtls/library/ecdsa.c ****             }
+ 320:Libs/mbedtls/library/ecdsa.c **** 
+ 321:Libs/mbedtls/library/ecdsa.c **** mul:
+ 322:Libs/mbedtls/library/ecdsa.c **** #endif
+ 323:Libs/mbedtls/library/ecdsa.c ****             MBEDTLS_MPI_CHK(mbedtls_ecp_mul_restartable(grp, &R, pk, &grp->G,
+ 324:Libs/mbedtls/library/ecdsa.c ****                                                         f_rng_blind,
+ 325:Libs/mbedtls/library/ecdsa.c ****                                                         p_rng_blind,
+ 326:Libs/mbedtls/library/ecdsa.c ****                                                         ECDSA_RS_ECP));
+ 327:Libs/mbedtls/library/ecdsa.c ****             MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pr, &R.X, &grp->N));
+ 328:Libs/mbedtls/library/ecdsa.c ****         } while (mbedtls_mpi_cmp_int(pr, 0) == 0);
+ 329:Libs/mbedtls/library/ecdsa.c **** 
+ 330:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 331:Libs/mbedtls/library/ecdsa.c ****         if (rs_ctx != NULL && rs_ctx->sig != NULL) {
+ 332:Libs/mbedtls/library/ecdsa.c ****             rs_ctx->sig->state = ecdsa_sig_modn;
+ 333:Libs/mbedtls/library/ecdsa.c ****         }
+ 334:Libs/mbedtls/library/ecdsa.c **** 
+ 335:Libs/mbedtls/library/ecdsa.c **** modn:
+ 336:Libs/mbedtls/library/ecdsa.c **** #endif
+ 337:Libs/mbedtls/library/ecdsa.c ****         /*
+ 338:Libs/mbedtls/library/ecdsa.c ****          * Accounting for everything up to the end of the loop
+ 339:Libs/mbedtls/library/ecdsa.c ****          * (step 6, but checking now avoids saving e and t)
+ 340:Libs/mbedtls/library/ecdsa.c ****          */
+ 341:Libs/mbedtls/library/ecdsa.c ****         ECDSA_BUDGET(MBEDTLS_ECP_OPS_INV + 4);
+ 342:Libs/mbedtls/library/ecdsa.c **** 
+ 343:Libs/mbedtls/library/ecdsa.c ****         /*
+ 344:Libs/mbedtls/library/ecdsa.c ****          * Step 5: derive MPI from hashed message
+ 345:Libs/mbedtls/library/ecdsa.c ****          */
+ 346:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(derive_mpi(grp, &e, buf, blen));
+ 347:Libs/mbedtls/library/ecdsa.c **** 
+ 348:Libs/mbedtls/library/ecdsa.c ****         /*
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 10
+
+
+ 349:Libs/mbedtls/library/ecdsa.c ****          * Generate a random value to blind inv_mod in next step,
+ 350:Libs/mbedtls/library/ecdsa.c ****          * avoiding a potential timing leak.
+ 351:Libs/mbedtls/library/ecdsa.c ****          */
+ 352:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_ecp_gen_privkey(grp, &t, f_rng_blind,
+ 353:Libs/mbedtls/library/ecdsa.c ****                                                 p_rng_blind));
+ 354:Libs/mbedtls/library/ecdsa.c **** 
+ 355:Libs/mbedtls/library/ecdsa.c ****         /*
+ 356:Libs/mbedtls/library/ecdsa.c ****          * Step 6: compute s = (e + r * d) / k = t (e + rd) / (kt) mod n
+ 357:Libs/mbedtls/library/ecdsa.c ****          */
+ 358:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(s, pr, d));
+ 359:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&e, &e, s));
+ 360:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&e, &e, &t));
+ 361:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(pk, pk, &t));
+ 362:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pk, pk, &grp->N));
+ 363:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(s, pk, &grp->N));
+ 364:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(s, s, &e));
+ 365:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(s, s, &grp->N));
+ 366:Libs/mbedtls/library/ecdsa.c ****     } while (mbedtls_mpi_cmp_int(s, 0) == 0);
+ 367:Libs/mbedtls/library/ecdsa.c **** 
+ 368:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 369:Libs/mbedtls/library/ecdsa.c ****     if (rs_ctx != NULL && rs_ctx->sig != NULL) {
+ 370:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_copy(r, pr));
+ 371:Libs/mbedtls/library/ecdsa.c ****     }
+ 372:Libs/mbedtls/library/ecdsa.c **** #endif
+ 373:Libs/mbedtls/library/ecdsa.c **** 
+ 374:Libs/mbedtls/library/ecdsa.c **** cleanup:
+ 375:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_point_free(&R);
+ 376:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&k); mbedtls_mpi_free(&e); mbedtls_mpi_free(&t);
+ 377:Libs/mbedtls/library/ecdsa.c **** 
+ 378:Libs/mbedtls/library/ecdsa.c ****     ECDSA_RS_LEAVE(sig);
+ 379:Libs/mbedtls/library/ecdsa.c **** 
+ 380:Libs/mbedtls/library/ecdsa.c ****     return ret;
+ 381:Libs/mbedtls/library/ecdsa.c **** }
+ 382:Libs/mbedtls/library/ecdsa.c **** 
+ 383:Libs/mbedtls/library/ecdsa.c **** /*
+ 384:Libs/mbedtls/library/ecdsa.c ****  * Compute ECDSA signature of a hashed message
+ 385:Libs/mbedtls/library/ecdsa.c ****  */
+ 386:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_sign(mbedtls_ecp_group *grp, mbedtls_mpi *r, mbedtls_mpi *s,
+ 387:Libs/mbedtls/library/ecdsa.c ****                        const mbedtls_mpi *d, const unsigned char *buf, size_t blen,
+ 388:Libs/mbedtls/library/ecdsa.c ****                        int (*f_rng)(void *, unsigned char *, size_t), void *p_rng)
+ 389:Libs/mbedtls/library/ecdsa.c **** {
+ 390:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(grp   != NULL);
+ 391:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(r     != NULL);
+ 392:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(s     != NULL);
+ 393:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(d     != NULL);
+ 394:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(f_rng != NULL);
+ 395:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(buf   != NULL || blen == 0);
+ 396:Libs/mbedtls/library/ecdsa.c **** 
+ 397:Libs/mbedtls/library/ecdsa.c ****     /* Use the same RNG for both blinding and ephemeral key generation */
+ 398:Libs/mbedtls/library/ecdsa.c ****     return ecdsa_sign_restartable(grp, r, s, d, buf, blen,
+ 399:Libs/mbedtls/library/ecdsa.c ****                                   f_rng, p_rng, f_rng, p_rng, NULL);
+ 400:Libs/mbedtls/library/ecdsa.c **** }
+ 401:Libs/mbedtls/library/ecdsa.c **** #endif /* !MBEDTLS_ECDSA_SIGN_ALT */
+ 402:Libs/mbedtls/library/ecdsa.c **** 
+ 403:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_DETERMINISTIC)
+ 404:Libs/mbedtls/library/ecdsa.c **** /*
+ 405:Libs/mbedtls/library/ecdsa.c ****  * Deterministic signature wrapper
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 11
+
+
+ 406:Libs/mbedtls/library/ecdsa.c ****  */
+ 407:Libs/mbedtls/library/ecdsa.c **** static int ecdsa_sign_det_restartable(mbedtls_ecp_group *grp,
+ 408:Libs/mbedtls/library/ecdsa.c ****                                       mbedtls_mpi *r, mbedtls_mpi *s,
+ 409:Libs/mbedtls/library/ecdsa.c ****                                       const mbedtls_mpi *d, const unsigned char *buf, size_t blen,
+ 410:Libs/mbedtls/library/ecdsa.c ****                                       mbedtls_md_type_t md_alg,
+ 411:Libs/mbedtls/library/ecdsa.c ****                                       int (*f_rng_blind)(void *, unsigned char *, size_t),
+ 412:Libs/mbedtls/library/ecdsa.c ****                                       void *p_rng_blind,
+ 413:Libs/mbedtls/library/ecdsa.c ****                                       mbedtls_ecdsa_restart_ctx *rs_ctx)
+ 414:Libs/mbedtls/library/ecdsa.c **** {
+ 415:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 416:Libs/mbedtls/library/ecdsa.c ****     mbedtls_hmac_drbg_context rng_ctx;
+ 417:Libs/mbedtls/library/ecdsa.c ****     mbedtls_hmac_drbg_context *p_rng = &rng_ctx;
+ 418:Libs/mbedtls/library/ecdsa.c ****     unsigned char data[2 * MBEDTLS_ECP_MAX_BYTES];
+ 419:Libs/mbedtls/library/ecdsa.c ****     size_t grp_len = (grp->nbits + 7) / 8;
+ 420:Libs/mbedtls/library/ecdsa.c ****     const mbedtls_md_info_t *md_info;
+ 421:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi h;
+ 422:Libs/mbedtls/library/ecdsa.c **** 
+ 423:Libs/mbedtls/library/ecdsa.c ****     if ((md_info = mbedtls_md_info_from_type(md_alg)) == NULL) {
+ 424:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 425:Libs/mbedtls/library/ecdsa.c ****     }
+ 426:Libs/mbedtls/library/ecdsa.c **** 
+ 427:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&h);
+ 428:Libs/mbedtls/library/ecdsa.c ****     mbedtls_hmac_drbg_init(&rng_ctx);
+ 429:Libs/mbedtls/library/ecdsa.c **** 
+ 430:Libs/mbedtls/library/ecdsa.c ****     ECDSA_RS_ENTER(det);
+ 431:Libs/mbedtls/library/ecdsa.c **** 
+ 432:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 433:Libs/mbedtls/library/ecdsa.c ****     if (rs_ctx != NULL && rs_ctx->det != NULL) {
+ 434:Libs/mbedtls/library/ecdsa.c ****         /* redirect to our context */
+ 435:Libs/mbedtls/library/ecdsa.c ****         p_rng = &rs_ctx->det->rng_ctx;
+ 436:Libs/mbedtls/library/ecdsa.c **** 
+ 437:Libs/mbedtls/library/ecdsa.c ****         /* jump to current step */
+ 438:Libs/mbedtls/library/ecdsa.c ****         if (rs_ctx->det->state == ecdsa_det_sign) {
+ 439:Libs/mbedtls/library/ecdsa.c ****             goto sign;
+ 440:Libs/mbedtls/library/ecdsa.c ****         }
+ 441:Libs/mbedtls/library/ecdsa.c ****     }
+ 442:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECP_RESTARTABLE */
+ 443:Libs/mbedtls/library/ecdsa.c **** 
+ 444:Libs/mbedtls/library/ecdsa.c ****     /* Use private key and message hash (reduced) to initialize HMAC_DRBG */
+ 445:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_write_binary(d, data, grp_len));
+ 446:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(derive_mpi(grp, &h, buf, blen));
+ 447:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_write_binary(&h, data + grp_len, grp_len));
+ 448:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_hmac_drbg_seed_buf(p_rng, md_info, data, 2 * grp_len));
+ 449:Libs/mbedtls/library/ecdsa.c **** 
+ 450:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 451:Libs/mbedtls/library/ecdsa.c ****     if (rs_ctx != NULL && rs_ctx->det != NULL) {
+ 452:Libs/mbedtls/library/ecdsa.c ****         rs_ctx->det->state = ecdsa_det_sign;
+ 453:Libs/mbedtls/library/ecdsa.c ****     }
+ 454:Libs/mbedtls/library/ecdsa.c **** 
+ 455:Libs/mbedtls/library/ecdsa.c **** sign:
+ 456:Libs/mbedtls/library/ecdsa.c **** #endif
+ 457:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_SIGN_ALT)
+ 458:Libs/mbedtls/library/ecdsa.c ****     (void) f_rng_blind;
+ 459:Libs/mbedtls/library/ecdsa.c ****     (void) p_rng_blind;
+ 460:Libs/mbedtls/library/ecdsa.c ****     ret = mbedtls_ecdsa_sign(grp, r, s, d, buf, blen,
+ 461:Libs/mbedtls/library/ecdsa.c ****                              mbedtls_hmac_drbg_random, p_rng);
+ 462:Libs/mbedtls/library/ecdsa.c **** #else
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 12
+
+
+ 463:Libs/mbedtls/library/ecdsa.c ****     if (f_rng_blind != NULL) {
+ 464:Libs/mbedtls/library/ecdsa.c ****         ret = ecdsa_sign_restartable(grp, r, s, d, buf, blen,
+ 465:Libs/mbedtls/library/ecdsa.c ****                                      mbedtls_hmac_drbg_random, p_rng,
+ 466:Libs/mbedtls/library/ecdsa.c ****                                      f_rng_blind, p_rng_blind, rs_ctx);
+ 467:Libs/mbedtls/library/ecdsa.c ****     } else {
+ 468:Libs/mbedtls/library/ecdsa.c ****         mbedtls_hmac_drbg_context *p_rng_blind_det;
+ 469:Libs/mbedtls/library/ecdsa.c **** 
+ 470:Libs/mbedtls/library/ecdsa.c **** #if !defined(MBEDTLS_ECP_RESTARTABLE)
+ 471:Libs/mbedtls/library/ecdsa.c ****         /*
+ 472:Libs/mbedtls/library/ecdsa.c ****          * To avoid reusing rng_ctx and risking incorrect behavior we seed a
+ 473:Libs/mbedtls/library/ecdsa.c ****          * second HMAC-DRBG with the same seed. We also apply a label to avoid
+ 474:Libs/mbedtls/library/ecdsa.c ****          * reusing the bits of the ephemeral key for blinding and eliminate the
+ 475:Libs/mbedtls/library/ecdsa.c ****          * risk that they leak this way.
+ 476:Libs/mbedtls/library/ecdsa.c ****          */
+ 477:Libs/mbedtls/library/ecdsa.c ****         const char *blind_label = "BLINDING CONTEXT";
+ 478:Libs/mbedtls/library/ecdsa.c ****         mbedtls_hmac_drbg_context rng_ctx_blind;
+ 479:Libs/mbedtls/library/ecdsa.c **** 
+ 480:Libs/mbedtls/library/ecdsa.c ****         mbedtls_hmac_drbg_init(&rng_ctx_blind);
+ 481:Libs/mbedtls/library/ecdsa.c ****         p_rng_blind_det = &rng_ctx_blind;
+ 482:Libs/mbedtls/library/ecdsa.c ****         mbedtls_hmac_drbg_seed_buf(p_rng_blind_det, md_info,
+ 483:Libs/mbedtls/library/ecdsa.c ****                                    data, 2 * grp_len);
+ 484:Libs/mbedtls/library/ecdsa.c ****         ret = mbedtls_hmac_drbg_update_ret(p_rng_blind_det,
+ 485:Libs/mbedtls/library/ecdsa.c ****                                            (const unsigned char *) blind_label,
+ 486:Libs/mbedtls/library/ecdsa.c ****                                            strlen(blind_label));
+ 487:Libs/mbedtls/library/ecdsa.c ****         if (ret != 0) {
+ 488:Libs/mbedtls/library/ecdsa.c ****             mbedtls_hmac_drbg_free(&rng_ctx_blind);
+ 489:Libs/mbedtls/library/ecdsa.c ****             goto cleanup;
+ 490:Libs/mbedtls/library/ecdsa.c ****         }
+ 491:Libs/mbedtls/library/ecdsa.c **** #else
+ 492:Libs/mbedtls/library/ecdsa.c ****         /*
+ 493:Libs/mbedtls/library/ecdsa.c ****          * In the case of restartable computations we would either need to store
+ 494:Libs/mbedtls/library/ecdsa.c ****          * the second RNG in the restart context too or set it up at every
+ 495:Libs/mbedtls/library/ecdsa.c ****          * restart. The first option would penalize the correct application of
+ 496:Libs/mbedtls/library/ecdsa.c ****          * the function and the second would defeat the purpose of the
+ 497:Libs/mbedtls/library/ecdsa.c ****          * restartable feature.
+ 498:Libs/mbedtls/library/ecdsa.c ****          *
+ 499:Libs/mbedtls/library/ecdsa.c ****          * Therefore in this case we reuse the original RNG. This comes with the
+ 500:Libs/mbedtls/library/ecdsa.c ****          * price that the resulting signature might not be a valid deterministic
+ 501:Libs/mbedtls/library/ecdsa.c ****          * ECDSA signature with a very low probability (same magnitude as
+ 502:Libs/mbedtls/library/ecdsa.c ****          * successfully guessing the private key). However even then it is still
+ 503:Libs/mbedtls/library/ecdsa.c ****          * a valid ECDSA signature.
+ 504:Libs/mbedtls/library/ecdsa.c ****          */
+ 505:Libs/mbedtls/library/ecdsa.c ****         p_rng_blind_det = p_rng;
+ 506:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECP_RESTARTABLE */
+ 507:Libs/mbedtls/library/ecdsa.c **** 
+ 508:Libs/mbedtls/library/ecdsa.c ****         /*
+ 509:Libs/mbedtls/library/ecdsa.c ****          * Since the output of the RNGs is always the same for the same key and
+ 510:Libs/mbedtls/library/ecdsa.c ****          * message, this limits the efficiency of blinding and leaks information
+ 511:Libs/mbedtls/library/ecdsa.c ****          * through side channels. After mbedtls_ecdsa_sign_det() is removed NULL
+ 512:Libs/mbedtls/library/ecdsa.c ****          * won't be a valid value for f_rng_blind anymore. Therefore it should
+ 513:Libs/mbedtls/library/ecdsa.c ****          * be checked by the caller and this branch and check can be removed.
+ 514:Libs/mbedtls/library/ecdsa.c ****          */
+ 515:Libs/mbedtls/library/ecdsa.c ****         ret = ecdsa_sign_restartable(grp, r, s, d, buf, blen,
+ 516:Libs/mbedtls/library/ecdsa.c ****                                      mbedtls_hmac_drbg_random, p_rng,
+ 517:Libs/mbedtls/library/ecdsa.c ****                                      mbedtls_hmac_drbg_random, p_rng_blind_det,
+ 518:Libs/mbedtls/library/ecdsa.c ****                                      rs_ctx);
+ 519:Libs/mbedtls/library/ecdsa.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 13
+
+
+ 520:Libs/mbedtls/library/ecdsa.c **** #if !defined(MBEDTLS_ECP_RESTARTABLE)
+ 521:Libs/mbedtls/library/ecdsa.c ****         mbedtls_hmac_drbg_free(&rng_ctx_blind);
+ 522:Libs/mbedtls/library/ecdsa.c **** #endif
+ 523:Libs/mbedtls/library/ecdsa.c ****     }
+ 524:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECDSA_SIGN_ALT */
+ 525:Libs/mbedtls/library/ecdsa.c **** 
+ 526:Libs/mbedtls/library/ecdsa.c **** cleanup:
+ 527:Libs/mbedtls/library/ecdsa.c ****     mbedtls_hmac_drbg_free(&rng_ctx);
+ 528:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&h);
+ 529:Libs/mbedtls/library/ecdsa.c **** 
+ 530:Libs/mbedtls/library/ecdsa.c ****     ECDSA_RS_LEAVE(det);
+ 531:Libs/mbedtls/library/ecdsa.c **** 
+ 532:Libs/mbedtls/library/ecdsa.c ****     return ret;
+ 533:Libs/mbedtls/library/ecdsa.c **** }
+ 534:Libs/mbedtls/library/ecdsa.c **** 
+ 535:Libs/mbedtls/library/ecdsa.c **** /*
+ 536:Libs/mbedtls/library/ecdsa.c ****  * Deterministic signature wrappers
+ 537:Libs/mbedtls/library/ecdsa.c ****  */
+ 538:Libs/mbedtls/library/ecdsa.c **** 
+ 539:Libs/mbedtls/library/ecdsa.c **** #if !defined(MBEDTLS_DEPRECATED_REMOVED)
+ 540:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_sign_det(mbedtls_ecp_group *grp, mbedtls_mpi *r,
+ 541:Libs/mbedtls/library/ecdsa.c ****                            mbedtls_mpi *s, const mbedtls_mpi *d,
+ 542:Libs/mbedtls/library/ecdsa.c ****                            const unsigned char *buf, size_t blen,
+ 543:Libs/mbedtls/library/ecdsa.c ****                            mbedtls_md_type_t md_alg)
+ 544:Libs/mbedtls/library/ecdsa.c **** {
+ 545:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(grp   != NULL);
+ 546:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(r     != NULL);
+ 547:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(s     != NULL);
+ 548:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(d     != NULL);
+ 549:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(buf   != NULL || blen == 0);
+ 550:Libs/mbedtls/library/ecdsa.c **** 
+ 551:Libs/mbedtls/library/ecdsa.c ****     return ecdsa_sign_det_restartable(grp, r, s, d, buf, blen, md_alg,
+ 552:Libs/mbedtls/library/ecdsa.c ****                                       NULL, NULL, NULL);
+ 553:Libs/mbedtls/library/ecdsa.c **** }
+ 554:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_DEPRECATED_REMOVED */
+ 555:Libs/mbedtls/library/ecdsa.c **** 
+ 556:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_sign_det_ext(mbedtls_ecp_group *grp, mbedtls_mpi *r,
+ 557:Libs/mbedtls/library/ecdsa.c ****                                mbedtls_mpi *s, const mbedtls_mpi *d,
+ 558:Libs/mbedtls/library/ecdsa.c ****                                const unsigned char *buf, size_t blen,
+ 559:Libs/mbedtls/library/ecdsa.c ****                                mbedtls_md_type_t md_alg,
+ 560:Libs/mbedtls/library/ecdsa.c ****                                int (*f_rng_blind)(void *, unsigned char *,
+ 561:Libs/mbedtls/library/ecdsa.c ****                                                   size_t),
+ 562:Libs/mbedtls/library/ecdsa.c ****                                void *p_rng_blind)
+ 563:Libs/mbedtls/library/ecdsa.c **** {
+ 564:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(grp   != NULL);
+ 565:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(r     != NULL);
+ 566:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(s     != NULL);
+ 567:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(d     != NULL);
+ 568:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(buf   != NULL || blen == 0);
+ 569:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(f_rng_blind != NULL);
+ 570:Libs/mbedtls/library/ecdsa.c **** 
+ 571:Libs/mbedtls/library/ecdsa.c ****     return ecdsa_sign_det_restartable(grp, r, s, d, buf, blen, md_alg,
+ 572:Libs/mbedtls/library/ecdsa.c ****                                       f_rng_blind, p_rng_blind, NULL);
+ 573:Libs/mbedtls/library/ecdsa.c **** }
+ 574:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECDSA_DETERMINISTIC */
+ 575:Libs/mbedtls/library/ecdsa.c **** 
+ 576:Libs/mbedtls/library/ecdsa.c **** #if !defined(MBEDTLS_ECDSA_VERIFY_ALT)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 14
+
+
+ 577:Libs/mbedtls/library/ecdsa.c **** /*
+ 578:Libs/mbedtls/library/ecdsa.c ****  * Verify ECDSA signature of hashed message (SEC1 4.1.4)
+ 579:Libs/mbedtls/library/ecdsa.c ****  * Obviously, compared to SEC1 4.1.3, we skip step 2 (hash message)
+ 580:Libs/mbedtls/library/ecdsa.c ****  */
+ 581:Libs/mbedtls/library/ecdsa.c **** static int ecdsa_verify_restartable(mbedtls_ecp_group *grp,
+ 155              		.loc 1 581 12 is_stmt 1 view -0
+ 156              		.cfi_startproc
+ 157              		@ args = 8, pretend = 0, frame = 88
+ 158              		@ frame_needed = 0, uses_anonymous_args = 0
+ 582:Libs/mbedtls/library/ecdsa.c ****                                     const unsigned char *buf, size_t blen,
+ 583:Libs/mbedtls/library/ecdsa.c ****                                     const mbedtls_ecp_point *Q,
+ 584:Libs/mbedtls/library/ecdsa.c ****                                     const mbedtls_mpi *r, const mbedtls_mpi *s,
+ 585:Libs/mbedtls/library/ecdsa.c ****                                     mbedtls_ecdsa_restart_ctx *rs_ctx)
+ 586:Libs/mbedtls/library/ecdsa.c **** {
+ 587:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 159              		.loc 1 587 5 view .LVU39
+ 588:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi e, s_inv, u1, u2;
+ 160              		.loc 1 588 5 view .LVU40
+ 589:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_point R;
+ 161              		.loc 1 589 5 view .LVU41
+ 590:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi *pu1 = &u1, *pu2 = &u2;
+ 162              		.loc 1 590 5 view .LVU42
+ 581:Libs/mbedtls/library/ecdsa.c ****                                     const unsigned char *buf, size_t blen,
+ 163              		.loc 1 581 12 is_stmt 0 view .LVU43
+ 164 0000 2DE9F047 		push	{r4, r5, r6, r7, r8, r9, r10, lr}
+ 165              	.LCFI3:
+ 166              		.cfi_def_cfa_offset 32
+ 167              		.cfi_offset 4, -32
+ 168              		.cfi_offset 5, -28
+ 169              		.cfi_offset 6, -24
+ 170              		.cfi_offset 7, -20
+ 171              		.cfi_offset 8, -16
+ 172              		.cfi_offset 9, -12
+ 173              		.cfi_offset 10, -8
+ 174              		.cfi_offset 14, -4
+ 175 0004 9AB0     		sub	sp, sp, #104
+ 176              	.LCFI4:
+ 177              		.cfi_def_cfa_offset 136
+ 178              	.LVL15:
+ 591:Libs/mbedtls/library/ecdsa.c **** 
+ 592:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_point_init(&R);
+ 179              		.loc 1 592 5 is_stmt 1 view .LVU44
+ 581:Libs/mbedtls/library/ecdsa.c ****                                     const unsigned char *buf, size_t blen,
+ 180              		.loc 1 581 12 is_stmt 0 view .LVU45
+ 181 0006 0546     		mov	r5, r0
+ 182 0008 9846     		mov	r8, r3
+ 183 000a 0C46     		mov	r4, r1
+ 184              		.loc 1 592 5 view .LVU46
+ 185 000c 11A8     		add	r0, sp, #68
+ 186              	.LVL16:
+ 581:Libs/mbedtls/library/ecdsa.c ****                                     const unsigned char *buf, size_t blen,
+ 187              		.loc 1 581 12 view .LVU47
+ 188 000e 9246     		mov	r10, r2
+ 189 0010 DDE92269 		ldrd	r6, r9, [sp, #136]
+ 190              		.loc 1 592 5 view .LVU48
+ 191 0014 FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 192              	.LVL17:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 15
+
+
+ 593:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&e); mbedtls_mpi_init(&s_inv);
+ 193              		.loc 1 593 5 is_stmt 1 view .LVU49
+ 194 0018 05A8     		add	r0, sp, #20
+ 195 001a FFF7FEFF 		bl	mbedtls_mpi_init
+ 196              	.LVL18:
+ 197              		.loc 1 593 27 discriminator 1 view .LVU50
+ 198 001e 08A8     		add	r0, sp, #32
+ 199 0020 FFF7FEFF 		bl	mbedtls_mpi_init
+ 200              	.LVL19:
+ 594:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&u1); mbedtls_mpi_init(&u2);
+ 201              		.loc 1 594 5 view .LVU51
+ 202 0024 0BA8     		add	r0, sp, #44
+ 203              	.LVL20:
+ 204              		.loc 1 594 5 is_stmt 0 view .LVU52
+ 205 0026 FFF7FEFF 		bl	mbedtls_mpi_init
+ 206              	.LVL21:
+ 207              		.loc 1 594 28 is_stmt 1 discriminator 1 view .LVU53
+ 208 002a 0EA8     		add	r0, sp, #56
+ 209              	.LVL22:
+ 210              		.loc 1 594 28 is_stmt 0 discriminator 1 view .LVU54
+ 211 002c FFF7FEFF 		bl	mbedtls_mpi_init
+ 212              	.LVL23:
+ 595:Libs/mbedtls/library/ecdsa.c **** 
+ 596:Libs/mbedtls/library/ecdsa.c ****     /* Fail cleanly on curves such as Curve25519 that can't be used for ECDSA */
+ 597:Libs/mbedtls/library/ecdsa.c ****     if (!mbedtls_ecdsa_can_do(grp->id) || grp->N.p == NULL) {
+ 213              		.loc 1 597 5 is_stmt 1 view .LVU55
+ 214              		.loc 1 597 40 is_stmt 0 discriminator 1 view .LVU56
+ 215 0030 6B6D     		ldr	r3, [r5, #84]
+ 216 0032 002B     		cmp	r3, #0
+ 217 0034 00F08480 		beq	.L12
+ 598:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 599:Libs/mbedtls/library/ecdsa.c ****     }
+ 600:Libs/mbedtls/library/ecdsa.c **** 
+ 601:Libs/mbedtls/library/ecdsa.c ****     ECDSA_RS_ENTER(ver);
+ 218              		.loc 1 601 5 is_stmt 1 view .LVU57
+ 602:Libs/mbedtls/library/ecdsa.c **** 
+ 603:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 604:Libs/mbedtls/library/ecdsa.c ****     if (rs_ctx != NULL && rs_ctx->ver != NULL) {
+ 605:Libs/mbedtls/library/ecdsa.c ****         /* redirect to our context */
+ 606:Libs/mbedtls/library/ecdsa.c ****         pu1 = &rs_ctx->ver->u1;
+ 607:Libs/mbedtls/library/ecdsa.c ****         pu2 = &rs_ctx->ver->u2;
+ 608:Libs/mbedtls/library/ecdsa.c **** 
+ 609:Libs/mbedtls/library/ecdsa.c ****         /* jump to current step */
+ 610:Libs/mbedtls/library/ecdsa.c ****         if (rs_ctx->ver->state == ecdsa_ver_muladd) {
+ 611:Libs/mbedtls/library/ecdsa.c ****             goto muladd;
+ 612:Libs/mbedtls/library/ecdsa.c ****         }
+ 613:Libs/mbedtls/library/ecdsa.c ****     }
+ 614:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECP_RESTARTABLE */
+ 615:Libs/mbedtls/library/ecdsa.c **** 
+ 616:Libs/mbedtls/library/ecdsa.c ****     /*
+ 617:Libs/mbedtls/library/ecdsa.c ****      * Step 1: make sure r and s are in range 1..n-1
+ 618:Libs/mbedtls/library/ecdsa.c ****      */
+ 619:Libs/mbedtls/library/ecdsa.c ****     if (mbedtls_mpi_cmp_int(r, 1) < 0 || mbedtls_mpi_cmp_mpi(r, &grp->N) >= 0 ||
+ 219              		.loc 1 619 5 view .LVU58
+ 220              		.loc 1 619 9 is_stmt 0 view .LVU59
+ 221 0038 0121     		movs	r1, #1
+ 222 003a 3046     		mov	r0, r6
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 16
+
+
+ 223 003c FFF7FEFF 		bl	mbedtls_mpi_cmp_int
+ 224              	.LVL24:
+ 225              		.loc 1 619 8 discriminator 1 view .LVU60
+ 226 0040 0028     		cmp	r0, #0
+ 227 0042 13DB     		blt	.L9
+ 228              		.loc 1 619 65 discriminator 1 view .LVU61
+ 229 0044 05F14C07 		add	r7, r5, #76
+ 230              		.loc 1 619 42 discriminator 1 view .LVU62
+ 231 0048 3046     		mov	r0, r6
+ 232 004a 3946     		mov	r1, r7
+ 233 004c FFF7FEFF 		bl	mbedtls_mpi_cmp_mpi
+ 234              	.LVL25:
+ 235              		.loc 1 619 39 discriminator 1 view .LVU63
+ 236 0050 0028     		cmp	r0, #0
+ 237 0052 0BDA     		bge	.L9
+ 620:Libs/mbedtls/library/ecdsa.c ****         mbedtls_mpi_cmp_int(s, 1) < 0 || mbedtls_mpi_cmp_mpi(s, &grp->N) >= 0) {
+ 238              		.loc 1 620 9 view .LVU64
+ 239 0054 0121     		movs	r1, #1
+ 240 0056 4846     		mov	r0, r9
+ 241 0058 FFF7FEFF 		bl	mbedtls_mpi_cmp_int
+ 242              	.LVL26:
+ 619:Libs/mbedtls/library/ecdsa.c ****         mbedtls_mpi_cmp_int(s, 1) < 0 || mbedtls_mpi_cmp_mpi(s, &grp->N) >= 0) {
+ 243              		.loc 1 619 79 discriminator 2 view .LVU65
+ 244 005c 0028     		cmp	r0, #0
+ 245 005e 05DB     		blt	.L9
+ 246              		.loc 1 620 42 view .LVU66
+ 247 0060 3946     		mov	r1, r7
+ 248 0062 4846     		mov	r0, r9
+ 249 0064 FFF7FEFF 		bl	mbedtls_mpi_cmp_mpi
+ 250              	.LVL27:
+ 251              		.loc 1 620 39 discriminator 1 view .LVU67
+ 252 0068 0028     		cmp	r0, #0
+ 253 006a 13DB     		blt	.L10
+ 254              	.LVL28:
+ 255              	.L9:
+ 621:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 256              		.loc 1 621 13 view .LVU68
+ 257 006c 354C     		ldr	r4, .L13
+ 258              	.L11:
+ 259              	.LVL29:
+ 622:Libs/mbedtls/library/ecdsa.c ****         goto cleanup;
+ 623:Libs/mbedtls/library/ecdsa.c ****     }
+ 624:Libs/mbedtls/library/ecdsa.c **** 
+ 625:Libs/mbedtls/library/ecdsa.c ****     /*
+ 626:Libs/mbedtls/library/ecdsa.c ****      * Step 3: derive MPI from hashed message
+ 627:Libs/mbedtls/library/ecdsa.c ****      */
+ 628:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(derive_mpi(grp, &e, buf, blen));
+ 629:Libs/mbedtls/library/ecdsa.c **** 
+ 630:Libs/mbedtls/library/ecdsa.c ****     /*
+ 631:Libs/mbedtls/library/ecdsa.c ****      * Step 4: u1 = e / s mod n, u2 = r / s mod n
+ 632:Libs/mbedtls/library/ecdsa.c ****      */
+ 633:Libs/mbedtls/library/ecdsa.c ****     ECDSA_BUDGET(MBEDTLS_ECP_OPS_CHK + MBEDTLS_ECP_OPS_INV + 2);
+ 634:Libs/mbedtls/library/ecdsa.c **** 
+ 635:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(&s_inv, s, &grp->N));
+ 636:Libs/mbedtls/library/ecdsa.c **** 
+ 637:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(pu1, &e, &s_inv));
+ 638:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu1, pu1, &grp->N));
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 17
+
+
+ 639:Libs/mbedtls/library/ecdsa.c **** 
+ 640:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(pu2, r, &s_inv));
+ 641:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu2, pu2, &grp->N));
+ 642:Libs/mbedtls/library/ecdsa.c **** 
+ 643:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 644:Libs/mbedtls/library/ecdsa.c ****     if (rs_ctx != NULL && rs_ctx->ver != NULL) {
+ 645:Libs/mbedtls/library/ecdsa.c ****         rs_ctx->ver->state = ecdsa_ver_muladd;
+ 646:Libs/mbedtls/library/ecdsa.c ****     }
+ 647:Libs/mbedtls/library/ecdsa.c **** 
+ 648:Libs/mbedtls/library/ecdsa.c **** muladd:
+ 649:Libs/mbedtls/library/ecdsa.c **** #endif
+ 650:Libs/mbedtls/library/ecdsa.c ****     /*
+ 651:Libs/mbedtls/library/ecdsa.c ****      * Step 5: R = u1 G + u2 Q
+ 652:Libs/mbedtls/library/ecdsa.c ****      */
+ 653:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_ecp_muladd_restartable(grp,
+ 654:Libs/mbedtls/library/ecdsa.c ****                                                    &R, pu1, &grp->G, pu2, Q, ECDSA_RS_ECP));
+ 655:Libs/mbedtls/library/ecdsa.c **** 
+ 656:Libs/mbedtls/library/ecdsa.c ****     if (mbedtls_ecp_is_zero(&R)) {
+ 657:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 658:Libs/mbedtls/library/ecdsa.c ****         goto cleanup;
+ 659:Libs/mbedtls/library/ecdsa.c ****     }
+ 660:Libs/mbedtls/library/ecdsa.c **** 
+ 661:Libs/mbedtls/library/ecdsa.c ****     /*
+ 662:Libs/mbedtls/library/ecdsa.c ****      * Step 6: convert xR to an integer (no-op)
+ 663:Libs/mbedtls/library/ecdsa.c ****      * Step 7: reduce xR mod n (gives v)
+ 664:Libs/mbedtls/library/ecdsa.c ****      */
+ 665:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(&R.X, &R.X, &grp->N));
+ 666:Libs/mbedtls/library/ecdsa.c **** 
+ 667:Libs/mbedtls/library/ecdsa.c ****     /*
+ 668:Libs/mbedtls/library/ecdsa.c ****      * Step 8: check if v (that is, R.X) is equal to r
+ 669:Libs/mbedtls/library/ecdsa.c ****      */
+ 670:Libs/mbedtls/library/ecdsa.c ****     if (mbedtls_mpi_cmp_mpi(&R.X, r) != 0) {
+ 671:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 672:Libs/mbedtls/library/ecdsa.c ****         goto cleanup;
+ 673:Libs/mbedtls/library/ecdsa.c ****     }
+ 674:Libs/mbedtls/library/ecdsa.c **** 
+ 675:Libs/mbedtls/library/ecdsa.c **** cleanup:
+ 676:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_point_free(&R);
+ 260              		.loc 1 676 5 is_stmt 1 view .LVU69
+ 261 006e 11A8     		add	r0, sp, #68
+ 262 0070 FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 263              	.LVL30:
+ 677:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&e); mbedtls_mpi_free(&s_inv);
+ 264              		.loc 1 677 5 view .LVU70
+ 265 0074 05A8     		add	r0, sp, #20
+ 266 0076 FFF7FEFF 		bl	mbedtls_mpi_free
+ 267              	.LVL31:
+ 268              		.loc 1 677 27 discriminator 1 view .LVU71
+ 269 007a 08A8     		add	r0, sp, #32
+ 270 007c FFF7FEFF 		bl	mbedtls_mpi_free
+ 271              	.LVL32:
+ 678:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&u1); mbedtls_mpi_free(&u2);
+ 272              		.loc 1 678 5 view .LVU72
+ 273 0080 0BA8     		add	r0, sp, #44
+ 274              	.LVL33:
+ 275              		.loc 1 678 5 is_stmt 0 view .LVU73
+ 276 0082 FFF7FEFF 		bl	mbedtls_mpi_free
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 18
+
+
+ 277              	.LVL34:
+ 278              		.loc 1 678 28 is_stmt 1 discriminator 1 view .LVU74
+ 279 0086 0EA8     		add	r0, sp, #56
+ 280              	.LVL35:
+ 281              		.loc 1 678 28 is_stmt 0 discriminator 1 view .LVU75
+ 282 0088 FFF7FEFF 		bl	mbedtls_mpi_free
+ 283              	.LVL36:
+ 679:Libs/mbedtls/library/ecdsa.c **** 
+ 680:Libs/mbedtls/library/ecdsa.c ****     ECDSA_RS_LEAVE(ver);
+ 284              		.loc 1 680 5 is_stmt 1 view .LVU76
+ 681:Libs/mbedtls/library/ecdsa.c **** 
+ 682:Libs/mbedtls/library/ecdsa.c ****     return ret;
+ 285              		.loc 1 682 5 view .LVU77
+ 286              	.L7:
+ 683:Libs/mbedtls/library/ecdsa.c **** }
+ 287              		.loc 1 683 1 is_stmt 0 view .LVU78
+ 288 008c 2046     		mov	r0, r4
+ 289 008e 1AB0     		add	sp, sp, #104
+ 290              	.LCFI5:
+ 291              		.cfi_remember_state
+ 292              		.cfi_def_cfa_offset 32
+ 293              		@ sp needed
+ 294 0090 BDE8F087 		pop	{r4, r5, r6, r7, r8, r9, r10, pc}
+ 295              	.LVL37:
+ 296              	.L10:
+ 297              	.LCFI6:
+ 298              		.cfi_restore_state
+ 628:Libs/mbedtls/library/ecdsa.c **** 
+ 299              		.loc 1 628 5 is_stmt 1 view .LVU79
+ 628:Libs/mbedtls/library/ecdsa.c **** 
+ 300              		.loc 1 628 5 view .LVU80
+ 301 0094 2246     		mov	r2, r4
+ 302 0096 5346     		mov	r3, r10
+ 303 0098 05A9     		add	r1, sp, #20
+ 304 009a 2846     		mov	r0, r5
+ 305 009c FFF7FEFF 		bl	derive_mpi
+ 306              	.LVL38:
+ 628:Libs/mbedtls/library/ecdsa.c **** 
+ 307              		.loc 1 628 5 is_stmt 0 discriminator 1 view .LVU81
+ 308 00a0 0446     		mov	r4, r0
+ 309              	.LVL39:
+ 628:Libs/mbedtls/library/ecdsa.c **** 
+ 310              		.loc 1 628 5 discriminator 1 view .LVU82
+ 311 00a2 0028     		cmp	r0, #0
+ 312 00a4 E3D1     		bne	.L11
+ 628:Libs/mbedtls/library/ecdsa.c **** 
+ 313              		.loc 1 628 5 is_stmt 1 discriminator 2 view .LVU83
+ 633:Libs/mbedtls/library/ecdsa.c **** 
+ 314              		.loc 1 633 64 view .LVU84
+ 635:Libs/mbedtls/library/ecdsa.c **** 
+ 315              		.loc 1 635 5 view .LVU85
+ 635:Libs/mbedtls/library/ecdsa.c **** 
+ 316              		.loc 1 635 5 view .LVU86
+ 317 00a6 3A46     		mov	r2, r7
+ 318 00a8 4946     		mov	r1, r9
+ 319 00aa 08A8     		add	r0, sp, #32
+ 320              	.LVL40:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 19
+
+
+ 635:Libs/mbedtls/library/ecdsa.c **** 
+ 321              		.loc 1 635 5 is_stmt 0 view .LVU87
+ 322 00ac FFF7FEFF 		bl	mbedtls_mpi_inv_mod
+ 323              	.LVL41:
+ 635:Libs/mbedtls/library/ecdsa.c **** 
+ 324              		.loc 1 635 5 discriminator 1 view .LVU88
+ 325 00b0 0446     		mov	r4, r0
+ 326 00b2 0028     		cmp	r0, #0
+ 327 00b4 DBD1     		bne	.L11
+ 635:Libs/mbedtls/library/ecdsa.c **** 
+ 328              		.loc 1 635 5 is_stmt 1 discriminator 2 view .LVU89
+ 637:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu1, pu1, &grp->N));
+ 329              		.loc 1 637 5 view .LVU90
+ 637:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu1, pu1, &grp->N));
+ 330              		.loc 1 637 5 view .LVU91
+ 331 00b6 08AA     		add	r2, sp, #32
+ 332 00b8 05A9     		add	r1, sp, #20
+ 333 00ba 0BA8     		add	r0, sp, #44
+ 334              	.LVL42:
+ 637:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu1, pu1, &grp->N));
+ 335              		.loc 1 637 5 is_stmt 0 view .LVU92
+ 336 00bc FFF7FEFF 		bl	mbedtls_mpi_mul_mpi
+ 337              	.LVL43:
+ 637:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu1, pu1, &grp->N));
+ 338              		.loc 1 637 5 discriminator 1 view .LVU93
+ 339 00c0 0446     		mov	r4, r0
+ 340 00c2 0028     		cmp	r0, #0
+ 341 00c4 D3D1     		bne	.L11
+ 637:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu1, pu1, &grp->N));
+ 342              		.loc 1 637 5 is_stmt 1 discriminator 2 view .LVU94
+ 638:Libs/mbedtls/library/ecdsa.c **** 
+ 343              		.loc 1 638 5 view .LVU95
+ 638:Libs/mbedtls/library/ecdsa.c **** 
+ 344              		.loc 1 638 5 view .LVU96
+ 345 00c6 0BA9     		add	r1, sp, #44
+ 346              	.LVL44:
+ 638:Libs/mbedtls/library/ecdsa.c **** 
+ 347              		.loc 1 638 5 is_stmt 0 view .LVU97
+ 348 00c8 3A46     		mov	r2, r7
+ 349 00ca 0846     		mov	r0, r1
+ 350              	.LVL45:
+ 638:Libs/mbedtls/library/ecdsa.c **** 
+ 351              		.loc 1 638 5 view .LVU98
+ 352 00cc FFF7FEFF 		bl	mbedtls_mpi_mod_mpi
+ 353              	.LVL46:
+ 638:Libs/mbedtls/library/ecdsa.c **** 
+ 354              		.loc 1 638 5 discriminator 1 view .LVU99
+ 355 00d0 0446     		mov	r4, r0
+ 356 00d2 0028     		cmp	r0, #0
+ 357 00d4 CBD1     		bne	.L11
+ 638:Libs/mbedtls/library/ecdsa.c **** 
+ 358              		.loc 1 638 5 is_stmt 1 discriminator 2 view .LVU100
+ 640:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu2, pu2, &grp->N));
+ 359              		.loc 1 640 5 view .LVU101
+ 640:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu2, pu2, &grp->N));
+ 360              		.loc 1 640 5 view .LVU102
+ 361 00d6 08AA     		add	r2, sp, #32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 20
+
+
+ 362 00d8 3146     		mov	r1, r6
+ 363 00da 0EA8     		add	r0, sp, #56
+ 364              	.LVL47:
+ 640:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu2, pu2, &grp->N));
+ 365              		.loc 1 640 5 is_stmt 0 view .LVU103
+ 366 00dc FFF7FEFF 		bl	mbedtls_mpi_mul_mpi
+ 367              	.LVL48:
+ 640:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu2, pu2, &grp->N));
+ 368              		.loc 1 640 5 discriminator 1 view .LVU104
+ 369 00e0 0446     		mov	r4, r0
+ 370 00e2 0028     		cmp	r0, #0
+ 371 00e4 C3D1     		bne	.L11
+ 640:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pu2, pu2, &grp->N));
+ 372              		.loc 1 640 5 is_stmt 1 discriminator 2 view .LVU105
+ 641:Libs/mbedtls/library/ecdsa.c **** 
+ 373              		.loc 1 641 5 view .LVU106
+ 641:Libs/mbedtls/library/ecdsa.c **** 
+ 374              		.loc 1 641 5 view .LVU107
+ 375 00e6 0DF13809 		add	r9, sp, #56
+ 376              	.LVL49:
+ 641:Libs/mbedtls/library/ecdsa.c **** 
+ 377              		.loc 1 641 5 is_stmt 0 view .LVU108
+ 378 00ea 3A46     		mov	r2, r7
+ 379 00ec 4946     		mov	r1, r9
+ 380 00ee 4846     		mov	r0, r9
+ 381              	.LVL50:
+ 641:Libs/mbedtls/library/ecdsa.c **** 
+ 382              		.loc 1 641 5 view .LVU109
+ 383 00f0 FFF7FEFF 		bl	mbedtls_mpi_mod_mpi
+ 384              	.LVL51:
+ 641:Libs/mbedtls/library/ecdsa.c **** 
+ 385              		.loc 1 641 5 discriminator 1 view .LVU110
+ 386 00f4 0446     		mov	r4, r0
+ 387 00f6 0028     		cmp	r0, #0
+ 388 00f8 B9D1     		bne	.L11
+ 641:Libs/mbedtls/library/ecdsa.c **** 
+ 389              		.loc 1 641 5 is_stmt 1 discriminator 2 view .LVU111
+ 653:Libs/mbedtls/library/ecdsa.c ****                                                    &R, pu1, &grp->G, pu2, Q, ECDSA_RS_ECP));
+ 390              		.loc 1 653 5 view .LVU112
+ 653:Libs/mbedtls/library/ecdsa.c ****                                                    &R, pu1, &grp->G, pu2, Q, ECDSA_RS_ECP));
+ 391              		.loc 1 653 5 view .LVU113
+ 392 00fa 05F12803 		add	r3, r5, #40
+ 393 00fe 0BAA     		add	r2, sp, #44
+ 394              	.LVL52:
+ 653:Libs/mbedtls/library/ecdsa.c ****                                                    &R, pu1, &grp->G, pu2, Q, ECDSA_RS_ECP));
+ 395              		.loc 1 653 5 is_stmt 0 view .LVU114
+ 396 0100 11A9     		add	r1, sp, #68
+ 397 0102 CDF80090 		str	r9, [sp]
+ 398 0106 CDE90180 		strd	r8, r0, [sp, #4]
+ 399 010a 2846     		mov	r0, r5
+ 400              	.LVL53:
+ 653:Libs/mbedtls/library/ecdsa.c ****                                                    &R, pu1, &grp->G, pu2, Q, ECDSA_RS_ECP));
+ 401              		.loc 1 653 5 view .LVU115
+ 402 010c FFF7FEFF 		bl	mbedtls_ecp_muladd_restartable
+ 403              	.LVL54:
+ 653:Libs/mbedtls/library/ecdsa.c ****                                                    &R, pu1, &grp->G, pu2, Q, ECDSA_RS_ECP));
+ 404              		.loc 1 653 5 discriminator 1 view .LVU116
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 21
+
+
+ 405 0110 0446     		mov	r4, r0
+ 406 0112 0028     		cmp	r0, #0
+ 407 0114 ABD1     		bne	.L11
+ 653:Libs/mbedtls/library/ecdsa.c ****                                                    &R, pu1, &grp->G, pu2, Q, ECDSA_RS_ECP));
+ 408              		.loc 1 653 5 is_stmt 1 discriminator 2 view .LVU117
+ 656:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 409              		.loc 1 656 5 view .LVU118
+ 656:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 410              		.loc 1 656 9 is_stmt 0 view .LVU119
+ 411 0116 11A8     		add	r0, sp, #68
+ 412              	.LVL55:
+ 656:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 413              		.loc 1 656 9 view .LVU120
+ 414 0118 FFF7FEFF 		bl	mbedtls_ecp_is_zero
+ 415              	.LVL56:
+ 656:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 416              		.loc 1 656 8 discriminator 1 view .LVU121
+ 417 011c 0028     		cmp	r0, #0
+ 418 011e A5D1     		bne	.L9
+ 665:Libs/mbedtls/library/ecdsa.c **** 
+ 419              		.loc 1 665 5 is_stmt 1 view .LVU122
+ 665:Libs/mbedtls/library/ecdsa.c **** 
+ 420              		.loc 1 665 5 view .LVU123
+ 421 0120 11A9     		add	r1, sp, #68
+ 422 0122 3A46     		mov	r2, r7
+ 423 0124 0846     		mov	r0, r1
+ 424 0126 FFF7FEFF 		bl	mbedtls_mpi_mod_mpi
+ 425              	.LVL57:
+ 665:Libs/mbedtls/library/ecdsa.c **** 
+ 426              		.loc 1 665 5 is_stmt 0 discriminator 1 view .LVU124
+ 427 012a 0446     		mov	r4, r0
+ 428 012c 0028     		cmp	r0, #0
+ 429 012e 9ED1     		bne	.L11
+ 665:Libs/mbedtls/library/ecdsa.c **** 
+ 430              		.loc 1 665 5 is_stmt 1 discriminator 2 view .LVU125
+ 670:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 431              		.loc 1 670 5 view .LVU126
+ 670:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 432              		.loc 1 670 9 is_stmt 0 view .LVU127
+ 433 0130 3146     		mov	r1, r6
+ 434 0132 11A8     		add	r0, sp, #68
+ 435              	.LVL58:
+ 670:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 436              		.loc 1 670 9 view .LVU128
+ 437 0134 FFF7FEFF 		bl	mbedtls_mpi_cmp_mpi
+ 438              	.LVL59:
+ 670:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 439              		.loc 1 670 8 discriminator 1 view .LVU129
+ 440 0138 0446     		mov	r4, r0
+ 441              	.LVL60:
+ 670:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+ 442              		.loc 1 670 8 discriminator 1 view .LVU130
+ 443 013a 0028     		cmp	r0, #0
+ 444 013c 97D0     		beq	.L11
+ 445 013e 95E7     		b	.L9
+ 446              	.LVL61:
+ 447              	.L12:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 22
+
+
+ 598:Libs/mbedtls/library/ecdsa.c ****     }
+ 448              		.loc 1 598 16 view .LVU131
+ 449 0140 014C     		ldr	r4, .L13+4
+ 450              	.LVL62:
+ 598:Libs/mbedtls/library/ecdsa.c ****     }
+ 451              		.loc 1 598 16 view .LVU132
+ 452 0142 A3E7     		b	.L7
+ 453              	.L14:
+ 454              		.align	2
+ 455              	.L13:
+ 456 0144 00B2FFFF 		.word	-19968
+ 457 0148 80B0FFFF 		.word	-20352
+ 458              		.cfi_endproc
+ 459              	.LFE22:
+ 461              		.section	.text.ecdsa_sign_restartable.isra.0,"ax",%progbits
+ 462              		.align	1
+ 463              		.syntax unified
+ 464              		.thumb
+ 465              		.thumb_func
+ 467              	ecdsa_sign_restartable.isra.0:
+ 468              	.LVL63:
+ 469              	.LFB23:
+ 249:Libs/mbedtls/library/ecdsa.c ****                                   mbedtls_mpi *r, mbedtls_mpi *s,
+ 470              		.loc 1 249 12 is_stmt 1 view -0
+ 471              		.cfi_startproc
+ 472              		@ args = 24, pretend = 0, frame = 80
+ 473              		@ frame_needed = 0, uses_anonymous_args = 0
+ 257:Libs/mbedtls/library/ecdsa.c ****     int *p_sign_tries = &sign_tries, *p_key_tries = &key_tries;
+ 474              		.loc 1 257 5 view .LVU134
+ 258:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_point R;
+ 475              		.loc 1 258 5 view .LVU135
+ 259:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi k, e, t;
+ 476              		.loc 1 259 5 view .LVU136
+ 260:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi *pk = &k, *pr = r;
+ 477              		.loc 1 260 5 view .LVU137
+ 261:Libs/mbedtls/library/ecdsa.c **** 
+ 478              		.loc 1 261 5 view .LVU138
+ 249:Libs/mbedtls/library/ecdsa.c ****                                   mbedtls_mpi *r, mbedtls_mpi *s,
+ 479              		.loc 1 249 12 is_stmt 0 view .LVU139
+ 480 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 481              	.LCFI7:
+ 482              		.cfi_def_cfa_offset 36
+ 483              		.cfi_offset 4, -36
+ 484              		.cfi_offset 5, -32
+ 485              		.cfi_offset 6, -28
+ 486              		.cfi_offset 7, -24
+ 487              		.cfi_offset 8, -20
+ 488              		.cfi_offset 9, -16
+ 489              		.cfi_offset 10, -12
+ 490              		.cfi_offset 11, -8
+ 491              		.cfi_offset 14, -4
+ 492 0004 9846     		mov	r8, r3
+ 264:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 493              		.loc 1 264 40 discriminator 1 view .LVU140
+ 494 0006 436D     		ldr	r3, [r0, #84]
+ 495              	.LVL64:
+ 249:Libs/mbedtls/library/ecdsa.c ****                                   mbedtls_mpi *r, mbedtls_mpi *s,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 23
+
+
+ 496              		.loc 1 249 12 view .LVU141
+ 497 0008 99B0     		sub	sp, sp, #100
+ 498              	.LCFI8:
+ 499              		.cfi_def_cfa_offset 136
+ 500              	.LVL65:
+ 249:Libs/mbedtls/library/ecdsa.c ****                                   mbedtls_mpi *r, mbedtls_mpi *s,
+ 501              		.loc 1 249 12 view .LVU142
+ 502 000a 0546     		mov	r5, r0
+ 503 000c 0F46     		mov	r7, r1
+ 504              	.LVL66:
+ 264:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 505              		.loc 1 264 5 is_stmt 1 view .LVU143
+ 249:Libs/mbedtls/library/ecdsa.c ****                                   mbedtls_mpi *r, mbedtls_mpi *s,
+ 506              		.loc 1 249 12 is_stmt 0 view .LVU144
+ 507 000e 1446     		mov	r4, r2
+ 264:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 508              		.loc 1 264 40 discriminator 1 view .LVU145
+ 509 0010 002B     		cmp	r3, #0
+ 510 0012 00F0B580 		beq	.L23
+ 269:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 511              		.loc 1 269 5 is_stmt 1 view .LVU146
+ 269:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 512              		.loc 1 269 9 is_stmt 0 view .LVU147
+ 513 0016 0121     		movs	r1, #1
+ 514              	.LVL67:
+ 269:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 515              		.loc 1 269 9 view .LVU148
+ 516 0018 4046     		mov	r0, r8
+ 517              	.LVL68:
+ 269:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 518              		.loc 1 269 9 view .LVU149
+ 519 001a FFF7FEFF 		bl	mbedtls_mpi_cmp_int
+ 520              	.LVL69:
+ 269:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 521              		.loc 1 269 8 discriminator 1 view .LVU150
+ 522 001e 0028     		cmp	r0, #0
+ 523 0020 04DA     		bge	.L17
+ 524              	.L18:
+ 270:Libs/mbedtls/library/ecdsa.c ****     }
+ 525              		.loc 1 270 16 view .LVU151
+ 526 0022 5849     		ldr	r1, .L34
+ 527              	.L15:
+ 381:Libs/mbedtls/library/ecdsa.c **** 
+ 528              		.loc 1 381 1 view .LVU152
+ 529 0024 0846     		mov	r0, r1
+ 530 0026 19B0     		add	sp, sp, #100
+ 531              	.LCFI9:
+ 532              		.cfi_remember_state
+ 533              		.cfi_def_cfa_offset 36
+ 534              		@ sp needed
+ 535 0028 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 536              	.LVL70:
+ 537              	.L17:
+ 538              	.LCFI10:
+ 539              		.cfi_restore_state
+ 269:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 540              		.loc 1 269 65 discriminator 1 view .LVU153
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 24
+
+
+ 541 002c 05F14C06 		add	r6, r5, #76
+ 269:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 542              		.loc 1 269 42 discriminator 1 view .LVU154
+ 543 0030 4046     		mov	r0, r8
+ 544 0032 3146     		mov	r1, r6
+ 545 0034 FFF7FEFF 		bl	mbedtls_mpi_cmp_mpi
+ 546              	.LVL71:
+ 269:Libs/mbedtls/library/ecdsa.c ****         return MBEDTLS_ERR_ECP_INVALID_KEY;
+ 547              		.loc 1 269 39 discriminator 1 view .LVU155
+ 548 0038 0028     		cmp	r0, #0
+ 549 003a F2DA     		bge	.L18
+ 273:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&k); mbedtls_mpi_init(&e); mbedtls_mpi_init(&t);
+ 550              		.loc 1 273 5 is_stmt 1 view .LVU156
+ 551 003c 0FA8     		add	r0, sp, #60
+ 274:Libs/mbedtls/library/ecdsa.c **** 
+ 552              		.loc 1 274 49 is_stmt 0 discriminator 2 view .LVU157
+ 553 003e 4FF00C09 		mov	r9, #12
+ 273:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&k); mbedtls_mpi_init(&e); mbedtls_mpi_init(&t);
+ 554              		.loc 1 273 5 view .LVU158
+ 555 0042 FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 556              	.LVL72:
+ 274:Libs/mbedtls/library/ecdsa.c **** 
+ 557              		.loc 1 274 5 is_stmt 1 view .LVU159
+ 558 0046 06A8     		add	r0, sp, #24
+ 559              	.LVL73:
+ 274:Libs/mbedtls/library/ecdsa.c **** 
+ 560              		.loc 1 274 5 is_stmt 0 view .LVU160
+ 561 0048 FFF7FEFF 		bl	mbedtls_mpi_init
+ 562              	.LVL74:
+ 274:Libs/mbedtls/library/ecdsa.c **** 
+ 563              		.loc 1 274 27 is_stmt 1 discriminator 1 view .LVU161
+ 323:Libs/mbedtls/library/ecdsa.c ****                                                         f_rng_blind,
+ 564              		.loc 1 323 13 is_stmt 0 view .LVU162
+ 565 004c 05F1280B 		add	fp, r5, #40
+ 274:Libs/mbedtls/library/ecdsa.c **** 
+ 566              		.loc 1 274 27 discriminator 1 view .LVU163
+ 567 0050 09A8     		add	r0, sp, #36
+ 568 0052 FFF7FEFF 		bl	mbedtls_mpi_init
+ 569              	.LVL75:
+ 274:Libs/mbedtls/library/ecdsa.c **** 
+ 570              		.loc 1 274 49 is_stmt 1 discriminator 2 view .LVU164
+ 571 0056 0CA8     		add	r0, sp, #48
+ 572 0058 FFF7FEFF 		bl	mbedtls_mpi_init
+ 573              	.LVL76:
+ 276:Libs/mbedtls/library/ecdsa.c **** 
+ 574              		.loc 1 276 5 view .LVU165
+ 296:Libs/mbedtls/library/ecdsa.c ****     do {
+ 575              		.loc 1 296 5 view .LVU166
+ 576              	.L22:
+ 297:Libs/mbedtls/library/ecdsa.c ****         if ((*p_sign_tries)++ > 10) {
+ 577              		.loc 1 297 5 view .LVU167
+ 298:Libs/mbedtls/library/ecdsa.c ****             ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+ 578              		.loc 1 298 9 view .LVU168
+ 298:Libs/mbedtls/library/ecdsa.c ****             ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+ 579              		.loc 1 298 12 is_stmt 0 view .LVU169
+ 580 005c B9F10109 		subs	r9, r9, #1
+ 581              	.LVL77:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 25
+
+
+ 298:Libs/mbedtls/library/ecdsa.c ****             ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+ 582              		.loc 1 298 12 view .LVU170
+ 583 0060 00F08C80 		beq	.L19
+ 584 0064 4FF00C0A 		mov	r10, #12
+ 585              	.L21:
+ 586              	.LVL78:
+ 308:Libs/mbedtls/library/ecdsa.c ****             if ((*p_key_tries)++ > 10) {
+ 587              		.loc 1 308 9 is_stmt 1 view .LVU171
+ 309:Libs/mbedtls/library/ecdsa.c ****                 ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+ 588              		.loc 1 309 13 view .LVU172
+ 309:Libs/mbedtls/library/ecdsa.c ****                 ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+ 589              		.loc 1 309 16 is_stmt 0 view .LVU173
+ 590 0068 BAF1010A 		subs	r10, r10, #1
+ 591              	.LVL79:
+ 309:Libs/mbedtls/library/ecdsa.c ****                 ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+ 592              		.loc 1 309 16 view .LVU174
+ 593 006c 00F08680 		beq	.L19
+ 594              	.LVL80:
+ 314:Libs/mbedtls/library/ecdsa.c **** 
+ 595              		.loc 1 314 13 is_stmt 1 view .LVU175
+ 314:Libs/mbedtls/library/ecdsa.c **** 
+ 596              		.loc 1 314 13 view .LVU176
+ 597 0070 06A9     		add	r1, sp, #24
+ 598              	.LVL81:
+ 314:Libs/mbedtls/library/ecdsa.c **** 
+ 599              		.loc 1 314 13 is_stmt 0 view .LVU177
+ 600 0072 2846     		mov	r0, r5
+ 601 0074 DDE92423 		ldrd	r2, r3, [sp, #144]
+ 602 0078 FFF7FEFF 		bl	mbedtls_ecp_gen_privkey
+ 603              	.LVL82:
+ 314:Libs/mbedtls/library/ecdsa.c **** 
+ 604              		.loc 1 314 13 discriminator 1 view .LVU178
+ 605 007c 0146     		mov	r1, r0
+ 606 007e 0028     		cmp	r0, #0
+ 607 0080 6DD1     		bne	.L20
+ 314:Libs/mbedtls/library/ecdsa.c **** 
+ 608              		.loc 1 314 13 is_stmt 1 discriminator 2 view .LVU179
+ 323:Libs/mbedtls/library/ecdsa.c ****                                                         f_rng_blind,
+ 609              		.loc 1 323 13 view .LVU180
+ 323:Libs/mbedtls/library/ecdsa.c ****                                                         f_rng_blind,
+ 610              		.loc 1 323 13 view .LVU181
+ 611 0082 279B     		ldr	r3, [sp, #156]
+ 612 0084 0FA9     		add	r1, sp, #60
+ 613 0086 0290     		str	r0, [sp, #8]
+ 614 0088 06AA     		add	r2, sp, #24
+ 615              	.LVL83:
+ 323:Libs/mbedtls/library/ecdsa.c ****                                                         f_rng_blind,
+ 616              		.loc 1 323 13 is_stmt 0 view .LVU182
+ 617 008a 0193     		str	r3, [sp, #4]
+ 618 008c 2846     		mov	r0, r5
+ 619              	.LVL84:
+ 323:Libs/mbedtls/library/ecdsa.c ****                                                         f_rng_blind,
+ 620              		.loc 1 323 13 view .LVU183
+ 621 008e 269B     		ldr	r3, [sp, #152]
+ 622 0090 0093     		str	r3, [sp]
+ 623 0092 5B46     		mov	r3, fp
+ 624 0094 FFF7FEFF 		bl	mbedtls_ecp_mul_restartable
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 26
+
+
+ 625              	.LVL85:
+ 323:Libs/mbedtls/library/ecdsa.c ****                                                         f_rng_blind,
+ 626              		.loc 1 323 13 discriminator 1 view .LVU184
+ 627 0098 0146     		mov	r1, r0
+ 628 009a 0028     		cmp	r0, #0
+ 629 009c 5FD1     		bne	.L20
+ 323:Libs/mbedtls/library/ecdsa.c ****                                                         f_rng_blind,
+ 630              		.loc 1 323 13 is_stmt 1 discriminator 2 view .LVU185
+ 327:Libs/mbedtls/library/ecdsa.c ****         } while (mbedtls_mpi_cmp_int(pr, 0) == 0);
+ 631              		.loc 1 327 13 view .LVU186
+ 327:Libs/mbedtls/library/ecdsa.c ****         } while (mbedtls_mpi_cmp_int(pr, 0) == 0);
+ 632              		.loc 1 327 13 view .LVU187
+ 633 009e 0FA9     		add	r1, sp, #60
+ 634 00a0 3246     		mov	r2, r6
+ 635 00a2 3846     		mov	r0, r7
+ 636              	.LVL86:
+ 327:Libs/mbedtls/library/ecdsa.c ****         } while (mbedtls_mpi_cmp_int(pr, 0) == 0);
+ 637              		.loc 1 327 13 is_stmt 0 view .LVU188
+ 638 00a4 FFF7FEFF 		bl	mbedtls_mpi_mod_mpi
+ 639              	.LVL87:
+ 327:Libs/mbedtls/library/ecdsa.c ****         } while (mbedtls_mpi_cmp_int(pr, 0) == 0);
+ 640              		.loc 1 327 13 discriminator 1 view .LVU189
+ 641 00a8 0146     		mov	r1, r0
+ 642 00aa 0028     		cmp	r0, #0
+ 643 00ac 57D1     		bne	.L20
+ 327:Libs/mbedtls/library/ecdsa.c ****         } while (mbedtls_mpi_cmp_int(pr, 0) == 0);
+ 644              		.loc 1 327 13 is_stmt 1 discriminator 2 view .LVU190
+ 328:Libs/mbedtls/library/ecdsa.c **** 
+ 645              		.loc 1 328 45 view .LVU191
+ 328:Libs/mbedtls/library/ecdsa.c **** 
+ 646              		.loc 1 328 18 is_stmt 0 view .LVU192
+ 647 00ae 3846     		mov	r0, r7
+ 648              	.LVL88:
+ 328:Libs/mbedtls/library/ecdsa.c **** 
+ 649              		.loc 1 328 18 view .LVU193
+ 650 00b0 FFF7FEFF 		bl	mbedtls_mpi_cmp_int
+ 651              	.LVL89:
+ 328:Libs/mbedtls/library/ecdsa.c **** 
+ 652              		.loc 1 328 45 discriminator 1 view .LVU194
+ 653 00b4 0028     		cmp	r0, #0
+ 654 00b6 D7D0     		beq	.L21
+ 341:Libs/mbedtls/library/ecdsa.c **** 
+ 655              		.loc 1 341 46 is_stmt 1 view .LVU195
+ 346:Libs/mbedtls/library/ecdsa.c **** 
+ 656              		.loc 1 346 9 view .LVU196
+ 346:Libs/mbedtls/library/ecdsa.c **** 
+ 657              		.loc 1 346 9 view .LVU197
+ 658 00b8 09A9     		add	r1, sp, #36
+ 659 00ba 2846     		mov	r0, r5
+ 660 00bc DDE92223 		ldrd	r2, r3, [sp, #136]
+ 661 00c0 FFF7FEFF 		bl	derive_mpi
+ 662              	.LVL90:
+ 346:Libs/mbedtls/library/ecdsa.c **** 
+ 663              		.loc 1 346 9 is_stmt 0 discriminator 1 view .LVU198
+ 664 00c4 0146     		mov	r1, r0
+ 665 00c6 0028     		cmp	r0, #0
+ 666 00c8 49D1     		bne	.L20
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 27
+
+
+ 346:Libs/mbedtls/library/ecdsa.c **** 
+ 667              		.loc 1 346 9 is_stmt 1 discriminator 2 view .LVU199
+ 352:Libs/mbedtls/library/ecdsa.c ****                                                 p_rng_blind));
+ 668              		.loc 1 352 9 view .LVU200
+ 352:Libs/mbedtls/library/ecdsa.c ****                                                 p_rng_blind));
+ 669              		.loc 1 352 9 view .LVU201
+ 670 00ca 0CA9     		add	r1, sp, #48
+ 671 00cc 2846     		mov	r0, r5
+ 672              	.LVL91:
+ 352:Libs/mbedtls/library/ecdsa.c ****                                                 p_rng_blind));
+ 673              		.loc 1 352 9 is_stmt 0 view .LVU202
+ 674 00ce DDE92623 		ldrd	r2, r3, [sp, #152]
+ 675 00d2 FFF7FEFF 		bl	mbedtls_ecp_gen_privkey
+ 676              	.LVL92:
+ 352:Libs/mbedtls/library/ecdsa.c ****                                                 p_rng_blind));
+ 677              		.loc 1 352 9 discriminator 1 view .LVU203
+ 678 00d6 0146     		mov	r1, r0
+ 679 00d8 0028     		cmp	r0, #0
+ 680 00da 40D1     		bne	.L20
+ 352:Libs/mbedtls/library/ecdsa.c ****                                                 p_rng_blind));
+ 681              		.loc 1 352 9 is_stmt 1 discriminator 2 view .LVU204
+ 358:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&e, &e, s));
+ 682              		.loc 1 358 9 view .LVU205
+ 358:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&e, &e, s));
+ 683              		.loc 1 358 9 view .LVU206
+ 684 00dc 3946     		mov	r1, r7
+ 685 00de 4246     		mov	r2, r8
+ 686 00e0 2046     		mov	r0, r4
+ 687              	.LVL93:
+ 358:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&e, &e, s));
+ 688              		.loc 1 358 9 is_stmt 0 view .LVU207
+ 689 00e2 FFF7FEFF 		bl	mbedtls_mpi_mul_mpi
+ 690              	.LVL94:
+ 358:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&e, &e, s));
+ 691              		.loc 1 358 9 discriminator 1 view .LVU208
+ 692 00e6 0146     		mov	r1, r0
+ 693 00e8 0028     		cmp	r0, #0
+ 694 00ea 38D1     		bne	.L20
+ 358:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&e, &e, s));
+ 695              		.loc 1 358 9 is_stmt 1 discriminator 2 view .LVU209
+ 359:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&e, &e, &t));
+ 696              		.loc 1 359 9 view .LVU210
+ 359:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&e, &e, &t));
+ 697              		.loc 1 359 9 view .LVU211
+ 698 00ec 09A9     		add	r1, sp, #36
+ 699 00ee 2246     		mov	r2, r4
+ 700 00f0 0846     		mov	r0, r1
+ 701              	.LVL95:
+ 359:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&e, &e, &t));
+ 702              		.loc 1 359 9 is_stmt 0 view .LVU212
+ 703 00f2 FFF7FEFF 		bl	mbedtls_mpi_add_mpi
+ 704              	.LVL96:
+ 359:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&e, &e, &t));
+ 705              		.loc 1 359 9 discriminator 1 view .LVU213
+ 706 00f6 0146     		mov	r1, r0
+ 707 00f8 88BB     		cbnz	r0, .L20
+ 359:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&e, &e, &t));
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 28
+
+
+ 708              		.loc 1 359 9 is_stmt 1 discriminator 2 view .LVU214
+ 360:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(pk, pk, &t));
+ 709              		.loc 1 360 9 view .LVU215
+ 360:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(pk, pk, &t));
+ 710              		.loc 1 360 9 view .LVU216
+ 711 00fa 09A9     		add	r1, sp, #36
+ 712 00fc 0CAA     		add	r2, sp, #48
+ 713 00fe 0846     		mov	r0, r1
+ 714              	.LVL97:
+ 360:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(pk, pk, &t));
+ 715              		.loc 1 360 9 is_stmt 0 view .LVU217
+ 716 0100 FFF7FEFF 		bl	mbedtls_mpi_mul_mpi
+ 717              	.LVL98:
+ 360:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(pk, pk, &t));
+ 718              		.loc 1 360 9 discriminator 1 view .LVU218
+ 719 0104 0146     		mov	r1, r0
+ 720 0106 50BB     		cbnz	r0, .L20
+ 360:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(pk, pk, &t));
+ 721              		.loc 1 360 9 is_stmt 1 discriminator 2 view .LVU219
+ 361:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pk, pk, &grp->N));
+ 722              		.loc 1 361 9 view .LVU220
+ 361:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pk, pk, &grp->N));
+ 723              		.loc 1 361 9 view .LVU221
+ 724 0108 06A9     		add	r1, sp, #24
+ 725              	.LVL99:
+ 361:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pk, pk, &grp->N));
+ 726              		.loc 1 361 9 is_stmt 0 view .LVU222
+ 727 010a 0CAA     		add	r2, sp, #48
+ 728 010c 0846     		mov	r0, r1
+ 729              	.LVL100:
+ 361:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pk, pk, &grp->N));
+ 730              		.loc 1 361 9 view .LVU223
+ 731 010e FFF7FEFF 		bl	mbedtls_mpi_mul_mpi
+ 732              	.LVL101:
+ 361:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pk, pk, &grp->N));
+ 733              		.loc 1 361 9 discriminator 1 view .LVU224
+ 734 0112 0146     		mov	r1, r0
+ 735 0114 18BB     		cbnz	r0, .L20
+ 361:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(pk, pk, &grp->N));
+ 736              		.loc 1 361 9 is_stmt 1 discriminator 2 view .LVU225
+ 362:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(s, pk, &grp->N));
+ 737              		.loc 1 362 9 view .LVU226
+ 362:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(s, pk, &grp->N));
+ 738              		.loc 1 362 9 view .LVU227
+ 739 0116 06A9     		add	r1, sp, #24
+ 740              	.LVL102:
+ 362:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(s, pk, &grp->N));
+ 741              		.loc 1 362 9 is_stmt 0 view .LVU228
+ 742 0118 3246     		mov	r2, r6
+ 743 011a 0846     		mov	r0, r1
+ 744              	.LVL103:
+ 362:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(s, pk, &grp->N));
+ 745              		.loc 1 362 9 view .LVU229
+ 746 011c FFF7FEFF 		bl	mbedtls_mpi_mod_mpi
+ 747              	.LVL104:
+ 362:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(s, pk, &grp->N));
+ 748              		.loc 1 362 9 discriminator 1 view .LVU230
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 29
+
+
+ 749 0120 0146     		mov	r1, r0
+ 750 0122 E0B9     		cbnz	r0, .L20
+ 362:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(s, pk, &grp->N));
+ 751              		.loc 1 362 9 is_stmt 1 discriminator 2 view .LVU231
+ 363:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(s, s, &e));
+ 752              		.loc 1 363 9 view .LVU232
+ 363:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(s, s, &e));
+ 753              		.loc 1 363 9 view .LVU233
+ 754 0124 06A9     		add	r1, sp, #24
+ 755              	.LVL105:
+ 363:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(s, s, &e));
+ 756              		.loc 1 363 9 is_stmt 0 view .LVU234
+ 757 0126 3246     		mov	r2, r6
+ 758 0128 2046     		mov	r0, r4
+ 759              	.LVL106:
+ 363:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(s, s, &e));
+ 760              		.loc 1 363 9 view .LVU235
+ 761 012a FFF7FEFF 		bl	mbedtls_mpi_inv_mod
+ 762              	.LVL107:
+ 363:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(s, s, &e));
+ 763              		.loc 1 363 9 discriminator 1 view .LVU236
+ 764 012e 0146     		mov	r1, r0
+ 765 0130 A8B9     		cbnz	r0, .L20
+ 363:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(s, s, &e));
+ 766              		.loc 1 363 9 is_stmt 1 discriminator 2 view .LVU237
+ 364:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(s, s, &grp->N));
+ 767              		.loc 1 364 9 view .LVU238
+ 364:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(s, s, &grp->N));
+ 768              		.loc 1 364 9 view .LVU239
+ 769 0132 2146     		mov	r1, r4
+ 770 0134 09AA     		add	r2, sp, #36
+ 771 0136 2046     		mov	r0, r4
+ 772              	.LVL108:
+ 364:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(s, s, &grp->N));
+ 773              		.loc 1 364 9 is_stmt 0 view .LVU240
+ 774 0138 FFF7FEFF 		bl	mbedtls_mpi_mul_mpi
+ 775              	.LVL109:
+ 364:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(s, s, &grp->N));
+ 776              		.loc 1 364 9 discriminator 1 view .LVU241
+ 777 013c 0146     		mov	r1, r0
+ 778 013e 70B9     		cbnz	r0, .L20
+ 364:Libs/mbedtls/library/ecdsa.c ****         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(s, s, &grp->N));
+ 779              		.loc 1 364 9 is_stmt 1 discriminator 2 view .LVU242
+ 365:Libs/mbedtls/library/ecdsa.c ****     } while (mbedtls_mpi_cmp_int(s, 0) == 0);
+ 780              		.loc 1 365 9 view .LVU243
+ 365:Libs/mbedtls/library/ecdsa.c ****     } while (mbedtls_mpi_cmp_int(s, 0) == 0);
+ 781              		.loc 1 365 9 view .LVU244
+ 782 0140 2146     		mov	r1, r4
+ 783 0142 3246     		mov	r2, r6
+ 784 0144 2046     		mov	r0, r4
+ 785              	.LVL110:
+ 365:Libs/mbedtls/library/ecdsa.c ****     } while (mbedtls_mpi_cmp_int(s, 0) == 0);
+ 786              		.loc 1 365 9 is_stmt 0 view .LVU245
+ 787 0146 FFF7FEFF 		bl	mbedtls_mpi_mod_mpi
+ 788              	.LVL111:
+ 365:Libs/mbedtls/library/ecdsa.c ****     } while (mbedtls_mpi_cmp_int(s, 0) == 0);
+ 789              		.loc 1 365 9 discriminator 1 view .LVU246
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 30
+
+
+ 790 014a 0146     		mov	r1, r0
+ 791 014c 38B9     		cbnz	r0, .L20
+ 365:Libs/mbedtls/library/ecdsa.c ****     } while (mbedtls_mpi_cmp_int(s, 0) == 0);
+ 792              		.loc 1 365 9 is_stmt 1 discriminator 2 view .LVU247
+ 366:Libs/mbedtls/library/ecdsa.c **** 
+ 793              		.loc 1 366 40 view .LVU248
+ 366:Libs/mbedtls/library/ecdsa.c **** 
+ 794              		.loc 1 366 14 is_stmt 0 view .LVU249
+ 795 014e 0590     		str	r0, [sp, #20]
+ 796 0150 2046     		mov	r0, r4
+ 797              	.LVL112:
+ 366:Libs/mbedtls/library/ecdsa.c **** 
+ 798              		.loc 1 366 14 view .LVU250
+ 799 0152 FFF7FEFF 		bl	mbedtls_mpi_cmp_int
+ 800              	.LVL113:
+ 366:Libs/mbedtls/library/ecdsa.c **** 
+ 801              		.loc 1 366 40 discriminator 1 view .LVU251
+ 802 0156 0599     		ldr	r1, [sp, #20]
+ 803 0158 0028     		cmp	r0, #0
+ 804 015a 3FF47FAF 		beq	.L22
+ 805              	.LVL114:
+ 806              	.L20:
+ 375:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&k); mbedtls_mpi_free(&e); mbedtls_mpi_free(&t);
+ 807              		.loc 1 375 5 view .LVU252
+ 808 015e 0FA8     		add	r0, sp, #60
+ 809 0160 0591     		str	r1, [sp, #20]
+ 810              	.LVL115:
+ 375:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&k); mbedtls_mpi_free(&e); mbedtls_mpi_free(&t);
+ 811              		.loc 1 375 5 is_stmt 1 view .LVU253
+ 812 0162 FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 813              	.LVL116:
+ 376:Libs/mbedtls/library/ecdsa.c **** 
+ 814              		.loc 1 376 5 view .LVU254
+ 815 0166 06A8     		add	r0, sp, #24
+ 816              	.LVL117:
+ 376:Libs/mbedtls/library/ecdsa.c **** 
+ 817              		.loc 1 376 5 is_stmt 0 view .LVU255
+ 818 0168 FFF7FEFF 		bl	mbedtls_mpi_free
+ 819              	.LVL118:
+ 376:Libs/mbedtls/library/ecdsa.c **** 
+ 820              		.loc 1 376 27 is_stmt 1 discriminator 1 view .LVU256
+ 821 016c 09A8     		add	r0, sp, #36
+ 822 016e FFF7FEFF 		bl	mbedtls_mpi_free
+ 823              	.LVL119:
+ 376:Libs/mbedtls/library/ecdsa.c **** 
+ 824              		.loc 1 376 49 discriminator 2 view .LVU257
+ 825 0172 0CA8     		add	r0, sp, #48
+ 826 0174 FFF7FEFF 		bl	mbedtls_mpi_free
+ 827              	.LVL120:
+ 378:Libs/mbedtls/library/ecdsa.c **** 
+ 828              		.loc 1 378 5 view .LVU258
+ 380:Libs/mbedtls/library/ecdsa.c **** }
+ 829              		.loc 1 380 5 view .LVU259
+ 380:Libs/mbedtls/library/ecdsa.c **** }
+ 830              		.loc 1 380 12 is_stmt 0 view .LVU260
+ 831 0178 0599     		ldr	r1, [sp, #20]
+ 832 017a 53E7     		b	.L15
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 31
+
+
+ 833              	.LVL121:
+ 834              	.L19:
+ 299:Libs/mbedtls/library/ecdsa.c ****             goto cleanup;
+ 835              		.loc 1 299 17 view .LVU261
+ 836 017c 0249     		ldr	r1, .L34+4
+ 837 017e EEE7     		b	.L20
+ 838              	.LVL122:
+ 839              	.L23:
+ 265:Libs/mbedtls/library/ecdsa.c ****     }
+ 840              		.loc 1 265 16 view .LVU262
+ 841 0180 0249     		ldr	r1, .L34+8
+ 842              	.LVL123:
+ 265:Libs/mbedtls/library/ecdsa.c ****     }
+ 843              		.loc 1 265 16 view .LVU263
+ 844 0182 4FE7     		b	.L15
+ 845              	.L35:
+ 846              		.align	2
+ 847              	.L34:
+ 848 0184 80B3FFFF 		.word	-19584
+ 849 0188 00B3FFFF 		.word	-19712
+ 850 018c 80B0FFFF 		.word	-20352
+ 851              		.cfi_endproc
+ 852              	.LFE23:
+ 854              		.section	.text.mbedtls_ecdsa_can_do,"ax",%progbits
+ 855              		.align	1
+ 856              		.global	mbedtls_ecdsa_can_do
+ 857              		.syntax unified
+ 858              		.thumb
+ 859              		.thumb_func
+ 861              	mbedtls_ecdsa_can_do:
+ 862              	.LVL124:
+ 863              	.LFB8:
+ 232:Libs/mbedtls/library/ecdsa.c ****     switch (gid) {
+ 864              		.loc 1 232 1 is_stmt 1 view -0
+ 865              		.cfi_startproc
+ 866              		@ args = 0, pretend = 0, frame = 0
+ 867              		@ frame_needed = 0, uses_anonymous_args = 0
+ 868              		@ link register save eliminated.
+ 233:Libs/mbedtls/library/ecdsa.c **** #ifdef MBEDTLS_ECP_DP_CURVE25519_ENABLED
+ 869              		.loc 1 233 5 view .LVU265
+ 240:Libs/mbedtls/library/ecdsa.c ****     }
+ 870              		.loc 1 240 18 view .LVU266
+ 242:Libs/mbedtls/library/ecdsa.c **** 
+ 871              		.loc 1 242 1 is_stmt 0 view .LVU267
+ 872 0000 0120     		movs	r0, #1
+ 873              	.LVL125:
+ 242:Libs/mbedtls/library/ecdsa.c **** 
+ 874              		.loc 1 242 1 view .LVU268
+ 875 0002 7047     		bx	lr
+ 876              		.cfi_endproc
+ 877              	.LFE8:
+ 879              		.section	.text.mbedtls_ecdsa_sign,"ax",%progbits
+ 880              		.align	1
+ 881              		.global	mbedtls_ecdsa_sign
+ 882              		.syntax unified
+ 883              		.thumb
+ 884              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 32
+
+
+ 886              	mbedtls_ecdsa_sign:
+ 887              	.LVL126:
+ 888              	.LFB10:
+ 389:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(grp   != NULL);
+ 889              		.loc 1 389 1 is_stmt 1 view -0
+ 890              		.cfi_startproc
+ 891              		@ args = 16, pretend = 0, frame = 0
+ 892              		@ frame_needed = 0, uses_anonymous_args = 0
+ 390:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(r     != NULL);
+ 893              		.loc 1 390 5 view .LVU270
+ 390:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(r     != NULL);
+ 894              		.loc 1 390 5 view .LVU271
+ 390:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(r     != NULL);
+ 895              		.loc 1 390 5 view .LVU272
+ 391:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(s     != NULL);
+ 896              		.loc 1 391 5 view .LVU273
+ 391:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(s     != NULL);
+ 897              		.loc 1 391 5 view .LVU274
+ 391:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(s     != NULL);
+ 898              		.loc 1 391 5 view .LVU275
+ 392:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(d     != NULL);
+ 899              		.loc 1 392 5 view .LVU276
+ 392:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(d     != NULL);
+ 900              		.loc 1 392 5 view .LVU277
+ 392:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(d     != NULL);
+ 901              		.loc 1 392 5 view .LVU278
+ 393:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(f_rng != NULL);
+ 902              		.loc 1 393 5 view .LVU279
+ 393:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(f_rng != NULL);
+ 903              		.loc 1 393 5 view .LVU280
+ 393:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(f_rng != NULL);
+ 904              		.loc 1 393 5 view .LVU281
+ 394:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(buf   != NULL || blen == 0);
+ 905              		.loc 1 394 5 view .LVU282
+ 394:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(buf   != NULL || blen == 0);
+ 906              		.loc 1 394 5 view .LVU283
+ 394:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(buf   != NULL || blen == 0);
+ 907              		.loc 1 394 5 view .LVU284
+ 395:Libs/mbedtls/library/ecdsa.c **** 
+ 908              		.loc 1 395 5 view .LVU285
+ 395:Libs/mbedtls/library/ecdsa.c **** 
+ 909              		.loc 1 395 5 view .LVU286
+ 395:Libs/mbedtls/library/ecdsa.c **** 
+ 910              		.loc 1 395 5 view .LVU287
+ 398:Libs/mbedtls/library/ecdsa.c ****                                   f_rng, p_rng, f_rng, p_rng, NULL);
+ 911              		.loc 1 398 5 view .LVU288
+ 389:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(grp   != NULL);
+ 912              		.loc 1 389 1 is_stmt 0 view .LVU289
+ 913 0000 30B5     		push	{r4, r5, lr}
+ 914              	.LCFI11:
+ 915              		.cfi_def_cfa_offset 12
+ 916              		.cfi_offset 4, -12
+ 917              		.cfi_offset 5, -8
+ 918              		.cfi_offset 14, -4
+ 919 0002 87B0     		sub	sp, sp, #28
+ 920              	.LCFI12:
+ 921              		.cfi_def_cfa_offset 40
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 33
+
+
+ 389:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(grp   != NULL);
+ 922              		.loc 1 389 1 view .LVU290
+ 923 0004 DDE90C45 		ldrd	r4, r5, [sp, #48]
+ 398:Libs/mbedtls/library/ecdsa.c ****                                   f_rng, p_rng, f_rng, p_rng, NULL);
+ 924              		.loc 1 398 12 view .LVU291
+ 925 0008 CDE90445 		strd	r4, r5, [sp, #16]
+ 926 000c CDE90245 		strd	r4, r5, [sp, #8]
+ 927 0010 0B9C     		ldr	r4, [sp, #44]
+ 928 0012 0194     		str	r4, [sp, #4]
+ 929 0014 0A9C     		ldr	r4, [sp, #40]
+ 930 0016 0094     		str	r4, [sp]
+ 931 0018 FFF7FEFF 		bl	ecdsa_sign_restartable.isra.0
+ 932              	.LVL127:
+ 400:Libs/mbedtls/library/ecdsa.c **** #endif /* !MBEDTLS_ECDSA_SIGN_ALT */
+ 933              		.loc 1 400 1 view .LVU292
+ 934 001c 07B0     		add	sp, sp, #28
+ 935              	.LCFI13:
+ 936              		.cfi_def_cfa_offset 12
+ 937              		@ sp needed
+ 938 001e 30BD     		pop	{r4, r5, pc}
+ 400:Libs/mbedtls/library/ecdsa.c **** #endif /* !MBEDTLS_ECDSA_SIGN_ALT */
+ 939              		.loc 1 400 1 view .LVU293
+ 940              		.cfi_endproc
+ 941              	.LFE10:
+ 943              		.section	.text.mbedtls_ecdsa_verify,"ax",%progbits
+ 944              		.align	1
+ 945              		.global	mbedtls_ecdsa_verify
+ 946              		.syntax unified
+ 947              		.thumb
+ 948              		.thumb_func
+ 950              	mbedtls_ecdsa_verify:
+ 951              	.LVL128:
+ 952              	.LFB12:
+ 684:Libs/mbedtls/library/ecdsa.c **** 
+ 685:Libs/mbedtls/library/ecdsa.c **** /*
+ 686:Libs/mbedtls/library/ecdsa.c ****  * Verify ECDSA signature of hashed message
+ 687:Libs/mbedtls/library/ecdsa.c ****  */
+ 688:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_verify(mbedtls_ecp_group *grp,
+ 689:Libs/mbedtls/library/ecdsa.c ****                          const unsigned char *buf, size_t blen,
+ 690:Libs/mbedtls/library/ecdsa.c ****                          const mbedtls_ecp_point *Q,
+ 691:Libs/mbedtls/library/ecdsa.c ****                          const mbedtls_mpi *r,
+ 692:Libs/mbedtls/library/ecdsa.c ****                          const mbedtls_mpi *s)
+ 693:Libs/mbedtls/library/ecdsa.c **** {
+ 953              		.loc 1 693 1 is_stmt 1 view -0
+ 954              		.cfi_startproc
+ 955              		@ args = 8, pretend = 0, frame = 0
+ 956              		@ frame_needed = 0, uses_anonymous_args = 0
+ 957              		@ link register save eliminated.
+ 694:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(grp != NULL);
+ 958              		.loc 1 694 5 view .LVU295
+ 959              		.loc 1 694 5 view .LVU296
+ 960              		.loc 1 694 5 view .LVU297
+ 695:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(Q   != NULL);
+ 961              		.loc 1 695 5 view .LVU298
+ 962              		.loc 1 695 5 view .LVU299
+ 963              		.loc 1 695 5 view .LVU300
+ 696:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(r   != NULL);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 34
+
+
+ 964              		.loc 1 696 5 view .LVU301
+ 965              		.loc 1 696 5 view .LVU302
+ 966              		.loc 1 696 5 view .LVU303
+ 697:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(s   != NULL);
+ 967              		.loc 1 697 5 view .LVU304
+ 968              		.loc 1 697 5 view .LVU305
+ 969              		.loc 1 697 5 view .LVU306
+ 698:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(buf != NULL || blen == 0);
+ 970              		.loc 1 698 5 view .LVU307
+ 971              		.loc 1 698 5 view .LVU308
+ 972              		.loc 1 698 5 view .LVU309
+ 699:Libs/mbedtls/library/ecdsa.c **** 
+ 700:Libs/mbedtls/library/ecdsa.c ****     return ecdsa_verify_restartable(grp, buf, blen, Q, r, s, NULL);
+ 973              		.loc 1 700 5 view .LVU310
+ 974              		.loc 1 700 12 is_stmt 0 view .LVU311
+ 975 0000 FFF7FEBF 		b	ecdsa_verify_restartable.isra.0
+ 976              	.LVL129:
+ 977              		.loc 1 700 12 view .LVU312
+ 978              		.cfi_endproc
+ 979              	.LFE12:
+ 981              		.section	.text.mbedtls_ecdsa_write_signature_restartable,"ax",%progbits
+ 982              		.align	1
+ 983              		.global	mbedtls_ecdsa_write_signature_restartable
+ 984              		.syntax unified
+ 985              		.thumb
+ 986              		.thumb_func
+ 988              	mbedtls_ecdsa_write_signature_restartable:
+ 989              	.LVL130:
+ 990              	.LFB14:
+ 701:Libs/mbedtls/library/ecdsa.c **** }
+ 702:Libs/mbedtls/library/ecdsa.c **** #endif /* !MBEDTLS_ECDSA_VERIFY_ALT */
+ 703:Libs/mbedtls/library/ecdsa.c **** 
+ 704:Libs/mbedtls/library/ecdsa.c **** /*
+ 705:Libs/mbedtls/library/ecdsa.c ****  * Convert a signature (given by context) to ASN.1
+ 706:Libs/mbedtls/library/ecdsa.c ****  */
+ 707:Libs/mbedtls/library/ecdsa.c **** static int ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbedtls_mpi *s,
+ 708:Libs/mbedtls/library/ecdsa.c ****                                    unsigned char *sig, size_t *slen)
+ 709:Libs/mbedtls/library/ecdsa.c **** {
+ 710:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 711:Libs/mbedtls/library/ecdsa.c ****     unsigned char buf[MBEDTLS_ECDSA_MAX_LEN] = { 0 };
+ 712:Libs/mbedtls/library/ecdsa.c ****     unsigned char *p = buf + sizeof(buf);
+ 713:Libs/mbedtls/library/ecdsa.c ****     size_t len = 0;
+ 714:Libs/mbedtls/library/ecdsa.c **** 
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, s));
+ 716:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 717:Libs/mbedtls/library/ecdsa.c **** 
+ 718:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, buf, len));
+ 719:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf,
+ 720:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 721:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_SEQUENCE));
+ 722:Libs/mbedtls/library/ecdsa.c **** 
+ 723:Libs/mbedtls/library/ecdsa.c ****     memcpy(sig, p, len);
+ 724:Libs/mbedtls/library/ecdsa.c ****     *slen = len;
+ 725:Libs/mbedtls/library/ecdsa.c **** 
+ 726:Libs/mbedtls/library/ecdsa.c ****     return 0;
+ 727:Libs/mbedtls/library/ecdsa.c **** }
+ 728:Libs/mbedtls/library/ecdsa.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 35
+
+
+ 729:Libs/mbedtls/library/ecdsa.c **** /*
+ 730:Libs/mbedtls/library/ecdsa.c ****  * Compute and write signature
+ 731:Libs/mbedtls/library/ecdsa.c ****  */
+ 732:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_write_signature_restartable(mbedtls_ecdsa_context *ctx,
+ 733:Libs/mbedtls/library/ecdsa.c ****                                               mbedtls_md_type_t md_alg,
+ 734:Libs/mbedtls/library/ecdsa.c ****                                               const unsigned char *hash, size_t hlen,
+ 735:Libs/mbedtls/library/ecdsa.c ****                                               unsigned char *sig, size_t *slen,
+ 736:Libs/mbedtls/library/ecdsa.c ****                                               int (*f_rng)(void *, unsigned char *, size_t),
+ 737:Libs/mbedtls/library/ecdsa.c ****                                               void *p_rng,
+ 738:Libs/mbedtls/library/ecdsa.c ****                                               mbedtls_ecdsa_restart_ctx *rs_ctx)
+ 739:Libs/mbedtls/library/ecdsa.c **** {
+ 991              		.loc 1 739 1 is_stmt 1 view -0
+ 992              		.cfi_startproc
+ 993              		@ args = 20, pretend = 0, frame = 104
+ 994              		@ frame_needed = 0, uses_anonymous_args = 0
+ 740:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 995              		.loc 1 740 5 view .LVU314
+ 741:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi r, s;
+ 996              		.loc 1 741 5 view .LVU315
+ 742:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 997              		.loc 1 742 5 view .LVU316
+ 998              		.loc 1 742 5 view .LVU317
+ 999              		.loc 1 742 5 view .LVU318
+ 743:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 1000              		.loc 1 743 5 view .LVU319
+ 1001              		.loc 1 743 5 view .LVU320
+ 1002              		.loc 1 743 5 view .LVU321
+ 744:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 1003              		.loc 1 744 5 view .LVU322
+ 1004              		.loc 1 744 5 view .LVU323
+ 1005              		.loc 1 744 5 view .LVU324
+ 745:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(slen != NULL);
+ 1006              		.loc 1 745 5 view .LVU325
+ 1007              		.loc 1 745 5 view .LVU326
+ 1008              		.loc 1 745 5 view .LVU327
+ 746:Libs/mbedtls/library/ecdsa.c **** 
+ 747:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&r);
+ 1009              		.loc 1 747 5 view .LVU328
+ 739:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1010              		.loc 1 739 1 is_stmt 0 view .LVU329
+ 1011 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 1012              	.LCFI14:
+ 1013              		.cfi_def_cfa_offset 24
+ 1014              		.cfi_offset 4, -24
+ 1015              		.cfi_offset 5, -20
+ 1016              		.cfi_offset 6, -16
+ 1017              		.cfi_offset 7, -12
+ 1018              		.cfi_offset 8, -8
+ 1019              		.cfi_offset 14, -4
+ 1020 0004 A0B0     		sub	sp, sp, #128
+ 1021              	.LCFI15:
+ 1022              		.cfi_def_cfa_offset 152
+ 739:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1023              		.loc 1 739 1 view .LVU330
+ 1024 0006 1546     		mov	r5, r2
+ 1025 0008 1E46     		mov	r6, r3
+ 1026 000a 0446     		mov	r4, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 36
+
+
+ 1027              		.loc 1 747 5 view .LVU331
+ 1028 000c 08A8     		add	r0, sp, #32
+ 1029              	.LVL131:
+ 739:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1030              		.loc 1 739 1 view .LVU332
+ 1031 000e DDE92878 		ldrd	r7, r8, [sp, #160]
+ 1032              		.loc 1 747 5 view .LVU333
+ 1033 0012 FFF7FEFF 		bl	mbedtls_mpi_init
+ 1034              	.LVL132:
+ 748:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&s);
+ 1035              		.loc 1 748 5 is_stmt 1 view .LVU334
+ 1036 0016 0BA8     		add	r0, sp, #44
+ 1037 0018 FFF7FEFF 		bl	mbedtls_mpi_init
+ 1038              	.LVL133:
+ 749:Libs/mbedtls/library/ecdsa.c **** 
+ 750:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_DETERMINISTIC)
+ 751:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(ecdsa_sign_det_restartable(&ctx->grp, &r, &s, &ctx->d,
+ 752:Libs/mbedtls/library/ecdsa.c ****                                                hash, hlen, md_alg, f_rng,
+ 753:Libs/mbedtls/library/ecdsa.c ****                                                p_rng, rs_ctx));
+ 754:Libs/mbedtls/library/ecdsa.c **** #else
+ 755:Libs/mbedtls/library/ecdsa.c ****     (void) md_alg;
+ 1039              		.loc 1 755 5 view .LVU335
+ 756:Libs/mbedtls/library/ecdsa.c **** 
+ 757:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_SIGN_ALT)
+ 758:Libs/mbedtls/library/ecdsa.c ****     (void) rs_ctx;
+ 759:Libs/mbedtls/library/ecdsa.c **** 
+ 760:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(mbedtls_ecdsa_sign(&ctx->grp, &r, &s, &ctx->d,
+ 761:Libs/mbedtls/library/ecdsa.c ****                                        hash, hlen, f_rng, p_rng));
+ 762:Libs/mbedtls/library/ecdsa.c **** #else
+ 763:Libs/mbedtls/library/ecdsa.c ****     /* Use the same RNG for both blinding and ephemeral key generation */
+ 764:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(ecdsa_sign_restartable(&ctx->grp, &r, &s, &ctx->d,
+ 1040              		.loc 1 764 5 view .LVU336
+ 1041              		.loc 1 764 5 view .LVU337
+ 1042 001c 04F17C03 		add	r3, r4, #124
+ 1043 0020 0BAA     		add	r2, sp, #44
+ 1044 0022 08A9     		add	r1, sp, #32
+ 1045 0024 2046     		mov	r0, r4
+ 1046 0026 CDE90056 		strd	r5, r6, [sp]
+ 1047 002a CDE90478 		strd	r7, r8, [sp, #16]
+ 1048 002e CDE90278 		strd	r7, r8, [sp, #8]
+ 1049 0032 FFF7FEFF 		bl	ecdsa_sign_restartable.isra.0
+ 1050              	.LVL134:
+ 1051              		.loc 1 764 5 is_stmt 0 discriminator 1 view .LVU338
+ 1052 0036 0546     		mov	r5, r0
+ 1053              	.LVL135:
+ 1054              		.loc 1 764 5 discriminator 1 view .LVU339
+ 1055 0038 70BB     		cbnz	r0, .L40
+ 1056              		.loc 1 764 5 is_stmt 1 discriminator 2 view .LVU340
+ 765:Libs/mbedtls/library/ecdsa.c ****                                            hash, hlen, f_rng, p_rng, f_rng,
+ 766:Libs/mbedtls/library/ecdsa.c ****                                            p_rng, rs_ctx));
+ 767:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECDSA_SIGN_ALT */
+ 768:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECDSA_DETERMINISTIC */
+ 769:Libs/mbedtls/library/ecdsa.c **** 
+ 770:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_MPI_CHK(ecdsa_signature_to_asn1(&r, &s, sig, slen));
+ 1057              		.loc 1 770 5 view .LVU341
+ 1058              		.loc 1 770 5 view .LVU342
+ 1059              	.LVL136:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 37
+
+
+ 1060              	.LBB10:
+ 1061              	.LBI10:
+ 707:Libs/mbedtls/library/ecdsa.c ****                                    unsigned char *sig, size_t *slen)
+ 1062              		.loc 1 707 12 view .LVU343
+ 1063              	.LBB11:
+ 710:Libs/mbedtls/library/ecdsa.c ****     unsigned char buf[MBEDTLS_ECDSA_MAX_LEN] = { 0 };
+ 1064              		.loc 1 710 5 view .LVU344
+ 711:Libs/mbedtls/library/ecdsa.c ****     unsigned char *p = buf + sizeof(buf);
+ 1065              		.loc 1 711 5 view .LVU345
+ 711:Libs/mbedtls/library/ecdsa.c ****     unsigned char *p = buf + sizeof(buf);
+ 1066              		.loc 1 711 19 is_stmt 0 view .LVU346
+ 1067 003a 0146     		mov	r1, r0
+ 1068 003c 4822     		movs	r2, #72
+ 1069 003e 0EA8     		add	r0, sp, #56
+ 1070              	.LVL137:
+ 711:Libs/mbedtls/library/ecdsa.c ****     unsigned char *p = buf + sizeof(buf);
+ 1071              		.loc 1 711 19 view .LVU347
+ 1072 0040 FFF7FEFF 		bl	memset
+ 1073              	.LVL138:
+ 712:Libs/mbedtls/library/ecdsa.c ****     size_t len = 0;
+ 1074              		.loc 1 712 5 is_stmt 1 view .LVU348
+ 712:Libs/mbedtls/library/ecdsa.c ****     size_t len = 0;
+ 1075              		.loc 1 712 20 is_stmt 0 view .LVU349
+ 1076 0044 20AB     		add	r3, sp, #128
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 1077              		.loc 1 715 5 view .LVU350
+ 1078 0046 0BAA     		add	r2, sp, #44
+ 1079              	.LVL139:
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 1080              		.loc 1 715 5 view .LVU351
+ 1081 0048 0EA9     		add	r1, sp, #56
+ 1082 004a 07A8     		add	r0, sp, #28
+ 712:Libs/mbedtls/library/ecdsa.c ****     size_t len = 0;
+ 1083              		.loc 1 712 20 view .LVU352
+ 1084 004c 0793     		str	r3, [sp, #28]
+ 713:Libs/mbedtls/library/ecdsa.c **** 
+ 1085              		.loc 1 713 5 is_stmt 1 view .LVU353
+ 1086              	.LVL140:
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 1087              		.loc 1 715 5 view .LVU354
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 1088              		.loc 1 715 5 view .LVU355
+ 1089 004e FFF7FEFF 		bl	mbedtls_asn1_write_mpi
+ 1090              	.LVL141:
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 1091              		.loc 1 715 5 is_stmt 0 discriminator 1 view .LVU356
+ 1092 0052 041E     		subs	r4, r0, #0
+ 1093              	.LVL142:
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 1094              		.loc 1 715 5 discriminator 1 view .LVU357
+ 1095 0054 1FDB     		blt	.L41
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 1096              		.loc 1 715 5 is_stmt 1 discriminator 2 view .LVU358
+ 1097              	.LVL143:
+ 715:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+ 1098              		.loc 1 715 5 discriminator 2 view .LVU359
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 38
+
+
+ 1099              		.loc 1 716 5 view .LVU360
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1100              		.loc 1 716 5 view .LVU361
+ 1101 0056 08AA     		add	r2, sp, #32
+ 1102              	.LVL144:
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1103              		.loc 1 716 5 is_stmt 0 view .LVU362
+ 1104 0058 0EA9     		add	r1, sp, #56
+ 1105 005a 07A8     		add	r0, sp, #28
+ 1106              	.LVL145:
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1107              		.loc 1 716 5 view .LVU363
+ 1108 005c FFF7FEFF 		bl	mbedtls_asn1_write_mpi
+ 1109              	.LVL146:
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1110              		.loc 1 716 5 discriminator 1 view .LVU364
+ 1111 0060 061E     		subs	r6, r0, #0
+ 1112              	.LVL147:
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1113              		.loc 1 716 5 discriminator 1 view .LVU365
+ 1114 0062 23DB     		blt	.L42
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1115              		.loc 1 716 5 is_stmt 1 discriminator 2 view .LVU366
+ 1116 0064 2644     		add	r6, r6, r4
+ 1117              	.LVL148:
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1118              		.loc 1 716 5 discriminator 2 view .LVU367
+ 718:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf,
+ 1119              		.loc 1 718 5 view .LVU368
+ 718:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf,
+ 1120              		.loc 1 718 5 view .LVU369
+ 1121 0066 0EA9     		add	r1, sp, #56
+ 1122 0068 07A8     		add	r0, sp, #28
+ 1123              	.LVL149:
+ 718:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf,
+ 1124              		.loc 1 718 5 is_stmt 0 view .LVU370
+ 1125 006a 3246     		mov	r2, r6
+ 1126 006c FFF7FEFF 		bl	mbedtls_asn1_write_len
+ 1127              	.LVL150:
+ 718:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf,
+ 1128              		.loc 1 718 5 discriminator 1 view .LVU371
+ 1129 0070 041E     		subs	r4, r0, #0
+ 1130 0072 10DB     		blt	.L41
+ 718:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf,
+ 1131              		.loc 1 718 5 is_stmt 1 discriminator 2 view .LVU372
+ 1132              	.LVL151:
+ 718:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf,
+ 1133              		.loc 1 718 5 discriminator 2 view .LVU373
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 1134              		.loc 1 719 5 view .LVU374
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 1135              		.loc 1 719 5 view .LVU375
+ 1136 0074 3022     		movs	r2, #48
+ 1137 0076 0EA9     		add	r1, sp, #56
+ 1138 0078 07A8     		add	r0, sp, #28
+ 1139              	.LVL152:
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 39
+
+
+ 1140              		.loc 1 719 5 is_stmt 0 view .LVU376
+ 1141 007a FFF7FEFF 		bl	mbedtls_asn1_write_tag
+ 1142              	.LVL153:
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 1143              		.loc 1 719 5 discriminator 1 view .LVU377
+ 1144 007e 021E     		subs	r2, r0, #0
+ 1145 0080 16DB     		blt	.L43
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 1146              		.loc 1 719 5 is_stmt 1 discriminator 2 view .LVU378
+ 718:Libs/mbedtls/library/ecdsa.c ****     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf,
+ 1147              		.loc 1 718 5 is_stmt 0 discriminator 2 view .LVU379
+ 1148 0082 3444     		add	r4, r4, r6
+ 1149              	.LVL154:
+ 723:Libs/mbedtls/library/ecdsa.c ****     *slen = len;
+ 1150              		.loc 1 723 5 view .LVU380
+ 1151 0084 0799     		ldr	r1, [sp, #28]
+ 1152 0086 2698     		ldr	r0, [sp, #152]
+ 1153              	.LVL155:
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 1154              		.loc 1 719 5 discriminator 2 view .LVU381
+ 1155 0088 1444     		add	r4, r4, r2
+ 1156              	.LVL156:
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 1157              		.loc 1 719 5 is_stmt 1 discriminator 2 view .LVU382
+ 723:Libs/mbedtls/library/ecdsa.c ****     *slen = len;
+ 1158              		.loc 1 723 5 view .LVU383
+ 1159 008a 2246     		mov	r2, r4
+ 1160              	.LVL157:
+ 723:Libs/mbedtls/library/ecdsa.c ****     *slen = len;
+ 1161              		.loc 1 723 5 is_stmt 0 view .LVU384
+ 1162 008c FFF7FEFF 		bl	memcpy
+ 1163              	.LVL158:
+ 724:Libs/mbedtls/library/ecdsa.c **** 
+ 1164              		.loc 1 724 5 is_stmt 1 view .LVU385
+ 724:Libs/mbedtls/library/ecdsa.c **** 
+ 1165              		.loc 1 724 11 is_stmt 0 view .LVU386
+ 1166 0090 279B     		ldr	r3, [sp, #156]
+ 1167 0092 1C60     		str	r4, [r3]
+ 726:Libs/mbedtls/library/ecdsa.c **** }
+ 1168              		.loc 1 726 5 is_stmt 1 view .LVU387
+ 726:Libs/mbedtls/library/ecdsa.c **** }
+ 1169              		.loc 1 726 12 is_stmt 0 view .LVU388
+ 1170 0094 2C46     		mov	r4, r5
+ 1171              	.LVL159:
+ 1172              	.L41:
+ 726:Libs/mbedtls/library/ecdsa.c **** }
+ 1173              		.loc 1 726 12 view .LVU389
+ 1174              	.LBE11:
+ 1175              	.LBE10:
+ 1176              		.loc 1 770 5 view .LVU390
+ 1177 0096 2546     		mov	r5, r4
+ 1178              	.LVL160:
+ 1179              	.L40:
+ 1180              		.loc 1 770 5 is_stmt 1 discriminator 3 view .LVU391
+ 771:Libs/mbedtls/library/ecdsa.c **** 
+ 772:Libs/mbedtls/library/ecdsa.c **** cleanup:
+ 773:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&r);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 40
+
+
+ 1181              		.loc 1 773 5 view .LVU392
+ 1182 0098 08A8     		add	r0, sp, #32
+ 1183 009a FFF7FEFF 		bl	mbedtls_mpi_free
+ 1184              	.LVL161:
+ 774:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&s);
+ 1185              		.loc 1 774 5 view .LVU393
+ 1186 009e 0BA8     		add	r0, sp, #44
+ 1187 00a0 FFF7FEFF 		bl	mbedtls_mpi_free
+ 1188              	.LVL162:
+ 775:Libs/mbedtls/library/ecdsa.c **** 
+ 776:Libs/mbedtls/library/ecdsa.c ****     return ret;
+ 1189              		.loc 1 776 5 view .LVU394
+ 777:Libs/mbedtls/library/ecdsa.c **** }
+ 1190              		.loc 1 777 1 is_stmt 0 view .LVU395
+ 1191 00a4 2846     		mov	r0, r5
+ 1192 00a6 20B0     		add	sp, sp, #128
+ 1193              	.LCFI16:
+ 1194              		.cfi_remember_state
+ 1195              		.cfi_def_cfa_offset 24
+ 1196              		@ sp needed
+ 1197 00a8 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 1198              	.LVL163:
+ 1199              	.L42:
+ 1200              	.LCFI17:
+ 1201              		.cfi_restore_state
+ 1202              	.LBB13:
+ 1203              	.LBB12:
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1204              		.loc 1 716 5 discriminator 1 view .LVU396
+ 1205 00ac 3446     		mov	r4, r6
+ 1206              	.LVL164:
+ 716:Libs/mbedtls/library/ecdsa.c **** 
+ 1207              		.loc 1 716 5 discriminator 1 view .LVU397
+ 1208 00ae F2E7     		b	.L41
+ 1209              	.LVL165:
+ 1210              	.L43:
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 1211              		.loc 1 719 5 discriminator 1 view .LVU398
+ 1212 00b0 1446     		mov	r4, r2
+ 1213              	.LVL166:
+ 719:Libs/mbedtls/library/ecdsa.c ****                                                      MBEDTLS_ASN1_CONSTRUCTED |
+ 1214              		.loc 1 719 5 discriminator 1 view .LVU399
+ 1215 00b2 F0E7     		b	.L41
+ 1216              	.LBE12:
+ 1217              	.LBE13:
+ 1218              		.cfi_endproc
+ 1219              	.LFE14:
+ 1221              		.section	.text.mbedtls_ecdsa_write_signature,"ax",%progbits
+ 1222              		.align	1
+ 1223              		.global	mbedtls_ecdsa_write_signature
+ 1224              		.syntax unified
+ 1225              		.thumb
+ 1226              		.thumb_func
+ 1228              	mbedtls_ecdsa_write_signature:
+ 1229              	.LVL167:
+ 1230              	.LFB15:
+ 778:Libs/mbedtls/library/ecdsa.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 41
+
+
+ 779:Libs/mbedtls/library/ecdsa.c **** /*
+ 780:Libs/mbedtls/library/ecdsa.c ****  * Compute and write signature
+ 781:Libs/mbedtls/library/ecdsa.c ****  */
+ 782:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_write_signature(mbedtls_ecdsa_context *ctx,
+ 783:Libs/mbedtls/library/ecdsa.c ****                                   mbedtls_md_type_t md_alg,
+ 784:Libs/mbedtls/library/ecdsa.c ****                                   const unsigned char *hash, size_t hlen,
+ 785:Libs/mbedtls/library/ecdsa.c ****                                   unsigned char *sig, size_t *slen,
+ 786:Libs/mbedtls/library/ecdsa.c ****                                   int (*f_rng)(void *, unsigned char *, size_t),
+ 787:Libs/mbedtls/library/ecdsa.c ****                                   void *p_rng)
+ 788:Libs/mbedtls/library/ecdsa.c **** {
+ 1231              		.loc 1 788 1 is_stmt 1 view -0
+ 1232              		.cfi_startproc
+ 1233              		@ args = 16, pretend = 0, frame = 0
+ 1234              		@ frame_needed = 0, uses_anonymous_args = 0
+ 789:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 1235              		.loc 1 789 5 view .LVU401
+ 1236              		.loc 1 789 5 view .LVU402
+ 1237              		.loc 1 789 5 view .LVU403
+ 790:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 1238              		.loc 1 790 5 view .LVU404
+ 1239              		.loc 1 790 5 view .LVU405
+ 1240              		.loc 1 790 5 view .LVU406
+ 791:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 1241              		.loc 1 791 5 view .LVU407
+ 1242              		.loc 1 791 5 view .LVU408
+ 1243              		.loc 1 791 5 view .LVU409
+ 792:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(slen != NULL);
+ 1244              		.loc 1 792 5 view .LVU410
+ 1245              		.loc 1 792 5 view .LVU411
+ 1246              		.loc 1 792 5 view .LVU412
+ 793:Libs/mbedtls/library/ecdsa.c ****     return mbedtls_ecdsa_write_signature_restartable(
+ 1247              		.loc 1 793 5 view .LVU413
+ 788:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 1248              		.loc 1 788 1 is_stmt 0 view .LVU414
+ 1249 0000 10B5     		push	{r4, lr}
+ 1250              	.LCFI18:
+ 1251              		.cfi_def_cfa_offset 8
+ 1252              		.cfi_offset 4, -8
+ 1253              		.cfi_offset 14, -4
+ 1254              		.loc 1 793 12 view .LVU415
+ 1255 0002 0024     		movs	r4, #0
+ 788:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 1256              		.loc 1 788 1 view .LVU416
+ 1257 0004 86B0     		sub	sp, sp, #24
+ 1258              	.LCFI19:
+ 1259              		.cfi_def_cfa_offset 32
+ 1260              		.loc 1 793 12 view .LVU417
+ 1261 0006 0494     		str	r4, [sp, #16]
+ 1262 0008 0B9C     		ldr	r4, [sp, #44]
+ 1263 000a 0394     		str	r4, [sp, #12]
+ 1264 000c 0A9C     		ldr	r4, [sp, #40]
+ 1265 000e 0294     		str	r4, [sp, #8]
+ 1266 0010 099C     		ldr	r4, [sp, #36]
+ 1267 0012 0194     		str	r4, [sp, #4]
+ 1268 0014 089C     		ldr	r4, [sp, #32]
+ 1269 0016 0094     		str	r4, [sp]
+ 1270 0018 FFF7FEFF 		bl	mbedtls_ecdsa_write_signature_restartable
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 42
+
+
+ 1271              	.LVL168:
+ 794:Libs/mbedtls/library/ecdsa.c ****         ctx, md_alg, hash, hlen, sig, slen, f_rng, p_rng, NULL);
+ 795:Libs/mbedtls/library/ecdsa.c **** }
+ 1272              		.loc 1 795 1 view .LVU418
+ 1273 001c 06B0     		add	sp, sp, #24
+ 1274              	.LCFI20:
+ 1275              		.cfi_def_cfa_offset 8
+ 1276              		@ sp needed
+ 1277 001e 10BD     		pop	{r4, pc}
+ 1278              		.loc 1 795 1 view .LVU419
+ 1279              		.cfi_endproc
+ 1280              	.LFE15:
+ 1282              		.section	.text.mbedtls_ecdsa_read_signature_restartable,"ax",%progbits
+ 1283              		.align	1
+ 1284              		.global	mbedtls_ecdsa_read_signature_restartable
+ 1285              		.syntax unified
+ 1286              		.thumb
+ 1287              		.thumb_func
+ 1289              	mbedtls_ecdsa_read_signature_restartable:
+ 1290              	.LVL169:
+ 1291              	.LFB17:
+ 796:Libs/mbedtls/library/ecdsa.c **** 
+ 797:Libs/mbedtls/library/ecdsa.c **** #if !defined(MBEDTLS_DEPRECATED_REMOVED) && \
+ 798:Libs/mbedtls/library/ecdsa.c ****     defined(MBEDTLS_ECDSA_DETERMINISTIC)
+ 799:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_write_signature_det(mbedtls_ecdsa_context *ctx,
+ 800:Libs/mbedtls/library/ecdsa.c ****                                       const unsigned char *hash, size_t hlen,
+ 801:Libs/mbedtls/library/ecdsa.c ****                                       unsigned char *sig, size_t *slen,
+ 802:Libs/mbedtls/library/ecdsa.c ****                                       mbedtls_md_type_t md_alg)
+ 803:Libs/mbedtls/library/ecdsa.c **** {
+ 804:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 805:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 806:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 807:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(slen != NULL);
+ 808:Libs/mbedtls/library/ecdsa.c ****     return mbedtls_ecdsa_write_signature(ctx, md_alg, hash, hlen, sig, slen,
+ 809:Libs/mbedtls/library/ecdsa.c ****                                          NULL, NULL);
+ 810:Libs/mbedtls/library/ecdsa.c **** }
+ 811:Libs/mbedtls/library/ecdsa.c **** #endif
+ 812:Libs/mbedtls/library/ecdsa.c **** 
+ 813:Libs/mbedtls/library/ecdsa.c **** /*
+ 814:Libs/mbedtls/library/ecdsa.c ****  * Read and check signature
+ 815:Libs/mbedtls/library/ecdsa.c ****  */
+ 816:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_read_signature(mbedtls_ecdsa_context *ctx,
+ 817:Libs/mbedtls/library/ecdsa.c ****                                  const unsigned char *hash, size_t hlen,
+ 818:Libs/mbedtls/library/ecdsa.c ****                                  const unsigned char *sig, size_t slen)
+ 819:Libs/mbedtls/library/ecdsa.c **** {
+ 820:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 821:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 822:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 823:Libs/mbedtls/library/ecdsa.c ****     return mbedtls_ecdsa_read_signature_restartable(
+ 824:Libs/mbedtls/library/ecdsa.c ****         ctx, hash, hlen, sig, slen, NULL);
+ 825:Libs/mbedtls/library/ecdsa.c **** }
+ 826:Libs/mbedtls/library/ecdsa.c **** 
+ 827:Libs/mbedtls/library/ecdsa.c **** /*
+ 828:Libs/mbedtls/library/ecdsa.c ****  * Restartable read and check signature
+ 829:Libs/mbedtls/library/ecdsa.c ****  */
+ 830:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_read_signature_restartable(mbedtls_ecdsa_context *ctx,
+ 831:Libs/mbedtls/library/ecdsa.c ****                                              const unsigned char *hash, size_t hlen,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 43
+
+
+ 832:Libs/mbedtls/library/ecdsa.c ****                                              const unsigned char *sig, size_t slen,
+ 833:Libs/mbedtls/library/ecdsa.c ****                                              mbedtls_ecdsa_restart_ctx *rs_ctx)
+ 834:Libs/mbedtls/library/ecdsa.c **** {
+ 1292              		.loc 1 834 1 is_stmt 1 view -0
+ 1293              		.cfi_startproc
+ 1294              		@ args = 8, pretend = 0, frame = 32
+ 1295              		@ frame_needed = 0, uses_anonymous_args = 0
+ 835:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1296              		.loc 1 835 5 view .LVU421
+ 836:Libs/mbedtls/library/ecdsa.c ****     unsigned char *p = (unsigned char *) sig;
+ 1297              		.loc 1 836 5 view .LVU422
+ 834:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1298              		.loc 1 834 1 is_stmt 0 view .LVU423
+ 1299 0000 2DE9F047 		push	{r4, r5, r6, r7, r8, r9, r10, lr}
+ 1300              	.LCFI21:
+ 1301              		.cfi_def_cfa_offset 32
+ 1302              		.cfi_offset 4, -32
+ 1303              		.cfi_offset 5, -28
+ 1304              		.cfi_offset 6, -24
+ 1305              		.cfi_offset 7, -20
+ 1306              		.cfi_offset 8, -16
+ 1307              		.cfi_offset 9, -12
+ 1308              		.cfi_offset 10, -8
+ 1309              		.cfi_offset 14, -4
+ 1310 0004 8AB0     		sub	sp, sp, #40
+ 1311              	.LCFI22:
+ 1312              		.cfi_def_cfa_offset 72
+ 834:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1313              		.loc 1 834 1 view .LVU424
+ 1314 0006 9246     		mov	r10, r2
+ 1315 0008 8046     		mov	r8, r0
+ 1316 000a 8946     		mov	r9, r1
+ 837:Libs/mbedtls/library/ecdsa.c ****     const unsigned char *end = sig + slen;
+ 1317              		.loc 1 837 26 view .LVU425
+ 1318 000c 129A     		ldr	r2, [sp, #72]
+ 1319              	.LVL170:
+ 838:Libs/mbedtls/library/ecdsa.c ****     size_t len;
+ 839:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi r, s;
+ 840:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 841:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 842:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 843:Libs/mbedtls/library/ecdsa.c **** 
+ 844:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&r);
+ 1320              		.loc 1 844 5 view .LVU426
+ 1321 000e 04AF     		add	r7, sp, #16
+ 845:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&s);
+ 1322              		.loc 1 845 5 view .LVU427
+ 1323 0010 07AE     		add	r6, sp, #28
+ 836:Libs/mbedtls/library/ecdsa.c ****     const unsigned char *end = sig + slen;
+ 1324              		.loc 1 836 20 view .LVU428
+ 1325 0012 0293     		str	r3, [sp, #8]
+ 837:Libs/mbedtls/library/ecdsa.c ****     size_t len;
+ 1326              		.loc 1 837 5 is_stmt 1 view .LVU429
+ 837:Libs/mbedtls/library/ecdsa.c ****     size_t len;
+ 1327              		.loc 1 837 26 is_stmt 0 view .LVU430
+ 1328 0014 9D18     		adds	r5, r3, r2
+ 1329              	.LVL171:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 44
+
+
+ 838:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi r, s;
+ 1330              		.loc 1 838 5 is_stmt 1 view .LVU431
+ 839:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 1331              		.loc 1 839 5 view .LVU432
+ 840:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 1332              		.loc 1 840 5 view .LVU433
+ 840:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 1333              		.loc 1 840 5 view .LVU434
+ 840:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 1334              		.loc 1 840 5 view .LVU435
+ 841:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 1335              		.loc 1 841 5 view .LVU436
+ 841:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 1336              		.loc 1 841 5 view .LVU437
+ 841:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 1337              		.loc 1 841 5 view .LVU438
+ 842:Libs/mbedtls/library/ecdsa.c **** 
+ 1338              		.loc 1 842 5 view .LVU439
+ 842:Libs/mbedtls/library/ecdsa.c **** 
+ 1339              		.loc 1 842 5 view .LVU440
+ 842:Libs/mbedtls/library/ecdsa.c **** 
+ 1340              		.loc 1 842 5 view .LVU441
+ 844:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&s);
+ 1341              		.loc 1 844 5 view .LVU442
+ 1342 0016 3846     		mov	r0, r7
+ 1343              	.LVL172:
+ 844:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_init(&s);
+ 1344              		.loc 1 844 5 is_stmt 0 view .LVU443
+ 1345 0018 FFF7FEFF 		bl	mbedtls_mpi_init
+ 1346              	.LVL173:
+ 1347              		.loc 1 845 5 is_stmt 1 view .LVU444
+ 1348 001c 3046     		mov	r0, r6
+ 1349 001e FFF7FEFF 		bl	mbedtls_mpi_init
+ 1350              	.LVL174:
+ 846:Libs/mbedtls/library/ecdsa.c **** 
+ 847:Libs/mbedtls/library/ecdsa.c ****     if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
+ 1351              		.loc 1 847 5 view .LVU445
+ 1352              		.loc 1 847 16 is_stmt 0 view .LVU446
+ 1353 0022 3023     		movs	r3, #48
+ 1354 0024 03AA     		add	r2, sp, #12
+ 1355 0026 2946     		mov	r1, r5
+ 1356 0028 02A8     		add	r0, sp, #8
+ 1357 002a FFF7FEFF 		bl	mbedtls_asn1_get_tag
+ 1358              	.LVL175:
+ 1359              		.loc 1 847 8 discriminator 1 view .LVU447
+ 1360 002e 58B1     		cbz	r0, .L46
+ 1361              	.L48:
+ 848:Libs/mbedtls/library/ecdsa.c ****                                     MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0) {
+ 849:Libs/mbedtls/library/ecdsa.c ****         ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 850:Libs/mbedtls/library/ecdsa.c ****         goto cleanup;
+ 851:Libs/mbedtls/library/ecdsa.c ****     }
+ 852:Libs/mbedtls/library/ecdsa.c **** 
+ 853:Libs/mbedtls/library/ecdsa.c ****     if (p + len != end) {
+ 854:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERROR_ADD(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
+ 855:Libs/mbedtls/library/ecdsa.c ****                                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH);
+ 856:Libs/mbedtls/library/ecdsa.c ****         goto cleanup;
+ 857:Libs/mbedtls/library/ecdsa.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 45
+
+
+ 858:Libs/mbedtls/library/ecdsa.c **** 
+ 859:Libs/mbedtls/library/ecdsa.c ****     if ((ret = mbedtls_asn1_get_mpi(&p, end, &r)) != 0 ||
+ 860:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_asn1_get_mpi(&p, end, &s)) != 0) {
+ 861:Libs/mbedtls/library/ecdsa.c ****         ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1362              		.loc 1 861 9 is_stmt 1 view .LVU448
+ 1363              		.loc 1 861 13 is_stmt 0 view .LVU449
+ 1364 0030 A0F59F44 		sub	r4, r0, #20352
+ 1365              	.LVL176:
+ 862:Libs/mbedtls/library/ecdsa.c ****         goto cleanup;
+ 1366              		.loc 1 862 9 is_stmt 1 view .LVU450
+ 1367              	.L47:
+ 863:Libs/mbedtls/library/ecdsa.c ****     }
+ 864:Libs/mbedtls/library/ecdsa.c **** #if defined(MBEDTLS_ECDSA_VERIFY_ALT)
+ 865:Libs/mbedtls/library/ecdsa.c ****     (void) rs_ctx;
+ 866:Libs/mbedtls/library/ecdsa.c **** 
+ 867:Libs/mbedtls/library/ecdsa.c ****     if ((ret = mbedtls_ecdsa_verify(&ctx->grp, hash, hlen,
+ 868:Libs/mbedtls/library/ecdsa.c ****                                     &ctx->Q, &r, &s)) != 0) {
+ 869:Libs/mbedtls/library/ecdsa.c ****         goto cleanup;
+ 870:Libs/mbedtls/library/ecdsa.c ****     }
+ 871:Libs/mbedtls/library/ecdsa.c **** #else
+ 872:Libs/mbedtls/library/ecdsa.c ****     if ((ret = ecdsa_verify_restartable(&ctx->grp, hash, hlen,
+ 873:Libs/mbedtls/library/ecdsa.c ****                                         &ctx->Q, &r, &s, rs_ctx)) != 0) {
+ 874:Libs/mbedtls/library/ecdsa.c ****         goto cleanup;
+ 875:Libs/mbedtls/library/ecdsa.c ****     }
+ 876:Libs/mbedtls/library/ecdsa.c **** #endif /* MBEDTLS_ECDSA_VERIFY_ALT */
+ 877:Libs/mbedtls/library/ecdsa.c **** 
+ 878:Libs/mbedtls/library/ecdsa.c ****     /* At this point we know that the buffer starts with a valid signature.
+ 879:Libs/mbedtls/library/ecdsa.c ****      * Return 0 if the buffer just contains the signature, and a specific
+ 880:Libs/mbedtls/library/ecdsa.c ****      * error code if the valid signature is followed by more data. */
+ 881:Libs/mbedtls/library/ecdsa.c ****     if (p != end) {
+ 882:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_SIG_LEN_MISMATCH;
+ 883:Libs/mbedtls/library/ecdsa.c ****     }
+ 884:Libs/mbedtls/library/ecdsa.c **** 
+ 885:Libs/mbedtls/library/ecdsa.c **** cleanup:
+ 886:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&r);
+ 1368              		.loc 1 886 5 view .LVU451
+ 1369 0034 3846     		mov	r0, r7
+ 1370 0036 FFF7FEFF 		bl	mbedtls_mpi_free
+ 1371              	.LVL177:
+ 887:Libs/mbedtls/library/ecdsa.c ****     mbedtls_mpi_free(&s);
+ 1372              		.loc 1 887 5 view .LVU452
+ 1373 003a 3046     		mov	r0, r6
+ 1374 003c FFF7FEFF 		bl	mbedtls_mpi_free
+ 1375              	.LVL178:
+ 888:Libs/mbedtls/library/ecdsa.c **** 
+ 889:Libs/mbedtls/library/ecdsa.c ****     return ret;
+ 1376              		.loc 1 889 5 view .LVU453
+ 890:Libs/mbedtls/library/ecdsa.c **** }
+ 1377              		.loc 1 890 1 is_stmt 0 view .LVU454
+ 1378 0040 2046     		mov	r0, r4
+ 1379 0042 0AB0     		add	sp, sp, #40
+ 1380              	.LCFI23:
+ 1381              		.cfi_remember_state
+ 1382              		.cfi_def_cfa_offset 32
+ 1383              		@ sp needed
+ 1384 0044 BDE8F087 		pop	{r4, r5, r6, r7, r8, r9, r10, pc}
+ 1385              	.LVL179:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 46
+
+
+ 1386              	.L46:
+ 1387              	.LCFI24:
+ 1388              		.cfi_restore_state
+ 853:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERROR_ADD(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
+ 1389              		.loc 1 853 5 is_stmt 1 view .LVU455
+ 853:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERROR_ADD(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
+ 1390              		.loc 1 853 11 is_stmt 0 view .LVU456
+ 1391 0048 DDE90232 		ldrd	r3, r2, [sp, #8]
+ 1392 004c 1344     		add	r3, r3, r2
+ 853:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERROR_ADD(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
+ 1393              		.loc 1 853 8 view .LVU457
+ 1394 004e 9D42     		cmp	r5, r3
+ 1395 0050 1FD1     		bne	.L50
+ 859:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_asn1_get_mpi(&p, end, &s)) != 0) {
+ 1396              		.loc 1 859 5 is_stmt 1 view .LVU458
+ 859:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_asn1_get_mpi(&p, end, &s)) != 0) {
+ 1397              		.loc 1 859 16 is_stmt 0 view .LVU459
+ 1398 0052 3A46     		mov	r2, r7
+ 1399 0054 2946     		mov	r1, r5
+ 1400 0056 02A8     		add	r0, sp, #8
+ 1401              	.LVL180:
+ 859:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_asn1_get_mpi(&p, end, &s)) != 0) {
+ 1402              		.loc 1 859 16 view .LVU460
+ 1403 0058 FFF7FEFF 		bl	mbedtls_asn1_get_mpi
+ 1404              	.LVL181:
+ 859:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_asn1_get_mpi(&p, end, &s)) != 0) {
+ 1405              		.loc 1 859 8 discriminator 1 view .LVU461
+ 1406 005c 0028     		cmp	r0, #0
+ 1407 005e E7D1     		bne	.L48
+ 860:Libs/mbedtls/library/ecdsa.c ****         ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1408              		.loc 1 860 16 view .LVU462
+ 1409 0060 3246     		mov	r2, r6
+ 1410 0062 2946     		mov	r1, r5
+ 1411 0064 02A8     		add	r0, sp, #8
+ 1412              	.LVL182:
+ 860:Libs/mbedtls/library/ecdsa.c ****         ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1413              		.loc 1 860 16 view .LVU463
+ 1414 0066 FFF7FEFF 		bl	mbedtls_asn1_get_mpi
+ 1415              	.LVL183:
+ 859:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_asn1_get_mpi(&p, end, &s)) != 0) {
+ 1416              		.loc 1 859 56 discriminator 1 view .LVU464
+ 1417 006a 0028     		cmp	r0, #0
+ 1418 006c E0D1     		bne	.L48
+ 872:Libs/mbedtls/library/ecdsa.c ****                                         &ctx->Q, &r, &s, rs_ctx)) != 0) {
+ 1419              		.loc 1 872 5 is_stmt 1 view .LVU465
+ 872:Libs/mbedtls/library/ecdsa.c ****                                         &ctx->Q, &r, &s, rs_ctx)) != 0) {
+ 1420              		.loc 1 872 16 is_stmt 0 view .LVU466
+ 1421 006e 08F18803 		add	r3, r8, #136
+ 1422 0072 5246     		mov	r2, r10
+ 1423 0074 4946     		mov	r1, r9
+ 1424 0076 4046     		mov	r0, r8
+ 1425              	.LVL184:
+ 872:Libs/mbedtls/library/ecdsa.c ****                                         &ctx->Q, &r, &s, rs_ctx)) != 0) {
+ 1426              		.loc 1 872 16 view .LVU467
+ 1427 0078 CDE90076 		strd	r7, r6, [sp]
+ 1428 007c FFF7FEFF 		bl	ecdsa_verify_restartable.isra.0
+ 1429              	.LVL185:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 47
+
+
+ 872:Libs/mbedtls/library/ecdsa.c ****                                         &ctx->Q, &r, &s, rs_ctx)) != 0) {
+ 1430              		.loc 1 872 8 discriminator 1 view .LVU468
+ 1431 0080 0446     		mov	r4, r0
+ 1432 0082 0028     		cmp	r0, #0
+ 1433 0084 D6D1     		bne	.L47
+ 881:Libs/mbedtls/library/ecdsa.c ****         ret = MBEDTLS_ERR_ECP_SIG_LEN_MISMATCH;
+ 1434              		.loc 1 881 5 is_stmt 1 view .LVU469
+ 882:Libs/mbedtls/library/ecdsa.c ****     }
+ 1435              		.loc 1 882 13 is_stmt 0 view .LVU470
+ 1436 0086 029A     		ldr	r2, [sp, #8]
+ 1437 0088 034B     		ldr	r3, .L52
+ 1438 008a AA42     		cmp	r2, r5
+ 1439 008c 18BF     		it	ne
+ 1440 008e 1C46     		movne	r4, r3
+ 1441 0090 D0E7     		b	.L47
+ 1442              	.L50:
+ 854:Libs/mbedtls/library/ecdsa.c ****                                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH);
+ 1443              		.loc 1 854 15 view .LVU471
+ 1444 0092 024C     		ldr	r4, .L52+4
+ 1445 0094 CEE7     		b	.L47
+ 1446              	.L53:
+ 1447 0096 00BF     		.align	2
+ 1448              	.L52:
+ 1449 0098 00B4FFFF 		.word	-19456
+ 1450 009c 1AB0FFFF 		.word	-20454
+ 1451              		.cfi_endproc
+ 1452              	.LFE17:
+ 1454              		.section	.text.mbedtls_ecdsa_read_signature,"ax",%progbits
+ 1455              		.align	1
+ 1456              		.global	mbedtls_ecdsa_read_signature
+ 1457              		.syntax unified
+ 1458              		.thumb
+ 1459              		.thumb_func
+ 1461              	mbedtls_ecdsa_read_signature:
+ 1462              	.LVL186:
+ 1463              	.LFB16:
+ 819:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 1464              		.loc 1 819 1 is_stmt 1 view -0
+ 1465              		.cfi_startproc
+ 1466              		@ args = 4, pretend = 0, frame = 0
+ 1467              		@ frame_needed = 0, uses_anonymous_args = 0
+ 820:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 1468              		.loc 1 820 5 view .LVU473
+ 820:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 1469              		.loc 1 820 5 view .LVU474
+ 820:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(hash != NULL);
+ 1470              		.loc 1 820 5 view .LVU475
+ 821:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 1471              		.loc 1 821 5 view .LVU476
+ 821:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 1472              		.loc 1 821 5 view .LVU477
+ 821:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(sig  != NULL);
+ 1473              		.loc 1 821 5 view .LVU478
+ 822:Libs/mbedtls/library/ecdsa.c ****     return mbedtls_ecdsa_read_signature_restartable(
+ 1474              		.loc 1 822 5 view .LVU479
+ 822:Libs/mbedtls/library/ecdsa.c ****     return mbedtls_ecdsa_read_signature_restartable(
+ 1475              		.loc 1 822 5 view .LVU480
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 48
+
+
+ 822:Libs/mbedtls/library/ecdsa.c ****     return mbedtls_ecdsa_read_signature_restartable(
+ 1476              		.loc 1 822 5 view .LVU481
+ 823:Libs/mbedtls/library/ecdsa.c ****         ctx, hash, hlen, sig, slen, NULL);
+ 1477              		.loc 1 823 5 view .LVU482
+ 819:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx  != NULL);
+ 1478              		.loc 1 819 1 is_stmt 0 view .LVU483
+ 1479 0000 13B5     		push	{r0, r1, r4, lr}
+ 1480              	.LCFI25:
+ 1481              		.cfi_def_cfa_offset 16
+ 1482              		.cfi_offset 4, -8
+ 1483              		.cfi_offset 14, -4
+ 823:Libs/mbedtls/library/ecdsa.c ****         ctx, hash, hlen, sig, slen, NULL);
+ 1484              		.loc 1 823 12 view .LVU484
+ 1485 0002 0024     		movs	r4, #0
+ 1486 0004 0194     		str	r4, [sp, #4]
+ 1487 0006 049C     		ldr	r4, [sp, #16]
+ 1488 0008 0094     		str	r4, [sp]
+ 1489 000a FFF7FEFF 		bl	mbedtls_ecdsa_read_signature_restartable
+ 1490              	.LVL187:
+ 825:Libs/mbedtls/library/ecdsa.c **** 
+ 1491              		.loc 1 825 1 view .LVU485
+ 1492 000e 02B0     		add	sp, sp, #8
+ 1493              	.LCFI26:
+ 1494              		.cfi_def_cfa_offset 8
+ 1495              		@ sp needed
+ 1496 0010 10BD     		pop	{r4, pc}
+ 825:Libs/mbedtls/library/ecdsa.c **** 
+ 1497              		.loc 1 825 1 view .LVU486
+ 1498              		.cfi_endproc
+ 1499              	.LFE16:
+ 1501              		.section	.text.mbedtls_ecdsa_genkey,"ax",%progbits
+ 1502              		.align	1
+ 1503              		.global	mbedtls_ecdsa_genkey
+ 1504              		.syntax unified
+ 1505              		.thumb
+ 1506              		.thumb_func
+ 1508              	mbedtls_ecdsa_genkey:
+ 1509              	.LVL188:
+ 1510              	.LFB18:
+ 891:Libs/mbedtls/library/ecdsa.c **** 
+ 892:Libs/mbedtls/library/ecdsa.c **** #if !defined(MBEDTLS_ECDSA_GENKEY_ALT)
+ 893:Libs/mbedtls/library/ecdsa.c **** /*
+ 894:Libs/mbedtls/library/ecdsa.c ****  * Generate key pair
+ 895:Libs/mbedtls/library/ecdsa.c ****  */
+ 896:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_genkey(mbedtls_ecdsa_context *ctx, mbedtls_ecp_group_id gid,
+ 897:Libs/mbedtls/library/ecdsa.c ****                          int (*f_rng)(void *, unsigned char *, size_t), void *p_rng)
+ 898:Libs/mbedtls/library/ecdsa.c **** {
+ 1511              		.loc 1 898 1 is_stmt 1 view -0
+ 1512              		.cfi_startproc
+ 1513              		@ args = 0, pretend = 0, frame = 0
+ 1514              		@ frame_needed = 0, uses_anonymous_args = 0
+ 899:Libs/mbedtls/library/ecdsa.c ****     int ret = 0;
+ 1515              		.loc 1 899 5 view .LVU488
+ 900:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx   != NULL);
+ 1516              		.loc 1 900 5 view .LVU489
+ 1517              		.loc 1 900 5 view .LVU490
+ 1518              		.loc 1 900 5 view .LVU491
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 49
+
+
+ 901:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(f_rng != NULL);
+ 1519              		.loc 1 901 5 view .LVU492
+ 1520              		.loc 1 901 5 view .LVU493
+ 1521              		.loc 1 901 5 view .LVU494
+ 902:Libs/mbedtls/library/ecdsa.c **** 
+ 903:Libs/mbedtls/library/ecdsa.c ****     ret = mbedtls_ecp_group_load(&ctx->grp, gid);
+ 1522              		.loc 1 903 5 view .LVU495
+ 898:Libs/mbedtls/library/ecdsa.c ****     int ret = 0;
+ 1523              		.loc 1 898 1 is_stmt 0 view .LVU496
+ 1524 0000 73B5     		push	{r0, r1, r4, r5, r6, lr}
+ 1525              	.LCFI27:
+ 1526              		.cfi_def_cfa_offset 24
+ 1527              		.cfi_offset 4, -16
+ 1528              		.cfi_offset 5, -12
+ 1529              		.cfi_offset 6, -8
+ 1530              		.cfi_offset 14, -4
+ 898:Libs/mbedtls/library/ecdsa.c ****     int ret = 0;
+ 1531              		.loc 1 898 1 view .LVU497
+ 1532 0002 0446     		mov	r4, r0
+ 1533 0004 1546     		mov	r5, r2
+ 1534 0006 1E46     		mov	r6, r3
+ 1535              		.loc 1 903 11 view .LVU498
+ 1536 0008 FFF7FEFF 		bl	mbedtls_ecp_group_load
+ 1537              	.LVL189:
+ 904:Libs/mbedtls/library/ecdsa.c ****     if (ret != 0) {
+ 1538              		.loc 1 904 5 is_stmt 1 view .LVU499
+ 1539              		.loc 1 904 8 is_stmt 0 view .LVU500
+ 1540 000c 40B9     		cbnz	r0, .L55
+ 905:Libs/mbedtls/library/ecdsa.c ****         return ret;
+ 906:Libs/mbedtls/library/ecdsa.c ****     }
+ 907:Libs/mbedtls/library/ecdsa.c **** 
+ 908:Libs/mbedtls/library/ecdsa.c ****     return mbedtls_ecp_gen_keypair(&ctx->grp, &ctx->d,
+ 1541              		.loc 1 908 5 is_stmt 1 view .LVU501
+ 1542              		.loc 1 908 12 is_stmt 0 view .LVU502
+ 1543 000e 2B46     		mov	r3, r5
+ 1544 0010 04F18802 		add	r2, r4, #136
+ 1545 0014 04F17C01 		add	r1, r4, #124
+ 1546 0018 2046     		mov	r0, r4
+ 1547              	.LVL190:
+ 1548              		.loc 1 908 12 view .LVU503
+ 1549 001a 0096     		str	r6, [sp]
+ 1550 001c FFF7FEFF 		bl	mbedtls_ecp_gen_keypair
+ 1551              	.LVL191:
+ 1552              	.L55:
+ 909:Libs/mbedtls/library/ecdsa.c ****                                    &ctx->Q, f_rng, p_rng);
+ 910:Libs/mbedtls/library/ecdsa.c **** }
+ 1553              		.loc 1 910 1 view .LVU504
+ 1554 0020 02B0     		add	sp, sp, #8
+ 1555              	.LCFI28:
+ 1556              		.cfi_def_cfa_offset 16
+ 1557              		@ sp needed
+ 1558 0022 70BD     		pop	{r4, r5, r6, pc}
+ 1559              		.loc 1 910 1 view .LVU505
+ 1560              		.cfi_endproc
+ 1561              	.LFE18:
+ 1563              		.section	.text.mbedtls_ecdsa_init,"ax",%progbits
+ 1564              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 50
+
+
+ 1565              		.global	mbedtls_ecdsa_init
+ 1566              		.syntax unified
+ 1567              		.thumb
+ 1568              		.thumb_func
+ 1570              	mbedtls_ecdsa_init:
+ 1571              	.LVL192:
+ 1572              	.LFB20:
+ 911:Libs/mbedtls/library/ecdsa.c **** #endif /* !MBEDTLS_ECDSA_GENKEY_ALT */
+ 912:Libs/mbedtls/library/ecdsa.c **** 
+ 913:Libs/mbedtls/library/ecdsa.c **** /*
+ 914:Libs/mbedtls/library/ecdsa.c ****  * Set context from an mbedtls_ecp_keypair
+ 915:Libs/mbedtls/library/ecdsa.c ****  */
+ 916:Libs/mbedtls/library/ecdsa.c **** int mbedtls_ecdsa_from_keypair(mbedtls_ecdsa_context *ctx, const mbedtls_ecp_keypair *key)
+ 917:Libs/mbedtls/library/ecdsa.c **** {
+ 918:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 919:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx != NULL);
+ 920:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(key != NULL);
+ 921:Libs/mbedtls/library/ecdsa.c **** 
+ 922:Libs/mbedtls/library/ecdsa.c ****     if ((ret = mbedtls_ecp_group_copy(&ctx->grp, &key->grp)) != 0 ||
+ 923:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0 ||
+ 924:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_ecp_copy(&ctx->Q, &key->Q)) != 0) {
+ 925:Libs/mbedtls/library/ecdsa.c ****         mbedtls_ecdsa_free(ctx);
+ 926:Libs/mbedtls/library/ecdsa.c ****     }
+ 927:Libs/mbedtls/library/ecdsa.c **** 
+ 928:Libs/mbedtls/library/ecdsa.c ****     return ret;
+ 929:Libs/mbedtls/library/ecdsa.c **** }
+ 930:Libs/mbedtls/library/ecdsa.c **** 
+ 931:Libs/mbedtls/library/ecdsa.c **** /*
+ 932:Libs/mbedtls/library/ecdsa.c ****  * Initialize context
+ 933:Libs/mbedtls/library/ecdsa.c ****  */
+ 934:Libs/mbedtls/library/ecdsa.c **** void mbedtls_ecdsa_init(mbedtls_ecdsa_context *ctx)
+ 935:Libs/mbedtls/library/ecdsa.c **** {
+ 1573              		.loc 1 935 1 is_stmt 1 view -0
+ 1574              		.cfi_startproc
+ 1575              		@ args = 0, pretend = 0, frame = 0
+ 1576              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1577              		@ link register save eliminated.
+ 936:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE(ctx != NULL);
+ 1578              		.loc 1 936 5 view .LVU507
+ 1579              		.loc 1 936 5 view .LVU508
+ 1580              		.loc 1 936 5 view .LVU509
+ 937:Libs/mbedtls/library/ecdsa.c **** 
+ 938:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_keypair_init(ctx);
+ 1581              		.loc 1 938 5 view .LVU510
+ 1582 0000 FFF7FEBF 		b	mbedtls_ecp_keypair_init
+ 1583              	.LVL193:
+ 1584              		.loc 1 938 5 is_stmt 0 view .LVU511
+ 1585              		.cfi_endproc
+ 1586              	.LFE20:
+ 1588              		.section	.text.mbedtls_ecdsa_free,"ax",%progbits
+ 1589              		.align	1
+ 1590              		.global	mbedtls_ecdsa_free
+ 1591              		.syntax unified
+ 1592              		.thumb
+ 1593              		.thumb_func
+ 1595              	mbedtls_ecdsa_free:
+ 1596              	.LVL194:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 51
+
+
+ 1597              	.LFB21:
+ 939:Libs/mbedtls/library/ecdsa.c **** }
+ 940:Libs/mbedtls/library/ecdsa.c **** 
+ 941:Libs/mbedtls/library/ecdsa.c **** /*
+ 942:Libs/mbedtls/library/ecdsa.c ****  * Free context
+ 943:Libs/mbedtls/library/ecdsa.c ****  */
+ 944:Libs/mbedtls/library/ecdsa.c **** void mbedtls_ecdsa_free(mbedtls_ecdsa_context *ctx)
+ 945:Libs/mbedtls/library/ecdsa.c **** {
+ 1598              		.loc 1 945 1 is_stmt 1 view -0
+ 1599              		.cfi_startproc
+ 1600              		@ args = 0, pretend = 0, frame = 0
+ 1601              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1602              		@ link register save eliminated.
+ 946:Libs/mbedtls/library/ecdsa.c ****     if (ctx == NULL) {
+ 1603              		.loc 1 946 5 view .LVU513
+ 1604              		.loc 1 946 8 is_stmt 0 view .LVU514
+ 1605 0000 08B1     		cbz	r0, .L58
+ 947:Libs/mbedtls/library/ecdsa.c ****         return;
+ 948:Libs/mbedtls/library/ecdsa.c ****     }
+ 949:Libs/mbedtls/library/ecdsa.c **** 
+ 950:Libs/mbedtls/library/ecdsa.c ****     mbedtls_ecp_keypair_free(ctx);
+ 1606              		.loc 1 950 5 is_stmt 1 view .LVU515
+ 1607 0002 FFF7FEBF 		b	mbedtls_ecp_keypair_free
+ 1608              	.LVL195:
+ 1609              	.L58:
+ 951:Libs/mbedtls/library/ecdsa.c **** }
+ 1610              		.loc 1 951 1 is_stmt 0 view .LVU516
+ 1611 0006 7047     		bx	lr
+ 1612              		.cfi_endproc
+ 1613              	.LFE21:
+ 1615              		.section	.text.mbedtls_ecdsa_from_keypair,"ax",%progbits
+ 1616              		.align	1
+ 1617              		.global	mbedtls_ecdsa_from_keypair
+ 1618              		.syntax unified
+ 1619              		.thumb
+ 1620              		.thumb_func
+ 1622              	mbedtls_ecdsa_from_keypair:
+ 1623              	.LVL196:
+ 1624              	.LFB19:
+ 917:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1625              		.loc 1 917 1 is_stmt 1 view -0
+ 1626              		.cfi_startproc
+ 1627              		@ args = 0, pretend = 0, frame = 0
+ 1628              		@ frame_needed = 0, uses_anonymous_args = 0
+ 918:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(ctx != NULL);
+ 1629              		.loc 1 918 5 view .LVU518
+ 919:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(key != NULL);
+ 1630              		.loc 1 919 5 view .LVU519
+ 919:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(key != NULL);
+ 1631              		.loc 1 919 5 view .LVU520
+ 919:Libs/mbedtls/library/ecdsa.c ****     ECDSA_VALIDATE_RET(key != NULL);
+ 1632              		.loc 1 919 5 view .LVU521
+ 920:Libs/mbedtls/library/ecdsa.c **** 
+ 1633              		.loc 1 920 5 view .LVU522
+ 920:Libs/mbedtls/library/ecdsa.c **** 
+ 1634              		.loc 1 920 5 view .LVU523
+ 920:Libs/mbedtls/library/ecdsa.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 52
+
+
+ 1635              		.loc 1 920 5 view .LVU524
+ 922:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0 ||
+ 1636              		.loc 1 922 5 view .LVU525
+ 917:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1637              		.loc 1 917 1 is_stmt 0 view .LVU526
+ 1638 0000 70B5     		push	{r4, r5, r6, lr}
+ 1639              	.LCFI29:
+ 1640              		.cfi_def_cfa_offset 16
+ 1641              		.cfi_offset 4, -16
+ 1642              		.cfi_offset 5, -12
+ 1643              		.cfi_offset 6, -8
+ 1644              		.cfi_offset 14, -4
+ 917:Libs/mbedtls/library/ecdsa.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1645              		.loc 1 917 1 view .LVU527
+ 1646 0002 0546     		mov	r5, r0
+ 1647 0004 0E46     		mov	r6, r1
+ 922:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0 ||
+ 1648              		.loc 1 922 16 view .LVU528
+ 1649 0006 FFF7FEFF 		bl	mbedtls_ecp_group_copy
+ 1650              	.LVL197:
+ 922:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0 ||
+ 1651              		.loc 1 922 8 discriminator 1 view .LVU529
+ 1652 000a 0446     		mov	r4, r0
+ 1653 000c 78B9     		cbnz	r0, .L61
+ 923:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_ecp_copy(&ctx->Q, &key->Q)) != 0) {
+ 1654              		.loc 1 923 16 view .LVU530
+ 1655 000e 06F17C01 		add	r1, r6, #124
+ 1656 0012 05F17C00 		add	r0, r5, #124
+ 1657              	.LVL198:
+ 923:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_ecp_copy(&ctx->Q, &key->Q)) != 0) {
+ 1658              		.loc 1 923 16 view .LVU531
+ 1659 0016 FFF7FEFF 		bl	mbedtls_mpi_copy
+ 1660              	.LVL199:
+ 922:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0 ||
+ 1661              		.loc 1 922 67 discriminator 1 view .LVU532
+ 1662 001a 0446     		mov	r4, r0
+ 1663 001c 38B9     		cbnz	r0, .L61
+ 924:Libs/mbedtls/library/ecdsa.c ****         mbedtls_ecdsa_free(ctx);
+ 1664              		.loc 1 924 16 view .LVU533
+ 1665 001e 06F18801 		add	r1, r6, #136
+ 1666 0022 05F18800 		add	r0, r5, #136
+ 1667              	.LVL200:
+ 924:Libs/mbedtls/library/ecdsa.c ****         mbedtls_ecdsa_free(ctx);
+ 1668              		.loc 1 924 16 view .LVU534
+ 1669 0026 FFF7FEFF 		bl	mbedtls_ecp_copy
+ 1670              	.LVL201:
+ 923:Libs/mbedtls/library/ecdsa.c ****         (ret = mbedtls_ecp_copy(&ctx->Q, &key->Q)) != 0) {
+ 1671              		.loc 1 923 57 view .LVU535
+ 1672 002a 0446     		mov	r4, r0
+ 1673 002c 10B1     		cbz	r0, .L60
+ 1674              	.L61:
+ 925:Libs/mbedtls/library/ecdsa.c ****     }
+ 1675              		.loc 1 925 9 is_stmt 1 view .LVU536
+ 1676 002e 2846     		mov	r0, r5
+ 1677              	.LVL202:
+ 925:Libs/mbedtls/library/ecdsa.c ****     }
+ 1678              		.loc 1 925 9 is_stmt 0 view .LVU537
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 53
+
+
+ 1679 0030 FFF7FEFF 		bl	mbedtls_ecdsa_free
+ 1680              	.LVL203:
+ 928:Libs/mbedtls/library/ecdsa.c **** }
+ 1681              		.loc 1 928 5 is_stmt 1 view .LVU538
+ 1682              	.L60:
+ 929:Libs/mbedtls/library/ecdsa.c **** 
+ 1683              		.loc 1 929 1 is_stmt 0 view .LVU539
+ 1684 0034 2046     		mov	r0, r4
+ 1685 0036 70BD     		pop	{r4, r5, r6, pc}
+ 929:Libs/mbedtls/library/ecdsa.c **** 
+ 1686              		.loc 1 929 1 view .LVU540
+ 1687              		.cfi_endproc
+ 1688              	.LFE19:
+ 1690              		.text
+ 1691              	.Letext0:
+ 1692              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1693              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1694              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1695              		.file 5 "Libs/mbedtls/include/mbedtls/bignum.h"
+ 1696              		.file 6 "Libs/mbedtls/include/mbedtls/ecp.h"
+ 1697              		.file 7 "Libs/mbedtls/include/mbedtls/md.h"
+ 1698              		.file 8 "Libs/mbedtls/include/mbedtls/ecdsa.h"
+ 1699              		.file 9 "Libs/mbedtls/include/mbedtls/asn1.h"
+ 1700              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1701              		.file 11 "Libs/mbedtls/include/mbedtls/asn1write.h"
+ 1702              		.file 12 "Libs/mbedtls/include/mbedtls/error.h"
+ 1703              		.file 13 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 54
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ecdsa.c
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:20     .text.derive_mpi:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:25     .text.derive_mpi:00000000 derive_mpi
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:147    .text.ecdsa_verify_restartable.isra.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:152    .text.ecdsa_verify_restartable.isra.0:00000000 ecdsa_verify_restartable.isra.0
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:456    .text.ecdsa_verify_restartable.isra.0:00000144 $d
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:462    .text.ecdsa_sign_restartable.isra.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:467    .text.ecdsa_sign_restartable.isra.0:00000000 ecdsa_sign_restartable.isra.0
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:848    .text.ecdsa_sign_restartable.isra.0:00000184 $d
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:855    .text.mbedtls_ecdsa_can_do:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:861    .text.mbedtls_ecdsa_can_do:00000000 mbedtls_ecdsa_can_do
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:880    .text.mbedtls_ecdsa_sign:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:886    .text.mbedtls_ecdsa_sign:00000000 mbedtls_ecdsa_sign
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:944    .text.mbedtls_ecdsa_verify:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:950    .text.mbedtls_ecdsa_verify:00000000 mbedtls_ecdsa_verify
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:982    .text.mbedtls_ecdsa_write_signature_restartable:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:988    .text.mbedtls_ecdsa_write_signature_restartable:00000000 mbedtls_ecdsa_write_signature_restartable
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1222   .text.mbedtls_ecdsa_write_signature:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1228   .text.mbedtls_ecdsa_write_signature:00000000 mbedtls_ecdsa_write_signature
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1283   .text.mbedtls_ecdsa_read_signature_restartable:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1289   .text.mbedtls_ecdsa_read_signature_restartable:00000000 mbedtls_ecdsa_read_signature_restartable
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1449   .text.mbedtls_ecdsa_read_signature_restartable:00000098 $d
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1455   .text.mbedtls_ecdsa_read_signature:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1461   .text.mbedtls_ecdsa_read_signature:00000000 mbedtls_ecdsa_read_signature
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1502   .text.mbedtls_ecdsa_genkey:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1508   .text.mbedtls_ecdsa_genkey:00000000 mbedtls_ecdsa_genkey
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1564   .text.mbedtls_ecdsa_init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1570   .text.mbedtls_ecdsa_init:00000000 mbedtls_ecdsa_init
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1589   .text.mbedtls_ecdsa_free:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1595   .text.mbedtls_ecdsa_free:00000000 mbedtls_ecdsa_free
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1616   .text.mbedtls_ecdsa_from_keypair:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s:1622   .text.mbedtls_ecdsa_from_keypair:00000000 mbedtls_ecdsa_from_keypair
+
+UNDEFINED SYMBOLS
+mbedtls_mpi_read_binary
+mbedtls_mpi_cmp_mpi
+mbedtls_mpi_sub_mpi
+mbedtls_mpi_shift_r
+mbedtls_ecp_point_init
+mbedtls_mpi_init
+mbedtls_mpi_cmp_int
+mbedtls_ecp_point_free
+mbedtls_mpi_free
+mbedtls_mpi_inv_mod
+mbedtls_mpi_mul_mpi
+mbedtls_mpi_mod_mpi
+mbedtls_ecp_muladd_restartable
+mbedtls_ecp_is_zero
+mbedtls_ecp_gen_privkey
+mbedtls_ecp_mul_restartable
+mbedtls_mpi_add_mpi
+memset
+mbedtls_asn1_write_mpi
+mbedtls_asn1_write_len
+mbedtls_asn1_write_tag
+memcpy
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyGVj9m.s 			page 55
+
+
+mbedtls_asn1_get_tag
+mbedtls_asn1_get_mpi
+mbedtls_ecp_group_load
+mbedtls_ecp_gen_keypair
+mbedtls_ecp_keypair_init
+mbedtls_ecp_keypair_free
+mbedtls_ecp_group_copy
+mbedtls_mpi_copy
+mbedtls_ecp_copy

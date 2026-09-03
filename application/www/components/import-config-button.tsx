@@ -26,11 +26,21 @@ export function ImportConfigButton(
         try {
             const text = await file.text();
             const configData = JSON.parse(text);
-            await importAllConfig(configData);
+            const importResult = await importAllConfig(configData);
+
+            if (importResult.warnings.length > 0) {
+                showToast({
+                    title: "配置已导入，但跳过了 ADC 数据",
+                    description: importResult.warnings.join("；"),
+                    type: "warning",
+                });
+            }
             
             const confirmed = await openImportDialog({
                 title: t.IMPORT_CONFIG_SUCCESS_TITLE,
-                message: t.IMPORT_CONFIG_SUCCESS_MESSAGE,
+                message: importResult.warnings.length > 0
+                    ? `${t.IMPORT_CONFIG_SUCCESS_MESSAGE}\n\n${importResult.warnings.join("；")}`
+                    : t.IMPORT_CONFIG_SUCCESS_MESSAGE,
                 closable: false,
             });
 

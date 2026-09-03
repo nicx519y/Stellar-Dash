@@ -1,14 +1,194 @@
 #include <numeric>   // 为 std::accumulate
 #include <algorithm> // 为 std::sort
+#include <cmath>
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
-#include "micro_timer.hpp"
 #include "system_logger.h"
 #include "qspi-w25q64.h"
 #include <cstring>
 #include "cpp_utils.hpp"
-#include "latency_monitor.hpp"
-#include "delay_timer.h"
+#include "micro_timer.hpp"
+#include "CRC32.hpp"
+#include "sha256_simple.h"
+#include <cstddef>
+#include <cctype>
+
+namespace {
+constexpr uint32_t LEGACY_ADC_MAPPING_VERSION = 0x000001u;
+constexpr uint32_t SHARED_MAPPING_MAGIC = 0x4D414248u; // "HBAM"
+constexpr uint16_t SHARED_MAPPING_SCHEMA_VERSION = 1u;
+constexpr uint32_t SHARED_MAPPING_BANK_OFFSETS[2] = {0x1000u, 0x2000u};
+
+struct SharedMappingRecord {
+    uint32_t magic;
+    uint16_t schemaVersion;
+    uint16_t payloadLength;
+    uint32_t sequence;
+    ADCValuesMapping mapping;
+    uint32_t crc32;
+};
+
+static_assert(sizeof(SharedMappingRecord) <= 4096u,
+              "shared ADC mapping record must fit one QSPI sector");
+
+static bool isTerminatedString(const char* value, size_t capacity)
+{
+    if (value == nullptr || capacity == 0u || value[0] == '\0') {
+        return false;
+    }
+
+    return std::memchr(value, '\0', capacity) != nullptr;
+}
+
+static bool isMappingValid(const ADCValuesMapping& mapping)
+{
+    if (!isTerminatedString(mapping.id, sizeof(mapping.id)) ||
+        !isTerminatedString(mapping.name, sizeof(mapping.name)) ||
+        mapping.length < 2u || mapping.length > MAX_ADC_VALUES_LENGTH ||
+        !std::isfinite(mapping.step) || mapping.step < 0.1f ||
+        mapping.step > 10.0f || mapping.samplingFrequency == 0u) {
+        return false;
+    }
+    for (size_t i = 0u; i < mapping.length; ++i) {
+        if (mapping.originalValues[i] > UINT16_MAX) {
+            return false;
+        }
+    }
+    const uint32_t first = mapping.originalValues[0];
+    const uint32_t last = mapping.originalValues[mapping.length - 1u];
+    if (first != 0u && last != 0u && first == last) {
+        return false;
+    }
+    return true;
+}
+
+static uint32_t sharedRecordCrc(const SharedMappingRecord& record)
+{
+    return CRC32::calculate(
+        reinterpret_cast<const uint8_t*>(&record),
+        static_cast<uint16_t>(offsetof(SharedMappingRecord, crc32)));
+}
+
+static bool isSharedRecordValid(const SharedMappingRecord& record)
+{
+    return record.magic == SHARED_MAPPING_MAGIC &&
+           record.schemaVersion == SHARED_MAPPING_SCHEMA_VERSION &&
+           record.payloadLength == sizeof(ADCValuesMapping) &&
+           record.sequence != 0u &&
+           record.crc32 == sharedRecordCrc(record) &&
+           isMappingValid(record.mapping);
+}
+
+static bool sequenceNewer(uint32_t left, uint32_t right)
+{
+    return static_cast<int32_t>(left - right) > 0;
+}
+
+static void writeLe16(uint8_t* output, uint16_t value)
+{
+    output[0] = static_cast<uint8_t>(value);
+    output[1] = static_cast<uint8_t>(value >> 8u);
+}
+
+static void writeLe32(uint8_t* output, uint32_t value)
+{
+    output[0] = static_cast<uint8_t>(value);
+    output[1] = static_cast<uint8_t>(value >> 8u);
+    output[2] = static_cast<uint8_t>(value >> 16u);
+    output[3] = static_cast<uint8_t>(value >> 24u);
+}
+
+static bool mappingDigestMatches(const ADCValuesMapping& mapping,
+                                 const char* expected)
+{
+    if (expected == nullptr || strlen(expected) != 64u) return false;
+    uint8_t canonical[220] = {};
+    static const uint8_t prefix[16] = {
+        'H','B','O','X','-','A','D','C','-','M','A','P','-','V','1',0
+    };
+    memcpy(canonical, prefix, sizeof(prefix));
+    memcpy(canonical + 16u, mapping.id,
+           std::min(strlen(mapping.id), static_cast<size_t>(15u)));
+    memcpy(canonical + 32u, mapping.name,
+           std::min(strlen(mapping.name), static_cast<size_t>(15u)));
+    writeLe32(canonical + 48u, static_cast<uint32_t>(mapping.length));
+    uint32_t stepBits = 0u;
+    static_assert(sizeof(stepBits) == sizeof(mapping.step), "float size mismatch");
+    memcpy(&stepBits, &mapping.step, sizeof(stepBits));
+    writeLe32(canonical + 52u, stepBits);
+    writeLe16(canonical + 56u, mapping.samplingNoise);
+    writeLe16(canonical + 58u, mapping.samplingFrequency);
+    for (size_t i = 0u; i < mapping.length; ++i) {
+        writeLe32(canonical + 60u + i * 4u, mapping.originalValues[i]);
+    }
+    char actual[65] = {};
+    if (sha256_calculate(canonical, sizeof(canonical), actual) != 1) {
+        return false;
+    }
+    for (size_t i = 0u; i < 64u; ++i) {
+        const char a = static_cast<char>(std::tolower(
+            static_cast<unsigned char>(actual[i])));
+        const char b = static_cast<char>(std::tolower(
+            static_cast<unsigned char>(expected[i])));
+        if (a != b) return false;
+    }
+    return true;
+}
+
+static bool isLegacyMappingStoreCompatible(const ADCValuesMappingStore& store)
+{
+    if (store.version != LEGACY_ADC_MAPPING_VERSION ||
+        store.num == 0u ||
+        store.num > NUM_ADC_VALUES_MAPPING) {
+        return false;
+    }
+
+    for (uint8_t i = 0u; i < store.num; ++i) {
+        const ADCValuesMapping& mapping = store.mapping[i];
+        if (!isTerminatedString(mapping.id, sizeof(mapping.id)) ||
+            mapping.length < 2u ||
+            mapping.length > MAX_ADC_VALUES_LENGTH ||
+            !(mapping.step > 0.0f)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static void invalidateDmaHalf(const ADCBufferInfo& info,
+                              uint8_t completedHalf)
+{
+    const uintptr_t rawStart = reinterpret_cast<uintptr_t>(
+        info.buffer + static_cast<uint32_t>(completedHalf) * info.count);
+    const uintptr_t rawEnd = rawStart +
+        static_cast<uintptr_t>(info.count) * sizeof(uint32_t);
+    const uintptr_t start = rawStart & ~static_cast<uintptr_t>(31u);
+    const uintptr_t end = (rawEnd + 31u) & ~static_cast<uintptr_t>(31u);
+    SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t*>(start), static_cast<int32_t>(end - start));
+}
+
+static void setDmaCompletionInterrupt(ADC_HandleTypeDef& hadc, bool enabled)
+{
+    if (hadc.DMA_Handle == nullptr) {
+        return;
+    }
+
+    if (enabled) {
+        __HAL_DMA_ENABLE_IT(hadc.DMA_Handle, DMA_IT_TC | DMA_IT_HT);
+    } else {
+        __HAL_DMA_DISABLE_IT(hadc.DMA_Handle, DMA_IT_TC | DMA_IT_HT);
+    }
+}
+
+static void disableAllDmaCompletionInterrupts()
+{
+    setDmaCompletionInterrupt(hadc1, false);
+    setDmaCompletionInterrupt(hadc2, false);
+    setDmaCompletionInterrupt(hadc3, false);
+}
+
+}
 
 // 内存图
 /*
@@ -22,6 +202,8 @@
  * +------------------------+ 0x05
  * | 默认映射ID (16 bytes) |
  * +------------------------+ 0x15
+ * | 对齐填充 (3 bytes)     |
+ * +------------------------+ 0x18
  * | 映射数据              |
  * | - ADCValuesMapping[0] |
  * | - ADCValuesMapping[1] |
@@ -30,10 +212,10 @@
  */
 
 // 定义静态 ADC DMA 缓冲区
-__attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS];
-__attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS];
+__attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS * 2u];
+__attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS * 2u];
 // ADC3 BDMA 只能访问 _RAM_D3_Area 区域
-__attribute__((section(".BDMA_Section"))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS];
+__attribute__((section(".BDMA_Section"), aligned(32))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS * 2u];
 
 uint32_t ADCManager::ADC_Values_Result[NUM_ADC_BUTTONS];
 
@@ -64,33 +246,49 @@ ADCManager::ADCManager()
     }
 
     // 读取整个存储结构
-    QSPI_W25Qxx_ReadBuffer_WithXIPOrNot((uint8_t *)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
+    std::memset(&store, 0, sizeof(store));
+    const int8_t mappingReadResult = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+        reinterpret_cast<uint8_t*>(&store),
+        ADC_VALUES_MAPPING_ADDR_QSPI,
+        sizeof(ADCValuesMappingStore));
 
     APP_DBG("ADCValuesMappingUtils version: 0x%x", store.version);
     APP_DBG("ADC_MAPPING_VERSION == version: %d", ADC_MAPPING_VERSION == store.version);
 
-    // 如果版本号不匹配，初始化整个存储
-    if (store.version != ADC_MAPPING_VERSION)
-    {
-        APP_DBG("ADCValuesMappingUtils version is not match, version: 0x%x", store.version);
-        // 擦除64K
-        // QSPI_W25Qxx_BufferErase(ADC_VALUES_MAPPING_ADDR_QSPI, 64*1024);
+    if (mappingReadResult == QSPI_W25Qxx_OK &&
+        isLegacyMappingStoreCompatible(store)) {
+        /*
+         * PCB V2 的随包映射已经包含 18 路 ADC 校准槽位，但其文件头仍是
+         * 历史版本 1。映射数组起始偏移没有变化，因此可安全地在 RAM 中
+         * 升级版本并继续使用。不要在启动阶段反写 QSPI；后续正常保存配置
+         * 时会按当前结构写入版本 2。
+         */
+        store.version = ADC_MAPPING_VERSION;
+        std::memset(store.defaultId, 0, sizeof(store.defaultId));
+        std::strncpy(store.defaultId,
+                     store.mapping[0].id,
+                     sizeof(store.defaultId) - 1u);
+        APP_STAGE("I03", "accepted compatible ADC mapping v1: count=%u default=%s",
+                  static_cast<unsigned>(store.num),
+                  store.mapping[0].id);
+    } else if (mappingReadResult != QSPI_W25Qxx_OK ||
+               store.version != ADC_MAPPING_VERSION ||
+               store.num > NUM_ADC_VALUES_MAPPING) {
+        const uint32_t rejectedVersion = store.version;
+        const uint8_t rejectedCount = store.num;
 
-        // 初始化存储结构
+        /*
+         * A bad/mismatched artifact must not destroy the mapping partition.
+         * Keep the failure local to this boot so a correct full application
+         * flash can restore operation without first repairing QSPI contents.
+         */
         memset(&store, 0, sizeof(ADCValuesMappingStore));
         store.version = ADC_MAPPING_VERSION;
-        store.num = 0;
-        strcpy(store.defaultId, "");
-
-        // 写入初始化后的存储结构
-        if (QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t *)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore)) != QSPI_W25Qxx_OK)
-        {
-            APP_ERR("ADCValuesMappingUtils init failed");
-        }
-        else
-        {
-            APP_DBG("ADCValuesMappingUtils init success");
-        }
+        APP_STAGE_ERROR("I03",
+                        "ADC mapping rejected without modifying QSPI: read=%d version=%lu count=%u",
+                        static_cast<int>(mappingReadResult),
+                        static_cast<unsigned long>(rejectedVersion),
+                        static_cast<unsigned>(rejectedCount));
     }
 
     APP_DBG("ADCManager init: store version - %d, num - %d, defaultId - %s", store.version, store.num, store.defaultId);
@@ -150,47 +348,49 @@ ADCManager::ADCManager()
         }
         QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t *)&common, ADC_COMMON_CONFIG_ADDR_QSPI, sizeof(ADCCommonConfig));
     }
-    if (store.num > 0)
-    {
-        if (findMappingById(common.defaultMappingId) == -1)
-        {
-            memset(common.manualCalibrationValues, 0, sizeof(common.manualCalibrationValues));
-            memset(common.autoCalibrationValues, 0, sizeof(common.autoCalibrationValues));
-            memset(common.calibratedMappingId, 0, sizeof(common.calibratedMappingId));
-            strncpy(common.defaultMappingId, store.mapping[0].id, sizeof(common.defaultMappingId) - 1);
-            common.defaultMappingId[sizeof(common.defaultMappingId) - 1] = '\0';
-            QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t *)&common, ADC_COMMON_CONFIG_ADDR_QSPI, sizeof(ADCCommonConfig));
-        }
-    }
+    /*
+     * Resolve the effective mapping before interpreting either mapping ID in
+     * the common calibration record.  A server-installed shared mapping is
+     * intentionally absent from the slot-local factory component.  Checking
+     * common.defaultMappingId against that factory component first therefore
+     * misclassifies a valid shared mapping as missing and used to erase all
+     * calibration values on every reboot.
+     *
+     * loadSharedSingleton() selects either the newest valid shared record or
+     * a factory fallback and updates only the RAM view during boot.  Persistent
+     * calibration is changed only by explicit mapping/calibration operations.
+     */
+    loadSharedSingleton();
 
-    // 注册消息
-    MC.registerMessage(MessageId::DMA_ADC_CONV_CPLT);           // DMA ADC 转换完成消息
+    // 注册采样统计完成消息
     MC.registerMessage(MessageId::ADC_SAMPLING_STATS_COMPLETE); // ADC 采样统计完成消息
 
     this->samplingCountMax = 1000;                                                                       // 采样次数 默认1000次
     this->samplingRateEnabled = false;                                                                   // 采样率统计是否开启 默认关闭
     this->ADCButtonStats = {0};                                                                          // 采样统计信息
     this->samplingADCInfo = ADCIndexInfo{0, 0};                                                          // 采样ADC信息
-    this->adcBufferInfo[0] = {ADC1_Values, sizeof(ADC1_Values), ADC1_BUTTONS_MAPPING, NUM_ADC1_BUTTONS}; // ADC1缓存信息
-    this->adcBufferInfo[1] = {ADC2_Values, sizeof(ADC2_Values), ADC2_BUTTONS_MAPPING, NUM_ADC2_BUTTONS}; // ADC2缓存信息
-    this->adcBufferInfo[2] = {ADC3_Values, sizeof(ADC3_Values), ADC3_BUTTONS_MAPPING, NUM_ADC3_BUTTONS}; // ADC3缓存信息
+    this->adcBufferInfo[0] = {ADC1_Values, ADC1_BUTTONS_MAPPING, NUM_ADC1_BUTTONS}; // ADC1缓存信息
+    this->adcBufferInfo[1] = {ADC2_Values, ADC2_BUTTONS_MAPPING, NUM_ADC2_BUTTONS}; // ADC2缓存信息
+    this->adcBufferInfo[2] = {ADC3_Values, ADC3_BUTTONS_MAPPING, NUM_ADC3_BUTTONS}; // ADC3缓存信息
 
     for (uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++)
     {
-        this->ADCBufferInfoList[i].valuePtr = &this->adcBufferInfo[0].buffer[i];
+        this->ADCBufferInfoList[i].valuePtr = &ADC_Values_Result[ADC1_BUTTONS_MAPPING[i]];
         this->ADCBufferInfoList[i].virtualPin = ADC1_BUTTONS_MAPPING[i];
     }
 
     for (uint8_t j = NUM_ADC1_BUTTONS; j < NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS; j++)
     {
-        this->ADCBufferInfoList[j].valuePtr = &this->adcBufferInfo[1].buffer[j - NUM_ADC1_BUTTONS];
-        this->ADCBufferInfoList[j].virtualPin = ADC2_BUTTONS_MAPPING[j - NUM_ADC1_BUTTONS];
+        const uint8_t index = j - NUM_ADC1_BUTTONS;
+        this->ADCBufferInfoList[j].valuePtr = &ADC_Values_Result[ADC2_BUTTONS_MAPPING[index]];
+        this->ADCBufferInfoList[j].virtualPin = ADC2_BUTTONS_MAPPING[index];
     }
 
     for (uint8_t k = NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS; k < NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS + NUM_ADC3_BUTTONS; k++)
     {
-        this->ADCBufferInfoList[k].valuePtr = &this->adcBufferInfo[2].buffer[k - NUM_ADC1_BUTTONS - NUM_ADC2_BUTTONS];
-        this->ADCBufferInfoList[k].virtualPin = ADC3_BUTTONS_MAPPING[k - NUM_ADC1_BUTTONS - NUM_ADC2_BUTTONS];
+        const uint8_t index = k - NUM_ADC1_BUTTONS - NUM_ADC2_BUTTONS;
+        this->ADCBufferInfoList[k].valuePtr = &ADC_Values_Result[ADC3_BUTTONS_MAPPING[index]];
+        this->ADCBufferInfoList[k].virtualPin = ADC3_BUTTONS_MAPPING[index];
     }
 
     // 使用 std::sort 按 virtualPin 排序
@@ -200,25 +400,378 @@ ADCManager::ADCManager()
                   return a.virtualPin < b.virtualPin;
               });
 
-    // Initialize Delay Timer
-    DelayTimer_Init();
-    DelayTimer_SetCallback(ADCManager::timerCallback);
 }
 
 ADCManager::~ADCManager()
 {
-    this->stopADCSamping();
+    this->forceStopAllSampling();
 
-    // 取消注册ADC消息
-    MC.unregisterMessage(MessageId::DMA_ADC_CONV_CPLT);
     MC.unregisterMessage(MessageId::ADC_SAMPLING_STATS_COMPLETE);
+}
+
+const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>&
+ADCManager::readADCValues() const
+{
+    AdcSampleFrame sample = {};
+    if (copyLatestInputSample(sample)) {
+        for (uint8_t i = 0u; i < NUM_ADC_BUTTONS; ++i) {
+            ADC_Values_Result[i] = sample.values[i];
+        }
+    }
+
+    return ADCBufferInfoList;
+}
+
+void ADCManager::resetInputSamples()
+{
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    /*
+     * Every input start/rate change fully stops and rearms all three circular
+     * DMA streams while TIM2 is stopped.  Their first completed region is
+     * therefore always the front half; never infer frame ownership from NDTR.
+     */
+    inputSampleAssembler.reset(0u);
+    if (primask == 0u) {
+        __enable_irq();
+    }
+}
+
+void ADCManager::notifyTimerTrigger(uint32_t triggerCycles)
+{
+    if (!dmaSamplingActive) {
+        return;
+    }
+
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    inputSampleAssembler.notifyTrigger(triggerCycles);
+    if (primask == 0u) {
+        __enable_irq();
+    }
+}
+
+void ADCManager::publishAdcHalf(ADC_HandleTypeDef *hadc,
+                                uint8_t completedHalf)
+{
+    const int8_t adcIndex = (hadc && hadc->Instance == ADC1) ? 0
+                            : (hadc && hadc->Instance == ADC2) ? 1
+                            : (hadc && hadc->Instance == ADC3) ? 2
+                                                               : -1;
+    if (!dmaSamplingActive || adcIndex < 0 || completedHalf > 1u) {
+        return;
+    }
+
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    const ADCBufferInfo& info = adcBufferInfo[static_cast<uint8_t>(adcIndex)];
+    invalidateDmaHalf(info, completedHalf);
+    std::array<uint16_t, NUM_ADC_BUTTONS> converted = {};
+    const uint32_t* sequence =
+        info.buffer + static_cast<uint32_t>(completedHalf) * info.count;
+    for (uint8_t index = 0u; index < info.count; ++index) {
+        converted[index] = static_cast<uint16_t>(
+            sequence[index] >> ADC_VALUE_PUBLIC_RIGHT_SHIFT);
+    }
+    const bool framePublished = inputSampleAssembler.addAdcCompletion(
+        static_cast<uint8_t>(adcIndex),
+        completedHalf,
+        info.indexMap,
+        converted.data(),
+        info.count,
+        MICROS_TIMER.cycles());
+    AdcSampleFrame completedFrame = {};
+    if (framePublished) {
+        (void)inputSampleAssembler.copyLatest(completedFrame);
+    }
+    if (primask == 0u) {
+        __enable_irq();
+    }
+    if (framePublished && samplingRateEnabled) {
+        handleADCStats(completedFrame);
+    }
+}
+
+bool ADCManager::consumeLatestInputSample(AdcSampleFrame& out)
+{
+    bool available = false;
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    available = inputSampleAssembler.consumeLatest(out);
+    if (primask == 0u) {
+        __enable_irq();
+    }
+    return available;
+}
+
+bool ADCManager::copyLatestInputSample(AdcSampleFrame& out) const
+{
+    bool available = false;
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    available = inputSampleAssembler.copyLatest(out);
+    if (primask == 0u) {
+        __enable_irq();
+    }
+    return available;
+}
+
+bool ADCManager::isInputSampleStreamHealthy() const
+{
+    return inputSampleAssembler.isHealthy();
 }
 
 // 保存整个存储结构到Flash
 int8_t ADCManager::saveStore()
 {
     APP_DBG("ADCManager: saveStore - begin save store to flash.");
+    if (sharedMappingInstalled && store.num == 1u) {
+        return persistSharedSingleton(store.mapping[0])
+            ? QSPI_W25Qxx_OK : W25Qxx_ERROR_TRANSMIT;
+    }
     return QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t *)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
+}
+
+void ADCManager::selectFactoryFallback()
+{
+    if (store.num == 0u) return;
+    int8_t selected = findMappingById(common.defaultMappingId);
+    if (selected < 0 && store.defaultId[0] != '\0') {
+        selected = findMappingById(store.defaultId);
+    }
+    if (selected < 0) selected = 0;
+    ADCValuesMapping fallback = store.mapping[selected];
+    memset(&store, 0, sizeof(store));
+    store.version = ADC_MAPPING_VERSION;
+    store.num = 1u;
+    store.mapping[0] = fallback;
+    strncpy(store.defaultId, fallback.id, sizeof(store.defaultId) - 1u);
+    strncpy(common.defaultMappingId, fallback.id,
+            sizeof(common.defaultMappingId) - 1u);
+    if (strncmp(common.calibratedMappingId, fallback.id,
+                sizeof(common.calibratedMappingId)) != 0) {
+        memset(common.calibratedMappingId, 0, sizeof(common.calibratedMappingId));
+        memset(common.manualCalibrationValues, 0,
+               sizeof(common.manualCalibrationValues));
+        memset(common.autoCalibrationValues, 0,
+               sizeof(common.autoCalibrationValues));
+    }
+    sharedMappingInstalled = false;
+    sharedMappingSequence = 0u;
+    sharedMappingBank = -1;
+}
+
+void ADCManager::loadSharedSingleton()
+{
+    SharedMappingRecord records[2] = {};
+    bool valid[2] = {false, false};
+    const uint32_t base = (ADC_COMMON_CONFIG_ADDR & 0x0FFFFFFFu);
+    for (uint8_t bank = 0u; bank < 2u; ++bank) {
+        if (QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+                reinterpret_cast<uint8_t*>(&records[bank]),
+                base + SHARED_MAPPING_BANK_OFFSETS[bank],
+                sizeof(records[bank])) == QSPI_W25Qxx_OK) {
+            valid[bank] = isSharedRecordValid(records[bank]);
+        }
+    }
+    int8_t selected = -1;
+    if (valid[0]) selected = 0;
+    if (valid[1] && (selected < 0 ||
+        sequenceNewer(records[1].sequence, records[0].sequence))) {
+        selected = 1;
+    }
+    if (selected < 0) {
+        selectFactoryFallback();
+        return;
+    }
+
+    const ADCValuesMapping mapping = records[selected].mapping;
+    memset(&store, 0, sizeof(store));
+    store.version = ADC_MAPPING_VERSION;
+    store.num = 1u;
+    store.mapping[0] = mapping;
+    strncpy(store.defaultId, mapping.id, sizeof(store.defaultId) - 1u);
+    strncpy(common.defaultMappingId, mapping.id,
+            sizeof(common.defaultMappingId) - 1u);
+    if (strncmp(common.calibratedMappingId, mapping.id,
+                sizeof(common.calibratedMappingId)) != 0) {
+        memset(common.calibratedMappingId, 0, sizeof(common.calibratedMappingId));
+        memset(common.manualCalibrationValues, 0,
+               sizeof(common.manualCalibrationValues));
+        memset(common.autoCalibrationValues, 0,
+               sizeof(common.autoCalibrationValues));
+    }
+    sharedMappingInstalled = true;
+    sharedMappingSequence = records[selected].sequence;
+    sharedMappingBank = selected;
+}
+
+bool ADCManager::persistSharedSingleton(const ADCValuesMapping& source)
+{
+    ADCValuesMapping mapping = source;
+    memset(mapping.autoCalibrationValues, 0,
+           sizeof(mapping.autoCalibrationValues));
+    memset(mapping.manualCalibrationValues, 0,
+           sizeof(mapping.manualCalibrationValues));
+    SharedMappingRecord record = {};
+    record.magic = SHARED_MAPPING_MAGIC;
+    record.schemaVersion = SHARED_MAPPING_SCHEMA_VERSION;
+    record.payloadLength = sizeof(ADCValuesMapping);
+    record.sequence = sharedMappingSequence + 1u;
+    if (record.sequence == 0u) record.sequence = 1u;
+    record.mapping = mapping;
+    record.crc32 = sharedRecordCrc(record);
+
+    const uint8_t target = sharedMappingBank == 0 ? 1u : 0u;
+    const uint32_t address = (ADC_COMMON_CONFIG_ADDR & 0x0FFFFFFFu) +
+        SHARED_MAPPING_BANK_OFFSETS[target];
+    if (QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(
+            reinterpret_cast<uint8_t*>(&record), address,
+            sizeof(record)) != QSPI_W25Qxx_OK) {
+        return false;
+    }
+    SharedMappingRecord verify = {};
+    if (QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+            reinterpret_cast<uint8_t*>(&verify), address,
+            sizeof(verify)) != QSPI_W25Qxx_OK ||
+        !isSharedRecordValid(verify) ||
+        memcmp(&verify, &record, sizeof(record)) != 0) {
+        return false;
+    }
+    sharedMappingBank = static_cast<int8_t>(target);
+    sharedMappingSequence = record.sequence;
+    sharedMappingInstalled = true;
+    return true;
+}
+
+ADCBtnsError ADCManager::installSharedMapping(const ADCValuesMapping& source,
+                                              const char* expectedSha256)
+{
+    if (!isMappingValid(source) ||
+        !mappingDigestMatches(source, expectedSha256)) {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+    ADCValuesMapping mapping = source;
+    memset(mapping.autoCalibrationValues, 0,
+           sizeof(mapping.autoCalibrationValues));
+    memset(mapping.manualCalibrationValues, 0,
+           sizeof(mapping.manualCalibrationValues));
+
+    // The verified journal record is the commit point.  A power loss before
+    // it completes leaves the previous bank selected; a loss afterwards
+    // reloads the new mapping and rejects any calibration whose mapping ID no
+    // longer matches, even if the common-config mirror was not updated yet.
+    if (!persistSharedSingleton(mapping)) {
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
+
+    memset(&store, 0, sizeof(store));
+    store.version = ADC_MAPPING_VERSION;
+    store.num = 1u;
+    store.mapping[0] = mapping;
+    strncpy(store.defaultId, mapping.id, sizeof(store.defaultId) - 1u);
+
+    memset(common.manualCalibrationValues, 0,
+           sizeof(common.manualCalibrationValues));
+    memset(common.autoCalibrationValues, 0,
+           sizeof(common.autoCalibrationValues));
+    memset(common.calibratedMappingId, 0,
+           sizeof(common.calibratedMappingId));
+    memset(common.defaultMappingId, 0, sizeof(common.defaultMappingId));
+    strncpy(common.defaultMappingId, mapping.id,
+            sizeof(common.defaultMappingId) - 1u);
+    if (saveCommon() != QSPI_W25Qxx_OK) {
+        // The shared record is already durable.  Keep the new singleton live;
+        // the ID mismatch on the next boot continues to suppress stale
+        // calibration rather than reporting a failed install that actually
+        // committed.
+        APP_ERR("ADCManager: shared mapping committed; common calibration mirror write failed");
+    }
+    return ADCBtnsError::SUCCESS;
+}
+
+ADCBtnsError ADCManager::clearSharedMapping(const char* expectedMappingId)
+{
+    if (!sharedMappingInstalled || expectedMappingId == nullptr ||
+        expectedMappingId[0] == '\0' || store.num != 1u ||
+        strncmp(store.mapping[0].id, expectedMappingId,
+                sizeof(store.mapping[0].id)) != 0) {
+        return ADCBtnsError::MAPPING_NOT_FOUND;
+    }
+
+    // Read and validate the slot component before touching either shared
+    // bank. Deleting a user mapping must never leave the runtime without a
+    // usable factory fallback.
+    ADCValuesMappingStore factoryStore = {};
+    const int8_t factoryRead = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+        reinterpret_cast<uint8_t*>(&factoryStore),
+        ADC_VALUES_MAPPING_ADDR_QSPI,
+        sizeof(factoryStore));
+    if (factoryRead != QSPI_W25Qxx_OK || factoryStore.num == 0u ||
+        factoryStore.num > NUM_ADC_VALUES_MAPPING ||
+        (factoryStore.version != ADC_MAPPING_VERSION &&
+         !isLegacyMappingStoreCompatible(factoryStore))) {
+        return ADCBtnsError::MAPPING_STORAGE_EMPTY;
+    }
+    if (factoryStore.version == LEGACY_ADC_MAPPING_VERSION) {
+        factoryStore.version = ADC_MAPPING_VERSION;
+        memset(factoryStore.defaultId, 0, sizeof(factoryStore.defaultId));
+        strncpy(factoryStore.defaultId, factoryStore.mapping[0].id,
+                sizeof(factoryStore.defaultId) - 1u);
+    }
+    for (uint8_t index = 0u; index < factoryStore.num; ++index) {
+        if (!isMappingValid(factoryStore.mapping[index])) {
+            return ADCBtnsError::MAPPING_STORAGE_EMPTY;
+        }
+    }
+
+    // Clear the inactive/older bank first and the selected bank last. A power
+    // loss between the two operations therefore continues to boot the current
+    // valid shared mapping; once both are invalid, boot falls back to the slot.
+    const uint8_t first = sharedMappingBank == 0 ? 1u : 0u;
+    const uint8_t second = first == 0u ? 1u : 0u;
+    const uint8_t clearOrder[2] = {first, second};
+    SharedMappingRecord cleared = {};
+    const uint32_t base = (ADC_COMMON_CONFIG_ADDR & 0x0FFFFFFFu);
+    for (const uint8_t bank : clearOrder) {
+        if (QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(
+                reinterpret_cast<uint8_t*>(&cleared),
+                base + SHARED_MAPPING_BANK_OFFSETS[bank],
+                sizeof(cleared)) != QSPI_W25Qxx_OK) {
+            break;
+        }
+    }
+
+    bool anyValid = false;
+    bool verificationComplete = true;
+    for (uint8_t bank = 0u; bank < 2u; ++bank) {
+        SharedMappingRecord verify = {};
+        const int8_t readResult = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+                reinterpret_cast<uint8_t*>(&verify),
+                base + SHARED_MAPPING_BANK_OFFSETS[bank],
+                sizeof(verify));
+        if (readResult != QSPI_W25Qxx_OK) {
+            verificationComplete = false;
+        } else if (isSharedRecordValid(verify)) {
+            anyValid = true;
+        }
+    }
+    if (!verificationComplete || anyValid) {
+        return ADCBtnsError::MAPPING_DELETE_FAILED;
+    }
+
+    store = factoryStore;
+    selectFactoryFallback();
+    memset(common.manualCalibrationValues, 0,
+           sizeof(common.manualCalibrationValues));
+    memset(common.autoCalibrationValues, 0,
+           sizeof(common.autoCalibrationValues));
+    memset(common.calibratedMappingId, 0,
+           sizeof(common.calibratedMappingId));
+    if (saveCommon() != QSPI_W25Qxx_OK) {
+        APP_ERR("ADCManager: shared mapping cleared; common fallback mirror write failed");
+    }
+    return ADCBtnsError::SUCCESS;
 }
 
 int8_t ADCManager::saveCommon()
@@ -268,6 +821,13 @@ ADCBtnsError ADCManager::removeADCMapping(const char *id)
     if (store.num <= 1)
         return ADCBtnsError::MAPPING_DELETE_FAILED;
 
+    // A dangling default id makes calibration and the INPUT worker unusable.
+    // Require callers to select another default before deleting this mapping.
+    if (getDefaultMapping() == id)
+        return ADCBtnsError::MAPPING_DELETE_FAILED;
+
+    ADCValuesMapping removedMapping = store.mapping[targetIdx];
+
     // 移动数据
     if (targetIdx < store.num - 1)
     {
@@ -281,6 +841,14 @@ ADCBtnsError ADCManager::removeADCMapping(const char *id)
     // 保存更新后的存储结构
     if (saveStore() != QSPI_W25Qxx_OK)
     {
+        if (targetIdx < store.num)
+        {
+            memmove(&store.mapping[targetIdx + 1],
+                    &store.mapping[targetIdx],
+                    (store.num - targetIdx) * sizeof(ADCValuesMapping));
+        }
+        store.mapping[targetIdx] = removedMapping;
+        store.num++;
         return ADCBtnsError::MAPPING_DELETE_FAILED;
     }
 
@@ -294,9 +862,13 @@ ADCBtnsError ADCManager::removeADCMapping(const char *id)
  * @param step 步长
  * @return 是否创建成功
  */
-ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float_t step)
+ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float_t step,
+                                          std::string *createdId)
 {
-    if (!name)
+    if (!name || name[0] == '\0' ||
+        strlen(name) >= sizeof(ADCValuesMapping::name) ||
+        length < 2u || length > MAX_ADC_VALUES_LENGTH ||
+        !std::isfinite(step) || step < 0.1f || step > 10.0f)
         return ADCBtnsError::INVALID_PARAMS;
 
     // 检查映射名称是否已存在
@@ -309,7 +881,7 @@ ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float
     }
 
     // 检查映射数量是否已满
-    if (store.num >= NUM_ADC_VALUES_MAPPING)
+    if (store.num >= 1u)
         return ADCBtnsError::MAPPING_STORAGE_FULL;
 
     // 创建新映射
@@ -341,7 +913,13 @@ ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float
     if (saveStore() != QSPI_W25Qxx_OK)
     {
         store.num--;
+        memset(&newMapping, 0, sizeof(ADCValuesMapping));
         return ADCBtnsError::MAPPING_CREATE_FAILED;
+    }
+
+    if (createdId != nullptr)
+    {
+        *createdId = newMapping.id;
     }
 
     return ADCBtnsError::SUCCESS;
@@ -349,12 +927,22 @@ ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float
 
 ADCBtnsError ADCManager::renameADCMapping(const char *id, const char *name)
 {
-    if (!id || !name)
+    if (!id || !name || name[0] == '\0' ||
+        strlen(name) >= sizeof(ADCValuesMapping::name))
         return ADCBtnsError::INVALID_PARAMS;
 
     int idx = findMappingById(id);
     if (idx == -1)
         return ADCBtnsError::MAPPING_NOT_FOUND;
+
+    for (uint8_t i = 0; i < store.num; ++i)
+    {
+        if (i != static_cast<uint8_t>(idx) && strcmp(store.mapping[i].name, name) == 0)
+            return ADCBtnsError::MAPPING_ALREADY_EXISTS;
+    }
+
+    char previousName[sizeof(store.mapping[idx].name)] = {};
+    memcpy(previousName, store.mapping[idx].name, sizeof(previousName));
 
     strncpy(store.mapping[idx].name, name, sizeof(store.mapping[idx].name) - 1);
     store.mapping[idx].name[sizeof(store.mapping[idx].name) - 1] = '\0';
@@ -363,6 +951,7 @@ ADCBtnsError ADCManager::renameADCMapping(const char *id, const char *name)
 
     if (saveStore() != QSPI_W25Qxx_OK)
     {
+        memcpy(store.mapping[idx].name, previousName, sizeof(previousName));
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
@@ -384,12 +973,15 @@ ADCBtnsError ADCManager::updateADCMapping(const char *id, const ADCValuesMapping
     // printf("ADCValuesMappingUtils: update - mapping id: %s, name: %s, length: %d, step: %f, samplingNoise: %d, samplingFrequency: %d\n",
     //        map.id, map.name, map.length, map.step, map.samplingNoise, map.samplingFrequency);
 
+    const ADCValuesMapping previousMapping = store.mapping[idx];
+
     // 更新映射数据
     memcpy(&store.mapping[idx], &map, sizeof(ADCValuesMapping));
 
     // 保存更新后的存储结构
     if (saveStore() != QSPI_W25Qxx_OK)
     {
+        store.mapping[idx] = previousMapping;
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
@@ -406,9 +998,20 @@ ADCBtnsError ADCManager::setDefaultMapping(const char *id)
     if (!id)
         return ADCBtnsError::INVALID_PARAMS;
 
-    uint8_t idx = findMappingById(id);
+    int idx = findMappingById(id);
     if (idx == -1)
         return ADCBtnsError::MAPPING_NOT_FOUND;
+
+    const ADCValuesMapping &mapping = store.mapping[idx];
+    if (mapping.length < 2u || mapping.length > MAX_ADC_VALUES_LENGTH ||
+        mapping.originalValues[0] == 0u ||
+        mapping.originalValues[mapping.length - 1u] == 0u ||
+        mapping.originalValues[0] == mapping.originalValues[mapping.length - 1u])
+    {
+        return ADCBtnsError::MAPPING_INVALID_RANGE;
+    }
+
+    ADCCommonConfig previousCommon = common;
 
     strncpy(common.defaultMappingId, id, sizeof(common.defaultMappingId) - 1);
     common.defaultMappingId[sizeof(common.defaultMappingId) - 1] = '\0';
@@ -416,6 +1019,7 @@ ADCBtnsError ADCManager::setDefaultMapping(const char *id)
     // 保存更新后的存储结构
     if (saveCommon() != QSPI_W25Qxx_OK)
     {
+        common = previousCommon;
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
@@ -544,6 +1148,8 @@ ADCBtnsError ADCManager::setCalibrationValues(const char *mappingId, uint8_t but
         return ADCBtnsError::MAPPING_NOT_FOUND;
     }
 
+    ADCCommonConfig previousCommon = common;
+
     strncpy(common.calibratedMappingId, mappingId, sizeof(common.calibratedMappingId) - 1);
     common.calibratedMappingId[sizeof(common.calibratedMappingId) - 1] = '\0';
 
@@ -561,20 +1167,11 @@ ADCBtnsError ADCManager::setCalibrationValues(const char *mappingId, uint8_t but
     // 保存到存储
     if (withSave != false && saveCommon() != QSPI_W25Qxx_OK)
     {
+        common = previousCommon;
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
     return ADCBtnsError::SUCCESS;
-}
-
-// 参数验证辅助函数
-bool validateMarkParams(const char *id, uint32_t *values, uint8_t length)
-{
-    if (!id || !values || length == 0 || length > MAX_ADC_VALUES_LENGTH)
-    {
-        return false;
-    }
-    return true;
 }
 
 ADCBtnsError ADCManager::markMapping(const char *const id,
@@ -582,7 +1179,7 @@ ADCBtnsError ADCManager::markMapping(const char *const id,
                                      const uint16_t samplingNoise,
                                      const uint16_t samplingFrequency)
 {
-    if (!id || !values || samplingNoise == 0 || samplingFrequency == 0)
+    if (!id || !values || samplingFrequency == 0)
         return ADCBtnsError::INVALID_PARAMS;
 
     int idx = findMappingById(id);
@@ -590,19 +1187,21 @@ ADCBtnsError ADCManager::markMapping(const char *const id,
         return ADCBtnsError::MAPPING_NOT_FOUND;
 
     ADCValuesMapping &mapping = store.mapping[idx];
-
-    // 保存原始状态用于回滚
-    uint8_t oldLength = mapping.length;
-    uint32_t *oldOriginValues = (uint32_t *)calloc(sizeof(mapping.originalValues), 1);
-
-    if (!oldOriginValues)
+    if (mapping.length < 2u || mapping.length > MAX_ADC_VALUES_LENGTH ||
+        values[0] == 0u || values[mapping.length - 1u] == 0u ||
+        values[0] == values[mapping.length - 1u])
     {
-        free(oldOriginValues);
-        return ADCBtnsError::MEMORY_ERROR;
+        return ADCBtnsError::MAPPING_INVALID_RANGE;
+    }
+    for (size_t i = 0; i < mapping.length; ++i)
+    {
+        if (values[i] == 0u || values[i] > UINT16_MAX)
+        {
+            return ADCBtnsError::MAPPING_INVALID_RANGE;
+        }
     }
 
-    // 保存原始数据
-    memcpy(oldOriginValues, mapping.originalValues, sizeof(mapping.originalValues));
+    const ADCValuesMapping previousMapping = mapping;
 
     // 更新数据
     mapping.samplingNoise = samplingNoise;
@@ -610,19 +1209,13 @@ ADCBtnsError ADCManager::markMapping(const char *const id,
     memset(mapping.originalValues, 0, sizeof(mapping.originalValues));
     memcpy(mapping.originalValues, values, mapping.length * sizeof(uint32_t));
 
-    // printf("ADCValuesMappingUtils: mark - begin update mapping.\n");
-    // printf("ADCValuesMappingUtils: mark - mapping id: %s, name: %s, length: %d, step: %f, samplingNoise: %d, samplingFrequency: %d\n",
-    // 如果更新失败，回滚所有更改
-    ADCBtnsError err = updateADCMapping(mapping.id, mapping);
-    if (err != ADCBtnsError::SUCCESS)
+    if (saveStore() != QSPI_W25Qxx_OK)
     {
-        memcpy(mapping.originalValues, oldOriginValues, sizeof(mapping.originalValues));
-        free(oldOriginValues);
-        APP_ERR("ADCValuesMappingUtils: mark - update mapping failed. err: %d", err);
-        return err;
+        mapping = previousMapping;
+        APP_ERR("ADCValuesMappingUtils: mark - save mapping failed");
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
-    free(oldOriginValues);
     return ADCBtnsError::SUCCESS;
 }
 
@@ -637,60 +1230,74 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
                                          uint8_t virtualPin,
                                          uint32_t samplingCountMax)
 {
-    // 如果在低延迟模式下调用，可能不支持此功能，或者需要停止当前的SOF触发机制
-    // 这里假设此函数主要用于校准/WebConfig模式
-
-    // 如果不在校准模式，执行旧的初始化逻辑 (停止->校准->启动)
-    if (this->adcMode != ADC_MODE_CONTINUOUS)
-    {
-        // 停止所有 ADC
-        this->stopADCSamping();
-
-        // 初始化DMA缓存
-        memset(ADC1_Values, 0, sizeof(ADC1_Values));             // DMA缓存清零
-        memset(ADC2_Values, 0, sizeof(ADC2_Values));             // DMA缓存清零
-        memset(ADC3_Values, 0, sizeof(ADC3_Values));             // DMA缓存清零
-        memset(ADC_Values_Result, 0, sizeof(ADC_Values_Result)); // DMA缓存清零
-
-        // 校准 ADC1
-        if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
-        {
-            APP_ERR("ADC1 calibration failed\n");
-            return ADCBtnsError::ADC1_CALIB_FAILED;
-        }
-
-        // 校准 ADC2
-        if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
-        {
-            APP_ERR("ADC2 calibration failed\n");
-            return ADCBtnsError::ADC2_CALIB_FAILED;
-        }
-
-        // 校准 ADC3
-        if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
-        {
-            APP_ERR("ADC3 calibration failed\n");
-            return ADCBtnsError::ADC3_CALIB_FAILED;
-        }
-    }
-    // 如果在校准模式，ADC已经在运行连续采样，不需要停止或重新校准
-
-    // 如果启用采样率统计，则注册回调
+    ADCIndexInfo requestedAdcInfo{-1, -1};
     if (enableSamplingRate)
     {
-        // 设置采样率统计状态
-        samplingRateEnabled = enableSamplingRate;
-        if (samplingCountMax > 0)
-        {
-            this->samplingCountMax = samplingCountMax;
-        }
-        this->samplingADCInfo = findADCButtonVirtualPin(virtualPin);
-
-        if (this->samplingADCInfo.ADCIndex == -1)
-        {
+        requestedAdcInfo = findADCButtonVirtualPin(virtualPin);
+        if (requestedAdcInfo.ADCIndex < 0) {
             APP_ERR("Invalid button index\n");
             return ADCBtnsError::INVALID_PARAMS;
         }
+    }
+
+    if (!dmaSamplingActive)
+    {
+        forceStopAllSampling();
+
+        memset(ADC1_Values, 0, sizeof(ADC1_Values));
+        memset(ADC2_Values, 0, sizeof(ADC2_Values));
+        memset(ADC3_Values, 0, sizeof(ADC3_Values));
+        memset(ADC_Values_Result, 0, sizeof(ADC_Values_Result));
+
+        if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC1 calibration failed\n");
+            return ADCBtnsError::ADC1_CALIB_FAILED;
+        }
+        if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC2 calibration failed\n");
+            return ADCBtnsError::ADC2_CALIB_FAILED;
+        }
+        if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC3 calibration failed\n");
+            return ADCBtnsError::ADC3_CALIB_FAILED;
+        }
+
+        if (HAL_ADC_Start_DMA(&hadc1, ADC1_Values, NUM_ADC1_BUTTONS * 2u) != HAL_OK) {
+            APP_ERR("ADC1 circular DMA start failed\n");
+            forceStopAllSampling();
+            return ADCBtnsError::DMA1_START_FAILED;
+        }
+        setDmaCompletionInterrupt(hadc1, false);
+
+        if (HAL_ADC_Start_DMA(&hadc2, ADC2_Values, NUM_ADC2_BUTTONS * 2u) != HAL_OK) {
+            APP_ERR("ADC2 circular DMA start failed\n");
+            forceStopAllSampling();
+            return ADCBtnsError::DMA2_START_FAILED;
+        }
+        setDmaCompletionInterrupt(hadc2, false);
+
+        if (HAL_ADC_Start_DMA(&hadc3, ADC3_Values, NUM_ADC3_BUTTONS * 2u) != HAL_OK) {
+            APP_ERR("ADC3 circular DMA start failed\n");
+            forceStopAllSampling();
+            return ADCBtnsError::DMA3_START_FAILED;
+        }
+        setDmaCompletionInterrupt(hadc3, false);
+
+        dmaSamplingActive = true;
+        resetInputSamples();
+        setDmaCompletionInterrupt(hadc1, true);
+        setDmaCompletionInterrupt(hadc2, true);
+        setDmaCompletionInterrupt(hadc3, true);
+        APP_DBG("All ADC circular DMA channels armed\n");
+    }
+
+    if (enableSamplingRate)
+    {
+        stopADCSamping();
+        if (samplingCountMax > 0) {
+            this->samplingCountMax = samplingCountMax;
+        }
+        this->samplingADCInfo = requestedAdcInfo;
 
         ADCButtonStats.adcIndex = this->samplingADCInfo.ADCIndex;
         ADCButtonStats.startTime = HAL_GetTick();
@@ -703,49 +1310,188 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         ADCButtonStats.diffValues.clear();
         ADCButtonStats.diffValues.resize(this->samplingCountMax);
 
-        // 注册ADC转换完成回调
-        messageHandler = [this](const void *data)
-        {
-            if (data)
-            {
-                this->handleADCStats((ADC_HandleTypeDef *)data);
-            }
-        };
-        MC.subscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
-
-        APP_DBG("All ADCs started sampling successfully\n");
+        samplingRateEnabled = true;
     }
 
-    APP_DBG("All ADCs started successfully\n");
+    return ADCBtnsError::SUCCESS;
+}
+
+ADCBtnsError ADCManager::clearCalibrationValues(const char *mappingId, bool isAutoCalibration)
+{
+    if (!mappingId || findMappingById(mappingId) == -1)
+    {
+        return mappingId ? ADCBtnsError::MAPPING_NOT_FOUND : ADCBtnsError::INVALID_PARAMS;
+    }
+
+    ADCCommonConfig previousCommon = common;
+    strncpy(common.calibratedMappingId, mappingId, sizeof(common.calibratedMappingId) - 1);
+    common.calibratedMappingId[sizeof(common.calibratedMappingId) - 1] = '\0';
+    if (isAutoCalibration)
+    {
+        memset(common.autoCalibrationValues, 0, sizeof(common.autoCalibrationValues));
+    }
+    else
+    {
+        memset(common.manualCalibrationValues, 0, sizeof(common.manualCalibrationValues));
+    }
+
+    if (saveCommon() != QSPI_W25Qxx_OK)
+    {
+        common = previousCommon;
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
+    return ADCBtnsError::SUCCESS;
+}
+
+void ADCManager::copyBackup(ADCValuesMappingStore& storeOut,
+                            ADCCommonConfig& commonOut) const
+{
+    memcpy(&storeOut, &store, sizeof(storeOut));
+    memcpy(&commonOut, &common, sizeof(commonOut));
+}
+
+ADCBtnsError ADCManager::restoreBackup(const ADCValuesMappingStore& storeIn,
+                                       const ADCCommonConfig& commonIn)
+{
+    if (storeIn.version != ADC_MAPPING_VERSION ||
+        commonIn.version != ADC_COMMON_VERSION ||
+        storeIn.num == 0u ||
+        storeIn.num > NUM_ADC_VALUES_MAPPING ||
+        strncmp(storeIn.defaultId, commonIn.defaultMappingId,
+                sizeof(storeIn.defaultId)) != 0)
+    {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+
+    bool defaultFound = false;
+    bool calibratedFound = commonIn.calibratedMappingId[0] == '\0';
+    for (uint8_t i = 0; i < storeIn.num; ++i)
+    {
+        const ADCValuesMapping& mapping = storeIn.mapping[i];
+        if (mapping.id[0] == '\0' || mapping.name[0] == '\0' ||
+            mapping.length == 0u || mapping.length > MAX_ADC_VALUES_LENGTH)
+        {
+            return ADCBtnsError::INVALID_PARAMS;
+        }
+        if (strncmp(mapping.id, commonIn.defaultMappingId,
+                    sizeof(commonIn.defaultMappingId)) == 0)
+        {
+            defaultFound = true;
+        }
+        if (strncmp(mapping.id, commonIn.calibratedMappingId,
+                    sizeof(commonIn.calibratedMappingId)) == 0)
+        {
+            calibratedFound = true;
+        }
+        for (uint8_t j = i + 1u; j < storeIn.num; ++j)
+        {
+            if (strncmp(mapping.id, storeIn.mapping[j].id,
+                        sizeof(mapping.id)) == 0)
+            {
+                return ADCBtnsError::MAPPING_ALREADY_EXISTS;
+            }
+        }
+    }
+    if (!defaultFound || !calibratedFound)
+    {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+
+    ADCValuesMappingStore oldStore;
+    ADCCommonConfig oldCommon;
+    copyBackup(oldStore, oldCommon);
+    memcpy(&store, &storeIn, sizeof(store));
+    memcpy(&common, &commonIn, sizeof(common));
+
+    if (saveStore() != QSPI_W25Qxx_OK)
+    {
+        memcpy(&store, &oldStore, sizeof(store));
+        memcpy(&common, &oldCommon, sizeof(common));
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
+    if (saveCommon() != QSPI_W25Qxx_OK)
+    {
+        memcpy(&store, &oldStore, sizeof(store));
+        memcpy(&common, &oldCommon, sizeof(common));
+        (void)saveStore();
+        (void)saveCommon();
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
+
     return ADCBtnsError::SUCCESS;
 }
 
 void ADCManager::stopADCSamping()
 {
-    // 如果是校准模式，不要停止DMA，只停止统计
-    if (this->adcMode != ADC_MODE_CONTINUOUS)
-    {
-        if (HAL_ADC_Stop_DMA(&hadc1) != HAL_OK)
-        {
-            // return;
-        }
+    samplingRateEnabled = false;
+    samplingStatsPending = false;
+}
 
-        if (HAL_ADC_Stop_DMA(&hadc2) != HAL_OK)
-        {
-            // return;
-        }
+void ADCManager::forceStopAllSampling()
+{
+    samplingRateEnabled = false;
+    samplingStatsPending = false;
+    dmaSamplingActive = false;
+    inputSampleAssembler.markFault();
+    disableAllDmaCompletionInterrupts();
 
-        if (HAL_ADC_Stop_DMA(&hadc3) != HAL_OK)
-        {
-            // return;
-        }
+    if (hadc1.Instance != nullptr) {
+        (void)HAL_ADC_Stop_DMA(&hadc1);
+    }
+    if (hadc2.Instance != nullptr) {
+        (void)HAL_ADC_Stop_DMA(&hadc2);
+    }
+    if (hadc3.Instance != nullptr) {
+        (void)HAL_ADC_Stop_DMA(&hadc3);
+    }
+}
+
+bool ADCManager::rearmInputSampling()
+{
+    if (!dmaSamplingActive) {
+        return false;
     }
 
-    if (messageHandler)
-    {
-        MC.unsubscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
-        messageHandler = nullptr;
+    samplingRateEnabled = false;
+    samplingStatsPending = false;
+    dmaSamplingActive = false;
+    disableAllDmaCompletionInterrupts();
+    const HAL_StatusTypeDef stop1 = HAL_ADC_Stop_DMA(&hadc1);
+    const HAL_StatusTypeDef stop2 = HAL_ADC_Stop_DMA(&hadc2);
+    const HAL_StatusTypeDef stop3 = HAL_ADC_Stop_DMA(&hadc3);
+    if (stop1 != HAL_OK || stop2 != HAL_OK || stop3 != HAL_OK) {
+        forceStopAllSampling();
+        return false;
     }
+    memset(ADC1_Values, 0, sizeof(ADC1_Values));
+    memset(ADC2_Values, 0, sizeof(ADC2_Values));
+    memset(ADC3_Values, 0, sizeof(ADC3_Values));
+
+    if (HAL_ADC_Start_DMA(&hadc1, ADC1_Values,
+                          NUM_ADC1_BUTTONS * 2u) != HAL_OK) {
+        forceStopAllSampling();
+        return false;
+    }
+    setDmaCompletionInterrupt(hadc1, false);
+    if (HAL_ADC_Start_DMA(&hadc2, ADC2_Values,
+                          NUM_ADC2_BUTTONS * 2u) != HAL_OK) {
+        forceStopAllSampling();
+        return false;
+    }
+    setDmaCompletionInterrupt(hadc2, false);
+    if (HAL_ADC_Start_DMA(&hadc3, ADC3_Values,
+                          NUM_ADC3_BUTTONS * 2u) != HAL_OK) {
+        forceStopAllSampling();
+        return false;
+    }
+    setDmaCompletionInterrupt(hadc3, false);
+
+    dmaSamplingActive = true;
+    resetInputSamples();
+    setDmaCompletionInterrupt(hadc1, true);
+    setDmaCompletionInterrupt(hadc2, true);
+    setDmaCompletionInterrupt(hadc3, true);
+    return true;
 }
 
 /**
@@ -755,57 +1501,89 @@ void ADCManager::stopADCSamping()
  * 如果采样率统计开启，则更新采样统计信息，包括每个通道的平均值、最小值、最大值
  * @param hadc ADC句柄
  */
-void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc)
+void ADCManager::handleADCStats(const AdcSampleFrame& sample)
 {
-    uint32_t adcIndex = (hadc->Instance == ADC1) ? 0 : (hadc->Instance == ADC2) ? 1
-                                                   : (hadc->Instance == ADC3)   ? 2
-                                                                                : 3;
-
-    // 如果采样ADC索引不匹配，则返回，此处只处理采样ADC索引对应的ADC
-    if (!samplingRateEnabled || adcIndex != this->samplingADCInfo.ADCIndex)
+    if (!samplingRateEnabled ||
+        samplingADCInfo.ADCIndex < 0 ||
+        samplingADCInfo.ADCIndex >= NUM_ADC ||
+        samplingADCInfo.indexInDMA < 0)
         return;
 
-    // 处理数据...
-    const auto &info = adcBufferInfo[adcIndex];
-    SCB_CleanInvalidateDCache_by_Addr(info.buffer, info.size);
-
-    uint32_t value = info.buffer[this->samplingADCInfo.indexInDMA];
+    const auto &info = adcBufferInfo[
+        static_cast<uint8_t>(samplingADCInfo.ADCIndex)];
+    if (samplingADCInfo.indexInDMA >= info.count) {
+        samplingRateEnabled = false;
+        return;
+    }
+    const uint8_t virtualPin = info.indexMap[
+        static_cast<uint8_t>(samplingADCInfo.indexInDMA)];
+    const uint32_t value = sample.values[virtualPin];
 
     if (value == 0)
         return;
+    if (ADCButtonStats.count >= samplingCountMax ||
+        ADCButtonStats.count >= ADCButtonStats.values.size()) {
+        samplingRateEnabled = false;
+        return;
+    }
+
     ADCButtonStats.values[ADCButtonStats.count] = value; // 保存当前值
     ADCButtonStats.count++;                              // 计数器加1
 
     if (ADCButtonStats.count >= samplingCountMax)
     {
-
-        uint32_t t = HAL_GetTick();
-        ADCButtonStats.samplingFreq = (uint32_t)(ADCButtonStats.count * 1000 / (t - ADCButtonStats.startTime));
-        ADCButtonStats.endTime = t;
-
-        ADCButtonStats.averageValue = std::accumulate(ADCButtonStats.values.begin(), ADCButtonStats.values.end(), 0) / ADCButtonStats.count;
-
-        for (uint32_t i = 0; i < ADCButtonStats.count; i++)
-        {
-            ADCButtonStats.diffValues[i] = abs((int32_t)ADCButtonStats.averageValue - (int32_t)ADCButtonStats.values[i]);
-        }
-
-        ADCButtonStats.noiseValue = std::accumulate(ADCButtonStats.diffValues.begin(), ADCButtonStats.diffValues.end(), 0) / ADCButtonStats.count * 2;
-        // ADCButtonStats.noiseValue = 100;
-
-        uint32_t crossCount = 0;
-        for (uint32_t i = 0; i < ADCButtonStats.count; i++)
-        {
-            if (ADCButtonStats.diffValues[i] > ADCButtonStats.noiseValue * 2)
-            {
-                crossCount++;
-            }
-        }
-
-        APP_DBG("avg: %d, noise: %d, freq: %d, cross: %d", ADCButtonStats.averageValue, ADCButtonStats.noiseValue, ADCButtonStats.samplingFreq, crossCount);
-
-        MC.publish(MessageId::ADC_SAMPLING_STATS_COMPLETE, &ADCButtonStats);
+        samplingRateEnabled = false;
+        ADCButtonStats.endTime = HAL_GetTick();
+        // ADC DMA callbacks run in interrupt context. Do not calculate a
+        // 1000-sample result, invoke std::function handlers, allocate cJSON or
+        // mutate the WebHID event queue here.
+        __DMB();
+        samplingStatsPending = true;
     }
+}
+
+void ADCManager::processPendingSamplingStats()
+{
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    const bool pending = samplingStatsPending;
+    samplingStatsPending = false;
+    if (primask == 0u) {
+        __enable_irq();
+    }
+    if (!pending || ADCButtonStats.count == 0u) {
+        return;
+    }
+
+    const uint32_t elapsedMs = std::max<uint32_t>(
+        1u, ADCButtonStats.endTime - ADCButtonStats.startTime);
+    ADCButtonStats.samplingFreq = static_cast<uint32_t>(
+        ADCButtonStats.count * 1000u / elapsedMs);
+    ADCButtonStats.averageValue = std::accumulate(
+        ADCButtonStats.values.begin(),
+        ADCButtonStats.values.begin() + ADCButtonStats.count,
+        static_cast<uint32_t>(0)) / ADCButtonStats.count;
+
+    for (uint32_t i = 0u; i < ADCButtonStats.count; ++i) {
+        ADCButtonStats.diffValues[i] = static_cast<uint32_t>(std::abs(
+            static_cast<int32_t>(ADCButtonStats.averageValue) -
+            static_cast<int32_t>(ADCButtonStats.values[i])));
+    }
+    ADCButtonStats.noiseValue = std::accumulate(
+        ADCButtonStats.diffValues.begin(),
+        ADCButtonStats.diffValues.begin() + ADCButtonStats.count,
+        static_cast<uint32_t>(0)) / ADCButtonStats.count * 2u;
+
+    uint32_t crossCount = 0u;
+    for (uint32_t i = 0u; i < ADCButtonStats.count; ++i) {
+        if (ADCButtonStats.diffValues[i] > ADCButtonStats.noiseValue * 2u) {
+            ++crossCount;
+        }
+    }
+    APP_DBG("avg: %lu, noise: %lu, freq: %lu, cross: %lu",
+            ADCButtonStats.averageValue, ADCButtonStats.noiseValue,
+            ADCButtonStats.samplingFreq, crossCount);
+    MC.publish(MessageId::ADC_SAMPLING_STATS_COMPLETE, &ADCButtonStats);
 }
 
 // 根据按钮索引查找对应的ADC索引
@@ -844,128 +1622,35 @@ ADCIndexInfo ADCManager::findADCButtonVirtualPin(uint8_t virtualPin)
 // ADC转换完成回调
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-    ADCManager::getInstance().notifyConversionComplete(hadc);
+    ADCManager::getInstance().notifyConversionComplete(hadc, 1u);
 }
 
-void ADCManager::setADCMode(ADC_SamplingMode mode)
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
 {
-    this->adcMode = mode;
-    ADC_SetMode(mode);
+    ADCManager::getInstance().notifyConversionComplete(hadc, 0u);
 }
 
-ADC_SamplingMode ADCManager::getADCMode() const
+void ADCManager::notifyConversionComplete(ADC_HandleTypeDef *hadc,
+                                          uint8_t completedHalf)
 {
-    return adcMode;
-}
-
-void ADCManager::startContinuousSampling()
-{
-    if (this->adcMode != ADC_MODE_CONTINUOUS)
-        return;
-
-    // Stop any ongoing
-    stopADCSamping();
-
-    // In calibration/webconfig mode, we start once and it runs continuously via circular DMA
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t *)&ADC1_Values[0], NUM_ADC1_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], NUM_ADC2_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc3, (uint32_t *)&ADC3_Values[0], NUM_ADC3_BUTTONS);
-}
-
-void ADCManager::triggerSampling()
-{
-    if (this->adcMode != ADC_MODE_LOW_LATENCY)
-        return;
-#if APPLICATION_DEBUG_PRINT == 1
-    LATENCY_MONITOR.samplingArmed();
-#endif
-    if (samplingDelayUs > 0)
-    {
-        DelayTimer_Start(samplingDelayUs);
-    }
-    else
-    {
-        startSamplingNow();
+    if (hadc != nullptr && dmaSamplingActive) {
+        publishAdcHalf(hadc, completedHalf);
     }
 }
 
-void ADCManager::setSamplingDelay(uint16_t delay_us)
+void ADCManager::notifyConversionError(ADC_HandleTypeDef *hadc)
 {
-    samplingDelayUs = delay_us;
-}
-
-uint16_t ADCManager::getSamplingDelay() const
-{
-    return samplingDelayUs;
-}
-
-void ADCManager::timerCallback()
-{
-    ADCManager::getInstance().startSamplingNow();
-}
-
-void ADCManager::startSamplingNow()
-{
-    // In Low Latency mode, we start DMA for each conversion (One Shot)
-    if (this->adcMode != ADC_MODE_LOW_LATENCY)
-        return;
-
-    completionMask = 0;
-#if APPLICATION_DEBUG_PRINT == 1
-    LATENCY_MONITOR.samplingStarted();
-#endif
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t *)&ADC1_Values[0], NUM_ADC1_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], NUM_ADC2_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc3, (uint32_t *)&ADC3_Values[0], NUM_ADC3_BUTTONS);
-}
-
-bool ADCManager::isSamplingDone()
-{
-    bool done = (completionMask & 0x07) == 0x07;
-#if APPLICATION_DEBUG_PRINT == 1
-    if (done)
-    {
-        LATENCY_MONITOR.samplingCompleted();
-    }
-#endif
-    return done;
-}
-
-void ADCManager::clearSamplingDone()
-{
-    completionMask = 0;
-}
-
-void ADCManager::notifyConversionComplete(ADC_HandleTypeDef *hadc)
-{
-    if (this->adcMode != ADC_MODE_LOW_LATENCY && !samplingRateEnabled)
-        return;
-
-    if (this->adcMode == ADC_MODE_LOW_LATENCY)
-    {
-        if (hadc->Instance == ADC1)
-        {
-            completionMask |= 0x01;
-        }
-        else if (hadc->Instance == ADC2)
-        {
-            completionMask |= 0x02;
-        }
-        else if (hadc->Instance == ADC3)
-        {
-            completionMask |= 0x04;
-        }
-    }
-
-    if (samplingRateEnabled)
-    {
-        MC.publish(MessageId::DMA_ADC_CONV_CPLT, hadc);
-    }
+    (void)hadc;
+    samplingRateEnabled = false;
+    dmaSamplingActive = false;
+    inputSampleAssembler.markFault();
+    disableAllDmaCompletionInterrupts();
 }
 
 // ADC错误回调
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 {
+    ADCManager::getInstance().notifyConversionError(hadc);
     uint32_t error = HAL_ADC_GetError(hadc);
     LOG_ERROR("ADC", "ADC Error: Instance=0x%p", (void *)hadc->Instance);
     LOG_ERROR("ADC", "State=0x%x", HAL_ADC_GetState(hadc));

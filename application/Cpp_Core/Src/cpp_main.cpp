@@ -1,31 +1,32 @@
 #include "cpp_main.hpp"
 #include <stdio.h>
-#include "bsp/board_api.h"
 #include "main_state_machine.hpp"
 #include "qspi-w25q64.h"
 #include "pwm-ws2812b.h"
 #include "message_center.hpp"
 #include "adc.h"
-#include "tusb.h"
 #include "adc_btns/adc_manager.hpp"
 #include "micro_timer.hpp"
 #include "leds/leds_manager.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "system_logger.h"
 #include "utils.h"
+#include "board_cfg.h"
+#include "report_scheduler.hpp"
 
 extern "C" {
     int cpp_main(void) 
     {   
 
-        // printf("STM32 Unique ID: %s\n", str_stm32_unique_id());
         // Logger_ClearFlash();
         // Logger_PrintAllLogs(printf);
 
         LOG_INFO("CPP_MAIN", "C++ main application startup ...");
+        APP_STAGE("A10", "C++ runtime active; starting main state machine");
 
         // 注释掉原有的状态机启动，用于手动校准测试
         MAIN_STATE_MACHINE.setup();
+        APP_STAGE_ERROR("A10", "main state machine returned unexpectedly");
     
         // 手动校准测试
         // manual_calibration_test();
@@ -35,19 +36,9 @@ extern "C" {
     }
 }
 
-/**
- * 重写tusb_time_millis_api和tusb_time_delay_ms_api for STM32
- */
-uint32_t tusb_time_millis_api(void) {
-    return HAL_GetTick();
-}
-
-void tusb_time_delay_ms_api(uint32_t ms) {
-    HAL_Delay(ms);
-}
-
 void adc_test(void) {
     ADCManager::getInstance().startADCSamping(false);
+    REPORT_SCHEDULER.start(1000u);
     WS2812B_Test();
 
     int8_t brightness = 0; 
@@ -73,8 +64,6 @@ void adc_test(void) {
                     direction = 1;
             }
 
-            ADCManager::getInstance().triggerSampling();
-            HAL_Delay(1); // Wait for sampling
             ADCManager::getInstance().ADCValuesTestPrint();
         }
     }
@@ -88,6 +77,7 @@ void manual_calibration_test(void) {
     
     // 初始化ADC管理器
     ADCManager::getInstance().startADCSamping(false);
+    REPORT_SCHEDULER.start(1000u);
     // 等待3秒
     HAL_Delay(1000);
     
@@ -109,9 +99,6 @@ void manual_calibration_test(void) {
     uint32_t last_adc_print = HAL_GetTick();
     
     while (true) {
-        // 触发采样
-        ADCManager::getInstance().triggerSampling();
-        
         // 处理校准逻辑
         ADC_CALIBRATION_MANAGER.processCalibration();
         

@@ -1,0 +1,1558 @@
+#include "rfm_spi_bridge.h"
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "HAL.h"
+#include "RF_PHY.h"
+#include "rfm_cold_boot.h"
+#include "rfm_config.h"
+#include "rfm_spi_command_txn.h"
+#include "rfm_spi_port_internal.h"
+#include "rfm_spi_reliable_event.h"
+#include "rf_monitor_control.h"
+
+static uint32_t s_rx_count;
+static uint32_t s_tx_count;
+static uint32_t s_raw_bytes_win;
+static uint32_t s_frame_ok_win;
+static uint32_t s_bad_sync_win;
+static uint32_t s_bad_cmd_win;
+static uint32_t s_bad_len_win;
+static uint32_t s_bad_checksum_win;
+static uint32_t s_last_ring_ov_count;
+static uint32_t s_last_rx_byte_count;
+static uint32_t s_last_fifo_ov_count;
+static uint32_t s_last_irq_count;
+static uint32_t s_last_bad_irq_count;
+static uint32_t s_last_direct_count;
+static uint32_t s_last_done_count;
+static uint32_t s_last_valid_frame_count;
+static uint32_t s_last_bad_frame_count;
+static uint32_t s_last_backlog_drop_count;
+static uint32_t s_last_backlog_drop_bytes;
+static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 8u];
+static uint8_t s_last_direct_input[RFM_RF_INPUT_PAYLOAD_LEN];
+static uint8_t s_last_latest_input[RFM_RF_INPUT_PAYLOAD_LEN];
+static uint8_t s_have_last_direct_input;
+static uint8_t s_have_last_latest_input;
+static uint8_t s_pending_control_valid;
+static uint8_t s_pending_control_cmd;
+static uint8_t s_pending_control_txn;
+static uint8_t s_pending_control_args[23u];
+static uint8_t s_pending_control_args_len;
+static uint8_t s_pending_scheduled_valid;
+static uint8_t s_pending_scheduled_cmd;
+static uint8_t s_pending_scheduled_seq;
+static uint8_t s_pending_scheduled_args[23u];
+static uint8_t s_pending_scheduled_args_len;
+static uint32_t s_pending_scheduled_due_clock;
+static uint8_t s_last_scheduled_complete_cmd;
+static uint8_t s_last_scheduled_complete_seq;
+static uint8_t s_pending_event_valid;
+static uint8_t s_pending_event_frame[RFM_SPI_MAX_FRAME];
+static uint8_t s_pending_event_frame_len;
+static uint8_t s_real_sleep_pending;
+static uint8_t s_sleep_gate_log_armed;
+static uint32_t s_sleep_gate_last_log_clock;
+
+#define SPI_SLEEP_IDLE_STABLE_US      20000u
+#define SPI_SLEEP_GATE_LOG_MS         200u
+#define SPI_POLL_MAX_BATCHES          1u
+#define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
+#define SPI_STATUS_PAYLOAD_LEN        23u
+#define SPI_CONTROL_DRAIN_MAX         4u
+#define SPI_SCHEDULED_SEQ_OFFSET      0u
+#define SPI_SCHEDULED_COMPLETE_OFFSET 1u
+#define SPI_SCHEDULED_ARGS_OFFSET     3u
+#define SPI_STATUS_CMD_TAG_OFFSET     16u
+#define SPI_STATUS_TXN_OFFSET         17u
+#define SPI_STATUS_RESULT_OFFSET      18u
+#define SPI_STATUS_REASON_OFFSET      19u
+#define SPI_STATUS_EVENT_SEQ_OFFSET   20u
+#ifndef RFM_SPI_SIMULATE_SET_RATE_HZ
+#define RFM_SPI_SIMULATE_SET_RATE_HZ  0u
+#endif
+static uint32_t s_last_rx_count;
+
+typedef enum {
+    SPI_CMD_GET_STATUS = 0x01,
+    SPI_CMD_START_PAIR = 0x02,
+    SPI_CMD_STOP_PAIR = 0x03,
+    SPI_CMD_UNBIND = 0x04,
+    SPI_CMD_SET_RATE = 0x05,
+    SPI_CMD_INPUT_DATA = 0x06,
+    SPI_CMD_SLEEP = 0x08
+} spi_cmd_t;
+
+typedef enum {
+    SPI_EVT_STATUS = 0x81,
+    SPI_EVT_STATE_CHANGED = 0x82,
+    SPI_EVT_RATE_APPLIED = 0x83,
+    SPI_EVT_LINK_WARN = 0x84,
+    SPI_EVT_ERROR = 0x85,
+    SPI_EVT_WAKEUP_COMPLETE = 0x88,
+    SPI_EVT_SLEEP_ENTERING = 0x89,
+    SPI_EVT_TIME_SYNC = RFMON_SPI_EVT_TIME_SYNC
+} spi_evt_t;
+
+#if (RFM_TX_LOG_ENABLE == 1u)
+static void spi_log_write(const char *buf)
+{
+    if(buf == 0)
+    {
+        return;
+    }
+    while(*buf != '\0')
+    {
+        while(R8_UART0_TFC == UART_FIFO_SIZE)
+        {
+        }
+        R8_UART0_THR = (uint8_t)*buf++;
+    }
+}
+
+static void spi_log_printf(const char *fmt, ...)
+{
+    char line[128];
+    va_list args;
+    int n;
+
+    va_start(args, fmt);
+    n = vsnprintf(line, sizeof(line), fmt, args);
+    va_end(args);
+    if(n <= 0)
+    {
+        return;
+    }
+    line[sizeof(line) - 1u] = '\0';
+    spi_log_write(line);
+}
+
+static const char *spi_cmd_name(uint8_t cmd)
+{
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_GET_STATUS:
+        return "GET_STATUS";
+    case SPI_CMD_START_PAIR:
+        return "START_PAIR";
+    case SPI_CMD_STOP_PAIR:
+        return "STOP_PAIR";
+    case SPI_CMD_UNBIND:
+        return "UNBIND";
+    case SPI_CMD_SET_RATE:
+        return "SET_RATE";
+    case SPI_CMD_INPUT_DATA:
+        return "INPUT_DATA";
+    case SPI_CMD_SLEEP:
+        return "SLEEP";
+    default:
+        return "UNKNOWN";
+    }
+}
+#endif
+
+static void log_spi_command_received(uint8_t cmd, const uint8_t *payload, uint8_t len)
+{
+#if (RFM_TX_LOG_ENABLE == 1u)
+    uint8_t txn = 0u;
+    uint8_t args_len = len;
+    uint16_t hz = 0u;
+
+    if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
+    {
+        return;
+    }
+
+    if((payload != 0) && (len != 0u))
+    {
+        txn = payload[0];
+        args_len = (uint8_t)(len - 1u);
+        if((cmd == (uint8_t)SPI_CMD_SET_RATE) && (args_len == 2u))
+        {
+            hz = (uint16_t)payload[1] | ((uint16_t)payload[2] << 8);
+        }
+    }
+
+    spi_log_printf("[SPI][RX_CMD] cmd=0x%02X %s txn=%u args_len=%u hz=%u\r\n",
+                   (unsigned int)cmd,
+                   spi_cmd_name(cmd),
+                   (unsigned int)txn,
+                   (unsigned int)args_len,
+                   (unsigned int)hz);
+#else
+    (void)cmd;
+    (void)payload;
+    (void)len;
+#endif
+}
+
+typedef enum {
+    PARSE_WAIT_SYNC = 0,
+    PARSE_CMD,
+    PARSE_LEN,
+    PARSE_PAYLOAD,
+    PARSE_CHECKSUM
+} spi_parse_state_t;
+
+static spi_parse_state_t s_parse_state;
+static uint8_t s_parse_buf[RFM_SPI_MAX_FRAME];
+static uint8_t s_parse_idx;
+static uint8_t s_parse_payload_len;
+
+typedef enum {
+    FAST_WAIT_SYNC = 0,
+    FAST_CMD,
+    FAST_LEN,
+    FAST_PAYLOAD,
+    FAST_CHECKSUM
+} fast_parse_state_t;
+
+static fast_parse_state_t s_fast_state;
+static uint8_t s_fast_payload[RFM_RF_INPUT_PAYLOAD_LEN];
+static uint8_t s_fast_payload_idx;
+static uint8_t s_fast_sum;
+
+static uint8_t frame_checksum(const uint8_t *buf, size_t len)
+{
+    uint8_t s = 0u;
+    size_t i;
+    for (i = 0u; i < len; ++i) {
+        s = (uint8_t)(s + buf[i]);
+    }
+    return s;
+}
+
+static uint32_t ticks_from_ms_local(uint16_t ms)
+{
+    uint32_t ticks;
+
+    ticks = (((uint32_t)ms * 1000u) + ((uint32_t)SYSTEM_TIME_MICROSEN - 1u)) /
+            (uint32_t)SYSTEM_TIME_MICROSEN;
+    return (ticks == 0u) ? 1u : ticks;
+}
+
+static void mark_real_sleep_pending(void)
+{
+    s_real_sleep_pending = 1u;
+    s_sleep_gate_log_armed = 0u;
+}
+
+static uint16_t get_u16(const uint8_t *src)
+{
+    return (uint16_t)src[0] | ((uint16_t)src[1] << 8);
+}
+
+static uint8_t clock_due_local(uint32_t now, uint32_t due)
+{
+    return (((int32_t)(now - due)) >= 0) ? 1u : 0u;
+}
+
+static void put_u16(uint8_t *dst, uint16_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
+}
+
+static void put_u32(uint8_t *dst, uint32_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
+    dst[2] = (uint8_t)((value >> 16) & 0xFFu);
+    dst[3] = (uint8_t)((value >> 24) & 0xFFu);
+}
+
+static bool is_valid_host_cmd(uint8_t cmd)
+{
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_GET_STATUS:
+    case SPI_CMD_START_PAIR:
+    case SPI_CMD_STOP_PAIR:
+    case SPI_CMD_UNBIND:
+    case SPI_CMD_SET_RATE:
+    case SPI_CMD_INPUT_DATA:
+    case SPI_CMD_SLEEP:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool is_valid_report_rate_hz(uint16_t hz)
+{
+    return ((hz == 0u) ||
+            (hz == 1000u) ||
+            (hz == 2000u) ||
+            (hz == 4000u) ||
+            (hz == 8000u)) ? true : false;
+}
+
+static bool is_scheduled_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
+{
+    uint8_t args_len;
+
+    if((payload == 0) || (len < SPI_SCHEDULED_ARGS_OFFSET))
+    {
+        return false;
+    }
+    if(payload[SPI_SCHEDULED_SEQ_OFFSET] == 0u)
+    {
+        return false;
+    }
+
+    args_len = (uint8_t)(len - SPI_SCHEDULED_ARGS_OFFSET);
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_SET_RATE:
+        return (args_len == 2u) &&
+               is_valid_report_rate_hz(get_u16(&payload[SPI_SCHEDULED_ARGS_OFFSET]));
+    case SPI_CMD_START_PAIR:
+    case SPI_CMD_STOP_PAIR:
+    case SPI_CMD_UNBIND:
+    case SPI_CMD_SLEEP:
+        return args_len == 0u;
+    default:
+        return false;
+    }
+}
+
+static uint8_t build_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_len, uint8_t *out, uint8_t out_len)
+{
+    uint8_t frame_total;
+    uint8_t i;
+
+    if((out == 0) || (payload_len > (uint8_t)(RFM_SPI_MAX_FRAME - 4u)))
+    {
+        return 0u;
+    }
+    frame_total = (uint8_t)(3u + payload_len + 1u);
+    if(frame_total > out_len)
+    {
+        return 0u;
+    }
+
+    out[0] = RFM_SPI_SYNC;
+    out[1] = (uint8_t)evt;
+    out[2] = payload_len;
+    for(i = 0u; i < payload_len; ++i) {
+        out[3u + i] = payload[i];
+    }
+    out[frame_total - 1u] = frame_checksum(out, (size_t)(frame_total - 1u));
+    return frame_total;
+}
+
+static bool write_frame(const uint8_t *frame, uint8_t frame_len)
+{
+    if((frame == 0) || (frame_len == 0u))
+    {
+        return false;
+    }
+    if (rfm_spi_port_try_write(frame, frame_len)) {
+        s_tx_count++;
+        rfm_spi_port_set_irq(true);
+        return true;
+    }
+    return false;
+}
+
+static bool queue_event_frame(const uint8_t *frame, uint8_t frame_len)
+{
+    if((frame == 0) || (frame_len == 0u) || (frame_len > RFM_SPI_MAX_FRAME))
+    {
+        return false;
+    }
+    memcpy(s_pending_event_frame, frame, frame_len);
+    s_pending_event_frame_len = frame_len;
+    s_pending_event_valid = 1u;
+#if (RFM_TX_LOG_ENABLE == 1u)
+    spi_log_printf("[SPI][EVT] QUEUE evt=0x%02X len=%u\r\n",
+                   (unsigned int)((frame_len >= 2u) ? frame[1] : 0u),
+                   (unsigned int)frame_len);
+#endif
+    return true;
+}
+
+static bool write_or_queue_event_frame(const uint8_t *frame, uint8_t frame_len)
+{
+    if(write_frame(frame, frame_len))
+    {
+#if (RFM_TX_LOG_ENABLE == 1u)
+        spi_log_printf("[SPI][EVT] SEND evt=0x%02X len=%u\r\n",
+                       (unsigned int)((frame_len >= 2u) ? frame[1] : 0u),
+                       (unsigned int)frame_len);
+#endif
+        return true;
+    }
+    return queue_event_frame(frame, frame_len);
+}
+
+static void try_send_pending_event_frame(void)
+{
+    if((s_pending_event_valid == 0u) ||
+       (rfm_spi_port_tx_pending() != 0u) ||
+       rfm_spi_command_txn_has_pending_ack())
+    {
+        return;
+    }
+    if(write_frame(s_pending_event_frame, s_pending_event_frame_len))
+    {
+#if (RFM_TX_LOG_ENABLE == 1u)
+        spi_log_printf("[SPI][EVT] SEND_QUEUED evt=0x%02X len=%u\r\n",
+                       (unsigned int)((s_pending_event_frame_len >= 2u) ? s_pending_event_frame[1] : 0u),
+                       (unsigned int)s_pending_event_frame_len);
+#endif
+        s_pending_event_valid = 0u;
+        s_pending_event_frame_len = 0u;
+    }
+}
+
+static uint8_t build_status_frame_ex(spi_evt_t evt,
+                                      uint8_t cmd_tag,
+                                      uint8_t txn,
+                                      uint8_t result,
+                                      uint8_t reason,
+                                      uint8_t event_seq,
+                                      uint8_t forced_state,
+                                      uint8_t *out,
+                                      uint8_t out_len,
+                                      uint8_t *pending_state_out)
+{
+    uint8_t payload[SPI_STATUS_PAYLOAD_LEN] = {0};
+    uint16_t report_hz = RF_GetReportRateHz();
+    uint16_t rx_ok = RF_GetRxOkCount();
+    uint16_t rx_fail = RF_GetRxFailCount();
+    uint16_t tx_fail = RF_GetTxFailCount();
+    uint32_t reject_count = RF_GetRejectCount();
+    uint8_t pending_state = 0u;
+
+    if(evt == SPI_EVT_STATE_CHANGED)
+    {
+        pending_state = forced_state;
+        if(pending_state == 0u)
+        {
+            pending_state = RF_PeekPendingEventStateCode();
+        }
+        payload[0] = pending_state;
+    }
+    else
+    {
+        payload[0] = RF_GetLinkStateCode();
+    }
+    if(payload[0] == 0u)
+    {
+        payload[0] = RF_GetLinkStateCode();
+    }
+    payload[1] = RF_IsConnected();
+    payload[2] = RF_HasBond();
+    put_u16(&payload[3], report_hz);
+    payload[5] = 0u;
+    put_u16(&payload[6], rx_ok);
+    put_u16(&payload[8], rx_fail);
+    put_u16(&payload[10], tx_fail);
+    put_u32(&payload[12], reject_count);
+    payload[SPI_STATUS_CMD_TAG_OFFSET] = cmd_tag;
+    payload[SPI_STATUS_TXN_OFFSET] = txn;
+    payload[SPI_STATUS_RESULT_OFFSET] = result;
+    payload[SPI_STATUS_REASON_OFFSET] = reason;
+    payload[SPI_STATUS_EVENT_SEQ_OFFSET] = event_seq;
+
+    if(pending_state_out != 0)
+    {
+        *pending_state_out = pending_state;
+    }
+    return build_frame(evt, payload, (uint8_t)sizeof(payload), out, out_len);
+}
+
+static bool send_status_frame_ex(spi_evt_t evt,
+                                 uint8_t cmd_tag,
+                                 uint8_t txn,
+                                 uint8_t result,
+                                 uint8_t reason,
+                                 uint8_t cache_response,
+                                 uint8_t event_seq,
+                                 uint8_t forced_state,
+                                 uint8_t clear_pending_state)
+{
+    uint8_t out[RFM_SPI_MAX_FRAME];
+    uint8_t frame_len;
+    uint8_t pending_state = 0u;
+    bool sent;
+
+    frame_len = build_status_frame_ex(evt,
+                                      cmd_tag,
+                                      txn,
+                                      result,
+                                      reason,
+                                      event_seq,
+                                      forced_state,
+                                      out,
+                                      (uint8_t)sizeof(out),
+                                      &pending_state);
+    if(frame_len == 0u)
+    {
+        return false;
+    }
+    sent = (cache_response != 0u) ?
+           rfm_spi_command_txn_schedule_response(cmd_tag, txn, out, frame_len) :
+           write_or_queue_event_frame(out, frame_len);
+    if((sent != false) &&
+       (evt == SPI_EVT_STATE_CHANGED) &&
+       (pending_state != 0u) &&
+       (clear_pending_state != 0u))
+    {
+        RF_ClearPendingEventStateCode(pending_state);
+    }
+    return sent;
+}
+
+static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag, uint8_t txn, uint8_t result, uint8_t reason, uint8_t cache_response)
+{
+    return send_status_frame_ex(evt,
+                                cmd_tag,
+                                txn,
+                                result,
+                                reason,
+                                cache_response,
+                                0u,
+                                0u,
+                                1u);
+}
+
+static void reliable_event_complete(uint8_t evt, uint8_t seq, uint8_t user)
+{
+    (void)seq;
+    if(evt == (uint8_t)SPI_EVT_STATE_CHANGED)
+    {
+        RF_ClearPendingEventStateCode(user);
+    }
+}
+
+void rfm_spi_bridge_emit_state_changed(uint8_t cmd_tag)
+{
+    uint8_t state = RF_PeekPendingEventStateCode();
+    uint8_t seq;
+    uint8_t frame[RFM_SPI_MAX_FRAME];
+    uint8_t frame_len;
+
+    if(state == 0u)
+    {
+        state = RF_GetLinkStateCode();
+    }
+    seq = rfm_spi_reliable_event_next_seq();
+    frame_len = build_status_frame_ex(SPI_EVT_STATE_CHANGED,
+                                      cmd_tag,
+                                      0u,
+                                      0u,
+                                      0u,
+                                      seq,
+                                      state,
+                                      frame,
+                                      (uint8_t)sizeof(frame),
+                                      0);
+    if(frame_len == 0u)
+    {
+        return;
+    }
+    if(rfm_spi_reliable_event_schedule((uint8_t)SPI_EVT_STATE_CHANGED,
+                                       seq,
+                                       state,
+                                       frame,
+                                       frame_len))
+    {
+        rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
+    }
+}
+
+uint8_t rfm_spi_bridge_emit_time_sync(uint8_t seq)
+{
+    uint8_t payload[1];
+    uint8_t out[RFM_SPI_MAX_FRAME];
+    uint8_t frame_len;
+
+    payload[0] = seq;
+    frame_len = build_frame(SPI_EVT_TIME_SYNC,
+                            payload,
+                            (uint8_t)sizeof(payload),
+                            out,
+                            (uint8_t)sizeof(out));
+    if(frame_len != 0u)
+    {
+        return write_frame(out, frame_len) ? 1u : 0u;
+    }
+    return 0u;
+}
+
+static bool send_error_event(uint8_t cmd_tag, uint8_t txn, uint8_t reason, uint8_t cache_response)
+{
+    return send_status_frame(SPI_EVT_ERROR, cmd_tag, txn, reason, reason, cache_response);
+}
+
+static void save_pending_scheduled_command(uint8_t cmd,
+                                           uint8_t seq,
+                                           const uint8_t *args,
+                                           uint8_t args_len,
+                                           uint16_t complete_ms)
+{
+    uint8_t i;
+
+    if((seq == 0u) || (args_len > (uint8_t)sizeof(s_pending_scheduled_args)))
+    {
+        return;
+    }
+
+    s_pending_scheduled_valid = 1u;
+    s_pending_scheduled_cmd = cmd;
+    s_pending_scheduled_seq = seq;
+    s_pending_scheduled_args_len = args_len;
+    for(i = 0u; i < args_len; ++i)
+    {
+        s_pending_scheduled_args[i] = (args == 0) ? 0u : args[i];
+    }
+    s_pending_scheduled_due_clock = TMOS_GetSystemClock() + ticks_from_ms_local(complete_ms);
+}
+
+static bool execute_control_action(uint8_t cmd, const uint8_t *args, uint8_t args_len)
+{
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_SET_RATE:
+        if(args_len == 2u)
+        {
+            uint16_t hz = (uint16_t)args[0] | ((uint16_t)args[1] << 8);
+            if(is_valid_report_rate_hz(hz) && RF_SetReportRateHz(hz))
+            {
+                if(hz == 0u)
+                {
+                    mark_real_sleep_pending();
+                }
+                return true;
+            }
+        }
+        return false;
+
+    case SPI_CMD_START_PAIR:
+        return (args_len == 0u) ? RF_StartPairing() : false;
+
+    case SPI_CMD_STOP_PAIR:
+        return (args_len == 0u) ? RF_StopPairing() : false;
+
+    case SPI_CMD_UNBIND:
+        return (args_len == 0u) ? RF_Unbind() : false;
+
+    case SPI_CMD_SLEEP:
+        if((args_len == 0u) && RF_PrepareSleep())
+        {
+            mark_real_sleep_pending();
+            return true;
+        }
+        return false;
+
+    default:
+        return false;
+    }
+}
+
+static void process_scheduled_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
+{
+    uint8_t seq;
+    uint16_t complete_ms;
+    const uint8_t *args;
+    uint8_t args_len;
+
+    if(is_scheduled_command(cmd, payload, len) == false)
+    {
+        return;
+    }
+
+    seq = payload[SPI_SCHEDULED_SEQ_OFFSET];
+    complete_ms = get_u16(&payload[SPI_SCHEDULED_COMPLETE_OFFSET]);
+    args = &payload[SPI_SCHEDULED_ARGS_OFFSET];
+    args_len = (uint8_t)(len - SPI_SCHEDULED_ARGS_OFFSET);
+
+    if((s_last_scheduled_complete_cmd == cmd) &&
+       (s_last_scheduled_complete_seq == seq))
+    {
+        return;
+    }
+    if((s_pending_scheduled_valid != 0u) &&
+       (s_pending_scheduled_cmd == cmd) &&
+       (s_pending_scheduled_seq == seq))
+    {
+        return;
+    }
+
+    save_pending_scheduled_command(cmd, seq, args, args_len, complete_ms);
+#if (RFM_TX_LOG_ENABLE == 1u)
+    spi_log_printf("[SPI][SCHED_CMD] RECV cmd=0x%02X seq=%u complete_ms=%u args_len=%u\r\n",
+                   (unsigned int)cmd,
+                   (unsigned int)seq,
+                   (unsigned int)complete_ms,
+                   (unsigned int)args_len);
+#endif
+}
+
+static void execute_pending_scheduled_command(void)
+{
+    uint8_t cmd;
+    uint8_t seq;
+    uint8_t args_len;
+    uint8_t args[23u];
+
+    if(s_pending_scheduled_valid == 0u)
+    {
+        return;
+    }
+    if(clock_due_local(TMOS_GetSystemClock(), s_pending_scheduled_due_clock) == 0u)
+    {
+        return;
+    }
+
+    cmd = s_pending_scheduled_cmd;
+    seq = s_pending_scheduled_seq;
+    args_len = s_pending_scheduled_args_len;
+    memcpy(args, s_pending_scheduled_args, args_len);
+    s_pending_scheduled_valid = 0u;
+    s_last_scheduled_complete_cmd = cmd;
+    s_last_scheduled_complete_seq = seq;
+#if (RFM_TX_LOG_ENABLE == 1u)
+    spi_log_printf("[SPI][SCHED_CMD] COMPLETE cmd=0x%02X seq=%u args_len=%u\r\n",
+                   (unsigned int)cmd,
+                   (unsigned int)seq,
+                   (unsigned int)args_len);
+#endif
+    if(!execute_control_action(cmd, args, args_len))
+    {
+#if (RFM_TX_LOG_ENABLE == 1u)
+        spi_log_printf("[SPI][SCHED_CMD] EXEC_FAIL cmd=0x%02X seq=%u\r\n",
+                       (unsigned int)cmd,
+                       (unsigned int)seq);
+#endif
+    }
+}
+
+static void save_pending_control_command(uint8_t cmd, uint8_t txn, const uint8_t *args, uint8_t args_len)
+{
+    uint8_t i;
+
+    if((txn == 0u) || (args_len > (uint8_t)sizeof(s_pending_control_args)))
+    {
+        return;
+    }
+
+    s_pending_control_cmd = cmd;
+    s_pending_control_txn = txn;
+    s_pending_control_args_len = args_len;
+    for(i = 0u; i < args_len; ++i)
+    {
+        s_pending_control_args[i] = (args == 0) ? 0u : args[i];
+    }
+    s_pending_control_valid = 1u;
+}
+
+static void execute_pending_control_command(void)
+{
+    uint8_t cmd;
+    uint8_t txn;
+    uint8_t args_len;
+    uint8_t *args;
+
+    if(s_pending_control_valid == 0u)
+    {
+        return;
+    }
+    if(rfm_spi_command_txn_is_complete(s_pending_control_cmd, s_pending_control_txn) == false)
+    {
+        return;
+    }
+
+    cmd = s_pending_control_cmd;
+    txn = s_pending_control_txn;
+    args_len = s_pending_control_args_len;
+    args = s_pending_control_args;
+    s_pending_control_valid = 0u;
+#if (RFM_TX_LOG_ENABLE == 1u)
+    spi_log_printf("[SPI][CMD_TXN] EXEC_CMD cmd=0x%02X txn=%u args_len=%u\r\n",
+                   (unsigned int)cmd,
+                   (unsigned int)txn,
+                   (unsigned int)args_len);
+#endif
+
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_GET_STATUS:
+        (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 0u);
+        break;
+
+    case SPI_CMD_SET_RATE:
+        if (args_len == 2u) {
+            uint16_t hz = (uint16_t)args[0] | ((uint16_t)args[1] << 8);
+            if (is_valid_report_rate_hz(hz) && RF_SetReportRateHz(hz)) {
+                if(send_status_frame(SPI_EVT_RATE_APPLIED, cmd, txn, 0u, 0u, 0u) &&
+                   (hz == 0u))
+                {
+                    mark_real_sleep_pending();
+                }
+                break;
+            }
+        }
+        (void)send_error_event(cmd, txn, 1u, 0u);
+        break;
+
+    case SPI_CMD_START_PAIR:
+        if(RF_StartPairing())
+        {
+            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 0u);
+        }
+        else
+        {
+            (void)send_error_event(cmd, txn, 2u, 0u);
+        }
+        break;
+
+    case SPI_CMD_STOP_PAIR:
+        if(RF_StopPairing())
+        {
+            (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd, txn, 0u, 0u, 0u);
+        }
+        else
+        {
+            (void)send_error_event(cmd, txn, 2u, 0u);
+        }
+        break;
+
+    case SPI_CMD_UNBIND:
+        if(RF_Unbind())
+        {
+            (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd, txn, 0u, 0u, 0u);
+        }
+        else
+        {
+            (void)send_error_event(cmd, txn, 2u, 0u);
+        }
+        break;
+
+    case SPI_CMD_SLEEP:
+        if(RF_PrepareSleep())
+        {
+            if(send_status_frame(SPI_EVT_SLEEP_ENTERING, cmd, txn, 0u, 0u, 0u))
+            {
+                mark_real_sleep_pending();
+            }
+        }
+        else
+        {
+            (void)send_error_event(cmd, txn, 2u, 0u);
+        }
+        break;
+
+    default:
+        (void)send_error_event(cmd, txn, 3u, 0u);
+        break;
+    }
+}
+
+static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
+{
+    uint8_t txn = 0u;
+    const uint8_t *args = payload;
+    uint8_t args_len = len;
+
+    rfm_spi_port_set_irq(false);
+    s_rx_count++;
+
+    if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
+    {
+        (void)RF_SPI_FastWriteInput(payload, len);
+        return;
+    }
+
+    if(is_scheduled_command(cmd, payload, len))
+    {
+        process_scheduled_command(cmd, payload, len);
+        return;
+    }
+
+    log_spi_command_received(cmd, payload, len);
+
+    if((payload == 0) || (len == 0u))
+    {
+        (void)send_error_event(cmd, 0u, 1u, 0u);
+        return;
+    }
+
+    txn = payload[0];
+    args = &payload[1];
+    args_len = (uint8_t)(len - 1u);
+    rfm_spi_command_txn_note_command_received(cmd, txn, args_len);
+
+    if(rfm_spi_command_txn_resend_if_duplicate(cmd, txn))
+    {
+        return;
+    }
+
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_GET_STATUS:
+        if(args_len == 0u)
+        {
+            save_pending_control_command(cmd, txn, args, args_len);
+            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u);
+            break;
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
+        break;
+    case SPI_CMD_SET_RATE:
+        if (args_len == 2u) {
+            uint16_t hz = (uint16_t)args[0] | ((uint16_t)args[1] << 8);
+            if (is_valid_report_rate_hz(hz)) {
+                save_pending_control_command(cmd, txn, args, args_len);
+                (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u);
+                break;
+            }
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
+        break;
+    case SPI_CMD_START_PAIR:
+        if(args_len == 0u)
+        {
+            save_pending_control_command(cmd, txn, args, args_len);
+            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u);
+            break;
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
+        break;
+    case SPI_CMD_STOP_PAIR:
+        if(args_len == 0u)
+        {
+            save_pending_control_command(cmd, txn, args, args_len);
+            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u);
+            break;
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
+        break;
+    case SPI_CMD_UNBIND:
+        if(args_len == 0u)
+        {
+            save_pending_control_command(cmd, txn, args, args_len);
+            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u);
+            break;
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
+        break;
+    case SPI_CMD_SLEEP:
+        if(args_len == 0u)
+        {
+            save_pending_control_command(cmd, txn, args, args_len);
+            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u);
+            break;
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
+        break;
+    default:
+        (void)send_error_event(cmd, txn, 3u, 1u);
+        break;
+    }
+}
+
+static void process_one_frame(const uint8_t *buf, size_t len)
+{
+    uint8_t payload_len;
+    if ((buf == 0) || (len < 4u)) {
+        return;
+    }
+    if (buf[0] != RFM_SPI_SYNC) {
+        if (buf[0] == 0xFFu) {
+            return;
+        }
+        return;
+    }
+    payload_len = buf[2];
+    if (len != (size_t)(3u + payload_len + 1u)) {
+        return;
+    }
+    if (frame_checksum(buf, len - 1u) != buf[len - 1u]) {
+        return;
+    }
+
+    if (!is_valid_host_cmd(buf[1])) {
+        return;
+    }
+
+    process_command(buf[1], &buf[3], payload_len);
+}
+
+static void process_control_frame_queue(uint8_t max_frames)
+{
+    uint8_t i;
+
+    for(i = 0u; i < max_frames; ++i)
+    {
+        uint8_t control_frame[RFM_SPI_MAX_FRAME];
+        uint8_t control_len = (uint8_t)sizeof(control_frame);
+
+        if(rfm_spi_port_peek_latest_control_frame(control_frame, &control_len) == false)
+        {
+            break;
+        }
+
+        s_raw_bytes_win += control_len;
+        s_frame_ok_win++;
+        process_one_frame(control_frame, control_len);
+        rfm_spi_command_txn_poll();
+        execute_pending_scheduled_command();
+        execute_pending_control_command();
+        try_send_pending_event_frame();
+        rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
+    }
+}
+
+static void parser_reset(void)
+{
+    s_parse_state = PARSE_WAIT_SYNC;
+    s_parse_idx = 0u;
+    s_parse_payload_len = 0u;
+}
+
+static void parser_start_frame(void)
+{
+    s_parse_buf[0] = RFM_SPI_SYNC;
+    s_parse_idx = 1u;
+    s_parse_payload_len = 0u;
+    s_parse_state = PARSE_CMD;
+}
+
+static bool find_latest_input_frame(const uint8_t *buf, size_t len, uint8_t *payload)
+{
+    size_t i;
+    bool found = false;
+
+    if ((buf == 0) || (payload == 0) || (len < SPI_INPUT_FRAME_BYTES)) {
+        return false;
+    }
+
+    for (i = 0u; i <= (len - SPI_INPUT_FRAME_BYTES); ++i) {
+        uint8_t sum;
+        size_t j;
+
+        if ((buf[i] != RFM_SPI_SYNC) ||
+            (buf[i + 1u] != (uint8_t)SPI_CMD_INPUT_DATA) ||
+            (buf[i + 2u] != RFM_RF_INPUT_PAYLOAD_LEN)) {
+            continue;
+        }
+
+        sum = 0u;
+        for (j = 0u; j < (SPI_INPUT_FRAME_BYTES - 1u); ++j) {
+            sum = (uint8_t)(sum + buf[i + j]);
+        }
+        if (sum != buf[i + SPI_INPUT_FRAME_BYTES - 1u]) {
+            s_bad_checksum_win++;
+            continue;
+        }
+
+        memcpy(payload, &buf[i + 3u], RFM_RF_INPUT_PAYLOAD_LEN);
+        found = true;
+    }
+
+    return found;
+}
+
+static void fast_parser_reset(void)
+{
+    s_fast_state = FAST_WAIT_SYNC;
+    s_fast_payload_idx = 0u;
+    s_fast_sum = 0u;
+}
+
+__attribute__((unused))
+static void fast_parser_feed_byte(uint8_t b)
+{
+    switch (s_fast_state) {
+    case FAST_WAIT_SYNC:
+        if (b == RFM_SPI_SYNC) {
+            s_fast_sum = RFM_SPI_SYNC;
+            s_fast_payload_idx = 0u;
+            s_fast_state = FAST_CMD;
+        } else if (b != 0xFFu) {
+            s_bad_sync_win++;
+        }
+        break;
+
+    case FAST_CMD:
+        if (b != (uint8_t)SPI_CMD_INPUT_DATA) {
+            s_bad_cmd_win++;
+            fast_parser_reset();
+            if (b == RFM_SPI_SYNC) {
+                s_fast_sum = RFM_SPI_SYNC;
+                s_fast_state = FAST_CMD;
+            }
+            break;
+        }
+        s_fast_sum = (uint8_t)(s_fast_sum + b);
+        s_fast_state = FAST_LEN;
+        break;
+
+    case FAST_LEN:
+        if (b != RFM_RF_INPUT_PAYLOAD_LEN) {
+            s_bad_len_win++;
+            fast_parser_reset();
+            if (b == RFM_SPI_SYNC) {
+                s_fast_sum = RFM_SPI_SYNC;
+                s_fast_state = FAST_CMD;
+            }
+            break;
+        }
+        s_fast_sum = (uint8_t)(s_fast_sum + b);
+        s_fast_payload_idx = 0u;
+        s_fast_state = FAST_PAYLOAD;
+        break;
+
+    case FAST_PAYLOAD:
+        s_fast_payload[s_fast_payload_idx++] = b;
+        s_fast_sum = (uint8_t)(s_fast_sum + b);
+        if (s_fast_payload_idx >= sizeof(s_fast_payload)) {
+            s_fast_state = FAST_CHECKSUM;
+        }
+        break;
+
+    case FAST_CHECKSUM:
+        if (s_fast_sum == b) {
+            s_frame_ok_win++;
+            (void)RF_SPI_FastWriteInput(s_fast_payload, (uint8_t)sizeof(s_fast_payload));
+            s_rx_count++;
+        } else {
+            s_bad_checksum_win++;
+        }
+        fast_parser_reset();
+        break;
+
+    default:
+        fast_parser_reset();
+        break;
+    }
+}
+
+__attribute__((unused))
+static void parser_feed_byte(uint8_t b)
+{
+    size_t total;
+
+    switch (s_parse_state) {
+    case PARSE_WAIT_SYNC:
+        if (b == RFM_SPI_SYNC) {
+            parser_start_frame();
+        } else if (b != 0xFFu) {
+            s_bad_sync_win++;
+        }
+        break;
+
+    case PARSE_CMD:
+        if (!is_valid_host_cmd(b)) {
+            s_bad_cmd_win++;
+            if (b == RFM_SPI_SYNC) {
+                parser_start_frame();
+            } else {
+                parser_reset();
+            }
+            break;
+        }
+        s_parse_buf[s_parse_idx++] = b;
+        s_parse_state = PARSE_LEN;
+        break;
+
+    case PARSE_LEN:
+        if ((size_t)(3u + b + 1u) > RFM_SPI_MAX_FRAME) {
+            s_bad_len_win++;
+            parser_reset();
+            break;
+        }
+        s_parse_payload_len = b;
+        s_parse_buf[s_parse_idx++] = b;
+        s_parse_state = (b == 0u) ? PARSE_CHECKSUM : PARSE_PAYLOAD;
+        break;
+
+    case PARSE_PAYLOAD:
+        s_parse_buf[s_parse_idx++] = b;
+        if (s_parse_idx >= (uint8_t)(3u + s_parse_payload_len)) {
+            s_parse_state = PARSE_CHECKSUM;
+        }
+        break;
+
+    case PARSE_CHECKSUM:
+        s_parse_buf[s_parse_idx++] = b;
+        total = (size_t)s_parse_idx;
+        if (frame_checksum(s_parse_buf, total - 1u) == s_parse_buf[total - 1u]) {
+            s_frame_ok_win++;
+            process_one_frame(s_parse_buf, total);
+        } else {
+            s_bad_checksum_win++;
+        }
+        parser_reset();
+        break;
+
+    default:
+        parser_reset();
+        break;
+    }
+}
+
+#if 0
+static void diag_clear_win(void)
+{
+    s_raw_bytes_win = 0u;
+    s_frame_ok_win = 0u;
+    s_bad_sync_win = 0u;
+    s_bad_cmd_win = 0u;
+    s_bad_len_win = 0u;
+    s_bad_checksum_win = 0u;
+}
+
+static uint32_t input_payload_key_mask(const uint8_t *payload)
+{
+    if(payload == 0)
+    {
+        return 0u;
+    }
+    return ((uint32_t)payload[2]) |
+           ((uint32_t)payload[3] << 8) |
+           ((uint32_t)payload[4] << 16) |
+           ((uint32_t)payload[5] << 24);
+}
+#endif
+
+void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
+{
+#if 0
+    uint32_t ring_ov_count;
+    uint32_t rx_byte_count;
+    uint32_t fifo_ov_count;
+    uint32_t irq_count;
+    uint32_t bad_irq_count;
+    uint32_t direct_count;
+    uint32_t done_count;
+    uint32_t valid_frame_count;
+    uint32_t bad_frame_count;
+    uint32_t backlog_drop_count;
+    uint32_t backlog_drop_bytes;
+    uint32_t raw_sum;
+    uint32_t frame_sum;
+    uint32_t bad_sync_sum;
+    uint32_t bad_cmd_sum;
+    uint32_t bad_len_sum;
+    uint32_t bad_checksum_sum;
+    uint32_t direct_sum;
+    uint32_t dma_irq_sum;
+    uint32_t done_sum;
+    uint32_t valid_sum;
+    uint32_t bad_frame_sum;
+    uint32_t peek_ok_count;
+    uint32_t peek_miss_count;
+    uint32_t max_available;
+    uint32_t near_full_count;
+    uint32_t full_clip_count;
+    uint32_t flags;
+    uint8_t tx_pending;
+    uint32_t tx_recover_count;
+    uint32_t latest_key;
+    uint32_t rf_key;
+
+    if (elapsed_ms == 0u) {
+        elapsed_ms = 1u;
+    }
+
+    ring_ov_count = rfm_spi_port_rx_ring_overrun_count();
+    rx_byte_count = rfm_spi_port_rx_byte_count();
+    fifo_ov_count = rfm_spi_port_rx_fifo_ov_count();
+    irq_count = rfm_spi_port_rx_isr_count();
+    bad_irq_count = rfm_spi_port_rx_bad_irq_count();
+    direct_count = rfm_spi_port_rx_direct_count();
+    done_count = rfm_spi_port_rx_done_count();
+    valid_frame_count = rfm_spi_port_rx_valid_frame_count();
+    bad_frame_count = rfm_spi_port_rx_bad_frame_count();
+    backlog_drop_count = rfm_spi_port_rx_backlog_drop_count();
+    backlog_drop_bytes = rfm_spi_port_rx_backlog_drop_bytes();
+    peek_ok_count = rfm_spi_port_rx_peek_ok_count();
+    peek_miss_count = rfm_spi_port_rx_peek_miss_count();
+    max_available = rfm_spi_port_rx_take_max_available();
+    near_full_count = rfm_spi_port_rx_take_near_full_count();
+    full_clip_count = rfm_spi_port_rx_take_full_clip_count();
+
+    raw_sum = s_raw_bytes_win;
+    frame_sum = s_frame_ok_win;
+    bad_sync_sum = s_bad_sync_win;
+    bad_cmd_sum = s_bad_cmd_win;
+    bad_len_sum = s_bad_len_win;
+    bad_checksum_sum = s_bad_checksum_win;
+    direct_sum = direct_count - s_last_direct_count;
+    dma_irq_sum = irq_count - s_last_irq_count;
+    done_sum = done_count - s_last_done_count;
+    valid_sum = valid_frame_count - s_last_valid_frame_count;
+    bad_frame_sum = bad_frame_count - s_last_bad_frame_count;
+    flags = rfm_spi_port_rx_last_flags();
+    tx_pending = rfm_spi_port_tx_pending();
+    tx_recover_count = rfm_spi_port_tx_recover_count();
+    latest_key = (s_have_last_latest_input != 0u) ?
+                 input_payload_key_mask(s_last_latest_input) : 0u;
+    rf_key = (s_have_last_direct_input != 0u) ?
+             input_payload_key_mask(s_last_direct_input) : 0u;
+
+#if (RFM_TX_LOG_ENABLE == 1u)
+    PRINT("[SPI][%lums] irq:%lu done:%lu ok:%lu bad:%lu dir:%lu key:%08lX rf:%08lX peek:%lu/%lu max:%lu ov:%lu tx:%u rec:%lu\r\n",
+          elapsed_ms,
+          (unsigned long)dma_irq_sum,
+          (unsigned long)done_sum,
+          (unsigned long)valid_sum,
+          (unsigned long)bad_frame_sum,
+          (unsigned long)direct_sum,
+          (unsigned long)latest_key,
+          (unsigned long)rf_key,
+          (unsigned long)peek_ok_count,
+          (unsigned long)peek_miss_count,
+          (unsigned long)max_available,
+          (unsigned long)fifo_ov_count,
+          (unsigned int)tx_pending,
+          (unsigned long)tx_recover_count);
+#endif
+
+    s_last_ring_ov_count = ring_ov_count;
+    s_last_rx_byte_count = rx_byte_count;
+    s_last_fifo_ov_count = fifo_ov_count;
+    s_last_irq_count = irq_count;
+    s_last_bad_irq_count = bad_irq_count;
+    s_last_direct_count = direct_count;
+    s_last_done_count = done_count;
+    s_last_valid_frame_count = valid_frame_count;
+    s_last_bad_frame_count = bad_frame_count;
+    s_last_backlog_drop_count = backlog_drop_count;
+    s_last_backlog_drop_bytes = backlog_drop_bytes;
+    s_last_rx_count = s_rx_count;
+    diag_clear_win();
+
+    (void)fifo_ov_count;
+    (void)bad_irq_count;
+    (void)direct_count;
+    (void)done_count;
+    (void)valid_frame_count;
+    (void)bad_frame_count;
+    (void)ring_ov_count;
+    (void)rx_byte_count;
+    (void)backlog_drop_count;
+    (void)backlog_drop_bytes;
+    (void)raw_sum;
+    (void)frame_sum;
+    (void)bad_sync_sum;
+    (void)bad_cmd_sum;
+    (void)bad_len_sum;
+    (void)bad_checksum_sum;
+    (void)direct_sum;
+    (void)dma_irq_sum;
+    (void)done_sum;
+    (void)valid_sum;
+    (void)bad_frame_sum;
+    (void)peek_ok_count;
+    (void)peek_miss_count;
+    (void)max_available;
+    (void)near_full_count;
+    (void)full_clip_count;
+    (void)flags;
+    (void)tx_pending;
+    (void)tx_recover_count;
+    (void)elapsed_ms;
+#else
+    (void)elapsed_ms;
+#endif
+}
+
+static bool input_payload_state_changed(const uint8_t *prev, const uint8_t *curr)
+{
+    if((prev == 0) || (curr == 0))
+    {
+        return true;
+    }
+
+    /*
+     * Sequence, sample_tick_us and CRC change at report cadence. RF only needs
+     * a fresh payload when semantic key state or one-shot sync echo changes.
+     */
+    return (prev[1] != curr[1]) || (memcmp(&prev[2], &curr[2], 4u) != 0);
+}
+
+void rfm_spi_bridge_init(void)
+{
+    s_rx_count = 0u;
+    s_tx_count = 0u;
+    s_raw_bytes_win = 0u;
+    s_frame_ok_win = 0u;
+    s_bad_sync_win = 0u;
+    s_bad_cmd_win = 0u;
+    s_bad_len_win = 0u;
+    s_bad_checksum_win = 0u;
+    s_last_ring_ov_count = 0u;
+    s_last_rx_byte_count = 0u;
+    s_last_fifo_ov_count = 0u;
+    s_last_irq_count = 0u;
+    s_last_bad_irq_count = 0u;
+    s_last_direct_count = 0u;
+    s_last_done_count = 0u;
+    s_last_valid_frame_count = 0u;
+    s_last_bad_frame_count = 0u;
+    s_last_backlog_drop_count = 0u;
+    s_last_backlog_drop_bytes = 0u;
+    s_last_rx_count = 0u;
+    s_have_last_direct_input = 0u;
+    s_have_last_latest_input = 0u;
+    s_pending_control_valid = 0u;
+    s_pending_control_cmd = 0u;
+    s_pending_control_txn = 0u;
+    s_pending_control_args_len = 0u;
+    s_pending_scheduled_valid = 0u;
+    s_pending_scheduled_cmd = 0u;
+    s_pending_scheduled_seq = 0u;
+    s_pending_scheduled_args_len = 0u;
+    s_pending_scheduled_due_clock = 0u;
+    s_last_scheduled_complete_cmd = 0u;
+    s_last_scheduled_complete_seq = 0u;
+    s_pending_event_valid = 0u;
+    s_pending_event_frame_len = 0u;
+    s_real_sleep_pending = 0u;
+    memset(s_last_direct_input, 0, sizeof(s_last_direct_input));
+    memset(s_last_latest_input, 0, sizeof(s_last_latest_input));
+    memset(s_pending_control_args, 0, sizeof(s_pending_control_args));
+    memset(s_pending_scheduled_args, 0, sizeof(s_pending_scheduled_args));
+    memset(s_pending_event_frame, 0, sizeof(s_pending_event_frame));
+    parser_reset();
+    fast_parser_reset();
+    rfm_spi_command_txn_init();
+    rfm_spi_reliable_event_init(reliable_event_complete);
+    rfm_spi_port_init();
+    rfm_cold_boot_signal_ready();
+#if (RFM_TX_LOG_ENABLE == 1u)
+    spi_log_printf("[SPI][LOG] ready\r\n");
+#endif
+#if (RFM_SPI_SIMULATE_SET_RATE_HZ != 0u)
+    {
+        uint8_t rate_payload[3];
+        rate_payload[0] = 1u;
+        rate_payload[1] = (uint8_t)(RFM_SPI_SIMULATE_SET_RATE_HZ & 0xFFu);
+        rate_payload[2] = (uint8_t)((RFM_SPI_SIMULATE_SET_RATE_HZ >> 8) & 0xFFu);
+        process_command((uint8_t)SPI_CMD_SET_RATE, rate_payload, (uint8_t)sizeof(rate_payload));
+    }
+#endif
+}
+
+void rfm_spi_bridge_poll(void)
+{
+    uint8_t batch;
+    uint8_t latest_payload[RFM_RF_INPUT_PAYLOAD_LEN];
+
+    if(RFM_SPI_INPUT_DIRECT_DMA != 0u) {
+        rfm_spi_port_service();
+        rfm_spi_command_txn_poll();
+        execute_pending_scheduled_command();
+        execute_pending_control_command();
+        try_send_pending_event_frame();
+        rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
+        if((s_real_sleep_pending == 0u) &&
+           rfm_spi_port_peek_latest_input(latest_payload, (uint8_t)sizeof(latest_payload))) {
+            memcpy(s_last_latest_input, latest_payload, sizeof(latest_payload));
+            s_have_last_latest_input = 1u;
+            if((s_have_last_direct_input == 0u) ||
+               input_payload_state_changed(s_last_direct_input, latest_payload)) {
+                memcpy(s_last_direct_input, latest_payload, sizeof(latest_payload));
+                s_have_last_direct_input = 1u;
+                s_frame_ok_win++;
+                s_rx_count++;
+                (void)RF_SPI_FastWriteInput(latest_payload, (uint8_t)sizeof(latest_payload));
+            }
+        }
+        if(s_real_sleep_pending != 0u) {
+            rfm_spi_port_discard_control_frames();
+        } else {
+            process_control_frame_queue((uint8_t)SPI_CONTROL_DRAIN_MAX);
+        }
+        if(s_real_sleep_pending != 0u) {
+            const uint8_t tx_ok = (rfm_spi_port_tx_pending() == 0u) ? 1u : 0u;
+            const uint8_t sched_ok = (s_pending_scheduled_valid == 0u) ? 1u : 0u;
+            const uint8_t evt_ok = (s_pending_event_valid == 0u) ? 1u : 0u;
+            const uint8_t ack_ok = (rfm_spi_command_txn_has_pending_ack() == false) ? 1u : 0u;
+            const uint8_t rel_ok = (rfm_spi_reliable_event_has_pending() == false) ? 1u : 0u;
+            uint8_t spi_ok = 0u;
+
+            if((tx_ok != 0u) &&
+               (sched_ok != 0u) &&
+               (evt_ok != 0u) &&
+               (ack_ok != 0u) &&
+               (rel_ok != 0u)) {
+                spi_ok = rfm_spi_port_sleep_ready((uint16_t)SPI_SLEEP_IDLE_STABLE_US) ? 1u : 0u;
+            }
+
+            if((tx_ok != 0u) &&
+               (sched_ok != 0u) &&
+               (evt_ok != 0u) &&
+               (ack_ok != 0u) &&
+               (rel_ok != 0u) &&
+               (spi_ok != 0u)) {
+                s_real_sleep_pending = 0u;
+                s_sleep_gate_log_armed = 0u;
+#if (RFM_TX_LOG_ENABLE == 1u)
+                spi_log_printf("[SPI][SLEEP] enter wake=PB15/SLEEP\r\n");
+#endif
+                rfm_spi_port_sleep_until_nss_wake();
+                parser_reset();
+                fast_parser_reset();
+#if (RFM_TX_LOG_ENABLE == 1u)
+                spi_log_printf("[SPI][SLEEP] wake spi_restored\r\n");
+#endif
+                DelayMs(30);
+                (void)send_status_frame(SPI_EVT_WAKEUP_COMPLETE,
+                                        (uint8_t)SPI_CMD_SLEEP,
+                                        0u,
+                                        0u,
+                                        0u,
+                                        0u);
+                return;
+            }
+#if (RFM_TX_LOG_ENABLE == 1u)
+            {
+                const uint32_t now = TMOS_GetSystemClock();
+                if((s_sleep_gate_log_armed == 0u) ||
+                   ((uint32_t)(now - s_sleep_gate_last_log_clock) >= MS1_TO_SYSTEM_TIME(SPI_SLEEP_GATE_LOG_MS))) {
+                    s_sleep_gate_log_armed = 1u;
+                    s_sleep_gate_last_log_clock = now;
+                    spi_log_printf("[SPI][SLEEP_GATE] tx=%u sched=%u evt=%u ack=%u rel=%u spi=%u spi_flags=0x%02X\r\n",
+                                   (unsigned int)tx_ok,
+                                   (unsigned int)sched_ok,
+                                   (unsigned int)evt_ok,
+                                   (unsigned int)ack_ok,
+                                   (unsigned int)rel_ok,
+                                   (unsigned int)spi_ok,
+                                   (unsigned int)rfm_spi_port_sleep_block_flags());
+                }
+            }
+#endif
+        }
+        return;
+    }
+
+    for (batch = 0u; batch < SPI_POLL_MAX_BATCHES; ++batch) {
+        size_t n = sizeof(s_poll_rx);
+        size_t i;
+
+        if (!rfm_spi_port_try_read(s_poll_rx, &n)) {
+            break;
+        }
+        s_raw_bytes_win += (uint32_t)n;
+        if (find_latest_input_frame(s_poll_rx, n, latest_payload)) {
+            s_frame_ok_win++;
+            s_rx_count++;
+            (void)RF_SPI_FastWriteInput(latest_payload,
+                                        (uint8_t)sizeof(latest_payload));
+            continue;
+        }
+
+        for (i = 0u; i < n; ++i) {
+            parser_feed_byte(s_poll_rx[i]);
+        }
+    }
+    rfm_spi_command_txn_poll();
+    execute_pending_scheduled_command();
+    execute_pending_control_command();
+    try_send_pending_event_frame();
+    rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
+}

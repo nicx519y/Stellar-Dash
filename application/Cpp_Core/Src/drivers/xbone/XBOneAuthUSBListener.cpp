@@ -172,7 +172,7 @@ void XBOneAuthUSBListener::process_report_queue() {
 			report_queue.pop();
             lastReportQueue = now; // last time we checked report queue
         } else {
-            HAL_Delay(REPORT_QUEUE_INTERVAL);
+            lastReportQueue = now;
         }
 	}
 }

@@ -1,0 +1,307 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"config_transport_sink.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/config_transport_sink.cpp"
+  19              		.section	.text._Z27ConfigTransport_SetJsonSinkPFvPKcjE,"ax",%progbits
+  20              		.align	1
+  21              		.global	_Z27ConfigTransport_SetJsonSinkPFvPKcjE
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_Z27ConfigTransport_SetJsonSinkPFvPKcjE:
+  27              	.LVL0:
+  28              	.LFB14:
+   1:Cpp_Core/Src/config_transport_sink.cpp **** #include "config_transport_sink.hpp"
+   2:Cpp_Core/Src/config_transport_sink.cpp **** 
+   3:Cpp_Core/Src/config_transport_sink.cpp **** namespace {
+   4:Cpp_Core/Src/config_transport_sink.cpp **** 
+   5:Cpp_Core/Src/config_transport_sink.cpp **** config_json_sink_t jsonSink = nullptr;
+   6:Cpp_Core/Src/config_transport_sink.cpp **** config_binary_sink_t binarySink = nullptr;
+   7:Cpp_Core/Src/config_transport_sink.cpp **** 
+   8:Cpp_Core/Src/config_transport_sink.cpp **** } // namespace
+   9:Cpp_Core/Src/config_transport_sink.cpp **** 
+  10:Cpp_Core/Src/config_transport_sink.cpp **** void ConfigTransport_SetJsonSink(config_json_sink_t sink)
+  11:Cpp_Core/Src/config_transport_sink.cpp **** {
+  29              		.loc 1 11 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+  12:Cpp_Core/Src/config_transport_sink.cpp ****     jsonSink = sink;
+  34              		.loc 1 12 5 view .LVU1
+  35              		.loc 1 12 14 is_stmt 0 view .LVU2
+  36 0000 014B     		ldr	r3, .L2
+  37 0002 1860     		str	r0, [r3]
+  13:Cpp_Core/Src/config_transport_sink.cpp **** }
+  38              		.loc 1 13 1 view .LVU3
+  39 0004 7047     		bx	lr
+  40              	.L3:
+  41 0006 00BF     		.align	2
+  42              	.L2:
+  43 0008 00000000 		.word	_ZN12_GLOBAL__N_18jsonSinkE
+  44              		.cfi_endproc
+  45              	.LFE14:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s 			page 2
+
+
+  47              		.section	.text._Z29ConfigTransport_SetBinarySinkPFvPKhjE,"ax",%progbits
+  48              		.align	1
+  49              		.global	_Z29ConfigTransport_SetBinarySinkPFvPKhjE
+  50              		.syntax unified
+  51              		.thumb
+  52              		.thumb_func
+  54              	_Z29ConfigTransport_SetBinarySinkPFvPKhjE:
+  55              	.LVL1:
+  56              	.LFB15:
+  14:Cpp_Core/Src/config_transport_sink.cpp **** 
+  15:Cpp_Core/Src/config_transport_sink.cpp **** void ConfigTransport_SetBinarySink(config_binary_sink_t sink)
+  16:Cpp_Core/Src/config_transport_sink.cpp **** {
+  57              		.loc 1 16 1 is_stmt 1 view -0
+  58              		.cfi_startproc
+  59              		@ args = 0, pretend = 0, frame = 0
+  60              		@ frame_needed = 0, uses_anonymous_args = 0
+  61              		@ link register save eliminated.
+  17:Cpp_Core/Src/config_transport_sink.cpp ****     binarySink = sink;
+  62              		.loc 1 17 5 view .LVU5
+  63              		.loc 1 17 16 is_stmt 0 view .LVU6
+  64 0000 014B     		ldr	r3, .L5
+  65 0002 1860     		str	r0, [r3]
+  18:Cpp_Core/Src/config_transport_sink.cpp **** }
+  66              		.loc 1 18 1 view .LVU7
+  67 0004 7047     		bx	lr
+  68              	.L6:
+  69 0006 00BF     		.align	2
+  70              	.L5:
+  71 0008 00000000 		.word	_ZN12_GLOBAL__N_110binarySinkE
+  72              		.cfi_endproc
+  73              	.LFE15:
+  75              		.section	.text._Z27ConfigTransport_PublishJsonPKcj,"ax",%progbits
+  76              		.align	1
+  77              		.global	_Z27ConfigTransport_PublishJsonPKcj
+  78              		.syntax unified
+  79              		.thumb
+  80              		.thumb_func
+  82              	_Z27ConfigTransport_PublishJsonPKcj:
+  83              	.LVL2:
+  84              	.LFB16:
+  19:Cpp_Core/Src/config_transport_sink.cpp **** 
+  20:Cpp_Core/Src/config_transport_sink.cpp **** void ConfigTransport_PublishJson(const char *json, size_t length)
+  21:Cpp_Core/Src/config_transport_sink.cpp **** {
+  85              		.loc 1 21 1 is_stmt 1 view -0
+  86              		.cfi_startproc
+  87              		@ args = 0, pretend = 0, frame = 0
+  88              		@ frame_needed = 0, uses_anonymous_args = 0
+  89              		@ link register save eliminated.
+  22:Cpp_Core/Src/config_transport_sink.cpp ****     if (json == nullptr || length == 0u) {
+  90              		.loc 1 22 5 view .LVU9
+  91 0000 20B1     		cbz	r0, .L7
+  92              		.loc 1 22 25 is_stmt 0 discriminator 1 view .LVU10
+  93 0002 19B1     		cbz	r1, .L7
+  23:Cpp_Core/Src/config_transport_sink.cpp ****         return;
+  24:Cpp_Core/Src/config_transport_sink.cpp ****     }
+  25:Cpp_Core/Src/config_transport_sink.cpp ****     if (jsonSink != nullptr) {
+  94              		.loc 1 25 5 is_stmt 1 view .LVU11
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s 			page 3
+
+
+  95              		.loc 1 25 18 is_stmt 0 view .LVU12
+  96 0004 024B     		ldr	r3, .L18
+  97 0006 1B68     		ldr	r3, [r3]
+  98              		.loc 1 25 5 view .LVU13
+  99 0008 03B1     		cbz	r3, .L7
+  26:Cpp_Core/Src/config_transport_sink.cpp ****         jsonSink(json, length);
+ 100              		.loc 1 26 9 is_stmt 1 view .LVU14
+ 101              		.loc 1 26 17 is_stmt 0 view .LVU15
+ 102 000a 1847     		bx	r3	@ indirect register sibling call
+ 103              	.LVL3:
+ 104              	.L7:
+  27:Cpp_Core/Src/config_transport_sink.cpp ****     }
+  28:Cpp_Core/Src/config_transport_sink.cpp **** }
+ 105              		.loc 1 28 1 view .LVU16
+ 106 000c 7047     		bx	lr
+ 107              	.L19:
+ 108 000e 00BF     		.align	2
+ 109              	.L18:
+ 110 0010 00000000 		.word	_ZN12_GLOBAL__N_18jsonSinkE
+ 111              		.cfi_endproc
+ 112              	.LFE16:
+ 114              		.section	.text._Z29ConfigTransport_PublishBinaryPKhj,"ax",%progbits
+ 115              		.align	1
+ 116              		.global	_Z29ConfigTransport_PublishBinaryPKhj
+ 117              		.syntax unified
+ 118              		.thumb
+ 119              		.thumb_func
+ 121              	_Z29ConfigTransport_PublishBinaryPKhj:
+ 122              	.LVL4:
+ 123              	.LFB17:
+  29:Cpp_Core/Src/config_transport_sink.cpp **** 
+  30:Cpp_Core/Src/config_transport_sink.cpp **** void ConfigTransport_PublishBinary(const uint8_t *data, size_t length)
+  31:Cpp_Core/Src/config_transport_sink.cpp **** {
+ 124              		.loc 1 31 1 is_stmt 1 view -0
+ 125              		.cfi_startproc
+ 126              		@ args = 0, pretend = 0, frame = 0
+ 127              		@ frame_needed = 0, uses_anonymous_args = 0
+ 128              		@ link register save eliminated.
+  32:Cpp_Core/Src/config_transport_sink.cpp ****     if (data == nullptr || length == 0u) {
+ 129              		.loc 1 32 5 view .LVU18
+ 130 0000 20B1     		cbz	r0, .L20
+ 131              		.loc 1 32 25 is_stmt 0 discriminator 1 view .LVU19
+ 132 0002 19B1     		cbz	r1, .L20
+  33:Cpp_Core/Src/config_transport_sink.cpp ****         return;
+  34:Cpp_Core/Src/config_transport_sink.cpp ****     }
+  35:Cpp_Core/Src/config_transport_sink.cpp ****     if (binarySink != nullptr) {
+ 133              		.loc 1 35 5 is_stmt 1 view .LVU20
+ 134              		.loc 1 35 20 is_stmt 0 view .LVU21
+ 135 0004 024B     		ldr	r3, .L31
+ 136 0006 1B68     		ldr	r3, [r3]
+ 137              		.loc 1 35 5 view .LVU22
+ 138 0008 03B1     		cbz	r3, .L20
+  36:Cpp_Core/Src/config_transport_sink.cpp ****         binarySink(data, length);
+ 139              		.loc 1 36 9 is_stmt 1 view .LVU23
+ 140              		.loc 1 36 19 is_stmt 0 view .LVU24
+ 141 000a 1847     		bx	r3	@ indirect register sibling call
+ 142              	.LVL5:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s 			page 4
+
+
+ 143              	.L20:
+  37:Cpp_Core/Src/config_transport_sink.cpp ****     }
+  38:Cpp_Core/Src/config_transport_sink.cpp **** }
+ 144              		.loc 1 38 1 view .LVU25
+ 145 000c 7047     		bx	lr
+ 146              	.L32:
+ 147 000e 00BF     		.align	2
+ 148              	.L31:
+ 149 0010 00000000 		.word	_ZN12_GLOBAL__N_110binarySinkE
+ 150              		.cfi_endproc
+ 151              	.LFE17:
+ 153              		.section	.text._Z27ConfigTransport_ReplyBinaryPKhj,"ax",%progbits
+ 154              		.align	1
+ 155              		.global	_Z27ConfigTransport_ReplyBinaryPKhj
+ 156              		.syntax unified
+ 157              		.thumb
+ 158              		.thumb_func
+ 160              	_Z27ConfigTransport_ReplyBinaryPKhj:
+ 161              	.LVL6:
+ 162              	.LFB18:
+  39:Cpp_Core/Src/config_transport_sink.cpp **** 
+  40:Cpp_Core/Src/config_transport_sink.cpp **** void ConfigTransport_ReplyBinary(const uint8_t *data,
+  41:Cpp_Core/Src/config_transport_sink.cpp ****                                  size_t length)
+  42:Cpp_Core/Src/config_transport_sink.cpp **** {
+ 163              		.loc 1 42 1 is_stmt 1 view -0
+ 164              		.cfi_startproc
+ 165              		@ args = 0, pretend = 0, frame = 0
+ 166              		@ frame_needed = 0, uses_anonymous_args = 0
+ 167              		@ link register save eliminated.
+  43:Cpp_Core/Src/config_transport_sink.cpp ****     if (binarySink != nullptr && data != nullptr && length != 0u) {
+ 168              		.loc 1 43 5 view .LVU27
+  42:Cpp_Core/Src/config_transport_sink.cpp ****     if (binarySink != nullptr && data != nullptr && length != 0u) {
+ 169              		.loc 1 42 1 is_stmt 0 view .LVU28
+ 170 0000 10B4     		push	{r4}
+ 171              	.LCFI0:
+ 172              		.cfi_def_cfa_offset 4
+ 173              		.cfi_offset 4, -4
+ 174              		.loc 1 43 20 view .LVU29
+ 175 0002 064C     		ldr	r4, .L44
+ 176 0004 2468     		ldr	r4, [r4]
+ 177              		.loc 1 43 5 view .LVU30
+ 178 0006 2CB1     		cbz	r4, .L33
+ 179              		.loc 1 43 31 discriminator 1 view .LVU31
+ 180 0008 20B1     		cbz	r0, .L33
+ 181              		.loc 1 43 50 discriminator 2 view .LVU32
+ 182 000a 19B1     		cbz	r1, .L33
+  44:Cpp_Core/Src/config_transport_sink.cpp ****         binarySink(data, length);
+ 183              		.loc 1 44 9 is_stmt 1 view .LVU33
+ 184              		.loc 1 44 19 is_stmt 0 view .LVU34
+ 185 000c 2346     		mov	r3, r4
+  45:Cpp_Core/Src/config_transport_sink.cpp ****     }
+  46:Cpp_Core/Src/config_transport_sink.cpp **** }
+ 186              		.loc 1 46 1 view .LVU35
+ 187 000e 5DF8044B 		ldr	r4, [sp], #4
+ 188              	.LCFI1:
+ 189              		.cfi_remember_state
+ 190              		.cfi_restore 4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s 			page 5
+
+
+ 191              		.cfi_def_cfa_offset 0
+  44:Cpp_Core/Src/config_transport_sink.cpp ****         binarySink(data, length);
+ 192              		.loc 1 44 19 view .LVU36
+ 193 0012 1847     		bx	r3	@ indirect register sibling call
+ 194              	.LVL7:
+ 195              	.L33:
+ 196              	.LCFI2:
+ 197              		.cfi_restore_state
+ 198              		.loc 1 46 1 view .LVU37
+ 199 0014 5DF8044B 		ldr	r4, [sp], #4
+ 200              	.LCFI3:
+ 201              		.cfi_restore 4
+ 202              		.cfi_def_cfa_offset 0
+ 203 0018 7047     		bx	lr
+ 204              	.L45:
+ 205 001a 00BF     		.align	2
+ 206              	.L44:
+ 207 001c 00000000 		.word	_ZN12_GLOBAL__N_110binarySinkE
+ 208              		.cfi_endproc
+ 209              	.LFE18:
+ 211              		.section	.bss._ZN12_GLOBAL__N_110binarySinkE,"aw",%nobits
+ 212              		.align	2
+ 215              	_ZN12_GLOBAL__N_110binarySinkE:
+ 216 0000 00000000 		.space	4
+ 217              		.section	.bss._ZN12_GLOBAL__N_18jsonSinkE,"aw",%nobits
+ 218              		.align	2
+ 221              	_ZN12_GLOBAL__N_18jsonSinkE:
+ 222 0000 00000000 		.space	4
+ 223              		.text
+ 224              	.Letext0:
+ 225              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 226              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdint"
+ 227              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e-
+ 228              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 229              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 230              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 231              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdint.h"
+ 232              		.file 9 "Cpp_Core/Inc/config_transport_sink.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s 			page 6
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 config_transport_sink.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:20     .text._Z27ConfigTransport_SetJsonSinkPFvPKcjE:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:26     .text._Z27ConfigTransport_SetJsonSinkPFvPKcjE:00000000 _Z27ConfigTransport_SetJsonSinkPFvPKcjE
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:43     .text._Z27ConfigTransport_SetJsonSinkPFvPKcjE:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:221    .bss._ZN12_GLOBAL__N_18jsonSinkE:00000000 _ZN12_GLOBAL__N_18jsonSinkE
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:48     .text._Z29ConfigTransport_SetBinarySinkPFvPKhjE:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:54     .text._Z29ConfigTransport_SetBinarySinkPFvPKhjE:00000000 _Z29ConfigTransport_SetBinarySinkPFvPKhjE
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:71     .text._Z29ConfigTransport_SetBinarySinkPFvPKhjE:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:215    .bss._ZN12_GLOBAL__N_110binarySinkE:00000000 _ZN12_GLOBAL__N_110binarySinkE
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:76     .text._Z27ConfigTransport_PublishJsonPKcj:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:82     .text._Z27ConfigTransport_PublishJsonPKcj:00000000 _Z27ConfigTransport_PublishJsonPKcj
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:110    .text._Z27ConfigTransport_PublishJsonPKcj:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:115    .text._Z29ConfigTransport_PublishBinaryPKhj:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:121    .text._Z29ConfigTransport_PublishBinaryPKhj:00000000 _Z29ConfigTransport_PublishBinaryPKhj
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:149    .text._Z29ConfigTransport_PublishBinaryPKhj:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:154    .text._Z27ConfigTransport_ReplyBinaryPKhj:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:160    .text._Z27ConfigTransport_ReplyBinaryPKhj:00000000 _Z27ConfigTransport_ReplyBinaryPKhj
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:207    .text._Z27ConfigTransport_ReplyBinaryPKhj:0000001c $d
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:212    .bss._ZN12_GLOBAL__N_110binarySinkE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc35BSXg.s:218    .bss._ZN12_GLOBAL__N_18jsonSinkE:00000000 $d
+
+NO UNDEFINED SYMBOLS

@@ -21,6 +21,12 @@ TARGET = application
 ######################################
 # debug build?
 DEBUG = 1
+# compile-time log switches. Keep these as the authoritative logging entrypoints.
+APP_LOG_ENABLE = 0
+APP_LOG_VERBOSE = 0
+ifeq ($(APP_LOG_ENABLE),0)
+APP_LOG_VERBOSE := 0
+endif
 # optimization
 OPT = -Og
 
@@ -30,6 +36,17 @@ OPT = -Og
 #######################################
 # Build path
 BUILD_DIR = build
+
+# Optional public-only production trust bundle generated outside source
+# control. Repository fallbacks remain all-zero and therefore fail closed.
+HBOX_TRUST_HEADER ?=
+ifneq ($(strip $(HBOX_TRUST_HEADER)),)
+HBOX_TRUST_HEADER_PATH := $(HBOX_TRUST_HEADER)
+ifeq ($(wildcard $(HBOX_TRUST_HEADER_PATH)),)
+$(error HBOX_TRUST_HEADER does not exist: $(HBOX_TRUST_HEADER_PATH))
+endif
+HBOX_TRUST_COMPILE_FLAG := -include "$(HBOX_TRUST_HEADER_PATH)"
+endif
 
 # Web Resources Path
 WEB_RESOURCES_DIR = Libs/httpd/ex_fsdata.bin
@@ -44,25 +61,14 @@ Drivers/STM32H7xx_HAL_Driver/Src \
 Drivers/QSPI-W25Q64 \
 Drivers/USART \
 Drivers/LED \
-Drivers/USB \
 Drivers/ADC \
+Drivers/I2C-POWER-BUS \
+Drivers/I2C-BQ25895 \
+Drivers/I2C-MAX17048 \
 Drivers/PWM-WS2812B \
 Drivers/GPIO-BTN \
 Drivers/ROTARY-ENCODER \
 Drivers/SPI-ST7789 \
-Libs/tinyusb/src \
-Libs/tinyusb/src/device \
-Libs/tinyusb/src/host \
-Libs/tinyusb/src/common \
-Libs/tinyusb/lib/networking \
-Libs/tinyusb/src/portable/synopsys/dwc2 \
-Libs/tinyusb/src/class/net \
-Libs/tinyusb/src/class/hid \
-Libs/rndis \
-Libs/stm32_mw_lwip/src/apps \
-Libs/stm32_mw_lwip/src/core \
-Libs/stm32_mw_lwip/src/netif \
-Libs/stm32_mw_lwip/src/core/ipv4 \
 Libs/cJSON \
 Libs/sha256_simple \
 ../common
@@ -70,13 +76,6 @@ Libs/sha256_simple \
 # C++ 源文件目录
 CPP_SOURCE_DIRS = \
 Cpp_Core/Src \
-Cpp_Core/Src/drivers/net \
-Cpp_Core/Src/drivers/xinput \
-Cpp_Core/Src/drivers/switch \
-Cpp_Core/Src/drivers/psclassic \
-Cpp_Core/Src/drivers/ps4 \
-Cpp_Core/Src/drivers/xbone \
-Cpp_Core/Src/drivers/shared \
 Cpp_Core/Src/configs \
 Cpp_Core/Src/gamepad \
 Cpp_Core/Src/states \
@@ -85,13 +84,18 @@ Cpp_Core/Src/gpio_btns \
 Cpp_Core/Src/leds \
 Cpp_Core/Src/firmware \
 Cpp_Core/Src/screen_control \
-Libs/CRC32/src \
-Libs/httpd
+Libs/CRC32/src
 
 # 自动查找源文件
 C_SOURCES = $(foreach dir,$(C_SOURCE_DIRS),$(wildcard $(dir)/*.c))
 CPP_SOURCES = $(foreach dir,$(CPP_SOURCE_DIRS),$(wildcard $(dir)/*.cpp))
-C_SOURCES := $(filter-out Drivers/SPI-ST7789/st7789.c,$(C_SOURCES))
+C_SOURCES := $(filter-out \
+Drivers/SPI-ST7789/st7789.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hcd.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c,$(C_SOURCES))
+CPP_SOURCES := $(filter-out Cpp_Core/Src/drivermanager.cpp,$(CPP_SOURCES))
 
 # ASM sources
 ASM_SOURCES =  \
@@ -99,9 +103,21 @@ startup_stm32h750xx.s
 
 # 额外的源文件
 C_SOURCES += \
-Libs/stm32_mw_lwip/src/apps/http/httpd.c \
-Libs/httpd/fs.c \
-Libs/httpd/fsdata.c
+Libs/mbedtls/library/bignum.c \
+Libs/mbedtls/library/base64.c \
+Libs/mbedtls/library/aes.c \
+Libs/mbedtls/library/cipher.c \
+Libs/mbedtls/library/cipher_wrap.c \
+Libs/mbedtls/library/constant_time.c \
+Libs/mbedtls/library/ecp.c \
+Libs/mbedtls/library/ecp_curves.c \
+Libs/mbedtls/library/ecdh.c \
+Libs/mbedtls/library/ecdsa.c \
+Libs/mbedtls/library/gcm.c \
+Libs/mbedtls/library/hkdf.c \
+Libs/mbedtls/library/md.c \
+Libs/mbedtls/library/sha256.c \
+Libs/mbedtls/library/platform_util.c
 
 # ASM sources
 ASMM_SOURCES = 
@@ -131,30 +147,14 @@ C_INCLUDES += \
 -IDrivers/QSPI-W25Q64 \
 -IDrivers/USART \
 -IDrivers/LED \
--IDrivers/USB \
 -IDrivers/ADC \
+-IDrivers/I2C-POWER-BUS \
+-IDrivers/I2C-BQ25895 \
+-IDrivers/I2C-MAX17048 \
 -IDrivers/PWM-WS2812B \
 -IDrivers/GPIO-BTN \
 -IDrivers/ROTARY-ENCODER \
 -IDrivers/SPI-ST7789 \
--ILibs/httpd \
--ILibs/tinyusb/hw \
--ILibs/tinyusb/src \
--ILibs/tinyusb/src/device \
--ILibs/tinyusb/src/host \
--ILibs/tinyusb/src/common \
--ILibs/tinyusb/lib/networking \
--ILibs/tinyusb/src/portable/synopsys/dwc2 \
--ILibs/tinyusb/src/portable/st/stm32_fsdev \
--ILibs/tinyusb/src/class/net \
--ILibs/rndis \
--ILibs/stm32_mw_lwip/src/apps \
--ILibs/stm32_mw_lwip/src/core \
--ILibs/stm32_mw_lwip/src/netif \
--ILibs/stm32_mw_lwip/src/core/ipv4 \
--ILibs/stm32_mw_lwip/src/include \
--ILibs/stm32_mw_lwip/system \
--ILibs/lwip-port \
 -ILibs/cJSON \
 -ILibs/CRC32/src \
 -ILibs/sha256_simple \
@@ -168,6 +168,7 @@ CXXFLAGS += -Wall -fdata-sections -ffunction-sections
 CXXFLAGS += -fno-exceptions -fno-rtti  # 禁用异常和RTTI以减小代码大小
 CXXFLAGS += -mfpu=fpv5-d16 -mfloat-abi=hard # 启用FPU
 CXXFLAGS += -std=c++17  # 使用 C++17 标准
+CXXFLAGS += $(HBOX_TRUST_COMPILE_FLAG)
 
 ifeq ($(DEBUG), 1)
 CXXFLAGS += -g -gdwarf-2
@@ -215,10 +216,32 @@ MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
 # AS defines
 AS_DEFS = 
 
+HBOX_SECURE_BOOT_REQUIRED ?= 1
+ifneq ($(filter $(HBOX_SECURE_BOOT_REQUIRED),0 1),$(HBOX_SECURE_BOOT_REQUIRED))
+$(error HBOX_SECURE_BOOT_REQUIRED must be exactly 0 or 1)
+endif
+
+POWER_DEVICE_PROBE_ENABLED ?= 1
+ifneq ($(POWER_DEVICE_PROBE_ENABLED),1)
+$(error POWER_DEVICE_PROBE_ENABLED is permanently enabled and must be exactly 1)
+endif
+
 # C defines
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
--DSTM32H750xx
+-DSTM32H750xx \
+-DAPPLICATION_SERIAL_PRINT=$(APP_LOG_ENABLE) \
+-DAPPLICATION_DEBUG_PRINT=$(APP_LOG_ENABLE) \
+-DAPP_LOG_VERBOSE=$(APP_LOG_VERBOSE) \
+-DUSB_DEBUG_PRINT=$(APP_LOG_VERBOSE) \
+-DRF_SPI_PROTOCOL_LOG=$(APP_LOG_VERBOSE) \
+-DRF_COMMAND_TRANSACTION_LOG=$(APP_LOG_VERBOSE) \
+-DRF_RELIABLE_EVENT_LOG=$(APP_LOG_VERBOSE) \
+-DROTENC_DEBUG_PRINT=$(APP_LOG_VERBOSE) \
+-DUSB_BOARD_LINK_DEBUG=$(APP_LOG_VERBOSE) \
+-DHBOX_SECURE_BOOT_REQUIRED=$(HBOX_SECURE_BOOT_REQUIRED) \
+-DPOWER_DEVICE_PROBE_ENABLED=$(POWER_DEVICE_PROBE_ENABLED) \
+-DMBEDTLS_CONFIG_FILE=\"mbedtls_boot_config.h\"
 
 
 
@@ -251,7 +274,16 @@ LDFLAGS = $(MCU) -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET)
 LDFLAGS += --specs=nosys.specs --specs=nano.specs -u _printf_float
 
 # default action: build all
+# RF freeze verification remains available as an explicit audit target, but it
+# no longer blocks normal development builds.
+RF_FREEZE_CHECK = ../tools/check_rf_frozen.py
+
+.PHONY: all check-rf-freeze clean flash flash-web-resources debug
+
 all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
+
+check-rf-freeze:
+	python "$(RF_FREEZE_CHECK)" --require-rx-binary
 
 
 #######################################
@@ -270,7 +302,7 @@ OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASMM_SOURCES:.S=.o)))
 vpath %.S $(sort $(dir $(ASMM_SOURCES)))
 
 $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR) 
-	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
+	$(CC) -c $(CFLAGS) $(HBOX_TRUST_COMPILE_FLAG) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
 
 $(BUILD_DIR)/%.o: %.cpp Makefile | $(BUILD_DIR)
 	$(CXX) -c $(CXXFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.cpp=.lst)) $< -o $@

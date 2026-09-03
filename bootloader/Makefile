@@ -31,6 +31,161 @@ OPT = -Og
 # Build path
 BUILD_DIR = build
 
+# Optional public-only production trust bundle generated outside source
+# control. Repository fallbacks remain all-zero and therefore fail closed.
+HBOX_TRUST_HEADER ?=
+ifneq ($(strip $(HBOX_TRUST_HEADER)),)
+HBOX_TRUST_HEADER_PATH := $(HBOX_TRUST_HEADER)
+ifeq ($(wildcard $(HBOX_TRUST_HEADER_PATH)),)
+$(error HBOX_TRUST_HEADER does not exist: $(HBOX_TRUST_HEADER_PATH))
+endif
+HBOX_TRUST_COMPILE_FLAG := -include "$(HBOX_TRUST_HEADER_PATH)"
+endif
+
+# H750xB exposes only one 128KB user-Flash erase sector. The linker reserves
+# its final 16KB for identity and anti-rollback state, but the repository does
+# not silently turn that reservation into production authority. Providers are
+# injected explicitly and field code must never erase the sector.
+#
+# Exact silicon REV_ID qualification is optional and is only an MCU
+# errata/compatibility gate. It is deliberately independent from HBox product
+# identity, which is proven by the signed device certificate and Kdev. DEV_ID
+# remains checked at runtime to prevent executing this H750 image on another
+# MCU family.
+HBOX_STM32H750_REVISION_QUALIFICATION ?= 0
+HBOX_STM32H750_REVISION_ID ?= 0
+HBOX_SECURE_BOOT_REQUIRED ?= 1
+ifneq ($(filter $(HBOX_SECURE_BOOT_REQUIRED),0 1),$(HBOX_SECURE_BOOT_REQUIRED))
+$(error HBOX_SECURE_BOOT_REQUIRED must be exactly 0 or 1)
+endif
+HBOX_SECURITY_VERSION_PROVIDER_READY ?= 0
+HBOX_SECURITY_VERSION_PROVIDER_SOURCE ?=
+HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER ?= 0
+ifeq ($(HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER),1)
+ifneq ($(HBOX_SECURITY_VERSION_PROVIDER_READY),0)
+$(error In-tree security-version provider is mutually exclusive with generic provider selection)
+endif
+ifneq ($(strip $(HBOX_SECURITY_VERSION_PROVIDER_SOURCE)),)
+$(error In-tree security-version provider is mutually exclusive with external provider source)
+endif
+HBOX_SECURITY_VERSION_PROVIDER_SOURCE := Core/Src/security_version_internal_flash_provider.c
+HBOX_SECURITY_VERSION_COMPILE_FLAG := -DHBOX_SECURITY_VERSION_PROVIDER_READY=1 -DHBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER=1
+else ifeq ($(HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER),0)
+ifeq ($(HBOX_SECURITY_VERSION_PROVIDER_READY),1)
+ifeq ($(strip $(HBOX_SECURITY_VERSION_PROVIDER_SOURCE)),)
+$(error HBOX_SECURITY_VERSION_PROVIDER_READY=1 requires HBOX_SECURITY_VERSION_PROVIDER_SOURCE)
+endif
+HBOX_SECURITY_VERSION_COMPILE_FLAG := -DHBOX_SECURITY_VERSION_PROVIDER_READY=1
+else ifeq ($(HBOX_SECURITY_VERSION_PROVIDER_READY),0)
+ifneq ($(strip $(HBOX_SECURITY_VERSION_PROVIDER_SOURCE)),)
+$(error Provider source supplied without HBOX_SECURITY_VERSION_PROVIDER_READY=1)
+endif
+else
+$(error HBOX_SECURITY_VERSION_PROVIDER_READY must be exactly 0 or 1)
+endif
+else
+$(error HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER must be exactly 0 or 1)
+endif
+
+# Device identity reader/provider. The in-tree internal-Flash provider may be
+# selected explicitly after board/revision validation; default builds fail
+# closed. Factory programming additionally requires a separate compile switch
+# and a runtime secure factory-gate override.
+HBOX_DEVICE_IDENTITY_PROVIDER_READY ?= 0
+HBOX_DEVICE_IDENTITY_PROVIDER_SOURCE ?=
+HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER ?= 0
+HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING ?= 0
+HBOX_FACTORY_IDENTITY_GATE_SOURCE ?=
+ifeq ($(HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER),1)
+ifneq ($(HBOX_DEVICE_IDENTITY_PROVIDER_READY),0)
+$(error In-tree identity provider is mutually exclusive with generic provider selection)
+endif
+ifneq ($(strip $(HBOX_DEVICE_IDENTITY_PROVIDER_SOURCE)),)
+$(error In-tree identity provider is mutually exclusive with external provider source)
+endif
+HBOX_DEVICE_IDENTITY_PROVIDER_SOURCE := Core/Src/device_identity_internal_flash_provider.c
+HBOX_DEVICE_IDENTITY_COMPILE_FLAG := -DHBOX_DEVICE_IDENTITY_PROVIDER_READY=1
+else ifeq ($(HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER),0)
+ifeq ($(HBOX_DEVICE_IDENTITY_PROVIDER_READY),1)
+ifeq ($(strip $(HBOX_DEVICE_IDENTITY_PROVIDER_SOURCE)),)
+$(error HBOX_DEVICE_IDENTITY_PROVIDER_READY=1 requires HBOX_DEVICE_IDENTITY_PROVIDER_SOURCE)
+endif
+HBOX_DEVICE_IDENTITY_COMPILE_FLAG := -DHBOX_DEVICE_IDENTITY_PROVIDER_READY=1
+else ifeq ($(HBOX_DEVICE_IDENTITY_PROVIDER_READY),0)
+ifneq ($(strip $(HBOX_DEVICE_IDENTITY_PROVIDER_SOURCE)),)
+$(error Identity provider source supplied without HBOX_DEVICE_IDENTITY_PROVIDER_READY=1)
+endif
+else
+$(error HBOX_DEVICE_IDENTITY_PROVIDER_READY must be exactly 0 or 1)
+endif
+else
+$(error HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER must be exactly 0 or 1)
+endif
+
+ifeq ($(HBOX_STM32H750_REVISION_QUALIFICATION),1)
+ifeq ($(HBOX_STM32H750_REVISION_ID),0)
+$(error HBOX_STM32H750_REVISION_QUALIFICATION=1 requires nonzero HBOX_STM32H750_REVISION_ID)
+endif
+HBOX_SILICON_REVISION_COMPILE_FLAG := -DHBOX_ENFORCE_STM32H750_REVISION_ID=1 -DHBOX_APPROVED_STM32H750_REVISION_ID=$(HBOX_STM32H750_REVISION_ID)
+else ifeq ($(HBOX_STM32H750_REVISION_QUALIFICATION),0)
+ifneq ($(HBOX_STM32H750_REVISION_ID),0)
+$(error HBOX_STM32H750_REVISION_ID requires HBOX_STM32H750_REVISION_QUALIFICATION=1)
+endif
+HBOX_SILICON_REVISION_COMPILE_FLAG := -DHBOX_ENFORCE_STM32H750_REVISION_ID=0
+else
+$(error HBOX_STM32H750_REVISION_QUALIFICATION must be exactly 0 or 1)
+endif
+
+ifeq ($(HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING),1)
+ifneq ($(HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER),1)
+ifneq ($(HBOX_DEVICE_IDENTITY_PROVIDER_READY),1)
+$(error HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1 requires HBOX_DEVICE_IDENTITY_PROVIDER_READY=1 or HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER=1)
+endif
+endif
+ifeq ($(strip $(HBOX_FACTORY_IDENTITY_GATE_SOURCE)),)
+$(error HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1 requires HBOX_FACTORY_IDENTITY_GATE_SOURCE)
+endif
+ifeq ($(wildcard $(HBOX_FACTORY_IDENTITY_GATE_SOURCE)),)
+$(error HBOX_FACTORY_IDENTITY_GATE_SOURCE does not exist: $(HBOX_FACTORY_IDENTITY_GATE_SOURCE))
+endif
+HBOX_DEVICE_IDENTITY_COMPILE_FLAG += -DHBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1
+HBOX_FACTORY_IDENTITY_GATE_COMPILE_SOURCE := $(HBOX_FACTORY_IDENTITY_GATE_SOURCE)
+else ifneq ($(HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING),0)
+$(error HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING must be exactly 0 or 1)
+else ifneq ($(strip $(HBOX_FACTORY_IDENTITY_GATE_SOURCE)),)
+$(error HBOX_FACTORY_IDENTITY_GATE_SOURCE requires HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1)
+endif
+
+# The enrollment service handles live Kdev material and is therefore available
+# only in an explicit factory build using both reviewed in-tree providers.
+HBOX_FACTORY_IDENTITY_ENROLLMENT ?= 0
+HBOX_FACTORY_IDENTITY_SERVICE_SOURCE ?=
+HBOX_FACTORY_IDENTITY_SOURCE :=
+ifeq ($(HBOX_FACTORY_IDENTITY_ENROLLMENT),1)
+ifneq ($(HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER),1)
+$(error HBOX_FACTORY_IDENTITY_ENROLLMENT=1 requires HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER=1)
+endif
+ifneq ($(HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER),1)
+$(error HBOX_FACTORY_IDENTITY_ENROLLMENT=1 requires HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER=1)
+endif
+ifneq ($(HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING),1)
+$(error HBOX_FACTORY_IDENTITY_ENROLLMENT=1 requires HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1)
+endif
+ifeq ($(strip $(HBOX_FACTORY_IDENTITY_SERVICE_SOURCE)),)
+$(error HBOX_FACTORY_IDENTITY_ENROLLMENT=1 requires HBOX_FACTORY_IDENTITY_SERVICE_SOURCE)
+endif
+ifeq ($(wildcard $(HBOX_FACTORY_IDENTITY_SERVICE_SOURCE)),)
+$(error HBOX_FACTORY_IDENTITY_SERVICE_SOURCE does not exist: $(HBOX_FACTORY_IDENTITY_SERVICE_SOURCE))
+endif
+HBOX_FACTORY_IDENTITY_SOURCE := Core/Src/factory_identity_enrollment.c
+HBOX_FACTORY_IDENTITY_SERVICE_COMPILE_SOURCE := $(HBOX_FACTORY_IDENTITY_SERVICE_SOURCE)
+HBOX_FACTORY_IDENTITY_COMPILE_FLAG := -DHBOX_FACTORY_IDENTITY_ENROLLMENT=1
+else ifneq ($(HBOX_FACTORY_IDENTITY_ENROLLMENT),0)
+$(error HBOX_FACTORY_IDENTITY_ENROLLMENT must be exactly 0 or 1)
+else ifneq ($(strip $(HBOX_FACTORY_IDENTITY_SERVICE_SOURCE)),)
+$(error HBOX_FACTORY_IDENTITY_SERVICE_SOURCE requires HBOX_FACTORY_IDENTITY_ENROLLMENT=1)
+endif
+
 ######################################
 # source
 ######################################
@@ -41,8 +196,32 @@ Core/Src/gpio.c \
 Core/Src/stm32h7xx_it.c \
 Core/Src/stm32h7xx_hal_msp.c \
 Core/Src/dual_slot_manager.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c \
+Core/Src/firmware_security.c \
+Core/Src/boot_attestation.c \
+Core/Src/secure_access_handoff.c \
+Core/Src/security_version_store.c \
+../common/firmware_signature.c \
+../common/device_security_boot_context.c \
+../common/device_identity_store.c \
+../common/hardware_rng.c \
+../common/device_security_crypto.c \
+../common/security_version_journal.c \
+../application/Libs/sha256_simple/sha256_simple.c \
+../application/Libs/mbedtls/library/bignum.c \
+../application/Libs/mbedtls/library/base64.c \
+../application/Libs/mbedtls/library/aes.c \
+../application/Libs/mbedtls/library/cipher.c \
+../application/Libs/mbedtls/library/cipher_wrap.c \
+../application/Libs/mbedtls/library/constant_time.c \
+../application/Libs/mbedtls/library/ecp.c \
+../application/Libs/mbedtls/library/ecp_curves.c \
+../application/Libs/mbedtls/library/ecdh.c \
+../application/Libs/mbedtls/library/ecdsa.c \
+../application/Libs/mbedtls/library/gcm.c \
+../application/Libs/mbedtls/library/hkdf.c \
+../application/Libs/mbedtls/library/md.c \
+../application/Libs/mbedtls/library/sha256.c \
+../application/Libs/mbedtls/library/platform_util.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c \
@@ -61,13 +240,17 @@ Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_qspi.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mdma.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hcd.c \
 Drivers/USART/usart.c \
 Drivers/QSPI-W25Q64/qspi-w25q64.c \
-../common/system_logger.c \
 Core/Src/system_stm32h7xx.c \
 Core/Src/sysmem.c \
 Core/Src/syscalls.c  
+
+C_SOURCES += $(HBOX_SECURITY_VERSION_PROVIDER_SOURCE)
+C_SOURCES += $(HBOX_DEVICE_IDENTITY_PROVIDER_SOURCE)
+C_SOURCES += $(HBOX_FACTORY_IDENTITY_SOURCE)
+C_SOURCES += $(HBOX_FACTORY_IDENTITY_GATE_COMPILE_SOURCE)
+C_SOURCES += $(HBOX_FACTORY_IDENTITY_SERVICE_COMPILE_SOURCE)
 
 
 # ASM sources
@@ -120,7 +303,9 @@ AS_DEFS =
 # C defines
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
--DSTM32H750xx
+-DSTM32H750xx \
+-DHBOX_SECURE_BOOT_REQUIRED=$(HBOX_SECURE_BOOT_REQUIRED) \
+-DMBEDTLS_CONFIG_FILE=\"mbedtls_boot_config.h\"
 
 
 # AS includes
@@ -135,6 +320,8 @@ C_INCLUDES =  \
 -IDrivers/CMSIS/Include \
 -IDrivers/QSPI-W25Q64 \
 -IDrivers/USART \
+-I../application/Libs/sha256_simple \
+-I../application/Libs/mbedtls/include \
 -I../common
 
 
@@ -143,6 +330,10 @@ C_INCLUDES =  \
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
 CFLAGS += $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+CFLAGS += $(HBOX_SECURITY_VERSION_COMPILE_FLAG)
+CFLAGS += $(HBOX_DEVICE_IDENTITY_COMPILE_FLAG)
+CFLAGS += $(HBOX_FACTORY_IDENTITY_COMPILE_FLAG)
+CFLAGS += $(HBOX_SILICON_REVISION_COMPILE_FLAG)
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -g -gdwarf-2
@@ -165,7 +356,16 @@ LIBDIR =
 LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
 
 # default action: build all
+# RF freeze verification remains available as an explicit audit target, but it
+# no longer blocks normal development builds.
+RF_FREEZE_CHECK = ../tools/check_rf_frozen.py
+
+.PHONY: all check-rf-freeze clean flash
+
 all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
+
+check-rf-freeze:
+	python "$(RF_FREEZE_CHECK)" --require-rx-binary
 
 
 #######################################
@@ -181,7 +381,7 @@ OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASMM_SOURCES:.S=.o)))
 vpath %.S $(sort $(dir $(ASMM_SOURCES)))
 
 $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR) 
-	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
+	$(CC) -c $(CFLAGS) $(HBOX_TRUST_COMPILE_FLAG) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
 
 $(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
 	$(AS) -c $(CFLAGS) $< -o $@
@@ -214,17 +414,10 @@ clean:
 #######################################
 
 flash: $(BUILD_DIR)/$(TARGET).elf
-	openocd \
-	-d0 \
-	-f Openocd_Script/ST-LINK-FLASH.cfg \
-	-c init \
-	-c halt \
-	-c "reset halt" \
-	-c "flash info 0" \
-	-c "flash erase_sector 0 0 last" \
-	-c "program $(BUILD_DIR)/$(TARGET).elf verify" \
-	-c "reset run" \
-	-c shutdown 
+	@echo ERROR: direct bootloader flash is disabled for the V2 security layout.
+	@echo The H750xB has one erase sector; this would erase identity and anti-rollback state.
+	@echo Use the reviewed factory full-sector transaction that reprovisions bootloader, identity, and minimum security version together.
+	@exit /b 1
 
 #######################################
 # dependencies

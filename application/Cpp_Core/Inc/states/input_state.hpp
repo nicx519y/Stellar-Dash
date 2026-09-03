@@ -1,42 +1,64 @@
-#ifndef __INPUT_STATE_HPP__
-#define __INPUT_STATE_HPP__
+#ifndef INPUT_STATE_HPP
+#define INPUT_STATE_HPP
 
 #include "base_state.hpp"
-#include "drivermanager.hpp"
-#include "board_cfg.h"
+#include "board_mode.hpp"
+#include "enums.hpp"
+#include "fn_layer_policy.hpp"
 
-class InputState : public BaseState {
-    public:
-        // 禁用拷贝构造和赋值操作符
-        InputState(InputState const&) = delete;
-        void operator=(InputState const&) = delete;
+struct AdcSampleFrame;
+struct GamepadState;
 
-        // 获取单例实例
-        static InputState& getInstance() {
-            static InputState instance;
-            return instance;
-        }
+class InputState : public BaseState
+{
+public:
+    InputState(InputState const &) = delete;
+    void operator=(InputState const &) = delete;
 
-        // 实现基类的虚函数
-        void setup() override;
-        void loop() override;
-        void reset() override;
-        uint32_t getVirtualPinMask() const { return virtualPinMask; }
+    static InputState &getInstance()
+    {
+        static InputState instance;
+        return instance;
+    }
 
-    private:
-        // 私有构造函数
-        InputState() = default;
-        bool isRunning = false;
-        GPDriver * inputDriver;
+    bool enter() override;
+    void tick() override;
+    void exit() override;
+    void serviceLeds();
+    uint32_t getVirtualPinMask() const { return virtualPinMask; }
 
-        uint32_t workTime = 0;
-        uint32_t calibrationTime = 0;
-        uint32_t ledAnimationTime = 0;
-        uint32_t virtualPinMask = 0x0;
-        uint32_t lastVirtualPinMask = 0x0;
+    bool ensureUsbRuntime(InputMode inputMode);
+    bool disconnectUsbRuntime();
+    bool connectUsbRuntime();
+    bool isUsbRuntimeInitialized() const { return usbRuntimeInitialized; }
+    bool isInputPipelineRunning() const { return inputPipelineRunning; }
+    bool suspendInputPipelineForStorage();
+    bool resumeInputPipelineAfterStorage(bool wasRunning);
+
+private:
+    InputState() = default;
+
+    bool applyPhysicalMode(BoardMode mode,
+                           bool initial,
+                           bool compatibilityRecovery = false);
+    void startInputPipeline();
+    void stopInputPipeline();
+    void sendUsbNeutralReport();
+    bool submitInputReport(const GamepadState& state,
+                           const AdcSampleFrame& sample);
+    void processReportSample(const AdcSampleFrame& sample);
+
+    bool isRunning = false;
+    bool inputPipelineRunning = false;
+    bool usbRuntimeInitialized = false;
+    bool usbRuntimeConnected = false;
+    bool usbCompatibilityRecoveryUsed = false;
+    BoardMode activeBoardMode = BoardMode::CenterOff;
+    uint32_t virtualPinMask = 0u;
+    uint32_t lastVirtualPinMask = 0u;
+    FnLayerPolicy fnLayerPolicy;
 };
 
-// 定义一个宏方便使用
 #define INPUT_STATE InputState::getInstance()
 
 #endif

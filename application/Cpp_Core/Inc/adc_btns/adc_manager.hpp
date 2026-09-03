@@ -16,6 +16,7 @@
 #include "message_center.hpp"
 #include <algorithm>  // 为 std::sort
 #include "board_cfg.h"
+#include "adc_btns/adc_sample_assembler.hpp"
 
 struct ADCCommonCalibrationPair {
     uint16_t topValue;
@@ -62,7 +63,6 @@ struct ADCValuesMappingStore {
 // 采样统计相关成员，每个ADC一个
 struct ADCBufferInfo {
     uint32_t* buffer;
-    uint32_t size;
     const uint8_t* indexMap;
     uint8_t count;
 };
@@ -90,6 +90,8 @@ struct ADCIndexInfo {
     int8_t indexInDMA;
 };
 
+struct AdcSampleFrame : BasicAdcSampleFrame<NUM_ADC_BUTTONS> {};
+
 class ADCManager {
     public:
         ADCManager(ADCManager const&) = delete;
@@ -103,6 +105,13 @@ class ADCManager {
         int8_t saveStore();
         int8_t saveCommon();
 
+        // WebConfig backup/restore snapshot. Callers must validate all fields
+        // before restoreBackup; the manager keeps the two QSPI regions in sync
+        // and rolls the first write back if the second write fails.
+        void copyBackup(ADCValuesMappingStore& storeOut, ADCCommonConfig& commonOut) const;
+        ADCBtnsError restoreBackup(const ADCValuesMappingStore& storeIn,
+                                   const ADCCommonConfig& commonIn);
+
         // 获取映射索引
         int8_t findMappingById(const char* const id) const;
 
@@ -113,7 +122,8 @@ class ADCManager {
         std::vector<ADCValuesMapping*> getMappingList();
 
         // 创建映射
-        ADCBtnsError createADCMapping(const char* name, size_t length, float_t step);
+        ADCBtnsError createADCMapping(const char* name, size_t length, float_t step,
+                                      std::string* createdId = nullptr);
 
         // 删除映射
         ADCBtnsError removeADCMapping(const char* id);
@@ -136,54 +146,58 @@ class ADCManager {
         // 获取默认映射
         std::string getDefaultMapping() const;
 
+        // Install one server-managed mapping into the shared A/B-independent
+        // journal. The expected digest uses the HBOX-ADC-MAP-V1 wire format.
+        ADCBtnsError installSharedMapping(const ADCValuesMapping& mapping,
+                                          const char* expectedSha256);
+        // Remove the server-installed shared record and restore the current
+        // firmware slot's read-only factory mapping in RAM. The slot mapping
+        // partition itself is never modified.
+        ADCBtnsError clearSharedMapping(const char* expectedMappingId);
+        bool isSharedMappingInstalled() const { return sharedMappingInstalled; }
+
         // 获取校准值
         ADCBtnsError getCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t& topValue, uint16_t& bottomValue) const;
         
         // 设置校准值
         ADCBtnsError setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue, bool withSave = true);
 
-        void setADCMode(ADC_SamplingMode mode);
-        ADC_SamplingMode getADCMode() const;
+        // Atomically clear one calibration bank in ADC_COMMON_CONFIG.
+        ADCBtnsError clearCalibrationValues(const char* mappingId, bool isAutoCalibration);
 
-        // 启动连续采样 (用于校准/WebConfig模式)
+        // 挂载三路 TIM2 触发的循环 DMA（INPUT/校准/WebConfig 共用）
         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 
                                    uint8_t virtualPin = 0, 
                                    uint32_t samplingCountMax = 0);
 
-        // 停止采样
+        // 停止一次采样率统计；后台循环 DMA 保持运行
         void stopADCSamping();
-        
-        void triggerSampling();
-        
-        void setSamplingDelay(uint16_t delay_us);
-        
-        uint16_t getSamplingDelay() const;
-        
-        // 检查采样是否完成
-        bool isSamplingDone();
 
-        // 清除采样完成标志
-        void clearSamplingDone();
+        // 物理模式/电源切换专用：无条件停止所有循环 DMA。
+        void forceStopAllSampling();
+        bool rearmInputSampling();
         
         // 通知采样完成 (由 HAL_ADC_ConvCpltCallback 调用)
-        void notifyConversionComplete(ADC_HandleTypeDef *hadc);
-
-        void startSamplingNow();
-        void startContinuousSampling();
+        void notifyTimerTrigger(uint32_t triggerCycles);
+        void notifyConversionComplete(ADC_HandleTypeDef *hadc,
+                                      uint8_t completedHalf);
+        void notifyConversionError(ADC_HandleTypeDef *hadc);
+        void resetInputSamples();
+        bool consumeLatestInputSample(AdcSampleFrame& out);
+        bool copyLatestInputSample(AdcSampleFrame& out) const;
+        bool isInputSampleStreamHealthy() const;
+        // Finish sampling statistics and publish their notification from the
+        // main loop; DMA IRQ handlers only raise the pending flag.
+        void processPendingSamplingStats();
+        
+        bool isDmaSamplingActive() const { return dmaSamplingActive; }
 
         /**
          * @brief 读取ADC值 按virtualPin排序
          * 值要减去ADC_BASE_V 基准电压
          * @return 按virtualPin排序的ADC值
          */
-        inline const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& readADCValues() const
-        {
-            for(uint8_t i = 0; i < NUM_ADC; i++) {
-                SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[i].buffer, adcBufferInfo[i].size);
-            }
-
-            return ADCBufferInfoList;
-        }
+        const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& readADCValues() const;
 
         inline void ADCValuesTestPrint() {
             const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = readADCValues();
@@ -205,26 +219,27 @@ class ADCManager {
         ~ADCManager();
 
         // ADC DMA 缓冲区必须保持静态
-        static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC1_Values[NUM_ADC1_BUTTONS];
-        static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC2_Values[NUM_ADC2_BUTTONS];
-        static __attribute__((section("._RAM_D3_Area"))) uint32_t ADC3_Values[NUM_ADC3_BUTTONS];
+        static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADC1_Values[NUM_ADC1_BUTTONS * 2u];
+        static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADC2_Values[NUM_ADC2_BUTTONS * 2u];
+        static __attribute__((section(".BDMA_Section"), aligned(32))) uint32_t ADC3_Values[NUM_ADC3_BUTTONS * 2u];
         static uint32_t ADC_Values_Result[NUM_ADC_BUTTONS];
-
-        MessageHandler messageHandler;
 
         // 非静态成员变量
         ADCValuesMappingStore store;
         ADCBufferInfo adcBufferInfo[NUM_ADC];
         ADCChannelStats ADCButtonStats;
-        bool samplingRateEnabled;
+        volatile bool samplingRateEnabled;
+        volatile bool samplingStatsPending = false;
         uint32_t samplingCountMax;
-        
-        // 采样完成标志位掩码 (bit 0: ADC1, bit 1: ADC2, bit 2: ADC3)
-        volatile uint8_t completionMask = 0;
+        volatile bool dmaSamplingActive = false;
+
+        AdcSampleAssembler<NUM_ADC_BUTTONS, NUM_ADC> inputSampleAssembler;
         
         ADCIndexInfo samplingADCInfo;
 
-        void handleADCStats(ADC_HandleTypeDef *hadc);
+        void handleADCStats(const AdcSampleFrame& sample);
+        void publishAdcHalf(ADC_HandleTypeDef *hadc,
+                            uint8_t completedHalf);
         
         ADCIndexInfo findADCButtonVirtualPin(uint8_t virtualPin);
 
@@ -237,12 +252,14 @@ class ADCManager {
         uint32_t statsInterval;
         uint32_t lastStatsTime;
         ADCCommonConfig common;
-        
-        ADC_SamplingMode adcMode = ADC_MODE_LOW_LATENCY;
+        bool sharedMappingInstalled = false;
+        uint32_t sharedMappingSequence = 0u;
+        int8_t sharedMappingBank = -1;
 
-        uint16_t samplingDelayUs = 0;
+        void loadSharedSingleton();
+        bool persistSharedSingleton(const ADCValuesMapping& mapping);
+        void selectFactoryFallback();
         
-        static void timerCallback();
 };
 
 #define ADC_MANAGER ADCManager::getInstance()

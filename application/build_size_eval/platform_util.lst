@@ -1,0 +1,148 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"platform_util.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/platform_util.c"
+  19              		.section	.text.mbedtls_platform_zeroize,"ax",%progbits
+  20              		.align	1
+  21              		.global	mbedtls_platform_zeroize
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	mbedtls_platform_zeroize:
+  27              	.LVL0:
+  28              	.LFB5:
+   1:Libs/mbedtls/library/platform_util.c **** /*
+   2:Libs/mbedtls/library/platform_util.c ****  * Common and shared functions used by multiple modules in the Mbed TLS
+   3:Libs/mbedtls/library/platform_util.c ****  * library.
+   4:Libs/mbedtls/library/platform_util.c ****  *
+   5:Libs/mbedtls/library/platform_util.c ****  *  Copyright The Mbed TLS Contributors
+   6:Libs/mbedtls/library/platform_util.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   7:Libs/mbedtls/library/platform_util.c ****  */
+   8:Libs/mbedtls/library/platform_util.c **** 
+   9:Libs/mbedtls/library/platform_util.c **** /*
+  10:Libs/mbedtls/library/platform_util.c ****  * Ensure gmtime_r is available even with -std=c99; must be defined before
+  11:Libs/mbedtls/library/platform_util.c ****  * config.h, which pulls in glibc's features.h. Harmless on other platforms.
+  12:Libs/mbedtls/library/platform_util.c ****  */
+  13:Libs/mbedtls/library/platform_util.c **** #if !defined(_POSIX_C_SOURCE)
+  14:Libs/mbedtls/library/platform_util.c **** #define _POSIX_C_SOURCE 200112L
+  15:Libs/mbedtls/library/platform_util.c **** #endif
+  16:Libs/mbedtls/library/platform_util.c **** 
+  17:Libs/mbedtls/library/platform_util.c **** #include "common.h"
+  18:Libs/mbedtls/library/platform_util.c **** 
+  19:Libs/mbedtls/library/platform_util.c **** #include "mbedtls/platform_util.h"
+  20:Libs/mbedtls/library/platform_util.c **** #include "mbedtls/platform.h"
+  21:Libs/mbedtls/library/platform_util.c **** #include "mbedtls/threading.h"
+  22:Libs/mbedtls/library/platform_util.c **** 
+  23:Libs/mbedtls/library/platform_util.c **** #include <stddef.h>
+  24:Libs/mbedtls/library/platform_util.c **** #include <string.h>
+  25:Libs/mbedtls/library/platform_util.c **** 
+  26:Libs/mbedtls/library/platform_util.c **** #if !defined(MBEDTLS_PLATFORM_ZEROIZE_ALT)
+  27:Libs/mbedtls/library/platform_util.c **** /*
+  28:Libs/mbedtls/library/platform_util.c ****  * This implementation should never be optimized out by the compiler
+  29:Libs/mbedtls/library/platform_util.c ****  *
+  30:Libs/mbedtls/library/platform_util.c ****  * This implementation for mbedtls_platform_zeroize() was inspired from Colin
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s 			page 2
+
+
+  31:Libs/mbedtls/library/platform_util.c ****  * Percival's blog article at:
+  32:Libs/mbedtls/library/platform_util.c ****  *
+  33:Libs/mbedtls/library/platform_util.c ****  * http://www.daemonology.net/blog/2014-09-04-how-to-zero-a-buffer.html
+  34:Libs/mbedtls/library/platform_util.c ****  *
+  35:Libs/mbedtls/library/platform_util.c ****  * It uses a volatile function pointer to the standard memset(). Because the
+  36:Libs/mbedtls/library/platform_util.c ****  * pointer is volatile the compiler expects it to change at
+  37:Libs/mbedtls/library/platform_util.c ****  * any time and will not optimize out the call that could potentially perform
+  38:Libs/mbedtls/library/platform_util.c ****  * other operations on the input buffer instead of just setting it to 0.
+  39:Libs/mbedtls/library/platform_util.c ****  * Nevertheless, as pointed out by davidtgoldblatt on Hacker News
+  40:Libs/mbedtls/library/platform_util.c ****  * (refer to http://www.daemonology.net/blog/2014-09-05-erratum.html for
+  41:Libs/mbedtls/library/platform_util.c ****  * details), optimizations of the following form are still possible:
+  42:Libs/mbedtls/library/platform_util.c ****  *
+  43:Libs/mbedtls/library/platform_util.c ****  * if( memset_func != memset )
+  44:Libs/mbedtls/library/platform_util.c ****  *     memset_func( buf, 0, len );
+  45:Libs/mbedtls/library/platform_util.c ****  *
+  46:Libs/mbedtls/library/platform_util.c ****  * Note that it is extremely difficult to guarantee that
+  47:Libs/mbedtls/library/platform_util.c ****  * mbedtls_platform_zeroize() will not be optimized out by aggressive compilers
+  48:Libs/mbedtls/library/platform_util.c ****  * in a portable way. For this reason, Mbed TLS also provides the configuration
+  49:Libs/mbedtls/library/platform_util.c ****  * option MBEDTLS_PLATFORM_ZEROIZE_ALT, which allows users to configure
+  50:Libs/mbedtls/library/platform_util.c ****  * mbedtls_platform_zeroize() to use a suitable implementation for their
+  51:Libs/mbedtls/library/platform_util.c ****  * platform and needs.
+  52:Libs/mbedtls/library/platform_util.c ****  */
+  53:Libs/mbedtls/library/platform_util.c **** static void *(*const volatile memset_func)(void *, int, size_t) = memset;
+  54:Libs/mbedtls/library/platform_util.c **** 
+  55:Libs/mbedtls/library/platform_util.c **** void mbedtls_platform_zeroize(void *buf, size_t len)
+  56:Libs/mbedtls/library/platform_util.c **** {
+  29              		.loc 1 56 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+  57:Libs/mbedtls/library/platform_util.c ****     MBEDTLS_INTERNAL_VALIDATE(len == 0 || buf != NULL);
+  34              		.loc 1 57 5 view .LVU1
+  35              		.loc 1 57 5 view .LVU2
+  36              		.loc 1 57 5 view .LVU3
+  58:Libs/mbedtls/library/platform_util.c **** 
+  59:Libs/mbedtls/library/platform_util.c ****     if (len > 0) {
+  37              		.loc 1 59 5 view .LVU4
+  38              		.loc 1 59 8 is_stmt 0 view .LVU5
+  39 0000 0A46     		mov	r2, r1
+  40 0002 19B1     		cbz	r1, .L1
+  60:Libs/mbedtls/library/platform_util.c ****         memset_func(buf, 0, len);
+  41              		.loc 1 60 9 is_stmt 1 view .LVU6
+  42 0004 024B     		ldr	r3, .L3
+  43 0006 0021     		movs	r1, #0
+  44              	.LVL1:
+  45              		.loc 1 60 9 is_stmt 0 view .LVU7
+  46 0008 1B68     		ldr	r3, [r3]
+  47 000a 1847     		bx	r3
+  48              	.LVL2:
+  49              	.L1:
+  61:Libs/mbedtls/library/platform_util.c ****     }
+  62:Libs/mbedtls/library/platform_util.c **** }
+  50              		.loc 1 62 1 view .LVU8
+  51 000c 7047     		bx	lr
+  52              	.L4:
+  53 000e 00BF     		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s 			page 3
+
+
+  54              	.L3:
+  55 0010 00000000 		.word	memset_func
+  56              		.cfi_endproc
+  57              	.LFE5:
+  59              		.section	.rodata.memset_func,"a"
+  60              		.align	2
+  63              	memset_func:
+  64 0000 00000000 		.word	memset
+  65              		.text
+  66              	.Letext0:
+  67              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+  68              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s 			page 4
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 platform_util.c
+C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s:20     .text.mbedtls_platform_zeroize:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s:26     .text.mbedtls_platform_zeroize:00000000 mbedtls_platform_zeroize
+C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s:55     .text.mbedtls_platform_zeroize:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s:63     .rodata.memset_func:00000000 memset_func
+C:\Users\nicx5\AppData\Local\Temp\ccNLFS1X.s:60     .rodata.memset_func:00000000 $d
+
+UNDEFINED SYMBOLS
+memset

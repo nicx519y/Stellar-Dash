@@ -49,6 +49,10 @@ static const uint8_t * xbone_get_string_descriptor(int index) {
 		return xboxOSDescriptor;
 	}
 
+	if (index < 0 || index >= (int)(sizeof(xbone_string_descriptors) / sizeof(xbone_string_descriptors[0]))) {
+		return nullptr;
+	}
+
 	return xbone_string_descriptors[index];
 }
 

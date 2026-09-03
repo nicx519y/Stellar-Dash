@@ -1,8 +1,9 @@
 'use client';
 
-import { PlatformLabelMap, Platform } from '@/types/gamepad-config';
+import { PlatformLabelMap, Platform, ConnectionMode, platformForDisplay } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { Card, Center, Icon, RadioCard, VStack } from '@chakra-ui/react';
+import { useEffect } from 'react';
 import { BsXbox } from "react-icons/bs";
 import { FaWindows } from "react-icons/fa";
 import { SiNintendoswitch, SiPlaystation4, SiPlaystation5   } from "react-icons/si";
@@ -12,8 +13,14 @@ import { useLanguage } from '@/contexts/language-context';
 export function InputModeSettingContent(props: {
         disabled?: boolean,
     }) {
-    const { globalConfig, updateGlobalConfig } = useGamepadConfig();
+    const { globalConfig, stageDeferredGlobalConfig } = useGamepadConfig();
     const { t } = useLanguage();
+    const physicalRf = (globalConfig.physicalConnectionMode ?? globalConfig.connectionMode) === ConnectionMode.RF24G;
+    const displayedInputMode = physicalRf
+        ? Platform.XINPUT
+        : globalConfig.inputMode
+            ? platformForDisplay(globalConfig.inputMode)
+            : Platform.XINPUT;
 
     const platformIcons = new Map<Platform, { icon: React.ReactNode, size: string }>([
         [Platform.XINPUT, { icon: <FaWindows />, size: "2xl" }],
@@ -23,31 +30,47 @@ export function InputModeSettingContent(props: {
         [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "2xl" }],
     ]);
 
+    useEffect(() => {
+        if (physicalRf && globalConfig.inputMode !== Platform.XINPUT) {
+            stageDeferredGlobalConfig({ inputMode: Platform.XINPUT });
+        }
+    }, [physicalRf, globalConfig.inputMode, stageDeferredGlobalConfig]);
+
     const onInputModeChange = (detail: { value: Platform }) => {
-        updateGlobalConfig({ inputMode: detail.value as Platform });
+        if (physicalRf && detail.value !== Platform.XINPUT) {
+            stageDeferredGlobalConfig({ ...globalConfig, inputMode: Platform.XINPUT });
+            return;
+        }
+        stageDeferredGlobalConfig({ inputMode: detail.value as Platform });
     }
 
     return (
-        <Card.Root w="100%" h="100%" >
+        <Card.Root w="100%" h="100%" size="sm" >
             <Card.Header >
                 <Card.Title fontSize={"md"} >{t.INPUT_MODE_TITLE}</Card.Title>
             </Card.Header>
             <Card.Body>
             <RadioCard.Root 
-                value={globalConfig.inputMode} 
+                value={displayedInputMode}
                 orientation="horizontal"
                 align="center"
+                size="sm"
                 variant={"solid"}
                 colorPalette={"green"}
                 onValueChange={(detail) => onInputModeChange(detail as { value: Platform })}
             >
                 <VStack w="180px" justifyContent="start" gap={2} >
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (
-                        <RadioCard.Item key={platform} value={platform} w="100%" disabled={props.disabled}   >
+                        <RadioCard.Item
+                            key={platform}
+                            value={platform}
+                            w="100%"
+                            disabled={props.disabled || (physicalRf && platform !== Platform.XINPUT)}
+                        >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl>
                                 <Center w="35px" h="35px" >
-                                    <Icon fontSize={platformIcons.get(platform as Platform)?.size} color={globalConfig.inputMode === platform ? "white" : "fg.muted"}>
+                                    <Icon fontSize={platformIcons.get(platform as Platform)?.size} color={displayedInputMode === platform ? "white" : "fg.muted"}>
                                         {platformIcons.get(platform as Platform)?.icon}
                                     </Icon>
                                 </Center>

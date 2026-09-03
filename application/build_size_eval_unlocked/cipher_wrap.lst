@@ -1,0 +1,1083 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"cipher_wrap.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/cipher_wrap.c"
+  19              		.section	.text.gcm_ctx_free,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	gcm_ctx_free:
+  26              	.LVL0:
+  27              	.LFB14:
+   1:Libs/mbedtls/library/cipher_wrap.c **** /**
+   2:Libs/mbedtls/library/cipher_wrap.c ****  * \file cipher_wrap.c
+   3:Libs/mbedtls/library/cipher_wrap.c ****  *
+   4:Libs/mbedtls/library/cipher_wrap.c ****  * \brief Generic cipher wrapper for Mbed TLS
+   5:Libs/mbedtls/library/cipher_wrap.c ****  *
+   6:Libs/mbedtls/library/cipher_wrap.c ****  * \author Adriaan de Jong <dejong@fox-it.com>
+   7:Libs/mbedtls/library/cipher_wrap.c ****  *
+   8:Libs/mbedtls/library/cipher_wrap.c ****  *  Copyright The Mbed TLS Contributors
+   9:Libs/mbedtls/library/cipher_wrap.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+  10:Libs/mbedtls/library/cipher_wrap.c ****  */
+  11:Libs/mbedtls/library/cipher_wrap.c **** 
+  12:Libs/mbedtls/library/cipher_wrap.c **** #include "common.h"
+  13:Libs/mbedtls/library/cipher_wrap.c **** 
+  14:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_C)
+  15:Libs/mbedtls/library/cipher_wrap.c **** 
+  16:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/cipher_internal.h"
+  17:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/error.h"
+  18:Libs/mbedtls/library/cipher_wrap.c **** 
+  19:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CHACHAPOLY_C)
+  20:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/chachapoly.h"
+  21:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  22:Libs/mbedtls/library/cipher_wrap.c **** 
+  23:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_AES_C)
+  24:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/aes.h"
+  25:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  26:Libs/mbedtls/library/cipher_wrap.c **** 
+  27:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_ARC4_C)
+  28:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/arc4.h"
+  29:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  30:Libs/mbedtls/library/cipher_wrap.c **** 
+  31:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CAMELLIA_C)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 2
+
+
+  32:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/camellia.h"
+  33:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  34:Libs/mbedtls/library/cipher_wrap.c **** 
+  35:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_ARIA_C)
+  36:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/aria.h"
+  37:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  38:Libs/mbedtls/library/cipher_wrap.c **** 
+  39:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_DES_C)
+  40:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/des.h"
+  41:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  42:Libs/mbedtls/library/cipher_wrap.c **** 
+  43:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_BLOWFISH_C)
+  44:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/blowfish.h"
+  45:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  46:Libs/mbedtls/library/cipher_wrap.c **** 
+  47:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CHACHA20_C)
+  48:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/chacha20.h"
+  49:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  50:Libs/mbedtls/library/cipher_wrap.c **** 
+  51:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_GCM_C)
+  52:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/gcm.h"
+  53:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  54:Libs/mbedtls/library/cipher_wrap.c **** 
+  55:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CCM_C)
+  56:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/ccm.h"
+  57:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  58:Libs/mbedtls/library/cipher_wrap.c **** 
+  59:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_NIST_KW_C)
+  60:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/nist_kw.h"
+  61:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  62:Libs/mbedtls/library/cipher_wrap.c **** 
+  63:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_NULL_CIPHER)
+  64:Libs/mbedtls/library/cipher_wrap.c **** #include <string.h>
+  65:Libs/mbedtls/library/cipher_wrap.c **** #endif
+  66:Libs/mbedtls/library/cipher_wrap.c **** 
+  67:Libs/mbedtls/library/cipher_wrap.c **** #include "mbedtls/platform.h"
+  68:Libs/mbedtls/library/cipher_wrap.c **** 
+  69:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_GCM_C)
+  70:Libs/mbedtls/library/cipher_wrap.c **** /* shared by all GCM ciphers */
+  71:Libs/mbedtls/library/cipher_wrap.c **** static void *gcm_ctx_alloc(void)
+  72:Libs/mbedtls/library/cipher_wrap.c **** {
+  73:Libs/mbedtls/library/cipher_wrap.c ****     void *ctx = mbedtls_calloc(1, sizeof(mbedtls_gcm_context));
+  74:Libs/mbedtls/library/cipher_wrap.c **** 
+  75:Libs/mbedtls/library/cipher_wrap.c ****     if (ctx != NULL) {
+  76:Libs/mbedtls/library/cipher_wrap.c ****         mbedtls_gcm_init((mbedtls_gcm_context *) ctx);
+  77:Libs/mbedtls/library/cipher_wrap.c ****     }
+  78:Libs/mbedtls/library/cipher_wrap.c **** 
+  79:Libs/mbedtls/library/cipher_wrap.c ****     return ctx;
+  80:Libs/mbedtls/library/cipher_wrap.c **** }
+  81:Libs/mbedtls/library/cipher_wrap.c **** 
+  82:Libs/mbedtls/library/cipher_wrap.c **** static void gcm_ctx_free(void *ctx)
+  83:Libs/mbedtls/library/cipher_wrap.c **** {
+  28              		.loc 1 83 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  84:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_gcm_free(ctx);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 3
+
+
+  32              		.loc 1 84 5 view .LVU1
+  83:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_gcm_free(ctx);
+  33              		.loc 1 83 1 is_stmt 0 view .LVU2
+  34 0000 10B5     		push	{r4, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 8
+  37              		.cfi_offset 4, -8
+  38              		.cfi_offset 14, -4
+  83:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_gcm_free(ctx);
+  39              		.loc 1 83 1 view .LVU3
+  40 0002 0446     		mov	r4, r0
+  41              		.loc 1 84 5 view .LVU4
+  42 0004 FFF7FEFF 		bl	mbedtls_gcm_free
+  43              	.LVL1:
+  85:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_free(ctx);
+  44              		.loc 1 85 5 is_stmt 1 view .LVU5
+  45 0008 2046     		mov	r0, r4
+  86:Libs/mbedtls/library/cipher_wrap.c **** }
+  46              		.loc 1 86 1 is_stmt 0 view .LVU6
+  47 000a BDE81040 		pop	{r4, lr}
+  48              	.LCFI1:
+  49              		.cfi_restore 14
+  50              		.cfi_restore 4
+  51              		.cfi_def_cfa_offset 0
+  52              	.LVL2:
+  85:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_free(ctx);
+  53              		.loc 1 85 5 view .LVU7
+  54 000e FFF7FEBF 		b	free
+  55              	.LVL3:
+  85:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_free(ctx);
+  56              		.loc 1 85 5 view .LVU8
+  57              		.cfi_endproc
+  58              	.LFE14:
+  60              		.section	.text.gcm_ctx_alloc,"ax",%progbits
+  61              		.align	1
+  62              		.syntax unified
+  63              		.thumb
+  64              		.thumb_func
+  66              	gcm_ctx_alloc:
+  67              	.LFB13:
+  72:Libs/mbedtls/library/cipher_wrap.c ****     void *ctx = mbedtls_calloc(1, sizeof(mbedtls_gcm_context));
+  68              		.loc 1 72 1 is_stmt 1 view -0
+  69              		.cfi_startproc
+  70              		@ args = 0, pretend = 0, frame = 0
+  71              		@ frame_needed = 0, uses_anonymous_args = 0
+  73:Libs/mbedtls/library/cipher_wrap.c **** 
+  72              		.loc 1 73 5 view .LVU10
+  72:Libs/mbedtls/library/cipher_wrap.c ****     void *ctx = mbedtls_calloc(1, sizeof(mbedtls_gcm_context));
+  73              		.loc 1 72 1 is_stmt 0 view .LVU11
+  74 0000 10B5     		push	{r4, lr}
+  75              	.LCFI2:
+  76              		.cfi_def_cfa_offset 8
+  77              		.cfi_offset 4, -8
+  78              		.cfi_offset 14, -4
+  73:Libs/mbedtls/library/cipher_wrap.c **** 
+  79              		.loc 1 73 17 view .LVU12
+  80 0002 4FF4C071 		mov	r1, #384
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 4
+
+
+  81 0006 0120     		movs	r0, #1
+  82 0008 FFF7FEFF 		bl	calloc
+  83              	.LVL4:
+  75:Libs/mbedtls/library/cipher_wrap.c ****         mbedtls_gcm_init((mbedtls_gcm_context *) ctx);
+  84              		.loc 1 75 5 is_stmt 1 view .LVU13
+  75:Libs/mbedtls/library/cipher_wrap.c ****         mbedtls_gcm_init((mbedtls_gcm_context *) ctx);
+  85              		.loc 1 75 8 is_stmt 0 view .LVU14
+  86 000c 0446     		mov	r4, r0
+  87 000e 08B1     		cbz	r0, .L2
+  76:Libs/mbedtls/library/cipher_wrap.c ****     }
+  88              		.loc 1 76 9 is_stmt 1 view .LVU15
+  89 0010 FFF7FEFF 		bl	mbedtls_gcm_init
+  90              	.LVL5:
+  79:Libs/mbedtls/library/cipher_wrap.c **** }
+  91              		.loc 1 79 5 view .LVU16
+  92              	.L2:
+  80:Libs/mbedtls/library/cipher_wrap.c **** 
+  93              		.loc 1 80 1 is_stmt 0 view .LVU17
+  94 0014 2046     		mov	r0, r4
+  95 0016 10BD     		pop	{r4, pc}
+  80:Libs/mbedtls/library/cipher_wrap.c **** 
+  96              		.loc 1 80 1 view .LVU18
+  97              		.cfi_endproc
+  98              	.LFE13:
+ 100              		.section	.text.gcm_aes_setkey_wrap,"ax",%progbits
+ 101              		.align	1
+ 102              		.syntax unified
+ 103              		.thumb
+ 104              		.thumb_func
+ 106              	gcm_aes_setkey_wrap:
+ 107              	.LVL6:
+ 108              	.LFB20:
+  87:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_GCM_C */
+  88:Libs/mbedtls/library/cipher_wrap.c **** 
+  89:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CCM_C)
+  90:Libs/mbedtls/library/cipher_wrap.c **** /* shared by all CCM ciphers */
+  91:Libs/mbedtls/library/cipher_wrap.c **** static void *ccm_ctx_alloc(void)
+  92:Libs/mbedtls/library/cipher_wrap.c **** {
+  93:Libs/mbedtls/library/cipher_wrap.c ****     void *ctx = mbedtls_calloc(1, sizeof(mbedtls_ccm_context));
+  94:Libs/mbedtls/library/cipher_wrap.c **** 
+  95:Libs/mbedtls/library/cipher_wrap.c ****     if (ctx != NULL) {
+  96:Libs/mbedtls/library/cipher_wrap.c ****         mbedtls_ccm_init((mbedtls_ccm_context *) ctx);
+  97:Libs/mbedtls/library/cipher_wrap.c ****     }
+  98:Libs/mbedtls/library/cipher_wrap.c **** 
+  99:Libs/mbedtls/library/cipher_wrap.c ****     return ctx;
+ 100:Libs/mbedtls/library/cipher_wrap.c **** }
+ 101:Libs/mbedtls/library/cipher_wrap.c **** 
+ 102:Libs/mbedtls/library/cipher_wrap.c **** static void ccm_ctx_free(void *ctx)
+ 103:Libs/mbedtls/library/cipher_wrap.c **** {
+ 104:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_ccm_free(ctx);
+ 105:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_free(ctx);
+ 106:Libs/mbedtls/library/cipher_wrap.c **** }
+ 107:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CCM_C */
+ 108:Libs/mbedtls/library/cipher_wrap.c **** 
+ 109:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_AES_C)
+ 110:Libs/mbedtls/library/cipher_wrap.c **** 
+ 111:Libs/mbedtls/library/cipher_wrap.c **** static int aes_crypt_ecb_wrap(void *ctx, mbedtls_operation_t operation,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 5
+
+
+ 112:Libs/mbedtls/library/cipher_wrap.c ****                               const unsigned char *input, unsigned char *output)
+ 113:Libs/mbedtls/library/cipher_wrap.c **** {
+ 114:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_crypt_ecb((mbedtls_aes_context *) ctx, operation, input, output);
+ 115:Libs/mbedtls/library/cipher_wrap.c **** }
+ 116:Libs/mbedtls/library/cipher_wrap.c **** 
+ 117:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CBC)
+ 118:Libs/mbedtls/library/cipher_wrap.c **** static int aes_crypt_cbc_wrap(void *ctx, mbedtls_operation_t operation, size_t length,
+ 119:Libs/mbedtls/library/cipher_wrap.c ****                               unsigned char *iv, const unsigned char *input, unsigned char *output)
+ 120:Libs/mbedtls/library/cipher_wrap.c **** {
+ 121:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_crypt_cbc((mbedtls_aes_context *) ctx, operation, length, iv, input,
+ 122:Libs/mbedtls/library/cipher_wrap.c ****                                  output);
+ 123:Libs/mbedtls/library/cipher_wrap.c **** }
+ 124:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_CBC */
+ 125:Libs/mbedtls/library/cipher_wrap.c **** 
+ 126:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CFB)
+ 127:Libs/mbedtls/library/cipher_wrap.c **** static int aes_crypt_cfb128_wrap(void *ctx, mbedtls_operation_t operation,
+ 128:Libs/mbedtls/library/cipher_wrap.c ****                                  size_t length, size_t *iv_off, unsigned char *iv,
+ 129:Libs/mbedtls/library/cipher_wrap.c ****                                  const unsigned char *input, unsigned char *output)
+ 130:Libs/mbedtls/library/cipher_wrap.c **** {
+ 131:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_crypt_cfb128((mbedtls_aes_context *) ctx, operation, length, iv_off, iv,
+ 132:Libs/mbedtls/library/cipher_wrap.c ****                                     input, output);
+ 133:Libs/mbedtls/library/cipher_wrap.c **** }
+ 134:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_CFB */
+ 135:Libs/mbedtls/library/cipher_wrap.c **** 
+ 136:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_OFB)
+ 137:Libs/mbedtls/library/cipher_wrap.c **** static int aes_crypt_ofb_wrap(void *ctx, size_t length, size_t *iv_off,
+ 138:Libs/mbedtls/library/cipher_wrap.c ****                               unsigned char *iv, const unsigned char *input, unsigned char *output)
+ 139:Libs/mbedtls/library/cipher_wrap.c **** {
+ 140:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_crypt_ofb((mbedtls_aes_context *) ctx, length, iv_off,
+ 141:Libs/mbedtls/library/cipher_wrap.c ****                                  iv, input, output);
+ 142:Libs/mbedtls/library/cipher_wrap.c **** }
+ 143:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_OFB */
+ 144:Libs/mbedtls/library/cipher_wrap.c **** 
+ 145:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CTR)
+ 146:Libs/mbedtls/library/cipher_wrap.c **** static int aes_crypt_ctr_wrap(void *ctx, size_t length, size_t *nc_off,
+ 147:Libs/mbedtls/library/cipher_wrap.c ****                               unsigned char *nonce_counter, unsigned char *stream_block,
+ 148:Libs/mbedtls/library/cipher_wrap.c ****                               const unsigned char *input, unsigned char *output)
+ 149:Libs/mbedtls/library/cipher_wrap.c **** {
+ 150:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_crypt_ctr((mbedtls_aes_context *) ctx, length, nc_off, nonce_counter,
+ 151:Libs/mbedtls/library/cipher_wrap.c ****                                  stream_block, input, output);
+ 152:Libs/mbedtls/library/cipher_wrap.c **** }
+ 153:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_CTR */
+ 154:Libs/mbedtls/library/cipher_wrap.c **** 
+ 155:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_XTS)
+ 156:Libs/mbedtls/library/cipher_wrap.c **** static int aes_crypt_xts_wrap(void *ctx, mbedtls_operation_t operation,
+ 157:Libs/mbedtls/library/cipher_wrap.c ****                               size_t length,
+ 158:Libs/mbedtls/library/cipher_wrap.c ****                               const unsigned char data_unit[16],
+ 159:Libs/mbedtls/library/cipher_wrap.c ****                               const unsigned char *input,
+ 160:Libs/mbedtls/library/cipher_wrap.c ****                               unsigned char *output)
+ 161:Libs/mbedtls/library/cipher_wrap.c **** {
+ 162:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_xts_context *xts_ctx = ctx;
+ 163:Libs/mbedtls/library/cipher_wrap.c ****     int mode;
+ 164:Libs/mbedtls/library/cipher_wrap.c **** 
+ 165:Libs/mbedtls/library/cipher_wrap.c ****     switch (operation) {
+ 166:Libs/mbedtls/library/cipher_wrap.c ****         case MBEDTLS_ENCRYPT:
+ 167:Libs/mbedtls/library/cipher_wrap.c ****             mode = MBEDTLS_AES_ENCRYPT;
+ 168:Libs/mbedtls/library/cipher_wrap.c ****             break;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 6
+
+
+ 169:Libs/mbedtls/library/cipher_wrap.c ****         case MBEDTLS_DECRYPT:
+ 170:Libs/mbedtls/library/cipher_wrap.c ****             mode = MBEDTLS_AES_DECRYPT;
+ 171:Libs/mbedtls/library/cipher_wrap.c ****             break;
+ 172:Libs/mbedtls/library/cipher_wrap.c ****         default:
+ 173:Libs/mbedtls/library/cipher_wrap.c ****             return MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA;
+ 174:Libs/mbedtls/library/cipher_wrap.c ****     }
+ 175:Libs/mbedtls/library/cipher_wrap.c **** 
+ 176:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_crypt_xts(xts_ctx, mode, length,
+ 177:Libs/mbedtls/library/cipher_wrap.c ****                                  data_unit, input, output);
+ 178:Libs/mbedtls/library/cipher_wrap.c **** }
+ 179:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_XTS */
+ 180:Libs/mbedtls/library/cipher_wrap.c **** 
+ 181:Libs/mbedtls/library/cipher_wrap.c **** static int aes_setkey_dec_wrap(void *ctx, const unsigned char *key,
+ 182:Libs/mbedtls/library/cipher_wrap.c ****                                unsigned int key_bitlen)
+ 183:Libs/mbedtls/library/cipher_wrap.c **** {
+ 184:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_setkey_dec((mbedtls_aes_context *) ctx, key, key_bitlen);
+ 185:Libs/mbedtls/library/cipher_wrap.c **** }
+ 186:Libs/mbedtls/library/cipher_wrap.c **** 
+ 187:Libs/mbedtls/library/cipher_wrap.c **** static int aes_setkey_enc_wrap(void *ctx, const unsigned char *key,
+ 188:Libs/mbedtls/library/cipher_wrap.c ****                                unsigned int key_bitlen)
+ 189:Libs/mbedtls/library/cipher_wrap.c **** {
+ 190:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_setkey_enc((mbedtls_aes_context *) ctx, key, key_bitlen);
+ 191:Libs/mbedtls/library/cipher_wrap.c **** }
+ 192:Libs/mbedtls/library/cipher_wrap.c **** 
+ 193:Libs/mbedtls/library/cipher_wrap.c **** static void *aes_ctx_alloc(void)
+ 194:Libs/mbedtls/library/cipher_wrap.c **** {
+ 195:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_context *aes = mbedtls_calloc(1, sizeof(mbedtls_aes_context));
+ 196:Libs/mbedtls/library/cipher_wrap.c **** 
+ 197:Libs/mbedtls/library/cipher_wrap.c ****     if (aes == NULL) {
+ 198:Libs/mbedtls/library/cipher_wrap.c ****         return NULL;
+ 199:Libs/mbedtls/library/cipher_wrap.c ****     }
+ 200:Libs/mbedtls/library/cipher_wrap.c **** 
+ 201:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_init(aes);
+ 202:Libs/mbedtls/library/cipher_wrap.c **** 
+ 203:Libs/mbedtls/library/cipher_wrap.c ****     return aes;
+ 204:Libs/mbedtls/library/cipher_wrap.c **** }
+ 205:Libs/mbedtls/library/cipher_wrap.c **** 
+ 206:Libs/mbedtls/library/cipher_wrap.c **** static void aes_ctx_free(void *ctx)
+ 207:Libs/mbedtls/library/cipher_wrap.c **** {
+ 208:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_free((mbedtls_aes_context *) ctx);
+ 209:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_free(ctx);
+ 210:Libs/mbedtls/library/cipher_wrap.c **** }
+ 211:Libs/mbedtls/library/cipher_wrap.c **** 
+ 212:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_base_t aes_info = {
+ 213:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_ID_AES,
+ 214:Libs/mbedtls/library/cipher_wrap.c ****     aes_crypt_ecb_wrap,
+ 215:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CBC)
+ 216:Libs/mbedtls/library/cipher_wrap.c ****     aes_crypt_cbc_wrap,
+ 217:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 218:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CFB)
+ 219:Libs/mbedtls/library/cipher_wrap.c ****     aes_crypt_cfb128_wrap,
+ 220:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 221:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_OFB)
+ 222:Libs/mbedtls/library/cipher_wrap.c ****     aes_crypt_ofb_wrap,
+ 223:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 224:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CTR)
+ 225:Libs/mbedtls/library/cipher_wrap.c ****     aes_crypt_ctr_wrap,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 7
+
+
+ 226:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 227:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_XTS)
+ 228:Libs/mbedtls/library/cipher_wrap.c ****     NULL,
+ 229:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 230:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_STREAM)
+ 231:Libs/mbedtls/library/cipher_wrap.c ****     NULL,
+ 232:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 233:Libs/mbedtls/library/cipher_wrap.c ****     aes_setkey_enc_wrap,
+ 234:Libs/mbedtls/library/cipher_wrap.c ****     aes_setkey_dec_wrap,
+ 235:Libs/mbedtls/library/cipher_wrap.c ****     aes_ctx_alloc,
+ 236:Libs/mbedtls/library/cipher_wrap.c ****     aes_ctx_free
+ 237:Libs/mbedtls/library/cipher_wrap.c **** };
+ 238:Libs/mbedtls/library/cipher_wrap.c **** 
+ 239:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_128_ecb_info = {
+ 240:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_128_ECB,
+ 241:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_ECB,
+ 242:Libs/mbedtls/library/cipher_wrap.c ****     128,
+ 243:Libs/mbedtls/library/cipher_wrap.c ****     "AES-128-ECB",
+ 244:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 245:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 246:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 247:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 248:Libs/mbedtls/library/cipher_wrap.c **** };
+ 249:Libs/mbedtls/library/cipher_wrap.c **** 
+ 250:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_192_ecb_info = {
+ 251:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_192_ECB,
+ 252:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_ECB,
+ 253:Libs/mbedtls/library/cipher_wrap.c ****     192,
+ 254:Libs/mbedtls/library/cipher_wrap.c ****     "AES-192-ECB",
+ 255:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 256:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 257:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 258:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 259:Libs/mbedtls/library/cipher_wrap.c **** };
+ 260:Libs/mbedtls/library/cipher_wrap.c **** 
+ 261:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_256_ecb_info = {
+ 262:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_256_ECB,
+ 263:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_ECB,
+ 264:Libs/mbedtls/library/cipher_wrap.c ****     256,
+ 265:Libs/mbedtls/library/cipher_wrap.c ****     "AES-256-ECB",
+ 266:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 267:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 268:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 269:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 270:Libs/mbedtls/library/cipher_wrap.c **** };
+ 271:Libs/mbedtls/library/cipher_wrap.c **** 
+ 272:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CBC)
+ 273:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_128_cbc_info = {
+ 274:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_128_CBC,
+ 275:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CBC,
+ 276:Libs/mbedtls/library/cipher_wrap.c ****     128,
+ 277:Libs/mbedtls/library/cipher_wrap.c ****     "AES-128-CBC",
+ 278:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 279:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 280:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 281:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 282:Libs/mbedtls/library/cipher_wrap.c **** };
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 8
+
+
+ 283:Libs/mbedtls/library/cipher_wrap.c **** 
+ 284:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_192_cbc_info = {
+ 285:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_192_CBC,
+ 286:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CBC,
+ 287:Libs/mbedtls/library/cipher_wrap.c ****     192,
+ 288:Libs/mbedtls/library/cipher_wrap.c ****     "AES-192-CBC",
+ 289:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 290:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 291:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 292:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 293:Libs/mbedtls/library/cipher_wrap.c **** };
+ 294:Libs/mbedtls/library/cipher_wrap.c **** 
+ 295:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_256_cbc_info = {
+ 296:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_256_CBC,
+ 297:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CBC,
+ 298:Libs/mbedtls/library/cipher_wrap.c ****     256,
+ 299:Libs/mbedtls/library/cipher_wrap.c ****     "AES-256-CBC",
+ 300:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 301:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 302:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 303:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 304:Libs/mbedtls/library/cipher_wrap.c **** };
+ 305:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_CBC */
+ 306:Libs/mbedtls/library/cipher_wrap.c **** 
+ 307:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CFB)
+ 308:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_128_cfb128_info = {
+ 309:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_128_CFB128,
+ 310:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CFB,
+ 311:Libs/mbedtls/library/cipher_wrap.c ****     128,
+ 312:Libs/mbedtls/library/cipher_wrap.c ****     "AES-128-CFB128",
+ 313:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 314:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 315:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 316:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 317:Libs/mbedtls/library/cipher_wrap.c **** };
+ 318:Libs/mbedtls/library/cipher_wrap.c **** 
+ 319:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_192_cfb128_info = {
+ 320:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_192_CFB128,
+ 321:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CFB,
+ 322:Libs/mbedtls/library/cipher_wrap.c ****     192,
+ 323:Libs/mbedtls/library/cipher_wrap.c ****     "AES-192-CFB128",
+ 324:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 325:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 326:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 327:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 328:Libs/mbedtls/library/cipher_wrap.c **** };
+ 329:Libs/mbedtls/library/cipher_wrap.c **** 
+ 330:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_256_cfb128_info = {
+ 331:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_256_CFB128,
+ 332:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CFB,
+ 333:Libs/mbedtls/library/cipher_wrap.c ****     256,
+ 334:Libs/mbedtls/library/cipher_wrap.c ****     "AES-256-CFB128",
+ 335:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 336:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 337:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 338:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 339:Libs/mbedtls/library/cipher_wrap.c **** };
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 9
+
+
+ 340:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_CFB */
+ 341:Libs/mbedtls/library/cipher_wrap.c **** 
+ 342:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_OFB)
+ 343:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_128_ofb_info = {
+ 344:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_128_OFB,
+ 345:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_OFB,
+ 346:Libs/mbedtls/library/cipher_wrap.c ****     128,
+ 347:Libs/mbedtls/library/cipher_wrap.c ****     "AES-128-OFB",
+ 348:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 349:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 350:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 351:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 352:Libs/mbedtls/library/cipher_wrap.c **** };
+ 353:Libs/mbedtls/library/cipher_wrap.c **** 
+ 354:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_192_ofb_info = {
+ 355:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_192_OFB,
+ 356:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_OFB,
+ 357:Libs/mbedtls/library/cipher_wrap.c ****     192,
+ 358:Libs/mbedtls/library/cipher_wrap.c ****     "AES-192-OFB",
+ 359:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 360:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 361:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 362:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 363:Libs/mbedtls/library/cipher_wrap.c **** };
+ 364:Libs/mbedtls/library/cipher_wrap.c **** 
+ 365:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_256_ofb_info = {
+ 366:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_256_OFB,
+ 367:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_OFB,
+ 368:Libs/mbedtls/library/cipher_wrap.c ****     256,
+ 369:Libs/mbedtls/library/cipher_wrap.c ****     "AES-256-OFB",
+ 370:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 371:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 372:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 373:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 374:Libs/mbedtls/library/cipher_wrap.c **** };
+ 375:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_OFB */
+ 376:Libs/mbedtls/library/cipher_wrap.c **** 
+ 377:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CTR)
+ 378:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_128_ctr_info = {
+ 379:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_128_CTR,
+ 380:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CTR,
+ 381:Libs/mbedtls/library/cipher_wrap.c ****     128,
+ 382:Libs/mbedtls/library/cipher_wrap.c ****     "AES-128-CTR",
+ 383:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 384:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 385:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 386:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 387:Libs/mbedtls/library/cipher_wrap.c **** };
+ 388:Libs/mbedtls/library/cipher_wrap.c **** 
+ 389:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_192_ctr_info = {
+ 390:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_192_CTR,
+ 391:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CTR,
+ 392:Libs/mbedtls/library/cipher_wrap.c ****     192,
+ 393:Libs/mbedtls/library/cipher_wrap.c ****     "AES-192-CTR",
+ 394:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 395:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 396:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 10
+
+
+ 397:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 398:Libs/mbedtls/library/cipher_wrap.c **** };
+ 399:Libs/mbedtls/library/cipher_wrap.c **** 
+ 400:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_256_ctr_info = {
+ 401:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_256_CTR,
+ 402:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_CTR,
+ 403:Libs/mbedtls/library/cipher_wrap.c ****     256,
+ 404:Libs/mbedtls/library/cipher_wrap.c ****     "AES-256-CTR",
+ 405:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 406:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 407:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 408:Libs/mbedtls/library/cipher_wrap.c ****     &aes_info
+ 409:Libs/mbedtls/library/cipher_wrap.c **** };
+ 410:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_CTR */
+ 411:Libs/mbedtls/library/cipher_wrap.c **** 
+ 412:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_XTS)
+ 413:Libs/mbedtls/library/cipher_wrap.c **** static int xts_aes_setkey_enc_wrap(void *ctx, const unsigned char *key,
+ 414:Libs/mbedtls/library/cipher_wrap.c ****                                    unsigned int key_bitlen)
+ 415:Libs/mbedtls/library/cipher_wrap.c **** {
+ 416:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_xts_context *xts_ctx = ctx;
+ 417:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_xts_setkey_enc(xts_ctx, key, key_bitlen);
+ 418:Libs/mbedtls/library/cipher_wrap.c **** }
+ 419:Libs/mbedtls/library/cipher_wrap.c **** 
+ 420:Libs/mbedtls/library/cipher_wrap.c **** static int xts_aes_setkey_dec_wrap(void *ctx, const unsigned char *key,
+ 421:Libs/mbedtls/library/cipher_wrap.c ****                                    unsigned int key_bitlen)
+ 422:Libs/mbedtls/library/cipher_wrap.c **** {
+ 423:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_xts_context *xts_ctx = ctx;
+ 424:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_xts_setkey_dec(xts_ctx, key, key_bitlen);
+ 425:Libs/mbedtls/library/cipher_wrap.c **** }
+ 426:Libs/mbedtls/library/cipher_wrap.c **** 
+ 427:Libs/mbedtls/library/cipher_wrap.c **** static void *xts_aes_ctx_alloc(void)
+ 428:Libs/mbedtls/library/cipher_wrap.c **** {
+ 429:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_xts_context *xts_ctx = mbedtls_calloc(1, sizeof(*xts_ctx));
+ 430:Libs/mbedtls/library/cipher_wrap.c **** 
+ 431:Libs/mbedtls/library/cipher_wrap.c ****     if (xts_ctx != NULL) {
+ 432:Libs/mbedtls/library/cipher_wrap.c ****         mbedtls_aes_xts_init(xts_ctx);
+ 433:Libs/mbedtls/library/cipher_wrap.c ****     }
+ 434:Libs/mbedtls/library/cipher_wrap.c **** 
+ 435:Libs/mbedtls/library/cipher_wrap.c ****     return xts_ctx;
+ 436:Libs/mbedtls/library/cipher_wrap.c **** }
+ 437:Libs/mbedtls/library/cipher_wrap.c **** 
+ 438:Libs/mbedtls/library/cipher_wrap.c **** static void xts_aes_ctx_free(void *ctx)
+ 439:Libs/mbedtls/library/cipher_wrap.c **** {
+ 440:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_xts_context *xts_ctx = ctx;
+ 441:Libs/mbedtls/library/cipher_wrap.c **** 
+ 442:Libs/mbedtls/library/cipher_wrap.c ****     if (xts_ctx == NULL) {
+ 443:Libs/mbedtls/library/cipher_wrap.c ****         return;
+ 444:Libs/mbedtls/library/cipher_wrap.c ****     }
+ 445:Libs/mbedtls/library/cipher_wrap.c **** 
+ 446:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_xts_free(xts_ctx);
+ 447:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_free(xts_ctx);
+ 448:Libs/mbedtls/library/cipher_wrap.c **** }
+ 449:Libs/mbedtls/library/cipher_wrap.c **** 
+ 450:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_base_t xts_aes_info = {
+ 451:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_ID_AES,
+ 452:Libs/mbedtls/library/cipher_wrap.c ****     NULL,
+ 453:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CBC)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 11
+
+
+ 454:Libs/mbedtls/library/cipher_wrap.c ****     NULL,
+ 455:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 456:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CFB)
+ 457:Libs/mbedtls/library/cipher_wrap.c ****     NULL,
+ 458:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 459:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_OFB)
+ 460:Libs/mbedtls/library/cipher_wrap.c ****     NULL,
+ 461:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 462:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_CTR)
+ 463:Libs/mbedtls/library/cipher_wrap.c ****     NULL,
+ 464:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 465:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_XTS)
+ 466:Libs/mbedtls/library/cipher_wrap.c ****     aes_crypt_xts_wrap,
+ 467:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 468:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_CIPHER_MODE_STREAM)
+ 469:Libs/mbedtls/library/cipher_wrap.c ****     NULL,
+ 470:Libs/mbedtls/library/cipher_wrap.c **** #endif
+ 471:Libs/mbedtls/library/cipher_wrap.c ****     xts_aes_setkey_enc_wrap,
+ 472:Libs/mbedtls/library/cipher_wrap.c ****     xts_aes_setkey_dec_wrap,
+ 473:Libs/mbedtls/library/cipher_wrap.c ****     xts_aes_ctx_alloc,
+ 474:Libs/mbedtls/library/cipher_wrap.c ****     xts_aes_ctx_free
+ 475:Libs/mbedtls/library/cipher_wrap.c **** };
+ 476:Libs/mbedtls/library/cipher_wrap.c **** 
+ 477:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_128_xts_info = {
+ 478:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_128_XTS,
+ 479:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_XTS,
+ 480:Libs/mbedtls/library/cipher_wrap.c ****     256,
+ 481:Libs/mbedtls/library/cipher_wrap.c ****     "AES-128-XTS",
+ 482:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 483:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 484:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 485:Libs/mbedtls/library/cipher_wrap.c ****     &xts_aes_info
+ 486:Libs/mbedtls/library/cipher_wrap.c **** };
+ 487:Libs/mbedtls/library/cipher_wrap.c **** 
+ 488:Libs/mbedtls/library/cipher_wrap.c **** static const mbedtls_cipher_info_t aes_256_xts_info = {
+ 489:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_CIPHER_AES_256_XTS,
+ 490:Libs/mbedtls/library/cipher_wrap.c ****     MBEDTLS_MODE_XTS,
+ 491:Libs/mbedtls/library/cipher_wrap.c ****     512,
+ 492:Libs/mbedtls/library/cipher_wrap.c ****     "AES-256-XTS",
+ 493:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 494:Libs/mbedtls/library/cipher_wrap.c ****     0,
+ 495:Libs/mbedtls/library/cipher_wrap.c ****     16,
+ 496:Libs/mbedtls/library/cipher_wrap.c ****     &xts_aes_info
+ 497:Libs/mbedtls/library/cipher_wrap.c **** };
+ 498:Libs/mbedtls/library/cipher_wrap.c **** #endif /* MBEDTLS_CIPHER_MODE_XTS */
+ 499:Libs/mbedtls/library/cipher_wrap.c **** 
+ 500:Libs/mbedtls/library/cipher_wrap.c **** #if defined(MBEDTLS_GCM_C)
+ 501:Libs/mbedtls/library/cipher_wrap.c **** static int gcm_aes_setkey_wrap(void *ctx, const unsigned char *key,
+ 502:Libs/mbedtls/library/cipher_wrap.c ****                                unsigned int key_bitlen)
+ 503:Libs/mbedtls/library/cipher_wrap.c **** {
+ 109              		.loc 1 503 1 is_stmt 1 view -0
+ 110              		.cfi_startproc
+ 111              		@ args = 0, pretend = 0, frame = 0
+ 112              		@ frame_needed = 0, uses_anonymous_args = 0
+ 113              		@ link register save eliminated.
+ 504:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_gcm_setkey((mbedtls_gcm_context *) ctx, MBEDTLS_CIPHER_ID_AES,
+ 114              		.loc 1 504 5 view .LVU20
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 12
+
+
+ 503:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_gcm_setkey((mbedtls_gcm_context *) ctx, MBEDTLS_CIPHER_ID_AES,
+ 115              		.loc 1 503 1 is_stmt 0 view .LVU21
+ 116 0000 1346     		mov	r3, r2
+ 117              		.loc 1 504 12 view .LVU22
+ 118 0002 0A46     		mov	r2, r1
+ 119              	.LVL7:
+ 120              		.loc 1 504 12 view .LVU23
+ 121 0004 0221     		movs	r1, #2
+ 122              	.LVL8:
+ 123              		.loc 1 504 12 view .LVU24
+ 124 0006 FFF7FEBF 		b	mbedtls_gcm_setkey
+ 125              	.LVL9:
+ 126              		.loc 1 504 12 view .LVU25
+ 127              		.cfi_endproc
+ 128              	.LFE20:
+ 130              		.section	.text.aes_ctx_free,"ax",%progbits
+ 131              		.align	1
+ 132              		.syntax unified
+ 133              		.thumb
+ 134              		.thumb_func
+ 136              	aes_ctx_free:
+ 137              	.LVL10:
+ 138              	.LFB19:
+ 207:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_free((mbedtls_aes_context *) ctx);
+ 139              		.loc 1 207 1 is_stmt 1 view -0
+ 140              		.cfi_startproc
+ 141              		@ args = 0, pretend = 0, frame = 0
+ 142              		@ frame_needed = 0, uses_anonymous_args = 0
+ 208:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_free(ctx);
+ 143              		.loc 1 208 5 view .LVU27
+ 207:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_free((mbedtls_aes_context *) ctx);
+ 144              		.loc 1 207 1 is_stmt 0 view .LVU28
+ 145 0000 10B5     		push	{r4, lr}
+ 146              	.LCFI3:
+ 147              		.cfi_def_cfa_offset 8
+ 148              		.cfi_offset 4, -8
+ 149              		.cfi_offset 14, -4
+ 207:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_free((mbedtls_aes_context *) ctx);
+ 150              		.loc 1 207 1 view .LVU29
+ 151 0002 0446     		mov	r4, r0
+ 208:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_free(ctx);
+ 152              		.loc 1 208 5 view .LVU30
+ 153 0004 FFF7FEFF 		bl	mbedtls_aes_free
+ 154              	.LVL11:
+ 209:Libs/mbedtls/library/cipher_wrap.c **** }
+ 155              		.loc 1 209 5 is_stmt 1 view .LVU31
+ 156 0008 2046     		mov	r0, r4
+ 210:Libs/mbedtls/library/cipher_wrap.c **** 
+ 157              		.loc 1 210 1 is_stmt 0 view .LVU32
+ 158 000a BDE81040 		pop	{r4, lr}
+ 159              	.LCFI4:
+ 160              		.cfi_restore 14
+ 161              		.cfi_restore 4
+ 162              		.cfi_def_cfa_offset 0
+ 163              	.LVL12:
+ 209:Libs/mbedtls/library/cipher_wrap.c **** }
+ 164              		.loc 1 209 5 view .LVU33
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 13
+
+
+ 165 000e FFF7FEBF 		b	free
+ 166              	.LVL13:
+ 209:Libs/mbedtls/library/cipher_wrap.c **** }
+ 167              		.loc 1 209 5 view .LVU34
+ 168              		.cfi_endproc
+ 169              	.LFE19:
+ 171              		.section	.text.aes_ctx_alloc,"ax",%progbits
+ 172              		.align	1
+ 173              		.syntax unified
+ 174              		.thumb
+ 175              		.thumb_func
+ 177              	aes_ctx_alloc:
+ 178              	.LFB18:
+ 194:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_context *aes = mbedtls_calloc(1, sizeof(mbedtls_aes_context));
+ 179              		.loc 1 194 1 is_stmt 1 view -0
+ 180              		.cfi_startproc
+ 181              		@ args = 0, pretend = 0, frame = 0
+ 182              		@ frame_needed = 0, uses_anonymous_args = 0
+ 195:Libs/mbedtls/library/cipher_wrap.c **** 
+ 183              		.loc 1 195 5 view .LVU36
+ 194:Libs/mbedtls/library/cipher_wrap.c ****     mbedtls_aes_context *aes = mbedtls_calloc(1, sizeof(mbedtls_aes_context));
+ 184              		.loc 1 194 1 is_stmt 0 view .LVU37
+ 185 0000 10B5     		push	{r4, lr}
+ 186              	.LCFI5:
+ 187              		.cfi_def_cfa_offset 8
+ 188              		.cfi_offset 4, -8
+ 189              		.cfi_offset 14, -4
+ 195:Libs/mbedtls/library/cipher_wrap.c **** 
+ 190              		.loc 1 195 32 view .LVU38
+ 191 0002 4FF48C71 		mov	r1, #280
+ 192 0006 0120     		movs	r0, #1
+ 193 0008 FFF7FEFF 		bl	calloc
+ 194              	.LVL14:
+ 197:Libs/mbedtls/library/cipher_wrap.c ****         return NULL;
+ 195              		.loc 1 197 5 is_stmt 1 view .LVU39
+ 197:Libs/mbedtls/library/cipher_wrap.c ****         return NULL;
+ 196              		.loc 1 197 8 is_stmt 0 view .LVU40
+ 197 000c 0446     		mov	r4, r0
+ 198 000e 08B1     		cbz	r0, .L9
+ 201:Libs/mbedtls/library/cipher_wrap.c **** 
+ 199              		.loc 1 201 5 is_stmt 1 view .LVU41
+ 200 0010 FFF7FEFF 		bl	mbedtls_aes_init
+ 201              	.LVL15:
+ 203:Libs/mbedtls/library/cipher_wrap.c **** }
+ 202              		.loc 1 203 5 view .LVU42
+ 203              	.L9:
+ 204:Libs/mbedtls/library/cipher_wrap.c **** 
+ 204              		.loc 1 204 1 is_stmt 0 view .LVU43
+ 205 0014 2046     		mov	r0, r4
+ 206 0016 10BD     		pop	{r4, pc}
+ 204:Libs/mbedtls/library/cipher_wrap.c **** 
+ 207              		.loc 1 204 1 view .LVU44
+ 208              		.cfi_endproc
+ 209              	.LFE18:
+ 211              		.section	.text.aes_setkey_dec_wrap,"ax",%progbits
+ 212              		.align	1
+ 213              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 14
+
+
+ 214              		.thumb
+ 215              		.thumb_func
+ 217              	aes_setkey_dec_wrap:
+ 218              	.LVL16:
+ 219              	.LFB16:
+ 183:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_setkey_dec((mbedtls_aes_context *) ctx, key, key_bitlen);
+ 220              		.loc 1 183 1 is_stmt 1 view -0
+ 221              		.cfi_startproc
+ 222              		@ args = 0, pretend = 0, frame = 0
+ 223              		@ frame_needed = 0, uses_anonymous_args = 0
+ 224              		@ link register save eliminated.
+ 184:Libs/mbedtls/library/cipher_wrap.c **** }
+ 225              		.loc 1 184 5 view .LVU46
+ 184:Libs/mbedtls/library/cipher_wrap.c **** }
+ 226              		.loc 1 184 12 is_stmt 0 view .LVU47
+ 227 0000 FFF7FEBF 		b	mbedtls_aes_setkey_dec
+ 228              	.LVL17:
+ 184:Libs/mbedtls/library/cipher_wrap.c **** }
+ 229              		.loc 1 184 12 view .LVU48
+ 230              		.cfi_endproc
+ 231              	.LFE16:
+ 233              		.section	.text.aes_setkey_enc_wrap,"ax",%progbits
+ 234              		.align	1
+ 235              		.syntax unified
+ 236              		.thumb
+ 237              		.thumb_func
+ 239              	aes_setkey_enc_wrap:
+ 240              	.LVL18:
+ 241              	.LFB17:
+ 189:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_setkey_enc((mbedtls_aes_context *) ctx, key, key_bitlen);
+ 242              		.loc 1 189 1 is_stmt 1 view -0
+ 243              		.cfi_startproc
+ 244              		@ args = 0, pretend = 0, frame = 0
+ 245              		@ frame_needed = 0, uses_anonymous_args = 0
+ 246              		@ link register save eliminated.
+ 190:Libs/mbedtls/library/cipher_wrap.c **** }
+ 247              		.loc 1 190 5 view .LVU50
+ 190:Libs/mbedtls/library/cipher_wrap.c **** }
+ 248              		.loc 1 190 12 is_stmt 0 view .LVU51
+ 249 0000 FFF7FEBF 		b	mbedtls_aes_setkey_enc
+ 250              	.LVL19:
+ 190:Libs/mbedtls/library/cipher_wrap.c **** }
+ 251              		.loc 1 190 12 view .LVU52
+ 252              		.cfi_endproc
+ 253              	.LFE17:
+ 255              		.section	.text.aes_crypt_ecb_wrap,"ax",%progbits
+ 256              		.align	1
+ 257              		.syntax unified
+ 258              		.thumb
+ 259              		.thumb_func
+ 261              	aes_crypt_ecb_wrap:
+ 262              	.LVL20:
+ 263              	.LFB15:
+ 113:Libs/mbedtls/library/cipher_wrap.c ****     return mbedtls_aes_crypt_ecb((mbedtls_aes_context *) ctx, operation, input, output);
+ 264              		.loc 1 113 1 is_stmt 1 view -0
+ 265              		.cfi_startproc
+ 266              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 15
+
+
+ 267              		@ frame_needed = 0, uses_anonymous_args = 0
+ 268              		@ link register save eliminated.
+ 114:Libs/mbedtls/library/cipher_wrap.c **** }
+ 269              		.loc 1 114 5 view .LVU54
+ 114:Libs/mbedtls/library/cipher_wrap.c **** }
+ 270              		.loc 1 114 12 is_stmt 0 view .LVU55
+ 271 0000 FFF7FEBF 		b	mbedtls_aes_crypt_ecb
+ 272              	.LVL21:
+ 114:Libs/mbedtls/library/cipher_wrap.c **** }
+ 273              		.loc 1 114 12 view .LVU56
+ 274              		.cfi_endproc
+ 275              	.LFE15:
+ 277              		.global	mbedtls_cipher_supported
+ 278              		.section	.bss.mbedtls_cipher_supported,"aw",%nobits
+ 279              		.align	2
+ 282              	mbedtls_cipher_supported:
+ 283 0000 00000000 		.space	28
+ 283      00000000 
+ 283      00000000 
+ 283      00000000 
+ 283      00000000 
+ 284              		.global	mbedtls_cipher_definitions
+ 285              		.section	.rodata.mbedtls_cipher_definitions,"a"
+ 286              		.align	2
+ 289              	mbedtls_cipher_definitions:
+ 290 0000 02       		.byte	2
+ 291 0001 000000   		.space	3
+ 292 0004 00000000 		.word	aes_128_ecb_info
+ 293 0008 03       		.byte	3
+ 294 0009 000000   		.space	3
+ 295 000c 00000000 		.word	aes_192_ecb_info
+ 296 0010 04       		.byte	4
+ 297 0011 000000   		.space	3
+ 298 0014 00000000 		.word	aes_256_ecb_info
+ 299 0018 0E       		.byte	14
+ 300 0019 000000   		.space	3
+ 301 001c 00000000 		.word	aes_128_gcm_info
+ 302 0020 0F       		.byte	15
+ 303 0021 000000   		.space	3
+ 304 0024 00000000 		.word	aes_192_gcm_info
+ 305 0028 10       		.byte	16
+ 306 0029 000000   		.space	3
+ 307 002c 00000000 		.word	aes_256_gcm_info
+ 308 0030 00       		.byte	0
+ 309 0031 000000   		.space	3
+ 310 0034 00000000 		.word	0
+ 311              		.section	.rodata.str1.1,"aMS",%progbits,1
+ 312              	.LC0:
+ 313 0000 4145532D 		.ascii	"AES-256-GCM\000"
+ 313      3235362D 
+ 313      47434D00 
+ 314              		.section	.rodata.aes_256_gcm_info,"a"
+ 315              		.align	2
+ 318              	aes_256_gcm_info:
+ 319 0000 10       		.byte	16
+ 320 0001 06       		.byte	6
+ 321 0002 0000     		.space	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 16
+
+
+ 322 0004 00010000 		.word	256
+ 323 0008 00000000 		.word	.LC0
+ 324 000c 0C000000 		.word	12
+ 325 0010 01000000 		.word	1
+ 326 0014 10000000 		.word	16
+ 327 0018 00000000 		.word	gcm_aes_info
+ 328              		.section	.rodata.str1.1
+ 329              	.LC1:
+ 330 000c 4145532D 		.ascii	"AES-192-GCM\000"
+ 330      3139322D 
+ 330      47434D00 
+ 331              		.section	.rodata.aes_192_gcm_info,"a"
+ 332              		.align	2
+ 335              	aes_192_gcm_info:
+ 336 0000 0F       		.byte	15
+ 337 0001 06       		.byte	6
+ 338 0002 0000     		.space	2
+ 339 0004 C0000000 		.word	192
+ 340 0008 0C000000 		.word	.LC1
+ 341 000c 0C000000 		.word	12
+ 342 0010 01000000 		.word	1
+ 343 0014 10000000 		.word	16
+ 344 0018 00000000 		.word	gcm_aes_info
+ 345              		.section	.rodata.str1.1
+ 346              	.LC2:
+ 347 0018 4145532D 		.ascii	"AES-128-GCM\000"
+ 347      3132382D 
+ 347      47434D00 
+ 348              		.section	.rodata.aes_128_gcm_info,"a"
+ 349              		.align	2
+ 352              	aes_128_gcm_info:
+ 353 0000 0E       		.byte	14
+ 354 0001 06       		.byte	6
+ 355 0002 0000     		.space	2
+ 356 0004 80000000 		.word	128
+ 357 0008 18000000 		.word	.LC2
+ 358 000c 0C000000 		.word	12
+ 359 0010 01000000 		.word	1
+ 360 0014 10000000 		.word	16
+ 361 0018 00000000 		.word	gcm_aes_info
+ 362              		.section	.rodata.gcm_aes_info,"a"
+ 363              		.align	2
+ 366              	gcm_aes_info:
+ 367 0000 02       		.byte	2
+ 368 0001 000000   		.space	3
+ 369 0004 00000000 		.word	0
+ 370 0008 00000000 		.word	gcm_aes_setkey_wrap
+ 371 000c 00000000 		.word	gcm_aes_setkey_wrap
+ 372 0010 00000000 		.word	gcm_ctx_alloc
+ 373 0014 00000000 		.word	gcm_ctx_free
+ 374              		.section	.rodata.str1.1
+ 375              	.LC3:
+ 376 0024 4145532D 		.ascii	"AES-256-ECB\000"
+ 376      3235362D 
+ 376      45434200 
+ 377              		.section	.rodata.aes_256_ecb_info,"a"
+ 378              		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 17
+
+
+ 381              	aes_256_ecb_info:
+ 382 0000 04       		.byte	4
+ 383 0001 01       		.byte	1
+ 384 0002 0000     		.space	2
+ 385 0004 00010000 		.word	256
+ 386 0008 24000000 		.word	.LC3
+ 387 000c 00000000 		.word	0
+ 388 0010 00000000 		.word	0
+ 389 0014 10000000 		.word	16
+ 390 0018 00000000 		.word	aes_info
+ 391              		.section	.rodata.str1.1
+ 392              	.LC4:
+ 393 0030 4145532D 		.ascii	"AES-192-ECB\000"
+ 393      3139322D 
+ 393      45434200 
+ 394              		.section	.rodata.aes_192_ecb_info,"a"
+ 395              		.align	2
+ 398              	aes_192_ecb_info:
+ 399 0000 03       		.byte	3
+ 400 0001 01       		.byte	1
+ 401 0002 0000     		.space	2
+ 402 0004 C0000000 		.word	192
+ 403 0008 30000000 		.word	.LC4
+ 404 000c 00000000 		.word	0
+ 405 0010 00000000 		.word	0
+ 406 0014 10000000 		.word	16
+ 407 0018 00000000 		.word	aes_info
+ 408              		.section	.rodata.str1.1
+ 409              	.LC5:
+ 410 003c 4145532D 		.ascii	"AES-128-ECB\000"
+ 410      3132382D 
+ 410      45434200 
+ 411              		.section	.rodata.aes_128_ecb_info,"a"
+ 412              		.align	2
+ 415              	aes_128_ecb_info:
+ 416 0000 02       		.byte	2
+ 417 0001 01       		.byte	1
+ 418 0002 0000     		.space	2
+ 419 0004 80000000 		.word	128
+ 420 0008 3C000000 		.word	.LC5
+ 421 000c 00000000 		.word	0
+ 422 0010 00000000 		.word	0
+ 423 0014 10000000 		.word	16
+ 424 0018 00000000 		.word	aes_info
+ 425              		.section	.rodata.aes_info,"a"
+ 426              		.align	2
+ 429              	aes_info:
+ 430 0000 02       		.byte	2
+ 431 0001 000000   		.space	3
+ 432 0004 00000000 		.word	aes_crypt_ecb_wrap
+ 433 0008 00000000 		.word	aes_setkey_enc_wrap
+ 434 000c 00000000 		.word	aes_setkey_dec_wrap
+ 435 0010 00000000 		.word	aes_ctx_alloc
+ 436 0014 00000000 		.word	aes_ctx_free
+ 437              		.text
+ 438              	.Letext0:
+ 439              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 18
+
+
+ 440              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 441              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 442              		.file 5 "Libs/mbedtls/include/mbedtls/cipher.h"
+ 443              		.file 6 "Libs/mbedtls/include/mbedtls/cipher_internal.h"
+ 444              		.file 7 "Libs/mbedtls/include/mbedtls/aes.h"
+ 445              		.file 8 "Libs/mbedtls/include/mbedtls/gcm.h"
+ 446              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdlib.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s 			page 19
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 cipher_wrap.c
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:20     .text.gcm_ctx_free:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:25     .text.gcm_ctx_free:00000000 gcm_ctx_free
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:61     .text.gcm_ctx_alloc:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:66     .text.gcm_ctx_alloc:00000000 gcm_ctx_alloc
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:101    .text.gcm_aes_setkey_wrap:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:106    .text.gcm_aes_setkey_wrap:00000000 gcm_aes_setkey_wrap
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:131    .text.aes_ctx_free:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:136    .text.aes_ctx_free:00000000 aes_ctx_free
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:172    .text.aes_ctx_alloc:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:177    .text.aes_ctx_alloc:00000000 aes_ctx_alloc
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:212    .text.aes_setkey_dec_wrap:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:217    .text.aes_setkey_dec_wrap:00000000 aes_setkey_dec_wrap
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:234    .text.aes_setkey_enc_wrap:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:239    .text.aes_setkey_enc_wrap:00000000 aes_setkey_enc_wrap
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:256    .text.aes_crypt_ecb_wrap:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:261    .text.aes_crypt_ecb_wrap:00000000 aes_crypt_ecb_wrap
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:282    .bss.mbedtls_cipher_supported:00000000 mbedtls_cipher_supported
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:279    .bss.mbedtls_cipher_supported:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:289    .rodata.mbedtls_cipher_definitions:00000000 mbedtls_cipher_definitions
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:286    .rodata.mbedtls_cipher_definitions:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:415    .rodata.aes_128_ecb_info:00000000 aes_128_ecb_info
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:398    .rodata.aes_192_ecb_info:00000000 aes_192_ecb_info
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:381    .rodata.aes_256_ecb_info:00000000 aes_256_ecb_info
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:352    .rodata.aes_128_gcm_info:00000000 aes_128_gcm_info
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:335    .rodata.aes_192_gcm_info:00000000 aes_192_gcm_info
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:318    .rodata.aes_256_gcm_info:00000000 aes_256_gcm_info
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:315    .rodata.aes_256_gcm_info:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:366    .rodata.gcm_aes_info:00000000 gcm_aes_info
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:332    .rodata.aes_192_gcm_info:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:349    .rodata.aes_128_gcm_info:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:363    .rodata.gcm_aes_info:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:378    .rodata.aes_256_ecb_info:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:429    .rodata.aes_info:00000000 aes_info
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:395    .rodata.aes_192_ecb_info:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:412    .rodata.aes_128_ecb_info:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFAnBBZ.s:426    .rodata.aes_info:00000000 $d
+
+UNDEFINED SYMBOLS
+mbedtls_gcm_free
+free
+calloc
+mbedtls_gcm_init
+mbedtls_gcm_setkey
+mbedtls_aes_free
+mbedtls_aes_init
+mbedtls_aes_setkey_dec
+mbedtls_aes_setkey_enc
+mbedtls_aes_crypt_ecb

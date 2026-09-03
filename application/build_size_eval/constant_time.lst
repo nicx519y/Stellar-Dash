@@ -1,0 +1,2032 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"constant_time.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/constant_time.c"
+  19              		.section	.text.mbedtls_ct_uchar_mask_of_range,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	mbedtls_ct_uchar_mask_of_range:
+  26              	.LVL0:
+  27              	.LFB6:
+   1:Libs/mbedtls/library/constant_time.c **** /**
+   2:Libs/mbedtls/library/constant_time.c ****  *  Constant-time functions
+   3:Libs/mbedtls/library/constant_time.c ****  *
+   4:Libs/mbedtls/library/constant_time.c ****  *  Copyright The Mbed TLS Contributors
+   5:Libs/mbedtls/library/constant_time.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   6:Libs/mbedtls/library/constant_time.c ****  */
+   7:Libs/mbedtls/library/constant_time.c **** 
+   8:Libs/mbedtls/library/constant_time.c **** /*
+   9:Libs/mbedtls/library/constant_time.c ****  * The following functions are implemented without using comparison operators, as those
+  10:Libs/mbedtls/library/constant_time.c ****  * might be translated to branches by some compilers on some platforms.
+  11:Libs/mbedtls/library/constant_time.c ****  */
+  12:Libs/mbedtls/library/constant_time.c **** 
+  13:Libs/mbedtls/library/constant_time.c **** #include "common.h"
+  14:Libs/mbedtls/library/constant_time.c **** #include "constant_time_internal.h"
+  15:Libs/mbedtls/library/constant_time.c **** #include "mbedtls/constant_time.h"
+  16:Libs/mbedtls/library/constant_time.c **** #include "mbedtls/error.h"
+  17:Libs/mbedtls/library/constant_time.c **** #include "mbedtls/platform_util.h"
+  18:Libs/mbedtls/library/constant_time.c **** 
+  19:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_BIGNUM_C)
+  20:Libs/mbedtls/library/constant_time.c **** #include "mbedtls/bignum.h"
+  21:Libs/mbedtls/library/constant_time.c **** #endif
+  22:Libs/mbedtls/library/constant_time.c **** 
+  23:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_SSL_TLS_C)
+  24:Libs/mbedtls/library/constant_time.c **** #include "mbedtls/ssl_internal.h"
+  25:Libs/mbedtls/library/constant_time.c **** #endif
+  26:Libs/mbedtls/library/constant_time.c **** 
+  27:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_RSA_C)
+  28:Libs/mbedtls/library/constant_time.c **** #include "mbedtls/rsa.h"
+  29:Libs/mbedtls/library/constant_time.c **** #endif
+  30:Libs/mbedtls/library/constant_time.c **** 
+  31:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_BASE64_C)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 2
+
+
+  32:Libs/mbedtls/library/constant_time.c **** #include "constant_time_invasive.h"
+  33:Libs/mbedtls/library/constant_time.c **** #endif
+  34:Libs/mbedtls/library/constant_time.c **** 
+  35:Libs/mbedtls/library/constant_time.c **** #include <string.h>
+  36:Libs/mbedtls/library/constant_time.c **** 
+  37:Libs/mbedtls/library/constant_time.c **** int mbedtls_ct_memcmp(const void *a,
+  38:Libs/mbedtls/library/constant_time.c ****                       const void *b,
+  39:Libs/mbedtls/library/constant_time.c ****                       size_t n)
+  40:Libs/mbedtls/library/constant_time.c **** {
+  41:Libs/mbedtls/library/constant_time.c ****     size_t i;
+  42:Libs/mbedtls/library/constant_time.c ****     volatile const unsigned char *A = (volatile const unsigned char *) a;
+  43:Libs/mbedtls/library/constant_time.c ****     volatile const unsigned char *B = (volatile const unsigned char *) b;
+  44:Libs/mbedtls/library/constant_time.c ****     volatile unsigned char diff = 0;
+  45:Libs/mbedtls/library/constant_time.c **** 
+  46:Libs/mbedtls/library/constant_time.c ****     for (i = 0; i < n; i++) {
+  47:Libs/mbedtls/library/constant_time.c ****         /* Read volatile data in order before computing diff.
+  48:Libs/mbedtls/library/constant_time.c ****          * This avoids IAR compiler warning:
+  49:Libs/mbedtls/library/constant_time.c ****          * 'the order of volatile accesses is undefined ..' */
+  50:Libs/mbedtls/library/constant_time.c ****         unsigned char x = A[i], y = B[i];
+  51:Libs/mbedtls/library/constant_time.c ****         diff |= x ^ y;
+  52:Libs/mbedtls/library/constant_time.c ****     }
+  53:Libs/mbedtls/library/constant_time.c **** 
+  54:Libs/mbedtls/library/constant_time.c ****     return (int) diff;
+  55:Libs/mbedtls/library/constant_time.c **** }
+  56:Libs/mbedtls/library/constant_time.c **** 
+  57:Libs/mbedtls/library/constant_time.c **** unsigned mbedtls_ct_uint_mask(unsigned value)
+  58:Libs/mbedtls/library/constant_time.c **** {
+  59:Libs/mbedtls/library/constant_time.c ****     /* MSVC has a warning about unary minus on unsigned, but this is
+  60:Libs/mbedtls/library/constant_time.c ****      * well-defined and precisely what we want to do here */
+  61:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+  62:Libs/mbedtls/library/constant_time.c **** #pragma warning( push )
+  63:Libs/mbedtls/library/constant_time.c **** #pragma warning( disable : 4146 )
+  64:Libs/mbedtls/library/constant_time.c **** #endif
+  65:Libs/mbedtls/library/constant_time.c ****     return -((value | -value) >> (sizeof(value) * 8 - 1));
+  66:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+  67:Libs/mbedtls/library/constant_time.c **** #pragma warning( pop )
+  68:Libs/mbedtls/library/constant_time.c **** #endif
+  69:Libs/mbedtls/library/constant_time.c **** }
+  70:Libs/mbedtls/library/constant_time.c **** 
+  71:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_SSL_SOME_MODES_USE_MAC) || defined(MBEDTLS_SSL_SOME_SUITES_USE_TLS_CBC) || \
+  72:Libs/mbedtls/library/constant_time.c ****     defined(MBEDTLS_NIST_KW_C) || defined(MBEDTLS_CIPHER_MODE_CBC)
+  73:Libs/mbedtls/library/constant_time.c **** 
+  74:Libs/mbedtls/library/constant_time.c **** size_t mbedtls_ct_size_mask(size_t value)
+  75:Libs/mbedtls/library/constant_time.c **** {
+  76:Libs/mbedtls/library/constant_time.c ****     /* MSVC has a warning about unary minus on unsigned integer types,
+  77:Libs/mbedtls/library/constant_time.c ****      * but this is well-defined and precisely what we want to do here. */
+  78:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+  79:Libs/mbedtls/library/constant_time.c **** #pragma warning( push )
+  80:Libs/mbedtls/library/constant_time.c **** #pragma warning( disable : 4146 )
+  81:Libs/mbedtls/library/constant_time.c **** #endif
+  82:Libs/mbedtls/library/constant_time.c ****     return -((value | -value) >> (sizeof(value) * 8 - 1));
+  83:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+  84:Libs/mbedtls/library/constant_time.c **** #pragma warning( pop )
+  85:Libs/mbedtls/library/constant_time.c **** #endif
+  86:Libs/mbedtls/library/constant_time.c **** }
+  87:Libs/mbedtls/library/constant_time.c **** 
+  88:Libs/mbedtls/library/constant_time.c **** #endif /* defined(MBEDTLS_SSL_SOME_MODES_USE_MAC) || defined(MBEDTLS_SSL_SOME_SUITES_USE_TLS_CBC) |
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 3
+
+
+  89:Libs/mbedtls/library/constant_time.c ****           defined(MBEDTLS_NIST_KW_C) || defined(MBEDTLS_CIPHER_MODE_CBC) */
+  90:Libs/mbedtls/library/constant_time.c **** 
+  91:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_BIGNUM_C)
+  92:Libs/mbedtls/library/constant_time.c **** 
+  93:Libs/mbedtls/library/constant_time.c **** mbedtls_mpi_uint mbedtls_ct_mpi_uint_mask(mbedtls_mpi_uint value)
+  94:Libs/mbedtls/library/constant_time.c **** {
+  95:Libs/mbedtls/library/constant_time.c ****     /* MSVC has a warning about unary minus on unsigned, but this is
+  96:Libs/mbedtls/library/constant_time.c ****      * well-defined and precisely what we want to do here */
+  97:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+  98:Libs/mbedtls/library/constant_time.c **** #pragma warning( push )
+  99:Libs/mbedtls/library/constant_time.c **** #pragma warning( disable : 4146 )
+ 100:Libs/mbedtls/library/constant_time.c **** #endif
+ 101:Libs/mbedtls/library/constant_time.c ****     return -((value | -value) >> (sizeof(value) * 8 - 1));
+ 102:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 103:Libs/mbedtls/library/constant_time.c **** #pragma warning( pop )
+ 104:Libs/mbedtls/library/constant_time.c **** #endif
+ 105:Libs/mbedtls/library/constant_time.c **** }
+ 106:Libs/mbedtls/library/constant_time.c **** 
+ 107:Libs/mbedtls/library/constant_time.c **** #endif /* MBEDTLS_BIGNUM_C */
+ 108:Libs/mbedtls/library/constant_time.c **** 
+ 109:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_SSL_SOME_SUITES_USE_TLS_CBC) || defined(MBEDTLS_NIST_KW_C) || \
+ 110:Libs/mbedtls/library/constant_time.c ****     defined(MBEDTLS_CIPHER_MODE_CBC)
+ 111:Libs/mbedtls/library/constant_time.c **** 
+ 112:Libs/mbedtls/library/constant_time.c **** /** Constant-flow mask generation for "less than" comparison:
+ 113:Libs/mbedtls/library/constant_time.c ****  * - if \p x < \p y, return all-bits 1, that is (size_t) -1
+ 114:Libs/mbedtls/library/constant_time.c ****  * - otherwise, return all bits 0, that is 0
+ 115:Libs/mbedtls/library/constant_time.c ****  *
+ 116:Libs/mbedtls/library/constant_time.c ****  * This function can be used to write constant-time code by replacing branches
+ 117:Libs/mbedtls/library/constant_time.c ****  * with bit operations using masks.
+ 118:Libs/mbedtls/library/constant_time.c ****  *
+ 119:Libs/mbedtls/library/constant_time.c ****  * \param x     The first value to analyze.
+ 120:Libs/mbedtls/library/constant_time.c ****  * \param y     The second value to analyze.
+ 121:Libs/mbedtls/library/constant_time.c ****  *
+ 122:Libs/mbedtls/library/constant_time.c ****  * \return      All-bits-one if \p x is less than \p y, otherwise zero.
+ 123:Libs/mbedtls/library/constant_time.c ****  */
+ 124:Libs/mbedtls/library/constant_time.c **** static size_t mbedtls_ct_size_mask_lt(size_t x,
+ 125:Libs/mbedtls/library/constant_time.c ****                                       size_t y)
+ 126:Libs/mbedtls/library/constant_time.c **** {
+ 127:Libs/mbedtls/library/constant_time.c ****     /* This has the most significant bit set if and only if x < y */
+ 128:Libs/mbedtls/library/constant_time.c ****     const size_t sub = x - y;
+ 129:Libs/mbedtls/library/constant_time.c **** 
+ 130:Libs/mbedtls/library/constant_time.c ****     /* sub1 = (x < y) ? 1 : 0 */
+ 131:Libs/mbedtls/library/constant_time.c ****     const size_t sub1 = sub >> (sizeof(sub) * 8 - 1);
+ 132:Libs/mbedtls/library/constant_time.c **** 
+ 133:Libs/mbedtls/library/constant_time.c ****     /* mask = (x < y) ? 0xff... : 0x00... */
+ 134:Libs/mbedtls/library/constant_time.c ****     const size_t mask = mbedtls_ct_size_mask(sub1);
+ 135:Libs/mbedtls/library/constant_time.c **** 
+ 136:Libs/mbedtls/library/constant_time.c ****     return mask;
+ 137:Libs/mbedtls/library/constant_time.c **** }
+ 138:Libs/mbedtls/library/constant_time.c **** 
+ 139:Libs/mbedtls/library/constant_time.c **** size_t mbedtls_ct_size_mask_ge(size_t x,
+ 140:Libs/mbedtls/library/constant_time.c ****                                size_t y)
+ 141:Libs/mbedtls/library/constant_time.c **** {
+ 142:Libs/mbedtls/library/constant_time.c ****     return ~mbedtls_ct_size_mask_lt(x, y);
+ 143:Libs/mbedtls/library/constant_time.c **** }
+ 144:Libs/mbedtls/library/constant_time.c **** 
+ 145:Libs/mbedtls/library/constant_time.c **** #endif /* defined(MBEDTLS_SSL_SOME_SUITES_USE_TLS_CBC) || defined(MBEDTLS_NIST_KW_C) ||
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 4
+
+
+ 146:Libs/mbedtls/library/constant_time.c ****           defined(MBEDTLS_CIPHER_MODE_CBC) */
+ 147:Libs/mbedtls/library/constant_time.c **** 
+ 148:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_BASE64_C)
+ 149:Libs/mbedtls/library/constant_time.c **** 
+ 150:Libs/mbedtls/library/constant_time.c **** /* Return 0xff if low <= c <= high, 0 otherwise.
+ 151:Libs/mbedtls/library/constant_time.c ****  *
+ 152:Libs/mbedtls/library/constant_time.c ****  * Constant flow with respect to c.
+ 153:Libs/mbedtls/library/constant_time.c ****  */
+ 154:Libs/mbedtls/library/constant_time.c **** MBEDTLS_STATIC_TESTABLE
+ 155:Libs/mbedtls/library/constant_time.c **** unsigned char mbedtls_ct_uchar_mask_of_range(unsigned char low,
+ 156:Libs/mbedtls/library/constant_time.c ****                                              unsigned char high,
+ 157:Libs/mbedtls/library/constant_time.c ****                                              unsigned char c)
+ 158:Libs/mbedtls/library/constant_time.c **** {
+  28              		.loc 1 158 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+ 159:Libs/mbedtls/library/constant_time.c ****     /* low_mask is: 0 if low <= c, 0x...ff if low > c */
+ 160:Libs/mbedtls/library/constant_time.c ****     unsigned low_mask = ((unsigned) c - low) >> 8;
+  33              		.loc 1 160 5 view .LVU1
+ 161:Libs/mbedtls/library/constant_time.c ****     /* high_mask is: 0 if c <= high, 0x...ff if c > high */
+ 162:Libs/mbedtls/library/constant_time.c ****     unsigned high_mask = ((unsigned) high - c) >> 8;
+  34              		.loc 1 162 5 view .LVU2
+ 163:Libs/mbedtls/library/constant_time.c ****     return ~(low_mask | high_mask) & 0xff;
+  35              		.loc 1 163 5 view .LVU3
+ 160:Libs/mbedtls/library/constant_time.c ****     /* high_mask is: 0 if c <= high, 0x...ff if c > high */
+  36              		.loc 1 160 39 is_stmt 0 view .LVU4
+  37 0000 131A     		subs	r3, r2, r0
+ 162:Libs/mbedtls/library/constant_time.c ****     return ~(low_mask | high_mask) & 0xff;
+  38              		.loc 1 162 43 view .LVU5
+  39 0002 881A     		subs	r0, r1, r2
+  40              	.LVL1:
+ 162:Libs/mbedtls/library/constant_time.c ****     return ~(low_mask | high_mask) & 0xff;
+  41              		.loc 1 162 14 view .LVU6
+  42 0004 000A     		lsrs	r0, r0, #8
+  43              	.LVL2:
+  44              		.loc 1 163 23 view .LVU7
+  45 0006 40EA1320 		orr	r0, r0, r3, lsr #8
+  46              	.LVL3:
+  47              		.loc 1 163 36 view .LVU8
+  48 000a C043     		mvns	r0, r0
+ 164:Libs/mbedtls/library/constant_time.c **** }
+  49              		.loc 1 164 1 view .LVU9
+  50 000c C0B2     		uxtb	r0, r0
+  51 000e 7047     		bx	lr
+  52              		.cfi_endproc
+  53              	.LFE6:
+  55              		.section	.text.mbedtls_ct_memcmp,"ax",%progbits
+  56              		.align	1
+  57              		.global	mbedtls_ct_memcmp
+  58              		.syntax unified
+  59              		.thumb
+  60              		.thumb_func
+  62              	mbedtls_ct_memcmp:
+  63              	.LVL4:
+  64              	.LFB3:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 5
+
+
+  40:Libs/mbedtls/library/constant_time.c ****     size_t i;
+  65              		.loc 1 40 1 is_stmt 1 view -0
+  66              		.cfi_startproc
+  67              		@ args = 0, pretend = 0, frame = 8
+  68              		@ frame_needed = 0, uses_anonymous_args = 0
+  41:Libs/mbedtls/library/constant_time.c ****     volatile const unsigned char *A = (volatile const unsigned char *) a;
+  69              		.loc 1 41 5 view .LVU11
+  42:Libs/mbedtls/library/constant_time.c ****     volatile const unsigned char *B = (volatile const unsigned char *) b;
+  70              		.loc 1 42 5 view .LVU12
+  43:Libs/mbedtls/library/constant_time.c ****     volatile unsigned char diff = 0;
+  71              		.loc 1 43 5 view .LVU13
+  44:Libs/mbedtls/library/constant_time.c **** 
+  72              		.loc 1 44 5 view .LVU14
+  44:Libs/mbedtls/library/constant_time.c **** 
+  73              		.loc 1 44 28 is_stmt 0 view .LVU15
+  74 0000 0023     		movs	r3, #0
+  40:Libs/mbedtls/library/constant_time.c ****     size_t i;
+  75              		.loc 1 40 1 view .LVU16
+  76 0002 73B5     		push	{r0, r1, r4, r5, r6, lr}
+  77              	.LCFI0:
+  78              		.cfi_def_cfa_offset 24
+  79              		.cfi_offset 4, -16
+  80              		.cfi_offset 5, -12
+  81              		.cfi_offset 6, -8
+  82              		.cfi_offset 14, -4
+  44:Libs/mbedtls/library/constant_time.c **** 
+  83              		.loc 1 44 28 view .LVU17
+  84 0004 8DF80730 		strb	r3, [sp, #7]
+  46:Libs/mbedtls/library/constant_time.c ****         /* Read volatile data in order before computing diff.
+  85              		.loc 1 46 5 is_stmt 1 view .LVU18
+  86              	.LVL5:
+  87              	.L3:
+  46:Libs/mbedtls/library/constant_time.c ****         /* Read volatile data in order before computing diff.
+  88              		.loc 1 46 19 discriminator 1 view .LVU19
+  89 0008 9342     		cmp	r3, r2
+  90 000a 03D1     		bne	.L4
+  54:Libs/mbedtls/library/constant_time.c **** }
+  91              		.loc 1 54 5 view .LVU20
+  54:Libs/mbedtls/library/constant_time.c **** }
+  92              		.loc 1 54 12 is_stmt 0 view .LVU21
+  93 000c 9DF80700 		ldrb	r0, [sp, #7]	@ zero_extendqisi2
+  94              	.LVL6:
+  55:Libs/mbedtls/library/constant_time.c **** 
+  95              		.loc 1 55 1 view .LVU22
+  96 0010 02B0     		add	sp, sp, #8
+  97              	.LCFI1:
+  98              		.cfi_remember_state
+  99              		.cfi_def_cfa_offset 16
+ 100              		@ sp needed
+ 101 0012 70BD     		pop	{r4, r5, r6, pc}
+ 102              	.LVL7:
+ 103              	.L4:
+ 104              	.LCFI2:
+ 105              		.cfi_restore_state
+ 106              	.LBB8:
+  50:Libs/mbedtls/library/constant_time.c ****         diff |= x ^ y;
+ 107              		.loc 1 50 9 is_stmt 1 view .LVU23
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 6
+
+
+  50:Libs/mbedtls/library/constant_time.c ****         diff |= x ^ y;
+ 108              		.loc 1 50 23 is_stmt 0 view .LVU24
+ 109 0014 C55C     		ldrb	r5, [r0, r3]	@ zero_extendqisi2
+ 110              	.LVL8:
+  50:Libs/mbedtls/library/constant_time.c ****         diff |= x ^ y;
+ 111              		.loc 1 50 33 view .LVU25
+ 112 0016 CE5C     		ldrb	r6, [r1, r3]	@ zero_extendqisi2
+ 113              	.LVL9:
+  51:Libs/mbedtls/library/constant_time.c ****     }
+ 114              		.loc 1 51 9 is_stmt 1 view .LVU26
+ 115              	.LBE8:
+  46:Libs/mbedtls/library/constant_time.c ****         /* Read volatile data in order before computing diff.
+ 116              		.loc 1 46 25 is_stmt 0 discriminator 3 view .LVU27
+ 117 0018 0133     		adds	r3, r3, #1
+ 118              	.LVL10:
+ 119              	.LBB9:
+  51:Libs/mbedtls/library/constant_time.c ****     }
+ 120              		.loc 1 51 14 view .LVU28
+ 121 001a 9DF80740 		ldrb	r4, [sp, #7]	@ zero_extendqisi2
+ 122 001e 7540     		eors	r5, r5, r6
+ 123              	.LVL11:
+  51:Libs/mbedtls/library/constant_time.c ****     }
+ 124              		.loc 1 51 14 view .LVU29
+ 125 0020 2C43     		orrs	r4, r4, r5
+ 126 0022 8DF80740 		strb	r4, [sp, #7]
+ 127              	.LBE9:
+  46:Libs/mbedtls/library/constant_time.c ****         /* Read volatile data in order before computing diff.
+ 128              		.loc 1 46 25 is_stmt 1 discriminator 3 view .LVU30
+ 129              	.LVL12:
+  46:Libs/mbedtls/library/constant_time.c ****         /* Read volatile data in order before computing diff.
+ 130              		.loc 1 46 25 is_stmt 0 discriminator 3 view .LVU31
+ 131 0026 EFE7     		b	.L3
+ 132              		.cfi_endproc
+ 133              	.LFE3:
+ 135              		.section	.text.mbedtls_ct_uint_mask,"ax",%progbits
+ 136              		.align	1
+ 137              		.global	mbedtls_ct_uint_mask
+ 138              		.syntax unified
+ 139              		.thumb
+ 140              		.thumb_func
+ 142              	mbedtls_ct_uint_mask:
+ 143              	.LVL13:
+ 144              	.LFB4:
+  58:Libs/mbedtls/library/constant_time.c ****     /* MSVC has a warning about unary minus on unsigned, but this is
+ 145              		.loc 1 58 1 is_stmt 1 view -0
+ 146              		.cfi_startproc
+ 147              		@ args = 0, pretend = 0, frame = 0
+ 148              		@ frame_needed = 0, uses_anonymous_args = 0
+ 149              		@ link register save eliminated.
+  65:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 150              		.loc 1 65 5 view .LVU33
+  65:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 151              		.loc 1 65 23 is_stmt 0 view .LVU34
+ 152 0000 4342     		rsbs	r3, r0, #0
+  65:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 153              		.loc 1 65 21 view .LVU35
+ 154 0002 1843     		orrs	r0, r0, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 7
+
+
+ 155              	.LVL14:
+  69:Libs/mbedtls/library/constant_time.c **** 
+ 156              		.loc 1 69 1 view .LVU36
+ 157 0004 C017     		asrs	r0, r0, #31
+ 158 0006 7047     		bx	lr
+ 159              		.cfi_endproc
+ 160              	.LFE4:
+ 162              		.section	.text.mbedtls_ct_mpi_uint_mask,"ax",%progbits
+ 163              		.align	1
+ 164              		.global	mbedtls_ct_mpi_uint_mask
+ 165              		.syntax unified
+ 166              		.thumb
+ 167              		.thumb_func
+ 169              	mbedtls_ct_mpi_uint_mask:
+ 170              	.LFB17:
+ 171              		.cfi_startproc
+  93:Libs/mbedtls/library/constant_time.c **** {
+ 172              		.loc 1 93 18 is_stmt 1 view -0
+ 173              		@ args = 0, pretend = 0, frame = 0
+ 174              		@ frame_needed = 0, uses_anonymous_args = 0
+ 175              		@ link register save eliminated.
+ 176 0000 4342     		rsbs	r3, r0, #0
+ 177 0002 1843     		orrs	r0, r0, r3
+ 178 0004 C017     		asrs	r0, r0, #31
+ 179 0006 7047     		bx	lr
+ 180              		.cfi_endproc
+ 181              	.LFE17:
+ 183              		.section	.text.mbedtls_ct_size_bool_eq,"ax",%progbits
+ 184              		.align	1
+ 185              		.global	mbedtls_ct_size_bool_eq
+ 186              		.syntax unified
+ 187              		.thumb
+ 188              		.thumb_func
+ 190              	mbedtls_ct_size_bool_eq:
+ 191              	.LVL15:
+ 192              	.LFB7:
+ 165:Libs/mbedtls/library/constant_time.c **** 
+ 166:Libs/mbedtls/library/constant_time.c **** #endif /* MBEDTLS_BASE64_C */
+ 167:Libs/mbedtls/library/constant_time.c **** 
+ 168:Libs/mbedtls/library/constant_time.c **** unsigned mbedtls_ct_size_bool_eq(size_t x,
+ 169:Libs/mbedtls/library/constant_time.c ****                                  size_t y)
+ 170:Libs/mbedtls/library/constant_time.c **** {
+ 193              		.loc 1 170 1 view -0
+ 194              		.cfi_startproc
+ 195              		@ args = 0, pretend = 0, frame = 0
+ 196              		@ frame_needed = 0, uses_anonymous_args = 0
+ 197              		@ link register save eliminated.
+ 171:Libs/mbedtls/library/constant_time.c ****     /* diff = 0 if x == y, non-zero otherwise */
+ 172:Libs/mbedtls/library/constant_time.c ****     const size_t diff = x ^ y;
+ 198              		.loc 1 172 5 view .LVU39
+ 199              		.loc 1 172 18 is_stmt 0 view .LVU40
+ 200 0000 4140     		eors	r1, r1, r0
+ 201              	.LVL16:
+ 173:Libs/mbedtls/library/constant_time.c **** 
+ 174:Libs/mbedtls/library/constant_time.c ****     /* MSVC has a warning about unary minus on unsigned integer types,
+ 175:Libs/mbedtls/library/constant_time.c ****      * but this is well-defined and precisely what we want to do here. */
+ 176:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 8
+
+
+ 177:Libs/mbedtls/library/constant_time.c **** #pragma warning( push )
+ 178:Libs/mbedtls/library/constant_time.c **** #pragma warning( disable : 4146 )
+ 179:Libs/mbedtls/library/constant_time.c **** #endif
+ 180:Libs/mbedtls/library/constant_time.c **** 
+ 181:Libs/mbedtls/library/constant_time.c ****     /* diff_msb's most significant bit is equal to x != y */
+ 182:Libs/mbedtls/library/constant_time.c ****     const size_t diff_msb = (diff | (size_t) -diff);
+ 202              		.loc 1 182 5 is_stmt 1 view .LVU41
+ 183:Libs/mbedtls/library/constant_time.c **** 
+ 184:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 185:Libs/mbedtls/library/constant_time.c **** #pragma warning( pop )
+ 186:Libs/mbedtls/library/constant_time.c **** #endif
+ 187:Libs/mbedtls/library/constant_time.c **** 
+ 188:Libs/mbedtls/library/constant_time.c ****     /* diff1 = (x != y) ? 1 : 0 */
+ 189:Libs/mbedtls/library/constant_time.c ****     const unsigned diff1 = diff_msb >> (sizeof(diff_msb) * 8 - 1);
+ 203              		.loc 1 189 5 view .LVU42
+ 190:Libs/mbedtls/library/constant_time.c **** 
+ 191:Libs/mbedtls/library/constant_time.c ****     return 1 ^ diff1;
+ 204              		.loc 1 191 5 view .LVU43
+ 182:Libs/mbedtls/library/constant_time.c **** 
+ 205              		.loc 1 182 46 is_stmt 0 view .LVU44
+ 206 0002 4842     		rsbs	r0, r1, #0
+ 207              	.LVL17:
+ 182:Libs/mbedtls/library/constant_time.c **** 
+ 208              		.loc 1 182 18 view .LVU45
+ 209 0004 0843     		orrs	r0, r0, r1
+ 210              	.LVL18:
+ 192:Libs/mbedtls/library/constant_time.c **** }
+ 211              		.loc 1 192 1 view .LVU46
+ 212 0006 C043     		mvns	r0, r0
+ 213              	.LVL19:
+ 214              		.loc 1 192 1 view .LVU47
+ 215 0008 C00F     		lsrs	r0, r0, #31
+ 216              	.LVL20:
+ 217              		.loc 1 192 1 view .LVU48
+ 218 000a 7047     		bx	lr
+ 219              		.cfi_endproc
+ 220              	.LFE7:
+ 222              		.section	.text.mbedtls_ct_mpi_uint_lt,"ax",%progbits
+ 223              		.align	1
+ 224              		.global	mbedtls_ct_mpi_uint_lt
+ 225              		.syntax unified
+ 226              		.thumb
+ 227              		.thumb_func
+ 229              	mbedtls_ct_mpi_uint_lt:
+ 230              	.LVL21:
+ 231              	.LFB8:
+ 193:Libs/mbedtls/library/constant_time.c **** 
+ 194:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_PKCS1_V15) && defined(MBEDTLS_RSA_C) && !defined(MBEDTLS_RSA_ALT)
+ 195:Libs/mbedtls/library/constant_time.c **** 
+ 196:Libs/mbedtls/library/constant_time.c **** /** Constant-flow "greater than" comparison:
+ 197:Libs/mbedtls/library/constant_time.c ****  * return x > y
+ 198:Libs/mbedtls/library/constant_time.c ****  *
+ 199:Libs/mbedtls/library/constant_time.c ****  * This is equivalent to \p x > \p y, but is likely to be compiled
+ 200:Libs/mbedtls/library/constant_time.c ****  * to code using bitwise operation rather than a branch.
+ 201:Libs/mbedtls/library/constant_time.c ****  *
+ 202:Libs/mbedtls/library/constant_time.c ****  * \param x     The first value to analyze.
+ 203:Libs/mbedtls/library/constant_time.c ****  * \param y     The second value to analyze.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 9
+
+
+ 204:Libs/mbedtls/library/constant_time.c ****  *
+ 205:Libs/mbedtls/library/constant_time.c ****  * \return      1 if \p x greater than \p y, otherwise 0.
+ 206:Libs/mbedtls/library/constant_time.c ****  */
+ 207:Libs/mbedtls/library/constant_time.c **** static unsigned mbedtls_ct_size_gt(size_t x,
+ 208:Libs/mbedtls/library/constant_time.c ****                                    size_t y)
+ 209:Libs/mbedtls/library/constant_time.c **** {
+ 210:Libs/mbedtls/library/constant_time.c ****     /* Return the sign bit (1 for negative) of (y - x). */
+ 211:Libs/mbedtls/library/constant_time.c ****     return (y - x) >> (sizeof(size_t) * 8 - 1);
+ 212:Libs/mbedtls/library/constant_time.c **** }
+ 213:Libs/mbedtls/library/constant_time.c **** 
+ 214:Libs/mbedtls/library/constant_time.c **** #endif /* MBEDTLS_PKCS1_V15 && MBEDTLS_RSA_C && ! MBEDTLS_RSA_ALT */
+ 215:Libs/mbedtls/library/constant_time.c **** 
+ 216:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_BIGNUM_C)
+ 217:Libs/mbedtls/library/constant_time.c **** 
+ 218:Libs/mbedtls/library/constant_time.c **** unsigned mbedtls_ct_mpi_uint_lt(const mbedtls_mpi_uint x,
+ 219:Libs/mbedtls/library/constant_time.c ****                                 const mbedtls_mpi_uint y)
+ 220:Libs/mbedtls/library/constant_time.c **** {
+ 232              		.loc 1 220 1 is_stmt 1 view -0
+ 233              		.cfi_startproc
+ 234              		@ args = 0, pretend = 0, frame = 0
+ 235              		@ frame_needed = 0, uses_anonymous_args = 0
+ 236              		@ link register save eliminated.
+ 221:Libs/mbedtls/library/constant_time.c ****     mbedtls_mpi_uint ret;
+ 237              		.loc 1 221 5 view .LVU50
+ 222:Libs/mbedtls/library/constant_time.c ****     mbedtls_mpi_uint cond;
+ 238              		.loc 1 222 5 view .LVU51
+ 223:Libs/mbedtls/library/constant_time.c **** 
+ 224:Libs/mbedtls/library/constant_time.c ****     /*
+ 225:Libs/mbedtls/library/constant_time.c ****      * Check if the most significant bits (MSB) of the operands are different.
+ 226:Libs/mbedtls/library/constant_time.c ****      */
+ 227:Libs/mbedtls/library/constant_time.c ****     cond = (x ^ y);
+ 239              		.loc 1 227 5 view .LVU52
+ 228:Libs/mbedtls/library/constant_time.c ****     /*
+ 229:Libs/mbedtls/library/constant_time.c ****      * If the MSB are the same then the difference x-y will be negative (and
+ 230:Libs/mbedtls/library/constant_time.c ****      * have its MSB set to 1 during conversion to unsigned) if and only if x<y.
+ 231:Libs/mbedtls/library/constant_time.c ****      */
+ 232:Libs/mbedtls/library/constant_time.c ****     ret = (x - y) & ~cond;
+ 240              		.loc 1 232 5 view .LVU53
+ 241              		.loc 1 232 14 is_stmt 0 view .LVU54
+ 242 0000 431A     		subs	r3, r0, r1
+ 243              	.LVL22:
+ 233:Libs/mbedtls/library/constant_time.c ****     /*
+ 234:Libs/mbedtls/library/constant_time.c ****      * If the MSB are different, then the operand with the MSB of 1 is the
+ 235:Libs/mbedtls/library/constant_time.c ****      * bigger. (That is if y has MSB of 1, then x<y is true and it is false if
+ 236:Libs/mbedtls/library/constant_time.c ****      * the MSB of y is 0.)
+ 237:Libs/mbedtls/library/constant_time.c ****      */
+ 238:Libs/mbedtls/library/constant_time.c ****     ret |= y & cond;
+ 244              		.loc 1 238 5 is_stmt 1 view .LVU55
+ 227:Libs/mbedtls/library/constant_time.c ****     /*
+ 245              		.loc 1 227 10 is_stmt 0 view .LVU56
+ 246 0002 4840     		eors	r0, r0, r1
+ 247              	.LVL23:
+ 248              		.loc 1 238 9 view .LVU57
+ 249 0004 5940     		eors	r1, r1, r3
+ 250              	.LVL24:
+ 251              		.loc 1 238 9 view .LVU58
+ 252 0006 0840     		ands	r0, r0, r1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 10
+
+
+ 253              	.LVL25:
+ 254              		.loc 1 238 9 view .LVU59
+ 255 0008 5840     		eors	r0, r0, r3
+ 256              	.LVL26:
+ 239:Libs/mbedtls/library/constant_time.c **** 
+ 240:Libs/mbedtls/library/constant_time.c **** 
+ 241:Libs/mbedtls/library/constant_time.c ****     ret = ret >> (sizeof(mbedtls_mpi_uint) * 8 - 1);
+ 257              		.loc 1 241 5 is_stmt 1 view .LVU60
+ 242:Libs/mbedtls/library/constant_time.c **** 
+ 243:Libs/mbedtls/library/constant_time.c ****     return (unsigned) ret;
+ 258              		.loc 1 243 5 view .LVU61
+ 244:Libs/mbedtls/library/constant_time.c **** }
+ 259              		.loc 1 244 1 is_stmt 0 view .LVU62
+ 260 000a C00F     		lsrs	r0, r0, #31
+ 261              	.LVL27:
+ 262              		.loc 1 244 1 view .LVU63
+ 263 000c 7047     		bx	lr
+ 264              		.cfi_endproc
+ 265              	.LFE8:
+ 267              		.section	.text.mbedtls_ct_uint_if,"ax",%progbits
+ 268              		.align	1
+ 269              		.global	mbedtls_ct_uint_if
+ 270              		.syntax unified
+ 271              		.thumb
+ 272              		.thumb_func
+ 274              	mbedtls_ct_uint_if:
+ 275              	.LVL28:
+ 276              	.LFB9:
+ 245:Libs/mbedtls/library/constant_time.c **** 
+ 246:Libs/mbedtls/library/constant_time.c **** #endif /* MBEDTLS_BIGNUM_C */
+ 247:Libs/mbedtls/library/constant_time.c **** 
+ 248:Libs/mbedtls/library/constant_time.c **** unsigned mbedtls_ct_uint_if(unsigned condition,
+ 249:Libs/mbedtls/library/constant_time.c ****                             unsigned if1,
+ 250:Libs/mbedtls/library/constant_time.c ****                             unsigned if0)
+ 251:Libs/mbedtls/library/constant_time.c **** {
+ 277              		.loc 1 251 1 is_stmt 1 view -0
+ 278              		.cfi_startproc
+ 279              		@ args = 0, pretend = 0, frame = 0
+ 280              		@ frame_needed = 0, uses_anonymous_args = 0
+ 281              		@ link register save eliminated.
+ 252:Libs/mbedtls/library/constant_time.c ****     unsigned mask = mbedtls_ct_uint_mask(condition);
+ 282              		.loc 1 252 5 view .LVU65
+ 283              	.LBB10:
+ 284              	.LBI10:
+  57:Libs/mbedtls/library/constant_time.c **** {
+ 285              		.loc 1 57 10 view .LVU66
+ 286              	.LBB11:
+  65:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 287              		.loc 1 65 5 view .LVU67
+  65:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 288              		.loc 1 65 5 is_stmt 0 view .LVU68
+ 289              	.LBE11:
+ 290              	.LBE10:
+ 253:Libs/mbedtls/library/constant_time.c ****     return (mask & if1) | (~mask & if0);
+ 291              		.loc 1 253 5 is_stmt 1 view .LVU69
+ 292              	.LBB14:
+ 293              	.LBB12:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 11
+
+
+  65:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 294              		.loc 1 65 23 is_stmt 0 view .LVU70
+ 295 0000 4342     		rsbs	r3, r0, #0
+ 296              	.LBE12:
+ 297              	.LBE14:
+ 298              		.loc 1 253 25 view .LVU71
+ 299 0002 5140     		eors	r1, r1, r2
+ 300              	.LVL29:
+ 301              	.LBB15:
+ 302              	.LBB13:
+  65:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 303              		.loc 1 65 21 view .LVU72
+ 304 0004 0343     		orrs	r3, r3, r0
+ 305              	.LBE13:
+ 306              	.LBE15:
+ 307              		.loc 1 253 25 view .LVU73
+ 308 0006 01EAE371 		and	r1, r1, r3, asr #31
+ 254:Libs/mbedtls/library/constant_time.c **** }
+ 309              		.loc 1 254 1 view .LVU74
+ 310 000a 81EA0200 		eor	r0, r1, r2
+ 311              	.LVL30:
+ 312              		.loc 1 254 1 view .LVU75
+ 313 000e 7047     		bx	lr
+ 314              		.cfi_endproc
+ 315              	.LFE9:
+ 317              		.section	.text.mbedtls_ct_mpi_uint_cond_assign,"ax",%progbits
+ 318              		.align	1
+ 319              		.global	mbedtls_ct_mpi_uint_cond_assign
+ 320              		.syntax unified
+ 321              		.thumb
+ 322              		.thumb_func
+ 324              	mbedtls_ct_mpi_uint_cond_assign:
+ 325              	.LVL31:
+ 326              	.LFB10:
+ 255:Libs/mbedtls/library/constant_time.c **** 
+ 256:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_BIGNUM_C)
+ 257:Libs/mbedtls/library/constant_time.c **** 
+ 258:Libs/mbedtls/library/constant_time.c **** void mbedtls_ct_mpi_uint_cond_assign(size_t n,
+ 259:Libs/mbedtls/library/constant_time.c ****                                      mbedtls_mpi_uint *dest,
+ 260:Libs/mbedtls/library/constant_time.c ****                                      const mbedtls_mpi_uint *src,
+ 261:Libs/mbedtls/library/constant_time.c ****                                      unsigned char condition)
+ 262:Libs/mbedtls/library/constant_time.c **** {
+ 327              		.loc 1 262 1 is_stmt 1 view -0
+ 328              		.cfi_startproc
+ 329              		@ args = 0, pretend = 0, frame = 0
+ 330              		@ frame_needed = 0, uses_anonymous_args = 0
+ 263:Libs/mbedtls/library/constant_time.c ****     size_t i;
+ 331              		.loc 1 263 5 view .LVU77
+ 264:Libs/mbedtls/library/constant_time.c **** 
+ 265:Libs/mbedtls/library/constant_time.c ****     /* MSVC has a warning about unary minus on unsigned integer types,
+ 266:Libs/mbedtls/library/constant_time.c ****      * but this is well-defined and precisely what we want to do here. */
+ 267:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 268:Libs/mbedtls/library/constant_time.c **** #pragma warning( push )
+ 269:Libs/mbedtls/library/constant_time.c **** #pragma warning( disable : 4146 )
+ 270:Libs/mbedtls/library/constant_time.c **** #endif
+ 271:Libs/mbedtls/library/constant_time.c **** 
+ 272:Libs/mbedtls/library/constant_time.c ****     /* all-bits 1 if condition is 1, all-bits 0 if condition is 0 */
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 12
+
+
+ 273:Libs/mbedtls/library/constant_time.c ****     const mbedtls_mpi_uint mask = -condition;
+ 332              		.loc 1 273 5 view .LVU78
+ 262:Libs/mbedtls/library/constant_time.c ****     size_t i;
+ 333              		.loc 1 262 1 is_stmt 0 view .LVU79
+ 334 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 335              	.LCFI3:
+ 336              		.cfi_def_cfa_offset 20
+ 337              		.cfi_offset 4, -20
+ 338              		.cfi_offset 5, -16
+ 339              		.cfi_offset 6, -12
+ 340              		.cfi_offset 7, -8
+ 341              		.cfi_offset 14, -4
+ 342 0002 0439     		subs	r1, r1, #4
+ 343              	.LVL32:
+ 344              		.loc 1 273 35 view .LVU80
+ 345 0004 5F42     		rsbs	r7, r3, #0
+ 346              	.LVL33:
+ 274:Libs/mbedtls/library/constant_time.c **** 
+ 275:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 276:Libs/mbedtls/library/constant_time.c **** #pragma warning( pop )
+ 277:Libs/mbedtls/library/constant_time.c **** #endif
+ 278:Libs/mbedtls/library/constant_time.c **** 
+ 279:Libs/mbedtls/library/constant_time.c ****     for (i = 0; i < n; i++) {
+ 347              		.loc 1 279 5 is_stmt 1 view .LVU81
+ 348              		.loc 1 279 12 is_stmt 0 view .LVU82
+ 349 0006 0025     		movs	r5, #0
+ 280:Libs/mbedtls/library/constant_time.c ****         dest[i] = (src[i] & mask) | (dest[i] & ~mask);
+ 350              		.loc 1 280 48 view .LVU83
+ 351 0008 013B     		subs	r3, r3, #1
+ 352              	.LVL34:
+ 353              	.L11:
+ 279:Libs/mbedtls/library/constant_time.c ****         dest[i] = (src[i] & mask) | (dest[i] & ~mask);
+ 354              		.loc 1 279 19 is_stmt 1 discriminator 1 view .LVU84
+ 355 000a 8542     		cmp	r5, r0
+ 356 000c 00D1     		bne	.L12
+ 281:Libs/mbedtls/library/constant_time.c ****     }
+ 282:Libs/mbedtls/library/constant_time.c **** }
+ 357              		.loc 1 282 1 is_stmt 0 view .LVU85
+ 358 000e F0BD     		pop	{r4, r5, r6, r7, pc}
+ 359              	.LVL35:
+ 360              	.L12:
+ 280:Libs/mbedtls/library/constant_time.c ****     }
+ 361              		.loc 1 280 9 is_stmt 1 view .LVU86
+ 280:Libs/mbedtls/library/constant_time.c ****     }
+ 362              		.loc 1 280 27 is_stmt 0 view .LVU87
+ 363 0010 52F82560 		ldr	r6, [r2, r5, lsl #2]
+ 279:Libs/mbedtls/library/constant_time.c ****         dest[i] = (src[i] & mask) | (dest[i] & ~mask);
+ 364              		.loc 1 279 25 discriminator 3 view .LVU88
+ 365 0014 0135     		adds	r5, r5, #1
+ 366              	.LVL36:
+ 280:Libs/mbedtls/library/constant_time.c ****     }
+ 367              		.loc 1 280 46 view .LVU89
+ 368 0016 51F8044F 		ldr	r4, [r1, #4]!
+ 280:Libs/mbedtls/library/constant_time.c ****     }
+ 369              		.loc 1 280 27 view .LVU90
+ 370 001a 3E40     		ands	r6, r6, r7
+ 280:Libs/mbedtls/library/constant_time.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 13
+
+
+ 371              		.loc 1 280 46 view .LVU91
+ 372 001c 1C40     		ands	r4, r4, r3
+ 280:Libs/mbedtls/library/constant_time.c ****     }
+ 373              		.loc 1 280 35 view .LVU92
+ 374 001e 3443     		orrs	r4, r4, r6
+ 280:Libs/mbedtls/library/constant_time.c ****     }
+ 375              		.loc 1 280 17 view .LVU93
+ 376 0020 0C60     		str	r4, [r1]
+ 279:Libs/mbedtls/library/constant_time.c ****         dest[i] = (src[i] & mask) | (dest[i] & ~mask);
+ 377              		.loc 1 279 25 is_stmt 1 discriminator 3 view .LVU94
+ 378              	.LVL37:
+ 279:Libs/mbedtls/library/constant_time.c ****         dest[i] = (src[i] & mask) | (dest[i] & ~mask);
+ 379              		.loc 1 279 25 is_stmt 0 discriminator 3 view .LVU95
+ 380 0022 F2E7     		b	.L11
+ 381              		.cfi_endproc
+ 382              	.LFE10:
+ 384              		.section	.text.mbedtls_ct_base64_enc_char,"ax",%progbits
+ 385              		.align	1
+ 386              		.global	mbedtls_ct_base64_enc_char
+ 387              		.syntax unified
+ 388              		.thumb
+ 389              		.thumb_func
+ 391              	mbedtls_ct_base64_enc_char:
+ 392              	.LVL38:
+ 393              	.LFB11:
+ 283:Libs/mbedtls/library/constant_time.c **** 
+ 284:Libs/mbedtls/library/constant_time.c **** #endif /* MBEDTLS_BIGNUM_C */
+ 285:Libs/mbedtls/library/constant_time.c **** 
+ 286:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_BASE64_C)
+ 287:Libs/mbedtls/library/constant_time.c **** 
+ 288:Libs/mbedtls/library/constant_time.c **** unsigned char mbedtls_ct_base64_enc_char(unsigned char value)
+ 289:Libs/mbedtls/library/constant_time.c **** {
+ 394              		.loc 1 289 1 is_stmt 1 view -0
+ 395              		.cfi_startproc
+ 396              		@ args = 0, pretend = 0, frame = 0
+ 397              		@ frame_needed = 0, uses_anonymous_args = 0
+ 290:Libs/mbedtls/library/constant_time.c ****     unsigned char digit = 0;
+ 398              		.loc 1 290 5 view .LVU97
+ 291:Libs/mbedtls/library/constant_time.c ****     /* For each range of values, if value is in that range, mask digit with
+ 292:Libs/mbedtls/library/constant_time.c ****      * the corresponding value. Since value can only be in a single range,
+ 293:Libs/mbedtls/library/constant_time.c ****      * only at most one masking will change digit. */
+ 294:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(0, 25, value) & ('A' + value);
+ 399              		.loc 1 294 5 view .LVU98
+ 289:Libs/mbedtls/library/constant_time.c ****     unsigned char digit = 0;
+ 400              		.loc 1 289 1 is_stmt 0 view .LVU99
+ 401 0000 0246     		mov	r2, r0
+ 402              		.loc 1 294 14 view .LVU100
+ 403 0002 1921     		movs	r1, #25
+ 404 0004 0020     		movs	r0, #0
+ 405              	.LVL39:
+ 289:Libs/mbedtls/library/constant_time.c ****     unsigned char digit = 0;
+ 406              		.loc 1 289 1 view .LVU101
+ 407 0006 38B5     		push	{r3, r4, r5, lr}
+ 408              	.LCFI4:
+ 409              		.cfi_def_cfa_offset 16
+ 410              		.cfi_offset 3, -16
+ 411              		.cfi_offset 4, -12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 14
+
+
+ 412              		.cfi_offset 5, -8
+ 413              		.cfi_offset 14, -4
+ 414              		.loc 1 294 14 view .LVU102
+ 415 0008 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 416              	.LVL40:
+ 295:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(26, 51, value) & ('a' + value - 26);
+ 417              		.loc 1 295 14 view .LVU103
+ 418 000c 3321     		movs	r1, #51
+ 294:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(26, 51, value) & ('a' + value - 26);
+ 419              		.loc 1 294 14 view .LVU104
+ 420 000e 0546     		mov	r5, r0
+ 421              	.LVL41:
+ 422              		.loc 1 295 5 is_stmt 1 view .LVU105
+ 423              		.loc 1 295 14 is_stmt 0 view .LVU106
+ 424 0010 1A20     		movs	r0, #26
+ 425 0012 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 426              	.LVL42:
+ 294:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(26, 51, value) & ('a' + value - 26);
+ 427              		.loc 1 294 66 discriminator 1 view .LVU107
+ 428 0016 02F14104 		add	r4, r2, #65
+ 429              		.loc 1 295 75 discriminator 1 view .LVU108
+ 430 001a 02F14703 		add	r3, r2, #71
+ 296:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(52, 61, value) & ('0' + value - 52);
+ 431              		.loc 1 296 14 view .LVU109
+ 432 001e 3D21     		movs	r1, #61
+ 294:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(26, 51, value) & ('a' + value - 26);
+ 433              		.loc 1 294 59 discriminator 1 view .LVU110
+ 434 0020 2C40     		ands	r4, r4, r5
+ 295:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(26, 51, value) & ('a' + value - 26);
+ 435              		.loc 1 295 60 discriminator 1 view .LVU111
+ 436 0022 0340     		ands	r3, r3, r0
+ 437              		.loc 1 296 14 view .LVU112
+ 438 0024 3420     		movs	r0, #52
+ 295:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(26, 51, value) & ('a' + value - 26);
+ 439              		.loc 1 295 11 discriminator 1 view .LVU113
+ 440 0026 1C43     		orrs	r4, r4, r3
+ 441              		.loc 1 296 14 view .LVU114
+ 442 0028 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 443              	.LVL43:
+ 444              		.loc 1 296 75 discriminator 1 view .LVU115
+ 445 002c 131F     		subs	r3, r2, #4
+ 297:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(62, 62, value) & '+';
+ 446              		.loc 1 297 14 view .LVU116
+ 447 002e 3E21     		movs	r1, #62
+ 295:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(52, 61, value) & ('0' + value - 52);
+ 448              		.loc 1 295 11 discriminator 1 view .LVU117
+ 449 0030 64B2     		sxtb	r4, r4
+ 450              	.LVL44:
+ 296:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(52, 61, value) & ('0' + value - 52);
+ 451              		.loc 1 296 5 is_stmt 1 view .LVU118
+ 296:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(52, 61, value) & ('0' + value - 52);
+ 452              		.loc 1 296 60 is_stmt 0 discriminator 1 view .LVU119
+ 453 0032 0340     		ands	r3, r3, r0
+ 454              		.loc 1 297 14 view .LVU120
+ 455 0034 0846     		mov	r0, r1
+ 296:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(52, 61, value) & ('0' + value - 52);
+ 456              		.loc 1 296 11 discriminator 1 view .LVU121
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 15
+
+
+ 457 0036 1C43     		orrs	r4, r4, r3
+ 458              	.LVL45:
+ 459              		.loc 1 297 14 view .LVU122
+ 460 0038 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 461              	.LVL46:
+ 298:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(63, 63, value) & '/';
+ 462              		.loc 1 298 14 view .LVU123
+ 463 003c 3F21     		movs	r1, #63
+ 297:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(62, 62, value) & '+';
+ 464              		.loc 1 297 14 view .LVU124
+ 465 003e 0546     		mov	r5, r0
+ 296:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(62, 62, value) & '+';
+ 466              		.loc 1 296 11 discriminator 1 view .LVU125
+ 467 0040 64B2     		sxtb	r4, r4
+ 468              	.LVL47:
+ 297:Libs/mbedtls/library/constant_time.c ****     digit |= mbedtls_ct_uchar_mask_of_range(63, 63, value) & '/';
+ 469              		.loc 1 297 5 is_stmt 1 view .LVU126
+ 470              		.loc 1 298 5 view .LVU127
+ 471              		.loc 1 298 14 is_stmt 0 view .LVU128
+ 472 0042 0846     		mov	r0, r1
+ 473              		.loc 1 298 11 discriminator 1 view .LVU129
+ 474 0044 05F02B05 		and	r5, r5, #43
+ 475              	.LVL48:
+ 476              		.loc 1 298 14 view .LVU130
+ 477 0048 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 478              	.LVL49:
+ 299:Libs/mbedtls/library/constant_time.c ****     return digit;
+ 479              		.loc 1 299 5 is_stmt 1 view .LVU131
+ 298:Libs/mbedtls/library/constant_time.c ****     return digit;
+ 480              		.loc 1 298 11 is_stmt 0 discriminator 1 view .LVU132
+ 481 004c 00F02F00 		and	r0, r0, #47
+ 482 0050 2843     		orrs	r0, r0, r5
+ 483 0052 2043     		orrs	r0, r0, r4
+ 300:Libs/mbedtls/library/constant_time.c **** }
+ 484              		.loc 1 300 1 view .LVU133
+ 485 0054 C0B2     		uxtb	r0, r0
+ 486 0056 38BD     		pop	{r3, r4, r5, pc}
+ 487              		.cfi_endproc
+ 488              	.LFE11:
+ 490              		.section	.text.mbedtls_ct_base64_dec_value,"ax",%progbits
+ 491              		.align	1
+ 492              		.global	mbedtls_ct_base64_dec_value
+ 493              		.syntax unified
+ 494              		.thumb
+ 495              		.thumb_func
+ 497              	mbedtls_ct_base64_dec_value:
+ 498              	.LVL50:
+ 499              	.LFB12:
+ 301:Libs/mbedtls/library/constant_time.c **** 
+ 302:Libs/mbedtls/library/constant_time.c **** signed char mbedtls_ct_base64_dec_value(unsigned char c)
+ 303:Libs/mbedtls/library/constant_time.c **** {
+ 500              		.loc 1 303 1 is_stmt 1 view -0
+ 501              		.cfi_startproc
+ 502              		@ args = 0, pretend = 0, frame = 0
+ 503              		@ frame_needed = 0, uses_anonymous_args = 0
+ 304:Libs/mbedtls/library/constant_time.c ****     unsigned char val = 0;
+ 504              		.loc 1 304 5 view .LVU135
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 16
+
+
+ 305:Libs/mbedtls/library/constant_time.c ****     /* For each range of digits, if c is in that range, mask val with
+ 306:Libs/mbedtls/library/constant_time.c ****      * the corresponding value. Since c can only be in a single range,
+ 307:Libs/mbedtls/library/constant_time.c ****      * only at most one masking will change val. Set val to one plus
+ 308:Libs/mbedtls/library/constant_time.c ****      * the desired value so that it stays 0 if c is in none of the ranges. */
+ 309:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('A', 'Z', c) & (c - 'A' +  0 + 1);
+ 505              		.loc 1 309 5 view .LVU136
+ 303:Libs/mbedtls/library/constant_time.c ****     unsigned char val = 0;
+ 506              		.loc 1 303 1 is_stmt 0 view .LVU137
+ 507 0000 0246     		mov	r2, r0
+ 508              		.loc 1 309 12 view .LVU138
+ 509 0002 5A21     		movs	r1, #90
+ 510 0004 4120     		movs	r0, #65
+ 511              	.LVL51:
+ 303:Libs/mbedtls/library/constant_time.c ****     unsigned char val = 0;
+ 512              		.loc 1 303 1 view .LVU139
+ 513 0006 38B5     		push	{r3, r4, r5, lr}
+ 514              	.LCFI5:
+ 515              		.cfi_def_cfa_offset 16
+ 516              		.cfi_offset 3, -16
+ 517              		.cfi_offset 4, -12
+ 518              		.cfi_offset 5, -8
+ 519              		.cfi_offset 14, -4
+ 520              		.loc 1 309 12 view .LVU140
+ 521 0008 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 522              	.LVL52:
+ 310:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('a', 'z', c) & (c - 'a' + 26 + 1);
+ 523              		.loc 1 310 12 view .LVU141
+ 524 000c 7A21     		movs	r1, #122
+ 309:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('a', 'z', c) & (c - 'a' + 26 + 1);
+ 525              		.loc 1 309 12 view .LVU142
+ 526 000e 0546     		mov	r5, r0
+ 527              	.LVL53:
+ 528              		.loc 1 310 5 is_stmt 1 view .LVU143
+ 529              		.loc 1 310 12 is_stmt 0 view .LVU144
+ 530 0010 6120     		movs	r0, #97
+ 531 0012 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 532              	.LVL54:
+ 309:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('a', 'z', c) & (c - 'a' + 26 + 1);
+ 533              		.loc 1 309 72 discriminator 1 view .LVU145
+ 534 0016 A2F14004 		sub	r4, r2, #64
+ 535              		.loc 1 310 72 discriminator 1 view .LVU146
+ 536 001a A2F14603 		sub	r3, r2, #70
+ 311:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('0', '9', c) & (c - '0' + 52 + 1);
+ 537              		.loc 1 311 12 view .LVU147
+ 538 001e 3921     		movs	r1, #57
+ 309:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('a', 'z', c) & (c - 'a' + 26 + 1);
+ 539              		.loc 1 309 56 discriminator 1 view .LVU148
+ 540 0020 2C40     		ands	r4, r4, r5
+ 310:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('a', 'z', c) & (c - 'a' + 26 + 1);
+ 541              		.loc 1 310 56 discriminator 1 view .LVU149
+ 542 0022 0340     		ands	r3, r3, r0
+ 543              		.loc 1 311 12 view .LVU150
+ 544 0024 3020     		movs	r0, #48
+ 310:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('a', 'z', c) & (c - 'a' + 26 + 1);
+ 545              		.loc 1 310 9 discriminator 1 view .LVU151
+ 546 0026 1C43     		orrs	r4, r4, r3
+ 547              		.loc 1 311 12 view .LVU152
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 17
+
+
+ 548 0028 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 549              	.LVL55:
+ 550              		.loc 1 311 72 discriminator 1 view .LVU153
+ 551 002c 531D     		adds	r3, r2, #5
+ 312:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('+', '+', c) & (c - '+' + 62 + 1);
+ 552              		.loc 1 312 12 view .LVU154
+ 553 002e 2B21     		movs	r1, #43
+ 310:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('0', '9', c) & (c - '0' + 52 + 1);
+ 554              		.loc 1 310 9 discriminator 1 view .LVU155
+ 555 0030 64B2     		sxtb	r4, r4
+ 556              	.LVL56:
+ 311:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('0', '9', c) & (c - '0' + 52 + 1);
+ 557              		.loc 1 311 5 is_stmt 1 view .LVU156
+ 311:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('0', '9', c) & (c - '0' + 52 + 1);
+ 558              		.loc 1 311 56 is_stmt 0 discriminator 1 view .LVU157
+ 559 0032 0340     		ands	r3, r3, r0
+ 560              		.loc 1 312 12 view .LVU158
+ 561 0034 0846     		mov	r0, r1
+ 311:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('0', '9', c) & (c - '0' + 52 + 1);
+ 562              		.loc 1 311 9 discriminator 1 view .LVU159
+ 563 0036 1C43     		orrs	r4, r4, r3
+ 564              	.LVL57:
+ 565              		.loc 1 312 12 view .LVU160
+ 566 0038 FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 567              	.LVL58:
+ 568              		.loc 1 312 72 discriminator 1 view .LVU161
+ 569 003c 02F11403 		add	r3, r2, #20
+ 313:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('/', '/', c) & (c - '/' + 63 + 1);
+ 570              		.loc 1 313 12 view .LVU162
+ 571 0040 2F21     		movs	r1, #47
+ 311:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('+', '+', c) & (c - '+' + 62 + 1);
+ 572              		.loc 1 311 9 discriminator 1 view .LVU163
+ 573 0042 64B2     		sxtb	r4, r4
+ 574              	.LVL59:
+ 312:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('/', '/', c) & (c - '/' + 63 + 1);
+ 575              		.loc 1 312 5 is_stmt 1 view .LVU164
+ 312:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('/', '/', c) & (c - '/' + 63 + 1);
+ 576              		.loc 1 312 56 is_stmt 0 discriminator 1 view .LVU165
+ 577 0044 0340     		ands	r3, r3, r0
+ 578              		.loc 1 313 12 view .LVU166
+ 579 0046 0846     		mov	r0, r1
+ 312:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('/', '/', c) & (c - '/' + 63 + 1);
+ 580              		.loc 1 312 9 discriminator 1 view .LVU167
+ 581 0048 1C43     		orrs	r4, r4, r3
+ 582              	.LVL60:
+ 583              		.loc 1 313 12 view .LVU168
+ 584 004a FFF7FEFF 		bl	mbedtls_ct_uchar_mask_of_range
+ 585              	.LVL61:
+ 586              		.loc 1 313 72 discriminator 1 view .LVU169
+ 587 004e 1132     		adds	r2, r2, #17
+ 588              	.LVL62:
+ 312:Libs/mbedtls/library/constant_time.c ****     val |= mbedtls_ct_uchar_mask_of_range('/', '/', c) & (c - '/' + 63 + 1);
+ 589              		.loc 1 312 9 discriminator 1 view .LVU170
+ 590 0050 64B2     		sxtb	r4, r4
+ 591              	.LVL63:
+ 592              		.loc 1 313 5 is_stmt 1 view .LVU171
+ 314:Libs/mbedtls/library/constant_time.c ****     /* At this point, val is 0 if c is an invalid digit and v+1 if c is
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 18
+
+
+ 315:Libs/mbedtls/library/constant_time.c ****      * a digit with the value v. */
+ 316:Libs/mbedtls/library/constant_time.c ****     return val - 1;
+ 593              		.loc 1 316 5 view .LVU172
+ 313:Libs/mbedtls/library/constant_time.c ****     /* At this point, val is 0 if c is an invalid digit and v+1 if c is
+ 594              		.loc 1 313 56 is_stmt 0 discriminator 1 view .LVU173
+ 595 0052 0240     		ands	r2, r2, r0
+ 596              	.LVL64:
+ 313:Libs/mbedtls/library/constant_time.c ****     /* At this point, val is 0 if c is an invalid digit and v+1 if c is
+ 597              		.loc 1 313 9 discriminator 1 view .LVU174
+ 598 0054 44EA0200 		orr	r0, r4, r2
+ 599              		.loc 1 316 16 view .LVU175
+ 600 0058 0138     		subs	r0, r0, #1
+ 317:Libs/mbedtls/library/constant_time.c **** }
+ 601              		.loc 1 317 1 view .LVU176
+ 602 005a 40B2     		sxtb	r0, r0
+ 603 005c 38BD     		pop	{r3, r4, r5, pc}
+ 604              		.cfi_endproc
+ 605              	.LFE12:
+ 607              		.section	.text.mbedtls_mpi_safe_cond_assign,"ax",%progbits
+ 608              		.align	1
+ 609              		.global	mbedtls_mpi_safe_cond_assign
+ 610              		.syntax unified
+ 611              		.thumb
+ 612              		.thumb_func
+ 614              	mbedtls_mpi_safe_cond_assign:
+ 615              	.LVL65:
+ 616              	.LFB13:
+ 318:Libs/mbedtls/library/constant_time.c **** 
+ 319:Libs/mbedtls/library/constant_time.c **** #endif /* MBEDTLS_BASE64_C */
+ 320:Libs/mbedtls/library/constant_time.c **** 
+ 321:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_PKCS1_V15) && defined(MBEDTLS_RSA_C) && !defined(MBEDTLS_RSA_ALT)
+ 322:Libs/mbedtls/library/constant_time.c **** 
+ 323:Libs/mbedtls/library/constant_time.c **** /** Shift some data towards the left inside a buffer.
+ 324:Libs/mbedtls/library/constant_time.c ****  *
+ 325:Libs/mbedtls/library/constant_time.c ****  * `mbedtls_ct_mem_move_to_left(start, total, offset)` is functionally
+ 326:Libs/mbedtls/library/constant_time.c ****  * equivalent to
+ 327:Libs/mbedtls/library/constant_time.c ****  * ```
+ 328:Libs/mbedtls/library/constant_time.c ****  * memmove(start, start + offset, total - offset);
+ 329:Libs/mbedtls/library/constant_time.c ****  * memset(start + offset, 0, total - offset);
+ 330:Libs/mbedtls/library/constant_time.c ****  * ```
+ 331:Libs/mbedtls/library/constant_time.c ****  * but it strives to use a memory access pattern (and thus total timing)
+ 332:Libs/mbedtls/library/constant_time.c ****  * that does not depend on \p offset. This timing independence comes at
+ 333:Libs/mbedtls/library/constant_time.c ****  * the expense of performance.
+ 334:Libs/mbedtls/library/constant_time.c ****  *
+ 335:Libs/mbedtls/library/constant_time.c ****  * \param start     Pointer to the start of the buffer.
+ 336:Libs/mbedtls/library/constant_time.c ****  * \param total     Total size of the buffer.
+ 337:Libs/mbedtls/library/constant_time.c ****  * \param offset    Offset from which to copy \p total - \p offset bytes.
+ 338:Libs/mbedtls/library/constant_time.c ****  */
+ 339:Libs/mbedtls/library/constant_time.c **** static void mbedtls_ct_mem_move_to_left(void *start,
+ 340:Libs/mbedtls/library/constant_time.c ****                                         size_t total,
+ 341:Libs/mbedtls/library/constant_time.c ****                                         size_t offset)
+ 342:Libs/mbedtls/library/constant_time.c **** {
+ 343:Libs/mbedtls/library/constant_time.c ****     volatile unsigned char *buf = start;
+ 344:Libs/mbedtls/library/constant_time.c ****     size_t i, n;
+ 345:Libs/mbedtls/library/constant_time.c ****     if (total == 0) {
+ 346:Libs/mbedtls/library/constant_time.c ****         return;
+ 347:Libs/mbedtls/library/constant_time.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 19
+
+
+ 348:Libs/mbedtls/library/constant_time.c ****     for (i = 0; i < total; i++) {
+ 349:Libs/mbedtls/library/constant_time.c ****         unsigned no_op = mbedtls_ct_size_gt(total - offset, i);
+ 350:Libs/mbedtls/library/constant_time.c ****         /* The first `total - offset` passes are a no-op. The last
+ 351:Libs/mbedtls/library/constant_time.c ****          * `offset` passes shift the data one byte to the left and
+ 352:Libs/mbedtls/library/constant_time.c ****          * zero out the last byte. */
+ 353:Libs/mbedtls/library/constant_time.c ****         for (n = 0; n < total - 1; n++) {
+ 354:Libs/mbedtls/library/constant_time.c ****             unsigned char current = buf[n];
+ 355:Libs/mbedtls/library/constant_time.c ****             unsigned char next = buf[n+1];
+ 356:Libs/mbedtls/library/constant_time.c ****             buf[n] = mbedtls_ct_uint_if(no_op, current, next);
+ 357:Libs/mbedtls/library/constant_time.c ****         }
+ 358:Libs/mbedtls/library/constant_time.c ****         buf[total-1] = mbedtls_ct_uint_if(no_op, buf[total-1], 0);
+ 359:Libs/mbedtls/library/constant_time.c ****     }
+ 360:Libs/mbedtls/library/constant_time.c **** }
+ 361:Libs/mbedtls/library/constant_time.c **** 
+ 362:Libs/mbedtls/library/constant_time.c **** #endif /* MBEDTLS_PKCS1_V15 && MBEDTLS_RSA_C && ! MBEDTLS_RSA_ALT */
+ 363:Libs/mbedtls/library/constant_time.c **** 
+ 364:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_SSL_SOME_MODES_USE_MAC)
+ 365:Libs/mbedtls/library/constant_time.c **** void mbedtls_ct_memcpy_if_eq(unsigned char *dest,
+ 366:Libs/mbedtls/library/constant_time.c ****                              const unsigned char *src,
+ 367:Libs/mbedtls/library/constant_time.c ****                              size_t len,
+ 368:Libs/mbedtls/library/constant_time.c ****                              size_t c1,
+ 369:Libs/mbedtls/library/constant_time.c ****                              size_t c2)
+ 370:Libs/mbedtls/library/constant_time.c **** {
+ 371:Libs/mbedtls/library/constant_time.c ****     /* mask = c1 == c2 ? 0xff : 0x00 */
+ 372:Libs/mbedtls/library/constant_time.c ****     const size_t equal = mbedtls_ct_size_bool_eq(c1, c2);
+ 373:Libs/mbedtls/library/constant_time.c ****     const unsigned char mask = (unsigned char) mbedtls_ct_size_mask(equal);
+ 374:Libs/mbedtls/library/constant_time.c **** 
+ 375:Libs/mbedtls/library/constant_time.c ****     /* dest[i] = c1 == c2 ? src[i] : dest[i] */
+ 376:Libs/mbedtls/library/constant_time.c ****     for (size_t i = 0; i < len; i++) {
+ 377:Libs/mbedtls/library/constant_time.c ****         dest[i] = (src[i] & mask) | (dest[i] & ~mask);
+ 378:Libs/mbedtls/library/constant_time.c ****     }
+ 379:Libs/mbedtls/library/constant_time.c **** }
+ 380:Libs/mbedtls/library/constant_time.c **** 
+ 381:Libs/mbedtls/library/constant_time.c **** void mbedtls_ct_memcpy_offset(unsigned char *dest,
+ 382:Libs/mbedtls/library/constant_time.c ****                               const unsigned char *src,
+ 383:Libs/mbedtls/library/constant_time.c ****                               size_t offset,
+ 384:Libs/mbedtls/library/constant_time.c ****                               size_t offset_min,
+ 385:Libs/mbedtls/library/constant_time.c ****                               size_t offset_max,
+ 386:Libs/mbedtls/library/constant_time.c ****                               size_t len)
+ 387:Libs/mbedtls/library/constant_time.c **** {
+ 388:Libs/mbedtls/library/constant_time.c ****     size_t offsetval;
+ 389:Libs/mbedtls/library/constant_time.c **** 
+ 390:Libs/mbedtls/library/constant_time.c ****     for (offsetval = offset_min; offsetval <= offset_max; offsetval++) {
+ 391:Libs/mbedtls/library/constant_time.c ****         mbedtls_ct_memcpy_if_eq(dest, src + offsetval, len,
+ 392:Libs/mbedtls/library/constant_time.c ****                                 offsetval, offset);
+ 393:Libs/mbedtls/library/constant_time.c ****     }
+ 394:Libs/mbedtls/library/constant_time.c **** }
+ 395:Libs/mbedtls/library/constant_time.c **** 
+ 396:Libs/mbedtls/library/constant_time.c **** int mbedtls_ct_hmac(mbedtls_md_context_t *ctx,
+ 397:Libs/mbedtls/library/constant_time.c ****                     const unsigned char *add_data,
+ 398:Libs/mbedtls/library/constant_time.c ****                     size_t add_data_len,
+ 399:Libs/mbedtls/library/constant_time.c ****                     const unsigned char *data,
+ 400:Libs/mbedtls/library/constant_time.c ****                     size_t data_len_secret,
+ 401:Libs/mbedtls/library/constant_time.c ****                     size_t min_data_len,
+ 402:Libs/mbedtls/library/constant_time.c ****                     size_t max_data_len,
+ 403:Libs/mbedtls/library/constant_time.c ****                     unsigned char *output)
+ 404:Libs/mbedtls/library/constant_time.c **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 20
+
+
+ 405:Libs/mbedtls/library/constant_time.c ****     /*
+ 406:Libs/mbedtls/library/constant_time.c ****      * This function breaks the HMAC abstraction and uses the md_clone()
+ 407:Libs/mbedtls/library/constant_time.c ****      * extension to the MD API in order to get constant-flow behaviour.
+ 408:Libs/mbedtls/library/constant_time.c ****      *
+ 409:Libs/mbedtls/library/constant_time.c ****      * HMAC(msg) is defined as HASH(okey + HASH(ikey + msg)) where + means
+ 410:Libs/mbedtls/library/constant_time.c ****      * concatenation, and okey/ikey are the XOR of the key with some fixed bit
+ 411:Libs/mbedtls/library/constant_time.c ****      * patterns (see RFC 2104, sec. 2), which are stored in ctx->hmac_ctx.
+ 412:Libs/mbedtls/library/constant_time.c ****      *
+ 413:Libs/mbedtls/library/constant_time.c ****      * We'll first compute inner_hash = HASH(ikey + msg) by hashing up to
+ 414:Libs/mbedtls/library/constant_time.c ****      * minlen, then cloning the context, and for each byte up to maxlen
+ 415:Libs/mbedtls/library/constant_time.c ****      * finishing up the hash computation, keeping only the correct result.
+ 416:Libs/mbedtls/library/constant_time.c ****      *
+ 417:Libs/mbedtls/library/constant_time.c ****      * Then we only need to compute HASH(okey + inner_hash) and we're done.
+ 418:Libs/mbedtls/library/constant_time.c ****      */
+ 419:Libs/mbedtls/library/constant_time.c ****     const mbedtls_md_type_t md_alg = mbedtls_md_get_type(ctx->md_info);
+ 420:Libs/mbedtls/library/constant_time.c ****     /* TLS 1.0-1.2 only support SHA-384, SHA-256, SHA-1, MD-5,
+ 421:Libs/mbedtls/library/constant_time.c ****      * all of which have the same block size except SHA-384. */
+ 422:Libs/mbedtls/library/constant_time.c ****     const size_t block_size = md_alg == MBEDTLS_MD_SHA384 ? 128 : 64;
+ 423:Libs/mbedtls/library/constant_time.c ****     const unsigned char * const ikey = ctx->hmac_ctx;
+ 424:Libs/mbedtls/library/constant_time.c ****     const unsigned char * const okey = ikey + block_size;
+ 425:Libs/mbedtls/library/constant_time.c ****     const size_t hash_size = mbedtls_md_get_size(ctx->md_info);
+ 426:Libs/mbedtls/library/constant_time.c **** 
+ 427:Libs/mbedtls/library/constant_time.c ****     unsigned char aux_out[MBEDTLS_MD_MAX_SIZE];
+ 428:Libs/mbedtls/library/constant_time.c ****     mbedtls_md_context_t aux;
+ 429:Libs/mbedtls/library/constant_time.c ****     size_t offset;
+ 430:Libs/mbedtls/library/constant_time.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 431:Libs/mbedtls/library/constant_time.c **** 
+ 432:Libs/mbedtls/library/constant_time.c ****     mbedtls_md_init(&aux);
+ 433:Libs/mbedtls/library/constant_time.c **** 
+ 434:Libs/mbedtls/library/constant_time.c **** #define MD_CHK(func_call) \
+ 435:Libs/mbedtls/library/constant_time.c ****     do {                    \
+ 436:Libs/mbedtls/library/constant_time.c ****         ret = (func_call);  \
+ 437:Libs/mbedtls/library/constant_time.c ****         if (ret != 0)      \
+ 438:Libs/mbedtls/library/constant_time.c ****         goto cleanup;   \
+ 439:Libs/mbedtls/library/constant_time.c ****     } while (0)
+ 440:Libs/mbedtls/library/constant_time.c **** 
+ 441:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_setup(&aux, ctx->md_info, 0));
+ 442:Libs/mbedtls/library/constant_time.c **** 
+ 443:Libs/mbedtls/library/constant_time.c ****     /* After hmac_start() of hmac_reset(), ikey has already been hashed,
+ 444:Libs/mbedtls/library/constant_time.c ****      * so we can start directly with the message */
+ 445:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_update(ctx, add_data, add_data_len));
+ 446:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_update(ctx, data, min_data_len));
+ 447:Libs/mbedtls/library/constant_time.c **** 
+ 448:Libs/mbedtls/library/constant_time.c ****     /* Fill the hash buffer in advance with something that is
+ 449:Libs/mbedtls/library/constant_time.c ****      * not a valid hash (barring an attack on the hash and
+ 450:Libs/mbedtls/library/constant_time.c ****      * deliberately-crafted input), in case the caller doesn't
+ 451:Libs/mbedtls/library/constant_time.c ****      * check the return status properly. */
+ 452:Libs/mbedtls/library/constant_time.c ****     memset(output, '!', hash_size);
+ 453:Libs/mbedtls/library/constant_time.c **** 
+ 454:Libs/mbedtls/library/constant_time.c ****     /* For each possible length, compute the hash up to that point */
+ 455:Libs/mbedtls/library/constant_time.c ****     for (offset = min_data_len; offset <= max_data_len; offset++) {
+ 456:Libs/mbedtls/library/constant_time.c ****         MD_CHK(mbedtls_md_clone(&aux, ctx));
+ 457:Libs/mbedtls/library/constant_time.c ****         MD_CHK(mbedtls_md_finish(&aux, aux_out));
+ 458:Libs/mbedtls/library/constant_time.c ****         /* Keep only the correct inner_hash in the output buffer */
+ 459:Libs/mbedtls/library/constant_time.c ****         mbedtls_ct_memcpy_if_eq(output, aux_out, hash_size,
+ 460:Libs/mbedtls/library/constant_time.c ****                                 offset, data_len_secret);
+ 461:Libs/mbedtls/library/constant_time.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 21
+
+
+ 462:Libs/mbedtls/library/constant_time.c ****         if (offset < max_data_len) {
+ 463:Libs/mbedtls/library/constant_time.c ****             MD_CHK(mbedtls_md_update(ctx, data + offset, 1));
+ 464:Libs/mbedtls/library/constant_time.c ****         }
+ 465:Libs/mbedtls/library/constant_time.c ****     }
+ 466:Libs/mbedtls/library/constant_time.c **** 
+ 467:Libs/mbedtls/library/constant_time.c ****     /* The context needs to finish() before it starts() again */
+ 468:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_finish(ctx, aux_out));
+ 469:Libs/mbedtls/library/constant_time.c **** 
+ 470:Libs/mbedtls/library/constant_time.c ****     /* Now compute HASH(okey + inner_hash) */
+ 471:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_starts(ctx));
+ 472:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_update(ctx, okey, block_size));
+ 473:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_update(ctx, output, hash_size));
+ 474:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_finish(ctx, output));
+ 475:Libs/mbedtls/library/constant_time.c **** 
+ 476:Libs/mbedtls/library/constant_time.c ****     /* Done, get ready for next time */
+ 477:Libs/mbedtls/library/constant_time.c ****     MD_CHK(mbedtls_md_hmac_reset(ctx));
+ 478:Libs/mbedtls/library/constant_time.c **** 
+ 479:Libs/mbedtls/library/constant_time.c **** #undef MD_CHK
+ 480:Libs/mbedtls/library/constant_time.c **** 
+ 481:Libs/mbedtls/library/constant_time.c **** cleanup:
+ 482:Libs/mbedtls/library/constant_time.c ****     mbedtls_md_free(&aux);
+ 483:Libs/mbedtls/library/constant_time.c ****     return ret;
+ 484:Libs/mbedtls/library/constant_time.c **** }
+ 485:Libs/mbedtls/library/constant_time.c **** 
+ 486:Libs/mbedtls/library/constant_time.c **** #endif /* MBEDTLS_SSL_SOME_MODES_USE_MAC */
+ 487:Libs/mbedtls/library/constant_time.c **** 
+ 488:Libs/mbedtls/library/constant_time.c **** #if defined(MBEDTLS_BIGNUM_C)
+ 489:Libs/mbedtls/library/constant_time.c **** 
+ 490:Libs/mbedtls/library/constant_time.c **** #define MPI_VALIDATE_RET(cond)                                       \
+ 491:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_MPI_BAD_INPUT_DATA)
+ 492:Libs/mbedtls/library/constant_time.c **** 
+ 493:Libs/mbedtls/library/constant_time.c **** /*
+ 494:Libs/mbedtls/library/constant_time.c ****  * Conditionally assign X = Y, without leaking information
+ 495:Libs/mbedtls/library/constant_time.c ****  * about whether the assignment was made or not.
+ 496:Libs/mbedtls/library/constant_time.c ****  * (Leaking information about the respective sizes of X and Y is ok however.)
+ 497:Libs/mbedtls/library/constant_time.c ****  */
+ 498:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER) && defined(_M_ARM64) && (_MSC_FULL_VER < 193131103)
+ 499:Libs/mbedtls/library/constant_time.c **** /*
+ 500:Libs/mbedtls/library/constant_time.c ****  * MSVC miscompiles this function if it's inlined prior to Visual Studio 2022 version 17.1. See:
+ 501:Libs/mbedtls/library/constant_time.c ****  * https://developercommunity.visualstudio.com/t/c-compiler-miscompiles-part-of-mbedtls-library-on/
+ 502:Libs/mbedtls/library/constant_time.c ****  */
+ 503:Libs/mbedtls/library/constant_time.c **** __declspec(noinline)
+ 504:Libs/mbedtls/library/constant_time.c **** #endif
+ 505:Libs/mbedtls/library/constant_time.c **** int mbedtls_mpi_safe_cond_assign(mbedtls_mpi *X,
+ 506:Libs/mbedtls/library/constant_time.c ****                                  const mbedtls_mpi *Y,
+ 507:Libs/mbedtls/library/constant_time.c ****                                  unsigned char assign)
+ 508:Libs/mbedtls/library/constant_time.c **** {
+ 617              		.loc 1 508 1 is_stmt 1 view -0
+ 618              		.cfi_startproc
+ 619              		@ args = 0, pretend = 0, frame = 0
+ 620              		@ frame_needed = 0, uses_anonymous_args = 0
+ 509:Libs/mbedtls/library/constant_time.c ****     int ret = 0;
+ 621              		.loc 1 509 5 view .LVU178
+ 510:Libs/mbedtls/library/constant_time.c ****     size_t i;
+ 622              		.loc 1 510 5 view .LVU179
+ 511:Libs/mbedtls/library/constant_time.c ****     mbedtls_mpi_uint limb_mask;
+ 623              		.loc 1 511 5 view .LVU180
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 22
+
+
+ 512:Libs/mbedtls/library/constant_time.c ****     MPI_VALIDATE_RET(X != NULL);
+ 624              		.loc 1 512 5 view .LVU181
+ 625              		.loc 1 512 5 view .LVU182
+ 626              		.loc 1 512 5 view .LVU183
+ 513:Libs/mbedtls/library/constant_time.c ****     MPI_VALIDATE_RET(Y != NULL);
+ 627              		.loc 1 513 5 view .LVU184
+ 628              		.loc 1 513 5 view .LVU185
+ 629              		.loc 1 513 5 view .LVU186
+ 514:Libs/mbedtls/library/constant_time.c **** 
+ 515:Libs/mbedtls/library/constant_time.c ****     /* all-bits 1 if assign is 1, all-bits 0 if assign is 0 */
+ 516:Libs/mbedtls/library/constant_time.c ****     limb_mask = mbedtls_ct_mpi_uint_mask(assign);;
+ 630              		.loc 1 516 5 view .LVU187
+ 508:Libs/mbedtls/library/constant_time.c ****     int ret = 0;
+ 631              		.loc 1 508 1 is_stmt 0 view .LVU188
+ 632 0000 2DE9F843 		push	{r3, r4, r5, r6, r7, r8, r9, lr}
+ 633              	.LCFI6:
+ 634              		.cfi_def_cfa_offset 32
+ 635              		.cfi_offset 3, -32
+ 636              		.cfi_offset 4, -28
+ 637              		.cfi_offset 5, -24
+ 638              		.cfi_offset 6, -20
+ 639              		.cfi_offset 7, -16
+ 640              		.cfi_offset 8, -12
+ 641              		.cfi_offset 9, -8
+ 642              		.cfi_offset 14, -4
+ 508:Libs/mbedtls/library/constant_time.c ****     int ret = 0;
+ 643              		.loc 1 508 1 view .LVU189
+ 644 0004 8946     		mov	r9, r1
+ 517:Libs/mbedtls/library/constant_time.c **** 
+ 518:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(X, Y->n));
+ 645              		.loc 1 518 5 view .LVU190
+ 646 0006 4968     		ldr	r1, [r1, #4]
+ 647              	.LVL66:
+ 508:Libs/mbedtls/library/constant_time.c ****     int ret = 0;
+ 648              		.loc 1 508 1 view .LVU191
+ 649 0008 8046     		mov	r8, r0
+ 650 000a 1646     		mov	r6, r2
+ 651              	.LVL67:
+ 652              	.LBB16:
+ 653              	.LBI16:
+  93:Libs/mbedtls/library/constant_time.c **** {
+ 654              		.loc 1 93 18 is_stmt 1 view .LVU192
+ 655              	.LBB17:
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 656              		.loc 1 101 5 view .LVU193
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 657              		.loc 1 101 5 is_stmt 0 view .LVU194
+ 658              	.LBE17:
+ 659              	.LBE16:
+ 516:Libs/mbedtls/library/constant_time.c **** 
+ 660              		.loc 1 516 50 is_stmt 1 discriminator 1 view .LVU195
+ 661              		.loc 1 518 5 view .LVU196
+ 662              		.loc 1 518 5 view .LVU197
+ 663 000c FFF7FEFF 		bl	mbedtls_mpi_grow
+ 664              	.LVL68:
+ 665              		.loc 1 518 5 is_stmt 0 discriminator 1 view .LVU198
+ 666 0010 0746     		mov	r7, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 23
+
+
+ 667 0012 E0B9     		cbnz	r0, .L15
+ 668              	.LBB21:
+ 669              	.LBB18:
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 670              		.loc 1 101 23 view .LVU199
+ 671 0014 7442     		rsbs	r4, r6, #0
+ 672              	.LBE18:
+ 673              	.LBE21:
+ 519:Libs/mbedtls/library/constant_time.c **** 
+ 520:Libs/mbedtls/library/constant_time.c ****     X->s = (int) mbedtls_ct_uint_if(assign, Y->s, X->s);
+ 674              		.loc 1 520 18 view .LVU200
+ 675 0016 D8F80020 		ldr	r2, [r8]
+ 676 001a D9F80010 		ldr	r1, [r9]
+ 677 001e 3046     		mov	r0, r6
+ 678              	.LVL69:
+ 679              	.LBB22:
+ 680              	.LBB19:
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 681              		.loc 1 101 21 view .LVU201
+ 682 0020 3443     		orrs	r4, r4, r6
+ 683              	.LBE19:
+ 684              	.LBE22:
+ 685              		.loc 1 520 18 view .LVU202
+ 686 0022 FFF7FEFF 		bl	mbedtls_ct_uint_if
+ 687              	.LVL70:
+ 521:Libs/mbedtls/library/constant_time.c **** 
+ 522:Libs/mbedtls/library/constant_time.c ****     mbedtls_ct_mpi_uint_cond_assign(Y->n, X->p, Y->p, assign);
+ 688              		.loc 1 522 5 view .LVU203
+ 689 0026 D8F80850 		ldr	r5, [r8, #8]
+ 690 002a 3346     		mov	r3, r6
+ 520:Libs/mbedtls/library/constant_time.c **** 
+ 691              		.loc 1 520 10 discriminator 1 view .LVU204
+ 692 002c C8F80000 		str	r0, [r8]
+ 693              	.LBB23:
+ 694              	.LBB20:
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 695              		.loc 1 101 12 view .LVU205
+ 696 0030 E417     		asrs	r4, r4, #31
+ 697              	.LBE20:
+ 698              	.LBE23:
+ 518:Libs/mbedtls/library/constant_time.c **** 
+ 699              		.loc 1 518 5 is_stmt 1 discriminator 2 view .LVU206
+ 520:Libs/mbedtls/library/constant_time.c **** 
+ 700              		.loc 1 520 5 view .LVU207
+ 701              		.loc 1 522 5 view .LVU208
+ 702              		.loc 1 522 38 is_stmt 0 view .LVU209
+ 703 0032 D9F80400 		ldr	r0, [r9, #4]
+ 704              		.loc 1 522 5 view .LVU210
+ 705 0036 2946     		mov	r1, r5
+ 706 0038 D9F80820 		ldr	r2, [r9, #8]
+ 523:Libs/mbedtls/library/constant_time.c **** 
+ 524:Libs/mbedtls/library/constant_time.c ****     for (i = Y->n; i < X->n; i++) {
+ 525:Libs/mbedtls/library/constant_time.c ****         X->p[i] &= ~limb_mask;
+ 707              		.loc 1 525 20 view .LVU211
+ 708 003c E443     		mvns	r4, r4
+ 522:Libs/mbedtls/library/constant_time.c **** 
+ 709              		.loc 1 522 5 view .LVU212
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 24
+
+
+ 710 003e FFF7FEFF 		bl	mbedtls_ct_mpi_uint_cond_assign
+ 711              	.LVL71:
+ 524:Libs/mbedtls/library/constant_time.c ****         X->p[i] &= ~limb_mask;
+ 712              		.loc 1 524 5 is_stmt 1 view .LVU213
+ 524:Libs/mbedtls/library/constant_time.c ****         X->p[i] &= ~limb_mask;
+ 713              		.loc 1 524 25 is_stmt 0 discriminator 1 view .LVU214
+ 714 0042 D8F80420 		ldr	r2, [r8, #4]
+ 715 0046 05EB8001 		add	r1, r5, r0, lsl #2
+ 716              	.L17:
+ 524:Libs/mbedtls/library/constant_time.c ****         X->p[i] &= ~limb_mask;
+ 717              		.loc 1 524 22 is_stmt 1 discriminator 1 view .LVU215
+ 718 004a 8242     		cmp	r2, r0
+ 719 004c 02D8     		bhi	.L18
+ 720              	.LVL72:
+ 721              	.L15:
+ 526:Libs/mbedtls/library/constant_time.c ****     }
+ 527:Libs/mbedtls/library/constant_time.c **** 
+ 528:Libs/mbedtls/library/constant_time.c **** cleanup:
+ 529:Libs/mbedtls/library/constant_time.c ****     return ret;
+ 530:Libs/mbedtls/library/constant_time.c **** }
+ 722              		.loc 1 530 1 is_stmt 0 view .LVU216
+ 723 004e 3846     		mov	r0, r7
+ 724 0050 BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 725              	.LVL73:
+ 726              	.L18:
+ 525:Libs/mbedtls/library/constant_time.c ****     }
+ 727              		.loc 1 525 9 is_stmt 1 view .LVU217
+ 525:Libs/mbedtls/library/constant_time.c ****     }
+ 728              		.loc 1 525 13 is_stmt 0 view .LVU218
+ 729 0054 0B68     		ldr	r3, [r1]
+ 524:Libs/mbedtls/library/constant_time.c ****         X->p[i] &= ~limb_mask;
+ 730              		.loc 1 524 31 discriminator 3 view .LVU219
+ 731 0056 0130     		adds	r0, r0, #1
+ 732              	.LVL74:
+ 525:Libs/mbedtls/library/constant_time.c ****     }
+ 733              		.loc 1 525 17 view .LVU220
+ 734 0058 2340     		ands	r3, r3, r4
+ 735 005a 41F8043B 		str	r3, [r1], #4
+ 524:Libs/mbedtls/library/constant_time.c ****         X->p[i] &= ~limb_mask;
+ 736              		.loc 1 524 31 is_stmt 1 discriminator 3 view .LVU221
+ 737              	.LVL75:
+ 524:Libs/mbedtls/library/constant_time.c ****         X->p[i] &= ~limb_mask;
+ 738              		.loc 1 524 31 is_stmt 0 discriminator 3 view .LVU222
+ 739 005e F4E7     		b	.L17
+ 740              		.cfi_endproc
+ 741              	.LFE13:
+ 743              		.section	.text.mbedtls_mpi_safe_cond_swap,"ax",%progbits
+ 744              		.align	1
+ 745              		.global	mbedtls_mpi_safe_cond_swap
+ 746              		.syntax unified
+ 747              		.thumb
+ 748              		.thumb_func
+ 750              	mbedtls_mpi_safe_cond_swap:
+ 751              	.LVL76:
+ 752              	.LFB14:
+ 531:Libs/mbedtls/library/constant_time.c **** 
+ 532:Libs/mbedtls/library/constant_time.c **** /*
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 25
+
+
+ 533:Libs/mbedtls/library/constant_time.c ****  * Conditionally swap X and Y, without leaking information
+ 534:Libs/mbedtls/library/constant_time.c ****  * about whether the swap was made or not.
+ 535:Libs/mbedtls/library/constant_time.c ****  * Here it is not ok to simply swap the pointers, which would lead to
+ 536:Libs/mbedtls/library/constant_time.c ****  * different memory access patterns when X and Y are used afterwards.
+ 537:Libs/mbedtls/library/constant_time.c ****  */
+ 538:Libs/mbedtls/library/constant_time.c **** int mbedtls_mpi_safe_cond_swap(mbedtls_mpi *X,
+ 539:Libs/mbedtls/library/constant_time.c ****                                mbedtls_mpi *Y,
+ 540:Libs/mbedtls/library/constant_time.c ****                                unsigned char swap)
+ 541:Libs/mbedtls/library/constant_time.c **** {
+ 753              		.loc 1 541 1 is_stmt 1 view -0
+ 754              		.cfi_startproc
+ 755              		@ args = 0, pretend = 0, frame = 0
+ 756              		@ frame_needed = 0, uses_anonymous_args = 0
+ 542:Libs/mbedtls/library/constant_time.c ****     int ret, s;
+ 757              		.loc 1 542 5 view .LVU224
+ 543:Libs/mbedtls/library/constant_time.c ****     size_t i;
+ 758              		.loc 1 543 5 view .LVU225
+ 544:Libs/mbedtls/library/constant_time.c ****     mbedtls_mpi_uint limb_mask;
+ 759              		.loc 1 544 5 view .LVU226
+ 545:Libs/mbedtls/library/constant_time.c ****     mbedtls_mpi_uint tmp;
+ 760              		.loc 1 545 5 view .LVU227
+ 546:Libs/mbedtls/library/constant_time.c ****     MPI_VALIDATE_RET(X != NULL);
+ 761              		.loc 1 546 5 view .LVU228
+ 762              		.loc 1 546 5 view .LVU229
+ 763              		.loc 1 546 5 view .LVU230
+ 547:Libs/mbedtls/library/constant_time.c ****     MPI_VALIDATE_RET(Y != NULL);
+ 764              		.loc 1 547 5 view .LVU231
+ 765              		.loc 1 547 5 view .LVU232
+ 766              		.loc 1 547 5 view .LVU233
+ 548:Libs/mbedtls/library/constant_time.c **** 
+ 549:Libs/mbedtls/library/constant_time.c ****     if (X == Y) {
+ 767              		.loc 1 549 5 view .LVU234
+ 768              		.loc 1 549 8 is_stmt 0 view .LVU235
+ 769 0000 8842     		cmp	r0, r1
+ 541:Libs/mbedtls/library/constant_time.c ****     int ret, s;
+ 770              		.loc 1 541 1 view .LVU236
+ 771 0002 2DE9F843 		push	{r3, r4, r5, r6, r7, r8, r9, lr}
+ 772              	.LCFI7:
+ 773              		.cfi_def_cfa_offset 32
+ 774              		.cfi_offset 3, -32
+ 775              		.cfi_offset 4, -28
+ 776              		.cfi_offset 5, -24
+ 777              		.cfi_offset 6, -20
+ 778              		.cfi_offset 7, -16
+ 779              		.cfi_offset 8, -12
+ 780              		.cfi_offset 9, -8
+ 781              		.cfi_offset 14, -4
+ 541:Libs/mbedtls/library/constant_time.c ****     int ret, s;
+ 782              		.loc 1 541 1 view .LVU237
+ 783 0006 0646     		mov	r6, r0
+ 784 0008 0D46     		mov	r5, r1
+ 785 000a 9046     		mov	r8, r2
+ 786              		.loc 1 549 8 view .LVU238
+ 787 000c 03D1     		bne	.L21
+ 788              	.LVL77:
+ 789              	.L25:
+ 550:Libs/mbedtls/library/constant_time.c ****         return 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 26
+
+
+ 790              		.loc 1 550 16 view .LVU239
+ 791 000e 0024     		movs	r4, #0
+ 792              	.L20:
+ 551:Libs/mbedtls/library/constant_time.c ****     }
+ 552:Libs/mbedtls/library/constant_time.c **** 
+ 553:Libs/mbedtls/library/constant_time.c ****     /* all-bits 1 if swap is 1, all-bits 0 if swap is 0 */
+ 554:Libs/mbedtls/library/constant_time.c ****     limb_mask = mbedtls_ct_mpi_uint_mask(swap);
+ 555:Libs/mbedtls/library/constant_time.c **** 
+ 556:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(X, Y->n));
+ 557:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(Y, X->n));
+ 558:Libs/mbedtls/library/constant_time.c **** 
+ 559:Libs/mbedtls/library/constant_time.c ****     s = X->s;
+ 560:Libs/mbedtls/library/constant_time.c ****     X->s = (int) mbedtls_ct_uint_if(swap, Y->s, X->s);
+ 561:Libs/mbedtls/library/constant_time.c ****     Y->s = (int) mbedtls_ct_uint_if(swap, s, Y->s);
+ 562:Libs/mbedtls/library/constant_time.c **** 
+ 563:Libs/mbedtls/library/constant_time.c **** 
+ 564:Libs/mbedtls/library/constant_time.c ****     for (i = 0; i < X->n; i++) {
+ 565:Libs/mbedtls/library/constant_time.c ****         tmp = X->p[i];
+ 566:Libs/mbedtls/library/constant_time.c ****         X->p[i] = (X->p[i] & ~limb_mask) | (Y->p[i] & limb_mask);
+ 567:Libs/mbedtls/library/constant_time.c ****         Y->p[i] = (Y->p[i] & ~limb_mask) | (tmp & limb_mask);
+ 568:Libs/mbedtls/library/constant_time.c ****     }
+ 569:Libs/mbedtls/library/constant_time.c **** 
+ 570:Libs/mbedtls/library/constant_time.c **** cleanup:
+ 571:Libs/mbedtls/library/constant_time.c ****     return ret;
+ 572:Libs/mbedtls/library/constant_time.c **** }
+ 793              		.loc 1 572 1 view .LVU240
+ 794 0010 2046     		mov	r0, r4
+ 795 0012 BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 796              	.LVL78:
+ 797              	.L21:
+ 554:Libs/mbedtls/library/constant_time.c **** 
+ 798              		.loc 1 554 5 is_stmt 1 view .LVU241
+ 799              	.LBB24:
+ 800              	.LBI24:
+  93:Libs/mbedtls/library/constant_time.c **** {
+ 801              		.loc 1 93 18 view .LVU242
+ 802              	.LBB25:
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 803              		.loc 1 101 5 view .LVU243
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 804              		.loc 1 101 5 is_stmt 0 view .LVU244
+ 805              	.LBE25:
+ 806              	.LBE24:
+ 556:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(Y, X->n));
+ 807              		.loc 1 556 5 is_stmt 1 view .LVU245
+ 556:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(Y, X->n));
+ 808              		.loc 1 556 5 view .LVU246
+ 809 0016 4968     		ldr	r1, [r1, #4]
+ 810              	.LVL79:
+ 556:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(Y, X->n));
+ 811              		.loc 1 556 5 is_stmt 0 view .LVU247
+ 812 0018 FFF7FEFF 		bl	mbedtls_mpi_grow
+ 813              	.LVL80:
+ 556:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(Y, X->n));
+ 814              		.loc 1 556 5 discriminator 1 view .LVU248
+ 815 001c 0446     		mov	r4, r0
+ 816 001e 0028     		cmp	r0, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 27
+
+
+ 817 0020 F6D1     		bne	.L20
+ 556:Libs/mbedtls/library/constant_time.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(Y, X->n));
+ 818              		.loc 1 556 5 is_stmt 1 discriminator 2 view .LVU249
+ 557:Libs/mbedtls/library/constant_time.c **** 
+ 819              		.loc 1 557 5 view .LVU250
+ 557:Libs/mbedtls/library/constant_time.c **** 
+ 820              		.loc 1 557 5 view .LVU251
+ 821 0022 7168     		ldr	r1, [r6, #4]
+ 822 0024 2846     		mov	r0, r5
+ 823              	.LVL81:
+ 557:Libs/mbedtls/library/constant_time.c **** 
+ 824              		.loc 1 557 5 is_stmt 0 view .LVU252
+ 825 0026 FFF7FEFF 		bl	mbedtls_mpi_grow
+ 826              	.LVL82:
+ 557:Libs/mbedtls/library/constant_time.c **** 
+ 827              		.loc 1 557 5 discriminator 1 view .LVU253
+ 828 002a 0446     		mov	r4, r0
+ 829 002c 0028     		cmp	r0, #0
+ 830 002e EFD1     		bne	.L20
+ 560:Libs/mbedtls/library/constant_time.c ****     Y->s = (int) mbedtls_ct_uint_if(swap, s, Y->s);
+ 831              		.loc 1 560 18 view .LVU254
+ 832 0030 D6F80090 		ldr	r9, [r6]
+ 833              	.LBB29:
+ 834              	.LBB26:
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 835              		.loc 1 101 23 view .LVU255
+ 836 0034 C8F10007 		rsb	r7, r8, #0
+ 837              	.LBE26:
+ 838              	.LBE29:
+ 560:Libs/mbedtls/library/constant_time.c ****     Y->s = (int) mbedtls_ct_uint_if(swap, s, Y->s);
+ 839              		.loc 1 560 18 view .LVU256
+ 840 0038 2968     		ldr	r1, [r5]
+ 841 003a 4046     		mov	r0, r8
+ 842              	.LVL83:
+ 560:Libs/mbedtls/library/constant_time.c ****     Y->s = (int) mbedtls_ct_uint_if(swap, s, Y->s);
+ 843              		.loc 1 560 18 view .LVU257
+ 844 003c 4A46     		mov	r2, r9
+ 845              	.LBB30:
+ 846              	.LBB27:
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 847              		.loc 1 101 21 view .LVU258
+ 848 003e 47EA0807 		orr	r7, r7, r8
+ 849              	.LBE27:
+ 850              	.LBE30:
+ 560:Libs/mbedtls/library/constant_time.c ****     Y->s = (int) mbedtls_ct_uint_if(swap, s, Y->s);
+ 851              		.loc 1 560 18 view .LVU259
+ 852 0042 FFF7FEFF 		bl	mbedtls_ct_uint_if
+ 853              	.LVL84:
+ 561:Libs/mbedtls/library/constant_time.c **** 
+ 854              		.loc 1 561 18 view .LVU260
+ 855 0046 4946     		mov	r1, r9
+ 560:Libs/mbedtls/library/constant_time.c ****     Y->s = (int) mbedtls_ct_uint_if(swap, s, Y->s);
+ 856              		.loc 1 560 10 discriminator 1 view .LVU261
+ 857 0048 3060     		str	r0, [r6]
+ 561:Libs/mbedtls/library/constant_time.c **** 
+ 858              		.loc 1 561 18 view .LVU262
+ 859 004a 4046     		mov	r0, r8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 28
+
+
+ 860 004c 2A68     		ldr	r2, [r5]
+ 861              	.LBB31:
+ 862              	.LBB28:
+ 101:Libs/mbedtls/library/constant_time.c **** #if defined(_MSC_VER)
+ 863              		.loc 1 101 12 view .LVU263
+ 864 004e FF17     		asrs	r7, r7, #31
+ 865              	.LBE28:
+ 866              	.LBE31:
+ 557:Libs/mbedtls/library/constant_time.c **** 
+ 867              		.loc 1 557 5 is_stmt 1 discriminator 2 view .LVU264
+ 559:Libs/mbedtls/library/constant_time.c ****     X->s = (int) mbedtls_ct_uint_if(swap, Y->s, X->s);
+ 868              		.loc 1 559 5 view .LVU265
+ 560:Libs/mbedtls/library/constant_time.c ****     Y->s = (int) mbedtls_ct_uint_if(swap, s, Y->s);
+ 869              		.loc 1 560 5 view .LVU266
+ 561:Libs/mbedtls/library/constant_time.c **** 
+ 870              		.loc 1 561 5 view .LVU267
+ 561:Libs/mbedtls/library/constant_time.c **** 
+ 871              		.loc 1 561 18 is_stmt 0 view .LVU268
+ 872 0050 FFF7FEFF 		bl	mbedtls_ct_uint_if
+ 873              	.LVL85:
+ 564:Libs/mbedtls/library/constant_time.c ****         tmp = X->p[i];
+ 874              		.loc 1 564 22 discriminator 1 view .LVU269
+ 875 0054 7168     		ldr	r1, [r6, #4]
+ 561:Libs/mbedtls/library/constant_time.c **** 
+ 876              		.loc 1 561 10 discriminator 1 view .LVU270
+ 877 0056 2860     		str	r0, [r5]
+ 564:Libs/mbedtls/library/constant_time.c ****         tmp = X->p[i];
+ 878              		.loc 1 564 5 is_stmt 1 view .LVU271
+ 879              	.LVL86:
+ 564:Libs/mbedtls/library/constant_time.c ****         tmp = X->p[i];
+ 880              		.loc 1 564 12 is_stmt 0 view .LVU272
+ 881 0058 2046     		mov	r0, r4
+ 882              	.LVL87:
+ 883              	.L23:
+ 564:Libs/mbedtls/library/constant_time.c ****         tmp = X->p[i];
+ 884              		.loc 1 564 19 is_stmt 1 discriminator 1 view .LVU273
+ 885 005a 8142     		cmp	r1, r0
+ 886 005c D7D0     		beq	.L25
+ 565:Libs/mbedtls/library/constant_time.c ****         X->p[i] = (X->p[i] & ~limb_mask) | (Y->p[i] & limb_mask);
+ 887              		.loc 1 565 9 view .LVU274
+ 566:Libs/mbedtls/library/constant_time.c ****         Y->p[i] = (Y->p[i] & ~limb_mask) | (tmp & limb_mask);
+ 888              		.loc 1 566 49 is_stmt 0 view .LVU275
+ 889 005e AC68     		ldr	r4, [r5, #8]
+ 565:Libs/mbedtls/library/constant_time.c ****         X->p[i] = (X->p[i] & ~limb_mask) | (Y->p[i] & limb_mask);
+ 890              		.loc 1 565 19 view .LVU276
+ 891 0060 D6F808C0 		ldr	ip, [r6, #8]
+ 566:Libs/mbedtls/library/constant_time.c ****         Y->p[i] = (Y->p[i] & ~limb_mask) | (tmp & limb_mask);
+ 892              		.loc 1 566 42 view .LVU277
+ 893 0064 54F82020 		ldr	r2, [r4, r0, lsl #2]
+ 565:Libs/mbedtls/library/constant_time.c ****         X->p[i] = (X->p[i] & ~limb_mask) | (Y->p[i] & limb_mask);
+ 894              		.loc 1 565 13 view .LVU278
+ 895 0068 5CF82030 		ldr	r3, [ip, r0, lsl #2]
+ 896              	.LVL88:
+ 566:Libs/mbedtls/library/constant_time.c ****         Y->p[i] = (Y->p[i] & ~limb_mask) | (tmp & limb_mask);
+ 897              		.loc 1 566 9 is_stmt 1 view .LVU279
+ 566:Libs/mbedtls/library/constant_time.c ****         Y->p[i] = (Y->p[i] & ~limb_mask) | (tmp & limb_mask);
+ 898              		.loc 1 566 42 is_stmt 0 view .LVU280
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 29
+
+
+ 899 006c 5A40     		eors	r2, r2, r3
+ 900 006e 3A40     		ands	r2, r2, r7
+ 901 0070 5A40     		eors	r2, r2, r3
+ 566:Libs/mbedtls/library/constant_time.c ****         Y->p[i] = (Y->p[i] & ~limb_mask) | (tmp & limb_mask);
+ 902              		.loc 1 566 17 view .LVU281
+ 903 0072 4CF82020 		str	r2, [ip, r0, lsl #2]
+ 567:Libs/mbedtls/library/constant_time.c ****     }
+ 904              		.loc 1 567 9 is_stmt 1 view .LVU282
+ 567:Libs/mbedtls/library/constant_time.c ****     }
+ 905              		.loc 1 567 24 is_stmt 0 view .LVU283
+ 906 0076 54F82020 		ldr	r2, [r4, r0, lsl #2]
+ 567:Libs/mbedtls/library/constant_time.c ****     }
+ 907              		.loc 1 567 42 view .LVU284
+ 908 007a 5340     		eors	r3, r3, r2
+ 909              	.LVL89:
+ 567:Libs/mbedtls/library/constant_time.c ****     }
+ 910              		.loc 1 567 42 view .LVU285
+ 911 007c 3B40     		ands	r3, r3, r7
+ 912 007e 5340     		eors	r3, r3, r2
+ 567:Libs/mbedtls/library/constant_time.c ****     }
+ 913              		.loc 1 567 17 view .LVU286
+ 914 0080 44F82030 		str	r3, [r4, r0, lsl #2]
+ 564:Libs/mbedtls/library/constant_time.c ****         tmp = X->p[i];
+ 915              		.loc 1 564 28 is_stmt 1 discriminator 3 view .LVU287
+ 916 0084 0130     		adds	r0, r0, #1
+ 917              	.LVL90:
+ 564:Libs/mbedtls/library/constant_time.c ****         tmp = X->p[i];
+ 918              		.loc 1 564 28 is_stmt 0 discriminator 3 view .LVU288
+ 919 0086 E8E7     		b	.L23
+ 920              		.cfi_endproc
+ 921              	.LFE14:
+ 923              		.section	.text.mbedtls_mpi_lt_mpi_ct,"ax",%progbits
+ 924              		.align	1
+ 925              		.global	mbedtls_mpi_lt_mpi_ct
+ 926              		.syntax unified
+ 927              		.thumb
+ 928              		.thumb_func
+ 930              	mbedtls_mpi_lt_mpi_ct:
+ 931              	.LVL91:
+ 932              	.LFB15:
+ 573:Libs/mbedtls/library/constant_time.c **** 
+ 574:Libs/mbedtls/library/constant_time.c **** /*
+ 575:Libs/mbedtls/library/constant_time.c ****  * Compare signed values in constant time
+ 576:Libs/mbedtls/library/constant_time.c ****  */
+ 577:Libs/mbedtls/library/constant_time.c **** int mbedtls_mpi_lt_mpi_ct(const mbedtls_mpi *X,
+ 578:Libs/mbedtls/library/constant_time.c ****                           const mbedtls_mpi *Y,
+ 579:Libs/mbedtls/library/constant_time.c ****                           unsigned *ret)
+ 580:Libs/mbedtls/library/constant_time.c **** {
+ 933              		.loc 1 580 1 is_stmt 1 view -0
+ 934              		.cfi_startproc
+ 935              		@ args = 0, pretend = 0, frame = 8
+ 936              		@ frame_needed = 0, uses_anonymous_args = 0
+ 581:Libs/mbedtls/library/constant_time.c ****     size_t i;
+ 937              		.loc 1 581 5 view .LVU290
+ 582:Libs/mbedtls/library/constant_time.c ****     /* The value of any of these variables is either 0 or 1 at all times. */
+ 583:Libs/mbedtls/library/constant_time.c ****     unsigned cond, done, X_is_negative, Y_is_negative;
+ 938              		.loc 1 583 5 view .LVU291
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 30
+
+
+ 584:Libs/mbedtls/library/constant_time.c **** 
+ 585:Libs/mbedtls/library/constant_time.c ****     MPI_VALIDATE_RET(X != NULL);
+ 939              		.loc 1 585 5 view .LVU292
+ 940              		.loc 1 585 5 view .LVU293
+ 941              		.loc 1 585 5 view .LVU294
+ 586:Libs/mbedtls/library/constant_time.c ****     MPI_VALIDATE_RET(Y != NULL);
+ 942              		.loc 1 586 5 view .LVU295
+ 943              		.loc 1 586 5 view .LVU296
+ 944              		.loc 1 586 5 view .LVU297
+ 587:Libs/mbedtls/library/constant_time.c ****     MPI_VALIDATE_RET(ret != NULL);
+ 945              		.loc 1 587 5 view .LVU298
+ 946              		.loc 1 587 5 view .LVU299
+ 947              		.loc 1 587 5 view .LVU300
+ 588:Libs/mbedtls/library/constant_time.c **** 
+ 589:Libs/mbedtls/library/constant_time.c ****     if (X->n != Y->n) {
+ 948              		.loc 1 589 5 view .LVU301
+ 580:Libs/mbedtls/library/constant_time.c ****     size_t i;
+ 949              		.loc 1 580 1 is_stmt 0 view .LVU302
+ 950 0000 2DE9F74F 		push	{r0, r1, r2, r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 951              	.LCFI8:
+ 952              		.cfi_def_cfa_offset 48
+ 953              		.cfi_offset 4, -36
+ 954              		.cfi_offset 5, -32
+ 955              		.cfi_offset 6, -28
+ 956              		.cfi_offset 7, -24
+ 957              		.cfi_offset 8, -20
+ 958              		.cfi_offset 9, -16
+ 959              		.cfi_offset 10, -12
+ 960              		.cfi_offset 11, -8
+ 961              		.cfi_offset 14, -4
+ 580:Libs/mbedtls/library/constant_time.c ****     size_t i;
+ 962              		.loc 1 580 1 view .LVU303
+ 963 0004 0F46     		mov	r7, r1
+ 964              		.loc 1 589 8 view .LVU304
+ 965 0006 4168     		ldr	r1, [r0, #4]
+ 966              	.LVL92:
+ 580:Libs/mbedtls/library/constant_time.c ****     size_t i;
+ 967              		.loc 1 580 1 view .LVU305
+ 968 0008 0646     		mov	r6, r0
+ 969              		.loc 1 589 8 view .LVU306
+ 970 000a 7B68     		ldr	r3, [r7, #4]
+ 971 000c 9942     		cmp	r1, r3
+ 972 000e 38D1     		bne	.L30
+ 590:Libs/mbedtls/library/constant_time.c ****         return MBEDTLS_ERR_MPI_BAD_INPUT_DATA;
+ 591:Libs/mbedtls/library/constant_time.c ****     }
+ 592:Libs/mbedtls/library/constant_time.c **** 
+ 593:Libs/mbedtls/library/constant_time.c ****     /*
+ 594:Libs/mbedtls/library/constant_time.c ****      * Set sign_N to 1 if N >= 0, 0 if N < 0.
+ 595:Libs/mbedtls/library/constant_time.c ****      * We know that N->s == 1 if N >= 0 and N->s == -1 if N < 0.
+ 596:Libs/mbedtls/library/constant_time.c ****      */
+ 597:Libs/mbedtls/library/constant_time.c ****     X_is_negative = (X->s & 2) >> 1;
+ 973              		.loc 1 597 5 is_stmt 1 view .LVU307
+ 598:Libs/mbedtls/library/constant_time.c ****     Y_is_negative = (Y->s & 2) >> 1;
+ 974              		.loc 1 598 32 is_stmt 0 view .LVU308
+ 975 0010 3B68     		ldr	r3, [r7]
+ 597:Libs/mbedtls/library/constant_time.c ****     Y_is_negative = (Y->s & 2) >> 1;
+ 976              		.loc 1 597 32 view .LVU309
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 31
+
+
+ 977 0012 0168     		ldr	r1, [r0]
+ 978              		.loc 1 598 32 view .LVU310
+ 979 0014 5B10     		asrs	r3, r3, #1
+ 980 0016 C1F34008 		ubfx	r8, r1, #1, #1
+ 981              	.LVL93:
+ 982              		.loc 1 598 5 is_stmt 1 view .LVU311
+ 599:Libs/mbedtls/library/constant_time.c **** 
+ 600:Libs/mbedtls/library/constant_time.c ****     /*
+ 601:Libs/mbedtls/library/constant_time.c ****      * If the signs are different, then the positive operand is the bigger.
+ 602:Libs/mbedtls/library/constant_time.c ****      * That is if X is negative (X_is_negative == 1), then X < Y is true and it
+ 603:Libs/mbedtls/library/constant_time.c ****      * is false if X is positive (X_is_negative == 0).
+ 604:Libs/mbedtls/library/constant_time.c ****      */
+ 605:Libs/mbedtls/library/constant_time.c ****     cond = (X_is_negative ^ Y_is_negative);
+ 983              		.loc 1 605 5 view .LVU312
+ 984 001a 83EA6103 		eor	r3, r3, r1, asr #1
+ 985              		.loc 1 605 10 is_stmt 0 view .LVU313
+ 986 001e 03F00104 		and	r4, r3, #1
+ 987              	.LVL94:
+ 606:Libs/mbedtls/library/constant_time.c ****     *ret = cond & X_is_negative;
+ 988              		.loc 1 606 5 is_stmt 1 view .LVU314
+ 989              		.loc 1 606 17 is_stmt 0 view .LVU315
+ 990 0022 08EA0303 		and	r3, r8, r3
+ 991              		.loc 1 606 10 view .LVU316
+ 992 0026 1360     		str	r3, [r2]
+ 993              	.LVL95:
+ 607:Libs/mbedtls/library/constant_time.c **** 
+ 608:Libs/mbedtls/library/constant_time.c ****     /*
+ 609:Libs/mbedtls/library/constant_time.c ****      * This is a constant-time function. We might have the result, but we still
+ 610:Libs/mbedtls/library/constant_time.c ****      * need to go through the loop. Record if we have the result already.
+ 611:Libs/mbedtls/library/constant_time.c ****      */
+ 612:Libs/mbedtls/library/constant_time.c ****     done = cond;
+ 994              		.loc 1 612 5 is_stmt 1 view .LVU317
+ 613:Libs/mbedtls/library/constant_time.c **** 
+ 614:Libs/mbedtls/library/constant_time.c ****     for (i = X->n; i > 0; i--) {
+ 995              		.loc 1 614 5 view .LVU318
+ 615:Libs/mbedtls/library/constant_time.c ****         /*
+ 616:Libs/mbedtls/library/constant_time.c ****          * If Y->p[i - 1] < X->p[i - 1] then X < Y is true if and only if both
+ 617:Libs/mbedtls/library/constant_time.c ****          * X and Y are negative.
+ 618:Libs/mbedtls/library/constant_time.c ****          *
+ 619:Libs/mbedtls/library/constant_time.c ****          * Again even if we can make a decision, we just mark the result and
+ 620:Libs/mbedtls/library/constant_time.c ****          * the fact that we are done and continue looping.
+ 621:Libs/mbedtls/library/constant_time.c ****          */
+ 622:Libs/mbedtls/library/constant_time.c ****         cond = mbedtls_ct_mpi_uint_lt(Y->p[i - 1], X->p[i - 1]);
+ 623:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & X_is_negative;
+ 624:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 625:Libs/mbedtls/library/constant_time.c **** 
+ 626:Libs/mbedtls/library/constant_time.c ****         /*
+ 627:Libs/mbedtls/library/constant_time.c ****          * If X->p[i - 1] < Y->p[i - 1] then X < Y is true if and only if both
+ 628:Libs/mbedtls/library/constant_time.c ****          * X and Y are positive.
+ 629:Libs/mbedtls/library/constant_time.c ****          *
+ 630:Libs/mbedtls/library/constant_time.c ****          * Again even if we can make a decision, we just mark the result and
+ 631:Libs/mbedtls/library/constant_time.c ****          * the fact that we are done and continue looping.
+ 632:Libs/mbedtls/library/constant_time.c ****          */
+ 633:Libs/mbedtls/library/constant_time.c ****         cond = mbedtls_ct_mpi_uint_lt(X->p[i - 1], Y->p[i - 1]);
+ 634:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & (1 - X_is_negative);
+ 996              		.loc 1 634 40 is_stmt 0 view .LVU319
+ 997 0028 88F00103 		eor	r3, r8, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 32
+
+
+ 614:Libs/mbedtls/library/constant_time.c ****         /*
+ 998              		.loc 1 614 12 view .LVU320
+ 999 002c D0F80490 		ldr	r9, [r0, #4]
+ 1000              	.LVL96:
+ 1001              	.L28:
+ 614:Libs/mbedtls/library/constant_time.c ****         /*
+ 1002              		.loc 1 614 22 is_stmt 1 discriminator 1 view .LVU321
+ 1003 0030 B9F10109 		subs	r9, r9, #1
+ 1004              	.LVL97:
+ 614:Libs/mbedtls/library/constant_time.c ****         /*
+ 1005              		.loc 1 614 22 is_stmt 0 discriminator 1 view .LVU322
+ 1006 0034 03D2     		bcs	.L29
+ 635:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 636:Libs/mbedtls/library/constant_time.c ****     }
+ 637:Libs/mbedtls/library/constant_time.c **** 
+ 638:Libs/mbedtls/library/constant_time.c ****     return 0;
+ 1007              		.loc 1 638 12 view .LVU323
+ 1008 0036 0020     		movs	r0, #0
+ 1009              	.LVL98:
+ 1010              	.L26:
+ 639:Libs/mbedtls/library/constant_time.c **** }
+ 1011              		.loc 1 639 1 view .LVU324
+ 1012 0038 03B0     		add	sp, sp, #12
+ 1013              	.LCFI9:
+ 1014              		.cfi_remember_state
+ 1015              		.cfi_def_cfa_offset 36
+ 1016              		@ sp needed
+ 1017 003a BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 1018              	.LVL99:
+ 1019              	.L29:
+ 1020              	.LCFI10:
+ 1021              		.cfi_restore_state
+ 622:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & X_is_negative;
+ 1022              		.loc 1 622 16 view .LVU325
+ 1023 003e B968     		ldr	r1, [r7, #8]
+ 623:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1024              		.loc 1 623 27 view .LVU326
+ 1025 0040 C4F10105 		rsb	r5, r4, #1
+ 1026 0044 0193     		str	r3, [sp, #4]
+ 622:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & X_is_negative;
+ 1027              		.loc 1 622 9 is_stmt 1 view .LVU327
+ 622:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & X_is_negative;
+ 1028              		.loc 1 622 16 is_stmt 0 view .LVU328
+ 1029 0046 51F829B0 		ldr	fp, [r1, r9, lsl #2]
+ 623:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1030              		.loc 1 623 35 view .LVU329
+ 1031 004a 05EA0805 		and	r5, r5, r8
+ 622:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & X_is_negative;
+ 1032              		.loc 1 622 16 view .LVU330
+ 1033 004e B168     		ldr	r1, [r6, #8]
+ 1034 0050 5846     		mov	r0, fp
+ 1035 0052 51F829A0 		ldr	r10, [r1, r9, lsl #2]
+ 1036 0056 5146     		mov	r1, r10
+ 1037 0058 FFF7FEFF 		bl	mbedtls_ct_mpi_uint_lt
+ 1038              	.LVL100:
+ 623:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1039              		.loc 1 623 9 is_stmt 1 view .LVU331
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 33
+
+
+ 623:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1040              		.loc 1 623 14 is_stmt 0 view .LVU332
+ 1041 005c 1168     		ldr	r1, [r2]
+ 623:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1042              		.loc 1 623 35 view .LVU333
+ 1043 005e 0540     		ands	r5, r5, r0
+ 624:Libs/mbedtls/library/constant_time.c **** 
+ 1044              		.loc 1 624 14 view .LVU334
+ 1045 0060 0443     		orrs	r4, r4, r0
+ 1046              	.LVL101:
+ 633:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & (1 - X_is_negative);
+ 1047              		.loc 1 633 16 view .LVU335
+ 1048 0062 5046     		mov	r0, r10
+ 1049              	.LVL102:
+ 623:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1050              		.loc 1 623 14 view .LVU336
+ 1051 0064 0D43     		orrs	r5, r5, r1
+ 624:Libs/mbedtls/library/constant_time.c **** 
+ 1052              		.loc 1 624 9 is_stmt 1 view .LVU337
+ 1053              	.LVL103:
+ 633:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & (1 - X_is_negative);
+ 1054              		.loc 1 633 9 view .LVU338
+ 633:Libs/mbedtls/library/constant_time.c ****         *ret |= cond & (1 - done) & (1 - X_is_negative);
+ 1055              		.loc 1 633 16 is_stmt 0 view .LVU339
+ 1056 0066 5946     		mov	r1, fp
+ 1057 0068 FFF7FEFF 		bl	mbedtls_ct_mpi_uint_lt
+ 1058              	.LVL104:
+ 634:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1059              		.loc 1 634 9 is_stmt 1 view .LVU340
+ 634:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1060              		.loc 1 634 35 is_stmt 0 view .LVU341
+ 1061 006c 019B     		ldr	r3, [sp, #4]
+ 634:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1062              		.loc 1 634 27 view .LVU342
+ 1063 006e C4F1010C 		rsb	ip, r4, #1
+ 635:Libs/mbedtls/library/constant_time.c ****     }
+ 1064              		.loc 1 635 14 view .LVU343
+ 1065 0072 0443     		orrs	r4, r4, r0
+ 1066              	.LVL105:
+ 634:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1067              		.loc 1 634 35 view .LVU344
+ 1068 0074 03EA0001 		and	r1, r3, r0
+ 1069 0078 01EA0C01 		and	r1, r1, ip
+ 634:Libs/mbedtls/library/constant_time.c ****         done |= cond;
+ 1070              		.loc 1 634 14 view .LVU345
+ 1071 007c 2943     		orrs	r1, r1, r5
+ 1072 007e 1160     		str	r1, [r2]
+ 635:Libs/mbedtls/library/constant_time.c ****     }
+ 1073              		.loc 1 635 9 is_stmt 1 view .LVU346
+ 1074              	.LVL106:
+ 614:Libs/mbedtls/library/constant_time.c ****         /*
+ 1075              		.loc 1 614 28 discriminator 3 view .LVU347
+ 614:Libs/mbedtls/library/constant_time.c ****         /*
+ 1076              		.loc 1 614 28 is_stmt 0 discriminator 3 view .LVU348
+ 1077 0080 D6E7     		b	.L28
+ 1078              	.LVL107:
+ 1079              	.L30:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 34
+
+
+ 590:Libs/mbedtls/library/constant_time.c ****     }
+ 1080              		.loc 1 590 16 view .LVU349
+ 1081 0082 6FF00300 		mvn	r0, #3
+ 1082              	.LVL108:
+ 590:Libs/mbedtls/library/constant_time.c ****     }
+ 1083              		.loc 1 590 16 view .LVU350
+ 1084 0086 D7E7     		b	.L26
+ 1085              		.cfi_endproc
+ 1086              	.LFE15:
+ 1088              		.text
+ 1089              	.Letext0:
+ 1090              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1091              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1092              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1093              		.file 5 "Libs/mbedtls/include/mbedtls/bignum.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s 			page 35
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 constant_time.c
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:20     .text.mbedtls_ct_uchar_mask_of_range:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:25     .text.mbedtls_ct_uchar_mask_of_range:00000000 mbedtls_ct_uchar_mask_of_range
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:56     .text.mbedtls_ct_memcmp:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:62     .text.mbedtls_ct_memcmp:00000000 mbedtls_ct_memcmp
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:136    .text.mbedtls_ct_uint_mask:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:142    .text.mbedtls_ct_uint_mask:00000000 mbedtls_ct_uint_mask
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:163    .text.mbedtls_ct_mpi_uint_mask:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:169    .text.mbedtls_ct_mpi_uint_mask:00000000 mbedtls_ct_mpi_uint_mask
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:184    .text.mbedtls_ct_size_bool_eq:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:190    .text.mbedtls_ct_size_bool_eq:00000000 mbedtls_ct_size_bool_eq
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:223    .text.mbedtls_ct_mpi_uint_lt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:229    .text.mbedtls_ct_mpi_uint_lt:00000000 mbedtls_ct_mpi_uint_lt
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:268    .text.mbedtls_ct_uint_if:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:274    .text.mbedtls_ct_uint_if:00000000 mbedtls_ct_uint_if
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:318    .text.mbedtls_ct_mpi_uint_cond_assign:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:324    .text.mbedtls_ct_mpi_uint_cond_assign:00000000 mbedtls_ct_mpi_uint_cond_assign
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:385    .text.mbedtls_ct_base64_enc_char:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:391    .text.mbedtls_ct_base64_enc_char:00000000 mbedtls_ct_base64_enc_char
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:491    .text.mbedtls_ct_base64_dec_value:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:497    .text.mbedtls_ct_base64_dec_value:00000000 mbedtls_ct_base64_dec_value
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:608    .text.mbedtls_mpi_safe_cond_assign:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:614    .text.mbedtls_mpi_safe_cond_assign:00000000 mbedtls_mpi_safe_cond_assign
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:744    .text.mbedtls_mpi_safe_cond_swap:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:750    .text.mbedtls_mpi_safe_cond_swap:00000000 mbedtls_mpi_safe_cond_swap
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:924    .text.mbedtls_mpi_lt_mpi_ct:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANskFM.s:930    .text.mbedtls_mpi_lt_mpi_ct:00000000 mbedtls_mpi_lt_mpi_ct
+
+UNDEFINED SYMBOLS
+mbedtls_mpi_grow

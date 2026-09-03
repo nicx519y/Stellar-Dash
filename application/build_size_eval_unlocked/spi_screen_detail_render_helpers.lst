@@ -1,0 +1,1177 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_render_helpers.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp"
+  19              		.section	.rodata._Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb.s
+  20              	.LC0:
+  21 0000 00       		.ascii	"\000"
+  22              		.section	.text._Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb,"ax
+  23              		.align	1
+  24              		.global	_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+  25              		.syntax unified
+  26              		.thumb
+  27              		.thumb_func
+  29              	_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb:
+  30              	.LVL0:
+  31              	.LFB1269:
+   1:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+   3:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** #include <stdio.h>
+   4:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+   5:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** #include "screen_control/spi_screen_ui_common.hpp"
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* const* labels, uint
+  32              		.loc 1 7 294 view -0
+  33              		.cfi_startproc
+  34              		@ args = 36, pretend = 0, frame = 40
+  35              		@ frame_needed = 0, uses_anonymous_args = 0
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     (void)title;
+  36              		.loc 1 8 5 view .LVU1
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd || !labels) return;
+  37              		.loc 1 9 5 view .LVU2
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     (void)title;
+  38              		.loc 1 7 294 is_stmt 0 view .LVU3
+  39 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+  40              	.LCFI0:
+  41              		.cfi_def_cfa_offset 36
+  42              		.cfi_offset 4, -36
+  43              		.cfi_offset 5, -32
+  44              		.cfi_offset 6, -28
+  45              		.cfi_offset 7, -24
+  46              		.cfi_offset 8, -20
+  47              		.cfi_offset 9, -16
+  48              		.cfi_offset 10, -12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 2
+
+
+  49              		.cfi_offset 11, -8
+  50              		.cfi_offset 14, -4
+  51 0004 8FB0     		sub	sp, sp, #60
+  52              	.LCFI1:
+  53              		.cfi_def_cfa_offset 96
+  54              		.loc 1 9 5 view .LVU4
+  55 0006 0646     		mov	r6, r0
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     (void)title;
+  56              		.loc 1 7 294 view .LVU5
+  57 0008 0C93     		str	r3, [sp, #48]
+  58 000a 9DF86030 		ldrb	r3, [sp, #96]	@ zero_extendqisi2
+  59              	.LVL1:
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     (void)title;
+  60              		.loc 1 7 294 view .LVU6
+  61 000e 1A9C     		ldr	r4, [sp, #104]
+  62 0010 0993     		str	r3, [sp, #36]
+  63 0012 9DF86430 		ldrb	r3, [sp, #100]	@ zero_extendqisi2
+  64 0016 BDF86C90 		ldrh	r9, [sp, #108]
+  65 001a 9DF87070 		ldrb	r7, [sp, #112]	@ zero_extendqisi2
+  66 001e 0892     		str	r2, [sp, #32]
+  67 0020 0D93     		str	r3, [sp, #52]
+  68              		.loc 1 9 5 view .LVU7
+  69 0022 0028     		cmp	r0, #0
+  70 0024 3DD0     		beq	.L1
+  71              		.loc 1 9 14 discriminator 2 view .LVU8
+  72 0026 002A     		cmp	r2, #0
+  73 0028 3BD0     		beq	.L1
+  10:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  11:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t w = ST7789_WIDTH;
+  74              		.loc 1 11 5 is_stmt 1 view .LVU9
+  75              	.LVL2:
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t h = ST7789_HEIGHT;
+  76              		.loc 1 12 5 view .LVU10
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
+  77              		.loc 1 13 5 view .LVU11
+  14:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
+  78              		.loc 1 14 5 view .LVU12
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t centerY = (uint16_t)(h / 2u);
+  79              		.loc 1 15 5 view .LVU13
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
+  80              		.loc 1 16 5 view .LVU14
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint32_t normalText = ScreenUI_MutedTextForBg(style.text, style.bg, 80u);
+  81              		.loc 1 17 56 is_stmt 0 view .LVU15
+  82 002a 5022     		movs	r2, #80
+  83              	.LVL3:
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
+  84              		.loc 1 16 57 view .LVU16
+  85 002c 4FEA5905 		lsr	r5, r9, #1
+  86              		.loc 1 17 56 view .LVU17
+  87 0030 D4E90010 		ldrd	r1, r0, [r4]
+  88              	.LVL4:
+  89              		.loc 1 17 56 view .LVU18
+  90 0034 FFF7FEFF 		bl	_Z23ScreenUI_MutedTextForBgmmh
+  91              	.LVL5:
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint32_t disabledText = ScreenUI_MutedTextForBg(style.text, style.bg, 180u);
+  92              		.loc 1 18 58 view .LVU19
+  93 0038 B422     		movs	r2, #180
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 3
+
+
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint32_t normalText = ScreenUI_MutedTextForBg(style.text, style.bg, 80u);
+  94              		.loc 1 17 56 view .LVU20
+  95 003a 0A90     		str	r0, [sp, #40]
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
+  96              		.loc 1 16 20 view .LVU21
+  97 003c C5F15605 		rsb	r5, r5, #86
+  98              		.loc 1 18 58 view .LVU22
+  99 0040 D4E90010 		ldrd	r1, r0, [r4]
+ 100 0044 FFF7FEFF 		bl	_Z23ScreenUI_MutedTextForBgmmh
+ 101              	.LVL6:
+ 102 0048 0B90     		str	r0, [sp, #44]
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t charH = ScreenUI_CharCellH(SPI_SCREEN_MENU_TEXT_SCALE);
+ 103              		.loc 1 19 46 view .LVU23
+ 104 004a 0220     		movs	r0, #2
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint32_t normalText = ScreenUI_MutedTextForBg(style.text, style.bg, 80u);
+ 105              		.loc 1 16 20 view .LVU24
+ 106 004c ADB2     		uxth	r5, r5
+ 107              	.LVL7:
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint32_t disabledText = ScreenUI_MutedTextForBg(style.text, style.bg, 180u);
+ 108              		.loc 1 17 5 is_stmt 1 view .LVU25
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t charH = ScreenUI_CharCellH(SPI_SCREEN_MENU_TEXT_SCALE);
+ 109              		.loc 1 18 5 view .LVU26
+ 110              		.loc 1 19 5 view .LVU27
+ 111              		.loc 1 19 46 is_stmt 0 view .LVU28
+ 112 004e FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 113              	.LVL8:
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
+ 114              		.loc 1 21 20 view .LVU29
+ 115 0052 2368     		ldr	r3, [r4]
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 116              		.loc 1 19 46 view .LVU30
+ 117 0054 0790     		str	r0, [sp, #28]
+ 118              	.LVL9:
+ 119              		.loc 1 21 5 is_stmt 1 view .LVU31
+ 120              		.loc 1 21 20 is_stmt 0 view .LVU32
+ 121 0056 0022     		movs	r2, #0
+ 122 0058 0193     		str	r3, [sp, #4]
+ 123 005a AC23     		movs	r3, #172
+ 124 005c 2821     		movs	r1, #40
+ 125 005e 3046     		mov	r0, r6
+ 126 0060 0093     		str	r3, [sp]
+ 127 0062 F023     		movs	r3, #240
+ 128 0064 FFF7FEFF 		bl	ST7789_FillRect
+ 129              	.LVL10:
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     int offsetPx = 0;
+ 130              		.loc 1 23 5 is_stmt 1 view .LVU33
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (animActive) {
+ 131              		.loc 1 24 5 view .LVU34
+ 132              	.LBB2:
+ 133 0068 77B1     		cbz	r7, .L4
+ 134              	.LBB3:
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint32_t eased = ScreenUI_EaseOutCubic(nowMs - animStartMs, SPI_SCREEN_ANIM_MS);
+ 135              		.loc 1 25 9 view .LVU35
+ 136              		.loc 1 25 47 is_stmt 0 view .LVU36
+ 137 006a A021     		movs	r1, #160
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 4
+
+
+ 138 006c DDE91E30 		ldrd	r3, r0, [sp, #120]
+ 139 0070 C01A     		subs	r0, r0, r3
+ 140 0072 FFF7FEFF 		bl	_Z21ScreenUI_EaseOutCubicmm
+ 141              	.LVL11:
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int signedPx = (int)((int)itemH * (int)eased / 1000);
+ 142              		.loc 1 26 9 is_stmt 1 view .LVU37
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         offsetPx = -animDir * signedPx;
+ 143              		.loc 1 27 9 view .LVU38
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int signedPx = (int)((int)itemH * (int)eased / 1000);
+ 144              		.loc 1 26 13 is_stmt 0 view .LVU39
+ 145 0076 4FF47A73 		mov	r3, #1000
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int signedPx = (int)((int)itemH * (int)eased / 1000);
+ 146              		.loc 1 26 41 view .LVU40
+ 147 007a 09FB00F7 		mul	r7, r9, r0
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int signedPx = (int)((int)itemH * (int)eased / 1000);
+ 148              		.loc 1 26 13 view .LVU41
+ 149 007e 97FBF3F7 		sdiv	r7, r7, r3
+ 150              	.LVL12:
+ 151              		.loc 1 27 20 view .LVU42
+ 152 0082 1D9B     		ldr	r3, [sp, #116]
+ 153 0084 5B42     		rsbs	r3, r3, #0
+ 154              		.loc 1 27 18 view .LVU43
+ 155 0086 5F43     		muls	r7, r3, r7
+ 156              	.LVL13:
+ 157              	.L4:
+ 158              		.loc 1 27 18 view .LVU44
+ 159              	.LBE3:
+ 160              	.LBE2:
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     }
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     for (uint8_t i = 0; i < count; i++) {
+ 161              		.loc 1 30 5 is_stmt 1 view .LVU45
+ 162              	.LBB4:
+ 163              	.LBB5:
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int dy = (int)((int)i - (int)index) * (int)itemH;
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int y0 = (int)anchorY + dy + offsetPx;
+  33:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int y1 = y0 + (int)itemH;
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (y1 <= 0 || y0 >= (int)h) continue;
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int clipY0 = (y0 < 0) ? 0 : y0;
+  37:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int clipY1 = (y1 > (int)h) ? (int)h : y1;
+  38:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t yy = (uint16_t)clipY0;
+  39:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t hh = (uint16_t)(clipY1 - clipY0);
+  40:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int textY = y0 + (int)((itemH - charH) / 2u);
+ 164              		.loc 1 41 39 is_stmt 0 view .LVU46
+ 165 0088 079B     		ldr	r3, [sp, #28]
+ 166 008a A9EB0303 		sub	r3, r9, r3
+ 167              		.loc 1 41 48 view .LVU47
+ 168 008e 5B08     		lsrs	r3, r3, #1
+ 169 0090 0693     		str	r3, [sp, #24]
+ 170 0092 099B     		ldr	r3, [sp, #36]
+ 171 0094 03FB1955 		mls	r5, r3, r9, r5
+ 172              	.LVL14:
+ 173              		.loc 1 41 48 view .LVU48
+ 174 0098 EB19     		adds	r3, r5, r7
+ 175              	.LBE5:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 5
+
+
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int dy = (int)((int)i - (int)index) * (int)itemH;
+ 176              		.loc 1 30 5 view .LVU49
+ 177 009a 0025     		movs	r5, #0
+ 178              	.LVL15:
+ 179              	.L5:
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int dy = (int)((int)i - (int)index) * (int)itemH;
+ 180              		.loc 1 30 27 is_stmt 1 discriminator 1 view .LVU50
+ 181 009c 0C9A     		ldr	r2, [sp, #48]
+ 182 009e 9542     		cmp	r5, r2
+ 183 00a0 02D1     		bne	.L14
+ 184              	.LVL16:
+ 185              	.L1:
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int dy = (int)((int)i - (int)index) * (int)itemH;
+ 186              		.loc 1 30 27 is_stmt 0 discriminator 1 view .LVU51
+ 187              	.LBE4:
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         bool textVisible = (textY >= 0) && ((textY + (int)charH) <= (int)h);
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const char* label = labels[i] ? labels[i] : "";
+  45:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const bool disabled = disabledItems && disabledItems[i];
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const uint32_t itemText = disabled ? disabledText : ((i == selectedConfigIndex) ? style.tex
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (i == index) {
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             ST7789_FillRect(lcd, listX, yy, listW, hh, style.selBg);
+  49:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             if (textVisible) {
+  50:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****                 ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.selBg, SPI
+  51:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+  52:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         } else {
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             if (textVisible) {
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****                 ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.bg, SPI_SC
+  55:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+  56:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         }
+  57:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     }
+  58:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** }
+ 188              		.loc 1 58 1 view .LVU52
+ 189 00a2 0FB0     		add	sp, sp, #60
+ 190              	.LCFI2:
+ 191              		.cfi_remember_state
+ 192              		.cfi_def_cfa_offset 36
+ 193              		@ sp needed
+ 194 00a4 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 195              	.LVL17:
+ 196              	.L14:
+ 197              	.LCFI3:
+ 198              		.cfi_restore_state
+ 199              	.LBB8:
+ 200              	.LBB6:
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int y0 = (int)anchorY + dy + offsetPx;
+ 201              		.loc 1 31 9 is_stmt 1 view .LVU53
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int y1 = y0 + (int)itemH;
+ 202              		.loc 1 32 9 view .LVU54
+  33:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (y1 <= 0 || y0 >= (int)h) continue;
+ 203              		.loc 1 33 9 view .LVU55
+ 204 00a8 03EB0902 		add	r2, r3, r9
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 205              		.loc 1 34 9 is_stmt 0 view .LVU56
+ 206 00ac 002A     		cmp	r2, #0
+ 207 00ae 0592     		str	r2, [sp, #20]
+ 208              	.LVL18:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 6
+
+
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 209              		.loc 1 34 9 is_stmt 1 view .LVU57
+ 210 00b0 45DD     		ble	.L7
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 211              		.loc 1 34 21 is_stmt 0 discriminator 2 view .LVU58
+ 212 00b2 AB2B     		cmp	r3, #171
+ 213 00b4 43DC     		bgt	.L7
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int clipY1 = (y1 > (int)h) ? (int)h : y1;
+ 214              		.loc 1 36 9 is_stmt 1 view .LVU59
+ 215              	.LVL19:
+  37:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t yy = (uint16_t)clipY0;
+ 216              		.loc 1 37 9 view .LVU60
+  38:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t hh = (uint16_t)(clipY1 - clipY0);
+ 217              		.loc 1 38 9 view .LVU61
+  39:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 218              		.loc 1 39 9 view .LVU62
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         bool textVisible = (textY >= 0) && ((textY + (int)charH) <= (int)h);
+ 219              		.loc 1 41 9 view .LVU63
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
+ 220              		.loc 1 42 9 view .LVU64
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
+ 221              		.loc 1 42 41 is_stmt 0 view .LVU65
+ 222 00b6 069A     		ldr	r2, [sp, #24]
+ 223              	.LVL20:
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
+ 224              		.loc 1 42 41 view .LVU66
+ 225 00b8 13EB0208 		adds	r8, r3, r2
+ 226              	.LVL21:
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
+ 227              		.loc 1 42 41 view .LVU67
+ 228 00bc 42D4     		bmi	.L16
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
+ 229              		.loc 1 42 41 discriminator 1 view .LVU68
+ 230 00be 0799     		ldr	r1, [sp, #28]
+ 231 00c0 5718     		adds	r7, r2, r1
+ 232 00c2 1F44     		add	r7, r7, r3
+ 233 00c4 AC2F     		cmp	r7, #172
+ 234 00c6 CCBF     		ite	gt
+ 235 00c8 0027     		movgt	r7, #0
+ 236 00ca 0127     		movle	r7, #1
+ 237              	.L9:
+ 238              	.LVL22:
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const char* label = labels[i] ? labels[i] : "";
+ 239              		.loc 1 43 9 is_stmt 1 view .LVU69
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const bool disabled = disabledItems && disabledItems[i];
+ 240              		.loc 1 44 37 is_stmt 0 view .LVU70
+ 241 00cc 089A     		ldr	r2, [sp, #32]
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const char* label = labels[i] ? labels[i] : "";
+ 242              		.loc 1 43 46 view .LVU71
+ 243 00ce 28EAE878 		bic	r8, r8, r8, asr #31
+ 244              	.LVL23:
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const bool disabled = disabledItems && disabledItems[i];
+ 245              		.loc 1 44 37 view .LVU72
+ 246 00d2 52F825A0 		ldr	r10, [r2, r5, lsl #2]
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const char* label = labels[i] ? labels[i] : "";
+ 247              		.loc 1 43 18 view .LVU73
+ 248 00d6 1FFA88F8 		uxth	r8, r8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 7
+
+
+ 249              	.LVL24:
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const bool disabled = disabledItems && disabledItems[i];
+ 250              		.loc 1 44 9 is_stmt 1 view .LVU74
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const bool disabled = disabledItems && disabledItems[i];
+ 251              		.loc 1 44 39 is_stmt 0 discriminator 2 view .LVU75
+ 252 00da 214A     		ldr	r2, .L32
+ 253 00dc BAF1000F 		cmp	r10, #0
+ 254 00e0 08BF     		it	eq
+ 255 00e2 9246     		moveq	r10, r2
+ 256              	.LVL25:
+  45:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const uint32_t itemText = disabled ? disabledText : ((i == selectedConfigIndex) ? style.tex
+ 257              		.loc 1 45 9 is_stmt 1 view .LVU76
+  45:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const uint32_t itemText = disabled ? disabledText : ((i == selectedConfigIndex) ? style.tex
+ 258              		.loc 1 45 45 is_stmt 0 view .LVU77
+ 259 00e4 209A     		ldr	r2, [sp, #128]
+ 260 00e6 0AB1     		cbz	r2, .L11
+  45:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         const uint32_t itemText = disabled ? disabledText : ((i == selectedConfigIndex) ? style.tex
+ 261              		.loc 1 45 45 discriminator 1 view .LVU78
+ 262 00e8 525D     		ldrb	r2, [r2, r5]	@ zero_extendqisi2
+ 263 00ea 6ABB     		cbnz	r2, .L17
+ 264              	.L11:
+ 265              	.LVL26:
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (i == index) {
+ 266              		.loc 1 46 9 is_stmt 1 view .LVU79
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (i == index) {
+ 267              		.loc 1 46 44 is_stmt 0 discriminator 2 view .LVU80
+ 268 00ec EAB2     		uxtb	r2, r5
+ 269 00ee 0D99     		ldr	r1, [sp, #52]
+ 270 00f0 9142     		cmp	r1, r2
+ 271 00f2 2CD1     		bne	.L18
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (i == index) {
+ 272              		.loc 1 46 44 discriminator 4 view .LVU81
+ 273 00f4 D4F804B0 		ldr	fp, [r4, #4]
+ 274              	.LVL27:
+ 275              	.L12:
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             ST7789_FillRect(lcd, listX, yy, listW, hh, style.selBg);
+ 276              		.loc 1 47 9 is_stmt 1 view .LVU82
+ 277 00f8 EAB2     		uxtb	r2, r5
+ 278 00fa 0999     		ldr	r1, [sp, #36]
+ 279 00fc 9142     		cmp	r1, r2
+ 280 00fe 29D1     		bne	.L13
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int clipY1 = (y1 > (int)h) ? (int)h : y1;
+ 281              		.loc 1 36 13 is_stmt 0 view .LVU83
+ 282 0100 23EAE373 		bic	r3, r3, r3, asr #31
+ 283              	.LVL28:
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             if (textVisible) {
+ 284              		.loc 1 48 28 view .LVU84
+ 285 0104 2821     		movs	r1, #40
+ 286 0106 3046     		mov	r0, r6
+  38:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t hh = (uint16_t)(clipY1 - clipY0);
+ 287              		.loc 1 38 18 view .LVU85
+ 288 0108 9AB2     		uxth	r2, r3
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             if (textVisible) {
+ 289              		.loc 1 48 13 is_stmt 1 view .LVU86
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             if (textVisible) {
+ 290              		.loc 1 48 28 is_stmt 0 view .LVU87
+ 291 010a A368     		ldr	r3, [r4, #8]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 8
+
+
+ 292 010c 0193     		str	r3, [sp, #4]
+  39:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 293              		.loc 1 39 18 view .LVU88
+ 294 010e 059B     		ldr	r3, [sp, #20]
+ 295 0110 AC2B     		cmp	r3, #172
+ 296 0112 D4BF     		ite	le
+ 297 0114 C2EB0303 		rsble	r3, r2, r3
+ 298 0118 C2F1AC03 		rsbgt	r3, r2, #172
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             if (textVisible) {
+ 299              		.loc 1 48 28 view .LVU89
+ 300 011c 9BB2     		uxth	r3, r3
+ 301 011e 0093     		str	r3, [sp]
+ 302 0120 F023     		movs	r3, #240
+ 303 0122 FFF7FEFF 		bl	ST7789_FillRect
+ 304              	.LVL29:
+  49:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****                 ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.selBg, SPI
+ 305              		.loc 1 49 13 is_stmt 1 view .LVU90
+ 306 0126 57B1     		cbz	r7, .L7
+  50:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+ 307              		.loc 1 50 17 view .LVU91
+  50:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+ 308              		.loc 1 50 34 is_stmt 0 view .LVU92
+ 309 0128 0223     		movs	r3, #2
+ 310 012a 0293     		str	r3, [sp, #8]
+ 311 012c A368     		ldr	r3, [r4, #8]
+ 312              	.L31:
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+ 313              		.loc 1 54 34 view .LVU93
+ 314 012e 4246     		mov	r2, r8
+ 315 0130 2C21     		movs	r1, #44
+ 316 0132 3046     		mov	r0, r6
+ 317 0134 CDE900B3 		strd	fp, r3, [sp]
+ 318 0138 5346     		mov	r3, r10
+ 319 013a FFF7FEFF 		bl	ST7789_DrawString
+ 320              	.LVL30:
+ 321              	.L7:
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+ 322              		.loc 1 54 34 view .LVU94
+ 323              	.LBE6:
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int dy = (int)((int)i - (int)index) * (int)itemH;
+ 324              		.loc 1 30 5 is_stmt 1 discriminator 2 view .LVU95
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int dy = (int)((int)i - (int)index) * (int)itemH;
+ 325              		.loc 1 30 5 is_stmt 0 discriminator 2 view .LVU96
+ 326 013e 0135     		adds	r5, r5, #1
+ 327              	.LVL31:
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         int dy = (int)((int)i - (int)index) * (int)itemH;
+ 328              		.loc 1 30 5 view .LVU97
+ 329 0140 059B     		ldr	r3, [sp, #20]
+ 330 0142 ABE7     		b	.L5
+ 331              	.LVL32:
+ 332              	.L16:
+ 333              	.LBB7:
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
+ 334              		.loc 1 42 41 discriminator 4 view .LVU98
+ 335 0144 0027     		movs	r7, #0
+ 336 0146 C1E7     		b	.L9
+ 337              	.LVL33:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 9
+
+
+ 338              	.L17:
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (i == index) {
+ 339              		.loc 1 46 44 discriminator 1 view .LVU99
+ 340 0148 DDF82CB0 		ldr	fp, [sp, #44]
+ 341 014c D4E7     		b	.L12
+ 342              	.LVL34:
+ 343              	.L18:
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (i == index) {
+ 344              		.loc 1 46 44 discriminator 5 view .LVU100
+ 345 014e DDF828B0 		ldr	fp, [sp, #40]
+ 346 0152 D1E7     		b	.L12
+ 347              	.LVL35:
+ 348              	.L13:
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****                 ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.bg, SPI_SC
+ 349              		.loc 1 53 13 is_stmt 1 view .LVU101
+ 350 0154 002F     		cmp	r7, #0
+ 351 0156 F2D0     		beq	.L7
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+ 352              		.loc 1 54 17 view .LVU102
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+ 353              		.loc 1 54 34 is_stmt 0 view .LVU103
+ 354 0158 0223     		movs	r3, #2
+ 355              	.LVL36:
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****             }
+ 356              		.loc 1 54 34 view .LVU104
+ 357 015a 0293     		str	r3, [sp, #8]
+ 358 015c 2368     		ldr	r3, [r4]
+ 359 015e E6E7     		b	.L31
+ 360              	.L33:
+ 361              		.align	2
+ 362              	.L32:
+ 363 0160 00000000 		.word	.LC0
+ 364              	.LBE7:
+ 365              	.LBE8:
+ 366              		.cfi_endproc
+ 367              	.LFE1269:
+ 369              		.section	.rodata._Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle.str1.1,"aMS",%
+ 370              	.LC1:
+ 371 0000 25752525 		.ascii	"%u%%\000"
+ 371      00
+ 372              		.section	.text._Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle,"ax",%progbits
+ 373              		.align	1
+ 374              		.global	_Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle
+ 375              		.syntax unified
+ 376              		.thumb
+ 377              		.thumb_func
+ 379              	_Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle:
+ 380              	.LVL37:
+ 381              	.LFB1270:
+  59:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t value, const ScreenUi
+ 382              		.loc 1 60 114 is_stmt 1 view -0
+ 383              		.cfi_startproc
+ 384              		@ args = 0, pretend = 0, frame = 8
+ 385              		@ frame_needed = 0, uses_anonymous_args = 0
+  61:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 386              		.loc 1 61 5 view .LVU106
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 10
+
+
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 387              		.loc 1 60 114 is_stmt 0 view .LVU107
+ 388 0000 2DE9F047 		push	{r4, r5, r6, r7, r8, r9, r10, lr}
+ 389              	.LCFI4:
+ 390              		.cfi_def_cfa_offset 32
+ 391              		.cfi_offset 4, -32
+ 392              		.cfi_offset 5, -28
+ 393              		.cfi_offset 6, -24
+ 394              		.cfi_offset 7, -20
+ 395              		.cfi_offset 8, -16
+ 396              		.cfi_offset 9, -12
+ 397              		.cfi_offset 10, -8
+ 398              		.cfi_offset 14, -4
+ 399 0004 8A46     		mov	r10, r1
+ 400 0006 88B0     		sub	sp, sp, #32
+ 401              	.LCFI5:
+ 402              		.cfi_def_cfa_offset 64
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 403              		.loc 1 60 114 view .LVU108
+ 404 0008 1746     		mov	r7, r2
+ 405 000a 1C46     		mov	r4, r3
+ 406              		.loc 1 61 5 view .LVU109
+ 407 000c 0546     		mov	r5, r0
+ 408 000e 0028     		cmp	r0, #0
+ 409 0010 4FD0     		beq	.L34
+  62:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  63:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t w = ST7789_WIDTH;
+ 410              		.loc 1 63 5 is_stmt 1 view .LVU110
+ 411              	.LVL38:
+  64:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t h = ST7789_HEIGHT;
+ 412              		.loc 1 64 5 view .LVU111
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
+ 413              		.loc 1 65 5 view .LVU112
+  66:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
+ 414              		.loc 1 66 5 view .LVU113
+  67:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint8_t titleScale = 2u;
+ 415              		.loc 1 67 5 view .LVU114
+  68:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint8_t valueScale = 2u;
+ 416              		.loc 1 68 5 view .LVU115
+  69:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
+ 417              		.loc 1 69 5 view .LVU116
+ 418              		.loc 1 69 47 is_stmt 0 view .LVU117
+ 419 0012 0220     		movs	r0, #2
+ 420              	.LVL39:
+  70:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t valueH = ScreenUI_CharCellH(valueScale);
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t barW = (uint16_t)(listW - 20u);
+  72:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t barH = (uint16_t)(14u * 2u);
+  73:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t barX = (uint16_t)(listX + 10u);
+  74:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t barY = (uint16_t)(h / 2u - barH / 2u);
+  75:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t fillW = (uint16_t)((barW * (uint16_t)value) / 100u);
+  76:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  77:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
+  78:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_DrawString(lcd, barX, (uint16_t)(barY - titleH - 10u), title, style.text, style.bg, titl
+ 421              		.loc 1 78 22 view .LVU118
+ 422 0014 4FF00209 		mov	r9, #2
+  69:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
+ 423              		.loc 1 69 47 view .LVU119
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 11
+
+
+ 424 0018 FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 425              	.LVL40:
+  69:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
+ 426              		.loc 1 69 47 view .LVU120
+ 427 001c 0646     		mov	r6, r0
+ 428              	.LVL41:
+  70:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t valueH = ScreenUI_CharCellH(valueScale);
+ 429              		.loc 1 70 5 is_stmt 1 view .LVU121
+  70:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t valueH = ScreenUI_CharCellH(valueScale);
+ 430              		.loc 1 70 47 is_stmt 0 view .LVU122
+ 431 001e 0220     		movs	r0, #2
+ 432 0020 FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 433              	.LVL42:
+  77:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_DrawString(lcd, barX, (uint16_t)(barY - titleH - 10u), title, style.text, style.bg, titl
+ 434              		.loc 1 77 20 view .LVU123
+ 435 0024 2368     		ldr	r3, [r4]
+  70:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t valueH = ScreenUI_CharCellH(valueScale);
+ 436              		.loc 1 70 47 view .LVU124
+ 437 0026 8046     		mov	r8, r0
+ 438              	.LVL43:
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t barH = (uint16_t)(14u * 2u);
+ 439              		.loc 1 71 5 is_stmt 1 view .LVU125
+  72:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t barX = (uint16_t)(listX + 10u);
+ 440              		.loc 1 72 5 view .LVU126
+  73:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t barY = (uint16_t)(h / 2u - barH / 2u);
+ 441              		.loc 1 73 5 view .LVU127
+  74:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t fillW = (uint16_t)((barW * (uint16_t)value) / 100u);
+ 442              		.loc 1 74 5 view .LVU128
+  75:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 443              		.loc 1 75 5 view .LVU129
+  77:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_DrawString(lcd, barX, (uint16_t)(barY - titleH - 10u), title, style.text, style.bg, titl
+ 444              		.loc 1 77 5 view .LVU130
+  77:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_DrawString(lcd, barX, (uint16_t)(barY - titleH - 10u), title, style.text, style.bg, titl
+ 445              		.loc 1 77 20 is_stmt 0 view .LVU131
+ 446 0028 0022     		movs	r2, #0
+ 447 002a 0193     		str	r3, [sp, #4]
+ 448 002c AC23     		movs	r3, #172
+ 449 002e 2821     		movs	r1, #40
+ 450 0030 2846     		mov	r0, r5
+ 451 0032 0093     		str	r3, [sp]
+ 452 0034 F023     		movs	r3, #240
+ 453 0036 FFF7FEFF 		bl	ST7789_FillRect
+ 454              	.LVL44:
+ 455              		.loc 1 78 5 is_stmt 1 view .LVU132
+ 456              		.loc 1 78 22 is_stmt 0 view .LVU133
+ 457 003a CDF80890 		str	r9, [sp, #8]
+ 458 003e 2368     		ldr	r3, [r4]
+ 459 0040 C6F13E06 		rsb	r6, r6, #62
+ 460              	.LVL45:
+ 461              		.loc 1 78 22 view .LVU134
+ 462 0044 3221     		movs	r1, #50
+ 463 0046 2846     		mov	r0, r5
+ 464 0048 0193     		str	r3, [sp, #4]
+ 465 004a B2B2     		uxth	r2, r6
+ 466 004c 6368     		ldr	r3, [r4, #4]
+  79:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  80:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_FillRect(lcd, barX, barY, barW, barH, style.selBg);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 12
+
+
+ 467              		.loc 1 80 20 view .LVU135
+ 468 004e 1C26     		movs	r6, #28
+  78:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 469              		.loc 1 78 22 view .LVU136
+ 470 0050 0093     		str	r3, [sp]
+ 471 0052 5346     		mov	r3, r10
+ 472 0054 FFF7FEFF 		bl	ST7789_DrawString
+ 473              	.LVL46:
+ 474              		.loc 1 80 5 is_stmt 1 view .LVU137
+ 475              		.loc 1 80 20 is_stmt 0 view .LVU138
+ 476 0058 A368     		ldr	r3, [r4, #8]
+ 477 005a 4822     		movs	r2, #72
+ 478 005c 3221     		movs	r1, #50
+ 479 005e 2846     		mov	r0, r5
+ 480 0060 0193     		str	r3, [sp, #4]
+ 481 0062 0096     		str	r6, [sp]
+ 482 0064 DC23     		movs	r3, #220
+ 483 0066 FFF7FEFF 		bl	ST7789_FillRect
+ 484              	.LVL47:
+  81:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_FillRect(lcd, barX, barY, fillW, barH, style.text);
+ 485              		.loc 1 81 5 is_stmt 1 view .LVU139
+ 486              		.loc 1 81 20 is_stmt 0 view .LVU140
+ 487 006a 6368     		ldr	r3, [r4, #4]
+  75:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 488              		.loc 1 75 45 view .LVU141
+ 489 006c DC21     		movs	r1, #220
+ 490              		.loc 1 81 20 view .LVU142
+ 491 006e 4822     		movs	r2, #72
+ 492 0070 2846     		mov	r0, r5
+  75:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 493              		.loc 1 75 45 view .LVU143
+ 494 0072 17FB01F1 		smulbb	r1, r7, r1
+ 495              		.loc 1 81 20 view .LVU144
+ 496 0076 CDE90063 		strd	r6, r3, [sp]
+ 497 007a 6423     		movs	r3, #100
+  82:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  83:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     char val[8];
+  84:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     snprintf(val, sizeof(val), "%u%%", (unsigned)value);
+ 498              		.loc 1 84 13 view .LVU145
+ 499 007c 06AE     		add	r6, sp, #24
+  81:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 500              		.loc 1 81 20 view .LVU146
+ 501 007e B1FBF3F3 		udiv	r3, r1, r3
+ 502 0082 3221     		movs	r1, #50
+ 503 0084 FFF7FEFF 		bl	ST7789_FillRect
+ 504              	.LVL48:
+  83:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     snprintf(val, sizeof(val), "%u%%", (unsigned)value);
+ 505              		.loc 1 83 5 is_stmt 1 view .LVU147
+ 506              		.loc 1 84 5 view .LVU148
+ 507              		.loc 1 84 13 is_stmt 0 view .LVU149
+ 508 0088 3B46     		mov	r3, r7
+ 509 008a 0B4A     		ldr	r2, .L39
+ 510 008c 0821     		movs	r1, #8
+ 511 008e 3046     		mov	r0, r6
+ 512 0090 FFF7FEFF 		bl	snprintf
+ 513              	.LVL49:
+  85:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ScreenUI_DrawStringCenteredInBox(lcd, listX, (uint16_t)(barY + barH + 8u), listW, valueH, val, 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 13
+
+
+ 514              		.loc 1 85 5 is_stmt 1 view .LVU150
+ 515              		.loc 1 85 37 is_stmt 0 view .LVU151
+ 516 0094 CDF81090 		str	r9, [sp, #16]
+ 517 0098 2368     		ldr	r3, [r4]
+ 518 009a 6C22     		movs	r2, #108
+ 519 009c 2821     		movs	r1, #40
+ 520 009e 2846     		mov	r0, r5
+ 521 00a0 0393     		str	r3, [sp, #12]
+ 522 00a2 6368     		ldr	r3, [r4, #4]
+ 523 00a4 CDF80080 		str	r8, [sp]
+ 524 00a8 CDE90163 		strd	r6, r3, [sp, #4]
+ 525 00ac F023     		movs	r3, #240
+ 526 00ae FFF7FEFF 		bl	_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh
+ 527              	.LVL50:
+ 528              	.L34:
+  86:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** }
+ 529              		.loc 1 86 1 view .LVU152
+ 530 00b2 08B0     		add	sp, sp, #32
+ 531              	.LCFI6:
+ 532              		.cfi_def_cfa_offset 32
+ 533              		@ sp needed
+ 534 00b4 BDE8F087 		pop	{r4, r5, r6, r7, r8, r9, r10, pc}
+ 535              	.LVL51:
+ 536              	.L40:
+ 537              		.loc 1 86 1 view .LVU153
+ 538              		.align	2
+ 539              	.L39:
+ 540 00b8 00000000 		.word	.LC1
+ 541              		.cfi_endproc
+ 542              	.LFE1270:
+ 544              		.section	.text._Z23ScreenDetailRender_InfoP13ST7789_HandlePKcS2_RK13ScreenUiStyle,"ax",%progbits
+ 545              		.align	1
+ 546              		.global	_Z23ScreenDetailRender_InfoP13ST7789_HandlePKcS2_RK13ScreenUiStyle
+ 547              		.syntax unified
+ 548              		.thumb
+ 549              		.thumb_func
+ 551              	_Z23ScreenDetailRender_InfoP13ST7789_HandlePKcS2_RK13ScreenUiStyle:
+ 552              	.LVL52:
+ 553              	.LFB1271:
+  87:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** void ScreenDetailRender_Info(ST7789_Handle* lcd, const char* title, const char* text, const ScreenU
+ 554              		.loc 1 88 115 is_stmt 1 view -0
+ 555              		.cfi_startproc
+ 556              		@ args = 0, pretend = 0, frame = 0
+ 557              		@ frame_needed = 0, uses_anonymous_args = 0
+  89:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 558              		.loc 1 89 5 view .LVU155
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 559              		.loc 1 88 115 is_stmt 0 view .LVU156
+ 560 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 561              	.LCFI7:
+ 562              		.cfi_def_cfa_offset 20
+ 563              		.cfi_offset 4, -20
+ 564              		.cfi_offset 5, -16
+ 565              		.cfi_offset 6, -12
+ 566              		.cfi_offset 7, -8
+ 567              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 14
+
+
+ 568 0002 0F46     		mov	r7, r1
+ 569 0004 87B0     		sub	sp, sp, #28
+ 570              	.LCFI8:
+ 571              		.cfi_def_cfa_offset 48
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 572              		.loc 1 88 115 view .LVU157
+ 573 0006 1646     		mov	r6, r2
+ 574 0008 1C46     		mov	r4, r3
+ 575              		.loc 1 89 5 view .LVU158
+ 576 000a 0546     		mov	r5, r0
+ 577 000c 30B3     		cbz	r0, .L41
+  90:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t w = ST7789_WIDTH;
+ 578              		.loc 1 90 5 is_stmt 1 view .LVU159
+ 579              	.LVL53:
+  91:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t h = ST7789_HEIGHT;
+ 580              		.loc 1 91 5 view .LVU160
+  92:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
+ 581              		.loc 1 92 5 view .LVU161
+  93:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
+ 582              		.loc 1 93 5 view .LVU162
+  94:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t titleH = 20u;
+ 583              		.loc 1 94 5 view .LVU163
+  95:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+  96:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
+ 584              		.loc 1 96 5 view .LVU164
+ 585              		.loc 1 96 20 is_stmt 0 view .LVU165
+ 586 000e 1B68     		ldr	r3, [r3]
+ 587              	.LVL54:
+ 588              		.loc 1 96 20 view .LVU166
+ 589 0010 0022     		movs	r2, #0
+ 590              	.LVL55:
+ 591              		.loc 1 96 20 view .LVU167
+ 592 0012 2821     		movs	r1, #40
+ 593              	.LVL56:
+ 594              		.loc 1 96 20 view .LVU168
+ 595 0014 0193     		str	r3, [sp, #4]
+ 596 0016 AC23     		movs	r3, #172
+ 597 0018 0093     		str	r3, [sp]
+ 598 001a F023     		movs	r3, #240
+ 599 001c FFF7FEFF 		bl	ST7789_FillRect
+ 600              	.LVL57:
+  97:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ScreenUI_DrawStringCenteredInBox(lcd, listX, 0, listW, titleH, title, style.text, style.bg, 1);
+ 601              		.loc 1 97 5 is_stmt 1 view .LVU169
+ 602              		.loc 1 97 37 is_stmt 0 view .LVU170
+ 603 0020 0123     		movs	r3, #1
+ 604 0022 0022     		movs	r2, #0
+ 605 0024 2821     		movs	r1, #40
+ 606 0026 0493     		str	r3, [sp, #16]
+ 607 0028 2846     		mov	r0, r5
+ 608 002a 2368     		ldr	r3, [r4]
+ 609 002c 0393     		str	r3, [sp, #12]
+ 610 002e 6368     		ldr	r3, [r4, #4]
+ 611 0030 CDE90173 		strd	r7, r3, [sp, #4]
+ 612 0034 1427     		movs	r7, #20
+ 613              	.LVL58:
+ 614              		.loc 1 97 37 view .LVU171
+ 615 0036 F023     		movs	r3, #240
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 15
+
+
+ 616 0038 0097     		str	r7, [sp]
+ 617 003a FFF7FEFF 		bl	_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh
+ 618              	.LVL59:
+  98:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ScreenUI_DrawStringCenteredInBox(lcd, listX, titleH, listW, (uint16_t)(h - titleH), text, style
+ 619              		.loc 1 98 5 is_stmt 1 view .LVU172
+ 620              		.loc 1 98 37 is_stmt 0 view .LVU173
+ 621 003e 0223     		movs	r3, #2
+ 622 0040 3A46     		mov	r2, r7
+ 623 0042 2821     		movs	r1, #40
+ 624 0044 0493     		str	r3, [sp, #16]
+ 625 0046 2846     		mov	r0, r5
+ 626 0048 2368     		ldr	r3, [r4]
+ 627 004a 0393     		str	r3, [sp, #12]
+ 628 004c 6368     		ldr	r3, [r4, #4]
+ 629 004e CDE90163 		strd	r6, r3, [sp, #4]
+ 630 0052 9823     		movs	r3, #152
+ 631 0054 0093     		str	r3, [sp]
+ 632 0056 F023     		movs	r3, #240
+ 633 0058 FFF7FEFF 		bl	_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh
+ 634              	.LVL60:
+ 635              	.L41:
+  99:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** }
+ 636              		.loc 1 99 1 view .LVU174
+ 637 005c 07B0     		add	sp, sp, #28
+ 638              	.LCFI9:
+ 639              		.cfi_def_cfa_offset 20
+ 640              		@ sp needed
+ 641 005e F0BD     		pop	{r4, r5, r6, r7, pc}
+ 642              		.loc 1 99 1 view .LVU175
+ 643              		.cfi_endproc
+ 644              	.LFE1271:
+ 646              		.section	.text._Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle,"ax",%p
+ 647              		.align	1
+ 648              		.global	_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+ 649              		.syntax unified
+ 650              		.thumb
+ 651              		.thumb_func
+ 653              	_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle:
+ 654              	.LVL61:
+ 655              	.LFB1272:
+ 100:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** void ScreenDetailRender_TitleLines(ST7789_Handle* lcd, const char* title, const char* const* lines,
+ 656              		.loc 1 101 148 is_stmt 1 view -0
+ 657              		.cfi_startproc
+ 658              		@ args = 4, pretend = 0, frame = 0
+ 659              		@ frame_needed = 0, uses_anonymous_args = 0
+ 102:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 660              		.loc 1 102 5 view .LVU177
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 661              		.loc 1 101 148 is_stmt 0 view .LVU178
+ 662 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 663              	.LCFI10:
+ 664              		.cfi_def_cfa_offset 36
+ 665              		.cfi_offset 4, -36
+ 666              		.cfi_offset 5, -32
+ 667              		.cfi_offset 6, -28
+ 668              		.cfi_offset 7, -24
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 16
+
+
+ 669              		.cfi_offset 8, -20
+ 670              		.cfi_offset 9, -16
+ 671              		.cfi_offset 10, -12
+ 672              		.cfi_offset 11, -8
+ 673              		.cfi_offset 14, -4
+ 674 0004 85B0     		sub	sp, sp, #20
+ 675              	.LCFI11:
+ 676              		.cfi_def_cfa_offset 56
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     if (!lcd) return;
+ 677              		.loc 1 101 148 view .LVU179
+ 678 0006 0F46     		mov	r7, r1
+ 679 0008 9146     		mov	r9, r2
+ 680 000a 9A46     		mov	r10, r3
+ 681 000c 0E9E     		ldr	r6, [sp, #56]
+ 682              		.loc 1 102 5 view .LVU180
+ 683 000e 0546     		mov	r5, r0
+ 684 0010 38B3     		cbz	r0, .L46
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t w = ST7789_WIDTH;
+ 685              		.loc 1 103 5 is_stmt 1 view .LVU181
+ 686              	.LVL62:
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t h = ST7789_HEIGHT;
+ 687              		.loc 1 104 5 view .LVU182
+ 105:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
+ 688              		.loc 1 105 5 view .LVU183
+ 106:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
+ 689              		.loc 1 106 5 view .LVU184
+ 107:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t x = (uint16_t)(listX + 8u);
+ 690              		.loc 1 107 5 view .LVU185
+ 108:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint8_t titleScale = 2u;
+ 691              		.loc 1 108 5 view .LVU186
+ 109:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint8_t textScale = 1u;
+ 692              		.loc 1 109 5 view .LVU187
+ 110:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t titleY = 8u;
+ 693              		.loc 1 110 5 view .LVU188
+ 111:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
+ 694              		.loc 1 111 5 view .LVU189
+ 695              		.loc 1 111 47 is_stmt 0 view .LVU190
+ 696 0012 0220     		movs	r0, #2
+ 697              	.LVL63:
+ 698              		.loc 1 111 47 view .LVU191
+ 699 0014 FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 700              	.LVL64:
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t textStartY = (uint16_t)(titleY + titleH + 10u);
+ 701              		.loc 1 112 5 is_stmt 1 view .LVU192
+ 702              		.loc 1 112 20 is_stmt 0 view .LVU193
+ 703 0018 00F11204 		add	r4, r0, #18
+ 113:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 704              		.loc 1 113 46 view .LVU194
+ 705 001c 0120     		movs	r0, #1
+ 706              	.LVL65:
+ 707              		.loc 1 113 46 view .LVU195
+ 708 001e FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 709              	.LVL66:
+ 114:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t gap = 2u;
+ 115:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 116:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
+ 710              		.loc 1 116 20 view .LVU196
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 17
+
+
+ 711 0022 3368     		ldr	r3, [r6]
+ 113:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 712              		.loc 1 113 46 view .LVU197
+ 713 0024 8046     		mov	r8, r0
+ 714              		.loc 1 116 20 view .LVU198
+ 715 0026 0022     		movs	r2, #0
+ 716 0028 0193     		str	r3, [sp, #4]
+ 717 002a AC23     		movs	r3, #172
+ 718 002c 2821     		movs	r1, #40
+ 719 002e 2846     		mov	r0, r5
+ 720 0030 0093     		str	r3, [sp]
+ 721 0032 F023     		movs	r3, #240
+ 722 0034 FFF7FEFF 		bl	ST7789_FillRect
+ 723              	.LVL67:
+ 117:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_DrawString(lcd, x, titleY, title ? title : "", style.text, style.bg, titleScale);
+ 724              		.loc 1 117 22 discriminator 4 view .LVU199
+ 725 0038 0223     		movs	r3, #2
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 726              		.loc 1 112 20 view .LVU200
+ 727 003a A4B2     		uxth	r4, r4
+ 728              	.LVL68:
+ 113:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     const uint16_t gap = 2u;
+ 729              		.loc 1 113 5 is_stmt 1 view .LVU201
+ 114:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 730              		.loc 1 114 5 view .LVU202
+ 116:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     ST7789_DrawString(lcd, x, titleY, title ? title : "", style.text, style.bg, titleScale);
+ 731              		.loc 1 116 5 view .LVU203
+ 732              		.loc 1 117 5 view .LVU204
+ 733              	.LBB9:
+ 118:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 119:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     uint16_t y = textStartY;
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     for (uint8_t i = 0; i < lineCount; i++) {
+ 121:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 122:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (y + lineH > h) break;
+ 123:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
+ 124:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         y = (uint16_t)(y + lineH + gap);
+ 734              		.loc 1 124 11 is_stmt 0 view .LVU205
+ 735 003c 08F1020B 		add	fp, r8, #2
+ 736              	.LBE9:
+ 117:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 737              		.loc 1 117 22 discriminator 4 view .LVU206
+ 738 0040 0293     		str	r3, [sp, #8]
+ 739 0042 0822     		movs	r2, #8
+ 740 0044 3368     		ldr	r3, [r6]
+ 741 0046 3021     		movs	r1, #48
+ 742 0048 2846     		mov	r0, r5
+ 743 004a 0193     		str	r3, [sp, #4]
+ 744 004c 7368     		ldr	r3, [r6, #4]
+ 745 004e 0093     		str	r3, [sp]
+ 746 0050 124B     		ldr	r3, .L60
+ 747 0052 002F     		cmp	r7, #0
+ 748 0054 18BF     		it	ne
+ 749 0056 3B46     		movne	r3, r7
+ 750              	.LBB10:
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 751              		.loc 1 120 5 view .LVU207
+ 752 0058 0027     		movs	r7, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 18
+
+
+ 753              	.LVL69:
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 754              		.loc 1 120 5 view .LVU208
+ 755              	.LBE10:
+ 117:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** 
+ 756              		.loc 1 117 22 discriminator 4 view .LVU209
+ 757 005a FFF7FEFF 		bl	ST7789_DrawString
+ 758              	.LVL70:
+ 119:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     for (uint8_t i = 0; i < lineCount; i++) {
+ 759              		.loc 1 119 5 is_stmt 1 view .LVU210
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 760              		.loc 1 120 5 view .LVU211
+ 761              	.L49:
+ 762              	.LBB11:
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 763              		.loc 1 120 27 discriminator 1 view .LVU212
+ 764 005e 5745     		cmp	r7, r10
+ 765 0060 02D1     		bne	.L52
+ 766              	.LVL71:
+ 767              	.L46:
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 768              		.loc 1 120 27 is_stmt 0 discriminator 1 view .LVU213
+ 769              	.LBE11:
+ 125:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     }
+ 126:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp **** }
+ 770              		.loc 1 126 1 view .LVU214
+ 771 0062 05B0     		add	sp, sp, #20
+ 772              	.LCFI12:
+ 773              		.cfi_remember_state
+ 774              		.cfi_def_cfa_offset 36
+ 775              		@ sp needed
+ 776 0064 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 777              	.LVL72:
+ 778              	.L52:
+ 779              	.LCFI13:
+ 780              		.cfi_restore_state
+ 781              	.LBB12:
+ 121:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (y + lineH > h) break;
+ 782              		.loc 1 121 9 is_stmt 1 view .LVU215
+ 783 0068 B9F1000F 		cmp	r9, #0
+ 784 006c 13D0     		beq	.L50
+ 121:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (y + lineH > h) break;
+ 785              		.loc 1 121 31 is_stmt 0 discriminator 2 view .LVU216
+ 786 006e 59F82730 		ldr	r3, [r9, r7, lsl #2]
+ 121:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (y + lineH > h) break;
+ 787              		.loc 1 121 20 discriminator 2 view .LVU217
+ 788 0072 83B1     		cbz	r3, .L50
+ 122:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
+ 789              		.loc 1 122 9 is_stmt 1 view .LVU218
+ 122:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
+ 790              		.loc 1 122 15 is_stmt 0 view .LVU219
+ 791 0074 04EB0802 		add	r2, r4, r8
+ 122:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
+ 792              		.loc 1 122 9 view .LVU220
+ 793 0078 AC2A     		cmp	r2, #172
+ 794 007a F2DC     		bgt	.L46
+ 123:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         y = (uint16_t)(y + lineH + gap);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 19
+
+
+ 795              		.loc 1 123 9 is_stmt 1 view .LVU221
+ 123:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         y = (uint16_t)(y + lineH + gap);
+ 796              		.loc 1 123 26 is_stmt 0 view .LVU222
+ 797 007c 0122     		movs	r2, #1
+ 798 007e 3021     		movs	r1, #48
+ 799 0080 2846     		mov	r0, r5
+ 800 0082 0292     		str	r2, [sp, #8]
+ 801 0084 3268     		ldr	r2, [r6]
+ 802 0086 0192     		str	r2, [sp, #4]
+ 803 0088 7268     		ldr	r2, [r6, #4]
+ 804 008a 0092     		str	r2, [sp]
+ 805 008c 2246     		mov	r2, r4
+ 124:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     }
+ 806              		.loc 1 124 11 view .LVU223
+ 807 008e 5C44     		add	r4, r4, fp
+ 808              	.LVL73:
+ 123:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         y = (uint16_t)(y + lineH + gap);
+ 809              		.loc 1 123 26 view .LVU224
+ 810 0090 FFF7FEFF 		bl	ST7789_DrawString
+ 811              	.LVL74:
+ 124:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     }
+ 812              		.loc 1 124 9 is_stmt 1 view .LVU225
+ 124:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****     }
+ 813              		.loc 1 124 11 is_stmt 0 view .LVU226
+ 814 0094 A4B2     		uxth	r4, r4
+ 815              	.LVL75:
+ 816              	.L50:
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 817              		.loc 1 120 5 is_stmt 1 discriminator 2 view .LVU227
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 818              		.loc 1 120 5 is_stmt 0 discriminator 2 view .LVU228
+ 819 0096 0137     		adds	r7, r7, #1
+ 820              	.LVL76:
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp ****         if (!lines || !lines[i]) continue;
+ 821              		.loc 1 120 5 discriminator 2 view .LVU229
+ 822 0098 E1E7     		b	.L49
+ 823              	.L61:
+ 824 009a 00BF     		.align	2
+ 825              	.L60:
+ 826 009c 00000000 		.word	.LC0
+ 827              	.LBE12:
+ 828              		.cfi_endproc
+ 829              	.LFE1272:
+ 831              		.text
+ 832              	.Letext0:
+ 833              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 834              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 835              		.file 4 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 836              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 837              		.file 6 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 838              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 839              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 840              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 841              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 842              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 843              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 844              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 20
+
+
+ 845              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 846              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 847              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 848              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 849              		.file 18 "Core/Inc/board_cfg.h"
+ 850              		.file 19 "Drivers/SPI-ST7789/st7789.h"
+ 851              		.file 20 "Cpp_Core/Inc/screen_control/spi_screen_ui_common.hpp"
+ 852              		.file 21 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 853              		.file 22 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s 			page 21
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_render_helpers.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:23     .text._Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:29     .text._Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb:00000000 _Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:363    .text._Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb:00000160 $d
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:373    .text._Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:379    .text._Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle:00000000 _Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:540    .text._Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle:000000b8 $d
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:545    .text._Z23ScreenDetailRender_InfoP13ST7789_HandlePKcS2_RK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:551    .text._Z23ScreenDetailRender_InfoP13ST7789_HandlePKcS2_RK13ScreenUiStyle:00000000 _Z23ScreenDetailRender_InfoP13ST7789_HandlePKcS2_RK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:647    .text._Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:653    .text._Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle:00000000 _Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccBwvNcl.s:826    .text._Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle:0000009c $d
+
+UNDEFINED SYMBOLS
+_Z23ScreenUI_MutedTextForBgmmh
+_Z18ScreenUI_CharCellHh
+ST7789_FillRect
+_Z21ScreenUI_EaseOutCubicmm
+ST7789_DrawString
+snprintf
+_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh

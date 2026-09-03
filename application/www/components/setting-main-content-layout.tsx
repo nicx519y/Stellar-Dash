@@ -2,6 +2,7 @@
 
 import { Flex, Box, Text } from '@chakra-ui/react';
 import React, { ReactNode, createContext, useContext } from 'react';
+import { SettingDescription } from '@/components/ui/setting-description';
 
 export type SettingMainContentLayoutSize = number | string;
 
@@ -161,9 +162,7 @@ export function MainContentHeader({
             )}
             
             {description && (
-                <Text fontSize="sm" pt={2} pb={4} whiteSpace="pre-wrap" color="gray.400">
-                    {description}
-                </Text>
+                <SettingDescription text={description} pt={2} pb={4} />
             )}
             
             {children}

@@ -8,6 +8,9 @@
 #include <stdint.h>
 
 #define XINPUT_ENDPOINT_SIZE 20
+#define XINPUT_TELEMETRY_HID_ITF 4
+#define XINPUT_TELEMETRY_HID_EP_IN 0x87
+#define XINPUT_TELEMETRY_HID_REPORT_SIZE 32
 
 // Buttons 1 (8 bits)
 // TODO: Consider using an enum class here.
@@ -80,6 +83,23 @@ static const uint8_t xinput_device_descriptor[] =
     0x01,       // bNumConfigurations 1
 };
 
+static const uint8_t xinput_telemetry_hid_report_descriptor[] =
+{
+    0x06, 0x00, 0xFF, // Usage Page (Vendor Defined)
+    0x09, 0x01,       // Usage (0x01)
+    0xA1, 0x01,       // Collection (Application)
+    0x15, 0x00,       // Logical Minimum (0)
+    0x26, 0xFF, 0x00, // Logical Maximum (255)
+    0x75, 0x08,       // Report Size (8)
+    0x95, XINPUT_TELEMETRY_HID_REPORT_SIZE, // Report Count (32)
+    0x09, 0x01,       // Usage (0x01)
+    0x81, 0x02,       // Input (Data,Var,Abs)
+    0x95, XINPUT_TELEMETRY_HID_REPORT_SIZE, // Report Count (32)
+    0x09, 0x02,       // Usage (client control)
+    0xB1, 0x02,       // Feature (Data,Var,Abs)
+    0xC0              // End Collection
+};
+
 // This needs to be:
  // 4 interfaces
  // remote wakeup enabled
@@ -87,8 +107,8 @@ static const uint8_t xinput_configuration_descriptor[] =
 {
     0x09,        // bLength
     0x02,        // bDescriptorType (Configuration)
-    0x99, 0x00,  // wTotalLength 0x99
-    0x04,        // bNumInterfaces 4
+    0xB2, 0x00,  // wTotalLength 0xB2
+    0x05,        // bNumInterfaces 5
     0x01,        // bConfigurationValue
     0x00,        // iConfiguration (String Index)
     0xA0,        // bmAttributes (remote wakeup)
@@ -252,7 +272,35 @@ static const uint8_t xinput_configuration_descriptor[] =
     0x00,
     0x01,
     0x01,
-    0x03,  
+    0x03,
+
+    // HID Telemetry Interface
+    0x09,        // bLength
+    0x04,        // bDescriptorType (Interface)
+    XINPUT_TELEMETRY_HID_ITF, // bInterfaceNumber
+    0x00,        // bAlternateSetting
+    0x01,        // bNumEndpoints 1
+    0x03,        // bInterfaceClass (HID)
+    0x00,        // bInterfaceSubClass
+    0x00,        // bInterfaceProtocol
+    0x00,        // iInterface
+
+    // HID Descriptor
+    0x09,        // bLength
+    0x21,        // bDescriptorType (HID)
+    0x11, 0x01,  // bcdHID 1.11
+    0x00,        // bCountryCode
+    0x01,        // bNumDescriptors
+    0x22,        // bDescriptorType (Report)
+    sizeof(xinput_telemetry_hid_report_descriptor), 0x00, // wDescriptorLength
+
+    // HID IN Endpoint
+    0x07,        // bLength
+    0x05,        // bDescriptorType (Endpoint)
+    XINPUT_TELEMETRY_HID_EP_IN, // bEndpointAddress (IN)
+    0x03,        // bmAttributes (Interrupt)
+    XINPUT_TELEMETRY_HID_REPORT_SIZE, 0x00, // wMaxPacketSize
+    0x01,        // bInterval
 };
 
 typedef enum

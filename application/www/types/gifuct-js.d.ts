@@ -4,5 +4,6 @@ declare module 'gifuct-js' {
         patch: Uint8ClampedArray;
         delay?: number;
         dims?: { width: number; height: number; top: number; left: number };
+        disposalType?: number;
     }>;
 }

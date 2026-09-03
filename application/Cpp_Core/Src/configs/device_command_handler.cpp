@@ -1,0 +1,150 @@
+#include "configs/device_command_handler.hpp"
+#include "storagemanager.hpp"
+#include "system_logger.h"
+#include "configs/calibration_command_handler.hpp"
+#include "configs/firmware_command_handler.hpp"
+#include "configs/common_command_handler.hpp"
+#include <map>
+
+// ============================================================================
+// DeviceCommandHandler 静态成员变量定义
+// ============================================================================
+bool DeviceCommandHandler::needReboot = false;
+uint32_t DeviceCommandHandler::rebootTick = 0;
+
+// ============================================================================
+// DeviceCommandHandler 基类实现
+// ============================================================================
+
+DeviceCommandResponse DeviceCommandHandler::create_error_response(
+    int cid, const std::string& command, int errNo, const std::string& errorMessage) {
+    return create_device_command_response(cid, command, errNo, nullptr, errorMessage.c_str());
+}
+
+DeviceCommandResponse DeviceCommandHandler::create_success_response(
+    int cid, const std::string& command, cJSON* data) {
+    return create_device_command_response(cid, command, 0, data);
+}
+
+// ============================================================================
+// DeviceCommandDispatcher 实现
+// ============================================================================
+
+DeviceCommandDispatcher& DeviceCommandDispatcher::getInstance() {
+    static DeviceCommandDispatcher instance;
+    return instance;
+}
+
+void DeviceCommandDispatcher::registerHandler(const std::string& command, DeviceCommandHandler* handler) {
+    handlers[command] = handler;
+}
+
+DeviceCommandResponse DeviceCommandDispatcher::processCommand(const DeviceCommandRequest& request) {
+    const std::string& command = request.getCommand();
+    
+    auto it = handlers.find(command);
+    if (it != handlers.end()) {
+        return it->second->handle(request);
+    }
+    
+    // 未找到处理器，返回错误响应
+    LOG_WARN("processCommand:DeviceCommand", "Unknown command: %s", command.c_str());
+    APP_DBG("processCommand:DeviceCommand: Unknown command: %s", command.c_str());
+    return create_device_command_response(request.getCid(), command, -1, nullptr, "Unknown command");
+}
+
+void DeviceCommandDispatcher::initializeHandlers() {
+    // 获取处理器实例
+    GlobalConfigCommandHandler& globalHandler = GlobalConfigCommandHandler::getInstance();
+    ProfileCommandHandler& profileHandler = ProfileCommandHandler::getInstance();
+    MSMarkCommandHandler& msMarkHandler = MSMarkCommandHandler::getInstance();
+    CalibrationCommandHandler& calibrationHandler = CalibrationCommandHandler::getInstance();
+    FirmwareCommandHandler& firmwareHandler = FirmwareCommandHandler::getInstance();
+    CommonCommandHandler& commonHandler = CommonCommandHandler::getInstance();
+    
+    // 注册全局配置相关命令
+    registerHandler("get_global_config", &globalHandler);
+    registerHandler("update_global_config", &globalHandler);
+    registerHandler("get_hotkeys_config", &globalHandler);
+    registerHandler("update_hotkeys_config", &globalHandler);
+    registerHandler("get_screen_control_config", &globalHandler);
+    registerHandler("update_screen_control_config", &globalHandler);
+    registerHandler("preview_screen_brightness", &globalHandler);
+    registerHandler("export_all_config", &globalHandler);
+    registerHandler("import_all_config", &globalHandler);
+    registerHandler("import_config_begin", &globalHandler);
+    registerHandler("import_config_part", &globalHandler);
+    registerHandler("import_config_finish", &globalHandler);
+    registerHandler("import_config_abort", &globalHandler);
+    registerHandler("reboot", &globalHandler);
+    registerHandler("exit_webconfig", &globalHandler);
+    
+    // 注册LED配置相关命令
+    registerHandler("push_leds_config", &globalHandler);
+    registerHandler("clear_leds_preview", &globalHandler);
+    
+    // 注册配置文件相关命令
+    registerHandler("get_profile_list", &profileHandler);
+    registerHandler("get_default_profile", &profileHandler);
+    registerHandler("get_profile_details", &profileHandler);
+    registerHandler("update_profile", &profileHandler);
+    registerHandler("get_macro", &profileHandler);
+    registerHandler("update_macro", &profileHandler);
+    registerHandler("get_profile_macros", &profileHandler);
+    registerHandler("update_profile_macros", &profileHandler);
+    registerHandler("create_profile", &profileHandler);
+    registerHandler("delete_profile", &profileHandler);
+    registerHandler("switch_default_profile", &profileHandler);
+    
+    // 注册轴体映射相关命令
+    registerHandler("ms_get_list", &msMarkHandler);
+    registerHandler("ms_get_mark_status", &msMarkHandler);
+    registerHandler("ms_set_default", &msMarkHandler);
+    registerHandler("ms_get_default", &msMarkHandler);
+    registerHandler("ms_create_mapping", &msMarkHandler);
+    registerHandler("ms_delete_mapping", &msMarkHandler);
+    registerHandler("ms_rename_mapping", &msMarkHandler);
+    registerHandler("ms_mark_mapping_start", &msMarkHandler);
+    registerHandler("ms_mark_mapping_stop", &msMarkHandler);
+    registerHandler("ms_mark_mapping_step", &msMarkHandler);
+    registerHandler("ms_mark_mapping_sync", &msMarkHandler);
+    registerHandler("ms_get_mapping", &msMarkHandler);
+    registerHandler("get_adc_config_backup", &msMarkHandler);
+    registerHandler("ms_install_mapping", &msMarkHandler);
+    registerHandler("ms_clear_installed_mapping", &msMarkHandler);
+    registerHandler("ms_mapping_draft_begin", &msMarkHandler);
+    registerHandler("ms_mapping_draft_get", &msMarkHandler);
+    
+    // 注册校准相关命令
+    registerHandler("start_manual_calibration", &calibrationHandler);
+    registerHandler("stop_manual_calibration", &calibrationHandler);
+    registerHandler("get_calibration_status", &calibrationHandler);
+    registerHandler("clear_manual_calibration_data", &calibrationHandler);
+    registerHandler("check_is_manual_calibration_completed", &calibrationHandler);
+    
+    // 注册按键监控相关命令
+    registerHandler("start_button_monitoring", &commonHandler);
+    registerHandler("stop_button_monitoring", &commonHandler);
+    registerHandler("start_button_performance_monitoring", &commonHandler);
+    registerHandler("stop_button_performance_monitoring", &commonHandler);
+    registerHandler("get_button_states", &commonHandler);
+    registerHandler("get_hitbox_layout", &commonHandler);
+    // 设备日志相关命令
+    registerHandler("get_device_logs_list", &commonHandler);
+    
+    // 注册固件相关命令
+    registerHandler("get_device_auth", &firmwareHandler);
+    registerHandler("get_firmware_metadata", &firmwareHandler);
+    registerHandler("create_firmware_upgrade_session", &firmwareHandler);
+    registerHandler("upload_firmware_chunk", &firmwareHandler);
+    registerHandler("complete_firmware_upgrade_session", &firmwareHandler);
+    registerHandler("abort_firmware_upgrade_session", &firmwareHandler);
+    registerHandler("get_firmware_upgrade_status", &firmwareHandler);
+    registerHandler("cleanup_firmware_upgrade_session", &firmwareHandler);
+    registerHandler("ch585_update_status", &firmwareHandler);
+    registerHandler("ch585_update_begin", &firmwareHandler);
+    registerHandler("ch585_update_chunk", &firmwareHandler);
+    registerHandler("ch585_update_complete", &firmwareHandler);
+    
+    // LOG_INFO("DeviceCommand", "DeviceCommand command handlers initialized successfully");
+} 

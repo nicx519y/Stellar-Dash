@@ -1,9 +1,9 @@
 #pragma once
 
-#include "configs/websocket_message.hpp"
+#include "configs/device_command_message.hpp"
 
 /**
- * @brief WebSocket命令处理器 - 获取全局配置
+ * @brief DeviceCommand命令处理器 - 获取全局配置
  * @param request 上行消息对象
  * @return 下行响应消息
  * 
@@ -30,10 +30,10 @@
  *   }
  * }
  */
-WebSocketDownstreamMessage handle_websocket_get_global_config(const WebSocketUpstreamMessage& request);
+DeviceCommandResponse handle_device_command_get_global_config(const DeviceCommandRequest& request);
 
 /**
- * @brief WebSocket命令处理器 - 更新全局配置
+ * @brief DeviceCommand命令处理器 - 更新全局配置
  * @param request 上行消息对象
  * @return 下行响应消息
  * 
@@ -65,10 +65,10 @@ WebSocketDownstreamMessage handle_websocket_get_global_config(const WebSocketUps
  *   }
  * }
  */
-WebSocketDownstreamMessage handle_websocket_update_global_config(const WebSocketUpstreamMessage& request);
+DeviceCommandResponse handle_device_command_update_global_config(const DeviceCommandRequest& request);
 
 /**
- * @brief WebSocket命令处理器 - 获取快捷键配置
+ * @brief DeviceCommand命令处理器 - 获取快捷键配置
  * @param request 上行消息对象
  * @return 下行响应消息
  * 
@@ -98,10 +98,10 @@ WebSocketDownstreamMessage handle_websocket_update_global_config(const WebSocket
  *   }
  * }
  */
-WebSocketDownstreamMessage handle_websocket_get_hotkeys_config(const WebSocketUpstreamMessage& request);
+DeviceCommandResponse handle_device_command_get_hotkeys_config(const DeviceCommandRequest& request);
 
 /**
- * @brief WebSocket命令处理器 - 更新快捷键配置
+ * @brief DeviceCommand命令处理器 - 更新快捷键配置
  * @param request 上行消息对象
  * @return 下行响应消息
  * 
@@ -140,10 +140,10 @@ WebSocketDownstreamMessage handle_websocket_get_hotkeys_config(const WebSocketUp
  *   }
  * }
  */
-WebSocketDownstreamMessage handle_websocket_update_hotkeys_config(const WebSocketUpstreamMessage& request);
+DeviceCommandResponse handle_device_command_update_hotkeys_config(const DeviceCommandRequest& request);
 
 /**
- * @brief WebSocket命令处理器 - 系统重启
+ * @brief DeviceCommand命令处理器 - 系统重启
  * @param request 上行消息对象
  * @return 下行响应消息
  * 
@@ -166,4 +166,4 @@ WebSocketDownstreamMessage handle_websocket_update_hotkeys_config(const WebSocke
  *   }
  * }
  */
-WebSocketDownstreamMessage handle_websocket_reboot(const WebSocketUpstreamMessage& request); 
+DeviceCommandResponse handle_device_command_reboot(const DeviceCommandRequest& request);

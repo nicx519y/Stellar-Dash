@@ -7,6 +7,7 @@
 #include "drivers/shared/driverhelper.hpp"
 #include "storagemanager.hpp"
 #include "latency_monitor.hpp"
+#include "monitor_telemetry.hpp"
 
 #define USB_SETUP_DEVICE_TO_HOST 0x80
 #define USB_SETUP_HOST_TO_DEVICE 0x00
@@ -31,6 +32,11 @@ static uint8_t endpoint_in = 0;
 static uint8_t endpoint_out = 0;
 static uint8_t xinput_out_buffer[XINPUT_OUT_SIZE] = {};
 static XInputAuthData *xinputAuthData = nullptr;
+static uint32_t telemetry_last_sent_ms = 0;
+static uint32_t telemetry_power_last_sent_ms = 0;
+
+static bool xinput_send_telemetry_frame(void);
+static bool xinput_send_power_telemetry_frame(void);
 
 // Move to Proto Enums
 typedef enum
@@ -106,11 +112,36 @@ static uint16_t xinput_open(uint8_t rhport, tusb_desc_interface_t const *itf_des
 
 static bool xinput_device_control_request(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
-	(void)rhport;
-	(void)stage;
-	(void)request;
+	static uint8_t alternate = 0;
+	static uint16_t status = 0;
 
-	return true;
+	if (stage != CONTROL_STAGE_SETUP)
+	{
+		return true;
+	}
+
+	if (request->bmRequestType_bit.type != TUSB_REQ_TYPE_STANDARD)
+	{
+		return false;
+	}
+
+	switch (request->bRequest)
+	{
+	case TUSB_REQ_GET_INTERFACE:
+		alternate = 0;
+		return tud_control_xfer(rhport, request, &alternate, sizeof(alternate));
+
+	case TUSB_REQ_SET_INTERFACE:
+		alternate = (uint8_t)request->wValue;
+		return tud_control_status(rhport, request);
+
+	case TUSB_REQ_GET_STATUS:
+		status = 0;
+		return tud_control_xfer(rhport, request, &status, sizeof(status));
+
+	default:
+		return false;
+	}
 }
 
 static bool xinput_control_complete(uint8_t rhport, tusb_control_request_t const *request)
@@ -125,7 +156,6 @@ static bool xinput_xfer_callback(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
 {
 	(void)rhport;
 	(void)result;
-	(void)xferred_bytes;
 
 	if (ep_addr == endpoint_out)
 		usbd_edpt_xfer(0, endpoint_out, xinput_out_buffer, XINPUT_OUT_SIZE);
@@ -136,6 +166,10 @@ static bool xinput_xfer_callback(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
 		LATENCY_MONITOR.usbInTransfer();
 	}
 #endif
+	if (ep_addr == endpoint_in)
+	{
+		MonitorTelemetry_OnUsbReportSubmitted((uint16_t)xferred_bytes);
+	}
 
 	return true;
 }
@@ -244,6 +278,22 @@ void XInputDriver::process(Gamepad *gamepad)
 		usbd_edpt_claim(0, endpoint_out);									 // Take control of OUT endpoint
 		usbd_edpt_xfer(0, endpoint_out, xinput_out_buffer, XINPUT_OUT_SIZE); // Retrieve report buffer
 		usbd_edpt_release(0, endpoint_out);									 // Release control of OUT endpoint
+	}
+
+	const uint32_t now_ms = HAL_GetTick();
+	bool power_telemetry_sent = false;
+	if ((now_ms - telemetry_power_last_sent_ms) >= 1000u)
+	{
+		if (xinput_send_power_telemetry_frame()) {
+			telemetry_power_last_sent_ms = now_ms;
+			power_telemetry_sent = true;
+		}
+	}
+	if (!power_telemetry_sent && (now_ms - telemetry_last_sent_ms) >= 10u)
+	{
+		if (xinput_send_telemetry_frame()) {
+			telemetry_last_sent_ms = now_ms;
+		}
 	}
 
 	// 以下是player led 和  震动反馈的处理逻辑，hitbox不需要
@@ -411,7 +461,8 @@ const uint8_t *XInputDriver::get_descriptor_device_cb()
 
 const uint8_t *XInputDriver::get_hid_descriptor_report_cb(uint8_t itf)
 {
-	return nullptr;
+	(void)itf;
+	return xinput_telemetry_hid_report_descriptor;
 }
 
 const uint8_t *XInputDriver::get_descriptor_configuration_cb(uint8_t index)
@@ -427,4 +478,32 @@ const uint8_t *XInputDriver::get_descriptor_device_qualifier_cb()
 uint16_t XInputDriver::GetJoystickMidValue()
 {
 	return GAMEPAD_JOYSTICK_MID;
+}
+
+static bool xinput_send_telemetry_frame(void)
+{
+	if (!tud_ready() || !tud_hid_n_ready(0))
+	{
+		return false;
+	}
+
+	MonitorTelemetryFrameV1 frame = {};
+	if (!MonitorTelemetry_FillFrameV1(&frame)) {
+		return false;
+	}
+	return tud_hid_n_report(0, 0, &frame, sizeof(frame));
+}
+
+static bool xinput_send_power_telemetry_frame(void)
+{
+	if (!tud_ready() || !tud_hid_n_ready(0))
+	{
+		return false;
+	}
+
+	MonitorPowerFrameV1 frame = {};
+	if (!MonitorTelemetry_FillPowerFrameV1(&frame)) {
+		return false;
+	}
+	return tud_hid_n_report(0, 0, &frame, sizeof(frame));
 }

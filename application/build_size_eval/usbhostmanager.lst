@@ -1,0 +1,336 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"usbhostmanager.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/usbhostmanager.cpp"
+  19              		.section	.text._ZN14USBHostManager5startEv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN14USBHostManager5startEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN14USBHostManager5startEv:
+  27              	.LVL0:
+  28              	.LFB947:
+   1:Cpp_Core/Src/usbhostmanager.cpp **** #include "usbhostmanager.hpp"
+   2:Cpp_Core/Src/usbhostmanager.cpp **** 
+   3:Cpp_Core/Src/usbhostmanager.cpp **** #include "usbdriver.hpp"
+   4:Cpp_Core/Src/usbhostmanager.cpp **** 
+   5:Cpp_Core/Src/usbhostmanager.cpp **** void USBHostManager::start()
+   6:Cpp_Core/Src/usbhostmanager.cpp **** {
+  29              		.loc 1 6 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+   7:Cpp_Core/Src/usbhostmanager.cpp ****     /* CH585 host initialization is part of USB role bootstrap. */
+   8:Cpp_Core/Src/usbhostmanager.cpp **** }
+  34              		.loc 1 8 1 is_stmt 0 view .LVU1
+  35 0000 7047     		bx	lr
+  36              		.cfi_endproc
+  37              	.LFE947:
+  39              		.section	.text._ZN14USBHostManager8shutdownEv,"ax",%progbits
+  40              		.align	1
+  41              		.global	_ZN14USBHostManager8shutdownEv
+  42              		.syntax unified
+  43              		.thumb
+  44              		.thumb_func
+  46              	_ZN14USBHostManager8shutdownEv:
+  47              	.LVL1:
+  48              	.LFB948:
+   9:Cpp_Core/Src/usbhostmanager.cpp **** 
+  10:Cpp_Core/Src/usbhostmanager.cpp **** void USBHostManager::shutdown()
+  11:Cpp_Core/Src/usbhostmanager.cpp **** {
+  49              		.loc 1 11 1 is_stmt 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s 			page 2
+
+
+  50              		.cfi_startproc
+  51              		@ args = 0, pretend = 0, frame = 0
+  52              		@ frame_needed = 0, uses_anonymous_args = 0
+  53              		@ link register save eliminated.
+  12:Cpp_Core/Src/usbhostmanager.cpp ****     USB_DRIVER.shutdown();
+  54              		.loc 1 12 5 view .LVU3
+  55              	.LBB10:
+  56              	.LBI10:
+  57              		.file 2 "Cpp_Core/Inc/usbdriver.hpp"
+   1:Cpp_Core/Inc/usbdriver.hpp **** #ifndef USB_DRIVER_HPP
+   2:Cpp_Core/Inc/usbdriver.hpp **** #define USB_DRIVER_HPP
+   3:Cpp_Core/Inc/usbdriver.hpp **** 
+   4:Cpp_Core/Inc/usbdriver.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/usbdriver.hpp **** 
+   6:Cpp_Core/Inc/usbdriver.hpp **** #include "enums.hpp"
+   7:Cpp_Core/Inc/usbdriver.hpp **** #include "gamepad/GamepadState.hpp"
+   8:Cpp_Core/Inc/usbdriver.hpp **** #include "usb_board_link_protocol.h"
+   9:Cpp_Core/Inc/usbdriver.hpp **** #include "usb_report_rate_policy.hpp"
+  10:Cpp_Core/Inc/usbdriver.hpp **** 
+  11:Cpp_Core/Inc/usbdriver.hpp **** bool get_usb_mounted(void);
+  12:Cpp_Core/Inc/usbdriver.hpp **** bool get_usb_suspended(void);
+  13:Cpp_Core/Inc/usbdriver.hpp **** 
+  14:Cpp_Core/Inc/usbdriver.hpp **** class USBDriver
+  15:Cpp_Core/Inc/usbdriver.hpp **** {
+  16:Cpp_Core/Inc/usbdriver.hpp **** public:
+  17:Cpp_Core/Inc/usbdriver.hpp ****     USBDriver(const USBDriver &) = delete;
+  18:Cpp_Core/Inc/usbdriver.hpp ****     USBDriver &operator=(const USBDriver &) = delete;
+  19:Cpp_Core/Inc/usbdriver.hpp **** 
+  20:Cpp_Core/Inc/usbdriver.hpp ****     static USBDriver &getInstance()
+  58              		.loc 2 20 23 view .LVU4
+  21:Cpp_Core/Inc/usbdriver.hpp ****     {
+  22:Cpp_Core/Inc/usbdriver.hpp ****         static USBDriver instance;
+  59              		.loc 2 22 9 view .LVU5
+  23:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+  60              		.loc 2 23 9 view .LVU6
+  61              	.LBE10:
+  62              		.loc 1 12 24 is_stmt 0 discriminator 1 view .LVU7
+  63 0000 0148     		ldr	r0, .L3
+  64              	.LVL2:
+  65              		.loc 1 12 24 discriminator 1 view .LVU8
+  66 0002 FFF7FEBF 		b	_ZN9USBDriver8shutdownEv
+  67              	.LVL3:
+  68              	.L4:
+  69 0006 00BF     		.align	2
+  70              	.L3:
+  71 0008 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+  72              		.cfi_endproc
+  73              	.LFE948:
+  75              		.section	.text._ZN14USBHostManager7processEv,"ax",%progbits
+  76              		.align	1
+  77              		.global	_ZN14USBHostManager7processEv
+  78              		.syntax unified
+  79              		.thumb
+  80              		.thumb_func
+  82              	_ZN14USBHostManager7processEv:
+  83              	.LVL4:
+  84              	.LFB949:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s 			page 3
+
+
+  13:Cpp_Core/Src/usbhostmanager.cpp **** }
+  14:Cpp_Core/Src/usbhostmanager.cpp **** 
+  15:Cpp_Core/Src/usbhostmanager.cpp **** void USBHostManager::process()
+  16:Cpp_Core/Src/usbhostmanager.cpp **** {
+  85              		.loc 1 16 1 is_stmt 1 view -0
+  86              		.cfi_startproc
+  87              		@ args = 0, pretend = 0, frame = 0
+  88              		@ frame_needed = 0, uses_anonymous_args = 0
+  89              		@ link register save eliminated.
+  17:Cpp_Core/Src/usbhostmanager.cpp ****     USB_DRIVER.process();
+  90              		.loc 1 17 5 view .LVU10
+  91              	.LBB11:
+  92              	.LBI11:
+  20:Cpp_Core/Inc/usbdriver.hpp ****     {
+  93              		.loc 2 20 23 view .LVU11
+  22:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+  94              		.loc 2 22 9 view .LVU12
+  95              		.loc 2 23 9 view .LVU13
+  96              	.LBE11:
+  97              		.loc 1 17 23 is_stmt 0 discriminator 1 view .LVU14
+  98 0000 0148     		ldr	r0, .L6
+  99              	.LVL5:
+ 100              		.loc 1 17 23 discriminator 1 view .LVU15
+ 101 0002 FFF7FEBF 		b	_ZN9USBDriver7processEv
+ 102              	.LVL6:
+ 103              	.L7:
+ 104 0006 00BF     		.align	2
+ 105              	.L6:
+ 106 0008 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 107              		.cfi_endproc
+ 108              	.LFE949:
+ 110              		.section	.text._ZN14USBHostManager12pushListenerEP11USBListener,"ax",%progbits
+ 111              		.align	1
+ 112              		.global	_ZN14USBHostManager12pushListenerEP11USBListener
+ 113              		.syntax unified
+ 114              		.thumb
+ 115              		.thumb_func
+ 117              	_ZN14USBHostManager12pushListenerEP11USBListener:
+ 118              	.LVL7:
+ 119              	.LFB950:
+  18:Cpp_Core/Src/usbhostmanager.cpp **** }
+  19:Cpp_Core/Src/usbhostmanager.cpp **** 
+  20:Cpp_Core/Src/usbhostmanager.cpp **** void USBHostManager::pushListener(USBListener *listener)
+  21:Cpp_Core/Src/usbhostmanager.cpp **** {
+ 120              		.loc 1 21 1 is_stmt 1 view -0
+ 121              		.cfi_startproc
+ 122              		@ args = 0, pretend = 0, frame = 0
+ 123              		@ frame_needed = 0, uses_anonymous_args = 0
+ 124              		@ link register save eliminated.
+  22:Cpp_Core/Src/usbhostmanager.cpp ****     /*
+  23:Cpp_Core/Src/usbhostmanager.cpp ****      * Authentication listeners formerly received STM32 TinyUSB callbacks.
+  24:Cpp_Core/Src/usbhostmanager.cpp ****      * Authentication is now executed locally by CH585; retained as a no-op so
+  25:Cpp_Core/Src/usbhostmanager.cpp ****      * upper-level legacy callers can be migrated without ABI breakage.
+  26:Cpp_Core/Src/usbhostmanager.cpp ****      */
+  27:Cpp_Core/Src/usbhostmanager.cpp ****     (void)listener;
+ 125              		.loc 1 27 5 view .LVU17
+  28:Cpp_Core/Src/usbhostmanager.cpp **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s 			page 4
+
+
+ 126              		.loc 1 28 1 is_stmt 0 view .LVU18
+ 127 0000 7047     		bx	lr
+ 128              		.cfi_endproc
+ 129              	.LFE950:
+ 131              		.section	.text._ZNK14USBHostManager7isReadyEv,"ax",%progbits
+ 132              		.align	1
+ 133              		.global	_ZNK14USBHostManager7isReadyEv
+ 134              		.syntax unified
+ 135              		.thumb
+ 136              		.thumb_func
+ 138              	_ZNK14USBHostManager7isReadyEv:
+ 139              	.LVL8:
+ 140              	.LFB951:
+  29:Cpp_Core/Src/usbhostmanager.cpp **** 
+  30:Cpp_Core/Src/usbhostmanager.cpp **** bool USBHostManager::isReady() const
+  31:Cpp_Core/Src/usbhostmanager.cpp **** {
+ 141              		.loc 1 31 1 is_stmt 1 view -0
+ 142              		.cfi_startproc
+ 143              		@ args = 0, pretend = 0, frame = 0
+ 144              		@ frame_needed = 0, uses_anonymous_args = 0
+ 145              		@ link register save eliminated.
+  32:Cpp_Core/Src/usbhostmanager.cpp ****     return USB_DRIVER.isHostReady();
+ 146              		.loc 1 32 5 view .LVU20
+ 147              	.LBB12:
+ 148              	.LBI12:
+  20:Cpp_Core/Inc/usbdriver.hpp ****     {
+ 149              		.loc 2 20 23 view .LVU21
+  22:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+ 150              		.loc 2 22 9 view .LVU22
+ 151              		.loc 2 23 9 view .LVU23
+ 152              	.LBE12:
+ 153              		.loc 1 32 34 is_stmt 0 discriminator 1 view .LVU24
+ 154 0000 0148     		ldr	r0, .L10
+ 155              	.LVL9:
+ 156              		.loc 1 32 34 discriminator 1 view .LVU25
+ 157 0002 FFF7FEBF 		b	_ZNK9USBDriver11isHostReadyEv
+ 158              	.LVL10:
+ 159              	.L11:
+ 160 0006 00BF     		.align	2
+ 161              	.L10:
+ 162 0008 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 163              		.cfi_endproc
+ 164              	.LFE951:
+ 166              		.section	.text._ZNK14USBHostManager10isAttachedEv,"ax",%progbits
+ 167              		.align	1
+ 168              		.global	_ZNK14USBHostManager10isAttachedEv
+ 169              		.syntax unified
+ 170              		.thumb
+ 171              		.thumb_func
+ 173              	_ZNK14USBHostManager10isAttachedEv:
+ 174              	.LVL11:
+ 175              	.LFB952:
+  33:Cpp_Core/Src/usbhostmanager.cpp **** }
+  34:Cpp_Core/Src/usbhostmanager.cpp **** 
+  35:Cpp_Core/Src/usbhostmanager.cpp **** bool USBHostManager::isAttached() const
+  36:Cpp_Core/Src/usbhostmanager.cpp **** {
+ 176              		.loc 1 36 1 is_stmt 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s 			page 5
+
+
+ 177              		.cfi_startproc
+ 178              		@ args = 0, pretend = 0, frame = 0
+ 179              		@ frame_needed = 0, uses_anonymous_args = 0
+ 180              		@ link register save eliminated.
+  37:Cpp_Core/Src/usbhostmanager.cpp ****     return USB_DRIVER.isHostAttached();
+ 181              		.loc 1 37 5 view .LVU27
+ 182              	.LBB13:
+ 183              	.LBI13:
+  20:Cpp_Core/Inc/usbdriver.hpp ****     {
+ 184              		.loc 2 20 23 view .LVU28
+  22:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+ 185              		.loc 2 22 9 view .LVU29
+ 186              		.loc 2 23 9 view .LVU30
+ 187              	.LBE13:
+ 188              		.loc 1 37 37 is_stmt 0 discriminator 1 view .LVU31
+ 189 0000 0148     		ldr	r0, .L13
+ 190              	.LVL12:
+ 191              		.loc 1 37 37 discriminator 1 view .LVU32
+ 192 0002 FFF7FEBF 		b	_ZNK9USBDriver14isHostAttachedEv
+ 193              	.LVL13:
+ 194              	.L14:
+ 195 0006 00BF     		.align	2
+ 196              	.L13:
+ 197 0008 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 198              		.cfi_endproc
+ 199              	.LFE952:
+ 201              		.weak	_ZZN9USBDriver11getInstanceEvE8instance
+ 202              		.section	.data._ZZN9USBDriver11getInstanceEvE8instance,"awG",%progbits,_ZZN9USBDriver11getInstance
+ 203              		.align	2
+ 206              	_ZZN9USBDriver11getInstanceEvE8instance:
+ 207 0000 00       		.byte	0
+ 208 0001 00       		.byte	0
+ 209 0002 0000     		.space	2
+ 210 0004 00000000 		.word	0
+ 211 0008 00       		.byte	0
+ 212 0009 00       		.byte	0
+ 213 000a 00       		.byte	0
+ 214 000b 00       		.byte	0
+ 215 000c E803     		.short	1000
+ 216 000e 01       		.byte	1
+ 217 000f 00       		.byte	0
+ 218 0010 00       		.byte	0
+ 219 0011 000000   		.space	3
+ 220              		.text
+ 221              	.Letext0:
+ 222              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdint"
+ 223              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 224              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 225              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 226              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e-
+ 227              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 228              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 229              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 230              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdint.h"
+ 231              		.file 12 "Cpp_Core/Inc/usbhostmanager.hpp"
+ 232              		.file 13 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 233              		.file 14 "Cpp_Core/Inc/gamepad/GamepadState.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s 			page 6
+
+
+ 234              		.file 15 "../common/usb_board_link_protocol.h"
+ 235              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 236              		.file 17 "Cpp_Core/Inc/enums.hpp"
+ 237              		.file 18 "Cpp_Core/Inc/usb_report_rate_policy.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s 			page 7
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 usbhostmanager.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:20     .text._ZN14USBHostManager5startEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:26     .text._ZN14USBHostManager5startEv:00000000 _ZN14USBHostManager5startEv
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:40     .text._ZN14USBHostManager8shutdownEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:46     .text._ZN14USBHostManager8shutdownEv:00000000 _ZN14USBHostManager8shutdownEv
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:71     .text._ZN14USBHostManager8shutdownEv:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:206    .data._ZZN9USBDriver11getInstanceEvE8instance:00000000 _ZZN9USBDriver11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:76     .text._ZN14USBHostManager7processEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:82     .text._ZN14USBHostManager7processEv:00000000 _ZN14USBHostManager7processEv
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:106    .text._ZN14USBHostManager7processEv:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:111    .text._ZN14USBHostManager12pushListenerEP11USBListener:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:117    .text._ZN14USBHostManager12pushListenerEP11USBListener:00000000 _ZN14USBHostManager12pushListenerEP11USBListener
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:132    .text._ZNK14USBHostManager7isReadyEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:138    .text._ZNK14USBHostManager7isReadyEv:00000000 _ZNK14USBHostManager7isReadyEv
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:162    .text._ZNK14USBHostManager7isReadyEv:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:167    .text._ZNK14USBHostManager10isAttachedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:173    .text._ZNK14USBHostManager10isAttachedEv:00000000 _ZNK14USBHostManager10isAttachedEv
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:197    .text._ZNK14USBHostManager10isAttachedEv:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEYn4AR.s:203    .data._ZZN9USBDriver11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+_ZN9USBDriver8shutdownEv
+_ZN9USBDriver7processEv
+_ZNK9USBDriver11isHostReadyEv
+_ZNK9USBDriver14isHostAttachedEv

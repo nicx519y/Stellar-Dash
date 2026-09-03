@@ -1,9 +1,10 @@
 "use client"
 
 import { PROFILE_NAME_MAX_LENGTH } from "@/types/gamepad-config";
-import { useMemo } from "react";
-import {  Button, Card, HStack, VStack } from "@chakra-ui/react";
+import { useMemo, useState } from "react";
+import { Button, Card, HStack, VStack } from "@chakra-ui/react";
 import { Tooltip } from "@/components/ui/tooltip";
+import { LoadingModal } from "@/components/ui/loading-modal";
 import {
     IconButton,
     createListCollection,
@@ -24,10 +25,11 @@ export function ProfileSelect(
     }
 ) {
 
-    const { profileList, switchProfile, createProfile, deleteProfile, updateProfileDetails } = useGamepadConfig();
+    const { profileList, switchProfile, createProfile, deleteProfile, updateProfileDetails, flushDeferredConfig } = useGamepadConfig();
     const { t } = useLanguage();
     const { disabled } = props;
     const { colorMode } = useColorMode();
+    const [pendingOperation, setPendingOperation] = useState<string | null>(null);
     const isDisabled = useMemo(() => {
         return disabled ?? false;
     }, [disabled]);
@@ -69,7 +71,7 @@ export function ProfileSelect(
             return [false, t.PROFILE_SELECT_VALIDATION_LENGTH.replace("{0}", name.length.toString())];
         }
 
-        if (!/^[A-Za-z0-9]+$/.test(name)) {
+        if (!/^[A-Za-z0-9_-]+$/.test(name)) {
             return [false, t.PROFILE_SELECT_VALIDATION_SPECIAL_CHARS];
         }
 
@@ -89,10 +91,15 @@ export function ProfileSelect(
      * @param value - The id of the profile to set as default.
      */
     const onDefaultProfileChange = async (value: string) => {
-        if (value === defaultProfile?.id) {
+        if (value === defaultProfile?.id || pendingOperation) {
             return;
         }
-        return await switchProfile(value);
+        setPendingOperation(`switch:${value}`);
+        try {
+            await flushDeferredConfig(() => switchProfile(value), true);
+        } finally {
+            setPendingOperation(null);
+        }
     }
 
     /**
@@ -117,10 +124,15 @@ export function ProfileSelect(
         });
 
         if (result) {
-            await updateProfileDetails(defaultProfile?.id ?? "", {
-                id: defaultProfile?.id ?? "",
-                name: result.profileName
-            }, false, true, true);
+            setPendingOperation('rename');
+            try {
+                await flushDeferredConfig(() => updateProfileDetails(defaultProfile?.id ?? "", {
+                    id: defaultProfile?.id ?? "",
+                    name: result.profileName
+                }, true, true, false), true);
+            } finally {
+                setPendingOperation(null);
+            }
         }
     };
 
@@ -145,7 +157,12 @@ export function ProfileSelect(
         });
 
         if (result) {
-            await createProfile(result.profileName);
+            setPendingOperation('create');
+            try {
+                await flushDeferredConfig(() => createProfile(result.profileName), true);
+            } finally {
+                setPendingOperation(null);
+            }
         }
     };
 
@@ -168,7 +185,12 @@ export function ProfileSelect(
      * Confirm the deletion of the default profile.
      */
     const onDeleteConfirm = async () => {
-        return await deleteProfile(defaultProfile?.id ?? "");
+        setPendingOperation('delete');
+        try {
+            await flushDeferredConfig(() => deleteProfile(defaultProfile?.id ?? ""), true);
+        } finally {
+            setPendingOperation(null);
+        }
     }
 
     const menuItems = [
@@ -196,6 +218,8 @@ export function ProfileSelect(
 
 
     return (
+        <>
+        <LoadingModal isOpen={pendingOperation !== null} variant="operation" />
         <Card.Root w="100%" minH="450px" >
             <Card.Header >
                 <Card.Title fontSize={"md"} color={isDisabled ? "gray.500" :  colorMode === "dark" ? "white" : "black"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
@@ -217,7 +241,7 @@ export function ProfileSelect(
                                 color={defaultProfile?.id === item.value ? "gray.100" : "gray.400"}
                                 onClick={() => defaultProfile?.id !== item.value && onDefaultProfileChange(item.value)}
                                 justifyContent="flex-start" 
-                                disabled={isDisabled}
+                                disabled={isDisabled || pendingOperation !== null}
                             >
                                 <HStack w="100%" justifyContent="space-between">
                                     <span>{item.label}</span>
@@ -233,7 +257,7 @@ export function ProfileSelect(
                     {
                         menuItems.map((item) => (
                             <Tooltip key={item.value} content={item.label} >
-                                <IconButton key={item.value} w="32px" size="xs" variant="ghost" colorPalette="green" onClick={item.onClick} disabled={isDisabled}  >
+                                <IconButton key={item.value} w="32px" size="xs" variant="ghost" colorPalette="green" onClick={item.onClick} disabled={isDisabled || pendingOperation !== null}  >
                                     {item.icon}
                                 </IconButton>
                             </Tooltip>
@@ -242,6 +266,6 @@ export function ProfileSelect(
                 </HStack>
             </Card.Footer>
         </Card.Root>
-        
+        </>
     )
 }

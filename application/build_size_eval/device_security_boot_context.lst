@@ -1,0 +1,767 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"device_security_boot_context.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "../common/device_security_boot_context.c"
+  19              		.section	.text.all_zero,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	all_zero:
+  26              	.LVL0:
+  27              	.LFB0:
+   1:../common/device_security_boot_context.c **** #include "device_security_boot_context.h"
+   2:../common/device_security_boot_context.c **** 
+   3:../common/device_security_boot_context.c **** #include <string.h>
+   4:../common/device_security_boot_context.c **** 
+   5:../common/device_security_boot_context.c **** static int all_zero(const uint8_t *value, size_t length)
+   6:../common/device_security_boot_context.c **** {
+  28              		.loc 1 6 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+   7:../common/device_security_boot_context.c ****     uint8_t combined = 0u;
+  33              		.loc 1 7 5 view .LVU1
+   8:../common/device_security_boot_context.c ****     size_t index;
+  34              		.loc 1 8 5 view .LVU2
+   9:../common/device_security_boot_context.c ****     for (index = 0u; index < length; ++index) {
+  35              		.loc 1 9 5 view .LVU3
+  36              		.loc 1 9 28 discriminator 1 view .LVU4
+  37 0000 0144     		add	r1, r1, r0
+  38              	.LVL1:
+   7:../common/device_security_boot_context.c ****     uint8_t combined = 0u;
+  39              		.loc 1 7 13 is_stmt 0 view .LVU5
+  40 0002 0023     		movs	r3, #0
+  41              	.LVL2:
+  42              	.L2:
+  10:../common/device_security_boot_context.c ****         combined |= value[index];
+  43              		.loc 1 10 9 is_stmt 1 view .LVU6
+  44              		.loc 1 10 26 is_stmt 0 view .LVU7
+  45 0004 10F8012B 		ldrb	r2, [r0], #1	@ zero_extendqisi2
+  46              	.LVL3:
+   9:../common/device_security_boot_context.c ****     for (index = 0u; index < length; ++index) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 2
+
+
+  47              		.loc 1 9 28 discriminator 1 view .LVU8
+  48 0008 8842     		cmp	r0, r1
+  49              		.loc 1 10 18 view .LVU9
+  50 000a 43EA0203 		orr	r3, r3, r2
+  51              	.LVL4:
+   9:../common/device_security_boot_context.c ****     for (index = 0u; index < length; ++index) {
+  52              		.loc 1 9 38 is_stmt 1 discriminator 3 view .LVU10
+   9:../common/device_security_boot_context.c ****     for (index = 0u; index < length; ++index) {
+  53              		.loc 1 9 28 discriminator 1 view .LVU11
+  54 000e F9D1     		bne	.L2
+  11:../common/device_security_boot_context.c ****     }
+  12:../common/device_security_boot_context.c ****     return combined == 0u;
+  55              		.loc 1 12 5 view .LVU12
+  13:../common/device_security_boot_context.c **** }
+  56              		.loc 1 13 1 is_stmt 0 view .LVU13
+  57 0010 B3FA83F0 		clz	r0, r3
+  58              	.LVL5:
+  59              		.loc 1 13 1 view .LVU14
+  60 0014 4009     		lsrs	r0, r0, #5
+  61 0016 7047     		bx	lr
+  62              		.cfi_endproc
+  63              	.LFE0:
+  65              		.section	.text.HBoxSecurity_Crc32Skipping,"ax",%progbits
+  66              		.align	1
+  67              		.global	HBoxSecurity_Crc32Skipping
+  68              		.syntax unified
+  69              		.thumb
+  70              		.thumb_func
+  72              	HBoxSecurity_Crc32Skipping:
+  73              	.LVL6:
+  74              	.LFB2:
+  14:../common/device_security_boot_context.c **** 
+  15:../common/device_security_boot_context.c **** static int contains_nul(const char *value, size_t length)
+  16:../common/device_security_boot_context.c **** {
+  17:../common/device_security_boot_context.c ****     size_t index;
+  18:../common/device_security_boot_context.c ****     for (index = 0u; index < length; ++index) {
+  19:../common/device_security_boot_context.c ****         if (value[index] == '\0') {
+  20:../common/device_security_boot_context.c ****             return 1;
+  21:../common/device_security_boot_context.c ****         }
+  22:../common/device_security_boot_context.c ****     }
+  23:../common/device_security_boot_context.c ****     return 0;
+  24:../common/device_security_boot_context.c **** }
+  25:../common/device_security_boot_context.c **** 
+  26:../common/device_security_boot_context.c **** uint32_t HBoxSecurity_Crc32Skipping(const uint8_t *data,
+  27:../common/device_security_boot_context.c ****                                     size_t length,
+  28:../common/device_security_boot_context.c ****                                     size_t skip_offset,
+  29:../common/device_security_boot_context.c ****                                     size_t skip_size)
+  30:../common/device_security_boot_context.c **** {
+  75              		.loc 1 30 1 is_stmt 1 view -0
+  76              		.cfi_startproc
+  77              		@ args = 0, pretend = 0, frame = 0
+  78              		@ frame_needed = 0, uses_anonymous_args = 0
+  31:../common/device_security_boot_context.c ****     uint32_t crc = 0xFFFFFFFFu;
+  79              		.loc 1 31 5 view .LVU16
+  32:../common/device_security_boot_context.c ****     size_t index;
+  80              		.loc 1 32 5 view .LVU17
+  33:../common/device_security_boot_context.c ****     uint8_t bit;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 3
+
+
+  81              		.loc 1 33 5 view .LVU18
+  34:../common/device_security_boot_context.c **** 
+  35:../common/device_security_boot_context.c ****     if (data == NULL || skip_offset > length ||
+  82              		.loc 1 35 5 view .LVU19
+  30:../common/device_security_boot_context.c ****     uint32_t crc = 0xFFFFFFFFu;
+  83              		.loc 1 30 1 is_stmt 0 view .LVU20
+  84 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+  85              	.LCFI0:
+  86              		.cfi_def_cfa_offset 20
+  87              		.cfi_offset 4, -20
+  88              		.cfi_offset 5, -16
+  89              		.cfi_offset 6, -12
+  90              		.cfi_offset 7, -8
+  91              		.cfi_offset 14, -4
+  92              		.loc 1 35 8 view .LVU21
+  93 0002 68B1     		cbz	r0, .L4
+  94              		.loc 1 35 22 discriminator 1 view .LVU22
+  95 0004 8A42     		cmp	r2, r1
+  96 0006 1FD8     		bhi	.L13
+  36:../common/device_security_boot_context.c ****         skip_size > (length - skip_offset)) {
+  97              		.loc 1 36 29 view .LVU23
+  98 0008 8C1A     		subs	r4, r1, r2
+  35:../common/device_security_boot_context.c ****         skip_size > (length - skip_offset)) {
+  99              		.loc 1 35 46 discriminator 2 view .LVU24
+ 100 000a 9C42     		cmp	r4, r3
+ 101 000c 1CD3     		bcc	.L13
+ 102              	.LBB6:
+ 103              	.LBB7:
+  37:../common/device_security_boot_context.c ****         return 0u;
+  38:../common/device_security_boot_context.c ****     }
+  39:../common/device_security_boot_context.c **** 
+  40:../common/device_security_boot_context.c ****     for (index = 0u; index < length; ++index) {
+ 104              		.loc 1 40 16 view .LVU25
+ 105 000e 0025     		movs	r5, #0
+  31:../common/device_security_boot_context.c ****     size_t index;
+ 106              		.loc 1 31 14 view .LVU26
+ 107 0010 4FF0FF34 		mov	r4, #-1
+ 108              	.LBB8:
+  41:../common/device_security_boot_context.c ****         if (index >= skip_offset && index < (skip_offset + skip_size)) {
+  42:../common/device_security_boot_context.c ****             continue;
+  43:../common/device_security_boot_context.c ****         }
+  44:../common/device_security_boot_context.c ****         crc ^= data[index];
+  45:../common/device_security_boot_context.c ****         for (bit = 0u; bit < 8u; ++bit) {
+  46:../common/device_security_boot_context.c ****             const uint32_t mask =
+  47:../common/device_security_boot_context.c ****                 (uint32_t)(-(int32_t)(crc & 1u));
+  48:../common/device_security_boot_context.c ****             crc = (crc >> 1u) ^ (0xEDB88320u & mask);
+ 109              		.loc 1 48 46 view .LVU27
+ 110 0014 DFF834C0 		ldr	ip, .L15
+ 111              	.LBE8:
+  41:../common/device_security_boot_context.c ****         if (index >= skip_offset && index < (skip_offset + skip_size)) {
+ 112              		.loc 1 41 58 discriminator 1 view .LVU28
+ 113 0018 1344     		add	r3, r3, r2
+ 114              	.LVL7:
+ 115              	.L6:
+  40:../common/device_security_boot_context.c ****         if (index >= skip_offset && index < (skip_offset + skip_size)) {
+ 116              		.loc 1 40 28 is_stmt 1 discriminator 1 view .LVU29
+ 117 001a A942     		cmp	r1, r5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 4
+
+
+ 118 001c 01D1     		bne	.L10
+  49:../common/device_security_boot_context.c ****         }
+  50:../common/device_security_boot_context.c ****     }
+  51:../common/device_security_boot_context.c ****     return crc ^ 0xFFFFFFFFu;
+ 119              		.loc 1 51 5 view .LVU30
+ 120              		.loc 1 51 16 is_stmt 0 view .LVU31
+ 121 001e E043     		mvns	r0, r4
+ 122              	.LVL8:
+ 123              	.L4:
+ 124              		.loc 1 51 16 view .LVU32
+ 125              	.LBE7:
+ 126              	.LBE6:
+  52:../common/device_security_boot_context.c **** }
+ 127              		.loc 1 52 1 view .LVU33
+ 128 0020 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 129              	.LVL9:
+ 130              	.L10:
+ 131              	.LBB13:
+ 132              	.LBB12:
+  41:../common/device_security_boot_context.c ****             continue;
+ 133              		.loc 1 41 9 is_stmt 1 view .LVU34
+  41:../common/device_security_boot_context.c ****             continue;
+ 134              		.loc 1 41 12 is_stmt 0 view .LVU35
+ 135 0022 AA42     		cmp	r2, r5
+ 136 0024 01D8     		bhi	.L7
+  41:../common/device_security_boot_context.c ****             continue;
+ 137              		.loc 1 41 34 discriminator 1 view .LVU36
+ 138 0026 9D42     		cmp	r5, r3
+ 139 0028 0CD3     		bcc	.L8
+ 140              	.L7:
+  44:../common/device_security_boot_context.c ****         for (bit = 0u; bit < 8u; ++bit) {
+ 141              		.loc 1 44 9 is_stmt 1 view .LVU37
+  44:../common/device_security_boot_context.c ****         for (bit = 0u; bit < 8u; ++bit) {
+ 142              		.loc 1 44 20 is_stmt 0 view .LVU38
+ 143 002a 465D     		ldrb	r6, [r0, r5]	@ zero_extendqisi2
+  44:../common/device_security_boot_context.c ****         for (bit = 0u; bit < 8u; ++bit) {
+ 144              		.loc 1 44 13 view .LVU39
+ 145 002c 7440     		eors	r4, r4, r6
+ 146              	.LVL10:
+  45:../common/device_security_boot_context.c ****             const uint32_t mask =
+ 147              		.loc 1 45 9 is_stmt 1 view .LVU40
+  45:../common/device_security_boot_context.c ****             const uint32_t mask =
+ 148              		.loc 1 45 28 discriminator 1 view .LVU41
+  44:../common/device_security_boot_context.c ****         for (bit = 0u; bit < 8u; ++bit) {
+ 149              		.loc 1 44 13 is_stmt 0 view .LVU42
+ 150 002e 0826     		movs	r6, #8
+ 151              	.LVL11:
+ 152              	.L9:
+ 153              	.LBB9:
+  46:../common/device_security_boot_context.c ****                 (uint32_t)(-(int32_t)(crc & 1u));
+ 154              		.loc 1 46 13 is_stmt 1 view .LVU43
+  48:../common/device_security_boot_context.c ****         }
+ 155              		.loc 1 48 13 view .LVU44
+  48:../common/device_security_boot_context.c ****         }
+ 156              		.loc 1 48 46 is_stmt 0 view .LVU45
+ 157 0030 44F30007 		sbfx	r7, r4, #0, #1
+ 158              	.LBE9:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 5
+
+
+  45:../common/device_security_boot_context.c ****             const uint32_t mask =
+ 159              		.loc 1 45 28 discriminator 1 view .LVU46
+ 160 0034 013E     		subs	r6, r6, #1
+ 161              	.LVL12:
+ 162              	.LBB10:
+  48:../common/device_security_boot_context.c ****         }
+ 163              		.loc 1 48 46 view .LVU47
+ 164 0036 07EA0C07 		and	r7, r7, ip
+ 165              	.LBE10:
+  45:../common/device_security_boot_context.c ****             const uint32_t mask =
+ 166              		.loc 1 45 28 discriminator 1 view .LVU48
+ 167 003a 16F0FF06 		ands	r6, r6, #255
+ 168              	.LVL13:
+ 169              	.LBB11:
+  48:../common/device_security_boot_context.c ****         }
+ 170              		.loc 1 48 17 view .LVU49
+ 171 003e 87EA5404 		eor	r4, r7, r4, lsr #1
+ 172              	.LVL14:
+  48:../common/device_security_boot_context.c ****         }
+ 173              		.loc 1 48 17 view .LVU50
+ 174              	.LBE11:
+  45:../common/device_security_boot_context.c ****             const uint32_t mask =
+ 175              		.loc 1 45 34 is_stmt 1 discriminator 3 view .LVU51
+  45:../common/device_security_boot_context.c ****             const uint32_t mask =
+ 176              		.loc 1 45 28 discriminator 1 view .LVU52
+ 177 0042 F5D1     		bne	.L9
+ 178              	.LVL15:
+ 179              	.L8:
+  40:../common/device_security_boot_context.c ****         if (index >= skip_offset && index < (skip_offset + skip_size)) {
+ 180              		.loc 1 40 38 discriminator 2 view .LVU53
+ 181 0044 0135     		adds	r5, r5, #1
+ 182              	.LVL16:
+  40:../common/device_security_boot_context.c ****         if (index >= skip_offset && index < (skip_offset + skip_size)) {
+ 183              		.loc 1 40 38 is_stmt 0 discriminator 2 view .LVU54
+ 184 0046 E8E7     		b	.L6
+ 185              	.LVL17:
+ 186              	.L13:
+  40:../common/device_security_boot_context.c ****         if (index >= skip_offset && index < (skip_offset + skip_size)) {
+ 187              		.loc 1 40 38 discriminator 2 view .LVU55
+ 188              	.LBE12:
+ 189              	.LBE13:
+  37:../common/device_security_boot_context.c ****     }
+ 190              		.loc 1 37 16 view .LVU56
+ 191 0048 0020     		movs	r0, #0
+ 192              	.LVL18:
+  37:../common/device_security_boot_context.c ****     }
+ 193              		.loc 1 37 16 view .LVU57
+ 194 004a E9E7     		b	.L4
+ 195              	.L16:
+ 196              		.align	2
+ 197              	.L15:
+ 198 004c 2083B8ED 		.word	-306674912
+ 199              		.cfi_endproc
+ 200              	.LFE2:
+ 202              		.section	.text.HBoxSecurity_InvalidateBootContext,"ax",%progbits
+ 203              		.align	1
+ 204              		.global	HBoxSecurity_InvalidateBootContext
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 6
+
+
+ 205              		.syntax unified
+ 206              		.thumb
+ 207              		.thumb_func
+ 209              	HBoxSecurity_InvalidateBootContext:
+ 210              	.LFB3:
+  53:../common/device_security_boot_context.c **** 
+  54:../common/device_security_boot_context.c **** void HBoxSecurity_InvalidateBootContext(void)
+  55:../common/device_security_boot_context.c **** {
+ 211              		.loc 1 55 1 is_stmt 1 view -0
+ 212              		.cfi_startproc
+ 213              		@ args = 0, pretend = 0, frame = 0
+ 214              		@ frame_needed = 0, uses_anonymous_args = 0
+ 215              		@ link register save eliminated.
+  56:../common/device_security_boot_context.c ****     volatile uint8_t *context =
+ 216              		.loc 1 56 5 view .LVU59
+ 217              	.LVL19:
+  57:../common/device_security_boot_context.c ****         (volatile uint8_t *)HBOX_BOOT_CONTEXT_ADDRESS;
+  58:../common/device_security_boot_context.c ****     size_t index;
+ 218              		.loc 1 58 5 view .LVU60
+  59:../common/device_security_boot_context.c **** 
+  60:../common/device_security_boot_context.c ****     /*
+  61:../common/device_security_boot_context.c ****      * SRAM4 can survive some reset paths.  Clearing only magic/CRC would
+  62:../common/device_security_boot_context.c ****      * invalidate parsing while leaving the previous boot private key in RAM.
+  63:../common/device_security_boot_context.c ****      * Wipe the complete handoff before every attempt.
+  64:../common/device_security_boot_context.c ****      */
+  65:../common/device_security_boot_context.c ****     for (index = 0u;
+ 219              		.loc 1 65 5 view .LVU61
+  66:../common/device_security_boot_context.c ****          index < sizeof(hbox_boot_security_context_v1_t);
+ 220              		.loc 1 66 16 view .LVU62
+  55:../common/device_security_boot_context.c ****     volatile uint8_t *context =
+ 221              		.loc 1 55 1 is_stmt 0 view .LVU63
+ 222 0000 034B     		ldr	r3, .L20
+  67:../common/device_security_boot_context.c ****          ++index) {
+  68:../common/device_security_boot_context.c ****         context[index] = 0u;
+ 223              		.loc 1 68 24 view .LVU64
+ 224 0002 0021     		movs	r1, #0
+  66:../common/device_security_boot_context.c ****          ++index) {
+ 225              		.loc 1 66 16 view .LVU65
+ 226 0004 034A     		ldr	r2, .L20+4
+ 227              	.LVL20:
+ 228              	.L18:
+ 229              		.loc 1 68 9 is_stmt 1 view .LVU66
+ 230              		.loc 1 68 24 is_stmt 0 view .LVU67
+ 231 0006 03F8011B 		strb	r1, [r3], #1
+ 232              	.LVL21:
+  67:../common/device_security_boot_context.c ****          ++index) {
+ 233              		.loc 1 67 10 is_stmt 1 view .LVU68
+  66:../common/device_security_boot_context.c ****          ++index) {
+ 234              		.loc 1 66 16 view .LVU69
+ 235 000a 9342     		cmp	r3, r2
+ 236 000c FBD1     		bne	.L18
+  69:../common/device_security_boot_context.c ****     }
+  70:../common/device_security_boot_context.c **** }
+ 237              		.loc 1 70 1 is_stmt 0 view .LVU70
+ 238 000e 7047     		bx	lr
+ 239              	.L21:
+ 240              		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 7
+
+
+ 241              	.L20:
+ 242 0010 00FC0038 		.word	939588608
+ 243 0014 04FE0038 		.word	939589124
+ 244              		.cfi_endproc
+ 245              	.LFE3:
+ 247              		.section	.text.HBoxSecurity_ValidateBootContext,"ax",%progbits
+ 248              		.align	1
+ 249              		.global	HBoxSecurity_ValidateBootContext
+ 250              		.syntax unified
+ 251              		.thumb
+ 252              		.thumb_func
+ 254              	HBoxSecurity_ValidateBootContext:
+ 255              	.LVL22:
+ 256              	.LFB4:
+  71:../common/device_security_boot_context.c **** 
+  72:../common/device_security_boot_context.c **** int HBoxSecurity_ValidateBootContext(
+  73:../common/device_security_boot_context.c ****     const hbox_boot_security_context_v1_t *context)
+  74:../common/device_security_boot_context.c **** {
+ 257              		.loc 1 74 1 is_stmt 1 view -0
+ 258              		.cfi_startproc
+ 259              		@ args = 0, pretend = 0, frame = 0
+ 260              		@ frame_needed = 0, uses_anonymous_args = 0
+  75:../common/device_security_boot_context.c ****     uint32_t expected_crc;
+ 261              		.loc 1 75 5 view .LVU72
+  76:../common/device_security_boot_context.c ****     uint8_t nonzero_private = 0u;
+ 262              		.loc 1 76 5 view .LVU73
+  77:../common/device_security_boot_context.c ****     size_t index;
+ 263              		.loc 1 77 5 view .LVU74
+  78:../common/device_security_boot_context.c **** 
+  79:../common/device_security_boot_context.c ****     if (context == NULL ||
+ 264              		.loc 1 79 5 view .LVU75
+  74:../common/device_security_boot_context.c ****     uint32_t expected_crc;
+ 265              		.loc 1 74 1 is_stmt 0 view .LVU76
+ 266 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 267              	.LCFI1:
+ 268              		.cfi_def_cfa_offset 24
+ 269              		.cfi_offset 3, -24
+ 270              		.cfi_offset 4, -20
+ 271              		.cfi_offset 5, -16
+ 272              		.cfi_offset 6, -12
+ 273              		.cfi_offset 7, -8
+ 274              		.cfi_offset 14, -4
+ 275              		.loc 1 79 8 view .LVU77
+ 276 0002 0546     		mov	r5, r0
+ 277 0004 F8B1     		cbz	r0, .L38
+  80:../common/device_security_boot_context.c ****         sizeof(*context) > HBOX_BOOT_CONTEXT_MAX_BYTES ||
+  81:../common/device_security_boot_context.c ****         context->magic_le != HBOX_BOOT_CONTEXT_MAGIC ||
+ 278              		.loc 1 81 16 view .LVU78
+ 279 0006 0268     		ldr	r2, [r0]	@ unaligned
+  80:../common/device_security_boot_context.c ****         sizeof(*context) > HBOX_BOOT_CONTEXT_MAX_BYTES ||
+ 280              		.loc 1 80 56 view .LVU79
+ 281 0008 4F4B     		ldr	r3, .L53
+ 282 000a 9A42     		cmp	r2, r3
+ 283 000c 1BD1     		bne	.L38
+ 284              		.loc 1 81 54 view .LVU80
+ 285 000e 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 286 0010 012B     		cmp	r3, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 8
+
+
+ 287 0012 18D1     		bne	.L38
+  82:../common/device_security_boot_context.c ****         context->version != HBOX_BOOT_CONTEXT_VERSION ||
+ 288              		.loc 1 82 55 view .LVU81
+ 289 0014 4479     		ldrb	r4, [r0, #5]	@ zero_extendqisi2
+ 290 0016 B4B9     		cbnz	r4, .L38
+  83:../common/device_security_boot_context.c ****         context->reserved0 != 0u ||
+ 291              		.loc 1 83 34 view .LVU82
+ 292 0018 C388     		ldrh	r3, [r0, #6]	@ unaligned
+ 293 001a B3F5017F 		cmp	r3, #516
+ 294 001e 40F09080 		bne	.L22
+  84:../common/device_security_boot_context.c ****         context->total_bytes_le != sizeof(*context) ||
+  85:../common/device_security_boot_context.c ****         !all_zero(context->reserved, sizeof(context->reserved)) ||
+ 295              		.loc 1 85 10 view .LVU83
+ 296 0022 0F21     		movs	r1, #15
+ 297 0024 00F2F510 		addw	r0, r0, #501
+ 298              	.LVL23:
+ 299              		.loc 1 85 10 view .LVU84
+ 300 0028 FFF7FEFF 		bl	all_zero
+ 301              	.LVL24:
+  84:../common/device_security_boot_context.c ****         context->total_bytes_le != sizeof(*context) ||
+ 302              		.loc 1 84 53 view .LVU85
+ 303 002c 0446     		mov	r4, r0
+ 304 002e 0028     		cmp	r0, #0
+ 305 0030 00F08780 		beq	.L22
+ 306              	.LVL25:
+ 307              	.LBB16:
+ 308              	.LBI16:
+  15:../common/device_security_boot_context.c **** {
+ 309              		.loc 1 15 12 is_stmt 1 view .LVU86
+ 310              	.LBB17:
+  17:../common/device_security_boot_context.c ****     for (index = 0u; index < length; ++index) {
+ 311              		.loc 1 17 5 view .LVU87
+  18:../common/device_security_boot_context.c ****         if (value[index] == '\0') {
+ 312              		.loc 1 18 5 view .LVU88
+  18:../common/device_security_boot_context.c ****         if (value[index] == '\0') {
+ 313              		.loc 1 18 28 discriminator 1 view .LVU89
+ 314 0034 05F5F273 		add	r3, r5, #484
+ 315 0038 05F5FA72 		add	r2, r5, #500
+ 316              	.LVL26:
+ 317              	.L25:
+  19:../common/device_security_boot_context.c ****             return 1;
+ 318              		.loc 1 19 9 view .LVU90
+  19:../common/device_security_boot_context.c ****             return 1;
+ 319              		.loc 1 19 18 is_stmt 0 view .LVU91
+ 320 003c 13F8014F 		ldrb	r4, [r3, #1]!	@ zero_extendqisi2
+  19:../common/device_security_boot_context.c ****             return 1;
+ 321              		.loc 1 19 12 view .LVU92
+ 322 0040 1CB1     		cbz	r4, .L24
+  18:../common/device_security_boot_context.c ****         if (value[index] == '\0') {
+ 323              		.loc 1 18 38 is_stmt 1 discriminator 2 view .LVU93
+  18:../common/device_security_boot_context.c ****         if (value[index] == '\0') {
+ 324              		.loc 1 18 28 discriminator 1 view .LVU94
+ 325 0042 9342     		cmp	r3, r2
+ 326 0044 FAD1     		bne	.L25
+ 327              	.LVL27:
+ 328              	.L38:
+  18:../common/device_security_boot_context.c ****         if (value[index] == '\0') {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 9
+
+
+ 329              		.loc 1 18 28 is_stmt 0 discriminator 1 view .LVU95
+ 330              	.LBE17:
+ 331              	.LBE16:
+  86:../common/device_security_boot_context.c ****         !contains_nul(context->firmware_version,
+  87:../common/device_security_boot_context.c ****                       sizeof(context->firmware_version))) {
+  88:../common/device_security_boot_context.c ****         return 0;
+ 332              		.loc 1 88 16 view .LVU96
+ 333 0046 0024     		movs	r4, #0
+ 334 0048 7BE0     		b	.L22
+ 335              	.LVL28:
+ 336              	.L24:
+ 337              		.loc 1 88 16 view .LVU97
+ 338 004a 05F10F03 		add	r3, r5, #15
+ 339 004e 05F12F02 		add	r2, r5, #47
+ 340              	.LVL29:
+ 341              	.L26:
+  89:../common/device_security_boot_context.c ****     }
+  90:../common/device_security_boot_context.c ****     for (index = 0u; index < sizeof(context->boot_private_key); ++index) {
+  91:../common/device_security_boot_context.c ****         nonzero_private |= context->boot_private_key[index];
+ 342              		.loc 1 91 9 is_stmt 1 view .LVU98
+ 343              		.loc 1 91 25 is_stmt 0 view .LVU99
+ 344 0052 13F8011F 		ldrb	r1, [r3, #1]!	@ zero_extendqisi2
+  90:../common/device_security_boot_context.c ****         nonzero_private |= context->boot_private_key[index];
+ 345              		.loc 1 90 28 discriminator 1 view .LVU100
+ 346 0056 9342     		cmp	r3, r2
+ 347              		.loc 1 91 25 view .LVU101
+ 348 0058 44EA0104 		orr	r4, r4, r1
+ 349              	.LVL30:
+  90:../common/device_security_boot_context.c ****         nonzero_private |= context->boot_private_key[index];
+ 350              		.loc 1 90 65 is_stmt 1 discriminator 3 view .LVU102
+  90:../common/device_security_boot_context.c ****         nonzero_private |= context->boot_private_key[index];
+ 351              		.loc 1 90 28 discriminator 1 view .LVU103
+ 352 005c F9D1     		bne	.L26
+  92:../common/device_security_boot_context.c ****     }
+  93:../common/device_security_boot_context.c ****     if (nonzero_private == 0u ||
+ 353              		.loc 1 93 5 view .LVU104
+ 354              		.loc 1 93 8 is_stmt 0 view .LVU105
+ 355 005e 002C     		cmp	r4, #0
+ 356 0060 6FD0     		beq	.L22
+  94:../common/device_security_boot_context.c ****         context->device_certificate.magic_le !=
+ 357              		.loc 1 94 36 view .LVU106
+ 358 0062 2A6B     		ldr	r2, [r5, #48]	@ unaligned
+  93:../common/device_security_boot_context.c ****         context->device_certificate.magic_le !=
+ 359              		.loc 1 93 31 discriminator 1 view .LVU107
+ 360 0064 394B     		ldr	r3, .L53+4
+ 361 0066 9A42     		cmp	r2, r3
+ 362 0068 EDD1     		bne	.L38
+  95:../common/device_security_boot_context.c ****             HBOX_DEVICE_CERTIFICATE_MAGIC ||
+ 363              		.loc 1 95 43 view .LVU108
+ 364 006a 95F83430 		ldrb	r3, [r5, #52]	@ zero_extendqisi2
+ 365 006e 012B     		cmp	r3, #1
+ 366 0070 E9D1     		bne	.L38
+  96:../common/device_security_boot_context.c ****         context->device_certificate.version !=
+  97:../common/device_security_boot_context.c ****             HBOX_SECURITY_PROTOCOL_VERSION ||
+ 367              		.loc 1 97 44 view .LVU109
+ 368 0072 95F83530 		ldrb	r3, [r5, #53]	@ zero_extendqisi2
+ 369 0076 013B     		subs	r3, r3, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 10
+
+
+ 370 0078 022B     		cmp	r3, #2
+ 371 007a E4D8     		bhi	.L38
+  98:../common/device_security_boot_context.c ****         context->device_certificate.auth_level <
+  99:../common/device_security_boot_context.c ****             HBOX_AUTH_LEVEL_MCU_PROTECTED ||
+ 100:../common/device_security_boot_context.c ****         context->device_certificate.auth_level >
+ 101:../common/device_security_boot_context.c ****             HBOX_AUTH_LEVEL_SECURE_ELEMENT ||
+ 372              		.loc 1 101 44 view .LVU110
+ 373 007c EB8E     		ldrh	r3, [r5, #54]	@ unaligned
+ 374 007e 902B     		cmp	r3, #144
+ 375 0080 E1D1     		bne	.L38
+ 102:../common/device_security_boot_context.c ****         context->device_certificate.signed_bytes_le !=
+ 103:../common/device_security_boot_context.c ****             HBOX_DEVICE_CERTIFICATE_SIGNED_BYTES ||
+ 376              		.loc 1 103 50 view .LVU111
+ 377 0082 95F86030 		ldrb	r3, [r5, #96]	@ zero_extendqisi2
+ 378 0086 042B     		cmp	r3, #4
+ 379 0088 DDD1     		bne	.L38
+ 104:../common/device_security_boot_context.c ****         context->device_certificate.device_public_key[0] != 0x04u ||
+ 105:../common/device_security_boot_context.c ****         all_zero(context->device_certificate.certificate_serial,
+ 380              		.loc 1 105 9 view .LVU112
+ 381 008a 1021     		movs	r1, #16
+ 382 008c 05F13800 		add	r0, r5, #56
+ 383 0090 FFF7FEFF 		bl	all_zero
+ 384              	.LVL31:
+ 104:../common/device_security_boot_context.c ****         context->device_certificate.device_public_key[0] != 0x04u ||
+ 385              		.loc 1 104 67 view .LVU113
+ 386 0094 0028     		cmp	r0, #0
+ 387 0096 D6D1     		bne	.L38
+ 106:../common/device_security_boot_context.c ****                  sizeof(context->device_certificate.certificate_serial)) ||
+ 107:../common/device_security_boot_context.c ****         all_zero(context->device_certificate.device_id,
+ 388              		.loc 1 107 45 view .LVU114
+ 389 0098 05F14807 		add	r7, r5, #72
+ 390              		.loc 1 107 9 view .LVU115
+ 391 009c 1021     		movs	r1, #16
+ 392 009e 3846     		mov	r0, r7
+ 393 00a0 FFF7FEFF 		bl	all_zero
+ 394              	.LVL32:
+ 106:../common/device_security_boot_context.c ****                  sizeof(context->device_certificate.certificate_serial)) ||
+ 395              		.loc 1 106 74 view .LVU116
+ 396 00a4 0446     		mov	r4, r0
+ 397              	.LVL33:
+ 106:../common/device_security_boot_context.c ****                  sizeof(context->device_certificate.certificate_serial)) ||
+ 398              		.loc 1 106 74 view .LVU117
+ 399 00a6 0028     		cmp	r0, #0
+ 400 00a8 CDD1     		bne	.L38
+ 108:../common/device_security_boot_context.c ****                  sizeof(context->device_certificate.device_id)) ||
+ 109:../common/device_security_boot_context.c ****         context->device_certificate.product_id_le != HBOX_PRODUCT_ID ||
+ 401              		.loc 1 109 36 view .LVU118
+ 402 00aa D5F8B120 		ldr	r2, [r5, #177]	@ unaligned
+ 108:../common/device_security_boot_context.c ****                  sizeof(context->device_certificate.device_id)) ||
+ 403              		.loc 1 108 65 view .LVU119
+ 404 00ae 284B     		ldr	r3, .L53+8
+ 405 00b0 9A42     		cmp	r2, r3
+ 406 00b2 46D1     		bne	.L22
+ 110:../common/device_security_boot_context.c ****         !all_zero(context->device_certificate.reserved,
+ 407              		.loc 1 110 10 view .LVU120
+ 408 00b4 0B21     		movs	r1, #11
+ 409 00b6 05F1B500 		add	r0, r5, #181
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 11
+
+
+ 410 00ba FFF7FEFF 		bl	all_zero
+ 411              	.LVL34:
+ 109:../common/device_security_boot_context.c ****         !all_zero(context->device_certificate.reserved,
+ 412              		.loc 1 109 70 view .LVU121
+ 413 00be 0028     		cmp	r0, #0
+ 414 00c0 C1D0     		beq	.L38
+ 111:../common/device_security_boot_context.c ****                   sizeof(context->device_certificate.reserved)) ||
+ 112:../common/device_security_boot_context.c ****         context->boot_attestation.magic_le !=
+ 415              		.loc 1 112 34 view .LVU122
+ 416 00c2 D5F80021 		ldr	r2, [r5, #256]	@ unaligned
+ 111:../common/device_security_boot_context.c ****                   sizeof(context->device_certificate.reserved)) ||
+ 417              		.loc 1 111 65 view .LVU123
+ 418 00c6 234B     		ldr	r3, .L53+12
+ 419 00c8 9A42     		cmp	r2, r3
+ 420 00ca 3AD1     		bne	.L22
+ 113:../common/device_security_boot_context.c ****             HBOX_BOOT_ATTESTATION_MAGIC ||
+ 421              		.loc 1 113 41 view .LVU124
+ 422 00cc 95F80431 		ldrb	r3, [r5, #260]	@ zero_extendqisi2
+ 423 00d0 012B     		cmp	r3, #1
+ 424 00d2 36D1     		bne	.L22
+ 114:../common/device_security_boot_context.c ****         context->boot_attestation.version !=
+ 115:../common/device_security_boot_context.c ****             HBOX_SECURITY_PROTOCOL_VERSION ||
+ 116:../common/device_security_boot_context.c ****         !all_zero(context->boot_attestation.reserved0,
+ 425              		.loc 1 116 10 view .LVU125
+ 426 00d4 0321     		movs	r1, #3
+ 427 00d6 05F20510 		addw	r0, r5, #261
+ 428 00da FFF7FEFF 		bl	all_zero
+ 429              	.LVL35:
+ 115:../common/device_security_boot_context.c ****         !all_zero(context->boot_attestation.reserved0,
+ 430              		.loc 1 115 44 view .LVU126
+ 431 00de 0028     		cmp	r0, #0
+ 432 00e0 B1D0     		beq	.L38
+ 117:../common/device_security_boot_context.c ****                   sizeof(context->boot_attestation.reserved0)) ||
+ 433              		.loc 1 117 64 view .LVU127
+ 434 00e2 B5F80831 		ldrh	r3, [r5, #264]	@ unaligned
+ 435 00e6 A52B     		cmp	r3, #165
+ 436 00e8 2BD1     		bne	.L22
+ 118:../common/device_security_boot_context.c ****         context->boot_attestation.signed_bytes_le !=
+ 119:../common/device_security_boot_context.c ****             HBOX_BOOT_ATTESTATION_SIGNED_BYTES ||
+ 437              		.loc 1 119 48 view .LVU128
+ 438 00ea B5F80A31 		ldrh	r3, [r5, #266]	@ unaligned
+ 439 00ee 43BB     		cbnz	r3, .L22
+ 120:../common/device_security_boot_context.c ****         context->boot_attestation.reserved1 != 0u ||
+ 440              		.loc 1 120 51 view .LVU129
+ 441 00f0 95F83C31 		ldrb	r3, [r5, #316]	@ zero_extendqisi2
+ 442 00f4 042B     		cmp	r3, #4
+ 443 00f6 24D1     		bne	.L22
+ 121:../common/device_security_boot_context.c ****         context->boot_attestation.boot_public_key[0] != 0x04u ||
+ 122:../common/device_security_boot_context.c ****         all_zero(context->boot_attestation.boot_nonce,
+ 444              		.loc 1 122 9 view .LVU130
+ 445 00f8 2021     		movs	r1, #32
+ 446 00fa 05F58E70 		add	r0, r5, #284
+ 447 00fe FFF7FEFF 		bl	all_zero
+ 448              	.LVL36:
+ 121:../common/device_security_boot_context.c ****         context->boot_attestation.boot_public_key[0] != 0x04u ||
+ 449              		.loc 1 121 63 view .LVU131
+ 450 0102 F0B9     		cbnz	r0, .L22
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 12
+
+
+ 123:../common/device_security_boot_context.c ****                  sizeof(context->boot_attestation.boot_nonce)) ||
+ 124:../common/device_security_boot_context.c ****         all_zero(context->boot_attestation.firmware_hash,
+ 451              		.loc 1 124 9 view .LVU132
+ 452 0104 2021     		movs	r1, #32
+ 453 0106 05F27D10 		addw	r0, r5, #381
+ 454 010a FFF7FEFF 		bl	all_zero
+ 455              	.LVL37:
+ 123:../common/device_security_boot_context.c ****                  sizeof(context->boot_attestation.boot_nonce)) ||
+ 456              		.loc 1 123 64 view .LVU133
+ 457 010e 0446     		mov	r4, r0
+ 458 0110 0028     		cmp	r0, #0
+ 459 0112 98D1     		bne	.L38
+ 125:../common/device_security_boot_context.c ****                  sizeof(context->boot_attestation.firmware_hash)) ||
+ 126:../common/device_security_boot_context.c ****         context->boot_attestation.security_version_le == 0u ||
+ 460              		.loc 1 126 34 view .LVU134
+ 461 0114 D5F89D31 		ldr	r3, [r5, #413]	@ unaligned
+ 125:../common/device_security_boot_context.c ****                  sizeof(context->boot_attestation.firmware_hash)) ||
+ 462              		.loc 1 125 67 view .LVU135
+ 463 0118 9BB1     		cbz	r3, .L22
+ 127:../common/device_security_boot_context.c ****         memcmp(context->device_certificate.device_id,
+ 464              		.loc 1 127 9 view .LVU136
+ 465 011a 1022     		movs	r2, #16
+ 466 011c 05F58671 		add	r1, r5, #268
+ 467 0120 3846     		mov	r0, r7
+ 468 0122 FFF7FEFF 		bl	memcmp
+ 469              	.LVL38:
+ 126:../common/device_security_boot_context.c ****         memcmp(context->device_certificate.device_id,
+ 470              		.loc 1 126 61 view .LVU137
+ 471 0126 60B9     		cbnz	r0, .L22
+ 128:../common/device_security_boot_context.c ****                context->boot_attestation.device_id,
+ 129:../common/device_security_boot_context.c ****                HBOX_SECURITY_DEVICE_ID_BYTES) != 0) {
+ 130:../common/device_security_boot_context.c ****         return 0;
+ 131:../common/device_security_boot_context.c ****     }
+ 132:../common/device_security_boot_context.c ****     expected_crc = HBoxSecurity_Crc32Skipping(
+ 472              		.loc 1 132 5 is_stmt 1 view .LVU138
+ 473              		.loc 1 132 20 is_stmt 0 view .LVU139
+ 474 0128 0423     		movs	r3, #4
+ 475 012a 0822     		movs	r2, #8
+ 476 012c 4FF40171 		mov	r1, #516
+ 477 0130 2846     		mov	r0, r5
+ 478 0132 FFF7FEFF 		bl	HBoxSecurity_Crc32Skipping
+ 479              	.LVL39:
+ 133:../common/device_security_boot_context.c ****         (const uint8_t *)context,
+ 134:../common/device_security_boot_context.c ****         sizeof(*context),
+ 135:../common/device_security_boot_context.c ****         HBOX_BOOT_CONTEXT_CRC_OFFSET,
+ 136:../common/device_security_boot_context.c ****         sizeof(context->crc32_le));
+ 137:../common/device_security_boot_context.c ****     return expected_crc != 0u && expected_crc == context->crc32_le;
+ 480              		.loc 1 137 5 is_stmt 1 view .LVU140
+ 481              		.loc 1 137 31 is_stmt 0 view .LVU141
+ 482 0136 0446     		mov	r4, r0
+ 483 0138 18B1     		cbz	r0, .L22
+ 484              		.loc 1 137 57 discriminator 1 view .LVU142
+ 485 013a AB68     		ldr	r3, [r5, #8]	@ unaligned
+ 486              		.loc 1 137 31 discriminator 1 view .LVU143
+ 487 013c 1B1A     		subs	r3, r3, r0
+ 488 013e 5C42     		rsbs	r4, r3, #0
+ 489 0140 5C41     		adcs	r4, r4, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 13
+
+
+ 490              	.LVL40:
+ 491              	.L22:
+ 138:../common/device_security_boot_context.c **** }
+ 492              		.loc 1 138 1 view .LVU144
+ 493 0142 2046     		mov	r0, r4
+ 494 0144 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 495              	.LVL41:
+ 496              	.L54:
+ 497              		.loc 1 138 1 view .LVU145
+ 498 0146 00BF     		.align	2
+ 499              	.L53:
+ 500 0148 48424331 		.word	826491464
+ 501 014c 48444331 		.word	826491976
+ 502 0150 48424F58 		.word	1481589320
+ 503 0154 48424131 		.word	826360392
+ 504              		.cfi_endproc
+ 505              	.LFE4:
+ 507              		.text
+ 508              	.Letext0:
+ 509              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 510              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 511              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 512              		.file 5 "../common/device_security_protocol.h"
+ 513              		.file 6 "../common/device_security_boot_context.h"
+ 514              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s 			page 14
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 device_security_boot_context.c
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:20     .text.all_zero:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:25     .text.all_zero:00000000 all_zero
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:66     .text.HBoxSecurity_Crc32Skipping:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:72     .text.HBoxSecurity_Crc32Skipping:00000000 HBoxSecurity_Crc32Skipping
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:198    .text.HBoxSecurity_Crc32Skipping:0000004c $d
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:203    .text.HBoxSecurity_InvalidateBootContext:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:209    .text.HBoxSecurity_InvalidateBootContext:00000000 HBoxSecurity_InvalidateBootContext
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:242    .text.HBoxSecurity_InvalidateBootContext:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:248    .text.HBoxSecurity_ValidateBootContext:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:254    .text.HBoxSecurity_ValidateBootContext:00000000 HBoxSecurity_ValidateBootContext
+C:\Users\nicx5\AppData\Local\Temp\ccBAUk8u.s:500    .text.HBoxSecurity_ValidateBootContext:00000148 $d
+
+UNDEFINED SYMBOLS
+memcmp

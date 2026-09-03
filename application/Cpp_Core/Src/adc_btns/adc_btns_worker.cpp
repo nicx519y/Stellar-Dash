@@ -1,6 +1,7 @@
 #include "adc_btns/adc_btns_worker.hpp"
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h" // 为HAL_GetTick()
+#include "webhid_telemetry_hook.h"
 
 /*
  * ADC Hall 按钮工作逻辑：
@@ -91,6 +92,10 @@ ADCBtnsWorker::~ADCBtnsWorker()
 
 ADCBtnsError ADCBtnsWorker::setup()
 {
+    virtualPinMask = 0u;
+    enabledKeysMask = 0u;
+    buttonTriggerStatusChanged = false;
+
     std::string id = ADC_MANAGER.getDefaultMapping();
     if (id.empty())
     {
@@ -111,16 +116,27 @@ ADCBtnsError ADCBtnsWorker::setup()
     {
         return ADCBtnsError::MAPPING_NOT_FOUND;
     }
+    if (mapping->length < 2u || mapping->length > MAX_ADC_VALUES_LENGTH)
+    {
+        return ADCBtnsError::MAPPING_INVALID_RANGE;
+    }
+    if (mapping->originalValues[0] != 0u &&
+        mapping->originalValues[mapping->length - 1u] != 0u &&
+        mapping->originalValues[0] == mapping->originalValues[mapping->length - 1u])
+    {
+        return ADCBtnsError::MAPPING_INVALID_RANGE;
+    }
 
     // 初始化启用按键掩码
     const bool *enabledKeys = profile->keysConfig.keysEnableTag;
     enabledKeysMask = 0;
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++)
     {
-        enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        enabledKeysMask |= (enabledKeys[i] ? (1u << i) : 0u);
     }
 
     this->mapping = mapping;
+    debounceAlgorithm = profile->triggerConfigs.debounceAlgorithm;
 
     maxTravelDistance = (mapping->length - 1) * mapping->step;
 
@@ -167,7 +183,8 @@ ADCBtnsError ADCBtnsWorker::setup()
         buttonPtrs[i]->halfwayDistanceMm = totalTravelMm / 2.0f;
 
         // 根据校准模式初始化按键映射
-        uint16_t topValue, bottomValue;
+        uint16_t topValue = 0u;
+        uint16_t bottomValue = 0u;
         ADCBtnsError calibrationResult = ADC_MANAGER.getCalibrationValues(id.c_str(), i, isAutoCalibrationEnabled, topValue, bottomValue);
 
         if (calibrationResult == ADCBtnsError::SUCCESS && topValue != 0 && bottomValue != 0)
@@ -181,31 +198,38 @@ ADCBtnsError ADCBtnsWorker::setup()
         }
         else
         {
-            APP_ERR("adc_btns_worker::setup calibration failed, buttonIndex: %d, topValue: %d, bottomValue: %d", i, topValue, bottomValue);
-            // 这里需要等待第一次ADC读取来初始化
-            buttonPtrs[i]->initCompleted = false;
-            // 清空映射数组
-            memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
-            memset(buttonPtrs[i]->calibratedMapping, 0, this->mapping->length * sizeof(uint16_t));
+            const uint32_t released = mapping->originalValues[mapping->length - 1u];
+            const uint32_t pressed = mapping->originalValues[0];
+            if (released > 0u && released <= UINT16_MAX &&
+                pressed > 0u && pressed <= UINT16_MAX && released != pressed) {
+                /* A marked mapping is a safe identity fallback until the
+                 * per-key calibration has been captured. */
+                generateCalibratedMapping(buttonPtrs[i],
+                                           static_cast<uint16_t>(released),
+                                           static_cast<uint16_t>(pressed));
+                buttonPtrs[i]->initCompleted = true;
+                APP_DBG("ADC button %u uses marked mapping fallback", i);
+            } else {
+                APP_ERR("adc_btns_worker::setup calibration/mapping invalid, buttonIndex: %d, topValue: %d, bottomValue: %d", i, topValue, bottomValue);
+                buttonPtrs[i]->initCompleted = false;
+                memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
+                memset(buttonPtrs[i]->calibratedMapping, 0, this->mapping->length * sizeof(uint16_t));
+            }
         }
 
         buttonPtrs[i]->state = ButtonState::RELEASED; // 明确设置初始状态为释放
+        buttonPtrs[i]->debounceCandidate = ButtonEvent::NONE;
+        buttonPtrs[i]->debounceSinceUs = 0u;
     }
 
-    // 根据当前模式启动采样
-    if (ADC_MANAGER.getADCMode() == ADC_MODE_CONTINUOUS) {
-        ADC_MANAGER.startContinuousSampling();
-    } else {
-        // 低延迟模式不需要手动start，由SOF触发
-    }
-
-    return ADCBtnsError::SUCCESS;
+    return ADC_MANAGER.startADCSamping(false);
 }
 
 ADCBtnsError ADCBtnsWorker::deinit()
 {
-    // ADC_MANAGER.stopADCSamping();
-
+    virtualPinMask = 0u;
+    enabledKeysMask = 0u;
+    buttonTriggerStatusChanged = false;
     return ADCBtnsError::SUCCESS;
 }
 
@@ -230,8 +254,15 @@ ADCBtn* ADCBtnsWorker::getButtonState(uint8_t buttonIndex) const
  */
 uint32_t ADCBtnsWorker::read()
 {
-    // 使用引用避免拷贝
-    const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS> &adcValues = ADC_MANAGER.readADCValues();
+    AdcSampleFrame sample = {};
+    if (!ADC_MANAGER.copyLatestInputSample(sample)) {
+        return (this->virtualPinMask & enabledKeysMask);
+    }
+    return read(sample);
+}
+
+uint32_t ADCBtnsWorker::read(const AdcSampleFrame& sample)
+{
 
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++)
     {
@@ -241,10 +272,9 @@ uint32_t ADCBtnsWorker::read()
             continue;
         }
 
-        // 使用 valuePtr 获取 ADC 值
-        const uint16_t adcValue = *adcValues[i].valuePtr;
+        const uint16_t adcValue = sample.values[i];
 
-        if (adcValue == 0 || adcValue > UINT16_MAX)
+        if (adcValue == 0)
         {
             continue;
         }
@@ -260,10 +290,10 @@ uint32_t ADCBtnsWorker::read()
         btn->currentValue = adcValue;
 
         // 获取按钮事件（新算法直接基于ADC值）
-        const ButtonEvent event = getButtonEvent(btn, adcValue, i);
+        const ButtonEvent event = applyDebounce(btn, getButtonEvent(btn, adcValue, i));
 
         // 处理状态转换
-        handleButtonState(btn, event, adcValue);
+        handleButtonState(btn, event, adcValue, i);
     }
 
     return (this->virtualPinMask & enabledKeysMask);
@@ -703,15 +733,16 @@ float ADCBtnsWorker::getCurrentReleaseAccuracy(ADCBtn *btn, const float currentD
  * @param btn 按钮指针
  * @param event 事件
  */
-void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, const uint16_t adcValue)
+void ADCBtnsWorker::handleButtonState(
+    ADCBtn *btn,
+    const ButtonEvent event,
+    const uint16_t adcValue,
+    const uint8_t buttonIndex)
 {
     if (!btn || !btn->initCompleted)
     {
         return;
     }
-
-    // 声明变量，避免跨case标签跳转错误
-    uint8_t buttonIndex;
 
     switch (event)
     {
@@ -722,6 +753,7 @@ void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, cons
         btn->pressStartSnapshot = btn->pressStartValue;
         // APP_DBG("adc_btns_worker::handleButtonState PRESS_COMPLETE, virtualPin: %d, adcValue: %d, pressTriggerSnapshot: %d, pressStartSnapshot: %d", btn->virtualPin, adcValue, btn->pressTriggerSnapshot, btn->pressStartSnapshot);
         this->virtualPinMask |= (1U << btn->virtualPin);
+        WebHidTelemetry_OnAdcTransition(buttonIndex, 1u);
         break;
 
     case ButtonEvent::RELEASE_COMPLETE:
@@ -731,6 +763,7 @@ void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, cons
         btn->releaseStartSnapshot = btn->releaseStartValue;
         // APP_DBG("adc_btns_worker::handleButtonState RELEASE_COMPLETE, virtualPin: %d, adcValue: %d, releaseTriggerSnapshot: %d, releaseStartSnapshot: %d", btn->virtualPin, adcValue, btn->releaseTriggerSnapshot, btn->releaseStartSnapshot);
         this->virtualPinMask &= ~(1U << btn->virtualPin);
+        WebHidTelemetry_OnAdcTransition(buttonIndex, 0u);
         break;
 
     default:
@@ -970,4 +1003,36 @@ uint16_t ADCBtnsWorker::getInterpolatedReleaseThreshold(ADCBtn* btn, const uint1
     }
 
     return btn->thresholdMap.releaseThresholds[0]; // 默认返回第一个阈值
+}
+
+ButtonEvent ADCBtnsWorker::applyDebounce(ADCBtn* btn, ButtonEvent event)
+{
+    if (!btn || debounceAlgorithm == ADCButtonDebounceAlgorithm::NONE)
+    {
+        return event;
+    }
+    if (event == ButtonEvent::NONE)
+    {
+        btn->debounceCandidate = ButtonEvent::NONE;
+        btn->debounceSinceUs = 0u;
+        return ButtonEvent::NONE;
+    }
+
+    const uint32_t nowUs = MICROS_TIMER.micros();
+    if (btn->debounceCandidate != event)
+    {
+        btn->debounceCandidate = event;
+        btn->debounceSinceUs = nowUs;
+        return ButtonEvent::NONE;
+    }
+
+    const uint32_t delayUs = debounceAlgorithm == ADCButtonDebounceAlgorithm::MAX
+        ? 500u : 250u;
+    if (static_cast<uint32_t>(nowUs - btn->debounceSinceUs) < delayUs)
+    {
+        return ButtonEvent::NONE;
+    }
+    btn->debounceCandidate = ButtonEvent::NONE;
+    btn->debounceSinceUs = 0u;
+    return event;
 }

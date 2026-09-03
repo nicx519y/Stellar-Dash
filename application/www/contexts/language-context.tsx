@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import { UI_TEXT, UI_TEXT_ZH } from '@/types/gamepad-config';
 
 // 使用 Record 和联合类型来定义文本类型
@@ -42,6 +42,10 @@ const waitForFont = (fontFamily: string): Promise<void> => {
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [currentLanguage, setCurrentLanguage] = useState<'en' | 'zh'>('en');
+    const setLanguage = useCallback(
+        (lang: 'en' | 'zh') => setCurrentLanguage(lang),
+        [],
+    );
 
     // 根据语言设置字体
     useEffect(() => {
@@ -70,7 +74,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
     const value = {
         currentLanguage,
-        setLanguage: (lang: 'en' | 'zh') => setCurrentLanguage(lang),
+        setLanguage,
         t: currentLanguage === 'en' ? UI_TEXT : UI_TEXT_ZH,
     };
 
@@ -81,4 +85,4 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
-export const useLanguage = () => useContext(LanguageContext); 
+export const useLanguage = () => useContext(LanguageContext);

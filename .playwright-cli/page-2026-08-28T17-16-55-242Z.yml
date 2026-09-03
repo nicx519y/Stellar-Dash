@@ -1,0 +1,31 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - tablist [ref=e42]:
+        - tab "Global Setting" [ref=e43] [cursor=pointer]
+        - separator [ref=e47]
+        - tab "Keys Setting" [ref=e48] [cursor=pointer]
+        - separator [ref=e52]
+        - tab "Buttons Performance" [ref=e53] [cursor=pointer]
+        - separator [ref=e60]
+        - tab "Lighting Setting" [ref=e61] [cursor=pointer]
+        - separator [ref=e65]
+        - tab "Firmware" [ref=e66] [cursor=pointer]
+        - separator [ref=e70]
+        - tab "View Logs" [ref=e71] [cursor=pointer]
+      - generic [ref=e77]:
+        - button "Finish Configuration" [ref=e78] [cursor=pointer]
+        - button "Export Config" [ref=e81] [cursor=pointer]
+        - button "Import Config" [ref=e85] [cursor=pointer]
+    - generic [ref=e89]:
+      - generic [ref=e90]: MOCK DEVICE
+      - button "中文" [ref=e91] [cursor=pointer]
+  - region "top Notifications alt+T"
+  - status "Connecting HBox device to WebConfig" [ref=e97]:
+    - generic [ref=e98]:
+      - generic [ref=e99]:
+        - img "HBox device" [ref=e102]
+        - paragraph [ref=e113]: HBOX
+      - generic [ref=e122]:
+        - img "WebConfig page" [ref=e125]
+        - paragraph [ref=e132]: WEBCONFIG

@@ -1,0 +1,1480 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"rf_command_transaction.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/rf_command_transaction.cpp"
+  19              		.section	.text._ZN20RFCommandTransaction17nextTransactionIdEv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN20RFCommandTransaction17nextTransactionIdEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN20RFCommandTransaction17nextTransactionIdEv:
+  27              	.LFB1275:
+   1:Cpp_Core/Src/rf_command_transaction.cpp **** #include "rf_command_transaction.hpp"
+   2:Cpp_Core/Src/rf_command_transaction.cpp **** 
+   3:Cpp_Core/Src/rf_command_transaction.cpp **** #include <stdio.h>
+   4:Cpp_Core/Src/rf_command_transaction.cpp **** #include <string.h>
+   5:Cpp_Core/Src/rf_command_transaction.cpp **** 
+   6:Cpp_Core/Src/rf_command_transaction.cpp **** #include "board_cfg.h"
+   7:Cpp_Core/Src/rf_command_transaction.cpp **** #include "rf_bridge_port.hpp"
+   8:Cpp_Core/Src/rf_command_transaction.cpp **** #include "rf_reliable_event.hpp"
+   9:Cpp_Core/Src/rf_command_transaction.cpp **** #include "stm32h7xx_hal.h"
+  10:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  11:Cpp_Core/Src/rf_command_transaction.cpp **** namespace {
+  12:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint8_t RF_SYNC = 0xA5u;
+  13:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint8_t MAX_ARGS_LEN = 23u;
+  14:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint8_t MAX_ATTEMPTS = 3u;
+  15:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint8_t EVT_STATUS = 0x81u;
+  16:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint8_t EVT_ERROR = 0x85u;
+  17:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint8_t STATUS_CMD_TAG_OFFSET = 16u;
+  18:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint8_t STATUS_TXN_OFFSET = 17u;
+  19:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint32_t SCHEDULED_COMMAND_WINDOW_MS = 100u;
+  20:Cpp_Core/Src/rf_command_transaction.cpp **** static constexpr uint8_t SCHEDULED_COMMAND_PACKET_COUNT = 20u;
+  21:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  22:Cpp_Core/Src/rf_command_transaction.cpp **** #ifndef RF_COMMAND_TRANSACTION_ACK_TIMEOUT_MS
+  23:Cpp_Core/Src/rf_command_transaction.cpp **** #define RF_COMMAND_TRANSACTION_ACK_TIMEOUT_MS 20u
+  24:Cpp_Core/Src/rf_command_transaction.cpp **** #endif
+  25:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  26:Cpp_Core/Src/rf_command_transaction.cpp **** #ifndef RF_COMMAND_TRANSACTION_LOG
+  27:Cpp_Core/Src/rf_command_transaction.cpp **** #define RF_COMMAND_TRANSACTION_LOG 0
+  28:Cpp_Core/Src/rf_command_transaction.cpp **** #endif
+  29:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  30:Cpp_Core/Src/rf_command_transaction.cpp **** #if RF_COMMAND_TRANSACTION_LOG
+  31:Cpp_Core/Src/rf_command_transaction.cpp **** #define RF_CMD_TXN_LOG(fmt, ...) printf("[RF_CMD_TXN] " fmt "\r\n", ##__VA_ARGS__)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 2
+
+
+  32:Cpp_Core/Src/rf_command_transaction.cpp **** #else
+  33:Cpp_Core/Src/rf_command_transaction.cpp **** #define RF_CMD_TXN_LOG(fmt, ...) ((void)0)
+  34:Cpp_Core/Src/rf_command_transaction.cpp **** #endif
+  35:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  36:Cpp_Core/Src/rf_command_transaction.cpp **** static uint8_t checksum8(const uint8_t* data, uint16_t len) {
+  37:Cpp_Core/Src/rf_command_transaction.cpp ****     uint8_t sum = 0u;
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+  40:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+  41:Cpp_Core/Src/rf_command_transaction.cpp ****     return sum;
+  42:Cpp_Core/Src/rf_command_transaction.cpp **** }
+  43:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  44:Cpp_Core/Src/rf_command_transaction.cpp **** static bool buildCommandFrame(uint8_t cmd,
+  45:Cpp_Core/Src/rf_command_transaction.cpp ****                               uint8_t txn,
+  46:Cpp_Core/Src/rf_command_transaction.cpp ****                               const uint8_t* args,
+  47:Cpp_Core/Src/rf_command_transaction.cpp ****                               uint8_t argsLen,
+  48:Cpp_Core/Src/rf_command_transaction.cpp ****                               uint8_t* frame,
+  49:Cpp_Core/Src/rf_command_transaction.cpp ****                               uint16_t& frameLen) {
+  50:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((frame == nullptr) || (argsLen > MAX_ARGS_LEN)) {
+  51:Cpp_Core/Src/rf_command_transaction.cpp ****         frameLen = 0u;
+  52:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+  53:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+  54:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  55:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t payloadLen = static_cast<uint8_t>(argsLen + 1u);
+  56:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + payloadLen);
+  57:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  58:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[0] = RF_SYNC;
+  59:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[1] = cmd;
+  60:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[2] = payloadLen;
+  61:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[3] = txn;
+  62:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((argsLen != 0u) && (args != nullptr)) {
+  63:Cpp_Core/Src/rf_command_transaction.cpp ****         memcpy(&frame[4], args, argsLen);
+  64:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+  65:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[totalNoChecksum] = checksum8(frame, totalNoChecksum);
+  66:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+  67:Cpp_Core/Src/rf_command_transaction.cpp ****     return true;
+  68:Cpp_Core/Src/rf_command_transaction.cpp **** }
+  69:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  70:Cpp_Core/Src/rf_command_transaction.cpp **** static uint16_t remainingMs(uint32_t start, uint32_t now) {
+  71:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint32_t elapsed = now - start;
+  72:Cpp_Core/Src/rf_command_transaction.cpp ****     if (elapsed >= SCHEDULED_COMMAND_WINDOW_MS) {
+  73:Cpp_Core/Src/rf_command_transaction.cpp ****         return 0u;
+  74:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+  75:Cpp_Core/Src/rf_command_transaction.cpp ****     return static_cast<uint16_t>(SCHEDULED_COMMAND_WINDOW_MS - elapsed);
+  76:Cpp_Core/Src/rf_command_transaction.cpp **** }
+  77:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  78:Cpp_Core/Src/rf_command_transaction.cpp **** static bool buildScheduledCommandFrame(uint8_t cmd,
+  79:Cpp_Core/Src/rf_command_transaction.cpp ****                                        uint8_t seq,
+  80:Cpp_Core/Src/rf_command_transaction.cpp ****                                        uint16_t completeMs,
+  81:Cpp_Core/Src/rf_command_transaction.cpp ****                                        const uint8_t* args,
+  82:Cpp_Core/Src/rf_command_transaction.cpp ****                                        uint8_t argsLen,
+  83:Cpp_Core/Src/rf_command_transaction.cpp ****                                        uint8_t* frame,
+  84:Cpp_Core/Src/rf_command_transaction.cpp ****                                        uint16_t& frameLen) {
+  85:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((frame == nullptr) || (argsLen > MAX_ARGS_LEN)) {
+  86:Cpp_Core/Src/rf_command_transaction.cpp ****         frameLen = 0u;
+  87:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+  88:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 3
+
+
+  89:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  90:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t payloadLen = static_cast<uint8_t>(argsLen + 3u);
+  91:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + payloadLen);
+  92:Cpp_Core/Src/rf_command_transaction.cpp **** 
+  93:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[0] = RF_SYNC;
+  94:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[1] = cmd;
+  95:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[2] = payloadLen;
+  96:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[3] = seq;
+  97:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[4] = static_cast<uint8_t>(completeMs & 0xFFu);
+  98:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[5] = static_cast<uint8_t>((completeMs >> 8) & 0xFFu);
+  99:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((argsLen != 0u) && (args != nullptr)) {
+ 100:Cpp_Core/Src/rf_command_transaction.cpp ****         memcpy(&frame[6], args, argsLen);
+ 101:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 102:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[totalNoChecksum] = checksum8(frame, totalNoChecksum);
+ 103:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 104:Cpp_Core/Src/rf_command_transaction.cpp ****     return true;
+ 105:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 106:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 107:Cpp_Core/Src/rf_command_transaction.cpp **** static bool ackMatches(uint8_t cmd, uint8_t txn, const uint8_t* frame, uint16_t frameLen) {
+ 108:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((frame == nullptr) || (frameLen < 4u) || (frame[0] != RF_SYNC)) {
+ 109:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 110:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 111:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 112:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t payloadLen = frame[2];
+ 113:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint16_t expectedLen = static_cast<uint16_t>(3u + payloadLen + 1u);
+ 114:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((expectedLen != frameLen) ||
+ 115:Cpp_Core/Src/rf_command_transaction.cpp ****         (checksum8(frame, static_cast<uint16_t>(frameLen - 1u)) != frame[frameLen - 1u])) {
+ 116:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 117:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 118:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 119:Cpp_Core/Src/rf_command_transaction.cpp ****     if (payloadLen <= STATUS_TXN_OFFSET) {
+ 120:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 121:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 122:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((frame[1] != EVT_STATUS) && (frame[1] != EVT_ERROR)) {
+ 123:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 124:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 125:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t* payload = &frame[3];
+ 126:Cpp_Core/Src/rf_command_transaction.cpp ****     return (payload[STATUS_CMD_TAG_OFFSET] == cmd) &&
+ 127:Cpp_Core/Src/rf_command_transaction.cpp ****            (payload[STATUS_TXN_OFFSET] == txn);
+ 128:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 129:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 130:Cpp_Core/Src/rf_command_transaction.cpp **** static uint8_t ackEvent(const uint8_t* frame, uint16_t frameLen) {
+ 131:Cpp_Core/Src/rf_command_transaction.cpp ****     return ((frame != nullptr) && (frameLen >= 2u)) ? frame[1] : 0u;
+ 132:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 133:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 134:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 135:Cpp_Core/Src/rf_command_transaction.cpp **** uint8_t RFCommandTransaction::nextTransactionId() {
+  28              		.loc 1 135 51 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+ 136:Cpp_Core/Src/rf_command_transaction.cpp ****     static uint8_t s_nextTxn = 0u;
+  33              		.loc 1 136 5 view .LVU1
+ 137:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 138:Cpp_Core/Src/rf_command_transaction.cpp ****     s_nextTxn++;
+  34              		.loc 1 138 5 view .LVU2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 4
+
+
+ 139:Cpp_Core/Src/rf_command_transaction.cpp ****     if (s_nextTxn == 0u) {
+  35              		.loc 1 139 5 view .LVU3
+ 138:Cpp_Core/Src/rf_command_transaction.cpp ****     if (s_nextTxn == 0u) {
+  36              		.loc 1 138 14 is_stmt 0 view .LVU4
+  37 0000 044B     		ldr	r3, .L2
+  38 0002 1878     		ldrb	r0, [r3]	@ zero_extendqisi2
+  39 0004 0130     		adds	r0, r0, #1
+  40 0006 C0B2     		uxtb	r0, r0
+  41 0008 0128     		cmp	r0, #1
+  42 000a 38BF     		it	cc
+  43 000c 0120     		movcc	r0, #1
+  44 000e 1870     		strb	r0, [r3]
+ 140:Cpp_Core/Src/rf_command_transaction.cpp ****         s_nextTxn = 1u;
+ 141:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 142:Cpp_Core/Src/rf_command_transaction.cpp ****     return s_nextTxn;
+  45              		.loc 1 142 5 is_stmt 1 view .LVU5
+ 143:Cpp_Core/Src/rf_command_transaction.cpp **** }
+  46              		.loc 1 143 1 is_stmt 0 view .LVU6
+  47 0010 7047     		bx	lr
+  48              	.L3:
+  49 0012 00BF     		.align	2
+  50              	.L2:
+  51 0014 00000000 		.word	_ZZN20RFCommandTransaction17nextTransactionIdEvE9s_nextTxn
+  52              		.cfi_endproc
+  53              	.LFE1275:
+  55              		.section	.text._ZN20RFCommandTransaction4sendEhPKhhR26RFCommandTransactionResult,"ax",%progbits
+  56              		.align	1
+  57              		.global	_ZN20RFCommandTransaction4sendEhPKhhR26RFCommandTransactionResult
+  58              		.syntax unified
+  59              		.thumb
+  60              		.thumb_func
+  62              	_ZN20RFCommandTransaction4sendEhPKhhR26RFCommandTransactionResult:
+  63              	.LVL0:
+  64              	.LFB1276:
+ 144:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 145:Cpp_Core/Src/rf_command_transaction.cpp **** bool RFCommandTransaction::send(uint8_t cmd,
+ 146:Cpp_Core/Src/rf_command_transaction.cpp ****                                 const uint8_t* args,
+ 147:Cpp_Core/Src/rf_command_transaction.cpp ****                                 uint8_t argsLen,
+ 148:Cpp_Core/Src/rf_command_transaction.cpp ****                                 RFCommandTransactionResult& result) {
+  65              		.loc 1 148 69 is_stmt 1 view -0
+  66              		.cfi_startproc
+  67              		@ args = 0, pretend = 0, frame = 64
+  68              		@ frame_needed = 0, uses_anonymous_args = 0
+ 149:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+  69              		.loc 1 149 5 view .LVU8
+ 148:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+  70              		.loc 1 148 69 is_stmt 0 view .LVU9
+  71 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+  72              	.LCFI0:
+  73              		.cfi_def_cfa_offset 36
+  74              		.cfi_offset 4, -36
+  75              		.cfi_offset 5, -32
+  76              		.cfi_offset 6, -28
+  77              		.cfi_offset 7, -24
+  78              		.cfi_offset 8, -20
+  79              		.cfi_offset 9, -16
+  80              		.cfi_offset 10, -12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 5
+
+
+  81              		.cfi_offset 11, -8
+  82              		.cfi_offset 14, -4
+  83 0004 1446     		mov	r4, r2
+  84 0006 93B0     		sub	sp, sp, #76
+  85              	.LCFI1:
+  86              		.cfi_def_cfa_offset 112
+ 148:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+  87              		.loc 1 148 69 view .LVU10
+  88 0008 0746     		mov	r7, r0
+  89 000a 8846     		mov	r8, r1
+  90              		.loc 1 149 12 view .LVU11
+  91 000c 2422     		movs	r2, #36
+  92              	.LVL1:
+  93              		.loc 1 149 12 view .LVU12
+  94 000e 0021     		movs	r1, #0
+  95              	.LVL2:
+  96              		.loc 1 149 12 view .LVU13
+  97 0010 1846     		mov	r0, r3
+  98              	.LVL3:
+ 148:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+  99              		.loc 1 148 69 view .LVU14
+ 100 0012 1D46     		mov	r5, r3
+ 101              		.loc 1 149 12 view .LVU15
+ 102 0014 FFF7FEFF 		bl	memset
+ 103              	.LVL4:
+ 150:Cpp_Core/Src/rf_command_transaction.cpp ****     if (argsLen > MAX_ARGS_LEN) {
+ 104              		.loc 1 150 5 is_stmt 1 view .LVU16
+ 105 0018 172C     		cmp	r4, #23
+ 106 001a 05D9     		bls	.L5
+ 107              	.LVL5:
+ 108              	.L16:
+ 151:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 109              		.loc 1 151 16 is_stmt 0 view .LVU17
+ 110 001c 4FF0000A 		mov	r10, #0
+ 111              	.L6:
+ 152:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 153:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 154:Cpp_Core/Src/rf_command_transaction.cpp ****     uint8_t frame[4u + MAX_ARGS_LEN + 1u] = {0};
+ 155:Cpp_Core/Src/rf_command_transaction.cpp ****     uint16_t frameLen = 0u;
+ 156:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t txn = nextTransactionId();
+ 157:Cpp_Core/Src/rf_command_transaction.cpp ****     if (!buildCommandFrame(cmd, txn, args, argsLen, frame, frameLen)) {
+ 158:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 159:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 160:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 161:Cpp_Core/Src/rf_command_transaction.cpp ****     result.txn = txn;
+ 162:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint8_t attempt = 1u; attempt <= MAX_ATTEMPTS; ++attempt) {
+ 163:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t ack[sizeof(result.ackFrame)] = {0};
+ 164:Cpp_Core/Src/rf_command_transaction.cpp ****         uint16_t ackLen = static_cast<uint16_t>(sizeof(ack));
+ 165:Cpp_Core/Src/rf_command_transaction.cpp ****         result.attempts = attempt;
+ 166:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 167:Cpp_Core/Src/rf_command_transaction.cpp ****         RF_CMD_TXN_LOG("SEND_CMD cmd=0x%02X txn=%u attempt=%u args_len=%u t1_ms=%u",
+ 168:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)cmd,
+ 169:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)txn,
+ 170:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)attempt,
+ 171:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)argsLen,
+ 172:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)RF_COMMAND_TRANSACTION_ACK_TIMEOUT_MS);
+ 173:Cpp_Core/Src/rf_command_transaction.cpp ****         if (!RFBridgePort_ControlTransferWithTimeout(frame,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 6
+
+
+ 174:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      frameLen,
+ 175:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      ack,
+ 176:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      &ackLen,
+ 177:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      RF_COMMAND_TRANSACTION_ACK_TIMEOUT_MS)) {
+ 178:Cpp_Core/Src/rf_command_transaction.cpp ****             RF_CMD_TXN_LOG("ACK_TIMEOUT cmd=0x%02X txn=%u attempt=%u",
+ 179:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)cmd,
+ 180:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)txn,
+ 181:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)attempt);
+ 182:Cpp_Core/Src/rf_command_transaction.cpp ****             continue;
+ 183:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 184:Cpp_Core/Src/rf_command_transaction.cpp ****         RF_CMD_TXN_LOG("RECV_ACK cmd=0x%02X txn=%u attempt=%u evt=0x%02X len=%u",
+ 185:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)cmd,
+ 186:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)txn,
+ 187:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)attempt,
+ 188:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)ackEvent(ack, ackLen),
+ 189:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)ackLen);
+ 190:Cpp_Core/Src/rf_command_transaction.cpp ****         if (!ackMatches(cmd, txn, ack, ackLen)) {
+ 191:Cpp_Core/Src/rf_command_transaction.cpp ****             (void)RFReliableEvent::completeFrameIfNeeded(ack, ackLen);
+ 192:Cpp_Core/Src/rf_command_transaction.cpp ****             RFReliableEvent::poll();
+ 193:Cpp_Core/Src/rf_command_transaction.cpp ****             RF_CMD_TXN_LOG("ACK_MISMATCH cmd=0x%02X txn=%u attempt=%u evt=0x%02X len=%u",
+ 194:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)cmd,
+ 195:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)txn,
+ 196:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)attempt,
+ 197:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)ackEvent(ack, ackLen),
+ 198:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)ackLen);
+ 199:Cpp_Core/Src/rf_command_transaction.cpp ****             continue;
+ 200:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 201:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 202:Cpp_Core/Src/rf_command_transaction.cpp ****         memcpy(result.ackFrame, ack, ackLen);
+ 203:Cpp_Core/Src/rf_command_transaction.cpp ****         result.ackLen = ackLen;
+ 204:Cpp_Core/Src/rf_command_transaction.cpp ****         RF_CMD_TXN_LOG("COMPLETE cmd=0x%02X txn=%u attempts=%u",
+ 205:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)cmd,
+ 206:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)txn,
+ 207:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)attempt);
+ 208:Cpp_Core/Src/rf_command_transaction.cpp ****         return true;
+ 209:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 210:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 211:Cpp_Core/Src/rf_command_transaction.cpp ****     RF_CMD_TXN_LOG("FAILED cmd=0x%02X txn=%u attempts=%u",
+ 212:Cpp_Core/Src/rf_command_transaction.cpp ****                    (unsigned int)cmd,
+ 213:Cpp_Core/Src/rf_command_transaction.cpp ****                    (unsigned int)txn,
+ 214:Cpp_Core/Src/rf_command_transaction.cpp ****                    (unsigned int)MAX_ATTEMPTS);
+ 215:Cpp_Core/Src/rf_command_transaction.cpp ****     return false;
+ 216:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 112              		.loc 1 216 1 view .LVU18
+ 113 0020 5046     		mov	r0, r10
+ 114 0022 13B0     		add	sp, sp, #76
+ 115              	.LCFI2:
+ 116              		.cfi_remember_state
+ 117              		.cfi_def_cfa_offset 36
+ 118              		@ sp needed
+ 119 0024 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 120              	.LVL6:
+ 121              	.L5:
+ 122              	.LCFI3:
+ 123              		.cfi_restore_state
+ 154:Cpp_Core/Src/rf_command_transaction.cpp ****     uint16_t frameLen = 0u;
+ 124              		.loc 1 154 5 is_stmt 1 view .LVU19
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 7
+
+
+ 154:Cpp_Core/Src/rf_command_transaction.cpp ****     uint16_t frameLen = 0u;
+ 125              		.loc 1 154 13 is_stmt 0 view .LVU20
+ 126 0028 1C22     		movs	r2, #28
+ 127 002a 0021     		movs	r1, #0
+ 128 002c 03A8     		add	r0, sp, #12
+ 129 002e FFF7FEFF 		bl	memset
+ 130              	.LVL7:
+ 155:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t txn = nextTransactionId();
+ 131              		.loc 1 155 5 is_stmt 1 view .LVU21
+ 156:Cpp_Core/Src/rf_command_transaction.cpp ****     if (!buildCommandFrame(cmd, txn, args, argsLen, frame, frameLen)) {
+ 132              		.loc 1 156 5 view .LVU22
+ 156:Cpp_Core/Src/rf_command_transaction.cpp ****     if (!buildCommandFrame(cmd, txn, args, argsLen, frame, frameLen)) {
+ 133              		.loc 1 156 42 is_stmt 0 view .LVU23
+ 134 0032 FFF7FEFF 		bl	_ZN20RFCommandTransaction17nextTransactionIdEv
+ 135              	.LVL8:
+ 136              	.LBB18:
+ 137              	.LBB19:
+  58:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[1] = cmd;
+ 138              		.loc 1 58 14 view .LVU24
+ 139 0036 A523     		movs	r3, #165
+ 140              	.LBE19:
+ 141              	.LBE18:
+ 156:Cpp_Core/Src/rf_command_transaction.cpp ****     if (!buildCommandFrame(cmd, txn, args, argsLen, frame, frameLen)) {
+ 142              		.loc 1 156 42 view .LVU25
+ 143 0038 0646     		mov	r6, r0
+ 144              	.LVL9:
+ 157:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 145              		.loc 1 157 5 is_stmt 1 view .LVU26
+ 146              	.LBB29:
+ 147              	.LBI18:
+  44:Cpp_Core/Src/rf_command_transaction.cpp ****                               uint8_t txn,
+ 148              		.loc 1 44 13 view .LVU27
+ 149              	.LBB26:
+  50:Cpp_Core/Src/rf_command_transaction.cpp ****         frameLen = 0u;
+ 150              		.loc 1 50 5 view .LVU28
+  55:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + payloadLen);
+ 151              		.loc 1 55 5 view .LVU29
+  56:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 152              		.loc 1 56 5 view .LVU30
+  58:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[1] = cmd;
+ 153              		.loc 1 58 5 view .LVU31
+  59:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[2] = payloadLen;
+ 154              		.loc 1 59 14 is_stmt 0 view .LVU32
+ 155 003a 8DF80D70 		strb	r7, [sp, #13]
+  58:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[1] = cmd;
+ 156              		.loc 1 58 14 view .LVU33
+ 157 003e 8DF80C30 		strb	r3, [sp, #12]
+  59:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[2] = payloadLen;
+ 158              		.loc 1 59 5 is_stmt 1 view .LVU34
+  60:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[3] = txn;
+ 159              		.loc 1 60 5 view .LVU35
+  55:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + payloadLen);
+ 160              		.loc 1 55 19 is_stmt 0 view .LVU36
+ 161 0042 631C     		adds	r3, r4, #1
+  61:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((argsLen != 0u) && (args != nullptr)) {
+ 162              		.loc 1 61 14 view .LVU37
+ 163 0044 8DF80F00 		strb	r0, [sp, #15]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 8
+
+
+  60:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[3] = txn;
+ 164              		.loc 1 60 14 view .LVU38
+ 165 0048 8DF80E30 		strb	r3, [sp, #14]
+  61:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((argsLen != 0u) && (args != nullptr)) {
+ 166              		.loc 1 61 5 is_stmt 1 view .LVU39
+  62:Cpp_Core/Src/rf_command_transaction.cpp ****         memcpy(&frame[4], args, argsLen);
+ 167              		.loc 1 62 5 view .LVU40
+ 168 004c 002C     		cmp	r4, #0
+ 169 004e 4BD0     		beq	.L17
+  62:Cpp_Core/Src/rf_command_transaction.cpp ****         memcpy(&frame[4], args, argsLen);
+ 170              		.loc 1 62 25 is_stmt 0 discriminator 1 view .LVU41
+ 171 0050 B8F1000F 		cmp	r8, #0
+ 172 0054 42D1     		bne	.L8
+ 173              	.LVL10:
+ 174              	.L9:
+  56:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 175              		.loc 1 56 19 view .LVU42
+ 176 0056 0434     		adds	r4, r4, #4
+ 177              	.LVL11:
+  65:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 178              		.loc 1 65 26 view .LVU43
+ 179 0058 03AB     		add	r3, sp, #12
+ 180              	.LVL12:
+  56:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 181              		.loc 1 56 19 view .LVU44
+ 182 005a E2B2     		uxtb	r2, r4
+  65:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 183              		.loc 1 65 26 view .LVU45
+ 184 005c 53FA84F4 		uxtab	r4, r3, r4
+ 185              	.LVL13:
+ 186              	.L7:
+ 187              	.LBB20:
+ 188              	.LBB21:
+  37:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 189              		.loc 1 37 13 view .LVU46
+ 190 0060 0023     		movs	r3, #0
+ 191 0062 03A8     		add	r0, sp, #12
+ 192              	.LVL14:
+ 193              	.LBB22:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 194              		.loc 1 38 19 view .LVU47
+ 195 0064 1946     		mov	r1, r3
+ 196              	.LVL15:
+ 197              	.L10:
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 198              		.loc 1 39 9 is_stmt 1 view .LVU48
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 199              		.loc 1 38 5 is_stmt 0 discriminator 3 view .LVU49
+ 200 0066 0131     		adds	r1, r1, #1
+ 201              	.LVL16:
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 202              		.loc 1 39 48 view .LVU50
+ 203 0068 10F801CB 		ldrb	ip, [r0], #1	@ zero_extendqisi2
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 204              		.loc 1 38 5 discriminator 3 view .LVU51
+ 205 006c 89B2     		uxth	r1, r1
+ 206              	.LVL17:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 9
+
+
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 207              		.loc 1 39 13 view .LVU52
+ 208 006e 6344     		add	r3, r3, ip
+ 209              	.LVL18:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 210              		.loc 1 38 29 discriminator 1 view .LVU53
+ 211 0070 9142     		cmp	r1, r2
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 212              		.loc 1 39 13 view .LVU54
+ 213 0072 DBB2     		uxtb	r3, r3
+ 214              	.LVL19:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 215              		.loc 1 38 5 is_stmt 1 discriminator 3 view .LVU55
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 216              		.loc 1 38 29 discriminator 1 view .LVU56
+ 217 0074 F7D1     		bne	.L10
+ 218              	.LBE22:
+  41:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 219              		.loc 1 41 5 view .LVU57
+ 220              	.LVL20:
+  41:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 221              		.loc 1 41 5 is_stmt 0 view .LVU58
+ 222              	.LBE21:
+ 223              	.LBE20:
+  66:Cpp_Core/Src/rf_command_transaction.cpp ****     return true;
+ 224              		.loc 1 66 54 view .LVU59
+ 225 0076 0131     		adds	r1, r1, #1
+  65:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 226              		.loc 1 65 28 discriminator 1 view .LVU60
+ 227 0078 2370     		strb	r3, [r4]
+  66:Cpp_Core/Src/rf_command_transaction.cpp ****     return true;
+ 228              		.loc 1 66 5 is_stmt 1 view .LVU61
+ 229              	.LBE26:
+ 230              	.LBE29:
+ 231              	.LBB30:
+ 162:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t ack[sizeof(result.ackFrame)] = {0};
+ 232              		.loc 1 162 18 is_stmt 0 view .LVU62
+ 233 007a 4FF00109 		mov	r9, #1
+ 234              	.LBB31:
+ 163:Cpp_Core/Src/rf_command_transaction.cpp ****         uint16_t ackLen = static_cast<uint16_t>(sizeof(ack));
+ 235              		.loc 1 163 17 view .LVU63
+ 236 007e 4FF0200B 		mov	fp, #32
+ 237              	.LBE31:
+ 238              	.LBE30:
+ 239              	.LBB43:
+ 240              	.LBB27:
+  66:Cpp_Core/Src/rf_command_transaction.cpp ****     return true;
+ 241              		.loc 1 66 54 view .LVU64
+ 242 0082 8CB2     		uxth	r4, r1
+ 243              	.LVL21:
+  67:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 244              		.loc 1 67 5 is_stmt 1 view .LVU65
+  67:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 245              		.loc 1 67 5 is_stmt 0 view .LVU66
+ 246              	.LBE27:
+ 247              	.LBE43:
+ 161:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint8_t attempt = 1u; attempt <= MAX_ATTEMPTS; ++attempt) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 10
+
+
+ 248              		.loc 1 161 5 is_stmt 1 view .LVU67
+ 161:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint8_t attempt = 1u; attempt <= MAX_ATTEMPTS; ++attempt) {
+ 249              		.loc 1 161 16 is_stmt 0 view .LVU68
+ 250 0084 2E70     		strb	r6, [r5]
+ 162:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t ack[sizeof(result.ackFrame)] = {0};
+ 251              		.loc 1 162 5 is_stmt 1 view .LVU69
+ 252              	.LVL22:
+ 253              	.LBB44:
+ 162:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t ack[sizeof(result.ackFrame)] = {0};
+ 254              		.loc 1 162 40 discriminator 1 view .LVU70
+ 255              	.L15:
+ 256              	.LBB41:
+ 163:Cpp_Core/Src/rf_command_transaction.cpp ****         uint16_t ackLen = static_cast<uint16_t>(sizeof(ack));
+ 257              		.loc 1 163 9 view .LVU71
+ 163:Cpp_Core/Src/rf_command_transaction.cpp ****         uint16_t ackLen = static_cast<uint16_t>(sizeof(ack));
+ 258              		.loc 1 163 17 is_stmt 0 view .LVU72
+ 259 0086 2022     		movs	r2, #32
+ 260 0088 0021     		movs	r1, #0
+ 261 008a 0AA8     		add	r0, sp, #40
+ 262 008c FFF7FEFF 		bl	memset
+ 263              	.LVL23:
+ 164:Cpp_Core/Src/rf_command_transaction.cpp ****         result.attempts = attempt;
+ 264              		.loc 1 164 9 is_stmt 1 view .LVU73
+ 173:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      frameLen,
+ 265              		.loc 1 173 53 is_stmt 0 view .LVU74
+ 266 0090 1423     		movs	r3, #20
+ 165:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 267              		.loc 1 165 25 view .LVU75
+ 268 0092 85F80190 		strb	r9, [r5, #1]
+ 173:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      frameLen,
+ 269              		.loc 1 173 53 view .LVU76
+ 270 0096 0AAA     		add	r2, sp, #40
+ 271 0098 0093     		str	r3, [sp]
+ 272 009a 2146     		mov	r1, r4
+ 273 009c 0DF10A03 		add	r3, sp, #10
+ 274 00a0 03A8     		add	r0, sp, #12
+ 164:Cpp_Core/Src/rf_command_transaction.cpp ****         result.attempts = attempt;
+ 275              		.loc 1 164 18 view .LVU77
+ 276 00a2 ADF80AB0 		strh	fp, [sp, #10]	@ movhi
+ 165:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 277              		.loc 1 165 9 is_stmt 1 view .LVU78
+ 167:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)cmd,
+ 278              		.loc 1 167 9 view .LVU79
+ 173:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      frameLen,
+ 279              		.loc 1 173 9 view .LVU80
+ 173:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      frameLen,
+ 280              		.loc 1 173 53 is_stmt 0 view .LVU81
+ 281 00a6 FFF7FEFF 		bl	_Z39RFBridgePort_ControlTransferWithTimeoutPKhtPhPtm
+ 282              	.LVL24:
+ 173:Cpp_Core/Src/rf_command_transaction.cpp ****                                                      frameLen,
+ 283              		.loc 1 173 9 discriminator 1 view .LVU82
+ 284 00aa 8246     		mov	r10, r0
+ 285 00ac 70B1     		cbz	r0, .L11
+ 184:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)cmd,
+ 286              		.loc 1 184 9 is_stmt 1 view .LVU83
+ 190:Cpp_Core/Src/rf_command_transaction.cpp ****             (void)RFReliableEvent::completeFrameIfNeeded(ack, ackLen);
+ 287              		.loc 1 190 9 view .LVU84
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 11
+
+
+ 190:Cpp_Core/Src/rf_command_transaction.cpp ****             (void)RFReliableEvent::completeFrameIfNeeded(ack, ackLen);
+ 288              		.loc 1 190 24 is_stmt 0 view .LVU85
+ 289 00ae BDF80A80 		ldrh	r8, [sp, #10]
+ 290              	.LVL25:
+ 291              	.LBB32:
+ 292              	.LBI32:
+ 107:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((frame == nullptr) || (frameLen < 4u) || (frame[0] != RF_SYNC)) {
+ 293              		.loc 1 107 13 is_stmt 1 view .LVU86
+ 294              	.LBB33:
+ 108:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 295              		.loc 1 108 5 view .LVU87
+ 108:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 296              		.loc 1 108 28 is_stmt 0 discriminator 1 view .LVU88
+ 297 00b2 B8F1030F 		cmp	r8, #3
+ 298 00b6 03D9     		bls	.L12
+ 108:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 299              		.loc 1 108 47 discriminator 2 view .LVU89
+ 300 00b8 9DF82830 		ldrb	r3, [sp, #40]	@ zero_extendqisi2
+ 301 00bc A52B     		cmp	r3, #165
+ 302 00be 16D0     		beq	.L13
+ 303              	.L12:
+ 304              	.LVL26:
+ 108:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 305              		.loc 1 108 47 discriminator 2 view .LVU90
+ 306              	.LBE33:
+ 307              	.LBE32:
+ 191:Cpp_Core/Src/rf_command_transaction.cpp ****             RFReliableEvent::poll();
+ 308              		.loc 1 191 13 is_stmt 1 view .LVU91
+ 191:Cpp_Core/Src/rf_command_transaction.cpp ****             RFReliableEvent::poll();
+ 309              		.loc 1 191 57 is_stmt 0 view .LVU92
+ 310 00c0 4146     		mov	r1, r8
+ 311 00c2 0AA8     		add	r0, sp, #40
+ 312 00c4 FFF7FEFF 		bl	_ZN15RFReliableEvent21completeFrameIfNeededEPKht
+ 313              	.LVL27:
+ 192:Cpp_Core/Src/rf_command_transaction.cpp ****             RF_CMD_TXN_LOG("ACK_MISMATCH cmd=0x%02X txn=%u attempt=%u evt=0x%02X len=%u",
+ 314              		.loc 1 192 13 is_stmt 1 view .LVU93
+ 192:Cpp_Core/Src/rf_command_transaction.cpp ****             RF_CMD_TXN_LOG("ACK_MISMATCH cmd=0x%02X txn=%u attempt=%u evt=0x%02X len=%u",
+ 315              		.loc 1 192 34 is_stmt 0 view .LVU94
+ 316 00c8 FFF7FEFF 		bl	_ZN15RFReliableEvent4pollEv
+ 317              	.LVL28:
+ 193:Cpp_Core/Src/rf_command_transaction.cpp ****                            (unsigned int)cmd,
+ 318              		.loc 1 193 13 is_stmt 1 view .LVU95
+ 199:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 319              		.loc 1 199 13 view .LVU96
+ 320              	.L11:
+ 321              	.LBE41:
+ 162:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t ack[sizeof(result.ackFrame)] = {0};
+ 322              		.loc 1 162 5 discriminator 2 view .LVU97
+ 323 00cc 09F10109 		add	r9, r9, #1
+ 324              	.LVL29:
+ 162:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t ack[sizeof(result.ackFrame)] = {0};
+ 325              		.loc 1 162 5 is_stmt 0 discriminator 2 view .LVU98
+ 326 00d0 5FFA89F9 		uxtb	r9, r9
+ 327              	.LVL30:
+ 162:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t ack[sizeof(result.ackFrame)] = {0};
+ 328              		.loc 1 162 40 is_stmt 1 discriminator 1 view .LVU99
+ 329 00d4 B9F1040F 		cmp	r9, #4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 12
+
+
+ 330 00d8 D5D1     		bne	.L15
+ 331 00da 9FE7     		b	.L16
+ 332              	.LVL31:
+ 333              	.L8:
+ 162:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t ack[sizeof(result.ackFrame)] = {0};
+ 334              		.loc 1 162 40 is_stmt 0 discriminator 1 view .LVU100
+ 335              	.LBE44:
+ 336              	.LBB45:
+ 337              	.LBB28:
+  63:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 338              		.loc 1 63 9 is_stmt 1 view .LVU101
+  63:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 339              		.loc 1 63 15 is_stmt 0 view .LVU102
+ 340 00dc 2246     		mov	r2, r4
+ 341 00de 4146     		mov	r1, r8
+ 342 00e0 04A8     		add	r0, sp, #16
+ 343              	.LVL32:
+  63:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 344              		.loc 1 63 15 view .LVU103
+ 345 00e2 FFF7FEFF 		bl	memcpy
+ 346              	.LVL33:
+  65:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 347              		.loc 1 65 5 is_stmt 1 view .LVU104
+ 348              	.LBB25:
+ 349              	.LBI20:
+  36:Cpp_Core/Src/rf_command_transaction.cpp ****     uint8_t sum = 0u;
+ 350              		.loc 1 36 16 view .LVU105
+ 351              	.LBB24:
+  37:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 352              		.loc 1 37 5 view .LVU106
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 353              		.loc 1 38 5 view .LVU107
+ 354              	.LBB23:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 355              		.loc 1 38 29 discriminator 1 view .LVU108
+ 356 00e6 B6E7     		b	.L9
+ 357              	.LVL34:
+ 358              	.L17:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 359              		.loc 1 38 29 is_stmt 0 discriminator 1 view .LVU109
+ 360              	.LBE23:
+ 361              	.LBE24:
+ 362              	.LBE25:
+ 363 00e8 04AC     		add	r4, sp, #16
+ 364              	.LVL35:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 365              		.loc 1 38 29 discriminator 1 view .LVU110
+ 366 00ea 0422     		movs	r2, #4
+ 367 00ec B8E7     		b	.L7
+ 368              	.LVL36:
+ 369              	.L13:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 370              		.loc 1 38 29 discriminator 1 view .LVU111
+ 371              	.LBE28:
+ 372              	.LBE45:
+ 373              	.LBB46:
+ 374              	.LBB42:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 13
+
+
+ 375              	.LBB40:
+ 376              	.LBB39:
+ 112:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint16_t expectedLen = static_cast<uint16_t>(3u + payloadLen + 1u);
+ 377              		.loc 1 112 5 is_stmt 1 view .LVU112
+ 112:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint16_t expectedLen = static_cast<uint16_t>(3u + payloadLen + 1u);
+ 378              		.loc 1 112 19 is_stmt 0 view .LVU113
+ 379 00ee 9DF82A00 		ldrb	r0, [sp, #42]	@ zero_extendqisi2
+ 380              	.LVL37:
+ 113:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((expectedLen != frameLen) ||
+ 381              		.loc 1 113 5 is_stmt 1 view .LVU114
+ 114:Cpp_Core/Src/rf_command_transaction.cpp ****         (checksum8(frame, static_cast<uint16_t>(frameLen - 1u)) != frame[frameLen - 1u])) {
+ 382              		.loc 1 114 5 view .LVU115
+ 114:Cpp_Core/Src/rf_command_transaction.cpp ****         (checksum8(frame, static_cast<uint16_t>(frameLen - 1u)) != frame[frameLen - 1u])) {
+ 383              		.loc 1 114 35 is_stmt 0 view .LVU116
+ 384 00f2 031D     		adds	r3, r0, #4
+ 385 00f4 9845     		cmp	r8, r3
+ 386 00f6 E3D1     		bne	.L12
+ 115:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 387              		.loc 1 115 19 view .LVU117
+ 388 00f8 08F1FF31 		add	r1, r8, #-1
+ 389              	.LBB34:
+ 390              	.LBB35:
+  37:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 391              		.loc 1 37 13 view .LVU118
+ 392 00fc 0022     		movs	r2, #0
+ 393 00fe 0DF1280C 		add	ip, sp, #40
+ 394              	.LVL38:
+  37:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 395              		.loc 1 37 13 view .LVU119
+ 396              	.LBE35:
+ 397              	.LBE34:
+ 115:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 398              		.loc 1 115 19 view .LVU120
+ 399 0102 89B2     		uxth	r1, r1
+ 400              	.LVL39:
+ 401              	.LBB38:
+ 402              	.LBI34:
+  36:Cpp_Core/Src/rf_command_transaction.cpp ****     uint8_t sum = 0u;
+ 403              		.loc 1 36 16 is_stmt 1 view .LVU121
+ 404              	.LBB37:
+  37:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 405              		.loc 1 37 5 view .LVU122
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 406              		.loc 1 38 5 view .LVU123
+ 407              	.LBB36:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 408              		.loc 1 38 29 discriminator 1 view .LVU124
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 409              		.loc 1 38 19 is_stmt 0 view .LVU125
+ 410 0104 1346     		mov	r3, r2
+ 411              	.LVL40:
+ 412              	.L14:
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 413              		.loc 1 39 9 is_stmt 1 view .LVU126
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 414              		.loc 1 38 5 is_stmt 0 discriminator 3 view .LVU127
+ 415 0106 0133     		adds	r3, r3, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 14
+
+
+ 416              	.LVL41:
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 417              		.loc 1 39 48 view .LVU128
+ 418 0108 1CF801EB 		ldrb	lr, [ip], #1	@ zero_extendqisi2
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 419              		.loc 1 38 5 discriminator 3 view .LVU129
+ 420 010c 9BB2     		uxth	r3, r3
+ 421              	.LVL42:
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 422              		.loc 1 39 13 view .LVU130
+ 423 010e 7244     		add	r2, r2, lr
+ 424              	.LVL43:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 425              		.loc 1 38 29 discriminator 1 view .LVU131
+ 426 0110 8B42     		cmp	r3, r1
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 427              		.loc 1 39 13 view .LVU132
+ 428 0112 D2B2     		uxtb	r2, r2
+ 429              	.LVL44:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 430              		.loc 1 38 5 is_stmt 1 discriminator 3 view .LVU133
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 431              		.loc 1 38 29 discriminator 1 view .LVU134
+ 432 0114 F7D3     		bcc	.L14
+ 433              	.LBE36:
+  41:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 434              		.loc 1 41 5 view .LVU135
+ 435              	.LVL45:
+  41:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 436              		.loc 1 41 5 is_stmt 0 view .LVU136
+ 437              	.LBE37:
+ 438              	.LBE38:
+ 115:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 439              		.loc 1 115 65 discriminator 1 view .LVU137
+ 440 0116 08F14803 		add	r3, r8, #72
+ 441 011a 6B44     		add	r3, sp, r3
+ 114:Cpp_Core/Src/rf_command_transaction.cpp ****         (checksum8(frame, static_cast<uint16_t>(frameLen - 1u)) != frame[frameLen - 1u])) {
+ 442              		.loc 1 114 35 discriminator 2 view .LVU138
+ 443 011c 13F8213C 		ldrb	r3, [r3, #-33]	@ zero_extendqisi2
+ 444 0120 9342     		cmp	r3, r2
+ 445 0122 CDD1     		bne	.L12
+ 119:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 446              		.loc 1 119 5 is_stmt 1 view .LVU139
+ 447 0124 1128     		cmp	r0, #17
+ 448 0126 CBD9     		bls	.L12
+ 122:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 449              		.loc 1 122 5 view .LVU140
+ 450 0128 9DF82930 		ldrb	r3, [sp, #41]	@ zero_extendqisi2
+ 451 012c 03F0FB03 		and	r3, r3, #251
+ 452 0130 812B     		cmp	r3, #129
+ 453 0132 C5D1     		bne	.L12
+ 125:Cpp_Core/Src/rf_command_transaction.cpp ****     return (payload[STATUS_CMD_TAG_OFFSET] == cmd) &&
+ 454              		.loc 1 125 5 view .LVU141
+ 455              	.LVL46:
+ 126:Cpp_Core/Src/rf_command_transaction.cpp ****            (payload[STATUS_TXN_OFFSET] == txn);
+ 456              		.loc 1 126 5 view .LVU142
+ 126:Cpp_Core/Src/rf_command_transaction.cpp ****            (payload[STATUS_TXN_OFFSET] == txn);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 15
+
+
+ 457              		.loc 1 126 52 is_stmt 0 view .LVU143
+ 458 0134 9DF83B30 		ldrb	r3, [sp, #59]	@ zero_extendqisi2
+ 459 0138 BB42     		cmp	r3, r7
+ 460 013a C1D1     		bne	.L12
+ 126:Cpp_Core/Src/rf_command_transaction.cpp ****            (payload[STATUS_TXN_OFFSET] == txn);
+ 461              		.loc 1 126 52 discriminator 1 view .LVU144
+ 462 013c 9DF83C30 		ldrb	r3, [sp, #60]	@ zero_extendqisi2
+ 463 0140 B342     		cmp	r3, r6
+ 464 0142 BDD1     		bne	.L12
+ 465              	.LVL47:
+ 126:Cpp_Core/Src/rf_command_transaction.cpp ****            (payload[STATUS_TXN_OFFSET] == txn);
+ 466              		.loc 1 126 52 discriminator 1 view .LVU145
+ 467              	.LBE39:
+ 468              	.LBE40:
+ 202:Cpp_Core/Src/rf_command_transaction.cpp ****         result.ackLen = ackLen;
+ 469              		.loc 1 202 9 is_stmt 1 view .LVU146
+ 202:Cpp_Core/Src/rf_command_transaction.cpp ****         result.ackLen = ackLen;
+ 470              		.loc 1 202 15 is_stmt 0 view .LVU147
+ 471 0144 4246     		mov	r2, r8
+ 472 0146 0AA9     		add	r1, sp, #40
+ 473 0148 A81C     		adds	r0, r5, #2
+ 474 014a FFF7FEFF 		bl	memcpy
+ 475              	.LVL48:
+ 203:Cpp_Core/Src/rf_command_transaction.cpp ****         RF_CMD_TXN_LOG("COMPLETE cmd=0x%02X txn=%u attempts=%u",
+ 476              		.loc 1 203 9 is_stmt 1 view .LVU148
+ 203:Cpp_Core/Src/rf_command_transaction.cpp ****         RF_CMD_TXN_LOG("COMPLETE cmd=0x%02X txn=%u attempts=%u",
+ 477              		.loc 1 203 23 is_stmt 0 view .LVU149
+ 478 014e A5F82280 		strh	r8, [r5, #34]	@ movhi
+ 204:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)cmd,
+ 479              		.loc 1 204 9 is_stmt 1 view .LVU150
+ 208:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 480              		.loc 1 208 9 view .LVU151
+ 481 0152 65E7     		b	.L6
+ 482              	.LBE42:
+ 483              	.LBE46:
+ 484              		.cfi_endproc
+ 485              	.LFE1276:
+ 487              		.section	.text._ZN20RFCommandTransaction13sendScheduledEhPKhhR26RFCommandTransactionResult,"ax",%p
+ 488              		.align	1
+ 489              		.global	_ZN20RFCommandTransaction13sendScheduledEhPKhhR26RFCommandTransactionResult
+ 490              		.syntax unified
+ 491              		.thumb
+ 492              		.thumb_func
+ 494              	_ZN20RFCommandTransaction13sendScheduledEhPKhhR26RFCommandTransactionResult:
+ 495              	.LVL49:
+ 496              	.LFB1277:
+ 217:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 218:Cpp_Core/Src/rf_command_transaction.cpp **** bool RFCommandTransaction::sendScheduled(uint8_t cmd,
+ 219:Cpp_Core/Src/rf_command_transaction.cpp ****                                          const uint8_t* args,
+ 220:Cpp_Core/Src/rf_command_transaction.cpp ****                                          uint8_t argsLen,
+ 221:Cpp_Core/Src/rf_command_transaction.cpp ****                                          RFCommandTransactionResult& result) {
+ 497              		.loc 1 221 78 view -0
+ 498              		.cfi_startproc
+ 499              		@ args = 0, pretend = 0, frame = 40
+ 500              		@ frame_needed = 0, uses_anonymous_args = 0
+ 222:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+ 501              		.loc 1 222 5 view .LVU153
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 16
+
+
+ 221:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+ 502              		.loc 1 221 78 is_stmt 0 view .LVU154
+ 503 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 504              	.LCFI4:
+ 505              		.cfi_def_cfa_offset 36
+ 506              		.cfi_offset 4, -36
+ 507              		.cfi_offset 5, -32
+ 508              		.cfi_offset 6, -28
+ 509              		.cfi_offset 7, -24
+ 510              		.cfi_offset 8, -20
+ 511              		.cfi_offset 9, -16
+ 512              		.cfi_offset 10, -12
+ 513              		.cfi_offset 11, -8
+ 514              		.cfi_offset 14, -4
+ 515 0004 8BB0     		sub	sp, sp, #44
+ 516              	.LCFI5:
+ 517              		.cfi_def_cfa_offset 80
+ 221:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+ 518              		.loc 1 221 78 view .LVU155
+ 519 0006 1546     		mov	r5, r2
+ 520 0008 8A46     		mov	r10, r1
+ 521              		.loc 1 222 12 view .LVU156
+ 522 000a 2422     		movs	r2, #36
+ 523              	.LVL50:
+ 221:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+ 524              		.loc 1 221 78 view .LVU157
+ 525 000c 0190     		str	r0, [sp, #4]
+ 526              		.loc 1 222 12 view .LVU158
+ 527 000e 0021     		movs	r1, #0
+ 528              	.LVL51:
+ 529              		.loc 1 222 12 view .LVU159
+ 530 0010 1846     		mov	r0, r3
+ 531              	.LVL52:
+ 221:Cpp_Core/Src/rf_command_transaction.cpp ****     result = {};
+ 532              		.loc 1 221 78 view .LVU160
+ 533 0012 1E46     		mov	r6, r3
+ 534              		.loc 1 222 12 view .LVU161
+ 535 0014 FFF7FEFF 		bl	memset
+ 536              	.LVL53:
+ 223:Cpp_Core/Src/rf_command_transaction.cpp ****     if (argsLen > MAX_ARGS_LEN) {
+ 537              		.loc 1 223 5 is_stmt 1 view .LVU162
+ 538 0018 172D     		cmp	r5, #23
+ 539 001a 7BD8     		bhi	.L37
+ 224:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 225:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 226:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 227:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t seq = nextTransactionId();
+ 540              		.loc 1 227 5 view .LVU163
+ 228:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint32_t start = HAL_GetTick();
+ 229:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint32_t packetIntervalMs =
+ 230:Cpp_Core/Src/rf_command_transaction.cpp ****             SCHEDULED_COMMAND_WINDOW_MS / SCHEDULED_COMMAND_PACKET_COUNT;
+ 231:Cpp_Core/Src/rf_command_transaction.cpp ****     bool anySent = false;
+ 541              		.loc 1 231 10 is_stmt 0 view .LVU164
+ 542 001c 0027     		movs	r7, #0
+ 227:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint32_t start = HAL_GetTick();
+ 543              		.loc 1 227 42 view .LVU165
+ 544 001e FFF7FEFF 		bl	_ZN20RFCommandTransaction17nextTransactionIdEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 17
+
+
+ 545              	.LVL54:
+ 546 0022 8146     		mov	r9, r0
+ 547              	.LVL55:
+ 228:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint32_t start = HAL_GetTick();
+ 548              		.loc 1 228 5 is_stmt 1 view .LVU166
+ 228:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint32_t start = HAL_GetTick();
+ 549              		.loc 1 228 39 is_stmt 0 view .LVU167
+ 550 0024 FFF7FEFF 		bl	HAL_GetTick
+ 551              	.LVL56:
+ 552              	.LBB56:
+ 553              	.LBB57:
+ 232:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 233:Cpp_Core/Src/rf_command_transaction.cpp ****     result.txn = seq;
+ 234:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint8_t i = 0u; i < SCHEDULED_COMMAND_PACKET_COUNT; ++i) {
+ 235:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t frame[4u + MAX_ARGS_LEN + 3u + 1u] = {0};
+ 554              		.loc 1 235 17 view .LVU168
+ 555 0028 BB46     		mov	fp, r7
+ 556 002a 00F16903 		add	r3, r0, #105
+ 557              	.LBE57:
+ 558              	.LBE56:
+ 228:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint32_t packetIntervalMs =
+ 559              		.loc 1 228 39 view .LVU169
+ 560 002e 0446     		mov	r4, r0
+ 561              	.LVL57:
+ 229:Cpp_Core/Src/rf_command_transaction.cpp ****             SCHEDULED_COMMAND_WINDOW_MS / SCHEDULED_COMMAND_PACKET_COUNT;
+ 562              		.loc 1 229 5 is_stmt 1 view .LVU170
+ 231:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 563              		.loc 1 231 5 view .LVU171
+ 233:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint8_t i = 0u; i < SCHEDULED_COMMAND_PACKET_COUNT; ++i) {
+ 564              		.loc 1 233 5 view .LVU172
+ 565 0030 00F10508 		add	r8, r0, #5
+ 233:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint8_t i = 0u; i < SCHEDULED_COMMAND_PACKET_COUNT; ++i) {
+ 566              		.loc 1 233 16 is_stmt 0 view .LVU173
+ 567 0034 86F80090 		strb	r9, [r6]
+ 234:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t frame[4u + MAX_ARGS_LEN + 3u + 1u] = {0};
+ 568              		.loc 1 234 5 is_stmt 1 view .LVU174
+ 569              	.LVL58:
+ 570              	.LBB84:
+ 234:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t frame[4u + MAX_ARGS_LEN + 3u + 1u] = {0};
+ 571              		.loc 1 234 28 discriminator 1 view .LVU175
+ 572 0038 0093     		str	r3, [sp]
+ 573              	.LVL59:
+ 574              	.L34:
+ 575              	.LBB82:
+ 576              		.loc 1 235 9 view .LVU176
+ 577              		.loc 1 235 17 is_stmt 0 view .LVU177
+ 578 003a 1F22     		movs	r2, #31
+ 579 003c 0021     		movs	r1, #0
+ 580 003e 02A8     		add	r0, sp, #8
+ 581 0040 FFF7FEFF 		bl	memset
+ 582              	.LVL60:
+ 236:Cpp_Core/Src/rf_command_transaction.cpp ****         uint16_t frameLen = 0u;
+ 583              		.loc 1 236 9 is_stmt 1 view .LVU178
+ 237:Cpp_Core/Src/rf_command_transaction.cpp ****         const uint32_t now = HAL_GetTick();
+ 584              		.loc 1 237 9 view .LVU179
+ 585              		.loc 1 237 41 is_stmt 0 view .LVU180
+ 586 0044 FFF7FEFF 		bl	HAL_GetTick
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 18
+
+
+ 587              	.LVL61:
+ 238:Cpp_Core/Src/rf_command_transaction.cpp ****         const uint16_t completeMs = remainingMs(start, now);
+ 588              		.loc 1 238 9 is_stmt 1 view .LVU181
+ 589              	.LBB58:
+ 590              	.LBI58:
+  70:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint32_t elapsed = now - start;
+ 591              		.loc 1 70 17 view .LVU182
+ 592              	.LBB59:
+  71:Cpp_Core/Src/rf_command_transaction.cpp ****     if (elapsed >= SCHEDULED_COMMAND_WINDOW_MS) {
+ 593              		.loc 1 71 5 view .LVU183
+  71:Cpp_Core/Src/rf_command_transaction.cpp ****     if (elapsed >= SCHEDULED_COMMAND_WINDOW_MS) {
+ 594              		.loc 1 71 20 is_stmt 0 view .LVU184
+ 595 0048 001B     		subs	r0, r0, r4
+ 596              	.LVL62:
+  72:Cpp_Core/Src/rf_command_transaction.cpp ****         return 0u;
+ 597              		.loc 1 72 5 is_stmt 1 view .LVU185
+ 598              	.LBE59:
+ 599              	.LBE58:
+ 600              	.LBB63:
+ 601              	.LBB64:
+  93:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[1] = cmd;
+ 602              		.loc 1 93 14 is_stmt 0 view .LVU186
+ 603 004a A523     		movs	r3, #165
+  96:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[4] = static_cast<uint8_t>(completeMs & 0xFFu);
+ 604              		.loc 1 96 14 view .LVU187
+ 605 004c 8DF80B90 		strb	r9, [sp, #11]
+ 606              	.LBE64:
+ 607              	.LBE63:
+ 608              	.LBB75:
+ 609              	.LBB60:
+  72:Cpp_Core/Src/rf_command_transaction.cpp ****         return 0u;
+ 610              		.loc 1 72 5 view .LVU188
+ 611 0050 6328     		cmp	r0, #99
+  75:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 612              		.loc 1 75 5 is_stmt 1 view .LVU189
+ 613              	.LBE60:
+ 614              	.LBE75:
+ 615              	.LBB76:
+ 616              	.LBB71:
+  98:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((argsLen != 0u) && (args != nullptr)) {
+ 617              		.loc 1 98 14 is_stmt 0 view .LVU190
+ 618 0052 8DF80DB0 		strb	fp, [sp, #13]
+  93:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[1] = cmd;
+ 619              		.loc 1 93 14 view .LVU191
+ 620 0056 8DF80830 		strb	r3, [sp, #8]
+ 621              	.LBE71:
+ 622              	.LBE76:
+ 623              	.LBB77:
+ 624              	.LBB61:
+  75:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 625              		.loc 1 75 71 view .LVU192
+ 626 005a 98BF     		it	ls
+ 627 005c C0F16400 		rsbls	r0, r0, #100
+ 628              	.LVL63:
+  75:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 629              		.loc 1 75 71 view .LVU193
+ 630              	.LBE61:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 19
+
+
+ 631              	.LBE77:
+ 632              	.LBB78:
+ 633              	.LBB72:
+  94:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[2] = payloadLen;
+ 634              		.loc 1 94 14 view .LVU194
+ 635 0060 019B     		ldr	r3, [sp, #4]
+ 636              	.LBE72:
+ 637              	.LBE78:
+ 638              	.LBB79:
+ 639              	.LBB62:
+  73:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 640              		.loc 1 73 16 view .LVU195
+ 641 0062 8CBF     		ite	hi
+ 642 0064 0020     		movhi	r0, #0
+ 643              	.LVL64:
+  75:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 644              		.loc 1 75 71 view .LVU196
+ 645 0066 80B2     		uxthls	r0, r0
+ 646              	.LVL65:
+  75:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 647              		.loc 1 75 71 view .LVU197
+ 648              	.LBE62:
+ 649              	.LBE79:
+ 239:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 240:Cpp_Core/Src/rf_command_transaction.cpp ****         if (!buildScheduledCommandFrame(cmd, seq, completeMs, args, argsLen, frame, frameLen)) {
+ 650              		.loc 1 240 9 is_stmt 1 view .LVU198
+ 651              	.LBB80:
+ 652              	.LBI63:
+  78:Cpp_Core/Src/rf_command_transaction.cpp ****                                        uint8_t seq,
+ 653              		.loc 1 78 13 view .LVU199
+ 654              	.LBB73:
+  85:Cpp_Core/Src/rf_command_transaction.cpp ****         frameLen = 0u;
+ 655              		.loc 1 85 5 view .LVU200
+  90:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + payloadLen);
+ 656              		.loc 1 90 5 view .LVU201
+  91:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 657              		.loc 1 91 5 view .LVU202
+  93:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[1] = cmd;
+ 658              		.loc 1 93 5 view .LVU203
+  94:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[2] = payloadLen;
+ 659              		.loc 1 94 5 view .LVU204
+  94:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[2] = payloadLen;
+ 660              		.loc 1 94 14 is_stmt 0 view .LVU205
+ 661 0068 8DF80930 		strb	r3, [sp, #9]
+  95:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[3] = seq;
+ 662              		.loc 1 95 5 is_stmt 1 view .LVU206
+  90:Cpp_Core/Src/rf_command_transaction.cpp ****     const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + payloadLen);
+ 663              		.loc 1 90 19 is_stmt 0 view .LVU207
+ 664 006c EB1C     		adds	r3, r5, #3
+  97:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[5] = static_cast<uint8_t>((completeMs >> 8) & 0xFFu);
+ 665              		.loc 1 97 14 view .LVU208
+ 666 006e 8DF80C00 		strb	r0, [sp, #12]
+  95:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[3] = seq;
+ 667              		.loc 1 95 14 view .LVU209
+ 668 0072 8DF80A30 		strb	r3, [sp, #10]
+  96:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[4] = static_cast<uint8_t>(completeMs & 0xFFu);
+ 669              		.loc 1 96 5 is_stmt 1 view .LVU210
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 20
+
+
+  97:Cpp_Core/Src/rf_command_transaction.cpp ****     frame[5] = static_cast<uint8_t>((completeMs >> 8) & 0xFFu);
+ 670              		.loc 1 97 5 view .LVU211
+  98:Cpp_Core/Src/rf_command_transaction.cpp ****     if ((argsLen != 0u) && (args != nullptr)) {
+ 671              		.loc 1 98 5 view .LVU212
+  99:Cpp_Core/Src/rf_command_transaction.cpp ****         memcpy(&frame[6], args, argsLen);
+ 672              		.loc 1 99 5 view .LVU213
+ 673 0076 002D     		cmp	r5, #0
+ 674 0078 3FD0     		beq	.L39
+ 675              	.LVL66:
+  99:Cpp_Core/Src/rf_command_transaction.cpp ****         memcpy(&frame[6], args, argsLen);
+ 676              		.loc 1 99 25 is_stmt 0 discriminator 1 view .LVU214
+ 677 007a BAF1000F 		cmp	r10, #0
+ 678 007e 35D1     		bne	.L28
+ 679              	.LVL67:
+ 680              	.L29:
+  91:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 681              		.loc 1 91 19 view .LVU215
+ 682 0080 AB1D     		adds	r3, r5, #6
+ 102:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 683              		.loc 1 102 26 view .LVU216
+ 684 0082 02AA     		add	r2, sp, #8
+ 685              	.LVL68:
+  91:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 686              		.loc 1 91 19 view .LVU217
+ 687 0084 5FFA83FC 		uxtb	ip, r3
+ 102:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 688              		.loc 1 102 26 view .LVU218
+ 689 0088 52FA83F3 		uxtab	r3, r2, r3
+ 690              	.LVL69:
+ 691              	.L27:
+ 692              	.LBB65:
+ 693              	.LBB66:
+  37:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 694              		.loc 1 37 13 view .LVU219
+ 695 008c 0020     		movs	r0, #0
+ 696 008e 0DF1080E 		add	lr, sp, #8
+ 697              	.LVL70:
+ 698              	.LBB67:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 699              		.loc 1 38 19 view .LVU220
+ 700 0092 0246     		mov	r2, r0
+ 701              	.LVL71:
+ 702              	.L30:
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 703              		.loc 1 39 9 is_stmt 1 view .LVU221
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 704              		.loc 1 39 48 is_stmt 0 view .LVU222
+ 705 0094 1EF8011B 		ldrb	r1, [lr], #1	@ zero_extendqisi2
+  39:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 706              		.loc 1 39 13 view .LVU223
+ 707 0098 0144     		add	r1, r1, r0
+ 708 009a C8B2     		uxtb	r0, r1
+ 709              	.LVL72:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 710              		.loc 1 38 5 is_stmt 1 discriminator 3 view .LVU224
+ 711 009c 1146     		mov	r1, r2
+ 712 009e 0132     		adds	r2, r2, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 21
+
+
+ 713              	.LVL73:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 714              		.loc 1 38 5 is_stmt 0 discriminator 3 view .LVU225
+ 715 00a0 92B2     		uxth	r2, r2
+ 716              	.LVL74:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 717              		.loc 1 38 29 is_stmt 1 discriminator 1 view .LVU226
+ 718 00a2 9445     		cmp	ip, r2
+ 719 00a4 F6D1     		bne	.L30
+ 720              	.LBE67:
+  41:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 721              		.loc 1 41 5 view .LVU227
+ 722              	.LVL75:
+  41:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 723              		.loc 1 41 5 is_stmt 0 view .LVU228
+ 724              	.LBE66:
+ 725              	.LBE65:
+ 103:Cpp_Core/Src/rf_command_transaction.cpp ****     return true;
+ 726              		.loc 1 103 54 view .LVU229
+ 727 00a6 0231     		adds	r1, r1, #2
+ 102:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 728              		.loc 1 102 28 discriminator 1 view .LVU230
+ 729 00a8 1870     		strb	r0, [r3]
+ 103:Cpp_Core/Src/rf_command_transaction.cpp ****     return true;
+ 730              		.loc 1 103 5 is_stmt 1 view .LVU231
+ 731              	.LVL76:
+ 104:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 732              		.loc 1 104 5 view .LVU232
+ 104:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 733              		.loc 1 104 5 is_stmt 0 view .LVU233
+ 734              	.LBE73:
+ 735              	.LBE80:
+ 241:Cpp_Core/Src/rf_command_transaction.cpp ****             return false;
+ 242:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 243:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 244:Cpp_Core/Src/rf_command_transaction.cpp ****         RF_CMD_TXN_LOG("SEND_SCHED cmd=0x%02X seq=%u pkt=%u complete_ms=%u",
+ 736              		.loc 1 244 9 is_stmt 1 view .LVU234
+ 245:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)cmd,
+ 246:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)seq,
+ 247:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)(i + 1u),
+ 248:Cpp_Core/Src/rf_command_transaction.cpp ****                        (unsigned int)completeMs);
+ 249:Cpp_Core/Src/rf_command_transaction.cpp ****         if (RFBridgePort_SendNoResponse(frame, frameLen)) {
+ 737              		.loc 1 249 9 view .LVU235
+ 738              		.loc 1 249 40 is_stmt 0 view .LVU236
+ 739 00aa 02A8     		add	r0, sp, #8
+ 740 00ac 89B2     		uxth	r1, r1
+ 741 00ae FFF7FEFF 		bl	_Z27RFBridgePort_SendNoResponsePKht
+ 742              	.LVL77:
+ 743              		.loc 1 249 9 discriminator 1 view .LVU237
+ 744 00b2 18B1     		cbz	r0, .L32
+ 250:Cpp_Core/Src/rf_command_transaction.cpp ****             anySent = true;
+ 745              		.loc 1 250 13 is_stmt 1 view .LVU238
+ 746              	.LVL78:
+ 251:Cpp_Core/Src/rf_command_transaction.cpp ****             result.attempts++;
+ 747              		.loc 1 251 13 view .LVU239
+ 748              		.loc 1 251 28 is_stmt 0 view .LVU240
+ 749 00b4 7378     		ldrb	r3, [r6, #1]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 22
+
+
+ 250:Cpp_Core/Src/rf_command_transaction.cpp ****             anySent = true;
+ 750              		.loc 1 250 21 view .LVU241
+ 751 00b6 0746     		mov	r7, r0
+ 752              	.LVL79:
+ 252:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 253:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 254:Cpp_Core/Src/rf_command_transaction.cpp ****         const uint32_t nextDue = start + (packetIntervalMs * static_cast<uint32_t>(i + 1u));
+ 753              		.loc 1 254 9 is_stmt 1 view .LVU242
+ 255:Cpp_Core/Src/rf_command_transaction.cpp ****         while (static_cast<int32_t>(HAL_GetTick() - nextDue) < 0) {
+ 754              		.loc 1 255 9 view .LVU243
+ 251:Cpp_Core/Src/rf_command_transaction.cpp ****             result.attempts++;
+ 755              		.loc 1 251 28 is_stmt 0 view .LVU244
+ 756 00b8 0133     		adds	r3, r3, #1
+ 757 00ba 7370     		strb	r3, [r6, #1]
+ 758              	.LVL80:
+ 759              	.L32:
+ 760              		.loc 1 255 62 is_stmt 1 view .LVU245
+ 761              		.loc 1 255 48 is_stmt 0 view .LVU246
+ 762 00bc FFF7FEFF 		bl	HAL_GetTick
+ 763              	.LVL81:
+ 764              		.loc 1 255 51 discriminator 1 view .LVU247
+ 765 00c0 A0EB0800 		sub	r0, r0, r8
+ 766              		.loc 1 255 62 discriminator 1 view .LVU248
+ 767 00c4 0028     		cmp	r0, #0
+ 768 00c6 1DDB     		blt	.L33
+ 769              	.LBE82:
+ 234:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t frame[4u + MAX_ARGS_LEN + 3u + 1u] = {0};
+ 770              		.loc 1 234 5 is_stmt 1 discriminator 2 view .LVU249
+ 771              	.LVL82:
+ 234:Cpp_Core/Src/rf_command_transaction.cpp ****         uint8_t frame[4u + MAX_ARGS_LEN + 3u + 1u] = {0};
+ 772              		.loc 1 234 28 discriminator 1 view .LVU250
+ 773 00c8 08F10508 		add	r8, r8, #5
+ 774 00cc 009B     		ldr	r3, [sp]
+ 775 00ce 9845     		cmp	r8, r3
+ 776 00d0 B3D1     		bne	.L34
+ 777              	.LBE84:
+ 256:Cpp_Core/Src/rf_command_transaction.cpp ****             HAL_Delay(1u);
+ 257:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 258:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 259:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 260:Cpp_Core/Src/rf_command_transaction.cpp ****     while (static_cast<int32_t>(HAL_GetTick() - (start + SCHEDULED_COMMAND_WINDOW_MS)) < 0) {
+ 778              		.loc 1 260 47 is_stmt 0 discriminator 1 view .LVU251
+ 779 00d2 C4F1FF24 		rsb	r4, r4, #-16711936
+ 780              	.LVL83:
+ 781              		.loc 1 260 47 discriminator 1 view .LVU252
+ 782 00d6 04F57F04 		add	r4, r4, #16711680
+ 783 00da 9C34     		adds	r4, r4, #156
+ 784              	.L35:
+ 785              		.loc 1 260 88 is_stmt 1 view .LVU253
+ 786              		.loc 1 260 44 is_stmt 0 view .LVU254
+ 787 00dc FFF7FEFF 		bl	HAL_GetTick
+ 788              	.LVL84:
+ 789              		.loc 1 260 88 discriminator 1 view .LVU255
+ 790 00e0 C442     		cmn	r4, r0
+ 791 00e2 13D4     		bmi	.L36
+ 792              	.LVL85:
+ 793              	.L25:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 23
+
+
+ 261:Cpp_Core/Src/rf_command_transaction.cpp ****         HAL_Delay(1u);
+ 262:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 263:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 264:Cpp_Core/Src/rf_command_transaction.cpp ****     if (!anySent) {
+ 265:Cpp_Core/Src/rf_command_transaction.cpp ****         RF_CMD_TXN_LOG("SCHED_FAILED cmd=0x%02X seq=%u", (unsigned int)cmd, (unsigned int)seq);
+ 266:Cpp_Core/Src/rf_command_transaction.cpp ****         return false;
+ 267:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 268:Cpp_Core/Src/rf_command_transaction.cpp **** 
+ 269:Cpp_Core/Src/rf_command_transaction.cpp ****     RF_CMD_TXN_LOG("SCHED_COMPLETE cmd=0x%02X seq=%u sent=%u",
+ 270:Cpp_Core/Src/rf_command_transaction.cpp ****                    (unsigned int)cmd,
+ 271:Cpp_Core/Src/rf_command_transaction.cpp ****                    (unsigned int)seq,
+ 272:Cpp_Core/Src/rf_command_transaction.cpp ****                    (unsigned int)result.attempts);
+ 273:Cpp_Core/Src/rf_command_transaction.cpp ****     return true;
+ 274:Cpp_Core/Src/rf_command_transaction.cpp **** }
+ 794              		.loc 1 274 1 view .LVU256
+ 795 00e4 3846     		mov	r0, r7
+ 796 00e6 0BB0     		add	sp, sp, #44
+ 797              	.LCFI6:
+ 798              		.cfi_remember_state
+ 799              		.cfi_def_cfa_offset 36
+ 800              		@ sp needed
+ 801 00e8 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 802              	.LVL86:
+ 803              	.L28:
+ 804              	.LCFI7:
+ 805              		.cfi_restore_state
+ 806              	.LBB85:
+ 807              	.LBB83:
+ 808              	.LBB81:
+ 809              	.LBB74:
+ 100:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 810              		.loc 1 100 9 is_stmt 1 view .LVU257
+ 100:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 811              		.loc 1 100 15 is_stmt 0 view .LVU258
+ 812 00ec 2A46     		mov	r2, r5
+ 813 00ee 5146     		mov	r1, r10
+ 814 00f0 0DF10E00 		add	r0, sp, #14
+ 815              	.LVL87:
+ 100:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 816              		.loc 1 100 15 view .LVU259
+ 817 00f4 FFF7FEFF 		bl	memcpy
+ 818              	.LVL88:
+ 102:Cpp_Core/Src/rf_command_transaction.cpp ****     frameLen = static_cast<uint16_t>(totalNoChecksum + 1u);
+ 819              		.loc 1 102 5 is_stmt 1 view .LVU260
+ 820              	.LBB70:
+ 821              	.LBI65:
+  36:Cpp_Core/Src/rf_command_transaction.cpp ****     uint8_t sum = 0u;
+ 822              		.loc 1 36 16 view .LVU261
+ 823              	.LBB69:
+  37:Cpp_Core/Src/rf_command_transaction.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 824              		.loc 1 37 5 view .LVU262
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 825              		.loc 1 38 5 view .LVU263
+ 826              	.LBB68:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 827              		.loc 1 38 29 discriminator 1 view .LVU264
+ 828 00f8 C2E7     		b	.L29
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 24
+
+
+ 829              	.LVL89:
+ 830              	.L39:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 831              		.loc 1 38 29 is_stmt 0 discriminator 1 view .LVU265
+ 832              	.LBE68:
+ 833              	.LBE69:
+ 834              	.LBE70:
+ 835 00fa 0DF10E03 		add	r3, sp, #14
+ 836 00fe 4FF0060C 		mov	ip, #6
+ 837 0102 C3E7     		b	.L27
+ 838              	.LVL90:
+ 839              	.L33:
+  38:Cpp_Core/Src/rf_command_transaction.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 840              		.loc 1 38 29 discriminator 1 view .LVU266
+ 841              	.LBE74:
+ 842              	.LBE81:
+ 256:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 843              		.loc 1 256 13 is_stmt 1 view .LVU267
+ 256:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 844              		.loc 1 256 22 is_stmt 0 view .LVU268
+ 845 0104 0120     		movs	r0, #1
+ 846 0106 FFF7FEFF 		bl	HAL_Delay
+ 847              	.LVL91:
+ 848 010a D7E7     		b	.L32
+ 849              	.LVL92:
+ 850              	.L36:
+ 256:Cpp_Core/Src/rf_command_transaction.cpp ****         }
+ 851              		.loc 1 256 22 view .LVU269
+ 852              	.LBE83:
+ 853              	.LBE85:
+ 261:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 854              		.loc 1 261 9 is_stmt 1 view .LVU270
+ 261:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 855              		.loc 1 261 18 is_stmt 0 view .LVU271
+ 856 010c 0120     		movs	r0, #1
+ 857 010e FFF7FEFF 		bl	HAL_Delay
+ 858              	.LVL93:
+ 859 0112 E3E7     		b	.L35
+ 860              	.LVL94:
+ 861              	.L37:
+ 224:Cpp_Core/Src/rf_command_transaction.cpp ****     }
+ 862              		.loc 1 224 16 view .LVU272
+ 863 0114 0027     		movs	r7, #0
+ 864 0116 E5E7     		b	.L25
+ 865              		.cfi_endproc
+ 866              	.LFE1277:
+ 868              		.section	.bss._ZZN20RFCommandTransaction17nextTransactionIdEvE9s_nextTxn,"aw",%nobits
+ 871              	_ZZN20RFCommandTransaction17nextTransactionIdEvE9s_nextTxn:
+ 872 0000 00       		.space	1
+ 873              		.text
+ 874              	.Letext0:
+ 875              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 876              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 877              		.file 4 "Cpp_Core/Inc/rf_command_transaction.hpp"
+ 878              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 879              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 880              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 25
+
+
+ 881              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 882              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 883              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 884              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 885              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 886              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 887              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 888              		.file 15 "Core/Inc/board_cfg.h"
+ 889              		.file 16 "Cpp_Core/Inc/rf_bridge_port.hpp"
+ 890              		.file 17 "Cpp_Core/Inc/rf_reliable_event.hpp"
+ 891              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 892              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 893              		.file 20 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s 			page 26
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 rf_command_transaction.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:20     .text._ZN20RFCommandTransaction17nextTransactionIdEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:26     .text._ZN20RFCommandTransaction17nextTransactionIdEv:00000000 _ZN20RFCommandTransaction17nextTransactionIdEv
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:51     .text._ZN20RFCommandTransaction17nextTransactionIdEv:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:871    .bss._ZZN20RFCommandTransaction17nextTransactionIdEvE9s_nextTxn:00000000 _ZZN20RFCommandTransaction17nextTransactionIdEvE9s_nextTxn
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:56     .text._ZN20RFCommandTransaction4sendEhPKhhR26RFCommandTransactionResult:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:62     .text._ZN20RFCommandTransaction4sendEhPKhhR26RFCommandTransactionResult:00000000 _ZN20RFCommandTransaction4sendEhPKhhR26RFCommandTransactionResult
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:488    .text._ZN20RFCommandTransaction13sendScheduledEhPKhhR26RFCommandTransactionResult:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:494    .text._ZN20RFCommandTransaction13sendScheduledEhPKhhR26RFCommandTransactionResult:00000000 _ZN20RFCommandTransaction13sendScheduledEhPKhhR26RFCommandTransactionResult
+C:\Users\nicx5\AppData\Local\Temp\ccPcxS7F.s:872    .bss._ZZN20RFCommandTransaction17nextTransactionIdEvE9s_nextTxn:00000000 $d
+
+UNDEFINED SYMBOLS
+memset
+_Z39RFBridgePort_ControlTransferWithTimeoutPKhtPhPtm
+_ZN15RFReliableEvent21completeFrameIfNeededEPKht
+_ZN15RFReliableEvent4pollEv
+memcpy
+HAL_GetTick
+_Z27RFBridgePort_SendNoResponsePKht
+HAL_Delay

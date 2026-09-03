@@ -19,8 +19,8 @@ public:
     const InputMode getInputMode(){ return inputMode; }
 private:
     DriverManager() {}
-    GPDriver * driver;
-    InputMode inputMode;
+    GPDriver * driver = nullptr;
+    InputMode inputMode = INPUT_MODE_XINPUT;
 };
 
 #define DRIVER_MANAGER DriverManager::getInstance()

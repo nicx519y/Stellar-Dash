@@ -56,7 +56,7 @@ import {
 export function LEDsSettingContent() {
     const { t } = useLanguage();
 
-    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, wsConnected, dataIsReady, sendPendingCommandImmediately } = useGamepadConfig();
+    const { defaultProfile, stageDeferredProfileDetails, pushLedsConfig, clearLedsPreview, deviceConnected, dataIsReady } = useGamepadConfig();
     const { colorMode } = useColorMode();
     const defaultFrontColor = useMemo(() => {
         if (colorMode === "dark") {
@@ -67,11 +67,27 @@ export function LEDsSettingContent() {
     }, [colorMode]);
 
     const [isInit, setIsInit] = useState<boolean>(false); // 是否初始化
-    const [needPreview, setNeedPreview] = useState<boolean>(false); // 是否需要预览
+    // Monotonic revisions preserve every logical action across React batching.
+    // Preview-only initialization stays separate from user commits, which send
+    // one shared snapshot to both preview and durable persistence.
+    const [previewRevision, setPreviewRevision] = useState<number>(0);
+    const [commitRevision, setCommitRevision] = useState<number>(0);
+    const latestPreviewRevision = useRef<number>(0);
+    const latestCommitRevision = useRef<number>(0);
+    latestPreviewRevision.current = previewRevision;
+    latestCommitRevision.current = commitRevision;
     const isPreviewing = useRef<boolean>(false);
-    const [needUpdate, setNeedUpdate] = useState<boolean>(false); // 是否需要更新
+    const lifecycleActionsRef = useRef({
+        deviceConnected,
+        clearLedsPreview,
+    });
+    lifecycleActionsRef.current = {
+        deviceConnected,
+        clearLedsPreview,
+    };
 
     const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
+    const ledsWriteReady = deviceConnected && dataIsReady && isInit && defaultProfile.id.length > 0;
     const [ledsEffectStyle, setLedsEffectStyle] = useState<LedsEffectStyle>(defaultProfile.ledsConfigs?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
     const [color1, setColor1] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[0] ?? defaultFrontColor.toString('css')));
     const [color2, setColor2] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[1] ?? defaultFrontColor.toString('css')));
@@ -91,15 +107,30 @@ export function LEDsSettingContent() {
     const [aroundLedBrightness, setAroundLedBrightness] = useState<number>(defaultProfile.ledsConfigs?.aroundLedBrightness ?? 100);
     const [aroundLedAnimationSpeed, setAroundLedAnimationSpeed] = useState<number>(defaultProfile.ledsConfigs?.aroundLedAnimationSpeed ?? 1);
 
+    const requestLedsPreview = () => {
+        setPreviewRevision((revision) => revision + 1);
+    };
 
-    const hasAroundLed = useMemo<boolean>(() => {
-        return defaultProfile.ledsConfigs?.hasAroundLed ?? false;
-    }, [defaultProfile.ledsConfigs?.hasAroundLed]);
+    const requestLedsCommit = () => {
+        if (!ledsWriteReady) {
+            return;
+        }
+        setCommitRevision((revision) => revision + 1);
+    };
+
+
+    const buttonAndAmbientLedEnabled = useMemo<boolean>(() => {
+        return ledEnabled && aroundLedEnabled;
+    }, [ledEnabled, aroundLedEnabled]);
+
+    const aroundLedSyncIsActive = useMemo<boolean>(() => {
+        return buttonAndAmbientLedEnabled && aroundLedSyncToMainLed;
+    }, [buttonAndAmbientLedEnabled, aroundLedSyncToMainLed]);
 
     const aroundLedConfigIsEnabled = useMemo<boolean>(() => {
-        // 如果同步主灯，则氛围灯配置无效
-        return hasAroundLed && aroundLedEnabled && ledEnabled && !aroundLedSyncToMainLed;
-    }, [hasAroundLed, aroundLedEnabled, ledEnabled, aroundLedSyncToMainLed]);
+        // 如果氛围灯正在同步按键灯，则独立配置无效
+        return aroundLedEnabled && !aroundLedSyncIsActive;
+    }, [aroundLedEnabled, aroundLedSyncIsActive]);
 
     const disabledKeys = useMemo<number[]>(() => {
         return defaultProfile.keysConfig?.keysEnableTag?.map((_, index) => index).filter((_, index) => !defaultProfile.keysConfig?.keysEnableTag?.[index]) ?? [];
@@ -159,20 +190,14 @@ export function LEDsSettingContent() {
         }
     };
 
-    // 清除灯光预览数据
+    // Restore the preview only after a fully initialized reconnect. Clearing is
+    // owned by the actual component-unmount effect below; a connection-state
+    // transition must not enqueue a clear after the transport is already gone.
     useEffect(() => {
-        // 如果webcosket 断开重连，并且之前在灯光预览模式，则重新开启预览
-        if(wsConnected && isPreviewing.current) {
-            previewLedsEffectHandler();
+        if(ledsWriteReady && isPreviewing.current) {
+            void previewLedsEffectHandler();
         }
-
-        return () => {
-            if(wsConnected && isPreviewing.current) {
-                console.log('leds setting content unmount, clear leds preview');
-                clearLedsPreviewHandler();
-            }
-        }
-    }, [wsConnected]);
+    }, [ledsWriteReady]);
 
     const colorPickerDisabled = (index: number) => {
         return (index == 2 && !(effectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;
@@ -260,61 +285,56 @@ export function LEDsSettingContent() {
         t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2
     ];
 
-    const previewLedsEffectHandler = async() => {
-        const config = {
-            ledEnabled: ledEnabled,
-            ledsEffectStyle: ledsEffectStyle,
-            ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
-            ledBrightness: ledBrightness,
-            ledAnimationSpeed: ledAnimationSpeed,
+    const currentLedsConfig = () => ({
+        ledEnabled: ledEnabled,
+        ledsEffectStyle: ledsEffectStyle,
+        ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
+        ledBrightness: ledBrightness,
+        ledAnimationSpeed: ledAnimationSpeed,
 
-            aroundLedEnabled: aroundLedEnabled,
-            aroundLedSyncToMainLed: aroundLedSyncToMainLed,
-            aroundLedTriggerByButton: aroundLedTriggerByButton,
-            aroundLedEffectStyle: aroundLedEffectStyle,
-            aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
-            aroundLedBrightness: aroundLedBrightness,
-            aroundLedAnimationSpeed: aroundLedAnimationSpeed,
+        aroundLedEnabled: aroundLedEnabled,
+        aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+        aroundLedTriggerByButton: aroundLedTriggerByButton,
+        aroundLedEffectStyle: aroundLedEffectStyle,
+        aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
+        aroundLedBrightness: aroundLedBrightness,
+        aroundLedAnimationSpeed: aroundLedAnimationSpeed,
+    });
+
+    const previewLedsEffectHandler = async(revision = previewRevision) => {
+        if (!ledsWriteReady) {
+            return;
         }
+        const config = currentLedsConfig();
         try {
             isPreviewing.current = true;
             await pushLedsConfig(config);
         } catch (error) {
-            console.error('预览灯光配置失败:', error);
+            if (latestPreviewRevision.current === revision) {
+                console.error('预览灯光配置失败:', error);
+            }
         }
     }
 
-    const clearLedsPreviewHandler = async() => {
-        try {
-            isPreviewing.current = false;
-            await clearLedsPreview();
-        } catch (error) {
-            console.error('清除灯光预览失败:', error);
+    const commitLedsConfigHandler = (revision: number) => {
+        if (!ledsWriteReady) {
+            return;
         }
-    }
-
-    const updateLedsConfigHandler = () => {
-        const newConfig = Object.assign({
-            ledEnabled: ledEnabled,
-            ledsEffectStyle: ledsEffectStyle,
-            ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
-            ledBrightness: ledBrightness,
-            ledAnimationSpeed: ledAnimationSpeed,
-
-            aroundLedEnabled: aroundLedEnabled,
-            aroundLedSyncToMainLed: aroundLedSyncToMainLed,
-            aroundLedTriggerByButton: aroundLedTriggerByButton,
-            aroundLedEffectStyle: aroundLedEffectStyle,
-            aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
-            aroundLedBrightness: aroundLedBrightness,
-            aroundLedAnimationSpeed: aroundLedAnimationSpeed,
-        });
-
+        // Generate one immutable snapshot for both the ephemeral preview and
+        // durable profile write. Both commands enter the same serial queue;
+        // later commits replace their matching pending snapshots at the tail.
+        const newConfig = currentLedsConfig();
         const newProfileDetails: GameProfile = {
             id: defaultProfile.id,
             ledsConfigs: newConfig,
         }
-        updateProfileDetails(defaultProfile.id, newProfileDetails);
+        isPreviewing.current = true;
+        void pushLedsConfig(newConfig).catch((error) => {
+            if (latestCommitRevision.current === revision) {
+                console.error('预览灯光配置失败:', error);
+            }
+        });
+        stageDeferredProfileDetails(defaultProfile.id, newProfileDetails);
     }
 
     // Initialize the state with the default profile details
@@ -347,35 +367,35 @@ export function LEDsSettingContent() {
 
             setIsInit(true);
             setDefaultProfileId(defaultProfile.id);
-            setNeedPreview(true);
+            requestLedsPreview();
         }
 
     }, [dataIsReady, defaultProfile]);
     
     useEffect(() => {
-        if(needPreview) {
-            previewLedsEffectHandler();
-            setNeedPreview(false);
+        if(previewRevision > 0) {
+            previewLedsEffectHandler(previewRevision);
         }
-    }, [needPreview]);
+    }, [previewRevision]);
 
     useEffect(() => {
-        if(needUpdate) {
-            updateLedsConfigHandler();
-            setNeedUpdate(false);
+        if(commitRevision > 0) {
+            commitLedsConfigHandler(commitRevision);
         }
-    }, [needUpdate]);
+    }, [commitRevision]);
 
     useEffect(() => {
         return () => {
-            try {
-                console.log("LedSetting unmount");
-                sendPendingCommandImmediately('update_profile');
-            } catch (error) {
-                console.warn('页面关闭前发送 update_keys_config 命令失败:', error);
+            const lifecycle = lifecycleActionsRef.current;
+            console.log("LedSetting unmount");
+            if (lifecycle.deviceConnected && isPreviewing.current) {
+                isPreviewing.current = false;
+                void lifecycle.clearLedsPreview().catch((error) => {
+                    console.warn('页面关闭前清除灯光预览失败:', error);
+                });
             }
         }
-    }, [sendPendingCommandImmediately]);
+    }, []);
 
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {
@@ -393,7 +413,6 @@ export function LEDsSettingContent() {
                     brightness: ledBrightness,
                     animationSpeed: ledAnimationSpeed,
 
-                    hasAroundLed: hasAroundLed,
                     aroundLedEnabled: aroundLedEnabled,
                     aroundLedSyncToMainLed: aroundLedSyncToMainLed,
                     aroundLedTriggerByButton: aroundLedTriggerByButton,
@@ -430,17 +449,16 @@ export function LEDsSettingContent() {
                         description={t.SETTINGS_LEDS_HELPER_TEXT}
                     />
                     <MainContentBody>
-                        <Fieldset.Root>
+                        <Fieldset.Root disabled={!ledsWriteReady}>
                             <Stack direction={"column"}>
                                 <Fieldset.Content>
                                     <VStack gap={8} alignItems={"flex-start"}>
                                         {/* LED Effect Style */}
 
                                         <Switch.Root colorPalette={"green"} checked={ledEnabled}
-                                            onCheckedChange={() => {
-                                                setLedEnabled(!ledEnabled);
-                                                setNeedUpdate(true);
-                                                setNeedPreview(true);
+                                            onCheckedChange={(details) => {
+                                                setLedEnabled(details.checked);
+                                                requestLedsCommit();
                                             }}
 
                                         >
@@ -461,8 +479,7 @@ export function LEDsSettingContent() {
                                             onValueChange={(detail) => {
                                                 const newEffectStyle = parseInt(detail.value ?? "0") as LedsEffectStyle;
                                                 setLedsEffectStyle(newEffectStyle);
-                                                setNeedUpdate(true);
-                                                setNeedPreview(true);
+                                                requestLedsCommit();
                                             }}
                                             disabled={!ledEnabled}
                                         >
@@ -504,8 +521,7 @@ export function LEDsSettingContent() {
                                                     }}
 
                                                     onValueChangeEnd={() => {
-                                                        setNeedUpdate(true);
-                                                        setNeedPreview(true);
+                                                        requestLedsCommit();
                                                     }}
 
                                                     onOpenChange={(details) => {
@@ -564,8 +580,7 @@ export function LEDsSettingContent() {
                                                 }}
 
                                                 onValueChangeEnd={() => {
-                                                    setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsCommit();
                                                 }}
                                             >
                                                 <HStack justifyContent={"space-between"}>
@@ -610,8 +625,7 @@ export function LEDsSettingContent() {
                                                 }}
 
                                                 onValueChangeEnd={() => {
-                                                    setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsCommit();
                                                 }}
 
                                             >
@@ -644,21 +658,19 @@ export function LEDsSettingContent() {
                                             </Slider.Root>
                                         </Grid>
                                     </VStack>
-                                    <HStack display={hasAroundLed ? "flex" : "none"}>
+                                    <HStack>
                                         <Text flexShrink="0" fontSize={"sm"} fontWeight={"bold"}>{t.SETTINGS_LEDS_AMBIENT_LIGHT_TITLE}</Text>
                                         <Separator my={8} flex="1" />
                                     </HStack>
-                                    <VStack gap={8} alignItems={"flex-start"} display={hasAroundLed ? "flex" : "none"}>
+                                    <VStack gap={8} alignItems={"flex-start"}>
                                         {/* Ambient Light */}
                                         <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%">
                                             {/* 是否开启氛围灯 */}
                                             <Switch.Root colorPalette={"green"}
-                                                disabled={!ledEnabled}
                                                 checked={aroundLedEnabled}
-                                                onCheckedChange={() => {
-                                                    setAroundLedEnabled(!aroundLedEnabled);
-                                                    setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                onCheckedChange={(details) => {
+                                                    setAroundLedEnabled(details.checked);
+                                                    requestLedsCommit();
                                                 }}
                                             >
                                                 <Switch.HiddenInput />
@@ -669,12 +681,11 @@ export function LEDsSettingContent() {
                                             </Switch.Root>
                                             {/* 氛围灯是否同步主灯 */}
                                             <Switch.Root colorPalette={"green"}
-                                                disabled={!ledEnabled || !aroundLedEnabled}
+                                                disabled={!buttonAndAmbientLedEnabled}
                                                 checked={aroundLedSyncToMainLed}
-                                                onCheckedChange={() => {
-                                                    setAroundLedSyncToMainLed(!aroundLedSyncToMainLed);
-                                                    setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                onCheckedChange={(details) => {
+                                                    setAroundLedSyncToMainLed(details.checked);
+                                                    requestLedsCommit();
                                                 }}
                                             >
                                                 <Switch.HiddenInput />
@@ -685,12 +696,11 @@ export function LEDsSettingContent() {
                                             </Switch.Root>
                                             {/* 氛围灯是否触发按钮 */}
                                             <Switch.Root colorPalette={"green"}
-                                                disabled={!aroundLedConfigIsEnabled}
+                                                disabled={!buttonAndAmbientLedEnabled}
                                                 checked={aroundLedTriggerByButton}
-                                                onCheckedChange={() => {
-                                                    setAroundLedTriggerByButton(!aroundLedTriggerByButton);
-                                                    setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                onCheckedChange={(details) => {
+                                                    setAroundLedTriggerByButton(details.checked);
+                                                    requestLedsCommit();
                                                 }}
                                             >
                                                 <Switch.HiddenInput />
@@ -712,8 +722,7 @@ export function LEDsSettingContent() {
                                                 onValueChange={(detail) => {
                                                     const newAroundLedEffectStyle = parseInt(detail.value ?? "0") as AroundLedsEffectStyle;
                                                     setAroundLedEffectStyle(newAroundLedEffectStyle);
-                                                    setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsCommit();
                                                 }}
                                                 disabled={!aroundLedConfigIsEnabled}
                                             >
@@ -748,8 +757,7 @@ export function LEDsSettingContent() {
                                                     }}
 
                                                     onValueChangeEnd={() => {
-                                                        setNeedUpdate(true);
-                                                        setNeedPreview(true);
+                                                        requestLedsCommit();
                                                     }}
 
                                                     onOpenChange={(details) => {
@@ -808,8 +816,7 @@ export function LEDsSettingContent() {
                                                 }}
 
                                                 onValueChangeEnd={() => {
-                                                    setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsCommit();
                                                 }}
                                             >
                                                 <HStack justifyContent={"space-between"}>
@@ -854,8 +861,7 @@ export function LEDsSettingContent() {
                                                 }}
 
                                                 onValueChangeEnd={() => {
-                                                    setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsCommit();
                                                 }}
 
                                             >

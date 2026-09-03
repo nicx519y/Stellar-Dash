@@ -1,11 +1,14 @@
 #include "configs/common_command_handler.hpp"
 #include "board_cfg.h"
 #include "system_logger.h"
+#include "adc_btns/adc_calibration.hpp"
 #include "configs/webconfig_btns_manager.hpp"
-#include "configs/websocket_server.hpp"
+#include "config_transport_sink.hpp"
 
 // 获取按键管理器实例  
 #define WEBCONFIG_BTNS_MANAGER WebConfigBtnsManager::getInstance()
+// 获取校准管理器实例
+#define ADC_CALIBRATION_MANAGER ADCCalibrationManager::getInstance()
 
 // ============================================================================
 // CommonCommandHandler 单例实现
@@ -13,18 +16,13 @@
 
 CommonCommandHandler& CommonCommandHandler::getInstance() {
     static CommonCommandHandler instance;
-    
+
     // 设置按键状态变更回调，当状态变化时自动推送通知
     static bool callbackSet = false;
     if (!callbackSet) {
         WEBCONFIG_BTNS_MANAGER.setButtonStateChangedCallback([]() {
             // 按键状态发生变化，发送推送通知
             CommonCommandHandler::getInstance().sendButtonStateNotification();
-        });
-        
-        WEBCONFIG_BTNS_MANAGER.setButtonPerformanceMonitoringCallback([]() {
-            // 按键性能监控发生变化，发送推送通知
-            CommonCommandHandler::getInstance().sendButtonPerformanceMonitoringNotification();
         });
         
         callbackSet = true;
@@ -41,49 +39,16 @@ CommonCommandHandler& CommonCommandHandler::getInstance() {
  * @brief 推送按键状态变化通知（二进制格式）
  */
 void CommonCommandHandler::sendButtonStateNotification() {
-    // 获取WebSocket服务器实例
-    WebSocketServer& server = WebSocketServer::getInstance();
-    
     // 构建二进制按键状态数据
     ButtonStateBinaryData binaryData = buildButtonStateBinaryData();
     
-    // 发送二进制数据到所有连接的客户端
-    server.broadcast_binary(reinterpret_cast<const uint8_t*>(&binaryData), sizeof(ButtonStateBinaryData));
+    ConfigTransport_PublishBinary(
+        reinterpret_cast<const uint8_t*>(&binaryData),
+        sizeof(ButtonStateBinaryData));
     
     APP_DBG("Button state binary notification sent to all clients (cmd=%d, active=%d, mask=0x%08X, total=%d)", 
             binaryData.command, binaryData.isActive, binaryData.triggerMask, binaryData.totalButtons);
 }
-
-/**
- * @brief 推送按键性能监控通知（二进制格式）
- */
-void CommonCommandHandler::sendButtonPerformanceMonitoringNotification() {
-
-    static uint32_t lastSendTime = 0;
-    static constexpr uint32_t SEND_INTERVAL_MS = WEBCONFIG_BUTTON_PERFORMANCE_MONITORING_INTERVAL_MS; // 10ms发送间隔 
-    // 检查发送间隔
-    uint32_t currentTime = HAL_GetTick();
-    if (currentTime - lastSendTime < SEND_INTERVAL_MS) {
-        return;
-    }
-
-    // 构建完整的二进制数据（每次都执行，用于更新缓存）
-    std::vector<uint8_t> binaryData = WEBCONFIG_BTNS_MANAGER.buildButtonPerformanceMonitoringBinaryData();
-    
-    // 获取WebSocket服务器实例
-    WebSocketServer& server = WebSocketServer::getInstance();
-    
-    // 发送二进制数据到所有连接的客户端
-    server.broadcast_binary(binaryData.data(), binaryData.size());
-    
-    // 更新发送时间
-    lastSendTime = currentTime;
-    
-    // 发送完成后清理数据
-    binaryData.clear();
-    binaryData.shrink_to_fit();
-}
-
 
 /**
  * @brief 构建按键状态的二进制数据
@@ -120,7 +85,7 @@ ButtonStateBinaryData CommonCommandHandler::buildButtonStateBinaryData() {
  * @brief 开启按键功能
  * 对应HTTP接口: POST /api/start-button-monitoring
  * 
- * WebSocket命令格式:
+ * DeviceCommand命令格式:
  * {
  *   "cid": 5,
  *   "command": "start_button_monitoring",
@@ -139,9 +104,19 @@ ButtonStateBinaryData CommonCommandHandler::buildButtonStateBinaryData() {
  *   }
  * }
  */
-WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonMonitoring(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CommonCommandHandler::handleStartButtonMonitoring(const DeviceCommandRequest& request) {
     // 获取按键管理器实例并开始监控
     WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
+
+    if (ADC_CALIBRATION_MANAGER.isCalibrationActive()) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Calibration is active, button monitoring is not allowed");
+    }
+
+    if (!ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated(false)) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Manual calibration is not completed, button monitoring is not allowed");
+    }
+
+    btnsManager.enableTestMode(false);
     
     // 启动按键工作器
     btnsManager.startButtonWorkers();
@@ -168,7 +143,7 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonMonitoring(con
  * @brief 关闭按键功能
  * 对应HTTP接口: POST /api/stop-button-monitoring
  * 
- * WebSocket命令格式:
+ * DeviceCommand命令格式:
  * {
  *   "cid": 6,
  *   "command": "stop_button_monitoring", 
@@ -187,9 +162,11 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonMonitoring(con
  *   }
  * }
  */
-WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonMonitoring(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CommonCommandHandler::handleStopButtonMonitoring(const DeviceCommandRequest& request) {
     // 获取按键管理器实例
     WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
+
+    btnsManager.enableTestMode(false);
     
     // 停止按键工作器（真正停止ADC和GPIO按键采样）
     btnsManager.stopButtonWorkers();
@@ -212,11 +189,33 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonMonitoring(cons
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
+DeviceCommandResponse CommonCommandHandler::handleGetButtonStates(
+    const DeviceCommandRequest& request)
+{
+    const ButtonStateBinaryData snapshot = buildButtonStateBinaryData();
+    cJSON *dataJSON = cJSON_CreateObject();
+    if (dataJSON == nullptr) {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Failed to create button-state snapshot");
+    }
+    cJSON_AddBoolToObject(
+        dataJSON, "isActive", snapshot.isActive != 0u);
+    cJSON_AddNumberToObject(
+        dataJSON, "triggerMask", snapshot.triggerMask);
+    cJSON_AddNumberToObject(
+        dataJSON, "totalButtons", snapshot.totalButtons);
+    return create_success_response(
+        request.getCid(), request.getCommand(), dataJSON);
+}
+
 // ============================================================================
 // 命令路由处理
 // ============================================================================
 
-WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CommonCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
     
     APP_DBG("CommonCommandHandler::handle command: %s", command.c_str());
@@ -234,6 +233,8 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
         return handleGetDeviceLogsList(request);
     } else if (command == "get_hitbox_layout") {
         return handleGetHitboxLayout(request);
+    } else if (command == "get_button_states") {
+        return handleGetButtonStates(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown common command");
@@ -243,9 +244,9 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
 
 /**
  * @brief 启动按键性能监控（包含测试模式）
- * WebSocket命令: start_button_performance_monitoring
+ * DeviceCommand命令: start_button_performance_monitoring
  * 
- * WebSocket命令格式:
+ * DeviceCommand命令格式:
  * {
  *   "cid": 9,
  *   "command": "start_button_performance_monitoring",
@@ -265,12 +266,22 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
  *   }
  * }
  */
-WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CommonCommandHandler::handleStartButtonPerformanceMonitoring(const DeviceCommandRequest& request) {
     // 获取按键管理器实例
     WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
+
+    if (ADC_CALIBRATION_MANAGER.isCalibrationActive()) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Calibration is active, button performance monitoring is not allowed");
+    }
+
+    if (!ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated(false)) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Manual calibration is not completed, button performance monitoring is not allowed");
+    }
     
     // 启动按键工作器
-    btnsManager.startButtonWorkers();
+    if (!btnsManager.startButtonWorkers()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to start button performance monitoring");
+    }
     
     // 启用测试模式
     btnsManager.enableTestMode(true);
@@ -288,6 +299,8 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonPerformanceMon
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     if (!dataJSON) {
+        btnsManager.enableTestMode(false);
+        btnsManager.stopButtonWorkers();
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create JSON object");
     }
     
@@ -301,7 +314,7 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonPerformanceMon
 
 /**
  * @brief 获取设备日志列表（从Flash读取，按时间倒序，限制条数）
- * WebSocket命令: get_device_logs_list
+ * DeviceCommand命令: get_device_logs_list
  *
  * 请求示例:
  * {
@@ -321,7 +334,7 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonPerformanceMon
  *   }
  * }
  */
-WebSocketDownstreamMessage CommonCommandHandler::handleGetDeviceLogsList(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CommonCommandHandler::handleGetDeviceLogsList(const DeviceCommandRequest& request) {
     // 固定仅返回最近50条日志
     uint32_t limit = 50;
 
@@ -384,9 +397,9 @@ WebSocketDownstreamMessage CommonCommandHandler::handleGetDeviceLogsList(const W
 
 /**
  * @brief 停止按键性能监控
- * WebSocket命令: stop_button_performance_monitoring
+ * DeviceCommand命令: stop_button_performance_monitoring
  * 
- * WebSocket命令格式:
+ * DeviceCommand命令格式:
  * {
  *   "cid": 10,
  *   "command": "stop_button_performance_monitoring",
@@ -406,7 +419,7 @@ WebSocketDownstreamMessage CommonCommandHandler::handleGetDeviceLogsList(const W
  *   }
  * }
  */
-WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CommonCommandHandler::handleStopButtonPerformanceMonitoring(const DeviceCommandRequest& request) {
     // 获取按键管理器实例
     WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
     
@@ -442,7 +455,7 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonPerformanceMoni
 
 /**
  * @brief 获取Hitbox按键布局
- * WebSocket命令: get_hitbox_layout
+ * DeviceCommand命令: get_hitbox_layout
  *
  * 响应格式:
  * {
@@ -455,7 +468,7 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonPerformanceMoni
  *   ]
  * }
  */
-WebSocketDownstreamMessage CommonCommandHandler::handleGetHitboxLayout(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CommonCommandHandler::handleGetHitboxLayout(const DeviceCommandRequest& request) {
     cJSON* dataJSON = cJSON_CreateArray();
     if (!dataJSON) {
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create JSON array");

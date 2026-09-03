@@ -105,6 +105,8 @@ export interface FirmwareManifest {
     version: string;
     slot: string;
     build_date: string;
+    hardware_version: string;
+    hardware_version_code: number;
     components: FirmwareComponent[];
 }
 
@@ -116,7 +118,6 @@ export interface FirmwarePackage {
 
 export interface FirmwareUpgradeConfig {
     chunkSize: number; // 分片大小，必须是4KB(4096字节)的倍数，建议范围: 4KB-16KB
-    maxRetries: number; // 最大重试次数
     timeout: number; // 超时时间(ms)
 }
 

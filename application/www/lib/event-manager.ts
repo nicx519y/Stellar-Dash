@@ -90,5 +90,5 @@ export const EVENTS = {
   CALIBRATION_UPDATE: 'calibration_update',
   BUTTON_STATE_CHANGED: 'button_state_changed',
   BUTTON_PERFORMANCE_MONITORING: 'button_performance_monitoring',
-  WEBSOCKET_DISCONNECTED: 'websocket_disconnected',
-} as const; 
+  DEVICE_DISCONNECTED: 'device_disconnected',
+} as const;

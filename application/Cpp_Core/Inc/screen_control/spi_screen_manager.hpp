@@ -14,6 +14,9 @@ public:
 
     void setup();
     void loop();
+    void shutdown();
+    void previewBrightness(uint8_t brightness);
+    void clearBrightnessPreview();
 
     bool menuPrev();
     bool menuNext();

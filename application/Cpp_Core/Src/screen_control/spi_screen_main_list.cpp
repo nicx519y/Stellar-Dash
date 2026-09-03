@@ -2,11 +2,13 @@
 
 #include "screen_control/spi_screen_ui_common.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
+#include "ch585_update_mode.hpp"
 
 static const ScreenMenuMeta kMenuMeta[] = {
-    {0, SCREEN_FEATURE_INPUT_MODE_SWITCH, "Input Mode"},
+    {0, SCREEN_FEATURE_INPUT_MODE_SWITCH, "Platform"},
     {1, SCREEN_FEATURE_PROFILES_SWITCH, "Profiles"},
     {2, SCREEN_FEATURE_SOCD_MODE_SWITCH, "SOCD"},
+    {3, SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH, "Connection"},
     {11, SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET, "Performance"},
     {4, SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST, "Light Brightness"},
     {5, SCREEN_FEATURE_LED_EFFECT_SWITCH, "Light Effect"},
@@ -15,6 +17,7 @@ static const ScreenMenuMeta kMenuMeta[] = {
     {8, SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST, "Screen Brightness"},
     {9, SCREEN_FEATURE_WEB_CONFIG_ENTRY, "Web Config"},
     {10, SCREEN_FEATURE_CALIBRATION_MODE_SWITCH, "Calibration Mode"},
+    {12, 0u, "CH585 Flash"},
 };
 
 const ScreenMenuMeta* ScreenMain_FindMenuMeta(uint8_t id) {
@@ -58,10 +61,16 @@ uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds
     if (count == 0) {
         for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
             uint8_t id = kMenuMeta[i].id;
+            if (id == 12u) continue;
             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
             if (count < outCap) outIds[count++] = kMenuMeta[i].id;
         }
+    }
+
+    /* Migration-only service entry: never exposed through normal menu JSON. */
+    if (CH585_UPDATE_MODE.isManualEntryVisible() && count < outCap) {
+        outIds[count++] = 12u;
     }
 
     return count;

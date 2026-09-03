@@ -37,6 +37,7 @@ extern "C" {
 /* USER CODE END Private defines */
 
 void MX_GPIO_Init(void);
+void Board_InitSafePowerState(void);
 
 /* USER CODE BEGIN Prototypes */
 

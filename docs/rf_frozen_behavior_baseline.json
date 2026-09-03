@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-23",
+  "provenance": "historical pre-migration hardware log",
+  "requiresLatestPcbRetest": true,
+  "wire": {
+    "stm32PayloadBytes": 10,
+    "spiFrameBytes": 14,
+    "normalAirBytes": 7,
+    "controlAirBytes": 12
+  },
+  "scheduler": {
+    "ratesHz": [1000, 2000, 4000, 8000],
+    "slotUsAt8k": 125
+  },
+  "ack": {
+    "intervalMs": 500,
+    "requestBurstPackets": 3,
+    "rxTimeoutUs": 1200
+  },
+  "hopChannels": [10, 16, 22, 24, 28, 34, 39],
+  "discoveryChannels": [16, 39],
+  "pairing": {
+    "pairAccessAddress": "0x6D5A3C17",
+    "windowMs": 60000,
+    "confirmTimeoutMs": 3000,
+    "accessAddressGenerator": "rfh_access_address_from_seed"
+  },
+  "traces": [
+    "R8 c0 d38557 q10 a10/0 e232/0 x0/0/0 v1",
+    "T8 c0 h39 p10 hz8000 due39959 tx39921 fin10 aq10 ack9 to1 fail0 e0/0 dr38 st0",
+    "T8 c0 h39 p10 hz8000 due39961 tx39941 fin10 aq10 ack10 to0 fail0 e0/0 dr20 st0"
+  ]
+}

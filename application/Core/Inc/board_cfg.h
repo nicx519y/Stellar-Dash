@@ -29,6 +29,7 @@
 
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal.h"
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -52,22 +53,95 @@
     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
 #endif
 
-/* Debug print configuration */
-#define APPLICATION_DEBUG_PRINT  0   // 设置为 0 可以关闭所有调试打印
+/* Debug print configuration.
+ * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+ * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+ */
+#ifndef APPLICATION_SERIAL_PRINT
+#define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+#endif
+
+#ifndef APPLICATION_DEBUG_PRINT
+#define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+#endif
+
+#ifndef APP_LOG_VERBOSE
+#define APP_LOG_VERBOSE 0
+#endif
+
+/* Concise production startup milestones, independent from verbose APP_DBG. */
+#ifndef APPLICATION_STARTUP_LOG
+#define APPLICATION_STARTUP_LOG 1
+#endif
+
+#if APPLICATION_STARTUP_LOG
+static inline void AppStartupLog_Printf(const char *stage,
+                                        const char *level,
+                                        const char *fmt, ...)
+{
+    va_list args;
+    printf("[APP][STARTUP][%s]%s ", stage, level);
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    printf("\r\n");
+}
+    #define APP_STAGE(stage, fmt, ...) \
+        AppStartupLog_Printf(stage, "", fmt, ##__VA_ARGS__)
+    #define APP_STAGE_ERROR(stage, fmt, ...) \
+        AppStartupLog_Printf(stage, "[ERROR]", fmt, ##__VA_ARGS__)
+#else
+    #define APP_STAGE(stage, fmt, ...) ((void)0)
+    #define APP_STAGE_ERROR(stage, fmt, ...) ((void)0)
+#endif
+
+#ifndef RF24G_SPI_TEST_FORCE_RF24G
+#define RF24G_SPI_TEST_FORCE_RF24G 0
+#endif
+
+/*
+ * Temporary local WebConfig bring-up override.  This only changes the state
+ * selected for the current firmware boot; it does not persist BOOT_MODE_WEB_CONFIG
+ * into the device configuration partition.
+ */
+#ifndef WEBCONFIG_TEST_FORCE_BOOT
+#define WEBCONFIG_TEST_FORCE_BOOT 0
+#endif
+
+/* Temporary, unlocked migration UI for the one-time CH585 IAP install. */
+#ifndef CH585_MANUAL_ISP_ENTRY_ENABLE
+#define CH585_MANUAL_ISP_ENTRY_ENABLE 1
+#endif
+
+#ifndef RF24G_FORCE_REPORT_RATE_HZ
+#define RF24G_FORCE_REPORT_RATE_HZ 0u
+#endif
 
 #if APPLICATION_DEBUG_PRINT
-    #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
+static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
+{
+    va_list args;
+
+    printf("%s", prefix);
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    printf("\r\n");
+}
+    #define APP_DBG(fmt, ...) AppLog_Printf("[APP] ", fmt, ##__VA_ARGS__)
 #else
     #define APP_DBG(fmt, ...) ((void)0)
 #endif
 
 #if APPLICATION_DEBUG_PRINT
-    #define APP_ERR(fmt, ...) printf("[APP][ERROR] " fmt "\r\n", ##__VA_ARGS__)
+    #define APP_ERR(fmt, ...) AppLog_Printf("[APP][ERROR] ", fmt, ##__VA_ARGS__)
 #else
     #define APP_ERR(fmt, ...) ((void)0)
 #endif
 
+#ifndef USB_DEBUG_PRINT
 #define USB_DEBUG_PRINT 0
+#endif
 
 #if USB_DEBUG_PRINT
     #define USB_DBG(fmt, ...) printf("[USB] " fmt "\r\n", ##__VA_ARGS__)
@@ -83,14 +157,99 @@
  * Drivers should include this file and must not hardcode board pinout elsewhere.
  *
  * Sections:
+ *   - Board power/mode control (GPIOI)
  *   - QSPI (W25Q64)
  *   - SPI LCD (ST7789 via SPI5 + DMA2)
  *   - WS2812B LED (TIM4 PWM + DMA) + Enable Switch
  *   - USART (Debug)
  *   - Rotary Encoder
- *   - USB (Device/Host)
+ *   - CH585 board link
  *   - Misc board detect pins
  */
+
+/* ================= Latest PCB power, status and mode pins =================
+ *
+ * PI4 powers the W25Q64 that contains the executing application.  It must be
+ * asserted by the bootloader before QSPI access and must never be deasserted
+ * while the application is executing in place.
+ */
+#define CHARGE_EN_N_PORT                       GPIOI
+#define CHARGE_EN_N_PIN                        GPIO_PIN_0
+
+#define HALL_VCC_EN_PORT                       GPIOI
+#define HALL_VCC_EN_PIN                        GPIO_PIN_1
+
+#define IS_FAST_CHARGE_PORT                    GPIOI
+#define IS_FAST_CHARGE_PIN                     GPIO_PIN_2
+
+#define CHARGE_STAT_PORT                       GPIOI
+#define CHARGE_STAT_PIN                        GPIO_PIN_3
+
+#define MAIN_POWER_EN_PORT                     GPIOI
+#define MAIN_POWER_EN_PIN                      GPIO_PIN_4
+
+#define BOOST_5V_EN_PORT                       GPIOI
+#define BOOST_5V_EN_PIN                        GPIO_PIN_5
+
+#define LED_EN_PORT                            GPIOI
+#define LED_EN_PIN                             GPIO_PIN_6
+
+#define AMBIENT_EN_PORT                        GPIOI
+#define AMBIENT_EN_PIN                         GPIO_PIN_7
+
+#define CHARGE_INT_PORT                        GPIOI
+#define CHARGE_INT_PIN                         GPIO_PIN_8
+#define CHARGE_INT_EXTI_IRQn                   EXTI9_5_IRQn
+
+#define LCD_EN_PORT                            GPIOI
+#define LCD_EN_PIN                             GPIO_PIN_9
+
+/* PH10 is not part of the LCD power sequence. Keep it high-impedance for
+ * board diagnostics until its final electrical meaning is confirmed.
+ */
+#define LCD_CTRL_AUX_PORT                      GPIOH
+#define LCD_CTRL_AUX_PIN                       GPIO_PIN_10
+
+#define CH585_EN_PORT                          GPIOI
+#define CH585_EN_PIN                           GPIO_PIN_10
+
+#define MODE_USB_N_PORT                        GPIOI
+#define MODE_USB_N_PIN                         GPIO_PIN_11
+
+#define MODE_RF_N_PORT                         GPIOI
+#define MODE_RF_N_PIN                          GPIO_PIN_12
+
+#define USB_HOST_EN_PORT                       GPIOI
+#define USB_HOST_EN_PIN                        GPIO_PIN_13
+
+#define MAX17048_ALERT_PORT                    GPIOC
+#define MAX17048_ALERT_PIN                     GPIO_PIN_13
+#define MAX17048_ALERT_EXTI_IRQn                EXTI15_10_IRQn
+
+#define BOARD_MODE_DEBOUNCE_MS                 20u
+#define CH585_POWER_OFF_MIN_MS                 20u
+#define CH585_POWER_ON_SETTLE_MS                20u
+#define CH585_ROLE_RESPONSE_TIMEOUT_MS          20u
+#define CH585_READY_HINT_TIMEOUT_MS             700u
+#define CH585_ROLE_SELECT_RETRY_MS             5u
+#define CH585_ROLE_SELECT_TIMEOUT_MS          1200u
+#define BOARD_LED_5V_STABILIZE_MS              5u
+#define BOARD_HALL_STABILIZE_MS                10u
+
+/* I2C1 charger/fuel-gauge bus. */
+#define BOARD_I2C1_INSTANCE                    I2C1
+#define BOARD_I2C1_SCL_PORT                    GPIOB
+#define BOARD_I2C1_SCL_PIN                     GPIO_PIN_8
+#define BOARD_I2C1_SDA_PORT                    GPIOB
+#define BOARD_I2C1_SDA_PIN                     GPIO_PIN_9
+#define BOARD_I2C1_GPIO_AF                     GPIO_AF4_I2C1
+
+#define POWER_I2C_INSTANCE                     BOARD_I2C1_INSTANCE
+#define POWER_I2C_SCL_PORT                     BOARD_I2C1_SCL_PORT
+#define POWER_I2C_SCL_PIN                      BOARD_I2C1_SCL_PIN
+#define POWER_I2C_SDA_PORT                     BOARD_I2C1_SDA_PORT
+#define POWER_I2C_SDA_PIN                      BOARD_I2C1_SDA_PIN
+#define POWER_I2C_GPIO_AF                      BOARD_I2C1_GPIO_AF
 
 /* ================= QSPI (W25Q64) ================= */
 #define  QUADSPI_CLK_PIN                        GPIO_PIN_10
@@ -128,66 +287,75 @@
 #define ST7789_HEIGHT                           172u
 #define ST7789_DEFAULT_FPS                      12u
 
-#define ST7789_SCL_PORT                         GPIOK
-#define ST7789_SCL_PIN                          GPIO_PIN_0
+#define ST7789_SCL_PORT                         GPIOG
+#define ST7789_SCL_PIN                          GPIO_PIN_11
 
-#define ST7789_SDA_PORT                         GPIOJ
-#define ST7789_SDA_PIN                          GPIO_PIN_10
+#define ST7789_SDA_PORT                         GPIOD
+#define ST7789_SDA_PIN                          GPIO_PIN_7
 
-#define ST7789_SPI_MOSI_AF                      GPIO_AF5_SPI5
+#define ST7789_SPI_MOSI_AF                      GPIO_AF5_SPI1
 
-#define ST7789_CS_PORT                          GPIOH
-#define ST7789_CS_PIN                           GPIO_PIN_5
+#define ST7789_CS_PORT                          GPIOG
+#define ST7789_CS_PIN                           GPIO_PIN_10
 
 #define ST7789_DC_PORT                          GPIOJ
 #define ST7789_DC_PIN                           GPIO_PIN_11
 
-#define ST7789_BL_PORT                          GPIOH
-#define ST7789_BL_PIN                           GPIO_PIN_6
+#define ST7789_BL_PORT                          GPIOA
+#define ST7789_BL_PIN                           GPIO_PIN_1
 
-#define ST7789_SPI_INSTANCE                     SPI5
+#define ST7789_SPI_INSTANCE                     SPI1
 #define ST7789_SPI_DMA_STREAM                   DMA2_Stream2
-#define ST7789_SPI_DMA_REQUEST                  DMA_REQUEST_SPI5_TX
+#define ST7789_SPI_DMA_REQUEST                  DMA_REQUEST_SPI1_TX
 #define ST7789_SPI_DMA_IRQn                     DMA2_Stream2_IRQn
 
 #define ST7789_BL_ON_STATE                      GPIO_PIN_RESET
 #define ST7789_BL_OFF_STATE                     GPIO_PIN_SET
 
-#define SPIST7789_BL_TIM_INSTANCE               TIM12
-#define SPIST7789_BL_TIM_CHANNEL                TIM_CHANNEL_1
-#define SPIST7789_BL_TIM_AF                     GPIO_AF2_TIM12
+#define SPIST7789_BL_TIM_INSTANCE               TIM5
+#define SPIST7789_BL_TIM_CHANNEL                TIM_CHANNEL_2
+#define SPIST7789_BL_TIM_AF                     GPIO_AF2_TIM5
 
 #define SPIST7789_DMA_CHUNK_BYTES               1024u
 #define SPIST7789_Y_OFFSET                      34u
 
 /* ================= WS2812B LEDs (TIM4 PWM + DMA) ================= */
-#define WS2812B_ENABLE_SWITCH_PORT              GPIOC
-#define WS2812B_ENABLE_SWITCH_PIN               GPIO_PIN_12
-
 /* TIM4 PWM output for WS2812B data stream */
 #define WS2812B_TIM_INSTANCE                    TIM4
-#define WS2812B_TIM_CHANNEL                     TIM_CHANNEL_1
 #define WS2812B_TIM_PRESCALER                   0u
-#define WS2812B_TIM_PERIOD                      299u
+/* 240 MHz / 308 ticks = 779.22 kHz.  The slightly longer low phase adds
+ * margin for the four downstream GPIO-key pixels on the key strip. */
+#define WS2812B_TIM_PERIOD                      307u
 
-#define WS2812B_TIM_GPIO_PORT                   GPIOB
-#define WS2812B_TIM_GPIO_PIN                    GPIO_PIN_6
 #define WS2812B_TIM_GPIO_AF                     GPIO_AF2_TIM4
 
+#define WS2812B_KEYS_TIM_CHANNEL                TIM_CHANNEL_1
+#define WS2812B_KEYS_TIM_GPIO_PORT              GPIOB
+#define WS2812B_KEYS_TIM_GPIO_PIN               GPIO_PIN_6
+
+#define WS2812B_AMBIENT_TIM_CHANNEL             TIM_CHANNEL_2
+#define WS2812B_AMBIENT_TIM_GPIO_PORT           GPIOB
+#define WS2812B_AMBIENT_TIM_GPIO_PIN            GPIO_PIN_7
+
 /* TIM4_CH1 DMA configuration */
-#define WS2812B_TIM_DMA_INSTANCE                DMA1_Stream2
-#define WS2812B_TIM_DMA_REQUEST                 DMA_REQUEST_TIM4_CH1
-#define WS2812B_TIM_DMA_IRQn                    DMA1_Stream2_IRQn
-#define WS2812B_TIM_DMA_IRQn_PRIO               3u
+#define WS2812B_KEYS_TIM_DMA_INSTANCE           DMA1_Stream2
+#define WS2812B_KEYS_TIM_DMA_REQUEST            DMA_REQUEST_TIM4_CH1
+#define WS2812B_KEYS_TIM_DMA_IRQn               DMA1_Stream2_IRQn
+#define WS2812B_KEYS_TIM_DMA_IRQn_PRIO          6u
+
+#define WS2812B_AMBIENT_TIM_DMA_INSTANCE        DMA1_Stream3
+#define WS2812B_AMBIENT_TIM_DMA_REQUEST         DMA_REQUEST_TIM4_CH2
+#define WS2812B_AMBIENT_TIM_DMA_IRQn            DMA1_Stream3_IRQn
+#define WS2812B_AMBIENT_TIM_DMA_IRQn_PRIO       6u
 
 /* Additional DMA IRQs used by firmware */
 #define BOARD_DMA_STREAM4_IRQn                  DMA1_Stream4_IRQn
 #define BOARD_DMA_STREAM4_IRQn_PRIO             5u
 
-/* ================= TIM2 (legacy micro-timer, currently not used) ================= */
+/* ================= TIM2 (1 MHz report/ADC sampling timebase) ================= */
 #define BOARD_TIM2_INSTANCE                     TIM2
-#define BOARD_TIM2_PRESCALER                    29u
-#define BOARD_TIM2_PERIOD                       1000u
+#define BOARD_TIM2_PRESCALER                    239u
+#define BOARD_TIM2_PERIOD                       999u
 #define BOARD_TIM2_IRQn                         TIM2_IRQn
 #define BOARD_TIM2_IRQn_PRIO                    0u
 
@@ -205,41 +373,60 @@
 #define ROTENC_A_PIN                            GPIO_PIN_8
 #define ROTENC_B_PORT                           GPIOH
 #define ROTENC_B_PIN                            GPIO_PIN_9
-#define ROTENC_BTN_PORT                         GPIOH
-#define ROTENC_BTN_PIN                          GPIO_PIN_7
+#define ROTENC_BTN_PORT                         GPIOA
+#define ROTENC_BTN_PIN                          GPIO_PIN_0
 #define ROTENC_EXTI_IRQn                        EXTI9_5_IRQn
 
-/* ================= USB =================
- * Device (FS): PA11 DM, PA12 DP (AF10 OTG1_FS)
- * Host  (HS in FS mode): PB14 DM, PB15 DP (AF12 OTG2_FS)
+/* STM32 OTG pins are not connected on PCB V2.
+ * USB Device/Host is owned exclusively by the onboard CH585F.
  */
-#define USB_DEV_FS_GPIO_PORT                    GPIOA
-#define USB_DEV_FS_DM_PIN                       GPIO_PIN_11
-#define USB_DEV_FS_DP_PIN                       GPIO_PIN_12
-#define USB_DEV_FS_AF                           GPIO_AF10_OTG1_FS
-#define USB_DEV_FS_IRQn                         OTG_FS_IRQn
-#define USB_DEV_FS_IRQn_PRIO                    2u
 
-#define USB_HOST_HS_FS_GPIO_PORT                GPIOB
-#define USB_HOST_HS_FS_DM_PIN                   GPIO_PIN_14
-#define USB_HOST_HS_FS_DP_PIN                   GPIO_PIN_15
-#define USB_HOST_HS_FS_AF                       GPIO_AF12_OTG2_FS
-#define USB_HOST_HS_IRQn                        OTG_HS_IRQn
-#define USB_HOST_HS_IRQn_PRIO                   2u
+/* ================= STM32 <-> onboard CH585F board link =================
+ * SPI4 master:
+ *  MISO: PE5  (AF5)
+ *  NSS : PE11 (GPIO output, software CS)
+ *  SCK : PE12 (AF5)
+ *  MOSI: PE14 (AF5)
+ */
+#define CH585_SPI_INSTANCE                      SPI4
+#define CH585_SPI_GPIO_PORT                     GPIOE
+#define CH585_SPI_MISO_PIN                      GPIO_PIN_5
+#define CH585_SPI_NSS_PIN                       GPIO_PIN_11
+#define CH585_SPI_SCK_PIN                       GPIO_PIN_12
+#define CH585_SPI_MOSI_PIN                      GPIO_PIN_14
+#define CH585_SPI_AF                            GPIO_AF5_SPI4
+#define CH585_IRQ_GPIO_PORT                     GPIOE
+#define CH585_IRQ_PIN                           GPIO_PIN_10
+#define CH585_IRQ_EXTI_IRQn                     EXTI15_10_IRQn
+#define CH585_IRQ_EXTI_IRQn_PRIO                4u
+#define CH585_IRQ_ASSERTED_STATE                GPIO_PIN_RESET
+#define CH585_IRQ_DEASSERTED_STATE              GPIO_PIN_SET
 
-/* ================= Misc Board Detect Pins ================= */
-#define BOARD_AMBIENT_LED_DETECT_PORT           GPIOB
-#define BOARD_AMBIENT_LED_DETECT_PIN            GPIO_PIN_7
-#define BOARD_AMBIENT_LED_DETECT_PIN_NUM        7u
+/* Frozen RF transport keeps its existing names as board-level aliases. */
+#define RF_BRIDGE_SPI_INSTANCE                  CH585_SPI_INSTANCE
+#define RF_BRIDGE_SPI_GPIO_PORT                 CH585_SPI_GPIO_PORT
+#define RF_BRIDGE_SPI_MISO_PIN                  CH585_SPI_MISO_PIN
+#define RF_BRIDGE_SPI_NSS_PIN                   CH585_SPI_NSS_PIN
+#define RF_BRIDGE_SPI_SCK_PIN                   CH585_SPI_SCK_PIN
+#define RF_BRIDGE_SPI_MOSI_PIN                  CH585_SPI_MOSI_PIN
+#define RF_BRIDGE_SPI_AF                        CH585_SPI_AF
+#define RF_BRIDGE_IRQ_GPIO_PORT                 CH585_IRQ_GPIO_PORT
+#define RF_BRIDGE_IRQ_PIN                       CH585_IRQ_PIN
+#define RF_BRIDGE_IRQ_EXTI_IRQn                 CH585_IRQ_EXTI_IRQn
+#define RF_BRIDGE_IRQ_EXTI_IRQn_PRIO            CH585_IRQ_EXTI_IRQn_PRIO
+#define RF_BRIDGE_IRQ_ASSERTED_STATE            CH585_IRQ_ASSERTED_STATE
+#define RF_BRIDGE_IRQ_DEASSERTED_STATE          CH585_IRQ_DEASSERTED_STATE
+#define RF_BRIDGE_SPI_TIMEOUT_MS                5u
 
+// web config
 #define WEBCONFIG_IP_FIRST                  192
 #define WEBCONFIG_IP_SECOND                 168
 #define WEBCONFIG_IP_THIRD                  7
 #define WEBCONFIG_IP_FOURTH                 1
 #define WEBCONFIG_DOMAIN_NAME               "st-dash.usb"
 
-#define CONFIG_VERSION                      (uint32_t)0x00001A  //配置版本 三位版本号 0x aa bb cc
-#define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
+#define CONFIG_VERSION                      (uint32_t)0x00001E  // 最新PCB配置：单电池/22键灯/40环境灯
+#define ADC_MAPPING_VERSION                 (uint32_t)0x000002  //ADC值映射表版本
 #define ADC_COMMON_VERSION                  (uint32_t)0x000001
 
 // 双槽地址偏移定义（相对于槽基地址的偏移）
@@ -268,7 +455,7 @@
 #define USER_IMAGE_RESOURCES_ADDR           0x905F0000
 #endif
 #ifndef USER_IMAGE_RESOURCES_SIZE
-#define USER_IMAGE_RESOURCES_SIZE           0x00210000      // 2.0625MB
+#define USER_IMAGE_RESOURCES_SIZE           0x00190000      // 1.5625MB; top 512KB is CH585 staging
 #endif
 
 
@@ -283,11 +470,12 @@ typedef struct {
 } ADC_PinConfig;
 
 /* ================= ADC (Sampling/Timing) ================= */
-#define BOARD_ADC_SAMPLE_TIME                  ADC_SAMPLETIME_64CYCLES_5
-#define BOARD_ADC_CONTINUOUS_OVERSAMPLE_RATIO  16u
-#define BOARD_ADC_CONTINUOUS_RIGHT_SHIFT       ADC_RIGHTBITSHIFT_4
-#define BOARD_ADC_LOWLAT_OVERSAMPLE_RATIO      2u
-#define BOARD_ADC_LOWLAT_RIGHT_SHIFT           ADC_RIGHTBITSHIFT_1
+#define BOARD_ADC_KERNEL_CLOCK_HZ              45000000u
+#define BOARD_ADC_SAMPLE_TIME                  ADC_SAMPLETIME_32CYCLES_5
+#define BOARD_ADC_OVERSAMPLE_RATIO             16u
+#define BOARD_ADC_OVERSAMPLE_RIGHT_SHIFT       ADC_RIGHTBITSHIFT_4
+#define ADC_VALUE_PUBLIC_RIGHT_SHIFT           4u
+#define BOARD_ADC_DMA_IRQn_PRIO                 1u
 
 static const ADC_PinConfig ADC1_PIN_MAP[] = {
     { GPIOF, GPIO_PIN_11, ADC_CHANNEL_2,  ADC_REGULAR_RANK_1, 2 },
@@ -313,6 +501,7 @@ static const ADC_PinConfig ADC3_PIN_MAP[] = {
     { GPIOH, GPIO_PIN_2,  ADC_CHANNEL_13, ADC_REGULAR_RANK_3, 13 },
     { GPIOH, GPIO_PIN_3,  ADC_CHANNEL_14, ADC_REGULAR_RANK_4, 10 },
     { GPIOH, GPIO_PIN_4,  ADC_CHANNEL_15, ADC_REGULAR_RANK_5, 11 },
+    { GPIOH, GPIO_PIN_5,  ADC_CHANNEL_16, ADC_REGULAR_RANK_6, 17 },
 };
 
 #define ADC1_PIN_MAP_SIZE (sizeof(ADC1_PIN_MAP)/sizeof(ADC_PinConfig))
@@ -322,8 +511,8 @@ static const ADC_PinConfig ADC3_PIN_MAP[] = {
 #define ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES 80 // 校准管理器需要的采样数量
 #define ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS 1 // 校准管理器采样间隔（毫秒）
 #define ADC_CALIBRATION_MANAGER_SAMPLING_DURATION_MS 100 // 校准管理器采样持续时间（毫秒）
-#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 8000 // 校准管理器容忍范围
-#define ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD 400 // 校准管理器稳定性阈值
+#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 500 // 校准管理器容忍范围（12bit ADC scale）
+#define ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD 25 // 校准管理器稳定性阈值（12bit ADC scale）
 
 // GPIO 按钮定义结构体
 struct gpio_pin_def {
@@ -335,19 +524,19 @@ struct gpio_pin_def {
 // GPIO按钮配置宏定义
 #define GPIO_BTN1_PORT              GPIOC
 #define GPIO_BTN1_PIN               GPIO_PIN_6
-#define GPIO_BTN1_VIRTUAL_PIN       17
+#define GPIO_BTN1_VIRTUAL_PIN       18
 
 #define GPIO_BTN2_PORT              GPIOC
 #define GPIO_BTN2_PIN               GPIO_PIN_7
-#define GPIO_BTN2_VIRTUAL_PIN       18
+#define GPIO_BTN2_VIRTUAL_PIN       19
 
 #define GPIO_BTN3_PORT              GPIOC
 #define GPIO_BTN3_PIN               GPIO_PIN_8
-#define GPIO_BTN3_VIRTUAL_PIN       19
+#define GPIO_BTN3_VIRTUAL_PIN       20
 
 #define GPIO_BTN4_PORT              GPIOC
 #define GPIO_BTN4_PIN               GPIO_PIN_9
-#define GPIO_BTN4_VIRTUAL_PIN       20
+#define GPIO_BTN4_VIRTUAL_PIN       21
 
 
 // 动态地址获取函数声明（需要在相应的.c文件中实现）
@@ -379,7 +568,7 @@ uint32_t get_current_slot_base_address(void);
 #define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
 
 #define MAX_KEY_COMBINATION                 10              // 最大自定义按键组合键数量
-#define MAX_KEY_COMBINATION_WEBCONFIG       5               // 最大自定义按键组合键数量 webconfig模式下，实际使用数量 必须小于等于 MAX_KEY_COMBINATION
+#define MAX_KEY_COMBINATION_WEBCONFIG       MAX_KEY_COMBINATION // WebConfig 支持全部组合键槽位
 
 #define READ_BTNS_INTERVAL                  50            // 检查按钮状态间隔 us
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms
@@ -397,8 +586,7 @@ uint32_t get_current_slot_base_address(void);
 #define FN_BUTTON_VIRTUAL_PIN       (1U << (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS - 1))  // FN 键虚拟引脚 最后一个GPIO按钮
 
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
-#define FPS_OF_LED_ANIMATION        60             //LED 动画帧率
-#define LEDS_BRIGHTNESS_RATIO       0.8             //默认led 亮度系数 会以实际亮度乘以这个系数
+#define FPS_OF_LED_ANIMATION        30             //LED 动画帧率
 #define LEDS_ANIMATION_CYCLE        10000            //LED 动画长度 ms
 #define LEDS_ANIMATION_INTERVAL         16          //LED 动画间隔，影响性能和效果 ms
 
@@ -408,10 +596,15 @@ uint32_t get_current_slot_base_address(void);
 #define HOLD_THRESHOLD_MS                   1000             // 长按阈值 1000ms
 
 #define HAS_LED                                   1             //是否有LED
-// #define HAS_LED_AROUND                            1          //是否有底部环绕led
-extern bool g_has_led_around;                               // 运行时检测是否有氛围灯
-#define NUM_LED_AROUND                            49          //底部环绕led数量
+#define NUM_LED_AROUND                            40          //最新PCB环境灯数量
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
+
+/*
+ * Recovery gate for diagnosing a boot loop that begins when the WS2812 rails
+ * and circular TIM4 DMA are started.  Keep both LED outputs off in INPUT until
+ * the hardware/DMA path has been isolated.  Configuration data is preserved.
+ */
+#define INPUT_LED_RECOVERY_HOLD_OFF                0
 
 #define BOARD_WIDTH 310.2f
 
@@ -431,76 +624,68 @@ typedef struct Position {
     { 73.49f,   63.76f,   26.00f },        /* 4 */ \
     { 99.05f,   59.67f,   26.00f },        /* 5 */ \
     { 122.19f,  63.76f,   26.00f },       /* 6 */ \
-    { 141.44f,  77.23f,   26.00f },       /* 7 */ \
+    { 141.50f,  77.34f,   26.00f },       /* 7 */ \
     { 131.19f,  42.04f,   26.00f },       /* 8 */ \
     { 165.45f,  87.10f,   26.00f },       /* 9 */ \
     { 163.37f,  62.80f,   26.00f },       /* 10 */ \
-    { 185.51f,  73.05f,   26.00f },       /* 11 */ \
-    { 183.43f,  48.75f,   26.00f },       /* 12 */ \
-    { 209.01f,  66.10f,   26.00f },       /* 13 */ \
-    { 206.93f,  41.80f,   26.00f },       /* 14 */ \
-    { 233.44f,  67.98f,   26.00f },       /* 15 */ \
-    { 231.36f,  43.69f,   26.00f }       /* 16 */ 
+    { 161.29f,  38.50f,   26.00f },       /* 11 */ \
+    { 185.51f,  73.05f,   26.00f },       /* 12 */ \
+    { 183.43f,  48.75f,   26.00f },       /* 13 */ \
+    { 209.01f,  66.10f,   26.00f },       /* 14 */ \
+    { 206.93f,  41.80f,   26.00f },       /* 15 */ \
+    { 233.44f,  67.98f,   26.00f },       /* 16 */ \
+    { 231.36f,  43.69f,   26.00f }       /* 17 */ \
     
 
 #define HITBOX_GPIO_BUTTON_POS_DATA \
-    { 84.49f,   15.49f,   11.50f },        /* 17 */ \
-    { 62.49f,   15.49f,   11.50f },        /* 18 */ \
-    { 40.49f,   15.49f,   11.50f },        /* 19 */ \
-    { 18.48f,   15.49f,   11.50f }        /* 20 */
+    { 84.49f,   15.49f,   11.50f },        /* 18 */ \
+    { 62.49f,   15.49f,   11.50f },        /* 19 */ \
+    { 40.49f,   15.49f,   11.50f },        /* 20 */ \
+    { 18.48f,   15.49f,   11.50f }        /* 21 */
 
 #define HITBOX_AMBIENT_POS_DATA \
     { 35.10f, 35.10f, 5.40f },         /* 22 */ \
-    { 35.10f, 45.10f, 5.40f },         /* 23 */ \
-    { 35.10f, 55.10f, 5.40f },          /* 24 */ \
-    { 35.10f, 65.10f, 5.40f },         /* 25 */ \
-    { 35.10f, 75.10f, 5.40f },         /* 26 */ \
-    { 35.10f, 85.10f, 5.40f },         /* 27 */ \
-    { 35.10f, 95.10f, 5.40f },         /* 28 */ \
-    { 35.10f, 105.10f, 5.40f },        /* 29 */ \
-    { 35.10f, 115.10f, 5.40f },        /* 30 */ \
-    { 35.10f, 125.10f, 5.40f },        /* 31 */ \
-    { 35.10f, 135.10f, 5.40f },        /* 32 */ \
-    { 35.10f, 145.10f, 5.40f },        /* 33 */ \
-    { 35.10f, 155.10f, 5.40f },        /* 34 */ \
+    { 35.10f, 48.43f, 5.40f },         /* 23 */ \
+    { 35.10f, 61.77f, 5.40f },          /* 24 */ \
+    { 35.10f, 75.10f, 5.40f },         /* 25 */ \
+    { 35.10f, 88.43f, 5.40f },         /* 26 */ \
+    { 35.10f, 101.77f, 5.40f },         /* 27 */ \
+    { 35.10f, 115.10f, 5.40f },         /* 28 */ \
+    { 35.10f, 128.43f, 5.40f },        /* 29 */ \
+    { 35.10f, 141.77f, 5.40f },        /* 30 */ \
+    { 35.10f, 155.10f, 5.40f },        /* 31 */ \
     \
-    { 45.10f, 155.10f, 5.40f },        /* 35 */ \
-    { 55.10f, 155.10f, 5.40f },        /* 36 */ \
-    { 65.10f, 155.10f, 5.40f },       /* 37 */ \
-    { 75.10f, 155.10f, 5.40f },       /* 38 */ \
-    { 85.10f, 155.10f, 5.40f },       /* 39 */ \
-    { 95.10f, 155.10f, 5.40f },       /* 40 */ \
-    { 105.10f, 155.10f, 5.40f },       /* 41 */ \
-    { 115.10f, 155.10f, 5.40f },       /* 42 */ \
-    { 125.10f, 155.10f, 5.40f },       /* 43 */ \
-    { 135.10f, 155.10f, 5.40f },       /* 44 */ \
-    { 145.10f, 155.10f, 5.40f },       /* 45 */ \
-    { 155.10f, 155.10f, 5.40f },       /* 40 */ \
-    { 165.10f, 155.10f, 5.40f },       /* 41 */ \
-    { 175.10f, 155.10f, 5.40f },       /* 42 */ \
-    { 185.10f, 155.10f, 5.40f },       /* 43 */ \
-    { 195.10f, 155.10f, 5.40f },       /* 44 */ \
-    { 205.10f, 155.10f, 5.40f },       /* 45 */ \
-    { 215.10f, 155.10f, 5.40f },       /* 46 */ \
-    { 225.10f, 155.10f, 5.40f },       /* 47 */ \
-    { 235.10f, 155.10f, 5.40f },       /* 48 */ \
-    { 245.10f, 155.10f, 5.40f },       /* 49 */ \
-    { 255.10f, 155.10f, 5.40f },       /* 50 */ \
-    { 265.10f, 155.10f, 5.40f },       /* 51 */ \
+    { 46.53f, 155.10f, 5.40f },        /* 32 */ \
+    { 57.96f, 155.10f, 5.40f },        /* 33 */ \
+    { 69.39f, 155.10f, 5.40f },        /* 34 */ \
+    { 80.81f, 155.10f, 5.40f },        /* 35 */ \
+    { 92.24f, 155.10f, 5.40f },        /* 36 */ \
+    { 103.67f, 155.10f, 5.40f },       /* 37 */ \
+    { 115.10f, 155.10f, 5.40f },       /* 38 */ \
+    { 126.53f, 155.10f, 5.40f },       /* 39 */ \
+    { 137.96f, 155.10f, 5.40f },       /* 40 */ \
+    { 149.39f, 155.10f, 5.40f },       /* 41 */ \
+    { 160.81f, 155.10f, 5.40f },       /* 42 */ \
+    { 172.24f, 155.10f, 5.40f },       /* 43 */ \
+    { 183.67f, 155.10f, 5.40f },       /* 44 */ \
+    { 195.10f, 155.10f, 5.40f },       /* 45 */ \
+    { 206.53f, 155.10f, 5.40f },       /* 40 */ \
+    { 217.96f, 155.10f, 5.40f },       /* 41 */ \
+    { 229.39f, 155.10f, 5.40f },       /* 42 */ \
+    { 240.81f, 155.10f, 5.40f },       /* 43 */ \
+    { 252.24f, 155.10f, 5.40f },       /* 44 */ \
+    { 263.67f, 155.10f, 5.40f },       /* 45 */ \
     \
-    { 275.10f, 155.10f, 5.40f },        /* 52 */ \
-    { 275.10f, 145.10f, 5.40f },        /* 53 */ \
-    { 275.10f, 135.10f, 5.40f },        /* 54 */ \
-    { 275.10f, 125.10f, 5.40f },        /* 55 */ \
-    { 275.10f, 115.10f, 5.40f },        /* 56 */ \
-    { 275.10f, 105.10f, 5.40f },        /* 57 */ \
-    { 275.10f, 95.10f, 5.40f },         /* 58 */ \
-    { 275.10f, 85.10f, 5.40f },         /* 59 */ \
-    { 275.10f, 75.10f, 5.40f },         /* 60 */ \
-    { 275.10f, 65.10f, 5.40f },         /* 61 */ \
-    { 275.10f, 55.10f, 5.40f },         /* 62 */ \
-    { 275.10f, 45.10f, 5.40f },         /* 63 */ \
-    { 275.10f, 35.10f, 5.40f }          /* 64 */
+    { 275.10f, 155.10f, 5.40f },       /* 46 */ \
+    { 275.10f, 141.77f, 5.40f },       /* 47 */ \
+    { 275.10f, 128.43f, 5.40f },       /* 48 */ \
+    { 275.10f, 115.10f, 5.40f },       /* 49 */ \
+    { 275.10f, 101.77f, 5.40f },       /* 50 */ \
+    { 275.10f, 88.43f, 5.40f },       /* 51 */ \
+    { 275.10f, 75.10f, 5.40f },       /* 52 */ \
+    { 275.10f, 61.77f, 5.40f },       /* 53 */ \
+    { 275.10f, 48.43f, 5.40f },       /* 54 */ \
+    { 275.10f, 35.10f, 5.40f }        /* 55 */
 
 static const Position HITBOX_BUTTON_POS_LIST[NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS] = {
     HITBOX_ADC_BUTTON_POS_DATA,
@@ -534,8 +719,8 @@ typedef struct {
 } DefaultHotkeyConfig;
 
 static const DefaultHotkeyConfig DEFAULT_HOTKEY_LIST[NUM_GAMEPAD_HOTKEYS] = {
-    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG,           true,  19 }, // 0
-    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION,         true,  18 }, // 1
+    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG,           true,  20 }, // 0
+    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION,         true,  19 }, // 1
     { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT,          false, 15 }, // 2
     { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV,          false, 16 }, // 3
     { false, GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP,             false, 14 }, // 4

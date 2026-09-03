@@ -21,7 +21,6 @@ public:
     void usbInTransfer(); // 主机完成数据接收
     
     void process();
-    void adjustSamplingDelay();
 
 private:
     LatencyMonitor() {}
@@ -55,15 +54,7 @@ private:
     uint64_t acc_total = 0;
     uint64_t acc_sof2ack = 0;
     uint32_t sample_count = 0;
-    uint16_t current_delay_us = 0;
-    float avg_sof2ack_latency = 0.0f;
-    uint32_t last_adjust_time = 0;
     uint32_t min_usb_in = 0xFFFFFFFF;
-    static constexpr uint8_t usb_in_win_size = 16;
-    uint32_t usb_in_window[usb_in_win_size] = {0};
-    uint8_t usb_in_win_idx = 0;
-    uint8_t usb_in_win_count = 0;
-    uint32_t usb_in_d_estimate = 60;
 };
 
 #define LATENCY_MONITOR LatencyMonitor::getInstance()

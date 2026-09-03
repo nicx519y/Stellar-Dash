@@ -28,6 +28,7 @@
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim4;
 DMA_HandleTypeDef hdma_tim4_ch1;
+DMA_HandleTypeDef hdma_tim4_ch2;
 
 /* TIM2 init function */
 void MX_TIM2_Init(void)
@@ -58,14 +59,15 @@ void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  /* TIM2 is the common report/ADC sampling clock. */
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN TIM2_Init 2 */
-  HAL_TIM_Base_Start_IT(&htim2);  //开启中断模式
+  /* Started by ReportScheduler after all ADC DMA channels are armed. */
   /* USER CODE END TIM2_Init 2 */
 
 }
@@ -103,7 +105,11 @@ void MX_TIM4_Init(void)
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, WS2812B_TIM_CHANNEL) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, WS2812B_KEYS_TIM_CHANNEL) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, WS2812B_AMBIENT_TIM_CHANNEL) != HAL_OK)
   {
     Error_Handler();
   }
@@ -147,8 +153,8 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
 
     /* TIM4 DMA Init */
     /* TIM4_CH1 Init */
-    hdma_tim4_ch1.Instance = WS2812B_TIM_DMA_INSTANCE;
-    hdma_tim4_ch1.Init.Request = WS2812B_TIM_DMA_REQUEST;
+    hdma_tim4_ch1.Instance = WS2812B_KEYS_TIM_DMA_INSTANCE;
+    hdma_tim4_ch1.Init.Request = WS2812B_KEYS_TIM_DMA_REQUEST;
     hdma_tim4_ch1.Init.Direction = DMA_MEMORY_TO_PERIPH;
     hdma_tim4_ch1.Init.PeriphInc = DMA_PINC_DISABLE;
     hdma_tim4_ch1.Init.MemInc = DMA_MINC_ENABLE;
@@ -163,6 +169,24 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
     }
 
     __HAL_LINKDMA(tim_pwmHandle,hdma[TIM_DMA_ID_CC1],hdma_tim4_ch1);
+
+    /* TIM4_CH2 Init */
+    hdma_tim4_ch2.Instance = WS2812B_AMBIENT_TIM_DMA_INSTANCE;
+    hdma_tim4_ch2.Init.Request = WS2812B_AMBIENT_TIM_DMA_REQUEST;
+    hdma_tim4_ch2.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_tim4_ch2.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_tim4_ch2.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_tim4_ch2.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+    hdma_tim4_ch2.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+    hdma_tim4_ch2.Init.Mode = DMA_CIRCULAR;
+    hdma_tim4_ch2.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_tim4_ch2.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_tim4_ch2) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(tim_pwmHandle,hdma[TIM_DMA_ID_CC2],hdma_tim4_ch2);
 
   /* USER CODE BEGIN TIM4_MspInit 1 */
 
@@ -182,13 +206,14 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
     __HAL_RCC_GPIOB_CLK_ENABLE();
     /**TIM4 GPIO Configuration
     PB6     ------> TIM4_CH1
+    PB7     ------> TIM4_CH2
     */
-    GPIO_InitStruct.Pin = WS2812B_TIM_GPIO_PIN;
+    GPIO_InitStruct.Pin = WS2812B_KEYS_TIM_GPIO_PIN | WS2812B_AMBIENT_TIM_GPIO_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = WS2812B_TIM_GPIO_AF;
-    HAL_GPIO_Init(WS2812B_TIM_GPIO_PORT, &GPIO_InitStruct);
+    HAL_GPIO_Init(WS2812B_KEYS_TIM_GPIO_PORT, &GPIO_InitStruct);
 
   /* USER CODE BEGIN TIM4_MspPostInit 1 */
 
@@ -229,6 +254,7 @@ void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef* tim_pwmHandle)
 
     /* TIM4 DMA DeInit */
     HAL_DMA_DeInit(tim_pwmHandle->hdma[TIM_DMA_ID_CC1]);
+    HAL_DMA_DeInit(tim_pwmHandle->hdma[TIM_DMA_ID_CC2]);
   /* USER CODE BEGIN TIM4_MspDeInit 1 */
 
   /* USER CODE END TIM4_MspDeInit 1 */

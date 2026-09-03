@@ -8,12 +8,13 @@ import {
     VStack,
     HStack,
     Slider,
+    Switch,
     Dialog,
     Fieldset,
     Portal,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, ButtonPerformancePresetConfigs, ButtonPerformancePresetName, GameControllerButton } from "@/types/gamepad-config";
+import { ADCButtonDebounceAlgorithm, RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, ButtonPerformancePresetConfigs, ButtonPerformancePresetName, GameControllerButton } from "@/types/gamepad-config";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { LuSheet } from "react-icons/lu";
@@ -47,21 +48,15 @@ export function ButtonsPerformanceSettingContent({
     onSelectedButtonsChange,
 }: ButtonsPerformanceSettingContentProps) {
     const { t } = useLanguage();
-    const { defaultProfile, updateProfileDetails } = useGamepadConfig();
+    const { defaultProfile, stageDeferredProfileDetails } = useGamepadConfig();
     const [isInit, setIsInit] = useState<boolean>(false);
     const [triggerConfigs, setTriggerConfigs] = useState<RapidTriggerConfig[]>([]);
+    const [isAllBtnsConfiguring, setIsAllBtnsConfiguring] = useState(true);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
     const [isTableDialogOpen, setIsTableDialogOpen] = useState<boolean>(false);
-    const { sendPendingCommandImmediately } = useGamepadConfig();
     const allKeys = RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS;
 
     const tableViewConfig = useMemo(() => triggerConfigs, [triggerConfigs]);
-
-    useEffect(() => {
-        return () => {
-            sendPendingCommandImmediately('update_profile');
-        }
-    }, []);
 
     /**
      * 加载触发配置
@@ -70,6 +65,7 @@ export function ButtonsPerformanceSettingContent({
         if (defaultProfile.triggerConfigs && !isInit) {
             const triggerConfigs = { ...defaultProfile.triggerConfigs };
             setTriggerConfigs(allKeys.map(key => triggerConfigs.triggerConfigs?.[key] ?? defaultTriggerConfig));
+            setIsAllBtnsConfiguring(defaultProfile.triggerConfigs.isAllBtnsConfiguring ?? true);
             setIsInit(true);
             setNeedUpdate(false);
         }
@@ -235,15 +231,34 @@ export function ButtonsPerformanceSettingContent({
      */
     const saveConfig = useCallback(() =>{
         const profileId = defaultProfile.id;
-        const preserveAllFlag = defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true;
-        updateProfileDetails(profileId, {
+        const preserveDebounce = defaultProfile.triggerConfigs?.debounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE;
+        stageDeferredProfileDetails(profileId, {
             id: profileId,
             triggerConfigs: {
-                isAllBtnsConfiguring: preserveAllFlag,
+                isAllBtnsConfiguring,
+                debounceAlgorithm: preserveDebounce,
                 triggerConfigs: triggerConfigs
             }
         });
-    }, [defaultProfile, triggerConfigs]);
+    }, [defaultProfile, triggerConfigs, isAllBtnsConfiguring, stageDeferredProfileDetails]);
+
+    const updateTriggerOptions = (
+        patch: Partial<Pick<NonNullable<typeof defaultProfile.triggerConfigs>, 'isAllBtnsConfiguring'>>,
+    ) => {
+        const profileId = defaultProfile.id;
+        const current = defaultProfile.triggerConfigs;
+        const nextIsAllBtnsConfiguring = patch.isAllBtnsConfiguring ?? isAllBtnsConfiguring;
+        setIsAllBtnsConfiguring(nextIsAllBtnsConfiguring);
+        stageDeferredProfileDetails(profileId, {
+            id: profileId,
+            triggerConfigs: {
+                isAllBtnsConfiguring: nextIsAllBtnsConfiguring,
+                debounceAlgorithm: current?.debounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE,
+                triggerConfigs,
+                ...patch,
+            },
+        });
+    };
 
     return (
         <>
@@ -256,6 +271,19 @@ export function ButtonsPerformanceSettingContent({
                     <Fieldset.Root>
                         <Fieldset.Content>
                             <VStack gap={8} alignItems={"flex-start"}>
+                                <Switch.Root
+                                    colorPalette="green"
+                                    checked={isAllBtnsConfiguring}
+                                    onCheckedChange={(detail) => {
+                                        if (detail.checked) applySelection(scopeAllIds);
+                                        updateTriggerOptions({ isAllBtnsConfiguring: detail.checked });
+                                    }}
+                                >
+                                    <Switch.HiddenInput />
+                                    <Switch.Control><Switch.Thumb /></Switch.Control>
+                                    <Switch.Label>{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Switch.Label>
+                                </Switch.Root>
+
                                 {/* 配置范围 */}
                                 <VStack gap={2} alignItems={"flex-start"}>
                                     <Text fontSize={"sm"} opacity={0.75}>{t.SETTINGS_RAPID_TRIGGER_SCOPE_TITLE}</Text>

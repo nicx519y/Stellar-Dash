@@ -5,7 +5,7 @@
 #include "board_cfg.h"
 #include "storagemanager.hpp"
 #include "stm32h7xx_hal.h"  // 为HAL_GetTick()
-#include "configs/common_command_handler.hpp"  // 为WebSocket推送
+#include "configs/common_command_handler.hpp"  // 为DeviceCommand推送
 
 // 前向声明，避免循环依赖
 class CommonCommandHandler;
@@ -40,15 +40,18 @@ WebConfigBtnsManager::~WebConfigBtnsManager() {
     cleanupButtonWorkers();
 }
 
-void WebConfigBtnsManager::setupButtonWorkers() {
+bool WebConfigBtnsManager::setupButtonWorkers() {
     ADCBtnsError adcResult = ADC_BTNS_WORKER.setup();
 
     if (adcResult != ADCBtnsError::SUCCESS) {
         APP_ERR("WebConfigBtnsManager::setupButtonWorkers - ADC setup failed with error: %d", (int)adcResult);
+        (void)ADC_BTNS_WORKER.deinit();
+        return false;
     }
     
     // 设置GPIO按键工作器
     GPIO_BTNS_WORKER.setup();
+    return true;
 }
 
 void WebConfigBtnsManager::cleanupButtonWorkers() {
@@ -58,18 +61,18 @@ void WebConfigBtnsManager::cleanupButtonWorkers() {
     // GPIO按键工作器通过析构函数自动清理
 }
 
-void WebConfigBtnsManager::startButtonWorkers() {
+bool WebConfigBtnsManager::startButtonWorkers() {
     if (!isWorkerActive) {
         APP_DBG("WebConfigBtnsManager::startButtonWorkers - starting button workers");
-        setupButtonWorkers(); // 设置专用配置，并且开始ADC采样
-        
-        // 在WebConfig模式下，必须显式启动连续采样，因为setupButtonWorkers可能会根据模式判断而不启动
-        if (ADCManager::getInstance().getADCMode() == ADC_MODE_CONTINUOUS) {
-            ADCManager::getInstance().startContinuousSampling();
+        if (!setupButtonWorkers()) {
+            currentMask = 0u;
+            previousMask = 0u;
+            isWorkerActive = false;
+            return false;
         }
-        
         isWorkerActive = true;
     }
+    return true;
 }
 
 void WebConfigBtnsManager::stopButtonWorkers() {
@@ -121,7 +124,12 @@ bool WebConfigBtnsManager::setADCButtonConfig(uint8_t buttonIndex, const WebConf
     if (isWorkerActive) {
         // 重新初始化ADC工作器以应用新配置
         ADC_BTNS_WORKER.deinit();
-        setupButtonWorkers();
+        isWorkerActive = setupButtonWorkers();
+        if (!isWorkerActive) {
+            currentMask = 0u;
+            previousMask = 0u;
+            return false;
+        }
     }
     
     return true;
@@ -141,7 +149,7 @@ void WebConfigBtnsManager::update() {
         return;
     }
 
-    // 技术测试模式下，只处理ADC按键，并且每一次循环都send websocket 传输当前的状态和值
+    // 技术测试模式下，只处理ADC按键，并且每一次循环都send device_command 传输当前的状态和值
 
     if(isTestModeEnabled_) {
         

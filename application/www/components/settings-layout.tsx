@@ -2,42 +2,50 @@
 
 import React from 'react';
 import { useRouterStore, Route } from './router';
-import { Flex, Center, Box, Tabs, HStack, Separator } from '@chakra-ui/react';
+import { Flex, Center, Box, Tabs, HStack, Separator, Text } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
 import {
     LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad, LuFileText,
-    //  LuWifi, LuMonitor, LuChartSpline 
+    LuCircleCheckBig, LuChartSpline,
+    //  LuWifi, LuMonitor
 } from 'react-icons/lu';
 import { navigationEvents } from '@/lib/event-manager';
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { FinishConfigButton } from './finish-config-button';
-import { ExportConfigButton } from './export-config-button';
-import { ImportConfigButton } from './import-config-button';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { BuildVariantBadge } from '@hbox/build-variant-badge';
+import { UserAuthControl } from '@/components/user-auth-control';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { t } = useLanguage();
     const { currentRoute, setRoute } = useRouterStore();
 
-    const { finishConfigDisabled } = useGamepadConfig();
-
+    const { finishConfigDisabled, deviceSession, flushDeferredConfig } = useGamepadConfig();
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
         { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
-        // { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
+        { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
         { id: 'view-logs' as Route, label: t.SETTINGS_TAB_VIEW_LOGS, icon: LuFileText },
-        // { id: 'websocket' as Route, label: 'WebSocket测试', icon: LuWifi },
         // { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },
     ];
 
     const handleValueChange = async (details: { value: string }) => {
+        if (details.value === currentRoute) return;
         const canNavigate = await navigationEvents.emit(details.value as Route);
         if (canNavigate) {
-            await setRoute(details.value as Route);
+            // Route first so a slow STM32 QSPI commit can never hold the tab UI
+            // on the previous page. The global draft survives the unmount and
+            // the shared monitor lease pauses/resumes the destination page.
+            setRoute(details.value as Route);
+            window.setTimeout(() => {
+                void flushDeferredConfig(undefined, true).catch((error) => {
+                    console.error('后台保存配置失败:', error);
+                });
+            }, 0);
         }
     };
 
@@ -132,21 +140,38 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                     <Box w="fit-content" ml="15px">
                         <HStack gap={2}>
                             <FinishConfigButton disabled={finishConfigDisabled} />
-                            <ExportConfigButton disabled={finishConfigDisabled} />
-                            <ImportConfigButton disabled={finishConfigDisabled} />
                         </HStack>
                     </Box>
 
                 </HStack>
-                <HStack justifyContent="flex-end" >
+                <HStack justifyContent="flex-end" gap="10px">
+                    <BuildVariantBadge />
+                    {deviceSession?.authenticated && (
+                        <HStack
+                            gap={1}
+                            color="green.fg"
+                            role="status"
+                            aria-label={t.DEVICE_AUTHENTICATED_STATUS}
+                        >
+                            <Box as={LuCircleCheckBig} boxSize="4" />
+                            <Text fontSize="xs" fontWeight="medium">
+                                {t.DEVICE_AUTHENTICATED_STATUS}
+                            </Text>
+                        </HStack>
+                    )}
+                    <UserAuthControl />
                     <LanguageSwitcher />
                     {/* <ColorModeSwitcher /> */}
                 </HStack>
             </HStack>
 
 
-            <Flex direction="column" flex={1} height="100%">
-                <Center flex={1}>
+            <Flex direction="column" flex={1} minHeight={0}>
+                <Center
+                    flex={1}
+                    minHeight={0}
+                    overflow={currentRoute === 'switch-marking' ? 'hidden' : undefined}
+                >
                     {children}
                 </Center>
             </Flex>

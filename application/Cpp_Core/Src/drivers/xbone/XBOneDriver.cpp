@@ -122,6 +122,7 @@ CFG_TUSB_MEM_SECTION static xboned_interface_t _xboned_itf[CFG_TUD_XBONE];
 static XGIPProtocol *outgoingXGIP = nullptr;
 static XGIPProtocol *incomingXGIP = nullptr;
 static XboxOneAuthData *xboxOneAuthData = nullptr;
+CFG_TUSB_MEM_ALIGN static uint8_t xbone_control_buffer[255];
 
 // Windows requires a Descriptor Single for Xbox One
 typedef struct
@@ -149,6 +150,36 @@ const OS_COMPATIBLE_ID_DESCRIPTOR_SINGLE DevCompatIDsOne = {
     SubCompatibleID : {0},
     Reserved3 : {0}
 };
+
+static bool xbone_control_xfer(uint8_t rhport, uint8_t stage,
+                               tusb_control_request_t const *request)
+{
+    if (stage != CONTROL_STAGE_SETUP)
+        return true;
+
+    if (request->wLength > sizeof(xbone_control_buffer))
+        return false;
+
+    memset(xbone_control_buffer, 0, sizeof(xbone_control_buffer));
+
+    uint16_t len = request->wLength;
+    if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
+    {
+        if (request->bmRequestType == (USB_SETUP_DEVICE_TO_HOST | USB_SETUP_RECIPIENT_DEVICE | USB_SETUP_TYPE_VENDOR) &&
+            request->bRequest == REQ_GET_OS_FEATURE_DESCRIPTOR &&
+            request->wIndex == DESC_EXTENDED_COMPATIBLE_ID_DESCRIPTOR)
+        {
+            if (len > sizeof(DevCompatIDsOne))
+                len = sizeof(DevCompatIDsOne);
+            memcpy(xbone_control_buffer, &DevCompatIDsOne, len);
+            return tud_control_xfer(rhport, request, xbone_control_buffer, len);
+        }
+
+        return false;
+    }
+
+    return tud_control_xfer(rhport, request, xbone_control_buffer, len);
+}
 
 static void xbone_reset(uint8_t rhport)
 {
@@ -237,27 +268,7 @@ static void queue_xbone_report(void *report, uint16_t report_size)
 bool xbone_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage,
                                   tusb_control_request_t const *request)
 {
-    uint8_t buf[255];
-
-    // nothing to with DATA & ACK stage
-    if (stage != CONTROL_STAGE_SETUP)
-        return true;
-
-    if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
-    { // This is where we should be
-        uint16_t len = request->wLength;
-        if (request->bmRequestType == (USB_SETUP_DEVICE_TO_HOST | USB_SETUP_RECIPIENT_DEVICE | USB_SETUP_TYPE_VENDOR) && request->bRequest == REQ_GET_OS_FEATURE_DESCRIPTOR &&
-            request->wIndex == DESC_EXTENDED_COMPATIBLE_ID_DESCRIPTOR)
-        {
-            memcpy(buf, &DevCompatIDsOne, len);
-        }
-        tud_control_xfer(rhport, request, (void *)buf, len);
-    }
-    else
-    {
-        tud_control_xfer(rhport, request, (void *)buf, request->wLength);
-    }
-    return true;
+    return xbone_control_xfer(rhport, stage, request);
 }
 
 bool xbone_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
@@ -634,32 +645,16 @@ void XBOneDriver::set_report(uint8_t report_id, hid_report_type_t report_type, u
 // Only XboxOG and Xbox One use vendor control xfer cb
 bool XBOneDriver::vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
-    uint8_t buf[255];
-
-    // nothing to with DATA & ACK stage
-    if (stage != CONTROL_STAGE_SETUP)
-        return true;
-
-    if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
-    { // This is where we should be
-        uint16_t len = request->wLength;
-        if (request->bmRequestType == (USB_SETUP_DEVICE_TO_HOST | USB_SETUP_RECIPIENT_DEVICE | USB_SETUP_TYPE_VENDOR) && request->bRequest == REQ_GET_OS_FEATURE_DESCRIPTOR &&
-            request->wIndex == DESC_EXTENDED_COMPATIBLE_ID_DESCRIPTOR)
-        {
-            memcpy(buf, &DevCompatIDsOne, len);
-        }
-        tud_control_xfer(rhport, request, (void *)buf, len);
-    }
-    else
-    {
-        tud_control_xfer(rhport, request, (void *)buf, request->wLength);
-    }
-    return true;
+    return xbone_control_xfer(rhport, stage, request);
 }
 
 const uint16_t *XBOneDriver::get_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
     const char *value = (const char *)xbone_get_string_descriptor(index);
+    if (value == nullptr)
+    {
+        return nullptr;
+    }
     return getStringDescriptor(value, index); // getStringDescriptor returns a static array
 }
 
@@ -781,8 +776,7 @@ void XBOneDriver::process_report_queue(uint32_t now)
         }
         else
         {
-            // THIS IS REQUIRED FOR TIMING ON PC / CONSOLE
-            HAL_Delay(REPORT_QUEUE_INTERVAL); // sleep while we wait, never happens during input only auth
+            lastReportQueue = now;
         }
     }
 }

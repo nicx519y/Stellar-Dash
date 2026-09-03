@@ -3,7 +3,10 @@
 #include <string.h>
 
 #include "board_cfg.h"
+#include "configs/user_image_format.hpp"
 #include "qspi-w25q64.h"
+#include "stm32h7xx.h"
+#include "system_logger.h"
 
 #ifndef SPI_SCREEN_STANDBY_TIMEOUT_MS
 #define SPI_SCREEN_STANDBY_TIMEOUT_MS 5000u
@@ -23,69 +26,24 @@ static uint32_t g_last_input_mask = 0;
 static bool g_image_source_ready = false;
 static bool g_image_source_valid = false;
 static uint8_t g_image_kind = 0;
-static const uint8_t* g_image_pixels = nullptr;
 static uint16_t g_image_w = 0;
 static uint16_t g_image_h = 0;
 static uint8_t g_anim_frame_count = 1;
 static uint8_t g_anim_fps = 0;
 static uint32_t g_anim_frame_size = 0;
 static uint32_t g_anim_frame_offsets[10] = {0};
+static uint32_t g_image_base_addr = 0;
 static uint8_t g_anim_frame_index = 0;
 static uint32_t g_anim_next_ms = 0;
 
 enum : uint8_t {
     STANDBY_IMAGE_NONE = 0u,
-    STANDBY_IMAGE_HIMG_RGB565 = 1u,
-    STANDBY_IMAGE_UIMG = 2u
+    STANDBY_IMAGE_UIMG = 1u
 };
 
-static const uint32_t UIMG_MAGIC = 0x474D4955u;
-static const uint8_t UIMG_FORMAT_RGB565_SINGLE = 1u;
-static const uint8_t UIMG_FORMAT_RGB565_SEQUENCE = 2u;
-static const uint32_t UIMG_HEADER_SIZE = 4096u;
-static const uint32_t SYSBG_MAX_FRAMES = 8u;
-static const uint32_t SYSBG_FRAME_W = 320u;
-static const uint32_t SYSBG_FRAME_H = 172u;
-static const uint32_t SYSBG_FRAME_SIZE = SYSBG_FRAME_W * SYSBG_FRAME_H * 2u;
-static const uint32_t SYSBG_RESERVED_SIZE = UIMG_HEADER_SIZE + SYSBG_MAX_FRAMES * SYSBG_FRAME_SIZE;
-static const uint32_t USER_IMAGE_BASE_ADDR = USER_IMAGE_RESOURCES_ADDR + SYSBG_RESERVED_SIZE;
-static const uint32_t USER_IMAGE_AREA_SIZE = USER_IMAGE_RESOURCES_SIZE - SYSBG_RESERVED_SIZE;
-
-static const char* USER_IMAGE_ID = "USER_IMAGE";
-static const char* SYSTEM_IMAGE_ID = "SYSTEM_DEFAULT";
-
-#pragma pack(push, 1)
-typedef struct
-{
-    uint32_t magic;
-    uint16_t version;
-    uint8_t valid;
-    uint8_t format;
-    uint16_t width;
-    uint16_t height;
-    uint32_t size;
-    uint32_t offset;
-    char id[16];
-} StandbyUimgHeaderV1;
-
-typedef struct
-{
-    uint32_t magic;
-    uint16_t version;
-    uint8_t valid;
-    uint8_t format;
-    uint16_t width;
-    uint16_t height;
-    uint8_t frame_count;
-    uint8_t fps;
-    uint16_t reserved0;
-    uint32_t frame_size;
-    uint32_t frames_offset;
-    uint32_t total_size;
-    uint32_t frame_offsets[10];
-    char id[16];
-} StandbyUimgHeaderV2;
-#pragma pack(pop)
+static const uint32_t USER_IMAGE_FLASH_GUARD_SIZE = HBoxUserImage::STORAGE_GUARD_SIZE;
+static const uint32_t USER_IMAGE_BASE_ADDR = USER_IMAGE_RESOURCES_ADDR + USER_IMAGE_FLASH_GUARD_SIZE;
+static const uint32_t USER_IMAGE_AREA_SIZE = USER_IMAGE_RESOURCES_SIZE - USER_IMAGE_FLASH_GUARD_SIZE;
 
 static bool tick_reached(uint32_t nowMs, uint32_t targetMs)
 {
@@ -105,81 +63,52 @@ static void reset_image_runtime(void)
     g_image_source_ready = false;
     g_image_source_valid = false;
     g_image_kind = STANDBY_IMAGE_NONE;
-    g_image_pixels = nullptr;
     g_image_w = 0;
     g_image_h = 0;
     g_anim_frame_count = 1u;
     g_anim_fps = 0u;
     g_anim_frame_size = 0u;
+    g_image_base_addr = 0u;
     memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
     g_anim_frame_index = 0u;
     g_anim_next_ms = 0u;
 }
 
-static bool parse_uimg_v1(const StandbyUimgHeaderV1* v1, uint32_t maxSize)
+static bool validate_mapped_payload(uint32_t baseAddr,
+                                    const HBoxUserImage::HeaderV3& header)
 {
-    if (!v1) return false;
-    if (v1->magic != UIMG_MAGIC || v1->valid != 1u) return false;
-    uint32_t frameSize = (uint32_t)v1->width * (uint32_t)v1->height * 2u;
-    if (frameSize == 0u) return false;
-    if (v1->size != frameSize) return false;
-    if (v1->offset < UIMG_HEADER_SIZE) return false;
-    if ((uint64_t)v1->offset + (uint64_t)frameSize > (uint64_t)maxSize) return false;
+    const uint32_t payloadAddr = baseAddr + header.frames_offset;
+    const uint32_t cacheStart = payloadAddr & ~31u;
+    const uint32_t cacheEnd = (payloadAddr + header.total_size + 31u) & ~31u;
+    SCB_InvalidateDCache_by_Addr(
+        reinterpret_cast<uint32_t*>(cacheStart),
+        static_cast<int32_t>(cacheEnd - cacheStart));
+    __DSB();
+    __ISB();
 
-    g_image_kind = STANDBY_IMAGE_UIMG;
-    g_image_w = v1->width;
-    g_image_h = v1->height;
-    g_anim_frame_count = 1u;
-    g_anim_fps = 0u;
-    g_anim_frame_size = frameSize;
-    g_anim_frame_offsets[0] = v1->offset;
-    return true;
+    CRC32 crc;
+    const uint8_t* payload = reinterpret_cast<const uint8_t*>(payloadAddr);
+    uint32_t offset = 0u;
+    while (offset < header.total_size) {
+        uint32_t chunk = header.total_size - offset;
+        if (chunk > 4096u) chunk = 4096u;
+        crc.update(payload + offset, static_cast<uint16_t>(chunk));
+        offset += chunk;
+    }
+    return crc.finalize() == header.payload_crc32;
 }
 
-static bool parse_uimg_v2(const StandbyUimgHeaderV2* v2, uint32_t maxSize)
+static void adopt_uimg_source(uint32_t baseAddr,
+                              const HBoxUserImage::HeaderV3& header)
 {
-    if (!v2) return false;
-    if (v2->magic != UIMG_MAGIC || v2->valid != 1u) return false;
-
-    uint8_t frameCount = v2->frame_count;
-    if (frameCount == 0u) frameCount = 1u;
-    if (frameCount > 10u) frameCount = 10u;
-    uint8_t fps = v2->fps;
-    if (fps > 5u) fps = 5u;
-    uint32_t frameSize = (uint32_t)v2->width * (uint32_t)v2->height * 2u;
-    if (frameSize == 0u) return false;
-    if (v2->frame_size != frameSize) return false;
-    if (v2->frames_offset < UIMG_HEADER_SIZE) return false;
-    if ((uint64_t)v2->frames_offset + (uint64_t)frameSize > (uint64_t)maxSize) return false;
-
-    if (v2->format == UIMG_FORMAT_RGB565_SEQUENCE) {
-        uint32_t expected = frameSize * (uint32_t)frameCount;
-        if (v2->total_size != expected) return false;
-    } else if (v2->format == UIMG_FORMAT_RGB565_SINGLE) {
-        frameCount = 1u;
-        fps = 0u;
-        if (v2->total_size != frameSize) return false;
-    } else {
-        return false;
-    }
-
-    for (uint8_t i = 0; i < frameCount; i++) {
-        uint32_t off = v2->frame_offsets[i];
-        if (off == 0u) {
-            off = v2->frames_offset + (uint32_t)i * frameSize;
-        }
-        if (off < UIMG_HEADER_SIZE) return false;
-        if ((uint64_t)off + (uint64_t)frameSize > (uint64_t)maxSize) return false;
-        g_anim_frame_offsets[i] = off;
-    }
-
     g_image_kind = STANDBY_IMAGE_UIMG;
-    g_image_w = v2->width;
-    g_image_h = v2->height;
-    g_anim_frame_count = frameCount;
-    g_anim_fps = fps;
-    g_anim_frame_size = frameSize;
-    return true;
+    g_image_base_addr = baseAddr;
+    g_image_w = header.width;
+    g_image_h = header.height;
+    g_anim_frame_count = header.frame_count;
+    g_anim_fps = header.fps;
+    g_anim_frame_size = header.frame_size;
+    memcpy(g_anim_frame_offsets, header.frame_offsets, sizeof(g_anim_frame_offsets));
 }
 
 static bool resolve_uimg_source(const char* imageId)
@@ -189,50 +118,27 @@ static bool resolve_uimg_source(const char* imageId)
 
     uint32_t baseAddr = 0u;
     uint32_t areaSize = 0u;
-    if (strncmp(imageId, SYSTEM_IMAGE_ID, 16) == 0) {
-        baseAddr = USER_IMAGE_RESOURCES_ADDR;
-        areaSize = SYSBG_RESERVED_SIZE;
-    } else if (strncmp(imageId, USER_IMAGE_ID, 16) == 0) {
+    uint8_t maxFrames = 0u;
+    const char* expectedId = nullptr;
+    if (strncmp(imageId, HBoxUserImage::USER_ID, 16) == 0) {
         baseAddr = USER_IMAGE_BASE_ADDR;
         areaSize = USER_IMAGE_AREA_SIZE;
+        maxFrames = HBoxUserImage::MAX_USER_FRAMES;
+        expectedId = HBoxUserImage::USER_ID;
     } else {
         return false;
     }
-    if (areaSize < sizeof(StandbyUimgHeaderV1)) return false;
+    if (areaSize < sizeof(HBoxUserImage::HeaderV3)) return false;
 
     const uint8_t* base = (const uint8_t*)(uintptr_t)baseAddr;
-    StandbyUimgHeaderV1 v1 = {0};
-    memcpy(&v1, base, sizeof(v1));
-    if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
-
-    memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
-    if (v1.version == 1u) {
-        return parse_uimg_v1(&v1, areaSize);
+    HBoxUserImage::HeaderV3 header = {0};
+    memcpy(&header, base, sizeof(header));
+    if (!HBoxUserImage::validateStructure(header, expectedId, areaSize, maxFrames) ||
+        !validate_mapped_payload(baseAddr, header)) {
+        LOG_WARN("ScreenStandby", "Rejected invalid UIMG v3 asset: %s", imageId);
+        return false;
     }
-    if (areaSize < sizeof(StandbyUimgHeaderV2)) return false;
-    StandbyUimgHeaderV2 v2 = {0};
-    memcpy(&v2, base, sizeof(v2));
-    return parse_uimg_v2(&v2, areaSize);
-}
-
-static bool resolve_himg_source(const char* imageId)
-{
-    if (!imageId || imageId[0] == '\0') return false;
-    if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
-
-    ST7789_AssetInfo info;
-    memset(&info, 0, sizeof(info));
-    if (!ST7789_Assets_Find(imageId, &info)) return false;
-    if (info.type != ST7789_ASSET_TYPE_RGB565LE) return false;
-    if (!info.data || info.width == 0u || info.height == 0u) return false;
-
-    g_image_kind = STANDBY_IMAGE_HIMG_RGB565;
-    g_image_pixels = (const uint8_t*)info.data;
-    g_image_w = info.width;
-    g_image_h = info.height;
-    g_anim_frame_count = 1u;
-    g_anim_fps = 0u;
-    g_anim_frame_size = (uint32_t)info.width * 2u * (uint32_t)info.height;
+    adopt_uimg_source(baseAddr, header);
     return true;
 }
 
@@ -242,12 +148,12 @@ static void ensure_image_source(void)
     g_image_source_ready = true;
     g_image_source_valid = false;
     g_image_kind = STANDBY_IMAGE_NONE;
-    g_image_pixels = nullptr;
     g_image_w = 0;
     g_image_h = 0;
     g_anim_frame_count = 1u;
     g_anim_fps = 0u;
     g_anim_frame_size = 0u;
+    g_image_base_addr = 0u;
     memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
     if (!ensure_qspi_mmap()) {
         return;
@@ -257,9 +163,7 @@ static void ensure_image_source(void)
         g_image_source_valid = true;
         return;
     }
-    if (resolve_himg_source(g_bg_image_id)) {
-        g_image_source_valid = true;
-    }
+    LOG_WARN("ScreenStandby", "No valid background image is available");
 }
 
 static void draw_image_frame(ST7789_Handle* lcd, uint8_t frameIndex)
@@ -273,19 +177,9 @@ static void draw_image_frame(ST7789_Handle* lcd, uint8_t frameIndex)
         y = (uint16_t)((ST7789_HEIGHT - g_image_h) / 2u);
     }
 
-    if (g_image_kind == STANDBY_IMAGE_HIMG_RGB565) {
-        if (!g_image_pixels) return;
-        ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, g_image_pixels, ST7789_BITMAP_RGB565_LE, (uint32_t)g_image_w * 2u);
-        return;
-    }
     if (g_image_kind == STANDBY_IMAGE_UIMG) {
         if (frameIndex >= g_anim_frame_count) frameIndex = 0u;
-        uint32_t addr = 0u;
-        if (strncmp(g_bg_image_id, SYSTEM_IMAGE_ID, 16) == 0) {
-            addr = USER_IMAGE_RESOURCES_ADDR + g_anim_frame_offsets[frameIndex];
-        } else {
-            addr = USER_IMAGE_BASE_ADDR + g_anim_frame_offsets[frameIndex];
-        }
+        uint32_t addr = g_image_base_addr + g_anim_frame_offsets[frameIndex];
         const uint8_t* pixels = (const uint8_t*)(uintptr_t)addr;
         ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, pixels, ST7789_BITMAP_RGB565_LE, (uint32_t)g_image_w * 2u);
     }
@@ -344,6 +238,16 @@ void ScreenStandby_Configure(uint8_t standbyDisplay, const char* backgroundImage
     }
 }
 
+void ScreenStandby_InvalidateImageCache(void)
+{
+    reset_image_runtime();
+    if (g_display == 1u) {
+        g_active = false;
+        g_last_activity_ms = HAL_GetTick();
+    }
+    g_need_redraw = true;
+}
+
 void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool activityEvent, bool wakeEvent)
 {
     bool activeInput = activityEvent;
@@ -368,6 +272,10 @@ void ScreenStandby_Tick(uint32_t nowMs)
     if (g_active) return;
     if (g_display == 0u) return;
     if ((uint32_t)(nowMs - g_last_activity_ms) < SPI_SCREEN_STANDBY_TIMEOUT_MS) return;
+    if (g_display == 1u) {
+        ensure_image_source();
+        if (!g_image_source_valid) return;
+    }
     g_active = true;
     g_need_redraw = true;
 }

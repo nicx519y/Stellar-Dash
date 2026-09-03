@@ -1,0 +1,320 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic [aria-hidden]:
+          - generic:
+            - generic:
+              - tablist:
+                - tab [selected]:
+                  - generic: Global Setting
+                - separator
+                - tab:
+                  - generic: Keys Setting
+                - separator
+                - tab:
+                  - generic: Buttons Performance
+                - separator
+                - tab:
+                  - generic: Lighting Setting
+                - separator
+                - tab:
+                  - generic: Switch Marking
+                - separator
+                - tab:
+                  - generic: Firmware
+                - separator
+                - tab:
+                  - generic: View Logs
+            - generic:
+              - generic:
+                - button: Finish Configuration
+          - generic:
+            - generic: MOCK DEVICE
+            - status:
+              - paragraph: Authenticated device
+            - button: Sign in
+            - button: 中文
+        - generic:
+          - generic:
+            - generic:
+              - generic [aria-hidden]:
+                - generic:
+                  - generic:
+                    - generic:
+                      - heading [level=3]: Platform
+                    - generic:
+                      - radiogroup:
+                        - generic:
+                          - generic:
+                            - radio [checked]
+                            - generic: Windows PC
+                          - generic:
+                            - radio
+                            - generic: PlayStation
+                          - generic:
+                            - radio
+                            - generic: Xbox One|Series
+                          - generic:
+                            - radio
+                            - generic: Nintendo Switch
+              - generic [aria-hidden]:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - button: Start Calibration
+                              - button: Reset Calibration
+                  - generic:
+                    - img:
+                      - generic [ref=e190] [cursor=pointer]
+                      - generic [ref=e191] [cursor=pointer]
+                      - generic [ref=e192] [cursor=pointer]
+                      - generic [ref=e193] [cursor=pointer]
+                      - generic [ref=e194] [cursor=pointer]
+                      - generic [ref=e195] [cursor=pointer]
+                      - generic [ref=e196] [cursor=pointer]
+                      - generic [ref=e197] [cursor=pointer]
+                      - generic [ref=e198] [cursor=pointer]
+                      - generic [ref=e199] [cursor=pointer]
+                      - generic [ref=e200] [cursor=pointer]
+                      - generic [ref=e201] [cursor=pointer]
+                      - generic [ref=e202] [cursor=pointer]
+                      - generic [ref=e203] [cursor=pointer]
+                      - generic [ref=e204] [cursor=pointer]
+                      - generic [ref=e205] [cursor=pointer]
+                      - generic [ref=e206] [cursor=pointer]
+                      - generic [ref=e207] [cursor=pointer]
+                      - generic [ref=e208] [cursor=pointer]
+                      - generic [ref=e209] [cursor=pointer]
+                      - generic: "1"
+                      - generic: "2"
+                      - generic: "3"
+                      - generic: "4"
+                      - generic: "5"
+                      - generic: "6"
+                      - generic: "7"
+                      - generic: "8"
+                      - generic: "9"
+                      - generic: "10"
+                      - generic: "11"
+                      - generic: "12"
+                      - generic: "13"
+                      - generic: "14"
+                      - generic: "15"
+                      - generic: "16"
+                      - generic: "17"
+                      - generic: "18"
+                      - generic: "19"
+                      - generic: "20"
+                      - generic: "21"
+                      - generic: Fn
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - tablist [aria-hidden]:
+                            - tab: Basic
+                            - tab [selected]: Screen Control
+                            - tab: Hotkey
+                          - tabpanel "Screen Control":
+                            - generic [aria-hidden]:
+                              - generic:
+                                - paragraph: Customize the screen control features, such as brightness, contrast, and color.
+                            - generic:
+                              - generic [aria-hidden]:
+                                - separator
+                                - paragraph: Basic Settings
+                                - separator
+                              - generic [aria-hidden]:
+                                - generic:
+                                  - generic: Brightness
+                                  - generic: "70"
+                                - generic:
+                                  - slider
+                              - radiogroup [aria-hidden]:
+                                - generic:
+                                  - generic:
+                                    - radio [checked]
+                                    - generic: Dark
+                                  - generic:
+                                    - radio
+                                    - generic: Light
+                              - generic [aria-hidden]:
+                                - separator
+                                - paragraph: Standby Display
+                                - separator
+                              - generic [aria-hidden]:
+                                - radiogroup:
+                                  - generic:
+                                    - generic:
+                                      - radio
+                                      - generic: None
+                                    - generic:
+                                      - radio
+                                      - generic: Background Image
+                                    - generic:
+                                      - radio [checked]
+                                      - generic: Button Layout
+                              - generic [aria-hidden]:
+                                - generic:
+                                  - list:
+                                    - listitem: Open the gallery to choose an official image or manage up to 10 images in your account. Hold an image for 3 seconds to install it on this device.
+                                    - listitem: GIFs are sampled across the full animation to at most 6 frames and play at 3 FPS (about 2 seconds).
+                              - dialog [ref=e599]:
+                                - heading "Background Gallery" [level=2] [ref=e601]
+                                - generic [ref=e603]:
+                                  - tablist [ref=e604]:
+                                    - tab "System Images" [active] [selected] [ref=e605] [cursor=pointer]
+                                    - tab "My Images" [ref=e606] [cursor=pointer]
+                                  - tabpanel "System Images" [ref=e607]:
+                                    - paragraph [ref=e608]: Hold for 3 seconds to install
+                                - button
+                              - generic [aria-hidden]:
+                                - separator
+                                - paragraph: Features Display
+                                - separator
+                              - radiogroup [aria-hidden]:
+                                - table:
+                                  - rowgroup:
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Connection Mode Switch
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Platform Switch
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio [checked]
+                                            - generic: First Screen
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Profiles Switch
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: SOCD Mode Switch
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Buttons Performance
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: LED Brightness Adjust
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: LED Effect Switch
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Ambient Brightness Adjust
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Ambient Effect Switch
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Screen Brightness Adjust
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Web Config Entry
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked] [disabled]
+                                    - row:
+                                      - cell:
+                                        - generic:
+                                          - paragraph: Calibration Mode Switch
+                                      - cell:
+                                        - generic:
+                                          - generic:
+                                            - radio
+                                      - cell:
+                                        - generic:
+                                          - checkbox [checked]
+  - generic:
+    - alert
+  - region "top Notifications alt+T"
