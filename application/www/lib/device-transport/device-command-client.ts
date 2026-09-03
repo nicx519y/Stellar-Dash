@@ -35,6 +35,7 @@ import {
   elevatedScopesForCommand,
 } from './scope-policy';
 import { exportWebHidConfigSections } from './webhid-config-export';
+import { crc32 } from '../crc32';
 
 if (WEBHID_MAX_FIRMWARE_PACKET_SIZE > WEBHID_MAX_STREAM_SIZE) {
   throw new Error('WebHID firmware packet exceeds the device stream boundary');
@@ -46,6 +47,17 @@ type ScopeUpgradeOperation = {
   controller: AbortController;
   promise: Promise<void>;
 };
+
+type DeviceTransactionOwner = 'ready-session' | 'connection-initialization';
+
+const CONNECTION_INITIALIZATION_COMMANDS = new Set([
+  'get_global_config',
+  'get_screen_control_config',
+  'get_profile_list',
+  'get_hotkeys_config',
+  'get_firmware_metadata',
+  'get_hitbox_layout',
+]);
 
 const MAX_BOOTSTRAP_RESYNCHRONIZATIONS = 2;
 const HBOX_CONFIG_BACKUP_FORMAT = 'hbox-webconfig-backup';
@@ -62,7 +74,10 @@ export class DeviceCommandClient {
   private readonly errorHandlers = new Set<(error: DeviceConnectionError) => void>();
   private readonly disconnectHandlers = new Set<() => void>();
   private readonly unsubscribe: Array<() => void> = [];
-  private readonly imageTransferTotals = new Map<number, number>();
+  // DeviceRequestQueue serializes individual HID exchanges. Image reads and
+  // writes contain many exchanges, so they also need a transaction-wide lane
+  // to prevent an upload BEGIN from invalidating a preview read mid-stream.
+  private imageOperationTail: Promise<void> = Promise.resolve();
   private scopeUpgrade: ScopeUpgradeOperation | null = null;
   private closeInFlight: Promise<void> | null = null;
   private connectInFlight: Promise<void> | null = null;
@@ -360,7 +375,6 @@ export class DeviceCommandClient {
     this.abortSessionRequests();
     this.abortScopeUpgrade();
     this.queue.clear();
-    this.imageTransferTotals.clear();
     this.authClient?.clear();
     this.setState(DeviceTransportState.DISCONNECTED);
     void this.beginTransportClose(generation);
@@ -378,12 +392,40 @@ export class DeviceCommandClient {
     params: Record<string, unknown> = {},
     options: DeviceRequestOptions = {},
   ): Promise<Record<string, unknown> | undefined> {
+    this.assertTransactionAllowed('ready-session');
     return this.queue.runExclusive(
       command,
       (queueSignal) => this.executeRequest(command, params, {
         ...options,
         signal: queueSignal,
-      }),
+      }, 'ready-session'),
+      { signal: options.signal },
+    );
+  }
+
+  /**
+   * The only RPC entry point allowed while the connection transaction is
+   * loading its required startup resources. Page features must use request()
+   * and therefore cannot contend with discovery/authentication/initialization.
+   */
+  async requestInitialization(
+    command: string,
+    params: Record<string, unknown> = {},
+    options: DeviceRequestOptions = {},
+  ): Promise<Record<string, unknown> | undefined> {
+    this.assertTransactionAllowed('connection-initialization');
+    if (!CONNECTION_INITIALIZATION_COMMANDS.has(command)) {
+      throw new DeviceTransportError(
+        'protocol',
+        `命令 ${command} 不属于设备连接初始化事务`,
+      );
+    }
+    return this.queue.runExclusive(
+      `connection-initialization:${command}`,
+      (queueSignal) => this.executeRequest(command, params, {
+        ...options,
+        signal: queueSignal,
+      }, 'connection-initialization'),
       { signal: options.signal },
     );
   }
@@ -392,8 +434,9 @@ export class DeviceCommandClient {
     command: string,
     params: Record<string, unknown> = {},
     options: DeviceRequestOptions = {},
+    owner: DeviceTransactionOwner = 'ready-session',
   ): Promise<Record<string, unknown> | undefined> {
-    this.assertNotDisposed();
+    this.assertTransactionAllowed(owner);
     const generation = this.lifecycleGeneration;
     const activeUpgrade = this.scopeUpgrade?.generation === generation;
     if (this.state !== DeviceTransportState.CONNECTED && !activeUpgrade) {
@@ -432,8 +475,18 @@ export class DeviceCommandClient {
     const frame = new Uint8Array(6);
     const view = new DataView(frame.buffer);
     view.setUint8(0, 0x34);
+    view.setUint8(1, 2); // Request Catalog v3 and fast image-stream capabilities.
     view.setUint32(2, cid, true);
-    const response = await this.exchangeFeatureFrame(frame, options);
+    let response: ArrayBuffer;
+    try {
+      response = await this.exchangeFeatureFrame(frame, options);
+    } catch (error) {
+      if (error instanceof DeviceTransportError &&
+          (error.code === 'protocol' || error.code === 'unsupported')) {
+        throw fastImageTransferUpgradeError(error);
+      }
+      throw error;
+    }
     return parseImageCatalog(response, cid);
   }
 
@@ -442,140 +495,187 @@ export class DeviceCommandClient {
     totalSize: number,
     options: DeviceRequestOptions = {},
   ): Promise<Uint8Array> {
-    const normalizedTotal = checkedUnsignedInteger(totalSize, 0xffff_ffff, 'Image size');
-    const targetCode = imageTargetCode(target);
-    const result = new Uint8Array(normalizedTotal);
-    const cid = nextCorrelationId();
-    const chunkSize = 4096;
-    for (let offset = 0; offset < normalizedTotal; offset += chunkSize) {
-      const wanted = Math.min(chunkSize, normalizedTotal - offset);
-      const frame = new Uint8Array(14);
-      const view = new DataView(frame.buffer);
-      view.setUint8(0, 0x35);
-      view.setUint8(1, targetCode);
-      view.setUint32(2, cid, true);
-      view.setUint32(6, offset, true);
-      view.setUint16(10, wanted, true);
-      const response = await this.exchangeFeatureFrame(frame, options);
-      const bytes = parseImageReadResponse(
-        response,
-        targetCode,
-        cid,
-        offset,
-        wanted,
-        normalizedTotal,
-      );
-      result.set(bytes, offset);
-    }
-    return result;
+    return this.runImageOperation(async () => {
+      const normalizedTotal = checkedUnsignedInteger(totalSize, 0xffff_ffff, 'Image size');
+      const targetCode = imageTargetCode(target);
+      const result = new Uint8Array(normalizedTotal);
+      const cid = nextCorrelationId();
+      const chunkSize = 4096;
+      for (let offset = 0; offset < normalizedTotal; offset += chunkSize) {
+        const wanted = Math.min(chunkSize, normalizedTotal - offset);
+        const frame = new Uint8Array(14);
+        const view = new DataView(frame.buffer);
+        view.setUint8(0, 0x35);
+        view.setUint8(1, targetCode);
+        view.setUint32(2, cid, true);
+        view.setUint32(6, offset, true);
+        view.setUint16(10, wanted, true);
+        const response = await this.exchangeFeatureFrame(frame, options);
+        const bytes = parseImageReadResponse(
+          response,
+          targetCode,
+          cid,
+          offset,
+          wanted,
+          normalizedTotal,
+        );
+        result.set(bytes, offset);
+      }
+      return result;
+    });
   }
 
   async uploadImage(request: DeviceImageUploadRequest): Promise<DeviceImageMutationResult> {
+    this.assertTransactionAllowed('ready-session');
+    const generation = this.lifecycleGeneration;
+    await this.ensureScopes(['asset.write'], generation);
+    return this.runImageOperation(() => this.queue.runExclusive(
+      'image.upload.v2',
+      (queueSignal) => this.uploadImageExclusive(request, generation, queueSignal),
+      { signal: request.signal },
+    ));
+  }
+
+  private async uploadImageExclusive(
+    request: DeviceImageUploadRequest,
+    generation: number,
+    queueSignal: AbortSignal,
+  ): Promise<DeviceImageMutationResult> {
     const width = checkedUnsignedInteger(request.width, 0xffff, 'Image width');
     const height = checkedUnsignedInteger(request.height, 0xffff, 'Image height');
     const total = checkedUnsignedInteger(request.data.byteLength, 0xffff_ffff, 'Image size');
-    const frameCount = checkedUnsignedInteger(request.frameCount, 10, 'Image frame count');
+    const frameCount = checkedUnsignedInteger(request.frameCount, 6, 'Image frame count');
     const fps = checkedUnsignedInteger(request.fps, 5, 'Image FPS');
     if (frameCount < 1) {
       throw new DeviceTransportError('protocol', 'Image frame count must be at least one');
     }
-    const options: DeviceRequestOptions = {
-      signal: request.signal,
-      timeoutMs: request.timeoutMs,
-    };
-    const cid = nextCorrelationId();
-    this.imageTransferTotals.set(cid, total);
-    try {
-      const begin = new Uint8Array(18);
-      const beginView = new DataView(begin.buffer);
-      beginView.setUint8(0, 0x30);
-      beginView.setUint8(1, frameCount > 1 ? 1 : 0);
-      beginView.setUint32(2, cid, true);
-      beginView.setUint16(6, width, true);
-      beginView.setUint16(8, height, true);
-      beginView.setUint32(10, total, true);
-      beginView.setUint8(14, frameCount);
-      beginView.setUint8(15, fps);
-      const beginStatus = parseImageMutationResult(
-        await this.exchangeFeatureFrame(begin, options),
-        0xb0,
-        cid,
-        'begin',
+    const catalog = await this.getImageCatalogWithinTransaction(generation, queueSignal);
+    if (
+      catalog.protocolVersion !== 3 ||
+      catalog.imageTransferVersion !== 2 ||
+      catalog.imageDataBytesPerReport !== 44 ||
+      (catalog.imageTransferFlags & 0x0003) !== 0x0003
+    ) {
+      throw new DeviceTransportError(
+        'unsupported',
+        '设备固件不支持快速图片传输，请先升级设备固件',
       );
-      if (!beginStatus.success) return beginStatus;
-      if (beginStatus.received !== 0 || beginStatus.total !== total) {
-        throw new DeviceTransportError('protocol', 'Image begin ACK does not match the upload');
-      }
-
-      const chunkSize = 4096;
-      for (let offset = 0; offset < total; offset += chunkSize) {
-        const part = request.data.subarray(offset, Math.min(total, offset + chunkSize));
-        const frame = new Uint8Array(14 + part.byteLength);
-        const view = new DataView(frame.buffer);
-        view.setUint8(0, 0x31);
-        view.setUint32(2, cid, true);
-        view.setUint32(6, offset, true);
-        view.setUint16(10, part.byteLength, true);
-        frame.set(part, 14);
-        const status = parseImageMutationResult(
-          await this.exchangeFeatureFrame(frame, options),
-          0xb1,
-          cid,
-          'chunk',
-        );
-        if (!status.success) return status;
-        const expectedReceived = offset + part.byteLength;
-        if (status.received !== expectedReceived || status.total !== total) {
-          throw new DeviceTransportError(
-            'protocol',
-            `Image chunk ACK does not match the uploaded range: expected ${expectedReceived}/${total}, received ${status.received}/${status.total}`,
-          );
-        }
-        request.onProgress?.(status.received, status.total);
-      }
-
-      const commit = new Uint8Array(6);
-      const commitView = new DataView(commit.buffer);
-      commitView.setUint8(0, 0x32);
-      commitView.setUint32(2, cid, true);
-      const commitStatus = parseImageMutationResult(
-        await this.exchangeFeatureFrame(commit, options),
-        0xb2,
-        cid,
-        'commit',
-      );
-      if (
-        commitStatus.success &&
-        (commitStatus.received !== total || commitStatus.total !== total)
-      ) {
-        throw new DeviceTransportError('protocol', 'Image commit ACK does not match the upload');
-      }
-      return commitStatus;
-    } finally {
-      // The total is only stream-correlation state. Never retain it after a
-      // rejected BEGIN/CHUNK, an exception, an abort, or a completed COMMIT.
-      this.imageTransferTotals.delete(cid);
     }
+    const cid = nextCorrelationId();
+    const begin = new Uint8Array(22);
+    const beginView = new DataView(begin.buffer);
+    beginView.setUint8(0, 0x30);
+    beginView.setUint8(1, frameCount > 1 ? 1 : 0);
+    beginView.setUint32(2, cid, true);
+    beginView.setUint16(6, width, true);
+    beginView.setUint16(8, height, true);
+    beginView.setUint32(10, total, true);
+    beginView.setUint8(14, frameCount);
+    beginView.setUint8(15, fps);
+    beginView.setUint8(16, 2);
+    beginView.setUint8(17, 0);
+    const expectedPayloadCrc32 = crc32(request.data);
+    beginView.setUint32(18, expectedPayloadCrc32, true);
+    const beginStatus = parseImageMutationResult(
+      await this.sendWebHidBinary(begin, generation, {
+        signal: queueSignal,
+        timeoutMs: 30_000,
+      }),
+      0xb0,
+      cid,
+      'begin',
+    );
+    if (!beginStatus.success) return beginStatus;
+    if (beginStatus.received !== 0 || beginStatus.total !== total) {
+      throw new DeviceTransportError('protocol', 'Image begin ACK does not match the upload');
+    }
+
+    await this.transport.uploadImagePayload(request.data, {
+      signal: queueSignal,
+      timeoutMs: 90_000,
+      onProgress: (sent, payloadTotal) => {
+        if (sent < payloadTotal) request.onProgress?.(sent, payloadTotal);
+      },
+    });
+
+    const commit = new Uint8Array(6);
+    const commitView = new DataView(commit.buffer);
+    commitView.setUint8(0, 0x32);
+    commitView.setUint32(2, cid, true);
+    const commitStatus = parseImageMutationResult(
+      await this.sendWebHidBinary(commit, generation, {
+        signal: queueSignal,
+        timeoutMs: 30_000,
+      }),
+      0xb2,
+      cid,
+      'commit',
+    );
+    if (commitStatus.success &&
+        (commitStatus.received !== total || commitStatus.total !== total ||
+         commitStatus.crc32 !== expectedPayloadCrc32)) {
+      throw new DeviceTransportError('protocol', 'Image commit ACK does not match the upload');
+    }
+    if (commitStatus.success) request.onProgress?.(total, total);
+    return commitStatus;
   }
 
-  async deleteImage(options: DeviceRequestOptions = {}): Promise<DeviceImageMutationResult> {
+  private async getImageCatalogWithinTransaction(
+    generation: number,
+    signal: AbortSignal,
+  ): Promise<DeviceImageCatalog> {
     const cid = nextCorrelationId();
     const frame = new Uint8Array(6);
     const view = new DataView(frame.buffer);
-    view.setUint8(0, 0x33);
+    view.setUint8(0, 0x34);
+    view.setUint8(1, 2);
     view.setUint32(2, cid, true);
-    return parseImageMutationResult(
-      await this.exchangeFeatureFrame(frame, options),
-      0xb3,
-      cid,
-      'delete',
-    );
+    let response: ArrayBuffer;
+    try {
+      response = await this.sendWebHidBinary(
+        frame,
+        generation,
+        { signal, timeoutMs: 30_000 },
+      );
+    } catch (error) {
+      if (error instanceof DeviceTransportError &&
+          (error.code === 'protocol' || error.code === 'unsupported')) {
+        throw fastImageTransferUpgradeError(error);
+      }
+      throw error;
+    }
+    return parseImageCatalog(response, cid);
+  }
+
+  async deleteImage(options: DeviceRequestOptions = {}): Promise<DeviceImageMutationResult> {
+    return this.runImageOperation(async () => {
+      const cid = nextCorrelationId();
+      const frame = new Uint8Array(6);
+      const view = new DataView(frame.buffer);
+      view.setUint8(0, 0x33);
+      view.setUint32(2, cid, true);
+      return parseImageMutationResult(
+        await this.exchangeFeatureFrame(frame, options),
+        0xb3,
+        cid,
+        'delete',
+      );
+    });
+  }
+
+  private runImageOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.imageOperationTail.catch(() => undefined);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    this.imageOperationTail = previous.then(() => gate);
+    return previous.then(operation).finally(release);
   }
 
   private async exchangeFeatureFrame(
     data: ArrayBuffer | Uint8Array,
     options: DeviceRequestOptions = {},
   ): Promise<ArrayBuffer> {
+    this.assertTransactionAllowed('ready-session');
     const generation = this.lifecycleGeneration;
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
     return this.queue.runExclusive(
@@ -615,15 +715,6 @@ export class DeviceCommandClient {
         this.assertLifecycleActive(generation);
         return validateFirmwareStreamAck(bytes, completed);
       }
-      if (command === 0x31 && bytes.byteLength > 14) {
-        const completed = await this.transport.upload('image', bytes, {
-          signal: options.signal ?? this.sessionAbortController?.signal,
-          timeoutMs: options.timeoutMs,
-        });
-        this.assertLifecycleActive(generation);
-        return validateImageStreamAck(bytes, completed, this.imageTransferTotals);
-      }
-
       const response = await this.transport.request<{ data: string }>('binary.exchange', {
         encoding: 'base64',
         data: bytesToBase64(bytes),
@@ -781,9 +872,20 @@ export class DeviceCommandClient {
     command: string,
     params: Record<string, unknown> = {},
     immediate = false,
+    options: DeviceRequestOptions = {},
   ): Promise<Record<string, unknown> | undefined> {
+    try {
+      this.assertTransactionAllowed('ready-session');
+    } catch (error) {
+      return Promise.reject(error);
+    }
     const schedule = deviceCommandSchedule(command, params, immediate);
-    return this.queue.enqueue(command, params, immediate, schedule);
+    return this.queue.enqueue(command, params, immediate, {
+      ...schedule,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs ?? schedule.timeoutMs,
+      responseTimeoutMode: options.responseTimeoutMode,
+    });
   }
 
   flushQueue(): Promise<void> {
@@ -835,6 +937,7 @@ export class DeviceCommandClient {
     init?: RequestInit,
     requiredScopes: readonly DeviceScope[] = [],
   ): Promise<Response> {
+    this.assertTransactionAllowed('ready-session');
     const generation = this.lifecycleGeneration;
     const activeUpgrade = this.scopeUpgrade?.generation === generation;
     if (this.state !== DeviceTransportState.CONNECTED && !activeUpgrade) {
@@ -948,7 +1051,6 @@ export class DeviceCommandClient {
     this.abortSessionRequests();
     this.abortScopeUpgrade();
     this.queue.clear();
-    this.imageTransferTotals.clear();
     this.authClient?.clear();
     this.setState(terminalState);
     void this.beginTransportClose(this.lifecycleGeneration);
@@ -987,7 +1089,6 @@ export class DeviceCommandClient {
     this.abortScopeUpgrade();
     const normalized = asDeviceTransportError(error);
     this.queue.clear();
-    this.imageTransferTotals.clear();
     this.authClient?.clear();
     // A transport can already have published the same fatal error while
     // failing connect(). Do not notify the UI twice for one failure.
@@ -1097,6 +1198,28 @@ export class DeviceCommandClient {
       throw new DeviceTransportError(
         'disconnected',
         '设备命令客户端已释放，拒绝重新打开 HID 句柄',
+      );
+    }
+  }
+
+  private assertTransactionAllowed(owner: DeviceTransactionOwner): void {
+    this.assertNotDisposed();
+    if (this.state !== DeviceTransportState.CONNECTED) {
+      throw new DeviceTransportError('not-connected', '设备未连接或尚未完成认证');
+    }
+    if (owner === 'connection-initialization') {
+      if (this.phase !== DeviceConnectionPhase.INITIALIZING) {
+        throw new DeviceTransportError(
+          'device-busy',
+          `连接初始化请求只能在 initializing 阶段执行（当前：${this.phase}）`,
+        );
+      }
+      return;
+    }
+    if (this.phase !== DeviceConnectionPhase.READY) {
+      throw new DeviceTransportError(
+        'device-busy',
+        `设备连接事务尚未完成（当前：${this.phase}），暂不执行其他事务`,
       );
     }
   }
@@ -1452,7 +1575,7 @@ function parseFirmwareChunkResult(
 function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceImageCatalog {
   const view = new DataView(response);
   if (
-    view.byteLength !== 64 ||
+    (view.byteLength !== 64 && view.byteLength !== 76 && view.byteLength !== 80) ||
     view.getUint8(0) !== 0xb4 ||
     view.getUint8(1) > 1 ||
     view.getUint8(6) > 1 ||
@@ -1466,7 +1589,31 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
   if (view.getUint8(1) !== 1) {
     throw new DeviceTransportError('protocol', 'Image catalog request was rejected');
   }
+  const extended = view.byteLength >= 76;
+  const fastTransfer = view.byteLength === 80;
+  if (extended && (
+    view.getUint8(64) !== (fastTransfer ? 3 : 2) ||
+    view.getUint8(65) < 1 || view.getUint8(65) > 10 ||
+    view.getUint8(66) > 10 ||
+    (view.getUint8(7) === 1 && view.getUint8(66) < 1) ||
+    view.getUint8(67) !== 0
+  )) {
+    throw new DeviceTransportError('protocol', 'Extended image catalog is invalid');
+  }
+  if (fastTransfer && (
+    view.getUint8(76) !== 2 ||
+    view.getUint8(77) !== 44 ||
+    (view.getUint16(78, true) & 0x0003) !== 0x0003
+  )) {
+    throw new DeviceTransportError('protocol', 'Fast image transfer capabilities are invalid');
+  }
   return {
+    protocolVersion: extended ? view.getUint8(64) : 1,
+    maxUserFrames: extended ? view.getUint8(65) : 6,
+    maxSystemFrames: extended ? view.getUint8(66) : 8,
+    imageTransferVersion: fastTransfer ? view.getUint8(76) : 0,
+    imageDataBytesPerReport: fastTransfer ? view.getUint8(77) : 0,
+    imageTransferFlags: fastTransfer ? view.getUint16(78, true) : 0,
     user: {
       valid: view.getUint8(6) === 1,
       width: view.getUint16(8, true),
@@ -1475,6 +1622,7 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
       frameCount: view.getUint8(16),
       fps: view.getUint8(17),
       format: view.getUint8(18),
+      crc32: extended ? view.getUint32(68, true) : undefined,
     },
     system: {
       valid: view.getUint8(7) === 1,
@@ -1484,8 +1632,17 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
       frameCount: view.getUint8(28),
       fps: view.getUint8(29),
       format: view.getUint8(30),
+      crc32: extended ? view.getUint32(72, true) : undefined,
     },
   };
+}
+
+function fastImageTransferUpgradeError(cause?: unknown): DeviceTransportError {
+  return new DeviceTransportError(
+    'unsupported',
+    '设备固件不支持图片连续传输 V2，请先升级设备固件',
+    cause,
+  );
 }
 
 function parseImageReadResponse(
@@ -1544,8 +1701,9 @@ function parseImageMutationResult(
   stage: string,
 ): DeviceImageMutationResult {
   const view = new DataView(response);
+  const commitResponse = expectedOpcode === 0xb2;
   if (
-    view.byteLength !== 79 ||
+    view.byteLength !== (commitResponse ? 83 : 79) ||
     view.getUint8(0) !== expectedOpcode ||
     view.getUint8(1) > 1 ||
     view.getUint32(2, true) !== expectedCid ||
@@ -1563,7 +1721,13 @@ function parseImageMutationResult(
   const error = !success && errorLength > 0
     ? new TextDecoder().decode(new Uint8Array(response, 15, errorLength))
     : null;
-  return { success, received, total, error };
+  return {
+    success,
+    received,
+    total,
+    error,
+    ...(commitResponse ? { crc32: view.getUint32(79, true) } : {}),
+  };
 }
 
 function imageTargetCode(target: DeviceImageTarget): number {
@@ -1626,40 +1790,6 @@ function validateFirmwareStreamAck(
     ack.chunkIndex !== chunkIndex || ack.progress !== result.progress
   ) {
     throw new DeviceTransportError('protocol', 'Firmware stream ACK does not match the uploaded chunk');
-  }
-  return raw;
-}
-
-function validateImageStreamAck(
-  request: Uint8Array,
-  completed: Awaited<ReturnType<DeviceTransport['upload']>>,
-  totals: ReadonlyMap<number, number>,
-): ArrayBuffer {
-  const response = decodeStreamCompletion(completed, 'image.chunk');
-  if (request.byteLength < 14) {
-    throw new DeviceTransportError('protocol', 'Image stream returned an invalid ACK size');
-  }
-  const source = new DataView(request.buffer, request.byteOffset, request.byteLength);
-  const cid = source.getUint32(2, true);
-  const offset = source.getUint32(6, true);
-  const length = source.getUint16(10, true);
-  const received = offset + length;
-  const expectedTotal = totals.get(cid);
-  const raw = exactArrayBuffer(response);
-  const result = parseImageMutationResult(raw, 0xb1, cid, 'chunk');
-  const ack = completed.ack!;
-  if (
-    ack.requestOpcode !== 0x31 || ack.opcode !== 0xb1 ||
-    typeof ack.success !== 'boolean' || ack.success !== result.success ||
-    ack.kind !== 'image.chunk' ||
-    ack.cid !== cid || ack.offset !== offset || ack.chunkSize !== length ||
-    ack.received !== result.received || ack.total !== result.total ||
-    (result.success && (
-      result.received !== received ||
-      (expectedTotal !== undefined && result.total !== expectedTotal)
-    ))
-  ) {
-    throw new DeviceTransportError('protocol', 'Image stream ACK does not match the uploaded chunk');
   }
   return raw;
 }

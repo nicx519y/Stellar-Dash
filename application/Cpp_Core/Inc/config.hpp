@@ -147,7 +147,7 @@ typedef struct
     uint8_t reserved0[2];            // 保留字节（对齐）
     uint8_t screenStyle;             // 屏幕风格：0 Dark, 1 Light
     uint8_t reservedStyle[7];        // 保留旧颜色字段占位，用于兼容迁移
-    char backgroundImageId[32];      // 背景图片资源ID（对应 assets 索引名）
+    char backgroundImageId[32];      // 背景图片ID；当前仅允许已验证的 USER_IMAGE
     uint16_t currentPageId;          // 当前页面ID
     uint16_t reserved1;              // 保留字节（对齐）
     uint32_t featuresMask;           // 功能开关位图（SCREEN_FEATURE_*）

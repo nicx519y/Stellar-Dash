@@ -598,7 +598,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
         read_helper = image_source[
             image_source.index("static bool qspi_read_bytes"):
-            image_source.index("#pragma pack(push, 1)", image_source.index("static bool qspi_read_bytes"))
+            image_source.index("using HBoxUserImage::HeaderV3", image_source.index("static bool qspi_read_bytes"))
         ]
         read_only_opcodes = image_source[
             image_source.index("case BINARY_CMD_GET_BG_IMAGE_INFO:"):
@@ -630,9 +630,18 @@ class WebConfigStateContractTests(unittest.TestCase):
         ]
         self.assertIn("completedType == 1u", stream)
         self.assertIn("opcode == BINARY_CMD_UPLOAD_FIRMWARE_CHUNK", stream)
-        self.assertIn("completedType == 2u && opcode == kImageChunkOpcode", stream)
-        self.assertIn("(firmwareStream || imageStream)", stream)
+        self.assertNotIn("completedType == 2u", stream)
+        self.assertNotIn("imageStream", stream)
+        self.assertIn("firmwareStream", stream)
         self.assertIn("binaryRequestShapeValid(completed, completedLength)", stream)
+
+        image_data = source[
+            source.index("bool WebHidService::processImageData"):
+            source.index("bool WebHidService::sendLogical")
+        ]
+        self.assertIn("WEBHID_REPORT_FLAG_LAST", image_data)
+        self.assertIn("UserImageCommandHandler::consumeStreamData", image_data)
+        self.assertNotIn("remainingCredit", image_data)
 
     def test_invalid_binary_exchange_never_leaks_capture_state(self) -> None:
         source = (
@@ -900,7 +909,7 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertIn("PWR_CPUCR_PDDS_D1 | PWR_CPUCR_PDDS_D2 | PWR_CPUCR_PDDS_D3", sleep_source)
         self.assertIn("SET_BIT(PWR->CPUCR, PWR_CPUCR_RUN_D3);", sleep_source)
         self.assertIn("SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk", sleep_source)
-        self.assertIn("return (g_cfgBrightness < 20u) ? 20u : g_cfgBrightness;", screen_source)
+        self.assertIn("return (targetBrightness < 20u) ? 20u : targetBrightness;", screen_source)
 
     def test_screen_webconfig_save_quiesces_and_restores_input_pipeline(self) -> None:
         screen_source = (

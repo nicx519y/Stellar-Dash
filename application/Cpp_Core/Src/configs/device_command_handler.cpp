@@ -69,6 +69,7 @@ void DeviceCommandDispatcher::initializeHandlers() {
     registerHandler("update_hotkeys_config", &globalHandler);
     registerHandler("get_screen_control_config", &globalHandler);
     registerHandler("update_screen_control_config", &globalHandler);
+    registerHandler("preview_screen_brightness", &globalHandler);
     registerHandler("export_all_config", &globalHandler);
     registerHandler("import_all_config", &globalHandler);
     registerHandler("import_config_begin", &globalHandler);

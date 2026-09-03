@@ -27,6 +27,7 @@ uint16_t usb_profiles_capability_flags(void);
 bool usb_profiles_build_report(usb_board_profile_t profile,
                                const usb_board_input_v1_t *input,
                                usb_profile_report_t *report);
+uint16_t usb_profiles_xinput_buttons(uint32_t actions);
 
 #ifdef __cplusplus
 }

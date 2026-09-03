@@ -1,10 +1,10 @@
 import { Button } from "@chakra-ui/react";
 import { openConfirm as openFinishConfirmDialog } from "@/components/dialog-confirm";
-import { closeDialog as closeFinishDialog, openDialog as openFinishDialog } from "@/components/dialog-cannot-close";
+import { closeDialog as closeFinishDialog, openDialog as openFinishDialog, updateDialogMessage as updateFinishDialogMessage } from "@/components/dialog-cannot-close";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { configuredTransportMode } from "@/lib/device-transport";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LuGamepad2 } from "react-icons/lu";
 
 
@@ -19,9 +19,16 @@ export function FinishConfigButton(
         setUserRebooting,
         flushDeferredConfig,
         terminateWebConfigActivities,
+        deviceConnected,
         setError,
     } = useGamepadConfig();
     const [closing, setClosing] = useState(false);
+
+    useEffect(() => {
+        if (!deviceConnected) return;
+        closeFinishDialog('finish-config-success');
+    }, [deviceConnected]);
+
     return (
         <Button
             disabled={props.disabled || closing}
@@ -49,6 +56,7 @@ export function FinishConfigButton(
                         await flushDeferredConfig(
                             async () => {
                                 console.log('配置与设备请求队列已保存，正在退出 WebConfig 模式');
+                                updateFinishDialogMessage(savingDialogId, t.DIALOG_CONFIG_EXITING_MESSAGE);
                                 const expectsDeviceDisconnect = configuredTransportMode() !== 'mock';
                                 if (expectsDeviceDisconnect) setUserRebooting(true);
                                 try {

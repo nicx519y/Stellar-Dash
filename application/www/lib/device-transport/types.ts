@@ -71,7 +71,6 @@ export interface DeviceEvent<T = unknown> {
 
 export type DeviceStream =
   | 'firmware'
-  | 'image'
   | 'config-import';
 
 export interface DeviceUploadOptions {
@@ -147,6 +146,15 @@ export interface DeviceTransport {
     data: Blob | ArrayBuffer | Uint8Array,
     options?: DeviceUploadOptions,
   ): Promise<DeviceUploadResult>;
+
+  /**
+   * Send one already-authorized image transaction as continuous encrypted HID
+   * reports. The implementation must not use generic stream credit or pacing.
+   */
+  uploadImagePayload(
+    data: ArrayBuffer | Uint8Array,
+    options?: DeviceUploadOptions,
+  ): Promise<void>;
 
   /**
    * Optional transport-owned HTTP implementation. The mock transport uses it

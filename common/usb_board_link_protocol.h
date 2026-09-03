@@ -44,8 +44,44 @@ extern "C" {
 
 #define USB_BOARD_INPUT_FLAG_PROCESSED      0x01u
 #define USB_BOARD_INPUT_FLAG_BATTERY_VALID  0x02u
+#define USB_BOARD_INPUT_RATE_SHIFT           2u
+#define USB_BOARD_INPUT_RATE_MASK            0x0Cu
+#define USB_BOARD_INPUT_RATE_1K              0x00u
+#define USB_BOARD_INPUT_RATE_2K              0x04u
+#define USB_BOARD_INPUT_RATE_4K              0x08u
+#define USB_BOARD_INPUT_RATE_8K              0x0Cu
 #define USB_BOARD_INPUT_FORMAT_VERSION      1u
 #define USB_BOARD_INPUT_VERSION_SHIFT       4u
+
+static inline uint8_t usb_board_input_rate_flags(uint16_t rate_hz)
+{
+    switch(rate_hz)
+    {
+    case 2000u:
+        return USB_BOARD_INPUT_RATE_2K;
+    case 4000u:
+        return USB_BOARD_INPUT_RATE_4K;
+    case 8000u:
+        return USB_BOARD_INPUT_RATE_8K;
+    default:
+        return USB_BOARD_INPUT_RATE_1K;
+    }
+}
+
+static inline uint16_t usb_board_input_rate_hz(uint8_t flags)
+{
+    switch(flags & USB_BOARD_INPUT_RATE_MASK)
+    {
+    case USB_BOARD_INPUT_RATE_2K:
+        return 2000u;
+    case USB_BOARD_INPUT_RATE_4K:
+        return 4000u;
+    case USB_BOARD_INPUT_RATE_8K:
+        return 8000u;
+    default:
+        return 1000u;
+    }
+}
 
 typedef enum
 {

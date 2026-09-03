@@ -67,6 +67,19 @@ test('button-driven pages stage durable configuration instead of writing it dire
   }
 });
 
+test('screen brightness drags preview immediately and persist only the released value', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '../components/screen-control-setting-content.tsx'),
+    'utf8',
+  );
+
+  assert.match(source, /onValueChange=.*previewScreenBrightness\(value\)/s);
+  assert.match(
+    source,
+    /onValueChangeEnd=.*commitUiChange\(\{ \.\.\.nextConfig, brightness: value \}\)/s,
+  );
+});
+
 test('settings navigation paints the destination before starting a background save', () => {
   const settings = fs.readFileSync(
     path.join(__dirname, '../components/settings-layout.tsx'),
@@ -93,6 +106,11 @@ test('settings navigation paints the destination before starting a background sa
   assert.match(finish, /closeFinishDialog\(savingDialogId\)/);
   assert.match(finish, /await exitWebConfig\(\)/);
   assert.match(finish, /terminateWebConfigActivities/);
+  assert.match(finish, /updateFinishDialogMessage\(savingDialogId, t\.DIALOG_CONFIG_EXITING_MESSAGE\)/);
+  assert.match(
+    finish,
+    /useEffect\(\(\) => \{\s*if \(!deviceConnected\) return;\s*closeFinishDialog\('finish-config-success'\);\s*\}, \[deviceConnected\]\);/,
+  );
   assert.doesNotMatch(finish, /await rebootSystem\(\)/);
 
   const context = fs.readFileSync(
@@ -103,6 +121,8 @@ test('settings navigation paints the destination before starting a background sa
   const terminate = context.indexOf('await beforeFlush?.()', suspend);
   const persist = context.indexOf('await deferredConfigRef.current!.flush()', terminate);
   assert.ok(suspend >= 0 && terminate > suspend && persist > terminate);
+  assert.match(context, /const EXIT_WEB_CONFIG_TIMEOUT_MS = 8_000/);
+  assert.match(context, /sendDeviceRequest\('exit_webconfig', \{\}, true, \{\s*timeoutMs: EXIT_WEB_CONFIG_TIMEOUT_MS/);
   for (const command of [
     'stop_button_monitoring',
     'stop_manual_calibration',

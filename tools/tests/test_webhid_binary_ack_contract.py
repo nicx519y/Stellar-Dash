@@ -118,8 +118,19 @@ class WebHidBinaryAckContractTests(unittest.TestCase):
             validator.index("default:", validator.index("case kImageReadOpcode"))
         ]
 
-        self.assertIn("responseLength != kImageInfoResponseBytes", catalog)
+        self.assertIn("responseLength != expectedResponseLength", catalog)
+        self.assertIn("kExtendedImageInfoResponseBytes", catalog)
+        self.assertIn("kFastImageInfoResponseBytes", catalog)
+        self.assertIn("requestedVersion > 2u", catalog)
+        self.assertIn("response[64] != 2u", catalog)
+        self.assertIn("response[64] != 3u", catalog)
+        self.assertIn("response[76] != 2u", catalog)
+        self.assertIn("response[77] != 44u", catalog)
+        self.assertIn("loadLe16(&response[78]) != 0x0003u", catalog)
         self.assertIn("response[6] > 1u || response[7] > 1u", catalog)
+        self.assertIn("response[66] > 10u", catalog)
+        self.assertIn("response[7] == 1u && response[66] == 0u", catalog)
+        self.assertNotIn("response[66] == 0u || response[67]", catalog)
         self.assertIn("response[22] > 32u", read)
         self.assertIn("(accepted && response[22] != 0u)", read)
         self.assertIn("!accepted && returnedChunkLength != 0u", read)
@@ -141,21 +152,20 @@ class WebHidBinaryAckContractTests(unittest.TestCase):
             self.image_handler.index("case BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK") :
             self.image_handler.index("case BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT")
         ]
-        self.assertIn(
-            "BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK_RESP, false, h->cid",
-            chunk,
-        )
+        self.assertIn("BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK_RESP", chunk)
+        self.assertIn("false,\n                h->cid", chunk)
+        self.assertIn('"Use IMAGE_DATA reports"', chunk)
         self.assertIn("g_user_image_upload_session.received", chunk)
         self.assertIn("g_user_image_upload_session.total", chunk)
 
     def test_image_reads_do_not_interrupt_a_live_qspi_mapping(self) -> None:
         reader = self.image_handler[
             self.image_handler.index("static bool qspi_read_bytes") :
-            self.image_handler.index("#pragma pack(push, 1)", self.image_handler.index("static bool qspi_read_bytes"))
+            self.image_handler.index("using HBoxUserImage::HeaderV3")
         ]
         index_reader = self.image_handler[
             self.image_handler.index("static bool read_index_header_at") :
-            self.image_handler.index("static bool is_sysbg_index_header")
+            self.image_handler.index("static bool read_index_header(")
         ]
         chunk_reader = self.image_handler[
             self.image_handler.index("case BINARY_CMD_READ_BG_IMAGE_CHUNK") :
@@ -168,8 +178,9 @@ class WebHidBinaryAckContractTests(unittest.TestCase):
         self.assertIn("QSPI_W25Qxx_ReadBuffer", reader)
         self.assertIn("length > W25Qxx_FlashSize", reader)
         self.assertIn("flashOffset > W25Qxx_FlashSize - length", reader)
-        self.assertIn("qspi_read_bytes(addr, &v1", index_reader)
-        self.assertIn("qspi_read_bytes(addr, &out", index_reader)
+        self.assertIn("qspi_read_bytes(address, &out", index_reader)
+        self.assertIn("HBoxUserImage::validateStructure", index_reader)
+        self.assertIn("payloadCrc == out.payload_crc32", index_reader)
         self.assertNotIn("QSPIXipGuard", index_reader)
         self.assertIn("qspi_read_bytes(", chunk_reader)
         self.assertNotIn("QSPIXipGuard", chunk_reader)

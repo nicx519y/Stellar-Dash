@@ -84,6 +84,10 @@ test('hosted export serves HTML and immutable Next assets', async t => {
         page.headers['content-security-policy'],
         /script-src[^;]*unsafe-inline/
     );
+    assert.match(
+        page.headers['content-security-policy'],
+        /img-src 'self' data: blob:/
+    );
 
     const asset = await request(server, '/_next/static/app.123.js');
     assert.equal(asset.status, 200);
@@ -190,14 +194,17 @@ test('server state and uploads can be isolated outside the repository', t => {
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
     const dataDir = path.join(root, 'isolated-data');
     const uploadDir = path.join(root, 'isolated-uploads');
+    const galleryDir = path.join(root, 'isolated-gallery');
     const environment = {
         NODE_ENV: 'development',
         HBOX_SERVER_DATA_DIR: dataDir,
-        HBOX_SERVER_UPLOAD_DIR: uploadDir
+        HBOX_SERVER_UPLOAD_DIR: uploadDir,
+        HBOX_GALLERY_ASSET_DIR: galleryDir
     };
     const resolved = resolveServerStoragePaths(environment, root);
     assert.equal(resolved.dataDir, dataDir);
     assert.equal(resolved.uploadDir, uploadDir);
+    assert.equal(resolved.galleryAssetDir, galleryDir);
     assert.equal(resolved.deviceDataFile, path.join(dataDir, 'device_ids.json'));
     assert.equal(
         resolved.accountDatabase,
@@ -229,8 +236,10 @@ test('production storage directories are explicit absolute paths', () => {
     const resolved = resolveServerStoragePaths({
         NODE_ENV: 'production',
         HBOX_SERVER_DATA_DIR: path.join(root, 'data'),
-        HBOX_SERVER_UPLOAD_DIR: path.join(root, 'uploads')
+        HBOX_SERVER_UPLOAD_DIR: path.join(root, 'uploads'),
+        HBOX_GALLERY_ASSET_DIR: path.join(root, 'gallery')
     }, root);
     assert.equal(resolved.dataDir, path.join(root, 'data'));
     assert.equal(resolved.uploadDir, path.join(root, 'uploads'));
+    assert.equal(resolved.galleryAssetDir, path.join(root, 'gallery'));
 });

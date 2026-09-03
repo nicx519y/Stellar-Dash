@@ -1,9 +1,9 @@
 {
   "version": 1,
   "legacyCommandCount": 68,
-  "commandCount": 69,
+  "commandCount": 70,
   "migrationStatusCounts": {
-    "direct": 66,
+    "direct": 67,
     "equivalent": 1,
     "retired": 2
   },
@@ -42,6 +42,7 @@
         {"name": "update_global_config", "migration": "direct", "consumers": ["global"], "test": "contract"},
         {"name": "update_hotkeys_config", "migration": "direct", "consumers": ["hotkeys"], "test": "contract"},
         {"name": "update_screen_control_config", "migration": "direct", "consumers": ["screen"], "test": "contract"},
+        {"name": "preview_screen_brightness", "migration": "direct", "consumers": ["screen"], "test": "contract"},
         {"name": "import_all_config", "migration": "direct", "consumers": ["device-api"], "test": "contract"},
         {"name": "import_config_begin", "migration": "direct", "consumers": ["config-import"], "test": "contract"},
         {"name": "import_config_part", "migration": "direct", "consumers": ["config-import"], "test": "contract"},

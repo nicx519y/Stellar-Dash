@@ -107,6 +107,8 @@ const FIRMWARE_SERVER_CONFIG = {
     }
 };
 
+const EXIT_WEB_CONFIG_TIMEOUT_MS = 8_000;
+
 export type DeviceTransportConfigType = DeviceTransportConfig;
 
 interface GamepadConfigContextType {
@@ -127,6 +129,7 @@ interface GamepadConfigContextType {
     readDeviceImage: (target: DeviceImageTarget, totalSize: number) => Promise<Uint8Array>;
     uploadDeviceImage: (request: DeviceImageUploadRequest) => Promise<void>;
     deleteDeviceImage: () => Promise<void>;
+    fetchDeviceAuthorizedResource: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
     profileList: GameProfileList;
     defaultProfile: GameProfile;
@@ -142,6 +145,7 @@ interface GamepadConfigContextType {
     updateGlobalConfig: (globalConfig: GlobalConfig) => Promise<void>;
     fetchScreenControl: () => Promise<void>;
     updateScreenControl: (screenControl: ScreenControlConfig, immediate?: boolean) => Promise<void>;
+    previewScreenBrightness: (brightness: number) => Promise<void>;
     fetchDefaultProfile: () => Promise<void>;
     fetchProfileList: () => Promise<void>;
     fetchHotkeysConfig: () => Promise<void>;
@@ -808,12 +812,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const generation = initializationGenerationRef.current;
             void initializeDeviceSession({
                 loaders: {
-                    globalConfig: fetchGlobalConfig,
-                    screenControl: fetchScreenControl,
-                    profileList: fetchProfileList,
-                    hotkeys: fetchHotkeysConfig,
-                    firmwareMetadata: fetchFirmwareMetadata,
-                    hitboxLayout: getHitboxLayout,
+                    globalConfig: () => fetchGlobalConfig(true, sendInitializationDeviceRequest),
+                    screenControl: () => fetchScreenControl(true, sendInitializationDeviceRequest),
+                    profileList: () => fetchProfileList(true, sendInitializationDeviceRequest),
+                    hotkeys: () => fetchHotkeysConfig(true, sendInitializationDeviceRequest),
+                    firmwareMetadata: () => fetchFirmwareMetadata(true, sendInitializationDeviceRequest),
+                    hitboxLayout: () => getHitboxLayout(true, sendInitializationDeviceRequest),
                 },
                 isCurrent: () => generation === initializationGenerationRef.current,
                 signal: controller.signal,
@@ -922,7 +926,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
      * @param immediate 是否立即发送，忽略延迟 true: 立即发送 false: 延迟发送
      * @returns 
      */
-    const sendDeviceRequest = async (command: string, params: Record<string, unknown> = {}, immediate: boolean = false): Promise<any> => {
+    type DeviceRequestSender = (
+        command: string,
+        params?: Record<string, unknown>,
+        immediate?: boolean,
+        options?: DeviceRequestOptions,
+    ) => Promise<any>;
+
+    const sendDeviceRequest: DeviceRequestSender = async (command, params = {}, immediate = false, options = {}) => {
         if (!deviceClient) {
             return Promise.reject(new Error('设备命令客户端未初始化'));
         }
@@ -936,7 +947,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             // DeviceCommandClient owns the only RPC lane and the centralized
             // command policy decides whether this operation is coalesced.
-            return await deviceClient.enqueue(command, params, immediate);
+            return await deviceClient.enqueue(command, params, immediate, options);
         } catch (error) {
             if (error instanceof Error) {
                 throw error;
@@ -961,10 +972,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchProfileList = async (immediate: boolean = true): Promise<void> => {
+    const fetchProfileList = async (
+        immediate: boolean = true,
+        requester: DeviceRequestSender = sendDeviceRequest,
+    ): Promise<void> => {
         try {
             // setIsLoading(true);
-            const data = await sendDeviceRequest('get_profile_list', {}, immediate);
+            const data = await requester('get_profile_list', {}, immediate);
             if (data && 'profileList' in data) {
                 setProfileList(data.profileList as GameProfileList);
             }
@@ -982,10 +996,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchHotkeysConfig = async (immediate: boolean = true): Promise<void> => {
+    const fetchHotkeysConfig = async (
+        immediate: boolean = true,
+        requester: DeviceRequestSender = sendDeviceRequest,
+    ): Promise<void> => {
         try {
             // setIsLoading(true);
-            const data = await sendDeviceRequest('get_hotkeys_config', {}, immediate);
+            const data = await requester('get_hotkeys_config', {}, immediate);
             if (data && 'hotkeysConfig' in data) {
                 setHotkeysConfig(data.hotkeysConfig as Hotkey[]);
             }
@@ -1319,6 +1336,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return deviceClient.exportConfig();
     };
 
+    const sendInitializationDeviceRequest: DeviceRequestSender = async (
+        command,
+        params = {},
+    ) => {
+        if (!deviceClient) {
+            throw new Error('设备命令客户端未初始化');
+        }
+        return deviceClient.requestInitialization(command, params);
+    };
+
     const importAllConfig = async (configData: any): Promise<{ warnings: string[] }> => {
         try {
             setIsLoading(true);
@@ -1336,9 +1363,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const getHitboxLayout = async (immediate: boolean = true): Promise<HitboxLayoutItem[]> => {
+    const getHitboxLayout = async (
+        immediate: boolean = true,
+        requester: DeviceRequestSender = sendDeviceRequest,
+    ): Promise<HitboxLayoutItem[]> => {
         try {
-            const data = await sendDeviceRequest('get_hitbox_layout', {}, immediate);
+            const data = await requester('get_hitbox_layout', {}, immediate);
             return Promise.resolve(data as HitboxLayoutItem[]);
         } catch (err) {
             // setError(err instanceof Error ? err.message : '获取Hitbox布局失败');
@@ -1620,7 +1650,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const exitWebConfig = async (): Promise<void> => {
         try {
-            await sendDeviceRequest('exit_webconfig', {}, true);
+            await sendDeviceRequest('exit_webconfig', {}, true, {
+                timeoutMs: EXIT_WEB_CONFIG_TIMEOUT_MS,
+            });
             setError(null);
         } catch (err) {
             const error = err instanceof Error
@@ -1785,6 +1817,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             clearTimeout(timeout);
         }
     };
+
+    const fetchDeviceAuthorizedResource = useCallback(async (
+        input: RequestInfo | URL,
+        init: RequestInit = {},
+    ): Promise<Response> => {
+        if (!deviceClient) throw new Error('设备命令客户端未初始化');
+        return deviceClient.authorizedFetch(input, init, ['config.read']);
+    }, [deviceClient]);
 
     const fetchSwitchMappingCatalog = async (
         includeDrafts: boolean = false,
@@ -2037,10 +2077,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(publishResponse);
     };
 
-    const fetchGlobalConfig = async (immediate: boolean = true): Promise<void> => {
+    const fetchGlobalConfig = async (
+        immediate: boolean = true,
+        requester: DeviceRequestSender = sendDeviceRequest,
+    ): Promise<void> => {
         try {
             // setIsLoading(true);
-            const data = await sendDeviceRequest('get_global_config', {}, immediate);
+            const data = await requester('get_global_config', {}, immediate);
             console.log('fetchGlobalConfig', data);
             const next = data.globalConfig as GlobalConfig;
             globalConfigRef.current = next;
@@ -2082,9 +2125,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchScreenControl = async (immediate: boolean = true): Promise<void> => {
+    const fetchScreenControl = async (
+        immediate: boolean = true,
+        requester: DeviceRequestSender = sendDeviceRequest,
+    ): Promise<void> => {
         try {
-            const data = await sendDeviceRequest('get_screen_control_config', {}, immediate);
+            const data = await requester('get_screen_control_config', {}, immediate);
             const remote = data.screenControl ?? {};
             const normalizeFeaturesOrder = (order: unknown): ScreenControlConfig['featuresOrder'] => {
                 const fallback = DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder;
@@ -2166,6 +2212,19 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 : new Error('Failed to update screen control config');
             setError(error.message);
             return Promise.reject(error);
+        }
+    };
+
+    const previewScreenBrightness = async (brightness: number): Promise<void> => {
+        const value = Math.max(0, Math.min(100, brightness | 0));
+        try {
+            await sendDeviceRequest('preview_screen_brightness', { brightness: value }, false);
+        } catch (err) {
+            const error = err instanceof Error
+                ? err
+                : new Error('Failed to preview screen brightness');
+            setError(error.message);
+            throw error;
         }
     };
 
@@ -2551,9 +2610,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchFirmwareMetadata = async (immediate: boolean = true): Promise<void> => {
+    const fetchFirmwareMetadata = async (
+        immediate: boolean = true,
+        requester: DeviceRequestSender = sendDeviceRequest,
+    ): Promise<void> => {
         try {
-            const data = await sendDeviceRequest('get_firmware_metadata', {}, immediate);
+            const data = await requester('get_firmware_metadata', {}, immediate);
             setFirmwareInfo({
                 firmware: data
             });
@@ -3083,6 +3145,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             readDeviceImage,
             uploadDeviceImage,
             deleteDeviceImage,
+            fetchDeviceAuthorizedResource,
 
             globalConfig,
             screenControl,
@@ -3101,6 +3164,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             updateGlobalConfig,
             fetchScreenControl,
             updateScreenControl,
+            previewScreenBrightness,
             updateProfileDetails,
             getMacro,
             updateMacro,

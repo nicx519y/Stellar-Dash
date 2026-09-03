@@ -28,7 +28,7 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
         for expression in (
             r"sizeof\(xinput_device_descriptor\)\s*==\s*18u",
             r"sizeof\(xinput_configuration_descriptor\)\s*==\s*0xB2u",
-            r"sizeof\(xinput_telemetry_hid_report_descriptor\)\s*==\s*21u",
+            r"sizeof\(xinput_telemetry_hid_report_descriptor\)\s*==\s*27u",
             r"descriptor\s*=\s*xinput_device_descriptor\s*;",
             r"descriptor_length\s*=\s*sizeof\(xinput_device_descriptor\)\s*;",
             r"descriptor\s*=\s*xinput_configuration_descriptor\s*;",
@@ -66,6 +66,26 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
             self.assert_source_regex(
                 rf"R8_U2EP{endpoint}_RX_CTRL\s*=\s*USBHS_UEP_R_RES_ACK\s*;"
             )
+
+    def test_high_rate_xinput_presentation_is_winusb_only(self) -> None:
+        for token in (
+            "usb_high_rate_device_descriptor",
+            "usb_high_rate_configuration_descriptor",
+            "usb_high_rate_bos_descriptor",
+            "usb_high_rate_ms_os_20_descriptor",
+            "HBOX_CLIENT_WINUSB_MS_VENDOR_CODE",
+            "HBOX_CLIENT_STATUS_VENDOR_CODE",
+            "usb_high_rate_is_turbo_presentation",
+        ):
+            self.assertIn(token, self.source)
+        descriptor = (
+            ROOT / "RF_PHY_Hop" / "TX" / "USB" /
+            "usb_high_rate_descriptors.c"
+        ).read_text(encoding="utf-8")
+        self.assertIn("0xFEu, 0xCAu", descriptor)
+        self.assertIn("0x23u, 0x40u", descriptor)
+        self.assertIn("'W', 'I', 'N', 'U', 'S', 'B'", descriptor)
+        self.assertNotIn("0x03u, 0x00u, 0x00u, 0x04u", descriptor)
 
     def test_legacy_profiles_route_through_exact_descriptor_module(self) -> None:
         for accessor in (

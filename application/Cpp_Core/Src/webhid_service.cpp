@@ -449,9 +449,6 @@ uint8_t streamTypeForName(const char *name)
     if (strcmp(name, "firmware") == 0) {
         return 1u;
     }
-    if (strcmp(name, "image") == 0) {
-        return 2u;
-    }
     if (strcmp(name, "config-import") == 0) {
         return 3u;
     }
@@ -463,8 +460,6 @@ uint32_t streamScope(uint8_t type)
     switch (type) {
     case 1u:
         return HBOX_SCOPE_FIRMWARE_UPDATE;
-    case 2u:
-        return HBOX_SCOPE_ASSET_WRITE;
     case 3u:
         return HBOX_SCOPE_CONFIG_WRITE;
     default:
@@ -504,7 +499,10 @@ constexpr size_t kFirmwareChunkRequestHeaderBytes =
     sizeof(BinaryFirmwareChunkHeader);
 constexpr size_t kFirmwareChunkResponseBytes = 75u;
 constexpr size_t kImageMutationResponseBytes = 79u;
+constexpr size_t kImageCommitResponseBytes = 83u;
 constexpr size_t kImageInfoResponseBytes = 64u;
+constexpr size_t kExtendedImageInfoResponseBytes = 76u;
+constexpr size_t kFastImageInfoResponseBytes = 80u;
 constexpr size_t kImageReadResponseHeaderBytes = 55u;
 
 bool binaryRequestShapeValid(
@@ -528,7 +526,7 @@ bool binaryRequestShapeValid(
                    requestLength - kFirmwareChunkRequestHeaderBytes;
     }
     case kImageBeginOpcode:
-        return requestLength == 14u || requestLength == 18u;
+        return requestLength == 22u;
     case kImageChunkOpcode: {
         if (requestLength < 14u) {
             return false;
@@ -601,7 +599,11 @@ BinaryAckStatus describeBinaryAck(
     case kImageChunkOpcode:
     case kImageCommitOpcode:
     case kImageDeleteOpcode: {
-        if (responseLength != kImageMutationResponseBytes ||
+        const size_t expectedMutationResponseBytes =
+            requestOpcode == kImageCommitOpcode
+                ? kImageCommitResponseBytes
+                : kImageMutationResponseBytes;
+        if (responseLength != expectedMutationResponseBytes ||
             response[14] > 64u ||
             (accepted && response[14] != 0u)) {
             return BinaryAckStatus::ProtocolError;
@@ -647,12 +649,41 @@ BinaryAckStatus describeBinaryAck(
         cJSON_AddNumberToObject(ack, "cid", acknowledgedCid);
         cJSON_AddNumberToObject(ack, "received", received);
         cJSON_AddNumberToObject(ack, "total", total);
+        if (requestOpcode == kImageCommitOpcode) {
+            cJSON_AddNumberToObject(
+                ack, "crc32", loadLe32(&response[79]));
+        }
         break;
     }
     case kImageInfoOpcode: {
-        if (responseLength != kImageInfoResponseBytes ||
+        const uint8_t requestedVersion = request[1];
+        const bool extendedRequested = requestedVersion == 1u;
+        const bool fastRequested = requestedVersion == 2u;
+        const size_t expectedResponseLength = fastRequested
+            ? kFastImageInfoResponseBytes
+            : extendedRequested
+                ? kExtendedImageInfoResponseBytes
+                : kImageInfoResponseBytes;
+        if (requestedVersion > 2u ||
+            responseLength != expectedResponseLength ||
             loadLe32(&response[2]) != loadLe32(&request[2]) ||
             response[6] > 1u || response[7] > 1u) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        if (extendedRequested &&
+            (response[64] != 2u ||
+             response[65] == 0u || response[65] > 10u ||
+             response[66] > 10u ||
+             (response[7] == 1u && response[66] == 0u) ||
+             response[67] != 0u)) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        if (fastRequested &&
+            (response[64] != 3u ||
+             response[65] == 0u || response[65] > 10u ||
+             response[66] != 0u || response[67] != 0u ||
+             response[76] != 2u || response[77] != 44u ||
+             loadLe16(&response[78]) != 0x0003u)) {
             return BinaryAckStatus::ProtocolError;
         }
         cJSON_AddStringToObject(ack, "kind", "image.info");
@@ -1386,6 +1417,7 @@ void WebHidService::process()
     }
 
     HBoxBoardSecurityConfirmation_Poll();
+    UserImageCommandHandler::pollUploadTimeout(HAL_GetTick());
     (void)monotonicMicros();
     // ADC DMA completion only raises a pending flag. Complete statistics and
     // publish marking/calibration notifications here in thread mode so cJSON,
@@ -1515,6 +1547,13 @@ bool WebHidService::processReport(
         return secure &&
                processStreamFragment(
                    plaintext, report.payload_length);
+    }
+    if (report.type == WEBHID_REPORT_IMAGE_DATA) {
+        return secure &&
+               processImageData(
+                   report.flags,
+                   plaintext,
+                   report.payload_length);
     }
     if ((!secure &&
          report.type != WEBHID_REPORT_BOOTSTRAP_REQUEST) ||
@@ -2878,8 +2917,7 @@ bool WebHidService::handleStreamRpc(
     const size_t completedLength = stream.received;
     uint8_t *const completed = stream.bytes.data();
     completed[completedLength] = 0u;
-    if (completedType == 1u ||
-        completedType == 2u) {
+    if (completedType == 1u) {
         const uint8_t opcode = completedLength == 0u
             ? 0u
             : completed[0];
@@ -2887,11 +2925,9 @@ bool WebHidService::handleStreamRpc(
         const bool firmwareStream =
             completedType == 1u &&
             opcode == BINARY_CMD_UPLOAD_FIRMWARE_CHUNK;
-        const bool imageStream =
-            completedType == 2u && opcode == kImageChunkOpcode;
         const bool requestAccepted =
             binaryRequestShapeValid(completed, completedLength) &&
-            (firmwareStream || imageStream) &&
+            firmwareStream &&
             hasScope(requiredScope) &&
             (!firmwareStream ||
              firmwareAuthorizationValid(
@@ -2915,9 +2951,6 @@ bool WebHidService::handleStreamRpc(
             handlerSucceeded = FirmwareCommandHandler::getInstance()
                 .handleBinaryFirmwareChunk(
                     completed, completedLength);
-        } else {
-            UserImageCommandHandler::handleBinaryMessage(
-                completed, completedLength);
         }
         captureBinary = false;
 
@@ -3050,6 +3083,28 @@ bool WebHidService::processStreamFragment(
     stream.bytes[stream.received] = 0u;
     --stream.remainingCredit;
     return true;
+}
+
+bool WebHidService::processImageData(
+    uint8_t flags,
+    const uint8_t *payload,
+    uint8_t length)
+{
+    const uint8_t imageFlags = static_cast<uint8_t>(
+        flags & static_cast<uint8_t>(~WEBHID_REPORT_FLAG_ENCRYPTED));
+    if (!sessionEstablished ||
+        !hasScope(HBOX_SCOPE_ASSET_WRITE) ||
+        !UserImageCommandHandler::isUploadActive() ||
+        payload == nullptr || length == 0u ||
+        length > WEBHID_REPORT_PAYLOAD_BYTES ||
+        (imageFlags & static_cast<uint8_t>(
+            ~WEBHID_REPORT_FLAG_LAST)) != 0u) {
+        return false;
+    }
+    return UserImageCommandHandler::consumeStreamData(
+        payload,
+        length,
+        (imageFlags & WEBHID_REPORT_FLAG_LAST) != 0u);
 }
 
 bool WebHidService::sendLogical(

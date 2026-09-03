@@ -176,6 +176,7 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "update_global_config",
         "update_hotkeys_config",
         "update_screen_control_config",
+        "preview_screen_brightness",
         "import_all_config",
         "import_config_begin",
         "import_config_part",

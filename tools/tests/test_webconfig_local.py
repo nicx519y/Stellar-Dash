@@ -273,7 +273,7 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
                     webconfig_local.build_local_image_resources(artifacts)
                 )
             self.assertEqual(system_assets.read_bytes()[:4], b"HIMG")
-            self.assertEqual(system_background.read_bytes()[:4], b"UIMG")
+            self.assertEqual(system_background.read_bytes(), b"\xff" * 4096)
             self.assertLessEqual(
                 system_assets.stat().st_size,
                 webconfig_local.SYS_IMAGE_RESOURCES_SIZE,
@@ -372,7 +372,7 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
             ):
                 webconfig_local.load_verified_artifact_manifest(state_dir)
 
-    def test_system_background_frame_index_tampering_is_rejected(self) -> None:
+    def test_system_background_marker_tampering_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hbox-local-images-") as root:
             artifacts = Path(root)
             with redirect_stdout(io.StringIO()):
@@ -380,13 +380,64 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
                     artifacts
                 )
             data = bytearray(background.read_bytes())
-            struct.pack_into("<I", data, 28, 0)
+            data[28] = 0
             background.write_bytes(data)
             with self.assertRaisesRegex(
                 webconfig_local.LocalWebConfigError,
-                "frame index",
+                "marker is invalid",
             ):
                 webconfig_local._validate_system_background(background)
+
+    def test_system_background_is_an_erased_guard_marker(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hbox-local-uimg-v3-") as root:
+            artifacts = Path(root)
+            with redirect_stdout(io.StringIO()):
+                _, background = webconfig_local.build_local_image_resources(artifacts)
+            self.assertEqual(background.read_bytes(), b"\xff" * 4096)
+            webconfig_local._validate_system_background(background)
+
+    def test_system_background_marker_must_be_exactly_4k(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hbox-local-uimg-header-") as root:
+            artifacts = Path(root)
+            with redirect_stdout(io.StringIO()):
+                _, background = webconfig_local.build_local_image_resources(artifacts)
+            background.write_bytes(b"\xff" * 4095)
+            with self.assertRaisesRegex(
+                webconfig_local.LocalWebConfigError,
+                "marker is truncated",
+            ):
+                webconfig_local._validate_system_background(background)
+
+    def test_user_image_layout_and_frame_limits_match_c_firmware(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        metadata_h = (root / "common" / "firmware_metadata.h").read_text(
+            encoding="utf-8"
+        )
+        board_cfg = (
+            root / "application" / "Core" / "Inc" / "board_cfg.h"
+        ).read_text(encoding="utf-8")
+        image_format = (
+            root
+            / "application"
+            / "Cpp_Core"
+            / "Inc"
+            / "configs"
+            / "user_image_format.hpp"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(webconfig_local.USER_IMAGE_RESOURCES_SIZE, 0x190000)
+        self.assertRegex(
+            metadata_h,
+            r"USER_IMAGE_RESOURCES_SIZE\s+0x190000",
+        )
+        self.assertRegex(
+            board_cfg,
+            r"USER_IMAGE_RESOURCES_SIZE\s+0x00190000",
+        )
+        self.assertRegex(image_format, r"MAX_USER_FRAMES\s*=\s*6u")
+        self.assertRegex(image_format, r"STORAGE_GUARD_SIZE\s*=\s*0x00010000u")
+        self.assertNotIn("SYSTEM_DEFAULT", image_format)
+        self.assertEqual(webconfig_local.SYSTEM_BACKGROUND_MAX_FRAMES, 8)
 
 
 if __name__ == "__main__":

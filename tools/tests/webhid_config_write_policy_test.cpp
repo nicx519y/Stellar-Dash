@@ -21,6 +21,7 @@ int main()
     assert(!webhidShouldBlockConfigWrite("update_profile", true, false));
     assert(!webhidShouldBlockConfigWrite("get_default_profile", false, true));
     assert(!webhidShouldBlockConfigWrite("push_leds_config", true, true));
+    assert(!webhidShouldBlockConfigWrite("preview_screen_brightness", true, true));
     assert(!webhidShouldBlockConfigWrite("clear_leds_preview", true, true));
     assert(!webhidShouldBlockConfigWrite("import_config_begin", true, true));
     assert(!webhidShouldBlockConfigWrite("import_config_part", true, true));

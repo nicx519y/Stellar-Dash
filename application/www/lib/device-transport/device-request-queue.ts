@@ -43,6 +43,7 @@ export type DeviceQueueScheduleOptions = {
   debounceMs?: number;
   maxWaitMs?: number;
   timeoutMs?: number;
+  responseTimeoutMode?: DeviceRequestOptions['responseTimeoutMode'];
   signal?: AbortSignal;
 };
 
@@ -82,6 +83,7 @@ export class DeviceRequestQueue {
       return this.sendFunction(command, scheduledParams, {
         signal,
         timeoutMs: options.timeoutMs,
+        responseTimeoutMode: options.responseTimeoutMode,
       });
     };
     return this.enqueueOperation<CommandResult>(

@@ -17,6 +17,7 @@
 #include "screen_control/spi_screen_detail_pages.hpp"
 #include "screen_control/spi_screen_standby.hpp"
 #include "screen_control/spi_screen_timed_popup.hpp"
+#include "configs/user_image_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "adc_btns/adc_btns_worker.hpp"
@@ -49,6 +50,8 @@ static uint32_t g_cfgText = 0;
 static uint32_t g_cfgSelBg = 0;
 static uint32_t g_cfgOkBg = 0;
 static uint8_t g_cfgBrightness = 100;
+static uint8_t g_previewBrightness = 100;
+static bool g_brightnessPreviewActive = false;
 static uint8_t g_cfgStandbyDisplay = 0;
 static char g_cfgBackgroundImageId[32] = {0};
 static uint32_t g_cfgFeaturesMask = 0;
@@ -151,6 +154,9 @@ static uint8_t map_backlight_percent(uint8_t userPercent) {
 #endif
 
 static uint8_t compute_backlight_percent(uint32_t nowMs) {
+    const uint8_t targetBrightness = g_brightnessPreviewActive
+        ? g_previewBrightness
+        : g_cfgBrightness;
 #if WEBCONFIG_TEST_FORCE_BOOT
     /*
      * Keep the recovery display visibly alive during bench bring-up.  The
@@ -158,18 +164,18 @@ static uint8_t compute_backlight_percent(uint32_t nowMs) {
      * like Standby because the ramp is serviced only by the main loop.
      */
     (void)nowMs;
-    return (g_cfgBrightness < 20u) ? 20u : g_cfgBrightness;
+    return (targetBrightness < 20u) ? 20u : targetBrightness;
 #else
-    if (!g_bl_ramp_active) return g_cfgBrightness;
+    if (!g_bl_ramp_active) return targetBrightness;
     uint32_t elapsed = nowMs - g_bl_boot_ms;
     if (elapsed < SPI_SCREEN_BL_INIT_HOLD_MS) return 0u;
     elapsed -= SPI_SCREEN_BL_INIT_HOLD_MS;
-    if (SPI_SCREEN_BL_RAMP_MS == 0u) return g_cfgBrightness;
+    if (SPI_SCREEN_BL_RAMP_MS == 0u) return targetBrightness;
     if (elapsed >= SPI_SCREEN_BL_RAMP_MS) {
         g_bl_ramp_active = false;
-        return g_cfgBrightness;
+        return targetBrightness;
     }
-    return (uint8_t)(((uint32_t)g_cfgBrightness * elapsed) / SPI_SCREEN_BL_RAMP_MS);
+    return (uint8_t)(((uint32_t)targetBrightness * elapsed) / SPI_SCREEN_BL_RAMP_MS);
 #endif
 }
 
@@ -423,6 +429,7 @@ void SPIScreenManager::setup() {
     g_bl_ramp_active = true;
     ST7789_SetBacklight(&g_lcd, 0);
 #endif
+    UserImageCommandHandler::initializeStorageMigration();
     ScreenStandby_Init(HAL_GetTick(), get_gamepad_activity_mask());
     ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
     rebuildMenu();
@@ -436,6 +443,7 @@ void SPIScreenManager::setup() {
 }
 
 void SPIScreenManager::shutdown() {
+    g_brightnessPreviewActive = false;
     if (!g_inited && !SPIST7789_IsReady()) {
         return;
     }
@@ -451,6 +459,15 @@ void SPIScreenManager::shutdown() {
     g_deferredSavePending = false;
     g_firstDrawPending = true;
     g_menu_full_refresh_pending = false;
+}
+
+void SPIScreenManager::previewBrightness(uint8_t brightness) {
+    g_previewBrightness = clamp_brightness(brightness);
+    g_brightnessPreviewActive = true;
+}
+
+void SPIScreenManager::clearBrightnessPreview() {
+    g_brightnessPreviewActive = false;
 }
 
 void SPIScreenManager::rebuildMenu() {

@@ -255,6 +255,7 @@ void WebConfigState::tick() {
 
 void WebConfigState::exit() {
     isRunning = false;
+    SPIScreenManager::getInstance().clearBrightnessPreview();
     retryRequested = false;
     recoveryUiPending = false;
     REPORT_SCHEDULER.stop();

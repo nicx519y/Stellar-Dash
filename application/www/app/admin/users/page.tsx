@@ -23,6 +23,7 @@ import {
   LuCheck,
   LuClipboard,
   LuKeyRound,
+  LuImages,
   LuRefreshCw,
   LuSearch,
   LuShield,
@@ -307,6 +308,12 @@ export default function AdminUsersPage() {
               <Text color="fg.muted">{copy.subtitle}</Text>
             </Stack>
             <HStack gap={2} flexWrap="wrap">
+              <Button variant="surface" onClick={() => {
+                window.location.href = '/admin/images/';
+              }}>
+                <LuImages />
+                {currentLanguage === 'zh' ? '官方图库' : 'Official Gallery'}
+              </Button>
               <Button variant="surface" onClick={() => {
                 window.location.href = '/';
               }}>

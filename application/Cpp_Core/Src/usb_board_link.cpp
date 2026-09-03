@@ -727,7 +727,8 @@ bool UsbBoardLink::setProfile(usb_board_profile_t profile)
 bool UsbBoardLink::submitInput(uint32_t processedActionMask,
                                uint16_t ageUs,
                                uint8_t batteryCode,
-                               bool batteryValid)
+                               bool batteryValid,
+                               uint16_t reportRateHz)
 {
     usb_board_input_v1_t input = {};
     if (!capsValid || (selectedRole != USB_BOARD_ROLE_USB)) {
@@ -738,6 +739,7 @@ bool UsbBoardLink::submitInput(uint32_t processedActionMask,
         static_cast<uint8_t>((USB_BOARD_INPUT_FORMAT_VERSION <<
                               USB_BOARD_INPUT_VERSION_SHIFT) |
                              USB_BOARD_INPUT_FLAG_PROCESSED |
+                             usb_board_input_rate_flags(reportRateHz) |
                              (batteryValid
                                   ? USB_BOARD_INPUT_FLAG_BATTERY_VALID
                                   : 0u));

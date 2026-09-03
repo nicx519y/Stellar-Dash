@@ -56,12 +56,18 @@ const RECOVERABLE_BOOTSTRAP_COMMANDS = new Set([
 // remain separately bounded by WEBHID_MAX_STREAM_SIZE.
 export const WEBHID_MAX_LOGICAL_MESSAGE_SIZE = 16 * 1024;
 export const WEBHID_MAX_STREAM_SIZE = 8 * 1024;
+export const WEBHID_MAX_IMAGE_PAYLOAD_SIZE = 320 * 172 * 2 * 6;
 export const FIRMWARE_BINARY_HEADER_SIZE = 106;
 export const WEBHID_FIRMWARE_CHUNK_DATA_SIZE = 4096;
 export const WEBHID_MAX_FIRMWARE_PACKET_SIZE =
   FIRMWARE_BINARY_HEADER_SIZE + WEBHID_FIRMWARE_CHUNK_DATA_SIZE;
 const STREAM_HEADER_SIZE = 14;
 const STREAM_DATA_SIZE = SECURE_HID_PAYLOAD_SIZE - STREAM_HEADER_SIZE;
+// Chromium on Windows can reject a HID OUT promise with NotAllowedError while
+// the interrupt endpoint is temporarily NAKing. Image streaming retries the
+// exact same encrypted report for a short bounded period; ordinary RPC writes
+// retain their fail-fast behavior.
+const IMAGE_BACKPRESSURE_RETRY_LIMIT_MS = 2_000;
 const KNOWN_REPORT_FLAGS =
   SecureHidFrameFlags.SECURE |
   SecureHidFrameFlags.FRAGMENTED |
@@ -587,6 +593,71 @@ export class WebHidTransport implements DeviceTransport {
       },
     );
     return completed.data ?? {};
+  }
+
+  async uploadImagePayload(
+    source: ArrayBuffer | Uint8Array,
+    options: DeviceUploadOptions = {},
+  ): Promise<void> {
+    this.requireAuthenticated();
+    const deadline = this.operationDeadline(options.timeoutMs ?? 90_000);
+    const bytes = await this.awaitWithDeadline(
+      toBytes(source),
+      deadline,
+      options.signal,
+      'WebHID image payload upload',
+    );
+    if (bytes.byteLength === 0 || bytes.byteLength > WEBHID_MAX_IMAGE_PAYLOAD_SIZE) {
+      throw new DeviceTransportError(
+        'protocol',
+        `WebHID image payload must contain 1..${WEBHID_MAX_IMAGE_PAYLOAD_SIZE} bytes`,
+      );
+    }
+
+    const device = this.device!;
+    const generation = this.connectionGeneration;
+    const operation = this.enqueueWriteOperation(async (activeDevice, activeGeneration) => {
+      for (let offset = 0; offset < bytes.byteLength; offset += SECURE_HID_PAYLOAD_SIZE) {
+        if (options.signal?.aborted) {
+          throw new DOMException('Upload aborted', 'AbortError');
+        }
+        this.remainingOperationTime(deadline, 'WebHID image payload upload');
+        const end = Math.min(offset + SECURE_HID_PAYLOAD_SIZE, bytes.byteLength);
+        const last = end === bytes.byteLength;
+        await this.writeFrameNow(
+          activeDevice,
+          activeGeneration,
+          SecureHidFrameType.IMAGE_DATA,
+          bytes.subarray(offset, end),
+          last ? SecureHidFrameFlags.LAST : 0,
+          true,
+          null,
+          false,
+          { deadline, signal: options.signal },
+        );
+        options.onProgress?.(end, bytes.byteLength);
+      }
+    });
+
+    try {
+      await this.awaitWithDeadline(
+        operation,
+        deadline,
+        options.signal,
+        'WebHID image payload upload',
+      );
+    } catch (error) {
+      const normalized = asOperationError(error, 'WebHID image payload upload');
+      if (normalized.code === 'timeout' || isAbortError(normalized)) {
+        this.quarantineDevice(device, 'write-timeout', true);
+      }
+      if (normalized.code === 'timeout' ||
+          normalized.code === 'disconnected' ||
+          isAbortError(normalized)) {
+        void this.shutdownConnection(normalized, generation, device, true).catch(() => undefined);
+      }
+      throw normalized;
+    }
   }
 
   async close(): Promise<void> {
@@ -1284,6 +1355,8 @@ export class WebHidTransport implements DeviceTransport {
     flags: number,
     secure: boolean,
     logicalRecordId: string | null = null,
+    paced = true,
+    imageBackpressure?: { deadline: number; signal?: AbortSignal },
   ): Promise<void> {
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected before write');
@@ -1313,7 +1386,7 @@ export class WebHidTransport implements DeviceTransport {
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected during write');
     }
-    const pacingDelay = this.nextPhysicalWriteAtMs - Date.now();
+    const pacingDelay = paced ? this.nextPhysicalWriteAtMs - Date.now() : 0;
     if (pacingDelay > 0) {
       await new Promise<void>((resolve) => setTimeout(resolve, pacingDelay));
       if (!this.isActiveConnection(generation, device)) {
@@ -1335,19 +1408,50 @@ export class WebHidTransport implements DeviceTransport {
       logicalRecordId,
     });
     const writeStartedAtMs = Date.now();
-    try {
-      await device.sendReport(this.reportId, report);
-      this.nextPhysicalWriteAtMs = writeStartedAtMs + this.framePacingMs;
-    } catch (error) {
-      const nativeName = error instanceof DOMException && error.name
-        ? ` (${error.name})`
-        : '';
-      const nativeMessage = error instanceof Error ? error.message : String(error);
-      throw new DeviceTransportError(
-        'disconnected',
-        `WebHID report write failed${nativeName}: ${nativeMessage}`,
-        error,
-      );
+    let backpressureStartedAtMs = 0;
+    for (;;) {
+      try {
+        await device.sendReport(this.reportId, report);
+        if (paced) {
+          this.nextPhysicalWriteAtMs = writeStartedAtMs + this.framePacingMs;
+        }
+        break;
+      } catch (error) {
+        const canRetryImageBackpressure =
+          imageBackpressure !== undefined &&
+          isTransientImageBackpressureError(error) &&
+          device.opened &&
+          this.isActiveConnection(generation, device);
+        if (canRetryImageBackpressure) {
+          if (imageBackpressure.signal?.aborted) {
+            throw abortedOperationError(
+              'WebHID image payload upload',
+              imageBackpressure.signal,
+            );
+          }
+          this.remainingOperationTime(
+            imageBackpressure.deadline,
+            'WebHID image payload upload',
+          );
+          const now = Date.now();
+          if (backpressureStartedAtMs === 0) backpressureStartedAtMs = now;
+          if (now - backpressureStartedAtMs < IMAGE_BACKPRESSURE_RETRY_LIMIT_MS) {
+            // Yield one browser task so the completed USB transfer/NAK state
+            // can be observed. There is no fixed delay on successful packets.
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            continue;
+          }
+        }
+        const nativeName = error instanceof DOMException && error.name
+          ? ` (${error.name})`
+          : '';
+        const nativeMessage = error instanceof Error ? error.message : String(error);
+        throw new DeviceTransportError(
+          'disconnected',
+          `WebHID report write failed${nativeName}: ${nativeMessage}`,
+          error,
+        );
+      }
     }
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected after write');
@@ -1988,6 +2092,12 @@ function asOperationError(error: unknown, label: string): DeviceTransportError {
   return asTransportError(error);
 }
 
+function isTransientImageBackpressureError(error: unknown): boolean {
+  return error instanceof DOMException &&
+    error.name === 'NotAllowedError' &&
+    /failed to write the report/i.test(error.message);
+}
+
 async function toBytes(source: Blob | ArrayBuffer | Uint8Array): Promise<Uint8Array> {
   if (source instanceof Uint8Array) return source.slice();
   if (source instanceof ArrayBuffer) return new Uint8Array(source.slice(0));
@@ -1997,7 +2107,6 @@ async function toBytes(source: Blob | ArrayBuffer | Uint8Array): Promise<Uint8Ar
 function streamCode(stream: DeviceStream): number {
   switch (stream) {
     case 'firmware': return 1;
-    case 'image': return 2;
     case 'config-import': return 3;
   }
 }

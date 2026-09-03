@@ -11,6 +11,7 @@ struct DeviceCommandContractRecording {
     uint32_t monitorStops = 0;
     uint32_t ledPreviews = 0;
     uint32_t ledClears = 0;
+    uint32_t screenBrightnessPreviews = 0;
     uint32_t firmwareCreates = 0;
     uint32_t firmwareChunks = 0;
     const uint8_t *firmwareChunkData = nullptr;

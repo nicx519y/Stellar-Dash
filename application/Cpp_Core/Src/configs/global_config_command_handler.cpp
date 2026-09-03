@@ -14,6 +14,7 @@
 #include "configs/user_image_command_handler.hpp"
 #include "firmware_metadata.h"
 #include "leds/led_config_safety.hpp"
+#include "screen_control/spi_screen_manager.hpp"
 #include <map>
 #include <stdio.h>
 #include <cstring>
@@ -85,6 +86,19 @@ bool valid_default_profile(const Config& config) {
         }
     }
     return false;
+}
+
+bool valid_screen_background(const ScreenControlConfig& screenControl) {
+    const void* terminator = memchr(
+        screenControl.backgroundImageId,
+        '\0',
+        sizeof(screenControl.backgroundImageId));
+    if (terminator == nullptr) return false;
+    const size_t idLength = static_cast<const char*>(terminator) -
+                            screenControl.backgroundImageId;
+    if (idLength == 0u) return screenControl.standbyDisplay != 1u;
+    return UserImageCommandHandler::isBackgroundImageAvailable(
+        screenControl.backgroundImageId);
 }
 
 bool validate_legacy_import_profiles(cJSON* root,
@@ -568,6 +582,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleGetScreenControlConfig(c
 
 DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateScreenControlConfig(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
+    ScreenControlConfig candidate = config.screenControl;
 
     cJSON* params = request.getParams();
     if (!params) {
@@ -584,23 +599,23 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateScreenControlConfi
         int v = item->valueint;
         if (v < 0) v = 0;
         if (v > 100) v = 100;
-        config.screenControl.brightness = (uint8_t)v;
+        candidate.brightness = (uint8_t)v;
     }
     if ((item = cJSON_GetObjectItem(screenControl, "standbyDisplay")) && cJSON_IsString(item)) {
-        if (strcmp(item->valuestring, "backgroundImage") == 0) config.screenControl.standbyDisplay = 1;
-        else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
-        else config.screenControl.standbyDisplay = 0;
+        if (strcmp(item->valuestring, "backgroundImage") == 0) candidate.standbyDisplay = 1;
+        else if (strcmp(item->valuestring, "buttonLayout") == 0) candidate.standbyDisplay = 2;
+        else candidate.standbyDisplay = 0;
     }
-    set_screen_style_from_json(config.screenControl, screenControl);
+    set_screen_style_from_json(candidate, screenControl);
     if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
-        strncpy(config.screenControl.backgroundImageId, item->valuestring, sizeof(config.screenControl.backgroundImageId) - 1);
-        config.screenControl.backgroundImageId[sizeof(config.screenControl.backgroundImageId) - 1] = '\0';
+        strncpy(candidate.backgroundImageId, item->valuestring, sizeof(candidate.backgroundImageId) - 1);
+        candidate.backgroundImageId[sizeof(candidate.backgroundImageId) - 1] = '\0';
     }
     if ((item = cJSON_GetObjectItem(screenControl, "currentPageId")) && cJSON_IsNumber(item)) {
         int v = item->valueint;
         if (v < 0) v = 0;
         if (v > 65535) v = 65535;
-        config.screenControl.currentPageId = (uint16_t)v;
+        candidate.currentPageId = (uint16_t)v;
     }
 
     cJSON* features = cJSON_GetObjectItem(screenControl, "features");
@@ -622,8 +637,8 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateScreenControlConfi
         for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
             cJSON* b = cJSON_GetObjectItem(features, map[i].key);
             if (b && cJSON_IsBool(b)) {
-                if (cJSON_IsTrue(b)) config.screenControl.featuresMask |= map[i].bit;
-                else config.screenControl.featuresMask &= ~map[i].bit;
+                if (cJSON_IsTrue(b)) candidate.featuresMask |= map[i].bit;
+                else candidate.featuresMask &= ~map[i].bit;
             }
         }
     }
@@ -653,7 +668,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateScreenControlConfi
                 if (strcmp(it->valuestring, orderMap[j].key) == 0) {
                     uint8_t id = orderMap[j].id;
                     if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
-                        config.screenControl.featuresOrder[pos++] = id;
+                        candidate.featuresOrder[pos++] = id;
                         used[id] = true;
                     }
                     break;
@@ -663,21 +678,51 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateScreenControlConfi
         for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
             uint8_t id = orderMap[j].id;
             if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
-                config.screenControl.featuresOrder[pos++] = id;
+                candidate.featuresOrder[pos++] = id;
                 used[id] = true;
             }
         }
         while (pos < SCREEN_FEATURE_COUNT) {
-            config.screenControl.featuresOrder[pos] = (uint8_t)pos;
+            candidate.featuresOrder[pos] = (uint8_t)pos;
             pos++;
         }
     }
 
-    if (!STORAGE_MANAGER.saveConfig()) {
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
+    if (!valid_screen_background(candidate)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Background image is missing or invalid");
     }
 
+    const ScreenControlConfig previous = config.screenControl;
+    config.screenControl = candidate;
+    if (!STORAGE_MANAGER.saveConfig()) {
+        config.screenControl = previous;
+        SPIScreenManager::getInstance().clearBrightnessPreview();
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
+    }
+    SPIScreenManager::getInstance().clearBrightnessPreview();
+
     return handleGetScreenControlConfig(request);
+}
+
+DeviceCommandResponse GlobalConfigCommandHandler::handlePreviewScreenBrightness(const DeviceCommandRequest& request) {
+    cJSON* params = request.getParams();
+    cJSON* brightness = params
+        ? cJSON_GetObjectItemCaseSensitive(params, "brightness")
+        : nullptr;
+    if (!cJSON_IsNumber(brightness)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Invalid brightness");
+    }
+
+    int value = brightness->valueint;
+    if (value < 0) value = 0;
+    if (value > 100) value = 100;
+    SPIScreenManager::getInstance().previewBrightness((uint8_t)value);
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddNumberToObject(dataJSON, "brightness", value);
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 DeviceCommandResponse GlobalConfigCommandHandler::handleExportAllConfig(const DeviceCommandRequest& request) {
@@ -715,6 +760,11 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportAllConfig(const De
         reset_config_import();
         return create_error_response(request.getCid(), request.getCommand(), 1,
                                      "Default profile is missing or disabled");
+    }
+    if (!valid_screen_background(candidate.screenControl)) {
+        reset_config_import();
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Background image is missing or invalid");
     }
     if (!ConfigUtils::save(candidate)) {
         reset_config_import();
@@ -1003,6 +1053,10 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigFinish(const
         return create_error_response(request.getCid(), request.getCommand(), 1,
                                      "Default profile is missing or disabled");
     }
+    if (!valid_screen_background(g_configImport.candidate.screenControl)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Background image is missing or invalid");
+    }
 
     if (!ConfigUtils::save(g_configImport.candidate)) {
         reset_config_import();
@@ -1287,6 +1341,8 @@ DeviceCommandResponse GlobalConfigCommandHandler::handle(const DeviceCommandRequ
         return handleGetScreenControlConfig(request);
     } else if (command == "update_screen_control_config") {
         return handleUpdateScreenControlConfig(request);
+    } else if (command == "preview_screen_brightness") {
+        return handlePreviewScreenBrightness(request);
     } else if (command == "export_all_config") {
         return handleExportAllConfig(request);
     } else if (command == "import_all_config") {

@@ -103,7 +103,7 @@ SYSTEM_ASSETS_VERSION = 1
 SYSTEM_ASSETS_HEADER_BYTES = 64
 SYSTEM_ASSETS_ENTRY_BYTES = 64
 SYSTEM_BACKGROUND_MAGIC = 0x474D4955  # 'UIMG' in little endian
-SYSTEM_BACKGROUND_VERSION = 2
+SYSTEM_BACKGROUND_VERSION = 3
 SYSTEM_BACKGROUND_HEADER_BYTES = 4096
 SYSTEM_BACKGROUND_WIDTH = 320
 SYSTEM_BACKGROUND_HEIGHT = 172
@@ -534,57 +534,16 @@ def _validate_system_assets(path: Path) -> None:
 
 
 def _validate_system_background(path: Path) -> None:
-    """Validate the fixed-canvas UIMG v2 system-background container."""
+    """Validate the erased marker used to keep the frozen flash stage safe."""
 
     try:
         data = path.read_bytes()
     except OSError as exc:
         raise LocalWebConfigError("system background resource is missing") from exc
     if len(data) < SYSTEM_BACKGROUND_HEADER_BYTES:
-        raise LocalWebConfigError("system background header is truncated")
-    if len(data) > USER_IMAGE_RESOURCES_SIZE:
-        raise LocalWebConfigError("system background exceeds the user-image partition")
-    (
-        magic,
-        version,
-        valid,
-        image_format,
-        width,
-        height,
-        frame_count,
-        fps,
-        reserved,
-        frame_size,
-        frames_offset,
-        payload_size,
-    ) = struct.unpack_from("<IHBBHHBBHIII", data, 0)
-    if magic != SYSTEM_BACKGROUND_MAGIC or version != SYSTEM_BACKGROUND_VERSION:
-        raise LocalWebConfigError("system background has an invalid UIMG header")
-    if valid != 1 or reserved != 0:
-        raise LocalWebConfigError("system background is not a canonical valid image")
-    if width != SYSTEM_BACKGROUND_WIDTH or height != SYSTEM_BACKGROUND_HEIGHT:
-        raise LocalWebConfigError("system background canvas size is invalid")
-    if frame_count < 1 or frame_count > SYSTEM_BACKGROUND_MAX_FRAMES:
-        raise LocalWebConfigError("system background frame count is invalid")
-    expected_format = 1 if frame_count == 1 else 2
-    if image_format != expected_format:
-        raise LocalWebConfigError("system background image format is invalid")
-    if (frame_count == 1 and fps != 0) or (frame_count > 1 and not 1 <= fps <= 5):
-        raise LocalWebConfigError("system background frame rate is invalid")
-    if (
-        frame_size != SYSTEM_BACKGROUND_FRAME_BYTES
-        or frames_offset != SYSTEM_BACKGROUND_HEADER_BYTES
-        or payload_size != frame_count * frame_size
-        or len(data) != frames_offset + payload_size
-    ):
-        raise LocalWebConfigError("system background payload layout is invalid")
-    frame_offsets = struct.unpack_from("<10I", data, 28)
-    for index, offset in enumerate(frame_offsets):
-        expected = (
-            frames_offset + index * frame_size if index < frame_count else 0
-        )
-        if offset != expected:
-            raise LocalWebConfigError("system background frame index is invalid")
+        raise LocalWebConfigError("system background marker is truncated")
+    if data != b"\xff" * SYSTEM_BACKGROUND_HEADER_BYTES:
+        raise LocalWebConfigError("system background marker is invalid")
 
 
 def _validate_local_image_resources(artifacts: Path) -> None:
@@ -597,15 +556,10 @@ def build_local_image_resources(artifacts: Path) -> tuple[Path, Path]:
 
     packer = TOOLS_DIR / "pack_assets.py"
     icons_dir = PROJECT_ROOT / "application" / "assets" / "sysicons"
-    background_dir = PROJECT_ROOT / "application" / "assets" / "sysbg"
     if not packer.is_file():
         raise LocalWebConfigError(f"asset packer is missing: {packer}")
     if not icons_dir.is_dir():
         raise LocalWebConfigError(f"system icon sources are missing: {icons_dir}")
-    if not background_dir.is_dir():
-        raise LocalWebConfigError(
-            f"system background sources are missing: {background_dir}"
-        )
     artifacts.mkdir(parents=True, exist_ok=True)
     system_assets = artifacts / SYSTEM_ASSETS_FILENAME
     system_background = artifacts / SYSTEM_BACKGROUND_FILENAME
@@ -625,12 +579,8 @@ def build_local_image_resources(artifacts: Path) -> tuple[Path, Path]:
         [
             sys.executable,
             str(packer),
-            "--sysbg-dir",
-            str(background_dir),
-            "--sysbg-output",
+            "--empty-sysbg-output",
             str(system_background),
-            "--sysbg-max-size",
-            hex(USER_IMAGE_RESOURCES_SIZE),
         ]
     )
     _validate_local_image_resources(artifacts)

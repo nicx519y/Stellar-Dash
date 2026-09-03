@@ -42,7 +42,7 @@ static uint8_t dpad_hat(uint32_t actions, uint8_t neutral)
     return neutral;
 }
 
-static uint16_t xinput_buttons(uint32_t actions)
+uint16_t usb_profiles_xinput_buttons(uint32_t actions)
 {
     uint16_t buttons = 0u;
     buttons |= (actions & (1ul << 0)) ? 0x0001u : 0u;
@@ -67,7 +67,7 @@ static bool build_xinput(const usb_board_input_v1_t *input,
                          usb_profile_report_t *report)
 {
     const uint32_t actions = input->action_mask_le;
-    const uint16_t buttons = xinput_buttons(actions);
+    const uint16_t buttons = usb_profiles_xinput_buttons(actions);
 
     memset(report, 0, sizeof(*report));
     report->length = USB_PROFILE_XINPUT_REPORT_BYTES;

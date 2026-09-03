@@ -235,7 +235,7 @@ void test_xinput_stm32_reference_golden()
 
     static_assert(sizeof(xinput_device_descriptor) == 18u);
     static_assert(sizeof(xinput_configuration_descriptor) == 0xB2u);
-    static_assert(sizeof(xinput_telemetry_hid_report_descriptor) == 21u);
+    static_assert(sizeof(xinput_telemetry_hid_report_descriptor) == 27u);
 
     assert(xinput_device_descriptor[8] == 0x5Eu);
     assert(xinput_device_descriptor[9] == 0x04u);

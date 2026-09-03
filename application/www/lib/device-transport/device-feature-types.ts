@@ -28,9 +28,16 @@ export interface DeviceImageMetadata {
   frameCount: number;
   fps: number;
   format: number;
+  crc32?: number;
 }
 
 export interface DeviceImageCatalog {
+  protocolVersion: number;
+  maxUserFrames: number;
+  maxSystemFrames: number;
+  imageTransferVersion: number;
+  imageDataBytesPerReport: number;
+  imageTransferFlags: number;
   user: DeviceImageMetadata;
   system: DeviceImageMetadata;
 }
@@ -49,4 +56,5 @@ export interface DeviceImageMutationResult {
   received: number;
   total: number;
   error: string | null;
+  crc32?: number;
 }

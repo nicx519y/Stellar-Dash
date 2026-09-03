@@ -39,6 +39,7 @@ public:
     DeviceCommandResponse handleUpdateHotkeysConfig(const DeviceCommandRequest& request);
     DeviceCommandResponse handleGetScreenControlConfig(const DeviceCommandRequest& request);
     DeviceCommandResponse handleUpdateScreenControlConfig(const DeviceCommandRequest& request);
+    DeviceCommandResponse handlePreviewScreenBrightness(const DeviceCommandRequest& request);
     DeviceCommandResponse handleExportAllConfig(const DeviceCommandRequest& request);
     DeviceCommandResponse handleImportAllConfig(const DeviceCommandRequest& request);
     DeviceCommandResponse handleImportConfigBegin(const DeviceCommandRequest& request);

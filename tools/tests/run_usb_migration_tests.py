@@ -71,6 +71,17 @@ def main() -> int:
         compile_and_run(
             gcc,
             "c11",
+            output_dir / "usb_high_rate_protocol_test.exe",
+            [
+                TESTS / "usb_high_rate_protocol_test.c",
+                USB / "usb_high_rate.c",
+                USB / "usb_high_rate_descriptors.c",
+            ],
+            [COMMON, USB],
+        )
+        compile_and_run(
+            gcc,
+            "c11",
             output_dir / "usb_xbox_device_state_test.exe",
             [
                 TESTS / "usb_xbox_device_state_test.c",

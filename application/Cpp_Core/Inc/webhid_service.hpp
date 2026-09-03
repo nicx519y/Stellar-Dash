@@ -133,6 +133,9 @@ private:
     bool processBootstrap(const uint8_t *message, size_t length);
     bool processSecureRpc(const uint8_t *message, size_t length);
     bool processStreamFragment(const uint8_t *payload, uint8_t length);
+    bool processImageData(uint8_t flags,
+                          const uint8_t *payload,
+                          uint8_t length);
 
     bool handleAttestationCreate(uint32_t transactionId, void *params);
     bool handleInstallPermit(uint32_t transactionId, void *params);

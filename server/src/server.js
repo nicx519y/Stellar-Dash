@@ -58,6 +58,11 @@ const {
     SwitchMappingStore,
     initSwitchMappingRoutes
 } = require('./switch-mappings');
+const {
+    ImageGalleryStore,
+    LocalGalleryStorage,
+    initImageGalleryRoutes
+} = require('./image-gallery');
 
 // 引入网络接口入口模块
 const { initAllRoutes } = require('./action');
@@ -147,6 +152,7 @@ app.use(express.urlencoded({ extended: true }));
 // 创建持久状态与上传目录
 fs.ensureDirSync(storagePaths.dataDir);
 fs.ensureDirSync(config.uploadDir);
+fs.ensureDirSync(storagePaths.galleryAssetDir);
 
 // 创建存储实例
 const storage_manager = new FirmwareStorage(config.dataFile, config.uploadDir);
@@ -193,6 +199,16 @@ const switchMappingStore = new SwitchMappingStore({
 });
 app.locals.switchMappingStore = switchMappingStore;
 
+const imageGalleryStore = new ImageGalleryStore({
+    databasePath: storagePaths.imageGalleryDatabase,
+    userLimit: Number(process.env.HBOX_USER_GALLERY_LIMIT) || 10
+});
+const imageGalleryStorage = new LocalGalleryStorage({
+    root: storagePaths.galleryAssetDir
+});
+app.locals.imageGalleryStore = imageGalleryStore;
+app.locals.imageGalleryStorage = imageGalleryStorage;
+
 /*
  * Shipped V1 clients cannot attach an Authorization header to the package
  * fetch. Their already-weak authentication may mint only a short-lived,
@@ -236,6 +252,13 @@ initEmailAuthRoutes(app, emailAuth);
 initAdminRoutes(app, adminAccess);
 initSwitchMappingRoutes(app, {
     store: switchMappingStore,
+    deviceAuth: deviceAuthV2,
+    adminAccess
+});
+initImageGalleryRoutes(app, {
+    store: imageGalleryStore,
+    storage: imageGalleryStorage,
+    emailAuth,
     deviceAuth: deviceAuthV2,
     adminAccess
 });
@@ -307,6 +330,7 @@ app.listen(PORT, LISTEN_HOST, () => {
     console.log(`Node监听地址: ${LISTEN_HOST}:${PORT}`);
     console.log(`域名地址: https://${domain_name}`);
     console.log(`上传目录: ${config.uploadDir}`);
+    console.log(`图库目录: ${storagePaths.galleryAssetDir}`);
     console.log(`数据文件: ${config.dataFile}`);
     console.log(`最大文件大小: ${config.maxFileSize / (1024 * 1024)}MB`);
     console.log(`支持文件类型: ${config.allowedExtensions.join(', ')}`);
@@ -334,6 +358,10 @@ app.listen(PORT, LISTEN_HOST, () => {
     console.log('  GET    /api/admin/profile      - 获取邮箱管理员信息');
     console.log('  GET    /api/admin/users        - 管理邮箱账号角色');
     console.log('  GET    /api/admin/service-tokens - 管理自动化服务令牌');
+    console.log('  GET    /api/gallery/system      - 获取官方图库');
+    console.log('  GET    /api/gallery/match       - 按设备图片指纹匹配图库');
+    console.log('  GET    /api/gallery/mine        - 获取个人图库');
+    console.log('  GET    /api/admin/gallery/system - 管理官方图库');
     console.log('  GET    /api/firmwares          - 获取固件列表 (需要 config.read scope)');
     console.log('  POST   /api/firmware-check-update - 检查固件更新 (需要设备认证)');
     console.log('  POST   /api/firmwares/upload   - 上传固件包 (需要管理员认证)');

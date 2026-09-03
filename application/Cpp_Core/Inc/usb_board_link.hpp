@@ -28,7 +28,8 @@ public:
     bool submitInput(uint32_t processedActionMask,
                      uint16_t ageUs = 0u,
                      uint8_t batteryCode = 0u,
-                     bool batteryValid = false);
+                     bool batteryValid = false,
+                     uint16_t reportRateHz = 1000u);
     bool sendControl(usb_board_control_opcode_t opcode,
                      const uint8_t *payload = nullptr,
                      uint8_t length = 0u,

@@ -33,7 +33,13 @@ typedef enum
     WEBHID_REPORT_PERF_EDGE          = 0x21u,
     WEBHID_REPORT_PERF_CHECKPOINT    = 0x22u,
     WEBHID_REPORT_BUTTON_STATE       = 0x23u,
-    WEBHID_REPORT_STREAM_FRAGMENT    = 0x30u
+    WEBHID_REPORT_STREAM_FRAGMENT    = 0x30u,
+    /*
+     * Dedicated image payload report.  An authenticated IMAGE_BEGIN owns the
+     * receive lane until IMAGE_COMMIT; every encrypted payload byte is image
+     * data and only the final report carries REPORT_FLAG_LAST.
+     */
+    WEBHID_REPORT_IMAGE_DATA         = 0x31u
 } webhid_report_type_t;
 
 enum

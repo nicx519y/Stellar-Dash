@@ -89,6 +89,7 @@ uint32_t recordingValue(const char *field)
     RECORDING_FIELD(monitorStops);
     RECORDING_FIELD(ledPreviews);
     RECORDING_FIELD(ledClears);
+    RECORDING_FIELD(screenBrightnessPreviews);
     RECORDING_FIELD(firmwareCreates);
     RECORDING_FIELD(firmwareChunks);
     RECORDING_FIELD(firmwareCompletes);
@@ -504,6 +505,6 @@ int main(int argc, char **argv)
     cJSON_Delete(pingResult.root);
     cJSON_Delete(document);
     std::cout << "real handler contracts passed: " << passed
-              << "/68; binary zero-copy, retired tombstone handler and ping passed separately\n";
-    return passed == 68u ? EXIT_SUCCESS : EXIT_FAILURE;
+              << "/69; binary zero-copy, retired tombstone handler and ping passed separately\n";
+    return passed == 69u ? EXIT_SUCCESS : EXIT_FAILURE;
 }

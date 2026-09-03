@@ -36,6 +36,12 @@ const {
   DeviceCommandClient,
 } = require('../lib/device-transport/device-command-client.ts');
 const {
+  DeviceConnectionPhase,
+} = require('../lib/device-transport/device-command-types.ts');
+const {
+  MockDeviceTransport,
+} = require('../lib/device-transport/mock-device-transport.ts');
+const {
   binaryOpcodeScope,
   elevatedScopesForCommand,
 } = require('../lib/device-transport/scope-policy.ts');
@@ -120,6 +126,115 @@ test('explicit WebHID frame pacing spaces native OUT submissions', async () => {
     writeStartedAt[1] - writeStartedAt[0] >= 20,
     `native writes were only ${writeStartedAt[1] - writeStartedAt[0]}ms apart`,
   );
+});
+
+test('image payload uses serial 44-byte reports without pacing or stream credit RPC', async () => {
+  const reports = [];
+  let inFlight = 0;
+  let maximumInFlight = 0;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox image stream fixture',
+    collections: [],
+    async open() { this.opened = true; },
+    async close() { this.opened = false; },
+    addEventListener() {},
+    removeEventListener() {},
+    async sendReport(_reportId, report) {
+      inFlight += 1;
+      maximumInFlight = Math.max(maximumInFlight, inFlight);
+      reports.push(Uint8Array.from(report));
+      await new Promise(resolve => setImmediate(resolve));
+      inFlight -= 1;
+    },
+  };
+  const transport = new WebHidTransport({
+    navigator: makeHidNavigator(device),
+    framePacingMs: 1000,
+  });
+  await transport.connect();
+  transport.establishSecureSession({
+    async seal(_header, _sequence, plaintext) {
+      return { ciphertext: plaintext.slice(), tag: new Uint8Array(12) };
+    },
+    async open(_header, _sequence, ciphertext) { return ciphertext.slice(); },
+  }, {
+    transport: 'webhid', authenticated: true, scopes: ['asset.write'], sessionId: 'image-stream-v2',
+  });
+  let rpcCalls = 0;
+  transport.request = async () => { rpcCalls += 1; throw new Error('image stream must not use RPC'); };
+  transport.nextPhysicalWriteAtMs = Date.now() + 10_000;
+  const pacingSentinel = transport.nextPhysicalWriteAtMs;
+  const progress = [];
+
+  await transport.uploadImagePayload(new Uint8Array(100), {
+    onProgress: (sent, total) => progress.push([sent, total]),
+  });
+
+  assert.equal(rpcCalls, 0);
+  assert.equal(maximumInFlight, 1);
+  assert.equal(reports.length, 3);
+  assert.deepEqual(reports.map(report => report[1]), [0x31, 0x31, 0x31]);
+  assert.deepEqual(reports.map(report => report[3]), [44, 44, 12]);
+  assert.equal(reports[0][2], SecureHidFrameFlags.SECURE);
+  assert.equal(reports[1][2], SecureHidFrameFlags.SECURE);
+  assert.equal(reports[2][2], SecureHidFrameFlags.SECURE | SecureHidFrameFlags.LAST);
+  assert.equal(transport.nextPhysicalWriteAtMs, pacingSentinel);
+  assert.deepEqual(progress, [[44, 100], [88, 100], [100, 100]]);
+  await transport.close();
+});
+
+test('image payload retries the identical report when Windows exposes endpoint NAK as NotAllowedError', async () => {
+  const attempts = [];
+  let transientFailures = 2;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox image backpressure fixture',
+    collections: [],
+    async open() { this.opened = true; },
+    async close() { this.opened = false; },
+    addEventListener() {},
+    removeEventListener() {},
+    async sendReport(_reportId, report) {
+      attempts.push(Uint8Array.from(report));
+      if (transientFailures > 0) {
+        transientFailures -= 1;
+        throw new DOMException('Failed to write the report.', 'NotAllowedError');
+      }
+    },
+  };
+  const transport = new WebHidTransport({
+    navigator: makeHidNavigator(device),
+    framePacingMs: 1000,
+  });
+  await transport.connect();
+  transport.establishSecureSession({
+    async seal(_header, _sequence, plaintext) {
+      return { ciphertext: plaintext.slice(), tag: new Uint8Array(12) };
+    },
+    async open(_header, _sequence, ciphertext) { return ciphertext.slice(); },
+  }, {
+    transport: 'webhid', authenticated: true, scopes: ['asset.write'], sessionId: 'image-backpressure-v2',
+  });
+  const progress = [];
+
+  await transport.uploadImagePayload(new Uint8Array(45), {
+    onProgress: (sent, total) => progress.push([sent, total]),
+  });
+
+  assert.equal(attempts.length, 4);
+  assert.deepEqual(attempts[0], attempts[1]);
+  assert.deepEqual(attempts[1], attempts[2]);
+  assert.equal(attempts[0][1], SecureHidFrameType.IMAGE_DATA);
+  assert.equal(attempts[0][3], 44);
+  assert.equal(attempts[3][3], 1);
+  assert.deepEqual(progress, [[44, 45], [45, 45]]);
+  assert.equal(device.opened, true);
+  await transport.close();
 });
 
 test('the first WebHID auto-connect waits for cross-document close handoff and is StrictMode-cancellable', async () => {
@@ -970,6 +1085,7 @@ test('WebHID report types and flags match common/webhid_protocol.h', () => {
       perfCheckpoint: SecureHidFrameType.PERF_CHECKPOINT,
       buttonState: SecureHidFrameType.BUTTON_STATE,
       streamFragment: SecureHidFrameType.STREAM_CHUNK,
+      imageData: SecureHidFrameType.IMAGE_DATA,
     },
     {
       bootstrapRequest: 0x01,
@@ -982,6 +1098,7 @@ test('WebHID report types and flags match common/webhid_protocol.h', () => {
       perfCheckpoint: 0x22,
       buttonState: 0x23,
       streamFragment: 0x30,
+      imageData: 0x31,
     },
   );
   assert.equal(SecureHidFrameFlags.SECURE, 1);
@@ -1881,21 +1998,94 @@ test('an explicitly recoverable authenticated response timeout keeps the session
   await transport.close();
 });
 
-test('screen background previews are loaded only by an explicit user action', () => {
+test('screen background gallery waits for startup before synchronizing the installed device image', () => {
   const source = fs.readFileSync(path.join(
     __dirname,
     '..',
     'components',
     'screen-control-setting-content.tsx',
   ), 'utf8');
-  assert.doesNotMatch(
-    source,
-    /useEffect\(\(\) => \{\s*if \(!deviceConnected\) return;\s*void fetchBgImagesFromDeviceOnce\(\);/,
+  assert.match(source, /<BackgroundImageGallery/);
+  const gallery = fs.readFileSync(path.join(
+    __dirname,
+    '..',
+    'components',
+    'background-image-gallery.tsx',
+  ), 'utf8');
+  assert.match(gallery, /useEffect\(\(\) => \{ void syncDevice\(\); \}/);
+  assert.match(gallery, /deviceConnected, dataIsReady, deviceSession/);
+  assert.match(gallery, /if \(!deviceConnected \|\| !dataIsReady\)/);
+  assert.match(gallery, /const configRef = useRef\(config\)/);
+  assert.doesNotMatch(gallery, /\}, \[config, deviceConnected, deviceId, getDeviceImageCatalog/);
+  assert.match(gallery, /<Tabs\.Trigger value="system">/);
+  assert.match(gallery, /<Tabs\.Trigger value="mine">/);
+});
+
+test('connection transaction exclusively owns the device lane until startup reaches READY', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const client = new DeviceCommandClient(transport);
+
+  await assert.rejects(
+    client.requestInitialization('get_global_config'),
+    /未连接|尚未完成认证/,
   );
-  assert.match(
-    source,
-    /key="load-previews"[\s\S]*?onClick=\{\(\) => void fetchBgImagesFromDeviceOnce\(\)\}/,
+  await client.connect();
+  assert.equal(client.getPhase(), DeviceConnectionPhase.INITIALIZING);
+
+  await assert.rejects(
+    client.request('get_global_config'),
+    /连接事务尚未完成/,
   );
+  await assert.rejects(
+    client.enqueue('get_screen_control_config', {}, true),
+    /连接事务尚未完成/,
+  );
+  await assert.rejects(
+    client.getImageCatalog(),
+    /连接事务尚未完成/,
+  );
+  await assert.rejects(
+    client.authorizedFetch('/api/gallery/system'),
+    /连接事务尚未完成/,
+  );
+  assert.deepEqual(client.getQueueStatus(), {
+    queueSize: 0,
+    activeCommand: undefined,
+    queuedCommands: [],
+  });
+  await assert.rejects(
+    client.requestInitialization('reboot'),
+    /不属于设备连接初始化事务/,
+  );
+
+  const initialized = await client.requestInitialization('get_global_config');
+  assert.ok(initialized?.globalConfig);
+  assert.equal(client.markReady(), true);
+  assert.equal(client.getPhase(), DeviceConnectionPhase.READY);
+  await assert.rejects(
+    client.requestInitialization('get_global_config'),
+    /只能在 initializing 阶段执行/,
+  );
+  const readyResult = await client.request('get_global_config');
+  assert.ok(readyResult?.globalConfig);
+  client.dispose();
+});
+
+test('queued device commands forward an explicit operation timeout', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const client = new DeviceCommandClient(transport);
+  await client.connect();
+  assert.equal(client.markReady(), true);
+
+  const request = transport.request.bind(transport);
+  let observedTimeout;
+  transport.request = async (command, params, options) => {
+    if (command === 'get_global_config') observedTimeout = options?.timeoutMs;
+    return request(command, params, options);
+  };
+  await client.enqueue('get_global_config', {}, true, { timeoutMs: 8_000 });
+  assert.equal(observedTimeout, 8_000);
+  client.dispose();
 });
 
 test('recoverable bootstrap response timeouts allow two bounded same-handle resynchronizations', async () => {
@@ -2066,6 +2256,7 @@ test('bootstrap write-stage and ordinary RPC timeouts never enter bootstrap resy
     return transport.session;
   });
   await ordinaryRpc.client.connect();
+  assert.equal(ordinaryRpc.client.markReady(), true);
   let rpcCalls = 0;
   ordinaryRpc.transport.request = async () => {
     rpcCalls += 1;
@@ -3424,6 +3615,7 @@ test('WebHID typed image reads reject malformed success, error and length fields
   };
   const client = new DeviceCommandClient(transport, auth);
   await client.connect();
+  assert.equal(client.markReady(), true);
 
   await assert.rejects(client.readImage('user', expectedTotal), /invalid length/);
   corruption = 'wrong-total';

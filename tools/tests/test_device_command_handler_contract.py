@@ -23,8 +23,8 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
         }
         case_names = [case["name"] for case in cases["commands"]]
 
-        self.assertEqual(68, len(case_names))
-        self.assertEqual(68, len(set(case_names)))
+        self.assertEqual(69, len(case_names))
+        self.assertEqual(69, len(set(case_names)))
         self.assertEqual(migrated_names, set(case_names))
         self.assertIn("ping", cases)
         for case in cases["commands"]:
@@ -141,7 +141,7 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
                 f"real handler contract executable failed:\n{completed.stdout}\n{completed.stderr}",
             )
             self.assertIn(
-                "real handler contracts passed: 68/68; binary zero-copy, retired tombstone handler and ping passed separately",
+                "real handler contracts passed: 69/69; binary zero-copy, retired tombstone handler and ping passed separately",
                 completed.stdout,
             )
 

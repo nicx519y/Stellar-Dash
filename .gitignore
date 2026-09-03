@@ -36,5 +36,11 @@ RFMoudle
 RF_PHY_Hop/TX/build_tx
 RF_PHY_Hop/RX/build_rx
 
+windows-client/build*
+windows-client/ui/.next
+windows-client/ui/node_modules
+windows-client/ui/out
+windows-client/ui/tsconfig.tsbuildinfo
+
 
 

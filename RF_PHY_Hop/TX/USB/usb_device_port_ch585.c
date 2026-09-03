@@ -6,8 +6,11 @@
 #include "usb_auth.h"
 #include "usb_board_link.h"
 #include "usb_endpoint_reset_control.h"
+#include "usb_high_rate.h"
+#include "usb_high_rate_descriptors.h"
 #include "usb_legacy_descriptors.h"
 #include "usb_management_control.h"
+#include "usb_profiles.h"
 #include "usb_ps4_features.h"
 #include "usb_webhid.h"
 #include "usb_xbox_device.h"
@@ -45,6 +48,9 @@
 #define USBDEV_XBOX_OS_VENDOR_CODE         0x20u
 #define USBDEV_XBOX_COMPAT_ID_INDEX      0x0004u
 #define USBDEV_SIE_QUIESCE_TIMEOUT_MS         1u
+#ifndef USB_DESCR_TYP_BOS
+#define USB_DESCR_TYP_BOS                    0x0Fu
+#endif
 
 typedef enum
 {
@@ -59,7 +65,8 @@ typedef enum
 {
     USBDEV_CONTROL_OUT_NONE = 0,
     USBDEV_CONTROL_OUT_HID_REPORT,
-    USBDEV_CONTROL_OUT_XINPUT_VENDOR
+    USBDEV_CONTROL_OUT_XINPUT_VENDOR,
+    USBDEV_CONTROL_OUT_HIGH_RATE_VENDOR
 } usbdev_control_out_t;
 
 __attribute__((aligned(4))) static uint8_t s_ep0[USBDEV_EP0_BYTES];
@@ -78,6 +85,7 @@ static uint8_t s_xinput_string[256];
 static uint8_t s_last_report[USBDEV_INTERRUPT_BYTES];
 static uint8_t s_last_telemetry[USB_BOARD_TELEMETRY_FRAME_BYTES];
 static uint8_t s_xbox_out[USB_XBOX_DEVICE_PACKET_BYTES];
+static uint8_t s_high_rate_out[HBOX_CLIENT_CONTROL_BYTES];
 static uint8_t s_webhid_out[USBDEV_WEBHID_OUT_QUEUE_DEPTH]
                            [WEBHID_REPORT_BYTES];
 
@@ -89,6 +97,7 @@ static volatile uint8_t s_ep1_busy;
 static volatile uint8_t s_ep7_busy;
 static volatile uint8_t s_xbox_out_ready;
 static volatile uint8_t s_xbox_out_length;
+static volatile uint8_t s_high_rate_out_ready;
 static volatile uint8_t s_address;
 static volatile uint8_t s_configuration;
 static volatile uint8_t s_webhid_out_head;
@@ -103,6 +112,7 @@ static uint8_t s_hid_protocol;
 static uint8_t s_remote_wakeup;
 static uint8_t s_last_report_length;
 static uint8_t s_last_telemetry_length;
+static hbox_client_control_v1_t s_high_rate_control_response;
 static usb_board_profile_t s_profile;
 
 static usbdev_ep0_flow_t s_ep0_flow;
@@ -121,18 +131,18 @@ static uint8_t s_control_need_zlp;
 
 static uint32_t s_clock_last_cycles;
 static uint32_t s_clock_remainder;
-static uint32_t s_clock_millis;
+static uint32_t s_clock_micros;
 
 USB_BOARD_STATIC_ASSERT(sizeof(xinput_device_descriptor) == 18u);
 USB_BOARD_STATIC_ASSERT(sizeof(xinput_configuration_descriptor) == 0xB2u);
-USB_BOARD_STATIC_ASSERT(sizeof(xinput_telemetry_hid_report_descriptor) == 21u);
+USB_BOARD_STATIC_ASSERT(sizeof(xinput_telemetry_hid_report_descriptor) == 27u);
 USB_BOARD_STATIC_ASSERT(USB_XBOX_DEVICE_PACKET_BYTES <= USBDEV_INTERRUPT_BYTES);
 
 static uint8_t profile_interface_count(void)
 {
     if(s_profile == USB_BOARD_PROFILE_XINPUT)
     {
-        return 5u;
+        return usb_high_rate_is_turbo_presentation() ? 1u : 5u;
     }
     if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
@@ -143,26 +153,37 @@ static uint8_t profile_interface_count(void)
 
 static bool profile_supports_remote_wakeup(void)
 {
-    return (s_profile == USB_BOARD_PROFILE_XINPUT) ||
+    return ((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+            !usb_high_rate_is_turbo_presentation()) ||
            (s_profile == USB_BOARD_PROFILE_XBOX_ONE);
 }
 
-static uint32_t device_now_ms(void)
+static uint32_t device_now_us(void)
 {
-    uint32_t cycles_per_ms = GetSysClock() / 1000u;
+    uint32_t cycles_per_us = GetSysClock() / 1000000u;
     const uint32_t now = SysTick->CNTL;
     const uint32_t elapsed = now - s_clock_last_cycles;
     uint32_t accumulated;
 
-    if(cycles_per_ms == 0u)
+    if(cycles_per_us == 0u)
     {
-        cycles_per_ms = 1u;
+        cycles_per_us = 1u;
     }
     s_clock_last_cycles = now;
     accumulated = s_clock_remainder + elapsed;
-    s_clock_millis += accumulated / cycles_per_ms;
-    s_clock_remainder = accumulated % cycles_per_ms;
-    return s_clock_millis;
+    s_clock_micros += accumulated / cycles_per_us;
+    s_clock_remainder = accumulated % cycles_per_us;
+    return s_clock_micros;
+}
+
+static uint32_t device_now_ms(void)
+{
+    return device_now_us() / 1000u;
+}
+
+static bool device_is_high_speed(void)
+{
+    return (R8_USB2_MIS_ST & USBHS_UDMS_HS_MOD) != 0u;
 }
 
 static bool wait_for_sie_idle(uint32_t timeout_ms)
@@ -276,6 +297,8 @@ static bool data_path_reset(bool settle_same_bus)
     memset(s_last_report, 0, sizeof(s_last_report));
     s_xbox_out_ready = 0u;
     s_xbox_out_length = 0u;
+    s_high_rate_out_ready = 0u;
+    memset(s_high_rate_out, 0, sizeof(s_high_rate_out));
     s_webhid_out_head = 0u;
     s_webhid_out_tail = 0u;
     s_webhid_out_count = 0u;
@@ -550,7 +573,38 @@ static const uint8_t *descriptor_for_setup(uint16_t value,
     const uint8_t *descriptor = 0;
     uint16_t descriptor_length = 0u;
 
-    if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
+    if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+       usb_high_rate_is_turbo_presentation())
+    {
+        switch(type)
+        {
+        case USB_DESCR_TYP_DEVICE:
+            descriptor = usb_high_rate_device_descriptor(&descriptor_length);
+            break;
+        case USB_DESCR_TYP_CONFIG:
+            descriptor =
+                usb_high_rate_configuration_descriptor(&descriptor_length);
+            break;
+        case USB_DESCR_TYP_QUALIF:
+            descriptor =
+                usb_high_rate_qualifier_descriptor(&descriptor_length);
+            break;
+        case USB_DESCR_TYP_SPEED:
+            descriptor =
+                usb_high_rate_other_speed_descriptor(&descriptor_length);
+            break;
+        case USB_DESCR_TYP_BOS:
+            descriptor = usb_high_rate_bos_descriptor(&descriptor_length);
+            break;
+        case USB_DESCR_TYP_STRING:
+            descriptor =
+                usb_high_rate_string_descriptor(number, &descriptor_length);
+            break;
+        default:
+            break;
+        }
+    }
+    else if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
         switch(type)
         {
@@ -716,7 +770,12 @@ static void endpoint_controls_reset(void)
     R8_U2EP7_TX_CTRL = USBHS_UEP_T_RES_NAK;
     R8_U2EP7_RX_CTRL = USBHS_UEP_R_RES_NAK;
 
-    if(s_profile == USB_BOARD_PROFILE_XINPUT)
+    if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+       usb_high_rate_is_turbo_presentation())
+    {
+        R8_U2EP2_RX_CTRL = USBHS_UEP_R_RES_ACK;
+    }
+    else if(s_profile == USB_BOARD_PROFILE_XINPUT)
     {
         R8_U2EP2_RX_CTRL = USBHS_UEP_R_RES_ACK;
         R8_U2EP4_RX_CTRL = USBHS_UEP_R_RES_ACK;
@@ -745,7 +804,15 @@ static void endpoints_init(void)
     uint16_t interrupt_max = USBDEV_INTERRUPT_BYTES;
     uint16_t ep2_max = USBDEV_INTERRUPT_BYTES;
 
-    if(s_profile == USB_BOARD_PROFILE_XINPUT)
+    if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+       usb_high_rate_is_turbo_presentation())
+    {
+        interrupt_max = HBOX_CLIENT_INPUT_BYTES;
+        ep2_max = HBOX_CLIENT_CONTROL_BYTES;
+        tx_enable |= RB_EP1_EN;
+        rx_enable |= RB_EP2_EN;
+    }
+    else if(s_profile == USB_BOARD_PROFILE_XINPUT)
     {
         interrupt_max = 32u;
         ep2_max = 32u;
@@ -853,6 +920,37 @@ static bool ep1_send(const uint8_t *data, uint8_t length)
     return armed;
 }
 
+static void high_rate_detach(void)
+{
+    PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+    R16_PIN_CONFIG &= (uint16_t)~RB_PIN_USB2_EN;
+    s_connected = 0u;
+    s_mounted = 0u;
+    s_suspended = 0u;
+    s_configuration = 0u;
+    s_address = 0u;
+    R8_USB2_DEV_AD = 0u;
+    endpoints_init();
+    PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+}
+
+static void high_rate_attach(void)
+{
+    PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+    R8_USB2_CTRL |= USBHS_UD_RST_SIE;
+    R8_USB2_CTRL &= (uint8_t)~USBHS_UD_RST_SIE;
+    R8_USB2_INT_FG = 0xFFu;
+    s_address = 0u;
+    s_configuration = 0u;
+    s_mounted = 0u;
+    s_suspended = 0u;
+    R8_USB2_DEV_AD = 0u;
+    endpoints_init();
+    R16_PIN_CONFIG |= RB_PIN_USB2_EN;
+    s_connected = 1u;
+    PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+}
+
 static bool process_hid_get_report(void)
 {
     uint16_t payload_length = 0u;
@@ -861,6 +959,16 @@ static bool process_hid_get_report(void)
 
     if(s_setup_report_type == USBDEV_HID_REPORT_FEATURE)
     {
+        if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+           !usb_high_rate_is_turbo_presentation() &&
+           ((uint8_t)s_setup_index == USBDEV_XINPUT_HID_INTERFACE) &&
+           (s_setup_report_id == 0u))
+        {
+            ep0_tx((const uint8_t *)&s_high_rate_control_response,
+                   sizeof(s_high_rate_control_response),
+                   s_setup_length);
+            return true;
+        }
         if(s_setup_report_id != 0u)
         {
             s_control_response[0] = s_setup_report_id;
@@ -937,6 +1045,20 @@ static bool process_control_out(void)
         }
         if(s_setup_report_type == USBDEV_HID_REPORT_FEATURE)
         {
+            if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+               !usb_high_rate_is_turbo_presentation() &&
+               ((uint8_t)s_setup_index == USBDEV_XINPUT_HID_INTERFACE) &&
+               (s_setup_report_id == 0u) &&
+               (length == sizeof(hbox_client_control_v1_t)))
+            {
+                (void)usb_high_rate_handle_control(
+                    (const hbox_client_control_v1_t *)data,
+                    &s_high_rate_control_response,
+                    device_now_ms(),
+                    device_is_high_speed(),
+                    false);
+                return true;
+            }
             return usb_ps4_feature_set(
                        s_setup_report_id, data, length) ||
                    usb_auth_device_hid_set_feature(
@@ -1183,6 +1305,34 @@ static void handle_setup(void)
 
     if(request_type == USB_REQ_TYP_VENDOR)
     {
+        if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+           usb_high_rate_is_turbo_presentation())
+        {
+            if(((setup->bRequestType & 0x80u) != 0u) &&
+               (setup->bRequest == HBOX_CLIENT_WINUSB_MS_VENDOR_CODE) &&
+               (setup->wIndex == HBOX_CLIENT_MS_OS_20_INDEX))
+            {
+                descriptor =
+                    usb_high_rate_ms_os_20_descriptor(&descriptor_length);
+                ep0_tx(descriptor, descriptor_length, setup->wLength);
+                return;
+            }
+            if(((setup->bRequestType & 0x80u) != 0u) &&
+               (setup->bRequest == HBOX_CLIENT_STATUS_VENDOR_CODE) &&
+               (setup->wIndex == 0u))
+            {
+                usb_high_rate_get_status(
+                    &s_high_rate_control_response,
+                    setup->wValue,
+                    device_is_high_speed());
+                ep0_tx((const uint8_t *)&s_high_rate_control_response,
+                       sizeof(s_high_rate_control_response),
+                       setup->wLength);
+                return;
+            }
+            ep0_stall();
+            return;
+        }
         if((s_profile == USB_BOARD_PROFILE_XBOX_ONE) &&
            ((setup->bRequestType & 0x80u) != 0u) &&
            (setup->bRequest == USBDEV_XBOX_OS_VENDOR_CODE) &&
@@ -1343,13 +1493,20 @@ bool usb_device_hw_init(usb_board_profile_t profile)
     s_remote_wakeup = 0u;
     s_last_report_length = 0u;
     s_last_telemetry_length = 0u;
+    s_high_rate_out_ready = 0u;
     s_webhid_ep2_blocked = 0u;
     s_webhid_transport_reset_complete = 0u;
     memset(s_last_report, 0, sizeof(s_last_report));
     memset(s_last_telemetry, 0, sizeof(s_last_telemetry));
+    memset(s_high_rate_out, 0, sizeof(s_high_rate_out));
     s_clock_last_cycles = SysTick->CNTL;
     s_clock_remainder = 0u;
-    s_clock_millis = 0u;
+    s_clock_micros = 0u;
+
+    usb_high_rate_init();
+    usb_high_rate_get_status(&s_high_rate_control_response,
+                             0u,
+                             false);
 
     if(profile == USB_BOARD_PROFILE_XBOX_ONE)
     {
@@ -1388,6 +1545,7 @@ void usb_device_hw_shutdown(void)
     s_suspended = 0u;
     s_ep1_busy = 0u;
     s_ep7_busy = 0u;
+    usb_high_rate_reset();
     (void)data_path_reset(false);
 }
 
@@ -1401,6 +1559,12 @@ void usb_device_hw_set_actions(uint32_t action_mask)
 
 bool usb_device_hw_send_report(const uint8_t *report, uint8_t length)
 {
+    if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+       usb_high_rate_is_turbo_presentation())
+    {
+        /* The high-rate packet owns EP1 while the native report is consumed. */
+        return (report != 0) && (length == 20u);
+    }
     if(s_profile == USB_BOARD_PROFILE_XBOX_ONE)
     {
         /*
@@ -1420,11 +1584,23 @@ bool usb_device_hw_send_report(const uint8_t *report, uint8_t length)
     return true;
 }
 
+void usb_device_hw_submit_input(const usb_board_input_v1_t *input)
+{
+    if((s_profile == USB_BOARD_PROFILE_XINPUT) && (input != 0))
+    {
+        usb_high_rate_submit_input(input,
+                                   usb_profiles_xinput_buttons(
+                                       input->action_mask_le),
+                                   device_now_us());
+    }
+}
+
 bool usb_device_hw_send_telemetry(const uint8_t *data, uint8_t length)
 {
     if((data == 0) ||
        (length != USB_BOARD_TELEMETRY_FRAME_BYTES) ||
        (s_profile != USB_BOARD_PROFILE_XINPUT) ||
+       usb_high_rate_is_turbo_presentation() ||
        (s_mounted == 0u) || (s_suspended != 0u) ||
        (s_ep7_busy != 0u))
     {
@@ -1460,6 +1636,35 @@ void usb_device_hw_process(void)
 {
     uint8_t reset_pending;
     uint8_t webhid_ep1_complete_pending;
+    const uint32_t now_ms = device_now_ms();
+    const usb_high_rate_event_t high_rate_event =
+        (s_profile == USB_BOARD_PROFILE_XINPUT)
+            ? usb_high_rate_process(now_ms)
+            : USB_HIGH_RATE_EVENT_NONE;
+
+    if(high_rate_event == USB_HIGH_RATE_EVENT_SEND_NEUTRAL)
+    {
+        static const uint8_t neutral_xinput_report[20] = {
+            0x00u, 0x14u
+        };
+        if(ep1_send(neutral_xinput_report,
+                    sizeof(neutral_xinput_report)))
+        {
+            usb_high_rate_neutral_sent(now_ms);
+        }
+    }
+    else if((high_rate_event ==
+             USB_HIGH_RATE_EVENT_DETACH_FOR_TURBO) ||
+            (high_rate_event ==
+             USB_HIGH_RATE_EVENT_DETACH_FOR_NATIVE))
+    {
+        high_rate_detach();
+    }
+    else if((high_rate_event == USB_HIGH_RATE_EVENT_ATTACH_TURBO) ||
+            (high_rate_event == USB_HIGH_RATE_EVENT_ATTACH_NATIVE))
+    {
+        high_rate_attach();
+    }
 
     PFIC_DisableIRQ(USB2_DEVICE_IRQn);
     reset_pending = s_transport_reset_pending;
@@ -1489,7 +1694,36 @@ void usb_device_hw_process(void)
         usb_device_webhid_report_complete();
     }
 
-    if(s_profile == USB_BOARD_PROFILE_XBOX_ONE)
+    if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+       usb_high_rate_is_turbo_presentation())
+    {
+        hbox_client_input_v1_t packet;
+        if(s_high_rate_out_ready != 0u)
+        {
+            hbox_client_control_v1_t control;
+            PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+            memcpy(&control, s_high_rate_out, sizeof(control));
+            s_high_rate_out_ready = 0u;
+            R8_U2EP2_RX_CTRL =
+                (uint8_t)((R8_U2EP2_RX_CTRL &
+                           (uint8_t)~USBHS_UEP_R_RES_MASK) |
+                          USBHS_UEP_R_RES_ACK);
+            PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+            (void)usb_high_rate_handle_control(
+                &control,
+                &s_high_rate_control_response,
+                now_ms,
+                device_is_high_speed(),
+                true);
+        }
+        if((s_ep1_busy == 0u) &&
+           usb_high_rate_peek_input(&packet) &&
+           ep1_send((const uint8_t *)&packet, sizeof(packet)))
+        {
+            usb_high_rate_commit_input();
+        }
+    }
+    else if(s_profile == USB_BOARD_PROFILE_XBOX_ONE)
     {
         uint8_t length = 0u;
         usb_xbox_device_process(device_now_ms());
@@ -1723,7 +1957,16 @@ static void complete_out_endpoint(uint8_t endpoint)
            (USBHS_UEP_R_DONE | USBHS_UEP_R_TOG_MATCH))
         {
             const uint16_t length = R16_U2EP2_RX_LEN;
-            if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
+            if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+               usb_high_rate_is_turbo_presentation() &&
+               (length == HBOX_CLIENT_CONTROL_BYTES) &&
+               (s_high_rate_out_ready == 0u))
+            {
+                memcpy(s_high_rate_out, s_ep2_rx,
+                       HBOX_CLIENT_CONTROL_BYTES);
+                s_high_rate_out_ready = 1u;
+            }
+            else if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
             {
                 /*
                  * A valid endpoint OUT transaction is authoritative resume
@@ -1756,7 +1999,10 @@ static void complete_out_endpoint(uint8_t endpoint)
                        ((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
                         ((s_webhid_ep2_blocked != 0u) ||
                          (s_webhid_out_count >=
-                          USBDEV_WEBHID_OUT_QUEUE_DEPTH)))
+                          USBDEV_WEBHID_OUT_QUEUE_DEPTH))) ||
+                       ((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+                        usb_high_rate_is_turbo_presentation() &&
+                        (s_high_rate_out_ready != 0u))
                            ? USBHS_UEP_R_RES_NAK
                            : USBHS_UEP_R_RES_ACK));
         R8_U2EP2_RX_CTRL &= (uint8_t)~USBHS_UEP_R_DONE;

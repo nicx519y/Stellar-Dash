@@ -106,11 +106,17 @@ export function deviceCommandSchedule(
     };
   }
 
-  if (command === 'push_leds_config' || command === 'clear_leds_preview') {
+  if (
+    command === 'push_leds_config' ||
+    command === 'clear_leds_preview' ||
+    command === 'preview_screen_brightness'
+  ) {
     return {
       // Preview and clear mutate one ephemeral device resource. A clear can
       // therefore delete a queued stale preview instead of sending both.
-      coalescingKey: 'led-preview',
+      coalescingKey: command === 'preview_screen_brightness'
+        ? 'screen-brightness-preview'
+        : 'led-preview',
       debounceMs: immediate ? 0 : PREVIEW_DEBOUNCE_MS,
       maxWaitMs: immediate ? 0 : PREVIEW_MAX_WAIT_MS,
     };

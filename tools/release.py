@@ -1893,10 +1893,6 @@ class ReleaseManager:
         elif not progress:
             print("正在生成/复制系统背景图片(sysbg)...")
 
-        sysbg_dir = self.application_dir / "assets" / "sysbg"
-        if not sysbg_dir.exists():
-            raise FileNotFoundError(f"未找到 sysbg 目录: {sysbg_dir}")
-
         packer = self.tools_dir / "pack_assets.py"
         if not packer.exists():
             raise FileNotFoundError(f"未找到 assets 打包脚本: {packer}")
@@ -1907,9 +1903,7 @@ class ReleaseManager:
         cmd = [
             sys.executable,
             str(packer),
-            "--sysbg-dir", str(sysbg_dir),
-            "--sysbg-output", str(out_bin),
-            "--sysbg-max-size", hex(USER_IMAGE_RESOURCES_SIZE),
+            "--empty-sysbg-output", str(out_bin),
         ]
         result = self.run_cmd(cmd, cwd=self.project_root, check=False)
         if result.returncode != 0:

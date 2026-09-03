@@ -35,14 +35,22 @@ function resolveServerStoragePaths(
         path.join(serverRoot, 'uploads'),
         production
     );
+    const galleryAssetDir = resolveConfiguredDirectory(
+        environment,
+        'HBOX_GALLERY_ASSET_DIR',
+        path.join(serverRoot, 'gallery-assets'),
+        production
+    );
     return {
         dataDir,
         uploadDir,
+        galleryAssetDir,
         firmwareDataFile: path.join(dataDir, 'firmware_list.json'),
         deviceDataFile: path.join(dataDir, 'device_ids.json'),
         accountDatabase: path.join(dataDir, 'accounts.sqlite3'),
         userAccountDatabase: path.join(dataDir, 'user_accounts.sqlite3'),
-        switchMappingDatabase: path.join(dataDir, 'switch_mappings.sqlite3')
+        switchMappingDatabase: path.join(dataDir, 'switch_mappings.sqlite3'),
+        imageGalleryDatabase: path.join(dataDir, 'image_gallery.sqlite3')
     };
 }
 

@@ -22,6 +22,7 @@ import {
   WirelessReportRate,
 } from '../../types/gamepad-config';
 import { switchMappingSha256 } from '../../types/adc';
+import { crc32 } from '../crc32';
 import type { ADCValuesMapping, StepInfo, SwitchMappingPayload } from '../../types/adc';
 import type { CalibrationStatus, FirmwareMetadata } from '../../types/types';
 import {
@@ -76,6 +77,8 @@ interface MockImage {
 
 interface MockImageTransfer extends MockImage {
   received: number;
+  expectedCrc32: number;
+  lastReceived: boolean;
 }
 
 interface PersistedImage extends Omit<MockImage, 'data'> {
@@ -254,9 +257,10 @@ export class MockDeviceTransport implements DeviceTransport {
   private calibrationTimers: Array<ReturnType<typeof setTimeout>> = [];
   private sampleCounter = 0;
   private imageTransfers = new Map<number, MockImageTransfer>();
+  private activeImageTransferId: number | null = null;
   private images: { user: MockImage | null; system: MockImage | null } = {
     user: null,
-    system: makeSystemImage(),
+    system: null,
   };
   private importStaging: Array<{ section: string; data: unknown }> | null = null;
   private importReplaceProfiles = false;
@@ -334,33 +338,16 @@ export class MockDeviceTransport implements DeviceTransport {
         ? data
         : new Uint8Array(data);
     options?.onProgress?.(bytes.byteLength, bytes.byteLength);
-    if (stream === 'firmware' || stream === 'image') {
+    if (stream === 'firmware') {
       const response = new Uint8Array(this.handleBinaryExchange(bytes));
-      const request = new DataView(
-        bytes.buffer,
-        bytes.byteOffset,
-        bytes.byteLength,
-      );
-      const ack = stream === 'firmware'
-        ? {
-            requestOpcode: 0x01,
-            opcode: response[0],
-            success: response[1] === 1,
-            kind: 'firmware.chunk',
-            chunkIndex: new DataView(response.buffer).getUint32(2, true),
-            progress: new DataView(response.buffer).getUint32(6, true),
-          }
-        : {
-            requestOpcode: 0x31,
-            opcode: response[0],
-            success: response[1] === 1,
-            kind: 'image.chunk',
-            cid: new DataView(response.buffer).getUint32(2, true),
-            offset: request.getUint32(6, true),
-            chunkSize: request.getUint16(10, true),
-            received: new DataView(response.buffer).getUint32(6, true),
-            total: new DataView(response.buffer).getUint32(10, true),
-          };
+      const ack = {
+        requestOpcode: 0x01,
+        opcode: response[0],
+        success: response[1] === 1,
+        kind: 'firmware.chunk',
+        chunkIndex: new DataView(response.buffer).getUint32(2, true),
+        progress: new DataView(response.buffer).getUint32(6, true),
+      };
       return {
         complete: true,
         encoding: 'base64',
@@ -371,6 +358,27 @@ export class MockDeviceTransport implements DeviceTransport {
     return { complete: true };
   }
 
+  async uploadImagePayload(
+    data: ArrayBuffer | Uint8Array,
+    options?: DeviceUploadOptions,
+  ): Promise<void> {
+    this.assertConnected();
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+    const cid = this.activeImageTransferId;
+    const transfer = cid === null ? undefined : this.imageTransfers.get(cid);
+    if (!transfer || bytes.byteLength !== transfer.data.byteLength) {
+      throw new DeviceTransportError('protocol', 'No matching fast image transfer');
+    }
+    for (let offset = 0; offset < bytes.byteLength; offset += 44) {
+      if (options?.signal?.aborted) throw new DOMException('Upload aborted', 'AbortError');
+      const end = Math.min(offset + 44, bytes.byteLength);
+      transfer.data.set(bytes.subarray(offset, end), offset);
+      transfer.received = end;
+      transfer.lastReceived = end === bytes.byteLength;
+      options?.onProgress?.(end, bytes.byteLength);
+    }
+  }
+
   async authorizedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const rawUrl = typeof input === 'string'
       ? input
@@ -378,6 +386,12 @@ export class MockDeviceTransport implements DeviceTransport {
         ? input.href
         : input.url;
     const url = new URL(rawUrl, 'http://localhost');
+    if (url.pathname === '/api/gallery/match' && (!init?.method || init.method === 'GET')) {
+      return jsonResponse({ success: true, data: { item: null } });
+    }
+    if (url.pathname === '/api/gallery/system' && (!init?.method || init.method === 'GET')) {
+      return jsonResponse({ success: true, data: { items: [], nextCursor: null } });
+    }
     if (url.pathname.endsWith('/api/firmware-check-update')) {
       return jsonResponse({
         errNo: 0,
@@ -596,6 +610,8 @@ export class MockDeviceTransport implements DeviceTransport {
     this.stopPerformanceMonitor();
     this.buttonMonitorActive = false;
     this.clearCalibrationTimers();
+    this.imageTransfers.clear();
+    this.activeImageTransferId = null;
     this.session = null;
     this.setState(DeviceTransportState.DISCONNECTED);
     if (wasConnected) {
@@ -664,13 +680,28 @@ export class MockDeviceTransport implements DeviceTransport {
       }
       case 'get_screen_control_config':
         return { screenControl: this.screenControl };
-      case 'update_screen_control_config':
-        this.screenControl = {
+      case 'preview_screen_brightness': {
+        const brightness = Math.max(0, Math.min(100, asNumber(params.brightness) | 0));
+        this.screenControl = { ...this.screenControl, brightness };
+        return { brightness };
+      }
+      case 'update_screen_control_config': {
+        const candidate = {
           ...this.screenControl,
           ...asObject(params.screenControl),
         } as ScreenControlConfig;
+        if (candidate.standbyDisplay === 'backgroundImage' || candidate.backgroundImageId) {
+          const valid = candidate.backgroundImageId === 'USER_IMAGE'
+              ? this.images.user !== null
+              : false;
+          if (!valid) {
+            throw new DeviceTransportError('protocol', 'Background image is missing or invalid');
+          }
+        }
+        this.screenControl = candidate;
         this.persistState();
         return { screenControl: this.screenControl, success: true };
+      }
       case 'get_profile_list':
         return this.profilePayload();
       case 'get_default_profile':
@@ -1099,55 +1130,65 @@ export class MockDeviceTransport implements DeviceTransport {
     const command = bytes[0];
     const request = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
-    if (command === 0x30 && bytes.byteLength >= 18) {
+    if (command === 0x30 && bytes.byteLength === 22) {
       const cid = request.getUint32(2, true);
       const total = request.getUint32(10, true);
       const width = request.getUint16(6, true);
       const height = request.getUint16(8, true);
       const frameCount = Math.max(1, request.getUint8(14));
       const fps = request.getUint8(15);
-      const valid = total > 0 && total <= 4 * 1024 * 1024 && width > 0 && height > 0;
+      const format = request.getUint8(1) === 1 ? 2 : 1;
+      const frameSize = width * height * 2;
+      const transferVersion = request.getUint8(16);
+      const reserved = request.getUint8(17);
+      const expectedCrc32 = request.getUint32(18, true);
+      const valid = total > 0
+        && width > 0 && width <= 320
+        && height > 0 && height <= 172
+        && frameCount >= 1 && frameCount <= 6
+        && transferVersion === 2
+        && reserved === 0
+        && total === frameSize * frameCount
+        && ((frameCount === 1 && format === 1 && fps === 0)
+          || (frameCount > 1 && format === 2 && fps >= 1 && fps <= 5));
       if (valid) {
         this.imageTransfers.set(cid, {
           width,
           height,
           frameCount,
           fps,
-          format: request.getUint8(1) === 1 ? 2 : 1,
+          format,
           data: new Uint8Array(total),
           received: 0,
+          expectedCrc32,
+          lastReceived: false,
         });
+        this.activeImageTransferId = cid;
       }
       return this.makeImageAck(0xb0, cid, valid, 0, total, valid ? undefined : 'Invalid image metadata');
     }
 
     if (command === 0x31 && bytes.byteLength >= 14) {
       const cid = request.getUint32(2, true);
-      const offset = request.getUint32(6, true);
-      const length = request.getUint16(10, true);
       const transfer = this.imageTransfers.get(cid);
-      const valid = !!transfer
-        && length <= bytes.byteLength - 14
-        && offset <= transfer.data.byteLength
-        && offset + length <= transfer.data.byteLength;
-      if (transfer && valid) {
-        transfer.data.set(bytes.subarray(14, 14 + length), offset);
-        transfer.received = Math.max(transfer.received, offset + length);
-      }
+      const valid = false;
       return this.makeImageAck(
         0xb1,
         cid,
         valid,
         transfer?.received ?? 0,
         transfer?.data.byteLength ?? 0,
-        valid ? undefined : 'Invalid image chunk',
+        'Use IMAGE_DATA reports',
       );
     }
 
     if (command === 0x32 && bytes.byteLength >= 6) {
       const cid = request.getUint32(2, true);
       const transfer = this.imageTransfers.get(cid);
-      const valid = !!transfer && transfer.received === transfer.data.byteLength;
+      const valid = !!transfer
+        && transfer.lastReceived
+        && transfer.received === transfer.data.byteLength
+        && crc32(transfer.data) === transfer.expectedCrc32;
       if (transfer && valid) {
         this.images.user = {
           width: transfer.width,
@@ -1166,8 +1207,10 @@ export class MockDeviceTransport implements DeviceTransport {
         transfer?.received ?? 0,
         transfer?.data.byteLength ?? 0,
         valid ? undefined : 'Image upload is incomplete',
+        transfer?.expectedCrc32,
       );
       this.imageTransfers.delete(cid);
+      if (this.activeImageTransferId === cid) this.activeImageTransferId = null;
       return response;
     }
 
@@ -1175,18 +1218,35 @@ export class MockDeviceTransport implements DeviceTransport {
       const cid = request.getUint32(2, true);
       this.images.user = null;
       this.imageTransfers.delete(cid);
+      this.activeImageTransferId = null;
       this.persistState();
       return this.makeImageAck(0xb3, cid, true, 0, 0);
     }
 
     if (command === 0x34 && bytes.byteLength >= 6) {
-      const response = new ArrayBuffer(64);
+      const requestedVersion = request.getUint8(1);
+      const extended = requestedVersion === 1;
+      const fast = requestedVersion === 2;
+      const response = new ArrayBuffer(fast ? 80 : extended ? 76 : 64);
       const view = new DataView(response);
       view.setUint8(0, 0xb4);
       view.setUint8(1, 1);
       view.setUint32(2, request.getUint32(2, true), true);
       writeImageInfo(view, 6, this.images.user);
       writeImageInfo(view, 7, this.images.system);
+      if (extended || fast) {
+        view.setUint8(64, fast ? 3 : 2);
+        view.setUint8(65, 6);
+        view.setUint8(66, 0);
+        view.setUint8(67, 0);
+        view.setUint32(68, this.images.user ? crc32(this.images.user.data) : 0, true);
+        view.setUint32(72, this.images.system ? crc32(this.images.system.data) : 0, true);
+      }
+      if (fast) {
+        view.setUint8(76, 2);
+        view.setUint8(77, 44);
+        view.setUint16(78, 0x0003, true);
+      }
       return response;
     }
 
@@ -1329,6 +1389,21 @@ export class MockDeviceTransport implements DeviceTransport {
           `Imported default profile does not exist: ${candidate.defaultProfileId}`,
         );
       }
+      if (
+        candidate.screenControl.standbyDisplay === 'backgroundImage' ||
+        candidate.screenControl.backgroundImageId
+      ) {
+        const backgroundValid =
+          candidate.screenControl.backgroundImageId === 'USER_IMAGE'
+              ? candidate.images.user !== null
+              : false;
+        if (!backgroundValid) {
+          throw new DeviceTransportError(
+            'protocol',
+            'Background image is missing or invalid',
+          );
+        }
+      }
       candidate.globalConfig.defaultProfileId = candidate.defaultProfileId;
       this.applyState(candidate);
       this.persistState();
@@ -1436,13 +1511,15 @@ export class MockDeviceTransport implements DeviceTransport {
     received: number,
     total: number,
     error?: string,
+    payloadCrc32?: number,
   ): ArrayBuffer {
     const errorBytes = error
       ? new TextEncoder().encode(error).subarray(0, 64)
       : new Uint8Array(0);
     // BinaryUploadBgImageResponse is a fixed 79-byte packed ABI:
     // 15 bytes of metadata followed by a 64-byte error field.
-    const response = new ArrayBuffer(79);
+    const commitResponse = responseCommand === 0xb2;
+    const response = new ArrayBuffer(commitResponse ? 83 : 79);
     const view = new DataView(response);
     view.setUint8(0, responseCommand);
     view.setUint8(1, success ? 1 : 0);
@@ -1451,6 +1528,7 @@ export class MockDeviceTransport implements DeviceTransport {
     view.setUint32(10, total, true);
     view.setUint8(14, errorBytes.byteLength);
     new Uint8Array(response, 15).set(errorBytes);
+    if (commitResponse) view.setUint32(79, payloadCrc32 ?? 0, true);
     return response;
   }
 
@@ -1567,7 +1645,7 @@ export class MockDeviceTransport implements DeviceTransport {
     );
     this.images = {
       user: deserializeImage(state.images?.user),
-      system: deserializeImage(state.images?.system) ?? makeSystemImage(),
+      system: null,
     };
   }
 
@@ -1835,22 +1913,6 @@ function makeCalibrationStatus(
       ledColor,
     })),
   };
-}
-
-function makeSystemImage(): MockImage {
-  const width = 160;
-  const height = 80;
-  const data = new Uint8Array(width * height * 2);
-  const view = new DataView(data.buffer);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const red = Math.floor((x / (width - 1)) * 31);
-      const green = Math.floor((y / (height - 1)) * 63);
-      const blue = 18;
-      view.setUint16((y * width + x) * 2, (red << 11) | (green << 5) | blue, true);
-    }
-  }
-  return { width, height, frameCount: 1, fps: 0, format: 1, data };
 }
 
 function writeImageInfo(view: DataView, validOffset: 6 | 7, image: MockImage | null): void {

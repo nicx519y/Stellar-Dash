@@ -5,6 +5,7 @@
 #include "usb_auth.h"
 #include "usb_device.h"
 #include "usb_host.h"
+#include "usb_high_rate.h"
 #include "usb_management_control.h"
 #include "usb_net_bridge.h"
 #include "usb_profiles.h"
@@ -78,6 +79,7 @@ static bool queue_fault(uint8_t fault, uint8_t command)
     payload[0] = fault;
     payload[1] = command;
     s_last_fault = fault;
+    usb_high_rate_note_board_link_fault();
     return queue_event(USB_BOARD_EVT_FAULT, payload, sizeof(payload));
 }
 

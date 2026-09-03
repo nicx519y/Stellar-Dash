@@ -31,7 +31,7 @@ except Exception:
 try:
     from firmware_metadata import USER_IMAGE_RESOURCES_SIZE
 except Exception:
-    USER_IMAGE_RESOURCES_SIZE = 0x210000
+    USER_IMAGE_RESOURCES_SIZE = 0x190000
 
 
 MAGIC = b'HIMG'
@@ -376,9 +376,10 @@ def build_sysbg(sysbg_dir: Path, output_file: Path, target_fps: int, max_frames:
     if file_size > max_size:
         raise ValueError(f"sysbg too large: {file_size} > max {max_size}")
 
-    # UserImageIndexHeader v2 (packed)
+    # Strict UserImageIndexHeader v3 (packed). The committed header is written
+    # after the payload by the flasher/runtime uploader.
     magic = 0x474D4955  # 'UIMG'
-    version = 2
+    version = 3
     valid = 1
     fmt = 2 if frame_count > 1 else 1
     width = 320
@@ -389,8 +390,10 @@ def build_sysbg(sysbg_dir: Path, output_file: Path, target_fps: int, max_frames:
     image_id_bytes = image_id.encode("utf-8")[:15] + b"\x00"
     image_id_bytes = image_id_bytes.ljust(16, b"\x00")
 
-    header = struct.pack(
-        "<I H B B H H B B H I I I " + ("I" * 10) + "16s",
+    payload = b"".join(frames_rgb565)
+    payload_crc32 = binascii.crc32(payload) & 0xFFFFFFFF
+    header_without_crc = struct.pack(
+        "<I H B B H H B B H I I I " + ("I" * 10) + "16s I",
         magic,
         version,
         valid,
@@ -405,9 +408,11 @@ def build_sysbg(sysbg_dir: Path, output_file: Path, target_fps: int, max_frames:
         total_size,
         *frame_offsets,
         image_id_bytes,
+        payload_crc32,
     )
+    header_crc32 = binascii.crc32(header_without_crc) & 0xFFFFFFFF
+    header = header_without_crc + struct.pack("<I", header_crc32)
     header = header.ljust(header_size, b"\x00")
-    payload = b"".join(frames_rgb565)
 
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.write_bytes(header + payload)
@@ -423,11 +428,12 @@ def main():
     parser.add_argument('--icons-output', help='output bin for icons pack')
     parser.add_argument('--icons-max-size', type=lambda x: int(x, 0), default=SYS_IMAGE_RESOURCES_SIZE)
     parser.add_argument('--sysbg-dir', help='sysbg directory containing sysbg.(png|jpg|jpeg|gif)')
-    parser.add_argument('--sysbg-output', help='output bin for sysbg (UserImageIndexHeader v2 + frames)')
+    parser.add_argument('--sysbg-output', help='legacy alias for a 4 KiB erased system-background marker')
+    parser.add_argument('--empty-sysbg-output', help='write a 4 KiB erased marker that removes the built-in system background')
     parser.add_argument('--sysbg-max-size', type=lambda x: int(x, 0), default=USER_IMAGE_RESOURCES_SIZE)
     parser.add_argument('--sysbg-fps', type=int, default=3)
     parser.add_argument('--sysbg-max-frames', type=int, default=8)
-    parser.add_argument('--sysbg-id', default='SYSTEM_DEFAULT')
+    parser.add_argument('--sysbg-id', default='', help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     icons_dir = Path(args.icons_dir) if args.icons_dir else (Path(args.input) if args.input else None)
@@ -439,14 +445,18 @@ def main():
         res = build_pack(icons_dir, icons_out, int(args.icons_max_size))
         print(f"Packed {res['count']} assets -> {icons_out} ({res['total']} bytes)")
 
-    if args.sysbg_output:
-        sysbg_dir = Path(args.sysbg_dir) if args.sysbg_dir else None
-        if not sysbg_dir:
-            raise SystemExit("--sysbg-dir is required when using --sysbg-output")
-        if not sysbg_dir.exists():
-            raise SystemExit(f"sysbg dir not found: {sysbg_dir}")
-        res2 = build_sysbg(sysbg_dir, Path(args.sysbg_output), int(args.sysbg_fps), int(args.sysbg_max_frames), int(args.sysbg_max_size), str(args.sysbg_id))
-        print(f"Packed sysbg frames={res2['frames']} fps={res2['fps']} -> {args.sysbg_output} ({res2['total']} bytes)")
+    if args.empty_sysbg_output:
+        output = Path(args.empty_sysbg_output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b'\xff' * 4096)
+        print(f"Wrote empty system background marker: {output} (4096 bytes)")
+    elif args.sysbg_output:
+        # Keep the frozen build/flash contract compatible: old callers still
+        # pass --sysbg-output, but a built-in image is no longer generated.
+        output = Path(args.sysbg_output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b'\xff' * 4096)
+        print(f"Wrote empty system background marker: {output} (4096 bytes)")
 
 
 if __name__ == '__main__':

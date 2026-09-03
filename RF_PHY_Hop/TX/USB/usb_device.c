@@ -265,13 +265,16 @@ bool usb_device_set_profile(usb_board_profile_t profile)
 bool usb_device_submit_input(const usb_board_input_v1_t *input)
 {
     if((s_initialized == 0u) || (input == 0) ||
+       (((input->flags >> USB_BOARD_INPUT_VERSION_SHIFT) & 0x0Fu) !=
+        USB_BOARD_INPUT_FORMAT_VERSION) ||
        (usb_board_input_crc8((const uint8_t *)input,
-                             (uint8_t)(sizeof(*input) - 1u)) != input->crc8) ||
+                              (uint8_t)(sizeof(*input) - 1u)) != input->crc8) ||
        !usb_profiles_build_report(s_profile, input, &s_latest_report))
     {
         s_last_fault = USB_BOARD_STATUS_CRC_ERROR;
         return false;
     }
+    usb_device_hw_submit_input(input);
     usb_device_hw_set_actions(input->action_mask_le);
     s_report_pending = (s_latest_report.length != 0u) ? 1u : 0u;
     return true;
@@ -366,6 +369,12 @@ __attribute__((weak)) bool usb_device_hw_send_report(const uint8_t *report,
 __attribute__((weak)) void usb_device_hw_set_actions(uint32_t action_mask)
 {
     (void)action_mask;
+}
+
+__attribute__((weak)) void usb_device_hw_submit_input(
+    const usb_board_input_v1_t *input)
+{
+    (void)input;
 }
 
 __attribute__((weak)) bool usb_device_hw_send_telemetry(

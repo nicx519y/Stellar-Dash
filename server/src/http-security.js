@@ -93,7 +93,10 @@ function buildContentSecurityPolicy(options = {}) {
         ["script-src 'self'", ...normalizedHashes].join(' '),
         "script-src-attr 'none'",
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data:",
+        // Device previews are fetched as authenticated same-origin responses
+        // and rendered through an in-memory Blob URL. Keep remote image
+        // origins blocked while allowing that local object URL lifecycle.
+        "img-src 'self' data: blob:",
         "connect-src 'self'",
         "font-src 'self'",
         "form-action 'self'"

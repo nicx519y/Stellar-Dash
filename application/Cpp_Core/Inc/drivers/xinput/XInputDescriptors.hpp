@@ -94,6 +94,9 @@ static const uint8_t xinput_telemetry_hid_report_descriptor[] =
     0x95, XINPUT_TELEMETRY_HID_REPORT_SIZE, // Report Count (32)
     0x09, 0x01,       // Usage (0x01)
     0x81, 0x02,       // Input (Data,Var,Abs)
+    0x95, XINPUT_TELEMETRY_HID_REPORT_SIZE, // Report Count (32)
+    0x09, 0x02,       // Usage (client control)
+    0xB1, 0x02,       // Feature (Data,Var,Abs)
     0xC0              // End Collection
 };
 

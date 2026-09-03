@@ -103,6 +103,22 @@ test('LED preview and clear share one debounced ephemeral resource key', async (
   queue.destroy();
 });
 
+test('screen brightness preview is coalesced without using the durable write policy', () => {
+  const preview = deviceCommandSchedule('preview_screen_brightness', { brightness: 40 }, false);
+  const durable = deviceCommandSchedule(
+    'update_screen_control_config',
+    { screenControl: { brightness: 40 } },
+    false,
+  );
+
+  assert.equal(preview.coalescingKey, 'screen-brightness-preview');
+  assert.ok(preview.debounceMs > 0);
+  assert.ok(preview.maxWaitMs >= preview.debounceMs);
+  assert.equal(preview.timeoutMs, undefined);
+  assert.equal(durable.coalescingKey, 'update_screen_control_config');
+  assert.ok(durable.timeoutMs >= 30_000);
+});
+
 test('latest LED snapshot deletes its old pending preview and moves to the tail', async () => {
   const queue = new DeviceRequestQueue(0);
   const calls = [];

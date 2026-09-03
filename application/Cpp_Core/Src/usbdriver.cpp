@@ -436,11 +436,17 @@ bool USBDriver::submit(const GamepadState &state,
                        uint8_t batteryCode,
                        bool batteryValid)
 {
+    const uint16_t effectiveRate = DecideUsbReportRate(
+        requestedReportRateHz,
+        activeProfile == USB_BOARD_PROFILE_XINPUT,
+        usbSpeedResolved && cachedUsbSpeed == USB_BOARD_USB_SPEED_HIGH,
+        USB_BOARD_LINK.isFastApplication()).effectiveHz;
     return ready &&
            USB_BOARD_LINK.submitInput(actionMask(state),
-                                      ageUs,
-                                      batteryCode,
-                                      batteryValid);
+                                       ageUs,
+                                       batteryCode,
+                                       batteryValid,
+                                       effectiveRate);
 }
 
 bool USBDriver::sendNeutral()

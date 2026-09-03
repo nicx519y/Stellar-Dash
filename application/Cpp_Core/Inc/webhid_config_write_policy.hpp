@@ -34,6 +34,7 @@ inline bool webhidShouldBlockConfigWrite(
      */
     return command != "push_leds_config" &&
            command != "clear_leds_preview" &&
+           command != "preview_screen_brightness" &&
            command != "import_config_begin" &&
            command != "import_config_part" &&
            command != "import_config_abort" &&

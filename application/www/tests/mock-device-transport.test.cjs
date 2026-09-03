@@ -33,6 +33,13 @@ Module._resolveFilename = function resolveTestAlias(request, parent, isMain, opt
 };
 const { MockDeviceTransport } = require('../lib/device-transport/mock-device-transport.ts');
 const { DeviceCommandClient } = require('../lib/device-transport/device-command-client.ts');
+const { crc32 } = require('../lib/crc32.ts');
+const { selectGifFrameIndices } = require('../lib/screen-control-image.ts');
+const {
+  clearDeviceImagePreviewMemory,
+  loadDeviceImagePreview,
+  saveDeviceImagePreview,
+} = require('../lib/device-image-preview-cache.ts');
 const {
   DEFAULT_DEVICE_SCOPES,
   DeviceTransportError,
@@ -64,9 +71,66 @@ class MemoryStorage {
   setItem(key, value) {
     this.values.set(key, value);
   }
+
+  removeItem(key) {
+    this.values.delete(key);
+  }
 }
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+test('device preview keeps server source Blob URLs in memory and never stores image bytes in localStorage', () => {
+  const previousStorage = globalThis.localStorage;
+  const storage = new MemoryStorage();
+  globalThis.localStorage = storage;
+  try {
+    const preview = {
+      fingerprint: '320:172:110080:1:0:1234',
+      previewUrl: URL.createObjectURL(new Blob(['preview'], { type: 'image/png' })),
+      galleryImageId: 'gallery-a',
+    };
+    saveDeviceImagePreview({ deviceId: 'device-a', sessionId: 'session-a' }, preview);
+    assert.deepEqual(
+      loadDeviceImagePreview({ deviceId: 'device-a', sessionId: 'new-session' }, preview.fingerprint),
+      preview,
+    );
+    assert.equal(
+      loadDeviceImagePreview({ deviceId: 'device-b', sessionId: 'session-b' }, preview.fingerprint),
+      null,
+    );
+    assert.equal(
+      loadDeviceImagePreview({ deviceId: 'device-a', sessionId: 'new-session' }, 'changed-crc'),
+      null,
+    );
+    assert.equal(storage.values.size, 0, 'server source bytes must remain memory-only');
+
+    const reloadedPreview = {
+      ...preview,
+      previewUrl: URL.createObjectURL(new Blob(['reload'], { type: 'image/png' })),
+    };
+    saveDeviceImagePreview({ deviceId: 'device-a', sessionId: 'new-session' }, reloadedPreview);
+    clearDeviceImagePreviewMemory();
+    assert.equal(
+      loadDeviceImagePreview({ deviceId: 'device-a', sessionId: 'after-reload' }, preview.fingerprint),
+      null,
+      'a document reload must refetch the authenticated source from the server',
+    );
+
+    saveDeviceImagePreview(
+      { deviceId: null, sessionId: 'volatile-session' },
+      {
+        ...preview,
+        previewUrl: URL.createObjectURL(new Blob(['volatile'], { type: 'image/png' })),
+        galleryImageId: null,
+      },
+    );
+    assert.equal(storage.values.size, 0, 'unstable device identities must not persist previews');
+  } finally {
+    clearDeviceImagePreviewMemory();
+    if (previousStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = previousStorage;
+  }
+});
 
 test('reconnect chooser is reachable only for explicit permission failures', () => {
   const base = { type: 'connection', message: 'fixture', timestamp: new Date() };
@@ -191,6 +255,7 @@ test('a typed request failure is surfaced to its caller without creating hidden 
   };
   const adapter = new DeviceCommandClient(transport, auth);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   transport.request = async () => {
     throw new DeviceTransportError('protocol', 'fixture async failure');
   };
@@ -207,6 +272,7 @@ test('an old typed request rejection cannot close a newer device session', async
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   let rejectOldRequest;
   transport.request = () => new Promise((resolve, reject) => {
     rejectOldRequest = reject;
@@ -433,6 +499,7 @@ test('disconnect aborts scope reauthorization and reconnect waits for it to sett
   };
   const adapter = new DeviceCommandClient(transport, auth);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   assert.deepEqual(auth.grantedScopes, DEFAULT_DEVICE_SCOPES);
   let transportRequestCalls = 0;
   let authorizedFetchCalls = 0;
@@ -554,6 +621,7 @@ test('scope upgrade drains active HID RPCs without aborting or physically closin
 
   const adapter = new DeviceCommandClient(transport, auth);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   const read = adapter.request('get_global_config');
   await delay(0);
   const elevated = adapter.request('reboot');
@@ -642,6 +710,7 @@ test('a physical WebHID disconnect aborts scope upgrade before reconnecting', as
   };
   const adapter = new DeviceCommandClient(transport, auth);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   const oldRequest = adapter.request('reboot');
   const oldRequestRejection = assert.rejects(oldRequest, /physical scope cancelled/);
   await delay(0);
@@ -676,6 +745,7 @@ test('an old HID export cannot continue in a reconnected session', async () => {
   transport.kind = 'webhid';
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   const calls = [];
   let resolveGlobal;
   transport.request = (command) => {
@@ -713,6 +783,7 @@ test('an authorized HTTP response from an old session is rejected after reconnec
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   let resolveFetch;
   transport.authorizedFetch = () => new Promise((resolve) => {
     resolveFetch = resolve;
@@ -736,6 +807,7 @@ test('disconnect aborts an authorized response body with the merged session sign
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   const callerController = new AbortController();
   let fetchSignal;
   transport.authorizedFetch = async (_input, init) => {
@@ -831,14 +903,19 @@ test('persists configuration in the injected tab storage and isolates new tabs',
     profileId: 'profile-arcade',
     profileDetails: { name: 'Edited Offline' },
   });
+  await first.request('preview_screen_brightness', { brightness: 31 });
+  const previewedScreen = await first.request('get_screen_control_config');
+  assert.equal(previewedScreen.data.screenControl.brightness, 31);
   await first.close();
 
   const refreshed = await createTransport({ storage });
   const global = await refreshed.request('get_global_config');
   const profile = await refreshed.request('get_default_profile');
+  const screen = await refreshed.request('get_screen_control_config');
   assert.equal(global.data.globalConfig.wirelessReportRate, '4K');
   assert.equal(global.data.globalConfig.power.autoStandbyMs, 10000);
   assert.equal(profile.data.defaultProfileDetails.name, 'Edited Offline');
+  assert.equal(screen.data.screenControl.brightness, 72);
 
   const otherTab = await createTransport({ storage: new MemoryStorage() });
   const otherProfile = await otherTab.request('get_default_profile');
@@ -1239,7 +1316,7 @@ test('uploads, reports, reads and deletes an in-memory background image', async 
   const cid = 0x10203040;
   const pixels = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
 
-  const begin = new Uint8Array(18);
+  const begin = new Uint8Array(22);
   let view = new DataView(begin.buffer);
   view.setUint8(0, 0x30);
   view.setUint32(2, cid, true);
@@ -1247,17 +1324,12 @@ test('uploads, reports, reads and deletes an in-memory background image', async 
   view.setUint16(8, 2, true);
   view.setUint32(10, pixels.length, true);
   view.setUint8(14, 1);
+  view.setUint8(16, 2);
+  view.setUint32(18, crc32(pixels), true);
   const beginResponse = new DataView(await sendBinary(transport, begin, 0xb0));
   assert.equal(beginResponse.getUint8(1), 1);
 
-  const chunk = new Uint8Array(14 + pixels.length);
-  view = new DataView(chunk.buffer);
-  view.setUint8(0, 0x31);
-  view.setUint32(2, cid, true);
-  view.setUint16(10, pixels.length, true);
-  chunk.set(pixels, 14);
-  const chunkResponse = new DataView(await sendBinary(transport, chunk, 0xb1));
-  assert.equal(chunkResponse.getUint32(6, true), pixels.length);
+  await transport.uploadImagePayload(pixels);
 
   const commit = new Uint8Array(6);
   view = new DataView(commit.buffer);
@@ -1269,10 +1341,12 @@ test('uploads, reports, reads and deletes an in-memory background image', async 
   const info = new Uint8Array(6);
   view = new DataView(info.buffer);
   view.setUint8(0, 0x34);
+  view.setUint8(1, 2);
   view.setUint32(2, cid, true);
   const infoResponse = new DataView(await sendBinary(transport, info, 0xb4));
+  assert.equal(infoResponse.byteLength, 80);
   assert.equal(infoResponse.getUint8(6), 1);
-  assert.equal(infoResponse.getUint8(7), 1);
+  assert.equal(infoResponse.getUint8(7), 0);
   assert.equal(infoResponse.getUint32(12, true), pixels.length);
 
   const read = new Uint8Array(14);
@@ -1395,6 +1469,7 @@ test('typed image client covers upload, catalog, read and delete without publish
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
 
   let jsonMessages = 0;
   const unsubscribeMessage = adapter.onMessage(() => {
@@ -1409,10 +1484,16 @@ test('typed image client covers upload, catalog, read and delete without publish
     frameCount: 1,
     fps: 0,
   });
-  assert.equal(adapter.imageTransferTotals.size, 0);
   const catalog = await adapter.getImageCatalog();
+  assert.equal(catalog.protocolVersion, 3);
+  assert.equal(catalog.maxUserFrames, 6);
+  assert.equal(catalog.maxSystemFrames, 0);
+  assert.equal(catalog.imageTransferVersion, 2);
+  assert.equal(catalog.imageDataBytesPerReport, 44);
+  assert.equal(catalog.imageTransferFlags & 3, 3);
   assert.equal(catalog.user.valid, true);
   assert.equal(catalog.user.size, pixels.byteLength);
+  assert.equal(catalog.user.crc32, crc32(pixels));
   const downloaded = await adapter.readImage('user', catalog.user.size);
   assert.deepEqual(Array.from(downloaded), Array.from(pixels));
   await adapter.deleteImage();
@@ -1424,10 +1505,170 @@ test('typed image client covers upload, catalog, read and delete without publish
   assert.equal(jsonMessages, 0);
 });
 
+test('two consecutive image uploads release both the image lane and device queue', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+
+  const first = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
+  const second = Uint8Array.from([8, 7, 6, 5, 4, 3, 2, 1]);
+  assert.equal((await adapter.uploadImage({
+    width: 2, height: 2, data: first, frameCount: 1, fps: 0,
+  })).success, true);
+  assert.equal((await adapter.uploadImage({
+    width: 2, height: 2, data: second, frameCount: 1, fps: 0,
+  })).success, true);
+
+  const catalog = await adapter.getImageCatalog();
+  assert.equal(catalog.user.valid, true);
+  assert.deepEqual(
+    Array.from(await adapter.readImage('user', second.byteLength)),
+    Array.from(second),
+  );
+  adapter.dispose();
+});
+
+test('a complete image read and upload cannot interleave their HID exchanges', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+
+  const previous = new Uint8Array(8192).fill(0x11);
+  const replacement = new Uint8Array(8192).fill(0x22);
+  await adapter.uploadImage({ width: 64, height: 64, data: previous, frameCount: 1, fps: 0 });
+
+  const request = transport.request.bind(transport);
+  const opcodes = [];
+  let releaseFirstRead;
+  let announceFirstRead;
+  const firstReadStarted = new Promise(resolve => { announceFirstRead = resolve; });
+  const firstReadGate = new Promise(resolve => { releaseFirstRead = resolve; });
+  let delayed = false;
+  transport.request = async (command, params, options) => {
+    if (command === 'binary.exchange') {
+      const opcode = Buffer.from(params.data, 'base64')[0];
+      opcodes.push(opcode);
+      if (opcode === 0x35 && !delayed) {
+        delayed = true;
+        const response = await request(command, params, options);
+        announceFirstRead();
+        await firstReadGate;
+        return response;
+      }
+    }
+    return request(command, params, options);
+  };
+
+  const reading = adapter.readImage('user', previous.byteLength);
+  await firstReadStarted;
+  const uploading = adapter.uploadImage({ width: 64, height: 64, data: replacement, frameCount: 1, fps: 0 });
+  await Promise.resolve();
+  assert.equal(opcodes.includes(0x30), false, 'BEGIN must wait for the complete preview read');
+  releaseFirstRead();
+  assert.deepEqual(Array.from(await reading), Array.from(previous));
+  assert.equal((await uploading).success, true);
+  assert.ok(opcodes.indexOf(0x30) > opcodes.lastIndexOf(0x35));
+  adapter.dispose();
+});
+
+test('typed image catalog remains compatible with the legacy 64-byte response', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+  const request = transport.request.bind(transport);
+  transport.request = async (command, params, options) => {
+    const envelope = await request(command, params, options);
+    if (command !== 'binary.exchange') return envelope;
+    const requestBytes = Buffer.from(params.data, 'base64');
+    if (requestBytes[0] !== 0x34) return envelope;
+    const legacy = Buffer.from(envelope.data.data, 'base64').subarray(0, 64);
+    return {
+      ...envelope,
+      data: { ...envelope.data, data: legacy.toString('base64') },
+    };
+  };
+
+  const catalog = await adapter.getImageCatalog();
+  assert.equal(catalog.protocolVersion, 1);
+  assert.equal(catalog.maxUserFrames, 6);
+  assert.equal(catalog.maxSystemFrames, 8);
+  assert.equal(catalog.user.crc32, undefined);
+  assert.equal(catalog.system.crc32, undefined);
+  adapter.dispose();
+});
+
+test('image upload progress reaches total only after the commit ACK', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+  const pixels = new Uint8Array(64 * 64 * 2);
+  pixels.forEach((_, index) => { pixels[index] = index & 0xff; });
+  const progress = [];
+  const result = await adapter.uploadImage({
+    width: 64,
+    height: 64,
+    data: pixels,
+    frameCount: 1,
+    fps: 0,
+    onProgress: (received, total) => progress.push([received, total]),
+  });
+  assert.equal(result.success, true);
+  assert.equal(progress.at(-1)[0], pixels.byteLength);
+  assert.equal(progress.at(-1)[1], pixels.byteLength);
+  assert.ok(progress.slice(0, -1).every(([sent, total], index, values) =>
+    total === pixels.byteLength && sent < total && (index === 0 || sent > values[index - 1][0])));
+  assert.ok(progress.slice(0, -1).every(([sent]) => sent % 44 === 0));
+  adapter.dispose();
+});
+
+test('image client rejects a seventh frame and GIF sampling always spans the animation', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+  await assert.rejects(
+    adapter.uploadImage({
+      width: 1,
+      height: 1,
+      data: new Uint8Array(14),
+      frameCount: 7,
+      fps: 3,
+    }),
+    /supported range/,
+  );
+
+  assert.deepEqual(selectGifFrameIndices([0], 100_000, 3, 6), [0]);
+  const six = selectGifFrameIndices(
+    Array.from({ length: 6 }, (_, index) => index * 1_000_000),
+    6_000_000,
+    3,
+    6,
+  );
+  assert.equal(six.length, 6);
+  assert.equal(six.at(-1), 5);
+  for (const count of [7, 10]) {
+    const selected = selectGifFrameIndices(
+      Array.from({ length: count }, (_, index) => index * 1_000_000),
+      count * 1_000_000,
+      3,
+      6,
+    );
+    assert.equal(selected.length, 6);
+    assert.equal(selected[0], 0);
+    assert.equal(selected.at(-1), count - 1);
+  }
+  adapter.dispose();
+});
+
 test('typed image reads fail closed on a short chunk or mismatched image total', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
 
   const pixels = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
   await adapter.uploadImage({
@@ -1469,6 +1710,7 @@ test('typed image catalog requires an exact successful response', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
 
   const request = transport.request.bind(transport);
   let corruption = 'trailing';
@@ -1503,6 +1745,7 @@ test('stream firmware ACK is returned verbatim and rejects a mismatched chunk in
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   const request = {
     sessionId: 'mock-session',
     componentName: 'application',
@@ -1595,106 +1838,65 @@ test('stream firmware ACK is returned verbatim and rejects a mismatched chunk in
   adapter.dispose();
 });
 
-test('stream image rejection is correlated and returned without sending commit', async () => {
+test('continuous image write failure stops before COMMIT and never uses generic stream upload', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
 
-  let streamCalls = 0;
-  let forwardedTimeout = null;
-  transport.upload = async (_stream, data, options) => {
-    streamCalls += 1;
-    forwardedTimeout = options.timeoutMs;
-    const request = data instanceof Uint8Array ? data : new Uint8Array(data);
-    const view = new DataView(request.buffer, request.byteOffset, request.byteLength);
-    const cid = view.getUint32(2, true);
-    const offset = view.getUint32(6, true);
-    const chunkSize = view.getUint16(10, true);
-    const raw = new Uint8Array(79);
-    const rawView = new DataView(raw.buffer);
-    raw[0] = 0xb1;
-    raw[1] = 0;
-    rawView.setUint32(2, cid, true);
-    rawView.setUint32(6, 0, true);
-    rawView.setUint32(10, 1, true);
-    const error = Buffer.from('image rejected');
-    raw[14] = error.byteLength;
-    raw.set(error, 15);
-    return {
-      complete: true,
-      encoding: 'base64',
-      data: Buffer.from(raw).toString('base64'),
-      ack: {
-        requestOpcode: 0x31,
-        opcode: 0xb1,
-        success: false,
-        kind: 'image.chunk',
-        cid,
-        offset,
-        chunkSize,
-        received: 0,
-        total: 1,
-      },
-    };
+  let genericUploads = 0;
+  let imageUploads = 0;
+  const opcodes = [];
+  const request = transport.request.bind(transport);
+  transport.request = async (command, params, options) => {
+    if (command === 'binary.exchange') opcodes.push(Buffer.from(params.data, 'base64')[0]);
+    return request(command, params, options);
   };
-  assert.deepEqual(await adapter.uploadImage({
-    width: 1,
-    height: 1,
-    data: Uint8Array.of(0xaa),
-    frameCount: 1,
-    fps: 0,
-    timeoutMs: 7654,
-  }), {
-    success: false,
-    received: 0,
-    total: 1,
-    error: 'image rejected',
-  });
-  assert.equal(streamCalls, 1, 'a rejected chunk must stop before COMMIT');
-  assert.equal(forwardedTimeout, 7654);
-  assert.equal(adapter.imageTransferTotals.size, 0);
+  transport.upload = async () => { genericUploads += 1; throw new Error('generic upload must not run'); };
+  transport.uploadImagePayload = async () => {
+    imageUploads += 1;
+    throw new DeviceTransportError('disconnected', 'image write failed');
+  };
+  await assert.rejects(adapter.uploadImage({
+    width: 1, height: 1, data: Uint8Array.of(0xaa, 0xbb), frameCount: 1, fps: 0,
+  }), /image write failed/);
+  assert.equal(genericUploads, 0);
+  assert.equal(imageUploads, 1);
+  assert.equal(opcodes.filter(opcode => opcode === 0x30).length, 1);
+  assert.equal(opcodes.includes(0x32), false);
   adapter.dispose();
 });
 
-test('stream image ACK rejects mismatched cid and offset metadata', async () => {
+test('image upload refuses legacy catalog capability without falling back to stream credit', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
 
-  const raw = new Uint8Array(79);
-  const rawView = new DataView(raw.buffer);
-  raw[0] = 0xb1;
-  raw[1] = 1;
-  rawView.setUint32(2, 0x11223344, true);
-  rawView.setUint32(6, 17, true);
-  rawView.setUint32(10, 32, true);
-  transport.upload = async () => ({
-    complete: true,
-    encoding: 'base64',
-    data: Buffer.from(raw).toString('base64'),
-    ack: {
-      requestOpcode: 0x31,
-      opcode: 0xb1,
-      success: true,
-      kind: 'image.chunk',
-      cid: 0x11223344,
-      offset: 15,
-      chunkSize: 1,
-      received: 17,
-      total: 32,
-    },
-  });
+  const request = transport.request.bind(transport);
+  let genericUploads = 0;
+  let imageUploads = 0;
+  transport.request = async (command, params, options) => {
+    const envelope = await request(command, params, options);
+    if (command !== 'binary.exchange' || Buffer.from(params.data, 'base64')[0] !== 0x34) return envelope;
+    const legacy = Buffer.from(envelope.data.data, 'base64').subarray(0, 76);
+    legacy[64] = 2;
+    return { ...envelope, data: { ...envelope.data, data: legacy.toString('base64') } };
+  };
+  transport.upload = async () => { genericUploads += 1; return {}; };
+  transport.uploadImagePayload = async () => { imageUploads += 1; };
   await assert.rejects(
     adapter.uploadImage({
       width: 1,
       height: 1,
-      data: Uint8Array.of(0xaa),
+      data: Uint8Array.of(0xaa, 0xbb),
       frameCount: 1,
       fps: 0,
     }),
-    /unrelated ACK|does not match the uploaded chunk/,
+    /升级设备固件/,
   );
-  assert.equal(adapter.imageTransferTotals.size, 0);
+  assert.equal(genericUploads, 0);
+  assert.equal(imageUploads, 0);
   adapter.dispose();
 });
 
@@ -1702,6 +1904,7 @@ test('versioned backup v3 restores profiles and user image without ADC data', as
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
 
   await adapter.request('switch_default_profile', { profileId: 'profile-tournament' });
   const pixels = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
@@ -1740,6 +1943,7 @@ test('legacy backup imports other settings but warns and ignores ADC data', asyn
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
   const backup = await adapter.exportConfig();
   backup.backupVersion = 2;
   backup.adcConfig = {
@@ -1762,6 +1966,7 @@ test('failed versioned import aborts staged config and restores the previous use
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
+  assert.equal(adapter.markReady(), true);
 
   const previousPixels = Uint8Array.from([10, 20, 30, 40]);
   assert.equal((await adapter.uploadImage({
