@@ -6,20 +6,18 @@
 #include "board_mode.hpp"
 #include "board_power.hpp"
 #include "ch585_firmware_update.hpp"
-#include "ch585_update_mode.hpp"
 #include "connection_manager.hpp"
 #include "power_manager.hpp"
 #include "screen_control/spi_screen_manager.hpp"
 #include "states/calibration_state.hpp"
 #include "states/ch585_bridge_update_state.hpp"
-#include "states/ch585_usb_isp_state.hpp"
 #include "states/safe_recovery_state.hpp"
 #include "system_logger.h"
 
 namespace {
 
-static_assert(static_cast<unsigned>(MainRuntimeState::SafeRecovery) + 1u == 6u,
-              "The STM32 top-level runtime must contain exactly six states");
+static_assert(static_cast<unsigned>(MainRuntimeState::SafeRecovery) + 1u == 5u,
+              "The STM32 top-level runtime must contain exactly five states");
 
 static bool isValidBootMode(BootMode mode)
 {
@@ -36,7 +34,6 @@ BaseState* MainStateMachine::stateFor(MainRuntimeState selected) const
         case MainRuntimeState::Input: return &INPUT_STATE;
         case MainRuntimeState::WebConfig: return &WEB_CONFIG_STATE;
         case MainRuntimeState::Calibration: return &CALIBRATION_STATE;
-        case MainRuntimeState::Ch585UsbIsp: return &CH585_USB_ISP_STATE;
         case MainRuntimeState::Ch585BridgeUpdate:
             return &CH585_BRIDGE_UPDATE_STATE;
         case MainRuntimeState::SafeRecovery: return &SAFE_RECOVERY_STATE;
@@ -72,14 +69,11 @@ void MainStateMachine::initializeInteractiveRuntime()
 
 MainRuntimeState MainStateMachine::resolveNormalStartupState() const
 {
-    /* A valid READY is an explicit host commit and therefore outranks even
-     * the manual USB ISP flag. No other staging record triggers an update. */
+    /* A valid READY is the only CH585 journal state that diverts startup.
+     * Interrupted or failed transactions remain diagnostic records and must
+     * never lock the controller out of its normal interactive runtime. */
     if (CH585_FIRMWARE_UPDATE.hasReadyStagedImage()) {
         return MainRuntimeState::Ch585BridgeUpdate;
-    }
-
-    if (CH585_UPDATE_MODE.isManualIspActive()) {
-        return MainRuntimeState::Ch585UsbIsp;
     }
 
     BootMode bootMode = STORAGE_MANAGER.getBootMode();

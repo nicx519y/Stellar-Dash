@@ -368,6 +368,22 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertNotIn("continue;", source[wait:select])
         self.assertIn("ROLE_SELECTED remains the authoritative commit", source)
 
+    def test_rf_runtime_does_not_wait_for_ready_again_after_role_commit(self) -> None:
+        source = (
+            ROOT / "application" / "Cpp_Core" / "Src" /
+            "connection_manager.cpp"
+        ).read_text(encoding="utf-8")
+        start = source.index(
+            "bool ConnectionManager::enterRfModeAfterColdBoot"
+        )
+        end = source.index(
+            "bool ConnectionManager::restoreRfRuntime", start
+        )
+        cold_boot = source[start:end]
+        self.assertNotIn("RFBootReady::waitForModuleReady", cold_boot)
+        self.assertIn("ROLE_SELECTED response is the authoritative", cold_boot)
+        self.assertIn("return restoreRfRuntime(wirelessRate);", cold_boot)
+
     def test_stlink_internal_flash_configs_use_openocd_khz_units(self) -> None:
         configs = (
             ROOT / "bootloader" / "Openocd_Script" / "ST-LINK-FLASH.cfg",

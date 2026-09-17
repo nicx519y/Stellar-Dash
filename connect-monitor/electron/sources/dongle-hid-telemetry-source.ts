@@ -1,4 +1,4 @@
-import type { MonitorEvent } from "../pipeline/types";
+import type { LinkState, MonitorEvent } from "../pipeline/types";
 
 function rfHopStateCode(state: number): string {
   const map: Record<number, string> = {
@@ -13,10 +13,12 @@ function rfHopStateCode(state: number): string {
   return map[state] ?? "ERR";
 }
 
-function rfHopStateToLinkState(state: number): "Disconnected" | "Connecting" | "Connected" | "Error" {
+function rfHopStateToLinkState(state: number): LinkState {
   if (state === 2) return "Connected";
   if (state === 0) return "Disconnected";
-  if (state === 1 || state === 3 || state === 4 || state === 5 || state === 6) return "Connecting";
+  if (state === 1) return "Pairing";
+  if (state === 4) return "Connecting";
+  if (state === 3 || state === 5 || state === 6) return "Reconnecting";
   return "Error";
 }
 

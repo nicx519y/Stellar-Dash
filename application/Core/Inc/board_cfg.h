@@ -108,11 +108,6 @@ static inline void AppStartupLog_Printf(const char *stage,
 #define WEBCONFIG_TEST_FORCE_BOOT 0
 #endif
 
-/* Temporary, unlocked migration UI for the one-time CH585 IAP install. */
-#ifndef CH585_MANUAL_ISP_ENTRY_ENABLE
-#define CH585_MANUAL_ISP_ENTRY_ENABLE 1
-#endif
-
 #ifndef RF24G_FORCE_REPORT_RATE_HZ
 #define RF24G_FORCE_REPORT_RATE_HZ 0u
 #endif

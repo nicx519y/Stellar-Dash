@@ -2,6 +2,7 @@ import type { DebugConfig, DebugConfigStatus, DebugApplyState, MonitorEvent } fr
 import { buttonLatencyTracker, monotonicNowUsForMonitor } from "./button-latency-source";
 import { parseApplicationHidTelemetryFrame } from "./application-hid-telemetry-source";
 import { parseDongleHidTelemetryFrame } from "./dongle-hid-telemetry-source";
+import { matchesHidTelemetryDevice } from "./hid-device-selection";
 
 type PublishFn = (event: MonitorEvent) => void;
 type SourceOptions = {
@@ -238,44 +239,8 @@ function sendTimeSync(handle: any): void {
   }
 }
 
-const defaultTargetUsbIds = [
-  { vendorId: 0x045e, productId: 0x028e },
-  { vendorId: 0x045e, productId: 0x02ff },
-  { vendorId: 0x1a86, productId: 0xfe0c },
-];
 const DEVICE_RESCAN_INTERVAL_MS = 1000;
 const MISSING_STATUS_INTERVAL_MS = 3000;
-
-function textIncludes(value: unknown, needle: string): boolean {
-  return typeof value === "string" && value.toLowerCase().includes(needle);
-}
-
-function matchesDefaultUsbId(device: any): boolean {
-  return defaultTargetUsbIds.some(
-    (id) => device.vendorId === id.vendorId && device.productId === id.productId,
-  );
-}
-
-function isLikelyHBoxDevice(device: any): boolean {
-  return textIncludes(device.manufacturer, "hbox") || textIncludes(device.product, "hbox");
-}
-
-function isGenericDesktopController(device: any): boolean {
-  return device.usagePage === 0x01 && (device.usage === 0x04 || device.usage === 0x05);
-}
-
-function isLikelyTelemetryInterface(device: any): boolean {
-  const interfaceNumber =
-    typeof device.interface === "number"
-      ? device.interface
-      : typeof device.interfaceNumber === "number"
-        ? device.interfaceNumber
-        : undefined;
-
-  if (device.usagePage === 0xff00) return true;
-  if (interfaceNumber === 3 && isLikelyHBoxDevice(device)) return true;
-  return false;
-}
 
 export function startHidTelemetrySource(publish: PublishFn, options: SourceOptions = {}): () => void {
   let HID: any;
@@ -287,7 +252,6 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
 
   const targetVid = normalizeHexId(process.env.MONITOR_VID);
   const targetPid = normalizeHexId(process.env.MONITOR_PID) ?? null;
-  const hasExplicitUsbTarget = targetVid !== null || targetPid !== null;
   const opened: any[] = [];
   let stopped = false;
   let lastMissingStatusAt = 0;
@@ -301,18 +265,12 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   };
 
   const findTargetDevices = () => {
-    return HID.devices().filter((d: any) => {
-      if (hasExplicitUsbTarget) {
-        if (targetVid !== null && d.vendorId !== targetVid) return false;
-        if (targetPid !== null && d.productId !== targetPid) return false;
-        return !isGenericDesktopController(d);
-      }
-
-      if (matchesDefaultUsbId(d)) return isLikelyTelemetryInterface(d);
-      if (!isLikelyHBoxDevice(d)) return false;
-      if (targetPid !== null && d.productId !== targetPid) return false;
-      return isLikelyTelemetryInterface(d);
-    });
+    return HID.devices().filter((device: any) =>
+      matchesHidTelemetryDevice(device, {
+        vendorId: targetVid,
+        productId: targetPid,
+      }),
+    );
   };
 
   const closeHandle = (handle: any) => {

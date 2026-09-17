@@ -1,5 +1,11 @@
 export type ConnectionMode = "USB" | "RF24G";
-export type LinkState = "Disconnected" | "Connecting" | "Connected" | "Error";
+export type LinkState =
+  | "Disconnected"
+  | "Pairing"
+  | "Connecting"
+  | "Connected"
+  | "Reconnecting"
+  | "Error";
 
 export interface MonitorOverview {
   mode: ConnectionMode;

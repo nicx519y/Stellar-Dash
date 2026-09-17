@@ -80,6 +80,7 @@ private:
     ConnectionManager() = default;
     void serviceRfEvents();
     void serviceRfStatusPoll();
+    void serviceRfPairingTimeout();
     void updatePairingStateFromStatus();
     void updateRfLinkStateFromStatus();
     void setLinkState(ConnectionLinkState state);
@@ -120,6 +121,7 @@ private:
     RfPairingState rfPairingState = RfPairingState::Idle;
     uint32_t rfPairingLastEventCounter = 0;
     uint32_t rfPairingStartedAtMs = 0;
+    bool rfPairingTimeoutStopIssued = false;
     uint8_t rfPairingLastErrorCommand = 0;
     uint8_t rfPairingLastErrorReason = 0;
     RFTransport rfTransport;

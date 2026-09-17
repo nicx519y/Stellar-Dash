@@ -32,7 +32,6 @@ public:
     void process();
     bool performPendingUpdate();
     bool requestRetry();
-    bool acknowledgeManualRecovery();
     bool hasReadyStagedImage();
     bool hasAppliedImage() const;
     bool wasClaimed() const { return updateClaimed; }

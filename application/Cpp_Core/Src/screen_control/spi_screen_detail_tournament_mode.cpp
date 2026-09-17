@@ -12,7 +12,6 @@
 
 extern "C" uint32_t HAL_GetTick(void);
 
-static constexpr uint32_t kPairPageLocalTimeoutMs = 65000u;
 static constexpr uint32_t kPairPageSuccessHoldMs = 5000u;
 
 enum class ConnectionSettingKind : uint8_t {

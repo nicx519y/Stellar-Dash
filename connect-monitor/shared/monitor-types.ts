@@ -1,5 +1,11 @@
 export type ConnectionMode = "USB" | "RF24G";
-export type LinkState = "Disconnected" | "Connecting" | "Connected" | "Error";
+export type LinkState =
+  | "Disconnected"
+  | "Pairing"
+  | "Connecting"
+  | "Connected"
+  | "Reconnecting"
+  | "Error";
 export type ErrorLevel = "INFO" | "WARN" | "ERROR" | "FATAL";
 export type Ch585Role = "Unknown" | "RF" | "USB" | "Maintenance";
 

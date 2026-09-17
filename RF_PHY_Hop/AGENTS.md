@@ -12,7 +12,7 @@
 当前默认工作模式是：
 
 - DATA 数据面：TX -> RX，`1K/2K/4K/8K` 可配置，当前常用 `8K`，slot 为 `125us`。
-- ACK 控制面：独立 `500ms` 周期，不随 DATA report rate 改变。
+- ACK 控制面：独立 `100ms` 周期，不随 DATA report rate 改变；连续 `3` 个逻辑窗口无合法 ACK 后进入重连。
 - ACK 请求：TX 每个逻辑 ACK 周期发送 `3` 个 request burst，同一 `ack_token`，payload 带 `remaining_slots`。
 - ACK 响应：RX 对同一 token 只回一次 ACK；ACK 由 `TMR1` 一次性中断延迟发送，避免 RF callback 内 busy wait。
 - TX ACK RX timeout：当前基线 `1200us`。
@@ -23,13 +23,19 @@
 当前关键原则：
 
 - `1K/2K/4K/8K` 只控制 DATA report rate。
-- RF 开启时 ACK 永远按时间保持 `500ms` 一次，不能写成 `rate/2 ticks`。
+- RF 开启时 ACK 永远按时间保持 `100ms` 一次，不能写成 `rate/2 ticks`。
 - `Off` 时停 DATA、停 ACK control timer、不发 ACK request、不开 ACK RX window。
-- 从 `Off` 切回任意速率时，重新进入连接/恢复过程，并从 `now + 500ms` 初始化 ACK control cadence。
+- 从 `Off` 切回任意速率时，重新进入连接/恢复过程，并从 `now + 100ms` 初始化 ACK control cadence。
 
 ## 当前已配对重连协议（权威）
 
 本节是正式 bond 模式下的已配对重连设计，覆盖两种上电顺序：
+
+- bond 使用 Data Flash `0x6000/0x7000` 双 bank 事务日志；正文最后写 `PREPARED`，首次候选 `CONNECT` 成功后再单向写为 `COMMITTED`。
+- 启动时同时恢复最新 committed/tombstone 与 prepared 候选；RX 轮询旧地址和候选地址，由先收到的合法 `CONNECT SYN` 决定提交或回滚。
+- 配对总窗口为 `60s`，CONFIRM 阶段 `3s` 无 DONE 时 TX 生成新 session 回到 OFFER；STM32 在 `65s` 仅发送一次兜底 `STOP_PAIR`。
+- TX 在 FINAL 发送 `500ms` 未收到 `FINAL_READY` 时只进入内部 provisional；首个合法 `LINK_OK` ACK 前公开状态仍是 Connecting。
+- RX 在有效输入静默 `50ms` 后将全零 XInput report 保留到 USB 提交成功；RF 恢复扫描仍按 `100ms` 链路超时进入。
 
 - RX 先上电，TX 后上电。
 - TX 先上电，几十秒后 RX 再上电。

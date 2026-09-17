@@ -1,9 +1,9 @@
-import type { MonitorEvent } from "../pipeline/types";
+import type { LinkState, MonitorEvent } from "../pipeline/types";
 
 export interface ParsedDongleFrame {
   seq?: number;
   mode?: "USB" | "RF24G";
-  state?: "Disconnected" | "Connecting" | "Connected" | "Error";
+  state?: LinkState;
   targetRateHz?: number;
   actualRateHz?: number;
   deviceToUsbSubmitUs?: number;
@@ -77,12 +77,16 @@ function inferRfTargetRateHz(expectedCount: number): number {
   return 1000;
 }
 
-function rfStateToLinkState(state: string): "Disconnected" | "Connecting" | "Connected" | "Error" {
+function rfStateToLinkState(state: string): LinkState {
   if (state === "M") return "Connected";
   if (state === "D") return "Connecting";
   if (state === "C") return "Connected";
   if (state === "U") return "Disconnected";
-  if (state === "PA" || state === "HR" || state === "CA" || state === "RD") return "Connecting";
+  if (state === "PA") return "Pairing";
+  if (state === "CA") return "Connecting";
+  if (state === "HR" || state === "RD" || state === "RP" || state === "RC") {
+    return "Reconnecting";
+  }
   return "Error";
 }
 
@@ -326,7 +330,7 @@ export function parseDongleTelemetryLine(line: string, timestampMs = Date.now())
       kind: "device_status",
       timestampMs,
       mode: (map.get("MODE") as "USB" | "RF24G") ?? "USB",
-      state: (map.get("STATE") as "Disconnected" | "Connecting" | "Connected" | "Error") ?? "Disconnected",
+      state: (map.get("STATE") as LinkState) ?? "Disconnected",
       targetRateHz: Number(map.get("TARGET") ?? "0"),
       actualRateHz: Number(map.get("ACTUAL") ?? "0"),
     }];

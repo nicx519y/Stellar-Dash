@@ -10,7 +10,6 @@ enum class MainRuntimeState : uint8_t {
     Input = 0,
     WebConfig,
     Calibration,
-    Ch585UsbIsp,
     Ch585BridgeUpdate,
     SafeRecovery,
 };

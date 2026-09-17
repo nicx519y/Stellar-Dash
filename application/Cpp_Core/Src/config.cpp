@@ -268,9 +268,9 @@ static void sanitize_screen_recovery_entry(ScreenControlConfig& sc) {
 }
 
 static void sanitize_screen_service_flags(ScreenControlConfig& sc) {
-    constexpr uint8_t allowed =
-        SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE |
-        SCREEN_SERVICE_CH585_IAP_CONFIRMED;
+    /* Bit 0 belonged to the removed CH585 Flash/manual-ISP state.  Masking
+     * it out also clears that stale latch from existing device configs. */
+    constexpr uint8_t allowed = SCREEN_SERVICE_CH585_IAP_CONFIRMED;
     sc.serviceFlags &= allowed;
 }
 

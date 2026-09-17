@@ -47,21 +47,24 @@
 
 ## HID 设备匹配
 
-当前默认接受两类 HBox USB ID：
+当前默认只接受三类 telemetry USB ID：
 
 | 模式 | VID:PID | 说明 |
 |---|---|---|
+| Legacy XInput compatible | `0x045E:0x028E` | 兼容旧 XInput telemetry 身份 |
 | Release/XInput compatible | `0x045E:0x02FF` | `DONGLE_USB_DEBUG_CDC_ID=0` |
 | RX debug CDC-friendly | `0x1A86:0xFE0C` | 当前 RF_PHY_Hop RX 默认 |
 
-也会接受 manufacturer/product 中包含 `HBox` 的 HID 设备。
+不得仅凭 manufacturer/product 中包含 `HBox` 或 `usagePage=0xFF00`
+接受设备；专用 WebConfig HID `0xCAFE:0x4021` 使用相同 usage page，必须始终排除。
 
 注意复合设备可能同时枚举两个 HID：
 
 - telemetry HID：`usagePage=0xFF00`，这是 monitor 要打开的接口。
 - controller HID：`usagePage=0x01` 且 `usage=0x04/0x05`，这是手柄接口，monitor 会过滤掉。
 
-如果用户显式设置 `MONITOR_VID` / `MONITOR_PID`，source 会按指定 VID/PID 过滤，但仍避开 generic desktop controller interface。
+如果用户显式设置 `MONITOR_VID` / `MONITOR_PID`，source 会按指定 VID/PID
+过滤，但目标仍必须符合 telemetry interface 特征，并且不能是 WebConfig HID。
 
 常用枚举检查：
 
@@ -113,9 +116,11 @@ RF hop state mapping：
 |---:|---|---|---|
 | `0` | `U` | `Disconnected` | RX 当前没有锁定合法 DATA |
 | `2` | `C` | `Connected` | 普通通信 |
-| `3` | `HR` | `Connecting` | prepared dual-channel scan / hop recovery |
-| `5` | `RP` | `Connecting` | RX recovery scan，Link Lost 后按频道表扫描重锁 |
-| `6` | `RC` | `Connecting` | recovery complete / reserved |
+| `1` | `PA` | `Pairing` | 配对监听/握手 |
+| `3` | `HR` | `Reconnecting` | prepared dual-channel scan / hop recovery |
+| `4` | `CA` | `Connecting` | 已有 bond，等待 CONNECT/首个合法 DATA |
+| `5` | `RP` | `Reconnecting` | RX recovery scan，Link Lost 后按频道表扫描重锁 |
+| `6` | `RC` | `Reconnecting` | recovery complete / reserved |
 
 `RHM1[30..31]` duration 经验：
 

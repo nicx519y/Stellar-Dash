@@ -2,7 +2,6 @@
 #include "main_runtime_control.hpp"
 
 #include "board_cfg.h"
-#include "ch585_update_mode.hpp"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 #include "states/webconfig_state.hpp"
@@ -61,7 +60,7 @@ void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const Scree
         "USB maintenance is unavailable.",
         "Check the CH585 firmware and link.",
         "Press Retry to test the link.",
-        "Hold Back for CH585 Flash."
+        "Hold Back to exit."
     };
     static const char* const securityErrorLines[] = {
         "Device security check failed.",
@@ -130,17 +129,6 @@ bool ScreenDetailWebConfig_OnConfirm(uint8_t index) {
 }
 
 bool ScreenDetailWebConfig_OnBack(void) {
-#if CH585_MANUAL_ISP_ENTRY_ENABLE
-    if (WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::ErrorMaintenance &&
-        CH585_UPDATE_MODE.isManualEntryVisible()) {
-        if (!CH585_UPDATE_MODE.requestManualIsp()) {
-            WEB_CONFIG_STATE.reportStorageFailure();
-            return false;
-        }
-        MainRuntime_RequestReset();
-        return true;
-    }
-#endif
     return exitWebConfig();
 }
 

@@ -28,8 +28,6 @@
 #include "connection_manager.hpp"
 #include "input_runtime_policy.hpp"
 #include "system_sleep_manager.hpp"
-#include "ch585_update_mode.hpp"
-#include "ch585_firmware_update.hpp"
 #include "main_runtime_control.hpp"
 #include "states/input_state.hpp"
 
@@ -360,14 +358,6 @@ static void enter_detail(uint8_t menuId) {
 
 static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
     if (!outMenuId) return false;
-    if (CH585_UPDATE_MODE.isManualIspActive()) {
-        *outMenuId = 12u;
-        return true;
-    }
-    if (CH585_FIRMWARE_UPDATE.isPending() || CH585_FIRMWARE_UPDATE.hasFailed()) {
-        *outMenuId = 12u;
-        return true;
-    }
     if (mode == BootMode::BOOT_MODE_WEB_CONFIG) {
         *outMenuId = 9u;
         return true;
@@ -607,10 +597,6 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
                 if (ScreenDetail_OnBack(g_detailMenuId)) {
                     g_inDetail = false;
                 }
-            } else if (g_detailMenuId == 12u) {
-                if (ScreenDetailCh585Flash_OnBack()) {
-                    g_inDetail = false;
-                }
             } else {
                 if (ScreenDetail_OnBack(g_detailMenuId)) {
                     g_inDetail = false;
@@ -809,8 +795,6 @@ void SPIScreenManager::renderBars() {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailWebConfig_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     } else if (g_inDetail && g_detailMenuId == 10) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "Quit", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
-    } else if (g_inDetail && g_detailMenuId == 12) {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailCh585Flash_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     } else if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {
         bool on = false;
         if (g_detailMenuId == 4) {

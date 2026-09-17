@@ -437,23 +437,3 @@ bool Ch585FirmwareUpdate::requestRetry()
     MainRuntime_RequestReset();
     return true;
 }
-
-bool Ch585FirmwareUpdate::acknowledgeManualRecovery()
-{
-    ch585_staging_record_t terminal;
-    if (!loadLatestRecord(terminal)) return true;
-    if (terminal.state != CH585_STAGING_STATE_FAILED &&
-        terminal.state != CH585_STAGING_STATE_CLAIMED) {
-        return false;
-    }
-
-    /* A manual USB-ROM recovery replaces the combined CH585 image outside
-     * this journal.  Erase only the dedicated 64-KiB status sector after the
-     * live IAP and Application/CAPS checks have both succeeded.  The payload,
-     * STM32 slots and firmware metadata remain untouched. */
-    if (!eraseHeaderJournal()) return false;
-    currentStatus = Ch585FirmwareUpdateStatus::Idle;
-    imageSize = 0u;
-    received = 0u;
-    return true;
-}

@@ -58,7 +58,7 @@ function latestStatus(events: MonitorEvent[], mode: "USB" | "RF24G") {
 
 function badgeColor(state: string) {
   if (state === "Connected") return "green";
-  if (state === "Connecting") return "yellow";
+  if (state === "Pairing" || state === "Connecting" || state === "Reconnecting") return "yellow";
   if (state === "Error") return "red";
   return "gray";
 }

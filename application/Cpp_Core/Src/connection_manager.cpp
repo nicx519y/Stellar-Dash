@@ -5,7 +5,6 @@
 #include "config.hpp"
 #include "input_runtime_policy.hpp"
 #include "monitor_telemetry.hpp"
-#include "rf_boot_ready.hpp"
 #include "rf_bridge_port.hpp"
 #include "rf_rate_confirmation_policy.hpp"
 #include "storagemanager.hpp"
@@ -44,7 +43,6 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 
 static constexpr uint32_t kRfSleepRetryMs = 500u;
 static constexpr uint32_t kRfStatusPollMs = 500u;
-static constexpr uint32_t kRfBootReadyTimeoutMs = 1500u;
 static constexpr uint32_t kRfPostSleepSettleMs = 150u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
@@ -59,6 +57,7 @@ static constexpr uint8_t kRfPowerHintUnknown = 0u;
 static constexpr uint8_t kRfPowerHintAwake = 1u;
 static constexpr uint8_t kRfPowerHintSleeping = 2u;
 static constexpr uint32_t kRfRateAppliedTimeoutMs = 200u;
+static constexpr uint32_t kRfPairingFallbackTimeoutMs = 65000u;
 
 static bool rfPhysicalRoleIsActive() {
     return BOARD_MODE.isStable() &&
@@ -318,7 +317,7 @@ void ConnectionManager::updatePairingStateFromStatus() {
         break;
     case RFLinkState::PairTimeout:
         rfPairingActive = true;
-        rfPairingState = RfPairingState::PairModeOn;
+        rfPairingState = RfPairingState::Timeout;
         break;
     case RFLinkState::PairFailed:
         rfPairingActive = false;
@@ -394,6 +393,36 @@ void ConnectionManager::serviceRfStatusPoll()
     updateRfLinkStateFromStatus();
 }
 
+void ConnectionManager::serviceRfPairingTimeout()
+{
+    if (!rfPairingActive || rfPairingTimeoutStopIssued) {
+        return;
+    }
+
+    const bool moduleTimedOut = rfPairingState == RfPairingState::Timeout;
+    const bool localFallbackExpired =
+        (HAL_GetTick() - rfPairingStartedAtMs) >= kRfPairingFallbackTimeoutMs;
+    if (!moduleTimedOut && !localFallbackExpired) {
+        return;
+    }
+
+    /* Exactly one STOP_PAIR is sent for either the CH585 60-second event or
+     * the STM32 65-second safety deadline.  Timeout remains the user-visible
+     * result even if transport acknowledgement is lost. */
+    rfPairingTimeoutStopIssued = true;
+    const bool stopped = rfTransport.stopPair();
+    rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
+    rfPairingActive = false;
+    rfPairingState = RfPairingState::Timeout;
+    if (!stopped) {
+        rfPairingLastErrorCommand = kRfCmdStopPair;
+        rfPairingLastErrorReason = rfTransport.getStatus().lastErrorReason;
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1018u,
+                                 "RF pairing timeout STOP_PAIR failed");
+    }
+    updateRfLinkStateFromStatus();
+}
+
 void ConnectionManager::setup(ConnectionMode connMode,
                               WirelessReportRate wirelessRate,
                               InputMode inputMode) {
@@ -422,6 +451,7 @@ void ConnectionManager::setup(ConnectionMode connMode,
     rfPairingState = RfPairingState::Idle;
     rfPairingLastEventCounter = 0u;
     rfPairingStartedAtMs = 0u;
+    rfPairingTimeoutStopIssued = false;
     rfPairingLastErrorCommand = 0u;
     rfPairingLastErrorReason = 0u;
 
@@ -559,6 +589,7 @@ bool ConnectionManager::startRfPairing() {
     rfPairSucceeded = false;
     rfPairingState = RfPairingState::Starting;
     rfPairingStartedAtMs = HAL_GetTick();
+    rfPairingTimeoutStopIssued = false;
     rfPairingLastErrorCommand = 0u;
     rfPairingLastErrorReason = 0u;
 
@@ -613,6 +644,7 @@ bool ConnectionManager::stopRfPairing() {
     }
 
     rfEventServiceEnabled = true;
+    rfPairingTimeoutStopIssued = true;
     const bool ok = rfTransport.stopPair();
     rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
     if (ok) {
@@ -810,13 +842,14 @@ bool ConnectionManager::enterRfModeAfterColdBoot(ConnectionMode connMode, Wirele
         ? getRfReportRateHz(wirelessRate)
         : 1000u;
 
-    if (!RFBootReady::waitForModuleReady(kRfBootReadyTimeoutMs)) {
-        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1010u, "rf boot ready timeout");
-        printf("[RF_BOOT][READY_FAIL] mode=%u rate=%u\r\n",
-               (unsigned int)connMode,
-               (unsigned int)requestedReportRateHz);
-        return false;
-    }
+    /*
+     * Ch585RoleBootstrap already consumed the optional application-ready
+     * pulse before SELECT_ROLE.  That pulse may be too short to observe on
+     * this PCB, so a successful ROLE_SELECTED response is the authoritative
+     * cold-boot commit.  Waiting for the one-shot pulse again here can only
+     * time out after a valid role handoff and would incorrectly force the
+     * whole input runtime back into its safe state.
+     */
 
     setRfPowerState(RfPowerState::Awake, true);
     rfEventServiceEnabled = true;
@@ -940,6 +973,7 @@ void ConnectionManager::loop() {
     }
 
     serviceRfEvents();
+    serviceRfPairingTimeout();
     serviceRfStatusPoll();
 
     if ((rfPowerState == RfPowerState::SleepPending) &&

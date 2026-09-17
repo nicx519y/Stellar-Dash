@@ -398,42 +398,22 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertLessEqual(len(firmware), update.STAGING_DATA_BYTES)
         self.assertEqual(len(firmware) % 4, 0)
 
-    def test_manual_isp_fails_safe_and_suppresses_all_takeover_and_standby(self) -> None:
-        mode = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_update_mode.cpp"
-        ).read_text(encoding="utf-8")
-        active_start = mode.index("bool Ch585UpdateMode::isManualIspActive() const")
-        active_end = mode.index("bool Ch585UpdateMode::isManualIspPowered() const")
-        active = mode[active_start:active_end]
-        self.assertIn("!isIapConfirmed()", active)
-        self.assertIn("CH585_FIRMWARE_UPDATE.hasFailed()", active)
-
-        setup_start = mode.index("void Ch585UpdateMode::setupManualIspRuntime()")
-        setup_end = mode.index("bool Ch585UpdateMode::powerOnManualIsp()", setup_start)
-        setup = mode[setup_start:setup_end]
-        for shutdown in (
-            "USB_DRIVER.shutdown()",
-            "USB_BOARD_LINK.shutdown()",
-            "CH585_ROLE_BOOTSTRAP.shutdown()",
-            "RFBridgePort_Shutdown()",
-        ):
-            self.assertIn(shutdown, setup)
-        self.assertIn("BOARD_POWER.setCh585Enabled(true)", setup)
-        self.assertNotIn("setUsbHostEnabled(true)", setup)
-        self.assertNotIn("selectRole", setup)
-
+    def test_failed_ch585_update_never_forces_a_manual_isp_state(self) -> None:
         main = (
             ROOT / "application" / "Cpp_Core" / "Src" /
             "main_state_machine.cpp"
         ).read_text(encoding="utf-8")
-        manual = main.index("if (CH585_UPDATE_MODE.isManualIspActive())")
-        self.assertIn("MainRuntimeState::Ch585UsbIsp", main[manual:manual + 160])
-        usb_state = (
+        self.assertNotIn("Ch585UsbIsp", main)
+        self.assertNotIn("isManualIspActive", main)
+        self.assertNotIn("hasFailed()", main)
+        self.assertFalse((
             ROOT / "application" / "Cpp_Core" / "Src" / "states" /
             "ch585_usb_isp_state.cpp"
-        ).read_text(encoding="utf-8")
-        self.assertIn("setupManualIspRuntime", usb_state)
+        ).exists())
+        self.assertFalse((
+            ROOT / "application" / "Cpp_Core" / "Src" / "screen_control" /
+            "spi_screen_detail_ch585_flash.cpp"
+        ).exists())
 
         sleep = (
             ROOT / "application" / "Cpp_Core" / "Src" /
@@ -442,58 +422,41 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertNotIn("HAL_PWR_EnterSTANDBYMode", sleep)
         self.assertIn("deep Standby request ignored", sleep)
 
-    def test_manual_recovery_requires_iap_and_application_caps_before_clearing_failure(self) -> None:
-        mode = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_update_mode.cpp"
-        ).read_text(encoding="utf-8")
-        start = mode.index("bool Ch585UpdateMode::requestExitManualIsp()")
-        end = mode.index("bool Ch585UpdateMode::setIapConfirmed", start)
-        verify = mode[start:end]
-        probe = verify.index("CH585_IAP_CLIENT.probe()")
-        app = verify.index("CH585_IAP_CLIENT.validateApplication()")
-        journal = verify.index("acknowledgeManualRecovery()")
-        persist = verify.index("STORAGE_MANAGER.saveConfig()")
-        self.assertLess(probe, app)
-        self.assertLess(app, journal)
-        self.assertLess(journal, persist)
-
+    def test_failed_update_journal_remains_retryable_without_recovery_state(self) -> None:
         updater = (
             ROOT / "application" / "Cpp_Core" / "Src" /
             "ch585_firmware_update.cpp"
         ).read_text(encoding="utf-8")
-        start = updater.index("bool Ch585FirmwareUpdate::acknowledgeManualRecovery()")
+        start = updater.index("bool Ch585FirmwareUpdate::requestRetry()")
         body = updater[start:]
+        self.assertIn("CH585_STAGING_STATE_FAILED", body)
+        self.assertIn("CH585_STAGING_STATE_CLAIMED", body)
         self.assertIn("eraseHeaderJournal()", body)
-        self.assertNotIn("eraseStaging()", body)
+        self.assertIn("CH585_STAGING_STATE_READY", body)
+        self.assertNotIn("acknowledgeManualRecovery", updater)
 
-    def test_six_peer_states_and_ready_priority_are_explicit(self) -> None:
+    def test_five_peer_states_and_ready_only_diversion_are_explicit(self) -> None:
         header = (
             ROOT / "application" / "Cpp_Core" / "Inc" /
             "main_state_machine.hpp"
         ).read_text(encoding="utf-8")
         for state in (
-            "Input", "WebConfig", "Calibration", "Ch585UsbIsp",
-            "Ch585BridgeUpdate", "SafeRecovery",
+            "Input", "WebConfig", "Calibration", "Ch585BridgeUpdate",
+            "SafeRecovery",
         ):
             self.assertIn(state, header)
+        self.assertNotIn("Ch585UsbIsp", header)
         source = (
             ROOT / "application" / "Cpp_Core" / "Src" /
             "main_state_machine.cpp"
         ).read_text(encoding="utf-8")
         resolver = source.index("MainRuntimeState MainStateMachine::resolveNormalStartupState")
         ready = source.index("hasReadyStagedImage()", resolver)
-        manual = source.index("isManualIspActive()", ready)
-        self.assertLess(ready, manual)
-        self.assertIn("exactly six states", source)
-
-        mode = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_update_mode.cpp"
-        ).read_text(encoding="utf-8")
-        confirmed = mode.index("bool Ch585UpdateMode::isIapConfirmed() const")
-        visible = mode.index("bool Ch585UpdateMode::isManualEntryVisible() const")
-        self.assertIn("hasAppliedImage()", mode[confirmed:visible])
+        boot_mode = source.index("BootMode bootMode", ready)
+        self.assertLess(ready, boot_mode)
+        self.assertNotIn("hasFailed()", source[resolver:boot_mode])
+        self.assertNotIn("isManualIspActive", source)
+        self.assertIn("exactly five states", source)
 
     def test_daily_staging_uses_runtime_attach_without_reset_or_nrst(self) -> None:
         source = (ROOT / "tools" / "ch585_stlink_update.py").read_text(

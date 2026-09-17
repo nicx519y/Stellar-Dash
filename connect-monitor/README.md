@@ -72,7 +72,7 @@ The dongle keeps the main XInput report path ahead of telemetry:
 
 Environment variables:
 
-- `MONITOR_VID`: optional target USB VID. By default the monitor accepts HBox release HID `0x045E:0x02FF` and current RX debug HID `0x1A86:0xFE0C`
+- `MONITOR_VID`: optional target USB VID. By default the monitor accepts legacy/release HBox telemetry HID `0x045E:0x028E`, `0x045E:0x02FF`, and current RX debug HID `0x1A86:0xFE0C`. The dedicated WebConfig HID `0xCAFE:0x4021` is always excluded.
 - `MONITOR_PID`: optional target USB PID
 - `MONITOR_SERIAL_ENABLE`: set to `1` to enable CDC text telemetry; HID telemetry is used by default
 - `MONITOR_SERIAL_PATH`: optional CDC serial path, for example `COM8`; also enables CDC text telemetry

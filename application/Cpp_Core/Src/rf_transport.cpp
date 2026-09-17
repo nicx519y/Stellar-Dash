@@ -82,6 +82,7 @@ static uint8_t frameChecksum(const uint8_t* buf, uint16_t len) {
 }
 
 static bool isScheduledControlCommand(uint8_t cmd) {
+    // These commands use the redundant one-way scheduling window.
     return (cmd == CMD_START_PAIR) ||
            (cmd == CMD_STOP_PAIR) ||
            (cmd == CMD_UNBIND) ||
@@ -417,6 +418,14 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
         status.lastTransactionId = txnResult.txn;
         status.lastResult = 0u;
         status.lastErrorReason = 0u;
+        if ((cmd == CMD_SET_RATE) && (payload != nullptr) && (len == 2u)) {
+            // sendScheduled() returns only after the redundant transmission
+            // window has completed.  The CH585 scheduled-command path applies
+            // SET_RATE at that boundary and intentionally has no reply frame.
+            status.rateHz = logRateHz;
+            status.lastEvent = EVT_RATE_APPLIED;
+            status.eventCounter++;
+        }
         state = RFTransportState::Connected;
         return true;
     }

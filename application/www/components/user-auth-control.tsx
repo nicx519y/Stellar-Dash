@@ -239,6 +239,12 @@ export function UserAuthControl() {
     }
   };
 
+  const openAvatarEditor = () => {
+    setSelectedAvatarId(session.user?.avatarId || DEFAULT_ACCOUNT_AVATAR_ID);
+    setMenuOpen(false);
+    setAvatarOpen(true);
+  };
+
   if (session.authenticated && session.user) {
     return (
       <>
@@ -264,30 +270,29 @@ export function UserAuthControl() {
           </IconButton>
         </MenuTrigger>
         <MenuContent minWidth="220px" zIndex={11001}>
-          <Box px={3} py={2}>
-            <Text fontSize="sm" fontWeight="medium" truncate>
-              {session.user.displayName}
-            </Text>
-            <HStack gap={1} justifyContent="space-between">
-              <Text fontSize="xs" color="fg.muted" truncate flex="1">
+          <Box py={1}>
+            <Button
+              aria-label={t.AUTH_EDIT_AVATAR}
+              title={t.AUTH_EDIT_AVATAR}
+              width="full"
+              height="auto"
+              px={3}
+              py={2}
+              variant="plain"
+              borderWidth="0"
+              focusVisibleRing="none"
+              _hover={{ bg: 'bg.emphasized/60' }}
+              justifyContent="space-between"
+              borderRadius="0"
+              onClick={openAvatarEditor}
+            >
+              <Text fontSize="sm" color="fg.muted" truncate flex="1" textAlign="left">
                 {session.user.email}
               </Text>
-              <IconButton
-                aria-label={t.AUTH_EDIT_AVATAR}
-                title={t.AUTH_EDIT_AVATAR}
-                size="2xs"
-                variant="plain"
-                borderWidth="0"
-                focusVisibleRing="none"
-                onClick={() => {
-                  setSelectedAvatarId(session.user?.avatarId || DEFAULT_ACCOUNT_AVATAR_ID);
-                  setMenuOpen(false);
-                  setAvatarOpen(true);
-                }}
-              >
+              <Box aria-hidden="true" flexShrink="0">
                 <RiImageEditLine />
-              </IconButton>
-            </HStack>
+              </Box>
+            </Button>
           </Box>
           {session.user.role === 'admin' && (
             <MenuItem
@@ -315,24 +320,25 @@ export function UserAuthControl() {
         >
           <Dialog.Backdrop backdropFilter="blur(4px)" zIndex={11000} />
           <Dialog.Positioner alignItems="flex-start" pt={8} zIndex={11001}>
-            <Dialog.Content width="min(94vw, 760px)" maxHeight="calc(100vh - 96px)">
+            <Dialog.Content width="min(94vw, 1340px)" maxHeight="calc(100vh - 96px)">
               <Dialog.Header>
                 <Dialog.Title>{t.AUTH_AVATAR_TITLE}</Dialog.Title>
               </Dialog.Header>
               <Dialog.Body overflowY="auto">
                 <Stack gap={4}>
                   <Text color="fg.muted">{t.AUTH_AVATAR_DESCRIPTION}</Text>
-                  <SimpleGrid columns={{ base: 3, sm: 4, md: 5 }} gap={3}>
+                  <SimpleGrid columns={{ base: 3, sm: 4, md: 8 }} gap="8px">
                     {ACCOUNT_AVATARS.map(option => {
                       const selected = selectedAvatarId === option.id;
                       return (
                         <Button
                           key={option.id}
                           height="auto"
-                          px={2}
-                          py={2}
+                          px="5px"
+                          py="5px"
                           variant={selected ? 'solid' : 'surface'}
                           colorPalette={selected ? 'green' : 'gray'}
+                          focusVisibleRing="none"
                           flexDirection="column"
                           gap={2}
                           aria-pressed={selected}

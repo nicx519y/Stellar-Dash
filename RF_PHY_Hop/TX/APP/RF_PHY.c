@@ -1,6 +1,6 @@
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : RF_PHY.c
- * Description        : TX side for RF PHY DATA + 500ms ACK control protocol.
+ * Description        : TX side for RF PHY DATA + 100ms ACK control protocol.
  *******************************************************************************/
 
 #include "CONFIG.h"
@@ -14,6 +14,7 @@
 #include "rf_hop_protocol.h"
 #include "rf_pairing_protocol.h"
 #include "rf_hop_bond.h"
+#include "rf_hop_bond_journal.h"
 #include "rf_hop_score.h"
 #include "rf_monitor_control.h"
 
@@ -41,7 +42,7 @@
 #define RF_AUTO_DEMO_PENDING_MAX       4u
 #define RF_AUTO_DEMO_TX_STUCK_MS       10u
 #define RF_AUTO_DEMO_TX_IN_ISR         1u
-#define RF_AUTO_DEMO_ACK_INTERVAL_MS   500u
+#define RF_AUTO_DEMO_ACK_INTERVAL_MS   100u
 #define RF_AUTO_DEMO_ACK_REQUEST_BURST 3u
 #define RF_AUTO_DEMO_CONNECT_REQUEST_BURST 16u
 #ifndef RF_AUTO_DEMO_ACK_RX_TIMEOUT_US
@@ -73,8 +74,7 @@
 #define RF_AUTO_DEMO_AUTO_HOP_ENABLE   1u    /* 1=启用自动跳频，0=只接受手动切频道 */
 #endif
 #define RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD 8u /* ACK miss 质量窗口阈值基准；不再直接触发普通跳频 */
-#define RF_AUTO_DEMO_LINK_ACK_MISS_LIMIT \
-    (RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD + RFH_ACK_MISS_LIMIT_DEFAULT) /* 超过该次数认为链路断开 */
+#define RF_AUTO_DEMO_LINK_ACK_MISS_LIMIT RFH_ACK_MISS_LIMIT_DEFAULT
 #define RF_AUTO_DEMO_HOP_SCORE_THRESHOLD 180u /* ACK 超时/评分兜底跳频阈值 */
 #define RF_AUTO_DEMO_HOP_IRQ_GOOD_US   800u  /* IRQ 延迟恢复到该值以下时清除异常窗口 */
 #define RF_AUTO_DEMO_HOP_IRQ_WARN_US    1000u /* IRQ 评分开始升高的延迟 */
@@ -159,6 +159,7 @@ typedef enum
 typedef enum
 {
     RF_AUTO_TX_UNCONNECTED = 0u,
+    RF_AUTO_TX_PROVISIONAL,
     RF_AUTO_TX_COMM
 } rf_auto_tx_link_state_t;
 
@@ -251,12 +252,15 @@ static uint8_t g_demo_bond_channel_b = RF_AUTO_DEMO_DISCOVERY_CHANNEL_B;
 static uint32_t g_demo_local_id_hash = 0u;
 static uint32_t g_demo_link_access_address = RFH_LINK_ACCESS_ADDRESS_DEFAULT;
 static rfh_bond_record_t g_demo_bond;
+static rfh_bond_journal_state_t g_demo_bond_store;
+static uint8_t g_demo_pair_commit_pending = 0u;
 static volatile uint8_t g_demo_current_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static uint8_t g_demo_old_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static uint8_t g_demo_target_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static uint8_t g_demo_hop_seq = 0u;
 static rf_auto_hop_state_t g_demo_hop_state = RF_AUTO_HOP_COMM;
 static volatile rf_auto_tx_link_state_t g_demo_link_state = RF_AUTO_TX_UNCONNECTED;
+static uint8_t g_demo_reconnecting = 0u;
 static rf_auto_link_quality_state_t g_demo_link_quality_state = RF_AUTO_LINK_QUALITY_NORMAL;
 static rf_link_quality_window_t g_demo_link_quality_window;
 static uint32_t g_demo_channel_enter_clock = 0u;
@@ -282,6 +286,7 @@ static volatile uint8_t g_demo_pair_done_pending = 0u;
 static uint16_t g_demo_pair_tx_ticks_remaining = 0u;
 static uint32_t g_demo_pair_started_clock = 0u;
 static uint32_t g_demo_pair_deadline_clock = 0u;
+static uint32_t g_demo_pair_confirm_deadline_clock = 0u;
 static uint32_t g_demo_pair_session = 0u;
 static uint32_t g_demo_pair_tx_id_hash = 0u;
 static uint32_t g_demo_pair_rx_id_hash = 0u;
@@ -410,60 +415,65 @@ static void demo_apply_loaded_bond(const rfh_bond_record_t *record)
 #endif
 }
 
+static uint8_t demo_bond_flash_read(uint32_t address, void *data, uint32_t length)
+{
+    return EEPROM_READ(address, data, length);
+}
+
+static uint8_t demo_bond_flash_write(uint32_t address, const void *data, uint32_t length)
+{
+    return EEPROM_WRITE(address, (void *)data, length);
+}
+
+static uint8_t demo_bond_flash_erase(uint32_t address, uint32_t length)
+{
+    return EEPROM_ERASE(address, length);
+}
+
+static const rfh_bond_journal_backend_t g_demo_bond_backend = {
+    demo_bond_flash_read,
+    demo_bond_flash_write,
+    demo_bond_flash_erase
+};
+
 static void demo_load_bond(void)
 {
-    rfh_bond_record_t record __attribute__((aligned(4)));
-
 #if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
     demo_select_unpaired_address();
     return;
 #endif
 
-    memset(&record, 0, sizeof(record));
-    if((EEPROM_READ(RFH_BOND_EEPROM_ADDR_DEFAULT, &record, sizeof(record)) == 0u) &&
-       (rfh_bond_record_valid(&record) != 0u) &&
-       (record.local_id_hash == g_demo_local_id_hash))
+    memset(&g_demo_bond_store, 0, sizeof(g_demo_bond_store));
+    if(rfh_bond_journal_load(&g_demo_bond_backend,
+                             g_demo_local_id_hash,
+                             &g_demo_bond_store) == 0u)
     {
-        demo_apply_loaded_bond(&record);
+        demo_select_unpaired_address();
         return;
     }
-
-    demo_select_unpaired_address();
+    if(g_demo_bond_store.has_active != 0u)
+    {
+        demo_apply_loaded_bond(&g_demo_bond_store.active);
+    }
+    else
+    {
+        demo_select_unpaired_address();
+    }
+    if(g_demo_bond_store.has_pending != 0u)
+    {
+        /* A prepared TX bond means PAIR_DONE was received before reset.  Keep
+         * reconnecting on the candidate address until the peer proves it. */
+        g_demo_pair_commit_pending = 1u;
+        g_demo_link_access_address = g_demo_bond_store.pending.link_access_address;
+        g_demo_bond_channel_a = g_demo_bond_store.pending.channel_a;
+        g_demo_bond_channel_b = g_demo_bond_store.pending.channel_b;
+        g_demo_has_bond = 1u;
+    }
 }
 
-static uint8_t demo_write_bond_record(const rfh_bond_record_t *record)
-{
-    rfh_bond_record_t write_record __attribute__((aligned(4)));
-    rfh_bond_record_t verify __attribute__((aligned(4)));
-
-    if((record == 0) || (rfh_bond_record_valid(record) == 0u))
-    {
-        return 0u;
-    }
-
-    memcpy(&write_record, record, sizeof(write_record));
-    if(EEPROM_ERASE(RFH_BOND_EEPROM_ADDR_DEFAULT, RFH_BOND_EEPROM_ERASE_SIZE) != 0u)
-    {
-        return 0u;
-    }
-    if(EEPROM_WRITE(RFH_BOND_EEPROM_ADDR_DEFAULT,
-                    &write_record,
-                    sizeof(write_record)) != 0u)
-    {
-        return 0u;
-    }
-
-    memset(&verify, 0, sizeof(verify));
-    if(EEPROM_READ(RFH_BOND_EEPROM_ADDR_DEFAULT, &verify, sizeof(verify)) != 0u)
-    {
-        return 0u;
-    }
-    return (memcmp(&verify, &write_record, sizeof(write_record)) == 0) ? 1u : 0u;
-}
-
-static uint8_t demo_save_bond(uint32_t link_access_address,
-                              uint32_t peer_id_hash,
-                              uint32_t bond_confirm32)
+static uint8_t demo_prepare_bond(uint32_t link_access_address,
+                                 uint32_t peer_id_hash,
+                                 uint32_t bond_confirm32)
 {
     rfh_bond_record_t record __attribute__((aligned(4)));
     uint32_t pair_counter = (g_demo_has_bond != 0u) ?
@@ -486,20 +496,86 @@ static uint8_t demo_save_bond(uint32_t link_access_address,
                          peer_id_hash,
                          pair_counter,
                          bond_confirm32);
-    if(demo_write_bond_record(&record) == 0u)
+    if(rfh_bond_journal_prepare(&g_demo_bond_backend,
+                                &g_demo_bond_store,
+                                g_demo_local_id_hash,
+                                &record) == 0u)
     {
         return 0u;
     }
-    demo_apply_loaded_bond(&record);
+    g_demo_pair_commit_pending = 1u;
+    g_demo_link_access_address = record.link_access_address;
+    g_demo_bond_channel_a = record.channel_a;
+    g_demo_bond_channel_b = record.channel_b;
+    g_demo_has_bond = 1u;
     return 1u;
+}
+
+static uint8_t demo_commit_prepared_bond(void)
+{
+#if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
+    g_demo_pair_commit_pending = 0u;
+    return 1u;
+#else
+    if(g_demo_pair_commit_pending == 0u)
+    {
+        return 1u;
+    }
+    if(rfh_bond_journal_commit_pending(&g_demo_bond_backend,
+                                       &g_demo_bond_store,
+                                       g_demo_local_id_hash) == 0u)
+    {
+        return 0u;
+    }
+    if(g_demo_bond_store.has_active == 0u)
+    {
+        return 0u;
+    }
+    demo_apply_loaded_bond(&g_demo_bond_store.active);
+    g_demo_pair_commit_pending = 0u;
+    return 1u;
+#endif
+}
+
+static uint8_t demo_abort_prepared_bond(void)
+{
+#if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
+    g_demo_pair_commit_pending = 0u;
+    return 1u;
+#else
+    if(g_demo_bond_store.has_pending != 0u)
+    {
+        if(rfh_bond_journal_abort_pending(&g_demo_bond_backend,
+                                          &g_demo_bond_store,
+                                          g_demo_local_id_hash) == 0u)
+        {
+            return 0u;
+        }
+    }
+    if(g_demo_bond_store.has_active != 0u)
+    {
+        demo_apply_loaded_bond(&g_demo_bond_store.active);
+    }
+    else
+    {
+        demo_select_unpaired_address();
+    }
+    g_demo_pair_commit_pending = 0u;
+    return 1u;
+#endif
 }
 
 static uint8_t demo_clear_bond(void)
 {
-    if(EEPROM_ERASE(RFH_BOND_EEPROM_ADDR_DEFAULT, RFH_BOND_EEPROM_ERASE_SIZE) != 0u)
+#if (RFH_TEST_FIXED_BOND_ENABLE == 0u)
+    if(rfh_bond_journal_write_tombstone(&g_demo_bond_backend,
+                                        &g_demo_bond_store,
+                                        g_demo_local_id_hash) == 0u)
     {
         return 0u;
     }
+#endif
+    g_demo_pair_commit_pending = 0u;
     demo_select_unpaired_address();
     return 1u;
 }
@@ -1378,9 +1454,11 @@ static void demo_enter_tx_unconnected(uint32_t now)
     g_demo_discovery_switch_clock = now;
     g_demo_old_channel = anchor_channel;
     g_demo_target_channel = anchor_channel;
-    g_pending_event_state_code = (g_demo_has_bond != 0u) ?
-                                 RF_LINK_STATE_CONNECTING :
-                                 RF_LINK_STATE_IDLE;
+    g_pending_event_state_code = (g_demo_has_bond == 0u) ?
+                                 RF_LINK_STATE_IDLE :
+                                 ((g_demo_reconnecting != 0u) ?
+                                  RF_LINK_STATE_RECONNECTING :
+                                  RF_LINK_STATE_CONNECTING);
     if(g_demo_has_bond == 0u)
     {
         return;
@@ -1402,6 +1480,7 @@ static void demo_enter_tx_comm(uint32_t now, uint8_t channel)
         demo_apply_channel(channel);
     }
     g_demo_link_state = RF_AUTO_TX_COMM;
+    g_demo_reconnecting = 0u;
     g_demo_hop_state = RF_AUTO_HOP_COMM;
     g_demo_hop_manual = 0u;
     g_demo_old_channel = channel;
@@ -1417,6 +1496,30 @@ static void demo_enter_tx_comm(uint32_t now, uint8_t channel)
     g_demo_hop_cooldown_until = now;
     demo_arm_next_ack_clock(now);
     g_pending_event_state_code = RF_LINK_STATE_CONNECTED;
+}
+
+static void demo_enter_tx_provisional(uint32_t now, uint8_t channel)
+{
+    if(demo_channel_index(channel) == 0xFFu)
+    {
+        channel = g_demo_current_channel;
+    }
+    if(channel != g_demo_current_channel)
+    {
+        demo_apply_channel(channel);
+    }
+    g_demo_link_state = RF_AUTO_TX_PROVISIONAL;
+    g_demo_reconnecting = 0u;
+    g_demo_hop_state = RF_AUTO_HOP_COMM;
+    g_demo_old_channel = channel;
+    g_demo_target_channel = channel;
+    g_demo_ack_miss_count = 0u;
+    g_demo_force_ack_burst = 1u;
+    g_demo_ack_burst_left = 0u;
+    g_demo_wait_ack_after_tx = 0u;
+    g_demo_ack_rx_active = 0u;
+    demo_arm_next_ack_clock(now);
+    g_pending_event_state_code = RF_LINK_STATE_CONNECTING;
 }
 
 static void demo_service_link(uint32_t now)
@@ -2054,7 +2157,8 @@ static void demo_handle_ack_packet(void)
     uint32_t now = TMOS_GetSystemClock();
 
     if((RxBuf[1] != RF_AUTO_DEMO_PACKET_LEN) ||
-       (rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_ACK))
+       (rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_ACK) ||
+       ((rfh_flags(air[RFH_HDR0_OFFSET]) & RFH_FLAG_LINK_OK) == 0u))
     {
         g_demo_stat.ack_type_err++;
         demo_channel_score_update(g_demo_current_channel,
@@ -2075,6 +2179,15 @@ static void demo_handle_ack_packet(void)
     channel = data[RFH_ACK_CHANNEL];
     seq = data[RFH_ACK_STATUS];
 
+    if((rfh_rate_code(air[RFH_HDR0_OFFSET]) != g_demo_rate_code) ||
+       (rfh_channel_valid(channel) == 0u) ||
+       ((g_demo_link_state == RF_AUTO_TX_PROVISIONAL) &&
+        (channel != g_demo_current_channel)))
+    {
+        g_demo_stat.ack_type_err++;
+        return;
+    }
+
     g_demo_stat.ack_ok++;
 
     if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED)
@@ -2084,6 +2197,19 @@ static void demo_handle_ack_packet(void)
            ((ack_flags & RFH_FLAG_CMD_ACK) != 0u) &&
            (seq == RFH_ACK_STATUS_CONNECTED))
         {
+            if(g_demo_pair_commit_pending != 0u)
+            {
+                if(demo_commit_prepared_bond() == 0u)
+                {
+                    g_demo_reconnecting = 0u;
+                    g_pending_event_state_code = RF_LINK_STATE_PAIR_FAILED;
+                    rfm_spi_bridge_emit_state_changed(0x02u);
+                    demo_enter_tx_unconnected(now);
+                    return;
+                }
+                g_pending_event_state_code = RF_LINK_STATE_PAIR_OK;
+                rfm_spi_bridge_emit_state_changed(0x02u);
+            }
             if(rfh_channel_valid(channel) != 0u)
             {
                 demo_apply_channel(channel);
@@ -2112,6 +2238,11 @@ static void demo_handle_ack_packet(void)
             g_demo_force_ack_burst = 1u;
         }
         return;
+    }
+
+    if(g_demo_link_state == RF_AUTO_TX_PROVISIONAL)
+    {
+        demo_enter_tx_comm(now, g_demo_current_channel);
     }
 
     demo_score_window_note_quality(g_demo_current_channel,
@@ -2583,6 +2714,9 @@ static void demo_handle_pair_packet(void)
                                g_demo_pair_rx_id_hash,
                                g_demo_pair_link_access_address);
         g_demo_pair_state = RF_AUTO_PAIR_CONFIRM_WAIT;
+        g_demo_pair_confirm_deadline_clock =
+            TMOS_GetSystemClock() +
+            MS1_TO_SYSTEM_TIME(RFH_PAIR_CONFIRM_TIMEOUT_MS);
         g_demo_pair_tx_ticks_remaining = 0u;
         g_demo_stat.hop_event++;
         return;
@@ -2610,10 +2744,13 @@ static void demo_handle_pair_packet(void)
 
 static void demo_finish_pairing(uint32_t now, uint8_t state_code, uint8_t emit_state_changed)
 {
+    g_demo_reconnecting = 0u;
     g_demo_pair_state = RF_AUTO_PAIR_IDLE;
     g_demo_pair_wait_rx_after_tx = 0u;
     g_demo_pair_done_pending = 0u;
     g_demo_pair_tx_ticks_remaining = 0u;
+    g_demo_pair_deadline_clock = 0u;
+    g_demo_pair_confirm_deadline_clock = 0u;
     g_demo_ack_rx_active = 0u;
     g_demo_wait_ack_after_tx = 0u;
     g_demo_tx_busy = 0u;
@@ -2641,11 +2778,14 @@ static void demo_service_pairing(uint32_t now)
             demo_finish_pairing(now, RF_LINK_STATE_PAIR_FAILED, 1u);
             return;
         }
-        if(demo_save_bond(g_demo_pair_link_access_address,
-                          g_demo_pair_rx_id_hash,
-                          g_demo_pair_done_confirm32) != 0u)
+        if(demo_prepare_bond(g_demo_pair_link_access_address,
+                             g_demo_pair_rx_id_hash,
+                             g_demo_pair_done_confirm32) != 0u)
         {
-            demo_finish_pairing(now, RF_LINK_STATE_PAIR_OK, 1u);
+            /* PAIR_DONE only proves that both peers know the candidate.  The
+             * first candidate CONNECT ACK is the commit point and the only
+             * place where PairOk may be reported. */
+            demo_finish_pairing(now, RF_LINK_STATE_CONNECTING, 1u);
         }
         else
         {
@@ -2654,7 +2794,33 @@ static void demo_service_pairing(uint32_t now)
         return;
     }
 
-    (void)now;
+    if((g_demo_pair_deadline_clock != 0u) &&
+       ((int32_t)(now - g_demo_pair_deadline_clock) >= 0))
+    {
+        demo_finish_pairing(now, RF_LINK_STATE_PAIR_TIMEOUT, 1u);
+        return;
+    }
+
+    if((g_demo_pair_state == RF_AUTO_PAIR_CONFIRM_WAIT) &&
+       (g_demo_pair_confirm_deadline_clock != 0u) &&
+       ((int32_t)(now - g_demo_pair_confirm_deadline_clock) >= 0))
+    {
+        /* A lost DONE must not leave the TX stuck forever on one candidate.
+         * Start a fresh public pairing session while preserving the overall
+         * 60 second deadline. */
+        g_demo_pair_session = demo_make_pair_session();
+        g_demo_pair_rx_id_hash = 0u;
+        g_demo_pair_link_access_address = 0u;
+        g_demo_pair_done_confirm32 = 0u;
+        g_demo_pair_confirm_deadline_clock = 0u;
+        g_demo_pair_state = RF_AUTO_PAIR_OFFERING;
+        g_demo_pair_tx_ticks_remaining = 0u;
+        g_demo_pair_wait_rx_after_tx = 0u;
+        g_demo_ack_rx_active = 0u;
+        g_demo_tx_busy = 0u;
+        (void)demo_apply_access_address(RFH_PAIR_ACCESS_ADDRESS);
+        demo_apply_channel(RFH_PAIR_CHANNEL_A);
+    }
 }
 
 static void demo_log_stats(uint32_t now)
@@ -2868,10 +3034,14 @@ static void demo_note_ack_timeout(void)
     demo_link_quality_note_ack_timeout(now);
     g_demo_ack_miss_count++;
 
-    if((g_demo_link_state == RF_AUTO_TX_COMM) &&
+    if(((g_demo_link_state == RF_AUTO_TX_COMM) ||
+        (g_demo_link_state == RF_AUTO_TX_PROVISIONAL)) &&
        (g_demo_ack_miss_count >= RF_AUTO_DEMO_LINK_ACK_MISS_LIMIT))
     {
+        g_demo_reconnecting =
+            (g_demo_link_state == RF_AUTO_TX_COMM) ? 1u : 0u;
         demo_enter_tx_unconnected(now);
+        rfm_spi_bridge_emit_state_changed(0x02u);
         return;
     }
 
@@ -2971,7 +3141,7 @@ static void demo_service_connect_phase(uint32_t now)
     if((uint32_t)(now - g_demo_connect_phase_clock) >=
        MS1_TO_SYSTEM_TIME(RFH_CONNECT_FINAL_TX_MS))
     {
-        demo_enter_tx_comm(now, g_demo_current_channel);
+        demo_enter_tx_provisional(now, g_demo_current_channel);
     }
 }
 
@@ -3369,6 +3539,7 @@ bool RF_SetReportRateHz(uint16_t hz)
     demo_reconfigure_report_timer(hz);
     if(was_off != 0u)
     {
+        g_demo_reconnecting = 0u;
         demo_enter_tx_unconnected(now);
     }
     else if(g_demo_link_state == RF_AUTO_TX_COMM)
@@ -3423,6 +3594,16 @@ bool RF_StartPairing(void)
         g_pending_event_state_code = RF_LINK_STATE_PAIRING;
         return true;
     }
+    if(g_demo_pair_commit_pending != 0u)
+    {
+        /* An explicit new pairing request supersedes an uncommitted candidate,
+         * but never destroys the last committed bond. */
+        if(demo_abort_prepared_bond() == 0u)
+        {
+            g_pending_event_state_code = RF_LINK_STATE_PAIR_FAILED;
+            return false;
+        }
+    }
     if(g_demo_report_hz == 0u)
     {
 #if (RFM_COLD_BOOT_WAIT_HOST_RATE != 0u)
@@ -3435,6 +3616,7 @@ bool RF_StartPairing(void)
     }
 
     g_demo_input_off = 0u;
+    g_demo_reconnecting = 0u;
     g_demo_pair_session = demo_make_pair_session();
     g_demo_pair_tx_id_hash = g_demo_local_id_hash;
     g_demo_pair_rx_id_hash = 0u;
@@ -3444,7 +3626,9 @@ bool RF_StartPairing(void)
     g_demo_pair_wait_rx_after_tx = 0u;
     g_demo_pair_tx_ticks_remaining = 0u;
     g_demo_pair_started_clock = now;
-    g_demo_pair_deadline_clock = 0u;
+    g_demo_pair_deadline_clock =
+        now + MS1_TO_SYSTEM_TIME(RFH_PAIR_WINDOW_MS);
+    g_demo_pair_confirm_deadline_clock = 0u;
     g_demo_pair_state = RF_AUTO_PAIR_OFFERING;
     g_demo_link_state = RF_AUTO_TX_UNCONNECTED;
     g_demo_hop_state = RF_AUTO_HOP_COMM;
@@ -3494,6 +3678,7 @@ bool RF_Unbind(void)
         g_pending_event_state_code = RF_LINK_STATE_PAIR_FAILED;
         return false;
     }
+    g_demo_reconnecting = 0u;
     (void)demo_apply_access_address(g_demo_link_access_address);
     demo_enter_tx_unconnected(now);
     g_pending_event_state_code = RF_LINK_STATE_IDLE;
@@ -3512,9 +3697,17 @@ uint8_t RF_GetLinkStateCode(void)
     }
     if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED)
     {
-        return (g_demo_has_bond != 0u) ?
-               RF_LINK_STATE_CONNECTING :
-               RF_LINK_STATE_IDLE;
+        if(g_demo_has_bond == 0u)
+        {
+            return RF_LINK_STATE_IDLE;
+        }
+        return (g_demo_reconnecting != 0u) ?
+               RF_LINK_STATE_RECONNECTING :
+               RF_LINK_STATE_CONNECTING;
+    }
+    if(g_demo_link_state == RF_AUTO_TX_PROVISIONAL)
+    {
+        return RF_LINK_STATE_CONNECTING;
     }
     return (g_demo_hop_state == RF_AUTO_HOP_RECOVERY_DUAL) ?
            RF_LINK_STATE_RECONNECTING : RF_LINK_STATE_CONNECTED;
