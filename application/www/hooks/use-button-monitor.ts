@@ -1,6 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { eventBus, EVENTS } from '@/lib/event-manager';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import {
+    BUTTON_STATE_CHANGED_CMD,
+    type ButtonStateBinaryData,
+} from '@/lib/button-binary-parser';
+import {
+    ButtonMonitorLifecycle,
+    type SharedButtonMonitorLeaseToken,
+} from '@/lib/button-monitor-lifecycle';
 
 export interface UseButtonMonitorOptions {
     /** 是否自动初始化监控 */
@@ -10,7 +18,7 @@ export interface UseButtonMonitorOptions {
     /** 状态变化回调 */
     onMonitoringStateChange?: (isActive: boolean) => void;
     /** 按键状态变化回调 */
-    onButtonStatesChange?: (states: any) => void;
+    onButtonStatesChange?: (states: ButtonStateBinaryData) => void;
     /** 使用 eventBus 而不是直接监听（推荐） */
     useEventBus?: boolean;
     /** 是否控制 start/stop_button_monitoring 命令 */
@@ -30,107 +38,166 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
     // 使用 gamepad-config-context 中的方法
     const { startButtonMonitoring, stopButtonMonitoring } = useGamepadConfig();
 
-    const isActiveRef = useRef<boolean>(false);
     const unsubscribeRef = useRef<(() => void) | null>(null);
-
-    // 启动按键监控
-    const startMonitoring = async (): Promise<void> => {
-        try {
-            if (controlMonitoringCommand) {
-                await startButtonMonitoring();
-            }
-            
-            isActiveRef.current = true;
-            
-            // 开始监听WebSocket推送消息
-            if (!unsubscribeRef.current) {
-                if (useEventBusOption) {
-                    // 使用 eventBus 监听（推荐方式）
-                    unsubscribeRef.current = eventBus.on(EVENTS.BUTTON_STATE_CHANGED, handleButtonStateUpdate);
-                } else {
-                    // 注意：由于 webSocketService 已简化，这里只支持 eventBus 方式
-                    unsubscribeRef.current = eventBus.on(EVENTS.BUTTON_STATE_CHANGED, handleButtonStateUpdate);
-                }
-            }
-            
-            onMonitoringStateChange?.(true);
-            console.log('Button monitoring started successfully');
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error : new Error('Unknown error');
-            onError?.(errorMsg);
-            console.error('Failed to start button monitoring:', errorMsg);
-        }
+    const deviceLeaseRef = useRef<SharedButtonMonitorLeaseToken | null>(null);
+    const commandsRef = useRef({ startButtonMonitoring, stopButtonMonitoring });
+    const optionsRef = useRef({
+        controlMonitoringCommand,
+        onError,
+        onMonitoringStateChange,
+        onButtonStatesChange,
+        useEventBusOption,
+    });
+    commandsRef.current = { startButtonMonitoring, stopButtonMonitoring };
+    optionsRef.current = {
+        controlMonitoringCommand,
+        onError,
+        onMonitoringStateChange,
+        onButtonStatesChange,
+        useEventBusOption,
     };
 
-    // 停止按键监控
-    const stopMonitoring = async (): Promise<void> => {
+    const handleButtonStateUpdate = (data: unknown) => {
         try {
-            if (controlMonitoringCommand) {
-                await stopButtonMonitoring();
-            }
-            
-            isActiveRef.current = false;
-            
-            // 停止监听WebSocket推送消息
-            if (unsubscribeRef.current) {
-                unsubscribeRef.current();
-                unsubscribeRef.current = null;
-            }
-            
-            onMonitoringStateChange?.(false);
-            console.log('Button monitoring stopped successfully');
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error : new Error('Unknown error');
-            onError?.(errorMsg);
-            console.error('Failed to stop button monitoring:', errorMsg);
-        }
-    };
+            const callback = optionsRef.current.onButtonStatesChange;
+            const outer = typeof data === 'object' && data !== null
+                ? data as Record<string, unknown>
+                : null;
+            const nested = outer?.buttonStates;
+            const candidate = typeof nested === 'object' && nested !== null
+                ? nested as Record<string, unknown>
+                : outer;
 
-    // 处理WebSocket推送的按键状态更新
-    const handleButtonStateUpdate = (data: any) => {
-        try {
-            console.log('Received button state update:', data);
-            
-            // 解析推送数据
-            if (data && data.buttonStates) {
-                onButtonStatesChange?.(data.buttonStates);
-            } else if (data) {
-                // 如果直接收到按键状态数据
-                onButtonStatesChange?.(data);
+            if (!candidate) return;
+            const triggerMask = Number(candidate.triggerMask);
+            const totalButtons = Number(candidate.totalButtons);
+            if (
+                !Number.isFinite(triggerMask)
+                || !Number.isInteger(totalButtons)
+                || totalButtons < 0
+                || totalButtons > 32
+            ) {
+                throw new Error('Invalid button state payload');
             }
+
+            callback?.({
+                command: Number(candidate.command ?? BUTTON_STATE_CHANGED_CMD) & 0xff,
+                isActive: candidate.isActive === true,
+                triggerMask: triggerMask >>> 0,
+                totalButtons,
+                eventSequence: Number(candidate.eventSequence ?? 0) >>> 0,
+                droppedSnapshots: Number(candidate.droppedSnapshots ?? 0) & 0xffff,
+            });
         } catch (error) {
             console.error('Failed to handle button state update:', error);
-            onError?.(error instanceof Error ? error : new Error('Failed to handle button state update'));
+            optionsRef.current.onError?.(
+                error instanceof Error
+                    ? error
+                    : new Error('Failed to handle button state update'),
+            );
         }
     };
+
+    const subscribeToButtonEvents = () => {
+        if (unsubscribeRef.current) return;
+        // 先订阅再启动设备，避免 start_button_monitoring 与首个状态事件之间的竞态。
+        unsubscribeRef.current = eventBus.on(
+            EVENTS.BUTTON_STATE_CHANGED,
+            handleButtonStateUpdate,
+        );
+    };
+
+    const unsubscribeFromButtonEvents = () => {
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+    };
+
+    const lifecycleRef = useRef<ButtonMonitorLifecycle | null>(null);
+    if (!lifecycleRef.current) {
+        lifecycleRef.current = new ButtonMonitorLifecycle({
+            startDevice: async () => {
+                subscribeToButtonEvents();
+                const controlsDevice = optionsRef.current.controlMonitoringCommand;
+                if (!controlsDevice) return;
+
+                try {
+                    deviceLeaseRef.current = await commandsRef.current.startButtonMonitoring();
+                } catch (error) {
+                    unsubscribeFromButtonEvents();
+                    throw error;
+                }
+            },
+            stopDevice: async () => {
+                const lease = deviceLeaseRef.current;
+                deviceLeaseRef.current = null;
+                if (lease) {
+                    await commandsRef.current.stopButtonMonitoring(lease);
+                }
+            },
+            onAcquired: () => {
+                optionsRef.current.onMonitoringStateChange?.(true);
+                console.log('Button monitoring started successfully');
+            },
+            onReleased: () => {
+                unsubscribeFromButtonEvents();
+                optionsRef.current.onMonitoringStateChange?.(false);
+                console.log('Button monitoring stopped successfully');
+            },
+        });
+    }
+    const lifecycle = lifecycleRef.current;
+
+    const reportOperationError = useCallback((operation: 'start' | 'stop', error: unknown): Error => {
+        const normalized = error instanceof Error ? error : new Error('Unknown error');
+        optionsRef.current.onError?.(normalized);
+        console.error(`Failed to ${operation} button monitoring:`, normalized);
+        return normalized;
+    }, []);
+
+    // 启动按键监控
+    const startMonitoring = useCallback(async (): Promise<void> => {
+        try {
+            await lifecycle.start();
+        } catch (error) {
+            throw reportOperationError('start', error);
+        }
+    }, [lifecycle, reportOperationError]);
+
+    // 停止按键监控
+    const stopMonitoring = useCallback(async (): Promise<void> => {
+        try {
+            await lifecycle.stop();
+        } catch (error) {
+            throw reportOperationError('stop', error);
+        }
+    }, [lifecycle, reportOperationError]);
 
     // 获取当前状态
-    const getMonitoringState = () => {
+    const getMonitoringState = useCallback(() => {
         return {
-            isMonitoring: isActiveRef.current,
+            isMonitoring: lifecycle.ownsMonitor,
         };
-    };
+    }, [lifecycle]);
 
-    // 自动初始化
+    // autoInitialize is retained for source compatibility. Monitoring still
+    // starts only when the owning component's ready-state effect requests it.
+    void autoInitialize;
+
     useEffect(() => {
-        if (autoInitialize) {
-            // 组件挂载时不自动启动，由用户手动启动
-        }
-
-        // 组件卸载时清理
+        lifecycle.activate();
+        // 组件卸载时串行释放本 hook 成功获取的设备监控。
         return () => {
-            if (unsubscribeRef.current) {
-                unsubscribeRef.current();
-                unsubscribeRef.current = null;
-            }
+            void lifecycle.dispose().catch((error) => {
+                console.error('Failed to dispose button monitoring:', error);
+            }).finally(unsubscribeFromButtonEvents);
         };
-    }, [autoInitialize]);
+    }, [lifecycle]);
 
     return {
         startMonitoring,
         stopMonitoring,
         getMonitoringState,
-        isActive: isActiveRef.current,
+        isActive: lifecycle.ownsMonitor,
     };
 }
 

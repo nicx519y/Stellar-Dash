@@ -22,6 +22,7 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId);
 uint8_t ScreenDetail_InitIndex(uint8_t menuId);
 void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det);
 bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index);
+bool ScreenDetail_OnBack(uint8_t menuId);
 void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, const ScreenUiStyle& style);
 
 #endif

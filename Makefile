@@ -1,4 +1,9 @@
+.PHONY: all check-rf-freeze application bootloader clean FORCE
+
 all: application bootloader
+
+check-rf-freeze:
+	python tools/check_rf_frozen.py --require-rx-binary
 
 application: FORCE
 	@echo "Building application..."

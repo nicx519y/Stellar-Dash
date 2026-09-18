@@ -9,6 +9,8 @@ extern "C" {
 #endif
 
 void SPIST7789_Init(void);
+void SPIST7789_DeInit(void);
+bool SPIST7789_IsReady(void);
 void SPIST7789_SetBacklight100(void);
 void SPIST7789_SetBacklight(uint8_t percent);
 bool SPIST7789_FillBlueAsync(void);

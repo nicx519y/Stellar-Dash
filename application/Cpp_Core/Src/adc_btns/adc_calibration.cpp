@@ -1,13 +1,33 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
+#include <cmath>
 
-// 添加WS2812B驱动头文件
 extern "C" {
 #include "pwm-ws2812b.h"
-// 声明WS2812B内部函数
-void LEDDataToDMABuffer(const uint16_t start, const uint16_t length);
 }
+
+namespace {
+
+static_assert(ADC_VALUE_PUBLIC_RIGHT_SHIFT < 16u,
+              "public ADC shift must fit the calibration value type");
+
+static uint16_t mappingEndpointInPublicAdcScale(
+    const ADCValuesMapping& mapping, size_t endpointIndex)
+{
+    const uint32_t publicMaximum =
+        static_cast<uint32_t>(UINT16_MAX) >> ADC_VALUE_PUBLIC_RIGHT_SHIFT;
+    const bool fullResolutionMapping =
+        mapping.originalValues[0] > publicMaximum ||
+        mapping.originalValues[mapping.length - 1u] > publicMaximum;
+    uint32_t value = mapping.originalValues[endpointIndex];
+    if (fullResolutionMapping) {
+        value >>= ADC_VALUE_PUBLIC_RIGHT_SHIFT;
+    }
+    return static_cast<uint16_t>(value);
+}
+
+} // namespace
 
 // 移除全局实例定义，改为单例模式
 
@@ -28,12 +48,8 @@ void ADCCalibrationManager::initEnabledKeysMask() {
     GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(STORAGE_MANAGER.config.defaultProfileId);
     if (profile) {
         const bool* enabledKeys = profile->keysConfig.keysEnableTag;
-        for(uint8_t i = 0; i < 32; i++) {
-            if(i < NUM_ADC_BUTTONS) {
-                enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
-            } else {
-                enabledKeysMask |= (1 << i);
-            }
+        for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
+            enabledKeysMask |= enabledKeys[i] ? (1u << i) : 0u;
         }
         APP_DBG("ADCCalibrationManager: enabled keys mask = 0x%08X", enabledKeysMask);
     }
@@ -45,6 +61,21 @@ void ADCCalibrationManager::initEnabledKeysMask() {
 ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     if (calibrationActive) {
         return ADCBtnsError::CALIBRATION_IN_PROGRESS;
+    }
+
+    const std::string mappingId = ADC_MANAGER.getDefaultMapping();
+    const ADCValuesMapping* mapping = mappingId.empty()
+        ? nullptr
+        : ADC_MANAGER.getMapping(mappingId.c_str());
+    if (mapping == nullptr || mapping->length < 2u ||
+        mapping->length > MAX_ADC_VALUES_LENGTH ||
+        !std::isfinite(mapping->step) || mapping->step <= 0.0f ||
+        mapping->originalValues[0] == 0u ||
+        mapping->originalValues[mapping->length - 1u] == 0u ||
+        mapping->originalValues[0] == mapping->originalValues[mapping->length - 1u]) {
+        return mapping == nullptr
+            ? ADCBtnsError::MAPPING_NOT_FOUND
+            : ADCBtnsError::MAPPING_INVALID_RANGE;
     }
     
     // 初始化启用按键掩码
@@ -59,18 +90,26 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     calibrationActive = true;
     completionCheckExecuted = false; // 重置完成检查标志
 
-    if(WS2812B_GetState() != WS2812B_RUNNING) {
-        WS2812B_Init();
-        WS2812B_Start();
+#if HAS_LED == 1
+    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
+        WS2812B_InitStrip(WS2812B_STRIP_KEYS);
+        if (WS2812B_StartStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
+            APP_ERR("Failed to start key LEDs for calibration");
+        }
     }
 
-    if(WS2812B_GetState() == WS2812B_RUNNING) {
-        WS2812B_SetAllLEDColor(0, 0, 0);
-        WS2812B_SetAllLEDBrightness(0);
+    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+        WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 0, 0, 0);
+        WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0);
     }
+#endif
 
-    // 启动ADC采样
-    ADC_MANAGER.startADCSamping(false);
+    // 确保状态持有的循环 DMA 已经挂载。
+    const ADCBtnsError adcResult = ADC_MANAGER.startADCSamping(false);
+    if (adcResult != ADCBtnsError::SUCCESS) {
+        calibrationActive = false;
+        return adcResult;
+    }
 
     // 同时启动所有未校准按键的校准
     uint8_t uncalibratedCount = 0;
@@ -124,12 +163,18 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     
     calibrationActive = false;
     completionCheckExecuted = false; // 重置完成检查标志
-    
-    
-    // 关闭LED
-    if(WS2812B_GetState() == WS2812B_RUNNING) {
-        WS2812B_Stop();
+    for (ButtonCalibrationState& state : buttonStates) {
+        state.ledColor = CalibrationLEDColor::OFF;
     }
+
+#if HAS_LED == 1
+    /* Keep the retained edit frame black for the next start, then remove
+     * power from only the key strip.  The ambient strip has independent
+     * ownership and must not be disturbed by calibration teardown. */
+    WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 0u, 0u, 0u);
+    WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0u);
+    (void)WS2812B_StopStrip(WS2812B_STRIP_KEYS);
+#endif
 
     APP_DBG("Manual calibration stopped, all LEDs OFF");
     
@@ -143,6 +188,8 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
  * 重置所有按键校准
  */
 ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
+    initEnabledKeysMask();
+
     // 1. 首先重置所有内存状态
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         ButtonCalibrationState& state = buttonStates[i];
@@ -169,6 +216,11 @@ ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
     ADCBtnsError flashResult = clearAllCalibrationFromFlash();
     if (flashResult != ADCBtnsError::SUCCESS) {
         APP_ERR("Failed to clear all calibration data from Flash, error: %d", static_cast<int>(flashResult));
+        // ADCManager rolls its common-config mutation back on write failure.
+        // Restore the visible runtime state from that still-authoritative data.
+        initializeButtonStates();
+        loadExistingCalibration();
+        updateAllLEDs();
     } else {
         APP_DBG("All calibration data cleared from Flash in batch operation");
     }
@@ -230,6 +282,19 @@ void ADCCalibrationManager::processCalibration() {
     
     // 检查是否所有按键都已完成校准
     checkCalibrationCompletion();
+
+#if HAS_LED == 1
+    /*
+     * WS2812B setters only update the edit frame.  The circular-DMA driver
+     * needs an explicit submit before that frame can reach the physical
+     * strip.  Service on every calibration pass so a submit that briefly
+     * lost the asynchronous HT/TC transaction race is retried on the next
+     * pass instead of leaving the last calibration colour stuck.
+     */
+    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+        WS2812B_ServiceStrip(WS2812B_STRIP_KEYS);
+    }
+#endif
     
     // 如果本轮循环有状态变更，触发回调
     if (hasStatusChange) {
@@ -413,9 +478,18 @@ ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
         APP_DBG("Button %d bottom value calibrated (PRESSED): %d (samples: %d, duration: %lums, range: %d-%d, expected: %d)", 
                 buttonIndex, averageValue, samplesToUse, samplingDuration, state.minSample, state.maxSample, state.expectedBottomValue);
         
-        // 校准完成，立即保存到Flash
+        // Only publish COMPLETED after the calibration values are durable.
+        const ADCBtnsError saveResult = saveCalibrationValues(buttonIndex);
+        if (saveResult != ADCBtnsError::SUCCESS) {
+            state.isCalibrated = false;
+            setButtonPhase(buttonIndex, CalibrationPhase::ERROR);
+            setButtonLEDColor(buttonIndex, CalibrationLEDColor::YELLOW);
+            updateButtonLED(buttonIndex, CalibrationLEDColor::YELLOW);
+            APP_ERR("Failed to persist calibration for button %u: %d",
+                    buttonIndex, static_cast<int>(saveResult));
+            return saveResult;
+        }
         state.isCalibrated = true;
-        saveCalibrationValues(buttonIndex);
         setButtonPhase(buttonIndex, CalibrationPhase::COMPLETED);
         setButtonLEDColor(buttonIndex, CalibrationLEDColor::GREEN);
         updateButtonLED(buttonIndex, CalibrationLEDColor::GREEN);
@@ -628,9 +702,17 @@ void ADCCalibrationManager::initializeButtonStates() {
         std::string mappingId = ADC_MANAGER.getDefaultMapping();
         if (!mappingId.empty()) {
             const ADCValuesMapping* mapping = ADC_MANAGER.getMapping(mappingId.c_str());
-            if (mapping) {
-                state.expectedTopValue = mapping->originalValues[mapping->length - 1];      // 释放状态
-                state.expectedBottomValue = mapping->originalValues[0];                     // 按下状态
+            if (mapping && mapping->length >= 2u &&
+                mapping->length <= MAX_ADC_VALUES_LENGTH) {
+                /* Old slot mappings contain native 16-bit endpoints while
+                 * the shared/WebConfig ADC stream is intentionally exposed
+                 * at the public right-shifted scale.  New mappings are
+                 * already stored at that public scale.  Normalize the pair
+                 * together so either format can drive calibration. */
+                state.expectedTopValue = mappingEndpointInPublicAdcScale(
+                    *mapping, mapping->length - 1u); // 释放状态
+                state.expectedBottomValue = mappingEndpointInPublicAdcScale(
+                    *mapping, 0u); // 按下状态
                 // APP_DBG("initializeButtonStates Button %d expected top value: %d, bottom value: %d", i, state.expectedTopValue, state.expectedBottomValue);
             }
         }
@@ -697,9 +779,26 @@ bool ADCCalibrationManager::isButtonCalibrated(uint8_t buttonIndex) const {
 
 bool ADCCalibrationManager::isAllButtonsCalibrated( bool useCache ) {
     if(!useCache) {
-        initializeButtonStates();
-        initEnabledKeysMask();
-        loadExistingCalibration();
+        const std::string mappingId = ADC_MANAGER.getDefaultMapping();
+        GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(
+            STORAGE_MANAGER.config.defaultProfileId);
+        if (mappingId.empty() || profile == nullptr ||
+            ADC_MANAGER.getMapping(mappingId.c_str()) == nullptr) {
+            return false;
+        }
+        for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
+            if (!profile->keysConfig.keysEnableTag[i]) {
+                continue;
+            }
+            uint16_t topValue = 0;
+            uint16_t bottomValue = 0;
+            if (ADC_MANAGER.getCalibrationValues(
+                    mappingId.c_str(), i, false, topValue, bottomValue) !=
+                ADCBtnsError::SUCCESS) {
+                return false;
+            }
+        }
+        return true;
     }
 
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
@@ -841,16 +940,11 @@ void ADCCalibrationManager::updateAllLEDs() {
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         updateButtonLED(i, buttonStates[i].ledColor);
     }
-    
-    // 确保WS2812B状态正确
-    if (WS2812B_GetState() == WS2812B_RUNNING) {
-        // 触发DMA缓冲区更新，使LED显示立即生效
-        LEDDataToDMABuffer(0, NUM_ADC_BUTTONS);
-        
-        APP_DBG("All button LEDs updated");
-    } else {
-        APP_ERR("WS2812B not running, LED update skipped");
-    }
+
+#if HAS_LED == 1
+    // Publish the complete colour set as one coherent calibration frame.
+    WS2812B_ServiceStrip(WS2812B_STRIP_KEYS);
+#endif
 }
 
 /**
@@ -1025,20 +1119,12 @@ ADCBtnsError ADCCalibrationManager::clearAllCalibrationFromFlash() {
     
     APP_DBG("Clearing all calibration data from Flash...");
     
-    // 批量清除所有按键的校准数据
-    ADCBtnsError finalResult = ADCBtnsError::SUCCESS;
-    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        ADCBtnsError result = ADC_MANAGER.setCalibrationValues(mappingId.c_str(), i, false, 0, 0, false);
-        if (result != ADCBtnsError::SUCCESS) {
-            APP_ERR("Failed to clear calibration data for button %d, error: %d", i, static_cast<int>(result));
-            finalResult = result; // 记录最后一个错误
-        }
-    }
-    
-    if (finalResult == ADCBtnsError::SUCCESS && ADC_MANAGER.saveCommon() == QSPI_W25Qxx_OK) {
+    const ADCBtnsError finalResult = ADC_MANAGER.clearCalibrationValues(
+        mappingId.c_str(), false);
+    if (finalResult == ADCBtnsError::SUCCESS) {
         APP_DBG("All calibration data cleared from Flash successfully");
     } else {
-        APP_ERR("Some calibration data failed to clear from Flash");
+        APP_ERR("Calibration data clear was rolled back after a Flash write failure");
     }
     
     return finalResult;

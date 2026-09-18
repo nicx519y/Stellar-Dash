@@ -1,0 +1,177 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - tablist:
+                - tab [selected]:
+                  - generic: Global Setting
+                - separator
+                - tab:
+                  - generic: Keys Setting
+                - separator
+                - tab:
+                  - generic: Buttons Performance
+                - separator
+                - tab:
+                  - generic: Lighting Setting
+                - separator
+                - tab:
+                  - generic: Firmware
+                - separator
+                - tab:
+                  - generic: View Logs
+            - generic:
+              - generic:
+                - button: Finish Configuration
+                - button: Export Config
+                - button: Import Config
+          - generic:
+            - generic: MOCK DEVICE
+            - button: 中文
+            - button [expanded]: Sign in
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - heading [level=3]: Platform
+                    - generic:
+                      - radiogroup:
+                        - generic:
+                          - generic:
+                            - radio [checked]
+                            - generic: Windows PC
+                          - generic:
+                            - radio
+                            - generic: PlayStation
+                          - generic:
+                            - radio
+                            - generic: Xbox One|Series
+                          - generic:
+                            - radio
+                            - generic: Nintendo Switch
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - button: Start Calibration
+                              - button: Reset Calibration
+                  - generic:
+                    - img:
+                      - generic [ref=e178] [cursor=pointer]
+                      - generic [ref=e179] [cursor=pointer]
+                      - generic [ref=e180] [cursor=pointer]
+                      - generic [ref=e181] [cursor=pointer]
+                      - generic [ref=e182] [cursor=pointer]
+                      - generic [ref=e183] [cursor=pointer]
+                      - generic [ref=e184] [cursor=pointer]
+                      - generic [ref=e185] [cursor=pointer]
+                      - generic [ref=e186] [cursor=pointer]
+                      - generic [ref=e187] [cursor=pointer]
+                      - generic [ref=e188] [cursor=pointer]
+                      - generic [ref=e189] [cursor=pointer]
+                      - generic [ref=e190] [cursor=pointer]
+                      - generic [ref=e191] [cursor=pointer]
+                      - generic [ref=e192] [cursor=pointer]
+                      - generic [ref=e193] [cursor=pointer]
+                      - generic [ref=e194] [cursor=pointer]
+                      - generic [ref=e195] [cursor=pointer]
+                      - generic [ref=e196] [cursor=pointer]
+                      - generic [ref=e197] [cursor=pointer]
+                      - generic: "1"
+                      - generic: "2"
+                      - generic: "3"
+                      - generic: "4"
+                      - generic: "5"
+                      - generic: "6"
+                      - generic: "7"
+                      - generic: "8"
+                      - generic: "9"
+                      - generic: "10"
+                      - generic: "11"
+                      - generic: "12"
+                      - generic: "13"
+                      - generic: "14"
+                      - generic: "15"
+                      - generic: "16"
+                      - generic: "17"
+                      - generic: "18"
+                      - generic: "19"
+                      - generic: "20"
+                      - generic: "21"
+                      - generic: Fn
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - tablist:
+                            - tab [selected]: Basic
+                            - tab: Screen Control
+                            - tab: Hotkey
+                          - tabpanel:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - paragraph: Configure the device's basic connection and power behavior here.
+                                  - list:
+                                    - listitem: Report Rate controls magnetic-switch ADC sampling as well as USB and 2.4G wireless reporting.
+                                    - listitem: Higher rates shorten the input interval but increase system load.
+                                    - listitem: Auto Sleep sets how long the device waits without input before entering sleep.
+                              - generic:
+                                - separator
+                                - paragraph: Connection
+                                - separator
+                              - generic:
+                                - generic:
+                                  - paragraph: Report Rate
+                                  - paragraph: 8K
+                                - paragraph: Affects the magnetic-switch ADC sampling rate and USB and wireless report rates.
+                                - generic:
+                                  - generic:
+                                    - slider
+                                    - generic: 1K
+                                    - generic: 2K
+                                    - generic: 4K
+                                    - generic: 8K
+                              - generic:
+                                - separator
+                                - paragraph: Power
+                                - separator
+                              - generic:
+                                - generic:
+                                  - paragraph: Auto Sleep
+                                  - paragraph: 5min
+                                - paragraph: The device enters sleep after remaining idle for the selected amount of time.
+                                - generic:
+                                  - generic:
+                                    - slider
+                                    - generic: 10s
+                                    - generic: 30s
+                                    - generic: 60s
+                                    - generic: 2min
+                                    - generic: 5min
+  - status [ref=e254]:
+    - generic [ref=e259]:
+      - text: Static route
+      - button [ref=e265] [cursor=pointer]
+  - generic:
+    - alert
+  - region "top Notifications alt+T"
+  - dialog [ref=e267]:
+    - heading "Sign in to HBox" [level=2] [ref=e269]
+    - generic [ref=e271]:
+      - paragraph [ref=e272]: Choose a third-party account to continue. HBox creates a separate internal account for each identity.
+      - button "Continue with WeChat" [active] [ref=e273] [cursor=pointer]
+      - button "Continue with Google" [ref=e276] [cursor=pointer]
+    - button "Close" [ref=e282] [cursor=pointer]

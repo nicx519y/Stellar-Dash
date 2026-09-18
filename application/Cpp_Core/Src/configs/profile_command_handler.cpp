@@ -1,10 +1,12 @@
-#include "configs/websocket_command_handler.hpp"
+#include "configs/device_command_handler.hpp"
 #include "storagemanager.hpp"
 #include "system_logger.h"
 #include "board_cfg.h"
 #include "cpp_utils.hpp"
 #include "configs/base64.hpp"
+#include "leds/led_config_safety.hpp"
 
+static bool decode_macro_binary(const char* b64, MacroConfig& out);
 
 
 // ============================================================================
@@ -333,7 +335,6 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     cJSON_AddNumberToObject(ledsConfigJSON, "ledAnimationSpeed", profile->ledsConfigs.ledAnimationSpeed);
 
     // 氛围灯配置
-    cJSON_AddBoolToObject(ledsConfigJSON, "hasAroundLed", g_has_led_around); // 是否包含氛围灯，由主板决定
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedEnabled", profile->ledsConfigs.aroundLedEnabled);
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedSyncToMainLed", profile->ledsConfigs.aroundLedSyncToMainLed);
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedTriggerByButton", profile->ledsConfigs.aroundLedTriggerByButton);
@@ -386,8 +387,8 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     return profileDetailsJSON;
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileList(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling get_profile_list command, cid: %d", request.getCid());
+DeviceCommandResponse ProfileCommandHandler::handleGetProfileList(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling get_profile_list command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
 
@@ -396,7 +397,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileList(const Web
     cJSON* profileListJSON = buildProfileListJSON();
     
     if (!profileListJSON) {
-        LOG_ERROR("WebSocket", "get_profile_list: Failed to build profile list JSON");
+        LOG_ERROR("DeviceCommand", "get_profile_list: Failed to build profile list JSON");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile list JSON");
     }
 
@@ -412,13 +413,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileList(const Web
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
     cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(defaultProfile));
 
-    // LOG_INFO("WebSocket", "get_profile_list command completed successfully");
+    // LOG_INFO("DeviceCommand", "get_profile_list command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleGetDefaultProfile(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling get_default_profile command, cid: %d", request.getCid());
+DeviceCommandResponse ProfileCommandHandler::handleGetDefaultProfile(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling get_default_profile command, cid: %d", request.getCid());
 
     Config& config = Storage::getInstance().config;
     
@@ -432,7 +433,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetDefaultProfile(const 
     }
 
     if(!defaultProfile) {
-        LOG_ERROR("WebSocket", "get_default_profile: Default profile not found");
+        LOG_ERROR("DeviceCommand", "get_default_profile: Default profile not found");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Default profile not found");
     }
 
@@ -441,13 +442,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetDefaultProfile(const 
     cJSON* profileDetailsJSON = buildProfileJSON(defaultProfile);
 
     if (!profileDetailsJSON) {
-        LOG_ERROR("WebSocket", "get_default_profile: Failed to build profile JSON");
+        LOG_ERROR("DeviceCommand", "get_default_profile: Failed to build profile JSON");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile JSON");
     }
     
     cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", profileDetailsJSON);
 
-    // LOG_INFO("WebSocket", "get_default_profile command completed successfully");
+    // LOG_INFO("DeviceCommand", "get_default_profile command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
@@ -578,6 +579,16 @@ void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile*
                     cJSON* triggers = cJSON_GetObjectItem(macroJSON, "triggerKeys");
 
                     MacroConfig& out = targetProfile->keysConfig.macros[index];
+                    cJSON* encoded =
+                        cJSON_GetObjectItem(macroJSON, "data");
+                    if (encoded && cJSON_IsString(encoded) &&
+                        encoded->valuestring) {
+                        if (!decode_macro_binary(
+                                encoded->valuestring, out)) {
+                            memset(&out, 0, sizeof(out));
+                        }
+                        continue;
+                    }
                     if (triggers && cJSON_IsArray(triggers)) {
                         uint8_t triggerCount = (uint8_t)cJSON_GetArraySize(triggers);
                         if (triggerCount > MAX_MACRO_TRIGGER_KEYS) triggerCount = MAX_MACRO_TRIGGER_KEYS;
@@ -674,15 +685,21 @@ void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile*
         if((item = cJSON_GetObjectItem(ledsConfig, "ledBrightness")) && cJSON_IsNumber(item)) {
             int val = item->valueint;
             if(val < 0) val = 0;
-            if(val > 255) val = 255;
-            targetProfile->ledsConfigs.ledBrightness = (uint8_t)val;
+            if(val > LedConfigSafety::kMaxBrightnessPercent) {
+                val = LedConfigSafety::kMaxBrightnessPercent;
+            }
+            targetProfile->ledsConfigs.ledBrightness =
+                LedConfigSafety::clampBrightnessPercent((uint8_t)val);
         }
 
         if((item = cJSON_GetObjectItem(ledsConfig, "ledAnimationSpeed")) && cJSON_IsNumber(item)) { 
             int val = item->valueint;
             if(val < 0) val = 0;
-            if(val > 255) val = 255;
-            targetProfile->ledsConfigs.ledAnimationSpeed = (uint8_t)val;
+            if(val > LedConfigSafety::kMaxAnimationSpeed) {
+                val = LedConfigSafety::kMaxAnimationSpeed;
+            }
+            targetProfile->ledsConfigs.ledAnimationSpeed =
+                LedConfigSafety::clampAnimationSpeed((uint8_t)val);
         }
 
         if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedEnabled"))) {
@@ -717,15 +734,21 @@ void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile*
         if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedBrightness")) && cJSON_IsNumber(item)) {
             int val = item->valueint;
             if(val < 0) val = 0;
-            if(val > 255) val = 255;
-            targetProfile->ledsConfigs.aroundLedBrightness = (uint8_t)val;
+            if(val > LedConfigSafety::kMaxBrightnessPercent) {
+                val = LedConfigSafety::kMaxBrightnessPercent;
+            }
+            targetProfile->ledsConfigs.aroundLedBrightness =
+                LedConfigSafety::clampBrightnessPercent((uint8_t)val);
         }
 
         if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedAnimationSpeed")) && cJSON_IsNumber(item)) {
             int val = item->valueint;
             if(val < 0) val = 0;
-            if(val > 255) val = 255;
-            targetProfile->ledsConfigs.aroundLedAnimationSpeed = (uint8_t)val;
+            if(val > LedConfigSafety::kMaxAnimationSpeed) {
+                val = LedConfigSafety::kMaxAnimationSpeed;
+            }
+            targetProfile->ledsConfigs.aroundLedAnimationSpeed =
+                LedConfigSafety::clampAnimationSpeed((uint8_t)val);
         }
     }
 
@@ -785,29 +808,29 @@ void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile*
     }
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling update_profile command, cid: %d", request.getCid());
+DeviceCommandResponse ProfileCommandHandler::handleUpdateProfile(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling update_profile command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "update_profile: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "update_profile: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
     cJSON* details = cJSON_GetObjectItem(params, "profileDetails");
     
     if(!details) {
-        LOG_ERROR("WebSocket", "update_profile: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "update_profile: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
     // 获取profile ID并查找对应的配置文件
     cJSON* idItem = cJSON_GetObjectItem(details, "id");
     if(!idItem) {
-        LOG_ERROR("WebSocket", "update_profile: Profile ID not provided");
+        LOG_ERROR("DeviceCommand", "update_profile: Profile ID not provided");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Profile ID not provided");
     }
 
@@ -820,7 +843,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
     }
 
     if(!targetProfile) {
-        LOG_ERROR("WebSocket", "update_profile: Profile not found");
+        LOG_ERROR("DeviceCommand", "update_profile: Profile not found");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
     }
 
@@ -829,7 +852,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
 
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("WebSocket", "update_profile: Failed to save configuration");
+        LOG_ERROR("DeviceCommand", "update_profile: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
     
@@ -837,13 +860,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* profileDetailsJSON = buildProfileJSON(targetProfile);
     if (!profileDetailsJSON) {
-        LOG_ERROR("WebSocket", "update_profile: Failed to build profile JSON");
+        LOG_ERROR("DeviceCommand", "update_profile: Failed to build profile JSON");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile JSON");
     }
     
     cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", profileDetailsJSON);
     
-    // LOG_INFO("WebSocket", "update_profile command completed successfully");
+    // LOG_INFO("DeviceCommand", "update_profile command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
@@ -856,6 +879,49 @@ static GamepadProfile* find_profile_by_id(Config& config, const char* id) {
         }
     }
     return nullptr;
+}
+
+DeviceCommandResponse
+ProfileCommandHandler::handleGetProfileDetails(
+    const DeviceCommandRequest& request) {
+    Config& config = Storage::getInstance().config;
+    cJSON* params = request.getParams();
+    cJSON* profileIdItem = params == nullptr
+        ? nullptr
+        : cJSON_GetObjectItem(params, "profileId");
+    if (!cJSON_IsString(profileIdItem) ||
+        profileIdItem->valuestring == nullptr) {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Missing profileId");
+    }
+
+    GamepadProfile* profile =
+        find_profile_by_id(config, profileIdItem->valuestring);
+    if (profile == nullptr || !profile->enabled) {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Profile not found");
+    }
+
+    cJSON* profileJson = buildProfileJSON(profile);
+    cJSON* data = cJSON_CreateObject();
+    if (profileJson == nullptr || data == nullptr) {
+        cJSON_Delete(profileJson);
+        cJSON_Delete(data);
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Failed to build profile JSON");
+    }
+    cJSON_AddItemToObject(data, "profileDetails", profileJson);
+    return create_success_response(
+        request.getCid(), request.getCommand(), data);
 }
 
 static void append_u16_le(std::string& out, uint16_t v) {
@@ -1130,7 +1196,38 @@ static cJSON* build_macro_json(const MacroConfig& macro, uint8_t index) {
     return macroJSON;
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleGetMacro(const WebSocketUpstreamMessage& request) {
+cJSON* ProfileCommandHandler::buildProfileExportJSON(
+    GamepadProfile* profile) {
+    cJSON* profileJson = buildProfileJSON(profile);
+    if (profileJson == nullptr || profile == nullptr) {
+        cJSON_Delete(profileJson);
+        return nullptr;
+    }
+    cJSON* keysConfig =
+        cJSON_GetObjectItem(profileJson, "keysConfig");
+    cJSON* macros = cJSON_CreateArray();
+    if (!cJSON_IsObject(keysConfig) || macros == nullptr) {
+        cJSON_Delete(macros);
+        cJSON_Delete(profileJson);
+        return nullptr;
+    }
+    for (uint8_t index = 0u;
+         index < MAX_NUM_MACROS;
+         ++index) {
+        cJSON* macro = build_macro_json(
+            profile->keysConfig.macros[index], index);
+        if (macro == nullptr) {
+            cJSON_Delete(macros);
+            cJSON_Delete(profileJson);
+            return nullptr;
+        }
+        cJSON_AddItemToArray(macros, macro);
+    }
+    cJSON_AddItemToObject(keysConfig, "macros", macros);
+    return profileJson;
+}
+
+DeviceCommandResponse ProfileCommandHandler::handleGetMacro(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
 
     cJSON* params = request.getParams();
@@ -1157,7 +1254,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetMacro(const WebSocket
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateMacro(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse ProfileCommandHandler::handleUpdateMacro(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
 
     cJSON* params = request.getParams();
@@ -1261,7 +1358,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateMacro(const WebSoc
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileMacros(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse ProfileCommandHandler::handleGetProfileMacros(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
     cJSON* params = request.getParams();
     if (!params) return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
@@ -1279,7 +1376,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileMacros(const W
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfileMacros(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse ProfileCommandHandler::handleUpdateProfileMacros(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
     cJSON* params = request.getParams();
     if (!params) return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
@@ -1314,15 +1411,15 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfileMacros(cons
     return create_success_response(request.getCid(), request.getCommand(), outJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling create_profile command, cid: %d", request.getCid());
+DeviceCommandResponse ProfileCommandHandler::handleCreateProfile(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling create_profile command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "create_profile: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "create_profile: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
@@ -1335,7 +1432,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebS
     }
 
     if(enabledCount >= config.numProfilesMax) {
-        LOG_ERROR("WebSocket", "create_profile: Maximum number of profiles reached");
+        LOG_ERROR("DeviceCommand", "create_profile: Maximum number of profiles reached");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Maximum number of profiles reached");
     }
 
@@ -1370,7 +1467,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebS
     }
 
     if(!targetProfile) {
-        LOG_ERROR("WebSocket", "create_profile: No available profile slot");
+        LOG_ERROR("DeviceCommand", "create_profile: No available profile slot");
         return create_error_response(request.getCid(), request.getCommand(), 1, "No available profile slot");
     }
 
@@ -1382,13 +1479,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebS
         targetProfile->name[sizeof(targetProfile->name) - 1] = '\0';  // 确保字符串结束
         STORAGE_MANAGER.setDefaultProfileId(targetProfile->id); // 设置默认配置文件ID 为新创建的配置文件ID
     } else {
-        LOG_ERROR("WebSocket", "create_profile: Profile name not provided");
+        LOG_ERROR("DeviceCommand", "create_profile: Profile name not provided");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Profile name not provided");
     }
 
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("WebSocket", "create_profile: Failed to save configuration");
+        LOG_ERROR("DeviceCommand", "create_profile: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
 
@@ -1397,34 +1494,34 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebS
     cJSON* profileListJSON = buildProfileListJSON();
     
     if (!profileListJSON) {
-        LOG_ERROR("WebSocket", "create_profile: Failed to build profile list JSON");
+        LOG_ERROR("DeviceCommand", "create_profile: Failed to build profile list JSON");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile list JSON");
     }
 
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
     cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(targetProfile));
     
-    // LOG_INFO("WebSocket", "create_profile command completed successfully");
+    // LOG_INFO("DeviceCommand", "create_profile command completed successfully");
 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling delete_profile command, cid: %d", request.getCid());
+DeviceCommandResponse ProfileCommandHandler::handleDeleteProfile(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling delete_profile command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "delete_profile: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "delete_profile: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
     // 获取要删除的配置文件ID
     cJSON* profileIdItem = cJSON_GetObjectItem(params, "profileId");
     if(!profileIdItem || !profileIdItem->valuestring) {
-        LOG_ERROR("WebSocket", "delete_profile: Profile ID not provided");
+        LOG_ERROR("DeviceCommand", "delete_profile: Profile ID not provided");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Profile ID not provided");
     }
 
@@ -1445,13 +1542,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebS
 
     // 如果目标配置文件不存在，则返回错误
     if(!targetProfile) {
-        LOG_ERROR("WebSocket", "delete_profile: Profile not found");
+        LOG_ERROR("DeviceCommand", "delete_profile: Profile not found");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
     }
 
     // 不允许关闭最后一个启用的配置文件
     if(numEnabledProfiles <= 1) {
-        LOG_ERROR("WebSocket", "delete_profile: Cannot delete the last active profile");
+        LOG_ERROR("DeviceCommand", "delete_profile: Cannot delete the last active profile");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Cannot delete the last active profile");
     }
 
@@ -1462,7 +1559,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebS
     // 保存目标配置文件的副本
     GamepadProfile* tempProfile = (GamepadProfile*)malloc(sizeof(GamepadProfile));
     if(!tempProfile) {
-        LOG_ERROR("WebSocket", "delete_profile: Failed to allocate memory");
+        LOG_ERROR("DeviceCommand", "delete_profile: Failed to allocate memory");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to allocate memory");
     }
     // 保存目标配置文件
@@ -1485,7 +1582,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebS
 
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("WebSocket", "delete_profile: Failed to save configuration");
+        LOG_ERROR("DeviceCommand", "delete_profile: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
 
@@ -1494,7 +1591,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebS
     cJSON* profileListJSON = buildProfileListJSON();
     
     if (!profileListJSON) {
-        LOG_ERROR("WebSocket", "delete_profile: Failed to build profile list JSON");
+        LOG_ERROR("DeviceCommand", "delete_profile: Failed to build profile list JSON");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile list JSON");
     }
 
@@ -1513,27 +1610,27 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebS
         cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", cJSON_CreateNull());
     }
     
-    // LOG_INFO("WebSocket", "delete_profile command completed successfully");
+    // LOG_INFO("DeviceCommand", "delete_profile command completed successfully");
 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleSwitchDefaultProfile(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling switch_default_profile command, cid: %d", request.getCid());
+DeviceCommandResponse ProfileCommandHandler::handleSwitchDefaultProfile(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling switch_default_profile command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "switch_default_profile: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "switch_default_profile: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
     // 获取要设置为默认的配置文件ID
     cJSON* profileIdItem = cJSON_GetObjectItem(params, "profileId");
     if(!profileIdItem || !profileIdItem->valuestring) {
-        LOG_ERROR("WebSocket", "switch_default_profile: Profile ID not provided");
+        LOG_ERROR("DeviceCommand", "switch_default_profile: Profile ID not provided");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Profile ID not provided");
     }
 
@@ -1547,13 +1644,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleSwitchDefaultProfile(con
     }
 
     if(!targetProfile) {
-        LOG_ERROR("WebSocket", "switch_default_profile: Profile not found");
+        LOG_ERROR("DeviceCommand", "switch_default_profile: Profile not found");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
     }
 
     // 检查目标配置文件是否已启用
     if(!targetProfile->enabled) {
-        LOG_ERROR("WebSocket", "switch_default_profile: Cannot set disabled profile as default");
+        LOG_ERROR("DeviceCommand", "switch_default_profile: Cannot set disabled profile as default");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Cannot set disabled profile as default");
     }
 
@@ -1561,7 +1658,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleSwitchDefaultProfile(con
 
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("WebSocket", "switch_default_profile: Failed to save configuration");
+        LOG_ERROR("DeviceCommand", "switch_default_profile: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
 
@@ -1570,25 +1667,27 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleSwitchDefaultProfile(con
     cJSON* profileListJSON = buildProfileListJSON();
     
     if (!profileListJSON) {
-        LOG_ERROR("WebSocket", "switch_default_profile: Failed to build profile list JSON");
+        LOG_ERROR("DeviceCommand", "switch_default_profile: Failed to build profile list JSON");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile list JSON");
     }
 
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
     cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(targetProfile));
     
-    // LOG_INFO("WebSocket", "switch_default_profile command completed successfully");
+    // LOG_INFO("DeviceCommand", "switch_default_profile command completed successfully");
 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handle(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse ProfileCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
     
     if (command == "get_profile_list") {
         return handleGetProfileList(request);
     } else if (command == "get_default_profile") {
         return handleGetDefaultProfile(request);
+    } else if (command == "get_profile_details") {
+        return handleGetProfileDetails(request);
     } else if (command == "update_profile") {
         return handleUpdateProfile(request);
     } else if (command == "get_macro") {

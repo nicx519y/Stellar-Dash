@@ -134,33 +134,74 @@ typedef struct
 #define SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET (1u << 11)
 #define SCREEN_FEATURE_COUNT                      12u
 
+typedef enum
+{
+    SCREEN_STYLE_DARK = 0,
+    SCREEN_STYLE_LIGHT = 1
+} ScreenStyle;
+
 typedef struct
 {
     uint8_t brightness;              // 屏幕亮度（0-100）
     uint8_t standbyDisplay;          // 待机显示：0 None, 1 BackgroundImage, 2 ButtonLayout
     uint8_t reserved0[2];            // 保留字节（对齐）
-    uint32_t backgroundColor;        // 背景颜色（RGB888：0x000000-0xFFFFFF）
-    uint32_t textColor;              // 文字颜色（RGB888：0x000000-0xFFFFFF）
-    char backgroundImageId[32];      // 背景图片资源ID（对应 assets 索引名）
+    uint8_t screenStyle;             // 屏幕风格：0 Dark, 1 Light
+    uint8_t reservedStyle[7];        // 保留旧颜色字段占位，用于兼容迁移
+    char backgroundImageId[32];      // 背景图片ID；当前仅允许已验证的 USER_IMAGE
     uint16_t currentPageId;          // 当前页面ID
     uint16_t reserved1;              // 保留字节（对齐）
     uint32_t featuresMask;           // 功能开关位图（SCREEN_FEATURE_*）
     uint8_t featuresOrder[SCREEN_FEATURE_COUNT];
-    uint8_t reserved2;
+    /* Persistent service flags; retains the former reserved2 byte layout. */
+    uint8_t serviceFlags;
 } ScreenControlConfig;
+
+#define SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE (1u << 0)
+#define SCREEN_SERVICE_CH585_IAP_CONFIRMED      (1u << 1)
+
+typedef struct
+{
+    uint32_t wakeHoldMs;             // PA0 低电平长按唤醒确认时间
+    uint32_t autoStandbyMs;          // 自动休眠：10s/30s/60s/2min/5min；旧值 0 迁移为 5min
+} PowerConfig;
+
+/*
+ * Latest-PCB immutable layout snapshot.
+ *
+ * This deliberately occupies the same three bytes as the former reserved0[]
+ * member so a V1 configuration can be migrated without changing sizeof(Config)
+ * or shifting any following fields in QSPI.
+ */
+typedef struct
+{
+    uint8_t batteryPackCount;         // 单个 1S2P 电池包
+    uint8_t keyLedCount;              // 18 Hall + 4 GPIO = 22
+    uint8_t ambientLedCount;          // 40 颗环境灯
+} HardwareLayoutConfig;
+
+#ifdef __cplusplus
+static_assert(sizeof(HardwareLayoutConfig) == 3u,
+              "HardwareLayoutConfig must preserve the former reserved0[3] layout");
+#endif
 
 typedef struct
 {
     uint32_t version;
     BootMode bootMode;
     InputMode inputMode;
+    ConnectionMode connectionMode;
+    WirelessReportRate wirelessReportRate;
+    // Persisted RF power hint. It is a boot-time hint only; runtime must
+    // still converge CH584 to the target connection-mode policy.
+    uint8_t reservedConnection0;
     char defaultProfileId[16];
     uint8_t numProfilesMax;
     GamepadProfile profiles[NUM_PROFILES];
     GamepadHotkeyEntry hotkeys[NUM_GAMEPAD_HOTKEYS];
     bool autoCalibrationEnabled;
-    uint8_t reserved0[3];
+    HardwareLayoutConfig hardware;
     ScreenControlConfig screenControl;
+    PowerConfig power;
 } Config;
 
 namespace ConfigUtils {
@@ -179,6 +220,13 @@ namespace ConfigUtils {
     // Mappings helpers
     const char* getInputModeString(InputMode mode);
     InputMode getInputModeFromString(const char* str);
+    const char* getConnectionModeString(ConnectionMode mode);
+    ConnectionMode getConnectionModeFromString(const char* str);
+    const char* getWirelessReportRateString(WirelessReportRate rate);
+    WirelessReportRate getWirelessReportRateFromString(const char* str);
+    uint16_t getWirelessReportRateHz(WirelessReportRate rate);
+    const char* getScreenStyleString(uint8_t style);
+    uint8_t getScreenStyleFromString(const char* str);
     const char* getGamepadHotkeyString(GamepadHotkey action);
     GamepadHotkey getGamepadHotkeyFromString(const char* str);
 };

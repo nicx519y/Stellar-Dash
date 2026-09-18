@@ -2,7 +2,7 @@
 """
 STM32 H7xx 双槽固件构建工具
 支持构建 bootloader 和 application (槽A/槽B)
-支持烧录 bootloader 和 application
+支持烧录 application；V2 bootloader 单独烧录按安全策略拒绝
 """
 
 import os
@@ -13,8 +13,18 @@ import shutil
 import json
 import multiprocessing
 import re
+import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
+
+# Windows 控制台经常是 GBK，避免输出 Unicode 符号导致打印异常中断流程
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(errors="replace")
+        sys.stderr.reconfigure(errors="replace")
+    except Exception:
+        pass
 
 class BuildTool:
     def __init__(self):
@@ -23,7 +33,6 @@ class BuildTool:
         self.application_dir = self.project_root / "application"
         self.tools_dir = self.project_root / "tools"
         self.build_config_file = self.tools_dir / "build_config.json"
-        
         # 自动检测CPU核心数
         self.cpu_count = multiprocessing.cpu_count()
         
@@ -125,10 +134,18 @@ class BuildTool:
         except Exception as e:
             print(f"警告: 保存配置文件失败: {e}")
 
-    def run_command(self, cmd: list, cwd: Path, env: Optional[Dict[str, str]] = None) -> bool:
+    def run_command(
+        self,
+        cmd: list,
+        cwd: Path,
+        env: Optional[Dict[str, str]] = None,
+        *,
+        quiet: bool = False,
+    ) -> bool:
         """执行命令"""
-        print(f"执行命令: {' '.join(cmd)}")
-        print(f"工作目录: {cwd}")
+        if not quiet:
+            print(f"执行命令: {' '.join(cmd)}")
+            print(f"工作目录: {cwd}")
         
         try:
             # 准备环境变量
@@ -142,16 +159,43 @@ class BuildTool:
                 if gcc_path.exists():
                     exec_env["PATH"] = str(gcc_path) + os.pathsep + exec_env.get("PATH", "")
             
-            result = subprocess.run(
-                cmd, 
-                cwd=cwd, 
+            if quiet:
+                result = subprocess.run(
+                    cmd,
+                    cwd=cwd,
+                    env=exec_env,
+                    check=False,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    errors="replace",
+                )
+                if result.returncode != 0:
+                    detail = (result.stdout or "").strip()
+                    if detail:
+                        detail = "\n".join(
+                            line
+                            for line in detail.splitlines()
+                            if line.strip()
+                            != "DEPRECATED! use 'read_memory' not 'mem2array'"
+                        ).strip()
+                    print()
+                    if detail:
+                        print(detail)
+                    print(f"命令执行失败，退出码: {result.returncode}")
+                    return False
+                return True
+
+            subprocess.run(
+                cmd,
+                cwd=cwd,
                 env=exec_env,
                 check=True,
-                capture_output=False  # 让输出直接显示
+                capture_output=False,
             )
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"命令执行失败，退出码: {e.returncode}")
+        except subprocess.CalledProcessError as exc:
+            print(f"命令执行失败，退出码: {exc.returncode}")
             return False
         except FileNotFoundError:
             print(f"命令未找到: {cmd[0]}")
@@ -376,56 +420,511 @@ class BuildTool:
         return success
 
     def flash_bootloader(self) -> bool:
-        """烧录 bootloader"""
+        """拒绝不完整的 V2 bootloader 单独烧录事务。"""
         print("=" * 50)
-        print("烧录 Bootloader")
+        print("Bootloader 单独烧录已禁用")
         print("=" * 50)
-        
-        bootloader_elf = self.bootloader_dir / "build" / "bootloader.elf"
-        if not bootloader_elf.exists():
-            print(f"错误: Bootloader ELF文件不存在: {bootloader_elf}")
-            print("请先构建 bootloader")
-            return False
-            
-        # 使用make flash（如果Makefile支持）
-        if (self.bootloader_dir / "Makefile").exists():
-            # 检查Makefile是否有flash目标
-            try:
-                with open(self.bootloader_dir / "Makefile", 'r') as f:
-                    makefile_content = f.read()
-                if "flash:" in makefile_content:
-                    return self.run_command(["make", "flash"], self.bootloader_dir)
-            except:
-                pass
-        
-        # 转换路径为字符串，确保Windows兼容性
-        bootloader_elf_str = str(bootloader_elf).replace('\\', '/')
-        
-        # 使用OpenOCD烧录
-        openocd_cmd = [
-            self.config["openocd_path"],
-            "-f", f"interface/{self.config['openocd_interface']}.cfg",
-            "-f", f"target/{self.config['openocd_target']}.cfg",
-            "-c", "init",
-            "-c", "halt",
-            "-c", f"flash write_image erase {bootloader_elf_str}",
-            "-c", "reset run",
-            "-c", "shutdown"
-        ]
-        
-        return self.run_command(openocd_cmd, self.bootloader_dir)
+        print(
+            "错误: STM32H750xB 的 bootloader、设备身份和防降级记录"
+            "共享一个 128KiB erase sector。"
+        )
+        print(
+            "必须使用经过评审的工厂全 sector 事务，一次性恢复 bootloader、"
+            "identity 和 minimum security version；现场工具不得擦除该 sector。"
+        )
+        return False
 
     def flash_application(self, slot: str) -> bool:
         """烧录应用程序到指定槽"""
         print(f"正在烧录应用程序到槽 {slot}...")
-        
-        # 首先尝试使用Makefile的flash目标（推荐方式）
-        makefile_result = self._flash_using_makefile(slot)
-        if makefile_result:
+
+        if slot not in self.slot_config:
+            print(f"错误: 未知槽 {slot}")
+            return False
+
+        bin_file = (
+            self.application_dir
+            / "build"
+            / f"application_slot_{slot}.bin"
+        )
+        if not bin_file.exists():
+            bin_file = self.application_dir / "build" / "application.bin"
+            print(f"槽{slot}特定BIN文件不存在，使用默认文件: {bin_file}")
+        if not bin_file.exists():
+            print(f"错误: Application BIN文件不存在: {bin_file}")
+            return False
+
+        return self._flash_qspi_file_in_chunks(
+            bin_file,
+            int(self.slot_config[slot]["address"], 16),
+            f"Application槽{slot}",
+        )
+
+    def _flash_qspi_file_in_chunks(
+        self,
+        source_file: Path,
+        target_address: int,
+        label: str,
+        *,
+        reset_after: bool = True,
+        stlink_serial: Optional[str] = None,
+        expected_target_uid: Optional[str] = None,
+        adapter_speed_khz: Optional[int] = None,
+        connect_under_reset_fallback: bool = False,
+        runtime_attach: bool = False,
+        leave_halted: bool = False,
+    ) -> bool:
+        """Erase, program and physically verify one complete QSPI image."""
+        try:
+            source_file = source_file.resolve(strict=True)
+            payload_size = source_file.stat().st_size
+        except OSError as exc:
+            print(f"错误: 无法读取{label}文件: {exc}")
+            return False
+
+        if payload_size <= 0:
+            print(f"错误: {label}文件为空: {source_file}")
+            return False
+        if stlink_serial is not None and re.fullmatch(
+            r"[0-9A-Fa-f]{24}", stlink_serial
+        ) is None:
+            print("错误: ST-Link序列号必须是24位十六进制字符")
+            return False
+        if expected_target_uid is not None and re.fullmatch(
+            r"[0-9A-Fa-f]{24}", expected_target_uid
+        ) is None:
+            print("错误: STM32 UID必须是24位十六进制字符")
+            return False
+        if stlink_serial is not None and expected_target_uid is None:
+            print("错误: 指定ST-Link序列号时必须同时提供目标UID")
+            return False
+        if adapter_speed_khz is not None and not (
+            50 <= adapter_speed_khz <= 10000
+        ):
+            print("错误: SWD频率必须在50..10000 kHz范围内")
+            return False
+        if leave_halted and not runtime_attach:
+            print("错误: leave_halted只允许用于运行时QSPI事务")
+            return False
+
+        qspi_base = 0x90000000
+        qspi_size = 0x00800000
+        qspi_sector_size = 0x00010000
+        target_end = target_address + payload_size
+        if (
+            target_address < qspi_base
+            or target_end > qspi_base + qspi_size
+            or target_address % qspi_sector_size != 0
+        ):
+            print(
+                f"错误: {label}目标范围不是有效的64KiB对齐QSPI区域: "
+                f"0x{target_address:08X}..0x{target_end:08X}"
+            )
+            return False
+
+        openocd_cfg = (
+            self.application_dir
+            / "Openocd_Script"
+            / "ST-LINK-QSPIFLASH.cfg"
+        )
+        if not openocd_cfg.exists():
+            print(f"错误: OpenOCD QSPI配置不存在: {openocd_cfg}")
+            return False
+
+        if runtime_attach:
+            return self._flash_runtime_qspi_file(
+                source_file,
+                target_address,
+                label,
+                reset_after=reset_after,
+                stlink_serial=stlink_serial,
+                expected_target_uid=expected_target_uid,
+                adapter_speed_khz=adapter_speed_khz,
+                leave_halted=leave_halted,
+            )
+
+        print(
+            f"{label}: {payload_size} bytes，目标0x{target_address:08X}，"
+            "单次整文件擦除/写入/物理回读校验"
+        )
+
+        try:
+            build_dir = self.application_dir / "build"
+            build_dir.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=".qspi-flash-", dir=build_dir
+            ) as temporary:
+                temporary_dir = Path(temporary)
+                encoded = self._openocd_tcl_braced_path(source_file)
+                commands = [
+                    "gdb_port disabled",
+                    "tcl_port disabled",
+                    "telnet_port disabled",
+                    "init",
+                    "reset init",
+                    *(
+                        self._openocd_target_assert_commands(
+                            expected_target_uid
+                        )
+                        if expected_target_uid is not None
+                        else []
+                    ),
+                    "flash probe 1",
+                    f"flash write_image erase {encoded} "
+                    f"0x{target_address:08X} bin",
+                    f"flash verify_bank 1 {encoded} "
+                    f"0x{target_address - qspi_base:08X}",
+                ]
+                if reset_after:
+                    commands.append("reset run")
+                commands.append("shutdown")
+
+                script = temporary_dir / "openocd-single-qspi.tcl"
+                script.write_text(
+                    "\n".join(commands) + "\n", encoding="utf-8"
+                )
+                command = [
+                    self.config.get("openocd_path", "openocd"),
+                    "-d0",
+                    "-f",
+                    str(openocd_cfg),
+                ]
+                if stlink_serial is not None:
+                    command.extend(
+                        ["-c", f"adapter serial {stlink_serial.upper()}"]
+                    )
+                if adapter_speed_khz is not None:
+                    command.extend(
+                        ["-c", f"adapter speed {adapter_speed_khz}"]
+                    )
+                base_command = list(command)
+                command.extend(["-f", str(script)])
+                success = self.run_command(
+                    command, self.application_dir, quiet=True
+                )
+                if not success and connect_under_reset_fallback:
+                    print(
+                        f"{label}: normal SWD session failed; "
+                        "retrying connect-under-reset"
+                    )
+                    fallback = [
+                        *base_command,
+                        "-c",
+                        "reset_config connect_assert_srst",
+                        "-f",
+                        str(script),
+                    ]
+                    success = self.run_command(
+                        fallback, self.application_dir, quiet=True
+                    )
+                if not success:
+                    print(f"错误: {label}单次整文件烧录/校验失败")
+                    return False
+        except (OSError, ValueError) as exc:
+            print(f"错误: 无法准备QSPI整文件烧录事务: {exc}")
+            return False
+
+        print(f"{label}单次整文件烧录并通过stmqspi物理回读校验")
+        return True
+
+    def _flash_runtime_qspi_file(
+        self,
+        source_file: Path,
+        target_address: int,
+        label: str,
+        *,
+        reset_after: bool,
+        stlink_serial: Optional[str],
+        expected_target_uid: Optional[str],
+        adapter_speed_khz: Optional[int],
+        leave_halted: bool,
+    ) -> bool:
+        """Preserve the accepted single-session runtime-attach QSPI route."""
+
+        openocd_cfg = (
+            self.application_dir
+            / "Openocd_Script"
+            / "ST-LINK-QSPIFLASH.cfg"
+        )
+        qspi_base = 0x90000000
+        payload_size = source_file.stat().st_size
+        print(
+            f"{label}: {payload_size} bytes，目标0x{target_address:08X}，"
+            "使用已验收的运行时stmqspi整文件写入/校验"
+        )
+        try:
+            build_dir = self.application_dir / "build"
+            build_dir.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=".qspi-flash-", dir=build_dir
+            ) as temporary:
+                temporary_dir = Path(temporary)
+                encoded = self._openocd_tcl_braced_path(source_file)
+                commands = [
+                    "gdb_port disabled",
+                    "tcl_port disabled",
+                    "telnet_port disabled",
+                    "init",
+                    "halt",
+                    *(
+                        self._openocd_target_assert_commands(expected_target_uid)
+                        if expected_target_uid is not None
+                        else []
+                    ),
+                    "qspi_init",
+                    "flash probe 1",
+                    f"flash write_image erase {encoded} "
+                    f"0x{target_address:08X} bin",
+                    f"flash verify_bank 1 {encoded} "
+                    f"0x{target_address - qspi_base:08X}",
+                    "qspi_init",
+                ]
+                if reset_after:
+                    # The verified commit is complete before this SYSRESETREQ;
+                    # do not wait for the DAP to return.
+                    commands.append("mww 0xE000ED0C 0x05FA0004")
+                elif not leave_halted:
+                    commands.append("resume")
+                commands.append("shutdown")
+
+                script = temporary_dir / "openocd-runtime-qspi.tcl"
+                script.write_text(
+                    "\n".join(commands) + "\n", encoding="utf-8"
+                )
+                command = [
+                    self.config.get("openocd_path", "openocd"),
+                    "-d0",
+                    "-f",
+                    str(openocd_cfg),
+                ]
+                if stlink_serial is not None:
+                    command.extend(
+                        ["-c", f"adapter serial {stlink_serial.upper()}"]
+                    )
+                if adapter_speed_khz is not None:
+                    command.extend(
+                        ["-c", f"adapter speed {adapter_speed_khz}"]
+                    )
+                command.extend(["-f", str(script)])
+                if not self.run_command(
+                    command, self.application_dir, quiet=True
+                ):
+                    print(f"错误: {label}运行时QSPI整文件写入/校验失败")
+                    return False
+        except (OSError, ValueError) as exc:
+            print(f"错误: 无法准备运行时QSPI烧录事务: {exc}")
+            return False
+
+        print(f"{label}运行时QSPI整文件烧录并校验成功")
+        return True
+
+    @staticmethod
+    def _openocd_tcl_braced_path(
+        path: Path,
+        *,
+        must_exist: bool = True,
+    ) -> str:
+        """Encode one filesystem path as a safe Tcl braced word."""
+        try:
+            value = path.resolve(strict=must_exist).as_posix()
+        except OSError as exc:
+            raise ValueError(f"无法解析OpenOCD Tcl路径: {path}") from exc
+        if any(character in value for character in "{}\r\n"):
+            raise ValueError("OpenOCD Tcl路径不能包含花括号或换行符")
+        return "{" + value + "}"
+
+    @staticmethod
+    def _openocd_target_assert_commands(expected_uid: str) -> list[str]:
+        """Return Tcl assertions for STM32H750 DEV_ID and UID."""
+        uid = expected_uid.upper()
+        if re.fullmatch(r"[0-9A-F]{24}", uid) is None:
+            raise ValueError("STM32 UID必须是24位十六进制字符")
+        commands = [
+            "set hbox_dbgmcu_idcode [mrw 0x5C001000]",
+            "if {($hbox_dbgmcu_idcode & 0xFFF) != 0x450} "
+            "{error {STM32 DEV_ID changed during flash transaction}}",
+        ]
+        for index in range(3):
+            address = 0x1FF1E800 + index * 4
+            word = uid[index * 8 : (index + 1) * 8]
+            commands.append(
+                f"set hbox_uid_{index} [mrw 0x{address:08X}]"
+            )
+            commands.append(
+                f"if {{$hbox_uid_{index} != 0x{word}}} "
+                "{error {STM32 UID changed during flash transaction}}"
+            )
+        return commands
+
+    def _load_internal_flash_security_layout(self) -> Optional[Dict[str, int]]:
+        """从共享头文件读取内部 Flash 安全布局，避免 Python 常量漂移。"""
+        header = self.project_root / "common" / "internal_flash_security_layout.h"
+        try:
+            text = header.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"错误: 无法读取内部 Flash 布局: {exc}")
+            return None
+
+        names = {
+            "base": "HBOX_INTERNAL_FLASH_BASE_ADDRESS",
+            "total": "HBOX_INTERNAL_FLASH_TOTAL_BYTES",
+            "identity": "HBOX_DEVICE_IDENTITY_REGION_ADDRESS",
+        }
+        values: Dict[str, int] = {}
+        for key, macro in names.items():
+            match = re.search(
+                rf"^[ \t]*#define[ \t]+{macro}[ \t]+(0x[0-9A-Fa-f]+|[0-9]+)u?",
+                text,
+                re.MULTILINE,
+            )
+            if match is None:
+                print(f"错误: 内部 Flash 布局缺少 {macro}")
+                return None
+            values[key] = int(match.group(1), 0)
+
+        end = values["base"] + values["total"]
+        if not (values["base"] < values["identity"] < end):
+            print("错误: 内部 Flash 安全布局不合法")
+            return None
+        values["protected_size"] = end - values["identity"]
+        return values
+
+    def _bootloader_openocd_prefix(self) -> list:
+        return [
+            self.config.get("openocd_path", "openocd"),
+            "-d0",
+            "-f", "Openocd_Script/ST-LINK-FLASH.cfg",
+            "-c", "init",
+            "-c", "halt",
+            "-c", "reset halt",
+        ]
+
+    @staticmethod
+    def _file_is_erased(path: Path, expected_size: int) -> bool:
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            print(f"错误: 无法读取 Flash 检查文件 {path}: {exc}")
+            return False
+        if len(data) != expected_size:
+            print(
+                f"错误: Flash 检查文件大小错误: {len(data)}，"
+                f"期望 {expected_size}"
+            )
+            return False
+        return all(value == 0xFF for value in data)
+
+    def flash_bootloader_development(self) -> bool:
+        """仅为未置备开发板烧录 bootloader；生产身份存在时拒绝擦除。"""
+        print("=" * 50)
+        print("开发板 Bootloader 安全烧录")
+        print("=" * 50)
+
+        bootloader_elf = self.bootloader_dir / "build" / "bootloader.elf"
+        if not bootloader_elf.is_file():
+            print(f"错误: Bootloader ELF 文件不存在: {bootloader_elf}")
+            print("请先执行: python tools/hbox.py build bootloader")
+            return False
+
+        layout = self._load_internal_flash_security_layout()
+        if layout is None:
+            return False
+
+        build_dir = self.bootloader_dir / "build"
+        backup_dir = self.project_root / ".hbox" / "device-backups"
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        protected_dump = build_dir / ".development-security-tail.bin"
+        post_flash_dump = build_dir / ".development-security-tail-after.bin"
+        sector_backup = backup_dir / f"internal-flash-{timestamp}.bin"
+
+        for temporary in (protected_dump, post_flash_dump):
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError as exc:
+                print(f"错误: 无法清理临时文件 {temporary}: {exc}")
+                return False
+
+        try:
+            print("1/4 检查设备 Identity 和 Security Version 区域...")
+            read_protected = self._bootloader_openocd_prefix() + [
+                "-c",
+                (
+                    f'dump_image "{protected_dump.as_posix()}" '
+                    f'0x{layout["identity"]:08X} '
+                    f'0x{layout["protected_size"]:X}'
+                ),
+                "-c", "shutdown",
+            ]
+            if not self.run_command(read_protected, self.bootloader_dir):
+                print("错误: 无法读取安全状态区域；禁止执行擦除")
+                print("如果设备处于 RDP1，请勿执行 read-unprotect")
+                return False
+            if not self._file_is_erased(
+                protected_dump, layout["protected_size"]
+            ):
+                print("错误: 检测到设备 Identity 或防降级记录")
+                print("该设备不是未置备开发板，已拒绝擦除内部 Flash")
+                return False
+
+            print("2/4 备份整个 128KiB 内部 Flash...")
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            read_sector = self._bootloader_openocd_prefix() + [
+                "-c",
+                (
+                    f'dump_image "{sector_backup.as_posix()}" '
+                    f'0x{layout["base"]:08X} 0x{layout["total"]:X}'
+                ),
+                "-c", "shutdown",
+            ]
+            if not self.run_command(read_sector, self.bootloader_dir):
+                print("错误: 内部 Flash 备份失败；禁止执行擦除")
+                return False
+            try:
+                backup_size = sector_backup.stat().st_size
+            except OSError:
+                backup_size = -1
+            if backup_size != layout["total"]:
+                print(
+                    f"错误: 内部 Flash 备份大小错误: {backup_size}，"
+                    f"期望 {layout['total']}"
+                )
+                return False
+            print(f"开发板备份已保存: {sector_backup}")
+
+            print("3/4 擦除内部 sector、烧录并校验 Bootloader...")
+            flash_command = self._bootloader_openocd_prefix() + [
+                "-c", "flash info 0",
+                "-c", "flash erase_sector 0 0 0",
+                "-c", f'program "{bootloader_elf.as_posix()}" verify',
+                "-c",
+                (
+                    f'dump_image "{post_flash_dump.as_posix()}" '
+                    f'0x{layout["identity"]:08X} '
+                    f'0x{layout["protected_size"]:X}'
+                ),
+                "-c", "reset run",
+                "-c", "shutdown",
+            ]
+            if not self.run_command(flash_command, self.bootloader_dir):
+                print("错误: Bootloader 开发烧录失败")
+                return False
+
+            print("4/4 校验保留安全区域仍为空...")
+            if not self._file_is_erased(
+                post_flash_dump, layout["protected_size"]
+            ):
+                print("错误: Bootloader ELF 越界写入了安全状态区域")
+                return False
+
+            print("Bootloader 开发烧录成功")
+            print("注意: 此入口只适用于 Identity/Security Version 为空的开发板")
             return True
-            
-        # 如果Makefile不可用，使用手动OpenOCD配置
-        return self._flash_using_openocd(slot)
+        finally:
+            for temporary in (protected_dump, post_flash_dump):
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     
     def load_assets_cfg(self) -> Dict[str, Any]:
@@ -441,10 +940,10 @@ class BuildTool:
             pass
         return cfg
     def flash_web_resources(self, slot: str) -> bool:
-        """烧录Web Resources到指定槽"""
+        """烧录V1 Legacy Web Resources到指定槽。V2不调用此入口。"""
         print("=" * 50)
         print("=" * 50)
-        print(f"烧录 Web Resources 到槽 {slot}")
+        print(f"烧录 V1 Legacy Web Resources 到槽 {slot}")
         print("=" * 50)
         
         # 检查Web Resources文件是否存在
@@ -460,23 +959,17 @@ class BuildTool:
             
         slot_cfg = self.slot_config[slot]
         webres_address = slot_cfg["webres_address"]
-        
-        # 计算物理地址（去掉0x90000000的内存映射基址）
-        physical_address = hex(int(webres_address, 16) - 0x90000000)
-        
+
         print(f"Web Resources文件: {web_resources_file}")
-        print(f"目标地址: {webres_address} (物理地址: {physical_address})")
-        
-        # 首先尝试使用Makefile方式
-        makefile_result = self._flash_web_resources_using_makefile(slot, webres_address, physical_address)
-        if makefile_result:
-            return True
-            
-        # 如果失败，使用OpenOCD方式
-        return self._flash_web_resources_using_openocd(slot, webres_address, physical_address)
+        print(f"目标地址: {webres_address}")
+        return self._flash_qspi_file_in_chunks(
+            web_resources_file,
+            int(webres_address, 16),
+            f"V1 WebResources槽{slot}",
+        )
 
     def build_system_assets(self) -> Optional[Path]:
-        assets_dir = self.application_dir / "assets" / "icons"
+        assets_dir = self.application_dir / "assets" / "sysicons"
         if not assets_dir.exists():
             print(f"未找到 assets 目录: {assets_dir}")
             return None
@@ -563,41 +1056,24 @@ class BuildTool:
             print(f"错误: sysbg.bin 超过用户图片区大小: {file_size} > {max_size}")
             return False
 
-        openocd_cfg = self.application_dir / "Openocd_Script" / "ST-LINK-QSPIFLASH.cfg"
-        if not openocd_cfg.exists():
-            openocd_cfg = self.application_dir / "Openocd_Script" / "openocd.cfg"
-            if not openocd_cfg.exists():
-                print("错误: OpenOCD配置文件不存在")
-                return False
-
-        sysbg_path = str(out_file).replace('\\', '/')
-        cmd = [
-            "openocd",
-            "-d0",
-            "-f", str(openocd_cfg),
-            "-c", "init",
-            "-c", "halt",
-            "-c", "reset init",
-            "-c", f"flash write_image erase \"{sysbg_path}\" {target_address}",
-            "-c", f"flash verify_image \"{sysbg_path}\" {target_address}",
-            "-c", "reset",
-            "-c", "shutdown"
-        ]
-
-        return self.run_command(cmd, self.application_dir)
+        return self._flash_qspi_file_in_chunks(
+            out_file,
+            int(target_address, 16),
+            "系统背景图片",
+        )
 
     def flash_system_assets(self, allow_missing: bool = False) -> bool:
         print("=" * 50)
         print("烧录 系统图片资源 (assets)")
         print("=" * 50)
 
-        assets_dir = self.application_dir / "assets" / "icons"
+        assets_dir = self.application_dir / "assets" / "sysicons"
         if not assets_dir.exists():
             if allow_missing:
-                print(f"未找到 icons 目录: {assets_dir}")
+                print(f"未找到 sysicons 目录: {assets_dir}")
                 print("跳过系统图片资源烧录")
                 return True
-            print(f"未找到 icons 目录: {assets_dir}")
+            print(f"未找到 sysicons 目录: {assets_dir}")
             return False
 
         out_file = self.build_system_assets()
@@ -611,38 +1087,21 @@ class BuildTool:
             print(f"错误: system_assets.bin 超过系统图片区大小: {file_size} > {max_size}")
             return False
 
-        openocd_cfg = self.application_dir / "Openocd_Script" / "ST-LINK-QSPIFLASH.cfg"
-        if not openocd_cfg.exists():
-            openocd_cfg = self.application_dir / "Openocd_Script" / "openocd.cfg"
-            if not openocd_cfg.exists():
-                print("错误: OpenOCD配置文件不存在")
-                return False
-
-        assets_path = str(out_file).replace('\\', '/')
-        cmd = [
-            "openocd",
-            "-d0",
-            "-f", str(openocd_cfg),
-            "-c", "init",
-            "-c", "halt",
-            "-c", "reset init",
-            "-c", f"flash write_image erase \"{assets_path}\" {target_address}",
-            "-c", f"flash verify_image \"{assets_path}\" {target_address}",
-            "-c", "reset",
-            "-c", "shutdown"
-        ]
-
-        return self.run_command(cmd, self.application_dir)
+        return self._flash_qspi_file_in_chunks(
+            out_file,
+            int(target_address, 16),
+            "系统图片资源",
+        )
         
     def _flash_using_makefile(self, slot: str) -> bool:
         """使用Makefile的flash目标进行烧录"""
+        temp_files = []
         try:
             makefile_path = self.application_dir / "Makefile"
             if not makefile_path.exists():
                 return False
                 
             # 对于特定槽，需要临时复制文件
-            temp_files = []
             hex_file = None
             
             if slot == "A":
@@ -682,103 +1141,30 @@ class BuildTool:
             result = subprocess.run(
                 cmd,
                 cwd=self.application_dir,
-                capture_output=True,
-                text=True,
+                capture_output=False,
                 timeout=120
             )
             
-            # 恢复备份文件
-            for backup_path in temp_files:
-                if backup_path and backup_path.exists():
-                    original_path = backup_path.with_suffix('')
-                    shutil.move(backup_path, original_path)
-                    
             if result.returncode == 0:
-                print(f"✓ Makefile烧录成功")
-                if "wrote" in result.stdout:
-                    for line in result.stdout.split('\n'):
-                        if "wrote" in line:
-                            print(f"  {line.strip()}")
+                print("Makefile烧录成功")
                 return True
             else:
-                print(f"Makefile烧录失败: {result.stderr}")
+                print("Makefile烧录失败")
                 return False
                 
         except Exception as e:
             print(f"Makefile烧录异常: {e}")
             return False
+        finally:
+            # 无论成功失败都恢复备份，避免污染后续烧录
+            for backup_path in temp_files:
+                if backup_path and backup_path.exists():
+                    original_path = backup_path.with_suffix('')
+                    shutil.move(backup_path, original_path)
     
     def _flash_using_openocd(self, slot: str) -> bool:
-        """使用手动OpenOCD配置进行烧录"""
-        try:
-            # 确定HEX文件路径
-            if slot == "A":
-                hex_file = self.application_dir / "build" / "application_slot_A.hex"
-                if not hex_file.exists():
-                    hex_file = self.application_dir / "build" / "application.hex"
-                    print(f"槽A特定文件不存在，使用默认HEX文件: {hex_file}")
-            elif slot == "B":
-                hex_file = self.application_dir / "build" / "application_slot_B.hex"
-                if not hex_file.exists():
-                    hex_file = self.application_dir / "build" / "application.hex"
-                    print(f"槽B特定文件不存在，使用默认HEX文件: {hex_file}")
-            else:
-                hex_file = self.application_dir / "build" / "application.hex"
-                
-            if not hex_file.exists():
-                print(f"错误: HEX文件不存在: {hex_file}")
-                return False
-                
-            # 优先使用QSPI Flash配置
-            openocd_cfg = self.application_dir / "Openocd_Script" / "ST-LINK-QSPIFLASH.cfg"
-            if not openocd_cfg.exists():
-                # 备用配置
-                openocd_cfg = self.application_dir / "Openocd_Script" / "openocd.cfg"
-                if not openocd_cfg.exists():
-                    print(f"错误: OpenOCD配置文件不存在")
-                    return False
-                    
-            print(f"使用OpenOCD配置: {openocd_cfg}")
-            print(f"烧录HEX文件: {hex_file}")
-            
-            # 使用与Makefile相同的OpenOCD命令
-            cmd = [
-                "openocd",
-                "-d0",
-                "-f", str(openocd_cfg),
-                "-c", "init",
-                "-c", "halt", 
-                "-c", "reset init",
-                "-c", f"flash write_image erase {hex_file} 0x00000000",
-                "-c", f"flash verify_image {hex_file} 0x00000000",
-                "-c", "reset run",
-                "-c", "shutdown"
-            ]
-            
-            result = subprocess.run(
-                cmd,
-                cwd=self.application_dir,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-            
-            if result.returncode == 0:
-                print(f"✓ OpenOCD烧录成功")
-                if "wrote" in result.stdout:
-                    for line in result.stdout.split('\n'):
-                        if "wrote" in line:
-                            print(f"  {line.strip()}")
-                return True
-            else:
-                print(f"OpenOCD烧录失败:")
-                print(f"stdout: {result.stdout}")
-                print(f"stderr: {result.stderr}")
-                return False
-                
-        except Exception as e:
-            print(f"OpenOCD烧录异常: {e}")
-            return False
+        """兼容旧调用点；实际使用稳定的QSPI分块烧录。"""
+        return self.flash_application(slot)
 
     def _flash_web_resources_using_makefile(self, slot: str, webres_address: str, physical_address: str) -> bool:
         """使用Makefile方式烧录Web Resources"""
@@ -872,7 +1258,7 @@ class BuildTool:
             
         # 检查Web Resources文件
         web_resources_file = self.application_dir / "Libs" / "httpd" / "ex_fsdata.bin"
-        print(f"  Web Resources: {'✅' if web_resources_file.exists() else '❌'} {web_resources_file}")
+        print(f"  V1 Legacy Web Resources: {'✅' if web_resources_file.exists() else '❌'} {web_resources_file}")
         
         # 显示槽地址配置
         print("\n槽地址配置:")
@@ -883,39 +1269,32 @@ class BuildTool:
             print(f"    ADC Mapping: {config['adc_address']}")
 
     def build_and_flash_complete_slot(self, slot: str) -> bool:
-        """构建并烧录完整槽（Application + Web Resources + Sys Assets + SysBg）"""
+        """构建并烧录V2设备内容（Hosted WebConfig不属于固件）。"""
         print("=" * 60)
         print(f"构建并烧录完整槽 {slot}")
         print("=" * 60)
         
         # 1. 构建Application
-        print("1/5 构建Application...")
+        print("1/4 构建Application...")
         build_success = self.build_application(slot)
         if not build_success:
             print("❌ Application构建失败，停止操作")
             return False
             
         # 2. 烧录Application  
-        print("\n2/5 烧录Application...")
+        print("\n2/4 烧录Application...")
         app_flash_success = self.flash_application(slot)
         if not app_flash_success:
             print("❌ Application烧录失败，停止操作")
             return False
             
-        # 3. 烧录Web Resources
-        print("\n3/5 烧录Web Resources...")
-        web_flash_success = self.flash_web_resources(slot)
-        if not web_flash_success:
-            print("❌ Web Resources烧录失败")
-            return False
-
-        print("\n4/5 烧录系统图片资源...")
+        print("\n3/4 烧录系统图片资源...")
         assets_flash_success = self.flash_system_assets(allow_missing=True)
         if not assets_flash_success:
             print("❌ 系统图片资源烧录失败")
             return False
 
-        print("\n5/5 烧录系统背景图片(sysbg)...")
+        print("\n4/4 烧录系统背景图片(sysbg)...")
         sysbg_flash_success = self.flash_sysbg()
         if not sysbg_flash_success:
             print("❌ 系统背景图片(sysbg)烧录失败")
@@ -925,11 +1304,36 @@ class BuildTool:
         print("槽内容:")
         slot_cfg = self.slot_config[slot]
         print(f"  - Application: {slot_cfg['address']}")
-        print(f"  - WebResources: {slot_cfg['webres_address']}")
         print(f"  - ADC Mapping: {slot_cfg['adc_address']}")
         print(f"  - SysAssets: {self.shared_addresses.get('sys_assets_addr', '0x905B0000')}")
         print(f"  - SysBg: {self.shared_addresses.get('user_image_addr', '0x905F0000')}")
+        print("  - WebConfig: 由HTTPS服务器独立部署，不写入QSPI WebResources")
         
+        return True
+
+    def flash_v2_slot_contents(self, slot: str) -> bool:
+        """烧录V2设备内容；Hosted WebConfig永远不在这个事务中。"""
+        print("=" * 50)
+        print(f"烧录V2设备内容到槽 {slot}")
+        print("=" * 50)
+
+        print("1/3 烧录Application...")
+        if not self.flash_application(slot):
+            print("❌ Application烧录失败，停止操作")
+            return False
+
+        print("\n2/3 烧录系统图片资源...")
+        if not self.flash_system_assets(allow_missing=True):
+            print("❌ 系统图片资源烧录失败")
+            return False
+
+        print("\n3/3 烧录系统背景图片(sysbg)...")
+        if not self.flash_sysbg():
+            print("❌ 系统背景图片(sysbg)烧录失败")
+            return False
+
+        print(f"\n✅ V2设备内容烧录成功到槽 {slot}")
+        print("WebConfig未写入设备；V2页面由HTTPS服务器独立部署")
         return True
 
 def main():
@@ -942,15 +1346,16 @@ def main():
   %(prog)s build app A                   # 构建application槽A  
   %(prog)s build app B                   # 构建application槽B
   %(prog)s build app A -j8               # 使用8个并行任务构建
-  %(prog)s flash bootloader              # 烧录bootloader
+  %(prog)s flash bootloader              # 生产设备门禁：始终拒绝
+  %(prog)s flash bootloader-dev          # 仅烧录未置备开发板
   %(prog)s flash app A                   # 烧录application槽A
   %(prog)s flash app B                   # 烧录application槽B
-  %(prog)s flash web A                   # 烧录Web Resources到槽A
-  %(prog)s flash web B                   # 烧录Web Resources到槽B
+  %(prog)s flash web A                   # 仅V1旧板：烧录内置Web Resources到槽A
+  %(prog)s flash web B                   # 仅V1旧板：烧录内置Web Resources到槽B
   %(prog)s flash assets                  # 烧录系统图片资源(assets)到共享区
   %(prog)s flash sysbg                   # 烧录系统背景图片(sysbg)到用户图片区
-  %(prog)s flash all A                   # 烧录完整固件(含assets/sysbg)到槽A
-  %(prog)s flash all B                   # 烧录完整固件(含assets/sysbg)到槽B
+  %(prog)s flash all A                   # 烧录V2设备内容(不含Hosted WebConfig)到槽A
+  %(prog)s flash all B                   # 烧录V2设备内容(不含Hosted WebConfig)到槽B
   %(prog)s deploy A                      # 一键构建并烧录完整槽A
   %(prog)s deploy B                      # 一键构建并烧录完整槽B
   %(prog)s status                        # 显示构建状态
@@ -973,7 +1378,7 @@ def main():
     
     # flash 命令
     flash_parser = subparsers.add_parser("flash", help="烧录固件")
-    flash_parser.add_argument("target", choices=["bootloader", "app", "web", "assets", "sysbg", "all"], help="烧录目标")
+    flash_parser.add_argument("target", choices=["bootloader", "bootloader-dev", "app", "web", "assets", "sysbg", "all"], help="烧录目标")
     flash_parser.add_argument("slot", nargs="?", choices=["A", "B"], help="槽选择 (app/web/all时必须)")
     
     # deploy 命令 - 一键构建并烧录
@@ -1021,6 +1426,8 @@ def main():
         elif args.command == "flash":
             if args.target == "bootloader":
                 success = tool.flash_bootloader()
+            elif args.target == "bootloader-dev":
+                success = tool.flash_bootloader_development()
             elif args.target == "app":
                 if not args.slot:
                     print("错误: 烧录application时必须指定槽 (A 或 B)")
@@ -1030,6 +1437,7 @@ def main():
                 if not args.slot:
                     print("错误: 烧录Web Resources时必须指定槽 (A 或 B)")
                     return 1
+                print("警告: flash web 仅用于V1旧板；V2页面必须部署到HTTPS服务器")
                 success = tool.flash_web_resources(args.slot)
             elif args.target == "assets":
                 success = tool.flash_system_assets()
@@ -1039,36 +1447,7 @@ def main():
                 if not args.slot:
                     print("错误: 烧录完整固件时必须指定槽 (A 或 B)")
                     return 1
-                print("=" * 50)
-                print(f"烧录完整固件到槽 {args.slot}")
-                print("=" * 50)
-                # 先烧录Application
-                print("1/4 烧录Application...")
-                app_success = tool.flash_application(args.slot)
-                if not app_success:
-                    print("❌ Application烧录失败，停止操作")
-                    return 1
-                    
-                print("\n2/4 烧录Web Resources...")
-                web_success = tool.flash_web_resources(args.slot)
-                if not web_success:
-                    print("❌ Web Resources烧录失败")
-                    return 1
-
-                print("\n3/4 烧录系统图片资源...")
-                assets_success = tool.flash_system_assets(allow_missing=True)
-                if not assets_success:
-                    print("❌ 系统图片资源烧录失败")
-                    return 1
-
-                print("\n4/4 烧录系统背景图片(sysbg)...")
-                sysbg_success = tool.flash_sysbg()
-                if not sysbg_success:
-                    print("❌ 系统背景图片(sysbg)烧录失败")
-                    return 1
-                    
-                print(f"\n✅ 完整固件烧录成功到槽 {args.slot}")
-                success = True
+                success = tool.flash_v2_slot_contents(args.slot)
             return 0 if success else 1
             
         elif args.command == "deploy":

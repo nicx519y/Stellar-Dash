@@ -1,0 +1,8 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e20]:
+    - generic [ref=f1e25]:
+      - generic [ref=f1e26]: Account created
+      - generic [ref=f1e27]: Your email is verified and you are now signed in.
+    - button "Return to WebConfig" [ref=f1e28] [cursor=pointer]
+  - alert [ref=f1e19]
+  - region "top Notifications alt+T"

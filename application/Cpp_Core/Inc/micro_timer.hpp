@@ -18,6 +18,8 @@ public:
 
     // 获取当前微秒时间
     uint32_t micros();
+    uint32_t cycles() const;
+    uint32_t elapsedMicros(uint32_t startCycles) const;
 
     // 检查是否达到指定的时间间隔
     // 如果达到间隔则返回true并更新时间戳，否则返回false

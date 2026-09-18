@@ -3,9 +3,10 @@
 
 class BaseState {
     public:
-        virtual void setup() = 0;
-        virtual void loop() = 0;
-        virtual void reset() = 0;
+        virtual ~BaseState() = default;
+        virtual bool enter() = 0;
+        virtual void tick() = 0;
+        virtual void exit() = 0;
 };
 
 #endif

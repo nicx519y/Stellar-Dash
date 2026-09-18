@@ -54,8 +54,9 @@ void ScreenDetailScreenBrightness_OnConfirm(uint8_t index);
 uint8_t ScreenDetailWebConfig_InitIndex(void);
 void ScreenDetailWebConfig_Rotate(uint8_t* ioIndex, int8_t det);
 void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
-void ScreenDetailWebConfig_OnConfirm(uint8_t index);
-void ScreenDetailWebConfig_OnBack(void);
+bool ScreenDetailWebConfig_OnConfirm(uint8_t index);
+bool ScreenDetailWebConfig_OnBack(void);
+const char* ScreenDetailWebConfig_ConfirmLabel(void);
 
 uint8_t ScreenDetailCalibration_InitIndex(void);
 void ScreenDetailCalibration_Rotate(uint8_t* ioIndex, int8_t det);
@@ -65,7 +66,8 @@ void ScreenDetailCalibration_OnConfirm(uint8_t index);
 uint8_t ScreenDetailTournament_InitIndex(void);
 void ScreenDetailTournament_Rotate(uint8_t* ioIndex, int8_t det);
 void ScreenDetailTournament_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
-void ScreenDetailTournament_OnConfirm(uint8_t index);
+bool ScreenDetailTournament_OnConfirm(uint8_t index);
+bool ScreenDetailTournament_OnBack(void);
 
 uint8_t ScreenDetailButtonsPerformance_InitIndex(void);
 void ScreenDetailButtonsPerformance_Rotate(uint8_t* ioIndex, int8_t det);

@@ -1,9 +1,10 @@
 #include "adc_btns/adc_btns_marker.hpp"
+#include "adc_btns/adc_btns_worker.hpp"
 #include "board_cfg.h"
 #include <numeric>
 
 // 包含完整的头文件以访问MSMarkCommandHandler
-#include "configs/websocket_command_handler.hpp"
+#include "configs/device_command_handler.hpp"
 
 // 添加外部访问MSMarkCommandHandler的声明
 extern MSMarkCommandHandler& getMarkingCommandHandler();
@@ -24,11 +25,16 @@ ADCBtnsMarker::ADCBtnsMarker() {
  */
 void ADCBtnsMarker::reset() {
 
+    if (step_info.is_sampling) {
+        // Stop only the temporary sampling-rate statistics. The WebConfig
+        // state's circular ADC DMA remains mounted.
+        ADC_MANAGER.stopADCSamping();
+    }
+
     // 使用值初始化替代memset
     step_info = {};
+    draftMode = false;
     
-    // ADC_MANAGER.stopADCSamping();
-
     // 取消订阅ADC转换完成回调
     if (messageHandler) {
         MC.unsubscribe(MessageId::ADC_SAMPLING_STATS_COMPLETE, messageHandler);
@@ -102,12 +108,14 @@ ADCBtnsError ADCBtnsMarker::step() {
     APP_DBG("ADCBtnsMarker: step - index: %d, length: %d", step_info.index, step_info.length);
 
     if(step_info.index >= step_info.length - 1) {
-        markingFinish();
-        return ADCBtnsError::SUCCESS;
+        return markingFinish();
     }
 
+    const ADCBtnsError samplingResult = ADC_MANAGER.startADCSamping(true, 2);
+    if (samplingResult != ADCBtnsError::SUCCESS) {
+        return samplingResult;
+    }
     step_info.is_sampling = true;
-    ADC_MANAGER.startADCSamping(true, 2);
 
     return ADCBtnsError::SUCCESS;   
 }
@@ -133,31 +141,121 @@ void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
     handler.sendMarkingStatusNotification();
 }
 
+ADCBtnsError ADCBtnsMarker::persistProgress() {
+    if (draftMode || step_info.index < 0 || step_info.is_sampling) {
+        return ADCBtnsError::NOT_MARKING;
+    }
+    const ADCValuesMapping* current = ADC_MANAGER.getMapping(step_info.id);
+    if (current == nullptr) {
+        return ADCBtnsError::MAPPING_NOT_FOUND;
+    }
+    ADCValuesMapping progress = *current;
+    const size_t completed = static_cast<size_t>(step_info.index) + 1u;
+    memset(progress.originalValues, 0, sizeof(progress.originalValues));
+    memcpy(progress.originalValues, step_info.values.data(),
+           completed * sizeof(uint32_t));
+    progress.samplingNoise = static_cast<uint16_t>(
+        std::accumulate(step_info.noise_values.begin(),
+                        step_info.noise_values.begin() + completed,
+                        static_cast<uint32_t>(0)) / completed);
+    progress.samplingFrequency = static_cast<uint16_t>(
+        std::accumulate(step_info.frequency_values.begin(),
+                        step_info.frequency_values.begin() + completed,
+                        static_cast<uint32_t>(0)) / completed);
+    return ADC_MANAGER.updateADCMapping(step_info.id, progress);
+}
+
 /**
  * @brief 标记完成
  * 将标记值保存到映射中，并重置标记器
  */
 
-void ADCBtnsMarker::markingFinish() {
+ADCBtnsError ADCBtnsMarker::markingFinish() {
+    ADCBtnsError err = ADCBtnsError::SUCCESS;
+    if (!draftMode) {
+        err = ADC_MANAGER.markMapping(
+            step_info.id,
+            step_info.values.data(),
+            std::accumulate(step_info.noise_values.begin(),
+                            step_info.noise_values.end(), (uint32_t)0) /
+                step_info.length,
+            std::accumulate(step_info.frequency_values.begin(),
+                            step_info.frequency_values.end(), (uint32_t)0) /
+                step_info.length);
+    }
+
+
+    if(err != ADCBtnsError::SUCCESS) {
+        APP_ERR("ADCBtnsMarker: markingFinish - mark save failed. err: %d", static_cast<int>(err));
+        return err;
+    }
+
+    if (!draftMode) {
+        const ADCBtnsError reloadResult = ADC_BTNS_WORKER.setup();
+        if (reloadResult != ADCBtnsError::SUCCESS) {
+            APP_ERR("ADCBtnsMarker: recorded mapping saved but worker reload failed: %d",
+                    static_cast<int>(reloadResult));
+        }
+    }
 
     step_info.is_completed = true;
     step_info.is_sampling = false;
     step_info.is_marking = false;
 
-    ADCBtnsError err = ADC_MANAGER.markMapping(step_info.id, 
-        step_info.values.data(), 
-        std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / step_info.length, 
-        std::accumulate(step_info.frequency_values.begin(), step_info.frequency_values.end(), (uint32_t)0) / step_info.length);
-
-
-    if(err != ADCBtnsError::SUCCESS) {
-        APP_ERR("ADCBtnsMarker: markingFinish - mark save failed. err: %d", static_cast<int>(err));
-        return;
-    }
-
     // 发送标记状态变化通知
     MSMarkCommandHandler& handler = getMarkingCommandHandler();
     handler.sendMarkingStatusNotification();
+
+    return ADCBtnsError::SUCCESS;
+}
+
+ADCBtnsError ADCBtnsMarker::getDraftMapping(ADCValuesMapping& mapping) const {
+    if (!draftMode || !step_info.is_completed || step_info.length < 2u) {
+        return ADCBtnsError::NOT_MARKING;
+    }
+    memset(&mapping, 0, sizeof(mapping));
+    strncpy(mapping.name, step_info.mapping_name, sizeof(mapping.name) - 1u);
+    mapping.length = step_info.length;
+    mapping.step = step_info.step;
+    mapping.samplingNoise = static_cast<uint16_t>(
+        std::accumulate(step_info.noise_values.begin(),
+                        step_info.noise_values.end(), (uint32_t)0) /
+        step_info.length);
+    mapping.samplingFrequency = static_cast<uint16_t>(
+        std::accumulate(step_info.frequency_values.begin(),
+                        step_info.frequency_values.end(), (uint32_t)0) /
+        step_info.length);
+    memcpy(mapping.originalValues, step_info.values.data(),
+           step_info.length * sizeof(uint32_t));
+    return ADCBtnsError::SUCCESS;
+}
+
+ADCBtnsError ADCBtnsMarker::setupDraft(const char* name,
+                                       size_t length,
+                                       float_t step) {
+    if (!name || name[0] == '\0' || strlen(name) >= 16u ||
+        length < 2u || length > MAX_ADC_VALUES_LENGTH ||
+        !std::isfinite(step) || step < 0.1f || step > 10.0f) {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+    reset();
+    draftMode = true;
+    snprintf(step_info.id, sizeof(step_info.id), "%s", "draft");
+    snprintf(step_info.mapping_name, sizeof(step_info.mapping_name), "%s", name);
+    step_info.index = -1;
+    step_info.length = static_cast<uint8_t>(length);
+    step_info.step = step;
+    step_info.values.assign(length, 0u);
+    step_info.noise_values.assign(length, 0u);
+    step_info.frequency_values.assign(length, 0u);
+    step_info.is_marking = true;
+    step_info.is_completed = false;
+    step_info.is_sampling = false;
+    messageHandler = [this](const void* data) {
+        if (data) this->stepFinish((ADCChannelStats*)data);
+    };
+    MC.subscribe(MessageId::ADC_SAMPLING_STATS_COMPLETE, messageHandler);
+    return ADCBtnsError::SUCCESS;
 }
 
 /**
@@ -174,8 +272,15 @@ cJSON* ADCBtnsMarker::getStepInfoJSON() const {
     cJSON_AddBoolToObject(json, "is_marking", step_info.is_marking);
     cJSON_AddBoolToObject(json, "is_completed", step_info.is_completed);
     cJSON_AddBoolToObject(json, "is_sampling", step_info.is_sampling);
-    cJSON_AddNumberToObject(json, "sampling_noise", std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / (step_info.index + 1));
-    cJSON_AddNumberToObject(json, "sampling_frequency", std::accumulate(step_info.frequency_values.begin(), step_info.frequency_values.end(), (uint32_t)0) / (step_info.index + 1));
+    uint32_t completedSteps = step_info.index >= 0 ? static_cast<uint32_t>(step_info.index) + 1u : 0u;
+    uint32_t samplingNoise = 0;
+    uint32_t samplingFrequency = 0;
+    if (completedSteps > 0) {
+        samplingNoise = std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / completedSteps;
+        samplingFrequency = std::accumulate(step_info.frequency_values.begin(), step_info.frequency_values.end(), (uint32_t)0) / completedSteps;
+    }
+    cJSON_AddNumberToObject(json, "sampling_noise", samplingNoise);
+    cJSON_AddNumberToObject(json, "sampling_frequency", samplingFrequency);
 
 
     cJSON* valuesJSON = cJSON_CreateArray();

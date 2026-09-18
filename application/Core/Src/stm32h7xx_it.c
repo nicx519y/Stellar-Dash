@@ -22,15 +22,17 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "device/usbd.h"
 #include "board_cfg.h"
-#include "usbh.h"
 #include "system_logger.h"
-#include "rotary-encoder.h"
 #include "st7789.h"
 #include "spi-st7789.h"
+#include "rotary-encoder.h"
+#include "rf_bridge_port_internal.h"
 #include <stdio.h>
 /* USER CODE END Includes */
+
+extern void PowerManager_NotifyChargerIrqFromISR(void);
+extern void PowerManager_NotifyGaugeAlertFromISR(void);
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
@@ -63,14 +65,13 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_adc2;
 extern DMA_HandleTypeDef hdma_adc3;
 extern DMA_HandleTypeDef hdma_tim4_ch1;
+extern DMA_HandleTypeDef hdma_tim4_ch2;
 extern TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN EV */
-
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -124,6 +125,12 @@ void HardFault_Handler(void)
     } else {
         stack = (uint32_t *)msp;
     }
+
+    /* Print the fault before touching the persistent logger.  If the logger
+     * itself depends on the failed peripheral this marker must still reach
+     * the bring-up UART. */
+    APP_STAGE_ERROR("F01", "HardFault: PC=0x%08lX LR=0x%08lX CFSR=0x%08lX HFSR=0x%08lX",
+                    stack[6], stack[5], cfsr, hfsr);
 
     // 记录致命错误到日志系统
     LOG_FATAL("HARDFAULT", "HardFault exception occurred");
@@ -328,7 +335,7 @@ void SysTick_Handler(void)
     }
   #endif /* INCLUDE_xTaskGetSchedulerState */
   /* USER CODE BEGIN SysTick_IRQn 1 */
-
+  RotEnc_Tick1msFromISR();
   /* USER CODE END SysTick_IRQn 1 */
 }
 
@@ -381,6 +388,11 @@ void DMA1_Stream2_IRQHandler(void)
   /* USER CODE END DMA1_Stream2_IRQn 1 */
 }
 
+void DMA1_Stream3_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_tim4_ch2);
+}
+
 void DMA1_Stream4_IRQHandler(void)
 {
   SPIST7789_DMA_IRQHandler();
@@ -401,7 +413,17 @@ void DMA2_Stream4_IRQHandler(void)
   SPIST7789_DMA_IRQHandler();
 }
 
-void SPI5_IRQHandler(void)
+void DMA2_Stream5_IRQHandler(void)
+{
+  RFBridgePort_DMA_IRQHandler();
+}
+
+void SPI4_IRQHandler(void)
+{
+  RFBridgePort_SPI_IRQHandler();
+}
+
+void SPI1_IRQHandler(void)
 {
   SPIST7789_SPI_IRQHandler();
 }
@@ -411,13 +433,25 @@ void SPI5_IRQHandler(void)
   */
 void EXTI9_5_IRQHandler(void)
 {
-  if (__HAL_GPIO_EXTI_GET_IT(ROTENC_A_PIN) != RESET) {
-    __HAL_GPIO_EXTI_CLEAR_IT(ROTENC_A_PIN);
+  if (__HAL_GPIO_EXTI_GET_IT(CHARGE_INT_PIN) != RESET) {
+    __HAL_GPIO_EXTI_CLEAR_IT(CHARGE_INT_PIN);
+    PowerManager_NotifyChargerIrqFromISR();
   }
-  if (__HAL_GPIO_EXTI_GET_IT(ROTENC_B_PIN) != RESET) {
-    __HAL_GPIO_EXTI_CLEAR_IT(ROTENC_B_PIN);
+}
+
+/**
+  * @brief This function handles EXTI line[15:10] interrupts.
+  */
+void EXTI15_10_IRQHandler(void)
+{
+  if (__HAL_GPIO_EXTI_GET_IT(RF_BRIDGE_IRQ_PIN) != RESET) {
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+    RFBridgePort_IRQ_IRQHandler();
   }
-  RotEnc_OnEdgeIRQ();
+  if (__HAL_GPIO_EXTI_GET_IT(MAX17048_ALERT_PIN) != RESET) {
+    __HAL_GPIO_EXTI_CLEAR_IT(MAX17048_ALERT_PIN);
+    PowerManager_NotifyGaugeAlertFromISR();
+  }
 }
 
 /**
@@ -432,23 +466,6 @@ void TIM2_IRQHandler(void)
   /* USER CODE BEGIN TIM2_IRQn 1 */
 
   /* USER CODE END TIM2_IRQn 1 */
-}
-
-extern HCD_HandleTypeDef hhcd_USB_OTG_HS;
-/**
-  * @brief This function handles USB On The Go HS global interrupt.
-  */
-void OTG_HS_IRQHandler(void)
-{
-  tuh_int_handler(1);
-}
-
-/**
-  * @brief This function handles USB On The Go FS global interrupt.
-  */
-void OTG_FS_IRQHandler(void)
-{
-  tud_int_handler(0);
 }
 
 /* USER CODE BEGIN 1 */

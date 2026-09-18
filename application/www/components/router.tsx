@@ -1,7 +1,8 @@
 'use client';
 
 import { create } from 'zustand';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { GlobalSettingContent } from '@/components/global-setting-content';
 import { KeysSettingContent } from '@/components/keys-setting-content';
 import { LEDsSettingContent } from '@/components/leds-setting-content';
@@ -9,42 +10,84 @@ import { ButtonsPerformanceContent } from '@/components/buttons-performance-cont
 import { FirmwareContent } from '@/components/firmware-content';
 import { ViewLogsContent } from '@/components/view-logs-content';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
+import {
+    pathnameForRoute,
+    popstateHistoryMode,
+    routeFromPathname,
+    normalizeRouteBasePath,
+    type Route,
+} from '@/lib/router-path';
 
-export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware' | 'view-logs';
+export type { Route } from '@/lib/router-path';
+type HistoryMode = 'push' | 'replace' | 'none';
 
 interface RouterState {
     currentRoute: Route;
-    setRoute: (route: Route) => void;
+    basePath: string;
+    setRoute: (route: Route, historyMode?: HistoryMode) => void;
+    setBasePath: (basePath: string) => void;
 }
 
-export const useRouterStore = create<RouterState>((set) => ({
+export const useRouterStore = create<RouterState>((set, get) => ({
     currentRoute: '',
-    setRoute: (route) => {
+    basePath: '/',
+    setRoute: (route, historyMode = 'push') => {
         set({ currentRoute: route });
-        // 只在客户端环境中使用 window 对象
-        if (typeof window !== 'undefined') {
-            window.history.pushState(null, '', `/${route}`);
+        if (typeof window !== 'undefined' && historyMode !== 'none') {
+            const pathname = pathnameForRoute(route, get().basePath);
+            if (window.location.pathname !== pathname) {
+                if (historyMode === 'replace') {
+                    window.history.replaceState(null, '', pathname);
+                } else {
+                    window.history.pushState(null, '', pathname);
+                }
+            }
         }
+    },
+    setBasePath: (basePath) => {
+        set({ basePath: normalizeRouteBasePath(basePath) });
     },
 }));
 
 export function Router() {
-    const { currentRoute, setRoute } = useRouterStore();
+    const { currentRoute, basePath, setRoute, setBasePath } = useRouterStore();
+    const { deviceSession, flushDeferredConfig } = useGamepadConfig();
+    const flushDeferredConfigRef = useRef(flushDeferredConfig);
+    flushDeferredConfigRef.current = flushDeferredConfig;
 
     useEffect(() => {
         // useEffect 只在客户端运行，所以这里可以安全使用 window
         const handlePopState = () => {
-            const path = window.location.pathname.slice(1) || '';
-            setRoute(path as Route);
+            const route = routeFromPathname(window.location.pathname, basePath);
+            setRoute(
+                route,
+                popstateHistoryMode(window.location.pathname, basePath),
+            );
+            window.setTimeout(() => {
+                void flushDeferredConfigRef.current(undefined, true).catch((error) => {
+                    console.error('浏览器导航后的后台保存失败:', error);
+                });
+            }, 0);
         };
 
         window.addEventListener('popstate', handlePopState);
         
-        const initialPath = window.location.pathname.slice(1) || 'global';
-        setRoute(initialPath as Route);
+        const initialRoute = routeFromPathname(window.location.pathname, basePath);
+        setRoute(initialRoute, 'replace');
 
         return () => window.removeEventListener('popstate', handlePopState);
-    }, [setRoute]);
+    }, [basePath, setRoute]);
+
+    useEffect(() => {
+        const nextBasePath = deviceSession?.webConfigBasePath ?? '/';
+        if (nextBasePath === basePath) {
+            return;
+        }
+        setBasePath(nextBasePath);
+        // Keep the selected settings section while moving into the profile-
+        // specific URL namespace selected by authenticated device identity.
+        setRoute(currentRoute || 'global', 'replace');
+    }, [basePath, currentRoute, deviceSession, setBasePath, setRoute]);
 
     switch (currentRoute) {
         case 'global':
@@ -61,8 +104,6 @@ export function Router() {
             return <SwitchMarkingContent />;
         case 'view-logs':
             return <ViewLogsContent />;
-        // case 'websocket':
-        //     return <WebSocketTest />;
         // case 'buttons-monitor':
         //     return <ButtonMonitorTest />;
 

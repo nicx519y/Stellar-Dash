@@ -78,7 +78,12 @@ void WebConfigLedsManager::clearPreviewConfig() {
         
         // 恢复LEDsManager的默认配置
         LEDsManager& ledsManager = LEDsManager::getInstance();
-        ledsManager.restoreDefaultConfig();
+        /*
+         * State teardown must not restore the default profile by briefly
+         * restarting the strips.  The final deinit below owns the rail-off
+         * transition; the next active state will call setup explicitly.
+         */
+        ledsManager.restoreDefaultConfig(false);
         // 关闭led
         ledsManager.deinit();
         
@@ -178,4 +183,4 @@ std::string WebConfigLedsManager::toJSON() const {
     
     cJSON_Delete(root);
     return result;
-} 
+}

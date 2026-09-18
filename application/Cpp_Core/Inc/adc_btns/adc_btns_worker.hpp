@@ -79,6 +79,9 @@ struct ADCBtn {
     // 缓存的阈值（避免重复计算）
     uint16_t cachedPressThreshold = 0;    // 缓存的按下阈值
     uint16_t cachedReleaseThreshold = 0;  // 缓存的释放阈值
+
+    ButtonEvent debounceCandidate = ButtonEvent::NONE;
+    uint32_t debounceSinceUs = 0;
     
     // 预计算的阈值映射表
     struct ThresholdMapping {
@@ -105,6 +108,7 @@ class ADCBtnsWorker {
         ADCBtnsError setup();
         
         uint32_t read();
+        uint32_t read(const AdcSampleFrame& sample);
         uint32_t getVirtualPinMask() const { return virtualPinMask; }
 
         ADCBtnsError deinit();
@@ -156,8 +160,12 @@ class ADCBtnsWorker {
 
         // 获取按钮事件
         ButtonEvent getButtonEvent(ADCBtn* btn, const uint16_t currentValue, const uint8_t buttonIndex);
+        ButtonEvent applyDebounce(ADCBtn* btn, ButtonEvent event);
         // 处理状态转换
-        void handleButtonState(ADCBtn* btn, const ButtonEvent event, const uint16_t adcValue);
+        void handleButtonState(ADCBtn* btn,
+                               const ButtonEvent event,
+                               const uint16_t adcValue,
+                               const uint8_t buttonIndex);
 
         void initButtonMapping(ADCBtn* btn, const uint16_t releaseValue);
 
@@ -166,6 +174,8 @@ class ADCBtnsWorker {
         float getCurrentReleaseAccuracy(ADCBtn* btn, const float currentDistance);
         void updateLimitValue(ADCBtn* btn, const uint16_t currentValue);
         void resetLimitValue(ADCBtn* btn, const uint16_t currentValue);
+
+        ADCButtonDebounceAlgorithm debounceAlgorithm = ADCButtonDebounceAlgorithm::NONE;
 
         /**
          * 计算按下阈值（考虑死区处理）

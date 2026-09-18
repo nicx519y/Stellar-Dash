@@ -1,149 +1,560 @@
 #include "input_state.hpp"
-#include "adc_btns/adc_btns_worker.hpp"
-#include "gpio_btns/gpio_btns_worker.hpp"
-#include "gamepad.hpp"
-#include "leds/leds_manager.hpp"
-#include "hotkeys_manager.hpp"
-#include "usb.h"
-#include "usbh.h"
-#include "usb_host_monitor.h"
-#include "usblistener.hpp"
-#include "usbhostmanager.hpp"
-#include "gpdriver.hpp"
-#include "system_logger.h"
-#include "latency_monitor.hpp"
-#include "storagemanager.hpp"
 
-static void on_default_profile_changed_input_workers(void) {
-    ADC_BTNS_WORKER.setup();
+#include "adc_btns/adc_btns_worker.hpp"
+#include "board_cfg.h"
+#include "board_power.hpp"
+#include "ch585_role_bootstrap.hpp"
+#include "connection_manager.hpp"
+#include "input_runtime_policy.hpp"
+#include "gamepad.hpp"
+#include "gpio_btns/gpio_btns_worker.hpp"
+#include "hotkeys_manager.hpp"
+#include "latency_monitor.hpp"
+#include "leds/leds_manager.hpp"
+#include "monitor_telemetry.hpp"
+#include "report_scheduler.hpp"
+#include "rf_bridge_port.hpp"
+#include "screen_control/spi_screen_manager.hpp"
+#include "storagemanager.hpp"
+#include "system_logger.h"
+#include "system_sleep_manager.hpp"
+#include "usb_board_link.hpp"
+#include "usbdriver.hpp"
+
+namespace {
+
+#ifndef RF24G_SPI_BRINGUP_TX_ONLY
+#define RF24G_SPI_BRINGUP_TX_ONLY 0
+#endif
+
+#ifndef RF24G_SPI_BRINGUP_TX_CATCHUP_LIMIT
+#define RF24G_SPI_BRINGUP_TX_CATCHUP_LIMIT 2u
+#endif
+
+static void onDefaultProfileChanged()
+{
+    if (BOARD_POWER.isSafeLatched() ||
+        !INPUT_STATE.isInputPipelineRunning() ||
+        !CH585_ROLE_BOOTSTRAP.isLocked()) {
+        return;
+    }
+#if RF24G_SPI_BRINGUP_TX_ONLY
+    if (CONNECTION_MANAGER.getMode() == CONNECTION_MODE_RF24G) {
+        return;
+    }
+#endif
+    const ADCBtnsError result = ADC_BTNS_WORKER.setup();
+    if (result != ADCBtnsError::SUCCESS) {
+        APP_ERR("Default profile ADC worker setup failed: %d",
+                static_cast<int>(result));
+    }
     GPIO_BTNS_WORKER.setup();
 }
 
-void InputState::setup()
+static void enterBoardSafeState()
 {
-    LOG_INFO("INPUT", "Starting input state setup");
-    APP_DBG("InputState::setup");
+    /* CH585/USB/RF failures must not take down the independent local UI. */
+    BOARD_POWER.enterSafeState();
+}
 
-    /**************** 初始化USB end ******************* */
+static void teardownCh585Runtime()
+{
+    USB_DRIVER.shutdown();
+    USB_BOARD_LINK.shutdown();
+    CH585_ROLE_BOOTSTRAP.shutdown();
+    RFBridgePort_Shutdown();
+}
 
-    InputMode inputMode = STORAGE_MANAGER.getInputMode();
-    // InputMode inputMode = InputMode::INPUT_MODE_PS5; // TODO: 需要根据实际情况修改
-    // InputMode inputMode = InputMode::INPUT_MODE_XINPUT;
-    LOG_INFO("INPUT", "Selected input mode: %d", static_cast<int>(inputMode));
-    APP_DBG("InputState::setup inputMode: %d", inputMode);
+} // namespace
 
-    if (inputMode == InputMode::INPUT_MODE_CONFIG)
-    {
-        LOG_ERROR("INPUT", "Invalid input mode CONFIG for input state");
-        APP_ERR("InputState::setup error - inputMode: INPUT_MODE_CONFIG, not supported for input state");
+void InputState::startInputPipeline()
+{
+    if (inputPipelineRunning) {
         return;
     }
 
-    LOG_DEBUG("INPUT", "Initializing driver manager");
-    DRIVER_MANAGER.setup(inputMode);
-    inputDriver = DRIVER_MANAGER.getDriver();
-    if (inputDriver != nullptr)
-    {
-        inputDriver->initializeAux();
-        LOG_DEBUG("INPUT", "Input driver auxiliary initialization completed");
-        APP_DBG("InputState::setup inputDriver->initializeAux() done");
-        // Check if we have a USB listener
-        USBListener *listener = inputDriver->get_usb_auth_listener();
-        if (listener != nullptr)
-        {
-            LOG_DEBUG("INPUT", "USB auth listener found, registering with host manager");
-            APP_DBG("InputState::setup listener: %p", listener);
-            USB_HOST_MANAGER.pushListener(listener);
-        }
+    APP_STAGE("I04", "input pipeline initialization begin");
+
+    /*
+     * Center/fault mode powers Hall off.  Re-enable it and honor the board
+     * settling interval before calibration or DMA sampling resumes.
+     */
+    BOARD_POWER.setHallEnabled(true);
+    HAL_Delay(BOARD_HALL_STABILIZE_MS);
+    const ADCBtnsError adcResult = ADC_BTNS_WORKER.setup();
+    if (adcResult != ADCBtnsError::SUCCESS) {
+        ADC_MANAGER.forceStopAllSampling();
+        BOARD_POWER.setHallEnabled(false);
+        APP_STAGE_ERROR("I04", "ADC circular DMA setup failed: %d",
+                        static_cast<int>(adcResult));
+        return;
     }
-    else
-    {
-        LOG_ERROR("INPUT", "Failed to get input driver instance");
-    }
-
-    // 初始化USB主机
-    LOG_DEBUG("INPUT", "Starting USB host manager");
-    USB_HOST_MANAGER.start();
-
-    // 初始化TinyUSB设备栈
-    APP_DBG("tud_init start");
-    tud_init(TUD_OPT_RHPORT);
-    APP_DBG("tud_init done");
-    LOG_DEBUG("INPUT", "TinyUSB device stack initialized");
-
-    STORAGE_MANAGER.registerDefaultProfileChangedCallback(on_default_profile_changed_input_workers);
-
-    ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
     GAMEPAD.setup();
-
 #if HAS_LED == 1
-    LOG_DEBUG("INPUT", "Initializing LED manager");
+#if INPUT_LED_RECOVERY_HOLD_OFF
+    /*
+     * Do not call LEDsManager::setup(): that is the point which powers the 5V
+     * LED rail and starts both circular TIM4 DMA streams.  Board initialization
+     * already left the two rails off; assert that state again for recovery.
+     */
+    BOARD_POWER.setKeyLedEnabled(false);
+    BOARD_POWER.setAmbientLedEnabled(false);
+    APP_STAGE("I06", "LED recovery hold active: key/ambient rails and TIM4 DMA remain off");
+#else
     LEDS_MANAGER.setup();
 #endif
+#endif
 
-    
-
-    isRunning = true;
-    LOG_INFO("INPUT", "Input state setup completed successfully");
-
-    Logger_Flush();
+    const InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    const uint16_t requestedReportRateHz = static_cast<uint16_t>(
+        STORAGE_MANAGER.getWirelessReportRate());
+    const uint16_t reportRateHz = activeBoardMode == BoardMode::Usb
+        ? USB_DRIVER.effectiveReportRateHz(inputMode,
+                                           requestedReportRateHz)
+        : CONNECTION_MANAGER.getAppliedReportRateHz();
+    if (activeBoardMode == BoardMode::Rf &&
+        !CONNECTION_MANAGER.isReportRateConfirmed()) {
+#if HAS_LED == 1
+        LEDS_MANAGER.deinit();
+#endif
+        GAMEPAD.deinit();
+        ADC_MANAGER.forceStopAllSampling();
+        BOARD_POWER.setHallEnabled(false);
+        APP_STAGE_ERROR("I04", "RF report rate was not confirmed");
+        return;
+    }
+    if (!REPORT_SCHEDULER.start(reportRateHz)) {
+#if HAS_LED == 1
+        LEDS_MANAGER.deinit();
+#endif
+        GAMEPAD.deinit();
+        ADC_MANAGER.forceStopAllSampling();
+        BOARD_POWER.setHallEnabled(false);
+        APP_STAGE_ERROR("I04", "TIM2 report/ADC sampling clock start failed");
+        return;
+    }
+    MonitorTelemetry_SetTargetRateHz(reportRateHz);
+    inputPipelineRunning = true;
+    APP_STAGE("I04", "input pipeline ready: report rate=%u Hz",
+              static_cast<unsigned>(reportRateHz));
 }
 
-void InputState::loop()
+void InputState::stopInputPipeline()
 {
-    
-
-    // 检查采样是否完成 (由SOF触发)
-    if (ADCManager::getInstance().isSamplingDone())
-    {
-        virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
-
-        // 只有在没有按下FN键时才处理游戏手柄数据
-        if ((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0)
-        {
-            GAMEPAD.read(virtualPinMask);
-
-#if APPLICATION_DEBUG_PRINT == 1
-            LATENCY_MONITOR.processingCompleted();
-#endif
-
-            inputDriver->process(&GAMEPAD); // 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
-        }
-        else
-        {
-            // 更新热键状态，处理hold和click逻辑
-            HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask, lastVirtualPinMask);
-
-#if APPLICATION_DEBUG_PRINT == 1
-            LATENCY_MONITOR.processingCompleted();
-#endif
-        }
-
-        lastVirtualPinMask = virtualPinMask;
-
-        // 清除标志，等待下一次SOF
-        ADCManager::getInstance().clearSamplingDone();
+    if (!inputPipelineRunning) {
+        REPORT_SCHEDULER.stop();
+        ADC_MANAGER.forceStopAllSampling();
+        virtualPinMask = 0u;
+        lastVirtualPinMask = 0u;
+        fnLayerPolicy.reset();
+        return;
     }
 
-    // 处理USB任务
-    tud_task(); // 设备模式任务
-    USB_HOST_MANAGER.process();
-    inputDriver->processAux();
-
+    REPORT_SCHEDULER.stop();
+    ADC_MANAGER.forceStopAllSampling();
 #if HAS_LED == 1
-    LEDS_MANAGER.loop(virtualPinMask);
+    LEDS_MANAGER.deinit();
 #endif
+    (void)ADC_BTNS_WORKER.deinit();
+    GAMEPAD.deinit();
+    virtualPinMask = 0u;
+    lastVirtualPinMask = 0u;
+    fnLayerPolicy.reset();
+    inputPipelineRunning = false;
+}
+
+bool InputState::suspendInputPipelineForStorage()
+{
+    const bool wasRunning = inputPipelineRunning;
+    if (wasRunning) {
+        APP_STAGE("I08", "input pipeline suspended for QSPI storage transaction");
+        stopInputPipeline();
+    }
+    return wasRunning;
+}
+
+bool InputState::resumeInputPipelineAfterStorage(bool wasRunning)
+{
+    if (!wasRunning) {
+        return true;
+    }
+    if (!isRunning || activeBoardMode == BoardMode::CenterOff ||
+        activeBoardMode == BoardMode::Fault) {
+        return false;
+    }
+    startInputPipeline();
+    const bool resumed = inputPipelineRunning;
+    if (resumed) {
+        APP_STAGE("I08", "input pipeline resumed after QSPI storage transaction");
+    } else {
+        APP_STAGE_ERROR("I08", "input pipeline failed to resume after QSPI storage transaction");
+    }
+    return resumed;
+}
+
+bool InputState::submitInputReport(const GamepadState& state,
+                                   const AdcSampleFrame& sample)
+{
+    const uint32_t reportSequence = MonitorTelemetry_NextSequence();
+    MonitorTelemetry_OnReportReady(reportSequence,
+                                   sample.triggerCycles,
+                                   sample.completeCycles);
+
+    if (activeBoardMode == BoardMode::Usb) {
+        const uint32_t age = MICROS_TIMER.elapsedMicros(sample.triggerCycles);
+        const uint16_t ageUs = static_cast<uint16_t>(
+            age > UINT16_MAX ? UINT16_MAX : age);
+        MonitorTelemetry_SetPendingUsbSeq(reportSequence);
+        if (USB_DRIVER.submit(state, ageUs)) {
+            MonitorTelemetry_OnUsbReportSubmitted(USB_BOARD_INPUT_V1_BYTES);
+            return true;
+        }
+        MonitorTelemetry_OnError("USB_BOARD_LINK", 2001u,
+                                 "CH585 input submission failed");
+        return false;
+    }
+
+    if (activeBoardMode == BoardMode::Rf) {
+        /* RFTransport and the frozen 0xA5 wire path remain unchanged. */
+        return CONNECTION_MANAGER.onReportReady(state, reportSequence);
+    }
+    return false;
+}
+
+void InputState::processReportSample(const AdcSampleFrame& sample)
+{
+    virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read(sample);
+    SystemSleep_NotifyButtonActivity(HAL_GetTick(), virtualPinMask);
+
+    const bool fnPressed =
+        (virtualPinMask & FN_BUTTON_VIRTUAL_PIN) != 0u;
+    const bool fnWasPressed =
+        (lastVirtualPinMask & FN_BUTTON_VIRTUAL_PIN) != 0u;
+    const FnLayerDecision decision =
+        fnLayerPolicy.update(fnPressed, fnWasPressed);
+
+    if (decision.processHotkeys) {
+        HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask,
+                                          lastVirtualPinMask);
+    }
+
+    if (decision.submitNeutral) {
+        const GamepadState neutral = {};
+        fnLayerPolicy.onNeutralSubmitted(
+            submitInputReport(neutral, sample));
+    } else if (decision.submitNormal) {
+        GAMEPAD.read(virtualPinMask);
+        (void)submitInputReport(GAMEPAD.state, sample);
+    }
+    lastVirtualPinMask = virtualPinMask;
+}
+
+bool InputState::applyPhysicalMode(BoardMode mode,
+                                   bool initial,
+                                   bool compatibilityRecovery)
+{
+    InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    const WirelessReportRate wirelessRate =
+        STORAGE_MANAGER.getWirelessReportRate();
+
+    APP_STAGE("I02", "apply physical mode: mode=%u initial=%u input=%u rate=%u",
+              static_cast<unsigned>(mode), initial ? 1u : 0u,
+              static_cast<unsigned>(inputMode),
+              static_cast<unsigned>(wirelessRate));
+
+    if (!compatibilityRecovery) {
+        usbCompatibilityRecoveryUsed = false;
+    }
+
+    stopInputPipeline();
+    RFBridgePort_Shutdown();
+    USB_DRIVER.shutdown();
+    USB_BOARD_LINK.shutdown();
+    CH585_ROLE_BOOTSTRAP.shutdown();
+    activeBoardMode = mode;
+    usbRuntimeInitialized = false;
+    usbRuntimeConnected = false;
+
+    if (mode == BoardMode::Rf) {
+        if (requiresRfXInputPersistence(CONNECTION_MODE_RF24G, inputMode)) {
+            STORAGE_MANAGER.setInputMode(INPUT_MODE_XINPUT);
+            if (!STORAGE_MANAGER.saveConfig()) {
+                APP_STAGE_ERROR(
+                    "I02",
+                    "failed to persist RF XInput constraint; using XInput for this runtime");
+                MonitorTelemetry_OnError(
+                    "INPUT_STATE", 2010u,
+                    "failed to persist RF XInput constraint");
+            } else {
+                APP_STAGE("I02", "RF input mode persisted as XInput");
+            }
+        }
+        inputMode = effectiveInputModeForConnection(
+            CONNECTION_MODE_RF24G, inputMode);
+    }
+
+    CH585_ROLE_BOOTSTRAP.setSelector(UsbBoardLink_SelectRoleCallback);
+
+    if (mode == BoardMode::Usb) {
+        USB_DRIVER.setRequestedReportRateHz(
+            static_cast<uint16_t>(wirelessRate));
+        USB_DRIVER.setFastInputAllowed(!compatibilityRecovery);
+        if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Usb) ||
+            !USB_DRIVER.start(inputMode)) {
+            APP_STAGE_ERROR("I03", "CH585 USB role or USB runtime startup failed");
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return false;
+        }
+        usbRuntimeInitialized = true;
+        usbRuntimeConnected = true;
+        CONNECTION_MANAGER.setup(CONNECTION_MODE_USB,
+                                 wirelessRate,
+                                 inputMode);
+        BOARD_POWER.releaseSafeState();
+        APP_STAGE("I03", "CH585 USB role locked; safe power state released");
+        startInputPipeline();
+        if (!inputPipelineRunning) {
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return false;
+        }
+        return true;
+    }
+
+    if (mode == BoardMode::Rf) {
+        if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Rf)) {
+            APP_STAGE_ERROR("I03", "CH585 RF role startup failed");
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return false;
+        }
+        CONNECTION_MANAGER.setup(CONNECTION_MODE_RF24G,
+                                 wirelessRate,
+                                 inputMode);
+        if (!CONNECTION_MANAGER.isReportRateConfirmed()) {
+            APP_STAGE_ERROR("I03",
+                            "CH585 RF role started but no report rate was confirmed");
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return false;
+        }
+        BOARD_POWER.releaseSafeState();
+        APP_STAGE("I03", "CH585 RF role locked; safe power state released");
+        startInputPipeline();
+        if (!inputPipelineRunning) {
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return false;
+        }
+        return true;
+    }
+
+    /*
+     * Center/off and the impossible 0/0 combination are fail-safe states:
+     * CH585, host VBUS and optional high-current rails remain off.
+     */
+    enterBoardSafeState();
+    APP_STAGE_ERROR("I03", "physical mode is center/fault; input transport remains safe");
+    return false;
+}
+
+bool InputState::enter()
+{
+    const InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    APP_STAGE("I01", "INPUT state setup begin: input mode=%u",
+              static_cast<unsigned>(inputMode));
+    if (inputMode == INPUT_MODE_CONFIG) {
+        APP_STAGE_ERROR("I01", "CONFIG profile is invalid in INPUT state");
+        APP_ERR("INPUT mode cannot use CONFIG profile");
+        activeBoardMode = BoardMode::Fault;
+        enterBoardSafeState();
+        return false;
+    }
+
+    if (!BOARD_MODE.isStable()) {
+        BOARD_MODE.update(HAL_GetTick());
+    }
+    (void)BOARD_MODE.consumeChanged();
+    const bool modeReady = applyPhysicalMode(BOARD_MODE.current(), true);
+
+    STORAGE_MANAGER.registerDefaultProfileChangedCallback(
+        onDefaultProfileChanged);
+    isRunning = true;
+    APP_STAGE("I05", "INPUT state loop enabled: transport ready=%u",
+              modeReady ? 1u : 0u);
+    Logger_Flush();
+    return true;
+}
+
+void InputState::tick()
+{
+    if (!isRunning) {
+        return;
+    }
+
+    if (BOARD_MODE.consumeChanged()) {
+        (void)applyPhysicalMode(BOARD_MODE.current(), false);
+    }
+
+    if (inputPipelineRunning && activeBoardMode == BoardMode::Usb) {
+        USB_DRIVER.process();
+        if (USB_DRIVER.takeCompatibilityRecoveryRequest()) {
+            if (!usbCompatibilityRecoveryUsed) {
+                usbCompatibilityRecoveryUsed = true;
+                APP_STAGE_ERROR(
+                    "I09",
+                    "BoardLink control plane recovery: reinitializing CH585 USB role once at 1 kHz");
+                (void)applyPhysicalMode(BoardMode::Usb, false, true);
+            } else {
+                APP_STAGE_ERROR(
+                    "I09",
+                    "BoardLink control plane recovery already used; entering fault state");
+                stopInputPipeline();
+                teardownCh585Runtime();
+                enterBoardSafeState();
+                activeBoardMode = BoardMode::Fault;
+            }
+            return;
+        }
+    }
+
+    /*
+     * USB uses the post-probe effective rate. RF uses only the rate confirmed
+     * by RATE_APPLIED (including an explicit 1-kHz fallback).
+     */
+    if (inputPipelineRunning) {
+        if (!ADC_MANAGER.isDmaSamplingActive() ||
+            !ADC_MANAGER.isInputSampleStreamHealthy()) {
+            APP_STAGE_ERROR("I07", "ADC circular DMA stopped unexpectedly");
+            stopInputPipeline();
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return;
+        }
+        const uint16_t requestedReportRateHz = static_cast<uint16_t>(
+            STORAGE_MANAGER.getWirelessReportRate());
+        const uint16_t desiredReportRateHz = activeBoardMode == BoardMode::Usb
+            ? USB_DRIVER.effectiveReportRateHz(
+                  STORAGE_MANAGER.getInputMode(), requestedReportRateHz)
+            : CONNECTION_MANAGER.getAppliedReportRateHz();
+        if (REPORT_SCHEDULER.getRate() != desiredReportRateHz) {
+            if (!REPORT_SCHEDULER.setRate(desiredReportRateHz)) {
+                APP_STAGE_ERROR("I07", "TIM2 report/ADC rate change failed");
+                stopInputPipeline();
+                teardownCh585Runtime();
+                enterBoardSafeState();
+                activeBoardMode = BoardMode::Fault;
+                return;
+            }
+            MonitorTelemetry_SetTargetRateHz(desiredReportRateHz);
+        }
+    }
+
+#if RF24G_SPI_BRINGUP_TX_ONLY
+    if (activeBoardMode == BoardMode::Rf) {
+        AdcSampleFrame sample = {};
+        if (ADC_MANAGER.consumeLatestInputSample(sample)) {
+            const uint32_t reportSequence =
+                MonitorTelemetry_NextSequence();
+            MonitorTelemetry_OnReportReady(reportSequence,
+                                           sample.triggerCycles,
+                                           sample.completeCycles);
+            CONNECTION_MANAGER.onReportReady(GAMEPAD.state,
+                                             reportSequence);
+        }
+        return;
+    }
+#endif
+
+    if (inputPipelineRunning &&
+        (activeBoardMode == BoardMode::Rf ||
+         activeBoardMode == BoardMode::Usb)) {
+        AdcSampleFrame sample = {};
+        if (ADC_MANAGER.consumeLatestInputSample(sample)) {
+            processReportSample(sample);
+        }
+    }
 
 #if APPLICATION_DEBUG_PRINT == 1
     LATENCY_MONITOR.process();
 #endif
 }
 
-void InputState::reset()
+void InputState::serviceLeds()
 {
-    // 清除FN键状态标志
-    static bool fnPressedLogged = false;
-    fnPressedLogged = false;
-    LOG_DEBUG("INPUT", "Input state reset completed");
+#if HAS_LED == 1
+#if !INPUT_LED_RECOVERY_HOLD_OFF
+    if (isRunning && inputPipelineRunning) {
+        LEDS_MANAGER.loop(virtualPinMask);
+    }
+#endif
+#endif
+}
+
+bool InputState::ensureUsbRuntime(InputMode inputMode)
+{
+    if (activeBoardMode != BoardMode::Usb) {
+        return false;
+    }
+    if (usbRuntimeInitialized && usbRuntimeConnected) {
+        return true;
+    }
+    USB_DRIVER.setRequestedReportRateHz(static_cast<uint16_t>(
+        STORAGE_MANAGER.getWirelessReportRate()));
+    usbRuntimeInitialized = USB_DRIVER.start(inputMode);
+    usbRuntimeConnected = usbRuntimeInitialized;
+    return usbRuntimeInitialized;
+}
+
+void InputState::sendUsbNeutralReport()
+{
+    if (!usbRuntimeInitialized) {
+        return;
+    }
+    for (uint8_t index = 0u; index < 4u; ++index) {
+        (void)USB_DRIVER.sendNeutral();
+        USB_DRIVER.process();
+        HAL_Delay(1u);
+    }
+}
+
+bool InputState::disconnectUsbRuntime()
+{
+    if (!usbRuntimeInitialized) {
+        return true;
+    }
+    sendUsbNeutralReport();
+    USB_DRIVER.shutdown();
+    usbRuntimeConnected = false;
+    usbCompatibilityRecoveryUsed = false;
+    usbRuntimeInitialized = false;
+    return true;
+}
+
+bool InputState::connectUsbRuntime()
+{
+    return ensureUsbRuntime(STORAGE_MANAGER.getInputMode());
+}
+
+void InputState::exit()
+{
+    stopInputPipeline();
+    USB_DRIVER.shutdown();
+    USB_BOARD_LINK.shutdown();
+    CH585_ROLE_BOOTSTRAP.shutdown();
+    RFBridgePort_Shutdown();
+    lastVirtualPinMask = 0u;
+    virtualPinMask = 0u;
+    usbRuntimeInitialized = false;
+    usbRuntimeConnected = false;
+    activeBoardMode = BoardMode::CenterOff;
+    isRunning = false;
 }

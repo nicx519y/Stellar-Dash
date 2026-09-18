@@ -1,0 +1,1011 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ch585_role_bootstrap.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/ch585_role_bootstrap.cpp"
+  19              		.section	.rodata.AppStartupLog_Printf.str1.1,"aMS",%progbits,1
+  20              	.LC0:
+  21 0000 5B415050 		.ascii	"[APP][STARTUP][%s]%s \000"
+  21      5D5B5354 
+  21      41525455 
+  21      505D5B25 
+  21      735D2573 
+  22              	.LC1:
+  23 0016 0D00     		.ascii	"\015\000"
+  24              		.section	.text.AppStartupLog_Printf,"ax",%progbits
+  25              		.align	1
+  26              		.syntax unified
+  27              		.thumb
+  28              		.thumb_func
+  30              	AppStartupLog_Printf:
+  31              	.LVL0:
+  32              	.LFB1275:
+  33              		.file 2 "Core/Inc/board_cfg.h"
+   1:Core/Inc/board_cfg.h **** /*
+   2:Core/Inc/board_cfg.h ****  * The MIT License (MIT)
+   3:Core/Inc/board_cfg.h ****  *
+   4:Core/Inc/board_cfg.h ****  * Copyright (c) 2021, Ha Thach (tinyusb.org)
+   5:Core/Inc/board_cfg.h ****  *
+   6:Core/Inc/board_cfg.h ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   7:Core/Inc/board_cfg.h ****  * of this software and associated documentation files (the "Software"), to deal
+   8:Core/Inc/board_cfg.h ****  * in the Software without restriction, including without limitation the rights
+   9:Core/Inc/board_cfg.h ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  10:Core/Inc/board_cfg.h ****  * copies of the Software, and to permit persons to whom the Software is
+  11:Core/Inc/board_cfg.h ****  * furnished to do so, subject to the following conditions:
+  12:Core/Inc/board_cfg.h ****  *
+  13:Core/Inc/board_cfg.h ****  * The above copyright notice and this permission notice shall be included in
+  14:Core/Inc/board_cfg.h ****  * all copies or substantial portions of the Software.
+  15:Core/Inc/board_cfg.h ****  *
+  16:Core/Inc/board_cfg.h ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  17:Core/Inc/board_cfg.h ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  18:Core/Inc/board_cfg.h ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  19:Core/Inc/board_cfg.h ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  20:Core/Inc/board_cfg.h ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  21:Core/Inc/board_cfg.h ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 2
+
+
+  22:Core/Inc/board_cfg.h ****  * THE SOFTWARE.
+  23:Core/Inc/board_cfg.h ****  *
+  24:Core/Inc/board_cfg.h ****  * This file is part of the TinyUSB stack.
+  25:Core/Inc/board_cfg.h ****  */
+  26:Core/Inc/board_cfg.h **** 
+  27:Core/Inc/board_cfg.h **** #ifndef __BOARD_H__
+  28:Core/Inc/board_cfg.h **** #define __BOARD_H__
+  29:Core/Inc/board_cfg.h **** 
+  30:Core/Inc/board_cfg.h **** #include "stm32h750xx.h"
+  31:Core/Inc/board_cfg.h **** #include "stm32h7xx_hal.h"
+  32:Core/Inc/board_cfg.h **** #include <stdarg.h>
+  33:Core/Inc/board_cfg.h **** #include <stdbool.h>
+  34:Core/Inc/board_cfg.h **** #include <stdio.h>
+  35:Core/Inc/board_cfg.h **** 
+  36:Core/Inc/board_cfg.h **** #ifdef __cplusplus
+  37:Core/Inc/board_cfg.h ****  extern "C" {
+  38:Core/Inc/board_cfg.h **** #endif
+  39:Core/Inc/board_cfg.h **** 
+  40:Core/Inc/board_cfg.h **** 
+  41:Core/Inc/board_cfg.h **** #define SYSTEM_CLOCK_FREQ      480000000
+  42:Core/Inc/board_cfg.h **** 
+  43:Core/Inc/board_cfg.h **** #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
+  44:Core/Inc/board_cfg.h **** 
+  45:Core/Inc/board_cfg.h **** // STM32H7系列的唯一ID存储地址（96位，12字节）
+  46:Core/Inc/board_cfg.h **** #define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+  47:Core/Inc/board_cfg.h **** 
+  48:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_Msk
+  49:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+  50:Core/Inc/board_cfg.h **** #endif
+  51:Core/Inc/board_cfg.h **** 
+  52:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_RN
+  53:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+  54:Core/Inc/board_cfg.h **** #endif
+  55:Core/Inc/board_cfg.h **** 
+  56:Core/Inc/board_cfg.h **** /* Debug print configuration.
+  57:Core/Inc/board_cfg.h ****  * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+  58:Core/Inc/board_cfg.h ****  * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+  59:Core/Inc/board_cfg.h ****  */
+  60:Core/Inc/board_cfg.h **** #ifndef APPLICATION_SERIAL_PRINT
+  61:Core/Inc/board_cfg.h **** #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+  62:Core/Inc/board_cfg.h **** #endif
+  63:Core/Inc/board_cfg.h **** 
+  64:Core/Inc/board_cfg.h **** #ifndef APPLICATION_DEBUG_PRINT
+  65:Core/Inc/board_cfg.h **** #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+  66:Core/Inc/board_cfg.h **** #endif
+  67:Core/Inc/board_cfg.h **** 
+  68:Core/Inc/board_cfg.h **** #ifndef APP_LOG_VERBOSE
+  69:Core/Inc/board_cfg.h **** #define APP_LOG_VERBOSE 0
+  70:Core/Inc/board_cfg.h **** #endif
+  71:Core/Inc/board_cfg.h **** 
+  72:Core/Inc/board_cfg.h **** /* Concise production startup milestones, independent from verbose APP_DBG. */
+  73:Core/Inc/board_cfg.h **** #ifndef APPLICATION_STARTUP_LOG
+  74:Core/Inc/board_cfg.h **** #define APPLICATION_STARTUP_LOG 1
+  75:Core/Inc/board_cfg.h **** #endif
+  76:Core/Inc/board_cfg.h **** 
+  77:Core/Inc/board_cfg.h **** #if APPLICATION_STARTUP_LOG
+  78:Core/Inc/board_cfg.h **** static inline void AppStartupLog_Printf(const char *stage,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 3
+
+
+  79:Core/Inc/board_cfg.h ****                                         const char *level,
+  80:Core/Inc/board_cfg.h ****                                         const char *fmt, ...)
+  81:Core/Inc/board_cfg.h **** {
+  34              		.loc 2 81 1 view -0
+  35              		.cfi_startproc
+  36              		@ args = 4, pretend = 8, frame = 8
+  37              		@ frame_needed = 0, uses_anonymous_args = 1
+  82:Core/Inc/board_cfg.h ****     va_list args;
+  38              		.loc 2 82 5 view .LVU1
+  83:Core/Inc/board_cfg.h ****     printf("[APP][STARTUP][%s]%s ", stage, level);
+  39              		.loc 2 83 5 view .LVU2
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  40              		.loc 2 81 1 is_stmt 0 view .LVU3
+  41 0000 0CB4     		push	{r2, r3}
+  42              	.LCFI0:
+  43              		.cfi_def_cfa_offset 8
+  44              		.cfi_offset 2, -8
+  45              		.cfi_offset 3, -4
+  46 0002 37B5     		push	{r0, r1, r2, r4, r5, lr}
+  47              	.LCFI1:
+  48              		.cfi_def_cfa_offset 32
+  49              		.cfi_offset 4, -20
+  50              		.cfi_offset 5, -16
+  51              		.cfi_offset 14, -12
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  52              		.loc 2 81 1 view .LVU4
+  53 0004 06AC     		add	r4, sp, #24
+  54 0006 0A46     		mov	r2, r1
+  55              		.loc 2 83 11 view .LVU5
+  56 0008 0146     		mov	r1, r0
+  57              	.LVL1:
+  58              		.loc 2 83 11 view .LVU6
+  59 000a 0948     		ldr	r0, .L2
+  60              	.LVL2:
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  61              		.loc 2 81 1 view .LVU7
+  62 000c 54F8045B 		ldr	r5, [r4], #4
+  63              		.loc 2 83 11 view .LVU8
+  64 0010 FFF7FEFF 		bl	printf
+  65              	.LVL3:
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  66              		.loc 2 84 5 is_stmt 1 view .LVU9
+  85:Core/Inc/board_cfg.h ****     vprintf(fmt, args);
+  67              		.loc 2 85 12 is_stmt 0 view .LVU10
+  68 0014 2146     		mov	r1, r4
+  69 0016 2846     		mov	r0, r5
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  70              		.loc 2 84 5 view .LVU11
+  71 0018 0194     		str	r4, [sp, #4]
+  72              		.loc 2 85 5 is_stmt 1 view .LVU12
+  73              		.loc 2 85 12 is_stmt 0 view .LVU13
+  74 001a FFF7FEFF 		bl	vprintf
+  75              	.LVL4:
+  86:Core/Inc/board_cfg.h ****     va_end(args);
+  76              		.loc 2 86 5 is_stmt 1 view .LVU14
+  87:Core/Inc/board_cfg.h ****     printf("\r\n");
+  77              		.loc 2 87 5 view .LVU15
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 4
+
+
+  78              		.loc 2 87 11 is_stmt 0 view .LVU16
+  79 001e 0548     		ldr	r0, .L2+4
+  80 0020 FFF7FEFF 		bl	puts
+  81              	.LVL5:
+  88:Core/Inc/board_cfg.h **** }
+  82              		.loc 2 88 1 view .LVU17
+  83 0024 03B0     		add	sp, sp, #12
+  84              	.LCFI2:
+  85              		.cfi_def_cfa_offset 20
+  86              		@ sp needed
+  87 0026 BDE83040 		pop	{r4, r5, lr}
+  88              	.LCFI3:
+  89              		.cfi_restore 14
+  90              		.cfi_restore 5
+  91              		.cfi_restore 4
+  92              		.cfi_def_cfa_offset 8
+  93 002a 02B0     		add	sp, sp, #8
+  94              	.LCFI4:
+  95              		.cfi_restore 3
+  96              		.cfi_restore 2
+  97              		.cfi_def_cfa_offset 0
+  98 002c 7047     		bx	lr
+  99              	.L3:
+ 100 002e 00BF     		.align	2
+ 101              	.L2:
+ 102 0030 00000000 		.word	.LC0
+ 103 0034 16000000 		.word	.LC1
+ 104              		.cfi_endproc
+ 105              	.LFE1275:
+ 107              		.section	.text._ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE,"ax",%progbits
+ 108              		.align	1
+ 109              		.global	_ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE
+ 110              		.syntax unified
+ 111              		.thumb
+ 112              		.thumb_func
+ 114              	_ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE:
+ 115              	.LVL6:
+ 116              	.LFB1303:
+   1:Cpp_Core/Src/ch585_role_bootstrap.cpp **** #include "ch585_role_bootstrap.hpp"
+   2:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+   3:Cpp_Core/Src/ch585_role_bootstrap.cpp **** #include "board_cfg.h"
+   4:Cpp_Core/Src/ch585_role_bootstrap.cpp **** #include "board_power.hpp"
+   5:Cpp_Core/Src/ch585_role_bootstrap.cpp **** #include "rf_boot_ready.hpp"
+   6:Cpp_Core/Src/ch585_role_bootstrap.cpp **** #include "stm32h7xx_hal.h"
+   7:Cpp_Core/Src/ch585_role_bootstrap.cpp **** #include "system_logger.h"
+   8:Cpp_Core/Src/ch585_role_bootstrap.cpp **** #include "usb_board_link_port.hpp"
+   9:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  10:Cpp_Core/Src/ch585_role_bootstrap.cpp **** void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
+  11:Cpp_Core/Src/ch585_role_bootstrap.cpp **** {
+ 117              		.loc 1 11 1 is_stmt 1 view -0
+ 118              		.cfi_startproc
+ 119              		@ args = 0, pretend = 0, frame = 0
+ 120              		@ frame_needed = 0, uses_anonymous_args = 0
+ 121              		@ link register save eliminated.
+  12:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     selector = selectorFn;
+ 122              		.loc 1 12 5 view .LVU19
+ 123              		.loc 1 12 14 is_stmt 0 view .LVU20
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 5
+
+
+ 124 0000 0160     		str	r1, [r0]
+  13:Cpp_Core/Src/ch585_role_bootstrap.cpp **** }
+ 125              		.loc 1 13 1 view .LVU21
+ 126 0002 7047     		bx	lr
+ 127              		.cfi_endproc
+ 128              	.LFE1303:
+ 130              		.section	.text._ZN18Ch585RoleBootstrap8shutdownEv,"ax",%progbits
+ 131              		.align	1
+ 132              		.global	_ZN18Ch585RoleBootstrap8shutdownEv
+ 133              		.syntax unified
+ 134              		.thumb
+ 135              		.thumb_func
+ 137              	_ZN18Ch585RoleBootstrap8shutdownEv:
+ 138              	.LVL7:
+ 139              	.LFB1304:
+  14:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  15:Cpp_Core/Src/ch585_role_bootstrap.cpp **** void Ch585RoleBootstrap::shutdown()
+  16:Cpp_Core/Src/ch585_role_bootstrap.cpp **** {
+ 140              		.loc 1 16 1 is_stmt 1 view -0
+ 141              		.cfi_startproc
+ 142              		@ args = 0, pretend = 0, frame = 0
+ 143              		@ frame_needed = 0, uses_anonymous_args = 0
+  17:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     (void)BOARD_POWER.setUsbHostEnabled(false);
+ 144              		.loc 1 17 5 view .LVU23
+ 145              	.LBB12:
+ 146              	.LBI12:
+ 147              		.file 3 "Cpp_Core/Inc/board_power.hpp"
+   1:Cpp_Core/Inc/board_power.hpp **** #ifndef BOARD_POWER_HPP
+   2:Cpp_Core/Inc/board_power.hpp **** #define BOARD_POWER_HPP
+   3:Cpp_Core/Inc/board_power.hpp **** 
+   4:Cpp_Core/Inc/board_power.hpp **** #include <stdbool.h>
+   5:Cpp_Core/Inc/board_power.hpp **** #include <stdint.h>
+   6:Cpp_Core/Inc/board_power.hpp **** 
+   7:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+   8:Cpp_Core/Inc/board_power.hpp **** extern "C" {
+   9:Cpp_Core/Inc/board_power.hpp **** #endif
+  10:Cpp_Core/Inc/board_power.hpp **** 
+  11:Cpp_Core/Inc/board_power.hpp **** /*
+  12:Cpp_Core/Inc/board_power.hpp ****  * Re-asserts PI4 without changing any other rail.  The bootloader leaves PI4
+  13:Cpp_Core/Inc/board_power.hpp ****  * high before jumping to the XIP application; this hook preserves that state
+  14:Cpp_Core/Inc/board_power.hpp ****  * as the application runtime is brought up.
+  15:Cpp_Core/Inc/board_power.hpp ****  */
+  16:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EarlyMainHold(void);
+  17:Cpp_Core/Inc/board_power.hpp **** 
+  18:Cpp_Core/Inc/board_power.hpp **** /* Configures all board power-control pins to their fail-safe defaults. */
+  19:Cpp_Core/Inc/board_power.hpp **** void BoardPower_Initialize(void);
+  20:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetChargeEnabled(bool enabled);
+  21:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetHallEnabled(bool enabled);
+  22:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EnableHallForAdc(void);
+  23:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetKeyLedEnabled(bool enabled);
+  24:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetAmbientLedEnabled(bool enabled);
+  25:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetLcdEnabled(bool enabled);
+  26:Cpp_Core/Inc/board_power.hpp **** 
+  27:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+  28:Cpp_Core/Inc/board_power.hpp **** }
+  29:Cpp_Core/Inc/board_power.hpp **** 
+  30:Cpp_Core/Inc/board_power.hpp **** class BoardPower {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 6
+
+
+  31:Cpp_Core/Inc/board_power.hpp **** public:
+  32:Cpp_Core/Inc/board_power.hpp ****     BoardPower(const BoardPower&) = delete;
+  33:Cpp_Core/Inc/board_power.hpp ****     BoardPower& operator=(const BoardPower&) = delete;
+  34:Cpp_Core/Inc/board_power.hpp **** 
+  35:Cpp_Core/Inc/board_power.hpp ****     static BoardPower& getInstance()
+ 148              		.loc 3 35 24 view .LVU24
+  36:Cpp_Core/Inc/board_power.hpp ****     {
+  37:Cpp_Core/Inc/board_power.hpp ****         static BoardPower instance;
+ 149              		.loc 3 37 9 view .LVU25
+  38:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 150              		.loc 3 38 9 view .LVU26
+ 151              	.LBE12:
+  16:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     (void)BOARD_POWER.setUsbHostEnabled(false);
+ 152              		.loc 1 16 1 is_stmt 0 view .LVU27
+ 153 0000 38B5     		push	{r3, r4, r5, lr}
+ 154              	.LCFI5:
+ 155              		.cfi_def_cfa_offset 16
+ 156              		.cfi_offset 3, -16
+ 157              		.cfi_offset 4, -12
+ 158              		.cfi_offset 5, -8
+ 159              		.cfi_offset 14, -4
+ 160              		.loc 1 17 40 discriminator 1 view .LVU28
+ 161 0002 074D     		ldr	r5, .L6
+  16:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     (void)BOARD_POWER.setUsbHostEnabled(false);
+ 162              		.loc 1 16 1 view .LVU29
+ 163 0004 0446     		mov	r4, r0
+ 164              		.loc 1 17 40 discriminator 1 view .LVU30
+ 165 0006 0021     		movs	r1, #0
+ 166 0008 2846     		mov	r0, r5
+ 167              	.LVL8:
+ 168              		.loc 1 17 40 discriminator 1 view .LVU31
+ 169 000a FFF7FEFF 		bl	_ZN10BoardPower17setUsbHostEnabledEb
+ 170              	.LVL9:
+  18:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 171              		.loc 1 18 5 is_stmt 1 view .LVU32
+ 172              	.LBB13:
+ 173              	.LBI13:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 174              		.loc 3 35 24 view .LVU33
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 175              		.loc 3 37 9 view .LVU34
+ 176              		.loc 3 38 9 view .LVU35
+ 177              	.LBE13:
+ 178              		.loc 1 18 32 is_stmt 0 discriminator 1 view .LVU36
+ 179 000e 0021     		movs	r1, #0
+ 180 0010 2846     		mov	r0, r5
+ 181 0012 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 182              	.LVL10:
+  19:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     RFBootReady::reset();
+ 183              		.loc 1 19 5 is_stmt 1 view .LVU37
+ 184              		.loc 1 19 23 is_stmt 0 view .LVU38
+ 185 0016 FFF7FEFF 		bl	_ZN11RFBootReady5resetEv
+ 186              	.LVL11:
+  20:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     activeRole = Ch585Role::SafeIdle;
+ 187              		.loc 1 20 5 is_stmt 1 view .LVU39
+  21:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     bootstrapState = Ch585BootstrapState::Off;
+ 188              		.loc 1 21 5 view .LVU40
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 7
+
+
+  20:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     activeRole = Ch585Role::SafeIdle;
+ 189              		.loc 1 20 16 is_stmt 0 view .LVU41
+ 190 001a 0023     		movs	r3, #0
+ 191 001c A380     		strh	r3, [r4, #4]	@ movhi
+  22:Cpp_Core/Src/ch585_role_bootstrap.cpp **** }
+ 192              		.loc 1 22 1 view .LVU42
+ 193 001e 38BD     		pop	{r3, r4, r5, pc}
+ 194              	.LVL12:
+ 195              	.L7:
+ 196              		.loc 1 22 1 view .LVU43
+ 197              		.align	2
+ 198              	.L6:
+ 199 0020 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 200              		.cfi_endproc
+ 201              	.LFE1304:
+ 203              		.section	.text._ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role,"ax",%progbits
+ 204              		.align	1
+ 205              		.global	_ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role
+ 206              		.syntax unified
+ 207              		.thumb
+ 208              		.thumb_func
+ 210              	_ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role:
+ 211              	.LVL13:
+ 212              	.LFB1305:
+  23:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  24:Cpp_Core/Src/ch585_role_bootstrap.cpp **** bool Ch585RoleBootstrap::selectOnce(Ch585Role requestedRole)
+  25:Cpp_Core/Src/ch585_role_bootstrap.cpp **** {
+ 213              		.loc 1 25 1 is_stmt 1 view -0
+ 214              		.cfi_startproc
+ 215              		@ args = 0, pretend = 0, frame = 0
+ 216              		@ frame_needed = 0, uses_anonymous_args = 0
+  26:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     const uint32_t startMs = HAL_GetTick();
+ 217              		.loc 1 26 5 view .LVU45
+  25:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     const uint32_t startMs = HAL_GetTick();
+ 218              		.loc 1 25 1 is_stmt 0 view .LVU46
+ 219 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 220              	.LCFI6:
+ 221              		.cfi_def_cfa_offset 24
+ 222              		.cfi_offset 3, -24
+ 223              		.cfi_offset 4, -20
+ 224              		.cfi_offset 5, -16
+ 225              		.cfi_offset 6, -12
+ 226              		.cfi_offset 7, -8
+ 227              		.cfi_offset 14, -4
+  25:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     const uint32_t startMs = HAL_GetTick();
+ 228              		.loc 1 25 1 view .LVU47
+ 229 0002 0446     		mov	r4, r0
+ 230 0004 0E46     		mov	r6, r1
+ 231              		.loc 1 26 41 view .LVU48
+ 232 0006 FFF7FEFF 		bl	HAL_GetTick
+ 233              	.LVL14:
+  27:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     bootstrapState = Ch585BootstrapState::Selecting;
+ 234              		.loc 1 27 20 view .LVU49
+ 235 000a 0223     		movs	r3, #2
+  26:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     const uint32_t startMs = HAL_GetTick();
+ 236              		.loc 1 26 41 view .LVU50
+ 237 000c 0746     		mov	r7, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 8
+
+
+ 238              	.LVL15:
+ 239              		.loc 1 27 5 is_stmt 1 view .LVU51
+ 240              		.loc 1 27 20 is_stmt 0 view .LVU52
+ 241 000e 6371     		strb	r3, [r4, #5]
+ 242              	.LVL16:
+ 243              	.L11:
+  28:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  29:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     do {
+ 244              		.loc 1 29 5 is_stmt 1 view .LVU53
+  30:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         if (selector(requestedRole)) {
+ 245              		.loc 1 30 9 view .LVU54
+ 246              		.loc 1 30 21 is_stmt 0 view .LVU55
+ 247 0010 2368     		ldr	r3, [r4]
+ 248 0012 3046     		mov	r0, r6
+ 249 0014 9847     		blx	r3
+ 250              	.LVL17:
+ 251              		.loc 1 30 9 discriminator 1 view .LVU56
+ 252 0016 0546     		mov	r5, r0
+ 253 0018 20B1     		cbz	r0, .L9
+  31:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             activeRole = requestedRole;
+ 254              		.loc 1 31 13 is_stmt 1 view .LVU57
+  32:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Locked;
+ 255              		.loc 1 32 28 is_stmt 0 view .LVU58
+ 256 001a 0323     		movs	r3, #3
+  31:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             activeRole = requestedRole;
+ 257              		.loc 1 31 24 view .LVU59
+ 258 001c 2671     		strb	r6, [r4, #4]
+ 259              		.loc 1 32 13 is_stmt 1 view .LVU60
+ 260              		.loc 1 32 28 is_stmt 0 view .LVU61
+ 261 001e 6371     		strb	r3, [r4, #5]
+  33:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             return true;
+ 262              		.loc 1 33 13 is_stmt 1 view .LVU62
+ 263              	.L10:
+  34:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         }
+  35:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         HAL_Delay(CH585_ROLE_SELECT_RETRY_MS);
+  36:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     } while ((uint32_t)(HAL_GetTick() - startMs) < CH585_ROLE_SELECT_TIMEOUT_MS);
+  37:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  38:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     return false;
+  39:Cpp_Core/Src/ch585_role_bootstrap.cpp **** }
+ 264              		.loc 1 39 1 is_stmt 0 view .LVU63
+ 265 0020 2846     		mov	r0, r5
+ 266 0022 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 267              	.LVL18:
+ 268              	.L9:
+  35:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     } while ((uint32_t)(HAL_GetTick() - startMs) < CH585_ROLE_SELECT_TIMEOUT_MS);
+ 269              		.loc 1 35 9 is_stmt 1 view .LVU64
+  35:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     } while ((uint32_t)(HAL_GetTick() - startMs) < CH585_ROLE_SELECT_TIMEOUT_MS);
+ 270              		.loc 1 35 18 is_stmt 0 view .LVU65
+ 271 0024 0520     		movs	r0, #5
+ 272 0026 FFF7FEFF 		bl	HAL_Delay
+ 273              	.LVL19:
+  36:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 274              		.loc 1 36 50 is_stmt 1 view .LVU66
+  36:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 275              		.loc 1 36 36 is_stmt 0 view .LVU67
+ 276 002a FFF7FEFF 		bl	HAL_GetTick
+ 277              	.LVL20:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 9
+
+
+  36:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 278              		.loc 1 36 39 discriminator 1 view .LVU68
+ 279 002e C31B     		subs	r3, r0, r7
+  36:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 280              		.loc 1 36 50 discriminator 1 view .LVU69
+ 281 0030 B3F5966F 		cmp	r3, #1200
+ 282 0034 ECD3     		bcc	.L11
+ 283 0036 F3E7     		b	.L10
+ 284              		.cfi_endproc
+ 285              	.LFE1305:
+ 287              		.section	.rodata._ZN18Ch585RoleBootstrap5startE9Ch585Role.str1.1,"aMS",%progbits,1
+ 288              	.LC2:
+ 289 0000 43483538 		.ascii	"CH585 role bootstrap attempt=%u role=%u\000"
+ 289      3520726F 
+ 289      6C652062 
+ 289      6F6F7473 
+ 289      74726170 
+ 290              	.LC3:
+ 291 0028 00       		.ascii	"\000"
+ 292              	.LC4:
+ 293 0029 52303100 		.ascii	"R01\000"
+ 294              	.LC5:
+ 295 002d 43483538 		.ascii	"CH585 waiting for idle IAP-to-application handoff\000"
+ 295      35207761 
+ 295      6974696E 
+ 295      6720666F 
+ 295      72206964 
+ 296              	.LC6:
+ 297 005f 52303200 		.ascii	"R02\000"
+ 298              	.LC7:
+ 299 0063 43483538 		.ascii	"CH585 ready pulse not observed; probing role select"
+ 299      35207265 
+ 299      61647920 
+ 299      70756C73 
+ 299      65206E6F 
+ 300 0096 6F7200   		.ascii	"or\000"
+ 301              	.LC8:
+ 302 0099 52303242 		.ascii	"R02B\000"
+ 302      00
+ 303              	.LC9:
+ 304 009e 43483538 		.ascii	"CH585 application-ready pulse observed\000"
+ 304      35206170 
+ 304      706C6963 
+ 304      6174696F 
+ 304      6E2D7265 
+ 305              	.LC10:
+ 306 00c5 52303241 		.ascii	"R02A\000"
+ 306      00
+ 307              	.LC11:
+ 308 00ca 43483538 		.ascii	"CH585 role selected: attempt=%u role=%u\000"
+ 308      3520726F 
+ 308      6C652073 
+ 308      656C6563 
+ 308      7465643A 
+ 309              	.LC12:
+ 310 00f2 52303300 		.ascii	"R03\000"
+ 311              	.LC13:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 10
+
+
+ 312 00f6 43483538 		.ascii	"CH585 role select window expired: attempt=%u state="
+ 312      3520726F 
+ 312      6C652073 
+ 312      656C6563 
+ 312      74207769 
+ 313 0129 257500   		.ascii	"%u\000"
+ 314              	.LC14:
+ 315 012c 5B455252 		.ascii	"[ERROR]\000"
+ 315      4F525D00 
+ 316              	.LC15:
+ 317 0134 52303345 		.ascii	"R03E\000"
+ 317      00
+ 318              		.section	.text._ZN18Ch585RoleBootstrap5startE9Ch585Role,"ax",%progbits
+ 319              		.align	1
+ 320              		.global	_ZN18Ch585RoleBootstrap5startE9Ch585Role
+ 321              		.syntax unified
+ 322              		.thumb
+ 323              		.thumb_func
+ 325              	_ZN18Ch585RoleBootstrap5startE9Ch585Role:
+ 326              	.LVL21:
+ 327              	.LFB1306:
+  40:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  41:Cpp_Core/Src/ch585_role_bootstrap.cpp **** bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
+  42:Cpp_Core/Src/ch585_role_bootstrap.cpp **** {
+ 328              		.loc 1 42 1 is_stmt 1 view -0
+ 329              		.cfi_startproc
+ 330              		@ args = 0, pretend = 0, frame = 0
+ 331              		@ frame_needed = 0, uses_anonymous_args = 0
+  43:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     if (requestedRole == Ch585Role::SafeIdle || selector == nullptr) {
+ 332              		.loc 1 43 5 view .LVU71
+  42:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     if (requestedRole == Ch585Role::SafeIdle || selector == nullptr) {
+ 333              		.loc 1 42 1 is_stmt 0 view .LVU72
+ 334 0000 2DE9F743 		push	{r0, r1, r2, r4, r5, r6, r7, r8, r9, lr}
+ 335              	.LCFI7:
+ 336              		.cfi_def_cfa_offset 40
+ 337              		.cfi_offset 4, -28
+ 338              		.cfi_offset 5, -24
+ 339              		.cfi_offset 6, -20
+ 340              		.cfi_offset 7, -16
+ 341              		.cfi_offset 8, -12
+ 342              		.cfi_offset 9, -8
+ 343              		.cfi_offset 14, -4
+  42:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     if (requestedRole == Ch585Role::SafeIdle || selector == nullptr) {
+ 344              		.loc 1 42 1 view .LVU73
+ 345 0004 0446     		mov	r4, r0
+ 346              		.loc 1 43 5 view .LVU74
+ 347 0006 0D46     		mov	r5, r1
+ 348 0008 09B1     		cbz	r1, .L14
+ 349              		.loc 1 43 46 discriminator 1 view .LVU75
+ 350 000a 0368     		ldr	r3, [r0]
+ 351 000c 43B9     		cbnz	r3, .L15
+ 352              	.LVL22:
+ 353              	.L14:
+  44:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         shutdown();
+ 354              		.loc 1 44 9 is_stmt 1 view .LVU76
+ 355              		.loc 1 44 17 is_stmt 0 view .LVU77
+ 356 000e 2046     		mov	r0, r4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 11
+
+
+ 357 0010 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 358              	.LVL23:
+  45:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Failed;
+ 359              		.loc 1 45 9 is_stmt 1 view .LVU78
+ 360              		.loc 1 45 24 is_stmt 0 view .LVU79
+ 361 0014 0423     		movs	r3, #4
+  46:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         return false;
+ 362              		.loc 1 46 16 view .LVU80
+ 363 0016 0020     		movs	r0, #0
+  45:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Failed;
+ 364              		.loc 1 45 24 view .LVU81
+ 365 0018 6371     		strb	r3, [r4, #5]
+ 366              		.loc 1 46 9 is_stmt 1 view .LVU82
+ 367              	.L16:
+  47:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     }
+  48:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  49:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     if (isLocked() && activeRole == requestedRole) {
+  50:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         return true;
+  51:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     }
+  52:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  53:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     /* Initial attempt plus exactly one power-cycle retry. */
+  54:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     for (uint8_t attempt = 0u; attempt < 2u; ++attempt) {
+  55:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+  56:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                   static_cast<unsigned int>(attempt + 1u),
+  57:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                   static_cast<unsigned int>(requestedRole));
+  58:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         shutdown();
+  59:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         HAL_Delay(CH585_POWER_OFF_MIN_MS);
+  60:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  61:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Booting;
+  62:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         BOARD_POWER.setCh585Enabled(true);
+  63:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         /*
+  64:Cpp_Core/Src/ch585_role_bootstrap.cpp ****          * Do not clock SELECT_ROLE on the CH585 power-up edge.  The IAP path
+  65:Cpp_Core/Src/ch585_role_bootstrap.cpp ****          * already observes the same settle interval; the application needs
+  66:Cpp_Core/Src/ch585_role_bootstrap.cpp ****          * time to finish its reset/startup code and arm the cold-boot SPI
+  67:Cpp_Core/Src/ch585_role_bootstrap.cpp ****          * selector before the first five-byte transaction arrives.
+  68:Cpp_Core/Src/ch585_role_bootstrap.cpp ****          */
+  69:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         HAL_Delay(CH585_POWER_ON_SETTLE_MS);
+  70:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  71:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         /* Keep SPI completely idle while the persistent IAP observes its
+  72:Cpp_Core/Src/ch585_role_bootstrap.cpp ****          * 500-ms boot window.  Jumping from inside an active NSS transaction
+  73:Cpp_Core/Src/ch585_role_bootstrap.cpp ****          * leaves SPI0 in an ambiguous hand-off state; the loader's idle boot
+  74:Cpp_Core/Src/ch585_role_bootstrap.cpp ****          * path reaches the application with a clean bus instead. */
+  75:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         APP_STAGE("R02", "CH585 waiting for idle IAP-to-application handoff");
+  76:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         const bool readyObserved =
+  77:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             RFBootReady::waitForModuleReady(CH585_READY_HINT_TIMEOUT_MS);
+  78:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         if (!readyObserved) {
+  79:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             /*
+  80:Cpp_Core/Src/ch585_role_bootstrap.cpp ****              * PA5 is shared with the steady-state event signal and its short
+  81:Cpp_Core/Src/ch585_role_bootstrap.cpp ****              * boot pulse is only a timing hint. Some power cycles do not
+  82:Cpp_Core/Src/ch585_role_bootstrap.cpp ****              * expose that pulse to STM32 even though the CH585 polling role
+  83:Cpp_Core/Src/ch585_role_bootstrap.cpp ****              * selector is already alive. Continue with the bounded protocol
+  84:Cpp_Core/Src/ch585_role_bootstrap.cpp ****              * transaction; ROLE_SELECTED remains the authoritative commit.
+  85:Cpp_Core/Src/ch585_role_bootstrap.cpp ****              */
+  86:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             APP_STAGE("R02B",
+  87:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                       "CH585 ready pulse not observed; probing role selector");
+  88:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         } else {
+  89:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             APP_STAGE("R02A", "CH585 application-ready pulse observed");
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 12
+
+
+  90:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         }
+  91:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+  92:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         if (selectOnce(requestedRole)) {
+  93:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",
+  94:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                       static_cast<unsigned int>(attempt + 1u),
+  95:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                       static_cast<unsigned int>(requestedRole));
+  96:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             return true;
+  97:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         }
+  98:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         APP_STAGE_ERROR("R03E", "CH585 role select window expired: attempt=%u state=%u",
+  99:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                         static_cast<unsigned int>(attempt + 1u),
+ 100:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                         static_cast<unsigned int>(bootstrapState));
+ 101:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     }
+ 102:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 103:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     shutdown();
+ 104:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     bootstrapState = Ch585BootstrapState::Failed;
+ 105:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     return false;
+ 106:Cpp_Core/Src/ch585_role_bootstrap.cpp **** }
+ 368              		.loc 1 106 1 is_stmt 0 view .LVU83
+ 369 001a 03B0     		add	sp, sp, #12
+ 370              	.LCFI8:
+ 371              		.cfi_remember_state
+ 372              		.cfi_def_cfa_offset 28
+ 373              		@ sp needed
+ 374 001c BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+ 375              	.LVL24:
+ 376              	.L15:
+ 377              	.LCFI9:
+ 378              		.cfi_restore_state
+  49:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         return true;
+ 379              		.loc 1 49 5 is_stmt 1 view .LVU84
+ 380              	.LBB14:
+ 381              	.LBI14:
+ 382              		.file 4 "Cpp_Core/Inc/ch585_role_bootstrap.hpp"
+   1:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #ifndef CH585_ROLE_BOOTSTRAP_HPP
+   2:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #define CH585_ROLE_BOOTSTRAP_HPP
+   3:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+   4:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+   6:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** enum class Ch585Role : uint8_t {
+   7:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     SafeIdle = 0x00,
+   8:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Rf = 0x01,
+   9:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Usb = 0x02,
+  10:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Maintenance = 0x03,
+  11:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** };
+  12:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  13:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** enum class Ch585BootstrapState : uint8_t {
+  14:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Off = 0,
+  15:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Booting = 1,
+  16:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Selecting = 2,
+  17:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Locked = 3,
+  18:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Failed = 4,
+  19:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** };
+  20:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  21:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** /* One invocation performs one UsbBoardLink SELECT_ROLE transaction. */
+  22:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** using Ch585RoleSelector = bool (*)(Ch585Role requestedRole);
+  23:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  24:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** class Ch585RoleBootstrap {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 13
+
+
+  25:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** public:
+  26:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap(const Ch585RoleBootstrap&) = delete;
+  27:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap& operator=(const Ch585RoleBootstrap&) = delete;
+  28:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     static Ch585RoleBootstrap& getInstance()
+  30:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         static Ch585RoleBootstrap instance;
+  32:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+  33:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     }
+  34:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  35:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     void setSelector(Ch585RoleSelector selectorFn);
+  36:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     bool start(Ch585Role requestedRole);
+  37:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     void shutdown();
+  38:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  39:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585Role role() const { return activeRole; }
+  40:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585BootstrapState state() const { return bootstrapState; }
+  41:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     bool isLocked() const { return bootstrapState == Ch585BootstrapState::Locked; }
+ 383              		.loc 4 41 10 view .LVU85
+ 384              	.LBB15:
+ 385              		.loc 4 41 29 view .LVU86
+ 386              		.loc 4 41 29 is_stmt 0 view .LVU87
+ 387              	.LBE15:
+ 388              	.LBE14:
+  49:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         return true;
+ 389              		.loc 1 49 20 discriminator 1 view .LVU88
+ 390 0020 4379     		ldrb	r3, [r0, #5]	@ zero_extendqisi2
+ 391 0022 032B     		cmp	r3, #3
+ 392 0024 02D1     		bne	.L23
+ 393 0026 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 394 0028 8B42     		cmp	r3, r1
+ 395 002a 35D0     		beq	.L18
+ 396              	.L23:
+ 397 002c 0126     		movs	r6, #1
+ 398              	.LBB16:
+ 399              	.LBB17:
+  55:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                   static_cast<unsigned int>(attempt + 1u),
+ 400              		.loc 1 55 9 view .LVU89
+ 401 002e DFF8C080 		ldr	r8, .L29+52
+ 402 0032 224F     		ldr	r7, .L29
+ 403 0034 DFF8BC90 		ldr	r9, .L29+56
+ 404              	.LVL25:
+ 405              	.L22:
+  55:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                   static_cast<unsigned int>(attempt + 1u),
+ 406              		.loc 1 55 9 is_stmt 1 view .LVU90
+ 407 0038 3346     		mov	r3, r6
+ 408 003a 4246     		mov	r2, r8
+ 409 003c 3946     		mov	r1, r7
+ 410 003e 4846     		mov	r0, r9
+ 411 0040 0095     		str	r5, [sp]
+ 412 0042 FFF7FEFF 		bl	AppStartupLog_Printf
+ 413              	.LVL26:
+  58:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         HAL_Delay(CH585_POWER_OFF_MIN_MS);
+ 414              		.loc 1 58 9 view .LVU91
+  58:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         HAL_Delay(CH585_POWER_OFF_MIN_MS);
+ 415              		.loc 1 58 17 is_stmt 0 view .LVU92
+ 416 0046 2046     		mov	r0, r4
+ 417 0048 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 14
+
+
+ 418              	.LVL27:
+  59:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 419              		.loc 1 59 9 is_stmt 1 view .LVU93
+  59:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 420              		.loc 1 59 18 is_stmt 0 view .LVU94
+ 421 004c 1420     		movs	r0, #20
+ 422 004e FFF7FEFF 		bl	HAL_Delay
+ 423              	.LVL28:
+  61:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         BOARD_POWER.setCh585Enabled(true);
+ 424              		.loc 1 61 9 is_stmt 1 view .LVU95
+  61:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         BOARD_POWER.setCh585Enabled(true);
+ 425              		.loc 1 61 24 is_stmt 0 view .LVU96
+ 426 0052 0121     		movs	r1, #1
+  62:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         /*
+ 427              		.loc 1 62 36 discriminator 1 view .LVU97
+ 428 0054 1A48     		ldr	r0, .L29+4
+  61:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         BOARD_POWER.setCh585Enabled(true);
+ 429              		.loc 1 61 24 view .LVU98
+ 430 0056 6171     		strb	r1, [r4, #5]
+  62:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         /*
+ 431              		.loc 1 62 9 is_stmt 1 view .LVU99
+ 432              	.LBB18:
+ 433              	.LBI18:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 434              		.loc 3 35 24 view .LVU100
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 435              		.loc 3 37 9 view .LVU101
+ 436              		.loc 3 38 9 view .LVU102
+ 437              	.LBE18:
+  62:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         /*
+ 438              		.loc 1 62 36 is_stmt 0 discriminator 1 view .LVU103
+ 439 0058 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 440              	.LVL29:
+  69:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 441              		.loc 1 69 9 is_stmt 1 view .LVU104
+  69:Cpp_Core/Src/ch585_role_bootstrap.cpp **** 
+ 442              		.loc 1 69 18 is_stmt 0 view .LVU105
+ 443 005c 1420     		movs	r0, #20
+ 444 005e FFF7FEFF 		bl	HAL_Delay
+ 445              	.LVL30:
+  75:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         const bool readyObserved =
+ 446              		.loc 1 75 9 is_stmt 1 view .LVU106
+ 447 0062 1848     		ldr	r0, .L29+8
+ 448 0064 184A     		ldr	r2, .L29+12
+ 449 0066 3946     		mov	r1, r7
+ 450 0068 FFF7FEFF 		bl	AppStartupLog_Printf
+ 451              	.LVL31:
+  76:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             RFBootReady::waitForModuleReady(CH585_READY_HINT_TIMEOUT_MS);
+ 452              		.loc 1 76 9 view .LVU107
+  77:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         if (!readyObserved) {
+ 453              		.loc 1 77 44 is_stmt 0 view .LVU108
+ 454 006c 4FF42F70 		mov	r0, #700
+ 455 0070 FFF7FEFF 		bl	_ZN11RFBootReady18waitForModuleReadyEm
+ 456              	.LVL32:
+  78:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             /*
+ 457              		.loc 1 78 9 is_stmt 1 view .LVU109
+ 458 0074 90B9     		cbnz	r0, .L19
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 15
+
+
+  86:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                       "CH585 ready pulse not observed; probing role selector");
+ 459              		.loc 1 86 13 view .LVU110
+ 460 0076 154A     		ldr	r2, .L29+16
+ 461 0078 1049     		ldr	r1, .L29
+ 462 007a 1548     		ldr	r0, .L29+20
+ 463              	.LVL33:
+ 464              	.L28:
+  89:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         }
+ 465              		.loc 1 89 13 is_stmt 0 view .LVU111
+ 466 007c FFF7FEFF 		bl	AppStartupLog_Printf
+ 467              	.LVL34:
+  92:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",
+ 468              		.loc 1 92 9 is_stmt 1 view .LVU112
+  92:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",
+ 469              		.loc 1 92 23 is_stmt 0 view .LVU113
+ 470 0080 2946     		mov	r1, r5
+ 471 0082 2046     		mov	r0, r4
+ 472 0084 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role
+ 473              	.LVL35:
+  92:Cpp_Core/Src/ch585_role_bootstrap.cpp ****             APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",
+ 474              		.loc 1 92 9 discriminator 1 view .LVU114
+ 475 0088 60B1     		cbz	r0, .L21
+  93:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                       static_cast<unsigned int>(attempt + 1u),
+ 476              		.loc 1 93 13 is_stmt 1 view .LVU115
+ 477 008a 3346     		mov	r3, r6
+ 478 008c 114A     		ldr	r2, .L29+24
+ 479 008e 0B49     		ldr	r1, .L29
+ 480 0090 1148     		ldr	r0, .L29+28
+ 481 0092 0095     		str	r5, [sp]
+ 482 0094 FFF7FEFF 		bl	AppStartupLog_Printf
+ 483              	.LVL36:
+  96:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         }
+ 484              		.loc 1 96 13 view .LVU116
+ 485              	.L18:
+  96:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         }
+ 486              		.loc 1 96 13 is_stmt 0 view .LVU117
+ 487              	.LBE17:
+ 488              	.LBE16:
+  50:Cpp_Core/Src/ch585_role_bootstrap.cpp ****     }
+ 489              		.loc 1 50 16 view .LVU118
+ 490 0098 0120     		movs	r0, #1
+ 491 009a BEE7     		b	.L16
+ 492              	.LVL37:
+ 493              	.L19:
+ 494              	.LBB20:
+ 495              	.LBB19:
+  89:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         }
+ 496              		.loc 1 89 13 is_stmt 1 view .LVU119
+ 497 009c 0F4A     		ldr	r2, .L29+32
+ 498 009e 0749     		ldr	r1, .L29
+ 499 00a0 0F48     		ldr	r0, .L29+36
+ 500              	.LVL38:
+  89:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         }
+ 501              		.loc 1 89 13 is_stmt 0 view .LVU120
+ 502 00a2 EBE7     		b	.L28
+ 503              	.L21:
+  98:Cpp_Core/Src/ch585_role_bootstrap.cpp ****                         static_cast<unsigned int>(attempt + 1u),
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 16
+
+
+ 504              		.loc 1 98 9 is_stmt 1 view .LVU121
+ 505 00a4 6379     		ldrb	r3, [r4, #5]	@ zero_extendqisi2
+ 506 00a6 0F4A     		ldr	r2, .L29+40
+ 507 00a8 0093     		str	r3, [sp]
+ 508 00aa 3346     		mov	r3, r6
+ 509 00ac 0E49     		ldr	r1, .L29+44
+ 510 00ae 0F48     		ldr	r0, .L29+48
+ 511 00b0 FFF7FEFF 		bl	AppStartupLog_Printf
+ 512              	.LVL39:
+ 513              	.LBE19:
+  54:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+ 514              		.loc 1 54 5 discriminator 2 view .LVU122
+  54:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+ 515              		.loc 1 54 40 discriminator 1 view .LVU123
+ 516 00b4 012E     		cmp	r6, #1
+ 517 00b6 AAD1     		bne	.L14
+ 518 00b8 0226     		movs	r6, #2
+ 519              	.LVL40:
+  54:Cpp_Core/Src/ch585_role_bootstrap.cpp ****         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+ 520              		.loc 1 54 40 is_stmt 0 discriminator 1 view .LVU124
+ 521 00ba BDE7     		b	.L22
+ 522              	.L30:
+ 523              		.align	2
+ 524              	.L29:
+ 525 00bc 28000000 		.word	.LC3
+ 526 00c0 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 527 00c4 5F000000 		.word	.LC6
+ 528 00c8 2D000000 		.word	.LC5
+ 529 00cc 63000000 		.word	.LC7
+ 530 00d0 99000000 		.word	.LC8
+ 531 00d4 CA000000 		.word	.LC11
+ 532 00d8 F2000000 		.word	.LC12
+ 533 00dc 9E000000 		.word	.LC9
+ 534 00e0 C5000000 		.word	.LC10
+ 535 00e4 F6000000 		.word	.LC13
+ 536 00e8 2C010000 		.word	.LC14
+ 537 00ec 34010000 		.word	.LC15
+ 538 00f0 00000000 		.word	.LC2
+ 539 00f4 29000000 		.word	.LC4
+ 540              	.LBE20:
+ 541              		.cfi_endproc
+ 542              	.LFE1306:
+ 544              		.weak	_ZZN10BoardPower11getInstanceEvE8instance
+ 545              		.section	.data._ZZN10BoardPower11getInstanceEvE8instance,"awG",%progbits,_ZZN10BoardPower11getInst
+ 548              	_ZZN10BoardPower11getInstanceEvE8instance:
+ 549 0000 00       		.byte	0
+ 550 0001 00       		.byte	0
+ 551 0002 00       		.byte	0
+ 552 0003 00       		.byte	0
+ 553 0004 00       		.byte	0
+ 554 0005 00       		.byte	0
+ 555 0006 00       		.byte	0
+ 556 0007 00       		.byte	0
+ 557 0008 00       		.byte	0
+ 558 0009 01       		.byte	1
+ 559 000a 00       		.byte	0
+ 560              		.text
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 17
+
+
+ 561              	.Letext0:
+ 562              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 563              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 564              		.file 7 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 565              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 566              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 567              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 568              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 569              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 570              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 571              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 572              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 573              		.file 16 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 574              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 575              		.file 18 "Cpp_Core/Inc/rf_boot_ready.hpp"
+ 576              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 577              		.file 20 "<built-in>"
+ 578              		.file 21 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s 			page 18
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ch585_role_bootstrap.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:25     .text.AppStartupLog_Printf:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:30     .text.AppStartupLog_Printf:00000000 AppStartupLog_Printf
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:102    .text.AppStartupLog_Printf:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:108    .text._ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:114    .text._ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE:00000000 _ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:131    .text._ZN18Ch585RoleBootstrap8shutdownEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:137    .text._ZN18Ch585RoleBootstrap8shutdownEv:00000000 _ZN18Ch585RoleBootstrap8shutdownEv
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:199    .text._ZN18Ch585RoleBootstrap8shutdownEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:548    .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 _ZZN10BoardPower11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:204    .text._ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:210    .text._ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role:00000000 _ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:319    .text._ZN18Ch585RoleBootstrap5startE9Ch585Role:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:325    .text._ZN18Ch585RoleBootstrap5startE9Ch585Role:00000000 _ZN18Ch585RoleBootstrap5startE9Ch585Role
+C:\Users\nicx5\AppData\Local\Temp\ccTCdQmA.s:525    .text._ZN18Ch585RoleBootstrap5startE9Ch585Role:000000bc $d
+
+UNDEFINED SYMBOLS
+printf
+vprintf
+puts
+_ZN10BoardPower17setUsbHostEnabledEb
+_ZN10BoardPower15setCh585EnabledEb
+_ZN11RFBootReady5resetEv
+HAL_GetTick
+HAL_Delay
+_ZN11RFBootReady18waitForModuleReadyEm

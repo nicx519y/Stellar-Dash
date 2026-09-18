@@ -1,11 +1,13 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
+#include "main_runtime_control.hpp"
 
+#include "board_mode.hpp"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 
 static const InputMode kInputModes[] = {
     INPUT_MODE_XINPUT,
-    INPUT_MODE_PS4,
+    INPUT_MODE_PS5,
     INPUT_MODE_XBOX,
     INPUT_MODE_SWITCH,
 };
@@ -18,7 +20,14 @@ static const char* kInputModeLabels[] = {
 };
 
 uint8_t ScreenDetailInputMode_InitIndex(void) {
+    if (!BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Usb) {
+        return 0;
+    }
     InputMode mode = STORAGE_MANAGER.getInputMode();
+    if (mode == INPUT_MODE_PS4) {
+        mode = INPUT_MODE_PS5;
+    }
     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
         if (kInputModes[i] == mode) return i;
     }
@@ -27,6 +36,11 @@ uint8_t ScreenDetailInputMode_InitIndex(void) {
 
 void ScreenDetailInputMode_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
+    if (!BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Usb) {
+        *ioIndex = 0;
+        return;
+    }
     int32_t idx = (int32_t)(*ioIndex) + det;
     if (idx < 0) idx = 0;
     if (idx >= (int32_t)(sizeof(kInputModes) / sizeof(kInputModes[0]))) idx = (int32_t)(sizeof(kInputModes) / sizeof(kInputModes[0])) - 1;
@@ -35,14 +49,26 @@ void ScreenDetailInputMode_Rotate(uint8_t* ioIndex, int8_t det) {
 
 void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
     uint8_t selected = ScreenDetailInputMode_InitIndex();
-    ScreenDetailRender_List(lcd, "Input Mode", kInputModeLabels, (uint8_t)(sizeof(kInputModeLabels) / sizeof(kInputModeLabels[0])), index, selected, style);
+    bool disabledItems[sizeof(kInputModes) / sizeof(kInputModes[0])] = {false};
+    if (!BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Usb) {
+        index = 0;
+        for (uint8_t i = 1; i < (uint8_t)(sizeof(disabledItems) / sizeof(disabledItems[0])); i++) {
+            disabledItems[i] = true;
+        }
+    }
+    ScreenDetailRender_List(lcd, "Platform", kInputModeLabels, (uint8_t)(sizeof(kInputModeLabels) / sizeof(kInputModeLabels[0])), index, selected, style, SPI_SCREEN_DETAIL_ITEM_H, false, 0, 0u, 0u, disabledItems);
 }
 
 void ScreenDetailInputMode_OnConfirm(uint8_t index) {
+    if (!BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Usb) {
+        return;
+    }
     if (index < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0]))) {
         STORAGE_MANAGER.setInputMode(kInputModes[index]);
         STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
         STORAGE_MANAGER.saveConfig();
-        NVIC_SystemReset();
+        MainRuntime_RequestReset();
     }
 }

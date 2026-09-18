@@ -56,4 +56,60 @@ export interface ADCValuesMapping {
     samplingNoise: number;
     originalValues: number[];
     calibratedValues: number[];
-} 
+}
+
+export type SwitchMappingPayload = Omit<ADCValuesMapping, 'calibratedValues'>;
+
+export interface SwitchMappingCatalogItem {
+    catalogId: string;
+    displayName: string;
+    description: string;
+    revisionId: string;
+    revision: number;
+    sha256: string;
+    hasImage: boolean;
+    imageUpdatedAt: string | null;
+    updatedAt: string;
+    isDraft?: boolean;
+}
+
+export interface SwitchMappingRevision {
+    catalogId: string;
+    revisionId: string;
+    revision: number;
+    sha256: string;
+    createdAt: string;
+    createdBy: string;
+    mapping: SwitchMappingPayload;
+}
+
+export interface SwitchMappingCatalogDetail {
+    catalogId: string;
+    displayName: string;
+    description: string;
+    productId: string;
+    pcbRevision: string;
+    hardwareVersion: string;
+    publishedRevisionId: string | null;
+    hasImage: boolean;
+    imageUpdatedAt: string | null;
+    archived: boolean;
+    createdAt: string;
+    updatedAt: string;
+    revision: SwitchMappingRevision;
+}
+
+export async function switchMappingSha256(mapping: SwitchMappingPayload): Promise<string> {
+    const bytes = new Uint8Array(220);
+    bytes.set(new TextEncoder().encode('HBOX-ADC-MAP-V1\0').subarray(0, 16), 0);
+    bytes.set(new TextEncoder().encode(mapping.id).subarray(0, 15), 16);
+    bytes.set(new TextEncoder().encode(mapping.name).subarray(0, 15), 32);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(48, mapping.length, true);
+    view.setFloat32(52, mapping.step, true);
+    view.setUint16(56, mapping.samplingNoise, true);
+    view.setUint16(58, mapping.samplingFrequency, true);
+    mapping.originalValues.forEach((value, index) => view.setUint32(60 + index * 4, value, true));
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');
+}

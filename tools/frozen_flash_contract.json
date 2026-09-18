@@ -1,0 +1,13 @@
+{
+  "version": 8,
+  "accepted_on": "2026-08-30",
+  "files": {
+    "RF_PHY_Hop/TX/Makefile": "d424698586ab9476c1bd527fd24009d9451538e19a73b7efaa6895d9aecac41c",
+    "common/ch585_staging.h": "02f77a7e340d26a0845f22a4f9e187b76e4c563e64c8360eeec384d2dc25e415",
+    "tools/build.py": "37fc7a2093392d7c6ae5bc70768c7bf0aaa1840dade08f7a26c49302777c79c1",
+    "tools/ch585_bridge_install.py": "d9cd78c0d7e2cfab7b62a9d16cbfd93ce0e3a9176724341898a037fe22f777ea",
+    "tools/ch585_stlink_update.py": "53415b212af04195a3acf9c8a134614cd9cc7944d264520ad7e5b2b4487adbfd",
+    "tools/hbox.py": "95fb43a5e6cc4273a0a00dc69029fd2022abf403fdc28917b288129eaa4c5669",
+    "tools/webconfig_flash.py": "da47afe04db55c13ad16dad78f7d6b9e98ed6fe65fe29313794127a432ffbd28"
+  }
+}

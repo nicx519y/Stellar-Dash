@@ -1,0 +1,6 @@
+#ifndef HBOX_BOOT_FIRMWARE_RELEASE_PUBLIC_KEY_WRAPPER_H
+#define HBOX_BOOT_FIRMWARE_RELEASE_PUBLIC_KEY_WRAPPER_H
+
+#include "../../../common/firmware_release_public_key.h"
+
+#endif /* HBOX_BOOT_FIRMWARE_RELEASE_PUBLIC_KEY_WRAPPER_H */

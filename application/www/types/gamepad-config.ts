@@ -15,13 +15,18 @@ export const NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX = 1;
 // max length of profile name
 export const PROFILE_NAME_MAX_LENGTH = 20;
 
-// max length of switch marking name
-export const SWITCH_MARKING_NAME_MAX_LENGTH = 16;
+// Switch mapping storage uses char[16] on STM32, including the trailing NUL.
+// The name limit is therefore measured in UTF-8 bytes, not JavaScript code units.
+export const SWITCH_MARKING_NAME_MAX_LENGTH = 15;
+export const SWITCH_MARKING_COUNT_MAX = 8;
+export const SWITCH_MARKING_LENGTH_MIN = 2;
+export const SWITCH_MARKING_LENGTH_MAX = 40;
+export const SWITCH_MARKING_STEP_MIN = 0.1;
+export const SWITCH_MARKING_STEP_MAX = 10;
 
 // firmware package chunk size
 export const DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE = 4096 * 2;
 // firmware upgrade max retries
-export const DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES = 3;
 // firmware upgrade timeout
 export const DEFAULT_FIRMWARE_UPGRADE_TIMEOUT = 30000;
 // firmware server host
@@ -32,17 +37,17 @@ export const COMBINATION_KEY_MAX_LENGTH = 5;
 // max number of button combination
 export const MAX_NUM_BUTTON_COMBINATION = 5;
 
-// keys settings interactive ids
-export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]; // 0-19 共20个按键可以交互，并设置为按键
+// latest PCB: 18 Hall + 4 GPIO = 22 keys
+export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 ];
 
-// leds settings interactive ids
-export const LEDS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-20 共21个按键可以交互，并设置为led
+// one key LED per physical key
+export const LEDS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 ];
 
 // hotkeys settings interactive ids
 export const HOTKEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]; // 0-19 共20个按键可以交互，并设置为hotkey
 
-// rapid trigger settings interactive ids
-export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 ]; // 0-16 共17个按键可以交互，并设置为rapid trigger
+// rapid trigger applies to all 18 Hall keys
+export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 ];
 
 
 
@@ -55,6 +60,9 @@ export enum Platform {
 }
 
 export const PlatformList = Object.values(Platform);
+
+export const platformForDisplay = (platform: Platform): Platform =>
+    platform === Platform.PS4 ? Platform.PS5 : platform;
 
 export const PlatformLabelMap = new Map<Platform, { label: string, description: string }>([
     [Platform.XINPUT, { 
@@ -81,14 +89,65 @@ export const PlatformLabelMap = new Map<Platform, { label: string, description: 
 
 export interface GlobalConfig {
     inputMode?: Platform;
+    defaultProfileId?: string;
+    connectionMode?: ConnectionMode;
+    connectionModeReadOnly?: boolean;
+    connectionModeSource?: 'PHYSICAL_SWITCH';
+    physicalConnectionMode?: PhysicalConnectionMode;
+    wirelessReportRate?: WirelessReportRate;
+    power?: PowerConfig;
+    hardware?: HardwareLayout;
+    ch585?: Ch585Status;
+    reportRateStatus?: ReportRateStatus;
     autoCalibrationEnabled?: boolean;
     manualCalibrationActive?: boolean;
+}
+
+export interface Ch585Status {
+    role: 'RF' | 'USB' | 'MAINTENANCE' | 'UNKNOWN';
+    firmwareVersion: string;
+    capabilitiesValid: boolean;
+}
+
+export interface ReportRateStatus {
+    requested: WirelessReportRate;
+    effective: WirelessReportRate;
+    usbSpeed: 'NONE' | 'FULL' | 'HIGH';
+    limit: 'NONE' | 'USB_PROFILE_LIMIT' | 'USB_NOT_HIGH_SPEED' | 'BOARD_LINK_COMPAT';
+}
+
+export type PhysicalConnectionMode = ConnectionMode | 'OFF' | 'FAULT' | 'UNKNOWN';
+
+export interface HardwareLayout {
+    hardwareVersion: '2.0.0' | string;
+    batteryTopology: 'SINGLE_1S2P';
+    batteryPackCount: 1 | number;
+    keyLedCount: 22 | number;
+    ambientLedCount: 40 | number;
+}
+
+export interface PowerConfig {
+    wakeHoldMs: number;
+    autoStandbyMs: number;
+}
+
+export enum ConnectionMode {
+    USB = "USB",
+    RF24G = "RF24G",
+}
+
+export enum WirelessReportRate {
+    RATE_1K = "1K",
+    RATE_2K = "2K",
+    RATE_4K = "4K",
+    RATE_8K = "8K",
 }
 
 export interface ScreenControlFeatures {
     inputModeSwitch: boolean;
     profilesSwitch: boolean;
     socdModeSwitch: boolean;
+    connectionModeSwitch: boolean;
     buttonsPerformanceQuickSet: boolean;
     ledBrightnessAdjust: boolean;
     ledEffectSwitch: boolean;
@@ -100,13 +159,19 @@ export interface ScreenControlFeatures {
 }
 
 export type StandbyDisplay = 'none' | 'backgroundImage' | 'buttonLayout';
+export type ScreenStyle = 'dark' | 'light';
 export type ScreenControlFeatureKey = keyof ScreenControlFeatures;
+
+export function withRequiredWebConfigEntry(
+    features: ScreenControlFeatures,
+): ScreenControlFeatures {
+    return { ...features, webConfigEntry: true };
+}
 
 export interface ScreenControlConfig {
     brightness: number;
     standbyDisplay: StandbyDisplay;
-    backgroundColor: number;
-    textColor: number;
+    screenStyle: ScreenStyle;
     backgroundImageId: string;
     currentPageId: number;
     features: ScreenControlFeatures;
@@ -116,14 +181,14 @@ export interface ScreenControlConfig {
 export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
     brightness: 100,
     standbyDisplay: 'none',
-    backgroundColor: 0x000000,
-    textColor: 0xFFFFFF,
+    screenStyle: 'dark',
     backgroundImageId: "",
     currentPageId: 0,
     features: {
         inputModeSwitch: true,
         profilesSwitch: true,
         socdModeSwitch: true,
+        connectionModeSwitch: true,
         buttonsPerformanceQuickSet: true,
         ledBrightnessAdjust: true,
         ledEffectSwitch: true,
@@ -134,6 +199,7 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         calibrationModeSwitch: true,
     },
     featuresOrder: [
+        'connectionModeSwitch',
         'inputModeSwitch',
         'profilesSwitch',
         'socdModeSwitch',
@@ -425,7 +491,6 @@ export interface GameProfile {
         ledAnimationSpeed: number;
 
         // 环绕灯配置
-        hasAroundLed?: boolean;
         aroundLedEnabled: boolean;
         aroundLedSyncToMainLed: boolean;
         aroundLedTriggerByButton: boolean;
@@ -484,7 +549,6 @@ export interface LedsEffectStyleConfig {
     animationSpeed?: number; // 1-5
 
     // 环绕灯配置
-    hasAroundLed?: boolean;
     aroundLedEnabled?: boolean;
     aroundLedSyncToMainLed?: boolean;
     aroundLedTriggerByButton?: boolean;
@@ -551,7 +615,7 @@ export const UI_TEXT = {
     // Common Button Labels
     BUTTON_RESET: "Reset",
     BUTTON_SAVE: "Save",
-    BUTTON_REBOOT_WITH_SAVING: "Finish Configuration",
+    BUTTON_FINISH_CONFIGURATION: "Finish Configuration",
     BUTTON_CANCEL: "Cancel",
     BUTTON_SUBMIT: "Submit",
     BUTTON_CONFIRM: "Confirm",
@@ -565,15 +629,18 @@ export const UI_TEXT = {
     IMPORT_CONFIG_SUCCESS_TITLE: "Import Successful",
     IMPORT_CONFIG_SUCCESS_MESSAGE: "Configuration imported successfully. Click Confirm to refresh the page.",
     // Dialog Titles
-    DIALOG_REBOOT_CONFIRM_TITLE: "Are you sure?",
-    DIALOG_REBOOT_SUCCESS_TITLE: "Reboot successful",
+    DIALOG_FINISH_CONFIRM_TITLE: "Finish configuration?",
+    DIALOG_FINISH_SUCCESS_TITLE: "Configuration finished",
+    DIALOG_CONFIG_SAVING_TITLE: "Saving configuration",
     DIALOG_CREATE_PROFILE_TITLE: "Create New Profile",
     DIALOG_RENAME_PROFILE_TITLE: "Rename Profile",
     DIALOG_COMPETITION_PROFILE_ENABLE_TITLE: "Enable Competition Profile",
     
     // Dialog Messages
-    DIALOG_REBOOT_CONFIRM_MESSAGE: "Rebooting the system with saving will save the current profile and ending the current session. \nAre you sure to continue?",
-    DIALOG_REBOOT_SUCCESS_MESSAGE: "Rebooting the system with saving is successful. \nYou can now close this window and start enjoying the gaming experience.",
+    DIALOG_FINISH_CONFIRM_MESSAGE: "Save any unsaved changes and finish configuration?",
+    DIALOG_FINISH_SUCCESS_MESSAGE: "The device has exited WebConfig mode. You can now close this window and start playing.",
+    DIALOG_CONFIG_SAVING_MESSAGE: "Saving configuration. Please keep this page open.",
+    DIALOG_CONFIG_EXITING_MESSAGE: "Configuration saved. Exiting WebConfig and restarting the device…",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "Creating a new profile will create a new profile and ending the current session. Are you sure to continue?",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "Renaming the current profile will save the current profile and ending the current session. Are you sure to continue?",
     DIALOG_COMPETITION_PROFILE_ENABLE_MESSAGE: "Enabling Competition Profile will modify current bindings: SOCD will be forced to Neutral, combinations and dynamic macros will be cleared, and each game button will keep only one physical key binding. Continue?",
@@ -591,6 +658,7 @@ export const UI_TEXT = {
 
     // Calibration
     AUTO_CALIBRATION_TITLE: "Auto Calibration",
+    AUTO_CALIBRATION_HELPER: "Use the stored automatic calibration values instead of manual calibration values.",
     MANUAL_CALIBRATION_TITLE: "Manual Calibration",
     CALIBRATION_HELPER_TEXT: "calibration is the process of finding the optimal button travel for the gamepad. It is a process of finding the optimal button travel for the gamepad.",
     CALIBRATION_START_BUTTON: "Start Calibration",
@@ -606,7 +674,7 @@ export const UI_TEXT = {
     // Settings Labels
     SETTINGS_SOCD_LABEL: "SOCD Mode",
     SETTINGS_PLATFORM_LABEL: "Platform",
-    SETTINGS_LEDS_ENABLE_LABEL: "Enable LEDs",
+    SETTINGS_LEDS_ENABLE_LABEL: "Enable Button LEDs",
     SETTINGS_LEDS_EFFECT_LABEL: "LED Effect Style",
     SETTINGS_LEDS_BRIGHTNESS_LABEL: "LED Brightness",
     SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "LED Animation Speed",
@@ -671,10 +739,17 @@ export const UI_TEXT = {
     VALIDATION_PROFILE_NAME_REQUIRED: "Profile name is required",
     VALIDATION_PROFILE_NAME_CANNOT_BE_SAME_AS_CURRENT_PROFILE_NAME: "Profile name cannot be the same as the current profile name",
     VALIDATION_PROFILE_NAME_ALREADY_EXISTS: "Profile name already exists",
-    VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name cannot contain special characters",
+    VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name may contain only letters (A-Z, a-z), numbers (0-9), hyphens (-), and underscores (_)",
     
     // Input Mode Settings
-    INPUT_MODE_TITLE: "Input Mode",
+    CONNECTION_MODE_TITLE: "Connection",
+    CONNECTION_MODE_REPORT_RATE_LABEL: "Configured rate",
+    CONNECTION_MODE_REPORT_RATE_HELPER: "2K/4K/8K take effect only after entering Input State with XInput mode; other modes use 1K.",
+    INPUT_MODE_TITLE: "Platform",
+    POWER_TITLE: "Power",
+    POWER_AUTO_STANDBY_LABEL: "Auto Sleep",
+    POWER_AUTO_STANDBY_HELPER: "The device enters sleep after remaining idle for the selected amount of time.",
+    POWER_AUTO_STANDBY_NONE: "None",
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
@@ -728,15 +803,6 @@ export const UI_TEXT = {
     SETTINGS_RAPID_TRIGGER_SCOPE_RANGE_SUFFIX: "buttons",
     SETTINGS_RAPID_TRIGGER_PARAM_NOT_UNIFIED: "(Not unified)",
 
-    // ADC Button Debounce Algorithm
-    SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "Button Debounce",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE: "Fastest",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL: "Balanced",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX: "Stablility",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC: "No debounce, low latency",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC: "Balanced, increase the latency by 0.25ms",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC: "More stable, increase the latency by 0.5ms",
-
     SETTING_BUTTON_PERFORMANCE_PRESET_TITLE: "Preset Configuration",
     SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_LABEL: "Custom",
     SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_LABEL: "Fastest",
@@ -748,6 +814,8 @@ export const UI_TEXT = {
     SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC: "Similar to mechanical switch.",
 
     // Hotkeys Settings
+    SETTINGS_BASIC_TITLE: "Basic",
+    SETTINGS_BASIC_HELPER_TEXT: "Configure the device's basic connection and power behavior here.\n- Report Rate stores the requested sampling/report rate.\n- 2K/4K/8K take effect only after entering Input State with XInput mode; other modes use 1K.\n- Auto Sleep sets how long the device waits without input before entering sleep.",
     SETTINGS_HOTKEYS_TITLE: "Hotkey",
     SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox or device to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode and calibration mode because this function is required. `,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
@@ -760,9 +828,10 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "Brightness",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL: "Background Color",
     SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL: "Text Color",
-    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Input Mode Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Platform Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "Profiles Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD Mode Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH: "Connection Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "Tournament Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET: "Buttons Performance",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED Brightness Adjust",
@@ -774,9 +843,19 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH: "Calibration Mode Switch",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGES_TITLE: "Background Images",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON: "Upload Image",
-    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP: "- Choose system preset or upload one user image. Max size 320×172. Larger images will be downscaled.\n- GIF animation images will be automatically cropped to the first {seconds} seconds of the animation, and the frame rate will be reduced to adapt to the screen control performance.",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LOAD_PREVIEWS_BUTTON: "Load Previews",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP: "- Open the gallery to choose an official image or manage up to 10 images in your account. Hold an image for 2 seconds to install it on this device.\n- GIFs are sampled across the full animation to at most {frames} frames and play at 3 FPS (about {seconds} seconds).",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON: "Set As BG",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON: "Delete",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_PROCESSING: "Processing image…",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOADING: "Uploading and verifying… {progress}%",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LOAD_FAILED: "Failed to load background previews",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_SUCCESS: "Background image uploaded and verified",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_FAILED: "Background image upload failed",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_SUCCESS: "User background image deleted",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_FAILED: "Failed to delete user background image",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_INVALID_SELECTION: "Load and verify the image before selecting it",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_REUPLOAD_REQUIRED: "The previous user image is no longer valid and must be uploaded again",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "System Preset",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "User Image",
     SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL: "Standby Display",
@@ -810,7 +889,7 @@ export const UI_TEXT = {
     PROFILE_SELECT_RENAME_FIELD_LABEL: "Profile Name",
     PROFILE_SELECT_RENAME_FIELD_PLACEHOLDER: "Enter new profile name",
     PROFILE_SELECT_DELETE_CONFIRM_MESSAGE: "Deleting this profile can not be undone or reverted. Are you sure you want to delete this profile?",
-    PROFILE_SELECT_VALIDATION_SPECIAL_CHARS: "Profile name cannot contain special characters",
+    PROFILE_SELECT_VALIDATION_SPECIAL_CHARS: "Profile name may contain only letters (A-Z, a-z), numbers (0-9), hyphens (-), and underscores (_)",
     PROFILE_SELECT_VALIDATION_LENGTH: `Profile name length must be between 1 and ${PROFILE_NAME_MAX_LENGTH} characters, current length is {0}`,
     PROFILE_SELECT_VALIDATION_SAME_NAME: "Profile name cannot be the same as the current profile name",
     PROFILE_SELECT_VALIDATION_EXISTS: "Profile name already exists",
@@ -841,10 +920,10 @@ export const UI_TEXT = {
     SETTINGS_SWITCH_MARKING_STEP_LABEL: "Step (mm)",
     SETTINGS_SWITCH_MARKING_STEP_PLACEHOLDER: "Enter step",
     SETTINGS_SWITCH_MARKING_VALIDATION_SPECIAL_CHARS: "Switch marking name cannot contain special characters",
-    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH: `Switch marking name length must be between 1 and ${SWITCH_MARKING_NAME_MAX_LENGTH} characters, current length is {0}`,
+    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH: `Switch marking name must use 1 to ${SWITCH_MARKING_NAME_MAX_LENGTH} UTF-8 bytes, current length is {0} bytes`,
     SETTINGS_SWITCH_MARKING_VALIDATION_SAME_NAME: "Switch marking name cannot be the same as the current switch marking name",
-    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE: "Switch marking length must be between 1 and 50",
-    SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE: "Switch marking step must be between 0.1 and 10",
+    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE: `Switch marking length must be an integer between ${SWITCH_MARKING_LENGTH_MIN} and ${SWITCH_MARKING_LENGTH_MAX}`,
+    SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE: `Switch marking step must be between ${SWITCH_MARKING_STEP_MIN} and ${SWITCH_MARKING_STEP_MAX}`,
     SETTINGS_SWITCH_MARKING_DELETE_DIALOG_TITLE: "Delete Switch Marking",
     SETTINGS_SWITCH_MARKING_DELETE_CONFIRM_MESSAGE: "Deleting this switch marking can not be undone or reverted. Are you sure you want to delete this switch marking?",
     SETTINGS_SWITCH_MARKING_COMPLETED_DIALOG_MESSAGE: "Congratulations! Switch marking is completed. You can now close this window and start enjoying the gaming experience.",
@@ -854,6 +933,87 @@ export const UI_TEXT = {
     SETTINGS_SWITCH_MARKING_SAVE_DIALOG_MESSAGE: `All steps have been sampled, please press the [Step] button to save the switch marking.`,
     SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_TITLE: "Uncompleted Switch Marking",
     SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE: "You have uncompleted switch marking. If you leave without saving, the switch marking data will be lost.",
+    SWITCH_MAPPING_CATALOG_TITLE: "Switch Mappings",
+    SWITCH_MAPPING_SOURCE_SERVER: "Server mapping",
+    SWITCH_MAPPING_SOURCE_FACTORY: "Factory fallback",
+    SWITCH_MAPPING_CATALOG_LOAD_FAILED: "Failed to load switch mappings",
+    SWITCH_MAPPING_DEVICE_READ_FAILED: "Failed to read device mapping",
+    SWITCH_MAPPING_FIRMWARE_UPGRADE_TITLE: "Firmware update required",
+    SWITCH_MAPPING_FIRMWARE_UPGRADE_MESSAGE: "This device does not support shared singleton mapping installation.",
+    SWITCH_MAPPING_INSTALL_SUCCESS: "{name} installed",
+    SWITCH_MAPPING_INSTALL_SUCCESS_DETAIL: "The previous mapping and per-key calibration were replaced.",
+    SWITCH_MAPPING_INSTALL_FAILED: "Failed to install switch mapping",
+    SWITCH_MAPPING_IMAGE_INVALID_TITLE: "Invalid cover image",
+    SWITCH_MAPPING_IMAGE_INVALID_MESSAGE: "Choose a JPEG, PNG, or WebP image up to 2 MiB.",
+    SWITCH_MAPPING_NAME_INVALID_TITLE: "Invalid switch name",
+    SWITCH_MAPPING_NAME_INVALID_MESSAGE: "The name must contain 1–80 characters.",
+    SWITCH_MAPPING_NAME_DUPLICATE_TITLE: "Duplicate switch name",
+    SWITCH_MAPPING_NAME_DUPLICATE_MESSAGE: "A switch mapping with this name already exists.",
+    SWITCH_MAPPING_NOT_IN_CATALOG: "This device mapping is not saved on the server and cannot be edited.",
+    SWITCH_MAPPING_CREATE_SUCCESS: "Switch added",
+    SWITCH_MAPPING_EDIT_SUCCESS: "Switch information updated",
+    SWITCH_MAPPING_CREATE_FAILED: "Failed to add switch",
+    SWITCH_MAPPING_EDIT_FAILED: "Failed to edit switch",
+    SWITCH_MAPPING_DELETE_TITLE: "Delete {name}",
+    SWITCH_MAPPING_DELETE_ACTIVE_MESSAGE: "This mapping is installed on the device. It will be permanently deleted from the database, and the device will clear the shared mapping and restore the firmware fallback. This cannot be undone.",
+    SWITCH_MAPPING_DELETE_MESSAGE: "This switch, all historical revisions, and its cover image will be permanently deleted from the database. This cannot be undone.",
+    SWITCH_MAPPING_DELETE_SUCCESS: "{name} deleted",
+    SWITCH_MAPPING_DELETE_DEVICE_FALLBACK: "The device restored the firmware fallback mapping.",
+    SWITCH_MAPPING_DELETE_FAILED: "Failed to delete switch",
+    SWITCH_MAPPING_DELETE_PARTIAL: "The device mapping was cleared, but database deletion failed: {error}",
+    SWITCH_MAPPING_ADD_ARIA: "Add switch mapping",
+    SWITCH_MAPPING_ADD_LABEL: "Add switch",
+    SWITCH_MAPPING_COVER_ALT: "{name} switch cover",
+    SWITCH_MAPPING_ACTIVE: "Active",
+    SWITCH_MAPPING_DOWNLOADING: "Downloading…",
+    SWITCH_MAPPING_EDIT_ARIA: "Edit {name}",
+    SWITCH_MAPPING_EDIT_TITLE: "Edit switch",
+    SWITCH_MAPPING_DELETE_ARIA: "Delete {name}",
+    SWITCH_MAPPING_DELETE_ACTION_TITLE: "Delete switch",
+    SWITCH_MAPPING_SAMPLING_FREQUENCY: "Sampling Frequency",
+    SWITCH_MAPPING_SAMPLING_NOISE: "Sampling Noise",
+    SWITCH_MAPPING_CURVE_EDIT_ARIA: "Edit curve data",
+    SWITCH_MAPPING_CURVE_EDIT_TITLE: "Edit curve",
+    SWITCH_MAPPING_CURVE_DIALOG_TITLE: "Edit switch mapping curve",
+    SWITCH_MAPPING_CURVE_LENGTH_LABEL: "Length",
+    SWITCH_MAPPING_CURVE_LENGTH_HELPER: "Reducing the length keeps previous columns visible but disables them until saved.",
+    SWITCH_MAPPING_CURVE_STEP_HEADER: "Step",
+    SWITCH_MAPPING_CURVE_DISTANCE_HEADER: "Distance",
+    SWITCH_MAPPING_CURVE_VALUE_HEADER: "ADC value",
+    SWITCH_MAPPING_CURVE_INVALID_TITLE: "Invalid curve data",
+    SWITCH_MAPPING_CURVE_INVALID_MESSAGE: "Length must be 2–40 and every active ADC value must be an integer from 0–65535.",
+    SWITCH_MAPPING_CURVE_SAVE_SUCCESS: "Curve saved to the server and device",
+    SWITCH_MAPPING_CURVE_SAVE_FAILED: "Failed to save curve",
+    SWITCH_MAPPING_CREATE_DIALOG_TITLE: "Add switch",
+    SWITCH_MAPPING_EDIT_DIALOG_TITLE: "Edit switch",
+    SWITCH_MAPPING_NAME_LABEL: "Switch name",
+    SWITCH_MAPPING_NAME_PLACEHOLDER: "Enter switch name",
+    SWITCH_MAPPING_COVER_LABEL: "Cover image",
+    SWITCH_MAPPING_COVER_PREVIEW_ALT: "Switch cover preview",
+    SWITCH_MAPPING_NO_COVER: "No cover image",
+    SWITCH_MAPPING_COVER_PICK_ACTION: "Choose or replace cover image",
+    SWITCH_MAPPING_COVER_HELPER: "JPEG, PNG, or WebP, up to 2 MiB",
+    SWITCH_MAPPING_COVER_CROP_HELPER: "Previewed at the final cover ratio; overflowing edges are center-cropped.",
+    SWITCH_MAPPING_COVER_INTERACTION_HELPER: "Drag to reposition; use the wheel or slider to zoom proportionally. Double-click to reset.",
+    SWITCH_MAPPING_COVER_ZOOM: "Cover zoom",
+    SWITCH_MAPPING_COVER_ZOOM_IN: "Zoom in",
+    SWITCH_MAPPING_COVER_ZOOM_OUT: "Zoom out",
+    SWITCH_MAPPING_COVER_RESET: "Reset cover position",
+    SWITCH_MAPPING_CREATE_HELPER: "Creates a normal server mapping with all curve nodes set to zero. Select it from the list to install it on the device.",
+    SWITCH_MAPPING_DRAFT: "Draft",
+    SWITCH_MAPPING_PARAMETERS_INVALID_TITLE: "Invalid mapping parameters",
+    SWITCH_MAPPING_PARAMETERS_INVALID_MESSAGE: `Length must be an integer from ${SWITCH_MARKING_LENGTH_MIN} to ${SWITCH_MARKING_LENGTH_MAX}, and step must be from ${SWITCH_MARKING_STEP_MIN} to ${SWITCH_MARKING_STEP_MAX} mm.`,
+    SWITCH_MAPPING_RECORDING_TOOLBAR_TITLE: "Curve Recording",
+    SWITCH_MAPPING_RECORDING_START: "Start Recording",
+    SWITCH_MAPPING_RECORDING_STOP: "Stop Recording",
+    SWITCH_MAPPING_RECORDING_STEP: "Step",
+    SWITCH_MAPPING_RECORDING_READY: "Press Start to record the mapping currently installed on the device.",
+    SWITCH_MAPPING_RECORDING_CURRENT_ONLY: "Only the active device mapping can be recorded.",
+    SWITCH_MAPPING_RECORDING_STEP_READY: "Step {step}: hold the switch at {distance} mm, then press Step.",
+    SWITCH_MAPPING_RECORDING_SAMPLING: "Sampling step {step} at {distance} mm…",
+    SWITCH_MAPPING_RECORDING_SAVE: "All samples are ready. Press Step once more to save.",
+    SWITCH_MAPPING_RECORDING_COMPLETED: "Curve recording completed.",
+    SWITCH_MAPPING_RECORDING_FAILED: "Curve recording operation failed",
 
     // Settings Layout
     SETTINGS_TAB_GLOBAL: "Global Setting",
@@ -863,6 +1023,46 @@ export const UI_TEXT = {
     SETTINGS_TAB_SWITCH_MARKING: "Switch Marking",
     SETTINGS_TAB_FIRMWARE: "Firmware",
     SETTINGS_TAB_VIEW_LOGS: "View Logs",
+    DEVICE_AUTHENTICATED_STATUS: "Authenticated device",
+    AUTH_SIGN_IN: "Sign in",
+    AUTH_SIGN_OUT: "Sign out",
+    AUTH_ADMINISTRATION: "Administration",
+    AUTH_EMAIL_LABEL: "Email",
+    AUTH_PASSWORD_LABEL: "Password",
+    AUTH_CAPTCHA_LABEL: "Verification code",
+    AUTH_CAPTCHA_ALT: "Six-digit verification code",
+    AUTH_CAPTCHA_REFRESH: "Refresh code",
+    AUTH_SIGN_IN_DESCRIPTION: "Sign in with your email and password.",
+    AUTH_SIGN_IN_ACTION: "Sign in",
+    AUTH_SIGN_IN_SUCCESS: "You are now signed in.",
+    AUTH_CREATE_ACCOUNT: "Create account",
+    AUTH_REGISTER_TITLE: "Create account",
+    AUTH_REGISTER_DESCRIPTION: "Enter your email. We will send a verification link so you can set a password.",
+    AUTH_SEND_VERIFICATION: "Send verification email",
+    AUTH_BACK_TO_SIGN_IN: "Back to sign in",
+    AUTH_EMAIL_SENT_TITLE: "Check your email",
+    AUTH_EMAIL_SENT_DESCRIPTION: "If the address can be registered, a verification link has been sent. It expires in 30 minutes.",
+    AUTH_NOT_CONFIGURED: "Email sign-in is not configured on this server.",
+    AUTH_REQUEST_FAILED: "The authentication request failed. Please try again.",
+    AUTH_CAPTCHA_INVALID: "The verification code is invalid or expired. Try a new code.",
+    AUTH_CREDENTIALS_INVALID: "Email or password is incorrect.",
+    AUTH_RATE_LIMITED: "Too many attempts. Please try again later.",
+    AUTH_VERIFY_TITLE: "Verify email",
+    AUTH_VERIFY_DESCRIPTION: "Set a password to finish creating your account.",
+    AUTH_PASSWORD_RULE: "Use 10 to 128 characters.",
+    AUTH_PASSWORD_CONFIRM_LABEL: "Confirm password",
+    AUTH_PASSWORD_MISMATCH: "Passwords do not match.",
+    AUTH_COMPLETE_REGISTRATION: "Create account",
+    AUTH_ACCOUNT_CREATED_TITLE: "Account created",
+    AUTH_ACCOUNT_CREATED_DESCRIPTION: "Your email is verified and you are now signed in.",
+    AUTH_VERIFICATION_INVALID: "This verification link is invalid, expired, or has already been used.",
+    AUTH_RETURN_HOME: "Return to WebConfig",
+    AUTH_PREVIEW_CONTINUE: "Open preview verification page",
+    AUTH_EDIT_AVATAR: "Edit avatar",
+    AUTH_AVATAR_TITLE: "Choose avatar",
+    AUTH_AVATAR_DESCRIPTION: "Choose a Street Fighter 6 avatar for your account.",
+    AUTH_AVATAR_SAVE: "Save avatar",
+    AUTH_AVATAR_SAVED: "Avatar updated.",
 
     // Keys Settings
     SETTINGS_KEYS_INPUT_MODE_TITLE: "Input Mode Choice",
@@ -924,7 +1124,10 @@ export const UI_TEXT = {
     // Reconnect Modal
     RECONNECT_MODAL_MESSAGE: "The connection to the device has been lost, possible reasons: \n1. The USB connection has been lost. \n2. The device is not in webconfig mode. \n3. Other web pages are connected to the device at the same time. \nPlease check and click the button to reconnect.",
     RECONNECT_MODAL_BUTTON: "Reconnect Device",
-    RECONNECT_MODAL_TITLE: "Device Disconnected",
+    RECONNECT_MODAL_TITLE: "Device Not Connected",
+    RECONNECT_MODAL_STEP_WEBCONFIG: "Switch the device to WebConfig mode.",
+    RECONNECT_MODAL_STEP_USB: "Connect the device to this computer using USB.",
+    RECONNECT_MODAL_STEP_RECONNECT: "Click Reconnect Device to establish the connection.",
     RECONNECT_FAILED_TITLE: "Failed to Reconnect",
     RECONNECT_FAILED_MESSAGE: "Failed to reconnect to the device. Please check the USB connection and make sure the device is in webconfig mode, then try again.",
 
@@ -952,7 +1155,7 @@ export const UI_TEXT_ZH = {
     // 通用按钮文案
     BUTTON_RESET: "重置",
     BUTTON_SAVE: "保存",
-    BUTTON_REBOOT_WITH_SAVING: "结束配置并开始游戏",
+    BUTTON_FINISH_CONFIGURATION: "结束配置并开始游戏",
     BUTTON_CANCEL: "取消",
     BUTTON_SUBMIT: "确定",
     BUTTON_CONFIRM: "确认",
@@ -966,14 +1169,17 @@ export const UI_TEXT_ZH = {
     IMPORT_CONFIG_SUCCESS_TITLE: "导入成功",
     IMPORT_CONFIG_SUCCESS_MESSAGE: "配置导入成功。点击确认刷新页面。",
     // 对话框标题
-    DIALOG_REBOOT_CONFIRM_TITLE: "确认重启?",
-    DIALOG_REBOOT_SUCCESS_TITLE: "重启成功",
+    DIALOG_FINISH_CONFIRM_TITLE: "结束配置？",
+    DIALOG_FINISH_SUCCESS_TITLE: "配置已结束",
+    DIALOG_CONFIG_SAVING_TITLE: "正在保存",
     DIALOG_CREATE_PROFILE_TITLE: "创建新配置",
     DIALOG_RENAME_PROFILE_TITLE: "重命名配置",
     
     // 对话框消息
-    DIALOG_REBOOT_CONFIRM_MESSAGE: "保存并重启系统将会保存当前配置并结束当前会话。\n是否确认继续？",
-    DIALOG_REBOOT_SUCCESS_MESSAGE: "系统重启成功。\n您现在可以关闭此窗口并开始享受游戏体验。",
+    DIALOG_FINISH_CONFIRM_MESSAGE: "是否保存未保存的配置并结束配置？",
+    DIALOG_FINISH_SUCCESS_MESSAGE: "设备已退出 WebConfig 模式。您现在可以关闭此窗口并开始游戏。",
+    DIALOG_CONFIG_SAVING_MESSAGE: "正在保存配置，请保持页面打开。",
+    DIALOG_CONFIG_EXITING_MESSAGE: "配置已保存，正在退出 WebConfig 并重启设备…",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "创建新配置将会结束当前会话。是否确认继续？",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "重命名当前配置将会保存当前配置并结束当前会话。是否确认继续？",
     
@@ -992,6 +1198,7 @@ export const UI_TEXT_ZH = {
     
     // 校准
     AUTO_CALIBRATION_TITLE: "自动磁轴校准",
+    AUTO_CALIBRATION_HELPER: "使用设备中保存的自动校准值，而不是手动校准值。",
     MANUAL_CALIBRATION_TITLE: "手动磁轴校准",
     CALIBRATION_HELPER_TEXT: "磁轴校准是找到控制器最佳按键行程的过程。它是找到控制器最佳按键行程的过程。",
     CALIBRATION_START_BUTTON: "开始按键校准",
@@ -1007,7 +1214,7 @@ export const UI_TEXT_ZH = {
     // 设置标签
     SETTINGS_SOCD_LABEL: "SOCD模式",
     SETTINGS_PLATFORM_LABEL: "平台",
-    SETTINGS_LEDS_ENABLE_LABEL: "启用LED",
+    SETTINGS_LEDS_ENABLE_LABEL: "启用按键灯",
     SETTINGS_LEDS_EFFECT_LABEL: "LED效果样式",
     SETTINGS_LEDS_BRIGHTNESS_LABEL: "LED亮度",
     SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "LED灯效动画速度",
@@ -1072,10 +1279,17 @@ export const UI_TEXT_ZH = {
     VALIDATION_PROFILE_NAME_REQUIRED: "配置名称不能为空",
     VALIDATION_PROFILE_NAME_CANNOT_BE_SAME_AS_CURRENT_PROFILE_NAME: "新配置名称不能与当前配置名称相同",
     VALIDATION_PROFILE_NAME_ALREADY_EXISTS: "配置名称已存在",
-    VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "配置名称不能包含特殊字符",
+    VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "配置名称仅支持英文字母（A-Z、a-z）、数字（0-9）、连字符（-）和下划线（_）",
     
     // 输入模式
-    INPUT_MODE_TITLE: "输入模式",
+    CONNECTION_MODE_TITLE: "连接",
+    CONNECTION_MODE_REPORT_RATE_LABEL: "配置速率",
+    CONNECTION_MODE_REPORT_RATE_HELPER: "2K/4K/8K 仅在进入 Input State 且使用 XInput 模式时生效；其他模式使用 1K。",
+    INPUT_MODE_TITLE: "平台",
+    POWER_TITLE: "电源",
+    POWER_AUTO_STANDBY_LABEL: "自动休眠",
+    POWER_AUTO_STANDBY_HELPER: "设备持续无操作达到所选时间后，将进入休眠状态。",
+    POWER_AUTO_STANDBY_NONE: "无自动待机",
 
     // 按键设置
     SETTINGS_KEYS_TITLE: "按键设置",
@@ -1091,7 +1305,7 @@ export const UI_TEXT_ZH = {
     KEYS_MAPPING_TITLE_MACROS: "动态宏",
     MACRO_FIELD_RECORD_BUTTON: "录制",
     MACRO_DIALOG_TITLE: "录制宏",
-    c: "- 点击[开始录制]后，在设备上按键即可录制。点击[结束录制]或达到宏容量后会自动停止。\n- 可手动调整左侧的帧数，代表每一行指令的执行时间。\n- 可点击每个指令槽位，红色槽位在运行时会自动替换为宏触发之前的按键指令。",
+    MACRO_DIALOG_MESSAGE: "- 点击[开始录制]后，在设备上按键即可录制。点击[结束录制]或达到宏容量后会自动停止。\n- 可手动调整左侧的帧数，代表每一行指令的执行时间。\n- 可点击每个指令槽位，红色槽位在运行时会自动替换为宏触发之前的按键指令。",
     MACRO_DIALOG_BUTTON_START: "开始录制",
     MACRO_DIALOG_BUTTON_STOP: "结束录制",
     MACRO_DIALOG_BUTTON_CLOSE: "关闭",
@@ -1127,15 +1341,6 @@ export const UI_TEXT_ZH = {
     SETTINGS_RAPID_TRIGGER_SCOPE_RANGE_SUFFIX: "个按键",
     SETTINGS_RAPID_TRIGGER_PARAM_NOT_UNIFIED: "（参数不统一）",
 
-    // 按钮防抖设置
-    SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "按键防抖",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE: "急速",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL: "平衡",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX: "稳定",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC: "无防抖，延迟最低",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC: "平衡，增加0.25ms延迟",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC: "稳定，增加0.5ms延迟",
-
     // 按钮性能设置
     SETTING_BUTTON_PERFORMANCE_PRESET_TITLE: "按键性能预设",
     SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_LABEL: "自定义",
@@ -1148,6 +1353,8 @@ export const UI_TEXT_ZH = {
     SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC: "类似机械轴的体验。",
     
     // 热键设置
+    SETTINGS_BASIC_TITLE: "基础",
+    SETTINGS_BASIC_HELPER_TEXT: "在这里配置设备的基础连接与电源行为。\n- 上报率只保存请求的采样/报告档位。\n- 2K/4K/8K 仅在进入 Input State 且使用 XInput 模式时生效；其他模式使用 1K。\n- 自动休眠用于设置设备无操作多久后进入休眠状态。",
     SETTINGS_HOTKEYS_TITLE: "快捷键",
     SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在实体设备上或者左侧格斗板图示上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式和校准模式，因为这些功能是必需的。`,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "设备按键监控",
@@ -1160,9 +1367,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "屏幕亮度",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL: "背景颜色",
     SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL: "文字颜色",
-    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "输入模式切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Platform 切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "用户配置切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD 模式切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH: "连接模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "正常/比赛模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET: "按键性能预设",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED 亮度调整",
@@ -1174,9 +1382,19 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH: "进入/退出校准模式",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGES_TITLE: "背景图片",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON: "上传图片",
-    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP: "- 可选择系统预设或上传 1 张用户图片。最大尺寸 320×172，超过会自动等比缩小。\n- GIF动画图片会自动截取前{seconds}秒的动画，并适当降低帧率，以适应屏控性能。",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LOAD_PREVIEWS_BUTTON: "加载预览",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP: "- 打开图库可选择官方图片，或管理账户内最多 10 张个人图片；长按图片 2 秒可安装到当前设备。\n- GIF 会从完整动画中均匀采样至多 {frames} 帧，并以 3 FPS 播放（约 {seconds} 秒）。",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON: "设为背景",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON: "删除",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_PROCESSING: "正在处理图片…",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOADING: "正在上传并校验… {progress}%",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LOAD_FAILED: "背景图片预览加载失败",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_SUCCESS: "背景图片已上传并校验",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_FAILED: "背景图片上传失败",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_SUCCESS: "用户背景图片已删除",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_FAILED: "用户背景图片删除失败",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_INVALID_SELECTION: "请先加载并验证图片，再将其设为背景",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_REUPLOAD_REQUIRED: "原用户图片已失效，请重新上传",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "系统预设",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "用户图片",
     SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL: "待机显示",
@@ -1210,7 +1428,7 @@ export const UI_TEXT_ZH = {
     PROFILE_SELECT_RENAME_FIELD_LABEL: "配置名称",
     PROFILE_SELECT_RENAME_FIELD_PLACEHOLDER: "请输入新的配置名称",
     PROFILE_SELECT_DELETE_CONFIRM_MESSAGE: "删除此配置后将无法恢复。是否确认删除？",
-    PROFILE_SELECT_VALIDATION_SPECIAL_CHARS: "配置名称不能包含特殊字符",
+    PROFILE_SELECT_VALIDATION_SPECIAL_CHARS: "配置名称仅支持英文字母（A-Z、a-z）、数字（0-9）、连字符（-）和下划线（_）",
     PROFILE_SELECT_VALIDATION_LENGTH: `配置名称长度必须在1到${PROFILE_NAME_MAX_LENGTH}个字符之间，当前长度为{0}`,
     PROFILE_SELECT_VALIDATION_SAME_NAME: "配置名称不能与当前配置名称相同",
     PROFILE_SELECT_VALIDATION_EXISTS: "配置名称已存在",
@@ -1241,10 +1459,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_SWITCH_MARKING_STEP_LABEL: "步进值 (mm)",
     SETTINGS_SWITCH_MARKING_STEP_PLACEHOLDER: "请输入步进值",
     SETTINGS_SWITCH_MARKING_VALIDATION_SPECIAL_CHARS: "磁轴标记名称不能包含特殊字符",
-    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH: `磁轴标记名称长度必须在1到${SWITCH_MARKING_NAME_MAX_LENGTH}个字符之间，当前长度为{0}`,
+    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH: `磁轴标记名称必须占用1到${SWITCH_MARKING_NAME_MAX_LENGTH}个 UTF-8 字节，当前占用{0}字节`,
     SETTINGS_SWITCH_MARKING_VALIDATION_SAME_NAME: "磁轴标记名称不能与当前磁轴标记名称相同",
-    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE: "磁轴标记长度必须在1到50之间",
-    SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE: "磁轴标记步进值必须在0.1到10之间",
+    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE: `磁轴标记长度必须是${SWITCH_MARKING_LENGTH_MIN}到${SWITCH_MARKING_LENGTH_MAX}之间的整数`,
+    SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE: `磁轴标记步进值必须在${SWITCH_MARKING_STEP_MIN}到${SWITCH_MARKING_STEP_MAX}之间`,
     SETTINGS_SWITCH_MARKING_DELETE_DIALOG_TITLE: "删除磁轴标记",
     SETTINGS_SWITCH_MARKING_DELETE_CONFIRM_MESSAGE: "删除此磁轴标记后将无法恢复。是否确认删除？",
     SETTINGS_SWITCH_MARKING_COMPLETED_DIALOG_TITLE: "磁轴标记完成",
@@ -1255,6 +1473,87 @@ export const UI_TEXT_ZH = {
     SETTINGS_SWITCH_MARKING_SAVE_DIALOG_MESSAGE: "所有步进已采样完成，请按下[step]按钮保存磁轴标记。",
     SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_TITLE: "未完成磁轴标记",
     SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE: "您有未完成的磁轴标记。如果离开而不保存，磁轴标记数据将会丢失。",
+    SWITCH_MAPPING_CATALOG_TITLE: "轴体映射",
+    SWITCH_MAPPING_SOURCE_SERVER: "服务器映射",
+    SWITCH_MAPPING_SOURCE_FACTORY: "固件兜底",
+    SWITCH_MAPPING_CATALOG_LOAD_FAILED: "轴体目录加载失败",
+    SWITCH_MAPPING_DEVICE_READ_FAILED: "设备映射读取失败",
+    SWITCH_MAPPING_FIRMWARE_UPGRADE_TITLE: "设备固件需要升级",
+    SWITCH_MAPPING_FIRMWARE_UPGRADE_MESSAGE: "当前设备不支持共享单映射安装。",
+    SWITCH_MAPPING_INSTALL_SUCCESS: "{name} 已安装",
+    SWITCH_MAPPING_INSTALL_SUCCESS_DETAIL: "设备中的旧映射和逐键校准已被替换。",
+    SWITCH_MAPPING_INSTALL_FAILED: "轴体映射安装失败",
+    SWITCH_MAPPING_IMAGE_INVALID_TITLE: "封面图无效",
+    SWITCH_MAPPING_IMAGE_INVALID_MESSAGE: "请选择 2 MiB 以内的 JPEG、PNG 或 WebP 图片。",
+    SWITCH_MAPPING_NAME_INVALID_TITLE: "轴体名称无效",
+    SWITCH_MAPPING_NAME_INVALID_MESSAGE: "名称长度需要在 1–80 个字符之间。",
+    SWITCH_MAPPING_NAME_DUPLICATE_TITLE: "轴体名称重复",
+    SWITCH_MAPPING_NAME_DUPLICATE_MESSAGE: "映射库中已存在同名轴体，请使用其他名称。",
+    SWITCH_MAPPING_NOT_IN_CATALOG: "该设备映射尚未保存到服务器，无法编辑。",
+    SWITCH_MAPPING_CREATE_SUCCESS: "轴体已新增",
+    SWITCH_MAPPING_EDIT_SUCCESS: "轴体信息已更新",
+    SWITCH_MAPPING_CREATE_FAILED: "新增轴体失败",
+    SWITCH_MAPPING_EDIT_FAILED: "编辑轴体失败",
+    SWITCH_MAPPING_DELETE_TITLE: "删除 {name}",
+    SWITCH_MAPPING_DELETE_ACTIVE_MESSAGE: "该映射当前安装在设备上。确认后会从数据库永久删除，并清除设备共享映射、恢复固件兜底映射。此操作无法撤销。",
+    SWITCH_MAPPING_DELETE_MESSAGE: "确认后会从数据库永久删除该轴体及其所有历史版本和封面图。此操作无法撤销。",
+    SWITCH_MAPPING_DELETE_SUCCESS: "{name} 已删除",
+    SWITCH_MAPPING_DELETE_DEVICE_FALLBACK: "设备已恢复固件兜底映射。",
+    SWITCH_MAPPING_DELETE_FAILED: "删除轴体失败",
+    SWITCH_MAPPING_DELETE_PARTIAL: "设备映射已清除，但数据库删除失败：{error}",
+    SWITCH_MAPPING_ADD_ARIA: "新增轴体映射",
+    SWITCH_MAPPING_ADD_LABEL: "新增轴体",
+    SWITCH_MAPPING_COVER_ALT: "{name} 轴体封面",
+    SWITCH_MAPPING_ACTIVE: "已启用",
+    SWITCH_MAPPING_DOWNLOADING: "下载中…",
+    SWITCH_MAPPING_EDIT_ARIA: "编辑 {name}",
+    SWITCH_MAPPING_EDIT_TITLE: "编辑轴体",
+    SWITCH_MAPPING_DELETE_ARIA: "删除 {name}",
+    SWITCH_MAPPING_DELETE_ACTION_TITLE: "删除轴体",
+    SWITCH_MAPPING_SAMPLING_FREQUENCY: "采样频率",
+    SWITCH_MAPPING_SAMPLING_NOISE: "采样噪声",
+    SWITCH_MAPPING_CURVE_EDIT_ARIA: "编辑曲线数据",
+    SWITCH_MAPPING_CURVE_EDIT_TITLE: "编辑曲线",
+    SWITCH_MAPPING_CURVE_DIALOG_TITLE: "编辑轴体映射曲线",
+    SWITCH_MAPPING_CURVE_LENGTH_LABEL: "节点数量",
+    SWITCH_MAPPING_CURVE_LENGTH_HELPER: "缩短节点数量后，原有的失效列会保留显示并置灰，保存时只提交有效节点。",
+    SWITCH_MAPPING_CURVE_STEP_HEADER: "步进",
+    SWITCH_MAPPING_CURVE_DISTANCE_HEADER: "距离",
+    SWITCH_MAPPING_CURVE_VALUE_HEADER: "ADC 数值",
+    SWITCH_MAPPING_CURVE_INVALID_TITLE: "曲线数据无效",
+    SWITCH_MAPPING_CURVE_INVALID_MESSAGE: "节点数量必须为 2–40，每个有效 ADC 数值必须是 0–65535 的整数。",
+    SWITCH_MAPPING_CURVE_SAVE_SUCCESS: "曲线已同步保存到服务器和设备",
+    SWITCH_MAPPING_CURVE_SAVE_FAILED: "曲线保存失败",
+    SWITCH_MAPPING_CREATE_DIALOG_TITLE: "新增轴体",
+    SWITCH_MAPPING_EDIT_DIALOG_TITLE: "编辑轴体",
+    SWITCH_MAPPING_NAME_LABEL: "轴体名称",
+    SWITCH_MAPPING_NAME_PLACEHOLDER: "输入轴体名称",
+    SWITCH_MAPPING_COVER_LABEL: "封面图",
+    SWITCH_MAPPING_COVER_PREVIEW_ALT: "轴体封面预览",
+    SWITCH_MAPPING_NO_COVER: "未设置封面图",
+    SWITCH_MAPPING_COVER_PICK_ACTION: "选择或更换封面图",
+    SWITCH_MAPPING_COVER_HELPER: "JPEG、PNG 或 WebP，最大 2 MiB",
+    SWITCH_MAPPING_COVER_CROP_HELPER: "按最终封面比例预览，超出边缘的部分将居中裁剪。",
+    SWITCH_MAPPING_COVER_INTERACTION_HELPER: "拖拽可移动图片，使用滚轮或滑杆等比例缩放；双击恢复默认位置。",
+    SWITCH_MAPPING_COVER_ZOOM: "封面缩放",
+    SWITCH_MAPPING_COVER_ZOOM_IN: "放大",
+    SWITCH_MAPPING_COVER_ZOOM_OUT: "缩小",
+    SWITCH_MAPPING_COVER_RESET: "重置封面位置",
+    SWITCH_MAPPING_CREATE_HELPER: "新建后会生成一份正常的服务器映射，所有曲线节点均为 0；在列表中点击它即可安装到设备。",
+    SWITCH_MAPPING_DRAFT: "草稿",
+    SWITCH_MAPPING_PARAMETERS_INVALID_TITLE: "映射参数无效",
+    SWITCH_MAPPING_PARAMETERS_INVALID_MESSAGE: `长度必须是 ${SWITCH_MARKING_LENGTH_MIN}–${SWITCH_MARKING_LENGTH_MAX} 的整数，步进必须在 ${SWITCH_MARKING_STEP_MIN}–${SWITCH_MARKING_STEP_MAX} mm 之间。`,
+    SWITCH_MAPPING_RECORDING_TOOLBAR_TITLE: "曲线录制",
+    SWITCH_MAPPING_RECORDING_START: "开始录制",
+    SWITCH_MAPPING_RECORDING_STOP: "结束录制",
+    SWITCH_MAPPING_RECORDING_STEP: "步进",
+    SWITCH_MAPPING_RECORDING_READY: "点击“开始”录制设备当前安装的映射。",
+    SWITCH_MAPPING_RECORDING_CURRENT_ONLY: "只能录制设备当前启用的映射。",
+    SWITCH_MAPPING_RECORDING_STEP_READY: "第 {step} 步：将轴体保持在 {distance} mm，然后点击“步进”。",
+    SWITCH_MAPPING_RECORDING_SAMPLING: "正在采样第 {step} 步（{distance} mm）…",
+    SWITCH_MAPPING_RECORDING_SAVE: "所有采样点已就绪，请再次点击“步进”保存。",
+    SWITCH_MAPPING_RECORDING_COMPLETED: "曲线录制已完成。",
+    SWITCH_MAPPING_RECORDING_FAILED: "曲线录制操作失败",
 
     // Settings Layout
     SETTINGS_TAB_GLOBAL: "全局设置",
@@ -1264,6 +1563,46 @@ export const UI_TEXT_ZH = {
     SETTINGS_TAB_SWITCH_MARKING: "磁轴标记",
     SETTINGS_TAB_FIRMWARE: "固件升级",
     SETTINGS_TAB_VIEW_LOGS: "查看日志",
+    DEVICE_AUTHENTICATED_STATUS: "已认证设备",
+    AUTH_SIGN_IN: "登录",
+    AUTH_SIGN_OUT: "退出登录",
+    AUTH_ADMINISTRATION: "管理后台",
+    AUTH_EMAIL_LABEL: "邮箱",
+    AUTH_PASSWORD_LABEL: "密码",
+    AUTH_CAPTCHA_LABEL: "验证码",
+    AUTH_CAPTCHA_ALT: "六位图片验证码",
+    AUTH_CAPTCHA_REFRESH: "刷新验证码",
+    AUTH_SIGN_IN_DESCRIPTION: "使用邮箱和密码登录。",
+    AUTH_SIGN_IN_ACTION: "登录",
+    AUTH_SIGN_IN_SUCCESS: "登录成功。",
+    AUTH_CREATE_ACCOUNT: "注册账号",
+    AUTH_REGISTER_TITLE: "注册账号",
+    AUTH_REGISTER_DESCRIPTION: "填写邮箱，我们会发送验证链接。打开链接后即可设置密码。",
+    AUTH_SEND_VERIFICATION: "发送验证邮件",
+    AUTH_BACK_TO_SIGN_IN: "返回登录",
+    AUTH_EMAIL_SENT_TITLE: "请检查邮箱",
+    AUTH_EMAIL_SENT_DESCRIPTION: "如果该邮箱可以注册，验证邮件已经发出。链接将在 30 分钟后失效。",
+    AUTH_NOT_CONFIGURED: "当前服务器尚未配置邮箱登录。",
+    AUTH_REQUEST_FAILED: "账号请求失败，请稍后重试。",
+    AUTH_CAPTCHA_INVALID: "验证码错误或已过期，请刷新后重试。",
+    AUTH_CREDENTIALS_INVALID: "邮箱或密码不正确。",
+    AUTH_RATE_LIMITED: "尝试次数过多，请稍后再试。",
+    AUTH_VERIFY_TITLE: "验证邮箱",
+    AUTH_VERIFY_DESCRIPTION: "设置密码，完成账号注册。",
+    AUTH_PASSWORD_RULE: "密码长度为 10 到 128 个字符。",
+    AUTH_PASSWORD_CONFIRM_LABEL: "确认密码",
+    AUTH_PASSWORD_MISMATCH: "两次输入的密码不一致。",
+    AUTH_COMPLETE_REGISTRATION: "完成注册",
+    AUTH_ACCOUNT_CREATED_TITLE: "账号创建成功",
+    AUTH_ACCOUNT_CREATED_DESCRIPTION: "邮箱已经验证，当前账号已登录。",
+    AUTH_VERIFICATION_INVALID: "验证链接无效、已过期或已经使用过。",
+    AUTH_RETURN_HOME: "返回 WebConfig",
+    AUTH_PREVIEW_CONTINUE: "打开 Mock 验证页面",
+    AUTH_EDIT_AVATAR: "编辑头像",
+    AUTH_AVATAR_TITLE: "选择头像",
+    AUTH_AVATAR_DESCRIPTION: "为你的账号选择一个《街头霸王 6》头像。",
+    AUTH_AVATAR_SAVE: "保存头像",
+    AUTH_AVATAR_SAVED: "头像已更新。",
     
 
     // Keys Settings
@@ -1326,7 +1665,10 @@ export const UI_TEXT_ZH = {
     // Reconnect Modal
     RECONNECT_MODAL_MESSAGE: "与设备的连接已断开，可能的原因：\n1. 设备USB已经断开。\n2. 设备没有打开网页配置模式。\n3. 同时打开了其他网页连接了设备。\n请检查无误后点击按钮重新连接。",
     RECONNECT_MODAL_BUTTON: "重新连接设备",
-    RECONNECT_MODAL_TITLE: "设备断开连接",
+    RECONNECT_MODAL_TITLE: "设备未连接",
+    RECONNECT_MODAL_STEP_WEBCONFIG: "将设备切换到 WebConfig 模式。",
+    RECONNECT_MODAL_STEP_USB: "使用 USB 将设备连接到当前电脑。",
+    RECONNECT_MODAL_STEP_RECONNECT: "点击“重新连接设备”建立连接。",
     RECONNECT_FAILED_TITLE: "重连设备失败",
     RECONNECT_FAILED_MESSAGE: "无法重新连接到设备，请检查USB连接，以及保证设备在网页配置模式并重试。",
 

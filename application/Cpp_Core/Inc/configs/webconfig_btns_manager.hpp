@@ -69,7 +69,7 @@ public:
     // 设置ADC按键技术测试模式回调
     void setADCBtnTestCallback(ADCBtnTestCallback callback);
     
-    void startButtonWorkers(); // 启动按键工作器
+    bool startButtonWorkers(); // 启动按键工作器
     void stopButtonWorkers(); // 停止按键工作器
     bool isActive() const; // 检查按键工作器是否活跃
     
@@ -122,7 +122,7 @@ private:
     WebConfigBtnsManager();
     ~WebConfigBtnsManager();
     
-    void setupButtonWorkers(); // 初始化按键工作器
+    bool setupButtonWorkers(); // 初始化按键工作器
     void cleanupButtonWorkers(); // 清理按键工作器
     
     uint32_t currentMask; // 当前按键状态掩码

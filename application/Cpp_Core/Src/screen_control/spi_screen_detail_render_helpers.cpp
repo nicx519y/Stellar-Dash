@@ -4,7 +4,7 @@
 
 #include "screen_control/spi_screen_ui_common.hpp"
 
-void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* const* labels, uint8_t count, uint8_t index, uint8_t selectedConfigIndex, const ScreenUiStyle& style, uint16_t itemH, bool animActive, int animDir, uint32_t animStartMs, uint32_t nowMs) {
+void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* const* labels, uint8_t count, uint8_t index, uint8_t selectedConfigIndex, const ScreenUiStyle& style, uint16_t itemH, bool animActive, int animDir, uint32_t animStartMs, uint32_t nowMs, const bool* disabledItems) {
     (void)title;
     if (!lcd || !labels) return;
 
@@ -15,6 +15,7 @@ void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* 
     const uint16_t centerY = (uint16_t)(h / 2u);
     const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
     const uint32_t normalText = ScreenUI_MutedTextForBg(style.text, style.bg, 80u);
+    const uint32_t disabledText = ScreenUI_MutedTextForBg(style.text, style.bg, 180u);
     const uint16_t charH = ScreenUI_CharCellH(SPI_SCREEN_MENU_TEXT_SCALE);
 
     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
@@ -41,7 +42,8 @@ void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* 
         bool textVisible = (textY >= 0) && ((textY + (int)charH) <= (int)h);
         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
         const char* label = labels[i] ? labels[i] : "";
-        const uint32_t itemText = (i == selectedConfigIndex) ? style.text : normalText;
+        const bool disabled = disabledItems && disabledItems[i];
+        const uint32_t itemText = disabled ? disabledText : ((i == selectedConfigIndex) ? style.text : normalText);
         if (i == index) {
             ST7789_FillRect(lcd, listX, yy, listW, hh, style.selBg);
             if (textVisible) {

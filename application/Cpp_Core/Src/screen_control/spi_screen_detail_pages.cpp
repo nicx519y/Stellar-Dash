@@ -7,6 +7,7 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
         case 0:
         case 1:
         case 2:
+        case 3:
         case 11:
         case 5:
         case 7:
@@ -17,7 +18,6 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
             return SCREEN_DETAIL_SLIDER;
         case 9:
         case 10:
-        case 3:
             return SCREEN_DETAIL_INFO;
         default:
             return SCREEN_DETAIL_NONE;
@@ -71,10 +71,19 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
-        case 9: ScreenDetailWebConfig_OnConfirm(index); return true;
+        case 9: return ScreenDetailWebConfig_OnConfirm(index);
         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
-        case 3: ScreenDetailTournament_OnConfirm(index); return true;
+        case 3: return ScreenDetailTournament_OnConfirm(index);
         default: return false;
+    }
+}
+
+bool ScreenDetail_OnBack(uint8_t menuId) {
+    switch (menuId) {
+        case 9: return ScreenDetailWebConfig_OnBack();
+        case 3: return ScreenDetailTournament_OnBack();
+        case 11: return !ScreenDetailButtonsPerformance_OnBack();
+        default: return true;
     }
 }
 

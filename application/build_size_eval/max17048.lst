@@ -1,0 +1,1062 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"max17048.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Drivers/I2C-MAX17048/max17048.c"
+  19              		.section	.text.write_register16,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	write_register16:
+  26              	.LVL0:
+  27              	.LFB336:
+   1:Drivers/I2C-MAX17048/max17048.c **** #include "max17048.h"
+   2:Drivers/I2C-MAX17048/max17048.c **** 
+   3:Drivers/I2C-MAX17048/max17048.c **** #include <string.h>
+   4:Drivers/I2C-MAX17048/max17048.c **** 
+   5:Drivers/I2C-MAX17048/max17048.c **** enum {
+   6:Drivers/I2C-MAX17048/max17048.c ****     MAX_REG_VCELL = 0x02,
+   7:Drivers/I2C-MAX17048/max17048.c ****     MAX_REG_SOC = 0x04,
+   8:Drivers/I2C-MAX17048/max17048.c ****     MAX_REG_VERSION = 0x08,
+   9:Drivers/I2C-MAX17048/max17048.c ****     MAX_REG_CONFIG = 0x0C,
+  10:Drivers/I2C-MAX17048/max17048.c ****     MAX_REG_STATUS = 0x1A,
+  11:Drivers/I2C-MAX17048/max17048.c ****     MAX_I2C_TIMEOUT_MS = 20,
+  12:Drivers/I2C-MAX17048/max17048.c **** };
+  13:Drivers/I2C-MAX17048/max17048.c **** 
+  14:Drivers/I2C-MAX17048/max17048.c **** static bool read_register16(MAX17048_Handle* handle, uint8_t reg, uint16_t* value)
+  15:Drivers/I2C-MAX17048/max17048.c **** {
+  16:Drivers/I2C-MAX17048/max17048.c ****     uint8_t bytes[2] = {0, 0};
+  17:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+  18:Drivers/I2C-MAX17048/max17048.c ****         return false;
+  19:Drivers/I2C-MAX17048/max17048.c ****     }
+  20:Drivers/I2C-MAX17048/max17048.c ****     if (HAL_I2C_Mem_Read(
+  21:Drivers/I2C-MAX17048/max17048.c ****             handle->i2c,
+  22:Drivers/I2C-MAX17048/max17048.c ****             (uint16_t)(MAX17048_I2C_ADDRESS_7BIT << 1),
+  23:Drivers/I2C-MAX17048/max17048.c ****             reg,
+  24:Drivers/I2C-MAX17048/max17048.c ****             I2C_MEMADD_SIZE_8BIT,
+  25:Drivers/I2C-MAX17048/max17048.c ****             bytes,
+  26:Drivers/I2C-MAX17048/max17048.c ****             sizeof(bytes),
+  27:Drivers/I2C-MAX17048/max17048.c ****             MAX_I2C_TIMEOUT_MS) != HAL_OK) {
+  28:Drivers/I2C-MAX17048/max17048.c ****         return false;
+  29:Drivers/I2C-MAX17048/max17048.c ****     }
+  30:Drivers/I2C-MAX17048/max17048.c ****     *value = (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
+  31:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 2
+
+
+  32:Drivers/I2C-MAX17048/max17048.c **** }
+  33:Drivers/I2C-MAX17048/max17048.c **** 
+  34:Drivers/I2C-MAX17048/max17048.c **** static bool write_register16(MAX17048_Handle* handle, uint8_t reg, uint16_t value)
+  35:Drivers/I2C-MAX17048/max17048.c **** {
+  28              		.loc 1 35 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 8
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  36:Drivers/I2C-MAX17048/max17048.c ****     uint8_t bytes[2] = {
+  32              		.loc 1 36 5 view .LVU1
+  35:Drivers/I2C-MAX17048/max17048.c ****     uint8_t bytes[2] = {
+  33              		.loc 1 35 1 is_stmt 0 view .LVU2
+  34 0000 7FB5     		push	{r0, r1, r2, r3, r4, r5, r6, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 32
+  37              		.cfi_offset 14, -4
+  38              		.loc 1 36 13 view .LVU3
+  39 0002 52BA     		rev16	r2, r2
+  40              	.LVL1:
+  41              		.loc 1 36 13 view .LVU4
+  42 0004 ADF81420 		strh	r2, [sp, #20]	@ movhi
+  37:Drivers/I2C-MAX17048/max17048.c ****         (uint8_t)(value >> 8),
+  38:Drivers/I2C-MAX17048/max17048.c ****         (uint8_t)(value & 0xFFu),
+  39:Drivers/I2C-MAX17048/max17048.c ****     };
+  40:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL) {
+  43              		.loc 1 40 5 is_stmt 1 view .LVU5
+  44              		.loc 1 40 8 is_stmt 0 view .LVU6
+  45 0008 78B1     		cbz	r0, .L2
+  46              		.loc 1 40 33 discriminator 1 view .LVU7
+  47 000a 0068     		ldr	r0, [r0]
+  48              	.LVL2:
+  49              		.loc 1 40 24 discriminator 1 view .LVU8
+  50 000c 68B1     		cbz	r0, .L2
+  41:Drivers/I2C-MAX17048/max17048.c ****         return false;
+  42:Drivers/I2C-MAX17048/max17048.c ****     }
+  43:Drivers/I2C-MAX17048/max17048.c ****     return HAL_I2C_Mem_Write(
+  51              		.loc 1 43 5 is_stmt 1 view .LVU9
+  52              		.loc 1 43 12 is_stmt 0 view .LVU10
+  53 000e 0223     		movs	r3, #2
+  54 0010 1422     		movs	r2, #20
+  55 0012 CDE90132 		strd	r3, r2, [sp, #4]
+  56 0016 05AB     		add	r3, sp, #20
+  57 0018 0A46     		mov	r2, r1
+  58 001a 6C21     		movs	r1, #108
+  59              	.LVL3:
+  60              		.loc 1 43 12 view .LVU11
+  61 001c 0093     		str	r3, [sp]
+  62 001e 0123     		movs	r3, #1
+  63 0020 FFF7FEFF 		bl	HAL_I2C_Mem_Write
+  64              	.LVL4:
+  44:Drivers/I2C-MAX17048/max17048.c ****                handle->i2c,
+  45:Drivers/I2C-MAX17048/max17048.c ****                (uint16_t)(MAX17048_I2C_ADDRESS_7BIT << 1),
+  46:Drivers/I2C-MAX17048/max17048.c ****                reg,
+  47:Drivers/I2C-MAX17048/max17048.c ****                I2C_MEMADD_SIZE_8BIT,
+  48:Drivers/I2C-MAX17048/max17048.c ****                bytes,
+  49:Drivers/I2C-MAX17048/max17048.c ****                sizeof(bytes),
+  50:Drivers/I2C-MAX17048/max17048.c ****                MAX_I2C_TIMEOUT_MS) == HAL_OK;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 3
+
+
+  65              		.loc 1 50 36 view .LVU12
+  66 0024 B0FA80F0 		clz	r0, r0
+  67 0028 4009     		lsrs	r0, r0, #5
+  68              	.L2:
+  51:Drivers/I2C-MAX17048/max17048.c **** }
+  69              		.loc 1 51 1 view .LVU13
+  70 002a 07B0     		add	sp, sp, #28
+  71              	.LCFI1:
+  72              		.cfi_def_cfa_offset 4
+  73              		@ sp needed
+  74 002c 5DF804FB 		ldr	pc, [sp], #4
+  75              		.cfi_endproc
+  76              	.LFE336:
+  78              		.section	.text.read_register16.constprop.0,"ax",%progbits
+  79              		.align	1
+  80              		.syntax unified
+  81              		.thumb
+  82              		.thumb_func
+  84              	read_register16.constprop.0:
+  85              	.LVL5:
+  86              	.LFB341:
+  14:Drivers/I2C-MAX17048/max17048.c **** {
+  87              		.loc 1 14 13 is_stmt 1 view -0
+  88              		.cfi_startproc
+  89              		@ args = 0, pretend = 0, frame = 8
+  90              		@ frame_needed = 0, uses_anonymous_args = 0
+  16:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+  91              		.loc 1 16 5 view .LVU15
+  14:Drivers/I2C-MAX17048/max17048.c **** {
+  92              		.loc 1 14 13 is_stmt 0 view .LVU16
+  93 0000 10B5     		push	{r4, lr}
+  94              	.LCFI2:
+  95              		.cfi_def_cfa_offset 8
+  96              		.cfi_offset 4, -8
+  97              		.cfi_offset 14, -4
+  16:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+  98              		.loc 1 16 13 view .LVU17
+  99 0002 0023     		movs	r3, #0
+  14:Drivers/I2C-MAX17048/max17048.c **** {
+ 100              		.loc 1 14 13 view .LVU18
+ 101 0004 86B0     		sub	sp, sp, #24
+ 102              	.LCFI3:
+ 103              		.cfi_def_cfa_offset 32
+  14:Drivers/I2C-MAX17048/max17048.c **** {
+ 104              		.loc 1 14 13 view .LVU19
+ 105 0006 1446     		mov	r4, r2
+  16:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+ 106              		.loc 1 16 13 view .LVU20
+ 107 0008 ADF81430 		strh	r3, [sp, #20]	@ movhi
+  17:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 108              		.loc 1 17 5 is_stmt 1 view .LVU21
+  17:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 109              		.loc 1 17 8 is_stmt 0 view .LVU22
+ 110 000c 10B9     		cbnz	r0, .L6
+ 111              	.LVL6:
+ 112              	.L8:
+  18:Drivers/I2C-MAX17048/max17048.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 4
+
+
+ 113              		.loc 1 18 16 view .LVU23
+ 114 000e 0020     		movs	r0, #0
+ 115              	.L7:
+  32:Drivers/I2C-MAX17048/max17048.c **** 
+ 116              		.loc 1 32 1 view .LVU24
+ 117 0010 06B0     		add	sp, sp, #24
+ 118              	.LCFI4:
+ 119              		.cfi_remember_state
+ 120              		.cfi_def_cfa_offset 8
+ 121              		@ sp needed
+ 122 0012 10BD     		pop	{r4, pc}
+ 123              	.LVL7:
+ 124              	.L6:
+ 125              	.LCFI5:
+ 126              		.cfi_restore_state
+  17:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 127              		.loc 1 17 33 discriminator 1 view .LVU25
+ 128 0014 0068     		ldr	r0, [r0]
+ 129              	.LVL8:
+  17:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 130              		.loc 1 17 24 discriminator 1 view .LVU26
+ 131 0016 0028     		cmp	r0, #0
+ 132 0018 F9D0     		beq	.L8
+  20:Drivers/I2C-MAX17048/max17048.c ****             handle->i2c,
+ 133              		.loc 1 20 5 is_stmt 1 view .LVU27
+  20:Drivers/I2C-MAX17048/max17048.c ****             handle->i2c,
+ 134              		.loc 1 20 9 is_stmt 0 view .LVU28
+ 135 001a 0223     		movs	r3, #2
+ 136 001c 1422     		movs	r2, #20
+ 137              	.LVL9:
+  20:Drivers/I2C-MAX17048/max17048.c ****             handle->i2c,
+ 138              		.loc 1 20 9 view .LVU29
+ 139 001e CDE90132 		strd	r3, r2, [sp, #4]
+ 140 0022 05AB     		add	r3, sp, #20
+ 141 0024 0A46     		mov	r2, r1
+ 142 0026 6C21     		movs	r1, #108
+ 143              	.LVL10:
+  20:Drivers/I2C-MAX17048/max17048.c ****             handle->i2c,
+ 144              		.loc 1 20 9 view .LVU30
+ 145 0028 0093     		str	r3, [sp]
+ 146 002a 0123     		movs	r3, #1
+ 147 002c FFF7FEFF 		bl	HAL_I2C_Mem_Read
+ 148              	.LVL11:
+  20:Drivers/I2C-MAX17048/max17048.c ****             handle->i2c,
+ 149              		.loc 1 20 8 discriminator 1 view .LVU31
+ 150 0030 0028     		cmp	r0, #0
+ 151 0032 ECD1     		bne	.L8
+  30:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 152              		.loc 1 30 5 is_stmt 1 view .LVU32
+  30:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 153              		.loc 1 30 12 is_stmt 0 view .LVU33
+ 154 0034 BDF81430 		ldrh	r3, [sp, #20]
+  31:Drivers/I2C-MAX17048/max17048.c **** }
+ 155              		.loc 1 31 12 view .LVU34
+ 156 0038 0120     		movs	r0, #1
+  30:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 157              		.loc 1 30 12 view .LVU35
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 5
+
+
+ 158 003a 5BBA     		rev16	r3, r3
+ 159 003c 2380     		strh	r3, [r4]	@ movhi
+  31:Drivers/I2C-MAX17048/max17048.c **** }
+ 160              		.loc 1 31 5 is_stmt 1 view .LVU36
+  31:Drivers/I2C-MAX17048/max17048.c **** }
+ 161              		.loc 1 31 12 is_stmt 0 view .LVU37
+ 162 003e E7E7     		b	.L7
+ 163              		.cfi_endproc
+ 164              	.LFE341:
+ 166              		.section	.text.MAX17048_Init,"ax",%progbits
+ 167              		.align	1
+ 168              		.global	MAX17048_Init
+ 169              		.syntax unified
+ 170              		.thumb
+ 171              		.thumb_func
+ 173              	MAX17048_Init:
+ 174              	.LVL12:
+ 175              	.LFB337:
+  52:Drivers/I2C-MAX17048/max17048.c **** 
+  53:Drivers/I2C-MAX17048/max17048.c **** bool MAX17048_Init(MAX17048_Handle* handle, I2C_HandleTypeDef* i2c)
+  54:Drivers/I2C-MAX17048/max17048.c **** {
+ 176              		.loc 1 54 1 is_stmt 1 view -0
+ 177              		.cfi_startproc
+ 178              		@ args = 0, pretend = 0, frame = 8
+ 179              		@ frame_needed = 0, uses_anonymous_args = 0
+  55:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || i2c == NULL) {
+ 180              		.loc 1 55 5 view .LVU39
+  54:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || i2c == NULL) {
+ 181              		.loc 1 54 1 is_stmt 0 view .LVU40
+ 182 0000 13B5     		push	{r0, r1, r4, lr}
+ 183              	.LCFI6:
+ 184              		.cfi_def_cfa_offset 16
+ 185              		.cfi_offset 4, -8
+ 186              		.cfi_offset 14, -4
+  54:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || i2c == NULL) {
+ 187              		.loc 1 54 1 view .LVU41
+ 188 0002 0446     		mov	r4, r0
+ 189 0004 0846     		mov	r0, r1
+ 190              	.LVL13:
+ 191              		.loc 1 55 8 view .LVU42
+ 192 0006 14B9     		cbnz	r4, .L13
+ 193              	.LVL14:
+ 194              	.L15:
+  56:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 195              		.loc 1 56 16 view .LVU43
+ 196 0008 0020     		movs	r0, #0
+ 197              	.L14:
+  57:Drivers/I2C-MAX17048/max17048.c ****     }
+  58:Drivers/I2C-MAX17048/max17048.c **** 
+  59:Drivers/I2C-MAX17048/max17048.c ****     memset(handle, 0, sizeof(*handle));
+  60:Drivers/I2C-MAX17048/max17048.c ****     handle->i2c = i2c;
+  61:Drivers/I2C-MAX17048/max17048.c ****     if (HAL_I2C_IsDeviceReady(
+  62:Drivers/I2C-MAX17048/max17048.c ****             i2c,
+  63:Drivers/I2C-MAX17048/max17048.c ****             (uint16_t)(MAX17048_I2C_ADDRESS_7BIT << 1),
+  64:Drivers/I2C-MAX17048/max17048.c ****             2u,
+  65:Drivers/I2C-MAX17048/max17048.c ****             MAX_I2C_TIMEOUT_MS) != HAL_OK) {
+  66:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 6
+
+
+  67:Drivers/I2C-MAX17048/max17048.c ****     }
+  68:Drivers/I2C-MAX17048/max17048.c **** 
+  69:Drivers/I2C-MAX17048/max17048.c ****     uint16_t version = 0;
+  70:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VERSION, &version) ||
+  71:Drivers/I2C-MAX17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+  72:Drivers/I2C-MAX17048/max17048.c ****         return false;
+  73:Drivers/I2C-MAX17048/max17048.c ****     }
+  74:Drivers/I2C-MAX17048/max17048.c **** 
+  75:Drivers/I2C-MAX17048/max17048.c ****     handle->version = version;
+  76:Drivers/I2C-MAX17048/max17048.c ****     handle->online = true;
+  77:Drivers/I2C-MAX17048/max17048.c ****     return true;
+  78:Drivers/I2C-MAX17048/max17048.c **** }
+ 198              		.loc 1 78 1 view .LVU44
+ 199 000a 02B0     		add	sp, sp, #8
+ 200              	.LCFI7:
+ 201              		.cfi_remember_state
+ 202              		.cfi_def_cfa_offset 8
+ 203              		@ sp needed
+ 204 000c 10BD     		pop	{r4, pc}
+ 205              	.LVL15:
+ 206              	.L13:
+ 207              	.LCFI8:
+ 208              		.cfi_restore_state
+  55:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 209              		.loc 1 55 24 discriminator 1 view .LVU45
+ 210 000e 0029     		cmp	r1, #0
+ 211 0010 FAD0     		beq	.L15
+  59:Drivers/I2C-MAX17048/max17048.c ****     handle->i2c = i2c;
+ 212              		.loc 1 59 5 is_stmt 1 view .LVU46
+ 213 0012 0023     		movs	r3, #0
+  60:Drivers/I2C-MAX17048/max17048.c ****     if (HAL_I2C_IsDeviceReady(
+ 214              		.loc 1 60 17 is_stmt 0 view .LVU47
+ 215 0014 2160     		str	r1, [r4]
+  61:Drivers/I2C-MAX17048/max17048.c ****             i2c,
+ 216              		.loc 1 61 9 view .LVU48
+ 217 0016 0222     		movs	r2, #2
+ 218 0018 6C21     		movs	r1, #108
+  59:Drivers/I2C-MAX17048/max17048.c ****     handle->i2c = i2c;
+ 219              		.loc 1 59 5 view .LVU49
+ 220 001a 6360     		str	r3, [r4, #4]	@ unaligned
+  60:Drivers/I2C-MAX17048/max17048.c ****     if (HAL_I2C_IsDeviceReady(
+ 221              		.loc 1 60 5 is_stmt 1 view .LVU50
+  61:Drivers/I2C-MAX17048/max17048.c ****             i2c,
+ 222              		.loc 1 61 5 view .LVU51
+  61:Drivers/I2C-MAX17048/max17048.c ****             i2c,
+ 223              		.loc 1 61 9 is_stmt 0 view .LVU52
+ 224 001c 1423     		movs	r3, #20
+ 225 001e FFF7FEFF 		bl	HAL_I2C_IsDeviceReady
+ 226              	.LVL16:
+  61:Drivers/I2C-MAX17048/max17048.c ****             i2c,
+ 227              		.loc 1 61 8 discriminator 1 view .LVU53
+ 228 0022 0028     		cmp	r0, #0
+ 229 0024 F0D1     		bne	.L15
+  69:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VERSION, &version) ||
+ 230              		.loc 1 69 5 is_stmt 1 view .LVU54
+  69:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VERSION, &version) ||
+ 231              		.loc 1 69 14 is_stmt 0 view .LVU55
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 7
+
+
+ 232 0026 ADF80600 		strh	r0, [sp, #6]	@ movhi
+  70:Drivers/I2C-MAX17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+ 233              		.loc 1 70 5 is_stmt 1 view .LVU56
+  70:Drivers/I2C-MAX17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+ 234              		.loc 1 70 10 is_stmt 0 view .LVU57
+ 235 002a 0DF10602 		add	r2, sp, #6
+ 236 002e 0821     		movs	r1, #8
+ 237 0030 2046     		mov	r0, r4
+ 238 0032 FFF7FEFF 		bl	read_register16.constprop.0
+ 239              	.LVL17:
+  70:Drivers/I2C-MAX17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+ 240              		.loc 1 70 8 discriminator 1 view .LVU58
+ 241 0036 0028     		cmp	r0, #0
+ 242 0038 E6D0     		beq	.L15
+  71:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 243              		.loc 1 71 17 view .LVU59
+ 244 003a BDF80620 		ldrh	r2, [sp, #6]
+  70:Drivers/I2C-MAX17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+ 245              		.loc 1 70 61 discriminator 1 view .LVU60
+ 246 003e 4FF6FD71 		movw	r1, #65533
+ 247 0042 531E     		subs	r3, r2, #1
+ 248 0044 9BB2     		uxth	r3, r3
+ 249 0046 8B42     		cmp	r3, r1
+ 250 0048 DED8     		bhi	.L15
+  75:Drivers/I2C-MAX17048/max17048.c ****     handle->online = true;
+ 251              		.loc 1 75 5 is_stmt 1 view .LVU61
+  76:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 252              		.loc 1 76 20 is_stmt 0 view .LVU62
+ 253 004a 0123     		movs	r3, #1
+  75:Drivers/I2C-MAX17048/max17048.c ****     handle->online = true;
+ 254              		.loc 1 75 21 view .LVU63
+ 255 004c E280     		strh	r2, [r4, #6]	@ movhi
+  76:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 256              		.loc 1 76 5 is_stmt 1 view .LVU64
+  76:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 257              		.loc 1 76 20 is_stmt 0 view .LVU65
+ 258 004e 2371     		strb	r3, [r4, #4]
+  77:Drivers/I2C-MAX17048/max17048.c **** }
+ 259              		.loc 1 77 5 is_stmt 1 view .LVU66
+  77:Drivers/I2C-MAX17048/max17048.c **** }
+ 260              		.loc 1 77 12 is_stmt 0 view .LVU67
+ 261 0050 DBE7     		b	.L14
+ 262              		.cfi_endproc
+ 263              	.LFE337:
+ 265              		.section	.text.MAX17048_ConfigureAlert,"ax",%progbits
+ 266              		.align	1
+ 267              		.global	MAX17048_ConfigureAlert
+ 268              		.syntax unified
+ 269              		.thumb
+ 270              		.thumb_func
+ 272              	MAX17048_ConfigureAlert:
+ 273              	.LVL18:
+ 274              	.LFB338:
+  79:Drivers/I2C-MAX17048/max17048.c **** 
+  80:Drivers/I2C-MAX17048/max17048.c **** bool MAX17048_ConfigureAlert(MAX17048_Handle* handle, uint8_t soc_threshold_percent)
+  81:Drivers/I2C-MAX17048/max17048.c **** {
+ 275              		.loc 1 81 1 is_stmt 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 8
+
+
+ 276              		.cfi_startproc
+ 277              		@ args = 0, pretend = 0, frame = 8
+ 278              		@ frame_needed = 0, uses_anonymous_args = 0
+  82:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 279              		.loc 1 82 5 view .LVU69
+  81:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 280              		.loc 1 81 1 is_stmt 0 view .LVU70
+ 281 0000 73B5     		push	{r0, r1, r4, r5, r6, lr}
+ 282              	.LCFI9:
+ 283              		.cfi_def_cfa_offset 24
+ 284              		.cfi_offset 4, -16
+ 285              		.cfi_offset 5, -12
+ 286              		.cfi_offset 6, -8
+ 287              		.cfi_offset 14, -4
+  81:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 288              		.loc 1 81 1 view .LVU71
+ 289 0002 0C46     		mov	r4, r1
+ 290              		.loc 1 82 8 view .LVU72
+ 291 0004 0546     		mov	r5, r0
+ 292 0006 58B1     		cbz	r0, .L23
+ 293              		.loc 1 82 24 discriminator 1 view .LVU73
+ 294 0008 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 295 000a 4BB1     		cbz	r3, .L23
+  83:Drivers/I2C-MAX17048/max17048.c ****         return false;
+  84:Drivers/I2C-MAX17048/max17048.c ****     }
+  85:Drivers/I2C-MAX17048/max17048.c ****     if (soc_threshold_percent < 1u) {
+ 296              		.loc 1 85 5 is_stmt 1 view .LVU74
+ 297              	.LVL19:
+  86:Drivers/I2C-MAX17048/max17048.c ****         soc_threshold_percent = 1u;
+  87:Drivers/I2C-MAX17048/max17048.c ****     } else if (soc_threshold_percent > 32u) {
+  88:Drivers/I2C-MAX17048/max17048.c ****         soc_threshold_percent = 32u;
+  89:Drivers/I2C-MAX17048/max17048.c ****     }
+  90:Drivers/I2C-MAX17048/max17048.c **** 
+  91:Drivers/I2C-MAX17048/max17048.c ****     uint16_t config = 0;
+ 298              		.loc 1 91 5 view .LVU75
+ 299              		.loc 1 91 14 is_stmt 0 view .LVU76
+ 300 000c 0026     		movs	r6, #0
+  92:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 301              		.loc 1 92 10 view .LVU77
+ 302 000e 01AA     		add	r2, sp, #4
+ 303 0010 0C21     		movs	r1, #12
+  91:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 304              		.loc 1 91 14 view .LVU78
+ 305 0012 ADF80460 		strh	r6, [sp, #4]	@ movhi
+ 306              		.loc 1 92 5 is_stmt 1 view .LVU79
+ 307              		.loc 1 92 10 is_stmt 0 view .LVU80
+ 308 0016 FFF7FEFF 		bl	read_register16.constprop.0
+ 309              	.LVL20:
+ 310              		.loc 1 92 8 discriminator 1 view .LVU81
+ 311 001a 20B9     		cbnz	r0, .L24
+ 312              	.LVL21:
+ 313              	.L26:
+  93:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 314              		.loc 1 93 9 is_stmt 1 view .LVU82
+ 315              		.loc 1 93 24 is_stmt 0 view .LVU83
+ 316 001c 0023     		movs	r3, #0
+ 317 001e 2B71     		strb	r3, [r5, #4]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 9
+
+
+  94:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 318              		.loc 1 94 9 is_stmt 1 view .LVU84
+ 319              	.LVL22:
+ 320              	.L23:
+  83:Drivers/I2C-MAX17048/max17048.c ****     }
+ 321              		.loc 1 83 16 is_stmt 0 view .LVU85
+ 322 0020 0020     		movs	r0, #0
+ 323              	.L25:
+  95:Drivers/I2C-MAX17048/max17048.c ****     }
+  96:Drivers/I2C-MAX17048/max17048.c **** 
+  97:Drivers/I2C-MAX17048/max17048.c ****     /* Preserve RCOMP; clear ALRT and program ATHD=(32-threshold). */
+  98:Drivers/I2C-MAX17048/max17048.c ****     const uint16_t athd = (uint16_t)(32u - soc_threshold_percent);
+  99:Drivers/I2C-MAX17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 100:Drivers/I2C-MAX17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 101:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 102:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 103:Drivers/I2C-MAX17048/max17048.c ****     }
+ 104:Drivers/I2C-MAX17048/max17048.c **** 
+ 105:Drivers/I2C-MAX17048/max17048.c ****     uint16_t verify = 0;
+ 106:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &verify) ||
+ 107:Drivers/I2C-MAX17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 108:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 109:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 110:Drivers/I2C-MAX17048/max17048.c ****     }
+ 111:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 112:Drivers/I2C-MAX17048/max17048.c **** }
+ 324              		.loc 1 112 1 view .LVU86
+ 325 0022 02B0     		add	sp, sp, #8
+ 326              	.LCFI10:
+ 327              		.cfi_remember_state
+ 328              		.cfi_def_cfa_offset 16
+ 329              		@ sp needed
+ 330 0024 70BD     		pop	{r4, r5, r6, pc}
+ 331              	.LVL23:
+ 332              	.L24:
+ 333              	.LCFI11:
+ 334              		.cfi_restore_state
+  98:Drivers/I2C-MAX17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 335              		.loc 1 98 5 is_stmt 1 view .LVU87
+  98:Drivers/I2C-MAX17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 336              		.loc 1 98 27 is_stmt 0 view .LVU88
+ 337 0026 202C     		cmp	r4, #32
+ 338 0028 BDF80420 		ldrh	r2, [sp, #4]
+ 100:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 339              		.loc 1 100 10 view .LVU89
+ 340 002c 4FF00C01 		mov	r1, #12
+ 341 0030 2846     		mov	r0, r5
+  98:Drivers/I2C-MAX17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 342              		.loc 1 98 27 view .LVU90
+ 343 0032 28BF     		it	cs
+ 344 0034 2024     		movcs	r4, #32
+ 345              	.LVL24:
+  98:Drivers/I2C-MAX17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 346              		.loc 1 98 27 view .LVU91
+ 347 0036 22F03F02 		bic	r2, r2, #63
+ 348 003a 012C     		cmp	r4, #1
+ 349 003c 38BF     		it	cc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 10
+
+
+ 350 003e 0124     		movcc	r4, #1
+  98:Drivers/I2C-MAX17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 351              		.loc 1 98 20 view .LVU92
+ 352 0040 C4F12004 		rsb	r4, r4, #32
+ 353 0044 A4B2     		uxth	r4, r4
+ 354              	.LVL25:
+  99:Drivers/I2C-MAX17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 355              		.loc 1 99 5 is_stmt 1 view .LVU93
+ 356 0046 2243     		orrs	r2, r2, r4
+ 357 0048 92B2     		uxth	r2, r2
+  99:Drivers/I2C-MAX17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 358              		.loc 1 99 12 is_stmt 0 view .LVU94
+ 359 004a ADF80420 		strh	r2, [sp, #4]	@ movhi
+ 100:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 360              		.loc 1 100 5 is_stmt 1 view .LVU95
+ 100:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 361              		.loc 1 100 10 is_stmt 0 view .LVU96
+ 362 004e FFF7FEFF 		bl	write_register16
+ 363              	.LVL26:
+ 100:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 364              		.loc 1 100 8 discriminator 1 view .LVU97
+ 365 0052 0028     		cmp	r0, #0
+ 366 0054 E2D0     		beq	.L26
+ 105:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &verify) ||
+ 367              		.loc 1 105 5 is_stmt 1 view .LVU98
+ 106:Drivers/I2C-MAX17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 368              		.loc 1 106 10 is_stmt 0 view .LVU99
+ 369 0056 0DF10602 		add	r2, sp, #6
+ 370 005a 0C21     		movs	r1, #12
+ 371 005c 2846     		mov	r0, r5
+ 105:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &verify) ||
+ 372              		.loc 1 105 14 view .LVU100
+ 373 005e ADF80660 		strh	r6, [sp, #6]	@ movhi
+ 106:Drivers/I2C-MAX17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 374              		.loc 1 106 5 is_stmt 1 view .LVU101
+ 106:Drivers/I2C-MAX17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 375              		.loc 1 106 10 is_stmt 0 view .LVU102
+ 376 0062 FFF7FEFF 		bl	read_register16.constprop.0
+ 377              	.LVL27:
+ 106:Drivers/I2C-MAX17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 378              		.loc 1 106 8 discriminator 1 view .LVU103
+ 379 0066 0028     		cmp	r0, #0
+ 380 0068 D8D0     		beq	.L26
+ 106:Drivers/I2C-MAX17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 381              		.loc 1 106 59 discriminator 1 view .LVU104
+ 382 006a BDF80630 		ldrh	r3, [sp, #6]
+ 383 006e 03F01F03 		and	r3, r3, #31
+ 384 0072 9C42     		cmp	r4, r3
+ 385 0074 D2D1     		bne	.L26
+ 386 0076 D4E7     		b	.L25
+ 387              		.cfi_endproc
+ 388              	.LFE338:
+ 390              		.section	.text.MAX17048_ClearAlert,"ax",%progbits
+ 391              		.align	1
+ 392              		.global	MAX17048_ClearAlert
+ 393              		.syntax unified
+ 394              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 11
+
+
+ 395              		.thumb_func
+ 397              	MAX17048_ClearAlert:
+ 398              	.LVL28:
+ 399              	.LFB339:
+ 113:Drivers/I2C-MAX17048/max17048.c **** 
+ 114:Drivers/I2C-MAX17048/max17048.c **** bool MAX17048_ClearAlert(MAX17048_Handle* handle)
+ 115:Drivers/I2C-MAX17048/max17048.c **** {
+ 400              		.loc 1 115 1 is_stmt 1 view -0
+ 401              		.cfi_startproc
+ 402              		@ args = 0, pretend = 0, frame = 8
+ 403              		@ frame_needed = 0, uses_anonymous_args = 0
+ 116:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 404              		.loc 1 116 5 view .LVU106
+ 115:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 405              		.loc 1 115 1 is_stmt 0 view .LVU107
+ 406 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 407              	.LCFI12:
+ 408              		.cfi_def_cfa_offset 24
+ 409              		.cfi_offset 4, -12
+ 410              		.cfi_offset 5, -8
+ 411              		.cfi_offset 14, -4
+ 412              		.loc 1 116 8 view .LVU108
+ 413 0002 0446     		mov	r4, r0
+ 414 0004 58B1     		cbz	r0, .L40
+ 415              		.loc 1 116 24 discriminator 1 view .LVU109
+ 416 0006 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 417 0008 4BB1     		cbz	r3, .L40
+ 117:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 118:Drivers/I2C-MAX17048/max17048.c ****     }
+ 119:Drivers/I2C-MAX17048/max17048.c ****     uint16_t config = 0;
+ 418              		.loc 1 119 5 is_stmt 1 view .LVU110
+ 419              		.loc 1 119 14 is_stmt 0 view .LVU111
+ 420 000a 0025     		movs	r5, #0
+ 120:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 421              		.loc 1 120 10 view .LVU112
+ 422 000c 01AA     		add	r2, sp, #4
+ 423 000e 0C21     		movs	r1, #12
+ 119:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 424              		.loc 1 119 14 view .LVU113
+ 425 0010 ADF80450 		strh	r5, [sp, #4]	@ movhi
+ 426              		.loc 1 120 5 is_stmt 1 view .LVU114
+ 427              		.loc 1 120 10 is_stmt 0 view .LVU115
+ 428 0014 FFF7FEFF 		bl	read_register16.constprop.0
+ 429              	.LVL29:
+ 430              		.loc 1 120 8 discriminator 1 view .LVU116
+ 431 0018 20B9     		cbnz	r0, .L41
+ 432              	.L43:
+ 121:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 433              		.loc 1 121 9 is_stmt 1 view .LVU117
+ 434              		.loc 1 121 24 is_stmt 0 view .LVU118
+ 435 001a 0023     		movs	r3, #0
+ 436 001c 2371     		strb	r3, [r4, #4]
+ 122:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 437              		.loc 1 122 9 is_stmt 1 view .LVU119
+ 438              	.L40:
+ 117:Drivers/I2C-MAX17048/max17048.c ****     }
+ 439              		.loc 1 117 16 is_stmt 0 view .LVU120
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 12
+
+
+ 440 001e 0020     		movs	r0, #0
+ 441              	.L42:
+ 123:Drivers/I2C-MAX17048/max17048.c ****     }
+ 124:Drivers/I2C-MAX17048/max17048.c ****     config &= (uint16_t)~0x0020u;
+ 125:Drivers/I2C-MAX17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 126:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 127:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 128:Drivers/I2C-MAX17048/max17048.c ****     }
+ 129:Drivers/I2C-MAX17048/max17048.c **** 
+ 130:Drivers/I2C-MAX17048/max17048.c ****     /*
+ 131:Drivers/I2C-MAX17048/max17048.c ****      * CONFIG.ALRT releases the active-low pin.  Clear the STATUS cause bits as
+ 132:Drivers/I2C-MAX17048/max17048.c ****      * well so a later threshold crossing can generate a fresh alert; preserve
+ 133:Drivers/I2C-MAX17048/max17048.c ****      * only EnVR, which is a configuration bit in the otherwise W1/W0 status
+ 134:Drivers/I2C-MAX17048/max17048.c ****      * field.
+ 135:Drivers/I2C-MAX17048/max17048.c ****      */
+ 136:Drivers/I2C-MAX17048/max17048.c ****     uint16_t status = 0;
+ 137:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_STATUS, &status) ||
+ 138:Drivers/I2C-MAX17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 139:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 140:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 141:Drivers/I2C-MAX17048/max17048.c ****     }
+ 142:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 143:Drivers/I2C-MAX17048/max17048.c **** }
+ 442              		.loc 1 143 1 view .LVU121
+ 443 0020 03B0     		add	sp, sp, #12
+ 444              	.LCFI13:
+ 445              		.cfi_remember_state
+ 446              		.cfi_def_cfa_offset 12
+ 447              		@ sp needed
+ 448 0022 30BD     		pop	{r4, r5, pc}
+ 449              	.LVL30:
+ 450              	.L41:
+ 451              	.LCFI14:
+ 452              		.cfi_restore_state
+ 124:Drivers/I2C-MAX17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 453              		.loc 1 124 5 is_stmt 1 view .LVU122
+ 124:Drivers/I2C-MAX17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 454              		.loc 1 124 12 is_stmt 0 view .LVU123
+ 455 0024 BDF80420 		ldrh	r2, [sp, #4]
+ 125:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 456              		.loc 1 125 10 view .LVU124
+ 457 0028 0C21     		movs	r1, #12
+ 458 002a 2046     		mov	r0, r4
+ 124:Drivers/I2C-MAX17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 459              		.loc 1 124 12 view .LVU125
+ 460 002c 22F02002 		bic	r2, r2, #32
+ 461 0030 92B2     		uxth	r2, r2
+ 462 0032 ADF80420 		strh	r2, [sp, #4]	@ movhi
+ 125:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 463              		.loc 1 125 5 is_stmt 1 view .LVU126
+ 125:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 464              		.loc 1 125 10 is_stmt 0 view .LVU127
+ 465 0036 FFF7FEFF 		bl	write_register16
+ 466              	.LVL31:
+ 125:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 467              		.loc 1 125 8 discriminator 1 view .LVU128
+ 468 003a 0028     		cmp	r0, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 13
+
+
+ 469 003c EDD0     		beq	.L43
+ 136:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_STATUS, &status) ||
+ 470              		.loc 1 136 5 is_stmt 1 view .LVU129
+ 137:Drivers/I2C-MAX17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 471              		.loc 1 137 10 is_stmt 0 view .LVU130
+ 472 003e 0DF10602 		add	r2, sp, #6
+ 473 0042 1A21     		movs	r1, #26
+ 474 0044 2046     		mov	r0, r4
+ 136:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_STATUS, &status) ||
+ 475              		.loc 1 136 14 view .LVU131
+ 476 0046 ADF80650 		strh	r5, [sp, #6]	@ movhi
+ 137:Drivers/I2C-MAX17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 477              		.loc 1 137 5 is_stmt 1 view .LVU132
+ 137:Drivers/I2C-MAX17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 478              		.loc 1 137 10 is_stmt 0 view .LVU133
+ 479 004a FFF7FEFF 		bl	read_register16.constprop.0
+ 480              	.LVL32:
+ 137:Drivers/I2C-MAX17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 481              		.loc 1 137 8 discriminator 1 view .LVU134
+ 482 004e 0028     		cmp	r0, #0
+ 483 0050 E3D0     		beq	.L43
+ 138:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 484              		.loc 1 138 10 view .LVU135
+ 485 0052 BDF80620 		ldrh	r2, [sp, #6]
+ 486 0056 1A21     		movs	r1, #26
+ 487 0058 2046     		mov	r0, r4
+ 488 005a 02F48042 		and	r2, r2, #16384
+ 489 005e FFF7FEFF 		bl	write_register16
+ 490              	.LVL33:
+ 137:Drivers/I2C-MAX17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 491              		.loc 1 137 59 discriminator 1 view .LVU136
+ 492 0062 0028     		cmp	r0, #0
+ 493 0064 DCD1     		bne	.L42
+ 494 0066 D8E7     		b	.L43
+ 495              		.cfi_endproc
+ 496              	.LFE339:
+ 498              		.section	.text.MAX17048_ReadState,"ax",%progbits
+ 499              		.align	1
+ 500              		.global	MAX17048_ReadState
+ 501              		.syntax unified
+ 502              		.thumb
+ 503              		.thumb_func
+ 505              	MAX17048_ReadState:
+ 506              	.LVL34:
+ 507              	.LFB340:
+ 144:Drivers/I2C-MAX17048/max17048.c **** 
+ 145:Drivers/I2C-MAX17048/max17048.c **** bool MAX17048_ReadState(MAX17048_Handle* handle, MAX17048_State* state)
+ 146:Drivers/I2C-MAX17048/max17048.c **** {
+ 508              		.loc 1 146 1 is_stmt 1 view -0
+ 509              		.cfi_startproc
+ 510              		@ args = 0, pretend = 0, frame = 8
+ 511              		@ frame_needed = 0, uses_anonymous_args = 0
+ 147:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || state == NULL || !handle->online) {
+ 512              		.loc 1 147 5 view .LVU138
+ 146:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || state == NULL || !handle->online) {
+ 513              		.loc 1 146 1 is_stmt 0 view .LVU139
+ 514 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 14
+
+
+ 515              	.LCFI15:
+ 516              		.cfi_def_cfa_offset 24
+ 517              		.cfi_offset 4, -12
+ 518              		.cfi_offset 5, -8
+ 519              		.cfi_offset 14, -4
+ 146:Drivers/I2C-MAX17048/max17048.c ****     if (handle == NULL || state == NULL || !handle->online) {
+ 520              		.loc 1 146 1 view .LVU140
+ 521 0002 0C46     		mov	r4, r1
+ 522              		.loc 1 147 8 view .LVU141
+ 523 0004 0546     		mov	r5, r0
+ 524 0006 90B1     		cbz	r0, .L59
+ 525              		.loc 1 147 24 discriminator 1 view .LVU142
+ 526 0008 89B1     		cbz	r1, .L59
+ 527              		.loc 1 147 41 discriminator 2 view .LVU143
+ 528 000a 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 529 000c 7BB1     		cbz	r3, .L59
+ 148:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 149:Drivers/I2C-MAX17048/max17048.c ****     }
+ 150:Drivers/I2C-MAX17048/max17048.c **** 
+ 151:Drivers/I2C-MAX17048/max17048.c ****     uint16_t raw_vcell = 0;
+ 530              		.loc 1 151 5 is_stmt 1 view .LVU144
+ 531              		.loc 1 151 14 is_stmt 0 view .LVU145
+ 532 000e 0023     		movs	r3, #0
+ 152:Drivers/I2C-MAX17048/max17048.c ****     uint16_t raw_soc = 0;
+ 153:Drivers/I2C-MAX17048/max17048.c ****     uint16_t status = 0;
+ 154:Drivers/I2C-MAX17048/max17048.c ****     uint16_t config = 0;
+ 155:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VCELL, &raw_vcell) ||
+ 533              		.loc 1 155 10 view .LVU146
+ 534 0010 6A46     		mov	r2, sp
+ 535 0012 0221     		movs	r1, #2
+ 536              	.LVL35:
+ 151:Drivers/I2C-MAX17048/max17048.c ****     uint16_t raw_soc = 0;
+ 537              		.loc 1 151 14 view .LVU147
+ 538 0014 ADF80030 		strh	r3, [sp]	@ movhi
+ 152:Drivers/I2C-MAX17048/max17048.c ****     uint16_t raw_soc = 0;
+ 539              		.loc 1 152 5 is_stmt 1 view .LVU148
+ 152:Drivers/I2C-MAX17048/max17048.c ****     uint16_t raw_soc = 0;
+ 540              		.loc 1 152 14 is_stmt 0 view .LVU149
+ 541 0018 ADF80230 		strh	r3, [sp, #2]	@ movhi
+ 153:Drivers/I2C-MAX17048/max17048.c ****     uint16_t config = 0;
+ 542              		.loc 1 153 5 is_stmt 1 view .LVU150
+ 153:Drivers/I2C-MAX17048/max17048.c ****     uint16_t config = 0;
+ 543              		.loc 1 153 14 is_stmt 0 view .LVU151
+ 544 001c ADF80430 		strh	r3, [sp, #4]	@ movhi
+ 154:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VCELL, &raw_vcell) ||
+ 545              		.loc 1 154 5 is_stmt 1 view .LVU152
+ 154:Drivers/I2C-MAX17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VCELL, &raw_vcell) ||
+ 546              		.loc 1 154 14 is_stmt 0 view .LVU153
+ 547 0020 ADF80630 		strh	r3, [sp, #6]	@ movhi
+ 548              		.loc 1 155 5 is_stmt 1 view .LVU154
+ 549              		.loc 1 155 10 is_stmt 0 view .LVU155
+ 550 0024 FFF7FEFF 		bl	read_register16.constprop.0
+ 551              	.LVL36:
+ 552              		.loc 1 155 8 discriminator 1 view .LVU156
+ 553 0028 20B9     		cbnz	r0, .L60
+ 554              	.L62:
+ 156:Drivers/I2C-MAX17048/max17048.c ****         !read_register16(handle, MAX_REG_SOC, &raw_soc) ||
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 15
+
+
+ 157:Drivers/I2C-MAX17048/max17048.c ****         !read_register16(handle, MAX_REG_STATUS, &status) ||
+ 158:Drivers/I2C-MAX17048/max17048.c ****         !read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 159:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 555              		.loc 1 159 9 is_stmt 1 view .LVU157
+ 556              		.loc 1 159 24 is_stmt 0 view .LVU158
+ 557 002a 0023     		movs	r3, #0
+ 558 002c 2B71     		strb	r3, [r5, #4]
+ 160:Drivers/I2C-MAX17048/max17048.c ****         return false;
+ 559              		.loc 1 160 9 is_stmt 1 view .LVU159
+ 560              	.L59:
+ 148:Drivers/I2C-MAX17048/max17048.c ****     }
+ 561              		.loc 1 148 16 is_stmt 0 view .LVU160
+ 562 002e 0020     		movs	r0, #0
+ 563              	.L61:
+ 161:Drivers/I2C-MAX17048/max17048.c ****     }
+ 162:Drivers/I2C-MAX17048/max17048.c **** 
+ 163:Drivers/I2C-MAX17048/max17048.c ****     memset(state, 0, sizeof(*state));
+ 164:Drivers/I2C-MAX17048/max17048.c ****     /* VCELL LSB is 78.125 uV, exactly 5/64 mV. */
+ 165:Drivers/I2C-MAX17048/max17048.c ****     state->cell_mv = (uint16_t)(((uint32_t)raw_vcell * 5u + 32u) / 64u);
+ 166:Drivers/I2C-MAX17048/max17048.c ****     /* SOC is unsigned 8.8 fixed point. */
+ 167:Drivers/I2C-MAX17048/max17048.c ****     uint32_t soc_permille = ((uint32_t)raw_soc * 10u + 128u) / 256u;
+ 168:Drivers/I2C-MAX17048/max17048.c ****     if (soc_permille > 1000u) {
+ 169:Drivers/I2C-MAX17048/max17048.c ****         soc_permille = 1000u;
+ 170:Drivers/I2C-MAX17048/max17048.c ****     }
+ 171:Drivers/I2C-MAX17048/max17048.c ****     state->soc_permille = (uint16_t)soc_permille;
+ 172:Drivers/I2C-MAX17048/max17048.c ****     state->status = status;
+ 173:Drivers/I2C-MAX17048/max17048.c ****     state->alert = (config & 0x0020u) != 0u;
+ 174:Drivers/I2C-MAX17048/max17048.c ****     state->valid = state->cell_mv >= 2500u && state->cell_mv <= 5000u;
+ 175:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 176:Drivers/I2C-MAX17048/max17048.c **** }
+ 564              		.loc 1 176 1 view .LVU161
+ 565 0030 03B0     		add	sp, sp, #12
+ 566              	.LCFI16:
+ 567              		.cfi_remember_state
+ 568              		.cfi_def_cfa_offset 12
+ 569              		@ sp needed
+ 570 0032 30BD     		pop	{r4, r5, pc}
+ 571              	.LVL37:
+ 572              	.L60:
+ 573              	.LCFI17:
+ 574              		.cfi_restore_state
+ 156:Drivers/I2C-MAX17048/max17048.c ****         !read_register16(handle, MAX_REG_STATUS, &status) ||
+ 575              		.loc 1 156 10 view .LVU162
+ 576 0034 0DF10202 		add	r2, sp, #2
+ 577 0038 0421     		movs	r1, #4
+ 578 003a 2846     		mov	r0, r5
+ 579 003c FFF7FEFF 		bl	read_register16.constprop.0
+ 580              	.LVL38:
+ 155:Drivers/I2C-MAX17048/max17048.c ****         !read_register16(handle, MAX_REG_SOC, &raw_soc) ||
+ 581              		.loc 1 155 61 discriminator 1 view .LVU163
+ 582 0040 0028     		cmp	r0, #0
+ 583 0042 F2D0     		beq	.L62
+ 157:Drivers/I2C-MAX17048/max17048.c ****         !read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 584              		.loc 1 157 10 view .LVU164
+ 585 0044 01AA     		add	r2, sp, #4
+ 586 0046 1A21     		movs	r1, #26
+ 587 0048 2846     		mov	r0, r5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 16
+
+
+ 588 004a FFF7FEFF 		bl	read_register16.constprop.0
+ 589              	.LVL39:
+ 156:Drivers/I2C-MAX17048/max17048.c ****         !read_register16(handle, MAX_REG_STATUS, &status) ||
+ 590              		.loc 1 156 57 view .LVU165
+ 591 004e 0028     		cmp	r0, #0
+ 592 0050 EBD0     		beq	.L62
+ 158:Drivers/I2C-MAX17048/max17048.c ****         handle->online = false;
+ 593              		.loc 1 158 10 view .LVU166
+ 594 0052 0DF10602 		add	r2, sp, #6
+ 595 0056 0C21     		movs	r1, #12
+ 596 0058 2846     		mov	r0, r5
+ 597 005a FFF7FEFF 		bl	read_register16.constprop.0
+ 598              	.LVL40:
+ 157:Drivers/I2C-MAX17048/max17048.c ****         !read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 599              		.loc 1 157 59 view .LVU167
+ 600 005e 0028     		cmp	r0, #0
+ 601 0060 E3D0     		beq	.L62
+ 163:Drivers/I2C-MAX17048/max17048.c ****     /* VCELL LSB is 78.125 uV, exactly 5/64 mV. */
+ 602              		.loc 1 163 5 is_stmt 1 view .LVU168
+ 165:Drivers/I2C-MAX17048/max17048.c ****     /* SOC is unsigned 8.8 fixed point. */
+ 603              		.loc 1 165 5 view .LVU169
+ 167:Drivers/I2C-MAX17048/max17048.c ****     if (soc_permille > 1000u) {
+ 604              		.loc 1 167 48 is_stmt 0 view .LVU170
+ 605 0062 0A21     		movs	r1, #10
+ 167:Drivers/I2C-MAX17048/max17048.c ****     if (soc_permille > 1000u) {
+ 606              		.loc 1 167 30 view .LVU171
+ 607 0064 BDF80220 		ldrh	r2, [sp, #2]
+ 165:Drivers/I2C-MAX17048/max17048.c ****     /* SOC is unsigned 8.8 fixed point. */
+ 608              		.loc 1 165 34 view .LVU172
+ 609 0068 BDF80030 		ldrh	r3, [sp]
+ 167:Drivers/I2C-MAX17048/max17048.c ****     if (soc_permille > 1000u) {
+ 610              		.loc 1 167 48 view .LVU173
+ 611 006c 4A43     		muls	r2, r1, r2
+ 168:Drivers/I2C-MAX17048/max17048.c ****         soc_permille = 1000u;
+ 612              		.loc 1 168 8 view .LVU174
+ 613 006e 1049     		ldr	r1, .L83
+ 165:Drivers/I2C-MAX17048/max17048.c ****     /* SOC is unsigned 8.8 fixed point. */
+ 614              		.loc 1 165 54 view .LVU175
+ 615 0070 03EB8303 		add	r3, r3, r3, lsl #2
+ 167:Drivers/I2C-MAX17048/max17048.c ****     if (soc_permille > 1000u) {
+ 616              		.loc 1 167 54 view .LVU176
+ 617 0074 8032     		adds	r2, r2, #128
+ 165:Drivers/I2C-MAX17048/max17048.c ****     /* SOC is unsigned 8.8 fixed point. */
+ 618              		.loc 1 165 59 view .LVU177
+ 619 0076 2033     		adds	r3, r3, #32
+ 168:Drivers/I2C-MAX17048/max17048.c ****         soc_permille = 1000u;
+ 620              		.loc 1 168 8 view .LVU178
+ 621 0078 8A42     		cmp	r2, r1
+ 165:Drivers/I2C-MAX17048/max17048.c ****     /* SOC is unsigned 8.8 fixed point. */
+ 622              		.loc 1 165 22 view .LVU179
+ 623 007a 4FEA9313 		lsr	r3, r3, #6
+ 167:Drivers/I2C-MAX17048/max17048.c ****     if (soc_permille > 1000u) {
+ 624              		.loc 1 167 14 view .LVU180
+ 625 007e 94BF     		ite	ls
+ 626 0080 120A     		lsrls	r2, r2, #8
+ 169:Drivers/I2C-MAX17048/max17048.c ****     }
+ 627              		.loc 1 169 22 view .LVU181
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 17
+
+
+ 628 0082 4FF47A72 		movhi	r2, #1000
+ 165:Drivers/I2C-MAX17048/max17048.c ****     /* SOC is unsigned 8.8 fixed point. */
+ 629              		.loc 1 165 20 view .LVU182
+ 630 0086 2380     		strh	r3, [r4]	@ movhi
+ 167:Drivers/I2C-MAX17048/max17048.c ****     if (soc_permille > 1000u) {
+ 631              		.loc 1 167 5 is_stmt 1 view .LVU183
+ 168:Drivers/I2C-MAX17048/max17048.c ****         soc_permille = 1000u;
+ 632              		.loc 1 168 5 view .LVU184
+ 633              	.LVL41:
+ 171:Drivers/I2C-MAX17048/max17048.c ****     state->status = status;
+ 634              		.loc 1 171 5 view .LVU185
+ 174:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 635              		.loc 1 174 44 is_stmt 0 view .LVU186
+ 636 0088 A3F6C413 		subw	r3, r3, #2500
+ 171:Drivers/I2C-MAX17048/max17048.c ****     state->status = status;
+ 637              		.loc 1 171 27 view .LVU187
+ 638 008c 6280     		strh	r2, [r4, #2]	@ movhi
+ 172:Drivers/I2C-MAX17048/max17048.c ****     state->alert = (config & 0x0020u) != 0u;
+ 639              		.loc 1 172 5 is_stmt 1 view .LVU188
+ 172:Drivers/I2C-MAX17048/max17048.c ****     state->alert = (config & 0x0020u) != 0u;
+ 640              		.loc 1 172 19 is_stmt 0 view .LVU189
+ 641 008e BDF80420 		ldrh	r2, [sp, #4]
+ 642              	.LVL42:
+ 174:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 643              		.loc 1 174 44 view .LVU190
+ 644 0092 9BB2     		uxth	r3, r3
+ 172:Drivers/I2C-MAX17048/max17048.c ****     state->alert = (config & 0x0020u) != 0u;
+ 645              		.loc 1 172 19 view .LVU191
+ 646 0094 A280     		strh	r2, [r4, #4]	@ movhi
+ 173:Drivers/I2C-MAX17048/max17048.c ****     state->valid = state->cell_mv >= 2500u && state->cell_mv <= 5000u;
+ 647              		.loc 1 173 5 is_stmt 1 view .LVU192
+ 173:Drivers/I2C-MAX17048/max17048.c ****     state->valid = state->cell_mv >= 2500u && state->cell_mv <= 5000u;
+ 648              		.loc 1 173 39 is_stmt 0 view .LVU193
+ 649 0096 BDF80620 		ldrh	r2, [sp, #6]
+ 650 009a C2F34012 		ubfx	r2, r2, #5, #1
+ 173:Drivers/I2C-MAX17048/max17048.c ****     state->valid = state->cell_mv >= 2500u && state->cell_mv <= 5000u;
+ 651              		.loc 1 173 18 view .LVU194
+ 652 009e A271     		strb	r2, [r4, #6]
+ 174:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 653              		.loc 1 174 5 is_stmt 1 view .LVU195
+ 174:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 654              		.loc 1 174 44 is_stmt 0 view .LVU196
+ 655 00a0 40F6C412 		movw	r2, #2500
+ 656 00a4 9342     		cmp	r3, r2
+ 657              	.LVL43:
+ 174:Drivers/I2C-MAX17048/max17048.c ****     return true;
+ 658              		.loc 1 174 44 view .LVU197
+ 659 00a6 8CBF     		ite	hi
+ 660 00a8 0023     		movhi	r3, #0
+ 661 00aa 0123     		movls	r3, #1
+ 662 00ac E371     		strb	r3, [r4, #7]
+ 175:Drivers/I2C-MAX17048/max17048.c **** }
+ 663              		.loc 1 175 5 is_stmt 1 view .LVU198
+ 175:Drivers/I2C-MAX17048/max17048.c **** }
+ 664              		.loc 1 175 12 is_stmt 0 view .LVU199
+ 665 00ae BFE7     		b	.L61
+ 666              	.L84:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 18
+
+
+ 667              		.align	2
+ 668              	.L83:
+ 669 00b0 FFE80300 		.word	256255
+ 670              		.cfi_endproc
+ 671              	.LFE340:
+ 673              		.text
+ 674              	.Letext0:
+ 675              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 676              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 677              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 678              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 679              		.file 6 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 680              		.file 7 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 681              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c.h"
+ 682              		.file 9 "Drivers/I2C-MAX17048/max17048.h"
+ 683              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s 			page 19
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 max17048.c
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:20     .text.write_register16:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:25     .text.write_register16:00000000 write_register16
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:79     .text.read_register16.constprop.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:84     .text.read_register16.constprop.0:00000000 read_register16.constprop.0
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:167    .text.MAX17048_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:173    .text.MAX17048_Init:00000000 MAX17048_Init
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:266    .text.MAX17048_ConfigureAlert:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:272    .text.MAX17048_ConfigureAlert:00000000 MAX17048_ConfigureAlert
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:391    .text.MAX17048_ClearAlert:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:397    .text.MAX17048_ClearAlert:00000000 MAX17048_ClearAlert
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:499    .text.MAX17048_ReadState:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:505    .text.MAX17048_ReadState:00000000 MAX17048_ReadState
+C:\Users\nicx5\AppData\Local\Temp\cc4dZw3j.s:669    .text.MAX17048_ReadState:000000b0 $d
+
+UNDEFINED SYMBOLS
+HAL_I2C_Mem_Write
+HAL_I2C_Mem_Read
+HAL_I2C_IsDeviceReady

@@ -123,21 +123,15 @@ static void calculateAroundBoundaries() {
 
 // 动态选择边界的函数，根据环绕灯同步状态
 static void getBoundaries(const LedAnimationParams& params, float& minX, float& maxX) {
-    if (g_has_led_around) {
-        // 检查当前LED是否为环绕灯，或者是否需要处理环绕灯同步
-        uint8_t mainLedsCount = NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS;
-        bool isAroundLed = params.index >= mainLedsCount;
-        bool needAllBoundaries = isAroundLed || (params.index < mainLedsCount && params.global.aroundLedSyncMode);
-        
-        if (needAllBoundaries) {
-            calculateAllBoundaries();
-            minX = cachedAllMinX;
-            maxX = cachedAllMaxX;
-        } else {
-            calculateMainBoundaries();
-            minX = cachedMainMinX;
-            maxX = cachedMainMaxX;
-        }
+    // 当前PCB固定包含氛围灯，只按配置决定是否参与同步边界。
+    uint8_t mainLedsCount = NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS;
+    bool isAroundLed = params.index >= mainLedsCount;
+    bool needAllBoundaries = isAroundLed || (params.index < mainLedsCount && params.global.aroundLedSyncMode);
+
+    if (needAllBoundaries) {
+        calculateAllBoundaries();
+        minX = cachedAllMinX;
+        maxX = cachedAllMaxX;
     } else {
         calculateMainBoundaries();
         minX = cachedMainMinX;
@@ -328,11 +322,7 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
     if (params.index < mainLedsCount) {
         btnX = MAIN_LED_POS_LIST[params.index].x;
     } else {
-        if (g_has_led_around) {
-            btnX = AROUND_LED_POS_LIST[params.index - mainLedsCount].x;
-        } else {
-            btnX = MAIN_LED_POS_LIST[0].x; // Safe fallback
-        }
+        btnX = AROUND_LED_POS_LIST[params.index - mainLedsCount].x;
     }
     
     // 计算距离中心的归一化距离
@@ -434,11 +424,7 @@ RGBColor transformAnimation(const LedAnimationParams& params) {
     if (params.index < mainLedsCount) {
         btnX = MAIN_LED_POS_LIST[params.index].x;
     } else {
-        if (g_has_led_around) {
-            btnX = AROUND_LED_POS_LIST[params.index - mainLedsCount].x;
-        } else {
-            btnX = MAIN_LED_POS_LIST[0].x; // Safe fallback
-        }
+        btnX = AROUND_LED_POS_LIST[params.index - mainLedsCount].x;
     }
     
     // 记录流光已经经过的按钮

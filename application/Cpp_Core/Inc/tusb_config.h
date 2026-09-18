@@ -31,8 +31,6 @@ extern "C"
 {
 #endif
 
-#include "lwipopts.h"
-
 //--------------------------------------------------------------------+
 // Board Specific Configuration
 //--------------------------------------------------------------------+
@@ -60,7 +58,9 @@ extern "C"
 // Common Configuration
 //--------------------------------------------------------------------
 
+#ifndef CFG_TUSB_DEBUG
 #define CFG_TUSB_DEBUG 0                       // 调试级别，0表示禁用调试输出
+#endif
 
 #define CFG_TUD_MAX_SPEED BOARD_TUD_MAX_SPEED  // 设备模式最大速度与板级设置保持一致
 
@@ -89,16 +89,10 @@ extern "C"
 #define CFG_TUD_VENDOR 0                       // 禁用厂商自定义类
 #define CFG_TUD_CUSTOM_CLASS 0                 // 禁用自定义类
 
-// Enable only ECM/RNDIS for network
-#define USE_ECM 0                              // 使用ECM而非RNDIS
-#define CFG_TUD_ECM_RNDIS USE_ECM              // 根据USE_ECM设置启用ECM或RNDIS
-#define CFG_TUD_NCM (1-CFG_TUD_ECM_RNDIS)    // 如果不使用ECM/RNDIS则使用NCM
-
-// Optimize buffer sizes
-#define CFG_TUD_NCM_IN_NTB_MAX_SIZE (2 * TCP_MSS + 100)  // NCM输入缓冲区大小，基于TCP最大段大小优化
-#define CFG_TUD_NCM_OUT_NTB_MAX_SIZE (2 * TCP_MSS + 100) // NCM输出缓冲区大小
-#define CFG_TUD_NCM_OUT_NTB_N 1                // NCM输出NTB块数为1
-#define CFG_TUD_NCM_IN_NTB_N 1                 // NCM输入NTB块数为1
+// WebConfig V2 is carried by CH585 WebHID. STM32 no longer exposes a
+// RNDIS/ECM/NCM device interface or embeds the legacy TCP/httpd runtime.
+#define CFG_TUD_ECM_RNDIS 0
+#define CFG_TUD_NCM 0
 
 //--------------------------------------------------------------------
 // Host Configuration

@@ -55,8 +55,8 @@ ENTRY(Reset_Handler)
 /* Highest address of the user mode stack */
 _estack = ORIGIN(DTCMRAM) + LENGTH(DTCMRAM);    /* end of DTCMRAM */
 /* Generate a link error if heap and stack don't fit into RAM */
-_Min_Heap_Size = 0x400;      /* 32KB 堆 */
-_Min_Stack_Size = 0x200;     /* 8KB 栈 */
+_Min_Heap_Size = 0x8000;     /* 32KB minimum heap */
+_Min_Stack_Size = 0x2000;    /* 8KB protected MSP stack */
 
 /* Specify the memory areas */
 MEMORY
@@ -65,7 +65,8 @@ ITCMRAM (xrw)                 : ORIGIN = 0x00000000, LENGTH = 64K
 DTCMRAM (xrw)                 : ORIGIN = 0x20000000, LENGTH = 128K
 RAM (xrw)                     : ORIGIN = 0x24000000, LENGTH = 512K
 RAM_D2 (xrw)                  : ORIGIN = 0x30000000, LENGTH = 288K
-RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 64K
+/* Final 1 KiB (0x3800FC00..0x3800FFFF) is the boot attestation mailbox. */
+RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 63K
 FLASH (rx)                    : ORIGIN = 0x90000000, LENGTH = 2048K
 }
 
@@ -209,7 +210,7 @@ SECTIONS
   } >DTCMRAM
 
   
-  ._RAM_D2_Area :
+  ._RAM_D2_Area (NOLOAD) :
   {
       . = ALIGN(32);
       *(.DMA_Section)         /* RAM_D2 area section */
@@ -217,7 +218,7 @@ SECTIONS
       . = ALIGN(32);
   } >RAM_D2
 
-  ._RAM_D3_Area :
+  ._RAM_D3_Area (NOLOAD) :
   {
       . = ALIGN(32);
       *(.BDMA_Section)         /* RAM_D2 area section */
@@ -235,6 +236,8 @@ SECTIONS
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
 
+  ASSERT(ORIGIN(RAM_D3) + LENGTH(RAM_D3) <= 0x3800FC00,
+         "RAM_D3 overlaps the boot attestation mailbox")
 
 }
 

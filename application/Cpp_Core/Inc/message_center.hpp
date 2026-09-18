@@ -10,8 +10,6 @@
 enum class MessageId {
     NONE = 0,
 
-    DMA_ADC_CONV_CPLT = 1,
-    
     GPIO_BTNS_STATE_CHANGED = 2,
     ADC_BTNS_STATE_CHANGED = 3,
 

@@ -1,0 +1,2780 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"gcm.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/gcm.c"
+  19              		.section	.text.gcm_mult,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	gcm_mult:
+  26              	.LVL0:
+  27              	.LFB16:
+   1:Libs/mbedtls/library/gcm.c **** /*
+   2:Libs/mbedtls/library/gcm.c ****  *  NIST SP800-38D compliant GCM implementation
+   3:Libs/mbedtls/library/gcm.c ****  *
+   4:Libs/mbedtls/library/gcm.c ****  *  Copyright The Mbed TLS Contributors
+   5:Libs/mbedtls/library/gcm.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   6:Libs/mbedtls/library/gcm.c ****  */
+   7:Libs/mbedtls/library/gcm.c **** 
+   8:Libs/mbedtls/library/gcm.c **** /*
+   9:Libs/mbedtls/library/gcm.c ****  * http://csrc.nist.gov/publications/nistpubs/800-38D/SP-800-38D.pdf
+  10:Libs/mbedtls/library/gcm.c ****  *
+  11:Libs/mbedtls/library/gcm.c ****  * See also:
+  12:Libs/mbedtls/library/gcm.c ****  * [MGV] http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-revised-spec.pd
+  13:Libs/mbedtls/library/gcm.c ****  *
+  14:Libs/mbedtls/library/gcm.c ****  * We use the algorithm described as Shoup's method with 4-bit tables in
+  15:Libs/mbedtls/library/gcm.c ****  * [MGV] 4.1, pp. 12-13, to enhance speed without using too much memory.
+  16:Libs/mbedtls/library/gcm.c ****  */
+  17:Libs/mbedtls/library/gcm.c **** 
+  18:Libs/mbedtls/library/gcm.c **** #include "common.h"
+  19:Libs/mbedtls/library/gcm.c **** 
+  20:Libs/mbedtls/library/gcm.c **** #if defined(MBEDTLS_GCM_C)
+  21:Libs/mbedtls/library/gcm.c **** 
+  22:Libs/mbedtls/library/gcm.c **** #include "mbedtls/gcm.h"
+  23:Libs/mbedtls/library/gcm.c **** #include "mbedtls/platform.h"
+  24:Libs/mbedtls/library/gcm.c **** #include "mbedtls/platform_util.h"
+  25:Libs/mbedtls/library/gcm.c **** #include "mbedtls/error.h"
+  26:Libs/mbedtls/library/gcm.c **** #include "mbedtls/constant_time.h"
+  27:Libs/mbedtls/library/gcm.c **** 
+  28:Libs/mbedtls/library/gcm.c **** #include <string.h>
+  29:Libs/mbedtls/library/gcm.c **** 
+  30:Libs/mbedtls/library/gcm.c **** #if defined(MBEDTLS_AESNI_C)
+  31:Libs/mbedtls/library/gcm.c **** #include "mbedtls/aesni.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 2
+
+
+  32:Libs/mbedtls/library/gcm.c **** #endif
+  33:Libs/mbedtls/library/gcm.c **** 
+  34:Libs/mbedtls/library/gcm.c **** #if !defined(MBEDTLS_GCM_ALT)
+  35:Libs/mbedtls/library/gcm.c **** 
+  36:Libs/mbedtls/library/gcm.c **** /* Parameter validation macros */
+  37:Libs/mbedtls/library/gcm.c **** #define GCM_VALIDATE_RET(cond) \
+  38:Libs/mbedtls/library/gcm.c ****     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_GCM_BAD_INPUT)
+  39:Libs/mbedtls/library/gcm.c **** #define GCM_VALIDATE(cond) \
+  40:Libs/mbedtls/library/gcm.c ****     MBEDTLS_INTERNAL_VALIDATE(cond)
+  41:Libs/mbedtls/library/gcm.c **** 
+  42:Libs/mbedtls/library/gcm.c **** /*
+  43:Libs/mbedtls/library/gcm.c ****  * Initialize a context
+  44:Libs/mbedtls/library/gcm.c ****  */
+  45:Libs/mbedtls/library/gcm.c **** void mbedtls_gcm_init(mbedtls_gcm_context *ctx)
+  46:Libs/mbedtls/library/gcm.c **** {
+  47:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE(ctx != NULL);
+  48:Libs/mbedtls/library/gcm.c ****     memset(ctx, 0, sizeof(mbedtls_gcm_context));
+  49:Libs/mbedtls/library/gcm.c **** }
+  50:Libs/mbedtls/library/gcm.c **** 
+  51:Libs/mbedtls/library/gcm.c **** /*
+  52:Libs/mbedtls/library/gcm.c ****  * Precompute small multiples of H, that is set
+  53:Libs/mbedtls/library/gcm.c ****  *      HH[i] || HL[i] = H times i,
+  54:Libs/mbedtls/library/gcm.c ****  * where i is seen as a field element as in [MGV], ie high-order bits
+  55:Libs/mbedtls/library/gcm.c ****  * correspond to low powers of P. The result is stored in the same way, that
+  56:Libs/mbedtls/library/gcm.c ****  * is the high-order bit of HH corresponds to P^0 and the low-order bit of HL
+  57:Libs/mbedtls/library/gcm.c ****  * corresponds to P^127.
+  58:Libs/mbedtls/library/gcm.c ****  */
+  59:Libs/mbedtls/library/gcm.c **** static int gcm_gen_table(mbedtls_gcm_context *ctx)
+  60:Libs/mbedtls/library/gcm.c **** {
+  61:Libs/mbedtls/library/gcm.c ****     int ret, i, j;
+  62:Libs/mbedtls/library/gcm.c ****     uint64_t hi, lo;
+  63:Libs/mbedtls/library/gcm.c ****     uint64_t vl, vh;
+  64:Libs/mbedtls/library/gcm.c ****     unsigned char h[16];
+  65:Libs/mbedtls/library/gcm.c ****     size_t olen = 0;
+  66:Libs/mbedtls/library/gcm.c **** 
+  67:Libs/mbedtls/library/gcm.c ****     memset(h, 0, 16);
+  68:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_cipher_update(&ctx->cipher_ctx, h, 16, h, &olen)) != 0) {
+  69:Libs/mbedtls/library/gcm.c ****         return ret;
+  70:Libs/mbedtls/library/gcm.c ****     }
+  71:Libs/mbedtls/library/gcm.c **** 
+  72:Libs/mbedtls/library/gcm.c ****     /* pack h as two 64-bits ints, big-endian */
+  73:Libs/mbedtls/library/gcm.c ****     hi = MBEDTLS_GET_UINT32_BE(h,  0);
+  74:Libs/mbedtls/library/gcm.c ****     lo = MBEDTLS_GET_UINT32_BE(h,  4);
+  75:Libs/mbedtls/library/gcm.c ****     vh = (uint64_t) hi << 32 | lo;
+  76:Libs/mbedtls/library/gcm.c **** 
+  77:Libs/mbedtls/library/gcm.c ****     hi = MBEDTLS_GET_UINT32_BE(h,  8);
+  78:Libs/mbedtls/library/gcm.c ****     lo = MBEDTLS_GET_UINT32_BE(h,  12);
+  79:Libs/mbedtls/library/gcm.c ****     vl = (uint64_t) hi << 32 | lo;
+  80:Libs/mbedtls/library/gcm.c **** 
+  81:Libs/mbedtls/library/gcm.c ****     /* 8 = 1000 corresponds to 1 in GF(2^128) */
+  82:Libs/mbedtls/library/gcm.c ****     ctx->HL[8] = vl;
+  83:Libs/mbedtls/library/gcm.c ****     ctx->HH[8] = vh;
+  84:Libs/mbedtls/library/gcm.c **** 
+  85:Libs/mbedtls/library/gcm.c **** #if defined(MBEDTLS_AESNI_HAVE_CODE)
+  86:Libs/mbedtls/library/gcm.c ****     /* With CLMUL support, we need only h, not the rest of the table */
+  87:Libs/mbedtls/library/gcm.c ****     if (mbedtls_aesni_has_support(MBEDTLS_AESNI_CLMUL)) {
+  88:Libs/mbedtls/library/gcm.c ****         return 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 3
+
+
+  89:Libs/mbedtls/library/gcm.c ****     }
+  90:Libs/mbedtls/library/gcm.c **** #endif
+  91:Libs/mbedtls/library/gcm.c **** 
+  92:Libs/mbedtls/library/gcm.c ****     /* 0 corresponds to 0 in GF(2^128) */
+  93:Libs/mbedtls/library/gcm.c ****     ctx->HH[0] = 0;
+  94:Libs/mbedtls/library/gcm.c ****     ctx->HL[0] = 0;
+  95:Libs/mbedtls/library/gcm.c **** 
+  96:Libs/mbedtls/library/gcm.c ****     for (i = 4; i > 0; i >>= 1) {
+  97:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+  98:Libs/mbedtls/library/gcm.c ****         vl  = (vh << 63) | (vl >> 1);
+  99:Libs/mbedtls/library/gcm.c ****         vh  = (vh >> 1) ^ ((uint64_t) T << 32);
+ 100:Libs/mbedtls/library/gcm.c **** 
+ 101:Libs/mbedtls/library/gcm.c ****         ctx->HL[i] = vl;
+ 102:Libs/mbedtls/library/gcm.c ****         ctx->HH[i] = vh;
+ 103:Libs/mbedtls/library/gcm.c ****     }
+ 104:Libs/mbedtls/library/gcm.c **** 
+ 105:Libs/mbedtls/library/gcm.c ****     for (i = 2; i <= 8; i *= 2) {
+ 106:Libs/mbedtls/library/gcm.c ****         uint64_t *HiL = ctx->HL + i, *HiH = ctx->HH + i;
+ 107:Libs/mbedtls/library/gcm.c ****         vh = *HiH;
+ 108:Libs/mbedtls/library/gcm.c ****         vl = *HiL;
+ 109:Libs/mbedtls/library/gcm.c ****         for (j = 1; j < i; j++) {
+ 110:Libs/mbedtls/library/gcm.c ****             HiH[j] = vh ^ ctx->HH[j];
+ 111:Libs/mbedtls/library/gcm.c ****             HiL[j] = vl ^ ctx->HL[j];
+ 112:Libs/mbedtls/library/gcm.c ****         }
+ 113:Libs/mbedtls/library/gcm.c ****     }
+ 114:Libs/mbedtls/library/gcm.c **** 
+ 115:Libs/mbedtls/library/gcm.c ****     return 0;
+ 116:Libs/mbedtls/library/gcm.c **** }
+ 117:Libs/mbedtls/library/gcm.c **** 
+ 118:Libs/mbedtls/library/gcm.c **** int mbedtls_gcm_setkey(mbedtls_gcm_context *ctx,
+ 119:Libs/mbedtls/library/gcm.c ****                        mbedtls_cipher_id_t cipher,
+ 120:Libs/mbedtls/library/gcm.c ****                        const unsigned char *key,
+ 121:Libs/mbedtls/library/gcm.c ****                        unsigned int keybits)
+ 122:Libs/mbedtls/library/gcm.c **** {
+ 123:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 124:Libs/mbedtls/library/gcm.c ****     const mbedtls_cipher_info_t *cipher_info;
+ 125:Libs/mbedtls/library/gcm.c **** 
+ 126:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(ctx != NULL);
+ 127:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(key != NULL);
+ 128:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(keybits == 128 || keybits == 192 || keybits == 256);
+ 129:Libs/mbedtls/library/gcm.c **** 
+ 130:Libs/mbedtls/library/gcm.c ****     cipher_info = mbedtls_cipher_info_from_values(cipher, keybits,
+ 131:Libs/mbedtls/library/gcm.c ****                                                   MBEDTLS_MODE_ECB);
+ 132:Libs/mbedtls/library/gcm.c ****     if (cipher_info == NULL) {
+ 133:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 134:Libs/mbedtls/library/gcm.c ****     }
+ 135:Libs/mbedtls/library/gcm.c **** 
+ 136:Libs/mbedtls/library/gcm.c ****     if (cipher_info->block_size != 16) {
+ 137:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 138:Libs/mbedtls/library/gcm.c ****     }
+ 139:Libs/mbedtls/library/gcm.c **** 
+ 140:Libs/mbedtls/library/gcm.c ****     mbedtls_cipher_free(&ctx->cipher_ctx);
+ 141:Libs/mbedtls/library/gcm.c **** 
+ 142:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_cipher_setup(&ctx->cipher_ctx, cipher_info)) != 0) {
+ 143:Libs/mbedtls/library/gcm.c ****         return ret;
+ 144:Libs/mbedtls/library/gcm.c ****     }
+ 145:Libs/mbedtls/library/gcm.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 4
+
+
+ 146:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_cipher_setkey(&ctx->cipher_ctx, key, keybits,
+ 147:Libs/mbedtls/library/gcm.c ****                                      MBEDTLS_ENCRYPT)) != 0) {
+ 148:Libs/mbedtls/library/gcm.c ****         return ret;
+ 149:Libs/mbedtls/library/gcm.c ****     }
+ 150:Libs/mbedtls/library/gcm.c **** 
+ 151:Libs/mbedtls/library/gcm.c ****     if ((ret = gcm_gen_table(ctx)) != 0) {
+ 152:Libs/mbedtls/library/gcm.c ****         return ret;
+ 153:Libs/mbedtls/library/gcm.c ****     }
+ 154:Libs/mbedtls/library/gcm.c **** 
+ 155:Libs/mbedtls/library/gcm.c ****     return 0;
+ 156:Libs/mbedtls/library/gcm.c **** }
+ 157:Libs/mbedtls/library/gcm.c **** 
+ 158:Libs/mbedtls/library/gcm.c **** /*
+ 159:Libs/mbedtls/library/gcm.c ****  * Shoup's method for multiplication use this table with
+ 160:Libs/mbedtls/library/gcm.c ****  *      last4[x] = x times P^128
+ 161:Libs/mbedtls/library/gcm.c ****  * where x and last4[x] are seen as elements of GF(2^128) as in [MGV]
+ 162:Libs/mbedtls/library/gcm.c ****  */
+ 163:Libs/mbedtls/library/gcm.c **** static const uint64_t last4[16] =
+ 164:Libs/mbedtls/library/gcm.c **** {
+ 165:Libs/mbedtls/library/gcm.c ****     0x0000, 0x1c20, 0x3840, 0x2460,
+ 166:Libs/mbedtls/library/gcm.c ****     0x7080, 0x6ca0, 0x48c0, 0x54e0,
+ 167:Libs/mbedtls/library/gcm.c ****     0xe100, 0xfd20, 0xd940, 0xc560,
+ 168:Libs/mbedtls/library/gcm.c ****     0x9180, 0x8da0, 0xa9c0, 0xb5e0
+ 169:Libs/mbedtls/library/gcm.c **** };
+ 170:Libs/mbedtls/library/gcm.c **** 
+ 171:Libs/mbedtls/library/gcm.c **** /*
+ 172:Libs/mbedtls/library/gcm.c ****  * Sets output to x times H using the precomputed tables.
+ 173:Libs/mbedtls/library/gcm.c ****  * x and output are seen as elements of GF(2^128) as in [MGV].
+ 174:Libs/mbedtls/library/gcm.c ****  */
+ 175:Libs/mbedtls/library/gcm.c **** static void gcm_mult(mbedtls_gcm_context *ctx, const unsigned char x[16],
+ 176:Libs/mbedtls/library/gcm.c ****                      unsigned char output[16])
+ 177:Libs/mbedtls/library/gcm.c **** {
+  28              		.loc 1 177 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 16
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+ 178:Libs/mbedtls/library/gcm.c ****     int i = 0;
+  32              		.loc 1 178 5 view .LVU1
+ 179:Libs/mbedtls/library/gcm.c ****     unsigned char lo, hi, rem;
+  33              		.loc 1 179 5 view .LVU2
+ 180:Libs/mbedtls/library/gcm.c ****     uint64_t zh, zl;
+  34              		.loc 1 180 5 view .LVU3
+ 181:Libs/mbedtls/library/gcm.c **** 
+ 182:Libs/mbedtls/library/gcm.c **** #if defined(MBEDTLS_AESNI_HAVE_CODE)
+ 183:Libs/mbedtls/library/gcm.c ****     if (mbedtls_aesni_has_support(MBEDTLS_AESNI_CLMUL)) {
+ 184:Libs/mbedtls/library/gcm.c ****         unsigned char h[16];
+ 185:Libs/mbedtls/library/gcm.c **** 
+ 186:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE(ctx->HH[8] >> 32, h,  0);
+ 187:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE(ctx->HH[8],       h,  4);
+ 188:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE(ctx->HL[8] >> 32, h,  8);
+ 189:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE(ctx->HL[8],       h, 12);
+ 190:Libs/mbedtls/library/gcm.c **** 
+ 191:Libs/mbedtls/library/gcm.c ****         mbedtls_aesni_gcm_mult(output, x, h);
+ 192:Libs/mbedtls/library/gcm.c ****         return;
+ 193:Libs/mbedtls/library/gcm.c ****     }
+ 194:Libs/mbedtls/library/gcm.c **** #endif /* MBEDTLS_AESNI_HAVE_CODE */
+ 195:Libs/mbedtls/library/gcm.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 5
+
+
+ 196:Libs/mbedtls/library/gcm.c ****     lo = x[15] & 0xf;
+  35              		.loc 1 196 5 view .LVU4
+ 197:Libs/mbedtls/library/gcm.c **** 
+ 198:Libs/mbedtls/library/gcm.c ****     zh = ctx->HH[lo];
+  36              		.loc 1 198 5 view .LVU5
+ 177:Libs/mbedtls/library/gcm.c ****     int i = 0;
+  37              		.loc 1 177 1 is_stmt 0 view .LVU6
+  38 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+  39              	.LCFI0:
+  40              		.cfi_def_cfa_offset 36
+  41              		.cfi_offset 4, -36
+  42              		.cfi_offset 5, -32
+  43              		.cfi_offset 6, -28
+  44              		.cfi_offset 7, -24
+  45              		.cfi_offset 8, -20
+  46              		.cfi_offset 9, -16
+  47              		.cfi_offset 10, -12
+  48              		.cfi_offset 11, -8
+  49              		.cfi_offset 14, -4
+ 196:Libs/mbedtls/library/gcm.c **** 
+  50              		.loc 1 196 8 view .LVU7
+  51 0004 CC7B     		ldrb	r4, [r1, #15]	@ zero_extendqisi2
+ 177:Libs/mbedtls/library/gcm.c ****     int i = 0;
+  52              		.loc 1 177 1 view .LVU8
+  53 0006 85B0     		sub	sp, sp, #20
+  54              	.LCFI1:
+  55              		.cfi_def_cfa_offset 56
+ 199:Libs/mbedtls/library/gcm.c ****     zl = ctx->HL[lo];
+ 200:Libs/mbedtls/library/gcm.c **** 
+ 201:Libs/mbedtls/library/gcm.c ****     for (i = 15; i >= 0; i--) {
+  56              		.loc 1 201 12 view .LVU9
+  57 0008 0F26     		movs	r6, #15
+ 202:Libs/mbedtls/library/gcm.c ****         lo = x[i] & 0xf;
+ 203:Libs/mbedtls/library/gcm.c ****         hi = (x[i] >> 4) & 0xf;
+ 204:Libs/mbedtls/library/gcm.c **** 
+ 205:Libs/mbedtls/library/gcm.c ****         if (i != 15) {
+ 206:Libs/mbedtls/library/gcm.c ****             rem = (unsigned char) zl & 0xf;
+ 207:Libs/mbedtls/library/gcm.c ****             zl = (zh << 60) | (zl >> 4);
+ 208:Libs/mbedtls/library/gcm.c ****             zh = (zh >> 4);
+ 209:Libs/mbedtls/library/gcm.c ****             zh ^= (uint64_t) last4[rem] << 48;
+  58              		.loc 1 209 35 view .LVU10
+  59 000a DFF8FCE0 		ldr	lr, .L8
+  60 000e 04F00F04 		and	r4, r4, #15
+  61 0012 00EBC404 		add	r4, r0, r4, lsl #3
+ 198:Libs/mbedtls/library/gcm.c ****     zl = ctx->HL[lo];
+  62              		.loc 1 198 8 view .LVU11
+  63 0016 D4E92EA5 		ldrd	r10, r5, [r4, #184]
+  64              	.LVL1:
+ 199:Libs/mbedtls/library/gcm.c ****     zl = ctx->HL[lo];
+  65              		.loc 1 199 5 is_stmt 1 view .LVU12
+ 199:Libs/mbedtls/library/gcm.c ****     zl = ctx->HL[lo];
+  66              		.loc 1 199 8 is_stmt 0 view .LVU13
+  67 001a D4E90E34 		ldrd	r3, r4, [r4, #56]
+  68              	.LVL2:
+ 201:Libs/mbedtls/library/gcm.c ****         lo = x[i] & 0xf;
+  69              		.loc 1 201 5 is_stmt 1 view .LVU14
+ 201:Libs/mbedtls/library/gcm.c ****         lo = x[i] & 0xf;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 6
+
+
+  70              		.loc 1 201 20 discriminator 1 view .LVU15
+  71              	.L3:
+ 202:Libs/mbedtls/library/gcm.c ****         lo = x[i] & 0xf;
+  72              		.loc 1 202 9 view .LVU16
+ 202:Libs/mbedtls/library/gcm.c ****         lo = x[i] & 0xf;
+  73              		.loc 1 202 19 is_stmt 0 view .LVU17
+  74 001e 8F5D     		ldrb	r7, [r1, r6]	@ zero_extendqisi2
+ 207:Libs/mbedtls/library/gcm.c ****             zh = (zh >> 4);
+  75              		.loc 1 207 22 view .LVU18
+  76 0020 4FEA0A78 		lsl	r8, r10, #28
+ 207:Libs/mbedtls/library/gcm.c ****             zh = (zh >> 4);
+  77              		.loc 1 207 35 view .LVU19
+  78 0024 4FEA131C 		lsr	ip, r3, #4
+ 205:Libs/mbedtls/library/gcm.c ****             rem = (unsigned char) zl & 0xf;
+  79              		.loc 1 205 12 view .LVU20
+  80 0028 0F2E     		cmp	r6, #15
+ 202:Libs/mbedtls/library/gcm.c ****         hi = (x[i] >> 4) & 0xf;
+  81              		.loc 1 202 12 view .LVU21
+  82 002a 07F00F0B 		and	fp, r7, #15
+  83              	.LVL3:
+ 203:Libs/mbedtls/library/gcm.c **** 
+  84              		.loc 1 203 9 is_stmt 1 view .LVU22
+ 203:Libs/mbedtls/library/gcm.c **** 
+  85              		.loc 1 203 12 is_stmt 0 view .LVU23
+  86 002e 4FEA1717 		lsr	r7, r7, #4
+ 207:Libs/mbedtls/library/gcm.c ****             zh = (zh >> 4);
+  87              		.loc 1 207 35 view .LVU24
+  88 0032 4CEA047C 		orr	ip, ip, r4, lsl #28
+ 203:Libs/mbedtls/library/gcm.c **** 
+  89              		.loc 1 203 12 view .LVU25
+  90 0036 0197     		str	r7, [sp, #4]
+  91              	.LVL4:
+ 205:Libs/mbedtls/library/gcm.c ****             rem = (unsigned char) zl & 0xf;
+  92              		.loc 1 205 9 is_stmt 1 view .LVU26
+  93              		.loc 1 209 19 is_stmt 0 view .LVU27
+  94 0038 03F00F07 		and	r7, r3, #15
+ 208:Libs/mbedtls/library/gcm.c ****             zh ^= (uint64_t) last4[rem] << 48;
+  95              		.loc 1 208 16 view .LVU28
+  96 003c 4FEA1519 		lsr	r9, r5, #4
+  97              		.loc 1 209 41 view .LVU29
+  98 0040 5EF83770 		ldr	r7, [lr, r7, lsl #3]
+  99 0044 4FEA0747 		lsl	r7, r7, #16
+ 100 0048 0297     		str	r7, [sp, #8]
+ 207:Libs/mbedtls/library/gcm.c ****             zh = (zh >> 4);
+ 101              		.loc 1 207 16 view .LVU30
+ 102 004a 48EA1417 		orr	r7, r8, r4, lsr #4
+ 208:Libs/mbedtls/library/gcm.c ****             zh ^= (uint64_t) last4[rem] << 48;
+ 103              		.loc 1 208 16 view .LVU31
+ 104 004e 4FEA1A18 		lsr	r8, r10, #4
+ 207:Libs/mbedtls/library/gcm.c ****             zh = (zh >> 4);
+ 105              		.loc 1 207 16 view .LVU32
+ 106 0052 0397     		str	r7, [sp, #12]
+ 208:Libs/mbedtls/library/gcm.c ****             zh ^= (uint64_t) last4[rem] << 48;
+ 107              		.loc 1 208 16 view .LVU33
+ 108 0054 48EA0578 		orr	r8, r8, r5, lsl #28
+ 205:Libs/mbedtls/library/gcm.c ****             rem = (unsigned char) zl & 0xf;
+ 109              		.loc 1 205 12 view .LVU34
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 7
+
+
+ 110 0058 10D0     		beq	.L2
+ 206:Libs/mbedtls/library/gcm.c ****             zl = (zh << 60) | (zl >> 4);
+ 111              		.loc 1 206 13 is_stmt 1 view .LVU35
+ 112              	.LVL5:
+ 207:Libs/mbedtls/library/gcm.c ****             zh = (zh >> 4);
+ 113              		.loc 1 207 13 view .LVU36
+ 208:Libs/mbedtls/library/gcm.c ****             zh ^= (uint64_t) last4[rem] << 48;
+ 114              		.loc 1 208 13 view .LVU37
+ 115              		.loc 1 209 13 view .LVU38
+ 210:Libs/mbedtls/library/gcm.c ****             zh ^= ctx->HH[lo];
+ 116              		.loc 1 210 13 view .LVU39
+ 117 005a 00EBCB0B 		add	fp, r0, fp, lsl #3
+ 118              	.LVL6:
+ 119              		.loc 1 210 16 is_stmt 0 view .LVU40
+ 120 005e 029F     		ldr	r7, [sp, #8]
+ 121 0060 DBE92E34 		ldrd	r3, r4, [fp, #184]
+ 122              	.LVL7:
+ 123              		.loc 1 210 16 view .LVU41
+ 124 0064 6740     		eors	r7, r7, r4
+ 125              		.loc 1 210 16 view .LVU42
+ 126 0066 83EA080A 		eor	r10, r3, r8
+ 127              		.loc 1 210 16 view .LVU43
+ 128 006a 87EA0905 		eor	r5, r7, r9
+ 129              	.LVL8:
+ 211:Libs/mbedtls/library/gcm.c ****             zl ^= ctx->HL[lo];
+ 130              		.loc 1 211 13 is_stmt 1 view .LVU44
+ 131              		.loc 1 211 16 is_stmt 0 view .LVU45
+ 132 006e 039F     		ldr	r7, [sp, #12]
+ 133 0070 DBE90E34 		ldrd	r3, r4, [fp, #56]
+ 134              	.LVL9:
+ 135              		.loc 1 211 16 view .LVU46
+ 136 0074 6740     		eors	r7, r7, r4
+ 137 0076 8CEA0303 		eor	r3, ip, r3
+ 138              	.LVL10:
+ 139              		.loc 1 211 16 view .LVU47
+ 140 007a 3C46     		mov	r4, r7
+ 141              	.LVL11:
+ 142              	.L2:
+ 212:Libs/mbedtls/library/gcm.c **** 
+ 213:Libs/mbedtls/library/gcm.c ****         }
+ 214:Libs/mbedtls/library/gcm.c **** 
+ 215:Libs/mbedtls/library/gcm.c ****         rem = (unsigned char) zl & 0xf;
+ 143              		.loc 1 215 9 is_stmt 1 view .LVU48
+ 216:Libs/mbedtls/library/gcm.c ****         zl = (zh << 60) | (zl >> 4);
+ 144              		.loc 1 216 9 view .LVU49
+ 145              		.loc 1 216 31 is_stmt 0 view .LVU50
+ 146 007c 4FEA1318 		lsr	r8, r3, #4
+ 217:Libs/mbedtls/library/gcm.c ****         zh = (zh >> 4);
+ 218:Libs/mbedtls/library/gcm.c ****         zh ^= (uint64_t) last4[rem] << 48;
+ 147              		.loc 1 218 15 view .LVU51
+ 148 0080 03F00F03 		and	r3, r3, #15
+ 149              	.LVL12:
+ 216:Libs/mbedtls/library/gcm.c ****         zl = (zh << 60) | (zl >> 4);
+ 150              		.loc 1 216 18 view .LVU52
+ 151 0084 4FEA0A79 		lsl	r9, r10, #28
+ 201:Libs/mbedtls/library/gcm.c ****         lo = x[i] & 0xf;
+ 152              		.loc 1 201 20 discriminator 1 view .LVU53
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 8
+
+
+ 153 0088 013E     		subs	r6, r6, #1
+ 154              	.LVL13:
+ 216:Libs/mbedtls/library/gcm.c ****         zl = (zh << 60) | (zl >> 4);
+ 155              		.loc 1 216 31 view .LVU54
+ 156 008a 48EA0478 		orr	r8, r8, r4, lsl #28
+ 157              		.loc 1 218 37 view .LVU55
+ 158 008e 5EF83330 		ldr	r3, [lr, r3, lsl #3]
+ 216:Libs/mbedtls/library/gcm.c ****         zl = (zh << 60) | (zl >> 4);
+ 159              		.loc 1 216 12 view .LVU56
+ 160 0092 49EA1419 		orr	r9, r9, r4, lsr #4
+ 161              	.LVL14:
+ 217:Libs/mbedtls/library/gcm.c ****         zh = (zh >> 4);
+ 162              		.loc 1 217 9 is_stmt 1 view .LVU57
+ 163              		.loc 1 218 9 view .LVU58
+ 219:Libs/mbedtls/library/gcm.c ****         zh ^= ctx->HH[hi];
+ 164              		.loc 1 219 9 view .LVU59
+ 165 0096 019C     		ldr	r4, [sp, #4]
+ 217:Libs/mbedtls/library/gcm.c ****         zh = (zh >> 4);
+ 166              		.loc 1 217 12 is_stmt 0 view .LVU60
+ 167 0098 4FEA1A1A 		lsr	r10, r10, #4
+ 168 009c 00EBC40C 		add	ip, r0, r4, lsl #3
+ 169 00a0 4AEA057A 		orr	r10, r10, r5, lsl #28
+ 170 00a4 DCE92E47 		ldrd	r4, r7, [ip, #184]
+ 171 00a8 87EA1515 		eor	r5, r7, r5, lsr #4
+ 172              		.loc 1 219 12 view .LVU61
+ 173 00ac 8AEA040A 		eor	r10, r10, r4
+ 174 00b0 85EA0345 		eor	r5, r5, r3, lsl #16
+ 175              	.LVL15:
+ 220:Libs/mbedtls/library/gcm.c ****         zl ^= ctx->HL[hi];
+ 176              		.loc 1 220 9 is_stmt 1 view .LVU62
+ 177              		.loc 1 220 12 is_stmt 0 view .LVU63
+ 178 00b4 DCE90E34 		ldrd	r3, r4, [ip, #56]
+ 179              	.LVL16:
+ 180              		.loc 1 220 12 view .LVU64
+ 181 00b8 88EA0303 		eor	r3, r8, r3
+ 182              	.LVL17:
+ 183              		.loc 1 220 12 view .LVU65
+ 184 00bc 89EA0404 		eor	r4, r9, r4
+ 185              	.LVL18:
+ 201:Libs/mbedtls/library/gcm.c ****         lo = x[i] & 0xf;
+ 186              		.loc 1 201 27 is_stmt 1 discriminator 2 view .LVU66
+ 201:Libs/mbedtls/library/gcm.c ****         lo = x[i] & 0xf;
+ 187              		.loc 1 201 20 is_stmt 0 discriminator 1 view .LVU67
+ 188 00c0 ADD2     		bcs	.L3
+ 221:Libs/mbedtls/library/gcm.c ****     }
+ 222:Libs/mbedtls/library/gcm.c **** 
+ 223:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh >> 32, output, 0);
+ 189              		.loc 1 223 5 is_stmt 1 view .LVU68
+ 190 00c2 290E     		lsrs	r1, r5, #24
+ 191              	.LVL19:
+ 192              		.loc 1 223 5 is_stmt 0 view .LVU69
+ 193 00c4 D570     		strb	r5, [r2, #3]
+ 194              	.LVL20:
+ 224:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh, output, 4);
+ 195              		.loc 1 224 5 view .LVU70
+ 196 00c6 82F807A0 		strb	r10, [r2, #7]
+ 223:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh, output, 4);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 9
+
+
+ 197              		.loc 1 223 5 view .LVU71
+ 198 00ca 1170     		strb	r1, [r2]
+ 223:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh, output, 4);
+ 199              		.loc 1 223 5 is_stmt 1 view .LVU72
+ 200 00cc 290C     		lsrs	r1, r5, #16
+ 225:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 201              		.loc 1 225 5 is_stmt 0 view .LVU73
+ 202 00ce D472     		strb	r4, [r2, #11]
+ 223:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh, output, 4);
+ 203              		.loc 1 223 5 view .LVU74
+ 204 00d0 5170     		strb	r1, [r2, #1]
+ 223:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh, output, 4);
+ 205              		.loc 1 223 5 is_stmt 1 view .LVU75
+ 206 00d2 290A     		lsrs	r1, r5, #8
+ 226:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl, output, 12);
+ 207              		.loc 1 226 5 is_stmt 0 view .LVU76
+ 208 00d4 D373     		strb	r3, [r2, #15]
+ 223:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh, output, 4);
+ 209              		.loc 1 223 5 view .LVU77
+ 210 00d6 9170     		strb	r1, [r2, #2]
+ 223:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh, output, 4);
+ 211              		.loc 1 223 5 is_stmt 1 view .LVU78
+ 223:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zh, output, 4);
+ 212              		.loc 1 223 47 view .LVU79
+ 224:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 213              		.loc 1 224 5 view .LVU80
+ 214 00d8 4FEA1A61 		lsr	r1, r10, #24
+ 215 00dc 1171     		strb	r1, [r2, #4]
+ 224:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 216              		.loc 1 224 5 view .LVU81
+ 217 00de 4FEA1A41 		lsr	r1, r10, #16
+ 218 00e2 5171     		strb	r1, [r2, #5]
+ 224:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 219              		.loc 1 224 5 view .LVU82
+ 220 00e4 4FEA1A21 		lsr	r1, r10, #8
+ 221 00e8 9171     		strb	r1, [r2, #6]
+ 224:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 222              		.loc 1 224 5 view .LVU83
+ 224:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 223              		.loc 1 224 41 view .LVU84
+ 225:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 224              		.loc 1 225 5 view .LVU85
+ 225 00ea 210E     		lsrs	r1, r4, #24
+ 226 00ec 1172     		strb	r1, [r2, #8]
+ 225:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 227              		.loc 1 225 5 view .LVU86
+ 228 00ee 210C     		lsrs	r1, r4, #16
+ 229 00f0 5172     		strb	r1, [r2, #9]
+ 225:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 230              		.loc 1 225 5 view .LVU87
+ 231 00f2 210A     		lsrs	r1, r4, #8
+ 232 00f4 9172     		strb	r1, [r2, #10]
+ 225:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 233              		.loc 1 225 5 view .LVU88
+ 225:Libs/mbedtls/library/gcm.c ****     MBEDTLS_PUT_UINT32_BE(zl >> 32, output, 8);
+ 234              		.loc 1 225 47 view .LVU89
+ 235              		.loc 1 226 5 view .LVU90
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 10
+
+
+ 236 00f6 190E     		lsrs	r1, r3, #24
+ 237 00f8 1173     		strb	r1, [r2, #12]
+ 238              		.loc 1 226 5 view .LVU91
+ 239 00fa 190C     		lsrs	r1, r3, #16
+ 240 00fc 5173     		strb	r1, [r2, #13]
+ 241              		.loc 1 226 5 view .LVU92
+ 242 00fe 190A     		lsrs	r1, r3, #8
+ 243 0100 9173     		strb	r1, [r2, #14]
+ 244              		.loc 1 226 5 view .LVU93
+ 245              		.loc 1 226 42 view .LVU94
+ 227:Libs/mbedtls/library/gcm.c **** }
+ 246              		.loc 1 227 1 is_stmt 0 view .LVU95
+ 247 0102 05B0     		add	sp, sp, #20
+ 248              	.LCFI2:
+ 249              		.cfi_def_cfa_offset 36
+ 250              		@ sp needed
+ 251 0104 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 252              	.LVL21:
+ 253              	.L9:
+ 254              		.loc 1 227 1 view .LVU96
+ 255              		.align	2
+ 256              	.L8:
+ 257 0108 00000000 		.word	last4
+ 258              		.cfi_endproc
+ 259              	.LFE16:
+ 261              		.section	.text.mbedtls_gcm_init,"ax",%progbits
+ 262              		.align	1
+ 263              		.global	mbedtls_gcm_init
+ 264              		.syntax unified
+ 265              		.thumb
+ 266              		.thumb_func
+ 268              	mbedtls_gcm_init:
+ 269              	.LVL22:
+ 270              	.LFB13:
+  46:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE(ctx != NULL);
+ 271              		.loc 1 46 1 is_stmt 1 view -0
+ 272              		.cfi_startproc
+ 273              		@ args = 0, pretend = 0, frame = 0
+ 274              		@ frame_needed = 0, uses_anonymous_args = 0
+ 275              		@ link register save eliminated.
+  47:Libs/mbedtls/library/gcm.c ****     memset(ctx, 0, sizeof(mbedtls_gcm_context));
+ 276              		.loc 1 47 5 view .LVU98
+  47:Libs/mbedtls/library/gcm.c ****     memset(ctx, 0, sizeof(mbedtls_gcm_context));
+ 277              		.loc 1 47 5 view .LVU99
+  47:Libs/mbedtls/library/gcm.c ****     memset(ctx, 0, sizeof(mbedtls_gcm_context));
+ 278              		.loc 1 47 5 view .LVU100
+  48:Libs/mbedtls/library/gcm.c **** }
+ 279              		.loc 1 48 5 view .LVU101
+ 280 0000 4FF4C072 		mov	r2, #384
+ 281 0004 0021     		movs	r1, #0
+ 282 0006 FFF7FEBF 		b	memset
+ 283              	.LVL23:
+  48:Libs/mbedtls/library/gcm.c **** }
+ 284              		.loc 1 48 5 is_stmt 0 view .LVU102
+ 285              		.cfi_endproc
+ 286              	.LFE13:
+ 288              		.section	.text.mbedtls_gcm_setkey,"ax",%progbits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 11
+
+
+ 289              		.align	1
+ 290              		.global	mbedtls_gcm_setkey
+ 291              		.syntax unified
+ 292              		.thumb
+ 293              		.thumb_func
+ 295              	mbedtls_gcm_setkey:
+ 296              	.LVL24:
+ 297              	.LFB15:
+ 122:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 298              		.loc 1 122 1 is_stmt 1 view -0
+ 299              		.cfi_startproc
+ 300              		@ args = 0, pretend = 0, frame = 32
+ 301              		@ frame_needed = 0, uses_anonymous_args = 0
+ 123:Libs/mbedtls/library/gcm.c ****     const mbedtls_cipher_info_t *cipher_info;
+ 302              		.loc 1 123 5 view .LVU104
+ 124:Libs/mbedtls/library/gcm.c **** 
+ 303              		.loc 1 124 5 view .LVU105
+ 126:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(key != NULL);
+ 304              		.loc 1 126 5 view .LVU106
+ 126:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(key != NULL);
+ 305              		.loc 1 126 5 view .LVU107
+ 126:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(key != NULL);
+ 306              		.loc 1 126 5 view .LVU108
+ 127:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(keybits == 128 || keybits == 192 || keybits == 256);
+ 307              		.loc 1 127 5 view .LVU109
+ 127:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(keybits == 128 || keybits == 192 || keybits == 256);
+ 308              		.loc 1 127 5 view .LVU110
+ 127:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(keybits == 128 || keybits == 192 || keybits == 256);
+ 309              		.loc 1 127 5 view .LVU111
+ 128:Libs/mbedtls/library/gcm.c **** 
+ 310              		.loc 1 128 5 view .LVU112
+ 128:Libs/mbedtls/library/gcm.c **** 
+ 311              		.loc 1 128 5 view .LVU113
+ 128:Libs/mbedtls/library/gcm.c **** 
+ 312              		.loc 1 128 5 view .LVU114
+ 130:Libs/mbedtls/library/gcm.c ****                                                   MBEDTLS_MODE_ECB);
+ 313              		.loc 1 130 5 view .LVU115
+ 122:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 314              		.loc 1 122 1 is_stmt 0 view .LVU116
+ 315 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 316              	.LCFI3:
+ 317              		.cfi_def_cfa_offset 36
+ 318              		.cfi_offset 4, -36
+ 319              		.cfi_offset 5, -32
+ 320              		.cfi_offset 6, -28
+ 321              		.cfi_offset 7, -24
+ 322              		.cfi_offset 8, -20
+ 323              		.cfi_offset 9, -16
+ 324              		.cfi_offset 10, -12
+ 325              		.cfi_offset 11, -8
+ 326              		.cfi_offset 14, -4
+ 327 0004 0546     		mov	r5, r0
+ 328 0006 8BB0     		sub	sp, sp, #44
+ 329              	.LCFI4:
+ 330              		.cfi_def_cfa_offset 80
+ 122:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 331              		.loc 1 122 1 view .LVU117
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 12
+
+
+ 332 0008 0846     		mov	r0, r1
+ 333              	.LVL25:
+ 122:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 334              		.loc 1 122 1 view .LVU118
+ 335 000a 9046     		mov	r8, r2
+ 130:Libs/mbedtls/library/gcm.c ****                                                   MBEDTLS_MODE_ECB);
+ 336              		.loc 1 130 19 view .LVU119
+ 337 000c 1946     		mov	r1, r3
+ 338              	.LVL26:
+ 130:Libs/mbedtls/library/gcm.c ****                                                   MBEDTLS_MODE_ECB);
+ 339              		.loc 1 130 19 view .LVU120
+ 340 000e 0122     		movs	r2, #1
+ 341              	.LVL27:
+ 122:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 342              		.loc 1 122 1 view .LVU121
+ 343 0010 1E46     		mov	r6, r3
+ 130:Libs/mbedtls/library/gcm.c ****                                                   MBEDTLS_MODE_ECB);
+ 344              		.loc 1 130 19 view .LVU122
+ 345 0012 FFF7FEFF 		bl	mbedtls_cipher_info_from_values
+ 346              	.LVL28:
+ 132:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 347              		.loc 1 132 5 is_stmt 1 view .LVU123
+ 132:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 348              		.loc 1 132 8 is_stmt 0 view .LVU124
+ 349 0016 0446     		mov	r4, r0
+ 350 0018 0028     		cmp	r0, #0
+ 351 001a 00F09080 		beq	.L20
+ 136:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 352              		.loc 1 136 5 is_stmt 1 view .LVU125
+ 136:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 353              		.loc 1 136 8 is_stmt 0 view .LVU126
+ 354 001e 4769     		ldr	r7, [r0, #20]
+ 355 0020 102F     		cmp	r7, #16
+ 356 0022 40F08C80 		bne	.L20
+ 140:Libs/mbedtls/library/gcm.c **** 
+ 357              		.loc 1 140 5 is_stmt 1 view .LVU127
+ 358 0026 2846     		mov	r0, r5
+ 359              	.LVL29:
+ 140:Libs/mbedtls/library/gcm.c **** 
+ 360              		.loc 1 140 5 is_stmt 0 view .LVU128
+ 361 0028 FFF7FEFF 		bl	mbedtls_cipher_free
+ 362              	.LVL30:
+ 142:Libs/mbedtls/library/gcm.c ****         return ret;
+ 363              		.loc 1 142 5 is_stmt 1 view .LVU129
+ 142:Libs/mbedtls/library/gcm.c ****         return ret;
+ 364              		.loc 1 142 16 is_stmt 0 view .LVU130
+ 365 002c 2146     		mov	r1, r4
+ 366 002e 2846     		mov	r0, r5
+ 367 0030 FFF7FEFF 		bl	mbedtls_cipher_setup
+ 368              	.LVL31:
+ 142:Libs/mbedtls/library/gcm.c ****         return ret;
+ 369              		.loc 1 142 8 discriminator 1 view .LVU131
+ 370 0034 0028     		cmp	r0, #0
+ 371 0036 67D1     		bne	.L11
+ 146:Libs/mbedtls/library/gcm.c ****                                      MBEDTLS_ENCRYPT)) != 0) {
+ 372              		.loc 1 146 5 is_stmt 1 view .LVU132
+ 146:Libs/mbedtls/library/gcm.c ****                                      MBEDTLS_ENCRYPT)) != 0) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 13
+
+
+ 373              		.loc 1 146 16 is_stmt 0 view .LVU133
+ 374 0038 0123     		movs	r3, #1
+ 375 003a 3246     		mov	r2, r6
+ 376 003c 4146     		mov	r1, r8
+ 377 003e 2846     		mov	r0, r5
+ 378              	.LVL32:
+ 146:Libs/mbedtls/library/gcm.c ****                                      MBEDTLS_ENCRYPT)) != 0) {
+ 379              		.loc 1 146 16 view .LVU134
+ 380 0040 FFF7FEFF 		bl	mbedtls_cipher_setkey
+ 381              	.LVL33:
+ 146:Libs/mbedtls/library/gcm.c ****                                      MBEDTLS_ENCRYPT)) != 0) {
+ 382              		.loc 1 146 8 discriminator 1 view .LVU135
+ 383 0044 0028     		cmp	r0, #0
+ 384 0046 5FD1     		bne	.L11
+ 151:Libs/mbedtls/library/gcm.c ****         return ret;
+ 385              		.loc 1 151 5 is_stmt 1 view .LVU136
+ 386              	.LVL34:
+ 387              	.LBB6:
+ 388              	.LBI6:
+  59:Libs/mbedtls/library/gcm.c **** {
+ 389              		.loc 1 59 12 view .LVU137
+ 390              	.LBB7:
+  61:Libs/mbedtls/library/gcm.c ****     uint64_t hi, lo;
+ 391              		.loc 1 61 5 view .LVU138
+  62:Libs/mbedtls/library/gcm.c ****     uint64_t vl, vh;
+ 392              		.loc 1 62 5 view .LVU139
+  63:Libs/mbedtls/library/gcm.c ****     unsigned char h[16];
+ 393              		.loc 1 63 5 view .LVU140
+  64:Libs/mbedtls/library/gcm.c ****     size_t olen = 0;
+ 394              		.loc 1 64 5 view .LVU141
+  65:Libs/mbedtls/library/gcm.c **** 
+ 395              		.loc 1 65 5 view .LVU142
+  67:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_cipher_update(&ctx->cipher_ctx, h, 16, h, &olen)) != 0) {
+ 396              		.loc 1 67 5 is_stmt 0 view .LVU143
+ 397 0048 0146     		mov	r1, r0
+ 398 004a 3A46     		mov	r2, r7
+  65:Libs/mbedtls/library/gcm.c **** 
+ 399              		.loc 1 65 12 view .LVU144
+ 400 004c 0590     		str	r0, [sp, #20]
+  67:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_cipher_update(&ctx->cipher_ctx, h, 16, h, &olen)) != 0) {
+ 401              		.loc 1 67 5 is_stmt 1 view .LVU145
+ 402 004e 06A8     		add	r0, sp, #24
+ 403              	.LVL35:
+  67:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_cipher_update(&ctx->cipher_ctx, h, 16, h, &olen)) != 0) {
+ 404              		.loc 1 67 5 is_stmt 0 view .LVU146
+ 405 0050 FFF7FEFF 		bl	memset
+ 406              	.LVL36:
+  68:Libs/mbedtls/library/gcm.c ****         return ret;
+ 407              		.loc 1 68 5 is_stmt 1 view .LVU147
+  68:Libs/mbedtls/library/gcm.c ****         return ret;
+ 408              		.loc 1 68 16 is_stmt 0 view .LVU148
+ 409 0054 05AB     		add	r3, sp, #20
+ 410 0056 3A46     		mov	r2, r7
+ 411 0058 2846     		mov	r0, r5
+ 412 005a 0093     		str	r3, [sp]
+ 413 005c 06AB     		add	r3, sp, #24
+ 414 005e 1946     		mov	r1, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 14
+
+
+ 415 0060 FFF7FEFF 		bl	mbedtls_cipher_update
+ 416              	.LVL37:
+  68:Libs/mbedtls/library/gcm.c ****         return ret;
+ 417              		.loc 1 68 8 discriminator 1 view .LVU149
+ 418 0064 0028     		cmp	r0, #0
+ 419 0066 4FD1     		bne	.L11
+  73:Libs/mbedtls/library/gcm.c ****     lo = MBEDTLS_GET_UINT32_BE(h,  4);
+ 420              		.loc 1 73 5 is_stmt 1 view .LVU150
+ 421              	.LVL38:
+  74:Libs/mbedtls/library/gcm.c ****     vh = (uint64_t) hi << 32 | lo;
+ 422              		.loc 1 74 5 view .LVU151
+ 423 0068 069A     		ldr	r2, [sp, #24]
+  93:Libs/mbedtls/library/gcm.c ****     ctx->HL[0] = 0;
+ 424              		.loc 1 93 16 is_stmt 0 view .LVU152
+ 425 006a 0026     		movs	r6, #0
+ 426              	.LVL39:
+  93:Libs/mbedtls/library/gcm.c ****     ctx->HL[0] = 0;
+ 427              		.loc 1 93 16 view .LVU153
+ 428 006c 079B     		ldr	r3, [sp, #28]
+ 429 006e 0027     		movs	r7, #0
+ 430 0070 92FA82FE 		rev	lr, r2
+ 431              	.LVL40:
+  75:Libs/mbedtls/library/gcm.c **** 
+ 432              		.loc 1 75 5 is_stmt 1 view .LVU154
+  77:Libs/mbedtls/library/gcm.c ****     lo = MBEDTLS_GET_UINT32_BE(h,  12);
+ 433              		.loc 1 77 5 view .LVU155
+  78:Libs/mbedtls/library/gcm.c ****     vl = (uint64_t) hi << 32 | lo;
+ 434              		.loc 1 78 5 view .LVU156
+ 435 0074 099A     		ldr	r2, [sp, #36]
+ 436 0076 1BBA     		rev	r3, r3
+  94:Libs/mbedtls/library/gcm.c **** 
+ 437              		.loc 1 94 16 is_stmt 0 view .LVU157
+ 438 0078 0321     		movs	r1, #3
+ 439 007a 92FA82FC 		rev	ip, r2
+ 440 007e 089A     		ldr	r2, [sp, #32]
+  96:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+ 441              		.loc 1 96 12 view .LVU158
+ 442 0080 0424     		movs	r4, #4
+ 443              	.LVL41:
+  96:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+ 444              		.loc 1 96 12 view .LVU159
+ 445 0082 92FA82F8 		rev	r8, r2
+ 446              	.LVL42:
+  79:Libs/mbedtls/library/gcm.c **** 
+ 447              		.loc 1 79 5 is_stmt 1 view .LVU160
+  82:Libs/mbedtls/library/gcm.c ****     ctx->HH[8] = vh;
+ 448              		.loc 1 82 5 view .LVU161
+  83:Libs/mbedtls/library/gcm.c **** 
+ 449              		.loc 1 83 16 is_stmt 0 view .LVU162
+ 450 0086 C5E93E3E 		strd	r3, lr, [r5, #248]
+  82:Libs/mbedtls/library/gcm.c ****     ctx->HH[8] = vh;
+ 451              		.loc 1 82 16 view .LVU163
+ 452 008a C5E91EC8 		strd	ip, r8, [r5, #120]
+  83:Libs/mbedtls/library/gcm.c **** 
+ 453              		.loc 1 83 5 is_stmt 1 view .LVU164
+  93:Libs/mbedtls/library/gcm.c ****     ctx->HL[0] = 0;
+ 454              		.loc 1 93 5 view .LVU165
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 15
+
+
+  93:Libs/mbedtls/library/gcm.c ****     ctx->HL[0] = 0;
+ 455              		.loc 1 93 16 is_stmt 0 view .LVU166
+ 456 008e C5E92E67 		strd	r6, [r5, #184]
+  94:Libs/mbedtls/library/gcm.c **** 
+ 457              		.loc 1 94 5 is_stmt 1 view .LVU167
+  94:Libs/mbedtls/library/gcm.c **** 
+ 458              		.loc 1 94 16 is_stmt 0 view .LVU168
+ 459 0092 C5E90E67 		strd	r6, [r5, #56]
+  96:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+ 460              		.loc 1 96 5 is_stmt 1 view .LVU169
+ 461              	.LVL43:
+  96:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+ 462              		.loc 1 96 19 discriminator 1 view .LVU170
+ 463              	.L14:
+ 464              	.LBB8:
+  97:Libs/mbedtls/library/gcm.c ****         vl  = (vh << 63) | (vl >> 1);
+ 465              		.loc 1 97 9 view .LVU171
+  97:Libs/mbedtls/library/gcm.c ****         vl  = (vh << 63) | (vl >> 1);
+ 466              		.loc 1 97 18 is_stmt 0 view .LVU172
+ 467 0096 4CF30002 		sbfx	r2, ip, #0, #1
+  98:Libs/mbedtls/library/gcm.c ****         vh  = (vh >> 1) ^ ((uint64_t) T << 32);
+ 468              		.loc 1 98 19 view .LVU173
+ 469 009a DE07     		lsls	r6, r3, #31
+  98:Libs/mbedtls/library/gcm.c ****         vh  = (vh >> 1) ^ ((uint64_t) T << 32);
+ 470              		.loc 1 98 32 view .LVU174
+ 471 009c 4FEA5C0C 		lsr	ip, ip, #1
+ 472              	.LVL44:
+  98:Libs/mbedtls/library/gcm.c ****         vh  = (vh >> 1) ^ ((uint64_t) T << 32);
+ 473              		.loc 1 98 32 view .LVU175
+ 474              	.LBE8:
+  96:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+ 475              		.loc 1 96 19 discriminator 1 view .LVU176
+ 476 00a0 0139     		subs	r1, r1, #1
+ 477              	.LBB9:
+  97:Libs/mbedtls/library/gcm.c ****         vl  = (vh << 63) | (vl >> 1);
+ 478              		.loc 1 97 18 view .LVU177
+ 479 00a2 02F06142 		and	r2, r2, #-520093696
+ 480              	.LVL45:
+  98:Libs/mbedtls/library/gcm.c ****         vh  = (vh >> 1) ^ ((uint64_t) T << 32);
+ 481              		.loc 1 98 9 is_stmt 1 view .LVU178
+  99:Libs/mbedtls/library/gcm.c **** 
+ 482              		.loc 1 99 19 is_stmt 0 view .LVU179
+ 483 00a6 4FEA5303 		lsr	r3, r3, #1
+ 484              	.LVL46:
+  98:Libs/mbedtls/library/gcm.c ****         vh  = (vh >> 1) ^ ((uint64_t) T << 32);
+ 485              		.loc 1 98 13 view .LVU180
+ 486 00aa 4CEAC87C 		orr	ip, ip, r8, lsl #31
+  99:Libs/mbedtls/library/gcm.c **** 
+ 487              		.loc 1 99 13 view .LVU181
+ 488 00ae 43EACE73 		orr	r3, r3, lr, lsl #31
+  98:Libs/mbedtls/library/gcm.c ****         vh  = (vh >> 1) ^ ((uint64_t) T << 32);
+ 489              		.loc 1 98 13 view .LVU182
+ 490 00b2 46EA5808 		orr	r8, r6, r8, lsr #1
+ 491              	.LVL47:
+  99:Libs/mbedtls/library/gcm.c **** 
+ 492              		.loc 1 99 9 is_stmt 1 view .LVU183
+  99:Libs/mbedtls/library/gcm.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 16
+
+
+ 493              		.loc 1 99 13 is_stmt 0 view .LVU184
+ 494 00b6 82EA5E0E 		eor	lr, r2, lr, lsr #1
+ 495              	.LVL48:
+ 101:Libs/mbedtls/library/gcm.c ****         ctx->HH[i] = vh;
+ 496              		.loc 1 101 9 is_stmt 1 view .LVU185
+ 497 00ba 05EBC402 		add	r2, r5, r4, lsl #3
+ 498              	.LVL49:
+ 101:Libs/mbedtls/library/gcm.c ****         ctx->HH[i] = vh;
+ 499              		.loc 1 101 9 is_stmt 0 view .LVU186
+ 500              	.LBE9:
+  96:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+ 501              		.loc 1 96 26 discriminator 3 view .LVU187
+ 502 00be 4FEA6404 		asr	r4, r4, #1
+ 503              	.LVL50:
+ 504              	.LBB10:
+ 101:Libs/mbedtls/library/gcm.c ****         ctx->HH[i] = vh;
+ 505              		.loc 1 101 20 view .LVU188
+ 506 00c2 C2E90EC8 		strd	ip, r8, [r2, #56]
+ 102:Libs/mbedtls/library/gcm.c ****     }
+ 507              		.loc 1 102 9 is_stmt 1 view .LVU189
+ 102:Libs/mbedtls/library/gcm.c ****     }
+ 508              		.loc 1 102 20 is_stmt 0 view .LVU190
+ 509 00c6 C2E92E3E 		strd	r3, lr, [r2, #184]
+ 510              	.LBE10:
+  96:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+ 511              		.loc 1 96 26 is_stmt 1 discriminator 3 view .LVU191
+ 512              	.LVL51:
+  96:Libs/mbedtls/library/gcm.c ****         uint32_t T = (vl & 1) * 0xe1000000U;
+ 513              		.loc 1 96 19 discriminator 1 view .LVU192
+ 514 00ca E4D1     		bne	.L14
+ 515 00cc 4FF0030C 		mov	ip, #3
+ 516              	.LVL52:
+ 105:Libs/mbedtls/library/gcm.c ****         uint64_t *HiL = ctx->HL + i, *HiH = ctx->HH + i;
+ 517              		.loc 1 105 12 is_stmt 0 view .LVU193
+ 518 00d0 0224     		movs	r4, #2
+ 519              	.LVL53:
+ 520              	.LBB11:
+ 106:Libs/mbedtls/library/gcm.c ****         vh = *HiH;
+ 521              		.loc 1 106 25 view .LVU194
+ 522 00d2 05F1380E 		add	lr, r5, #56
+ 106:Libs/mbedtls/library/gcm.c ****         vh = *HiH;
+ 523              		.loc 1 106 45 view .LVU195
+ 524 00d6 05F1B803 		add	r3, r5, #184
+ 525              	.LVL54:
+ 526              	.L17:
+ 106:Libs/mbedtls/library/gcm.c ****         vh = *HiH;
+ 527              		.loc 1 106 9 is_stmt 1 view .LVU196
+ 107:Libs/mbedtls/library/gcm.c ****         vl = *HiL;
+ 528              		.loc 1 107 12 is_stmt 0 view .LVU197
+ 529 00da 53F83450 		ldr	r5, [r3, r4, lsl #3]
+ 106:Libs/mbedtls/library/gcm.c ****         vh = *HiH;
+ 530              		.loc 1 106 19 view .LVU198
+ 531 00de 0EEBC401 		add	r1, lr, r4, lsl #3
+ 106:Libs/mbedtls/library/gcm.c ****         vh = *HiH;
+ 532              		.loc 1 106 39 view .LVU199
+ 533 00e2 03EBC402 		add	r2, r3, r4, lsl #3
+ 107:Libs/mbedtls/library/gcm.c ****         vl = *HiL;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 17
+
+
+ 534              		.loc 1 107 9 is_stmt 1 view .LVU200
+ 108:Libs/mbedtls/library/gcm.c ****         for (j = 1; j < i; j++) {
+ 535              		.loc 1 108 12 is_stmt 0 view .LVU201
+ 536 00e6 5EF83490 		ldr	r9, [lr, r4, lsl #3]
+ 107:Libs/mbedtls/library/gcm.c ****         vl = *HiL;
+ 537              		.loc 1 107 12 view .LVU202
+ 538 00ea 0295     		str	r5, [sp, #8]
+ 109:Libs/mbedtls/library/gcm.c ****             HiH[j] = vh ^ ctx->HH[j];
+ 539              		.loc 1 109 16 view .LVU203
+ 540 00ec 4FF00108 		mov	r8, #1
+ 107:Libs/mbedtls/library/gcm.c ****         vl = *HiL;
+ 541              		.loc 1 107 12 view .LVU204
+ 542 00f0 D2F804B0 		ldr	fp, [r2, #4]
+ 543              	.LVL55:
+ 108:Libs/mbedtls/library/gcm.c ****         for (j = 1; j < i; j++) {
+ 544              		.loc 1 108 9 is_stmt 1 view .LVU205
+ 545 00f4 7546     		mov	r5, lr
+ 546              	.LVL56:
+ 108:Libs/mbedtls/library/gcm.c ****         for (j = 1; j < i; j++) {
+ 547              		.loc 1 108 12 is_stmt 0 view .LVU206
+ 548 00f6 D1F804A0 		ldr	r10, [r1, #4]
+ 549              	.LVL57:
+ 109:Libs/mbedtls/library/gcm.c ****             HiH[j] = vh ^ ctx->HH[j];
+ 550              		.loc 1 109 9 is_stmt 1 view .LVU207
+ 551              	.L15:
+ 109:Libs/mbedtls/library/gcm.c ****             HiH[j] = vh ^ ctx->HH[j];
+ 552              		.loc 1 109 23 discriminator 1 view .LVU208
+ 553 00fa A045     		cmp	r8, r4
+ 554 00fc 07DB     		blt	.L16
+ 555              	.LBE11:
+ 105:Libs/mbedtls/library/gcm.c ****         uint64_t *HiL = ctx->HL + i, *HiH = ctx->HH + i;
+ 556              		.loc 1 105 27 discriminator 2 view .LVU209
+ 105:Libs/mbedtls/library/gcm.c ****         uint64_t *HiL = ctx->HL + i, *HiH = ctx->HH + i;
+ 557              		.loc 1 105 19 is_stmt 0 discriminator 1 view .LVU210
+ 558 00fe BCF1010C 		subs	ip, ip, #1
+ 105:Libs/mbedtls/library/gcm.c ****         uint64_t *HiL = ctx->HL + i, *HiH = ctx->HH + i;
+ 559              		.loc 1 105 27 discriminator 2 view .LVU211
+ 560 0102 4FEA4404 		lsl	r4, r4, #1
+ 561              	.LVL58:
+ 105:Libs/mbedtls/library/gcm.c ****         uint64_t *HiL = ctx->HL + i, *HiH = ctx->HH + i;
+ 562              		.loc 1 105 19 is_stmt 1 discriminator 1 view .LVU212
+ 563 0106 E8D1     		bne	.L17
+ 564              	.LVL59:
+ 565              	.L11:
+ 105:Libs/mbedtls/library/gcm.c ****         uint64_t *HiL = ctx->HL + i, *HiH = ctx->HH + i;
+ 566              		.loc 1 105 19 is_stmt 0 discriminator 1 view .LVU213
+ 567              	.LBE7:
+ 568              	.LBE6:
+ 156:Libs/mbedtls/library/gcm.c **** 
+ 569              		.loc 1 156 1 view .LVU214
+ 570 0108 0BB0     		add	sp, sp, #44
+ 571              	.LCFI5:
+ 572              		.cfi_remember_state
+ 573              		.cfi_def_cfa_offset 36
+ 574              		@ sp needed
+ 575 010a BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 576              	.LVL60:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 18
+
+
+ 577              	.L16:
+ 578              	.LCFI6:
+ 579              		.cfi_restore_state
+ 580              	.LBB14:
+ 581              	.LBB13:
+ 582              	.LBB12:
+ 110:Libs/mbedtls/library/gcm.c ****             HiL[j] = vl ^ ctx->HL[j];
+ 583              		.loc 1 110 13 is_stmt 1 view .LVU215
+ 110:Libs/mbedtls/library/gcm.c ****             HiL[j] = vl ^ ctx->HL[j];
+ 584              		.loc 1 110 25 is_stmt 0 view .LVU216
+ 585 010e D5E92276 		ldrd	r7, r6, [r5, #136]
+ 109:Libs/mbedtls/library/gcm.c ****             HiH[j] = vh ^ ctx->HH[j];
+ 586              		.loc 1 109 29 discriminator 3 view .LVU217
+ 587 0112 08F10108 		add	r8, r8, #1
+ 588              	.LVL61:
+ 110:Libs/mbedtls/library/gcm.c ****             HiL[j] = vl ^ ctx->HL[j];
+ 589              		.loc 1 110 25 view .LVU218
+ 590 0116 0396     		str	r6, [sp, #12]
+ 591 0118 029E     		ldr	r6, [sp, #8]
+ 592 011a 7740     		eors	r7, r7, r6
+ 593 011c 039E     		ldr	r6, [sp, #12]
+ 594 011e 86EA0B06 		eor	r6, r6, fp
+ 110:Libs/mbedtls/library/gcm.c ****             HiL[j] = vl ^ ctx->HL[j];
+ 595              		.loc 1 110 20 view .LVU219
+ 596 0122 42F8087F 		str	r7, [r2, #8]!
+ 597 0126 5660     		str	r6, [r2, #4]
+ 111:Libs/mbedtls/library/gcm.c ****         }
+ 598              		.loc 1 111 13 is_stmt 1 view .LVU220
+ 111:Libs/mbedtls/library/gcm.c ****         }
+ 599              		.loc 1 111 25 is_stmt 0 view .LVU221
+ 600 0128 55F8087F 		ldr	r7, [r5, #8]!
+ 601 012c 6E68     		ldr	r6, [r5, #4]
+ 602 012e 87EA0907 		eor	r7, r7, r9
+ 603 0132 86EA0A06 		eor	r6, r6, r10
+ 111:Libs/mbedtls/library/gcm.c ****         }
+ 604              		.loc 1 111 20 view .LVU222
+ 605 0136 41F8087F 		str	r7, [r1, #8]!
+ 606 013a 4E60     		str	r6, [r1, #4]
+ 109:Libs/mbedtls/library/gcm.c ****             HiH[j] = vh ^ ctx->HH[j];
+ 607              		.loc 1 109 29 is_stmt 1 discriminator 3 view .LVU223
+ 608              	.LVL62:
+ 109:Libs/mbedtls/library/gcm.c ****             HiH[j] = vh ^ ctx->HH[j];
+ 609              		.loc 1 109 29 is_stmt 0 discriminator 3 view .LVU224
+ 610 013c DDE7     		b	.L15
+ 611              	.LVL63:
+ 612              	.L20:
+ 109:Libs/mbedtls/library/gcm.c ****             HiH[j] = vh ^ ctx->HH[j];
+ 613              		.loc 1 109 29 discriminator 3 view .LVU225
+ 614              	.LBE12:
+ 615              	.LBE13:
+ 616              	.LBE14:
+ 133:Libs/mbedtls/library/gcm.c ****     }
+ 617              		.loc 1 133 16 view .LVU226
+ 618 013e 6FF01300 		mvn	r0, #19
+ 619              	.LVL64:
+ 133:Libs/mbedtls/library/gcm.c ****     }
+ 620              		.loc 1 133 16 view .LVU227
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 19
+
+
+ 621 0142 E1E7     		b	.L11
+ 622              		.cfi_endproc
+ 623              	.LFE15:
+ 625              		.section	.text.mbedtls_gcm_starts,"ax",%progbits
+ 626              		.align	1
+ 627              		.global	mbedtls_gcm_starts
+ 628              		.syntax unified
+ 629              		.thumb
+ 630              		.thumb_func
+ 632              	mbedtls_gcm_starts:
+ 633              	.LVL65:
+ 634              	.LFB17:
+ 228:Libs/mbedtls/library/gcm.c **** 
+ 229:Libs/mbedtls/library/gcm.c **** int mbedtls_gcm_starts(mbedtls_gcm_context *ctx,
+ 230:Libs/mbedtls/library/gcm.c ****                        int mode,
+ 231:Libs/mbedtls/library/gcm.c ****                        const unsigned char *iv,
+ 232:Libs/mbedtls/library/gcm.c ****                        size_t iv_len,
+ 233:Libs/mbedtls/library/gcm.c ****                        const unsigned char *add,
+ 234:Libs/mbedtls/library/gcm.c ****                        size_t add_len)
+ 235:Libs/mbedtls/library/gcm.c **** {
+ 635              		.loc 1 235 1 is_stmt 1 view -0
+ 636              		.cfi_startproc
+ 637              		@ args = 8, pretend = 0, frame = 24
+ 638              		@ frame_needed = 0, uses_anonymous_args = 0
+ 639              		.loc 1 235 1 is_stmt 0 view .LVU229
+ 640 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 641              	.LCFI7:
+ 642              		.cfi_def_cfa_offset 36
+ 643              		.cfi_offset 4, -36
+ 644              		.cfi_offset 5, -32
+ 645              		.cfi_offset 6, -28
+ 646              		.cfi_offset 7, -24
+ 647              		.cfi_offset 8, -20
+ 648              		.cfi_offset 9, -16
+ 649              		.cfi_offset 10, -12
+ 650              		.cfi_offset 11, -8
+ 651              		.cfi_offset 14, -4
+ 236:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 237:Libs/mbedtls/library/gcm.c ****     unsigned char work_buf[16];
+ 238:Libs/mbedtls/library/gcm.c ****     size_t i;
+ 239:Libs/mbedtls/library/gcm.c ****     const unsigned char *p;
+ 240:Libs/mbedtls/library/gcm.c ****     size_t use_len, olen = 0;
+ 652              		.loc 1 240 21 view .LVU230
+ 653 0004 4FF0000A 		mov	r10, #0
+ 235:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 654              		.loc 1 235 1 view .LVU231
+ 655 0008 89B0     		sub	sp, sp, #36
+ 656              	.LCFI8:
+ 657              		.cfi_def_cfa_offset 72
+ 236:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 658              		.loc 1 236 5 is_stmt 1 view .LVU232
+ 659              	.LVL66:
+ 237:Libs/mbedtls/library/gcm.c ****     size_t i;
+ 660              		.loc 1 237 5 view .LVU233
+ 238:Libs/mbedtls/library/gcm.c ****     const unsigned char *p;
+ 661              		.loc 1 238 5 view .LVU234
+ 239:Libs/mbedtls/library/gcm.c ****     size_t use_len, olen = 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 20
+
+
+ 662              		.loc 1 239 5 view .LVU235
+ 663              		.loc 1 240 5 view .LVU236
+ 235:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 664              		.loc 1 235 1 is_stmt 0 view .LVU237
+ 665 000a 0446     		mov	r4, r0
+ 666 000c 8B46     		mov	fp, r1
+ 667 000e 1646     		mov	r6, r2
+ 668 0010 DDF84C80 		ldr	r8, [sp, #76]
+ 241:Libs/mbedtls/library/gcm.c ****     uint64_t iv_bits;
+ 242:Libs/mbedtls/library/gcm.c **** 
+ 243:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(ctx != NULL);
+ 244:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 245:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 246:Libs/mbedtls/library/gcm.c **** 
+ 247:Libs/mbedtls/library/gcm.c ****     /* IV and AD are limited to 2^64 bits, so 2^61 bytes */
+ 248:Libs/mbedtls/library/gcm.c ****     /* IV is not allowed to be zero length */
+ 249:Libs/mbedtls/library/gcm.c ****     if (iv_len == 0 ||
+ 669              		.loc 1 249 8 view .LVU238
+ 670 0014 1D46     		mov	r5, r3
+ 240:Libs/mbedtls/library/gcm.c ****     uint64_t iv_bits;
+ 671              		.loc 1 240 21 view .LVU239
+ 672 0016 CDF80CA0 		str	r10, [sp, #12]
+ 241:Libs/mbedtls/library/gcm.c ****     uint64_t iv_bits;
+ 673              		.loc 1 241 5 is_stmt 1 view .LVU240
+ 243:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 674              		.loc 1 243 5 view .LVU241
+ 243:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 675              		.loc 1 243 5 view .LVU242
+ 243:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 676              		.loc 1 243 5 view .LVU243
+ 244:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 677              		.loc 1 244 5 view .LVU244
+ 244:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 678              		.loc 1 244 5 view .LVU245
+ 244:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 679              		.loc 1 244 5 view .LVU246
+ 245:Libs/mbedtls/library/gcm.c **** 
+ 680              		.loc 1 245 5 view .LVU247
+ 245:Libs/mbedtls/library/gcm.c **** 
+ 681              		.loc 1 245 5 view .LVU248
+ 245:Libs/mbedtls/library/gcm.c **** 
+ 682              		.loc 1 245 5 view .LVU249
+ 683              		.loc 1 249 5 view .LVU250
+ 684              		.loc 1 249 8 is_stmt 0 view .LVU251
+ 685 001a 002B     		cmp	r3, #0
+ 686 001c 00F08A80 		beq	.L33
+ 250:Libs/mbedtls/library/gcm.c ****         ((uint64_t) iv_len) >> 61 != 0 ||
+ 251:Libs/mbedtls/library/gcm.c ****         ((uint64_t) add_len) >> 61 != 0) {
+ 252:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 253:Libs/mbedtls/library/gcm.c ****     }
+ 254:Libs/mbedtls/library/gcm.c **** 
+ 255:Libs/mbedtls/library/gcm.c ****     memset(ctx->y, 0x00, sizeof(ctx->y));
+ 687              		.loc 1 255 5 is_stmt 1 view .LVU252
+ 688              		.loc 1 255 15 is_stmt 0 view .LVU253
+ 689 0020 00F5AC77 		add	r7, r0, #344
+ 256:Libs/mbedtls/library/gcm.c ****     memset(ctx->buf, 0x00, sizeof(ctx->buf));
+ 690              		.loc 1 256 15 view .LVU254
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 21
+
+
+ 691 0024 04F5B479 		add	r9, r4, #360
+ 255:Libs/mbedtls/library/gcm.c ****     memset(ctx->buf, 0x00, sizeof(ctx->buf));
+ 692              		.loc 1 255 5 view .LVU255
+ 693 0028 1022     		movs	r2, #16
+ 694              	.LVL67:
+ 255:Libs/mbedtls/library/gcm.c ****     memset(ctx->buf, 0x00, sizeof(ctx->buf));
+ 695              		.loc 1 255 5 view .LVU256
+ 696 002a 5146     		mov	r1, r10
+ 697              	.LVL68:
+ 255:Libs/mbedtls/library/gcm.c ****     memset(ctx->buf, 0x00, sizeof(ctx->buf));
+ 698              		.loc 1 255 5 view .LVU257
+ 699 002c 3846     		mov	r0, r7
+ 700              	.LVL69:
+ 255:Libs/mbedtls/library/gcm.c ****     memset(ctx->buf, 0x00, sizeof(ctx->buf));
+ 701              		.loc 1 255 5 view .LVU258
+ 702 002e FFF7FEFF 		bl	memset
+ 703              	.LVL70:
+ 704              		.loc 1 256 5 is_stmt 1 view .LVU259
+ 705 0032 1022     		movs	r2, #16
+ 706 0034 5146     		mov	r1, r10
+ 707 0036 4846     		mov	r0, r9
+ 708 0038 FFF7FEFF 		bl	memset
+ 709              	.LVL71:
+ 257:Libs/mbedtls/library/gcm.c **** 
+ 258:Libs/mbedtls/library/gcm.c ****     ctx->mode = mode;
+ 710              		.loc 1 258 5 view .LVU260
+ 259:Libs/mbedtls/library/gcm.c ****     ctx->len = 0;
+ 711              		.loc 1 259 14 is_stmt 0 view .LVU261
+ 712 003c 0022     		movs	r2, #0
+ 713 003e 0023     		movs	r3, #0
+ 260:Libs/mbedtls/library/gcm.c ****     ctx->add_len = 0;
+ 261:Libs/mbedtls/library/gcm.c **** 
+ 262:Libs/mbedtls/library/gcm.c ****     if (iv_len == 12) {
+ 714              		.loc 1 262 8 view .LVU262
+ 715 0040 0C2D     		cmp	r5, #12
+ 258:Libs/mbedtls/library/gcm.c ****     ctx->len = 0;
+ 716              		.loc 1 258 15 view .LVU263
+ 717 0042 C4F878B1 		str	fp, [r4, #376]
+ 259:Libs/mbedtls/library/gcm.c ****     ctx->len = 0;
+ 718              		.loc 1 259 5 is_stmt 1 view .LVU264
+ 259:Libs/mbedtls/library/gcm.c ****     ctx->len = 0;
+ 719              		.loc 1 259 14 is_stmt 0 view .LVU265
+ 720 0046 C4E94E23 		strd	r2, [r4, #312]
+ 260:Libs/mbedtls/library/gcm.c ****     ctx->add_len = 0;
+ 721              		.loc 1 260 5 is_stmt 1 view .LVU266
+ 260:Libs/mbedtls/library/gcm.c ****     ctx->add_len = 0;
+ 722              		.loc 1 260 18 is_stmt 0 view .LVU267
+ 723 004a C4E95023 		strd	r2, [r4, #320]
+ 724              		.loc 1 262 5 is_stmt 1 view .LVU268
+ 725              		.loc 1 262 8 is_stmt 0 view .LVU269
+ 726 004e 1DD1     		bne	.L25
+ 263:Libs/mbedtls/library/gcm.c ****         memcpy(ctx->y, iv, iv_len);
+ 727              		.loc 1 263 9 is_stmt 1 view .LVU270
+ 728 0050 3368     		ldr	r3, [r6]	@ unaligned
+ 729 0052 C4F85831 		str	r3, [r4, #344]	@ unaligned
+ 730 0056 7368     		ldr	r3, [r6, #4]	@ unaligned
+ 731 0058 7B60     		str	r3, [r7, #4]	@ unaligned
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 22
+
+
+ 732 005a B368     		ldr	r3, [r6, #8]	@ unaligned
+ 733 005c BB60     		str	r3, [r7, #8]	@ unaligned
+ 264:Libs/mbedtls/library/gcm.c ****         ctx->y[15] = 1;
+ 734              		.loc 1 264 9 view .LVU271
+ 735              		.loc 1 264 20 is_stmt 0 view .LVU272
+ 736 005e 0123     		movs	r3, #1
+ 737 0060 84F86731 		strb	r3, [r4, #359]
+ 738              	.LVL72:
+ 739              	.L26:
+ 265:Libs/mbedtls/library/gcm.c ****     } else {
+ 266:Libs/mbedtls/library/gcm.c ****         memset(work_buf, 0x00, 16);
+ 267:Libs/mbedtls/library/gcm.c ****         iv_bits = (uint64_t) iv_len * 8;
+ 268:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT64_BE(iv_bits, work_buf, 8);
+ 269:Libs/mbedtls/library/gcm.c **** 
+ 270:Libs/mbedtls/library/gcm.c ****         p = iv;
+ 271:Libs/mbedtls/library/gcm.c ****         while (iv_len > 0) {
+ 272:Libs/mbedtls/library/gcm.c ****             use_len = (iv_len < 16) ? iv_len : 16;
+ 273:Libs/mbedtls/library/gcm.c **** 
+ 274:Libs/mbedtls/library/gcm.c ****             for (i = 0; i < use_len; i++) {
+ 275:Libs/mbedtls/library/gcm.c ****                 ctx->y[i] ^= p[i];
+ 276:Libs/mbedtls/library/gcm.c ****             }
+ 277:Libs/mbedtls/library/gcm.c **** 
+ 278:Libs/mbedtls/library/gcm.c ****             gcm_mult(ctx, ctx->y, ctx->y);
+ 279:Libs/mbedtls/library/gcm.c **** 
+ 280:Libs/mbedtls/library/gcm.c ****             iv_len -= use_len;
+ 281:Libs/mbedtls/library/gcm.c ****             p += use_len;
+ 282:Libs/mbedtls/library/gcm.c ****         }
+ 283:Libs/mbedtls/library/gcm.c **** 
+ 284:Libs/mbedtls/library/gcm.c ****         for (i = 0; i < 16; i++) {
+ 285:Libs/mbedtls/library/gcm.c ****             ctx->y[i] ^= work_buf[i];
+ 286:Libs/mbedtls/library/gcm.c ****         }
+ 287:Libs/mbedtls/library/gcm.c **** 
+ 288:Libs/mbedtls/library/gcm.c ****         gcm_mult(ctx, ctx->y, ctx->y);
+ 289:Libs/mbedtls/library/gcm.c ****     }
+ 290:Libs/mbedtls/library/gcm.c **** 
+ 291:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_cipher_update(&ctx->cipher_ctx, ctx->y, 16,
+ 740              		.loc 1 291 5 is_stmt 1 view .LVU273
+ 741              		.loc 1 291 16 is_stmt 0 view .LVU274
+ 742 0064 03AB     		add	r3, sp, #12
+ 743 0066 1022     		movs	r2, #16
+ 744 0068 3946     		mov	r1, r7
+ 745 006a 2046     		mov	r0, r4
+ 746 006c 0093     		str	r3, [sp]
+ 747 006e 04F5A473 		add	r3, r4, #328
+ 748 0072 FFF7FEFF 		bl	mbedtls_cipher_update
+ 749              	.LVL73:
+ 750              		.loc 1 291 8 discriminator 1 view .LVU275
+ 751 0076 0646     		mov	r6, r0
+ 752 0078 20B9     		cbnz	r0, .L23
+ 292:Libs/mbedtls/library/gcm.c ****                                      ctx->base_ectr, &olen)) != 0) {
+ 293:Libs/mbedtls/library/gcm.c ****         return ret;
+ 294:Libs/mbedtls/library/gcm.c ****     }
+ 295:Libs/mbedtls/library/gcm.c **** 
+ 296:Libs/mbedtls/library/gcm.c ****     ctx->add_len = add_len;
+ 753              		.loc 1 296 5 is_stmt 1 view .LVU276
+ 754              		.loc 1 296 18 is_stmt 0 view .LVU277
+ 755 007a C4E95080 		strd	r8, r0, [r4, #320]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 23
+
+
+ 297:Libs/mbedtls/library/gcm.c ****     p = add;
+ 756              		.loc 1 297 5 is_stmt 1 view .LVU278
+ 757              	.LVL74:
+ 298:Libs/mbedtls/library/gcm.c ****     while (add_len > 0) {
+ 758              		.loc 1 298 5 view .LVU279
+ 759              	.L30:
+ 760              		.loc 1 298 20 view .LVU280
+ 761 007e B8F1000F 		cmp	r8, #0
+ 762 0082 3DD1     		bne	.L32
+ 763              	.LVL75:
+ 764              	.L23:
+ 299:Libs/mbedtls/library/gcm.c ****         use_len = (add_len < 16) ? add_len : 16;
+ 300:Libs/mbedtls/library/gcm.c **** 
+ 301:Libs/mbedtls/library/gcm.c ****         for (i = 0; i < use_len; i++) {
+ 302:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= p[i];
+ 303:Libs/mbedtls/library/gcm.c ****         }
+ 304:Libs/mbedtls/library/gcm.c **** 
+ 305:Libs/mbedtls/library/gcm.c ****         gcm_mult(ctx, ctx->buf, ctx->buf);
+ 306:Libs/mbedtls/library/gcm.c **** 
+ 307:Libs/mbedtls/library/gcm.c ****         add_len -= use_len;
+ 308:Libs/mbedtls/library/gcm.c ****         p += use_len;
+ 309:Libs/mbedtls/library/gcm.c ****     }
+ 310:Libs/mbedtls/library/gcm.c **** 
+ 311:Libs/mbedtls/library/gcm.c ****     return 0;
+ 312:Libs/mbedtls/library/gcm.c **** }
+ 765              		.loc 1 312 1 is_stmt 0 view .LVU281
+ 766 0084 3046     		mov	r0, r6
+ 767 0086 09B0     		add	sp, sp, #36
+ 768              	.LCFI9:
+ 769              		.cfi_remember_state
+ 770              		.cfi_def_cfa_offset 36
+ 771              		@ sp needed
+ 772 0088 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 773              	.LVL76:
+ 774              	.L25:
+ 775              	.LCFI10:
+ 776              		.cfi_restore_state
+ 266:Libs/mbedtls/library/gcm.c ****         iv_bits = (uint64_t) iv_len * 8;
+ 777              		.loc 1 266 9 is_stmt 1 view .LVU282
+ 267:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT64_BE(iv_bits, work_buf, 8);
+ 778              		.loc 1 267 17 is_stmt 0 view .LVU283
+ 779 008c EB00     		lsls	r3, r5, #3
+ 780 008e 6A0F     		lsrs	r2, r5, #29
+ 781 0090 1BBA     		rev	r3, r3
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 782              		.loc 1 268 9 view .LVU284
+ 783 0092 8DF81B20 		strb	r2, [sp, #27]
+ 784 0096 0793     		str	r3, [sp, #28]
+ 266:Libs/mbedtls/library/gcm.c ****         iv_bits = (uint64_t) iv_len * 8;
+ 785              		.loc 1 266 9 view .LVU285
+ 786 0098 CDE904AA 		strd	r10, r10, [sp, #16]
+ 787 009c CDF817A0 		str	r10, [sp, #23]	@ unaligned
+ 267:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT64_BE(iv_bits, work_buf, 8);
+ 788              		.loc 1 267 9 is_stmt 1 view .LVU286
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 789              		.loc 1 268 9 view .LVU287
+ 268:Libs/mbedtls/library/gcm.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 24
+
+
+ 790              		.loc 1 268 9 view .LVU288
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 791              		.loc 1 268 9 view .LVU289
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 792              		.loc 1 268 9 view .LVU290
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 793              		.loc 1 268 9 view .LVU291
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 794              		.loc 1 268 9 view .LVU292
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 795              		.loc 1 268 9 view .LVU293
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 796              		.loc 1 268 9 view .LVU294
+ 268:Libs/mbedtls/library/gcm.c **** 
+ 797              		.loc 1 268 52 view .LVU295
+ 270:Libs/mbedtls/library/gcm.c ****         while (iv_len > 0) {
+ 798              		.loc 1 270 9 view .LVU296
+ 799              	.LVL77:
+ 271:Libs/mbedtls/library/gcm.c ****             use_len = (iv_len < 16) ? iv_len : 16;
+ 800              		.loc 1 271 9 view .LVU297
+ 271:Libs/mbedtls/library/gcm.c ****             use_len = (iv_len < 16) ? iv_len : 16;
+ 801              		.loc 1 271 23 view .LVU298
+ 802              	.L28:
+ 272:Libs/mbedtls/library/gcm.c **** 
+ 803              		.loc 1 272 13 view .LVU299
+ 272:Libs/mbedtls/library/gcm.c **** 
+ 804              		.loc 1 272 21 is_stmt 0 view .LVU300
+ 805 00a0 102D     		cmp	r5, #16
+ 806 00a2 AB46     		mov	fp, r5
+ 807 00a4 04F2571A 		addw	r10, r4, #343
+ 808 00a8 3346     		mov	r3, r6
+ 809 00aa 28BF     		it	cs
+ 810 00ac 4FF0100B 		movcs	fp, #16
+ 811              	.LVL78:
+ 274:Libs/mbedtls/library/gcm.c ****                 ctx->y[i] ^= p[i];
+ 812              		.loc 1 274 13 is_stmt 1 view .LVU301
+ 274:Libs/mbedtls/library/gcm.c ****                 ctx->y[i] ^= p[i];
+ 813              		.loc 1 274 27 discriminator 1 view .LVU302
+ 272:Libs/mbedtls/library/gcm.c **** 
+ 814              		.loc 1 272 21 is_stmt 0 view .LVU303
+ 815 00b0 5246     		mov	r2, r10
+ 816 00b2 0BEB0600 		add	r0, fp, r6
+ 817              	.LVL79:
+ 818              	.L27:
+ 275:Libs/mbedtls/library/gcm.c ****             }
+ 819              		.loc 1 275 17 is_stmt 1 view .LVU304
+ 275:Libs/mbedtls/library/gcm.c ****             }
+ 820              		.loc 1 275 31 is_stmt 0 view .LVU305
+ 821 00b6 13F8011B 		ldrb	r1, [r3], #1	@ zero_extendqisi2
+ 275:Libs/mbedtls/library/gcm.c ****             }
+ 822              		.loc 1 275 27 view .LVU306
+ 823 00ba 12F801CF 		ldrb	ip, [r2, #1]!	@ zero_extendqisi2
+ 274:Libs/mbedtls/library/gcm.c ****                 ctx->y[i] ^= p[i];
+ 824              		.loc 1 274 27 discriminator 1 view .LVU307
+ 825 00be 8342     		cmp	r3, r0
+ 275:Libs/mbedtls/library/gcm.c ****             }
+ 826              		.loc 1 275 27 view .LVU308
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 25
+
+
+ 827 00c0 81EA0C01 		eor	r1, r1, ip
+ 828 00c4 1170     		strb	r1, [r2]
+ 274:Libs/mbedtls/library/gcm.c ****                 ctx->y[i] ^= p[i];
+ 829              		.loc 1 274 39 is_stmt 1 discriminator 3 view .LVU309
+ 274:Libs/mbedtls/library/gcm.c ****                 ctx->y[i] ^= p[i];
+ 830              		.loc 1 274 27 discriminator 1 view .LVU310
+ 831 00c6 F6D1     		bne	.L27
+ 278:Libs/mbedtls/library/gcm.c **** 
+ 832              		.loc 1 278 13 view .LVU311
+ 833 00c8 3A46     		mov	r2, r7
+ 834 00ca 3946     		mov	r1, r7
+ 835 00cc 2046     		mov	r0, r4
+ 281:Libs/mbedtls/library/gcm.c ****         }
+ 836              		.loc 1 281 15 is_stmt 0 view .LVU312
+ 837 00ce 5E44     		add	r6, r6, fp
+ 838              	.LVL80:
+ 278:Libs/mbedtls/library/gcm.c **** 
+ 839              		.loc 1 278 13 view .LVU313
+ 840 00d0 FFF7FEFF 		bl	gcm_mult
+ 841              	.LVL81:
+ 280:Libs/mbedtls/library/gcm.c ****             p += use_len;
+ 842              		.loc 1 280 13 is_stmt 1 view .LVU314
+ 281:Libs/mbedtls/library/gcm.c ****         }
+ 843              		.loc 1 281 13 view .LVU315
+ 271:Libs/mbedtls/library/gcm.c ****             use_len = (iv_len < 16) ? iv_len : 16;
+ 844              		.loc 1 271 23 view .LVU316
+ 845 00d4 B5EB0B05 		subs	r5, r5, fp
+ 846              	.LVL82:
+ 271:Libs/mbedtls/library/gcm.c ****             use_len = (iv_len < 16) ? iv_len : 16;
+ 847              		.loc 1 271 23 is_stmt 0 view .LVU317
+ 848 00d8 E2D1     		bne	.L28
+ 849              	.LVL83:
+ 271:Libs/mbedtls/library/gcm.c ****             use_len = (iv_len < 16) ? iv_len : 16;
+ 850              		.loc 1 271 23 view .LVU318
+ 851 00da 04AA     		add	r2, sp, #16
+ 852 00dc 04F26711 		addw	r1, r4, #359
+ 853              	.LVL84:
+ 854              	.L29:
+ 285:Libs/mbedtls/library/gcm.c ****         }
+ 855              		.loc 1 285 13 is_stmt 1 view .LVU319
+ 285:Libs/mbedtls/library/gcm.c ****         }
+ 856              		.loc 1 285 23 is_stmt 0 view .LVU320
+ 857 00e0 1AF8010F 		ldrb	r0, [r10, #1]!	@ zero_extendqisi2
+ 285:Libs/mbedtls/library/gcm.c ****         }
+ 858              		.loc 1 285 34 view .LVU321
+ 859 00e4 12F8013B 		ldrb	r3, [r2], #1	@ zero_extendqisi2
+ 284:Libs/mbedtls/library/gcm.c ****             ctx->y[i] ^= work_buf[i];
+ 860              		.loc 1 284 23 discriminator 1 view .LVU322
+ 861 00e8 8A45     		cmp	r10, r1
+ 285:Libs/mbedtls/library/gcm.c ****         }
+ 862              		.loc 1 285 23 view .LVU323
+ 863 00ea 83EA0003 		eor	r3, r3, r0
+ 864 00ee 8AF80030 		strb	r3, [r10]
+ 284:Libs/mbedtls/library/gcm.c ****             ctx->y[i] ^= work_buf[i];
+ 865              		.loc 1 284 30 is_stmt 1 discriminator 3 view .LVU324
+ 284:Libs/mbedtls/library/gcm.c ****             ctx->y[i] ^= work_buf[i];
+ 866              		.loc 1 284 23 discriminator 1 view .LVU325
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 26
+
+
+ 867 00f2 F5D1     		bne	.L29
+ 288:Libs/mbedtls/library/gcm.c ****     }
+ 868              		.loc 1 288 9 view .LVU326
+ 869 00f4 3A46     		mov	r2, r7
+ 870 00f6 3946     		mov	r1, r7
+ 871 00f8 2046     		mov	r0, r4
+ 872 00fa FFF7FEFF 		bl	gcm_mult
+ 873              	.LVL85:
+ 874 00fe B1E7     		b	.L26
+ 875              	.LVL86:
+ 876              	.L32:
+ 299:Libs/mbedtls/library/gcm.c **** 
+ 877              		.loc 1 299 9 view .LVU327
+ 299:Libs/mbedtls/library/gcm.c **** 
+ 878              		.loc 1 299 17 is_stmt 0 view .LVU328
+ 879 0100 4746     		mov	r7, r8
+ 880 0102 129D     		ldr	r5, [sp, #72]
+ 881 0104 04F26713 		addw	r3, r4, #359
+ 882 0108 102F     		cmp	r7, #16
+ 883 010a 28BF     		it	cs
+ 884 010c 1027     		movcs	r7, #16
+ 885              	.LVL87:
+ 301:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= p[i];
+ 886              		.loc 1 301 9 is_stmt 1 view .LVU329
+ 301:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= p[i];
+ 887              		.loc 1 301 23 discriminator 1 view .LVU330
+ 888 010e E919     		adds	r1, r5, r7
+ 889              	.LVL88:
+ 890              	.L31:
+ 302:Libs/mbedtls/library/gcm.c ****         }
+ 891              		.loc 1 302 13 view .LVU331
+ 302:Libs/mbedtls/library/gcm.c ****         }
+ 892              		.loc 1 302 29 is_stmt 0 view .LVU332
+ 893 0110 15F8012B 		ldrb	r2, [r5], #1	@ zero_extendqisi2
+ 302:Libs/mbedtls/library/gcm.c ****         }
+ 894              		.loc 1 302 25 view .LVU333
+ 895 0114 13F8010F 		ldrb	r0, [r3, #1]!	@ zero_extendqisi2
+ 301:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= p[i];
+ 896              		.loc 1 301 23 discriminator 1 view .LVU334
+ 897 0118 8D42     		cmp	r5, r1
+ 302:Libs/mbedtls/library/gcm.c ****         }
+ 898              		.loc 1 302 25 view .LVU335
+ 899 011a 82EA0002 		eor	r2, r2, r0
+ 900 011e 1A70     		strb	r2, [r3]
+ 301:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= p[i];
+ 901              		.loc 1 301 35 is_stmt 1 discriminator 3 view .LVU336
+ 301:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= p[i];
+ 902              		.loc 1 301 23 discriminator 1 view .LVU337
+ 903 0120 F6D1     		bne	.L31
+ 305:Libs/mbedtls/library/gcm.c **** 
+ 904              		.loc 1 305 9 view .LVU338
+ 905 0122 4A46     		mov	r2, r9
+ 906 0124 4946     		mov	r1, r9
+ 907 0126 2046     		mov	r0, r4
+ 307:Libs/mbedtls/library/gcm.c ****         p += use_len;
+ 908              		.loc 1 307 17 is_stmt 0 view .LVU339
+ 909 0128 A8EB0708 		sub	r8, r8, r7
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 27
+
+
+ 910              	.LVL89:
+ 305:Libs/mbedtls/library/gcm.c **** 
+ 911              		.loc 1 305 9 view .LVU340
+ 912 012c FFF7FEFF 		bl	gcm_mult
+ 913              	.LVL90:
+ 307:Libs/mbedtls/library/gcm.c ****         p += use_len;
+ 914              		.loc 1 307 9 is_stmt 1 view .LVU341
+ 308:Libs/mbedtls/library/gcm.c ****     }
+ 915              		.loc 1 308 9 view .LVU342
+ 308:Libs/mbedtls/library/gcm.c ****     }
+ 916              		.loc 1 308 11 is_stmt 0 view .LVU343
+ 917 0130 1295     		str	r5, [sp, #72]
+ 918              	.LVL91:
+ 308:Libs/mbedtls/library/gcm.c ****     }
+ 919              		.loc 1 308 11 view .LVU344
+ 920 0132 A4E7     		b	.L30
+ 921              	.LVL92:
+ 922              	.L33:
+ 252:Libs/mbedtls/library/gcm.c ****     }
+ 923              		.loc 1 252 16 view .LVU345
+ 924 0134 6FF01306 		mvn	r6, #19
+ 925 0138 A4E7     		b	.L23
+ 926              		.cfi_endproc
+ 927              	.LFE17:
+ 929              		.section	.text.mbedtls_gcm_update,"ax",%progbits
+ 930              		.align	1
+ 931              		.global	mbedtls_gcm_update
+ 932              		.syntax unified
+ 933              		.thumb
+ 934              		.thumb_func
+ 936              	mbedtls_gcm_update:
+ 937              	.LVL93:
+ 938              	.LFB18:
+ 313:Libs/mbedtls/library/gcm.c **** 
+ 314:Libs/mbedtls/library/gcm.c **** int mbedtls_gcm_update(mbedtls_gcm_context *ctx,
+ 315:Libs/mbedtls/library/gcm.c ****                        size_t length,
+ 316:Libs/mbedtls/library/gcm.c ****                        const unsigned char *input,
+ 317:Libs/mbedtls/library/gcm.c ****                        unsigned char *output)
+ 318:Libs/mbedtls/library/gcm.c **** {
+ 939              		.loc 1 318 1 is_stmt 1 view -0
+ 940              		.cfi_startproc
+ 941              		@ args = 0, pretend = 0, frame = 24
+ 942              		@ frame_needed = 0, uses_anonymous_args = 0
+ 943              		.loc 1 318 1 is_stmt 0 view .LVU347
+ 944 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 945              	.LCFI11:
+ 946              		.cfi_def_cfa_offset 36
+ 947              		.cfi_offset 4, -36
+ 948              		.cfi_offset 5, -32
+ 949              		.cfi_offset 6, -28
+ 950              		.cfi_offset 7, -24
+ 951              		.cfi_offset 8, -20
+ 952              		.cfi_offset 9, -16
+ 953              		.cfi_offset 10, -12
+ 954              		.cfi_offset 11, -8
+ 955              		.cfi_offset 14, -4
+ 956 0004 1F46     		mov	r7, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 28
+
+
+ 957 0006 89B0     		sub	sp, sp, #36
+ 958              	.LCFI12:
+ 959              		.cfi_def_cfa_offset 72
+ 319:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 320:Libs/mbedtls/library/gcm.c ****     unsigned char ectr[16];
+ 321:Libs/mbedtls/library/gcm.c ****     size_t i;
+ 322:Libs/mbedtls/library/gcm.c ****     const unsigned char *p;
+ 323:Libs/mbedtls/library/gcm.c ****     unsigned char *out_p = output;
+ 324:Libs/mbedtls/library/gcm.c ****     size_t use_len, olen = 0;
+ 960              		.loc 1 324 21 view .LVU348
+ 961 0008 0023     		movs	r3, #0
+ 962              	.LVL94:
+ 318:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 963              		.loc 1 318 1 view .LVU349
+ 964 000a 0446     		mov	r4, r0
+ 325:Libs/mbedtls/library/gcm.c **** 
+ 326:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(ctx != NULL);
+ 327:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 328:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 329:Libs/mbedtls/library/gcm.c **** 
+ 330:Libs/mbedtls/library/gcm.c ****     if (output > input && (size_t) (output - input) < length) {
+ 965              		.loc 1 330 8 view .LVU350
+ 966 000c 9742     		cmp	r7, r2
+ 318:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 967              		.loc 1 318 1 view .LVU351
+ 968 000e 0E46     		mov	r6, r1
+ 319:Libs/mbedtls/library/gcm.c ****     unsigned char ectr[16];
+ 969              		.loc 1 319 5 is_stmt 1 view .LVU352
+ 970              	.LVL95:
+ 320:Libs/mbedtls/library/gcm.c ****     size_t i;
+ 971              		.loc 1 320 5 view .LVU353
+ 321:Libs/mbedtls/library/gcm.c ****     const unsigned char *p;
+ 972              		.loc 1 321 5 view .LVU354
+ 322:Libs/mbedtls/library/gcm.c ****     unsigned char *out_p = output;
+ 973              		.loc 1 322 5 view .LVU355
+ 323:Libs/mbedtls/library/gcm.c ****     size_t use_len, olen = 0;
+ 974              		.loc 1 323 5 view .LVU356
+ 324:Libs/mbedtls/library/gcm.c **** 
+ 975              		.loc 1 324 5 view .LVU357
+ 318:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 976              		.loc 1 318 1 is_stmt 0 view .LVU358
+ 977 0010 1546     		mov	r5, r2
+ 324:Libs/mbedtls/library/gcm.c **** 
+ 978              		.loc 1 324 21 view .LVU359
+ 979 0012 0393     		str	r3, [sp, #12]
+ 326:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 980              		.loc 1 326 5 is_stmt 1 view .LVU360
+ 326:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 981              		.loc 1 326 5 view .LVU361
+ 326:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 982              		.loc 1 326 5 view .LVU362
+ 327:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 983              		.loc 1 327 5 view .LVU363
+ 327:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 984              		.loc 1 327 5 view .LVU364
+ 327:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 985              		.loc 1 327 5 view .LVU365
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 29
+
+
+ 328:Libs/mbedtls/library/gcm.c **** 
+ 986              		.loc 1 328 5 view .LVU366
+ 328:Libs/mbedtls/library/gcm.c **** 
+ 987              		.loc 1 328 5 view .LVU367
+ 328:Libs/mbedtls/library/gcm.c **** 
+ 988              		.loc 1 328 5 view .LVU368
+ 989              		.loc 1 330 5 view .LVU369
+ 990              		.loc 1 330 8 is_stmt 0 view .LVU370
+ 991 0014 02D9     		bls	.L39
+ 992              		.loc 1 330 44 discriminator 1 view .LVU371
+ 993 0016 BB1A     		subs	r3, r7, r2
+ 994              		.loc 1 330 24 discriminator 1 view .LVU372
+ 995 0018 8B42     		cmp	r3, r1
+ 996 001a 60D3     		bcc	.L54
+ 997              	.L39:
+ 331:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 332:Libs/mbedtls/library/gcm.c ****     }
+ 333:Libs/mbedtls/library/gcm.c **** 
+ 334:Libs/mbedtls/library/gcm.c ****     /* Total length is restricted to 2^39 - 256 bits, ie 2^36 - 2^5 bytes
+ 335:Libs/mbedtls/library/gcm.c ****      * Also check for possible overflow */
+ 336:Libs/mbedtls/library/gcm.c ****     if (ctx->len + length < ctx->len ||
+ 998              		.loc 1 336 5 is_stmt 1 view .LVU373
+ 999 001c 0021     		movs	r1, #0
+ 1000              	.LVL96:
+ 1001              		.loc 1 336 5 is_stmt 0 view .LVU374
+ 1002 001e D4E94E32 		ldrd	r3, r2, [r4, #312]
+ 1003              	.LVL97:
+ 1004              		.loc 1 336 5 view .LVU375
+ 1005 0022 9B19     		adds	r3, r3, r6
+ 1006 0024 52F10002 		adcs	r2, r2, #0
+ 1007 0028 28BF     		it	cs
+ 1008 002a 0121     		movcs	r1, #1
+ 1009              		.loc 1 336 8 view .LVU376
+ 1010 002c 0029     		cmp	r1, #0
+ 1011 002e 56D1     		bne	.L54
+ 1012              		.loc 1 336 38 discriminator 1 view .LVU377
+ 1013 0030 6FF01F01 		mvn	r1, #31
+ 1014 0034 9942     		cmp	r1, r3
+ 1015 0036 4FF00F01 		mov	r1, #15
+ 1016 003a 9141     		sbcs	r1, r1, r2
+ 1017 003c 4FD3     		bcc	.L54
+ 337:Libs/mbedtls/library/gcm.c ****         (uint64_t) ctx->len + length > 0xFFFFFFFE0ull) {
+ 338:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 339:Libs/mbedtls/library/gcm.c ****     }
+ 340:Libs/mbedtls/library/gcm.c **** 
+ 341:Libs/mbedtls/library/gcm.c ****     ctx->len += length;
+ 1018              		.loc 1 341 5 is_stmt 1 view .LVU378
+ 1019 003e 04F5B479 		add	r9, r4, #360
+ 1020 0042 04F5B27B 		add	fp, r4, #356
+ 1021              		.loc 1 341 14 is_stmt 0 view .LVU379
+ 1022 0046 C4E94E32 		strd	r3, r2, [r4, #312]
+ 342:Libs/mbedtls/library/gcm.c **** 
+ 343:Libs/mbedtls/library/gcm.c ****     p = input;
+ 1023              		.loc 1 343 5 is_stmt 1 view .LVU380
+ 1024              	.LVL98:
+ 344:Libs/mbedtls/library/gcm.c ****     while (length > 0) {
+ 1025              		.loc 1 344 5 view .LVU381
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 30
+
+
+ 1026              	.L43:
+ 1027              		.loc 1 344 19 view .LVU382
+ 1028 004a 0EB9     		cbnz	r6, .L51
+ 345:Libs/mbedtls/library/gcm.c ****         use_len = (length < 16) ? length : 16;
+ 346:Libs/mbedtls/library/gcm.c **** 
+ 347:Libs/mbedtls/library/gcm.c ****         for (i = 16; i > 12; i--) {
+ 348:Libs/mbedtls/library/gcm.c ****             if (++ctx->y[i - 1] != 0) {
+ 349:Libs/mbedtls/library/gcm.c ****                 break;
+ 350:Libs/mbedtls/library/gcm.c ****             }
+ 351:Libs/mbedtls/library/gcm.c ****         }
+ 352:Libs/mbedtls/library/gcm.c **** 
+ 353:Libs/mbedtls/library/gcm.c ****         if ((ret = mbedtls_cipher_update(&ctx->cipher_ctx, ctx->y, 16, ectr,
+ 354:Libs/mbedtls/library/gcm.c ****                                          &olen)) != 0) {
+ 355:Libs/mbedtls/library/gcm.c ****             return ret;
+ 356:Libs/mbedtls/library/gcm.c ****         }
+ 357:Libs/mbedtls/library/gcm.c **** 
+ 358:Libs/mbedtls/library/gcm.c ****         for (i = 0; i < use_len; i++) {
+ 359:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_DECRYPT) {
+ 360:Libs/mbedtls/library/gcm.c ****                 ctx->buf[i] ^= p[i];
+ 361:Libs/mbedtls/library/gcm.c ****             }
+ 362:Libs/mbedtls/library/gcm.c ****             out_p[i] = ectr[i] ^ p[i];
+ 363:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_ENCRYPT) {
+ 364:Libs/mbedtls/library/gcm.c ****                 ctx->buf[i] ^= out_p[i];
+ 365:Libs/mbedtls/library/gcm.c ****             }
+ 366:Libs/mbedtls/library/gcm.c ****         }
+ 367:Libs/mbedtls/library/gcm.c **** 
+ 368:Libs/mbedtls/library/gcm.c ****         gcm_mult(ctx, ctx->buf, ctx->buf);
+ 369:Libs/mbedtls/library/gcm.c **** 
+ 370:Libs/mbedtls/library/gcm.c ****         length -= use_len;
+ 371:Libs/mbedtls/library/gcm.c ****         p += use_len;
+ 372:Libs/mbedtls/library/gcm.c ****         out_p += use_len;
+ 373:Libs/mbedtls/library/gcm.c ****     }
+ 374:Libs/mbedtls/library/gcm.c **** 
+ 375:Libs/mbedtls/library/gcm.c ****     return 0;
+ 1029              		.loc 1 375 12 is_stmt 0 view .LVU383
+ 1030 004c 3046     		mov	r0, r6
+ 1031              	.LVL99:
+ 1032              		.loc 1 375 12 view .LVU384
+ 1033 004e 19E0     		b	.L38
+ 1034              	.LVL100:
+ 1035              	.L51:
+ 345:Libs/mbedtls/library/gcm.c ****         use_len = (length < 16) ? length : 16;
+ 1036              		.loc 1 345 9 is_stmt 1 view .LVU385
+ 345:Libs/mbedtls/library/gcm.c ****         use_len = (length < 16) ? length : 16;
+ 1037              		.loc 1 345 17 is_stmt 0 view .LVU386
+ 1038 0050 102E     		cmp	r6, #16
+ 1039 0052 B246     		mov	r10, r6
+ 1040 0054 C846     		mov	r8, r9
+ 347:Libs/mbedtls/library/gcm.c ****             if (++ctx->y[i - 1] != 0) {
+ 1041              		.loc 1 347 9 view .LVU387
+ 1042 0056 4A46     		mov	r2, r9
+ 345:Libs/mbedtls/library/gcm.c ****         use_len = (length < 16) ? length : 16;
+ 1043              		.loc 1 345 17 view .LVU388
+ 1044 0058 28BF     		it	cs
+ 1045 005a 4FF0100A 		movcs	r10, #16
+ 1046              	.LVL101:
+ 347:Libs/mbedtls/library/gcm.c ****             if (++ctx->y[i - 1] != 0) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 31
+
+
+ 1047              		.loc 1 347 9 is_stmt 1 view .LVU389
+ 1048              	.L44:
+ 347:Libs/mbedtls/library/gcm.c ****             if (++ctx->y[i - 1] != 0) {
+ 1049              		.loc 1 347 24 discriminator 1 view .LVU390
+ 1050 005e 5A45     		cmp	r2, fp
+ 1051 0060 06D0     		beq	.L47
+ 348:Libs/mbedtls/library/gcm.c ****                 break;
+ 1052              		.loc 1 348 13 view .LVU391
+ 348:Libs/mbedtls/library/gcm.c ****                 break;
+ 1053              		.loc 1 348 17 is_stmt 0 view .LVU392
+ 1054 0062 12F8013D 		ldrb	r3, [r2, #-1]!	@ zero_extendqisi2
+ 1055 0066 0133     		adds	r3, r3, #1
+ 1056 0068 DBB2     		uxtb	r3, r3
+ 348:Libs/mbedtls/library/gcm.c ****                 break;
+ 1057              		.loc 1 348 16 view .LVU393
+ 1058 006a 1370     		strb	r3, [r2]
+ 1059 006c 002B     		cmp	r3, #0
+ 1060 006e F6D0     		beq	.L44
+ 1061              	.L47:
+ 353:Libs/mbedtls/library/gcm.c ****                                          &olen)) != 0) {
+ 1062              		.loc 1 353 9 is_stmt 1 view .LVU394
+ 353:Libs/mbedtls/library/gcm.c ****                                          &olen)) != 0) {
+ 1063              		.loc 1 353 20 is_stmt 0 view .LVU395
+ 1064 0070 03AB     		add	r3, sp, #12
+ 1065 0072 1022     		movs	r2, #16
+ 1066 0074 04F5AC71 		add	r1, r4, #344
+ 1067 0078 2046     		mov	r0, r4
+ 1068              	.LVL102:
+ 353:Libs/mbedtls/library/gcm.c ****                                          &olen)) != 0) {
+ 1069              		.loc 1 353 20 view .LVU396
+ 1070 007a 0093     		str	r3, [sp]
+ 1071 007c 04AB     		add	r3, sp, #16
+ 1072 007e FFF7FEFF 		bl	mbedtls_cipher_update
+ 1073              	.LVL103:
+ 353:Libs/mbedtls/library/gcm.c ****                                          &olen)) != 0) {
+ 1074              		.loc 1 353 12 discriminator 1 view .LVU397
+ 1075 0082 10B1     		cbz	r0, .L58
+ 1076              	.LVL104:
+ 1077              	.L38:
+ 376:Libs/mbedtls/library/gcm.c **** }
+ 1078              		.loc 1 376 1 view .LVU398
+ 1079 0084 09B0     		add	sp, sp, #36
+ 1080              	.LCFI13:
+ 1081              		.cfi_remember_state
+ 1082              		.cfi_def_cfa_offset 36
+ 1083              		@ sp needed
+ 1084 0086 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 1085              	.LVL105:
+ 1086              	.L58:
+ 1087              	.LCFI14:
+ 1088              		.cfi_restore_state
+ 1089              		.loc 1 376 1 view .LVU399
+ 1090 008a 04AA     		add	r2, sp, #16
+ 1091 008c 781E     		subs	r0, r7, #1
+ 1092              	.LVL106:
+ 1093              		.loc 1 376 1 view .LVU400
+ 1094 008e 05EB0A0C 		add	ip, r5, r10
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 32
+
+
+ 1095              	.LVL107:
+ 1096              	.L50:
+ 359:Libs/mbedtls/library/gcm.c ****                 ctx->buf[i] ^= p[i];
+ 1097              		.loc 1 359 13 is_stmt 1 view .LVU401
+ 359:Libs/mbedtls/library/gcm.c ****                 ctx->buf[i] ^= p[i];
+ 1098              		.loc 1 359 16 is_stmt 0 view .LVU402
+ 1099 0092 D4F87831 		ldr	r3, [r4, #376]
+ 1100 0096 2BB9     		cbnz	r3, .L48
+ 360:Libs/mbedtls/library/gcm.c ****             }
+ 1101              		.loc 1 360 17 is_stmt 1 view .LVU403
+ 360:Libs/mbedtls/library/gcm.c ****             }
+ 1102              		.loc 1 360 29 is_stmt 0 view .LVU404
+ 1103 0098 2B78     		ldrb	r3, [r5]	@ zero_extendqisi2
+ 1104 009a 98F80010 		ldrb	r1, [r8]	@ zero_extendqisi2
+ 1105 009e 4B40     		eors	r3, r3, r1
+ 1106 00a0 88F80030 		strb	r3, [r8]
+ 1107              	.L48:
+ 362:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_ENCRYPT) {
+ 1108              		.loc 1 362 13 is_stmt 1 view .LVU405
+ 362:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_ENCRYPT) {
+ 1109              		.loc 1 362 35 is_stmt 0 view .LVU406
+ 1110 00a4 15F8011B 		ldrb	r1, [r5], #1	@ zero_extendqisi2
+ 358:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_DECRYPT) {
+ 1111              		.loc 1 358 23 discriminator 1 view .LVU407
+ 1112 00a8 08F10108 		add	r8, r8, #1
+ 362:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_ENCRYPT) {
+ 1113              		.loc 1 362 28 view .LVU408
+ 1114 00ac 12F8013B 		ldrb	r3, [r2], #1	@ zero_extendqisi2
+ 362:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_ENCRYPT) {
+ 1115              		.loc 1 362 22 view .LVU409
+ 1116 00b0 4B40     		eors	r3, r3, r1
+ 1117 00b2 00F8013F 		strb	r3, [r0, #1]!
+ 363:Libs/mbedtls/library/gcm.c ****                 ctx->buf[i] ^= out_p[i];
+ 1118              		.loc 1 363 13 is_stmt 1 view .LVU410
+ 363:Libs/mbedtls/library/gcm.c ****                 ctx->buf[i] ^= out_p[i];
+ 1119              		.loc 1 363 16 is_stmt 0 view .LVU411
+ 1120 00b6 D4F87811 		ldr	r1, [r4, #376]
+ 1121 00ba 0129     		cmp	r1, #1
+ 364:Libs/mbedtls/library/gcm.c ****             }
+ 1122              		.loc 1 364 17 is_stmt 1 view .LVU412
+ 364:Libs/mbedtls/library/gcm.c ****             }
+ 1123              		.loc 1 364 29 is_stmt 0 view .LVU413
+ 1124 00bc 02BF     		ittt	eq
+ 1125 00be 18F8011C 		ldrbeq	r1, [r8, #-1]	@ zero_extendqisi2
+ 1126 00c2 4B40     		eoreq	r3, r3, r1
+ 1127 00c4 08F8013C 		strbeq	r3, [r8, #-1]
+ 358:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_DECRYPT) {
+ 1128              		.loc 1 358 35 is_stmt 1 discriminator 2 view .LVU414
+ 358:Libs/mbedtls/library/gcm.c ****             if (ctx->mode == MBEDTLS_GCM_DECRYPT) {
+ 1129              		.loc 1 358 23 discriminator 1 view .LVU415
+ 1130 00c8 6545     		cmp	r5, ip
+ 1131 00ca E2D1     		bne	.L50
+ 368:Libs/mbedtls/library/gcm.c **** 
+ 1132              		.loc 1 368 9 view .LVU416
+ 1133 00cc 4A46     		mov	r2, r9
+ 1134 00ce 4946     		mov	r1, r9
+ 1135 00d0 2046     		mov	r0, r4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 33
+
+
+ 370:Libs/mbedtls/library/gcm.c ****         p += use_len;
+ 1136              		.loc 1 370 16 is_stmt 0 view .LVU417
+ 1137 00d2 A6EB0A06 		sub	r6, r6, r10
+ 1138              	.LVL108:
+ 372:Libs/mbedtls/library/gcm.c ****     }
+ 1139              		.loc 1 372 15 view .LVU418
+ 1140 00d6 5744     		add	r7, r7, r10
+ 1141              	.LVL109:
+ 368:Libs/mbedtls/library/gcm.c **** 
+ 1142              		.loc 1 368 9 view .LVU419
+ 1143 00d8 FFF7FEFF 		bl	gcm_mult
+ 1144              	.LVL110:
+ 370:Libs/mbedtls/library/gcm.c ****         p += use_len;
+ 1145              		.loc 1 370 9 is_stmt 1 view .LVU420
+ 371:Libs/mbedtls/library/gcm.c ****         out_p += use_len;
+ 1146              		.loc 1 371 9 view .LVU421
+ 372:Libs/mbedtls/library/gcm.c ****     }
+ 1147              		.loc 1 372 9 view .LVU422
+ 372:Libs/mbedtls/library/gcm.c ****     }
+ 1148              		.loc 1 372 9 is_stmt 0 view .LVU423
+ 1149 00dc B5E7     		b	.L43
+ 1150              	.LVL111:
+ 1151              	.L54:
+ 331:Libs/mbedtls/library/gcm.c ****     }
+ 1152              		.loc 1 331 16 view .LVU424
+ 1153 00de 6FF01300 		mvn	r0, #19
+ 1154              	.LVL112:
+ 331:Libs/mbedtls/library/gcm.c ****     }
+ 1155              		.loc 1 331 16 view .LVU425
+ 1156 00e2 CFE7     		b	.L38
+ 1157              		.cfi_endproc
+ 1158              	.LFE18:
+ 1160              		.section	.text.mbedtls_gcm_finish,"ax",%progbits
+ 1161              		.align	1
+ 1162              		.global	mbedtls_gcm_finish
+ 1163              		.syntax unified
+ 1164              		.thumb
+ 1165              		.thumb_func
+ 1167              	mbedtls_gcm_finish:
+ 1168              	.LVL113:
+ 1169              	.LFB19:
+ 377:Libs/mbedtls/library/gcm.c **** 
+ 378:Libs/mbedtls/library/gcm.c **** int mbedtls_gcm_finish(mbedtls_gcm_context *ctx,
+ 379:Libs/mbedtls/library/gcm.c ****                        unsigned char *tag,
+ 380:Libs/mbedtls/library/gcm.c ****                        size_t tag_len)
+ 381:Libs/mbedtls/library/gcm.c **** {
+ 1170              		.loc 1 381 1 is_stmt 1 view -0
+ 1171              		.cfi_startproc
+ 1172              		@ args = 0, pretend = 0, frame = 16
+ 1173              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1174              		.loc 1 381 1 is_stmt 0 view .LVU427
+ 1175 0000 2DE9FF47 		push	{r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, lr}
+ 1176              	.LCFI15:
+ 1177              		.cfi_def_cfa_offset 48
+ 1178              		.cfi_offset 4, -32
+ 1179              		.cfi_offset 5, -28
+ 1180              		.cfi_offset 6, -24
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 34
+
+
+ 1181              		.cfi_offset 7, -20
+ 1182              		.cfi_offset 8, -16
+ 1183              		.cfi_offset 9, -12
+ 1184              		.cfi_offset 10, -8
+ 1185              		.cfi_offset 14, -4
+ 382:Libs/mbedtls/library/gcm.c ****     unsigned char work_buf[16];
+ 383:Libs/mbedtls/library/gcm.c ****     size_t i;
+ 384:Libs/mbedtls/library/gcm.c ****     uint64_t orig_len;
+ 385:Libs/mbedtls/library/gcm.c ****     uint64_t orig_add_len;
+ 386:Libs/mbedtls/library/gcm.c **** 
+ 387:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(ctx != NULL);
+ 388:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 389:Libs/mbedtls/library/gcm.c **** 
+ 390:Libs/mbedtls/library/gcm.c ****     orig_len = ctx->len * 8;
+ 1186              		.loc 1 390 14 view .LVU428
+ 1187 0004 D0E94E35 		ldrd	r3, r5, [r0, #312]
+ 381:Libs/mbedtls/library/gcm.c ****     unsigned char work_buf[16];
+ 1188              		.loc 1 381 1 view .LVU429
+ 1189 0008 0446     		mov	r4, r0
+ 382:Libs/mbedtls/library/gcm.c ****     unsigned char work_buf[16];
+ 1190              		.loc 1 382 5 is_stmt 1 view .LVU430
+ 383:Libs/mbedtls/library/gcm.c ****     uint64_t orig_len;
+ 1191              		.loc 1 383 5 view .LVU431
+ 384:Libs/mbedtls/library/gcm.c ****     uint64_t orig_add_len;
+ 1192              		.loc 1 384 5 view .LVU432
+ 385:Libs/mbedtls/library/gcm.c **** 
+ 1193              		.loc 1 385 5 view .LVU433
+ 387:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 1194              		.loc 1 387 5 view .LVU434
+ 387:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 1195              		.loc 1 387 5 view .LVU435
+ 387:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 1196              		.loc 1 387 5 view .LVU436
+ 388:Libs/mbedtls/library/gcm.c **** 
+ 1197              		.loc 1 388 5 view .LVU437
+ 388:Libs/mbedtls/library/gcm.c **** 
+ 1198              		.loc 1 388 5 view .LVU438
+ 388:Libs/mbedtls/library/gcm.c **** 
+ 1199              		.loc 1 388 5 view .LVU439
+ 1200              		.loc 1 390 5 view .LVU440
+ 381:Libs/mbedtls/library/gcm.c ****     unsigned char work_buf[16];
+ 1201              		.loc 1 381 1 is_stmt 0 view .LVU441
+ 1202 000a 0F46     		mov	r7, r1
+ 1203              		.loc 1 390 14 view .LVU442
+ 1204 000c ED00     		lsls	r5, r5, #3
+ 381:Libs/mbedtls/library/gcm.c ****     unsigned char work_buf[16];
+ 1205              		.loc 1 381 1 view .LVU443
+ 1206 000e 9246     		mov	r10, r2
+ 1207              		.loc 1 390 14 view .LVU444
+ 1208 0010 4FEAC308 		lsl	r8, r3, #3
+ 1209 0014 45EA5375 		orr	r5, r5, r3, lsr #29
+ 1210              	.LVL114:
+ 391:Libs/mbedtls/library/gcm.c ****     orig_add_len = ctx->add_len * 8;
+ 1211              		.loc 1 391 5 is_stmt 1 view .LVU445
+ 1212              		.loc 1 391 18 is_stmt 0 view .LVU446
+ 1213 0018 D0E95036 		ldrd	r3, r6, [r0, #320]
+ 1214 001c F600     		lsls	r6, r6, #3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 35
+
+
+ 1215 001e 4FEAC309 		lsl	r9, r3, #3
+ 1216 0022 46EA5376 		orr	r6, r6, r3, lsr #29
+ 1217              	.LVL115:
+ 392:Libs/mbedtls/library/gcm.c **** 
+ 393:Libs/mbedtls/library/gcm.c ****     if (tag_len > 16 || tag_len < 4) {
+ 1218              		.loc 1 393 5 is_stmt 1 view .LVU447
+ 1219              		.loc 1 393 22 is_stmt 0 view .LVU448
+ 1220 0026 131F     		subs	r3, r2, #4
+ 1221              		.loc 1 393 8 view .LVU449
+ 1222 0028 0C2B     		cmp	r3, #12
+ 1223 002a 4AD8     		bhi	.L65
+ 394:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_BAD_INPUT;
+ 395:Libs/mbedtls/library/gcm.c ****     }
+ 396:Libs/mbedtls/library/gcm.c **** 
+ 397:Libs/mbedtls/library/gcm.c ****     memcpy(tag, ctx->base_ectr, tag_len);
+ 1224              		.loc 1 397 5 is_stmt 1 view .LVU450
+ 1225 002c 00F5A471 		add	r1, r0, #328
+ 1226              	.LVL116:
+ 1227              		.loc 1 397 5 is_stmt 0 view .LVU451
+ 1228 0030 3846     		mov	r0, r7
+ 1229              	.LVL117:
+ 1230              		.loc 1 397 5 view .LVU452
+ 1231 0032 FFF7FEFF 		bl	memcpy
+ 1232              	.LVL118:
+ 398:Libs/mbedtls/library/gcm.c **** 
+ 399:Libs/mbedtls/library/gcm.c ****     if (orig_len || orig_add_len) {
+ 1233              		.loc 1 399 5 is_stmt 1 view .LVU453
+ 1234              		.loc 1 399 18 is_stmt 0 discriminator 1 view .LVU454
+ 1235 0036 48EA0903 		orr	r3, r8, r9
+ 1236 003a 45EA0602 		orr	r2, r5, r6
+ 1237 003e 1343     		orrs	r3, r3, r2
+ 1238 0040 03D1     		bne	.L61
+ 1239              	.LVL119:
+ 1240              	.L64:
+ 400:Libs/mbedtls/library/gcm.c ****         memset(work_buf, 0x00, 16);
+ 401:Libs/mbedtls/library/gcm.c **** 
+ 402:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_add_len >> 32), work_buf, 0);
+ 403:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_add_len), work_buf, 4);
+ 404:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len     >> 32), work_buf, 8);
+ 405:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len), work_buf, 12);
+ 406:Libs/mbedtls/library/gcm.c **** 
+ 407:Libs/mbedtls/library/gcm.c ****         for (i = 0; i < 16; i++) {
+ 408:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= work_buf[i];
+ 409:Libs/mbedtls/library/gcm.c ****         }
+ 410:Libs/mbedtls/library/gcm.c **** 
+ 411:Libs/mbedtls/library/gcm.c ****         gcm_mult(ctx, ctx->buf, ctx->buf);
+ 412:Libs/mbedtls/library/gcm.c **** 
+ 413:Libs/mbedtls/library/gcm.c ****         for (i = 0; i < tag_len; i++) {
+ 414:Libs/mbedtls/library/gcm.c ****             tag[i] ^= ctx->buf[i];
+ 415:Libs/mbedtls/library/gcm.c ****         }
+ 416:Libs/mbedtls/library/gcm.c ****     }
+ 417:Libs/mbedtls/library/gcm.c **** 
+ 418:Libs/mbedtls/library/gcm.c ****     return 0;
+ 1241              		.loc 1 418 12 view .LVU455
+ 1242 0042 0020     		movs	r0, #0
+ 1243              	.L59:
+ 419:Libs/mbedtls/library/gcm.c **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 36
+
+
+ 1244              		.loc 1 419 1 view .LVU456
+ 1245 0044 04B0     		add	sp, sp, #16
+ 1246              	.LCFI16:
+ 1247              		.cfi_remember_state
+ 1248              		.cfi_def_cfa_offset 32
+ 1249              		@ sp needed
+ 1250 0046 BDE8F087 		pop	{r4, r5, r6, r7, r8, r9, r10, pc}
+ 1251              	.LVL120:
+ 1252              	.L61:
+ 1253              	.LCFI17:
+ 1254              		.cfi_restore_state
+ 400:Libs/mbedtls/library/gcm.c ****         memset(work_buf, 0x00, 16);
+ 1255              		.loc 1 400 9 is_stmt 1 view .LVU457
+ 402:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_add_len), work_buf, 4);
+ 1256              		.loc 1 402 9 view .LVU458
+ 1257 004a 330E     		lsrs	r3, r6, #24
+ 404:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len), work_buf, 12);
+ 1258              		.loc 1 404 9 is_stmt 0 view .LVU459
+ 1259 004c 8DF80B50 		strb	r5, [sp, #11]
+ 1260 0050 6946     		mov	r1, sp
+ 1261 0052 04F27710 		addw	r0, r4, #375
+ 402:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_add_len), work_buf, 4);
+ 1262              		.loc 1 402 9 view .LVU460
+ 1263 0056 8DF80030 		strb	r3, [sp]
+ 402:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_add_len), work_buf, 4);
+ 1264              		.loc 1 402 9 is_stmt 1 view .LVU461
+ 1265 005a 330C     		lsrs	r3, r6, #16
+ 1266 005c 8DF80360 		strb	r6, [sp, #3]
+ 1267 0060 8DF80130 		strb	r3, [sp, #1]
+ 402:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_add_len), work_buf, 4);
+ 1268              		.loc 1 402 9 view .LVU462
+ 1269 0064 330A     		lsrs	r3, r6, #8
+ 1270 0066 8DF80230 		strb	r3, [sp, #2]
+ 402:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_add_len), work_buf, 4);
+ 1271              		.loc 1 402 9 view .LVU463
+ 402:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_add_len), work_buf, 4);
+ 1272              		.loc 1 402 65 view .LVU464
+ 403:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len     >> 32), work_buf, 8);
+ 1273              		.loc 1 403 9 view .LVU465
+ 403:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len     >> 32), work_buf, 8);
+ 1274              		.loc 1 403 9 view .LVU466
+ 403:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len     >> 32), work_buf, 8);
+ 1275              		.loc 1 403 9 view .LVU467
+ 403:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len     >> 32), work_buf, 8);
+ 1276              		.loc 1 403 9 view .LVU468
+ 1277 006a 99FA89F3 		rev	r3, r9
+ 1278 006e 0193     		str	r3, [sp, #4]
+ 403:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len     >> 32), work_buf, 8);
+ 1279              		.loc 1 403 59 view .LVU469
+ 404:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len), work_buf, 12);
+ 1280              		.loc 1 404 9 view .LVU470
+ 1281 0070 2B0E     		lsrs	r3, r5, #24
+ 1282 0072 8DF80830 		strb	r3, [sp, #8]
+ 404:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len), work_buf, 12);
+ 1283              		.loc 1 404 9 view .LVU471
+ 1284 0076 2B0C     		lsrs	r3, r5, #16
+ 1285 0078 8DF80930 		strb	r3, [sp, #9]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 37
+
+
+ 404:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len), work_buf, 12);
+ 1286              		.loc 1 404 9 view .LVU472
+ 1287 007c 2B0A     		lsrs	r3, r5, #8
+ 1288 007e 04F26715 		addw	r5, r4, #359
+ 1289              	.LVL121:
+ 404:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len), work_buf, 12);
+ 1290              		.loc 1 404 9 is_stmt 0 view .LVU473
+ 1291 0082 8DF80A30 		strb	r3, [sp, #10]
+ 404:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len), work_buf, 12);
+ 1292              		.loc 1 404 9 is_stmt 1 view .LVU474
+ 404:Libs/mbedtls/library/gcm.c ****         MBEDTLS_PUT_UINT32_BE((orig_len), work_buf, 12);
+ 1293              		.loc 1 404 65 view .LVU475
+ 405:Libs/mbedtls/library/gcm.c **** 
+ 1294              		.loc 1 405 9 view .LVU476
+ 405:Libs/mbedtls/library/gcm.c **** 
+ 1295              		.loc 1 405 9 view .LVU477
+ 405:Libs/mbedtls/library/gcm.c **** 
+ 1296              		.loc 1 405 9 view .LVU478
+ 405:Libs/mbedtls/library/gcm.c **** 
+ 1297              		.loc 1 405 9 view .LVU479
+ 1298 0086 98FA88F3 		rev	r3, r8
+ 1299 008a 0393     		str	r3, [sp, #12]
+ 405:Libs/mbedtls/library/gcm.c **** 
+ 1300              		.loc 1 405 56 view .LVU480
+ 407:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= work_buf[i];
+ 1301              		.loc 1 407 9 view .LVU481
+ 1302              	.LVL122:
+ 407:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= work_buf[i];
+ 1303              		.loc 1 407 23 discriminator 1 view .LVU482
+ 405:Libs/mbedtls/library/gcm.c **** 
+ 1304              		.loc 1 405 9 is_stmt 0 view .LVU483
+ 1305 008c 2B46     		mov	r3, r5
+ 1306              	.LVL123:
+ 1307              	.L62:
+ 408:Libs/mbedtls/library/gcm.c ****         }
+ 1308              		.loc 1 408 13 is_stmt 1 view .LVU484
+ 408:Libs/mbedtls/library/gcm.c ****         }
+ 1309              		.loc 1 408 25 is_stmt 0 view .LVU485
+ 1310 008e 13F8016F 		ldrb	r6, [r3, #1]!	@ zero_extendqisi2
+ 408:Libs/mbedtls/library/gcm.c ****         }
+ 1311              		.loc 1 408 36 view .LVU486
+ 1312 0092 11F8012B 		ldrb	r2, [r1], #1	@ zero_extendqisi2
+ 407:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= work_buf[i];
+ 1313              		.loc 1 407 23 discriminator 1 view .LVU487
+ 1314 0096 8342     		cmp	r3, r0
+ 408:Libs/mbedtls/library/gcm.c ****         }
+ 1315              		.loc 1 408 25 view .LVU488
+ 1316 0098 82EA0602 		eor	r2, r2, r6
+ 1317 009c 1A70     		strb	r2, [r3]
+ 407:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= work_buf[i];
+ 1318              		.loc 1 407 30 is_stmt 1 discriminator 3 view .LVU489
+ 407:Libs/mbedtls/library/gcm.c ****             ctx->buf[i] ^= work_buf[i];
+ 1319              		.loc 1 407 23 discriminator 1 view .LVU490
+ 1320 009e F6D1     		bne	.L62
+ 411:Libs/mbedtls/library/gcm.c **** 
+ 1321              		.loc 1 411 9 view .LVU491
+ 411:Libs/mbedtls/library/gcm.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 38
+
+
+ 1322              		.loc 1 411 26 is_stmt 0 view .LVU492
+ 1323 00a0 04F5B472 		add	r2, r4, #360
+ 411:Libs/mbedtls/library/gcm.c **** 
+ 1324              		.loc 1 411 9 view .LVU493
+ 1325 00a4 2046     		mov	r0, r4
+ 1326 00a6 BA44     		add	r10, r10, r7
+ 1327              	.LVL124:
+ 411:Libs/mbedtls/library/gcm.c **** 
+ 1328              		.loc 1 411 9 view .LVU494
+ 1329 00a8 1146     		mov	r1, r2
+ 1330 00aa FFF7FEFF 		bl	gcm_mult
+ 1331              	.LVL125:
+ 413:Libs/mbedtls/library/gcm.c ****             tag[i] ^= ctx->buf[i];
+ 1332              		.loc 1 413 9 is_stmt 1 view .LVU495
+ 413:Libs/mbedtls/library/gcm.c ****             tag[i] ^= ctx->buf[i];
+ 1333              		.loc 1 413 23 discriminator 1 view .LVU496
+ 1334 00ae 3846     		mov	r0, r7
+ 1335              	.LVL126:
+ 1336              	.L63:
+ 414:Libs/mbedtls/library/gcm.c ****         }
+ 1337              		.loc 1 414 13 view .LVU497
+ 414:Libs/mbedtls/library/gcm.c ****         }
+ 1338              		.loc 1 414 16 is_stmt 0 view .LVU498
+ 1339 00b0 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 414:Libs/mbedtls/library/gcm.c ****         }
+ 1340              		.loc 1 414 20 view .LVU499
+ 1341 00b2 15F8012F 		ldrb	r2, [r5, #1]!	@ zero_extendqisi2
+ 1342 00b6 5340     		eors	r3, r3, r2
+ 1343 00b8 00F8013B 		strb	r3, [r0], #1
+ 1344              	.LVL127:
+ 413:Libs/mbedtls/library/gcm.c ****             tag[i] ^= ctx->buf[i];
+ 1345              		.loc 1 413 35 is_stmt 1 discriminator 3 view .LVU500
+ 413:Libs/mbedtls/library/gcm.c ****             tag[i] ^= ctx->buf[i];
+ 1346              		.loc 1 413 23 discriminator 1 view .LVU501
+ 1347 00bc 5045     		cmp	r0, r10
+ 1348 00be F7D1     		bne	.L63
+ 1349 00c0 BFE7     		b	.L64
+ 1350              	.LVL128:
+ 1351              	.L65:
+ 394:Libs/mbedtls/library/gcm.c ****     }
+ 1352              		.loc 1 394 16 is_stmt 0 view .LVU502
+ 1353 00c2 6FF01300 		mvn	r0, #19
+ 1354              	.LVL129:
+ 394:Libs/mbedtls/library/gcm.c ****     }
+ 1355              		.loc 1 394 16 view .LVU503
+ 1356 00c6 BDE7     		b	.L59
+ 1357              		.cfi_endproc
+ 1358              	.LFE19:
+ 1360              		.section	.text.mbedtls_gcm_crypt_and_tag,"ax",%progbits
+ 1361              		.align	1
+ 1362              		.global	mbedtls_gcm_crypt_and_tag
+ 1363              		.syntax unified
+ 1364              		.thumb
+ 1365              		.thumb_func
+ 1367              	mbedtls_gcm_crypt_and_tag:
+ 1368              	.LVL130:
+ 1369              	.LFB20:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 39
+
+
+ 420:Libs/mbedtls/library/gcm.c **** 
+ 421:Libs/mbedtls/library/gcm.c **** int mbedtls_gcm_crypt_and_tag(mbedtls_gcm_context *ctx,
+ 422:Libs/mbedtls/library/gcm.c ****                               int mode,
+ 423:Libs/mbedtls/library/gcm.c ****                               size_t length,
+ 424:Libs/mbedtls/library/gcm.c ****                               const unsigned char *iv,
+ 425:Libs/mbedtls/library/gcm.c ****                               size_t iv_len,
+ 426:Libs/mbedtls/library/gcm.c ****                               const unsigned char *add,
+ 427:Libs/mbedtls/library/gcm.c ****                               size_t add_len,
+ 428:Libs/mbedtls/library/gcm.c ****                               const unsigned char *input,
+ 429:Libs/mbedtls/library/gcm.c ****                               unsigned char *output,
+ 430:Libs/mbedtls/library/gcm.c ****                               size_t tag_len,
+ 431:Libs/mbedtls/library/gcm.c ****                               unsigned char *tag)
+ 432:Libs/mbedtls/library/gcm.c **** {
+ 1370              		.loc 1 432 1 is_stmt 1 view -0
+ 1371              		.cfi_startproc
+ 1372              		@ args = 28, pretend = 0, frame = 0
+ 1373              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1374              		.loc 1 432 1 is_stmt 0 view .LVU505
+ 1375 0000 2DE9F743 		push	{r0, r1, r2, r4, r5, r6, r7, r8, r9, lr}
+ 1376              	.LCFI18:
+ 1377              		.cfi_def_cfa_offset 40
+ 1378              		.cfi_offset 4, -28
+ 1379              		.cfi_offset 5, -24
+ 1380              		.cfi_offset 6, -20
+ 1381              		.cfi_offset 7, -16
+ 1382              		.cfi_offset 8, -12
+ 1383              		.cfi_offset 9, -8
+ 1384              		.cfi_offset 14, -4
+ 1385              		.loc 1 432 1 view .LVU506
+ 1386 0004 1546     		mov	r5, r2
+ 1387 0006 1A46     		mov	r2, r3
+ 1388              	.LVL131:
+ 433:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 434:Libs/mbedtls/library/gcm.c **** 
+ 435:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(ctx != NULL);
+ 436:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 437:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 438:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 439:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 440:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 441:Libs/mbedtls/library/gcm.c **** 
+ 442:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_gcm_starts(ctx, mode, iv, iv_len, add, add_len)) != 0) {
+ 1389              		.loc 1 442 16 view .LVU507
+ 1390 0008 0C9B     		ldr	r3, [sp, #48]
+ 1391              	.LVL132:
+ 432:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1392              		.loc 1 432 1 view .LVU508
+ 1393 000a 0446     		mov	r4, r0
+ 433:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1394              		.loc 1 433 5 is_stmt 1 view .LVU509
+ 1395              	.LVL133:
+ 435:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 1396              		.loc 1 435 5 view .LVU510
+ 435:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 1397              		.loc 1 435 5 view .LVU511
+ 435:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 1398              		.loc 1 435 5 view .LVU512
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 40
+
+
+ 436:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 1399              		.loc 1 436 5 view .LVU513
+ 436:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 1400              		.loc 1 436 5 view .LVU514
+ 436:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 1401              		.loc 1 436 5 view .LVU515
+ 437:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 1402              		.loc 1 437 5 view .LVU516
+ 437:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 1403              		.loc 1 437 5 view .LVU517
+ 437:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 1404              		.loc 1 437 5 view .LVU518
+ 438:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 1405              		.loc 1 438 5 view .LVU519
+ 438:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 1406              		.loc 1 438 5 view .LVU520
+ 438:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 1407              		.loc 1 438 5 view .LVU521
+ 439:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 1408              		.loc 1 439 5 view .LVU522
+ 439:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 1409              		.loc 1 439 5 view .LVU523
+ 439:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 1410              		.loc 1 439 5 view .LVU524
+ 440:Libs/mbedtls/library/gcm.c **** 
+ 1411              		.loc 1 440 5 view .LVU525
+ 440:Libs/mbedtls/library/gcm.c **** 
+ 1412              		.loc 1 440 5 view .LVU526
+ 440:Libs/mbedtls/library/gcm.c **** 
+ 1413              		.loc 1 440 5 view .LVU527
+ 1414              		.loc 1 442 5 view .LVU528
+ 1415              		.loc 1 442 16 is_stmt 0 view .LVU529
+ 1416 000c 0193     		str	r3, [sp, #4]
+ 1417 000e 0B9B     		ldr	r3, [sp, #44]
+ 1418 0010 0093     		str	r3, [sp]
+ 1419 0012 0A9B     		ldr	r3, [sp, #40]
+ 432:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1420              		.loc 1 432 1 view .LVU530
+ 1421 0014 DDE90D89 		ldrd	r8, r9, [sp, #52]
+ 1422 0018 DDE90F76 		ldrd	r7, r6, [sp, #60]
+ 1423              		.loc 1 442 16 view .LVU531
+ 1424 001c FFF7FEFF 		bl	mbedtls_gcm_starts
+ 1425              	.LVL134:
+ 1426              		.loc 1 442 8 discriminator 1 view .LVU532
+ 1427 0020 70B9     		cbnz	r0, .L68
+ 1428              	.LVL135:
+ 1429              	.LBB17:
+ 1430              	.LBI17:
+ 421:Libs/mbedtls/library/gcm.c ****                               int mode,
+ 1431              		.loc 1 421 5 is_stmt 1 view .LVU533
+ 1432              	.LBB18:
+ 443:Libs/mbedtls/library/gcm.c ****         return ret;
+ 444:Libs/mbedtls/library/gcm.c ****     }
+ 445:Libs/mbedtls/library/gcm.c **** 
+ 446:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_gcm_update(ctx, length, input, output)) != 0) {
+ 1433              		.loc 1 446 5 view .LVU534
+ 1434              		.loc 1 446 16 is_stmt 0 view .LVU535
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 41
+
+
+ 1435 0022 4B46     		mov	r3, r9
+ 1436 0024 4246     		mov	r2, r8
+ 1437 0026 2946     		mov	r1, r5
+ 1438 0028 2046     		mov	r0, r4
+ 1439              	.LVL136:
+ 1440              		.loc 1 446 16 view .LVU536
+ 1441 002a FFF7FEFF 		bl	mbedtls_gcm_update
+ 1442              	.LVL137:
+ 1443              		.loc 1 446 8 discriminator 1 view .LVU537
+ 1444 002e 38B9     		cbnz	r0, .L68
+ 447:Libs/mbedtls/library/gcm.c ****         return ret;
+ 448:Libs/mbedtls/library/gcm.c ****     }
+ 449:Libs/mbedtls/library/gcm.c **** 
+ 450:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_gcm_finish(ctx, tag, tag_len)) != 0) {
+ 1445              		.loc 1 450 5 is_stmt 1 view .LVU538
+ 1446              		.loc 1 450 16 is_stmt 0 view .LVU539
+ 1447 0030 3A46     		mov	r2, r7
+ 1448 0032 3146     		mov	r1, r6
+ 1449 0034 2046     		mov	r0, r4
+ 1450              	.LVL138:
+ 1451              		.loc 1 450 16 view .LVU540
+ 1452              	.LBE18:
+ 1453              	.LBE17:
+ 451:Libs/mbedtls/library/gcm.c ****         return ret;
+ 452:Libs/mbedtls/library/gcm.c ****     }
+ 453:Libs/mbedtls/library/gcm.c **** 
+ 454:Libs/mbedtls/library/gcm.c ****     return 0;
+ 455:Libs/mbedtls/library/gcm.c **** }
+ 1454              		.loc 1 455 1 view .LVU541
+ 1455 0036 03B0     		add	sp, sp, #12
+ 1456              	.LCFI19:
+ 1457              		.cfi_remember_state
+ 1458              		.cfi_def_cfa_offset 28
+ 1459              		@ sp needed
+ 1460 0038 BDE8F043 		pop	{r4, r5, r6, r7, r8, r9, lr}
+ 1461              	.LCFI20:
+ 1462              		.cfi_restore 14
+ 1463              		.cfi_restore 9
+ 1464              		.cfi_restore 8
+ 1465              		.cfi_restore 7
+ 1466              		.cfi_restore 6
+ 1467              		.cfi_restore 5
+ 1468              		.cfi_restore 4
+ 1469              		.cfi_def_cfa_offset 0
+ 1470              	.LVL139:
+ 1471              	.LBB20:
+ 1472              	.LBB19:
+ 450:Libs/mbedtls/library/gcm.c ****         return ret;
+ 1473              		.loc 1 450 16 view .LVU542
+ 1474 003c FFF7FEBF 		b	mbedtls_gcm_finish
+ 1475              	.LVL140:
+ 1476              	.L68:
+ 1477              	.LCFI21:
+ 1478              		.cfi_restore_state
+ 450:Libs/mbedtls/library/gcm.c ****         return ret;
+ 1479              		.loc 1 450 16 view .LVU543
+ 1480              	.LBE19:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 42
+
+
+ 1481              	.LBE20:
+ 1482              		.loc 1 455 1 view .LVU544
+ 1483 0040 03B0     		add	sp, sp, #12
+ 1484              	.LCFI22:
+ 1485              		.cfi_def_cfa_offset 28
+ 1486              		@ sp needed
+ 1487 0042 BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+ 1488              		.loc 1 455 1 view .LVU545
+ 1489              		.cfi_endproc
+ 1490              	.LFE20:
+ 1492              		.section	.text.mbedtls_gcm_auth_decrypt,"ax",%progbits
+ 1493              		.align	1
+ 1494              		.global	mbedtls_gcm_auth_decrypt
+ 1495              		.syntax unified
+ 1496              		.thumb
+ 1497              		.thumb_func
+ 1499              	mbedtls_gcm_auth_decrypt:
+ 1500              	.LVL141:
+ 1501              	.LFB21:
+ 456:Libs/mbedtls/library/gcm.c **** 
+ 457:Libs/mbedtls/library/gcm.c **** int mbedtls_gcm_auth_decrypt(mbedtls_gcm_context *ctx,
+ 458:Libs/mbedtls/library/gcm.c ****                              size_t length,
+ 459:Libs/mbedtls/library/gcm.c ****                              const unsigned char *iv,
+ 460:Libs/mbedtls/library/gcm.c ****                              size_t iv_len,
+ 461:Libs/mbedtls/library/gcm.c ****                              const unsigned char *add,
+ 462:Libs/mbedtls/library/gcm.c ****                              size_t add_len,
+ 463:Libs/mbedtls/library/gcm.c ****                              const unsigned char *tag,
+ 464:Libs/mbedtls/library/gcm.c ****                              size_t tag_len,
+ 465:Libs/mbedtls/library/gcm.c ****                              const unsigned char *input,
+ 466:Libs/mbedtls/library/gcm.c ****                              unsigned char *output)
+ 467:Libs/mbedtls/library/gcm.c **** {
+ 1502              		.loc 1 467 1 is_stmt 1 view -0
+ 1503              		.cfi_startproc
+ 1504              		@ args = 24, pretend = 0, frame = 16
+ 1505              		@ frame_needed = 0, uses_anonymous_args = 0
+ 468:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1506              		.loc 1 468 5 view .LVU547
+ 469:Libs/mbedtls/library/gcm.c ****     unsigned char check_tag[16];
+ 1507              		.loc 1 469 5 view .LVU548
+ 470:Libs/mbedtls/library/gcm.c ****     int diff;
+ 1508              		.loc 1 470 5 view .LVU549
+ 471:Libs/mbedtls/library/gcm.c **** 
+ 472:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(ctx != NULL);
+ 1509              		.loc 1 472 5 view .LVU550
+ 1510              		.loc 1 472 5 view .LVU551
+ 1511              		.loc 1 472 5 view .LVU552
+ 473:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(iv_len == 0 || iv != NULL);
+ 1512              		.loc 1 473 5 view .LVU553
+ 1513              		.loc 1 473 5 view .LVU554
+ 1514              		.loc 1 473 5 view .LVU555
+ 474:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(add_len == 0 || add != NULL);
+ 1515              		.loc 1 474 5 view .LVU556
+ 1516              		.loc 1 474 5 view .LVU557
+ 1517              		.loc 1 474 5 view .LVU558
+ 475:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(tag != NULL);
+ 1518              		.loc 1 475 5 view .LVU559
+ 1519              		.loc 1 475 5 view .LVU560
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 43
+
+
+ 1520              		.loc 1 475 5 view .LVU561
+ 476:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || input != NULL);
+ 1521              		.loc 1 476 5 view .LVU562
+ 1522              		.loc 1 476 5 view .LVU563
+ 1523              		.loc 1 476 5 view .LVU564
+ 477:Libs/mbedtls/library/gcm.c ****     GCM_VALIDATE_RET(length == 0 || output != NULL);
+ 1524              		.loc 1 477 5 view .LVU565
+ 1525              		.loc 1 477 5 view .LVU566
+ 1526              		.loc 1 477 5 view .LVU567
+ 478:Libs/mbedtls/library/gcm.c **** 
+ 479:Libs/mbedtls/library/gcm.c ****     if ((ret = mbedtls_gcm_crypt_and_tag(ctx, MBEDTLS_GCM_DECRYPT, length,
+ 1527              		.loc 1 479 5 view .LVU568
+ 467:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1528              		.loc 1 467 1 is_stmt 0 view .LVU569
+ 1529 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 1530              	.LCFI23:
+ 1531              		.cfi_def_cfa_offset 20
+ 1532              		.cfi_offset 4, -20
+ 1533              		.cfi_offset 5, -16
+ 1534              		.cfi_offset 6, -12
+ 1535              		.cfi_offset 7, -8
+ 1536              		.cfi_offset 14, -4
+ 1537 0002 8DB0     		sub	sp, sp, #52
+ 1538              	.LCFI24:
+ 1539              		.cfi_def_cfa_offset 72
+ 467:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1540              		.loc 1 467 1 view .LVU570
+ 1541 0004 0C46     		mov	r4, r1
+ 1542              		.loc 1 479 16 view .LVU571
+ 1543 0006 1699     		ldr	r1, [sp, #88]
+ 1544              	.LVL142:
+ 1545              		.loc 1 479 16 view .LVU572
+ 1546 0008 08AE     		add	r6, sp, #32
+ 467:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1547              		.loc 1 467 1 view .LVU573
+ 1548 000a 159F     		ldr	r7, [sp, #84]
+ 1549              		.loc 1 479 16 view .LVU574
+ 1550 000c 0391     		str	r1, [sp, #12]
+ 1551 000e 1399     		ldr	r1, [sp, #76]
+ 467:Libs/mbedtls/library/gcm.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1552              		.loc 1 467 1 view .LVU575
+ 1553 0010 179D     		ldr	r5, [sp, #92]
+ 1554              		.loc 1 479 16 view .LVU576
+ 1555 0012 0291     		str	r1, [sp, #8]
+ 1556 0014 1299     		ldr	r1, [sp, #72]
+ 1557 0016 0495     		str	r5, [sp, #16]
+ 1558 0018 CDE90031 		strd	r3, r1, [sp]
+ 1559 001c CDE90576 		strd	r7, r6, [sp, #20]
+ 1560 0020 1346     		mov	r3, r2
+ 1561              	.LVL143:
+ 1562              		.loc 1 479 16 view .LVU577
+ 1563 0022 0021     		movs	r1, #0
+ 1564 0024 2246     		mov	r2, r4
+ 1565              	.LVL144:
+ 1566              		.loc 1 479 16 view .LVU578
+ 1567 0026 FFF7FEFF 		bl	mbedtls_gcm_crypt_and_tag
+ 1568              	.LVL145:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 44
+
+
+ 1569              		.loc 1 479 8 discriminator 1 view .LVU579
+ 1570 002a 58B9     		cbnz	r0, .L70
+ 480:Libs/mbedtls/library/gcm.c ****                                          iv, iv_len, add, add_len,
+ 481:Libs/mbedtls/library/gcm.c ****                                          input, output, tag_len, check_tag)) != 0) {
+ 482:Libs/mbedtls/library/gcm.c ****         return ret;
+ 483:Libs/mbedtls/library/gcm.c ****     }
+ 484:Libs/mbedtls/library/gcm.c **** 
+ 485:Libs/mbedtls/library/gcm.c ****     /* Check tag in "constant-time" */
+ 486:Libs/mbedtls/library/gcm.c ****     diff = mbedtls_ct_memcmp(tag, check_tag, tag_len);
+ 1571              		.loc 1 486 5 is_stmt 1 view .LVU580
+ 1572              		.loc 1 486 12 is_stmt 0 view .LVU581
+ 1573 002c 3A46     		mov	r2, r7
+ 1574 002e 3146     		mov	r1, r6
+ 1575 0030 1498     		ldr	r0, [sp, #80]
+ 1576              	.LVL146:
+ 1577              		.loc 1 486 12 view .LVU582
+ 1578 0032 FFF7FEFF 		bl	mbedtls_ct_memcmp
+ 1579              	.LVL147:
+ 487:Libs/mbedtls/library/gcm.c **** 
+ 488:Libs/mbedtls/library/gcm.c ****     if (diff != 0) {
+ 1580              		.loc 1 488 5 is_stmt 1 view .LVU583
+ 1581              		.loc 1 488 8 is_stmt 0 view .LVU584
+ 1582 0036 28B1     		cbz	r0, .L70
+ 489:Libs/mbedtls/library/gcm.c ****         mbedtls_platform_zeroize(output, length);
+ 1583              		.loc 1 489 9 is_stmt 1 view .LVU585
+ 1584 0038 2846     		mov	r0, r5
+ 1585              	.LVL148:
+ 1586              		.loc 1 489 9 is_stmt 0 view .LVU586
+ 1587 003a 2146     		mov	r1, r4
+ 1588 003c FFF7FEFF 		bl	mbedtls_platform_zeroize
+ 1589              	.LVL149:
+ 490:Libs/mbedtls/library/gcm.c ****         return MBEDTLS_ERR_GCM_AUTH_FAILED;
+ 1590              		.loc 1 490 9 is_stmt 1 view .LVU587
+ 1591              		.loc 1 490 16 is_stmt 0 view .LVU588
+ 1592 0040 6FF01100 		mvn	r0, #17
+ 1593              	.LVL150:
+ 1594              	.L70:
+ 491:Libs/mbedtls/library/gcm.c ****     }
+ 492:Libs/mbedtls/library/gcm.c **** 
+ 493:Libs/mbedtls/library/gcm.c ****     return 0;
+ 494:Libs/mbedtls/library/gcm.c **** }
+ 1595              		.loc 1 494 1 view .LVU589
+ 1596 0044 0DB0     		add	sp, sp, #52
+ 1597              	.LCFI25:
+ 1598              		.cfi_def_cfa_offset 20
+ 1599              		@ sp needed
+ 1600 0046 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 1601              		.loc 1 494 1 view .LVU590
+ 1602              		.cfi_endproc
+ 1603              	.LFE21:
+ 1605              		.section	.text.mbedtls_gcm_free,"ax",%progbits
+ 1606              		.align	1
+ 1607              		.global	mbedtls_gcm_free
+ 1608              		.syntax unified
+ 1609              		.thumb
+ 1610              		.thumb_func
+ 1612              	mbedtls_gcm_free:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 45
+
+
+ 1613              	.LVL151:
+ 1614              	.LFB22:
+ 495:Libs/mbedtls/library/gcm.c **** 
+ 496:Libs/mbedtls/library/gcm.c **** void mbedtls_gcm_free(mbedtls_gcm_context *ctx)
+ 497:Libs/mbedtls/library/gcm.c **** {
+ 1615              		.loc 1 497 1 is_stmt 1 view -0
+ 1616              		.cfi_startproc
+ 1617              		@ args = 0, pretend = 0, frame = 0
+ 1618              		@ frame_needed = 0, uses_anonymous_args = 0
+ 498:Libs/mbedtls/library/gcm.c ****     if (ctx == NULL) {
+ 1619              		.loc 1 498 5 view .LVU592
+ 497:Libs/mbedtls/library/gcm.c ****     if (ctx == NULL) {
+ 1620              		.loc 1 497 1 is_stmt 0 view .LVU593
+ 1621 0000 10B5     		push	{r4, lr}
+ 1622              	.LCFI26:
+ 1623              		.cfi_def_cfa_offset 8
+ 1624              		.cfi_offset 4, -8
+ 1625              		.cfi_offset 14, -4
+ 1626              		.loc 1 498 8 view .LVU594
+ 1627 0002 0446     		mov	r4, r0
+ 1628 0004 40B1     		cbz	r0, .L75
+ 499:Libs/mbedtls/library/gcm.c ****         return;
+ 500:Libs/mbedtls/library/gcm.c ****     }
+ 501:Libs/mbedtls/library/gcm.c ****     mbedtls_cipher_free(&ctx->cipher_ctx);
+ 1629              		.loc 1 501 5 is_stmt 1 view .LVU595
+ 1630 0006 FFF7FEFF 		bl	mbedtls_cipher_free
+ 1631              	.LVL152:
+ 502:Libs/mbedtls/library/gcm.c ****     mbedtls_platform_zeroize(ctx, sizeof(mbedtls_gcm_context));
+ 1632              		.loc 1 502 5 view .LVU596
+ 1633 000a 2046     		mov	r0, r4
+ 1634 000c 4FF4C071 		mov	r1, #384
+ 503:Libs/mbedtls/library/gcm.c **** }
+ 1635              		.loc 1 503 1 is_stmt 0 view .LVU597
+ 1636 0010 BDE81040 		pop	{r4, lr}
+ 1637              	.LCFI27:
+ 1638              		.cfi_remember_state
+ 1639              		.cfi_restore 14
+ 1640              		.cfi_restore 4
+ 1641              		.cfi_def_cfa_offset 0
+ 1642              	.LVL153:
+ 502:Libs/mbedtls/library/gcm.c ****     mbedtls_platform_zeroize(ctx, sizeof(mbedtls_gcm_context));
+ 1643              		.loc 1 502 5 view .LVU598
+ 1644 0014 FFF7FEBF 		b	mbedtls_platform_zeroize
+ 1645              	.LVL154:
+ 1646              	.L75:
+ 1647              	.LCFI28:
+ 1648              		.cfi_restore_state
+ 1649              		.loc 1 503 1 view .LVU599
+ 1650 0018 10BD     		pop	{r4, pc}
+ 1651              		.cfi_endproc
+ 1652              	.LFE22:
+ 1654              		.section	.rodata.last4,"a"
+ 1655              		.align	3
+ 1658              	last4:
+ 1659 0000 00000000 		.word	0
+ 1660 0004 00000000 		.word	0
+ 1661 0008 201C0000 		.word	7200
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 46
+
+
+ 1662 000c 00000000 		.word	0
+ 1663 0010 40380000 		.word	14400
+ 1664 0014 00000000 		.word	0
+ 1665 0018 60240000 		.word	9312
+ 1666 001c 00000000 		.word	0
+ 1667 0020 80700000 		.word	28800
+ 1668 0024 00000000 		.word	0
+ 1669 0028 A06C0000 		.word	27808
+ 1670 002c 00000000 		.word	0
+ 1671 0030 C0480000 		.word	18624
+ 1672 0034 00000000 		.word	0
+ 1673 0038 E0540000 		.word	21728
+ 1674 003c 00000000 		.word	0
+ 1675 0040 00E10000 		.word	57600
+ 1676 0044 00000000 		.word	0
+ 1677 0048 20FD0000 		.word	64800
+ 1678 004c 00000000 		.word	0
+ 1679 0050 40D90000 		.word	55616
+ 1680 0054 00000000 		.word	0
+ 1681 0058 60C50000 		.word	50528
+ 1682 005c 00000000 		.word	0
+ 1683 0060 80910000 		.word	37248
+ 1684 0064 00000000 		.word	0
+ 1685 0068 A08D0000 		.word	36256
+ 1686 006c 00000000 		.word	0
+ 1687 0070 C0A90000 		.word	43456
+ 1688 0074 00000000 		.word	0
+ 1689 0078 E0B50000 		.word	46560
+ 1690 007c 00000000 		.word	0
+ 1691              		.text
+ 1692              	.Letext0:
+ 1693              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1694              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1695              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1696              		.file 5 "Libs/mbedtls/include/mbedtls/cipher.h"
+ 1697              		.file 6 "Libs/mbedtls/include/mbedtls/gcm.h"
+ 1698              		.file 7 "Libs/mbedtls/include/mbedtls/constant_time.h"
+ 1699              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1700              		.file 9 "Libs/mbedtls/include/mbedtls/platform_util.h"
+ 1701              		.file 10 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s 			page 47
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 gcm.c
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:20     .text.gcm_mult:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:25     .text.gcm_mult:00000000 gcm_mult
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:257    .text.gcm_mult:00000108 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1658   .rodata.last4:00000000 last4
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:262    .text.mbedtls_gcm_init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:268    .text.mbedtls_gcm_init:00000000 mbedtls_gcm_init
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:289    .text.mbedtls_gcm_setkey:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:295    .text.mbedtls_gcm_setkey:00000000 mbedtls_gcm_setkey
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:626    .text.mbedtls_gcm_starts:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:632    .text.mbedtls_gcm_starts:00000000 mbedtls_gcm_starts
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:930    .text.mbedtls_gcm_update:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:936    .text.mbedtls_gcm_update:00000000 mbedtls_gcm_update
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1161   .text.mbedtls_gcm_finish:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1167   .text.mbedtls_gcm_finish:00000000 mbedtls_gcm_finish
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1361   .text.mbedtls_gcm_crypt_and_tag:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1367   .text.mbedtls_gcm_crypt_and_tag:00000000 mbedtls_gcm_crypt_and_tag
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1493   .text.mbedtls_gcm_auth_decrypt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1499   .text.mbedtls_gcm_auth_decrypt:00000000 mbedtls_gcm_auth_decrypt
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1606   .text.mbedtls_gcm_free:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1612   .text.mbedtls_gcm_free:00000000 mbedtls_gcm_free
+C:\Users\nicx5\AppData\Local\Temp\ccEjJvNp.s:1655   .rodata.last4:00000000 $d
+
+UNDEFINED SYMBOLS
+memset
+mbedtls_cipher_info_from_values
+mbedtls_cipher_free
+mbedtls_cipher_setup
+mbedtls_cipher_setkey
+mbedtls_cipher_update
+memcpy
+mbedtls_ct_memcmp
+mbedtls_platform_zeroize

@@ -14,7 +14,7 @@ import HotkeysField from "./hotkeys-field";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { showToast } from "./ui/toaster";
-import { Text } from "@chakra-ui/react";
+import { SettingDescription } from "./ui/setting-description";
 
 
 interface HotkeySettingContentProps {
@@ -136,9 +136,11 @@ export function HotkeySettingContent({
 
         <>
 
-            <Text fontSize="14px" color="gray.400" mb="30px" whiteSpace="pre-wrap" >
-                {t.SETTINGS_HOTKEYS_HELPER_TEXT}
-            </Text>
+            <SettingDescription
+                text={t.SETTINGS_HOTKEYS_HELPER_TEXT}
+                fontSize="14px"
+                mb="30px"
+            />
 
             <Fieldset.Root>
                 <Fieldset.Content>

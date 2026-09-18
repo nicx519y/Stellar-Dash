@@ -5,6 +5,7 @@
 #include "enums.hpp"
 #include "config.hpp"
 #include "gamepad/GamepadState.hpp"
+#include "input_runtime_policy.hpp"
 #include "leds/leds_manager.hpp"
 #include "micro_timer.hpp"
 
@@ -108,8 +109,8 @@ class Gamepad {
         // These are special to SOCD
         inline static const SOCDMode resolveSOCDMode(const GamepadProfile& options) {
             return (options.keysConfig.socdMode == SOCD_MODE_BYPASS &&
-                    (STORAGE_MANAGER.getInputMode() == INPUT_MODE_SWITCH ||
-                    STORAGE_MANAGER.getInputMode() == INPUT_MODE_PS4)) ?
+                    requiresNeutralSocdForBypass(
+                        STORAGE_MANAGER.getInputMode())) ?
                 SOCD_MODE_NEUTRAL : options.keysConfig.socdMode;
         };
     

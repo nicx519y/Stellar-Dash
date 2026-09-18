@@ -33,6 +33,20 @@ enum InputMode
     INPUT_MODE_CONFIG = 255,
 };
 
+enum ConnectionMode : uint8_t
+{
+    CONNECTION_MODE_USB = 0,
+    CONNECTION_MODE_RF24G = 1,
+};
+
+enum WirelessReportRate : uint16_t
+{
+    RFM_RATE_1K = 1000,
+    RFM_RATE_2K = 2000,
+    RFM_RATE_4K = 4000,
+    RFM_RATE_8K = 8000,
+};
+
 // 输入模式认证类型
 enum InputModeAuthType
 {

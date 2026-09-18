@@ -14,10 +14,33 @@ application/build
 bootloader/build
 releases
 tools/__pycache__
+tools/tests/__pycache__/
+*.py[cod]
+.hbox/
 server/node_modules/
 server/uploads/
 server/data/
 temp_package/
 common/__pycache__
+
+connect-monitor/node_modules
+connect-monitor/dist
+connect-monitor/build
+connect-monitor/release-builds
+connect-monitor/.next
+connect-monitor/installer-builds
+
+dongle
+RFMoudle
+
+RF_PHY_Hop/TX/build_tx
+RF_PHY_Hop/RX/build_rx
+
+windows-client/build*
+windows-client/ui/.next
+windows-client/ui/node_modules
+windows-client/ui/out
+windows-client/ui/tsconfig.tsbuildinfo
+
 
 

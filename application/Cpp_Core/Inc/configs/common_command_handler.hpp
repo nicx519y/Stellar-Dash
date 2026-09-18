@@ -1,7 +1,7 @@
 #pragma once
 
-#include "configs/websocket_command_handler.hpp"
-#include "websocket_message.hpp"
+#include "configs/device_command_handler.hpp"
+#include "device_command_message.hpp"
 #include "configs/webconfig_btns_manager.hpp"  // 为ADCBtnTestEvent定义
 #include "cJSON.h"
 #include <cstdint>
@@ -58,9 +58,9 @@ struct ButtonPerformanceMonitoringBinaryData {
 
 /**
  * @brief 通用命令处理器
- * 处理按键监控等通用功能的WebSocket命令
+ * 处理按键监控等通用功能的DeviceCommand命令
  */
-class CommonCommandHandler : public WebSocketCommandHandler {
+class CommonCommandHandler : public DeviceCommandHandler {
 private:
     // 单例模式：私有构造函数
     CommonCommandHandler() = default;
@@ -75,48 +75,48 @@ public:
     static CommonCommandHandler& getInstance();
 
     // 实现基类纯虚函数
-    WebSocketDownstreamMessage handle(const WebSocketUpstreamMessage& request) override;
+    DeviceCommandResponse handle(const DeviceCommandRequest& request) override;
 
     // 按键监控相关命令处理方法
     
     /**
      * @brief 开启按键功能
-     * WebSocket命令: start_button_monitoring
+     * DeviceCommand命令: start_button_monitoring
      * 对应HTTP接口: POST /api/start-button-monitoring
      */
-    WebSocketDownstreamMessage handleStartButtonMonitoring(const WebSocketUpstreamMessage& request);
+    DeviceCommandResponse handleStartButtonMonitoring(const DeviceCommandRequest& request);
     
     /**
      * @brief 关闭按键功能
-     * WebSocket命令: stop_button_monitoring
+     * DeviceCommand命令: stop_button_monitoring
      * 对应HTTP接口: POST /api/stop-button-monitoring
      */
-    WebSocketDownstreamMessage handleStopButtonMonitoring(const WebSocketUpstreamMessage& request);
+    DeviceCommandResponse handleStopButtonMonitoring(const DeviceCommandRequest& request);
     
     /**
      * @brief 启动按键性能监控（包含测试模式）
-     * WebSocket命令: start_button_performance_monitoring
+     * DeviceCommand命令: start_button_performance_monitoring
      */
-    WebSocketDownstreamMessage handleStartButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request);
+    DeviceCommandResponse handleStartButtonPerformanceMonitoring(const DeviceCommandRequest& request);
 
     /**
      * @brief 获取Hitbox按键布局
-     * WebSocket命令: get_hitbox_layout
+     * DeviceCommand命令: get_hitbox_layout
      */
-    WebSocketDownstreamMessage handleGetHitboxLayout(const WebSocketUpstreamMessage& request);
+    DeviceCommandResponse handleGetHitboxLayout(const DeviceCommandRequest& request);
     
     /**
      * @brief 停止按键性能监控
-     * WebSocket命令: stop_button_performance_monitoring
+     * DeviceCommand命令: stop_button_performance_monitoring
      */
-    WebSocketDownstreamMessage handleStopButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request);
+    DeviceCommandResponse handleStopButtonPerformanceMonitoring(const DeviceCommandRequest& request);
 
     /**
      * @brief 获取按键状态（保留用于兼容，推荐使用推送模式）
-     * WebSocket命令: get_button_states
+     * DeviceCommand命令: get_button_states
      * 对应HTTP接口: GET /api/get-button-states
      */
-    WebSocketDownstreamMessage handleGetButtonStates(const WebSocketUpstreamMessage& request);
+    DeviceCommandResponse handleGetButtonStates(const DeviceCommandRequest& request);
 
     // 推送功能
     
@@ -125,12 +125,6 @@ public:
      * 当按键状态发生变化时自动调用此方法发送推送通知
      */
     void sendButtonStateNotification();
-
-    /**
-     * @brief 推送按键性能监控通知
-     * 当按键性能监控发生变化时调用此方法发送推送通知
-     */
-    void sendButtonPerformanceMonitoringNotification();
 
 private:
     /**
@@ -145,8 +139,8 @@ private:
 public:
     /**
      * @brief 获取设备日志列表（从Flash读取，按时间倒序，限制条数）
-     * WebSocket命令: get_device_logs_list
+     * DeviceCommand命令: get_device_logs_list
      */
-    WebSocketDownstreamMessage handleGetDeviceLogsList(const WebSocketUpstreamMessage& request);
+    DeviceCommandResponse handleGetDeviceLogsList(const DeviceCommandRequest& request);
 
 }; 

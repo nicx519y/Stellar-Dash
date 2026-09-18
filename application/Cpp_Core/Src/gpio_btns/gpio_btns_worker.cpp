@@ -16,6 +16,9 @@ GPIOBtnsWorker::~GPIOBtnsWorker()
 
 void GPIOBtnsWorker::setup()
 {
+    virtualPinMask = 0u;
+    buttonStateChanged = false;
+
     // 初始化按钮状态 re
     GPIO_Btns_Iterate([](uint8_t virtualPin, bool isPressed, uint8_t idx) {
         instance_->buttonStates[idx].virtualPin = virtualPin;
@@ -38,7 +41,7 @@ uint32_t GPIOBtnsWorker::read()
         GPIOBtn* btn = &instance_->buttonStates[idx];
         const bool currentState = isPressed;
         bool& changed = instance_->buttonStateChanged;
-        
+
         // 根据当前状态处理
         switch(btn->state) {
             case ButtonState::RELEASED:

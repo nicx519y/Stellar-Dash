@@ -6,6 +6,8 @@
 #include "stm32h7xx_hal_gpio.h"
 #include "stm32h7xx_hal_gpio_ex.h"
 #include "stm32h7xx_hal_rcc_ex.h"
+#include "board_power.hpp"
+#include "rf_bridge_port_internal.h"
 
 static SPI_HandleTypeDef g_hspi;
 static DMA_HandleTypeDef g_dma;
@@ -13,7 +15,24 @@ static TIM_HandleTypeDef g_bl_htim;
 
 static uint8_t g_fillbuf[SPIST7789_DMA_CHUNK_BYTES] __attribute__((section(".DMA_Section"), aligned(32)));
 
+typedef enum {
+    SPIST7789_XFER_NONE = 0,
+    SPIST7789_XFER_FILL,
+    SPIST7789_XFER_FRAMEBUFFER
+} SPIST7789_XferKind;
+
+typedef struct {
+    const uint16_t* fb;
+    uint16_t x0;
+    uint16_t y0;
+    uint16_t x1;
+    uint16_t y1;
+    uint16_t cur_x;
+    uint16_t cur_y;
+} SPIST7789_FramebufferFlush;
+
 static volatile bool g_busy = false;
+static volatile SPIST7789_XferKind g_xfer_kind = SPIST7789_XFER_NONE;
 static volatile uint32_t g_remaining = 0;
 static volatile uint8_t g_dma_irq_flag = 0;
 static volatile uint8_t g_dma_done_flag = 0;
@@ -21,7 +40,9 @@ static volatile uint8_t g_dma_err_flag = 0;
 static volatile bool g_spi_txc_flag = false;
 static volatile uint8_t g_test_phase = 0;
 static bool g_bl_tim_ready = false;
+static bool g_hw_ready = false;
 static uint16_t g_fill_color565 = 0xFFFFu;
+static SPIST7789_FramebufferFlush g_fb_flush;
 
 static inline void gpio_write(GPIO_TypeDef* port, uint16_t pin, GPIO_PinState state)
 {
@@ -46,6 +67,19 @@ static void enable_gpio_clock(GPIO_TypeDef* port)
     else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
     else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+}
+
+static void enable_tim_clock(TIM_TypeDef* tim)
+{
+#ifdef TIM2
+    if (tim == TIM2) { __HAL_RCC_TIM2_CLK_ENABLE(); return; }
+#endif
+#ifdef TIM5
+    if (tim == TIM5) { __HAL_RCC_TIM5_CLK_ENABLE(); return; }
+#endif
+#ifdef TIM12
+    if (tim == TIM12) { __HAL_RCC_TIM12_CLK_ENABLE(); return; }
+#endif
 }
 
 static void spi_gpio_init(void)
@@ -79,20 +113,44 @@ static void spi_gpio_init(void)
     gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, ST7789_BL_OFF_STATE);
 }
 
+static void pin_to_analog(GPIO_TypeDef* port, uint16_t pin)
+{
+    GPIO_InitTypeDef init = {0};
+    enable_gpio_clock(port);
+    init.Pin = pin;
+    init.Mode = GPIO_MODE_ANALOG;
+    init.Pull = GPIO_NOPULL;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(port, &init);
+}
+
+static void spi_gpio_deinit(void)
+{
+    pin_to_analog(ST7789_SCL_PORT, ST7789_SCL_PIN);
+    pin_to_analog(ST7789_SDA_PORT, ST7789_SDA_PIN);
+    pin_to_analog(ST7789_CS_PORT, ST7789_CS_PIN);
+    pin_to_analog(ST7789_DC_PORT, ST7789_DC_PIN);
+    pin_to_analog(ST7789_BL_PORT, ST7789_BL_PIN);
+}
+
 static bool spi_clock_init(void)
 {
     RCC_PeriphCLKInitTypeDef clk = {0};
-    clk.PeriphClockSelection = RCC_PERIPHCLK_SPI5;
-    clk.Spi45ClockSelection = RCC_SPI45CLKSOURCE_D2PCLK2;
+    clk.PeriphClockSelection = RCC_PERIPHCLK_SPI1;
+#ifdef RCC_SPI123CLKSOURCE_D2PCLK2
+    clk.Spi123ClockSelection = RCC_SPI123CLKSOURCE_D2PCLK2;
+#else
+    clk.Spi123ClockSelection = RCC_SPI123CLKSOURCE_PLL;
+#endif
     return (HAL_RCCEx_PeriphCLKConfig(&clk) == HAL_OK);
 }
 
 static bool spi_hw_init(void)
 {
-    __HAL_RCC_SPI5_CLK_ENABLE();
+    __HAL_RCC_SPI1_CLK_ENABLE();
     if (!spi_clock_init()) return false;
-    __HAL_RCC_SPI5_FORCE_RESET();
-    __HAL_RCC_SPI5_RELEASE_RESET();
+    __HAL_RCC_SPI1_FORCE_RESET();
+    __HAL_RCC_SPI1_RELEASE_RESET();
 
     memset(&g_hspi, 0, sizeof(g_hspi));
     g_hspi.Instance = ST7789_SPI_INSTANCE;
@@ -185,6 +243,40 @@ static bool start_dma_chunk(uint16_t len)
     return true;
 }
 
+static uint16_t prepare_fb_dma_chunk(void)
+{
+    uint16_t bytes = 0u;
+    const uint16_t max_pixels = (uint16_t)(sizeof(g_fillbuf) / 2u);
+
+    if (!g_fb_flush.fb || g_fb_flush.cur_y > g_fb_flush.y1) {
+        return 0u;
+    }
+
+    while ((bytes / 2u) < max_pixels && g_fb_flush.cur_y <= g_fb_flush.y1) {
+        uint16_t room_pixels = (uint16_t)(max_pixels - (bytes / 2u));
+        uint16_t row_pixels = (uint16_t)(g_fb_flush.x1 - g_fb_flush.cur_x + 1u);
+        uint16_t take_pixels = (row_pixels < room_pixels) ? row_pixels : room_pixels;
+        const uint16_t* src = g_fb_flush.fb +
+                              ((uint32_t)g_fb_flush.cur_y * (uint32_t)ST7789_WIDTH) +
+                              g_fb_flush.cur_x;
+
+        for (uint16_t i = 0u; i < take_pixels; ++i) {
+            uint16_t c = src[i];
+            g_fillbuf[bytes++] = (uint8_t)(c >> 8);
+            g_fillbuf[bytes++] = (uint8_t)(c & 0xFFu);
+        }
+
+        g_fb_flush.cur_x = (uint16_t)(g_fb_flush.cur_x + take_pixels);
+        if (g_fb_flush.cur_x > g_fb_flush.x1) {
+            g_fb_flush.cur_x = g_fb_flush.x0;
+            g_fb_flush.cur_y = (uint16_t)(g_fb_flush.cur_y + 1u);
+        }
+    }
+
+    dcache_clean(g_fillbuf, bytes);
+    return bytes;
+}
+
 static void set_fill_color565(uint16_t color565)
 {
     if (color565 == g_fill_color565) return;
@@ -216,10 +308,12 @@ static bool start_fill_async(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uin
         uint16_t first = (g_remaining > SPIST7789_DMA_CHUNK_BYTES) ? (uint16_t)SPIST7789_DMA_CHUNK_BYTES : (uint16_t)g_remaining;
         g_remaining -= (uint32_t)first;
         g_busy = true;
+        g_xfer_kind = SPIST7789_XFER_FILL;
         g_spi_txc_flag = false;
         if (!start_dma_chunk(first)) {
             cs_high();
             g_busy = false;
+            g_xfer_kind = SPIST7789_XFER_NONE;
             g_dma_err_flag = 1;
             return false;
         }
@@ -227,12 +321,59 @@ static bool start_fill_async(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uin
     return true;
 }
 
-static bool backlight_tim12_init(void)
+static bool start_fb_flush_async(ST7789_Handle* lcd, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
+    uint16_t w;
+    uint16_t h;
+    uint16_t first;
+
+    if (!lcd || !lcd->fb_back) return false;
+    if (x0 > x1 || y0 > y1) return false;
+    if (g_busy) return false;
+    if (!spi_wait_ready(50)) return false;
+
+    if (x1 >= ST7789_WIDTH) x1 = (uint16_t)(ST7789_WIDTH - 1u);
+    if (y1 >= ST7789_HEIGHT) y1 = (uint16_t)(ST7789_HEIGHT - 1u);
+    w = (uint16_t)(x1 - x0 + 1u);
+    h = (uint16_t)(y1 - y0 + 1u);
+    if (!set_window(x0, y0, w, h)) {
+        g_dma_err_flag = 1;
+        return false;
+    }
+
+    g_fb_flush.fb = lcd->fb_back;
+    g_fb_flush.x0 = x0;
+    g_fb_flush.y0 = y0;
+    g_fb_flush.x1 = x1;
+    g_fb_flush.y1 = y1;
+    g_fb_flush.cur_x = x0;
+    g_fb_flush.cur_y = y0;
+    g_remaining = 0u;
+    first = prepare_fb_dma_chunk();
+    if (first == 0u) {
+        cs_high();
+        return true;
+    }
+
+    g_busy = true;
+    g_xfer_kind = SPIST7789_XFER_FRAMEBUFFER;
+    g_spi_txc_flag = false;
+    if (!start_dma_chunk(first)) {
+        cs_high();
+        g_busy = false;
+        g_xfer_kind = SPIST7789_XFER_NONE;
+        g_dma_err_flag = 1;
+        return false;
+    }
+    return true;
+}
+
+static bool backlight_pwm_init(void)
 {
     if (g_bl_tim_ready) return true;
 
     enable_gpio_clock(ST7789_BL_PORT);
-    __HAL_RCC_TIM12_CLK_ENABLE();
+    enable_tim_clock(SPIST7789_BL_TIM_INSTANCE);
 
     GPIO_InitTypeDef init = {0};
     init.Pin = ST7789_BL_PIN;
@@ -278,22 +419,46 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef* hspi)
 {
     if (hspi == &g_hspi) {
         g_spi_txc_flag = true;
+        return;
     }
+    RFBridgePort_SPI_TxCpltCallback(hspi);
 }
 
 void HAL_SPI_ErrorCallback(SPI_HandleTypeDef* hspi)
 {
-    if (hspi != &g_hspi) return;
+    if (hspi != &g_hspi) {
+        RFBridgePort_SPI_ErrorCallback(hspi);
+        return;
+    }
     cs_high();
     g_busy = false;
+    g_xfer_kind = SPIST7789_XFER_NONE;
     g_dma_err_flag = 1;
 }
 
 void SPIST7789_Init(void)
 {
+    if (g_hw_ready) {
+        return;
+    }
+    g_busy = false;
+    g_xfer_kind = SPIST7789_XFER_NONE;
+    g_remaining = 0u;
+    g_dma_irq_flag = 0u;
+    g_dma_done_flag = 0u;
+    g_dma_err_flag = 0u;
+    g_spi_txc_flag = false;
+
+    /*
+     * The latest PCB gates the LCD logic rail with PI9.  Keep the backlight
+     * off while the rail settles and while the controller exits sleep.
+     */
+    BoardPower_SetLcdEnabled(true);
+    HAL_Delay(5u);
     spi_gpio_init();
     if (!spi_hw_init()) {
-        g_dma_err_flag = 1;
+        SPIST7789_DeInit();
+        g_dma_err_flag = 1u;
         return;
     }
 
@@ -314,7 +479,8 @@ void SPIST7789_Init(void)
     g_dma.Init.Priority = DMA_PRIORITY_VERY_HIGH;
     g_dma.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&g_dma) != HAL_OK) {
-        g_dma_err_flag = 1;
+        SPIST7789_DeInit();
+        g_dma_err_flag = 1u;
         return;
     }
     __HAL_DMA_DISABLE_IT(&g_dma, DMA_IT_HT);
@@ -322,8 +488,8 @@ void SPIST7789_Init(void)
 
     HAL_NVIC_SetPriority(ST7789_SPI_DMA_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(ST7789_SPI_DMA_IRQn);
-    HAL_NVIC_SetPriority(SPI5_IRQn, 5, 0);
-    HAL_NVIC_EnableIRQ(SPI5_IRQn);
+    HAL_NVIC_SetPriority(SPI1_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(SPI1_IRQn);
 
     (void)write_cmd_data(0x01, NULL, 0);
     HAL_Delay(150);
@@ -338,6 +504,58 @@ void SPIST7789_Init(void)
     }
     (void)write_cmd_data(0x13, NULL, 0);
     (void)write_cmd_data(0x29, NULL, 0);
+    g_hw_ready = true;
+}
+
+void SPIST7789_DeInit(void)
+{
+    /*
+     * Quiesce all signals before PI9 removes LCD power.  This is also safe
+     * after a partial initialization failure.
+     */
+    HAL_NVIC_DisableIRQ(ST7789_SPI_DMA_IRQn);
+    HAL_NVIC_DisableIRQ(SPI1_IRQn);
+    HAL_NVIC_ClearPendingIRQ(ST7789_SPI_DMA_IRQn);
+    HAL_NVIC_ClearPendingIRQ(SPI1_IRQn);
+
+    enable_gpio_clock(ST7789_BL_PORT);
+    gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, ST7789_BL_OFF_STATE);
+
+    if (g_hspi.Instance != NULL) {
+        (void)HAL_SPI_Abort(&g_hspi);
+    }
+    if (g_dma.Instance != NULL) {
+        (void)HAL_DMA_Abort(&g_dma);
+        (void)HAL_DMA_DeInit(&g_dma);
+    }
+    if (g_hspi.Instance != NULL) {
+        (void)HAL_SPI_DeInit(&g_hspi);
+    }
+    if (g_bl_tim_ready) {
+        (void)HAL_TIM_PWM_Stop(&g_bl_htim, SPIST7789_BL_TIM_CHANNEL);
+        (void)HAL_TIM_PWM_DeInit(&g_bl_htim);
+    }
+
+    g_bl_tim_ready = false;
+    g_hw_ready = false;
+    g_busy = false;
+    g_xfer_kind = SPIST7789_XFER_NONE;
+    g_remaining = 0u;
+    g_spi_txc_flag = false;
+    g_dma_irq_flag = 0u;
+    g_dma_done_flag = 0u;
+    g_dma_err_flag = 0u;
+    memset(&g_fb_flush, 0, sizeof(g_fb_flush));
+    memset(&g_hspi, 0, sizeof(g_hspi));
+    memset(&g_dma, 0, sizeof(g_dma));
+    memset(&g_bl_htim, 0, sizeof(g_bl_htim));
+    spi_gpio_deinit();
+    BoardPower_SetLcdEnabled(false);
+}
+
+bool SPIST7789_IsReady(void)
+{
+    return g_hw_ready;
 }
 
 void SPIST7789_SetBacklight100(void)
@@ -348,7 +566,7 @@ void SPIST7789_SetBacklight100(void)
 void SPIST7789_SetBacklight(uint8_t percent)
 {
     if (percent > 100u) percent = 100u;
-    if (!backlight_tim12_init()) {
+    if (!backlight_pwm_init()) {
         gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, (percent == 0u) ? ST7789_BL_OFF_STATE : ST7789_BL_ON_STATE);
         return;
     }
@@ -391,19 +609,34 @@ void SPIST7789_Service(void)
     if (!g_spi_txc_flag) return;
 
     g_spi_txc_flag = false;
-    if (g_remaining > 0u) {
+    if (g_xfer_kind == SPIST7789_XFER_FILL && g_remaining > 0u) {
         uint16_t chunk = (g_remaining > SPIST7789_DMA_CHUNK_BYTES) ? (uint16_t)SPIST7789_DMA_CHUNK_BYTES : (uint16_t)g_remaining;
         g_remaining -= (uint32_t)chunk;
         if (!start_dma_chunk(chunk)) {
             cs_high();
             g_busy = false;
+            g_xfer_kind = SPIST7789_XFER_NONE;
             g_dma_err_flag = 1;
         }
         return;
     }
 
+    if (g_xfer_kind == SPIST7789_XFER_FRAMEBUFFER) {
+        uint16_t chunk = prepare_fb_dma_chunk();
+        if (chunk > 0u) {
+            if (!start_dma_chunk(chunk)) {
+                cs_high();
+                g_busy = false;
+                g_xfer_kind = SPIST7789_XFER_NONE;
+                g_dma_err_flag = 1;
+            }
+            return;
+        }
+    }
+
     cs_high();
     g_busy = false;
+    g_xfer_kind = SPIST7789_XFER_NONE;
     g_dma_done_flag = 1;
 }
 
@@ -535,38 +768,6 @@ static void st7789_fb_fill_rect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint
     }
 }
 
-static void st7789_flush_rect(ST7789_Handle* lcd, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
-{
-    if (!lcd || !lcd->fb_back) return;
-    if (x0 > x1 || y0 > y1) return;
-    if (x1 >= ST7789_WIDTH) x1 = (uint16_t)(ST7789_WIDTH - 1u);
-    if (y1 >= ST7789_HEIGHT) y1 = (uint16_t)(ST7789_HEIGHT - 1u);
-    uint16_t w = (uint16_t)(x1 - x0 + 1u);
-    uint16_t h = (uint16_t)(y1 - y0 + 1u);
-    if (!set_window(x0, y0, w, h)) return;
-    uint8_t out[512];
-    for (uint16_t y = y0; y <= y1; y++) {
-        const uint16_t* row = lcd->fb_back + ((uint32_t)y * (uint32_t)ST7789_WIDTH + x0);
-        uint16_t remaining = w;
-        while (remaining) {
-            uint16_t chunkPixels = remaining;
-            if (chunkPixels > (uint16_t)(sizeof(out) / 2u)) chunkPixels = (uint16_t)(sizeof(out) / 2u);
-            for (uint16_t i = 0; i < chunkPixels; i++) {
-                uint16_t c = row[i];
-                out[(uint32_t)i * 2u] = (uint8_t)(c >> 8);
-                out[(uint32_t)i * 2u + 1u] = (uint8_t)(c & 0xFFu);
-            }
-            if (!spi_tx_blocking(out, (uint16_t)(chunkPixels * 2u))) {
-                cs_high();
-                return;
-            }
-            row += chunkPixels;
-            remaining = (uint16_t)(remaining - chunkPixels);
-        }
-    }
-    cs_high();
-}
-
 uint32_t ST7789_RGB(uint8_t r, uint8_t g, uint8_t b)
 {
     return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
@@ -595,7 +796,7 @@ void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
         memset(st7789_fb, 0, sizeof(st7789_fb));
     }
     SPIST7789_Init();
-    lcd->inited = true;
+    lcd->inited = SPIST7789_IsReady();
 }
 
 bool ST7789_IsInited(const ST7789_Handle* lcd)
@@ -612,6 +813,10 @@ bool ST7789_FrameBegin(ST7789_Handle* lcd)
 {
     SPIST7789_Service();
     if (!lcd || !lcd->inited) return false;
+    if (SPIST7789_IsBusy()) {
+        lcd->frame_blocked = true;
+        return false;
+    }
     if (lcd->cfg.fps == 0) {
         lcd->frame_blocked = false;
         return true;
@@ -634,8 +839,9 @@ void ST7789_FrameEnd(ST7789_Handle* lcd)
     if (lcd->frame_blocked) return;
     if (!lcd->framebuffer_enabled) return;
     if (!lcd->dirty_valid) return;
-    st7789_flush_rect(lcd, lcd->dirty_x0, lcd->dirty_y0, lcd->dirty_x1, lcd->dirty_y1);
-    lcd->dirty_valid = false;
+    if (start_fb_flush_async(lcd, lcd->dirty_x0, lcd->dirty_y0, lcd->dirty_x1, lcd->dirty_y1)) {
+        lcd->dirty_valid = false;
+    }
 }
 
 void ST7789_AttachBacklightPWM(ST7789_Handle* lcd, TIM_HandleTypeDef* htim, uint32_t channel)

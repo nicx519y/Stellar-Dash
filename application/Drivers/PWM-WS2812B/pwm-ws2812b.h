@@ -23,6 +23,38 @@ typedef enum
   WS2812B_ERROR        = 0x02
 } WS2812B_StateTypeDef;
 
+typedef enum
+{
+  WS2812B_STRIP_KEYS = 0,
+  WS2812B_STRIP_AMBIENT = 1
+} WS2812B_Strip;
+
+void WS2812B_InitStrip(WS2812B_Strip strip);
+
+void WS2812B_SetAllLEDBrightnessStrip(WS2812B_Strip strip, const uint8_t brightness);
+
+void WS2812B_SetAllLEDColorStrip(WS2812B_Strip strip, const uint8_t r, const uint8_t g, const uint8_t b);
+
+void WS2812B_SetLEDBrightnessStrip(WS2812B_Strip strip, const uint8_t brightness, const uint16_t index, const uint16_t length);
+
+void WS2812B_SetLEDColorStrip(WS2812B_Strip strip, const uint8_t r, const uint8_t g, const uint8_t b, const uint16_t index);
+
+void WS2812B_RefreshStrip(WS2812B_Strip strip, const uint16_t start, const uint16_t length);
+
+bool WS2812B_SubmitStrip(WS2812B_Strip strip);
+
+void WS2812B_ServiceStrip(WS2812B_Strip strip);
+
+void WS2812B_GetUpdateStats(WS2812B_Strip strip,
+                            uint32_t* halfCount,
+                            uint32_t* completeCount);
+
+WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip);
+
+WS2812B_StateTypeDef WS2812B_StopStrip(WS2812B_Strip strip);
+
+WS2812B_StateTypeDef WS2812B_GetStateStrip(WS2812B_Strip strip);
+
 void WS2812B_Init(void);
 
 void WS2812B_SetAllLEDBrightness(const uint8_t brightness);

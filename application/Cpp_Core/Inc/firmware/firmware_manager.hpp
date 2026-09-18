@@ -29,7 +29,16 @@ typedef struct {
     uint32_t chunk_offset;      // 分片偏移
     uint32_t target_address;    // 目标地址
     char checksum[65];          // SHA256校验和
-    uint8_t* data;              // 数据指针
+    /*
+     * Borrowed, read-only chunk bytes. ProcessFirmwareChunk() consumes this
+     * buffer synchronously and never retains it after returning. Keeping the
+     * ownership with the transport avoids duplicating an up-to-8 KiB WebHID
+     * stream on the small newlib heap.
+     *
+     * The const qualification does not change the ChunkData layout or the
+     * on-wire BinaryFirmwareChunkHeader ABI.
+     */
+    const uint8_t* data;
 } ChunkData;
 
 // 组件升级数据
@@ -40,6 +49,15 @@ typedef struct {
     uint32_t total_size;        // 总大小
     uint32_t received_size;     // 已接收大小
     uint32_t base_address;      // 基地址
+    /*
+     * The last committed chunk identity makes an ACK-loss retry idempotent.
+     * These fields are runtime-only session state; they are never persisted
+     * to firmware metadata or the QSPI slot layout.
+     */
+    uint32_t last_chunk_index;
+    uint32_t last_chunk_offset;
+    uint32_t last_chunk_size;
+    char last_chunk_checksum[65];
     bool completed;             // 是否完成
 } ComponentUpgradeData;
 
@@ -129,6 +147,9 @@ public:
     
     // 进度查询
     uint32_t GetUpgradeProgress(const char* session_id);
+    bool GetUpgradeStatus(const char* session_id,
+                          UpgradeStatus* status,
+                          uint32_t* progress) const;
     
     // 会话管理
     void CleanupExpiredSessions();

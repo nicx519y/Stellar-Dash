@@ -1,4 +1,5 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
+#include "main_runtime_control.hpp"
 
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
@@ -27,5 +28,5 @@ void ScreenDetailCalibration_OnConfirm(uint8_t index) {
     (void)index;
     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
     STORAGE_MANAGER.saveConfig();
-    NVIC_SystemReset();
+    MainRuntime_RequestReset();
 }

@@ -1,0 +1,1071 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"base64.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/base64.c"
+  19              		.section	.text.mbedtls_base64_encode,"ax",%progbits
+  20              		.align	1
+  21              		.global	mbedtls_base64_encode
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	mbedtls_base64_encode:
+  27              	.LVL0:
+  28              	.LFB2:
+   1:Libs/mbedtls/library/base64.c **** /*
+   2:Libs/mbedtls/library/base64.c ****  *  RFC 1521 base64 encoding/decoding
+   3:Libs/mbedtls/library/base64.c ****  *
+   4:Libs/mbedtls/library/base64.c ****  *  Copyright The Mbed TLS Contributors
+   5:Libs/mbedtls/library/base64.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   6:Libs/mbedtls/library/base64.c ****  */
+   7:Libs/mbedtls/library/base64.c **** 
+   8:Libs/mbedtls/library/base64.c **** #include "common.h"
+   9:Libs/mbedtls/library/base64.c **** 
+  10:Libs/mbedtls/library/base64.c **** #if defined(MBEDTLS_BASE64_C)
+  11:Libs/mbedtls/library/base64.c **** 
+  12:Libs/mbedtls/library/base64.c **** #include "mbedtls/base64.h"
+  13:Libs/mbedtls/library/base64.c **** #include "constant_time_internal.h"
+  14:Libs/mbedtls/library/base64.c **** 
+  15:Libs/mbedtls/library/base64.c **** #include <stdint.h>
+  16:Libs/mbedtls/library/base64.c **** 
+  17:Libs/mbedtls/library/base64.c **** #if defined(MBEDTLS_SELF_TEST)
+  18:Libs/mbedtls/library/base64.c **** #include <string.h>
+  19:Libs/mbedtls/library/base64.c **** #include "mbedtls/platform.h"
+  20:Libs/mbedtls/library/base64.c **** #endif /* MBEDTLS_SELF_TEST */
+  21:Libs/mbedtls/library/base64.c **** 
+  22:Libs/mbedtls/library/base64.c **** #define BASE64_SIZE_T_MAX   ((size_t) -1)   /* SIZE_T_MAX is not standard */
+  23:Libs/mbedtls/library/base64.c **** 
+  24:Libs/mbedtls/library/base64.c **** /*
+  25:Libs/mbedtls/library/base64.c ****  * Encode a buffer into base64 format
+  26:Libs/mbedtls/library/base64.c ****  */
+  27:Libs/mbedtls/library/base64.c **** int mbedtls_base64_encode(unsigned char *dst, size_t dlen, size_t *olen,
+  28:Libs/mbedtls/library/base64.c ****                           const unsigned char *src, size_t slen)
+  29:Libs/mbedtls/library/base64.c **** {
+  29              		.loc 1 29 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 2
+
+
+  30              		.cfi_startproc
+  31              		@ args = 4, pretend = 0, frame = 8
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		.loc 1 29 1 is_stmt 0 view .LVU1
+  34 0000 2DE9F74F 		push	{r0, r1, r2, r4, r5, r6, r7, r8, r9, r10, fp, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 48
+  37              		.cfi_offset 4, -36
+  38              		.cfi_offset 5, -32
+  39              		.cfi_offset 6, -28
+  40              		.cfi_offset 7, -24
+  41              		.cfi_offset 8, -20
+  42              		.cfi_offset 9, -16
+  43              		.cfi_offset 10, -12
+  44              		.cfi_offset 11, -8
+  45              		.cfi_offset 14, -4
+  46              		.loc 1 29 1 view .LVU2
+  47 0004 0C9F     		ldr	r7, [sp, #48]
+  48 0006 0546     		mov	r5, r0
+  49 0008 1646     		mov	r6, r2
+  30:Libs/mbedtls/library/base64.c ****     size_t i, n;
+  50              		.loc 1 30 5 is_stmt 1 view .LVU3
+  31:Libs/mbedtls/library/base64.c ****     int C1, C2, C3;
+  51              		.loc 1 31 5 view .LVU4
+  32:Libs/mbedtls/library/base64.c ****     unsigned char *p;
+  52              		.loc 1 32 5 view .LVU5
+  33:Libs/mbedtls/library/base64.c **** 
+  34:Libs/mbedtls/library/base64.c ****     if (slen == 0) {
+  53              		.loc 1 34 5 view .LVU6
+  54              		.loc 1 34 8 is_stmt 0 view .LVU7
+  55 000a 17B9     		cbnz	r7, .L2
+  35:Libs/mbedtls/library/base64.c ****         *olen = 0;
+  56              		.loc 1 35 9 is_stmt 1 view .LVU8
+  57              		.loc 1 35 15 is_stmt 0 view .LVU9
+  58 000c 1760     		str	r7, [r2]
+  36:Libs/mbedtls/library/base64.c ****         return 0;
+  59              		.loc 1 36 9 is_stmt 1 view .LVU10
+  60              	.LVL1:
+  61              	.L3:
+  62              		.loc 1 36 16 is_stmt 0 view .LVU11
+  63 000e 0020     		movs	r0, #0
+  64 0010 12E0     		b	.L1
+  65              	.LVL2:
+  66              	.L2:
+  37:Libs/mbedtls/library/base64.c ****     }
+  38:Libs/mbedtls/library/base64.c **** 
+  39:Libs/mbedtls/library/base64.c ****     n = slen / 3 + (slen % 3 != 0);
+  67              		.loc 1 39 5 is_stmt 1 view .LVU12
+  68              		.loc 1 39 14 is_stmt 0 view .LVU13
+  69 0012 0324     		movs	r4, #3
+  70 0014 B7FBF4F4 		udiv	r4, r7, r4
+  71              		.loc 1 39 26 view .LVU14
+  72 0018 04EB4408 		add	r8, r4, r4, lsl #1
+  73              		.loc 1 39 7 view .LVU15
+  74 001c 4745     		cmp	r7, r8
+  75 001e 18BF     		it	ne
+  76 0020 0134     		addne	r4, r4, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 3
+
+
+  77              	.LVL3:
+  40:Libs/mbedtls/library/base64.c **** 
+  41:Libs/mbedtls/library/base64.c ****     if (n > (BASE64_SIZE_T_MAX - 1) / 4) {
+  78              		.loc 1 41 5 is_stmt 1 view .LVU16
+  79              		.loc 1 41 8 is_stmt 0 view .LVU17
+  80 0022 B4F1804F 		cmp	r4, #1073741824
+  81 0026 0AD2     		bcs	.L12
+  42:Libs/mbedtls/library/base64.c ****         *olen = BASE64_SIZE_T_MAX;
+  43:Libs/mbedtls/library/base64.c ****         return MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL;
+  44:Libs/mbedtls/library/base64.c ****     }
+  45:Libs/mbedtls/library/base64.c **** 
+  46:Libs/mbedtls/library/base64.c ****     n *= 4;
+  82              		.loc 1 46 5 is_stmt 1 view .LVU18
+  83              	.LVL4:
+  47:Libs/mbedtls/library/base64.c **** 
+  48:Libs/mbedtls/library/base64.c ****     if ((dlen < n + 1) || (NULL == dst)) {
+  84              		.loc 1 48 5 view .LVU19
+  46:Libs/mbedtls/library/base64.c **** 
+  85              		.loc 1 46 7 is_stmt 0 view .LVU20
+  86 0028 A400     		lsls	r4, r4, #2
+  87              	.LVL5:
+  88              		.loc 1 48 19 view .LVU21
+  89 002a 0134     		adds	r4, r4, #1
+  90              	.LVL6:
+  91              		.loc 1 48 8 view .LVU22
+  92 002c 8C42     		cmp	r4, r1
+  93 002e 00D8     		bhi	.L4
+  94              		.loc 1 48 24 discriminator 1 view .LVU23
+  95 0030 40B9     		cbnz	r0, .L5
+  96              	.LVL7:
+  97              	.L4:
+  43:Libs/mbedtls/library/base64.c ****     }
+  98              		.loc 1 43 16 view .LVU24
+  99 0032 6FF02900 		mvn	r0, #41
+ 100              	.LVL8:
+  49:Libs/mbedtls/library/base64.c ****         *olen = n + 1;
+ 101              		.loc 1 49 15 view .LVU25
+ 102 0036 3460     		str	r4, [r6]
+ 103              	.LVL9:
+ 104              	.L1:
+  50:Libs/mbedtls/library/base64.c ****         return MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL;
+  51:Libs/mbedtls/library/base64.c ****     }
+  52:Libs/mbedtls/library/base64.c **** 
+  53:Libs/mbedtls/library/base64.c ****     n = (slen / 3) * 3;
+  54:Libs/mbedtls/library/base64.c **** 
+  55:Libs/mbedtls/library/base64.c ****     for (i = 0, p = dst; i < n; i += 3) {
+  56:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+  57:Libs/mbedtls/library/base64.c ****         C2 = *src++;
+  58:Libs/mbedtls/library/base64.c ****         C3 = *src++;
+  59:Libs/mbedtls/library/base64.c **** 
+  60:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((C1 >> 2) & 0x3F);
+  61:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 &  3) << 4) + (C2 >> 4))
+  62:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+  63:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C2 & 15) << 2) + (C3 >> 6))
+  64:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+  65:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char(C3 & 0x3F);
+  66:Libs/mbedtls/library/base64.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 4
+
+
+  67:Libs/mbedtls/library/base64.c **** 
+  68:Libs/mbedtls/library/base64.c ****     if (i < slen) {
+  69:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+  70:Libs/mbedtls/library/base64.c ****         C2 = ((i + 1) < slen) ? *src++ : 0;
+  71:Libs/mbedtls/library/base64.c **** 
+  72:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((C1 >> 2) & 0x3F);
+  73:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 & 3) << 4) + (C2 >> 4))
+  74:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+  75:Libs/mbedtls/library/base64.c **** 
+  76:Libs/mbedtls/library/base64.c ****         if ((i + 1) < slen) {
+  77:Libs/mbedtls/library/base64.c ****             *p++ = mbedtls_ct_base64_enc_char(((C2 & 15) << 2) & 0x3F);
+  78:Libs/mbedtls/library/base64.c ****         } else {
+  79:Libs/mbedtls/library/base64.c ****             *p++ = '=';
+  80:Libs/mbedtls/library/base64.c ****         }
+  81:Libs/mbedtls/library/base64.c **** 
+  82:Libs/mbedtls/library/base64.c ****         *p++ = '=';
+  83:Libs/mbedtls/library/base64.c ****     }
+  84:Libs/mbedtls/library/base64.c **** 
+  85:Libs/mbedtls/library/base64.c ****     *olen = p - dst;
+  86:Libs/mbedtls/library/base64.c ****     *p = 0;
+  87:Libs/mbedtls/library/base64.c **** 
+  88:Libs/mbedtls/library/base64.c ****     return 0;
+  89:Libs/mbedtls/library/base64.c **** }
+ 105              		.loc 1 89 1 view .LVU26
+ 106 0038 03B0     		add	sp, sp, #12
+ 107              	.LCFI1:
+ 108              		.cfi_remember_state
+ 109              		.cfi_def_cfa_offset 36
+ 110              		@ sp needed
+ 111 003a BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 112              	.LVL10:
+ 113              	.L12:
+ 114              	.LCFI2:
+ 115              		.cfi_restore_state
+ 116              		.loc 1 89 1 view .LVU27
+ 117 003e 4FF0FF34 		mov	r4, #-1
+ 118              	.LVL11:
+ 119              		.loc 1 89 1 view .LVU28
+ 120 0042 F6E7     		b	.L4
+ 121              	.LVL12:
+ 122              	.L5:
+  53:Libs/mbedtls/library/base64.c **** 
+ 123              		.loc 1 53 5 is_stmt 1 view .LVU29
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 124              		.loc 1 55 5 view .LVU30
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 125              		.loc 1 55 5 is_stmt 0 view .LVU31
+ 126 0044 8146     		mov	r9, r0
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 127              		.loc 1 55 12 view .LVU32
+ 128 0046 0024     		movs	r4, #0
+ 129              	.LVL13:
+ 130              	.L7:
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 131              		.loc 1 55 28 is_stmt 1 discriminator 1 view .LVU33
+ 132 0048 4445     		cmp	r4, r8
+ 133 004a 03F10302 		add	r2, r3, #3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 5
+
+
+ 134 004e 09F1040A 		add	r10, r9, #4
+ 135 0052 2ED3     		bcc	.L8
+  68:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 136              		.loc 1 68 8 is_stmt 0 view .LVU34
+ 137 0054 BC42     		cmp	r4, r7
+ 138 0056 4A46     		mov	r2, r9
+  68:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 139              		.loc 1 68 5 is_stmt 1 view .LVU35
+  68:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 140              		.loc 1 68 8 is_stmt 0 view .LVU36
+ 141 0058 26D2     		bcs	.L9
+  69:Libs/mbedtls/library/base64.c ****         C2 = ((i + 1) < slen) ? *src++ : 0;
+ 142              		.loc 1 69 9 is_stmt 1 view .LVU37
+ 143              	.LVL14:
+  70:Libs/mbedtls/library/base64.c **** 
+ 144              		.loc 1 70 18 is_stmt 0 view .LVU38
+ 145 005a 0134     		adds	r4, r4, #1
+ 146              	.LVL15:
+  69:Libs/mbedtls/library/base64.c ****         C2 = ((i + 1) < slen) ? *src++ : 0;
+ 147              		.loc 1 69 14 view .LVU39
+ 148 005c 93F80080 		ldrb	r8, [r3]	@ zero_extendqisi2
+ 149              	.LVL16:
+  70:Libs/mbedtls/library/base64.c **** 
+ 150              		.loc 1 70 9 is_stmt 1 view .LVU40
+  70:Libs/mbedtls/library/base64.c **** 
+ 151              		.loc 1 70 40 is_stmt 0 view .LVU41
+ 152 0060 BC42     		cmp	r4, r7
+ 153              	.LVL17:
+  72:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 & 3) << 4) + (C2 >> 4))
+ 154              		.loc 1 72 16 view .LVU42
+ 155 0062 4FEA9800 		lsr	r0, r8, #2
+  70:Libs/mbedtls/library/base64.c **** 
+ 156              		.loc 1 70 40 discriminator 1 view .LVU43
+ 157 0066 34BF     		ite	cc
+ 158 0068 93F801B0 		ldrbcc	fp, [r3, #1]	@ zero_extendqisi2
+  70:Libs/mbedtls/library/base64.c **** 
+ 159              		.loc 1 70 40 discriminator 2 view .LVU44
+ 160 006c 4FF0000B 		movcs	fp, #0
+ 161              	.LVL18:
+  72:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 & 3) << 4) + (C2 >> 4))
+ 162              		.loc 1 72 9 is_stmt 1 view .LVU45
+  72:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 & 3) << 4) + (C2 >> 4))
+ 163              		.loc 1 72 16 is_stmt 0 view .LVU46
+ 164 0070 FFF7FEFF 		bl	mbedtls_ct_base64_enc_char
+ 165              	.LVL19:
+  72:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 & 3) << 4) + (C2 >> 4))
+ 166              		.loc 1 72 14 discriminator 1 view .LVU47
+ 167 0074 89F80000 		strb	r0, [r9]
+  73:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 168              		.loc 1 73 9 is_stmt 1 view .LVU48
+ 169              	.LVL20:
+  73:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 170              		.loc 1 73 54 is_stmt 0 view .LVU49
+ 171 0078 4FEA0810 		lsl	r0, r8, #4
+ 172 007c 00F03000 		and	r0, r0, #48
+  73:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 173              		.loc 1 73 16 view .LVU50
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 6
+
+
+ 174 0080 00EB1B10 		add	r0, r0, fp, lsr #4
+ 175 0084 FFF7FEFF 		bl	mbedtls_ct_base64_enc_char
+ 176              	.LVL21:
+  76:Libs/mbedtls/library/base64.c ****             *p++ = mbedtls_ct_base64_enc_char(((C2 & 15) << 2) & 0x3F);
+ 177              		.loc 1 76 12 view .LVU51
+ 178 0088 BC42     		cmp	r4, r7
+  73:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 179              		.loc 1 73 14 discriminator 1 view .LVU52
+ 180 008a 89F80100 		strb	r0, [r9, #1]
+  76:Libs/mbedtls/library/base64.c ****             *p++ = mbedtls_ct_base64_enc_char(((C2 & 15) << 2) & 0x3F);
+ 181              		.loc 1 76 9 is_stmt 1 view .LVU53
+  76:Libs/mbedtls/library/base64.c ****             *p++ = mbedtls_ct_base64_enc_char(((C2 & 15) << 2) & 0x3F);
+ 182              		.loc 1 76 12 is_stmt 0 view .LVU54
+ 183 008e 3CD2     		bcs	.L14
+  77:Libs/mbedtls/library/base64.c ****         } else {
+ 184              		.loc 1 77 13 is_stmt 1 view .LVU55
+ 185              	.LVL22:
+  77:Libs/mbedtls/library/base64.c ****         } else {
+ 186              		.loc 1 77 64 is_stmt 0 view .LVU56
+ 187 0090 4FEA8B00 		lsl	r0, fp, #2
+  77:Libs/mbedtls/library/base64.c ****         } else {
+ 188              		.loc 1 77 20 view .LVU57
+ 189 0094 00F03C00 		and	r0, r0, #60
+ 190 0098 FFF7FEFF 		bl	mbedtls_ct_base64_enc_char
+ 191              	.LVL23:
+ 192              	.L11:
+  82:Libs/mbedtls/library/base64.c ****     }
+ 193              		.loc 1 82 14 view .LVU58
+ 194 009c 3D23     		movs	r3, #61
+  82:Libs/mbedtls/library/base64.c ****     }
+ 195              		.loc 1 82 11 view .LVU59
+ 196 009e 5246     		mov	r2, r10
+  77:Libs/mbedtls/library/base64.c ****         } else {
+ 197              		.loc 1 77 18 discriminator 1 view .LVU60
+ 198 00a0 89F80200 		strb	r0, [r9, #2]
+ 199              	.LVL24:
+  82:Libs/mbedtls/library/base64.c ****     }
+ 200              		.loc 1 82 9 is_stmt 1 view .LVU61
+  82:Libs/mbedtls/library/base64.c ****     }
+ 201              		.loc 1 82 14 is_stmt 0 view .LVU62
+ 202 00a4 89F80330 		strb	r3, [r9, #3]
+ 203              	.LVL25:
+ 204              	.L9:
+  85:Libs/mbedtls/library/base64.c ****     *p = 0;
+ 205              		.loc 1 85 5 is_stmt 1 view .LVU63
+  85:Libs/mbedtls/library/base64.c ****     *p = 0;
+ 206              		.loc 1 85 15 is_stmt 0 view .LVU64
+ 207 00a8 551B     		subs	r5, r2, r5
+ 208              	.LVL26:
+  86:Libs/mbedtls/library/base64.c **** 
+ 209              		.loc 1 86 8 view .LVU65
+ 210 00aa 0023     		movs	r3, #0
+  85:Libs/mbedtls/library/base64.c ****     *p = 0;
+ 211              		.loc 1 85 11 view .LVU66
+ 212 00ac 3560     		str	r5, [r6]
+  86:Libs/mbedtls/library/base64.c **** 
+ 213              		.loc 1 86 5 is_stmt 1 view .LVU67
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 7
+
+
+  86:Libs/mbedtls/library/base64.c **** 
+ 214              		.loc 1 86 8 is_stmt 0 view .LVU68
+ 215 00ae 1370     		strb	r3, [r2]
+  88:Libs/mbedtls/library/base64.c **** }
+ 216              		.loc 1 88 5 is_stmt 1 view .LVU69
+  88:Libs/mbedtls/library/base64.c **** }
+ 217              		.loc 1 88 12 is_stmt 0 view .LVU70
+ 218 00b0 ADE7     		b	.L3
+ 219              	.LVL27:
+ 220              	.L8:
+  56:Libs/mbedtls/library/base64.c ****         C2 = *src++;
+ 221              		.loc 1 56 9 is_stmt 1 view .LVU71
+  56:Libs/mbedtls/library/base64.c ****         C2 = *src++;
+ 222              		.loc 1 56 14 is_stmt 0 view .LVU72
+ 223 00b2 12F8033C 		ldrb	r3, [r2, #-3]	@ zero_extendqisi2
+ 224              	.LVL28:
+  57:Libs/mbedtls/library/base64.c ****         C3 = *src++;
+ 225              		.loc 1 57 9 is_stmt 1 view .LVU73
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 226              		.loc 1 55 35 is_stmt 0 discriminator 3 view .LVU74
+ 227 00b6 0334     		adds	r4, r4, #3
+ 228              	.LVL29:
+  57:Libs/mbedtls/library/base64.c ****         C3 = *src++;
+ 229              		.loc 1 57 14 view .LVU75
+ 230 00b8 12F8029C 		ldrb	r9, [r2, #-2]	@ zero_extendqisi2
+ 231              	.LVL30:
+  58:Libs/mbedtls/library/base64.c **** 
+ 232              		.loc 1 58 9 is_stmt 1 view .LVU76
+  60:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 &  3) << 4) + (C2 >> 4))
+ 233              		.loc 1 60 16 is_stmt 0 view .LVU77
+ 234 00bc 9808     		lsrs	r0, r3, #2
+  58:Libs/mbedtls/library/base64.c **** 
+ 235              		.loc 1 58 14 view .LVU78
+ 236 00be 12F801BC 		ldrb	fp, [r2, #-1]	@ zero_extendqisi2
+ 237 00c2 0192     		str	r2, [sp, #4]
+ 238              	.LVL31:
+  60:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 &  3) << 4) + (C2 >> 4))
+ 239              		.loc 1 60 9 is_stmt 1 view .LVU79
+  60:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 &  3) << 4) + (C2 >> 4))
+ 240              		.loc 1 60 16 is_stmt 0 view .LVU80
+ 241 00c4 0093     		str	r3, [sp]
+ 242 00c6 FFF7FEFF 		bl	mbedtls_ct_base64_enc_char
+ 243              	.LVL32:
+  61:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 244              		.loc 1 61 55 view .LVU81
+ 245 00ca 009B     		ldr	r3, [sp]
+  60:Libs/mbedtls/library/base64.c ****         *p++ = mbedtls_ct_base64_enc_char((((C1 &  3) << 4) + (C2 >> 4))
+ 246              		.loc 1 60 14 discriminator 1 view .LVU82
+ 247 00cc 0AF8040C 		strb	r0, [r10, #-4]
+  61:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 248              		.loc 1 61 9 is_stmt 1 view .LVU83
+ 249              	.LVL33:
+  61:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 250              		.loc 1 61 55 is_stmt 0 view .LVU84
+ 251 00d0 1801     		lsls	r0, r3, #4
+ 252 00d2 00F03000 		and	r0, r0, #48
+  61:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 8
+
+
+ 253              		.loc 1 61 16 view .LVU85
+ 254 00d6 00EB1910 		add	r0, r0, r9, lsr #4
+ 255 00da FFF7FEFF 		bl	mbedtls_ct_base64_enc_char
+ 256              	.LVL34:
+  61:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 257              		.loc 1 61 14 discriminator 1 view .LVU86
+ 258 00de 0AF8030C 		strb	r0, [r10, #-3]
+  63:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 259              		.loc 1 63 9 is_stmt 1 view .LVU87
+ 260              	.LVL35:
+  63:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 261              		.loc 1 63 55 is_stmt 0 view .LVU88
+ 262 00e2 4FEA8900 		lsl	r0, r9, #2
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 263              		.loc 1 55 35 discriminator 3 view .LVU89
+ 264 00e6 D146     		mov	r9, r10
+ 265              	.LVL36:
+  63:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 266              		.loc 1 63 55 view .LVU90
+ 267 00e8 00F03C00 		and	r0, r0, #60
+  63:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 268              		.loc 1 63 16 view .LVU91
+ 269 00ec 00EB9B10 		add	r0, r0, fp, lsr #6
+ 270 00f0 FFF7FEFF 		bl	mbedtls_ct_base64_enc_char
+ 271              	.LVL37:
+  63:Libs/mbedtls/library/base64.c ****                                           & 0x3F);
+ 272              		.loc 1 63 14 discriminator 1 view .LVU92
+ 273 00f4 0AF8020C 		strb	r0, [r10, #-2]
+  65:Libs/mbedtls/library/base64.c ****     }
+ 274              		.loc 1 65 9 is_stmt 1 view .LVU93
+ 275              	.LVL38:
+  65:Libs/mbedtls/library/base64.c ****     }
+ 276              		.loc 1 65 16 is_stmt 0 view .LVU94
+ 277 00f8 0BF03F00 		and	r0, fp, #63
+ 278 00fc FFF7FEFF 		bl	mbedtls_ct_base64_enc_char
+ 279              	.LVL39:
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 280              		.loc 1 55 35 discriminator 3 view .LVU95
+ 281 0100 019A     		ldr	r2, [sp, #4]
+  65:Libs/mbedtls/library/base64.c ****     }
+ 282              		.loc 1 65 14 discriminator 1 view .LVU96
+ 283 0102 0AF8010C 		strb	r0, [r10, #-1]
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 284              		.loc 1 55 35 is_stmt 1 discriminator 3 view .LVU97
+ 285              	.LVL40:
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 286              		.loc 1 55 35 is_stmt 0 discriminator 3 view .LVU98
+ 287 0106 1346     		mov	r3, r2
+ 288 0108 9EE7     		b	.L7
+ 289              	.LVL41:
+ 290              	.L14:
+  55:Libs/mbedtls/library/base64.c ****         C1 = *src++;
+ 291              		.loc 1 55 35 discriminator 3 view .LVU99
+ 292 010a 3D20     		movs	r0, #61
+ 293 010c C6E7     		b	.L11
+ 294              		.cfi_endproc
+ 295              	.LFE2:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 9
+
+
+ 297              		.section	.text.mbedtls_base64_decode,"ax",%progbits
+ 298              		.align	1
+ 299              		.global	mbedtls_base64_decode
+ 300              		.syntax unified
+ 301              		.thumb
+ 302              		.thumb_func
+ 304              	mbedtls_base64_decode:
+ 305              	.LVL42:
+ 306              	.LFB3:
+  90:Libs/mbedtls/library/base64.c **** 
+  91:Libs/mbedtls/library/base64.c **** /*
+  92:Libs/mbedtls/library/base64.c ****  * Decode a base64-formatted buffer
+  93:Libs/mbedtls/library/base64.c ****  */
+  94:Libs/mbedtls/library/base64.c **** int mbedtls_base64_decode(unsigned char *dst, size_t dlen, size_t *olen,
+  95:Libs/mbedtls/library/base64.c ****                           const unsigned char *src, size_t slen)
+  96:Libs/mbedtls/library/base64.c **** {
+ 307              		.loc 1 96 1 is_stmt 1 view -0
+ 308              		.cfi_startproc
+ 309              		@ args = 4, pretend = 0, frame = 0
+ 310              		@ frame_needed = 0, uses_anonymous_args = 0
+ 311              		.loc 1 96 1 is_stmt 0 view .LVU101
+ 312 0000 2DE9F84F 		push	{r3, r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 313              	.LCFI3:
+ 314              		.cfi_def_cfa_offset 40
+ 315              		.cfi_offset 3, -40
+ 316              		.cfi_offset 4, -36
+ 317              		.cfi_offset 5, -32
+ 318              		.cfi_offset 6, -28
+ 319              		.cfi_offset 7, -24
+ 320              		.cfi_offset 8, -20
+ 321              		.cfi_offset 9, -16
+ 322              		.cfi_offset 10, -12
+ 323              		.cfi_offset 11, -8
+ 324              		.cfi_offset 14, -4
+  97:Libs/mbedtls/library/base64.c ****     size_t i; /* index in source */
+  98:Libs/mbedtls/library/base64.c ****     size_t n; /* number of digits or trailing = in source */
+  99:Libs/mbedtls/library/base64.c ****     uint32_t x; /* value accumulator */
+ 100:Libs/mbedtls/library/base64.c ****     unsigned accumulated_digits = 0;
+ 101:Libs/mbedtls/library/base64.c ****     unsigned equals = 0;
+ 325              		.loc 1 101 14 view .LVU102
+ 326 0004 4FF0000A 		mov	r10, #0
+  96:Libs/mbedtls/library/base64.c ****     size_t i; /* index in source */
+ 327              		.loc 1 96 1 view .LVU103
+ 328 0008 0546     		mov	r5, r0
+ 329 000a 8946     		mov	r9, r1
+ 330 000c 1646     		mov	r6, r2
+  97:Libs/mbedtls/library/base64.c ****     size_t i; /* index in source */
+ 331              		.loc 1 97 5 is_stmt 1 view .LVU104
+  98:Libs/mbedtls/library/base64.c ****     uint32_t x; /* value accumulator */
+ 332              		.loc 1 98 5 view .LVU105
+  99:Libs/mbedtls/library/base64.c ****     unsigned accumulated_digits = 0;
+ 333              		.loc 1 99 5 view .LVU106
+ 100:Libs/mbedtls/library/base64.c ****     unsigned equals = 0;
+ 334              		.loc 1 100 5 view .LVU107
+ 335              	.LVL43:
+ 336              		.loc 1 101 5 view .LVU108
+ 102:Libs/mbedtls/library/base64.c ****     int spaces_present = 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 10
+
+
+ 337              		.loc 1 102 5 view .LVU109
+ 103:Libs/mbedtls/library/base64.c ****     unsigned char *p;
+ 338              		.loc 1 103 5 view .LVU110
+ 104:Libs/mbedtls/library/base64.c **** 
+ 105:Libs/mbedtls/library/base64.c ****     /* First pass: check for validity and get output length */
+ 106:Libs/mbedtls/library/base64.c ****     for (i = n = 0; i < slen; i++) {
+ 339              		.loc 1 106 5 view .LVU111
+  96:Libs/mbedtls/library/base64.c ****     size_t i; /* index in source */
+ 340              		.loc 1 96 1 is_stmt 0 view .LVU112
+ 341 000e 9846     		mov	r8, r3
+ 342 0010 DDF828B0 		ldr	fp, [sp, #40]
+ 343              		.loc 1 106 16 view .LVU113
+ 344 0014 5446     		mov	r4, r10
+ 345              		.loc 1 106 12 view .LVU114
+ 346 0016 5746     		mov	r7, r10
+ 347              	.LVL44:
+ 348              	.L16:
+ 349              		.loc 1 106 23 is_stmt 1 discriminator 1 view .LVU115
+ 350 0018 5F45     		cmp	r7, fp
+ 351 001a 18D2     		bcs	.L17
+ 107:Libs/mbedtls/library/base64.c ****         /* Skip spaces before checking for EOL */
+ 108:Libs/mbedtls/library/base64.c ****         spaces_present = 0;
+ 352              		.loc 1 108 24 is_stmt 0 view .LVU116
+ 353 001c 0023     		movs	r3, #0
+ 354              	.L27:
+ 109:Libs/mbedtls/library/base64.c ****         while (i < slen && src[i] == ' ') {
+ 355              		.loc 1 109 25 discriminator 1 view .LVU117
+ 356 001e 18F80700 		ldrb	r0, [r8, r7]	@ zero_extendqisi2
+ 357 0022 2028     		cmp	r0, #32
+ 358 0024 0FD0     		beq	.L18
+ 110:Libs/mbedtls/library/base64.c ****             ++i;
+ 111:Libs/mbedtls/library/base64.c ****             spaces_present = 1;
+ 112:Libs/mbedtls/library/base64.c ****         }
+ 113:Libs/mbedtls/library/base64.c **** 
+ 114:Libs/mbedtls/library/base64.c ****         /* Spaces at end of buffer are OK */
+ 115:Libs/mbedtls/library/base64.c ****         if (i == slen) {
+ 359              		.loc 1 115 9 is_stmt 1 view .LVU118
+ 116:Libs/mbedtls/library/base64.c ****             break;
+ 117:Libs/mbedtls/library/base64.c ****         }
+ 118:Libs/mbedtls/library/base64.c **** 
+ 119:Libs/mbedtls/library/base64.c ****         if ((slen - i) >= 2 &&
+ 360              		.loc 1 119 9 view .LVU119
+ 361              		.loc 1 119 19 is_stmt 0 view .LVU120
+ 362 0026 ABEB0702 		sub	r2, fp, r7
+ 363              		.loc 1 119 12 view .LVU121
+ 364 002a 012A     		cmp	r2, #1
+ 365 002c 13D0     		beq	.L19
+ 366              		.loc 1 119 29 discriminator 1 view .LVU122
+ 367 002e 0D28     		cmp	r0, #13
+ 368 0030 11D1     		bne	.L19
+ 120:Libs/mbedtls/library/base64.c ****             src[i] == '\r' && src[i + 1] == '\n') {
+ 369              		.loc 1 120 34 view .LVU123
+ 370 0032 08EB0702 		add	r2, r8, r7
+ 371              		.loc 1 120 28 view .LVU124
+ 372 0036 5278     		ldrb	r2, [r2, #1]	@ zero_extendqisi2
+ 373 0038 0A2A     		cmp	r2, #10
+ 374              	.L54:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 11
+
+
+ 121:Libs/mbedtls/library/base64.c ****             continue;
+ 122:Libs/mbedtls/library/base64.c ****         }
+ 123:Libs/mbedtls/library/base64.c **** 
+ 124:Libs/mbedtls/library/base64.c ****         if (src[i] == '\n') {
+ 375              		.loc 1 124 12 view .LVU125
+ 376 003a 18D0     		beq	.L20
+ 125:Libs/mbedtls/library/base64.c ****             continue;
+ 126:Libs/mbedtls/library/base64.c ****         }
+ 127:Libs/mbedtls/library/base64.c **** 
+ 128:Libs/mbedtls/library/base64.c ****         /* Space inside a line is an error */
+ 129:Libs/mbedtls/library/base64.c ****         if (spaces_present) {
+ 377              		.loc 1 129 9 is_stmt 1 view .LVU126
+ 378              		.loc 1 129 12 is_stmt 0 view .LVU127
+ 379 003c 6BB1     		cbz	r3, .L22
+ 380              	.L24:
+ 130:Libs/mbedtls/library/base64.c ****             return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 381              		.loc 1 130 20 view .LVU128
+ 382 003e 6FF02B00 		mvn	r0, #43
+ 383              	.LVL45:
+ 384              	.L15:
+ 131:Libs/mbedtls/library/base64.c ****         }
+ 132:Libs/mbedtls/library/base64.c **** 
+ 133:Libs/mbedtls/library/base64.c ****         if (src[i] > 127) {
+ 134:Libs/mbedtls/library/base64.c ****             return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 135:Libs/mbedtls/library/base64.c ****         }
+ 136:Libs/mbedtls/library/base64.c **** 
+ 137:Libs/mbedtls/library/base64.c ****         if (src[i] == '=') {
+ 138:Libs/mbedtls/library/base64.c ****             if (++equals > 2) {
+ 139:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 140:Libs/mbedtls/library/base64.c ****             }
+ 141:Libs/mbedtls/library/base64.c ****         } else {
+ 142:Libs/mbedtls/library/base64.c ****             if (equals != 0) {
+ 143:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 144:Libs/mbedtls/library/base64.c ****             }
+ 145:Libs/mbedtls/library/base64.c ****             if (mbedtls_ct_base64_dec_value(src[i]) < 0) {
+ 146:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 147:Libs/mbedtls/library/base64.c ****             }
+ 148:Libs/mbedtls/library/base64.c ****         }
+ 149:Libs/mbedtls/library/base64.c ****         n++;
+ 150:Libs/mbedtls/library/base64.c ****     }
+ 151:Libs/mbedtls/library/base64.c **** 
+ 152:Libs/mbedtls/library/base64.c ****     if (n == 0) {
+ 153:Libs/mbedtls/library/base64.c ****         *olen = 0;
+ 154:Libs/mbedtls/library/base64.c ****         return 0;
+ 155:Libs/mbedtls/library/base64.c ****     }
+ 156:Libs/mbedtls/library/base64.c **** 
+ 157:Libs/mbedtls/library/base64.c ****     /* The following expression is to calculate the following formula without
+ 158:Libs/mbedtls/library/base64.c ****      * risk of integer overflow in n:
+ 159:Libs/mbedtls/library/base64.c ****      *     n = ( ( n * 6 ) + 7 ) >> 3;
+ 160:Libs/mbedtls/library/base64.c ****      */
+ 161:Libs/mbedtls/library/base64.c ****     n = (6 * (n >> 3)) + ((6 * (n & 0x7) + 7) >> 3);
+ 162:Libs/mbedtls/library/base64.c ****     n -= equals;
+ 163:Libs/mbedtls/library/base64.c **** 
+ 164:Libs/mbedtls/library/base64.c ****     if (dst == NULL || dlen < n) {
+ 165:Libs/mbedtls/library/base64.c ****         *olen = n;
+ 166:Libs/mbedtls/library/base64.c ****         return MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL;
+ 167:Libs/mbedtls/library/base64.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 12
+
+
+ 168:Libs/mbedtls/library/base64.c **** 
+ 169:Libs/mbedtls/library/base64.c ****     equals = 0;
+ 170:Libs/mbedtls/library/base64.c ****     for (x = 0, p = dst; i > 0; i--, src++) {
+ 171:Libs/mbedtls/library/base64.c ****         if (*src == '\r' || *src == '\n' || *src == ' ') {
+ 172:Libs/mbedtls/library/base64.c ****             continue;
+ 173:Libs/mbedtls/library/base64.c ****         }
+ 174:Libs/mbedtls/library/base64.c **** 
+ 175:Libs/mbedtls/library/base64.c ****         x = x << 6;
+ 176:Libs/mbedtls/library/base64.c ****         if (*src == '=') {
+ 177:Libs/mbedtls/library/base64.c ****             ++equals;
+ 178:Libs/mbedtls/library/base64.c ****         } else {
+ 179:Libs/mbedtls/library/base64.c ****             x |= mbedtls_ct_base64_dec_value(*src);
+ 180:Libs/mbedtls/library/base64.c ****         }
+ 181:Libs/mbedtls/library/base64.c **** 
+ 182:Libs/mbedtls/library/base64.c ****         if (++accumulated_digits == 4) {
+ 183:Libs/mbedtls/library/base64.c ****             accumulated_digits = 0;
+ 184:Libs/mbedtls/library/base64.c ****             *p++ = MBEDTLS_BYTE_2(x);
+ 185:Libs/mbedtls/library/base64.c ****             if (equals <= 1) {
+ 186:Libs/mbedtls/library/base64.c ****                 *p++ = MBEDTLS_BYTE_1(x);
+ 187:Libs/mbedtls/library/base64.c ****             }
+ 188:Libs/mbedtls/library/base64.c ****             if (equals <= 0) {
+ 189:Libs/mbedtls/library/base64.c ****                 *p++ = MBEDTLS_BYTE_0(x);
+ 190:Libs/mbedtls/library/base64.c ****             }
+ 191:Libs/mbedtls/library/base64.c ****         }
+ 192:Libs/mbedtls/library/base64.c ****     }
+ 193:Libs/mbedtls/library/base64.c **** 
+ 194:Libs/mbedtls/library/base64.c ****     *olen = p - dst;
+ 195:Libs/mbedtls/library/base64.c **** 
+ 196:Libs/mbedtls/library/base64.c ****     return 0;
+ 197:Libs/mbedtls/library/base64.c **** }
+ 385              		.loc 1 197 1 view .LVU129
+ 386 0042 BDE8F88F 		pop	{r3, r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 387              	.LVL46:
+ 388              	.L18:
+ 110:Libs/mbedtls/library/base64.c ****             spaces_present = 1;
+ 389              		.loc 1 110 13 is_stmt 1 view .LVU130
+ 110:Libs/mbedtls/library/base64.c ****             spaces_present = 1;
+ 390              		.loc 1 110 13 is_stmt 0 view .LVU131
+ 391 0046 0137     		adds	r7, r7, #1
+ 392              	.LVL47:
+ 111:Libs/mbedtls/library/base64.c ****         }
+ 393              		.loc 1 111 13 is_stmt 1 view .LVU132
+ 109:Libs/mbedtls/library/base64.c ****             ++i;
+ 394              		.loc 1 109 25 view .LVU133
+ 395 0048 0123     		movs	r3, #1
+ 396 004a BB45     		cmp	fp, r7
+ 397 004c E7D1     		bne	.L27
+ 398              	.LVL48:
+ 399              	.L17:
+ 152:Libs/mbedtls/library/base64.c ****         *olen = 0;
+ 400              		.loc 1 152 5 view .LVU134
+ 152:Libs/mbedtls/library/base64.c ****         *olen = 0;
+ 401              		.loc 1 152 8 is_stmt 0 view .LVU135
+ 402 004e C4B9     		cbnz	r4, .L28
+ 403              	.LVL49:
+ 404              	.L38:
+ 154:Libs/mbedtls/library/base64.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 13
+
+
+ 405              		.loc 1 154 16 view .LVU136
+ 406 0050 0020     		movs	r0, #0
+ 153:Libs/mbedtls/library/base64.c ****         return 0;
+ 407              		.loc 1 153 15 view .LVU137
+ 408 0052 3460     		str	r4, [r6]
+ 409 0054 F5E7     		b	.L15
+ 410              	.LVL50:
+ 411              	.L19:
+ 124:Libs/mbedtls/library/base64.c ****             continue;
+ 412              		.loc 1 124 9 is_stmt 1 view .LVU138
+ 124:Libs/mbedtls/library/base64.c ****             continue;
+ 413              		.loc 1 124 12 is_stmt 0 view .LVU139
+ 414 0056 0A28     		cmp	r0, #10
+ 415 0058 EFE7     		b	.L54
+ 416              	.L22:
+ 133:Libs/mbedtls/library/base64.c ****             return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 417              		.loc 1 133 9 is_stmt 1 view .LVU140
+ 133:Libs/mbedtls/library/base64.c ****             return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 418              		.loc 1 133 12 is_stmt 0 view .LVU141
+ 419 005a 0206     		lsls	r2, r0, #24
+ 420 005c EFD4     		bmi	.L24
+ 137:Libs/mbedtls/library/base64.c ****             if (++equals > 2) {
+ 421              		.loc 1 137 9 is_stmt 1 view .LVU142
+ 137:Libs/mbedtls/library/base64.c ****             if (++equals > 2) {
+ 422              		.loc 1 137 12 is_stmt 0 view .LVU143
+ 423 005e 3D28     		cmp	r0, #61
+ 424 0060 07D1     		bne	.L25
+ 138:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 425              		.loc 1 138 13 is_stmt 1 view .LVU144
+ 138:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 426              		.loc 1 138 16 is_stmt 0 view .LVU145
+ 427 0062 0AF1010A 		add	r10, r10, #1
+ 428              	.LVL51:
+ 138:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 429              		.loc 1 138 16 view .LVU146
+ 430 0066 BAF1020F 		cmp	r10, #2
+ 431 006a E8D8     		bhi	.L24
+ 432              	.L26:
+ 149:Libs/mbedtls/library/base64.c ****     }
+ 433              		.loc 1 149 9 is_stmt 1 view .LVU147
+ 149:Libs/mbedtls/library/base64.c ****     }
+ 434              		.loc 1 149 10 is_stmt 0 view .LVU148
+ 435 006c 0134     		adds	r4, r4, #1
+ 436              	.LVL52:
+ 437              	.L20:
+ 106:Libs/mbedtls/library/base64.c ****         /* Skip spaces before checking for EOL */
+ 438              		.loc 1 106 32 is_stmt 1 discriminator 2 view .LVU149
+ 106:Libs/mbedtls/library/base64.c ****         /* Skip spaces before checking for EOL */
+ 439              		.loc 1 106 32 is_stmt 0 discriminator 2 view .LVU150
+ 440 006e 0137     		adds	r7, r7, #1
+ 441              	.LVL53:
+ 106:Libs/mbedtls/library/base64.c ****         /* Skip spaces before checking for EOL */
+ 442              		.loc 1 106 32 discriminator 2 view .LVU151
+ 443 0070 D2E7     		b	.L16
+ 444              	.LVL54:
+ 445              	.L25:
+ 142:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 14
+
+
+ 446              		.loc 1 142 13 is_stmt 1 view .LVU152
+ 142:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 447              		.loc 1 142 16 is_stmt 0 view .LVU153
+ 448 0072 BAF1000F 		cmp	r10, #0
+ 449 0076 E2D1     		bne	.L24
+ 145:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 450              		.loc 1 145 13 is_stmt 1 view .LVU154
+ 145:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 451              		.loc 1 145 17 is_stmt 0 view .LVU155
+ 452 0078 FFF7FEFF 		bl	mbedtls_ct_base64_dec_value
+ 453              	.LVL55:
+ 145:Libs/mbedtls/library/base64.c ****                 return MBEDTLS_ERR_BASE64_INVALID_CHARACTER;
+ 454              		.loc 1 145 16 discriminator 1 view .LVU156
+ 455 007c 0028     		cmp	r0, #0
+ 456 007e F5DA     		bge	.L26
+ 457 0080 DDE7     		b	.L24
+ 458              	.L28:
+ 161:Libs/mbedtls/library/base64.c ****     n -= equals;
+ 459              		.loc 1 161 5 is_stmt 1 view .LVU157
+ 161:Libs/mbedtls/library/base64.c ****     n -= equals;
+ 460              		.loc 1 161 35 is_stmt 0 view .LVU158
+ 461 0082 04F00703 		and	r3, r4, #7
+ 161:Libs/mbedtls/library/base64.c ****     n -= equals;
+ 462              		.loc 1 161 30 view .LVU159
+ 463 0086 0622     		movs	r2, #6
+ 161:Libs/mbedtls/library/base64.c ****     n -= equals;
+ 464              		.loc 1 161 17 view .LVU160
+ 465 0088 E408     		lsrs	r4, r4, #3
+ 466              	.LVL56:
+ 161:Libs/mbedtls/library/base64.c ****     n -= equals;
+ 467              		.loc 1 161 30 view .LVU161
+ 468 008a 5343     		muls	r3, r2, r3
+ 161:Libs/mbedtls/library/base64.c ****     n -= equals;
+ 469              		.loc 1 161 12 view .LVU162
+ 470 008c 5443     		muls	r4, r2, r4
+ 161:Libs/mbedtls/library/base64.c ****     n -= equals;
+ 471              		.loc 1 161 42 view .LVU163
+ 472 008e 0733     		adds	r3, r3, #7
+ 473              	.LVL57:
+ 162:Libs/mbedtls/library/base64.c **** 
+ 474              		.loc 1 162 5 is_stmt 1 view .LVU164
+ 475 0090 A4EB0A04 		sub	r4, r4, r10
+ 162:Libs/mbedtls/library/base64.c **** 
+ 476              		.loc 1 162 7 is_stmt 0 view .LVU165
+ 477 0094 04EBD304 		add	r4, r4, r3, lsr #3
+ 478              	.LVL58:
+ 164:Libs/mbedtls/library/base64.c ****         *olen = n;
+ 479              		.loc 1 164 5 is_stmt 1 view .LVU166
+ 164:Libs/mbedtls/library/base64.c ****         *olen = n;
+ 480              		.loc 1 164 8 is_stmt 0 view .LVU167
+ 481 0098 65B1     		cbz	r5, .L29
+ 164:Libs/mbedtls/library/base64.c ****         *olen = n;
+ 482              		.loc 1 164 21 discriminator 1 view .LVU168
+ 483 009a 4C45     		cmp	r4, r9
+ 484 009c 0AD8     		bhi	.L29
+ 169:Libs/mbedtls/library/base64.c ****     for (x = 0, p = dst; i > 0; i--, src++) {
+ 485              		.loc 1 169 12 view .LVU169
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 15
+
+
+ 486 009e 4FF0000A 		mov	r10, #0
+ 487              	.LVL59:
+ 169:Libs/mbedtls/library/base64.c ****     for (x = 0, p = dst; i > 0; i--, src++) {
+ 488              		.loc 1 169 12 view .LVU170
+ 489 00a2 4744     		add	r7, r7, r8
+ 170:Libs/mbedtls/library/base64.c ****         if (*src == '\r' || *src == '\n' || *src == ' ') {
+ 490              		.loc 1 170 19 view .LVU171
+ 491 00a4 2C46     		mov	r4, r5
+ 492              	.LVL60:
+ 170:Libs/mbedtls/library/base64.c ****         if (*src == '\r' || *src == '\n' || *src == ' ') {
+ 493              		.loc 1 170 19 view .LVU172
+ 494 00a6 214A     		ldr	r2, .L56
+ 100:Libs/mbedtls/library/base64.c ****     unsigned equals = 0;
+ 495              		.loc 1 100 14 view .LVU173
+ 496 00a8 D346     		mov	fp, r10
+ 170:Libs/mbedtls/library/base64.c ****         if (*src == '\r' || *src == '\n' || *src == ' ') {
+ 497              		.loc 1 170 12 view .LVU174
+ 498 00aa D146     		mov	r9, r10
+ 499              	.LVL61:
+ 500              	.L30:
+ 170:Libs/mbedtls/library/base64.c ****         if (*src == '\r' || *src == '\n' || *src == ' ') {
+ 501              		.loc 1 170 28 is_stmt 1 discriminator 1 view .LVU175
+ 502 00ac B845     		cmp	r8, r7
+ 503 00ae 05D1     		bne	.L37
+ 194:Libs/mbedtls/library/base64.c **** 
+ 504              		.loc 1 194 5 view .LVU176
+ 194:Libs/mbedtls/library/base64.c **** 
+ 505              		.loc 1 194 15 is_stmt 0 view .LVU177
+ 506 00b0 641B     		subs	r4, r4, r5
+ 507              	.LVL62:
+ 196:Libs/mbedtls/library/base64.c **** }
+ 508              		.loc 1 196 5 is_stmt 1 view .LVU178
+ 196:Libs/mbedtls/library/base64.c **** }
+ 509              		.loc 1 196 12 is_stmt 0 view .LVU179
+ 510 00b2 CDE7     		b	.L38
+ 511              	.LVL63:
+ 512              	.L29:
+ 165:Libs/mbedtls/library/base64.c ****         return MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL;
+ 513              		.loc 1 165 9 is_stmt 1 view .LVU180
+ 166:Libs/mbedtls/library/base64.c ****     }
+ 514              		.loc 1 166 16 is_stmt 0 view .LVU181
+ 515 00b4 6FF02900 		mvn	r0, #41
+ 165:Libs/mbedtls/library/base64.c ****         return MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL;
+ 516              		.loc 1 165 15 view .LVU182
+ 517 00b8 3460     		str	r4, [r6]
+ 166:Libs/mbedtls/library/base64.c ****     }
+ 518              		.loc 1 166 9 is_stmt 1 view .LVU183
+ 166:Libs/mbedtls/library/base64.c ****     }
+ 519              		.loc 1 166 16 is_stmt 0 view .LVU184
+ 520 00ba C2E7     		b	.L15
+ 521              	.LVL64:
+ 522              	.L37:
+ 171:Libs/mbedtls/library/base64.c ****             continue;
+ 523              		.loc 1 171 9 is_stmt 1 view .LVU185
+ 171:Libs/mbedtls/library/base64.c ****             continue;
+ 524              		.loc 1 171 13 is_stmt 0 view .LVU186
+ 525 00bc 18F8010B 		ldrb	r0, [r8], #1	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 16
+
+
+ 526              	.LVL65:
+ 171:Libs/mbedtls/library/base64.c ****             continue;
+ 527              		.loc 1 171 13 view .LVU187
+ 528 00c0 A0F10A03 		sub	r3, r0, #10
+ 529 00c4 DBB2     		uxtb	r3, r3
+ 530 00c6 162B     		cmp	r3, #22
+ 531 00c8 0BD8     		bhi	.L31
+ 532 00ca 22FA03F3 		lsr	r3, r2, r3
+ 533 00ce DB07     		lsls	r3, r3, #31
+ 534 00d0 ECD4     		bmi	.L30
+ 175:Libs/mbedtls/library/base64.c ****         if (*src == '=') {
+ 535              		.loc 1 175 9 is_stmt 1 view .LVU188
+ 175:Libs/mbedtls/library/base64.c ****         if (*src == '=') {
+ 536              		.loc 1 175 11 is_stmt 0 view .LVU189
+ 537 00d2 4FEA8919 		lsl	r9, r9, #6
+ 538              	.LVL66:
+ 176:Libs/mbedtls/library/base64.c ****             ++equals;
+ 539              		.loc 1 176 9 is_stmt 1 view .LVU190
+ 540              	.L33:
+ 179:Libs/mbedtls/library/base64.c ****         }
+ 541              		.loc 1 179 13 view .LVU191
+ 179:Libs/mbedtls/library/base64.c ****         }
+ 542              		.loc 1 179 18 is_stmt 0 view .LVU192
+ 543 00d6 FFF7FEFF 		bl	mbedtls_ct_base64_dec_value
+ 544              	.LVL67:
+ 179:Libs/mbedtls/library/base64.c ****         }
+ 545              		.loc 1 179 15 discriminator 1 view .LVU193
+ 546 00da 144A     		ldr	r2, .L56
+ 547 00dc 49EA0009 		orr	r9, r9, r0
+ 548              	.LVL68:
+ 179:Libs/mbedtls/library/base64.c ****         }
+ 549              		.loc 1 179 15 discriminator 1 view .LVU194
+ 550 00e0 05E0     		b	.L34
+ 551              	.L31:
+ 175:Libs/mbedtls/library/base64.c ****         if (*src == '=') {
+ 552              		.loc 1 175 9 is_stmt 1 view .LVU195
+ 176:Libs/mbedtls/library/base64.c ****             ++equals;
+ 553              		.loc 1 176 12 is_stmt 0 view .LVU196
+ 554 00e2 3D28     		cmp	r0, #61
+ 175:Libs/mbedtls/library/base64.c ****         if (*src == '=') {
+ 555              		.loc 1 175 11 view .LVU197
+ 556 00e4 4FEA8919 		lsl	r9, r9, #6
+ 557              	.LVL69:
+ 176:Libs/mbedtls/library/base64.c ****             ++equals;
+ 558              		.loc 1 176 9 is_stmt 1 view .LVU198
+ 176:Libs/mbedtls/library/base64.c ****             ++equals;
+ 559              		.loc 1 176 12 is_stmt 0 view .LVU199
+ 560 00e8 F5D1     		bne	.L33
+ 177:Libs/mbedtls/library/base64.c ****         } else {
+ 561              		.loc 1 177 13 is_stmt 1 view .LVU200
+ 562 00ea 0AF1010A 		add	r10, r10, #1
+ 563              	.LVL70:
+ 564              	.L34:
+ 182:Libs/mbedtls/library/base64.c ****             accumulated_digits = 0;
+ 565              		.loc 1 182 9 view .LVU201
+ 182:Libs/mbedtls/library/base64.c ****             accumulated_digits = 0;
+ 566              		.loc 1 182 12 is_stmt 0 view .LVU202
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 17
+
+
+ 567 00ee 0BF1010B 		add	fp, fp, #1
+ 568              	.LVL71:
+ 182:Libs/mbedtls/library/base64.c ****             accumulated_digits = 0;
+ 569              		.loc 1 182 12 view .LVU203
+ 570 00f2 BBF1040F 		cmp	fp, #4
+ 571 00f6 D9D1     		bne	.L30
+ 183:Libs/mbedtls/library/base64.c ****             *p++ = MBEDTLS_BYTE_2(x);
+ 572              		.loc 1 183 13 is_stmt 1 view .LVU204
+ 573              	.LVL72:
+ 184:Libs/mbedtls/library/base64.c ****             if (equals <= 1) {
+ 574              		.loc 1 184 13 view .LVU205
+ 184:Libs/mbedtls/library/base64.c ****             if (equals <= 1) {
+ 575              		.loc 1 184 20 is_stmt 0 view .LVU206
+ 576 00f8 4FEA1943 		lsr	r3, r9, #16
+ 185:Libs/mbedtls/library/base64.c ****                 *p++ = MBEDTLS_BYTE_1(x);
+ 577              		.loc 1 185 16 view .LVU207
+ 578 00fc BAF1010F 		cmp	r10, #1
+ 184:Libs/mbedtls/library/base64.c ****             if (equals <= 1) {
+ 579              		.loc 1 184 20 view .LVU208
+ 580 0100 2370     		strb	r3, [r4]
+ 185:Libs/mbedtls/library/base64.c ****                 *p++ = MBEDTLS_BYTE_1(x);
+ 581              		.loc 1 185 13 is_stmt 1 view .LVU209
+ 185:Libs/mbedtls/library/base64.c ****                 *p++ = MBEDTLS_BYTE_1(x);
+ 582              		.loc 1 185 16 is_stmt 0 view .LVU210
+ 583 0102 03D9     		bls	.L35
+ 184:Libs/mbedtls/library/base64.c ****             if (equals <= 1) {
+ 584              		.loc 1 184 15 view .LVU211
+ 585 0104 0134     		adds	r4, r4, #1
+ 586              	.LVL73:
+ 587              	.L55:
+ 183:Libs/mbedtls/library/base64.c ****             *p++ = MBEDTLS_BYTE_2(x);
+ 588              		.loc 1 183 32 view .LVU212
+ 589 0106 4FF0000B 		mov	fp, #0
+ 590 010a CFE7     		b	.L30
+ 591              	.LVL74:
+ 592              	.L35:
+ 186:Libs/mbedtls/library/base64.c ****             }
+ 593              		.loc 1 186 17 is_stmt 1 view .LVU213
+ 186:Libs/mbedtls/library/base64.c ****             }
+ 594              		.loc 1 186 24 is_stmt 0 view .LVU214
+ 595 010c 4FEA1923 		lsr	r3, r9, #8
+ 596 0110 6370     		strb	r3, [r4, #1]
+ 188:Libs/mbedtls/library/base64.c ****                 *p++ = MBEDTLS_BYTE_0(x);
+ 597              		.loc 1 188 13 is_stmt 1 view .LVU215
+ 188:Libs/mbedtls/library/base64.c ****                 *p++ = MBEDTLS_BYTE_0(x);
+ 598              		.loc 1 188 16 is_stmt 0 view .LVU216
+ 599 0112 BAF1000F 		cmp	r10, #0
+ 600 0116 03D0     		beq	.L36
+ 186:Libs/mbedtls/library/base64.c ****             }
+ 601              		.loc 1 186 19 view .LVU217
+ 602 0118 0234     		adds	r4, r4, #2
+ 603              	.LVL75:
+ 186:Libs/mbedtls/library/base64.c ****             }
+ 604              		.loc 1 186 19 view .LVU218
+ 605 011a 4FF0010A 		mov	r10, #1
+ 606              	.LVL76:
+ 186:Libs/mbedtls/library/base64.c ****             }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 18
+
+
+ 607              		.loc 1 186 19 view .LVU219
+ 608 011e F2E7     		b	.L55
+ 609              	.LVL77:
+ 610              	.L36:
+ 189:Libs/mbedtls/library/base64.c ****             }
+ 611              		.loc 1 189 17 is_stmt 1 view .LVU220
+ 189:Libs/mbedtls/library/base64.c ****             }
+ 612              		.loc 1 189 24 is_stmt 0 view .LVU221
+ 613 0120 84F80290 		strb	r9, [r4, #2]
+ 183:Libs/mbedtls/library/base64.c ****             *p++ = MBEDTLS_BYTE_2(x);
+ 614              		.loc 1 183 32 view .LVU222
+ 615 0124 D346     		mov	fp, r10
+ 616              	.LVL78:
+ 170:Libs/mbedtls/library/base64.c ****         if (*src == '\r' || *src == '\n' || *src == ' ') {
+ 617              		.loc 1 170 36 is_stmt 1 discriminator 2 view .LVU223
+ 189:Libs/mbedtls/library/base64.c ****             }
+ 618              		.loc 1 189 19 is_stmt 0 view .LVU224
+ 619 0126 0334     		adds	r4, r4, #3
+ 620              	.LVL79:
+ 189:Libs/mbedtls/library/base64.c ****             }
+ 621              		.loc 1 189 19 view .LVU225
+ 622 0128 C0E7     		b	.L30
+ 623              	.L57:
+ 624 012a 00BF     		.align	2
+ 625              	.L56:
+ 626 012c 09004000 		.word	4194313
+ 627              		.cfi_endproc
+ 628              	.LFE3:
+ 630              		.text
+ 631              	.Letext0:
+ 632              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 633              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 634              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 635              		.file 5 "Libs/mbedtls/library/constant_time_internal.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s 			page 19
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 base64.c
+C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s:20     .text.mbedtls_base64_encode:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s:26     .text.mbedtls_base64_encode:00000000 mbedtls_base64_encode
+C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s:298    .text.mbedtls_base64_decode:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s:304    .text.mbedtls_base64_decode:00000000 mbedtls_base64_decode
+C:\Users\nicx5\AppData\Local\Temp\ccAFGWJp.s:626    .text.mbedtls_base64_decode:0000012c $d
+
+UNDEFINED SYMBOLS
+mbedtls_ct_base64_enc_char
+mbedtls_ct_base64_dec_value

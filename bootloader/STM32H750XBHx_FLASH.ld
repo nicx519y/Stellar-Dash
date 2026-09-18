@@ -66,7 +66,9 @@ RAM (xrw)      : ORIGIN = 0x24000000, LENGTH = 512K
 RAM_D2 (xrw)      : ORIGIN = 0x30000000, LENGTH = 288K
 RAM_D3 (xrw)      : ORIGIN = 0x38000000, LENGTH = 64K
 ITCMRAM (xrw)      : ORIGIN = 0x00000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 128K
+FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 112K
+IDENTITY (r)    : ORIGIN = 0x0801C000, LENGTH = 4K
+SECURITY_VERSION (r) : ORIGIN = 0x0801D000, LENGTH = 12K
 }
 
 /* Define output sections */
@@ -188,6 +190,28 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+
+  /*
+   * Reserved append-only state in the tail of the single 128KiB internal
+   * Flash sector. No loadable section may be placed here. Field firmware must
+   * never erase the sector.
+   */
+  __hbox_identity_region_start__ = ORIGIN(IDENTITY);
+  __hbox_identity_region_end__ =
+      ORIGIN(IDENTITY) + LENGTH(IDENTITY);
+  __hbox_security_version_region_start__ =
+      ORIGIN(SECURITY_VERSION);
+  __hbox_security_version_region_end__ =
+      ORIGIN(SECURITY_VERSION) + LENGTH(SECURITY_VERSION);
+
+  ASSERT(ORIGIN(FLASH) + LENGTH(FLASH) == ORIGIN(IDENTITY),
+         "bootloader/identity layout gap or overlap")
+  ASSERT(ORIGIN(IDENTITY) + LENGTH(IDENTITY) ==
+             ORIGIN(SECURITY_VERSION),
+         "identity/security-version overlap")
+  ASSERT(ORIGIN(SECURITY_VERSION) + LENGTH(SECURITY_VERSION) ==
+             0x08020000,
+         "internal-Flash security layout exceeds H750xB sector")
 }
 
 

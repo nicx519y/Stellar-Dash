@@ -1,5 +1,4 @@
 #include "gamepad/GamepadState.hpp"
-#include "drivermanager.hpp"
 
 // Convert the horizontal GamepadState dpad axis value into an analog value
 uint16_t dpadToAnalogX(uint8_t dpad)
@@ -13,10 +12,7 @@ uint16_t dpadToAnalogX(uint8_t dpad)
 			return GAMEPAD_JOYSTICK_MAX;
 
 		default:
-			if ( DriverManager::getInstance().getDriver() != nullptr )
-				return DriverManager::getInstance().getDriver()->GetJoystickMidValue();
-			else
-				return GAMEPAD_JOYSTICK_MID;
+			return GAMEPAD_JOYSTICK_MID;
 	}
 }
 
@@ -32,10 +28,7 @@ uint16_t dpadToAnalogY(uint8_t dpad)
 			return GAMEPAD_JOYSTICK_MAX;
 
 		default:
-			if ( DriverManager::getInstance().getDriver() != nullptr )
-				return DriverManager::getInstance().getDriver()->GetJoystickMidValue();
-			else
-				return GAMEPAD_JOYSTICK_MID;
+			return GAMEPAD_JOYSTICK_MID;
 	}
 }
 
