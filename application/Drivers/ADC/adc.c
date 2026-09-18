@@ -20,6 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 
 #include "adc.h"
+#include "adc_sampling_policy.h"
 #include "board_cfg.h"
 
 /* USER CODE BEGIN 0 */
@@ -84,6 +85,33 @@ static void configure_dma_common(DMA_HandleTypeDef* hdma, uint32_t request)
 
     hdma->Init.Priority = DMA_PRIORITY_VERY_HIGH;
     hdma->Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+}
+
+HAL_StatusTypeDef ADC_ConfigureInputOversampling(uint16_t rateHz)
+{
+    ADC_HandleTypeDef* const channels[] = {&hadc1, &hadc2, &hadc3};
+    const uint32_t ratio = ADC_InputOversamplingRatio(rateHz);
+    const uint32_t shift = (uint32_t)ADC_InputOversamplingShift(rateHz)
+                          << ADC_CFGR2_OVSS_Pos;
+
+    /* TIM2 and all three ADC/DMA channels must be stopped by the caller.
+     * Check every ADC before changing any of them. */
+    for (uint32_t i = 0u; i < 3u; ++i) {
+        if (channels[i]->Instance == NULL ||
+            (channels[i]->Instance->CR & (ADC_CR_ADEN | ADC_CR_ADSTART |
+                                         ADC_CR_JADSTART)) != 0u) {
+            return HAL_ERROR;
+        }
+    }
+    for (uint32_t i = 0u; i < 3u; ++i) {
+        ADC_HandleTypeDef* const hadc = channels[i];
+        hadc->Init.Oversampling.Ratio = ratio;
+        hadc->Init.Oversampling.RightBitShift = shift;
+        if (HAL_ADC_Init(hadc) != HAL_OK) {
+            return HAL_ERROR;
+        }
+    }
+    return HAL_OK;
 }
 
 /* ADC1 init function */

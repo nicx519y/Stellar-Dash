@@ -48,7 +48,8 @@ void MX_ADC1_Init(void);
 void MX_ADC2_Init(void);
 void MX_ADC3_Init(void);
 /* USER CODE BEGIN Prototypes */
-
+/* Call only with TIM2 stopped and all ADC/DMA channels disabled. */
+HAL_StatusTypeDef ADC_ConfigureInputOversampling(uint16_t rateHz);
 
 
 

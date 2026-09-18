@@ -53,7 +53,7 @@ bool ReportScheduler::setRate(uint16_t rateHz) {
         return false;
     }
     started = false;
-    if (!ADC_MANAGER.rearmInputSampling()) {
+    if (!ADC_MANAGER.rearmInputSampling(runningRateHz)) {
         APP_STAGE_ERROR("I04A", "ADC DMA rearm failed before TIM2 start");
         return false;
     }

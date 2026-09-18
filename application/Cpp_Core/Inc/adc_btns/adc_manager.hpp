@@ -175,7 +175,7 @@ class ADCManager {
 
         // 物理模式/电源切换专用：无条件停止所有循环 DMA。
         void forceStopAllSampling();
-        bool rearmInputSampling();
+        bool rearmInputSampling(uint16_t reportRateHz);
         
         // 通知采样完成 (由 HAL_ADC_ConvCpltCallback 调用)
         void notifyTimerTrigger(uint32_t triggerCycles);

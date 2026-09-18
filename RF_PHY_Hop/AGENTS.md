@@ -42,7 +42,8 @@
 
 实现前提：
 
-- `RFH_TEST_FIXED_BOND_ENABLE` 默认必须保持 `0u`，正式版本使用 flash bond 中的 `link_access_address`。
+- 当前调试阶段按用户要求（2026-09-19），`RFH_TEST_FIXED_BOND_ENABLE` 默认为 `1u`：TX/RX 启动都使用固定地址 `0x6D35B8C9` 和发现频道 `16/39`，跳过人工配对及 Flash bond 加载，不写入/清除已有 bond。正常 CONNECT/ACK/FINAL 建链流程仍保留。
+- 正式配对版本须显式以 `RFH_TEST_FIXED_BOND_ENABLE=0` 重新编译两端，使用 flash bond 中的 `link_access_address`。切换命令行宏时必须强制重编译，不能复用另一种模式的旧对象文件。
 - 重连只在 `g_demo_has_bond != 0` 时走本节协议；未配对设备必须先走 pairing。
 - 发现/重连阶段只用 bond 下发的双发现频道，当前默认是 `16 / 39`。
 - 旧 bond 记录里如果保存了已不在当前 hop 表里的发现频道，加载时只保留 `link_access_address`，发现频道会运行时迁移回当前默认 `16 / 39`，避免 RHS1 active channel 跑到频道表外。

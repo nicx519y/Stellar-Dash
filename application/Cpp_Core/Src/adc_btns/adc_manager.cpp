@@ -1446,7 +1446,7 @@ void ADCManager::forceStopAllSampling()
     }
 }
 
-bool ADCManager::rearmInputSampling()
+bool ADCManager::rearmInputSampling(uint16_t reportRateHz)
 {
     if (!dmaSamplingActive) {
         return false;
@@ -1460,6 +1460,10 @@ bool ADCManager::rearmInputSampling()
     const HAL_StatusTypeDef stop2 = HAL_ADC_Stop_DMA(&hadc2);
     const HAL_StatusTypeDef stop3 = HAL_ADC_Stop_DMA(&hadc3);
     if (stop1 != HAL_OK || stop2 != HAL_OK || stop3 != HAL_OK) {
+        forceStopAllSampling();
+        return false;
+    }
+    if (ADC_ConfigureInputOversampling(reportRateHz) != HAL_OK) {
         forceStopAllSampling();
         return false;
     }

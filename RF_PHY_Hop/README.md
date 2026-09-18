@@ -2,6 +2,12 @@
 
 本目录是基于 WCH CH585 的 RF PHY 跳频示例工程（TX/RX 两套产物）。仓库内只保留了应用层源码与适配后的 Makefile，底层 SDK（HAL/LIB/SRC/驱动/链接脚本等）从本机安装的 WCH EVT 工程树引用。
 
+当前调试构建默认启用共享配置 `RFH_TEST_FIXED_BOND_ENABLE=1`。TX/RX 上电直接使用
+固定配对地址 `0x6D35B8C9`、发现频道 `16/39`，不需要按键配对，也不读写已有 Flash
+配对记录；正常无线建链和 ACK 仍执行。正式配对测试需将两端都以
+`EXTRA_DEFINES=-DRFH_TEST_FIXED_BOND_ENABLE=0` 强制重编译（`make -B`）。
+仅修改命令行宏不会使已有 `.o` 自动过期，禁止混用两种模式的产物。
+
 ## 1. 实现方案（结构与职责）
 
 ### 1.1 目标与工作方式

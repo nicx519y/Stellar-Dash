@@ -79,7 +79,7 @@
 #endif
 
 #ifndef DONGLE_RF_ENABLE_GUIDE_BUTTON
-#define DONGLE_RF_ENABLE_GUIDE_BUTTON  (0u)
+#define DONGLE_RF_ENABLE_GUIDE_BUTTON  (1u)
 #endif
 
 #define REPORT_INTERVAL_US             (125u)      /* 8 kHz */

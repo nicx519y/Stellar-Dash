@@ -65,6 +65,20 @@ class RfBondJournalTests(unittest.TestCase):
         self.assertIn("if(g_demo_has_bond != 0u)", source)
         self.assertIn("return 4u;", source)
 
+    def test_rx_guide_button_matches_usb_mapping(self):
+        config = (
+            ROOT / "RF_PHY_Hop" / "RX" / "APP" / "include" / "dongle_config.h"
+        ).read_text(encoding="utf-8")
+        source = (ROOT / "RF_PHY_Hop" / "RX" / "APP" / "RF_PHY.c").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("#define DONGLE_RF_ENABLE_GUIDE_BUTTON  (1u)", config)
+        self.assertIn(
+            "((key_mask & HBOX_KEY_A1) != 0u) ? XBOX_MASK_HOME : 0u",
+            source,
+        )
+
     def test_stm32_timeout_contract(self):
         source = (
             ROOT / "application" / "Cpp_Core" / "Src" / "connection_manager.cpp"
