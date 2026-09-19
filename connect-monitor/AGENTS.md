@@ -1,5 +1,17 @@
 # AGENTS - connect-monitor 当前实现速览
 
+2026-09-20 延迟开关连接恢复：启动保留用户保存的 latencyMeasurementEnabled（首次仍默认关），不再强制清为 false。USB 打开、RF 恢复仍下发当前配置；每秒续期同时读取 USB 配置回执，核对请求序号、RX flags 和已连接 TX 的 applied 序号。写入失败、未应用或租约失效时按至少 2 秒间隔重发当前配置；状态一致只续期，不持续发送 RF 配置。没有 GET_REPORT 能力时仍使用连接/恢复通知，不假定已读到设备状态。仅监视器修改和构建，不需更新固件；遵循用户要求不运行回归或设备采样。
+
+2026-09-20 延迟窗口：RLT2 解码入口及表格均按事件携带的前后 standard mask 过滤无状态变化记录，不能按时间阶段是否完整过滤真实按下/松开。按钮标签 `↓` 表示按下、`↑` 表示松开；同一 traceId 的后续分片更新原行。摘要显示状态变化总数、完整及部分记录数，平均值仍取最近 50 条完整记录。用户要求不再自动运行回归测试或设备采样，由用户验证。
+
+2026-09-19 v2：实机反复断流复查发现 SDK 时钟重入，RF/SPI 已改用独立单调时钟。详见 ../docs/RF_CLOCK_REENTRY_20260919.md；v2 实机验收仍待完成。
+
+2026-09-19 新增 `RHD1` 三页诊断解析，保存启动/连接耗时、ACK/队列累计计数，
+以及 TX 定时触发/启动尝试/跳过与 RX 入队前序号缺口。第 2 页 age 超过 2 秒不能作当前 TX 窗口比较。
+字段定义和计时边界见 `../docs/RF_LINK_STABILITY_20260919.md`。RHD1 不计入 DATA 吞吐率。
+可用 `python tools/rf_link_report.py <monitor-events.jsonl> --since-ms <Unix毫秒>`
+离线生成 P50/P95/max；不需要再打开一个 HID reader。
+
 `connect-monitor` 是 HBox/RF_PHY_Hop 的 PC 侧调试客户端。当前重点是通过 HID telemetry 观察 RX/dongle 侧 RF 状态，不依赖 CDC 串口持续传输。
 
 ## 当前权威观察口径
@@ -272,3 +284,16 @@ RF_PHY_Hop 当前跳频实现记录见：
 - `../RF_PHY_Hop/AGENTS.md`
 - `../RF_PHY_Hop/RX/APP/RF_PHY.c`
 - `../RF_PHY_Hop/TX/APP/RF_PHY.c`
+
+
+## 2026-09-19 latency trace v7
+
+RX build 0x1907 + matching STM32/TX enable original sampling timestamps (RHC3/RHE3). See `../docs/RF_LATENCY_TRACE_V7_20260919.md`. Legacy RHL2 is local-stage diagnostics only; never sum it as Windows latency. Fixed channel39, auto-hop disabled and Full-Speed USB remain the current debug baseline. Trace HID has independent pacing; statistics remain100ms.
+
+## 2026-09-20 latency association v10
+
+RX 0x1910 uses RLT2 flags bit5 to distinguish a received-but-unmatched candidate from a missing source record. Never display source durations without an exact RF-attempt match. Partial rows no longer imply capture is disabled; failure text stays on one line with a tooltip. See `../docs/RF_LATENCY_ASSOCIATION_V10_20260920.md`. Matched TX/RX update and live acceptance are pending; STM32 remains v9.
+
+## 2026-09-19 short transport v9 (current measurement path)
+
+RX 0x1909 adds RLT2 (relative stages to USB IN completion) and RHP2 (packet/control-slot counters). Latency capture defaults off on first use; subsequent launches retain the saved switch and reconcile it after connection as described above. Enabling it renews a USB-only lease. No automatic RF/PC time synchronization or XInput-latency worker is needed. Partial pages update rows by traceId and may never yield a total; complete totals still include a modelled RF/IRQ boundary and must be labelled estimated, not Windows latency. See `../docs/RF_SHORT_PACKET_V9_20260919.md`. Build the monitor and update matching STM32/TX/RX before hardware acceptance.

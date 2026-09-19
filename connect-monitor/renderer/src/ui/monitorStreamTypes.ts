@@ -79,15 +79,16 @@ export type MonitorStreamSnapshot = {
 };
 
 export type MonitorStreamWorkerRequest =
-  | { type: "batch"; events: MonitorEvent[] }
+  | { type: "batch"; events: MonitorEvent[]; requestId?: number }
   | { type: "prependEvents"; events: MonitorEvent[] }
   | { type: "reset" }
-  | { type: "flush" };
+  | { type: "flush" }
+  | { type: "snapshotConsumed" };
 
 export type MonitorStreamWorkerResponse = {
   type: "snapshot";
   snapshot: MonitorStreamSnapshot;
-};
+} | { type: "processed"; requestId: number };
 
 export function createEmptyMonitorStreamSnapshot(): MonitorStreamSnapshot {
   return {

@@ -1,3 +1,4 @@
+#include "rf_link_clock.h"
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : main.c
  * Author             : WCH
@@ -213,7 +214,7 @@ static void RX_PairButtonService(uint8_t rf_ready)
         return;
     }
 
-    now = TMOS_GetSystemClock();
+    now = RF_LinkClockNow();
     is_low = (GPIOB_ReadPortPin(RX_PAIR_BUTTON_PIN) == 0u) ? TRUE : FALSE;
     if(is_low == FALSE)
     {
@@ -275,7 +276,7 @@ void Main_Circulation()
 
     while(1)
     {
-        uint32_t now = TMOS_GetSystemClock();
+        uint32_t now = RF_LinkClockNow();
         uint32_t now_tmr = TMR0_GetCurrentTimer();
         LED_Ctrl_Service();
 #if (RF_TEST_BYPASS_TMOS_AFTER_RF == 1)
@@ -288,12 +289,13 @@ void Main_Circulation()
         TMOS_SystemProcess();
         }
         RF_Service();
+        if(rf_init_done) (void)RF_TrySendTraceReport();
         RX_PairButtonService(rf_init_done);
         RX_MainFlushLog();
 
         if(rf_init_deadline == 0u)
         {
-            rf_init_deadline = now + MS1_TO_SYSTEM_TIME(3000u);
+            rf_init_deadline = now;
         }
 
         if((rf_init_started == FALSE) &&
@@ -305,7 +307,7 @@ void Main_Circulation()
             RX_MainLog("R0\r\n");
             last_log_tmr = TMR0_GetCurrentTimer();
             log_acc_tmr = 0u;
-            last_hid_telemetry_clock = TMOS_GetSystemClock();
+            last_hid_telemetry_clock = RF_LinkClockNow();
             continue;
         }
 
@@ -564,7 +566,7 @@ int main(void)
 #endif
     LED_Ctrl(TRUE);
 
-    DelayMs(1000);
+    /* Startup indication must not delay radio discovery. */
 
     LED_Ctrl(FALSE);
 

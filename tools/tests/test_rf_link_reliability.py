@@ -56,7 +56,7 @@ class RfBondJournalTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("data[RFH_CONNECT_VERSION] != RFH_PROTOCOL_VERSION", source)
-        self.assertIn("RF_AUTO_DEMO_FIRST_DATA_TIMEOUT_MS 600u", source)
+        self.assertIn("RF_AUTO_DEMO_FIRST_DATA_TIMEOUT_MS 150u", source)
         self.assertIn("demo_queue_neutral_xinput_report", source)
         self.assertIn("demo_service_input_stale", source)
         self.assertIn("g_demo_neutral_pending = 1u", source)

@@ -41,16 +41,27 @@ export function useMonitorStream() {
     workerRef.current = worker;
     let unsub: (() => void) | null = null;
     let unsubCleared: (() => void) | null = null;
+    let nextRequestId = 0;
+    let active = true;
+    const pending = new Map<number, () => void>();
 
     worker.onmessage = (event: MessageEvent<MonitorStreamWorkerResponse>) => {
       if (event.data.type === "snapshot") {
         setSnapshot(event.data.snapshot);
+        postWorkerMessage(worker, { type: "snapshotConsumed" });
+      } else if (event.data.type === "processed") {
+        pending.get(event.data.requestId)?.();
+        pending.delete(event.data.requestId);
       }
     };
 
     const handler = (batch: MonitorEvent[]) => {
-      if (pausedRef.current || batch.length === 0) return;
-      postWorkerMessage(worker, { type: "batch", events: batch });
+      if (!active || pausedRef.current || batch.length === 0) return;
+      const requestId = ++nextRequestId;
+      return new Promise<void>((resolve) => {
+        pending.set(requestId, resolve);
+        postWorkerMessage(worker, { type: "batch", events: batch, requestId });
+      });
     };
 
     if (window.connectMonitorApi?.onEvents) {
@@ -65,9 +76,12 @@ export function useMonitorStream() {
     }
 
     return () => {
+      active = false;
       if (unsub) unsub();
       if (unsubCleared) unsubCleared();
       worker.terminate();
+      for (const resolve of pending.values()) resolve();
+      pending.clear();
       if (workerRef.current === worker) {
         workerRef.current = null;
       }

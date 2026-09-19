@@ -83,8 +83,8 @@ function tooltipFormatter(params: unknown) {
       lines.push(`${item.marker ?? ""}Report rate: ${Number(item.value[1] ?? 0).toFixed(1)} Hz`);
       continue;
     }
-    if (item.seriesName === "Packet Loss") {
-      lines.push(`${item.marker ?? ""}Packet loss: ${Number(item.value[1] ?? 0).toFixed(2)} %`);
+    if (item.seriesName === "Input Deficit") {
+      lines.push(`${item.marker ?? ""}Input deficit: ${Number(item.value[1] ?? 0).toFixed(2)} %`);
       continue;
     }
     if (item.seriesName === "Channel Events") {
@@ -231,7 +231,7 @@ export function TelemetryTrendChart({
           top: 0,
           right: 0,
           textStyle: { color: "#b7c4bd" },
-          data: ["Report Rate", "Packet Loss", "Channel Events"],
+          data: ["Report Rate", "Input Deficit", "Channel Events"],
         },
         grid: {
           left: 54,
@@ -339,7 +339,7 @@ export function TelemetryTrendChart({
             lineStyle: { width: 2 },
           },
           {
-            name: "Packet Loss",
+            name: "Input Deficit",
             type: "line",
             yAxisIndex: 1,
             data: chartData.lossData,

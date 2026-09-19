@@ -1,3 +1,4 @@
+#include "RF_PHY.h"
 /********************************** (C) COPYRIGHT *******************************
 * File Name          : ch585_usbhs_device.c
 * Author             : WCH
@@ -320,6 +321,7 @@ __INTERRUPT
 __HIGH_CODE
 void USB2_DEVICE_IRQHandler( void )
 {
+    const uint32_t relative_usb_tick=TMR0_GetCurrentTimer();
     uint8_t  intflag, intst, errflag;
     uint16_t len;
     uint8_t endp_num;
@@ -1067,6 +1069,7 @@ void USB2_DEVICE_IRQHandler( void )
 
                 /* end-point 2 data in interrupt */
                 case DEF_UEP2:
+                    if(R8_U2EP2_TX_CTRL & USBHS_UEP_T_DONE)RF_RelativeUsbComplete(relative_usb_tick);
                     R16_U2EP2_T_LEN = 0;
                     R8_U2EP2_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
                     R8_U2EP2_TX_CTRL = (R8_U2EP2_TX_CTRL & ~USBHS_UEP_T_RES_MASK) | USBHS_UEP_T_RES_NAK;
@@ -1135,6 +1138,7 @@ void USB2_DEVICE_IRQHandler( void )
     }
     else if( intflag & USBHS_UDIF_BUS_RST )
     {
+        RF_RelativeUsbReset();
         /* usb reset interrupt processing */
         USBHS_DevConfig = 0;
         USBHS_DevAddr = 0;

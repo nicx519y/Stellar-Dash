@@ -4,10 +4,13 @@ import path from "node:path";
 
 import { MonitorEventBus } from "./pipeline/event-bus";
 import { MonitorEventStore } from "./pipeline/event-store";
+import { BoundedDelivery } from "./pipeline/bounded-delivery";
+import { startRuntimeDiagnostics } from "./runtime-diagnostics";
 import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
 import { getHidDebugConfigStatus, sendDebugConfig, startHidTelemetrySource } from "./sources/hid-telemetry-source";
 import { SerialLogManager } from "./sources/serial-log-manager";
 import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
+import { readNativeGamepad } from "./sources/native-gamepad";
 import type {
   DebugConfig,
   DebugConfigStatus,
@@ -18,17 +21,34 @@ import type {
   SerialLogLine,
 } from "../shared/monitor-types";
 
+// Acquire the profile lock before creating stores, sessions or HID readers.
+// A duplicate must exit immediately, before startup/shutdown can clear the live DB.
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+}
+
 const eventStore = new MonitorEventStore(path.join(app.getPath("userData"), "db"));
 const eventBus = new MonitorEventBus(500, eventStore);
 let stopHidSource: (() => void) | null = null;
 let stopSerialSource: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
+app.on("second-instance", () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
 let hitboxView: WebContentsView | null = null;
 let latencyTableView: WebContentsView | null = null;
-const pendingEvents: unknown[] = [];
-const pendingSerialLogs: SerialLogLine[] = [];
+const mainEvents = new BoundedDelivery<unknown>();
+const latencyEvents = new BoundedDelivery<unknown>();
+const serialLogs = new BoundedDelivery<SerialLogLine>();
+let mainEventsReady = false;
+let latencyEventsReady = false;
+let serialLogsReady = false;
+let stopDiagnostics: (() => void) | undefined;
 const serialLogManager = new SerialLogManager((lines) => {
-  pendingSerialLogs.push(...lines);
+  serialLogs.enqueue(lines);
 });
 const appIconPath = path.resolve(__dirname, "..", "..", "resources", "icon.ico");
 let paused = false;
@@ -178,6 +198,10 @@ function createLatencyTableView(win: BrowserWindow): void {
   view.setVisible(false);
   win.contentView.addChildView(view);
   latencyTableView = view;
+  view.webContents.on("did-start-loading", () => {
+    latencyEventsReady = false;
+    latencyEvents.reset();
+  });
   loadLatencyTableRenderer(view);
 }
 
@@ -193,7 +217,8 @@ function stopSources(): void {
 }
 
 function clearRuntimeDatabase(): void {
-  while (pendingEvents.length) pendingEvents.pop();
+  mainEvents.clear();
+  latencyEvents.clear();
   eventBus.clear();
 }
 
@@ -213,6 +238,7 @@ function sanitizeDebugConfig(value: unknown): DebugConfig {
   const autoHopEnabled = cfg?.autoHopEnabled !== false || manualChannel === null;
   return {
     hidTelemetryEnabled: Boolean(cfg?.hidTelemetryEnabled),
+    latencyMeasurementEnabled: cfg?.latencyMeasurementEnabled === true,
     hidPeriodMs,
     autoHopEnabled,
     manualChannel,
@@ -243,6 +269,8 @@ function shutdownAndClearDatabase(): void {
   stopSources();
   serialLogManager.dispose();
   clearRuntimeDatabase();
+  serialLogs.clear();
+  stopDiagnostics?.();
 }
 
 function createWindow(): void {
@@ -270,11 +298,21 @@ function createWindow(): void {
   });
 
   mainWindow = win;
+  win.webContents.on("did-start-loading", () => {
+    mainEventsReady = false;
+    serialLogsReady = false;
+    mainEvents.reset();
+    serialLogs.reset();
+  });
   createHitboxView(win);
   createLatencyTableView(win);
   win.on("closed", () => {
     if (mainWindow === win) {
       mainWindow = null;
+    }
+    // WebContentsView does not own the lifetime of its WebContents.
+    for (const view of [hitboxView, latencyTableView]) {
+      if (view && !view.webContents.isDestroyed()) view.webContents.close();
     }
     hitboxView = null;
     latencyTableView = null;
@@ -304,6 +342,10 @@ function bootstrapMockInput(): void {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  stopDiagnostics = startRuntimeDiagnostics(() => ({
+    main: mainEvents.stats(), latency: latencyEvents.stats(), serial: serialLogs.stats(),
+    historyWriteError: eventStore.lastWriteError,
+  }));
   await loadDebugConfig();
   clearRuntimeDatabase();
   if (process.env.MONITOR_MOCK === "1") {
@@ -325,7 +367,11 @@ app.whenReady().then(async () => {
     });
   }
   eventBus.subscribe((event) => {
-    pendingEvents.push(event);
+    mainEvents.enqueue([event]);
+    // The embedded table only consumes latency rows/status, not entire charts.
+    if (event.kind === "button_latency" || event.kind === "button_latency_status") {
+      latencyEvents.enqueue([event]);
+    }
   });
   createWindow();
 });
@@ -339,8 +385,7 @@ ipcMain.handle("monitor:queryEvents", (_evt, beforeTimestampMs: number, limit?: 
 });
 
 ipcMain.handle("monitor:clear", () => {
-  while (pendingEvents.length) pendingEvents.pop();
-  eventBus.clear();
+  clearRuntimeDatabase();
   broadcastMonitorCleared();
 });
 
@@ -348,7 +393,8 @@ ipcMain.handle("monitor:getPaused", () => paused);
 
 ipcMain.handle("monitor:setPaused", (_evt, nextPaused: boolean) => {
   paused = Boolean(nextPaused);
-  while (pendingEvents.length) pendingEvents.pop();
+  mainEvents.clear();
+  latencyEvents.clear();
   if (paused) {
     if (stopHidSource) {
       stopHidSource();
@@ -488,19 +534,33 @@ ipcMain.on("hitbox:summary", (event, summary: unknown) => {
   mainWindow.webContents.send("hitbox:summary", sanitizeHitboxSummary(summary));
 });
 
-setInterval(() => {
-  if (!mainWindow) return;
-  if (pendingEvents.length === 0) return;
-  const batch = pendingEvents.splice(0, pendingEvents.length);
-  mainWindow.webContents.send("monitor:events", batch);
-  latencyTableView?.webContents.send("monitor:events", batch);
-}, 100);
+ipcMain.handle("hitbox:getNativeGamepad", (event) => {
+  if (!hitboxView || event.sender !== hitboxView.webContents) return null;
+  return readNativeGamepad();
+});
+
+ipcMain.on("monitor:events:ready", (event) => {
+  if (event.sender === mainWindow?.webContents) mainEventsReady = true;
+  if (event.sender === latencyTableView?.webContents) latencyEventsReady = true;
+});
+ipcMain.on("serial:logs:ready", (event) => {
+  if (event.sender === mainWindow?.webContents) serialLogsReady = true;
+});
+ipcMain.on("monitor:events:ack", (event, sequence: number) => {
+  if (event.sender === mainWindow?.webContents) mainEvents.acknowledge(sequence);
+  if (event.sender === latencyTableView?.webContents) latencyEvents.acknowledge(sequence);
+});
+ipcMain.on("serial:logs:ack", (event, sequence: number) => {
+  if (event.sender === mainWindow?.webContents) serialLogs.acknowledge(sequence);
+});
 
 setInterval(() => {
-  if (!mainWindow) return;
-  if (pendingSerialLogs.length === 0) return;
-  const batch = pendingSerialLogs.splice(0, pendingSerialLogs.length);
-  mainWindow.webContents.send("serial:logs", batch);
+  if (!mainWindow || mainWindow.webContents.isDestroyed()) return;
+  if (mainEventsReady) mainEvents.flush((batch, sequence) => mainWindow!.webContents.send("monitor:events", batch, sequence));
+  if (latencyEventsReady && latencyTableView && !latencyTableView.webContents.isDestroyed()) {
+    latencyEvents.flush((batch, sequence) => latencyTableView!.webContents.send("monitor:events", batch, sequence));
+  }
+  if (serialLogsReady) serialLogs.flush((batch, sequence) => mainWindow!.webContents.send("serial:logs", batch, sequence));
 }, 100);
 
 app.on("window-all-closed", () => {

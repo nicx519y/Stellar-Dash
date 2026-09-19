@@ -8,12 +8,18 @@ const workerScope = self as unknown as {
 };
 
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let snapshotInFlight = false;
+let dirty = false;
 
 function postSnapshot(): void {
   if (flushTimer !== null) {
     clearTimeout(flushTimer);
     flushTimer = null;
   }
+  dirty = true;
+  if (snapshotInFlight) return;
+  dirty = false;
+  snapshotInFlight = true;
   workerScope.postMessage({
     type: "snapshot",
     snapshot: processor.snapshot(),
@@ -21,15 +27,24 @@ function postSnapshot(): void {
 }
 
 function scheduleSnapshot(): void {
-  if (flushTimer !== null) return;
+  dirty = true;
+  if (flushTimer !== null || snapshotInFlight) return;
   flushTimer = setTimeout(postSnapshot, 33);
 }
 
 workerScope.onmessage = (event) => {
   const message = event.data;
+  if (message.type === "snapshotConsumed") {
+    snapshotInFlight = false;
+    if (dirty) scheduleSnapshot();
+    return;
+  }
   if (message.type === "batch") {
     processor.processBatch(message.events);
     scheduleSnapshot();
+    if (message.requestId !== undefined) {
+      workerScope.postMessage({ type: "processed", requestId: message.requestId });
+    }
     return;
   }
   if (message.type === "prependEvents") {

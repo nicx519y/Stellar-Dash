@@ -1,5 +1,10 @@
 # RF_PHY_Hop（CH585）实现方案与编译方法
 
+2026-09-19 v2：实机反复断流复查发现 SDK 时钟重入，RF/SPI 已改用独立单调时钟。详见 ../docs/RF_CLOCK_REENTRY_20260919.md；v2 实机验收仍待完成。
+
+2026-09-19 链路修复、快速建链参数和 RHD1 诊断以
+[当前实现与验证说明](../docs/RF_LINK_STABILITY_20260919.md) 为准。
+
 本目录是基于 WCH CH585 的 RF PHY 跳频示例工程（TX/RX 两套产物）。仓库内只保留了应用层源码与适配后的 Makefile，底层 SDK（HAL/LIB/SRC/驱动/链接脚本等）从本机安装的 WCH EVT 工程树引用。
 
 当前调试构建默认启用共享配置 `RFH_TEST_FIXED_BOND_ENABLE=1`。TX/RX 上电直接使用

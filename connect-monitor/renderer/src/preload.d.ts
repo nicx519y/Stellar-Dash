@@ -4,6 +4,7 @@ import type {
   HitboxBounds,
   HitboxOptions,
   HitboxSummary,
+  NativeGamepadSnapshot,
   LatencyTableBounds,
   MonitorEvent,
   SerialLogLine,
@@ -14,7 +15,8 @@ declare global {
   interface Window {
     connectMonitorApi: {
       getVersion(): string;
-      onEvents(handler: (events: MonitorEvent[]) => void): () => void;
+      getNativeGamepad(): Promise<NativeGamepadSnapshot | null>;
+      onEvents(handler: (events: MonitorEvent[]) => void | Promise<void>): () => void;
       onMonitorCleared(handler: () => void): () => void;
       getSnapshot(limit?: number): Promise<MonitorEvent[]>;
       queryEvents(beforeTimestampMs: number, limit?: number): Promise<MonitorEvent[]>;
@@ -28,7 +30,7 @@ declare global {
       listSerialPorts(): Promise<SerialPortInfo[]>;
       getSerialLogSelections(): Promise<string[]>;
       setSerialLogSelections(selections: Array<string | null | undefined>): Promise<string[]>;
-      onSerialLogs(handler: (lines: SerialLogLine[]) => void): () => void;
+      onSerialLogs(handler: (lines: SerialLogLine[]) => void | Promise<void>): () => void;
       minimizeWindow(): Promise<void>;
       toggleMaximizeWindow(): Promise<boolean>;
       closeWindow(): Promise<void>;

@@ -67,7 +67,7 @@ class Ch585BoardPortContractTests(unittest.TestCase):
         restart_body = function_body(
             self.source,
             "spi_rx_restart_after_tx",
-            "spi_tx_fill_fifo",
+            "spi_tx_finish",
         )
         self.assertIn("spi_rx_dma_loop_start(1u);", init_body)
         self.assertIn("s_board_boot_ready_sent == 0u", init_body)

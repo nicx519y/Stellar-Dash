@@ -1,4 +1,4 @@
-import type { HitboxSummary } from "../../../shared/monitor-types";
+import type { HitboxSummary, NativeGamepadSnapshot } from "../../../shared/monitor-types";
 import { HITBOX_BUTTON_MAP, UNMAPPED_GAMEPAD_BUTTON } from "./hitboxButtonMap";
 
 export type GamepadButtonState = {
@@ -77,6 +77,20 @@ export function readGamepadButtonsSnapshot(
     buttonStates: HITBOX_BUTTON_MAP.map((button, buttonIndex) => ({
       buttonIndex,
       isPressed: button.gamepadButtonIndex !== UNMAPPED_GAMEPAD_BUTTON ? isPressed(gamepad.buttons[button.gamepadButtonIndex]) : false,
+    })),
+  };
+}
+
+export function nativeGamepadButtonsSnapshot(native: NativeGamepadSnapshot, now = Date.now()): GamepadButtonsSnapshot {
+  const connected = native.connected && now - native.timestampMs < 1000;
+  return {
+    connected,
+    deviceId: connected ? native.deviceId : null,
+    timestampMs: native.timestampMs,
+    buttonStates: HITBOX_BUTTON_MAP.map((button, buttonIndex) => ({
+      buttonIndex,
+      isPressed: connected && button.gamepadButtonIndex !== UNMAPPED_GAMEPAD_BUTTON &&
+        (native.standardMask & (1 << button.gamepadButtonIndex)) !== 0,
     })),
   };
 }

@@ -22,7 +22,8 @@
 /* Bring-up mode switch. 0 = normal RF + USB runtime. */
 #define DONGLE_USB_ENUM_BRINGUP_ONLY   (0u)
 #define DONGLE_USE_USBHS_BACKEND       (1u)
-#define DONGLE_USB_FORCE_FULLSPEED     (1u)
+/* Use the existing HS descriptors (EP2 interval 1 microframe), with FS fallback. */
+#define DONGLE_USB_FORCE_FULLSPEED     (0u)
 
 /*
  * RF diagnostic switches:

@@ -5,6 +5,7 @@
 
 #include "board_cfg.h"
 #include "micro_timer.hpp"
+#include "trace_clock.hpp"
 #include "monitor_telemetry.hpp"
 #include "power_manager.hpp"
 #include "rf_command_transaction.hpp"
@@ -12,6 +13,11 @@
 #include "rf_reliable_event.hpp"
 #include "system_logger.h"
 #include "stm32h7xx_hal.h"
+
+// Sparse RAM-only trace of accepted SPI echoes, read without halting sampling.
+volatile uint32_t g_rf_sync_sent[16][4] = {};
+volatile uint32_t g_rf_sync_sent_count = 0;
+volatile uint32_t g_rf_sync_bridge_diag[4] = {};
 
 namespace {
 static constexpr uint8_t RF_SYNC = 0xA5u;
@@ -62,6 +68,21 @@ static constexpr uint32_t COMMAND_RESULT_TIMEOUT_MS = 200u;
 #define RF_SPI_LOG(fmt, ...) ((void)0)
 #endif
 
+struct RelativeEdge { uint16_t event; uint8_t spiSeq, valid, repeats; uint32_t trigger, complete, ready, stage[4]; };
+static RelativeEdge g_relative;
+static uint16_t g_relative_event;
+static bool g_relative_enabled;
+// Completed source records have a different lifetime from the current input.
+// New key edges must not replace records whose bounded SPI copies are pending.
+static RelativeEdge g_relative_pending[8];
+static uint8_t g_relative_pending_head, g_relative_pending_tail, g_relative_pending_count;
+static uint32_t g_relative_pending_drops;
+static void queueRelativeSource(const RelativeEdge& record) {
+    if(g_relative_pending_count == 8u) {++g_relative_pending_drops;return;}
+    g_relative_pending[g_relative_pending_head]=record;
+    g_relative_pending_head=(g_relative_pending_head+1u)%8u;
+    ++g_relative_pending_count;
+}
 struct PendingTimeSyncEcho {
     bool pending = false;
     uint8_t seq = 0u;
@@ -69,9 +90,39 @@ struct PendingTimeSyncEcho {
 };
 
 PendingTimeSyncEcho g_pendingTimeSyncEcho;
+TraceClock g_traceClock;
+uint32_t traceNowUs() {
+    return g_traceClock.observe(MICROS_TIMER.cycles(), HAL_GetTick(), SYSTEM_CLOCK_FREQ / 1000000u);
+}
+struct TraceEdge { uint8_t seq; uint32_t mask, sampleUs; };
+TraceEdge g_traceEdges[8];
+uint8_t g_traceHead = 0, g_traceTail = 0, g_traceSeq = 0;
+uint32_t g_traceUntilMs = 0;
+bool g_traceActive = false, g_traceBaseline = true;
+static void tracePut32(uint8_t* dst, uint32_t value) {
+    for (unsigned i = 0; i < 4; ++i) dst[i] = static_cast<uint8_t>(value >> (8u*i));
+}
+
 
 bool g_haveLastInputKeyMask = false;
 uint32_t g_lastInputKeyMask = 0u;
+
+static void applyRelativeCapture(bool enabled) {
+    if(g_relative_enabled == enabled)return;
+    g_relative_enabled=enabled;
+    g_relative={};
+    g_relative_pending_head=g_relative_pending_tail=g_relative_pending_count=0;
+    g_haveLastInputKeyMask=false;
+}
+
+static void applyRelativeCaptureStatus(const uint8_t* payload, uint8_t len) {
+    // Legacy status payloads do not contain capture state. Only the explicit
+    // extension marker may change it; counters in bytes 21/22 are not flags.
+    if(len >= 24u && (payload[23]&0xFEu)==0xA0u) {
+        applyRelativeCapture((payload[23]&1u)!=0);
+        RFBridgePort_SetDmaReplyCapable(len >= 25u && payload[24]==0xD1u);
+    }
+}
 
 static uint8_t frameChecksum(const uint8_t* buf, uint16_t len) {
     uint8_t s = 0u;
@@ -117,6 +168,13 @@ bool RFTransport::parseStatusPayload(const uint8_t* payload, uint8_t len) {
     }
 
     status.state = static_cast<RFLinkState>(payload[0]);
+    applyRelativeCaptureStatus(payload,len);
+    if(len >= 23u) {
+        g_rf_sync_bridge_diag[1] = payload[21];
+        g_rf_sync_bridge_diag[2] = payload[22];
+        g_rf_sync_bridge_diag[3] = HAL_GetTick();
+        ++g_rf_sync_bridge_diag[0];
+    }
     status.connected = payload[1] != 0u;
     status.hasBond = payload[2] != 0u;
     status.rateHz = static_cast<uint16_t>(payload[3] | (payload[4] << 8));
@@ -175,23 +233,10 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len, bool* appl
         return true;
     }
 
-    if (evt == EVT_TIME_SYNC) {
-        if (payloadLen < 1u) {
-            return false;
-        }
-        status.lastEvent = evt;
-        status.eventCounter++;
-        g_pendingTimeSyncEcho.pending = true;
-        g_pendingTimeSyncEcho.seq = frame[3];
-        g_pendingTimeSyncEcho.rxTickUs = MICROS_TIMER.micros();
-        status.lastCommandTag = EVT_TIME_SYNC;
-        status.lastTransactionId = frame[3];
-        status.lastResult = 0u;
-        status.lastErrorReason = 0u;
-        state = RFTransportState::Connected;
-        if (applied != nullptr) {
-            *applied = true;
-        }
+    if(evt == EVT_TIME_SYNC) {
+        if(payloadLen != 1u || frame[3]>1u)return false;
+        applyRelativeCapture(frame[3]!=0);
+        if(applied)*applied=true;
         return true;
     }
 
@@ -463,12 +508,12 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
 }
 
 bool RFTransport::sendInputFrame(const uint8_t* payload, uint8_t len) {
-    if (len > 24u) {
+    if (len != 10u) {
         state = RFTransportState::Error;
         return false;
     }
 
-    uint8_t frame[4u + 24u + 1u] = {0};
+    uint8_t frame[48] = {0};
     frame[0] = RF_SYNC;
     frame[1] = CMD_INPUT_DATA;
     frame[2] = len;
@@ -483,8 +528,33 @@ bool RFTransport::sendInputFrame(const uint8_t* payload, uint8_t len) {
     }
     frame[totalNoChecksum] = checksum;
 
-    const bool ok = RFBridgePort_SendInputLatest(frame,
-                                                 static_cast<uint16_t>(totalNoChecksum + 1u));
+    uint16_t frameLen=static_cast<uint16_t>(totalNoChecksum+1u);
+    RelativeEdge* source=g_relative_pending_count ? &g_relative_pending[g_relative_pending_tail] : nullptr;
+    const bool sidecar=g_relative_enabled && source;
+    if(sidecar) {
+        uint8_t* d=frame+frameLen;
+        d[0]=RF_SYNC;d[1]=0x09;d[2]=20;
+        d[3]=source->spiSeq;putU16(d+4,source->event);
+        for(unsigned i=0;i<4;i++)tracePut32(d+6+i*4,source->stage[i]);
+        d[22]=1;d[23]=frameChecksum(d,23);frameLen+=24;
+    }
+    const bool ok=RFBridgePort_SendInputLatest(frame,frameLen);
+    if(ok && sidecar && --source->repeats==0u) {
+        g_relative_pending_tail=(g_relative_pending_tail+1u)%8u;
+        --g_relative_pending_count;
+    }
+    if(ok && g_relative_enabled && !g_relative.valid && g_relative.event) {
+        uint32_t start,end;
+        if(RFBridgePort_LastInputTiming(&start,&end)) {
+            constexpr uint32_t scale=SYSTEM_CLOCK_FREQ/1000000u;
+            g_relative.stage[0]=(g_relative.complete-g_relative.trigger)/scale;
+            g_relative.stage[1]=(g_relative.ready-g_relative.complete)/scale;
+            g_relative.stage[2]=(start-g_relative.ready)/scale;
+            g_relative.stage[3]=(end-start)/scale;
+            g_relative.spiSeq=payload[0];g_relative.valid=1;g_relative.repeats=3;
+            queueRelativeSource(g_relative);
+        }
+    }
     state = ok ? RFTransportState::Connected : RFTransportState::Error;
     return ok;
 }
@@ -566,6 +636,13 @@ bool RFTransport::setRate(uint16_t rateHz) {
 }
 
 bool RFTransport::pollStatus() {
+    if(RFBridgePort_DmaReplyCapable()) {
+        // Read-only runtime snapshot: send once and consume the reply through
+        // serviceEvents. Do not stall input in the 10ms command ACK handshake.
+        const uint8_t frame[]={RF_SYNC,CMD_GET_STATUS,0u,
+                               static_cast<uint8_t>(RF_SYNC+CMD_GET_STATUS)};
+        return RFBridgePort_SendNoResponse(frame,sizeof(frame));
+    }
     return transferCommand(CMD_GET_STATUS, nullptr, 0u, true);
 }
 
@@ -631,19 +708,19 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     payload[3] = static_cast<uint8_t>((keyMask >> 8) & 0xFFu);
     payload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
     payload[5] = static_cast<uint8_t>((keyMask >> 24) & 0xFFu);
-    if (!g_haveLastInputKeyMask || keyMask != g_lastInputKeyMask) {
-        uint32_t triggerCycles = 0u;
-        if (MonitorTelemetry_GetReportTriggerCycles(seq, &triggerCycles)) {
-            ageUs = saturateAgeUs(
-                MICROS_TIMER.elapsedMicros(triggerCycles));
-            if (ageUs == 0u) {
-                ageUs = 1u;
-            }
+    const bool changed = !g_haveLastInputKeyMask || keyMask != g_lastInputKeyMask;
+    if(changed) {
+        g_haveLastInputKeyMask=true;g_lastInputKeyMask=keyMask;
+        g_relative={};
+        if(g_relative_enabled) {
+            do{++g_relative_event;}while((g_relative_event&63u)==0u);
+            if(MonitorTelemetry_GetReportStages(seq,&g_relative.trigger,&g_relative.complete,&g_relative.ready))
+                g_relative.event=g_relative_event;
         }
-        g_haveLastInputKeyMask = true;
-        g_lastInputKeyMask = keyMask;
     }
-    putU16(&payload[INPUT_AGE_US_OFFSET], ageUs);
+    if(g_relative_enabled && g_relative.event)
+        payload[4]=static_cast<uint8_t>((payload[4]&3u)|((g_relative.event&63u)<<2));
+    putU16(&payload[INPUT_AGE_US_OFFSET],0u);
     if (POWER_MANAGER.isVoltageValid()) {
         const PowerBatteryVoltages voltages = POWER_MANAGER.getVoltages();
         const PowerBatteryId activeBattery = POWER_MANAGER.getActiveDischargeBattery();

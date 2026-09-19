@@ -1,3 +1,4 @@
+#include "rf_link_clock.h"
 #include "rfm_spi_reliable_event.h"
 
 #include <stdarg.h>
@@ -251,7 +252,7 @@ void rfm_spi_reliable_event_poll(bool command_ack_pending)
         return;
     }
 
-    now = TMOS_GetSystemClock();
+    now = RF_LinkClockNow();
     if((s_started != 0u) && (clock_due(now, s_complete_clock) != 0u))
     {
         complete_pending();
@@ -288,7 +289,6 @@ void rfm_spi_reliable_event_poll(bool command_ack_pending)
 
     if(rfm_spi_port_try_write(s_frame, s_frame_len))
     {
-        rfm_spi_port_set_irq(true);
         s_sent_count++;
         interval_ticks = ticks_from_ms((uint16_t)(RFM_SPI_RELIABLE_EVENT_WINDOW_MS /
                                                   RFM_SPI_RELIABLE_EVENT_PACKET_COUNT));

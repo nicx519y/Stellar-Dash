@@ -51,6 +51,18 @@ Key files:
 
 ## 4. Runtime Behavior
 
+Start through `npm start` or `npm run dev` (`electron .`) so Electron reads the
+package identity and uses `%APPDATA%/connect-monitor` on Windows. Passing
+`dist/electron/main.js` directly uses the generic `%APPDATA%/Electron` profile,
+which can conflict with other running Electron instances and cause
+`Unable to move the cache` / `Gpu Cache Creation failed` errors.
+The monitor allows one instance per profile; launching it again focuses the
+existing window before opening another telemetry reader or touching its database.
+When switching between `npm start` and `npm run dev`, close the existing monitor
+first. After upgrading from the old script entry point, close all old monitor
+windows once before restarting. The old profile is left untouched; saved debug
+settings from that profile are not automatically migrated.
+
 1. The client enumerates target HID devices.
 2. Matching devices are opened and subscribed through `data` events.
 3. Frame magic selects the parser:
@@ -90,3 +102,32 @@ Dependencies:
 - Dongle `DMN1` telemetry framing is available.
 - PC-side HID collection and parsing are available.
 - Renderer dashboards, logs, and Markdown export are available.
+
+## Long-running monitoring diagnostics
+
+Live IPC delivery has one outstanding batch per renderer, at most 500 rows per
+batch and 2000 pending rows. A stalled renderer resumes with recent data; older
+pending display rows are dropped and counted. Monitor history is still recorded
+separately by the event bus. Serial rows dropped before delivery are not written
+to the renderer's IndexedDB. Worker snapshots also wait for acknowledgement.
+
+History queries read backwards in 64 KiB blocks instead of loading the entire
+session into RAM. Disk-write failures keep live monitoring running and appear as
+`historyWriteError` in diagnostics; history may be incomplete after such errors.
+
+`runtime-diagnostics.jsonl` in the Electron user-data directory records process
+memory every 30 seconds, queue drops, renderer/child-process exits, and fatal JS
+exceptions. It keeps two files of about 2 MiB each (current and `.1`) across
+restarts. The default Windows directory is `%APPDATA%/connect-monitor`; a custom
+`--user-data-dir` uses that directory instead. Native main-process crashes may
+only leave Windows WER records; absence of a JS exception does not rule them out.
+
+Regression checks (after `npm run build`):
+
+```powershell
+node --test tests/memory-stability.test.cjs
+npx electron tests/electron-stream-smoke.cjs
+```
+
+The Electron smoke check uses synthetic input and a separate temporary profile,
+including a stalled renderer and reload. It does not open hardware devices.

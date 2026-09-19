@@ -59,6 +59,40 @@ export interface PacketEvent {
   airRateCode?: number;
   airLastDataSeq?: number;
   airLinkActive?: boolean;
+  rfDiagnosticVersion?: number;
+  rfBuildId?: number;
+  rfDiagnosticPage?: number;
+  rfReadyMs?: number;
+  usbReadyMs?: number;
+  rfConnectMs?: number;
+  rfConnectCount?: number;
+  rfAckWatchdog?: number;
+  rfAckLate?: number;
+  rfAckDuplicates?: number;
+  rfInputEdgeDrop?: number;
+  rfCrcTotal?: number;
+  rfRxArmFailures?: number;
+  rfRxRearmMaxUs?: number;
+  rfRxCallbackMaxUs?: number;
+  rfInputCommitMaxUs?: number;
+  rfInputCaptureMaxUs?: number;
+  rfAckSendFailures?: number;
+  rfShortDecodedTotal?: number;
+  rfTx5ByteTotal?: number;
+  rfTx7ByteTotal?: number;
+  rfTx12ByteTotal?: number;
+  rfAckReservedSlots?: number;
+  rfControlGuardSlots?: number;
+  rfTraceOverwrites?: number;
+  rfTxDiagnosticValid?: boolean;
+  rfTxWindowMs?: number;
+  rfTxDue?: number;
+  rfTxStarted?: number;
+  rfTxDropped?: number;
+  rfTxDiagnosticAgeMs?: number;
+  rfAirMissingTotal?: number;
+  rfAirReceivedTotal?: number;
+  rfReceiverState?: number;
   airPendingDrop?: number;
   airPendingCurrent?: number;
   airPendingMax?: number;
@@ -80,8 +114,11 @@ export interface PacketEvent {
   latencyRxEpWaitUs?: number;
   latencyRxSubmitUs?: number;
   latencyStageFlags?: number;
+  traceDrops?: number;
+  traceBaseline?: boolean;
   syncSeq?: number;
   syncRxTickUs?: number;
+  syncQueueWaitUs?: number;
   syncTxTickUs?: number;
 }
 
@@ -102,7 +139,15 @@ export interface ButtonLatencyEvent {
   standardMask: number;
   previousStandardMask: number;
   action: "press" | "release" | "change";
-  latencyMs: number;
+  latencyMs: number | null;
+  measurement?: "stages" | "windows" | "trace" | "usb";
+  relativeStagesUs?: Array<number | null>;
+  measurementReason?: string;
+  traceId?: string;
+  latencyMinMs?: number;
+  latencyMaxMs?: number;
+  latencyStageFlags?: number;
+  pollIntervalUs?: number;
   stm32Ms?: number;
   txMs?: number;
   rxMs?: number;
@@ -124,6 +169,10 @@ export interface ButtonLatencyStatusEvent {
   status: "Syncing" | "No HID telemetry" | "No XInput" | "No match" | "Locked" | "Waiting edge" | "Live";
   syncRttUs?: number;
   clockSamples?: number;
+  clockWidthUs?: number;
+  syncRequestSeq?: number;
+  syncPcSendUs?: number;
+  syncPcReceiveUs?: number;
 }
 
 export interface PowerStatusEvent {
@@ -190,6 +239,7 @@ export type DebugApplyState = "Idle" | "Applying" | "Applied" | "Partial" | "Fai
 export type DebugHidPeriodMs = 100 | 250 | 500 | 1000;
 
 export interface DebugConfig {
+  latencyMeasurementEnabled?: boolean;
   hidTelemetryEnabled: boolean;
   hidPeriodMs: DebugHidPeriodMs;
   autoHopEnabled: boolean;
@@ -229,5 +279,12 @@ export interface HitboxSummary {
   connected: boolean;
   deviceId: string | null;
   pressedCount: number;
+  timestampMs: number;
+}
+
+export interface NativeGamepadSnapshot {
+  connected: boolean;
+  deviceId: string | null;
+  standardMask: number;
   timestampMs: number;
 }

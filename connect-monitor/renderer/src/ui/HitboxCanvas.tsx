@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 
-import type { HitboxSummary } from "../../../shared/monitor-types";
+import type { HitboxSummary, NativeGamepadSnapshot } from "../../../shared/monitor-types";
 import {
   createHitboxSummary,
   gamepadSnapshotSignature,
   readGamepadButtonsSnapshot,
+  nativeGamepadButtonsSnapshot,
   type GamepadButtonsSnapshot,
   type PreferredGamepad,
 } from "./gamepadButtons";
@@ -176,6 +177,9 @@ export function HitboxCanvas({
 
     let rafId = 0;
     let preferred: PreferredGamepad | null = null;
+    let native: NativeGamepadSnapshot | null = null;
+    let nativePending = false;
+    let active = true;
     let lastDrawSignature = "";
     let lastSummarySignature = "";
     let lastSummaryAt = 0;
@@ -195,9 +199,17 @@ export function HitboxCanvas({
     };
 
     const tick = () => {
-      const snapshot = readGamepadButtonsSnapshot(preferred);
-      if (snapshot.selected) {
-        preferred = snapshot.selected;
+      if (!nativePending && window.connectMonitorApi?.getNativeGamepad) {
+        nativePending = true;
+        window.connectMonitorApi.getNativeGamepad().then((value) => {
+          if (active) native = value;
+        }).catch(() => { /* Keep old state only until its 1s freshness deadline. */ })
+          .finally(() => { nativePending = false; });
+      }
+      const browser = native ? null : readGamepadButtonsSnapshot(preferred);
+      const snapshot = native ? nativeGamepadButtonsSnapshot(native) : browser!;
+      if (browser?.selected) {
+        preferred = browser.selected;
       } else if (!snapshot.connected) {
         preferred = null;
       }
@@ -226,6 +238,7 @@ export function HitboxCanvas({
     rafId = window.requestAnimationFrame(tick);
 
     return () => {
+      active = false;
       window.cancelAnimationFrame(rafId);
       window.removeEventListener("resize", forceRefresh);
       window.removeEventListener("gamepadconnected", forceRefresh);

@@ -1,5 +1,6 @@
+import { RelativeLatencyDecoder } from "./relative-latency";
 import type { DebugConfig, DebugConfigStatus, DebugApplyState, MonitorEvent } from "../../shared/monitor-types";
-import { buttonLatencyTracker, monotonicNowUsForMonitor } from "./button-latency-source";
+import { buttonLatencyTracker, monotonicNowUsForMonitor, startNativeXinputSource } from "./button-latency-source";
 import { parseApplicationHidTelemetryFrame } from "./application-hid-telemetry-source";
 import { parseDongleHidTelemetryFrame } from "./dongle-hid-telemetry-source";
 import { matchesHidTelemetryDevice } from "./hid-device-selection";
@@ -21,6 +22,13 @@ let preferredControlHandle: any | null = null;
 let nextControlSeq = 1;
 let nextTimeSyncSeq = 1;
 let currentHidTelemetryEnabled = false;
+let currentLatencyEnabled = false;
+let desiredConfig: DebugConfig | null = null;
+let requestedControlSeq = 0;
+let lastControlAttemptAt = 0;
+let controlWriteSucceeded = false;
+const CONTROL_RETRY_INTERVAL_MS = 2000;
+const relativeLatency=new RelativeLatencyDecoder();
 let debugStatus: DebugConfigStatus = {
   state: "Idle",
   rxStatus: "Idle",
@@ -80,7 +88,8 @@ function crc16Ccitt(data: Uint8Array, len: number): number {
 
 function configFlags(config: DebugConfig): number {
   return (config.hidTelemetryEnabled ? FLAG_HID_TELEMETRY : 0) |
-    (config.autoHopEnabled ? FLAG_AUTO_HOP : 0);
+    (config.autoHopEnabled ? FLAG_AUTO_HOP : 0) |
+    (config.latencyMeasurementEnabled && config.hidTelemetryEnabled ? 0x20 : 0);
 }
 
 function buildControlFrame(config: DebugConfig, seq: number): Buffer {
@@ -97,15 +106,9 @@ function buildControlFrame(config: DebugConfig, seq: number): Buffer {
   return frame;
 }
 
-function buildTimeSyncFrame(seq: number): Buffer {
-  const frame = Buffer.alloc(CTL_FRAME_SIZE);
-  putU32LE(frame, 0, CTL_MAGIC);
-  frame[4] = CTL_VERSION;
-  frame[5] = seq & 0xff;
-  frame[6] = 0;
-  frame[7] = 3;
-  putU16LE(frame, 14, crc16Ccitt(frame, 14));
-  return frame;
+function buildCaptureLeaseFrame(): Buffer {
+  const frame=Buffer.alloc(CTL_FRAME_SIZE);putU32LE(frame,0,CTL_MAGIC);
+  frame[4]=CTL_VERSION;frame[7]=4;putU16LE(frame,14,crc16Ccitt(frame,14));return frame;
 }
 
 function statusFromCode(code: number): DebugApplyState {
@@ -120,7 +123,9 @@ function combineStatus(rxStatus: DebugApplyState, txStatus: DebugApplyState): De
   return "Applying";
 }
 
-function parseStatusReport(raw: Uint8Array): DebugConfigStatus | null {
+type DeviceConfigStatus = DebugConfigStatus & { flags: number; txAppliedSeq: number };
+
+function parseStatusReport(raw: Uint8Array): DeviceConfigStatus | null {
   const data = raw.length >= CTL_FRAME_SIZE + 1 && getU32LE(raw, 1) === CTL_MAGIC ? raw.subarray(1) : raw;
   if (data.length < CTL_FRAME_SIZE) return null;
   if (getU32LE(data, 0) !== CTL_MAGIC || data[4] !== CTL_VERSION) return null;
@@ -134,20 +139,36 @@ function parseStatusReport(raw: Uint8Array): DebugConfigStatus | null {
     rxStatus,
     txStatus,
     lastSeq: data[5],
+    flags: getU32LE(data, 8),
+    txAppliedSeq: data[15],
   };
 }
 
-function refreshDebugStatus(handle: any): void {
-  if (!handle || typeof handle.getFeatureReport !== "function") return;
+function refreshDebugStatus(handle: any): DeviceConfigStatus | null {
+  if (!handle || typeof handle.getFeatureReport !== "function") return null;
   try {
     const report = handle.getFeatureReport(0, CTL_FRAME_SIZE + 1);
     const parsed = parseStatusReport(Uint8Array.from(report));
     if (parsed) {
-      debugStatus = parsed;
+      // GET_REPORT can still describe the previous SET_REPORT. A successful
+      // USB write is not proof that this RX/TX configuration was applied.
+      if (parsed.lastSeq === requestedControlSeq) {
+        const matches = desiredConfig && parsed.flags === configFlags(desiredConfig);
+        debugStatus = {
+          state: matches ? parsed.state : "Partial",
+          rxStatus: matches ? parsed.rxStatus : "Applying",
+          txStatus: parsed.txStatus === "Applied" && parsed.txAppliedSeq !== requestedControlSeq
+            ? "Applying" : parsed.txStatus,
+          lastSeq: requestedControlSeq,
+        };
+        debugStatus.state = combineStatus(debugStatus.rxStatus, debugStatus.txStatus);
+      }
+      return parsed;
     }
   } catch (_err) {
     // Some HID backends do not support feature GET_REPORT on this interface.
   }
+  return null;
 }
 
 function writeControlFrame(handle: any, frame: Buffer): boolean {
@@ -177,7 +198,9 @@ export function getHidDebugConfigStatus(): DebugConfigStatus {
 
 export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
   currentHidTelemetryEnabled = Boolean(config.hidTelemetryEnabled);
+  currentLatencyEnabled = currentHidTelemetryEnabled && config.latencyMeasurementEnabled === true;
   if (!config.autoHopEnabled && typeof config.manualChannel !== "number") {
+    desiredConfig = null;
     debugStatus = {
       state: "Failed",
       rxStatus: "Failed",
@@ -188,7 +211,12 @@ export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
     return debugStatus;
   }
 
+  desiredConfig = { ...config };
+  lastControlAttemptAt = Date.now();
+  controlWriteSucceeded = false;
+
   const seq = nextControlSeq;
+  requestedControlSeq = seq;
   nextControlSeq = nextControlSeq === 255 ? 1 : nextControlSeq + 1;
   const frame = buildControlFrame(config, seq);
   const handles = preferredControlHandle
@@ -216,6 +244,7 @@ export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
       continue;
     }
     preferredControlHandle = handle;
+    controlWriteSucceeded = true;
     refreshDebugStatus(handle);
     return debugStatus;
   }
@@ -226,17 +255,6 @@ export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
     message: "HID SET_REPORT failed on all interfaces",
   };
   return debugStatus;
-}
-
-function sendTimeSync(handle: any): void {
-  if (!currentHidTelemetryEnabled || !handle) return;
-  const seq = nextTimeSyncSeq;
-  nextTimeSyncSeq = nextTimeSyncSeq === 255 ? 1 : nextTimeSyncSeq + 1;
-  const frame = buildTimeSyncFrame(seq);
-  const pcT0Us = monotonicNowUsForMonitor();
-  if (writeControlFrame(handle, frame)) {
-    buttonLatencyTracker.noteTimeSyncSent(seq, pcT0Us);
-  }
 }
 
 const DEVICE_RESCAN_INTERVAL_MS = 1000;
@@ -255,7 +273,8 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   const opened: any[] = [];
   let stopped = false;
   let lastMissingStatusAt = 0;
-  let lastTimeSyncAt = 0;
+  let traceCapable = false;
+  let rfWasConnected = false;
 
   const publishMissingThrottled = () => {
     const now = Date.now();
@@ -274,6 +293,9 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   };
 
   const closeHandle = (handle: any) => {
+    rfWasConnected = false;
+    traceCapable = false;
+    buttonLatencyTracker.reset();
     const idx = opened.indexOf(handle);
     if (idx >= 0) {
       opened.splice(idx, 1);
@@ -303,6 +325,8 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
         const handle = dev.path ? new HID.HID(dev.path) : new HID.HID(dev.vendorId, dev.productId);
         handle.on("data", (buf: Uint8Array) => {
           try {
+            const relative=relativeLatency.parse(buf);
+            if(relative!==null){for(const ev of relative)publish(ev);return;}
             const hostMonoUs = monotonicNowUsForMonitor();
             const appEvents = parseApplicationHidTelemetryFrame(buf);
             if (appEvents.length > 0) {
@@ -311,9 +335,23 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
             }
             const dongleEvents = parseDongleHidTelemetryFrame(buf, Date.now(), hostMonoUs);
             for (const ev of dongleEvents) {
+              // A TX-only restart leaves the RX USB handle and its previous
+              // "Applied" status alive. Reapply the current configuration once
+              // after RF recovery; a capture lease alone cannot enable TX.
+              if (ev.kind === "device_status") {
+                const connected = ev.state === "Connected";
+                const recovered = connected && !rfWasConnected;
+                rfWasConnected = connected;
+                if (recovered) options.onControlReady?.();
+              }
+              if (ev.kind === "packet" && ev.rfBuildId !== undefined) traceCapable = ev.rfBuildId >= 0x1907;
+              if (ev.kind === "device_status" && ["Disconnected", "Reconnecting", "Error"].includes(ev.state))
+                buttonLatencyTracker.reset();
               if (ev.kind === "packet" && (ev.messageType === "RFH_RHL1" || ev.messageType === "RFH_RHL2")) {
                 buttonLatencyTracker.handleLatencyPacket(ev, publish);
               }
+              if (ev.kind === "packet" && (ev.messageType === "RFH_RHC3" || ev.messageType === "RFH_RHC4" || ev.messageType === "RFH_RHE3"))
+                buttonLatencyTracker.handleTracePacket(ev,publish);
               publish(ev);
             }
           } catch (_err) {
@@ -326,7 +364,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
         });
         opened.push(handle);
         activeControlHandles.push(handle);
-        buttonLatencyTracker.reset();
+        buttonLatencyTracker.reset();relativeLatency.reset();
         options.onControlReady?.();
       } catch (_err) {
         publishMissingThrottled();
@@ -339,20 +377,34 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
     }
   };
 
+  const stopNative = () => {}; // USB completion comes from RX; no XInput polling dependency.
   scanAndOpen();
   const rescanTimer = setInterval(scanAndOpen, DEVICE_RESCAN_INTERVAL_MS);
-  const timeSyncTimer = setInterval(() => {
-    if (!currentHidTelemetryEnabled) {
-      buttonLatencyTracker.publishStatus("No HID telemetry", publish);
-      return;
-    }
-    buttonLatencyTracker.publishStatus("Waiting edge", publish);
-  }, 50);
+  const captureLeaseTimer=setInterval(()=>{
+    if(currentLatencyEnabled && preferredControlHandle)writeControlFrame(preferredControlHandle,buildCaptureLeaseFrame());
+    if (!desiredConfig) return;
+    const handle = preferredControlHandle ?? activeControlHandles[0];
+    if (!handle) return;
+    const status = refreshDebugStatus(handle);
+    // Keepalive (cmd 4) only renews an already enabled capture on RX. It
+    // cannot recover a missed enable, an expired lease, or a TX restart.
+    // Reconcile over USB; only a mismatch causes another RF configuration.
+    const needsApply = !controlWriteSucceeded || !preferredControlHandle || (status !== null && (
+      status.lastSeq !== requestedControlSeq ||
+      status.flags !== configFlags(desiredConfig) ||
+      status.rxStatus !== "Applied" ||
+      (rfWasConnected && (status.txStatus !== "Applied" || status.txAppliedSeq !== requestedControlSeq))
+    ));
+    if (needsApply && Date.now() - lastControlAttemptAt >= CONTROL_RETRY_INTERVAL_MS)
+      sendDebugConfig(desiredConfig);
+  },1000);
 
   return () => {
     stopped = true;
-    clearInterval(rescanTimer);
-    clearInterval(timeSyncTimer);
+    clearInterval(rescanTimer);clearInterval(captureLeaseTimer);
+    relativeLatency.reset();
+    stopNative();
+    buttonLatencyTracker.reset();
     for (const h of [...opened]) {
       closeHandle(h);
     }

@@ -1,3 +1,4 @@
+#include "rf_link_clock.h"
 #include "rfm_spi_command_txn.h"
 
 #include <stdarg.h>
@@ -125,7 +126,7 @@ bool rfm_spi_command_txn_resend_if_duplicate(uint8_t cmd, uint8_t txn)
 
     if(s_phase != CMD_TXN_WAIT_ACK_DUE)
     {
-        schedule_cached_ack(TMOS_GetSystemClock());
+        schedule_cached_ack(RF_LinkClockNow());
     }
     CMD_TXN_LOG("RECV_CMD_DUP cmd=0x%02X txn=%u ack_delay_ms=%u",
                 (unsigned int)cmd,
@@ -159,7 +160,7 @@ bool rfm_spi_command_txn_schedule_response(uint8_t cmd,
     s_txn = txn;
     s_frame_len = frame_len;
     memcpy(s_frame, frame, frame_len);
-    schedule_cached_ack(TMOS_GetSystemClock());
+    schedule_cached_ack(RF_LinkClockNow());
     CMD_TXN_LOG("ACK_SCHEDULE cmd=0x%02X txn=%u evt=0x%02X delay_ms=%u complete_wait_ms=%u",
                 (unsigned int)cmd,
                 (unsigned int)txn,
@@ -178,7 +179,7 @@ void rfm_spi_command_txn_poll(void)
         return;
     }
 
-    now = TMOS_GetSystemClock();
+    now = RF_LinkClockNow();
     if(s_phase == CMD_TXN_WAIT_ACK_DUE)
     {
         if(clock_due(now, s_ack_due_clock) == 0u)
@@ -194,7 +195,6 @@ void rfm_spi_command_txn_poll(void)
         }
         if(rfm_spi_port_try_write(s_frame, s_frame_len))
         {
-            rfm_spi_port_set_irq(true);
             s_complete_due_clock = now + ticks_from_ms((uint16_t)RFM_SPI_CMD_COMPLETE_WAIT_MS);
             s_phase = CMD_TXN_WAIT_COMPLETE;
             CMD_TXN_LOG("SEND_ACK cmd=0x%02X txn=%u evt=0x%02X len=%u",

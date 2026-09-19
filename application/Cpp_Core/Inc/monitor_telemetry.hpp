@@ -107,3 +107,5 @@ bool MonitorTelemetry_FillPowerFrameV1(MonitorPowerFrameV1* out);
 bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out);
 
 #endif
+
+bool MonitorTelemetry_GetReportStages(uint32_t seq,uint32_t* trigger,uint32_t* complete,uint32_t* ready);

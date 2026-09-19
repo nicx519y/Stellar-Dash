@@ -14,10 +14,10 @@
     "monitor:rf:json": "npm run build:electron && node dist/electron/rf-quality-cli.js --json",
     "package:win": "npm run build && electron-packager . RF-Monitor --platform=win32 --arch=x64 --out=release-builds --overwrite --prune=true --icon=resources/icon.ico",
     "installer:win": "npm run build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder --win nsis --x64",
-    "start": "electron dist/electron/main.js",
-    "start:mock": "cross-env MONITOR_MOCK=1 electron dist/electron/main.js",
+    "start": "electron .",
+    "start:mock": "cross-env MONITOR_MOCK=1 electron .",
     "dev:renderer": "vite --config renderer/vite.config.ts",
-    "dev:electron": "npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron dist/electron/main.js",
+    "dev:electron": "npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\""
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-import { Card } from "@chakra-ui/react";
+import { Card, Text } from "@chakra-ui/react";
 
 import type { DeviceStatusEvent, PacketEvent } from "../../../shared/monitor-types";
 import type { ChannelSwitchRow } from "./useMonitorStream";
@@ -45,16 +45,29 @@ export function RatePanel({
         : fallbackHz
     : 0;
   const latestLoss = rfConnected && lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
+  const air = packets.items.filter(p => p.rfAirMissingTotal !== undefined && p.rfAirReceivedTotal !== undefined).slice(-2);
+  const last = air[1], prev = air[0];
+  const missing = last && prev ? last.rfAirMissingTotal! - prev.rfAirMissingTotal! : -1;
+  const received = last && prev ? last.rfAirReceivedTotal! - prev.rfAirReceivedTotal! : -1;
+  const fresh = last && Date.now()-last.timestampMs < 2500;
+  const airText = fresh && missing >= 0 && received >= 0 && missing+received > 0
+    ? `${(100*missing/(missing+received)).toFixed(2)}%` : "—";
+  const tx = packets.items.filter(p=>p.rfTxDropped!==undefined).at(-1);
+  const short = packets.items.filter(p=>p.messageType==="RFH_RHP2").at(-1);
 
   return (
     <Card.Root variant="outline" h="100%" minW="400px" display="flex" flexDirection="column" {...panelSurfaceProps}>
       <PanelHeader
-        title="Report Rate / Packet Loss / Channel Events"
+        title="Report Rate / Input Deficit / Channel Events"
         meta={`${reportHz.toFixed(1)} Hz · ${latestLoss.toFixed(2)} %`}
         action={onClearData ? <ClearDataIconButton label="Clear chart data" onClick={onClearData} /> : undefined}
         compact={compact}
         borderBottom
       />
+      <Text px={3} pt={1} fontSize="11px" color="gray.400">
+        RF sequence gaps: {airText} · TX skipped/window: {tx?.rfTxDiagnosticAgeMs !== undefined && tx.rfTxDiagnosticAgeMs < 2000 ? tx.rfTxDropped : "—"}
+        {short && Date.now()-short.timestampMs<2500 ? ` · TX totals 5B/7B/12B: ${short.rfTx5ByteTotal}/${short.rfTx7ByteTotal}/${short.rfTx12ByteTotal} · ACK reserved slots: ${short.rfAckReservedSlots}` : ""}
+      </Text>
       <Card.Body px={3} pt={compact ? 1 : 0} pb={compact ? 2 : 3} flex="1" minH={0} display="flex">
         <TelemetryTrendChart
           rateSeries={chartRateSeries}

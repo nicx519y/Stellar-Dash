@@ -3,11 +3,15 @@ import type { HitboxBounds, HitboxOptions, HitboxSummary, LatencyTableBounds } f
 
 contextBridge.exposeInMainWorld("connectMonitorApi", {
   getVersion: () => "0.1.0",
-  onEvents: (handler: (events: unknown[]) => void) => {
-    const listener = (_event: unknown, events: unknown[]) => {
-      handler(events);
+  getNativeGamepad: () => ipcRenderer.invoke("hitbox:getNativeGamepad"),
+  onEvents: (handler: (events: unknown[]) => void | Promise<void>) => {
+    const listener = async (_event: unknown, events: unknown[], sequence: number) => {
+      try { await handler(events); }
+      catch (error) { console.error("Monitor event processing failed", error); }
+      finally { ipcRenderer.send("monitor:events:ack", sequence); }
     };
     ipcRenderer.on("monitor:events", listener);
+    ipcRenderer.send("monitor:events:ready");
     return () => ipcRenderer.off("monitor:events", listener);
   },
   onMonitorCleared: (handler: () => void) => {
@@ -29,11 +33,14 @@ contextBridge.exposeInMainWorld("connectMonitorApi", {
   listSerialPorts: () => ipcRenderer.invoke("serial:listPorts"),
   getSerialLogSelections: () => ipcRenderer.invoke("serial:getLogSelections"),
   setSerialLogSelections: (selections: Array<string | null | undefined>) => ipcRenderer.invoke("serial:setLogSelections", selections),
-  onSerialLogs: (handler: (lines: unknown[]) => void) => {
-    const listener = (_event: unknown, lines: unknown[]) => {
-      handler(lines);
+  onSerialLogs: (handler: (lines: unknown[]) => void | Promise<void>) => {
+    const listener = async (_event: unknown, lines: unknown[], sequence: number) => {
+      try { await handler(lines); }
+      catch (error) { console.error("Serial log processing failed", error); }
+      finally { ipcRenderer.send("serial:logs:ack", sequence); }
     };
     ipcRenderer.on("serial:logs", listener);
+    ipcRenderer.send("serial:logs:ready");
     return () => ipcRenderer.off("serial:logs", listener);
   },
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),

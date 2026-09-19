@@ -354,7 +354,7 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
       ));
       if (acceptedLines.length === 0) return;
 
-      void appendSerialLogLines(acceptedLines).catch(() => {});
+      const persisted = appendSerialLogLines(acceptedLines).catch(() => {});
       setLogsByPort((current) => {
         const next = new Map(current);
         const grouped = new Map<string, SerialLogLine[]>();
@@ -368,6 +368,7 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
         }
         return next;
       });
+      return persisted;
     });
     return unsubscribe;
   }, []);

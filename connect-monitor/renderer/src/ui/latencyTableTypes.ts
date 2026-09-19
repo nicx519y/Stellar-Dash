@@ -20,6 +20,7 @@ export type LatencyTableRow = {
   rxSubmitText: string;
   rxText: string;
   totalText: string;
+  relativeTexts: string[];
 };
 
 export type LatencyTableSnapshot = LatencyTableSummary & {

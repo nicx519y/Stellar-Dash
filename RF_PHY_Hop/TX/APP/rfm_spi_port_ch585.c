@@ -9,20 +9,21 @@
 #include "rfm_config.h"
 #include "usb_board_link_port_ch585.h"
 #include "wchrf.h"
+#include "rf_link_clock.h"
+#include "RF_PHY.h"
 
 #define SPI_WAKE_PIN                  RFM_BOARD_SPI_MISO_PIN
 #define SPI_WAKE_USE_INTX             0u
 #define SPI_TX_PENDING_RECOVER_US     (2000u)
-#define US_TICK_STEP                  (10u)
 #define SPI_INPUT_CMD                 (0x06u)
 #define SPI_RX_FRAME_BYTES            (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
 #define SPI_RX_DMA_BUF_SIZE           1024u
 #define SPI_CONTROL_SLOT_COUNT        2u
 
-static uint8_t s_spi_tx_buf[96];
+static uint8_t s_spi_tx_buf[96] __attribute__((aligned(4)));
 static uint16_t s_spi_tx_len;
 static uint16_t s_spi_tx_pos;
-static uint8_t s_spi_tx_pending;
+static volatile uint8_t s_spi_tx_pending;
 static uint32_t s_spi_tx_start_us;
 static volatile uint32_t s_spi_tx_recover_count;
 static volatile uint32_t s_spi_tx_done_count;
@@ -34,6 +35,9 @@ static volatile uint32_t s_wake_irq_count;
 static uint8_t s_sleep_block_flags;
 static uint8_t s_sleep_rx_quiesced;
 static uint8_t s_board_boot_ready_sent;
+static volatile uint8_t s_measure_nss;
+static volatile uint8_t s_measure_diag;
+static uint32_t s_nss_rx_total;
 
 #if (RFM_TX_LOG_ENABLE == 1u)
 static void spi_port_log_write(const char *buf)
@@ -82,8 +86,10 @@ static void spi_port_log_flush(void)
 #define SPI_PORT_LOG_FLUSH() ((void)0)
 #endif
 
-__attribute__((aligned(4))) static uint8_t s_spi_rx_dma_buf[SPI_RX_DMA_BUF_SIZE];
-static uint32_t s_spi_rx_dma_last_pos;
+__attribute__((aligned(4))) static volatile uint8_t s_spi_rx_dma_buf[SPI_RX_DMA_BUF_SIZE];
+/* Absolute byte cursors distinguish an empty ring from a producer lap. */
+static volatile uint32_t s_spi_rx_dma_wrap_bytes;
+static uint32_t s_spi_rx_dma_consumed;
 static volatile uint8_t s_spi_rx_latest_payload[RFM_RF_INPUT_PAYLOAD_LEN];
 static volatile uint8_t s_spi_rx_latest_valid;
 static volatile uint32_t s_spi_rx_latest_gen;
@@ -105,9 +111,11 @@ static volatile uint32_t s_spi_rx_direct_count;
 static volatile uint32_t s_spi_rx_done_count;
 static volatile uint32_t s_spi_rx_valid_frame_count;
 static volatile uint32_t s_spi_rx_bad_frame_count;
-static volatile uint8_t s_spi_rx_wrap_pending;
-static volatile uint8_t s_spi_rx_input_seq_valid;
-static volatile uint8_t s_spi_rx_last_input_seq;
+static volatile uint8_t s_spi_rx_input_end_valid;
+static volatile uint32_t s_spi_rx_input_end;
+/* RAM lookup: CRC remains mandatory, but NSS uses nine lookups instead of
+ * eighteen nibble lookups from Flash at the input report cadence. */
+static uint8_t s_spi_input_crc_table[256];
 
 typedef enum
 {
@@ -143,6 +151,8 @@ static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
     case 0x06u:
     case 0x07u:
     case 0x08u:
+    case 0x09u: /* sampling trace */
+    case 0x0Au: /* clock echo */
         return 1u;
     default:
         return 0u;
@@ -151,15 +161,25 @@ static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
 
 static uint32_t spi_now_us(void)
 {
-    s_now_us += US_TICK_STEP;
+    /* Real monotonic hardware time, independent of service-call frequency.
+     * Only this port's main-loop code observes this private accumulator. */
+    static rfh_cycle_clock_t clock;
+    if(clock.cycles_per_tick == 0u) {
+        clock.cycles_per_tick = GetSysClock() / 1000000u;
+        if(clock.cycles_per_tick == 0u) clock.cycles_per_tick = 1u;
+    }
+    s_now_us = rfh_cycle_clock_advance(&clock, SysTick->CNT);
     return s_now_us;
 }
 
+__HIGH_CODE
 static uint32_t spi_rx_dma_pos(void)
 {
-    uint32_t now = R32_SPI0_DMA_NOW;
-    const uint32_t beg = (uint32_t)s_spi_rx_dma_buf;
-    const uint32_t end = (uint32_t)(s_spi_rx_dma_buf + SPI_RX_DMA_BUF_SIZE);
+    /* DMA registers describe an SRAM bus offset. Normalize both operands;
+     * comparing a register offset with a CPU pointer rejects valid progress. */
+    uint32_t now = R32_SPI0_DMA_NOW & 0x1FFFFu;
+    const uint32_t beg = (uint32_t)s_spi_rx_dma_buf & 0x1FFFFu;
+    const uint32_t end = beg + SPI_RX_DMA_BUF_SIZE;
 
     if((now < beg) || (now > end))
     {
@@ -173,6 +193,39 @@ static uint32_t spi_rx_dma_pos(void)
     return now;
 }
 
+__HIGH_CODE
+static uint32_t spi_rx_dma_produced(void)
+{
+    uint32_t lock, pos, total;
+    /* Restore the v16 atomic snapshot. The epoch, pending wrap and DMA NOW
+     * must be observed in one protected interval, including when called from
+     * NSS. Do not change the interrupt nesting contract to save this lock. */
+    SYS_DisableAllIrq(&lock);
+    /* Account a wrap even if its IRQ is pending. Re-read NOW when DMA wraps
+     * during the snapshot; never combine a pre-wrap epoch with a post-wrap
+     * cursor. CNT_END is the transfer counter, not the DMA ring epoch. */
+    do {
+        if(R8_SPI0_INT_FLAG & RB_SPI_IF_DMA_END) {
+            R8_SPI0_INT_FLAG = RB_SPI_IF_DMA_END;
+            s_spi_rx_dma_wrap_bytes += SPI_RX_DMA_BUF_SIZE;
+        }
+        pos = spi_rx_dma_pos();
+    } while(R8_SPI0_INT_FLAG & RB_SPI_IF_DMA_END);
+    total = s_spi_rx_dma_wrap_bytes + pos;
+    SYS_RecoverIrq(lock);
+    return total;
+}
+
+__HIGH_CODE
+static uint8_t spi_input_crc_valid(const uint8_t *payload)
+{
+    uint8_t crc = 0u;
+    for(unsigned i=0; i<RFM_RF_INPUT_PAYLOAD_LEN-1u; ++i)
+        crc = s_spi_input_crc_table[crc ^ payload[i]];
+    return crc == payload[RFM_RF_INPUT_PAYLOAD_LEN-1u];
+}
+
+__HIGH_CODE
 static uint8_t spi_rx_latest_payload_same(const uint8_t *payload)
 {
     uint8_t i;
@@ -191,6 +244,7 @@ static uint8_t spi_rx_latest_payload_same(const uint8_t *payload)
     return 1u;
 }
 
+__HIGH_CODE
 static void spi_rx_commit_latest_payload(const uint8_t *payload)
 {
     uint8_t i;
@@ -200,6 +254,10 @@ static void spi_rx_commit_latest_payload(const uint8_t *payload)
         return;
     }
 
+    /* Input publication has the same bounded path with capture on or off.
+     * Do not run the RF/battery/clock update inside the SPI parser. Capture
+     * only the first frame identity of an edge before latest-wins coalescing. */
+    /* spi_rx_accept_input holds the publication lock. */
     s_spi_rx_latest_gen++;
     for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
     {
@@ -207,29 +265,26 @@ static void spi_rx_commit_latest_payload(const uint8_t *payload)
     }
     s_spi_rx_latest_valid = 1u;
     s_spi_rx_latest_gen++;
+    RF_SPI_RecordInputEdge(payload);
     s_spi_rx_direct_count++;
 }
 
-static uint8_t spi_rx_input_seq_fresh(const uint8_t *payload)
+__HIGH_CODE
+static void spi_rx_accept_input(const uint8_t *payload, uint32_t input_end)
 {
-    const uint8_t seq = payload[0];
-    uint8_t diff;
-
-    if(s_spi_rx_input_seq_valid == 0u)
-    {
-        s_spi_rx_input_seq_valid = 1u;
-        s_spi_rx_last_input_seq = seq;
-        return 1u;
+    uint32_t lock;
+    SYS_DisableAllIrq(&lock);
+    /* NSS can publish a newer input while the main parser consumes older
+     * copied bytes. Compare absolute stream positions, never an 8-bit sample
+     * sequence which aliases after 256 samples. Keep metadata parsing ordered. */
+    if(!s_spi_rx_input_end_valid || (int32_t)(input_end-s_spi_rx_input_end)>0) {
+        s_spi_rx_input_end_valid=1u;
+        s_spi_rx_input_end=input_end;
+        ++s_spi_rx_done_count;
+        ++s_spi_rx_valid_frame_count;
+        spi_rx_commit_latest_payload(payload);
     }
-
-    diff = (uint8_t)(seq - s_spi_rx_last_input_seq);
-    if((diff == 0u) || (diff >= 128u))
-    {
-        return 0u;
-    }
-
-    s_spi_rx_last_input_seq = seq;
-    return 1u;
+    SYS_RecoverIrq(lock);
 }
 
 static void spi_control_parser_reset(void)
@@ -275,7 +330,7 @@ static void spi_control_slot_push(const uint8_t *frame, uint8_t len)
     }
 }
 
-static void spi_control_parser_feed(uint8_t b)
+static void spi_control_parser_feed(uint8_t b, uint32_t byte_end)
 {
     switch(s_spi_control_state)
     {
@@ -333,12 +388,29 @@ static void spi_control_parser_feed(uint8_t b)
             if((s_spi_control_buf[1] == SPI_INPUT_CMD) &&
                (s_spi_control_payload_len == RFM_RF_INPUT_PAYLOAD_LEN))
             {
-                if(spi_rx_input_seq_fresh(&s_spi_control_buf[3]) != 0u)
+                /* A frame already accepted by NSS was CRC checked there.
+                 * It can never be published again, so do not recalculate it.
+                 * New/fallback frames still undergo the full CRC check. */
+                if(s_spi_rx_input_end_valid && (int32_t)(byte_end-s_spi_rx_input_end)<=0)
                 {
-                    s_spi_rx_done_count++;
-                    s_spi_rx_valid_frame_count++;
-                    spi_rx_commit_latest_payload(&s_spi_control_buf[3]);
+                    /* Continue parsing any source sidecar after this frame. */
                 }
+                else if(!spi_input_crc_valid(&s_spi_control_buf[3]))
+                {
+                    s_spi_rx_bad_frame_count++;
+                }
+                else
+                {
+                    spi_rx_accept_input(&s_spi_control_buf[3],byte_end);
+                }
+            }
+            else if(s_spi_control_buf[1] == 0x09u)
+            {
+                /* Source frames are immutable input metadata, not commands.
+                 * Consume them in stream order before later input or a reply
+                 * can overwrite/reset the two-slot command queue. */
+                s_spi_rx_done_count++;
+                (void)RF_SPI_WriteTrace(0x09u,&s_spi_control_buf[3],s_spi_control_payload_len);
             }
             else if(s_spi_control_buf[1] != SPI_INPUT_CMD)
             {
@@ -363,35 +435,11 @@ static void spi_control_parser_feed(uint8_t b)
     }
 }
 
-static void spi_rx_note_advance(uint32_t from, uint32_t delta)
-{
-    uint32_t pos = from;
-    uint32_t i;
-
-    for(i = 0u; i < delta; ++i)
-    {
-        spi_control_parser_feed(s_spi_rx_dma_buf[pos]);
-        pos++;
-        if(pos >= SPI_RX_DMA_BUF_SIZE)
-        {
-            pos = 0u;
-        }
-    }
-}
-
 static void spi_rx_dma_poll(void)
 {
-    const uint32_t pos = spi_rx_dma_pos();
-    uint8_t flags;
-    uint8_t loop_end;
-    uint32_t delta;
-
-    flags = R8_SPI0_INT_FLAG;
-    loop_end = (uint8_t)(flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END));
-    if(loop_end != 0u)
-    {
-        R8_SPI0_INT_FLAG = loop_end;
-    }
+    uint8_t snapshot[64];
+    uint32_t budget = 256u;
+    uint8_t flags = R8_SPI0_INT_FLAG;
     s_spi_rx_last_flags = flags;
 
     if((flags & RB_SPI_IF_FIFO_OV) != 0u)
@@ -403,46 +451,58 @@ static void spi_rx_dma_poll(void)
         return;
     }
 
-    if((pos == s_spi_rx_dma_last_pos) && (loop_end != 0u))
-    {
-        delta = SPI_RX_DMA_BUF_SIZE;
-    }
-    else if(pos >= s_spi_rx_dma_last_pos)
-    {
-        delta = pos - s_spi_rx_dma_last_pos;
-    }
-    else
-    {
-        delta = (SPI_RX_DMA_BUF_SIZE - s_spi_rx_dma_last_pos) + pos;
-    }
-
-    if(delta != 0u)
-    {
-        spi_rx_note_advance(s_spi_rx_dma_last_pos, delta);
-        s_spi_rx_total_bytes += delta;
-        if(delta > s_spi_rx_max_available)
-        {
-            s_spi_rx_max_available = delta;
+    while(budget) {
+        const uint32_t start = s_spi_rx_dma_consumed;
+        uint32_t produced = spi_rx_dma_produced();
+        uint32_t available = produced - start;
+        if(available > s_spi_rx_max_available)s_spi_rx_max_available = available;
+        if(!available)return;
+        if(available < SPI_RX_DMA_BUF_SIZE) {
+            uint32_t count = available < sizeof(snapshot) ? available : sizeof(snapshot);
+            if(count > budget)count = budget;
+            for(uint32_t i=0; i<count; ++i)
+                snapshot[i] = s_spi_rx_dma_buf[(start+i) % SPI_RX_DMA_BUF_SIZE];
+            /* DMA continues while copying. Validate BEFORE feeding any byte
+             * to a parser that can publish input or source records. */
+            produced = spi_rx_dma_produced();
+            if((uint32_t)(produced-start) < SPI_RX_DMA_BUF_SIZE &&
+               !(R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV)) {
+                s_spi_rx_dma_consumed = start + count;
+                s_spi_rx_total_bytes += count;
+                for(uint32_t i=0; i<count; ++i)spi_control_parser_feed(snapshot[i],start+i+1u);
+                budget -= count;
+                continue;
+            }
         }
-        s_spi_rx_dma_last_pos = pos;
+        /* The producer overtook us: no stale complete frame may be replayed
+         * just because its checksum happens to remain valid in the ring. */
+        ++s_spi_rx_ring_overrun_count;
+        ++s_spi_rx_backlog_drop_count;
+        s_spi_rx_backlog_drop_bytes += produced - start;
+        s_spi_rx_dma_consumed = produced;
+        spi_control_parser_reset();
+        return;
     }
 }
 
 static void spi_rx_dma_state_reset(void)
 {
-    s_spi_rx_dma_last_pos = 0u;
-    s_spi_rx_wrap_pending = 0u;
+    s_spi_rx_dma_consumed = 0u;
+    s_spi_rx_dma_wrap_bytes = 0u;
     s_spi_control_head = 0u;
     s_spi_control_tail = 0u;
     s_spi_control_count = 0u;
-    s_spi_rx_input_seq_valid = 0u;
-    s_spi_rx_last_input_seq = 0u;
+    s_spi_rx_input_end_valid = 0u;
+    s_spi_rx_input_end = 0u;
     memset(s_spi_control_slot_len, 0, sizeof(s_spi_control_slot_len));
     spi_control_parser_reset();
 }
 
 static void spi_rx_dma_loop_start(uint8_t flush_fifo)
 {
+    uint32_t lock;
+    SYS_DisableAllIrq(&lock);
+    PFIC_DisableIRQ(SPI0_IRQn);
     R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
     R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) &
                                  (uint8_t)(~RB_SPI_SLV_CMD_MOD));
@@ -456,7 +516,6 @@ static void spi_rx_dma_loop_start(uint8_t flush_fifo)
 
     if(flush_fifo != 0u)
     {
-        memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
         spi_rx_dma_state_reset();
         s_spi_rx_total_bytes = 0u;
     }
@@ -464,13 +523,20 @@ static void spi_rx_dma_loop_start(uint8_t flush_fifo)
     R32_SPI0_DMA_BEG = (uint32_t)s_spi_rx_dma_buf;
     R32_SPI0_DMA_END = (uint32_t)(s_spi_rx_dma_buf + SPI_RX_DMA_BUF_SIZE);
     R32_SPI0_DMA_NOW = (uint32_t)s_spi_rx_dma_buf;
+    /* Event reads and overflow recovery restart the RX DMA at offset zero.
+     * NSS capture must use the same epoch rather than the old ring offset. */
+    s_nss_rx_total=0u;
     R16_SPI0_TOTAL_CNT = SPI_RX_DMA_BUF_SIZE;
     R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
                        RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
     R8_SPI0_CTRL_CFG |= (uint8_t)(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
     SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_OV |
                          SPI0_IT_FIFO_HF | SPI0_IT_BYTE_END | SPI0_IT_FST_BYTE);
-    PFIC_DisableIRQ(SPI0_IRQn);
+    /* One short IRQ per 1024 bytes. RX FIFO errors remain latched for the
+     * main-loop recovery; no frame parsing or diagnostic work in this ISR. */
+    SPI0_ITCfg(ENABLE, SPI0_IT_DMA_END);
+    PFIC_EnableIRQ(SPI0_IRQn);
+    SYS_RecoverIrq(lock);
 }
 
 static void spi_rx_restart_after_tx(void)
@@ -479,17 +545,36 @@ static void spi_rx_restart_after_tx(void)
     spi_rx_dma_loop_start(1u);
 }
 
-static void spi_tx_fill_fifo(void)
+static void spi_tx_finish(uint8_t timed_out)
 {
-    while((s_spi_tx_pos < s_spi_tx_len) && (R8_SPI0_FIFO_COUNT < SPI_FIFO_SIZE))
-    {
-        R8_SPI0_FIFO = s_spi_tx_buf[s_spi_tx_pos++];
+    uint32_t lock;SYS_DisableAllIrq(&lock);
+    if(s_spi_tx_pending) {
+        s_spi_tx_pending=0u;
+        if(timed_out)++s_spi_tx_recover_count;else ++s_spi_tx_done_count;
+        spi_rx_restart_after_tx();
+        rfm_spi_port_set_irq(false);
     }
+    SYS_RecoverIrq(lock);
 }
 
 void rfm_spi_port_init(void)
 {
     uint8_t i;
+
+    PFIC_DisableIRQ(GPIO_A_IRQn);
+    PFIC_DisableIRQ(SPI0_IRQn);
+    /* v16 used the reset priority (0). Input capture and CNT_END reply
+     * completion must retain that priority over the 0x80 RF timer. Changing
+     * this contract coincided with the capture-enabled regression in v17;
+     * restore the working baseline before considering scheduling changes. */
+    PFIC_SetPriority(GPIO_A_IRQn,0x00);
+    PFIC_SetPriority(SPI0_IRQn,0x00);
+    for(unsigned n=0;n<256u;++n) {
+        uint8_t crc=(uint8_t)n;
+        for(unsigned bit=0;bit<8u;++bit)
+            crc=(uint8_t)((crc<<1)^((crc&0x80u)?0x07u:0u));
+        s_spi_input_crc_table[n]=crc;
+    }
 
     rfm_board_latest_ch585_prepare_spi_pins();
     rfm_board_latest_ch585_set_w_int(false);
@@ -526,9 +611,8 @@ void rfm_spi_port_init(void)
     s_spi_rx_done_count = 0u;
     s_spi_rx_valid_frame_count = 0u;
     s_spi_rx_bad_frame_count = 0u;
-    s_spi_rx_wrap_pending = 0u;
-    s_spi_rx_input_seq_valid = 0u;
-    s_spi_rx_last_input_seq = 0u;
+    s_spi_rx_input_end_valid = 0u;
+    s_spi_rx_input_end = 0u;
     s_spi_rx_latest_valid = 0u;
     s_spi_rx_latest_gen = 0u;
     for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
@@ -537,6 +621,13 @@ void rfm_spi_port_init(void)
     }
 
     spi_rx_dma_loop_start(1u);
+    /* Input delivery is independent of the capture switch. NSS handles only
+     * the completed input frame; sidecars and commands stay in the main loop. */
+    R16_PA_INT_EN &= (uint16_t)~SPI_WAKE_PIN;
+    GPIOA_ClearITFlagBit(SPI_WAKE_PIN);
+    GPIOA_ClearITFlagBit(RFM_BOARD_SPI_NSS_PIN);
+    GPIOA_ITModeCfg(RFM_BOARD_SPI_NSS_PIN,GPIO_ITMode_RiseEdge);
+    PFIC_EnableIRQ(GPIO_A_IRQn);
     /*
      * W_INT is active-low on the latest board.  Signal READY only after the
      * RF board port can receive the first command, and only once per cold
@@ -616,6 +707,9 @@ uint8_t rfm_spi_port_sleep_block_flags(void)
 
 void rfm_spi_port_sleep_until_nss_wake(void)
 {
+    s_sleep_rx_quiesced=1u;
+    R16_PA_INT_EN &= (uint16_t)~RFM_BOARD_SPI_NSS_PIN;
+    GPIOA_ClearITFlagBit(RFM_BOARD_SPI_NSS_PIN);
     rfm_spi_port_set_irq(false);
     PFIC_DisableIRQ(SPI0_IRQn);
     SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_OV |
@@ -689,6 +783,25 @@ void rfm_spi_port_sleep_until_nss_wake(void)
     rfm_spi_port_init();
 }
 
+static volatile uint32_t s_measure_end[256];
+static volatile uint8_t s_measure_valid[256];
+static volatile uint8_t s_measure_tag[256];
+void rfm_spi_port_measure_enable(uint8_t enable) {
+    if(rfm_board_latest_ch585_usb_spi_owner()) return;
+    if(s_measure_nss==enable)return;
+    s_measure_nss=enable;
+    s_measure_diag=0;
+    memset((void*)s_measure_valid,0,sizeof(s_measure_valid));
+    /* Do not change NSS delivery: normal input uses it with capture off too. */
+}
+__HIGH_CODE
+uint8_t rfm_spi_port_input_end(uint8_t tag,uint8_t seq,uint32_t* cycles) {
+    uint32_t t=s_measure_end[seq];
+    if(!s_measure_valid[seq] || s_measure_tag[seq]!=tag ||
+       (uint32_t)(SysTick->CNT-t)>GetSysClock()/125u)return 0;
+    *cycles=t;return 1;
+}
+uint8_t rfm_spi_port_measure_diag(void) {return (s_measure_nss ? 1u : 0u)|s_measure_diag;}
 __INTERRUPT
 __HIGH_CODE
 void GPIOA_IRQHandler(void)
@@ -709,9 +822,42 @@ void GPIOA_IRQHandler(void)
         return;
     }
 
+    const uint16_t flags=GPIOA_ReadITFlagPort();
+    if(flags & (uint16_t)~RFM_BOARD_SPI_NSS_PIN)
+        GPIOA_ClearITFlagBit(flags & (uint16_t)~RFM_BOARD_SPI_NSS_PIN);
+    if(flags & RFM_BOARD_SPI_NSS_PIN) {
+        const uint32_t now=SysTick->CNT;
+        GPIOA_ClearITFlagBit(RFM_BOARD_SPI_NSS_PIN);
+        if(s_spi_tx_pending || s_sleep_rx_quiesced)return;
+        const uint32_t end=spi_rx_dma_produced(), start=s_nss_rx_total;
+        s_nss_rx_total=end;
+        const uint32_t n=end-start;
+        if(s_measure_nss)s_measure_diag|=2u;
+        if(n==14u || n==38u) {
+            uint8_t frame[14],sum=0;
+            for(unsigned i=0;i<sizeof(frame);++i)
+                frame[i]=s_spi_rx_dma_buf[(start+i)%SPI_RX_DMA_BUF_SIZE];
+            if((uint32_t)(spi_rx_dma_produced()-start)>=SPI_RX_DMA_BUF_SIZE ||
+               (R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV))return;
+            if(frame[0]!=RFM_SPI_SYNC || frame[1]!=SPI_INPUT_CMD ||
+               frame[2]!=RFM_RF_INPUT_PAYLOAD_LEN)return;
+            for(unsigned i=0;i<13u;++i)sum+=frame[i];
+            if(sum!=frame[13] || !spi_input_crc_valid(frame+3))return;
+            if(s_measure_nss) {
+                const uint8_t seq=frame[3];
+                s_measure_tag[seq]=frame[7]>>2;
+                s_measure_end[seq]=now;s_measure_valid[seq]=1;
+                s_measure_diag|=4u;
+            }
+            /* Fixed 14-byte validated input only. No sidecar parsing,
+             * RF launch, battery processing or control replies in this ISR. */
+            spi_rx_accept_input(frame+3,start+sizeof(frame));
+        }
+        return;
+    }
     s_wake_irq_count++;
     clear_wake_pending();
-    PFIC_DisableIRQ(GPIO_A_IRQn);
+    if(s_sleep_rx_quiesced)PFIC_DisableIRQ(GPIO_A_IRQn);
 }
 
 void rfm_spi_port_set_irq(bool asserted)
@@ -723,22 +869,14 @@ void rfm_spi_port_service(void)
 {
     if(s_spi_tx_pending != 0u)
     {
-        spi_tx_fill_fifo();
         if((R8_SPI0_INT_FLAG & RB_SPI_IF_CNT_END) != 0u)
         {
-            R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
-            s_spi_tx_pending = 0u;
-            s_spi_tx_done_count++;
-            spi_rx_restart_after_tx();
-            rfm_spi_port_set_irq(false);
+            spi_tx_finish(0u);
         }
         else if(rfm_board_latest_ch585_nss_high() &&
                 ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0))
         {
-            s_spi_tx_pending = 0u;
-            s_spi_tx_recover_count++;
-            spi_rx_restart_after_tx();
-            rfm_spi_port_set_irq(false);
+            spi_tx_finish(1u);
         }
         return;
     }
@@ -832,13 +970,14 @@ void rfm_spi_port_discard_control_frames(void)
     if(s_sleep_rx_quiesced == 0u)
     {
         R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
+        s_spi_rx_dma_consumed = spi_rx_dma_produced();
+        PFIC_DisableIRQ(SPI0_IRQn);
         R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
                            RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
         while(R8_SPI0_FIFO_COUNT != 0u)
         {
             (void)R8_SPI0_FIFO;
         }
-        s_spi_rx_dma_last_pos = spi_rx_dma_pos();
         s_sleep_idle_valid = 0u;
         s_sleep_rx_quiesced = 1u;
     }
@@ -999,25 +1138,26 @@ void SPI0_IRQHandler(void)
     s_spi_rx_isr_count++;
     s_spi_rx_last_flags = flags;
 
+    if(s_spi_tx_pending && (flags & RB_SPI_IF_CNT_END)) {
+        // Physical final byte consumed. Restore RX before deasserting ready;
+        // never make the master wait for another main-loop FIFO service.
+        spi_tx_finish(0u);
+        return;
+    }
+
     if(flags == 0u)
     {
         return;
     }
-    if((flags & RB_SPI_IF_FIFO_OV) != 0u)
+    if(!s_spi_tx_pending)
     {
-        R8_SPI0_INT_FLAG = RB_SPI_IF_FIFO_OV;
-        s_spi_rx_fifo_ov_count++;
-        s_spi_rx_ring_overrun_count++;
-        return;
-    }
-    if((flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END)) != 0u)
-    {
-        R8_SPI0_INT_FLAG = (uint8_t)(flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END));
-        if(s_spi_rx_wrap_pending != 0u)
-        {
-            s_spi_rx_ring_overrun_count++;
+        if(flags & RB_SPI_IF_DMA_END) {
+            R8_SPI0_INT_FLAG = RB_SPI_IF_DMA_END;
+            s_spi_rx_dma_wrap_bytes += SPI_RX_DMA_BUF_SIZE;
         }
-        s_spi_rx_wrap_pending = 1u;
+        if(flags & RB_SPI_IF_CNT_END)R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
+        /* Leave FIFO_OV for main-loop recovery; clearing it here would let
+         * the parser splice bytes across a lost part of the input stream. */
         return;
     }
 
@@ -1025,16 +1165,38 @@ void SPI0_IRQHandler(void)
     s_spi_rx_bad_irq_count++;
 }
 
+bool rfm_spi_port_runtime_reply_ready(void)
+{
+    /* Called only after the main loop drains parsed control frames. Do not
+     * reset DMA while a master transaction or unconsumed RX data exists. */
+    return s_spi_tx_pending == 0u && rfm_board_latest_ch585_nss_high() &&
+           s_spi_control_count == 0u && spi_rx_dma_produced() == s_spi_rx_dma_consumed;
+}
+
 bool rfm_spi_port_try_write(const uint8_t *buf, size_t len)
 {
     size_t i;
+    uint32_t lock;
 
     if((buf == 0) || (len == 0u) || (len > 4095u) || (len > sizeof(s_spi_tx_buf)))
     {
         return false;
     }
-    if(s_spi_tx_pending != 0u)
+    if(!rfm_spi_port_runtime_reply_ready())
     {
+        return false;
+    }
+
+    /* Only main context produces replies. Stage bytes while RX stays live,
+     * then recheck ownership before changing direction. */
+    for(i = 0u; i < len; ++i)
+    {
+        s_spi_tx_buf[i] = buf[i];
+    }
+    SYS_DisableAllIrq(&lock);
+    if(!rfm_spi_port_runtime_reply_ready())
+    {
+        SYS_RecoverIrq(lock);
         return false;
     }
 
@@ -1043,22 +1205,32 @@ bool rfm_spi_port_try_write(const uint8_t *buf, size_t len)
     R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
     R8_SPI0_CTRL_MOD &= (uint8_t)(~RB_SPI_FIFO_DIR);
     R16_SPI0_TOTAL_CNT = (uint16_t)len;
-    R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
+    R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV;
 
     while(R8_SPI0_FIFO_COUNT != 0u)
     {
         (void)R8_SPI0_FIFO;
     }
 
-    for(i = 0u; i < len; ++i)
-    {
-        s_spi_tx_buf[i] = buf[i];
-    }
     s_spi_tx_len = (uint16_t)len;
-    s_spi_tx_pos = 0u;
-    spi_tx_fill_fifo();
+    s_spi_tx_pos = (uint16_t)len;
+    R32_SPI0_DMA_BEG = (uint32_t)s_spi_tx_buf;
+    R32_SPI0_DMA_END = (uint32_t)(s_spi_tx_buf+len);
+    R32_SPI0_DMA_NOW = (uint32_t)s_spi_tx_buf;
     s_spi_tx_pending = 1u;
     s_spi_tx_start_us = spi_now_us();
+    // Nonblocking form of SDK SPI0_SlaveDMATrans. DMA owns every byte;
+    // do not mix software FIFO writes with DMA or stop at DMA_END (prefetch).
+    R8_SPI0_CTRL_CFG |= RB_SPI_DMA_ENABLE;
+    /* Publish ready BEFORE enabling completion. A master input already in
+     * flight can consume a short reply immediately. If a caller asserted
+     * W_INT after this function returned, CNT_END could first restore RX
+     * and clear ready, then the caller would leave a phantom ready asserted
+     * forever with tx_pending == 0. All reply producers use this ownership. */
+    rfm_board_latest_ch585_set_w_int(true);
+    SPI0_ITCfg(ENABLE, SPI0_IT_CNT_END);
+    PFIC_EnableIRQ(SPI0_IRQn);
+    SYS_RecoverIrq(lock);
     if((len >= 2u) && (buf[0] == RFM_SPI_SYNC) && (buf[1] == 0x82u))
     {
         SPI_PORT_LOG("TX_FRAME evt=0x%02X len=%u head=%02X %02X %02X %02X %02X %02X %02X %02X",

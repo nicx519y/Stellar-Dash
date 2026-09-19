@@ -10,7 +10,7 @@ import { useMonitorStream } from "./useMonitorStream";
 const LATENCY_ROW_HEIGHT = 30;
 const LATENCY_ROW_OVERSCAN = 5;
 const LATENCY_TABLE_COLUMNS =
-  "minmax(62px, 1.05fr) repeat(2, minmax(48px, 0.7fr)) repeat(4, minmax(54px, 0.76fr)) minmax(54px, 0.76fr) minmax(58px, 0.82fr)";
+  "minmax(62px, 1fr) repeat(8, minmax(46px, 0.7fr)) minmax(120px, 1.6fr)";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -40,7 +40,7 @@ function LatencyVirtualList({ rows }: { rows: LatencyTableSnapshot["rows"] }) {
       <Box flex="1" minH={0} overflowY="auto" css={scrollbarStyle}>
         <Box px={3} py={4}>
           <Text fontSize="sm" color="gray.400">
-            No latency samples
+            Waiting for a button press or release
           </Text>
         </Box>
       </Box>
@@ -71,8 +71,8 @@ function LatencyVirtualList({ rows }: { rows: LatencyTableSnapshot["rows"] }) {
         borderColor="rgba(92,255,138,0.12)"
         bg="rgba(92,255,138,0.045)"
       >
-        {["Button", "STM32", "TX", "IRQ", "Decode", "EPWait", "Submit", "RX", "Total"].map((label, index) => (
-          <Text key={label} fontSize="sm" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"}>
+        {["Button", "ADC", "Logic", "SPI wait", "SPI", "TX", "RF≈", "RX", "USB", "Total≈"].map((label, index) => (
+          <Text key={label} fontSize="sm" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"} title={index === 0 ? "↓ Press · ↑ Release. Only button state changes are shown, including incomplete measurements." : undefined}>
             {label}
           </Text>
         ))}
@@ -103,17 +103,11 @@ function LatencyVirtualList({ rows }: { rows: LatencyTableSnapshot["rows"] }) {
                   borderColor="rgba(92,255,138,0.08)"
                   bg={index % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(92,255,138,0.035)"}
                 >
-                  <Text fontSize="sm" color="gray.100" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                  <Text fontSize="sm" color="gray.100" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" title={`${row.buttonLabel} · ↓ Press · ↑ Release`}>
                     {row.buttonLabel}
                   </Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{row.stm32Text}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{row.txText}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{row.rxIrqText}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{row.rxDecodeText}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{row.rxEpWaitText}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{row.rxSubmitText}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{row.rxText}</Text>
-                  <Text fontSize="sm" color="green.200" fontWeight="semibold" textAlign="right">{row.totalText}</Text>
+                  {row.relativeTexts.map((value,i)=><Text key={i} fontSize="sm" color="gray.200" textAlign="right">{value}</Text>)}
+                  <Text fontSize="sm" color="green.200" fontWeight="semibold" textAlign="right" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" title={row.totalText}>{row.totalText}</Text>
                 </Box>
               );
             })}

@@ -94,7 +94,7 @@ function calcRateFromPackets(packets: PacketRow[], channel: "USB" | "RF", direct
   for (let i = packets.length - 1; i >= 0; i--) {
     const p = packets[i];
     if (t - p.timestampMs > windowMs) break;
-    if (p.channel === channel && p.direction === direction) count += 1;
+    if (p.channel === channel && p.direction === direction && p.rfDiagnosticVersion === undefined) count += 1;
   }
   return (count * 1000) / windowMs;
 }
@@ -244,7 +244,11 @@ export class MonitorStreamProcessor {
       MAX_ROWS,
     );
     this.latencies = appendTrim(this.latencies, batch.filter(isLatency), MAX_LATENCIES);
-    this.buttonLatencies = appendTrim(this.buttonLatencies, batch.filter(isButtonLatency), MAX_BUTTON_LATENCIES);
+    for (const row of batch.filter(isButtonLatency)) {
+      const index = row.traceId ? this.buttonLatencies.findIndex(old => old.traceId === row.traceId) : -1;
+      if (index >= 0) this.buttonLatencies = this.buttonLatencies.map((old,i) => i === index ? row : old);
+      else this.buttonLatencies = appendTrim(this.buttonLatencies, [row], MAX_BUTTON_LATENCIES);
+    }
 
     const latestButtonLatencyStatus = batch.filter(isButtonLatencyStatus).at(-1);
     if (latestButtonLatencyStatus) {
@@ -370,7 +374,7 @@ export class MonitorStreamProcessor {
   private buildChannelRows(rfPackets: PacketEvent[]): ChannelSwitchRow[] {
     const channelRows: ChannelSwitchRow[] = [];
     for (const p of rfPackets) {
-      if (p.messageType === "RFH_RHS1_SCORE") {
+      if (p.messageType === "RFH_RHS1_SCORE" || p.rfDiagnosticVersion !== undefined) {
         continue;
       }
       if (isRfInputPacket(p)) {

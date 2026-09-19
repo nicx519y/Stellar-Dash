@@ -1,3 +1,4 @@
+#include "rf_link_clock.h"
 #include "rfm_spi_bridge.h"
 
 #include <stdarg.h>
@@ -15,6 +16,10 @@
 
 static uint32_t s_rx_count;
 static uint32_t s_tx_count;
+/* One RF ISR producer, one main-loop consumer; publish sequence and generation
+ * atomically so an interrupt during a write cannot lose the next request. */
+static volatile uint32_t s_sync_request;
+static uint32_t s_sync_delivered;
 static uint32_t s_raw_bytes_win;
 static uint32_t s_frame_ok_win;
 static uint32_t s_bad_sync_win;
@@ -61,7 +66,7 @@ static uint32_t s_sleep_gate_last_log_clock;
 #define SPI_SLEEP_GATE_LOG_MS         200u
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
-#define SPI_STATUS_PAYLOAD_LEN        23u
+#define SPI_STATUS_PAYLOAD_LEN        25u
 #define SPI_CONTROL_DRAIN_MAX         4u
 #define SPI_SCHEDULED_SEQ_OFFSET      0u
 #define SPI_SCHEDULED_COMPLETE_OFFSET 1u
@@ -83,6 +88,8 @@ typedef enum {
     SPI_CMD_UNBIND = 0x04,
     SPI_CMD_SET_RATE = 0x05,
     SPI_CMD_INPUT_DATA = 0x06,
+    SPI_CMD_TRACE = 0x09,
+    SPI_CMD_TRACE_SYNC = 0x0A,
     SPI_CMD_SLEEP = 0x08
 } spi_cmd_t;
 
@@ -273,6 +280,8 @@ static bool is_valid_host_cmd(uint8_t cmd)
     case SPI_CMD_SET_RATE:
     case SPI_CMD_INPUT_DATA:
     case SPI_CMD_SLEEP:
+    case SPI_CMD_TRACE:
+    case SPI_CMD_TRACE_SYNC:
         return true;
     default:
         return false;
@@ -349,7 +358,6 @@ static bool write_frame(const uint8_t *frame, uint8_t frame_len)
     }
     if (rfm_spi_port_try_write(frame, frame_len)) {
         s_tx_count++;
-        rfm_spi_port_set_irq(true);
         return true;
     }
     return false;
@@ -453,8 +461,19 @@ static uint8_t build_status_frame_ex(spi_evt_t evt,
     payload[SPI_STATUS_CMD_TAG_OFFSET] = cmd_tag;
     payload[SPI_STATUS_TXN_OFFSET] = txn;
     payload[SPI_STATUS_RESULT_OFFSET] = result;
+    /* Recovery context belongs to asynchronous state changes, not command
+     * error results. 0x80..0x84 is the informational RF recovery namespace. */
     payload[SPI_STATUS_REASON_OFFSET] = reason;
+    if(evt == SPI_EVT_STATE_CHANGED && reason == 0u && RF_GetRecoveryReason() != 0u)
+        payload[SPI_STATUS_REASON_OFFSET] = (uint8_t)(0x80u | RF_GetRecoveryReason());
     payload[SPI_STATUS_EVENT_SEQ_OFFSET] = event_seq;
+    /* Reserved status bytes: modulo-256 trace transport diagnostics. */
+    payload[21] = RF_GetSourceFrameCount();
+    payload[22] = RF_GetSyncAirCount();
+    /* Versioned capture state rides the existing status exchange. Unlike a
+     * one-shot event, a lost notification or STM32 reset heals on next poll. */
+    payload[23] = 0xA0u | RF_IsMeasurementEnabled();
+    payload[24] = 0xD1u; /* All replies are DMA-backed; no inter-byte delay needed. */
 
     if(pending_state_out != 0)
     {
@@ -565,11 +584,20 @@ void rfm_spi_bridge_emit_state_changed(uint8_t cmd_tag)
 
 uint8_t rfm_spi_bridge_emit_time_sync(uint8_t seq)
 {
+    s_sync_request = ((s_sync_request + 0x100u) & 0xFFFFFF00u) | seq;
+    return 1u;
+}
+
+static void poll_time_sync(void)
+{
+    const uint32_t request = s_sync_request;
     uint8_t payload[1];
     uint8_t out[RFM_SPI_MAX_FRAME];
     uint8_t frame_len;
 
-    payload[0] = seq;
+    if(request == s_sync_delivered || s_real_sleep_pending != 0u ||
+       !rfm_spi_port_runtime_reply_ready()) return;
+    payload[0] = (uint8_t)request;
     frame_len = build_frame(SPI_EVT_TIME_SYNC,
                             payload,
                             (uint8_t)sizeof(payload),
@@ -577,9 +605,8 @@ uint8_t rfm_spi_bridge_emit_time_sync(uint8_t seq)
                             (uint8_t)sizeof(out));
     if(frame_len != 0u)
     {
-        return write_frame(out, frame_len) ? 1u : 0u;
+        if(write_frame(out, frame_len)) s_sync_delivered = request;
     }
-    return 0u;
 }
 
 static bool send_error_event(uint8_t cmd_tag, uint8_t txn, uint8_t reason, uint8_t cache_response)
@@ -608,7 +635,7 @@ static void save_pending_scheduled_command(uint8_t cmd,
     {
         s_pending_scheduled_args[i] = (args == 0) ? 0u : args[i];
     }
-    s_pending_scheduled_due_clock = TMOS_GetSystemClock() + ticks_from_ms_local(complete_ms);
+    s_pending_scheduled_due_clock = RF_LinkClockNow() + ticks_from_ms_local(complete_ms);
 }
 
 static bool execute_control_action(uint8_t cmd, const uint8_t *args, uint8_t args_len)
@@ -701,7 +728,7 @@ static void execute_pending_scheduled_command(void)
     {
         return;
     }
-    if(clock_due_local(TMOS_GetSystemClock(), s_pending_scheduled_due_clock) == 0u)
+    if(clock_due_local(RF_LinkClockNow(), s_pending_scheduled_due_clock) == 0u)
     {
         return;
     }
@@ -855,12 +882,16 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
     const uint8_t *args = payload;
     uint8_t args_len = len;
 
-    rfm_spi_port_set_irq(false);
     s_rx_count++;
 
     if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
         (void)RF_SPI_FastWriteInput(payload, len);
+        return;
+    }
+
+    if(cmd == SPI_CMD_TRACE || cmd == SPI_CMD_TRACE_SYNC) {
+        (void)RF_SPI_WriteTrace(cmd, payload, len);
         return;
     }
 
@@ -871,6 +902,13 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
     }
 
     log_spi_command_received(cmd, payload, len);
+
+    if(cmd == SPI_CMD_GET_STATUS && len == 0u) {
+        // Capability-negotiated read-only snapshot; no mutating command,
+        // transaction ACK delay, or redundant completion response.
+        (void)send_status_frame(SPI_EVT_STATUS,cmd,0u,0u,0u,0u);
+        return;
+    }
 
     if((payload == 0) || (len == 0u))
     {
@@ -1375,6 +1413,8 @@ static bool input_payload_state_changed(const uint8_t *prev, const uint8_t *curr
 
 void rfm_spi_bridge_init(void)
 {
+    s_sync_request = 0u;
+    s_sync_delivered = 0u;
     s_rx_count = 0u;
     s_tx_count = 0u;
     s_raw_bytes_win = 0u;
@@ -1466,6 +1506,7 @@ void rfm_spi_bridge_poll(void)
         } else {
             process_control_frame_queue((uint8_t)SPI_CONTROL_DRAIN_MAX);
         }
+        poll_time_sync();
         if(s_real_sleep_pending != 0u) {
             const uint8_t tx_ok = (rfm_spi_port_tx_pending() == 0u) ? 1u : 0u;
             const uint8_t sched_ok = (s_pending_scheduled_valid == 0u) ? 1u : 0u;
@@ -1510,7 +1551,7 @@ void rfm_spi_bridge_poll(void)
             }
 #if (RFM_TX_LOG_ENABLE == 1u)
             {
-                const uint32_t now = TMOS_GetSystemClock();
+                const uint32_t now = RF_LinkClockNow();
                 if((s_sleep_gate_log_armed == 0u) ||
                    ((uint32_t)(now - s_sleep_gate_last_log_clock) >= MS1_TO_SYSTEM_TIME(SPI_SLEEP_GATE_LOG_MS))) {
                     s_sleep_gate_log_armed = 1u;
@@ -1555,4 +1596,5 @@ void rfm_spi_bridge_poll(void)
     execute_pending_control_command();
     try_send_pending_event_frame();
     rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
+    poll_time_sync();
 }

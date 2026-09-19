@@ -24,6 +24,12 @@ bool RFBridgePort_WakePulse(void);
 bool RFBridgePort_IsReady(void);
 bool RFBridgePort_HasPendingEvent(void);
 bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen);
+void RFBridgePort_SetDmaReplyCapable(bool enabled);
+bool RFBridgePort_DmaReplyCapable();
+// DWT capture when the most recent validated event header was received.
+uint32_t RFBridgePort_EventReceivedCycles();
 void RFBridgePort_Shutdown(void);
 
 #endif
+
+bool RFBridgePort_LastInputTiming(uint32_t* start,uint32_t* end);

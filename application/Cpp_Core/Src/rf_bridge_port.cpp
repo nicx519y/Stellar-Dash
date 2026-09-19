@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "board_cfg.h"
+#include "micro_timer.hpp"
 #include "rf_bridge_port_internal.h"
 #include "system_logger.h"
 #include "stm32h7xx_hal.h"
@@ -10,6 +11,11 @@
 #if !APP_LOG_VERBOSE
 #define printf(...) ((void)0)
 #endif
+
+// Sparse sync diagnostics, read through SWD while the core keeps running.
+// [0] completed count, [1] seq, [2] runtime path, [3] initiating command,
+// [4] scan prefix, [5] bytes read, [6] start->header us, [7] header->end us.
+volatile uint32_t g_rf_sync_read_diag[8] = {};
 
 namespace {
 #ifndef RF_BRIDGE_SPI_BAUD_PRESCALER
@@ -43,6 +49,7 @@ namespace {
 static SPI_HandleTypeDef s_rf_hspi = {};
 static DMA_HandleTypeDef s_rf_dma_tx = {};
 static bool s_rf_spi_ready = false;
+static bool s_peer_dma_reply = false;
 static bool s_rf_dma_ready = false;
 static volatile bool s_dma_busy = false;
 static volatile bool s_dma_pending = false;
@@ -50,6 +57,7 @@ static volatile uint16_t s_dma_pending_len = 0u;
 static volatile uint8_t s_irq_event_pending = 0u;
 static uint8_t s_dma_active_buf[32] __attribute__((section(".DMA_Section"), aligned(32)));
 static uint8_t s_dma_pending_buf[32] __attribute__((section(".DMA_Section"), aligned(32)));
+static uint32_t s_event_received_cycles = 0u;
 static uint32_t s_diag_spi_init_fail = 0u;
 static uint32_t s_diag_tx_fail = 0u;
 static uint32_t s_diag_irq_timeout = 0u;
@@ -404,7 +412,7 @@ static bool rf_spi_dma_transmit_blocking(const uint8_t* tx, uint16_t txLen, uint
     return true;
 }
 
-static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
+static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd, bool runtimeRead = false) {
     static constexpr uint16_t kMinFrameLen = 4u;
     static constexpr uint16_t kMaxScanLen = 16u;
     (void)diagCmd;
@@ -423,8 +431,9 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
     uint16_t total = 0u;
     bool foundStart = false;
 
+    const uint32_t readStartedCycles = MICROS_TIMER.cycles();
     memset(rx, 0, *rxLen);
-    HAL_Delay(1u);
+    if (!runtimeRead && !s_peer_dma_reply) HAL_Delay(1u);
     rf_cs_set(false);
 
     while (rawLen < sizeof(raw)) {
@@ -468,6 +477,9 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
                     }
                     start = i;
                     foundStart = true;
+                    // Header is physically received: capture before remaining
+                    // bytes and IRQ deassertion wait, not in the later parser.
+                    s_event_received_cycles = MICROS_TIMER.cycles();
                     break;
                 }
             }
@@ -479,7 +491,13 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
         if (foundStart && (rawLen >= static_cast<uint16_t>(start + total))) {
             break;
         }
-        if (RF_BRIDGE_EVENT_RX_GAP_MS != 0u) {
+        // TX preloads its eight-byte FIFO before asserting IRQ. The runtime
+        // TIME_SYNC frame is only five bytes, so it requires no refill gaps.
+        // Keep existing pacing for all longer responses and control transfers.
+        const bool prefilledSync = runtimeRead &&
+            ((!foundStart && rawLen < 3u) ||
+             (foundStart && start == 0u && raw[1] == 0x87u && total == 5u));
+        if (!s_peer_dma_reply && !prefilledSync && RF_BRIDGE_EVENT_RX_GAP_MS != 0u) {
             HAL_Delay(RF_BRIDGE_EVENT_RX_GAP_MS);
         }
     }
@@ -529,6 +547,16 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
     }
 
     *rxLen = total;
+    if (rx[1] == 0x87u && total == 5u) {
+        g_rf_sync_read_diag[1] = rx[3];
+        g_rf_sync_read_diag[2] = runtimeRead;
+        g_rf_sync_read_diag[3] = diagCmd;
+        g_rf_sync_read_diag[4] = start;
+        g_rf_sync_read_diag[5] = rawLen;
+        g_rf_sync_read_diag[6] = (s_event_received_cycles - readStartedCycles) / (SYSTEM_CLOCK_FREQ / 1000000u);
+        g_rf_sync_read_diag[7] = MICROS_TIMER.elapsedMicros(s_event_received_cycles);
+        ++g_rf_sync_read_diag[0];
+    }
     printf("[RF_PORT][READ_EVT_RAW] ok start=%u total=%u head=%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
            (unsigned int)start,
            (unsigned int)total,
@@ -702,6 +730,7 @@ void RFBridgePort_Shutdown(void) {
     const uint32_t primask = __get_PRIMASK();
     __disable_irq();
     s_rf_spi_ready = false;
+    s_peer_dma_reply = false;
     s_rf_dma_ready = false;
     s_dma_busy = false;
     s_dma_pending = false;
@@ -770,6 +799,16 @@ bool RFBridgePort_HasPendingEvent(void) {
     return rf_has_pending_event_signal();
 }
 
+uint32_t RFBridgePort_EventReceivedCycles() {
+    return s_event_received_cycles;
+}
+
+void RFBridgePort_SetDmaReplyCapable(bool enabled) {
+    // Only a validated peer capability permits clocks without FIFO refill gaps.
+    s_peer_dma_reply=enabled;
+}
+bool RFBridgePort_DmaReplyCapable() { return s_peer_dma_reply; }
+
 bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
     if ((rx == nullptr) || (rxLen == nullptr)) {
         return false;
@@ -793,7 +832,7 @@ bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
     }
 
     rf_consume_irq_pending_marker();
-    const bool ok = rf_read_event_frame(rx, rxLen, 0x00u);
+    const bool ok = rf_read_event_frame(rx, rxLen, 0x00u, true);
     if (ok && (*rxLen > 0u)) {
         (void)rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS);
         printf("[RF_PORT][READ_EVT] ok evt=0x%02X len=%u\r\n",
@@ -805,6 +844,14 @@ bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
     return ok;
 }
 
+static uint32_t s_input_start_cycles, s_input_end_cycles;
+bool RFBridgePort_LastInputTiming(uint32_t* start,uint32_t* end) {
+#if RF_BRIDGE_INPUT_DMA_FASTPATH
+    return false; // Async enqueue is not a physical completion.
+#else
+    *start=s_input_start_cycles;*end=s_input_end_cycles;return true;
+#endif
+}
 bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     if ((tx == nullptr) || (txLen == 0u)) {
         return false;
@@ -835,12 +882,14 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     if (s_dma_busy) {
         return false;
     }
+    s_input_start_cycles=MICROS_TIMER.cycles();
     rf_cs_set(false);
     const HAL_StatusTypeDef tx_st = HAL_SPI_Transmit(&s_rf_hspi,
                                                      const_cast<uint8_t*>(tx),
                                                      txLen,
                                                      RF_BRIDGE_SPI_TIMEOUT_MS);
     rf_cs_set(true);
+    s_input_end_cycles=MICROS_TIMER.cycles();
     tx_ok = (tx_st == HAL_OK);
 #endif
 

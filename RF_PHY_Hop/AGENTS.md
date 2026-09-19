@@ -1,5 +1,60 @@
 # AGENTS - RF_PHY_Hop 当前结论
 
+2026-09-20 v19：用户反馈 v18 测量开启仍停更。静态分析确认 SPI 回包先启用完成中断、调用方后拉起 W_INT，存在完成撤销后又被调用方拉起的竞态，可产生 tx_pending=0 的假 ready 并阻止 STM32 输入。改为 port 内统一发布 DMA/pending/ready、先 ready 后开完成 IRQ，三个调用方不再拉起 ready，命令解析不再清除 ready。仅 TX 已编译，未烧录、未采集、未回归；此缺陷确定存在，但是否为本次实机唯一原因尚未验证。保留 v18 RF 优化。见 `../docs/RF_SPI_REPLY_OWNERSHIP_V19_20260920.md`。
+
+2026-09-20 v18：用户反馈 v17 开启测量再次无响应，v17 未验收。仅 TX 恢复 v16 的 SPI0/GPIO_A 优先级（显式 0）及 DMA 游标全局短锁，保留快速输入和纯计算开销优化，不新增调度策略。已编译，未采集、未回归、未烧录；优先级和局部锁尚未分别实机定位，不能宣称唯一根因或恢复已验证。见 `../docs/RF_CAPTURE_RECOVERY_V18_20260920.md`。
+
+2026-09-20 v17：用户确认 v16 延迟改善（截图完整记录 TX 约 122–123us），但丢包抖动增加。仅 TX 优化 NSS/SPI 抢占级与 TMR0 一致、DMA 游标只屏蔽 SPI/NSS、RAM CRC8 表与已接纳输入免重复 CRC、移出发送 ISR 的电池和无用 watchdog 时钟、预计算 5/7B 保护周期。保留 v16 快速输入及保护时间，未改变包长/8K/频道/统计口径。已编译，未采集、未回归、未烧录；不宣称实机丢包已下降。见 `../docs/RF_TX_JITTER_V17_20260920.md`。
+
+2026-09-20 v16：针对 v15 截图 TX 3–6ms 和源记录缺失，TX NSS ISR 增加固定长度输入校验/快照发布（测量开关均启用），主循环仍处理源记录与控制；共用绝对 DMA 位置防止主循环旧输入回退覆盖。RF 发送尝试改按实际 DMA 包 tag 记录，RF 消费快照不再重建 SPI 事件槽。仅 TX 已编译，未采集、未回归、未烧录；不宣称全部缺失/尖峰已消除。详见 `../docs/RF_INPUT_HANDOFF_V16_20260920.md`。
+
+2026-09-20 v15：用户反馈 v14 开启测量时按键停更，但 RF 接收率正常，关闭测量恢复；v14 未验收。TX SPI 输入发布开关测量统一路径，测量分支不再逐包调用完整 RF/battery/clock 更新；NSS ISR 仅缓存边界，由后续 SPI 消费/诊断发布补齐匹配时间。仅 TX 已编译，未烧录、未采集、未回归。当前消除了确认的代码耦合，但尚未证明停更的唯一根因或实机修复成功。见 `../docs/RF_CAPTURE_INPUT_V15_20260920.md`。
+
+2026-09-20 v14：仅 TX 修改并编译，尚未烧录、未采集设备、未运行回归。测量空闲扫描改为每轮最多 4 槽且先检查资格；SPI RX 用 DMA_END 维护绝对生产游标，检测覆盖，先复制小块并复核再解析；输入发布前检查已有 CRC8。STM32/RX/monitor 沿用 v13（RX 0x1913）。这些是代码缺陷修复，不能宣称截图全部源缺失或空闲闪键已实机解决。详见 `../docs/RF_SPI_INPUT_V14_20260920.md`，交付 `.hbox/rf-latency-v14-20260920/`。
+
+2026-09-20 v13：STM32/TX SPI 状态回包改为 DMA 供数、CNT_END 完成中断和能力协商后取消逐字节毫秒等待；周期 GET_STATUS 只读查询改为异步。TX ACK 软件兜底按实际接收窗 + 250us，NSS 缓存增加事件 tag 匹配。RX 去除跨 FIFO/prepared/in-flight 的重复状态积压，恢复 USB HS 协商，build ID 0x1913。三端已编译，尚未烧录；遵循用户要求未运行回归、未采集设备。RX 需重新枚举。原因与限制见 `../docs/RF_LATENCY_WAIT_V13_20260920.md`，不宣称截图所有 7ms TX 尖峰已得到实机解释或消除。
+
+2026-09-20 v12：从代码修复 STM32 单源记录被新事件覆盖、TX 两槽控制队列覆盖/清空源记录、NSS 结束边界查询顺序空档。STM32 新增 8 条源记录 FIFO，TX 在 SPI 解析时直接归档源记录并由 NSS ISR 回填匹配边界；回包前检查未消费输入。STM32/TX 已编译，尚未烧录，RX 保持 0x1910。用户明确要求停止后续回归，由用户验证；不要继续自动采样或回归。停止要求前 52 项测试已结束并通过。详见 `../docs/RF_LATENCY_SOURCE_V12_20260920.md`，不宣称实机缺失率已修复。
+
+2026-09-20 v11：STM32/TX 已通过原无锁入口更新，RX 仍为 0x1910。补充 SPI 状态中的版本化测量开关、源阶段与 NSS 有效性解耦、DMA 游标归一化与禁止整环旧输入重放；监视器增加 RF 重连后配置补发。49 项固件/契约与 33 项桌面测试通过，但只观察到一条完整空闲基线，真实按键验收未完成，仍不能宣称延迟问题已解决。临时探针已撤除。见 `../docs/RF_LATENCY_SOURCE_V11_20260920.md`，本段状态优先于下面的历史交付描述。
+
+2026-09-20 v10：修复 v9 测量第一帧 SPI 身份被 latest-input 合并覆盖、NSS 捕获起点未随 RX DMA 重置的问题。测量开启时在输入校验后原子发布事件与最新输入，并冻结第一帧 NSS 边界。RX build 0x1910 区分源记录缺失/尝试不匹配；STM32 沿用 v9。43 项 RF 测试、3 项板级契约、31 项桌面测试通过，尚未烧录/实机验收。交付及限制见 `../docs/RF_LATENCY_ASSOCIATION_V10_20260920.md`。本段优先于下文历史版本状态。
+
+2026-09-19 RX v6 已由用户烧录：接收重启、输入临界区及其常用小函数移到 RAM，
+临界区复制避免调用 Flash libc，RSSI 汇总延后到接收重启之后。build ID 0x1906。
+31 项主机测试、固定/正式配对编译和关键路径 ELF 地址校验通过。实测 0x1906，临界区 5/7 us，
+软件丢弃 0，频道 39 一分钟缺额 7.63%。七频道短测约 6.05%–11.35%，不能认定频道极限。
+自动策略复现出改善门槛过高、单坏窗口即回退、紧急探索仍受普通冷却限制，暂未开启自动。
+审查见 ../docs/RF_HOP_AUDIT_20260919.md；测试后恢复固定 39，固件代码未因本轮审查改变。
+只更新 RX，TX/STM32 不改；固定频道 39、关闭自动跳频。详见 ../docs/RF_RX_RAM_V6_20260919.md。
+
+2026-09-19 RX v5：删除无消费者的旧输入副本与私有短包 CRC 生成；XInput 构包开中断执行，
+提交时复核 FIFO 的 radio generation 与中立复位 epoch。build ID 0x1905，TX 不改。
+已实测软件原始包队列丢弃 132/s→0，解码提交约 7533/s；接收约 7541 Hz、目标缺额 5.74%。
+交付/测试见 ../docs/RF_RX_INPUT_V5_20260919.md；未通过完整稳定版验收。
+
+2026-09-19 RX v4：短 DATA 解码/CRC 移到全局关中断区外，提交前复核 radio generation；
+内部队列消费去掉重复 CRC，外部旧格式校验保留。RHD1 第 3 页新增 RX 失败/关键路径耗时，
+build ID 0x1904。TX 保持 dd46370d… 版本；已实测约 7540 Hz / 5.75% 缺额，原始包队列仍丢弃约 132/s；
+详见 ../docs/RF_RX_V4_RESULT_20260919.md，稳定验收未完成。
+
+2026-09-19 TX v3：ACK 改为单请求后保留静默接收槽，修复 SYN watchdog 阶段重置，
+增加独立 TX DMA 缓冲、空口间隔保护及短包到控制包的 300us 回调排空间隔。
+RX v3 build ID 0x1903 增加 RHD1 第 2 页，分别观测 TX 定时触发/启动尝试/跳过与 RX 序号缺口。
+用户要求暂停自动跳频做固定频道基线；不要自行恢复自动跳频。8K 稳定验收未完成。
+本轮参数/实机对照见 ../docs/RF_ACK_DMA_20260919.md，优先于下文旧的三包 burst 描述。
+
+2026-09-19 v2：实机反复断流复查发现 SDK 时钟重入，RF/SPI 已改用独立单调时钟。详见 ../docs/RF_CLOCK_REENTRY_20260919.md；v2 实机验收仍待完成。
+
+## 2026-09-19 稳定性修复后的权威入口
+
+当前参数、状态机、RHD1 诊断和验证边界以
+[RF_LINK_STABILITY_20260919.md](../docs/RF_LINK_STABILITY_20260919.md) 为准。
+本次已移除 RX 约 4 秒固定启动等待，CONNECT 使用 20/20ms，FINAL 上限 100ms，
+跳频 PREPARE/CONFIRM 各 100ms，失败恢复上限 200ms。普通 ACK 仍为 100ms。
+下文保留的旧 500ms ACK、1000ms FINAL、旧跳频阈值和恢复扫描参数属于历史记录。
+代码/构建测试不等于实机验收；详细状态见上述文档。
+
 本文件只保留当前 `RF_PHY_Hop/` 调试阶段对后续协议设计有用的结论。旧的跳频、配对、多速率历史设计不要作为当前实现依据。
 
 阅读优先级：
@@ -1619,3 +1674,12 @@ make -C RF_PHY_Hop/RX
 RF_PHY_Hop/TX/build_tx/RF_PHY_Hop_TX.bin
 RF_PHY_Hop/RX/build_rx/RF_PHY_Hop_RX.bin
 ```
+
+
+## 2026-09-19 latency trace v7
+
+RX build 0x1907 + matching STM32/TX enable original sampling timestamps (RHC3/RHE3). See `../docs/RF_LATENCY_TRACE_V7_20260919.md`. Legacy RHL2 is local-stage diagnostics only; never sum it as Windows latency. Fixed channel39, auto-hop disabled and Full-Speed USB remain the current debug baseline. Trace HID has independent pacing; statistics remain100ms.
+
+## 2026-09-19 short transport v9 (supersedes v7/v8 latency transport)
+
+RX build 0x1909 uses protocol v2 with matching TX/STM32: default 5 B input, optional 7 B input with bounded metadata fragments, normal 5 B ACK. No standalone RF time-sync or trace packets. Measurement is opt-in with USB lease; RLT2 stages end at USB IN completion and the RF boundary is modelled, not a Windows timestamp measurement. See `../docs/RF_SHORT_PACKET_V9_20260919.md` for layout, coverage limits, tests and matched artifacts. Hardware performance acceptance is still pending. Keep the accepted flashing/IAP workflow unchanged.

@@ -1,38 +1,16 @@
 import type { ButtonLatencyEvent, ButtonLatencyStatusEvent, MonitorEvent, PacketEvent } from "../../shared/monitor-types";
-
+import { Worker } from "node:worker_threads";
+import path from "node:path";
 type PublishFn = (event: MonitorEvent) => void;
-
-type PendingInput = {
-  inputSeq: number;
-  keyMask: number;
-  standardMask: number;
-  previousStandardMask: number;
-  sampleTickUs: number;
-  samplePcUs: number;
-  syncRttUs?: number;
-  createdAtUs: number;
-};
-
-type SyncSample = {
-  stmMidUs: number;
-  pcMidUs: number;
-  rttUs: number;
-};
-
-type XinputSnapshot = {
-  slot: number;
-  packetNumber: number;
-  standardMask: number;
-  pcUs: number;
-};
-
-const MAX_SYNC_SAMPLES = 32;
-const MAX_PENDING_INPUTS = 64;
-const PENDING_MAX_AGE_US = 1_000_000;
-const STATUS_INTERVAL_MS = 500;
-const UINT32_WRAP = 0x1_0000_0000;
-const UINT32_HALF = 0x8000_0000;
-
+type ClockSample = { lo: number; hi: number; at: number };
+type Observation = { slot: number; previous: number; mask: number; lo: number; hi: number; used: boolean };
+type Pending = { seq: number; keyMask: number; mask: number; previous: number; sample: number; lo: number; hi: number; at: number };
+export type NativePoll = { slot: number; standardMask: number; beforeUs: number; afterUs: number; previousBeforeUs: number };
+const MAX_LATENCY_US = 100_000;
+const MAX_METADATA_US = 50_000;
+const CLOCK_TTL_US = 8_000_000;
+const HALF = 0x80000000;
+const WRAP = 0x100000000;
 const hboxToStandardButton = new Map<number, number>([
   [0, 12],
   [1, 13],
@@ -53,7 +31,7 @@ const hboxToStandardButton = new Map<number, number>([
   [16, 16],
 ]);
 
-function nowMonoUs() {
+export function monotonicNowUsForMonitor() {
   return Number(process.hrtime.bigint() / 1000n);
 }
 
@@ -81,58 +59,186 @@ function describeAction(previousMask: number, nextMask: number): ButtonLatencyEv
   return "change";
 }
 
-class ButtonLatencyTracker {
-  private syncSamples: SyncSample[] = [];
-  private syncRequests = new Map<number, number>();
-  private pendingInputs: PendingInput[] = [];
-  private recentXinput: XinputSnapshot[] = [];
-  private lastInputStandardMask: number | null = null;
-  private lastExtendedStmUs: number | null = null;
-  private fitA = 1;
-  private fitB = 0;
-  private locked = false;
+export class ButtonLatencyTracker {
+  private requests = new Map<number, number>();
+  private clocks: ClockSample[] = [];
+  private deviceTime: number | null = null;
+  private edges: Pending[] = [];
+  private observations: Observation[] = [];
+  private lastTrace: {seq: number; sample: number; mask: number} | null = null;
+  private legacyMask: number | null = null;
+  private nativeMasks = new Map<number, number>();
+  private drops: number | undefined;
+  private lastSyncRtt: number | undefined;
+  private clockWidth: number | undefined;
+  private session = 0;
   private lastStatus = "";
   private lastStatusAt = 0;
-  private latestRttUs: number | undefined;
-  private selectedSlot: number | null = null;
 
   reset() {
-    this.syncSamples = [];
-    this.syncRequests.clear();
-    this.pendingInputs = [];
-    this.recentXinput = [];
-    this.lastInputStandardMask = null;
-    this.lastExtendedStmUs = null;
-    this.fitA = 1;
-    this.fitB = 0;
-    this.locked = false;
-    this.latestRttUs = undefined;
-    this.selectedSlot = null;
+    this.session++;
+    this.requests.clear(); this.clocks = []; this.deviceTime = null;
+    this.edges = []; this.observations = []; this.lastTrace = null;
+    this.nativeMasks.clear(); this.legacyMask = null;
+    this.lastSyncRtt = undefined; this.clockWidth = undefined;
+    this.drops = undefined;
   }
-
-  isClockLocked() {
-    return this.locked;
+  syncIntervalMs(now = monotonicNowUsForMonitor()) {
+    return this.offset(now) ? 137 : 17;
   }
-
   noteTimeSyncSent(seq: number, pcT0Us: number) {
-    this.syncRequests.set(seq & 0xff, pcT0Us);
-    if (this.syncRequests.size > 16) {
-      const first = this.syncRequests.keys().next().value;
-      if (typeof first === "number") this.syncRequests.delete(first);
+    this.requests.set(seq & 255, pcT0Us);
+    for (const [key, at] of this.requests) if (pcT0Us - at > 1_000_000) this.requests.delete(key);
+  }
+  private unwrap(raw: number) {
+    raw >>>= 0;
+    if (this.deviceTime === null) return this.deviceTime = raw;
+    let candidate = Math.floor(this.deviceTime / WRAP) * WRAP + raw;
+    if (candidate < this.deviceTime - HALF) candidate += WRAP;
+    if (candidate > this.deviceTime + HALF) candidate -= WRAP;
+    if (candidate > this.deviceTime) this.deviceTime = candidate;
+    return candidate;
+  }
+  private offset(now: number): {lo: number; hi: number} | null {
+    this.clocks = this.clocks.filter(s => now - s.at < CLOCK_TTL_US);
+    if (!this.clocks.length) return null;
+    // Explicit oscillator allowance (250 ppm) plus timestamp capture margin.
+    const lo = Math.max(...this.clocks.map(s => s.lo - Math.abs(now-s.at)*0.00025 - 20));
+    const hi = Math.min(...this.clocks.map(s => s.hi + Math.abs(now-s.at)*0.00025 + 20));
+    this.clockWidth = hi-lo;
+    return hi >= lo && hi-lo <= 10_000 ? {lo,hi} : null;
+  }
+  handleTracePacket(packet: PacketEvent, publish: PublishFn) {
+    const now = packet.hostMonoUs;
+    if (typeof now !== "number") return;
+    if (this.drops !== undefined && this.drops !== packet.traceDrops) {
+      this.edges = []; this.lastTrace = null;
+    }
+    this.drops = packet.traceDrops;
+    if (packet.messageType === "RFH_RHC3" || packet.messageType === "RFH_RHC4") {
+      if (packet.syncSeq === undefined || packet.syncRxTickUs === undefined || packet.syncTxTickUs === undefined) return;
+      const start = this.requests.get(packet.syncSeq);
+      if (start === undefined) return;
+      this.requests.delete(packet.syncSeq);
+      const receive = this.unwrap(packet.syncRxTickUs), send = this.unwrap(packet.syncTxTickUs);
+      if (send < receive || now < start || now-start > 1_000_000) return;
+      // No assumption that outgoing and return delays are symmetric.
+      const wait = packet.messageType === "RFH_RHC4" ? packet.syncQueueWaitUs : 0;
+      if (wait === undefined || !Number.isFinite(wait) || wait < 0 || wait > now-start-(send-receive)) return;
+      const drift = (now-start+wait)*0.00025;
+      // RX measured this residence BEFORE the first ACK transmission. Removing
+      // known residence tightens the lower bound; no path symmetry is assumed.
+      const sample = {lo: start+wait-receive-drift, hi: now-send+drift, at: now};
+      if (sample.hi < sample.lo) return;
+      const old = this.offset(now);
+      if (old && (sample.lo > old.hi || sample.hi < old.lo)) {
+        this.clocks = []; this.edges = []; this.observations = []; this.lastTrace = null;
+      }
+      this.clocks.push(sample); this.clocks = this.clocks.slice(-64);
+      this.lastSyncRtt = now-start;
+      const locked = this.offset(now);
+      publish({kind:"button_latency_status",timestampMs:Date.now(),status:locked ? "Locked" : "Syncing",
+        clockSamples:this.clocks.length,clockWidthUs:this.clockWidth,syncRttUs:now-start,
+        syncRequestSeq:packet.syncSeq,syncPcSendUs:start,syncPcReceiveUs:now});
+      return;
+    }
+    if (packet.sampleTickUs === undefined || packet.inputKeyMask === undefined || packet.inputSeq === undefined) return;
+    const sample = this.unwrap(packet.sampleTickUs), seq = packet.inputSeq;
+    const mask = hboxMaskToStandardMask(packet.inputKeyMask);
+    const previous = this.lastTrace;
+    if (previous && seq === previous.seq && sample === previous.sample) return;
+    if (previous && sample < previous.sample) return; // reordered or old session
+    this.lastTrace = {seq,sample,mask};
+    if (!previous || packet.traceBaseline) { this.edges = []; return; }
+    if (((seq-previous.seq)&255) !== 1) {
+      this.edges = [];
+      if (previous.mask !== mask) this.reportUnavailable(seq,packet.inputKeyMask,mask,previous.mask,sample,"Trace gap",publish);
+      return;
+    }
+    if (previous.mask === mask) return;
+    const clock = this.offset(now);
+    if (!clock || this.nativeMasks.size === 0) {
+      this.reportUnavailable(seq,packet.inputKeyMask,mask,previous.mask,sample,clock ? "No XInput" : "Syncing",publish);
+      this.publishStatus(clock ? "No XInput" : "Syncing", publish); return;
+    }
+    // Cover oscillator drift between the edge and metadata arrival too.
+    const margin = MAX_METADATA_US*0.00025;
+    const lo = sample+clock.lo-margin, hi = sample+clock.hi+margin;
+    if (lo > now+20 || now-lo > MAX_METADATA_US) {
+      this.reportUnavailable(seq,packet.inputKeyMask,mask,previous.mask,sample,"Trace late",publish); return;
+    }
+    this.reportUnavailable(seq,packet.inputKeyMask,mask,previous.mask,sample,"Matching",publish);
+    this.edges.push({seq,keyMask:packet.inputKeyMask,mask,previous:previous.mask,sample,lo,hi,at:now});
+    this.edges = this.edges.slice(-64);
+    this.flush(now, publish);
+  }
+  handleNativePoll(samples: NativePoll[], now: number, publish: PublishFn) {
+    // Track every slot independently. A second idle controller must not disable
+    // measurement; indistinguishable transitions across slots remain ambiguous.
+    const connected = new Set(samples.map(s => s.slot));
+    for (const slot of this.nativeMasks.keys()) {
+      if (!connected.has(slot)) this.nativeMasks.delete(slot);
+    }
+    this.observations = this.observations.filter(o => connected.has(o.slot));
+    for (const s of samples) {
+      const previous = this.nativeMasks.get(s.slot);
+      if (previous !== undefined && previous !== s.standardMask) {
+        this.observations.push({slot:s.slot,previous,mask:s.standardMask,
+          lo:s.previousBeforeUs,hi:s.afterUs,used:false});
+      }
+      this.nativeMasks.set(s.slot,s.standardMask);
+    }
+    if (!samples.length) this.publishStatus("No XInput", publish);
+    this.observations = this.observations.filter(o => now-o.hi < 2_000_000).slice(-256);
+    this.flush(now,publish);
+  }
+  private reportUnavailable(seq:number,keyMask:number,mask:number,previous:number,sample:number,reason:string,publish:PublishFn) {
+    publish({kind:"button_latency",timestampMs:Date.now(),inputSeq:seq,keyMask,standardMask:mask,
+      previousStandardMask:previous,action:describeAction(previous,mask),measurement:"trace",measurementReason:reason,
+      traceId:`${this.session}:${sample}:${seq}`,latencyMs:null,sampleTickUs:sample,samplePcUs:0,xinputPcUs:0,
+      confidence:"low",latencyFrame:"RFH_RHE3"});
+  }
+  private flush(now: number, publish: PublishFn) {
+    const ready = this.edges.filter(e => now > Math.max(e.at+MAX_LATENCY_US,e.hi+MAX_LATENCY_US+MAX_METADATA_US));
+    this.edges = this.edges.filter(e => !ready.includes(e));
+    for (const e of ready) {
+      const candidates = this.observations.filter(o => !o.used && o.previous===e.previous && o.mask===e.mask &&
+        o.hi >= e.lo && o.lo <= e.hi+MAX_LATENCY_US);
+      if (candidates.length !== 1) { this.reportUnavailable(e.seq,e.keyMask,e.mask,e.previous,e.sample,"No match",publish); this.publishStatus("No match",publish); continue; }
+      const o = candidates[0];
+      // If another origin can explain this same Windows transition, fail closed.
+      const competing = [...ready,...this.edges].filter(other => other !== e && other.previous===e.previous && other.mask===e.mask &&
+        o.hi >= other.lo && o.lo <= other.hi+MAX_LATENCY_US);
+      if (competing.length) { this.reportUnavailable(e.seq,e.keyMask,e.mask,e.previous,e.sample,"No match",publish); this.publishStatus("No match",publish); continue; }
+      o.used = true;
+      const low = Math.max(0,o.lo-e.hi), high = o.hi-e.lo;
+      if (high < 0 || o.hi-o.lo > 20_000) { this.reportUnavailable(e.seq,e.keyMask,e.mask,e.previous,e.sample,"No match",publish); this.publishStatus("No match",publish); continue; }
+      publish({kind:"button_latency",timestampMs:Date.now(),inputSeq:e.seq,keyMask:e.keyMask,
+        standardMask:e.mask,previousStandardMask:e.previous,action:describeAction(e.previous,e.mask),
+        traceId:`${this.session}:${e.sample}:${e.seq}`,measurement:"windows",latencyMs:(low+high)/2000,latencyMinMs:low/1000,latencyMaxMs:high/1000,
+        sampleTickUs:e.sample,samplePcUs:(e.lo+e.hi)/2,xinputPcUs:o.hi,
+        syncRttUs:e.hi-e.lo,pollIntervalUs:o.hi-o.lo,
+        confidence:high-low<=1000 ? "high" : high-low<=4000 ? "medium" : "low",latencyFrame:"RFH_RHE3"});
+      this.publishStatus("Locked",publish);
     }
   }
-
+  publishStatus(status: ButtonLatencyStatusEvent["status"], publish: PublishFn, force=false) {
+    const now=Date.now();
+    if (!force && status===this.lastStatus && now-this.lastStatusAt<500) return;
+    this.lastStatus=status; this.lastStatusAt=now;
+    publish({kind:"button_latency_status",timestampMs:now,status,clockSamples:this.clocks.length,syncRttUs:this.lastSyncRtt,clockWidthUs:this.clockWidth});
+  }
   handleLatencyPacket(packet: PacketEvent, publish: PublishFn) {
     const latencyUs = typeof packet.latencyUs === "number" ? packet.latencyUs : packet.sampleTickUs;
     if (typeof latencyUs !== "number" || latencyUs === 0 || typeof packet.inputKeyMask !== "number") {
-      this.publishStatus("Waiting edge", publish);
+      if (!this.clocks.length) this.publishStatus("Waiting edge", publish);
       return;
     }
     const standardMask = hboxMaskToStandardMask(packet.inputKeyMask);
-    const previousStandardMask = this.lastInputStandardMask ?? (standardMask === 0 ? standardMask : 0);
-    this.lastInputStandardMask = standardMask;
+    const previousStandardMask = this.legacyMask ?? (standardMask === 0 ? standardMask : 0);
+    this.legacyMask = standardMask;
     if (((previousStandardMask ^ standardMask) >>> 0) === 0) {
-      this.publishStatus("Live", publish);
+      if (!this.clocks.length) this.publishStatus("Live", publish);
       return;
     }
     publish({
@@ -155,268 +261,26 @@ class ButtonLatencyTracker {
       sampleTickUs: latencyUs,
       samplePcUs: 0,
       xinputPcUs: 0,
-      confidence: "high",
+      confidence: "low",
+      measurement: "stages",
+      latencyStageFlags: packet.latencyStageFlags,
     });
-    this.publishStatus("Live", publish, true);
+    if (!this.clocks.length) this.publishStatus("Waiting edge", publish);
   }
 
-  handleXinputSnapshot(snapshot: XinputSnapshot, publish: PublishFn) {
-    if (this.selectedSlot !== null && snapshot.slot !== this.selectedSlot) return;
-    this.recentXinput.push(snapshot);
-    const recentCutoffUs = snapshot.pcUs - PENDING_MAX_AGE_US;
-    this.recentXinput = this.recentXinput.filter((item) => item.pcUs >= recentCutoffUs);
-    const cutoffUs = snapshot.pcUs - PENDING_MAX_AGE_US;
-    this.pendingInputs = this.pendingInputs.filter((item) => item.createdAtUs >= cutoffUs);
-    if (!this.tryMatchPendingInput(publish, snapshot)) {
-      if (this.locked) this.publishStatus("No match", publish);
-    }
-  }
-
-  private tryMatchPendingInput(publish: PublishFn, preferredSnapshot?: XinputSnapshot) {
-    for (let inputIndex = 0; inputIndex < this.pendingInputs.length; inputIndex += 1) {
-      const pending = this.pendingInputs[inputIndex];
-      const snapshot = preferredSnapshot && preferredSnapshot.standardMask === pending.standardMask
-        ? preferredSnapshot
-        : this.recentXinput.find((item) =>
-            item.standardMask === pending.standardMask &&
-            item.pcUs >= pending.samplePcUs - 2_000 &&
-            item.pcUs <= pending.createdAtUs + PENDING_MAX_AGE_US);
-      if (!snapshot) continue;
-      this.selectedSlot = snapshot.slot;
-      this.publishLatencyMatch(pending, snapshot, publish);
-      this.pendingInputs.splice(0, inputIndex + 1);
-      return true;
-    }
-    return false;
-  }
-
-  private publishLatencyMatch(match: PendingInput, snapshot: XinputSnapshot, publish: PublishFn) {
-    const latencyMs = Math.max(0, (snapshot.pcUs - match.samplePcUs) / 1000);
-    const confidence: ButtonLatencyEvent["confidence"] =
-      typeof match.syncRttUs === "number" && match.syncRttUs <= 1500 ? "high" :
-        typeof match.syncRttUs === "number" && match.syncRttUs <= 5000 ? "medium" : "low";
-    publish({
-      kind: "button_latency",
-      timestampMs: Date.now(),
-      inputSeq: match.inputSeq,
-      keyMask: match.keyMask,
-      standardMask: match.standardMask,
-      previousStandardMask: match.previousStandardMask,
-      action: describeAction(match.previousStandardMask, match.standardMask),
-      latencyMs,
-      sampleTickUs: match.sampleTickUs,
-      samplePcUs: match.samplePcUs,
-      xinputPcUs: snapshot.pcUs,
-      syncRttUs: match.syncRttUs,
-      confidence,
-    });
-    this.publishStatus("Locked", publish);
-  }
-
-  publishStatus(status: ButtonLatencyStatusEvent["status"], publish: PublishFn, force = false) {
-    const now = Date.now();
-    if (!force && status === this.lastStatus && now - this.lastStatusAt < STATUS_INTERVAL_MS) return;
-    this.lastStatus = status;
-    this.lastStatusAt = now;
-    publish({
-      kind: "button_latency_status",
-      timestampMs: now,
-      status,
-      syncRttUs: this.latestRttUs,
-      clockSamples: this.syncSamples.length,
-    });
-  }
-
-  private handleSyncEcho(packet: PacketEvent, pcT3Us: number, publish: PublishFn) {
-    if (
-      typeof packet.syncSeq !== "number" ||
-      typeof packet.syncRxTickUs !== "number" ||
-      typeof packet.syncTxTickUs !== "number"
-    ) {
-      return;
-    }
-    const pcT0Us = this.syncRequests.get(packet.syncSeq & 0xff);
-    if (typeof pcT0Us !== "number") return;
-    this.syncRequests.delete(packet.syncSeq & 0xff);
-
-    const stmT1 = this.unwrapStmUs(packet.syncRxTickUs);
-    const stmT2 = this.unwrapStmUs(packet.syncTxTickUs);
-    const pcMidUs = (pcT0Us + pcT3Us) / 2;
-    const stmMidUs = (stmT1 + stmT2) / 2;
-    const rttUs = Math.max(0, (pcT3Us - pcT0Us) - Math.max(0, stmT2 - stmT1));
-    if (!Number.isFinite(rttUs) || rttUs > 100_000) return;
-
-    this.latestRttUs = rttUs;
-    this.syncSamples.push({ stmMidUs, pcMidUs, rttUs });
-    if (this.syncSamples.length > MAX_SYNC_SAMPLES) {
-      this.syncSamples = this.syncSamples.slice(-MAX_SYNC_SAMPLES);
-    }
-    this.recomputeFit();
-    this.publishStatus(this.locked ? "Locked" : "Syncing", publish, true);
-  }
-
-  private recomputeFit() {
-    const selected = this.syncSamples
-      .slice()
-      .sort((a, b) => a.rttUs - b.rttUs)
-      .slice(0, Math.min(16, this.syncSamples.length));
-    if (selected.length === 0) {
-      this.locked = false;
-      return;
-    }
-    if (selected.length === 1) {
-      this.fitA = 1;
-      this.fitB = selected[0].pcMidUs - selected[0].stmMidUs;
-      this.locked = true;
-      return;
-    }
-
-    const meanX = selected.reduce((sum, sample) => sum + sample.stmMidUs, 0) / selected.length;
-    const meanY = selected.reduce((sum, sample) => sum + sample.pcMidUs, 0) / selected.length;
-    let numerator = 0;
-    let denominator = 0;
-    for (const sample of selected) {
-      const dx = sample.stmMidUs - meanX;
-      numerator += dx * (sample.pcMidUs - meanY);
-      denominator += dx * dx;
-    }
-    this.fitA = denominator > 0 ? numerator / denominator : 1;
-    if (!Number.isFinite(this.fitA) || this.fitA < 0.95 || this.fitA > 1.05) {
-      this.fitA = 1;
-    }
-    this.fitB = meanY - this.fitA * meanX;
-    this.locked = true;
-  }
-
-  private unwrapStmUs(value: number) {
-    const raw = value >>> 0;
-    if (this.lastExtendedStmUs === null) {
-      this.lastExtendedStmUs = raw;
-      return raw;
-    }
-    const base = Math.floor(this.lastExtendedStmUs / UINT32_WRAP) * UINT32_WRAP;
-    let candidate = base + raw;
-    if (candidate < this.lastExtendedStmUs - UINT32_HALF) candidate += UINT32_WRAP;
-    if (candidate > this.lastExtendedStmUs + UINT32_HALF) candidate -= UINT32_WRAP;
-    if (candidate > this.lastExtendedStmUs) this.lastExtendedStmUs = candidate;
-    return candidate;
-  }
 }
-
 export const buttonLatencyTracker = new ButtonLatencyTracker();
-
-function xinputMaskFromGamepad(buttons: number, leftTrigger: number, rightTrigger: number) {
-  let mask = 0;
-  if ((buttons & 0x1000) !== 0) mask |= 1 << 0;
-  if ((buttons & 0x2000) !== 0) mask |= 1 << 1;
-  if ((buttons & 0x4000) !== 0) mask |= 1 << 2;
-  if ((buttons & 0x8000) !== 0) mask |= 1 << 3;
-  if ((buttons & 0x0100) !== 0) mask |= 1 << 4;
-  if ((buttons & 0x0200) !== 0) mask |= 1 << 5;
-  if (leftTrigger >= 30) mask |= 1 << 6;
-  if (rightTrigger >= 30) mask |= 1 << 7;
-  if ((buttons & 0x0020) !== 0) mask |= 1 << 8;
-  if ((buttons & 0x0010) !== 0) mask |= 1 << 9;
-  if ((buttons & 0x0040) !== 0) mask |= 1 << 10;
-  if ((buttons & 0x0080) !== 0) mask |= 1 << 11;
-  if ((buttons & 0x0001) !== 0) mask |= 1 << 12;
-  if ((buttons & 0x0002) !== 0) mask |= 1 << 13;
-  if ((buttons & 0x0004) !== 0) mask |= 1 << 14;
-  if ((buttons & 0x0008) !== 0) mask |= 1 << 15;
-  return mask >>> 0;
-}
-
 export function startNativeXinputSource(publish: PublishFn): () => void {
-  if (process.platform !== "win32") {
-    buttonLatencyTracker.publishStatus("No XInput", publish, true);
-    return () => {};
-  }
-
-  let koffi: any;
-  try {
-    koffi = require("koffi");
-  } catch (_err) {
-    buttonLatencyTracker.publishStatus("No XInput", publish, true);
-    return () => {};
-  }
-
-  let lib: any;
-  try {
-    lib = koffi.load("xinput1_4.dll");
-  } catch (_err) {
-    try {
-      lib = koffi.load("xinput9_1_0.dll");
-    } catch (_fallbackErr) {
-      buttonLatencyTracker.publishStatus("No XInput", publish, true);
-      return () => {};
-    }
-  }
-
-  let XINPUT_GAMEPAD: any;
-  let XINPUT_STATE: any;
-  let XInputGetState: any;
-  try {
-    XINPUT_GAMEPAD = koffi.struct("XINPUT_GAMEPAD", {
-      wButtons: "uint16",
-      bLeftTrigger: "uint8",
-      bRightTrigger: "uint8",
-      sThumbLX: "int16",
-      sThumbLY: "int16",
-      sThumbRX: "int16",
-      sThumbRY: "int16",
-    });
-    XINPUT_STATE = koffi.struct("XINPUT_STATE", {
-      dwPacketNumber: "uint32",
-      Gamepad: XINPUT_GAMEPAD,
-    });
-    XInputGetState = lib.func("uint32 XInputGetState(uint32 dwUserIndex, _Out_ XINPUT_STATE *pState)");
-  } catch (_err) {
-    buttonLatencyTracker.publishStatus("No XInput", publish, true);
-    return () => {};
-  }
-
-  const lastMasks = new Map<number, number>();
-  const lastPackets = new Map<number, number>();
-  const timer = setInterval(() => {
-    let anyConnected = false;
-    for (let slot = 0; slot < 4; slot += 1) {
-      const state: any = {};
-      let result = 1;
-      try {
-        result = XInputGetState(slot, state);
-      } catch (_err) {
-        continue;
-      }
-      if (result !== 0 || !state.Gamepad) continue;
-      anyConnected = true;
-      const packetNumber = Number(state.dwPacketNumber ?? 0);
-      const previousPacket = lastPackets.get(slot);
-      if (previousPacket === packetNumber) continue;
-      lastPackets.set(slot, packetNumber);
-      const mask = xinputMaskFromGamepad(
-        Number(state.Gamepad.wButtons ?? 0),
-        Number(state.Gamepad.bLeftTrigger ?? 0),
-        Number(state.Gamepad.bRightTrigger ?? 0),
-      );
-      if (lastMasks.get(slot) === mask) continue;
-      lastMasks.set(slot, mask);
-      buttonLatencyTracker.handleXinputSnapshot({
-        slot,
-        packetNumber,
-        standardMask: mask,
-        pcUs: nowMonoUs(),
-      }, publish);
-    }
-    if (!anyConnected) {
-      buttonLatencyTracker.publishStatus("No XInput", publish);
-    }
-  }, 1);
-
+  if (process.platform !== "win32") return () => {};
+  const worker = new Worker(path.join(__dirname,"xinput-latency-worker.js"));
+  worker.on("message", (data: {samples: NativePoll[]; at: number}) => {
+    buttonLatencyTracker.handleNativePoll(data.samples,data.at,publish);
+  });
+  worker.on("error", () => buttonLatencyTracker.publishStatus("No XInput",publish,true));
   return () => {
-    clearInterval(timer);
+    worker.postMessage("stop");
+    const deadline = setTimeout(() => { void worker.terminate(); }, 1000);
+    deadline.unref();
+    worker.once("exit", () => clearTimeout(deadline));
   };
-}
-
-export function monotonicNowUsForMonitor() {
-  return nowMonoUs();
 }

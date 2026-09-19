@@ -19,6 +19,7 @@
 #define RFH_GROUP_MASK                 0xF8u
 #define RFH_ACK_MISSING_MASK           0x7Fu
 #define RFH_TX_SEND_TIME_UNITS         (20u * 2u)
+#define RFH_INPUT_TX_SEND_TIME_UNITS   (4u * 2u)
 #define RFH_TX_SETUP_US                44u
 #define RFH_ACK_TX_OFFSET_US           16u
 #define RFH_RX_REPORT_DONE_US          132u
@@ -58,16 +59,16 @@
 #define RFH_ACK_RX_PRE_GUARD_US_DEFAULT 250u
 #define RFH_ACK_RX_POST_GUARD_US_DEFAULT 250u
 #define RFH_DUAL_PERIOD_MS            2u
-#define RFH_CONNECT_SESSION_ID         0x484F5031UL
-#define RFH_PROTOCOL_VERSION           1u
+#define RFH_CONNECT_SESSION_ID         0x484F5032UL
+#define RFH_PROTOCOL_VERSION           2u
 #define RFH_LINK_ACCESS_ADDRESS_DEFAULT 0x71764129UL
 #define RFH_CONNECT_STAGE_SYN          1u
 #define RFH_CONNECT_STAGE_FINAL        3u
-#define RFH_CONNECT_WINDOW_MS          50u
+#define RFH_CONNECT_WINDOW_MS          20u
 #define RFH_CONNECT_SUPERFRAME_MS      (RFH_CONNECT_WINDOW_MS * 2u)
-#define RFH_CONNECT_DWELL_MS           10u
+#define RFH_CONNECT_DWELL_MS           5u
 #define RFH_CONNECT_RESPONSE_INTERVAL_MS 5u
-#define RFH_CONNECT_FINAL_TX_MS        500u
+#define RFH_CONNECT_FINAL_TX_MS        100u
 #define RFH_CONNECT_FINAL_WAIT_MS      1000u
 
 #ifndef RFH_TEST_FIXED_BOND_ENABLE
@@ -118,6 +119,7 @@
 #define RFH_CMD_LATENCY_INPUT         0x24u
 #define RFH_CMD_SCORE_HINT            0x25u
 #define RFH_CMD_BATTERY_STATUS        0x26u
+#define RFH_CMD_TX_DIAGNOSTIC         0x27u /* 1s due/start/drop; no input */
 #define RFH_CMD_PAIR_OFFER            0x30u
 #define RFH_CMD_PAIR_ACCEPT           0x31u
 #define RFH_CMD_PAIR_CONFIRM          0x32u

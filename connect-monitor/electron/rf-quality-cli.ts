@@ -205,6 +205,12 @@ function fmtPermille(value: number | undefined): string {
 }
 
 function packetLine(packet: PacketEvent): string {
+  if (packet.rfDiagnosticPage === 3) {
+    return `${fmtTime(packet.timestampMs)} RX-DIAG rearmFail=${packet.rfRxArmFailures} rearmMax=${packet.rfRxRearmMaxUs}us callbackMax=${packet.rfRxCallbackMaxUs}us commitMax=${packet.rfInputCommitMaxUs}us captureMax=${packet.rfInputCaptureMaxUs}us ackFail=${packet.rfAckSendFailures} decoded=${packet.rfShortDecodedTotal}`;
+  }
+  if (packet.messageType.startsWith("RFH_RHD1_")) {
+    return `${fmtTime(packet.timestampMs)} DIAG page=${packet.rfDiagnosticPage} tx=${packet.rfTxStarted ?? "-"}/${packet.rfTxDue ?? "-"} skipped=${packet.rfTxDropped ?? "-"} window=${packet.rfTxWindowMs ?? "-"}ms age=${packet.rfTxDiagnosticAgeMs ?? "-"}ms airMissing=${packet.rfAirMissingTotal ?? "-"}`;
+  }
   if (packet.messageType === "RFH_RHS1_SCORE") {
     const scores = packet.channelScores?.map((entry) => `${entry.channel}${entry.channel === packet.channelNumber ? "*" : ""}:${entry.score}`).join(" ") ?? "-";
     return `${fmtTime(packet.timestampMs)} SCORE active=${packet.channelNumber ?? "-"} score=${packet.activeChannelScore ?? "-"} ${scores}`;
@@ -231,6 +237,7 @@ function packetLine(packet: PacketEvent): string {
 }
 
 function updateSummary(summary: Summary, packet: PacketEvent): void {
+  if (packet.messageType.startsWith("RFH_RHD1_")) return;
   if (packet.messageType === "RFH_RHS1_SCORE") {
     summary.scores++;
     summary.latestScores = packet.channelScores;
@@ -399,7 +406,8 @@ async function main(): Promise<number> {
           if (event.kind !== "packet") continue;
           if (!event.messageType.startsWith("RFH_RHM1_") &&
             event.messageType !== "RFH_RHS1_SCORE" &&
-            !event.messageType.startsWith("RFH_RHR1_")) continue;
+            !event.messageType.startsWith("RFH_RHR1_") &&
+            !event.messageType.startsWith("RFH_RHD1_")) continue;
           updateSummary(summary, event);
           if (options.json) {
             console.log(JSON.stringify({ type: "packet", ...event }));

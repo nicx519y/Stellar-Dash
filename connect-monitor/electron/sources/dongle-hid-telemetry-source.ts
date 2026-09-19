@@ -14,11 +14,11 @@ function rfHopStateCode(state: number): string {
 }
 
 function rfHopStateToLinkState(state: number): LinkState {
-  if (state === 2) return "Connected";
+  if (state === 2 || state === 3) return "Connected"; // RX HR retains a live DATA link.
   if (state === 0) return "Disconnected";
   if (state === 1) return "Pairing";
   if (state === 4) return "Connecting";
-  if (state === 3 || state === 5 || state === 6) return "Reconnecting";
+  if (state === 5 || state === 6) return "Reconnecting";
   return "Error";
 }
 
@@ -502,6 +502,42 @@ function parseRfHopLatencyV2Frame(view: DataView, report: Uint8Array, timestampM
   ];
 }
 
+function parseRfDiagnostics(view: DataView, report: Uint8Array, timestampMs: number): MonitorEvent[] {
+  const version = view.getUint8(8), page = view.getUint8(9);
+  if (version !== 1 || page > 3) return [];
+  return [{
+    kind: "packet", timestampMs, channel: "RF", direction: "RX",
+    seq: view.getUint32(4, true), messageType: `RFH_RHD1_${page}`,
+    payloadLen: report.length, payloadHex: hexReport(report),
+    rfDiagnosticVersion: version, rfDiagnosticPage: page,
+    rfStateCode: rfHopStateCode(view.getUint8(10)), channelNumber: view.getUint8(11),
+    ...(page === 0 ? {
+      rfReadyMs: view.getUint16(12, true),
+      rfBuildId: view.getUint16(30, true) || undefined,
+      usbReadyMs: view.getUint16(14, true) === 0xffff ? undefined : view.getUint16(14, true),
+      rfConnectMs: view.getUint16(16, true), hopDurationMs: view.getUint16(18, true),
+      rfConnectCount: view.getUint32(20, true), rfAckWatchdog: view.getUint32(24, true),
+      airPendingMax: view.getUint8(28), airPendingCurrent: view.getUint8(29),
+    } : page === 1 ? {
+      rfAckLate: view.getUint32(12, true), rfAckDuplicates: view.getUint32(16, true),
+      airPendingDrop: view.getUint32(20, true), rfInputEdgeDrop: view.getUint32(24, true),
+      rfCrcTotal: view.getUint32(28, true),
+    } : page === 2 ? {
+      rfTxDiagnosticValid: view.getUint8(31) !== 0,
+      rfTxWindowMs: view.getUint16(12, true), rfTxDue: view.getUint16(14, true),
+      rfTxStarted: view.getUint16(16, true), rfTxDropped: view.getUint16(18, true),
+      rfTxDiagnosticAgeMs: view.getUint16(20, true),
+      rfAirMissingTotal: view.getUint32(22, true), rfAirReceivedTotal: view.getUint32(26, true),
+      rfReceiverState: view.getUint8(30),
+    } : {
+      rfRxArmFailures: view.getUint32(12, true),
+      rfRxRearmMaxUs: view.getUint16(16, true), rfRxCallbackMaxUs: view.getUint16(18, true),
+      rfInputCommitMaxUs: view.getUint16(20, true), rfInputCaptureMaxUs: view.getUint16(22, true),
+      rfAckSendFailures: view.getUint32(24, true), rfShortDecodedTotal: view.getUint32(28, true),
+    }),
+  }];
+}
+
 /**
  * Parse the dongle HID telemetry frame (DMN1, 32 bytes).
  * Frame layout is defined in dongle/src/dongle_telemetry.c.
@@ -513,6 +549,32 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
 
   const view = new DataView(report.buffer, report.byteOffset, report.byteLength);
   const magic = view.getUint32(0, true);
+  if (magic === 0x33434852 || magic === 0x33454852 || magic === 0x34434852) {
+    // Explicit v3 magic: never reinterpret an old duration as a clock stamp.
+    let crc = 0;
+    for (let i = 0; i < 31; i++) {
+      crc ^= report[i];
+      for (let bit = 0; bit < 8; bit++) crc = ((crc << 1) ^ ((crc & 128) ? 7 : 0)) & 255;
+    }
+    if (report[4] !== (magic === 0x34434852 ? 4 : 3) || crc !== report[31]) return [];
+    const sync = magic !== 0x33454852;
+    const mask = view.getUint32(8, true);
+    return [{ kind: "packet", timestampMs, channel: "RF", direction: "RX",
+      seq: report[5], inputSeq: report[5], payloadLen: 32, payloadHex: hexReport(report),
+      messageType: sync ? (magic === 0x34434852 ? "RFH_RHC4" : "RFH_RHC3") : "RFH_RHE3", hostMonoUs,
+      ...(magic === 0x34434852 ? {syncQueueWaitUs:view.getUint32(20,true)} : {}),
+      traceDrops: view.getUint32(16, true),
+      ...(sync ? { syncSeq: report[5], syncRxTickUs: mask, syncTxTickUs: view.getUint32(12, true) }
+        : { inputKeyMask: mask & 0x3ffff, sampleTickUs: view.getUint32(12, true), traceBaseline: !!(mask & 0x40000000) }),
+    }];
+  }
+  if(magic===0x32504852) return [{
+    kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:"RFH_RHP2",payloadLen:32,payloadHex:hexReport(report),
+    seq:view.getUint32(4,true),rfTx5ByteTotal:view.getUint32(8,true),rfTx7ByteTotal:view.getUint32(12,true),
+    rfTx12ByteTotal:view.getUint32(16,true),rfAckReservedSlots:view.getUint32(20,true),
+    rfControlGuardSlots:view.getUint32(24,true),rfTraceOverwrites:view.getUint32(28,true)
+  }];
+  if (magic === 0x31444852) return parseRfDiagnostics(view, report, timestampMs);
   if (magic === 0x314d4852) {
     return parseRfHopHidTelemetryFrame(view, report, timestampMs);
   }

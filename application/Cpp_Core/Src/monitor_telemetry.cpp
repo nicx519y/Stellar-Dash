@@ -326,3 +326,10 @@ bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out) {
     out->reserved = 0u;
     return true;
 }
+
+bool MonitorTelemetry_GetReportStages(uint32_t seq, uint32_t* trigger, uint32_t* complete, uint32_t* ready) {
+    const auto& slot = g_slots[seq % SAMPLE_SLOT_COUNT];
+    if(!slot.valid || slot.seq != seq) return false;
+    *trigger=slot.triggerCycles; *complete=slot.completeCycles; *ready=slot.reportReadyCycles;
+    return true;
+}

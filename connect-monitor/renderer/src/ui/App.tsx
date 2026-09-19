@@ -409,7 +409,7 @@ function RateLossMetricCard({
         </Box>
         <Box h="50%" py={2}>
           <MetricSection
-            title="RF Packet Loss"
+            title="RF Input Deficit"
             value={packetLoss.toFixed(2)}
             unit="%"
             description="Recent telemetry window packet loss rate"
@@ -701,6 +701,11 @@ function DebugControlCard({
               label="HID"
               checked={config.hidTelemetryEnabled}
               onCheckedChange={(checked) => applyConfig({ ...config, hidTelemetryEnabled: checked })}
+            />
+            <DebugSwitch
+              label="Latency"
+              checked={config.latencyMeasurementEnabled === true}
+              onCheckedChange={(checked) => applyConfig({ ...config, latencyMeasurementEnabled: checked })}
             />
             <PeriodSegmentedControl
               value={config.hidPeriodMs}
