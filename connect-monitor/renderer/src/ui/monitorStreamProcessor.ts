@@ -359,7 +359,7 @@ export class MonitorStreamProcessor {
     this.channelScores = scorePacket.channelScores
       .map((entry) => ({
         channel: entry.channel,
-        score: Math.max(0, Math.min(1000, entry.score)),
+        score: entry.score === 65535 ? 65535 : Math.max(0, Math.min(1000, entry.score)),
       }))
       .sort((a, b) => a.score - b.score || a.channel - b.channel)
       .map((entry, index) => ({

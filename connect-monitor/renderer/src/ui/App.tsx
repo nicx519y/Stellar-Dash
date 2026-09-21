@@ -816,6 +816,7 @@ function TrafficPanels({
           <ChannelPanel items={channelSwitches} fillHeight onClearData={onClearChannelEvents} />
           <ChannelScorePanel
             items={channelScores}
+            packets={packets.items}
             fillHeight
             autoHopEnabled={debugConfig.autoHopEnabled}
             onAutoHopChange={(enabled) => {

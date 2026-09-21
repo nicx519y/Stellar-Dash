@@ -549,6 +549,40 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
 
   const view = new DataView(report.buffer, report.byteOffset, report.byteLength);
   const magic = view.getUint32(0, true);
+  if (magic === 0x33464852) {
+    const page = report[8];
+    if (report[9] !== 3 || page > 5) return [];
+    return [{ kind: "packet", timestampMs, channel: "RF", direction: "RX",
+      seq: view.getUint32(4, true), messageType: `RFH_RHF3_${page}`,
+      payloadLen: 32, payloadHex: hexReport(report), rfDiagnosticVersion: 3,
+      rfChannel: { page, ageMs: view.getUint16(10, true),
+        ...(page === 0 ? {
+          state: report[13], primary: report[14], candidate: report[15], backups: [report[16], report[17]],
+          probeDisabled: report[18], reason: report[19], maintenanceUs: view.getUint16(20, true),
+          beforePermille: view.getUint16(22, true), afterPermille: view.getUint16(24, true),
+          localCaps: report[26], peerCaps: report[27], switches: view.getUint32(28, true),
+        } : page === 1 ? {
+          probes: view.getUint32(12, true), failures: view.getUint32(16, true),
+          probeFailures: view.getUint32(20, true), sampleCount: view.getUint32(24, true),
+          probation: report[28] !== 0, sampleSource: report[29],
+          scores: [{ channel: 10, lossPermille: view.getUint16(30, true) }],
+        } : page === 2 ? {
+          scores: [16,22,24,28,34,39].map((channel,i)=>({channel,lossPermille:view.getUint16(12+2*i,true)})),
+          historyAgeMs: view.getUint16(24, true),
+        } : page === 3 ? {
+          lastGapUs: view.getUint32(12, true), maxGapUs: view.getUint32(16, true),
+          firstPacketUs: view.getUint32(20, true), transitionMissing: view.getUint32(24, true),
+          inputCoalesced: view.getUint32(28, true),
+        } : page === 4 ? {
+          versionMismatches: view.getUint32(12, true), receiverState: report[16], receiverChannel: report[17],
+        } : {
+          beforeGapUs: view.getUint32(12, true), transitionGapUs: view.getUint32(16, true),
+          reservationFailures: view.getUint32(20, true), radioFailures: view.getUint32(24, true),
+          candidateFailures: view.getUint32(28, true),
+        }),
+      },
+    }];
+  }
   if (magic === 0x33434852 || magic === 0x33454852 || magic === 0x34434852) {
     // Explicit v3 magic: never reinterpret an old duration as a clock stamp.
     let crc = 0;

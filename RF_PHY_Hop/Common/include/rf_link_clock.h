@@ -23,6 +23,7 @@ static inline uint32_t rfh_cycle_clock_advance(rfh_cycle_clock_t *clock, uint32_
 }
 
 uint32_t RF_LinkClockNow(void);
+uint32_t RF_LinkClockUs(void);
 
 /* One implementation per firmware, emitted by RF_PHY.c. SysTick is already
  * free running at the system frequency in the RF_8K HAL; do not reconfigure it.
@@ -40,6 +41,19 @@ uint32_t RF_LinkClockNow(void)
         if(!g_rf_link_clock.cycles_per_tick) g_rf_link_clock.cycles_per_tick = 1u;
     }
     result = rfh_cycle_clock_advance(&g_rf_link_clock, SysTick->CNT);
+    SYS_RecoverIrq(irq_status);
+    return result;
+}
+__HIGH_CODE
+uint32_t RF_LinkClockUs(void)
+{
+    uint32_t irq_status, result;
+    SYS_DisableAllIrq(&irq_status);
+    if(!g_rf_link_clock.cycles_per_tick)
+        g_rf_link_clock.cycles_per_tick = GetSysClock() / 1600u;
+    rfh_cycle_clock_advance(&g_rf_link_clock, SysTick->CNT);
+    result = g_rf_link_clock.ticks * 625u +
+        g_rf_link_clock.remainder / (g_rf_link_clock.cycles_per_tick / 625u);
     SYS_RecoverIrq(irq_status);
     return result;
 }
