@@ -16,6 +16,7 @@ HBox 工具统一入口（tools/hbox.py）
   - ADCMapping
   - app A|B
   - appAll A|B
+  - rx（仅编译 CH585 RX 接收器固件）
 
 2) flash
   - bootloader（生产安全门禁，拒绝单独擦除）
@@ -35,6 +36,7 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py build web
   python tools/hbox.py build assets
   python tools/hbox.py build appAll A
+  python tools/hbox.py build rx
   python tools/hbox.py flash app A
   python tools/hbox.py flash app A --build
   python tools/hbox.py flash appAll A
@@ -85,6 +87,33 @@ def _run_python_tool(script_name: str, tool_args: list[str]) -> int:
         # same Ctrl+C and perform their own cleanup. Avoid printing a second
         # parent-process traceback after that graceful shutdown.
         return 130
+
+
+def _run_rx_build() -> int:
+    """Build RX through its existing Makefile; never access or flash a device."""
+    project_root = _project_root()
+    rx_dir = project_root / "RF_PHY_Hop" / "RX"
+    if not (rx_dir / "Makefile").is_file():
+        print(f"错误: 未找到 CH585 RX Makefile: {rx_dir / 'Makefile'}")
+        return 2
+
+    print("正在构建 CH585 RX 固件...", flush=True)
+    try:
+        rc = subprocess.call(["make", "-C", "RF_PHY_Hop/RX"], cwd=project_root)
+    except FileNotFoundError as exc:
+        print(f"错误: 未找到 make: {exc}")
+        return 2
+    except KeyboardInterrupt:
+        return 130
+    if rc != 0:
+        print("错误: CH585 RX 构建失败。")
+        return rc
+    firmware = rx_dir / "build_rx" / "RF_PHY_Hop_RX.hex"
+    if not firmware.is_file():
+        print(f"错误: CH585 RX 构建产物不存在: {firmware}")
+        return 2
+    print(f"CH585 RX 构建完成: {firmware}")
+    return 0
 
 
 def _run_tx_build() -> int:
@@ -332,6 +361,7 @@ def main(argv: list[str]) -> int:
   python tools/hbox.py build assets
   python tools/hbox.py build ADCMapping
   python tools/hbox.py build appAll A
+  python tools/hbox.py build rx
   python tools/hbox.py flash bootloader-dev
   python tools/hbox.py flash app A
   python tools/hbox.py flash app A --build
@@ -351,7 +381,7 @@ def main(argv: list[str]) -> int:
     subparsers = parser.add_subparsers(dest="cmd", required=True)
 
     p_build = subparsers.add_parser("build", help="构建相关")
-    p_build.add_argument("target", choices=["bootloader", "web", "assets", "sysbg", "ADCMapping", "app", "appAll"])
+    p_build.add_argument("target", choices=["bootloader", "web", "assets", "sysbg", "ADCMapping", "app", "appAll", "rx"])
     p_build.add_argument("slot", nargs="?", choices=["A", "B"])
 
     p_flash = subparsers.add_parser("flash", help="烧录相关")
@@ -406,6 +436,10 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     if args.cmd == "build":
+        if args.target == "rx":
+            if args.slot:
+                parser.error("build rx 不接受槽位参数 A/B")
+            return _run_rx_build()
         if args.target == "bootloader":
             return _run_python_tool("build.py", ["build", "bootloader"])
         if args.target == "web":
