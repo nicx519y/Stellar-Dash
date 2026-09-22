@@ -1,3 +1,4 @@
+import { rxProfileDecoder } from "./rx-profile";
 import { parseTxMetrics } from "./rf-tx-metrics";
 import type { LinkState, MonitorEvent } from "../pipeline/types";
 
@@ -521,7 +522,7 @@ function parseRfDiagnostics(view: DataView, report: Uint8Array, timestampMs: num
       airPendingMax: view.getUint8(28), airPendingCurrent: view.getUint8(29),
     } : page === 1 ? {
       rfAckLate: view.getUint32(12, true), rfAckDuplicates: view.getUint32(16, true),
-      airPendingDrop: view.getUint32(20, true), rfInputEdgeDrop: view.getUint32(24, true),
+      airPendingDrop: view.getUint32(20, true), // Legacy edge-drop counter has no producer; do not expose as evidence.
       rfCrcTotal: view.getUint32(28, true),
     } : page === 2 ? {
       rfTxDiagnosticValid: view.getUint8(31) !== 0,
@@ -550,6 +551,11 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
 
   const view = new DataView(report.buffer, report.byteOffset, report.byteLength);
   const magic = view.getUint32(0, true);
+  if(magic===0x31505852) {
+    const profile=rxProfileDecoder.parse(view,timestampMs);
+    return [{kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:"RFH_RXP1",rfDiagnosticVersion:1,
+      payloadLen:32,payloadHex:hexReport(report),...(profile?{rxProfile:profile}:{})}];
+  }
   if(magic===0x35474952) {
     if(report[7]!==1 || report[6]>=3)return [];
     return [{kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:`RFH_RIG5_${report[6]}`,

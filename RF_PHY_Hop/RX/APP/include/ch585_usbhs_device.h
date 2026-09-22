@@ -113,6 +113,7 @@ extern volatile uint16_t USBHS_SetupReqLen;
 extern volatile uint8_t  USBHS_DevConfig;
 extern volatile uint8_t  USBHS_DevAddr;
 extern volatile uint8_t  USBHS_DevSleepStatus;
+extern volatile uint8_t  USBHS_DevSpeed;
 extern volatile uint8_t  USBHS_DevEnumStatus;
 extern volatile uint16_t USBHS_DevMaxPackLen;
 

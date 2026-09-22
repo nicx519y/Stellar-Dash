@@ -1,3 +1,4 @@
+import type { RxProfile } from "./rx-profile";
 import type { RfTxMetrics } from "./rf-tx-metrics";
 import type { FastStatus, FastEvent } from "./fast-recovery";
 export type ConnectionMode = "USB" | "RF24G";
@@ -22,6 +23,7 @@ export interface DeviceStatusEvent {
 }
 
 export interface PacketEvent {
+  rxProfile?: RxProfile;
   rfTxMetrics?: RfTxMetrics;
   rfProtocolVersion?: number;
   rfFast?: FastStatus;

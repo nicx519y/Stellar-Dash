@@ -1,5 +1,7 @@
 # AGENTS - connect-monitor 当前实现速览
 
+2026-09-22 RX流水线：RXP1 v1由35页组成，页0建立快照，缺页/乱序/重连清理，完整快照才附rxProfile；标记诊断以免虚增DATA率。RatePanel新增可展开阶段耗时/吞吐/USB速度/拥塞样本，分位数仅桶上界，过期显示不可用；停止暴露无生产者的rfInputEdgeDrop。配套RX0x1930基线/0x1931流水线。typecheck/build通过，未运行测试/新采集/烧录，见 ../docs/RF_RX_PIPELINE_V31_20260922.md。
+
 2026-09-22 v27：支持空口 v5 频道诊断、RHT5 完整快照重组及 RX RIG5 原始间隔直方图。RatePanel 显示 TX 互斥跳过原因、SDK 尝试/接纳/失败、ACK 实际占用；缺页/旧固件显示不可用。离线 tools/rf_ack_report.py 支持用户日志对比，直方图分位数只报桶上界。已构建，未自动运行回归/采集/烧录，见 ../docs/RF_ACK_V27_20260922.md。
 
 2026-09-22 v26 延迟源记录：RLT2 bit6 表示元数据/USB 完成等待已超时，保留已有效阶段；新增 RLS1 源归档计数解析为 RFH_RLS1，不计入输入吞吐。配套 STM32/TX SPI v3 和 RX `0x1926`，详见 `../docs/RF_LATENCY_SOURCE_ARCHIVE_V26_20260922.md`。仅构建，未自动回归、采集或烧录。

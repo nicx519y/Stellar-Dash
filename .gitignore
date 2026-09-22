@@ -34,6 +34,8 @@ dongle
 RFMoudle
 
 RF_PHY_Hop/TX/build_tx
+RF_PHY_Hop/TX/build_bench5/
+RF_PHY_Hop/TX/build_bench7/
 RF_PHY_Hop/RX/build_rx
 
 windows-client/build*

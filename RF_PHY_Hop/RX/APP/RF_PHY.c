@@ -17,6 +17,8 @@
 #include "rf_hop_score.h"
 #include "rf_monitor_control.h"
 #include "dongle_config.h"
+#include "rx_input_map.h"
+#include "rx_aux_receive.h"
 #include "ch585_usbhs_device.h"
 #include "usbd_compatibility_hid.h"
 
@@ -28,8 +30,16 @@
 #include "rf_channel_radio.h"
 #include "rf_fast_debug.h"
 #include "rf_trace_sync.h"
+#define RX_PROFILE_WRAP_IRQ
+#include "rx_profile.h"
 #define RF_LINK_CLOCK_IMPLEMENTATION
 #include "rf_link_clock.h"
+
+/* Do not let -Os outline a two-comparison predicate into Flash from the
+ * receiving ISR. This is identical to the common wire-length predicate. */
+static inline __attribute__((always_inline)) int rx_is_short(uint8_t len){
+    return len==RFH_SHORT_LEN || len==RFH_AUX_LEN;
+}
 
 #define RF_AUTO_DEMO_PACKET_LEN        RFH_AIR_PACKET_LEN
 #define RF_AUTO_DEMO_DMA_LEN           (RF_AUTO_DEMO_PACKET_LEN + 2u)
@@ -70,8 +80,8 @@
 #define RF_AUTO_DEMO_FIRST_DATA_TIMEOUT_MS 150u
 #define RF_LINK_CRC_INIT               0x555555UL
 #define RF_RX_DMA_SLOT_COUNT           2u
-#define RF_RX_PENDING_DEPTH            16u
-#define RF_RX_PENDING_DRAIN_MAX        16u
+#define RF_RX_PENDING_DEPTH            64u
+#define RF_RX_PENDING_DRAIN_MAX        32u
 #define RF_RX_PENDING_REPORT_CHUNK     1u
 #define RX_HID_TELEMETRY_MAGIC         0x314D4852UL
 #define RX_HID_SCORE_MAGIC             0x31534852UL
@@ -132,7 +142,7 @@ typedef struct
     uint32_t rx_tmr;
     uint32_t access_address;
     uint32_t generation;
-    uint32_t input_serial;
+    uint32_t profile_id, profile_cycles;
     uint16_t measure_seq;
     uint8_t measure_valid;
     uint8_t air[RFH_AIR_PACKET_LEN];
@@ -256,12 +266,11 @@ typedef struct {
 static relative_rx_t g_relative_rx[64];
 static uint16_t g_relative_wire, g_relative_row, g_relative_session;
 static uint8_t g_relative_wire_valid, g_relative_air_seq, g_relative_tag, g_relative_prepared, g_relative_inflight;
-static uint16_t g_relative_inflight_row;
 static uint32_t g_relative_air_clock;
 static void short_rx_edge(const rf_rx_pending_t *p,uint32_t process);
 static void short_rx_trace(const uint8_t *p);
 static uint8_t short_send_trace(void);
-static void short_dirty(relative_rx_t *r){r->revision=(r->revision+1u)&127u;r->dirty=3;}
+__HIGH_CODE static void short_dirty(relative_rx_t *r){r->revision=(r->revision+1u)&127u;r->dirty=3;}
 static rfh_aux_rx_t g_aux_rx;
 static uint32_t g_aux_rx_clock;
 static uint32_t g_short_tx_stats[6],g_short_stats_seq;
@@ -271,7 +280,7 @@ static uint16_t g_metrics_stage_id,g_metrics_usb_id;
 static uint8_t g_metrics_stage_mask,g_metrics_usb_page,g_metrics_usb_pending;
 static uint32_t g_metrics_stage_rx_at;
 /* RX-local arrival histogram: lease-gated, no RF traffic, three compares per DATA. */
-static const uint32_t g_gap_bounds_us[7]={125,250,500,1000,2000,4000,8000};
+static volatile uint32_t g_gap_bounds_us[7]={125,250,500,1000,2000,4000,8000};
 static volatile uint32_t g_gap_bins[8],g_gap_max_cycles;
 static uint32_t g_gap_usb[12],g_gap_at,g_gap_usb_at,g_gap_span;
 static uint16_t g_gap_seq;
@@ -283,6 +292,12 @@ static uint8_t g_source_diag_pending;
 static uint8_t g_source_diag_payload[28];
 static uint8_t g_short_measure;
 static uint32_t g_short_capture_refresh;
+static void pipe_accept(const rf_rx_pending_t *p);
+static void pipe_kick(void);
+static void pipe_neutral(const uint8_t *bytes);
+static void pipe_complete(uint32_t tick);
+static void pipe_reset(void);
+static void pipe_legacy_input(const uint8_t *payload,uint32_t rx_tmr,uint32_t process_tmr);
 static void demo_accept_aux(const uint8_t *fragment);
 static uint8_t g_trace_hid[16][32];
 static uint8_t g_trace_hid_head, g_trace_hid_tail;
@@ -369,9 +384,8 @@ static uint32_t g_channel_peer_status_at,g_channel_diag_at,g_channel_diag_seq;
 static uint8_t g_channel_diag_snapshot[54];
 static uint16_t g_channel_diag_age;
 static uint8_t g_channel_diag_page;
-static rf_rx_pending_t g_channel_latest;
-static volatile uint8_t g_channel_latest_pending;
-static uint32_t g_channel_input_serial,g_channel_coalesced;
+static uint32_t g_channel_coalesced;
+static uint32_t g_profile_serial,g_profile_rx_start;
 static uint32_t g_channel_ack_generation,g_channel_ack_cycles,g_channel_ack_guard_cycles;
 static uint8_t g_channel_last_ack_control;
 static uint8_t g_channel_window_valid;
@@ -465,13 +479,9 @@ static void demo_note_max_cycles(uint32_t *maximum, uint32_t start)
     if(elapsed > *maximum) *maximum = elapsed;
 }
 
-static uint8_t g_demo_input_fifo[32][RF_INPUT_PAYLOAD_LEN];
-static uint32_t g_demo_input_rx_tmr[32], g_demo_input_process_tmr[32];
-static uint32_t g_demo_input_generation[32];
 static volatile uint32_t g_demo_input_epoch; /* neutral/reset invalidates in-flight construction */
 static uint8_t g_demo_input_head, g_demo_input_tail;
-static uint8_t g_demo_last_queued_keys[4], g_demo_last_queued_valid;
-static uint32_t g_demo_last_queued_generation;
+static uint8_t g_demo_last_queued_valid;
 static void demo_ack_timer_cancel(void);
 static void demo_cancel_ack(void);
 static uint8_t demo_fast_rx_packet(const uint8_t *buf, uint32_t rx_tmr);
@@ -986,9 +996,10 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
     }
 
     if(g_short_measure != ((flags&RFH_MEASUREMENT_FLAG)?1u:0u)) {
-        g_short_measure=(flags&RFH_MEASUREMENT_FLAG)?1u:0u;
+        uint8_t next_measure=(flags&RFH_MEASUREMENT_FLAG)?1u:0u;g_short_measure=0;
         memset(g_relative_rx,0,sizeof(g_relative_rx));memset(&g_aux_rx,0,sizeof(g_aux_rx));g_source_diag_pending=0;
         g_relative_tag=g_relative_prepared=g_relative_inflight=0;g_relative_session++;
+        g_short_measure=next_measure;
     }
     if(g_short_measure)g_short_capture_refresh=SysTick->CNT;
     g_monitor_seq = seq;
@@ -1331,13 +1342,14 @@ static void demo_queue_rx_pending_packet(const uint8_t *rx_buf, uint32_t rx_tmr)
     }
 
     rf_rx_pending_t latest;
-    if(rfh_is_short(rx_buf[1]) && rfh_packet_type(rx_buf[2])==RFH_PKT_DATA) {
+    if(rx_is_short(rx_buf[1]) && rfh_packet_type(rx_buf[2])==RFH_PKT_DATA) {
         demo_zero_bytes(&latest,sizeof(latest));latest.kind=RF_RX_PENDING_PACKET;latest.len=rx_buf[1];
         latest.channel=g_demo_current_channel;latest.rx_tmr=rx_tmr;latest.access_address=gRxParam.accessAddress;
         latest.generation=g_demo_radio_generation;latest.measure_seq=g_relative_wire;latest.measure_valid=g_relative_wire_valid;
-        latest.input_serial=++g_channel_input_serial;demo_copy_bytes(latest.air,rx_buf+2,rx_buf[1]);
-        if(g_channel_latest_pending)g_channel_coalesced++;
-        demo_copy_bytes(&g_channel_latest,&latest,sizeof(latest));g_channel_latest_pending=1;
+        latest.profile_id=++g_profile_serial;latest.profile_cycles=g_profile_rx_start;
+        RXP_Count(RP_RECEIVED);
+        demo_copy_bytes(latest.air,rx_buf+2,rx_buf[1]);
+        pipe_accept(&latest);
         if(rx_buf[1]!=RFH_AUX_LEN || (rfh_flags(rx_buf[2])&RFH_FLAG_CMD_PRESENT))return;
     }
     head = g_demo_rx_pending_head;
@@ -1345,7 +1357,7 @@ static void demo_queue_rx_pending_packet(const uint8_t *rx_buf, uint32_t rx_tmr)
     if(next == g_demo_rx_pending_tail)
     {
         g_demo_rx_pending_tail = demo_rx_pending_next(g_demo_rx_pending_tail);
-        g_demo_rx_pending_drop++;
+        g_demo_rx_pending_drop++;RXP_Count(RP_AUX_DROP);
         g_demo_stat.pending_drop++;
         if(demo_hid_stats_enabled() != 0u)
         {
@@ -1354,7 +1366,7 @@ static void demo_queue_rx_pending_packet(const uint8_t *rx_buf, uint32_t rx_tmr)
     }
 
     pending = &g_demo_rx_pending[head];
-    pending->kind = rfh_is_short(rx_buf[1])?2u:RF_RX_PENDING_PACKET;
+    pending->kind = rx_is_short(rx_buf[1])?2u:RF_RX_PENDING_PACKET;
     pending->len = rx_buf[1];
     pending->channel = g_demo_current_channel;
     pending->rx_tmr = rx_tmr;
@@ -1701,7 +1713,7 @@ static void demo_select_unconnected_address(uint8_t side)
 
 static void demo_enter_rx_unconnected(uint32_t now)
 {
-    rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;g_metrics_stage_mask=g_metrics_usb_pending=0;g_channel_latest_pending=0;
+    rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;g_metrics_stage_mask=g_metrics_usb_pending=0;
     uint8_t anchor_channel;
 
     demo_cancel_ack();
@@ -2231,8 +2243,9 @@ static uint8_t demo_note_air_packet(const uint8_t *air, uint32_t rx_tmr)
         rff_log(RFF_EV_INPUT,g_demo_current_channel,input_now,g_channel.last_data,input_now-g_channel.last_data,g_demo_radio_generation);
     if(rff_busy(&g_channel) && !g_channel.fast_have_data)
         rff_log(RFF_EV_RECOVERY,g_demo_current_channel,input_now,g_channel.fast_started,input_now-g_channel.fast_started,g_demo_radio_generation);
-    rff_debug_input(g_demo_current_channel,input_now,g_demo_radio_generation);
-    rfc_manager_data(&g_channel,(rfh_flags(air[0])&RFC_DATA_RECOVERY)!=0,g_demo_current_channel,diff-1u,RF_LinkClockUs());
+    if(g_rff_debug.need_fault_input || g_rff_debug.need_clear_input)
+        rff_debug_input(g_demo_current_channel,input_now,g_demo_radio_generation);
+    rfc_manager_data(&g_channel,(rfh_flags(air[0])&RFC_DATA_RECOVERY)!=0,g_demo_current_channel,diff-1u,input_now);
     return 1u;
 }
 
@@ -2281,6 +2294,7 @@ static uint8_t demo_input_tx_wait_q8(const uint8_t *payload)
     return payload[RF_INPUT_SAMPLE_TICK_OFFSET + 1u];
 }
 
+__HIGH_CODE
 static uint8_t demo_decode_short_input_payload(uint8_t *dst, uint8_t seq, const uint8_t *src)
 {
     if((dst == 0) || (src == 0))
@@ -2581,41 +2595,7 @@ static void demo_complete_xinput_latency_if_pending(uint32_t submit_tmr,
 __HIGH_CODE
 static void demo_queue_input_payload(const uint8_t *payload, uint32_t rx_tmr, uint32_t process_tmr)
 {
-    uint32_t irq_status;
-
-    if(payload == 0)
-    {
-        return;
-    }
-
-    SYS_DisableAllIrq(&irq_status);
-    {
-        /* Remember the last accepted state across FIFO/prepared/in-flight USB.
-         * Repeating it is a keepalive, not another report ahead of the next edge.
-         * Include the measurement tag, so a new capture epoch can establish itself. */
-        if(g_demo_last_queued_valid && g_demo_last_queued_generation==g_demo_radio_generation &&
-           g_demo_last_queued_keys[0]==payload[2] &&
-           g_demo_last_queued_keys[1]==payload[3] &&
-           g_demo_last_queued_keys[2]==payload[4] &&
-           g_demo_last_queued_keys[3]==payload[5]) {
-            g_demo_last_input_tmr=rx_tmr;g_demo_have_valid_input=1u;g_demo_input_stale=0u;
-            SYS_RecoverIrq(irq_status);return;
-        }
-        uint8_t stored=g_demo_input_head;
-        if(g_demo_input_head!=g_demo_input_tail){g_channel_coalesced++;g_demo_input_tail=g_demo_input_head;}
-        demo_copy_bytes(g_demo_input_fifo[stored],payload,RF_INPUT_PAYLOAD_LEN);
-        g_demo_input_head=(g_demo_input_head+1u)%32u;
-        g_demo_input_generation[stored] = g_demo_radio_generation;
-        g_demo_input_rx_tmr[stored] = rx_tmr;
-        g_demo_input_process_tmr[stored] = process_tmr;
-        demo_copy_bytes(g_demo_last_queued_keys,payload+2,4u);
-        g_demo_last_queued_valid=1u;
-        g_demo_last_queued_generation=g_demo_radio_generation;
-    }
-    g_demo_last_input_tmr = rx_tmr;
-    g_demo_have_valid_input = 1u;
-    g_demo_input_stale = 0u;
-    SYS_RecoverIrq(irq_status);
+    if(payload)pipe_legacy_input(payload,rx_tmr,process_tmr);
 }
 
 static void demo_queue_neutral_xinput_report(uint8_t force)
@@ -2646,6 +2626,8 @@ static void demo_queue_neutral_xinput_report(uint8_t force)
     g_demo_xinput_pending = 1u;
     g_demo_neutral_pending = 1u;
     g_demo_input_stale = 1u;
+    pipe_neutral(report);
+    g_demo_xinput_pending=0;
     SYS_RecoverIrq(irq_status);
 }
 
@@ -2667,7 +2649,12 @@ static void demo_service_input_stale(void)
                                  TMR0_GetCurrentTimer()) >=
         demo_us_to_tmr_cycles(INPUT_STALE_TIMEOUT_US)))
     {
-        demo_queue_neutral_xinput_report(0u);
+        /* A DATA interrupt may have refreshed activity since the snapshot. */
+        SYS_DisableAllIrq(&irq_status);
+        if(!g_demo_input_stale && demo_tmr0_elapsed_cycles(g_demo_last_input_tmr,
+             TMR0_GetCurrentTimer())>=demo_us_to_tmr_cycles(INPUT_STALE_TIMEOUT_US))
+            demo_queue_neutral_xinput_report(0u);
+        SYS_RecoverIrq(irq_status);
     }
 }
 
@@ -2675,6 +2662,7 @@ static void demo_service_input_stale(void)
 
 
 /* Pure mapping: safe to preempt; publication happens only after revalidation. */
+__HIGH_CODE
 static uint8_t demo_build_xinput_report(const uint8_t *payload, uint8_t *report)
 {
     uint8_t version;
@@ -2684,33 +2672,11 @@ static uint8_t demo_build_xinput_report(const uint8_t *payload, uint8_t *report)
     if((version != RF_INPUT_FORMAT_VERSION_V1 && version != RF_INPUT_FORMAT_VERSION_V2) ||
        !(payload[1] & RF_INPUT_FLAG_PROCESSED)) return 0u;
     key_mask = demo_input_key_mask(payload) & RF_INPUT_KEY_MASK_VALID;
-    memset(report, 0, XINPUT_ENDPOINT_SIZE);
-    report[0] = 0x00u;
-    report[1] = XINPUT_ENDPOINT_SIZE;
-    report[2] = (uint8_t)(((key_mask & HBOX_KEY_UP) != 0u) ? XBOX_MASK_UP : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_DOWN) != 0u) ? XBOX_MASK_DOWN : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_LEFT) != 0u) ? XBOX_MASK_LEFT : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_RIGHT) != 0u) ? XBOX_MASK_RIGHT : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_S2) != 0u) ? XBOX_MASK_START : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_S1) != 0u) ? XBOX_MASK_BACK : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_L3) != 0u) ? XBOX_MASK_LS : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_R3) != 0u) ? XBOX_MASK_RS : 0u);
-    report[3] = (uint8_t)(((key_mask & HBOX_KEY_L1) != 0u) ? XBOX_MASK_LB : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_R1) != 0u) ? XBOX_MASK_RB : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_B1) != 0u) ? XBOX_MASK_A : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_B2) != 0u) ? XBOX_MASK_B : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_B3) != 0u) ? XBOX_MASK_X : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_B4) != 0u) ? XBOX_MASK_Y : 0u);
-#if (DONGLE_RF_ENABLE_GUIDE_BUTTON != 0u)
-    report[3] |= (uint8_t)(((key_mask & HBOX_KEY_A1) != 0u) ? XBOX_MASK_HOME : 0u);
-#endif
-    report[4] = ((key_mask & HBOX_KEY_L2) != 0u) ? 0xFFu : 0x00u;
-    report[5] = ((key_mask & HBOX_KEY_R2) != 0u) ? 0xFFu : 0x00u;
-
+    rx_map_keys(key_mask,report);
     return 1u;
 }
 
-static void demo_capture_xinput_metadata(const uint8_t *payload)
+__HIGH_CODE static void demo_capture_xinput_metadata(const uint8_t *payload)
 {
     uint8_t version = (uint8_t)((payload[1] & RF_INPUT_FORMAT_VERSION_MASK) >> RF_INPUT_FORMAT_VERSION_SHIFT);
     uint32_t key_mask = demo_input_key_mask(payload) & RF_INPUT_KEY_MASK_VALID;
@@ -2762,137 +2728,7 @@ static void demo_capture_xinput_metadata(const uint8_t *payload)
 }
 
 
-__HIGH_CODE
-static void demo_process_pending_input_payload(void)
-{
-    uint8_t payload[RF_INPUT_PAYLOAD_LEN], report[XINPUT_ENDPOINT_SIZE];
-    uint8_t tail, valid;
-    uint32_t irq_status, capture_start, generation, epoch, rx_tmr, process_tmr;
-    SYS_DisableAllIrq(&irq_status);
-    if(g_demo_neutral_pending ||
-       g_demo_input_head == g_demo_input_tail) {
-        SYS_RecoverIrq(irq_status);
-        return;
-    }
-    capture_start = SysTick->CNT;
-    tail = g_demo_input_tail;
-    generation = g_demo_input_generation[tail];
-    if(generation != g_demo_radio_generation) {
-        g_demo_input_tail = (uint8_t)((tail + 1u) % 32u);
-        SYS_RecoverIrq(irq_status);
-        return;
-    }
-    epoch = g_demo_input_epoch;
-    demo_copy_bytes(payload, g_demo_input_fifo[tail], sizeof(payload));
-    rx_tmr = g_demo_input_rx_tmr[tail];
-    process_tmr = g_demo_input_process_tmr[tail];
-    demo_note_max_cycles(&g_demo_input_capture_max_cycles, capture_start);
-    SYS_RecoverIrq(irq_status);
-
-    valid = demo_build_xinput_report(payload, report);
-
-    SYS_DisableAllIrq(&irq_status);
-    capture_start = SysTick->CNT;
-    /* Neutral input wins even if it reset the FIFO to this same tail index. */
-    if(epoch != g_demo_input_epoch || tail != g_demo_input_tail ||
-       g_demo_neutral_pending) {
-        SYS_RecoverIrq(irq_status);
-        return;
-    }
-    g_demo_input_tail = (uint8_t)((tail + 1u) % 32u);
-    if(valid && generation == g_demo_radio_generation) {
-        g_relative_prepared=0;
-        if(g_short_measure) {
-            uint8_t tag=payload[4]>>2;relative_rx_t *r=&g_relative_rx[tag];
-            if(tag && r->tag==tag && !(r->flags&4u)) {
-                g_relative_prepared=tag;
-                /* Repeated reports can queue while the first IN is in flight.
-                 * Keep the first report-ready boundary for this event. */
-                if(!(r->flags&16u)) {r->ready=TMR0_GetCurrentTimer();r->flags|=16u;}
-            }
-        }
-        if(g_demo_xinput_pending)g_channel_coalesced++;
-        demo_capture_xinput_metadata(payload);
-        demo_queue_xinput_latency_pending(payload, rx_tmr, process_tmr);
-        demo_copy_bytes(g_demo_xinput_report, report, sizeof(report));
-        g_demo_xinput_pending = 1u;
-        if(g_demo_xinput_latency_pending && !g_demo_xinput_latency_report_tmr)
-            g_demo_xinput_latency_report_tmr = TMR0_GetCurrentTimer();
-    }
-    demo_note_max_cycles(&g_demo_input_capture_max_cycles, capture_start);
-    SYS_RecoverIrq(irq_status);
-}
-
-__HIGH_CODE
-static void demo_service_xinput_report(void)
-{
-    uint8_t report[XINPUT_ENDPOINT_SIZE];
-    uint32_t irq_status;
-    uint32_t submit_tmr;
-    uint32_t submit_done_tmr;
-    uint8_t was_neutral;
-
-    if(USBHS_DevEnumStatus == 0u)
-    {
-        return;
-    }
-    if((USBHS_Endp_Busy[DEF_UEP2] & DEF_UEP_BUSY) != 0u)
-    {
-        return;
-    }
-
-    SYS_DisableAllIrq(&irq_status);
-    if(g_demo_xinput_pending == 0u)
-    {
-        SYS_RecoverIrq(irq_status);
-        return;
-    }
-    demo_copy_bytes(report, g_demo_xinput_report, sizeof(report));
-    was_neutral = g_demo_neutral_pending;
-    g_demo_xinput_pending = 0u;
-    SYS_RecoverIrq(irq_status);
-
-    SYS_DisableAllIrq(&irq_status);
-    submit_tmr = TMR0_GetCurrentTimer();
-    g_relative_inflight=was_neutral ? 0u : g_relative_prepared;
-    if(g_relative_inflight) {
-        relative_rx_t *r=&g_relative_rx[g_relative_inflight];
-        g_relative_inflight_row=r->row;r->submit=submit_tmr;
-    }
-    if(USBHS_Endp_DataUp(DEF_UEP2,
-                         report,
-                         XINPUT_ENDPOINT_SIZE,
-                         DEF_UEP_CPY_LOAD) == 0u)
-    {
-        SYS_RecoverIrq(irq_status);
-        submit_done_tmr = TMR0_GetCurrentTimer();
-        if(was_neutral != 0u)
-        {
-            SYS_DisableAllIrq(&irq_status);
-            g_demo_neutral_pending = 0u;
-            SYS_RecoverIrq(irq_status);
-        }
-        demo_complete_xinput_latency_if_pending(submit_tmr, submit_done_tmr);
-    }
-    else
-    {
-        g_relative_inflight=0;SYS_RecoverIrq(irq_status);
-        /* Endpoint submission can fail after the busy check.  Preserve this
-         * exact report (especially a neutral release) until a successful
-         * USB transaction, unless a newer neutral report is already queued. */
-        SYS_DisableAllIrq(&irq_status);
-        if(g_demo_xinput_pending == 0u)
-        {
-            demo_copy_bytes(g_demo_xinput_report, report, sizeof(report));
-            g_demo_xinput_pending = 1u;
-            if(was_neutral != 0u)
-            {
-                g_demo_neutral_pending = 1u;
-            }
-        }
-        SYS_RecoverIrq(irq_status);
-    }
-}
+#include "rx_pipeline_impl.inc"
 
 static void demo_prepare_command_ack(uint8_t cmd, uint8_t seq)
 {
@@ -3011,12 +2847,12 @@ static void demo_handle_command(const uint8_t *air, uint8_t rx_channel)
     }
 }
 
-static void demo_accept_aux(const uint8_t *fragment)
+__HIGH_CODE static void demo_accept_aux(const uint8_t *fragment)
 {
     uint32_t now=RF_LinkClockNow(),generation=g_demo_radio_generation;
     if((uint32_t)(now-g_aux_rx_clock)>MS1_TO_SYSTEM_TIME(500u))memset(&g_aux_rx,0,sizeof(g_aux_rx));
     g_aux_rx_clock=now;
-    if(rfh_aux_receive(&g_aux_rx,fragment) && generation==g_demo_radio_generation) {
+    if(rx_aux_receive(&g_aux_rx,fragment) && generation==g_demo_radio_generation) {
         uint8_t air[RFH_AIR_PACKET_LEN]={0};
         uint8_t type=g_aux_rx.data[0],len=g_aux_rx.data[1];
         if(type==RFC_AUX_STATUS && len==54u && g_aux_rx.data[6]==3u) {
@@ -3101,6 +2937,7 @@ __INTERRUPT
 __HIGH_CODE
 void TMR1_IRQHandler(void)
 {
+    RXP_SCOPE(timer_scope,RT_TIMER,1);
     uint32_t irq_status;
     if(TMR1_GetITFlag(TMR0_3_IT_CYC_END) == 0u)
     {
@@ -3343,7 +3180,7 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     process_tmr = TMR0_GetCurrentTimer();
     if((pending->len != RF_AUTO_DEMO_PACKET_LEN) &&
        (pending->len != (uint8_t)(RFH_DATA_OFFSET + RFMON_INPUT_PAYLOAD_V1_LEN)) &&
-       (!rfh_is_short(pending->len)))
+       (!rx_is_short(pending->len)))
     {
         g_demo_stat.data_type_err++;
         if(demo_hid_stats_enabled() != 0u)
@@ -3387,7 +3224,7 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     rate_code = rfh_rate_code(air[RFH_HDR0_OFFSET]);
     demo_apply_rate_code(rate_code);
     flags = rfh_flags(air[RFH_HDR0_OFFSET]);
-    if((rfh_is_short(pending->len)) &&
+    if((rx_is_short(pending->len)) &&
        ((flags & RFH_FLAG_CMD_PRESENT) != 0u))
     {
         g_demo_stat.data_type_err++;
@@ -3403,7 +3240,7 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     data_tmr = pending->rx_tmr;
     if((flags & RFH_FLAG_CMD_PRESENT) == 0u)
     {
-        if(rfh_is_short(pending->len))
+        if(rx_is_short(pending->len))
         {
             if(demo_decode_short_input_payload(input_payload,
                                                air[RFH_HDR1_OFFSET],
@@ -3457,51 +3294,22 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
 
 static void demo_service_xinput_fast_path(void)
 {
-    demo_process_pending_input_payload();
-    demo_service_xinput_report();
+    pipe_service();
 }
 
-/* Pure decode/CRC is preemptible; only the final generation check and FIFO
- * commit are atomic. A SYN/channel change during decode cannot inject old input. */
-__HIGH_CODE
-static uint8_t demo_process_short_input(const rf_rx_pending_t *pending)
+__HIGH_CODE static void demo_process_pending_rx_packets(void)
 {
-    uint8_t payload[RF_INPUT_PAYLOAD_LEN];
-    uint32_t irq_status, commit_start;
-    uint32_t process_tmr = TMR0_GetCurrentTimer();
-    if(pending->generation != g_demo_radio_generation) return 0u;
-    short_rx_edge(pending,process_tmr);
-
-    if(!demo_decode_short_input_payload(payload, pending->air[RFH_HDR1_OFFSET],
-                                       &pending->air[RFH_DATA_OFFSET])) return 0u;
-    SYS_DisableAllIrq(&irq_status);
-    commit_start = SysTick->CNT;
-    if(pending->generation != g_demo_radio_generation || pending->input_serial!=g_channel_input_serial ||
-       g_demo_rx_state == RF_AUTO_RX_UNCONNECTED ||
-       g_demo_rx_state == RF_AUTO_RX_CONNECT_ACK_PENDING) {
-        SYS_RecoverIrq(irq_status);
-        return 0u;
-    }
-    demo_queue_input_payload(payload, pending->rx_tmr, process_tmr);
-    g_demo_short_decoded++;
-    demo_note_max_cycles(&g_demo_input_commit_max_cycles, commit_start);
-    SYS_RecoverIrq(irq_status);
-    return 1u;
-}
-
-static void demo_process_pending_rx_packets(void)
-{
+    RXP_SCOPE(aux_scope,RT_BACKGROUND,0);
     uint8_t i;
     uint8_t chunk_count = 0u;
     uint8_t input_seen = 0u;
     rf_rx_pending_t pending;
-    uint32_t lock;SYS_DisableAllIrq(&lock);uint8_t have=g_channel_latest_pending;
-    if(have){demo_copy_bytes(&pending,&g_channel_latest,sizeof(pending));g_channel_latest_pending=0;}
-    SYS_RecoverIrq(lock);
-    if(have && demo_process_short_input(&pending))demo_service_xinput_fast_path();
-
     for(i = 0u; i < RF_RX_PENDING_DRAIN_MAX; i++)
     {
+        /* A batch has at most 32 one-fragment steps, all preemptible. Do not
+         * charge RF/USB interrupt time against a wall-clock 125us budget:
+         * at 8K that ended batches early and starved source reassembly.
+         * The input-to-report deadline belongs to the independent IRQ path. */
         if(demo_pop_rx_pending(&pending) == 0u)
         {
             if(input_seen != 0u)
@@ -3514,10 +3322,7 @@ static void demo_process_pending_rx_packets(void)
             if(pending.generation==g_demo_radio_generation)demo_accept_aux(pending.air+5);
             continue;
         }
-        if(rfh_is_short(pending.len) &&
-           rfh_packet_type(pending.air[RFH_HDR0_OFFSET]) == RFH_PKT_DATA) {
-            if(demo_process_short_input(&pending)) input_seen = 1u;
-        } else if(rfh_packet_type(pending.air[RFH_HDR0_OFFSET]) == RFH_PKT_DATA) {
+        if(rfh_packet_type(pending.air[RFH_HDR0_OFFSET]) == RFH_PKT_DATA) {
             /* Infrequent commands retain atomic transaction handling. */
             uint32_t irq_status;
             SYS_DisableAllIrq(&irq_status);
@@ -3547,11 +3352,11 @@ static uint8_t demo_fast_rx_packet(const uint8_t *buf, uint32_t rx_tmr)
     const uint8_t *air = &buf[2];
     uint8_t type, flags, token;
     uint32_t delay;
-    if(buf[1] != RFH_AIR_PACKET_LEN && !rfh_is_short(buf[1])) return 0u;
+    if(buf[1] != RFH_AIR_PACKET_LEN && !rx_is_short(buf[1])) return 0u;
     type = rfh_packet_type(air[0]);
-    if(type==RFH_PKT_DATA && (rff_fault(RFF_FAULT_CHANNEL,g_demo_current_channel,RF_LinkClockUs()) ||
-       (rfh_is_short(buf[1]) && rff_fault(RFF_FAULT_DATA,g_demo_current_channel,RF_LinkClockUs())) ||
-       (!rfh_is_short(buf[1]) && (rff_command(air[RFH_DATA_OFFSET]) || air[RFH_DATA_OFFSET]==RFH_CMD_HOP_CONFIRM || air[RFH_DATA_OFFSET]==RFC_CMD_RECOVER) && rff_fault(RFF_FAULT_CONFIRM,g_demo_current_channel,RF_LinkClockUs()))))return 1u;
+    if(type==RFH_PKT_DATA && g_rff_debug.enabled && (rff_fault(RFF_FAULT_CHANNEL,g_demo_current_channel,RF_LinkClockUs()) ||
+       (rx_is_short(buf[1]) && rff_fault(RFF_FAULT_DATA,g_demo_current_channel,RF_LinkClockUs())) ||
+       (!rx_is_short(buf[1]) && (rff_command(air[RFH_DATA_OFFSET]) || air[RFH_DATA_OFFSET]==RFH_CMD_HOP_CONFIRM || air[RFH_DATA_OFFSET]==RFC_CMD_RECOVER) && rff_fault(RFF_FAULT_CONFIRM,g_demo_current_channel,RF_LinkClockUs()))))return 1u;
     if(type == RFH_PKT_CONNECT && !g_demo_pair_candidate_pending && !demo_pair_is_active()) {
         rf_rx_pending_t pending;
         memset(&pending, 0, sizeof(pending));
@@ -3566,13 +3371,13 @@ static uint8_t demo_fast_rx_packet(const uint8_t *buf, uint32_t rx_tmr)
     flags = rfh_flags(air[0]);
     if(buf[1]==RFH_SHORT_LEN && (flags & RFH_FLAG_CMD_PRESENT)) return 1u;
     demo_apply_rate_code(rfh_rate_code(air[0]));
-    if(rfh_is_short(buf[1]) && !demo_note_air_packet(air, rx_tmr)) return 1u;
+    if(rx_is_short(buf[1]) && !demo_note_air_packet(air, rx_tmr)) return 1u;
     if(buf[1]==RFH_AUX_LEN && (flags&RFH_FLAG_CMD_PRESENT)) {
         uint16_t counter=rfh_get_u16(air+5);
         if((uint8_t)counter!=air[1])return 1u;
         g_relative_wire=counter;g_relative_wire_valid=1;
     }
-    if(rfh_is_short(buf[1])) {
+    if(rx_is_short(buf[1])) {
         if(!g_demo_link_active) {
             g_demo_last_connect_ms = demo_clock_delta_ms(g_demo_link_seek_clock, RF_LinkClockNow());
             g_demo_connect_count++;
@@ -3585,38 +3390,39 @@ static uint8_t demo_fast_rx_packet(const uint8_t *buf, uint32_t rx_tmr)
     }
     if(!(flags & RFH_FLAG_CMD_ACK)) return 0u;
     token = air[1];
-    uint8_t control=!rfh_is_short(buf[1]);
-    if(rff_fault(RFF_FAULT_ACK,g_demo_current_channel,RF_LinkClockUs()))return rfh_is_short(buf[1])?0u:1u;
+    uint8_t control=!rx_is_short(buf[1]);
+    if(g_rff_debug.enabled && rff_fault(RFF_FAULT_ACK,g_demo_current_channel,RF_LinkClockUs()))return rx_is_short(buf[1])?0u:1u;
     if(g_demo_have_ack_token && token == g_demo_last_ack_token && control==g_channel_last_ack_control && g_channel_ack_generation==g_demo_radio_generation &&
-       (uint32_t)(SysTick->CNT-g_channel_ack_cycles)<GetSysClock()/500u) { g_demo_ack_duplicate++; return rfh_is_short(buf[1]) ? 0u : 1u; }
-    if(g_demo_ack_pending || g_demo_ack_tx_active) return rfh_is_short(buf[1]) ? 0u : 1u;
+       (uint32_t)(SysTick->CNT-g_channel_ack_cycles)<GetSysClock()/500u) { g_demo_ack_duplicate++; return rx_is_short(buf[1]) ? 0u : 1u; }
+    if(g_demo_ack_pending || g_demo_ack_tx_active) return rx_is_short(buf[1]) ? 0u : 1u;
     g_demo_have_ack_token = 1u; g_demo_last_ack_token = token;
     g_channel_last_ack_control=control;
     g_channel_ack_generation=g_demo_radio_generation;g_channel_ack_cycles=SysTick->CNT;
     g_demo_stat.ack_req++;
-    if(!rfh_is_short(buf[1]) && (flags & RFH_FLAG_CMD_PRESENT)) demo_handle_command(air, g_demo_current_channel);
+    if(!rx_is_short(buf[1]) && (flags & RFH_FLAG_CMD_PRESENT)) demo_handle_command(air, g_demo_current_channel);
     demo_fill_ack_packet();
     delay = demo_us_to_tmr_cycles(200u);
     g_demo_ack_due_tmr = (rx_tmr + delay) % TMR0_FREE_RUN_WRAP;
     delay = rfh_ack_delay(rx_tmr, TMR0_GetCurrentTimer(), TMR0_FREE_RUN_WRAP, delay);
-    if(!delay) { g_demo_ack_late++; demo_cancel_ack(); return rfh_is_short(buf[1]) ? 0u : 1u; }
+    if(!delay) { g_demo_ack_late++; demo_cancel_ack(); return rx_is_short(buf[1]) ? 0u : 1u; }
     g_channel.fast_quiet_until=RF_LinkClockUs()+(g_channel_last_ack_control?RFF_CONTROL_US:RFF_ACK_US)+1000000u/g_demo_report_hz;
     g_demo_ack_snapshot_ready = 1u;
     g_demo_ack_pending = 1u;
     demo_ack_timer_arm(delay);
-    return rfh_is_short(buf[1]) ? 0u : 1u;
+    return rx_is_short(buf[1]) ? 0u : 1u;
 }
 
 __HIGH_CODE
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
 {
+    RXP_SCOPE(rf_scope,RT_RF,1);
     (void)id;
     if(g_demo_radio_reconfiguring) return;
     if(!g_demo_rx_active) sta &= ~(RF_STATE_RX | RF_STATE_RX_CRCERR);
 
     if(sta & RF_STATE_RX)
     {
-        uint32_t callback_start = SysTick->CNT;
+        uint32_t callback_start = SysTick->CNT;g_profile_rx_start=callback_start;
         uint8_t completed_slot = g_demo_rx_active_slot;
         uint8_t *rx_buf;
         uint32_t rx_tmr = TMR0_GetCurrentTimer();
@@ -3628,8 +3434,10 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
             completed_slot = 0u;
         }
         rx_buf = RxBuf[completed_slot];
+        if(!rx_is_short(rx_buf[1]))RXP_Count(RP_CONTROL);
         demo_arm_rx();
         demo_note_max_cycles(&g_demo_rx_rearm_max_cycles, callback_start);
+        RXP_Time(RT_REARM,SysTick->CNT-callback_start,0,g_demo_radio_generation);
         /* RSSI must be read before rearming, but its summary can wait until
          * the receiver is listening again. */
         demo_note_rssi(rssi);
@@ -3638,6 +3446,7 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     }
     if(sta & RF_STATE_RX_CRCERR)
     {
+        RXP_Count(RP_CRC);
         uint32_t rx_tmr = TMR0_GetCurrentTimer();
         int8_t rssi = RFIP_ReadRssi();
 
@@ -3697,6 +3506,10 @@ static uint8_t demo_housekeeping_due(uint32_t now)
 
 void RF_Service(void)
 {
+    static uint32_t service_at;uint32_t profile_now=SysTick->CNT;
+    RXP_Enable(g_monitor_hid_enabled);
+    if(service_at)RXP_Time(RT_SERVICE_GAP,profile_now-service_at,0,0);
+    service_at=profile_now;
     if(g_monitor_hid_enabled &&
        (uint32_t)(SysTick->CNT - g_monitor_hid_lease_at) >
        g_demo_sys_clock * (RFMON_HID_LEASE_TIMEOUT_MS / 1000u)) {
@@ -3743,6 +3556,7 @@ void RF_Service(void)
     /* Input/USB servicing above remains every iteration. Only the masked,
      * tick-based radio housekeeping is coalesced to one pass per 625 us. */
     if(!demo_housekeeping_due(RF_LinkClockNow())) return;
+    RXP_SCOPE(background_scope,RT_BACKGROUND,0);
     uint32_t irq_status;
     SYS_DisableAllIrq(&irq_status);
     now = RF_LinkClockNow(); /* Do not compare a pre-ISR time with a new ACK start. */
@@ -3754,13 +3568,14 @@ void RF_Service(void)
         g_demo_rearm_pending = 1u;
     }
 
+    SYS_RecoverIrq(irq_status);
     if(demo_pair_is_active() != 0u)
     {
-        SYS_RecoverIrq(irq_status);
         demo_service_pairing(now);
         return;
     }
 
+    SYS_DisableAllIrq(&irq_status);
     if((g_demo_rx_state == RF_AUTO_RX_COMM) &&
        (g_demo_link_active == 0u) &&
        (g_demo_first_data_deadline_clock != 0u) &&
@@ -3770,6 +3585,7 @@ void RF_Service(void)
         demo_enter_rx_unconnected(now);
     }
 
+    SYS_RecoverIrq(irq_status);
     if((g_demo_rx_state == RF_AUTO_RX_COMM) && g_channel.state==RFC_IDLE && !rff_busy(&g_channel) &&
        (demo_snapshot_data_silent_cycles(&data_silent_cycles) != 0u) &&
        (data_silent_cycles >= demo_us_to_tmr_cycles(RFH_RX_PACKET_TIMEOUT_MS_DEFAULT * 1000u)))
@@ -3777,7 +3593,7 @@ void RF_Service(void)
         uint32_t irq_status;
 
         SYS_DisableAllIrq(&irq_status);
-        if(g_demo_link_active != 0u)
+        if(g_demo_link_active != 0u && g_demo_rx_state==RF_AUTO_RX_COMM && g_channel.state==RFC_IDLE && !rff_busy(&g_channel))
         {
             uint32_t verify_cycles = demo_tmr0_elapsed_cycles(g_demo_last_data_tmr,
                                                               TMR0_GetCurrentTimer());
@@ -3799,19 +3615,28 @@ void RF_Service(void)
         SYS_RecoverIrq(irq_status);
     }
 
-    if(enter_unconnected != 0u)
+    SYS_DisableAllIrq(&irq_status);
+    if(enter_unconnected != 0u && !g_demo_link_active)
     {
         demo_enter_rx_recovery_scan(now);
     }
 
+    SYS_RecoverIrq(irq_status);
+    SYS_DisableAllIrq(&irq_status);
     if(g_demo_rearm_pending != 0u)
     {
         g_demo_rearm_pending = 0u;
         demo_arm_rx();
     }
 
+    SYS_RecoverIrq(irq_status);
+    SYS_DisableAllIrq(&irq_status);
     demo_service_connect_handshake(now);
+    SYS_RecoverIrq(irq_status);
+    SYS_DisableAllIrq(&irq_status);
     demo_service_unconnected_scan(now);
+    SYS_RecoverIrq(irq_status);
+    SYS_DisableAllIrq(&irq_status);
 
     g_channel.hz=g_demo_report_hz;g_channel.auto_enabled=(monitor_current_flags()&RFMON_FLAG_AUTO_HOP)!=0;
     rfc_radio_wake(RF_LinkClockUs()+2u);
@@ -4409,7 +4234,7 @@ static uint8_t demo_try_send_diagnostic(void)
         demo_put_u32(&report[24], g_demo_ack_watchdog);
         report[28] = g_demo_rx_pending_max_water;
         report[29] = demo_rx_pending_water(g_demo_rx_pending_head, g_demo_rx_pending_tail);
-        demo_put_u16(&report[30], 0x1927u); /* v5 short ACK and bounded early resume. */
+        demo_put_u16(&report[30], 0x1934u); /* RX hot-path and auxiliary service throughput. */
     } else if(g_demo_diag_page == 1u) {
         demo_put_u32(&report[12], g_demo_ack_late);
         demo_put_u32(&report[16], g_demo_ack_duplicate);
@@ -4503,6 +4328,7 @@ static uint8_t fast_send_diagnostic(void){
 }
 uint8_t RF_TrySendTraceReport(void)
 {
+    RXP_SCOPE(trace_scope,RT_BACKGROUND,0);
     static uint32_t input_at, score_at, rssi_at;
     uint32_t now = RF_LinkClockNow();
     uint32_t period = MS1_TO_SYSTEM_TIME(g_monitor_hid_period_ms);
@@ -4532,6 +4358,11 @@ uint8_t RF_TrySendTraceReport(void)
     {
         rssi_at = now;
         return 1u;
+    }
+    {
+        uint8_t rp[32];
+
+        if(RXP_Page(rp) && demo_submit_hid_report(rp)){RXP_PageSent();return 1;}
     }
     if(fast_send_diagnostic())return 1;
     if(channel_send_diagnostic())return 1;
@@ -4591,6 +4422,7 @@ uint8_t RF_TrySendTraceReport(void)
 
 uint8_t RF_TrySendTelemetryReport(void)
 {
+    RXP_SCOPE(telemetry_scope,RT_BACKGROUND,0);
     uint8_t report[HID_ENDPOINT_SIZE];
     uint32_t window_clock = RF_LinkClockNow();
     uint32_t rx_ok = g_demo_hid_rx_ok;
@@ -4702,7 +4534,7 @@ void RF_Init(void)
 {
     rfRoleConfig_t conf;
 
-    g_demo_sys_clock = GetSysClock();
+    g_demo_sys_clock = GetSysClock();RXP_Init(g_demo_sys_clock);
     g_demo_cycles_per_us = g_demo_sys_clock / 1000000u;
     g_demo_rf_ready_clock = RF_LinkClockNow();
     g_demo_link_seek_clock = g_demo_rf_ready_clock;
@@ -4808,20 +4640,21 @@ void RF_Init(void)
     }
 }
 
+__HIGH_CODE
 static void short_rx_edge(const rf_rx_pending_t *p,uint32_t process) {
     if(!g_short_measure)return;
     uint8_t tag=p->air[4]>>2;
     if(tag==g_relative_tag)return;
     uint32_t previous=g_relative_rx[g_relative_tag].mask;
     g_relative_tag=tag;if(!tag)return;
-    relative_rx_t *r=&g_relative_rx[tag];memset(r,0,sizeof(*r));r->previous=previous;
+    relative_rx_t *r=&g_relative_rx[tag];demo_zero_bytes(r,sizeof(*r));r->previous=previous;
     r->tag=tag;r->row=++g_relative_row;r->wire=p->measure_seq;r->len=p->len;
     r->mask=(uint32_t)p->air[2]|((uint32_t)p->air[3]<<8)|((uint32_t)(p->air[4]&3u)<<16);
     r->rx=p->rx_tmr;r->process=process;r->born=RF_LinkClockNow();
     if(!p->measure_valid)r->flags|=8u;
     short_dirty(r);
 }
-static void short_rx_trace(const uint8_t *p) {
+__HIGH_CODE static void short_rx_trace_locked(const uint8_t *p) {
     uint16_t event=rfh_get_u16(p);uint8_t tag=event&63u;
     if(!g_short_measure || !tag || p[5]>6u)return;
     relative_rx_t *r=&g_relative_rx[tag];
@@ -4835,43 +4668,59 @@ static void short_rx_trace(const uint8_t *p) {
         const uint8_t *a=p+22+5*i;
         if(rfh_get_u16(a)!=r->wire)continue;
         r->event=event;
-        for(unsigned j=0;j<4;j++)r->source[j]=rfh_get_u32(p+6+4*j);
+        for(unsigned j=0;j<4;j++)r->source[j]=monitor_get_u32(p+6+4*j);
         r->tx=(uint32_t)a[2]|((uint32_t)a[3]<<8)|((uint32_t)a[4]<<16);
         r->flags|=1u;if(r->tx<=1000000u && !p[52] && !(r->flags&8u))r->flags|=2u;
         short_dirty(r);return;
     }
 }
+__HIGH_CODE static void short_rx_trace(const uint8_t *p) {
+    uint32_t key;SYS_DisableAllIrq(&key);short_rx_trace_locked(p);SYS_RecoverIrq(key);
+}
 __HIGH_CODE
 void RF_RelativeUsbComplete(uint32_t tick) {
-    uint8_t tag=g_relative_inflight;g_relative_inflight=0;
-    if(!tag)return;
-    relative_rx_t *r=&g_relative_rx[tag];
-    if(r->row!=g_relative_inflight_row || r->flags&12u)return;
-    r->done=tick;r->flags|=4u;short_dirty(r);
+    pipe_complete(tick);
 }
+__HIGH_CODE
+void RF_PipelineUsbReady(void){pipe_kick();}
+
 void RF_RelativeUsbReset(void) {
+    pipe_reset();
     // A re-enumerated host needs a fresh current state even with no new edge.
     g_demo_last_queued_valid=0u;
     if(g_relative_inflight) {relative_rx_t *r=&g_relative_rx[g_relative_inflight];r->flags|=8u;short_dirty(r);}
     g_relative_inflight=g_relative_prepared=0;
 }
+/* Only copy/publish the shared record while masked. HID encoding, time
+ * conversion and endpoint submission run outside this critical section. */
+__HIGH_CODE static uint8_t short_trace_snapshot(uint8_t tag,relative_rx_t *copy,uint16_t *session){
+    uint32_t lock;SYS_DisableAllIrq(&lock);relative_rx_t *r=&g_relative_rx[tag];
+    if(r->tag && !(r->flags&8u) && (r->flags&7u)!=7u && !(r->flags&64u) &&
+       (uint32_t)(RF_LinkClockNow()-r->born)>MS1_TO_SYSTEM_TIME(1000u)){
+        r->flags|=64u;short_dirty(r);
+    }
+    uint8_t dirty=r->dirty;
+    if(dirty){demo_copy_bytes(copy,r,sizeof(*copy));*session=g_relative_session;}
+    SYS_RecoverIrq(lock);return dirty;
+}
+__HIGH_CODE static void short_trace_sent(uint8_t tag,uint8_t revision,uint16_t row,uint16_t session,uint8_t page){
+    uint32_t lock;SYS_DisableAllIrq(&lock);relative_rx_t *r=&g_relative_rx[tag];
+    if(revision==r->revision && row==r->row && session==g_relative_session)r->dirty&=~(1u<<page);
+    SYS_RecoverIrq(lock);
+}
 static uint8_t short_send_trace(void) {
     static uint8_t scan;
-    for(unsigned i=0;i<63;i++) {
-        scan=(scan%63u)+1u;relative_rx_t *r=&g_relative_rx[scan];
-        if(r->tag && !(r->flags&8u) && (r->flags&7u)!=7u && !(r->flags&64u) &&
-           (uint32_t)(RF_LinkClockNow()-r->born)>MS1_TO_SYSTEM_TIME(1000u)) {
-            /* USB completion does not imply the source ever arrived. Keep
-             * valid local stages and mark missing metadata as final. */
-            r->flags|=64u;short_dirty(r);
-        }
-        if(!r->dirty)continue;
+    for(unsigned i=0;i<4;i++) {
+        relative_rx_t copy;uint16_t session;
+        scan=(scan%63u)+1u;
+        if(!short_trace_snapshot(scan,&copy,&session))continue;
+        const relative_rx_t *r=&copy;
         uint8_t page,revision;
-        uint8_t report[32]={0};uint32_t lock;
-        SYS_DisableAllIrq(&lock);
+        uint8_t report[32];demo_zero_bytes(report,sizeof(report));
+        uint16_t row=r->row;
         page=(r->dirty&1u)?0u:1u;revision=r->revision;
         rfh_put_u32(report,0x32544c52u); /* RLT2, local durations, no PC clock */
-        rfh_put_u16(report+4,g_relative_session);rfh_put_u16(report+6,r->row);
+        rfh_put_u16(report+4,session);rfh_put_u16(report+6,r->row);
         report[8]=(uint8_t)r->mask;report[9]=(uint8_t)(r->mask>>8);report[10]=(uint8_t)(r->mask>>16);
         report[11]=(revision<<1)|page;report[12]=r->flags;report[13]=(uint8_t)r->previous;report[14]=(uint8_t)(r->previous>>8);report[15]=(uint8_t)(r->previous>>16);
         if(page==0)for(unsigned j=0;j<4;j++)rfh_put_u32(report+16+4*j,r->source[j]);
@@ -4885,9 +4734,8 @@ static uint8_t short_send_trace(void) {
                 rfh_put_u32(report+28,demo_tmr0_elapsed_cycles(r->ready,r->done)/g_demo_cycles_per_us);
             }
         }
-        SYS_RecoverIrq(lock);
         if(!demo_submit_hid_report(report))return 0;
-        SYS_DisableAllIrq(&lock);if(revision==r->revision)r->dirty&=~(1u<<page);SYS_RecoverIrq(lock);
+        short_trace_sent(scan,revision,row,session,page);
         return 1;
     }
     return 0;

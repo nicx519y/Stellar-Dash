@@ -57,6 +57,9 @@ static void service(uint32_t now){
 __INTERRUPT
 __HIGH_CODE
 void TMR2_IRQHandler(void){
+#ifdef RFC_TIMER_SCOPE
+    RFC_TIMER_SCOPE;
+#endif
     if(!TMR2_GetITFlag(TMR0_3_IT_CYC_END))return;
     TMR2_ClearITFlag(TMR0_3_IT_CYC_END);TMR2_Disable();
     uint32_t lock;SYS_DisableAllIrq(&lock);in_irq=1;

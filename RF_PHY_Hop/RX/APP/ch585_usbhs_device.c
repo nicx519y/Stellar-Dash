@@ -12,6 +12,8 @@
 *******************************************************************************/
 
 #include <ch585_usbhs_device.h>
+#define RX_PROFILE_WRAP_IRQ
+#include "rx_profile.h"
 #include "RF_PHY.h"
 #include "usb_desc.h"
 #include "usbd_compatibility_hid.h"
@@ -260,6 +262,7 @@ void USBHS_Device_Init ( FunctionalState sta )
  *
  * @return  none
  */
+__HIGH_CODE
 uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mod )
 {
     uint8_t endp_en;
@@ -279,7 +282,10 @@ uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mo
                 }
                 else if( mod == DEF_UEP_CPY_LOAD )
                 {
-                    memcpy( USBHSD_UEP_TXBUF(endp), pbuf, len );
+                    if(endp==DEF_UEP2 && len==20u){
+                        volatile uint8_t *dst=USBHSD_UEP_TXBUF(endp);
+                        for(unsigned i=0;i<20u;i++)dst[i]=pbuf[i];
+                    } else memcpy( USBHSD_UEP_TXBUF(endp), pbuf, len );
                 }
                 else
                 {
@@ -321,6 +327,7 @@ __INTERRUPT
 __HIGH_CODE
 void USB2_DEVICE_IRQHandler( void )
 {
+    RXP_SCOPE(usb_scope,RT_USB,1);
     const uint32_t relative_usb_tick=TMR0_GetCurrentTimer();
     uint8_t  intflag, intst, errflag;
     uint16_t len;
@@ -1077,6 +1084,7 @@ void USB2_DEVICE_IRQHandler( void )
                     UploadPoint_Busy = 0;
 
                     R8_U2EP2_TX_CTRL &= ~USBHS_UEP_T_DONE;
+                    RF_PipelineUsbReady();
                     break;
                 case DEF_UEP3:
                     R16_U2EP3_T_LEN = 0;
@@ -1138,6 +1146,7 @@ void USB2_DEVICE_IRQHandler( void )
     }
     else if( intflag & USBHS_UDIF_BUS_RST )
     {
+        USBHS_DevEnumStatus = 0;
         RF_RelativeUsbReset();
         /* usb reset interrupt processing */
         USBHS_DevConfig = 0;

@@ -1,3 +1,4 @@
+import { rxProfileDecoder } from "./rx-profile";
 import { buildFastControl } from "./fast-recovery-control";
 import type { FastRequest } from "../../shared/fast-recovery";
 import { RelativeLatencyDecoder } from "./relative-latency";
@@ -453,7 +454,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
         });
         opened.push(handle);
         activeControlHandles.push(handle);
-        buttonLatencyTracker.reset();relativeLatency.reset();
+        buttonLatencyTracker.reset();relativeLatency.reset();rxProfileDecoder.reset();
         options.onControlReady?.();
       } catch (_err) {
         publishMissingThrottled();
@@ -532,7 +533,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
     if (handle && telemetryLeaseSupport.get(handle))
       await writeControlFrame(handle, buildTelemetryLeaseFrame(false));
     sourceGeneration++;
-    relativeLatency.reset();
+    relativeLatency.reset();rxProfileDecoder.reset();
     buttonLatencyTracker.reset();
     for (const h of [...opened]) {
       void closeHandle(h);

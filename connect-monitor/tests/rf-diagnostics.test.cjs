@@ -44,7 +44,7 @@ test('RHD1 counters are unsigned 32-bit and unknown versions are rejected', () =
   for(let offset=12; offset<32; offset+=4) data.writeUInt32LE(0xf0000000 + offset, offset);
   const [packet] = parseDongleHidTelemetryFrame(data);
   assert.equal(packet.rfAckLate, 0xf000000c);
-  assert.equal(packet.rfInputEdgeDrop, 0xf0000018);
+  assert.equal(packet.rfInputEdgeDrop, undefined); // No producer in firmware; zero was misleading.
   assert.equal(packet.rfCrcTotal, 0xf000001c);
   data[8] = 2; assert.deepEqual(parseDongleHidTelemetryFrame(data), []);
   data[8] = 1; data[9] = 4; assert.deepEqual(parseDongleHidTelemetryFrame(data), []);

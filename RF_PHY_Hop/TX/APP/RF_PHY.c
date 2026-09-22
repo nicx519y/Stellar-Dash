@@ -1500,6 +1500,16 @@ static void demo_encode_short_input_payload(uint8_t *dst, const uint8_t *src)
     dst[2]=src[RFMON_INPUT_KEY_MASK_OFFSET+2u];
 }
 
+/* Test-only build: never enabled by the production Makefile/default flags. */
+#ifndef RF_RX_BENCH_ENABLE
+#define RF_RX_BENCH_ENABLE 0
+#endif
+#ifndef RF_RX_BENCH_BYTES
+#define RF_RX_BENCH_BYTES 5
+#endif
+#if RF_RX_BENCH_ENABLE && RF_RX_BENCH_BYTES != 5 && RF_RX_BENCH_BYTES != 7
+#error RF_RX_BENCH_BYTES_must_be_5_or_7
+#endif
 static void demo_fill_short_packet(uint8_t request_ack)
 {
     uint8_t input_payload[RFM_RF_INPUT_PAYLOAD_LEN];
@@ -1517,6 +1527,15 @@ static void demo_fill_short_packet(uint8_t request_ack)
            g_short_anchor_serial!=g_aux_tx.serial*4u+g_aux_tx.pass) {
             rfh_put_u16(data+3,g_short_wire_seq);g_short_aux_sent=2;
         }
+#if RF_RX_BENCH_ENABLE
+        static uint32_t pattern;
+        uint32_t keys=(++pattern)&0x3ffffu;
+        data[0]=(uint8_t)keys;data[1]=(uint8_t)(keys>>8);
+        data[2]=(uint8_t)((keys>>16)&3u);
+        if(g_short_measure)data[2]|=(uint8_t)(((pattern%63u)+1u)<<2);
+        g_short_aux_sent=RF_RX_BENCH_BYTES==7?2u:0u;
+        if(g_short_aux_sent)rfh_put_u16(data+3,g_short_wire_seq);
+#endif
         air[0]=rfh_make_header0(RFH_PKT_DATA,g_demo_rate_code,
             (uint8_t)(RFH_FLAG_LINK_OK | (rff_busy(&g_channel) ? RFC_DATA_RECOVERY:0u) | (request_ack ? RFH_FLAG_CMD_ACK : 0u) |
                       (g_short_aux_sent==2u ? RFH_FLAG_CMD_PRESENT : 0u)));

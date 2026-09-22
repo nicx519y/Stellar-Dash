@@ -55,3 +55,5 @@ extern void RF_MonitorControlFillReport(uint8_t *report, uint16_t len);
 
 void RF_RelativeUsbComplete(uint32_t tick);
 void RF_RelativeUsbReset(void);
+
+void RF_PipelineUsbReady(void);
