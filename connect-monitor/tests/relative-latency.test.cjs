@@ -46,3 +46,18 @@ test('valid source stages remain visible when TX physical boundary is unavailabl
  assert.deepEqual(e.relativeStagesUs,[92,37,4,9,null,92,120,1800]);
  assert.equal(e.measurementReason,'TX timing unavailable');assert.equal(e.latencyMs,null);
 });
+
+test('source timeout keeps RX/USB durations and source diagnostics are not throughput',()=>{
+ const d=new RelativeLatencyDecoder();
+ const e=d.parse(page(1,1,1,4|64,[0,92,180,200]))[0];
+ assert.equal(e.measurementReason,'Source record timeout');assert.equal(e.latencyMs,null);
+ assert.deepEqual(e.relativeStagesUs,[null,null,null,null,null,92,180,200]);
+ const b=Buffer.alloc(32);b.writeUInt32LE(0x31534c52);
+ [6,2,1,0,1,3,4].forEach((n,i)=>b.writeUInt32LE(n,4+i*4));
+ const p=parseDongleHidTelemetryFrame(b,123)[0];
+ assert.equal(p.messageType,'RFH_RLS1');assert.equal(p.rfSourceReceived,6);
+ assert.equal(p.rfSourceMatched,2);assert.equal(p.rfSourceExpired,1);
+ assert.equal(p.rfSourceBoundaryMissing,1);assert.equal(p.rfSourceSpiDrops,3);
+ assert.equal(p.rfSourceIdentityWaits,4);assert.equal(p.sampleCount,undefined);
+ assert.equal(p.rateHz,undefined);
+});

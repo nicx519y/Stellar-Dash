@@ -1,3 +1,5 @@
+#include "rf_ack_policy.h"
+#include "rf_tx_metrics.h"
 #include "rf_short_transport.h"
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : RF_PHY.c
@@ -263,7 +265,22 @@ static void short_dirty(relative_rx_t *r){r->revision=(r->revision+1u)&127u;r->d
 static rfh_aux_rx_t g_aux_rx;
 static uint32_t g_aux_rx_clock;
 static uint32_t g_short_tx_stats[6],g_short_stats_seq;
+static uint32_t g_metrics_stage[RT_COUNT],g_metrics_usb[RT_COUNT];
+static uint32_t g_metrics_stage_at,g_metrics_stage_span,g_metrics_usb_at,g_metrics_usb_span;
+static uint16_t g_metrics_stage_id,g_metrics_usb_id;
+static uint8_t g_metrics_stage_mask,g_metrics_usb_page,g_metrics_usb_pending;
+static uint32_t g_metrics_stage_rx_at;
+/* RX-local arrival histogram: lease-gated, no RF traffic, three compares per DATA. */
+static const uint32_t g_gap_bounds_us[7]={125,250,500,1000,2000,4000,8000};
+static volatile uint32_t g_gap_bins[8],g_gap_max_cycles;
+static uint32_t g_gap_usb[12],g_gap_at,g_gap_usb_at,g_gap_span;
+static uint16_t g_gap_seq;
+static uint8_t g_gap_pending,g_gap_page,g_gap_have_previous;
+
+
 static uint8_t g_short_stats_pending;
+static uint8_t g_source_diag_pending;
+static uint8_t g_source_diag_payload[28];
 static uint8_t g_short_measure;
 static uint32_t g_short_capture_refresh;
 static void demo_accept_aux(const uint8_t *fragment);
@@ -475,6 +492,9 @@ static void demo_hid_clear_report_state(void)
 
     SYS_DisableAllIrq(&irq_status);
     g_demo_hid_last_clock = now;
+    for(unsigned i=0;i<8;i++)g_gap_bins[i]=0;
+    g_gap_max_cycles=0;g_gap_pending=g_gap_have_previous=0;g_gap_at=RF_LinkClockUs();
+    g_metrics_stage_mask=g_metrics_usb_pending=0;
     g_demo_hid_last_window_rx_ok = 0u;
     g_demo_hid_last_window_expected = 0u;
     g_demo_hid_last_window_errors = 0u;
@@ -967,7 +987,7 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
 
     if(g_short_measure != ((flags&RFH_MEASUREMENT_FLAG)?1u:0u)) {
         g_short_measure=(flags&RFH_MEASUREMENT_FLAG)?1u:0u;
-        memset(g_relative_rx,0,sizeof(g_relative_rx));memset(&g_aux_rx,0,sizeof(g_aux_rx));
+        memset(g_relative_rx,0,sizeof(g_relative_rx));memset(&g_aux_rx,0,sizeof(g_aux_rx));g_source_diag_pending=0;
         g_relative_tag=g_relative_prepared=g_relative_inflight=0;g_relative_session++;
     }
     if(g_short_measure)g_short_capture_refresh=SysTick->CNT;
@@ -1536,8 +1556,7 @@ static void demo_fill_ack_packet(void) {
     rfh_put_u16(data,(uint16_t)received);rfh_put_u16(data+2,(uint16_t)expected);
     data[RFH_ACK_CHANNEL]=g_demo_current_channel;data[RFH_ACK_FLAGS]=RFH_SHORT_ACK_VERSION;
     if(rff_enabled(&g_channel) && !g_channel_last_ack_control){
-        TxBuf[1]=RFH_SHORT_ACK_LEN;data[0]=received>255u?255u:(uint8_t)received;
-        rfh_put_u16(data+1,(uint16_t)expected);if(received>255u)air[0]&=~RFC_ACK_QUALITY_VALID;
+        TxBuf[1]=RFH_SHORT_ACK_LEN;if(!rf_ack_encode(data,received,expected))air[0]&=~RFC_ACK_QUALITY_VALID;
         demo_reset_quality_window();g_channel_window_valid=1;return;
     }
     if(g_channel.fast_reply){
@@ -1567,13 +1586,11 @@ static void demo_fill_ack_packet(void) {
             (g_monitor_pending_flags & (RFMON_FLAG_AUTO_HOP | RFH_MEASUREMENT_FLAG));
         data[RFH_ACK_MON_MANUAL_CHANNEL]=g_monitor_manual_channel;data[RFH_ACK_MON_SEQ]=g_monitor_pending_seq;
         g_monitor_pending_retries--;
-    } else if(received<=255u && expected<=65535u) {
-        TxBuf[1]=RFH_SHORT_ACK_LEN;data[0]=(uint8_t)received;rfh_put_u16(data+1,(uint16_t)expected);
+    } else {
+        TxBuf[1]=RFH_SHORT_ACK_LEN;if(!rf_ack_encode(data,received,expected))air[0]&=~RFC_ACK_QUALITY_VALID;
     }
     if(rff_enabled(&g_channel) && g_channel_last_ack_control==0u){
-        TxBuf[1]=RFH_SHORT_ACK_LEN;data[0]=received>255u?255u:(uint8_t)received;
-        rfh_put_u16(data+1,(uint16_t)expected);
-        if(received>255u)air[0]&=~RFC_ACK_QUALITY_VALID;
+        TxBuf[1]=RFH_SHORT_ACK_LEN;if(!rf_ack_encode(data,received,expected))air[0]&=~RFC_ACK_QUALITY_VALID;
     }
     g_demo_pending_ack_cmd=0;g_demo_pending_ack_seq=0;g_demo_after_ack_action=0;
     g_channel.reply_cmd=0;
@@ -1684,7 +1701,7 @@ static void demo_select_unconnected_address(uint8_t side)
 
 static void demo_enter_rx_unconnected(uint32_t now)
 {
-    rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;g_channel_latest_pending=0;
+    rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;g_metrics_stage_mask=g_metrics_usb_pending=0;g_channel_latest_pending=0;
     uint8_t anchor_channel;
 
     demo_cancel_ack();
@@ -2191,6 +2208,14 @@ static uint8_t demo_note_air_packet(const uint8_t *air, uint32_t rx_tmr)
         g_demo_air_diag_rx_ok++;
         g_demo_air_diag_seq_gap += diff - 1u;
     }
+    if(demo_hid_stats_enabled() && g_demo_have_data_seq && g_gap_have_previous) {
+        uint32_t cycles=demo_tmr0_elapsed_cycles(g_demo_last_data_tmr,rx_tmr);
+        unsigned low=0,high=7;
+        while(low<high){unsigned mid=(low+high)/2u;
+            if(cycles<=g_gap_bounds_us[mid]*g_demo_cycles_per_us)high=mid;else low=mid+1u;}
+        g_gap_bins[low]++;if(cycles>g_gap_max_cycles)g_gap_max_cycles=cycles;
+    }
+    g_gap_have_previous=demo_hid_stats_enabled();
     if(g_demo_have_data_seq) demo_note_hid_silent_cycles(demo_tmr0_elapsed_cycles(g_demo_last_data_tmr, rx_tmr));
     g_demo_have_data_seq = 1u;
     g_demo_last_data_seq = air[RFH_HDR1_OFFSET];
@@ -3004,6 +3029,21 @@ static void demo_accept_aux(const uint8_t *fragment)
         }
         if(type==RFF_AUX_TEST_RECEIPT && len==2u && rfh_get_u16(g_aux_rx.data+6)==rfh_get_u16(g_fast_test_payload+8))g_fast_test_pending=0;
         if(type==RFH_AUX_TRACE && len==54u)short_rx_trace(g_aux_rx.data+6);
+        if(type==RFH_AUX_SOURCE_DIAG && len==28u) {
+            memcpy(g_source_diag_payload,g_aux_rx.data+6,28);g_source_diag_pending=1;
+        }
+        if(type==RFH_AUX_TX_METRICS && len==52u && g_aux_rx.data[6]==1u && g_aux_rx.data[7]<2u) {
+            const uint8_t *p=g_aux_rx.data+6;uint16_t id=rfh_get_u16(p+2);
+            uint32_t at=rfh_get_u32(p+4),span=rfh_get_u32(p+8);uint8_t page=p[1];
+            if(id!=g_metrics_stage_id || at!=g_metrics_stage_at ||
+               (uint32_t)(now-g_metrics_stage_rx_at)>MS1_TO_SYSTEM_TIME(4000u)) {
+                g_metrics_stage_mask=0;g_metrics_stage_id=id;g_metrics_stage_at=at;g_metrics_stage_span=span;
+            }
+            if(span==g_metrics_stage_span) {
+                for(unsigned i=0;i<10;i++)g_metrics_stage[page*10u+i]=rfh_get_u32(p+12+4*i);
+                g_metrics_stage_mask|=1u<<page;g_metrics_stage_rx_at=now;
+            }
+        }
         if(type==RFH_AUX_STATS && len==32u) {
             for(unsigned i=0;i<6;i++)g_short_tx_stats[i]=rfh_get_u32(g_aux_rx.data+14+4*i);
             g_short_stats_pending=1;len=8;
@@ -3203,7 +3243,7 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
     g_relative_wire=air[1];
     g_relative_air_seq=air[1];g_relative_wire_valid=1;g_relative_air_clock=now;
     if(connect_stage==RFH_CONNECT_STAGE_SYN) {
-        memset(g_relative_rx,0,sizeof(g_relative_rx));memset(&g_aux_rx,0,sizeof(g_aux_rx));
+        memset(g_relative_rx,0,sizeof(g_relative_rx));memset(&g_aux_rx,0,sizeof(g_aux_rx));g_source_diag_pending=0;
         g_relative_tag=g_relative_prepared=g_relative_inflight=0;g_relative_session++;
     }
     demo_apply_rate_code(rate_code);
@@ -3255,7 +3295,7 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
     if(g_demo_rx_state != RF_AUTO_RX_CONNECT_ACK_PENDING) {
         /* A peer restart can send SYN before our DATA timeout expires. */
         if(g_demo_link_active) g_demo_link_seek_clock = now;
-        demo_cancel_ack();rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;
+        demo_cancel_ack();rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;g_metrics_stage_mask=g_metrics_usb_pending=0;
         g_demo_radio_generation++;
         g_demo_air_sequence.valid = 0u;
 
@@ -3687,7 +3727,7 @@ void RF_Service(void)
      * leave extra instrumentation enabled indefinitely. */
     if(g_short_measure && (uint32_t)(SysTick->CNT-g_short_capture_refresh)>GetSysClock()*3u) {
         g_short_measure=0;g_relative_inflight=g_relative_prepared=0;
-        memset(g_relative_rx,0,sizeof(g_relative_rx));memset(&g_aux_rx,0,sizeof(g_aux_rx));
+        memset(g_relative_rx,0,sizeof(g_relative_rx));memset(&g_aux_rx,0,sizeof(g_aux_rx));g_source_diag_pending=0;
         monitor_mark_remote_pending(++g_monitor_seq,RFMON_TARGET_ALL,monitor_current_flags(),g_monitor_hid_period_ms);
     }
     uint32_t now = RF_LinkClockNow();
@@ -3817,7 +3857,7 @@ uint8_t RF_StartPairing(void)
         return 1u;
     }
 
-    rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;
+    rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;g_metrics_stage_mask=g_metrics_usb_pending=0;
     demo_queue_neutral_xinput_report(1u);
     g_demo_link_active = 0u;
     g_demo_pair_tx_active = 0u;
@@ -4369,7 +4409,7 @@ static uint8_t demo_try_send_diagnostic(void)
         demo_put_u32(&report[24], g_demo_ack_watchdog);
         report[28] = g_demo_rx_pending_max_water;
         report[29] = demo_rx_pending_water(g_demo_rx_pending_head, g_demo_rx_pending_tail);
-        demo_put_u16(&report[30], 0x1924u); /* Monitor-only telemetry lease; v4 radio unchanged. */
+        demo_put_u16(&report[30], 0x1927u); /* v5 short ACK and bounded early resume. */
     } else if(g_demo_diag_page == 1u) {
         demo_put_u32(&report[12], g_demo_ack_late);
         demo_put_u32(&report[16], g_demo_ack_duplicate);
@@ -4406,7 +4446,7 @@ static uint8_t demo_try_send_diagnostic(void)
 static uint8_t channel_send_diagnostic(void) {
     uint32_t now=RF_LinkClockNow();if(!g_monitor_hid_enabled || now-g_channel_diag_at<MS1_TO_SYSTEM_TIME(250u))return 0;
     uint8_t report[32]={0};rfh_put_u32(report,0x33464852u);rfh_put_u32(report+4,g_channel_diag_seq);
-    report[8]=g_channel_diag_page;report[9]=4;
+    report[8]=g_channel_diag_page;report[9]=RFH_PROTOCOL_VERSION;
     if(g_channel_diag_page==0){memcpy(g_channel_diag_snapshot,g_channel_peer_status,54);
         g_channel_diag_age=g_channel_peer_status_valid?demo_clock_delta_ms(g_channel_peer_status_at,now):0xffffu;}
     rfh_put_u16(report+10,g_channel_diag_age);
@@ -4496,12 +4536,50 @@ uint8_t RF_TrySendTraceReport(void)
     if(fast_send_diagnostic())return 1;
     if(channel_send_diagnostic())return 1;
     if(demo_try_send_latency_report())return 1u;
+    /* Main-loop only. Freeze a full TX snapshot across all five USB pages. */
+    if(g_monitor_hid_enabled && !g_metrics_usb_pending && g_metrics_stage_mask==3u) {
+        memcpy(g_metrics_usb,g_metrics_stage,sizeof(g_metrics_usb));
+        g_metrics_usb_at=g_metrics_stage_at;g_metrics_usb_span=g_metrics_stage_span;g_metrics_usb_id=g_metrics_stage_id;
+        g_metrics_usb_page=0;g_metrics_usb_pending=1;g_metrics_stage_mask=0;
+    }
+    if(g_monitor_hid_enabled && g_metrics_usb_pending) {
+        uint8_t report[32]={0};rfh_put_u32(report,RF_TX_METRICS_MAGIC);
+        rfh_put_u16(report+4,g_metrics_usb_id);report[6]=g_metrics_usb_page;report[7]=1;
+        rfh_put_u32(report+8,g_metrics_usb_at);rfh_put_u32(report+12,g_metrics_usb_span);
+        for(unsigned i=0;i<4;i++)rfh_put_u32(report+16+4*i,g_metrics_usb[g_metrics_usb_page*4u+i]);
+        if(demo_submit_hid_report(report)) {
+            if(++g_metrics_usb_page==5u)g_metrics_usb_pending=0;
+            return 1;
+        }
+    }
     if(g_monitor_hid_enabled && g_short_stats_pending) {
         uint8_t report[32]={0};rfh_put_u32(report,0x32504852u);rfh_put_u32(report+4,g_short_stats_seq);
         for(unsigned i=0;i<6;i++)rfh_put_u32(report+8+4*i,g_short_tx_stats[i]);
         if(demo_submit_hid_report(report)){g_short_stats_pending=0;g_short_stats_seq++;return 1;}
     }
+    if(g_monitor_hid_enabled && !g_gap_pending && (uint32_t)(RF_LinkClockUs()-g_gap_at)>=2000000u) {
+        uint32_t lock,at=RF_LinkClockUs();SYS_DisableAllIrq(&lock);
+        for(unsigned i=0;i<8;i++){g_gap_usb[i]=g_gap_bins[i];g_gap_bins[i]=0;}
+        uint32_t maximum=g_gap_max_cycles;g_gap_max_cycles=0;
+        SYS_RecoverIrq(lock);
+        g_gap_usb[8]=demo_tmr_cycles_to_us_saturated(maximum);g_gap_usb[9]=g_demo_current_channel;
+        g_gap_usb[10]=g_demo_report_hz;g_gap_usb[11]=0;
+        g_gap_usb_at=at;g_gap_span=at-g_gap_at;g_gap_at=at;++g_gap_seq;
+        g_gap_page=0;g_gap_pending=1;
+    }
+    if(g_monitor_hid_enabled && g_gap_pending) {
+        uint8_t report[32]={0};rfh_put_u32(report,0x35474952u); /* RIG5 */
+        rfh_put_u16(report+4,g_gap_seq);report[6]=g_gap_page;report[7]=1;
+        rfh_put_u32(report+8,g_gap_usb_at);rfh_put_u32(report+12,g_gap_span);
+        for(unsigned i=0;i<4;i++)rfh_put_u32(report+16+4*i,g_gap_usb[g_gap_page*4u+i]);
+        if(demo_submit_hid_report(report)){if(++g_gap_page==3u)g_gap_pending=0;return 1;}
+    }
     if(g_monitor_hid_enabled && g_short_measure && short_send_trace())return 1u;
+    if(g_source_diag_pending) {
+        uint8_t report[32];rfh_put_u32(report,0x31534c52u); /* RLS1 */
+        memcpy(report+4,g_source_diag_payload,28);
+        if(demo_submit_hid_report(report)) {g_source_diag_pending=0;return 1;}
+    }
     if(g_trace_hid_head != g_trace_hid_tail) {
         if(demo_submit_hid_report(g_trace_hid[g_trace_hid_tail])) {
             g_trace_hid_tail = (uint8_t)((g_trace_hid_tail + 1u) % 16u);
@@ -4781,8 +4859,11 @@ static uint8_t short_send_trace(void) {
     static uint8_t scan;
     for(unsigned i=0;i<63;i++) {
         scan=(scan%63u)+1u;relative_rx_t *r=&g_relative_rx[scan];
-        if(r->tag && !(r->flags&12u) && (uint32_t)(RF_LinkClockNow()-r->born)>MS1_TO_SYSTEM_TIME(1000u)) {
-            r->flags|=8u;short_dirty(r);
+        if(r->tag && !(r->flags&8u) && (r->flags&7u)!=7u && !(r->flags&64u) &&
+           (uint32_t)(RF_LinkClockNow()-r->born)>MS1_TO_SYSTEM_TIME(1000u)) {
+            /* USB completion does not imply the source ever arrived. Keep
+             * valid local stages and mark missing metadata as final. */
+            r->flags|=64u;short_dirty(r);
         }
         if(!r->dirty)continue;
         uint8_t page,revision;

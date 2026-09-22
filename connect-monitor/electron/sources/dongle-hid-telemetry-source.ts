@@ -1,3 +1,4 @@
+import { parseTxMetrics } from "./rf-tx-metrics";
 import type { LinkState, MonitorEvent } from "../pipeline/types";
 
 function rfHopStateCode(state: number): string {
@@ -549,6 +550,17 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
 
   const view = new DataView(report.buffer, report.byteOffset, report.byteLength);
   const magic = view.getUint32(0, true);
+  if(magic===0x35474952) {
+    if(report[7]!==1 || report[6]>=3)return [];
+    return [{kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:`RFH_RIG5_${report[6]}`,
+      payloadLen:32,payloadHex:hexReport(report),rfProtocolVersion:5}];
+  }
+  if(magic===0x35544852) {
+    if(report[7]!==1 || report[6]>=5)return [];
+    const metrics=parseTxMetrics(view,timestampMs);
+    return [{kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:`RFH_RHT5_${report[6]}`,
+      payloadLen:32,payloadHex:hexReport(report),rfProtocolVersion:5,...(metrics?{rfTxMetrics:metrics}:{})}];
+  }
   if(magic===0x34444652 || magic===0x34454652){
     if(report[5]!==2 || report[4]>1)return [];
     return [{kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:magic===0x34444652?"RF_FAST_STATUS":"RF_FAST_EVENT",
@@ -561,10 +573,10 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
   }
   if (magic === 0x33464852) {
     const page = report[8];
-    if (report[9] !== 3 && report[9] !== 4 || page > 5) return [];
+    if (![3,4,5].includes(report[9]) || page > 5) return [];
     return [{ kind: "packet", timestampMs, channel: "RF", direction: "RX",
       seq: view.getUint32(4, true), messageType: `RFH_RHF3_${page}`,
-      payloadLen: 32, payloadHex: hexReport(report), rfDiagnosticVersion: 3,
+      payloadLen: 32, payloadHex: hexReport(report), rfDiagnosticVersion: 3, rfProtocolVersion: report[9],
       rfChannel: { page, ageMs: view.getUint16(10, true),
         ...(page === 0 ? {
           state: report[13], primary: report[14], candidate: report[15], backups: [report[16], report[17]],
@@ -612,6 +624,13 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
         : { inputKeyMask: mask & 0x3ffff, sampleTickUs: view.getUint32(12, true), traceBaseline: !!(mask & 0x40000000) }),
     }];
   }
+  if(magic===0x31534c52) return [{
+    kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:"RFH_RLS1",payloadLen:32,payloadHex:hexReport(report),
+    rfSourceReceived:view.getUint32(4,true),rfSourceMatched:view.getUint32(8,true),
+    rfSourceExpired:view.getUint32(12,true),rfSourceQueueDrops:view.getUint32(16,true),
+    rfSourceBoundaryMissing:view.getUint32(20,true),rfSourceSpiDrops:view.getUint32(24,true),
+    rfSourceIdentityWaits:view.getUint32(28,true)
+  }];
   if(magic===0x32504852) return [{
     kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:"RFH_RHP2",payloadLen:32,payloadHex:hexReport(report),
     seq:view.getUint32(4,true),rfTx5ByteTotal:view.getUint32(8,true),rfTx7ByteTotal:view.getUint32(12,true),

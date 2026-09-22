@@ -15,9 +15,9 @@ class ShortTransportTests(unittest.TestCase):
     def run_native(self, source):
         with tempfile.TemporaryDirectory() as folder:
             p = pathlib.Path(folder)
-            (p / "test.cpp").write_text(source, encoding="utf-8")
+            (p / "test.cpp").write_text('#include "rf_source_trace.h"\n'+source, encoding="utf-8")
             built = subprocess.run([shutil.which("g++"), "-std=c++17", "-Wall", "-Werror",
-                                    "-Wno-unused-function", "-Wno-unused-variable", "-I", str(COMMON),
+                                    "-Wno-unused-function", "-Wno-unused-variable", "-I", str(COMMON), "-I", str(ROOT / "common"),
                                     str(p / "test.cpp"), "-o", str(p / "test.exe")], capture_output=True, text=True)
             self.assertEqual(built.returncode, 0, built.stderr)
             ran = subprocess.run([str(p / "test.exe")], capture_output=True, text=True)
@@ -114,10 +114,14 @@ int main(){
         declaration = next(line for line in tx.splitlines() if line.startswith('typedef struct {') and line.endswith('relative_tx_t;'))
         self.run_native('#include <cassert>\n#include "rf_hop_protocol.h"\n'+declaration+r'''
 static relative_tx_t g_relative_tx[64];static uint8_t g_short_measure=1,g_sync_air_count,g_source_spi_received;
+struct pending_source_t {uint8_t valid,payload[20];uint32_t born;};
+static pending_source_t g_pending_source[8];static uint8_t g_source_pending_count;
+static uint32_t g_source_diag[7];static uint32_t demo_tx_cycle_now(){return 100;}
 static bool nss_valid=true;
 static void SYS_DisableAllIrq(uint32_t *p){*p=0;}static void SYS_RecoverIrq(uint32_t){}
 static uint8_t rfm_spi_port_input_end(uint8_t,uint8_t s,uint32_t*p){*p=100;return s==9 && nss_valid;}
-'''+function(tx,"RF_SPI_WriteTrace")+r'''
+static uint8_t rfm_spi_port_source_end(uint16_t e,uint8_t s,uint32_t*p){return rfm_spi_port_input_end(e&63,s,p);}
+'''+function(tx,"short_source_end")+function(tx,"short_bind_source")+function(tx,"RF_SPI_WriteTrace")+r'''
 int main(){
  uint8_t p[20]={9,3,0};p[19]=1;rfh_put_u32(p+3,100);auto &r=g_relative_tx[3];r.tag=3;r.spi=8;
  assert(RF_SPI_WriteTrace(9,p,20));assert(!r.source);
@@ -216,17 +220,22 @@ int main(){
         self.run_native('#include <cassert>\n#include <cstring>\n#include "rf_hop_protocol.h"\n'+decl+r'''
 #define RFM_RF_INPUT_PAYLOAD_LEN 10
 static relative_tx_t g_relative_tx[64];static uint8_t g_relative_tag,g_short_measure=1,g_sync_air_count,g_source_spi_received;
+struct pending_source_t {uint8_t valid,payload[20];uint32_t born;};
+static pending_source_t g_pending_source[8];static uint8_t g_source_pending_count;
+static uint32_t g_source_diag[7];
 static uint32_t g_relative_overflow,g_demo_last_payload_tmr,g_demo_last_payload_tmr_valid,g_demo_have_payload;
 static uint8_t g_demo_last_payload[10],s_spi_rx_latest_payload[10],s_spi_rx_latest_valid,s_measure_nss=1;
 static uint32_t s_spi_rx_latest_gen,s_spi_rx_direct_count,locked,lookup_count;
 static bool lookup_valid=true;
 static void SYS_DisableAllIrq(uint32_t*p){*p=locked;locked=1;}static void SYS_RecoverIrq(uint32_t p){locked=p;}
 static uint8_t rfm_spi_port_input_end(uint8_t,uint8_t seq,uint32_t*p){lookup_count++;*p=90;return lookup_valid && seq==9;}
+static uint8_t rfm_spi_port_source_end(uint16_t e,uint8_t s,uint32_t*p){return rfm_spi_port_input_end(e&63,s,p);}
 static uint32_t tx_now_cycles(){return 100;}static uint32_t demo_tx_cycle_now(){return 100;}
 static void demo_note_battery_status(const uint8_t*){}
-'''+function(tx,'short_note_input')+function(tx,'demo_store_last_payload')+function(tx,'RF_SPI_FastWriteInput')+
+'''+function(tx,'short_source_end')+function(tx,'short_note_input')+function(tx,'RF_SPI_RecordInputEdge')+
+            function(tx,'demo_store_last_payload')+function(tx,'RF_SPI_FastWriteInput')+
             function(port,'spi_rx_latest_payload_same')+function(port,'spi_rx_commit_latest_payload')+
-            function(tx,'RF_SPI_WriteTrace')+r'''
+            function(tx,'short_bind_source')+function(tx,'RF_SPI_WriteTrace')+r'''
 int main(){
  uint8_t p[10]={9,0,1,0,12}; // first SPI input for event tag 3
  spi_rx_commit_latest_payload(p);
@@ -239,7 +248,7 @@ int main(){
  uint8_t source[20]={9,3,0};source[19]=1;rfh_put_u32(source+3,17);
  assert(RF_SPI_WriteTrace(9,source,20));assert(g_relative_tx[3].source && g_relative_tx[3].stage[0]==17);
  assert(g_relative_tx[3].end==90 && lookup_count==1); // frozen physical boundary, not a new lookup
- s_measure_nss=0;g_relative_tag=0;p[4]=16;spi_rx_commit_latest_payload(p);
+ s_measure_nss=0;g_short_measure=0;g_relative_tag=0;p[4]=16;spi_rx_commit_latest_payload(p);
  assert(!g_relative_tag); // no added RF hook on the measurement-off hot path
 }''')
 
@@ -420,15 +429,16 @@ int main(){
 static relative_tx_t g_relative_tx[64];static rfh_aux_tx_t g_aux_tx;
 static uint8_t g_relative_scan,g_relative_tag,g_short_measure=1,g_sync_air_count;
 static uint32_t g_demo_radio_generation,g_relative_overflow,now=2000000;
+static uint32_t g_source_diag[7];static uint8_t short_source_end(relative_tx_t*){return 0;}
 static uint32_t demo_tx_cycle_now(){return now;}static uint32_t GetSysClock(){return 1000000;}
 static void SYS_DisableAllIrq(uint32_t*p){*p=0;}static void SYS_RecoverIrq(uint32_t){}
 '''+function(tx,"short_prepare_trace")+r'''
 int main(){
  auto &r=g_relative_tx[3];r.tag=3;r.event=3;r.spi=9;r.count=1;r.source=1;r.end=r.born=100;
  assert(!short_prepare_trace());assert(r.sent && g_relative_overflow==1 && !g_aux_tx.active);
- r.sent=0;r.end=r.born=now-100;r.launch[0]=now-50;r.seq[0]=9;
+ r.sent=0;g_relative_scan=0;r.end=r.born=now-100;r.launch[0]=now-50;r.seq[0]=9;
  assert(!short_prepare_trace() && !r.sent); // allow pending NSS IRQ to finish
- now+=1000;
+ now+=1000;g_relative_scan=0;
  assert(short_prepare_trace());assert(g_aux_tx.active && r.sent);
  assert(g_aux_tx.data[6+52]==1); // source survives without an NSS boundary
  assert(g_aux_tx.data[6+24]==255 && (g_sync_air_count&32));

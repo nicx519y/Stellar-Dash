@@ -10,6 +10,7 @@
 #include "power_manager.hpp"
 #include "rf_command_transaction.hpp"
 #include "rf_bridge_port.hpp"
+#include "rf_source_trace.h"
 #include "rf_reliable_event.hpp"
 #include "system_logger.h"
 #include "stm32h7xx_hal.h"
@@ -536,7 +537,7 @@ bool RFTransport::sendInputFrame(const uint8_t* payload, uint8_t len) {
         d[0]=RF_SYNC;d[1]=0x09;d[2]=20;
         d[3]=source->spiSeq;putU16(d+4,source->event);
         for(unsigned i=0;i<4;i++)tracePut32(d+6+i*4,source->stage[i]);
-        d[22]=1;d[23]=frameChecksum(d,23);frameLen+=24;
+        d[22]=RF_SOURCE_SIDECAR_VERSION;d[23]=frameChecksum(d,23);frameLen+=24;
     }
     const bool ok=RFBridgePort_SendInputLatest(frame,frameLen);
     if(ok && sidecar && --source->repeats==0u) {
@@ -718,9 +719,12 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
                 g_relative.event=g_relative_event;
         }
     }
-    if(g_relative_enabled && g_relative.event)
-        payload[4]=static_cast<uint8_t>((payload[4]&3u)|((g_relative.event&63u)<<2));
     putU16(&payload[INPUT_AGE_US_OFFSET],0u);
+    if(g_relative_enabled && g_relative.event) {
+        payload[4]=static_cast<uint8_t>((payload[4]&3u)|((g_relative.event&63u)<<2));
+        flags=static_cast<uint8_t>((flags & 0x0fu) | RF_SOURCE_INPUT_VERSION);
+        putU16(&payload[RF_SOURCE_EVENT_OFFSET],g_relative.event);
+    }
     if (POWER_MANAGER.isVoltageValid()) {
         const PowerBatteryVoltages voltages = POWER_MANAGER.getVoltages();
         const PowerBatteryId activeBattery = POWER_MANAGER.getActiveDischargeBattery();

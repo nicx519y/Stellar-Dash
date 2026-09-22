@@ -1,4 +1,7 @@
+#include "rf_ack_policy.h"
+#include "rf_tx_metrics.h"
 #include "rf_short_transport.h"
+#include "rf_source_trace.h"
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : RF_PHY.c
  * Description        : TX side for RF PHY DATA + 100ms ACK control protocol.
@@ -181,8 +184,19 @@ static volatile uint32_t g_demo_pending_reports = 0u;
 extern void rfm_spi_port_measure_enable(uint8_t enable);
 extern uint8_t rfm_spi_port_input_end(uint8_t tag,uint8_t seq,uint32_t* cycles);
 extern uint8_t rfm_spi_port_measure_diag(void);
-typedef struct { uint8_t tag, spi; volatile uint8_t count; uint8_t source, sent, end_valid; uint16_t event, seq[6]; uint32_t mask, launch[6], end, born, stage[4]; } relative_tx_t;
+extern uint8_t rfm_spi_port_source_end(uint16_t event,uint8_t seq,uint32_t *cycles);
+extern uint32_t rfm_spi_port_source_drops(void);
+typedef struct { uint8_t tag, spi; volatile uint8_t count; uint8_t source, sent, end_valid, full_event; uint16_t event, seq[6]; uint32_t mask, launch[6], end, born, stage[4]; } relative_tx_t;
 static relative_tx_t g_relative_tx[64];
+typedef struct { uint8_t valid, payload[20]; uint32_t born; } pending_source_t;
+static pending_source_t g_pending_source[8];
+static uint8_t g_source_scan;
+static volatile uint8_t g_source_pending_count;
+/* received frames, bound records, pending expiry, queue full, missing NSS,
+ * SPI archive/DMA loss (filled on publication), deferred identities. */
+static uint32_t g_source_diag[7],g_source_diag_at;
+static void short_service_source(void);
+static uint8_t short_source_end(relative_tx_t *r);
 static uint8_t g_relative_tag, g_relative_scan;
 static uint16_t g_short_wire_seq;
 static uint32_t g_demo_radio_generation;
@@ -192,7 +206,16 @@ static uint32_t g_short_packet_count[3], g_short_ack_slots, g_short_control_slot
 static void short_note_input(const uint8_t *payload);
 static void short_note_launch(uint8_t tag);
 static uint8_t short_prepare_trace(void);
-static rfh_aux_tx_t g_aux_tx;
+static rfh_aux_tx_t g_aux_buffers[2];
+static rfh_aux_tx_t *volatile g_aux_active=&g_aux_buffers[0];
+#define g_aux_tx (*g_aux_active)
+static volatile uint32_t g_tx_metrics[RT_COUNT];
+static uint32_t g_metrics_snapshot[RT_COUNT],g_metrics_at,g_metrics_span;
+static uint16_t g_metrics_seq;
+static uint8_t g_metrics_page;
+static uint32_t g_metrics_timer_at;
+static uint8_t g_metrics_timer_valid;
+static uint32_t g_metrics_cycles_per_us;
 static uint8_t g_short_aux_sent, g_short_ack_wait, g_short_measure;
 static uint32_t g_short_ack_launch;
 static uint8_t g_demo_seq = 0u;
@@ -222,6 +245,8 @@ static rfc_policy_t g_channel_policy;
 #define g_demo_target_channel g_channel.target
 static uint8_t g_channel_control_seq, g_channel_wire_cmd, g_channel_diag_pending;
 static uint32_t g_channel_ack_generation, g_channel_ack_deadline;
+static uint32_t g_channel_ack_resume;
+static uint8_t g_channel_ack_early_eligible,g_channel_ack_session,g_channel_ack_channel;
 static uint8_t g_fast_test_receipt_pending;
 static uint16_t g_fast_test_receipt;
 static uint32_t g_fast_diag_at;
@@ -647,6 +672,7 @@ static void demo_reconfigure_report_timer(uint16_t hz)
         tick_per_evt = 1u;
     }
     g_demo_report_tmr_cycles = tick_per_evt;
+    g_metrics_cycles_per_us=GetSysClock()/1000000u;g_metrics_timer_valid=0;
     g_demo_tmr_epoch_cycles = 0u;
     g_demo_last_payload_tmr_valid = 0u;
     TMR0_TimerInit(tick_per_evt);
@@ -785,7 +811,11 @@ static void demo_link_quality_reset(uint32_t now,rf_auto_link_quality_state_t st
 static uint8_t demo_abort_radio(void)
 {
     ++g_demo_radio_generation;
-    g_channel_ack_valid=0;
+    g_channel_ack_valid=0;g_channel_ack_deadline=g_channel_ack_resume=0;g_channel_ack_early_eligible=0;
+    if(g_rff_debug.maintenance_active){
+        uint32_t at=RF_LinkClockUs();g_tx_metrics[RT_ACK_US]+=at-g_rff_debug.maintenance_started;
+        rff_maintenance(g_rff_debug.maintenance_started,at);g_rff_debug.maintenance_active=0;
+    }
     TMR1_Disable();TMR1_ITCfg(DISABLE,TMR0_3_IT_CYC_END);TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
     g_short_ack_wait=0;
     g_demo_pause_tx = 1u;
@@ -849,6 +879,7 @@ static void demo_enter_tx_unconnected(uint32_t now)
     g_channel_quality_tail=g_channel_quality_head;
     g_channel_policy.probation=g_channel_policy.rollback=0;
     memset(&g_aux_tx,0,sizeof(g_aux_tx));memset(g_relative_tx,0,sizeof(g_relative_tx));
+    memset(g_pending_source,0,sizeof(g_pending_source));g_source_pending_count=0;
     g_relative_tag=0;g_short_measure=0;g_short_wire_seq=0;g_demo_seq=0;g_short_anchor_serial=0;
     (void)rfm_spi_bridge_emit_time_sync(0);
     rfm_spi_port_measure_enable(0);
@@ -1012,17 +1043,26 @@ static void demo_prepare_aux(void)
     if(!type && g_fast_test_receipt_pending){
         type=RFF_AUX_TEST_RECEIPT;len=2;rfh_put_u16(p,g_fast_test_receipt);g_fast_test_receipt_pending=0;
     }
-    if(!type && RF_LinkClockUs()-g_fast_diag_at>=1000000u){
+    static uint32_t last_fast_key=0xffffffffu;
+    uint32_t fast_key=g_channel.fast_state|((uint32_t)g_channel.fast_requested<<8)|
+        ((uint32_t)g_channel.fast_reason<<16)|((uint32_t)g_channel.fast_seq<<24);
+    if(!type && (fast_key!=last_fast_key || RF_LinkClockUs()-g_fast_diag_at>=
+       ((g_channel.fast_requested || g_rff_debug.test)?1000000u:5000000u))){
+        last_fast_key=fast_key;
         static uint32_t previous_maintenance;
         uint32_t diag_now=RF_LinkClockUs();
         if(g_channel.fast_requested || g_rff_debug.test)
             rff_log(RFF_EV_MAINTENANCE,g_demo_current_channel,diag_now,g_fast_diag_at,g_rff_debug.maintenance_us-previous_maintenance,g_demo_radio_generation);
         previous_maintenance=g_rff_debug.maintenance_us;
         type=RFF_AUX_STATUS;len=24;g_fast_diag_at=diag_now;
-        p[0]=g_channel.fast_state;p[1]=g_channel.fast_requested;p[2]=rff_enabled(&g_channel);p[3]=g_channel.fast_reason;
-        p[4]=RFF_RATE_MASK;p[5]=0;p[6]=RFF_PROFILE;p[7]=g_channel.fast_seq;
-        rfh_put_u32(p+8,g_channel.fast_success);rfh_put_u32(p+12,g_channel.fast_failure);
-        rfh_put_u32(p+16,g_channel.fast_elapsed);rfh_put_u32(p+20,g_rff_debug.overflow);
+        uint8_t state=g_channel.fast_state,requested=g_channel.fast_requested,effective=rff_enabled(&g_channel);
+        uint8_t reason=g_channel.fast_reason,seq=g_channel.fast_seq;
+        uint32_t success=g_channel.fast_success,failure=g_channel.fast_failure,elapsed=g_channel.fast_elapsed,overflow=g_rff_debug.overflow;
+        SYS_RecoverIrq(lock);
+        p[0]=state;p[1]=requested;p[2]=effective;p[3]=reason;
+        p[4]=RFF_RATE_MASK;p[5]=0;p[6]=RFF_PROFILE;p[7]=seq;
+        rfh_put_u32(p+8,success);rfh_put_u32(p+12,failure);rfh_put_u32(p+16,elapsed);rfh_put_u32(p+20,overflow);
+        SYS_DisableAllIrq(&lock);
     }
     SYS_RecoverIrq(lock);
     if(!type && (g_rff_debug.test || g_channel.fast_requested || g_channel.fast_latched)){
@@ -1030,17 +1070,28 @@ static void demo_prepare_aux(void)
             type=RFF_AUX_EVENT;len=24;memcpy(p,&e,20);rfh_put_u32(p+20,g_rff_debug.maintenance_us);rff_log_commit(&e);
         }
     }
+    if(!type && !g_channel_diag_pending && !g_demo_diag_pending && g_short_measure &&
+       (uint32_t)(RF_LinkClockNow()-g_source_diag_at)>=MS1_TO_SYSTEM_TIME(2000u)) {
+        g_source_diag_at=RF_LinkClockNow();g_source_diag[5]=rfm_spi_port_source_drops();
+        for(unsigned i=0;i<7;i++)rfh_put_u32(p+4*i,g_source_diag[i]);
+        type=RFH_AUX_SOURCE_DIAG;len=28;
+    }
     if(!type && !g_channel_diag_pending && !g_demo_diag_pending && g_short_measure && short_prepare_trace())return;
     SYS_DisableAllIrq(&lock);
     if(!type && g_channel_diag_pending) {
-        p[0]=3;p[1]=g_channel.state;p[2]=g_channel.primary;p[3]=g_channel.target;
-        p[4]=rfc_backup(g_channel.primary,0);p[5]=rfc_backup(g_channel.primary,1);
-        rfc_manager_probe_window(&g_channel);p[6]=g_channel.probe_disable;p[7]=(g_channel.state==RFC_IDLE && g_channel_policy.reason)?g_channel_policy.reason:g_channel.reason;
-        rfh_put_u16(p+8,(uint16_t)g_channel.budget_used);rfh_put_u16(p+10,g_channel_policy.baseline);
-        rfh_put_u16(p+12,g_channel_policy.loss);p[14]=rfc_local_caps(g_demo_report_hz);p[15]=g_channel.peer_caps;
-        rfh_put_u32(p+16,g_channel.switches);rfh_put_u32(p+20,g_channel.probe_count);
-        rfh_put_u32(p+24,g_channel.failures);rfh_put_u32(p+28,g_channel.probe_failures);
-        uint8_t ci=rfc_index(g_channel.target);p[36]=g_channel_policy.probation;
+        uint8_t state=g_channel.state,primary=g_channel.primary,target=g_channel.target,reason=g_channel.reason,peer=g_channel.peer_caps;
+        uint32_t budget=g_channel.budget_used,switches=g_channel.switches,probes=g_channel.probe_count;
+        uint32_t failures=g_channel.failures,probe_failures=g_channel.probe_failures;
+        g_channel_diag_pending=0;
+        SYS_RecoverIrq(lock);
+        p[0]=3;p[1]=state;p[2]=primary;p[3]=target;
+        p[4]=rfc_backup(primary,0);p[5]=rfc_backup(primary,1);
+        rfc_manager_probe_window(&g_channel);p[6]=g_channel.probe_disable;
+        p[7]=(state==RFC_IDLE && g_channel_policy.reason)?g_channel_policy.reason:reason;
+        rfh_put_u16(p+8,(uint16_t)budget);rfh_put_u16(p+10,g_channel_policy.baseline);
+        rfh_put_u16(p+12,g_channel_policy.loss);p[14]=rfc_local_caps(g_demo_report_hz);p[15]=peer;
+        rfh_put_u32(p+16,switches);rfh_put_u32(p+20,probes);rfh_put_u32(p+24,failures);rfh_put_u32(p+28,probe_failures);
+        uint8_t ci=rfc_index(p[3]);p[36]=g_channel_policy.probation;
         if(ci!=0xff){rfc_history_t *h=&g_channel_policy.history[ci];
             p[37]=h->windows?1u:2u;rfh_put_u32(p+32,h->windows?h->expected:h->probe_expected);
             uint32_t age=(RF_LinkClockUs()-(h->windows?h->measured:h->probe_last))/1000u;
@@ -1049,30 +1100,39 @@ static void demo_prepare_aux(void)
         for(unsigned k=0;k<7;k++){uint16_t loss=g_channel_policy.history[k].loss;
             if(!g_channel_policy.history[k].windows || RF_LinkClockUs()-g_channel_policy.history[k].measured>=RFC_HISTORY_US)loss=RFC_UNKNOWN;
             rfh_put_u16(p+38+k*2,loss);}
-        type=RFC_AUX_STATUS;len=54;g_channel_diag_pending=0;
+        type=RFC_AUX_STATUS;len=54;
+        SYS_DisableAllIrq(&lock);
     } else if(!type && g_monitor_battery_pending) {
         p[0]=RFH_CMD_BATTERY_STATUS;p[1]=g_monitor_battery_status;
         type=RFH_AUX_BATTERY;len=2;g_monitor_battery_pending=0;
     } else if(!type && g_demo_diag_pending) {
-        p[0]=RFH_CMD_TX_DIAGNOSTIC;p[1]=g_demo_diag_window_10ms;
-        rfh_put_u16(p+2,g_demo_diag_due_window);rfh_put_u16(p+4,g_demo_diag_started_window);
-        rfh_put_u16(p+6,g_demo_diag_dropped_window);
-        for(unsigned i=0;i<3;i++)rfh_put_u32(p+8+4*i,g_short_packet_count[i]);
-        rfh_put_u32(p+20,g_short_ack_slots);rfh_put_u32(p+24,g_short_control_slots);
-        rfh_put_u32(p+28,g_relative_overflow);
-        type=RFH_AUX_STATS;len=32;g_demo_diag_pending=0;
+        g_demo_diag_pending=0;
+        if(g_metrics_page==0u) {
+            uint32_t at=RF_LinkClockUs();g_metrics_span=at-g_metrics_at;g_metrics_at=at;++g_metrics_seq;
+            for(unsigned i=0;i<RT_COUNT;i++)g_metrics_snapshot[i]=g_tx_metrics[i];
+        }
+        SYS_RecoverIrq(lock);
+        p[0]=1;p[1]=g_metrics_page;rfh_put_u16(p+2,g_metrics_seq);
+        rfh_put_u32(p+4,g_metrics_at);rfh_put_u32(p+8,g_metrics_span);
+        for(unsigned i=0;i<10;i++)rfh_put_u32(p+12+4*i,g_metrics_snapshot[g_metrics_page*10u+i]);
+        type=RFH_AUX_TX_METRICS;len=52;g_metrics_page^=1u;
+        SYS_DisableAllIrq(&lock);
     }
     SYS_RecoverIrq(lock);
     if(type) {
-        rfh_aux_tx_t next=g_aux_tx;rfh_aux_begin(&next,type,p,len);
+        rfh_aux_tx_t *next=g_aux_active==&g_aux_buffers[0]?&g_aux_buffers[1]:&g_aux_buffers[0];
+        next->active=0;next->serial=g_aux_tx.serial;next->generation=g_aux_tx.generation;
+        rfh_aux_begin(next,type,p,len);
         SYS_DisableAllIrq(&lock);
-        if(generation==g_demo_radio_generation && !g_aux_tx.active)g_aux_tx=next;
+        if(generation==g_demo_radio_generation && !g_aux_tx.active){__asm__ volatile("" ::: "memory");g_aux_active=next;}
         else if(type==RFF_AUX_EVENT)g_rff_debug.overflow++;
         SYS_RecoverIrq(lock);
     }
 }
 static uint8_t demo_active_hop_cmd(void) {
     if(g_channel.fast_control && rfc_due(RF_LinkClockUs(),g_channel.fast_next))return g_channel.fast_control;
+    /* Ordinary DATA/ACK has no transaction deadline to inspect at 8K. */
+    if(g_channel.state!=RFC_PREPARE && g_channel.state!=RFC_CONFIRM && g_channel.state!=RFC_RECOVER)return 0;
     if(g_demo_link_state!=RF_AUTO_TX_COMM || !rfc_due(RF_LinkClockUs(),g_channel.retry_at))return 0;
     return g_channel.state==RFC_PREPARE?RFH_CMD_HOP_PREPARE:g_channel.state==RFC_CONFIRM?RFH_CMD_HOP_CONFIRM:
         g_channel.state==RFC_RECOVER?RFC_CMD_RECOVER:0;
@@ -1092,6 +1152,11 @@ static void demo_handle_command_ack(uint8_t cmd,uint8_t seq,uint8_t ch) {
     rfc_manager_ack(&g_channel,cmd,seq,ch,RF_LinkClockUs());
     if(cmd==RFH_CMD_RATE_UPDATE && seq==g_demo_rate_update_seq)g_demo_rate_update_pending=0;
 }
+static uint8_t channel_timer_required(void) {
+    return g_channel.connected && !g_channel.discovery &&
+        (g_channel.state!=RFC_IDLE ||
+         (g_channel.fast_state!=RFF_OFF && g_channel.fast_state!=RFF_LATCHED));
+}
 static uint32_t channel_timer_tick(uint32_t now) {
     if(!g_channel.connected || g_channel.discovery)return 0;
     rff_poll(&g_channel,now);rfc_manager_poll(&g_channel,now);
@@ -1108,13 +1173,16 @@ static uint32_t channel_timer_tick(uint32_t now) {
     if(rfc_manager_switch(&g_channel,&ch,&at))rfc_radio_schedule(ch,at);
     if(g_channel.want_ack && !g_demo_ack_rx_active && !g_demo_wait_ack_after_tx)g_demo_force_ack_burst=1;
     if(g_channel.discovery){g_demo_pause_tx=1;return 0;}
+    /* TMR1 owns normal ACK deadlines. Stop idle TMR2 polling; a new
+     * transaction is woken by its event/main adapter, never by DATA. */
+    if(!channel_timer_required())return 0;
     uint32_t next=rff_next(&g_channel,now);
     if(g_channel.state!=RFC_IDLE && (int32_t)(next-(now+100u))>0)next=now+100u;
     return next;
 }
 static void channel_service(uint32_t now) {
     g_channel.hz=g_demo_report_hz;g_channel.auto_enabled=g_monitor_auto_hop_enabled;
-    rfc_radio_wake(now+2u);
+    if(channel_timer_required())rfc_radio_wake(now+2u);
     uint8_t ch;uint32_t at;
     if(rfc_manager_switch(&g_channel,&ch,&at))rfc_radio_schedule(ch,at);
     if(g_channel.want_ack && !g_demo_ack_rx_active && !g_demo_wait_ack_after_tx)g_demo_force_ack_burst=1;
@@ -1181,16 +1249,18 @@ static void demo_handle_ack_packet(void)
     uint8_t seq;
     uint8_t channel;
     uint32_t now = RF_LinkClockNow();
+    uint32_t ack_received_us=RF_LinkClockUs();
 
     uint16_t received=0,expected=0;
     uint8_t valid=(rfh_flags(air[0])&RFC_ACK_QUALITY_VALID)!=0;
     if(rfh_packet_type(air[0])!=RFH_PKT_ACK || !(rfh_flags(air[0])&RFH_FLAG_LINK_OK) ||
        rfh_rate_code(air[0])!=g_demo_rate_code)return;
     if(g_demo_link_state!=RF_AUTO_TX_UNCONNECTED && (!g_channel_ack_valid ||
-       g_channel_ack_generation!=g_demo_radio_generation || rfc_due(RF_LinkClockUs(),g_channel_ack_deadline) ||
+       g_channel_ack_generation!=g_demo_radio_generation || g_channel_ack_session!=g_channel.wire_session ||
+       g_channel_ack_channel!=g_demo_current_channel || rfc_due(ack_received_us,g_channel_ack_deadline) ||
        air[1]!=g_demo_active_ack_token))return;
     if(RxBuf[1]==RFH_SHORT_ACK_LEN) {
-        received=data[0];expected=rfh_get_u16(data+1);
+        if(!rf_ack_decode(data,&received,&expected))valid=0;
         memset(RxBuf+4,0,10);RxBuf[4+RFH_ACK_CHANNEL]=g_demo_current_channel;
         RxBuf[4+RFH_ACK_FLAGS]=RFH_SHORT_ACK_VERSION;
     } else if(RxBuf[1]==RFH_AIR_PACKET_LEN) {
@@ -1210,6 +1280,21 @@ static void demo_handle_ack_packet(void)
     if((cmd==RFH_CMD_HOP_PREPARE || cmd==RFH_CMD_HOP_CONFIRM || cmd==RFC_CMD_RECOVER || cmd==RFC_CMD_PROBE_RESULT) &&
        data[5]!=g_channel.wire_session)return;
     g_channel_ack_valid=0;
+    if(g_demo_link_state==RF_AUTO_TX_COMM) {
+        g_tx_metrics[RT_ACK_OK]++;
+        if(g_channel_ack_early_eligible && RxBuf[1]==RFH_SHORT_ACK_LEN &&
+           g_channel.state==RFC_IDLE && !rff_enabled(&g_channel) && !rff_busy(&g_channel) &&
+           !g_demo_pause_tx && !rfc_radio_pending() && RF_AUTO_DEMO_PHY_PROPS==LLE_MODE_PHY_2M) {
+            uint32_t resume=rf_ack_resume_at(ack_received_us,g_channel_ack_deadline);
+            if((int32_t)(resume-g_channel_ack_resume)<0) {
+                g_channel_ack_resume=resume;g_tx_metrics[RT_EARLY]++;
+                TMR1_Disable();TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
+                uint32_t at=RF_LinkClockUs();
+                TMR1_TimerInit((rfc_due(at,resume)?2u:resume-at)*(GetSysClock()/1000000u));
+                TMR1_ITCfg(ENABLE,TMR0_3_IT_CYC_END);
+            }
+        }
+    }
     if(rff_busy(&g_channel) || rff_command(cmd))rff_log(RFF_EV_ACK,g_demo_current_channel,RF_LinkClockUs(),g_channel.request_at,cmd,g_demo_radio_generation);
     g_demo_last_quality=valid?rfc_loss(received,expected):RFC_UNKNOWN;
     g_demo_last_avg_irq_us=g_demo_last_max_irq_us=0;
@@ -1332,6 +1417,7 @@ static void demo_handle_ack_packet(void)
             g_sync_air_count=0;
             g_source_spi_received=0;
             memset(g_relative_tx,0,sizeof(g_relative_tx));g_relative_tag=0;
+            memset(g_pending_source,0,sizeof(g_pending_source));g_source_pending_count=0;
             if(g_aux_tx.active && g_aux_tx.data[0]==RFH_AUX_TRACE)g_aux_tx.active=0;
         }
         rfm_spi_port_measure_enable(g_short_measure);
@@ -1443,7 +1529,7 @@ static void demo_fill_short_packet(uint8_t request_ack)
 static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t ack_burst_left)
 {
     uint8_t *air=TxBuf+2,*data=air+RFH_DATA_OFFSET;
-    uint8_t hop_cmd=demo_active_hop_cmd();
+    uint8_t hop_cmd=request_ack?demo_active_hop_cmd():RFH_CMD_NONE;
     g_channel_wire_cmd=0;
     memset(TxBuf,0,sizeof(TxBuf));TxBuf[0]=RFH_WCH_PREAMBLE;
     TxBuf[1]=RFH_AIR_PACKET_LEN;
@@ -1919,21 +2005,22 @@ void TMR1_IRQHandler(void)
     if(!TMR1_GetITFlag(TMR0_3_IT_CYC_END))return;
     TMR1_ClearITFlag(TMR0_3_IT_CYC_END);TMR1_Disable();
     if(g_channel_ack_generation!=g_demo_radio_generation || g_demo_pause_tx)return;
-    uint32_t planned=g_short_ack_wait?g_channel.request_at+g_demo_tx_guard_cycles/(GetSysClock()/1000000u):g_channel_ack_deadline;
+    uint32_t planned=g_short_ack_wait?g_channel.request_at+g_demo_tx_guard_cycles/(GetSysClock()/1000000u):g_channel_ack_resume;
     uint32_t action_now=RF_LinkClockUs();
     if(rff_enabled(&g_channel) && (int32_t)(action_now-planned)>(int32_t)RFF_LATE_LIMIT_US){
         channel_timer_fault(RFF_LATE,action_now);g_demo_pause_tx=1;return;
     }
     if(!g_short_ack_wait){
         uint32_t now=RF_LinkClockUs();
-        if(!rfc_due(now,g_channel_ack_deadline)){
-            TMR1_TimerInit((g_channel_ack_deadline-now)*(GetSysClock()/1000000u));return;
+        if(!rfc_due(now,g_channel_ack_resume)){
+            TMR1_TimerInit((g_channel_ack_resume-now)*(GetSysClock()/1000000u));return;
         }
         uint32_t lock;SYS_DisableAllIrq(&lock);
         if(g_demo_ack_rx_active)(void)RFRole_Stop();
         g_demo_ack_rx_active=g_demo_wait_ack_after_tx=g_demo_tx_busy=0;
         if(g_channel_ack_valid){g_demo_stat.ack_timeout++;demo_note_ack_timeout();}
-        if(g_rff_debug.maintenance_active){rff_maintenance(g_rff_debug.maintenance_started,now);g_rff_debug.maintenance_active=0;}
+        if(g_rff_debug.maintenance_active){g_tx_metrics[RT_ACK_US]+=now-g_rff_debug.maintenance_started;rff_maintenance(g_rff_debug.maintenance_started,now);g_rff_debug.maintenance_active=0;}
+        g_channel_ack_deadline=g_channel_ack_resume=0;g_channel_ack_early_eligible=0;
         SYS_RecoverIrq(lock);return;
     }
     uint32_t left=rfh_tx_guard_remaining(g_short_ack_launch,demo_tx_cycle_now(),g_demo_tx_guard_cycles);
@@ -1941,7 +2028,7 @@ void TMR1_IRQHandler(void)
     uint32_t lock;SYS_DisableAllIrq(&lock);
     g_short_ack_wait=0;g_demo_tx_busy=0;g_demo_wait_ack_after_tx=0;demo_arm_ack_rx();
     uint32_t now=RF_LinkClockUs();
-    TMR1_TimerInit((rfc_due(now,g_channel_ack_deadline)?2u:g_channel_ack_deadline-now)*(GetSysClock()/1000000u));
+    TMR1_TimerInit((rfc_due(now,g_channel_ack_resume)?2u:g_channel_ack_resume-now)*(GetSysClock()/1000000u));
     SYS_RecoverIrq(lock);
 }
 
@@ -1976,7 +2063,7 @@ static void demo_note_ack_timeout(void)
 {
     uint32_t now = RF_LinkClockNow();
     if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED) return;
-    g_channel_ack_valid=0;
+    g_channel_ack_valid=0;g_tx_metrics[RT_ACK_TIMEOUT]++;
     rfc_manager_timeout(&g_channel,RF_LinkClockUs());
     rfc_radio_wake(RF_LinkClockUs()+2u);
     if(!rff_enabled(&g_channel))rfh_health_failed(&g_demo_health, now, MS1_TO_SYSTEM_TIME(10u));
@@ -2086,25 +2173,43 @@ void TMR0_IRQHandler(void)
     g_demo_tmr_epoch_cycles += g_demo_report_tmr_cycles;
     if(demo_pair_is_active() != 0u)
     {
+        g_metrics_timer_valid=0;
         g_demo_stat.report_due++; g_demo_diag_due++;
         demo_send_pair_packet_from_isr();
         return;
     }
     if(g_demo_input_off != 0u)
     {
-        return;
+        g_metrics_timer_valid=0;return;
     }
     if(g_demo_has_bond == 0u)
     {
-        return;
+        g_metrics_timer_valid=0;return;
     }
 
+    /* Absolute CPU-clock phase detects coalesced timer ticks without replay.
+     * Lateness is diagnostic only: it never changes the input schedule. */
+    uint32_t cycle_now=SysTick->CNT,period=g_demo_report_tmr_cycles;
+    if(period && g_metrics_cycles_per_us) {
+        if(!g_metrics_timer_valid) {
+            g_metrics_timer_at=cycle_now-TMR0_GetCurrentTimer();g_metrics_timer_valid=1;
+        }
+        int32_t late=(int32_t)(cycle_now-g_metrics_timer_at);
+        if(late>0) {
+            uint32_t missed=(uint32_t)late/period,us=(uint32_t)late/g_metrics_cycles_per_us;
+            if(us>32u)g_tx_metrics[RT_LATE]++;
+            if(us>g_tx_metrics[RT_LATE_MAX])g_tx_metrics[RT_LATE_MAX]=us;
+            g_tx_metrics[RT_MISSED]+=missed;g_metrics_timer_at+=missed*period;
+        }
+        g_metrics_timer_at+=period;
+    }
+    g_tx_metrics[RT_DUE]++;
     if(g_short_ack_wait && rfh_tx_guard_remaining(g_short_ack_launch,demo_tx_cycle_now(),g_demo_tx_guard_cycles)==0u) {
         g_short_ack_wait=0;g_demo_tx_busy=0;g_demo_wait_ack_after_tx=0;demo_arm_ack_rx();
     }
     if(g_demo_link_state!=RF_AUTO_TX_UNCONNECTED &&
-       g_channel_ack_deadline && !rfc_due(RF_LinkClockUs(),g_channel_ack_deadline)) {
-        g_demo_stat.report_due++;g_demo_diag_due++;g_demo_stat.report_drop++;g_demo_diag_dropped++;g_short_ack_slots++;return;
+       g_channel_ack_resume) {
+        g_demo_stat.report_due++;g_demo_diag_due++;g_demo_stat.report_drop++;g_demo_diag_dropped++;g_short_ack_slots++;g_tx_metrics[RT_ACK_SKIP]++;return;
     }
     g_demo_stat.report_due++; g_demo_diag_due++;
 #if (RF_AUTO_DEMO_TX_IN_ISR != 0u)
@@ -2122,7 +2227,9 @@ void TMR0_IRQHandler(void)
            (g_demo_ack_rx_active != 0u) ||
            (g_demo_wait_ack_after_tx != 0u))
         {
-            if(g_demo_ack_rx_active || g_demo_wait_ack_after_tx)++g_short_ack_slots;
+            if(g_demo_ack_rx_active || g_demo_wait_ack_after_tx){++g_short_ack_slots;g_tx_metrics[RT_ACK_SKIP]++;}
+            else if(g_demo_pause_tx)g_tx_metrics[RT_PAUSE_SKIP]++;
+            else g_tx_metrics[RT_BUSY_SKIP]++;
             g_demo_stat.report_drop++; g_demo_diag_dropped++;
             return;
         }
@@ -2152,13 +2259,14 @@ void TMR0_IRQHandler(void)
             (g_demo_force_ack_burst && maintenance_allowed && demo_active_hop_cmd() != RFH_CMD_NONE)) &&
            rfh_tx_guard_remaining(g_demo_tx_launch_cycles, demo_tx_cycle_now(),
                                   rff_enabled(&g_channel)?g_demo_tx_guard_cycles:g_demo_tx_control_guard_cycles)) {
-            ++g_short_control_slots;
+            ++g_short_control_slots;g_tx_metrics[RT_CONTROL_SKIP]++;
             g_demo_stat.report_drop++; g_demo_diag_dropped++;
             return;
         }
         if(g_demo_tx_launch_valid &&
            rfh_tx_guard_remaining(g_demo_tx_launch_cycles, demo_tx_cycle_now(),
                                   g_demo_tx_guard_cycles) > g_demo_tx_wait_limit) {
+            g_tx_metrics[RT_GUARD_SKIP]++;
             g_demo_stat.report_drop++; g_demo_diag_dropped++;
             return;
         }
@@ -2167,7 +2275,7 @@ void TMR0_IRQHandler(void)
         {
             if(g_demo_connect_phase == RF_AUTO_CONNECT_SYN_ACK_RX)
             {
-                return;
+                g_tx_metrics[RT_CANCEL_SKIP]++;return;
             }
             request_ack = 1u;
             ack_token = 0u;
@@ -2248,10 +2356,12 @@ void TMR0_IRQHandler(void)
         /* Refresh countdown at actual launch, after any DMA guard wait. */
         if(g_channel_wire_cmd==RFH_CMD_HOP_CONFIRM || g_channel_wire_cmd==RFF_ARM) {
             uint32_t left=(g_channel_wire_cmd==RFF_ARM?g_channel.fast_activate:g_channel.activate_at)-RF_LinkClockUs();
-            if(left>RFC_ACTIVATE_LEAD_US){g_demo_tx_busy=g_demo_wait_ack_after_tx=0;return;}
+            if(left>RFC_ACTIVATE_LEAD_US){g_demo_tx_busy=g_demo_wait_ack_after_tx=0;g_tx_metrics[RT_CANCEL_SKIP]++;return;}
             rfh_put_u16(TxDmaBuf[g_demo_tx_dma_slot]+6,(uint16_t)left);
         }
-        g_demo_tx_start_ret = rff_fault(RFF_FAULT_START,g_demo_current_channel,RF_LinkClockUs()) ? 1u : (uint8_t)RFIP_SetTxStart();
+        g_tx_metrics[RT_ATTEMPT]++;
+        g_demo_tx_start_ret = (g_rff_debug.enabled &&
+            rff_fault(RFF_FAULT_START,g_demo_current_channel,RF_LinkClockUs())) ? 1u : (uint8_t)RFIP_SetTxStart();
         ret = g_demo_tx_start_ret==SUCCESS ? RFIP_SetTxParm(&gTxParam) : g_demo_tx_start_ret;
         g_demo_tx_parm_ret = (uint8_t)ret;
         if((g_demo_tx_start_ret != SUCCESS) || (ret != SUCCESS))
@@ -2260,7 +2370,7 @@ void TMR0_IRQHandler(void)
             g_demo_wait_ack_after_tx = 0u;
             g_demo_ack_rx_active = 0u;
             g_demo_force_ack_burst = 1u;
-            g_demo_stat.tx_fail++;
+            g_demo_stat.tx_fail++;g_tx_metrics[RT_START_FAIL]++;
             if(rff_enabled(&g_channel))channel_timer_fault(RFF_RADIO,RF_LinkClockUs());
         }
         else if(rfh_is_short(TxBuf[1])) {
@@ -2274,16 +2384,32 @@ void TMR0_IRQHandler(void)
         }
         if(g_demo_tx_start_ret==SUCCESS && ret==SUCCESS && TxBuf[1]==12u)++g_short_packet_count[2];
         if(g_demo_tx_start_ret==SUCCESS && ret==SUCCESS) {
+            g_tx_metrics[RT_ACCEPTED]++;
+            if(TxBuf[1]==5u)g_tx_metrics[RT_5B]++;
+            else if(TxBuf[1]==7u)g_tx_metrics[RT_7B]++;
+            else if(TxBuf[1]==12u)g_tx_metrics[RT_12B]++;
             rfc_radio_sent();
             if(rfh_is_short(TxBuf[1])){g_demo_seq++;g_short_wire_seq++;if(g_channel.state==RFC_PROBE && g_demo_current_channel==g_channel.target)g_channel.probe_sent++;}
-            rfc_manager_sent(&g_channel,g_channel_wire_cmd,RF_LinkClockUs());
-            rff_sent(&g_channel,g_channel_wire_cmd,RF_LinkClockUs());
+            /* Preserve the DATA-side effects without acquiring the shared
+             * clock twice for no deadline work on every accepted packet. */
+            if(g_channel_wire_cmd) {
+                uint32_t sent_at=RF_LinkClockUs();
+                rfc_manager_sent(&g_channel,g_channel_wire_cmd,sent_at);
+                rff_sent(&g_channel,g_channel_wire_cmd,sent_at);
+            } else {
+                g_channel.want_ack=0;
+                if(g_channel.fast_state==RFF_COMMITTING)g_channel.fast_data_sent=1;
+            }
             if(request_ack && g_demo_link_state!=RF_AUTO_TX_UNCONNECTED) {
                 g_channel_ack_generation=g_demo_radio_generation;g_channel_ack_valid=1;
-                rfc_radio_wake(RF_LinkClockUs()+2u);
+                if(channel_timer_required())rfc_radio_wake(RF_LinkClockUs()+2u);
                 uint32_t air_guard=g_demo_tx_guard_cycles/(GetSysClock()/1000000u);
                 g_channel.request_at=RF_LinkClockUs()-(demo_tx_cycle_now()-g_demo_tx_launch_cycles)/(GetSysClock()/1000000u);
                 g_channel_ack_deadline=g_channel.request_at+(rff_enabled(&g_channel) ? (rfh_is_short(TxBuf[1])?RFF_ACK_US:RFF_CONTROL_US) : air_guard+RFF_CONSERVATIVE_US);
+                g_channel_ack_resume=g_channel_ack_deadline;
+                g_channel_ack_session=g_channel.wire_session;g_channel_ack_channel=g_demo_current_channel;
+                g_channel_ack_early_eligible=rfh_is_short(TxBuf[1]) && g_demo_link_state==RF_AUTO_TX_COMM &&
+                    g_channel.state==RFC_IDLE && !rff_enabled(&g_channel) && !rff_busy(&g_channel);
                 g_rff_debug.maintenance_started=g_channel.request_at;g_rff_debug.maintenance_active=1;
                 {
                     g_short_ack_launch=g_demo_tx_launch_cycles;g_short_ack_wait=1;
@@ -2294,7 +2420,7 @@ void TMR0_IRQHandler(void)
                 }
             }
         }
-    }
+    } else g_tx_metrics[RT_CANCEL_SKIP]++;
 #else
     if(g_demo_pending_reports < RF_AUTO_DEMO_PENDING_MAX)
     {
@@ -2312,9 +2438,10 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
 {
     (void)id;
     if(g_demo_pause_tx) return;
-    if(sta & RF_STATE_TX_FINISH)if(rff_fault(RFF_FAULT_COMPLETION,g_demo_current_channel,RF_LinkClockUs()))sta &= ~RF_STATE_TX_FINISH;
+    if(g_rff_debug.enabled && (sta & RF_STATE_TX_FINISH))
+        if(rff_fault(RFF_FAULT_COMPLETION,g_demo_current_channel,RF_LinkClockUs()))sta &= ~RF_STATE_TX_FINISH;
     if(g_demo_link_state!=RF_AUTO_TX_UNCONNECTED && !demo_pair_is_active())sta &= ~RF_STATE_TIMEOUT;
-    if((sta & RF_STATE_RX) && (rff_fault(RFF_FAULT_ACK,g_demo_current_channel,RF_LinkClockUs()) ||
+    if(g_rff_debug.enabled && (sta & RF_STATE_RX) && (rff_fault(RFF_FAULT_ACK,g_demo_current_channel,RF_LinkClockUs()) ||
        rff_fault(RFF_FAULT_CHANNEL,g_demo_current_channel,RF_LinkClockUs())))return;
     if(!g_demo_tx_busy || (g_demo_link_state!=RF_AUTO_TX_UNCONNECTED && !demo_pair_is_active()))sta &= ~RF_STATE_TX_FINISH;
     if(!g_demo_ack_rx_active) sta &= ~(RF_STATE_RX | RF_STATE_RX_CRCERR | RF_STATE_TIMEOUT);
@@ -2414,6 +2541,7 @@ static uint8_t demo_housekeeping_due(uint32_t now)
 
 void RF_TxMainLoopProcess(void)
 {
+    short_service_source();
     if(!g_aux_tx.active)demo_prepare_aux();
     uint32_t now = RF_LinkClockNow();
 
@@ -2467,25 +2595,73 @@ void RF_TxMainLoopProcess(void)
     demo_log_stats(now);
 }
 
+__HIGH_CODE
+static uint8_t short_source_end(relative_tx_t *r) {
+    return r->full_event ? rfm_spi_port_source_end(r->event,r->spi,&r->end) :
+        rfm_spi_port_input_end(r->tag,r->spi,&r->end);
+}
+
+/* Only main context consumes source metadata. An exact full event ID allows
+ * late metadata to select its ORIGINAL SPI boundary, even when the latest
+ * input path first observed a later sample. Legacy inputs remain strict. */
+static uint8_t short_bind_source(const uint8_t *p) {
+    uint16_t event=rfh_get_u16(p+1);uint8_t tag=event&63u;
+    uint32_t lock;SYS_DisableAllIrq(&lock);
+    relative_tx_t *r=&g_relative_tx[tag];
+    uint8_t match=r->tag==tag &&
+        (p[19]==RF_SOURCE_SIDECAR_VERSION ? r->full_event && r->event==event :
+         !r->full_event && r->spi==p[0] && (!r->source || r->event==event));
+    if(!match) {SYS_RecoverIrq(lock);return 0;}
+    /* Duplicate sidecars cannot rewrite a frozen record or renew its TTL. */
+    if(r->source || r->sent) {SYS_RecoverIrq(lock);return 1;}
+    if(r->spi!=p[0]) {r->spi=p[0];r->end_valid=0;}
+    r->event=event;
+    if(!r->end_valid)r->end_valid=short_source_end(r);
+    for(unsigned i=0;i<4;i++)r->stage[i]=rfh_get_u32(p+3+4*i);
+    r->source=1;++g_source_diag[1];g_sync_air_count|=16u;
+    if(!r->end_valid)g_sync_air_count|=64u;
+    SYS_RecoverIrq(lock);return 1;
+}
+
 bool RF_SPI_WriteTrace(uint8_t cmd, const uint8_t *payload, uint8_t len)
 {
-    uint32_t irq_status;
-    if(!g_short_measure || cmd!=0x09u || !payload || len!=20u || payload[19]!=1u)return false;
-    ++g_source_spi_received;
-    uint16_t event=rfh_get_u16(payload+1);uint8_t tag=event&63u;
-    if(!tag)return false;
-    SYS_DisableAllIrq(&irq_status);
-    g_sync_air_count|=8u;
-    relative_tx_t *r=&g_relative_tx[tag];
-    if(r->tag==tag && r->spi==payload[0]) {
-        if(!r->end_valid)r->end_valid=rfm_spi_port_input_end(tag,payload[0],&r->end);
-        g_sync_air_count|=16u;
-        if(!r->end_valid)g_sync_air_count|=64u;
-        r->event=event;
-        for(unsigned i=0;i<4;i++)r->stage[i]=rfh_get_u32(payload+3+4*i);
-        r->source=1;
-    } else g_sync_air_count|=128u;
-    SYS_RecoverIrq(irq_status);return true;
+    if(cmd!=0x09u || !payload || len!=20u ||
+       (payload[19]!=1u && payload[19]!=RF_SOURCE_SIDECAR_VERSION))return false;
+    uint16_t event=rfh_get_u16(payload+1);
+    if(!(event&63u))return false;
+    uint32_t lock;SYS_DisableAllIrq(&lock);
+    if(!g_short_measure) {SYS_RecoverIrq(lock);return false;}
+    ++g_source_spi_received;++g_source_diag[0];g_sync_air_count|=8u;
+    if(short_bind_source(payload)) {SYS_RecoverIrq(lock);return true;}
+    /* Legacy frames have no full ID on the input side. Deferring one could
+     * accidentally match a future tag/8-bit-sequence wrap. Keep fail-closed. */
+    if(payload[19]==1u) {
+        ++g_source_diag[6];g_sync_air_count|=128u;SYS_RecoverIrq(lock);return true;
+    }
+    int free_slot=-1;
+    for(unsigned i=0;i<8;i++) {
+        pending_source_t *s=&g_pending_source[i];
+        if(!s->valid) {if(free_slot<0)free_slot=(int)i;continue;}
+        if(!memcmp(s->payload,payload,20)) {SYS_RecoverIrq(lock);return true;}
+    }
+    ++g_source_diag[6];g_sync_air_count|=128u;
+    if(free_slot<0) {++g_source_diag[3];SYS_RecoverIrq(lock);return false;}
+    pending_source_t *s=&g_pending_source[free_slot];
+    memcpy(s->payload,payload,20);s->born=demo_tx_cycle_now();s->valid=1;++g_source_pending_count;
+    SYS_RecoverIrq(lock);return true;
+}
+
+static void short_service_source(void) {
+    if(!g_short_measure || !g_source_pending_count)return;
+    /* One slot per pass keeps idle work bounded; RF input never waits here. */
+    uint32_t lock;SYS_DisableAllIrq(&lock);
+    pending_source_t *s=&g_pending_source[g_source_scan++&7u];
+    if(!s->valid) {SYS_RecoverIrq(lock);return;}
+    if((uint32_t)(demo_tx_cycle_now()-s->born)>GetSysClock()) {
+        s->valid=0;--g_source_pending_count;++g_source_diag[2];SYS_RecoverIrq(lock);return;
+    }
+    if(short_bind_source(s->payload)) {s->valid=0;--g_source_pending_count;}
+    SYS_RecoverIrq(lock);
 }
 
 void RF_SPI_InputComplete(uint8_t tag,uint8_t seq,uint32_t cycles)
@@ -2495,7 +2671,7 @@ void RF_SPI_InputComplete(uint8_t tag,uint8_t seq,uint32_t cycles)
     relative_tx_t *r=&g_relative_tx[tag];
     // The parser can finish before NSS rises. Complete that exact pending
     // boundary here, instead of depending on an 8ms lookup when metadata arrives.
-    if(r->tag==tag && r->spi==seq && !r->end_valid && !r->sent &&
+    if(!r->full_event && r->tag==tag && r->spi==seq && !r->end_valid && !r->sent &&
        (uint32_t)(cycles-r->born)<=GetSysClock()/1000u) {
         r->end=cycles;r->end_valid=1;
     }
@@ -2525,13 +2701,13 @@ void RF_SPI_RecordInputEdge(const uint8_t *payload)
     /* Called under the SPI snapshot publication lock. Repeated samples do
      * no RF state publication, battery handling or link-clock accounting. */
     if(!g_short_measure)return;
-    if((payload[4]>>2)!=g_relative_tag)short_note_input(payload);
+    short_note_input(payload);
     if(g_relative_tag) {
         relative_tx_t *r=&g_relative_tx[g_relative_tag];
         /* A parser that beat NSS completes the boundary on the next SPI
          * sample, before the timestamp cache expires or aux becomes idle. */
         if(!r->end_valid && !r->sent)
-            r->end_valid=rfm_spi_port_input_end(r->tag,r->spi,&r->end);
+            r->end_valid=short_source_end(r);
     }
 }
 
@@ -2932,6 +3108,7 @@ void RF_Init(void)
             tick_per_evt = 1u;
         }
         g_demo_report_tmr_cycles = tick_per_evt;
+        g_metrics_cycles_per_us=GetSysClock()/1000000u;g_metrics_timer_valid=0;
         g_demo_tmr_epoch_cycles = 0u;
         g_demo_last_payload_tmr_valid = 0u;
         TMR0_TimerInit(tick_per_evt);
@@ -2983,13 +3160,18 @@ void RF_Init(void)
 __HIGH_CODE
 static void short_note_input(const uint8_t *p) {
     uint8_t tag=g_short_measure ? p[4]>>2 : 0;
-    if(tag==g_relative_tag)return;
+    uint16_t event=rf_source_input_event(p);
+    uint8_t full=(p[1]&RF_SOURCE_INPUT_VERSION_MASK)==RF_SOURCE_INPUT_VERSION;
+    if(full && !event)tag=0; /* malformed identity never becomes a trace */
+    if(tag==g_relative_tag && (!tag ||
+       (g_relative_tx[tag].full_event==full && (!full || g_relative_tx[tag].event==event))))return;
     g_relative_tag=tag;if(!tag)return;
     relative_tx_t *r=&g_relative_tx[tag];
     if(r->tag && !r->sent)++g_relative_overflow;
     memset(r,0,sizeof(*r));r->tag=tag;r->spi=p[0];
+    r->full_event=full;r->event=event;
     r->born=demo_tx_cycle_now();
-    r->end_valid=rfm_spi_port_input_end(tag,p[0],&r->end);
+    r->end_valid=short_source_end(r);
     r->mask=(uint32_t)p[2]|((uint32_t)p[3]<<8)|((uint32_t)(p[4]&3u)<<16);
 }
 static void short_note_launch(uint8_t tag) {
@@ -3009,6 +3191,12 @@ static uint8_t short_prepare_trace(void) {
         relative_tx_t snapshot;uint32_t lock,generation;
         SYS_DisableAllIrq(&lock);
         const relative_tx_t *candidate=&g_relative_tx[g_relative_scan];
+        /* Missing-source slots must expire too, before the eligibility gate. */
+        if(candidate->tag && !candidate->sent &&
+           (uint32_t)(demo_tx_cycle_now()-candidate->born)>GetSysClock()) {
+            g_relative_tx[g_relative_scan].sent=1;++g_relative_overflow;
+            SYS_RecoverIrq(lock);continue;
+        }
         if(!candidate->tag || !candidate->source || candidate->sent || !candidate->count ||
            (candidate->count<6u && candidate->tag==g_relative_tag)) {
             SYS_RecoverIrq(lock);continue;
@@ -3017,7 +3205,7 @@ static uint8_t short_prepare_trace(void) {
          * boundary; complete its matching record here, not inside the IRQ. */
         if(!candidate->end_valid) {
             relative_tx_t *pending=&g_relative_tx[g_relative_scan];
-            pending->end_valid=rfm_spi_port_input_end(pending->tag,pending->spi,&pending->end);
+            pending->end_valid=short_source_end(pending);
         }
         snapshot=*candidate;generation=g_demo_radio_generation;SYS_RecoverIrq(lock);
         relative_tx_t *r=&snapshot;
@@ -3045,11 +3233,15 @@ static uint8_t short_prepare_trace(void) {
             if(!r->end_valid || us>1000000u)us=0xffffffu;
             rfh_put_u16(a,r->seq[i]);a[2]=(uint8_t)us;a[3]=(uint8_t)(us>>8);a[4]=(uint8_t)(us>>16);
         }
-        rfh_aux_tx_t next=g_aux_tx;rfh_aux_begin(&next,RFH_AUX_TRACE,p,54);
+        rfh_aux_tx_t *next=g_aux_active==&g_aux_buffers[0]?&g_aux_buffers[1]:&g_aux_buffers[0];
+        next->active=0;next->serial=g_aux_tx.serial;next->generation=g_aux_tx.generation;
+        rfh_aux_begin(next,RFH_AUX_TRACE,p,54);
         SYS_DisableAllIrq(&lock);
         relative_tx_t *live=&g_relative_tx[g_relative_scan];
-        if(generation==g_demo_radio_generation && g_short_measure && !g_aux_tx.active && live->event==r->event && live->spi==r->spi) {
-            g_aux_tx=next;live->sent=1;g_sync_air_count|=32u;SYS_RecoverIrq(lock);return 1;
+        if(generation==g_demo_radio_generation && g_short_measure && !g_aux_tx.active &&
+           !live->sent && live->born==r->born && live->event==r->event && live->spi==r->spi) {
+            if(!r->end_valid)++g_source_diag[4];
+            __asm__ volatile("" ::: "memory");g_aux_active=next;live->sent=1;g_sync_air_count|=32u;SYS_RecoverIrq(lock);return 1;
         }
         SYS_RecoverIrq(lock);return 0;
     }

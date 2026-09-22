@@ -1,3 +1,4 @@
+import type { RfTxMetrics } from "./rf-tx-metrics";
 import type { FastStatus, FastEvent } from "./fast-recovery";
 export type ConnectionMode = "USB" | "RF24G";
 export type LinkState =
@@ -21,6 +22,8 @@ export interface DeviceStatusEvent {
 }
 
 export interface PacketEvent {
+  rfTxMetrics?: RfTxMetrics;
+  rfProtocolVersion?: number;
   rfFast?: FastStatus;
   rfFastEvent?: FastEvent;
   kind: "packet";
@@ -124,6 +127,13 @@ export interface PacketEvent {
   rfAckReservedSlots?: number;
   rfControlGuardSlots?: number;
   rfTraceOverwrites?: number;
+  rfSourceReceived?: number;
+  rfSourceMatched?: number;
+  rfSourceExpired?: number;
+  rfSourceQueueDrops?: number;
+  rfSourceBoundaryMissing?: number;
+  rfSourceSpiDrops?: number;
+  rfSourceIdentityWaits?: number;
   rfTxDiagnosticValid?: boolean;
   rfTxWindowMs?: number;
   rfTxDue?: number;

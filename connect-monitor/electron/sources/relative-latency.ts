@@ -46,7 +46,7 @@ export class RelativeLatencyDecoder {
     const complete=e.pages===3 && (flags&15)===7 && e.stages.every(v=>v!==null);
     const total=complete ? e.stages.reduce<number>((sum,v)=>sum+(v??0),0)/1000 : null;
     const event: ButtonLatencyEvent={...e.event,relativeStagesUs:[...e.stages],latencyMs:total,
-      measurementReason:complete ? "RF/IRQ boundary estimated" : flags&8 ? "Invalid/expired record" : !(flags&4) ? "Waiting USB completion" : !(flags&2) ? ((flags&1) ? "TX timing unavailable" : (flags&32) ? "TX attempt mismatch" : "Source record missing") : "Waiting metadata",
+      measurementReason:complete ? "RF/IRQ boundary estimated" : flags&8 ? "Invalid/expired record" : !(flags&4) ? (flags&64 ? "USB completion timeout" : "Waiting USB completion") : !(flags&2) ? ((flags&1) ? "TX timing unavailable" : (flags&32) ? "TX attempt mismatch" : flags&64 ? "Source record timeout" : "Source record missing") : "Waiting metadata",
       confidence:complete ? "medium" : "low"};
     e.event=event;
     return [event,{kind:"button_latency_status",timestampMs:now,status:complete ? "Live" : "Waiting edge"}];

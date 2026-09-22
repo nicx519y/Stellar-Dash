@@ -15,6 +15,7 @@
 #define RFH_AUX_CONFIG 3u
 #define RFH_AUX_TRACE 4u
 #define RFH_AUX_RATE 5u
+#define RFH_AUX_SOURCE_DIAG 10u /* 7 u32 counters; SPI source archive, v1 */
 #define RFH_SHORT_ACK_VERSION 0x80u
 #define RFH_MEASUREMENT_FLAG 0x20u
 typedef struct { uint8_t data[64], index, pass, generation; volatile uint8_t active; uint32_t serial; } rfh_aux_tx_t;

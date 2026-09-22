@@ -11,6 +11,7 @@
 #include "wchrf.h"
 #include "rf_link_clock.h"
 #include "RF_PHY.h"
+#include "rf_source_trace.h"
 
 #define SPI_WAKE_PIN                  RFM_BOARD_SPI_MISO_PIN
 #define SPI_WAKE_USE_INTX             0u
@@ -38,6 +39,11 @@ static uint8_t s_board_boot_ready_sent;
 static volatile uint8_t s_measure_nss;
 static volatile uint8_t s_measure_diag;
 static uint32_t s_nss_rx_total;
+/* NSS copies sparse source sidecars out of the continuously overwritten DMA
+ * ring. Parsing/association stays in main context. Seven usable entries. */
+static uint8_t s_source_frames[8][20];
+static volatile uint8_t s_source_head,s_source_tail;
+static volatile uint32_t s_source_drops;
 
 #if (RFM_TX_LOG_ENABLE == 1u)
 static void spi_port_log_write(const char *buf)
@@ -786,12 +792,14 @@ void rfm_spi_port_sleep_until_nss_wake(void)
 static volatile uint32_t s_measure_end[256];
 static volatile uint8_t s_measure_valid[256];
 static volatile uint8_t s_measure_tag[256];
+static volatile uint16_t s_measure_event[256];
 void rfm_spi_port_measure_enable(uint8_t enable) {
     if(rfm_board_latest_ch585_usb_spi_owner()) return;
     if(s_measure_nss==enable)return;
     s_measure_nss=enable;
     s_measure_diag=0;
     memset((void*)s_measure_valid,0,sizeof(s_measure_valid));
+    s_source_head=s_source_tail=0;
     /* Do not change NSS delivery: normal input uses it with capture off too. */
 }
 __HIGH_CODE
@@ -800,6 +808,14 @@ uint8_t rfm_spi_port_input_end(uint8_t tag,uint8_t seq,uint32_t* cycles) {
     if(!s_measure_valid[seq] || s_measure_tag[seq]!=tag ||
        (uint32_t)(SysTick->CNT-t)>GetSysClock()/125u)return 0;
     *cycles=t;return 1;
+}
+__HIGH_CODE
+uint8_t rfm_spi_port_source_end(uint16_t event,uint8_t seq,uint32_t *cycles) {
+    if(!event || s_measure_event[seq]!=event)return 0;
+    return rfm_spi_port_input_end(event&63u,seq,cycles);
+}
+uint32_t rfm_spi_port_source_drops(void) {
+    return s_source_drops+s_spi_rx_backlog_drop_count+s_spi_rx_fifo_ov_count;
 }
 uint8_t rfm_spi_port_measure_diag(void) {return (s_measure_nss ? 1u : 0u)|s_measure_diag;}
 __INTERRUPT
@@ -846,12 +862,29 @@ void GPIOA_IRQHandler(void)
             if(s_measure_nss) {
                 const uint8_t seq=frame[3];
                 s_measure_tag[seq]=frame[7]>>2;
+                s_measure_event[seq]=rf_source_input_event(frame+3);
                 s_measure_end[seq]=now;s_measure_valid[seq]=1;
                 s_measure_diag|=4u;
             }
-            /* Fixed 14-byte validated input only. No sidecar parsing,
-             * RF launch, battery processing or control replies in this ISR. */
+            /* Publish input first. Sparse sidecars are only validated/copied
+             * below; record matching and RF preparation stay in main. */
             spi_rx_accept_input(frame+3,start+sizeof(frame));
+            if(s_measure_nss && n==38u) {
+                uint8_t sidecar[24],check=0;
+                for(unsigned i=0;i<24;i++)sidecar[i]=s_spi_rx_dma_buf[(start+14u+i)%SPI_RX_DMA_BUF_SIZE];
+                /* Validate the copy before publishing; DMA remains active. */
+                if((uint32_t)(spi_rx_dma_produced()-start)>=SPI_RX_DMA_BUF_SIZE ||
+                   (R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV)) {++s_source_drops;return;}
+                for(unsigned i=0;i<23;i++)check+=sidecar[i];
+                if(sidecar[0]==RFM_SPI_SYNC && sidecar[1]==0x09u && sidecar[2]==20u && check==sidecar[23]) {
+                    uint8_t next=(s_source_head+1u)&7u;
+                    if(next==s_source_tail)++s_source_drops;
+                    else {
+                        for(unsigned i=0;i<20;i++)s_source_frames[s_source_head][i]=sidecar[3+i];
+                        __asm__ volatile("" ::: "memory");s_source_head=next;
+                    }
+                }
+            }
         }
         return;
     }
@@ -867,6 +900,14 @@ void rfm_spi_port_set_irq(bool asserted)
 
 void rfm_spi_port_service(void)
 {
+    for(unsigned n=0;n<4 && s_source_tail!=s_source_head;n++) {
+        uint8_t source[20];uint32_t lock;SYS_DisableAllIrq(&lock);
+        if(s_source_tail==s_source_head) {SYS_RecoverIrq(lock);break;}
+        for(unsigned i=0;i<20;i++)source[i]=s_source_frames[s_source_tail][i];
+        s_source_tail=(s_source_tail+1u)&7u;
+        (void)RF_SPI_WriteTrace(0x09u,source,20u);
+        SYS_RecoverIrq(lock); /* capture reset cannot split dequeue/accept */
+    }
     if(s_spi_tx_pending != 0u)
     {
         if((R8_SPI0_INT_FLAG & RB_SPI_IF_CNT_END) != 0u)
