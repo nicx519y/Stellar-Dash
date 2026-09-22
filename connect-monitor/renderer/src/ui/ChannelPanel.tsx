@@ -107,6 +107,7 @@ export function ChannelPanel({
       columns={columns}
       rowKey={(row) => row.id}
       maxHeight={fillHeight ? "100%" : 530}
+      hideScrollbar={fillHeight}
     />
   );
 }

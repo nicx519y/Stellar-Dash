@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld("connectMonitorApi", {
   getPaused: () => ipcRenderer.invoke("monitor:getPaused"),
   exportMarkdown: (request: { suggestedFileName: string; content: string }) => ipcRenderer.invoke("monitor:exportMarkdown", request),
   getDebugConfig: () => ipcRenderer.invoke("monitor:getDebugConfig"),
+  fastRecovery: (request: unknown) => ipcRenderer.invoke("monitor:fastRecovery", request),
+  exportFastLog: (request: unknown) => ipcRenderer.invoke("monitor:exportFastLog", request),
   setDebugConfig: (config: unknown) => ipcRenderer.invoke("monitor:setDebugConfig", config),
   getDebugConfigStatus: () => ipcRenderer.invoke("monitor:getDebugConfigStatus"),
   listSerialPorts: () => ipcRenderer.invoke("serial:listPorts"),

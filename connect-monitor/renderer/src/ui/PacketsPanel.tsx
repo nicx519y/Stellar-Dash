@@ -142,6 +142,7 @@ export function PacketsPanel({
       columns={columns}
       rowKey={(p, idx) => p.id ?? `${p.timestampMs}-${idx}`}
       maxHeight={fillHeight ? "100%" : 530}
+      hideScrollbar={fillHeight}
     />
   );
 }

@@ -3,11 +3,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { MonitorEventBus } from "./pipeline/event-bus";
-import { MonitorEventStore } from "./pipeline/event-store";
+import { AsyncMonitorEventStore } from "./pipeline/async-event-store";
 import { BoundedDelivery } from "./pipeline/bounded-delivery";
 import { startRuntimeDiagnostics } from "./runtime-diagnostics";
 import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
-import { getHidDebugConfigStatus, sendDebugConfig, startHidTelemetrySource } from "./sources/hid-telemetry-source";
+import { getHidDebugConfigStatus, getHidQueueStats, sendDebugConfig, sendFastRecovery, startHidTelemetrySource, waitForHidShutdown } from "./sources/hid-telemetry-client";
 import { SerialLogManager } from "./sources/serial-log-manager";
 import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
 import { readNativeGamepad } from "./sources/native-gamepad";
@@ -27,7 +27,7 @@ if (!app.requestSingleInstanceLock()) {
   app.exit(0);
 }
 
-const eventStore = new MonitorEventStore(path.join(app.getPath("userData"), "db"));
+const eventStore = new AsyncMonitorEventStore(path.join(app.getPath("userData"), "db"));
 const eventBus = new MonitorEventBus(500, eventStore);
 let stopHidSource: (() => void) | null = null;
 let stopSerialSource: (() => void) | null = null;
@@ -53,6 +53,7 @@ const serialLogManager = new SerialLogManager((lines) => {
 const appIconPath = path.resolve(__dirname, "..", "..", "resources", "icon.ico");
 let paused = false;
 let isShuttingDown = false;
+let shutdownComplete = false;
 const debugConfigPath = path.join(app.getPath("userData"), "debug-config.json");
 let debugConfig: DebugConfig = {
   hidTelemetryEnabled: true,
@@ -263,7 +264,7 @@ function applyDebugConfigToDevice(): DebugConfigStatus {
   return sendDebugConfig(debugConfig);
 }
 
-function shutdownAndClearDatabase(): void {
+async function shutdownAndClearDatabase(): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
   stopSources();
@@ -271,6 +272,10 @@ function shutdownAndClearDatabase(): void {
   clearRuntimeDatabase();
   serialLogs.clear();
   stopDiagnostics?.();
+  await Promise.race([
+    Promise.allSettled([eventStore.close(), waitForHidShutdown()]),
+    new Promise(resolve => setTimeout(resolve, 2500)),
+  ]);
 }
 
 function createWindow(): void {
@@ -345,6 +350,7 @@ app.whenReady().then(async () => {
   stopDiagnostics = startRuntimeDiagnostics(() => ({
     main: mainEvents.stats(), latency: latencyEvents.stats(), serial: serialLogs.stats(),
     historyWriteError: eventStore.lastWriteError,
+    history: eventStore.stats(), hid: getHidQueueStats(),
   }));
   await loadDebugConfig();
   clearRuntimeDatabase();
@@ -444,6 +450,13 @@ ipcMain.handle("monitor:exportMarkdown", async (event, request: ExportMarkdownRe
   return { canceled: false, filePath: result.filePath };
 });
 
+ipcMain.handle("monitor:fastRecovery", (_event, request) => sendFastRecovery(request));
+ipcMain.handle("monitor:exportFastLog", async (event, request: {content:string}) => {
+  if(typeof request?.content!=="string" || request.content.length>32*1024*1024)throw new Error("Invalid log size");
+  const result=await dialog.showSaveDialog({title:"Export RF experiment",defaultPath:"rf-fast-experiment.jsonl",filters:[{name:"JSONL",extensions:["jsonl"]}]});
+  if(result.canceled || !result.filePath)return {canceled:true};
+  await fs.writeFile(result.filePath,request.content,"utf8");return {canceled:false,filePath:result.filePath};
+});
 ipcMain.handle("monitor:getDebugConfig", () => {
   return debugConfig;
 });
@@ -549,25 +562,29 @@ ipcMain.on("serial:logs:ready", (event) => {
 ipcMain.on("monitor:events:ack", (event, sequence: number) => {
   if (event.sender === mainWindow?.webContents) mainEvents.acknowledge(sequence);
   if (event.sender === latencyTableView?.webContents) latencyEvents.acknowledge(sequence);
+  flushMonitorEvents();
 });
 ipcMain.on("serial:logs:ack", (event, sequence: number) => {
   if (event.sender === mainWindow?.webContents) serialLogs.acknowledge(sequence);
 });
 
-setInterval(() => {
+function flushMonitorEvents(): void {
   if (!mainWindow || mainWindow.webContents.isDestroyed()) return;
   if (mainEventsReady) mainEvents.flush((batch, sequence) => mainWindow!.webContents.send("monitor:events", batch, sequence));
   if (latencyEventsReady && latencyTableView && !latencyTableView.webContents.isDestroyed()) {
     latencyEvents.flush((batch, sequence) => latencyTableView!.webContents.send("monitor:events", batch, sequence));
   }
   if (serialLogsReady) serialLogs.flush((batch, sequence) => mainWindow!.webContents.send("serial:logs", batch, sequence));
-}, 100);
+}
+setInterval(flushMonitorEvents, 100);
 
 app.on("window-all-closed", () => {
-  shutdownAndClearDatabase();
   app.quit();
 });
 
-app.on("before-quit", () => {
-  shutdownAndClearDatabase();
+app.on("before-quit", event => {
+  if (shutdownComplete) return;
+  event.preventDefault();
+  if (isShuttingDown) return;
+  void shutdownAndClearDatabase().finally(() => { shutdownComplete = true; app.quit(); });
 });

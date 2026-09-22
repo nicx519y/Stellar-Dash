@@ -1,5 +1,14 @@
 # AGENTS - connect-monitor 当前实现速览
 
+2026-09-22 Channels 界面：已移除独立 Channel Debug 卡片；自动选频开关位于 Channels 卡片右上角。关闭自动时以新鲜 RHM1 中的当前工作频道作为固定频道，固定模式下点击频道列表项直接提交切换。结果仍需配置状态、TX/RX 频道及后续输入共同确认；未连接或统计过期时不凭旧频道切换。仅监视器构建，未实机验证、采集、回归或烧录。
+
+2026-09-22 报表停更后续修复：HID worker 内也改为真正异步 `HIDAsync`/`devicesAsync`，不能再调用同步 HID API 阻塞统计帧回调。控制串行有界，维护不重叠。已积压 IPC 数据收到 ACK 后继续排空，图表合并更新且仅尺寸变化时 resize。需配合 RX 0x1923 修复统计被诊断挤占及失败提前结算窗口的问题；TX 沿用 v22。仅构建，未回归/采集/烧录，见 `../docs/RF_TELEMETRY_V23_20260922.md`。下文“内部同步实现”描述已被本条替代。
+
+2026-09-22 UI 卡顿修复：Electron 主进程通过 `hid-telemetry-client.ts` 调用独立 HID worker，原 `hid-telemetry-source.ts` 为 worker/CLI 内部同步实现，不要再直接导入主进程。历史存储通过 `AsyncMonitorEventStore` 在另一个 worker 合批写入/读取，清理有代次隔离。renderer worker 发送增量快照，主线程合并且 React 提交后回 ACK，不能再把 patch 当完整快照替换。队列均有上限；未做实机采集/回归/烧录。详见 `../docs/CONNECT_MONITOR_UI_THREADS_20260922.md`。
+
+2026-09-22 v22：空口 v4 / 时序配置 2，4K/8K 快速恢复可由监视器实验开关显式开启，默认关闭且验收掩码为零。TMR2 定时会合/换频，TMR1 ACK，恢复提交有总期限；后台短测不开放。交付匹配 TX/RX（RX 0x1922）和 monitor、生产 engine/timer 宿主测试程序。仅构建，未运行测试、未采集、未烧录；STM32 与无锁流程不变。详见 `../docs/RF_FAST_V22_20260922.md`，此条优先于历史 v3/快速模式禁用说明。
+
+
 2026-09-21 RF v3/v20：新增 RHF3（0x33464852，32B、页 0..5）解析和独立 RfChannelStatus 组件；RHF3 不计入 DATA 输入率/丢包率，也不是旧 RHC3 时钟同步。显示短测门控、事务阶段、维护预留、前后质量、历史来源/年龄、实际输入间隔及软件合并。v3 的 RHS1 数值改为加权驻留损失 permille，0xffff 是 Unknown，不能当作零损失；旧固件评分仍兼容。TX/RX 匹配更新，RX 0x1920，短测与快速时序默认未验收/禁用。仅构建，没有自动启动采集或回归。详见 `../docs/RF_CHANNEL_V20_20260921.md`。
 
 2026-09-20 延迟开关连接恢复：启动保留用户保存的 latencyMeasurementEnabled（首次仍默认关），不再强制清为 false。USB 打开、RF 恢复仍下发当前配置；每秒续期同时读取 USB 配置回执，核对请求序号、RX flags 和已连接 TX 的 applied 序号。写入失败、未应用或租约失效时按至少 2 秒间隔重发当前配置；状态一致只续期，不持续发送 RF 配置。没有 GET_REPORT 能力时仍使用连接/恢复通知，不假定已读到设备状态。仅监视器修改和构建，不需更新固件；遵循用户要求不运行回归或设备采样。

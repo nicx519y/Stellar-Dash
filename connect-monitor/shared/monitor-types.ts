@@ -1,3 +1,4 @@
+import type { FastStatus, FastEvent } from "./fast-recovery";
 export type ConnectionMode = "USB" | "RF24G";
 export type LinkState =
   | "Disconnected"
@@ -20,6 +21,8 @@ export interface DeviceStatusEvent {
 }
 
 export interface PacketEvent {
+  rfFast?: FastStatus;
+  rfFastEvent?: FastEvent;
   kind: "packet";
   timestampMs: number;
   channel: "USB" | "RF";
@@ -289,6 +292,7 @@ export interface DebugConfigStatus {
   txStatus: DebugApplyState;
   lastSeq: number;
   message?: string;
+  telemetryLeaseSupported?: boolean;
 }
 
 export interface HitboxBounds {

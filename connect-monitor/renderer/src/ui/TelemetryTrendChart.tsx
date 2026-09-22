@@ -7,13 +7,14 @@ import type { ChannelSwitchRow } from "./useMonitorStream";
 export type RatePoint = { tMs: number; hz: number };
 export type LossPoint = { tMs: number; value: number };
 
-type ChartPoint = [number, number];
+type ChartPoint = [number, number | null];
 type EventPoint = [number, number, ChannelSwitchRow];
 
 const CHANNEL_EVENT_LIMIT = 80;
 const DEFAULT_WINDOW_MS = 5000;
 const MIN_WINDOW_MS = 3000;
 const FOLLOW_RIGHT_TOLERANCE_MS = 1200;
+const TELEMETRY_GAP_MS = 1600;
 
 function formatTime(timestampMs: number) {
   return new Date(timestampMs).toLocaleTimeString();
@@ -36,9 +37,15 @@ function normalizeRateData(points: RatePoint[]): ChartPoint[] {
     if (!Number.isFinite(point.tMs) || !Number.isFinite(point.hz)) continue;
     latestByTime.set(Math.trunc(point.tMs), Math.max(0, point.hz));
   }
-  return [...latestByTime.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([tMs, hz]) => [tMs, Number(hz.toFixed(2))]);
+  const sorted = [...latestByTime.entries()].sort(([a], [b]) => a - b);
+  const result: ChartPoint[] = [];
+  for (const [tMs, hz] of sorted) {
+    const previous = result.at(-1);
+    if (previous && previous[1] !== null && tMs - previous[0] > TELEMETRY_GAP_MS)
+      result.push([previous[0] + 1, null]);
+    result.push([tMs, Number(hz.toFixed(2))]);
+  }
+  return result;
 }
 
 function normalizeLossData(points: LossPoint[]): ChartPoint[] {
@@ -47,9 +54,15 @@ function normalizeLossData(points: LossPoint[]): ChartPoint[] {
     if (!Number.isFinite(point.tMs) || !Number.isFinite(point.value)) continue;
     latestByTime.set(Math.trunc(point.tMs), clampPercent(point.value));
   }
-  return [...latestByTime.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([tMs, value]) => [tMs, Number(value.toFixed(3))]);
+  const sorted = [...latestByTime.entries()].sort(([a], [b]) => a - b);
+  const result: ChartPoint[] = [];
+  for (const [tMs, value] of sorted) {
+    const previous = result.at(-1);
+    if (previous && previous[1] !== null && tMs - previous[0] > TELEMETRY_GAP_MS)
+      result.push([previous[0] + 1, null]);
+    result.push([tMs, Number(value.toFixed(3))]);
+  }
+  return result;
 }
 
 function isChannelEventVisible(row: ChannelSwitchRow) {
@@ -79,6 +92,7 @@ function tooltipFormatter(params: unknown) {
 
   for (const item of items as Array<{ seriesName?: string; marker?: string; value?: unknown }>) {
     if (!Array.isArray(item.value)) continue;
+    if (item.value[1] === null) continue;
     if (item.seriesName === "Report Rate") {
       lines.push(`${item.marker ?? ""}Report rate: ${Number(item.value[1] ?? 0).toFixed(1)} Hz`);
       continue;
@@ -129,7 +143,7 @@ export function TelemetryTrendChart({
       ...lossData.map(([tMs]) => tMs),
       ...eventData.map(([tMs]) => tMs),
     ];
-    const maxLoss = Math.max(5, ...lossData.map(([, value]) => value));
+    const maxLoss = Math.max(5, ...lossData.map(([, value]) => value ?? 0));
     const minTime = times.length > 0 ? Math.min(...times) : Date.now() - 1000;
     const maxTime = times.length > 0 ? Math.max(...times) : Date.now();
     return {
@@ -173,9 +187,12 @@ export function TelemetryTrendChart({
     });
 
     const resize = () => chart.resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(rootRef.current);
     window.addEventListener("resize", resize);
     return () => {
       window.removeEventListener("resize", resize);
+      observer.disconnect();
       chart.dispose();
       chartRef.current = null;
     };
@@ -373,9 +390,8 @@ export function TelemetryTrendChart({
           },
         ],
       },
-      true,
+      { notMerge: false, lazyUpdate: true },
     );
-    chart.resize();
     requestAnimationFrame(() => {
       suppressZoomEventRef.current = false;
     });

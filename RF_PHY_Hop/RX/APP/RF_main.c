@@ -289,7 +289,6 @@ void Main_Circulation()
         TMOS_SystemProcess();
         }
         RF_Service();
-        if(rf_init_done) (void)RF_TrySendTraceReport();
         RX_PairButtonService(rf_init_done);
         RX_MainFlushLog();
 
@@ -316,8 +315,16 @@ void Main_Circulation()
            ((uint32_t)(now - last_hid_telemetry_clock) >=
             MS1_TO_SYSTEM_TIME(RF_GetTelemetryPeriodMs())))
         {
-            last_hid_telemetry_clock = now;
-            (void)RF_TrySendTelemetryReport();
+            /* Statistics own the next free diagnostic IN slot once due.
+             * A busy endpoint must not consume the reporting period. */
+            if(RF_TrySendTelemetryReport() != 0u)
+            {
+                last_hid_telemetry_clock = now;
+            }
+        }
+        else if(rf_init_done)
+        {
+            (void)RF_TrySendTraceReport();
         }
 
         if(RX_MainTmr0Elapsed(now_tmr,

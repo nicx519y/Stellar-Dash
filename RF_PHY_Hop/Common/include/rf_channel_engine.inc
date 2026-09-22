@@ -2,9 +2,13 @@
  * Callers serialize events. No hardware, input queue, or SDK dependency. */
 #include "rf_channel_manager.h"
 #include <string.h>
+#ifndef RFC_MANAGER_FAILURE
+#define RFC_MANAGER_FAILURE(m,now) ((void)0)
+#endif
 static void rfc_switch(rfc_manager_t *m,uint8_t ch,uint32_t at) {
     m->switch_channel=ch;m->switch_at=at;m->switch_pending=1;
 }
+#include "rf_fast_engine.inc"
 void rfc_manager_init(rfc_manager_t *m,uint8_t tx,uint8_t ch,uint16_t hz,uint32_t now) {
     memset(m,0,sizeof(*m));m->tx=tx;m->hz=hz;m->profile=RFC_PROFILE_VERSION;
     m->primary=m->old=m->target=m->channel=ch;m->last_data=m->last_ack=now;
@@ -12,6 +16,9 @@ void rfc_manager_init(rfc_manager_t *m,uint8_t tx,uint8_t ch,uint16_t hz,uint32_
     m->probe_disable=RFC_PROBE_UNACCEPTED;
 }
 void rfc_manager_cancel(rfc_manager_t *m) {
+    m->fast_enabled=m->fast_requested=m->fast_offer=m->fast_control=m->fast_reply=0;
+    m->fast_activate=m->fast_quiet_until=0;m->fast_have_data=m->fast_data_sent=m->fast_done=0;
+    m->fast_state=m->fast_latched?RFF_LATCHED:RFF_OFF;
     m->state=RFC_IDLE;m->connected=0;m->armed=m->want_ack=m->switch_pending=0;
     m->reply_cmd=m->committed=m->failed=m->discovery=m->probe_result=0;
     m->have_seq=m->recovering=m->transition_tracking=0;m->session++;m->generation++;
@@ -49,7 +56,7 @@ uint16_t rfc_manager_probe_window(rfc_manager_t *m) {
     m->probe_disable=RFC_PROBE_OK;return (uint16_t)dwell;
 }
 uint8_t rfc_manager_begin(rfc_manager_t *m,uint8_t target,uint8_t mode,uint16_t quality,uint32_t now) {
-    if(!m->connected || m->state!=RFC_IDLE || rfc_index(target)==0xff || target==m->channel)return 0;
+    if(!m->connected || rff_busy(m) || (m->fast_state>=RFF_SETTING && m->fast_state<=RFF_VERIFY_MODE) || m->state!=RFC_IDLE || rfc_index(target)==0xff || target==m->channel)return 0;
     if(mode&RFC_MODE_PROBE) {
         m->dwell=rfc_manager_probe_window(m);if(!m->dwell || (m->probe_at && !rfc_due(now,m->probe_at)))return 0;
         /* Reserve the ENTIRE worst-case excursion in addition to control
@@ -91,6 +98,7 @@ static void rfc_recover(rfc_manager_t *m,uint32_t now) {
     }
 }
 uint8_t rfc_manager_command(rfc_manager_t *m,const uint8_t *p,uint8_t ch,uint32_t now) {
+    if(rff_busy(m) || (m->fast_state>=RFF_SETTING && m->fast_state<=RFF_VERIFY_MODE))return 0;
     uint8_t cmd=p[0],target=p[1],seq=p[4],old=p[5],mode=p[9]&15u;
     uint8_t session=(p[8]&0xf0u)|(p[9]>>4);
     if(m->tx || !m->connected || (m->recovering && rfc_due(now,m->recovery_deadline)) ||
@@ -134,10 +142,6 @@ uint8_t rfc_manager_command(rfc_manager_t *m,const uint8_t *p,uint8_t ch,uint32_
 void rfc_manager_ack(rfc_manager_t *m,uint8_t cmd,uint8_t txn,uint8_t ch,uint32_t now) {
     if(!m->connected || ch!=m->channel)return;
     m->last_ack=now;
-    if(m->state==RFC_FAST) {
-        if(ch==m->primary && m->fast_index==0){m->state=RFC_IDLE;return;}
-        m->old=m->primary;m->target=ch;m->primary=ch;m->committed=1;m->mode=RFC_MODE_RECOVERY;m->state=RFC_IDLE;return;
-    }
     if(m->state==RFC_VERIFY && ch==m->target) {
         m->primary=ch;m->state=RFC_IDLE;m->committed=1;m->recovering=0;return;
     }
@@ -161,37 +165,18 @@ void rfc_manager_data(rfc_manager_t *m,uint8_t recovery,uint8_t ch,uint16_t gap,
         m->transition_gap=now-m->transition_started;m->transition_tracking=0;}
     if(m->state!=RFC_IDLE)m->transition_missing+=gap;
     if(m->state==RFC_PROBE){if(ch==m->target)m->probe_received++;return;}
-    if(!m->tx && recovery && (m->state==RFC_FAST || m->state==RFC_IDLE)) {
-        if(ch!=m->primary && ch!=rfc_backup(m->primary,0) && ch!=rfc_backup(m->primary,1))return;
-        if(m->state!=RFC_FAST){m->deadline=now+80000u;m->old=m->primary;}
-        m->state=RFC_FAST;m->target=ch;m->fast_at=now+12000u;return;
-    }
-    if(!m->tx && !recovery && ((m->state==RFC_VERIFY && ch==m->target) || m->state==RFC_FAST ||
+    rff_data(m,recovery,ch,now);
+    if(!m->tx && !recovery && ((m->state==RFC_VERIFY && ch==m->target) ||
         (m->state==RFC_RECOVER && ch==m->target))) {
         m->old=m->primary;m->target=ch;m->primary=ch;m->state=RFC_IDLE;m->committed=1;m->recovering=0;
     }
 }
-void rfc_manager_timeout(rfc_manager_t *m,uint32_t now) {
-    if(!m->tx || !m->connected || !rfc_fast_enabled(m->hz,m->peer_caps))return;
-    if(m->state==RFC_IDLE) {
-        m->state=RFC_FAST;m->old=m->primary;m->fast_index=0;m->fast_at=m->request_at+2000u;
-        m->deadline=now+60000u;m->reason=RFC_REASON_ACK;
-    } else if(m->state==RFC_FAST && !m->fast_index) {
-        m->fast_at=now;
-        if(!m->auto_enabled){m->discovery=1;return;}
-        m->fast_index=1;rfc_switch(m,rfc_backup(m->primary,0),now);m->fast_at=now+12000u;
-    }
-}
+void rfc_manager_timeout(rfc_manager_t *m,uint32_t now) { rff_timeout(m,now); }
 void rfc_manager_poll(rfc_manager_t *m,uint32_t now) {
     if(!m->connected)return;
     if(m->recovering && rfc_due(now,m->recovery_deadline)){m->failed=1;m->discovery=1;return;}
     if(m->probe_at && rfc_due(now,m->probe_at))m->probe_at=0;
-    if(m->state==RFC_IDLE) {
-        if(!m->tx && m->auto_enabled && rfc_fast_enabled(m->hz,m->peer_caps) && now-m->last_data>=2000u) {
-            m->state=RFC_FAST;m->fast_index=0;m->fast_at=now+2000u;m->deadline=now+80000u;
-        }
-        return;
-    }
+    if(m->state==RFC_IDLE)return;
     if(m->state==RFC_PREPARE || m->state==RFC_CONFIRM) {
         if(rfc_due(now,m->deadline)) {
             m->reservation_failures++;
@@ -225,22 +210,7 @@ void rfc_manager_poll(rfc_manager_t *m,uint32_t now) {
             m->fast_at=now+(m->tx?10000u:2000u);m->retry_at=now;m->want_ack=m->tx;
         }
     }
-    if(m->state==RFC_FAST) {
-        if(rfc_due(now,m->deadline)){m->discovery=1;return;}
-        if(!m->tx && !m->auto_enabled)return; /* Fixed mode never scans backups. */
-        if(rfc_due(now,m->fast_at)) {
-            if(m->tx) {
-                if(!m->fast_index){m->want_ack=1;m->fast_at=now+2000u;}
-                else if(m->fast_index==1){m->fast_index=2;rfc_switch(m,rfc_backup(m->primary,1),now);m->fast_at=now+12000u;}
-                else m->discovery=1;
-            } else {
-                m->fast_index=(m->fast_index+1u)%3u;
-                rfc_switch(m,m->fast_index?rfc_backup(m->primary,m->fast_index-1u):m->primary,now);
-                m->fast_at=now+(m->fast_index?4000u:2000u);
-            }
-        }
-        if(m->tx && m->fast_index && rfc_due(now,m->retry_at)){m->want_ack=1;m->retry_at=now+2000u;}
-    }
+
 }
 uint8_t rfc_manager_switch(rfc_manager_t *m,uint8_t *ch,uint32_t *at) {
     if(!m->switch_pending)return 0;

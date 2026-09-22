@@ -1,5 +1,5 @@
 import { MonitorStreamProcessor } from "./monitorStreamProcessor";
-import type { MonitorStreamWorkerRequest, MonitorStreamWorkerResponse } from "./monitorStreamTypes";
+import type { MonitorStreamSnapshot, MonitorStreamWorkerRequest, MonitorStreamWorkerResponse } from "./monitorStreamTypes";
 
 const processor = new MonitorStreamProcessor();
 const workerScope = self as unknown as {
@@ -10,6 +10,15 @@ const workerScope = self as unknown as {
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let snapshotInFlight = false;
 let dirty = false;
+let previous: MonitorStreamSnapshot | null = null;
+
+function sameSection(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) || Array.isArray(b)) return false;
+  const left = a as Record<string, unknown>, right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every(key => left[key] === right[key]);
+}
 
 function postSnapshot(): void {
   if (flushTimer !== null) {
@@ -20,9 +29,16 @@ function postSnapshot(): void {
   if (snapshotInFlight) return;
   dirty = false;
   snapshotInFlight = true;
+  const snapshot = processor.snapshot();
+  // Processor arrays are immutable; unchanged sections can be recognized in
+  // constant time, before MessagePort cloning destroys their identity.
+  const patch = Object.fromEntries(Object.entries(snapshot).filter(([key, value]) =>
+    !previous || !sameSection(value, previous[key as keyof MonitorStreamSnapshot]),
+  )) as Partial<MonitorStreamSnapshot>;
+  previous = snapshot;
   workerScope.postMessage({
     type: "snapshot",
-    snapshot: processor.snapshot(),
+    snapshot: patch,
   });
 }
 

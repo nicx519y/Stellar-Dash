@@ -549,9 +549,19 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
 
   const view = new DataView(report.buffer, report.byteOffset, report.byteLength);
   const magic = view.getUint32(0, true);
+  if(magic===0x34444652 || magic===0x34454652){
+    if(report[5]!==2 || report[4]>1)return [];
+    return [{kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:magic===0x34444652?"RF_FAST_STATUS":"RF_FAST_EVENT",
+      payloadLen:32,rfDiagnosticVersion:4,
+      ...(magic===0x34444652?{rfFast:{role:report[4],profile:report[5],testId:view.getUint16(6,true),
+        state:report[8],requested:!!report[9],effective:!!report[10],reason:report[11],supportedRates:report[12],acceptedRates:report[13],
+        sequence:report[15],successes:view.getUint32(16,true),failures:view.getUint32(20,true),elapsedUs:view.getUint32(24,true),overflow:view.getUint32(28,true)}}:
+      {rfFastEvent:{role:report[4],sequence:view.getUint16(6,true),atUs:view.getUint32(8,true),plannedUs:view.getUint32(12,true),
+        value:view.getUint32(16,true),generation:view.getUint32(20,true),testId:view.getUint16(24,true),event:report[26],channel:report[27],maintenanceUs:view.getUint32(28,true)}})}];
+  }
   if (magic === 0x33464852) {
     const page = report[8];
-    if (report[9] !== 3 || page > 5) return [];
+    if (report[9] !== 3 && report[9] !== 4 || page > 5) return [];
     return [{ kind: "packet", timestampMs, channel: "RF", direction: "RX",
       seq: view.getUint32(4, true), messageType: `RFH_RHF3_${page}`,
       payloadLen: 32, payloadHex: hexReport(report), rfDiagnosticVersion: 3,

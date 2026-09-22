@@ -4,20 +4,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {EventEmitter} = require('node:events');
 
-test('TX restart reapplies config without reopening USB or retrying every telemetry frame', () => {
+test('TX restart reapplies config without reopening USB or retrying every telemetry frame', async () => {
   let handle;
   let callbacks = 0;
   const published = [];
   const fakeHid = {
-    devices: () => [{path:'test-only'}],
-    HID: class extends EventEmitter {
+    devicesAsync: async () => [{path:'test-only'}],
+    HIDAsync: class extends EventEmitter {
+      static async open() {return new this();}
       constructor() {super();handle=this;}
-      close() {}
+      async close() {}
     },
   };
   const module = {exports:{}};
   const mocks = {
     'node-hid':fakeHid,
+    './fast-recovery-control':{buildFastControl:()=>Buffer.alloc(32)},
     './relative-latency':{RelativeLatencyDecoder:class {parse(){return null;} reset(){}}},
     './button-latency-source':{buttonLatencyTracker:{reset(){}},monotonicNowUsForMonitor:()=>0},
     './application-hid-telemetry-source':{parseApplicationHidTelemetryFrame:()=>[]},
@@ -29,6 +31,7 @@ test('TX restart reapplies config without reopening USB or retrying every teleme
     id=>{if(!(id in mocks))throw Error(`Unexpected dependency ${id}`);return mocks[id];},module,module.exports);
   const stop=module.exports.startHidTelemetrySource(ev=>published.push(ev),{onControlReady:()=>callbacks++});
   try {
+    await new Promise(resolve=>setImmediate(resolve));
     assert.equal(callbacks,1); // USB open
     handle.emit('data','Connecting');handle.emit('data','Connected');
     assert.equal(callbacks,2);
@@ -37,5 +40,5 @@ test('TX restart reapplies config without reopening USB or retrying every teleme
     handle.emit('data','Reconnecting');handle.emit('data','Connecting');handle.emit('data','Connected');
     assert.equal(callbacks,3); // same USB handle, new RF session
     assert.equal(published.at(-1).state,'Connected');
-  } finally {stop();}
+  } finally {await stop();}
 });

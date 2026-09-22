@@ -1,13 +1,13 @@
 import type { MonitorEvent } from "./types";
-import type { MonitorEventStore } from "./event-store";
+type EventArchive = { append(events: MonitorEvent[]): void; clear(): void };
 
 export class MonitorEventBus {
   private readonly listeners: Array<(event: MonitorEvent) => void> = [];
   private readonly buffer: MonitorEvent[] = [];
   private readonly maxBufferSize: number;
-  private readonly store?: MonitorEventStore;
+  private readonly store?: EventArchive;
 
-  constructor(maxBufferSize = 500, store?: MonitorEventStore) {
+  constructor(maxBufferSize = 500, store?: EventArchive) {
     this.maxBufferSize = maxBufferSize;
     this.store = store;
   }

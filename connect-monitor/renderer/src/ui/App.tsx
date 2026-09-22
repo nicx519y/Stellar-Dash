@@ -19,7 +19,7 @@ import { FaListUl, FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, Fa
 import { GrClearOption } from "react-icons/gr";
 import { LuWifi, LuWifiHigh, LuWifiLow, LuWifiZero } from "react-icons/lu";
 import { TfiClose } from "react-icons/tfi";
-import type { DebugApplyState, DebugConfig, DebugHidPeriodMs, MonitorEvent, PacketEvent, PowerStatusEvent } from "../../../shared/monitor-types";
+import type { DebugApplyState, DebugConfig, DebugConfigStatus, DebugHidPeriodMs, MonitorEvent, PacketEvent, PowerStatusEvent } from "../../../shared/monitor-types";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
 import { ButtonLatencyPanel } from "./ButtonLatencyPanel";
@@ -31,17 +31,7 @@ import { PacketsPanel } from "./PacketsPanel";
 import { RatePanel } from "./RatePanel";
 import { SerialLogPanel } from "./SerialLogPanel";
 import { neonGreen, panelSurfaceProps, toolbarActionButtonProps } from "./panelStyles";
-import { scrollbarStyle } from "./scrollbarStyle";
 import { clearSerialLogLines } from "./serialLogStore";
-
-const appScrollStyle = {
-  ...scrollbarStyle,
-  scrollbarWidth: "none",
-  "&::-webkit-scrollbar": {
-    width: "0px",
-    height: "0px",
-  },
-} as const;
 
 const dragRegionStyle = { WebkitAppRegion: "drag" } as CSSProperties;
 const noDragRegionStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
@@ -669,6 +659,7 @@ function PeriodSegmentedControl({
 function DebugControlCard({
   config,
   status,
+  message,
   paused,
   applyConfig,
   onPauseToggle,
@@ -676,6 +667,7 @@ function DebugControlCard({
 }: {
   config: DebugConfig;
   status: DebugApplyState;
+  message: string;
   paused: boolean;
   applyConfig: (next: DebugConfig) => void;
   onPauseToggle: () => void;
@@ -696,6 +688,7 @@ function DebugControlCard({
           <Badge colorPalette={debugBadgeColor(status)}>{status}</Badge>
         </HStack>
         <VStack align="stretch" gap={2} mt={3}>
+          {message ? <Text fontSize="xs" color="orange.200">{message}</Text> : null}
           <HStack justify="space-between" gap={2} align="center">
             <DebugSwitch
               label="HID"
@@ -741,20 +734,24 @@ function DebugControlCard({
 
 function TrafficPanels({
   packets,
+  allPackets,
   channelSwitches,
   channelScores,
   serialLogClearVersion,
   debugConfig,
   applyDebugConfig,
+  paused,
   onClearPackets,
   onClearChannelEvents,
 }: {
   packets: ReturnType<typeof useMonitorStream>["packets"];
+  allPackets: PacketEvent[];
   channelSwitches: ReturnType<typeof useMonitorStream>["channelSwitches"];
   channelScores: ReturnType<typeof useMonitorStream>["channelScores"];
   serialLogClearVersion: number;
   debugConfig: DebugConfig;
-  applyDebugConfig: (next: DebugConfig) => void;
+  applyDebugConfig: (next: DebugConfig) => Promise<DebugConfigStatus | null>;
+  paused: boolean;
   onClearPackets: () => void;
   onClearChannelEvents: () => void;
 }) {
@@ -816,29 +813,11 @@ function TrafficPanels({
           <ChannelPanel items={channelSwitches} fillHeight onClearData={onClearChannelEvents} />
           <ChannelScorePanel
             items={channelScores}
-            packets={packets.items}
+            packets={allPackets}
             fillHeight
-            autoHopEnabled={debugConfig.autoHopEnabled}
-            onAutoHopChange={(enabled) => {
-              const activeChannel = channelScores.find((item) => item.active)?.channel;
-              const currentManualChannel = channelScores.some((item) => item.channel === debugConfig.manualChannel)
-                ? debugConfig.manualChannel
-                : null;
-              const fallbackChannel = activeChannel ?? currentManualChannel ?? channelScores[0]?.channel ?? null;
-              if (!enabled && fallbackChannel === null) {
-                return;
-              }
-              applyDebugConfig({
-                ...debugConfig,
-                autoHopEnabled: enabled,
-                manualChannel: enabled ? debugConfig.manualChannel : fallbackChannel,
-              });
-            }}
-            onManualChannelSelect={(channel) => applyDebugConfig({
-              ...debugConfig,
-              autoHopEnabled: false,
-              manualChannel: channel,
-            })}
+            config={debugConfig}
+            paused={paused}
+            applyConfig={applyDebugConfig}
           />
         </Box>
       ) : (
@@ -862,12 +841,11 @@ function after(timestampMs: number, clearAfterMs: number | undefined) {
 
 export function App() {
   const { events, packets, latency, buttonLatency, powerStatus, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
   const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
   const [cardClearMarks, setCardClearMarks] = useState<DataCardClearMarks>({});
   const [debugConfig, setDebugConfig] = useState<DebugConfig>(defaultDebugConfig);
   const [debugStatus, setDebugStatus] = useState<DebugApplyState>("Idle");
+  const [debugMessage, setDebugMessage] = useState("");
   const [voltageHistory, setVoltageHistory] = useState<VoltageHistoryPoint[]>([]);
 
   const markCardCleared = (key: DataCardKey) => {
@@ -956,11 +934,6 @@ export function App() {
     () => channelSwitches.filter((row) => after(row.timestampMs, cardClearMarks.channelEvents)),
     [channelSwitches, cardClearMarks.channelEvents],
   );
-  const canScroll = false;
-  const thumbHeightPct = canScroll ? Math.max(8, (scrollState.client / scrollState.scroll) * 100) : 100;
-  const thumbTopPct = canScroll
-    ? (scrollState.top / Math.max(1, scrollState.scroll - scrollState.client)) * (100 - thumbHeightPct)
-    : 0;
   const handleClearData = () => {
     clear();
     setCardClearMarks({});
@@ -970,50 +943,25 @@ export function App() {
       .then(() => setSerialLogClearVersion((version) => version + 1))
       .catch(() => {});
   };
-  const applyDebugConfig = (next: DebugConfig) => {
+  const applyDebugConfig = (next: DebugConfig): Promise<DebugConfigStatus | null> => {
     setDebugConfig(next);
     setDebugStatus("Applying");
-    window.connectMonitorApi?.setDebugConfig?.(next)
-      .then((nextStatus) => setDebugStatus(nextStatus.state))
-      .catch(() => setDebugStatus("Failed"));
+    setDebugMessage("");
+    return window.connectMonitorApi?.setDebugConfig?.(next)
+      .then((nextStatus) => { setDebugStatus(nextStatus.state); setDebugMessage(nextStatus.message ?? ""); return nextStatus; })
+      .catch(() => { setDebugStatus("Failed"); return null; }) ?? Promise.resolve(null);
   };
-
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-
-    const updateScrollState = () => {
-      setScrollState({
-        top: scroller.scrollTop,
-        client: scroller.clientHeight,
-        scroll: scroller.scrollHeight,
-      });
-    };
-    updateScrollState();
-
-    const resizeObserver = new ResizeObserver(updateScrollState);
-    resizeObserver.observe(scroller);
-    const firstChild = scroller.firstElementChild;
-    if (firstChild) {
-      resizeObserver.observe(firstChild);
-    }
-    window.addEventListener("resize", updateScrollState);
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", updateScrollState);
-    };
-  }, [channelSwitches.length, events.length, packets.items.length]);
 
   useEffect(() => {
     window.connectMonitorApi?.getDebugConfig?.()
       .then((saved) => setDebugConfig({ ...defaultDebugConfig, ...saved }))
       .catch(() => {});
     window.connectMonitorApi?.getDebugConfigStatus?.()
-      .then((nextStatus) => setDebugStatus(nextStatus.state))
+      .then((nextStatus) => { setDebugStatus(nextStatus.state); setDebugMessage(nextStatus.message ?? ""); })
       .catch(() => {});
     const timer = window.setInterval(() => {
       window.connectMonitorApi?.getDebugConfigStatus?.()
-        .then((nextStatus) => setDebugStatus(nextStatus.state))
+        .then((nextStatus) => { setDebugStatus(nextStatus.state); setDebugMessage(nextStatus.message ?? ""); })
         .catch(() => {});
     }, 1000);
     return () => window.clearInterval(timer);
@@ -1025,6 +973,8 @@ export function App() {
       inset={0}
       w="auto"
       h="auto"
+      display="flex"
+      flexDirection="column"
       bg="#041012"
       color="gray.50"
       overflow="hidden"
@@ -1045,6 +995,7 @@ export function App() {
       }}
     >
       <Flex
+        flexShrink={0}
         px={3}
         py={1}
         align="center"
@@ -1064,25 +1015,15 @@ export function App() {
       </Flex>
 
       <Box
-        ref={scrollRef}
         position="relative"
         zIndex={1}
         px={4}
         py={4}
         overflow="hidden"
-        h="calc(100vh - 70px)"
+        flex="1"
         display="flex"
         flexDirection="column"
         minH={0}
-        onScroll={(event) => {
-          const scroller = event.currentTarget;
-          setScrollState({
-            top: scroller.scrollTop,
-            client: scroller.clientHeight,
-            scroll: scroller.scrollHeight,
-          });
-        }}
-        css={appScrollStyle}
       >
         <Box
           display="grid"
@@ -1094,6 +1035,7 @@ export function App() {
           <DebugControlCard
             config={debugConfig}
             status={debugStatus}
+            message={debugMessage}
             paused={paused}
             applyConfig={applyDebugConfig}
             onPauseToggle={() => setPaused(!paused)}
@@ -1128,7 +1070,8 @@ export function App() {
             }}
             gap="10px"
             alignItems="stretch"
-            h={{ base: "auto", xl: "420px" }}
+            h="min(420px, 48%)"
+            minH={0}
             flexShrink={0}
           >
             <RatePanel
@@ -1154,43 +1097,18 @@ export function App() {
           </Box>
           <TrafficPanels
             packets={visiblePackets}
+            allPackets={packets.items}
             channelSwitches={visibleChannelSwitches}
             channelScores={channelScores}
             serialLogClearVersion={serialLogClearVersion}
             debugConfig={debugConfig}
             applyDebugConfig={applyDebugConfig}
+            paused={paused}
             onClearPackets={() => markCardCleared("packets")}
             onClearChannelEvents={() => markCardCleared("channelEvents")}
           />
         </VStack>
       </Box>
-      {canScroll ? (
-        <Box
-          position="absolute"
-          top="86px"
-          right="6px"
-          bottom="8px"
-          zIndex={3}
-          w="8px"
-          borderRadius="999px"
-          bg="rgba(92,255,138,0.08)"
-          borderWidth="1px"
-          borderColor="rgba(92,255,138,0.16)"
-          pointerEvents="none"
-        >
-          <Box
-            position="absolute"
-            left="1px"
-            right="1px"
-            top={`${thumbTopPct}%`}
-            h={`${thumbHeightPct}%`}
-            minH="48px"
-            borderRadius="999px"
-            bg="linear-gradient(180deg, rgba(92,255,138,0.96), rgba(98,247,255,0.72))"
-            boxShadow="0 0 12px rgba(92,255,138,0.7)"
-          />
-        </Box>
-      ) : null}
     </Box>
   );
 }

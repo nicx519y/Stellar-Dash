@@ -1,3 +1,4 @@
+import { RfFastLab } from "./RfFastLab";
 import { Box, Text, VStack } from "@chakra-ui/react";
 import type { PacketEvent } from "../../../shared/monitor-types";
 
@@ -27,7 +28,7 @@ export function RfChannelStatus({ packets }: { packets: PacketEvent[] }) {
   const scores=[...(fresh(1)?b?.scores??[]:[]),...(fresh(2)?c?.scores??[]:[])];
   return <Box p={3} borderBottomWidth="1px" borderColor="whiteAlpha.200">
     <VStack align="stretch" gap={1} fontSize="11px" color="gray.300">
-      <Text fontWeight="bold" color="green.200">RF v3 · {fresh(0) ? states[a?.state??0]??"Unknown" : "TX status stale"}</Text>
+      <Text fontWeight="bold" color="green.200">RF · {fresh(0) ? states[a?.state??0]??"Unknown" : "TX status stale"}</Text>
       <Text>Probe: {fresh(0)?disabled[a?.probeDisabled??1]??"Unavailable":"Unavailable status"}</Text>
       <Text>Primary {fresh(0)?a?.primary:"—"} · Candidate {fresh(0)?a?.candidate:"—"} · Backup {fresh(0)?a?.backups?.join(" / "):"—"}</Text>
       <Text>{fresh(0)?reasons[a?.reason??0]??"Unknown":"—"}{fresh(1)&&b?.probation?" · Observing":""}</Text>
@@ -37,13 +38,14 @@ export function RfChannelStatus({ packets }: { packets: PacketEvent[] }) {
       <Text>Samples {fresh(1)?b?.sampleCount??"—":"—"} · {fresh(1)&&b?.sampleSource===2?"Probe":"Residence"} · age {fresh(2)&&c?.historyAgeMs!==65535?`${c?.historyAgeMs}ms`:"Unknown"}</Text>
       <Text>Probes {fresh(1)?b?.probes??"—":"—"} · Failures {fresh(1)?b?.failures??"—":"—"}</Text>
       <Text>Input gap {us(local?.lastGapUs)} · max {us(local?.maxGapUs)}</Text>
-      <Text>First input after switch {us(local?.firstPacketUs)}</Text>
-      <Text>Gap before switch {us(transition?.beforeGapUs)} · across switch {us(transition?.transitionGapUs)}</Text>
+      <Text>First input after switch {local?.firstPacketUs ? us(local.firstPacketUs) : "未测量"}</Text>
+      <Text>Gap before switch {us(transition?.beforeGapUs)} · across switch {transition?.transitionGapUs ? us(transition.transitionGapUs) : "未测量"}</Text>
       <Text>RX failures: reservation {transition?.reservationFailures??"—"} · radio {transition?.radioFailures??"—"} · zero receive {transition?.candidateFailures??"—"}</Text>
       <Text>Transition sequence gaps {local?.transitionMissing??"—"} · Input coalesced {local?.inputCoalesced??"—"}</Text>
-      {!!receiver?.versionMismatches && <Text color="orange.200">Protocol mismatches: {receiver.versionMismatches} · update both TX and RX</Text>}
+      {!!receiver?.versionMismatches && <Text color="orange.200">Protocol mismatches: {receiver.versionMismatches} · 累计值，持续增加时检查双方版本</Text>}
       {scores.length>0 && <Text>Recent loss: {scores.map(s=>`${s.channel}: ${loss(s.lossPermille)}`).join(" · ")}</Text>}
       <Text color="gray.500">Switch timing unverified until hardware acceptance. Coalesced input is not RF loss.</Text>
     </VStack>
+    <RfFastLab packets={packets} />
   </Box>;
 }

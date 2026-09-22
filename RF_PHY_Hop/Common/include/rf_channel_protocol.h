@@ -5,7 +5,7 @@
 
 /* v3: timing capabilities are opt-in acceptance results, never inferred from
  * a successful build. Both ends must carry the same accepted profile. */
-#define RFC_PROFILE_VERSION 1u
+#define RFC_PROFILE_VERSION 2u
 #ifndef RFC_TIMING_ACCEPTED
 #define RFC_TIMING_ACCEPTED 0
 #endif

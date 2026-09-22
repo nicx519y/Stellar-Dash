@@ -1,3 +1,4 @@
+import type { FastRequest } from "../../shared/fast-recovery";
 import type {
   DebugConfig,
   DebugConfigStatus,
@@ -24,6 +25,8 @@ declare global {
       setPaused(paused: boolean): Promise<void>;
       getPaused(): Promise<boolean>;
       exportMarkdown(request: { suggestedFileName: string; content: string }): Promise<{ canceled: boolean; filePath?: string }>;
+      fastRecovery(request: FastRequest): Promise<{ok:boolean;message?:string}>;
+      exportFastLog(request: {content:string}): Promise<{canceled:boolean;filePath?:string}>;
       getDebugConfig(): Promise<DebugConfig>;
       setDebugConfig(config: DebugConfig): Promise<DebugConfigStatus>;
       getDebugConfigStatus(): Promise<DebugConfigStatus>;

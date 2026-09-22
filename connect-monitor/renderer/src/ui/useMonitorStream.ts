@@ -34,7 +34,16 @@ export function useMonitorStream() {
   const [paused, setPausedState] = React.useState(false);
   const pausedRef = React.useRef(false);
   const workerRef = React.useRef<Worker | null>(null);
+  const snapshotPending = React.useRef<Worker | null>(null);
   pausedRef.current = paused;
+
+  React.useEffect(() => {
+    // Return credit after React committed this update, not before rendering it.
+    if (snapshotPending.current === workerRef.current && snapshotPending.current) {
+      postWorkerMessage(snapshotPending.current, { type: "snapshotConsumed" });
+      snapshotPending.current = null;
+    }
+  }, [snapshot]);
 
   React.useEffect(() => {
     const worker = createMonitorWorker();
@@ -47,8 +56,9 @@ export function useMonitorStream() {
 
     worker.onmessage = (event: MessageEvent<MonitorStreamWorkerResponse>) => {
       if (event.data.type === "snapshot") {
-        setSnapshot(event.data.snapshot);
-        postWorkerMessage(worker, { type: "snapshotConsumed" });
+        const patch = event.data.snapshot;
+        snapshotPending.current = worker;
+        setSnapshot(previous => ({ ...previous, ...patch }));
       } else if (event.data.type === "processed") {
         pending.get(event.data.requestId)?.();
         pending.delete(event.data.requestId);

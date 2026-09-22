@@ -3,7 +3,7 @@ import * as React from "react";
 import { GoMoveToTop } from "react-icons/go";
 
 import { neonGreen, PanelHeader, panelSurfaceProps } from "./panelStyles";
-import { scrollbarStyle } from "./scrollbarStyle";
+import { hiddenScrollbarStyle, scrollbarStyle } from "./scrollbarStyle";
 
 export type VirtualColumn<T> = {
   key: string;
@@ -41,6 +41,7 @@ export function VirtualTable<T>({
   rowKey,
   action,
   maxHeight = 530,
+  hideScrollbar = false,
 }: {
   title: string;
   countText: string;
@@ -49,6 +50,7 @@ export function VirtualTable<T>({
   rowKey: (item: T, index: number) => string;
   action?: React.ReactNode;
   maxHeight?: number | string;
+  hideScrollbar?: boolean;
 }) {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const scrollTopRef = React.useRef(0);
@@ -165,7 +167,7 @@ export function VirtualTable<T>({
       {...panelSurfaceProps}
     >
       <PanelHeader title={title} meta={countText} action={action} borderBottom compact />
-      <Box overflowX="auto" css={scrollbarStyle} flex="1" minH={0}>
+      <Box overflowX="auto" css={hideScrollbar ? hiddenScrollbarStyle : scrollbarStyle} flex="1" minH={0}>
         <Box w="100%" minW="0" h={typeof maxHeight === "number" ? undefined : "100%"} display="flex" flexDirection="column">
           <Box
             display="grid"
@@ -203,7 +205,7 @@ export function VirtualTable<T>({
               h={typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
               overflowY="auto"
               position="relative"
-              css={tableScrollStyle}
+              css={hideScrollbar ? { ...tableScrollStyle, ...hiddenScrollbarStyle } : tableScrollStyle}
               onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
             >
               <Box h={`${totalHeight}px`} minH={typeof maxHeight === "number" ? `${maxHeight}px` : "100%"} position="relative">

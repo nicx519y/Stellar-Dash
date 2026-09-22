@@ -87,7 +87,9 @@ export type MonitorStreamWorkerRequest =
 
 export type MonitorStreamWorkerResponse = {
   type: "snapshot";
-  snapshot: MonitorStreamSnapshot;
+  // Unchanged sections are omitted so structured cloning preserves neither
+  // unnecessary work nor spurious new array identities in the renderer.
+  snapshot: Partial<MonitorStreamSnapshot>;
 } | { type: "processed"; requestId: number };
 
 export function createEmptyMonitorStreamSnapshot(): MonitorStreamSnapshot {

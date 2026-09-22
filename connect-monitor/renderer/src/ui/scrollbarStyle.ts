@@ -18,3 +18,8 @@ export const scrollbarStyle = {
     background: "linear-gradient(90deg, rgba(92,255,138,0.95), rgba(98,247,255,0.85))",
   },
 } as const;
+
+export const hiddenScrollbarStyle = {
+  scrollbarWidth: "none",
+  "&::-webkit-scrollbar": { display: "none" },
+} as const;
