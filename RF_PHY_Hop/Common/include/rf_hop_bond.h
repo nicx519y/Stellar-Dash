@@ -8,6 +8,7 @@
 
 #define RFH_BOND_MAGIC                  0x48424652UL
 #define RFH_BOND_VERSION                2u
+#define RFH_BOND_WEB_VERSION            3u
 #define RFH_BOND_EEPROM_ADDR_DEFAULT    0x6000u
 #define RFH_BOND_EEPROM_ERASE_SIZE      4096u
 
@@ -48,8 +49,11 @@ static inline uint8_t rfh_bond_record_valid(const rfh_bond_record_t *record)
     {
         return 0u;
     }
+    if(record->version == RFH_BOND_WEB_VERSION &&
+       (record->reserved != 1u || !record->peer_id_hash || !record->pair_counter || !record->bond_confirm32))
+        return 0u;
     if((record->magic != RFH_BOND_MAGIC) ||
-       (record->version != RFH_BOND_VERSION) ||
+       ((record->version != RFH_BOND_VERSION) && (record->version != RFH_BOND_WEB_VERSION)) ||
        (record->length != sizeof(rfh_bond_record_t)) ||
        (rfh_access_address_valid(record->link_access_address) == 0u) ||
        (rfh_channel_valid(record->channel_a) == 0u) ||

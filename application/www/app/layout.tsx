@@ -86,7 +86,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 await reconnectDevice();
             }
         } catch (error) {
-            const description = error instanceof DeviceTransportError && error.code === 'device-busy'
+            const description = error instanceof DeviceTransportError
                 ? error.message
                 : t.RECONNECT_FAILED_MESSAGE;
             toaster.error({
@@ -136,9 +136,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
                     t.RECONNECT_MODAL_STEP_USB,
                     t.RECONNECT_MODAL_STEP_RECONNECT,
                 ]}
-                noDeviceMessage={deviceError?.transportCode === 'device-busy'
-                    ? deviceError.message
-                    : undefined}
+                noDeviceMessage={deviceError?.message}
                 headerAction={connectionPending ? (
                     <HStack gap={2}>
                         <UserAuthControl />

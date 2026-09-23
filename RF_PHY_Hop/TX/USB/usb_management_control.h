@@ -11,6 +11,8 @@ extern "C" {
 #endif
 
 void usb_management_control_init(void);
+void usb_management_control_set_role(usb_board_role_t role);
+void usb_management_control_hw_rf_binding(const uint8_t *request,uint8_t *response);
 
 /*
  * Handles one variable-length USB_BOARD_CMD_USB_CONTROL payload and emits the

@@ -19,6 +19,7 @@
 #include "rf_pairing_protocol.h"
 #include "rf_hop_bond.h"
 #include "rf_hop_bond_journal.h"
+#include "rf_binding_store.h"
 #include "rf_hop_score.h"
 #include "rf_monitor_control.h"
 
@@ -455,7 +456,7 @@ static void demo_load_bond(void)
     {
         demo_select_unpaired_address();
     }
-    if(g_demo_bond_store.has_pending != 0u)
+    if(g_demo_bond_store.has_pending != 0u && !rfb_is_web(&g_demo_bond_store.pending))
     {
         /* A prepared TX bond means PAIR_DONE was received before reset.  Keep
          * reconnecting on the candidate address until the peer proves it. */
@@ -509,6 +510,7 @@ static uint8_t demo_prepare_bond(uint32_t link_access_address,
 
 static uint8_t demo_commit_prepared_bond(void)
 {
+    if(g_demo_bond_store.has_pending && rfb_is_web(&g_demo_bond_store.pending)) return 0;
 #if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
     g_demo_pair_commit_pending = 0u;
     return 1u;
@@ -535,6 +537,7 @@ static uint8_t demo_commit_prepared_bond(void)
 
 static uint8_t demo_abort_prepared_bond(void)
 {
+    if(g_demo_bond_store.has_pending && rfb_is_web(&g_demo_bond_store.pending)) return 0;
 #if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
     g_demo_pair_commit_pending = 0u;
     return 1u;
@@ -563,6 +566,7 @@ static uint8_t demo_abort_prepared_bond(void)
 
 static uint8_t demo_clear_bond(void)
 {
+    if(g_demo_bond_store.has_pending && rfb_is_web(&g_demo_bond_store.pending)) return 0;
 #if (RFH_TEST_FIXED_BOND_ENABLE == 0u)
     if(rfh_bond_journal_write_tombstone(&g_demo_bond_backend,
                                         &g_demo_bond_store,
@@ -2833,70 +2837,6 @@ bool RF_PrepareSleep(void)
 uint16_t RF_GetReportRateHz(void)
 {
     return g_demo_report_hz;
-}
-
-bool RF_StartPairing(void)
-{
-    uint32_t now = RF_LinkClockNow();
-
-    if(g_demo_config_ret != SUCCESS)
-    {
-        return false;
-    }
-    if(demo_pair_is_active() != 0u)
-    {
-        g_pending_event_state_code = RF_LINK_STATE_PAIRING;
-        return true;
-    }
-    if(g_demo_pair_commit_pending != 0u)
-    {
-        /* An explicit new pairing request supersedes an uncommitted candidate,
-         * but never destroys the last committed bond. */
-        if(demo_abort_prepared_bond() == 0u)
-        {
-            g_pending_event_state_code = RF_LINK_STATE_PAIR_FAILED;
-            return false;
-        }
-    }
-    if(g_demo_report_hz == 0u)
-    {
-#if (RFM_COLD_BOOT_WAIT_HOST_RATE != 0u)
-        return false;
-#else
-        g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
-        g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
-        demo_reconfigure_report_timer(g_demo_report_hz);
-#endif
-    }
-
-    g_demo_input_off = 0u;
-    g_demo_reconnecting = 0u;
-    g_demo_pair_session = demo_make_pair_session();
-    g_demo_pair_tx_id_hash = g_demo_local_id_hash;
-    g_demo_pair_rx_id_hash = 0u;
-    g_demo_pair_link_access_address = 0u;
-    g_demo_pair_done_confirm32 = 0u;
-    g_demo_pair_done_pending = 0u;
-    g_demo_pair_wait_rx_after_tx = 0u;
-    g_demo_pair_tx_ticks_remaining = 0u;
-    g_demo_pair_started_clock = now;
-    g_demo_pair_deadline_clock =
-        now + MS1_TO_SYSTEM_TIME(RFH_PAIR_WINDOW_MS);
-    g_demo_pair_confirm_deadline_clock = 0u;
-    rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;
-    g_demo_pair_state = RF_AUTO_PAIR_OFFERING;
-    g_demo_link_state = RF_AUTO_TX_UNCONNECTED;
-    g_demo_hop_state = RF_AUTO_HOP_COMM;
-    g_demo_ack_clock_armed = 0u;
-    g_demo_ack_burst_left = 0u;
-    g_demo_force_ack_burst = 0u;
-    g_demo_ack_rx_active = 0u;
-    g_demo_wait_ack_after_tx = 0u;
-    g_demo_tx_busy = 0u;
-    (void)demo_apply_access_address(RFH_PAIR_ACCESS_ADDRESS);
-    demo_apply_channel(RFH_PAIR_CHANNEL_A);
-    g_pending_event_state_code = RF_LINK_STATE_PAIRING;
-    return true;
 }
 
 bool RF_StopPairing(void)

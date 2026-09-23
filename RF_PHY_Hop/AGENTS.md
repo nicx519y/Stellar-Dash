@@ -1,5 +1,11 @@
 # AGENTS - RF_PHY_Hop 当前结论
 
+2026-09-23 旧配对交互入口移除：STM32 屏幕 Connection 页删除 Pair 2.4G 菜单和配对状态页；长按 5 秒入口实际在 RX PB22，已删除初始化和轮询。TX/RX 删除 RF_StartPairing 公开入口，TX 旧 SPI START_PAIR 保留命令号但拒绝执行；WebConfig USB 维护配对、已提交绑定加载和 CONNECT/ACK 不变。STM32（HBOX_SECURE_BOOT_REQUIRED=0）、TX、RX 构建通过，源代码/ELF 与冻结烧录文件校验通过；未烧录、未设备采样或实机回归。详见 ../docs/LEGACY_PAIR_ENTRY_REMOVAL_20260923.md。
+
+2026-09-23 配对后 Connecting 修复：SDK 默认 BLE SNV 与 journal bank B 共用 Data Flash 0x7000，TX 从维护切 RF 的 BLE_LibInit 可破坏网页刚保存的绑定。Common/include/CONFIG.h 与 HAL.h 包装头关闭专用 RF 固件不使用的 BLE SNV；保持双 bank/IAP/烧录布局不变。首次使用包装头必须完整重编译，最终 ELF 不得含 Lib_Read_Flash/Lib_Write_Flash 回调。RX build 0x1935。构建与定向测试已通过，已损坏绑定需更新两端后重新配对。见 ../docs/RF_BINDING_SNV_CONFLICT_20260923.md。
+
+2026-09-23 WebConfig USB 配对：产品默认固定 bond 开关改为 0；RX vendor HID 与 TX 维护角色提供独立配对记录事务，网页仅保存绑定，不启用 TX RF、不切换物理模式。bond v3 区分网页候选，RF 不得自动启用/提交它；旧 v2 保留读取。RX 提交后换地址撤销旧绑定，部分提交只能续作。三端构建、存储故障注入与网页测试通过，未烧录/实机验收。此条覆盖下文历史固定 bond 默认值。见 ../docs/WEBCONFIG_RX_BINDING_20260923.md。
+
 2026-09-22 v34：v33新日志276条仅16完整，辅助仍丢约464片/秒、主循环间隔max5.8ms；准备max95us无超125，但USB拥塞仍有丢弃，未通过8K总体验收。RX0x1934强制内联短包判断、fast逐包入口置RAM、辅助32位掩码避免libgcc Flash移位调用；辅助64槽/每批32可抢占单片步骤覆盖服务间隔。TX/STM32/空口不变。只编译/静态检查，新增协议对照测试只编译未运行，未采样/烧录。见 ../docs/RF_RX_AUX_THROUGHPUT_V34_20260922.md。
 
 2026-09-22 v33：v32用户实测RX约62us/接收7782Hz，但辅助仍丢约699项/秒。移除把RF/USB抢占算入的125us后台墙钟截止，改每批最多15个可抢占单分片步骤，RX0x1933。监视器后台仍是20:58旧进程，需完整退出再重开以加载已有续期/RXP1解析。仅构建/静态检查，未回归/采集/烧录，完整源记录及连续统计待验证。见 ../docs/RF_RX_AUX_V33_20260922.md。

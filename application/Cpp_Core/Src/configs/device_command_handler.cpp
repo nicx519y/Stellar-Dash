@@ -4,6 +4,7 @@
 #include "configs/calibration_command_handler.hpp"
 #include "configs/firmware_command_handler.hpp"
 #include "configs/common_command_handler.hpp"
+#include "configs/rf_binding_command_handler.hpp"
 #include <map>
 
 // ============================================================================
@@ -54,6 +55,11 @@ DeviceCommandResponse DeviceCommandDispatcher::processCommand(const DeviceComman
 }
 
 void DeviceCommandDispatcher::initializeHandlers() {
+    auto &binding=RfBindingCommandHandler::getInstance();
+    registerHandler("get_rf_binding", &binding);
+    registerHandler("prepare_rf_binding", &binding);
+    registerHandler("commit_rf_binding", &binding);
+    registerHandler("abort_rf_binding", &binding);
     // 获取处理器实例
     GlobalConfigCommandHandler& globalHandler = GlobalConfigCommandHandler::getInstance();
     ProfileCommandHandler& profileHandler = ProfileCommandHandler::getInstance();

@@ -2,7 +2,7 @@
 
 import { PROFILE_NAME_MAX_LENGTH } from "@/types/gamepad-config";
 import { useMemo, useState } from "react";
-import { Button, Card, HStack, VStack } from "@chakra-ui/react";
+import { Button, HStack, VStack } from "@chakra-ui/react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LoadingModal } from "@/components/ui/loading-modal";
 import {
@@ -17,7 +17,7 @@ import { openConfirm } from '@/components/dialog-confirm';
 import { openForm } from '@/components/dialog-form';
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from '@/contexts/language-context';
-import { useColorMode } from "./ui/color-mode";
+import { SettingSideCard } from './setting-side-card';
 
 export function ProfileSelect(
     props: {
@@ -28,7 +28,6 @@ export function ProfileSelect(
     const { profileList, switchProfile, createProfile, deleteProfile, updateProfileDetails, flushDeferredConfig } = useGamepadConfig();
     const { t } = useLanguage();
     const { disabled } = props;
-    const { colorMode } = useColorMode();
     const [pendingOperation, setPendingOperation] = useState<string | null>(null);
     const isDisabled = useMemo(() => {
         return disabled ?? false;
@@ -220,11 +219,17 @@ export function ProfileSelect(
     return (
         <>
         <LoadingModal isOpen={pendingOperation !== null} variant="operation" />
-        <Card.Root w="100%" minH="450px" >
-            <Card.Header >
-                <Card.Title fontSize={"md"} color={isDisabled ? "gray.500" :  colorMode === "dark" ? "white" : "black"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
-            </Card.Header>
-            <Card.Body>
+        <SettingSideCard title={t.PROFILE_SELECT_TITLE} disabled={isDisabled} footer={
+            <HStack w="100%" gap={1} justifyContent="flex-end">
+                {menuItems.map((item) => (
+                    <Tooltip key={item.value} content={item.label}>
+                        <IconButton w="32px" size="xs" variant="ghost" colorPalette="green" onClick={item.onClick} disabled={isDisabled || pendingOperation !== null}>
+                            {item.icon}
+                        </IconButton>
+                    </Tooltip>
+                ))}
+            </HStack>
+        }>
                 <VStack  gap={1} >
                     
                     {
@@ -251,21 +256,7 @@ export function ProfileSelect(
                         ))
                     }
                 </VStack>
-            </Card.Body>
-            <Card.Footer >
-                <HStack w="100%" gap={1} justifyContent={"flex-end"} >
-                    {
-                        menuItems.map((item) => (
-                            <Tooltip key={item.value} content={item.label} >
-                                <IconButton key={item.value} w="32px" size="xs" variant="ghost" colorPalette="green" onClick={item.onClick} disabled={isDisabled || pendingOperation !== null}  >
-                                    {item.icon}
-                                </IconButton>
-                            </Tooltip>
-                        ))
-                    }
-                </HStack>
-            </Card.Footer>
-        </Card.Root>
+        </SettingSideCard>
         </>
     )
 }

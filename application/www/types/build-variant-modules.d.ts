@@ -1,4 +1,5 @@
 declare module '@hbox/device-transport-runtime' {
+  export function getReceiverHid(): import('../lib/device-transport/rx-receiver-client').ReceiverHid | null;
   export const BUILD_DEVICE_TRANSPORT_MODE: 'webhid' | 'mock';
 
   export function createBuildDeviceCommandClient(

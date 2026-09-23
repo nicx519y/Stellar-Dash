@@ -92,6 +92,7 @@ int usb_subsystem_run(usb_board_role_t role)
 
     usb_auth_init();
     usb_management_control_init();
+    usb_management_control_set_role(role);
     usb_net_bridge_init();
     usb_net_bridge_set_sink(usb_subsystem_sink);
     usb_board_link_init(role);

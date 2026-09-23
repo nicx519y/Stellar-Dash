@@ -1,6 +1,9 @@
 import { DeviceScope, DeviceTransportError } from './types';
 
 const DEVICE_CONTROL_COMMANDS = new Set([
+  'prepare_rf_binding',
+  'commit_rf_binding',
+  'abort_rf_binding',
   'reboot',
   'exit_webconfig',
   'start_manual_calibration',

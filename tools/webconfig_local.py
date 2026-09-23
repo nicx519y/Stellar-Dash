@@ -1185,7 +1185,9 @@ def serve_local_webconfig(
             "LISTEN_HOST": "127.0.0.1",
             "DOMAIN_NAME": "localhost",
             "TRUST_PROXY_HOPS": "0",
-            "WEB_CONFIG_ORIGINS": f"http://localhost:{port}",
+            "WEB_CONFIG_ORIGINS": (
+                f"http://localhost:{port},http://127.0.0.1:{port}"
+            ),
             "USER_AUTH_ENABLED": "1",
             "USER_AUTH_LOCAL_PREVIEW": "1",
             "USER_AUTH_PUBLIC_ORIGIN": f"http://localhost:{port}",
@@ -1218,12 +1220,13 @@ def serve_local_webconfig(
         )
         print()
         print(f"WebConfig is ready: http://localhost:{port}")
+        print(f"Loopback alias: http://127.0.0.1:{port}")
         print(f"WebHID Trace is ready: http://localhost:{port}/webhid-trace/")
         if bypass_device_auth:
             print("WARNING: local device trust policy is BYPASSED (loopback only).")
             print("WebHID RPC payloads still use a temporary encrypted session.")
         print("Use Chrome or Edge, enter Web Config on the device screen, then click Connect.")
-        print("Keep both pages on the same localhost origin; the Trace page never opens HID.")
+        print("Keep WebConfig and Trace on the same origin (localhost or 127.0.0.1); the Trace page never opens HID.")
         print("Press Ctrl+C to stop the local server.")
         return process.wait()
     except KeyboardInterrupt:

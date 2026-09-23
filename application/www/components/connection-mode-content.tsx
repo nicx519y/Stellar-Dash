@@ -6,6 +6,7 @@ import { GlobalConfig, WirelessReportRate } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
 import { TitleLabel } from './ui/title-label';
 import { SettingDescription } from './ui/setting-description';
+import { RxReceiverSlot } from './rx-receiver-slot';
 
 const rateOptions: WirelessReportRate[] = [
     WirelessReportRate.RATE_1K,
@@ -63,43 +64,48 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
         <VStack align="stretch" gap={7} maxW="640px">
             <SettingDescription text={t.SETTINGS_BASIC_HELPER_TEXT} fontSize="14px" />
 
-            <TitleLabel title={t.CONNECTION_MODE_TITLE} />
+            <VStack as="section" aria-label={t.CONNECTION_MODE_TITLE} align="stretch" gap={6}>
+                <TitleLabel title={t.CONNECTION_MODE_TITLE} />
 
-            <VStack align="stretch" gap={3}>
-                <HStack justifyContent="space-between">
-                    <Text fontSize="xs" color="fg.muted">{t.CONNECTION_MODE_REPORT_RATE_LABEL}</Text>
-                    <Text fontSize="xs" color="fg.muted">{rate}</Text>
-                </HStack>
-                <Text fontSize="2xs" lineHeight="1.2" color="fg.subtle">
-                    {t.CONNECTION_MODE_REPORT_RATE_HELPER}
-                </Text>
-                <Slider.Root
-                    size="sm"
-                    min={0}
-                    max={rateOptions.length - 1}
-                    step={1}
-                    colorPalette="green"
-                    disabled={props.disabled}
-                    value={[rateIndex]}
-                    onValueChange={(detail) => {
-                        void onRateChange(detail.value[0]).catch(() => undefined);
-                    }}
-                >
-                    <Slider.Control>
-                        <Slider.Track>
-                            <Slider.Range />
-                        </Slider.Track>
-                        <Slider.Thumb index={0}>
-                            <Slider.HiddenInput />
-                        </Slider.Thumb>
-                        <Slider.Marks
-                            marks={rateOptions.map((item, index) => ({
-                                value: index,
-                                label: item,
-                            }))}
-                        />
-                    </Slider.Control>
-                </Slider.Root>
+                <RxReceiverSlot disabled={props.disabled} />
+
+                <VStack align="stretch" gap={3}>
+                    <HStack justifyContent="space-between">
+                        <Text fontSize="xs" color="fg.muted">{t.CONNECTION_MODE_REPORT_RATE_LABEL}</Text>
+                        <Text fontSize="xs" color="fg.muted">{rate}</Text>
+                    </HStack>
+                    <Text fontSize="2xs" lineHeight="1.2" color="fg.subtle">
+                        {t.CONNECTION_MODE_REPORT_RATE_HELPER}
+                    </Text>
+                    <Slider.Root
+                        size="sm"
+                        min={0}
+                        max={rateOptions.length - 1}
+                        step={1}
+                        colorPalette="green"
+                        disabled={props.disabled}
+                        value={[rateIndex]}
+                        onValueChange={(detail) => {
+                            void onRateChange(detail.value[0]).catch(() => undefined);
+                        }}
+                    >
+                        <Slider.Control>
+                            <Slider.Track>
+                                <Slider.Range />
+                            </Slider.Track>
+                            <Slider.Thumb index={0}>
+                                <Slider.HiddenInput />
+                            </Slider.Thumb>
+                            <Slider.Marks
+                                marks={rateOptions.map((item, index) => ({
+                                    value: index,
+                                    label: item,
+                                }))}
+                            />
+                        </Slider.Control>
+                    </Slider.Root>
+                </VStack>
+
             </VStack>
 
             <TitleLabel title={t.POWER_TITLE} />

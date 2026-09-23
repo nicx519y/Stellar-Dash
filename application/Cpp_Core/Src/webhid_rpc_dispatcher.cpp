@@ -154,6 +154,7 @@ void WebHidRpcDispatcher::clearSerializedResponse()
 uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
 {
     static const char *const configRead[] = {
+        "get_rf_binding",
         "get_global_config",
         "get_hotkeys_config",
         "get_screen_control_config",
@@ -211,6 +212,9 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "performance.clock-sync",
     };
     static const char *const deviceControl[] = {
+        "prepare_rf_binding",
+        "commit_rf_binding",
+        "abort_rf_binding",
         "reboot",
         "exit_webconfig",
         "start_manual_calibration",

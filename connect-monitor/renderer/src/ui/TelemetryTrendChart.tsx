@@ -11,7 +11,7 @@ type ChartPoint = [number, number | null];
 type EventPoint = [number, number, ChannelSwitchRow];
 
 const CHANNEL_EVENT_LIMIT = 80;
-const DEFAULT_WINDOW_MS = 5000;
+const DEFAULT_WINDOW_MS = 20_000;
 const MIN_WINDOW_MS = 3000;
 const FOLLOW_RIGHT_TOLERANCE_MS = 1200;
 const TELEMETRY_GAP_MS = 1600;

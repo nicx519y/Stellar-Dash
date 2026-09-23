@@ -655,8 +655,8 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   return <>
     <VStack width="full" gap="2">
       <Box
-        width={`${DEVICE_SCREEN_WIDTH / displayPixelRatio}px`}
-        height={`${DEVICE_SCREEN_HEIGHT / displayPixelRatio}px`}
+        width={`${DEVICE_SCREEN_WIDTH * (2 / 3) / displayPixelRatio}px`}
+        height={`${DEVICE_SCREEN_HEIGHT * (2 / 3) / displayPixelRatio}px`}
         boxSizing="content-box"
         borderWidth="2px"
         borderColor="gray.600"
@@ -673,7 +673,6 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
         {currentPreview ? <Image src={currentPreview} alt={currentName} width="100%" height="100%" maxWidth="none" objectFit="cover" objectPosition="center" display="block" /> : <Flex width="100%" height="100%" align="center" justify="center"><LuImagePlus size="32" /></Flex>}
         {installingId && <Flex position="absolute" inset="0" bg="blackAlpha.700" align="center" justify="center" direction="column"><Spinner /><Text fontSize="xs" mt="2">{copy.uploading} {deviceProgress ?? 0}%</Text></Flex>}
       </Box>
-      {currentPreview && <Text fontSize="xs" color="gray.400">{currentName}</Text>}
     </VStack>
     <Dialog.Root open={open} onOpenChange={details => setOpen(details.open)} size="xl">
       <Dialog.Backdrop backdropFilter="blur(4px)" />

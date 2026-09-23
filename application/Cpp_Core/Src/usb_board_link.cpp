@@ -757,7 +757,8 @@ bool UsbBoardLink::sendControl(usb_board_control_opcode_t opcode,
                                uint8_t length,
                                uint8_t *responseData,
                                uint8_t responseCapacity,
-                               uint8_t *responseDataLength)
+                               uint8_t *responseDataLength,
+                               uint8_t *remoteStatus)
 {
     usb_board_control_request_v1_t request = {};
     usb_board_control_response_v1_t response = {};
@@ -782,7 +783,7 @@ bool UsbBoardLink::sendControl(usb_board_control_opcode_t opcode,
         memcpy(request.data, payload, length);
     }
 
-    if (!transact(USB_BOARD_CMD_USB_CONTROL,
+    const bool received = transact(USB_BOARD_CMD_USB_CONTROL,
                   &request,
                   static_cast<uint8_t>(USB_BOARD_CONTROL_HEADER_BYTES +
                                        length),
@@ -790,7 +791,13 @@ bool UsbBoardLink::sendControl(usb_board_control_opcode_t opcode,
                   &response,
                   sizeof(response),
                   &responseLength,
-                  kControlTimeoutMs) ||
+                  opcode == USB_BOARD_CONTROL_RF_BINDING ? 2000u : kControlTimeoutMs);
+    if (remoteStatus != nullptr) {
+        *remoteStatus = received && responseLength >= USB_BOARD_CONTROL_HEADER_BYTES &&
+            response.header.opcode == static_cast<uint8_t>(opcode) &&
+            response.header.transaction == transaction ? response.header.status : USB_BOARD_STATUS_NOT_READY;
+    }
+    if (!received ||
         (responseLength < USB_BOARD_CONTROL_HEADER_BYTES) ||
         (response.header.opcode != static_cast<uint8_t>(opcode)) ||
         (response.header.transaction != transaction) ||

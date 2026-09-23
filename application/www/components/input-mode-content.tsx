@@ -2,12 +2,13 @@
 
 import { PlatformLabelMap, Platform, ConnectionMode, platformForDisplay } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { Card, Center, Icon, RadioCard, VStack } from '@chakra-ui/react';
+import { Center, Icon, RadioCard, VStack } from '@chakra-ui/react';
 import { useEffect } from 'react';
 import { BsXbox } from "react-icons/bs";
 import { FaWindows } from "react-icons/fa";
 import { SiNintendoswitch, SiPlaystation4, SiPlaystation5   } from "react-icons/si";
 import { useLanguage } from '@/contexts/language-context';
+import { SettingSideCard } from './setting-side-card';
 
 
 export function InputModeSettingContent(props: {
@@ -45,11 +46,7 @@ export function InputModeSettingContent(props: {
     }
 
     return (
-        <Card.Root w="100%" h="100%" size="sm" >
-            <Card.Header >
-                <Card.Title fontSize={"md"} >{t.INPUT_MODE_TITLE}</Card.Title>
-            </Card.Header>
-            <Card.Body>
+        <SettingSideCard title={t.INPUT_MODE_TITLE} disabled={props.disabled}>
             <RadioCard.Root 
                 value={displayedInputMode}
                 orientation="horizontal"
@@ -80,8 +77,7 @@ export function InputModeSettingContent(props: {
                     ))}
                 </VStack>
             </RadioCard.Root>
-            </Card.Body>
-        </Card.Root>
+        </SettingSideCard>
     );
 }
 

@@ -72,9 +72,8 @@
 #define RFH_CONNECT_FINAL_WAIT_MS      1000u
 
 #ifndef RFH_TEST_FIXED_BOND_ENABLE
-/* Current bench-debug default: TX and RX must boot with the same bond.
- * Override with -DRFH_TEST_FIXED_BOND_ENABLE=0 for real pairing builds. */
-#define RFH_TEST_FIXED_BOND_ENABLE     1u
+/* Product default uses persistent bonds. Explicit bench-debug override: =1. */
+#define RFH_TEST_FIXED_BOND_ENABLE     0u
 #endif
 
 /*

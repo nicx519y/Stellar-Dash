@@ -23,6 +23,7 @@ import {
 } from '../../types/gamepad-config';
 import { switchMappingSha256 } from '../../types/adc';
 import { crc32 } from '../crc32';
+import { MockBindingStore, MockBindingState } from './mock-rf-binding';
 import type { ADCValuesMapping, StepInfo, SwitchMappingPayload } from '../../types/adc';
 import type { CalibrationStatus, FirmwareMetadata } from '../../types/types';
 import {
@@ -86,6 +87,7 @@ interface PersistedImage extends Omit<MockImage, 'data'> {
 }
 
 interface PersistedMockState {
+  rfBinding?: MockBindingState;
   version: typeof MOCK_STATE_VERSION;
   globalConfig: typeof DEFAULT_GLOBAL_CONFIG;
   screenControl: ScreenControlConfig;
@@ -214,6 +216,7 @@ export class MockDeviceTransport implements DeviceTransport {
   private profiles = [makeProfile('profile-arcade', 'Arcade', false), makeProfile('profile-tournament', 'Tournament', true)];
   private defaultProfileId = this.profiles[0].id;
   private globalConfig = clone(DEFAULT_GLOBAL_CONFIG);
+  private rfBinding = new MockBindingStore(0x54580001);
   private screenControl: ScreenControlConfig = {
     ...clone(DEFAULT_SCREEN_CONTROL_CONFIG),
     brightness: 72,
@@ -645,6 +648,17 @@ export class MockDeviceTransport implements DeviceTransport {
       );
     }
     switch (command) {
+      case 'get_rf_binding':
+        return this.rfBinding.request(params.pending ? 2 : 1);
+      case 'prepare_rf_binding':
+      case 'commit_rf_binding':
+      case 'abort_rf_binding': {
+        if (this.calibrationActive || this.firmwareSessions.size || this.activeImageTransferId !== null)
+          throw new DeviceTransportError('protocol', 'BINDING_BUSY');
+        const op = command === 'prepare_rf_binding' ? 3 : command === 'commit_rf_binding' ? 4 : 5;
+        const result = this.rfBinding.request(op, params);
+        this.persistState(); return result;
+      }
       case 'ping':
         return { pong: true, timestamp: Date.now() };
       case 'binary.exchange': {
@@ -1598,6 +1612,7 @@ export class MockDeviceTransport implements DeviceTransport {
 
   private captureState(): PersistedMockState {
     return {
+      rfBinding: clone(this.rfBinding.state),
       version: MOCK_STATE_VERSION,
       globalConfig: clone(this.globalConfig),
       screenControl: clone(this.screenControl),
@@ -1616,6 +1631,7 @@ export class MockDeviceTransport implements DeviceTransport {
   }
 
   private applyState(state: PersistedMockState): void {
+    if (state.rfBinding) this.rfBinding.state = clone(state.rfBinding);
     if (!Array.isArray(state.profiles) || state.profiles.length === 0) {
       throw new DeviceTransportError('protocol', 'Persisted mock state has no profiles');
     }

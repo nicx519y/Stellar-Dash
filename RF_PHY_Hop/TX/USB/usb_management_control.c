@@ -3,9 +3,16 @@
 #include <string.h>
 
 #include "usb_auth.h"
+#include "rf_binding_protocol.h"
 
 static uint8_t s_connected;
 static uint8_t s_last_fault;
+static usb_board_role_t s_binding_role;
+void usb_management_control_set_role(usb_board_role_t role){s_binding_role=role;}
+__attribute__((weak)) void usb_management_control_hw_rf_binding(const uint8_t *request,uint8_t *response)
+{
+    rfb_response_init(response,request,RFB_UNSUPPORTED);rfb_response_finish(response);
+}
 
 static void make_response(usb_board_control_response_v1_t *response,
                           uint8_t opcode,
@@ -29,6 +36,7 @@ static usb_board_status_t validate_no_data(
 void usb_management_control_init(void)
 {
     s_connected = 0u;
+    s_binding_role = USB_BOARD_ROLE_NONE;
     s_last_fault = USB_BOARD_STATUS_OK;
 }
 
@@ -73,6 +81,14 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
     {
         switch((usb_board_control_opcode_t)request.header.opcode)
         {
+        case USB_BOARD_CONTROL_RF_BINDING:
+            if(s_binding_role!=USB_BOARD_ROLE_MAINTENANCE)status=USB_BOARD_STATUS_BAD_ROLE;
+            else if(request.header.data_length!=RFB_REQUEST_SIZE)status=USB_BOARD_STATUS_BAD_LENGTH;
+            else {
+                usb_management_control_hw_rf_binding(request.data,response.data);
+                response.header.data_length=RFB_RESPONSE_SIZE;
+            }
+            break;
         case USB_BOARD_CONTROL_CONNECT:
             status = validate_no_data(&request);
             if(status == USB_BOARD_STATUS_OK)

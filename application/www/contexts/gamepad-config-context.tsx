@@ -111,7 +111,12 @@ const EXIT_WEB_CONFIG_TIMEOUT_MS = 8_000;
 
 export type DeviceTransportConfigType = DeviceTransportConfig;
 
+import { BindingArgs, BindingSnapshot, checkBinding } from '@/lib/device-transport/rf-binding';
+
 interface GamepadConfigContextType {
+    rfBindingBusy: boolean;
+    rfBindingRequest: (op: number, args?: BindingArgs) => Promise<BindingSnapshot>;
+    runRfBindingOperation: <T,>(action: () => Promise<T>) => Promise<T>;
     contextJsReady: boolean;
     setContextJsReady: (ready: boolean) => void;
 
@@ -426,6 +431,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [profileList, setProfileList] = useState<GameProfileList>({ defaultId: "", maxNumProfiles: 0, items: [] });
     const [defaultProfile, setDefaultProfile] = useState<GameProfile>({ id: "", name: "" });
     const [operationLoading, setIsLoading] = useState(false);
+    const [rfBindingBusy, setRfBindingBusy] = useState(false);
+    const rfBindingBusyRef = useRef(false);
+    const rfBindingConnectionEpoch = useRef(0);
+    const rfBindingOwnerRef = useRef<{ client: DeviceCommandClient; epoch: number } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [hotkeysConfig, setHotkeysConfig] = useState<Hotkey[]>([]);
     const [jsReady, setJsReady] = useState(false);
@@ -471,7 +480,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const connectionLoading = devicePhase !== DeviceConnectionPhase.IDLE
         && devicePhase !== DeviceConnectionPhase.READY
         && devicePhase !== DeviceConnectionPhase.ERROR;
-    const isLoading = connectionLoading || operationLoading;
+    const isLoading = connectionLoading || operationLoading || rfBindingBusy;
 
     const [dataIsReady, setDataIsReady] = useState(false);
     const [userRebooting, setUserRebooting] = useState(false); // 是否是用户手动重启
@@ -608,6 +617,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         deviceClientRef.current = client;
 
         const unsubscribeState = client.onStateChange((state) => {
+            if (state !== DeviceTransportState.CONNECTED) rfBindingConnectionEpoch.current++;
             setDeviceState(state);
             setDeviceConnected(state === DeviceTransportState.CONNECTED);
             setDeviceSession(
@@ -933,7 +943,28 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         options?: DeviceRequestOptions,
     ) => Promise<any>;
 
+    const rfBindingRequest = useCallback(async (op: number, args: BindingArgs = {}): Promise<BindingSnapshot> => {
+        const client = deviceClientRef.current;
+        if (!client || client.getState() !== DeviceTransportState.CONNECTED) throw new Error('BINDING_DISCONNECTED');
+        const owner = rfBindingOwnerRef.current;
+        if (owner && (owner.client !== client || owner.epoch !== rfBindingConnectionEpoch.current)) throw new Error('BINDING_DISCONNECTED');
+        const commands = ['', 'get_rf_binding', 'get_rf_binding', 'prepare_rf_binding', 'commit_rf_binding', 'abort_rf_binding'];
+        if (!commands[op]) throw new Error('BINDING_INVALID');
+        const reply = await client.enqueue(commands[op], { ...args, pending: op === 2 }, true);
+        return checkBinding(reply);
+    }, []);
+    const runRfBindingOperation = async <T,>(action: () => Promise<T>): Promise<T> => {
+        if (rfBindingBusyRef.current || operationLoading || deferredConfigSaving) throw new Error('BINDING_BUSY');
+        const client = deviceClientRef.current;
+        if (!client || client.getState() !== DeviceTransportState.CONNECTED) throw new Error('BINDING_DISCONNECTED');
+        rfBindingOwnerRef.current = { client, epoch: rfBindingConnectionEpoch.current };
+        rfBindingBusyRef.current = true; setRfBindingBusy(true);
+        try { return await action(); }
+        finally { rfBindingOwnerRef.current = null; rfBindingBusyRef.current = false; setRfBindingBusy(false); }
+    };
+
     const sendDeviceRequest: DeviceRequestSender = async (command, params = {}, immediate = false, options = {}) => {
+        if (rfBindingBusyRef.current && !command.startsWith('get_')) throw new Error('BINDING_BUSY');
         if (!deviceClient) {
             return Promise.reject(new Error('设备命令客户端未初始化'));
         }
@@ -3132,6 +3163,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setContextJsReady,
 
             // WebHID connection state
+            rfBindingBusy, rfBindingRequest, runRfBindingOperation,
             deviceConnected,
             showReconnect,
             deviceState,

@@ -455,11 +455,40 @@ static void test_management_control_boundaries(void)
     assert(response.header.status == USB_BOARD_STATUS_UNSUPPORTED);
 }
 
+static void test_binding_maintenance_gate(void)
+{
+    usb_board_control_request_v1_t request;
+    usb_board_control_response_v1_t response;
+    uint8_t length;
+    memset(&request,0,sizeof(request));
+    request.header.opcode=USB_BOARD_CONTROL_RF_BINDING;
+    request.header.data_length=32u;
+    usb_management_control_init();
+    for(unsigned role=0;role<3;role++) {
+        usb_management_control_set_role((usb_board_role_t)role);
+        assert(usb_management_control_handle((const uint8_t *)&request,
+            USB_BOARD_CONTROL_HEADER_BYTES+32u,(uint8_t *)&response,sizeof(response),&length));
+        assert(response.header.status==USB_BOARD_STATUS_BAD_ROLE);
+    }
+    usb_management_control_set_role(USB_BOARD_ROLE_MAINTENANCE);
+    request.header.data_length=31u;
+    assert(usb_management_control_handle((const uint8_t *)&request,
+        USB_BOARD_CONTROL_HEADER_BYTES+31u,(uint8_t *)&response,sizeof(response),&length));
+    assert(response.header.status==USB_BOARD_STATUS_BAD_LENGTH);
+    request.header.data_length=32u;
+    assert(usb_management_control_handle((const uint8_t *)&request,
+        USB_BOARD_CONTROL_HEADER_BYTES+32u,(uint8_t *)&response,sizeof(response),&length));
+    assert(response.header.status==USB_BOARD_STATUS_OK);
+    assert(response.header.data_length==48u);
+    assert(response.data[8]==4u); /* host's weak backend says unsupported */
+}
+
 int main(void)
 {
     test_descriptors_and_control();
     test_ntb_round_trip();
     test_management_control();
     test_management_control_boundaries();
+    test_binding_maintenance_gate();
     return 0;
 }

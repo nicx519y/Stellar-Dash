@@ -657,7 +657,8 @@ static bool execute_control_action(uint8_t cmd, const uint8_t *args, uint8_t arg
         return false;
 
     case SPI_CMD_START_PAIR:
-        return (args_len == 0u) ? RF_StartPairing() : false;
+        /* Pairing is now a USB maintenance transaction in WebConfig. */
+        return false;
 
     case SPI_CMD_STOP_PAIR:
         return (args_len == 0u) ? RF_StopPairing() : false;
@@ -824,14 +825,7 @@ static void execute_pending_control_command(void)
         break;
 
     case SPI_CMD_START_PAIR:
-        if(RF_StartPairing())
-        {
-            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 0u);
-        }
-        else
-        {
-            (void)send_error_event(cmd, txn, 2u, 0u);
-        }
+        (void)send_error_event(cmd, txn, 3u, 0u);
         break;
 
     case SPI_CMD_STOP_PAIR:
@@ -948,13 +942,8 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
         (void)send_error_event(cmd, txn, 1u, 1u);
         break;
     case SPI_CMD_START_PAIR:
-        if(args_len == 0u)
-        {
-            save_pending_control_command(cmd, txn, args, args_len);
-            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u);
-            break;
-        }
-        (void)send_error_event(cmd, txn, 1u, 1u);
+        /* Retain the command number so older hosts receive an error. */
+        (void)send_error_event(cmd, txn, 3u, 1u);
         break;
     case SPI_CMD_STOP_PAIR:
         if(args_len == 0u)

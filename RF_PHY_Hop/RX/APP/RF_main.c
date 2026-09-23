@@ -42,9 +42,6 @@ void RF_USB_CompositeInit(void);
 #define RX_LED_IDLE_LONG_TOGGLE_MS 800u
 #define RX_LED_IDLE_SHORT_TOGGLE_MS 150u
 #define RX_LED_COMM_PATTERN_STEPS 4u
-#define RX_PAIR_BUTTON_PIN       GPIO_Pin_22
-#define RX_PAIR_BUTTON_DEBOUNCE_MS 30u
-#define RX_PAIR_BUTTON_HOLD_MS   5000u
 /*********************************************************************
  * GLOBAL TYPEDEFS
  */
@@ -191,68 +188,6 @@ static void RX_MainLogStats(void)
 #endif
 }
 
-static void RX_PairButtonInit(void)
-{
-    GPIOB_ModeCfg(RX_PAIR_BUTTON_PIN, GPIO_ModeIN_PU);
-}
-
-static void RX_PairButtonService(uint8_t rf_ready)
-{
-    static uint8_t low_seen = FALSE;
-    static uint8_t low_stable = FALSE;
-    static uint8_t fired = FALSE;
-    static uint32_t low_start_clock = 0u;
-    static uint32_t hold_start_clock = 0u;
-    uint32_t now;
-    uint8_t is_low;
-
-    if(rf_ready == FALSE)
-    {
-        low_seen = FALSE;
-        low_stable = FALSE;
-        fired = FALSE;
-        return;
-    }
-
-    now = RF_LinkClockNow();
-    is_low = (GPIOB_ReadPortPin(RX_PAIR_BUTTON_PIN) == 0u) ? TRUE : FALSE;
-    if(is_low == FALSE)
-    {
-        low_seen = FALSE;
-        low_stable = FALSE;
-        fired = FALSE;
-        return;
-    }
-
-    if(low_seen == FALSE)
-    {
-        low_seen = TRUE;
-        low_stable = FALSE;
-        fired = FALSE;
-        low_start_clock = now;
-        return;
-    }
-
-    if(low_stable == FALSE)
-    {
-        if((uint32_t)(now - low_start_clock) >=
-           MS1_TO_SYSTEM_TIME(RX_PAIR_BUTTON_DEBOUNCE_MS))
-        {
-            low_stable = TRUE;
-            hold_start_clock = now;
-        }
-        return;
-    }
-
-    if((fired == FALSE) &&
-       ((uint32_t)(now - hold_start_clock) >=
-        MS1_TO_SYSTEM_TIME(RX_PAIR_BUTTON_HOLD_MS)))
-    {
-        fired = TRUE;
-        (void)RF_StartPairing();
-    }
-}
-
 /*********************************************************************
  * @fn      Main_Circulation
  *
@@ -289,7 +224,6 @@ void Main_Circulation()
         TMOS_SystemProcess();
         }
         RF_Service();
-        RX_PairButtonService(rf_init_done);
         RX_MainFlushLog();
 
         if(rf_init_deadline == 0u)
@@ -579,7 +513,6 @@ int main(void)
 
     CH58x_BLEInit();
     HAL_Init();
-    RX_PairButtonInit();
     RF_RoleInit();
     RF_USB_CompositeInit();
     Main_Circulation();

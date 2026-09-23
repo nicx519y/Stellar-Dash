@@ -174,7 +174,8 @@ typedef enum
      * WebConfig credit. Unlike EVT_BULK_CREDIT, a lost response can be safely
      * retried without replaying an uncorrelated absolute grant.
      */
-    USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT = 0x07u
+    USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT = 0x07u,
+    USB_BOARD_CONTROL_RF_BINDING = 0x08u
 } usb_board_control_opcode_t;
 
 typedef enum

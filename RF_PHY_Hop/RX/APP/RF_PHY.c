@@ -14,6 +14,7 @@
 #include "rf_pairing_protocol.h"
 #include "rf_hop_bond.h"
 #include "rf_hop_bond_journal.h"
+#include "rf_binding_store.h"
 #include "rf_hop_score.h"
 #include "rf_monitor_control.h"
 #include "dongle_config.h"
@@ -686,7 +687,7 @@ static void demo_load_bond(void)
     {
         demo_select_unpaired_address();
     }
-    if(g_demo_bond_store.has_pending != 0u)
+    if(g_demo_bond_store.has_pending != 0u && !rfb_is_web(&g_demo_bond_store.pending))
     {
         /* A prepared candidate survives reset and participates in dual-address
          * recovery.  It is not made active until candidate CONNECT arrives. */
@@ -740,6 +741,7 @@ static uint8_t demo_prepare_bond(uint32_t link_access_address,
 
 static uint8_t demo_commit_prepared_bond(void)
 {
+    if(g_demo_bond_store.has_pending && rfb_is_web(&g_demo_bond_store.pending)) return 0;
 #if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
     g_demo_pair_candidate_pending = 0u;
     return 1u;
@@ -766,6 +768,7 @@ static uint8_t demo_commit_prepared_bond(void)
 
 static uint8_t demo_abort_prepared_bond(void)
 {
+    if(g_demo_bond_store.has_pending && rfb_is_web(&g_demo_bond_store.pending)) return 0;
 #if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
     g_demo_pair_candidate_pending = 0u;
     return 1u;
@@ -902,8 +905,22 @@ uint8_t RF_IsTelemetryEnabled(void)
     return (g_monitor_hid_enabled != 0u) ? 1u : 0u;
 }
 
+/* One bounded provisioning mailbox. The ISR only copies requests. */
+static volatile uint8_t binding_mailbox;
+static uint8_t binding_request[RFB_REQUEST_SIZE], binding_response[RFB_RESPONSE_SIZE];
+static uint8_t binding_page;
+static uint32_t binding_reply_at;
+static uint8_t binding_receive(const uint8_t *p, uint16_t len)
+{
+    if(len==33u && p[0]==0u){++p;--len;}
+    if(len!=RFB_REQUEST_SIZE || rfb_u32(p)!=RFB_REQUEST_MAGIC)return 0;
+    if(!binding_mailbox){memcpy(binding_request,p,RFB_REQUEST_SIZE);__asm__ volatile("" ::: "memory");binding_mailbox=1u;}
+    return 1u;
+}
+
 uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
 {
+    if(report && binding_receive(report,len))return 1u;
     uint32_t magic;
     uint32_t flags;
     uint16_t period_ms;
@@ -3504,8 +3521,36 @@ static uint8_t demo_housekeeping_due(uint32_t now)
     return 1u;
 }
 
+static void binding_service(void)
+{
+    if(binding_mailbox==2u && (!USBHS_DevEnumStatus ||
+       (uint32_t)(RF_LinkClockUs()-binding_reply_at)>3000000u))binding_mailbox=0u;
+    if(binding_mailbox!=1u)return;
+    __asm__ volatile("" ::: "memory");
+    uint8_t mutate=binding_request[5]>=RFB_PREPARE && rfb_request_valid(binding_request);
+    if(demo_pair_is_active()) {
+        rfb_response_init(binding_response,binding_request,RFB_BUSY);
+        rfb_response_finish(binding_response);
+    } else {
+        if(mutate) {
+            demo_cancel_ack();rfc_radio_cancel();rfc_manager_cancel(&g_channel);
+            (void)RFRole_Stop();g_demo_rx_active=0u;g_demo_radio_generation++;
+            demo_queue_neutral_xinput_report(1u);
+        }
+        rfb_store_request(&g_demo_bond_backend,g_demo_local_id_hash,1u,binding_request,binding_response);
+        if(mutate) {
+            g_demo_pair_candidate_pending=0u;
+            demo_load_bond();
+            (void)demo_apply_access_address(g_demo_link_access_address);
+            demo_enter_rx_unconnected(RF_LinkClockNow());
+        }
+    }
+    binding_page=0u;binding_reply_at=RF_LinkClockUs();__asm__ volatile("" ::: "memory");binding_mailbox=2u;
+}
+
 void RF_Service(void)
 {
+    binding_service();
     static uint32_t service_at;uint32_t profile_now=SysTick->CNT;
     RXP_Enable(g_monitor_hid_enabled);
     if(service_at)RXP_Time(RT_SERVICE_GAP,profile_now-service_at,0,0);
@@ -3667,48 +3712,6 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         return (events ^ SYS_EVENT_MSG);
     }
     return 0u;
-}
-
-uint8_t RF_StartPairing(void)
-{
-    uint32_t now = RF_LinkClockNow();
-
-    if(g_demo_config_ret != SUCCESS)
-    {
-        return 0u;
-    }
-    if(demo_pair_is_active() != 0u)
-    {
-        return 1u;
-    }
-
-    rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;g_fast_test_pending=g_fast_status_valid=0;g_metrics_stage_mask=g_metrics_usb_pending=0;
-    demo_queue_neutral_xinput_report(1u);
-    g_demo_link_active = 0u;
-    g_demo_pair_tx_active = 0u;
-    g_demo_pair_after_tx_action = 0u;
-    g_demo_pair_scan_side = 0u;
-    g_demo_pair_scan_clock = now;
-    g_demo_pair_deadline_clock =
-        now + MS1_TO_SYSTEM_TIME(RFH_PAIR_WINDOW_MS);
-    g_demo_pair_confirm_deadline_clock = 0u;
-    g_demo_pair_session = 0u;
-    g_demo_pair_tx_id_hash = 0u;
-    g_demo_pair_rx_id_hash = g_demo_local_id_hash;
-    g_demo_pair_link_access_address = 0u;
-    g_demo_pair_done_confirm32 = 0u;
-    g_demo_pair_done_repeat_left = 0u;
-    g_demo_pair_done_retry_clock = 0u;
-    g_demo_have_ack_token = 0u;
-    g_demo_pending_ack_cmd = RFH_CMD_NONE;
-    g_demo_after_ack_action = 0u;
-    g_demo_ack_pending = 0u;
-    demo_ack_timer_cancel();
-    g_demo_rx_state = RF_AUTO_RX_PAIRING;
-    (void)demo_apply_access_address(RFH_PAIR_ACCESS_ADDRESS);
-    demo_set_channel(RFH_PAIR_CHANNEL_A);
-    demo_arm_rx();
-    return 1u;
 }
 
 uint8_t RF_StopPairing(void)
@@ -4234,7 +4237,7 @@ static uint8_t demo_try_send_diagnostic(void)
         demo_put_u32(&report[24], g_demo_ack_watchdog);
         report[28] = g_demo_rx_pending_max_water;
         report[29] = demo_rx_pending_water(g_demo_rx_pending_head, g_demo_rx_pending_tail);
-        demo_put_u16(&report[30], 0x1934u); /* RX hot-path and auxiliary service throughput. */
+        demo_put_u16(&report[30], 0x1935u); /* RF binding banks protected from SDK BLE SNV. */
     } else if(g_demo_diag_page == 1u) {
         demo_put_u32(&report[12], g_demo_ack_late);
         demo_put_u32(&report[16], g_demo_ack_duplicate);
@@ -4326,8 +4329,21 @@ static uint8_t fast_send_diagnostic(void){
     if(!demo_submit_hid_report(report))return 0;
     rff_log_commit(&e);return 1;
 }
+static uint8_t binding_send_reply(void)
+{
+    uint8_t report[32]={0};
+    if(binding_mailbox!=2u)return 0u;
+    rfb_put(report,RFB_PAGE_MAGIC);report[4]=binding_request[6];report[5]=binding_request[7];
+    report[6]=binding_page;report[7]=RFB_VERSION;
+    memcpy(report+8,binding_response+24u*binding_page,24u);
+    if(!demo_submit_hid_report(report))return 0u;
+    if(++binding_page==2u)binding_mailbox=0u;
+    return 1u;
+}
+
 uint8_t RF_TrySendTraceReport(void)
 {
+    if(binding_send_reply())return 1u;
     RXP_SCOPE(trace_scope,RT_BACKGROUND,0);
     static uint32_t input_at, score_at, rssi_at;
     uint32_t now = RF_LinkClockNow();
@@ -4422,6 +4438,7 @@ uint8_t RF_TrySendTraceReport(void)
 
 uint8_t RF_TrySendTelemetryReport(void)
 {
+    if(binding_send_reply())return 0u;
     RXP_SCOPE(telemetry_scope,RT_BACKGROUND,0);
     uint8_t report[HID_ENDPOINT_SIZE];
     uint32_t window_clock = RF_LinkClockNow();

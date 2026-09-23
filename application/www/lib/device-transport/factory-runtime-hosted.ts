@@ -5,6 +5,7 @@ import { createBrowserWebHidDeviceLease } from './device-lease';
 import { WebHidTransport } from './webhid-transport';
 
 export const BUILD_DEVICE_TRANSPORT_MODE = 'webhid' as const;
+export { receiverHid as getReceiverHid } from './rx-receiver-client';
 
 export function createBuildDeviceCommandClient(
   config: DeviceTransportConfig,

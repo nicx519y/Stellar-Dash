@@ -5,6 +5,9 @@
 /www/.next
 /www/node_modules
 /www/next-env.d.ts
+application/www/.next*
+.playwright-cli/
+output/playwright/
 
 # 日志
 *.log

@@ -31,7 +31,6 @@ typedef enum
 
 extern void RF_Init(void);
 extern void RF_Service(void);
-extern uint8_t RF_StartPairing(void);
 extern uint8_t RF_StopPairing(void);
 extern uint8_t RF_IsPairingActive(void);
 extern rf_indicator_mode_t RF_GetIndicatorMode(void);

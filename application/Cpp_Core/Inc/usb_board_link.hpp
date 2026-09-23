@@ -35,7 +35,8 @@ public:
                      uint8_t length = 0u,
                      uint8_t *response = nullptr,
                      uint8_t responseCapacity = 0u,
-                     uint8_t *responseLength = nullptr);
+                     uint8_t *responseLength = nullptr,
+                     uint8_t *remoteStatus = nullptr);
     bool sendBulk(usb_board_channel_t channel,
                   uint8_t transaction,
                   const uint8_t *payload,

@@ -154,13 +154,20 @@ static inline uint8_t rfh_bond_journal_load(
     uint8_t pending_bank = 0u;
     rfh_bond_record_t legacy;
 
-    if((backend == 0) || (state == 0))
+    if((backend == 0) || (backend->read == 0) || (state == 0))
     {
         return 0u;
     }
     memset(state, 0, sizeof(*state));
-    valid[0] = rfh_bond_journal_read_entry(backend, 0u, &entries[0]);
-    valid[1] = rfh_bond_journal_read_entry(backend, 1u, &entries[1]);
+    /* An I/O failure is not an empty bank. In particular, do not select the
+     * unreadable committed bank as the target of a subsequent prepare. */
+    for(i = 0u; i < 2u; ++i)
+    {
+        if(backend->read(rfh_bond_journal_bank_address(i), &entries[i], sizeof(entries[i])) != 0u)
+            return 0u;
+        valid[i] = rfh_bond_journal_entry_payload_valid(&entries[i]) &&
+                   rfh_bond_journal_marker_valid(entries[i].marker);
+    }
 
     for(i = 0u; i < 2u; ++i)
     {
@@ -213,10 +220,9 @@ static inline uint8_t rfh_bond_journal_load(
     else
     {
         memset(&legacy, 0, sizeof(legacy));
-        if((backend->read(RFH_BOND_EEPROM_ADDR_DEFAULT,
-                          &legacy,
-                          sizeof(legacy)) == 0u) &&
-           (rfh_bond_record_valid(&legacy) != 0u) &&
+        if(backend->read(RFH_BOND_EEPROM_ADDR_DEFAULT, &legacy, sizeof(legacy)) != 0u)
+            return 0u;
+        if((rfh_bond_record_valid(&legacy) != 0u) &&
            (legacy.local_id_hash == local_id_hash))
         {
             state->has_active = 1u;

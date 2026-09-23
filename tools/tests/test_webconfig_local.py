@@ -245,6 +245,10 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
             token = environment["HBOX_LOCAL_ADMIN_SERVICE_TOKEN"]
             self.assertRegex(token, r"^stsvc_[A-Za-z0-9_-]{43}$")
             self.assertEqual(environment["LISTEN_HOST"], "127.0.0.1")
+            self.assertEqual(
+                environment["WEB_CONFIG_ORIGINS"],
+                "http://localhost:3001,http://127.0.0.1:3001",
+            )
             enroll.assert_called_once_with(state_dir, 3001, token)
             self.assertNotIn(token, output.getvalue())
 
