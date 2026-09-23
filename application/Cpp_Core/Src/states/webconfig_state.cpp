@@ -25,16 +25,7 @@ namespace {
 
 static bool webConfigUsbModeAccepted()
 {
-#if WEBCONFIG_TEST_FORCE_BOOT
-    /*
-     * Local bring-up only: the same temporary switch that selects WebConfig
-     * also bypasses the physical-mode gate.  Nothing is persisted, and a
-     * normal build with WEBCONFIG_TEST_FORCE_BOOT=0 restores the gate.
-     */
-    return true;
-#else
-    return BOARD_MODE.isStable() && BOARD_MODE.current() == BoardMode::Usb;
-#endif
+    return BOARD_MODE.isWebConfigAllowed();
 }
 
 static void enterWebFailureUiState()

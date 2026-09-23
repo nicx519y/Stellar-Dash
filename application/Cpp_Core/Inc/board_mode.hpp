@@ -25,6 +25,7 @@ public:
     void update(uint32_t nowMs);
     BoardMode current() const { return stableMode; }
     bool isStable() const { return stable; }
+    bool isWebConfigAllowed() const { return stable && stableMode == BoardMode::Usb; }
     bool consumeChanged();
 
 private:

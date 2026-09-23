@@ -94,6 +94,14 @@ MainRuntimeState MainStateMachine::resolveNormalStartupState() const
 
 bool MainStateMachine::enterState(MainRuntimeState selected)
 {
+    // Gate every entry path, including persisted boot mode and test overrides,
+    // before WebConfig can initialize its USB/maintenance runtime.
+    if (selected == MainRuntimeState::WebConfig &&
+        !BOARD_MODE.isWebConfigAllowed()) {
+        APP_STAGE("A13", "WebConfig blocked by physical switch; entering Input");
+        STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+        selected = MainRuntimeState::Input;
+    }
     BaseState* next = stateFor(selected);
     if (state != nullptr) state->exit();
     state = next;

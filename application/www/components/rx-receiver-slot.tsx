@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Box, Button, Flex, HStack, Icon, SimpleGrid, Text, VStack } from '@chakra-ui/react';
-import { LuCheck, LuUsb } from 'react-icons/lu';
+import { Badge, Box, Button, Flex, HStack, Image, SimpleGrid, Text, VStack } from '@chakra-ui/react';
+import { LuCheck } from 'react-icons/lu';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { useLanguage } from '@/contexts/language-context';
 import { BindingState, bindingHex, pairReceiver, paired, present, readBinding, canCancelBinding, cancelReceiverPairing } from '@/lib/device-transport/rf-binding';
@@ -128,9 +128,7 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
       <VStack align="stretch" gap={4}>
         <Flex align="start" justify="space-between" gap={3} wrap="wrap">
           <HStack align="start" gap={3} flex="1" minW="200px">
-            <Box p={2} borderRadius="md" bg="bg.muted" color="fg.muted">
-              <Icon fontSize="20px"><LuUsb /></Icon>
-            </Box>
+            <Image src="/images/dongle-pairing.png" alt="" aria-hidden="true" width="54px" height="54px" flexShrink={0} objectFit="contain" />
             <Box minW={0}>
               <Text fontSize="xs" color="fg.muted" mb={1}>{t.title}</Text>
               <Text fontSize="sm" fontWeight="medium" lineHeight="1.5" overflowWrap="anywhere">

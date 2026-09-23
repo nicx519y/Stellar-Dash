@@ -10,9 +10,9 @@ import {
 import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
 import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
 import { HotkeySettingContent } from "./hotkey-setting-content";
+import { ProfileSelect } from "./profile-select";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
-import { InputModeSettingContent } from "./input-mode-content";
 import { ConnectionAndPowerBasicSettingContent } from "./connection-mode-content";
 import { ScreenControlSettingContent } from "./screen-control-setting-content";
 import { cancelConfirm, openConfirm } from "@/components/dialog-confirm";
@@ -330,7 +330,7 @@ export function GlobalSettingContent() {
             disabled={calibrationActive}
         >
             <SideContent>
-                <InputModeSettingContent disabled={calibrationActive} />
+                <ProfileSelect disabled={calibrationActive} />
             </SideContent>
 
             <HitboxContent>

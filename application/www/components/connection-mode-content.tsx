@@ -7,6 +7,7 @@ import { useLanguage } from '@/contexts/language-context';
 import { TitleLabel } from './ui/title-label';
 import { SettingDescription } from './ui/setting-description';
 import { RxReceiverSlot } from './rx-receiver-slot';
+import { InputModeSettingContent } from './input-mode-content';
 
 const rateOptions: WirelessReportRate[] = [
     WirelessReportRate.RATE_1K,
@@ -63,6 +64,8 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
     return (
         <VStack align="stretch" gap={7} maxW="640px">
             <SettingDescription text={t.SETTINGS_BASIC_HELPER_TEXT} fontSize="14px" />
+
+            <InputModeSettingContent disabled={props.disabled} />
 
             <VStack as="section" aria-label={t.CONNECTION_MODE_TITLE} align="stretch" gap={6}>
                 <TitleLabel title={t.CONNECTION_MODE_TITLE} />

@@ -1,4 +1,5 @@
 #include "screen_control/spi_screen_main_list.hpp"
+#include "board_mode.hpp"
 
 #include "screen_control/spi_screen_ui_common.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
@@ -44,12 +45,14 @@ uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds
     if (!outIds || outCap == 0) return 0;
     uint8_t count = 0;
     const uint32_t mask = sc.featuresMask;
+    const bool webConfigAllowed = BOARD_MODE.isWebConfigAllowed();
     bool seen[32] = {false};
 
     for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
         uint8_t id = sc.featuresOrder[i];
         const ScreenMenuMeta* meta = ScreenMain_FindMenuMeta(id);
         if (!meta) continue;
+        if (meta->bit == SCREEN_FEATURE_WEB_CONFIG_ENTRY && !webConfigAllowed) continue;
         if ((mask & meta->bit) == 0) continue;
         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
@@ -59,6 +62,7 @@ uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds
     if (count == 0) {
         for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
             uint8_t id = kMenuMeta[i].id;
+            if (kMenuMeta[i].bit == SCREEN_FEATURE_WEB_CONFIG_ENTRY && !webConfigAllowed) continue;
             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
             if (count < outCap) outIds[count++] = kMenuMeta[i].id;

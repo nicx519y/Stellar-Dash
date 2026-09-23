@@ -2,13 +2,13 @@
 
 import { PlatformLabelMap, Platform, ConnectionMode, platformForDisplay } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { Center, Icon, RadioCard, VStack } from '@chakra-ui/react';
+import { Center, Icon, RadioCard, SimpleGrid, VStack } from '@chakra-ui/react';
 import { useEffect } from 'react';
 import { BsXbox } from "react-icons/bs";
 import { FaWindows } from "react-icons/fa";
 import { SiNintendoswitch, SiPlaystation4, SiPlaystation5   } from "react-icons/si";
 import { useLanguage } from '@/contexts/language-context';
-import { SettingSideCard } from './setting-side-card';
+import { TitleLabel } from './ui/title-label';
 
 
 export function InputModeSettingContent(props: {
@@ -46,7 +46,8 @@ export function InputModeSettingContent(props: {
     }
 
     return (
-        <SettingSideCard title={t.INPUT_MODE_TITLE} disabled={props.disabled}>
+        <VStack as="section" aria-label={t.INPUT_MODE_TITLE} align="stretch" gap={3}>
+            <TitleLabel title={t.INPUT_MODE_TITLE} />
             <RadioCard.Root 
                 value={displayedInputMode}
                 orientation="horizontal"
@@ -54,9 +55,10 @@ export function InputModeSettingContent(props: {
                 size="sm"
                 variant={"solid"}
                 colorPalette={"green"}
+                width="100%"
                 onValueChange={(detail) => onInputModeChange(detail as { value: Platform })}
             >
-                <VStack w="180px" justifyContent="start" gap={2} >
+                <SimpleGrid columns={{ base: 2, sm: 3 }} gap={2}>
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (
                         <RadioCard.Item
                             key={platform}
@@ -75,9 +77,9 @@ export function InputModeSettingContent(props: {
                             </RadioCard.ItemControl>
                         </RadioCard.Item>
                     ))}
-                </VStack>
+                </SimpleGrid>
             </RadioCard.Root>
-        </SettingSideCard>
+        </VStack>
     );
 }
 

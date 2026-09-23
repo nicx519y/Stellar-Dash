@@ -55,6 +55,7 @@ static char g_cfgBackgroundImageId[32] = {0};
 static uint32_t g_cfgFeaturesMask = 0;
 static uint8_t g_cfgFeaturesOrder[SCREEN_FEATURE_COUNT] = {0};
 static bool g_menuCfgDirty = true;
+static bool g_cfgWebConfigAllowed = false;
 static bool g_firstDrawPending = true;
 static bool g_inDetail = false;
 static uint8_t g_detailMenuId = 0;
@@ -323,6 +324,11 @@ static uint32_t get_gamepad_activity_mask() {
 
 static void refresh_screen_cfg_cache(void) {
     const ScreenControlConfig& sc = STORAGE_MANAGER.config.screenControl;
+    const bool webConfigAllowed = BOARD_MODE.isWebConfigAllowed();
+    if (webConfigAllowed != g_cfgWebConfigAllowed) {
+        g_cfgWebConfigAllowed = webConfigAllowed;
+        g_menuCfgDirty = true;
+    }
 
     uint32_t bg = (sc.screenStyle == SCREEN_STYLE_LIGHT) ? 0xFFFFFFu : 0x000000u;
     uint32_t text = (sc.screenStyle == SCREEN_STYLE_LIGHT) ? 0x000000u : 0xFFFFFFu;
@@ -359,6 +365,7 @@ static void enter_detail(uint8_t menuId) {
 static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
     if (!outMenuId) return false;
     if (mode == BootMode::BOOT_MODE_WEB_CONFIG) {
+        if (!BOARD_MODE.isWebConfigAllowed()) return false;
         *outMenuId = 9u;
         return true;
     }
@@ -546,8 +553,7 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
             if (menuCount > 0 && menuIndex < menuCount) {
                 uint8_t id = menuIds[menuIndex];
                 if (id == 9u) {
-                    if (!BOARD_MODE.isStable() ||
-                        BOARD_MODE.current() != BoardMode::Usb) {
+                    if (!BOARD_MODE.isWebConfigAllowed()) {
                         show_webconfig_entry_popup(
                             "USB Required",
                             kWebConfigUsbRequiredLines,
@@ -633,6 +639,12 @@ void SPIScreenManager::loop() {
     uint32_t inputMask = get_gamepad_activity_mask();
 
     refresh_screen_cfg_cache();
+    // Apply physical-switch visibility changes before handling this frame's
+    // encoder input, so a stale menu entry cannot be activated.
+    if (g_menuCfgDirty) {
+        rebuildMenu();
+        g_menuCfgDirty = false;
+    }
     ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
     bool standbyAllowed = (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_INPUT)
         && ADCManager::getInstance().isDmaSamplingActive();
@@ -669,11 +681,6 @@ void SPIScreenManager::loop() {
     }
     if (!standbyNowActive && !wokeFromStandby) {
         handleInput(nowMs, det, clicked, longPressed);
-    }
-
-    if (g_menuCfgDirty) {
-        rebuildMenu();
-        g_menuCfgDirty = false;
     }
 
     if (g_deferredSavePending && tick_expired(nowMs, g_deferredSaveDueMs)) {
