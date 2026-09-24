@@ -931,7 +931,6 @@ def build_local_artifacts(
                 f"HBOX_TRUST_HEADER={trust_header.as_posix()}",
                 secure_boot_argument,
                 power_probe_argument,
-                "APP_LOG_ENABLE=1",
             ],
             cwd=PROJECT_ROOT / "application",
         )

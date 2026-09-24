@@ -86,6 +86,27 @@ bootloader 仍为 249 ms，应用时钟就绪后的板级初始化仍为 118 ms�
 功能仍需用户确认。当前无身份开发路径仍带 attestation_failed 标志，不能合入正常
 认证路径基线。未修改任何保护位或锁定状态，未执行 RF 回归/采样或 CH585 固件写入。
 
+第七轮关闭 application 日志：移除 `webconfig_local.py` 的强制
+`APP_LOG_ENABLE=1`，回归 application Makefile 的默认 0；`APPLICATION_STARTUP_LOG`
+默认跟随 `APPLICATION_SERIAL_PRINT`。原有普通命令不变，RAM 计时仍用
+`--boot-profile`。不修改冻结烧录脚本、签名/校验、等待及缓存配置。
+
+验证：35 项相关主机测试通过，完整无锁构建通过。ELF 保留 1 KiB NOLOAD 计时区和
+记录函数，不含 HAL_UART_Transmit/IT/DMA、AppStartupLog_Printf、AppLog_Printf；
+部分原始 printf 仍可能有格式化成本，但不再阻塞串口发送。镜像从 388352 字节减至
+347112 字节。已通过原入口完成 app A 和原诊断 bootloader 烧录、回读。
+
+证据目录 `.hbox/boot-profile-app-silent-20260925-021942/`。烧录后启动及两次软件复位均为 USB Input，
+v4、80 条完整记录、序号 7/8/9。应用初始化总段分别为 1130/1130/1142 ms，
+中位数 1130 ms，对比前一轮 1410 ms 减少 280 ms（约 19.9%）；不是正式 P95。
+输入管线三次均为 18 ms（此前 194 ms），CH585 剩余 ready 等待三次均为 390 ms
+（此前 268 ms）：日志关闭缩短了重叠前置工作，所以该等待增加，不能重复累加或
+单看它判断退步。bootloader 三次均为 231 ms（此前 249 ms），SHA 约 152.84 ms，
+仍校验整个新镜像；代码/字符串缩小后，待校验字节减少。
+应用时钟就绪至板级完成均为 0 个 HAL tick，只表示毫秒分辨率下未跨 tick，不是
+硬件初始化没有成本。当前仍为无身份开发路径、带 attestation_failed 标志，完整
+上电时间和人工冷启动未测，按键/USB 功能仍待用户验收。未修改任何保护位或锁定状态。
+
 ## 固件记录
 
 两个 Makefile 的 HBOX_BOOT_PROFILE 默认为 0。诊断时同时设置为 1，并使用独立

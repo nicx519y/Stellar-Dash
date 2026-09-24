@@ -69,9 +69,9 @@
 #define APP_LOG_VERBOSE 0
 #endif
 
-/* Concise production startup milestones, independent from verbose APP_DBG. */
+/* Startup milestones follow the master UART logging switch. */
 #ifndef APPLICATION_STARTUP_LOG
-#define APPLICATION_STARTUP_LOG 1
+#define APPLICATION_STARTUP_LOG APPLICATION_SERIAL_PRINT
 #endif
 
 #if APPLICATION_STARTUP_LOG
