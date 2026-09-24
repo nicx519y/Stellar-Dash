@@ -96,6 +96,11 @@ export function deviceCommandSchedule(
   params: CommandParams,
   immediate: boolean,
 ): DeviceCommandSchedule {
+  if (command === 'switch_default_profile') {
+    // Switching persists the configuration journal too, but each selection
+    // remains an ordered action rather than a coalesced settings update.
+    return { debounceMs: 0, maxWaitMs: 0, timeoutMs: DURABLE_WRITE_TIMEOUT_MS };
+  }
   if (durableCommands.has(command)) {
     return {
       coalescingKey: durableKey(command, params),

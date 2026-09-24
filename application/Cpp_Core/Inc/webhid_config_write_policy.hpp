@@ -2,19 +2,31 @@
 
 #include <string>
 
-/**
- * Persistent configuration writes erase/program QSPI synchronously. They must
- * never run while the WebConfig button workers are responsible for real-time
- * state or performance telemetry.
- *
- * This policy is stateless so it adds no mutable/static RAM usage.
- */
+// These commands only persist ordinary configuration. WebHID services live
+// input/LED feedback during their QSPI waits, without dispatching another RPC.
+inline bool webhidIsLiveConfigWrite(const std::string &command)
+{
+    return command == "update_global_config" ||
+           command == "update_screen_control_config" ||
+           command == "update_hotkeys_config" ||
+           command == "update_profile" ||
+           command == "update_macro" ||
+           command == "update_profile_macros" ||
+           command == "switch_default_profile";
+}
+
+// Calibration, performance measurement, imports and upgrades remain exclusive.
 inline bool webhidShouldBlockConfigWrite(
     const std::string &command,
     bool hasConfigWriteScope,
-    bool buttonMonitorActive)
+    bool buttonMonitorActive,
+    bool performanceMonitoring = false)
 {
     if (!buttonMonitorActive) {
+        return false;
+    }
+
+    if (hasConfigWriteScope && !performanceMonitoring && webhidIsLiveConfigWrite(command)) {
         return false;
     }
 

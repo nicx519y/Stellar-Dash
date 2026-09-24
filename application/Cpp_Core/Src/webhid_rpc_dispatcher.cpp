@@ -325,7 +325,8 @@ WebHidRpcResult WebHidRpcDispatcher::dispatch(
     if (webhidShouldBlockConfigWrite(
             command,
             scope == HBOX_SCOPE_CONFIG_WRITE,
-            WEBCONFIG_BTNS_MANAGER.isActive())) {
+            WEBCONFIG_BTNS_MANAGER.isActive(),
+            WEBCONFIG_BTNS_MANAGER.isTestModeEnabled())) {
         return localError(
             transactionId,
             409,

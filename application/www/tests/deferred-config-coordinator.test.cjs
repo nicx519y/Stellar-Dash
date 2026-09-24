@@ -67,7 +67,7 @@ test('button-driven pages stage durable configuration instead of writing it dire
   }
 });
 
-test('screen brightness drags preview immediately and persist only the released value', () => {
+test('screen brightness drags stage memory immediately and preview without blocking', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '../components/screen-control-setting-content.tsx'),
     'utf8',
@@ -80,23 +80,14 @@ test('screen brightness drags preview immediately and persist only the released 
   );
 });
 
-test('settings navigation paints the destination before starting a background save', () => {
+test('navigation does not flush configuration; finish remains a durable boundary', () => {
   const settings = fs.readFileSync(
     path.join(__dirname, '../components/settings-layout.tsx'),
     'utf8',
   );
   const route = settings.indexOf('setRoute(details.value as Route)');
-  const flush = settings.indexOf('flushDeferredConfig(undefined, true)', route);
-  assert.ok(route >= 0 && flush > route);
-  assert.match(settings.slice(route, flush), /window\.setTimeout/);
-  assert.doesNotMatch(settings, /await flushDeferredConfig\(\(\) => setRoute/);
-
-  const layout = fs.readFileSync(
-    path.join(__dirname, '../app/layout.tsx'),
-    'utf8',
-  );
-  assert.doesNotMatch(layout, /connectionPending \|\| showLoading/);
-  assert.match(layout, /pointerEvents="none"/);
+  assert.ok(route >= 0);
+  assert.doesNotMatch(settings, /flushDeferredConfig/);
 
   const finish = fs.readFileSync(
     path.join(__dirname, '../components/finish-config-button.tsx'),
@@ -119,7 +110,7 @@ test('settings navigation paints the destination before starting a background sa
   );
   const suspend = context.indexOf('suspended = await lease.suspend');
   const terminate = context.indexOf('await beforeFlush?.()', suspend);
-  const persist = context.indexOf('await deferredConfigRef.current!.flush()', terminate);
+  const persist = context.indexOf('await deferredConfigRef.current!.flush(all)', terminate);
   assert.ok(suspend >= 0 && terminate > suspend && persist > terminate);
   assert.match(context, /const EXIT_WEB_CONFIG_TIMEOUT_MS = 8_000/);
   assert.match(context, /sendDeviceRequest\('exit_webconfig', \{\}, true, \{\s*timeoutMs: EXIT_WEB_CONFIG_TIMEOUT_MS/);
@@ -134,16 +125,13 @@ test('settings navigation paints the destination before starting a background sa
   }
 });
 
-test('profile operations preserve profile content under the shared blocking overlay', () => {
+test('profile controls have no device-save overlay or navigation flush', () => {
   const profileSelect = fs.readFileSync(
     path.join(__dirname, '../components/profile-select.tsx'),
     'utf8',
   );
 
-  assert.match(
-    profileSelect,
-    /<LoadingModal isOpen=\{pendingOperation !== null\} variant="operation" \/>/,
-  );
-  assert.doesNotMatch(profileSelect, /loading=\{pendingOperation === `switch:/);
+  assert.doesNotMatch(profileSelect, /LoadingModal|flushDeferredConfig|deferredConfigSaving/);
+  assert.doesNotMatch(profileSelect, /loading=\{operation === 'switch'/);
   assert.doesNotMatch(profileSelect, /<Spinner\b/);
 });

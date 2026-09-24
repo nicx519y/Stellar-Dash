@@ -59,7 +59,6 @@ export function KeysSettingContent() {
     const {
         defaultProfile,
         globalConfig,
-        getProfileMacros,
         stageDeferredProfileDetails,
         stageDeferredProfileMacros,
         dataIsReady,
@@ -68,12 +67,10 @@ export function KeysSettingContent() {
     const { t } = useLanguage();
     const { colorMode } = useColorMode();
 
-    const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
 
     // 按键映射状态
     const keyLength = useMemo(() => Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length, [defaultProfile?.keysConfig?.keyMapping]);
-    const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
     const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_UP_PRIORITY);
     const [invertXAxis, setInvertXAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertXAxis ?? false);
     const [invertYAxis, setInvertYAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertYAxis ?? false);
@@ -100,8 +97,6 @@ export function KeysSettingContent() {
     const [isCompetitionProfile, setIsCompetitionProfile] = useState<boolean>(defaultProfile.isCompetitionProfile ?? false);
 
     const keymappingFieldsetRef = useRef<KeymappingFieldsetRef>(null);
-    const macrosLoadedForProfileIdRef = useRef<string>("");
-    const macrosFetchSeqRef = useRef(0);
     const [debugMacros, setDebugMacros] = useState(false);
 
     // 使用 context 中的 indexMapToGameControllerButtonOrCombination 方法
@@ -119,9 +114,6 @@ export function KeysSettingContent() {
 
     useEffect(() => {
 
-        if (isInit && defaultProfileId === defaultProfile.id) {
-            return;
-        }
 
         if (dataIsReady && defaultProfile.keysConfig) {
             setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
@@ -135,42 +127,14 @@ export function KeysSettingContent() {
             const enableConfig = defaultProfile.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? Array(keyLength).fill(true);
             setKeysEnableConfig(enableConfig);
 
-            setIsInit(true);
-            setDefaultProfileId(defaultProfile.id);
             setIsCompetitionProfile(defaultProfile.isCompetitionProfile ?? false);
-            macrosLoadedForProfileIdRef.current = "";
 
         }
     }, [dataIsReady, defaultProfile]);
 
     useEffect(() => {
-        if (!dataIsReady) return;
-        if (!defaultProfileId) return;
-        if (macrosLoadedForProfileIdRef.current === defaultProfileId) return;
-        const loadingKey = `loading:${defaultProfileId}`;
-        macrosLoadedForProfileIdRef.current = loadingKey;
-        const seq = ++macrosFetchSeqRef.current;
-        let cancelled = false;
-        (async () => {
-            try {
-                const fetched = await getProfileMacros(defaultProfileId);
-                if (!cancelled && seq === macrosFetchSeqRef.current) {
-                    setMacros(fetched);
-                    macrosLoadedForProfileIdRef.current = defaultProfileId;
-                    if (debugMacros) {
-                        console.log("[KeysSettingContent] macros fetched:", fetched);
-                    }
-                }
-            } catch {
-                if (!cancelled && seq === macrosFetchSeqRef.current) {
-                    macrosLoadedForProfileIdRef.current = "";
-                }
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [dataIsReady, defaultProfileId, getProfileMacros]);
+        if (dataIsReady) setMacros(defaultProfile.keysConfig?.macros ?? []);
+    }, [dataIsReady, defaultProfile.keysConfig?.macros]);
 
     const updateKeysConfigHandler = () => {
         const effectiveSocdMode = isCompetitionProfile ? GameSocdMode.SOCD_MODE_NEUTRAL : socdMode;

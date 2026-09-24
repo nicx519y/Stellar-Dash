@@ -45,6 +45,8 @@ npm run build
 
 最终 TX/RX 实际构建位置为 `.hbox/latency-source-v26-snapshot/RF_PHY_Hop/{TX,RX}`，使用 `mingw32-make -j8 SDK_ROOT_MAKE=../../sdk-source`；`sdk-source` 为指向现有 CH585 SDK 的目录联接，仅用于构建路径解析。没有修改冻结 Makefile。
 
+2026-09-24 归档复核：临时目录中的 157 份源码与交付目录 `source-snapshot.zip` 内逐项 SHA-256 一致，源码清单一致，ZIP 完整性检查通过；TX BIN/ELF、RX BIN/HEX/ELF 与交付副本一致。可清理临时展开/构建目录，保留 `.hbox/rf-latency-source-v26-20260922/` 中的源码 ZIP、清单、配套固件和日志；当前临时目录仍保留。清理时只移除 `sdk-source` 联接，不得跟随它删除外部 SDK。需要复现 v26 时从该 ZIP 解压到独立目录并重建 SDK 联接，不使用当前工作区代码代替历史源码。
+
 增加源先到/输入后到、首帧 SPI 身份被后续样本越过、tag 复用不误配、缺物理边界不补零、队列过期/溢出及桌面超时/诊断的测试代码。按既有用户要求，本轮不执行回归或硬件采集，不将编译通过当作行为测试或实机验收。已有测试文件中触及的源记录 fixtures 同步了辅助函数依赖；不宣称历史整套测试已通过。
 
 冻结烧录文件仅做静态 SHA-256 对照，未改动。没有烧录，没有修改任何保护位或锁定状态。

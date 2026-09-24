@@ -86,7 +86,6 @@ export function LEDsSettingContent() {
         clearLedsPreview,
     };
 
-    const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
     const ledsWriteReady = deviceConnected && dataIsReady && isInit && defaultProfile.id.length > 0;
     const [ledsEffectStyle, setLedsEffectStyle] = useState<LedsEffectStyle>(defaultProfile.ledsConfigs?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
     const [color1, setColor1] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[0] ?? defaultFrontColor.toString('css')));
@@ -340,9 +339,6 @@ export function LEDsSettingContent() {
     // Initialize the state with the default profile details
     useEffect(() => {
 
-        if(isInit && defaultProfileId === defaultProfile.id) {
-            return;
-        }
         
         if(dataIsReady && defaultProfile.ledsConfigs) {
             const ledsConfigs = defaultProfile.ledsConfigs;
@@ -366,7 +362,6 @@ export function LEDsSettingContent() {
             setAroundLedAnimationSpeed(ledsConfigs.aroundLedAnimationSpeed ?? 3);
 
             setIsInit(true);
-            setDefaultProfileId(defaultProfile.id);
             requestLedsPreview();
         }
 

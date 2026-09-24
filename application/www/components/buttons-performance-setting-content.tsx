@@ -49,7 +49,6 @@ export function ButtonsPerformanceSettingContent({
 }: ButtonsPerformanceSettingContentProps) {
     const { t } = useLanguage();
     const { defaultProfile, stageDeferredProfileDetails } = useGamepadConfig();
-    const [isInit, setIsInit] = useState<boolean>(false);
     const [triggerConfigs, setTriggerConfigs] = useState<RapidTriggerConfig[]>([]);
     const [isAllBtnsConfiguring, setIsAllBtnsConfiguring] = useState(true);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
@@ -62,11 +61,10 @@ export function ButtonsPerformanceSettingContent({
      * 加载触发配置
      */
     useEffect(() => {
-        if (defaultProfile.triggerConfigs && !isInit) {
+        if (defaultProfile.triggerConfigs) {
             const triggerConfigs = { ...defaultProfile.triggerConfigs };
             setTriggerConfigs(allKeys.map(key => triggerConfigs.triggerConfigs?.[key] ?? defaultTriggerConfig));
             setIsAllBtnsConfiguring(defaultProfile.triggerConfigs.isAllBtnsConfiguring ?? true);
-            setIsInit(true);
             setNeedUpdate(false);
         }
     }, [defaultProfile]);

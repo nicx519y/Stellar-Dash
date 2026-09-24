@@ -89,8 +89,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         try {
             stageDeferredScreenControl(next);
         } catch {
-            // The context restores the last device-confirmed value and exposes
-            // the failure through the shared error toast.
+            // The global sync status retains failed drafts and offers retry.
         }
     };
 
@@ -190,6 +189,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     onValueChange={(details: { value: number[] }) => {
                         const value = details.value[0];
                         setBrightness(value);
+                        void commitUiChange({ ...nextConfig, brightness: value });
                         void previewScreenBrightness(value).catch(() => undefined);
                     }}
                     onValueChangeEnd={async (details: { value: number[] }) => {

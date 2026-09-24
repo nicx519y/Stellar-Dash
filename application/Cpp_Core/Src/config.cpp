@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include "board_cfg.h"
 #include "leds/led_config_safety.hpp"
+#include "fixed_profile_slots.hpp"
 #include <map>
 #include <string>
 #include "configs/device_command_handler.hpp" // For ProfileCommandHandler
@@ -19,6 +20,9 @@
 #define CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM 0x00001Bu
 #define CONFIG_VERSION_POWER_MIGRATE_FROM 0x00001Cu
 #define CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM 0x00001Du
+#define CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM 0x00001Eu
+#define CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM 0x00001Fu
+#define CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM 0x000020u
 #define DEFAULT_POWER_WAKE_HOLD_MS 3000u
 #define DEFAULT_POWER_AUTO_STANDBY_MS 300000u
 #define LATEST_PCB_BATTERY_PACK_COUNT 1u
@@ -779,8 +783,8 @@ bool fromJSON(Config& config, cJSON* json) {
 void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bool isEnabled)
 {
     // 设置profile id, name, enabled
-    sprintf(profile.id, id);
-    sprintf(profile.name, "Profile-1");
+    snprintf(profile.id, sizeof(profile.id), "%s", id);
+    snprintf(profile.name, sizeof(profile.name), "Profile-01");
     profile.enabled = isEnabled;
     profile.isCompetitionProfile = false;
     
@@ -880,6 +884,35 @@ bool ConfigUtils::load(Config& config)
      * Normalize persisted data before any runtime subsystem can observe it.
      */
     const bool repairedLedConfig = fjResult && sanitize_led_profiles(config);
+    const bool repairedProfileSlots = fjResult && normalizeFixedProfileSlots(config,
+        [&config](GamepadProfile& profile, const char* id) {
+            if (&profile == &config.profiles[0]) {
+                profile = {};
+                ConfigUtils::makeDefaultProfile(profile, id, true);
+            } else {
+                // Restore empty slots from the first profile's current settings.
+                profile = config.profiles[0];
+                snprintf(profile.id, sizeof(profile.id), "%s", id);
+            }
+        });
+
+    if (fjResult &&
+        (config.version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_POWER_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM)) {
+        cloneFirstProfileSettings(config);
+    }
+    if (fjResult &&
+        (config.version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_POWER_MIGRATE_FROM ||
+         config.version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM)) {
+        renameFixedProfileSlots(config);
+    }
 
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
         sanitize_screen_style(config.screenControl);
@@ -889,11 +922,23 @@ bool ConfigUtils::load(Config& config)
         sanitize_hardware_layout(config.hardware);
         uint32_t ver = config.version;
         APP_DBG("Config Version: %d.%d.%d", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
-        if (repairedLedConfig) {
-            APP_DBG("ConfigUtils::load - repaired invalid LED configuration");
-            (void)save(config);
+        if (repairedLedConfig || repairedProfileSlots) {
+            APP_DBG("ConfigUtils::load - normalized stored configuration");
+            return save(config);
         }
         return true;
+    } else if (fjResult == true &&
+               (config.version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
+                config.version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
+                config.version == CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM)) {
+        sanitize_screen_style(config.screenControl);
+        sanitize_screen_recovery_entry(config.screenControl);
+        sanitize_screen_service_flags(config.screenControl);
+        sanitize_power_config(config.power);
+        sanitize_hardware_layout(config.hardware);
+        config.version = CONFIG_VERSION;
+        APP_DBG("ConfigUtils::load - migrated fixed profile settings and names");
+        return save(config);
     } else if (fjResult == true && config.version == CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM) {
         uint32_t oldBg = read_legacy_screen_bg(config.screenControl);
         uint32_t oldFg = read_legacy_screen_fg(config.screenControl);
@@ -979,7 +1024,14 @@ bool ConfigUtils::load(Config& config)
             char profileId[16];
             sprintf(profileId, "profile-%d", k);
             APP_DBG("ConfigUtils::load - make default profile %d id: %s", k, profileId);
-            ConfigUtils::makeDefaultProfile(config.profiles[k], profileId, k == 0);
+            if (k == 0) {
+                config.profiles[k] = {};
+                ConfigUtils::makeDefaultProfile(config.profiles[k], profileId, true);
+            } else {
+                config.profiles[k] = config.profiles[0];
+                snprintf(config.profiles[k].id, sizeof(config.profiles[k].id), "%s", profileId);
+            }
+            snprintf(config.profiles[k].name, sizeof(config.profiles[k].name), "Profile-%02u", (unsigned)(k + 1));
             APP_DBG("ConfigUtils::load - make profile %d init done", k);
         }
 
@@ -1175,6 +1227,9 @@ static ConfigPayloadResult compare_config_payload(
 
 static bool is_supported_legacy_config_version(uint32_t version) {
     return version == CONFIG_VERSION ||
+           version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
+           version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
+           version == CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM ||
            version == CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM ||
            version == CONFIG_VERSION_POWER_MIGRATE_FROM ||
            version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM;

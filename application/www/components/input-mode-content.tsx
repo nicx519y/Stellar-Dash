@@ -2,7 +2,7 @@
 
 import { PlatformLabelMap, Platform, ConnectionMode, platformForDisplay } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { Center, Icon, RadioCard, SimpleGrid, VStack } from '@chakra-ui/react';
+import { Center, Icon, RadioCard, SimpleGrid, Text, VStack } from '@chakra-ui/react';
 import { useEffect } from 'react';
 import { BsXbox } from "react-icons/bs";
 import { FaWindows } from "react-icons/fa";
@@ -23,12 +23,12 @@ export function InputModeSettingContent(props: {
             ? platformForDisplay(globalConfig.inputMode)
             : Platform.XINPUT;
 
-    const platformIcons = new Map<Platform, { icon: React.ReactNode, size: string }>([
-        [Platform.XINPUT, { icon: <FaWindows />, size: "2xl" }],
-        [Platform.PS4, { icon: <SiPlaystation4 />, size: "3xl" }],
-        [Platform.PS5, { icon: <SiPlaystation5 />, size: "3xl" }],
-        [Platform.XBOX, { icon: <BsXbox />, size: "2xl" }],
-        [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "2xl" }],
+    const platformIcons = new Map<Platform, React.ReactNode>([
+        [Platform.XINPUT, <FaWindows key={Platform.XINPUT} />],
+        [Platform.PS4, <SiPlaystation4 key={Platform.PS4} />],
+        [Platform.PS5, <SiPlaystation5 key={Platform.PS5} />],
+        [Platform.XBOX, <BsXbox key={Platform.XBOX} />],
+        [Platform.SWITCH, <SiNintendoswitch key={Platform.SWITCH} />],
     ]);
 
     useEffect(() => {
@@ -47,7 +47,10 @@ export function InputModeSettingContent(props: {
 
     return (
         <VStack as="section" aria-label={t.INPUT_MODE_TITLE} align="stretch" gap={3}>
-            <TitleLabel title={t.INPUT_MODE_TITLE} />
+            <VStack align="stretch" gap={1}>
+                <TitleLabel title={t.INPUT_MODE_TITLE} />
+                <Text fontSize="xs" color="fg.muted">{t.INPUT_MODE_HELPER}</Text>
+            </VStack>
             <RadioCard.Root 
                 value={displayedInputMode}
                 orientation="horizontal"
@@ -58,7 +61,7 @@ export function InputModeSettingContent(props: {
                 width="100%"
                 onValueChange={(detail) => onInputModeChange(detail as { value: Platform })}
             >
-                <SimpleGrid columns={{ base: 2, sm: 3 }} gap={2}>
+                <SimpleGrid columns={2} gap={2} width="100%">
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (
                         <RadioCard.Item
                             key={platform}
@@ -67,13 +70,15 @@ export function InputModeSettingContent(props: {
                             disabled={props.disabled || (physicalRf && platform !== Platform.XINPUT)}
                         >
                             <RadioCard.ItemHiddenInput />
-                            <RadioCard.ItemControl>
-                                <Center w="35px" h="35px" >
-                                    <Icon fontSize={platformIcons.get(platform as Platform)?.size} color={displayedInputMode === platform ? "white" : "fg.muted"}>
-                                        {platformIcons.get(platform as Platform)?.icon}
+                            <RadioCard.ItemControl minH="50px" px={3} py={1} gap={3}>
+                                <Center flexShrink={0} w="32px" h="32px">
+                                    <Icon fontSize="28px" color={displayedInputMode === platform ? "white" : "fg.muted"}>
+                                        {platformIcons.get(platform)}
                                     </Icon>
                                 </Center>
-                                <RadioCard.ItemText fontSize={"xs"} textAlign={"left"} letterSpacing={"0.04em"} >{label}</RadioCard.ItemText>
+                                <RadioCard.ItemText fontSize="sm" textAlign="left" letterSpacing="0.04em">
+                                    {label}
+                                </RadioCard.ItemText>
                             </RadioCard.ItemControl>
                         </RadioCard.Item>
                     ))}

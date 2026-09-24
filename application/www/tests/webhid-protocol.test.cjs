@@ -1030,8 +1030,8 @@ test('production WebHID construction and navigator access remain centralized beh
   assert.ok(client.indexOf('transport.connect()') >= 0);
   assert.ok(client.indexOf('transport.requestPermissionAndConnect()') >= 0);
   assert.doesNotMatch(context, /\.transport\.(?:connect|requestPermissionAndConnect)\(/);
-  assert.match(layout, /deviceError\?\.transportCode === 'device-busy'[\s\S]*?deviceError\.message/);
-  assert.match(layout, /error instanceof DeviceTransportError && error\.code === 'device-busy'[\s\S]*?error\.message/);
+  assert.match(layout, /noDeviceMessage=\{deviceError\?\.message\}/);
+  assert.match(layout, /error instanceof DeviceTransportError[\s\S]*?error\.message/);
 });
 
 test('authenticated product and PCB identity selects only a local profile', () => {

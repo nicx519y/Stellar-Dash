@@ -1040,8 +1040,6 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigFinish(const
         for (uint8_t i = 0; i < NUM_PROFILES; ++i) {
             if (g_configImport.profileSeen[i]) {
                 anyProfile = true;
-            } else {
-                g_configImport.candidate.profiles[i].enabled = false;
             }
         }
         if (!anyProfile) {

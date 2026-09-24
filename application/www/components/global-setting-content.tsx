@@ -38,7 +38,6 @@ export function GlobalSettingContent() {
     const { t } = useLanguage();
     const {
         clearManualCalibrationData,
-        flushDeferredConfig,
         stageDeferredHotkeysConfig,
         globalConfig,
         hotkeysConfig,
@@ -168,7 +167,7 @@ export function GlobalSettingContent() {
         });
 
         if (confirmed) {
-            await flushDeferredConfig(clearManualCalibrationData, true).catch(() => undefined);
+            await clearManualCalibrationData().catch(() => undefined);
         }
     };
 
@@ -213,8 +212,7 @@ export function GlobalSettingContent() {
     // 处理热键更新回调
     const handleHotkeyUpdate = useCallback((hotkeys: Hotkey[]) => {
         setCurrentHotkeys(hotkeys);
-        // 快捷键录入期间只覆盖浏览器内的 hotkeys 草稿；切页、切换
-        // Profile 或 Finish 时再由统一边界停止监控并提交最终快照。
+        // Update the session draft immediately; the coordinator schedules persistence.
         stageDeferredHotkeysConfig(hotkeys);
     }, [stageDeferredHotkeysConfig]);
 

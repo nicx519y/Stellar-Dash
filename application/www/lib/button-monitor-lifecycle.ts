@@ -105,15 +105,17 @@ export class SharedButtonMonitorLease {
 
     if (this.suspended) return true;
     this.suspended = true;
-    if (!this.deviceActive) return true;
-
+    // LED preview also starts the firmware worker, without acquiring a web
+    // monitor lease. A persistence boundary must stop the device even when
+    // this lease has no owners and believes the worker is inactive.
+    const wasDeviceActive = this.deviceActive;
     this.deviceActive = false;
     try {
       await stopDevice();
     } catch (error) {
       // A failed stop must never be followed by a QSPI commit. Keep the lease
       // logically active so the caller can remain on the current page.
-      this.deviceActive = true;
+      this.deviceActive = wasDeviceActive;
       this.suspended = false;
       throw error;
     }

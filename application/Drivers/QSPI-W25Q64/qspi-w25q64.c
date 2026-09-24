@@ -51,6 +51,14 @@
 
 QSPI_HandleTypeDef hqspi;
 static bool xip_enabled = false;  // 跟踪XIP模式状态
+static QSPI_W25Qxx_WaitCallback wait_callback = NULL;
+
+QSPI_W25Qxx_WaitCallback QSPI_W25Qxx_SetWaitCallback(QSPI_W25Qxx_WaitCallback callback)
+{
+    QSPI_W25Qxx_WaitCallback previous = wait_callback;
+    wait_callback = callback;
+    return previous;
+}
 
 /*
  * Blocking QUADSPI automatic polling keeps the peripheral BUSY until the
@@ -269,6 +277,10 @@ int8_t QSPI_W25Qxx_AutoPollingMemReady(void)
 			return W25Qxx_ERROR_AUTOPOLLING;
 		}
 		QSPI_W25Qxx_ReadyPollPause();
+
+        // The status transfer has completed; QSPI is idle although the flash
+        // may still be erasing/programming. Never accept a nested flash write.
+        if (wait_callback != NULL) wait_callback();
 	}
 
 	/* Independent of SysTick: malformed timing state still has a hard exit. */

@@ -21,6 +21,8 @@ public:
 
     bool setup();
     void process();
+    // Foreground feedback only: never receives or dispatches another RPC.
+    void serviceConfigSaveFeedback();
     void shutdown();
     bool isAuthenticated() const { return sessionEstablished; }
     uint32_t scopes() const { return grantedScopes; }

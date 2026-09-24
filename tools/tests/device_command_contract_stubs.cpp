@@ -14,6 +14,7 @@
 #include "configs/webconfig_btns_manager.hpp"
 #include "configs/webconfig_leds_manager.hpp"
 #include "configs/user_image_command_handler.hpp"
+#include "configs/rf_binding_command_handler.hpp"
 #include "screen_control/spi_screen_manager.hpp"
 #include "firmware/firmware_manager.hpp"
 #include "ch585_firmware_update.hpp"
@@ -63,9 +64,20 @@ void Storage::initConfig()
     for (uint8_t i = 0u; i < SCREEN_FEATURE_COUNT; ++i) config.screenControl.featuresOrder[i] = i;
     initProfile(config.profiles[0], "profile-0", "Default");
     initProfile(config.profiles[1], "profile-1", "Alternate");
+    for (unsigned i = 2; i < NUM_PROFILES; ++i) {
+        char id[16], name[24];
+        snprintf(id, sizeof(id), "profile-%u", i);
+        snprintf(name, sizeof(name), "Profile-%u", i + 1);
+        initProfile(config.profiles[i], id, name);
+    }
     strncpy(config.defaultProfileId, config.profiles[0].id, sizeof(config.defaultProfileId) - 1u);
 }
 bool Storage::saveConfig() { ++g_deviceCommandContractRecording.storageSaves; return true; }
+// Radio hardware is outside this handler suite; satisfy the registered handler
+// without replacing any of the production profile/configuration handlers.
+DeviceCommandResponse RfBindingCommandHandler::handle(const DeviceCommandRequest& request) {
+    return create_error_response(request.getCid(), request.getCommand(), 1, "RF hardware unavailable in host test");
+}
 bool Storage::resetConfig() { initConfig(); return true; }
 void Storage::setInputMode(InputMode mode) { config.inputMode = mode; }
 void Storage::setConnectionMode(ConnectionMode mode) { config.connectionMode = mode; }

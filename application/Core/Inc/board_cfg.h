@@ -420,7 +420,7 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define WEBCONFIG_IP_FOURTH                 1
 #define WEBCONFIG_DOMAIN_NAME               "st-dash.usb"
 
-#define CONFIG_VERSION                      (uint32_t)0x00001E  // 最新PCB配置：单电池/22键灯/40环境灯
+#define CONFIG_VERSION                      (uint32_t)0x000021  // 一次性将 Profile 名称统一为 Profile-xx
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000002  //ADC值映射表版本
 #define ADC_COMMON_VERSION                  (uint32_t)0x000001
 

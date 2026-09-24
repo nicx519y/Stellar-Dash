@@ -11,7 +11,7 @@ import { getReceiverHid as receiverHid } from '@hbox/device-transport-runtime';
 const copy = {
   zh: {
     title: 'Dongle', select: '选择接收器', change: '更换接收器', missing: '未检测到已授权接收器',
-    permission: '首次使用需要选择接收器并授权。', reading: '正在读取接收器信息…',
+    permission: '首次使用需要选择接收器并授权。', connecting: '正在连接接收器…', reading: '正在读取接收器信息…',
     pair: '配对', pairing: '正在配对…', paired: '已配对', unpaired: '未与此 HBox 配对',
     resume: '继续完成配对', cancel: '取消未完成配对', incomplete: '配对未完成', address: '连接地址', id: '设备标识',
     unassigned: '未分配', replace: '将替换原有配对关系。', host: '请先连接 HBox。',
@@ -23,7 +23,7 @@ const copy = {
   },
   en: {
     title: 'Dongle', select: 'Select receiver', change: 'Change receiver', missing: 'No authorized receiver detected',
-    permission: 'Select and authorize the receiver on first use.', reading: 'Reading receiver…',
+    permission: 'Select and authorize the receiver on first use.', connecting: 'Connecting receiver…', reading: 'Reading receiver…',
     pair: 'Pair', pairing: 'Pairing…', paired: 'Paired', unpaired: 'Not paired with this HBox',
     resume: 'Resume pairing', cancel: 'Cancel pending pairing', incomplete: 'Pairing incomplete', address: 'Connection address', id: 'Device ID',
     unassigned: 'Unassigned', replace: 'This replaces the previous pairing.', host: 'Connect HBox first.',
@@ -35,12 +35,14 @@ const copy = {
   },
 };
 
+const emptyIdFill = 'repeating-linear-gradient(135deg, transparent 0px, transparent 6px, rgba(128, 128, 128, 0.25) 6px, rgba(128, 128, 128, 0.25) 12px)';
+
 export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
   const { currentLanguage } = useLanguage(), t = copy[currentLanguage];
   const { deviceConnected, isLoading, deferredConfigSaving, rfBindingBusy, rfBindingRequest, runRfBindingOperation } = useGamepadConfig();
   const [client, setClient] = useState<ReceiverClient | null>(null);
   const [states, setStates] = useState<{ rx: BindingState; tx: BindingState } | null>(null);
-  const [reading, setReading] = useState(false), [working, setWorking] = useState(false);
+  const [connecting, setConnecting] = useState(false), [reading, setReading] = useState(false), [working, setWorking] = useState(false);
   const [error, setError] = useState(''), [multiple, setMultiple] = useState(false);
   const clientRef = useRef<ReceiverClient | null>(null), epoch = useRef(0), busy = useRef(false);
   const connected = useRef(deviceConnected); connected.current = deviceConnected;
@@ -48,12 +50,13 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
   const blockedRef = useRef(blocked); blockedRef.current = blocked;
   const attach = useCallback(async (device: ReceiverDevice) => {
     const turn = ++epoch.current;
-    const old = clientRef.current; clientRef.current = null; setClient(null); setStates(null); setError('');
+    const old = clientRef.current; clientRef.current = null; setClient(null); setStates(null); setError(''); setConnecting(true);
     if (old) await old.close().catch(() => {});
     if (turn !== epoch.current) return;
     const next = new ReceiverClient(device); clientRef.current = next;
     try { await next.open(); if (turn === epoch.current) setClient(next); else await next.close(); }
     catch (e) { if (turn === epoch.current) { clientRef.current = null; setError((e as Error).message); } }
+    finally { if (turn === epoch.current) setConnecting(false); }
   }, []);
   useEffect(() => {
     const hid = receiverHid(); let disposed = false;
@@ -71,7 +74,7 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
     const onDisconnect = (event: Event) => {
       if ((event as Event & { device: ReceiverDevice }).device !== clientRef.current?.device) return;
       ++epoch.current; void clientRef.current?.close().catch(() => {}); clientRef.current = null;
-      setClient(null); setStates(null); setError('BINDING_DISCONNECTED');
+      setClient(null); setStates(null); setConnecting(false); setError('BINDING_DISCONNECTED');
     };
     const onConnect = () => { void discover(); };
     hid.addEventListener('connect', onConnect); hid.addEventListener('disconnect', onDisconnect); void discover();
@@ -80,7 +83,7 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
       void clientRef.current?.close().catch(() => {}); clientRef.current = null;
     };
   }, [attach]);
-  useEffect(() => { ++epoch.current; setStates(null); }, [deviceConnected]);
+  useEffect(() => { ++epoch.current; setStates(null); setConnecting(false); }, [deviceConnected]);
   const refresh = useCallback(async () => {
     if (!client || !connected.current || busy.current || blockedRef.current) return;
     const turn = epoch.current; busy.current = true; setReading(true);
@@ -123,6 +126,8 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
     error.includes('CONFLICT') || error.includes('STATUS_2') || error.includes('CHANGED') ? t.conflict :
     error.includes('BUSY') || error.includes('STATUS_5') ? t.busy : error.includes('DISCONNECTED') ? t.disconnected :
     error.includes('STATUS_3') ? t.storage : error.includes('TIMEOUT') ? t.timeout : t.failed;
+  const statusText = errorText || (connecting ? t.connecting : reading && !states ? t.reading :
+    !deviceConnected ? t.host : states ? working ? t.pairing : done ? t.paired : pending ? t.incomplete : t.unpaired : '');
   return (
     <Box as="section" aria-label={t.title} borderWidth="1px" borderColor="border.subtle" borderRadius="lg" bg="bg.subtle" p={4} w="100%">
       <VStack align="stretch" gap={4}>
@@ -136,29 +141,31 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
               </Text>
             </Box>
           </HStack>
-          {states && !error && <Badge size="sm" variant="subtle" colorPalette={working || pending ? 'orange' : done ? 'green' : 'gray'} role="status" textTransform="none" letterSpacing="normal">
-            {done && !working && <LuCheck />}
-            {working ? t.pairing : done ? t.paired : pending ? t.incomplete : t.unpaired}
+          {statusText && <Badge size="sm" variant="subtle" colorPalette={errorText ? 'red' : connecting || reading || working || pending ? 'orange' : done ? 'green' : 'gray'}
+            role={errorText ? 'alert' : 'status'} textTransform="none" letterSpacing="normal" ml="auto" maxW={{ base: '100%', sm: '320px' }} whiteSpace="normal" textAlign="right" overflowWrap="anywhere">
+            {done && !working && !errorText && <LuCheck />}
+            {statusText}
           </Badge>}
         </Flex>
 
-        {states && <SimpleGrid as="dl" columns={{ base: 1, sm: 2 }} gap={3}>
+        <SimpleGrid as="dl" columns={{ base: 1, sm: 2 }} gap={3}>
           <Box>
             <Text as="dt" fontSize="xs" color="fg.muted" mb={1}>{t.id}</Text>
-            <Text as="dd" fontSize="sm" fontFamily="mono" letterSpacing="normal">{bindingHex(states.rx.active.localId)}</Text>
+            <Box as="dd" h="24px" display="flex" alignItems="center" fontSize="sm" fontFamily="mono" letterSpacing="normal"
+              bg={states ? undefined : 'bg.muted'} bgImage={states ? undefined : emptyIdFill} borderRadius="sm">
+              {states && bindingHex(states.rx.active.localId)}
+            </Box>
           </Box>
           <Box>
             <Text as="dt" fontSize="xs" color="fg.muted" mb={1}>{t.address}</Text>
-            <Text as="dd" fontSize="sm" fontFamily={present(states.rx.active) ? 'mono' : 'inherit'} letterSpacing="normal">
-              {present(states.rx.active) ? bindingHex(states.rx.active.address) : t.unassigned}
-            </Text>
+            <Box as="dd" h="24px" display="flex" alignItems="center" fontSize="sm" fontFamily={states && present(states.rx.active) ? 'mono' : 'inherit'} letterSpacing="normal"
+              bg={states ? undefined : 'bg.muted'} bgImage={states ? undefined : emptyIdFill} borderRadius="sm">
+              {states && (present(states.rx.active) ? bindingHex(states.rx.active.address) : t.unassigned)}
+            </Box>
           </Box>
-        </SimpleGrid>}
+        </SimpleGrid>
 
         <VStack align="stretch" gap={2} aria-live="polite">
-          {!deviceConnected && <Text fontSize="xs" color="fg.muted">{t.host}</Text>}
-          {reading && !states && <Text fontSize="xs" color="fg.muted">{t.reading}</Text>}
-          {errorText && <Text fontSize="xs" lineHeight="1.6" color="fg.error" role="alert">{errorText}</Text>}
           {replacing && <Text fontSize="xs" color="fg.muted">{t.replace}</Text>}
           <Flex gap={2} wrap="wrap">
             {!done && states && <Button size="sm" colorPalette="green" disabled={blocked || reading || working || !!error} onClick={() => void pair()}>{working ? t.pairing : pending ? t.resume : t.pair}</Button>}

@@ -51,6 +51,8 @@ type ScopeUpgradeOperation = {
 type DeviceTransactionOwner = 'ready-session' | 'connection-initialization';
 
 const CONNECTION_INITIALIZATION_COMMANDS = new Set([
+  'get_profile_details',
+  'get_profile_macros',
   'get_global_config',
   'get_screen_control_config',
   'get_profile_list',

@@ -463,6 +463,61 @@ int main(int argc, char **argv)
         ++passed;
     }
 
+    // Exercise fixed-slot behavior through the real dispatcher and handlers.
+    resetContractState();
+    DispatchResult slotsResult = dispatch("get_profile_list", nullptr, kAllScopes);
+    const cJSON* slotData = cJSON_GetObjectItemCaseSensitive(slotsResult.root, "data");
+    const cJSON* slotList = cJSON_GetObjectItemCaseSensitive(slotData, "profileList");
+    const cJSON* slotItems = cJSON_GetObjectItemCaseSensitive(slotList, "items");
+    if (slotsResult.error != 0 || cJSON_GetArraySize(slotItems) != NUM_PROFILES ||
+        cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(slotList, "maxNumProfiles")) != NUM_PROFILES) return EXIT_FAILURE;
+    for (unsigned i = 0; i < NUM_PROFILES; ++i) {
+        const cJSON* item = cJSON_GetArrayItem(slotItems, i);
+        if (cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(item, "slotIndex")) != i) return EXIT_FAILURE;
+    }
+    cJSON_Delete(slotsResult.root);
+    const Config before = STORAGE_MANAGER.config;
+    for (const char* command : {"create_profile", "delete_profile"}) {
+        cJSON* params = cJSON_Parse("{\"profileName\":\"Extra\",\"profileId\":\"profile-1\"}");
+        DispatchResult result = dispatch(command, params, kAllScopes);
+        cJSON_Delete(params);
+        if (result.error != 1 || g_deviceCommandContractRecording.storageSaves != 0 ||
+            memcmp(&before, &STORAGE_MANAGER.config, sizeof(Config)) != 0) return EXIT_FAILURE;
+        cJSON_Delete(result.root);
+    }
+    cJSON* renameParams = cJSON_Parse("{\"profileId\":\"profile-15\",\"profileDetails\":{\"id\":\"profile-15\",\"name\":\"LastSlot\",\"slotIndex\":0}}");
+    DispatchResult renamed = dispatch("update_profile", renameParams, kAllScopes);
+    cJSON_Delete(renameParams);
+    if (renamed.error != 0 || strcmp(STORAGE_MANAGER.config.defaultProfileId, "profile-0") != 0 ||
+        strcmp(STORAGE_MANAGER.config.profiles[15].name, "LastSlot") != 0 ||
+        memcmp(&before.profiles[0], &STORAGE_MANAGER.config.profiles[0], sizeof(GamepadProfile)) != 0) return EXIT_FAILURE;
+    cJSON_Delete(renamed.root);
+    for (unsigned i = 0; i < NUM_PROFILES; ++i) {
+        cJSON* params = cJSON_CreateObject();
+        cJSON_AddStringToObject(params, "profileId", before.profiles[i].id);
+        DispatchResult result = dispatch("switch_default_profile", params, kAllScopes);
+        cJSON_Delete(params);
+        if (result.error != 0 || strcmp(STORAGE_MANAGER.config.defaultProfileId, before.profiles[i].id) != 0) return EXIT_FAILURE;
+        cJSON_Delete(result.root);
+    }
+    // Older partial backups cannot remove any of the remaining fixed slots.
+    cJSON* beginParams = cJSON_Parse("{\"replaceProfiles\":true}");
+    DispatchResult begun = dispatch("import_config_begin", beginParams, kAllScopes);
+    cJSON_Delete(beginParams);
+    if (begun.error != 0) return EXIT_FAILURE;
+    cJSON_Delete(begun.root);
+    cJSON* part = cJSON_Parse("{\"section\":\"profile\",\"data\":{\"id\":\"profile-1\",\"name\":\"Imported\"}}");
+    DispatchResult staged = dispatch("import_config_part", part, kAllScopes);
+    cJSON_Delete(part);
+    if (staged.error != 0) return EXIT_FAILURE;
+    cJSON_Delete(staged.root);
+    DispatchResult finished = dispatch("import_config_finish", nullptr, kAllScopes);
+    if (finished.error != 0 || strcmp(STORAGE_MANAGER.config.profiles[1].name, "Imported") != 0) return EXIT_FAILURE;
+    cJSON_Delete(finished.root);
+    for (unsigned i = 0; i < NUM_PROFILES; ++i) {
+        if (!STORAGE_MANAGER.config.profiles[i].enabled || strcmp(STORAGE_MANAGER.config.profiles[i].id, before.profiles[i].id) != 0) return EXIT_FAILURE;
+    }
+
     std::string retiredFailure;
     if (!verifyRetiredCommandAlsoReachesItsRegisteredHandler(retiredFailure)) {
         std::cerr << retiredFailure << "\n";

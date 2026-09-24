@@ -1,6 +1,6 @@
 import { GamePadColor } from "./gamepad-color";
 
-export const NUM_PROFILES_MAX = 8;
+export const NUM_PROFILES_MAX = 16;
 // LEDS animation cycle in milliseconds 
 export const LEDS_ANIMATION_CYCLE = 10000;
 // LEDS animation speed
@@ -475,6 +475,8 @@ export interface KeysConfig {
 
 export interface GameProfile {
     id: string;
+    /** Read-only index in the firmware's fixed profile array; absent on legacy firmware. */
+    readonly slotIndex?: number;
     name?: string;
     isCompetitionProfile?: boolean;
     keysConfig?: KeysConfig;
@@ -746,6 +748,7 @@ export const UI_TEXT = {
     CONNECTION_MODE_REPORT_RATE_LABEL: "Configured rate",
     CONNECTION_MODE_REPORT_RATE_HELPER: "2K/4K/8K take effect only after entering Input State with XInput mode; other modes use 1K.",
     INPUT_MODE_TITLE: "Platform",
+    INPUT_MODE_HELPER: "Platform selection only applies in USB mode. Wireless mode supports PC only.",
     POWER_TITLE: "Power",
     POWER_AUTO_STANDBY_LABEL: "Auto Sleep",
     POWER_AUTO_STANDBY_HELPER: "The device enters sleep after remaining idle for the selected amount of time.",
@@ -881,6 +884,9 @@ export const UI_TEXT = {
 
     // Profile Select
     PROFILE_SELECT_TITLE: "Profile Select",
+    PROFILE_SELECT_FIRMWARE_REQUIRED: "Update the device firmware to use all fixed profile slots.",
+    PROFILE_SELECT_UNAVAILABLE: "Unavailable",
+    PROFILE_SELECT_OPERATION_FAILED: "Could not save the profile change. Please try again.",
     PROFILE_SELECT_CREATE_BUTTON: "Create New Profile",
     PROFILE_SELECT_RENAME_BUTTON: "Rename Profile",
     PROFILE_SELECT_DELETE_BUTTON: "Delete Profile",
@@ -1286,6 +1292,7 @@ export const UI_TEXT_ZH = {
     CONNECTION_MODE_REPORT_RATE_LABEL: "配置速率",
     CONNECTION_MODE_REPORT_RATE_HELPER: "2K/4K/8K 仅在进入 Input State 且使用 XInput 模式时生效；其他模式使用 1K。",
     INPUT_MODE_TITLE: "平台",
+    INPUT_MODE_HELPER: "平台选择只在USB模式下生效，无线模式下只支持 PC",
     POWER_TITLE: "电源",
     POWER_AUTO_STANDBY_LABEL: "自动休眠",
     POWER_AUTO_STANDBY_HELPER: "设备持续无操作达到所选时间后，将进入休眠状态。",
@@ -1420,6 +1427,9 @@ export const UI_TEXT_ZH = {
 
     // 配置选择
     PROFILE_SELECT_TITLE: "配置选择",
+    PROFILE_SELECT_FIRMWARE_REQUIRED: "请更新设备固件，以使用全部固定配置槽位。",
+    PROFILE_SELECT_UNAVAILABLE: "不可用",
+    PROFILE_SELECT_OPERATION_FAILED: "配置更改保存失败，请重试。",
     PROFILE_SELECT_CREATE_BUTTON: "创建新配置",
     PROFILE_SELECT_RENAME_BUTTON: "重命名配置",
     PROFILE_SELECT_DELETE_BUTTON: "删除配置",

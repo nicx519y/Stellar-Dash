@@ -14,6 +14,8 @@ output/playwright/
 *.tmp   
 
 application/build
+application/build_live_feedback/
+application/www/output/
 bootloader/build
 releases
 tools/__pycache__

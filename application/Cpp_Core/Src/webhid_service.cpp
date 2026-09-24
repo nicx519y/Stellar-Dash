@@ -29,6 +29,8 @@
 #include "usbdriver.hpp"
 #include "webconfig_authorization_public_keys.h"
 #include "webhid_rpc_dispatcher.hpp"
+#include "webhid_config_write_policy.hpp"
+#include "qspi_wait_scope.hpp"
 #include "cJSON.h"
 #include "main_runtime_control.hpp"
 
@@ -2418,8 +2420,22 @@ bool WebHidService::processSecureRpc(
         return result;
     }
 
-    WebHidRpcResult dispatched =
-        WEBHID_RPC_DISPATCHER.dispatch(root, grantedScopes);
+    WebHidRpcResult dispatched;
+    {
+        // No worker teardown and no early ACK. Only the busy wait yields;
+        // the existing journal still commits and verifies before returning.
+        QspiWaitScope feedback(webhidIsLiveConfigWrite(command)
+            ? +[]() { WEBHID_SERVICE.serviceConfigSaveFeedback(); }
+            : nullptr);
+        dispatched = WEBHID_RPC_DISPATCHER.dispatch(root, grantedScopes);
+    }
+    if ((command == "update_profile" || command == "switch_default_profile" || command == "update_global_config")
+        && WEBCONFIG_BTNS_MANAGER.isActive()
+        && !WEBCONFIG_BTNS_MANAGER.isTestModeEnabled()) {
+        // Also refresh after a failed save: Storage may have reloaded the
+        // last committed config. Preserve held keys and debounce history.
+        (void)ADC_BTNS_WORKER.setup(true);
+    }
     if (dispatched.json == nullptr || dispatched.jsonLength == 0u) {
         WEBHID_RPC_DISPATCHER.clearSerializedResponse();
         cJSON_Delete(root);
@@ -3755,6 +3771,21 @@ bool WebHidService::sendCheckpointChunk()
             checkpointKeys.data(), sizeof(checkpointKeys));
     }
     return true;
+}
+
+void WebHidService::serviceConfigSaveFeedback()
+{
+    static uint32_t lastTick = 0u;
+    const uint32_t now = HAL_GetTick();
+    if (!initialized || !sessionEstablished || now == lastTick) return;
+    lastTick = now;
+
+    // All workers here read RAM-backed configuration/mappings. Do not call
+    // process(), screen rendering, calibration, or any flash consumer here.
+    USB_BOARD_LINK.process();
+    WEBCONFIG_BTNS_MANAGER.update();
+    WEBCONFIG_LEDS_MANAGER.update(WEBCONFIG_BTNS_MANAGER.getCurrentMask());
+    pumpOutput();
 }
 
 void WebHidService::updateTelemetry()

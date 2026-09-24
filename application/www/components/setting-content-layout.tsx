@@ -307,7 +307,7 @@ export function SettingContentLayout({
                 className={className}
             >
                 {/* 左侧边栏 */}
-                <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
+                <Flex flex={0} justifyContent="flex-start" alignSelf="stretch" minH={0}>
                     {sideContent}
                 </Flex>
 
@@ -354,6 +354,11 @@ export function SideContent({ children }: SideContentProps) {
             width="228px"
             minWidth="228px"
             flexShrink={0}
+            minH={0}
+            height="100%"
+            borderRightWidth="1px"
+            borderColor="border"
+            pr="18px"
         >
             {children}
         </Flex>

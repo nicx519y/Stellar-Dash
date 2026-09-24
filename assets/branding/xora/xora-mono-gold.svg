@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="240" viewBox="0 0 1000 240" fill="none" role="img" aria-labelledby="xora-title xora-description">
+  <title id="xora-title">XORA · 星溯</title>
+  <desc id="xora-description">Warm gold monochrome XORA logo, transparent background.</desc>
+  <g id="x-star" fill="#E9C980">
+    <path d="M8 25H85L144 80 135 110 105 120Z" />
+    <path d="M204 25H280L183 120 153 110 144 80Z" />
+    <path d="M8 215H85L144 160 135 130 105 120Z" />
+    <path d="M204 215H280L183 120 153 130 144 160Z" />
+  </g>
+  <g id="o-arcade-button">
+    <circle cx="384" cy="120" r="101" stroke="#E9C980" stroke-width="20" />
+    <circle cx="384" cy="120" r="77" fill="#E9C980" />
+  </g>
+  <g id="ra-wordmark" fill="#E9C980">
+    <path id="letter-r" d="M511 25H646C691 25 717 48 717 85 717 119 690 147 651 150L713 215H647L589 151H570V215H511V107H639C655 107 663 99 663 88 663 78 655 71 639 71H511Z" />
+    <path id="letter-a" d="M715 215 821 40Q835 16 849 16 866 16 880 40L992 215H919L850 99 782 215Z" />
+  </g>
+</svg>

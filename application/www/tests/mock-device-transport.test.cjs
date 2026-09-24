@@ -882,12 +882,64 @@ test('connects and serves a complete V2 fixture without auto calibration', async
   assert.equal(global.data.globalConfig.autoCalibrationEnabled, false);
 
   const profiles = await transport.request('get_profile_list');
-  assert.equal(profiles.data.profileList.items.length, 2);
-  assert.equal(profiles.data.defaultProfileDetails.name, 'Arcade');
+  assert.equal(profiles.data.profileList.items.length, 16);
+  assert.equal(profiles.data.profileList.maxNumProfiles, 16);
+  assert.deepEqual(profiles.data.profileList.items.map((profile) => profile.slotIndex), Array.from({ length: 16 }, (_, i) => i));
+  assert.deepEqual(profiles.data.profileList.items.map((profile) => profile.name),
+    Array.from({ length: 16 }, (_, i) => `Profile-${String(i + 1).padStart(2, '0')}`));
+  assert.equal(profiles.data.defaultProfileDetails.name, 'Profile-01');
 
   const layout = await transport.request('get_hitbox_layout');
   assert.equal(layout.data.length, 22);
   await transport.close();
+});
+
+test('fixed slot compatibility rejects legacy, incomplete, and duplicate slot identities', () => {
+  const { profileSlots } = require('../lib/profile-slots.ts');
+  const fixed = { defaultId: 'a', maxNumProfiles: 2, items: [{ id: 'b', slotIndex: 1 }, { id: 'a', slotIndex: 0 }] };
+  assert.equal(profileSlots(fixed).compatible, true);
+  assert.deepEqual(profileSlots(fixed).slots.map((item) => item.id), ['a', 'b']);
+  assert.equal(profileSlots({ ...fixed, items: [{ id: 'a' }] }).compatible, false);
+  assert.equal(profileSlots({ ...fixed, items: [fixed.items[0]] }).compatible, false);
+  assert.equal(profileSlots({ ...fixed, items: [{ id: 'a', slotIndex: 0 }, { id: 'b', slotIndex: 0 }] }).compatible, false);
+  assert.equal(profileSlots({ ...fixed, items: [{ id: 'a', slotIndex: 0 }, { id: 'a', slotIndex: 1 }] }).compatible, false);
+  assert.equal(profileSlots({ ...fixed, maxNumProfiles: 0 }).compatible, false);
+});
+
+test('legacy mock state gains permanent slots and non-current rename preserves selection', async () => {
+  const storage = new MemoryStorage();
+  const storageKey = 'fixed-slots-test';
+  const first = await createTransport({ storage, storageKey });
+  await first.request('update_profile', { profileId: 'profile-tournament', profileDetails: { name: 'KeepMe' } });
+  await first.close();
+  const old = JSON.parse(storage.getItem(storageKey));
+  old.profiles = old.profiles.slice(0, 2).map(({ slotIndex, ...profile }) => profile);
+  storage.setItem(storageKey, JSON.stringify(old));
+  const reopened = await createTransport({ storage, storageKey });
+  const response = await reopened.request('get_profile_list');
+  const before = response.data.profileList;
+  assert.equal(before.items.length, 16);
+  assert.equal(before.items[1].name, 'KeepMe');
+  await reopened.request('update_profile', { profileId: before.items[15].id, profileDetails: { name: 'SlotSixteen', slotIndex: 0 } });
+  const renamed = (await reopened.request('get_profile_list')).data.profileList;
+  assert.equal(renamed.defaultId, before.defaultId);
+  assert.equal(renamed.items[15].name, 'SlotSixteen');
+  assert.equal(renamed.items[15].slotIndex, 15);
+  await reopened.request('import_config_begin', { replaceProfiles: true, strict: false });
+  await reopened.request('import_config_part', { section: 'profile', data: { ...before.items[1], name: 'Imported' } });
+  await reopened.request('import_config_finish');
+  const imported = (await reopened.request('get_profile_list')).data.profileList;
+  assert.deepEqual(imported.items.map((item) => item.id), before.items.map((item) => item.id));
+  assert.equal(imported.items[1].name, 'Imported');
+  assert.equal(imported.items[15].name, 'SlotSixteen');
+  await reopened.close();
+  const final = await createTransport({ storage, storageKey });
+  assert.deepEqual((await final.request('get_profile_list')).data.profileList, imported);
+  for (const profile of imported.items) {
+    await final.request('switch_default_profile', { profileId: profile.id });
+    assert.equal((await final.request('get_default_profile')).data.defaultProfileDetails.id, profile.id);
+  }
+  await final.close();
 });
 
 test('persists configuration in the injected tab storage and isolates new tabs', async () => {
@@ -919,33 +971,29 @@ test('persists configuration in the injected tab storage and isolates new tabs',
 
   const otherTab = await createTransport({ storage: new MemoryStorage() });
   const otherProfile = await otherTab.request('get_default_profile');
-  assert.equal(otherProfile.data.defaultProfileDetails.name, 'Arcade');
+  assert.equal(otherProfile.data.defaultProfileDetails.name, 'Profile-01');
   await refreshed.close();
   await otherTab.close();
 });
 
-test('supports Profile CRUD, hotkeys, screen settings and device logs', async () => {
+test('supports fixed profile selection and rename, hotkeys, screen settings and device logs', async () => {
   const transport = await createTransport();
 
-  const created = await transport.request('create_profile', {
-    profileName: 'Offline QA',
-  });
-  const createdProfile = created.data.profileList.items.find(
-    (profile) => profile.name === 'Offline QA',
-  );
-  assert.ok(createdProfile);
+  const initialProfiles = await transport.request('get_profile_list');
+  const lastProfile = initialProfiles.data.profileList.items[15];
+  assert.ok(lastProfile);
 
   await transport.request('switch_default_profile', {
-    profileId: createdProfile.id,
+    profileId: lastProfile.id,
   });
   await transport.request('update_profile', {
-    profileId: createdProfile.id,
+    profileId: lastProfile.id,
     profileDetails: { name: 'Offline QA Edited' },
   });
   let profiles = await transport.request('get_profile_list');
-  assert.equal(profiles.data.profileList.defaultId, createdProfile.id);
+  assert.equal(profiles.data.profileList.defaultId, lastProfile.id);
   assert.equal(
-    profiles.data.profileList.items.find((profile) => profile.id === createdProfile.id).name,
+    profiles.data.profileList.items.find((profile) => profile.id === lastProfile.id).name,
     'Offline QA Edited',
   );
 
@@ -982,15 +1030,15 @@ test('supports Profile CRUD, hotkeys, screen settings and device logs', async ()
   assert.ok(logs.data.items.length > 0);
   assert.match(logs.data.items[0], /\[MOCK\]/);
 
-  await transport.request('delete_profile', {
-    profileId: createdProfile.id,
-  });
+  await assert.rejects(transport.request('create_profile', { profileName: 'Extra' }), /Fixed profile slots/);
+  await assert.rejects(transport.request('delete_profile', { profileId: lastProfile.id }), /Fixed profile slots/);
   profiles = await transport.request('get_profile_list');
   assert.equal(
-    profiles.data.profileList.items.some((profile) => profile.id === createdProfile.id),
-    false,
+    profiles.data.profileList.items.some((profile) => profile.id === lastProfile.id),
+    true,
   );
-  assert.notEqual(profiles.data.profileList.defaultId, createdProfile.id);
+  assert.equal(profiles.data.profileList.defaultId, lastProfile.id);
+  assert.deepEqual(profiles.data.profileList.items.map((profile) => profile.id), initialProfiles.data.profileList.items.map((profile) => profile.id));
   await transport.close();
 });
 
@@ -1142,17 +1190,16 @@ test('emits typed button state and performance sample events', async () => {
   await transport.close();
 });
 
-test('rejects persistent configuration during ordinary and performance monitoring', async () => {
+test('ordinary monitoring allows autosave while performance monitoring remains exclusive', async () => {
   const transport = await createTransport();
 
   await transport.request('start_button_monitoring');
-  await assert.rejects(
-    transport.request('update_profile', {
+  await transport.request('update_profile', {
       profileId: 'profile-arcade',
-      profileDetails: { name: 'Must Not Persist' },
-    }),
-    /monitor-active/,
-  );
+      profileDetails: { name: 'Saved While Monitoring' },
+    });
+  assert.equal((await transport.request('get_button_states')).data.isActive, true);
+  await assert.rejects(transport.request('import_all_config', {}), /monitor-active/);
   await transport.request('push_leds_config', { ledBrightness: 50 });
   await transport.request('stop_button_monitoring');
   await transport.request('update_profile', {
@@ -1178,6 +1225,18 @@ test('rejects persistent configuration during ordinary and performance monitorin
   const profile = await transport.request('get_default_profile');
   assert.equal(profile.data.defaultProfileDetails.name, 'Saved After Stop');
   await transport.close();
+});
+
+test('LED preview and sampling remain active across profile saves and switches', async () => {
+  const transport = await createTransport();
+  try {
+    await transport.request('push_leds_config', { ledBrightness: 50 });
+    const switched = await transport.request('switch_default_profile', { profileId: 'profile-tournament' });
+    assert.equal(switched.data.profileList.defaultId, 'profile-tournament');
+    assert.equal((await transport.request('get_button_states')).data.isActive, true);
+  } finally {
+    await transport.close();
+  }
 });
 
 test('emits uncalibrated, top, bottom and completed calibration states', async () => {
@@ -1458,8 +1517,7 @@ test('emits a complete ordered configuration export stream', async () => {
     'global',
     'hotkeys',
     'screenControl',
-    'profile',
-    'profile',
+    ...Array(16).fill('profile'),
     'end',
   ]);
   await transport.close();
@@ -1924,7 +1982,7 @@ test('versioned backup v3 restores profiles and user image without ADC data', as
   assert.equal(backup.userImage.size, pixels.length);
 
   await adapter.request('switch_default_profile', { profileId: 'profile-arcade' });
-  await adapter.request('create_profile', { profileName: 'Must Be Removed' });
+  await adapter.request('update_profile', { profileId: 'profile-arcade', profileDetails: { name: 'Changed' } });
   assert.equal((await adapter.deleteImage()).success, true);
 
   await adapter.importConfig(backup);
@@ -1932,8 +1990,10 @@ test('versioned backup v3 restores profiles and user image without ADC data', as
   assert.equal(profiles.defaultProfileDetails.id, 'profile-tournament');
   assert.deepEqual(
     profiles.profileList.items.map((profile) => profile.id).sort(),
-    ['profile-arcade', 'profile-tournament'],
+    backup.profiles.map((profile) => profile.id).sort(),
   );
+  assert.equal(profiles.profileList.items.length, 16);
+  assert.equal(profiles.profileList.items[0].name, 'Profile-01');
   const restored = await adapter.readImage('user', pixels.length);
   assert.deepEqual([...restored], [...pixels]);
   adapter.dispose();

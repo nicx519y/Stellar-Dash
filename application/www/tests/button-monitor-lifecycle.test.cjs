@@ -276,6 +276,21 @@ test('a suspended shared monitor can resume after a failed configuration commit'
   assert.deepEqual(calls, ['start', 'stop', 'restart', 'release-stop']);
 });
 
+test('a boundary with no web monitor owner still stops implicit firmware workers', async () => {
+  const shared = new SharedButtonMonitorLease();
+  shared.beginSession();
+  let stops = 0;
+  await assert.rejects(shared.suspend(async () => {
+    stops += 1;
+    throw new Error('stop failed');
+  }), /stop failed/);
+  // Failed stop leaves the boundary retryable and must not grant ownership.
+  await shared.suspend(async () => { stops += 1; });
+  await shared.resume(async () => assert.fail('no owner to restart'));
+  assert.equal(stops, 2);
+  assert.equal(shared.ownerCount, 0);
+});
+
 test('finalizing a suspended monitor invalidates old page cleanup', async () => {
   const shared = new SharedButtonMonitorLease();
   let stops = 0;

@@ -4,7 +4,7 @@ import { Provider } from "@/components/ui/provider"
 import StyledComponentsRegistry from '@/lib/registry'
 import { SettingsLayout } from '@/components/settings-layout'
 import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-config-context'
-import { Box, Flex, HStack, Spinner, Text } from '@chakra-ui/react'
+import { Flex, HStack } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -15,7 +15,6 @@ import { DialogEditCombination } from '@/components/dialog-edit-combination'
 import { LanguageProvider, useLanguage } from '@/contexts/language-context';
 import { UserAuthProvider } from '@/contexts/user-auth-context';
 import {
-    configuredTransportMode,
     DeviceConnectionPhase,
     DeviceTransportError,
     reconnectRequiresPermission,
@@ -23,6 +22,7 @@ import {
 import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-network-trace';
 import { usePathname } from 'next/navigation';
 import { UserAuthControl } from '@/components/user-auth-control';
+import { ConfigSyncStatus, ConfigDraftRecovery } from '@/components/config-sync-status';
 import { LanguageSwitcher } from '@/components/language-switcher';
 
 const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
@@ -44,13 +44,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
         deviceConnected,
         devicePhase,
         dataIsReady,
-        deferredConfigSaving,
     } = useGamepadConfig();
     const [isReconnecting, setIsReconnecting] = useState(false);
     const reconnectInFlightRef = useRef(false);
     const { error, setError } = useGamepadConfig();
     const { t } = useLanguage();
-    const mockPreview = configuredTransportMode() === 'mock';
     const connectionPending = !deviceConnected
         || !dataIsReady
         || devicePhase !== DeviceConnectionPhase.READY;
@@ -125,7 +123,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             <LoadingModal
                 isOpen={connectionPending}
                 variant={connectionInProgress ? 'connection' : 'no-device'}
-                noDeviceAction={!mockPreview && showReconnect ? {
+                noDeviceAction={showReconnect ? {
                     label: t.RECONNECT_MODAL_BUTTON,
                     onClick: handleReconnect,
                     loading: isReconnecting,
@@ -139,34 +137,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 noDeviceMessage={deviceError?.message}
                 headerAction={connectionPending ? (
                     <HStack gap={2}>
+                        <ConfigSyncStatus />
                         <UserAuthControl />
                         <LanguageSwitcher />
                     </HStack>
                 ) : undefined}
             />
-            {deferredConfigSaving && !connectionPending && (
-                <Box
-                    position="fixed"
-                    right={4}
-                    bottom={4}
-                    zIndex={9000}
-                    pointerEvents="none"
-                    role="status"
-                    aria-live="polite"
-                    bg="rgba(13, 18, 24, 0.92)"
-                    border="1px solid"
-                    borderColor="whiteAlpha.200"
-                    borderRadius="md"
-                    boxShadow="lg"
-                    px={4}
-                    py={3}
-                >
-                    <HStack gap={3}>
-                        <Spinner size="sm" color="green.400" />
-                        <Text fontSize="sm">{t.DIALOG_CONFIG_SAVING_MESSAGE}</Text>
-                    </HStack>
-                </Box>
-            )}
+            <ConfigDraftRecovery />
             <DialogConfirm />
             <DialogForm />
             <DialogCannotClose />

@@ -9,6 +9,8 @@ const {
 const {
   deviceCommandSchedule,
 } = require('../lib/device-transport/device-request-policy.ts');
+const { LedPreviewCoordinator } = require('../lib/led-preview-coordinator.ts');
+const { SharedButtonMonitorLease } = require('../lib/button-monitor-lifecycle.ts');
 
 function deferred() {
   let resolve;
@@ -73,6 +75,89 @@ test('one policy table owns durable debounce, resource keys and timeouts', () =>
   assert.equal(profile.coalescingKey, 'update_profile:profile-2');
   assert.equal(read.coalescingKey, undefined);
   assert.equal(read.debounceMs, 0);
+  const selection = deviceCommandSchedule('switch_default_profile', { profileId: 'profile-2' }, false);
+  assert.equal(selection.timeoutMs, global.timeoutMs);
+  assert.equal(selection.debounceMs, 0);
+  assert.equal(selection.coalescingKey, undefined);
+});
+
+test('LED preview with no monitor lease is stopped before saving and switching profiles', async () => {
+  const queue = new DeviceRequestQueue();
+  const lease = new SharedButtonMonitorLease();
+  const preview = new LedPreviewCoordinator();
+  const calls = [];
+  let workerActive = false;
+  queue.setSendFunction(async (command, params) => {
+    calls.push([command, params]);
+    if (command === 'push_leds_config') workerActive = true;
+    if (command === 'stop_button_monitoring' || command === 'clear_leds_preview') workerActive = false;
+    if (command === 'update_profile' || command === 'switch_default_profile') {
+      if (workerActive) throw new Error('409 monitor-active');
+    }
+    return {};
+  });
+  const send = async (command, params = {}, immediate = true) => {
+    await queue.enqueue(command, params, immediate, deviceCommandSchedule(command, params, immediate));
+  };
+  const push = (config) => send('push_leds_config', config, false);
+  lease.beginSession();
+  await preview.push({ ledBrightness: 10 }, push);
+  assert.equal(lease.ownerCount, 0);
+  // Reproduce the firmware refusal before applying the boundary protocol.
+  await assert.rejects(send('switch_default_profile', { profileId: 'new' }), /monitor-active/);
+  calls.length = 0;
+
+  // Also cover a debounced preview already in the transport queue.
+  const pending = preview.push({ ledBrightness: 20 }, push);
+  const token = preview.suspend();
+  await lease.suspend(() => send('stop_button_monitoring'));
+  await pending;
+  await send('clear_leds_preview');
+  // React can submit a preview during a save; it must remain local.
+  await preview.push({ ledBrightness: 30 }, push);
+  await send('update_profile', { profileId: 'old' });
+  await send('switch_default_profile', { profileId: 'new' });
+  preview.replaceIfActive({ ledBrightness: 80 });
+  await lease.resume(() => send('start_button_monitoring'));
+  await preview.resume(token, push);
+  assert.deepEqual(calls.map(([command]) => command), [
+    'push_leds_config', 'stop_button_monitoring', 'clear_leds_preview',
+    'update_profile', 'switch_default_profile', 'push_leds_config',
+  ]);
+  assert.deepEqual(calls.at(-1)[1], { ledBrightness: 80 });
+  assert.equal(workerActive, true);
+  queue.destroy();
+});
+
+test('failed writes restore the latest LED preview; unmount and disconnect cancel restoration', async () => {
+  const preview = new LedPreviewCoordinator();
+  const sent = [];
+  const send = async (config) => { sent.push(config); };
+  await preview.push({ ledBrightness: 10 }, send);
+  const failedBoundary = preview.suspend();
+  await preview.push({ ledBrightness: 25 }, send);
+  await preview.resume(failedBoundary, send);
+  assert.deepEqual(sent, [{ ledBrightness: 10 }, { ledBrightness: 25 }]);
+
+  const unmount = preview.suspend();
+  await preview.clear(async () => undefined);
+  await preview.resume(unmount, send);
+  assert.equal(sent.length, 2);
+
+  await preview.push({ ledBrightness: 40 }, send);
+  const oldSession = preview.suspend();
+  preview.reset();
+  await preview.push({ ledBrightness: 60 }, send);
+  const newSession = preview.suspend();
+  await preview.resume(oldSession, send);
+  await preview.push({ ledBrightness: 70 }, send);
+  assert.equal(sent.length, 4, 'stale completion must not unlock the new session');
+  await preview.resume(newSession, send);
+  assert.deepEqual(sent.at(-1), { ledBrightness: 70 });
+
+  const finish = preview.suspend();
+  await preview.resume(finish, send, false);
+  assert.equal(sent.length, 5, 'successful finish must not restart preview');
 });
 
 test('LED preview and clear share one debounced ephemeral resource key', async () => {

@@ -207,11 +207,11 @@ cJSON* ProfileCommandHandler::buildProfileListJSON() {
 
     // 添加默认配置ID和最大配置数
     cJSON_AddStringToObject(profileListJSON, "defaultId", config.defaultProfileId);
-    cJSON_AddNumberToObject(profileListJSON, "maxNumProfiles", config.numProfilesMax);
+    cJSON_AddNumberToObject(profileListJSON, "maxNumProfiles", NUM_PROFILES);
 
     // 添加所有配置文件信息
     for(uint8_t i = 0; i < NUM_PROFILES; i++) {
-        if(config.profiles[i].enabled) {  // 只添加已启用的配置文件
+        {  // Every storage slot is permanent and selectable.
             cJSON* profileJSON = cJSON_CreateObject();
             
             // 清理字符串中的控制字符，确保UTF-8编码有效
@@ -228,6 +228,7 @@ cJSON* ProfileCommandHandler::buildProfileListJSON() {
             
             // 基本信息
             cJSON_AddStringToObject(profileJSON, "id", cleanId);
+            cJSON_AddNumberToObject(profileJSON, "slotIndex", i);
             cJSON_AddStringToObject(profileJSON, "name", cleanName);
             cJSON_AddBoolToObject(profileJSON, "enabled", config.profiles[i].enabled);
             cJSON_AddBoolToObject(profileJSON, "isCompetitionProfile", config.profiles[i].isCompetitionProfile);
@@ -1412,207 +1413,13 @@ DeviceCommandResponse ProfileCommandHandler::handleUpdateProfileMacros(const Dev
 }
 
 DeviceCommandResponse ProfileCommandHandler::handleCreateProfile(const DeviceCommandRequest& request) {
-    // LOG_INFO("DeviceCommand", "Handling create_profile command, cid: %d", request.getCid());
-    
-    Config& config = Storage::getInstance().config;
-    
-    // 获取请求参数
-    cJSON* params = request.getParams();
-    if (!params) {
-        LOG_ERROR("DeviceCommand", "create_profile: Invalid parameters");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
-    }
-
-    // 检查是否达到最大配置文件数
-    uint8_t enabledCount = 0;
-    for(uint8_t i = 0; i < NUM_PROFILES; i++) {
-        if(config.profiles[i].enabled) {
-            enabledCount++;
-        }
-    }
-
-    if(enabledCount >= config.numProfilesMax) {
-        LOG_ERROR("DeviceCommand", "create_profile: Maximum number of profiles reached");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Maximum number of profiles reached");
-    }
-
-    // 整理配置文件列表，将所有已启用的配置文件移动到前面
-    // 这样新创建的配置文件就会被添加到所有启用配置文件的后面
-    for (uint8_t dest = 0; dest < NUM_PROFILES; dest++) {
-        if (!config.profiles[dest].enabled) {
-            // 如果当前位置为空，查找后面第一个启用的配置文件
-            for (uint8_t src = dest + 1; src < NUM_PROFILES; src++) {
-                if (config.profiles[src].enabled) {
-                    // 移动配置文件
-                    config.profiles[dest] = config.profiles[src];
-                    
-                    // 清空源位置
-                    config.profiles[src].enabled = false;
-                    memset(config.profiles[src].id, 0, sizeof(config.profiles[src].id));
-                    memset(config.profiles[src].name, 0, sizeof(config.profiles[src].name));
-                    
-                    break; // 找到一个移动后，重新检查当前dest位置（其实不需要，因为刚移过来的是启用的，直接进行下一个dest即可? 不，刚移过来的就是启用的，所以dest位置填满了，可以继续）
-                }
-            }
-        }
-    }
-
-    // 查找第一个未启用的配置文件（现在应该是在所有启用配置文件的末尾）
-    GamepadProfile* targetProfile = nullptr;
-    for(uint8_t i = 0; i < NUM_PROFILES; i++) {
-        if(!config.profiles[i].enabled) {
-            targetProfile = &config.profiles[i];
-            break;
-        }
-    }
-
-    if(!targetProfile) {
-        LOG_ERROR("DeviceCommand", "create_profile: No available profile slot");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "No available profile slot");
-    }
-
-    // 获取新配置文件名称
-    cJSON* nameItem = cJSON_GetObjectItem(params, "profileName");
-    if(nameItem && nameItem->valuestring) {
-        ConfigUtils::makeDefaultProfile(*targetProfile, targetProfile->id, true); // 启用配置文件 并且 初始化配置文件
-        strncpy(targetProfile->name, nameItem->valuestring, sizeof(targetProfile->name) - 1); // 设置配置文件名称
-        targetProfile->name[sizeof(targetProfile->name) - 1] = '\0';  // 确保字符串结束
-        STORAGE_MANAGER.setDefaultProfileId(targetProfile->id); // 设置默认配置文件ID 为新创建的配置文件ID
-    } else {
-        LOG_ERROR("DeviceCommand", "create_profile: Profile name not provided");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile name not provided");
-    }
-
-    // 保存配置
-    if(!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("DeviceCommand", "create_profile: Failed to save configuration");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
-    }
-
-    // 构建返回数据
-    cJSON* dataJSON = cJSON_CreateObject();
-    cJSON* profileListJSON = buildProfileListJSON();
-    
-    if (!profileListJSON) {
-        LOG_ERROR("DeviceCommand", "create_profile: Failed to build profile list JSON");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile list JSON");
-    }
-
-    cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
-    cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(targetProfile));
-    
-    // LOG_INFO("DeviceCommand", "create_profile command completed successfully");
-
-    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+    return create_error_response(request.getCid(), request.getCommand(), 1,
+                                 "Fixed profile slots do not support creation");
 }
 
 DeviceCommandResponse ProfileCommandHandler::handleDeleteProfile(const DeviceCommandRequest& request) {
-    // LOG_INFO("DeviceCommand", "Handling delete_profile command, cid: %d", request.getCid());
-    
-    Config& config = Storage::getInstance().config;
-    
-    // 获取请求参数
-    cJSON* params = request.getParams();
-    if (!params) {
-        LOG_ERROR("DeviceCommand", "delete_profile: Invalid parameters");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
-    }
-
-    // 获取要删除的配置文件ID
-    cJSON* profileIdItem = cJSON_GetObjectItem(params, "profileId");
-    if(!profileIdItem || !profileIdItem->valuestring) {
-        LOG_ERROR("DeviceCommand", "delete_profile: Profile ID not provided");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile ID not provided");
-    }
-
-    // 查找目标配置文件
-    GamepadProfile* targetProfile = nullptr;
-    uint8_t numEnabledProfiles = 0;
-    uint8_t targetIndex = 0;
-
-    for(uint8_t i = 0; i < NUM_PROFILES; i++) {
-        if(config.profiles[i].enabled) {
-            numEnabledProfiles++;
-            if(strcmp(profileIdItem->valuestring, config.profiles[i].id) == 0) {
-                targetProfile = &config.profiles[i];
-                targetIndex = i;
-            }
-        }
-    }
-
-    // 如果目标配置文件不存在，则返回错误
-    if(!targetProfile) {
-        LOG_ERROR("DeviceCommand", "delete_profile: Profile not found");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
-    }
-
-    // 不允许关闭最后一个启用的配置文件
-    if(numEnabledProfiles <= 1) {
-        LOG_ERROR("DeviceCommand", "delete_profile: Cannot delete the last active profile");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Cannot delete the last active profile");
-    }
-
-    // 禁用配置文件（相当于删除）
-    config.profiles[targetIndex].enabled = false;
-
-    // 为了保持内存连续性，将目标配置文件之后的配置文件向前移动一位
-    // 保存目标配置文件的副本
-    GamepadProfile* tempProfile = (GamepadProfile*)malloc(sizeof(GamepadProfile));
-    if(!tempProfile) {
-        LOG_ERROR("DeviceCommand", "delete_profile: Failed to allocate memory");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to allocate memory");
-    }
-    // 保存目标配置文件
-    memcpy(tempProfile, &config.profiles[targetIndex], sizeof(GamepadProfile));
-    // 将目标配置文件之后的配置文件向前移动一位
-    memmove(&config.profiles[targetIndex], 
-            &config.profiles[targetIndex + 1], 
-            (NUM_PROFILES - targetIndex - 1) * sizeof(GamepadProfile));
-    // 将目标配置文件放到最后一个
-    memcpy(&config.profiles[NUM_PROFILES - 1], tempProfile, sizeof(GamepadProfile));
-    free(tempProfile);
-
-    // 设置下一个启用的配置文件为默认配置文件
-    for(uint8_t i = targetIndex; i >= 0; i --) {
-        if(config.profiles[i].enabled) {
-            STORAGE_MANAGER.setDefaultProfileId(config.profiles[i].id);
-            break;
-        }
-    }
-
-    // 保存配置
-    if(!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("DeviceCommand", "delete_profile: Failed to save configuration");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
-    }
-
-    // 构建返回数据
-    cJSON* dataJSON = cJSON_CreateObject();
-    cJSON* profileListJSON = buildProfileListJSON();
-    
-    if (!profileListJSON) {
-        LOG_ERROR("DeviceCommand", "delete_profile: Failed to build profile list JSON");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile list JSON");
-    }
-
-    GamepadProfile* defaultProfile = nullptr;
-    for(uint8_t i = targetIndex; i >= 0; i --) {
-        if(strcmp(config.defaultProfileId, config.profiles[i].id) == 0) {
-            defaultProfile = &config.profiles[i];
-            break;
-        }
-    }
-
-    cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
-    if(defaultProfile) {
-        cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(defaultProfile));
-    } else {
-        cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", cJSON_CreateNull());
-    }
-    
-    // LOG_INFO("DeviceCommand", "delete_profile command completed successfully");
-
-    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+    return create_error_response(request.getCid(), request.getCommand(), 1,
+                                 "Fixed profile slots do not support deletion");
 }
 
 DeviceCommandResponse ProfileCommandHandler::handleSwitchDefaultProfile(const DeviceCommandRequest& request) {

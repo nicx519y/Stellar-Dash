@@ -105,7 +105,7 @@ class ADCBtnsWorker {
          * @brief 初始化ADC按键工作器
          * @return ADCBtnsError 初始化结果
          */
-        ADCBtnsError setup();
+        ADCBtnsError setup(bool preserveState = false);
         
         uint32_t read();
         uint32_t read(const AdcSampleFrame& sample);

@@ -645,6 +645,10 @@ void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enab
     const bool runtimeWasEnabled = runtimeEnabled;
     const bool keysWereEnabled = opts != nullptr && opts->ledEnabled;
     const bool ambientWasEnabled = opts != nullptr && opts->aroundLedEnabled;
+    const bool keyEffectChanged = opts == nullptr || opts->ledEffect != tempConfig.ledEffect;
+    const bool ambientEffectChanged = opts == nullptr || opts->aroundLedEffect != tempConfig.aroundLedEffect
+        || opts->aroundLedSyncToMainLed != tempConfig.aroundLedSyncToMainLed
+        || opts->aroundLedTriggerByButton != tempConfig.aroundLedTriggerByButton;
 
     temporaryConfig = tempConfig;
     opts = &temporaryConfig;
@@ -666,11 +670,16 @@ void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enab
     const uint32_t now = HAL_GetTick();
 
     updateColorsFromConfig();
-    animationStartTime = now;
-    aroundLedAnimationStartTime = now;
-    lastButtonState = 0u;
-    rippleCount = 0u;
-    aroundLedRippleCount = 0u;
+    // Brightness/color changes and repeated preview snapshots must not restart
+    // the animation or erase held-key/ripple state on either strip.
+    if (keyEffectChanged || opts->ledEnabled != keysWereEnabled) {
+        animationStartTime = now;
+        rippleCount = 0u;
+    }
+    if (ambientEffectChanged || opts->aroundLedEnabled != ambientWasEnabled) {
+        aroundLedAnimationStartTime = now;
+        aroundLedRippleCount = 0u;
+    }
 
     if (opts->ledEnabled != keysWereEnabled) {
         keyStrip.setAllBrightness(0u);

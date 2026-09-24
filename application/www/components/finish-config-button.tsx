@@ -1,11 +1,11 @@
-import { Button } from "@chakra-ui/react";
+import { Box, Button, HStack, Spinner, Text } from "@chakra-ui/react";
 import { openConfirm as openFinishConfirmDialog } from "@/components/dialog-confirm";
 import { closeDialog as closeFinishDialog, openDialog as openFinishDialog, updateDialogMessage as updateFinishDialogMessage } from "@/components/dialog-cannot-close";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { configuredTransportMode } from "@/lib/device-transport";
-import { useEffect, useState } from "react";
-import { LuGamepad2 } from "react-icons/lu";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useConfigSyncStatus } from "@/components/config-sync-status";
 
 
 export function FinishConfigButton(
@@ -23,6 +23,22 @@ export function FinishConfigButton(
         setError,
     } = useGamepadConfig();
     const [closing, setClosing] = useState(false);
+    const [hovered, setHovered] = useState(false);
+    const [labelWidth, setLabelWidth] = useState<number | null>(null);
+    const measureRef = useRef<HTMLSpanElement>(null);
+    const { status, text, background, foreground, Icon, busy, zh } = useConfigSyncStatus();
+    const actionText = zh ? '点击结束配置并开始游戏' : 'Click to finish configuration';
+    const label = hovered && !props.disabled && !closing ? actionText : text;
+
+    useLayoutEffect(() => {
+        const measure = measureRef.current;
+        if (!measure) return;
+        const updateWidth = () => setLabelWidth(Math.ceil(measure.getBoundingClientRect().width));
+        updateWidth();
+        const observer = new ResizeObserver(updateWidth);
+        observer.observe(measure);
+        return () => observer.disconnect();
+    }, [label]);
 
     useEffect(() => {
         if (!deviceConnected) return;
@@ -31,12 +47,30 @@ export function FinishConfigButton(
 
     return (
         <Button
+            data-testid="config-sync-finish-button"
+            data-sync-state={status}
             disabled={props.disabled || closing}
             loading={closing}
-            colorPalette="green"
-            variant="surface"
+            variant="solid"
             size="xs"
-            // width={"240px"}
+            minW={0}
+            width={labelWidth === null ? 'max-content' : `${labelWidth + 48}px`}
+            minH="36px"
+            px={3}
+            bg={background}
+            color={foreground}
+            borderRadius="md"
+            overflow="hidden"
+            whiteSpace="nowrap"
+            transition="width 240ms ease, background-color 180ms ease"
+            _hover={{ bg: background, filter: 'brightness(1.08)' }}
+            _disabled={{ opacity: 1 }}
+            _motionReduce={{ transition: 'none' }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onFocus={() => setHovered(true)}
+            onBlur={() => setHovered(false)}
+            aria-label={label}
             onClick={async () => {
                 const confirmed = await openFinishConfirmDialog({
                     title: t.DIALOG_FINISH_CONFIRM_TITLE,
@@ -102,8 +136,14 @@ export function FinishConfigButton(
 
             }}
         >
-            <LuGamepad2 />
-            {t.BUTTON_FINISH_CONFIGURATION}
+            <HStack gap={2} flexShrink={0}>
+                <Box w={4} h={4} display="grid" placeItems="center" flexShrink={0}>
+                    {busy ? <Spinner size="xs" /> : <Box as={Icon} />}
+                </Box>
+                <Text as="span" fontSize="xs" fontWeight="medium" whiteSpace="nowrap" aria-live="polite">{label}</Text>
+            </HStack>
+            <Box as="span" ref={measureRef} position="absolute" visibility="hidden" pointerEvents="none"
+                aria-hidden="true" fontSize="xs" fontWeight="medium" whiteSpace="nowrap">{label}</Box>
         </Button>
     )
 }

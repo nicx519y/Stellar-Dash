@@ -5,10 +5,12 @@
 
 int main()
 {
-    assert(webhidShouldBlockConfigWrite("update_profile", true, true));
-    assert(webhidShouldBlockConfigWrite("update_profile_macros", true, true));
-    assert(webhidShouldBlockConfigWrite("update_hotkeys_config", true, true));
-    assert(webhidShouldBlockConfigWrite("switch_default_profile", true, true));
+    for (const char* command : {"update_profile", "update_profile_macros", "update_macro",
+         "update_global_config", "update_screen_control_config", "update_hotkeys_config", "switch_default_profile"}) {
+        assert(webhidIsLiveConfigWrite(command));
+        assert(!webhidShouldBlockConfigWrite(command, true, true));
+        assert(webhidShouldBlockConfigWrite(command, true, true, true));
+    }
     assert(webhidShouldBlockConfigWrite("import_all_config", true, true));
     assert(webhidShouldBlockConfigWrite("import_config_finish", true, true));
     assert(webhidShouldBlockConfigWrite("reboot", false, true));

@@ -12,6 +12,11 @@ extern "C" {
 
 #define QSPI_W25Qxx_DEBUG 0
 
+// Optional foreground work while flash is busy. The callback must use RAM
+// only, never access QSPI or dispatch commands. Returns the previous callback.
+typedef void (*QSPI_W25Qxx_WaitCallback)(void);
+QSPI_W25Qxx_WaitCallback QSPI_W25Qxx_SetWaitCallback(QSPI_W25Qxx_WaitCallback callback);
+
 #if QSPI_W25Qxx_DEBUG
     #define QSPI_W25Qxx_DBG(fmt, ...) printf("[QSPI_W25Qxx] " fmt "\r\n", ##__VA_ARGS__)
     #define QSPI_W25Qxx_ERR(fmt, ...) printf("[QSPI_W25Qxx_ERR] " fmt "\r\n", ##__VA_ARGS__)

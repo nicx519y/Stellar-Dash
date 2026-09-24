@@ -90,9 +90,9 @@ ADCBtnsWorker::~ADCBtnsWorker()
     MC.unregisterMessage(MessageId::ADC_BTNS_STATE_CHANGED);
 }
 
-ADCBtnsError ADCBtnsWorker::setup()
+ADCBtnsError ADCBtnsWorker::setup(bool preserveState)
 {
-    virtualPinMask = 0u;
+    if (!preserveState) virtualPinMask = 0u;
     enabledKeysMask = 0u;
     buttonTriggerStatusChanged = false;
 
@@ -146,6 +146,9 @@ ADCBtnsError ADCBtnsWorker::setup()
     // 初始化按钮配置
     for (uint8_t i = 0; i < adcBtnInfos.size(); i++)
     {
+        const ButtonState previousState = preserveState ? buttonPtrs[i]->state : ButtonState::RELEASED;
+        const uint16_t previousPressStart = buttonPtrs[i]->pressStartValue;
+        const uint16_t previousReleaseStart = buttonPtrs[i]->releaseStartValue;
         const ADCButtonValueInfo &adcBtnInfo = adcBtnInfos[i];
 
         // 先从storage读取默认配置
@@ -217,12 +220,20 @@ ADCBtnsError ADCBtnsWorker::setup()
             }
         }
 
-        buttonPtrs[i]->state = ButtonState::RELEASED; // 明确设置初始状态为释放
-        buttonPtrs[i]->debounceCandidate = ButtonEvent::NONE;
-        buttonPtrs[i]->debounceSinceUs = 0u;
+        if (preserveState) {
+            buttonPtrs[i]->state = previousState;
+            buttonPtrs[i]->pressStartValue = previousPressStart;
+            buttonPtrs[i]->releaseStartValue = previousReleaseStart;
+            buttonPtrs[i]->cachedPressThreshold = calculatePressThreshold(buttonPtrs[i], previousPressStart);
+            buttonPtrs[i]->cachedReleaseThreshold = calculateReleaseThreshold(buttonPtrs[i], previousReleaseStart);
+        } else {
+            buttonPtrs[i]->state = ButtonState::RELEASED;
+            buttonPtrs[i]->debounceCandidate = ButtonEvent::NONE;
+            buttonPtrs[i]->debounceSinceUs = 0u;
+        }
     }
 
-    return ADC_MANAGER.startADCSamping(false);
+    return preserveState ? ADCBtnsError::SUCCESS : ADC_MANAGER.startADCSamping(false);
 }
 
 ADCBtnsError ADCBtnsWorker::deinit()

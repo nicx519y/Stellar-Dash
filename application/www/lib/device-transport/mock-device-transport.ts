@@ -11,6 +11,7 @@ import {
   LedsEffectStyle,
   MAX_MACRO_STEPS,
   MAX_NUM_MACROS,
+  NUM_PROFILES_MAX,
   MacroConfig,
   Platform,
   ScreenControlConfig,
@@ -59,6 +60,8 @@ export interface MockStorage {
 }
 
 export interface MockDeviceTransportOptions {
+  /** Test-only gate: hold or reject a command before the simulated device acts. */
+  beforeRequest?: (command: string, params: Record<string, unknown>) => Promise<void>;
   /**
    * Undefined uses the current tab's sessionStorage when available. Null
    * explicitly disables persistence (useful for isolated tests).
@@ -213,7 +216,7 @@ export class MockDeviceTransport implements DeviceTransport {
   session: DeviceSession | null = null;
 
   private transactionId = 0;
-  private profiles = [makeProfile('profile-arcade', 'Arcade', false), makeProfile('profile-tournament', 'Tournament', true)];
+  private profiles = fixedMockProfiles([makeProfile('profile-arcade', 'Profile-01', false), makeProfile('profile-tournament', 'Profile-02', false)]);
   private defaultProfileId = this.profiles[0].id;
   private globalConfig = clone(DEFAULT_GLOBAL_CONFIG);
   private rfBinding = new MockBindingStore(0x54580001);
@@ -271,8 +274,10 @@ export class MockDeviceTransport implements DeviceTransport {
   private firmwareSessions = new Set<string>();
   private readonly storage: MockStorage | null;
   private readonly storageKey: string;
+  private readonly beforeRequest?: MockDeviceTransportOptions['beforeRequest'];
 
   constructor(options: MockDeviceTransportOptions = {}) {
+    this.beforeRequest = options.beforeRequest;
     this.storage = options.storage === undefined
       ? getBrowserSessionStorage()
       : options.storage;
@@ -312,6 +317,10 @@ export class MockDeviceTransport implements DeviceTransport {
     // Match the JSON RPC wire semantics used by the real transports. In
     // particular, nested `undefined` fields are omitted rather than overwriting
     // existing values in the device fixture.
+    const session = this.session;
+    await this.beforeRequest?.(command, params);
+    this.assertConnected();
+    if (this.session !== session) throw new DeviceTransportError('disconnected', 'Mock device session changed');
     const data = await this.handleRequest(command, clone(params));
     return {
       data: clone(data) as T,
@@ -641,7 +650,8 @@ export class MockDeviceTransport implements DeviceTransport {
     command: string,
     params: Record<string, unknown>,
   ): Promise<unknown> {
-    if (this.buttonMonitorActive && isPersistentMockConfigCommand(command)) {
+    if (this.buttonMonitorActive && isPersistentMockConfigCommand(command)
+      && (this.performanceTimer !== null || !isLiveMockConfigCommand(command))) {
       throw new DeviceTransportError(
         'protocol',
         'monitor-active: stop button monitoring before saving configuration',
@@ -722,24 +732,9 @@ export class MockDeviceTransport implements DeviceTransport {
         return { defaultProfileDetails: this.defaultProfile() };
       case 'get_profile_details':
         return { profileDetails: this.findProfile(asString(params.profileId)) };
-      case 'create_profile': {
-        const id = `profile-${Date.now().toString(36)}`;
-        this.profiles.push(makeProfile(id, asString(params.profileName) || 'New Profile', false));
-        this.persistState();
-        return this.profilePayload();
-      }
-      case 'delete_profile': {
-        const id = asString(params.profileId);
-        if (this.profiles.length > 1) {
-          this.profiles = this.profiles.filter((profile) => profile.id !== id);
-          if (!this.profiles.some((profile) => profile.id === this.defaultProfileId)) {
-            this.defaultProfileId = this.profiles[0].id;
-            this.globalConfig.defaultProfileId = this.defaultProfileId;
-          }
-          this.persistState();
-        }
-        return this.profilePayload();
-      }
+      case 'create_profile':
+      case 'delete_profile':
+        throw new DeviceTransportError('protocol', 'Fixed profile slots do not support creation or deletion');
       case 'switch_default_profile':
         this.defaultProfileId = this.findProfile(asString(params.profileId)).id;
         this.globalConfig.defaultProfileId = this.defaultProfileId;
@@ -749,7 +744,7 @@ export class MockDeviceTransport implements DeviceTransport {
         const requestedId = asString(params.profileId) || asString(asObject(params.profileDetails).id);
         const index = this.profiles.findIndex((profile) => profile.id === requestedId);
         if (index < 0) throw new DeviceTransportError('protocol', `Unknown mock profile ${requestedId}`);
-        this.profiles[index] = mergeProfile(this.profiles[index], asObject(params.profileDetails));
+        this.profiles[index] = { ...mergeProfile(this.profiles[index], asObject(params.profileDetails)), id: this.profiles[index].id, slotIndex: index };
         this.persistState();
         return { defaultProfileDetails: this.defaultProfile(), success: true };
       }
@@ -799,7 +794,7 @@ export class MockDeviceTransport implements DeviceTransport {
         return {
           items: [
             '[MOCK] HBox V2 transport connected',
-            '[MOCK] Loaded profile: Arcade',
+            '[MOCK] Loaded profile: Profile-01',
             '[MOCK] ADC calibration data valid (18/18)',
             '[MOCK] USB report scheduler running at 1000 Hz',
           ],
@@ -1086,7 +1081,7 @@ export class MockDeviceTransport implements DeviceTransport {
         }));
         return { isActive: false };
       case 'get_button_states':
-        return { triggerMask: 0, triggerBinary: '0'.repeat(32), totalButtons: 22, timestamp: Date.now() };
+        return { isActive: this.buttonMonitorActive, triggerMask: 0, triggerBinary: '0'.repeat(32), totalButtons: 22, timestamp: Date.now() };
       case 'start_button_performance_monitoring':
         this.buttonMonitorActive = true;
         this.startPerformanceMonitor();
@@ -1101,7 +1096,12 @@ export class MockDeviceTransport implements DeviceTransport {
           deviceTimestampUs: Math.floor((typeof performance === 'undefined' ? Date.now() : performance.now()) * 1000) >>> 0,
         };
       case 'push_leds_config':
+        // Firmware LED preview starts the shared button worker implicitly.
+        this.buttonMonitorActive = true;
+        return { success: true };
       case 'clear_leds_preview':
+        this.buttonMonitorActive = false;
+        return { success: true };
       case 'reboot':
         return { success: true };
       case 'exit_webconfig':
@@ -1352,7 +1352,7 @@ export class MockDeviceTransport implements DeviceTransport {
           );
         }
       }
-      if (this.importReplaceProfiles) candidate.profiles = [];
+      // Import updates fixed slots by ID; an older backup may omit slots.
       for (const part of staged) {
         if (part.section === 'global') {
           const globalPart = asObject(part.data);
@@ -1390,12 +1390,14 @@ export class MockDeviceTransport implements DeviceTransport {
           }
           importedProfileIds.add(profile.id);
           const index = candidate.profiles.findIndex((item) => item.id === profile.id);
-          if (index >= 0) candidate.profiles[index] = clone(profile);
-          else candidate.profiles.push(clone(profile));
+          if (index >= 0) candidate.profiles[index] = { ...clone(profile), slotIndex: index };
         } else if (part.section === 'adcConfig') {
           // Schema v1/v2 compatibility: ADC mappings and device-local
           // calibration are deliberately ignored.
         }
+      }
+      if (this.importReplaceProfiles && importedProfileIds.size === 0) {
+        throw new DeviceTransportError('protocol', 'Configuration backup contains no profiles');
       }
       if (!candidate.profiles.some((profile) => profile.id === candidate.defaultProfileId)) {
         throw new DeviceTransportError(
@@ -1577,8 +1579,8 @@ export class MockDeviceTransport implements DeviceTransport {
     return {
       profileList: {
         defaultId: this.defaultProfileId,
-        maxNumProfiles: 8,
-        items: this.profiles,
+        maxNumProfiles: NUM_PROFILES_MAX,
+        items: this.profiles.map((profile, slotIndex) => ({ ...profile, slotIndex })),
       },
       defaultProfileDetails: this.defaultProfile(),
     };
@@ -1644,7 +1646,7 @@ export class MockDeviceTransport implements DeviceTransport {
     };
     this.screenControl = clone(state.screenControl);
     this.hotkeys = clone(state.hotkeys);
-    this.profiles = clone(state.profiles);
+    this.profiles = fixedMockProfiles(clone(state.profiles));
     this.defaultProfileId = this.profiles.some((profile) => profile.id === state.defaultProfileId)
       ? state.defaultProfileId
       : this.profiles[0].id;
@@ -1699,6 +1701,23 @@ export class MockDeviceTransport implements DeviceTransport {
     this.state = state;
     this.stateHandlers.forEach((handler) => handler(state));
   }
+}
+
+function fixedMockProfiles(profiles: GameProfile[]): GameProfile[] {
+  if (profiles.length > NUM_PROFILES_MAX) {
+    throw new DeviceTransportError('protocol', 'Too many persisted profile slots');
+  }
+  const result = profiles.length > 0
+    ? profiles.map((profile, slotIndex) => ({ ...profile, slotIndex }))
+    : [{ ...makeProfile('profile-0', 'Profile-01', false), slotIndex: 0 }];
+  for (let slotIndex = result.length; slotIndex < NUM_PROFILES_MAX; slotIndex++) {
+    let id = `profile-${slotIndex}`;
+    for (let suffix = 0; result.some((profile) => profile.id === id); suffix++) id = `slot-${slotIndex}-${suffix}`;
+    let name = `Profile-${String(slotIndex + 1).padStart(2, '0')}`;
+    for (let suffix = 2; result.some((profile) => profile.name === name); suffix++) name = `Profile-${String(slotIndex + 1).padStart(2, '0')}-${suffix}`;
+    result.push({ ...clone(result[0]), id, name, slotIndex });
+  }
+  return result;
 }
 
 function makeProfile(id: string, name: string, isCompetitionProfile: boolean): GameProfile {
@@ -2018,6 +2037,11 @@ function asString(value: unknown): string {
 function asNumber(value: unknown): number {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function isLiveMockConfigCommand(command: string): boolean {
+  return ['update_global_config', 'update_screen_control_config', 'update_hotkeys_config',
+    'update_profile', 'update_macro', 'update_profile_macros', 'switch_default_profile'].includes(command);
 }
 
 function isPersistentMockConfigCommand(command: string): boolean {

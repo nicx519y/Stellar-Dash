@@ -1,4 +1,5 @@
 export interface DeviceInitializationLoaders<TLayout> {
+  configuration?: () => Promise<void>;
   globalConfig: () => Promise<void>;
   screenControl: () => Promise<void>;
   profileList: () => Promise<void>;
@@ -25,6 +26,7 @@ export interface DeviceInitializationOptions<TLayout> {
 
 export type DeviceInitializationResult = 'ready' | 'failed' | 'stale';
 export type DeviceInitializationStage =
+  | 'configuration'
   | 'global-config'
   | 'screen-control'
   | 'profile-list'
@@ -80,10 +82,14 @@ export async function initializeDeviceSession<TLayout>(
     // The HID transport owns a single physical writer. Starting six promises
     // at once only hides which command is blocking and lets telemetry compete
     // with startup. Keep the order explicit and diagnostically observable.
-    await run('global-config', options.loaders.globalConfig);
-    await run('screen-control', options.loaders.screenControl);
-    await run('profile-list', options.loaders.profileList);
-    await run('hotkeys', options.loaders.hotkeys);
+    if (options.loaders.configuration) {
+      await run('configuration', options.loaders.configuration);
+    } else {
+      await run('global-config', options.loaders.globalConfig);
+      await run('screen-control', options.loaders.screenControl);
+      await run('profile-list', options.loaders.profileList);
+      await run('hotkeys', options.loaders.hotkeys);
+    }
     await run('firmware-metadata', options.loaders.firmwareMetadata);
     const layout = await run('hitbox-layout', options.loaders.hitboxLayout);
     if (!options.isCurrent()) return 'stale';

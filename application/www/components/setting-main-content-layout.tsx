@@ -98,7 +98,7 @@ export function SettingMainContentLayout({
                 height={height}
                 className={className}
                 borderLeftWidth="1px"
-                borderColor="grey.500"
+                borderColor="border"
                 pl={6}
             >
                 <Flex direction="column" w="100%" h="100%" gap={6}>

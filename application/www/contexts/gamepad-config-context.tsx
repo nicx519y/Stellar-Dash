@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { LedPreviewCoordinator } from '@/lib/led-preview-coordinator';
 import {
     GameProfile,
     KeyCombination,
@@ -80,8 +81,11 @@ import {
 } from '@/lib/button-monitor-lifecycle';
 import {
     DeferredConfigCoordinator,
-    type DeferredConfigCommit,
+    type ConfigSyncState,
 } from '@/lib/deferred-config-coordinator';
+
+import { SessionConfigStore, cloneConfig, configDifferences, restoredConfigDraft, type ConfigDraftBackup, type ConfigResources } from '@/lib/session-config-store';
+import { readConfigSnapshot, writeConfigResource } from '@/lib/device-transport/config-snapshot';
 
 // 导入固件工具函数
 import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
@@ -146,25 +150,9 @@ interface GamepadConfigContextType {
     firmwareUpdating: boolean;
     setFirmwareUpdating: (updating: boolean) => void;
 
-    fetchGlobalConfig: () => Promise<void>;
-    updateGlobalConfig: (globalConfig: GlobalConfig) => Promise<void>;
-    fetchScreenControl: () => Promise<void>;
-    updateScreenControl: (screenControl: ScreenControlConfig, immediate?: boolean) => Promise<void>;
     previewScreenBrightness: (brightness: number) => Promise<void>;
-    fetchDefaultProfile: () => Promise<void>;
-    fetchProfileList: () => Promise<void>;
-    fetchHotkeysConfig: () => Promise<void>;
-    updateProfileDetails: (profileId: string, profileDetails: GameProfile, immediate?: boolean, showError?: boolean, showLoading?: boolean) => Promise<void>;
-    getMacro: (profileId: string, index: number) => Promise<MacroConfig>;
-    updateMacro: (profileId: string, macro: MacroConfig) => Promise<MacroConfig>;
     getProfileMacros: (profileId: string) => Promise<MacroConfig[]>;
-    updateProfileMacros: (profileId: string, macros: MacroConfig[]) => Promise<MacroConfig[]>;
-    resetProfileDetails: () => Promise<void>;
-    createProfile: (profileName: string) => Promise<void>;
-    deleteProfile: (profileId: string) => Promise<void>;
     switchProfile: (profileId: string) => Promise<void>;
-    updateHotkeysConfig: (hotkeysConfig: Hotkey[]) => Promise<void>;
-    stageDeferredConfig: (resourceKey: string, commit: DeferredConfigCommit, priority?: number) => void;
     stageDeferredProfileDetails: (profileId: string, profileDetails: GameProfile) => void;
     stageDeferredProfileMacros: (profileId: string, macros: MacroConfig[]) => void;
     stageDeferredHotkeysConfig: (hotkeysConfig: Hotkey[]) => void;
@@ -178,6 +166,13 @@ interface GamepadConfigContextType {
     terminateWebConfigActivities: () => Promise<void>;
     deferredConfigDirty: boolean;
     deferredConfigSaving: boolean;
+    configSyncState: ConfigSyncState;
+    configReadProgress: { completed: number; total: number };
+    configEditingBlocked: boolean;
+    configRecovery: string[];
+    resolveConfigRecovery: (restore: boolean) => void;
+    retrySync: () => void;
+    flushAndWait: () => Promise<void>;
     isLoading: boolean;
     error: string | null;
     setError: (error: string | null) => void;
@@ -283,10 +278,8 @@ interface GamepadConfigContextType {
     fetchDeviceLogsList: () => Promise<string[]>;
 
     // 导出所有配置
-    exportAllConfig: () => Promise<any>;
 
     // 导入所有配置
-    importAllConfig: (configData: any) => Promise<{ warnings: string[] }>;
 
     // 获取Hitbox布局
     getHitboxLayout: () => Promise<HitboxLayoutItem[]>;
@@ -424,10 +417,8 @@ const processResponse = async (response: Response, setError: (error: string | nu
 export function GamepadConfigProvider({ children }: { children: React.ReactNode }) {
     const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({ inputMode: Platform.XINPUT });
     const globalConfigRef = useRef<GlobalConfig>({ inputMode: Platform.XINPUT });
-    const confirmedGlobalConfigRef = useRef<GlobalConfig>({ inputMode: Platform.XINPUT });
     const [screenControl, setScreenControl] = useState<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
     const screenControlRef = useRef<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
-    const confirmedScreenControlRef = useRef<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
     const [profileList, setProfileList] = useState<GameProfileList>({ defaultId: "", maxNumProfiles: 0, items: [] });
     const [defaultProfile, setDefaultProfile] = useState<GameProfile>({ id: "", name: "" });
     const [operationLoading, setIsLoading] = useState(false);
@@ -504,35 +495,65 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     if (!buttonMonitorLeaseRef.current) {
         buttonMonitorLeaseRef.current = new SharedButtonMonitorLease();
     }
+    const configStoreRef = useRef(new SessionConfigStore());
+    const detachedDraftsRef = useRef(new Map<string, ConfigDraftBackup>());
+    const configReadyRef = useRef(false);
+    const [configRecovery, setConfigRecovery] = useState<string[]>([]);
+    const recoveryRef = useRef<ConfigDraftBackup | null>(null);
+    const [configReadProgress, setConfigReadProgress] = useState({ completed: 0, total: 0 });
+    const [configSyncState, setConfigSyncState] = useState<ConfigSyncState>({ pendingCount: 0, saving: false, paused: true, error: null });
+    const [configBoundaryBusy, setConfigBoundaryBusy] = useState(false);
+    const boundaryCountRef = useRef(0);
+    const configEditingBlocked = !dataIsReady || !deviceConnected || configBoundaryBusy || configRecovery.length > 0;
+    const autoFlushRef = useRef<() => Promise<void>>(async () => {});
     const deferredConfigRef = useRef<DeferredConfigCoordinator | null>(null);
     if (!deferredConfigRef.current) {
-        deferredConfigRef.current = new DeferredConfigCoordinator(setDeferredConfigDirty);
+        deferredConfigRef.current = new DeferredConfigCoordinator(setDeferredConfigDirty, {
+            autoFlush: () => autoFlushRef.current(), onState: setConfigSyncState,
+        });
     }
-    const deferredProfileDetailsRef = useRef(new Map<string, GameProfile>());
-    const deferredProfileMacrosRef = useRef(new Map<string, MacroConfig[]>());
-    const deferredHotkeysRef = useRef<Hotkey[] | null>(null);
     const deferredFlushTailRef = useRef<Promise<void>>(Promise.resolve());
+    const ledPreviewRef = useRef(new LedPreviewCoordinator<LEDsConfig>());
+    const screenPreviewRef = useRef<number | null>(null);
+    const feedbackSuspendedRef = useRef(false);
+    const longDeviceActivityRef = useRef(false);
+
+    const publishConfig = () => {
+        const store = configStoreRef.current;
+        const list = store.get<GameProfileList>('profile-list');
+        if (!list) return;
+        const id = store.get<string>('selected-profile');
+        const profile = store.get<GameProfile>(`profile:${id}`);
+        const global = store.get<GlobalConfig>('global');
+        const screen = store.get<ScreenControlConfig>('screen-control');
+        globalConfigRef.current = global; setGlobalConfig(global);
+        screenControlRef.current = screen; setScreenControl(screen);
+        setHotkeysConfig(store.get<Hotkey[]>('hotkeys'));
+        setProfileList({ ...list, defaultId: id, items: list.items.map(item => ({ ...item, ...store.get<GameProfile>(`profile:${item.id}`) })) });
+        setDefaultProfile({ ...profile, keysConfig: { ...profile.keysConfig, macros: store.get<MacroConfig[]>(`macros:${id}`) } });
+    };
+    const updateSyncPause = () => deferredConfigRef.current!.pause(
+        !configReadyRef.current || !!recoveryRef.current || boundaryCountRef.current > 0 || longDeviceActivityRef.current,
+    );
 
     const resetDeviceSessionState = useCallback(() => {
         postReadyRequestSchedulerRef.current?.endSession();
         buttonMonitorLeaseRef.current?.endSession();
+        ledPreviewRef.current.reset();
         deferredConfigRef.current?.clear();
-        deferredProfileDetailsRef.current.clear();
-        deferredProfileMacrosRef.current.clear();
-        deferredHotkeysRef.current = null;
+        const wasReady = configReadyRef.current;
+        configReadyRef.current = false;
+        const backup = wasReady ? configStoreRef.current.detach() : null;
+        if (backup?.deviceId) detachedDraftsRef.current.set(backup.deviceId, backup);
+        recoveryRef.current = null;
+        setConfigRecovery([]);
+        deferredConfigRef.current?.pause(true);
+        feedbackSuspendedRef.current = false;
+        screenPreviewRef.current = null;
+        longDeviceActivityRef.current = false;
         setDeferredConfigSaving(false);
         calibrationCompletionRequestRef.current = null;
         initializationGenerationRef.current += 1;
-        const resetGlobalConfig = { inputMode: Platform.XINPUT };
-        globalConfigRef.current = resetGlobalConfig;
-        confirmedGlobalConfigRef.current = resetGlobalConfig;
-        setGlobalConfig(resetGlobalConfig);
-        screenControlRef.current = DEFAULT_SCREEN_CONTROL_CONFIG;
-        confirmedScreenControlRef.current = DEFAULT_SCREEN_CONTROL_CONFIG;
-        setScreenControl(DEFAULT_SCREEN_CONTROL_CONFIG);
-        setProfileList({ defaultId: "", maxNumProfiles: 0, items: [] });
-        setDefaultProfile({ id: "", name: "" });
-        setHotkeysConfig([]);
         setDefaultMappingId("");
         setMappingList([]);
         setMarkingStatus(makeEmptyMarkingStatus());
@@ -568,6 +589,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 eventBus.emit(EVENTS.MARKING_STATUS_UPDATE, data);
                 break;
             case 'button.state': {
+                if (feedbackSuspendedRef.current || configStoreRef.current.get('selected-profile') !== configStoreRef.current.confirmed['selected-profile']) break;
                 const payload = data ?? {};
                 const buttonState: ButtonStateBinaryData = {
                     command: BUTTON_STATE_CHANGED_CMD,
@@ -804,14 +826,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     }, [deviceState, resetDeviceSessionState]);
 
     useEffect(() => {
-        if ((!deferredConfigDirty && !deferredConfigSaving) || typeof window === 'undefined') return;
+        if ((!deferredConfigDirty && !deferredConfigSaving && !detachedDraftsRef.current.size) || typeof window === 'undefined') return;
         const warnBeforeUnload = (event: BeforeUnloadEvent) => {
             event.preventDefault();
             event.returnValue = '';
         };
         window.addEventListener('beforeunload', warnBeforeUnload);
         return () => window.removeEventListener('beforeunload', warnBeforeUnload);
-    }, [deferredConfigDirty, deferredConfigSaving]);
+    }, [deferredConfigDirty, deferredConfigSaving, deviceConnected, configRecovery]);
 
     // Read the six startup resources sequentially under one 30 second deadline.
     useEffect(() => {
@@ -820,12 +842,18 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const controller = new AbortController();
             setShowReconnect(false);
             const generation = initializationGenerationRef.current;
+            let resources: ConfigResources;
             void initializeDeviceSession({
                 loaders: {
-                    globalConfig: () => fetchGlobalConfig(true, sendInitializationDeviceRequest),
-                    screenControl: () => fetchScreenControl(true, sendInitializationDeviceRequest),
-                    profileList: () => fetchProfileList(true, sendInitializationDeviceRequest),
-                    hotkeys: () => fetchHotkeysConfig(true, sendInitializationDeviceRequest),
+                    configuration: async () => {
+                        resources = await readConfigSnapshot(
+                            (command, params) => client.requestInitialization(command, params, { signal: controller.signal }),
+                            converProfileDetails,
+                            (completed, total) => { if (generation === initializationGenerationRef.current && !controller.signal.aborted) setConfigReadProgress({ completed, total }); },
+                        );
+                    },
+                    globalConfig: async () => {}, screenControl: async () => {},
+                    profileList: async () => {}, hotkeys: async () => {},
                     firmwareMetadata: () => fetchFirmwareMetadata(true, sendInitializationDeviceRequest),
                     hitboxLayout: () => getHitboxLayout(true, sendInitializationDeviceRequest),
                 },
@@ -840,6 +868,18 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     if (!client.markReady()) return;
                     postReadyRequestSchedulerRef.current?.beginSession();
                     buttonMonitorLeaseRef.current?.beginSession();
+                    const identity = client.transport.session?.deviceId ?? (configuredTransportMode() === 'mock' ? 'mock' : '');
+                    configStoreRef.current.hydrate(identity, resources);
+                    publishConfig();
+                    const backup = identity ? detachedDraftsRef.current.get(identity) : undefined;
+                    if (backup) {
+                        recoveryRef.current = backup;
+                        setConfigRecovery(configDifferences(resources, restoredConfigDraft(backup, resources)));
+                        // An uncertain in-flight write still requires a decision even if values match.
+                        if (!configDifferences(resources, restoredConfigDraft(backup, resources)).length) setConfigRecovery(['Device confirmation / 设备写入结果确认']);
+                    }
+                    configReadyRef.current = true;
+                    updateSyncPause();
                     setHitboxLayout(layout);
                     setDataIsReady(true);
                 },
@@ -954,7 +994,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return checkBinding(reply);
     }, []);
     const runRfBindingOperation = async <T,>(action: () => Promise<T>): Promise<T> => {
-        if (rfBindingBusyRef.current || operationLoading || deferredConfigSaving) throw new Error('BINDING_BUSY');
+        if (rfBindingBusyRef.current || operationLoading) throw new Error('BINDING_BUSY');
         const client = deviceClientRef.current;
         if (!client || client.getState() !== DeviceTransportState.CONNECTED) throw new Error('BINDING_DISCONNECTED');
         rfBindingOwnerRef.current = { client, epoch: rfBindingConnectionEpoch.current };
@@ -987,368 +1027,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchDefaultProfile = async (immediate: boolean = true): Promise<void> => {
-        try {
-            // setIsLoading(true);
-            const data = await sendDeviceRequest('get_default_profile', {}, immediate);
-            if (data && 'defaultProfileDetails' in data) {
-                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
-            }
-            return Promise.resolve();
-        } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch default profile"));
-        } finally {
-            // setIsLoading(false);
-        }
-    };
-
-    const fetchProfileList = async (
-        immediate: boolean = true,
-        requester: DeviceRequestSender = sendDeviceRequest,
-    ): Promise<void> => {
-        try {
-            // setIsLoading(true);
-            const data = await requester('get_profile_list', {}, immediate);
-            if (data && 'profileList' in data) {
-                setProfileList(data.profileList as GameProfileList);
-            }
-
-            if (data && 'defaultProfileDetails' in data) {
-                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
-            }
-
-            return Promise.resolve();
-        } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch profile list"));
-        } finally {
-            // setIsLoading(false);
-        }
-    };
-
-    const fetchHotkeysConfig = async (
-        immediate: boolean = true,
-        requester: DeviceRequestSender = sendDeviceRequest,
-    ): Promise<void> => {
-        try {
-            // setIsLoading(true);
-            const data = await requester('get_hotkeys_config', {}, immediate);
-            if (data && 'hotkeysConfig' in data) {
-                setHotkeysConfig(data.hotkeysConfig as Hotkey[]);
-            }
-            return Promise.resolve();
-        } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch hotkeys config"));
-        } finally {
-            // setIsLoading(false);
-        }
-    };
-
-    const updateProfileDetails = async (profileId: string, profileDetails: GameProfile, immediate: boolean = false, showError: boolean = false, showLoading: boolean = false): Promise<void> => {
-        try {
-            if (showLoading) {
-                setIsLoading(true);
-            }
-            const profileDetailsNoMacros: GameProfile = {
-                ...profileDetails,
-                keysConfig: profileDetails.keysConfig
-                    ? { ...profileDetails.keysConfig, macros: undefined }
-                    : undefined,
-            };
-            const data = await sendDeviceRequest('update_profile', { profileId, profileDetails: profileDetailsNoMacros }, immediate);
-
-            // 如果更新的是 profile 的 name， 或者更新的profile不是defaultProfile，则需要重新获取 profile list
-            if (profileDetails.name != undefined && profileDetails.name !== defaultProfile.name || profileDetails.id !== defaultProfile.id) {
-                void fetchProfileList().catch(() => undefined);
-            } else if (data && 'defaultProfileDetails' in data) {
-                // 否则更新 default profile
-                const nextDefault = converProfileDetails(data.defaultProfileDetails) ?? {};
-                setDefaultProfile(nextDefault);
-                setProfileList((prev) => ({
-                    ...prev,
-                    items: prev.items.map((p) => (
-                        p.id === nextDefault.id
-                            ? { ...p, name: nextDefault.name, isCompetitionProfile: nextDefault.isCompetitionProfile }
-                            : p
-                    ))
-                }));
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            if (showError) {
-                setError(err instanceof Error ? err.message : 'An error occurred');
-            }
-            return Promise.reject(
-                err instanceof Error ? err : new Error('Failed to update profile details'),
-            );
-        } finally {
-            if (showLoading) {
-                setIsLoading(false);
-            }
-        }
-    };
-
-    const decodeBase64ToBytes = (b64: string): Uint8Array => {
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) & 0xff;
-        return bytes;
-    };
-
-    const encodeBytesToBase64 = (bytes: Uint8Array): string => {
-        let bin = "";
-        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-        return btoa(bin);
-    };
-
-    const decodeMacroData = (index: number, b64: string): MacroConfig => {
-        const bytes = decodeBase64ToBytes(b64);
-        if (bytes.length < 2) throw new Error("Invalid macro data");
-        let off = 0;
-        const numTriggerKeys = bytes[off++];
-        if (off + numTriggerKeys + 1 > bytes.length) throw new Error("Invalid macro data");
-        const triggerKeys: number[] = [];
-        for (let i = 0; i < numTriggerKeys; i++) triggerKeys.push(bytes[off++]);
-        const numSteps = bytes[off++];
-        const expectedV2 = 1 + numTriggerKeys + 1 + numSteps * 10;
-        const expectedV1 = 1 + numTriggerKeys + 1 + numSteps * 6;
-        const isV2 = bytes.length === expectedV2;
-        if (!isV2 && bytes.length !== expectedV1) throw new Error("Invalid macro data");
-
-        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        const steps: { timeMs: number; buttonMask: number; dynamicMask: number }[] = [];
-        const stepsToRead = Math.min(numSteps, MAX_MACRO_STEPS);
-        for (let i = 0; i < numSteps; i++) {
-            const timeMs = view.getUint16(off, true); off += 2;
-            const buttonMask = view.getUint32(off, true); off += 4;
-            const dynamicMask = isV2 ? view.getUint32(off, true) : 0; off += isV2 ? 4 : 0;
-            if (i < stepsToRead) steps.push({ timeMs, buttonMask, dynamicMask });
-        }
-        return { index, triggerKeys: triggerKeys.slice(0, 4), steps };
-    };
-
-    const encodeMacroData = (macro: MacroConfig): string => {
-        const triggerKeys = (macro.triggerKeys ?? []).slice(0, 4).map(v => Math.max(0, Math.min(255, v | 0)));
-        const steps = (macro.steps ?? []).slice(0, MAX_MACRO_STEPS);
-        const len = 1 + triggerKeys.length + 1 + steps.length * 10;
-        const bytes = new Uint8Array(len);
-        let off = 0;
-        bytes[off++] = triggerKeys.length;
-        for (const k of triggerKeys) bytes[off++] = k;
-        bytes[off++] = steps.length;
-        const view = new DataView(bytes.buffer);
-        for (const s of steps) {
-            view.setUint16(off, Math.max(0, Math.min(65535, (s.timeMs ?? 0) | 0)), true); off += 2;
-            view.setUint32(off, (s.buttonMask ?? 0) >>> 0, true); off += 4;
-            view.setUint32(off, (s.dynamicMask ?? 0) >>> 0, true); off += 4;
-        }
-        return encodeBytesToBase64(bytes);
-    };
-
-    const decodeProfileMacrosData = (b64: string): MacroConfig[] => {
-        const bytes = decodeBase64ToBytes(b64);
-        if (bytes.length < 2) throw new Error("Invalid macros data");
-        let off = 0;
-        const version = bytes[off++];
-        const count = bytes[off++];
-        if (version !== 1) throw new Error("Invalid macros data");
-        if (count !== MAX_NUM_MACROS) throw new Error("Invalid macros data");
-        const bodyLen = bytes.length - 2;
-        if (bodyLen % count !== 0) throw new Error("Invalid macros data");
-        const perMacro = bodyLen / count;
-        const headerLen = 1 + 1 + 4 + 1;
-        if (perMacro < headerLen) throw new Error("Invalid macros data");
-        const stepsBytes = perMacro - headerLen;
-        const isV2 = stepsBytes % 10 === 0;
-        if (!isV2 && stepsBytes % 6 !== 0) throw new Error("Invalid macros data");
-        const stepsPerMacro = isV2 ? (stepsBytes / 10) : (stepsBytes / 6);
-
-        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        const macros: MacroConfig[] = [];
-        for (let i = 0; i < count; i++) {
-            const numSteps = bytes[off++];
-            const numTriggerKeys = bytes[off++];
-            const triggerKeysRaw: number[] = [];
-            for (let k = 0; k < 4; k++) triggerKeysRaw.push(bytes[off++]);
-            off++;
-
-            const triggerKeys = triggerKeysRaw.slice(0, Math.min(4, numTriggerKeys));
-            const steps: { timeMs: number; buttonMask: number; dynamicMask: number }[] = [];
-            const stepsToRead = Math.min(numSteps, MAX_MACRO_STEPS);
-            for (let s = 0; s < stepsPerMacro; s++) {
-                const timeMs = view.getUint16(off, true); off += 2;
-                const buttonMask = view.getUint32(off, true); off += 4;
-                const dynamicMask = isV2 ? view.getUint32(off, true) : 0; off += isV2 ? 4 : 0;
-                if (s < stepsToRead) steps.push({ timeMs, buttonMask, dynamicMask });
-            }
-
-            if (triggerKeys.length > 0 || steps.length > 0) {
-                macros.push({ index: i, triggerKeys, steps });
-            }
-        }
-        return macros;
-    };
-
-    const encodeProfileMacrosData = (macrosList: MacroConfig[]): string => {
-        const macrosByIndex = new Map<number, MacroConfig>();
-        for (const m of macrosList ?? []) {
-            if (typeof m?.index !== "number") continue;
-            if (m.index < 0 || m.index >= MAX_NUM_MACROS) continue;
-            macrosByIndex.set(m.index, m);
-        }
-
-        const count = MAX_NUM_MACROS;
-        const perMacro = 1 + 1 + 4 + 1 + MAX_MACRO_STEPS * 10;
-        const bytes = new Uint8Array(2 + count * perMacro);
-        let off = 0;
-        bytes[off++] = 1;
-        bytes[off++] = count;
-        const view = new DataView(bytes.buffer);
-
-        for (let i = 0; i < count; i++) {
-            const m = macrosByIndex.get(i) ?? { index: i, triggerKeys: [], steps: [] };
-            const triggerKeys = (m.triggerKeys ?? []).slice(0, 4).map(v => Math.max(0, Math.min(255, v | 0)));
-            const steps = (m.steps ?? []).slice(0, MAX_MACRO_STEPS);
-
-            bytes[off++] = steps.length;
-            bytes[off++] = triggerKeys.length;
-            for (let k = 0; k < 4; k++) bytes[off++] = triggerKeys[k] ?? 0;
-            bytes[off++] = 0;
-
-            for (let s = 0; s < MAX_MACRO_STEPS; s++) {
-                const step = steps[s] ?? { timeMs: 0, buttonMask: 0, dynamicMask: 0 };
-                view.setUint16(off, Math.max(0, Math.min(65535, (step.timeMs ?? 0) | 0)), true); off += 2;
-                view.setUint32(off, (step.buttonMask ?? 0) >>> 0, true); off += 4;
-                view.setUint32(off, (step.dynamicMask ?? 0) >>> 0, true); off += 4;
-            }
-        }
-        return encodeBytesToBase64(bytes);
-    };
-
-    const getMacro = async (profileId: string, index: number): Promise<MacroConfig> => {
-        const data = await sendDeviceRequest('get_macro', { profileId, index }, true);
-        const macroObj = (data?.macro ?? null) as { index: number; data: string } | null;
-        if (!macroObj || typeof macroObj.data !== "string") throw new Error("Invalid macro response");
-        return decodeMacroData(index, macroObj.data);
-    };
-
-    const updateMacro = async (profileId: string, macro: MacroConfig): Promise<MacroConfig> => {
-        const payload = { index: macro.index, data: encodeMacroData(macro) };
-        const data = await sendDeviceRequest('update_macro', { profileId, macro: payload }, true);
-        const macroObj = (data?.macro ?? null) as { index: number; data: string } | null;
-        if (!macroObj || typeof macroObj.data !== "string") throw new Error("Invalid macro response");
-        return decodeMacroData(macro.index, macroObj.data);
-    };
-
-    const getProfileMacros = async (profileId: string): Promise<MacroConfig[]> => {
-        const deferred = deferredProfileMacrosRef.current.get(profileId);
-        if (deferred) {
-            return deferred.map((macro) => ({
-                ...macro,
-                triggerKeys: [...(macro.triggerKeys ?? [])],
-                steps: (macro.steps ?? []).map((step) => ({ ...step })),
-            }));
-        }
-        const data = await sendDeviceRequest('get_profile_macros', { pid: profileId }, true);
-        const raw = ((data as any)?.m ?? (data as any)?.data?.m ?? (data as any)?.macros ?? null) as unknown;
-        const macrosJSON = Array.isArray(raw)
-            ? raw
-            : (raw && typeof raw === "object")
-                ? Array.from({ length: MAX_NUM_MACROS }).map((_, i) => (raw as any)[i])
-                : null;
-        if (Array.isArray(macrosJSON)) {
-            const macros: MacroConfig[] = [];
-            for (let i = 0; i < MAX_NUM_MACROS; i++) {
-                const item = (macrosJSON as any[])[i];
-                if (!item) continue;
-                const obj = item as any;
-                const triggerKeys = Array.isArray(obj.k)
-                    ? obj.k.map((x: any) => Number(x)).filter((x: any) => Number.isFinite(x)).slice(0, 4)
-                    : [];
-                const steps = Array.isArray(obj.s)
-                    ? obj.s
-                        .filter((x: any) => Array.isArray(x) && x.length >= 2)
-                        .slice(0, MAX_MACRO_STEPS)
-                        .map((x: any[]) => ({
-                            timeMs: (Number(x[0]) || 0) | 0,
-                            buttonMask: (Number(x[1]) || 0) >>> 0,
-                            dynamicMask: (Number(x[2]) || 0) >>> 0,
-                        }))
-                    : [];
-                if (triggerKeys.length > 0 || steps.length > 0) {
-                    macros.push({ index: i, triggerKeys, steps });
-                }
-            }
-            return macros;
-        }
-
-        const b64 = (data?.data ?? null) as string | null;
-        if (!b64) return [];
-        return decodeProfileMacrosData(b64);
-    };
-
-    const updateProfileMacros = async (profileId: string, macros: MacroConfig[]): Promise<MacroConfig[]> => {
-        const macrosByIndex = new Map<number, MacroConfig>();
-        for (const m of macros ?? []) {
-            if (typeof m?.index !== "number") continue;
-            if (m.index < 0 || m.index >= MAX_NUM_MACROS) continue;
-            macrosByIndex.set(m.index, m);
-        }
-        const payload = Array.from({ length: MAX_NUM_MACROS }).map((_, i) => {
-            const m = macrosByIndex.get(i);
-            if (!m) return null;
-            const triggerKeys = (m.triggerKeys ?? []).slice(0, 4).map(v => Math.max(0, Math.min(255, v | 0)));
-            const steps = (m.steps ?? [])
-                .slice(0, MAX_MACRO_STEPS)
-                .map(s => [
-                    Math.max(0, Math.min(65535, (s.timeMs ?? 0) | 0)),
-                    (s.buttonMask ?? 0) >>> 0,
-                    (s.dynamicMask ?? 0) >>> 0,
-                ]);
-            if (triggerKeys.length === 0 && steps.length === 0) return null;
-            return { k: triggerKeys, s: steps };
-        });
-
-        const data = await sendDeviceRequest('update_profile_macros', { pid: profileId, m: payload }, true);
-        const raw = ((data as any)?.m ?? (data as any)?.data?.m ?? (data as any)?.macros ?? null) as unknown;
-        const macrosJSON = Array.isArray(raw)
-            ? raw
-            : (raw && typeof raw === "object")
-                ? Array.from({ length: MAX_NUM_MACROS }).map((_, i) => (raw as any)[i])
-                : null;
-        if (!Array.isArray(macrosJSON)) return [];
-
-        const updated: MacroConfig[] = [];
-        for (let i = 0; i < MAX_NUM_MACROS; i++) {
-            const item = (macrosJSON as any[])[i];
-            if (!item) continue;
-            const obj = item as any;
-            const triggerKeys = Array.isArray(obj.k)
-                ? obj.k.map((x: any) => Number(x)).filter((x: any) => Number.isFinite(x)).slice(0, 4)
-                : [];
-            const steps = Array.isArray(obj.s)
-                ? obj.s
-                    .filter((x: any) => Array.isArray(x) && x.length >= 2)
-                    .slice(0, MAX_MACRO_STEPS)
-                    .map((x: any[]) => ({
-                        timeMs: (Number(x[0]) || 0) | 0,
-                        buttonMask: (Number(x[1]) || 0) >>> 0,
-                        dynamicMask: (Number(x[2]) || 0) >>> 0,
-                    }))
-                : [];
-            if (triggerKeys.length > 0 || steps.length > 0) {
-                updated.push({ index: i, triggerKeys, steps });
-            }
-        }
-        return updated;
-    };
-
-    const resetProfileDetails = async (immediate: boolean = true): Promise<void> => {
-        await fetchDefaultProfile();
-    };
+    const getProfileMacros = useCallback(async (profileId: string): Promise<MacroConfig[]> => {
+        return cloneConfig(configStoreRef.current.get<MacroConfig[]>(`macros:${profileId}`) ?? []);
+    }, []);
 
     // Device logs are fetched through the authenticated HID command session.
     const fetchDeviceLogsList = async (): Promise<string[]> => {
@@ -1362,11 +1043,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const exportAllConfig = async (): Promise<any> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        return deviceClient.exportConfig();
-    };
-
     const sendInitializationDeviceRequest: DeviceRequestSender = async (
         command,
         params = {},
@@ -1375,23 +1051,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             throw new Error('设备命令客户端未初始化');
         }
         return deviceClient.requestInitialization(command, params);
-    };
-
-    const importAllConfig = async (configData: any): Promise<{ warnings: string[] }> => {
-        try {
-            setIsLoading(true);
-            if (!deviceClient) throw new Error('设备命令客户端未初始化');
-            const result = await deviceClient.importConfig(configData);
-            
-            setError(null);
-            return result;
-        } catch (err) {
-            console.error("[Import] Error:", err);
-            setError(err instanceof Error ? err.message : 'An error occurred during import');
-            return Promise.reject(new Error("Failed to import config"));
-        } finally {
-            setIsLoading(false);
-        }
     };
 
     const getHitboxLayout = async (
@@ -1407,82 +1066,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const createProfile = async (profileName: string, immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('create_profile', { profileName }, immediate);
-            if (data && 'profileList' in data) {
-                setProfileList(data.profileList as GameProfileList);
-            }
-            if (data && 'defaultProfileDetails' in data) {
-                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to create profile"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const deleteProfile = async (profileId: string, immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('delete_profile', { profileId }, immediate);
-            if (data && 'profileList' in data) {
-                setProfileList(data.profileList as GameProfileList);
-            }
-            if (data && 'defaultProfileDetails' in data) {
-                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to delete profile"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const switchProfile = async (profileId: string, immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('switch_default_profile', { profileId }, immediate);
-            if (data && 'profileList' in data) {
-                setProfileList(data.profileList as GameProfileList);
-            }
-            if (data && 'defaultProfileDetails' in data) {
-                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to switch profile"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const updateHotkeysConfig = async (hotkeysConfig: Hotkey[], immediate: boolean = false): Promise<void> => {
-        try {
-            const data = await sendDeviceRequest('update_hotkeys_config', { hotkeysConfig }, immediate);
-            if (data) {
-                setHotkeysConfig(data.hotkeysConfig as Hotkey[]);
-            }
-            return Promise.resolve();
-        } catch (err) {
-            if (deviceState === DeviceTransportState.CONNECTED) {
-                await fetchHotkeysConfig(true).catch(() => undefined);
-            }
-            const error = err instanceof Error ? err : new Error('Failed to update hotkeys config');
-            setError(error.message);
-            return Promise.reject(error);
-        } finally {
-        }
+    const switchProfile = async (profileId: string): Promise<void> => {
+        editConfig('selected-profile', profileId);
+        const profile = configStoreRef.current.get<GameProfile>(`profile:${profileId}`);
+        if (profile?.ledsConfigs) ledPreviewRef.current.replaceIfActive(profile.ledsConfigs);
     };
 
     const rebootSystem = async (immediate: boolean = true): Promise<void> => {
@@ -1608,6 +1195,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     const startMarking = async (id: string, immediate: boolean = true): Promise<void> => {
+        longDeviceActivityRef.current = true; updateSyncPause();
         try {
             setIsLoading(true);
             const data = await sendDeviceRequest('ms_mark_mapping_start', { id }, immediate);
@@ -1617,6 +1205,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return Promise.resolve();
         } catch (err) {
+            longDeviceActivityRef.current = false; updateSyncPause();
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to start marking"));
         } finally {
@@ -1629,6 +1218,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setIsLoading(true);
             const stoppedMappingId = markingStatus.id;
             const data = await sendDeviceRequest('ms_mark_mapping_stop', {}, immediate);
+            longDeviceActivityRef.current = false; updateSyncPause();
             if (data.status) {
                 setMarkingStatus(data.status);
             }
@@ -1693,85 +1283,48 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const stageDeferredConfig = useCallback((
-        resourceKey: string,
-        commit: DeferredConfigCommit,
-        priority: number = 0,
-    ): void => {
-        deferredConfigRef.current!.stage(resourceKey, commit, priority);
-    }, []);
-
-    const stageDeferredProfileDetails = (
-        profileId: string,
-        profileDetails: GameProfile,
-    ): void => {
-        if (!profileId) return;
-        const previous = deferredProfileDetailsRef.current.get(profileId);
-        const snapshot: GameProfile = {
-            ...previous,
-            ...profileDetails,
-            id: profileId,
-        };
-        deferredProfileDetailsRef.current.set(profileId, snapshot);
-        setDefaultProfile((current) => (
-            current.id === profileId ? { ...current, ...snapshot } : current
-        ));
-        stageDeferredConfig(`profile:${profileId}`, async () => {
-            await updateProfileDetails(profileId, snapshot, true, true);
-            const pending = deferredProfileDetailsRef.current.get(profileId);
-            if (pending === snapshot) {
-                deferredProfileDetailsRef.current.delete(profileId);
-            } else if (pending) {
-                setDefaultProfile((current) => (
-                    current.id === profileId ? { ...current, ...pending } : current
-                ));
-            }
-        }, 10);
+    const stageResource = (key: string): void => {
+        const store = configStoreRef.current;
+        if (!store.dirty(key)) { deferredConfigRef.current!.remove(key); return; }
+        const generation = store.generation;
+        deferredConfigRef.current!.stage(key, async () => {
+            if (!configReadyRef.current || generation !== store.generation) throw new Error('Configuration session ended');
+            if (!store.dirty(key)) return;
+            const ticket = store.begin(key);
+            try {
+                const remote = await writeConfigResource(
+                    (command, params) => sendDeviceRequest(command, params, true), key, ticket.sent, converProfileDetails,
+                );
+                store.acknowledge(ticket, remote);
+                if (generation === store.generation) publishConfig();
+            } catch (error) { store.fail(ticket); throw error; }
+        }, key === 'selected-profile' ? 30 : key.startsWith('macros:') ? 20 : 10);
     };
-
-    const stageDeferredProfileMacros = (
-        profileId: string,
-        macros: MacroConfig[],
-    ): void => {
-        if (!profileId) return;
-        const snapshot = macros.map((macro) => ({
-            ...macro,
-            triggerKeys: [...(macro.triggerKeys ?? [])],
-            steps: (macro.steps ?? []).map((step) => ({ ...step })),
-        }));
-        deferredProfileMacrosRef.current.set(profileId, snapshot);
-        setDefaultProfile((current) => (
-            current.id === profileId
-                ? {
-                    ...current,
-                    keysConfig: {
-                        ...current.keysConfig,
-                        macros: snapshot,
-                    },
-                }
-                : current
-        ));
-        stageDeferredConfig(`macros:${profileId}`, async () => {
-            await updateProfileMacros(profileId, snapshot);
-            if (deferredProfileMacrosRef.current.get(profileId) === snapshot) {
-                deferredProfileMacrosRef.current.delete(profileId);
-            }
-        }, 20);
+    const editConfig = (key: string, value: unknown, patch = false): void => {
+        if (!configReadyRef.current || recoveryRef.current || boundaryCountRef.current) return;
+        const store = configStoreRef.current;
+        const previous = store.get(key);
+        if (patch) store.patch(key, value as object); else store.set(key, value);
+        if (previous === store.get(key)) return;
+        publishConfig(); stageResource(key);
     };
-
-    const stageDeferredHotkeysConfig = (hotkeys: Hotkey[]): void => {
-        const snapshot = hotkeys.map((hotkey) => ({ ...hotkey }));
-        deferredHotkeysRef.current = snapshot;
-        setHotkeysConfig(snapshot);
-        stageDeferredConfig('hotkeys', async () => {
-            await updateHotkeysConfig(snapshot, true);
-            const pending = deferredHotkeysRef.current;
-            if (pending === snapshot) {
-                deferredHotkeysRef.current = null;
-            } else if (pending) {
-                setHotkeysConfig(pending);
-            }
-        }, 10);
+    const stageDeferredProfileDetails = (id: string, profile: GameProfile): void => {
+        const details = { ...profile, keysConfig: profile.keysConfig ? { ...profile.keysConfig, macros: undefined } : undefined };
+        editConfig(`profile:${id}`, details, true);
+    };
+    const stageDeferredProfileMacros = (id: string, macros: MacroConfig[]): void => editConfig(`macros:${id}`, macros);
+    const stageDeferredHotkeysConfig = (hotkeys: Hotkey[]): void => editConfig('hotkeys', hotkeys);
+    const stageDeferredGlobalConfig = (global: GlobalConfig): void => editConfig('global', global, true);
+    const stageDeferredScreenControl = (screen: ScreenControlConfig): void => editConfig('screen-control', screen);
+    const resolveConfigRecovery = (restore: boolean): void => {
+        const backup = recoveryRef.current;
+        if (!backup) return;
+        if (restore) configStoreRef.current.restore(backup);
+        detachedDraftsRef.current.delete(backup.deviceId);
+        recoveryRef.current = null; setConfigRecovery([]);
+        publishConfig();
+        configStoreRef.current.dirtyKeys.forEach(stageResource);
+        updateSyncPause();
     };
 
     const syncMarkingProgress = async (): Promise<void> => {
@@ -2108,177 +1661,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(publishResponse);
     };
 
-    const fetchGlobalConfig = async (
-        immediate: boolean = true,
-        requester: DeviceRequestSender = sendDeviceRequest,
-    ): Promise<void> => {
-        try {
-            // setIsLoading(true);
-            const data = await requester('get_global_config', {}, immediate);
-            console.log('fetchGlobalConfig', data);
-            const next = data.globalConfig as GlobalConfig;
-            globalConfigRef.current = next;
-            confirmedGlobalConfigRef.current = next;
-            setGlobalConfig(next);
-            return Promise.resolve();
-        } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch global config"));
-        } finally {
-            // setIsLoading(false);
-        }
-    };
-
-    const updateGlobalConfig = async (nextGlobalConfig: GlobalConfig, immediate: boolean = false): Promise<void> => {
-        const merged = { ...globalConfigRef.current, ...nextGlobalConfig };
-        globalConfigRef.current = merged;
-        setGlobalConfig(merged);
-        try {
-            const data = await sendDeviceRequest('update_global_config', { globalConfig: merged }, immediate);
-            const confirmed = data?.globalConfig && typeof data.globalConfig === 'object'
-                ? data.globalConfig as GlobalConfig
-                : merged;
-            confirmedGlobalConfigRef.current = confirmed;
-            if (globalConfigRef.current === merged) {
-                globalConfigRef.current = confirmed;
-                setGlobalConfig(confirmed);
-            }
-            return Promise.resolve();
-        } catch (err) {
-            const error = err instanceof Error ? err : new Error('Failed to update global config');
-            if (globalConfigRef.current === merged) {
-                const confirmed = confirmedGlobalConfigRef.current;
-                globalConfigRef.current = confirmed;
-                setGlobalConfig(confirmed);
-            }
-            setError(error.message);
-            return Promise.reject(error);
-        }
-    };
-
-    const fetchScreenControl = async (
-        immediate: boolean = true,
-        requester: DeviceRequestSender = sendDeviceRequest,
-    ): Promise<void> => {
-        try {
-            const data = await requester('get_screen_control_config', {}, immediate);
-            const remote = data.screenControl ?? {};
-            const normalizeFeaturesOrder = (order: unknown): ScreenControlConfig['featuresOrder'] => {
-                const fallback = DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder;
-                if (!Array.isArray(order)) return fallback;
-                const seen = new Set<string>();
-                const next: string[] = [];
-                for (const k of order) {
-                    if (typeof k !== 'string') continue;
-                    if (!(k in DEFAULT_SCREEN_CONTROL_CONFIG.features)) continue;
-                    if (seen.has(k)) continue;
-                    seen.add(k);
-                    next.push(k);
-                }
-                for (const k of fallback) {
-                    if (!seen.has(k)) next.push(k);
-                }
-                return next as ScreenControlConfig['featuresOrder'];
-            };
-            const normalizeScreenStyle = (style: unknown): ScreenControlConfig['screenStyle'] => {
-                return style === 'light' ? 'light' : 'dark';
-            };
-            const merged = {
-                ...DEFAULT_SCREEN_CONTROL_CONFIG,
-                ...remote,
-                screenStyle: normalizeScreenStyle(remote.screenStyle),
-                features: {
-                    ...DEFAULT_SCREEN_CONTROL_CONFIG.features,
-                    ...(remote.features ?? {})
-                },
-                featuresOrder: normalizeFeaturesOrder(remote.featuresOrder),
-            };
-            screenControlRef.current = merged;
-            confirmedScreenControlRef.current = merged;
-            setScreenControl(merged);
-            return Promise.resolve();
-        } catch (err) {
-            return Promise.reject(new Error("Failed to fetch screen control config"));
-        }
-    };
-
-    const updateScreenControl = async (next: ScreenControlConfig, immediate: boolean = false): Promise<void> => {
-        screenControlRef.current = next;
-        setScreenControl(next);
-        try {
-            const data = await sendDeviceRequest(
-                'update_screen_control_config',
-                { screenControl: next },
-                immediate,
-            );
-            const remote = data?.screenControl;
-            if (!remote || typeof remote !== 'object' || remote.screenStyle !== next.screenStyle) {
-                throw new Error('Device did not confirm the screen control update');
-            }
-
-            const confirmed: ScreenControlConfig = {
-                ...next,
-                ...remote,
-                features: {
-                    ...next.features,
-                    ...(remote.features ?? {}),
-                },
-            };
-            confirmedScreenControlRef.current = confirmed;
-            if (screenControlRef.current === next) {
-                screenControlRef.current = confirmed;
-                setScreenControl(confirmed);
-            }
-            return Promise.resolve();
-        } catch (err) {
-            // The controls are optimistic so the page remains responsive, but a
-            // transport failure must never look like a saved device setting.
-            if (screenControlRef.current === next) {
-                const confirmed = confirmedScreenControlRef.current;
-                screenControlRef.current = confirmed;
-                setScreenControl(confirmed);
-            }
-            const error = err instanceof Error
-                ? err
-                : new Error('Failed to update screen control config');
-            setError(error.message);
-            return Promise.reject(error);
-        }
-    };
-
     const previewScreenBrightness = async (brightness: number): Promise<void> => {
         const value = Math.max(0, Math.min(100, brightness | 0));
-        try {
-            await sendDeviceRequest('preview_screen_brightness', { brightness: value }, false);
-        } catch (err) {
-            const error = err instanceof Error
-                ? err
-                : new Error('Failed to preview screen brightness');
-            setError(error.message);
-            throw error;
-        }
-    };
-
-    const stageDeferredGlobalConfig = (patch: GlobalConfig): void => {
-        const snapshot = { ...globalConfigRef.current, ...patch };
-        globalConfigRef.current = snapshot;
-        setGlobalConfig(snapshot);
-        stageDeferredConfig('global', async () => {
-            await updateGlobalConfig(snapshot, true);
-        }, 10);
-    };
-
-    const stageDeferredScreenControl = (next: ScreenControlConfig): void => {
-        const snapshot: ScreenControlConfig = {
-            ...next,
-            features: { ...next.features },
-            featuresOrder: [...next.featuresOrder],
-        };
-        screenControlRef.current = snapshot;
-        setScreenControl(snapshot);
-        stageDeferredConfig('screen-control', async () => {
-            await updateScreenControl(snapshot, true);
-        }, 10);
+        screenPreviewRef.current = value;
+        if (!feedbackSuspendedRef.current && !boundaryCountRef.current) await sendDeviceRequest('preview_screen_brightness', { brightness: value }, false);
     };
 
     const fetchCalibrationStatus = async (immediate: boolean = true): Promise<CalibrationStatus> => {
@@ -2297,6 +1683,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     const startManualCalibration = async (immediate: boolean = true): Promise<CalibrationStatus> => {
+        longDeviceActivityRef.current = true; updateSyncPause();
         try {
             setIsLoading(true);
             const data = await sendDeviceRequest('start_manual_calibration', {}, immediate);
@@ -2306,6 +1693,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return status;
         } catch (err) {
+            longDeviceActivityRef.current = false; updateSyncPause();
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to start manual calibration"));
         } finally {
@@ -2318,7 +1706,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setIsLoading(true);
             const data = await sendDeviceRequest('stop_manual_calibration', {}, immediate);
             const status = calibrationStatusFrom(data?.calibrationStatus);
-            if (!status) throw new Error('Device returned an invalid calibration status');
+            if (!status || status.isActive) throw new Error('Device did not confirm calibration stopped');
+            longDeviceActivityRef.current = false; updateSyncPause();
             setCalibrationStatus(status);
             setError(null);
             return status;
@@ -2423,17 +1812,52 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         afterFlush?: () => void | Promise<void>,
         resumeMonitoringAfterSuccess: boolean = false,
         beforeFlush?: () => void | Promise<void>,
+        all = true,
     ): Promise<void> => {
+        const generation = initializationGenerationRef.current;
+        const current = () => generation === initializationGenerationRef.current && configReadyRef.current;
+        if (!current()) throw new Error("Device configuration is not ready");
         const hasDeferredWrites = deferredConfigRef.current!.dirty;
         if (!hasDeferredWrites && !afterFlush) return;
 
+        // Ordinary autosave keeps the device's input workers and LED DMA alive.
+        // Only explicit device operations below own the stop/clear boundary.
+        if (!all) {
+            const previousProfile = configStoreRef.current.confirmed['selected-profile'];
+            setDeferredConfigSaving(true);
+            try {
+                await deferredConfigRef.current!.flush(false);
+                if (!current()) throw new Error('Configuration session ended');
+            } finally {
+                if (current()) {
+                    setDeferredConfigSaving(false);
+                    // Profile previews requested before the switch ACK were
+                    // retained locally. Replay the latest one after confirmation.
+                    if (previousProfile !== configStoreRef.current.confirmed['selected-profile']) {
+                        await ledPreviewRef.current.replay(async config => {
+                            if (configStoreRef.current.get('selected-profile') !== configStoreRef.current.confirmed['selected-profile']) return;
+                            await sendDeviceRequest('push_leds_config', config as unknown as Record<string, unknown>, false);
+                        }).catch(error => console.warn('LED preview refresh failed:', error));
+                    }
+                }
+            }
+            return;
+        }
+
         const lease = buttonMonitorLeaseRef.current!;
+        const preview = ledPreviewRef.current;
+        // Block new previews synchronously before stopping the workers. A
+        // queued push is drained before stop; later pushes only replace the
+        // snapshot and cannot restart sampling in the middle of a save.
+        const previewSuspension = preview.suspend();
+        feedbackSuspendedRef.current = true;
+        let completed = false;
         let suspended = false;
         if (hasDeferredWrites) setDeferredConfigSaving(true);
         const resumeButtonMonitor = async () => {
             await lease.resume(async () => {
                 const completed = await checkIsManualCalibrationCompleted(true);
-                if (!completed) throw new Error('Manual calibration not completed');
+                if (!completed) { setButtonMonitoringActive(false); throw new Error('Manual calibration not completed'); }
                 const data = await postReadyRequestSchedulerRef.current!.schedule(
                     () => sendDeviceRequest('start_button_monitoring', {}, true),
                 );
@@ -2448,20 +1872,31 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 setButtonMonitoringActive(data.isActive ?? false);
             });
 
+            if (preview.active) {
+                // Preserve the desired snapshot for resume. The public clear
+                // API instead releases preview ownership on page teardown.
+                await sendDeviceRequest('clear_leds_preview', {}, true);
+            }
+
             await beforeFlush?.();
-            await deferredConfigRef.current!.flush();
+            if (longDeviceActivityRef.current) throw new Error("Stop calibration or performance monitoring before this device operation");
+            if (!current()) throw new Error("Configuration session ended");
+            await deferredConfigRef.current!.flush(all);
             await deviceClientRef.current?.flushQueue();
+            if (!current()) throw new Error("Configuration session ended");
             await afterFlush?.();
-            if (suspended) {
-                if (resumeMonitoringAfterSuccess) {
-                    await resumeButtonMonitor();
-                } else {
+            if (suspended && current()) {
+                if (resumeMonitoringAfterSuccess && !longDeviceActivityRef.current && configStoreRef.current.get('selected-profile') === configStoreRef.current.confirmed['selected-profile']) {
+                    try { await resumeButtonMonitor(); }
+                    catch (error) { console.warn('Configuration saved; monitoring remains paused:', error); }
+                } else if (!resumeMonitoringAfterSuccess) {
                     lease.finalizeSuspension();
                 }
             }
+            completed = true;
             setError(null);
         } catch (error) {
-            if (suspended) {
+            if (suspended && current() && !longDeviceActivityRef.current && configStoreRef.current.get('selected-profile') === configStoreRef.current.confirmed['selected-profile']) {
                 try {
                     await resumeButtonMonitor();
                 } catch (resumeError) {
@@ -2471,26 +1906,88 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const normalized = error instanceof Error
                 ? error
                 : new Error('Failed to flush deferred configuration');
-            setError(normalized.message);
             throw normalized;
         } finally {
-            if (hasDeferredWrites) setDeferredConfigSaving(false);
+            const canResume = current() && !longDeviceActivityRef.current && (!completed || resumeMonitoringAfterSuccess)
+                && configStoreRef.current.get('selected-profile') === configStoreRef.current.confirmed['selected-profile'];
+            if (current()) feedbackSuspendedRef.current = !canResume;
+            try {
+                if (current()) await preview.resume(
+                    previewSuspension,
+                    async (config) => {
+                        if (configStoreRef.current.get('selected-profile') !== configStoreRef.current.confirmed['selected-profile']) return;
+                        await sendDeviceRequest('push_leds_config', config as unknown as Record<string, unknown>, true);
+                    },
+                    canResume,
+                );
+            } catch (previewError) {
+                // A preview failure must not turn an acknowledged profile
+                // switch into a reported persistence failure.
+                console.error('恢复灯光预览失败:', previewError);
+                setError(previewError instanceof Error ? previewError.message : 'Failed to restore LED preview');
+            }
+            if (current() && canResume && screenPreviewRef.current !== null) {
+                await sendDeviceRequest('preview_screen_brightness', { brightness: screenPreviewRef.current }, true).catch(() => undefined);
+            }
+            if (current() && hasDeferredWrites) setDeferredConfigSaving(false);
         }
     };
 
-    const flushDeferredConfig = (
+    const queueConfigTransaction = (
         afterFlush?: () => void | Promise<void>,
-        resumeMonitoringAfterSuccess: boolean = false,
+        resumeMonitoringAfterSuccess = true,
         beforeFlush?: () => void | Promise<void>,
+        all = true,
     ): Promise<void> => {
-        const run = () => performDeferredConfigFlush(
-            afterFlush,
-            resumeMonitoringAfterSuccess,
-            beforeFlush,
-        );
-        const operation = deferredFlushTailRef.current.then(run, run);
+        const generation = initializationGenerationRef.current;
+        if (all) { boundaryCountRef.current++; setConfigBoundaryBusy(true); updateSyncPause(); }
+        const run = async () => {
+            if (generation !== initializationGenerationRef.current || !configReadyRef.current || recoveryRef.current) throw new Error('Configuration session is not ready');
+            if (!all && (boundaryCountRef.current || longDeviceActivityRef.current)) return;
+            if (all && longDeviceActivityRef.current && !beforeFlush) throw new Error('Stop calibration or performance monitoring before this device operation');
+            await performDeferredConfigFlush(afterFlush, resumeMonitoringAfterSuccess, beforeFlush, all);
+        };
+        const operation = deferredFlushTailRef.current.then(run, run).finally(() => {
+            if (all) {
+                boundaryCountRef.current--;
+                setConfigBoundaryBusy(boundaryCountRef.current > 0);
+                updateSyncPause();
+            }
+        });
         deferredFlushTailRef.current = operation.catch(() => undefined);
         return operation;
+    };
+    const flushDeferredConfig = (
+        afterFlush?: () => void | Promise<void>,
+        resumeMonitoringAfterSuccess = false,
+        beforeFlush?: () => void | Promise<void>,
+    ) => queueConfigTransaction(afterFlush, resumeMonitoringAfterSuccess, beforeFlush);
+    autoFlushRef.current = () => queueConfigTransaction(undefined, true, undefined, false);
+    const refreshDeviceConfig = async (): Promise<void> => {
+        const generation = configStoreRef.current.generation;
+        const global = (await sendDeviceRequest('get_global_config', {}, true))?.globalConfig;
+        const screen = (await sendDeviceRequest('get_screen_control_config', {}, true))?.screenControl;
+        if (generation !== configStoreRef.current.generation) return;
+        if (!global || !screen) throw new Error('Device returned incomplete configuration');
+        configStoreRef.current.refresh('global', global);
+        configStoreRef.current.refresh('screen-control', screen);
+        publishConfig();
+    };
+    const stopLongDeviceActivity = async <T,>(stop: () => Promise<T>): Promise<T> => {
+        let result!: T;
+        await queueConfigTransaction(async () => {}, true, async () => {
+            result = await stop();
+            await refreshDeviceConfig();
+        });
+        return result;
+    };
+    const runConfigExclusive = async <T,>(operation: () => Promise<T>, refresh = false): Promise<T> => {
+        let result!: T;
+        await queueConfigTransaction(async () => {
+            result = await operation();
+            if (refresh) await refreshDeviceConfig();
+        }, true);
+        return result;
     };
 
     /**
@@ -2553,6 +2050,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         // multipart staging state. Neither command persists configuration.
         await sendDeviceRequest('clear_leds_preview', {}, true);
         await sendDeviceRequest('import_config_abort', {}, true);
+        longDeviceActivityRef.current = false;
         await deviceClientRef.current?.flushQueue();
     };
 
@@ -2575,6 +2073,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // 按键性能监控相关
     const startButtonPerformanceMonitoring = async (immediate: boolean = true): Promise<void> => {
         performanceTelemetryRef.current?.resetMonitoringSession();
+        longDeviceActivityRef.current = true; updateSyncPause();
         try {
             const data = await sendDeviceRequest('start_button_performance_monitoring', {}, immediate);
             if (data?.isActive !== true || data?.isTestModeEnabled !== true) {
@@ -2584,6 +2083,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return;
         } catch (err) {
+            longDeviceActivityRef.current = false; updateSyncPause();
             const error = err instanceof Error
                 ? err
                 : new Error('Failed to start button performance monitoring');
@@ -2599,6 +2099,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data?.isActive !== false || data?.isTestModeEnabled !== false) {
                 throw new Error('Device did not leave button performance monitoring mode');
             }
+            longDeviceActivityRef.current = false; updateSyncPause();
             setButtonMonitoringActive(false);
             performanceTelemetryRef.current?.resetMonitoringSession();
             setError(null);
@@ -2616,7 +2117,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const pushLedsConfig = async (ledsConfig: LEDsConfig, immediate: boolean = false): Promise<void> => {
         setError(null);
         try {
-            await sendDeviceRequest('push_leds_config', ledsConfig as unknown as Record<string, unknown>, immediate);
+            await ledPreviewRef.current.push(ledsConfig, async (config) => {
+                if (feedbackSuspendedRef.current || configStoreRef.current.get('selected-profile') !== configStoreRef.current.confirmed['selected-profile']) return;
+                await sendDeviceRequest('push_leds_config', config as unknown as Record<string, unknown>, immediate);
+            });
             return Promise.resolve();
         } catch (error) {
             const normalized = error instanceof Error
@@ -2630,7 +2134,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const clearLedsPreview = async (immediate: boolean = true): Promise<void> => {
         setError(null);
         try {
-            await sendDeviceRequest('clear_leds_preview', {}, immediate);
+            await ledPreviewRef.current.clear(async () => {
+                await sendDeviceRequest('clear_leds_preview', {}, immediate);
+            });
             return Promise.resolve();
         } catch (error) {
             const normalized = error instanceof Error
@@ -3163,7 +2669,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setContextJsReady,
 
             // WebHID connection state
-            rfBindingBusy, rfBindingRequest, runRfBindingOperation,
+            rfBindingBusy, rfBindingRequest, runRfBindingOperation: (action) => runConfigExclusive(() => runRfBindingOperation(action)),
             deviceConnected,
             showReconnect,
             deviceState,
@@ -3175,8 +2681,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             disconnectDevice,
             getDeviceImageCatalog,
             readDeviceImage,
-            uploadDeviceImage,
-            deleteDeviceImage,
+            uploadDeviceImage: (...args) => runConfigExclusive(() => uploadDeviceImage(...args), true),
+            deleteDeviceImage: (...args) => runConfigExclusive(() => deleteDeviceImage(...args), true),
             fetchDeviceAuthorizedResource,
 
             globalConfig,
@@ -3189,20 +2695,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             firmwareUpdating,
             setFirmwareUpdating,
 
-            fetchDefaultProfile,
-            fetchProfileList,
-            fetchHotkeysConfig,
-            fetchGlobalConfig,
-            updateGlobalConfig,
-            fetchScreenControl,
-            updateScreenControl,
             previewScreenBrightness,
-            updateProfileDetails,
-            getMacro,
-            updateMacro,
             getProfileMacros,
-            updateProfileMacros,
-            stageDeferredConfig,
             stageDeferredProfileDetails,
             stageDeferredProfileMacros,
             stageDeferredHotkeysConfig,
@@ -3212,22 +2706,21 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             terminateWebConfigActivities,
             deferredConfigDirty,
             deferredConfigSaving,
-            resetProfileDetails,
-            createProfile,
-            deleteProfile,
+            configSyncState, configReadProgress, configEditingBlocked, configRecovery, resolveConfigRecovery,
+            retrySync: () => deferredConfigRef.current!.retry(),
+            flushAndWait: () => flushDeferredConfig(undefined, true),
             switchProfile,
-            updateHotkeysConfig,
             isLoading,
             error,
             setError,
-            rebootSystem,
+            rebootSystem: (...args) => runConfigExclusive(() => rebootSystem(...args)),
             exitWebConfig,
             // 校准相关
             calibrationStatus,
             fetchCalibrationStatus,
-            startManualCalibration,
-            stopManualCalibration,
-            clearManualCalibrationData,
+            startManualCalibration: (...args) => runConfigExclusive(() => startManualCalibration(...args), true),
+            stopManualCalibration: () => stopLongDeviceActivity(stopManualCalibration),
+            clearManualCalibrationData: (...args) => runConfigExclusive(() => clearManualCalibrationData(...args), true),
             checkIsManualCalibrationCompleted,
             // ADC Mapping 相关
             defaultMappingId: defaultMappingId,
@@ -3238,16 +2731,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             mappingSource,
             fetchMappingList,
             fetchMarkingStatus,
-            updateDefaultMapping,
+            updateDefaultMapping: (...args) => runConfigExclusive(() => updateDefaultMapping(...args), true),
             fetchDefaultMapping,
             fetchActiveMapping,
-            createMapping,
-            deleteMapping,
-            startMarking,
-            stopMarking,
+            createMapping: (...args) => runConfigExclusive(() => createMapping(...args)),
+            deleteMapping: (...args) => runConfigExclusive(() => deleteMapping(...args)),
+            startMarking: (...args) => runConfigExclusive(() => startMarking(...args)),
+            stopMarking: () => stopLongDeviceActivity(stopMarking),
             stepMarking,
             syncMarkingProgress,
-            renameMapping,
+            renameMapping: (...args) => runConfigExclusive(() => renameMapping(...args)),
             fetchSwitchMappingCatalog,
             fetchSwitchMappingDetail,
             fetchSwitchMappingImage,
@@ -3255,11 +2748,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             updateSwitchMappingMetadata,
             updateSwitchMappingCurve,
             deleteSwitchMapping,
-            installSwitchMapping,
-            clearInstalledSwitchMapping,
+            installSwitchMapping: (...args) => runConfigExclusive(() => installSwitchMapping(...args), true),
+            clearInstalledSwitchMapping: (...args) => runConfigExclusive(() => clearInstalledSwitchMapping(...args), true),
             createSwitchMappingFromCurrent,
-            beginMappingDraft,
-            publishMappingDraft,
+            beginMappingDraft: (...args) => runConfigExclusive(() => beginMappingDraft(...args)),
+            publishMappingDraft: (...args) => runConfigExclusive(() => publishMappingDraft(...args)),
             // 按键监控相关
             buttonMonitoringActive: buttonMonitoringActive,
             startButtonMonitoring,
@@ -3267,7 +2760,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             getButtonStates,
             // 按键性能监控相关
             startButtonPerformanceMonitoring,
-            stopButtonPerformanceMonitoring,
+            stopButtonPerformanceMonitoring: () => stopLongDeviceActivity(stopButtonPerformanceMonitoring),
             // LED 配置相关
             pushLedsConfig: pushLedsConfig,
             clearLedsPreview: clearLedsPreview,
@@ -3280,8 +2773,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 固件升级包下载和传输相关
             upgradeSession: upgradeSession,
             downloadFirmwarePackage: downloadFirmwarePackage,
-            uploadFirmwareToDevice: uploadFirmwareToDevice,
-            uploadCh585Firmware: uploadCh585Firmware,
+            uploadFirmwareToDevice: (...args) => runConfigExclusive(() => uploadFirmwareToDevice(...args)),
+            uploadCh585Firmware: (...args) => runConfigExclusive(() => uploadCh585Firmware(...args)),
             setUpgradeConfig: setUpgradeConfig,
             getUpgradeConfig: getUpgradeConfig,
             getValidChunkSizes: getValidChunkSizes,
@@ -3297,8 +2790,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             indexMapToGameControllerButtonOrCombination: indexMapToGameControllerButtonOrCombination,
             // 设备日志相关
             fetchDeviceLogsList: fetchDeviceLogsList,
-            exportAllConfig: exportAllConfig,
-            importAllConfig: importAllConfig,
             getHitboxLayout: getHitboxLayout,
             hitboxLayout: hitboxLayout,
         }}>
