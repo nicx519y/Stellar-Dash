@@ -1,8 +1,8 @@
 # HBox V2 设备身份制造与密钥注入
 
-本文定义 V2 主板的生产身份流程。它不是“生成一把测试密钥再烧录”的说明。
-仓库不包含任何生产私钥，默认公钥全部为零；未注入生产信任根的固件会按设计
-拒绝安全启动或 WebConfig 授权。
+本文保留 V2 安全构建的生产身份流程。当前无锁开发烧录与 WebConfig 直连不依赖
+设备身份、最低安全版本或生产信任根；安全构建仍按本文件校验这些记录。
+仓库不包含任何生产私钥，默认公钥全部为零。
 
 权威二进制格式位于
 [`common/device_security_protocol.h`](../common/device_security_protocol.h) 和
@@ -39,20 +39,21 @@ STM32H750xB 只有一个 128KiB 内部用户 Flash sector，编程粒度为 32B�
 | device identity | `0x0801C000` | 4KiB | 14 个 288B 一次性 slot |
 | security version | `0x0801D000` | 12KiB | 384 个 32B 追加记录 |
 
-identity 与 security-version 区域不重叠。它们仍与 bootloader 同属一个物理 erase
-sector，因此现场固件绝对不能擦除该 sector。正常升级只写外部 QSPI；安全版本只
-能追加 32B 记录；身份只允许工厂首次写入。返厂若要擦除内部 sector，必须把
-bootloader、身份和最低安全版本视为一个事务重新烧录、重新发证并吊销旧证书。
+identity 与 security-version 区域不重叠，但它们仍与 bootloader 同属一个物理
+erase sector。当前无锁开发重刷通过 `python tools/hbox.py flash bootloader`
+擦除并写入完整 128KiB 镜像，主动清空这两个保留区。安全构建若需保留原设备
+身份，仍必须使用受评审的完整恢复流程重新烧录、发证并处理旧证书。
 
 每个 identity slot 为 `256B record + 32B commit`。工厂端先逐个写入并读回前
 8 个 flashword，最后一次 32B 编程才写 commit。掉电产生的未提交 slot 永远
 不会被 bootloader 接受；重试使用下一个完全擦除的 slot，不执行 sector erase。
 一旦存在一个有效 commit，任何再次置备都会返回 `already-provisioned`。
 
-为防止旧工具误擦这一个 sector，`make -C bootloader flash` 与
-`python tools/build.py flash bootloader` 已默认禁用。仓库尚未提供可量产的
-“bootloader + identity + minimum security version”全 sector 原子返厂工具；
-在该工序完成评审、旧证书吊销和断电验证之前，不得绕过此门禁。
+先用 `python tools/hbox.py build bootloader` 生成 `bootloader/build-unlocked/`
+中的无锁整扇区产物。`make -C bootloader flash` 与上述烧录命令只使用此现有产物；
+`python tools/hbox.py flash bootloader --build` 才先重建。旧的
+`python tools/build.py flash bootloader` 仍默认禁用。仓库尚未提供可量产的
+“bootloader + identity + minimum security version”全 sector 原子返厂工具。
 
 未置备开发板使用独立的
 `python tools/hbox.py flash bootloader-dev`。该入口先读取并确认 identity 与

@@ -27,7 +27,11 @@ static void sha256_transform(sha256_simple_ctx_t *ctx,
     uint32_t a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
 
     for (i = 0, j = 0; i < 16; ++i, j += 4) {
-        m[i] = (data[j] << 24) | (data[j + 1] << 16) | (data[j + 2] << 8) | (data[j + 3]);
+        /* Cast before shifting: uint8_t promotes to signed int, and high-bit
+         * bytes shifted by 24 would otherwise overflow that signed type. */
+        m[i] = ((uint32_t)data[j] << 24) |
+               ((uint32_t)data[j + 1] << 16) |
+               ((uint32_t)data[j + 2] << 8) | (uint32_t)data[j + 3];
     }
     for (; i < 64; ++i) {
         m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
@@ -81,7 +85,9 @@ void sha256_simple_final(sha256_simple_ctx_t *ctx, uint8_t hash[32]) {
     ctx->buffer[ctx->count % 64] = 0x80;
     ctx->count++;
 
-    if (ctx->count % 64 > 56) {
+    /* A 63-byte tail becomes a full block after the 0x80 byte. Process it
+     * before starting the extra block containing the length field. */
+    if (ctx->count % 64 == 0 || ctx->count % 64 > 56) {
         while (ctx->count % 64 != 0) {
             ctx->buffer[ctx->count % 64] = 0x00;
             ctx->count++;

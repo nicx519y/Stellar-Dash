@@ -140,6 +140,7 @@ private:
                           uint8_t length);
 
     bool handleAttestationCreate(uint32_t transactionId, void *params);
+    bool handleDirectOpen(uint32_t transactionId, void *params);
     bool handleInstallPermit(uint32_t transactionId, void *params);
     bool handleSpecialRpc(void *root,
                           uint32_t transactionId,

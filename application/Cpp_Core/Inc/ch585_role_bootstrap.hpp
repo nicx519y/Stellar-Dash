@@ -33,6 +33,10 @@ public:
     }
 
     void setSelector(Ch585RoleSelector selectorFn);
+    /* Cold USB input startup only: power on without sending any SPI frame.
+     * start(Usb) later consumes this preparation, with the same ready deadline. */
+    bool prepareUsbStartup();
+    bool hasPreparedUsbStartup() const { return usbStartupPrepared; }
     bool start(Ch585Role requestedRole);
     void shutdown();
 
@@ -47,6 +51,8 @@ private:
     Ch585RoleSelector selector = nullptr;
     Ch585Role activeRole = Ch585Role::SafeIdle;
     Ch585BootstrapState bootstrapState = Ch585BootstrapState::Off;
+    bool usbStartupPrepared = false;
+    uint32_t usbPowerOnAtMs = 0u;
 };
 
 #define CH585_ROLE_BOOTSTRAP Ch585RoleBootstrap::getInstance()

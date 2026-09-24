@@ -1,4 +1,5 @@
 #include "firmware_security.h"
+#include "boot_profile.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -137,7 +138,7 @@ FirmwareValidationResult FirmwareSecurity_ValidateMetadata(
             return FIRMWARE_CORRUPTED;
         }
     }
-    return firmware_metadata_verify_signature(metadata);
+    return BP_CALL(BP_SIGNATURE, firmware_metadata_verify_signature(metadata));
 }
 
 bool FirmwareSecurity_CommitValidatedSecurityVersion(
@@ -166,12 +167,17 @@ bool FirmwareSecurity_ValidateSlot(const FirmwareMetadata* metadata,
     bool seen[FIRMWARE_COMPONENT_COUNT] = {false, false, false};
     uint32_t component_index;
 
-    if (FirmwareSecurity_ValidateMetadata(metadata) != FIRMWARE_VALID ||
+    if (metadata == NULL ||
         slot >= FIRMWARE_SLOT_COUNT ||
         metadata->target_slot != (uint8_t)slot ||
         metadata->component_count != FIRMWARE_COMPONENT_COUNT) {
         return false;
     }
+#if HBOX_SECURE_BOOT_REQUIRED
+    if (FirmwareSecurity_ValidateMetadata(metadata) != FIRMWARE_VALID) {
+        return false;
+    }
+#endif
 
     for (component_index = 0u;
          component_index < metadata->component_count;
@@ -232,12 +238,12 @@ bool FirmwareSecurity_ValidateSlot(const FirmwareMetadata* metadata,
         }
 
         if (!decode_sha256(component->sha256, expected_hash) ||
-            !hash_external_flash(component->address,
+            !BP_CALL(BP_APP_HASH, hash_external_flash(component->address,
                                  component->size,
-                                 actual_hash) ||
-            !constant_time_equal(expected_hash,
+                                 actual_hash)) ||
+            !BP_CALL(BP_HASH_COMPARE, constant_time_equal(expected_hash,
                                  actual_hash,
-                                 sizeof(actual_hash))) {
+                                 sizeof(actual_hash)))) {
             memset(expected_hash, 0, sizeof(expected_hash));
             memset(actual_hash, 0, sizeof(actual_hash));
             return false;

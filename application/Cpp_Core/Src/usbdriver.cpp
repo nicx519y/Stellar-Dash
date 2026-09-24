@@ -1,3 +1,4 @@
+#include "boot_profile.h"
 #include "usbdriver.hpp"
 
 #include "board_cfg.h"
@@ -138,6 +139,7 @@ bool USBDriver::takeCompatibilityRecoveryRequest()
 
 bool USBDriver::prepare(InputMode inputMode)
 {
+    BP_APP_SCOPE(BP_APP_USB_PREPARE);
     const usb_board_profile_t requestedProfile =
         profileForInputMode(inputMode);
     const uint16_t requiredFlag = requiredProfileFlag(requestedProfile);
@@ -227,6 +229,7 @@ bool USBDriver::prepare(InputMode inputMode)
 
 bool USBDriver::connect()
 {
+    BP_APP_SCOPE(BP_APP_USB_CONNECT);
     if (!prepared || ready || activeProfile == USB_BOARD_PROFILE_NONE ||
         !USB_BOARD_LINK.isRoleLocked() ||
         ((USB_BOARD_LINK.role() != USB_BOARD_ROLE_USB) &&

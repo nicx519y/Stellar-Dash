@@ -25,6 +25,7 @@
   */
 
   .syntax unified
+#include "boot_profile_asm.inc"
   .cpu cortex-m7
   .fpu softvfp
   .thumb
@@ -69,6 +70,7 @@ copy_section:
 
 Reset_Handler:
     ldr   sp, =_estack      /* set stack pointer */
+    BP_EARLY BP_APP_ENTRY, 3
 
     /* 先清零 BSS 段 */
     ldr r2, =_sbss          /* BSS 段起始地址 */
@@ -80,18 +82,21 @@ bss_loop:
     strlt r3, [r2], #4      /* 写入0并递增地址 */
     blt bss_loop            /* 继续循环 */
 
+    BP_EARLY BP_APP_BSS, 3
     /* 拷贝数据段 */
     ldr r0, =_sidata        /* Flash 中的源地址 */
     ldr r1, =_sdata         /* RAM 中的目标地址 */
     ldr r2, =_edata         /* 结束地址 */
     bl  copy_section
 
+    BP_EARLY BP_APP_DATA, 3
     /* 拷贝常量段 */
     ldr r0, =_sirodata      /* Flash 中的源地址 */
     ldr r1, =_srodata       /* RAM 中的目标地址 */
     ldr r2, =_erodata       /* 结束地址 */
     bl  copy_section
 
+    BP_EARLY BP_APP_RODATA, 3
     /********** 点亮LED start **********/
     /* 使能 GPIOC 时钟 */
     ldr r0, =0x58024540     /* RCC_AHB4ENR */
@@ -237,10 +242,13 @@ bss_loop:
     isb
 
     /* 调用系统初始化 */
+    BP_EARLY BP_APP_COPY_DONE, 3
     bl  SystemInit
+    BP_EARLY BP_APP_SYSTEM_DONE, 4
 
     /* 调用 C++ 构造函数 */
     bl __libc_init_array
+    BP_EARLY BP_APP_CTORS_DONE, 4
 
     /* 跳转到 main */
     ldr r0, =main           /* 获取 main 在 RAM 中的地址 */

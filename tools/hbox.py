@@ -19,7 +19,7 @@ HBox 工具统一入口（tools/hbox.py）
   - rx（仅编译 CH585 RX 接收器固件）
 
 2) flash
-  - bootloader（生产安全门禁，拒绝单独擦除）
+  - bootloader（烧录现有无锁开发产物；--build 先构建）
   - bootloader-dev（仅限未置备开发板）
   - app A|B（默认只烧录现有安全完整槽；--build 先构建签名）
   - code A|B（低层纯代码烧录，不更新metadata）
@@ -40,6 +40,9 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py flash app A
   python tools/hbox.py flash app A --build
   python tools/hbox.py flash appAll A
+  python tools/hbox.py build bootloader
+  python tools/hbox.py flash bootloader
+  python tools/hbox.py flash bootloader --build
   python tools/hbox.py flash bootloader-dev
   python tools/hbox.py flash code A
   python tools/hbox.py flash appAll A --code-only
@@ -60,6 +63,7 @@ HBox 工具统一入口（tools/hbox.py）
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -73,15 +77,22 @@ def _tools_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
-def _run_python_tool(script_name: str, tool_args: list[str]) -> int:
+def _run_python_tool(
+    script_name: str, tool_args: list[str], *, boot_profile: bool = False,
+) -> int:
     script_path = _tools_dir() / script_name
     if not script_path.exists():
         print(f"错误: 未找到工具脚本: {script_path}")
         return 2
 
     cmd = [sys.executable, str(script_path), *tool_args]
+    environment = {}
+    if boot_profile:
+        # Scope the switch to this child and its make processes, not the shell
+        # or later invocations. Both STM32 Makefiles consume this variable.
+        environment["env"] = {**os.environ, "HBOX_BOOT_PROFILE": "1"}
     try:
-        return subprocess.call(cmd, cwd=_project_root())
+        return subprocess.call(cmd, cwd=_project_root(), **environment)
     except KeyboardInterrupt:
         # Long-running helpers such as web local-serve already receive the
         # same Ctrl+C and perform their own cleanup. Avoid printing a second
@@ -209,7 +220,9 @@ def _local_artifacts_are_unlocked_development(
     return True
 
 
-def _run_secure_application_flash(slot: str, build: bool = False) -> int:
+def _run_secure_application_flash(
+    slot: str, build: bool = False, *, boot_profile: bool = False,
+) -> int:
     """Flash an existing slot artifact, optionally rebuilding it first."""
 
     normalized_slot = slot.upper()
@@ -232,6 +245,7 @@ def _run_secure_application_flash(slot: str, build: bool = False) -> int:
                 "4",
                 "--unlocked-development",
             ],
+            **({"boot_profile": True} if boot_profile else {}),
         )
         if rc != 0:
             return rc
@@ -362,6 +376,8 @@ def main(argv: list[str]) -> int:
   python tools/hbox.py build ADCMapping
   python tools/hbox.py build appAll A
   python tools/hbox.py build rx
+  python tools/hbox.py flash bootloader
+  python tools/hbox.py flash bootloader --build
   python tools/hbox.py flash bootloader-dev
   python tools/hbox.py flash app A
   python tools/hbox.py flash app A --build
@@ -404,9 +420,14 @@ def main(argv: list[str]) -> int:
         "--build",
         action="store_true",
         help=(
-            "flash app 时先重新构建并签名，flash tx 时先构建 TX；"
+            "flash app 时先重新构建并签名，flash bootloader 时先构建无锁产物，flash tx 时先构建 TX；"
             "默认只烧录现有产物"
         ),
+    )
+    p_flash.add_argument(
+        "--boot-profile",
+        action="store_true",
+        help="启用启动 RAM 计时；仅用于 flash bootloader/app，必须同时指定 --build",
     )
 
     p_release = subparsers.add_parser("release", help="发版相关")
@@ -435,13 +456,20 @@ def main(argv: list[str]) -> int:
 
     args = parser.parse_args(argv)
 
+    if args.cmd == "flash" and args.boot_profile:
+        if args.target not in ("bootloader", "app"):
+            parser.error("--boot-profile 仅支持 flash bootloader 或 flash app")
+        if not args.build:
+            parser.error("--boot-profile 必须与 --build 一起使用，避免烧录未启用计时的旧产物")
+        print("启用启动诊断计时：HBOX_BOOT_PROFILE=1（仅本次构建）")
+
     if args.cmd == "build":
         if args.target == "rx":
             if args.slot:
                 parser.error("build rx 不接受槽位参数 A/B")
             return _run_rx_build()
         if args.target == "bootloader":
-            return _run_python_tool("build.py", ["build", "bootloader"])
+            return _run_python_tool("flash_bootloader_unlocked.py", ["--build-only"])
         if args.target == "web":
             return _run_hosted_web_build()
         if args.target == "assets":
@@ -475,7 +503,11 @@ def main(argv: list[str]) -> int:
                     return rc
             return _run_python_tool("ch585_stlink_update.py", ["--execute"])
         if args.target == "bootloader":
-            return _run_python_tool("build.py", ["flash", "bootloader"])
+            return _run_python_tool(
+                "flash_bootloader_unlocked.py",
+                ["--build"] if args.build else [],
+                **({"boot_profile": True} if args.boot_profile else {}),
+            )
         if args.target == "bootloader-dev":
             return _run_python_tool("build.py", ["flash", "bootloader-dev"])
         if args.target == "assets":
@@ -486,7 +518,9 @@ def main(argv: list[str]) -> int:
             if not args.slot:
                 print("错误: flash app 需要指定槽位 A 或 B")
                 return 2
-            return _run_secure_application_flash(args.slot, build=args.build)
+            return _run_secure_application_flash(
+                args.slot, build=args.build, boot_profile=args.boot_profile,
+            )
         if args.target == "code":
             if not args.slot:
                 print("错误: flash code 需要指定槽位 A 或 B")

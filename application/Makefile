@@ -37,6 +37,12 @@ OPT = -Og
 # Build path
 BUILD_DIR = build
 
+# Paired diagnostic build; must use a separate BUILD_DIR when switching.
+HBOX_BOOT_PROFILE ?= 0
+ifneq ($(filter $(HBOX_BOOT_PROFILE),0 1),$(HBOX_BOOT_PROFILE))
+$(error HBOX_BOOT_PROFILE must be exactly 0 or 1)
+endif
+
 # Optional public-only production trust bundle generated outside source
 # control. Repository fallbacks remain all-zero and therefore fail closed.
 HBOX_TRUST_HEADER ?=
@@ -230,6 +236,7 @@ endif
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32H750xx \
+-DHBOX_BOOT_PROFILE=$(HBOX_BOOT_PROFILE) \
 -DAPPLICATION_SERIAL_PRINT=$(APP_LOG_ENABLE) \
 -DAPPLICATION_DEBUG_PRINT=$(APP_LOG_ENABLE) \
 -DAPP_LOG_VERBOSE=$(APP_LOG_VERBOSE) \

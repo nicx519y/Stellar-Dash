@@ -14,9 +14,14 @@ output/playwright/
 *.tmp   
 
 application/build
+application/build-webhid-direct-check/
+application/build-boot-profile*/
 application/build_live_feedback/
 application/www/output/
 bootloader/build
+bootloader/-O2
+bootloader/build-unlocked/
+bootloader/build-boot-profile*/
 releases
 tools/__pycache__
 tools/tests/__pycache__/

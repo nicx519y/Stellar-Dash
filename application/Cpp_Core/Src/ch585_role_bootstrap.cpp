@@ -1,3 +1,4 @@
+#include "boot_profile.h"
 #include "ch585_role_bootstrap.hpp"
 
 #include "board_cfg.h"
@@ -14,11 +15,30 @@ void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
 
 void Ch585RoleBootstrap::shutdown()
 {
+    usbStartupPrepared = false;
     (void)BOARD_POWER.setUsbHostEnabled(false);
     BOARD_POWER.setCh585Enabled(false);
     RFBootReady::reset();
     activeRole = Ch585Role::SafeIdle;
     bootstrapState = Ch585BootstrapState::Off;
+}
+
+bool Ch585RoleBootstrap::prepareUsbStartup()
+{
+    // Only the initial Off state may be prepared. Never disturb an active role.
+    if (usbStartupPrepared) return true;
+    if (bootstrapState != Ch585BootstrapState::Off ||
+        !BOARD_POWER.isInitialized() || BOARD_POWER.isCh585Enabled()) return false;
+
+    shutdown();
+    HAL_Delay(CH585_POWER_OFF_MIN_MS);
+    // Set NSS inactive while CH585 is still off. No SELECT_ROLE/CAPS traffic.
+    if (!USBBoardLinkPort_Init()) return false;
+    bootstrapState = Ch585BootstrapState::Booting;
+    BOARD_POWER.setCh585Enabled(true);
+    usbPowerOnAtMs = HAL_GetTick();
+    usbStartupPrepared = true;
+    return true;
 }
 
 bool Ch585RoleBootstrap::selectOnce(Ch585Role requestedRole)
@@ -40,6 +60,7 @@ bool Ch585RoleBootstrap::selectOnce(Ch585Role requestedRole)
 
 bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
 {
+    BP_APP_SCOPE(BP_APP_CH585_START);
     if (requestedRole == Ch585Role::SafeIdle || selector == nullptr) {
         shutdown();
         bootstrapState = Ch585BootstrapState::Failed;
@@ -50,23 +71,39 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
         return true;
     }
 
+    /* An unusually slow UI/power probe may outlive the CH585 selector window.
+     * Reuse only within the original power-settle + ready-hint budget;
+     * otherwise take the unchanged cold-start path, including its retry. */
+    bool reusePrepared = usbStartupPrepared && requestedRole == Ch585Role::Usb &&
+        bootstrapState == Ch585BootstrapState::Booting && BOARD_POWER.isCh585Enabled() &&
+        (uint32_t)(HAL_GetTick() - usbPowerOnAtMs) <
+            CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+    usbStartupPrepared = false; // one-shot, including all failure paths
+
     /* Initial attempt plus exactly one power-cycle retry. */
     for (uint8_t attempt = 0u; attempt < 2u; ++attempt) {
         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
                   static_cast<unsigned int>(attempt + 1u),
                   static_cast<unsigned int>(requestedRole));
-        shutdown();
-        HAL_Delay(CH585_POWER_OFF_MIN_MS);
-
-        bootstrapState = Ch585BootstrapState::Booting;
-        BOARD_POWER.setCh585Enabled(true);
-        /*
-         * Do not clock SELECT_ROLE on the CH585 power-up edge.  The IAP path
-         * already observes the same settle interval; the application needs
-         * time to finish its reset/startup code and arm the cold-boot SPI
-         * selector before the first five-byte transaction arrives.
-         */
-        HAL_Delay(CH585_POWER_ON_SETTLE_MS);
+        uint32_t readyTimeoutMs = CH585_READY_HINT_TIMEOUT_MS;
+        if (reusePrepared) {
+            uint32_t elapsed = HAL_GetTick() - usbPowerOnAtMs;
+            if (elapsed < CH585_POWER_ON_SETTLE_MS) {
+                HAL_Delay(CH585_POWER_ON_SETTLE_MS - elapsed);
+            }
+            elapsed = HAL_GetTick() - usbPowerOnAtMs;
+            const uint32_t deadline = CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+            readyTimeoutMs = elapsed < deadline ? deadline - elapsed : 0u;
+            reusePrepared = false;
+        } else {
+            shutdown();
+            HAL_Delay(CH585_POWER_OFF_MIN_MS);
+            bootstrapState = Ch585BootstrapState::Booting;
+            BOARD_POWER.setCh585Enabled(true);
+            /* Do not clock SELECT_ROLE on the power-up edge. The original
+             * cold start and power-cycle retry retain their full settle. */
+            HAL_Delay(CH585_POWER_ON_SETTLE_MS);
+        }
 
         /* Keep SPI completely idle while the persistent IAP observes its
          * 500-ms boot window.  Jumping from inside an active NSS transaction
@@ -74,7 +111,8 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
          * path reaches the application with a clean bus instead. */
         APP_STAGE("R02", "CH585 waiting for idle IAP-to-application handoff");
         const bool readyObserved =
-            RFBootReady::waitForModuleReady(CH585_READY_HINT_TIMEOUT_MS);
+            BP_APP_CALL(BP_APP_CH585_READY,
+                RFBootReady::waitForModuleReady(readyTimeoutMs));
         if (!readyObserved) {
             /*
              * PA5 is shared with the steady-state event signal and its short
@@ -89,7 +127,7 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
             APP_STAGE("R02A", "CH585 application-ready pulse observed");
         }
 
-        if (selectOnce(requestedRole)) {
+        if (BP_APP_CALL(BP_APP_CH585_SELECT, selectOnce(requestedRole))) {
             APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",
                       static_cast<unsigned int>(attempt + 1u),
                       static_cast<unsigned int>(requestedRole));

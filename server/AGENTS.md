@@ -15,8 +15,8 @@
 
 ## 行为与数据边界
 
-- 保持用户身份、管理员权限、设备证明和下载授权各自的校验，不用某一层认证成功替代其他层。WebHID permit/协议改动同时核对 [common](../common/AGENTS.md) 和前端。
-- 本地实验室信任例外仅用于规定的 loopback 启动方式；不得放宽生产校验、来源检查或将本地 bypass 变成默认产品行为。细节见 [Web README](../application/www/README.md)。
+- 用户身份与管理员权限沿用现有登录和来源校验。WebConfig 的固件目录、下载与系统图库采用 [直连设备访问上下文](src/direct-device-access.js)，不索取设备证明或 bearer token；固件签名与目标版本校验仍由各自流程负责。
+- 直连设备访问是当前 WebConfig 产品行为；本地 loopback 启动方式和用户登录来源检查仍按 [Web README](../application/www/README.md) 处理。
 - 数据目录由 `server-paths.js` 解析；production 要求显式绝对路径。测试使用临时数据库/上传目录，不能清理或迁移真实 `data`、`uploads`、`gallery-assets` 来让测试通过。
 - 保留固件签名、目标硬件、版本和访问权限检查；路由或账户变动不构成发布固件、修改真实账户权限或发送邮件的授权。
 - 旧 `src/auth.js` 已不存在；不要按过时目录说明新增重复认证层。现有文档与代码冲突时核对实际路由及测试。

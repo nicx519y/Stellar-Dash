@@ -1,8 +1,9 @@
 # HBox Web Config
 
 The V2 application is a server-hosted static Next.js site. It talks to the
-CH585 Maintenance HID collection through WebHID; the browser is only a relay
-for STM32 attestation and the server-signed session permit.
+CH585 Maintenance HID collection through WebHID. The browser and STM32 open
+an encrypted direct session without a device certificate or server permit.
+User and administrator sign-in remains on the server for account actions.
 
 ## V2 hosted development
 
@@ -57,15 +58,9 @@ root:
 python tools/hbox.py web local-serve --port 3001
 ```
 
-This unified laboratory launcher explicitly bypasses the local device trust
-policy (enrollment identity, revocation, rollback, and firmware-measurement
-allowlists). It remains restricted to exact loopback listeners and origins.
-The cryptographic attestation exchange still runs so the device can install a
-server-signed temporary permit, and all protected WebHID RPC traffic remains
-AES-GCM encrypted. The standalone `tools/webconfig_local.py serve` command has
-the same loopback-only laboratory default; use `--require-device-auth` only
-when explicitly testing the local trust policy. Production startup rejects the
-bypass unconditionally.
+The WebHID session opens directly in both local and hosted builds. Protected
+RPC traffic remains AES-GCM encrypted. The browser still requires an explicit
+device selection gesture; user login and administrator permissions are separate.
 
 Production validation and static export:
 
@@ -138,27 +133,16 @@ Mock mode requires both `NEXT_PUBLIC_DEVICE_TRANSPORT=mock` and
 `NEXT_PUBLIC_OFFLINE_PREVIEW=true`; it is intended only for local QA and must
 not be deployed as the genuine-device V2 site.
 
-## Authentication behavior
+## Connection and account behavior
 
-There is no separate end-user sign-in. After a device passes V2 certificate,
-boot-attestation and enrollment-policy checks, the server atomically maps its
-unique device ID to an internal UUIDv4 account. Reconnecting the same device
-reuses the same account, and the account UID is carried only by that verified
-device session for future account-scoped features.
-
-- Before attestation, only the fixed bootstrap exchange is accepted.
-- The local `hbox.py web local-serve` launcher skips trust-policy decisions for
-  lab debugging only; production authentication behavior is unchanged.
-- The page sends no protected RPC until STM32 accepts the server permit.
-- The API bearer token is memory-only and remains valid for the connected
-  WebHID session; it has no wall-clock expiry.
-- Initial authorization requests only `config.read`, `config.write`, and
-  `monitor.read`. Device control, asset writes, and firmware updates end the
-  current session and request a new permit only when that UI action is invoked.
-- Bearer tokens are sent only to the configured authentication-server origin;
-  redirects or custom download URLs on another origin are rejected.
-- A USB disconnect, sequence error, role change, or authentication error
-  destroys the session. There is no offline configuration-write mode.
+- The browser sends `session.open-direct` after WebHID selection. STM32 and the
+  browser derive fresh AES-GCM keys from ephemeral P-256 keys. No device
+  certificate, boot attestation, server permit, or device bearer token is needed.
+- Device commands, firmware transfer and system resources use the direct
+  session. Server resource requests stay on the page origin.
+- Personal resources and administrator actions retain the existing user login,
+  role checks and origin checks.
+- A USB disconnect, sequence error or role change destroys the direct session.
 
 The WebConfig product build supports WebHID only. The `mock` variant remains
 available for hardware-free UI testing and never falls back to a network

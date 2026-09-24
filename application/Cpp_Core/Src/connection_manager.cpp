@@ -1,3 +1,4 @@
+#include "boot_profile.h"
 #include "connection_manager.hpp"
 
 #include "board_mode.hpp"
@@ -426,6 +427,7 @@ void ConnectionManager::serviceRfPairingTimeout()
 void ConnectionManager::setup(ConnectionMode connMode,
                               WirelessReportRate wirelessRate,
                               InputMode inputMode) {
+    BP_APP_SCOPE(BP_APP_CONNECTION_SETUP);
     mode = connMode;
     inputMode = effectiveInputModeForConnection(mode, inputMode);
     appliedReportRateHz = mode == ConnectionMode::CONNECTION_MODE_USB

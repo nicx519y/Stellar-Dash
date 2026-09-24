@@ -8,7 +8,7 @@
 - Mock 是独立开发变体。保持 `build:hosted` / `build:mock` 的环境与产物隔离，不将模拟设备打入产品。
 - `makefsdata.js` 仅为旧 A/B artifact 兼容生成资源；日常网页构建不把网站写入 STM32，不恢复旧 httpd runtime。
 - WebHID 设备选择需要用户手势。设备访问、会话租约、队列和错误处理使用 [device-transport](lib/device-transport/) 的现有抽象；组件不要自行打开另一条 HID 通道。
-- 协议/命令调整同时核对 [共享协议](../../common/webhid_protocol.h)、STM32 dispatcher、服务端权限和 Mock；不得绕过 attestation、permit、scope 或加密边界。
+- Hosted WebConfig 通过 `session.open-direct` 建立加密 WebHID 会话，不要求设备身份、attestation 或服务端 permit。协议/命令调整同时核对 STM32 dispatcher、服务端资源权限和 Mock；用户登录与管理员权限继续独立生效。
 
 ## 配置交互
 
@@ -16,7 +16,7 @@
 - 普通自动保存保留按键监测与 LED 预览；校准、图片、导入和升级等独占操作走各自边界，见 [保存反馈说明](../../docs/webconfig-live-autosave-feedback.md)。
 - Profile 列表依照设备返回的容量和 `slotIndex`，不恢复创建/删除入口；槽位迁移和兼容规则见 [固定 Profile 槽位](../../docs/fixed-profile-slots.md)。
 - USB 网页配对只保存绑定，不启用 TX RF 或改变物理连接模式；部分提交遵守现有续作逻辑，见 [USB 配对说明](../../docs/WEBCONFIG_RX_BINDING_20260923.md)。
-- 本地实验室信任策略例外只适用于 README 定义的 loopback 服务，不能传播到生产认证路径。
+- 用户账户登录与管理员操作保持原有会话和来源校验；WebHID 设备直连不替代用户登录。
 
 ## 常用命令与验证
 

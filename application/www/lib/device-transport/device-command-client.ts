@@ -13,7 +13,7 @@ import {
   DeviceImageTarget,
   DeviceImageUploadRequest,
 } from './device-feature-types';
-import { DeviceAuthClient } from './device-auth-client';
+import { DeviceSessionClient } from './device-session-client';
 import {
   DEFAULT_DEVICE_SCOPES,
   DeviceScope,
@@ -100,7 +100,7 @@ export class DeviceCommandClient {
 
   constructor(
     readonly transport: DeviceTransport,
-    private readonly authClient: DeviceAuthClient | null = null,
+    private readonly authClient: DeviceSessionClient | null = null,
     private readonly initialScopes: readonly DeviceScope[] = DEFAULT_DEVICE_SCOPES,
     private readonly startupTimeoutMs = 30_000,
   ) {

@@ -811,6 +811,9 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
         ? app.locals.deviceAuthV2.requireSession(['config.read'])
         : null;
     const validateFirmwareCatalog = (req, res, next) => {
+        if (app.locals.deviceAuthV2?.direct) {
+            return validateV2FirmwareCatalog(req, res, next);
+        }
         if (validateV2FirmwareCatalog &&
             /^Bearer /.test(req.get('authorization') || '')) {
             return validateV2FirmwareCatalog(req, res, next);
@@ -848,17 +851,19 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     });
 
     // 2. 检查固件更新
-    const validateLegacyFirmwareCheck = validateDeviceAuth({ source: 'body' });
     /*
      * Reading the signed firmware catalog is non-destructive. The elevated
      * firmware.update scope is required later by the protected package
      * download and device-side upgrade commands.
      */
-    const validateV2FirmwareCheck = validateV2FirmwareCatalog;
+    const validateLegacyFirmwareCheck = validateDeviceAuth({ source: 'body' });
     const validateFirmwareCheck = (req, res, next) => {
-        if (validateV2FirmwareCheck &&
+        if (app.locals.deviceAuthV2?.direct) {
+            return validateV2FirmwareCatalog(req, res, next);
+        }
+        if (validateV2FirmwareCatalog &&
             /^Bearer /.test(req.get('authorization') || '')) {
-            return validateV2FirmwareCheck(req, res, next);
+            return validateV2FirmwareCatalog(req, res, next);
         }
         return validateLegacyFirmwareCheck(req, res, next);
     };

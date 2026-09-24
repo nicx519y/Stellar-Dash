@@ -1,5 +1,10 @@
 # WebConfig V2 本地实机调试
 
+> 本文记录旧 V2 身份置备与 permit 调试流程，不是当前无锁开发板的日常入口。
+> 当前 bootloader 重刷使用 `python tools/hbox.py flash bootloader`，会清空同一
+> 128 KiB 扇区中的设备身份和最低安全版本；WebConfig 通过加密直连会话工作，
+> 用户登录流程保持原样。STM32 Application 日常烧录入口见仓库根目录 `AGENTS.md`。
+
 本文给出与生产 V2 **相同设备侧安全协议**的本地实机调试流程：签名启动
 metadata、制造证书、boot attestation、服务端 permit 和加密 WebHID RPC 都不会
 被绕过。最终操作方式是：屏幕选择 `Web Config`，USB 接入电脑，在 Chrome/Edge

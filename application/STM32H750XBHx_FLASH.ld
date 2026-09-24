@@ -65,9 +65,10 @@ ITCMRAM (xrw)                 : ORIGIN = 0x00000000, LENGTH = 64K
 DTCMRAM (xrw)                 : ORIGIN = 0x20000000, LENGTH = 128K
 RAM (xrw)                     : ORIGIN = 0x24000000, LENGTH = 512K
 RAM_D2 (xrw)                  : ORIGIN = 0x30000000, LENGTH = 288K
-/* Final 1 KiB (0x3800FC00..0x3800FFFF) is the boot attestation mailbox. */
-RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 63K
+/* Final 2 KiB: diagnostic trace, then the unchanged authentication mailbox. */
+RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 62K
 FLASH (rx)                    : ORIGIN = 0x90000000, LENGTH = 2048K
+BOOT_PROFILE (rw) : ORIGIN = 0x3800F800, LENGTH = 1K
 }
 
 /* Define Flash起始地址符号供代码使用 */
@@ -76,6 +77,16 @@ _flash_start = ORIGIN(FLASH);
 /* Define output sections */
 SECTIONS
 {
+  .boot_profile (NOLOAD) :
+  {
+    KEEP(*(.boot_profile))
+  } >BOOT_PROFILE
+  ASSERT(SIZEOF(.boot_profile) == 0 || SIZEOF(.boot_profile) == 1024,
+         "invalid boot profile size")
+  ASSERT(ORIGIN(RAM_D3) + LENGTH(RAM_D3) <= ORIGIN(BOOT_PROFILE),
+         "RAM_D3 overlaps boot profile")
+  ASSERT(ORIGIN(BOOT_PROFILE) + LENGTH(BOOT_PROFILE) == 0x3800FC00,
+         "boot profile overlaps authentication mailbox")
   /* 向量表必须在 Flash */
   _sivector = LOADADDR(.isr_vector);
   .isr_vector :
@@ -240,5 +251,4 @@ SECTIONS
          "RAM_D3 overlaps the boot attestation mailbox")
 
 }
-
 

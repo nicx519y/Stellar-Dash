@@ -32,7 +32,7 @@ class MainStateMachine {
         MainRuntimeState resolveNormalStartupState() const;
         BaseState* stateFor(MainRuntimeState selected) const;
         bool enterState(MainRuntimeState selected);
-        void initializeInteractiveRuntime();
+        void initializeInteractiveRuntime(bool overlapInputStartup = false);
         void serviceSharedRuntime();
 
         BaseState* state = nullptr;

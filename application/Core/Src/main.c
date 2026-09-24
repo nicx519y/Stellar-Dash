@@ -17,6 +17,7 @@
   */
 
 #include "main.h"
+#include "boot_profile.h"
 #include "usart.h"
 #include "board_cfg.h"
 #include "board.h"
@@ -42,21 +43,26 @@ void enableFPU(void);
   */
 int main(void)
 {
+    BootProfile_Main();
     const uint32_t resetFlags = RCC->RSR;
     /************************************************ 系统初始化 ************************************************* */
     // 使能中断
     __enable_irq(); 
     enableFPU(); // 使能FPU
     HAL_Init();
+    BootProfile_AppTick(BP_APP_HAL_READY);
     BoardPower_EarlyMainHold();
     SystemSleep_CaptureBootFlags();
     SystemSleep_ConfirmWakeHoldOrReturnStandby();
-    HAL_Delay(200); // 延时200ms 等待时钟稳定，并且验证时钟配置是否正确 中断是否可用
+    /* Clock readiness is checked in board_init() below. The main rail is
+     * already held; switched peripheral rails retain their own waits. */
 
     SCB_EnableDCache(); // 使能数据缓存
     SCB_EnableICache(); // 使能指令缓存
 
+    BootProfile_AppTick(BP_APP_BOARD_BEGIN);
     board_init(); // 初始化板子 时钟 W25Q64 串口 WS2812B 等
+    BootProfile_AppTick(BP_APP_BOARD_DONE);
 
     APP_STAGE("A07", "board initialization complete");
     APP_STAGE("A08", "reset source RSR=0x%08lX BOR=%u PIN=%u POR=%u SFT=%u IWDG=%u WWDG=%u LPWR=%u CPU=%u",
@@ -265,4 +271,3 @@ void HAL_DMA_ErrorCallback(DMA_HandleTypeDef *hdma)
 }
 
 /* USER CODE END 4 */
-

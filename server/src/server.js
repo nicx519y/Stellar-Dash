@@ -25,6 +25,7 @@ const { FirmwareStorage, compareVersions, isValidVersion } = require('./firmware
 
 // 引入设备认证模块
 const { validateDeviceAuth } = require('./device-auth');
+const { createDirectDeviceAccess } = require('./direct-device-access');
 const {
     createDeviceAuthV2FromEnvironment,
     initDeviceAuthV2Routes
@@ -190,7 +191,8 @@ userAccountCleanupTimer.unref();
 const deviceAuthV2 = createDeviceAuthV2FromEnvironment(storage_manager, {
     accountStore: deviceAccountStore
 });
-app.locals.deviceAuthV2 = deviceAuthV2;
+const deviceAccess = createDirectDeviceAccess(deviceAuthV2);
+app.locals.deviceAuthV2 = deviceAccess;
 const legacyDownloadTickets = new LegacyDownloadTicketStore();
 app.locals.legacyDownloadTickets = legacyDownloadTickets;
 
@@ -221,15 +223,10 @@ initLegacyDownloadRoute(
     config.uploadDir
 );
 
-/*
- * Firmware files are no longer public. Browsers fetch them with the short
- * lived opaque token issued by the V2 attestation flow. Authorization is
- * accepted only from the header, never from a query string which may leak
- * into proxies and access logs.
- */
+/* WebConfig firmware downloads are available without device attestation. */
 app.use(
     '/downloads',
-    deviceAuthV2.requireSession(['firmware.update']),
+    deviceAccess.requireSession(['firmware.update']),
     (req, res, next) => {
         res.set('Cache-Control', 'private, no-store');
         next();
@@ -252,14 +249,14 @@ initEmailAuthRoutes(app, emailAuth);
 initAdminRoutes(app, adminAccess);
 initSwitchMappingRoutes(app, {
     store: switchMappingStore,
-    deviceAuth: deviceAuthV2,
+    deviceAuth: deviceAccess,
     adminAccess
 });
 initImageGalleryRoutes(app, {
     store: imageGalleryStore,
     storage: imageGalleryStorage,
     emailAuth,
-    deviceAuth: deviceAuthV2,
+    deviceAuth: deviceAccess,
     adminAccess
 });
 initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth);
@@ -270,7 +267,7 @@ initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth
  *
  * Production deployment sets WEB_CONFIG_STATIC_DIR to the copied Next.js
  * export and WEB_CONFIG_REQUIRE_STATIC=1. Development/API-only processes may
- * omit the directory without weakening any device authorization boundary.
+ * omit the directory while preserving account and administrator routes.
  */
 const hostedWebConfigOptions = resolveHostedWebConfigOptions();
 hostedWebConfigOptions.profileSlugs =
@@ -362,14 +359,14 @@ app.listen(PORT, LISTEN_HOST, () => {
     console.log('  GET    /api/gallery/match       - 按设备图片指纹匹配图库');
     console.log('  GET    /api/gallery/mine        - 获取个人图库');
     console.log('  GET    /api/admin/gallery/system - 管理官方图库');
-    console.log('  GET    /api/firmwares          - 获取固件列表 (需要 config.read scope)');
-    console.log('  POST   /api/firmware-check-update - 检查固件更新 (需要设备认证)');
+    console.log('  GET    /api/firmwares          - 获取固件列表');
+    console.log('  POST   /api/firmware-check-update - 检查固件更新');
     console.log('  POST   /api/firmwares/upload   - 上传固件包 (需要管理员认证)');
-    console.log('  GET    /api/firmwares/:id      - 获取固件详情 (需要 config.read scope)');
+    console.log('  GET    /api/firmwares/:id      - 获取固件详情');
     console.log('  PUT    /api/firmwares/:id      - 更新固件信息');
     console.log('  DELETE /api/firmwares/:id      - 删除固件包 (需要管理员认证)');
     console.log('  POST   /api/firmwares/clear-up-to-version - 清空指定版本及之前的固件 (需要管理员认证)');
-    console.log('  GET    /downloads/:filename    - 下载固件包 (需要 firmware.update scope)');
+    console.log('  GET    /downloads/:filename    - 下载固件包');
     console.log('='.repeat(60));
     console.log('服务器启动成功！按 Ctrl+C 停止服务');
 });

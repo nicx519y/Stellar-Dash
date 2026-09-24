@@ -972,7 +972,7 @@ bool WebHidService::setup()
     }
 #endif
     if (!driverReady || !profileReady || !roleLocked || !maintenanceRole ||
-        !identityReady || !rngReady) {
+        !rngReady) {
         APP_STAGE_ERROR(
             "H01",
             "WebHID prerequisites failed: driver=%u profile=%u locked=%u maintenance=%u identity=%u rng=%u",
@@ -990,13 +990,13 @@ bool WebHidService::setup()
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
     lastDwtCycles = DWT->CYCCNT;
     accumulatedCycles = 0u;
-    bootContextValid = true;
+    bootContextValid = identityReady;
     initialized = true;
     ConfigTransport_SetJsonSink(configJsonEvent);
     ConfigTransport_SetBinarySink(configBinaryEvent);
     UsbBoardLink_SetWebConfigReceiveCallback(webhidReportReceived);
     WEBHID_RPC_DISPATCHER.initialize();
-    APP_STAGE("H01", "WebHID identity and entropy prerequisites ready");
+    APP_STAGE("H01", "WebHID transport and entropy prerequisites ready");
     return true;
 }
 
@@ -1718,7 +1718,9 @@ bool WebHidService::processBootstrap(
     }
 
     bool result = false;
-    if (strcmp(command->valuestring, "attestation.create") == 0) {
+    if (strcmp(command->valuestring, "session.open-direct") == 0) {
+        result = handleDirectOpen(transactionId, params);
+    } else if (strcmp(command->valuestring, "attestation.create") == 0) {
         result = handleAttestationCreate(transactionId, params);
     } else if (strcmp(command->valuestring,
                       "session.install-permit") == 0) {
@@ -1775,6 +1777,106 @@ bool WebHidService::processBootstrap(
     }
     cJSON_Delete(root);
     return result;
+}
+
+bool WebHidService::handleDirectOpen(
+    uint32_t transactionId,
+    void *opaqueParams)
+{
+    cJSON *params = static_cast<cJSON *>(opaqueParams);
+    cJSON *browserKeyItem = params == nullptr
+        ? nullptr
+        : cJSON_GetObjectItemCaseSensitive(
+              params, "browserEphemeralPublicKey");
+    std::vector<uint8_t> browserKey;
+    if (!cJSON_IsString(browserKeyItem) ||
+        !decodeBase64(
+            browserKeyItem->valuestring,
+            browserKey,
+            HBOX_SECURITY_P256_PUBLIC_KEY_BYTES,
+            false) ||
+        browserKey[0] != 0x04u ||
+        HBoxCrypto_P256ValidatePublicKey(browserKey.data()) != 0) {
+        return sendBootstrapError(
+            transactionId, "Invalid browser ephemeral key");
+    }
+
+    std::array<uint8_t, 32> salt = {};
+    std::array<uint8_t, 12> sessionBytes = {};
+    HBoxCrypto_Zeroize(
+        deviceEphemeralPrivate.data(),
+        deviceEphemeralPrivate.size());
+    HBoxCrypto_Zeroize(
+        deviceEphemeralPublic.data(),
+        deviceEphemeralPublic.size());
+    const bool generated =
+        HBoxCrypto_P256Generate(
+            deviceEphemeralPrivate.data(),
+            deviceEphemeralPublic.data(),
+            HBoxHardwareRng_Fill,
+            nullptr) == 0 &&
+        HBoxHardwareRng_Fill(
+            nullptr, salt.data(), salt.size()) == 0 &&
+        HBoxHardwareRng_Fill(
+            nullptr, sessionBytes.data(),
+            sessionBytes.size()) == 0 &&
+        !allZero(sessionBytes.data(), sessionBytes.size());
+    const std::string sessionId = generated
+        ? encodeHex(sessionBytes.data(), sessionBytes.size(), false)
+        : std::string();
+    const std::string saltBase64 = generated
+        ? encodeBase64(salt.data(), salt.size())
+        : std::string();
+    const std::string deviceKeyBase64 = generated
+        ? encodeBase64(deviceEphemeralPublic.data(),
+                       deviceEphemeralPublic.size())
+        : std::string();
+    const bool ready = generated && !sessionId.empty() &&
+        !saltBase64.empty() && !deviceKeyBase64.empty() &&
+        installSessionKeys(
+            salt.data(), browserKey.data(), sessionId);
+    HBoxCrypto_Zeroize(salt.data(), salt.size());
+    HBoxCrypto_Zeroize(sessionBytes.data(), sessionBytes.size());
+    HBoxCrypto_Zeroize(browserKey.data(), browserKey.size());
+    HBoxCrypto_Zeroize(
+        deviceEphemeralPrivate.data(),
+        deviceEphemeralPrivate.size());
+    if (!ready) {
+        resetSession(true, false, false);
+        return sendBootstrapError(
+            transactionId, "Direct session setup failed");
+    }
+
+    cJSON *data = cJSON_CreateObject();
+    const bool populated = data != nullptr &&
+        cJSON_AddStringToObject(
+            data, "sessionId", sessionId.c_str()) != nullptr &&
+        cJSON_AddStringToObject(
+            data, "sessionSalt", saltBase64.c_str()) != nullptr &&
+        cJSON_AddStringToObject(
+            data, "deviceEphemeralPublicKey",
+            deviceKeyBase64.c_str()) != nullptr &&
+        cJSON_AddStringToObject(
+            data, "hardwareVersion",
+            HARDWARE_VERSION_STRING) != nullptr;
+    const bool acknowledged = populated && sendResponse(
+        WEBHID_REPORT_BOOTSTRAP_RESPONSE,
+        false,
+        transactionId,
+        0,
+        data);
+    cJSON_Delete(data);
+    if (!acknowledged || outboundQueue.empty() ||
+        outboundQueue.back().type !=
+            WEBHID_REPORT_BOOTSTRAP_RESPONSE ||
+        outboundQueue.back().secure) {
+        resetSession(true);
+        return false;
+    }
+    outboundQueue.back().activateSession = true;
+    grantedScopes = HBOX_SCOPE_ALL;
+    sessionActivationPending = true;
+    return true;
 }
 
 bool WebHidService::handleAttestationCreate(

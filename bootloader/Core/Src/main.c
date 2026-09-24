@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "boot_profile.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -81,12 +82,14 @@ int main(void)
   // 先初始化基础硬件，但不初始化日志系统
   MPU_Config();
   HAL_Init();
-  Board_InitSafePowerState();
+  BootProfile_Init();
+  BP_RUN(BP_POWER, Board_InitSafePowerState());
   /* 3V3_Main powers the external W25Q64; wait before its first QSPI access. */
-  HAL_Delay(MAIN_POWER_STABILIZE_MS);
-  SystemClock_Config();
-  PeriphCommonClock_Config();
-  USART1_Init();
+  BP_RUN(BP_POWER_WAIT, HAL_Delay(MAIN_POWER_STABILIZE_MS));
+  BP_RUN(BP_CLOCK, SystemClock_Config());
+  BootProfile_ClockReady();
+  BP_RUN(BP_PERIPH_CLOCK, PeriphCommonClock_Config());
+  BP_RUN(BP_USART, USART1_Init());
 
   BOOT_STAGE("B01", "reset entry; MPU, HAL, safe power, clocks and USART1 ready");
   BOOT_STAGE("B02", "main power stabilized for %lu ms; LCD_EN held high",
@@ -98,7 +101,7 @@ int main(void)
   
   // 初始化QSPI Flash（必须在日志系统之前）
   BOOT_STAGE("B03", "QSPI initialization begin");
-  if(QSPI_W25Qxx_Init() != QSPI_W25Qxx_OK) {
+  if(BP_CALL(BP_QSPI, QSPI_W25Qxx_Init()) != QSPI_W25Qxx_OK) {
     BOOT_STAGE_ERROR("B03", "QSPI initialization failed; boot stopped");
     BOOT_ERR("QSPI_W25Qxx_Init failed\r\n");
     return -1;
@@ -106,7 +109,7 @@ int main(void)
   BOOT_STAGE("B03", "QSPI initialization complete");
   
   // 等待一小段时间确保QSPI完全初始化
-  HAL_Delay(50);
+  BP_RUN(BP_QSPI_WAIT, HAL_Delay(50));
   
   // 现在可以安全地初始化日志模块
   BOOT_STAGE("B04", "persistent logger initialization begin");
@@ -325,7 +328,7 @@ void JumpToApplication(void)
 
 
     // 进入内存映射模式
-    if(QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK)
+    if(BP_CALL(BP_MAP, QSPI_W25Qxx_EnterMemoryMappedMode()) != QSPI_W25Qxx_OK)
     {
         BOOT_STAGE_ERROR("B07", "QSPI memory-mapped mode entry failed");
         Logger_Log(LOG_LEVEL_ERROR, "QSPI", "Failed to enter memory mapped mode");
@@ -338,7 +341,7 @@ void JumpToApplication(void)
 
     // 加载并验证元数据
     FirmwareMetadata metadata;
-    int8_t load_result = DualSlot_LoadMetadata(&metadata);
+    int8_t load_result = BP_CALL(BP_METADATA, DualSlot_LoadMetadata(&metadata));
     uint32_t app_base_address;
     FirmwareSlot target_slot;
     
@@ -385,7 +388,7 @@ void JumpToApplication(void)
                      metadata.build_date);
     
     // 验证目标槽位有效性
-    if (!DualSlot_IsSlotValid(target_slot)) {
+    if (!BP_CALL(BP_SLOT, DualSlot_IsSlotValid(target_slot))) {
         BOOT_STAGE_ERROR("B09", "target slot %s validation failed",
                          (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
 #if HBOX_SECURE_BOOT_REQUIRED
@@ -412,6 +415,7 @@ void JumpToApplication(void)
     BOOT_STAGE("B09", "target slot %s image and signature accepted",
                (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
     
+    BP_MARK(BP_VECTOR);
     // 获取应用程序地址
     app_base_address = DualSlot_GetSlotAddress("application", target_slot);
     if (app_base_address == 0) {
@@ -454,6 +458,7 @@ perform_jump:
                (unsigned long)app_base_address,
                (unsigned long)app_stack,
                (unsigned long)jump_address);
+    BP_MARK(BP_VECTOR | BP_END);
 #if HBOX_SECURE_BOOT_REQUIRED
     hbox_secure_access_status_t secure_access_status =
         HBoxSecureAccess_ValidateLifecycle();
@@ -513,7 +518,7 @@ perform_jump:
      * the reserved SRAM boot context.  It never changes Option Bytes, RDP,
      * WRP, PCROP, SECURITY, SCAR, or any Flash protection setting.
      */
-    if (!BootAttestation_Prepare(&metadata)) {
+    if (!BP_CALL(BP_ATTESTATION, BootAttestation_Prepare(&metadata))) {
         BOOT_STAGE_ERROR("B13", "device identity or boot attestation unavailable");
         Logger_Log(LOG_LEVEL_ERROR, "ATTESTATION",
                    "Unable to create an authenticated boot context");
@@ -551,6 +556,7 @@ perform_jump:
     BOOT_STAGE("B15", "logs flushed; teardown begins; next milestone must be APP A01");
 
     /****************************  跳转前准备  ************************* */
+    BootProfile_Handoff();
     // 关闭SysTick
     SysTick->CTRL = 0;
     SysTick->LOAD = 0;
@@ -596,6 +602,7 @@ perform_jump:
      */
     HBoxSecureAccess_ExitToApplication(app_base_address);
 #else
+    BP_MARK(BP_JUMP);
     // 设置主堆栈指针
     __set_MSP(app_stack);
     uint32_t current_msp = __get_MSP();

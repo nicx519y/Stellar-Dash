@@ -31,6 +31,12 @@ OPT = -Og
 # Build path
 BUILD_DIR = build
 
+# Paired diagnostic build; must use a separate BUILD_DIR when switching.
+HBOX_BOOT_PROFILE ?= 0
+ifneq ($(filter $(HBOX_BOOT_PROFILE),0 1),$(HBOX_BOOT_PROFILE))
+$(error HBOX_BOOT_PROFILE must be exactly 0 or 1)
+endif
+
 # Optional public-only production trust bundle generated outside source
 # control. Repository fallbacks remain all-zero and therefore fail closed.
 HBOX_TRUST_HEADER ?=
@@ -200,6 +206,7 @@ Core/Src/firmware_security.c \
 Core/Src/boot_attestation.c \
 Core/Src/secure_access_handoff.c \
 Core/Src/security_version_store.c \
+../common/boot_profile.c \
 ../common/firmware_signature.c \
 ../common/device_security_boot_context.c \
 ../common/device_identity_store.c \
@@ -304,6 +311,7 @@ AS_DEFS =
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32H750xx \
+-DHBOX_BOOT_PROFILE=$(HBOX_BOOT_PROFILE) \
 -DHBOX_SECURE_BOOT_REQUIRED=$(HBOX_SECURE_BOOT_REQUIRED) \
 -DMBEDTLS_CONFIG_FILE=\"mbedtls_boot_config.h\"
 
@@ -413,11 +421,8 @@ clean:
 # flash
 #######################################
 
-flash: $(BUILD_DIR)/$(TARGET).elf
-	@echo ERROR: direct bootloader flash is disabled for the V2 security layout.
-	@echo The H750xB has one erase sector; this would erase identity and anti-rollback state.
-	@echo Use the reviewed factory full-sector transaction that reprovisions bootloader, identity, and minimum security version together.
-	@exit /b 1
+flash:
+	@python ../tools/flash_bootloader_unlocked.py
 
 #######################################
 # dependencies

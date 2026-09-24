@@ -19,6 +19,7 @@
 
 - “冻结/防误改”只约束已验收的软件流程，不表示芯片或下载通道被锁定。设备保持未锁定、可正常恢复。
 - 文件清单、验收日期和 SHA-256 以 [冻结契约](tools/frozen_flash_contract.json) 为准；校验入口是 [契约测试](tools/tests/test_frozen_flash_contract.py)。WebConfig、USB、RF、UI 调试不得顺手改动这些脚本、地址布局或安全门禁，也不得为消除测试失败而更新哈希。
+- 无锁开发板需要重刷 bootloader 时，先用 `python tools/hbox.py build bootloader` 生成产物，再用 `python tools/hbox.py flash bootloader` 烧录；加 `--build` 才会在烧录前重建。此操作擦除并重写 STM32 内部 128KiB sector 0，设备身份和最低安全版本会被清空；WebConfig 使用直连加密会话，不再依赖这些记录。目标识别、镜像边界、回读校验及上节保护位禁令继续适用。
 - 确需变更烧录流程时，作为明确、独立的变更处理并重新验收，继续遵守上述硬件红线。
 - CH585 TX 日常烧录固定使用 `python tools/hbox.py flash tx`；需要先构建时使用同入口的 `--build`。状态查询固定使用 `python tools/hbox.py web local-ch585-status`。
 
@@ -45,6 +46,7 @@
 |---|---|
 | STM32 本地完整开发产物 | `python tools/hbox.py web local-build --unlocked-development --slot A`（B 槽明确改为 B） |
 | STM32 仅编译检查 | `make -C application HBOX_SECURE_BOOT_REQUIRED=0`；bootloader 同样显式传 `0` |
+| STM32 bootloader 无锁开发重刷 | `python tools/hbox.py build bootloader` 后 `python tools/hbox.py flash bootloader`；或 `python tools/hbox.py flash bootloader --build`（整扇区写入和回读；不修改保护位） |
 | CH585 TX / RX 仅编译 | `make -C RF_PHY_Hop/TX` / `python tools/hbox.py build rx` |
 | WebConfig 产品构建 | `python tools/hbox.py web build` |
 | 本地集成服务 | `python tools/hbox.py web local-serve --port 3001`，实验室认证边界见 [Web README](application/www/README.md) |

@@ -1,4 +1,5 @@
 #include "boot_attestation.h"
+#include "boot_profile.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -56,8 +57,8 @@ static int verify_device_identity(
                  sizeof(identity->device_certificate.device_id)) ||
         !all_zero(identity->device_certificate.reserved,
                   sizeof(identity->device_certificate.reserved)) ||
-        HBoxCrypto_P256PublicFromPrivate(identity->device_private_key,
-                                         public_key) != 0 ||
+        BP_CALL(BP_PUBLIC_KEY, HBoxCrypto_P256PublicFromPrivate(identity->device_private_key,
+                                         public_key)) != 0 ||
         memcmp(public_key,
                identity->device_certificate.device_public_key,
                sizeof(public_key)) != 0 ||
@@ -74,10 +75,10 @@ static int verify_device_identity(
             digest) != 0) {
         goto done;
     }
-    valid = HBoxCrypto_P256VerifyDigest(
+    valid = BP_CALL(BP_CERT_VERIFY, HBoxCrypto_P256VerifyDigest(
                 HBOX_MANUFACTURER_CA_PUBLIC_KEY,
                 digest,
-                identity->device_certificate.manufacturer_signature) == 0;
+                identity->device_certificate.manufacturer_signature)) == 0;
 
 done:
     HBoxCrypto_Zeroize(public_key, sizeof(public_key));
@@ -111,9 +112,9 @@ bool BootAttestation_Prepare(const FirmwareMetadata *metadata)
         metadata->signature_algorithm !=
             FIRMWARE_SIGNATURE_ECDSA_P256_SHA256 ||
         metadata->security_version < FIRMWARE_SECURITY_VERSION ||
-        !HBoxIdentityStore_Load(&identity) ||
+        !BP_CALL(BP_IDENTITY_READ, HBoxIdentityStore_Load(&identity)) ||
         !verify_device_identity(&identity) ||
-        !HBoxHardwareRng_Init()) {
+        !BP_CALL(BP_RNG_INIT, HBoxHardwareRng_Init())) {
         goto done;
     }
 
@@ -141,28 +142,29 @@ bool BootAttestation_Prepare(const FirmwareMetadata *metadata)
     staging.boot_attestation.bootloader_version_le =
         BOOTLOADER_VERSION;
 
-    if (HBoxHardwareRng_Fill(
+    if (BP_CALL(BP_NONCE, HBoxHardwareRng_Fill(
             NULL,
             staging.boot_attestation.boot_nonce,
-            sizeof(staging.boot_attestation.boot_nonce)) != 0 ||
-        HBoxCrypto_P256Generate(
+            sizeof(staging.boot_attestation.boot_nonce))) != 0 ||
+        BP_CALL(BP_KEYGEN, HBoxCrypto_P256Generate(
             staging.boot_private_key,
             staging.boot_attestation.boot_public_key,
             HBoxHardwareRng_Fill,
-            NULL) != 0 ||
+            NULL)) != 0 ||
         HBoxCrypto_Sha256(
             (const uint8_t *)&staging.boot_attestation,
             HBOX_BOOT_ATTESTATION_SIGNED_BYTES,
             digest) != 0 ||
-        HBoxCrypto_P256SignDigest(
+        BP_CALL(BP_SIGN, HBoxCrypto_P256SignDigest(
             identity.device_private_key,
             digest,
             staging.boot_attestation.device_signature,
             HBoxHardwareRng_Fill,
-            NULL) != 0) {
+            NULL)) != 0) {
         goto done;
     }
 
+    BP_MARK(BP_CONTEXT);
     strncpy(staging.firmware_version,
             metadata->firmware_version,
             sizeof(staging.firmware_version) - 1u);
@@ -181,8 +183,10 @@ bool BootAttestation_Prepare(const FirmwareMetadata *metadata)
     result = HBoxSecurity_ValidateBootContext(
         (const hbox_boot_security_context_v1_t *)destination) != 0;
 
+    BP_MARK(BP_CONTEXT | BP_END);
 done:
     HBoxHardwareRng_Shutdown();
+    BootProfile_AttestationResult(result);
     HBoxCrypto_Zeroize(&identity, sizeof(identity));
     HBoxCrypto_Zeroize(&staging, sizeof(staging));
     HBoxCrypto_Zeroize(digest, sizeof(digest));

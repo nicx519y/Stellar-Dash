@@ -26,6 +26,10 @@ public:
     BoardMode current() const { return stableMode; }
     bool isStable() const { return stable; }
     bool isWebConfigAllowed() const { return stable && stableMode == BoardMode::Usb; }
+    /* Recheck the pins before reusing power prepared during blocking UI init. */
+    bool isUsbStartupSafe() const {
+        return stable && stableMode == BoardMode::Usb && readRaw() == BoardMode::Usb;
+    }
     bool consumeChanged();
 
 private:

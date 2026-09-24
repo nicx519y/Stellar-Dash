@@ -10,6 +10,7 @@
 #include "pwm-ws2812b.h"
 #include "utils.h"
 #include "board_power.hpp"
+#include "boot_profile.h"
 
 UART_HandleTypeDef UartHandle;
 
@@ -19,6 +20,7 @@ void PeriphCommonClock_Config(void);
 void board_init(void)
 {
     SystemClock_Config();
+    BootProfile_AppTick(BP_APP_CLOCK_READY);
     PeriphCommonClock_Config();
 
     // Enable All GPIOs clocks

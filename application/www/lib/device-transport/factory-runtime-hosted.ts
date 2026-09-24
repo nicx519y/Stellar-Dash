@@ -1,4 +1,4 @@
-import { DeviceAuthClient } from './device-auth-client';
+import { DirectDeviceSessionClient } from './device-session-client';
 import { DeviceCommandClient } from './device-command-client';
 import { DeviceTransportConfig } from './device-command-types';
 import { createBrowserWebHidDeviceLease } from './device-lease';
@@ -34,14 +34,7 @@ export function createBuildDeviceCommandClient(
     // initial permit instead of replacing a just-opened secure HID session.
     'device.control',
   ] as const;
-  const auth = new DeviceAuthClient({
-    // Hosted V2 deliberately uses the page origin for both authentication
-    // and protected downloads. Cross-origin values from .env.local are not
-    // accepted in a deployable WebHID build.
-    challengeEndpoint: '/api/v2/device-auth/challenges',
-    verifyEndpoint: '/api/v2/device-auth/verify',
-    scopes: initialScopes,
-  });
+  const auth = new DirectDeviceSessionClient();
   return new DeviceCommandClient(
     transport,
     auth,

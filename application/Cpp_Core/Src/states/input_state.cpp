@@ -1,3 +1,4 @@
+#include "boot_profile.h"
 #include "input_state.hpp"
 
 #include "adc_btns/adc_btns_worker.hpp"
@@ -69,6 +70,7 @@ static void teardownCh585Runtime()
 
 void InputState::startInputPipeline()
 {
+    BP_APP_SCOPE(BP_APP_INPUT_PIPELINE);
     if (inputPipelineRunning) {
         return;
     }
@@ -271,7 +273,9 @@ bool InputState::applyPhysicalMode(BoardMode mode,
     RFBridgePort_Shutdown();
     USB_DRIVER.shutdown();
     USB_BOARD_LINK.shutdown();
-    CH585_ROLE_BOOTSTRAP.shutdown();
+    if (!(initial && mode == BoardMode::Usb && CH585_ROLE_BOOTSTRAP.hasPreparedUsbStartup())) {
+        CH585_ROLE_BOOTSTRAP.shutdown();
+    }
     activeBoardMode = mode;
     usbRuntimeInitialized = false;
     usbRuntimeConnected = false;
@@ -378,6 +382,12 @@ bool InputState::enter()
         return false;
     }
 
+    if (CH585_ROLE_BOOTSTRAP.hasPreparedUsbStartup() && !BOARD_MODE.isUsbStartupSafe()) {
+        // The switch moved while the screen/power probes ran. Drop the
+        // preparation and re-establish the original debounced boot choice.
+        CH585_ROLE_BOOTSTRAP.shutdown();
+        BOARD_MODE.setup();
+    }
     if (!BOARD_MODE.isStable()) {
         BOARD_MODE.update(HAL_GetTick());
     }

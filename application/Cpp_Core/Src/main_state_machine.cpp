@@ -6,6 +6,7 @@
 #include "board_mode.hpp"
 #include "board_power.hpp"
 #include "ch585_firmware_update.hpp"
+#include "ch585_role_bootstrap.hpp"
 #include "connection_manager.hpp"
 #include "power_manager.hpp"
 #include "screen_control/spi_screen_manager.hpp"
@@ -13,6 +14,7 @@
 #include "states/ch585_bridge_update_state.hpp"
 #include "states/safe_recovery_state.hpp"
 #include "system_logger.h"
+#include "boot_profile.h"
 
 namespace {
 
@@ -41,7 +43,7 @@ BaseState* MainStateMachine::stateFor(MainRuntimeState selected) const
     return &SAFE_RECOVERY_STATE;
 }
 
-void MainStateMachine::initializeInteractiveRuntime()
+void MainStateMachine::initializeInteractiveRuntime(bool overlapInputStartup)
 {
     if (interactiveRuntimeInitialized) return;
 
@@ -61,6 +63,10 @@ void MainStateMachine::initializeInteractiveRuntime()
      * power telemetry. BridgeUpdate is deliberately dispatched before this
      * point so writable QSPI can never overlap screen asset reads. */
     BOARD_POWER.enterRecoveryUiState();
+    if (overlapInputStartup && resolveNormalStartupState() == MainRuntimeState::Input &&
+        STORAGE_MANAGER.getInputMode() != INPUT_MODE_CONFIG && BOARD_MODE.isUsbStartupSafe()) {
+        (void)CH585_ROLE_BOOTSTRAP.prepareUsbStartup();
+    }
     SPIScreenManager::getInstance().setup();
     SPIScreenManager::getInstance().loop();
     POWER_MANAGER.setup();
@@ -102,6 +108,12 @@ bool MainStateMachine::enterState(MainRuntimeState selected)
         STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
         selected = MainRuntimeState::Input;
     }
+    if (selected != MainRuntimeState::Input && CH585_ROLE_BOOTSTRAP.hasPreparedUsbStartup()) {
+        CH585_ROLE_BOOTSTRAP.shutdown();
+    }
+    /* v4 identifies the effective mode after the physical WebConfig gate.
+     * The span includes any SafeRecovery fallback performed by this call. */
+    BP_APP_SCOPE(BP_APP_STATE_INPUT + static_cast<unsigned>(selected));
     BaseState* next = stateFor(selected);
     if (state != nullptr) state->exit();
     state = next;
@@ -174,10 +186,12 @@ void MainStateMachine::setup()
     if (CH585_FIRMWARE_UPDATE.hasReadyStagedImage()) {
         (void)enterState(MainRuntimeState::Ch585BridgeUpdate);
     } else {
-        initializeInteractiveRuntime();
+        initializeInteractiveRuntime(true);
         (void)enterState(resolveNormalStartupState());
     }
 
+    /* Records dispatcher completion, not USB enumeration/RF link readiness. */
+    BootProfile_AppComplete();
     while (true) {
         if (state != nullptr) state->tick();
         serviceSharedRuntime();
