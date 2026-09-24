@@ -386,7 +386,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         role_valid = stm32_link.index(
             "if (!validExplicitSelection && !validUsbSubsystemSelection)"
         )
-        settle = stm32_link.index("HAL_Delay(150u);", role_valid)
+        settle = stm32_link.index("USBBoardLinkPort_WaitApplicationReady();", role_valid)
         selected = stm32_link.index("selectedRole = role;", settle)
         self.assertLess(settle, selected)
         self.assertNotIn("RFBootReady::waitForModuleReady", stm32_link[role_valid:selected])

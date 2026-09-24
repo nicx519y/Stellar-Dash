@@ -385,14 +385,11 @@ bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
 
     if ((role == USB_BOARD_ROLE_USB) ||
         (role == USB_BOARD_ROLE_MAINTENANCE)) {
-        /* ROLE_SELECTED is the protocol-level role commit.  CH585 emits it
-         * from the cold-boot FIFO selector, then returns through C code and
-         * arms the Application RX DMA.  A second GPIO pulse can begin while
-         * this response is still being consumed, so waiting for that edge
-         * races a pulse that may already have completed.  Use a bounded
-         * post-ACK settle interval; CAPS remains the definitive Application
-         * liveness check and CH585 publishes no async event before CAPS. */
-        HAL_Delay(150u);
+        /* Observe the Application-ready pulse only after a known ACK release.
+         * A missed/ambiguous pulse keeps the legacy 150-ms settle fallback.
+         * CAPS remains the definitive liveness check; no SPI probe is sent
+         * during the ready pulse or the selector-to-Application handoff. */
+        USBBoardLinkPort_WaitApplicationReady();
     }
 
     selectedRole = role;
@@ -795,7 +792,8 @@ bool UsbBoardLink::sendControl(usb_board_control_opcode_t opcode,
     if (remoteStatus != nullptr) {
         *remoteStatus = received && responseLength >= USB_BOARD_CONTROL_HEADER_BYTES &&
             response.header.opcode == static_cast<uint8_t>(opcode) &&
-            response.header.transaction == transaction ? response.header.status : USB_BOARD_STATUS_NOT_READY;
+            response.header.transaction == transaction ? response.header.status :
+            static_cast<uint8_t>(USB_BOARD_STATUS_NOT_READY);
     }
     if (!received ||
         (responseLength < USB_BOARD_CONTROL_HEADER_BYTES) ||

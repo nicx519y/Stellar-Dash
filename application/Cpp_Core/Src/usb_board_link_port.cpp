@@ -1,4 +1,5 @@
 #include "usb_board_link_port.hpp"
+#include "usb_role_ready_wait.hpp"
 
 #include <string.h>
 
@@ -211,6 +212,15 @@ static bool readFrame(uint8_t *response,
 }
 
 } // namespace
+
+void USBBoardLinkPort_WaitApplicationReady()
+{
+    // Do not refresh release here: losing the ACK/pulse boundary is ambiguous.
+    (void)UsbRoleReady::wait(s_ready && !s_waitingEventRelease,
+                             [] { return HAL_GetTick(); },
+                             [] { return eventLineIsHigh(); },
+                             [](uint32_t ms) { HAL_Delay(ms); });
+}
 
 bool USBBoardLinkPort_Init()
 {

@@ -402,6 +402,11 @@ bool USBBoardLinkPort_InitApplication()
     return true;
 }
 
+void USBBoardLinkPort_WaitApplicationReady()
+{
+    HAL_Delay(150u);
+}
+
 bool USBBoardLinkPort_EnableFastApplication()
 {
     return false;

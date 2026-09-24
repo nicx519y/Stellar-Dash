@@ -6,6 +6,7 @@
 bool USBBoardLinkPort_Init();
 bool USBBoardLinkPort_InitIap();
 bool USBBoardLinkPort_InitApplication();
+void USBBoardLinkPort_WaitApplicationReady();
 bool USBBoardLinkPort_EnableFastApplication();
 bool USBBoardLinkPort_DisableFastApplication();
 bool USBBoardLinkPort_IsFastApplication();
