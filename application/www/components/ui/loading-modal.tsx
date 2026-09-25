@@ -15,6 +15,7 @@ import { useLanguage } from "@/contexts/language-context";
 import { DeviceConnectionPhase } from "@/lib/device-transport/device-command-types";
 import { CONNECTION_TEXT, connectionPresentation } from "@/lib/connection-presentation";
 import * as React from "react";
+import type { ConfigSyncProgress } from '@/lib/device-transport/config-sync';
 
 type LoadingVariant = "connection" | "no-device" | "operation";
 
@@ -23,7 +24,7 @@ interface LoadingModalProps {
   variant?: LoadingVariant;
   headerAction?: React.ReactNode;
   connectionPhase?: DeviceConnectionPhase;
-  configReadProgress?: { completed: number; total: number };
+  configReadProgress?: ConfigSyncProgress;
   noDeviceAction?: {
     label: string;
     onClick: () => void;
@@ -39,7 +40,7 @@ function ConnectionLoading({
   progress,
 }: {
   phase: DeviceConnectionPhase;
-  progress: { completed: number; total: number };
+  progress: ConfigSyncProgress;
 }) {
   const { currentLanguage } = useLanguage();
   const text = CONNECTION_TEXT[currentLanguage];

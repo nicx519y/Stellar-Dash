@@ -218,6 +218,7 @@ export function GlobalSettingContent() {
 
     // 处理外部点击（从Hitbox组件）
     const handleExternalClick = (keyId: number) => {
+        if (mainTab !== 'hotkeys' || calibrationActive) return;
         const layoutLen = hitboxLayout?.length || 0;
         if (keyId >= 0 && keyId < layoutLen - 1) {
             // 触发自定义事件通知HotkeySettingContent组件
@@ -278,9 +279,9 @@ export function GlobalSettingContent() {
         if (!calibrationActive) {
             return (
                 <HitboxHotkey
-                    interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
+                    interactiveIds={mainTab === 'hotkeys' ? HOTKEYS_SETTINGS_INTERACTIVE_IDS : []}
                     onClick={handleExternalClick}
-                    isButtonMonitoringEnabled={true} // 启用设备按键监控
+                    isButtonMonitoringEnabled={mainTab === 'hotkeys'}
                     containerWidth={containerWidth}
                 />
             );
@@ -365,6 +366,7 @@ export function GlobalSettingContent() {
                             <Tabs.Content value="hotkeys" padding="24px 0" >
                                 <HotkeySettingContent
                                     disabled={calibrationActive}
+                                    active={mainTab === 'hotkeys'}
                                     onHotkeysUpdate={handleHotkeyUpdate}
                                     hotkeys={currentHotkeys}
                                 />

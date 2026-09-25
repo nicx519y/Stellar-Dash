@@ -85,7 +85,8 @@ import {
 } from '@/lib/deferred-config-coordinator';
 
 import { SessionConfigStore, cloneConfig, configDifferences, restoredConfigDraft, type ConfigDraftBackup, type ConfigResources } from '@/lib/session-config-store';
-import { readConfigSnapshot, writeConfigResource } from '@/lib/device-transport/config-snapshot';
+import { writeConfigResource } from '@/lib/device-transport/config-snapshot';
+import { readIncrementalConfigSnapshot, type ConfigSyncProgress, type ConfigSyncResult } from '@/lib/device-transport/config-sync';
 
 // 导入固件工具函数
 import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
@@ -167,7 +168,7 @@ interface GamepadConfigContextType {
     deferredConfigDirty: boolean;
     deferredConfigSaving: boolean;
     configSyncState: ConfigSyncState;
-    configReadProgress: { completed: number; total: number };
+    configReadProgress: ConfigSyncProgress;
     configEditingBlocked: boolean;
     configRecovery: string[];
     resolveConfigRecovery: (restore: boolean) => void;
@@ -500,7 +501,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const configReadyRef = useRef(false);
     const [configRecovery, setConfigRecovery] = useState<string[]>([]);
     const recoveryRef = useRef<ConfigDraftBackup | null>(null);
-    const [configReadProgress, setConfigReadProgress] = useState({ completed: 0, total: 0 });
+    const [configReadProgress, setConfigReadProgress] = useState<ConfigSyncProgress>({ completed: 0, total: 0 });
     const [configSyncState, setConfigSyncState] = useState<ConfigSyncState>({ pendingCount: 0, saving: false, paused: true, error: null });
     const [configBoundaryBusy, setConfigBoundaryBusy] = useState(false);
     const boundaryCountRef = useRef(0);
@@ -844,14 +845,18 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setShowReconnect(false);
             const generation = initializationGenerationRef.current;
             let resources: ConfigResources;
+            let syncResult: ConfigSyncResult;
             void initializeDeviceSession({
                 loaders: {
                     configuration: async () => {
-                        resources = await readConfigSnapshot(
+                        syncResult = await readIncrementalConfigSnapshot(
                             (command, params) => client.requestInitialization(command, params, { signal: controller.signal }),
                             converProfileDetails,
-                            (completed, total) => { if (generation === initializationGenerationRef.current && !controller.signal.aborted) setConfigReadProgress({ completed, total }); },
+                            client.configCache,
+                            (progress) => { if (generation === initializationGenerationRef.current && !controller.signal.aborted) setConfigReadProgress(progress); },
+                            () => generation === initializationGenerationRef.current && !controller.signal.aborted,
                         );
+                        resources = syncResult.resources;
                     },
                     globalConfig: async () => {}, screenControl: async () => {},
                     profileList: async () => {}, hotkeys: async () => {},
@@ -869,7 +874,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     if (!client.markReady()) return;
                     postReadyRequestSchedulerRef.current?.beginSession();
                     buttonMonitorLeaseRef.current?.beginSession();
-                    const identity = client.transport.session?.deviceId ?? (configuredTransportMode() === 'mock' ? 'mock' : '');
+                    if (syncResult.manifest && syncResult.modules) client.configCache.activate(syncResult.manifest, syncResult.modules);
+                    const identity = syncResult.manifest
+                        ? `${client.transport.kind}:${syncResult.manifest.deviceCacheKey}`
+                        : client.transport.session?.deviceId ?? (configuredTransportMode() === 'mock' ? 'mock' : '');
                     configStoreRef.current.hydrate(identity, resources);
                     publishConfig();
                     const backup = identity ? detachedDraftsRef.current.get(identity) : undefined;

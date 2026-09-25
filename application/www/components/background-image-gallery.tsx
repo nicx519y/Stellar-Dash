@@ -7,6 +7,8 @@ import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { useUserAuth } from '@/contexts/user-auth-context';
 import { useLanguage } from '@/contexts/language-context';
 import { showToast } from './ui/toaster';
+import { SettingDescription } from './ui/setting-description';
+import { ScreenPreviewFrame } from './screen-standby-preview';
 import { processGalleryImage } from '@/lib/gallery-image-processor';
 import {
   deleteMyGalleryImages,
@@ -36,8 +38,6 @@ import type { ScreenControlConfig } from '@/types/gamepad-config';
 
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 const GALLERY_TAB_STORAGE_KEY = 'hbox-background-gallery-tab-v1';
-const DEVICE_SCREEN_WIDTH = 320;
-const DEVICE_SCREEN_HEIGHT = 172;
 
 type GalleryTab = 'system' | 'mine';
 
@@ -101,7 +101,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
     uploadDeviceImage, stageDeferredScreenControl, fetchDeviceAuthorizedResource,
   } = useGamepadConfig();
   const { session } = useUserAuth();
-  const { currentLanguage } = useLanguage();
+  const { currentLanguage, t } = useLanguage();
   const zh = currentLanguage === 'zh';
   const copy = zh ? {
     system: '系统图片', mine: '我的图片', empty: '设备当前没有安装图片', local: '仅设备本地', installed: '已安装',
@@ -128,7 +128,6 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   const [currentPreview, setCurrentPreview] = useState<string>('');
   const [currentFingerprint, setCurrentFingerprint] = useState<string>('');
   const [currentGalleryId, setCurrentGalleryId] = useState<string | null>(null);
-  const [displayPixelRatio, setDisplayPixelRatio] = useState(1);
   const deviceInstall = useDeviceImageInstallState();
   const installingId = deviceInstall?.imageId || null;
   const deviceProgress = deviceInstall?.progress ?? null;
@@ -150,14 +149,6 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   );
 
   useEffect(() => { configRef.current = config; }, [config]);
-  useEffect(() => {
-    const updateDisplayPixelRatio = () => setDisplayPixelRatio(
-      Math.max(1, Number(window.devicePixelRatio) || 1),
-    );
-    updateDisplayPixelRatio();
-    window.addEventListener('resize', updateDisplayPixelRatio);
-    return () => window.removeEventListener('resize', updateDisplayPixelRatio);
-  }, []);
   useEffect(() => {
     try {
       const stored = localStorage.getItem(GALLERY_TAB_STORAGE_KEY);
@@ -654,25 +645,14 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   const currentName = allImages.find(image => image.id === currentGalleryId)?.title || (currentPreview ? copy.local : copy.empty);
   return <>
     <VStack width="full" gap="2">
-      <Box
-        width={`${DEVICE_SCREEN_WIDTH * (2 / 3) / displayPixelRatio}px`}
-        height={`${DEVICE_SCREEN_HEIGHT * (2 / 3) / displayPixelRatio}px`}
-        boxSizing="content-box"
-        borderWidth="2px"
-        borderColor="gray.600"
-        padding="2px"
-        transition="border-color 150ms ease"
-        _hover={{ borderColor: 'green.400' }}
-        position="relative"
-        borderRadius="lg"
-        overflow="hidden"
-        bg="gray.900"
-        cursor="pointer"
+      <ScreenPreviewFrame
+        selected={config.standbyDisplay === 'backgroundImage'}
+        label={zh ? '打开背景图片图库' : 'Open Background Gallery'}
         onClick={() => setOpen(true)}
       >
         {currentPreview ? <Image src={currentPreview} alt={currentName} width="100%" height="100%" maxWidth="none" objectFit="cover" objectPosition="center" display="block" /> : <Flex width="100%" height="100%" align="center" justify="center"><LuImagePlus size="32" /></Flex>}
         {installingId && <Flex position="absolute" inset="0" bg="blackAlpha.700" align="center" justify="center" direction="column"><Spinner /><Text fontSize="xs" mt="2">{copy.uploading} {deviceProgress ?? 0}%</Text></Flex>}
-      </Box>
+      </ScreenPreviewFrame>
     </VStack>
     <Dialog.Root open={open} onOpenChange={details => setOpen(details.open)} size="xl">
       <Dialog.Backdrop backdropFilter="blur(4px)" />
@@ -703,6 +683,14 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
             </Tabs.Content>
           </Tabs.Root>
         </Dialog.Body>
+        <Dialog.Footer flexShrink="0" display="block">
+          <SettingDescription
+            text={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP
+              .replace('{frames}', '6')
+              .replace('{seconds}', '2')}
+            fontSize="xs"
+          />
+        </Dialog.Footer>
         <Dialog.CloseTrigger />
       </Dialog.Content></Dialog.Positioner>
     </Dialog.Root>

@@ -199,24 +199,26 @@ test('starting device installation removes its source from batch selection', () 
   assert.match(installationStart, /next\.delete\(image\.id\)/);
 });
 
-test('device preview keeps 320x172 physical image pixels inside a two-pixel interactive frame', () => {
+test('device preview keeps the two-thirds screen scale inside a shared two-pixel interactive frame', () => {
   const source = fs.readFileSync(path.join(
     __dirname,
     '..',
     'components',
-    'background-image-gallery.tsx',
+    'screen-standby-preview.tsx',
   ), 'utf8');
-  assert.match(source, /DEVICE_SCREEN_WIDTH \/ displayPixelRatio/);
-  assert.match(source, /DEVICE_SCREEN_HEIGHT \/ displayPixelRatio/);
+  assert.match(source, /DEVICE_SCREEN_WIDTH = 320/);
+  assert.match(source, /DEVICE_SCREEN_HEIGHT = 172/);
+  assert.match(source, /DEVICE_SCREEN_WIDTH \* \(2 \/ 3\) \/ displayPixelRatio/);
+  assert.match(source, /DEVICE_SCREEN_HEIGHT \* \(2 \/ 3\) \/ displayPixelRatio/);
   assert.match(source, /Math\.max\(1, Number\(window\.devicePixelRatio\) \|\| 1\)/);
-  const previewStart = source.indexOf('const currentName =');
-  const dialogStart = source.indexOf('<Dialog.Root', previewStart);
-  const previewMarkup = source.slice(previewStart, dialogStart);
+  const previewMarkup = source.slice(source.indexOf('return <Box'), source.indexOf('export function ScreenStandbyPreview'));
   assert.match(previewMarkup, /boxSizing="content-box"/);
   assert.match(previewMarkup, /borderWidth="2px"/);
   assert.match(previewMarkup, /borderColor="gray\.600"/);
   assert.match(previewMarkup, /padding="2px"/);
-  assert.match(previewMarkup, /_hover=\{\{ borderColor: 'green\.400' \}\}/);
+  assert.match(previewMarkup, /_hover=\{onClick \? \{ borderColor: 'green\.400' \} : undefined\}/);
+  const gallery = fs.readFileSync(path.join(__dirname, '../components/background-image-gallery.tsx'), 'utf8');
+  assert.match(gallery, /<ScreenPreviewFrame[\s\S]*?onClick=\{\(\) => setOpen\(true\)\}/);
 });
 
 test('gallery persists and restores the last selected tab in local storage', () => {

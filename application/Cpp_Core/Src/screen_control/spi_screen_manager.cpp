@@ -52,6 +52,7 @@ static uint8_t g_cfgBrightness = 100;
 static uint8_t g_previewBrightness = 100;
 static bool g_brightnessPreviewActive = false;
 static uint8_t g_cfgStandbyDisplay = 0;
+static uint16_t g_cfgStandbyTimeoutSeconds = 10u;
 static char g_cfgBackgroundImageId[32] = {0};
 static uint32_t g_cfgFeaturesMask = 0;
 static uint8_t g_cfgFeaturesOrder[SCREEN_FEATURE_COUNT] = {0};
@@ -347,6 +348,7 @@ static void refresh_screen_cfg_cache(void) {
     if (standby != g_cfgStandbyDisplay) {
         g_cfgStandbyDisplay = standby;
     }
+    g_cfgStandbyTimeoutSeconds = normalizeScreenStandbyTimeoutSeconds(sc.standbyTimeoutSeconds);
     if (strncmp(g_cfgBackgroundImageId, sc.backgroundImageId, sizeof(g_cfgBackgroundImageId)) != 0) {
         memcpy(g_cfgBackgroundImageId, sc.backgroundImageId, sizeof(g_cfgBackgroundImageId));
         g_cfgBackgroundImageId[sizeof(g_cfgBackgroundImageId) - 1u] = '\0';
@@ -431,7 +433,7 @@ void SPIScreenManager::setup() {
 #endif
     UserImageCommandHandler::initializeStorageMigration();
     ScreenStandby_Init(HAL_GetTick(), get_gamepad_activity_mask());
-    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
+    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgStandbyTimeoutSeconds, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
     rebuildMenu();
     {
         uint8_t forcedMenuId = 0;
@@ -707,7 +709,7 @@ void SPIScreenManager::loop() {
         rebuildMenu();
         g_menuCfgDirty = false;
     }
-    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
+    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgStandbyTimeoutSeconds, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
     bool standbyAllowed = (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_INPUT)
         && ADCManager::getInstance().isDmaSamplingActive();
     bool standbyWasActive = ScreenStandby_IsActive();

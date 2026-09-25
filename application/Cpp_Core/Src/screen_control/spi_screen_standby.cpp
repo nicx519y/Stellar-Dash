@@ -3,18 +3,16 @@
 #include <string.h>
 
 #include "board_cfg.h"
+#include "config.hpp"
 #include "configs/user_image_format.hpp"
 #include "qspi-w25q64.h"
 #include "stm32h7xx.h"
 #include "system_logger.h"
 
-#ifndef SPI_SCREEN_STANDBY_TIMEOUT_MS
-#define SPI_SCREEN_STANDBY_TIMEOUT_MS 5000u
-#endif
-
 extern "C" uint32_t HAL_GetTick(void);
 
 static uint8_t g_display = 0;
+static uint32_t g_timeout_ms = 10000u;
 static char g_bg_image_id[32] = {0};
 static uint32_t g_bg = 0;
 static uint32_t g_fg = 0xFFFFFFu;
@@ -217,8 +215,9 @@ void ScreenStandby_Init(uint32_t nowMs, uint32_t inputMask)
     reset_image_runtime();
 }
 
-void ScreenStandby_Configure(uint8_t standbyDisplay, const char* backgroundImageId, uint32_t bgRgb888, uint32_t fgRgb888)
+void ScreenStandby_Configure(uint8_t standbyDisplay, uint16_t timeoutSeconds, const char* backgroundImageId, uint32_t bgRgb888, uint32_t fgRgb888)
 {
+    g_timeout_ms = (uint32_t)normalizeScreenStandbyTimeoutSeconds(timeoutSeconds) * 1000u;
     if (g_display != standbyDisplay) {
         g_display = standbyDisplay;
         g_need_redraw = true;
@@ -269,7 +268,7 @@ void ScreenStandby_Tick(uint32_t nowMs)
 {
     if (g_active) return;
     if (g_display == 0u) return;
-    if ((uint32_t)(nowMs - g_last_activity_ms) < SPI_SCREEN_STANDBY_TIMEOUT_MS) return;
+    if ((uint32_t)(nowMs - g_last_activity_ms) < g_timeout_ms) return;
     if (g_display == 1u) {
         ensure_image_source();
         if (!g_image_source_valid) return;

@@ -13,7 +13,9 @@ export function useConfigSyncStatus() {
     const paused = state.paused || !deviceConnected || configRecovery.length > 0;
     const status = reading ? 'reading' : !deviceConnected ? 'disconnected' : state.error ? 'error'
         : state.saving ? 'saving' : paused ? 'paused' : state.pendingCount ? 'pending' : 'saved';
-    const text = status === 'reading' ? `${zh ? '正在读取配置' : 'Reading configuration'} ${configReadProgress.completed}/${configReadProgress.total || '…'}`
+    const text = status === 'reading' ? (configReadProgress.phase === 'checking'
+        ? (zh ? '正在核对配置版本' : 'Checking configuration versions')
+        : `${zh ? '正在读取配置' : 'Reading configuration'} ${configReadProgress.completed}/${configReadProgress.total || '…'}`)
         : status === 'disconnected' ? (zh ? '设备未连接 · 同步暂停' : 'Disconnected · sync paused')
         : status === 'error' ? (zh ? '更改尚未保存' : 'Changes not saved')
         : status === 'saving' ? `${zh ? '正在保存到设备' : 'Saving to device'}${state.pendingCount ? ` (${state.pendingCount})` : ''}`

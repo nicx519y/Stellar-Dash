@@ -247,6 +247,10 @@ static void sanitize_screen_style(ScreenControlConfig& sc) {
     memset(sc.reservedStyle, 0, sizeof(sc.reservedStyle));
 }
 
+static void sanitize_screen_standby_timeout(ScreenControlConfig& sc) {
+    sc.standbyTimeoutSeconds = normalizeScreenStandbyTimeoutSeconds(sc.standbyTimeoutSeconds);
+}
+
 static void sanitize_screen_recovery_entry(ScreenControlConfig& sc) {
     static const uint8_t requiredOrder[SCREEN_FEATURE_COUNT] = {
         3, 0, 1, 2, 11, 4, 5, 6, 7, 8, 9, 10
@@ -421,6 +425,8 @@ cJSON* buildScreenControlConfigJSON(Config& config) {
         default: standbyDisplayStr2 = "none"; break;
     }
     cJSON_AddStringToObject(screenControlJSON, "standbyDisplay", standbyDisplayStr2);
+    cJSON_AddNumberToObject(screenControlJSON, "standbyTimeoutSeconds",
+                            normalizeScreenStandbyTimeoutSeconds(config.screenControl.standbyTimeoutSeconds));
     cJSON_AddStringToObject(screenControlJSON, "screenStyle", getScreenStyleString(config.screenControl.screenStyle));
     cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
     cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
@@ -635,6 +641,10 @@ bool fromJSON(Config& config, cJSON* json) {
             if (strcmp(item->valuestring, "backgroundImage") == 0) config.screenControl.standbyDisplay = 1;
             else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
             else config.screenControl.standbyDisplay = 0;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "standbyTimeoutSeconds")) && cJSON_IsNumber(item)) {
+            config.screenControl.standbyTimeoutSeconds =
+                normalizeScreenStandbyTimeoutSeconds((uint16_t)item->valueint);
         }
         parse_screen_style_json(config.screenControl, screenControl);
         if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
@@ -865,6 +875,7 @@ bool ConfigUtils::load(Config& config)
 
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_standby_timeout(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
         sanitize_screen_service_flags(config.screenControl);
         sanitize_power_config(config.power);
@@ -882,6 +893,7 @@ bool ConfigUtils::load(Config& config)
                 config.version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
                 config.version == CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM)) {
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_standby_timeout(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
         sanitize_screen_service_flags(config.screenControl);
         sanitize_power_config(config.power);
@@ -894,6 +906,7 @@ bool ConfigUtils::load(Config& config)
         uint32_t oldFg = read_legacy_screen_fg(config.screenControl);
         config.screenControl.screenStyle = infer_screen_style_from_colors(oldBg, oldFg);
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_standby_timeout(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
         sanitize_screen_service_flags(config.screenControl);
         init_power_defaults(config.power);
@@ -906,6 +919,7 @@ bool ConfigUtils::load(Config& config)
         return save(config);
     } else if (fjResult == true && config.version == CONFIG_VERSION_POWER_MIGRATE_FROM) {
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_standby_timeout(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
         sanitize_screen_service_flags(config.screenControl);
         init_power_defaults(config.power);
@@ -915,6 +929,7 @@ bool ConfigUtils::load(Config& config)
         return save(config);
     } else if (fjResult == true && config.version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM) {
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_standby_timeout(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
         sanitize_screen_service_flags(config.screenControl);
         sanitize_power_config(config.power);
@@ -941,7 +956,7 @@ bool ConfigUtils::load(Config& config)
         init_hardware_layout(config.hardware);
         config.screenControl.brightness = 100;
         config.screenControl.standbyDisplay = 0;
-        memset(config.screenControl.reserved0, 0, sizeof(config.screenControl.reserved0));
+        config.screenControl.standbyTimeoutSeconds = 10u;
         config.screenControl.screenStyle = SCREEN_STYLE_DARK;
         memset(config.screenControl.reservedStyle, 0, sizeof(config.screenControl.reservedStyle));
         config.screenControl.backgroundImageId[0] = '\0';
@@ -1319,6 +1334,7 @@ bool ConfigUtils::save(Config& config)
     sanitize_competition_profiles(config);
     sanitize_hardware_layout(config.hardware);
     sanitize_screen_recovery_entry(config.screenControl);
+    sanitize_screen_standby_timeout(config.screenControl);
     sanitize_screen_service_flags(config.screenControl);
 
     ConfigQspiIndirectGuard guard;

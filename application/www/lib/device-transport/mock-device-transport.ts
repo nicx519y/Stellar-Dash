@@ -3,6 +3,8 @@ import {
   ConnectionMode,
   DEFAULT_NUM_HOTKEYS_MAX,
   DEFAULT_SCREEN_CONTROL_CONFIG,
+  normalizeScreenStandbyTimeout,
+  SCREEN_STANDBY_TIMEOUT_OPTIONS,
   GameControllerButton,
   GameProfile,
   GameSocdMode,
@@ -24,6 +26,7 @@ import {
 } from '../../types/gamepad-config';
 import { switchMappingSha256 } from '../../types/adc';
 import { crc32 } from '../crc32';
+import { contentChecksum, resourceBodies, resourceRequest, isRecord, VERSIONED_CONFIG_COMMANDS } from './config-modules';
 import { MockBindingStore, MockBindingState } from './mock-rf-binding';
 import type { ADCValuesMapping, StepInfo, SwitchMappingPayload } from '../../types/adc';
 import type { CalibrationStatus, FirmwareMetadata } from '../../types/types';
@@ -337,7 +340,20 @@ export class MockDeviceTransport implements DeviceTransport {
     await this.beforeRequest?.(command, params);
     this.assertConnected();
     if (this.session !== session) throw new DeviceTransportError('disconnected', 'Mock device session changed');
-    const data = await this.handleRequest(command, clone(params));
+    const data = clone(await this.handleRequest(command, clone(params)));
+    if (isRecord(data) && VERSIONED_CONFIG_COMMANDS.has(command)) {
+      // Match firmware profile GETs: macros have their own resource/version.
+      for (const field of ['profileDetails', 'defaultProfileDetails']) {
+        const profile = data[field];
+        if (isRecord(profile) && isRecord(profile.keysConfig)) delete profile.keysConfig.macros;
+      }
+      const bodies = resourceBodies(data, params);
+      if (Object.keys(bodies).length) data.configVersions = Object.fromEntries(await Promise.all(
+        Object.entries(bodies).map(async ([key, body]) => [key, await contentChecksum(body)]),
+      ));
+    }
+    this.assertConnected();
+    if (this.session !== session) throw new DeviceTransportError('disconnected', 'Mock device session changed');
     return {
       data: clone(data) as T,
       transactionId: ++this.transactionId,
@@ -687,6 +703,19 @@ export class MockDeviceTransport implements DeviceTransport {
       }
       case 'ping':
         return { pong: true, timestamp: Date.now() };
+      case 'get_config_manifest': {
+        const keys = ['global', 'screen-control', 'hotkeys', 'profile-list', ...this.profiles.flatMap(p => [`profile:${p.id}`, `macros:${p.id}`])];
+        const modules: Record<string, string> = {};
+        for (const key of keys) {
+          const spec = resourceRequest(key);
+          const response = clone(await this.handleRequest(spec.command, spec.params)) as Record<string, unknown>;
+          const body = response[spec.field];
+          if (key.startsWith('profile:') && isRecord(body) && isRecord(body.keysConfig)) delete body.keysConfig.macros;
+          modules[key] = await contentChecksum(body);
+        }
+        return { deviceCacheKey: await contentChecksum(`XORA/mock-config-cache/v1/${this.storageKey}`),
+          hardwareVersion: '2.0.0', schemaVersion: 1, modules };
+      }
       case 'binary.exchange': {
         if (params.encoding !== 'base64' || typeof params.data !== 'string') {
           throw new DeviceTransportError('protocol', 'Invalid mock binary.exchange request');
@@ -728,9 +757,14 @@ export class MockDeviceTransport implements DeviceTransport {
         return { brightness };
       }
       case 'update_screen_control_config': {
+        const patch = asObject(params.screenControl);
+        if (patch.standbyTimeoutSeconds !== undefined &&
+            !SCREEN_STANDBY_TIMEOUT_OPTIONS.some(seconds => seconds === patch.standbyTimeoutSeconds)) {
+          throw new DeviceTransportError('protocol', 'Invalid standby timeout');
+        }
         const candidate = {
           ...this.screenControl,
-          ...asObject(params.screenControl),
+          ...patch,
         } as ScreenControlConfig;
         if (candidate.standbyDisplay === 'backgroundImage' || candidate.backgroundImageId) {
           const valid = candidate.backgroundImageId === 'USER_IMAGE'
@@ -745,7 +779,7 @@ export class MockDeviceTransport implements DeviceTransport {
         return { screenControl: this.screenControl, success: true };
       }
       case 'get_profile_list':
-        return this.profilePayload();
+        return params.listOnly === true ? { profileList: this.profilePayload().profileList } : this.profilePayload();
       case 'get_default_profile':
         return { defaultProfileDetails: this.defaultProfile() };
       case 'get_profile_details':
@@ -1395,9 +1429,13 @@ export class MockDeviceTransport implements DeviceTransport {
               : { ...hotkey, isLocked: false },
           );
         } else if (part.section === 'screenControl') {
+          const screenPatch = asObject(part.data);
           candidate.screenControl = {
             ...candidate.screenControl,
-            ...asObject(part.data),
+            ...screenPatch,
+            standbyTimeoutSeconds: normalizeScreenStandbyTimeout(
+              screenPatch.standbyTimeoutSeconds ?? candidate.screenControl.standbyTimeoutSeconds,
+            ),
           } as ScreenControlConfig;
         } else if (part.section === 'profile') {
           const profile = asObject(part.data) as unknown as GameProfile;
@@ -1599,7 +1637,8 @@ export class MockDeviceTransport implements DeviceTransport {
       profileList: {
         defaultId: this.defaultProfileId,
         maxNumProfiles: NUM_PROFILES_MAX,
-        items: this.profiles.map((profile, slotIndex) => ({ ...profile, slotIndex })),
+        items: this.profiles.map((profile, slotIndex) => ({ id: profile.id, name: profile.name, enabled: true,
+          isCompetitionProfile: profile.isCompetitionProfile, slotIndex })),
       },
       defaultProfileDetails: this.defaultProfile(),
     };
@@ -1664,7 +1703,10 @@ export class MockDeviceTransport implements DeviceTransport {
       power: mergePower(DEFAULT_GLOBAL_CONFIG.power, state.globalConfig.power, true),
       manualCalibrationActive: false,
     };
-    this.screenControl = clone(state.screenControl);
+    this.screenControl = {
+      ...clone(state.screenControl),
+      standbyTimeoutSeconds: normalizeScreenStandbyTimeout(state.screenControl.standbyTimeoutSeconds),
+    };
     this.hotkeys = clone(state.hotkeys);
     this.profiles = fixedMockProfiles(clone(state.profiles));
     this.defaultProfileId = this.profiles.some((profile) => profile.id === state.defaultProfileId)

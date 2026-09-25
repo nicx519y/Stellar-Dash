@@ -1035,7 +1035,9 @@ export class WebHidTransport implements DeviceTransport {
     request.settled = true;
     pending.delete(response.transactionId);
     if (response.errNo && response.errNo !== 0) {
-      request.reject(new DeviceTransportError('protocol', response.errorMessage ?? `Device error ${response.errNo}`));
+      request.reject(new DeviceTransportError('protocol', response.errorMessage ?? `Device error ${response.errNo}`, {
+        command: request.command, errNo: response.errNo,
+      }));
     } else {
       request.resolve(response.data);
     }

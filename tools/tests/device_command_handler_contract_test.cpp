@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -11,6 +12,7 @@
 #include "storagemanager.hpp"
 #include "webhid_rpc_dispatcher.hpp"
 #include "configs/device_command_handler.hpp"
+#include "configs/config_sync.hpp"
 #include "configs/firmware_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
@@ -187,6 +189,23 @@ bool runValidCase(const cJSON *entry, const cJSON *cases, std::string &failure)
     std::string missing;
     if (!requireFields(data, fields, missing)) {
         failure = "missing data field: " + missing; cJSON_Delete(result.root); return false;
+    }
+    if (strcmp(name->valuestring, "update_screen_control_config") == 0) {
+        const cJSON *screen = cJSON_GetObjectItemCaseSensitive(data, "screenControl");
+        const cJSON *timeout = cJSON_GetObjectItemCaseSensitive(screen, "standbyTimeoutSeconds");
+        if (!cJSON_IsNumber(timeout) || timeout->valueint != 120 ||
+            STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds != 120u) {
+            failure = "standby timeout was not saved and read back";
+            cJSON_Delete(result.root); return false;
+        }
+        cJSON *invalid = cJSON_Parse("{\"screenControl\":{\"standbyTimeoutSeconds\":15}}");
+        DispatchResult rejected = dispatch("update_screen_control_config", invalid, kAllScopes);
+        cJSON_Delete(invalid);
+        if (rejected.error != 1 || STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds != 120u) {
+            failure = "unsupported standby timeout was accepted";
+            cJSON_Delete(rejected.root); cJSON_Delete(result.root); return false;
+        }
+        cJSON_Delete(rejected.root);
     }
     const cJSON *recording = cJSON_GetObjectItemCaseSensitive(entry, "recordingField");
     if (recording != nullptr &&
@@ -431,6 +450,112 @@ bool verifyExitQuiescesRuntimeBeforePersisting(std::string &failure)
 
 } // namespace
 
+void verifyConfigSyncContract()
+{
+    resetContractState();
+    auto versions = []() {
+        DispatchResult result = dispatch("get_config_manifest", nullptr, kAllScopes);
+        assert(result.error == 0);
+        const cJSON* data = cJSON_GetObjectItemCaseSensitive(result.root, "data");
+        const cJSON* key = cJSON_GetObjectItemCaseSensitive(data, "deviceCacheKey");
+        assert(cJSON_IsString(key) && strlen(key->valuestring) == 64);
+        std::map<std::string, std::string> values;
+        const cJSON* modules = cJSON_GetObjectItemCaseSensitive(data, "modules");
+        const cJSON* entry = nullptr;
+        cJSON_ArrayForEach(entry, modules) {
+            assert(cJSON_IsString(entry) && strlen(entry->valuestring) == 64);
+            values[entry->string] = entry->valuestring;
+        }
+        cJSON_Delete(result.root);
+        return values;
+    };
+    auto original = versions();
+    assert(original.size() == 4 + NUM_PROFILES * 2);
+    assert(original == versions());
+    struct Resource { const char* command; const char* field; std::string key; const char* idField; const char* id; };
+    std::vector<Resource> resources = {
+        {"get_global_config", "globalConfig", "global", nullptr, nullptr},
+        {"get_hotkeys_config", "hotkeysConfig", "hotkeys", nullptr, nullptr},
+        {"get_screen_control_config", "screenControl", "screen-control", nullptr, nullptr},
+        {"get_profile_list", "profileList", "profile-list", nullptr, nullptr},
+    };
+    for (const auto& profile : STORAGE_MANAGER.config.profiles) {
+        resources.push_back({"get_profile_details", "profileDetails", std::string("profile:") + profile.id, "profileId", profile.id});
+        resources.push_back({"get_profile_macros", "m", std::string("macros:") + profile.id, "pid", profile.id});
+    }
+    for (const auto& resource : resources) {
+        cJSON* params = cJSON_CreateObject();
+        cJSON_AddBoolToObject(params, "listOnly", true);
+        if (resource.id) cJSON_AddStringToObject(params, resource.idField, resource.id);
+        DeviceCommandRequest direct;
+        direct.setCommand(resource.command);
+        direct.setParams(cJSON_Duplicate(params, true));
+        auto directResponse = DeviceCommandDispatcher::getInstance().processCommand(direct);
+        // Verify the original GET body. Parsing/printing floats again need not
+        // reproduce its bytes (browsers intentionally compare device versions).
+        char digest[65] = {};
+        assert(configResourceDigest(cJSON_GetObjectItemCaseSensitive(directResponse.getData(), resource.field), digest));
+        DispatchResult result = dispatch(resource.command, params, kAllScopes);
+        cJSON_Delete(params);
+        assert(result.error == 0);
+        const cJSON* data = cJSON_GetObjectItemCaseSensitive(result.root, "data");
+        const cJSON* metadata = cJSON_GetObjectItemCaseSensitive(data, "configVersions");
+        const cJSON* version = cJSON_GetObjectItemCaseSensitive(metadata, resource.key.c_str());
+        if (!cJSON_IsString(version) || original.at(resource.key) != version->valuestring || original.at(resource.key) != digest) {
+            std::cerr << "Digest mismatch " << resource.key << " manifest=" << original.at(resource.key)
+                      << " response=" << (cJSON_IsString(version) ? version->valuestring : "missing") << " recomputed=" << digest << "\n";
+            std::abort();
+        }
+        if (resource.key == "profile-list") assert(!cJSON_GetObjectItemCaseSensitive(data, "defaultProfileDetails"));
+        cJSON_Delete(result.root);
+    }
+    assert(g_deviceCommandContractRecording.storageSaves == 0);
+    auto& profile = STORAGE_MANAGER.config.profiles[0];
+    const auto profileKey = std::string("profile:") + profile.id;
+    const auto macroKey = std::string("macros:") + profile.id;
+    profile.keysConfig.macros[0].numTriggerKeys = 1;
+    profile.keysConfig.macros[0].triggerKeys[0] = 2;
+    auto changed = versions();
+    assert(changed[macroKey] != original[macroKey]);
+    changed[macroKey] = original[macroKey];
+    assert(changed == original); // No false invalidation of profile or list.
+    profile.keysConfig.macros[0].numTriggerKeys = 0;
+    assert(versions() == original); // Reverting content restores the version.
+    profile.keysConfig.invertXAxis = !profile.keysConfig.invertXAxis;
+    changed = versions();
+    assert(changed[profileKey] != original[profileKey]);
+    changed[profileKey] = original[profileKey]; assert(changed == original);
+    profile.keysConfig.invertXAxis = !profile.keysConfig.invertXAxis;
+    STORAGE_MANAGER.config.screenControl.brightness++;
+    changed = versions(); assert(changed["screen-control"] != original["screen-control"]);
+    changed["screen-control"] = original["screen-control"]; assert(changed == original);
+    STORAGE_MANAGER.config.screenControl.brightness--;
+    // Device-side changes bypassing web setters must be visible too.
+    STORAGE_MANAGER.config.autoCalibrationEnabled = !STORAGE_MANAGER.config.autoCalibrationEnabled;
+    changed = versions(); assert(changed["global"] != original["global"]);
+    changed["global"] = original["global"]; assert(changed == original);
+    assert(g_deviceCommandContractRecording.storageSaves == 0);
+    resetContractState();
+    assert(versions() == original);
+    STORAGE_MANAGER.config.hotkeys[0].isHold = !STORAGE_MANAGER.config.hotkeys[0].isHold;
+    changed = versions(); assert(changed["hotkeys"] != original["hotkeys"]);
+    changed["hotkeys"] = original["hotkeys"]; assert(changed == original);
+    resetContractState();
+    cJSON* rename = cJSON_Parse("{\"profileId\":\"profile-0\",\"profileDetails\":{\"id\":\"profile-0\",\"name\":\"Version test\"}}");
+    DispatchResult renamed = dispatch("update_profile", rename, kAllScopes);
+    cJSON_Delete(rename); assert(renamed.error == 0);
+    const cJSON* saved = cJSON_GetObjectItemCaseSensitive(renamed.root, "data");
+    const cJSON* savedVersions = cJSON_GetObjectItemCaseSensitive(saved, "configVersions");
+    const cJSON* savedVersion = cJSON_GetObjectItemCaseSensitive(savedVersions, profileKey.c_str());
+    changed = versions();
+    assert(cJSON_IsString(savedVersion) && changed[profileKey] == savedVersion->valuestring);
+    assert(changed["profile-list"] != original["profile-list"]);
+    assert(changed[profileKey] != original[profileKey]);
+    cJSON_Delete(renamed.root);
+    resetContractState();
+    std::cout << "config sync digests: 36 resources, readback, isolated mutations and reset passed\n";
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 2) {
@@ -464,6 +589,7 @@ int main(int argc, char **argv)
     }
 
     // Exercise fixed-slot behavior through the real dispatcher and handlers.
+    verifyConfigSyncContract();
     resetContractState();
     DispatchResult slotsResult = dispatch("get_profile_list", nullptr, kAllScopes);
     const cJSON* slotData = cJSON_GetObjectItemCaseSensitive(slotsResult.root, "data");
@@ -560,6 +686,6 @@ int main(int argc, char **argv)
     cJSON_Delete(pingResult.root);
     cJSON_Delete(document);
     std::cout << "real handler contracts passed: " << passed
-              << "/69; binary zero-copy, retired tombstone handler and ping passed separately\n";
-    return passed == 69u ? EXIT_SUCCESS : EXIT_FAILURE;
+              << "/70; binary zero-copy, retired tombstone handler and ping passed separately\n";
+    return passed == 70u ? EXIT_SUCCESS : EXIT_FAILURE;
 }

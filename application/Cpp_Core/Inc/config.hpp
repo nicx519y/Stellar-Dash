@@ -145,7 +145,7 @@ typedef struct
 {
     uint8_t brightness;              // 屏幕亮度（0-100）
     uint8_t standbyDisplay;          // 待机显示：0 None, 1 BackgroundImage, 2 ButtonLayout
-    uint8_t reserved0[2];            // 保留字节（对齐）
+    uint16_t standbyTimeoutSeconds;  // 占用原 reserved0[2]，保持持久化布局
     uint8_t screenStyle;             // 屏幕风格：0 Dark, 1 Light
     uint8_t reservedStyle[7];        // 保留旧颜色字段占位，用于兼容迁移
     char backgroundImageId[32];      // 背景图片ID；当前仅允许已验证的 USER_IMAGE
@@ -156,6 +156,11 @@ typedef struct
     /* Persistent service flags; retains the former reserved2 byte layout. */
     uint8_t serviceFlags;
 } ScreenControlConfig;
+
+static inline uint16_t normalizeScreenStandbyTimeoutSeconds(uint16_t seconds) {
+    return (seconds == 10u || seconds == 30u || seconds == 60u ||
+            seconds == 120u || seconds == 300u) ? seconds : 10u;
+}
 
 #define SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE (1u << 0)
 #define SCREEN_SERVICE_CH585_IAP_CONFIRMED      (1u << 1)

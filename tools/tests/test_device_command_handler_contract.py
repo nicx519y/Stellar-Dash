@@ -1,6 +1,8 @@
 import json
+import os
 import shutil
 import subprocess
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +11,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CASE_MANIFEST = ROOT / "tools" / "device_command_contract_cases.json"
 COMMAND_MANIFEST = ROOT / "tools" / "webhid_command_manifest.json"
+
+
+def run_stage(args, **kwargs):
+    """Bound each compiler/linker/test process and retain its diagnostics."""
+    kwargs.pop("capture_output", None)
+    start = time.monotonic()
+    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               start_new_session=os.name != "nt", **kwargs)
+    print(f"START host stage pid={process.pid}: {args[-1]}", flush=True)
+    try:
+        stdout, stderr = process.communicate(timeout=60)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True, timeout=10)
+        else:
+            import signal
+            os.killpg(process.pid, signal.SIGKILL)
+        stdout, stderr = process.communicate(timeout=10)
+        raise AssertionError(f"Host stage timed out: {stdout}\n{stderr}")
+    print(f"END host stage pid={process.pid} exit={process.returncode} elapsed={time.monotonic()-start:.1f}s", flush=True)
+    return subprocess.CompletedProcess(args, process.returncode, stdout, stderr)
 
 
 class DeviceCommandHandlerContractTest(unittest.TestCase):
@@ -23,8 +46,8 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
         }
         case_names = [case["name"] for case in cases["commands"]]
 
-        self.assertEqual(69, len(case_names))
-        self.assertEqual(69, len(set(case_names)))
+        self.assertEqual(70, len(case_names))
+        self.assertEqual(70, len(set(case_names)))
         self.assertEqual(migrated_names, set(case_names))
         self.assertIn("ping", cases)
         for case in cases["commands"]:
@@ -41,6 +64,8 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
         self.assertIsNotNone(gcc, "host gcc is required for the production cJSON source")
 
         production_sources = [
+            "application/Cpp_Core/Src/configs/config_sync.cpp",
+            "application/Libs/sha256_simple/sha256_simple.c",
             "application/Cpp_Core/Src/configs/device_command_handler.cpp",
             "application/Cpp_Core/Src/configs/device_command_message.cpp",
             "application/Cpp_Core/Src/webhid_rpc_dispatcher.cpp",
@@ -70,6 +95,7 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
             "application/Cpp_Core/Inc/firmware",
             "application/Drivers/QSPI-W25Q64",
             "application/Libs/cJSON",
+            "application/Libs/sha256_simple",
             "common",
         ]
         common_flags = [
@@ -90,7 +116,7 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
             ]
             for index, source in enumerate(all_cpp_sources):
                 output = build / f"source-{index}.o"
-                completed = subprocess.run(
+                completed = run_stage(
                     [gxx, *common_flags, "-c", str(ROOT / source), "-o", str(output)],
                     cwd=ROOT,
                     capture_output=True,
@@ -104,7 +130,7 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
                 objects.append(output)
 
             cjson_object = build / "cJSON.o"
-            completed = subprocess.run(
+            completed = run_stage(
                 [
                     gcc,
                     "-w",
@@ -122,14 +148,14 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
             objects.append(cjson_object)
 
             executable = build / "device-command-contract.exe"
-            completed = subprocess.run(
+            completed = run_stage(
                 [gxx, *map(str, objects), "-o", str(executable)],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
             )
             self.assertEqual(0, completed.returncode, completed.stderr)
-            completed = subprocess.run(
+            completed = run_stage(
                 [str(executable), str(CASE_MANIFEST)],
                 cwd=ROOT,
                 capture_output=True,
@@ -141,7 +167,7 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
                 f"real handler contract executable failed:\n{completed.stdout}\n{completed.stderr}",
             )
             self.assertIn(
-                "real handler contracts passed: 69/69; binary zero-copy, retired tombstone handler and ping passed separately",
+                "real handler contracts passed: 70/70; binary zero-copy, retired tombstone handler and ping passed separately",
                 completed.stdout,
             )
 

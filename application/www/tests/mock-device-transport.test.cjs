@@ -1020,11 +1020,16 @@ test('supports fixed profile selection and rename, hotkeys, screen settings and 
   });
 
   await transport.request('update_screen_control_config', {
-    screenControl: { brightness: 33, currentPageId: 7 },
+    screenControl: { brightness: 33, currentPageId: 7, standbyTimeoutSeconds: 120 },
   });
   const screen = await transport.request('get_screen_control_config');
   assert.equal(screen.data.screenControl.brightness, 33);
   assert.equal(screen.data.screenControl.currentPageId, 7);
+  assert.equal(screen.data.screenControl.standbyTimeoutSeconds, 120);
+  await assert.rejects(
+    transport.request('update_screen_control_config', { screenControl: { standbyTimeoutSeconds: 15 } }),
+    /Invalid standby timeout/,
+  );
 
   const logs = await transport.request('get_device_logs_list');
   assert.ok(logs.data.items.length > 0);

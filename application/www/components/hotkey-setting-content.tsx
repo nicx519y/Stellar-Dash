@@ -24,6 +24,7 @@ interface HotkeySettingContentProps {
     onHotkeysUpdate: (hotkeys: Hotkey[]) => void;
     /** 是否禁用组件（例如在校准模式下） */
     disabled?: boolean;
+    active?: boolean;
     /** 自定义宽度 */
     width?: number;
     /** 自定义高度 */
@@ -36,6 +37,7 @@ export function HotkeySettingContent({
     hotkeys,
     onHotkeysUpdate,  // 改为批量更新
     disabled = false,
+    active = true,
     calibrationActive = false,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
@@ -108,6 +110,7 @@ export function HotkeySettingContent({
 
     // 监听外部点击事件（从Hitbox组件）
     useEffect(() => {
+        if (!active || disabled || calibrationActive) return;
         const handleHitboxClick = (event: CustomEvent) => {
             const { keyId } = event.detail;
             const layoutLen = hitboxLayout?.length || 0;
@@ -125,7 +128,7 @@ export function HotkeySettingContent({
         return () => {
             window.removeEventListener('hitbox-click', handleHitboxClick as EventListener);
         };
-    }, [activeHotkeyIndex, hotkeys, updateHotkey]);
+    }, [active, disabled, calibrationActive, activeHotkeyIndex, hotkeys, updateHotkey]);
 
     // 处理热键字段点击
     const handleHotkeyFieldClick = (index: number) => {

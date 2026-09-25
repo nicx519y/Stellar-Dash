@@ -2,7 +2,7 @@
 
 import { GameProfile, PROFILE_NAME_MAX_LENGTH } from "@/types/gamepad-config";
 import { useEffect, useRef, useState } from "react";
-import { Box, Button, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, HStack, IconButton, Separator, Text, VStack } from "@chakra-ui/react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LuLayers3, LuPencil } from "react-icons/lu";
 import { FaLock } from "react-icons/fa";
@@ -87,7 +87,8 @@ export function ProfileSelect({ disabled = false }: { disabled?: boolean }) {
             </Text>
             {dataIsReady && !compatible && <Text role="status" fontSize="xs" color="fg.muted">{t.PROFILE_SELECT_FIRMWARE_REQUIRED}</Text>}
             {error && <Text role="alert" fontSize="xs" color="fg.error">{error}</Text>}
-            <VStack align="stretch" gap={1} overflowY="auto" minH={0} flex={1}>
+            <VStack align="stretch" gap={0} overflowY="auto" minH={0} flex={1}
+                separator={<Separator />}>
                 {slots.map((profile, index) => {
                     const selected = profile?.id === profileList.defaultId;
                     return (

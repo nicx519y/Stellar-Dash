@@ -36,6 +36,7 @@ import {
 } from './scope-policy';
 import { exportWebHidConfigSections } from './webhid-config-export';
 import { crc32 } from '../crc32';
+import { ConfigSyncCache } from './config-cache';
 
 if (WEBHID_MAX_FIRMWARE_PACKET_SIZE > WEBHID_MAX_STREAM_SIZE) {
   throw new Error('WebHID firmware packet exceeds the device stream boundary');
@@ -51,6 +52,7 @@ type ScopeUpgradeOperation = {
 type DeviceTransactionOwner = 'ready-session' | 'connection-initialization';
 
 const CONNECTION_INITIALIZATION_COMMANDS = new Set([
+  'get_config_manifest',
   'get_profile_details',
   'get_profile_macros',
   'get_global_config',
@@ -67,6 +69,7 @@ const HBOX_CONFIG_BACKUP_VERSION = 3;
 
 /** HID-native command/session facade used by React and typed feature clients. */
 export class DeviceCommandClient {
+  readonly configCache: ConfigSyncCache;
   private state = DeviceTransportState.DISCONNECTED;
   private phase = DeviceConnectionPhase.IDLE;
   private readonly queue = new DeviceRequestQueue();
@@ -104,6 +107,7 @@ export class DeviceCommandClient {
     private readonly initialScopes: readonly DeviceScope[] = DEFAULT_DEVICE_SCOPES,
     private readonly startupTimeoutMs = 30_000,
   ) {
+    this.configCache = new ConfigSyncCache(transport.kind);
     if (!Number.isFinite(startupTimeoutMs) || startupTimeoutMs <= 0) {
       throw new DeviceTransportError('protocol', '设备启动超时必须是正数');
     }
@@ -449,6 +453,7 @@ export class DeviceCommandClient {
       await this.ensureScopes(requiredScopes, generation);
     }
     return this.runAfterScopeUpgrade(generation, async () => {
+      this.configCache.invalidateForCommand(command, params);
       const response = await this.transport.request(command, params, {
         // Every command enters DeviceRequestQueue. Its per-entry controller
         // follows both caller cancellation and lifecycle queue.clear().
@@ -456,6 +461,8 @@ export class DeviceCommandClient {
         timeoutMs: options.timeoutMs,
         responseTimeoutMode: options.responseTimeoutMode,
       });
+      this.assertLifecycleActive(generation);
+      await this.configCache.observe(response.data, params).catch(() => {});
       this.assertLifecycleActive(generation);
       return response.data;
     });
@@ -1281,6 +1288,7 @@ export class DeviceCommandClient {
   }
 
   private setState(state: DeviceTransportState): void {
+    if (state === DeviceTransportState.DISCONNECTED || state === DeviceTransportState.ERROR) this.configCache.endSession();
     if (state !== this.state) {
       this.state = state;
       this.stateHandlers.forEach((handler) => handler(state));

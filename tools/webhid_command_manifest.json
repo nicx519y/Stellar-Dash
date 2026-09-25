@@ -1,9 +1,9 @@
 {
   "version": 1,
   "legacyCommandCount": 68,
-  "commandCount": 70,
+  "commandCount": 71,
   "migrationStatusCounts": {
-    "direct": 67,
+    "direct": 68,
     "equivalent": 1,
     "retired": 2
   },
@@ -15,6 +15,7 @@
     {
       "scope": "config.read",
       "commands": [
+        {"name": "get_config_manifest", "migration": "direct", "consumers": ["startup", "config-cache"], "test": "contract"},
         {"name": "get_global_config", "migration": "direct", "consumers": ["startup", "global", "export"], "test": "contract"},
         {"name": "get_hotkeys_config", "migration": "direct", "consumers": ["startup", "hotkeys", "export"], "test": "contract"},
         {"name": "get_screen_control_config", "migration": "direct", "consumers": ["startup", "screen", "export"], "test": "contract"},

@@ -5,6 +5,10 @@ CH585 Maintenance HID collection through WebHID. The browser and STM32 open
 an encrypted direct session without a device certificate or server permit.
 User and administrator sign-in remains on the server for account actions.
 
+Configuration reconnects use device module fingerprints and an IndexedDB cache.
+The connection overlay stays blocking until validation and synchronization finish.
+See [the cache protocol and validation guide](../../docs/webconfig-config-cache.md).
+
 ## V2 hosted development
 
 ```bash

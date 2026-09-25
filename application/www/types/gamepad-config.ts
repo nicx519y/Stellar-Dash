@@ -173,6 +173,7 @@ export function withRequiredWebConfigEntry(
 export interface ScreenControlConfig {
     brightness: number;
     standbyDisplay: StandbyDisplay;
+    standbyTimeoutSeconds: number;
     screenStyle: ScreenStyle;
     backgroundImageId: string;
     currentPageId: number;
@@ -180,9 +181,15 @@ export interface ScreenControlConfig {
     featuresOrder: ScreenControlFeatureKey[];
 }
 
+export const SCREEN_STANDBY_TIMEOUT_OPTIONS = [10, 30, 60, 120, 300] as const;
+export function normalizeScreenStandbyTimeout(seconds: unknown): number {
+    return SCREEN_STANDBY_TIMEOUT_OPTIONS.some(option => option === seconds) ? seconds as number : 10;
+}
+
 export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
     brightness: 100,
     standbyDisplay: 'none',
+    standbyTimeoutSeconds: 10,
     screenStyle: 'dark',
     backgroundImageId: "",
     currentPageId: 0,
@@ -865,6 +872,7 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "System Preset",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "User Image",
     SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL: "Standby Display",
+    SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL: "Enter standby display after",
     SETTINGS_SCREEN_CONTROL_STANDBY_NONE: "None",
     SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE: "Background Image",
     SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT: "Button Layout",
@@ -1409,6 +1417,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "系统预设",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "用户图片",
     SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL: "待机显示",
+    SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL: "进入待机显示时间",
     SETTINGS_SCREEN_CONTROL_STANDBY_NONE: "无",
     SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE: "背景图片",
     SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT: "按键布局",

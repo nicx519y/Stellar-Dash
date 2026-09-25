@@ -412,7 +412,9 @@ DeviceCommandResponse ProfileCommandHandler::handleGetProfileList(const DeviceCo
 
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
-    cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(defaultProfile));
+    if (!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(request.getParams(), "listOnly"))) {
+        cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(defaultProfile));
+    }
 
     // LOG_INFO("DeviceCommand", "get_profile_list command completed successfully");
     

@@ -1,4 +1,4 @@
-import { DEFAULT_SCREEN_CONTROL_CONFIG, type GameProfile, type GameProfileList, type MacroConfig, type GlobalConfig, type ScreenControlConfig, type Hotkey } from '../../types/gamepad-config';
+import { DEFAULT_SCREEN_CONTROL_CONFIG, normalizeScreenStandbyTimeout, type GameProfile, type GameProfileList, type MacroConfig, type GlobalConfig, type ScreenControlConfig, type Hotkey } from '../../types/gamepad-config';
 import { compactMacrosToLegacy } from './webhid-config-export';
 import { profileSlots } from '../profile-slots';
 import type { ConfigResources } from '../session-config-store';
@@ -41,6 +41,7 @@ export async function readConfigSnapshot(
   if (!screen || typeof screen !== 'object' || !['light', 'dark'].includes(screen.screenStyle)) throw new Error('Invalid screen configuration');
   resources['screen-control'] = {
     ...DEFAULT_SCREEN_CONTROL_CONFIG, ...screen,
+    standbyTimeoutSeconds: normalizeScreenStandbyTimeout(screen.standbyTimeoutSeconds),
     features: { ...DEFAULT_SCREEN_CONTROL_CONFIG.features, ...screen.features },
     featuresOrder: [...new Set([...(Array.isArray(screen.featuresOrder) ? screen.featuresOrder : []), ...DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder])]
       .filter(key => key in DEFAULT_SCREEN_CONTROL_CONFIG.features),

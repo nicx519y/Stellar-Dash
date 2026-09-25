@@ -156,6 +156,7 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
     static const char *const configRead[] = {
         "get_rf_binding",
         "get_global_config",
+        "get_config_manifest",
         "get_hotkeys_config",
         "get_screen_control_config",
         "export_all_config",

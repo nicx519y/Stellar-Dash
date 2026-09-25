@@ -11,6 +11,7 @@ const en = {
   opening: 'Connecting to your device',
   securing: 'Establishing a secure connection',
   reading: 'Reading device configuration',
+  checking: 'Checking configuration versions',
   finishing: 'Preparing your workspace',
   waiting: 'Waiting for device configuration',
   progress: 'Configuration sync',
@@ -30,6 +31,7 @@ export const CONNECTION_TEXT: Record<'en' | 'zh', typeof en> = {
     opening: '正在连接设备',
     securing: '正在建立安全连接',
     reading: '正在读取设备配置',
+    checking: '正在核对配置版本',
     finishing: '正在准备配置页面',
     waiting: '等待读取设备配置',
     progress: '配置同步',
@@ -79,14 +81,14 @@ export function connectionErrorMessage(
 
 export function connectionPresentation(
   phase: DeviceConnectionPhase,
-  progress: { completed: number; total: number },
+  progress: { completed: number; total: number; phase?: 'checking' | 'reading' | 'complete' },
 ) {
   const syncing = phase === DeviceConnectionPhase.INITIALIZING || phase === DeviceConnectionPhase.READY;
   const total = syncing && Number.isFinite(progress.total) ? Math.max(0, progress.total) : 0;
   const completed = total && Number.isFinite(progress.completed) ? Math.min(total, Math.max(0, progress.completed)) : 0;
   const percent = total ? Math.floor(completed / total * 100) : 0;
-  const stage = !syncing ? 0 : total > 0 && completed === total ? 2 : 1;
-  const detail: keyof typeof en = stage === 2 ? 'finishing' : syncing ? 'reading'
+  const stage = !syncing ? 0 : progress.phase === 'complete' || (!progress.phase && total > 0 && completed === total) ? 2 : 1;
+  const detail: keyof typeof en = syncing && progress.phase === 'checking' ? 'checking' : stage === 2 ? 'finishing' : syncing ? 'reading'
     : phase === DeviceConnectionPhase.DISCOVERING ? 'discovering'
     : phase === DeviceConnectionPhase.ATTESTING || phase === DeviceConnectionPhase.AUTHORIZING ? 'securing' : 'opening';
   return { total, completed, percent, stage, detail };

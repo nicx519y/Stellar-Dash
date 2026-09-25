@@ -73,9 +73,9 @@ class WebHidCommandManifestTests(unittest.TestCase):
         names = [item["name"] for item in self.commands]
         self.assertEqual(self.manifest["version"], 1)
         self.assertEqual(self.manifest["legacyCommandCount"], 68)
-        self.assertEqual(self.manifest["commandCount"], 70)
-        self.assertEqual(len(names), 70)
-        self.assertEqual(len(set(names)), 70)
+        self.assertEqual(self.manifest["commandCount"], 71)
+        self.assertEqual(len(names), 71)
+        self.assertEqual(len(set(names)), 71)
         self.assertEqual(
             Counter(item["migration"] for item in self.commands),
             Counter(self.manifest["migrationStatusCounts"]),
@@ -87,8 +87,16 @@ class WebHidCommandManifestTests(unittest.TestCase):
     def test_manifest_matches_firmware_command_registry(self) -> None:
         source = COMMAND_REGISTRY.read_text(encoding="utf-8")
         registered = set(re.findall(r'registerHandler\("([^"]+)"', source))
-        self.assertEqual(len(registered), 69)
+        self.assertEqual(len(registered), 70)
         self.assertEqual(set(self.by_name) - {"ping"}, registered)
+
+    def test_config_manifest_is_registered_as_read_only(self) -> None:
+        self.assertEqual(self.by_name["get_config_manifest"]["scope"], "config.read")
+        registry = COMMAND_REGISTRY.read_text(encoding="utf-8")
+        dispatcher = HID_DISPATCHER.read_text(encoding="utf-8")
+        self.assertIn('registerHandler("get_config_manifest", &globalHandler)', registry)
+        self.assertIn("get_config_manifest", _cpp_string_array(dispatcher, "configRead"))
+        self.assertNotIn("get_config_manifest", _cpp_string_array(dispatcher, "configWrite"))
 
     def test_manifest_scopes_match_webhid_dispatcher(self) -> None:
         source = HID_DISPATCHER.read_text(encoding="utf-8")

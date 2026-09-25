@@ -5,15 +5,17 @@ import { VStack, HStack, Table, Box, Text, RadioCard, RadioGroup } from '@chakra
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { DEFAULT_SCREEN_CONTROL_CONFIG, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, ScreenStyle, StandbyDisplay, withRequiredWebConfigEntry } from '@/types/gamepad-config';
+import { DEFAULT_SCREEN_CONTROL_CONFIG, SCREEN_STANDBY_TIMEOUT_OPTIONS, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, ScreenStyle, StandbyDisplay, normalizeScreenStandbyTimeout, withRequiredWebConfigEntry } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
 import { LuGripVertical } from "react-icons/lu";
 import { TitleLabel } from './ui/title-label';
 import { SettingDescription } from './ui/setting-description';
 import { showToast } from './ui/toaster';
 import { BackgroundImageGallery } from './background-image-gallery';
+import { ScreenStandbyPreview } from './screen-standby-preview';
 
 const USER_BG_ID = 'USER_IMAGE';
+const STANDBY_TIMEOUT_LABELS = ['10s', '30s', '60s', '2min', '5min'] as const;
 
 
 type ScreenControlSettingContentProps = {
@@ -29,6 +31,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     } = useGamepadConfig();
     const [brightness, setBrightness] = useState<number>(screenControl.brightness ?? 100);
     const [standbyDisplay, setStandbyDisplay] = useState<StandbyDisplay>(screenControl.standbyDisplay ?? 'none');
+    const [standbyTimeoutSeconds, setStandbyTimeoutSeconds] = useState<number>(normalizeScreenStandbyTimeout(screenControl.standbyTimeoutSeconds));
     const [screenStyle, setScreenStyle] = useState<ScreenStyle>(screenControl.screenStyle ?? 'dark');
     const [backgroundImageId, setBackgroundImageId] = useState<string>(screenControl.backgroundImageId ?? '');
     const [currentPageId, setCurrentPageId] = useState<string>(String(screenControl.currentPageId ?? 0));
@@ -64,6 +67,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     useEffect(() => {
         setBrightness(screenControl.brightness ?? 100);
         setStandbyDisplay(screenControl.standbyDisplay ?? 'none');
+        setStandbyTimeoutSeconds(normalizeScreenStandbyTimeout(screenControl.standbyTimeoutSeconds));
         setScreenStyle(screenControl.screenStyle ?? 'dark');
         setBackgroundImageId(screenControl.backgroundImageId ?? '');
         setCurrentPageId(String(screenControl.currentPageId ?? 0));
@@ -77,13 +81,14 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         return {
             brightness: b,
             standbyDisplay,
+            standbyTimeoutSeconds,
             screenStyle,
             backgroundImageId,
             currentPageId: pid,
             features,
             featuresOrder,
         };
-    }, [brightness, standbyDisplay, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
+    }, [brightness, standbyDisplay, standbyTimeoutSeconds, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
 
     const commitUiChange = async (next: ScreenControlConfig) => {
         try {
@@ -177,7 +182,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
                 <Slider
                     size="sm"
-                    width="372px"
+                    width="50%"
                     min={0}
                     max={100}
                     step={10}
@@ -226,9 +231,10 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                 </RadioCard.Root>
 
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL} />
-                <VStack align="start" gap={1}>
+                <VStack align="start" gap={3}>
                     <RadioCard.Root
                         size={"sm"}
+                        width="100%"
                         value={standbyDisplay}
                         variant={"subtle"}
                         onValueChange={async (d) => {
@@ -246,13 +252,13 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                             await commitUiChange({ ...nextConfig, ...update });
                         }}
                     >
-                        <HStack>
+                        <HStack width="100%">
                             {[
                                 { value: 'none', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_NONE },
                                 { value: 'backgroundImage', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE },
                                 { value: 'buttonLayout', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT },
                             ].map(opt => (
-                                <RadioCard.Item w="242px" key={opt.value} value={opt.value as 'none'|'backgroundImage'|'buttonLayout'} disabled={disabled || imageOperationBusy}>
+                                <RadioCard.Item flex={1} minW={0} key={opt.value} value={opt.value as 'none'|'backgroundImage'|'buttonLayout'} disabled={disabled || imageOperationBusy}>
                                     <RadioCard.ItemHiddenInput />
                                     <RadioCard.ItemControl>
                                         <RadioCard.ItemText>{opt.label}</RadioCard.ItemText>
@@ -261,20 +267,48 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                             ))}
                         </HStack>
                     </RadioCard.Root>
+                    <HStack align="start" width="100%">
+                        <VStack flex={1} minW={0}>
+                            <ScreenStandbyPreview mode="none" selected={standbyDisplay === 'none'} screenStyle={screenStyle} />
+                        </VStack>
+                        <VStack flex={1} minW={0}>
+                            <BackgroundImageGallery
+                                disabled={disabled}
+                                config={nextConfig}
+                                onInstalled={handleGalleryInstalled}
+                                onAvailabilityChange={handleGalleryAvailabilityChange}
+                                onBusyChange={setGalleryDeviceBusy}
+                            />
+                        </VStack>
+                        <VStack flex={1} minW={0}>
+                            <ScreenStandbyPreview mode="buttonLayout" selected={standbyDisplay === 'buttonLayout'} screenStyle={screenStyle} />
+                        </VStack>
+                    </HStack>
+                    <Slider
+                        size="sm"
+                        width="680px"
+                        mt="18px"
+                        min={0}
+                        max={SCREEN_STANDBY_TIMEOUT_OPTIONS.length - 1}
+                        step={1}
+                        colorPalette="green"
+                        disabled={disabled || standbyDisplay === 'none'}
+                        value={[Math.max(0, SCREEN_STANDBY_TIMEOUT_OPTIONS.indexOf(standbyTimeoutSeconds as typeof SCREEN_STANDBY_TIMEOUT_OPTIONS[number]))]}
+                        label={t.SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL}
+                        marks={STANDBY_TIMEOUT_LABELS.map((label, value) => ({ value, label }))}
+                        onValueChange={(details: { value: number[] }) => {
+                            const seconds = SCREEN_STANDBY_TIMEOUT_OPTIONS[details.value[0]];
+                            if (seconds !== undefined) setStandbyTimeoutSeconds(seconds);
+                        }}
+                        onValueChangeEnd={(details: { value: number[] }) => {
+                            const seconds = SCREEN_STANDBY_TIMEOUT_OPTIONS[details.value[0]];
+                            if (seconds !== undefined) {
+                                setStandbyTimeoutSeconds(seconds);
+                                void commitUiChange({ ...nextConfig, standbyTimeoutSeconds: seconds });
+                            }
+                        }}
+                    />
                 </VStack>
-                <SettingDescription
-                    text={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP
-                        .replace('{frames}', '6')
-                        .replace('{seconds}', '2')}
-                    fontSize="xs"
-                />
-                <BackgroundImageGallery
-                    disabled={disabled}
-                    config={nextConfig}
-                    onInstalled={handleGalleryInstalled}
-                    onAvailabilityChange={handleGalleryAvailabilityChange}
-                    onBusyChange={setGalleryDeviceBusy}
-                />
 
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_FEATURES} mt="20px" />
 

@@ -66,7 +66,7 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
     };
 
     return (
-        <VStack align="stretch" gap={7} maxW="640px">
+        <VStack align="stretch" gap={7} width="100%">
             <SettingDescription text={t.SETTINGS_BASIC_HELPER_TEXT} fontSize="14px" />
 
             <InputModeSettingContent disabled={props.disabled} />
@@ -86,6 +86,7 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
                     </Text>
                     <Slider.Root
                         size="sm"
+                        width="680px"
                         min={0}
                         max={rateOptions.length - 1}
                         step={1}
@@ -140,6 +141,7 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
                 </Text>
                 <Slider.Root
                     size="sm"
+                    width="680px"
                     min={0}
                     max={autoSleepOptions.length - 1}
                     step={1}

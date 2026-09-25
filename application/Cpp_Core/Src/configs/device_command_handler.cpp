@@ -5,6 +5,7 @@
 #include "configs/firmware_command_handler.hpp"
 #include "configs/common_command_handler.hpp"
 #include "configs/rf_binding_command_handler.hpp"
+#include "configs/config_sync.hpp"
 #include <map>
 
 // ============================================================================
@@ -45,7 +46,12 @@ DeviceCommandResponse DeviceCommandDispatcher::processCommand(const DeviceComman
     
     auto it = handlers.find(command);
     if (it != handlers.end()) {
-        return it->second->handle(request);
+        auto response = it->second->handle(request);
+        if (response.getErrNo() == 0 && command != "get_config_manifest" &&
+            !addConfigResponseVersions(request, response.getData())) {
+            return create_device_command_response(request.getCid(), command, 1, nullptr, "Configuration version allocation failed");
+        }
+        return response;
     }
     
     // 未找到处理器，返回错误响应
@@ -70,6 +76,7 @@ void DeviceCommandDispatcher::initializeHandlers() {
     
     // 注册全局配置相关命令
     registerHandler("get_global_config", &globalHandler);
+    registerHandler("get_config_manifest", &globalHandler);
     registerHandler("update_global_config", &globalHandler);
     registerHandler("get_hotkeys_config", &globalHandler);
     registerHandler("update_hotkeys_config", &globalHandler);

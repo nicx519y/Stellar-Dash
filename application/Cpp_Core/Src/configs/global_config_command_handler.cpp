@@ -1,4 +1,5 @@
 #include "power_config_json.hpp"
+#include "configs/config_sync.hpp"
 #include "storagemanager.hpp"
 #include "configs/device_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
@@ -489,6 +490,8 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleGetScreenControlConfig(c
         default: standbyDisplayStr = "none"; break;
     }
     cJSON_AddStringToObject(screenControlJSON, "standbyDisplay", standbyDisplayStr);
+    cJSON_AddNumberToObject(screenControlJSON, "standbyTimeoutSeconds",
+                            normalizeScreenStandbyTimeoutSeconds(config.screenControl.standbyTimeoutSeconds));
     cJSON_AddStringToObject(screenControlJSON, "screenStyle", ConfigUtils::getScreenStyleString(config.screenControl.screenStyle));
     cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
     cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
@@ -567,6 +570,15 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateScreenControlConfi
         if (strcmp(item->valuestring, "backgroundImage") == 0) candidate.standbyDisplay = 1;
         else if (strcmp(item->valuestring, "buttonLayout") == 0) candidate.standbyDisplay = 2;
         else candidate.standbyDisplay = 0;
+    }
+    if ((item = cJSON_GetObjectItem(screenControl, "standbyTimeoutSeconds"))) {
+        if (!cJSON_IsNumber(item) || item->valuedouble != item->valueint ||
+            item->valueint < 0 || item->valueint > 300 ||
+            normalizeScreenStandbyTimeoutSeconds((uint16_t)item->valueint) != item->valueint) {
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Invalid standby timeout");
+        }
+        candidate.standbyTimeoutSeconds = (uint16_t)item->valueint;
     }
     set_screen_style_from_json(candidate, screenControl);
     if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
@@ -906,6 +918,10 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
             if (strcmp(item->valuestring, "backgroundImage") == 0) config.screenControl.standbyDisplay = 1;
             else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
             else config.screenControl.standbyDisplay = 0;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "standbyTimeoutSeconds")) && cJSON_IsNumber(item)) {
+            config.screenControl.standbyTimeoutSeconds =
+                normalizeScreenStandbyTimeoutSeconds((uint16_t)item->valueint);
         }
         cJSON* features = cJSON_GetObjectItem(screenControl, "features");
         if (features && cJSON_IsObject(features)) {
@@ -1293,7 +1309,9 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleClearLedsPreview(const D
 DeviceCommandResponse GlobalConfigCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
     
-    if (command == "get_global_config") {
+    if (command == "get_config_manifest") {
+        return getConfigManifest(request);
+    } else if (command == "get_global_config") {
         return handleGetGlobalConfig(request);
     } else if (command == "update_global_config") {
         return handleUpdateGlobalConfig(request);

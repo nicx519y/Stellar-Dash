@@ -25,6 +25,9 @@ DeviceCommandContractRecording g_deviceCommandContractRecording;
 bool g_has_led_around = true;
 
 extern "C" uint32_t HAL_GetTick(void) { static uint32_t tick = 1000u; return tick += 10u; }
+extern "C" uint32_t HAL_GetUIDw0(void) { return 0x12345678u; }
+extern "C" uint32_t HAL_GetUIDw1(void) { return 0xabcdef01u; }
+extern "C" uint32_t HAL_GetUIDw2(void) { return 0x98765432u; }
 extern "C" void HAL_Delay(uint32_t) {}
 
 static void initProfile(GamepadProfile &profile, const char *id, const char *name)
