@@ -707,13 +707,12 @@ void SPIScreenManager::loop() {
         && ADCManager::getInstance().isDmaSamplingActive();
     bool standbyWasActive = ScreenStandby_IsActive();
     bool encoderEvent = (det != 0) || clicked || longPressed;
-    bool anyActivity = encoderEvent || (inputMask != 0u);
     if (!standbyAllowed) {
         if (ScreenStandby_Deactivate()) {
             g_menu_full_refresh_pending = true;
         }
     } else {
-        ScreenStandby_NotifyInput(nowMs, inputMask, anyActivity, encoderEvent);
+        ScreenStandby_NotifyInput(nowMs, inputMask, encoderEvent);
         ScreenStandby_Tick(nowMs);
     }
     bool standbyNowActive = ScreenStandby_IsActive();

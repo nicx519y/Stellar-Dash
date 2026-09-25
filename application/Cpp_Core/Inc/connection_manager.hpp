@@ -46,7 +46,7 @@ public:
 
     void setup(ConnectionMode mode,
                WirelessReportRate wirelessRate,
-               InputMode inputMode);
+               InputMode inputMode, bool coldSleepResume = false);
     void loop();
     bool onReportReady(const GamepadState& state, uint32_t seq);
     bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
@@ -59,6 +59,7 @@ public:
     bool wakeRfFromSleep(RfPowerReason reason);
     bool restoreRfRuntime(WirelessReportRate wirelessRate);
     bool sleepRfModule();
+    void onRfPowerRemovedForSleep();
     bool wakeRfModule();
 
     ConnectionMode getMode() const { return mode; }

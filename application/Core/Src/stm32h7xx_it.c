@@ -28,6 +28,7 @@
 #include "spi-st7789.h"
 #include "rotary-encoder.h"
 #include "system_sleep_manager.hpp"
+#include "system_stop.hpp"
 #include "rf_bridge_port_internal.h"
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -435,6 +436,7 @@ void SPI1_IRQHandler(void)
   */
 void EXTI9_5_IRQHandler(void)
 {
+  if (SystemStop_HandleKeyIRQ()) return;
   if (__HAL_GPIO_EXTI_GET_IT(CHARGE_INT_PIN) != RESET) {
     __HAL_GPIO_EXTI_CLEAR_IT(CHARGE_INT_PIN);
     PowerManager_NotifyChargerIrqFromISR();

@@ -16,7 +16,7 @@ int main()
     assert(ScreenStandby_IsActive());
     // A brief wake press is already released when LCD power-up finishes.
     ScreenStandby_Wake(60000, 0);
-    ScreenStandby_NotifyInput(60000, 0, false, false);
+    ScreenStandby_NotifyInput(60000, 0, false);
     ScreenStandby_Tick(60000);
     assert(!ScreenStandby_IsActive());
     ScreenStandby_Tick(64999);
@@ -34,4 +34,25 @@ int main()
     ScreenStandby_Wake(100000, 0);
     ScreenStandby_Tick(100000);
     assert(!ScreenStandby_IsActive());
+
+    // Game buttons neither postpone standby nor wake it. Their mask remains
+    // available to redraw the pressed state in the standby button layout.
+    ScreenStandby_Init(0, 0);
+    ScreenStandby_NotifyInput(4000, 1u, false);
+    ScreenStandby_Tick(4999);
+    assert(!ScreenStandby_IsActive());
+    ScreenStandby_Tick(5000);
+    assert(ScreenStandby_IsActive());
+    ScreenStandby_NotifyInput(6000, 0u, false);
+    assert(ScreenStandby_IsActive());
+    ScreenStandby_NotifyInput(6001, 1u, false);
+    assert(ScreenStandby_IsActive());
+
+    // Screen rotary/button activity restarts the timer and wakes standby.
+    ScreenStandby_NotifyInput(6002, 1u, true);
+    assert(!ScreenStandby_IsActive());
+    ScreenStandby_Tick(11001);
+    assert(!ScreenStandby_IsActive());
+    ScreenStandby_Tick(11002);
+    assert(ScreenStandby_IsActive());
 }

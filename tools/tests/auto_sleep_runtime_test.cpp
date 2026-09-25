@@ -23,6 +23,7 @@ int main(int argc, char** argv)
     if (!std::strcmp(scenario, "reset")) rcc.RSR = RCC_RSR_PINRSTF | RCC_RSR_CPURSTF;
     if (!std::strcmp(scenario, "software")) rcc.RSR = RCC_RSR_SFTRSTF | RCC_RSR_PINRSTF | RCC_RSR_CPURSTF;
     if (!std::strcmp(scenario, "fault")) rcc.RSR |= RCC_RSR_IWDG1RSTF | RCC_RSR_SFTRSTF;
+    if (!std::strcmp(scenario, "stop-fault")) recoveryStopFault = true;
     if (!std::strcmp(scenario, "debugger")) debug.DHCSR = 1u;
     if (!std::strcmp(scenario, "boot-key")) portC.high &= ~GPIO_BTN1_PIN;
     SystemSleep_CaptureBootFlags();
@@ -74,7 +75,7 @@ int main(int argc, char** argv)
     }
     if (!std::strcmp(scenario, "prepare-timeout") || !std::strcmp(scenario, "disable-prepare")) bridgeIdle = false;
     step(200);
-    if (!std::strcmp(scenario, "reset") || !std::strcmp(scenario, "fault") || !std::strcmp(scenario, "boot-key")) {
+    if (!std::strcmp(scenario, "reset") || !std::strcmp(scenario, "fault") || !std::strcmp(scenario, "stop-fault") || !std::strcmp(scenario, "boot-key")) {
         step(60000);
         assert(!SystemSleep_IsBusy() && INPUT_STATE.neutrals == 0 && idleCount == 0);
         STORAGE_MANAGER.enabled = false; step(2);
@@ -83,6 +84,20 @@ int main(int argc, char** argv)
         return 0;
     }
     assert(SystemSleep_IsBusy() && !INPUT_STATE.running);
+    if (!std::strcmp(scenario, "stop-failure")) {
+        stopOk = false; step(50);
+        assert(INPUT_STATE.running && !SystemSleep_IsBusy());
+        stopOk = true;
+        const auto count = idleCount; step(60000);
+        assert(!SystemSleep_IsBusy() && idleCount == count); return 0;
+    }
+    if (!std::strcmp(scenario, "stop-short-key")) {
+        // Edge arrives and is released entirely while SysTick is suspended.
+        simulatedWakePins = GPIO_BTN3_PIN;
+        SystemSleep_Idle(); step(40);
+        assert(!SystemSleep_IsBusy() && INPUT_STATE.running);
+        assert(lastStopInterval <= 10u); return 0;
+    }
     if (!std::strcmp(scenario, "disable-prepare") || !std::strcmp(scenario, "disable-sleep") ||
         !std::strcmp(scenario, "disable-restore")) {
         if (!std::strcmp(scenario, "disable-prepare")) assert(idleCount == 0);

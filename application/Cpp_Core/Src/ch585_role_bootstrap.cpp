@@ -15,12 +15,74 @@ void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
 
 void Ch585RoleBootstrap::shutdown()
 {
+    if (sleepResumeActive) {
+        // A failed SELECT_ROLE may have configured the USB bootstrap SPI port.
+        // Park it before the cold-restart retry removes CH585 power.
+        USBBoardLinkPort_Shutdown();
+        GPIO_InitTypeDef gpio = {};
+        gpio.Mode = GPIO_MODE_ANALOG;
+        gpio.Pull = GPIO_NOPULL;
+        gpio.Pin = CH585_SPI_NSS_PIN | CH585_SPI_SCK_PIN | CH585_SPI_MOSI_PIN | CH585_SPI_MISO_PIN;
+        HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &gpio);
+        gpio.Pin = CH585_IRQ_PIN;
+        HAL_GPIO_Init(CH585_IRQ_GPIO_PORT, &gpio);
+    }
+    sleepResumeActive = false;
     usbStartupPrepared = false;
     (void)BOARD_POWER.setUsbHostEnabled(false);
     BOARD_POWER.setCh585Enabled(false);
     RFBootReady::reset();
     activeRole = Ch585Role::SafeIdle;
     bootstrapState = Ch585BootstrapState::Off;
+}
+
+void Ch585RoleBootstrap::beginRfSleepResume()
+{
+    shutdown();
+    sleepResumeSince = HAL_GetTick();
+    sleepResumeAttempt = 0u;
+    sleepResumeActive = true;
+}
+
+int Ch585RoleBootstrap::serviceRfSleepResume()
+{
+    if (!sleepResumeActive || selector == nullptr) return -1;
+    const uint32_t now = HAL_GetTick();
+    if (bootstrapState == Ch585BootstrapState::Off) {
+        if (now - sleepResumeSince < CH585_POWER_OFF_MIN_MS) return 0;
+        BOARD_POWER.setCh585Enabled(true);
+        bootstrapState = Ch585BootstrapState::Booting;
+        sleepResumeSince = now;
+        return 0;
+    }
+    if (bootstrapState == Ch585BootstrapState::Booting) {
+        // Keep the bus idle for the complete existing handoff budget. Unlike
+        // start(), this path does not block UI rendering while CH585 boots.
+        if (now - sleepResumeSince < CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS) return 0;
+        bootstrapState = Ch585BootstrapState::Selecting;
+        sleepResumeSince = now;
+        sleepSelectLast = now - CH585_ROLE_SELECT_RETRY_MS;
+    }
+    if (bootstrapState == Ch585BootstrapState::Selecting) {
+        if (now - sleepSelectLast < CH585_ROLE_SELECT_RETRY_MS) return 0;
+        sleepSelectLast = now;
+        if (selector(Ch585Role::Rf)) {
+            activeRole = Ch585Role::Rf;
+            bootstrapState = Ch585BootstrapState::Locked;
+            sleepResumeActive = false;
+            return 1;
+        }
+        if (HAL_GetTick() - sleepResumeSince >= CH585_ROLE_SELECT_TIMEOUT_MS) {
+            const uint8_t attempt = sleepResumeAttempt;
+            shutdown();
+            if (attempt != 0u) { bootstrapState = Ch585BootstrapState::Failed; return -1; }
+            sleepResumeAttempt = 1u;
+            sleepResumeSince = HAL_GetTick();
+            sleepResumeActive = true;
+        }
+        return 0;
+    }
+    return -1;
 }
 
 bool Ch585RoleBootstrap::prepareUsbStartup()

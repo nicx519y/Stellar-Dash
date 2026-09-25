@@ -262,6 +262,7 @@ bool InputState::applyPhysicalMode(BoardMode mode,
                                    bool compatibilityRecovery)
 {
     SystemSleep_CancelForModeChange();
+    rfSleepPoweredOff = rfSleepRestartStarted = false;
     InputMode inputMode = STORAGE_MANAGER.getInputMode();
     const WirelessReportRate wirelessRate =
         STORAGE_MANAGER.getWirelessReportRate();
@@ -563,6 +564,7 @@ bool InputState::connectUsbRuntime()
 void InputState::exit()
 {
     SystemSleep_CancelForModeChange();
+    rfSleepPoweredOff = rfSleepRestartStarted = false;
     stopInputPipeline();
     USB_DRIVER.shutdown();
     USB_BOARD_LINK.shutdown();
@@ -631,6 +633,46 @@ bool InputState::resumeFromSleep()
     return true;
 }
 
+bool InputState::suspendSleepTransport()
+{
+    if (activeBoardMode == BoardMode::Usb) return true; // preserve enumeration
+    if (activeBoardMode != BoardMode::Rf || !sleepPaused || !RFBridgePort_IsInputIdle()) return false;
+    // Remove driven SPI signals before cutting the peer rail (no back-power).
+    RFBridgePort_Shutdown();
+    USB_BOARD_LINK.shutdown();
+    GPIO_InitTypeDef gpio = {};
+    gpio.Pin = RF_BRIDGE_IRQ_PIN;
+    gpio.Mode = GPIO_MODE_ANALOG;
+    gpio.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &gpio);
+    CH585_ROLE_BOOTSTRAP.shutdown();
+    CONNECTION_MANAGER.onRfPowerRemovedForSleep();
+    rfSleepPoweredOff = true;
+    rfSleepRestartStarted = false;
+    return true;
+}
+
+int InputState::resumeSleepTransport()
+{
+    if (!rfSleepPoweredOff) return 1;
+    if (activeBoardMode != BoardMode::Rf || !BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Rf) return -1;
+    if (!rfSleepRestartStarted) {
+        CH585_ROLE_BOOTSTRAP.setSelector(UsbBoardLink_SelectRoleCallback);
+        CH585_ROLE_BOOTSTRAP.beginRfSleepResume();
+        rfSleepRestartStarted = true;
+    }
+    const int result = CH585_ROLE_BOOTSTRAP.serviceRfSleepResume();
+    if (result <= 0) return result;
+    CONNECTION_MANAGER.setup(CONNECTION_MODE_RF24G, STORAGE_MANAGER.getWirelessReportRate(),
+                             STORAGE_MANAGER.getInputMode(), true);
+    if (!CONNECTION_MANAGER.isReportRateConfirmed()) return -1;
+    // ConnectionManager/TX continue the existing bonded reconnect procedure.
+    // Do not block the local screen/input pipeline on receiver availability.
+    rfSleepPoweredOff = rfSleepRestartStarted = false;
+    return 1;
+}
+
 void InputState::finishSleepResume()
 {
     sleepPaused = false;
@@ -641,6 +683,7 @@ void InputState::finishSleepResume()
 
 void InputState::failSleepResume()
 {
+    rfSleepPoweredOff = rfSleepRestartStarted = false;
     stopInputPipeline();
     teardownCh585Runtime();
     enterBoardSafeState();

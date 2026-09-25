@@ -4,10 +4,11 @@
 // Pure runtime policy. No retained state, storage, clocks or peripheral access.
 class AutoSleepPolicy {
 public:
-    enum class State { Active, Preparing, Sleeping, Restoring };
+    enum class State { Active, Preparing, Sleeping, RestoringTransport, Restoring };
     static constexpr uint32_t bootGuardMs = 30000u;
     static constexpr uint32_t prepareLimitMs = 500u;
     static constexpr uint32_t restoreLimitMs = 100u;
+    static constexpr uint32_t transportRestoreLimitMs = 8000u;
 
     void initialize(uint32_t now, bool enabled) {
         *this = AutoSleepPolicy{};
@@ -28,6 +29,7 @@ public:
     void transition(State next, uint32_t now) { state_ = next; since_ = now; }
     bool timedOut(uint32_t now) const {
         return (state_ == State::Preparing && elapsed(now) >= prepareLimitMs) ||
+               (state_ == State::RestoringTransport && elapsed(now) >= transportRestoreLimitMs) ||
                (state_ == State::Restoring && elapsed(now) >= restoreLimitMs);
     }
     void active(uint32_t now) { transition(State::Active, now); activity(now); }

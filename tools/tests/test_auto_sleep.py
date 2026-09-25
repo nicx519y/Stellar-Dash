@@ -92,7 +92,8 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                              'mode-change', 'restore-failure', 'keepalive-failure',
                              'cancel-before-pause', 'pause-failure', 'reset-pending', 'noise',
                              'disabled', 'retime', 'software', 'fault', 'debugger',
-                             'disable-prepare', 'disable-sleep', 'disable-restore'):
+                             'disable-prepare', 'disable-sleep', 'disable-restore',
+                             'stop-fault', 'stop-failure', 'stop-short-key'):
                 print(f'auto-sleep runtime: {scenario}', flush=True)
                 run_checked([str(exe), scenario])
             print(f'auto-sleep runtime: passed in {time.monotonic() - started:.2f}s', flush=True)
@@ -145,7 +146,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                 run_checked(command)
                 print(f'auto-sleep {phase}: passed in {time.monotonic() - started:.2f}s', flush=True)
 
-    def test_no_persistent_or_deep_sleep_side_effects(self):
+    def test_no_persistent_or_standby_side_effects(self):
         source = (ROOT / 'application/Cpp_Core/Src/system_sleep_manager.cpp').read_text(encoding='utf-8')
         for forbidden in ('HAL_PWR_EnterSTANDBYMode(', 'HAL_PWREx_EnterSTOPMode(',
                           'HAL_PWR_EnterSTOPMode(', 'saveConfig(', 'setBootMode(',
@@ -154,8 +155,13 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                           '__WFE('):
             self.assertNotIn(forbidden, source)
         self.assertNotIn('setCh585Enabled(false)', source)
-        self.assertEqual(source.count('__WFI()'), 1)
-        self.assertIn('__WFI()', source.split('void SystemSleep_Idle(void)')[1])
+        self.assertIn('SystemStop_Enter(', source.split('void SystemSleep_Idle(void)')[1])
+        stop = (ROOT / 'application/Cpp_Core/Src/system_stop.cpp').read_text(encoding='utf-8')
+        for forbidden in ('HAL_PWR_EnterSTANDBYMode(', 'HAL_FLASH_', 'HAL_RTCEx_BKUPWrite('):
+            self.assertNotIn(forbidden, stop)
+        self.assertEqual(stop.count('__WFI()'), 1)
+        self.assertIn('PWR_CPUCR_PDDS_D3 | PWR_CPUCR_RUN_D3', stop)
+        self.assertIn('SCB_CleanDCache_by_Addr', stop)
         config = (ROOT / 'application/Makefile').read_text(encoding='utf-8')
         self.assertIn('HBOX_AUTO_SLEEP_ENABLED ?= 1', config)
         board = (ROOT / 'application/Core/Inc/board_cfg.h').read_text(encoding='utf-8')

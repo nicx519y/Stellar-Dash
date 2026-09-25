@@ -1,4 +1,5 @@
 #include "system_sleep_manager.hpp"
+#include "system_stop.hpp"
 #include "auto_sleep_policy.hpp"
 #include "board_cfg.h"
 #include "board_power.hpp"
@@ -32,6 +33,7 @@ bool samplingResumed = false;
 uint32_t lastInput = 0u, lastKeys = 0u, lastKeepalive = 0u;
 uint32_t samplingResumeAt = 0u;
 uint32_t lastServiceMs = 0u;
+uint32_t stopWakeKeys = 0u;
 
 uint32_t rawKeys()
 {
@@ -65,7 +67,8 @@ void beginRestore(uint32_t now, uint32_t keys)
     if (!inputPaused) { policy.active(now); return; }
     BOARD_POWER.setHallEnabled(true);
     samplingResumed = false;
-    policy.transition(State::Restoring, now);
+    policy.transition(INPUT_STATE.sleepTransportOff() ? State::RestoringTransport : State::Restoring, now);
+    if (INPUT_STATE.sleepTransportOff()) SPIScreenManager::getInstance().resumeFromSleep();
     APP_STAGE("S94", "auto sleep restoring input; wake mask=%08lx", (unsigned long)keys);
 }
 
@@ -73,7 +76,7 @@ void fail(uint32_t now, const char* reason)
 {
     policy.inhibit();
     APP_STAGE_ERROR("S96", "auto sleep disabled for this boot: %s", reason);
-    if (policy.state() == State::Restoring) {
+    if (policy.state() == State::Restoring || policy.state() == State::RestoringTransport) {
         INPUT_STATE.failSleepResume();
         inputPaused = ledsStopped = false;
         policy.active(now);
@@ -91,9 +94,10 @@ extern "C" void SystemSleep_CaptureBootFlags(void)
     // as a manual reset, but always fail closed for explicit fault sources.
     const bool cold = (flags & (RCC_RSR_PORRSTF | RCC_RSR_BORRSTF)) != 0u;
     const bool software = (flags & RCC_RSR_SFTRSTF) != 0u;
+    const bool stopFault = SystemStop_ConsumeRecoveryFault(cold, software);
     resetInhibit = (flags & (RCC_RSR_IWDG1RSTF |
         RCC_RSR_WWDG1RSTF | RCC_RSR_LPWRRSTF)) != 0u ||
-        (!cold && !software && (flags & (RCC_RSR_PINRSTF | RCC_RSR_CPURSTF)) != 0u);
+        (!cold && !software && (flags & (RCC_RSR_PINRSTF | RCC_RSR_CPURSTF)) != 0u) || stopFault;
     forceRunPowerPolicy();
 }
 
@@ -143,7 +147,7 @@ extern "C" uint32_t SystemSleep_FilterInput(uint32_t mask)
 {
     // Collect held Hall keys across the initial debounce samples, not merely
     // the first DMA frame (which can precede a pressed-state transition).
-    if (policy.state() == State::Restoring) {
+    if (policy.state() == State::Restoring || policy.state() == State::RestoringTransport) {
         releaseGate.arm(mask);
         (void)releaseGate.filter(mask);
         return 0u;
@@ -177,6 +181,7 @@ extern "C" void SystemSleep_CancelForModeChange(void)
         SPIScreenManager::getInstance().resumeFromSleep();
     }
     inputPaused = ledsStopped = samplingResumed = false;
+    stopWakeKeys = 0u;
     policy.active(HAL_GetTick());
 }
 
@@ -237,11 +242,12 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
     const bool enteringActivity = policy.state() == State::Preparing &&
         (rawKeys() != 0u || lastInput != 0u);
     if ((policy.state() == State::Preparing || policy.state() == State::Sleeping) &&
-        (pressed != 0u || keys != 0u || enteringActivity || !BOARD_MODE.isStable())) {
-        beginRestore(now, keys | pressed | rawKeys());
+        (pressed != 0u || keys != 0u || stopWakeKeys != 0u || enteringActivity || !BOARD_MODE.isStable())) {
+        beginRestore(now, keys | pressed | rawKeys() | stopWakeKeys);
+        stopWakeKeys = 0u;
     }
 
-    if (inputPaused && !samplingResumed && now - lastKeepalive >= 10u) {
+    if (inputPaused && !samplingResumed && !INPUT_STATE.sleepTransportOff() && now - lastKeepalive >= 10u) {
         lastKeepalive = now;
         if (!INPUT_STATE.sendSleepNeutral()) { fail(now, "neutral keepalive failed"); return; }
     }
@@ -262,8 +268,16 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
 #endif
         }
         if (!screen.suspendForSleep()) return;
+        if (!INPUT_STATE.suspendSleepTransport()) { fail(now, "transport suspend failed"); return; }
         policy.transition(State::Sleeping, now);
-        APP_STAGE("S92", "auto sleep active; main/QSPI/CH585 retained");
+        APP_STAGE("S92", "STOP ready; main/QSPI retained, CH585 off=%u", INPUT_STATE.sleepTransportOff());
+    } else if (policy.state() == State::RestoringTransport) {
+        const int ready = INPUT_STATE.resumeSleepTransport();
+        if (ready < 0) { fail(HAL_GetTick(), "RF cold restart failed"); return; }
+        if (ready > 0) {
+            lastKeepalive = HAL_GetTick();
+            policy.transition(State::Restoring, HAL_GetTick());
+        }
     } else if (policy.state() == State::Restoring) {
         if (!samplingResumed && policy.elapsed(now) >= BOARD_HALL_STABILIZE_MS) {
             releaseGate.arm(keys & ~rotaryMask);
@@ -284,15 +298,20 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
 extern "C" void SystemSleep_Idle(void)
 {
 #if HBOX_AUTO_SLEEP_ENABLED == 1
-    // CPU-only shallow sleep. Peripheral preparation/recovery belongs to Service.
-    // SysTick and communications remain live; a tick bounds a raced key to 1 ms.
+    // CPU STOP only. USB keeps CH585 and services its neutral input cadence;
+    // RF powers CH585 off and wakes periodically for mode/charging service.
     if (!idleContextValid || !policy.enabled() || !userEnabled ||
         !STORAGE_MANAGER.getAutoSleepEnabled() || policy.state() != State::Sleeping ||
         !BOARD_MODE.isStable() || rawKeys() != 0u || __get_PRIMASK() != 0u ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return;
-    CLEAR_BIT(SCB->SCR, SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk);
-    __DSB();
-    __WFI();
-    __ISB();
+    const uint32_t elapsed = HAL_GetTick() - lastKeepalive;
+    const uint32_t interval = INPUT_STATE.sleepTransportOff() ? 100u : (elapsed < 10u ? 10u - elapsed : 1u);
+    uint32_t pins = 0u;
+    if (!SystemStop_Enter(interval, &pins)) { fail(HAL_GetTick(), "STOP preparation failed"); return; }
+    if (pins & GPIO_BTN1_PIN) stopWakeKeys |= 1u << GPIO_BTN1_VIRTUAL_PIN;
+    if (pins & GPIO_BTN2_PIN) stopWakeKeys |= 1u << GPIO_BTN2_VIRTUAL_PIN;
+    if (pins & GPIO_BTN3_PIN) stopWakeKeys |= 1u << GPIO_BTN3_VIRTUAL_PIN;
+    if (pins & GPIO_BTN4_PIN) stopWakeKeys |= 1u << GPIO_BTN4_VIRTUAL_PIN;
+    if (pins & ROTENC_BTN_PIN) stopWakeKeys |= rotaryMask;
 #endif
 }

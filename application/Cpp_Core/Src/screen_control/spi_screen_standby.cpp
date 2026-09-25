@@ -248,22 +248,20 @@ void ScreenStandby_InvalidateImageCache(void)
     g_need_redraw = true;
 }
 
-void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool activityEvent, bool wakeEvent)
+void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool screenInputEvent)
 {
-    bool activeInput = activityEvent;
     if (inputMask != g_last_input_mask) {
         g_last_input_mask = inputMask;
-        activeInput = true;
         if (g_active && g_display == 2u) {
             g_need_redraw = true;
         }
     }
-    if (activeInput) {
+    if (screenInputEvent) {
         g_last_activity_ms = nowMs;
-    }
-    if (g_active && wakeEvent) {
-        g_active = false;
-        g_need_redraw = true;
+        if (g_active) {
+            g_active = false;
+            g_need_redraw = true;
+        }
     }
 }
 

@@ -16,6 +16,8 @@ output/playwright/
 application/build
 application/build_auto_sleep_*/
 application/build_wfi_*/
+application/build_screen_idle_unlocked/
+application/build_stop_unlocked/
 application/build-webhid-direct-check/
 application/build-boot-profile*/
 application/build_live_feedback/

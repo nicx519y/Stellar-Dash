@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "system_sleep_manager.hpp"
+#include "system_stop.hpp"
 
 // Host-only peripheral stand-ins. The production sleep manager is compiled
 // unchanged; no USB/RF implementation, device access or flash tool is linked.
@@ -39,6 +40,18 @@ inline void __HAL_RCC_GPIOC_CLK_ENABLE() {}
 inline void __DSB() {}
 inline void __ISB() {}
 inline void __WFI() { ++idleCount; }
+inline bool stopOk = true, recoveryStopFault = false;
+inline uint32_t simulatedWakePins = 0, lastStopInterval = 0;
+inline bool SystemStop_ConsumeRecoveryFault(bool, bool) { return recoveryStopFault; }
+inline bool SystemStop_Enter(uint32_t interval, uint32_t* pins) {
+    if (!stopOk) return false;
+    ++idleCount;
+    scb.SCR = 0;
+    lastStopInterval = interval;
+    *pins = simulatedWakePins;
+    simulatedWakePins = 0;
+    return true;
+}
 inline void __disable_irq() { irqMask = 1; }
 inline uint32_t __get_PRIMASK() { return irqMask; }
 inline void __set_PRIMASK(uint32_t value) { irqMask = value; }
@@ -94,6 +107,9 @@ struct FakeInput {
     bool canAutoSleep() { return running && healthy; }
     bool sendSleepNeutral() { ++neutrals; return neutralOk; }
     bool pauseForSleep() { running = false; BOARD_POWER.hall = false; return pauseOk; }
+    bool suspendSleepTransport() { return true; }
+    bool sleepTransportOff() { return false; } // USB only; RF regression remains paused
+    int resumeSleepTransport() { return 1; }
     bool resumeFromSleep() { ++resumes; running = resumeOk; return resumeOk; }
     bool sleepInputReady() { return running; }
     void finishSleepResume() {}

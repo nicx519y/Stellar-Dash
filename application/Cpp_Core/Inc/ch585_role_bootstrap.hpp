@@ -38,6 +38,9 @@ public:
     bool prepareUsbStartup();
     bool hasPreparedUsbStartup() const { return usbStartupPrepared; }
     bool start(Ch585Role requestedRole);
+    // Nonblocking RF cold restart after sleep. No traffic in the IAP window.
+    void beginRfSleepResume();
+    int serviceRfSleepResume(); // 0 pending, 1 locked, -1 failed
     void shutdown();
 
     Ch585Role role() const { return activeRole; }
@@ -49,6 +52,10 @@ private:
     bool selectOnce(Ch585Role requestedRole);
 
     Ch585RoleSelector selector = nullptr;
+    uint32_t sleepResumeSince = 0u;
+    uint32_t sleepSelectLast = 0u;
+    uint8_t sleepResumeAttempt = 0u;
+    bool sleepResumeActive = false;
     Ch585Role activeRole = Ch585Role::SafeIdle;
     Ch585BootstrapState bootstrapState = Ch585BootstrapState::Off;
     bool usbStartupPrepared = false;

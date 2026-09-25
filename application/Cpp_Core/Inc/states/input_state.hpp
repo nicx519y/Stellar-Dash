@@ -37,6 +37,9 @@ public:
     bool canAutoSleep() const;
     bool sendSleepNeutral();
     bool pauseForSleep();
+    bool suspendSleepTransport();
+    int resumeSleepTransport(); // 0 pending, 1 ready, -1 failed
+    bool sleepTransportOff() const { return rfSleepPoweredOff; }
     bool resumeFromSleep();
     bool sleepInputReady() const { return sleepFreshSample; }
     void finishSleepResume();
@@ -59,6 +62,8 @@ private:
     bool inputPipelineRunning = false;
     bool sleepPaused = false;
     bool sleepFreshSample = false;
+    bool rfSleepPoweredOff = false;
+    bool rfSleepRestartStarted = false;
     bool usbRuntimeInitialized = false;
     bool usbRuntimeConnected = false;
     bool usbCompatibilityRecoveryUsed = false;

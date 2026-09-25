@@ -1,10 +1,10 @@
-# Auto Sleep（2026-09-25）
+# XORA Auto Sleep（2026-09-25）
 
 ## 当前交付状态
 
-第一阶段已实现 WFI 浅睡眠。`HBOX_AUTO_SLEEP_ENABLED` 默认 **1**，表示固件支持；持久化 `power.autoSleepEnabled` 默认 **false**，由用户主动开启。宏为 0 的恢复构建继续支持，网页通过只读 `autoSleepSupported` 判断能力。STOP 尚未实现，Standby 继续禁用。
+CPU 睡眠已改为 STOP，分 USB 保持 CH585 连接、RF 关闭 CH585 两条路径。`HBOX_AUTO_SLEEP_ENABLED` 默认 **1**，表示固件支持；持久化 `power.autoSleepEnabled` 默认 **false**，由用户主动开启。宏为 0 的恢复构建继续支持，网页通过只读 `autoSleepSupported` 判断能力。Standby 继续禁用。
 
-用户已确认升级 ST-Link 固件后恢复正常烧录。本次完成源码、主机测试、编译与 Mock 预览，尚未进行新固件的实机唤醒、启动/下载恢复和功耗验收，不能据此宣称硬件功能完善。
+用户已确认升级 ST-Link 固件后恢复正常烧录。STOP 本轮按用户要求只做实现、编译和简单主机检查，不烧录。唤醒、启动/下载恢复和功耗由用户实机验收；网页沿用原有开关，本轮未修改或重复预览。
 
 ## 行为
 
@@ -14,19 +14,22 @@
 - 正常 USB/RF Input 模式、连接和采样健康、无按键按住且无待保存屏幕设置时才计时。WebConfig、校准、升级及切换模式期间不睡眠；同步存储调用期间不会重入睡眠调度。
 - 初次满足运行条件后重新计时，开机至少保持 30 秒不自动睡眠。按键、释放和旋钮操作算活动；显示刷新和通信保活不算。
 - 停止 TIM2/ADC/DMA 后关闭霍尔；停止灯效 DMA 后关闭两路 LED 和升压；LCD 完成当前传输后关闭背光、SPI/DMA 和电源。
-- 主电源 PI4、QSPI 执行环境、系统时钟、CH585、必要 USB Host 认证供电及充电管理保持。每 10ms 发送中立输入保活；只有稳定 Sleeping 状态在 `SystemSleep_Idle()` 执行 WFI，清除 SLEEPDEEP/SLEEPONEXIT，顺序为 DSB/WFI/ISB，不跨 WFI 屏蔽中断。调试器连接、WebConfig、正常输入、复位请求和恢复阶段均跳过 WFI。
-- 1ms SysTick 采样四个功能键（PC6–PC9）和旋钮按压（PA0），稳定 5ms 判定有效。不开新 EXTI，避免 PC8 与 PI8 充电中断冲突。霍尔主按键和旋钮旋转不唤醒。
+- 主电源 PI4、RAM、QSPI 供电及寄存器保持。只有稳定 Sleeping 状态从 `SystemSleep_Idle()` 调用 `SystemStop_Enter()`；调试器连接、WebConfig、正常输入、复位请求和恢复阶段不进入 STOP。
+- USB 保留 CH585 及必要 USB Host 认证供电、枚举和连接，不执行 disconnect/reconnect；LPTIM2/LSI 按中立输入的 10ms 截止时间周期唤醒，继续处理 USB 事件。实际间隔含恢复与主循环开销，需实测。RF 先排空中立输入的 SPI 队列，将 SPI 引脚置高阻并关闭 CH585；不再发送保活，STM32 每约 100ms 唤醒检查物理模式和电源管理。
+- STOP 期间通过 EXTI 唤醒：PC6–PC9 四个功能键和 PA0 旋钮按压。临时将 EXTI8 从 PI8 切到 PC8，退出后恢复原映射；充电通知在切换前保留，并按低电平、用户唤醒或每秒补读。充电事件不能通过 PI8 在 STOP 中立即唤醒。霍尔主按键和旋钮旋转不唤醒。运行期间继续使用 1ms/5ms 去抖扫描；STOP 的按下边沿被锁存，短按释放后也不会丢失唤醒。
+- CPU 切到 HSI 后退出 VOS0，再进入 D1/D2/D3 STOP，所有 PDDS 位保持清零。SysTick 暂停，IRQ 在 RAM 恢复段暂时屏蔽；已使能 NVIC 的 pending IRQ 可唤醒 WFI，恢复原电压、HSE/PLL1/2/3 和 SYSCLK 后才允许 ISR 执行。LSI 计数补偿 HAL 毫秒时间，精度受 LSI 误差影响；不依赖已暂停的 SysTick 做恢复超时。LPTIM 用 RCC reset 停止，I2C1 在空闲时禁用 PE，遵循 ES0392 的 STOP 相关勘误。
 - 首键只唤醒。霍尔供电稳定 10ms 后恢复原有效采样率，收集初始 10ms 去抖样本并屏蔽当时按住的键直到释放。旋钮点击、长按及转动缓存被清除，避免误触菜单。
-- 输入恢复后启动灯光与 LCD；LCD 电源稳定、复位及退出睡眠的等待采用异步阶段，不重复开机时的存储迁移。唤醒跳过开机背光的 1 秒黑屏/2 秒渐亮，首帧传输完成后恢复用户亮度。输入恢复目标 ≤50ms、显示恢复目标 ≤500ms，均须实测。
+- USB 输入恢复后启动灯光与 LCD。RF 在开始恢复时先启动 LCD 异步恢复，同时分阶段重启 CH585：最少断电 20ms、上电静默 720ms、角色选择，失败最多一次电源重试；成功后恢复采样率并沿用已绑定重连，不依赖接收器在线才恢复本地界面。RF 不承诺 50ms 恢复通信，至少包含冷启动及空口重连时间。
+- LCD 电源稳定、复位及退出睡眠的等待采用异步阶段，不重复开机时的存储迁移。唤醒跳过开机背光的 1 秒黑屏/2 秒渐亮，首帧传输完成后恢复用户亮度。USB 输入恢复目标 ≤50ms、显示恢复目标 ≤500ms，均须实测。
 - LCD 恢复时显式重置屏保空闲计时，即使唤醒短按早已释放也先显示正常界面；背光恢复必须收到新首帧传输完成标志，不能仅以 SPI 不忙推断成功。用户报告的唤醒黑屏尚未完成实机归因与修复验收。
 
 ## 重启及故障边界
 
-- 所有睡眠状态仅存在于正常初始化 RAM。进入/退出不保存配置，不改 boot mode、RF 持久化提示或升级标记；不改 bootloader、槽位和 Flash 布局。
-- 保留启动时清除深睡选择的原有逻辑，任何旧 Standby 请求仍被忽略。没有 STOP/Standby、保护位、芯片配置字或下载通道操作。
+- 普通睡眠状态位于正常初始化 RAM。仅时钟恢复失败时，在独立 32 字节 NOLOAD RAM 段记录一次性故障，然后执行普通软件复位；下次启动消费并清除标记，禁止本次睡眠，冷上电不使用旧标记。进入/退出不保存配置，不改 boot mode、RF 持久化提示或升级标记；不改 bootloader、槽位和 Flash 布局。
+- 保留启动时清除深睡选择的原有逻辑，任何旧 Standby 请求仍被忽略。没有保护位、芯片配置字或下载通道操作。
 - 启动早期任一功能键/旋钮稳定按住 20ms，即禁用本次运行的自动睡眠，启动键释放后才能正常使用；不依赖显示、通信或 ADC。
 - 看门狗/低功耗异常复位，或无冷启动和软件复位标志的 PIN/CPU 复位，禁用本次运行的自动睡眠。正常软件重启允许用户配置生效；POR/BOR 或软件复位同时携带 PIN/CPU 标志时不误判，明确异常标志优先。
-- 准备阶段 500ms、输入恢复 100ms、显示恢复 1000ms 为故障截止时间。准备失败取消并恢复；输入恢复失败进入现有输入故障安全状态；显示恢复失败保持输入可用。本次运行不再尝试睡眠，无自动重启循环。
+- 准备阶段 500ms、RF 传输恢复 8000ms、输入恢复 100ms、显示恢复 1000ms 为故障截止时间；RF 传输恢复结束后独立重新开始输入恢复计时。准备失败取消并恢复；输入恢复失败进入现有输入故障安全状态；显示恢复失败保持输入可用。本次运行不再尝试睡眠。时钟恢复失败执行上述带一次性禁止标记的普通复位。
 - 模式切换由原输入状态负责重新建立资源所有权。取消睡眠不会自行重启旧通信角色。
 - 当前未启用硬件看门狗。CPU 完全卡死不受软件截止时间保护，仍使用普通复位/重新上电；启动绕过用于阻止恢复后再次触发睡眠故障。
 
@@ -41,8 +44,8 @@ python -m unittest tools.tests.test_auto_sleep -v
 无锁、隔离目录编译（切换宏不能混用对象）：
 
 ```text
-make -C application -j4 HBOX_SECURE_BOOT_REQUIRED=0 HBOX_AUTO_SLEEP_ENABLED=0 BUILD_DIR=build_wfi_0
-make -C application -j4 HBOX_SECURE_BOOT_REQUIRED=0 HBOX_AUTO_SLEEP_ENABLED=1 BUILD_DIR=build_wfi_1
+make -C application -j4 HBOX_SECURE_BOOT_REQUIRED=0 HBOX_AUTO_SLEEP_ENABLED=0 BUILD_DIR=build_stop_recovery
+make -C application -j4 HBOX_SECURE_BOOT_REQUIRED=0 HBOX_AUTO_SLEEP_ENABLED=1 BUILD_DIR=build_stop_unlocked
 ```
 
 WebConfig：在 `application/www` 运行 `npm run typecheck`；配置队列、自动保存、Mock 与导入导出用对应测试验证。新增字段沿用现有命令与保存/应答/回读流程。
@@ -88,4 +91,12 @@ WebConfig：在 `application/www` 运行 `npm run typecheck`；配置队列、�
 
 验证：`python -m unittest tools.tests.test_auto_sleep` 的 6 项测试通过（包含生产恢复序列 20 次循环、阶段边界、计时回绕和失败路径）。网页未修改，未重复其测试；未连接或烧录硬件。
 
-本次最终无锁槽 A 构建及签名/manifest 校验通过（约 45 秒）；Application SHA-256：`f915fa6f0389b790abd8994db0e0539e8834564d8d4a4951996b49649ebc43a2`。本轮未修改任何保护位或锁定状态。
+此前 LCD 修复轮次的无锁槽 A 构建及签名/manifest 校验通过（约 45 秒）；历史 Application SHA-256：`f915fa6f0389b790abd8994db0e0539e8834564d8d4a4951996b49649ebc43a2`。该产物不包含后续 STOP 改动，不能当作 STOP 固件使用。
+
+## STOP 本轮检查记录
+
+- `python -m unittest tools.tests.test_auto_sleep`：6 项通过，约 3.5 秒。包含 USB 假外设下 23 个管理器场景；新增 STOP 准备失败、恢复故障启动禁止、睡眠期间短按边沿锁存。主机测试不执行真实低功耗寄存器切换。
+- `make -C application -j8 HBOX_SECURE_BOOT_REQUIRED=0 HBOX_AUTO_SLEEP_ENABLED=1 BUILD_DIR=build_stop_unlocked`：编译通过，首次约 24 秒，最后修改后增量约 4 秒。存在未使用变量、初始化以及 RWX 链接告警，不代表实机验收。
+- ELF 检查：`SystemStop_Enter` 和 WFI 位于 AXI RAM；故障标记为独立 32 字节 NOLOAD RAM 段。差异空白检查通过。
+- RF 路径仅源码检查和 STM32 编译，遵守暂停 RF 自动回归/采样要求。未修改 CH585/RX 固件，未烧录、未做实机测量，未修改任何保护位或锁定状态。
+- 本轮生成的是编译检查产物，未重新生成签名槽 manifest。用户自行烧录时执行 `python tools/hbox.py flash app A --build`，通过既有入口重建完整槽 A 产物后刷写；不要复用旧槽产物或直接写入裸 bin/hex。

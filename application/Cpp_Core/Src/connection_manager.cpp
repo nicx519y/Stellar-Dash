@@ -426,7 +426,7 @@ void ConnectionManager::serviceRfPairingTimeout()
 
 void ConnectionManager::setup(ConnectionMode connMode,
                               WirelessReportRate wirelessRate,
-                              InputMode inputMode) {
+                              InputMode inputMode, bool coldSleepResume) {
     BP_APP_SCOPE(BP_APP_CONNECTION_SETUP);
     mode = connMode;
     inputMode = effectiveInputModeForConnection(mode, inputMode);
@@ -436,7 +436,8 @@ void ConnectionManager::setup(ConnectionMode connMode,
     rateApplyPending = false;
     reportRateConfirmed = mode == ConnectionMode::CONNECTION_MODE_USB;
     rfHighRateEligible = inputMode == INPUT_MODE_XINPUT;
-    loadRfPowerStateHint();
+    if (coldSleepResume) setRfPowerState(RfPowerState::Unknown, false);
+    else loadRfPowerStateHint();
     linkState = ConnectionLinkState::Disconnected;
     lastRfStatusPollMs = HAL_GetTick();
     lastRfLinkEventCounter = rfTransport.getStatus().eventCounter;
@@ -491,7 +492,14 @@ void ConnectionManager::setup(ConnectionMode connMode,
         rateOk = wakeRfFromSleep(RfPowerReason::SystemWake) &&
                  restoreRfRuntime(wirelessRate);
     } else {
-        rateOk = initializeRfPowerForMode(mode, wirelessRate);
+        if (coldSleepResume) {
+            // A power-cycled peer needs ordinary role/rate setup, not a wake
+            // pulse based on historical hints. No persistent sleep writes.
+            setRfPowerState(RfPowerState::Awake, false);
+            rateOk = restoreRfRuntime(wirelessRate);
+        } else {
+            rateOk = initializeRfPowerForMode(mode, wirelessRate);
+        }
     }
     rateApplyPending = false;
     printf("[RF_RATE] setup setRate result=%u requested=%u applied=%u\r\n",
@@ -950,6 +958,15 @@ bool ConnectionManager::sleepRfModule() {
         return false;
     }
     return ensureRfSleeping(RfPowerReason::Manual);
+}
+
+void ConnectionManager::onRfPowerRemovedForSleep()
+{
+    rfEventServiceEnabled = false;
+    reportRateConfirmed = false;
+    appliedReportRateHz = 0u;
+    setRfPowerState(RfPowerState::Unknown, false);
+    setLinkState(ConnectionLinkState::Disconnected);
 }
 
 bool ConnectionManager::wakeRfModule() {
