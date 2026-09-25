@@ -12,6 +12,9 @@ bool USBBoardLinkPort_DisableFastApplication();
 bool USBBoardLinkPort_IsFastApplication();
 uint32_t USBBoardLinkPort_ClockHz();
 void USBBoardLinkPort_Shutdown();
+bool USBBoardLinkPort_TryShutdown();
+// RF wake only: one real SELECT_ROLE exchange with a total 20-ms budget.
+bool USBBoardLinkPort_SelectRfRoleOnce();
 bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength);
 bool USBBoardLinkPort_Transact(const uint8_t *frame,
                                uint8_t frameLength,

@@ -51,7 +51,7 @@ static constexpr uint8_t INPUT_CRC_OFFSET = 9u;
 static constexpr uint16_t INPUT_BATTERY_BASE_MV = 3000u;
 static constexpr uint16_t INPUT_BATTERY_STEP_MV = 10u;
 static constexpr uint8_t INPUT_BATTERY_MAX_CODE = 0x7Fu;
-static constexpr uint8_t STATUS_PAYLOAD_LEN = 23u;
+static constexpr uint8_t STATUS_PAYLOAD_LEN = RFReliableEvent::maxPayloadLength;
 static constexpr uint8_t STATUS_CMD_TAG_OFFSET = 16u;
 static constexpr uint8_t STATUS_TXN_OFFSET = 17u;
 static constexpr uint8_t STATUS_RESULT_OFFSET = 18u;
@@ -161,6 +161,30 @@ static uint8_t encodeBatteryMv(uint32_t mv) {
     return code > INPUT_BATTERY_MAX_CODE ? INPUT_BATTERY_MAX_CODE : static_cast<uint8_t>(code);
 }
 
+}
+
+void RFTransport::resetSession() {
+    state = RFTransportState::Disconnected;
+    status = {};
+    receivedStatusGeneration_ = 0u;
+    RFReliableEvent::resetSession();
+    g_pendingTimeSyncEcho = {};
+    g_relative = {};
+    g_relative_event = 0;
+    g_relative_enabled = false;
+    g_relative_pending_head = g_relative_pending_tail = g_relative_pending_count = 0u;
+    g_traceHead = g_traceTail = g_traceSeq = 0u;
+    g_traceActive = false;
+    g_traceBaseline = true;
+    g_traceUntilMs = 0u;
+    g_traceClock = {};
+    g_haveLastInputKeyMask = false;
+    g_lastInputKeyMask = 0u;
+    RFBridgePort_SetDmaReplyCapable(false);
+}
+
+bool RFTransport::acceptRecoveryFrame(const uint8_t* frame, uint16_t len) {
+    return parseEventFrame(frame, len);
 }
 
 bool RFTransport::parseStatusPayload(const uint8_t* payload, uint8_t len) {
@@ -277,6 +301,10 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len, bool* appl
 
     status.lastEvent = evt;
     status.eventCounter++;
+    // Only a physically received, checksum-validated GET_STATUS reply counts.
+    // Synthetic SET_RATE completion and asynchronous events cannot satisfy it.
+    if (evt == EVT_STATUS && statusOk && status.lastCommandTag == CMD_GET_STATUS)
+        ++receivedStatusGeneration_;
     if (applied != nullptr) {
         *applied = true;
     }

@@ -167,6 +167,26 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
         board = (ROOT / 'application/Core/Inc/board_cfg.h').read_text(encoding='utf-8')
         self.assertIn('#ifndef HBOX_AUTO_SLEEP_ENABLED\n#define HBOX_AUTO_SLEEP_ENABLED 1', board)
 
+    def test_stop_restores_run_voltage_before_fast_clocks(self):
+        # Source-order contract, not a simulation of regulator readiness.
+        # STOP clears Run VOS to VOS3 even when VOSRDY is already set.
+        stop = (ROOT / 'application/Cpp_Core/Src/system_stop.cpp').read_text(encoding='utf-8')
+        save = stop.index('const uint32_t oldVos = PWR->D3CR & PWR_D3CR_VOS;')
+        sleep = stop.index('__WFI()')
+        restore = stop.index('MODIFY_REG(PWR->D3CR, PWR_D3CR_VOS, oldVos);')
+        selected = stop.index('waitBits(PWR->D3CR, PWR_D3CR_VOS | PWR_D3CR_VOSRDY,', restore)
+        actual = stop.index('waitBits(PWR->CSR1, PWR_CSR1_ACTVOS | PWR_CSR1_ACTVOSRDY,', selected)
+        boost = stop.index('SET_BIT(SYSCFG->PWRCR, SYSCFG_PWRCR_ODEN);', actual)
+        boost_ready = stop.index('waitBits(PWR->D3CR, PWR_D3CR_VOSRDY, PWR_D3CR_VOSRDY)', boost)
+        plls = stop.index('SET_BIT(RCC->CR, plls);', boost_ready)
+        fast_clock = stop.index('MODIFY_REG(RCC->CFGR, RCC_CFGR_SW | RCC_CFGR_STOPWUCK,', plls)
+        self.assertEqual(sorted((save, sleep, restore, selected, actual, boost,
+                                 boost_ready, plls, fast_clock)),
+                         [save, sleep, restore, selected, actual, boost,
+                          boost_ready, plls, fast_clock])
+        self.assertIn('oldVos | PWR_D3CR_VOSRDY)) recoveryReset();', stop[selected:actual])
+        self.assertIn('actualVos | PWR_CSR1_ACTVOSRDY)) recoveryReset();', stop[actual:boost])
+
 
 if __name__ == '__main__':
     unittest.main()

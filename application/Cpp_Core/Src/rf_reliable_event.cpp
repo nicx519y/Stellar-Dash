@@ -11,7 +11,7 @@ static constexpr uint8_t RF_SYNC = 0xA5u;
 static constexpr uint8_t EVT_STATE_CHANGED = 0x82u;
 static constexpr uint8_t STATUS_EVENT_SEQ_OFFSET = 20u;
 static constexpr uint8_t STATUS_EVENT_COMPLETE_MS_OFFSET = 21u;
-static constexpr uint8_t MAX_PAYLOAD_LEN = 24u;
+static constexpr uint8_t MAX_PAYLOAD_LEN = RFReliableEvent::maxPayloadLength;
 
 #ifndef RF_RELIABLE_EVENT_LOG
 #define RF_RELIABLE_EVENT_LOG 0
@@ -97,7 +97,7 @@ static void storePending(uint8_t evt, const uint8_t* payload, uint8_t payloadLen
     const uint8_t seq = payload[STATUS_EVENT_SEQ_OFFSET];
     const uint16_t completeInMs = readU16(&payload[STATUS_EVENT_COMPLETE_MS_OFFSET]);
     const uint32_t now = HAL_GetTick();
-    const bool duplicate = g_pending.active &&
+    [[maybe_unused]] const bool duplicate = g_pending.active &&
                            (g_pending.evt == evt) &&
                            (g_pending.seq == seq);
     const bool alreadyCompleted =
@@ -126,6 +126,13 @@ static void storePending(uint8_t evt, const uint8_t* payload, uint8_t payloadLen
 }
 
 namespace RFReliableEvent {
+
+void resetSession() {
+    g_pending = PendingEvent{};
+    g_completed = CompletedEvent{};
+    g_haveLastCompleted = false;
+    g_lastCompletedEvt = g_lastCompletedSeq = 0u;
+}
 
 bool completeFrameIfNeeded(const uint8_t* frame, uint16_t frameLen) {
     if ((frame == nullptr) || (frameLen < 4u) || (frame[0] != RF_SYNC)) {

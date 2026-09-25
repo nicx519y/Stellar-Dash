@@ -47,6 +47,9 @@ class RFTransport {
 public:
     RFTransport() = default;
     bool begin();
+    void resetSession();
+    bool acceptRecoveryFrame(const uint8_t* frame, uint16_t len);
+    uint32_t receivedStatusGeneration() const { return receivedStatusGeneration_; }
     bool startPair();
     bool stopPair();
     bool unbind();
@@ -73,6 +76,7 @@ private:
 
     RFTransportState state = RFTransportState::Disconnected;
     RFModuleStatus status = {};
+    uint32_t receivedStatusGeneration_ = 0u;
 };
 
 #endif

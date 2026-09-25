@@ -1,3 +1,4 @@
+#include "sleep_diagnostics.hpp"
 #include "system_stop.hpp"
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h"
@@ -192,6 +193,7 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
     const uint32_t oldCr = RCC->CR;
     const uint32_t oldCfgr = RCC->CFGR;
     const uint32_t oldPwr = PWR->CR1;
+    const uint32_t oldVos = PWR->D3CR & PWR_D3CR_VOS;
     const uint32_t oldOverdrive = SYSCFG->PWRCR & SYSCFG_PWRCR_ODEN;
     const uint32_t i2cCr1 = i2cClocked ? I2C1->CR1 : 0u;
     SCB_CleanDCache();
@@ -234,17 +236,30 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
         // the next 16-bit wrap if its ISR already consumed that notification.
         if (!heldPins() && !(EXTI->PR1 & allPins) && capturedPins == 0u &&
             counter() < LPTIM2->CMP) {
+            ++g_sleepDiagnostics.stopEntries;
+            g_sleepDiagnostics.stage = static_cast<uint32_t>(SleepStage::StopEnter);
             __DSB();
             __WFI();
             __ISB();
+            ++g_sleepDiagnostics.stopReturns;
+            g_sleepDiagnostics.stage = static_cast<uint32_t>(SleepStage::StopReturn);
         }
     }
     CLEAR_BIT(SCB->SCR, SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk);
     SET_BIT(PWR->CPUCR, PWR_CPUCR_RUN_D3);
     PWR->CR1 = oldPwr;
-    if (!waitBits(PWR->D3CR, PWR_D3CR_VOSRDY, PWR_D3CR_VOSRDY)) recoveryReset();
+    // RM0433 6.6.2: a real system STOP resets Run voltage scaling to VOS3.
+    // VOSRDY alone only confirms that *VOS3* is ready. Restore the saved Run
+    // scale on HSI before enabling VOS0 overdrive or any high-speed clock.
+    MODIFY_REG(PWR->D3CR, PWR_D3CR_VOS, oldVos);
+    if (!waitBits(PWR->D3CR, PWR_D3CR_VOS | PWR_D3CR_VOSRDY,
+                  oldVos | PWR_D3CR_VOSRDY)) recoveryReset();
+    const uint32_t actualVos = (oldVos >> PWR_D3CR_VOS_Pos) << PWR_CSR1_ACTVOS_Pos;
+    if (!waitBits(PWR->CSR1, PWR_CSR1_ACTVOS | PWR_CSR1_ACTVOSRDY,
+                  actualVos | PWR_CSR1_ACTVOSRDY)) recoveryReset();
     if (oldOverdrive) {
         SET_BIT(SYSCFG->PWRCR, SYSCFG_PWRCR_ODEN);
+        if (!waitBits(PWR->D3CR, PWR_D3CR_VOSRDY, PWR_D3CR_VOSRDY)) recoveryReset();
         if (!waitBits(PWR->CSR1, PWR_CSR1_ACTVOSRDY, PWR_CSR1_ACTVOSRDY)) recoveryReset();
     }
     // PLL configuration and peripheral registers are retained in STOP. Restore

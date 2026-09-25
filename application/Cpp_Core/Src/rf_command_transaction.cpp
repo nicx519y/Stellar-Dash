@@ -142,6 +142,26 @@ uint8_t RFCommandTransaction::nextTransactionId() {
     return s_nextTxn;
 }
 
+void RFCommandTransaction::beginScheduled(RFScheduledCommand& window, uint32_t now) {
+    window = {};
+    window.started = now;
+    window.txn = nextTransactionId();
+}
+
+void RFCommandTransaction::stepScheduled(RFScheduledCommand& window, uint8_t cmd,
+                                        const uint8_t* args, uint8_t argsLen, uint32_t now) {
+    const uint32_t elapsed = now - window.started;
+    if (elapsed >= SCHEDULED_COMMAND_WINDOW_MS) return;
+    const uint8_t slot = static_cast<uint8_t>(elapsed / 5u);
+    if (slot < window.nextSlot) return;
+    window.nextSlot = slot + 1u; // missed copies expire, never transmit a backlog
+    uint8_t frame[32] = {};
+    uint16_t len = 0;
+    if (buildScheduledCommandFrame(cmd, window.txn, remainingMs(window.started, now),
+                                   args, argsLen, frame, len) &&
+        RFBridgePort_RecoverySend(frame, len)) window.sent = true;
+}
+
 bool RFCommandTransaction::send(uint8_t cmd,
                                 const uint8_t* args,
                                 uint8_t argsLen,

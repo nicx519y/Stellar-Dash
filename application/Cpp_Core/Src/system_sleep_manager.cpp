@@ -1,5 +1,6 @@
 #include "system_sleep_manager.hpp"
 #include "system_stop.hpp"
+#include "sleep_diagnostics.hpp"
 #include "auto_sleep_policy.hpp"
 #include "board_cfg.h"
 #include "board_power.hpp"
@@ -67,8 +68,9 @@ void beginRestore(uint32_t now, uint32_t keys)
     if (!inputPaused) { policy.active(now); return; }
     BOARD_POWER.setHallEnabled(true);
     samplingResumed = false;
-    policy.transition(INPUT_STATE.sleepTransportOff() ? State::RestoringTransport : State::Restoring, now);
-    if (INPUT_STATE.sleepTransportOff()) SPIScreenManager::getInstance().resumeFromSleep();
+    policy.transition(State::RestoringLocal, now);
+    SleepDiagnostics_Record(SleepStage::LocalRestore);
+    SPIScreenManager::getInstance().resumeFromSleep();
     APP_STAGE("S94", "auto sleep restoring input; wake mask=%08lx", (unsigned long)keys);
 }
 
@@ -76,7 +78,7 @@ void fail(uint32_t now, const char* reason)
 {
     policy.inhibit();
     APP_STAGE_ERROR("S96", "auto sleep disabled for this boot: %s", reason);
-    if (policy.state() == State::Restoring || policy.state() == State::RestoringTransport) {
+    if (policy.state() == State::RestoringLocal) {
         INPUT_STATE.failSleepResume();
         inputPaused = ledsStopped = false;
         policy.active(now);
@@ -147,7 +149,7 @@ extern "C" uint32_t SystemSleep_FilterInput(uint32_t mask)
 {
     // Collect held Hall keys across the initial debounce samples, not merely
     // the first DMA frame (which can precede a pressed-state transition).
-    if (policy.state() == State::Restoring || policy.state() == State::RestoringTransport) {
+    if (policy.state() == State::RestoringLocal) {
         releaseGate.arm(mask);
         (void)releaseGate.filter(mask);
         return 0u;
@@ -235,6 +237,7 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
         if (!policy.shouldPrepare(now, configuredTimeout, eligible)) return;
         inputPaused = ledsStopped = samplingResumed = false;
         policy.transition(State::Preparing, now);
+        SleepDiagnostics_Record(SleepStage::Preparing);
         APP_STAGE("S91", "auto sleep preparing");
     }
 
@@ -244,6 +247,7 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
     if ((policy.state() == State::Preparing || policy.state() == State::Sleeping) &&
         (pressed != 0u || keys != 0u || stopWakeKeys != 0u || enteringActivity || !BOARD_MODE.isStable())) {
         beginRestore(now, keys | pressed | rawKeys() | stopWakeKeys);
+        g_sleepDiagnostics.wakePins = keys | pressed | rawKeys() | stopWakeKeys;
         stopWakeKeys = 0u;
     }
 
@@ -271,14 +275,7 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
         if (!INPUT_STATE.suspendSleepTransport()) { fail(now, "transport suspend failed"); return; }
         policy.transition(State::Sleeping, now);
         APP_STAGE("S92", "STOP ready; main/QSPI retained, CH585 off=%u", INPUT_STATE.sleepTransportOff());
-    } else if (policy.state() == State::RestoringTransport) {
-        const int ready = INPUT_STATE.resumeSleepTransport();
-        if (ready < 0) { fail(HAL_GetTick(), "RF cold restart failed"); return; }
-        if (ready > 0) {
-            lastKeepalive = HAL_GetTick();
-            policy.transition(State::Restoring, HAL_GetTick());
-        }
-    } else if (policy.state() == State::Restoring) {
+    } else if (policy.state() == State::RestoringLocal) {
         if (!samplingResumed && policy.elapsed(now) >= BOARD_HALL_STABILIZE_MS) {
             releaseGate.arm(keys & ~rotaryMask);
             if (!INPUT_STATE.resumeFromSleep()) { fail(now, "ADC restart failed"); return; }
@@ -288,6 +285,7 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
         if (samplingResumed && INPUT_STATE.sleepInputReady() && now - samplingResumeAt >= 10u) {
             APP_STAGE("S94", "input restored after %lu ms", (unsigned long)policy.elapsed(now));
             INPUT_STATE.finishSleepResume();
+            SleepDiagnostics_Record(SleepStage::LocalReady);
             inputPaused = ledsStopped = false;
             policy.active(now);
             screen.resumeFromSleep();
@@ -305,7 +303,7 @@ extern "C" void SystemSleep_Idle(void)
         !BOARD_MODE.isStable() || rawKeys() != 0u || __get_PRIMASK() != 0u ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return;
     const uint32_t elapsed = HAL_GetTick() - lastKeepalive;
-    const uint32_t interval = INPUT_STATE.sleepTransportOff() ? 100u : (elapsed < 10u ? 10u - elapsed : 1u);
+    const uint32_t interval = INPUT_STATE.sleepTransportOff() ? 10u : (elapsed < 10u ? 10u - elapsed : 1u);
     uint32_t pins = 0u;
     if (!SystemStop_Enter(interval, &pins)) { fail(HAL_GetTick(), "STOP preparation failed"); return; }
     if (pins & GPIO_BTN1_PIN) stopWakeKeys |= 1u << GPIO_BTN1_VIRTUAL_PIN;

@@ -60,6 +60,9 @@ public:
     bool restoreRfRuntime(WirelessReportRate wirelessRate);
     bool sleepRfModule();
     void onRfPowerRemovedForSleep();
+    void resetRfSleepSession();
+    void setRfSleepRecoveryError(bool error);
+    void completeRfSleepRecovery(const RFTransport& transport, uint16_t rate);
     bool wakeRfModule();
 
     ConnectionMode getMode() const { return mode; }
@@ -117,6 +120,7 @@ private:
     uint32_t rfSendTotal = 0;
     uint32_t rfLastSeq = 0;
     bool rfEventServiceEnabled = false;
+    bool rfSleepRecoveryOwned = false;
     bool rfPairingActive = false;
     bool rfPairSucceeded = false;
     RfPairingState rfPairingState = RfPairingState::Idle;

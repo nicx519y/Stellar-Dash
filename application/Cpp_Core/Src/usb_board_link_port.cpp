@@ -7,6 +7,7 @@
 #include "rf_bridge_port.hpp"
 #include "stm32h7xx_hal.h"
 #include "usb_board_link_protocol.h"
+#include "usb_board_link_codec.h"
 
 #ifndef CH585_SPI_INSTANCE
 #define CH585_SPI_INSTANCE RF_BRIDGE_SPI_INSTANCE
@@ -432,16 +433,75 @@ bool USBBoardLinkPort_InitApplication()
     return true;
 }
 
-void USBBoardLinkPort_Shutdown()
+bool USBBoardLinkPort_TryShutdown()
 {
     if (!s_ready) {
-        return;
+        return true;
     }
     chipSelect(true);
-    (void)HAL_SPI_DeInit(&s_hspi);
+    if (HAL_SPI_DeInit(&s_hspi) != HAL_OK) return false;
     s_waitingEventRelease = false;
     s_fastApplication = false;
     s_ready = false;
+    return true;
+}
+
+void USBBoardLinkPort_Shutdown() { (void)USBBoardLinkPort_TryShutdown(); }
+
+bool USBBoardLinkPort_SelectRfRoleOnce()
+{
+    if (!USBBoardLinkPort_Init()) return false;
+    const uint32_t started = HAL_GetTick();
+    constexpr uint32_t budget = 20u;
+    const uint8_t role = USB_BOARD_ROLE_RF;
+    uint8_t request[5] = {};
+    uint8_t requestLength = 0;
+    if (!usb_board_link_encode(USB_BOARD_CMD_SELECT_ROLE, &role, 1u,
+                               request, sizeof(request), &requestLength)) return false;
+    // A late real ACK from this same cold-start attempt is valid. Never use
+    // cached UsbBoardLink role/capability state as evidence for wake.
+    if (!USBBoardLinkPort_HasEvent() && !USBBoardLinkPort_Send(request, requestLength)) return false;
+    while (HAL_GetTick() - started < budget) {
+        if (!USBBoardLinkPort_HasEvent()) { HAL_Delay(1u); continue; }
+        // ROLE_SELECTED is six bytes. Allow the existing small scan prefix,
+        // but reject oversized/unrelated replies without an unbounded drain.
+        uint8_t raw[14] = {};
+        uint8_t count = 0, start = 0, total = 0;
+        bool valid = false;
+        chipSelect(false);
+        while (count < sizeof(raw) && HAL_GetTick() - started < budget) {
+            uint8_t fill = 0xffu;
+            const uint32_t used = HAL_GetTick() - started;
+            if (used >= budget) break;
+            const uint32_t remaining = budget - used;
+            if (HAL_SPI_TransmitReceive(&s_hspi, &fill, &raw[count], 1u,
+                                       remaining < kSpiTimeoutMs ? remaining : kSpiTimeoutMs) != HAL_OK) break;
+            ++count;
+            if (!total && count >= 3u) {
+                const uint8_t at = count - 3u;
+                if (raw[at] == USB_BOARD_LINK_SYNC && raw[at + 1u] == USB_BOARD_EVT_ROLE_SELECTED &&
+                    raw[at + 2u] == sizeof(usb_board_role_selected_v1_t)) {
+                    start = at;
+                    total = 4u + sizeof(usb_board_role_selected_v1_t);
+                }
+            }
+            if (total && count == start + total) {
+                usb_board_link_frame_t reply = {};
+                valid = usb_board_link_decode(raw + start, total, &reply) &&
+                    reply.payload[0] == USB_BOARD_ROLE_RF && reply.payload[1] == USB_BOARD_STATUS_OK;
+                break;
+            }
+        }
+        chipSelect(true);
+        s_waitingEventRelease = true;
+        const uint32_t elapsed = HAL_GetTick() - started;
+        if (elapsed < budget) {
+            const uint32_t left = budget - elapsed;
+            (void)waitEventHigh(left < kEventReleaseTimeoutMs ? left : kEventReleaseTimeoutMs);
+        }
+        return valid;
+    }
+    return false;
 }
 
 bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)

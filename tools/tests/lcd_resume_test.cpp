@@ -15,6 +15,9 @@ void SPIST7789_ResumeReady(void) { ready = true; }
 bool SPIST7789_IsReady(void) { return ready; }
 void SPIST7789_DeInit(void) { ready = powered = false; SPIST7789_CancelResume(); }
 int main() {
+    assert(LcdWakeFrame::refreshAllowed(false, false)); // ordinary rendering
+    assert(LcdWakeFrame::refreshAllowed(false, true));
+    assert(!LcdWakeFrame::refreshAllowed(true, false)); // preparation/sleep
     assert(SPIST7789_BacklightCompare(999u, 0u, true) == 1000u);
     assert(SPIST7789_BacklightCompare(999u, 100u, true) == 0u);
     assert(SPIST7789_BacklightCompare(999u, 0u, false) == 0u);
@@ -37,10 +40,21 @@ int main() {
         assert((commands == std::vector<unsigned>{1, 0x11, 0x3a, 0x36, 0x21, 0x13, 0x29}));
         LcdWakeFrame frame; frame.begin(start);
         assert(frame.poll(start + 390, false, true, false) == 0); // stale done
+        // The input owner remains busy longer than the first-frame deadline.
+        // LCD init/DMA must still run and make the display visible beforehand.
+        bool pending = true;
+        const auto serviceFrame = [&](uint32_t now, bool busy, bool done) {
+            if (!LcdWakeFrame::refreshAllowed(true, pending)) return 0;
+            const int result = frame.poll(now, busy, done, false);
+            if (result > 0) pending = false;
+            return result;
+        };
+        assert(LcdWakeFrame::refreshAllowed(true, pending));
         frame.submitted();
         assert(frame.poll(start + 395, true, true, false) == 0); // chunks in flight
         assert(frame.poll(start + 400, false, false, false) == 0);
-        assert(frame.poll(start + 405, false, true, false) == 1);
+        assert(serviceFrame(start + 405, false, true) == 1 && !pending);
+        assert(serviceFrame(start + 1500, false, false) == 0); // no late timeout after visible
         assert(frame.poll(start + 405, false, true, true) == -1);
         assert(frame.poll(start + 1000, false, true, false) == -1);
     }

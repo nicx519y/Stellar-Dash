@@ -49,7 +49,7 @@ int main()
     assert(!p.shouldPrepare(100000, 10000, true));
     p.transition(State::Sleeping, 2000);
     assert(!p.timedOut(100000));
-    p.transition(State::Restoring, 0xfffffff0u);
+    p.transition(State::RestoringLocal, 0xfffffff0u);
     assert(!p.timedOut(0xfffffff0u + 99u));
     assert(p.timedOut(0xfffffff0u + 100u));
     p.inhibit(); p.active(1000);

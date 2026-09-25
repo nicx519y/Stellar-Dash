@@ -102,14 +102,14 @@ inline FakePower BOARD_POWER;
 struct FakeMode { bool stable = true; bool isStable() { return stable; } };
 inline FakeMode BOARD_MODE;
 struct FakeInput {
+    bool rf = false, transportOff = false;
     bool running = true, healthy = true, neutralOk = true, pauseOk = true, resumeOk = true;
     unsigned neutrals = 0, resumes = 0, failures = 0;
-    bool canAutoSleep() { return running && healthy; }
+    bool canAutoSleep() { return running && healthy && !transportOff; }
     bool sendSleepNeutral() { ++neutrals; return neutralOk; }
     bool pauseForSleep() { running = false; BOARD_POWER.hall = false; return pauseOk; }
-    bool suspendSleepTransport() { return true; }
-    bool sleepTransportOff() { return false; } // USB only; RF regression remains paused
-    int resumeSleepTransport() { return 1; }
+    bool suspendSleepTransport() { transportOff = rf; return true; }
+    bool sleepTransportOff() { return transportOff; } // RF scenarios use a separate opt-in runner
     bool resumeFromSleep() { ++resumes; running = resumeOk; return resumeOk; }
     bool sleepInputReady() { return running; }
     void finishSleepResume() {}
@@ -136,3 +136,10 @@ public:
 inline bool bridgeIdle = true, bridgeEvent = false;
 inline bool RFBridgePort_IsInputIdle() { return bridgeIdle; }
 inline bool RFBridgePort_HasPendingEvent() { return bridgeEvent; }
+
+#include "sleep_diagnostics.hpp"
+inline volatile SleepDiagnostics g_sleepDiagnostics = {};
+inline void SleepDiagnostics_Record(SleepStage stage, uint32_t error) {
+    g_sleepDiagnostics.stage = static_cast<uint32_t>(stage);
+    g_sleepDiagnostics.lastError = error;
+}

@@ -38,7 +38,8 @@ public:
     bool sendSleepNeutral();
     bool pauseForSleep();
     bool suspendSleepTransport();
-    int resumeSleepTransport(); // 0 pending, 1 ready, -1 failed
+    void serviceSleepTransport();
+    void cancelSleepRecovery();
     bool sleepTransportOff() const { return rfSleepPoweredOff; }
     bool resumeFromSleep();
     bool sleepInputReady() const { return sleepFreshSample; }
@@ -64,6 +65,8 @@ private:
     bool sleepFreshSample = false;
     bool rfSleepPoweredOff = false;
     bool rfSleepRestartStarted = false;
+    bool rfSleepCancelled = false;
+    uint16_t sleepReportRateHz = 1000u;
     bool usbRuntimeInitialized = false;
     bool usbRuntimeConnected = false;
     bool usbCompatibilityRecoveryUsed = false;

@@ -658,7 +658,12 @@ void SPIScreenManager::loop() {
     }
     if (!g_inited) return;
     SPIST7789_Service();
-    if (SystemSleep_IsBusy()) return;
+    // RF cold restart can outlast the LCD's first-frame deadline. Once LCD
+    // resume has requested a fresh frame, service/render it while the input
+    // owner is still restoring. Otherwise no frame is ever submitted before
+    // the timeout powers the panel off again. Rotary actions remain gated
+    // below by SystemSleep_ShouldSuppressRotaryLongAction().
+    if (!LcdWakeFrame::refreshAllowed(SystemSleep_IsBusy(), g_wakeBacklightPending)) return;
     if (g_wakeBacklightPending) {
         const int frame = g_wakeFrame.poll(HAL_GetTick(), SPIST7789_IsBusy(),
             SPIST7789_ConsumeDmaDoneFlag(), SPIST7789_ConsumeDmaErrFlag());
@@ -898,6 +903,10 @@ bool SPIScreenManager::suspendForSleep()
     animActive = false;
     // Preserve the framebuffer, menu, config and any saved user brightness.
     return true;
+}
+
+bool SPIScreenManager::sleepResumeComplete() const {
+    return sleepDisplayFailed || (!sleepSuspended && !sleepResuming && !g_wakeBacklightPending);
 }
 
 void SPIScreenManager::resumeFromSleep()

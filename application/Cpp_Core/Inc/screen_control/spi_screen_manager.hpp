@@ -18,6 +18,7 @@ public:
     bool canAutoSleep() const;
     bool suspendForSleep();
     void resumeFromSleep();
+    bool sleepResumeComplete() const;
     void previewBrightness(uint8_t brightness);
     void clearBrightnessPreview();
 

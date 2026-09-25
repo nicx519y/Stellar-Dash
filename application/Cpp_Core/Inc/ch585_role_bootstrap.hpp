@@ -17,6 +17,7 @@ enum class Ch585BootstrapState : uint8_t {
     Locked = 3,
     Failed = 4,
 };
+enum class Ch585ResumeResult { Pending, Ready, Failed };
 
 /* One invocation performs one UsbBoardLink SELECT_ROLE transaction. */
 using Ch585RoleSelector = bool (*)(Ch585Role requestedRole);
@@ -40,7 +41,7 @@ public:
     bool start(Ch585Role requestedRole);
     // Nonblocking RF cold restart after sleep. No traffic in the IAP window.
     void beginRfSleepResume();
-    int serviceRfSleepResume(); // 0 pending, 1 locked, -1 failed
+    Ch585ResumeResult serviceRfSleepResume();
     void shutdown();
 
     Ch585Role role() const { return activeRole; }
@@ -54,7 +55,6 @@ private:
     Ch585RoleSelector selector = nullptr;
     uint32_t sleepResumeSince = 0u;
     uint32_t sleepSelectLast = 0u;
-    uint8_t sleepResumeAttempt = 0u;
     bool sleepResumeActive = false;
     Ch585Role activeRole = Ch585Role::SafeIdle;
     Ch585BootstrapState bootstrapState = Ch585BootstrapState::Off;

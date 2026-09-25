@@ -143,6 +143,7 @@ bool MainStateMachine::requestTransition(MainRuntimeState next)
 
 void MainStateMachine::requestReset()
 {
+    INPUT_STATE.cancelSleepRecovery();
     resetPending = true;
 }
 

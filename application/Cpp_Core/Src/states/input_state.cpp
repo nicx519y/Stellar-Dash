@@ -15,6 +15,8 @@
 #include "monitor_telemetry.hpp"
 #include "report_scheduler.hpp"
 #include "rf_bridge_port.hpp"
+#include "rf_sleep_recovery.hpp"
+#include "sleep_diagnostics.hpp"
 #include "screen_control/spi_screen_manager.hpp"
 #include "storagemanager.hpp"
 #include "system_logger.h"
@@ -201,6 +203,9 @@ bool InputState::resumeInputPipelineAfterStorage(bool wasRunning)
 bool InputState::submitInputReport(const GamepadState& state,
                                    const AdcSampleFrame& sample)
 {
+    // Keep scanning/rendering locally, but neither queue history nor record a
+    // transport failure while the independent cold-start owner uses SPI4.
+    if (activeBoardMode == BoardMode::Rf && rfSleepPoweredOff) return false;
     const uint32_t reportSequence = MonitorTelemetry_NextSequence();
     MonitorTelemetry_OnReportReady(reportSequence,
                                    sample.triggerCycles,
@@ -262,6 +267,8 @@ bool InputState::applyPhysicalMode(BoardMode mode,
                                    bool compatibilityRecovery)
 {
     SystemSleep_CancelForModeChange();
+    cancelSleepRecovery();
+    rfSleepCancelled = false;
     rfSleepPoweredOff = rfSleepRestartStarted = false;
     InputMode inputMode = STORAGE_MANAGER.getInputMode();
     const WirelessReportRate wirelessRate =
@@ -420,6 +427,8 @@ void InputState::tick()
         (void)applyPhysicalMode(BOARD_MODE.current(), false);
     }
 
+    serviceSleepTransport();
+
     if (usbRuntimeInitialized && activeBoardMode == BoardMode::Usb) {
         USB_DRIVER.process();
         if (USB_DRIVER.takeCompatibilityRecoveryRequest()) {
@@ -461,7 +470,7 @@ void InputState::tick()
         const uint16_t desiredReportRateHz = activeBoardMode == BoardMode::Usb
             ? USB_DRIVER.effectiveReportRateHz(
                   STORAGE_MANAGER.getInputMode(), requestedReportRateHz)
-            : CONNECTION_MANAGER.getAppliedReportRateHz();
+            : (rfSleepPoweredOff ? sleepReportRateHz : CONNECTION_MANAGER.getAppliedReportRateHz());
         if (REPORT_SCHEDULER.getRate() != desiredReportRateHz) {
             if (!REPORT_SCHEDULER.setRate(desiredReportRateHz)) {
                 APP_STAGE_ERROR("I07", "TIM2 report/ADC rate change failed");
@@ -564,6 +573,7 @@ bool InputState::connectUsbRuntime()
 void InputState::exit()
 {
     SystemSleep_CancelForModeChange();
+    cancelSleepRecovery();
     rfSleepPoweredOff = rfSleepRestartStarted = false;
     stopInputPipeline();
     USB_DRIVER.shutdown();
@@ -580,7 +590,7 @@ void InputState::exit()
 
 bool InputState::canAutoSleep() const
 {
-    return isRunning && inputPipelineRunning && !sleepPaused &&
+    return isRunning && inputPipelineRunning && !sleepPaused && !rfSleepPoweredOff &&
         !BOARD_POWER.isSafeLatched() && BOARD_MODE.isStable() &&
         (activeBoardMode == BoardMode::Usb || activeBoardMode == BoardMode::Rf) &&
         activeBoardMode == BOARD_MODE.current() && CH585_ROLE_BOOTSTRAP.isLocked() &&
@@ -604,6 +614,7 @@ bool InputState::sendSleepNeutral()
 
 bool InputState::pauseForSleep()
 {
+    sleepReportRateHz = REPORT_SCHEDULER.getRate();
     REPORT_SCHEDULER.stop();
     ADC_MANAGER.forceStopAllSampling();
     inputPipelineRunning = false;
@@ -626,7 +637,7 @@ bool InputState::resumeFromSleep()
     const uint16_t rate = activeBoardMode == BoardMode::Usb
         ? USB_DRIVER.effectiveReportRateHz(STORAGE_MANAGER.getInputMode(),
             static_cast<uint16_t>(STORAGE_MANAGER.getWirelessReportRate()))
-        : CONNECTION_MANAGER.getAppliedReportRateHz();
+        : sleepReportRateHz;
     if (!REPORT_SCHEDULER.start(rate)) return false;
     sleepFreshSample = false;
     inputPipelineRunning = true;
@@ -637,40 +648,36 @@ bool InputState::suspendSleepTransport()
 {
     if (activeBoardMode == BoardMode::Usb) return true; // preserve enumeration
     if (activeBoardMode != BoardMode::Rf || !sleepPaused || !RFBridgePort_IsInputIdle()) return false;
-    // Remove driven SPI signals before cutting the peer rail (no back-power).
-    RFBridgePort_Shutdown();
-    USB_BOARD_LINK.shutdown();
-    GPIO_InitTypeDef gpio = {};
-    gpio.Pin = RF_BRIDGE_IRQ_PIN;
-    gpio.Mode = GPIO_MODE_ANALOG;
-    gpio.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &gpio);
-    CH585_ROLE_BOOTSTRAP.shutdown();
-    CONNECTION_MANAGER.onRfPowerRemovedForSleep();
-    rfSleepPoweredOff = true;
-    rfSleepRestartStarted = false;
-    return true;
+    rfSleepPoweredOff = true; // transport unavailable, including a failed park
+    rfSleepRestartStarted = rfSleepCancelled = false;
+    return RF_SLEEP_RECOVERY.suspend();
 }
 
-int InputState::resumeSleepTransport()
+void InputState::cancelSleepRecovery()
 {
-    if (!rfSleepPoweredOff) return 1;
-    if (activeBoardMode != BoardMode::Rf || !BOARD_MODE.isStable() ||
-        BOARD_MODE.current() != BoardMode::Rf) return -1;
+    rfSleepCancelled = true;
+    RF_SLEEP_RECOVERY.cancel();
+}
+
+void InputState::serviceSleepTransport()
+{
+    if (!rfSleepPoweredOff || rfSleepCancelled || sleepPaused ||
+        activeBoardMode != BoardMode::Rf || !BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Rf ||
+        !SPIScreenManager::getInstance().sleepResumeComplete()) return;
     if (!rfSleepRestartStarted) {
-        CH585_ROLE_BOOTSTRAP.setSelector(UsbBoardLink_SelectRoleCallback);
-        CH585_ROLE_BOOTSTRAP.beginRfSleepResume();
+        // ADC and lights are already usable; first display frame (or its
+        // bounded failure) completes before requesting CH585 power.
+        RF_SLEEP_RECOVERY.begin(static_cast<uint16_t>(STORAGE_MANAGER.getWirelessReportRate()));
         rfSleepRestartStarted = true;
     }
-    const int result = CH585_ROLE_BOOTSTRAP.serviceRfSleepResume();
-    if (result <= 0) return result;
-    CONNECTION_MANAGER.setup(CONNECTION_MODE_RF24G, STORAGE_MANAGER.getWirelessReportRate(),
-                             STORAGE_MANAGER.getInputMode(), true);
-    if (!CONNECTION_MANAGER.isReportRateConfirmed()) return -1;
-    // ConnectionManager/TX continue the existing bonded reconnect procedure.
-    // Do not block the local screen/input pipeline on receiver availability.
-    rfSleepPoweredOff = rfSleepRestartStarted = false;
-    return 1;
+    RF_SLEEP_RECOVERY.service(HAL_GetTick());
+    if (RF_SLEEP_RECOVERY.state() == RfSleepState::Ready) {
+        sleepReportRateHz = RF_SLEEP_RECOVERY.rate();
+        rfSleepPoweredOff = rfSleepRestartStarted = false;
+        SystemSleep_NotifyButtonActivity(HAL_GetTick(), virtualPinMask);
+        SystemSleep_NotifyScreenActivity(HAL_GetTick());
+    }
 }
 
 void InputState::finishSleepResume()

@@ -16,6 +16,8 @@
 // [0] completed count, [1] seq, [2] runtime path, [3] initiating command,
 // [4] scan prefix, [5] bytes read, [6] start->header us, [7] header->end us.
 volatile uint32_t g_rf_sync_read_diag[8] = {};
+__attribute__((aligned(32))) volatile RFRecoveryReadDiagnostic g_rfRecoveryReadDiagnostic = {};
+static_assert(sizeof(RFRecoveryReadDiagnostic) % 32u == 0u);
 
 namespace {
 #ifndef RF_BRIDGE_SPI_BAUD_PRESCALER
@@ -668,7 +670,161 @@ static bool rf_spi_init_once() {
 }
 } // namespace
 
+namespace {
+struct RecoveryRead {
+    bool active = false, release = false;
+    uint8_t raw[64] = {};
+    uint16_t count = 0, start = 0, total = 0;
+    uint32_t since = 0, nextByte = 0;
+} recoveryRead;
+
+RFPortStep recoveryReadFailed(RFRecoveryReadError reason) {
+    auto& diag = g_rfRecoveryReadDiagnostic;
+    ++diag.failures;
+    diag.reason = static_cast<uint32_t>(reason);
+    diag.atMs = HAL_GetTick();
+    diag.rawBytes = recoveryRead.count;
+    diag.frameOffset = recoveryRead.start;
+    diag.frameBytes = recoveryRead.total;
+    diag.irqAsserted = rf_has_pending_event_signal() ? 1u : 0u;
+    diag.spiError = s_rf_hspi.ErrorCode;
+    for (unsigned i = 0; i < sizeof(diag.raw); ++i) diag.raw[i] = recoveryRead.raw[i];
+    // Readable over SWD without halting live ADC. Only flush this aligned
+    // diagnostic object on a failure, never on the normal input path.
+    SCB_CleanDCache_by_Addr(reinterpret_cast<uint32_t*>(
+        const_cast<RFRecoveryReadDiagnostic*>(&diag)), sizeof(diag));
+    RFBridgePort_CancelRecoveryIo();
+    return RFPortStep::Error;
+}
+}
+
+bool RFBridgePort_RecoveryBegin() { return rf_spi_init_once(); }
+bool RFBridgePort_RecoveryIdle() {
+    return s_rf_spi_ready && !recoveryRead.active && !recoveryRead.release &&
+        !s_dma_busy && !s_dma_pending && !rf_has_pending_event_signal();
+}
+
+void RFBridgePort_CancelRecoveryIo() {
+    if (s_rf_spi_ready) rf_cs_set(true);
+    recoveryRead = {};
+}
+
+bool RFBridgePort_TryShutdownForSleep() {
+    // Call only after producers/pollers have relinquished ownership. Avoid
+    // aborting an in-flight transfer with interrupts disabled by teardown.
+    if (s_dma_busy || s_dma_pending) return false;
+    if (s_rf_dma_tx.Instance &&
+        (static_cast<DMA_Stream_TypeDef*>(s_rf_dma_tx.Instance)->CR & DMA_SxCR_EN)) return false;
+    RFBridgePort_CancelRecoveryIo();
+    rf_mask_irq_line();
+    HAL_NVIC_DisableIRQ(DMA2_Stream5_IRQn);
+    HAL_NVIC_DisableIRQ(SPI4_IRQn);
+    if (s_rf_dma_tx.Instance && HAL_DMA_DeInit(&s_rf_dma_tx) != HAL_OK) return false;
+    if (s_rf_hspi.Instance && HAL_SPI_DeInit(&s_rf_hspi) != HAL_OK) return false;
+    __HAL_RCC_SPI4_FORCE_RESET();
+    __HAL_RCC_SPI4_RELEASE_RESET();
+    rf_enable_gpio_clock(RF_BRIDGE_SPI_GPIO_PORT);
+    rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
+    GPIO_InitTypeDef gpio = {};
+    gpio.Mode = GPIO_MODE_ANALOG;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Pin = RF_BRIDGE_SPI_NSS_PIN | RF_BRIDGE_SPI_SCK_PIN |
+               RF_BRIDGE_SPI_MOSI_PIN | RF_BRIDGE_SPI_MISO_PIN;
+    HAL_GPIO_Init(RF_BRIDGE_SPI_GPIO_PORT, &gpio);
+    gpio.Pin = RF_BRIDGE_IRQ_PIN;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &gpio);
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+    // EXTI9_5 is shared with the function keys: clear its NVIC latch only
+    // when no other unmasked line in the group is pending.
+    if ((EXTI->PR1 & EXTI_D1->IMR1 & 0x3e0u) == 0u)
+        HAL_NVIC_ClearPendingIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
+    HAL_NVIC_ClearPendingIRQ(DMA2_Stream5_IRQn);
+    HAL_NVIC_ClearPendingIRQ(SPI4_IRQn);
+    s_rf_spi_ready = s_rf_dma_ready = s_peer_dma_reply = false;
+    s_irq_event_pending = 0u;
+    s_dma_pending_len = 0u;
+    memset(&s_rf_hspi, 0, sizeof(s_rf_hspi));
+    memset(&s_rf_dma_tx, 0, sizeof(s_rf_dma_tx));
+    return true;
+}
+
+bool RFBridgePort_RecoverySend(const uint8_t* tx, uint16_t len) {
+    if (!tx || !len || len > RF_BRIDGE_MIN_CONTROL_TX_BYTES ||
+        recoveryRead.active || !rf_spi_init_once() || s_dma_busy || s_dma_pending) return false;
+    if (recoveryRead.release) {
+        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == RF_BRIDGE_IRQ_ASSERTED_STATE)
+            return false;
+        recoveryRead.release = false;
+    }
+    if (rf_has_pending_event_signal()) return false;
+    uint8_t frame[RF_BRIDGE_MIN_CONTROL_TX_BYTES];
+    memset(frame, 0xff, sizeof(frame));
+    memcpy(frame, tx, len);
+    rf_cs_set(false);
+    const auto result = HAL_SPI_Transmit(&s_rf_hspi, frame, sizeof(frame), 5u);
+    rf_cs_set(true);
+    return result == HAL_OK;
+}
+
+RFPortStep RFBridgePort_RecoveryRead(uint8_t* rx, uint16_t* len, uint32_t now) {
+    if (!rx || !len || !s_rf_spi_ready) return recoveryReadFailed(RFRecoveryReadError::InvalidState);
+    if (recoveryRead.release) {
+        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == RF_BRIDGE_IRQ_ASSERTED_STATE) {
+            if (now - recoveryRead.since >= RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS)
+                return recoveryReadFailed(RFRecoveryReadError::ReleaseTimeout);
+            return RFPortStep::Pending;
+        }
+        recoveryRead.release = false;
+    }
+    if (!recoveryRead.active) {
+        if (!rf_has_pending_event_signal() || s_dma_busy || s_dma_pending) return RFPortStep::Pending;
+        recoveryRead = {};
+        recoveryRead.active = true;
+        recoveryRead.since = now;
+        recoveryRead.nextByte = now + (s_peer_dma_reply ? 0u : 1u);
+        rf_consume_irq_pending_marker();
+        rf_cs_set(false);
+    }
+    if (now - recoveryRead.since >= 120u) {
+        return recoveryReadFailed(RFRecoveryReadError::FrameTimeout);
+    }
+    if (static_cast<int32_t>(now - recoveryRead.nextByte) < 0) return RFPortStep::Pending;
+    uint8_t fill = 0xff;
+    if (HAL_SPI_TransmitReceive(&s_rf_hspi, &fill,
+            &recoveryRead.raw[recoveryRead.count], 1u, 5u) != HAL_OK) {
+        return recoveryReadFailed(RFRecoveryReadError::SpiTransfer);
+    }
+    ++recoveryRead.count;
+    if (!recoveryRead.total && recoveryRead.count >= 3u) {
+        const unsigned i = recoveryRead.count - 3u;
+        if (recoveryRead.raw[i] == 0xa5u && rf_is_valid_evt(recoveryRead.raw[i + 1u])) {
+            recoveryRead.start = i;
+            recoveryRead.total = 4u + recoveryRead.raw[i + 2u];
+            if (recoveryRead.total > *len || i + recoveryRead.total > sizeof(recoveryRead.raw)) {
+                return recoveryReadFailed(RFRecoveryReadError::FrameLength);
+            }
+        }
+    }
+    if (recoveryRead.total && recoveryRead.count == recoveryRead.start + recoveryRead.total) {
+        rf_cs_set(true);
+        memcpy(rx, recoveryRead.raw + recoveryRead.start, recoveryRead.total);
+        *len = recoveryRead.total;
+        recoveryRead.active = false;
+        recoveryRead.release = true;
+        recoveryRead.since = now;
+        if (rf_checksum8(rx, *len - 1u) != rx[*len - 1u])
+            return recoveryReadFailed(RFRecoveryReadError::Checksum);
+        return RFPortStep::Complete;
+    }
+    if ((!recoveryRead.total && recoveryRead.count >= 16u) || recoveryRead.count >= sizeof(recoveryRead.raw)) {
+        return recoveryReadFailed(RFRecoveryReadError::HeaderMissing);
+    }
+    recoveryRead.nextByte = now + (s_peer_dma_reply ? 0u : RF_BRIDGE_EVENT_RX_GAP_MS);
+    return RFPortStep::Pending;
+}
+
 void RFBridgePort_Shutdown(void) {
+    RFBridgePort_CancelRecoveryIo();
     /*
      * SPI4 is shared by the mutually-exclusive RF and UsbBoardLink roles.
      * Tear down only the board port; no RF framing, queue, timing, or state

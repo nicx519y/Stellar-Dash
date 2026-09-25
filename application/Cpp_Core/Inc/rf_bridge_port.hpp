@@ -30,6 +30,25 @@ bool RFBridgePort_DmaReplyCapable();
 // DWT capture when the most recent validated event header was received.
 uint32_t RFBridgePort_EventReceivedCycles();
 void RFBridgePort_Shutdown(void);
+// Sleep-only checked shutdown. On failure keep the peer powered and retry.
+bool RFBridgePort_TryShutdownForSleep();
+bool RFBridgePort_RecoveryBegin();
+bool RFBridgePort_RecoveryIdle();
+enum class RFPortStep { Pending, Complete, Error };
+enum class RFRecoveryReadError : uint32_t {
+    None, InvalidState, ReleaseTimeout, FrameTimeout, SpiTransfer,
+    FrameLength, HeaderMissing, Checksum
+};
+// Last failed physical read, preserved across cleanup/retry. RAM only.
+struct RFRecoveryReadDiagnostic {
+    uint32_t failures, reason, atMs, rawBytes, frameOffset, frameBytes, irqAsserted, spiError;
+    uint8_t raw[64];
+};
+extern volatile RFRecoveryReadDiagnostic g_rfRecoveryReadDiagnostic;
+// Exclusive cold-recovery I/O; never waits for IRQ release or DMA completion.
+bool RFBridgePort_RecoverySend(const uint8_t* tx, uint16_t len);
+RFPortStep RFBridgePort_RecoveryRead(uint8_t* rx, uint16_t* len, uint32_t now);
+void RFBridgePort_CancelRecoveryIo();
 
 #endif
 

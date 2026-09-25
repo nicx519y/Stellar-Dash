@@ -149,7 +149,7 @@ void ConnectionManager::setRfPowerState(RfPowerState state, bool persist) {
 }
 
 bool ConnectionManager::rfPowerStateBlocksSpi() const {
-    return (rfPowerState == RfPowerState::SleepPending) ||
+    return rfSleepRecoveryOwned || (rfPowerState == RfPowerState::SleepPending) ||
            (rfPowerState == RfPowerState::Sleeping) ||
            (rfPowerState == RfPowerState::WakePending);
 }
@@ -428,6 +428,7 @@ void ConnectionManager::setup(ConnectionMode connMode,
                               WirelessReportRate wirelessRate,
                               InputMode inputMode, bool coldSleepResume) {
     BP_APP_SCOPE(BP_APP_CONNECTION_SETUP);
+    rfSleepRecoveryOwned = false;
     mode = connMode;
     inputMode = effectiveInputModeForConnection(mode, inputMode);
     appliedReportRateHz = mode == ConnectionMode::CONNECTION_MODE_USB
@@ -648,6 +649,7 @@ bool ConnectionManager::startRfPairing() {
 }
 
 bool ConnectionManager::stopRfPairing() {
+    if (rfSleepRecoveryOwned) return false;
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G ||
         !rfPhysicalRoleIsActive()) {
         return false;
@@ -747,6 +749,7 @@ bool ConnectionManager::checkAndResleepAfterUnexpectedWake(RfPowerReason reason)
 }
 
 bool ConnectionManager::ensureRfSleeping(RfPowerReason reason) {
+    if (rfSleepRecoveryOwned) return false;
     if ((rfPowerState == RfPowerState::Sleeping) && !rfPowerStateIsBootHint()) {
         printf("[RF_PWR][SLEEP_SKIP] reason=%s state=%s\r\n",
                rfPowerReasonName(reason),
@@ -783,6 +786,7 @@ bool ConnectionManager::ensureRfSleeping(RfPowerReason reason) {
 }
 
 bool ConnectionManager::requireRfCommandReady(RfPowerReason reason) {
+    if (rfSleepRecoveryOwned) return false;
     if ((rfPowerState == RfPowerState::Awake) && !rfPowerStateIsBootHint()) {
         rfEventServiceEnabled = true;
         printf("[RF_PWR][CMD_READY] reason=%s state=%s\r\n",
@@ -799,6 +803,7 @@ bool ConnectionManager::requireRfCommandReady(RfPowerReason reason) {
 }
 
 bool ConnectionManager::wakeRfFromSleep(RfPowerReason reason) {
+    if (rfSleepRecoveryOwned) return false;
     if ((rfPowerState == RfPowerState::Awake) && !rfPowerStateIsBootHint()) {
         rfEventServiceEnabled = true;
         printf("[RF_PWR][WAKE_SKIP] reason=%s state=%s\r\n",
@@ -871,6 +876,7 @@ bool ConnectionManager::enterRfModeAfterColdBoot(ConnectionMode connMode, Wirele
 }
 
 bool ConnectionManager::restoreRfRuntime(WirelessReportRate wirelessRate) {
+    if (rfSleepRecoveryOwned) return false;
     requestedReportRateHz = rfHighRateEligible
         ? getRfReportRateHz(wirelessRate)
         : 1000u;
@@ -909,6 +915,7 @@ bool ConnectionManager::restoreRfRuntime(WirelessReportRate wirelessRate) {
 }
 
 bool ConnectionManager::initializeRfPowerForMode(ConnectionMode connMode, WirelessReportRate wirelessRate) {
+    if (rfSleepRecoveryOwned) return false;
     printf("[RF_PWR][INIT] mode=%u rate_enum=%u\r\n",
            (unsigned int)connMode,
            (unsigned int)wirelessRate);
@@ -962,11 +969,38 @@ bool ConnectionManager::sleepRfModule() {
 
 void ConnectionManager::onRfPowerRemovedForSleep()
 {
+    rfSleepRecoveryOwned = true;
     rfEventServiceEnabled = false;
     reportRateConfirmed = false;
     appliedReportRateHz = 0u;
     setRfPowerState(RfPowerState::Unknown, false);
-    setLinkState(ConnectionLinkState::Disconnected);
+    setLinkState(ConnectionLinkState::Connecting);
+}
+
+void ConnectionManager::resetRfSleepSession() {
+    rfTransport.resetSession();
+    rateApplyPending = rfPairingActive = rfPairSucceeded = false;
+    rfPairingState = RfPairingState::Idle;
+    rfPairingLastEventCounter = lastRfLinkEventCounter = 0;
+    rfPairingStartedAtMs = 0;
+    rfPairingTimeoutStopIssued = false;
+    rfPairingLastErrorCommand = rfPairingLastErrorReason = 0;
+}
+
+void ConnectionManager::setRfSleepRecoveryError(bool error) {
+    setLinkState(error ? ConnectionLinkState::Error : ConnectionLinkState::Connecting);
+}
+
+void ConnectionManager::completeRfSleepRecovery(const RFTransport& transport, uint16_t rate) {
+    rfTransport = transport;
+    appliedReportRateHz = requestedReportRateHz = rate;
+    reportRateConfirmed = true;
+    rateApplyPending = false;
+    lastRfStatusPollMs = HAL_GetTick();
+    setRfPowerState(RfPowerState::Awake, false);
+    rfSleepRecoveryOwned = false;
+    rfEventServiceEnabled = true;
+    updateRfLinkStateFromStatus(); // an offline receiver is not a CH585 failure
 }
 
 bool ConnectionManager::wakeRfModule() {
@@ -985,6 +1019,7 @@ bool ConnectionManager::wakeRfModule() {
 }
 
 void ConnectionManager::loop() {
+    if (rfSleepRecoveryOwned) return;
     if (mode == ConnectionMode::CONNECTION_MODE_RF24G &&
         !rfPhysicalRoleIsActive()) {
         rfEventServiceEnabled = false;

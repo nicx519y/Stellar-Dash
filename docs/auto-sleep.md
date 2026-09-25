@@ -4,7 +4,7 @@
 
 CPU 睡眠已改为 STOP，分 USB 保持 CH585 连接、RF 关闭 CH585 两条路径。`HBOX_AUTO_SLEEP_ENABLED` 默认 **1**，表示固件支持；持久化 `power.autoSleepEnabled` 默认 **false**，由用户主动开启。宏为 0 的恢复构建继续支持，网页通过只读 `autoSleepSupported` 判断能力。Standby 继续禁用。
 
-用户已确认升级 ST-Link 固件后恢复正常烧录。STOP 本轮按用户要求只做实现、编译和简单主机检查，不烧录。唤醒、启动/下载恢复和功耗由用户实机验收；网页沿用原有开关，本轮未修改或重复预览。
+用户已确认升级 ST-Link 固件后恢复正常烧录，并反馈 USB 模式 STOP 睡眠/唤醒正常；RF 模式睡眠后按键，屏幕和背光始终不亮。已修正 LCD 首帧被输入恢复状态阻塞的问题，RF 故障的实机归因与修复效果仍待用户复测。本轮只做实现、编译和简单主机检查，不烧录；启动/下载恢复和功耗仍由用户实机验收。
 
 ## 行为
 
@@ -15,13 +15,23 @@ CPU 睡眠已改为 STOP，分 USB 保持 CH585 连接、RF 关闭 CH585 两条�
 - 初次满足运行条件后重新计时，开机至少保持 30 秒不自动睡眠。按键、释放和旋钮操作算活动；显示刷新和通信保活不算。
 - 停止 TIM2/ADC/DMA 后关闭霍尔；停止灯效 DMA 后关闭两路 LED 和升压；LCD 完成当前传输后关闭背光、SPI/DMA 和电源。
 - 主电源 PI4、RAM、QSPI 供电及寄存器保持。只有稳定 Sleeping 状态从 `SystemSleep_Idle()` 调用 `SystemStop_Enter()`；调试器连接、WebConfig、正常输入、复位请求和恢复阶段不进入 STOP。
-- USB 保留 CH585 及必要 USB Host 认证供电、枚举和连接，不执行 disconnect/reconnect；LPTIM2/LSI 按中立输入的 10ms 截止时间周期唤醒，继续处理 USB 事件。实际间隔含恢复与主循环开销，需实测。RF 先排空中立输入的 SPI 队列，将 SPI 引脚置高阻并关闭 CH585；不再发送保活，STM32 每约 100ms 唤醒检查物理模式和电源管理。
+- USB 保留 CH585 及必要 USB Host 认证供电、枚举和连接，不执行 disconnect/reconnect；LPTIM2/LSI 按中立输入的 10ms 截止时间周期唤醒，继续处理 USB 事件。实际间隔含恢复与主循环开销，需实测。RF 先排空中立输入的 SPI 队列，将 SPI 引脚置高阻并关闭 CH585；不再发送保活，STM32 每约 10ms 唤醒检查物理模式和电源管理，按键 EXTI 仍可提前唤醒。此周期先对齐 USB，较长周期的省电优化另行验收。
 - STOP 期间通过 EXTI 唤醒：PC6–PC9 四个功能键和 PA0 旋钮按压。临时将 EXTI8 从 PI8 切到 PC8，退出后恢复原映射；充电通知在切换前保留，并按低电平、用户唤醒或每秒补读。充电事件不能通过 PI8 在 STOP 中立即唤醒。霍尔主按键和旋钮旋转不唤醒。运行期间继续使用 1ms/5ms 去抖扫描；STOP 的按下边沿被锁存，短按释放后也不会丢失唤醒。
 - CPU 切到 HSI 后退出 VOS0，再进入 D1/D2/D3 STOP，所有 PDDS 位保持清零。SysTick 暂停，IRQ 在 RAM 恢复段暂时屏蔽；已使能 NVIC 的 pending IRQ 可唤醒 WFI，恢复原电压、HSE/PLL1/2/3 和 SYSCLK 后才允许 ISR 执行。LSI 计数补偿 HAL 毫秒时间，精度受 LSI 误差影响；不依赖已暂停的 SysTick 做恢复超时。LPTIM 用 RCC reset 停止，I2C1 在空闲时禁用 PE，遵循 ES0392 的 STOP 相关勘误。
 - 首键只唤醒。霍尔供电稳定 10ms 后恢复原有效采样率，收集初始 10ms 去抖样本并屏蔽当时按住的键直到释放。旋钮点击、长按及转动缓存被清除，避免误触菜单。
-- USB 输入恢复后启动灯光与 LCD。RF 在开始恢复时先启动 LCD 异步恢复，同时分阶段重启 CH585：最少断电 20ms、上电静默 720ms、角色选择，失败最多一次电源重试；成功后恢复采样率并沿用已绑定重连，不依赖接收器在线才恢复本地界面。RF 不承诺 50ms 恢复通信，至少包含冷启动及空口重连时间。
+- USB 与 RF 共用 `Active → Preparing → Sleeping → RestoringLocal → Active`。先恢复霍尔、睡前缓存的有效采样率、按键、灯光和 LCD；本地输入恢复且 LCD 新首帧完成（或 1 秒显示失败）后，RF 才启动独立冷启动流程。无线等待不延长本地首键屏蔽，不回放等待期间的输入。
 - LCD 电源稳定、复位及退出睡眠的等待采用异步阶段，不重复开机时的存储迁移。唤醒跳过开机背光的 1 秒黑屏/2 秒渐亮，首帧传输完成后恢复用户亮度。USB 输入恢复目标 ≤50ms、显示恢复目标 ≤500ms，均须实测。
 - LCD 恢复时显式重置屏保空闲计时，即使唤醒短按早已释放也先显示正常界面；背光恢复必须收到新首帧传输完成标志，不能仅以 SPI 不忙推断成功。用户报告的唤醒黑屏尚未完成实机归因与修复验收。
+
+## RF 独立恢复（2026-09-25）
+
+- 状态为 `Off → PowerWait → BootWait → SelectRole → ConfigureRate → VerifyStatus → Ready`，失败进入 `RetryWait`。每次失败结束后等待 10 秒再完整冷启动；接收器离线但 CH585 状态可读时保持供电并沿用绑定重连，不自动配对或改跳频。
+- 准备先提交中立输入、排空本地 SPI 输入队列。队列排空不证明接收器收到了输入。正常 RF 轮询、控制和输入提交随后让出 SPI4 所有权；检查 DMA/SPI 关闭结果，清 IRQ、NSS 置无效、信号高阻，清启动缓存和本次会话后才断电。清理失败保持供电，取消 STOP 并禁止本次再次睡眠，后台继续尝试安全清理。
+- 实际断电至少 20ms，上电静默 720ms；单次角色选择限定约 20ms、失败完成后至少间隔 5ms，选择阶段总期限 1200ms，必须收到真实 RF `ROLE_SELECTED`。唤醒使用独立有界事务，正常启动路径不变。
+- 释放启动端口后重建 RF SPI4/DMA。SET_RATE 沿用 100ms 冗余窗口，主循环每次最多发送一个到期副本，丢弃错过的副本。后续 GET_STATUS 以独立物理接收代次和实际速率验证；本地合成 RATE_APPLIED、旧会话缓存不能证明成功。无法确认请求速率则尝试一次 1kHz，每次确认期限 500ms。
+- 就绪后先发中立输入并等待本地队列完成，再开放最新有效输入；无线未就绪时不访问游戏 SPI、不积压历史、不记为输入采样故障。本地采样在等待期间使用睡前速率，真实回读成功后再同步确认速率。
+- RF 恢复、失败等待、接收器离线时都不再次自动睡眠；满足连接条件后重新开始空闲计时。退出输入模式或请求复位立即取消后台状态，原模式所有者负责外设拆卸。
+- 新增 `g_sleepDiagnostics` 普通 RAM 记录：阶段、阶段时间、STOP 实际进入/返回次数、唤醒键掩码、RF 尝试次数、最后错误；`SleepStage` / `RfSleepError` 定义见源码。`RadioPowerOn` 仅证明软件请求电源使能，`RadioRoleReady` 与 `RadioVerify` 才分别证明真实角色和状态应答。日志 S97 受既有日志开关控制，不写 Flash。物理 USB/RF 开关会断电重启，不能据此判断睡眠时主循环是否存活。
 
 ## 重启及故障边界
 
@@ -29,7 +39,7 @@ CPU 睡眠已改为 STOP，分 USB 保持 CH585 连接、RF 关闭 CH585 两条�
 - 保留启动时清除深睡选择的原有逻辑，任何旧 Standby 请求仍被忽略。没有保护位、芯片配置字或下载通道操作。
 - 启动早期任一功能键/旋钮稳定按住 20ms，即禁用本次运行的自动睡眠，启动键释放后才能正常使用；不依赖显示、通信或 ADC。
 - 看门狗/低功耗异常复位，或无冷启动和软件复位标志的 PIN/CPU 复位，禁用本次运行的自动睡眠。正常软件重启允许用户配置生效；POR/BOR 或软件复位同时携带 PIN/CPU 标志时不误判，明确异常标志优先。
-- 准备阶段 500ms、RF 传输恢复 8000ms、输入恢复 100ms、显示恢复 1000ms 为故障截止时间；RF 传输恢复结束后独立重新开始输入恢复计时。准备失败取消并恢复；输入恢复失败进入现有输入故障安全状态；显示恢复失败保持输入可用。本次运行不再尝试睡眠。时钟恢复失败执行上述带一次性禁止标记的普通复位。
+- 准备阶段 500ms、本地输入恢复 100ms、显示恢复 1000ms 为故障截止时间。准备失败取消并恢复；输入硬件恢复失败进入现有输入故障安全状态；显示恢复失败保持输入可用，并结束显示等待、继续启动 RF。这些本地故障禁止本次再次睡眠。RF 通信失败独立进入 10 秒后台重试，不调用本地输入故障路径。时钟恢复失败执行上述带一次性禁止标记的普通复位。
 - 模式切换由原输入状态负责重新建立资源所有权。取消睡眠不会自行重启旧通信角色。
 - 当前未启用硬件看门狗。CPU 完全卡死不受软件截止时间保护，仍使用普通复位/重新上电；启动绕过用于阻止恢复后再次触发睡眠故障。
 
@@ -100,3 +110,91 @@ WebConfig：在 `application/www` 运行 `npm run typecheck`；配置队列、�
 - ELF 检查：`SystemStop_Enter` 和 WFI 位于 AXI RAM；故障标记为独立 32 字节 NOLOAD RAM 段。差异空白检查通过。
 - RF 路径仅源码检查和 STM32 编译，遵守暂停 RF 自动回归/采样要求。未修改 CH585/RX 固件，未烧录、未做实机测量，未修改任何保护位或锁定状态。
 - 本轮生成的是编译检查产物，未重新生成签名槽 manifest。用户自行烧录时执行 `python tools/hbox.py flash app A --build`，通过既有入口重建完整槽 A 产物后刷写；不要复用旧槽产物或直接写入裸 bin/hex。
+
+## RF 唤醒黑屏修正（2026-09-25）
+
+源码确认：RF 恢复开始时虽已调用 LCD 异步上电，`SPIScreenManager::loop()` 在初始化完成后仍因 `SystemSleep_IsBusy()` 提前返回，首帧直到输入恢复结束才允许提交。首帧的 1000ms 截止时间从 LCD 开始恢复时计算；CH585 的 20ms 断电、720ms 启动等待、角色/速率确认或重试可能耗尽这个时间，随后 LCD 被当作恢复失败而关闭。这是明确的软件缺陷，不能仅凭该发现断定设备没有其他 STOP 唤醒问题。
+
+修正后，存在待完成的唤醒首帧时允许渲染与完成检测，不再等待输入恢复结束；首帧完成后才开背光，准备/睡眠期间仍冻结普通刷新，旋钮动作屏蔽保持。未修改 STOP 时钟、EXTI、USB 保活、RF 协议或 CH585 断电策略。
+
+- LCD 主机检查：`python -m unittest tools.tests.test_auto_sleep.AutoSleepTests.test_power_config_and_lcd_resume -v` 通过（约 2 秒）。覆盖生产 LCD 初始化序列及首帧策略，包括输入仍忙时首帧可以完成、完成后不会因输入继续忙而发生迟到超时；20 次循环、时间回绕、错误/超时仍覆盖。未执行完整屏幕管理器或真实 SPI/DMA。
+- STM32 无锁增量编译：`make -C application -j8 HBOX_SECURE_BOOT_REQUIRED=0 HBOX_AUTO_SLEEP_ENABLED=1 BUILD_DIR=build_stop_unlocked` 通过（约 5 秒）；仍有未使用变量和 RWX LOAD 告警。日志在 `.hbox/stop-check/rf-wake-display-build.log`。
+- RF 自动回归/采样按现有约束未运行。未烧录、未实机验收，也未生成新的签名槽 manifest；自行刷写仍使用上面的 `flash app A --build` 入口。
+
+## RF 本地优先恢复交付检查（2026-09-25）
+
+本节记录本次最终版本；前面的 WFI/STOP/LCD 记录为历史检查，不代表当前产物。
+
+- 源码：拆分本地与 RF 恢复，检查 SPI4 独占、受检 DMA/SPI 停止、高阻后断电、缓存/会话清理、真实状态接收代次、取消及失败隔离。角色选择使用独立总预算事务。未修改 WebConfig 配置、CH585 TX/RX 协议或烧录脚本；工作区原有烧录恢复改动保留。
+- 通用主机：`python -m unittest tools.tests.test_auto_sleep -v` 最终 6 项通过（约 3.5 秒），包含 USB 假外设下 23 个生产管理器场景，以及实际 LCD 初始化序列和首帧策略；不包含电气层或完整真实显示链。
+- RF 用例：`python -m tools.tests.check_rf_sleep_recovery` 只编译通过，未执行。包含生产 RF 恢复状态机配假端口的成功、接收器离线、速率回退、持续重试、回读门控、不安全关闭、取消、旧会话、20 次循环，以及生产睡眠管理器配假 RF 所有者的本地恢复/首键屏蔽/重新计时。假端口不证明真实 SPI 波形、状态解析和 RF 时延。
+- 编译：功能宏 1 最终完整构建与宏 0 的 `application/build_stop_recovery` 隔离构建通过。宏 0 初次约 24 秒、最后修改后约 5 秒。存在未使用变量、初始化和 RWX LOAD 警告，未将其描述为无警告构建。
+- 产物：`python tools/hbox.py web local-build --unlocked-development --slot A --skip-web --jobs 8` 通过（约 34 秒）；该既有入口也执行依赖编译。本次网页未改，跳过网页重建。签名和 manifest 再验证通过：槽 A、`unlocked-development`、无需生命周期置备、要求列表为空。
+- ELF：最终宏 1 的 `SystemStop_Enter` 与唯一 WFI 位于 AXI RAM，WFI 两侧保留 DSB/ISB；宏 0 `SystemSleep_Idle` 直接返回。差异空白检查通过。
+- 最终 `application-slot-a.bin`：361772 字节，SHA-256 `357533ffa734bf0b15a787607021fa5367c278b7d0dbf8ab8af49a47c70bd51b`。完整提交文件位于 `.hbox/webconfig-local/artifacts/`，不要单独刷裸 bin。
+- 没有烧录、设备采样或实机测试，未修改保护位或锁定状态。RF 自动回归继续暂停；本轮没有执行带 `--execute-authorized` 的测试。USB 实机回归、RF 首先本地恢复/随后重连、接收器离线时本地持续可用、功耗、输入 ≤50ms/显示 ≤500ms、复位与下载恢复仍由用户验收，不能宣称 RF STOP 故障已全部解决。
+
+用户自行烧录本次现有完整槽 A 产物：`python tools/hbox.py flash app A`。本次只需更新 STM32 Application，无需重刷 Bootloader、CH585 TX 或接收器。日志位于 `.hbox/stop-check/rf-local-first-*.log`，RAM 诊断定义位于 `application/Cpp_Core/Inc/sleep_diagnostics.hpp`。
+
+## ST-LINK 现场诊断与 STOP 电压恢复修正（2026-09-25）
+
+用户明确授权 ST-LINK 诊断，物理开关向下 RF、USB 线供电。此授权仅用于本次故障诊断，RF 自动回归/采样的暂停要求不变。未烧录、未操作任何保护位或锁定状态。
+
+诊断过程区分了两轮：第一轮短暂停 CPU 后输入流水线进入故障状态，可能受到调试干扰，不作为原睡眠故障证据。用户再次完整断电上电后，第二轮在 CPU 运行时读取，睡眠前输入流水线正常、物理 GPIO 确认为 RF。ST-LINK 退出后会残留 C_DEBUGEN，固件因而跳过 STOP；本轮通过 DHCSR 清除调试控制后才观察真实 STOP。没有通过改写程序计数器、Flash 或配置强行进入睡眠。
+
+第二轮记录：
+
+- 睡眠前 `PWR_D3CR=0xE000`、`PWR_CSR1=0xE000`；准备完成后主电源 PI4 保持，CH585/霍尔/灯/LCD 使能关闭。
+- 清除调试标志后，RAM 诊断为 `StopReturn`，进入/返回计数均为 1；`ICSR=0x00403003`，活动异常为 HardFault。异常是在后续尝试暂停前的运行读取中捕获的。
+- `CFSR=0x00008200`（精确 BusFault、BFAR 有效）、`HFSR=0x40000000`、`BFAR=0x4800001C`。后续 halt 未成功取得可靠堆栈/故障指令位置，不能据此解释错误地址的形成过程。
+- `PWR_D3CR=0x6000`、`PWR_CSR1=0x6000`，仍为 VOS3；`RCC_CFGR=0x1B` 已回到 PLL1 系统时钟，`SYSCFG_PWRCR=0x81` 中 ODEN 已置位。本地恢复及 CH585 重启尚未开始。
+
+[RM0433 第 6.6.2 节](https://www.st.com/resource/en/reference_manual/rm0433-stm32h742-stm32h743753-and-stm32h750-value-line-advanced-armbased-32bit-mcus-stmicroelectronics.pdf) 明确指出系统 STOP 退出后 Run 电压档位复位为 VOS3；进入 VOS0 必须先恢复 VOS1，再打开 ODEN，确认就绪后才提高时钟。旧实现只等待 VOSRDY，没有恢复 D3CR.VOS，因而会把“VOS3 已就绪”误当作原电压已恢复。这是源码与现场寄存器共同确认的缺陷，与恢复 CH585 的先后顺序无关。它是否解释所有故障、USB 为什么未暴露同一问题，仍需修复后实测，不能只凭本次记录认定。
+
+修复保存睡眠前的 VOS，在 HSI 下恢复 VOS 并确认所选/实际电压档位就绪，再恢复 ODEN、PLL 和系统时钟。任一就绪等待失败仍走有界等待及普通复位保护。保留原有 USB/RF 恢复策略，不改烧录流程。
+
+验证与交付：
+
+- `python -m unittest tools.tests.test_auto_sleep -v`：7 项通过，约 3.5 秒。新增的是电压恢复顺序源码契约检查；它不模拟真实稳压器、STOP 或 BusFault。原有 USB 假外设管理器与 LCD 定向检查继续通过。
+- `web local-build --unlocked-development --slot A --skip-web --jobs 8`：完成，约 33 秒；隔离目录 `build_stop_recovery` 的宏 0 无锁增量编译完成，约 4 秒。存在初始化、未使用项及 RWX 链接告警。外层日志打印曾遇到 Windows 编码错误，完整构建本身退出码为 0，后续恢复构建单独运行并完成。
+- 签名和 manifest 经 `load_verified_artifact_manifest` 再验证通过，槽 A、无锁开发、无需生命周期置备。最终 Application 为 361836 字节，SHA-256 `6fcedb9eda6fe97fd8a7be003824378dfd773467248ede3721ef30b21c128100`。
+- ELF 中功能版唯一 STOP WFI 位于 AXI RAM，恢复版 Idle 无 WFI。日志及旧 ELF 现场保留在 `.hbox/stop-check/live-rf-fault/`，构建/测试日志为 `.hbox/stop-check/voltage-*.log`。
+- 未执行 RF 自动回归，未烧录新产物，也未验收修复后唤醒。用户自行执行 `python tools/hbox.py flash app A` 使用新完整槽产物，只需更新 STM32 Application；Bootloader、CH585 TX/RX 无需更新。刷写后再完整断电上电进行 RF/USB 验证。
+
+## 本地唤醒后 RF 重试：状态帧长度修正（2026-09-25）
+
+用户实测电压修复版可以唤醒，但 RF 未重新连接，并确认保持故障现场且 ST-LINK 已连接。本轮延续该故障的 ST-LINK 诊断授权，仅做运行中 RAM/寄存器读取，没有暂停 CPU、复位或烧录；每次读取后清除残留调试控制。未开展 RF 自动回归或吞吐/延迟采样。
+
+现场记录在 `.hbox/stop-check/live-rf-fault/radio-recovery.log`、`radio-attempt.log`：CFSR/HFSR 为 0，本地输入流水线运行；STOP 进入/返回计数同为 `0x97F`；RF 为 RetryWait，旧错误码 4（Receive）。有限时长观察记录到下一次上电、角色选择及再次进入接收失败。按旧实现控制流，Receive 只可能出现在真实角色选择成功并切换到 RF 端口之后；此错误码无法区分底层读帧失败与协议解析拒绝。没有捕获完整失败帧，不能宣称唯一实机根因已经证明。
+
+源码确认的兼容缺陷：TX 的 `SPI_STATUS_PAYLOAD_LEN` 已为 25 字节（末尾为采集标志和 DMA 能力），STM32 可靠事件队列上限仍为 24，队列消费者缓冲区为 23。合法的带序号 STATE_CHANGED 因此会被拒绝；唤醒恢复将其当作致命接收错误，关断模块后等待 10 秒重试。正常启动没有同样的恢复失败策略，故唤醒前可连接不排除此缺陷。
+
+修正将可靠事件队列及其消费者统一到当前 25 字节容量，保留旧帧兼容、长度上限、校验和、去重和会话清理。RF 独占恢复期间通过 `serviceEvents(0)` 仅推进内存中的可靠事件队列，不抢占 SPI，不放宽真实 GET_STATUS 和速率确认。新增 FrameRejected 错误码 8，与端口读取错误 4 分开；RAM 诊断末尾记录最近完整帧事件号及载荷长度，不写 Flash。没有更改 TX/RX 协议或配对记录。
+
+验证：
+
+- 通用睡眠/LCD 主机检查 7 项通过，约 3.7 秒。
+- RF 生产恢复状态机、局部恢复及新真实可靠事件队列用例仅编译通过，约 1.8 秒，按暂停要求未执行。新用例覆盖 23/24/25 字节、延迟发布、小容量输出拒绝、重复事件、会话重置及超长帧；不代表实际 SPI 帧已验证。
+- 无锁槽 A 完整构建通过，约 34.5 秒；宏 0 隔离恢复构建通过，约 6.1 秒。仍存在其他初始化/未使用项/RWX 告警。新用例首次严格编译发现旧日志专用变量未使用告警，已标注 `maybe_unused` 后通过。
+- manifest/签名再次校验通过，功能版 STOP WFI 仍在 AXI RAM。最新 Application 为 361876 字节，SHA-256 `397bdd55d5b506188141118791c70df9c36e6f50a503a834200a29b8a49c0de3`；产物仍在 `.hbox/webconfig-local/artifacts/`。
+- 未烧录新版本、未修改保护位或锁定状态。用户通过 `python tools/hbox.py flash app A` 仅更新 STM32 Application 后验证重连；CH585 TX/RX 不需更新。此次兼容修正是否完全解决现场接收故障仍待实测。
+
+## RF 角色交接静默窗口修正（2026-09-25）
+
+用户反馈上一版仍失败。继续对同一故障做运行中 ST-LINK 读取，没有 halt、复位或烧录；仍在每次结束时清除调试控制。新错误分流显示 `lastError=4`（物理读帧层），最近完整帧的事件号/载荷长度均为 0，因而上一节的长度兼容问题不是这次直接失败点。CFSR/HFSR 仍为 0，本地输入正常。旧固件 ELF/map 与记录保留在 `.hbox/stop-check/live-rf-fault/pre-handoff.*`、`radio-new.log`、`radio-raw.log`。
+
+一次有界观察抓到 `recoveryRead` 已启动、读到 6 字节且尚未识别帧头，片段为 `01 00 DE 01 5D 5A`；其中 `01 00 DE` 与 RF 角色应答的尾部一致，但这不是完整校验通过的帧，不能确定所有字节的来源。随后进入端口读取失败/重试。
+
+源码核对发现独立的第二个就绪脉冲：`TX/BOARD/board_role_selector.c` 完成 ROLE_SELECTED 后才跳入 RF 主程序；`TX/APP/rfm_spi_port_ch585.c` 在 RF 端口初始化后调用 `rfm_board_latest_ch585_pulse_boot_ready()`，W_INT 保持低电平 100 ms。此低电平没有可供读取的 RF 帧。旧唤醒恢复在角色应答后立即调用 RF 读帧，把启动脉冲当成事件，找不到 `0xA5` 帧头即断电重试。原有上电前的 720 ms 等待不能覆盖角色选择之后的脉冲。
+
+修复在真实角色应答后增加 `ApplicationWait`：NSS 保持高，不读 SPI、不发送 SET_RATE；主循环等待 150 ms，再移交 RF 端口并进入原有速率配置/真实状态确认。150 ms 采用已有 USB 角色交接的保守等待量，覆盖当前 100 ms RF 就绪脉冲并留出初始化裕量；不是已测得的最坏启动上限，也不是协议就绪证明，最终仍以 GET_STATUS 为准。没有新增阻塞式 HAL_Delay，没有修改 CH585、正常启动或 USB 恢复路径；本地输入/显示/灯效继续服务，等待阶段可取消。
+
+新增独立 RAM 诊断 `g_rfRecoveryReadDiagnostic`，区分无效状态、IRQ 释放超时、整帧超时、SPI 操作失败、长度错误、找不到帧头及校验和错误；记录原始字节、时间、HAL SPI 错误码并在清理/重试后保留。该 96 字节对象按缓存行对齐，仅失败时清理自身 DCache，便于 SWD 不暂停 CPU 读取；不写 Flash。
+
+验证/产物：
+
+- 通用睡眠/LCD 主机检查 7 项通过，约 3.8 秒。
+- RF 用例约 1.9 秒编译通过，未自动执行。补充角色应答后 100 ms 内禁止任何 RF I/O、150 ms 边界、等待期间本地推进/取消及计时回绕场景，仍采用假电气端口，不代表实际波形验收。
+- 无锁槽 A 完整构建约 38.8 秒通过；宏 0 隔离恢复构建约 6.8 秒通过。仍有初始化、未使用项和 RWX 告警。manifest/签名再次通过校验，功能版 WFI 在 AXI RAM，恢复版 Idle 直接返回。
+- 最新 Application 为 362036 字节，SHA-256 `dc046f3250879398131bdeea376567d95f644bafbd85b8c3da063aa3ad02e2c9`。本版本 RAM 符号：接收失败诊断 `0x24064BC0`（96 字节）、睡眠诊断 `0x24064E18`（36 字节）；只适用于该 ELF，后续构建需重新取符号。
+- 完整产物位于 `.hbox/webconfig-local/artifacts/`，用户自行执行 `python tools/hbox.py flash app A`；只更新 STM32 Application。未烧录，未修改保护位或锁定状态，修复后的 RF 重连仍待用户实测。

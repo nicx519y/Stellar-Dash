@@ -7,6 +7,7 @@
 #include "stm32h7xx_hal.h"
 #include "system_logger.h"
 #include "usb_board_link_port.hpp"
+#include "sleep_diagnostics.hpp"
 
 void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
 {
@@ -40,49 +41,54 @@ void Ch585RoleBootstrap::beginRfSleepResume()
 {
     shutdown();
     sleepResumeSince = HAL_GetTick();
-    sleepResumeAttempt = 0u;
     sleepResumeActive = true;
+    SleepDiagnostics_Record(SleepStage::RadioPowerWait);
 }
 
-int Ch585RoleBootstrap::serviceRfSleepResume()
+Ch585ResumeResult Ch585RoleBootstrap::serviceRfSleepResume()
 {
-    if (!sleepResumeActive || selector == nullptr) return -1;
+    if (!sleepResumeActive || selector == nullptr) return Ch585ResumeResult::Failed;
     const uint32_t now = HAL_GetTick();
     if (bootstrapState == Ch585BootstrapState::Off) {
-        if (now - sleepResumeSince < CH585_POWER_OFF_MIN_MS) return 0;
+        if (now - sleepResumeSince < CH585_POWER_OFF_MIN_MS) return Ch585ResumeResult::Pending;
         BOARD_POWER.setCh585Enabled(true);
+        SleepDiagnostics_Record(SleepStage::RadioPowerOn);
         bootstrapState = Ch585BootstrapState::Booting;
         sleepResumeSince = now;
-        return 0;
+        return Ch585ResumeResult::Pending;
     }
     if (bootstrapState == Ch585BootstrapState::Booting) {
         // Keep the bus idle for the complete existing handoff budget. Unlike
         // start(), this path does not block UI rendering while CH585 boots.
-        if (now - sleepResumeSince < CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS) return 0;
+        if (now - sleepResumeSince < CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS) return Ch585ResumeResult::Pending;
         bootstrapState = Ch585BootstrapState::Selecting;
+        SleepDiagnostics_Record(SleepStage::RadioSelectRole);
         sleepResumeSince = now;
         sleepSelectLast = now - CH585_ROLE_SELECT_RETRY_MS;
     }
     if (bootstrapState == Ch585BootstrapState::Selecting) {
-        if (now - sleepSelectLast < CH585_ROLE_SELECT_RETRY_MS) return 0;
-        sleepSelectLast = now;
+        if (now - sleepResumeSince >= CH585_ROLE_SELECT_TIMEOUT_MS) {
+            bootstrapState = Ch585BootstrapState::Failed;
+            return Ch585ResumeResult::Failed;
+        }
+        if (now - sleepSelectLast < CH585_ROLE_SELECT_RETRY_MS) return Ch585ResumeResult::Pending;
         if (selector(Ch585Role::Rf)) {
             activeRole = Ch585Role::Rf;
             bootstrapState = Ch585BootstrapState::Locked;
             sleepResumeActive = false;
-            return 1;
+            SleepDiagnostics_Record(SleepStage::RadioRoleReady);
+            return Ch585ResumeResult::Ready;
         }
+        // Space attempts from the end of the bounded transaction, not its
+        // start (a 20-ms timeout must still be followed by a 5-ms quiet gap).
+        sleepSelectLast = HAL_GetTick();
         if (HAL_GetTick() - sleepResumeSince >= CH585_ROLE_SELECT_TIMEOUT_MS) {
-            const uint8_t attempt = sleepResumeAttempt;
-            shutdown();
-            if (attempt != 0u) { bootstrapState = Ch585BootstrapState::Failed; return -1; }
-            sleepResumeAttempt = 1u;
-            sleepResumeSince = HAL_GetTick();
-            sleepResumeActive = true;
+            bootstrapState = Ch585BootstrapState::Failed;
+            return Ch585ResumeResult::Failed;
         }
-        return 0;
+        return Ch585ResumeResult::Pending;
     }
-    return -1;
+    return Ch585ResumeResult::Failed;
 }
 
 bool Ch585RoleBootstrap::prepareUsbStartup()
