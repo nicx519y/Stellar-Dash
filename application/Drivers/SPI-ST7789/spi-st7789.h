@@ -9,6 +9,8 @@ extern "C" {
 #endif
 
 void SPIST7789_Init(void);
+void SPIST7789_BeginResume(uint32_t now);
+int SPIST7789_PollResume(uint32_t now); /* 0 pending, 1 ready, -1 failed */
 void SPIST7789_DeInit(void);
 bool SPIST7789_IsReady(void);
 void SPIST7789_SetBacklight100(void);

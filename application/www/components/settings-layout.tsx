@@ -21,7 +21,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { t } = useLanguage();
     const { currentRoute, setRoute } = useRouterStore();
 
-    const { finishConfigDisabled, configEditingBlocked } = useGamepadConfig();
+    const { finishConfigDisabled, configEditingBlocked, dataIsReady } = useGamepadConfig();
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
@@ -104,7 +104,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                 </HStack>
                 <HStack justifyContent="flex-end" gap="10px" ml="auto" flexShrink={0}>
                     <BuildVariantBadge />
-                    <FinishConfigButton disabled={finishConfigDisabled || configEditingBlocked} />
+                    {dataIsReady && <FinishConfigButton disabled={finishConfigDisabled || configEditingBlocked} />}
                     <UserAuthControl />
                     <LanguageSwitcher />
                     {/* <ColorModeSwitcher /> */}

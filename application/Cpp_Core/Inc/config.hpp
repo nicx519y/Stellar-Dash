@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <string.h>
+#include "power_config.hpp"
 #include <map>
 #include "enums.hpp"
 #include "stm32h750xx.h"
@@ -159,11 +160,7 @@ typedef struct
 #define SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE (1u << 0)
 #define SCREEN_SERVICE_CH585_IAP_CONFIRMED      (1u << 1)
 
-typedef struct
-{
-    uint32_t wakeHoldMs;             // PA0 低电平长按唤醒确认时间
-    uint32_t autoStandbyMs;          // 自动休眠：10s/30s/60s/2min/5min；旧值 0 迁移为 5min
-} PowerConfig;
+
 
 /*
  * Latest-PCB immutable layout snapshot.

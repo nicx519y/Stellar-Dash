@@ -54,6 +54,7 @@ int main(void)
     BoardPower_EarlyMainHold();
     SystemSleep_CaptureBootFlags();
     SystemSleep_ConfirmWakeHoldOrReturnStandby();
+    SystemSleep_InitializeWakeKeys();
     /* Clock readiness is checked in board_init() below. The main rail is
      * already held; switched peripheral rails retain their own waits. */
 

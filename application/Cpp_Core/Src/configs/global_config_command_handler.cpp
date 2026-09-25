@@ -1,3 +1,4 @@
+#include "power_config_json.hpp"
 #include "storagemanager.hpp"
 #include "configs/device_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
@@ -170,50 +171,6 @@ static void set_screen_style_from_json(ScreenControlConfig& sc, cJSON* screenCon
         sc.screenStyle = SCREEN_STYLE_DARK;
     }
     memset(sc.reservedStyle, 0, sizeof(sc.reservedStyle));
-}
-
-static uint32_t clamp_power_wake_hold_ms(uint32_t value) {
-    if (value < 1000u) return 1000u;
-    if (value > 5000u) return 5000u;
-    return (value / 1000u) * 1000u;
-}
-
-static uint32_t sanitize_power_auto_standby_ms(uint32_t value) {
-    switch (value) {
-        case 10000u:
-        case 30000u:
-        case 60000u:
-        case 120000u:
-        case 300000u:
-            return value;
-        default:
-            return 300000u;
-    }
-}
-
-static void add_power_json(cJSON* globalConfigJSON, const PowerConfig& power) {
-    cJSON* powerJSON = cJSON_CreateObject();
-    cJSON_AddNumberToObject(powerJSON, "wakeHoldMs", power.wakeHoldMs);
-    cJSON_AddNumberToObject(powerJSON, "autoStandbyMs", power.autoStandbyMs);
-    cJSON_AddItemToObject(globalConfigJSON, "power", powerJSON);
-}
-
-static void parse_power_json(PowerConfig& power, cJSON* globalConfigJSON) {
-    if (!globalConfigJSON) return;
-    cJSON* powerJSON = cJSON_GetObjectItem(globalConfigJSON, "power");
-    if (!powerJSON || !cJSON_IsObject(powerJSON)) return;
-
-    cJSON* wakeHoldItem = cJSON_GetObjectItem(powerJSON, "wakeHoldMs");
-    if (wakeHoldItem && cJSON_IsNumber(wakeHoldItem)) {
-        int v = wakeHoldItem->valueint;
-        if (v > 0) power.wakeHoldMs = clamp_power_wake_hold_ms((uint32_t)v);
-    }
-
-    cJSON* autoStandbyItem = cJSON_GetObjectItem(powerJSON, "autoStandbyMs");
-    if (autoStandbyItem && cJSON_IsNumber(autoStandbyItem)) {
-        int v = autoStandbyItem->valueint;
-        power.autoStandbyMs = sanitize_power_auto_standby_ms(v > 0 ? (uint32_t)v : 0u);
-    }
 }
 
 static cJSON* get_hotkey_key_item(cJSON* hotkeyItem) {
@@ -404,6 +361,10 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateGlobalConfig(const
 
     // 更新全局配置
     cJSON* globalConfig = cJSON_GetObjectItem(params, "globalConfig");
+    if (!valid_power_json(globalConfig)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid power.autoSleepEnabled");
+    }
+    const PowerConfig previousPower = config.power;
     if (globalConfig) {
         // 更新输入模式
         cJSON* inputModeItem = cJSON_GetObjectItem(globalConfig, "inputMode");
@@ -432,6 +393,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateGlobalConfig(const
 
     // 保存配置
     if (!STORAGE_MANAGER.saveConfig()) {
+        config.power = previousPower;
         LOG_ERROR("DeviceCommand", "update_global_config: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
@@ -827,6 +789,10 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
                                          "Global section must be an object");
         }
         cJSON* globalConfigJSON = dataItem;
+        if (!valid_power_json(globalConfigJSON)) {
+            return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid power.autoSleepEnabled");
+        }
+        config.power.autoSleepEnabled = 0u;
         cJSON* item;
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "inputMode")) && cJSON_IsString(item)) {
             config.inputMode = ConfigUtils::getInputModeFromString(item->valuestring);

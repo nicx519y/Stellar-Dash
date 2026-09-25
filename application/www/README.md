@@ -1,4 +1,4 @@
-# HBox Web Config
+# XORA Web Config
 
 The V2 application is a server-hosted static Next.js site. It talks to the
 CH585 Maintenance HID collection through WebHID. The browser and STM32 open

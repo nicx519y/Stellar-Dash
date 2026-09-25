@@ -24,6 +24,7 @@ class LEDsManager {
         void setup();
         void loop(uint32_t virtualPinMask);
         void deinit();
+        bool suspendForSleep();
         void effectStyleNext();
         void effectStylePrev();
         void brightnessUp();
@@ -61,9 +62,7 @@ class LEDsManager {
         bool keyStartupRampActive;
         bool ambientStartupRampActive;
         uint32_t lastDmaStatsTime;
-        uint32_t lastKeyHalfCount;
         uint32_t lastKeyCompleteCount;
-        uint32_t lastAmbientHalfCount;
         uint32_t lastAmbientCompleteCount;
         uint32_t enabledKeysMask; // 启用按键掩码
         RGBColor frontColor;

@@ -114,7 +114,12 @@ void MX_TIM4_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM4_Init 2 */
-
+  /* Request each channel's next CCR preload at the period boundary. With
+   * compare-triggered DMA a '1' (CCR=150) leaves only 158 timer ticks before
+   * the next preload latch; update-triggered CC requests get all 308 ticks.
+   * CCDS keeps the independent TIM4_CH1/CH2 DMA mappings and CCxDE gates.
+   * Set once before either strip starts; never generate UG/reset CNT here. */
+  SET_BIT(htim4.Instance->CR2, TIM_CR2_CCDS);
   /* USER CODE END TIM4_Init 2 */
   HAL_TIM_MspPostInit(&htim4);
 
@@ -160,7 +165,7 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
     hdma_tim4_ch1.Init.MemInc = DMA_MINC_ENABLE;
     hdma_tim4_ch1.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
     hdma_tim4_ch1.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-    hdma_tim4_ch1.Init.Mode = DMA_CIRCULAR;
+    hdma_tim4_ch1.Init.Mode = DMA_NORMAL;
     hdma_tim4_ch1.Init.Priority = DMA_PRIORITY_LOW;
     hdma_tim4_ch1.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_tim4_ch1) != HAL_OK)
@@ -178,7 +183,7 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
     hdma_tim4_ch2.Init.MemInc = DMA_MINC_ENABLE;
     hdma_tim4_ch2.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
     hdma_tim4_ch2.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-    hdma_tim4_ch2.Init.Mode = DMA_CIRCULAR;
+    hdma_tim4_ch2.Init.Mode = DMA_NORMAL;
     hdma_tim4_ch2.Init.Priority = DMA_PRIORITY_LOW;
     hdma_tim4_ch2.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_tim4_ch2) != HAL_OK)

@@ -14,6 +14,7 @@
 #include "states/ch585_bridge_update_state.hpp"
 #include "states/safe_recovery_state.hpp"
 #include "system_logger.h"
+#include "system_sleep_manager.hpp"
 #include "boot_profile.h"
 
 namespace {
@@ -165,6 +166,7 @@ void MainStateMachine::serviceSharedRuntime()
     }
     if (traceFirstPass) APP_STAGE("RT2", "connection service complete");
     POWER_MANAGER.loop();
+    SystemSleep_Service(currentState == MainRuntimeState::Input, resetPending);
     if (traceFirstPass) APP_STAGE("RT3", "power service complete");
     SPIScreenManager::getInstance().loop();
     if (currentState == MainRuntimeState::Input) {
@@ -202,5 +204,6 @@ void MainStateMachine::setup()
             if (interactiveRuntimeInitialized) Logger_Flush();
             NVIC_SystemReset();
         }
+        SystemSleep_Idle();
     }
 }

@@ -87,81 +87,56 @@ class LedConfigSafetyTests(unittest.TestCase):
         self.assertIn("#define INPUT_LED_RECOVERY_HOLD_OFF                0", board_config)
         self.assertIn("frontColor = hexToRGB(opts->ledColor1);", manager)
 
-    def test_ws2812_circular_dma_path_avoids_floating_point_and_cache_invalidation(self) -> None:
-        driver = (
-            ROOT
-            / "application"
-            / "Drivers"
-            / "PWM-WS2812B"
-            / "pwm-ws2812b.c"
-        ).read_text(encoding="utf-8")
-
+    def test_ws2812_single_frame_dma_ownership_and_timing(self) -> None:
+        driver = (ROOT / "application/Drivers/PWM-WS2812B/pwm-ws2812b.c").read_text(encoding="utf-8")
+        timer = (ROOT / "application/Core/Src/tim.c").read_text(encoding="utf-8")
         self.assertNotIn("double_t brightness", driver)
         self.assertNotIn("SCB_CleanInvalidateDCache_by_Addr", driver)
         self.assertIn("SCB_CleanDCache_by_Addr", driver)
-        self.assertIn("HAL_TIM_PWM_Start_DMA", driver)
-        self.assertIn("WS2812B_SubmitStrip", driver)
-        self.assertIn("WS2812B_UPDATE_WAIT_HT", driver)
-        self.assertIn("WS2812B_UPDATE_WAIT_TC", driver)
-        self.assertIn(
-            "__HAL_DMA_ENABLE_IT(hdma, DMA_IT_HT | DMA_IT_TC)", driver
-        )
-        self.assertIn("HAL_TIM_PWM_PulseFinishedHalfCpltCallback", driver)
-        self.assertIn("HAL_TIM_PWM_PulseFinishedCallback", driver)
-        self.assertIn("g_keys_submitted_colors", driver)
-        self.assertIn("g_ambient_submitted_colors", driver)
-        self.assertIn("g_keys_staged_dma", driver)
-        self.assertIn("g_ambient_staged_dma", driver)
         self.assertIn("WS2812B_UPDATE_ENCODING", driver)
-        self.assertIn("encode_submitted_to_staging(strip)", driver)
-        self.assertIn("copy_staging_to_dma_frame(strip, 0u)", driver)
-        self.assertIn("copy_staging_to_dma_frame(strip, 1u)", driver)
-        self.assertIn("g_keys_published_generation", driver)
-        self.assertIn("g_ambient_published_generation", driver)
-        self.assertIn("strip_in_flight_generation", driver)
-        self.assertIn("strip_applied_generation", driver)
-        self.assertIn("KEYS_HIGH_CCR_CODE       150u", driver)
-        self.assertIn("KEYS_LOW_CCR_CODE         72u", driver)
-        self.assertIn("AMBIENT_HIGH_CCR_CODE    150u", driver)
-        self.assertIn("AMBIENT_LOW_CCR_CODE      72u", driver)
-        self.assertIn("strip_high_ccr_code", driver)
-        self.assertIn("strip_low_ccr_code", driver)
-        self.assertIn("WS2812B_FRAME_BUFFER_LEN_FOR", driver)
-        self.assertIn("WS2812B_KEYS_RESET_SLOT_COUNT       10u", driver)
-        self.assertIn("WS2812B_AMBIENT_RESET_SLOT_COUNT    10u", driver)
-        self.assertIn(
-            "2u * WS2812B_FRAME_BUFFER_LEN_FOR((count), (resetSlots))",
-            driver,
-        )
-        self.assertIn(
-            "*strip_applied_generation(strip) = *strip_in_flight_generation(strip)",
-            driver,
-        )
-        self.assertIn("__HAL_DMA_CLEAR_FLAG", driver)
-        self.assertIn(
-            "WS2812B_GetStateStrip(strip) == WS2812B_RUNNING", driver
-        )
-        half_callback = driver[
-            driver.index("void HAL_TIM_PWM_PulseFinishedHalfCpltCallback"):
-            driver.index("void HAL_TIM_ErrorCallback")
-        ]
-        complete_callback = driver[
-            driver.index("void HAL_TIM_PWM_PulseFinishedCallback"):
-            driver.index("void HAL_TIM_PWM_PulseFinishedHalfCpltCallback")
-        ]
-        self.assertNotIn("__HAL_DMA_DISABLE_IT", half_callback)
-        self.assertNotIn("__HAL_DMA_DISABLE_IT", complete_callback)
-        self.assertNotIn("HAL_DMAEx_MultiBufferStart", driver)
+        self.assertIn("WS2812B_UPDATE_TRANSMITTING", driver)
+        self.assertNotIn("WS2812B_UPDATE_WAIT_HT", driver)
+        self.assertNotIn("copy_staging_to_dma_frame", driver)
+        self.assertNotIn("g_keys_staged_dma", driver)
+        self.assertIn("__HAL_DMA_DISABLE_IT(hdma, DMA_IT_HT)", driver)
+        self.assertIn("hdma_tim4_ch1.Init.Mode = DMA_NORMAL", timer)
+        self.assertIn("hdma_tim4_ch2.Init.Mode = DMA_NORMAL", timer)
+        # CC requests move to UPDATE but retain independent CC1/CC2 DMA streams.
+        init = timer[timer.index("void MX_TIM4_Init(void)"):
+                     timer.index("void HAL_TIM_Base_MspInit")]
+        self.assertIn("SET_BIT(htim4.Instance->CR2, TIM_CR2_CCDS)", init)
+        self.assertNotIn("DMA_REQUEST_TIM4_UP", timer)
+        for token in ("KEYS_HIGH_CCR_CODE       150u", "KEYS_LOW_CCR_CODE         72u",
+                      "AMBIENT_HIGH_CCR_CODE    150u", "AMBIENT_LOW_CCR_CODE      72u",
+                      "WS2812B_KEYS_RESET_SLOT_COUNT       10u",
+                      "WS2812B_AMBIENT_RESET_SLOT_COUNT    10u"):
+            self.assertIn(token, driver)
+        self.assertNotIn("2u * WS2812B_FRAME_BUFFER_LEN_FOR", driver)
+        callbacks = driver[driver.index("static void complete_strip"):
+                           driver.index("void WS2812B_InitStrip")]
+        for forbidden in ("memcpy(", "led_data_to_buffer(", "encode_submitted_frame(",
+                          "HAL_TIM_PWM_Start_DMA(", "HAL_DMA_Start_IT(", "APP_ERR(", "APP_DBG("):
+            self.assertNotIn(forbidden, callbacks)
+        self.assertIn("__HAL_DMA_GET_COUNTER(hdma) != 0u", callbacks)
+        self.assertIn("hdma->ErrorCode != HAL_DMA_ERROR_NONE", callbacks)
+        self.assertIn("*strip_applied_generation(strip) = *strip_in_flight_generation(strip)", callbacks)
         self.assertNotIn("HAL_DMA_PollForTransfer(", driver)
-        self.assertNotIn("ledCount - start", complete_callback)
-        self.assertNotIn("dmaLen / 2u / 24u", half_callback)
-        self.assertNotIn("led_data_to_buffer", half_callback)
-        self.assertNotIn("led_data_to_buffer", complete_callback)
-        self.assertNotIn("led_data_to_dma_frame", half_callback)
-        self.assertNotIn("led_data_to_dma_frame", complete_callback)
-        self.assertIn("DMA_CIRCULAR", (
-            ROOT / "application" / "Core" / "Src" / "tim.c"
-        ).read_text(encoding="utf-8"))
+        self.assertNotIn("__HAL_TIM_GENERATE_EVENT", driver)
+        self.assertNotIn("__HAL_TIM_SET_COUNTER", driver)
+        self.assertIn("__HAL_TIM_DISABLE_OCxPRELOAD", driver)
+        self.assertIn("__HAL_TIM_ENABLE_OCxPRELOAD", driver)
+        self.assertNotIn("HAL_TIM_PWM_Start_DMA(", driver)
+        self.assertIn("hdma->XferHalfCpltCallback = NULL", driver)
+        submit = driver[driver.index("static bool start_encoded_frame"):
+                        driver.index("void WS2812B_ServiceStrip")]
+        self.assertLess(submit.index("HAL_DMA_Start_IT("), submit.index("htim4.Instance->CCER |="))
+        self.assertLess(submit.index("htim4.Instance->CCER |="), submit.index("__HAL_TIM_ENABLE_DMA("))
+        self.assertLess(submit.index("__HAL_TIM_ENABLE(&htim4)"), submit.index("__HAL_TIM_ENABLE_DMA("))
+        self.assertIn("hdma->State == HAL_DMA_STATE_BUSY && HAL_DMA_Abort(hdma)", driver)
+        legacy = driver[driver.index("void LEDDataToDMABuffer"):
+                        driver.index("static volatile WS2812B_StateTypeDef* strip_state")]
+        self.assertIn("WS2812B_RefreshStrip", legacy)
+        self.assertNotIn("led_data_to_buffer", legacy)
 
     def test_led_switches_control_only_the_selected_rail(self) -> None:
         manager = (
@@ -190,8 +165,11 @@ class LedConfigSafetyTests(unittest.TestCase):
         stop_end = driver.index("WS2812B_StateTypeDef WS2812B_GetStateStrip")
         stop_strip = driver[stop_start:stop_end]
         self.assertNotIn("HAL_TIM_PWM_Stop_DMA", stop_strip)
-        self.assertIn("TIM_DMA_CC1", stop_strip)
-        self.assertIn("TIM_DMA_CC2", stop_strip)
+        self.assertIn("__HAL_TIM_DISABLE_DMA(&htim4, strip_dma_request(strip))", stop_strip)
+        request_selector = driver[driver.index("static uint32_t strip_dma_request"):
+                                  driver.index("static void disable_strip_output")]
+        self.assertIn("TIM_DMA_CC1", request_selector)
+        self.assertIn("TIM_DMA_CC2", request_selector)
         self.assertIn("otherState == WS2812B_RUNNING", stop_strip)
 
     def test_webconfig_preview_updates_led_strips_in_place(self) -> None:

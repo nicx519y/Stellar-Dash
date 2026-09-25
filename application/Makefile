@@ -39,6 +39,15 @@ BUILD_DIR = build
 
 # Paired diagnostic build; must use a separate BUILD_DIR when switching.
 HBOX_BOOT_PROFILE ?= 0
+HBOX_AUTO_SLEEP_ENABLED ?= 1
+# Temporary opt-in LED transport comparison. Never enable in product builds.
+HBOX_LED_DMA_DIAGNOSTIC ?= 0
+ifneq ($(filter $(HBOX_LED_DMA_DIAGNOSTIC),0 1 2),$(HBOX_LED_DMA_DIAGNOSTIC))
+$(error HBOX_LED_DMA_DIAGNOSTIC must be 0 (off), 1 (A/B/C), or 2 (repeat/hold))
+endif
+ifneq ($(filter $(HBOX_AUTO_SLEEP_ENABLED),0 1),$(HBOX_AUTO_SLEEP_ENABLED))
+$(error HBOX_AUTO_SLEEP_ENABLED must be exactly 0 or 1)
+endif
 ifneq ($(filter $(HBOX_BOOT_PROFILE),0 1),$(HBOX_BOOT_PROFILE))
 $(error HBOX_BOOT_PROFILE must be exactly 0 or 1)
 endif
@@ -237,6 +246,8 @@ C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32H750xx \
 -DHBOX_BOOT_PROFILE=$(HBOX_BOOT_PROFILE) \
+-DHBOX_AUTO_SLEEP_ENABLED=$(HBOX_AUTO_SLEEP_ENABLED) \
+-DHBOX_LED_DMA_DIAGNOSTIC=$(HBOX_LED_DMA_DIAGNOSTIC) \
 -DAPPLICATION_SERIAL_PRINT=$(APP_LOG_ENABLE) \
 -DAPPLICATION_DEBUG_PRINT=$(APP_LOG_ENABLE) \
 -DAPP_LOG_VERBOSE=$(APP_LOG_VERBOSE) \

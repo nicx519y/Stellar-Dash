@@ -1,4 +1,6 @@
+#include "spi-st7789-resume.h"
 #include "spi-st7789.h"
+#include "spi-st7789-backlight.h"
 #include <string.h>
 #include "st7789.h"
 #include "stm32h7xx_hal.h"
@@ -82,6 +84,20 @@ static void enable_tim_clock(TIM_TypeDef* tim)
 #endif
 }
 
+// Keep the active-low backlight deterministic while its PWM is stopped.
+// An analog/Hi-Z PA1 can light the backlight before LCD initialization succeeds.
+static void backlight_gpio_off(void)
+{
+    enable_gpio_clock(ST7789_BL_PORT);
+    gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, ST7789_BL_OFF_STATE);
+    GPIO_InitTypeDef init = {0};
+    init.Pin = ST7789_BL_PIN;
+    init.Mode = GPIO_MODE_OUTPUT_PP;
+    init.Pull = GPIO_NOPULL;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(ST7789_BL_PORT, &init);
+}
+
 static void spi_gpio_init(void)
 {
     GPIO_InitTypeDef init = {0};
@@ -130,7 +146,7 @@ static void spi_gpio_deinit(void)
     pin_to_analog(ST7789_SDA_PORT, ST7789_SDA_PIN);
     pin_to_analog(ST7789_CS_PORT, ST7789_CS_PIN);
     pin_to_analog(ST7789_DC_PORT, ST7789_DC_PIN);
-    pin_to_analog(ST7789_BL_PORT, ST7789_BL_PIN);
+    backlight_gpio_off();
 }
 
 static bool spi_clock_init(void)
@@ -190,6 +206,9 @@ static void dcache_clean(const void* data, size_t len)
 #endif
 }
 
+
+
+
 static bool spi_wait_ready(uint32_t timeout_ms)
 {
     uint32_t t0 = HAL_GetTick();
@@ -202,8 +221,9 @@ static bool spi_wait_ready(uint32_t timeout_ms)
 static bool spi_tx_blocking(const uint8_t* data, uint16_t len)
 {
     if (!data || len == 0) return true;
-    if (!spi_wait_ready(50)) return false;
-    return (HAL_SPI_Transmit(&g_hspi, (uint8_t*)data, len, 50) == HAL_OK);
+    const uint32_t timeout = SPIST7789_ResumeActive() ? 2u : 50u;
+    if (!spi_wait_ready(timeout)) return false;
+    return (HAL_SPI_Transmit(&g_hspi, (uint8_t*)data, len, timeout) == HAL_OK);
 }
 
 static bool write_cmd_data(uint8_t cmd, const uint8_t* data, uint16_t len)
@@ -394,7 +414,7 @@ static bool backlight_pwm_init(void)
 
     TIM_OC_InitTypeDef oc = {0};
     oc.OCMode = TIM_OCMODE_PWM1;
-    oc.Pulse = 0u;
+    oc.Pulse = SPIST7789_BacklightCompare(g_bl_htim.Init.Period, 0u, ST7789_BL_ON_STATE == GPIO_PIN_RESET);
     oc.OCPolarity = TIM_OCPOLARITY_HIGH;
     oc.OCFastMode = TIM_OCFAST_DISABLE;
     if (HAL_TIM_PWM_ConfigChannel(&g_bl_htim, &oc, SPIST7789_BL_TIM_CHANNEL) != HAL_OK) return false;
@@ -436,30 +456,13 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef* hspi)
     g_dma_err_flag = 1;
 }
 
-void SPIST7789_Init(void)
+static bool spi_prepare_hardware(void)
 {
-    if (g_hw_ready) {
-        return;
-    }
-    g_busy = false;
-    g_xfer_kind = SPIST7789_XFER_NONE;
-    g_remaining = 0u;
-    g_dma_irq_flag = 0u;
-    g_dma_done_flag = 0u;
-    g_dma_err_flag = 0u;
-    g_spi_txc_flag = false;
-
-    /*
-     * The latest PCB gates the LCD logic rail with PI9.  Keep the backlight
-     * off while the rail settles and while the controller exits sleep.
-     */
-    BoardPower_SetLcdEnabled(true);
-    HAL_Delay(5u);
     spi_gpio_init();
     if (!spi_hw_init()) {
         SPIST7789_DeInit();
         g_dma_err_flag = 1u;
-        return;
+        return false;
     }
 
     __HAL_RCC_DMA2_CLK_ENABLE();
@@ -481,7 +484,7 @@ void SPIST7789_Init(void)
     if (HAL_DMA_Init(&g_dma) != HAL_OK) {
         SPIST7789_DeInit();
         g_dma_err_flag = 1u;
-        return;
+        return false;
     }
     __HAL_DMA_DISABLE_IT(&g_dma, DMA_IT_HT);
     __HAL_LINKDMA(&g_hspi, hdmatx, g_dma);
@@ -490,6 +493,30 @@ void SPIST7789_Init(void)
     HAL_NVIC_EnableIRQ(ST7789_SPI_DMA_IRQn);
     HAL_NVIC_SetPriority(SPI1_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(SPI1_IRQn);
+
+    return true;
+}
+
+void SPIST7789_Init(void)
+{
+    if (g_hw_ready) {
+        return;
+    }
+    g_busy = false;
+    g_xfer_kind = SPIST7789_XFER_NONE;
+    g_remaining = 0u;
+    g_dma_irq_flag = 0u;
+    g_dma_done_flag = 0u;
+    g_dma_err_flag = 0u;
+    g_spi_txc_flag = false;
+
+    /*
+     * The latest PCB gates the LCD logic rail with PI9.  Keep the backlight
+     * off while the rail settles and while the controller exits sleep.
+     */
+    BoardPower_SetLcdEnabled(true);
+    HAL_Delay(5u);
+    if (!spi_prepare_hardware()) return;
 
     (void)write_cmd_data(0x01, NULL, 0);
     HAL_Delay(150);
@@ -507,8 +534,38 @@ void SPIST7789_Init(void)
     g_hw_ready = true;
 }
 
+// Electrical operations used by the nonblocking resume sequencer.
+bool SPIST7789_ResumePrepare(void) { return spi_prepare_hardware(); }
+bool SPIST7789_ResumeWrite(uint8_t command, const uint8_t* data, uint16_t size) {
+    return write_cmd_data(command, data, size);
+}
+void SPIST7789_ResumePowerOn(void)
+{
+    backlight_gpio_off();
+    BoardPower_SetLcdEnabled(true);
+    // Set output latches before switching pins from analog to output. Do this
+    // after enabling the rail so the bus cannot back-power an unpowered LCD.
+    GPIO_InitTypeDef init = {0};
+    init.Mode = GPIO_MODE_OUTPUT_PP;
+    init.Pull = GPIO_NOPULL;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    enable_gpio_clock(ST7789_CS_PORT);
+    enable_gpio_clock(ST7789_DC_PORT);
+    enable_gpio_clock(ST7789_SCL_PORT);
+    enable_gpio_clock(ST7789_SDA_PORT);
+    cs_high(); dc_data();
+    gpio_write(ST7789_SCL_PORT, ST7789_SCL_PIN, GPIO_PIN_SET);
+    gpio_write(ST7789_SDA_PORT, ST7789_SDA_PIN, GPIO_PIN_RESET);
+    init.Pin = ST7789_CS_PIN; HAL_GPIO_Init(ST7789_CS_PORT, &init);
+    init.Pin = ST7789_DC_PIN; HAL_GPIO_Init(ST7789_DC_PORT, &init);
+    init.Pin = ST7789_SCL_PIN; HAL_GPIO_Init(ST7789_SCL_PORT, &init);
+    init.Pin = ST7789_SDA_PIN; HAL_GPIO_Init(ST7789_SDA_PORT, &init);
+}
+void SPIST7789_ResumeReady(void) { g_hw_ready = true; }
+
 void SPIST7789_DeInit(void)
 {
+    SPIST7789_CancelResume();
     /*
      * Quiesce all signals before PI9 removes LCD power.  This is also safe
      * after a partial initialization failure.
@@ -572,11 +629,7 @@ void SPIST7789_SetBacklight(uint8_t percent)
     }
 
     uint32_t arr = __HAL_TIM_GET_AUTORELOAD(&g_bl_htim);
-    uint32_t pulse = ((arr + 1u) * (uint32_t)percent) / 100u;
-    if (pulse > arr) pulse = arr;
-    if (ST7789_BL_ON_STATE == GPIO_PIN_RESET) {
-        pulse = arr - pulse;
-    }
+    uint32_t pulse = SPIST7789_BacklightCompare(arr, percent, ST7789_BL_ON_STATE == GPIO_PIN_RESET);
     __HAL_TIM_SET_COMPARE(&g_bl_htim, SPIST7789_BL_TIM_CHANNEL, pulse);
 }
 

@@ -39,6 +39,7 @@ public:
 	uint32_t getWakeHoldMs() const {
 		return config.power.wakeHoldMs;
 	}
+	bool getAutoSleepEnabled() const { return config.power.autoSleepEnabled == 1u; }
 	uint32_t getAutoStandbyMs() const {
 		return config.power.autoStandbyMs;
 	}

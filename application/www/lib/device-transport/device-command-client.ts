@@ -299,7 +299,7 @@ export class DeviceCommandClient {
     const bootstrapTimeout = error instanceof RecoverableBootstrapResponseTimeoutError
       ? error
       : null;
-    console.info('[HBox WebHID bootstrap]', {
+    console.info('[XORA WebHID bootstrap]', {
       event,
       attempt,
       maximumAttempts: MAX_BOOTSTRAP_RESYNCHRONIZATIONS + 1,
@@ -1473,7 +1473,7 @@ function validateConfigBackup(value: unknown): ValidatedConfigBackup {
 
   return {
     backupVersion: version,
-    globalConfig: globalConfig as Record<string, unknown>,
+    globalConfig: normalizeImportedPower(globalConfig as Record<string, unknown>),
     hotkeysConfig,
     screenControl: screenControl as Record<string, unknown>,
     profiles: normalizedProfiles,
@@ -1815,4 +1815,17 @@ function exactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer;
+}
+
+function normalizeImportedPower(global: Record<string, unknown>): Record<string, unknown> {
+  const power = global.power;
+  if (power !== undefined && (!power || typeof power !== 'object' || Array.isArray(power))) {
+    throw new DeviceTransportError('protocol', 'Invalid power configuration');
+  }
+  const fields = (power ?? {}) as Record<string, unknown>;
+  if (fields.autoSleepEnabled !== undefined && typeof fields.autoSleepEnabled !== 'boolean') {
+    throw new DeviceTransportError('protocol', 'Invalid power.autoSleepEnabled');
+  }
+  const { autoSleepSupported: _capability, ...settings } = fields;
+  return { ...global, power: { ...settings, autoSleepEnabled: fields.autoSleepEnabled ?? false } };
 }

@@ -10,7 +10,8 @@ const buildRoot = path.resolve(process.cwd(), variant === 'mock' ? 'build-mock' 
 const mockMarkers = [
   'HBOX-V2-MOCK-0001',
   'mock-session',
-  'HBox V2 Mock Device',
+  'HBox V2 Mock Device', // Legacy artifacts must still be detected.
+  'XORA V2 Mock Device',
   'MOCK DEVICE',
 ];
 const requiredMockMarkers = [

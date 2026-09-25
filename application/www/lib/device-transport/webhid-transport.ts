@@ -290,13 +290,13 @@ export class WebHidTransport implements DeviceTransport {
       if (granted.length === 0) {
         throw new DeviceTransportError(
           'permission-required',
-          '没有已授权的 HBox WebHID 设备，请点击连接并在浏览器选择器中授权设备',
+          '没有已授权的 XORA WebHID 设备，请点击连接并在浏览器选择器中授权设备',
         );
       }
       if (granted.length > 1) {
         throw new DeviceTransportError(
           'permission-required',
-          '检测到多台已授权的 HBox WebHID 设备，请点击连接并明确选择要配置的设备',
+          '检测到多台已授权的 XORA WebHID 设备，请点击连接并明确选择要配置的设备',
         );
       }
       return await this.openDevice(granted[0], attempt);
@@ -344,7 +344,7 @@ export class WebHidTransport implements DeviceTransport {
       );
       this.assertPhysicalConnectAttemptActive(attempt);
       if (selected.length === 0) {
-        throw new DeviceTransportError('permission-denied', '未选择 HBox WebHID 设备');
+        throw new DeviceTransportError('permission-denied', '未选择 XORA WebHID 设备');
       }
       const available = selected.filter((device) => !this.quarantinedDevices.has(device));
       if (available.length === 0) {

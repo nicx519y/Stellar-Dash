@@ -1,3 +1,4 @@
+#include "power_config_json.hpp"
 #include "config.hpp"
 #include "qspi-w25q64.h"
 #include "cJSON.h"
@@ -17,6 +18,7 @@
 #include <algorithm>
 
 #define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
+#define CONFIG_VERSION_AUTO_SLEEP_MIGRATE_FROM 0x000021u
 #define CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM 0x00001Bu
 #define CONFIG_VERSION_POWER_MIGRATE_FROM 0x00001Cu
 #define CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM 0x00001Du
@@ -278,35 +280,6 @@ static void sanitize_screen_service_flags(ScreenControlConfig& sc) {
     sc.serviceFlags &= allowed;
 }
 
-static uint32_t clamp_power_wake_hold_ms(uint32_t value) {
-    if (value < 1000u) return 1000u;
-    if (value > 5000u) return 5000u;
-    return (value / 1000u) * 1000u;
-}
-
-static uint32_t sanitize_power_auto_standby_ms(uint32_t value) {
-    switch (value) {
-        case 10000u:
-        case 30000u:
-        case 60000u:
-        case 120000u:
-        case 300000u:
-            return value;
-        default:
-            return DEFAULT_POWER_AUTO_STANDBY_MS;
-    }
-}
-
-static void init_power_defaults(PowerConfig& power) {
-    power.wakeHoldMs = DEFAULT_POWER_WAKE_HOLD_MS;
-    power.autoStandbyMs = DEFAULT_POWER_AUTO_STANDBY_MS;
-}
-
-static void sanitize_power_config(PowerConfig& power) {
-    power.wakeHoldMs = clamp_power_wake_hold_ms(power.wakeHoldMs);
-    power.autoStandbyMs = sanitize_power_auto_standby_ms(power.autoStandbyMs);
-}
-
 static void init_hardware_layout(HardwareLayoutConfig& hardware) {
     hardware.batteryPackCount = LATEST_PCB_BATTERY_PACK_COUNT;
     hardware.keyLedCount = LATEST_PCB_KEY_LED_COUNT;
@@ -356,33 +329,6 @@ static bool sanitize_led_profiles(Config& config) {
         changed = sanitize_led_profile(config.profiles[i].ledsConfigs) || changed;
     }
     return changed;
-}
-
-static void add_power_json(cJSON* globalConfigJSON, const PowerConfig& power) {
-    cJSON* powerJSON = cJSON_CreateObject();
-    cJSON_AddNumberToObject(powerJSON, "wakeHoldMs", power.wakeHoldMs);
-    cJSON_AddNumberToObject(powerJSON, "autoStandbyMs", power.autoStandbyMs);
-    cJSON_AddItemToObject(globalConfigJSON, "power", powerJSON);
-}
-
-static void parse_power_json(PowerConfig& power, cJSON* globalConfig) {
-    if (!globalConfig) return;
-    cJSON* powerJSON = cJSON_GetObjectItem(globalConfig, "power");
-    if (!powerJSON || !cJSON_IsObject(powerJSON)) return;
-
-    cJSON* wakeHoldItem = cJSON_GetObjectItem(powerJSON, "wakeHoldMs");
-    if (wakeHoldItem && cJSON_IsNumber(wakeHoldItem)) {
-        int v = wakeHoldItem->valueint;
-        power.wakeHoldMs = (v > 0) ? (uint32_t)v : DEFAULT_POWER_WAKE_HOLD_MS;
-    }
-
-    cJSON* autoStandbyItem = cJSON_GetObjectItem(powerJSON, "autoStandbyMs");
-    if (autoStandbyItem && cJSON_IsNumber(autoStandbyItem)) {
-        int v = autoStandbyItem->valueint;
-        power.autoStandbyMs = (v > 0) ? (uint32_t)v : 0u;
-    }
-
-    sanitize_power_config(power);
 }
 
 static void parse_screen_style_json(ScreenControlConfig& sc, cJSON* screenControl) {
@@ -554,6 +500,8 @@ cJSON* toJSON(Config& config) {
 
 bool fromJSON(Config& config, cJSON* json) {
     if (!json) return false;
+    if (!valid_power_json(cJSON_GetObjectItem(json, "globalConfig"))) return false;
+    config.power.autoSleepEnabled = 0u; // Importing older files is opt-out.
 
     // 1. 全局配置
     cJSON* globalConfig = cJSON_GetObjectItem(json, "globalConfig");
@@ -876,6 +824,7 @@ bool ConfigUtils::load(Config& config)
 {
     bool fjResult;
     fjResult = fromStorage(config);
+    if (fjResult && config.version < CONFIG_VERSION) migrate_legacy_power_config(config.power);
 
     /*
      * LED settings survived several schema revisions without a load-time
@@ -928,7 +877,8 @@ bool ConfigUtils::load(Config& config)
         }
         return true;
     } else if (fjResult == true &&
-               (config.version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
+               (config.version == CONFIG_VERSION_AUTO_SLEEP_MIGRATE_FROM ||
+                config.version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
                 config.version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
                 config.version == CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM)) {
         sanitize_screen_style(config.screenControl);
@@ -1227,6 +1177,7 @@ static ConfigPayloadResult compare_config_payload(
 
 static bool is_supported_legacy_config_version(uint32_t version) {
     return version == CONFIG_VERSION ||
+           version == CONFIG_VERSION_AUTO_SLEEP_MIGRATE_FROM ||
            version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
            version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
            version == CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM ||

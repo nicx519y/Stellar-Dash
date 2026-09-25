@@ -469,7 +469,7 @@ function ensureTraceServiceWorker(): void {
     .then(() => navigator.serviceWorker.ready)
     .then(() => {
       console.info(
-        `[HBox WebHID] Network trace enabled (${currentTraceMode()}); ` +
+        `[XORA WebHID] Network trace enabled (${currentTraceMode()}); ` +
         `filter DevTools Network by ${TRACE_ENDPOINT_PREFIX}`,
       );
       flushPendingTraceRequests();
@@ -657,5 +657,5 @@ function warnUnavailable(message: string, error?: unknown): void {
     return;
   }
   warnedUnavailable = true;
-  console.warn(`[HBox WebHID] Network trace ${message}`, error);
+  console.warn(`[XORA WebHID] Network trace ${message}`, error);
 }

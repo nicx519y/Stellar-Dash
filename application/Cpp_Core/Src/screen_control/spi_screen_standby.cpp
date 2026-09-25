@@ -295,6 +295,14 @@ bool ScreenStandby_Deactivate(void)
     return true;
 }
 
+void ScreenStandby_Wake(uint32_t nowMs, uint32_t inputMask)
+{
+    (void)ScreenStandby_Deactivate();
+    g_last_activity_ms = nowMs;
+    g_last_input_mask = inputMask;
+    g_need_redraw = true;
+}
+
 void ScreenStandby_Render(ST7789_Handle* lcd, uint32_t inputMask)
 {
     if (!lcd || !g_active) return;

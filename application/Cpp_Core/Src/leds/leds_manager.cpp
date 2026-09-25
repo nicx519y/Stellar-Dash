@@ -51,9 +51,7 @@ LEDsManager::LEDsManager()
     keyStartupRampActive = false;
     ambientStartupRampActive = false;
     lastDmaStatsTime = 0u;
-    lastKeyHalfCount = 0u;
     lastKeyCompleteCount = 0u;
-    lastAmbientHalfCount = 0u;
     lastAmbientCompleteCount = 0u;
     animationStartTime = 0;
     lastButtonState = 0;
@@ -84,6 +82,10 @@ void LEDsManager::setup()
         return;
     }
     runtimeEnabled = true;
+#if HBOX_LED_DMA_DIAGNOSTIC
+    WS2812B_DiagnosticReset();
+    return;
+#endif
     const LedStripController& keyStrip = LedStripController::keys();
     const LedStripController& ambientStrip = LedStripController::ambient();
     keyStrip.init();
@@ -97,7 +99,7 @@ void LEDsManager::setup()
     const bool aroundLedActive = opts->aroundLedEnabled;
 
     APP_STAGE("L01",
-              "LED profile: keys=%u%% cap=%u%% ambient=%u%% cap=%u%% update=%u FPS circular DMA",
+              "LED profile: keys=%u%% cap=%u%% ambient=%u%% cap=%u%% update=%u FPS single-frame DMA",
               (unsigned)opts->ledBrightness,
               (unsigned)keyStrip.descriptor().maxDrivePercent,
               (unsigned)opts->aroundLedBrightness,
@@ -149,8 +151,8 @@ void LEDsManager::setup()
         (void)ambientStrip.stop();
     }
 
-    keyStrip.updateStats(&lastKeyHalfCount, &lastKeyCompleteCount);
-    ambientStrip.updateStats(&lastAmbientHalfCount,
+    keyStrip.updateStats(nullptr, &lastKeyCompleteCount);
+    ambientStrip.updateStats(nullptr,
                              &lastAmbientCompleteCount);
     lastDmaStatsTime = keyStartupRampStartTime;
 }
@@ -186,6 +188,10 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     if (!runtimeEnabled || BOARD_POWER.isSafeLatched()) {
         return;
     }
+#if HBOX_LED_DMA_DIAGNOSTIC
+    WS2812B_DiagnosticService(HAL_GetTick());
+    return;
+#endif
     const bool aroundLedActive = opts->aroundLedEnabled;
     const bool aroundLedSyncActive = aroundLedActive && opts->ledEnabled && opts->aroundLedSyncToMainLed;
 
@@ -327,23 +333,27 @@ void LEDsManager::logDmaUpdateStats(uint32_t now)
         return;
     }
 
-    uint32_t keyHt = 0u;
     uint32_t keyTc = 0u;
-    uint32_t ambientHt = 0u;
     uint32_t ambientTc = 0u;
-    LedStripController::keys().updateStats(&keyHt, &keyTc);
-    LedStripController::ambient().updateStats(&ambientHt, &ambientTc);
+    LedStripController::keys().updateStats(nullptr, &keyTc);
+    LedStripController::ambient().updateStats(nullptr, &ambientTc);
+    WS2812B_TxDiagnostics keys = {};
+    WS2812B_TxDiagnostics ambient = {};
+    WS2812B_GetTxDiagnostics(WS2812B_STRIP_KEYS, &keys);
+    WS2812B_GetTxDiagnostics(WS2812B_STRIP_AMBIENT, &ambient);
 
-    APP_DBG("LED DMA[%lums] key HT=%lu/s TC=%lu/s ambient HT=%lu/s TC=%lu/s",
+    APP_DBG("LED DMA[%lums] frames key=%lu/s ambient=%lu/s; totals "
+            "key start_fail=%lu dma_error=%lu deferred=%lu "
+            "ambient start_fail=%lu dma_error=%lu deferred=%lu",
             (unsigned long)elapsed,
-            (unsigned long)(((keyHt - lastKeyHalfCount) * 1000u) / elapsed),
             (unsigned long)(((keyTc - lastKeyCompleteCount) * 1000u) / elapsed),
-            (unsigned long)(((ambientHt - lastAmbientHalfCount) * 1000u) / elapsed),
-            (unsigned long)(((ambientTc - lastAmbientCompleteCount) * 1000u) / elapsed));
+            (unsigned long)(((ambientTc - lastAmbientCompleteCount) * 1000u) / elapsed),
+            (unsigned long)keys.startFailures, (unsigned long)keys.dmaErrors,
+            (unsigned long)keys.busyDeferrals,
+            (unsigned long)ambient.startFailures, (unsigned long)ambient.dmaErrors,
+            (unsigned long)ambient.busyDeferrals);
 
-    lastKeyHalfCount = keyHt;
     lastKeyCompleteCount = keyTc;
-    lastAmbientHalfCount = ambientHt;
     lastAmbientCompleteCount = ambientTc;
     lastDmaStatsTime = now;
 }
@@ -517,8 +527,8 @@ void LEDsManager::enableSwitch() {
         keyStartupRampActive = false;
         keyStrip.setAllBrightness(0u);
         (void)keyStrip.submitFrame();
-        /* Keep CH1 circular DMA alive so toggling the key rail cannot disturb
-         * ambient CH2 on their shared TIM4 peripheral. */
+        /* Stop only this channel; the ambient TIM4 channel stays independent. */
+        (void)keyStrip.stop();
         keyStrip.setPowerEnabled(false);
     }
 
@@ -528,6 +538,14 @@ void LEDsManager::enableSwitch() {
               (unsigned)keyStrip.state(),
               (unsigned)(HAL_GPIO_ReadPin(LED_EN_PORT, LED_EN_PIN) == GPIO_PIN_SET),
               (unsigned)(HAL_GPIO_ReadPin(AMBIENT_EN_PORT, AMBIENT_EN_PIN) == GPIO_PIN_SET));
+}
+
+bool LEDsManager::suspendForSleep()
+{
+    // Unlike deinit(), do not stall the connection service for a 50 ms frame.
+    runtimeEnabled = false;
+    keyStartupRampActive = ambientStartupRampActive = false;
+    return WS2812B_Stop() != WS2812B_ERROR;
 }
 
 void LEDsManager::setLedsBrightness(uint8_t brightness) {
@@ -691,8 +709,8 @@ void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enab
             keyStartupRampActive = (state == WS2812B_RUNNING);
         } else {
             keyStartupRampActive = false;
-            /* Keep CH1 circular DMA alive.  Only the selected LED rail is
-             * disabled; ambient CH2 continues uninterrupted on TIM4. */
+            /* Stop only this channel; the ambient TIM4 channel stays independent. */
+            (void)keyStrip.stop();
             keyStrip.setPowerEnabled(false);
         }
     }
@@ -707,7 +725,8 @@ void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enab
             ambientStartupRampActive = (state == WS2812B_RUNNING);
         } else {
             ambientStartupRampActive = false;
-            /* Keep CH2 circular DMA alive while key CH1 remains active. */
+            /* Stop only this channel; the key TIM4 channel stays independent. */
+            (void)ambientStrip.stop();
             ambientStrip.setPowerEnabled(false);
         }
     }
@@ -980,8 +999,8 @@ void LEDsManager::ambientLightEnableSwitch() {
         ambientStartupRampActive = false;
         ambientStrip.setAllBrightness(0u);
         (void)ambientStrip.submitFrame();
-        /* Keep CH2 circular DMA alive so toggling the ambient rail cannot
-         * disturb key CH1 on their shared TIM4 peripheral. */
+        /* Stop only this channel; the key TIM4 channel stays independent. */
+        (void)ambientStrip.stop();
         ambientStrip.setPowerEnabled(false);
     }
 

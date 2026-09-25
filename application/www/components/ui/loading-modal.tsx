@@ -10,7 +10,10 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { Alert } from "@/components/ui/alert";
-import { keyframes } from "@emotion/react";
+import { LuCheck, LuSlidersHorizontal, LuUsb } from "react-icons/lu";
+import { useLanguage } from "@/contexts/language-context";
+import { DeviceConnectionPhase } from "@/lib/device-transport/device-command-types";
+import { CONNECTION_TEXT, connectionPresentation } from "@/lib/connection-presentation";
 import * as React from "react";
 
 type LoadingVariant = "connection" | "no-device" | "operation";
@@ -19,6 +22,8 @@ interface LoadingModalProps {
   isOpen: boolean;
   variant?: LoadingVariant;
   headerAction?: React.ReactNode;
+  connectionPhase?: DeviceConnectionPhase;
+  configReadProgress?: { completed: number; total: number };
   noDeviceAction?: {
     label: string;
     onClick: () => void;
@@ -29,161 +34,90 @@ interface LoadingModalProps {
   noDeviceMessage?: string;
 }
 
-const CONNECTOR_DOT_COUNT = 14;
-
-const connectorDotAnimations = Array.from({ length: CONNECTOR_DOT_COUNT }, (_, index) => {
-  const waitingUntil = 10 + index * 5;
-  const activeFrom = waitingUntil + 1;
-
-  return keyframes`
-    0%, ${waitingUntil}% {
-      opacity: 0.18;
-      box-shadow: 0 0 0 rgba(45, 212, 191, 0);
-    }
-    ${activeFrom}%, 84% {
-      opacity: 1;
-      box-shadow: 0 0 12px rgba(45, 212, 191, 0.9);
-    }
-    86%, 100% {
-      opacity: 0.18;
-      box-shadow: 0 0 0 rgba(45, 212, 191, 0);
-    }
-  `;
-});
-
-function HitboxDeviceIcon() {
-  return (
-    <Box
-      width={{ base: "66px", sm: "82px" }}
-    >
-      <svg viewBox="0 0 104 72" width="100%" style={{ display: "block", height: "auto" }} role="img" aria-label="HBox device">
-        <rect x="5" y="10" width="94" height="52" rx="12" fill="#0b1a21" stroke="currentColor" strokeWidth="2.5" />
-        <path d="M17 62h14m42 0h14" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-        <circle cx="28" cy="35" r="5.5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <circle cx="40" cy="24" r="5.5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <circle cx="42" cy="45" r="5.5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <circle cx="61" cy="28" r="5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <circle cx="73" cy="24" r="5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <circle cx="85" cy="29" r="5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <circle cx="64" cy="42" r="5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <circle cx="76" cy="39" r="5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <circle cx="87" cy="43" r="5" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-      </svg>
-    </Box>
-  );
-}
-
-function WebPageIcon() {
-  return (
-    <Box
-      width={{ base: "66px", sm: "82px" }}
-    >
-      <svg viewBox="0 0 104 72" width="100%" style={{ display: "block", height: "auto" }} role="img" aria-label="WebConfig page">
-        <rect x="7" y="8" width="90" height="56" rx="9" fill="#0b1a21" stroke="currentColor" strokeWidth="2.5" />
-        <path d="M8 24h88" stroke="currentColor" strokeWidth="2.5" />
-        <circle cx="18" cy="16" r="2.5" fill="currentColor" />
-        <circle cx="27" cy="16" r="2.5" fill="currentColor" opacity="0.7" />
-        <circle cx="36" cy="16" r="2.5" fill="currentColor" opacity="0.45" />
-        <rect x="18" y="34" width="27" height="20" rx="4" fill="#132a33" stroke="currentColor" strokeWidth="2" />
-        <path d="M55 36h28M55 44h22M55 52h16" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
-      </svg>
-    </Box>
-  );
-}
-
-function ConnectionEndpoint({
-  color,
-  children,
+function ConnectionLoading({
+  phase,
+  progress,
 }: {
-  color: string;
-  children: React.ReactNode;
+  phase: DeviceConnectionPhase;
+  progress: { completed: number; total: number };
 }) {
-  return (
-    <Box
-      flex="0 0 auto"
-      color={color}
-      textAlign="center"
-      minWidth={{ base: "72px", sm: "94px" }}
-    >
-      <Center minHeight={{ base: "52px", sm: "64px" }}>{children}</Center>
-    </Box>
-  );
-}
+  const { currentLanguage } = useLanguage();
+  const text = CONNECTION_TEXT[currentLanguage];
+  const { total, completed, percent, stage, detail } = connectionPresentation(phase, progress);
+  const steps = [text.connect, text.sync, text.ready];
 
-function DeviceStatusFrame({
-  variant,
-  label,
-  children,
-}: {
-  variant: "connection" | "no-device";
-  label: string;
-  children: React.ReactNode;
-}) {
   return (
     <Box
       data-testid="device-status-card"
-      data-loading-variant={variant}
+      data-loading-variant="connection"
       role="status"
       aria-live="polite"
-      aria-label={label}
-      width={{ base: "calc(100vw - 32px)", sm: "min(560px, calc(100vw - 48px))" }}
-      px={{ base: 4, sm: 7 }}
-      py={{ base: 5, sm: 7 }}
+      aria-label={text.title}
+      width={{ base: "calc(100vw - 32px)", sm: "520px" }}
       border="1px solid"
-      borderColor="rgba(94, 234, 212, 0.22)"
-      borderRadius={{ base: "18px", sm: "22px" }}
-      bg="rgba(5, 14, 20, 0.82)"
-      boxShadow="0 24px 80px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.04)"
+      borderColor="rgba(159, 211, 133, 0.2)"
+      borderRadius="24px"
+      bg="linear-gradient(145deg, #17221d 0%, #101619 45%, #0d1218 100%)"
+      boxShadow="0 32px 100px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
+      overflow="hidden"
+      color="whiteAlpha.900"
     >
-      {children}
-    </Box>
-  );
-}
+      <Box px={{ base: 5, sm: 8 }} pt={8} pb={7}>
+        <HStack justify="space-between" mb={6}>
+          <Center boxSize="52px" borderRadius="16px" bg="rgba(145, 201, 116, 0.1)"
+            border="1px solid rgba(145, 201, 116, 0.22)" color="#b7e59b" aria-hidden="true">
+            <LuSlidersHorizontal size={24} />
+          </Center>
+          <Text fontSize="xs" letterSpacing="0.16em" color="whiteAlpha.600" fontWeight="600">XORA / WEBCONFIG</Text>
+        </HStack>
+        <Text as="h2" fontSize={{ base: "xl", sm: "2xl" }} fontWeight="600" letterSpacing="-0.025em">
+          {text.title}
+        </Text>
+        <Text mt={2} fontSize="sm" color="whiteAlpha.600" lineHeight="1.7">{text.description}</Text>
 
-function ConnectionLoading() {
-  return (
-    <DeviceStatusFrame
-      variant="connection"
-      label="Connecting HBox device to WebConfig"
-    >
-      <Box display="flex" alignItems="center" justifyContent="center" width="100%">
-        <ConnectionEndpoint color="teal.300">
-          <HitboxDeviceIcon />
-        </ConnectionEndpoint>
-
-        <Box
-          aria-hidden="true"
-          flex="1 1 auto"
-          minWidth={{ base: "70px", sm: "150px" }}
-          mx={{ base: 1, sm: 4 }}
-          display="flex"
-          alignItems="center"
-          justifyContent="space-between"
-        >
-          {Array.from({ length: CONNECTOR_DOT_COUNT }, (_, index) => (
-            <Box
-              key={index}
-              data-connector-dot="true"
-              width="5px"
-              height="5px"
-              borderRadius="full"
-              bg="teal.300"
-              opacity={0.18}
-              animation={`${connectorDotAnimations[index]} 1.85s ease-in-out infinite`}
-              css={{
-                "@media (prefers-reduced-motion: reduce)": {
-                  animationDuration: "3.7s",
-                },
-              }}
-            />
-          ))}
+        <Box mt={8}>
+          <HStack justify="space-between" align="end" gap={4} mb={3}>
+            <Box>
+              <Text fontSize="xs" color="whiteAlpha.600" mb={1}>{text.progress}</Text>
+              <Text fontSize="sm" fontWeight="500">{text[detail]}</Text>
+            </Box>
+            <Text data-testid="connection-sync-percent" fontSize="3xl" fontWeight="500"
+              color="#c4eeac" lineHeight="1" fontVariantNumeric="tabular-nums">
+              {percent}<Box as="span" ml={0.5} fontSize="sm" color="whiteAlpha.600">%</Box>
+            </Text>
+          </HStack>
+          <Box role="progressbar" aria-label={text.progress} aria-valuemin={0} aria-valuemax={100}
+            aria-valuenow={percent} height="8px" borderRadius="full" bg="whiteAlpha.100" overflow="hidden">
+            <Box height="100%" width={`${percent}%`} borderRadius="full"
+              bg="linear-gradient(90deg, #649d4a, #a7d98a 70%, #d4f4be)"
+              boxShadow="0 0 16px rgba(167, 217, 138, 0.3)"
+              transition="width 300ms ease" _motionReduce={{ transition: "none" }} />
+          </Box>
+          <Text mt={3} fontSize="xs" color="whiteAlpha.600" fontVariantNumeric="tabular-nums">
+            {total > 0 ? text.readCount.replace('{completed}', String(completed)).replace('{total}', String(total)) : text.waiting}
+          </Text>
         </Box>
 
-        <ConnectionEndpoint color="cyan.300">
-          <WebPageIcon />
-        </ConnectionEndpoint>
+        <HStack mt={7} align="flex-start" gap={2}>
+          {steps.map((label, index) => (
+            <Box key={label} flex={1} minWidth={0} borderTop="1px solid"
+              borderColor={index <= stage ? 'rgba(167, 217, 138, 0.55)' : 'whiteAlpha.200'} pt={3}>
+              <HStack gap={1.5} align="flex-start" color={index <= stage ? '#b7e59b' : 'whiteAlpha.500'}>
+                <Center boxSize="16px" flexShrink={0} fontSize="10px" aria-hidden="true">
+                  {index < stage ? <LuCheck size={13} /> : `0${index + 1}`}
+                </Center>
+                <Text fontSize="xs" lineHeight="16px" aria-current={index === stage ? 'step' : undefined}>{label}</Text>
+              </HStack>
+            </Box>
+          ))}
+        </HStack>
       </Box>
-    </DeviceStatusFrame>
+      <HStack px={{ base: 5, sm: 8 }} py={4} gap={2} borderTop="1px solid" borderColor="whiteAlpha.100"
+        bg="rgba(0, 0, 0, 0.12)" color="whiteAlpha.600">
+        <LuUsb size={14} aria-hidden="true" />
+        <Text fontSize="xs">{text.keepConnected}</Text>
+      </HStack>
+    </Box>
   );
 }
 
@@ -198,13 +132,14 @@ function NoDeviceStatus({
   steps?: string[];
   message?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <Card.Root
       data-testid="device-status-card"
       data-loading-variant="no-device"
       role="dialog"
       aria-modal="true"
-      aria-label={title ?? "Device not connected"}
+      aria-label={title ?? t.RECONNECT_MODAL_TITLE}
       width={{ base: "calc(100vw - 32px)", sm: "min(600px, calc(100vw - 48px))" }}
       borderRadius={{ base: "18px", sm: "22px" }}
       border="1px solid"
@@ -215,7 +150,7 @@ function NoDeviceStatus({
     >
       <Card.Header pb={3}>
         <Card.Title fontSize={{ base: "xl", sm: "2xl" }}>
-          {title ?? "Device Not Connected"}
+          {title ?? t.RECONNECT_MODAL_TITLE}
         </Card.Title>
       </Card.Header>
 
@@ -273,6 +208,8 @@ export function LoadingModal({
   isOpen,
   variant = "operation",
   headerAction,
+  connectionPhase = DeviceConnectionPhase.OPENING,
+  configReadProgress = { completed: 0, total: 0 },
   noDeviceAction,
   noDeviceTitle,
   noDeviceSteps,
@@ -290,9 +227,12 @@ export function LoadingModal({
         inset={0}
         zIndex={9999}
         display="flex"
-        alignItems={isDeviceStatus ? "flex-start" : "center"}
-        justifyContent="center"
-        pt={isDeviceStatus ? 16 : 0}
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="flex-start"
+        pt={isDeviceStatus ? 20 : 0}
+        pb={isDeviceStatus ? "max(80px, 24dvh)" : 0}
+        overflowY="auto"
         pointerEvents="auto"
         isolation="isolate"
       >
@@ -304,9 +244,9 @@ export function LoadingModal({
           bg={isDeviceStatus ? "rgba(2, 8, 12, 0.42)" : "blackAlpha.100"}
           backdropFilter={isDeviceStatus ? "blur(10px) saturate(0.72)" : "blur(4px)"}
         />
-        <Box position="relative" zIndex={1}>
+        <Box position="relative" zIndex={1} my="auto">
           {isConnection ? (
-            <ConnectionLoading />
+            <ConnectionLoading phase={connectionPhase} progress={configReadProgress} />
           ) : variant === "no-device" ? (
             <NoDeviceStatus
               action={noDeviceAction}

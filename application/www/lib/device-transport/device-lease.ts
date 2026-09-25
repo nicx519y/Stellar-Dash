@@ -120,7 +120,7 @@ export class WebHidDeviceLease implements DeviceConnectionLease {
       controller.abort();
       acquiredReject(new DeviceTransportError(
         'device-busy',
-        '另一页面正在使用 HBox WebHID 设备，请关闭该页面后重试',
+        '另一页面正在使用 XORA WebHID 设备，请关闭该页面后重试',
       ));
     }, this.timeoutMs);
 
@@ -129,7 +129,7 @@ export class WebHidDeviceLease implements DeviceConnectionLease {
       { mode: 'exclusive', signal: controller.signal },
       async (lock) => {
         if (!lock) {
-          throw new DeviceTransportError('device-busy', 'HBox WebHID device lease was not granted');
+          throw new DeviceTransportError('device-busy', 'XORA WebHID device lease was not granted');
         }
         if (controller.signal.aborted) return;
         this.waitController = null;
@@ -146,7 +146,7 @@ export class WebHidDeviceLease implements DeviceConnectionLease {
         if (timedOut) {
           acquiredReject(new DeviceTransportError(
             'device-busy',
-            '另一页面正在使用 HBox WebHID 设备，请关闭该页面后重试',
+            '另一页面正在使用 XORA WebHID 设备，请关闭该页面后重试',
             error,
           ));
         } else if (releasedByCaller || signal?.aborted || controller.signal.aborted) {

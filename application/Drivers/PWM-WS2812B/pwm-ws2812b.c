@@ -17,7 +17,8 @@
  * Both key-module schematics populate WS2812B-MINI-V3J.  Keep the high and
  * low portions away from the datasheet limits; 160 ticks previously left
  * only about 3ns of T1L margin.  The centered values also leave more time for
- * the next CCR DMA write before the following PWM period:
+ * the next CCR DMA write before the following PWM period (TIM4 now requests
+ * CC DMA on update via CCDS, giving a full period independent of duty):
  *   T1H = 150/240MHz = 625ns, T1L = 658ns
  *   T0H =  72/240MHz = 300ns, T0L = 983ns
  *
@@ -36,8 +37,6 @@
 #define WS2812B_FRAME_BUFFER_LEN_FOR(count, resetSlots) \
     ((((uint32_t)(count) + (uint32_t)(resetSlots)) * 24u) * \
      (uint32_t)NUM_LEDs_PER_ADC_BUTTON)
-#define WS2812B_DMA_BUFFER_LEN_FOR(count, resetSlots) \
-    (2u * WS2812B_FRAME_BUFFER_LEN_FOR((count), (resetSlots)))
 
 #define LED_DEFAULT_BRIGHTNESS 128
 
@@ -47,25 +46,17 @@ enum {
 };
 
 enum {
-    WS2812B_KEYS_PAYLOAD_BUFFER_LEN =
-        WS2812B_KEYS_LED_COUNT * NUM_LEDs_PER_ADC_BUTTON * 24u,
-    WS2812B_AMBIENT_PAYLOAD_BUFFER_LEN =
-        WS2812B_AMBIENT_LED_COUNT * NUM_LEDs_PER_ADC_BUTTON * 24u,
-    WS2812B_KEYS_FRAME_BUFFER_LEN = (int)WS2812B_FRAME_BUFFER_LEN_FOR(
+    WS2812B_KEYS_DMA_BUFFER_LEN = (int)WS2812B_FRAME_BUFFER_LEN_FOR(
         WS2812B_KEYS_LED_COUNT, WS2812B_KEYS_RESET_SLOT_COUNT),
-    WS2812B_AMBIENT_FRAME_BUFFER_LEN = (int)WS2812B_FRAME_BUFFER_LEN_FOR(
-        WS2812B_AMBIENT_LED_COUNT, WS2812B_AMBIENT_RESET_SLOT_COUNT),
-    WS2812B_KEYS_DMA_BUFFER_LEN = (int)WS2812B_DMA_BUFFER_LEN_FOR(
-        WS2812B_KEYS_LED_COUNT, WS2812B_KEYS_RESET_SLOT_COUNT),
-    WS2812B_AMBIENT_DMA_BUFFER_LEN = (int)WS2812B_DMA_BUFFER_LEN_FOR(
+    WS2812B_AMBIENT_DMA_BUFFER_LEN = (int)WS2812B_FRAME_BUFFER_LEN_FOR(
         WS2812B_AMBIENT_LED_COUNT, WS2812B_AMBIENT_RESET_SLOT_COUNT)
 };
 
 static bool g_keys_initialized = false;
 static bool g_ambient_initialized = false;
 
-static WS2812B_StateTypeDef g_keys_state = WS2812B_STOP;
-static WS2812B_StateTypeDef g_ambient_state = WS2812B_STOP;
+static volatile WS2812B_StateTypeDef g_keys_state = WS2812B_STOP;
+static volatile WS2812B_StateTypeDef g_ambient_state = WS2812B_STOP;
 
 static volatile bool g_keys_dirty = false;
 static volatile bool g_ambient_dirty = false;
@@ -73,15 +64,12 @@ static volatile bool g_ambient_dirty = false;
 typedef enum {
     WS2812B_UPDATE_IDLE = 0,
     WS2812B_UPDATE_ENCODING,
-    WS2812B_UPDATE_WAIT_HT,
-    WS2812B_UPDATE_WAIT_TC
+    WS2812B_UPDATE_TRANSMITTING
 } WS2812B_UpdatePhase;
 
 static volatile WS2812B_UpdatePhase g_keys_update_phase = WS2812B_UPDATE_IDLE;
 static volatile WS2812B_UpdatePhase g_ambient_update_phase = WS2812B_UPDATE_IDLE;
-static volatile uint32_t g_keys_ht_count = 0u;
 static volatile uint32_t g_keys_tc_count = 0u;
-static volatile uint32_t g_ambient_ht_count = 0u;
 static volatile uint32_t g_ambient_tc_count = 0u;
 static volatile uint32_t g_keys_published_generation = 0u;
 static volatile uint32_t g_keys_in_flight_generation = 0u;
@@ -100,16 +88,17 @@ static uint32_t get_tim4_clock_hz(void)
     return pclk1;
 }
 
-/* The edit frame is owned by the main loop.  A submitted frame is encoded to
- * a staging buffer before publication.  HT/TC callbacks then only copy the
- * pre-encoded payload into the inactive DMA half; they must not perform the
- * relatively long per-pixel encode while a live DMA frame is counting down. */
+/* Setters and lifecycle APIs are main-loop owned. Only completion/error
+ * callbacks run in interrupt context. The edit frame may change at any time;
+ * the submitted snapshot and DMA frame are exclusively owned by ENCODING or
+ * TRANSMITTING until the NORMAL transfer has completed (including reset tail).
+ * Delayed interrupts retain ownership; no circular half needs refilling. */
+static volatile WS2812B_TxDiagnostics g_tx_diagnostics[2];
+
 static uint8_t g_keys_colors[WS2812B_KEYS_LED_COUNT * 3u];
 static uint8_t g_keys_brightness[WS2812B_KEYS_LED_COUNT];
 static uint8_t g_keys_submitted_colors[WS2812B_KEYS_LED_COUNT * 3u];
 static uint8_t g_keys_submitted_brightness[WS2812B_KEYS_LED_COUNT];
-static __attribute__((aligned(32))) uint32_t
-    g_keys_staged_dma[WS2812B_KEYS_PAYLOAD_BUFFER_LEN];
 /* Keep keys DMA buffer in .DMA_Section and retain legacy symbol name. */
 static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t DMA_LED_Buffer[WS2812B_KEYS_DMA_BUFFER_LEN];
 
@@ -117,8 +106,6 @@ static uint8_t g_ambient_colors[WS2812B_AMBIENT_LED_COUNT * 3u];
 static uint8_t g_ambient_brightness[WS2812B_AMBIENT_LED_COUNT];
 static uint8_t g_ambient_submitted_colors[WS2812B_AMBIENT_LED_COUNT * 3u];
 static uint8_t g_ambient_submitted_brightness[WS2812B_AMBIENT_LED_COUNT];
-static __attribute__((aligned(32))) uint32_t
-    g_ambient_staged_dma[WS2812B_AMBIENT_PAYLOAD_BUFFER_LEN];
 static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t DMA_LED_Buffer_Ambient[WS2812B_AMBIENT_DMA_BUFFER_LEN];
 
 static void cleanDCache(const void *addr, uint32_t size)
@@ -158,19 +145,6 @@ static uint32_t* strip_dma_buffer(WS2812B_Strip strip)
     return (strip == WS2812B_STRIP_AMBIENT) ? DMA_LED_Buffer_Ambient : DMA_LED_Buffer;
 }
 
-static uint32_t* strip_staged_dma(WS2812B_Strip strip)
-{
-    return (strip == WS2812B_STRIP_AMBIENT)
-        ? g_ambient_staged_dma : g_keys_staged_dma;
-}
-
-static uint32_t strip_payload_buffer_len(WS2812B_Strip strip)
-{
-    return (strip == WS2812B_STRIP_AMBIENT)
-        ? (uint32_t)WS2812B_AMBIENT_PAYLOAD_BUFFER_LEN
-        : (uint32_t)WS2812B_KEYS_PAYLOAD_BUFFER_LEN;
-}
-
 static uint32_t strip_high_ccr_code(WS2812B_Strip strip)
 {
     return (strip == WS2812B_STRIP_AMBIENT)
@@ -207,18 +181,6 @@ static uint8_t* strip_submitted_brightness(WS2812B_Strip strip)
 static uint32_t strip_dma_buffer_len(WS2812B_Strip strip)
 {
     return (strip == WS2812B_STRIP_AMBIENT) ? (uint32_t)WS2812B_AMBIENT_DMA_BUFFER_LEN : (uint32_t)WS2812B_KEYS_DMA_BUFFER_LEN;
-}
-
-static uint32_t strip_dma_frame_len(WS2812B_Strip strip)
-{
-    return (strip == WS2812B_STRIP_AMBIENT)
-        ? (uint32_t)WS2812B_AMBIENT_FRAME_BUFFER_LEN
-        : (uint32_t)WS2812B_KEYS_FRAME_BUFFER_LEN;
-}
-
-static uint32_t* strip_dma_frame(WS2812B_Strip strip, uint8_t frameIndex)
-{
-    return &strip_dma_buffer(strip)[strip_dma_frame_len(strip) * frameIndex];
 }
 
 static uint16_t strip_tim_channel(WS2812B_Strip strip)
@@ -300,7 +262,7 @@ static void led_data_to_buffer(WS2812B_Strip strip,
     const uint32_t highCode = strip_high_ccr_code(strip);
     const uint32_t lowCode = strip_low_ccr_code(strip);
 
-    if (((uint32_t)dma_buf & 0x1Fu) != 0u) {
+    if (((uintptr_t)dma_buf & 0x1Fu) != 0u) {
         APP_ERR("pwm-ws2812b: Error: DMA buffer not 32-byte aligned");
         return;
     }
@@ -344,37 +306,91 @@ static void led_data_to_buffer(WS2812B_Strip strip,
     }
 }
 
-static void led_data_to_dma_frame(WS2812B_Strip strip,
-                                  const uint8_t frameIndex,
-                                  const uint16_t start,
-                                  const uint16_t length)
+static void encode_submitted_frame(WS2812B_Strip strip)
 {
-    led_data_to_buffer(
-        strip, strip_dma_frame(strip, frameIndex), start, length, true);
+    uint32_t* buffer = strip_dma_buffer(strip);
+    const uint32_t payload = (uint32_t)strip_led_count(strip) *
+        NUM_LEDs_PER_ADC_BUTTON * 24u;
+    led_data_to_buffer(strip, buffer, 0u, strip_led_count(strip), false);
+    const uint32_t resetWords = strip_reset_slot_count(strip) *
+        NUM_LEDs_PER_ADC_BUTTON * 24u;
+    memset(&buffer[payload], 0, resetWords * sizeof(uint32_t));
+    cleanDCache(buffer, strip_dma_buffer_len(strip) * sizeof(uint32_t));
 }
 
-static void encode_submitted_to_staging(WS2812B_Strip strip)
-{
-    led_data_to_buffer(
-        strip, strip_staged_dma(strip), 0u, strip_led_count(strip), false);
-}
-
-static void copy_staging_to_dma_frame(WS2812B_Strip strip,
-                                      const uint8_t frameIndex)
-{
-    uint32_t* destination = strip_dma_frame(strip, frameIndex);
-    const uint32_t payloadWords = strip_payload_buffer_len(strip);
-
-    memcpy(destination, strip_staged_dma(strip),
-           payloadWords * sizeof(uint32_t));
-    cleanDCache(destination, payloadWords * sizeof(uint32_t));
-}
-
-/* Backward-compatible legacy entrypoint, targeting keys strip. */
+/* Legacy callers must obey the same ownership as normal submissions. */
 void LEDDataToDMABuffer(const uint16_t start, const uint16_t length)
 {
-    led_data_to_dma_frame(WS2812B_STRIP_KEYS, 0u, start, length);
-    led_data_to_dma_frame(WS2812B_STRIP_KEYS, 1u, start, length);
+    WS2812B_RefreshStrip(WS2812B_STRIP_KEYS, start, length);
+}
+
+static volatile WS2812B_StateTypeDef* strip_state(WS2812B_Strip strip)
+{
+    return (strip == WS2812B_STRIP_AMBIENT) ? &g_ambient_state : &g_keys_state;
+}
+
+static uint32_t strip_dma_request(WS2812B_Strip strip)
+{
+    return (strip == WS2812B_STRIP_AMBIENT) ? TIM_DMA_CC2 : TIM_DMA_CC1;
+}
+
+static void disable_strip_output(WS2812B_Strip strip)
+{
+    htim4.Instance->CCER &= (strip == WS2812B_STRIP_AMBIENT)
+        ? ~TIM_CCER_CC2E : ~TIM_CCER_CC1E;
+}
+
+static void clear_strip_dma_flags(DMA_HandleTypeDef* hdma)
+{
+    __HAL_DMA_CLEAR_FLAG(hdma,
+        __HAL_DMA_GET_HT_FLAG_INDEX(hdma) | __HAL_DMA_GET_TC_FLAG_INDEX(hdma) |
+        __HAL_DMA_GET_TE_FLAG_INDEX(hdma) | __HAL_DMA_GET_DME_FLAG_INDEX(hdma) |
+        __HAL_DMA_GET_FE_FLAG_INDEX(hdma));
+}
+
+/* Called only with this channel disabled and its DMA stream stopped.
+ * Clear both active CCR and preload without generating a shared TIM4 UG or
+ * resetting CNT: CH2 may be transmitting while CH1 is being restarted. */
+static void reset_strip_compare(WS2812B_Strip strip)
+{
+    const uint32_t channel = strip_tim_channel(strip);
+    __HAL_TIM_DISABLE_OCxPRELOAD(&htim4, channel);
+    __HAL_TIM_SET_COMPARE(&htim4, channel, 0u);
+    __HAL_TIM_ENABLE_OCxPRELOAD(&htim4, channel);
+    __HAL_TIM_SET_COMPARE(&htim4, channel, 0u);
+}
+
+static bool callback_strip(TIM_HandleTypeDef* htim, WS2812B_Strip* strip)
+{
+    if (htim != &htim4 || htim->Instance != WS2812B_TIM_INSTANCE) {
+        return false;
+    }
+    if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
+        *strip = WS2812B_STRIP_KEYS;
+    } else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
+        *strip = WS2812B_STRIP_AMBIENT;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+/* No polling, printing or automatic retry in interrupt context. A failed
+ * stream remains owned until explicit Stop verifies it has stopped. */
+static void fail_strip(WS2812B_Strip strip)
+{
+    *strip_state(strip) = WS2812B_ERROR;
+    *strip_dirty_flag(strip) = true;
+    __HAL_TIM_DISABLE_DMA(&htim4, strip_dma_request(strip));
+    disable_strip_output(strip);
+    DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
+    if (hdma != NULL) {
+        __HAL_DMA_DISABLE_IT(hdma, DMA_IT_HT | DMA_IT_TC | DMA_IT_TE | DMA_IT_DME);
+        /* FE is in FCR, unlike the other interrupt enables in CR. */
+        __HAL_DMA_DISABLE_IT(hdma, DMA_IT_FE);
+        __HAL_DMA_DISABLE(hdma);
+    }
+    strip_power_write(strip, false);
 }
 
 static bool map_global_index(uint16_t globalIndex, WS2812B_Strip* strip, uint16_t* localIndex)
@@ -397,32 +413,35 @@ static bool map_global_index(uint16_t globalIndex, WS2812B_Strip* strip, uint16_
     return false;
 }
 
-void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+static void complete_strip(WS2812B_Strip strip)
 {
-    if (htim == NULL || htim->Instance != WS2812B_TIM_INSTANCE) {
-        return;
-    }
-
-    WS2812B_Strip strip;
-    if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
-        strip = WS2812B_STRIP_KEYS;
-    } else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
-        strip = WS2812B_STRIP_AMBIENT;
-    } else {
-        return;
-    }
-
-    volatile WS2812B_UpdatePhase* phase = strip_update_phase(strip);
     DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
-    if (hdma == NULL || *phase != WS2812B_UPDATE_WAIT_TC) {
+    volatile WS2812B_UpdatePhase* phase = strip_update_phase(strip);
+#if HBOX_LED_DMA_DIAGNOSTIC
+    if (hdma != NULL && hdma->Init.Mode == DMA_CIRCULAR &&
+        *strip_state(strip) == WS2812B_RUNNING &&
+        *phase == WS2812B_UPDATE_TRANSMITTING &&
+        hdma->ErrorCode == HAL_DMA_ERROR_NONE) {
+        /* The diagnostic circular frame is immutable for its whole stage.
+         * Count callbacks only; never release ownership or copy in the ISR. */
+        if (strip == WS2812B_STRIP_KEYS) ++g_keys_tc_count;
+        else ++g_ambient_tc_count;
+        return;
+    }
+#endif
+    if (hdma == NULL || *strip_state(strip) != WS2812B_RUNNING ||
+        *phase != WS2812B_UPDATE_TRANSMITTING ||
+        hdma->ErrorCode != HAL_DMA_ERROR_NONE ||
+        (((DMA_Stream_TypeDef*)hdma->Instance)->CR & DMA_SxCR_EN) != 0u ||
+        __HAL_DMA_GET_COUNTER(hdma) != 0u) {
         return;
     }
 
-    const uint16_t ledCount = strip_led_count(strip);
-    if (ledCount != 0u) {
-        /* TC means DMA has wrapped to frame 0, so frame 1 is now idle. */
-        copy_staging_to_dma_frame(strip, 1u);
-    }
+    /* NORMAL DMA stopped on its final zero. The 240-period reset tail has
+     * already held the output low for >280us even allowing CCR preload's
+     * one-period pipeline. Keep PWM enabled at CCR=0 between submissions. */
+    __HAL_TIM_DISABLE_DMA(&htim4, strip_dma_request(strip));
+    TIM_CHANNEL_STATE_SET(&htim4, strip_tim_channel(strip), HAL_TIM_CHANNEL_STATE_READY);
     if (strip == WS2812B_STRIP_AMBIENT) {
         ++g_ambient_tc_count;
     } else {
@@ -434,49 +453,55 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     *phase = WS2812B_UPDATE_IDLE;
 }
 
-void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim == NULL || htim->Instance != WS2812B_TIM_INSTANCE) {
-        return;
-    }
-
     WS2812B_Strip strip;
-    if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
+    if (callback_strip(htim, &strip)) {
+        complete_strip(strip);
+    }
+}
+
+/* Direct DMA callbacks identify the strip by its handle, without changing the
+ * shared TIM handle's Channel field. HAL_DMA_IRQHandler owns the DMA state. */
+static void strip_dma_complete(DMA_HandleTypeDef* hdma)
+{
+    if (hdma == strip_dma_handle(WS2812B_STRIP_KEYS)) {
+        complete_strip(WS2812B_STRIP_KEYS);
+    } else if (hdma == strip_dma_handle(WS2812B_STRIP_AMBIENT)) {
+        complete_strip(WS2812B_STRIP_AMBIENT);
+    }
+}
+
+static void strip_dma_error(DMA_HandleTypeDef* hdma)
+{
+    WS2812B_Strip strip;
+    if (hdma == strip_dma_handle(WS2812B_STRIP_KEYS)) {
         strip = WS2812B_STRIP_KEYS;
-    } else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
+    } else if (hdma == strip_dma_handle(WS2812B_STRIP_AMBIENT)) {
         strip = WS2812B_STRIP_AMBIENT;
     } else {
         return;
     }
+    if (*strip_state(strip) == WS2812B_RUNNING) {
+        ++g_tx_diagnostics[strip].dmaErrors;
+        fail_strip(strip);
+    }
+}
 
-    volatile WS2812B_UpdatePhase* phase = strip_update_phase(strip);
-    DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
-    if (hdma == NULL || *phase != WS2812B_UPDATE_WAIT_HT) {
-        return;
-    }
-
-    const uint16_t ledCount = strip_led_count(strip);
-    if (ledCount != 0u) {
-        /* HT means DMA has entered frame 1, so frame 0 is now idle.  Each
-         * DMA half is a complete WS2812 frame; no LED payload crosses the
-         * HT/TC boundary. */
-        *strip_in_flight_generation(strip) =
-            *strip_published_generation(strip);
-        copy_staging_to_dma_frame(strip, 0u);
-    }
-    if (strip == WS2812B_STRIP_AMBIENT) {
-        ++g_ambient_ht_count;
-    } else {
-        ++g_keys_ht_count;
-    }
-    *phase = WS2812B_UPDATE_WAIT_TC;
-    __DMB();
+void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
+{
+    /* HT is disabled. A stale/foreign callback must never write a frame. */
+    (void)htim;
 }
 
 void HAL_TIM_ErrorCallback(TIM_HandleTypeDef *htim)
 {
-    (void)htim;
-    APP_ERR("PWM-WS2812B-ErrorCallback...");
+    WS2812B_Strip strip;
+    if (callback_strip(htim, &strip) &&
+        *strip_state(strip) == WS2812B_RUNNING) {
+        ++g_tx_diagnostics[strip].dmaErrors;
+        fail_strip(strip);
+    }
 }
 
 void WS2812B_InitStrip(WS2812B_Strip strip)
@@ -501,25 +526,19 @@ void WS2812B_InitStrip(WS2812B_Strip strip)
     memset(br, LED_DEFAULT_BRIGHTNESS, led_count * sizeof(uint8_t));
     memset(submitted_colors, 0, (uint32_t)led_count * 3u);
     memset(submitted_br, LED_DEFAULT_BRIGHTNESS, led_count * sizeof(uint8_t));
-    memset(strip_staged_dma(strip), 0,
-           strip_payload_buffer_len(strip) * sizeof(uint32_t));
 
     if (htim4.State == HAL_TIM_STATE_RESET) {
         MX_TIM4_Init();
     }
 
-    led_data_to_dma_frame(strip, 0u, 0u, led_count);
-    led_data_to_dma_frame(strip, 1u, 0u, led_count);
-    encode_submitted_to_staging(strip);
-    /* Include the zero reset/latch tail in both complete DMA frames. */
-    cleanDCache(dma_buf, dma_len * sizeof(uint32_t));
+    encode_submitted_frame(strip);
 
-    APP_DBG("WS2812B_InitStrip success: strip=%u leds=%u dma=0x%08lX dma_len=%lu aligned32=%u",
+    APP_DBG("WS2812B_InitStrip success: strip=%u leds=%u dma=%p dma_len=%lu aligned32=%u",
             (unsigned)strip,
             (unsigned)led_count,
-            (unsigned long)dma_buf,
+            (void*)dma_buf,
             (unsigned long)dma_len,
-            (unsigned)((((uint32_t)dma_buf & 0x1Fu) == 0u) ? 1u : 0u));
+            (unsigned)((((uintptr_t)dma_buf & 0x1Fu) == 0u) ? 1u : 0u));
     uint32_t timClkHz = get_tim4_clock_hz();
     APP_DBG("WS2812B timing: strip=%u tim4clk=%luHz bitrate=%luHz period=%u T0H=%luns T1H=%luns reset=%luus",
             (unsigned)strip,
@@ -538,89 +557,72 @@ void WS2812B_InitStrip(WS2812B_Strip strip)
 
 WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip)
 {
-    WS2812B_StateTypeDef* st = (strip == WS2812B_STRIP_AMBIENT) ? &g_ambient_state : &g_keys_state;
-
-    if (*st == WS2812B_RUNNING) {
+    volatile WS2812B_StateTypeDef* st = strip_state(strip);
+    if (*st != WS2812B_STOP) {
+        /* ERROR requires explicit Stop before retrying. */
         return *st;
     }
-
-    /* A previous asynchronous HAL stop could leave the channel in ERROR/BUSY.
-     * Normalize only this strip's DMA/channel before retrying; the other TIM4
-     * channel is deliberately left untouched. */
-    if (*st == WS2812B_ERROR) {
-        DMA_HandleTypeDef* recoveryDma = strip_dma_handle(strip);
-        if (recoveryDma != NULL) {
-            (void)HAL_DMA_Abort(recoveryDma);
-        }
-        TIM_CHANNEL_STATE_SET(
-            &htim4, strip_tim_channel(strip), HAL_TIM_CHANNEL_STATE_READY);
-        *st = WS2812B_STOP;
-    }
-
     WS2812B_InitStrip(strip);
-    WS2812B_RefreshStrip(strip, 0u, strip_led_count(strip));
-    strip_power_write(strip, true);
-
-    const HAL_StatusTypeDef state = HAL_TIM_PWM_Start_DMA(
-        &htim4,
-        strip_tim_channel(strip),
-        strip_dma_buffer(strip),
-        strip_dma_buffer_len(strip));
-    *st = (state == HAL_OK) ? WS2812B_RUNNING : WS2812B_ERROR;
-    if (state == HAL_OK) {
-        DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
-        if (hdma != NULL) {
-            /* Keep both circular-DMA boundaries enabled for the lifetime of
-             * the strip.  Callbacks copy a pre-encoded payload only when a
-             * submitted generation is waiting; otherwise they return. */
-            __HAL_DMA_CLEAR_FLAG(
-                hdma,
-                __HAL_DMA_GET_HT_FLAG_INDEX(hdma) |
-                __HAL_DMA_GET_TC_FLAG_INDEX(hdma));
-            __HAL_DMA_ENABLE_IT(hdma, DMA_IT_HT | DMA_IT_TC);
-        }
-    } else {
-        strip_power_write(strip, false);
+    DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
+    if (hdma == NULL || hdma->State != HAL_DMA_STATE_READY ||
+        (((DMA_Stream_TypeDef*)hdma->Instance)->CR & DMA_SxCR_EN) != 0u) {
+        ++g_tx_diagnostics[strip].startFailures;
+        fail_strip(strip);
+        return *st;
     }
+    __HAL_TIM_DISABLE_DMA(&htim4, strip_dma_request(strip));
+    disable_strip_output(strip);
+    reset_strip_compare(strip);
+    clear_strip_dma_flags(hdma);
+    TIM_CHANNEL_STATE_SET(&htim4, strip_tim_channel(strip), HAL_TIM_CHANNEL_STATE_READY);
+    *strip_update_phase(strip) = WS2812B_UPDATE_IDLE;
+    *strip_dirty_flag(strip) = true;
+    *st = WS2812B_RUNNING;
+    strip_power_write(strip, true);
+    (void)WS2812B_SubmitStrip(strip);
     return *st;
 }
 
 WS2812B_StateTypeDef WS2812B_StopStrip(WS2812B_Strip strip)
 {
-    WS2812B_StateTypeDef* st = (strip == WS2812B_STRIP_AMBIENT) ? &g_ambient_state : &g_keys_state;
-
-    if (*st != WS2812B_RUNNING) {
-        *strip_update_phase(strip) = WS2812B_UPDATE_IDLE;
-        *strip_in_flight_generation(strip) = 0u;
+    volatile WS2812B_StateTypeDef* st = strip_state(strip);
+    if (!((strip == WS2812B_STRIP_AMBIENT) ? g_ambient_initialized : g_keys_initialized)) {
         strip_power_write(strip, false);
         return *st;
     }
-
     DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    /* Prevent late callbacks from publishing success during teardown. */
+    *st = WS2812B_STOP;
+    __HAL_TIM_DISABLE_DMA(&htim4, strip_dma_request(strip));
+    disable_strip_output(strip);
     if (hdma != NULL) {
-        __HAL_DMA_DISABLE_IT(hdma, DMA_IT_HT | DMA_IT_TC);
+        __HAL_DMA_DISABLE_IT(hdma, DMA_IT_HT | DMA_IT_TC | DMA_IT_TE | DMA_IT_DME);
+        __HAL_DMA_DISABLE_IT(hdma, DMA_IT_FE);
     }
+    if (primask == 0u) {
+        __enable_irq();
+    }
+    strip_power_write(strip, false);
+
+    /* Abort may poll: never hold a global IRQ lock while waiting. NORMAL
+     * completion makes READY/no-transfer a successful stop, not an error. */
+    if (hdma != NULL) {
+        if ((hdma->State == HAL_DMA_STATE_BUSY && HAL_DMA_Abort(hdma) != HAL_OK) ||
+            (((DMA_Stream_TypeDef*)hdma->Instance)->CR & DMA_SxCR_EN) != 0u) {
+            *st = WS2812B_ERROR;
+            return *st;
+        }
+        clear_strip_dma_flags(hdma);
+        hdma->State = HAL_DMA_STATE_READY;
+        hdma->ErrorCode = HAL_DMA_ERROR_NONE;
+    }
+    reset_strip_compare(strip);
+    TIM_CHANNEL_STATE_SET(&htim4, strip_tim_channel(strip), HAL_TIM_CHANNEL_STATE_READY);
     *strip_update_phase(strip) = WS2812B_UPDATE_IDLE;
     *strip_in_flight_generation(strip) = 0u;
-
-    /* The generic HAL PWM-DMA stop path disables the whole TIM peripheral,
-     * even when only CH1 or CH2 is stopped.  That is not valid for our shared
-     * TIM4 key/ambient topology.  Stop only this DMA request and CC output. */
-    const uint32_t channel = strip_tim_channel(strip);
-    if (strip == WS2812B_STRIP_AMBIENT) {
-        __HAL_TIM_DISABLE_DMA(&htim4, TIM_DMA_CC2);
-        htim4.Instance->CCER &= ~TIM_CCER_CC2E;
-    } else {
-        __HAL_TIM_DISABLE_DMA(&htim4, TIM_DMA_CC1);
-        htim4.Instance->CCER &= ~TIM_CCER_CC1E;
-    }
-
-    HAL_StatusTypeDef state = HAL_OK;
-    if (hdma != NULL && HAL_DMA_Abort(hdma) != HAL_OK) {
-        state = HAL_ERROR;
-    }
-    TIM_CHANNEL_STATE_SET(&htim4, channel, HAL_TIM_CHANNEL_STATE_READY);
-
+    *strip_dirty_flag(strip) = true;
     const WS2812B_StateTypeDef otherState =
         (strip == WS2812B_STRIP_AMBIENT) ? g_keys_state : g_ambient_state;
     if (otherState == WS2812B_RUNNING) {
@@ -628,8 +630,6 @@ WS2812B_StateTypeDef WS2812B_StopStrip(WS2812B_Strip strip)
     } else {
         __HAL_TIM_DISABLE(&htim4);
     }
-    strip_power_write(strip, false);
-    *st = (state == HAL_OK) ? WS2812B_STOP : WS2812B_ERROR;
     return *st;
 }
 
@@ -698,88 +698,101 @@ void WS2812B_SetLEDColorStrip(WS2812B_Strip strip, const uint8_t r, const uint8_
 
 void WS2812B_RefreshStrip(WS2812B_Strip strip, const uint16_t start, const uint16_t length)
 {
-    /* A direct refresh is only safe before circular DMA starts.  Runtime
-     * callers are routed through the HT/TC inactive-half transaction. */
-    if (WS2812B_GetStateStrip(strip) == WS2812B_RUNNING) {
-        (void)WS2812B_SubmitStrip(strip);
+    if (start >= strip_led_count(strip) || length == 0u) {
         return;
     }
-
-    const uint16_t led_count = strip_led_count(strip);
-    memcpy(strip_submitted_colors(strip), strip_colors(strip),
-           (uint32_t)led_count * 3u);
-    memcpy(strip_submitted_brightness(strip), strip_brightness(strip),
-           (uint32_t)led_count);
-    encode_submitted_to_staging(strip);
-    /* Keep both circular-DMA halves identical while stopped.  Each half is
-     * one complete frame, including its own reset/latch tail. */
-    led_data_to_dma_frame(strip, 0u, start, length);
-    led_data_to_dma_frame(strip, 1u, start, length);
-    if (start == 0u && length == led_count) {
-        *strip_dirty_flag(strip) = false;
-        uint32_t next = *strip_published_generation(strip) + 1u;
-        if (next == 0u) {
-            next = 1u;
-        }
-        *strip_published_generation(strip) = next;
-        *strip_applied_generation(strip) = next;
-    }
+    /* Even legacy partial refresh requests publish one coherent full frame. */
+    mark_strip_dirty(strip);
+    (void)WS2812B_SubmitStrip(strip);
 }
 
-bool WS2812B_SubmitStrip(WS2812B_Strip strip)
+static bool start_encoded_frame(WS2812B_Strip strip)
 {
-    volatile bool* dirty = strip_dirty_flag(strip);
-    volatile WS2812B_UpdatePhase* phase = strip_update_phase(strip);
     DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
-
-    if (!*dirty) {
-        return true;
-    }
-
-    if (WS2812B_GetStateStrip(strip) != WS2812B_RUNNING || hdma == NULL) {
-        WS2812B_RefreshStrip(strip, 0u, strip_led_count(strip));
-        return true;
-    }
-
+    volatile WS2812B_UpdatePhase* phase = strip_update_phase(strip);
+    /* Keep only the bounded HAL register setup atomic with completion/error
+     * callbacks; no frame copies or encoding take place in this section. */
     const uint32_t primask = __get_PRIMASK();
-    __disable_irq();
-    if (*phase != WS2812B_UPDATE_IDLE) {
-        if (primask == 0u) {
-            __enable_irq();
-        }
-        return false;
-    }
-
-    /* Reserve the transaction before leaving the short critical section.
-     * HT/TC callbacks ignore the strip while the main loop pre-encodes it. */
-    const uint16_t led_count = strip_led_count(strip);
-    *phase = WS2812B_UPDATE_ENCODING;
-    memcpy(strip_submitted_colors(strip), strip_colors(strip),
-           (uint32_t)led_count * 3u);
-    memcpy(strip_submitted_brightness(strip), strip_brightness(strip),
-           (uint32_t)led_count);
-
-    *dirty = false;
-    if (primask == 0u) {
-        __enable_irq();
-    }
-
-    /* This is the expensive RGB/brightness -> PWM conversion.  Run it in
-     * thread context, not in the low-priority DMA boundary interrupt. */
-    encode_submitted_to_staging(strip);
-
     __disable_irq();
     uint32_t next = *strip_published_generation(strip) + 1u;
     if (next == 0u) {
         next = 1u;
     }
     *strip_published_generation(strip) = next;
-    *phase = WS2812B_UPDATE_WAIT_HT;
+    *strip_in_flight_generation(strip) = next;
+    clear_strip_dma_flags(hdma);
+    *phase = WS2812B_UPDATE_TRANSMITTING;
     __DMB();
+    /* HAL_TIM_PWM_Start_DMA enables requests BEFORE TIM_CCxChannelCmd clears
+     * and re-enables CCxE. On an already-running shared timer, that allows DMA
+     * to reach payload while the pin is being gated. Arm the DMA directly;
+     * leave the pin enabled between frames and release requests LAST. */
+    __HAL_TIM_DISABLE_DMA(&htim4, strip_dma_request(strip));
+    TIM_CHANNEL_STATE_SET(&htim4, strip_tim_channel(strip), HAL_TIM_CHANNEL_STATE_BUSY);
+    hdma->XferCpltCallback = strip_dma_complete;
+    hdma->XferHalfCpltCallback = NULL;
+    hdma->XferErrorCallback = strip_dma_error;
+    volatile uint32_t* compare = (strip == WS2812B_STRIP_AMBIENT)
+        ? &htim4.Instance->CCR2 : &htim4.Instance->CCR1;
+    const HAL_StatusTypeDef status = HAL_DMA_Start_IT(
+        hdma, (uintptr_t)strip_dma_buffer(strip), (uintptr_t)compare,
+        strip_dma_buffer_len(strip));
+    __HAL_DMA_DISABLE_IT(hdma, DMA_IT_HT);
+    if (status != HAL_OK) {
+        ++g_tx_diagnostics[strip].startFailures;
+        fail_strip(strip);
+    } else {
+        /* Active CCR and preload are zero from reset/previous frame's tail.
+         * CCDS defers the first transfer to update, and preload defers its
+         * first pulse to the following update. Never touch CNT or EGR. */
+        htim4.Instance->CCER |= (strip == WS2812B_STRIP_AMBIENT)
+            ? TIM_CCER_CC2E : TIM_CCER_CC1E;
+        __HAL_TIM_ENABLE(&htim4);
+        __DMB();
+        __HAL_TIM_ENABLE_DMA(&htim4, strip_dma_request(strip));
+    }
     if (primask == 0u) {
         __enable_irq();
     }
-    return true;
+    return status == HAL_OK;
+}
+
+bool WS2812B_SubmitStrip(WS2812B_Strip strip)
+{
+    volatile bool* dirty = strip_dirty_flag(strip);
+    volatile WS2812B_UpdatePhase* phase = strip_update_phase(strip);
+    if (*strip_state(strip) == WS2812B_ERROR) {
+        return false;
+    }
+    if (*phase != WS2812B_UPDATE_IDLE) {
+        ++g_tx_diagnostics[strip].busyDeferrals;
+        return false;
+    }
+    if (!*dirty) {
+        return true;
+    }
+    WS2812B_InitStrip(strip);
+    DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
+    if (hdma == NULL || (((DMA_Stream_TypeDef*)hdma->Instance)->CR & DMA_SxCR_EN) != 0u) {
+        ++g_tx_diagnostics[strip].startFailures;
+        fail_strip(strip);
+        return false;
+    }
+
+    /* API calls/setters are main-loop owned. ISR only releases TRANSMITTING,
+     * so snapshot/encoding require no global IRQ lock. */
+    *phase = WS2812B_UPDATE_ENCODING;
+    const uint16_t count = strip_led_count(strip);
+    memcpy(strip_submitted_colors(strip), strip_colors(strip), (uint32_t)count * 3u);
+    memcpy(strip_submitted_brightness(strip), strip_brightness(strip), count);
+    *dirty = false;
+    encode_submitted_frame(strip);
+    if (*strip_state(strip) == WS2812B_STOP) {
+        *phase = WS2812B_UPDATE_IDLE;
+        return true;
+    }
+
+    return start_encoded_frame(strip);
 }
 
 void WS2812B_ServiceStrip(WS2812B_Strip strip)
@@ -792,12 +805,26 @@ void WS2812B_GetUpdateStats(WS2812B_Strip strip,
                             uint32_t* completeCount)
 {
     if (halfCount != NULL) {
-        *halfCount = (strip == WS2812B_STRIP_AMBIENT)
-            ? g_ambient_ht_count : g_keys_ht_count;
+        *halfCount = 0u; /* NORMAL transfers do not service HT. */
     }
     if (completeCount != NULL) {
         *completeCount = (strip == WS2812B_STRIP_AMBIENT)
             ? g_ambient_tc_count : g_keys_tc_count;
+    }
+}
+
+void WS2812B_GetTxDiagnostics(WS2812B_Strip strip, WS2812B_TxDiagnostics* stats)
+{
+    if (stats == NULL) {
+        return;
+    }
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    stats->startFailures = g_tx_diagnostics[strip].startFailures;
+    stats->dmaErrors = g_tx_diagnostics[strip].dmaErrors;
+    stats->busyDeferrals = g_tx_diagnostics[strip].busyDeferrals;
+    if (primask == 0u) {
+        __enable_irq();
     }
 }
 
@@ -925,3 +952,7 @@ void WS2812B_Test(void)
 
     APP_DBG("Hex: %x", RGBToHex(r, g, b));
 }
+
+#if HBOX_LED_DMA_DIAGNOSTIC
+#include "pwm-ws2812b-diagnostic.inc"
+#endif

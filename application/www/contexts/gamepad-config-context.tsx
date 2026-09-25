@@ -565,6 +565,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         setUpgradeSession(null);
         setHitboxLayout([]);
         setDataIsReady(false);
+        setConfigReadProgress({ completed: 0, total: 0 });
         setFinishConfigDisabled(false);
         setDeviceSession(null);
     }, []);
@@ -1062,7 +1063,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             return Promise.resolve(data as HitboxLayoutItem[]);
         } catch (err) {
             // setError(err instanceof Error ? err.message : '获取Hitbox布局失败');
-            return Promise.reject(new Error("Failed to get Hitbox layout"));
+            return Promise.reject(new Error("Failed to get XORA layout"));
         }
     };
 

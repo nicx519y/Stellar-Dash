@@ -1,3 +1,4 @@
+#include "screen_control/lcd_wake_frame.hpp"
 #include "screen_control/spi_screen_manager.hpp"
 
 #include <stdio.h>
@@ -64,6 +65,8 @@ static bool g_deferredSavePending = false;
 static uint32_t g_deferredSaveDueMs = 0;
 static uint32_t g_bl_boot_ms = 0;
 static bool g_bl_ramp_active = false;
+static bool g_wakeBacklightPending = false;
+static LcdWakeFrame g_wakeFrame;
 static bool g_menu_full_refresh_pending = false;
 static ScreenTimedPopup g_actionPopup = {};
 static uint32_t g_perfLastMs = 0;
@@ -440,6 +443,8 @@ void SPIScreenManager::setup() {
 }
 
 void SPIScreenManager::shutdown() {
+    sleepSuspended = sleepResuming = false;
+    g_wakeBacklightPending = false;
     g_brightnessPreviewActive = false;
     if (!g_inited && !SPIST7789_IsReady()) {
         return;
@@ -613,6 +618,37 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
 }
 
 void SPIScreenManager::loop() {
+    // Do not let the normal !g_inited path repower a sleeping/failed display.
+    if (sleepDisplayFailed) return;
+    if (sleepSuspended) {
+        if (!sleepResuming) return;
+        const uint32_t now = HAL_GetTick();
+        const int result = SPIST7789_PollResume(now);
+        if (result < 0 || now - sleepResumeStart >= 1000u) {
+            SPIST7789_DeInit();
+            sleepDisplayFailed = true;
+            sleepResuming = false;
+            SystemSleep_DisableForBoot();
+            APP_STAGE_ERROR("S95", "LCD resume failed; input remains available");
+            return;
+        }
+        if (result == 0) return;
+        sleepSuspended = sleepResuming = false;
+        g_lcd.inited = true;
+        g_lcd.last_frame_ms = 0u;
+        g_firstDrawPending = true;
+        g_bl_boot_ms = now;
+        // Cold boot's 1 s dark hold / 2 s ramp is inappropriate for wake.
+        // Keep the panel dark only until its first complete frame is ready.
+        g_bl_ramp_active = false;
+        g_wakeBacklightPending = true;
+        g_wakeFrame.begin(sleepResumeStart);
+        (void)SPIST7789_ConsumeDmaDoneFlag();
+        // A short wake press may already be released by the time LCD init
+        // finishes. Restart the screen's own idle timer explicitly.
+        ScreenStandby_Wake(now, get_gamepad_activity_mask());
+        APP_STAGE("S95", "LCD resume ready after %lu ms", (unsigned long)(now - sleepResumeStart));
+    }
     if (BOARD_POWER.isSafeLatched() && !BOARD_POWER.isRecoveryUiAllowed()) {
         shutdown();
         return;
@@ -622,6 +658,26 @@ void SPIScreenManager::loop() {
     }
     if (!g_inited) return;
     SPIST7789_Service();
+    if (SystemSleep_IsBusy()) return;
+    if (g_wakeBacklightPending) {
+        const int frame = g_wakeFrame.poll(HAL_GetTick(), SPIST7789_IsBusy(),
+            SPIST7789_ConsumeDmaDoneFlag(), SPIST7789_ConsumeDmaErrFlag());
+        if (frame < 0) {
+            SPIST7789_DeInit();
+            sleepDisplayFailed = true;
+            g_wakeBacklightPending = false;
+            SystemSleep_DisableForBoot();
+            APP_STAGE_ERROR("S95", "LCD first frame failed; input remains available");
+            return;
+        }
+        if (frame > 0) {
+            g_wakeBacklightPending = false;
+            ST7789_SetBacklight(&g_lcd,
+                map_backlight_percent(compute_backlight_percent(HAL_GetTick())));
+            APP_STAGE("S95", "LCD first frame visible after %lu ms",
+                      (unsigned long)(HAL_GetTick() - sleepResumeStart));
+        }
+    }
     /* SysTick captures GPIO state every 1 ms; this call only drains debug flags. */
     RotEnc_Update();
     uint32_t nowMs = HAL_GetTick();
@@ -633,6 +689,7 @@ void SPIScreenManager::loop() {
     bool clicked = RotEnc_WasButtonClicked();
     bool longPressed = RotEnc_WasButtonLongPressed();
     if (SystemSleep_ShouldSuppressRotaryLongAction()) {
+        det = 0;
         clicked = false;
         longPressed = false;
     }
@@ -667,7 +724,6 @@ void SPIScreenManager::loop() {
     if (encoderEvent) {
         SystemSleep_NotifyScreenActivity(nowMs);
     }
-    SystemSleep_UpdateAutoStandby(nowMs);
     if (standbyWasActive && !standbyNowActive) {
         g_menu_full_refresh_pending = true;
     }
@@ -708,6 +764,7 @@ void SPIScreenManager::loop() {
         g_menu_full_refresh_pending = false;
     }
     ST7789_SetBacklight(&g_lcd,
+                        g_wakeBacklightPending ? 0u :
                         map_backlight_percent(compute_backlight_percent(nowMs)));
     if (standbyNowActive) {
         ScreenStandby_Render(&g_lcd, inputMask);
@@ -715,6 +772,7 @@ void SPIScreenManager::loop() {
         renderFrame();
     }
     ST7789_FrameEnd(&g_lcd);
+    if (g_wakeBacklightPending && !g_lcd.dirty_valid) g_wakeFrame.submitted();
     if (firstFrame) {
         APP_STAGE("S04", "first screen frame submitted; backlight ramp active");
     }
@@ -821,4 +879,32 @@ void SPIScreenManager::renderBars() {
     }
 
     if (!g_inDetail && next && next->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, botY, rightW, botH, next->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+}
+
+
+bool SPIScreenManager::canAutoSleep() const
+{
+    return g_inited && !g_deferredSavePending && !g_brightnessPreviewActive &&
+           !sleepSuspended && !sleepDisplayFailed && !g_wakeBacklightPending;
+}
+
+bool SPIScreenManager::suspendForSleep()
+{
+    SPIST7789_Service();
+    if (SPIST7789_IsBusy()) return false;
+    ST7789_SetBacklight(&g_lcd, 0u);
+    SPIST7789_DeInit();
+    sleepSuspended = true;
+    sleepResuming = false;
+    animActive = false;
+    // Preserve the framebuffer, menu, config and any saved user brightness.
+    return true;
+}
+
+void SPIScreenManager::resumeFromSleep()
+{
+    if (!sleepSuspended || sleepResuming || sleepDisplayFailed) return;
+    sleepResumeStart = HAL_GetTick();
+    SPIST7789_BeginResume(sleepResumeStart);
+    sleepResuming = true;
 }

@@ -62,7 +62,7 @@ export default function WebHidTracePage() {
   const pausedRef = useRef(false);
 
   useEffect(() => {
-    document.title = 'HBox WebHID Trace';
+    document.title = 'XORA WebHID Trace';
     const session = openWebHidTraceViewer('control', {
       onRecord(record) {
         if (pausedRef.current) return;
@@ -143,7 +143,7 @@ export default function WebHidTracePage() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `hbox-webhid-trace-${new Date().toISOString().replaceAll(':', '-')}.json`;
+    anchor.download = `xora-webhid-trace-${new Date().toISOString().replaceAll(':', '-')}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -186,7 +186,7 @@ export default function WebHidTracePage() {
               LOCAL DIAGNOSTICS
             </Text>
             <Heading as="h1" mt="2px" color="#effff4" fontSize="17px" fontWeight="700" lineHeight="1.15">
-              HBox WebHID Trace
+              XORA WebHID Trace
             </Heading>
             <Text mt="2px" color="#6f917a" fontFamily="system-ui, sans-serif" fontSize="10px" lineHeight="1.25" truncate>
               Inspect raw WebHID frames and decoded logical packets from a same-origin WebConfig page in real time.

@@ -42,10 +42,16 @@ test('snapshot fetches every slot and its macros before publishing; incomplete r
   const client = new DeviceCommandClient(mock);
   await client.connect();
   const commands = [];
+  const progress = [];
   const snapshot = await readConfigSnapshot(async (cmd, params) => {
     commands.push(cmd); return client.requestInitialization(cmd, params);
-  }, x => x);
+  }, x => x, (completed, total) => progress.push({ completed, total }));
   const list = snapshot['profile-list'];
+  const total = 4 + list.items.length * 2;
+  assert.deepEqual(progress, [
+    { completed: 0, total: 0 },
+    ...Array.from({ length: total }, (_, i) => ({ completed: i + 1, total })),
+  ]); // One stable denominator, advancing once per completed request.
   assert.equal(commands.filter(c => c === 'get_profile_details').length, list.items.length);
   for (const profile of list.items) assert.ok(Array.isArray(snapshot[`macros:${profile.id}`]));
   assert.equal(snapshot['selected-profile'], list.defaultId);

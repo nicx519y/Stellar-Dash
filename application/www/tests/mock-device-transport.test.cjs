@@ -2057,3 +2057,43 @@ test('failed versioned import aborts staged config and restores the previous use
   assert.deepEqual([...restored], [...previousPixels]);
   adapter.dispose();
 });
+
+
+test('auto sleep defaults off, persists, merges and rejects invalid switches atomically', async () => {
+  const storage = new MemoryStorage();
+  const transport = new MockDeviceTransport({ storage });
+  const client = new DeviceCommandClient(transport);
+  await client.connect();
+  client.markReady();
+  const get = async () => (await client.request('get_global_config')).globalConfig;
+  const update = (globalConfig) => client.request('update_global_config', { globalConfig });
+  // Use the public RPC surface, including persisted mock state.
+  let value = await get();
+  assert.equal(value.power.autoSleepEnabled, false);
+  assert.equal(value.power.autoSleepSupported, true);
+  await update({ ...value, power: { ...value.power, autoSleepEnabled: true, autoStandbyMs: 10000 } });
+  value = await get();
+  assert.equal(value.power.autoSleepEnabled, true);
+  await update({ ...value, power: { wakeHoldMs: 3000, autoStandbyMs: 30000 } });
+  value = await get();
+  assert.equal(value.power.autoSleepEnabled, true);
+  for (const invalid of [1, 'false', null]) {
+    await assert.rejects(update({ ...value, power: { ...value.power, autoSleepEnabled: invalid } }), /Invalid power/);
+    assert.deepEqual(await get(), value);
+  }
+  await update({ ...value, power: { ...value.power, autoSleepEnabled: false } });
+  assert.equal((await get()).power.autoStandbyMs, 30000);
+  const second = new DeviceCommandClient(new MockDeviceTransport({ storage }));
+  await second.connect(); second.markReady();
+  assert.equal((await second.request('get_global_config')).globalConfig.power.autoSleepEnabled, false);
+  assert.equal((await second.request('get_global_config')).globalConfig.power.autoStandbyMs, 30000);
+  const backup = await client.exportConfig();
+  await update({ ...value, power: { ...value.power, autoSleepEnabled: true } });
+  delete backup.globalConfig.power.autoSleepEnabled;
+  await client.importConfig(backup);
+  assert.equal((await get()).power.autoSleepEnabled, false);
+  backup.globalConfig.power.autoSleepEnabled = 'true';
+  await assert.rejects(client.importConfig(backup), /Invalid power/);
+  assert.equal((await get()).power.autoSleepEnabled, false);
+  second.dispose(); client.dispose();
+});

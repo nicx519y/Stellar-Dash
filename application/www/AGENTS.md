@@ -4,6 +4,8 @@
 
 ## 产品边界
 
+- 网页产品名统一使用 **XORA**，包括中英文提示、连接浮层、帮助文案、页面标题和无障碍标签；命名与兼容性边界遵守[根目录产品命名规则](../../AGENTS.md#产品命名)。
+
 - 产品为服务器托管静态站点，通过 CH585 Maintenance HID / WebHID 与 STM32 通信。Hosted 只用 WebHID，不允许自动回退到 Mock、HTTP 或其他设备通道。
 - Mock 是独立开发变体。保持 `build:hosted` / `build:mock` 的环境与产物隔离，不将模拟设备打入产品。
 - `makefsdata.js` 仅为旧 A/B artifact 兼容生成资源；日常网页构建不把网站写入 STM32，不恢复旧 httpd runtime。

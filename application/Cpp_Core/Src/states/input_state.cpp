@@ -144,7 +144,10 @@ void InputState::startInputPipeline()
 
 void InputState::stopInputPipeline()
 {
-    if (!inputPipelineRunning) {
+    const bool ownedResources = inputPipelineRunning || sleepPaused;
+    sleepPaused = false;
+    sleepFreshSample = false;
+    if (!ownedResources) {
         REPORT_SCHEDULER.stop();
         ADC_MANAGER.forceStopAllSampling();
         virtualPinMask = 0u;
@@ -228,6 +231,8 @@ void InputState::processReportSample(const AdcSampleFrame& sample)
 {
     virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read(sample);
     SystemSleep_NotifyButtonActivity(HAL_GetTick(), virtualPinMask);
+    virtualPinMask = SystemSleep_FilterInput(virtualPinMask);
+    sleepFreshSample = true;
 
     const bool fnPressed =
         (virtualPinMask & FN_BUTTON_VIRTUAL_PIN) != 0u;
@@ -256,6 +261,7 @@ bool InputState::applyPhysicalMode(BoardMode mode,
                                    bool initial,
                                    bool compatibilityRecovery)
 {
+    SystemSleep_CancelForModeChange();
     InputMode inputMode = STORAGE_MANAGER.getInputMode();
     const WirelessReportRate wirelessRate =
         STORAGE_MANAGER.getWirelessReportRate();
@@ -413,7 +419,7 @@ void InputState::tick()
         (void)applyPhysicalMode(BOARD_MODE.current(), false);
     }
 
-    if (inputPipelineRunning && activeBoardMode == BoardMode::Usb) {
+    if (usbRuntimeInitialized && activeBoardMode == BoardMode::Usb) {
         USB_DRIVER.process();
         if (USB_DRIVER.takeCompatibilityRecoveryRequest()) {
             if (!usbCompatibilityRecoveryUsed) {
@@ -502,7 +508,7 @@ void InputState::serviceLeds()
 {
 #if HAS_LED == 1
 #if !INPUT_LED_RECOVERY_HOLD_OFF
-    if (isRunning && inputPipelineRunning) {
+    if (isRunning && inputPipelineRunning && !SystemSleep_IsBusy()) {
         LEDS_MANAGER.loop(virtualPinMask);
     }
 #endif
@@ -556,6 +562,7 @@ bool InputState::connectUsbRuntime()
 
 void InputState::exit()
 {
+    SystemSleep_CancelForModeChange();
     stopInputPipeline();
     USB_DRIVER.shutdown();
     USB_BOARD_LINK.shutdown();
@@ -567,4 +574,75 @@ void InputState::exit()
     usbRuntimeConnected = false;
     activeBoardMode = BoardMode::CenterOff;
     isRunning = false;
+}
+
+bool InputState::canAutoSleep() const
+{
+    return isRunning && inputPipelineRunning && !sleepPaused &&
+        !BOARD_POWER.isSafeLatched() && BOARD_MODE.isStable() &&
+        (activeBoardMode == BoardMode::Usb || activeBoardMode == BoardMode::Rf) &&
+        activeBoardMode == BOARD_MODE.current() && CH585_ROLE_BOOTSTRAP.isLocked() &&
+        ADC_MANAGER.isDmaSamplingActive() && ADC_MANAGER.isInputSampleStreamHealthy() &&
+        CONNECTION_MANAGER.getLinkState() == ConnectionLinkState::Connected &&
+        !CONNECTION_MANAGER.isRfPairing();
+}
+
+bool InputState::sendSleepNeutral()
+{
+    // No synthetic ADC timestamps: idle packets never enter latency accounting.
+    if (activeBoardMode == BoardMode::Usb && usbRuntimeInitialized) {
+        return USB_DRIVER.sendNeutral();
+    }
+    if (activeBoardMode == BoardMode::Rf) {
+        const GamepadState neutral = {};
+        return CONNECTION_MANAGER.onReportReady(neutral, MonitorTelemetry_NextSequence());
+    }
+    return false;
+}
+
+bool InputState::pauseForSleep()
+{
+    REPORT_SCHEDULER.stop();
+    ADC_MANAGER.forceStopAllSampling();
+    inputPipelineRunning = false;
+    sleepPaused = true;
+    sleepFreshSample = false;
+    virtualPinMask = lastVirtualPinMask = 0u;
+    fnLayerPolicy.reset();
+    // Check the actual stop result before removing the Hall supply.
+    if (!ADC_MANAGER.isSamplingHardwareStopped()) return false;
+    BOARD_POWER.setHallEnabled(false);
+    return true;
+}
+
+bool InputState::resumeFromSleep()
+{
+    if (!sleepPaused) return inputPipelineRunning;
+    // The sleep manager has already powered Hall and waited its settling time.
+    if (ADC_BTNS_WORKER.setup() != ADCBtnsError::SUCCESS) return false;
+    GPIO_BTNS_WORKER.setup();
+    const uint16_t rate = activeBoardMode == BoardMode::Usb
+        ? USB_DRIVER.effectiveReportRateHz(STORAGE_MANAGER.getInputMode(),
+            static_cast<uint16_t>(STORAGE_MANAGER.getWirelessReportRate()))
+        : CONNECTION_MANAGER.getAppliedReportRateHz();
+    if (!REPORT_SCHEDULER.start(rate)) return false;
+    sleepFreshSample = false;
+    inputPipelineRunning = true;
+    return true;
+}
+
+void InputState::finishSleepResume()
+{
+    sleepPaused = false;
+#if HAS_LED == 1 && !INPUT_LED_RECOVERY_HOLD_OFF
+    LEDS_MANAGER.setup();
+#endif
+}
+
+void InputState::failSleepResume()
+{
+    stopInputPipeline();
+    teardownCh585Runtime();
+    enterBoardSafeState();
+    activeBoardMode = BoardMode::Fault;
 }

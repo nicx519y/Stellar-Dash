@@ -22,8 +22,9 @@ import {
 import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-network-trace';
 import { usePathname } from 'next/navigation';
 import { UserAuthControl } from '@/components/user-auth-control';
-import { ConfigSyncStatus, ConfigDraftRecovery } from '@/components/config-sync-status';
+import { ConfigDraftRecovery } from '@/components/config-sync-status';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { connectionErrorMessage } from '@/lib/connection-presentation';
 
 const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
     phase === DeviceConnectionPhase.DISCOVERING
@@ -44,11 +45,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
         deviceConnected,
         devicePhase,
         dataIsReady,
+        configReadProgress,
     } = useGamepadConfig();
     const [isReconnecting, setIsReconnecting] = useState(false);
     const reconnectInFlightRef = useRef(false);
     const { error, setError } = useGamepadConfig();
-    const { t } = useLanguage();
+    const { t, currentLanguage } = useLanguage();
     const connectionPending = !deviceConnected
         || !dataIsReady
         || devicePhase !== DeviceConnectionPhase.READY;
@@ -85,7 +87,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             }
         } catch (error) {
             const description = error instanceof DeviceTransportError
-                ? error.message
+                ? connectionErrorMessage({ transportCode: error.code, type: 'connection' }, currentLanguage)
                 : t.RECONNECT_FAILED_MESSAGE;
             toaster.error({
                 title: t.RECONNECT_FAILED_TITLE,
@@ -95,7 +97,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             reconnectInFlightRef.current = false;
             setIsReconnecting(false);
         }
-    }, [connectDevice, reconnectDevice, deviceError, t]);
+    }, [connectDevice, reconnectDevice, deviceError, t, currentLanguage]);
 
     return (
         <Flex
@@ -115,7 +117,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 </SettingsLayout>
                 {/* <Center as="footer" height="40px" borderTop="1px solid" borderColor="rgba(0, 150, 255, 0.15)">
                     <Text fontSize="sm" color="gray.500">
-                        © 2024 Hitbox Web Config. All rights reserved.
+                        © 2024 XORA Web Config. All rights reserved.
                     </Text>
                 </Center> */}
             </Flex>
@@ -123,6 +125,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
             <LoadingModal
                 isOpen={connectionPending}
                 variant={connectionInProgress ? 'connection' : 'no-device'}
+                connectionPhase={devicePhase}
+                configReadProgress={configReadProgress}
                 noDeviceAction={showReconnect ? {
                     label: t.RECONNECT_MODAL_BUTTON,
                     onClick: handleReconnect,
@@ -134,10 +138,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
                     t.RECONNECT_MODAL_STEP_USB,
                     t.RECONNECT_MODAL_STEP_RECONNECT,
                 ]}
-                noDeviceMessage={deviceError?.message}
+                noDeviceMessage={connectionErrorMessage(deviceError, currentLanguage)}
                 headerAction={connectionPending ? (
                     <HStack gap={2}>
-                        <ConfigSyncStatus />
                         <UserAuthControl />
                         <LanguageSwitcher />
                     </HStack>

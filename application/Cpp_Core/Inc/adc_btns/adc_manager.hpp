@@ -94,6 +94,7 @@ struct AdcSampleFrame : BasicAdcSampleFrame<NUM_ADC_BUTTONS> {};
 
 class ADCManager {
     public:
+        bool isSamplingHardwareStopped() const;
         ADCManager(ADCManager const&) = delete;
         void operator=(ADCManager const&) = delete;
         static ADCManager& getInstance() {

@@ -34,6 +34,13 @@ public:
     bool isInputPipelineRunning() const { return inputPipelineRunning; }
     bool suspendInputPipelineForStorage();
     bool resumeInputPipelineAfterStorage(bool wasRunning);
+    bool canAutoSleep() const;
+    bool sendSleepNeutral();
+    bool pauseForSleep();
+    bool resumeFromSleep();
+    bool sleepInputReady() const { return sleepFreshSample; }
+    void finishSleepResume();
+    void failSleepResume();
 
 private:
     InputState() = default;
@@ -50,6 +57,8 @@ private:
 
     bool isRunning = false;
     bool inputPipelineRunning = false;
+    bool sleepPaused = false;
+    bool sleepFreshSample = false;
     bool usbRuntimeInitialized = false;
     bool usbRuntimeConnected = false;
     bool usbCompatibilityRecoveryUsed = false;

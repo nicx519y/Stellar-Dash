@@ -127,6 +127,8 @@ export interface HardwareLayout {
 }
 
 export interface PowerConfig {
+    autoSleepEnabled?: boolean;
+    readonly autoSleepSupported?: boolean;
     wakeHoldMs: number;
     autoStandbyMs: number;
 }
@@ -751,12 +753,13 @@ export const UI_TEXT = {
     INPUT_MODE_HELPER: "Platform selection only applies in USB mode. Wireless mode supports PC only.",
     POWER_TITLE: "Power",
     POWER_AUTO_STANDBY_LABEL: "Auto Sleep",
-    POWER_AUTO_STANDBY_HELPER: "The device enters sleep after remaining idle for the selected amount of time.",
+    POWER_AUTO_SLEEP_UNSUPPORTED: "Update the device firmware to enable Auto Sleep.",
+    POWER_AUTO_STANDBY_HELPER: "When enabled, idle USB and wireless play enter power saving after this timeout. Press a function button or the rotary knob to wake; the first press only wakes the device.",
     POWER_AUTO_STANDBY_NONE: "None",
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
-    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration field, then press left Hitbox button or the button of the device to bind it.\n- Multiple key mappings can be binded to one controller button.`,
+    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between XORA buttons and game controller buttons.\n- Select a configuration field, then press left XORA button or the button of the device to bind it.\n- Multiple key mappings can be binded to one controller button.`,
     KEYS_ENABLE_START_BUTTON_LABEL: "Configuring keys enablement",
     KEYS_ENABLE_STOP_BUTTON_LABEL: "Exit configuring",
     KEYS_ENABLE_HELPER_TEXT: "- Click [Configuring keys enablement] to start configuring keys. The available keys will be shown in green, and the disabled keys will be shown in gray.\n- Click the green button to disable the key, and click the gray button to enable the key.\n- Click the [Exit configuring] button to exit the configuring mode. \n- Disabled keys cannot trigger press and release, and cannot light up the LED.",
@@ -820,7 +823,7 @@ export const UI_TEXT = {
     SETTINGS_BASIC_TITLE: "Basic",
     SETTINGS_BASIC_HELPER_TEXT: "Platform selection has moved from the left panel to Basic, above Connection. Configure the device's platform, connection, and power behavior here.\n- Report Rate stores the requested sampling/report rate.\n- 2K/4K/8K take effect only after entering Input State with XInput mode; other modes use 1K.\n- Auto Sleep sets how long the device waits without input before entering sleep.",
     SETTINGS_HOTKEYS_TITLE: "Hotkey",
-    SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox or device to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode and calibration mode because this function is required. `,
+    SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the XORA diagram or device to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode and calibration mode because this function is required. `,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
 
     // Screen Control Settings
@@ -1295,7 +1298,8 @@ export const UI_TEXT_ZH = {
     INPUT_MODE_HELPER: "平台选择只在USB模式下生效，无线模式下只支持 PC",
     POWER_TITLE: "电源",
     POWER_AUTO_STANDBY_LABEL: "自动休眠",
-    POWER_AUTO_STANDBY_HELPER: "设备持续无操作达到所选时间后，将进入休眠状态。",
+    POWER_AUTO_SLEEP_UNSUPPORTED: "当前固件不支持自动休眠开关，请更新设备固件。",
+    POWER_AUTO_STANDBY_HELPER: "开启后，有线和无线游戏模式无操作达到所选时间即进入省电状态。按功能键或旋钮唤醒，首次按下仅用于唤醒；霍尔主按键不能唤醒。",
     POWER_AUTO_STANDBY_NONE: "无自动待机",
 
     // 按键设置

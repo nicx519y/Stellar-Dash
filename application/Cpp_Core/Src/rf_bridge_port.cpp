@@ -799,6 +799,10 @@ bool RFBridgePort_HasPendingEvent(void) {
     return rf_has_pending_event_signal();
 }
 
+bool RFBridgePort_IsInputIdle(void) {
+    return !s_dma_busy && !s_dma_pending;
+}
+
 uint32_t RFBridgePort_EventReceivedCycles() {
     return s_event_received_cycles;
 }

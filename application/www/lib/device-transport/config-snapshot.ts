@@ -20,15 +20,18 @@ export async function readConfigSnapshot(
 ): Promise<ConfigResources> {
   const resources: ConfigResources = {};
   let completed = 0;
-  let total = 4;
+  progress(0, 0);
+  // The profile list determines the denominator. Do not publish a temporary
+  // 1/4 value that makes the visible percentage fall when the slots arrive.
+  const list = (await request('get_profile_list'))?.profileList as GameProfileList;
+  if (!list || !profileSlots(list).compatible || !list.items.some(p => p.id === list.defaultId)) throw new Error('Invalid device profile slots');
+  const total = 4 + list.items.length * 2;
+  progress(++completed, total);
   const read: ConfigRequester = async (command, params) => {
     const value = await request(command, params);
     progress(++completed, total);
     return value;
   };
-  const list = (await read('get_profile_list'))?.profileList as GameProfileList;
-  if (!list || !profileSlots(list).compatible || !list.items.some(p => p.id === list.defaultId)) throw new Error('Invalid device profile slots');
-  total += list.items.length * 2;
   resources['profile-list'] = list;
   resources['selected-profile'] = list.defaultId;
   const global = (await read('get_global_config'))?.globalConfig;

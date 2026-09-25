@@ -121,6 +121,22 @@ const HITBOX_LAYOUT = [
   { x: 40.49, y: 15.49, r: 11.5 }, { x: 18.48, y: 15.49, r: 11.5 },
 ] as const;
 
+function mergePower(current: typeof DEFAULT_GLOBAL_CONFIG.power, patch: unknown, importing = false) {
+  if (patch !== undefined && (!patch || typeof patch !== 'object' || Array.isArray(patch))) {
+    throw new DeviceTransportError('protocol', 'Invalid power configuration');
+  }
+  const update = asObject(patch);
+  if (update.autoSleepEnabled !== undefined && typeof update.autoSleepEnabled !== 'boolean') {
+    throw new DeviceTransportError('protocol', 'Invalid power.autoSleepEnabled');
+  }
+  return {
+    ...current, ...update,
+    autoSleepEnabled: typeof update.autoSleepEnabled === 'boolean'
+      ? update.autoSleepEnabled : importing ? false : current.autoSleepEnabled,
+    autoSleepSupported: true,
+  };
+}
+
 const DEFAULT_GLOBAL_CONFIG = {
   inputMode: Platform.XINPUT,
   defaultProfileId: 'profile-arcade',
@@ -135,7 +151,7 @@ const DEFAULT_GLOBAL_CONFIG = {
     usbSpeed: 'HIGH',
     limit: 'NONE',
   },
-  power: { wakeHoldMs: 3000, autoStandbyMs: 300000 },
+  power: { wakeHoldMs: 3000, autoStandbyMs: 300000, autoSleepEnabled: false, autoSleepSupported: true },
   hardware: {
     hardwareVersion: '2.0.0',
     batteryTopology: 'SINGLE_1S2P' as const,
@@ -207,7 +223,7 @@ const MOCK_SERVER_MAPPING: SwitchMappingPayload = {
 };
 
 /**
- * Stateful, hardware-free HBox V2 device. This transport is only selected
+ * Stateful, hardware-free XORA V2 device. This transport is only selected
  * when both NEXT_PUBLIC_DEVICE_TRANSPORT=mock and OFFLINE_PREVIEW=true.
  */
 export class MockDeviceTransport implements DeviceTransport {
@@ -294,7 +310,7 @@ export class MockDeviceTransport implements DeviceTransport {
     this.session = {
       transport: 'mock',
       deviceId: 'HBOX-V2-MOCK-0001',
-      productName: 'HBox V2 Mock Device',
+      productName: 'XORA V2 Mock Device',
       hardwareVersion: '2.0.0',
       firmwareVersion: DEFAULT_FIRMWARE.version,
       authenticated: true,
@@ -415,7 +431,7 @@ export class MockDeviceTransport implements DeviceTransport {
           latestVersion: DEFAULT_FIRMWARE.version,
           latestFirmware: {
             id: 'mock-current',
-            name: 'HBox V2 Mock Firmware',
+            name: 'XORA V2 Mock Firmware',
             version: DEFAULT_FIRMWARE.version,
             desc: 'Offline fixture: device is up to date.',
             createTime: DEFAULT_FIRMWARE.buildDate,
@@ -691,12 +707,14 @@ export class MockDeviceTransport implements DeviceTransport {
         };
       case 'update_global_config': {
         const patch = asObject(params.globalConfig);
+        const power = mergePower(this.globalConfig.power, patch.power);
         if (typeof patch.defaultProfileId === 'string') {
           this.defaultProfileId = this.findProfile(patch.defaultProfileId).id;
         }
         this.globalConfig = {
           ...this.globalConfig,
           ...patch,
+          power,
           defaultProfileId: this.defaultProfileId,
         };
         this.persistState();
@@ -793,7 +811,7 @@ export class MockDeviceTransport implements DeviceTransport {
       case 'get_device_logs_list':
         return {
           items: [
-            '[MOCK] HBox V2 transport connected',
+            '[MOCK] XORA V2 transport connected',
             '[MOCK] Loaded profile: Profile-01',
             '[MOCK] ADC calibration data valid (18/18)',
             '[MOCK] USB report scheduler running at 1000 Hz',
@@ -1359,6 +1377,7 @@ export class MockDeviceTransport implements DeviceTransport {
           candidate.globalConfig = {
             ...candidate.globalConfig,
             ...globalPart,
+            power: mergePower(candidate.globalConfig.power, globalPart.power, true),
           } as PersistedMockState['globalConfig'];
           if (typeof globalPart.defaultProfileId === 'string') {
             candidate.defaultProfileId = globalPart.defaultProfileId;
@@ -1642,6 +1661,7 @@ export class MockDeviceTransport implements DeviceTransport {
     }
     this.globalConfig = {
       ...clone(state.globalConfig),
+      power: mergePower(DEFAULT_GLOBAL_CONFIG.power, state.globalConfig.power, true),
       manualCalibrationActive: false,
     };
     this.screenControl = clone(state.screenControl);

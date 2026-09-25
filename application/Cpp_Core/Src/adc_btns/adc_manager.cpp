@@ -1498,6 +1498,18 @@ bool ADCManager::rearmInputSampling(uint16_t reportRateHz)
     return true;
 }
 
+bool ADCManager::isSamplingHardwareStopped() const
+{
+    const ADC_HandleTypeDef* handles[] = {&hadc1, &hadc2, &hadc3};
+    for (const auto* adc : handles) {
+        if ((adc->Instance->CR & ADC_CR_ADSTART) != 0u ||
+            (adc->DMA_Handle && HAL_DMA_GetState(adc->DMA_Handle) != HAL_DMA_STATE_READY)) {
+            return false;
+        }
+    }
+    return !dmaSamplingActive;
+}
+
 /**
  * @brief 处理ADC转换完成中断
  * 在每次采样完成后，会调用此函数，用于更新采样统计信息

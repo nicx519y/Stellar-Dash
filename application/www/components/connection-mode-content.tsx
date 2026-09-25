@@ -1,7 +1,7 @@
 'use client';
 
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { HStack, Slider, Text, VStack } from '@chakra-ui/react';
+import { HStack, Slider, Switch, Text, VStack } from '@chakra-ui/react';
 import { GlobalConfig, WirelessReportRate } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
 import { TitleLabel } from './ui/title-label';
@@ -18,6 +18,8 @@ const rateOptions: WirelessReportRate[] = [
 
 const autoSleepOptions = [10000, 30000, 60000, 120000, 300000];
 const defaultPower: NonNullable<GlobalConfig['power']> = {
+    autoSleepEnabled: false,
+    autoSleepSupported: false,
     wakeHoldMs: 3000,
     autoStandbyMs: 300000,
 };
@@ -38,6 +40,8 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
     const rate = globalConfig.wirelessReportRate ?? WirelessReportRate.RATE_1K;
     const rateIndex = Math.max(rateOptions.indexOf(rate), 0);
     const power = globalConfig.power ?? defaultPower;
+    const sleepSupported = power.autoSleepSupported === true;
+    const sleepEnabled = power.autoSleepEnabled === true;
     const autoSleepIndex = optionIndex(
         autoSleepOptions,
         power.autoStandbyMs,
@@ -115,13 +119,24 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
 
             <VStack align="stretch" gap={3}>
                 <HStack justifyContent="space-between">
-                    <Text fontSize="xs" color="fg.muted">{t.POWER_AUTO_STANDBY_LABEL}</Text>
+                    <Switch.Root colorPalette="green"
+                        checked={sleepEnabled}
+                        disabled={props.disabled || !sleepSupported}
+                        onCheckedChange={({ checked }) => stageDeferredGlobalConfig({
+                            ...globalConfig,
+                            power: { ...power, autoSleepEnabled: checked },
+                        })}
+                    >
+                        <Switch.HiddenInput />
+                        <Switch.Control><Switch.Thumb /></Switch.Control>
+                        <Switch.Label>{t.POWER_AUTO_STANDBY_LABEL}</Switch.Label>
+                    </Switch.Root>
                     <Text fontSize="xs" color="fg.muted">
                         {formatAutoSleep(autoSleepOptions[autoSleepIndex])}
                     </Text>
                 </HStack>
                 <Text fontSize="2xs" lineHeight="1.2" color="fg.subtle">
-                    {t.POWER_AUTO_STANDBY_HELPER}
+                    {sleepSupported ? t.POWER_AUTO_STANDBY_HELPER : t.POWER_AUTO_SLEEP_UNSUPPORTED}
                 </Text>
                 <Slider.Root
                     size="sm"
@@ -129,7 +144,7 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
                     max={autoSleepOptions.length - 1}
                     step={1}
                     colorPalette="green"
-                    disabled={props.disabled}
+                    disabled={props.disabled || !sleepSupported || !sleepEnabled}
                     value={[autoSleepIndex]}
                     onValueChange={(detail) => {
                         void onAutoSleepChange(detail.value[0]).catch(() => undefined);

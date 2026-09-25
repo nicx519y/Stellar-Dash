@@ -15,6 +15,9 @@ public:
     void setup();
     void loop();
     void shutdown();
+    bool canAutoSleep() const;
+    bool suspendForSleep();
+    void resumeFromSleep();
     void previewBrightness(uint8_t brightness);
     void clearBrightnessPreview();
 
@@ -37,6 +40,10 @@ private:
     bool animActive = false;
     uint32_t animStartMs = 0;
     int animDir = 0;
+    bool sleepSuspended = false;
+    bool sleepResuming = false;
+    bool sleepDisplayFailed = false;
+    uint32_t sleepResumeStart = 0;
 };
 
 #endif

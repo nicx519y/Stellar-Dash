@@ -231,6 +231,11 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define BOARD_LED_5V_STABILIZE_MS              5u
 #define BOARD_HALL_STABILIZE_MS                10u
 
+/* Capability enabled; persistent user setting defaults OFF. Set 0 for recovery. */
+#ifndef HBOX_AUTO_SLEEP_ENABLED
+#define HBOX_AUTO_SLEEP_ENABLED 1
+#endif
+
 /* I2C1 charger/fuel-gauge bus. */
 #define BOARD_I2C1_INSTANCE                    I2C1
 #define BOARD_I2C1_SCL_PORT                    GPIOB
@@ -420,7 +425,7 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define WEBCONFIG_IP_FOURTH                 1
 #define WEBCONFIG_DOMAIN_NAME               "st-dash.usb"
 
-#define CONFIG_VERSION                      (uint32_t)0x000021  // 一次性将 Profile 名称统一为 Profile-xx
+#define CONFIG_VERSION                      (uint32_t)0x000022  // 一次性将 Profile 名称统一为 Profile-xx
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000002  //ADC值映射表版本
 #define ADC_COMMON_VERSION                  (uint32_t)0x000001
 

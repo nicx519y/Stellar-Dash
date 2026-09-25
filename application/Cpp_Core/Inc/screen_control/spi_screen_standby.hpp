@@ -14,6 +14,7 @@ void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool activity
 void ScreenStandby_Tick(uint32_t nowMs);
 bool ScreenStandby_IsActive(void);
 bool ScreenStandby_Deactivate(void);
+void ScreenStandby_Wake(uint32_t nowMs, uint32_t inputMask);
 void ScreenStandby_Render(ST7789_Handle* lcd, uint32_t inputMask);
 
 #endif
