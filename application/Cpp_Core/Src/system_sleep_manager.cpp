@@ -4,6 +4,7 @@
 #include "auto_sleep_policy.hpp"
 #include "board_cfg.h"
 #include "board_power.hpp"
+#include "power_manager.hpp"
 #include "board_mode.hpp"
 #include "states/input_state.hpp"
 #include "screen_control/spi_screen_manager.hpp"
@@ -251,7 +252,8 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
         stopWakeKeys = 0u;
     }
 
-    if (inputPaused && !samplingResumed && !INPUT_STATE.sleepTransportOff() && now - lastKeepalive >= 10u) {
+    if (inputPaused && !samplingResumed && INPUT_STATE.sleepNeedsNeutralKeepalive() &&
+        now - lastKeepalive >= 10u) {
         lastKeepalive = now;
         if (!INPUT_STATE.sendSleepNeutral()) { fail(now, "neutral keepalive failed"); return; }
     }
@@ -296,14 +298,18 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
 extern "C" void SystemSleep_Idle(void)
 {
 #if HBOX_AUTO_SLEEP_ENABLED == 1
-    // CPU STOP only. USB keeps CH585 and services its neutral input cadence;
-    // RF powers CH585 off and wakes periodically for mode/charging service.
+    // CPU STOP only. USB XInput services BoardLink status without repeated
+    // neutral input; other USB profiles retain their existing report cadence.
+    // RF powers CH585 off and schedules maintenance using current power state.
     if (!idleContextValid || !policy.enabled() || !userEnabled ||
         !STORAGE_MANAGER.getAutoSleepEnabled() || policy.state() != State::Sleeping ||
         !BOARD_MODE.isStable() || rawKeys() != 0u || __get_PRIMASK() != 0u ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return;
     const uint32_t elapsed = HAL_GetTick() - lastKeepalive;
-    const uint32_t interval = INPUT_STATE.sleepTransportOff() ? 10u : (elapsed < 10u ? 10u - elapsed : 1u);
+    const uint32_t interval = INPUT_STATE.sleepTransportOff()
+        ? POWER_MANAGER.getSnapshot().sleepMaintenanceIntervalMs()
+        : (INPUT_STATE.sleepNeedsNeutralKeepalive()
+            ? (elapsed < 10u ? 10u - elapsed : 1u) : 100u);
     uint32_t pins = 0u;
     if (!SystemStop_Enter(interval, &pins)) { fail(HAL_GetTick(), "STOP preparation failed"); return; }
     if (pins & GPIO_BTN1_PIN) stopWakeKeys |= 1u << GPIO_BTN1_VIRTUAL_PIN;

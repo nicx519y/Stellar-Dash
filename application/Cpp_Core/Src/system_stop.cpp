@@ -1,5 +1,6 @@
 #include "sleep_diagnostics.hpp"
 #include "system_stop.hpp"
+#include "stop_timer_timing.hpp"
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h"
 
@@ -15,6 +16,9 @@ volatile bool keyIrqOwned = false;
 volatile uint32_t capturedPins = 0;
 uint32_t fractionalTicks = 0;
 uint32_t lastChargerCatchup = 0;
+static_assert(StopTimerTiming::prescaler == 4u, "Update LPTIM PRESC encoding together");
+static_assert(StopTimerTiming::countsForMs(LSI_VALUE, 6000u) < 0xffffu,
+              "Sleep and bounded clock recovery must fit in one counter period");
 
 uint16_t counter()
 {
@@ -36,7 +40,8 @@ bool waitBits(volatile uint32_t& reg, uint32_t mask, uint32_t value)
     // LSI timeout plus a finite iteration backstop if LSI itself fails.
     for (uint32_t spins = 0; spins < 1000000u; ++spins) {
         if ((reg & mask) == value) return true;
-        if (static_cast<uint16_t>(counter() - start) >= LSI_VALUE / 20u) break;
+        if (static_cast<uint16_t>(counter() - start) >=
+            StopTimerTiming::countsForMs(LSI_VALUE, 50u)) break;
     }
     return false;
 }
@@ -62,10 +67,10 @@ bool startTimer(uint32_t intervalMs)
     __HAL_RCC_LPTIM2_CONFIG(RCC_LPTIM2CLKSOURCE_LSI);
     __HAL_RCC_LPTIM2_CLK_SLEEP_ENABLE();
     SET_BIT(RCC->D3AMR, RCC_D3AMR_LPTIM2AMEN);
-    LPTIM2->CFGR = 0u;
+    LPTIM2->CFGR = LPTIM_CFGR_PRESC_1; // divide LSI by 4: 8 kHz nominal
     LPTIM2->CR = LPTIM_CR_ENABLE;
     LPTIM2->ARR = 0xffffu;
-    LPTIM2->CMP = (LSI_VALUE / 1000u) * intervalMs;
+    LPTIM2->CMP = StopTimerTiming::countsForMs(LSI_VALUE, intervalMs);
     // No flag clears here (ES0392 2.17.2). Only CMPM is cleared in its ISR.
     const uint32_t synced = LPTIM_ISR_ARROK | LPTIM_ISR_CMPOK;
     const uint32_t syncStart = HAL_GetTick();
@@ -189,7 +194,7 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
     // The power bus is synchronous in the main loop. Never stop mid-transfer.
     const bool i2cClocked = (RCC->APB1LENR & RCC_APB1LENR_I2C1EN) != 0u;
     if (i2cClocked && (I2C1->ISR & I2C_ISR_BUSY)) return true;
-    if (intervalMs == 0u || intervalMs > 100u || !startTimer(intervalMs)) return false;
+    if (intervalMs == 0u || intervalMs > StopTimerTiming::maxSleepMs || !startTimer(intervalMs)) return false;
     const uint32_t oldCr = RCC->CR;
     const uint32_t oldCfgr = RCC->CFGR;
     const uint32_t oldPwr = PWR->CR1;
@@ -279,10 +284,7 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
     __ISB();
     if (i2cClocked) I2C1->CR1 = i2cCr1;
     // SystemCoreClock, bus divisors, QSPI mapping and flash latency never change.
-    const uint32_t ticks = static_cast<uint16_t>(counter() - started);
-    fractionalTicks += ticks * 1000u;
-    uwTick += fractionalTicks / LSI_VALUE;
-    fractionalTicks %= LSI_VALUE;
+    uwTick += StopTimerTiming::elapsedMs(started, counter(), LSI_VALUE, fractionalTicks);
     disarmKeys(exti);
     *wakePins = capturedPins;
     resetTimer();

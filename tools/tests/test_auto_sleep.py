@@ -73,7 +73,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
             for name in ('board_cfg.h', 'board_power.hpp', 'board_mode.hpp',
                          'states/input_state.hpp', 'screen_control/spi_screen_manager.hpp',
                          'leds/leds_manager.hpp', 'storagemanager.hpp', 'connection_manager.hpp',
-                         'rf_bridge_port.hpp', 'rotary-encoder.h', 'stm32h7xx_hal.h',
+                         'rf_bridge_port.hpp', 'power_manager.hpp', 'rotary-encoder.h', 'stm32h7xx_hal.h',
                          'stm32h7xx_hal_pwr_ex.h', 'system_logger.h'):
                 path = temp / name
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -93,10 +93,25 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                              'cancel-before-pause', 'pause-failure', 'reset-pending', 'noise',
                              'disabled', 'retime', 'software', 'fault', 'debugger',
                              'disable-prepare', 'disable-sleep', 'disable-restore',
-                             'stop-fault', 'stop-failure', 'stop-short-key'):
+                             'stop-fault', 'stop-failure', 'stop-short-key',
+                             'xinput-idle', 'xinput-neutral-failure', 'xinput-cycles'):
                 print(f'auto-sleep runtime: {scenario}', flush=True)
                 run_checked([str(exe), scenario])
             print(f'auto-sleep runtime: passed in {time.monotonic() - started:.2f}s', flush=True)
+
+    def test_stop_timer_and_power_maintenance(self):
+        with tempfile.TemporaryDirectory(prefix='xora-stop-timing-') as folder:
+            temp = Path(folder)
+            (temp / 'stm32h7xx_hal.h').write_text(
+                '#pragma once\n#include <stdint.h>\ntypedef struct {} I2C_HandleTypeDef;\n',
+                encoding='utf-8')
+            exe = temp / 'timing.exe'
+            run_checked([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                         '-I', str(temp), '-I', str(ROOT / 'application/Cpp_Core/Inc'),
+                         '-I', str(ROOT / 'application/Drivers/I2C-BQ25895'),
+                         '-I', str(ROOT / 'application/Drivers/I2C-MAX17048'),
+                         str(ROOT / 'tools/tests/stop_timer_timing_test.cpp'), '-o', str(exe)])
+            run_checked([str(exe)])
 
     def test_config_migration_dispatch(self):
         source = (ROOT / 'application/Cpp_Core/Src/config.cpp').read_text(encoding='utf-8')

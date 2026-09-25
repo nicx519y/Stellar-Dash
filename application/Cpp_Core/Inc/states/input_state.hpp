@@ -36,6 +36,7 @@ public:
     bool resumeInputPipelineAfterStorage(bool wasRunning);
     bool canAutoSleep() const;
     bool sendSleepNeutral();
+    bool sleepNeedsNeutralKeepalive() const;
     bool pauseForSleep();
     bool suspendSleepTransport();
     void serviceSleepTransport();

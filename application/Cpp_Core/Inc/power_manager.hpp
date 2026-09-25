@@ -40,6 +40,7 @@ enum PowerFaultBits : uint16_t {
 };
 
 struct PowerSnapshot {
+    static constexpr uint16_t lowBatteryMv = 3450u;
     uint16_t cell_mv = 0;
     uint16_t soc_permille = 0;
     uint16_t vbus_mv = 0;
@@ -54,6 +55,14 @@ struct PowerSnapshot {
     bool input_current_regulation = false;
     bool input_voltage_regulation = false;
     bool valid = false;
+
+    // Battery-only healthy standby can defer telemetry. Unknown, low battery,
+    // external power and faults retain the normal one-second maintenance rate.
+    uint32_t sleepMaintenanceIntervalMs() const {
+        return valid && gauge_online && charger_online && fault_bits == 0u &&
+               !vbus_present && vbus_mv < 3900u && cell_mv > lowBatteryMv &&
+               charge_state == PowerChargeState::Discharging ? 5000u : 1000u;
+    }
 };
 
 class PowerManager {

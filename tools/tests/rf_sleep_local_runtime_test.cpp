@@ -20,7 +20,18 @@ int main() {
     SystemSleep_InitializeWakeKeys();
     step(31000, 0);
     assert(SystemSleep_IsBusy() && INPUT_STATE.transportOff);
-    assert(lastStopInterval == 10);
+    assert(lastStopInterval == 5000);
+    const auto neutralCount = INPUT_STATE.neutrals;
+    // Battery-only standby, then external power/fault cadence. Timer wakes do
+    // not bring local peripherals or the radio back; EXTI may wake at any time.
+    tick += 5000;
+    step(1, 0);
+    assert(SystemSleep_IsBusy() && !INPUT_STATE.running && INPUT_STATE.transportOff);
+    assert(INPUT_STATE.neutrals == neutralCount);
+    POWER_MANAGER.snapshot.interval = 1000;
+    step(1, 0); assert(lastStopInterval == 1000);
+    POWER_MANAGER.snapshot.interval = 5000;
+    step(1, 0); assert(lastStopInterval == 5000);
     const uint32_t wake = 1u << GPIO_BTN3_VIRTUAL_PIN;
     simulatedWakePins = GPIO_BTN3_PIN;
     SystemSleep_Idle();

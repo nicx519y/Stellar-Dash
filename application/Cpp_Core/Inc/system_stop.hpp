@@ -6,6 +6,7 @@
 extern "C" {
 #endif
 // Board-level CPU stop only. Call after DMA/peripheral owners have quiesced.
+// intervalMs is 1..5000; enabled interrupts (including keys) may wake earlier.
 // Returns false on a recoverable preparation failure; clock recovery failure
 // requests an ordinary reset with a one-boot RAM inhibitor.
 bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins);

@@ -18,6 +18,8 @@ int main(int argc, char** argv)
 {
     assert(argc == 2);
     const char* scenario = argv[1];
+    const bool xinput = std::strncmp(scenario, "xinput-", 7) == 0;
+    INPUT_STATE.keepalive = !xinput;
     STORAGE_MANAGER.enabled = std::strcmp(scenario, "disabled") != 0;
     rcc.RSR = RCC_RSR_PORRSTF | RCC_RSR_PINRSTF | RCC_RSR_CPURSTF;
     if (!std::strcmp(scenario, "reset")) rcc.RSR = RCC_RSR_PINRSTF | RCC_RSR_CPURSTF;
@@ -54,6 +56,15 @@ int main(int argc, char** argv)
     }
     step(29900);
     assert(!SystemSleep_IsBusy());
+    if (!std::strcmp(scenario, "xinput-neutral-failure")) {
+        INPUT_STATE.neutralOk = false;
+        step(200);
+        assert(!SystemSleep_IsBusy() && INPUT_STATE.running && idleCount == 0);
+        INPUT_STATE.neutralOk = true;
+        step(60000);
+        assert(!SystemSleep_IsBusy() && idleCount == 0);
+        return 0;
+    }
     if (!std::strcmp(scenario, "reset-pending")) {
         step(60000, true, true);
         assert(!SystemSleep_IsBusy() && INPUT_STATE.neutrals == 0);
@@ -84,6 +95,18 @@ int main(int argc, char** argv)
         return 0;
     }
     assert(SystemSleep_IsBusy() && !INPUT_STATE.running);
+    if (!std::strcmp(scenario, "xinput-idle")) {
+        assert(INPUT_STATE.neutrals == 1 && lastStopInterval == 100);
+        INPUT_STATE.neutralOk = false; // no repeated transfer should be attempted
+        step(60000);
+        assert(INPUT_STATE.neutrals == 1 && SystemSleep_IsBusy());
+        assert(INPUT_STATE.failures == 0 && !INPUT_STATE.running);
+        simulatedWakePins = GPIO_BTN3_PIN;
+        SystemSleep_Idle(); step(40);
+        assert(INPUT_STATE.running && !SystemSleep_IsBusy());
+        assert(INPUT_STATE.neutrals == 1 && INPUT_STATE.failures == 0);
+        return 0;
+    }
     if (!std::strcmp(scenario, "stop-failure")) {
         stopOk = false; step(50);
         assert(INPUT_STATE.running && !SystemSleep_IsBusy());
@@ -147,7 +170,7 @@ int main(int argc, char** argv)
     }
     unsigned sent = INPUT_STATE.neutrals;
     step(100);
-    assert(INPUT_STATE.neutrals >= sent + 9);
+    assert(xinput ? INPUT_STATE.neutrals == sent : INPUT_STATE.neutrals >= sent + 9);
     SystemSleep_Idle(); assert(idleCount > 0 && irqMask == 0);
     if (!std::strcmp(scenario, "restore-failure")) INPUT_STATE.resumeOk = false;
     portC.high &= ~GPIO_BTN1_PIN;
@@ -169,7 +192,7 @@ int main(int argc, char** argv)
     assert(SystemSleep_IsBusy());
     sent = INPUT_STATE.neutrals;
     step(100);
-    assert(INPUT_STATE.neutrals >= sent + 9); // also on the SECOND sleep
+    assert(xinput ? INPUT_STATE.neutrals == sent : INPUT_STATE.neutrals >= sent + 9);
     portA.high &= ~1u; step(35);
     assert(!SystemSleep_IsBusy() && INPUT_STATE.running && INPUT_STATE.resumes == 2);
     for (unsigned cycle = 2; cycle < 20; ++cycle) {

@@ -99,14 +99,25 @@ struct FakePower {
     void setHallEnabled(bool on) { hall = on; }
 };
 inline FakePower BOARD_POWER;
+struct FakePowerSnapshot {
+    uint32_t interval = 5000u;
+    uint32_t sleepMaintenanceIntervalMs() const { return interval; }
+};
+struct FakePowerManager {
+    FakePowerSnapshot snapshot;
+    FakePowerSnapshot getSnapshot() const { return snapshot; }
+};
+inline FakePowerManager POWER_MANAGER;
 struct FakeMode { bool stable = true; bool isStable() { return stable; } };
 inline FakeMode BOARD_MODE;
 struct FakeInput {
+    bool keepalive = true;
     bool rf = false, transportOff = false;
     bool running = true, healthy = true, neutralOk = true, pauseOk = true, resumeOk = true;
     unsigned neutrals = 0, resumes = 0, failures = 0;
     bool canAutoSleep() { return running && healthy && !transportOff; }
     bool sendSleepNeutral() { ++neutrals; return neutralOk; }
+    bool sleepNeedsNeutralKeepalive() const { return !rf && keepalive; }
     bool pauseForSleep() { running = false; BOARD_POWER.hall = false; return pauseOk; }
     bool suspendSleepTransport() { transportOff = rf; return true; }
     bool sleepTransportOff() { return transportOff; } // RF scenarios use a separate opt-in runner

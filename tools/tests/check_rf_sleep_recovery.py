@@ -28,7 +28,7 @@ def main():
         local.mkdir()
         for name in ('board_cfg.h', 'board_power.hpp', 'board_mode.hpp', 'states/input_state.hpp',
                      'screen_control/spi_screen_manager.hpp', 'leds/leds_manager.hpp',
-                     'storagemanager.hpp', 'connection_manager.hpp', 'rf_bridge_port.hpp',
+                     'storagemanager.hpp', 'power_manager.hpp', 'connection_manager.hpp', 'rf_bridge_port.hpp',
                      'rotary-encoder.h', 'stm32h7xx_hal.h', 'stm32h7xx_hal_pwr_ex.h', 'system_logger.h'):
             header = local / name
             header.parent.mkdir(parents=True, exist_ok=True)

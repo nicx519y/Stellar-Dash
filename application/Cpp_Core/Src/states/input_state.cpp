@@ -612,6 +612,15 @@ bool InputState::sendSleepNeutral()
     return false;
 }
 
+bool InputState::sleepNeedsNeutralKeepalive() const
+{
+    // XInput has no HID SET_IDLE requirement. CH585 keeps USB and host auth
+    // running independently. Other profiles retain their proven cadence until
+    // their periodic report requirements are implemented on CH585 itself.
+    return activeBoardMode == BoardMode::Usb &&
+           USB_DRIVER.profile() != USB_BOARD_PROFILE_XINPUT;
+}
+
 bool InputState::pauseForSleep()
 {
     sleepReportRateHz = REPORT_SCHEDULER.getRate();
