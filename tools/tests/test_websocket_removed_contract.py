@@ -5,7 +5,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WWW = ROOT / "application" / "www"
-CPP = ROOT / "application" / "Cpp_Core"
+FIRMWARE_ROOTS = (ROOT / "application/Inc", ROOT / "application/Src")
 APPLICATION = ROOT / "application"
 
 
@@ -103,7 +103,11 @@ class WebSocketRemovedContractTests(unittest.TestCase):
             r"websocket_server|websocket_message_queue|tcp:?8081|:8081"
         )
         violations = []
-        for path in _source_files(CPP, {".c", ".h", ".cpp", ".hpp"}):
+        for path in (
+            path
+            for root in FIRMWARE_ROOTS
+            for path in _source_files(root, {".c", ".h", ".cpp", ".hpp"})
+        ):
             source = path.read_text(encoding="utf-8")
             match = forbidden.search(source)
             if match is not None:
@@ -111,15 +115,16 @@ class WebSocketRemovedContractTests(unittest.TestCase):
         self.assertEqual(violations, [])
 
         for removed in (
-            CPP / "Inc" / "configs" / "websocket_server.hpp",
-            CPP / "Src" / "configs" / "websocket_server.cpp",
-            CPP / "Inc" / "configs" / "websocket_message_queue.hpp",
-            CPP / "Src" / "configs" / "websocket_message_queue.cpp",
+            ROOT / 'application/Inc/webconfig/configs/websocket_server.hpp',
+            ROOT / 'application/Src/webconfig/configs/websocket_server.cpp',
+            ROOT / 'application/Inc/webconfig/configs/websocket_message_queue.hpp',
+            ROOT / 'application/Src/webconfig/configs/websocket_message_queue.cpp',
         ):
             self.assertFalse(removed.exists(), removed)
 
     def test_firmware_build_has_no_legacy_network_webconfig_runtime(self) -> None:
         makefile = (APPLICATION / "Makefile").read_text(encoding="utf-8")
+        makefile += (APPLICATION / "source_files.mk").read_text(encoding="utf-8")
         for forbidden in (
             "Libs/rndis",
             "Libs/stm32_mw_lwip",
@@ -132,19 +137,19 @@ class WebSocketRemovedContractTests(unittest.TestCase):
                 self.assertNotIn(forbidden, makefile)
 
         tinyusb = (
-            CPP / "Inc" / "tusb_config.h"
+            ROOT / 'application/Inc/transport/usb/legacy/tusb_config.h'
         ).read_text(encoding="utf-8")
         self.assertRegex(tinyusb, r"#define\s+CFG_TUD_ECM_RNDIS\s+0\b")
         self.assertRegex(tinyusb, r"#define\s+CFG_TUD_NCM\s+0\b")
         self.assertNotIn("lwipopts.h", tinyusb)
 
         driver_manager = (
-            CPP / "Src" / "drivermanager.cpp"
+            ROOT / 'application/Src/transport/usb/legacy/drivermanager.cpp'
         ).read_text(encoding="utf-8")
         self.assertNotIn("NetDriver", driver_manager)
         for removed in (
-            CPP / "Inc" / "drivers" / "net" / "NetDriver.hpp",
-            CPP / "Src" / "drivers" / "net" / "NetDriver.cpp",
+            ROOT / 'application/Inc/transport/usb/legacy/drivers/net/NetDriver.hpp',
+            ROOT / 'application/Src/transport/usb/legacy/drivers/net/NetDriver.cpp',
             APPLICATION / "Libs" / "rndis" / "rndis.c",
             APPLICATION / "Libs" / "rndis" / "rndis.h",
             APPLICATION / "Libs" / "httpd" / "fs.c",

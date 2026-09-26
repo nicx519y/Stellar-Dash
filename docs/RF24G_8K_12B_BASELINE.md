@@ -28,7 +28,7 @@ Current baseline:
 
 File:
 
-- `application/Cpp_Core/Src/rf_transport.cpp`
+- `application/Src/transport/rf/rf_transport.cpp`
 
 Frame:
 
@@ -292,7 +292,7 @@ Known warnings are unused legacy helpers from disabled protocol paths. They are 
 
 ## Files To Check First
 
-- `application/Cpp_Core/Src/rf_transport.cpp`
+- `application/Src/transport/rf/rf_transport.cpp`
 - `RF_PHY_Hop/TX/APP/include/rfm_config.h`
 - `RF_PHY_Hop/TX/APP/rfm_spi_port_ch585.c`
 - `RF_PHY_Hop/TX/APP/RF_PHY.c`

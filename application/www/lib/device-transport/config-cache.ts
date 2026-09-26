@@ -92,7 +92,10 @@ export class ConfigSyncCache {
     const id = String(params.profileId ?? params.pid ?? (isRecord(params.profileDetails) ? params.profileDetails.id : '') ?? '');
     const affected: Record<string, string[]> = {
       update_global_config: ['global', 'profile-list'], update_screen_control_config: ['screen-control'], update_hotkeys_config: ['hotkeys'],
-      update_profile: [`profile:${id}`, `macros:${id}`, 'profile-list'], update_profile_macros: [`macros:${id}`], update_macro: [`macros:${id}`],
+      // Retain historical list/macros bodies with their original device versions.
+      // A reconnect must validate them against the manifest before use, so real
+      // side effects (renames or legacy embedded macro writes) still trigger GETs.
+      update_profile: [`profile:${id}`], update_profile_macros: [`macros:${id}`], update_macro: [`macros:${id}`],
       switch_default_profile: ['global', 'profile-list'], start_manual_calibration: ['global'], stop_manual_calibration: ['global'],
     };
     const keys = affected[command] ?? ((command === 'import_all_config' || command === 'import_config_finish' || command === 'reset_config') ? Object.keys(active.modules) : []);

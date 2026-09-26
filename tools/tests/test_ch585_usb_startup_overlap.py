@@ -6,8 +6,8 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-INC = ROOT / "application/Cpp_Core/Inc"
-SRC = ROOT / "application/Cpp_Core/Src"
+INC = ROOT / 'application/Inc'
+SRC = ROOT / 'application/Src'
 
 
 class UsbStartupOverlapTest(unittest.TestCase):
@@ -195,7 +195,7 @@ int main(int argc, char** argv) {
             exe = folder / "test.exe"
             command = [compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror",
                        "-I"+str(folder), "-I"+str(INC), "-I"+str(ROOT/"common"),
-                       str(SRC/"ch585_role_bootstrap.cpp"), str(SRC/"board_mode.cpp"),
+                       str(ROOT / 'application/Src/transport/ch585_role_bootstrap.cpp'), str(ROOT / 'application/Src/system/board_mode.cpp'),
                        str(folder/"test.cpp"), "-o", str(exe)]
             print("USB startup overlap: compile production bootstrap/mode code", flush=True)
             result = subprocess.run(command, capture_output=True, text=True, timeout=60)

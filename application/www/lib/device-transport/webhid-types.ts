@@ -44,11 +44,11 @@ export interface WebHidNavigator {
   getDevices(): Promise<WebHidDevice[]>;
   requestDevice(options: WebHidDeviceRequestOptions): Promise<WebHidDevice[]>;
   addEventListener(
-    type: 'disconnect',
+    type: 'connect' | 'disconnect',
     listener: (event: Event & { device?: WebHidDevice }) => void,
   ): void;
   removeEventListener(
-    type: 'disconnect',
+    type: 'connect' | 'disconnect',
     listener: (event: Event & { device?: WebHidDevice }) => void,
   ): void;
 }

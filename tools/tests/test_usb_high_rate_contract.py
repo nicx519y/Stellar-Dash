@@ -5,6 +5,11 @@ import subprocess
 import tempfile
 import unittest
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -23,14 +28,14 @@ class UsbHighRateContractTests(unittest.TestCase):
         include = ROOT / "RF_PHY_Hop" / "TX" / "USB"
         with tempfile.TemporaryDirectory() as temporary:
             executable = Path(temporary) / "usb_board_link_dma_math_test.exe"
-            compiled = subprocess.run(
+            compiled = run_native(
                 [
                     compiler,
                     "-std=c99",
                     "-Wall",
                     "-Wextra",
                     "-Werror",
-                    f"-I{include}",
+                    *application_include_flags(),
                     str(source),
                     "-o",
                     str(executable),
@@ -41,7 +46,7 @@ class UsbHighRateContractTests(unittest.TestCase):
             )
             self.assertEqual(compiled.returncode, 0,
                              compiled.stdout + compiled.stderr)
-            ran = subprocess.run([str(executable)], capture_output=True,
+            ran = run_native([str(executable)], capture_output=True,
                                  text=True, check=False)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
 
@@ -49,17 +54,17 @@ class UsbHighRateContractTests(unittest.TestCase):
         compiler = shutil.which("g++") or shutil.which("clang++")
         self.assertIsNotNone(compiler, "a host C++ compiler is required")
         source = ROOT / "tools" / "tests" / "usb_report_rate_policy_test.cpp"
-        include = ROOT / "application" / "Cpp_Core" / "Inc"
+        include = ROOT / 'application/Inc'
         with tempfile.TemporaryDirectory() as temporary:
             executable = Path(temporary) / "usb_report_rate_policy_test.exe"
-            compiled = subprocess.run(
+            compiled = run_native(
                 [
                     compiler,
                     "-std=c++17",
                     "-Wall",
                     "-Wextra",
                     "-Werror",
-                    f"-I{include}",
+                    *application_include_flags(),
                     str(source),
                     "-o",
                     str(executable),
@@ -70,7 +75,7 @@ class UsbHighRateContractTests(unittest.TestCase):
             )
             self.assertEqual(compiled.returncode, 0,
                              compiled.stdout + compiled.stderr)
-            ran = subprocess.run([str(executable)], capture_output=True,
+            ran = run_native([str(executable)], capture_output=True,
                                  text=True, check=False)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
 
@@ -78,17 +83,17 @@ class UsbHighRateContractTests(unittest.TestCase):
         compiler = shutil.which("g++") or shutil.which("clang++")
         self.assertIsNotNone(compiler, "a host C++ compiler is required")
         source = ROOT / "tools" / "tests" / "rf_rate_confirmation_policy_test.cpp"
-        include = ROOT / "application" / "Cpp_Core" / "Inc"
+        include = ROOT / 'application/Inc'
         with tempfile.TemporaryDirectory() as temporary:
             executable = Path(temporary) / "rf_rate_confirmation_policy_test.exe"
-            compiled = subprocess.run(
+            compiled = run_native(
                 [
                     compiler,
                     "-std=c++17",
                     "-Wall",
                     "-Wextra",
                     "-Werror",
-                    f"-I{include}",
+                    *application_include_flags(),
                     str(source),
                     "-o",
                     str(executable),
@@ -99,7 +104,7 @@ class UsbHighRateContractTests(unittest.TestCase):
             )
             self.assertEqual(compiled.returncode, 0,
                              compiled.stdout + compiled.stderr)
-            ran = subprocess.run([str(executable)], capture_output=True,
+            ran = run_native([str(executable)], capture_output=True,
                                  text=True, check=False)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
 
@@ -111,12 +116,10 @@ class UsbHighRateContractTests(unittest.TestCase):
             ROOT / "RF_PHY_Hop" / "TX" / "USB" / "usb_board_link.c"
         ).read_text(encoding="utf-8")
         port = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link_port.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link_port.cpp'
         ).read_text(encoding="utf-8")
         link = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link.cpp'
         ).read_text(encoding="utf-8")
 
         self.assertRegex(
@@ -189,8 +192,7 @@ class UsbHighRateContractTests(unittest.TestCase):
         self.assertLess(guard_us + wire_us, 125)
 
         port = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link_port.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link_port.cpp'
         ).read_text(encoding="utf-8")
         for token in (
             "kExpectedSpiClockHz = 120000000u",
@@ -227,7 +229,7 @@ class UsbHighRateContractTests(unittest.TestCase):
 
     def test_usb_speed_is_cached_with_bounded_retry(self) -> None:
         driver = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "usbdriver.cpp"
+            ROOT / 'application/Src/transport/usb/usbdriver.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("kLinkStateRetryMs = 100u", driver)
         self.assertIn("USB_BOARD_LINK.getUsbLinkState(state)", driver)
@@ -237,8 +239,7 @@ class UsbHighRateContractTests(unittest.TestCase):
 
     def test_read_only_status_is_published_to_webconfig(self) -> None:
         handler = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "configs" /
-            "global_config_command_handler.cpp"
+            ROOT / 'application/Src/webconfig/configs/global_config_command_handler.cpp'
         ).read_text(encoding="utf-8")
         web_type = (
             ROOT / "application" / "www" / "types" / "gamepad-config.ts"
@@ -274,8 +275,7 @@ class UsbHighRateContractTests(unittest.TestCase):
 
     def test_rf_rate_requires_matching_rate_applied(self) -> None:
         manager = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "connection_manager.cpp"
+            ROOT / 'application/Src/transport/connection_manager.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("confirmRfReportRate", manager)
         self.assertIn("RfRateAppliedMatches", manager)

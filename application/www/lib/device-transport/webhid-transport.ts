@@ -724,6 +724,17 @@ export class WebHidTransport implements DeviceTransport {
     return () => this.disconnectHandlers.delete(handler);
   }
 
+  /** Browser connect events cover previously authorized devices returning to USB. */
+  onAvailable(handler: () => void): Unsubscribe {
+    const hid = this.hid;
+    if (!hid) return () => {};
+    const listener = (event: Event & { device?: WebHidDevice }): void => {
+      if (event.device && this.matchesFilter(event.device)) handler();
+    };
+    hid.addEventListener('connect', listener);
+    return () => hid.removeEventListener('connect', listener);
+  }
+
   private async openDevice(
     device: WebHidDevice,
     attempt: PhysicalConnectAttempt,

@@ -21,7 +21,7 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
 
     def test_xinput_uses_exact_stm32_descriptor_arrays(self) -> None:
         self.assertIn(
-            '#include "../../../application/Cpp_Core/Inc/drivers/'
+            '#include "../../../application/Inc/transport/usb/legacy/drivers/'
             'xinput/XInputDescriptors.hpp"',
             self.source,
         )

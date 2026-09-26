@@ -256,7 +256,7 @@ RF TX 校验 SPI 帧后，将 `payload[10]` 原样放入普通 DATA 空口包的
 | `6..8` | `reserved` | 当前写 `0`，RX 忽略；保留给延迟统计/电量/扩展按键 |
 | `9` | `crc8` | 对 byte `0..8` 计算 CRC-8/ATM，poly `0x07`，init `0x00` |
 
-`key_mask` 使用 `application/Cpp_Core/Src/gamepad.cpp` 中 `Gamepad::buildMacroMaskFromCurrentState()` 的位序，且必须来自 `Gamepad::process()` 之后的状态：
+`key_mask` 使用 `application/Src/input/gamepad.cpp` 中 `Gamepad::buildMacroMaskFromCurrentState()` 的位序，且必须来自 `Gamepad::process()` 之后的状态：
 
 | Bit | HBox 输入 | XInput 输出 |
 |---:|---|---|

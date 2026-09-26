@@ -40,7 +40,7 @@ typedef struct
 } xbox_frame_queue_t;
 
 /*
- * Source: application/Cpp_Core/Src/drivers/xbone/XBOneDriver.cpp,
+ * Source: application/Src/transport/usb/legacy/drivers/xbone/XBOneDriver.cpp,
  * xboxOneDescriptor[].  This is the console-facing GIP device descriptor,
  * not the USB configuration descriptor.
  */

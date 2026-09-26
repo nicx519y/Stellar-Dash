@@ -81,7 +81,7 @@ class RfBondJournalTests(unittest.TestCase):
 
     def test_stm32_timeout_contract(self):
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "connection_manager.cpp"
+            ROOT / 'application/Src/transport/connection_manager.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("kRfPairingFallbackTimeoutMs = 65000u", source)
         self.assertIn("rfPairingTimeoutStopIssued = true", source)
@@ -90,7 +90,7 @@ class RfBondJournalTests(unittest.TestCase):
 
     def test_stm32_set_rate_uses_scheduled_completion_contract(self):
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "rf_transport.cpp"
+            ROOT / 'application/Src/transport/rf/rf_transport.cpp'
         ).read_text(encoding="utf-8")
         scheduled_start = source.index("static bool isScheduledControlCommand")
         scheduled_end = source.index("static void putU16", scheduled_start)

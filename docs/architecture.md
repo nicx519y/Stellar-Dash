@@ -1,4 +1,4 @@
-# HBox 当前架构与实现入口
+# XORA 当前架构与实现入口
 
 核对日期：2026-09-24。本文描述当前工作区代码，包括正在开发的配置交互；不证明对应镜像已烧录或功能已实机验收。执行约束见 [根 AGENTS](../AGENTS.md)，具体协议字段和地址以链接的源文件为准。
 
@@ -18,12 +18,12 @@
 | 任务 | 主要实现 |
 |---|---|
 | 启动与选槽 | [bootloader main](../bootloader/Core/Src/main.c)、[dual_slot_manager.c](../bootloader/Core/Src/dual_slot_manager.c) |
-| 在线升级、校验与提交 | [firmware_manager.cpp](../application/Cpp_Core/Src/firmware/firmware_manager.cpp)、[firmware_manager.hpp](../application/Cpp_Core/Inc/firmware/firmware_manager.hpp) |
-| 采样时钟与 DMA | [report_scheduler.cpp](../application/Cpp_Core/Src/report_scheduler.cpp)、[adc.c](../application/Drivers/ADC/adc.c)、[adc_manager.cpp](../application/Cpp_Core/Src/adc_btns/adc_manager.cpp) |
-| 连接与板级 SPI | [connection_manager.cpp](../application/Cpp_Core/Src/connection_manager.cpp)、[rf_transport.cpp](../application/Cpp_Core/Src/rf_transport.cpp)、[rf_bridge_port.cpp](../application/Cpp_Core/Src/rf_bridge_port.cpp) |
-| WebHID 固件处理 | [webhid_service.cpp](../application/Cpp_Core/Src/webhid_service.cpp)、[webhid_rpc_dispatcher.cpp](../application/Cpp_Core/Src/webhid_rpc_dispatcher.cpp) |
-| 配置结构、迁移与处理器 | [config.hpp](../application/Cpp_Core/Inc/config.hpp)、[config.cpp](../application/Cpp_Core/Src/config.cpp)、[configs](../application/Cpp_Core/Src/configs/) |
-| 屏幕与电源 | [spi_screen_manager.cpp](../application/Cpp_Core/Src/screen_control/spi_screen_manager.cpp)、[power_manager.cpp](../application/Cpp_Core/Src/power_manager.cpp) |
+| 在线升级、校验与提交 | [firmware_manager.cpp](../application/Src/firmware/firmware_manager.cpp)、[firmware_manager.hpp](../application/Inc/firmware/firmware_manager.hpp) |
+| 采样时钟与 DMA | [report_scheduler.cpp](../application/Src/input/report_scheduler.cpp)、[adc.c](../application/Src/input/drivers/adc/adc.c)、[adc_manager.cpp](../application/Src/input/adc_btns/adc_manager.cpp) |
+| 连接与板级 SPI | [connection_manager.cpp](../application/Src/transport/connection_manager.cpp)、[rf_transport.cpp](../application/Src/transport/rf/rf_transport.cpp)、[rf_bridge_port.cpp](../application/Src/transport/rf/rf_bridge_port.cpp) |
+| WebHID 固件处理 | [webhid_service.cpp](../application/Src/webconfig/webhid_service.cpp)、[webhid_rpc_dispatcher.cpp](../application/Src/webconfig/webhid_rpc_dispatcher.cpp) |
+| 配置结构、迁移与处理器 | [config.hpp](../application/Inc/config/config.hpp)、[config.cpp](../application/Src/config/config.cpp)、[configs](../application/Src/webconfig/configs/) |
+| 屏幕与电源 | [spi_screen_manager.cpp](../application/Src/display/screen_control/spi_screen_manager.cpp)、[power_manager.cpp](../application/Src/power/power_manager.cpp) |
 | 网页状态与设备队列 | [gamepad-config-context.tsx](../application/www/contexts/gamepad-config-context.tsx)、[device-transport](../application/www/lib/device-transport/) |
 | TX/RX 协议与实现 | [RF 规则及源码导航](../RF_PHY_Hop/AGENTS.md) |
 | 监视器数据与统计 | [monitor 规则及源码导航](../connect-monitor/AGENTS.md) |

@@ -69,70 +69,11 @@ WEB_RESOURCES_DIR = Libs/httpd/ex_fsdata.bin
 ######################################
 # source
 ######################################
-# 源文件目录
-C_SOURCE_DIRS = \
-Core/Src \
-Drivers/STM32H7xx_HAL_Driver/Src \
-Drivers/QSPI-W25Q64 \
-Drivers/USART \
-Drivers/LED \
-Drivers/ADC \
-Drivers/I2C-POWER-BUS \
-Drivers/I2C-BQ25895 \
-Drivers/I2C-MAX17048 \
-Drivers/PWM-WS2812B \
-Drivers/GPIO-BTN \
-Drivers/ROTARY-ENCODER \
-Drivers/SPI-ST7789 \
-Libs/cJSON \
-Libs/sha256_simple \
-../common
-
-# C++ 源文件目录
-CPP_SOURCE_DIRS = \
-Cpp_Core/Src \
-Cpp_Core/Src/configs \
-Cpp_Core/Src/gamepad \
-Cpp_Core/Src/states \
-Cpp_Core/Src/adc_btns \
-Cpp_Core/Src/gpio_btns \
-Cpp_Core/Src/leds \
-Cpp_Core/Src/firmware \
-Cpp_Core/Src/screen_control \
-Libs/CRC32/src
-
-# 自动查找源文件
-C_SOURCES = $(foreach dir,$(C_SOURCE_DIRS),$(wildcard $(dir)/*.c))
-CPP_SOURCES = $(foreach dir,$(CPP_SOURCE_DIRS),$(wildcard $(dir)/*.cpp))
-C_SOURCES := $(filter-out \
-Drivers/SPI-ST7789/st7789.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hcd.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c,$(C_SOURCES))
-CPP_SOURCES := $(filter-out Cpp_Core/Src/drivermanager.cpp,$(CPP_SOURCES))
+include source_files.mk
 
 # ASM sources
 ASM_SOURCES =  \
 startup_stm32h750xx.s
-
-# 额外的源文件
-C_SOURCES += \
-Libs/mbedtls/library/bignum.c \
-Libs/mbedtls/library/base64.c \
-Libs/mbedtls/library/aes.c \
-Libs/mbedtls/library/cipher.c \
-Libs/mbedtls/library/cipher_wrap.c \
-Libs/mbedtls/library/constant_time.c \
-Libs/mbedtls/library/ecp.c \
-Libs/mbedtls/library/ecp_curves.c \
-Libs/mbedtls/library/ecdh.c \
-Libs/mbedtls/library/ecdsa.c \
-Libs/mbedtls/library/gcm.c \
-Libs/mbedtls/library/hkdf.c \
-Libs/mbedtls/library/md.c \
-Libs/mbedtls/library/sha256.c \
-Libs/mbedtls/library/platform_util.c
 
 # ASM sources
 ASMM_SOURCES = 
@@ -148,28 +89,7 @@ $(CPP_INCLUDES)
 
 # 添加 application 特定的包含路径
 C_INCLUDES += \
--ICpp_Core/Inc \
--ICpp_Core/Inc/configs \
--ICpp_Core/Inc/drivers \
--ICpp_Core/Inc/gamepad \
--ICpp_Core/Inc/states \
--ICpp_Core/Inc/leds \
--ICpp_Core/Inc/enums \
--ICpp_Core/Inc/constants \
--ICpp_Core/Inc/firmware \
--ICpp_Core/Inc/screen_control \
--IDrivers \
--IDrivers/QSPI-W25Q64 \
--IDrivers/USART \
--IDrivers/LED \
--IDrivers/ADC \
--IDrivers/I2C-POWER-BUS \
--IDrivers/I2C-BQ25895 \
--IDrivers/I2C-MAX17048 \
--IDrivers/PWM-WS2812B \
--IDrivers/GPIO-BTN \
--IDrivers/ROTARY-ENCODER \
--IDrivers/SPI-ST7789 \
+$(addprefix -I,$(APPLICATION_INCLUDE_DIRS)) \
 -ILibs/cJSON \
 -ILibs/CRC32/src \
 -ILibs/sha256_simple \
@@ -319,18 +239,18 @@ vpath %.s $(sort $(dir $(ASM_SOURCES)))
 OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASMM_SOURCES:.S=.o)))
 vpath %.S $(sort $(dir $(ASMM_SOURCES)))
 
-$(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR) 
+$(BUILD_DIR)/%.o: %.c Makefile source_files.mk | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) $(HBOX_TRUST_COMPILE_FLAG) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
 
-$(BUILD_DIR)/%.o: %.cpp Makefile | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: %.cpp Makefile source_files.mk | $(BUILD_DIR)
 	$(CXX) -c $(CXXFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.cpp=.lst)) $< -o $@
 
-$(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: %.s Makefile source_files.mk | $(BUILD_DIR)
 	$(AS) -c $(CFLAGS) $< -o $@
-$(BUILD_DIR)/%.o: %.S Makefile | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: %.S Makefile source_files.mk | $(BUILD_DIR)
 	$(AS) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
+$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile source_files.mk
 	$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
 	$(SZ) $@
 

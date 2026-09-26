@@ -8,19 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "tools" / "webhid_command_manifest.json"
 COMMAND_REGISTRY = (
-    ROOT
-    / "application"
-    / "Cpp_Core"
-    / "Src"
-    / "configs"
-    / "device_command_handler.cpp"
+    ROOT / 'application/Src/webconfig/configs/device_command_handler.cpp'
 )
 HID_DISPATCHER = (
-    ROOT
-    / "application"
-    / "Cpp_Core"
-    / "Src"
-    / "webhid_rpc_dispatcher.cpp"
+    ROOT / 'application/Src/webconfig/webhid_rpc_dispatcher.cpp'
 )
 FRONTEND_SCOPE_POLICY = (
     ROOT

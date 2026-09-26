@@ -8,10 +8,10 @@ ROOT = Path(__file__).resolve().parents[2]
 class AdcCircularDmaContractTests(unittest.TestCase):
     def test_adc_driver_has_one_timer_triggered_circular_configuration(self) -> None:
         source = (
-            ROOT / "application" / "Drivers" / "ADC" / "adc.c"
+            ROOT / 'application/Src/input/drivers/adc/adc.c'
         ).read_text(encoding="utf-8")
         header = (
-            ROOT / "application" / "Drivers" / "ADC" / "adc.h"
+            ROOT / 'application/Inc/input/drivers/adc/adc.h'
         ).read_text(encoding="utf-8")
 
         self.assertIn("ADC_CONVERSIONDATA_DMA_CIRCULAR", source)
@@ -26,7 +26,7 @@ class AdcCircularDmaContractTests(unittest.TestCase):
         self.assertNotIn("ADC_SetMode", header + source)
 
         board = (
-            ROOT / "application" / "Core" / "Inc" / "board_cfg.h"
+            ROOT / 'application/Inc/system/board_cfg.h'
         ).read_text(encoding="utf-8")
         self.assertIn("BOARD_ADC_OVERSAMPLE_RATIO", board)
         self.assertNotIn("BOARD_ADC_LOWLAT_", board)
@@ -37,8 +37,7 @@ class AdcCircularDmaContractTests(unittest.TestCase):
             ROOT / "application" / "Core" / "Src" / "tim.c"
         ).read_text(encoding="utf-8")
         scheduler = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "report_scheduler.cpp"
+            ROOT / 'application/Src/input/report_scheduler.cpp'
         ).read_text(encoding="utf-8")
 
         tim2 = timer[timer.index("void MX_TIM2_Init(void)"):
@@ -51,12 +50,10 @@ class AdcCircularDmaContractTests(unittest.TestCase):
 
     def test_adc_manager_contains_no_one_shot_state_machine(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "adc_btns" /
-            "adc_manager.cpp"
+            ROOT / 'application/Src/input/adc_btns/adc_manager.cpp'
         ).read_text(encoding="utf-8")
         header = (
-            ROOT / "application" / "Cpp_Core" / "Inc" / "adc_btns" /
-            "adc_manager.hpp"
+            ROOT / 'application/Inc/input/adc_btns/adc_manager.hpp'
         ).read_text(encoding="utf-8")
         combined = source + header
 
@@ -83,10 +80,10 @@ class AdcCircularDmaContractTests(unittest.TestCase):
 
     def test_timer_registration_preempts_dma_completion_callbacks(self) -> None:
         board = (
-            ROOT / "application" / "Core" / "Inc" / "board_cfg.h"
+            ROOT / 'application/Inc/system/board_cfg.h'
         ).read_text(encoding="utf-8")
         adc = (
-            ROOT / "application" / "Drivers" / "ADC" / "adc.c"
+            ROOT / 'application/Src/input/drivers/adc/adc.c'
         ).read_text(encoding="utf-8")
         self.assertIn("BOARD_TIM2_IRQn_PRIO                    0u", board)
         self.assertIn("BOARD_ADC_DMA_IRQn_PRIO                 1u", board)
@@ -97,12 +94,9 @@ class AdcCircularDmaContractTests(unittest.TestCase):
 
     def test_all_runtime_states_arm_dma_before_starting_the_clock(self) -> None:
         paths = {
-            "input": ROOT / "application" / "Cpp_Core" / "Src" /
-                     "states" / "input_state.cpp",
-            "webconfig": ROOT / "application" / "Cpp_Core" / "Src" /
-                         "states" / "webconfig_state.cpp",
-            "calibration": ROOT / "application" / "Cpp_Core" / "Src" /
-                           "states" / "calibration_state.cpp",
+            "input": ROOT / 'application/Src/system/states/input_state.cpp',
+            "webconfig": ROOT / 'application/Src/system/states/webconfig_state.cpp',
+            "calibration": ROOT / 'application/Src/system/states/calibration_state.cpp',
         }
         sources = {name: path.read_text(encoding="utf-8")
                    for name, path in paths.items()}
@@ -116,12 +110,10 @@ class AdcCircularDmaContractTests(unittest.TestCase):
 
     def test_worker_setup_clears_retained_button_masks(self) -> None:
         adc_worker = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "adc_btns" /
-            "adc_btns_worker.cpp"
+            ROOT / 'application/Src/input/adc_btns/adc_btns_worker.cpp'
         ).read_text(encoding="utf-8")
         gpio_worker = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "gpio_btns" /
-            "gpio_btns_worker.cpp"
+            ROOT / 'application/Src/input/gpio_btns/gpio_btns_worker.cpp'
         ).read_text(encoding="utf-8")
 
         adc_setup = adc_worker[adc_worker.index("ADCBtnsError ADCBtnsWorker::setup()"):
@@ -133,12 +125,10 @@ class AdcCircularDmaContractTests(unittest.TestCase):
 
     def test_sampling_completion_defers_notifications_out_of_dma_irq(self) -> None:
         manager = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "adc_btns" /
-            "adc_manager.cpp"
+            ROOT / 'application/Src/input/adc_btns/adc_manager.cpp'
         ).read_text(encoding="utf-8")
         webhid = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
 
         irq_path = manager[

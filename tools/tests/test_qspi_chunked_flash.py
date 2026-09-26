@@ -110,8 +110,14 @@ class QspiWholeImageFlashTests(unittest.TestCase):
 
         self.assertEqual(len(invocations), 2)
         self.assertEqual(invocations[0][1], invocations[1][1])
-        self.assertNotIn("reset_config connect_assert_srst", invocations[0][0])
-        self.assertIn("reset_config connect_assert_srst", invocations[1][0])
+        recovery = BuildTool._openocd_reset_recovery_commands()
+        self.assertNotIn(recovery[0], invocations[0][0])
+        for command in recovery:
+            self.assertIn(command, invocations[1][0])
+        self.assertLess(
+            invocations[1][0].index(recovery[-1]),
+            invocations[1][0].index(invocations[1][0][-1]),
+        )
         for _command, script in invocations:
             self.assertEqual(script.count("flash write_image erase"), 1)
             self.assertEqual(script.count("flash verify_bank 1"), 1)

@@ -6,6 +6,11 @@ from pathlib import Path
 
 from tools.tests.test_auto_sleep import ROOT, run_checked
 
+try:
+    from .application_paths import application_include_flags
+except ImportError:
+    from application_paths import application_include_flags
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -19,9 +24,9 @@ def main():
             (temp / name).write_text('#pragma once\n', encoding='utf-8')
         executable = temp / 'rf-sleep.exe'
         run_checked([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                     '-I', str(temp), '-I', str(ROOT / 'application/Cpp_Core/Inc'),
+                     '-I', str(temp), *application_include_flags(),
                      '-include', str(ROOT / 'tools/tests/rf_sleep_recovery_stubs.hpp'),
-                     str(ROOT / 'application/Cpp_Core/Src/rf_sleep_recovery.cpp'),
+                     str(ROOT / 'application/Src/transport/rf/rf_sleep_recovery.cpp'),
                      str(ROOT / 'tools/tests/rf_sleep_recovery_test.cpp'), '-o', str(executable)])
         print('RF recovery production state machine: compile passed', flush=True)
         local = temp / 'local'
@@ -36,9 +41,9 @@ def main():
         local_exe = local / 'local-resume.exe'
         run_checked([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
                      '-DHBOX_AUTO_SLEEP_ENABLED=1', '-I', str(local),
-                     '-I', str(ROOT / 'application/Cpp_Core/Inc'),
+                     *application_include_flags(),
                      '-include', str(ROOT / 'tools/tests/auto_sleep_runtime_stubs.hpp'),
-                     str(ROOT / 'application/Cpp_Core/Src/system_sleep_manager.cpp'),
+                     str(ROOT / 'application/Src/power/system_sleep_manager.cpp'),
                      str(ROOT / 'tools/tests/rf_sleep_local_runtime_test.cpp'), '-o', str(local_exe)])
         print('RF local independence / first-key gate: compile passed', flush=True)
         event_dir = temp / 'event'
@@ -49,8 +54,8 @@ def main():
             'inline uint32_t HAL_GetTick() { return testReliableNow; }\n', encoding='utf-8')
         event_exe = event_dir / 'reliable-payload.exe'
         run_checked([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                     '-I', str(event_dir), '-I', str(ROOT / 'application/Cpp_Core/Inc'),
-                     str(ROOT / 'application/Cpp_Core/Src/rf_reliable_event.cpp'),
+                     '-I', str(event_dir), *application_include_flags(),
+                     str(ROOT / 'application/Src/transport/rf/rf_reliable_event.cpp'),
                      str(ROOT / 'tools/tests/rf_reliable_event_payload_test.cpp'), '-o', str(event_exe)])
         print('RF real reliable-event decoder/queue, 23/24/25-byte status: compile passed', flush=True)
         if not args.execute_authorized:

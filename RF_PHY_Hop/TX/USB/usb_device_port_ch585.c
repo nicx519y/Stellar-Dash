@@ -21,7 +21,7 @@
  * STM32 TinyUSB implementation.  The header is C-compatible and including it
  * here prevents the CH585 copy from silently drifting.
  */
-#include "../../../application/Cpp_Core/Inc/drivers/xinput/XInputDescriptors.hpp"
+#include "../../../application/Inc/transport/usb/legacy/drivers/xinput/XInputDescriptors.hpp"
 
 #define USBDEV_EP0_BYTES                  64u
 #define USBDEV_ENDPOINT_BYTES            512u

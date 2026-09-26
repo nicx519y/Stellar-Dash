@@ -23,8 +23,8 @@ ConnectionManager
 
 公开接口：
 
-- `application/Cpp_Core/Inc/rf_transport.hpp`
-- `application/Cpp_Core/Inc/rf_bridge_port.hpp`
+- `application/Inc/transport/rf/rf_transport.hpp`
+- `application/Inc/transport/rf/rf_bridge_port.hpp`
 
 `rf_bridge_port.hpp` 只暴露稳定端口 API：
 
@@ -44,13 +44,13 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
 
 内部 IRQ/callback 声明放在：
 
-- `application/Cpp_Core/Inc/rf_bridge_port_internal.h`
+- `application/Inc/transport/rf/rf_bridge_port_internal.h`
 
 它只供中断文件和 HAL callback 分发点使用：
 
 - `application/Core/Src/stm32h7xx_it.c`
-- `application/Drivers/SPI-ST7789/spi-st7789.c`
-- `application/Cpp_Core/Src/rf_bridge_port.cpp`
+- `application/Src/display/drivers/st7789/spi-st7789.c`
+- `application/Src/transport/rf/rf_bridge_port.cpp`
 
 ### CH584 侧
 
@@ -154,8 +154,8 @@ CH584 -> STM32 事件：
 
 实现文件：
 
-- `application/Cpp_Core/Src/rf_transport.cpp`
-- `application/Cpp_Core/Src/rf_bridge_port.cpp`
+- `application/Src/transport/rf/rf_transport.cpp`
+- `application/Src/transport/rf/rf_bridge_port.cpp`
 
 `RFTransport` 负责协议帧封包和事件解析。它不知道 SPI4、DMA stream、CS pin 等硬件细节。
 

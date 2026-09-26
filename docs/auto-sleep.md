@@ -137,7 +137,7 @@ WebConfig：在 `application/www` 运行 `npm run typecheck`；配置队列、�
 - 最终 `application-slot-a.bin`：361772 字节，SHA-256 `357533ffa734bf0b15a787607021fa5367c278b7d0dbf8ab8af49a47c70bd51b`。完整提交文件位于 `.hbox/webconfig-local/artifacts/`，不要单独刷裸 bin。
 - 没有烧录、设备采样或实机测试，未修改保护位或锁定状态。RF 自动回归继续暂停；本轮没有执行带 `--execute-authorized` 的测试。USB 实机回归、RF 首先本地恢复/随后重连、接收器离线时本地持续可用、功耗、输入 ≤50ms/显示 ≤500ms、复位与下载恢复仍由用户验收，不能宣称 RF STOP 故障已全部解决。
 
-用户自行烧录本次现有完整槽 A 产物：`python tools/hbox.py flash app A`。本次只需更新 STM32 Application，无需重刷 Bootloader、CH585 TX 或接收器。日志位于 `.hbox/stop-check/rf-local-first-*.log`，RAM 诊断定义位于 `application/Cpp_Core/Inc/sleep_diagnostics.hpp`。
+用户自行烧录本次现有完整槽 A 产物：`python tools/hbox.py flash app A`。本次只需更新 STM32 Application，无需重刷 Bootloader、CH585 TX 或接收器。日志位于 `.hbox/stop-check/rf-local-first-*.log`，RAM 诊断定义位于 `application/Inc/power/sleep_diagnostics.hpp`。
 
 ## ST-LINK 现场诊断与 STOP 电压恢复修正（2026-09-25）
 

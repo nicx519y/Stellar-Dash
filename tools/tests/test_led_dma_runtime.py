@@ -50,6 +50,7 @@ class LedDmaRuntimeTests(unittest.TestCase):
             run_checked([compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror",
                          f"-DHBOX_LED_DMA_DIAGNOSTIC={int(diagnostic)}",
                          "-I", str(temp), "-I", str(ROOT / "tools/tests"),
+                         "-I", str(ROOT / "application/Inc/leds/drivers/ws2812b"),
                          str(ROOT / "tools/tests/led_dma_runtime_test.cpp"),
                          "-o", str(executable)])
             scenarios = ("normal", "delayed", "dual", "error", "boundaries", "encoding", "dma-latency", "start-phase")

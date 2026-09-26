@@ -8,15 +8,13 @@ ROOT = Path(__file__).resolve().parents[2]
 class WebConfigStateContractTests(unittest.TestCase):
     def test_webhid_callback_is_ready_before_ch585_exposes_usb(self) -> None:
         state = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "states" /
-            "webconfig_state.cpp"
+            ROOT / 'application/Src/system/states/webconfig_state.cpp'
         ).read_text(encoding="utf-8")
         driver = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "usbdriver.cpp"
+            ROOT / 'application/Src/transport/usb/usbdriver.cpp'
         ).read_text(encoding="utf-8")
         service = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
 
         enter = state[
@@ -45,8 +43,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webconfig_receive_credit_requires_a_live_consumer(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link.cpp'
         ).read_text(encoding="utf-8")
 
         initial = source[
@@ -141,8 +138,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_new_bootstrap_preempts_stale_session_without_clearing_usb_endpoint(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         process = source[
             source.index("bool WebHidService::processReport"):
@@ -165,8 +161,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_unready_cleanup_never_requests_clear_fault(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         process = source[
             source.index("void WebHidService::process()"):
@@ -183,8 +178,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_suspend_pauses_without_resetting_the_session(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         process = source[
             source.index("void WebHidService::process()"):
@@ -199,8 +193,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_stm32_board_link_preserves_partial_tx_on_suspend(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link.cpp'
         ).read_text(encoding="utf-8")
         handler = source[
             source.index("if ((command == USB_BOARD_EVT_USB_STATE)"):
@@ -343,8 +336,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_lab_identity_fallback_is_read_only_and_test_gated(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         start = source.index("#if WEBCONFIG_TEST_FORCE_BOOT")
         end = source.index("#endif", start)
@@ -357,8 +349,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_ch585_ready_pulse_is_a_hint_but_role_ack_is_authoritative(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_role_bootstrap.cpp"
+            ROOT / 'application/Src/transport/ch585_role_bootstrap.cpp'
         ).read_text(encoding="utf-8")
         wait = source.index("RFBootReady::waitForModuleReady")
         fallback = source.index("CH585 ready pulse not observed", wait)
@@ -370,8 +361,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_rf_runtime_does_not_wait_for_ready_again_after_role_commit(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "connection_manager.cpp"
+            ROOT / 'application/Src/transport/connection_manager.cpp'
         ).read_text(encoding="utf-8")
         start = source.index(
             "bool ConnectionManager::enterRfModeAfterColdBoot"
@@ -398,12 +388,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_qspi_failure_is_fail_closed_before_runtime_becomes_ready(self) -> None:
         source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "states"
-            / "webconfig_state.cpp"
+            ROOT / 'application/Src/system/states/webconfig_state.cpp'
         ).read_text(encoding="utf-8")
 
         qspi_check = source.index("if (qspi_result != 0)")
@@ -426,20 +411,10 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webconfig_adc_preview_uses_report_rate_circular_dma(self) -> None:
         source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "states"
-            / "webconfig_state.cpp"
+            ROOT / 'application/Src/system/states/webconfig_state.cpp'
         ).read_text(encoding="utf-8")
         header = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Inc"
-            / "states"
-            / "webconfig_state.hpp"
+            ROOT / 'application/Inc/system/states/webconfig_state.hpp'
         ).read_text(encoding="utf-8")
 
         arm = source.index("ADC_MANAGER.startADCSamping(false)")
@@ -454,25 +429,13 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_output_uses_ep1_completion_backpressure_without_fixed_pacing(self) -> None:
         header = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Inc"
-            / "webhid_service.hpp"
+            ROOT / 'application/Inc/webconfig/webhid_service.hpp'
         ).read_text(encoding="utf-8")
         source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         board_link = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "usb_board_link.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link.cpp'
         ).read_text(encoding="utf-8")
         ch585_link = (
             ROOT
@@ -510,29 +473,17 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_drains_the_complete_ch585_usb_out_window(self) -> None:
         source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Inc"
-            / "webhid_service.hpp"
+            ROOT / 'application/Inc/webconfig/webhid_service.hpp'
         ).read_text(encoding="utf-8")
         self.assertIn("kRxQueueDepth = 4u", source)
         self.assertIn("kRxProcessBudget = kRxQueueDepth", source)
 
     def test_webhid_logical_assembler_does_not_allocate_the_heap_limit(self) -> None:
         header = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Inc"
-            / "webhid_service.hpp"
+            ROOT / 'application/Inc/webconfig/webhid_service.hpp'
         ).read_text(encoding="utf-8")
         source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
 
         assembler = header[
@@ -553,12 +504,10 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_stream_staging_is_fixed_and_bounded(self) -> None:
         header = (
-            ROOT / "application" / "Cpp_Core" / "Inc" /
-            "webhid_service.hpp"
+            ROOT / 'application/Inc/webconfig/webhid_service.hpp'
         ).read_text(encoding="utf-8")
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         stream = header[
             header.index("struct StreamState"):
@@ -575,8 +524,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_binary_ack_is_real_typed_and_correlated(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         validator = source[
             source.index("BinaryAckStatus describeBinaryAck"):
@@ -604,12 +552,10 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_image_reads_do_not_pause_the_qspi_mapping(self) -> None:
         image_source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "configs" /
-            "user_image_command_handler.cpp"
+            ROOT / 'application/Src/webconfig/configs/user_image_command_handler.cpp'
         ).read_text(encoding="utf-8")
         webhid_source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
 
         read_helper = image_source[
@@ -637,8 +583,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_stream_types_cannot_cross_binary_protocol_stacks(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         stream = source[
             source.index("const bool firmwareStream ="):
@@ -661,8 +606,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_invalid_binary_exchange_never_leaks_capture_state(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         exchange = source[
             source.index("bool WebHidService::handleBinaryExchange"):
@@ -681,8 +625,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_session_end_and_queue_pressure_do_not_reset_the_usb_link(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         pump = source[
             source.index("bool WebHidService::pumpLogicalOutput"):
@@ -720,11 +663,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_session_reset_stops_session_owned_adc_work(self) -> None:
         source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         reset = source[
             source.index("void WebHidService::resetSession"):
@@ -740,18 +679,10 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_partial_report_keeps_its_original_producer(self) -> None:
         header = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Inc"
-            / "webhid_service.hpp"
+            ROOT / 'application/Inc/webconfig/webhid_service.hpp'
         ).read_text(encoding="utf-8")
         source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
 
         self.assertIn("OutboundFrameSource pendingFrameSource", header)
@@ -791,12 +722,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webhid_control_plane_runs_before_adc_optional_work(self) -> None:
         source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "states"
-            / "webconfig_state.cpp"
+            ROOT / 'application/Src/system/states/webconfig_state.cpp'
         ).read_text(encoding="utf-8")
         tick = source[
             source.index("void WebConfigState::tick()"):
@@ -863,19 +789,10 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_lcd_ui_is_independent_from_ch585_safe_state(self) -> None:
         power_source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "board_power.cpp"
+            ROOT / 'application/Src/power/board_power.cpp'
         ).read_text(encoding="utf-8")
         input_source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "states"
-            / "input_state.cpp"
+            ROOT / 'application/Src/system/states/input_state.cpp'
         ).read_text(encoding="utf-8")
 
         setup = power_source[
@@ -906,19 +823,10 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_webconfig_bringup_clears_all_retained_standby_selection(self) -> None:
         sleep_source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "system_sleep_manager.cpp"
+            ROOT / 'application/Src/power/system_sleep_manager.cpp'
         ).read_text(encoding="utf-8")
         screen_source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "screen_control"
-            / "spi_screen_manager.cpp"
+            ROOT / 'application/Src/display/screen_control/spi_screen_manager.cpp'
         ).read_text(encoding="utf-8")
 
         self.assertIn("HAL_PWREx_DisableWakeUpPin(PWR_WAKEUP_PIN1);", sleep_source)
@@ -929,12 +837,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_screen_webconfig_save_quiesces_and_restores_input_pipeline(self) -> None:
         screen_source = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "screen_control"
-            / "spi_screen_manager.cpp"
+            ROOT / 'application/Src/display/screen_control/spi_screen_manager.cpp'
         ).read_text(encoding="utf-8")
         branch = screen_source[
             screen_source.index("if (id == 9u)"):
@@ -952,11 +855,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
     def test_qspi_ready_wait_uses_bounded_indirect_status_reads(self) -> None:
         source = (
-            ROOT
-            / "application"
-            / "Drivers"
-            / "QSPI-W25Q64"
-            / "qspi-w25q64.c"
+            ROOT / 'application/Src/config/drivers/qspi/qspi-w25q64.c'
         ).read_text(encoding="utf-8")
         helper = source[
             source.index("static int8_t QSPI_W25Qxx_ReadStatusReg1"):

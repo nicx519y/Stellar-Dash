@@ -23,9 +23,9 @@ TX_CORE_RE = re.compile(
     r"cold_boot|input_stream))\.(?:c|h)$"
 )
 APP_CORE_RE = re.compile(
-    r"^application/Cpp_Core/(?:Inc|Src)/"
-    r"(?:rf_transport|rf_command_transaction|rf_reliable_event|"
-    r"report_scheduler)\.(?:hpp|cpp)$"
+    r"^application/(?:Inc|Src)/(?:"
+    r"transport/rf/(?:rf_transport|rf_command_transaction|rf_reliable_event)|"
+    r"input/report_scheduler)\.(?:hpp|cpp)$"
 )
 
 

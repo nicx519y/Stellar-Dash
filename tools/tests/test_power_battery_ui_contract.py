@@ -8,7 +8,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 class PowerBatteryUiContractTests(unittest.TestCase):
     def test_ch224_power_good_is_active_low(self) -> None:
         source = (
-            PROJECT_ROOT / "application/Cpp_Core/Src/power_manager.cpp"
+            PROJECT_ROOT / "application/Src/power/power_manager.cpp"
         ).read_text(encoding="utf-8")
         function = source.split(
             "bool PowerManager::isFastChargeDetected() const", 1
@@ -19,7 +19,7 @@ class PowerBatteryUiContractTests(unittest.TestCase):
     def test_battery_icon_uses_continuous_fill_and_charge_sweep(self) -> None:
         source = (
             PROJECT_ROOT
-            / "application/Cpp_Core/Src/screen_control/spi_screen_manager.cpp"
+            / "application/Src/display/screen_control/spi_screen_manager.cpp"
         ).read_text(encoding="utf-8")
         self.assertIn("battery_animated_soc", source)
         self.assertIn("g_battUiChargeAnimStartMs = nowMs", source)

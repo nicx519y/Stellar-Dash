@@ -4,6 +4,11 @@ import subprocess
 import tempfile
 import unittest
 
+try:
+    from .application_paths import run_native
+except ImportError:
+    from application_paths import run_native
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -14,19 +19,19 @@ class AdcSamplingPolicyTests(unittest.TestCase):
         self.assertIsNotNone(compiler, "a host C++ compiler is required")
         with tempfile.TemporaryDirectory() as temporary:
             executable = Path(temporary) / "adc_sampling_policy_test.exe"
-            result = subprocess.run(
+            result = run_native(
                 [compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror",
-                 f"-I{ROOT / 'application/Drivers/ADC'}",
+                 f"-I{ROOT / 'application/Inc/input/drivers/adc'}",
                  str(ROOT / "tools/tests/adc_sampling_policy_test.cpp"),
                  "-o", str(executable)],
                 capture_output=True, text=True,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            result = subprocess.run([str(executable)], capture_output=True, text=True)
+            result = run_native([str(executable)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_reconfiguration_is_between_stopping_and_rearming_all_adcs(self):
-        manager = (ROOT / "application/Cpp_Core/Src/adc_btns/adc_manager.cpp").read_text(
+        manager = (ROOT / 'application/Src/input/adc_btns/adc_manager.cpp').read_text(
             encoding="utf-8"
         )
         rearm = manager[manager.index("bool ADCManager::rearmInputSampling("):]
@@ -37,7 +42,7 @@ class AdcSamplingPolicyTests(unittest.TestCase):
         failure = rearm[configure:rearm.index("memset(ADC1_Values", configure)]
         self.assertIn("forceStopAllSampling();", failure)
         self.assertIn("return false;", failure)
-        scheduler = (ROOT / "application/Cpp_Core/Src/report_scheduler.cpp").read_text(
+        scheduler = (ROOT / 'application/Src/input/report_scheduler.cpp').read_text(
             encoding="utf-8"
         )
         rearm_at = scheduler.index("ADC_MANAGER.rearmInputSampling(runningRateHz)")

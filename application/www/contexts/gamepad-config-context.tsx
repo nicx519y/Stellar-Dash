@@ -68,7 +68,9 @@ import {
     PostReadyRequestScheduler,
     registerDevicePageLifecycle,
     registerDeviceVisibilityLifecycle,
+    registerDeviceArrivalReconnect,
     scheduleInitialDeviceAutoConnect,
+    WebHidTransport,
     WEBHID_FIRMWARE_CHUNK_DATA_SIZE,
 } from '@/lib/device-transport';
 
@@ -940,6 +942,24 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
         throw new Error('设备传输层未初始化');
     }, [deviceClient, resetDeviceSessionState, cancelPendingAutomaticConnects]);
+
+    useEffect(() => {
+        if (!deviceClient || firmwareUpdating || !(deviceClient.transport instanceof WebHidTransport)) return;
+        const transport = deviceClient.transport;
+        return registerDeviceArrivalReconnect(
+            handler => transport.onAvailable(handler),
+            () => !pageHiddenRef.current && (
+                deviceClient.getState() === DeviceTransportState.DISCONNECTED ||
+                deviceClient.getState() === DeviceTransportState.ERROR
+            ),
+            reconnectDevice,
+            error => {
+                console.error('设备重新出现后自动重连失败:', error);
+                setShowReconnect(true);
+            },
+            transportConfig.closeTimeoutMs,
+        );
+    }, [deviceClient, firmwareUpdating, reconnectDevice, transportConfig.closeTimeoutMs]);
 
     const disconnectDevice = (): void => {
         if (deviceClient) {

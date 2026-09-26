@@ -31,21 +31,21 @@
 
 ## 2. Firmware-Side Integration
 
-- `application/Cpp_Core/Inc/monitor_telemetry.hpp`
+- `application/Inc/diagnostics/monitor_telemetry.hpp`
   - Probe API and snapshot structures.
-- `application/Cpp_Core/Src/monitor_telemetry.cpp`
+- `application/Src/diagnostics/monitor_telemetry.cpp`
   - Sequence tracking, timing records, USB/RF latency statistics, and error counters.
-- `application/Cpp_Core/Src/states/input_state.cpp`
+- `application/Src/system/states/input_state.cpp`
   - Per-frame sequence creation and report-ready timing.
-- `application/Cpp_Core/Src/connection_manager.cpp`
+- `application/Src/transport/connection_manager.cpp`
   - Link state and RF send-path telemetry.
-- `application/Cpp_Core/Inc/connection_manager.hpp`
+- `application/Inc/transport/connection_manager.hpp`
   - `onReportReady` sequence parameter.
-- `application/Cpp_Core/Src/rf_transport.cpp`
+- `application/Src/transport/rf/rf_transport.cpp`
   - RF `INPUT_DATA` transfer telemetry.
-- `application/Cpp_Core/Inc/rf_transport.hpp`
+- `application/Inc/transport/rf/rf_transport.hpp`
   - External sequence parameter for `sendInput`.
-- `application/Cpp_Core/Src/usbdriver.cpp`
+- `application/Src/transport/usb/usbdriver.cpp`
   - USB report completion telemetry.
 
 ## 3. Remaining Work

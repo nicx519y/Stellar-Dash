@@ -35,7 +35,7 @@ STM32 在首次成功发送该状态后生成四个源阶段，再以 SPI `0x09`
 
 ## 当前代码仍存在的源记录拒收路径
 
-1. `application/Cpp_Core/Src/rf_transport.cpp:546–555` 将首次成功 SPI 的 `payload[0]` 固定为源记录 `spiSeq`，三次副本使用同一身份。
+1. `application/Src/transport/rf/rf_transport.cpp:546–555` 将首次成功 SPI 的 `payload[0]` 固定为源记录 `spiSeq`，三次副本使用同一身份。
 2. `RF_PHY_Hop/TX/APP/RF_PHY.c:2984–2993` 在第一次接纳某个 tag 时，把当时输入帧序号固定为 `r->spi`。
 3. `RF_PHY_Hop/TX/APP/RF_PHY.c:2470–2489` 只有 tag 和该 SPI 序号同时相等，才设置 `r->source=1`；失败只设置一个累计诊断位，不保留待匹配源记录。
 4. `RF_PHY_Hop/TX/APP/rfm_spi_port_ch585.c:394–405` 主循环遇到被 NSS 快速路径越过的旧输入帧会直接跳过；它不会为旧首帧补回测量身份。

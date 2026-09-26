@@ -4,6 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -19,18 +24,17 @@ class UserImageQspiReliabilityTests(unittest.TestCase):
                 "-std=c++17",
                 "-fpermissive",
                 f"-I{ROOT / 'tools/tests/user_image_stubs'}",
-                f"-I{ROOT / 'application/Cpp_Core/Inc'}",
+                *application_include_flags(),
                 f"-I{ROOT / 'application/Libs/CRC32/src'}",
                 str(
-                    ROOT
-                    / "application/Cpp_Core/Src/configs/user_image_command_handler.cpp"
+                    ROOT / 'application/Src/webconfig/configs/user_image_command_handler.cpp'
                 ),
                 str(ROOT / "application/Libs/CRC32/src/CRC32.cpp"),
                 str(ROOT / "tools/tests/user_image_command_handler_qspi_test.cpp"),
                 "-o",
                 str(executable),
             ]
-            completed = subprocess.run(
+            completed = run_native(
                 command,
                 cwd=ROOT,
                 capture_output=True,
@@ -41,7 +45,7 @@ class UserImageQspiReliabilityTests(unittest.TestCase):
                 0,
                 f"host compile failed:\n{completed.stdout}\n{completed.stderr}",
             )
-            completed = subprocess.run(
+            completed = run_native(
                 [str(executable)],
                 cwd=ROOT,
                 capture_output=True,

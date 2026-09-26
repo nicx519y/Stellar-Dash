@@ -7,12 +7,17 @@ import subprocess
 import sys
 import tempfile
 
+try:
+    from .application_paths import application_include_dirs, run_native
+except ImportError:
+    from application_paths import application_include_dirs, run_native
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TESTS = ROOT / "tools" / "tests"
 USB = ROOT / "RF_PHY_Hop" / "TX" / "USB"
 COMMON = ROOT / "common"
-APP_INC = ROOT / "application" / "Cpp_Core" / "Inc"
+APP_INC = ROOT / 'application/Inc'
 
 
 def compiler(name: str) -> str:
@@ -26,7 +31,7 @@ def checked(command: list[str]) -> None:
     print("+", " ".join(command))
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    subprocess.run(command, cwd=ROOT, check=True, env=environment)
+    run_native(command, cwd=ROOT, check=True, env=environment)
 
 
 def compile_and_run(
@@ -66,7 +71,7 @@ def main() -> int:
                 USB / "usb_ps4_features.c",
                 USB / "usb_profiles.c",
             ],
-            [COMMON, USB, APP_INC],
+            [COMMON, USB, *application_include_dirs()],
         )
         compile_and_run(
             gcc,
@@ -123,10 +128,10 @@ def main() -> int:
             output_dir / "usb_board_link_tx_resume_test.exe",
             [
                 TESTS / "usb_board_link_tx_resume_test.cpp",
-                ROOT / "application" / "Cpp_Core" / "Src" / "usb_board_link.cpp",
+                ROOT / 'application/Src/transport/usb/usb_board_link.cpp',
                 COMMON / "usb_board_link_codec.c",
             ],
-            [TESTS / "stubs", COMMON, APP_INC],
+            [TESTS / "stubs", COMMON, *application_include_dirs()],
         )
         compile_and_run(
             gcc,

@@ -351,7 +351,7 @@ class WebConfigFlashTests(unittest.TestCase):
         )
         self.assertNotIn("reset run", command)
 
-    def test_probe_retries_connect_under_reset(self) -> None:
+    def test_probe_retries_with_nrst_released_before_examination(self) -> None:
         output = "\n".join(
             (
                 "0x5c001000: 20030450",
@@ -376,12 +376,32 @@ class WebConfigFlashTests(unittest.TestCase):
         self.assertEqual(run.call_count, 2)
         normal_command = run.call_args_list[0].args[0]
         fallback_command = run.call_args_list[1].args[0]
-        self.assertNotIn("reset_config connect_assert_srst", normal_command)
-        self.assertIn("reset_config connect_assert_srst", fallback_command)
+        recovery = webconfig_flash.BuildTool._openocd_reset_recovery_commands()
+        self.assertNotIn(recovery[0], normal_command)
+        for command in recovery:
+            self.assertIn(command, fallback_command)
         self.assertLess(
-            fallback_command.index("reset_config connect_assert_srst"),
-            fallback_command.index("init"),
+            fallback_command.index(recovery[0]),
+            fallback_command.index(recovery[-1]),
         )
+        self.assertLess(
+            fallback_command.index(recovery[-1]),
+            fallback_command.index("mdw 0x5C001000 1"),
+        )
+        self.assertNotIn("reset halt", fallback_command)
+
+    def test_probe_stops_if_both_connection_attempts_fail(self) -> None:
+        with mock.patch.object(
+            webconfig_flash.local, "_run",
+            side_effect=webconfig_flash.local.LocalWebConfigError("CPU unavailable"),
+        ) as run:
+            with self.assertRaisesRegex(
+                webconfig_flash.local.LocalWebConfigError, "CPU unavailable"
+            ):
+                webconfig_flash.probe_target_identity(
+                    self.openocd, self.serial, run_after=True,
+                )
+        self.assertEqual(run.call_count, 2)
 
     def test_execute_requires_artifact_and_physical_uid_confirmations(self) -> None:
         common = self._common_patches()

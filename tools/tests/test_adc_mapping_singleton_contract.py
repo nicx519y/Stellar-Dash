@@ -4,10 +4,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MANAGER = ROOT / "application/Cpp_Core/Src/adc_btns/adc_manager.cpp"
-HANDLER = ROOT / "application/Cpp_Core/Src/configs/ms_mark_command_handler.cpp"
-MARKER = ROOT / "application/Cpp_Core/Src/adc_btns/adc_btns_marker.cpp"
-DISPATCHER = ROOT / "application/Cpp_Core/Src/webhid_rpc_dispatcher.cpp"
+MANAGER = ROOT / 'application/Src/input/adc_btns/adc_manager.cpp'
+HANDLER = ROOT / 'application/Src/webconfig/configs/ms_mark_command_handler.cpp'
+MARKER = ROOT / 'application/Src/input/adc_btns/adc_btns_marker.cpp'
+DISPATCHER = ROOT / 'application/Src/webconfig/webhid_rpc_dispatcher.cpp'
 SERVER = ROOT / "server/src/switch-mappings.js"
 WEB_TYPES = ROOT / "application/www/types/adc.ts"
 

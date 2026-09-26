@@ -304,12 +304,12 @@ LED 建议：
 
 文件入口：
 
-- `application/Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp`
-- `application/Cpp_Core/Src/screen_control/spi_screen_manager.cpp`
-- `application/Cpp_Core/Inc/connection_manager.hpp`
-- `application/Cpp_Core/Src/connection_manager.cpp`
-- `application/Cpp_Core/Inc/rf_transport.hpp`
-- `application/Cpp_Core/Src/rf_transport.cpp`
+- `application/Src/display/screen_control/spi_screen_detail_tournament_mode.cpp`
+- `application/Src/display/screen_control/spi_screen_manager.cpp`
+- `application/Inc/transport/connection_manager.hpp`
+- `application/Src/transport/connection_manager.cpp`
+- `application/Inc/transport/rf/rf_transport.hpp`
+- `application/Src/transport/rf/rf_transport.cpp`
 
 `Connection` 详情项建议改为：
 

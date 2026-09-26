@@ -4,6 +4,11 @@ import subprocess
 import tempfile
 import unittest
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 APP = ROOT / 'application'
 
@@ -31,15 +36,15 @@ class LiveConfigFeedbackTests(unittest.TestCase):
             cpp = folder / 'test.cpp'
             cpp.write_text(source, encoding='utf-8')
             executable = folder / 'test.exe'
-            result = subprocess.run([compiler, '-std=c++17', '-I', str(folder),
-                                     '-I', str(APP / 'Cpp_Core/Inc'), str(cpp), '-o', str(executable)],
+            result = run_native([compiler, '-std=c++17', '-I', str(folder),
+                                     *application_include_flags(), str(cpp), '-o', str(executable)],
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            result = subprocess.run([str(executable)], capture_output=True, text=True)
+            result = run_native([str(executable)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_qspi_wait_services_feedback_until_ready_but_never_acknowledges_busy_flash(self):
-        driver = 'Drivers/QSPI-W25Q64/qspi-w25q64.c'
+        driver = 'Src/config/drivers/qspi/qspi-w25q64.c'
         self.native(r'''
 #include <cassert>
 #include <cstdint>
@@ -100,7 +105,7 @@ struct WebHidService{
  void serviceConfigSaveFeedback();
  void pumpOutput(){++outputs;}
 };
-''' + function('Cpp_Core/Src/webhid_service.cpp', 'void WebHidService::serviceConfigSaveFeedback()') + r'''
+''' + function('Src/webconfig/webhid_service.cpp', 'void WebHidService::serviceConfigSaveFeedback()') + r'''
 int main(){
  WebHidService s; s.serviceConfigSaveFeedback();
  assert(inputs==1 && lights==1 && links==1 && outputs==1);
@@ -140,7 +145,7 @@ struct LEDsManager{
  void setup(){++setups;} void updateColorsFromConfig(){}
  void setTemporaryConfig(const LEDProfile&,uint32_t);
 };
-''' + function('Cpp_Core/Src/leds/leds_manager.cpp', 'void LEDsManager::setTemporaryConfig') + r'''
+''' + function('Src/leds/leds_manager.cpp', 'void LEDsManager::setTemporaryConfig') + r'''
 int main(){
  LEDsManager m; LEDProfile next=m.temporaryConfig;
  next.ledBrightness=80; next.ledColor1=999; m.setTemporaryConfig(next,42);
@@ -207,7 +212,7 @@ struct ADCBtnsWorker{unsigned virtualPinMask=1,enabledKeysMask=1;bool buttonTrig
  uint16_t calculatePressThreshold(ADCBtn*,uint16_t value){return value+1;}
  uint16_t calculateReleaseThreshold(ADCBtn*,uint16_t value){return value-1;}
 };
-''' + function('Cpp_Core/Src/adc_btns/adc_btns_worker.cpp', 'ADCBtnsError ADCBtnsWorker::setup') + r'''
+''' + function('Src/input/adc_btns/adc_btns_worker.cpp', 'ADCBtnsError ADCBtnsWorker::setup') + r'''
 int main(){
  ADCBtnsWorker w;assert(w.setup(true)==ADCBtnsError::SUCCESS);
  assert(w.virtualPinMask==1 && w.button.state==ButtonState::PRESSED && starts==0);

@@ -129,6 +129,6 @@ struct ButtonCalibrationState {
 2024年
 
 ## 相关文件
-- `application/Cpp_Core/Inc/adc_btns/adc_calibration.hpp`
-- `application/Cpp_Core/Src/adc_btns/adc_calibration.cpp`
+- `application/Inc/input/adc_btns/adc_calibration.hpp`
+- `application/Src/input/adc_btns/adc_calibration.cpp`
 - `MANUAL_CALIBRATION_USAGE_EXAMPLE.md`（已同步更新） 

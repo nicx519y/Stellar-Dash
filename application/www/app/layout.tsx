@@ -40,7 +40,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
     const {
         connectDevice,
         reconnectDevice,
-        showReconnect,
         deviceError,
         deviceConnected,
         devicePhase,
@@ -124,14 +123,15 @@ function AppContent({ children }: { children: React.ReactNode }) {
             <Toaster />
             <LoadingModal
                 isOpen={connectionPending}
-                variant={connectionInProgress ? 'connection' : 'no-device'}
+                variant="connection"
+                connectionState={connectionInProgress ? 'connecting' : 'waiting'}
                 connectionPhase={devicePhase}
                 configReadProgress={configReadProgress}
-                noDeviceAction={showReconnect ? {
+                noDeviceAction={{
                     label: t.RECONNECT_MODAL_BUTTON,
                     onClick: handleReconnect,
                     loading: isReconnecting,
-                } : undefined}
+                }}
                 noDeviceTitle={t.RECONNECT_MODAL_TITLE}
                 noDeviceSteps={[
                     t.RECONNECT_MODAL_STEP_WEBCONFIG,

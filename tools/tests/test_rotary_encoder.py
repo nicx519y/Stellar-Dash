@@ -26,14 +26,10 @@ class RotaryEncoderTests(unittest.TestCase):
                     "-I",
                     str(ROOT / "tools" / "tests" / "rotary_stubs"),
                     "-I",
-                    str(ROOT / "application" / "Drivers" / "ROTARY-ENCODER"),
+                    str(ROOT / 'application/Inc/input/drivers/rotary_encoder'),
                     str(ROOT / "tools" / "tests" / "rotary_encoder_test.c"),
                     str(
-                        ROOT
-                        / "application"
-                        / "Drivers"
-                        / "ROTARY-ENCODER"
-                        / "rotary-encoder.c"
+                        ROOT / 'application/Src/input/drivers/rotary_encoder/rotary-encoder.c'
                     ),
                     "-o",
                     str(executable),
@@ -60,20 +56,10 @@ class RotaryEncoderTests(unittest.TestCase):
             ROOT / "application" / "Core" / "Src" / "stm32h7xx_it.c"
         ).read_text(encoding="utf-8")
         screen = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "screen_control"
-            / "spi_screen_manager.cpp"
+            ROOT / 'application/Src/display/screen_control/spi_screen_manager.cpp'
         ).read_text(encoding="utf-8")
         input_state = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "states"
-            / "input_state.cpp"
+            ROOT / 'application/Src/system/states/input_state.cpp'
         ).read_text(encoding="utf-8")
 
         self.assertIn("RotEnc_Tick1msFromISR();", interrupts)

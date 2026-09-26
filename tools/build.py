@@ -460,6 +460,45 @@ class BuildTool:
             f"Application槽{slot}",
         )
 
+    @staticmethod
+    def _openocd_reset_recovery_commands() -> list[str]:
+        """Recover through wired NRST, releasing it before H7 AXI examination.
+
+        HLA cannot examine DBGMCU over AP0 while NRST is asserted. Defer
+        examination during init, then release NRST before examining/halting.
+        Always attempt to release NRST on failure and stop before any caller's
+        identity checks or Flash commands. This changes no protection state.
+        """
+        return [
+            "reset_config srst_only srst_nogate connect_assert_srst",
+            "[target current] configure -defer-examine",
+            "gdb_port disabled",
+            "tcl_port disabled",
+            "telnet_port disabled",
+            "\n".join([
+                "set hbox_recovery_code [catch {",
+                '    set hbox_recovery_stage "adapter initialization"',
+                "    init",
+                '    set hbox_recovery_stage "NRST assertion"',
+                "    adapter assert srst",
+                "    sleep 100",
+                '    set hbox_recovery_stage "NRST release"',
+                "    adapter deassert srst",
+                '    set hbox_recovery_stage "CPU examination after NRST release"',
+                "    [target current] arp_examine",
+                '    set hbox_recovery_stage "CPU halt"',
+                "    halt 1000",
+                "} hbox_recovery_error]",
+                "set hbox_release_code [catch {adapter deassert srst} hbox_release_error]",
+                "if {$hbox_recovery_code != 0} {",
+                '    error "STM32 reset recovery failed at $hbox_recovery_stage (code $hbox_recovery_code): $hbox_recovery_error"',
+                "}",
+                "if {$hbox_release_code != 0} {",
+                '    error "STM32 NRST release failed: $hbox_release_error"',
+                "}",
+            ]),
+        ]
+
     def _flash_qspi_file_in_chunks(
         self,
         source_file: Path,
@@ -605,12 +644,15 @@ class BuildTool:
                 if not success and connect_under_reset_fallback:
                     print(
                         f"{label}: normal SWD session failed; "
-                        "retrying connect-under-reset"
+                        "retrying with NRST reset/release recovery"
                     )
                     fallback = [
                         *base_command,
-                        "-c",
-                        "reset_config connect_assert_srst",
+                        *[
+                            argument
+                            for recovery_command in self._openocd_reset_recovery_commands()
+                            for argument in ("-c", recovery_command)
+                        ],
                         "-f",
                         str(script),
                     ]

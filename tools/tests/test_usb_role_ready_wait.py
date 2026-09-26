@@ -5,9 +5,14 @@ import subprocess
 import tempfile
 import unittest
 
+try:
+    from .application_paths import application_include_dirs
+except ImportError:
+    from application_paths import application_include_dirs
+
 ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / "tools/tests"
-INC = ROOT / "application/Cpp_Core/Inc"
+INC = ROOT / 'application/Inc'
 
 
 class UsbRoleReadyWaitTest(unittest.TestCase):
@@ -71,15 +76,15 @@ int main() {
     }
 }
 ''', encoding="utf-8")
-            self.compile_run(folder, [source], [INC])
+            self.compile_run(folder, [source], [*application_include_dirs()])
 
     def test_link_credit_resume_compatibility(self):
         with tempfile.TemporaryDirectory() as temporary:
             self.compile_run(Path(temporary), [
                 TESTS / "usb_board_link_tx_resume_test.cpp",
-                ROOT / "application/Cpp_Core/Src/usb_board_link.cpp",
+                ROOT / 'application/Src/transport/usb/usb_board_link.cpp',
                 ROOT / "common/usb_board_link_codec.c",
-            ], [TESTS / "stubs", ROOT / "common", INC])
+            ], [TESTS / "stubs", ROOT / "common", *application_include_dirs()])
 
 
 if __name__ == "__main__":

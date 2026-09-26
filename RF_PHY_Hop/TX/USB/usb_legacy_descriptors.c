@@ -5,16 +5,16 @@
 
 /*
  * Descriptor byte sources:
- *   application/Cpp_Core/Inc/drivers/ps4/PS4Descriptors.hpp
- *   application/Cpp_Core/Inc/drivers/switch/SwitchDescriptors.hpp
- *   application/Cpp_Core/Inc/drivers/xbone/XBOneDescriptors.hpp
+ *   application/Inc/transport/usb/legacy/drivers/ps4/PS4Descriptors.hpp
+ *   application/Inc/transport/usb/legacy/drivers/switch/SwitchDescriptors.hpp
+ *   application/Inc/transport/usb/legacy/drivers/xbone/XBOneDescriptors.hpp
  *
  * PS4 and Xbox/GIP arrays below are literal copies; the C-compatible Switch
  * header is included directly.  Static assertions pin every legacy descriptor
  * length so accidental truncation fails the build.  RF headers and RF protocol
  * state are deliberately not included.
  */
-#include "../../../application/Cpp_Core/Inc/drivers/switch/SwitchDescriptors.hpp"
+#include "../../../application/Inc/transport/usb/legacy/drivers/switch/SwitchDescriptors.hpp"
 
 #define USB_LEGACY_STRING_BUFFER_BYTES 256u
 

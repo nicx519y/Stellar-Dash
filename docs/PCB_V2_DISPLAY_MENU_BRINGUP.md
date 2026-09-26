@@ -97,11 +97,11 @@ SECURITY、SCAR、anti-rollback commit 或 boot attestation。
 
 关键实现：
 
-- [application/Core/Src/board.c](../application/Core/Src/board.c)
-- [application/Cpp_Core/Src/board_power.cpp](../application/Cpp_Core/Src/board_power.cpp)
-- [application/Cpp_Core/Inc/board_power.hpp](../application/Cpp_Core/Inc/board_power.hpp)
-- [application/Cpp_Core/Src/main_state_machine.cpp](../application/Cpp_Core/Src/main_state_machine.cpp)
-- [application/Cpp_Core/Src/screen_control/spi_screen_manager.cpp](../application/Cpp_Core/Src/screen_control/spi_screen_manager.cpp)
+- [application/Src/system/board.c](../application/Src/system/board.c)
+- [application/Src/power/board_power.cpp](../application/Src/power/board_power.cpp)
+- [application/Inc/power/board_power.hpp](../application/Inc/power/board_power.hpp)
+- [application/Src/system/main_state_machine.cpp](../application/Src/system/main_state_machine.cpp)
+- [application/Src/display/screen_control/spi_screen_manager.cpp](../application/Src/display/screen_control/spi_screen_manager.cpp)
 
 ### 4.1 BoardPower 状态
 
@@ -138,7 +138,7 @@ Standby 的 `prepareForStandby()` 可以关闭 LCD。
 
 关键实现：
 
-- [application/Cpp_Core/Src/power_manager.cpp](../application/Cpp_Core/Src/power_manager.cpp)
+- [application/Src/power/power_manager.cpp](../application/Src/power/power_manager.cpp)
 - [application/Makefile](../application/Makefile)
 - [tools/webconfig_local.py](../tools/webconfig_local.py)
 

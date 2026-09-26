@@ -46,7 +46,7 @@ function ch585RoleFromCode(code: number): "Unknown" | "RF" | "USB" | "Maintenanc
 
 /**
  * Parse the application HID telemetry frames in XInput mode (MON1/MONP, 32 bytes).
- * Frame layouts follow MonitorTelemetryFrameV1 and MonitorPowerFrameV1 in application/Cpp_Core/Inc/monitor_telemetry.hpp.
+ * Frame layouts follow MonitorTelemetryFrameV1 and MonitorPowerFrameV1 in application/Inc/diagnostics/monitor_telemetry.hpp.
  */
 export function parseApplicationHidTelemetryFrame(report: Uint8Array, timestampMs = Date.now()): MonitorEvent[] {
   const offset = appTelemetryOffset(report);

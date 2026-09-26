@@ -7,6 +7,11 @@ import tempfile
 import unittest
 from tools.tests.test_rf_runtime_recovery import function
 
+try:
+    from .application_paths import run_native
+except ImportError:
+    from application_paths import run_native
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 COMMON = ROOT / "RF_PHY_Hop/Common/include"
 
@@ -16,11 +21,11 @@ class ShortTransportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             p = pathlib.Path(folder)
             (p / "test.cpp").write_text('#include "rf_source_trace.h"\n'+source, encoding="utf-8")
-            built = subprocess.run([shutil.which("g++"), "-std=c++17", "-Wall", "-Werror",
+            built = run_native([shutil.which("g++"), "-std=c++17", "-Wall", "-Werror",
                                     "-Wno-unused-function", "-Wno-unused-variable", "-I", str(COMMON), "-I", str(ROOT / "common"),
                                     str(p / "test.cpp"), "-o", str(p / "test.exe")], capture_output=True, text=True)
             self.assertEqual(built.returncode, 0, built.stderr)
-            ran = subprocess.run([str(p / "test.exe")], capture_output=True, text=True)
+            ran = run_native([str(p / "test.exe")], capture_output=True, text=True)
             self.assertEqual(ran.returncode, 0, ran.stderr)
 
     def test_actual_builder_keeps_input_in_short_ack_and_aux_packets(self):
@@ -134,7 +139,7 @@ int main(){
 }''')
 
     def test_stm32_sidecar_is_bounded_and_uses_physical_spi_completion(self):
-        app = (ROOT / "application/Cpp_Core/Src/rf_transport.cpp").read_text(encoding="utf-8")
+        app = (ROOT / 'application/Src/transport/rf/rf_transport.cpp').read_text(encoding="utf-8")
         decl=next(line for line in app.splitlines() if line.startswith('struct RelativeEdge'))
         self.run_native(r'''
 #include <cassert>
@@ -304,7 +309,7 @@ int main(){
 }''')
 
     def test_capture_status_survives_lost_enable_and_ignores_legacy_counters(self):
-        stm=(ROOT / 'application/Cpp_Core/Src/rf_transport.cpp').read_text(encoding='utf-8')
+        stm=(ROOT / 'application/Src/transport/rf/rf_transport.cpp').read_text(encoding='utf-8')
         self.run_native(r'''
 #include <cassert>
 #include <stdint.h>

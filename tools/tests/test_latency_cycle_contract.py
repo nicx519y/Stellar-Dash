@@ -4,6 +4,11 @@ import subprocess
 import tempfile
 import unittest
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -12,18 +17,18 @@ class LatencyCycleContractTests(unittest.TestCase):
     def test_dwt_wrap_and_stage_sum(self) -> None:
         compiler = shutil.which("g++") or shutil.which("clang++")
         self.assertIsNotNone(compiler, "a host C++ compiler is required")
-        include = ROOT / "application" / "Cpp_Core" / "Inc"
+        include = ROOT / 'application/Inc'
         source = ROOT / "tools" / "tests" / "cycle_elapsed_test.cpp"
         with tempfile.TemporaryDirectory() as temporary:
             executable = Path(temporary) / "cycle_elapsed_test.exe"
-            compiled = subprocess.run(
+            compiled = run_native(
                 [
                     compiler,
                     "-std=c++17",
                     "-Wall",
                     "-Wextra",
                     "-Werror",
-                    f"-I{include}",
+                    *application_include_flags(),
                     str(source),
                     "-o",
                     str(executable),
@@ -34,14 +39,13 @@ class LatencyCycleContractTests(unittest.TestCase):
             )
             self.assertEqual(compiled.returncode, 0,
                              compiled.stdout + compiled.stderr)
-            ran = subprocess.run([str(executable)], capture_output=True,
+            ran = run_native([str(executable)], capture_output=True,
                                  text=True, check=False)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
 
     def test_telemetry_total_is_explicit_stage_sum(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "monitor_telemetry.cpp"
+            ROOT / 'application/Src/diagnostics/monitor_telemetry.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("g_snapshot.latestAdcConversionUs +", source)
         self.assertIn("g_snapshot.latestInputProcessingUs +", source)

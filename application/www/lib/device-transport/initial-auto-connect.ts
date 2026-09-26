@@ -151,3 +151,34 @@ export function scheduleInitialDeviceAutoConnect(
     cancel(timer);
   };
 }
+
+/** Coalesce USB arrival events; never open a chooser or retry continuously. */
+export function registerDeviceArrivalReconnect(
+  subscribe: (handler: () => void) => () => void,
+  canReconnect: () => boolean,
+  reconnect: () => Promise<void>,
+  onFailure: (error: unknown) => void,
+  closeTimeoutMs: number,
+  schedule: Schedule = setTimeout,
+  cancel: Cancel = clearTimeout,
+): () => void {
+  let active = true;
+  let pending = false;
+  let cancelPending: (() => void) | undefined;
+  const unsubscribe = subscribe(() => {
+    if (!active || pending || !canReconnect()) return;
+    pending = true;
+    cancelPending = scheduleInitialDeviceAutoConnect('webhid', closeTimeoutMs, async () => {
+      try {
+        if (active && canReconnect()) await reconnect();
+      } finally {
+        pending = false;
+      }
+    }, error => { if (active) onFailure(error); }, schedule, cancel);
+  });
+  return () => {
+    active = false;
+    unsubscribe();
+    cancelPending?.();
+  };
+}

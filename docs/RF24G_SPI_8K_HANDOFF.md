@@ -68,14 +68,14 @@ This points to per-frame RX DMA re-arm blind time or SPI slave transaction spaci
 
 STM32 application:
 
-- `application/Cpp_Core/Src/rf_bridge_port.cpp`
+- `application/Src/transport/rf/rf_bridge_port.cpp`
   - SPI4 TX DMA fast path for `INPUT_DATA`
   - latest-only enqueue
   - diagnostics: `dma_start_fail`, `dma_overwrite`, `dma_done`, `dma_irq`, `spi_irq`, `spi_err`
 - `application/Core/Src/stm32h7xx_it.c`
   - `DMA2_Stream5_IRQHandler()`
   - `SPI4_IRQHandler()`
-- `application/Drivers/SPI-ST7789/spi-st7789.c`
+- `application/Src/display/drivers/st7789/spi-st7789.c`
   - routes HAL SPI completion/error callbacks to RF bridge for non-ST7789 SPI handles
 
 CH584/CH585 prototype:
@@ -169,9 +169,9 @@ Known warning:
 
 STM32 send path:
 
-- `application/Cpp_Core/Src/rf_bridge_port.cpp`
+- `application/Src/transport/rf/rf_bridge_port.cpp`
 - `application/Core/Src/stm32h7xx_it.c`
-- `application/Drivers/SPI-ST7789/spi-st7789.c`
+- `application/Src/display/drivers/st7789/spi-st7789.c`
 
 CH584/CH585 receive path:
 

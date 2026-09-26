@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { readIncrementalConfigSnapshot } = require('../lib/device-transport/config-sync.ts');
 const { ConfigSyncCache, configCacheKey, IndexedDbConfigCache } = require('../lib/device-transport/config-cache.ts');
 const { contentChecksum } = require('../lib/device-transport/config-modules.ts');
+const { writeConfigResource } = require('../lib/device-transport/config-snapshot.ts');
 const { MockDeviceTransport } = require('../lib/device-transport/mock-device-transport.ts');
 const { DeviceCommandClient } = require('../lib/device-transport/device-command-client.ts');
 const { DeviceTransportError } = require('../lib/device-transport/types.ts');
@@ -204,6 +205,51 @@ test('cache updates from device ACKs, not mutable drafts; uncertain writes inval
   await f.sync(); assert.equal(f.calls.length, 38);
 });
 
+test('saving profile settings preserves unchanged list and macros for a warm reconnect', async () => {
+  const f = await fixture(); const cold = await f.sync(); await f.activate(cold);
+  const id = cold.resources['selected-profile'];
+  const params = { profileDetails: { id, ledsConfigs: { ledBrightness: 38 } } };
+  f.cache.invalidateForCommand('update_profile', params);
+  const ack = (await f.mock.request('update_profile', params)).data;
+  await f.cache.observe(ack, params); await f.cache.settled();
+  const warm = await f.sync();
+  assert.equal(warm.resources[`profile:${id}`].ledsConfigs.ledBrightness, 38);
+  assert.deepEqual(f.calls, ['get_config_manifest', 'get_config_manifest']);
+});
+
+test('profile save side effects retain old fingerprints and reread only changed dependencies', async () => {
+  for (const dependency of ['profile-list', 'macros']) {
+    const f = await fixture(); const cold = await f.sync(); await f.activate(cold);
+    const id = cold.resources['selected-profile'];
+    const key = dependency === 'macros' ? `macros:${id}` : dependency;
+    const patch = dependency === 'macros'
+      ? { keysConfig: { macros: [{ index: 0, triggerKeys: [1], steps: [{ timeMs: 20, buttonMask: 1, dynamicMask: 0 }] }] } }
+      : { name: 'Renamed profile' };
+    const params = { profileDetails: { id, ...patch } };
+    f.cache.invalidateForCommand('update_profile', params);
+    await f.cache.observe((await f.mock.request('update_profile', params)).data, params);
+    await f.cache.settled();
+    const stored = await f.cache.load(cold.manifest);
+    assert.deepEqual(stored[key], cold.modules[key]); // Never invent a version for a missing ACK body.
+    const result = await f.sync();
+    assert.notEqual(result.modules[key].version, cold.modules[key].version);
+    assert.deepEqual(f.calls, ['get_config_manifest', dependency === 'macros' ? 'get_profile_macros' : 'get_profile_list', 'get_config_manifest']);
+  }
+});
+
+test('lost profile save ACK leaves details invalid and detects changed list on reconnect', async () => {
+  const f = await fixture(); const cold = await f.sync(); await f.activate(cold);
+  const id = cold.resources['selected-profile'];
+  const params = { profileDetails: { id, name: 'Saved without ACK' } };
+  f.cache.invalidateForCommand('update_profile', params);
+  await f.mock.request('update_profile', params); // Device commits, but the reply never reaches the cache.
+  await f.cache.settled();
+  assert.equal((await f.cache.load(cold.manifest))[`profile:${id}`], undefined);
+  const result = await f.sync();
+  assert.equal(result.resources[`profile:${id}`].name, 'Saved without ACK');
+  assert.deepEqual(f.calls, ['get_config_manifest', 'get_profile_list', 'get_profile_details', 'get_config_manifest']);
+});
+
 test('late acknowledgements cannot modify a newly activated device cache', async () => {
   const f = await fixture(); const cold = await f.sync(); await f.activate(cold);
   const ack = (await f.mock.request('get_global_config')).data;
@@ -227,6 +273,24 @@ test('DeviceCommandClient allows manifest during initialization and observes nor
   await client.configCache.settled();
   const loaded = await client.configCache.load(result.manifest);
   assert.equal(loaded['screen-control'].data.brightness, 40);
+  for (const item of result.resources['profile-list'].items.slice(0, 2)) {
+    const profile = structuredClone(result.resources[`profile:${item.id}`]);
+    profile.ledsConfigs.ledBrightness = 42;
+    await writeConfigResource((cmd, params) => client.request(cmd, params), `profile:${item.id}`, profile, x => x);
+    profile.ledsConfigs.ledBrightness = 99; // Later edits must remain drafts.
+  }
+  await client.configCache.settled();
+  client.disconnect();
+  await client.connect();
+  const calls = [];
+  const warm = await readIncrementalConfigSnapshot((cmd, params) => {
+    calls.push(cmd);
+    return client.requestInitialization(cmd, params);
+  }, x => x, client.configCache);
+  assert.deepEqual(calls, ['get_config_manifest', 'get_config_manifest']);
+  for (const item of result.resources['profile-list'].items.slice(0, 2)) {
+    assert.equal(warm.resources[`profile:${item.id}`].ledsConfigs.ledBrightness, 42);
+  }
   client.disconnect();
 });
 

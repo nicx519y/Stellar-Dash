@@ -4,6 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 
 ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / "tools" / "tests"
@@ -25,20 +30,14 @@ class FirmwareManagerReliabilityTests(unittest.TestCase):
                 "-Wextra",
                 "-I",
                 str(TESTS / "firmware_manager_stubs"),
-                "-I",
-                str(ROOT / "application" / "Cpp_Core" / "Inc"),
+                *application_include_flags(),
                 "-I",
                 str(ROOT / "application" / "Libs" / "sha256_simple"),
                 "-I",
                 str(ROOT / "common"),
                 str(TESTS / "firmware_manager_reliability_test.cpp"),
                 str(
-                    ROOT
-                    / "application"
-                    / "Cpp_Core"
-                    / "Src"
-                    / "firmware"
-                    / "firmware_manager.cpp"
+                    ROOT / 'application/Src/firmware/firmware_manager.cpp'
                 ),
                 str(
                     ROOT
@@ -50,7 +49,7 @@ class FirmwareManagerReliabilityTests(unittest.TestCase):
                 "-o",
                 str(executable),
             ]
-            compile_result = subprocess.run(
+            compile_result = run_native(
                 command,
                 cwd=ROOT,
                 capture_output=True,
@@ -62,7 +61,7 @@ class FirmwareManagerReliabilityTests(unittest.TestCase):
                 0,
                 compile_result.stdout + compile_result.stderr,
             )
-            run_result = subprocess.run(
+            run_result = run_native(
                 [str(executable)],
                 cwd=ROOT,
                 capture_output=True,

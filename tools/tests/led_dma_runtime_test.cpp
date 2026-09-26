@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <string>
 // Compile the real driver, not a rewritten model of its state machine.
-#include "../../application/Drivers/PWM-WS2812B/pwm-ws2812b.c"
+#include "../../application/Src/leds/drivers/ws2812b/pwm-ws2812b.c"
 
 static std::vector<uint32_t> snapshot(unsigned i) {
     return {dmas[i].source, dmas[i].source + dmas[i].size};

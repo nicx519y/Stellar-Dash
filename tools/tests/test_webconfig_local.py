@@ -418,15 +418,10 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
             encoding="utf-8"
         )
         board_cfg = (
-            root / "application" / "Core" / "Inc" / "board_cfg.h"
+            root / "application/Inc/system/board_cfg.h"
         ).read_text(encoding="utf-8")
         image_format = (
-            root
-            / "application"
-            / "Cpp_Core"
-            / "Inc"
-            / "configs"
-            / "user_image_format.hpp"
+            root / "application/Inc/webconfig/configs/user_image_format.hpp"
         ).read_text(encoding="utf-8")
 
         self.assertEqual(webconfig_local.USER_IMAGE_RESOURCES_SIZE, 0x190000)

@@ -4,6 +4,11 @@ import subprocess
 import tempfile
 import unittest
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -13,17 +18,17 @@ class AdcSampleAssemblerTests(unittest.TestCase):
         compiler = shutil.which("g++") or shutil.which("clang++")
         self.assertIsNotNone(compiler, "a host C++ compiler is required")
         source = ROOT / "tools" / "tests" / "adc_sample_assembler_test.cpp"
-        include = ROOT / "application" / "Cpp_Core" / "Inc"
+        include = ROOT / 'application/Inc'
         with tempfile.TemporaryDirectory() as temporary:
             executable = Path(temporary) / "adc_sample_assembler_test.exe"
-            compile_result = subprocess.run(
+            compile_result = run_native(
                 [
                     compiler,
                     "-std=c++17",
                     "-Wall",
                     "-Wextra",
                     "-Werror",
-                    f"-I{include}",
+                    *application_include_flags(),
                     str(source),
                     "-o",
                     str(executable),
@@ -37,7 +42,7 @@ class AdcSampleAssemblerTests(unittest.TestCase):
                 0,
                 compile_result.stdout + compile_result.stderr,
             )
-            run_result = subprocess.run(
+            run_result = run_native(
                 [str(executable)],
                 capture_output=True,
                 text=True,

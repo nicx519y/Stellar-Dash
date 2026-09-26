@@ -7,6 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+try:
+    from .application_paths import application_include_dirs
+except ImportError:
+    from application_paths import application_include_dirs
+
 
 ROOT = Path(__file__).resolve().parents[2]
 CASE_MANIFEST = ROOT / "tools" / "device_command_contract_cases.json"
@@ -64,17 +69,17 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
         self.assertIsNotNone(gcc, "host gcc is required for the production cJSON source")
 
         production_sources = [
-            "application/Cpp_Core/Src/configs/config_sync.cpp",
+            "application/Src/webconfig/configs/config_sync.cpp",
             "application/Libs/sha256_simple/sha256_simple.c",
-            "application/Cpp_Core/Src/configs/device_command_handler.cpp",
-            "application/Cpp_Core/Src/configs/device_command_message.cpp",
-            "application/Cpp_Core/Src/webhid_rpc_dispatcher.cpp",
-            "application/Cpp_Core/Src/configs/global_config_command_handler.cpp",
-            "application/Cpp_Core/Src/configs/profile_command_handler.cpp",
-            "application/Cpp_Core/Src/configs/ms_mark_command_handler.cpp",
-            "application/Cpp_Core/Src/configs/calibration_command_handler.cpp",
-            "application/Cpp_Core/Src/configs/common_command_handler.cpp",
-            "application/Cpp_Core/Src/configs/firmware_command_handler.cpp",
+            "application/Src/webconfig/configs/device_command_handler.cpp",
+            "application/Src/webconfig/configs/device_command_message.cpp",
+            "application/Src/webconfig/webhid_rpc_dispatcher.cpp",
+            "application/Src/webconfig/configs/global_config_command_handler.cpp",
+            "application/Src/webconfig/configs/profile_command_handler.cpp",
+            "application/Src/webconfig/configs/ms_mark_command_handler.cpp",
+            "application/Src/webconfig/configs/calibration_command_handler.cpp",
+            "application/Src/webconfig/configs/common_command_handler.cpp",
+            "application/Src/webconfig/configs/firmware_command_handler.cpp",
         ]
         for source in production_sources:
             self.assertNotIn(
@@ -90,10 +95,10 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
             "application/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy",
             "application/Drivers/CMSIS/Device/ST/STM32H7xx/Include",
             "application/Drivers/CMSIS/Include",
-            "application/Cpp_Core/Inc",
-            "application/Cpp_Core/Inc/configs",
-            "application/Cpp_Core/Inc/firmware",
-            "application/Drivers/QSPI-W25Q64",
+            *[str(directory.relative_to(ROOT)) for directory in application_include_dirs()],
+            "application/Inc/webconfig/configs",
+            "application/Inc/firmware",
+            "application/Inc/config/drivers/qspi",
             "application/Libs/cJSON",
             "application/Libs/sha256_simple",
             "common",

@@ -7,6 +7,11 @@ import time
 import unittest
 from pathlib import Path
 
+try:
+    from .application_paths import application_include_flags
+except ImportError:
+    from application_paths import application_include_flags
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -57,11 +62,11 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
             print('screen wake: compiling real screen standby with fake display/QSPI', flush=True)
             run_checked([compiler, '-std=c++17', '-Wall', '-Wextra',
                          '-Wno-int-to-pointer-cast', '-I', str(temp),
-                         '-I', str(ROOT / 'application/Cpp_Core/Inc'),
-                         '-I', str(ROOT / 'application/Drivers/SPI-ST7789'),
+                         *application_include_flags(),
+                         '-I', str(ROOT / 'application/Inc/display/drivers/st7789'),
                          '-I', str(ROOT / 'application/Libs/CRC32/src'),
                          str(ROOT / 'application/Libs/CRC32/src/CRC32.cpp'),
-                         str(ROOT / 'application/Cpp_Core/Src/screen_control/spi_screen_standby.cpp'),
+                         str(ROOT / 'application/Src/display/screen_control/spi_screen_standby.cpp'),
                          str(ROOT / 'tools/tests/screen_sleep_wake_test.cpp'), '-o', str(exe)])
             run_checked([str(exe)])
 
@@ -83,10 +88,10 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
             print('auto-sleep runtime: compiling production manager with fake peripherals', flush=True)
             run_checked([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror',
                             '-DHBOX_AUTO_SLEEP_ENABLED=1', '-I', str(temp),
-                            '-I', str(ROOT / 'application/Cpp_Core/Inc'),
+                            *application_include_flags(),
                             '-include', str(ROOT / 'tools/tests/auto_sleep_runtime_stubs.hpp'),
                             str(ROOT / 'tools/tests/auto_sleep_runtime_test.cpp'),
-                            str(ROOT / 'application/Cpp_Core/Src/system_sleep_manager.cpp'),
+                            str(ROOT / 'application/Src/power/system_sleep_manager.cpp'),
                             '-o', str(exe)])
             for scenario in ('cycles', 'reset', 'boot-key', 'exclusive', 'prepare-timeout',
                              'mode-change', 'restore-failure', 'keepalive-failure',
@@ -107,14 +112,14 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                 encoding='utf-8')
             exe = temp / 'timing.exe'
             run_checked([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                         '-I', str(temp), '-I', str(ROOT / 'application/Cpp_Core/Inc'),
-                         '-I', str(ROOT / 'application/Drivers/I2C-BQ25895'),
-                         '-I', str(ROOT / 'application/Drivers/I2C-MAX17048'),
+                         '-I', str(temp), *application_include_flags(),
+                         '-I', str(ROOT / 'application/Inc/power/drivers/bq25895'),
+                         '-I', str(ROOT / 'application/Inc/power/drivers/max17048'),
                          str(ROOT / 'tools/tests/stop_timer_timing_test.cpp'), '-o', str(exe)])
             run_checked([str(exe)])
 
     def test_config_migration_dispatch(self):
-        source = (ROOT / 'application/Cpp_Core/Src/config.cpp').read_text(encoding='utf-8')
+        source = (ROOT / 'application/Src/config/config.cpp').read_text(encoding='utf-8')
         # 0x21 must hit the preserving migration branch, never factory defaults.
         branch = source.split('} else if (fjResult == true &&', 1)[1].split('} else if', 1)[0]
         self.assertIn('CONFIG_VERSION_AUTO_SLEEP_MIGRATE_FROM', branch)
@@ -128,9 +133,9 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
         with tempfile.TemporaryDirectory(prefix='hbox-power-config-') as folder:
             temp = Path(folder)
             (temp / 'board_cfg.h').write_text('#pragma once\n', encoding='utf-8')
-            includes = ['-I', str(temp), '-I', str(ROOT / 'application/Cpp_Core/Inc'),
+            includes = ['-I', str(temp), *application_include_flags(),
                         '-I', str(ROOT / 'application/Libs/cJSON'),
-                        '-I', str(ROOT / 'application/Drivers/SPI-ST7789')]
+                        '-I', str(ROOT / 'application/Inc/display/drivers/st7789')]
             for enabled in (0, 1):
                 exe = temp / f'power-{enabled}.exe'
                 run_checked([compiler, '-std=c++17', f'-DHBOX_AUTO_SLEEP_ENABLED={enabled}',
@@ -140,7 +145,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
             exe = temp / 'lcd.exe'
             run_checked([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', *includes,
                          str(ROOT / 'tools/tests/lcd_resume_test.cpp'),
-                         str(ROOT / 'application/Drivers/SPI-ST7789/spi-st7789-resume.c'),
+                         str(ROOT / 'application/Src/display/drivers/st7789/spi-st7789-resume.c'),
                          '-o', str(exe)])
             run_checked([str(exe)])
 
@@ -151,7 +156,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
             exe = Path(folder) / 'auto_sleep.exe'
             commands = [
                 ('compile', [compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                             '-I', str(ROOT / 'application/Cpp_Core/Inc'),
+                             *application_include_flags(),
                              str(ROOT / 'tools/tests/auto_sleep_policy_test.cpp'), '-o', str(exe)]),
                 ('execute', [str(exe)]),
             ]
@@ -162,7 +167,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                 print(f'auto-sleep {phase}: passed in {time.monotonic() - started:.2f}s', flush=True)
 
     def test_no_persistent_or_standby_side_effects(self):
-        source = (ROOT / 'application/Cpp_Core/Src/system_sleep_manager.cpp').read_text(encoding='utf-8')
+        source = (ROOT / 'application/Src/power/system_sleep_manager.cpp').read_text(encoding='utf-8')
         for forbidden in ('HAL_PWR_EnterSTANDBYMode(', 'HAL_PWREx_EnterSTOPMode(',
                           'HAL_PWR_EnterSTOPMode(', 'saveConfig(', 'setBootMode(',
                           'prepareForStandby(', 'prepareSystemSleep(',
@@ -171,7 +176,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
             self.assertNotIn(forbidden, source)
         self.assertNotIn('setCh585Enabled(false)', source)
         self.assertIn('SystemStop_Enter(', source.split('void SystemSleep_Idle(void)')[1])
-        stop = (ROOT / 'application/Cpp_Core/Src/system_stop.cpp').read_text(encoding='utf-8')
+        stop = (ROOT / 'application/Src/power/system_stop.cpp').read_text(encoding='utf-8')
         for forbidden in ('HAL_PWR_EnterSTANDBYMode(', 'HAL_FLASH_', 'HAL_RTCEx_BKUPWrite('):
             self.assertNotIn(forbidden, stop)
         self.assertEqual(stop.count('__WFI()'), 1)
@@ -179,13 +184,13 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
         self.assertIn('SCB_CleanDCache_by_Addr', stop)
         config = (ROOT / 'application/Makefile').read_text(encoding='utf-8')
         self.assertIn('HBOX_AUTO_SLEEP_ENABLED ?= 1', config)
-        board = (ROOT / 'application/Core/Inc/board_cfg.h').read_text(encoding='utf-8')
+        board = (ROOT / 'application/Inc/system/board_cfg.h').read_text(encoding='utf-8')
         self.assertIn('#ifndef HBOX_AUTO_SLEEP_ENABLED\n#define HBOX_AUTO_SLEEP_ENABLED 1', board)
 
     def test_stop_restores_run_voltage_before_fast_clocks(self):
         # Source-order contract, not a simulation of regulator readiness.
         # STOP clears Run VOS to VOS3 even when VOSRDY is already set.
-        stop = (ROOT / 'application/Cpp_Core/Src/system_stop.cpp').read_text(encoding='utf-8')
+        stop = (ROOT / 'application/Src/power/system_stop.cpp').read_text(encoding='utf-8')
         save = stop.index('const uint32_t oldVos = PWR->D3CR & PWR_D3CR_VOS;')
         sleep = stop.index('__WFI()')
         restore = stop.index('MODIFY_REG(PWR->D3CR, PWR_D3CR_VOS, oldVos);')

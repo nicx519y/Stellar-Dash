@@ -22,7 +22,7 @@
 
 - TX/RX 当前均为 CH585，SDK 通过各自 Makefile 的 `SDK_ROOT` 引用外部 EVT；默认工具链 `riscv32-wch-elf-`，不再使用已删除的 RFModule/dongle 工程。
 - 空口版本、包长、ACK 时序和 capability 以定义及实际调用路径为准。修改 wire format 时同时检查 STM32、TX、RX 和 monitor 对应编解码，不能混用 SPI payload、空口包和 HID report 的长度。
-- SPI 输入已由 STM32 实际桥接驱动发送；当前格式入口为 [rf_transport.cpp](../application/Cpp_Core/Src/rf_transport.cpp)，不是旧的 15B 原始手柄负载。
+- SPI 输入已由 STM32 实际桥接驱动发送；当前格式入口为 [rf_transport.cpp](../application/Src/transport/rf/rf_transport.cpp)，不是旧的 15B 原始手柄负载。
 
 ## 必须保留的行为边界
 

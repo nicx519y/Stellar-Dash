@@ -4,6 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -15,14 +20,13 @@ class LedConfigSafetyTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(prefix="hbox-led-safety-") as temp:
             executable = Path(temp) / "led_config_safety_test.exe"
-            compile_result = subprocess.run(
+            compile_result = run_native(
                 [
                     compiler,
                     "-std=c++17",
                     "-Wall",
                     "-Wextra",
-                    "-I",
-                    str(ROOT / "application" / "Cpp_Core" / "Inc"),
+                    *application_include_flags(),
                     str(ROOT / "tools" / "tests" / "led_config_safety_test.cpp"),
                     "-o",
                     str(executable),
@@ -37,7 +41,7 @@ class LedConfigSafetyTests(unittest.TestCase):
                 0,
                 compile_result.stdout + compile_result.stderr,
             )
-            run_result = subprocess.run(
+            run_result = run_native(
                 [str(executable)],
                 cwd=ROOT,
                 capture_output=True,
@@ -53,21 +57,16 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_runtime_and_storage_paths_use_the_shared_guard(self) -> None:
         manager = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "leds" / "leds_manager.cpp"
+            ROOT / 'application/Src/leds/leds_manager.cpp'
         ).read_text(encoding="utf-8")
         config = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "config.cpp"
+            ROOT / 'application/Src/config/config.cpp'
         ).read_text(encoding="utf-8")
         webconfig_state = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "states"
-            / "webconfig_state.cpp"
+            ROOT / 'application/Src/system/states/webconfig_state.cpp'
         ).read_text(encoding="utf-8")
         board_config = (
-            ROOT / "application" / "Core" / "Inc" / "board_cfg.h"
+            ROOT / 'application/Inc/system/board_cfg.h'
         ).read_text(encoding="utf-8")
 
         self.assertNotIn("3000 / opts->ledAnimationSpeed", manager)
@@ -88,7 +87,7 @@ class LedConfigSafetyTests(unittest.TestCase):
         self.assertIn("frontColor = hexToRGB(opts->ledColor1);", manager)
 
     def test_ws2812_single_frame_dma_ownership_and_timing(self) -> None:
-        driver = (ROOT / "application/Drivers/PWM-WS2812B/pwm-ws2812b.c").read_text(encoding="utf-8")
+        driver = (ROOT / 'application/Src/leds/drivers/ws2812b/pwm-ws2812b.c').read_text(encoding="utf-8")
         timer = (ROOT / "application/Core/Src/tim.c").read_text(encoding="utf-8")
         self.assertNotIn("double_t brightness", driver)
         self.assertNotIn("SCB_CleanInvalidateDCache_by_Addr", driver)
@@ -140,10 +139,10 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_led_switches_control_only_the_selected_rail(self) -> None:
         manager = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "leds" / "leds_manager.cpp"
+            ROOT / 'application/Src/leds/leds_manager.cpp'
         ).read_text(encoding="utf-8")
         driver = (
-            ROOT / "application" / "Drivers" / "PWM-WS2812B" / "pwm-ws2812b.c"
+            ROOT / 'application/Src/leds/drivers/ws2812b/pwm-ws2812b.c'
         ).read_text(encoding="utf-8")
 
         key_start = manager.index("void LEDsManager::enableSwitch()")
@@ -174,7 +173,7 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_webconfig_preview_updates_led_strips_in_place(self) -> None:
         manager = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "leds" / "leds_manager.cpp"
+            ROOT / 'application/Src/leds/leds_manager.cpp'
         ).read_text(encoding="utf-8")
 
         preview_start = manager.index("void LEDsManager::setTemporaryConfig")
@@ -191,14 +190,10 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_key_led_count_and_tail_mapping_are_exact(self) -> None:
         board_config = (
-            ROOT / "application" / "Core" / "Inc" / "board_cfg.h"
+            ROOT / 'application/Inc/system/board_cfg.h'
         ).read_text(encoding="utf-8")
         driver = (
-            ROOT
-            / "application"
-            / "Drivers"
-            / "PWM-WS2812B"
-            / "pwm-ws2812b.c"
+            ROOT / 'application/Src/leds/drivers/ws2812b/pwm-ws2812b.c'
         ).read_text(encoding="utf-8")
 
         self.assertEqual(board_config.count("ADC_REGULAR_RANK_"), 18)
@@ -214,26 +209,16 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_product_led_runtime_has_expected_caps_and_no_isolation_mode(self) -> None:
         board_config = (
-            ROOT / "application" / "Core" / "Inc" / "board_cfg.h"
+            ROOT / 'application/Inc/system/board_cfg.h'
         ).read_text(encoding="utf-8")
         controller = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "leds"
-            / "led_strip_controller.cpp"
+            ROOT / 'application/Src/leds/led_strip_controller.cpp'
         ).read_text(encoding="utf-8")
         main_source = (
             ROOT / "application" / "Core" / "Src" / "main.c"
         ).read_text(encoding="utf-8")
         screen = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "screen_control"
-            / "spi_screen_manager.cpp"
+            ROOT / 'application/Src/display/screen_control/spi_screen_manager.cpp'
         ).read_text(encoding="utf-8")
 
         self.assertIn("#define FPS_OF_LED_ANIMATION        30", board_config)
@@ -257,10 +242,10 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_all_configured_effects_generate_and_submit_frames(self) -> None:
         animation = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "leds" / "led_animation.cpp"
+            ROOT / 'application/Src/leds/led_animation.cpp'
         ).read_text(encoding="utf-8")
         manager = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "leds" / "leds_manager.cpp"
+            ROOT / 'application/Src/leds/leds_manager.cpp'
         ).read_text(encoding="utf-8")
 
         for effect in (
@@ -288,12 +273,7 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_calibration_colors_are_submitted_to_the_key_strip(self) -> None:
         calibration = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "adc_btns"
-            / "adc_calibration.cpp"
+            ROOT / 'application/Src/input/adc_btns/adc_calibration.cpp'
         ).read_text(encoding="utf-8")
 
         process = calibration[
@@ -315,12 +295,7 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_calibration_uses_public_adc_scale_and_turns_key_strip_off(self) -> None:
         calibration = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "adc_btns"
-            / "adc_calibration.cpp"
+            ROOT / 'application/Src/input/adc_btns/adc_calibration.cpp'
         ).read_text(encoding="utf-8")
 
         scale_helper = calibration[
@@ -350,10 +325,10 @@ class LedConfigSafetyTests(unittest.TestCase):
 
     def test_power_and_led_runtime_initialization_order(self) -> None:
         state_machine = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "main_state_machine.cpp"
+            ROOT / 'application/Src/system/main_state_machine.cpp'
         ).read_text(encoding="utf-8")
         input_state = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "states" / "input_state.cpp"
+            ROOT / 'application/Src/system/states/input_state.cpp'
         ).read_text(encoding="utf-8")
 
         interactive_start = state_machine.index(

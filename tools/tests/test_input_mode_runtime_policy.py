@@ -4,9 +4,14 @@ import subprocess
 import tempfile
 import unittest
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-INC = ROOT / "application" / "Cpp_Core" / "Inc"
+INC = ROOT / 'application/Inc'
 
 
 class InputModeRuntimePolicyTest(unittest.TestCase):
@@ -16,12 +21,11 @@ class InputModeRuntimePolicyTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp:
             executable = pathlib.Path(temp) / "input_mode_runtime_policy_test"
-            compiled = subprocess.run(
+            compiled = run_native(
                 [
                     compiler,
                     "-std=c++17",
-                    "-I",
-                    str(INC),
+                    *application_include_flags(),
                     str(ROOT / "tools" / "tests" /
                         "input_mode_runtime_policy_test.cpp"),
                     "-o",
@@ -32,13 +36,13 @@ class InputModeRuntimePolicyTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
-            ran = subprocess.run(
+            ran = run_native(
                 [str(executable)], capture_output=True, text=True, check=False
             )
             self.assertEqual(ran.returncode, 0, ran.stderr)
 
     def test_connection_state_uses_module_status_only(self) -> None:
-        source = (INC.parent / "Src" / "connection_manager.cpp").read_text(
+        source = (ROOT / 'application/Src/transport/connection_manager.cpp').read_text(
             encoding="utf-8"
         )
         report_start = source.index("bool ConnectionManager::onReportReady")
@@ -51,7 +55,7 @@ class InputModeRuntimePolicyTest(unittest.TestCase):
 
     def test_rf_xinput_and_fn_paths_are_wired(self) -> None:
         source = (
-            INC.parent / "Src" / "states" / "input_state.cpp"
+            ROOT / 'application/Src/system/states/input_state.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("requiresRfXInputPersistence", source)
         self.assertIn("STORAGE_MANAGER.setInputMode(INPUT_MODE_XINPUT)", source)
@@ -62,8 +66,7 @@ class InputModeRuntimePolicyTest(unittest.TestCase):
 
     def test_ps5_is_the_primary_ui_entry(self) -> None:
         screen = (
-            INC.parent / "Src" / "screen_control" /
-            "spi_screen_detail_input_mode.cpp"
+            ROOT / 'application/Src/display/screen_control/spi_screen_detail_input_mode.cpp'
         ).read_text(encoding="utf-8")
         web = (
             ROOT / "application" / "www" / "components" /

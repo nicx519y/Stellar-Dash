@@ -1,7 +1,6 @@
 import {
   Box,
   Button,
-  Card,
   Center,
   HStack,
   Portal,
@@ -9,7 +8,6 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { Alert } from "@/components/ui/alert";
 import { LuCheck, LuSlidersHorizontal, LuUsb } from "react-icons/lu";
 import { useLanguage } from "@/contexts/language-context";
 import { DeviceConnectionPhase } from "@/lib/device-transport/device-command-types";
@@ -17,11 +15,13 @@ import { CONNECTION_TEXT, connectionPresentation } from "@/lib/connection-presen
 import * as React from "react";
 import type { ConfigSyncProgress } from '@/lib/device-transport/config-sync';
 
-type LoadingVariant = "connection" | "no-device" | "operation";
+type LoadingVariant = "connection" | "operation";
+type ConnectionState = "waiting" | "connecting";
 
 interface LoadingModalProps {
   isOpen: boolean;
   variant?: LoadingVariant;
+  connectionState?: ConnectionState;
   headerAction?: React.ReactNode;
   connectionPhase?: DeviceConnectionPhase;
   configReadProgress?: ConfigSyncProgress;
@@ -48,22 +48,8 @@ function ConnectionLoading({
   const steps = [text.connect, text.sync, text.ready];
 
   return (
-    <Box
-      data-testid="device-status-card"
-      data-loading-variant="connection"
-      role="status"
-      aria-live="polite"
-      aria-label={text.title}
-      width={{ base: "calc(100vw - 32px)", sm: "520px" }}
-      border="1px solid"
-      borderColor="rgba(159, 211, 133, 0.2)"
-      borderRadius="24px"
-      bg="linear-gradient(145deg, #17221d 0%, #101619 45%, #0d1218 100%)"
-      boxShadow="0 32px 100px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-      overflow="hidden"
-      color="whiteAlpha.900"
-    >
-      <Box px={{ base: 5, sm: 8 }} pt={8} pb={7}>
+    <>
+      <Box flex={1} minHeight={0} overflowY="auto" px={{ base: 5, sm: 8 }} pt={8} pb={7}>
         <HStack justify="space-between" mb={6}>
           <Center boxSize="52px" borderRadius="16px" bg="rgba(145, 201, 116, 0.1)"
             border="1px solid rgba(145, 201, 116, 0.22)" color="#b7e59b" aria-hidden="true">
@@ -113,12 +99,12 @@ function ConnectionLoading({
           ))}
         </HStack>
       </Box>
-      <HStack px={{ base: 5, sm: 8 }} py={4} gap={2} borderTop="1px solid" borderColor="whiteAlpha.100"
+      <HStack flexShrink={0} px={{ base: 5, sm: 8 }} py={4} gap={2} borderTop="1px solid" borderColor="whiteAlpha.100"
         bg="rgba(0, 0, 0, 0.12)" color="whiteAlpha.600">
         <LuUsb size={14} aria-hidden="true" />
         <Text fontSize="xs">{text.keepConnected}</Text>
       </HStack>
-    </Box>
+    </>
   );
 }
 
@@ -135,79 +121,128 @@ function NoDeviceStatus({
 }) {
   const { t } = useLanguage();
   return (
-    <Card.Root
-      data-testid="device-status-card"
-      data-loading-variant="no-device"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title ?? t.RECONNECT_MODAL_TITLE}
-      width={{ base: "calc(100vw - 32px)", sm: "min(600px, calc(100vw - 48px))" }}
-      borderRadius={{ base: "18px", sm: "22px" }}
-      border="1px solid"
-      borderColor="whiteAlpha.200"
-      bg="rgba(13, 18, 24, 0.96)"
-      boxShadow="0 28px 90px rgba(0, 0, 0, 0.55)"
-      overflow="hidden"
-    >
-      <Card.Header pb={3}>
-        <Card.Title fontSize={{ base: "xl", sm: "2xl" }}>
+    <>
+      <Box flex={1} minHeight={0} overflowY="auto" px={{ base: 5, sm: 8 }} pt={8} pb={7}>
+        <HStack justify="space-between" mb={6}>
+          <Center boxSize="52px" borderRadius="16px" bg="rgba(145, 201, 116, 0.1)"
+            border="1px solid rgba(145, 201, 116, 0.22)" color="#b7e59b" aria-hidden="true">
+            <LuUsb size={24} />
+          </Center>
+          <Text fontSize="xs" letterSpacing="0.16em" color="whiteAlpha.600" fontWeight="600">XORA / WEBCONFIG</Text>
+        </HStack>
+        <Text as="h2" fontSize={{ base: "xl", sm: "2xl" }} fontWeight="600" letterSpacing="-0.025em">
           {title ?? t.RECONNECT_MODAL_TITLE}
-        </Card.Title>
-      </Card.Header>
-
-      <Card.Body pt={0}>
-        <Stack gap={3}>
+        </Text>
+        <Stack gap={3} mt={6}>
           {(steps ?? []).map((step, index) => (
             <HStack key={step} alignItems="flex-start" gap={3}>
-              <Center
-                flex="0 0 auto"
-                width="28px"
-                height="28px"
-                borderRadius="full"
-                bg="green.500"
-                color="white"
-                fontSize="sm"
-                fontWeight="700"
-              >
+              <Center flexShrink={0} boxSize="22px" borderRadius="full"
+                bg="rgba(145, 201, 116, 0.1)" color="#b7e59b" fontSize="xs" fontWeight="600">
                 {index + 1}
               </Center>
-              <Text pt="3px" color="whiteAlpha.900" lineHeight="1.5">
-                {step}
-              </Text>
+              <Text fontSize="sm" color="whiteAlpha.700" lineHeight="1.7">{step}</Text>
             </HStack>
           ))}
-
           {message && (
-            <Alert colorPalette="yellow" mt={2}>
+            <Text mt={2} fontSize="xs" lineHeight="1.7" color="#d6cba9"
+              borderLeft="2px solid" borderColor="rgba(214, 203, 169, 0.4)" pl={3}>
               {message}
-            </Alert>
+            </Text>
           )}
         </Stack>
-      </Card.Body>
-
+      </Box>
       {action && (
-        <Card.Footer
-          justifyContent="flex-end"
-          borderTop="1px solid"
-          borderColor="whiteAlpha.100"
-          pt={4}
-        >
-          <Button
-            colorPalette="green"
-            onClick={action.onClick}
-            loading={action.loading}
-          >
+        <HStack flexShrink={0} justify="flex-end" px={{ base: 5, sm: 8 }} py={4}
+          borderTop="1px solid" borderColor="whiteAlpha.100" bg="rgba(0, 0, 0, 0.12)">
+          <Button size="sm" fontSize="sm" colorPalette="green" onClick={action.onClick} loading={action.loading}>
             {action.label}
           </Button>
-        </Card.Footer>
+        </HStack>
       )}
-    </Card.Root>
+    </>
+  );
+}
+
+/** Both states share a fixed shell; only the content fades between them. */
+function DeviceConnectionCard({ state, children, title }: {
+  state: ConnectionState;
+  children: React.ReactNode;
+  title: string;
+}) {
+  const shell = React.useRef<HTMLDivElement>(null);
+  const body = React.useRef<HTMLDivElement>(null);
+  const [displayed, setDisplayed] = React.useState(state);
+  const committed = React.useRef<(() => void) | null>(null);
+  const snapshot = React.useRef({ children, title });
+  if (displayed === state) snapshot.current = { children, title };
+
+  React.useLayoutEffect(() => { committed.current?.(); committed.current = null; }, [displayed]);
+  React.useLayoutEffect(() => {
+    const container = shell.current;
+    const content = body.current;
+    if (!container || !content) return;
+    let cancelled = false;
+    const animations: Animation[] = [];
+    const animate = async (element: HTMLElement, frames: Keyframe[], duration: number) => {
+      const animation = element.animate(frames, { duration, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+      animations.push(animation);
+      await animation.finished.catch(() => {});
+    };
+    const changeContent = async () => {
+      if (displayed !== state) {
+        await new Promise<void>(resolve => { committed.current = resolve; setDisplayed(state); });
+      }
+    };
+    const transition = async () => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        await changeContent();
+      } else if (displayed !== state || (content.style.opacity !== '' && content.style.opacity !== '1')) {
+        container.dataset.transition = 'fade-out';
+        await animate(content, [{ opacity: getComputedStyle(content).opacity }, { opacity: 0 }], 160);
+        if (cancelled) return;
+        await changeContent();
+        if (cancelled) return;
+        container.dataset.transition = 'fade-in';
+        await animate(content, [{ opacity: 0 }, { opacity: 1 }], 180);
+      }
+      if (cancelled) return;
+      animations.forEach(animation => animation.cancel());
+      content.style.opacity = '';
+      container.dataset.transition = 'idle';
+    };
+    void transition();
+    return () => {
+      cancelled = true;
+      // Preserve opacity if a new state interrupts the fade.
+      content.style.opacity = getComputedStyle(content).opacity;
+      animations.forEach(animation => animation.cancel());
+      committed.current?.();
+      committed.current = null;
+    };
+    // Progress/text changes update in place; only the connection state starts a transition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  return (
+    <Box ref={shell} data-testid="device-status-card" data-loading-variant="connection"
+      data-connection-state={displayed} role="dialog" aria-modal="true" aria-label={snapshot.current.title}
+      width="min(520px, calc(100vw - 32px))" height={{ base: "520px", sm: "456px" }} boxSizing="border-box"
+      border="1px solid" borderColor="rgba(159, 211, 133, 0.2)" borderRadius="24px"
+      bg="linear-gradient(145deg, #17221d 0%, #101619 45%, #0d1218 100%)"
+      boxShadow="0 32px 100px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
+      overflow="hidden" color="whiteAlpha.900">
+      <Box ref={body} height="100%" display="flex" flexDirection="column"
+        aria-live="polite" inert={displayed !== state ? true : undefined}>
+        {snapshot.current.children}
+      </Box>
+    </Box>
   );
 }
 
 export function LoadingModal({
   isOpen,
   variant = "operation",
+  connectionState = "connecting",
   headerAction,
   connectionPhase = DeviceConnectionPhase.OPENING,
   configReadProgress = { completed: 0, total: 0 },
@@ -216,10 +251,10 @@ export function LoadingModal({
   noDeviceSteps,
   noDeviceMessage,
 }: LoadingModalProps) {
+  const { t, currentLanguage } = useLanguage();
   if (!isOpen) return null;
 
-  const isConnection = variant === "connection";
-  const isDeviceStatus = isConnection || variant === "no-device";
+  const isDeviceStatus = variant === "connection";
 
   return (
     <Portal>
@@ -246,15 +281,18 @@ export function LoadingModal({
           backdropFilter={isDeviceStatus ? "blur(10px) saturate(0.72)" : "blur(4px)"}
         />
         <Box position="relative" zIndex={1} my="auto">
-          {isConnection ? (
-            <ConnectionLoading phase={connectionPhase} progress={configReadProgress} />
-          ) : variant === "no-device" ? (
-            <NoDeviceStatus
+          {isDeviceStatus ? (
+            <DeviceConnectionCard state={connectionState} title={connectionState === 'waiting'
+              ? noDeviceTitle ?? t.RECONNECT_MODAL_TITLE : CONNECTION_TEXT[currentLanguage].title}>
+              {connectionState === 'connecting' ? (
+                <ConnectionLoading phase={connectionPhase} progress={configReadProgress} />
+              ) : <NoDeviceStatus
               action={noDeviceAction}
               title={noDeviceTitle}
               steps={noDeviceSteps}
               message={noDeviceMessage}
-            />
+              />}
+            </DeviceConnectionCard>
           ) : (
             <Center p={8} data-loading-variant="operation">
               <Spinner color="green.500" size="xl" />

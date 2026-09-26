@@ -6,6 +6,11 @@ import tempfile
 import unittest
 from tools.tests.test_rf_runtime_recovery import function
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
@@ -17,12 +22,12 @@ class TraceTransportTests(unittest.TestCase):
             src = pathlib.Path(folder) / "test.cpp"
             exe = pathlib.Path(folder) / "test.exe"
             src.write_text(code, encoding="utf-8")
-            built = subprocess.run([compiler, "-std=c++17", "-Wall", "-Werror", "-Wno-unused-function",
-                                    "-I", str(ROOT / "application/Cpp_Core/Inc"),
+            built = run_native([compiler, "-std=c++17", "-Wall", "-Werror", "-Wno-unused-function",
+                                    *application_include_flags(),
                                     "-I", str(ROOT / "RF_PHY_Hop/Common/include"), str(src), "-o", str(exe)],
                                    capture_output=True, text=True)
             self.assertEqual(built.returncode, 0, built.stderr)
-            result = subprocess.run([str(exe)], capture_output=True, text=True)
+            result = run_native([str(exe)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_spi_timeout_uses_cycles_not_poll_count(self):
@@ -76,7 +81,7 @@ int main(){
 
 
     def test_runtime_short_sync_is_prefilled_and_control_pacing_unchanged(self):
-        source = (ROOT / "application/Cpp_Core/Src/rf_bridge_port.cpp").read_text(encoding="utf-8")
+        source = (ROOT / 'application/Src/transport/rf/rf_bridge_port.cpp').read_text(encoding="utf-8")
         self.run_cpp(r'''
 #include <stdint.h>
 #include <cstring>

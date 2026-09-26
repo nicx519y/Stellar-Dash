@@ -1228,8 +1228,10 @@ def _internal_openocd_prefix(
         "telnet_port disabled",
     ])
     if connect_under_reset:
-        command.extend(["-c", "reset_config connect_assert_srst"])
-    command.extend(["-c", "init", "-c", "reset halt"])
+        for recovery_command in BuildTool._openocd_reset_recovery_commands():
+            command.extend(["-c", recovery_command])
+    else:
+        command.extend(["-c", "init", "-c", "reset halt"])
     return command
 
 
@@ -1277,7 +1279,7 @@ def probe_target_identity(
     except local.LocalWebConfigError:
         print(
             "STM32 identity probe: normal SWD connection failed; "
-            "retrying at 400 kHz with connect-under-reset."
+            "retrying at 400 kHz with NRST reset/release recovery."
         )
         result = run_probe(connect_under_reset=True)
     output = result.stdout or ""

@@ -8,22 +8,10 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 AUTH_HOST = ROOT / "RF_PHY_Hop" / "TX" / "USB" / "usb_auth_host.c"
 STM_XINPUT_AUTH = (
-    ROOT
-    / "application"
-    / "Cpp_Core"
-    / "Src"
-    / "drivers"
-    / "xinput"
-    / "XInputAuthUSBListener.cpp"
+    ROOT / 'application/Src/transport/usb/legacy/drivers/xinput/XInputAuthUSBListener.cpp'
 )
 STM_XINPUT_ABI = (
-    ROOT
-    / "application"
-    / "Cpp_Core"
-    / "Inc"
-    / "drivers"
-    / "xinput"
-    / "XInputAuth.hpp"
+    ROOT / 'application/Inc/transport/usb/legacy/drivers/xinput/XInputAuth.hpp'
 )
 
 

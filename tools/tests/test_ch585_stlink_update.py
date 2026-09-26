@@ -21,7 +21,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_stm32_staging_accepts_sha256_success_return_value(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "ch585_firmware_update.cpp"
+            ROOT / 'application/Src/firmware/ch585_firmware_update.cpp'
         ).read_text(encoding="utf-8")
         self.assertGreaterEqual(source.count("sha256_calculate_raw("), 3)
         self.assertEqual(
@@ -147,7 +147,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_iap_retry_contract_is_explicit(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "ch585_iap_client.cpp"
+            ROOT / 'application/Src/firmware/ch585_iap_client.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("previousTimedOut", source)
         self.assertIn("CH585_IAP_STATUS_BAD_ADDRESS", source)
@@ -157,11 +157,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_qspi_mapping_state_is_set_only_after_hal_success(self) -> None:
         source = (
-            ROOT
-            / "application"
-            / "Drivers"
-            / "QSPI-W25Q64"
-            / "qspi-w25q64.c"
+            ROOT / 'application/Src/config/drivers/qspi/qspi-w25q64.c'
         ).read_text(encoding="utf-8")
         call = source.index("HAL_QSPI_MemoryMapped(&hqspi")
         assignment = source.index("xip_enabled = (status == HAL_OK)", call)
@@ -169,7 +165,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_updater_runs_before_logger_storage_and_screen(self) -> None:
         state_machine = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "main_state_machine.cpp"
+            ROOT / 'application/Src/system/main_state_machine.cpp'
         ).read_text(encoding="utf-8")
         ready = state_machine.index("CH585_FIRMWARE_UPDATE.hasReadyStagedImage()")
         bridge = state_machine.index("enterState(MainRuntimeState::Ch585BridgeUpdate)", ready)
@@ -177,8 +173,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertLess(ready, bridge)
         self.assertLess(bridge, interactive)
         bridge_state = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "states" /
-            "ch585_bridge_update_state.cpp"
+            ROOT / 'application/Src/system/states/ch585_bridge_update_state.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("performPendingUpdate", bridge_state)
         main = (ROOT / "application" / "Core" / "Src" / "main.c").read_text(
@@ -188,7 +183,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_firmware_qspi_writes_use_24_bit_flash_offsets(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "ch585_firmware_update.cpp"
+            ROOT / 'application/Src/firmware/ch585_firmware_update.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("return mappedAddress & 0x00FFFFFFu", source)
         self.assertIn("const uint32_t target = flashOffset(mappedTarget)", source)
@@ -197,8 +192,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_unclaimed_ready_does_not_reset_loop(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "states" /
-            "ch585_bridge_update_state.cpp"
+            ROOT / 'application/Src/system/states/ch585_bridge_update_state.cpp'
         ).read_text(encoding="utf-8")
         guard = source.index("if (!CH585_FIRMWARE_UPDATE.wasClaimed())")
         request = source.index("MAIN_STATE_MACHINE.requestReset()", guard)
@@ -206,15 +200,14 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_iap_has_pre_destructive_serial_milestones(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "ch585_iap_client.cpp"
+            ROOT / 'application/Src/firmware/ch585_iap_client.cpp'
         ).read_text(encoding="utf-8")
         for stage in ('"M00"', '"M00C"', '"M00P"', '"M00L"'):
             self.assertIn(stage, source)
 
     def test_role_bootstrap_waits_for_clean_iap_handoff_before_select_role(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_role_bootstrap.cpp"
+            ROOT / 'application/Src/transport/ch585_role_bootstrap.cpp'
         ).read_text(encoding="utf-8")
         wait_ready = source.index("RFBootReady::waitForModuleReady")
         select = source.index("selectOnce(requestedRole)", wait_ready)
@@ -223,24 +216,21 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertNotIn("probeRunningLoader", source)
 
         port = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link_port.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link_port.cpp'
         ).read_text(encoding="utf-8")
         self.assertNotIn("USBBoardLinkPort_RequestApplicationBoot", port)
         self.assertNotIn("probeRunningLoader", (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_iap_client.cpp"
+            ROOT / 'application/Src/firmware/ch585_iap_client.cpp'
         ).read_text(encoding="utf-8"))
 
         board_cfg = (
-            ROOT / "application" / "Core" / "Inc" / "board_cfg.h"
+            ROOT / 'application/Inc/system/board_cfg.h'
         ).read_text(encoding="utf-8")
         self.assertIn("CH585_ROLE_SELECT_TIMEOUT_MS          1200u", board_cfg)
 
     def test_role_ack_keeps_proven_spi_rate_through_caps(self) -> None:
         port = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link_port.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link_port.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("bool USBBoardLinkPort_InitApplication()", port)
         app_start = port.index("bool USBBoardLinkPort_InitApplication()")
@@ -253,8 +243,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
             port[app_start:app_start + 1800],
         )
         link = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link.cpp'
         ).read_text(encoding="utf-8")
         role_ack = link.index("selectedRole = role;")
         steady = link.index("USBBoardLinkPort_InitApplication()", role_ack)
@@ -262,8 +251,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_caps_liveness_is_not_invalidated_by_transient_credit_send(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link.cpp'
         ).read_text(encoding="utf-8")
         caps_start = source.index("bool UsbBoardLink::getCapabilities()")
         credits_start = source.index(
@@ -277,8 +265,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_four_byte_get_caps_advances_dma_without_filling_it(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link_port.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link_port.cpp'
         ).read_text(encoding="utf-8")
         send_start = source.index("bool USBBoardLinkPort_Send(")
         transact_start = source.index(
@@ -299,8 +286,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_select_role_stays_exactly_five_bytes_on_wire(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link_port.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link_port.cpp'
         ).read_text(encoding="utf-8")
         send_start = source.index("bool USBBoardLinkPort_Send(")
         transact_start = source.index(
@@ -380,8 +366,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertLess(pulse, loop)
 
         stm32_link = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "usb_board_link.cpp"
+            ROOT / 'application/Src/transport/usb/usb_board_link.cpp'
         ).read_text(encoding="utf-8")
         role_valid = stm32_link.index(
             "if (!validExplicitSelection && !validUsbSubsystemSelection)"
@@ -400,32 +385,27 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_failed_ch585_update_never_forces_a_manual_isp_state(self) -> None:
         main = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "main_state_machine.cpp"
+            ROOT / 'application/Src/system/main_state_machine.cpp'
         ).read_text(encoding="utf-8")
         self.assertNotIn("Ch585UsbIsp", main)
         self.assertNotIn("isManualIspActive", main)
         self.assertNotIn("hasFailed()", main)
         self.assertFalse((
-            ROOT / "application" / "Cpp_Core" / "Src" / "states" /
-            "ch585_usb_isp_state.cpp"
+            ROOT / 'application/Src/system/states/ch585_usb_isp_state.cpp'
         ).exists())
         self.assertFalse((
-            ROOT / "application" / "Cpp_Core" / "Src" / "screen_control" /
-            "spi_screen_detail_ch585_flash.cpp"
+            ROOT / 'application/Src/display/screen_control/spi_screen_detail_ch585_flash.cpp'
         ).exists())
 
         sleep = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "system_sleep_manager.cpp"
+            ROOT / 'application/Src/power/system_sleep_manager.cpp'
         ).read_text(encoding="utf-8")
         self.assertNotIn("HAL_PWR_EnterSTANDBYMode", sleep)
         self.assertIn("deep Standby request ignored", sleep)
 
     def test_failed_update_journal_remains_retryable_without_recovery_state(self) -> None:
         updater = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_firmware_update.cpp"
+            ROOT / 'application/Src/firmware/ch585_firmware_update.cpp'
         ).read_text(encoding="utf-8")
         start = updater.index("bool Ch585FirmwareUpdate::requestRetry()")
         body = updater[start:]
@@ -437,8 +417,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_five_peer_states_and_ready_only_diversion_are_explicit(self) -> None:
         header = (
-            ROOT / "application" / "Cpp_Core" / "Inc" /
-            "main_state_machine.hpp"
+            ROOT / 'application/Inc/system/main_state_machine.hpp'
         ).read_text(encoding="utf-8")
         for state in (
             "Input", "WebConfig", "Calibration", "Ch585BridgeUpdate",
@@ -447,8 +426,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
             self.assertIn(state, header)
         self.assertNotIn("Ch585UsbIsp", header)
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "main_state_machine.cpp"
+            ROOT / 'application/Src/system/main_state_machine.cpp'
         ).read_text(encoding="utf-8")
         resolver = source.index("MainRuntimeState MainStateMachine::resolveNormalStartupState")
         ready = source.index("hasReadyStagedImage()", resolver)
@@ -469,7 +447,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_runtime_resets_are_coordinated_by_main_state_machine(self) -> None:
         roots = (
-            ROOT / "application" / "Cpp_Core" / "Src",
+            ROOT / 'application/Src',
         )
         direct = []
         for root in roots:
@@ -483,8 +461,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_deep_standby_is_globally_unreachable(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "system_sleep_manager.cpp"
+            ROOT / 'application/Src/power/system_sleep_manager.cpp'
         ).read_text(encoding="utf-8")
         self.assertNotIn("HAL_PWR_EnterSTANDBYMode", source)
         self.assertNotIn("prepareForStandby", source)
@@ -492,8 +469,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_application_caps_verification_retries_across_role_handoff(self) -> None:
         client = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_iap_client.cpp"
+            ROOT / 'application/Src/firmware/ch585_iap_client.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("kApplicationCapsWindowMs = 1000u", client)
         self.assertIn("kApplicationCapsRetryMs = 10u", client)
@@ -531,8 +507,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("rfm_board_latest_ch585_pulse_boot_ready();", ch585)
         stm32 = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "ch585_role_bootstrap.cpp"
+            ROOT / 'application/Src/transport/ch585_role_bootstrap.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("RFBootReady::waitForModuleReady", stm32)
 
@@ -556,7 +531,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
 
     def test_qspi_journal_write_invalidates_mapped_dcache_before_verify(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "ch585_firmware_update.cpp"
+            ROOT / 'application/Src/firmware/ch585_firmware_update.cpp'
         ).read_text(encoding="utf-8")
         remap = source.index(
             "QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK",

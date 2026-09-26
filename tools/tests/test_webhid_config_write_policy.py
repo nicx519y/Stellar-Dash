@@ -4,9 +4,14 @@ import subprocess
 import tempfile
 import unittest
 
+try:
+    from .application_paths import application_include_flags, run_native
+except ImportError:
+    from application_paths import application_include_flags, run_native
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-INC = ROOT / "application" / "Cpp_Core" / "Inc"
+INC = ROOT / 'application/Inc'
 
 
 class WebHidConfigWritePolicyTest(unittest.TestCase):
@@ -16,12 +21,11 @@ class WebHidConfigWritePolicyTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp:
             executable = pathlib.Path(temp) / "webhid_config_write_policy_test"
-            compiled = subprocess.run(
+            compiled = run_native(
                 [
                     compiler,
                     "-std=c++17",
-                    "-I",
-                    str(INC),
+                    *application_include_flags(),
                     str(ROOT / "tools" / "tests" /
                         "webhid_config_write_policy_test.cpp"),
                     "-o",
@@ -32,15 +36,14 @@ class WebHidConfigWritePolicyTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
-            ran = subprocess.run(
+            ran = run_native(
                 [str(executable)], capture_output=True, text=True, check=False
             )
             self.assertEqual(ran.returncode, 0, ran.stderr)
 
     def test_dispatcher_applies_policy_before_handlers(self) -> None:
         source = (
-            ROOT / "application" / "Cpp_Core" / "Src" /
-            "webhid_rpc_dispatcher.cpp"
+            ROOT / 'application/Src/webconfig/webhid_rpc_dispatcher.cpp'
         ).read_text(encoding="utf-8")
         gate = source.index("webhidShouldBlockConfigWrite")
         dispatch = source.index("processCommand(request)")

@@ -9,15 +9,10 @@ class WebHidBinaryAckContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.service = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         cls.image_handler = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "configs"
-            / "user_image_command_handler.cpp"
+            ROOT / 'application/Src/webconfig/configs/user_image_command_handler.cpp'
         ).read_text(encoding="utf-8")
 
     def test_correlated_stream_rejection_is_a_successful_transport_envelope(self) -> None:

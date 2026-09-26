@@ -6,7 +6,7 @@
 
 - 日常统一入口是 [hbox.py](hbox.py)。只读状态、构建、烧录和发布是不同操作；不得因为名字含 `build`、`test` 或 `verify` 就假定没有副作用，先核对实际调用路径。
 - 无锁开发板单独重刷 STM32 bootloader：`python tools/hbox.py build bootloader` 生成带无锁 manifest 的整扇区产物；`python tools/hbox.py flash bootloader` 只烧录并回读该产物，`--build` 才先重新构建。它们调用 [flash_bootloader_unlocked.py](flash_bootloader_unlocked.py)，写入内部完整 128KiB sector 0 会清空设备身份和最低安全版本。低层 `build.py flash bootloader` 仍是拒绝入口。
-- `hbox.py` 的上述分发变更待实机启动验收；冻结契约仍保留 2026-08-30 的旧 SHA-256，因此当前契约检查只会在 `tools/hbox.py` 项报告待验收差异。完成验收后再更新契约版本、日期和哈希。
+- `hbox.py` 的上述分发变更，以及 2026-09-25 `build.py` / `webconfig_flash.py` 的 NRST 回退修复，待完整实机烧录/启动验收；冻结契约保留 2026-08-30 的旧 SHA-256，当前这三项会报告待验收差异。NRST 修复的范围与验证见 [恢复连接记录](../docs/stm32-reset-recovery.md)。完成验收后再更新契约版本、日期和哈希。
 - [冻结契约](frozen_flash_contract.json) 中的文件不能夹带修改，不能为通过测试直接更新哈希。若任务确需改变它们，作为独立烧录流程变更处理并重新验收。
 - 完整 STM32 开发构建使用 `python tools/hbox.py web local-build --unlocked-development`；不要绕到默认 production 的旧构建示例。工具涉及产物模式时保持 manifest 检查，不能以命令成功代替镜像检查。
 - [webconfig_flash.py](webconfig_flash.py) 中的目标绑定、地址/大小校验、回读及提交顺序必须保留。`--execute` / `--simple-execute` 是实际硬件操作，不用于“测试一下命令”。

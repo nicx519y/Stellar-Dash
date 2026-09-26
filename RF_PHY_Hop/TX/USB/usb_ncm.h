@@ -12,8 +12,8 @@ extern "C" {
 
 /*
  * These values match the former STM32 TinyUSB WebConfig profile:
- * application/Cpp_Core/Inc/tusb_config.h
- * application/Cpp_Core/Src/drivers/net/NetDriver.cpp
+ * application/Inc/transport/usb/legacy/tusb_config.h
+ * application/Src/drivers/net/NetDriver.cpp
  * application/Libs/tinyusb/src/class/net/ncm_device.c
  */
 #define USB_NCM_EP0_BYTES                 64u

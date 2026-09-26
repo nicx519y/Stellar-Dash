@@ -5,21 +5,21 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CPP = ROOT / "application" / "Cpp_Core"
+CPP = ROOT / 'application'
 CORE = ROOT / "application" / "Core"
 
 
 class DeviceCommandTransportContractTests(unittest.TestCase):
     def test_legacy_websocket_runtime_is_deleted(self) -> None:
         removed = (
-            CPP / "Inc" / "configs" / "websocket_server.hpp",
-            CPP / "Src" / "configs" / "websocket_server.cpp",
-            CPP / "Inc" / "configs" / "websocket_message_queue.hpp",
-            CPP / "Src" / "configs" / "websocket_message_queue.cpp",
-            CPP / "Inc" / "configs" / "webconfig.hpp",
-            CPP / "Src" / "configs" / "webconfig.cpp",
-            CPP / "Inc" / "configmanager.hpp",
-            CPP / "Src" / "configmanager.cpp",
+            ROOT / 'application/Inc/webconfig/configs/websocket_server.hpp',
+            ROOT / 'application/Src/webconfig/configs/websocket_server.cpp',
+            ROOT / 'application/Inc/webconfig/configs/websocket_message_queue.hpp',
+            ROOT / 'application/Src/webconfig/configs/websocket_message_queue.cpp',
+            ROOT / 'application/Inc/webconfig/configs/webconfig.hpp',
+            ROOT / 'application/Src/webconfig/configs/webconfig.cpp',
+            ROOT / 'application/Inc/configmanager.hpp',
+            ROOT / 'application/Src/configmanager.cpp',
         )
         self.assertTrue(all(not path.exists() for path in removed))
 
@@ -42,13 +42,13 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
 
     def test_command_dispatch_is_transport_neutral(self) -> None:
         header = (
-            CPP / "Inc" / "configs" / "device_command_handler.hpp"
+            ROOT / 'application/Inc/webconfig/configs/device_command_handler.hpp'
         ).read_text(encoding="utf-8")
         registry = (
-            CPP / "Src" / "configs" / "device_command_handler.cpp"
+            ROOT / 'application/Src/webconfig/configs/device_command_handler.cpp'
         ).read_text(encoding="utf-8")
         message = (
-            CPP / "Inc" / "configs" / "device_command_message.hpp"
+            ROOT / 'application/Inc/webconfig/configs/device_command_message.hpp'
         ).read_text(encoding="utf-8")
         self.assertIn("class DeviceCommandHandler", header)
         self.assertIn("class DeviceCommandDispatcher", header)
@@ -58,10 +58,10 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
         self.assertNotIn("Connection", message)
 
     def test_config_transport_has_only_registered_hid_sinks(self) -> None:
-        source = (CPP / "Src" / "config_transport_sink.cpp").read_text(
+        source = (ROOT / 'application/Src/webconfig/config_transport_sink.cpp').read_text(
             encoding="utf-8"
         )
-        header = (CPP / "Inc" / "config_transport_sink.hpp").read_text(
+        header = (ROOT / 'application/Inc/webconfig/config_transport_sink.hpp').read_text(
             encoding="utf-8"
         )
         self.assertIn("jsonSink(json, length)", source)
@@ -71,12 +71,12 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
 
     def test_weak_device_auth_is_only_a_410_tombstone(self) -> None:
         handler = (
-            CPP / "Src" / "configs" / "firmware_command_handler.cpp"
+            ROOT / 'application/Src/webconfig/configs/firmware_command_handler.cpp'
         ).read_text(encoding="utf-8")
-        utility_source = (CORE / "Src" / "utils.c").read_text(
+        utility_source = (ROOT / 'application/Src/support/utils.c').read_text(
             encoding="utf-8"
         )
-        utility_header = (CORE / "Inc" / "utils.h").read_text(
+        utility_header = (ROOT / 'application/Inc/support/utils.h').read_text(
             encoding="utf-8"
         )
         self.assertIn('"Legacy weak device authentication is disabled"', handler)
@@ -86,20 +86,20 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
 
     def test_binary_handlers_reply_without_connection_objects(self) -> None:
         firmware_header = (
-            CPP / "Inc" / "configs" / "firmware_command_handler.hpp"
+            ROOT / 'application/Inc/webconfig/configs/firmware_command_handler.hpp'
         ).read_text(encoding="utf-8")
         image_header = (
-            CPP / "Inc" / "configs" / "user_image_command_handler.hpp"
+            ROOT / 'application/Inc/webconfig/configs/user_image_command_handler.hpp'
         ).read_text(encoding="utf-8")
         self.assertNotIn("Connection", firmware_header)
         self.assertNotIn("Connection", image_header)
 
     def test_binary_firmware_handler_borrows_read_only_payload(self) -> None:
         handler = (
-            CPP / "Src" / "configs" / "firmware_command_handler.cpp"
+            ROOT / 'application/Src/webconfig/configs/firmware_command_handler.cpp'
         ).read_text(encoding="utf-8")
         manager_header = (
-            CPP / "Inc" / "firmware" / "firmware_manager.hpp"
+            ROOT / 'application/Inc/firmware/firmware_manager.hpp'
         ).read_text(encoding="utf-8")
         binary_function = handler.split(
             "bool FirmwareCommandHandler::handleBinaryFirmwareChunk", 1
@@ -114,17 +114,17 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
 
     def test_legacy_performance_snapshot_is_not_published(self) -> None:
         source = (
-            CPP / "Src" / "configs" / "common_command_handler.cpp"
+            ROOT / 'application/Src/webconfig/configs/common_command_handler.cpp'
         ).read_text(encoding="utf-8")
         self.assertNotIn("sendButtonPerformanceMonitoringNotification", source)
         self.assertNotIn("buildButtonPerformanceMonitoringBinaryData", source)
 
     def test_large_rpc_response_uses_preallocated_single_ownership_serialization(self) -> None:
         dispatcher = (
-            CPP / "Src" / "webhid_rpc_dispatcher.cpp"
+            ROOT / 'application/Src/webconfig/webhid_rpc_dispatcher.cpp'
         ).read_text(encoding="utf-8")
         response_header = (
-            CPP / "Inc" / "configs" / "device_command_message.hpp"
+            ROOT / 'application/Inc/webconfig/configs/device_command_message.hpp'
         ).read_text(encoding="utf-8")
         self.assertIn("cJSON_PrintPreallocated", dispatcher)
         self.assertIn("serializedResponse", dispatcher)
@@ -134,10 +134,10 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
         self.assertNotIn("cJSON_PrintUnformatted", dispatcher)
 
         service_header = (
-            CPP / "Inc" / "webhid_service.hpp"
+            ROOT / 'application/Inc/webconfig/webhid_service.hpp'
         ).read_text(encoding="utf-8")
         service = (
-            CPP / "Src" / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("outboundStorage", service_header)
         self.assertIn("responseScratch", service_header)
@@ -147,13 +147,13 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
         self.assertNotIn("rpcExplicitSuccess", service)
 
     def test_webhid_backpressure_never_executes_behind_an_undrained_response(self) -> None:
-        service = (CPP / "Src" / "webhid_service.cpp").read_text(
+        service = (ROOT / 'application/Src/webconfig/webhid_service.cpp').read_text(
             encoding="utf-8"
         )
-        board_link = (CPP / "Src" / "usb_board_link.cpp").read_text(
+        board_link = (ROOT / 'application/Src/transport/usb/usb_board_link.cpp').read_text(
             encoding="utf-8"
         )
-        service_header = (CPP / "Inc" / "webhid_service.hpp").read_text(
+        service_header = (ROOT / 'application/Inc/webconfig/webhid_service.hpp').read_text(
             encoding="utf-8"
         )
 
@@ -173,8 +173,8 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
         self.assertNotIn("telemetryPreemptible", service + service_header)
 
     def test_config_save_skips_unchanged_payload_and_verifies_crc(self) -> None:
-        config = (CPP / "Src" / "config.cpp").read_text(encoding="utf-8")
-        storage = (CPP / "Src" / "storagemanager.cpp").read_text(
+        config = (ROOT / 'application/Src/config/config.cpp').read_text(encoding="utf-8")
+        storage = (ROOT / 'application/Src/config/storagemanager.cpp').read_text(
             encoding="utf-8"
         )
 

@@ -7,15 +7,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DISPATCHER = (
-    ROOT / "application" / "Cpp_Core" / "Src" / "webhid_rpc_dispatcher.cpp"
+    ROOT / 'application/Src/webconfig/webhid_rpc_dispatcher.cpp'
 )
 DEVICE_COMMAND_DISPATCHER = (
-    ROOT
-    / "application"
-    / "Cpp_Core"
-    / "Src"
-    / "configs"
-    / "device_command_handler.cpp"
+    ROOT / 'application/Src/webconfig/configs/device_command_handler.cpp'
 )
 FRONTEND_POLICY = (
     ROOT
@@ -133,7 +128,7 @@ class WebHidScopeMatrixTests(unittest.TestCase):
 
     def test_binary_and_stream_scope_matrix_is_fail_closed(self) -> None:
         service = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         required_fragments = (
             'strcmp(name, "firmware") == 0',
@@ -167,15 +162,10 @@ class WebHidScopeMatrixTests(unittest.TestCase):
         self,
     ) -> None:
         service = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         firmware_handler = (
-            ROOT
-            / "application"
-            / "Cpp_Core"
-            / "Src"
-            / "configs"
-            / "firmware_command_handler.cpp"
+            ROOT / 'application/Src/webconfig/configs/firmware_command_handler.cpp'
         ).read_text(encoding="utf-8")
 
         self.assertIn(
@@ -222,7 +212,7 @@ class WebHidScopeMatrixTests(unittest.TestCase):
         self,
     ) -> None:
         service = (
-            ROOT / "application" / "Cpp_Core" / "Src" / "webhid_service.cpp"
+            ROOT / 'application/Src/webconfig/webhid_service.cpp'
         ).read_text(encoding="utf-8")
         crypto_header = (
             ROOT / "common" / "device_security_crypto.h"
