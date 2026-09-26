@@ -1,0 +1,103 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - banner [ref=e5]:
+      - generic [ref=e6]:
+        - heading "Administration" [level=2] [ref=e10]
+        - paragraph [ref=e11]: Manage account roles and scoped service tokens.
+      - generic [ref=e12]:
+        - button "Back to WebConfig" [ref=e13] [cursor=pointer]
+        - button "33618409@qq.com" [ref=e71] [cursor=pointer]:
+          - generic [ref=e72]: "3"
+        - button "中文" [ref=e23] [cursor=pointer]
+    - generic [ref=e74]:
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - heading "Users" [level=2] [ref=e85]
+            - paragraph [ref=e86]: Role changes take effect on every active session immediately.
+          - button "Refresh" [ref=e87] [cursor=pointer]
+        - generic [ref=e94]:
+          - textbox "Search email or display name" [ref=e95]
+          - button "Search" [ref=e96] [cursor=pointer]
+        - table [ref=e101]:
+          - rowgroup [ref=e102]:
+            - row [ref=e103]:
+              - columnheader "Email" [ref=e104]
+              - columnheader "Display name" [ref=e105]
+              - columnheader "Role" [ref=e106]
+              - columnheader "Registered" [ref=e107]
+              - columnheader "Last login" [ref=e108]
+          - rowgroup [ref=e109]:
+            - row [ref=e110]:
+              - cell "33618409@qq.com" [ref=e111]
+              - cell "33618409" [ref=e112]
+              - cell [ref=e113]:
+                - 'combobox "Role: 33618409@qq.com" [ref=e115]':
+                  - option "Admin" [selected]
+                  - option "User"
+              - cell "Aug 29, 2026, 7:16 PM" [ref=e116]
+              - cell "Aug 29, 2026, 7:16 PM" [ref=e117]
+            - row [ref=e118]:
+              - cell "user@example.com" [ref=e119]
+              - cell "Preview user" [ref=e120]
+              - cell [ref=e121]:
+                - 'combobox "Role: user@example.com" [ref=e123]':
+                  - option "Admin"
+                  - option "User" [selected]
+              - cell "Aug 29, 2026, 7:16 PM" [ref=e124]
+              - cell "Never" [ref=e125]
+        - generic [ref=e126]:
+          - paragraph [ref=e127]: Showing 1-2 of 2
+          - generic [ref=e128]:
+            - button "Previous" [disabled] [ref=e129]
+            - button "Next" [disabled] [ref=e130]
+      - generic [ref=e132]:
+        - generic [ref=e133]:
+          - heading "Service tokens" [level=2] [ref=e138]
+          - paragraph [ref=e139]: Use scoped tokens for release and device automation. Secrets are shown only once.
+        - generic [ref=e141]:
+          - generic [ref=e142]:
+            - group [ref=e143]:
+              - generic [ref=e144]:
+                - text: Token name
+                - generic [ref=e145]: "*"
+              - textbox "Token name" [ref=e146]:
+                - /placeholder: Release automation
+            - group [ref=e147]:
+              - generic [ref=e148]:
+                - text: Expires in days
+                - generic [ref=e149]: "*"
+              - spinbutton "Expires in days" [ref=e150]: "90"
+          - group [ref=e151]:
+            - generic [ref=e152]:
+              - text: Scopes
+              - generic [ref=e153]: "*"
+            - generic [ref=e154]:
+              - button "device.manage" [pressed] [ref=e155] [cursor=pointer]
+              - button "firmware.manage" [pressed] [ref=e158] [cursor=pointer]
+          - button "Create token" [ref=e159] [cursor=pointer]
+        - table [ref=e164]:
+          - rowgroup [ref=e165]:
+            - row [ref=e166]:
+              - columnheader "Token name" [ref=e167]
+              - columnheader "Scopes" [ref=e168]
+              - columnheader "Created" [ref=e169]
+              - columnheader "Expiry" [ref=e170]
+              - columnheader "Last used" [ref=e171]
+              - columnheader "Status" [ref=e172]
+              - columnheader "Actions" [ref=e173]
+          - rowgroup [ref=e208]:
+            - row [ref=e209]:
+              - cell "Release automation" [ref=e210]
+              - cell "device.manage firmware.manage" [ref=e211]:
+                - generic [ref=e212]:
+                  - generic [ref=e213]: device.manage
+                  - generic [ref=e214]: firmware.manage
+              - cell "Aug 29, 2026, 7:16 PM" [ref=e215]
+              - cell "Nov 27, 2026, 7:16 PM" [ref=e216]
+              - cell "Never" [ref=e217]
+              - cell "Active" [ref=e218]
+              - cell [ref=e220]:
+                - button "Revoke" [ref=e221] [cursor=pointer]
+  - alert [ref=e34]
+  - region "top Notifications alt+T"

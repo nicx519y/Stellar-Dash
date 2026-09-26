@@ -1,0 +1,691 @@
+#include <cstdlib>
+#include <cassert>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "cJSON.h"
+#include "contract_recording.hpp"
+#include "device_security_protocol.h"
+#include "storagemanager.hpp"
+#include "webhid_rpc_dispatcher.hpp"
+#include "configs/device_command_handler.hpp"
+#include "configs/config_sync.hpp"
+#include "configs/firmware_command_handler.hpp"
+#include "adc_btns/adc_calibration.hpp"
+#include "adc_btns/adc_manager.hpp"
+#include "adc_btns/adc_btns_marker.hpp"
+#include "states/input_state.hpp"
+#include "configs/webconfig_btns_manager.hpp"
+#include "configs/webconfig_leds_manager.hpp"
+#include "firmware/firmware_manager.hpp"
+#include "ch585_firmware_update.hpp"
+
+namespace {
+
+constexpr uint32_t kAllScopes = HBOX_SCOPE_CONFIG_READ |
+                                HBOX_SCOPE_CONFIG_WRITE |
+                                HBOX_SCOPE_MONITOR_READ |
+                                HBOX_SCOPE_DEVICE_CONTROL |
+                                HBOX_SCOPE_FIRMWARE_UPDATE;
+
+struct DispatchResult {
+    int error = -999;
+    cJSON *root = nullptr;
+};
+
+void resetContractState()
+{
+    STORAGE_MANAGER.initConfig();
+    ADC_CALIBRATION_MANAGER.resetForContractTest();
+    ADC_MANAGER.resetForContractTest();
+    ADC_BTNS_MARKER.resetForContractTest();
+    INPUT_STATE.resetForContractTest();
+    WEBCONFIG_BTNS_MANAGER.resetForContractTest();
+    WEBCONFIG_LEDS_MANAGER.resetForContractTest();
+    FirmwareManager::GetInstance()->resetForContractTest();
+    CH585_FIRMWARE_UPDATE.resetForContractTest();
+    g_deviceCommandContractRecording = {};
+    DeviceCommandHandler::needReboot = false;
+    DeviceCommandHandler::rebootTick = 0u;
+}
+
+DispatchResult dispatch(const char *command, const cJSON *params, uint32_t scopes)
+{
+    static uint32_t transactionId = 100u;
+    cJSON *request = cJSON_CreateObject();
+    cJSON_AddNumberToObject(request, "transactionId", ++transactionId);
+    cJSON_AddStringToObject(request, "command", command);
+    cJSON_AddItemToObject(request, "params",
+                          params == nullptr ? cJSON_CreateObject()
+                                            : cJSON_Duplicate(params, true));
+    const WebHidRpcResult raw = WEBHID_RPC_DISPATCHER.dispatch(request, scopes);
+    cJSON_Delete(request);
+    DispatchResult result;
+    result.error = raw.error;
+    if (raw.json != nullptr) result.root = cJSON_ParseWithLength(raw.json, raw.jsonLength);
+    return result;
+}
+
+bool hasEnvelope(const DispatchResult &result)
+{
+    if (!cJSON_IsObject(result.root)) return false;
+    const cJSON *tx = cJSON_GetObjectItemCaseSensitive(result.root, "transactionId");
+    const cJSON *err = cJSON_GetObjectItemCaseSensitive(result.root, "errNo");
+    const cJSON *data = cJSON_GetObjectItemCaseSensitive(result.root, "data");
+    return cJSON_IsNumber(tx) && tx->valuedouble >= 1.0 &&
+           cJSON_IsNumber(err) && err->valueint == result.error && data != nullptr;
+}
+
+uint32_t recordingValue(const char *field)
+{
+    if (!field) return 0u;
+#define RECORDING_FIELD(name) if (strcmp(field, #name) == 0) return g_deviceCommandContractRecording.name
+    RECORDING_FIELD(storageSaves);
+    RECORDING_FIELD(calibrationStarts);
+    RECORDING_FIELD(calibrationStops);
+    RECORDING_FIELD(calibrationResets);
+    RECORDING_FIELD(monitorStarts);
+    RECORDING_FIELD(monitorStops);
+    RECORDING_FIELD(ledPreviews);
+    RECORDING_FIELD(ledClears);
+    RECORDING_FIELD(screenBrightnessPreviews);
+    RECORDING_FIELD(firmwareCreates);
+    RECORDING_FIELD(firmwareChunks);
+    RECORDING_FIELD(firmwareCompletes);
+    RECORDING_FIELD(firmwareAborts);
+    RECORDING_FIELD(ch585Begins);
+    RECORDING_FIELD(ch585Writes);
+    RECORDING_FIELD(ch585Completes);
+#undef RECORDING_FIELD
+    return 0u;
+}
+
+const cJSON *findCase(const cJSON *cases, const char *name)
+{
+    cJSON *entry = nullptr;
+    cJSON_ArrayForEach(entry, cases) {
+        const cJSON *item = cJSON_GetObjectItemCaseSensitive(entry, "name");
+        if (cJSON_IsString(item) && strcmp(item->valuestring, name) == 0) return entry;
+    }
+    return nullptr;
+}
+
+bool runSetup(const cJSON *entry, const cJSON *cases, std::string &failure)
+{
+    const cJSON *setup = cJSON_GetObjectItemCaseSensitive(entry, "setup");
+    if (setup == nullptr) return true;
+    if (!cJSON_IsArray(setup)) { failure = "setup is not an array"; return false; }
+    cJSON *step = nullptr;
+    cJSON_ArrayForEach(step, setup) {
+        const cJSON *commandItem = cJSON_GetObjectItemCaseSensitive(step, "command");
+        const cJSON *params = cJSON_GetObjectItemCaseSensitive(step, "params");
+        if (!cJSON_IsString(commandItem)) {
+            const cJSON *caseItem = cJSON_GetObjectItemCaseSensitive(step, "case");
+            if (!cJSON_IsString(caseItem)) { failure = "setup has no command/case"; return false; }
+            const cJSON *referenced = findCase(cases, caseItem->valuestring);
+            if (!referenced) { failure = "setup references unknown case"; return false; }
+            commandItem = cJSON_GetObjectItemCaseSensitive(referenced, "name");
+            params = cJSON_GetObjectItemCaseSensitive(referenced, "validParams");
+        }
+        DispatchResult result = dispatch(commandItem->valuestring, params, kAllScopes);
+        const bool ok = result.error == 0 && hasEnvelope(result);
+        cJSON_Delete(result.root);
+        if (!ok) { failure = std::string("setup failed: ") + commandItem->valuestring; return false; }
+    }
+    return true;
+}
+
+bool requireFields(const cJSON *data, const cJSON *fields, std::string &missing)
+{
+    cJSON *field = nullptr;
+    cJSON_ArrayForEach(field, fields) {
+        if (!cJSON_IsString(field) ||
+            cJSON_GetObjectItemCaseSensitive(data, field->valuestring) == nullptr) {
+            missing = cJSON_IsString(field) ? field->valuestring : "<invalid field entry>";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool runValidCase(const cJSON *entry, const cJSON *cases, std::string &failure)
+{
+    resetContractState();
+    if (!runSetup(entry, cases, failure)) return false;
+    const cJSON *name = cJSON_GetObjectItemCaseSensitive(entry, "name");
+    const cJSON *params = cJSON_GetObjectItemCaseSensitive(entry, "validParams");
+    const cJSON *expectedError = cJSON_GetObjectItemCaseSensitive(entry, "validErrNo");
+    const cJSON *dataType = cJSON_GetObjectItemCaseSensitive(entry, "dataType");
+    const cJSON *fields = cJSON_GetObjectItemCaseSensitive(entry, "requiredDataFields");
+    if (!cJSON_IsString(name) || !cJSON_IsObject(params) ||
+        !cJSON_IsNumber(expectedError) || !cJSON_IsString(dataType) ||
+        !cJSON_IsArray(fields)) { failure = "case schema invalid"; return false; }
+
+    DispatchResult result = dispatch(name->valuestring, params, kAllScopes);
+    if (!hasEnvelope(result)) { failure = "response envelope invalid"; cJSON_Delete(result.root); return false; }
+    if (result.error != expectedError->valueint) {
+        failure = "valid errNo expected " + std::to_string(expectedError->valueint) +
+                  " got " + std::to_string(result.error);
+        const cJSON *message = cJSON_GetObjectItemCaseSensitive(
+            result.root, "errorMessage");
+        if (cJSON_IsString(message)) {
+            failure += ": ";
+            failure += message->valuestring;
+        }
+        cJSON_Delete(result.root); return false;
+    }
+    const cJSON *command = cJSON_GetObjectItemCaseSensitive(result.root, "command");
+    if (result.error != 410 && (!cJSON_IsString(command) || strcmp(command->valuestring, name->valuestring) != 0)) {
+        failure = "serialized command missing/mismatched"; cJSON_Delete(result.root); return false;
+    }
+    const cJSON *data = cJSON_GetObjectItemCaseSensitive(result.root, "data");
+    const bool expectedArray = strcmp(dataType->valuestring, "array") == 0;
+    if ((expectedArray && !cJSON_IsArray(data)) || (!expectedArray && !cJSON_IsObject(data))) {
+        failure = "data type mismatch"; cJSON_Delete(result.root); return false;
+    }
+    std::string missing;
+    if (!requireFields(data, fields, missing)) {
+        failure = "missing data field: " + missing; cJSON_Delete(result.root); return false;
+    }
+    if (strcmp(name->valuestring, "update_screen_control_config") == 0) {
+        const cJSON *screen = cJSON_GetObjectItemCaseSensitive(data, "screenControl");
+        const cJSON *timeout = cJSON_GetObjectItemCaseSensitive(screen, "standbyTimeoutSeconds");
+        if (!cJSON_IsNumber(timeout) || timeout->valueint != 120 ||
+            STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds != 120u) {
+            failure = "standby timeout was not saved and read back";
+            cJSON_Delete(result.root); return false;
+        }
+        cJSON *invalid = cJSON_Parse("{\"screenControl\":{\"standbyTimeoutSeconds\":15}}");
+        DispatchResult rejected = dispatch("update_screen_control_config", invalid, kAllScopes);
+        cJSON_Delete(invalid);
+        if (rejected.error != 1 || STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds != 120u) {
+            failure = "unsupported standby timeout was accepted";
+            cJSON_Delete(rejected.root); cJSON_Delete(result.root); return false;
+        }
+        cJSON_Delete(rejected.root);
+    }
+    const cJSON *recording = cJSON_GetObjectItemCaseSensitive(entry, "recordingField");
+    if (recording != nullptr &&
+        (!cJSON_IsString(recording) || recordingValue(recording->valuestring) != 1u)) {
+        failure = "recording side-effect boundary count was not exactly one"; cJSON_Delete(result.root); return false;
+    }
+    cJSON_Delete(result.root);
+    return true;
+}
+
+bool runInvalidCase(const cJSON *entry, std::string &failure)
+{
+    resetContractState();
+    const cJSON *name = cJSON_GetObjectItemCaseSensitive(entry, "name");
+    const cJSON *invalid = cJSON_GetObjectItemCaseSensitive(entry, "invalid");
+    const cJSON *kind = cJSON_GetObjectItemCaseSensitive(invalid, "kind");
+    const cJSON *expected = cJSON_GetObjectItemCaseSensitive(invalid, "errNo");
+    const cJSON *params = cJSON_GetObjectItemCaseSensitive(invalid, "params");
+    if (!cJSON_IsString(name) || !cJSON_IsObject(invalid) ||
+        !cJSON_IsString(kind) || !cJSON_IsNumber(expected)) {
+        failure = "invalid-case schema invalid"; return false;
+    }
+    const uint32_t scopes = strcmp(kind->valuestring, "scope") == 0 ? 0u : kAllScopes;
+    DispatchResult result = dispatch(name->valuestring, params, scopes);
+    if (!hasEnvelope(result)) { failure = "invalid response envelope invalid"; cJSON_Delete(result.root); return false; }
+    if (result.error != expected->valueint) {
+        failure = "invalid errNo expected " + std::to_string(expected->valueint) +
+                  " got " + std::to_string(result.error);
+        cJSON_Delete(result.root); return false;
+    }
+    const cJSON *message = cJSON_GetObjectItemCaseSensitive(result.root, "errorMessage");
+    if (result.error != 0 && (!cJSON_IsString(message) || message->valuestring[0] == '\0')) {
+        failure = "errorMessage missing"; cJSON_Delete(result.root); return false;
+    }
+    cJSON_Delete(result.root);
+    return true;
+}
+
+bool verifyRetiredCommandAlsoReachesItsRegisteredHandler(std::string &failure)
+{
+    DeviceCommandRequest request;
+    request.setCid(9001u);
+    request.setCommand("get_device_auth");
+    request.setParams(cJSON_CreateObject());
+    DeviceCommandResponse response =
+        DeviceCommandDispatcher::getInstance().processCommand(request);
+    const cJSON *message = cJSON_GetObjectItemCaseSensitive(
+        response.getData(), "errorMessage");
+    if (response.getErrNo() != 410 ||
+        response.getCommand() != "get_device_auth" ||
+        !cJSON_IsString(message) || message->valuestring[0] == '\0') {
+        failure = "registered get_device_auth tombstone handler failed";
+        return false;
+    }
+    return true;
+}
+
+bool verifyBinaryFirmwareChunkBorrowsCallerStorage(std::string &failure)
+{
+    resetContractState();
+    FirmwareManager *manager = FirmwareManager::GetInstance();
+    if (!manager->CreateUpgradeSession("binary-zero-copy", nullptr)) {
+        failure = "could not create binary firmware contract session";
+        return false;
+    }
+
+    constexpr size_t kPayloadSize = 8u * 1024u -
+                                    sizeof(BinaryFirmwareChunkHeader);
+    std::vector<uint8_t> message(
+        sizeof(BinaryFirmwareChunkHeader) + kPayloadSize, 0u);
+    auto *header = reinterpret_cast<BinaryFirmwareChunkHeader *>(message.data());
+    header->command = BINARY_CMD_UPLOAD_FIRMWARE_CHUNK;
+    const char session[] = "binary-zero-copy";
+    const char component[] = "application";
+    header->session_id_len = sizeof(session) - 1u;
+    memcpy(header->session_id, session, sizeof(session) - 1u);
+    header->component_name_len = sizeof(component) - 1u;
+    memcpy(header->component_name, component, sizeof(component) - 1u);
+    header->chunk_index = 0u;
+    header->total_chunks = 1u;
+    header->chunk_size = static_cast<uint32_t>(kPayloadSize);
+    header->chunk_offset = 0u;
+    header->target_address = SLOT_B_APPLICATION_ADDR;
+    memset(message.data() + sizeof(BinaryFirmwareChunkHeader),
+           0xA5,
+           kPayloadSize);
+
+    const uint8_t *const expectedPayload =
+        message.data() + sizeof(BinaryFirmwareChunkHeader);
+    if (!FirmwareCommandHandler::getInstance().handleBinaryFirmwareChunk(
+            message.data(), message.size()) ||
+        g_deviceCommandContractRecording.firmwareChunks != 1u ||
+        g_deviceCommandContractRecording.firmwareChunkData != expectedPayload ||
+        g_deviceCommandContractRecording.firmwareChunkSize != kPayloadSize) {
+        failure = "binary firmware handler copied or changed caller storage";
+        return false;
+    }
+    return true;
+}
+
+cJSON *makeHotkeyItem(int key,
+                      bool includeKey,
+                      int legacyVirtualPin,
+                      bool includeLegacyVirtualPin)
+{
+    cJSON *item = cJSON_CreateObject();
+    if (includeKey) cJSON_AddNumberToObject(item, "key", key);
+    if (includeLegacyVirtualPin) {
+        cJSON_AddNumberToObject(item, "virtualPin", legacyVirtualPin);
+    }
+    cJSON_AddStringToObject(item, "action", "SYSTEM_REBOOT");
+    cJSON_AddBoolToObject(item, "isHold", true);
+    cJSON_AddBoolToObject(item, "isLocked", false);
+    return item;
+}
+
+bool responseHasCanonicalHotkey(const DispatchResult &result,
+                                int expectedKey,
+                                std::string &failure)
+{
+    if (result.error != 0 || !hasEnvelope(result)) {
+        failure = "hotkey response envelope failed";
+        return false;
+    }
+    const cJSON *data = cJSON_GetObjectItemCaseSensitive(result.root, "data");
+    const cJSON *hotkeys =
+        cJSON_GetObjectItemCaseSensitive(data, "hotkeysConfig");
+    const cJSON *first = cJSON_GetArrayItem(hotkeys, 0);
+    const cJSON *key = cJSON_GetObjectItemCaseSensitive(first, "key");
+    const cJSON *legacy =
+        cJSON_GetObjectItemCaseSensitive(first, "virtualPin");
+    if (!cJSON_IsNumber(key) || key->valueint != expectedKey) {
+        failure = "hotkey response did not read back the canonical key";
+        return false;
+    }
+    if (legacy != nullptr) {
+        failure = "hotkey response leaked the legacy virtualPin field";
+        return false;
+    }
+    return true;
+}
+
+bool verifyHotkeyKeyCompatibilityAndReadback(std::string &failure)
+{
+    resetContractState();
+
+    cJSON *params = cJSON_CreateObject();
+    cJSON *hotkeys = cJSON_CreateArray();
+    cJSON_AddItemToArray(hotkeys, makeHotkeyItem(2, true, 7, true));
+    cJSON_AddItemToObject(params, "hotkeysConfig", hotkeys);
+    DispatchResult update = dispatch("update_hotkeys_config", params, kAllScopes);
+    cJSON_Delete(params);
+    if (STORAGE_MANAGER.config.hotkeys[0].virtualPin != 2 ||
+        !responseHasCanonicalHotkey(update, 2, failure)) {
+        if (failure.empty()) failure = "canonical key did not win over virtualPin";
+        cJSON_Delete(update.root);
+        return false;
+    }
+    cJSON_Delete(update.root);
+
+    DispatchResult readback = dispatch("get_hotkeys_config", nullptr, kAllScopes);
+    if (!responseHasCanonicalHotkey(readback, 2, failure)) {
+        cJSON_Delete(readback.root);
+        return false;
+    }
+    cJSON_Delete(readback.root);
+
+    resetContractState();
+    params = cJSON_CreateObject();
+    hotkeys = cJSON_CreateArray();
+    cJSON_AddItemToArray(hotkeys, makeHotkeyItem(0, false, 3, true));
+    cJSON_AddItemToObject(params, "hotkeysConfig", hotkeys);
+    DispatchResult legacyUpdate =
+        dispatch("update_hotkeys_config", params, kAllScopes);
+    cJSON_Delete(params);
+    if (STORAGE_MANAGER.config.hotkeys[0].virtualPin != 3 ||
+        !responseHasCanonicalHotkey(legacyUpdate, 3, failure)) {
+        if (failure.empty()) failure = "legacy virtualPin input was not accepted";
+        cJSON_Delete(legacyUpdate.root);
+        return false;
+    }
+    cJSON_Delete(legacyUpdate.root);
+
+    resetContractState();
+    params = cJSON_CreateObject();
+    cJSON_AddStringToObject(params, "section", "hotkeys");
+    hotkeys = cJSON_CreateArray();
+    cJSON_AddItemToArray(hotkeys, makeHotkeyItem(4, true, 8, true));
+    cJSON_AddItemToObject(params, "data", hotkeys);
+    DispatchResult importPart =
+        dispatch("import_config_part", params, kAllScopes);
+    cJSON_Delete(params);
+    const bool staged = importPart.error == 0 && hasEnvelope(importPart);
+    cJSON_Delete(importPart.root);
+    DispatchResult importFinish =
+        dispatch("import_config_finish", nullptr, kAllScopes);
+    const bool imported = staged && importFinish.error == 0 &&
+                          hasEnvelope(importFinish) &&
+                          STORAGE_MANAGER.config.hotkeys[0].virtualPin == 4;
+    cJSON_Delete(importFinish.root);
+    if (!imported) {
+        failure = "hotkeys import did not prefer canonical key";
+        return false;
+    }
+
+    readback = dispatch("get_hotkeys_config", nullptr, kAllScopes);
+    const bool importedReadback =
+        responseHasCanonicalHotkey(readback, 4, failure);
+    cJSON_Delete(readback.root);
+    return importedReadback;
+}
+
+bool verifyExitQuiescesRuntimeBeforePersisting(std::string &failure)
+{
+    resetContractState();
+    WEBCONFIG_BTNS_MANAGER.startButtonWorkers();
+    WEBCONFIG_BTNS_MANAGER.enableTestMode(true);
+    if (ADC_CALIBRATION_MANAGER.startManualCalibration() != ADCBtnsError::SUCCESS ||
+        ADC_BTNS_MARKER.setup("mapping-default") != ADCBtnsError::SUCCESS) {
+        failure = "could not prepare active WebConfig runtime";
+        return false;
+    }
+    LEDProfile preview = {};
+    WEBCONFIG_LEDS_MANAGER.applyPreviewConfig(preview);
+
+    DispatchResult result = dispatch("exit_webconfig", nullptr, kAllScopes);
+    const bool ok = result.error == 0 && hasEnvelope(result) &&
+                    !WEBCONFIG_BTNS_MANAGER.isActive() &&
+                    !WEBCONFIG_BTNS_MANAGER.isTestModeEnabled() &&
+                    !ADC_CALIBRATION_MANAGER.isCalibrationActive() &&
+                    !ADC_BTNS_MARKER.getStepInfo().is_marking &&
+                    !WEBCONFIG_LEDS_MANAGER.isInPreviewMode() &&
+                    g_deviceCommandContractRecording.storageSaves == 1u &&
+                    DeviceCommandHandler::needReboot;
+    cJSON_Delete(result.root);
+    if (!ok) {
+        failure = "exit_webconfig persisted before all runtime owners stopped";
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
+void verifyConfigSyncContract()
+{
+    resetContractState();
+    auto versions = []() {
+        DispatchResult result = dispatch("get_config_manifest", nullptr, kAllScopes);
+        assert(result.error == 0);
+        const cJSON* data = cJSON_GetObjectItemCaseSensitive(result.root, "data");
+        const cJSON* key = cJSON_GetObjectItemCaseSensitive(data, "deviceCacheKey");
+        assert(cJSON_IsString(key) && strlen(key->valuestring) == 64);
+        std::map<std::string, std::string> values;
+        const cJSON* modules = cJSON_GetObjectItemCaseSensitive(data, "modules");
+        const cJSON* entry = nullptr;
+        cJSON_ArrayForEach(entry, modules) {
+            assert(cJSON_IsString(entry) && strlen(entry->valuestring) == 64);
+            values[entry->string] = entry->valuestring;
+        }
+        cJSON_Delete(result.root);
+        return values;
+    };
+    auto original = versions();
+    assert(original.size() == 4 + NUM_PROFILES * 2);
+    assert(original == versions());
+    struct Resource { const char* command; const char* field; std::string key; const char* idField; const char* id; };
+    std::vector<Resource> resources = {
+        {"get_global_config", "globalConfig", "global", nullptr, nullptr},
+        {"get_hotkeys_config", "hotkeysConfig", "hotkeys", nullptr, nullptr},
+        {"get_screen_control_config", "screenControl", "screen-control", nullptr, nullptr},
+        {"get_profile_list", "profileList", "profile-list", nullptr, nullptr},
+    };
+    for (const auto& profile : STORAGE_MANAGER.config.profiles) {
+        resources.push_back({"get_profile_details", "profileDetails", std::string("profile:") + profile.id, "profileId", profile.id});
+        resources.push_back({"get_profile_macros", "m", std::string("macros:") + profile.id, "pid", profile.id});
+    }
+    for (const auto& resource : resources) {
+        cJSON* params = cJSON_CreateObject();
+        cJSON_AddBoolToObject(params, "listOnly", true);
+        if (resource.id) cJSON_AddStringToObject(params, resource.idField, resource.id);
+        DeviceCommandRequest direct;
+        direct.setCommand(resource.command);
+        direct.setParams(cJSON_Duplicate(params, true));
+        auto directResponse = DeviceCommandDispatcher::getInstance().processCommand(direct);
+        // Verify the original GET body. Parsing/printing floats again need not
+        // reproduce its bytes (browsers intentionally compare device versions).
+        char digest[65] = {};
+        assert(configResourceDigest(cJSON_GetObjectItemCaseSensitive(directResponse.getData(), resource.field), digest));
+        DispatchResult result = dispatch(resource.command, params, kAllScopes);
+        cJSON_Delete(params);
+        assert(result.error == 0);
+        const cJSON* data = cJSON_GetObjectItemCaseSensitive(result.root, "data");
+        const cJSON* metadata = cJSON_GetObjectItemCaseSensitive(data, "configVersions");
+        const cJSON* version = cJSON_GetObjectItemCaseSensitive(metadata, resource.key.c_str());
+        if (!cJSON_IsString(version) || original.at(resource.key) != version->valuestring || original.at(resource.key) != digest) {
+            std::cerr << "Digest mismatch " << resource.key << " manifest=" << original.at(resource.key)
+                      << " response=" << (cJSON_IsString(version) ? version->valuestring : "missing") << " recomputed=" << digest << "\n";
+            std::abort();
+        }
+        if (resource.key == "profile-list") assert(!cJSON_GetObjectItemCaseSensitive(data, "defaultProfileDetails"));
+        cJSON_Delete(result.root);
+    }
+    assert(g_deviceCommandContractRecording.storageSaves == 0);
+    auto& profile = STORAGE_MANAGER.config.profiles[0];
+    const auto profileKey = std::string("profile:") + profile.id;
+    const auto macroKey = std::string("macros:") + profile.id;
+    profile.keysConfig.macros[0].numTriggerKeys = 1;
+    profile.keysConfig.macros[0].triggerKeys[0] = 2;
+    auto changed = versions();
+    assert(changed[macroKey] != original[macroKey]);
+    changed[macroKey] = original[macroKey];
+    assert(changed == original); // No false invalidation of profile or list.
+    profile.keysConfig.macros[0].numTriggerKeys = 0;
+    assert(versions() == original); // Reverting content restores the version.
+    profile.keysConfig.invertXAxis = !profile.keysConfig.invertXAxis;
+    changed = versions();
+    assert(changed[profileKey] != original[profileKey]);
+    changed[profileKey] = original[profileKey]; assert(changed == original);
+    profile.keysConfig.invertXAxis = !profile.keysConfig.invertXAxis;
+    STORAGE_MANAGER.config.screenControl.brightness++;
+    changed = versions(); assert(changed["screen-control"] != original["screen-control"]);
+    changed["screen-control"] = original["screen-control"]; assert(changed == original);
+    STORAGE_MANAGER.config.screenControl.brightness--;
+    // Device-side changes bypassing web setters must be visible too.
+    STORAGE_MANAGER.config.autoCalibrationEnabled = !STORAGE_MANAGER.config.autoCalibrationEnabled;
+    changed = versions(); assert(changed["global"] != original["global"]);
+    changed["global"] = original["global"]; assert(changed == original);
+    assert(g_deviceCommandContractRecording.storageSaves == 0);
+    resetContractState();
+    assert(versions() == original);
+    STORAGE_MANAGER.config.hotkeys[0].isHold = !STORAGE_MANAGER.config.hotkeys[0].isHold;
+    changed = versions(); assert(changed["hotkeys"] != original["hotkeys"]);
+    changed["hotkeys"] = original["hotkeys"]; assert(changed == original);
+    resetContractState();
+    cJSON* rename = cJSON_Parse("{\"profileId\":\"profile-0\",\"profileDetails\":{\"id\":\"profile-0\",\"name\":\"Version test\"}}");
+    DispatchResult renamed = dispatch("update_profile", rename, kAllScopes);
+    cJSON_Delete(rename); assert(renamed.error == 0);
+    const cJSON* saved = cJSON_GetObjectItemCaseSensitive(renamed.root, "data");
+    const cJSON* savedVersions = cJSON_GetObjectItemCaseSensitive(saved, "configVersions");
+    const cJSON* savedVersion = cJSON_GetObjectItemCaseSensitive(savedVersions, profileKey.c_str());
+    changed = versions();
+    assert(cJSON_IsString(savedVersion) && changed[profileKey] == savedVersion->valuestring);
+    assert(changed["profile-list"] != original["profile-list"]);
+    assert(changed[profileKey] != original[profileKey]);
+    cJSON_Delete(renamed.root);
+    resetContractState();
+    std::cout << "config sync digests: 36 resources, readback, isolated mutations and reset passed\n";
+}
+
+int main(int argc, char **argv)
+{
+    if (argc != 2) {
+        std::cerr << "usage: device_command_handler_contract_test <cases.json>\n";
+        return EXIT_FAILURE;
+    }
+    std::ifstream input(argv[1], std::ios::binary);
+    std::ostringstream content;
+    content << input.rdbuf();
+    const std::string text = content.str();
+    cJSON *document = cJSON_ParseWithLength(text.c_str(), text.size());
+    const cJSON *cases = cJSON_GetObjectItemCaseSensitive(document, "commands");
+    if (!cJSON_IsArray(cases)) {
+        std::cerr << "case manifest is invalid\n";
+        cJSON_Delete(document);
+        return EXIT_FAILURE;
+    }
+
+    size_t passed = 0u;
+    cJSON *entry = nullptr;
+    cJSON_ArrayForEach(entry, cases) {
+        const cJSON *name = cJSON_GetObjectItemCaseSensitive(entry, "name");
+        std::string failure;
+        if (!runValidCase(entry, cases, failure) || !runInvalidCase(entry, failure)) {
+            std::cerr << (cJSON_IsString(name) ? name->valuestring : "<unnamed>")
+                      << ": " << failure << "\n";
+            cJSON_Delete(document);
+            return EXIT_FAILURE;
+        }
+        ++passed;
+    }
+
+    // Exercise fixed-slot behavior through the real dispatcher and handlers.
+    verifyConfigSyncContract();
+    resetContractState();
+    DispatchResult slotsResult = dispatch("get_profile_list", nullptr, kAllScopes);
+    const cJSON* slotData = cJSON_GetObjectItemCaseSensitive(slotsResult.root, "data");
+    const cJSON* slotList = cJSON_GetObjectItemCaseSensitive(slotData, "profileList");
+    const cJSON* slotItems = cJSON_GetObjectItemCaseSensitive(slotList, "items");
+    if (slotsResult.error != 0 || cJSON_GetArraySize(slotItems) != NUM_PROFILES ||
+        cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(slotList, "maxNumProfiles")) != NUM_PROFILES) return EXIT_FAILURE;
+    for (unsigned i = 0; i < NUM_PROFILES; ++i) {
+        const cJSON* item = cJSON_GetArrayItem(slotItems, i);
+        if (cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(item, "slotIndex")) != i) return EXIT_FAILURE;
+    }
+    cJSON_Delete(slotsResult.root);
+    const Config before = STORAGE_MANAGER.config;
+    for (const char* command : {"create_profile", "delete_profile"}) {
+        cJSON* params = cJSON_Parse("{\"profileName\":\"Extra\",\"profileId\":\"profile-1\"}");
+        DispatchResult result = dispatch(command, params, kAllScopes);
+        cJSON_Delete(params);
+        if (result.error != 1 || g_deviceCommandContractRecording.storageSaves != 0 ||
+            memcmp(&before, &STORAGE_MANAGER.config, sizeof(Config)) != 0) return EXIT_FAILURE;
+        cJSON_Delete(result.root);
+    }
+    cJSON* renameParams = cJSON_Parse("{\"profileId\":\"profile-15\",\"profileDetails\":{\"id\":\"profile-15\",\"name\":\"LastSlot\",\"slotIndex\":0}}");
+    DispatchResult renamed = dispatch("update_profile", renameParams, kAllScopes);
+    cJSON_Delete(renameParams);
+    if (renamed.error != 0 || strcmp(STORAGE_MANAGER.config.defaultProfileId, "profile-0") != 0 ||
+        strcmp(STORAGE_MANAGER.config.profiles[15].name, "LastSlot") != 0 ||
+        memcmp(&before.profiles[0], &STORAGE_MANAGER.config.profiles[0], sizeof(GamepadProfile)) != 0) return EXIT_FAILURE;
+    cJSON_Delete(renamed.root);
+    for (unsigned i = 0; i < NUM_PROFILES; ++i) {
+        cJSON* params = cJSON_CreateObject();
+        cJSON_AddStringToObject(params, "profileId", before.profiles[i].id);
+        DispatchResult result = dispatch("switch_default_profile", params, kAllScopes);
+        cJSON_Delete(params);
+        if (result.error != 0 || strcmp(STORAGE_MANAGER.config.defaultProfileId, before.profiles[i].id) != 0) return EXIT_FAILURE;
+        cJSON_Delete(result.root);
+    }
+    // Older partial backups cannot remove any of the remaining fixed slots.
+    cJSON* beginParams = cJSON_Parse("{\"replaceProfiles\":true}");
+    DispatchResult begun = dispatch("import_config_begin", beginParams, kAllScopes);
+    cJSON_Delete(beginParams);
+    if (begun.error != 0) return EXIT_FAILURE;
+    cJSON_Delete(begun.root);
+    cJSON* part = cJSON_Parse("{\"section\":\"profile\",\"data\":{\"id\":\"profile-1\",\"name\":\"Imported\"}}");
+    DispatchResult staged = dispatch("import_config_part", part, kAllScopes);
+    cJSON_Delete(part);
+    if (staged.error != 0) return EXIT_FAILURE;
+    cJSON_Delete(staged.root);
+    DispatchResult finished = dispatch("import_config_finish", nullptr, kAllScopes);
+    if (finished.error != 0 || strcmp(STORAGE_MANAGER.config.profiles[1].name, "Imported") != 0) return EXIT_FAILURE;
+    cJSON_Delete(finished.root);
+    for (unsigned i = 0; i < NUM_PROFILES; ++i) {
+        if (!STORAGE_MANAGER.config.profiles[i].enabled || strcmp(STORAGE_MANAGER.config.profiles[i].id, before.profiles[i].id) != 0) return EXIT_FAILURE;
+    }
+
+    std::string retiredFailure;
+    if (!verifyRetiredCommandAlsoReachesItsRegisteredHandler(retiredFailure)) {
+        std::cerr << retiredFailure << "\n";
+        cJSON_Delete(document);
+        return EXIT_FAILURE;
+    }
+
+    std::string binaryFailure;
+    if (!verifyBinaryFirmwareChunkBorrowsCallerStorage(binaryFailure)) {
+        std::cerr << binaryFailure << "\n";
+        cJSON_Delete(document);
+        return EXIT_FAILURE;
+    }
+
+    std::string hotkeyFailure;
+    if (!verifyHotkeyKeyCompatibilityAndReadback(hotkeyFailure)) {
+        std::cerr << "hotkey key compatibility: " << hotkeyFailure << "\n";
+        cJSON_Delete(document);
+        return EXIT_FAILURE;
+    }
+
+    std::string exitFailure;
+    if (!verifyExitQuiescesRuntimeBeforePersisting(exitFailure)) {
+        std::cerr << "exit runtime quiesce: " << exitFailure << "\n";
+        cJSON_Delete(document);
+        return EXIT_FAILURE;
+    }
+
+    resetContractState();
+    const cJSON *ping = cJSON_GetObjectItemCaseSensitive(document, "ping");
+    DispatchResult pingResult = dispatch("ping", cJSON_GetObjectItemCaseSensitive(ping, "validParams"), kAllScopes);
+    const cJSON *pingData = pingResult.root ? cJSON_GetObjectItemCaseSensitive(pingResult.root, "data") : nullptr;
+    const cJSON *message = pingData ? cJSON_GetObjectItemCaseSensitive(pingData, "message") : nullptr;
+    if (pingResult.error != 0 || !hasEnvelope(pingResult) || !cJSON_IsString(message) || strcmp(message->valuestring, "pong") != 0) {
+        std::cerr << "ping: contract failed\n";
+        cJSON_Delete(pingResult.root);
+        cJSON_Delete(document);
+        return EXIT_FAILURE;
+    }
+    cJSON_Delete(pingResult.root);
+    cJSON_Delete(document);
+    std::cout << "real handler contracts passed: " << passed
+              << "/70; binary zero-copy, retired tombstone handler and ping passed separately\n";
+    return passed == 70u ? EXIT_SUCCESS : EXIT_FAILURE;
+}

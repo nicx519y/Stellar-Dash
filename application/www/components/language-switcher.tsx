@@ -23,14 +23,13 @@ export function LanguageSwitcher() {
 
     return (
         <Button
-            height="24px"
-            fontSize="xs"
             colorPalette="green"
             variant="surface"
             onClick={() => setLanguage(currentLanguage === 'en' ? 'zh' : 'en')}
-            size="sm"
+            size="xs"
+            aria-label={currentLanguage === 'en' ? 'Switch to Chinese' : '切换到英文'}
         >
-            {currentLanguage === 'en' ? '中文' : 'English'}
+            {currentLanguage === 'en' ? 'ZH' : 'EN'}
         </Button>
     );
-} 
+}

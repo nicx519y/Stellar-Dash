@@ -1,0 +1,343 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"firmware_signature.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "../common/firmware_signature.c"
+  19              		.section	.text.firmware_metadata_calculate_hash.part.0,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	firmware_metadata_calculate_hash.part.0:
+  26              	.LVL0:
+  27              	.LFB6:
+   1:../common/firmware_signature.c **** #include "firmware_signature.h"
+   2:../common/firmware_signature.c **** 
+   3:../common/firmware_signature.c **** #include <stddef.h>
+   4:../common/firmware_signature.c **** #include <string.h>
+   5:../common/firmware_signature.c **** 
+   6:../common/firmware_signature.c **** #include "firmware_release_public_key.h"
+   7:../common/firmware_signature.c **** #include "sha256_simple.h"
+   8:../common/firmware_signature.c **** 
+   9:../common/firmware_signature.c **** #include "mbedtls/ecdsa.h"
+  10:../common/firmware_signature.c **** #include "mbedtls/ecp.h"
+  11:../common/firmware_signature.c **** 
+  12:../common/firmware_signature.c **** static bool constant_time_equal(const uint8_t* a,
+  13:../common/firmware_signature.c ****                                 const uint8_t* b,
+  14:../common/firmware_signature.c ****                                 size_t length)
+  15:../common/firmware_signature.c **** {
+  16:../common/firmware_signature.c ****     uint8_t difference = 0u;
+  17:../common/firmware_signature.c ****     size_t i;
+  18:../common/firmware_signature.c **** 
+  19:../common/firmware_signature.c ****     for (i = 0u; i < length; ++i) {
+  20:../common/firmware_signature.c ****         difference |= (uint8_t)(a[i] ^ b[i]);
+  21:../common/firmware_signature.c ****     }
+  22:../common/firmware_signature.c ****     return difference == 0u;
+  23:../common/firmware_signature.c **** }
+  24:../common/firmware_signature.c **** 
+  25:../common/firmware_signature.c **** bool firmware_metadata_calculate_hash(const FirmwareMetadata* metadata,
+  28              		.loc 1 25 6 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 808
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  26:../common/firmware_signature.c ****                                       uint8_t hash[32])
+  27:../common/firmware_signature.c **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s 			page 2
+
+
+  28:../common/firmware_signature.c ****     FirmwareMetadata canonical;
+  29:../common/firmware_signature.c **** 
+  30:../common/firmware_signature.c ****     if (metadata == NULL || hash == NULL) {
+  31:../common/firmware_signature.c ****         return false;
+  32:../common/firmware_signature.c ****     }
+  33:../common/firmware_signature.c **** 
+  34:../common/firmware_signature.c ****     memcpy(&canonical, metadata, sizeof(canonical));
+  32              		.loc 1 34 5 view .LVU1
+  25:../common/firmware_signature.c ****                                       uint8_t hash[32])
+  33              		.loc 1 25 6 is_stmt 0 view .LVU2
+  34 0000 70B5     		push	{r4, r5, r6, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 16
+  37              		.cfi_offset 4, -16
+  38              		.cfi_offset 5, -12
+  39              		.cfi_offset 6, -8
+  40              		.cfi_offset 14, -4
+  41              		.loc 1 34 5 view .LVU3
+  42 0002 40F22736 		movw	r6, #807
+  25:../common/firmware_signature.c ****                                       uint8_t hash[32])
+  43              		.loc 1 25 6 view .LVU4
+  44 0006 ADF54A7D 		sub	sp, sp, #808
+  45              	.LCFI1:
+  46              		.cfi_def_cfa_offset 824
+  35:../common/firmware_signature.c ****     canonical.metadata_crc32 = 0u;
+  47              		.loc 1 35 30 view .LVU5
+  48 000a 0025     		movs	r5, #0
+  25:../common/firmware_signature.c ****                                       uint8_t hash[32])
+  49              		.loc 1 25 6 view .LVU6
+  50 000c 0C46     		mov	r4, r1
+  34:../common/firmware_signature.c ****     canonical.metadata_crc32 = 0u;
+  51              		.loc 1 34 5 view .LVU7
+  52 000e 3246     		mov	r2, r6
+  53 0010 0146     		mov	r1, r0
+  54              	.LVL1:
+  34:../common/firmware_signature.c ****     canonical.metadata_crc32 = 0u;
+  55              		.loc 1 34 5 view .LVU8
+  56 0012 6846     		mov	r0, sp
+  57              	.LVL2:
+  34:../common/firmware_signature.c ****     canonical.metadata_crc32 = 0u;
+  58              		.loc 1 34 5 view .LVU9
+  59 0014 FFF7FEFF 		bl	memcpy
+  60              	.LVL3:
+  61              		.loc 1 35 5 is_stmt 1 view .LVU10
+  36:../common/firmware_signature.c ****     memset(canonical.firmware_hash, 0, sizeof(canonical.firmware_hash));
+  62              		.loc 1 36 5 is_stmt 0 view .LVU11
+  63 0018 2946     		mov	r1, r5
+  64 001a 2022     		movs	r2, #32
+  65 001c 0DF28320 		addw	r0, sp, #643
+  35:../common/firmware_signature.c ****     canonical.metadata_crc32 = 0u;
+  66              		.loc 1 35 30 view .LVU12
+  67 0020 0495     		str	r5, [sp, #16]
+  68              		.loc 1 36 5 is_stmt 1 view .LVU13
+  69 0022 FFF7FEFF 		bl	memset
+  70              	.LVL4:
+  37:../common/firmware_signature.c ****     memset(canonical.signature, 0, sizeof(canonical.signature));
+  71              		.loc 1 37 5 view .LVU14
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s 			page 3
+
+
+  72 0026 2946     		mov	r1, r5
+  73 0028 4022     		movs	r2, #64
+  74 002a 0DF2A320 		addw	r0, sp, #675
+  75 002e FFF7FEFF 		bl	memset
+  76              	.LVL5:
+  38:../common/firmware_signature.c ****     return sha256_calculate_raw((const uint8_t*)&canonical,
+  77              		.loc 1 38 5 view .LVU15
+  78              		.loc 1 38 12 is_stmt 0 view .LVU16
+  79 0032 2246     		mov	r2, r4
+  80 0034 3146     		mov	r1, r6
+  81 0036 6846     		mov	r0, sp
+  82 0038 FFF7FEFF 		bl	sha256_calculate_raw
+  83              	.LVL6:
+  39:../common/firmware_signature.c ****                                 sizeof(canonical),
+  40:../common/firmware_signature.c ****                                 hash) == 1;
+  41:../common/firmware_signature.c **** }
+  84              		.loc 1 41 1 view .LVU17
+  85 003c 431E     		subs	r3, r0, #1
+  86 003e 5842     		rsbs	r0, r3, #0
+  87 0040 5841     		adcs	r0, r0, r3
+  88 0042 0DF54A7D 		add	sp, sp, #808
+  89              	.LCFI2:
+  90              		.cfi_def_cfa_offset 16
+  91              		@ sp needed
+  92 0046 70BD     		pop	{r4, r5, r6, pc}
+  93              		.loc 1 41 1 view .LVU18
+  94              		.cfi_endproc
+  95              	.LFE6:
+  97              		.section	.text.firmware_metadata_calculate_hash,"ax",%progbits
+  98              		.align	1
+  99              		.global	firmware_metadata_calculate_hash
+ 100              		.syntax unified
+ 101              		.thumb
+ 102              		.thumb_func
+ 104              	firmware_metadata_calculate_hash:
+ 105              	.LVL7:
+ 106              	.LFB3:
+  27:../common/firmware_signature.c ****     FirmwareMetadata canonical;
+ 107              		.loc 1 27 1 is_stmt 1 view -0
+ 108              		.cfi_startproc
+ 109              		@ args = 0, pretend = 0, frame = 0
+ 110              		@ frame_needed = 0, uses_anonymous_args = 0
+ 111              		@ link register save eliminated.
+  28:../common/firmware_signature.c **** 
+ 112              		.loc 1 28 5 view .LVU20
+  30:../common/firmware_signature.c ****         return false;
+ 113              		.loc 1 30 5 view .LVU21
+  30:../common/firmware_signature.c ****         return false;
+ 114              		.loc 1 30 8 is_stmt 0 view .LVU22
+ 115 0000 10B1     		cbz	r0, .L3
+  30:../common/firmware_signature.c ****         return false;
+ 116              		.loc 1 30 26 discriminator 1 view .LVU23
+ 117 0002 09B1     		cbz	r1, .L3
+ 118 0004 FFF7FEBF 		b	firmware_metadata_calculate_hash.part.0
+ 119              	.LVL8:
+ 120              	.L3:
+ 121              		.loc 1 41 1 view .LVU24
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s 			page 4
+
+
+ 122 0008 0020     		movs	r0, #0
+ 123              	.LVL9:
+ 124              		.loc 1 41 1 view .LVU25
+ 125 000a 7047     		bx	lr
+ 126              		.cfi_endproc
+ 127              	.LFE3:
+ 129              		.section	.text.firmware_release_key_is_provisioned,"ax",%progbits
+ 130              		.align	1
+ 131              		.global	firmware_release_key_is_provisioned
+ 132              		.syntax unified
+ 133              		.thumb
+ 134              		.thumb_func
+ 136              	firmware_release_key_is_provisioned:
+ 137              	.LFB4:
+  42:../common/firmware_signature.c **** 
+  43:../common/firmware_signature.c **** bool firmware_release_key_is_provisioned(void)
+  44:../common/firmware_signature.c **** {
+ 138              		.loc 1 44 1 is_stmt 1 view -0
+ 139              		.cfi_startproc
+ 140              		@ args = 0, pretend = 0, frame = 0
+ 141              		@ frame_needed = 0, uses_anonymous_args = 0
+ 142              		@ link register save eliminated.
+  45:../common/firmware_signature.c ****     uint8_t nonzero = 0u;
+ 143              		.loc 1 45 5 view .LVU27
+ 144              	.LVL10:
+  46:../common/firmware_signature.c ****     size_t i;
+ 145              		.loc 1 46 5 view .LVU28
+  47:../common/firmware_signature.c **** 
+  48:../common/firmware_signature.c ****     if (HBOX_FIRMWARE_RELEASE_PUBLIC_KEY_PROVISIONED != 1u ||
+ 146              		.loc 1 48 5 view .LVU29
+  49:../common/firmware_signature.c ****         hbox_firmware_release_public_key[0] != 0x04u) {
+  50:../common/firmware_signature.c ****         return false;
+ 147              		.loc 1 50 9 view .LVU30
+  51:../common/firmware_signature.c ****     }
+  52:../common/firmware_signature.c ****     for (i = 1u; i < sizeof(hbox_firmware_release_public_key); ++i) {
+  53:../common/firmware_signature.c ****         nonzero |= hbox_firmware_release_public_key[i];
+  54:../common/firmware_signature.c ****     }
+  55:../common/firmware_signature.c ****     return nonzero != 0u;
+  56:../common/firmware_signature.c **** }
+ 148              		.loc 1 56 1 is_stmt 0 view .LVU31
+ 149 0000 0020     		movs	r0, #0
+ 150 0002 7047     		bx	lr
+ 151              		.cfi_endproc
+ 152              	.LFE4:
+ 154              		.section	.text.firmware_metadata_verify_signature,"ax",%progbits
+ 155              		.align	1
+ 156              		.global	firmware_metadata_verify_signature
+ 157              		.syntax unified
+ 158              		.thumb
+ 159              		.thumb_func
+ 161              	firmware_metadata_verify_signature:
+ 162              	.LVL11:
+ 163              	.LFB5:
+  57:../common/firmware_signature.c **** 
+  58:../common/firmware_signature.c **** FirmwareValidationResult firmware_metadata_verify_signature(
+  59:../common/firmware_signature.c ****     const FirmwareMetadata* metadata)
+  60:../common/firmware_signature.c **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s 			page 5
+
+
+ 164              		.loc 1 60 1 is_stmt 1 view -0
+ 165              		.cfi_startproc
+ 166              		@ args = 0, pretend = 0, frame = 0
+ 167              		@ frame_needed = 0, uses_anonymous_args = 0
+ 168              		@ link register save eliminated.
+  61:../common/firmware_signature.c ****     uint8_t calculated_hash[32];
+ 169              		.loc 1 61 5 view .LVU33
+  62:../common/firmware_signature.c ****     mbedtls_ecp_group group;
+ 170              		.loc 1 62 5 view .LVU34
+  63:../common/firmware_signature.c ****     mbedtls_ecp_point public_key;
+ 171              		.loc 1 63 5 view .LVU35
+  64:../common/firmware_signature.c ****     mbedtls_mpi r;
+ 172              		.loc 1 64 5 view .LVU36
+  65:../common/firmware_signature.c ****     mbedtls_mpi s;
+ 173              		.loc 1 65 5 view .LVU37
+  66:../common/firmware_signature.c ****     int result = -1;
+ 174              		.loc 1 66 5 view .LVU38
+  67:../common/firmware_signature.c **** 
+  68:../common/firmware_signature.c ****     if (metadata == NULL ||
+ 175              		.loc 1 68 5 view .LVU39
+  69:../common/firmware_signature.c ****         metadata->signature_algorithm !=
+  70:../common/firmware_signature.c ****             FIRMWARE_SIGNATURE_ECDSA_P256_SHA256 ||
+  71:../common/firmware_signature.c ****         !firmware_release_key_is_provisioned()) {
+  72:../common/firmware_signature.c ****         return FIRMWARE_INVALID_SIGNATURE;
+ 176              		.loc 1 72 9 view .LVU40
+  73:../common/firmware_signature.c ****     }
+  74:../common/firmware_signature.c ****     if (!firmware_metadata_calculate_hash(metadata, calculated_hash) ||
+  75:../common/firmware_signature.c ****         !constant_time_equal(calculated_hash,
+  76:../common/firmware_signature.c ****                              metadata->firmware_hash,
+  77:../common/firmware_signature.c ****                              sizeof(calculated_hash))) {
+  78:../common/firmware_signature.c ****         return FIRMWARE_INVALID_HASH;
+  79:../common/firmware_signature.c ****     }
+  80:../common/firmware_signature.c **** 
+  81:../common/firmware_signature.c ****     mbedtls_ecp_group_init(&group);
+  82:../common/firmware_signature.c ****     mbedtls_ecp_point_init(&public_key);
+  83:../common/firmware_signature.c ****     mbedtls_mpi_init(&r);
+  84:../common/firmware_signature.c ****     mbedtls_mpi_init(&s);
+  85:../common/firmware_signature.c **** 
+  86:../common/firmware_signature.c ****     if (mbedtls_ecp_group_load(&group, MBEDTLS_ECP_DP_SECP256R1) == 0 &&
+  87:../common/firmware_signature.c ****         mbedtls_ecp_point_read_binary(
+  88:../common/firmware_signature.c ****             &group,
+  89:../common/firmware_signature.c ****             &public_key,
+  90:../common/firmware_signature.c ****             hbox_firmware_release_public_key,
+  91:../common/firmware_signature.c ****             sizeof(hbox_firmware_release_public_key)) == 0 &&
+  92:../common/firmware_signature.c ****         mbedtls_mpi_read_binary(&r, metadata->signature, 32u) == 0 &&
+  93:../common/firmware_signature.c ****         mbedtls_mpi_read_binary(&s, metadata->signature + 32u, 32u) == 0) {
+  94:../common/firmware_signature.c ****         result = mbedtls_ecdsa_verify(
+  95:../common/firmware_signature.c ****             &group, calculated_hash, sizeof(calculated_hash),
+  96:../common/firmware_signature.c ****             &public_key, &r, &s);
+  97:../common/firmware_signature.c ****     }
+  98:../common/firmware_signature.c **** 
+  99:../common/firmware_signature.c ****     mbedtls_mpi_free(&s);
+ 100:../common/firmware_signature.c ****     mbedtls_mpi_free(&r);
+ 101:../common/firmware_signature.c ****     mbedtls_ecp_point_free(&public_key);
+ 102:../common/firmware_signature.c ****     mbedtls_ecp_group_free(&group);
+ 103:../common/firmware_signature.c ****     memset(calculated_hash, 0, sizeof(calculated_hash));
+ 104:../common/firmware_signature.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s 			page 6
+
+
+ 105:../common/firmware_signature.c ****     return result == 0 ? FIRMWARE_VALID : FIRMWARE_INVALID_SIGNATURE;
+ 106:../common/firmware_signature.c **** }
+ 177              		.loc 1 106 1 is_stmt 0 view .LVU41
+ 178 0000 0620     		movs	r0, #6
+ 179              	.LVL12:
+ 180              		.loc 1 106 1 view .LVU42
+ 181 0002 7047     		bx	lr
+ 182              		.cfi_endproc
+ 183              	.LFE5:
+ 185              		.text
+ 186              	.Letext0:
+ 187              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 188              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 189              		.file 4 "../common/firmware_metadata.h"
+ 190              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 191              		.file 6 "Libs/mbedtls/include/mbedtls/bignum.h"
+ 192              		.file 7 "Libs/mbedtls/include/mbedtls/ecp.h"
+ 193              		.file 8 "Libs/mbedtls/include/mbedtls/ecdsa.h"
+ 194              		.file 9 "Libs/sha256_simple/sha256_simple.h"
+ 195              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 196              		.file 11 "../common/firmware_release_public_key.h"
+ 197              		.file 12 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s 			page 7
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 firmware_signature.c
+C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s:20     .text.firmware_metadata_calculate_hash.part.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s:25     .text.firmware_metadata_calculate_hash.part.0:00000000 firmware_metadata_calculate_hash.part.0
+C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s:98     .text.firmware_metadata_calculate_hash:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s:104    .text.firmware_metadata_calculate_hash:00000000 firmware_metadata_calculate_hash
+C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s:130    .text.firmware_release_key_is_provisioned:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s:136    .text.firmware_release_key_is_provisioned:00000000 firmware_release_key_is_provisioned
+C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s:155    .text.firmware_metadata_verify_signature:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccOBz1e9.s:161    .text.firmware_metadata_verify_signature:00000000 firmware_metadata_verify_signature
+
+UNDEFINED SYMBOLS
+memcpy
+memset
+sha256_calculate_raw

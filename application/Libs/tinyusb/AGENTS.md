@@ -1,5 +1,9 @@
 # TinyUSB Agent Instructions
 
+## HBox integration scope
+
+This copy is vendored inside HBox. For HBox tasks, follow the [repository validation policy](../../../AGENTS.md) and [application integration rules](../../AGENTS.md). They take precedence over the unconditional validation, bootstrap, timing and flashing recipes below. Choose checks for the affected HBox USB path; do not automatically install hooks/dependencies, run all upstream examples, or invoke upstream flash/release commands. Use HBox's unlocked build and accepted flashing route. A timeout or objcopy failure is an unresolved result, not a pass. The remaining upstream workflow is reference material for explicitly scoped standalone TinyUSB work; its coding conventions still apply to TinyUSB source edits.
+
 TinyUSB is an open-source cross-platform USB Host/Device stack for embedded systems, designed to be memory-safe with no
 dynamic allocation and thread-safe with all interrupt events deferred to non-ISR task functions.
 

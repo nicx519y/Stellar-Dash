@@ -1,0 +1,92 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e4]:
+    - generic [ref=f1e5]:
+      - generic [ref=f1e6]:
+        - tablist [ref=f1e42]:
+          - tab "Global Setting" [selected] [ref=f1e43] [cursor=pointer]
+          - separator [ref=f1e47]
+          - tab "Keys Setting" [ref=f1e48] [cursor=pointer]
+          - separator [ref=f1e52]
+          - tab "Buttons Performance" [ref=f1e53] [cursor=pointer]
+          - separator [ref=f1e60]
+          - tab "Lighting Setting" [ref=f1e61] [cursor=pointer]
+          - separator [ref=f1e65]
+          - tab "Switch Marking" [ref=f1e66] [cursor=pointer]
+          - separator [ref=f1e71]
+          - tab "Firmware" [ref=f1e72] [cursor=pointer]
+          - separator [ref=f1e76]
+          - tab "View Logs" [ref=f1e77] [cursor=pointer]
+        - button "Finish Configuration" [ref=f1e84] [cursor=pointer]
+      - generic [ref=f1e87]:
+        - generic [ref=f1e88]: MOCK DEVICE
+        - button "Sign in" [disabled] [ref=f1e89]
+        - button "中文" [ref=f1e96] [cursor=pointer]
+    - generic [ref=f1e99]:
+      - generic [ref=f1e102]:
+        - heading "Platform" [level=3] [ref=f1e104]
+        - radiogroup [ref=f1e106]:
+          - generic [ref=f1e107]:
+            - generic [ref=f1e108]:
+              - radio "Windows PC" [checked] [ref=f1e109]
+              - generic [ref=f1e110]: Windows PC
+            - generic [ref=f1e115]:
+              - radio "PlayStation" [ref=f1e116]
+              - generic [ref=f1e117]: PlayStation
+            - generic [ref=f1e122]:
+              - radio "Xbox One|Series" [ref=f1e123]
+              - generic [ref=f1e124]: Xbox One|Series
+            - generic [ref=f1e129]:
+              - radio "Nintendo Switch" [ref=f1e130]
+              - generic [ref=f1e131]: Nintendo Switch
+      - generic [ref=f1e143]:
+        - button "Start Calibration" [ref=f1e144] [cursor=pointer]
+        - button "Reset Calibration" [ref=f1e147] [cursor=pointer]
+      - generic [ref=f1e156]:
+        - tablist [ref=f1e157]:
+          - tab "Basic" [selected] [ref=f1e158] [cursor=pointer]
+          - tab "Screen Control" [ref=f1e162] [cursor=pointer]
+          - tab "Hotkey" [ref=f1e167] [cursor=pointer]
+        - tabpanel "Basic" [ref=f1e170]:
+          - generic [ref=f1e171]:
+            - generic [ref=f1e173]:
+              - paragraph [ref=f1e174]: Configure the device's basic connection and power behavior here.
+              - list [ref=f1e175]:
+                - listitem [ref=f1e176]: Report Rate stores the requested sampling/report rate.
+                - listitem [ref=f1e177]: 2K/4K/8K take effect only after entering Input State with XInput mode; other modes use 1K.
+                - listitem [ref=f1e178]: Auto Sleep sets how long the device waits without input before entering sleep.
+            - generic [ref=f1e179]:
+              - separator [ref=f1e180]
+              - paragraph [ref=f1e181]: Connection
+              - separator [ref=f1e182]
+            - generic [ref=f1e183]:
+              - generic [ref=f1e184]:
+                - paragraph [ref=f1e185]: Configured rate
+                - paragraph [ref=f1e186]: 1K
+              - paragraph [ref=f1e187]: 2K/4K/8K take effect only after entering Input State with XInput mode; other modes use 1K.
+            - generic [ref=f1e191]:
+              - separator [ref=f1e192]
+              - paragraph [ref=f1e193]: Power
+              - separator [ref=f1e194]
+            - generic [ref=f1e195]:
+              - generic [ref=f1e196]:
+                - paragraph [ref=f1e197]: Auto Sleep
+                - paragraph [ref=f1e198]: 5min
+              - paragraph [ref=f1e199]: The device enters sleep after remaining idle for the selected amount of time.
+  - alert [ref=f1e204]
+  - region "top Notifications alt+T"
+  - generic [ref=f1e205]:
+    - dialog "Device Not Connected" [ref=f1e208]:
+      - heading "Device Not Connected" [level=3] [ref=f1e210]
+      - generic [ref=f1e212]:
+        - generic [ref=f1e213]:
+          - generic [ref=f1e214]: "1"
+          - paragraph [ref=f1e215]: Switch the device to WebConfig mode.
+        - generic [ref=f1e216]:
+          - generic [ref=f1e217]: "2"
+          - paragraph [ref=f1e218]: Connect the device to this computer using USB.
+        - generic [ref=f1e219]:
+          - generic [ref=f1e220]: "3"
+          - paragraph [ref=f1e221]: Click Reconnect Device to establish the connection.
+    - generic [ref=f1e223]:
+      - button "Sign in" [disabled] [ref=f1e224]
+      - button "中文" [ref=f1e231] [cursor=pointer]

@@ -58,23 +58,19 @@ import { openConfirm } from '@/components/dialog-confirm';
 export function KeysSettingContent() {
     const {
         defaultProfile,
-        updateProfileDetails,
         globalConfig,
-        getProfileMacros,
-        updateProfileMacros,
+        stageDeferredProfileDetails,
+        stageDeferredProfileMacros,
         dataIsReady,
-        sendPendingCommandImmediately,
         setFinishConfigDisabled,
     } = useGamepadConfig();
     const { t } = useLanguage();
     const { colorMode } = useColorMode();
 
-    const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
 
     // 按键映射状态
     const keyLength = useMemo(() => Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length, [defaultProfile?.keysConfig?.keyMapping]);
-    const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
     const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_UP_PRIORITY);
     const [invertXAxis, setInvertXAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertXAxis ?? false);
     const [invertYAxis, setInvertYAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertYAxis ?? false);
@@ -84,7 +80,10 @@ export function KeysSettingContent() {
     const [macros, setMacros] = useState<MacroConfig[]>([]);
     const [keysEnableConfig, setKeysEnableConfig] = useState<boolean[]>(defaultProfile?.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? []); // 按键启用配置
 
-    const [inputKey, setInputKey] = useState<number>(-1);
+    const [inputKeyEvent, setInputKeyEvent] = useState<{ keyId: number; sequence: number }>({
+        keyId: -1,
+        sequence: 0,
+    });
     const [macroRecording, setMacroRecording] = useState<boolean>(false);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
     const [autoSwitch, _setAutoSwitch] = useState<boolean>(() => {
@@ -98,8 +97,6 @@ export function KeysSettingContent() {
     const [isCompetitionProfile, setIsCompetitionProfile] = useState<boolean>(defaultProfile.isCompetitionProfile ?? false);
 
     const keymappingFieldsetRef = useRef<KeymappingFieldsetRef>(null);
-    const macrosLoadedForProfileIdRef = useRef<string>("");
-    const macrosFetchSeqRef = useRef(0);
     const [debugMacros, setDebugMacros] = useState(false);
 
     // 使用 context 中的 indexMapToGameControllerButtonOrCombination 方法
@@ -117,9 +114,6 @@ export function KeysSettingContent() {
 
     useEffect(() => {
 
-        if (isInit && defaultProfileId === defaultProfile.id) {
-            return;
-        }
 
         if (dataIsReady && defaultProfile.keysConfig) {
             setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
@@ -133,42 +127,14 @@ export function KeysSettingContent() {
             const enableConfig = defaultProfile.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? Array(keyLength).fill(true);
             setKeysEnableConfig(enableConfig);
 
-            setIsInit(true);
-            setDefaultProfileId(defaultProfile.id);
             setIsCompetitionProfile(defaultProfile.isCompetitionProfile ?? false);
-            macrosLoadedForProfileIdRef.current = "";
 
         }
     }, [dataIsReady, defaultProfile]);
 
     useEffect(() => {
-        if (!dataIsReady) return;
-        if (!defaultProfileId) return;
-        if (macrosLoadedForProfileIdRef.current === defaultProfileId) return;
-        const loadingKey = `loading:${defaultProfileId}`;
-        macrosLoadedForProfileIdRef.current = loadingKey;
-        const seq = ++macrosFetchSeqRef.current;
-        let cancelled = false;
-        (async () => {
-            try {
-                const fetched = await getProfileMacros(defaultProfileId);
-                if (!cancelled && seq === macrosFetchSeqRef.current) {
-                    setMacros(fetched);
-                    macrosLoadedForProfileIdRef.current = defaultProfileId;
-                    if (debugMacros) {
-                        console.log("[KeysSettingContent] macros fetched:", fetched);
-                    }
-                }
-            } catch {
-                if (!cancelled && seq === macrosFetchSeqRef.current) {
-                    macrosLoadedForProfileIdRef.current = "";
-                }
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [dataIsReady, defaultProfileId, getProfileMacros]);
+        if (dataIsReady) setMacros(defaultProfile.keysConfig?.macros ?? []);
+    }, [dataIsReady, defaultProfile.keysConfig?.macros]);
 
     const updateKeysConfigHandler = () => {
         const effectiveSocdMode = isCompetitionProfile ? GameSocdMode.SOCD_MODE_NEUTRAL : socdMode;
@@ -193,15 +159,20 @@ export function KeysSettingContent() {
             isCompetitionProfile,
             keysConfig: newConfig,
         }
-        updateProfileDetails(defaultProfile.id, newProfile);
+        stageDeferredProfileDetails(defaultProfile.id, newProfile);
 
     };
 
     const disabledKeys = useMemo(() => keysEnableConfig.map((_, index) => index).filter((_, index) => !keysEnableConfig[index]), [keysEnableConfig]);
 
     const hitboxButtonClick = (keyId: number) => {
-        if (macroRecording) return;
-        setInputKey(keyId);
+        // 抬起只用于 Hitbox 自身恢复视觉状态，不再让整个 Keys 页面重渲染。
+        // sequence 让同一个物理键在多次按下时仍能被识别为新的配置输入。
+        if (macroRecording || keyId < 0) return;
+        setInputKeyEvent((previous) => ({
+            keyId,
+            sequence: previous.sequence + 1,
+        }));
     }
 
     const hitboxEnableSettingClick = (keyId: number) => {
@@ -292,22 +263,12 @@ export function KeysSettingContent() {
         }
         if ((macros?.length ?? 0) > 0) {
             setMacros([]);
-            void updateProfileMacros(defaultProfile.id, []);
+            stageDeferredProfileMacros(defaultProfile.id, []);
         }
         if (changed) {
             setNeedUpdate(true);
         }
     }, [isCompetitionProfile, defaultProfile.id]);
-
-    useEffect(() => {
-        return () => {
-            try {
-                sendPendingCommandImmediately('update_profile');
-            } catch (error) {
-                console.warn('页面关闭前发送 update_keys_config 命令失败:', error);
-            }
-        }
-    }, [sendPendingCommandImmediately]);
 
     // 当按键启用设置状态改变时，更新完成配置按钮的禁用状态
     useEffect(() => {
@@ -474,7 +435,8 @@ export function KeysSettingContent() {
                                     <KeymappingFieldset
                                         ref={keymappingFieldsetRef}
                                         autoSwitch={autoSwitch}
-                                        inputKey={inputKey}
+                                        inputKey={inputKeyEvent.keyId}
+                                        inputKeySequence={inputKeyEvent.sequence}
                                         inputMode={globalConfig.inputMode ?? Platform.XINPUT}
                                         keyMapping={keyMapping}
                                         combinationKeyMapping={combinationKeyMapping}
@@ -491,14 +453,18 @@ export function KeysSettingContent() {
                                             setMacros(macros);
                                         }}
                                         updateMacrosHandler={async (macros) => {
-                                            const updated = await updateProfileMacros(defaultProfile.id, macros);
-                                            setMacros(updated);
+                                            stageDeferredProfileMacros(defaultProfile.id, macros);
                                         }}
                                         maxBindKeysPerButton={isCompetitionProfile ? NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX : NUM_BIND_KEY_PER_BUTTON_MAX}
                                         lockAdvancedBindings={isCompetitionProfile}
                                         onMacroRecordingChange={(recording) => {
                                             setMacroRecording(recording);
-                                            if (recording) setInputKey(-1);
+                                            if (recording) {
+                                                setInputKeyEvent((previous) => ({
+                                                    keyId: -1,
+                                                    sequence: previous.sequence,
+                                                }));
+                                            }
                                         }}
                                         disabled={keysEnableSettingActive}
                                     />

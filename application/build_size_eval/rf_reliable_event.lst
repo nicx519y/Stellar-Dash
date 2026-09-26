@@ -1,0 +1,989 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"rf_reliable_event.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/rf_reliable_event.cpp"
+  19              		.section	.text._ZN15RFReliableEvent4pollEv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN15RFReliableEvent4pollEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN15RFReliableEvent4pollEv:
+  27              	.LFB1283:
+   1:Cpp_Core/Src/rf_reliable_event.cpp **** #include "rf_reliable_event.hpp"
+   2:Cpp_Core/Src/rf_reliable_event.cpp **** 
+   3:Cpp_Core/Src/rf_reliable_event.cpp **** #include <stdio.h>
+   4:Cpp_Core/Src/rf_reliable_event.cpp **** #include <string.h>
+   5:Cpp_Core/Src/rf_reliable_event.cpp **** 
+   6:Cpp_Core/Src/rf_reliable_event.cpp **** #include "board_cfg.h"
+   7:Cpp_Core/Src/rf_reliable_event.cpp **** #include "stm32h7xx_hal.h"
+   8:Cpp_Core/Src/rf_reliable_event.cpp **** 
+   9:Cpp_Core/Src/rf_reliable_event.cpp **** namespace {
+  10:Cpp_Core/Src/rf_reliable_event.cpp **** static constexpr uint8_t RF_SYNC = 0xA5u;
+  11:Cpp_Core/Src/rf_reliable_event.cpp **** static constexpr uint8_t EVT_STATE_CHANGED = 0x82u;
+  12:Cpp_Core/Src/rf_reliable_event.cpp **** static constexpr uint8_t STATUS_EVENT_SEQ_OFFSET = 20u;
+  13:Cpp_Core/Src/rf_reliable_event.cpp **** static constexpr uint8_t STATUS_EVENT_COMPLETE_MS_OFFSET = 21u;
+  14:Cpp_Core/Src/rf_reliable_event.cpp **** static constexpr uint8_t MAX_PAYLOAD_LEN = 24u;
+  15:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  16:Cpp_Core/Src/rf_reliable_event.cpp **** #ifndef RF_RELIABLE_EVENT_LOG
+  17:Cpp_Core/Src/rf_reliable_event.cpp **** #define RF_RELIABLE_EVENT_LOG 0
+  18:Cpp_Core/Src/rf_reliable_event.cpp **** #endif
+  19:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  20:Cpp_Core/Src/rf_reliable_event.cpp **** #if RF_RELIABLE_EVENT_LOG
+  21:Cpp_Core/Src/rf_reliable_event.cpp **** #define RF_REL_EVT_LOG(fmt, ...) printf("[RF_REL_EVT] " fmt "\r\n", ##__VA_ARGS__)
+  22:Cpp_Core/Src/rf_reliable_event.cpp **** #else
+  23:Cpp_Core/Src/rf_reliable_event.cpp **** #define RF_REL_EVT_LOG(fmt, ...) ((void)0)
+  24:Cpp_Core/Src/rf_reliable_event.cpp **** #endif
+  25:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  26:Cpp_Core/Src/rf_reliable_event.cpp **** static uint8_t checksum8(const uint8_t* data, uint16_t len) {
+  27:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t sum = 0u;
+  28:Cpp_Core/Src/rf_reliable_event.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+  29:Cpp_Core/Src/rf_reliable_event.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+  30:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+  31:Cpp_Core/Src/rf_reliable_event.cpp ****     return sum;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 2
+
+
+  32:Cpp_Core/Src/rf_reliable_event.cpp **** }
+  33:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  34:Cpp_Core/Src/rf_reliable_event.cpp **** static bool due(uint32_t now, uint32_t deadline) {
+  35:Cpp_Core/Src/rf_reliable_event.cpp ****     return static_cast<int32_t>(now - deadline) >= 0;
+  36:Cpp_Core/Src/rf_reliable_event.cpp **** }
+  37:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  38:Cpp_Core/Src/rf_reliable_event.cpp **** static uint16_t readU16(const uint8_t* src) {
+  39:Cpp_Core/Src/rf_reliable_event.cpp ****     return static_cast<uint16_t>(src[0] | (static_cast<uint16_t>(src[1]) << 8));
+  40:Cpp_Core/Src/rf_reliable_event.cpp **** }
+  41:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  42:Cpp_Core/Src/rf_reliable_event.cpp **** struct PendingEvent {
+  43:Cpp_Core/Src/rf_reliable_event.cpp ****     bool active = false;
+  44:Cpp_Core/Src/rf_reliable_event.cpp ****     bool shouldPublish = false;
+  45:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t evt = 0u;
+  46:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t seq = 0u;
+  47:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t payload[MAX_PAYLOAD_LEN] = {0};
+  48:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t payloadLen = 0u;
+  49:Cpp_Core/Src/rf_reliable_event.cpp ****     uint32_t completeDeadlineMs = 0u;
+  50:Cpp_Core/Src/rf_reliable_event.cpp **** };
+  51:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  52:Cpp_Core/Src/rf_reliable_event.cpp **** struct CompletedEvent {
+  53:Cpp_Core/Src/rf_reliable_event.cpp ****     bool available = false;
+  54:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t evt = 0u;
+  55:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t seq = 0u;
+  56:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t payload[MAX_PAYLOAD_LEN] = {0};
+  57:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t payloadLen = 0u;
+  58:Cpp_Core/Src/rf_reliable_event.cpp **** };
+  59:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  60:Cpp_Core/Src/rf_reliable_event.cpp **** PendingEvent g_pending;
+  61:Cpp_Core/Src/rf_reliable_event.cpp **** CompletedEvent g_completed;
+  62:Cpp_Core/Src/rf_reliable_event.cpp **** bool g_haveLastCompleted = false;
+  63:Cpp_Core/Src/rf_reliable_event.cpp **** uint8_t g_lastCompletedEvt = 0u;
+  64:Cpp_Core/Src/rf_reliable_event.cpp **** uint8_t g_lastCompletedSeq = 0u;
+  65:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  66:Cpp_Core/Src/rf_reliable_event.cpp **** static bool isReliableEventPayload(uint8_t evt, const uint8_t* payload, uint8_t payloadLen) {
+  67:Cpp_Core/Src/rf_reliable_event.cpp ****     return (evt == EVT_STATE_CHANGED) &&
+  68:Cpp_Core/Src/rf_reliable_event.cpp ****            (payload != nullptr) &&
+  69:Cpp_Core/Src/rf_reliable_event.cpp ****            (payloadLen > static_cast<uint8_t>(STATUS_EVENT_COMPLETE_MS_OFFSET + 1u)) &&
+  70:Cpp_Core/Src/rf_reliable_event.cpp ****            (payload[STATUS_EVENT_SEQ_OFFSET] != 0u);
+  71:Cpp_Core/Src/rf_reliable_event.cpp **** }
+  72:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  73:Cpp_Core/Src/rf_reliable_event.cpp **** static bool publishPendingComplete() {
+  74:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!g_pending.shouldPublish) {
+  75:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+  76:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+  77:Cpp_Core/Src/rf_reliable_event.cpp ****     if (g_completed.available) {
+  78:Cpp_Core/Src/rf_reliable_event.cpp ****         return false;
+  79:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+  80:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  81:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.available = true;
+  82:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.evt = g_pending.evt;
+  83:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.seq = g_pending.seq;
+  84:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.payloadLen = g_pending.payloadLen;
+  85:Cpp_Core/Src/rf_reliable_event.cpp ****     memcpy(g_completed.payload, g_pending.payload, g_pending.payloadLen);
+  86:Cpp_Core/Src/rf_reliable_event.cpp ****     g_haveLastCompleted = true;
+  87:Cpp_Core/Src/rf_reliable_event.cpp ****     g_lastCompletedEvt = g_pending.evt;
+  88:Cpp_Core/Src/rf_reliable_event.cpp ****     g_lastCompletedSeq = g_pending.seq;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 3
+
+
+  89:Cpp_Core/Src/rf_reliable_event.cpp ****     RF_REL_EVT_LOG("COMPLETE evt=0x%02X seq=%u state=%u",
+  90:Cpp_Core/Src/rf_reliable_event.cpp ****             (unsigned int)g_pending.evt,
+  91:Cpp_Core/Src/rf_reliable_event.cpp ****             (unsigned int)g_pending.seq,
+  92:Cpp_Core/Src/rf_reliable_event.cpp ****             (unsigned int)g_pending.payload[0]);
+  93:Cpp_Core/Src/rf_reliable_event.cpp ****     return true;
+  94:Cpp_Core/Src/rf_reliable_event.cpp **** }
+  95:Cpp_Core/Src/rf_reliable_event.cpp **** 
+  96:Cpp_Core/Src/rf_reliable_event.cpp **** static void storePending(uint8_t evt, const uint8_t* payload, uint8_t payloadLen) {
+  97:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint8_t seq = payload[STATUS_EVENT_SEQ_OFFSET];
+  98:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint16_t completeInMs = readU16(&payload[STATUS_EVENT_COMPLETE_MS_OFFSET]);
+  99:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint32_t now = HAL_GetTick();
+ 100:Cpp_Core/Src/rf_reliable_event.cpp ****     const bool duplicate = g_pending.active &&
+ 101:Cpp_Core/Src/rf_reliable_event.cpp ****                            (g_pending.evt == evt) &&
+ 102:Cpp_Core/Src/rf_reliable_event.cpp ****                            (g_pending.seq == seq);
+ 103:Cpp_Core/Src/rf_reliable_event.cpp ****     const bool alreadyCompleted =
+ 104:Cpp_Core/Src/rf_reliable_event.cpp ****             (g_completed.available && (g_completed.evt == evt) && (g_completed.seq == seq)) ||
+ 105:Cpp_Core/Src/rf_reliable_event.cpp ****             (g_haveLastCompleted && (g_lastCompletedEvt == evt) && (g_lastCompletedSeq == seq));
+ 106:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 107:Cpp_Core/Src/rf_reliable_event.cpp ****     if (alreadyCompleted) {
+ 108:Cpp_Core/Src/rf_reliable_event.cpp ****         return;
+ 109:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 110:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 111:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.active = true;
+ 112:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.shouldPublish = true;
+ 113:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.evt = evt;
+ 114:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.seq = seq;
+ 115:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.payloadLen = payloadLen;
+ 116:Cpp_Core/Src/rf_reliable_event.cpp ****     memcpy(g_pending.payload, payload, payloadLen);
+ 117:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.completeDeadlineMs = now + completeInMs;
+ 118:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 119:Cpp_Core/Src/rf_reliable_event.cpp ****     RF_REL_EVT_LOG("%s evt=0x%02X seq=%u state=%u complete_in_ms=%u",
+ 120:Cpp_Core/Src/rf_reliable_event.cpp ****             duplicate ? "RECV_DUP" : "RECV_EVT",
+ 121:Cpp_Core/Src/rf_reliable_event.cpp ****             (unsigned int)evt,
+ 122:Cpp_Core/Src/rf_reliable_event.cpp ****             (unsigned int)seq,
+ 123:Cpp_Core/Src/rf_reliable_event.cpp ****             (unsigned int)payload[0],
+ 124:Cpp_Core/Src/rf_reliable_event.cpp ****             (unsigned int)completeInMs);
+ 125:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 126:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 127:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 128:Cpp_Core/Src/rf_reliable_event.cpp **** namespace RFReliableEvent {
+ 129:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 130:Cpp_Core/Src/rf_reliable_event.cpp **** bool completeFrameIfNeeded(const uint8_t* frame, uint16_t frameLen) {
+ 131:Cpp_Core/Src/rf_reliable_event.cpp ****     if ((frame == nullptr) || (frameLen < 4u) || (frame[0] != RF_SYNC)) {
+ 132:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 133:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 134:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 135:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint8_t payloadLen = frame[2];
+ 136:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint16_t expectedLen = static_cast<uint16_t>(3u + payloadLen + 1u);
+ 137:Cpp_Core/Src/rf_reliable_event.cpp ****     if ((expectedLen != frameLen) ||
+ 138:Cpp_Core/Src/rf_reliable_event.cpp ****         (checksum8(frame, static_cast<uint16_t>(frameLen - 1u)) != frame[frameLen - 1u])) {
+ 139:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 140:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 141:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 142:Cpp_Core/Src/rf_reliable_event.cpp ****     return completeIfNeeded(frame[1], &frame[3], payloadLen);
+ 143:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 144:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 145:Cpp_Core/Src/rf_reliable_event.cpp **** bool completeIfNeeded(uint8_t evt, const uint8_t* payload, uint8_t payloadLen) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 4
+
+
+ 146:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!isReliableEventPayload(evt, payload, payloadLen)) {
+ 147:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 148:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 149:Cpp_Core/Src/rf_reliable_event.cpp ****     if (payloadLen > MAX_PAYLOAD_LEN) {
+ 150:Cpp_Core/Src/rf_reliable_event.cpp ****         return false;
+ 151:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 152:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 153:Cpp_Core/Src/rf_reliable_event.cpp ****     storePending(evt, payload, payloadLen);
+ 154:Cpp_Core/Src/rf_reliable_event.cpp ****     poll();
+ 155:Cpp_Core/Src/rf_reliable_event.cpp ****     return true;
+ 156:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 157:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 158:Cpp_Core/Src/rf_reliable_event.cpp **** void poll() {
+  28              		.loc 1 158 13 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+ 159:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!g_pending.active) {
+  32              		.loc 1 159 5 view .LVU1
+ 158:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!g_pending.active) {
+  33              		.loc 1 158 13 is_stmt 0 view .LVU2
+  34 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 24
+  37              		.cfi_offset 3, -24
+  38              		.cfi_offset 4, -20
+  39              		.cfi_offset 5, -16
+  40              		.cfi_offset 6, -12
+  41              		.cfi_offset 7, -8
+  42              		.cfi_offset 14, -4
+  43              		.loc 1 159 20 view .LVU3
+  44 0002 144C     		ldr	r4, .L9
+  45              		.loc 1 159 5 view .LVU4
+  46 0004 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+  47 0006 23B3     		cbz	r3, .L1
+ 160:Cpp_Core/Src/rf_reliable_event.cpp ****         return;
+ 161:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 162:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 163:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint32_t now = HAL_GetTick();
+  48              		.loc 1 163 5 is_stmt 1 view .LVU5
+  49              		.loc 1 163 37 is_stmt 0 view .LVU6
+  50 0008 FFF7FEFF 		bl	HAL_GetTick
+  51              	.LVL0:
+ 164:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!due(now, g_pending.completeDeadlineMs)) {
+  52              		.loc 1 164 5 is_stmt 1 view .LVU7
+  53              	.LBB16:
+  54              	.LBI16:
+  34:Cpp_Core/Src/rf_reliable_event.cpp ****     return static_cast<int32_t>(now - deadline) >= 0;
+  55              		.loc 1 34 13 view .LVU8
+  56              	.LBB17:
+  35:Cpp_Core/Src/rf_reliable_event.cpp **** }
+  57              		.loc 1 35 5 view .LVU9
+  35:Cpp_Core/Src/rf_reliable_event.cpp **** }
+  58              		.loc 1 35 37 is_stmt 0 view .LVU10
+  59 000c 236A     		ldr	r3, [r4, #32]
+  60 000e C01A     		subs	r0, r0, r3
+  61              	.LVL1:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 5
+
+
+  35:Cpp_Core/Src/rf_reliable_event.cpp **** }
+  62              		.loc 1 35 37 view .LVU11
+  63              	.LBE17:
+  64              	.LBE16:
+  65              		.loc 1 164 5 discriminator 1 view .LVU12
+  66 0010 0028     		cmp	r0, #0
+  67 0012 1EDB     		blt	.L1
+ 165:Cpp_Core/Src/rf_reliable_event.cpp ****         return;
+ 166:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 167:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!publishPendingComplete()) {
+  68              		.loc 1 167 5 is_stmt 1 view .LVU13
+  69              	.LBB18:
+  70              	.LBI18:
+  73:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!g_pending.shouldPublish) {
+  71              		.loc 1 73 13 view .LVU14
+  72              	.LBB19:
+  74:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+  73              		.loc 1 74 5 view .LVU15
+  74 0014 6378     		ldrb	r3, [r4, #1]	@ zero_extendqisi2
+  75 0016 BBB1     		cbz	r3, .L5
+  77:Cpp_Core/Src/rf_reliable_event.cpp ****         return false;
+  76              		.loc 1 77 5 view .LVU16
+  77:Cpp_Core/Src/rf_reliable_event.cpp ****         return false;
+  77              		.loc 1 77 21 is_stmt 0 view .LVU17
+  78 0018 0F48     		ldr	r0, .L9+4
+  77:Cpp_Core/Src/rf_reliable_event.cpp ****         return false;
+  79              		.loc 1 77 5 view .LVU18
+  80 001a 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+  81 001c CBB9     		cbnz	r3, .L1
+  81:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.evt = g_pending.evt;
+  82              		.loc 1 81 5 is_stmt 1 view .LVU19
+  82:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.seq = g_pending.seq;
+  83              		.loc 1 82 33 is_stmt 0 view .LVU20
+  84 001e A678     		ldrb	r6, [r4, #2]	@ zero_extendqisi2
+  81:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.evt = g_pending.evt;
+  85              		.loc 1 81 27 view .LVU21
+  86 0020 0127     		movs	r7, #1
+  83:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.payloadLen = g_pending.payloadLen;
+  87              		.loc 1 83 33 view .LVU22
+  88 0022 E578     		ldrb	r5, [r4, #3]	@ zero_extendqisi2
+  85:Cpp_Core/Src/rf_reliable_event.cpp ****     g_haveLastCompleted = true;
+  89              		.loc 1 85 11 view .LVU23
+  90 0024 211D     		adds	r1, r4, #4
+  84:Cpp_Core/Src/rf_reliable_event.cpp ****     memcpy(g_completed.payload, g_pending.payload, g_pending.payloadLen);
+  91              		.loc 1 84 40 view .LVU24
+  92 0026 227F     		ldrb	r2, [r4, #28]	@ zero_extendqisi2
+  85:Cpp_Core/Src/rf_reliable_event.cpp ****     g_haveLastCompleted = true;
+  93              		.loc 1 85 11 view .LVU25
+  94 0028 0330     		adds	r0, r0, #3
+  81:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.evt = g_pending.evt;
+  95              		.loc 1 81 27 view .LVU26
+  96 002a 00F8037C 		strb	r7, [r0, #-3]
+  82:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.seq = g_pending.seq;
+  97              		.loc 1 82 5 is_stmt 1 view .LVU27
+  82:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.seq = g_pending.seq;
+  98              		.loc 1 82 21 is_stmt 0 view .LVU28
+  99 002e 00F8026C 		strb	r6, [r0, #-2]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 6
+
+
+  83:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.payloadLen = g_pending.payloadLen;
+ 100              		.loc 1 83 5 is_stmt 1 view .LVU29
+  83:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed.payloadLen = g_pending.payloadLen;
+ 101              		.loc 1 83 21 is_stmt 0 view .LVU30
+ 102 0032 00F8015C 		strb	r5, [r0, #-1]
+  84:Cpp_Core/Src/rf_reliable_event.cpp ****     memcpy(g_completed.payload, g_pending.payload, g_pending.payloadLen);
+ 103              		.loc 1 84 5 is_stmt 1 view .LVU31
+  84:Cpp_Core/Src/rf_reliable_event.cpp ****     memcpy(g_completed.payload, g_pending.payload, g_pending.payloadLen);
+ 104              		.loc 1 84 28 is_stmt 0 view .LVU32
+ 105 0036 0276     		strb	r2, [r0, #24]
+  85:Cpp_Core/Src/rf_reliable_event.cpp ****     g_haveLastCompleted = true;
+ 106              		.loc 1 85 5 is_stmt 1 view .LVU33
+  85:Cpp_Core/Src/rf_reliable_event.cpp ****     g_haveLastCompleted = true;
+ 107              		.loc 1 85 11 is_stmt 0 view .LVU34
+ 108 0038 FFF7FEFF 		bl	memcpy
+ 109              	.LVL2:
+  86:Cpp_Core/Src/rf_reliable_event.cpp ****     g_lastCompletedEvt = g_pending.evt;
+ 110              		.loc 1 86 5 is_stmt 1 view .LVU35
+  86:Cpp_Core/Src/rf_reliable_event.cpp ****     g_lastCompletedEvt = g_pending.evt;
+ 111              		.loc 1 86 25 is_stmt 0 view .LVU36
+ 112 003c 074B     		ldr	r3, .L9+8
+ 113 003e 1F70     		strb	r7, [r3]
+  87:Cpp_Core/Src/rf_reliable_event.cpp ****     g_lastCompletedSeq = g_pending.seq;
+ 114              		.loc 1 87 5 is_stmt 1 view .LVU37
+  87:Cpp_Core/Src/rf_reliable_event.cpp ****     g_lastCompletedSeq = g_pending.seq;
+ 115              		.loc 1 87 24 is_stmt 0 view .LVU38
+ 116 0040 074B     		ldr	r3, .L9+12
+ 117 0042 1E70     		strb	r6, [r3]
+  88:Cpp_Core/Src/rf_reliable_event.cpp ****     RF_REL_EVT_LOG("COMPLETE evt=0x%02X seq=%u state=%u",
+ 118              		.loc 1 88 5 is_stmt 1 view .LVU39
+  88:Cpp_Core/Src/rf_reliable_event.cpp ****     RF_REL_EVT_LOG("COMPLETE evt=0x%02X seq=%u state=%u",
+ 119              		.loc 1 88 24 is_stmt 0 view .LVU40
+ 120 0044 074B     		ldr	r3, .L9+16
+ 121 0046 1D70     		strb	r5, [r3]
+  89:Cpp_Core/Src/rf_reliable_event.cpp ****             (unsigned int)g_pending.evt,
+ 122              		.loc 1 89 5 is_stmt 1 view .LVU41
+  93:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 123              		.loc 1 93 5 view .LVU42
+ 124              	.L5:
+ 125              	.LBE19:
+ 126              	.LBE18:
+ 127              	.LBB20:
+ 128              	.LBI20:
+ 158:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!g_pending.active) {
+ 129              		.loc 1 158 6 view .LVU43
+ 130              	.LBB21:
+ 168:Cpp_Core/Src/rf_reliable_event.cpp ****         return;
+ 169:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 170:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 171:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending = PendingEvent{};
+ 131              		.loc 1 171 5 view .LVU44
+ 132              		.loc 1 171 15 is_stmt 0 view .LVU45
+ 133 0048 2422     		movs	r2, #36
+ 134 004a 0021     		movs	r1, #0
+ 135 004c 0148     		ldr	r0, .L9
+ 136 004e FFF7FEFF 		bl	memset
+ 137              	.LVL3:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 7
+
+
+ 138              	.L1:
+ 139              		.loc 1 171 15 view .LVU46
+ 140              	.LBE21:
+ 141              	.LBE20:
+ 172:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 142              		.loc 1 172 1 view .LVU47
+ 143 0052 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 144              	.L10:
+ 145              		.align	2
+ 146              	.L9:
+ 147 0054 00000000 		.word	_ZN12_GLOBAL__N_19g_pendingE
+ 148 0058 00000000 		.word	_ZN12_GLOBAL__N_111g_completedE
+ 149 005c 00000000 		.word	_ZN12_GLOBAL__N_119g_haveLastCompletedE
+ 150 0060 00000000 		.word	_ZN12_GLOBAL__N_118g_lastCompletedEvtE
+ 151 0064 00000000 		.word	_ZN12_GLOBAL__N_118g_lastCompletedSeqE
+ 152              		.cfi_endproc
+ 153              	.LFE1283:
+ 155              		.section	.text._ZN15RFReliableEvent16completeIfNeededEhPKhh,"ax",%progbits
+ 156              		.align	1
+ 157              		.global	_ZN15RFReliableEvent16completeIfNeededEhPKhh
+ 158              		.syntax unified
+ 159              		.thumb
+ 160              		.thumb_func
+ 162              	_ZN15RFReliableEvent16completeIfNeededEhPKhh:
+ 163              	.LVL4:
+ 164              	.LFB1282:
+ 145:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!isReliableEventPayload(evt, payload, payloadLen)) {
+ 165              		.loc 1 145 80 is_stmt 1 view -0
+ 166              		.cfi_startproc
+ 167              		@ args = 0, pretend = 0, frame = 0
+ 168              		@ frame_needed = 0, uses_anonymous_args = 0
+ 146:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 169              		.loc 1 146 5 view .LVU49
+ 170              	.LBB28:
+ 171              	.LBI28:
+  66:Cpp_Core/Src/rf_reliable_event.cpp ****     return (evt == EVT_STATE_CHANGED) &&
+ 172              		.loc 1 66 13 view .LVU50
+ 173              	.LBB29:
+  67:Cpp_Core/Src/rf_reliable_event.cpp ****            (payload != nullptr) &&
+ 174              		.loc 1 67 5 view .LVU51
+  69:Cpp_Core/Src/rf_reliable_event.cpp ****            (payload[STATUS_EVENT_SEQ_OFFSET] != 0u);
+ 175              		.loc 1 69 86 is_stmt 0 view .LVU52
+ 176 0000 8228     		cmp	r0, #130
+ 177              	.LBE29:
+ 178              	.LBE28:
+ 145:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!isReliableEventPayload(evt, payload, payloadLen)) {
+ 179              		.loc 1 145 80 view .LVU53
+ 180 0002 2DE9F843 		push	{r3, r4, r5, r6, r7, r8, r9, lr}
+ 181              	.LCFI1:
+ 182              		.cfi_def_cfa_offset 32
+ 183              		.cfi_offset 3, -32
+ 184              		.cfi_offset 4, -28
+ 185              		.cfi_offset 5, -24
+ 186              		.cfi_offset 6, -20
+ 187              		.cfi_offset 7, -16
+ 188              		.cfi_offset 8, -12
+ 189              		.cfi_offset 9, -8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 8
+
+
+ 190              		.cfi_offset 14, -4
+ 145:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!isReliableEventPayload(evt, payload, payloadLen)) {
+ 191              		.loc 1 145 80 view .LVU54
+ 192 0006 0D46     		mov	r5, r1
+ 193 0008 1646     		mov	r6, r2
+ 194              	.LBB31:
+ 195              	.LBB30:
+  69:Cpp_Core/Src/rf_reliable_event.cpp ****            (payload[STATUS_EVENT_SEQ_OFFSET] != 0u);
+ 196              		.loc 1 69 86 view .LVU55
+ 197 000a 31D1     		bne	.L12
+  67:Cpp_Core/Src/rf_reliable_event.cpp ****            (payload != nullptr) &&
+ 198              		.loc 1 67 39 view .LVU56
+ 199 000c 81B3     		cbz	r1, .L12
+  68:Cpp_Core/Src/rf_reliable_event.cpp ****            (payloadLen > static_cast<uint8_t>(STATUS_EVENT_COMPLETE_MS_OFFSET + 1u)) &&
+ 200              		.loc 1 68 33 view .LVU57
+ 201 000e 162A     		cmp	r2, #22
+ 202 0010 2ED9     		bls	.L12
+  70:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 203              		.loc 1 70 44 view .LVU58
+ 204 0012 0F7D     		ldrb	r7, [r1, #20]	@ zero_extendqisi2
+  69:Cpp_Core/Src/rf_reliable_event.cpp ****            (payload[STATUS_EVENT_SEQ_OFFSET] != 0u);
+ 205              		.loc 1 69 86 discriminator 3 view .LVU59
+ 206 0014 67B3     		cbz	r7, .L12
+ 207              	.LVL5:
+  69:Cpp_Core/Src/rf_reliable_event.cpp ****            (payload[STATUS_EVENT_SEQ_OFFSET] != 0u);
+ 208              		.loc 1 69 86 discriminator 3 view .LVU60
+ 209              	.LBE30:
+ 210              	.LBE31:
+ 149:Cpp_Core/Src/rf_reliable_event.cpp ****         return false;
+ 211              		.loc 1 149 5 is_stmt 1 view .LVU61
+ 212 0016 182A     		cmp	r2, #24
+ 213 0018 2DD8     		bhi	.L17
+ 153:Cpp_Core/Src/rf_reliable_event.cpp ****     poll();
+ 214              		.loc 1 153 5 view .LVU62
+ 215              	.LVL6:
+ 216              	.LBB32:
+ 217              	.LBI32:
+  96:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint8_t seq = payload[STATUS_EVENT_SEQ_OFFSET];
+ 218              		.loc 1 96 13 view .LVU63
+ 219              	.LBB33:
+  97:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint16_t completeInMs = readU16(&payload[STATUS_EVENT_COMPLETE_MS_OFFSET]);
+ 220              		.loc 1 97 5 view .LVU64
+  98:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint32_t now = HAL_GetTick();
+ 221              		.loc 1 98 5 view .LVU65
+  98:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint32_t now = HAL_GetTick();
+ 222              		.loc 1 98 5 is_stmt 0 view .LVU66
+ 223 001a B1F81580 		ldrh	r8, [r1, #21]	@ unaligned
+ 224              	.LVL7:
+  99:Cpp_Core/Src/rf_reliable_event.cpp ****     const bool duplicate = g_pending.active &&
+ 225              		.loc 1 99 5 is_stmt 1 view .LVU67
+  99:Cpp_Core/Src/rf_reliable_event.cpp ****     const bool duplicate = g_pending.active &&
+ 226              		.loc 1 99 37 is_stmt 0 view .LVU68
+ 227 001e FFF7FEFF 		bl	HAL_GetTick
+ 228              	.LVL8:
+ 104:Cpp_Core/Src/rf_reliable_event.cpp ****             (g_haveLastCompleted && (g_lastCompletedEvt == evt) && (g_lastCompletedSeq == seq));
+ 229              		.loc 1 104 26 view .LVU69
+ 230 0022 164B     		ldr	r3, .L30
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 9
+
+
+  99:Cpp_Core/Src/rf_reliable_event.cpp ****     const bool duplicate = g_pending.active &&
+ 231              		.loc 1 99 37 view .LVU70
+ 232 0024 8146     		mov	r9, r0
+ 233              	.LVL9:
+ 100:Cpp_Core/Src/rf_reliable_event.cpp ****                            (g_pending.evt == evt) &&
+ 234              		.loc 1 100 5 is_stmt 1 view .LVU71
+ 103:Cpp_Core/Src/rf_reliable_event.cpp ****             (g_completed.available && (g_completed.evt == evt) && (g_completed.seq == seq)) ||
+ 235              		.loc 1 103 5 view .LVU72
+ 104:Cpp_Core/Src/rf_reliable_event.cpp ****             (g_haveLastCompleted && (g_lastCompletedEvt == evt) && (g_lastCompletedSeq == seq));
+ 236              		.loc 1 104 93 is_stmt 0 view .LVU73
+ 237 0026 1A78     		ldrb	r2, [r3]	@ zero_extendqisi2
+ 238 0028 2AB1     		cbz	r2, .L14
+ 104:Cpp_Core/Src/rf_reliable_event.cpp ****             (g_haveLastCompleted && (g_lastCompletedEvt == evt) && (g_lastCompletedSeq == seq));
+ 239              		.loc 1 104 36 discriminator 1 view .LVU74
+ 240 002a 5A78     		ldrb	r2, [r3, #1]	@ zero_extendqisi2
+ 241 002c 822A     		cmp	r2, #130
+ 242 002e 02D1     		bne	.L14
+ 104:Cpp_Core/Src/rf_reliable_event.cpp ****             (g_haveLastCompleted && (g_lastCompletedEvt == evt) && (g_lastCompletedSeq == seq));
+ 243              		.loc 1 104 64 discriminator 3 view .LVU75
+ 244 0030 9B78     		ldrb	r3, [r3, #2]	@ zero_extendqisi2
+ 245 0032 BB42     		cmp	r3, r7
+ 246 0034 1AD0     		beq	.L15
+ 247              	.L14:
+ 104:Cpp_Core/Src/rf_reliable_event.cpp ****             (g_haveLastCompleted && (g_lastCompletedEvt == evt) && (g_lastCompletedSeq == seq));
+ 248              		.loc 1 104 93 discriminator 6 view .LVU76
+ 249 0036 124B     		ldr	r3, .L30+4
+ 250 0038 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 251 003a 3BB1     		cbz	r3, .L16
+ 105:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 252              		.loc 1 105 57 view .LVU77
+ 253 003c 114B     		ldr	r3, .L30+8
+ 105:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 254              		.loc 1 105 34 view .LVU78
+ 255 003e 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 256 0040 822B     		cmp	r3, #130
+ 257 0042 03D1     		bne	.L16
+ 105:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 258              		.loc 1 105 88 discriminator 1 view .LVU79
+ 259 0044 104B     		ldr	r3, .L30+12
+ 105:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 260              		.loc 1 105 65 discriminator 1 view .LVU80
+ 261 0046 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 262 0048 BB42     		cmp	r3, r7
+ 263 004a 0FD0     		beq	.L15
+ 264              	.L16:
+ 265              	.LVL10:
+ 107:Cpp_Core/Src/rf_reliable_event.cpp ****         return;
+ 266              		.loc 1 107 5 is_stmt 1 view .LVU81
+ 111:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.shouldPublish = true;
+ 267              		.loc 1 111 5 view .LVU82
+ 112:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.evt = evt;
+ 268              		.loc 1 112 5 view .LVU83
+ 113:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.seq = seq;
+ 269              		.loc 1 113 5 view .LVU84
+ 111:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.shouldPublish = true;
+ 270              		.loc 1 111 22 is_stmt 0 view .LVU85
+ 271 004c 0F4C     		ldr	r4, .L30+16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 10
+
+
+ 272 004e 40F20113 		movw	r3, #257
+ 116:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.completeDeadlineMs = now + completeInMs;
+ 273              		.loc 1 116 11 view .LVU86
+ 274 0052 3246     		mov	r2, r6
+ 275 0054 2946     		mov	r1, r5
+ 111:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.shouldPublish = true;
+ 276              		.loc 1 111 22 view .LVU87
+ 277 0056 2380     		strh	r3, [r4]	@ movhi
+ 113:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.seq = seq;
+ 278              		.loc 1 113 19 view .LVU88
+ 279 0058 8223     		movs	r3, #130
+ 116:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.completeDeadlineMs = now + completeInMs;
+ 280              		.loc 1 116 11 view .LVU89
+ 281 005a 201D     		adds	r0, r4, #4
+ 282              	.LVL11:
+ 114:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.payloadLen = payloadLen;
+ 283              		.loc 1 114 19 view .LVU90
+ 284 005c E770     		strb	r7, [r4, #3]
+ 113:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.seq = seq;
+ 285              		.loc 1 113 19 view .LVU91
+ 286 005e A370     		strb	r3, [r4, #2]
+ 114:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.payloadLen = payloadLen;
+ 287              		.loc 1 114 5 is_stmt 1 view .LVU92
+ 115:Cpp_Core/Src/rf_reliable_event.cpp ****     memcpy(g_pending.payload, payload, payloadLen);
+ 288              		.loc 1 115 5 view .LVU93
+ 115:Cpp_Core/Src/rf_reliable_event.cpp ****     memcpy(g_pending.payload, payload, payloadLen);
+ 289              		.loc 1 115 26 is_stmt 0 view .LVU94
+ 290 0060 2677     		strb	r6, [r4, #28]
+ 116:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.completeDeadlineMs = now + completeInMs;
+ 291              		.loc 1 116 5 is_stmt 1 view .LVU95
+ 116:Cpp_Core/Src/rf_reliable_event.cpp ****     g_pending.completeDeadlineMs = now + completeInMs;
+ 292              		.loc 1 116 11 is_stmt 0 view .LVU96
+ 293 0062 FFF7FEFF 		bl	memcpy
+ 294              	.LVL12:
+ 117:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 295              		.loc 1 117 5 is_stmt 1 view .LVU97
+ 117:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 296              		.loc 1 117 40 is_stmt 0 view .LVU98
+ 297 0066 08EB0900 		add	r0, r8, r9
+ 117:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 298              		.loc 1 117 34 view .LVU99
+ 299 006a 2062     		str	r0, [r4, #32]
+ 300              	.LVL13:
+ 301              	.L15:
+ 119:Cpp_Core/Src/rf_reliable_event.cpp ****             duplicate ? "RECV_DUP" : "RECV_EVT",
+ 302              		.loc 1 119 5 is_stmt 1 view .LVU100
+ 119:Cpp_Core/Src/rf_reliable_event.cpp ****             duplicate ? "RECV_DUP" : "RECV_EVT",
+ 303              		.loc 1 119 5 is_stmt 0 view .LVU101
+ 304              	.LBE33:
+ 305              	.LBE32:
+ 154:Cpp_Core/Src/rf_reliable_event.cpp ****     return true;
+ 306              		.loc 1 154 5 is_stmt 1 view .LVU102
+ 154:Cpp_Core/Src/rf_reliable_event.cpp ****     return true;
+ 307              		.loc 1 154 9 is_stmt 0 view .LVU103
+ 308 006c FFF7FEFF 		bl	_ZN15RFReliableEvent4pollEv
+ 309              	.LVL14:
+ 155:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 11
+
+
+ 310              		.loc 1 155 5 is_stmt 1 view .LVU104
+ 311              	.L12:
+ 147:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 312              		.loc 1 147 16 is_stmt 0 view .LVU105
+ 313 0070 0120     		movs	r0, #1
+ 314              	.L13:
+ 156:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 315              		.loc 1 156 1 view .LVU106
+ 316 0072 BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 317              	.LVL15:
+ 318              	.L17:
+ 150:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 319              		.loc 1 150 16 view .LVU107
+ 320 0076 0020     		movs	r0, #0
+ 321              	.LVL16:
+ 150:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 322              		.loc 1 150 16 view .LVU108
+ 323 0078 FBE7     		b	.L13
+ 324              	.L31:
+ 325 007a 00BF     		.align	2
+ 326              	.L30:
+ 327 007c 00000000 		.word	_ZN12_GLOBAL__N_111g_completedE
+ 328 0080 00000000 		.word	_ZN12_GLOBAL__N_119g_haveLastCompletedE
+ 329 0084 00000000 		.word	_ZN12_GLOBAL__N_118g_lastCompletedEvtE
+ 330 0088 00000000 		.word	_ZN12_GLOBAL__N_118g_lastCompletedSeqE
+ 331 008c 00000000 		.word	_ZN12_GLOBAL__N_19g_pendingE
+ 332              		.cfi_endproc
+ 333              	.LFE1282:
+ 335              		.section	.text._ZN15RFReliableEvent21completeFrameIfNeededEPKht,"ax",%progbits
+ 336              		.align	1
+ 337              		.global	_ZN15RFReliableEvent21completeFrameIfNeededEPKht
+ 338              		.syntax unified
+ 339              		.thumb
+ 340              		.thumb_func
+ 342              	_ZN15RFReliableEvent21completeFrameIfNeededEPKht:
+ 343              	.LVL17:
+ 344              	.LFB1281:
+ 130:Cpp_Core/Src/rf_reliable_event.cpp ****     if ((frame == nullptr) || (frameLen < 4u) || (frame[0] != RF_SYNC)) {
+ 345              		.loc 1 130 69 is_stmt 1 view -0
+ 346              		.cfi_startproc
+ 347              		@ args = 0, pretend = 0, frame = 0
+ 348              		@ frame_needed = 0, uses_anonymous_args = 0
+ 349              		@ link register save eliminated.
+ 131:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 350              		.loc 1 131 5 view .LVU110
+ 130:Cpp_Core/Src/rf_reliable_event.cpp ****     if ((frame == nullptr) || (frameLen < 4u) || (frame[0] != RF_SYNC)) {
+ 351              		.loc 1 130 69 is_stmt 0 view .LVU111
+ 352 0000 70B4     		push	{r4, r5, r6}
+ 353              	.LCFI2:
+ 354              		.cfi_def_cfa_offset 12
+ 355              		.cfi_offset 4, -12
+ 356              		.cfi_offset 5, -8
+ 357              		.cfi_offset 6, -4
+ 131:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 358              		.loc 1 131 5 view .LVU112
+ 359 0002 E8B1     		cbz	r0, .L33
+ 131:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 12
+
+
+ 360              		.loc 1 131 28 discriminator 1 view .LVU113
+ 361 0004 0329     		cmp	r1, #3
+ 362 0006 1BD9     		bls	.L33
+ 131:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 363              		.loc 1 131 47 discriminator 2 view .LVU114
+ 364 0008 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 365 000a A52B     		cmp	r3, #165
+ 366 000c 18D1     		bne	.L33
+ 135:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint16_t expectedLen = static_cast<uint16_t>(3u + payloadLen + 1u);
+ 367              		.loc 1 135 5 is_stmt 1 view .LVU115
+ 135:Cpp_Core/Src/rf_reliable_event.cpp ****     const uint16_t expectedLen = static_cast<uint16_t>(3u + payloadLen + 1u);
+ 368              		.loc 1 135 19 is_stmt 0 view .LVU116
+ 369 000e 8278     		ldrb	r2, [r0, #2]	@ zero_extendqisi2
+ 370              	.LVL18:
+ 136:Cpp_Core/Src/rf_reliable_event.cpp ****     if ((expectedLen != frameLen) ||
+ 371              		.loc 1 136 5 is_stmt 1 view .LVU117
+ 137:Cpp_Core/Src/rf_reliable_event.cpp ****         (checksum8(frame, static_cast<uint16_t>(frameLen - 1u)) != frame[frameLen - 1u])) {
+ 372              		.loc 1 137 5 view .LVU118
+ 137:Cpp_Core/Src/rf_reliable_event.cpp ****         (checksum8(frame, static_cast<uint16_t>(frameLen - 1u)) != frame[frameLen - 1u])) {
+ 373              		.loc 1 137 35 is_stmt 0 view .LVU119
+ 374 0010 131D     		adds	r3, r2, #4
+ 375 0012 9942     		cmp	r1, r3
+ 376 0014 14D1     		bne	.L33
+ 138:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 377              		.loc 1 138 19 view .LVU120
+ 378 0016 4D1E     		subs	r5, r1, #1
+ 379 0018 0024     		movs	r4, #0
+ 380 001a ADB2     		uxth	r5, r5
+ 381              	.LVL19:
+ 382              	.LBB37:
+ 383              	.LBI37:
+  26:Cpp_Core/Src/rf_reliable_event.cpp ****     uint8_t sum = 0u;
+ 384              		.loc 1 26 16 is_stmt 1 view .LVU121
+ 385              	.LBB38:
+  27:Cpp_Core/Src/rf_reliable_event.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 386              		.loc 1 27 5 view .LVU122
+  28:Cpp_Core/Src/rf_reliable_event.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 387              		.loc 1 28 5 view .LVU123
+ 388              	.LBB39:
+  28:Cpp_Core/Src/rf_reliable_event.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 389              		.loc 1 28 29 discriminator 1 view .LVU124
+ 390              	.LBE39:
+  27:Cpp_Core/Src/rf_reliable_event.cpp ****     for (uint16_t i = 0u; i < len; ++i) {
+ 391              		.loc 1 27 13 is_stmt 0 view .LVU125
+ 392 001c 2346     		mov	r3, r4
+ 393              	.LVL20:
+ 394              	.L34:
+ 395              	.LBB40:
+  29:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 396              		.loc 1 29 9 is_stmt 1 view .LVU126
+  29:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 397              		.loc 1 29 13 is_stmt 0 view .LVU127
+ 398 001e 065D     		ldrb	r6, [r0, r4]	@ zero_extendqisi2
+  28:Cpp_Core/Src/rf_reliable_event.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 399              		.loc 1 28 29 discriminator 1 view .LVU128
+ 400 0020 0134     		adds	r4, r4, #1
+ 401              	.LVL21:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 13
+
+
+  29:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 402              		.loc 1 29 13 view .LVU129
+ 403 0022 3344     		add	r3, r3, r6
+ 404              	.LVL22:
+  28:Cpp_Core/Src/rf_reliable_event.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 405              		.loc 1 28 29 discriminator 1 view .LVU130
+ 406 0024 A6B2     		uxth	r6, r4
+ 407 0026 B542     		cmp	r5, r6
+  29:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 408              		.loc 1 29 13 view .LVU131
+ 409 0028 DBB2     		uxtb	r3, r3
+ 410              	.LVL23:
+  28:Cpp_Core/Src/rf_reliable_event.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 411              		.loc 1 28 5 is_stmt 1 discriminator 3 view .LVU132
+  28:Cpp_Core/Src/rf_reliable_event.cpp ****         sum = static_cast<uint8_t>(sum + data[i]);
+ 412              		.loc 1 28 29 discriminator 1 view .LVU133
+ 413 002a F8D8     		bhi	.L34
+ 414              	.LBE40:
+  31:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 415              		.loc 1 31 5 view .LVU134
+ 416              	.LVL24:
+  31:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 417              		.loc 1 31 5 is_stmt 0 view .LVU135
+ 418              	.LBE38:
+ 419              	.LBE37:
+ 138:Cpp_Core/Src/rf_reliable_event.cpp ****         return true;
+ 420              		.loc 1 138 65 discriminator 1 view .LVU136
+ 421 002c 0144     		add	r1, r1, r0
+ 422              	.LVL25:
+ 137:Cpp_Core/Src/rf_reliable_event.cpp ****         (checksum8(frame, static_cast<uint16_t>(frameLen - 1u)) != frame[frameLen - 1u])) {
+ 423              		.loc 1 137 35 discriminator 2 view .LVU137
+ 424 002e 11F8011C 		ldrb	r1, [r1, #-1]	@ zero_extendqisi2
+ 425 0032 9942     		cmp	r1, r3
+ 426 0034 04D1     		bne	.L33
+ 142:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 427              		.loc 1 142 5 is_stmt 1 view .LVU138
+ 142:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 428              		.loc 1 142 28 is_stmt 0 view .LVU139
+ 429 0036 C11C     		adds	r1, r0, #3
+ 430 0038 4078     		ldrb	r0, [r0, #1]	@ zero_extendqisi2
+ 431              	.LVL26:
+ 143:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 432              		.loc 1 143 1 view .LVU140
+ 433 003a 70BC     		pop	{r4, r5, r6}
+ 434              	.LCFI3:
+ 435              		.cfi_remember_state
+ 436              		.cfi_restore 6
+ 437              		.cfi_restore 5
+ 438              		.cfi_restore 4
+ 439              		.cfi_def_cfa_offset 0
+ 142:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 440              		.loc 1 142 28 view .LVU141
+ 441 003c FFF7FEBF 		b	_ZN15RFReliableEvent16completeIfNeededEhPKhh
+ 442              	.LVL27:
+ 443              	.L33:
+ 444              	.LCFI4:
+ 445              		.cfi_restore_state
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 14
+
+
+ 143:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 446              		.loc 1 143 1 view .LVU142
+ 447 0040 0120     		movs	r0, #1
+ 448              	.LVL28:
+ 143:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 449              		.loc 1 143 1 view .LVU143
+ 450 0042 70BC     		pop	{r4, r5, r6}
+ 451              	.LCFI5:
+ 452              		.cfi_restore 6
+ 453              		.cfi_restore 5
+ 454              		.cfi_restore 4
+ 455              		.cfi_def_cfa_offset 0
+ 456 0044 7047     		bx	lr
+ 457              		.cfi_endproc
+ 458              	.LFE1281:
+ 460              		.section	.text._ZN15RFReliableEvent12popCompletedEPhS0_S0_h,"ax",%progbits
+ 461              		.align	1
+ 462              		.global	_ZN15RFReliableEvent12popCompletedEPhS0_S0_h
+ 463              		.syntax unified
+ 464              		.thumb
+ 465              		.thumb_func
+ 467              	_ZN15RFReliableEvent12popCompletedEPhS0_S0_h:
+ 468              	.LVL29:
+ 469              	.LFB1284:
+ 173:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 174:Cpp_Core/Src/rf_reliable_event.cpp **** bool popCompleted(uint8_t* evt, uint8_t* payload, uint8_t* payloadLen, uint8_t payloadCapacity) {
+ 470              		.loc 1 174 97 is_stmt 1 view -0
+ 471              		.cfi_startproc
+ 472              		@ args = 0, pretend = 0, frame = 0
+ 473              		@ frame_needed = 0, uses_anonymous_args = 0
+ 175:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!g_completed.available) {
+ 474              		.loc 1 175 5 view .LVU145
+ 174:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!g_completed.available) {
+ 475              		.loc 1 174 97 is_stmt 0 view .LVU146
+ 476 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 477              	.LCFI6:
+ 478              		.cfi_def_cfa_offset 24
+ 479              		.cfi_offset 3, -24
+ 480              		.cfi_offset 4, -20
+ 481              		.cfi_offset 5, -16
+ 482              		.cfi_offset 6, -12
+ 483              		.cfi_offset 7, -8
+ 484              		.cfi_offset 14, -4
+ 485              		.loc 1 175 22 view .LVU147
+ 486 0002 0E4D     		ldr	r5, .L51
+ 174:Cpp_Core/Src/rf_reliable_event.cpp ****     if (!g_completed.available) {
+ 487              		.loc 1 174 97 view .LVU148
+ 488 0004 0746     		mov	r7, r0
+ 489 0006 1646     		mov	r6, r2
+ 490 0008 0846     		mov	r0, r1
+ 491              	.LVL30:
+ 492              		.loc 1 175 22 view .LVU149
+ 493 000a 2C78     		ldrb	r4, [r5]	@ zero_extendqisi2
+ 494              		.loc 1 175 5 view .LVU150
+ 495 000c 8CB1     		cbz	r4, .L43
+ 176:Cpp_Core/Src/rf_reliable_event.cpp ****         return false;
+ 177:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 15
+
+
+ 178:Cpp_Core/Src/rf_reliable_event.cpp ****     if ((evt == nullptr) || (payload == nullptr) || (payloadLen == nullptr) ||
+ 496              		.loc 1 178 5 is_stmt 1 view .LVU151
+ 497 000e 97B1     		cbz	r7, .L47
+ 498              		.loc 1 178 26 is_stmt 0 discriminator 1 view .LVU152
+ 499 0010 89B1     		cbz	r1, .L47
+ 500              		.loc 1 178 50 discriminator 2 view .LVU153
+ 501 0012 82B1     		cbz	r2, .L47
+ 502              		.loc 1 178 77 discriminator 3 view .LVU154
+ 503 0014 EA7E     		ldrb	r2, [r5, #27]	@ zero_extendqisi2
+ 504              	.LVL31:
+ 505              		.loc 1 178 77 discriminator 3 view .LVU155
+ 506 0016 9A42     		cmp	r2, r3
+ 507 0018 0DD8     		bhi	.L47
+ 179:Cpp_Core/Src/rf_reliable_event.cpp ****         (payloadCapacity < g_completed.payloadLen)) {
+ 180:Cpp_Core/Src/rf_reliable_event.cpp ****         return false;
+ 181:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 182:Cpp_Core/Src/rf_reliable_event.cpp **** 
+ 183:Cpp_Core/Src/rf_reliable_event.cpp ****     *evt = g_completed.evt;
+ 508              		.loc 1 183 5 is_stmt 1 view .LVU156
+ 509              		.loc 1 183 24 is_stmt 0 view .LVU157
+ 510 001a 6B78     		ldrb	r3, [r5, #1]	@ zero_extendqisi2
+ 511              	.LVL32:
+ 184:Cpp_Core/Src/rf_reliable_event.cpp ****     *payloadLen = g_completed.payloadLen;
+ 185:Cpp_Core/Src/rf_reliable_event.cpp ****     memcpy(payload, g_completed.payload, g_completed.payloadLen);
+ 512              		.loc 1 185 11 view .LVU158
+ 513 001c E91C     		adds	r1, r5, #3
+ 514              	.LVL33:
+ 183:Cpp_Core/Src/rf_reliable_event.cpp ****     *payloadLen = g_completed.payloadLen;
+ 515              		.loc 1 183 10 view .LVU159
+ 516 001e 3B70     		strb	r3, [r7]
+ 184:Cpp_Core/Src/rf_reliable_event.cpp ****     *payloadLen = g_completed.payloadLen;
+ 517              		.loc 1 184 5 is_stmt 1 view .LVU160
+ 184:Cpp_Core/Src/rf_reliable_event.cpp ****     *payloadLen = g_completed.payloadLen;
+ 518              		.loc 1 184 31 is_stmt 0 view .LVU161
+ 519 0020 EA7E     		ldrb	r2, [r5, #27]	@ zero_extendqisi2
+ 184:Cpp_Core/Src/rf_reliable_event.cpp ****     *payloadLen = g_completed.payloadLen;
+ 520              		.loc 1 184 17 view .LVU162
+ 521 0022 3270     		strb	r2, [r6]
+ 522              		.loc 1 185 5 is_stmt 1 view .LVU163
+ 523              		.loc 1 185 11 is_stmt 0 view .LVU164
+ 524 0024 FFF7FEFF 		bl	memcpy
+ 525              	.LVL34:
+ 186:Cpp_Core/Src/rf_reliable_event.cpp ****     g_completed = CompletedEvent{};
+ 526              		.loc 1 186 5 is_stmt 1 view .LVU165
+ 527              		.loc 1 186 17 is_stmt 0 view .LVU166
+ 528 0028 1C22     		movs	r2, #28
+ 529 002a 0021     		movs	r1, #0
+ 530 002c 2846     		mov	r0, r5
+ 531 002e FFF7FEFF 		bl	memset
+ 532              	.LVL35:
+ 187:Cpp_Core/Src/rf_reliable_event.cpp ****     return true;
+ 533              		.loc 1 187 5 is_stmt 1 view .LVU167
+ 534              	.L43:
+ 188:Cpp_Core/Src/rf_reliable_event.cpp **** }
+ 535              		.loc 1 188 1 is_stmt 0 view .LVU168
+ 536 0032 2046     		mov	r0, r4
+ 537 0034 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 16
+
+
+ 538              	.LVL36:
+ 539              	.L47:
+ 176:Cpp_Core/Src/rf_reliable_event.cpp ****     }
+ 540              		.loc 1 176 16 view .LVU169
+ 541 0036 0024     		movs	r4, #0
+ 542 0038 FBE7     		b	.L43
+ 543              	.L52:
+ 544 003a 00BF     		.align	2
+ 545              	.L51:
+ 546 003c 00000000 		.word	_ZN12_GLOBAL__N_111g_completedE
+ 547              		.cfi_endproc
+ 548              	.LFE1284:
+ 550              		.section	.bss._ZN12_GLOBAL__N_118g_lastCompletedSeqE,"aw",%nobits
+ 553              	_ZN12_GLOBAL__N_118g_lastCompletedSeqE:
+ 554 0000 00       		.space	1
+ 555              		.section	.bss._ZN12_GLOBAL__N_118g_lastCompletedEvtE,"aw",%nobits
+ 558              	_ZN12_GLOBAL__N_118g_lastCompletedEvtE:
+ 559 0000 00       		.space	1
+ 560              		.section	.bss._ZN12_GLOBAL__N_119g_haveLastCompletedE,"aw",%nobits
+ 563              	_ZN12_GLOBAL__N_119g_haveLastCompletedE:
+ 564 0000 00       		.space	1
+ 565              		.section	.bss._ZN12_GLOBAL__N_111g_completedE,"aw",%nobits
+ 568              	_ZN12_GLOBAL__N_111g_completedE:
+ 569 0000 00000000 		.space	28
+ 569      00000000 
+ 569      00000000 
+ 569      00000000 
+ 569      00000000 
+ 570              		.section	.bss._ZN12_GLOBAL__N_19g_pendingE,"aw",%nobits
+ 571              		.align	2
+ 574              	_ZN12_GLOBAL__N_19g_pendingE:
+ 575 0000 00000000 		.space	36
+ 575      00000000 
+ 575      00000000 
+ 575      00000000 
+ 575      00000000 
+ 576              		.text
+ 577              	.Letext0:
+ 578              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 579              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 580              		.file 4 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 581              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 582              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 583              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 584              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 585              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 586              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 587              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 588              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 589              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 590              		.file 14 "Core/Inc/board_cfg.h"
+ 591              		.file 15 "Cpp_Core/Inc/rf_reliable_event.hpp"
+ 592              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 593              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 594              		.file 18 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s 			page 17
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 rf_reliable_event.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:20     .text._ZN15RFReliableEvent4pollEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:26     .text._ZN15RFReliableEvent4pollEv:00000000 _ZN15RFReliableEvent4pollEv
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:147    .text._ZN15RFReliableEvent4pollEv:00000054 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:574    .bss._ZN12_GLOBAL__N_19g_pendingE:00000000 _ZN12_GLOBAL__N_19g_pendingE
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:568    .bss._ZN12_GLOBAL__N_111g_completedE:00000000 _ZN12_GLOBAL__N_111g_completedE
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:563    .bss._ZN12_GLOBAL__N_119g_haveLastCompletedE:00000000 _ZN12_GLOBAL__N_119g_haveLastCompletedE
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:558    .bss._ZN12_GLOBAL__N_118g_lastCompletedEvtE:00000000 _ZN12_GLOBAL__N_118g_lastCompletedEvtE
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:553    .bss._ZN12_GLOBAL__N_118g_lastCompletedSeqE:00000000 _ZN12_GLOBAL__N_118g_lastCompletedSeqE
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:156    .text._ZN15RFReliableEvent16completeIfNeededEhPKhh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:162    .text._ZN15RFReliableEvent16completeIfNeededEhPKhh:00000000 _ZN15RFReliableEvent16completeIfNeededEhPKhh
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:327    .text._ZN15RFReliableEvent16completeIfNeededEhPKhh:0000007c $d
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:336    .text._ZN15RFReliableEvent21completeFrameIfNeededEPKht:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:342    .text._ZN15RFReliableEvent21completeFrameIfNeededEPKht:00000000 _ZN15RFReliableEvent21completeFrameIfNeededEPKht
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:461    .text._ZN15RFReliableEvent12popCompletedEPhS0_S0_h:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:467    .text._ZN15RFReliableEvent12popCompletedEPhS0_S0_h:00000000 _ZN15RFReliableEvent12popCompletedEPhS0_S0_h
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:546    .text._ZN15RFReliableEvent12popCompletedEPhS0_S0_h:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:554    .bss._ZN12_GLOBAL__N_118g_lastCompletedSeqE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:559    .bss._ZN12_GLOBAL__N_118g_lastCompletedEvtE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:564    .bss._ZN12_GLOBAL__N_119g_haveLastCompletedE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:569    .bss._ZN12_GLOBAL__N_111g_completedE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXy4XqT.s:571    .bss._ZN12_GLOBAL__N_19g_pendingE:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_GetTick
+memcpy
+memset

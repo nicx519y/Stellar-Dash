@@ -1,0 +1,50 @@
+#ifndef SPI_SCREEN_MANAGER_HPP
+#define SPI_SCREEN_MANAGER_HPP
+
+#include <stdint.h>
+
+class SPIScreenManager {
+public:
+    SPIScreenManager(SPIScreenManager const&) = delete;
+    void operator=(SPIScreenManager const&) = delete;
+    static SPIScreenManager& getInstance() {
+        static SPIScreenManager instance;
+        return instance;
+    }
+
+    void setup();
+    void loop();
+    void shutdown();
+    bool canAutoSleep() const;
+    bool suspendForSleep();
+    void resumeFromSleep();
+    bool sleepResumeComplete() const;
+    void previewBrightness(uint8_t brightness);
+    void clearBrightnessPreview();
+
+    bool menuPrev();
+    bool menuNext();
+
+private:
+    SPIScreenManager() = default;
+
+    void rebuildMenu();
+    void handleInput(uint32_t nowMs, int8_t det, bool clicked, bool longPressed);
+    void renderFrame();
+    void renderBars();
+    void beginAnimation(int dir);
+
+    uint8_t menuCount = 0;
+    uint8_t menuIndex = 0;
+    uint8_t menuIds[32] = {0};
+
+    bool animActive = false;
+    uint32_t animStartMs = 0;
+    int animDir = 0;
+    bool sleepSuspended = false;
+    bool sleepResuming = false;
+    bool sleepDisplayFailed = false;
+    uint32_t sleepResumeStart = 0;
+};
+
+#endif

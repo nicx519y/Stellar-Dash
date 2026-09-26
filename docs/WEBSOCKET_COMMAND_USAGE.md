@@ -106,7 +106,7 @@ asyncio.run(get_global_config())
 
 ### 文件结构
 ```
-application/Cpp_Core/
+application/
 ├── Inc/configs/
 │   ├── websocket_commands.hpp      # 命令处理器声明
 │   ├── websocket_message.hpp       # 消息类定义

@@ -22,18 +22,16 @@ static const uint32_t K[64] = {
 #define SIG0(x) (ROTR(x, 7) ^ ROTR(x, 18) ^ ((x) >> 3))
 #define SIG1(x) (ROTR(x, 17) ^ ROTR(x, 19) ^ ((x) >> 10))
 
-// SHA256 上下文结构
-typedef struct {
-    uint32_t state[8];
-    uint64_t count;
-    uint8_t buffer[64];
-} sha256_ctx_t;
-
-static void sha256_transform(sha256_ctx_t *ctx, const uint8_t data[64]) {
+static void sha256_transform(sha256_simple_ctx_t *ctx,
+                             const uint8_t data[64]) {
     uint32_t a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
 
     for (i = 0, j = 0; i < 16; ++i, j += 4) {
-        m[i] = (data[j] << 24) | (data[j + 1] << 16) | (data[j + 2] << 8) | (data[j + 3]);
+        /* Cast before shifting: uint8_t promotes to signed int, and high-bit
+         * bytes shifted by 24 would otherwise overflow that signed type. */
+        m[i] = ((uint32_t)data[j] << 24) |
+               ((uint32_t)data[j + 1] << 16) |
+               ((uint32_t)data[j + 2] << 8) | (uint32_t)data[j + 3];
     }
     for (; i < 64; ++i) {
         m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
@@ -52,14 +50,22 @@ static void sha256_transform(sha256_ctx_t *ctx, const uint8_t data[64]) {
     ctx->state[4] += e; ctx->state[5] += f; ctx->state[6] += g; ctx->state[7] += h;
 }
 
-static void sha256_init(sha256_ctx_t *ctx) {
+void sha256_simple_init(sha256_simple_ctx_t *ctx) {
+    if (!ctx) {
+        return;
+    }
     ctx->count = 0;
     ctx->state[0] = 0x6a09e667; ctx->state[1] = 0xbb67ae85; ctx->state[2] = 0x3c6ef372; ctx->state[3] = 0xa54ff53a;
     ctx->state[4] = 0x510e527f; ctx->state[5] = 0x9b05688c; ctx->state[6] = 0x1f83d9ab; ctx->state[7] = 0x5be0cd19;
 }
 
-static void sha256_update(sha256_ctx_t *ctx, const uint8_t *data, size_t len) {
+void sha256_simple_update(sha256_simple_ctx_t *ctx,
+                          const uint8_t *data,
+                          size_t len) {
     size_t i;
+    if (!ctx || (!data && len != 0u)) {
+        return;
+    }
     for (i = 0; i < len; ++i) {
         ctx->buffer[ctx->count % 64] = data[i];
         ctx->count++;
@@ -69,14 +75,19 @@ static void sha256_update(sha256_ctx_t *ctx, const uint8_t *data, size_t len) {
     }
 }
 
-static void sha256_final(sha256_ctx_t *ctx, uint8_t hash[32]) {
+void sha256_simple_final(sha256_simple_ctx_t *ctx, uint8_t hash[32]) {
     uint32_t i;
+    if (!ctx || !hash) {
+        return;
+    }
     uint64_t bit_len = ctx->count * 8;
 
     ctx->buffer[ctx->count % 64] = 0x80;
     ctx->count++;
 
-    if (ctx->count % 64 > 56) {
+    /* A 63-byte tail becomes a full block after the 0x80 byte. Process it
+     * before starting the extra block containing the length field. */
+    if (ctx->count % 64 == 0 || ctx->count % 64 > 56) {
         while (ctx->count % 64 != 0) {
             ctx->buffer[ctx->count % 64] = 0x00;
             ctx->count++;
@@ -102,16 +113,26 @@ static void sha256_final(sha256_ctx_t *ctx, uint8_t hash[32]) {
     }
 }
 
+int sha256_calculate_raw(const uint8_t* data, size_t len, uint8_t hash[32]) {
+    sha256_simple_ctx_t ctx;
+
+    if ((!data && len != 0u) || !hash) {
+        return 0;
+    }
+
+    sha256_simple_init(&ctx);
+    sha256_simple_update(&ctx, data, len);
+    sha256_simple_final(&ctx, hash);
+    return 1;
+}
+
 int sha256_calculate(const uint8_t* data, size_t len, char* hex_output) {
-    if (!data || !hex_output) return 0;
-    
-    sha256_ctx_t ctx;
     uint8_t hash[32];
     int i;
-    
-    sha256_init(&ctx);
-    sha256_update(&ctx, data, len);
-    sha256_final(&ctx, hash);
+
+    if (!hex_output || !sha256_calculate_raw(data, len, hash)) {
+        return 0;
+    }
     
     for (i = 0; i < 32; i++) {
         hex_output[i * 2] = "0123456789abcdef"[hash[i] >> 4];
@@ -120,4 +141,4 @@ int sha256_calculate(const uint8_t* data, size_t len, char* hex_output) {
     hex_output[64] = '\0';
     
     return 1;
-} 
+}

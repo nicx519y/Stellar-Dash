@@ -6,24 +6,24 @@ import {
   Button, Text, Badge, Spinner
 } from "@chakra-ui/react";
 import { showToast } from "@/components/ui/toaster";
-import { WebSocketState } from "./websocket-framework";
+import { DeviceTransportState } from "@/lib/device-transport";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 
 export function ViewLogsContent() {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const { wsState, fetchDeviceLogsList } = useGamepadConfig();
+  const { deviceState, fetchDeviceLogsList } = useGamepadConfig();
 
   const stateLabel = useMemo(() => {
-    switch (wsState) {
-      case WebSocketState.CONNECTED: return "已连接";
-      case WebSocketState.CONNECTING: return "连接中";
-      case WebSocketState.ERROR: return "错误";
-      case WebSocketState.DISCONNECTED: return "未连接";
+    switch (deviceState) {
+      case DeviceTransportState.CONNECTED: return "已连接";
+      case DeviceTransportState.CONNECTING: return "连接中";
+      case DeviceTransportState.ERROR: return "错误";
+      case DeviceTransportState.DISCONNECTED: return "未连接";
       default: return "未知";
     }
-  }, [wsState]);
+  }, [deviceState]);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -39,15 +39,15 @@ export function ViewLogsContent() {
   };
 
   useEffect(() => {
-    // 仅在WebSocket已连接后拉取日志
+    // Fetch once the authenticated device session is ready.
     const fetchWhenConnected = async () => {
-      if (wsState === WebSocketState.CONNECTED) {
+      if (deviceState === DeviceTransportState.CONNECTED) {
         await fetchLogs();
       }
     };
     fetchWhenConnected();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsState]);
+  }, [deviceState]);
 
 
   return (
@@ -56,7 +56,7 @@ export function ViewLogsContent() {
         <Card.Header>
           <HStack justify="space-between">
             <Heading size="md">设备日志</Heading>
-            <Badge colorPalette={wsState === WebSocketState.CONNECTED ? "green" : wsState === WebSocketState.CONNECTING ? "yellow" : wsState === WebSocketState.ERROR ? "red" : "gray"}>
+            <Badge colorPalette={deviceState === DeviceTransportState.CONNECTED ? "green" : deviceState === DeviceTransportState.CONNECTING ? "yellow" : deviceState === DeviceTransportState.ERROR ? "red" : "gray"}>
               {stateLabel}
             </Badge>
           </HStack>

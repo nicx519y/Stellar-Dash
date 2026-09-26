@@ -9,8 +9,8 @@ import {
     SwitchButtonMap,
 } from "@/types/gamepad-config";
 import KeymappingField from "@/components/keymapping-field";
-import { showToast } from "@/components/ui/toaster";
-import { useEffect, useMemo, useState, forwardRef, useImperativeHandle, useCallback } from "react";
+import { toaster } from "@/components/ui/toaster";
+import { useEffect, useMemo, useState, forwardRef, useImperativeHandle, useCallback, useRef } from "react";
 import { Center, HStack, VStack, Box, Tabs, Separator } from "@chakra-ui/react";
 import { useLanguage } from "@/contexts/language-context";
 import { CombinationField } from "./combination-field";
@@ -21,9 +21,13 @@ export interface KeymappingFieldsetRef {
     setActiveButton: (button: GameControllerButton) => void;
 }
 
+const MAX_KEYS_TOAST_ID = "key-mapping-max-keys";
+const MAX_KEYS_TOAST_DEBOUNCE_MS = 500;
+
 const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
     inputMode: Platform,
     inputKey: number,
+    inputKeySequence: number,
     keyMapping: { [key in GameControllerButton]?: number[] },
     combinationKeyMapping: KeyCombination[],
     macros: MacroConfig[],
@@ -38,12 +42,43 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
     onMacroRecordingChange?: (recording: boolean) => void,
 }>((props, ref) => {
 
-    const { inputMode, inputKey, keyMapping, combinationKeyMapping, autoSwitch, disabled, changeKeyMappingHandler, changeCombinationKeyMappingHandler } = props;
+    const { inputMode, inputKey, inputKeySequence, keyMapping, combinationKeyMapping, autoSwitch, disabled, changeKeyMappingHandler, changeCombinationKeyMappingHandler } = props;
     const { t } = useLanguage();
     const [activeButton, setActiveButton] = useState<string>(GameControllerButtonList[0].toString());
     const [activeTab, setActiveTab] = useState<string>("combination");
     const [activeMacroIndex, setActiveMacroIndex] = useState<number | null>(null);
     const [isMacroRecording, setIsMacroRecording] = useState(false);
+    const maxKeysToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const mergedMaxKeysWarningCountRef = useRef(0);
+
+    const scheduleMaxKeysToast = useCallback(() => {
+        mergedMaxKeysWarningCountRef.current += 1;
+        if (maxKeysToastTimerRef.current !== null) {
+            clearTimeout(maxKeysToastTimerRef.current);
+        }
+
+        maxKeysToastTimerRef.current = setTimeout(() => {
+            maxKeysToastTimerRef.current = null;
+            const mergedCount = mergedMaxKeysWarningCountRef.current;
+            mergedMaxKeysWarningCountRef.current = 0;
+            toaster.create({
+                id: MAX_KEYS_TOAST_ID,
+                title: t.KEY_MAPPING_ERROR_MAX_KEYS_TITLE,
+                description: mergedCount > 1
+                    ? `${t.KEY_MAPPING_ERROR_MAX_KEYS_DESC} ×${mergedCount}`
+                    : t.KEY_MAPPING_ERROR_MAX_KEYS_DESC,
+                type: "warning",
+            });
+        }, MAX_KEYS_TOAST_DEBOUNCE_MS);
+    }, [t.KEY_MAPPING_ERROR_MAX_KEYS_DESC, t.KEY_MAPPING_ERROR_MAX_KEYS_TITLE]);
+
+    useEffect(() => {
+        return () => {
+            if (maxKeysToastTimerRef.current !== null) {
+                clearTimeout(maxKeysToastTimerRef.current);
+            }
+        };
+    }, []);
 
     // 暴露方法给父组件
     useImperativeHandle(ref, () => ({
@@ -197,11 +232,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
             if (activeKeyMapping.indexOf(inputKey) !== -1) { // key already binded
                 return;
             } else if (activeKeyMapping.length >= maxBindKeysPerButton) {
-                showToast({
-                    title: t.KEY_MAPPING_ERROR_MAX_KEYS_TITLE,
-                    description: t.KEY_MAPPING_ERROR_MAX_KEYS_DESC,
-                    type: "warning",
-                });
+                scheduleMaxKeysToast();
                 return;
             } else { // key not binded, and not reach max number of key binding per button
 
@@ -296,7 +327,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
 
             }
         }
-    }, [inputKey, isMacroRecording, maxBindKeysPerButton]);
+    }, [inputKey, inputKeySequence, isMacroRecording, maxBindKeysPerButton]);
 
     /**
      * get button label map by input mode

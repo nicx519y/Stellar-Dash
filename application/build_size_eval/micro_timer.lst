@@ -1,0 +1,597 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"micro_timer.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/micro_timer.cpp"
+  19              		.section	.text._ZN11MicrosTimer7initDWTEv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN11MicrosTimer7initDWTEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN11MicrosTimer7initDWTEv:
+  27              	.LVL0:
+  28              	.LFB1276:
+   1:Cpp_Core/Src/micro_timer.cpp **** #include "micro_timer.hpp"
+   2:Cpp_Core/Src/micro_timer.cpp **** #include "board_cfg.h"
+   3:Cpp_Core/Src/micro_timer.cpp **** #include "cycle_elapsed.hpp"
+   4:Cpp_Core/Src/micro_timer.cpp **** 
+   5:Cpp_Core/Src/micro_timer.cpp **** // STM32H750的CPU频率 - 根据实际系统时钟配置调整
+   6:Cpp_Core/Src/micro_timer.cpp **** #define CYCLES_PER_MICROSECOND (SYSTEM_CLOCK_FREQ / 1000000UL)
+   7:Cpp_Core/Src/micro_timer.cpp **** 
+   8:Cpp_Core/Src/micro_timer.cpp **** MicrosTimer::MicrosTimer() : overflowCount(0) {
+   9:Cpp_Core/Src/micro_timer.cpp ****     // 启用DWT和CYCCNT
+  10:Cpp_Core/Src/micro_timer.cpp ****     initDWT();
+  11:Cpp_Core/Src/micro_timer.cpp **** }
+  12:Cpp_Core/Src/micro_timer.cpp **** 
+  13:Cpp_Core/Src/micro_timer.cpp **** void MicrosTimer::initDWT() {
+  29              		.loc 1 13 29 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+  14:Cpp_Core/Src/micro_timer.cpp ****     // 启用DWT
+  15:Cpp_Core/Src/micro_timer.cpp ****     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  34              		.loc 1 15 5 view .LVU1
+  35              		.loc 1 15 16 is_stmt 0 view .LVU2
+  36 0000 074A     		ldr	r2, .L2
+  37 0002 D2F8FC30 		ldr	r3, [r2, #252]
+  38              		.loc 1 15 22 view .LVU3
+  39 0006 43F08073 		orr	r3, r3, #16777216
+  40 000a C2F8FC30 		str	r3, [r2, #252]
+  16:Cpp_Core/Src/micro_timer.cpp ****     
+  17:Cpp_Core/Src/micro_timer.cpp ****     // 重置CYCCNT
+  18:Cpp_Core/Src/micro_timer.cpp ****     DWT->CYCCNT = 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 2
+
+
+  41              		.loc 1 18 5 is_stmt 1 view .LVU4
+  42              		.loc 1 18 17 is_stmt 0 view .LVU5
+  43 000e 0022     		movs	r2, #0
+  44 0010 044B     		ldr	r3, .L2+4
+  45 0012 5A60     		str	r2, [r3, #4]
+  19:Cpp_Core/Src/micro_timer.cpp ****     
+  20:Cpp_Core/Src/micro_timer.cpp ****     // 启用CYCCNT计数器
+  21:Cpp_Core/Src/micro_timer.cpp ****     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  46              		.loc 1 21 5 is_stmt 1 view .LVU6
+  47              		.loc 1 21 10 is_stmt 0 view .LVU7
+  48 0014 1A68     		ldr	r2, [r3]
+  49              		.loc 1 21 15 view .LVU8
+  50 0016 42F00102 		orr	r2, r2, #1
+  51 001a 1A60     		str	r2, [r3]
+  22:Cpp_Core/Src/micro_timer.cpp **** }
+  52              		.loc 1 22 1 view .LVU9
+  53 001c 7047     		bx	lr
+  54              	.L3:
+  55 001e 00BF     		.align	2
+  56              	.L2:
+  57 0020 00ED00E0 		.word	-536810240
+  58 0024 001000E0 		.word	-536866816
+  59              		.cfi_endproc
+  60              	.LFE1276:
+  62              		.section	.text._ZN11MicrosTimerC2Ev,"ax",%progbits
+  63              		.align	1
+  64              		.global	_ZN11MicrosTimerC2Ev
+  65              		.syntax unified
+  66              		.thumb
+  67              		.thumb_func
+  69              	_ZN11MicrosTimerC2Ev:
+  70              	.LVL1:
+  71              	.LFB1274:
+   8:Cpp_Core/Src/micro_timer.cpp ****     // 启用DWT和CYCCNT
+  72              		.loc 1 8 1 is_stmt 1 view -0
+  73              		.cfi_startproc
+  74              		@ args = 0, pretend = 0, frame = 0
+  75              		@ frame_needed = 0, uses_anonymous_args = 0
+  76              	.LBB16:
+   8:Cpp_Core/Src/micro_timer.cpp ****     // 启用DWT和CYCCNT
+  77              		.loc 1 8 30 is_stmt 0 view .LVU11
+  78 0000 0022     		movs	r2, #0
+  79              	.LBE16:
+   8:Cpp_Core/Src/micro_timer.cpp ****     // 启用DWT和CYCCNT
+  80              		.loc 1 8 1 view .LVU12
+  81 0002 08B5     		push	{r3, lr}
+  82              	.LCFI0:
+  83              		.cfi_def_cfa_offset 8
+  84              		.cfi_offset 3, -8
+  85              		.cfi_offset 14, -4
+  86              	.LBB17:
+   8:Cpp_Core/Src/micro_timer.cpp ****     // 启用DWT和CYCCNT
+  87              		.loc 1 8 30 view .LVU13
+  88 0004 0260     		str	r2, [r0]
+  10:Cpp_Core/Src/micro_timer.cpp **** }
+  89              		.loc 1 10 5 is_stmt 1 view .LVU14
+  10:Cpp_Core/Src/micro_timer.cpp **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 3
+
+
+  90              		.loc 1 10 12 is_stmt 0 view .LVU15
+  91 0006 FFF7FEFF 		bl	_ZN11MicrosTimer7initDWTEv
+  92              	.LVL2:
+  93              	.LBE17:
+  11:Cpp_Core/Src/micro_timer.cpp **** 
+  94              		.loc 1 11 1 view .LVU16
+  95 000a 08BD     		pop	{r3, pc}
+  96              		.cfi_endproc
+  97              	.LFE1274:
+  99              		.global	_ZN11MicrosTimerC1Ev
+ 100              		.thumb_set _ZN11MicrosTimerC1Ev,_ZN11MicrosTimerC2Ev
+ 101              		.section	.text._ZN11MicrosTimer6microsEv,"ax",%progbits
+ 102              		.align	1
+ 103              		.global	_ZN11MicrosTimer6microsEv
+ 104              		.syntax unified
+ 105              		.thumb
+ 106              		.thumb_func
+ 108              	_ZN11MicrosTimer6microsEv:
+ 109              	.LVL3:
+ 110              	.LFB1277:
+  23:Cpp_Core/Src/micro_timer.cpp **** 
+  24:Cpp_Core/Src/micro_timer.cpp **** uint32_t MicrosTimer::micros() {
+ 111              		.loc 1 24 32 is_stmt 1 view -0
+ 112              		.cfi_startproc
+ 113              		@ args = 0, pretend = 0, frame = 0
+ 114              		@ frame_needed = 0, uses_anonymous_args = 0
+ 115              		@ link register save eliminated.
+  25:Cpp_Core/Src/micro_timer.cpp ****     // 读取当前的循环计数
+  26:Cpp_Core/Src/micro_timer.cpp ****     uint32_t cycles = DWT->CYCCNT;
+ 116              		.loc 1 26 5 view .LVU18
+ 117              		.loc 1 26 28 is_stmt 0 view .LVU19
+ 118 0000 034B     		ldr	r3, .L6
+ 119 0002 5868     		ldr	r0, [r3, #4]
+ 120              	.LVL4:
+  27:Cpp_Core/Src/micro_timer.cpp ****     
+  28:Cpp_Core/Src/micro_timer.cpp ****     // 转换为微秒
+  29:Cpp_Core/Src/micro_timer.cpp ****     return cycles / CYCLES_PER_MICROSECOND;
+ 121              		.loc 1 29 5 is_stmt 1 view .LVU20
+  30:Cpp_Core/Src/micro_timer.cpp **** }
+ 122              		.loc 1 30 1 is_stmt 0 view .LVU21
+ 123 0004 4FF4F073 		mov	r3, #480
+ 124 0008 B0FBF3F0 		udiv	r0, r0, r3
+ 125              	.LVL5:
+ 126              		.loc 1 30 1 view .LVU22
+ 127 000c 7047     		bx	lr
+ 128              	.L7:
+ 129 000e 00BF     		.align	2
+ 130              	.L6:
+ 131 0010 001000E0 		.word	-536866816
+ 132              		.cfi_endproc
+ 133              	.LFE1277:
+ 135              		.section	.text._ZNK11MicrosTimer6cyclesEv,"ax",%progbits
+ 136              		.align	1
+ 137              		.global	_ZNK11MicrosTimer6cyclesEv
+ 138              		.syntax unified
+ 139              		.thumb
+ 140              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 4
+
+
+ 142              	_ZNK11MicrosTimer6cyclesEv:
+ 143              	.LVL6:
+ 144              	.LFB1278:
+  31:Cpp_Core/Src/micro_timer.cpp **** 
+  32:Cpp_Core/Src/micro_timer.cpp **** uint32_t MicrosTimer::cycles() const {
+ 145              		.loc 1 32 38 is_stmt 1 view -0
+ 146              		.cfi_startproc
+ 147              		@ args = 0, pretend = 0, frame = 0
+ 148              		@ frame_needed = 0, uses_anonymous_args = 0
+ 149              		@ link register save eliminated.
+  33:Cpp_Core/Src/micro_timer.cpp ****     return DWT->CYCCNT;
+ 150              		.loc 1 33 5 view .LVU24
+ 151              		.loc 1 33 17 is_stmt 0 view .LVU25
+ 152 0000 014B     		ldr	r3, .L9
+ 153 0002 5868     		ldr	r0, [r3, #4]
+ 154              	.LVL7:
+  34:Cpp_Core/Src/micro_timer.cpp **** }
+ 155              		.loc 1 34 1 view .LVU26
+ 156 0004 7047     		bx	lr
+ 157              	.L10:
+ 158 0006 00BF     		.align	2
+ 159              	.L9:
+ 160 0008 001000E0 		.word	-536866816
+ 161              		.cfi_endproc
+ 162              	.LFE1278:
+ 164              		.section	.text._ZNK11MicrosTimer13elapsedMicrosEm,"ax",%progbits
+ 165              		.align	1
+ 166              		.global	_ZNK11MicrosTimer13elapsedMicrosEm
+ 167              		.syntax unified
+ 168              		.thumb
+ 169              		.thumb_func
+ 171              	_ZNK11MicrosTimer13elapsedMicrosEm:
+ 172              	.LVL8:
+ 173              	.LFB1279:
+  35:Cpp_Core/Src/micro_timer.cpp **** 
+  36:Cpp_Core/Src/micro_timer.cpp **** uint32_t MicrosTimer::elapsedMicros(uint32_t startCycles) const {
+ 174              		.loc 1 36 65 is_stmt 1 view -0
+ 175              		.cfi_startproc
+ 176              		@ args = 0, pretend = 0, frame = 0
+ 177              		@ frame_needed = 0, uses_anonymous_args = 0
+ 178              		@ link register save eliminated.
+  37:Cpp_Core/Src/micro_timer.cpp ****     return ElapsedMicros32(startCycles,
+ 179              		.loc 1 37 5 view .LVU28
+  38:Cpp_Core/Src/micro_timer.cpp ****                            DWT->CYCCNT,
+ 180              		.loc 1 38 33 is_stmt 0 view .LVU29
+ 181 0000 034B     		ldr	r3, .L12
+ 182 0002 5868     		ldr	r0, [r3, #4]
+ 183              	.LVL9:
+ 184              	.LBB18:
+ 185              	.LBI18:
+ 186              		.file 2 "Cpp_Core/Inc/cycle_elapsed.hpp"
+   1:Cpp_Core/Inc/cycle_elapsed.hpp **** #ifndef CYCLE_ELAPSED_HPP
+   2:Cpp_Core/Inc/cycle_elapsed.hpp **** #define CYCLE_ELAPSED_HPP
+   3:Cpp_Core/Inc/cycle_elapsed.hpp **** 
+   4:Cpp_Core/Inc/cycle_elapsed.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/cycle_elapsed.hpp **** 
+   6:Cpp_Core/Inc/cycle_elapsed.hpp **** constexpr uint32_t ElapsedCycles32(uint32_t startCycles, uint32_t endCycles)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 5
+
+
+   7:Cpp_Core/Inc/cycle_elapsed.hpp **** {
+   8:Cpp_Core/Inc/cycle_elapsed.hpp ****     return static_cast<uint32_t>(endCycles - startCycles);
+   9:Cpp_Core/Inc/cycle_elapsed.hpp **** }
+  10:Cpp_Core/Inc/cycle_elapsed.hpp **** 
+  11:Cpp_Core/Inc/cycle_elapsed.hpp **** constexpr uint32_t CyclesToMicros32(uint32_t elapsedCycles,
+  12:Cpp_Core/Inc/cycle_elapsed.hpp ****                                     uint32_t cyclesPerMicrosecond)
+  13:Cpp_Core/Inc/cycle_elapsed.hpp **** {
+  14:Cpp_Core/Inc/cycle_elapsed.hpp ****     return cyclesPerMicrosecond == 0u
+  15:Cpp_Core/Inc/cycle_elapsed.hpp ****         ? 0u
+  16:Cpp_Core/Inc/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+  17:Cpp_Core/Inc/cycle_elapsed.hpp **** }
+  18:Cpp_Core/Inc/cycle_elapsed.hpp **** 
+  19:Cpp_Core/Inc/cycle_elapsed.hpp **** constexpr uint32_t ElapsedMicros32(uint32_t startCycles,
+ 187              		.loc 2 19 20 is_stmt 1 view .LVU30
+  20:Cpp_Core/Inc/cycle_elapsed.hpp ****                                    uint32_t endCycles,
+  21:Cpp_Core/Inc/cycle_elapsed.hpp ****                                    uint32_t cyclesPerMicrosecond)
+  22:Cpp_Core/Inc/cycle_elapsed.hpp **** {
+  23:Cpp_Core/Inc/cycle_elapsed.hpp ****     return CyclesToMicros32(ElapsedCycles32(startCycles, endCycles),
+ 188              		.loc 2 23 5 view .LVU31
+ 189              	.LBB19:
+ 190              	.LBI19:
+   6:Cpp_Core/Inc/cycle_elapsed.hpp **** {
+ 191              		.loc 2 6 20 view .LVU32
+ 192              	.LBB20:
+   8:Cpp_Core/Inc/cycle_elapsed.hpp **** }
+ 193              		.loc 2 8 5 view .LVU33
+   8:Cpp_Core/Inc/cycle_elapsed.hpp **** }
+ 194              		.loc 2 8 5 is_stmt 0 view .LVU34
+ 195              	.LBE20:
+ 196              	.LBE19:
+ 197              	.LBB22:
+ 198              	.LBI22:
+  11:Cpp_Core/Inc/cycle_elapsed.hpp ****                                     uint32_t cyclesPerMicrosecond)
+ 199              		.loc 2 11 20 is_stmt 1 view .LVU35
+ 200              	.LBB23:
+  14:Cpp_Core/Inc/cycle_elapsed.hpp ****         ? 0u
+ 201              		.loc 2 14 5 view .LVU36
+  14:Cpp_Core/Inc/cycle_elapsed.hpp ****         ? 0u
+ 202              		.loc 2 14 5 is_stmt 0 view .LVU37
+ 203              	.LBE23:
+ 204              	.LBE22:
+ 205              	.LBE18:
+  39:Cpp_Core/Src/micro_timer.cpp ****                            CYCLES_PER_MICROSECOND);
+  40:Cpp_Core/Src/micro_timer.cpp **** }
+ 206              		.loc 1 40 1 view .LVU38
+ 207 0004 4FF4F073 		mov	r3, #480
+ 208              	.LBB25:
+ 209              	.LBB24:
+ 210              	.LBB21:
+   8:Cpp_Core/Inc/cycle_elapsed.hpp **** }
+ 211              		.loc 2 8 57 view .LVU39
+ 212 0008 401A     		subs	r0, r0, r1
+ 213              	.LBE21:
+ 214              	.LBE24:
+ 215              	.LBE25:
+ 216              		.loc 1 40 1 view .LVU40
+ 217 000a B0FBF3F0 		udiv	r0, r0, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 6
+
+
+ 218 000e 7047     		bx	lr
+ 219              	.L13:
+ 220              		.align	2
+ 221              	.L12:
+ 222 0010 001000E0 		.word	-536866816
+ 223              		.cfi_endproc
+ 224              	.LFE1279:
+ 226              		.section	.text._ZN11MicrosTimer5resetEv,"ax",%progbits
+ 227              		.align	1
+ 228              		.global	_ZN11MicrosTimer5resetEv
+ 229              		.syntax unified
+ 230              		.thumb
+ 231              		.thumb_func
+ 233              	_ZN11MicrosTimer5resetEv:
+ 234              	.LVL10:
+ 235              	.LFB1280:
+  41:Cpp_Core/Src/micro_timer.cpp **** 
+  42:Cpp_Core/Src/micro_timer.cpp **** void MicrosTimer::reset() {
+ 236              		.loc 1 42 27 is_stmt 1 view -0
+ 237              		.cfi_startproc
+ 238              		@ args = 0, pretend = 0, frame = 0
+ 239              		@ frame_needed = 0, uses_anonymous_args = 0
+ 240              		@ link register save eliminated.
+  43:Cpp_Core/Src/micro_timer.cpp ****     // 重置DWT计数器
+  44:Cpp_Core/Src/micro_timer.cpp ****     DWT->CYCCNT = 0;
+ 241              		.loc 1 44 5 view .LVU42
+ 242              		.loc 1 44 17 is_stmt 0 view .LVU43
+ 243 0000 0023     		movs	r3, #0
+ 244 0002 024A     		ldr	r2, .L15
+ 245 0004 5360     		str	r3, [r2, #4]
+  45:Cpp_Core/Src/micro_timer.cpp ****     overflowCount = 0;
+ 246              		.loc 1 45 5 is_stmt 1 view .LVU44
+ 247              		.loc 1 45 19 is_stmt 0 view .LVU45
+ 248 0006 0360     		str	r3, [r0]
+  46:Cpp_Core/Src/micro_timer.cpp **** }
+ 249              		.loc 1 46 1 view .LVU46
+ 250 0008 7047     		bx	lr
+ 251              	.L16:
+ 252 000a 00BF     		.align	2
+ 253              	.L15:
+ 254 000c 001000E0 		.word	-536866816
+ 255              		.cfi_endproc
+ 256              	.LFE1280:
+ 258              		.section	.text._ZN11MicrosTimer11delayMicrosEm,"ax",%progbits
+ 259              		.align	1
+ 260              		.global	_ZN11MicrosTimer11delayMicrosEm
+ 261              		.syntax unified
+ 262              		.thumb
+ 263              		.thumb_func
+ 265              	_ZN11MicrosTimer11delayMicrosEm:
+ 266              	.LVL11:
+ 267              	.LFB1281:
+  47:Cpp_Core/Src/micro_timer.cpp **** 
+  48:Cpp_Core/Src/micro_timer.cpp **** void MicrosTimer::delayMicros(uint32_t us) {
+ 268              		.loc 1 48 44 is_stmt 1 view -0
+ 269              		.cfi_startproc
+ 270              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 7
+
+
+ 271              		@ frame_needed = 0, uses_anonymous_args = 0
+ 272              		@ link register save eliminated.
+  49:Cpp_Core/Src/micro_timer.cpp ****     uint32_t start_cycles = DWT->CYCCNT;
+ 273              		.loc 1 49 5 view .LVU48
+ 274              		.loc 1 49 34 is_stmt 0 view .LVU49
+ 275 0000 054A     		ldr	r2, .L20
+  50:Cpp_Core/Src/micro_timer.cpp ****     uint32_t delay_cycles = us * CYCLES_PER_MICROSECOND;
+ 276              		.loc 1 50 14 view .LVU50
+ 277 0002 4FF4F073 		mov	r3, #480
+  49:Cpp_Core/Src/micro_timer.cpp ****     uint32_t start_cycles = DWT->CYCCNT;
+ 278              		.loc 1 49 34 view .LVU51
+ 279 0006 5068     		ldr	r0, [r2, #4]
+ 280              	.LVL12:
+ 281              		.loc 1 50 5 is_stmt 1 view .LVU52
+ 282              		.loc 1 50 14 is_stmt 0 view .LVU53
+ 283 0008 5943     		muls	r1, r3, r1
+ 284              	.LVL13:
+  51:Cpp_Core/Src/micro_timer.cpp ****     
+  52:Cpp_Core/Src/micro_timer.cpp ****     // 等待指定的循环数
+  53:Cpp_Core/Src/micro_timer.cpp ****     while((DWT->CYCCNT - start_cycles) < delay_cycles) {
+ 285              		.loc 1 53 5 is_stmt 1 view .LVU54
+ 286              	.L18:
+ 287              		.loc 1 53 40 view .LVU55
+ 288              		.loc 1 53 17 is_stmt 0 view .LVU56
+ 289 000a 5368     		ldr	r3, [r2, #4]
+ 290              		.loc 1 53 24 view .LVU57
+ 291 000c 1B1A     		subs	r3, r3, r0
+ 292              		.loc 1 53 40 view .LVU58
+ 293 000e 8B42     		cmp	r3, r1
+ 294 0010 00D3     		bcc	.L19
+  54:Cpp_Core/Src/micro_timer.cpp ****         __NOP();  // 防止编译器优化掉循环
+  55:Cpp_Core/Src/micro_timer.cpp ****     }
+  56:Cpp_Core/Src/micro_timer.cpp **** }
+ 295              		.loc 1 56 1 view .LVU59
+ 296 0012 7047     		bx	lr
+ 297              	.L19:
+  54:Cpp_Core/Src/micro_timer.cpp ****         __NOP();  // 防止编译器优化掉循环
+ 298              		.loc 1 54 9 is_stmt 1 view .LVU60
+ 299              		.syntax unified
+ 300              	@ 54 "Cpp_Core/Src/micro_timer.cpp" 1
+ 301 0014 00BF     		nop
+ 302              	@ 0 "" 2
+ 303              		.thumb
+ 304              		.syntax unified
+ 305 0016 F8E7     		b	.L18
+ 306              	.L21:
+ 307              		.align	2
+ 308              	.L20:
+ 309 0018 001000E0 		.word	-536866816
+ 310              		.cfi_endproc
+ 311              	.LFE1281:
+ 313              		.section	.text._ZN11MicrosTimer13checkIntervalEmRm,"ax",%progbits
+ 314              		.align	1
+ 315              		.global	_ZN11MicrosTimer13checkIntervalEmRm
+ 316              		.syntax unified
+ 317              		.thumb
+ 318              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 8
+
+
+ 320              	_ZN11MicrosTimer13checkIntervalEmRm:
+ 321              	.LVL14:
+ 322              	.LFB1282:
+  57:Cpp_Core/Src/micro_timer.cpp **** 
+  58:Cpp_Core/Src/micro_timer.cpp **** bool MicrosTimer::checkInterval(uint32_t interval_us, uint32_t& lastTime) {
+ 323              		.loc 1 58 75 view -0
+ 324              		.cfi_startproc
+ 325              		@ args = 0, pretend = 0, frame = 0
+ 326              		@ frame_needed = 0, uses_anonymous_args = 0
+  59:Cpp_Core/Src/micro_timer.cpp ****     uint32_t currentTime = micros();
+ 327              		.loc 1 59 5 view .LVU62
+ 328              	.LBB26:
+ 329              	.LBI26:
+  24:Cpp_Core/Src/micro_timer.cpp ****     // 读取当前的循环计数
+ 330              		.loc 1 24 10 view .LVU63
+ 331              	.LBB27:
+  26:Cpp_Core/Src/micro_timer.cpp ****     
+ 332              		.loc 1 26 5 view .LVU64
+  26:Cpp_Core/Src/micro_timer.cpp ****     
+ 333              		.loc 1 26 28 is_stmt 0 view .LVU65
+ 334 0000 0A4B     		ldr	r3, .L27
+  29:Cpp_Core/Src/micro_timer.cpp **** }
+ 335              		.loc 1 29 21 view .LVU66
+ 336 0002 4FF4F070 		mov	r0, #480
+ 337              	.LVL15:
+  26:Cpp_Core/Src/micro_timer.cpp ****     
+ 338              		.loc 1 26 28 view .LVU67
+ 339 0006 5B68     		ldr	r3, [r3, #4]
+ 340              	.LVL16:
+  29:Cpp_Core/Src/micro_timer.cpp **** }
+ 341              		.loc 1 29 5 is_stmt 1 view .LVU68
+  29:Cpp_Core/Src/micro_timer.cpp **** }
+ 342              		.loc 1 29 21 is_stmt 0 view .LVU69
+ 343 0008 B3FBF0F3 		udiv	r3, r3, r0
+ 344              	.LVL17:
+  29:Cpp_Core/Src/micro_timer.cpp **** }
+ 345              		.loc 1 29 21 view .LVU70
+ 346              	.LBE27:
+ 347              	.LBE26:
+  60:Cpp_Core/Src/micro_timer.cpp ****     uint32_t elapsed;
+ 348              		.loc 1 60 5 is_stmt 1 view .LVU71
+  61:Cpp_Core/Src/micro_timer.cpp ****     
+  62:Cpp_Core/Src/micro_timer.cpp ****     if (currentTime >= lastTime) {
+ 349              		.loc 1 62 5 view .LVU72
+ 350              	.LBB28:
+ 351              		.loc 1 62 24 is_stmt 0 view .LVU73
+ 352 000c 1068     		ldr	r0, [r2]
+ 353              		.loc 1 62 5 view .LVU74
+ 354 000e 9842     		cmp	r0, r3
+  63:Cpp_Core/Src/micro_timer.cpp ****         // 正常情况
+  64:Cpp_Core/Src/micro_timer.cpp ****         elapsed = currentTime - lastTime;
+ 355              		.loc 1 64 9 is_stmt 1 view .LVU75
+ 356              	.LBE28:
+  58:Cpp_Core/Src/micro_timer.cpp ****     uint32_t currentTime = micros();
+ 357              		.loc 1 58 75 is_stmt 0 view .LVU76
+ 358 0010 10B5     		push	{r4, lr}
+ 359              	.LCFI1:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 9
+
+
+ 360              		.cfi_def_cfa_offset 8
+ 361              		.cfi_offset 4, -8
+ 362              		.cfi_offset 14, -4
+ 363              	.LBB31:
+ 364              	.LBB29:
+  65:Cpp_Core/Src/micro_timer.cpp ****     } else {
+  66:Cpp_Core/Src/micro_timer.cpp ****         // 溢出情况
+  67:Cpp_Core/Src/micro_timer.cpp ****         // 最大微秒数：0xFFFFFFFF / CYCLES_PER_MICROSECOND
+  68:Cpp_Core/Src/micro_timer.cpp ****         uint32_t max_micros = 0xFFFFFFFF / CYCLES_PER_MICROSECOND;
+  69:Cpp_Core/Src/micro_timer.cpp ****         elapsed = (max_micros - lastTime) + currentTime + 1;
+ 365              		.loc 1 69 17 view .LVU77
+ 366 0012 89BF     		itett	hi
+ 367 0014 A3F17734 		subhi	r4, r3, #2004318071
+ 368              	.LBE29:
+  64:Cpp_Core/Src/micro_timer.cpp ****     } else {
+ 369              		.loc 1 64 17 view .LVU78
+ 370 0018 181A     		subls	r0, r3, r0
+ 371              	.LVL18:
+ 372              	.LBB30:
+  68:Cpp_Core/Src/micro_timer.cpp ****         elapsed = (max_micros - lastTime) + currentTime + 1;
+ 373              		.loc 1 68 9 is_stmt 1 view .LVU79
+ 374              		.loc 1 69 9 view .LVU80
+ 375              		.loc 1 69 17 is_stmt 0 view .LVU81
+ 376 001a 04F1F044 		addhi	r4, r4, #2013265920
+ 377 001e 201A     		subhi	r0, r4, r0
+ 378              	.LVL19:
+ 379              		.loc 1 69 17 view .LVU82
+ 380              	.LBE30:
+ 381              	.LBE31:
+  70:Cpp_Core/Src/micro_timer.cpp ****     }
+  71:Cpp_Core/Src/micro_timer.cpp ****     
+  72:Cpp_Core/Src/micro_timer.cpp ****     if (elapsed >= interval_us) {
+ 382              		.loc 1 72 5 is_stmt 1 view .LVU83
+ 383 0020 8842     		cmp	r0, r1
+  73:Cpp_Core/Src/micro_timer.cpp ****         lastTime = currentTime;
+ 384              		.loc 1 73 9 view .LVU84
+  74:Cpp_Core/Src/micro_timer.cpp ****         return true;
+ 385              		.loc 1 74 16 is_stmt 0 view .LVU85
+ 386 0022 2ABF     		itet	cs
+ 387 0024 0120     		movcs	r0, #1
+ 388              	.LVL20:
+  75:Cpp_Core/Src/micro_timer.cpp ****     }
+  76:Cpp_Core/Src/micro_timer.cpp ****     
+  77:Cpp_Core/Src/micro_timer.cpp ****     return false;
+ 389              		.loc 1 77 12 view .LVU86
+ 390 0026 0020     		movcc	r0, #0
+  73:Cpp_Core/Src/micro_timer.cpp ****         return true;
+ 391              		.loc 1 73 18 view .LVU87
+ 392 0028 1360     		strcs	r3, [r2]
+ 393              	.LVL21:
+  74:Cpp_Core/Src/micro_timer.cpp ****         return true;
+ 394              		.loc 1 74 9 is_stmt 1 view .LVU88
+  78:Cpp_Core/Src/micro_timer.cpp **** }
+ 395              		.loc 1 78 1 is_stmt 0 view .LVU89
+ 396 002a 10BD     		pop	{r4, pc}
+ 397              	.LVL22:
+ 398              	.L28:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 10
+
+
+ 399              		.loc 1 78 1 view .LVU90
+ 400              		.align	2
+ 401              	.L27:
+ 402 002c 001000E0 		.word	-536866816
+ 403              		.cfi_endproc
+ 404              	.LFE1282:
+ 406              		.text
+ 407              	.Letext0:
+ 408              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 409              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 410              		.file 5 "Drivers/CMSIS/Include/core_cm7.h"
+ 411              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 412              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 413              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 414              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 415              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 416              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 417              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 418              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 419              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 420              		.file 15 "Cpp_Core/Inc/micro_timer.hpp"
+ 421              		.file 16 "Core/Inc/board_cfg.h"
+ 422              		.file 17 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s 			page 11
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 micro_timer.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:20     .text._ZN11MicrosTimer7initDWTEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:26     .text._ZN11MicrosTimer7initDWTEv:00000000 _ZN11MicrosTimer7initDWTEv
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:57     .text._ZN11MicrosTimer7initDWTEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:63     .text._ZN11MicrosTimerC2Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:69     .text._ZN11MicrosTimerC2Ev:00000000 _ZN11MicrosTimerC2Ev
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:69     .text._ZN11MicrosTimerC2Ev:00000000 _ZN11MicrosTimerC1Ev
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:102    .text._ZN11MicrosTimer6microsEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:108    .text._ZN11MicrosTimer6microsEv:00000000 _ZN11MicrosTimer6microsEv
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:131    .text._ZN11MicrosTimer6microsEv:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:136    .text._ZNK11MicrosTimer6cyclesEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:142    .text._ZNK11MicrosTimer6cyclesEv:00000000 _ZNK11MicrosTimer6cyclesEv
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:160    .text._ZNK11MicrosTimer6cyclesEv:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:165    .text._ZNK11MicrosTimer13elapsedMicrosEm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:171    .text._ZNK11MicrosTimer13elapsedMicrosEm:00000000 _ZNK11MicrosTimer13elapsedMicrosEm
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:222    .text._ZNK11MicrosTimer13elapsedMicrosEm:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:227    .text._ZN11MicrosTimer5resetEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:233    .text._ZN11MicrosTimer5resetEv:00000000 _ZN11MicrosTimer5resetEv
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:254    .text._ZN11MicrosTimer5resetEv:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:259    .text._ZN11MicrosTimer11delayMicrosEm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:265    .text._ZN11MicrosTimer11delayMicrosEm:00000000 _ZN11MicrosTimer11delayMicrosEm
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:309    .text._ZN11MicrosTimer11delayMicrosEm:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:314    .text._ZN11MicrosTimer13checkIntervalEmRm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:320    .text._ZN11MicrosTimer13checkIntervalEmRm:00000000 _ZN11MicrosTimer13checkIntervalEmRm
+C:\Users\nicx5\AppData\Local\Temp\ccmAat8t.s:402    .text._ZN11MicrosTimer13checkIntervalEmRm:0000002c $d
+
+NO UNDEFINED SYMBOLS

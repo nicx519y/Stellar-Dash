@@ -1,0 +1,639 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"physical_confirmation.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "../common/physical_confirmation.c"
+  19              		.section	.text.HBoxPhysicalConfirmation_Init,"ax",%progbits
+  20              		.align	1
+  21              		.global	HBoxPhysicalConfirmation_Init
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	HBoxPhysicalConfirmation_Init:
+  27              	.LVL0:
+  28              	.LFB2:
+   1:../common/physical_confirmation.c **** #include "physical_confirmation.h"
+   2:../common/physical_confirmation.c **** 
+   3:../common/physical_confirmation.c **** #include <stddef.h>
+   4:../common/physical_confirmation.c **** 
+   5:../common/physical_confirmation.c **** #define HBOX_CONFIRM_RELEASE_DEBOUNCE_MS 50u
+   6:../common/physical_confirmation.c **** #define HBOX_CONFIRM_PRESS_DEBOUNCE_MS 30u
+   7:../common/physical_confirmation.c **** #define HBOX_CONFIRM_HOLD_MS 2000u
+   8:../common/physical_confirmation.c **** #define HBOX_CONFIRM_AUTHORIZATION_MS 10000u
+   9:../common/physical_confirmation.c **** 
+  10:../common/physical_confirmation.c **** static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
+  11:../common/physical_confirmation.c **** {
+  12:../common/physical_confirmation.c ****     return (int32_t)(now_ms - deadline_ms) >= 0;
+  13:../common/physical_confirmation.c **** }
+  14:../common/physical_confirmation.c **** 
+  15:../common/physical_confirmation.c **** static void enter_state(
+  16:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+  17:../common/physical_confirmation.c ****     hbox_physical_confirmation_state_t state,
+  18:../common/physical_confirmation.c ****     uint32_t now_ms)
+  19:../common/physical_confirmation.c **** {
+  20:../common/physical_confirmation.c ****     confirmation->state = state;
+  21:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+  22:../common/physical_confirmation.c **** }
+  23:../common/physical_confirmation.c **** 
+  24:../common/physical_confirmation.c **** void HBoxPhysicalConfirmation_Init(
+  25:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+  26:../common/physical_confirmation.c ****     uint32_t now_ms)
+  27:../common/physical_confirmation.c **** {
+  29              		.loc 1 27 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 2
+
+
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+  28:../common/physical_confirmation.c ****     if (confirmation == NULL) {
+  34              		.loc 1 28 5 view .LVU1
+  35              		.loc 1 28 8 is_stmt 0 view .LVU2
+  36 0000 18B1     		cbz	r0, .L1
+  29:../common/physical_confirmation.c ****         return;
+  30:../common/physical_confirmation.c ****     }
+  31:../common/physical_confirmation.c ****     confirmation->state = HBOX_CONFIRM_AWAIT_RELEASE;
+  37              		.loc 1 31 5 is_stmt 1 view .LVU3
+  38              		.loc 1 31 25 is_stmt 0 view .LVU4
+  39 0002 0023     		movs	r3, #0
+  40 0004 0370     		strb	r3, [r0]
+  32:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+  41              		.loc 1 32 5 is_stmt 1 view .LVU5
+  33:../common/physical_confirmation.c ****     confirmation->authorization_expires_at_ms = 0u;
+  42              		.loc 1 33 47 is_stmt 0 view .LVU6
+  43 0006 C0E90113 		strd	r1, r3, [r0, #4]
+  44              	.L1:
+  34:../common/physical_confirmation.c **** }
+  45              		.loc 1 34 1 view .LVU7
+  46 000a 7047     		bx	lr
+  47              		.cfi_endproc
+  48              	.LFE2:
+  50              		.section	.text.HBoxPhysicalConfirmation_Update,"ax",%progbits
+  51              		.align	1
+  52              		.global	HBoxPhysicalConfirmation_Update
+  53              		.syntax unified
+  54              		.thumb
+  55              		.thumb_func
+  57              	HBoxPhysicalConfirmation_Update:
+  58              	.LVL1:
+  59              	.LFB3:
+  35:../common/physical_confirmation.c **** 
+  36:../common/physical_confirmation.c **** void HBoxPhysicalConfirmation_Update(
+  37:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+  38:../common/physical_confirmation.c ****     uint32_t now_ms,
+  39:../common/physical_confirmation.c ****     bool maintenance_gate_open,
+  40:../common/physical_confirmation.c ****     bool confirmation_buttons_released,
+  41:../common/physical_confirmation.c ****     bool confirmation_buttons_pressed)
+  42:../common/physical_confirmation.c **** {
+  60              		.loc 1 42 1 is_stmt 1 view -0
+  61              		.cfi_startproc
+  62              		@ args = 4, pretend = 0, frame = 0
+  63              		@ frame_needed = 0, uses_anonymous_args = 0
+  64              		@ link register save eliminated.
+  43:../common/physical_confirmation.c ****     if (confirmation == NULL) {
+  65              		.loc 1 43 5 view .LVU9
+  42:../common/physical_confirmation.c ****     if (confirmation == NULL) {
+  66              		.loc 1 42 1 is_stmt 0 view .LVU10
+  67 0000 30B4     		push	{r4, r5}
+  68              	.LCFI0:
+  69              		.cfi_def_cfa_offset 8
+  70              		.cfi_offset 4, -8
+  71              		.cfi_offset 5, -4
+  42:../common/physical_confirmation.c ****     if (confirmation == NULL) {
+  72              		.loc 1 42 1 view .LVU11
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 3
+
+
+  73 0002 9DF80840 		ldrb	r4, [sp, #8]	@ zero_extendqisi2
+  74              		.loc 1 43 8 view .LVU12
+  75 0006 78B1     		cbz	r0, .L6
+  44:../common/physical_confirmation.c ****         return;
+  45:../common/physical_confirmation.c ****     }
+  46:../common/physical_confirmation.c ****     if (!maintenance_gate_open) {
+  76              		.loc 1 46 5 is_stmt 1 view .LVU13
+  77              		.loc 1 46 8 is_stmt 0 view .LVU14
+  78 0008 12B9     		cbnz	r2, .L8
+  79              	.LVL2:
+  80              	.L9:
+  47:../common/physical_confirmation.c ****         HBoxPhysicalConfirmation_Init(confirmation, now_ms);
+  48:../common/physical_confirmation.c ****         return;
+  49:../common/physical_confirmation.c ****     }
+  50:../common/physical_confirmation.c **** 
+  51:../common/physical_confirmation.c ****     switch (confirmation->state) {
+  52:../common/physical_confirmation.c ****     case HBOX_CONFIRM_AWAIT_RELEASE:
+  53:../common/physical_confirmation.c ****         if (confirmation_buttons_released) {
+  54:../common/physical_confirmation.c ****             enter_state(
+  55:../common/physical_confirmation.c ****                 confirmation,
+  56:../common/physical_confirmation.c ****                 HBOX_CONFIRM_RELEASE_DEBOUNCE,
+  57:../common/physical_confirmation.c ****                 now_ms);
+  58:../common/physical_confirmation.c ****         }
+  59:../common/physical_confirmation.c ****         break;
+  60:../common/physical_confirmation.c ****     case HBOX_CONFIRM_RELEASE_DEBOUNCE:
+  61:../common/physical_confirmation.c ****         if (!confirmation_buttons_released) {
+  62:../common/physical_confirmation.c ****             enter_state(
+  63:../common/physical_confirmation.c ****                 confirmation,
+  64:../common/physical_confirmation.c ****                 HBOX_CONFIRM_AWAIT_RELEASE,
+  65:../common/physical_confirmation.c ****                 now_ms);
+  66:../common/physical_confirmation.c ****         } else if ((uint32_t)(
+  67:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+  68:../common/physical_confirmation.c ****                    HBOX_CONFIRM_RELEASE_DEBOUNCE_MS) {
+  69:../common/physical_confirmation.c ****             enter_state(confirmation, HBOX_CONFIRM_ARMED, now_ms);
+  70:../common/physical_confirmation.c ****         }
+  71:../common/physical_confirmation.c ****         break;
+  72:../common/physical_confirmation.c ****     case HBOX_CONFIRM_ARMED:
+  73:../common/physical_confirmation.c ****         if (confirmation_buttons_pressed) {
+  74:../common/physical_confirmation.c ****             enter_state(
+  75:../common/physical_confirmation.c ****                 confirmation,
+  76:../common/physical_confirmation.c ****                 HBOX_CONFIRM_PRESS_DEBOUNCE,
+  77:../common/physical_confirmation.c ****                 now_ms);
+  78:../common/physical_confirmation.c ****         }
+  79:../common/physical_confirmation.c ****         break;
+  80:../common/physical_confirmation.c ****     case HBOX_CONFIRM_PRESS_DEBOUNCE:
+  81:../common/physical_confirmation.c ****         if (!confirmation_buttons_pressed) {
+  82:../common/physical_confirmation.c ****             enter_state(confirmation, HBOX_CONFIRM_ARMED, now_ms);
+  83:../common/physical_confirmation.c ****         } else if ((uint32_t)(
+  84:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+  85:../common/physical_confirmation.c ****                    HBOX_CONFIRM_PRESS_DEBOUNCE_MS) {
+  86:../common/physical_confirmation.c ****             /*
+  87:../common/physical_confirmation.c ****              * Keep the original press timestamp.  The hold interval includes
+  88:../common/physical_confirmation.c ****              * the debounce time instead of silently extending the gesture.
+  89:../common/physical_confirmation.c ****              */
+  90:../common/physical_confirmation.c ****             confirmation->state = HBOX_CONFIRM_HOLDING;
+  91:../common/physical_confirmation.c ****         }
+  92:../common/physical_confirmation.c ****         break;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 4
+
+
+  93:../common/physical_confirmation.c ****     case HBOX_CONFIRM_HOLDING:
+  94:../common/physical_confirmation.c ****         if (!confirmation_buttons_pressed) {
+  95:../common/physical_confirmation.c ****             enter_state(
+  96:../common/physical_confirmation.c ****                 confirmation,
+  97:../common/physical_confirmation.c ****                 HBOX_CONFIRM_AWAIT_RELEASE,
+  98:../common/physical_confirmation.c ****                 now_ms);
+  99:../common/physical_confirmation.c ****         } else if ((uint32_t)(
+ 100:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+ 101:../common/physical_confirmation.c ****                    HBOX_CONFIRM_HOLD_MS) {
+ 102:../common/physical_confirmation.c ****             confirmation->authorization_expires_at_ms =
+ 103:../common/physical_confirmation.c ****                 now_ms + HBOX_CONFIRM_AUTHORIZATION_MS;
+ 104:../common/physical_confirmation.c ****             enter_state(
+ 105:../common/physical_confirmation.c ****                 confirmation,
+ 106:../common/physical_confirmation.c ****                 HBOX_CONFIRM_AUTHORIZED,
+ 107:../common/physical_confirmation.c ****                 now_ms);
+ 108:../common/physical_confirmation.c ****         }
+ 109:../common/physical_confirmation.c ****         break;
+ 110:../common/physical_confirmation.c ****     case HBOX_CONFIRM_AUTHORIZED:
+ 111:../common/physical_confirmation.c ****         if (deadline_reached(
+ 112:../common/physical_confirmation.c ****                 now_ms,
+ 113:../common/physical_confirmation.c ****                 confirmation->authorization_expires_at_ms)) {
+ 114:../common/physical_confirmation.c ****             HBoxPhysicalConfirmation_Init(confirmation, now_ms);
+ 115:../common/physical_confirmation.c ****         }
+ 116:../common/physical_confirmation.c ****         break;
+ 117:../common/physical_confirmation.c ****     default:
+ 118:../common/physical_confirmation.c ****         HBoxPhysicalConfirmation_Init(confirmation, now_ms);
+  81              		.loc 1 118 9 is_stmt 1 view .LVU15
+ 119:../common/physical_confirmation.c ****         break;
+ 120:../common/physical_confirmation.c ****     }
+ 121:../common/physical_confirmation.c **** }
+  82              		.loc 1 121 1 is_stmt 0 view .LVU16
+  83 000a 30BC     		pop	{r4, r5}
+  84              	.LCFI1:
+  85              		.cfi_remember_state
+  86              		.cfi_restore 5
+  87              		.cfi_restore 4
+  88              		.cfi_def_cfa_offset 0
+  89              	.LVL3:
+ 118:../common/physical_confirmation.c ****         break;
+  90              		.loc 1 118 9 view .LVU17
+  91 000c FFF7FEBF 		b	HBoxPhysicalConfirmation_Init
+  92              	.LVL4:
+  93              	.L8:
+  94              	.LCFI2:
+  95              		.cfi_restore_state
+  51:../common/physical_confirmation.c ****     case HBOX_CONFIRM_AWAIT_RELEASE:
+  96              		.loc 1 51 5 is_stmt 1 view .LVU18
+  97 0010 0278     		ldrb	r2, [r0]	@ zero_extendqisi2
+  98              	.LVL5:
+  51:../common/physical_confirmation.c ****     case HBOX_CONFIRM_AWAIT_RELEASE:
+  99              		.loc 1 51 5 is_stmt 0 view .LVU19
+ 100 0012 052A     		cmp	r2, #5
+ 101 0014 F9D8     		bhi	.L9
+ 102 0016 DFE802F0 		tbb	[pc, r2]
+ 103              	.L11:
+ 104 001a 03       		.byte	(.L16-.L11)/2
+ 105 001b 09       		.byte	(.L15-.L11)/2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 5
+
+
+ 106 001c 12       		.byte	(.L14-.L11)/2
+ 107 001d 16       		.byte	(.L13-.L11)/2
+ 108 001e 1F       		.byte	(.L12-.L11)/2
+ 109 001f 2C       		.byte	(.L10-.L11)/2
+ 110              		.p2align 1
+ 111              	.L16:
+  53:../common/physical_confirmation.c ****             enter_state(
+ 112              		.loc 1 53 9 is_stmt 1 view .LVU20
+  53:../common/physical_confirmation.c ****             enter_state(
+ 113              		.loc 1 53 12 is_stmt 0 view .LVU21
+ 114 0020 13B1     		cbz	r3, .L6
+  54:../common/physical_confirmation.c ****                 confirmation,
+ 115              		.loc 1 54 13 is_stmt 1 view .LVU22
+ 116              	.LVL6:
+ 117              	.LBB20:
+ 118              	.LBI20:
+  15:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+ 119              		.loc 1 15 13 view .LVU23
+ 120              	.LBB21:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 121              		.loc 1 20 5 view .LVU24
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 122              		.loc 1 20 25 is_stmt 0 view .LVU25
+ 123 0022 0123     		movs	r3, #1
+ 124              	.LVL7:
+ 125              	.L36:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 126              		.loc 1 20 25 view .LVU26
+ 127              	.LBE21:
+ 128              	.LBE20:
+ 129              	.LBB22:
+ 130              	.LBB23:
+ 131 0024 0370     		strb	r3, [r0]
+  21:../common/physical_confirmation.c **** }
+ 132              		.loc 1 21 5 is_stmt 1 view .LVU27
+  21:../common/physical_confirmation.c **** }
+ 133              		.loc 1 21 34 is_stmt 0 view .LVU28
+ 134 0026 4160     		str	r1, [r0, #4]
+ 135              	.L6:
+  21:../common/physical_confirmation.c **** }
+ 136              		.loc 1 21 34 view .LVU29
+ 137              	.LBE23:
+ 138              	.LBE22:
+ 139              		.loc 1 121 1 view .LVU30
+ 140 0028 30BC     		pop	{r4, r5}
+ 141              	.LCFI3:
+ 142              		.cfi_remember_state
+ 143              		.cfi_restore 5
+ 144              		.cfi_restore 4
+ 145              		.cfi_def_cfa_offset 0
+ 146              	.LVL8:
+ 147              		.loc 1 121 1 view .LVU31
+ 148 002a 7047     		bx	lr
+ 149              	.LVL9:
+ 150              	.L15:
+ 151              	.LCFI4:
+ 152              		.cfi_restore_state
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 6
+
+
+  61:../common/physical_confirmation.c ****             enter_state(
+ 153              		.loc 1 61 9 is_stmt 1 view .LVU32
+  61:../common/physical_confirmation.c ****             enter_state(
+ 154              		.loc 1 61 12 is_stmt 0 view .LVU33
+ 155 002c 0BB9     		cbnz	r3, .L17
+ 156              	.L19:
+  62:../common/physical_confirmation.c ****                 confirmation,
+ 157              		.loc 1 62 13 is_stmt 1 view .LVU34
+ 158              	.LVL10:
+ 159              	.LBB25:
+ 160              	.LBI22:
+  15:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+ 161              		.loc 1 15 13 view .LVU35
+ 162              	.LBB24:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 163              		.loc 1 20 5 view .LVU36
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 164              		.loc 1 20 25 is_stmt 0 view .LVU37
+ 165 002e 0023     		movs	r3, #0
+ 166              	.LVL11:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 167              		.loc 1 20 25 view .LVU38
+ 168 0030 F8E7     		b	.L36
+ 169              	.LVL12:
+ 170              	.L17:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 171              		.loc 1 20 25 view .LVU39
+ 172              	.LBE24:
+ 173              	.LBE25:
+  66:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+ 174              		.loc 1 66 16 is_stmt 1 view .LVU40
+  67:../common/physical_confirmation.c ****                    HBOX_CONFIRM_RELEASE_DEBOUNCE_MS) {
+ 175              		.loc 1 67 31 is_stmt 0 view .LVU41
+ 176 0032 4368     		ldr	r3, [r0, #4]
+ 177              	.LVL13:
+  67:../common/physical_confirmation.c ****                    HBOX_CONFIRM_RELEASE_DEBOUNCE_MS) {
+ 178              		.loc 1 67 31 view .LVU42
+ 179 0034 CB1A     		subs	r3, r1, r3
+  66:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+ 180              		.loc 1 66 19 view .LVU43
+ 181 0036 312B     		cmp	r3, #49
+ 182 0038 F6D9     		bls	.L6
+ 183              	.L18:
+  69:../common/physical_confirmation.c ****         }
+ 184              		.loc 1 69 13 is_stmt 1 view .LVU44
+ 185              	.LVL14:
+ 186              	.LBB26:
+ 187              	.LBI26:
+  15:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+ 188              		.loc 1 15 13 view .LVU45
+ 189              	.LBB27:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 190              		.loc 1 20 5 view .LVU46
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 191              		.loc 1 20 25 is_stmt 0 view .LVU47
+ 192 003a 0223     		movs	r3, #2
+ 193 003c F2E7     		b	.L36
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 7
+
+
+ 194              	.LVL15:
+ 195              	.L14:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 196              		.loc 1 20 25 view .LVU48
+ 197              	.LBE27:
+ 198              	.LBE26:
+  73:../common/physical_confirmation.c ****             enter_state(
+ 199              		.loc 1 73 9 is_stmt 1 view .LVU49
+  73:../common/physical_confirmation.c ****             enter_state(
+ 200              		.loc 1 73 12 is_stmt 0 view .LVU50
+ 201 003e 002C     		cmp	r4, #0
+ 202 0040 F2D0     		beq	.L6
+  74:../common/physical_confirmation.c ****                 confirmation,
+ 203              		.loc 1 74 13 is_stmt 1 view .LVU51
+ 204              	.LVL16:
+ 205              	.LBB28:
+ 206              	.LBI28:
+  15:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+ 207              		.loc 1 15 13 view .LVU52
+ 208              	.LBB29:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 209              		.loc 1 20 5 view .LVU53
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 210              		.loc 1 20 25 is_stmt 0 view .LVU54
+ 211 0042 0323     		movs	r3, #3
+ 212              	.LVL17:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 213              		.loc 1 20 25 view .LVU55
+ 214 0044 EEE7     		b	.L36
+ 215              	.LVL18:
+ 216              	.L13:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 217              		.loc 1 20 25 view .LVU56
+ 218              	.LBE29:
+ 219              	.LBE28:
+  81:../common/physical_confirmation.c ****             enter_state(confirmation, HBOX_CONFIRM_ARMED, now_ms);
+ 220              		.loc 1 81 9 is_stmt 1 view .LVU57
+  81:../common/physical_confirmation.c ****             enter_state(confirmation, HBOX_CONFIRM_ARMED, now_ms);
+ 221              		.loc 1 81 12 is_stmt 0 view .LVU58
+ 222 0046 002C     		cmp	r4, #0
+ 223 0048 F7D0     		beq	.L18
+  83:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+ 224              		.loc 1 83 16 is_stmt 1 view .LVU59
+  84:../common/physical_confirmation.c ****                    HBOX_CONFIRM_PRESS_DEBOUNCE_MS) {
+ 225              		.loc 1 84 31 is_stmt 0 view .LVU60
+ 226 004a 4368     		ldr	r3, [r0, #4]
+ 227              	.LVL19:
+  84:../common/physical_confirmation.c ****                    HBOX_CONFIRM_PRESS_DEBOUNCE_MS) {
+ 228              		.loc 1 84 31 view .LVU61
+ 229 004c CB1A     		subs	r3, r1, r3
+  83:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+ 230              		.loc 1 83 19 view .LVU62
+ 231 004e 1D2B     		cmp	r3, #29
+ 232 0050 EAD9     		bls	.L6
+  90:../common/physical_confirmation.c ****         }
+ 233              		.loc 1 90 13 is_stmt 1 view .LVU63
+  90:../common/physical_confirmation.c ****         }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 8
+
+
+ 234              		.loc 1 90 33 is_stmt 0 view .LVU64
+ 235 0052 0423     		movs	r3, #4
+ 236 0054 0370     		strb	r3, [r0]
+ 237 0056 E7E7     		b	.L6
+ 238              	.LVL20:
+ 239              	.L12:
+  94:../common/physical_confirmation.c ****             enter_state(
+ 240              		.loc 1 94 9 is_stmt 1 view .LVU65
+  94:../common/physical_confirmation.c ****             enter_state(
+ 241              		.loc 1 94 12 is_stmt 0 view .LVU66
+ 242 0058 002C     		cmp	r4, #0
+ 243 005a E8D0     		beq	.L19
+  99:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+ 244              		.loc 1 99 16 is_stmt 1 view .LVU67
+ 100:../common/physical_confirmation.c ****                    HBOX_CONFIRM_HOLD_MS) {
+ 245              		.loc 1 100 31 is_stmt 0 view .LVU68
+ 246 005c 4368     		ldr	r3, [r0, #4]
+ 247              	.LVL21:
+ 100:../common/physical_confirmation.c ****                    HBOX_CONFIRM_HOLD_MS) {
+ 248              		.loc 1 100 31 view .LVU69
+ 249 005e CB1A     		subs	r3, r1, r3
+  99:../common/physical_confirmation.c ****                        now_ms - confirmation->state_since_ms) >=
+ 250              		.loc 1 99 19 view .LVU70
+ 251 0060 B3F5FA6F 		cmp	r3, #2000
+ 252 0064 E0D3     		bcc	.L6
+ 102:../common/physical_confirmation.c ****                 now_ms + HBOX_CONFIRM_AUTHORIZATION_MS;
+ 253              		.loc 1 102 13 is_stmt 1 view .LVU71
+ 103:../common/physical_confirmation.c ****             enter_state(
+ 254              		.loc 1 103 24 is_stmt 0 view .LVU72
+ 255 0066 01F51C53 		add	r3, r1, #9984
+ 256 006a 1033     		adds	r3, r3, #16
+ 102:../common/physical_confirmation.c ****                 now_ms + HBOX_CONFIRM_AUTHORIZATION_MS;
+ 257              		.loc 1 102 55 view .LVU73
+ 258 006c 8360     		str	r3, [r0, #8]
+ 104:../common/physical_confirmation.c ****                 confirmation,
+ 259              		.loc 1 104 13 is_stmt 1 view .LVU74
+ 260              	.LVL22:
+ 261              	.LBB30:
+ 262              	.LBI30:
+  15:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+ 263              		.loc 1 15 13 view .LVU75
+ 264              	.LBB31:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 265              		.loc 1 20 5 view .LVU76
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 266              		.loc 1 20 25 is_stmt 0 view .LVU77
+ 267 006e 0523     		movs	r3, #5
+ 268 0070 D8E7     		b	.L36
+ 269              	.LVL23:
+ 270              	.L10:
+  20:../common/physical_confirmation.c ****     confirmation->state_since_ms = now_ms;
+ 271              		.loc 1 20 25 view .LVU78
+ 272              	.LBE31:
+ 273              	.LBE30:
+ 111:../common/physical_confirmation.c ****                 now_ms,
+ 274              		.loc 1 111 9 is_stmt 1 view .LVU79
+ 275              	.LBB32:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 9
+
+
+ 276              	.LBI32:
+  10:../common/physical_confirmation.c **** {
+ 277              		.loc 1 10 13 view .LVU80
+ 278              	.LBB33:
+  12:../common/physical_confirmation.c **** }
+ 279              		.loc 1 12 5 view .LVU81
+  12:../common/physical_confirmation.c **** }
+ 280              		.loc 1 12 29 is_stmt 0 view .LVU82
+ 281 0072 8368     		ldr	r3, [r0, #8]
+ 282              	.LVL24:
+  12:../common/physical_confirmation.c **** }
+ 283              		.loc 1 12 29 view .LVU83
+ 284 0074 CB1A     		subs	r3, r1, r3
+ 285              	.LBE33:
+ 286              	.LBE32:
+ 111:../common/physical_confirmation.c ****                 now_ms,
+ 287              		.loc 1 111 12 discriminator 1 view .LVU84
+ 288 0076 002B     		cmp	r3, #0
+ 289 0078 D6DB     		blt	.L6
+ 290 007a C6E7     		b	.L9
+ 291              		.cfi_endproc
+ 292              	.LFE3:
+ 294              		.section	.text.HBoxPhysicalConfirmation_Consume,"ax",%progbits
+ 295              		.align	1
+ 296              		.global	HBoxPhysicalConfirmation_Consume
+ 297              		.syntax unified
+ 298              		.thumb
+ 299              		.thumb_func
+ 301              	HBoxPhysicalConfirmation_Consume:
+ 302              	.LVL25:
+ 303              	.LFB4:
+ 122:../common/physical_confirmation.c **** 
+ 123:../common/physical_confirmation.c **** bool HBoxPhysicalConfirmation_Consume(
+ 124:../common/physical_confirmation.c ****     hbox_physical_confirmation_t *confirmation,
+ 125:../common/physical_confirmation.c ****     uint32_t now_ms,
+ 126:../common/physical_confirmation.c ****     bool maintenance_gate_open)
+ 127:../common/physical_confirmation.c **** {
+ 304              		.loc 1 127 1 is_stmt 1 view -0
+ 305              		.cfi_startproc
+ 306              		@ args = 0, pretend = 0, frame = 0
+ 307              		@ frame_needed = 0, uses_anonymous_args = 0
+ 128:../common/physical_confirmation.c ****     if (confirmation == NULL ||
+ 308              		.loc 1 128 5 view .LVU86
+ 127:../common/physical_confirmation.c ****     if (confirmation == NULL ||
+ 309              		.loc 1 127 1 is_stmt 0 view .LVU87
+ 310 0000 38B5     		push	{r3, r4, r5, lr}
+ 311              	.LCFI5:
+ 312              		.cfi_def_cfa_offset 16
+ 313              		.cfi_offset 3, -16
+ 314              		.cfi_offset 4, -12
+ 315              		.cfi_offset 5, -8
+ 316              		.cfi_offset 14, -4
+ 127:../common/physical_confirmation.c ****     if (confirmation == NULL ||
+ 317              		.loc 1 127 1 view .LVU88
+ 318 0002 0C46     		mov	r4, r1
+ 319              		.loc 1 128 8 view .LVU89
+ 320 0004 0346     		mov	r3, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 10
+
+
+ 321 0006 58B1     		cbz	r0, .L38
+ 322              		.loc 1 128 30 discriminator 1 view .LVU90
+ 323 0008 32B1     		cbz	r2, .L39
+ 129:../common/physical_confirmation.c ****         !maintenance_gate_open ||
+ 324              		.loc 1 129 32 view .LVU91
+ 325 000a 0578     		ldrb	r5, [r0]	@ zero_extendqisi2
+ 326 000c 052D     		cmp	r5, #5
+ 327 000e 07D1     		bne	.L38
+ 328              	.LVL26:
+ 329              	.LBB34:
+ 330              	.LBI34:
+  10:../common/physical_confirmation.c **** {
+ 331              		.loc 1 10 13 is_stmt 1 view .LVU92
+ 332              	.LBB35:
+  12:../common/physical_confirmation.c **** }
+ 333              		.loc 1 12 5 view .LVU93
+  12:../common/physical_confirmation.c **** }
+ 334              		.loc 1 12 29 is_stmt 0 view .LVU94
+ 335 0010 8568     		ldr	r5, [r0, #8]
+ 336 0012 4D1B     		subs	r5, r1, r5
+ 337              	.LBE35:
+ 338              	.LBE34:
+ 130:../common/physical_confirmation.c ****         confirmation->state != HBOX_CONFIRM_AUTHORIZED ||
+ 339              		.loc 1 130 56 view .LVU95
+ 340 0014 002D     		cmp	r5, #0
+ 341 0016 06DB     		blt	.L40
+ 342              	.L39:
+ 131:../common/physical_confirmation.c ****         deadline_reached(
+ 132:../common/physical_confirmation.c ****             now_ms,
+ 133:../common/physical_confirmation.c ****             confirmation->authorization_expires_at_ms)) {
+ 134:../common/physical_confirmation.c ****         if (confirmation != NULL &&
+ 135:../common/physical_confirmation.c ****             (!maintenance_gate_open ||
+ 136:../common/physical_confirmation.c ****              confirmation->state == HBOX_CONFIRM_AUTHORIZED)) {
+ 137:../common/physical_confirmation.c ****             HBoxPhysicalConfirmation_Init(confirmation, now_ms);
+ 343              		.loc 1 137 13 is_stmt 1 view .LVU96
+ 344 0018 2146     		mov	r1, r4
+ 345              	.LVL27:
+ 346              		.loc 1 137 13 is_stmt 0 view .LVU97
+ 347 001a 1846     		mov	r0, r3
+ 348              	.LVL28:
+ 349              		.loc 1 137 13 view .LVU98
+ 350 001c FFF7FEFF 		bl	HBoxPhysicalConfirmation_Init
+ 351              	.LVL29:
+ 352              	.L38:
+ 138:../common/physical_confirmation.c ****         }
+ 139:../common/physical_confirmation.c ****         return false;
+ 353              		.loc 1 139 16 view .LVU99
+ 354 0020 0022     		movs	r2, #0
+ 355              	.LVL30:
+ 356              	.L41:
+ 140:../common/physical_confirmation.c ****     }
+ 141:../common/physical_confirmation.c **** 
+ 142:../common/physical_confirmation.c ****     HBoxPhysicalConfirmation_Init(confirmation, now_ms);
+ 143:../common/physical_confirmation.c ****     return true;
+ 144:../common/physical_confirmation.c **** }
+ 357              		.loc 1 144 1 view .LVU100
+ 358 0022 1046     		mov	r0, r2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 11
+
+
+ 359              	.LVL31:
+ 360              		.loc 1 144 1 view .LVU101
+ 361 0024 38BD     		pop	{r3, r4, r5, pc}
+ 362              	.LVL32:
+ 363              	.L40:
+ 142:../common/physical_confirmation.c ****     return true;
+ 364              		.loc 1 142 5 is_stmt 1 view .LVU102
+ 365 0026 FFF7FEFF 		bl	HBoxPhysicalConfirmation_Init
+ 366              	.LVL33:
+ 143:../common/physical_confirmation.c **** }
+ 367              		.loc 1 143 5 view .LVU103
+ 143:../common/physical_confirmation.c **** }
+ 368              		.loc 1 143 12 is_stmt 0 view .LVU104
+ 369 002a FAE7     		b	.L41
+ 370              		.cfi_endproc
+ 371              	.LFE4:
+ 373              		.text
+ 374              	.Letext0:
+ 375              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 376              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 377              		.file 4 "../common/physical_confirmation.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s 			page 12
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 physical_confirmation.c
+C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s:20     .text.HBoxPhysicalConfirmation_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s:26     .text.HBoxPhysicalConfirmation_Init:00000000 HBoxPhysicalConfirmation_Init
+C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s:51     .text.HBoxPhysicalConfirmation_Update:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s:57     .text.HBoxPhysicalConfirmation_Update:00000000 HBoxPhysicalConfirmation_Update
+C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s:104    .text.HBoxPhysicalConfirmation_Update:0000001a $d
+C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s:110    .text.HBoxPhysicalConfirmation_Update:00000020 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s:295    .text.HBoxPhysicalConfirmation_Consume:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPVkp0f.s:301    .text.HBoxPhysicalConfirmation_Consume:00000000 HBoxPhysicalConfirmation_Consume
+
+NO UNDEFINED SYMBOLS

@@ -1,0 +1,39 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - tablist [ref=e42]:
+        - tab "Global Setting" [ref=e43] [cursor=pointer]
+        - separator [ref=e47]
+        - tab "Keys Setting" [ref=e48] [cursor=pointer]
+        - separator [ref=e52]
+        - tab "Buttons Performance" [ref=e53] [cursor=pointer]
+        - separator [ref=e60]
+        - tab "Lighting Setting" [ref=e61] [cursor=pointer]
+        - separator [ref=e65]
+        - tab "Switch Marking" [ref=e66] [cursor=pointer]
+        - separator [ref=e71]
+        - tab "Firmware" [ref=e72] [cursor=pointer]
+        - separator [ref=e76]
+        - tab "View Logs" [ref=e77] [cursor=pointer]
+      - button "Finish Configuration" [ref=e84] [cursor=pointer]
+    - generic [ref=e87]:
+      - generic [ref=e88]: MOCK DEVICE
+      - button "Sign in" [disabled] [ref=e89]
+      - button "中文" [ref=e96] [cursor=pointer]
+  - region "top Notifications alt+T"
+  - generic [ref=e99]:
+    - dialog "Device Not Connected" [ref=e102]:
+      - heading "Device Not Connected" [level=3] [ref=e104]
+      - generic [ref=e106]:
+        - generic [ref=e107]:
+          - generic [ref=e108]: "1"
+          - paragraph [ref=e109]: Switch the device to WebConfig mode.
+        - generic [ref=e110]:
+          - generic [ref=e111]: "2"
+          - paragraph [ref=e112]: Connect the device to this computer using USB.
+        - generic [ref=e113]:
+          - generic [ref=e114]: "3"
+          - paragraph [ref=e115]: Click Reconnect Device to establish the connection.
+    - generic [ref=e117]:
+      - button "Sign in" [disabled] [ref=e118]
+      - button "中文" [ref=e125] [cursor=pointer]

@@ -1,0 +1,744 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"usart.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Drivers/USART/usart.c"
+  19              		.section	.text.HAL_UART_MspInit,"ax",%progbits
+  20              		.align	1
+  21              		.global	HAL_UART_MspInit
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	HAL_UART_MspInit:
+  27              	.LVL0:
+  28              	.LFB339:
+   1:Drivers/USART/usart.c **** /***
+   2:Drivers/USART/usart.c **** 	************************************************************************************************
+   3:Drivers/USART/usart.c **** 	*	@file  	usart.c
+   4:Drivers/USART/usart.c **** 	*	@version V1.0
+   5:Drivers/USART/usart.c **** 	*  @date    2022-7-7
+   6:Drivers/USART/usart.c **** 	*	@author  反客科技
+   7:Drivers/USART/usart.c **** 	*	@brief   usart相关函数
+   8:Drivers/USART/usart.c ****    ************************************************************************************************
+   9:Drivers/USART/usart.c ****    *  @description
+  10:Drivers/USART/usart.c **** 	*
+  11:Drivers/USART/usart.c **** 	*	实验平台：反客STM32H750XBH6核心板 （型号：FK750M5-XBH6）
+  12:Drivers/USART/usart.c **** 	*	淘宝地址：https://shop212360197.taobao.com
+  13:Drivers/USART/usart.c **** 	*	QQ交流群：536665479
+  14:Drivers/USART/usart.c **** 	*
+  15:Drivers/USART/usart.c **** >>>>> 文件说明：
+  16:Drivers/USART/usart.c **** 	*
+  17:Drivers/USART/usart.c **** 	*  初始化usart引脚，配置波特率等参数
+  18:Drivers/USART/usart.c **** 	*
+  19:Drivers/USART/usart.c **** 	************************************************************************************************
+  20:Drivers/USART/usart.c **** ***/
+  21:Drivers/USART/usart.c **** 
+  22:Drivers/USART/usart.c **** 
+  23:Drivers/USART/usart.c **** #include "usart.h"
+  24:Drivers/USART/usart.c **** #include "stm32h750xx.h"
+  25:Drivers/USART/usart.c **** #include "stm32h7xx_hal.h"
+  26:Drivers/USART/usart.c **** 
+  27:Drivers/USART/usart.c **** 
+  28:Drivers/USART/usart.c **** UART_HandleTypeDef huart1;  // UART_HandleTypeDef 结构体变量
+  29:Drivers/USART/usart.c **** 
+  30:Drivers/USART/usart.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 2
+
+
+  31:Drivers/USART/usart.c **** /*************************************************************************************************
+  32:Drivers/USART/usart.c **** *	函 数 名:	HAL_UART_MspInit
+  33:Drivers/USART/usart.c **** *	入口参数:	huart - UART_HandleTypeDef定义的变量，即表示定义的串口
+  34:Drivers/USART/usart.c **** *	返 回 值:	无
+  35:Drivers/USART/usart.c **** *	函数功能:	初始化串口引脚
+  36:Drivers/USART/usart.c **** *	说    明:	无		
+  37:Drivers/USART/usart.c **** *************************************************************************************************/
+  38:Drivers/USART/usart.c **** 
+  39:Drivers/USART/usart.c **** 
+  40:Drivers/USART/usart.c **** void HAL_UART_MspInit(UART_HandleTypeDef* huart)
+  41:Drivers/USART/usart.c **** {
+  29              		.loc 1 41 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 32
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  42:Drivers/USART/usart.c **** 	GPIO_InitTypeDef GPIO_InitStruct = {0};
+  33              		.loc 1 42 2 view .LVU1
+  41:Drivers/USART/usart.c **** 	GPIO_InitTypeDef GPIO_InitStruct = {0};
+  34              		.loc 1 41 1 is_stmt 0 view .LVU2
+  35 0000 10B5     		push	{r4, lr}
+  36              	.LCFI0:
+  37              		.cfi_def_cfa_offset 8
+  38              		.cfi_offset 4, -8
+  39              		.cfi_offset 14, -4
+  40 0002 88B0     		sub	sp, sp, #32
+  41              	.LCFI1:
+  42              		.cfi_def_cfa_offset 40
+  41:Drivers/USART/usart.c **** 	GPIO_InitTypeDef GPIO_InitStruct = {0};
+  43              		.loc 1 41 1 view .LVU3
+  44 0004 0446     		mov	r4, r0
+  45              		.loc 1 42 19 view .LVU4
+  46 0006 1422     		movs	r2, #20
+  47 0008 0021     		movs	r1, #0
+  48 000a 03A8     		add	r0, sp, #12
+  49              	.LVL1:
+  50              		.loc 1 42 19 view .LVU5
+  51 000c FFF7FEFF 		bl	memset
+  52              	.LVL2:
+  43:Drivers/USART/usart.c **** 	RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+  53              		.loc 1 43 2 is_stmt 1 view .LVU6
+  44:Drivers/USART/usart.c **** 	
+  45:Drivers/USART/usart.c **** 	if(huart->Instance==USART1)
+  54              		.loc 1 45 2 view .LVU7
+  55              		.loc 1 45 4 is_stmt 0 view .LVU8
+  56 0010 2268     		ldr	r2, [r4]
+  57 0012 244B     		ldr	r3, .L3
+  58 0014 9A42     		cmp	r2, r3
+  59 0016 42D1     		bne	.L1
+  46:Drivers/USART/usart.c **** 	{
+  47:Drivers/USART/usart.c **** 		// Enable USART1 clock
+  48:Drivers/USART/usart.c **** 		__HAL_RCC_USART1_CLK_ENABLE();
+  60              		.loc 1 48 3 is_stmt 1 view .LVU9
+  61              	.LBB2:
+  62              		.loc 1 48 3 view .LVU10
+  63              		.loc 1 48 3 view .LVU11
+  64 0018 234B     		ldr	r3, .L3+4
+  65              	.LBE2:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 3
+
+
+  49:Drivers/USART/usart.c **** 
+  50:Drivers/USART/usart.c **** 		// Enable GPIO clocks
+  51:Drivers/USART/usart.c **** 		GPIO_USART1_TX_CLK_ENABLE;
+  52:Drivers/USART/usart.c **** 		GPIO_USART1_RX_CLK_ENABLE;
+  53:Drivers/USART/usart.c **** 
+  54:Drivers/USART/usart.c **** 		// Configure USART1 TX pin
+  55:Drivers/USART/usart.c **** 		GPIO_InitStruct.Pin = USART1_TX_PIN;
+  56:Drivers/USART/usart.c **** 		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  57:Drivers/USART/usart.c **** 		GPIO_InitStruct.Pull = GPIO_PULLUP;
+  58:Drivers/USART/usart.c **** 		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  66              		.loc 1 58 25 is_stmt 0 view .LVU12
+  67 001a 0121     		movs	r1, #1
+  59:Drivers/USART/usart.c **** 		GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
+  60:Drivers/USART/usart.c **** 		HAL_GPIO_Init(USART1_TX_PORT, &GPIO_InitStruct);
+  68              		.loc 1 60 3 view .LVU13
+  69 001c 2348     		ldr	r0, .L3+8
+  70              	.LBB3:
+  48:Drivers/USART/usart.c **** 
+  71              		.loc 1 48 3 view .LVU14
+  72 001e D3F8F020 		ldr	r2, [r3, #240]
+  73 0022 42F01002 		orr	r2, r2, #16
+  74 0026 C3F8F020 		str	r2, [r3, #240]
+  48:Drivers/USART/usart.c **** 
+  75              		.loc 1 48 3 is_stmt 1 view .LVU15
+  76 002a D3F8F020 		ldr	r2, [r3, #240]
+  77 002e 02F01002 		and	r2, r2, #16
+  78 0032 0092     		str	r2, [sp]
+  48:Drivers/USART/usart.c **** 
+  79              		.loc 1 48 3 view .LVU16
+  80 0034 009A     		ldr	r2, [sp]
+  81              	.LBE3:
+  48:Drivers/USART/usart.c **** 
+  82              		.loc 1 48 3 view .LVU17
+  51:Drivers/USART/usart.c **** 		GPIO_USART1_RX_CLK_ENABLE;
+  83              		.loc 1 51 3 view .LVU18
+  84              	.LBB4:
+  51:Drivers/USART/usart.c **** 		GPIO_USART1_RX_CLK_ENABLE;
+  85              		.loc 1 51 3 view .LVU19
+  51:Drivers/USART/usart.c **** 		GPIO_USART1_RX_CLK_ENABLE;
+  86              		.loc 1 51 3 view .LVU20
+  87 0036 D3F8E020 		ldr	r2, [r3, #224]
+  88 003a 42F00102 		orr	r2, r2, #1
+  89 003e C3F8E020 		str	r2, [r3, #224]
+  51:Drivers/USART/usart.c **** 		GPIO_USART1_RX_CLK_ENABLE;
+  90              		.loc 1 51 3 view .LVU21
+  91 0042 D3F8E020 		ldr	r2, [r3, #224]
+  92 0046 02F00102 		and	r2, r2, #1
+  93 004a 0192     		str	r2, [sp, #4]
+  51:Drivers/USART/usart.c **** 		GPIO_USART1_RX_CLK_ENABLE;
+  94              		.loc 1 51 3 view .LVU22
+  95 004c 019A     		ldr	r2, [sp, #4]
+  96              	.LBE4:
+  51:Drivers/USART/usart.c **** 		GPIO_USART1_RX_CLK_ENABLE;
+  97              		.loc 1 51 3 view .LVU23
+  52:Drivers/USART/usart.c **** 
+  98              		.loc 1 52 3 view .LVU24
+  99              	.LBB5:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 4
+
+
+  52:Drivers/USART/usart.c **** 
+ 100              		.loc 1 52 3 view .LVU25
+  52:Drivers/USART/usart.c **** 
+ 101              		.loc 1 52 3 view .LVU26
+ 102 004e D3F8E020 		ldr	r2, [r3, #224]
+ 103 0052 42F00102 		orr	r2, r2, #1
+ 104 0056 C3F8E020 		str	r2, [r3, #224]
+  52:Drivers/USART/usart.c **** 
+ 105              		.loc 1 52 3 view .LVU27
+ 106              	.LBE5:
+  56:Drivers/USART/usart.c **** 		GPIO_InitStruct.Pull = GPIO_PULLUP;
+ 107              		.loc 1 56 24 is_stmt 0 view .LVU28
+ 108 005a 4FF40072 		mov	r2, #512
+ 109              	.LBB6:
+  52:Drivers/USART/usart.c **** 
+ 110              		.loc 1 52 3 view .LVU29
+ 111 005e D3F8E030 		ldr	r3, [r3, #224]
+ 112 0062 03F00103 		and	r3, r3, #1
+ 113 0066 0293     		str	r3, [sp, #8]
+  52:Drivers/USART/usart.c **** 
+ 114              		.loc 1 52 3 is_stmt 1 view .LVU30
+ 115 0068 029B     		ldr	r3, [sp, #8]
+ 116              	.LBE6:
+  52:Drivers/USART/usart.c **** 
+ 117              		.loc 1 52 3 view .LVU31
+  55:Drivers/USART/usart.c **** 		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+ 118              		.loc 1 55 3 view .LVU32
+  56:Drivers/USART/usart.c **** 		GPIO_InitStruct.Pull = GPIO_PULLUP;
+ 119              		.loc 1 56 24 is_stmt 0 view .LVU33
+ 120 006a 0223     		movs	r3, #2
+ 121 006c CDE90323 		strd	r2, r3, [sp, #12]
+  57:Drivers/USART/usart.c **** 		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+ 122              		.loc 1 57 3 is_stmt 1 view .LVU34
+  58:Drivers/USART/usart.c **** 		GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
+ 123              		.loc 1 58 25 is_stmt 0 view .LVU35
+ 124 0070 0323     		movs	r3, #3
+ 125 0072 CDE90513 		strd	r1, r3, [sp, #20]
+  59:Drivers/USART/usart.c **** 		HAL_GPIO_Init(USART1_TX_PORT, &GPIO_InitStruct);
+ 126              		.loc 1 59 3 is_stmt 1 view .LVU36
+  59:Drivers/USART/usart.c **** 		HAL_GPIO_Init(USART1_TX_PORT, &GPIO_InitStruct);
+ 127              		.loc 1 59 29 is_stmt 0 view .LVU37
+ 128 0076 0723     		movs	r3, #7
+ 129              		.loc 1 60 3 view .LVU38
+ 130 0078 03A9     		add	r1, sp, #12
+  59:Drivers/USART/usart.c **** 		HAL_GPIO_Init(USART1_TX_PORT, &GPIO_InitStruct);
+ 131              		.loc 1 59 29 view .LVU39
+ 132 007a 0793     		str	r3, [sp, #28]
+ 133              		.loc 1 60 3 is_stmt 1 view .LVU40
+ 134 007c FFF7FEFF 		bl	HAL_GPIO_Init
+ 135              	.LVL3:
+  61:Drivers/USART/usart.c **** 
+  62:Drivers/USART/usart.c **** 		// Configure USART1 RX pin
+  63:Drivers/USART/usart.c **** 		GPIO_InitStruct.Pin = USART1_RX_PIN;
+ 136              		.loc 1 63 3 view .LVU41
+ 137              		.loc 1 63 23 is_stmt 0 view .LVU42
+ 138 0080 4FF48063 		mov	r3, #1024
+  64:Drivers/USART/usart.c **** 		HAL_GPIO_Init(USART1_RX_PORT, &GPIO_InitStruct);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 5
+
+
+ 139              		.loc 1 64 3 view .LVU43
+ 140 0084 03A9     		add	r1, sp, #12
+ 141 0086 0948     		ldr	r0, .L3+8
+  63:Drivers/USART/usart.c **** 		HAL_GPIO_Init(USART1_RX_PORT, &GPIO_InitStruct);
+ 142              		.loc 1 63 23 view .LVU44
+ 143 0088 0393     		str	r3, [sp, #12]
+ 144              		.loc 1 64 3 is_stmt 1 view .LVU45
+ 145 008a FFF7FEFF 		bl	HAL_GPIO_Init
+ 146              	.LVL4:
+  65:Drivers/USART/usart.c **** 
+  66:Drivers/USART/usart.c **** 		// Enable NVIC for USART1
+  67:Drivers/USART/usart.c **** 		HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
+ 147              		.loc 1 67 3 view .LVU46
+ 148 008e 0022     		movs	r2, #0
+ 149 0090 2520     		movs	r0, #37
+ 150 0092 1146     		mov	r1, r2
+ 151 0094 FFF7FEFF 		bl	HAL_NVIC_SetPriority
+ 152              	.LVL5:
+  68:Drivers/USART/usart.c **** 		HAL_NVIC_EnableIRQ(USART1_IRQn);
+ 153              		.loc 1 68 3 view .LVU47
+ 154 0098 2520     		movs	r0, #37
+ 155 009a FFF7FEFF 		bl	HAL_NVIC_EnableIRQ
+ 156              	.LVL6:
+ 157              	.L1:
+  69:Drivers/USART/usart.c **** 	}
+  70:Drivers/USART/usart.c **** 
+  71:Drivers/USART/usart.c **** }
+ 158              		.loc 1 71 1 is_stmt 0 view .LVU48
+ 159 009e 08B0     		add	sp, sp, #32
+ 160              	.LCFI2:
+ 161              		.cfi_def_cfa_offset 8
+ 162              		@ sp needed
+ 163 00a0 10BD     		pop	{r4, pc}
+ 164              	.LVL7:
+ 165              	.L4:
+ 166              		.loc 1 71 1 view .LVU49
+ 167 00a2 00BF     		.align	2
+ 168              	.L3:
+ 169 00a4 00100140 		.word	1073811456
+ 170 00a8 00440258 		.word	1476543488
+ 171 00ac 00000258 		.word	1476526080
+ 172              		.cfi_endproc
+ 173              	.LFE339:
+ 175              		.section	.text.USART1_Init,"ax",%progbits
+ 176              		.align	1
+ 177              		.global	USART1_Init
+ 178              		.syntax unified
+ 179              		.thumb
+ 180              		.thumb_func
+ 182              	USART1_Init:
+ 183              	.LFB340:
+  72:Drivers/USART/usart.c **** 
+  73:Drivers/USART/usart.c **** /*************************************************************************************************
+  74:Drivers/USART/usart.c **** *	函 数 名:	USART1_Init
+  75:Drivers/USART/usart.c **** *	入口参数:	无
+  76:Drivers/USART/usart.c **** *	返 回 值:	无
+  77:Drivers/USART/usart.c **** *	函数功能:	初始化串口配置
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 6
+
+
+  78:Drivers/USART/usart.c **** *	说    明:	无		 
+  79:Drivers/USART/usart.c **** *************************************************************************************************/
+  80:Drivers/USART/usart.c **** 
+  81:Drivers/USART/usart.c **** void USART1_Init(void)
+  82:Drivers/USART/usart.c **** {
+ 184              		.loc 1 82 1 is_stmt 1 view -0
+ 185              		.cfi_startproc
+ 186              		@ args = 0, pretend = 0, frame = 0
+ 187              		@ frame_needed = 0, uses_anonymous_args = 0
+  83:Drivers/USART/usart.c **** 	// Configure UART
+  84:Drivers/USART/usart.c **** 	huart1.Instance = USART1;
+ 188              		.loc 1 84 2 view .LVU51
+  82:Drivers/USART/usart.c **** 	// Configure UART
+ 189              		.loc 1 82 1 is_stmt 0 view .LVU52
+ 190 0000 08B5     		push	{r3, lr}
+ 191              	.LCFI3:
+ 192              		.cfi_def_cfa_offset 8
+ 193              		.cfi_offset 3, -8
+ 194              		.cfi_offset 14, -4
+ 195              		.loc 1 84 18 view .LVU53
+ 196 0002 0F48     		ldr	r0, .L11
+  85:Drivers/USART/usart.c **** 	huart1.Init.BaudRate = USART1_BaudRate;
+ 197              		.loc 1 85 23 view .LVU54
+ 198 0004 4FF4E133 		mov	r3, #115200
+ 199 0008 0E4A     		ldr	r2, .L11+4
+ 200 000a C0E90023 		strd	r2, r3, [r0]
+  86:Drivers/USART/usart.c **** 	huart1.Init.WordLength = UART_WORDLENGTH_8B;
+ 201              		.loc 1 86 2 is_stmt 1 view .LVU55
+ 202              		.loc 1 86 25 is_stmt 0 view .LVU56
+ 203 000e 0023     		movs	r3, #0
+  87:Drivers/USART/usart.c **** 	huart1.Init.StopBits = UART_STOPBITS_1;
+  88:Drivers/USART/usart.c **** 	huart1.Init.Parity = UART_PARITY_NONE;
+  89:Drivers/USART/usart.c **** 	huart1.Init.Mode = UART_MODE_TX_RX;
+ 204              		.loc 1 89 19 view .LVU57
+ 205 0010 0C22     		movs	r2, #12
+  87:Drivers/USART/usart.c **** 	huart1.Init.StopBits = UART_STOPBITS_1;
+ 206              		.loc 1 87 23 view .LVU58
+ 207 0012 C0E90233 		strd	r3, r3, [r0, #8]
+  88:Drivers/USART/usart.c **** 	huart1.Init.Mode = UART_MODE_TX_RX;
+ 208              		.loc 1 88 2 is_stmt 1 view .LVU59
+  88:Drivers/USART/usart.c **** 	huart1.Init.Mode = UART_MODE_TX_RX;
+ 209              		.loc 1 88 21 is_stmt 0 view .LVU60
+ 210 0016 0361     		str	r3, [r0, #16]
+ 211              		.loc 1 89 2 is_stmt 1 view .LVU61
+  90:Drivers/USART/usart.c **** 	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+ 212              		.loc 1 90 24 is_stmt 0 view .LVU62
+ 213 0018 C0E90523 		strd	r2, r3, [r0, #20]
+  91:Drivers/USART/usart.c **** 	huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+ 214              		.loc 1 91 2 is_stmt 1 view .LVU63
+  92:Drivers/USART/usart.c **** 	huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+ 215              		.loc 1 92 29 is_stmt 0 view .LVU64
+ 216 001c C0E90733 		strd	r3, r3, [r0, #28]
+  93:Drivers/USART/usart.c **** 	huart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+ 217              		.loc 1 93 2 is_stmt 1 view .LVU65
+  94:Drivers/USART/usart.c **** 	huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+ 218              		.loc 1 94 37 is_stmt 0 view .LVU66
+ 219 0020 C0E90933 		strd	r3, r3, [r0, #36]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 7
+
+
+  95:Drivers/USART/usart.c **** 
+  96:Drivers/USART/usart.c **** 	// Initialize UART
+  97:Drivers/USART/usart.c **** 	if (HAL_UART_Init(&huart1) != HAL_OK)
+ 220              		.loc 1 97 2 is_stmt 1 view .LVU67
+ 221              		.loc 1 97 6 is_stmt 0 view .LVU68
+ 222 0024 FFF7FEFF 		bl	HAL_UART_Init
+ 223              	.LVL8:
+ 224              		.loc 1 97 5 discriminator 1 view .LVU69
+ 225 0028 08B1     		cbz	r0, .L6
+ 226              	.LBB7:
+  98:Drivers/USART/usart.c **** 	{
+  99:Drivers/USART/usart.c **** 		Error_Handler();
+ 227              		.loc 1 99 3 is_stmt 1 view .LVU70
+ 228 002a FFF7FEFF 		bl	Error_Handler
+ 229              	.LVL9:
+ 230              	.L6:
+ 231              	.LBE7:
+ 100:Drivers/USART/usart.c **** 	}
+ 101:Drivers/USART/usart.c **** 
+ 102:Drivers/USART/usart.c **** 	// Disable FIFO mode
+ 103:Drivers/USART/usart.c **** 	if (HAL_UARTEx_DisableFifoMode(&huart1) != HAL_OK)
+ 232              		.loc 1 103 2 view .LVU71
+ 233              		.loc 1 103 6 is_stmt 0 view .LVU72
+ 234 002e 0448     		ldr	r0, .L11
+ 235 0030 FFF7FEFF 		bl	HAL_UARTEx_DisableFifoMode
+ 236              	.LVL10:
+ 237              		.loc 1 103 5 discriminator 1 view .LVU73
+ 238 0034 18B1     		cbz	r0, .L5
+ 239              	.LBB8:
+ 104:Drivers/USART/usart.c **** 	{
+ 105:Drivers/USART/usart.c **** 		Error_Handler();
+ 240              		.loc 1 105 3 is_stmt 1 view .LVU74
+ 241              	.LBE8:
+ 106:Drivers/USART/usart.c **** 	}
+ 107:Drivers/USART/usart.c **** }
+ 242              		.loc 1 107 1 is_stmt 0 view .LVU75
+ 243 0036 BDE80840 		pop	{r3, lr}
+ 244              	.LCFI4:
+ 245              		.cfi_remember_state
+ 246              		.cfi_restore 14
+ 247              		.cfi_restore 3
+ 248              		.cfi_def_cfa_offset 0
+ 249              	.LBB9:
+ 105:Drivers/USART/usart.c **** 	}
+ 250              		.loc 1 105 3 view .LVU76
+ 251 003a FFF7FEBF 		b	Error_Handler
+ 252              	.LVL11:
+ 253              	.L5:
+ 254              	.LCFI5:
+ 255              		.cfi_restore_state
+ 256              	.LBE9:
+ 257              		.loc 1 107 1 view .LVU77
+ 258 003e 08BD     		pop	{r3, pc}
+ 259              	.L12:
+ 260              		.align	2
+ 261              	.L11:
+ 262 0040 00000000 		.word	huart1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 8
+
+
+ 263 0044 00100140 		.word	1073811456
+ 264              		.cfi_endproc
+ 265              	.LFE340:
+ 267              		.section	.text.__io_putchar,"ax",%progbits
+ 268              		.align	1
+ 269              		.global	__io_putchar
+ 270              		.syntax unified
+ 271              		.thumb
+ 272              		.thumb_func
+ 274              	__io_putchar:
+ 275              	.LVL12:
+ 276              	.LFB341:
+ 108:Drivers/USART/usart.c **** 
+ 109:Drivers/USART/usart.c **** 
+ 110:Drivers/USART/usart.c **** /*************************************************************************************************
+ 111:Drivers/USART/usart.c **** *	在有些场合，例如LVGL因为需要用__aeabi_assert或者TouchGFX，不能勾选 microLib �
+ 112:Drivers/USART/usart.c **** *	添加以下代码，让标准C库支持重定向fput
+ 113:Drivers/USART/usart.c **** *  根据编译器，选择对应的代码即可
+ 114:Drivers/USART/usart.c **** *************************************************************************************************/
+ 115:Drivers/USART/usart.c **** 
+ 116:Drivers/USART/usart.c **** 
+ 117:Drivers/USART/usart.c **** //// AC5编译器使用这段代码
+ 118:Drivers/USART/usart.c **** //#pragma import(__use_no_semihosting)  
+ 119:Drivers/USART/usart.c **** //int _ttywrch(int ch)    
+ 120:Drivers/USART/usart.c **** //{
+ 121:Drivers/USART/usart.c **** //    ch=ch;
+ 122:Drivers/USART/usart.c **** //	return ch;
+ 123:Drivers/USART/usart.c **** //}         
+ 124:Drivers/USART/usart.c **** //struct __FILE 
+ 125:Drivers/USART/usart.c **** //{ 
+ 126:Drivers/USART/usart.c **** //	int handle; 
+ 127:Drivers/USART/usart.c **** 
+ 128:Drivers/USART/usart.c **** //}; 
+ 129:Drivers/USART/usart.c **** //FILE __stdout;       
+ 130:Drivers/USART/usart.c **** 
+ 131:Drivers/USART/usart.c **** //void _sys_exit(int x) 
+ 132:Drivers/USART/usart.c **** //{ 
+ 133:Drivers/USART/usart.c **** //	x = x; 
+ 134:Drivers/USART/usart.c **** //} 
+ 135:Drivers/USART/usart.c **** 
+ 136:Drivers/USART/usart.c **** 
+ 137:Drivers/USART/usart.c **** 
+ 138:Drivers/USART/usart.c **** //// AC6编译器使用这段代码
+ 139:Drivers/USART/usart.c **** //__asm (".global __use_no_semihosting\n\t");
+ 140:Drivers/USART/usart.c **** //void _sys_exit(int x) 
+ 141:Drivers/USART/usart.c **** //{
+ 142:Drivers/USART/usart.c **** //  x = x;
+ 143:Drivers/USART/usart.c **** //}
+ 144:Drivers/USART/usart.c **** ////__use_no_semihosting was requested, but _ttywrch was 
+ 145:Drivers/USART/usart.c **** //void _ttywrch(int ch)
+ 146:Drivers/USART/usart.c **** //{
+ 147:Drivers/USART/usart.c **** //    ch = ch;
+ 148:Drivers/USART/usart.c **** //}
+ 149:Drivers/USART/usart.c **** 
+ 150:Drivers/USART/usart.c **** //FILE __stdout;
+ 151:Drivers/USART/usart.c **** 
+ 152:Drivers/USART/usart.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 9
+
+
+ 153:Drivers/USART/usart.c **** 
+ 154:Drivers/USART/usart.c **** /*************************************************************************************************
+ 155:Drivers/USART/usart.c **** *	函 数 名:	fputc
+ 156:Drivers/USART/usart.c **** *	入口参数:	ch - 要输出的字符 ，  f - 文件指针（这里用不到）
+ 157:Drivers/USART/usart.c **** *	返 回 值:	正常时返回字符，出错时返回 EOF（-1）
+ 158:Drivers/USART/usart.c **** *	函数功能:	重定向 fputc 函数，目的是使用 printf 函数
+ 159:Drivers/USART/usart.c **** *	说    明:	无		
+ 160:Drivers/USART/usart.c **** *************************************************************************************************/
+ 161:Drivers/USART/usart.c **** 
+ 162:Drivers/USART/usart.c **** #ifdef __GNUC__
+ 163:Drivers/USART/usart.c ****   /* With GCC/RAISONANCE, small printf (option LD Linker->Libraries->Small printf
+ 164:Drivers/USART/usart.c ****      set to 'Yes') calls __io_putchar() */
+ 165:Drivers/USART/usart.c ****   #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+ 166:Drivers/USART/usart.c **** #else
+ 167:Drivers/USART/usart.c ****   #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+ 168:Drivers/USART/usart.c **** #endif /* __GNUC__ */
+ 169:Drivers/USART/usart.c **** /**
+ 170:Drivers/USART/usart.c ****   * @brief  Retargets the C library printf function to the USART.
+ 171:Drivers/USART/usart.c ****   * @param  None
+ 172:Drivers/USART/usart.c ****   * @retval None
+ 173:Drivers/USART/usart.c ****   */
+ 174:Drivers/USART/usart.c **** PUTCHAR_PROTOTYPE
+ 175:Drivers/USART/usart.c **** {
+ 277              		.loc 1 175 1 is_stmt 1 view -0
+ 278              		.cfi_startproc
+ 279              		@ args = 0, pretend = 0, frame = 0
+ 280              		@ frame_needed = 0, uses_anonymous_args = 0
+ 281              		@ link register save eliminated.
+ 176:Drivers/USART/usart.c **** #if APPLICATION_SERIAL_PRINT
+ 177:Drivers/USART/usart.c **** 	uint8_t temp[1] = {ch};
+ 178:Drivers/USART/usart.c **** 	HAL_UART_Transmit(&huart1, temp, 1, 0xFFFF);
+ 179:Drivers/USART/usart.c **** #else
+ 180:Drivers/USART/usart.c **** 	(void)ch;
+ 282              		.loc 1 180 2 view .LVU79
+ 181:Drivers/USART/usart.c **** #endif
+ 182:Drivers/USART/usart.c **** 	return ch;
+ 283              		.loc 1 182 2 view .LVU80
+ 183:Drivers/USART/usart.c **** }
+ 284              		.loc 1 183 1 is_stmt 0 view .LVU81
+ 285 0000 7047     		bx	lr
+ 286              		.cfi_endproc
+ 287              	.LFE341:
+ 289              		.section	.text.__io_getchar,"ax",%progbits
+ 290              		.align	1
+ 291              		.global	__io_getchar
+ 292              		.syntax unified
+ 293              		.thumb
+ 294              		.thumb_func
+ 296              	__io_getchar:
+ 297              	.LFB342:
+ 184:Drivers/USART/usart.c **** 
+ 185:Drivers/USART/usart.c **** // Add __io_getchar implementation
+ 186:Drivers/USART/usart.c **** int __io_getchar(void)
+ 187:Drivers/USART/usart.c **** {
+ 298              		.loc 1 187 1 is_stmt 1 view -0
+ 299              		.cfi_startproc
+ 300              		@ args = 0, pretend = 0, frame = 8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 10
+
+
+ 301              		@ frame_needed = 0, uses_anonymous_args = 0
+ 188:Drivers/USART/usart.c **** 	uint8_t ch;
+ 302              		.loc 1 188 2 view .LVU83
+ 189:Drivers/USART/usart.c **** 	HAL_UART_Receive(&huart1, &ch, 1, 0xFFFF);
+ 303              		.loc 1 189 2 view .LVU84
+ 187:Drivers/USART/usart.c **** 	uint8_t ch;
+ 304              		.loc 1 187 1 is_stmt 0 view .LVU85
+ 305 0000 07B5     		push	{r0, r1, r2, lr}
+ 306              	.LCFI6:
+ 307              		.cfi_def_cfa_offset 16
+ 308              		.cfi_offset 14, -4
+ 309              		.loc 1 189 2 view .LVU86
+ 310 0002 4FF6FF73 		movw	r3, #65535
+ 311 0006 0122     		movs	r2, #1
+ 312 0008 0DF10701 		add	r1, sp, #7
+ 313 000c 0348     		ldr	r0, .L15
+ 314 000e FFF7FEFF 		bl	HAL_UART_Receive
+ 315              	.LVL13:
+ 190:Drivers/USART/usart.c **** 	return ch;
+ 316              		.loc 1 190 2 is_stmt 1 view .LVU87
+ 191:Drivers/USART/usart.c **** }
+ 317              		.loc 1 191 1 is_stmt 0 view .LVU88
+ 318 0012 9DF80700 		ldrb	r0, [sp, #7]	@ zero_extendqisi2
+ 319 0016 03B0     		add	sp, sp, #12
+ 320              	.LCFI7:
+ 321              		.cfi_def_cfa_offset 4
+ 322              		@ sp needed
+ 323 0018 5DF804FB 		ldr	pc, [sp], #4
+ 324              	.L16:
+ 325              		.align	2
+ 326              	.L15:
+ 327 001c 00000000 		.word	huart1
+ 328              		.cfi_endproc
+ 329              	.LFE342:
+ 331              		.section	.text.USART1_IRQHandler,"ax",%progbits
+ 332              		.align	1
+ 333              		.global	USART1_IRQHandler
+ 334              		.syntax unified
+ 335              		.thumb
+ 336              		.thumb_func
+ 338              	USART1_IRQHandler:
+ 339              	.LFB343:
+ 192:Drivers/USART/usart.c **** 
+ 193:Drivers/USART/usart.c **** // Add UART interrupt handler
+ 194:Drivers/USART/usart.c **** void USART1_IRQHandler(void)
+ 195:Drivers/USART/usart.c **** {
+ 340              		.loc 1 195 1 is_stmt 1 view -0
+ 341              		.cfi_startproc
+ 342              		@ args = 0, pretend = 0, frame = 0
+ 343              		@ frame_needed = 0, uses_anonymous_args = 0
+ 344              		@ link register save eliminated.
+ 196:Drivers/USART/usart.c **** 	HAL_UART_IRQHandler(&huart1);
+ 345              		.loc 1 196 2 view .LVU90
+ 346 0000 0148     		ldr	r0, .L18
+ 347 0002 FFF7FEBF 		b	HAL_UART_IRQHandler
+ 348              	.LVL14:
+ 349              	.L19:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 11
+
+
+ 350 0006 00BF     		.align	2
+ 351              	.L18:
+ 352 0008 00000000 		.word	huart1
+ 353              		.cfi_endproc
+ 354              	.LFE343:
+ 356              		.section	.text.HAL_UART_TxCpltCallback,"ax",%progbits
+ 357              		.align	1
+ 358              		.global	HAL_UART_TxCpltCallback
+ 359              		.syntax unified
+ 360              		.thumb
+ 361              		.thumb_func
+ 363              	HAL_UART_TxCpltCallback:
+ 364              	.LVL15:
+ 365              	.LFB344:
+ 197:Drivers/USART/usart.c **** }
+ 198:Drivers/USART/usart.c **** 
+ 199:Drivers/USART/usart.c **** // Add UART callbacks
+ 200:Drivers/USART/usart.c **** void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+ 201:Drivers/USART/usart.c **** {
+ 366              		.loc 1 201 1 view -0
+ 367              		.cfi_startproc
+ 368              		@ args = 0, pretend = 0, frame = 0
+ 369              		@ frame_needed = 0, uses_anonymous_args = 0
+ 370              		@ link register save eliminated.
+ 202:Drivers/USART/usart.c **** 	if(huart->Instance == USART1)
+ 371              		.loc 1 202 2 view .LVU92
+ 203:Drivers/USART/usart.c **** 	{
+ 204:Drivers/USART/usart.c **** 		// Transmission complete
+ 205:Drivers/USART/usart.c **** 	}
+ 372              		.loc 1 205 2 view .LVU93
+ 206:Drivers/USART/usart.c **** }
+ 373              		.loc 1 206 1 is_stmt 0 view .LVU94
+ 374 0000 7047     		bx	lr
+ 375              		.cfi_endproc
+ 376              	.LFE344:
+ 378              		.section	.text.HAL_UART_RxCpltCallback,"ax",%progbits
+ 379              		.align	1
+ 380              		.global	HAL_UART_RxCpltCallback
+ 381              		.syntax unified
+ 382              		.thumb
+ 383              		.thumb_func
+ 385              	HAL_UART_RxCpltCallback:
+ 386              	.LFB348:
+ 387              		.cfi_startproc
+ 207:Drivers/USART/usart.c **** 
+ 208:Drivers/USART/usart.c **** void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+ 388              		.loc 1 208 6 is_stmt 1 view -0
+ 389              		@ args = 0, pretend = 0, frame = 0
+ 390              		@ frame_needed = 0, uses_anonymous_args = 0
+ 391              		@ link register save eliminated.
+ 392 0000 7047     		bx	lr
+ 393              		.cfi_endproc
+ 394              	.LFE348:
+ 396              		.section	.text.HAL_UART_ErrorCallback,"ax",%progbits
+ 397              		.align	1
+ 398              		.global	HAL_UART_ErrorCallback
+ 399              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 12
+
+
+ 400              		.thumb
+ 401              		.thumb_func
+ 403              	HAL_UART_ErrorCallback:
+ 404              	.LFB350:
+ 405              		.cfi_startproc
+ 209:Drivers/USART/usart.c **** {
+ 210:Drivers/USART/usart.c **** 	if(huart->Instance == USART1)
+ 211:Drivers/USART/usart.c **** 	{
+ 212:Drivers/USART/usart.c **** 		// Reception complete
+ 213:Drivers/USART/usart.c **** 	}
+ 214:Drivers/USART/usart.c **** }
+ 215:Drivers/USART/usart.c **** 
+ 216:Drivers/USART/usart.c **** void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+ 406              		.loc 1 216 6 view -0
+ 407              		@ args = 0, pretend = 0, frame = 0
+ 408              		@ frame_needed = 0, uses_anonymous_args = 0
+ 409              		@ link register save eliminated.
+ 410 0000 7047     		bx	lr
+ 411              		.cfi_endproc
+ 412              	.LFE350:
+ 414              		.global	huart1
+ 415              		.section	.bss.huart1,"aw",%nobits
+ 416              		.align	2
+ 419              	huart1:
+ 420 0000 00000000 		.space	148
+ 420      00000000 
+ 420      00000000 
+ 420      00000000 
+ 420      00000000 
+ 421              		.text
+ 422              	.Letext0:
+ 423              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 424              		.file 3 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 425              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 426              		.file 5 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 427              		.file 6 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc_ex.h"
+ 428              		.file 7 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 429              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 430              		.file 9 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h"
+ 431              		.file 10 "Core/Inc/board_cfg.h"
+ 432              		.file 11 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h"
+ 433              		.file 12 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_cortex.h"
+ 434              		.file 13 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s 			page 13
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 usart.c
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:20     .text.HAL_UART_MspInit:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:26     .text.HAL_UART_MspInit:00000000 HAL_UART_MspInit
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:169    .text.HAL_UART_MspInit:000000a4 $d
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:176    .text.USART1_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:182    .text.USART1_Init:00000000 USART1_Init
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:262    .text.USART1_Init:00000040 $d
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:419    .bss.huart1:00000000 huart1
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:268    .text.__io_putchar:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:274    .text.__io_putchar:00000000 __io_putchar
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:290    .text.__io_getchar:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:296    .text.__io_getchar:00000000 __io_getchar
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:327    .text.__io_getchar:0000001c $d
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:332    .text.USART1_IRQHandler:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:338    .text.USART1_IRQHandler:00000000 USART1_IRQHandler
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:352    .text.USART1_IRQHandler:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:357    .text.HAL_UART_TxCpltCallback:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:363    .text.HAL_UART_TxCpltCallback:00000000 HAL_UART_TxCpltCallback
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:379    .text.HAL_UART_RxCpltCallback:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:385    .text.HAL_UART_RxCpltCallback:00000000 HAL_UART_RxCpltCallback
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:397    .text.HAL_UART_ErrorCallback:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:403    .text.HAL_UART_ErrorCallback:00000000 HAL_UART_ErrorCallback
+C:\Users\nicx5\AppData\Local\Temp\ccMpI8JM.s:416    .bss.huart1:00000000 $d
+
+UNDEFINED SYMBOLS
+memset
+HAL_GPIO_Init
+HAL_NVIC_SetPriority
+HAL_NVIC_EnableIRQ
+HAL_UART_Init
+Error_Handler
+HAL_UARTEx_DisableFifoMode
+HAL_UART_Receive
+HAL_UART_IRQHandler

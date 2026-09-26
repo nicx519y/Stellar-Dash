@@ -1,0 +1,2169 @@
+{
+  "base_commit": "8a177a71",
+  "audit_since": "2026-09-12",
+  "audit_until": "2026-09-26",
+  "files": [
+    {
+      "old": "application/Core/Inc/board.h",
+      "new": "application/Inc/system/board.h",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "6985d2e7f8c611a704d30c4cd83a107b708b5285ea462680a53c038d060f2c0c",
+      "sha256_after": "6985d2e7f8c611a704d30c4cd83a107b708b5285ea462680a53c038d060f2c0c"
+    },
+    {
+      "old": "application/Core/Inc/board_cfg.h",
+      "new": "application/Inc/system/board_cfg.h",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "b5f4522e92e676bc217133265ed13f787b2fef5d16cd88f79adf3f9614106738",
+      "sha256_after": "b5f4522e92e676bc217133265ed13f787b2fef5d16cd88f79adf3f9614106738"
+    },
+    {
+      "old": "application/Core/Inc/delay_timer.h",
+      "new": "application/Inc/support/delay_timer.h",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "dfd50b7cc82f95d5b4f80b2ac15ac1a114cb6ca9bbb85ee5cf6e660a21cf720b",
+      "sha256_after": "dfd50b7cc82f95d5b4f80b2ac15ac1a114cb6ca9bbb85ee5cf6e660a21cf720b"
+    },
+    {
+      "old": "application/Core/Inc/utils.h",
+      "new": "application/Inc/support/utils.h",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "166c89fbe62283d0133289d5447242db8eaeefb07bc41664ab3c89bf78bbacab",
+      "sha256_after": "166c89fbe62283d0133289d5447242db8eaeefb07bc41664ab3c89bf78bbacab"
+    },
+    {
+      "old": "application/Core/Src/board.c",
+      "new": "application/Src/system/board.c",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "e537a6ae78ac6f0f3fabe9982ac3cc407d7294d5bb3a4b3eb513ac48a334cc78",
+      "sha256_after": "e537a6ae78ac6f0f3fabe9982ac3cc407d7294d5bb3a4b3eb513ac48a334cc78"
+    },
+    {
+      "old": "application/Core/Src/delay_timer.c",
+      "new": "application/Src/support/delay_timer.c",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "35bd75612d639de59ebf76148d5255e605ba10947cc0c8459b6f6847f9abcb73",
+      "sha256_after": "35bd75612d639de59ebf76148d5255e605ba10947cc0c8459b6f6847f9abcb73"
+    },
+    {
+      "old": "application/Core/Src/utils.c",
+      "new": "application/Src/support/utils.c",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "d64577c5c6245b3a156b220cdf976da6790e4017bec045d8bb45eaeaf818ab9f",
+      "sha256_after": "d64577c5c6245b3a156b220cdf976da6790e4017bec045d8bb45eaeaf818ab9f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/adc_btns/adc_btns_error.hpp",
+      "new": "application/Inc/input/adc_btns/adc_btns_error.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "092659641b50862e4107d75a645adb670befcc8f4ce2245e403a71f487f6bf1c",
+      "sha256_after": "092659641b50862e4107d75a645adb670befcc8f4ce2245e403a71f487f6bf1c"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/adc_btns/adc_btns_marker.hpp",
+      "new": "application/Inc/input/adc_btns/adc_btns_marker.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "9430707b2b14dd2494602f2b51732a5cda927ca0d3365d37e1a715f06f064bd0",
+      "sha256_after": "9430707b2b14dd2494602f2b51732a5cda927ca0d3365d37e1a715f06f064bd0"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/adc_btns/adc_btns_worker.hpp",
+      "new": "application/Inc/input/adc_btns/adc_btns_worker.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "3cffffb76812c951688c214653482a396a875a34954110f8efa49361965e673f",
+      "sha256_after": "3cffffb76812c951688c214653482a396a875a34954110f8efa49361965e673f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/adc_btns/adc_calibration.hpp",
+      "new": "application/Inc/input/adc_btns/adc_calibration.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "767ac520a97255dd690829737d061410d1029fdcde46066a1a7641e5f96a1e1e",
+      "sha256_after": "767ac520a97255dd690829737d061410d1029fdcde46066a1a7641e5f96a1e1e"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/adc_btns/adc_manager.hpp",
+      "new": "application/Inc/input/adc_btns/adc_manager.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "c79b681cec2c63b4496f484ad2f0fb8ed462dc5d9a27fc68392ee75578ac180b",
+      "sha256_after": "c79b681cec2c63b4496f484ad2f0fb8ed462dc5d9a27fc68392ee75578ac180b"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/adc_btns/adc_sample_assembler.hpp",
+      "new": "application/Inc/input/adc_btns/adc_sample_assembler.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "217c726de56f3b02ae2b76bbc07d72ff02a6b6b3c999bfa9c0f67d825eeb90e4",
+      "sha256_after": "217c726de56f3b02ae2b76bbc07d72ff02a6b6b3c999bfa9c0f67d825eeb90e4"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/adc_btns/ring_buffer_sliding_window.hpp",
+      "new": "application/Inc/input/adc_btns/ring_buffer_sliding_window.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "76b1e5bfcf0379663ec0c1e429aeeeeede7c1d78da9f0a07cfa8f37250c9bb0a",
+      "sha256_after": "76b1e5bfcf0379663ec0c1e429aeeeeede7c1d78da9f0a07cfa8f37250c9bb0a"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/auto_sleep_policy.hpp",
+      "new": "application/Inc/power/auto_sleep_policy.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "ec8d0c4dab011777fdf149979387df0c9536e4c0bcfe9f4c1b76c56bad52b2fe",
+      "sha256_after": "ec8d0c4dab011777fdf149979387df0c9536e4c0bcfe9f4c1b76c56bad52b2fe"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/board_mode.hpp",
+      "new": "application/Inc/system/board_mode.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "8249826944808e1064e18b6fa19588feb6761d2c83b0e352a7708bdd34017c76",
+      "sha256_after": "8249826944808e1064e18b6fa19588feb6761d2c83b0e352a7708bdd34017c76"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/board_power.hpp",
+      "new": "application/Inc/power/board_power.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "69da01043ce1727395db614bc82ee4cb8ae0364ac7aa70c4847608149e5f9898",
+      "sha256_after": "69da01043ce1727395db614bc82ee4cb8ae0364ac7aa70c4847608149e5f9898"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/board_security_confirmation.h",
+      "new": "application/Inc/system/board_security_confirmation.h",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "700562ea0279be2383da83d025fbcf9cb99c08f251cabf84d3fbae1226d79ee5",
+      "sha256_after": "700562ea0279be2383da83d025fbcf9cb99c08f251cabf84d3fbae1226d79ee5"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/brightness_curve.hpp",
+      "new": "application/Inc/support/brightness_curve.hpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "840724e65e8204c873e273afc4896d40fdb8a1af0b25665cb0599dedd0762e9b",
+      "sha256_after": "840724e65e8204c873e273afc4896d40fdb8a1af0b25665cb0599dedd0762e9b"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/ch585_firmware_update.hpp",
+      "new": "application/Inc/firmware/ch585_firmware_update.hpp",
+      "module": "firmware",
+      "status": "moved",
+      "sha256_before": "1252c904cf74b9065995135764ae7e6febf3af0caab4e6f8272e7a9f5d5c33f1",
+      "sha256_after": "1252c904cf74b9065995135764ae7e6febf3af0caab4e6f8272e7a9f5d5c33f1"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/ch585_iap_client.hpp",
+      "new": "application/Inc/firmware/ch585_iap_client.hpp",
+      "module": "firmware",
+      "status": "moved",
+      "sha256_before": "f4a11c2cadc82287a88177cd07b5068f735a4c2e4b5e55e2591064ee25c5aa04",
+      "sha256_after": "f4a11c2cadc82287a88177cd07b5068f735a4c2e4b5e55e2591064ee25c5aa04"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/ch585_role_bootstrap.hpp",
+      "new": "application/Inc/transport/ch585_role_bootstrap.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "a909ab372bb7111a089c75189e4df9976b4f83e16a1b27c3381d26134e10bfa0",
+      "sha256_after": "a909ab372bb7111a089c75189e4df9976b4f83e16a1b27c3381d26134e10bfa0"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/config.hpp",
+      "new": "application/Inc/config/config.hpp",
+      "module": "config",
+      "status": "moved",
+      "sha256_before": "3a54cace379d91c3a5fc7a08222554aa342cfb34123ed5ee38efcb4e9099088b",
+      "sha256_after": "3a54cace379d91c3a5fc7a08222554aa342cfb34123ed5ee38efcb4e9099088b"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/config_transport_sink.hpp",
+      "new": "application/Inc/webconfig/config_transport_sink.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "321f7b646376530f99f32838270f023bf69f4709387f7d26aac765e223cafba4",
+      "sha256_after": "321f7b646376530f99f32838270f023bf69f4709387f7d26aac765e223cafba4"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/base64.hpp",
+      "new": "application/Inc/webconfig/configs/base64.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "bbf4940807d10238facdd867371a1d59f794068ec3944e47c9b39662ba789841",
+      "sha256_after": "bbf4940807d10238facdd867371a1d59f794068ec3944e47c9b39662ba789841"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/calibration_command_handler.hpp",
+      "new": "application/Inc/webconfig/configs/calibration_command_handler.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "e3624c4f34a6f9080c8d3842a7555826a5c635dfa7a9cf91f829d1d53150b132",
+      "sha256_after": "e3624c4f34a6f9080c8d3842a7555826a5c635dfa7a9cf91f829d1d53150b132"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/commands_global_configs.hpp",
+      "new": "application/Inc/webconfig/configs/commands_global_configs.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "1a7fdf0b7fba351540200d73710861f6fb18bb830b59e9acf367990bf1eedf6a",
+      "sha256_after": "1a7fdf0b7fba351540200d73710861f6fb18bb830b59e9acf367990bf1eedf6a"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/common_command_handler.hpp",
+      "new": "application/Inc/webconfig/configs/common_command_handler.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "e87528e487db9891c63314e7607185054fb8c3da4362c38174f08a99517a9103",
+      "sha256_after": "e87528e487db9891c63314e7607185054fb8c3da4362c38174f08a99517a9103"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/config_sync.hpp",
+      "new": "application/Inc/webconfig/configs/config_sync.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "e7eaae348cb7537e1dd2350f3933c1b12dee6d29e9bce196553c765546554873",
+      "sha256_after": "e7eaae348cb7537e1dd2350f3933c1b12dee6d29e9bce196553c765546554873"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/device_command_handler.hpp",
+      "new": "application/Inc/webconfig/configs/device_command_handler.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "94ba485564df822e39b1153cc1a3d8287d977dd8c7eda91c9cb91ea1b8e50085",
+      "sha256_after": "94ba485564df822e39b1153cc1a3d8287d977dd8c7eda91c9cb91ea1b8e50085"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/device_command_message.hpp",
+      "new": "application/Inc/webconfig/configs/device_command_message.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "bc9e81d2fdb0b95d35d17fb8e70aaa533a5f38eac732575f296ad7de42e7081c",
+      "sha256_after": "bc9e81d2fdb0b95d35d17fb8e70aaa533a5f38eac732575f296ad7de42e7081c"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/firmware_command_handler.hpp",
+      "new": "application/Inc/webconfig/configs/firmware_command_handler.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "9fc74437954c37dd291e1945862fe947ce06294f55213c12913060fcbd576200",
+      "sha256_after": "9fc74437954c37dd291e1945862fe947ce06294f55213c12913060fcbd576200"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/rf_binding_command_handler.hpp",
+      "new": "application/Inc/webconfig/configs/rf_binding_command_handler.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "dff1e127a84efa0a0e2304451deaecee6c0d3625f35486b84b53ec743957862f",
+      "sha256_after": "dff1e127a84efa0a0e2304451deaecee6c0d3625f35486b84b53ec743957862f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/user_image_command_handler.hpp",
+      "new": "application/Inc/webconfig/configs/user_image_command_handler.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "703b82a911af11b54152059196e615d526923fac4a719feb56766dee4e43fdbc",
+      "sha256_after": "703b82a911af11b54152059196e615d526923fac4a719feb56766dee4e43fdbc"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/user_image_format.hpp",
+      "new": "application/Inc/webconfig/configs/user_image_format.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "c2cc790ddc8ae1a907b1a756141f0414c94d1f96c0e8fa9dfd1f8dda09737797",
+      "sha256_after": "c2cc790ddc8ae1a907b1a756141f0414c94d1f96c0e8fa9dfd1f8dda09737797"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/webconfig_btns_manager.hpp",
+      "new": "application/Inc/webconfig/configs/webconfig_btns_manager.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "e455e803ec1028822e498893f368223876ec739698093346cbacf7ddd5b88ea8",
+      "sha256_after": "e455e803ec1028822e498893f368223876ec739698093346cbacf7ddd5b88ea8"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/configs/webconfig_leds_manager.hpp",
+      "new": "application/Inc/webconfig/configs/webconfig_leds_manager.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "a38d96453362e93fb6e1e0951f82c9be8d6fb19913063c40b85512f71e4b620f",
+      "sha256_after": "a38d96453362e93fb6e1e0951f82c9be8d6fb19913063c40b85512f71e4b620f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/connection_manager.hpp",
+      "new": "application/Inc/transport/connection_manager.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "25c1a02b7e8aa53f7a8b422874c357c83ebb7351c5ab1bbf52bd434cc41d2456",
+      "sha256_after": "25c1a02b7e8aa53f7a8b422874c357c83ebb7351c5ab1bbf52bd434cc41d2456"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/cpp_main.hpp",
+      "new": "application/Inc/system/cpp_main.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "d137b13e371c1823b4641737211c50aa0b59a20540ab95e8d2f9406d64d84389",
+      "audit_reason": "Retained: deleting manual test functions changes emitted C++ COMDAT singleton definitions and linked code addresses; strict byte-identical gate takes precedence.",
+      "sha256_after": "d137b13e371c1823b4641737211c50aa0b59a20540ab95e8d2f9406d64d84389"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/cpp_utils.hpp",
+      "new": "application/Inc/support/cpp_utils.hpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "358e7787cc5a490560aece0069225c20f81e5a23210132e58b6afc57130bb996",
+      "sha256_after": "358e7787cc5a490560aece0069225c20f81e5a23210132e58b6afc57130bb996"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/cycle_elapsed.hpp",
+      "new": "application/Inc/support/cycle_elapsed.hpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "641afc3a624f9c2adcc89d2ce57e8688dbcd28259fe5e05df392674e99991b9b",
+      "sha256_after": "641afc3a624f9c2adcc89d2ce57e8688dbcd28259fe5e05df392674e99991b9b"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivermanager.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivermanager.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "9b9744f8a6f8a4f3b09c415d8adaa9f0ae8ebac51d264f15695e12f0dad64ca2",
+      "sha256_after": "9b9744f8a6f8a4f3b09c415d8adaa9f0ae8ebac51d264f15695e12f0dad64ca2"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/ps4/PS4Auth.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/ps4/PS4Auth.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "9790937c3d478f96a960427d4aa2bc00c01a265c24bae67703db03e72d0ac589",
+      "sha256_after": "9790937c3d478f96a960427d4aa2bc00c01a265c24bae67703db03e72d0ac589"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/ps4/PS4AuthUSBListener.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/ps4/PS4AuthUSBListener.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "963f20bd2739bd41bc1967ed9f2799f16200fec9a6b3eac669a520c1b7a69cdb",
+      "sha256_after": "963f20bd2739bd41bc1967ed9f2799f16200fec9a6b3eac669a520c1b7a69cdb"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/ps4/PS4Descriptors.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/ps4/PS4Descriptors.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "4a777917d129f13ae8e284d3ba8299c95f61688561486e596ed72df49a5347fe",
+      "sha256_after": "4a777917d129f13ae8e284d3ba8299c95f61688561486e596ed72df49a5347fe"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/ps4/PS4Driver.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/ps4/PS4Driver.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "a53fab17ce9ddd78df2d33ba541d711a2a22456365daaa4f10a91a858bd28a67",
+      "sha256_after": "a53fab17ce9ddd78df2d33ba541d711a2a22456365daaa4f10a91a858bd28a67"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/psclassic/PSClassicDescriptors.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/psclassic/PSClassicDescriptors.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "ea45461fae90c560e2d91a2c4464b59b5868a749c73e9b386a12b3155bde0de3",
+      "sha256_after": "ea45461fae90c560e2d91a2c4464b59b5868a749c73e9b386a12b3155bde0de3"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/psclassic/PSClassicDriver.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/psclassic/PSClassicDriver.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "8c98715447c0c956461b87910d1db67e716b219e1cd79074f659ca45cb3d3850",
+      "sha256_after": "8c98715447c0c956461b87910d1db67e716b219e1cd79074f659ca45cb3d3850"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/shared/driverhelper.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/shared/driverhelper.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "e2ea2c8d36c45a2195837d31e63a366035e133e97256f392743913bcf1e22dad",
+      "sha256_after": "e2ea2c8d36c45a2195837d31e63a366035e133e97256f392743913bcf1e22dad"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/shared/gpauthdriver.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/shared/gpauthdriver.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "41f56a77a2c92290a652f0ad9964c2cf3e3a2f7d60842ac393169d07df6d350d",
+      "sha256_after": "41f56a77a2c92290a652f0ad9964c2cf3e3a2f7d60842ac393169d07df6d350d"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/shared/xgip_protocol.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/shared/xgip_protocol.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "284df9f01ec32b480248a9282a2de881b891269f3fa94b08257b2dfa1d5bbe16",
+      "sha256_after": "284df9f01ec32b480248a9282a2de881b891269f3fa94b08257b2dfa1d5bbe16"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/shared/xinput_host.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/shared/xinput_host.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "16e388c29a8af8e824f8d93ae0bc9deed8104ffdb4ce42b92c002b2e56b7eb6f",
+      "sha256_after": "16e388c29a8af8e824f8d93ae0bc9deed8104ffdb4ce42b92c002b2e56b7eb6f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/switch/SwitchDescriptors.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/switch/SwitchDescriptors.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "4c5ba8361fe476d263596991f140c334d2b4d8b4c49f9a88bedbd400f42ed929",
+      "sha256_after": "4c5ba8361fe476d263596991f140c334d2b4d8b4c49f9a88bedbd400f42ed929"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/switch/SwitchDriver.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/switch/SwitchDriver.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "ff0a507e76a99df0409a4665b325e4eff474252b45d53da967660cdb6b5187ed",
+      "sha256_after": "ff0a507e76a99df0409a4665b325e4eff474252b45d53da967660cdb6b5187ed"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/xbone/XBOneAuth.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/xbone/XBOneAuth.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "e25d864deffe47b036dd50a8fe282d04677c955b43a56fd46c48020fed1051b5",
+      "sha256_after": "e25d864deffe47b036dd50a8fe282d04677c955b43a56fd46c48020fed1051b5"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/xbone/XBOneAuthUSBListener.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/xbone/XBOneAuthUSBListener.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "c2e2c98989364913fa4af76f80d0ad6a4c0b481ea6f40b445f94fe283c782978",
+      "sha256_after": "c2e2c98989364913fa4af76f80d0ad6a4c0b481ea6f40b445f94fe283c782978"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/xbone/XBOneDescriptors.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/xbone/XBOneDescriptors.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "86ad663bb0af4b99a6b939ad1d3267cbd6d3d9699a76ae15c607ce10efea4ae4",
+      "sha256_after": "86ad663bb0af4b99a6b939ad1d3267cbd6d3d9699a76ae15c607ce10efea4ae4"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/xbone/XBOneDriver.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/xbone/XBOneDriver.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "ad86988950641650516cfb5d016378bae8ef2f8150af6bd035d3690301049beb",
+      "sha256_after": "ad86988950641650516cfb5d016378bae8ef2f8150af6bd035d3690301049beb"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/xinput/XInputAuth.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/xinput/XInputAuth.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "f30564ffb06bbb75ca97c6ca7bdbe66d55edce2f4d7ad81df8796af4696cfc07",
+      "sha256_after": "f30564ffb06bbb75ca97c6ca7bdbe66d55edce2f4d7ad81df8796af4696cfc07"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/xinput/XInputAuthUSBListener.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/xinput/XInputAuthUSBListener.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "1d6a88c1ba75d974865928eb88a75c8bf7dc2ce80b01afa18dcae564778a34e3",
+      "sha256_after": "1d6a88c1ba75d974865928eb88a75c8bf7dc2ce80b01afa18dcae564778a34e3"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/xinput/XInputDescriptors.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/xinput/XInputDescriptors.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "6ce33088ce7e005b3651a0caf6fc4dd0fe908d85717af8536bc139c0097c2534",
+      "sha256_after": "6ce33088ce7e005b3651a0caf6fc4dd0fe908d85717af8536bc139c0097c2534"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/drivers/xinput/XInputDriver.hpp",
+      "new": "application/Inc/transport/usb/legacy/drivers/xinput/XInputDriver.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "d9ddd207d374574cd1a48fbe220f0f0bc6b6e60dc0ce05848a29a9b618fc0dfb",
+      "sha256_after": "d9ddd207d374574cd1a48fbe220f0f0bc6b6e60dc0ce05848a29a9b618fc0dfb"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/enums.hpp",
+      "new": "application/Inc/support/enums.hpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "6d1a0ef78e4ffef6a2a2d97fc1f680d7e53e1930cca47805235f4158102c5b58",
+      "sha256_after": "6d1a0ef78e4ffef6a2a2d97fc1f680d7e53e1930cca47805235f4158102c5b58"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/firmware/firmware_manager.hpp",
+      "new": "application/Inc/firmware/firmware_manager.hpp",
+      "module": "firmware",
+      "status": "moved",
+      "sha256_before": "0c511348988ac813eb485482403695ec3891c25afc97e600428f72e523d2f82c",
+      "sha256_after": "eff3b7591f91cc8f5baf120845796666f235b7070259e3c101a5b1f7c842a2d5"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/fixed_profile_slots.hpp",
+      "new": "application/Inc/config/fixed_profile_slots.hpp",
+      "module": "config",
+      "status": "moved",
+      "sha256_before": "8900797b4fff655f9de8e54c8c2cc5601a77d9883dee79fcf301d4dcf678bf78",
+      "sha256_after": "8900797b4fff655f9de8e54c8c2cc5601a77d9883dee79fcf301d4dcf678bf78"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/fn_layer_policy.hpp",
+      "new": "application/Inc/input/fn_layer_policy.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "f736857e94925ffe0f44e88ca0cdff4a65eaff2d091371bebd2479c33cf75971",
+      "sha256_after": "f736857e94925ffe0f44e88ca0cdff4a65eaff2d091371bebd2479c33cf75971"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/gamepad.hpp",
+      "new": "application/Inc/input/gamepad.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "4e095c6a58348e357f78ac9d9cbd41caa45053b93ff255964ee6e26de5e75fa3",
+      "sha256_after": "4e095c6a58348e357f78ac9d9cbd41caa45053b93ff255964ee6e26de5e75fa3"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/gamepad/GamepadConfig.hpp",
+      "new": "application/Inc/input/gamepad/GamepadConfig.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "b5c180ac0cf88756babfdf026dff11a3efd7e125fed259453eef6504e011b15f",
+      "sha256_after": "b5c180ac0cf88756babfdf026dff11a3efd7e125fed259453eef6504e011b15f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/gamepad/GamepadEnums.hpp",
+      "new": "application/Inc/input/gamepad/GamepadEnums.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "97ff0131862e72ddc7a783d0358a77a099895a50deb50fa12beb6b895974c47c",
+      "sha256_after": "97ff0131862e72ddc7a783d0358a77a099895a50deb50fa12beb6b895974c47c"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/gamepad/GamepadState.hpp",
+      "new": "application/Inc/input/gamepad/GamepadState.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "74e364fbe75e10a97047e25e2a0f565a2f830918544469f5acacaa6f1de140c9",
+      "sha256_after": "74e364fbe75e10a97047e25e2a0f565a2f830918544469f5acacaa6f1de140c9"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/gpconfig.hpp",
+      "new": "application/Inc/input/gpconfig.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "c19033cc0a486bae63d621b28d73a98d13689824e81cbc8e028537c09fa26fba",
+      "sha256_after": "c19033cc0a486bae63d621b28d73a98d13689824e81cbc8e028537c09fa26fba"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/gpdriver.hpp",
+      "new": "application/Inc/transport/usb/legacy/gpdriver.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "84cc82ef3951c000e3540662c0ee6b5d555e3da94d87c1677363da3aa4da6469",
+      "sha256_after": "84cc82ef3951c000e3540662c0ee6b5d555e3da94d87c1677363da3aa4da6469"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/gpio_btns/gpio_btns_worker.hpp",
+      "new": "application/Inc/input/gpio_btns/gpio_btns_worker.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "41eaeef28280ae0ac2b95e338b593d5bd257a54f43943d00075f4e9e72846abd",
+      "sha256_after": "41eaeef28280ae0ac2b95e338b593d5bd257a54f43943d00075f4e9e72846abd"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/hotkeys_manager.hpp",
+      "new": "application/Inc/input/hotkeys_manager.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "4c190c7c3f68d4cb20cc19fecd286808439abc26566001082e5c757a71a4b061",
+      "sha256_after": "4c190c7c3f68d4cb20cc19fecd286808439abc26566001082e5c757a71a4b061"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/input_runtime_policy.hpp",
+      "new": "application/Inc/input/input_runtime_policy.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "f1372469f207af00bb19a5a804cadbf5412c089db739a26eb4163e4167f3bbc2",
+      "sha256_after": "f1372469f207af00bb19a5a804cadbf5412c089db739a26eb4163e4167f3bbc2"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/intel_hex_parser.h",
+      "new": "application/Inc/firmware/intel_hex_parser.h",
+      "module": "firmware",
+      "status": "deleted_after_audit",
+      "sha256_before": "0184ce339c30cad679b35aafa75f55e1657495af905a945490be826c2458bf28",
+      "audit_reason": "Unreferenced declarations/types with no implementation or consumers.",
+      "sha256_after": null
+    },
+    {
+      "old": "application/Cpp_Core/Inc/latency_monitor.hpp",
+      "new": "application/Inc/diagnostics/latency_monitor.hpp",
+      "module": "diagnostics",
+      "status": "moved",
+      "sha256_before": "81c4e8c3fa62e45b2ca91c2ee47c30497eb567e12c395622c943f5507aac272f",
+      "sha256_after": "81c4e8c3fa62e45b2ca91c2ee47c30497eb567e12c395622c943f5507aac272f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/leds/gradient_color.hpp",
+      "new": "application/Inc/leds/gradient_color.hpp",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "0f6f89747fafcf28042455bd47c1d60a1e7aa0dd07f7ef26ab3144c838e88f46",
+      "sha256_after": "0f6f89747fafcf28042455bd47c1d60a1e7aa0dd07f7ef26ab3144c838e88f46"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/leds/led_animation.hpp",
+      "new": "application/Inc/leds/led_animation.hpp",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "beb984d7dd3fb519920c18d791dacbbc86a33479be49f37d2e9ad8d74325ee35",
+      "sha256_after": "beb984d7dd3fb519920c18d791dacbbc86a33479be49f37d2e9ad8d74325ee35"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/leds/led_config_safety.hpp",
+      "new": "application/Inc/leds/led_config_safety.hpp",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "ee3556ae30b54bee46b7159e13797f22f65f000c171e780c39a9d493ffa83cba",
+      "sha256_after": "ee3556ae30b54bee46b7159e13797f22f65f000c171e780c39a9d493ffa83cba"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/leds/led_strip_controller.hpp",
+      "new": "application/Inc/leds/led_strip_controller.hpp",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "8fb05c152e71d6d403f2ab77bee01264ca0a3657213d3de82eb4dc61c6c784f3",
+      "sha256_after": "8fb05c152e71d6d403f2ab77bee01264ca0a3657213d3de82eb4dc61c6c784f3"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/leds/leds_manager.hpp",
+      "new": "application/Inc/leds/leds_manager.hpp",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "fe0dc44750ae6514add4b3e4a6720e0b7baec056094c38acc6f1ce5e5e8b1389",
+      "sha256_after": "fe0dc44750ae6514add4b3e4a6720e0b7baec056094c38acc6f1ce5e5e8b1389"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/main_runtime_control.hpp",
+      "new": "application/Inc/system/main_runtime_control.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "9aecc3059b2983c0adfe68278d83717d83f7a08123ce8afe70bd2e7b29936894",
+      "sha256_after": "9aecc3059b2983c0adfe68278d83717d83f7a08123ce8afe70bd2e7b29936894"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/main_state_machine.hpp",
+      "new": "application/Inc/system/main_state_machine.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "c17adb93af27fc1c92aa201c1ac12419c9f5344774544955ab606b28ca9b9488",
+      "sha256_after": "c17adb93af27fc1c92aa201c1ac12419c9f5344774544955ab606b28ca9b9488"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/message_center.hpp",
+      "new": "application/Inc/system/message_center.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "d2d48c10ade950eb1db9545f3cd9ebd631b37034d882b854d40c62cb432abedc",
+      "sha256_after": "d2d48c10ade950eb1db9545f3cd9ebd631b37034d882b854d40c62cb432abedc"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/micro_timer.hpp",
+      "new": "application/Inc/support/micro_timer.hpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "86ff49bd4ccdac8ef9bbe5e11ed0445f87836599bdcd8c6382cda1424b1a843f",
+      "sha256_after": "86ff49bd4ccdac8ef9bbe5e11ed0445f87836599bdcd8c6382cda1424b1a843f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/monitor_telemetry.hpp",
+      "new": "application/Inc/diagnostics/monitor_telemetry.hpp",
+      "module": "diagnostics",
+      "status": "moved",
+      "sha256_before": "fb916f80c796926f2cde5a9f2f57f7885e042c4140c7fc9ca3a4a60c9fe94b81",
+      "sha256_after": "fb916f80c796926f2cde5a9f2f57f7885e042c4140c7fc9ca3a4a60c9fe94b81"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/power_config.hpp",
+      "new": "application/Inc/power/power_config.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "0fc7b6782fc63db0ba4a59ff954b75f3844e7d6b2798b0bb89920315321c25c7",
+      "sha256_after": "0fc7b6782fc63db0ba4a59ff954b75f3844e7d6b2798b0bb89920315321c25c7"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/power_config_json.hpp",
+      "new": "application/Inc/power/power_config_json.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "9494c4ab87f7bfe2165925c14878d28c6f835f9a14650ee8c5c46f45f6cf1223",
+      "sha256_after": "9494c4ab87f7bfe2165925c14878d28c6f835f9a14650ee8c5c46f45f6cf1223"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/power_manager.hpp",
+      "new": "application/Inc/power/power_manager.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "2ffcb8f844afacec8b48396dc5b87e719ea6d8a8f5c71eaa1908454fddc4f5df",
+      "sha256_after": "2ffcb8f844afacec8b48396dc5b87e719ea6d8a8f5c71eaa1908454fddc4f5df"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/qspi_wait_scope.hpp",
+      "new": "application/Inc/config/qspi_wait_scope.hpp",
+      "module": "config",
+      "status": "moved",
+      "sha256_before": "e638f6e357e86fb346f1865114e99478b605c1ed2871740d92c4804270f99062",
+      "sha256_after": "e638f6e357e86fb346f1865114e99478b605c1ed2871740d92c4804270f99062"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/report_scheduler.hpp",
+      "new": "application/Inc/input/report_scheduler.hpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "a09438a05957cf2a18386cd67c99a01c6c0786abf24bf7a96353ad66328e07ca",
+      "sha256_after": "a09438a05957cf2a18386cd67c99a01c6c0786abf24bf7a96353ad66328e07ca"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_boot_ready.hpp",
+      "new": "application/Inc/transport/rf/rf_boot_ready.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "c006c2a77f90c62bb0529520b715d6b77287bd0888fec63c96e9e2d9349bdeae",
+      "sha256_after": "c006c2a77f90c62bb0529520b715d6b77287bd0888fec63c96e9e2d9349bdeae"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_bridge_port.hpp",
+      "new": "application/Inc/transport/rf/rf_bridge_port.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "4faaf1367dccb88e9f683683a33c9842f276db86226c3c5b890211e891c00976",
+      "sha256_after": "4faaf1367dccb88e9f683683a33c9842f276db86226c3c5b890211e891c00976"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_bridge_port_internal.h",
+      "new": "application/Inc/transport/rf/rf_bridge_port_internal.h",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "0a8af63f02a2e467df0c481e477b887c2474056b2b0cd367d846b50693638d3b",
+      "sha256_after": "0a8af63f02a2e467df0c481e477b887c2474056b2b0cd367d846b50693638d3b"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_command_transaction.hpp",
+      "new": "application/Inc/transport/rf/rf_command_transaction.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "8f993451f8c8feefabad90e925eea790bfa43158f630422f2476d44267758599",
+      "sha256_after": "8f993451f8c8feefabad90e925eea790bfa43158f630422f2476d44267758599"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_link_state_policy.hpp",
+      "new": "application/Inc/transport/rf/rf_link_state_policy.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "51aabbcc54b1e79f16b4fdbd2e006b0153ad153fa85100079d95c8e47067fd06",
+      "sha256_after": "51aabbcc54b1e79f16b4fdbd2e006b0153ad153fa85100079d95c8e47067fd06"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_rate_confirmation_policy.hpp",
+      "new": "application/Inc/transport/rf/rf_rate_confirmation_policy.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "9680d26a9223feed7ece058f8baef8c781deb0a2d7a34970d4a14ab5cb06a225",
+      "sha256_after": "9680d26a9223feed7ece058f8baef8c781deb0a2d7a34970d4a14ab5cb06a225"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_reliable_event.hpp",
+      "new": "application/Inc/transport/rf/rf_reliable_event.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "1cc8a37c158c363afb8f47ae6ea8bd78a7bcd874982e48c00a73102c95e9bc73",
+      "sha256_after": "1cc8a37c158c363afb8f47ae6ea8bd78a7bcd874982e48c00a73102c95e9bc73"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_sleep_recovery.hpp",
+      "new": "application/Inc/transport/rf/rf_sleep_recovery.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "082c3f216e02b2f3b539079d67fe8217e8b00e0fe760aea73a8d1fd681efceb8",
+      "sha256_after": "082c3f216e02b2f3b539079d67fe8217e8b00e0fe760aea73a8d1fd681efceb8"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/rf_transport.hpp",
+      "new": "application/Inc/transport/rf/rf_transport.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "de0688f42d1bd08612ba64e74bc2dbc7257a2615d33f1b8a7aed2498ce7e7cd0",
+      "sha256_after": "de0688f42d1bd08612ba64e74bc2dbc7257a2615d33f1b8a7aed2498ce7e7cd0"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/lcd_wake_frame.hpp",
+      "new": "application/Inc/display/screen_control/lcd_wake_frame.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "d0580995b8db591e7ae0f21182f521aacca4f3947ce0fc5cda74fd96d2522caa",
+      "sha256_after": "d0580995b8db591e7ae0f21182f521aacca4f3947ce0fc5cda74fd96d2522caa"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_detail_entries.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_detail_entries.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "36db07e77223c0ecf8696c39ae6fa7a3ecb94daf66f30c5d54cb56454df56309",
+      "sha256_after": "36db07e77223c0ecf8696c39ae6fa7a3ecb94daf66f30c5d54cb56454df56309"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_detail_pages.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_detail_pages.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "12f7b8663681a689db23cdabbc2433d6d859ca0e199fec9a87d3f10d90b6bf00",
+      "sha256_after": "12f7b8663681a689db23cdabbc2433d6d859ca0e199fec9a87d3f10d90b6bf00"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_detail_render_helpers.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "9b7bf3898a2f1d6488c2c78cd7a5832a6043c60b774c553cf5a3d39e53ed465a",
+      "sha256_after": "9b7bf3898a2f1d6488c2c78cd7a5832a6043c60b774c553cf5a3d39e53ed465a"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_layout.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_layout.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "5a190dee944d66a4da6cb763117d8034b411159ebec81cd278f16d1720f8d2ed",
+      "sha256_after": "5a190dee944d66a4da6cb763117d8034b411159ebec81cd278f16d1720f8d2ed"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_main_list.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_main_list.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "3e7be327833a430e65dd8765a7f24bba3aa868641d93bf1b8bb441b36554ac62",
+      "sha256_after": "3e7be327833a430e65dd8765a7f24bba3aa868641d93bf1b8bb441b36554ac62"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_manager.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_manager.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "0c017c0bc958d5887e67e65f54083242a5c48d6bae8bf08295535b5a6c7c4e56",
+      "sha256_after": "0c017c0bc958d5887e67e65f54083242a5c48d6bae8bf08295535b5a6c7c4e56"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_standby.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_standby.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "9fa30283d35368b9edaace1935259c7a5be4d203631d276132f61bc2060735eb",
+      "sha256_after": "9fa30283d35368b9edaace1935259c7a5be4d203631d276132f61bc2060735eb"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_timed_popup.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_timed_popup.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "cc11f8069bd048c53ee9ee28232ceac9fc6517188c23289b40c4b7971cc57207",
+      "sha256_after": "cc11f8069bd048c53ee9ee28232ceac9fc6517188c23289b40c4b7971cc57207"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/screen_control/spi_screen_ui_common.hpp",
+      "new": "application/Inc/display/screen_control/spi_screen_ui_common.hpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "8c2f8365b1242994af6d162854a932cf7ab5eaaa1143705179e6a9fd98a6a1c5",
+      "sha256_after": "8c2f8365b1242994af6d162854a932cf7ab5eaaa1143705179e6a9fd98a6a1c5"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/sleep_diagnostics.hpp",
+      "new": "application/Inc/power/sleep_diagnostics.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "f5e63960beea21406ce4af09b13f51334c214ad47e0f087b359cd0ef4d13592f",
+      "sha256_after": "f5e63960beea21406ce4af09b13f51334c214ad47e0f087b359cd0ef4d13592f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/states/base_state.hpp",
+      "new": "application/Inc/system/states/base_state.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "1ebd3f9728690fc3ea378bf603f1a28ee8c6f01c0ace84423f506f49c03d6655",
+      "sha256_after": "1ebd3f9728690fc3ea378bf603f1a28ee8c6f01c0ace84423f506f49c03d6655"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/states/calibration_state.hpp",
+      "new": "application/Inc/system/states/calibration_state.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "85695349bd3ee4955a036665a3ff048cecabfd179ac4bebe81526ea7d159a8e4",
+      "sha256_after": "85695349bd3ee4955a036665a3ff048cecabfd179ac4bebe81526ea7d159a8e4"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/states/ch585_bridge_update_state.hpp",
+      "new": "application/Inc/system/states/ch585_bridge_update_state.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "27833145680554fa955b1c0a533a527c3bc55eeaa3ed6e4d4d670cd235919584",
+      "sha256_after": "27833145680554fa955b1c0a533a527c3bc55eeaa3ed6e4d4d670cd235919584"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/states/input_state.hpp",
+      "new": "application/Inc/system/states/input_state.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "f537a4506c4f85b020a5216135cb5014f8e527445ec02af223bb514bc54b5421",
+      "sha256_after": "f537a4506c4f85b020a5216135cb5014f8e527445ec02af223bb514bc54b5421"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/states/safe_recovery_state.hpp",
+      "new": "application/Inc/system/states/safe_recovery_state.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "d87687205a388a29eeac391abbcb1bfa3a683f1b789407d4edd43e60d2d42784",
+      "sha256_after": "d87687205a388a29eeac391abbcb1bfa3a683f1b789407d4edd43e60d2d42784"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/states/webconfig_state.hpp",
+      "new": "application/Inc/system/states/webconfig_state.hpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "a378ced342dadf89bf43daba4523ea47af9d9c5f241f9f294b18e0b6f12dac3e",
+      "sha256_after": "a378ced342dadf89bf43daba4523ea47af9d9c5f241f9f294b18e0b6f12dac3e"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/stop_timer_timing.hpp",
+      "new": "application/Inc/power/stop_timer_timing.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "113b9950cdf1b8748a12fcba6df57f3748787b2c8e9fc1cd1724e87bae6f5882",
+      "sha256_after": "113b9950cdf1b8748a12fcba6df57f3748787b2c8e9fc1cd1724e87bae6f5882"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/storagemanager.hpp",
+      "new": "application/Inc/config/storagemanager.hpp",
+      "module": "config",
+      "status": "moved",
+      "sha256_before": "4c98bbc8533ffb233d0fbb73382c9ffb025345d02350e15f9542e9b437cb985f",
+      "sha256_after": "4c98bbc8533ffb233d0fbb73382c9ffb025345d02350e15f9542e9b437cb985f"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/system_sleep_manager.hpp",
+      "new": "application/Inc/power/system_sleep_manager.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "71af12f5a0d04953f4da3eab661c578894e09662c27cc8e5f69a92921d75fec4",
+      "sha256_after": "71af12f5a0d04953f4da3eab661c578894e09662c27cc8e5f69a92921d75fec4"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/system_stop.hpp",
+      "new": "application/Inc/power/system_stop.hpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "5df9c3559d3c3e565a1a86583421f475940ba17b849235b813e0003c40bbf831",
+      "sha256_after": "5df9c3559d3c3e565a1a86583421f475940ba17b849235b813e0003c40bbf831"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/trace_clock.hpp",
+      "new": "application/Inc/support/trace_clock.hpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "e08a773f94e3e828fdb8c1d39f8ee3d229ecccc271348a808812da80ef687f26",
+      "sha256_after": "e08a773f94e3e828fdb8c1d39f8ee3d229ecccc271348a808812da80ef687f26"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/tusb_config.h",
+      "new": "application/Inc/transport/usb/legacy/tusb_config.h",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "543cd84c57388c43977be7ea16616f1d10920ece58b1db405e21b4b25ab466eb",
+      "sha256_after": "543cd84c57388c43977be7ea16616f1d10920ece58b1db405e21b4b25ab466eb"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/types.hpp",
+      "new": "application/Inc/support/types.hpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "25b88a8cfe9e6b141bd6af310a32a745c2e0cb1b8cf20f15663bee303d6aaafa",
+      "sha256_after": "25b88a8cfe9e6b141bd6af310a32a745c2e0cb1b8cf20f15663bee303d6aaafa"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/usb_board_link.hpp",
+      "new": "application/Inc/transport/usb/usb_board_link.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "25fb161d218308c7adae3d621851e2a16b2a81bc7bbb4994cb98e1e3ae743a75",
+      "sha256_after": "25fb161d218308c7adae3d621851e2a16b2a81bc7bbb4994cb98e1e3ae743a75"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/usb_board_link_c_api.h",
+      "new": "application/Inc/transport/usb/usb_board_link_c_api.h",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "eb78edf915689960dfdf14884dbeb579fc0bd988e08d83d04d973dd2f0bfb6d8",
+      "sha256_after": "eb78edf915689960dfdf14884dbeb579fc0bd988e08d83d04d973dd2f0bfb6d8"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/usb_board_link_port.hpp",
+      "new": "application/Inc/transport/usb/usb_board_link_port.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "dfec19ad9f9023329cceb29ee41b12e9d2a1976b79ecdda26ac2f88ca6d6ade3",
+      "sha256_after": "dfec19ad9f9023329cceb29ee41b12e9d2a1976b79ecdda26ac2f88ca6d6ade3"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/usb_report_rate_policy.hpp",
+      "new": "application/Inc/transport/usb/usb_report_rate_policy.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "537c711028862e4e5a73355ded7487d49ea2c73c8c87272715de6a6bfe402c59",
+      "sha256_after": "537c711028862e4e5a73355ded7487d49ea2c73c8c87272715de6a6bfe402c59"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/usb_role_ready_wait.hpp",
+      "new": "application/Inc/transport/usb/usb_role_ready_wait.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "802299fe41880468ce7634ebfb221c1f16ea02cdb4e825c8459ef0f083374c70",
+      "sha256_after": "802299fe41880468ce7634ebfb221c1f16ea02cdb4e825c8459ef0f083374c70"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/usbdriver.hpp",
+      "new": "application/Inc/transport/usb/usbdriver.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "8054246ec71ea4d06043cfd8a2033d3d55bc3b60acfb177924e1d4b8606446ad",
+      "sha256_after": "8054246ec71ea4d06043cfd8a2033d3d55bc3b60acfb177924e1d4b8606446ad"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/usbhostmanager.hpp",
+      "new": "application/Inc/transport/usb/legacy/usbhostmanager.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "69d3e582a22d9b630ecf6a3cef82d2b05d60e9ac1f4c59cdb4a27f2b02c9e94e",
+      "sha256_after": "69d3e582a22d9b630ecf6a3cef82d2b05d60e9ac1f4c59cdb4a27f2b02c9e94e"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/usblistener.hpp",
+      "new": "application/Inc/transport/usb/legacy/usblistener.hpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "630b7e0307251c3d30256e20e93bc2f16ae17eb8f6ef80bb89b33c5047de5565",
+      "sha256_after": "630b7e0307251c3d30256e20e93bc2f16ae17eb8f6ef80bb89b33c5047de5565"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/webhid_config_write_policy.hpp",
+      "new": "application/Inc/webconfig/webhid_config_write_policy.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "2cc0f32fc1d4d1e717efa47f609c7d5de1e5aff3d98f55e73ca3e52b4b2c8dbe",
+      "sha256_after": "2cc0f32fc1d4d1e717efa47f609c7d5de1e5aff3d98f55e73ca3e52b4b2c8dbe"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/webhid_rpc_dispatcher.hpp",
+      "new": "application/Inc/webconfig/webhid_rpc_dispatcher.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "cf042d92174e2df4ba6ed3d2f3c7df794cc23a8199865490265d189167ab25db",
+      "sha256_after": "cf042d92174e2df4ba6ed3d2f3c7df794cc23a8199865490265d189167ab25db"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/webhid_service.hpp",
+      "new": "application/Inc/webconfig/webhid_service.hpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "a67a6e837b3ac6c74e880c67646199e691c15f86518efab056e2b2d4374cd36e",
+      "sha256_after": "a67a6e837b3ac6c74e880c67646199e691c15f86518efab056e2b2d4374cd36e"
+    },
+    {
+      "old": "application/Cpp_Core/Inc/webhid_telemetry_hook.h",
+      "new": "application/Inc/webconfig/webhid_telemetry_hook.h",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "c052572e461587cb72c982beae50e9c3ec5742844c4cb18ed36f5173964893ca",
+      "sha256_after": "c052572e461587cb72c982beae50e9c3ec5742844c4cb18ed36f5173964893ca"
+    },
+    {
+      "old": "application/Cpp_Core/Src/adc_btns/adc_btns_marker.cpp",
+      "new": "application/Src/input/adc_btns/adc_btns_marker.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "6c449841e1b105acfce749a27ea7c84bbc31a3fb9012b5eea9369f8be5d9a7bc",
+      "sha256_after": "6c449841e1b105acfce749a27ea7c84bbc31a3fb9012b5eea9369f8be5d9a7bc"
+    },
+    {
+      "old": "application/Cpp_Core/Src/adc_btns/adc_btns_worker.cpp",
+      "new": "application/Src/input/adc_btns/adc_btns_worker.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "0a6ee59976c4b2b9570639e263bfc93bd819415aa55cd1242baa7b19b61dfc9b",
+      "sha256_after": "0a6ee59976c4b2b9570639e263bfc93bd819415aa55cd1242baa7b19b61dfc9b"
+    },
+    {
+      "old": "application/Cpp_Core/Src/adc_btns/adc_calibration.cpp",
+      "new": "application/Src/input/adc_btns/adc_calibration.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "afd75d038431bf5c5f391f3914badbc83869f94eed103c6bee4b091a35a0c63e",
+      "sha256_after": "afd75d038431bf5c5f391f3914badbc83869f94eed103c6bee4b091a35a0c63e"
+    },
+    {
+      "old": "application/Cpp_Core/Src/adc_btns/adc_manager.cpp",
+      "new": "application/Src/input/adc_btns/adc_manager.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "1cc47c8d418b327a87cb7de6aed9f30d55aa4749e3ff735abea4192fcfdc6882",
+      "sha256_after": "1cc47c8d418b327a87cb7de6aed9f30d55aa4749e3ff735abea4192fcfdc6882"
+    },
+    {
+      "old": "application/Cpp_Core/Src/adc_btns/ring_buffer_sliding_window.cpp",
+      "new": "application/Src/input/adc_btns/ring_buffer_sliding_window.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "04262555308e3867bd53c624fe2b445c1b1ecfb2078307cdfa137a12cf21d36f",
+      "sha256_after": "04262555308e3867bd53c624fe2b445c1b1ecfb2078307cdfa137a12cf21d36f"
+    },
+    {
+      "old": "application/Cpp_Core/Src/board_mode.cpp",
+      "new": "application/Src/system/board_mode.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "9a595abf3fe9158c8efcbc149fc2d44d7a840fab151837131fb26ebb02942dda",
+      "sha256_after": "9a595abf3fe9158c8efcbc149fc2d44d7a840fab151837131fb26ebb02942dda"
+    },
+    {
+      "old": "application/Cpp_Core/Src/board_power.cpp",
+      "new": "application/Src/power/board_power.cpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "abb4d5122e5582137acccc2d05767b545f8d817fcee3bd4cc106ac392452fa8f",
+      "sha256_after": "abb4d5122e5582137acccc2d05767b545f8d817fcee3bd4cc106ac392452fa8f"
+    },
+    {
+      "old": "application/Cpp_Core/Src/board_security_confirmation.cpp",
+      "new": "application/Src/system/board_security_confirmation.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "de23c30157929a66bee73fc013adc31d2d964ed6911cbf98a706d5ce6a1efcc3",
+      "sha256_after": "de23c30157929a66bee73fc013adc31d2d964ed6911cbf98a706d5ce6a1efcc3"
+    },
+    {
+      "old": "application/Cpp_Core/Src/ch585_firmware_update.cpp",
+      "new": "application/Src/firmware/ch585_firmware_update.cpp",
+      "module": "firmware",
+      "status": "moved",
+      "sha256_before": "1eef42a95c349559f34b32830bcc992bea5e144b487212314a5254068c1be652",
+      "sha256_after": "1eef42a95c349559f34b32830bcc992bea5e144b487212314a5254068c1be652"
+    },
+    {
+      "old": "application/Cpp_Core/Src/ch585_iap_client.cpp",
+      "new": "application/Src/firmware/ch585_iap_client.cpp",
+      "module": "firmware",
+      "status": "moved",
+      "sha256_before": "5dbca0e6e82c55a38a1f227b4b75e4b7f53d89f0996c83b605fb0ff5af6a06c5",
+      "sha256_after": "5dbca0e6e82c55a38a1f227b4b75e4b7f53d89f0996c83b605fb0ff5af6a06c5"
+    },
+    {
+      "old": "application/Cpp_Core/Src/ch585_role_bootstrap.cpp",
+      "new": "application/Src/transport/ch585_role_bootstrap.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "62af85dc4d769514cd96d82c6bd82de7b8cdb9a6ed260a0a916e1067d6a72456",
+      "sha256_after": "62af85dc4d769514cd96d82c6bd82de7b8cdb9a6ed260a0a916e1067d6a72456"
+    },
+    {
+      "old": "application/Cpp_Core/Src/config.cpp",
+      "new": "application/Src/config/config.cpp",
+      "module": "config",
+      "status": "moved",
+      "sha256_before": "526a2dcb18c2b276c474dc399f6f8250d00374054c90e4895a48f05c89712a23",
+      "sha256_after": "526a2dcb18c2b276c474dc399f6f8250d00374054c90e4895a48f05c89712a23"
+    },
+    {
+      "old": "application/Cpp_Core/Src/config_transport_sink.cpp",
+      "new": "application/Src/webconfig/config_transport_sink.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "0dd459826db3a6bde2cbb624960ef8de4a42c865a1304dd6076fa6a7df8a9ee7",
+      "sha256_after": "0dd459826db3a6bde2cbb624960ef8de4a42c865a1304dd6076fa6a7df8a9ee7"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/calibration_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/calibration_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "26f5f0e0cf30085064dd411488d80ce7ce5d32cc25e515f7a2c3f43663fcc0ef",
+      "sha256_after": "26f5f0e0cf30085064dd411488d80ce7ce5d32cc25e515f7a2c3f43663fcc0ef"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/common_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/common_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "a8f95a8756af46939453e8e92b1f0378ad445411e6caf2be2a51690c692f7c58",
+      "sha256_after": "a8f95a8756af46939453e8e92b1f0378ad445411e6caf2be2a51690c692f7c58"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/config_sync.cpp",
+      "new": "application/Src/webconfig/configs/config_sync.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "47d79ca7f2aa1741201010eee7d7e90ef8644853753f13b0347fad699e626a6e",
+      "sha256_after": "47d79ca7f2aa1741201010eee7d7e90ef8644853753f13b0347fad699e626a6e"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/device_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/device_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "843bb816137ebb217602fb0218f6ad8ec4b5255c55e3ee2b1ac8dce7c5428294",
+      "sha256_after": "843bb816137ebb217602fb0218f6ad8ec4b5255c55e3ee2b1ac8dce7c5428294"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/device_command_message.cpp",
+      "new": "application/Src/webconfig/configs/device_command_message.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "c6b39b1475a6ce4617adc510e7f099b668c52cd5af4817b8826632f1cd95c9e4",
+      "sha256_after": "c6b39b1475a6ce4617adc510e7f099b668c52cd5af4817b8826632f1cd95c9e4"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/firmware_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/firmware_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "34a088a1086ff3a25a618cb8051d81591ca2cedf67c036f62337876a9bb6bd9f",
+      "sha256_after": "34a088a1086ff3a25a618cb8051d81591ca2cedf67c036f62337876a9bb6bd9f"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/global_config_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/global_config_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "6539377f11cb88ea079c6d36fb1b5690eda7fdfe36b1e0261dcd77fda41271c5",
+      "sha256_after": "6539377f11cb88ea079c6d36fb1b5690eda7fdfe36b1e0261dcd77fda41271c5"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/ms_mark_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/ms_mark_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "86076960fa72bd7b4c921a6e284ec9a74b87c847457c78ddd21d15a6312f5675",
+      "sha256_after": "86076960fa72bd7b4c921a6e284ec9a74b87c847457c78ddd21d15a6312f5675"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/profile_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/profile_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved_and_cleaned",
+      "sha256_before": "37e341d35f96953dff94c30e7ba3fa35b5b67fe52ac60805ff2e8db5d79c811a",
+      "audit_reason": "Static aggregate macro encoder has no callers; preserve active per-macro encoding/decoding and command handlers.",
+      "sha256_after": "733c44d2372cb5ff005cf44eeb4d932e53df39393c201daee3f96ebb4755fa4c"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/rf_binding_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/rf_binding_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "7b6da682b8b2c700f80338bf52f3612c79c3d232bb82d68f16e966c6ece92ceb",
+      "sha256_after": "7b6da682b8b2c700f80338bf52f3612c79c3d232bb82d68f16e966c6ece92ceb"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/user_image_command_handler.cpp",
+      "new": "application/Src/webconfig/configs/user_image_command_handler.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "88f56117fc0140c34426ccf704118184f27ef918062963d09d9ffb0e63128b02",
+      "sha256_after": "88f56117fc0140c34426ccf704118184f27ef918062963d09d9ffb0e63128b02"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/webconfig_btns_manager.cpp",
+      "new": "application/Src/webconfig/configs/webconfig_btns_manager.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "526fc08763bdde7b462bb81a1b645e8f06be89138f09990d7052986fc985e25b",
+      "sha256_after": "526fc08763bdde7b462bb81a1b645e8f06be89138f09990d7052986fc985e25b"
+    },
+    {
+      "old": "application/Cpp_Core/Src/configs/webconfig_leds_manager.cpp",
+      "new": "application/Src/webconfig/configs/webconfig_leds_manager.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "b3c8365d60bb9c15ea6480233fe60dcbe7aaa9671064a05a5334cd2718c25772",
+      "sha256_after": "b3c8365d60bb9c15ea6480233fe60dcbe7aaa9671064a05a5334cd2718c25772"
+    },
+    {
+      "old": "application/Cpp_Core/Src/connection_manager.cpp",
+      "new": "application/Src/transport/connection_manager.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "e70d4469012d96258a786a804a22f107b932a5ea17b80f15106b7ad966e16605",
+      "sha256_after": "e70d4469012d96258a786a804a22f107b932a5ea17b80f15106b7ad966e16605"
+    },
+    {
+      "old": "application/Cpp_Core/Src/cpp_main.cpp",
+      "new": "application/Src/system/cpp_main.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "c5b9ff297ea565e96eb1492e1c2164f1690a226a7de9007bda15cf3b3458d943",
+      "audit_reason": "Retained: deleting manual test functions changes emitted C++ COMDAT singleton definitions and linked code addresses; strict byte-identical gate takes precedence.",
+      "sha256_after": "c5b9ff297ea565e96eb1492e1c2164f1690a226a7de9007bda15cf3b3458d943"
+    },
+    {
+      "old": "application/Cpp_Core/Src/cpp_utils.cpp",
+      "new": "application/Src/support/cpp_utils.cpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "d4fb17c6a4e945fe7468639b2865e0618dcb617b07a2191f12145d64fca867ca",
+      "sha256_after": "d4fb17c6a4e945fe7468639b2865e0618dcb617b07a2191f12145d64fca867ca"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivermanager.cpp",
+      "new": "application/Src/transport/usb/legacy/drivermanager.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "4181a8fd84a5b6423659e6adc373af4608f8fe9ea6fcc43addf19b8fcf93ffa6",
+      "sha256_after": "4181a8fd84a5b6423659e6adc373af4608f8fe9ea6fcc43addf19b8fcf93ffa6"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/ps4/PS4Auth.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/ps4/PS4Auth.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "aa9b17001486e3336d1804f1b1b60ee832a5c65eb9a3bd07c886749e5133b903",
+      "sha256_after": "aa9b17001486e3336d1804f1b1b60ee832a5c65eb9a3bd07c886749e5133b903"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/ps4/PS4AuthUSBListener.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/ps4/PS4AuthUSBListener.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "ac5ed689d67c15e19cc0379bf2c1dc0b57142e66387ef259ce633bab1951e38b",
+      "sha256_after": "ac5ed689d67c15e19cc0379bf2c1dc0b57142e66387ef259ce633bab1951e38b"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/ps4/PS4Driver.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/ps4/PS4Driver.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "8eaabe6cb08b555c5ad438e1d7df80ce7c850ac773bc1ccaa62cb04497d48762",
+      "sha256_after": "8eaabe6cb08b555c5ad438e1d7df80ce7c850ac773bc1ccaa62cb04497d48762"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/psclassic/PSClassicDriver.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/psclassic/PSClassicDriver.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "a8bd3ec90c5d948b3f025d7ada6a2eb7bf0fd5aec1658f7b0c1147cdac826df5",
+      "sha256_after": "a8bd3ec90c5d948b3f025d7ada6a2eb7bf0fd5aec1658f7b0c1147cdac826df5"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/shared/xgip_protocol.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/shared/xgip_protocol.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "3a86988b77df93164b49fd4826f470a41a4f801838c0401c5fd537e47ac6b9ba",
+      "sha256_after": "3a86988b77df93164b49fd4826f470a41a4f801838c0401c5fd537e47ac6b9ba"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/shared/xinput_host.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/shared/xinput_host.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "61b4a435df4f5efa2f46727756d01d3954e45c23d86d6b8a45eba269574037b2",
+      "sha256_after": "61b4a435df4f5efa2f46727756d01d3954e45c23d86d6b8a45eba269574037b2"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/switch/SwitchDriver.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/switch/SwitchDriver.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "63ca18473350496e4545e39eff59ce1ae11bd775e9757bb99956a1b03ee89e35",
+      "sha256_after": "63ca18473350496e4545e39eff59ce1ae11bd775e9757bb99956a1b03ee89e35"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/xbone/XBOneAuth.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/xbone/XBOneAuth.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "e33a4463d204db25dedd6920f6180354ad9b14eceae83907114c933490a8aab4",
+      "sha256_after": "e33a4463d204db25dedd6920f6180354ad9b14eceae83907114c933490a8aab4"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/xbone/XBOneAuthUSBListener.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/xbone/XBOneAuthUSBListener.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "155091d0e22cb728ac89d81226c411d6b03c76bfde51051fcd8f85939ecc4ba1",
+      "sha256_after": "155091d0e22cb728ac89d81226c411d6b03c76bfde51051fcd8f85939ecc4ba1"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/xbone/XBOneDriver.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/xbone/XBOneDriver.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "0c1a451b821caedcee1c9e3466dca777aec8a1bb07219fd933641635f31f7e45",
+      "sha256_after": "0c1a451b821caedcee1c9e3466dca777aec8a1bb07219fd933641635f31f7e45"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/xinput/XInputAuth.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/xinput/XInputAuth.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "085a3069634aea5189bfbe40f407e215b838117162ecb66dfd3a9799cd4792e2",
+      "sha256_after": "085a3069634aea5189bfbe40f407e215b838117162ecb66dfd3a9799cd4792e2"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/xinput/XInputAuthUSBListener.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/xinput/XInputAuthUSBListener.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "7c6800caa7e7db67d28cc5bab015f3b2f6776f17233eaf7f572c1d9b38a30375",
+      "sha256_after": "7c6800caa7e7db67d28cc5bab015f3b2f6776f17233eaf7f572c1d9b38a30375"
+    },
+    {
+      "old": "application/Cpp_Core/Src/drivers/xinput/XInputDriver.cpp",
+      "new": "application/Src/transport/usb/legacy/drivers/xinput/XInputDriver.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "7a3c068e9747f2f957407b13c5413d7d3c9a426cb87dda40948964c0b4b51599",
+      "sha256_after": "7a3c068e9747f2f957407b13c5413d7d3c9a426cb87dda40948964c0b4b51599"
+    },
+    {
+      "old": "application/Cpp_Core/Src/firmware/firmware_manager.cpp",
+      "new": "application/Src/firmware/firmware_manager.cpp",
+      "module": "firmware",
+      "status": "moved_and_cleaned",
+      "sha256_before": "c428bd2669bcc6fc3ac0602a2458befd694b3920d64ac7608b5bea28f5c7f80b",
+      "audit_reason": "Static calculate_crc32 has no caller in any branch. Keep the CRC table used by active validation functions.",
+      "sha256_after": "af6853ac6bd85eee8c29bb41d85b8d22f0867ae26731d6f679084b18056dcf9a"
+    },
+    {
+      "old": "application/Cpp_Core/Src/gamepad.cpp",
+      "new": "application/Src/input/gamepad.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "c64a7bf49a17f0194f7f9988099bdc84417921c90dffd6dc121178c3c117971d",
+      "sha256_after": "c64a7bf49a17f0194f7f9988099bdc84417921c90dffd6dc121178c3c117971d"
+    },
+    {
+      "old": "application/Cpp_Core/Src/gamepad/GamepadState.cpp",
+      "new": "application/Src/input/gamepad/GamepadState.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "f06f071c45a06275e17dd5434e260de9e810ef37e91762591a413de1ee4b3287",
+      "sha256_after": "f06f071c45a06275e17dd5434e260de9e810ef37e91762591a413de1ee4b3287"
+    },
+    {
+      "old": "application/Cpp_Core/Src/gpio_btns/gpio_btns_worker.cpp",
+      "new": "application/Src/input/gpio_btns/gpio_btns_worker.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "4c61c323b7643898b01ad5a67cf074ed75a0fd4284c92eceb7e548264a72cc75",
+      "sha256_after": "4c61c323b7643898b01ad5a67cf074ed75a0fd4284c92eceb7e548264a72cc75"
+    },
+    {
+      "old": "application/Cpp_Core/Src/hotkeys_manager.cpp",
+      "new": "application/Src/input/hotkeys_manager.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "2826c80ecf5e9829de39cb879c3b0eac370331a744c8485669bff4e37ed687cb",
+      "sha256_after": "2826c80ecf5e9829de39cb879c3b0eac370331a744c8485669bff4e37ed687cb"
+    },
+    {
+      "old": "application/Cpp_Core/Src/intel_hex_parser.c",
+      "new": "application/Src/firmware/intel_hex_parser.c",
+      "module": "firmware",
+      "status": "deleted_after_audit",
+      "sha256_before": "36a9e7f1c95b82ffb99743e0c5c4ce95d83c9a430aac59f84ef3cbfab6145068",
+      "audit_reason": "Empty one-byte file, absent from all build inputs.",
+      "sha256_after": null
+    },
+    {
+      "old": "application/Cpp_Core/Src/latency_monitor.cpp",
+      "new": "application/Src/diagnostics/latency_monitor.cpp",
+      "module": "diagnostics",
+      "status": "moved",
+      "sha256_before": "05f467994068374d9587bdc95ec9a975289044f8ec9d45b30b48d8598e63c9ad",
+      "sha256_after": "05f467994068374d9587bdc95ec9a975289044f8ec9d45b30b48d8598e63c9ad"
+    },
+    {
+      "old": "application/Cpp_Core/Src/leds/gradient_color.cpp",
+      "new": "application/Src/leds/gradient_color.cpp",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "7c54ac74d5bf0bf999489d51f393ba8030377b991a5cd8fde00f804e19c6d121",
+      "sha256_after": "7c54ac74d5bf0bf999489d51f393ba8030377b991a5cd8fde00f804e19c6d121"
+    },
+    {
+      "old": "application/Cpp_Core/Src/leds/led_animation.cpp",
+      "new": "application/Src/leds/led_animation.cpp",
+      "module": "leds",
+      "status": "moved_and_cleaned",
+      "sha256_before": "c115a0fb44802ac7d5318ef008d878647f3250a445baf9f014abbd56d9d6cb7d",
+      "audit_reason": "Unused file-local ripple array/count and unused boundary wrapper; active LEDManager ripple state is preserved.",
+      "sha256_after": "a6df864ec7ff3538adc31af51f0b8d73fced787d2d84a2469e339820113b6e83"
+    },
+    {
+      "old": "application/Cpp_Core/Src/leds/led_strip_controller.cpp",
+      "new": "application/Src/leds/led_strip_controller.cpp",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "a309c2cc64f436e5ace431b02f8d3f75a2cd17d164e1d4ecb8a0a40330829a2a",
+      "sha256_after": "a309c2cc64f436e5ace431b02f8d3f75a2cd17d164e1d4ecb8a0a40330829a2a"
+    },
+    {
+      "old": "application/Cpp_Core/Src/leds/leds_manager.cpp",
+      "new": "application/Src/leds/leds_manager.cpp",
+      "module": "leds",
+      "status": "moved_and_cleaned",
+      "sha256_before": "4f6860aaa5c9934098fc6463292f6f0bf6226a2723158a84317ed258e22c60c5",
+      "audit_reason": "Remove fully commented testAnimation/previewAnimation implementations; preserve executable preview behavior.",
+      "sha256_after": "c856064303f65bcb49370a0ed284fecc7fb24c3537ed971a51d9e5f836ab069a"
+    },
+    {
+      "old": "application/Cpp_Core/Src/main_state_machine.cpp",
+      "new": "application/Src/system/main_state_machine.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "8b9791a184d73a8e66269deef0aeddf06ea268dbad96f952b7fe56c8a3744a26",
+      "sha256_after": "8b9791a184d73a8e66269deef0aeddf06ea268dbad96f952b7fe56c8a3744a26"
+    },
+    {
+      "old": "application/Cpp_Core/Src/message_center.cpp",
+      "new": "application/Src/system/message_center.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "53d3eb8ba9536868dfa94eca3a5de1db58564937633be7dd68ec652c9a8beea0",
+      "sha256_after": "53d3eb8ba9536868dfa94eca3a5de1db58564937633be7dd68ec652c9a8beea0"
+    },
+    {
+      "old": "application/Cpp_Core/Src/micro_timer.cpp",
+      "new": "application/Src/support/micro_timer.cpp",
+      "module": "support",
+      "status": "moved",
+      "sha256_before": "53dcad3a481aefe02cad1dd1cc161fada8c58794bf808f703b439c55fbfa02e6",
+      "sha256_after": "53dcad3a481aefe02cad1dd1cc161fada8c58794bf808f703b439c55fbfa02e6"
+    },
+    {
+      "old": "application/Cpp_Core/Src/monitor_telemetry.cpp",
+      "new": "application/Src/diagnostics/monitor_telemetry.cpp",
+      "module": "diagnostics",
+      "status": "moved",
+      "sha256_before": "36969c6e6e5ac21a6fd8f455a5c1f65ea70d205a6cbc08869beb1f42c497ba39",
+      "sha256_after": "36969c6e6e5ac21a6fd8f455a5c1f65ea70d205a6cbc08869beb1f42c497ba39"
+    },
+    {
+      "old": "application/Cpp_Core/Src/power_manager.cpp",
+      "new": "application/Src/power/power_manager.cpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "1df870c4cf5a5d999d6fc33cd798c4315d8b19087b6f7c0850c003d25524eae1",
+      "sha256_after": "1df870c4cf5a5d999d6fc33cd798c4315d8b19087b6f7c0850c003d25524eae1"
+    },
+    {
+      "old": "application/Cpp_Core/Src/report_scheduler.cpp",
+      "new": "application/Src/input/report_scheduler.cpp",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "0aa104854aba88f64cea02e643ac9dde49cdce3091f33f056900082b60981722",
+      "sha256_after": "0aa104854aba88f64cea02e643ac9dde49cdce3091f33f056900082b60981722"
+    },
+    {
+      "old": "application/Cpp_Core/Src/rf_boot_ready.cpp",
+      "new": "application/Src/transport/rf/rf_boot_ready.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "9c691e37ae1209d2993f43a531815e66727b014eee7abf293346b795342033b5",
+      "sha256_after": "9c691e37ae1209d2993f43a531815e66727b014eee7abf293346b795342033b5"
+    },
+    {
+      "old": "application/Cpp_Core/Src/rf_bridge_port.cpp",
+      "new": "application/Src/transport/rf/rf_bridge_port.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "c3da057d11e3f5536228baf2e9e797c3693eab78b3e9a6dd5bb28ae6b8bdfdf8",
+      "sha256_after": "c3da057d11e3f5536228baf2e9e797c3693eab78b3e9a6dd5bb28ae6b8bdfdf8"
+    },
+    {
+      "old": "application/Cpp_Core/Src/rf_command_transaction.cpp",
+      "new": "application/Src/transport/rf/rf_command_transaction.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "6091ddae6908d61ea83260bee50e01b7467dd3d7ad192a168b2db1e1978dd81c",
+      "sha256_after": "6091ddae6908d61ea83260bee50e01b7467dd3d7ad192a168b2db1e1978dd81c"
+    },
+    {
+      "old": "application/Cpp_Core/Src/rf_reliable_event.cpp",
+      "new": "application/Src/transport/rf/rf_reliable_event.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "cc08c1d411caf35595da8d36426aabb93a87472a403209b8f549b25c26dab8ae",
+      "sha256_after": "cc08c1d411caf35595da8d36426aabb93a87472a403209b8f549b25c26dab8ae"
+    },
+    {
+      "old": "application/Cpp_Core/Src/rf_sleep_recovery.cpp",
+      "new": "application/Src/transport/rf/rf_sleep_recovery.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "6413107596ea36b67030ced4a8a50f831bd406b3380c236beae4bfa678d56f03",
+      "sha256_after": "6413107596ea36b67030ced4a8a50f831bd406b3380c236beae4bfa678d56f03"
+    },
+    {
+      "old": "application/Cpp_Core/Src/rf_transport.cpp",
+      "new": "application/Src/transport/rf/rf_transport.cpp",
+      "module": "transport",
+      "status": "moved_and_cleaned",
+      "sha256_before": "11dee6d99cd8ba1bbb6bbdd601736dadf53c393d07ee78da3b453c1b205a3d55",
+      "audit_reason": "Anonymous-namespace traceNowUs/saturateAgeUs and TraceEdge array have no references in any macro branch; active trace state and RF operations are preserved.",
+      "sha256_after": "779be8a743fd42c2358393701c6d71f11cd4a0b0fc80c38c863d09625c64b5f9"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_ambient_brightness.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_ambient_brightness.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "4faec601c3ea39db327ef4a33d8f720f48aa505b1b17e156c7d9876f37b03104",
+      "sha256_after": "4faec601c3ea39db327ef4a33d8f720f48aa505b1b17e156c7d9876f37b03104"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_ambient_effect.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_ambient_effect.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "57897ab843d7a930f682073ee5ad9c31a6ff5c3af816f14917a4ad4727a56043",
+      "sha256_after": "57897ab843d7a930f682073ee5ad9c31a6ff5c3af816f14917a4ad4727a56043"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_buttons_performance.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_buttons_performance.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "1548f38c2eb491870bc5de93f499409bceb8412cae0e6462c622f5d09c247bf9",
+      "sha256_after": "1548f38c2eb491870bc5de93f499409bceb8412cae0e6462c622f5d09c247bf9"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_calibration_mode.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "5b47bc0b6ca126b41cce5b52fc6a0aa19d8e3d11e4b7098896bb019954a876c6",
+      "sha256_after": "5b47bc0b6ca126b41cce5b52fc6a0aa19d8e3d11e4b7098896bb019954a876c6"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_input_mode.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "4a9c9f77fbf650ed64250df82ee4a90aa7a75120c145236d0ce3abc0eb820695",
+      "sha256_after": "4a9c9f77fbf650ed64250df82ee4a90aa7a75120c145236d0ce3abc0eb820695"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_light_brightness.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_light_brightness.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "569f97f8381aa1c034644c4d6bde33fc64e33056869731fbe266facf2be37b23",
+      "sha256_after": "569f97f8381aa1c034644c4d6bde33fc64e33056869731fbe266facf2be37b23"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_light_effect.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "a388650acfaac3abee6bde8bcf4b25bcda509776e4df389be5e9391d3df5f18a",
+      "sha256_after": "a388650acfaac3abee6bde8bcf4b25bcda509776e4df389be5e9391d3df5f18a"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_pages.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_pages.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "6c84c38398f48f48bcc3250857be3cd5ccee7a7d929fb2ff1df090d459a31de8",
+      "sha256_after": "6c84c38398f48f48bcc3250857be3cd5ccee7a7d929fb2ff1df090d459a31de8"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_profiles.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_profiles.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "2885dad3a93ca4b05486261a9a8ad6cc082a718f17c4a19763eb12b08cca6da0",
+      "sha256_after": "2885dad3a93ca4b05486261a9a8ad6cc082a718f17c4a19763eb12b08cca6da0"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_render_helpers.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_render_helpers.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "5d23f7a4dc44345beb1c87373a48dbfaa890fc9ae86416606842425092b0609a",
+      "sha256_after": "5d23f7a4dc44345beb1c87373a48dbfaa890fc9ae86416606842425092b0609a"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_screen_brightness.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "cd15c226cd402d33bc2d041f9a258ad176e42d055666c4e2b613d87313298640",
+      "sha256_after": "cd15c226cd402d33bc2d041f9a258ad176e42d055666c4e2b613d87313298640"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_socd.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_socd.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "128d3ea2fa91978cdfecaa0b7c39970d3dcfedefedc2bb6e76970a05f10eb60e",
+      "sha256_after": "128d3ea2fa91978cdfecaa0b7c39970d3dcfedefedc2bb6e76970a05f10eb60e"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_tournament_mode.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "2a5c9e1cfdadaa6bfcb288705d119f189f8cc0f67eeddc2f301ea88e0874912a",
+      "sha256_after": "2a5c9e1cfdadaa6bfcb288705d119f189f8cc0f67eeddc2f301ea88e0874912a"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_detail_web_config.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "ee5277471d5450d099de1e9a1bcb240e5694efb48cebbbf9accc0c2a18eaf5bd",
+      "sha256_after": "ee5277471d5450d099de1e9a1bcb240e5694efb48cebbbf9accc0c2a18eaf5bd"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_main_list.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_main_list.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "53e03eaf24c09811451a89c059d649fdf58cef3b0a0a4d8011ed1c2bacd72169",
+      "sha256_after": "53e03eaf24c09811451a89c059d649fdf58cef3b0a0a4d8011ed1c2bacd72169"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_manager.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_manager.cpp",
+      "module": "display",
+      "status": "moved_and_cleaned",
+      "sha256_before": "1fdfed78a505c0fe896a05e87673c2d65d582ea0c8fb9211009479af85c9dfd0",
+      "audit_reason": "Nine file-local performance counters have only declarations, no readers/writers or conditional consumers.",
+      "sha256_after": "3cea8e2751ba8545b0e8e92c6de09ff406b5b84872f8ef7d5b722329d475002a"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_standby.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_standby.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "8dc1dd14ef63415d4c0ef6ff3063ad9d37e6676d8d2198e9490888ffdf8392ae",
+      "sha256_after": "8dc1dd14ef63415d4c0ef6ff3063ad9d37e6676d8d2198e9490888ffdf8392ae"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_timed_popup.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "fa859b733b92d8df7762b3d0b627570263d530f56daa7ebdab82c750a40e956d",
+      "sha256_after": "fa859b733b92d8df7762b3d0b627570263d530f56daa7ebdab82c750a40e956d"
+    },
+    {
+      "old": "application/Cpp_Core/Src/screen_control/spi_screen_ui_common.cpp",
+      "new": "application/Src/display/screen_control/spi_screen_ui_common.cpp",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "7739e33f59dc57ff0f5335a8a706323d6f1bfa10f697666ecac271dbcd54972c",
+      "sha256_after": "7739e33f59dc57ff0f5335a8a706323d6f1bfa10f697666ecac271dbcd54972c"
+    },
+    {
+      "old": "application/Cpp_Core/Src/sleep_diagnostics.cpp",
+      "new": "application/Src/power/sleep_diagnostics.cpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "84b526c8c57ef5c12fecbe6ef1fe5c5eb39a98cf4acbead4bf03bf88e9456197",
+      "sha256_after": "84b526c8c57ef5c12fecbe6ef1fe5c5eb39a98cf4acbead4bf03bf88e9456197"
+    },
+    {
+      "old": "application/Cpp_Core/Src/states/calibration_state.cpp",
+      "new": "application/Src/system/states/calibration_state.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "c2eb57daaacbf35cd7cf84a5b70228ace39d89ca189e45d9a099ecd3bcedab7b",
+      "sha256_after": "c2eb57daaacbf35cd7cf84a5b70228ace39d89ca189e45d9a099ecd3bcedab7b"
+    },
+    {
+      "old": "application/Cpp_Core/Src/states/ch585_bridge_update_state.cpp",
+      "new": "application/Src/system/states/ch585_bridge_update_state.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "c95f26858004f9d4ecdeeae7d00d9951699fe6dca8a311ac7f797b8eb626eef4",
+      "sha256_after": "c95f26858004f9d4ecdeeae7d00d9951699fe6dca8a311ac7f797b8eb626eef4"
+    },
+    {
+      "old": "application/Cpp_Core/Src/states/input_state.cpp",
+      "new": "application/Src/system/states/input_state.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "82984ee5ebdcf897a56fc31bc9d25f66f63446710ec642bb2f70ee6d0695cc89",
+      "sha256_after": "82984ee5ebdcf897a56fc31bc9d25f66f63446710ec642bb2f70ee6d0695cc89"
+    },
+    {
+      "old": "application/Cpp_Core/Src/states/safe_recovery_state.cpp",
+      "new": "application/Src/system/states/safe_recovery_state.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "04894371c5839fb785482c871e03e2b34ce0da8c8556cb7e870f4ef997623e06",
+      "sha256_after": "04894371c5839fb785482c871e03e2b34ce0da8c8556cb7e870f4ef997623e06"
+    },
+    {
+      "old": "application/Cpp_Core/Src/states/webconfig_state.cpp",
+      "new": "application/Src/system/states/webconfig_state.cpp",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "8441cbab7fdb7dbfa6741929a51083902da4963204419670bc364a1082ae39d3",
+      "sha256_after": "8441cbab7fdb7dbfa6741929a51083902da4963204419670bc364a1082ae39d3"
+    },
+    {
+      "old": "application/Cpp_Core/Src/storagemanager.cpp",
+      "new": "application/Src/config/storagemanager.cpp",
+      "module": "config",
+      "status": "moved",
+      "sha256_before": "702321cd193c21b9b18b31d5ebd19e15531d621013dfc12b3abe39a2871b9466",
+      "sha256_after": "702321cd193c21b9b18b31d5ebd19e15531d621013dfc12b3abe39a2871b9466"
+    },
+    {
+      "old": "application/Cpp_Core/Src/system_sleep_manager.cpp",
+      "new": "application/Src/power/system_sleep_manager.cpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "d58412b919f841c402e496c6cada87868b6f6658e2c0f0d506d96feb440b2a92",
+      "sha256_after": "d58412b919f841c402e496c6cada87868b6f6658e2c0f0d506d96feb440b2a92"
+    },
+    {
+      "old": "application/Cpp_Core/Src/system_stop.cpp",
+      "new": "application/Src/power/system_stop.cpp",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "c9d5cfaa92d88bd10be08d09e8fa734c549a919d027dd3c499cde63774ebb4f9",
+      "sha256_after": "c9d5cfaa92d88bd10be08d09e8fa734c549a919d027dd3c499cde63774ebb4f9"
+    },
+    {
+      "old": "application/Cpp_Core/Src/usb_board_link.cpp",
+      "new": "application/Src/transport/usb/usb_board_link.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "b19c28d11e0bc0e435265668e4e9c1d2942904caa2c05739e233e31907504f9e",
+      "sha256_after": "b19c28d11e0bc0e435265668e4e9c1d2942904caa2c05739e233e31907504f9e"
+    },
+    {
+      "old": "application/Cpp_Core/Src/usb_board_link_port.cpp",
+      "new": "application/Src/transport/usb/usb_board_link_port.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "9cabd11624d95d795fcd0ee00cc4a939a87d9829743beac69a80fe1256874cc4",
+      "sha256_after": "9cabd11624d95d795fcd0ee00cc4a939a87d9829743beac69a80fe1256874cc4"
+    },
+    {
+      "old": "application/Cpp_Core/Src/usbdriver.cpp",
+      "new": "application/Src/transport/usb/usbdriver.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "cbfb6ac2dc5bbd2b395cb343fb170e1a2a74a8da92e75426d6e289b6e2563aef",
+      "sha256_after": "cbfb6ac2dc5bbd2b395cb343fb170e1a2a74a8da92e75426d6e289b6e2563aef"
+    },
+    {
+      "old": "application/Cpp_Core/Src/usbhostmanager.cpp",
+      "new": "application/Src/transport/usb/legacy/usbhostmanager.cpp",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "2c978c5dd05b1c04826b23e9b617719ccaa74f1053fe99bb1ca8a87b44bd14e9",
+      "sha256_after": "2c978c5dd05b1c04826b23e9b617719ccaa74f1053fe99bb1ca8a87b44bd14e9"
+    },
+    {
+      "old": "application/Cpp_Core/Src/webhid_rpc_dispatcher.cpp",
+      "new": "application/Src/webconfig/webhid_rpc_dispatcher.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "f8ec4a6fb117bbfe92737714d37ac7728830b5a5d19841ae8f7cbc9b96a15ff9",
+      "sha256_after": "f8ec4a6fb117bbfe92737714d37ac7728830b5a5d19841ae8f7cbc9b96a15ff9"
+    },
+    {
+      "old": "application/Cpp_Core/Src/webhid_service.cpp",
+      "new": "application/Src/webconfig/webhid_service.cpp",
+      "module": "webconfig",
+      "status": "moved",
+      "sha256_before": "c5e739dc34bfbc5ad171b4002bc5ea82ce4cbfced5e8f27fa39108bbb7acb597",
+      "sha256_after": "c5e739dc34bfbc5ad171b4002bc5ea82ce4cbfced5e8f27fa39108bbb7acb597"
+    },
+    {
+      "old": "application/Drivers/ADC/adc.c",
+      "new": "application/Src/input/drivers/adc/adc.c",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "20fd85780f6965abf50999cfb67373d7fe08251a54839186886028c4f09ea178",
+      "sha256_after": "20fd85780f6965abf50999cfb67373d7fe08251a54839186886028c4f09ea178"
+    },
+    {
+      "old": "application/Drivers/ADC/adc.h",
+      "new": "application/Inc/input/drivers/adc/adc.h",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "df19e285de3bda92ae89fc940d3cea80739681cc2d2e65e38d635b55fb854678",
+      "sha256_after": "df19e285de3bda92ae89fc940d3cea80739681cc2d2e65e38d635b55fb854678"
+    },
+    {
+      "old": "application/Drivers/ADC/adc_sampling_policy.h",
+      "new": "application/Inc/input/drivers/adc/adc_sampling_policy.h",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "c128927ed4e5299fd96e960b40f23484139e14eb88465504ebc9ffe331145cdd",
+      "sha256_after": "c128927ed4e5299fd96e960b40f23484139e14eb88465504ebc9ffe331145cdd"
+    },
+    {
+      "old": "application/Drivers/GPIO-BTN/gpio-btn.c",
+      "new": "application/Src/input/drivers/gpio/gpio-btn.c",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "05841ab8f26701a17722a4e285cec9ae01898484041256e0f9d443c227c4af37",
+      "sha256_after": "05841ab8f26701a17722a4e285cec9ae01898484041256e0f9d443c227c4af37"
+    },
+    {
+      "old": "application/Drivers/GPIO-BTN/gpio-btn.h",
+      "new": "application/Inc/input/drivers/gpio/gpio-btn.h",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "b53f074efd696c6b110e0dd2a263720d451047c4f26ac5518008ec0d2d55a1ae",
+      "sha256_after": "b53f074efd696c6b110e0dd2a263720d451047c4f26ac5518008ec0d2d55a1ae"
+    },
+    {
+      "old": "application/Drivers/I2C-BQ25895/bq25895.c",
+      "new": "application/Src/power/drivers/bq25895/bq25895.c",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "b163974d1db37142b26bfd36bf918cc8d0eca28d4ee4aea49d74147bcb42edd5",
+      "sha256_after": "b163974d1db37142b26bfd36bf918cc8d0eca28d4ee4aea49d74147bcb42edd5"
+    },
+    {
+      "old": "application/Drivers/I2C-BQ25895/bq25895.h",
+      "new": "application/Inc/power/drivers/bq25895/bq25895.h",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "acd2ceb3d3188dc3e82b962d7e773383acdbeed3bc44df952f52ace91c02d0c5",
+      "sha256_after": "acd2ceb3d3188dc3e82b962d7e773383acdbeed3bc44df952f52ace91c02d0c5"
+    },
+    {
+      "old": "application/Drivers/I2C-MAX17048/max17048.c",
+      "new": "application/Src/power/drivers/max17048/max17048.c",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "c8e205a8d42798ef2cfb75187567d27092a17d79ce4f86f36b8c326e5560e90b",
+      "sha256_after": "c8e205a8d42798ef2cfb75187567d27092a17d79ce4f86f36b8c326e5560e90b"
+    },
+    {
+      "old": "application/Drivers/I2C-MAX17048/max17048.h",
+      "new": "application/Inc/power/drivers/max17048/max17048.h",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "23aeef9c42e880a3506d02663557bb821c119519e690c1f4d17247d8128e0961",
+      "sha256_after": "23aeef9c42e880a3506d02663557bb821c119519e690c1f4d17247d8128e0961"
+    },
+    {
+      "old": "application/Drivers/I2C-POWER-BUS/power_i2c_bus.c",
+      "new": "application/Src/power/drivers/power_i2c_bus/power_i2c_bus.c",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "046583fa6cba7a242bffc1670b906d0dd5684fc3f3ba16ef09d85f88d8741c03",
+      "sha256_after": "046583fa6cba7a242bffc1670b906d0dd5684fc3f3ba16ef09d85f88d8741c03"
+    },
+    {
+      "old": "application/Drivers/I2C-POWER-BUS/power_i2c_bus.h",
+      "new": "application/Inc/power/drivers/power_i2c_bus/power_i2c_bus.h",
+      "module": "power",
+      "status": "moved",
+      "sha256_before": "9c255ed4753c2d0e5496fcf95e1205990615582d4405bcc43aa8c71a7f4698d0",
+      "sha256_after": "9c255ed4753c2d0e5496fcf95e1205990615582d4405bcc43aa8c71a7f4698d0"
+    },
+    {
+      "old": "application/Drivers/PWM-WS2812B/pwm-ws2812b-diagnostic.inc",
+      "new": "application/Src/leds/drivers/ws2812b/pwm-ws2812b-diagnostic.inc",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "36d11ffb225a96a7b21f6561bf2b507d34139fe2d7aa6a830e5a96bb9162c0de",
+      "sha256_after": "36d11ffb225a96a7b21f6561bf2b507d34139fe2d7aa6a830e5a96bb9162c0de"
+    },
+    {
+      "old": "application/Drivers/PWM-WS2812B/pwm-ws2812b-hold-diagnostic.inc",
+      "new": "application/Src/leds/drivers/ws2812b/pwm-ws2812b-hold-diagnostic.inc",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "c23882dd5397ef890ffdfd350a91617e25c961a0e3372a4bc5cd860d270a5286",
+      "sha256_after": "c23882dd5397ef890ffdfd350a91617e25c961a0e3372a4bc5cd860d270a5286"
+    },
+    {
+      "old": "application/Drivers/PWM-WS2812B/pwm-ws2812b.c",
+      "new": "application/Src/leds/drivers/ws2812b/pwm-ws2812b.c",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "5be39e8f9897c2771f3e56966b2389ac6a0bb81386c5e8c0ca2cff47e7400b7d",
+      "sha256_after": "5be39e8f9897c2771f3e56966b2389ac6a0bb81386c5e8c0ca2cff47e7400b7d"
+    },
+    {
+      "old": "application/Drivers/PWM-WS2812B/pwm-ws2812b.h",
+      "new": "application/Inc/leds/drivers/ws2812b/pwm-ws2812b.h",
+      "module": "leds",
+      "status": "moved",
+      "sha256_before": "5394248633ef2a2601fa3c54b5af3c589a72da88e3364eb6f1d2fd417694c2b1",
+      "sha256_after": "5394248633ef2a2601fa3c54b5af3c589a72da88e3364eb6f1d2fd417694c2b1"
+    },
+    {
+      "old": "application/Drivers/QSPI-W25Q64/qspi-w25q64.c",
+      "new": "application/Src/config/drivers/qspi/qspi-w25q64.c",
+      "module": "config",
+      "status": "moved",
+      "sha256_before": "633e94d8480031cff7acee87b6df0ac545a3edc7ea0e04d4358b62a5dad563c3",
+      "sha256_after": "633e94d8480031cff7acee87b6df0ac545a3edc7ea0e04d4358b62a5dad563c3"
+    },
+    {
+      "old": "application/Drivers/QSPI-W25Q64/qspi-w25q64.h",
+      "new": "application/Inc/config/drivers/qspi/qspi-w25q64.h",
+      "module": "config",
+      "status": "moved",
+      "sha256_before": "d9cb7fd99de4a6d902e1e80d20dedc8fe891b0447ecdc6b7972c702697b3a3a3",
+      "sha256_after": "d9cb7fd99de4a6d902e1e80d20dedc8fe891b0447ecdc6b7972c702697b3a3a3"
+    },
+    {
+      "old": "application/Drivers/ROTARY-ENCODER/rotary-encoder.c",
+      "new": "application/Src/input/drivers/rotary_encoder/rotary-encoder.c",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "cb32d429260598c44f4538eb2b2090f65472a5bba9de0ad6a363ca7d9e7ccfdf",
+      "sha256_after": "cb32d429260598c44f4538eb2b2090f65472a5bba9de0ad6a363ca7d9e7ccfdf"
+    },
+    {
+      "old": "application/Drivers/ROTARY-ENCODER/rotary-encoder.h",
+      "new": "application/Inc/input/drivers/rotary_encoder/rotary-encoder.h",
+      "module": "input",
+      "status": "moved",
+      "sha256_before": "86abd831e57f3252e20593f773f2278a7aa354c85f8f0d327202e7a9a97af48c",
+      "sha256_after": "86abd831e57f3252e20593f773f2278a7aa354c85f8f0d327202e7a9a97af48c"
+    },
+    {
+      "old": "application/Drivers/SPI-ST7789/spi-st7789-backlight.h",
+      "new": "application/Inc/display/drivers/st7789/spi-st7789-backlight.h",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "0ec9af4f258cc897eb28568f31857c0411d87507fd2e2c014e0f2a34826b918a",
+      "sha256_after": "0ec9af4f258cc897eb28568f31857c0411d87507fd2e2c014e0f2a34826b918a"
+    },
+    {
+      "old": "application/Drivers/SPI-ST7789/spi-st7789-resume.c",
+      "new": "application/Src/display/drivers/st7789/spi-st7789-resume.c",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "9e6896318d47597366fb7ec11c0b298796343a488ee7d0ab114f7c4d0d2f3085",
+      "sha256_after": "9e6896318d47597366fb7ec11c0b298796343a488ee7d0ab114f7c4d0d2f3085"
+    },
+    {
+      "old": "application/Drivers/SPI-ST7789/spi-st7789-resume.h",
+      "new": "application/Inc/display/drivers/st7789/spi-st7789-resume.h",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "55032180159322ce6b8fbfa5d92a2c18c7f0751678d62a7bf0c148b042c48846",
+      "sha256_after": "55032180159322ce6b8fbfa5d92a2c18c7f0751678d62a7bf0c148b042c48846"
+    },
+    {
+      "old": "application/Drivers/SPI-ST7789/spi-st7789.c",
+      "new": "application/Src/display/drivers/st7789/spi-st7789.c",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "ebc72932106026176a9eed29987d9c19c8b1566b52a13a360a3eba078b6727d9",
+      "sha256_after": "ebc72932106026176a9eed29987d9c19c8b1566b52a13a360a3eba078b6727d9"
+    },
+    {
+      "old": "application/Drivers/SPI-ST7789/spi-st7789.h",
+      "new": "application/Inc/display/drivers/st7789/spi-st7789.h",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "5dff101122d50483bf60317f21d5d13517ecea8c84596b8cc94b8fd3bbf18af5",
+      "sha256_after": "5dff101122d50483bf60317f21d5d13517ecea8c84596b8cc94b8fd3bbf18af5"
+    },
+    {
+      "old": "application/Drivers/SPI-ST7789/st7789.h",
+      "new": "application/Inc/display/drivers/st7789/st7789.h",
+      "module": "display",
+      "status": "moved",
+      "sha256_before": "96f8239beee338f4e068c6380656dfe6caca2bcc5e43a760c05ced5540969989",
+      "sha256_after": "96f8239beee338f4e068c6380656dfe6caca2bcc5e43a760c05ced5540969989"
+    },
+    {
+      "old": "application/Drivers/USART/usart.c",
+      "new": "application/Src/system/drivers/usart/usart.c",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "ad40760268ae49dbac19b7d5e35e7d06803802934b7527a8f026af1d4bc70ee8",
+      "sha256_after": "ad40760268ae49dbac19b7d5e35e7d06803802934b7527a8f026af1d4bc70ee8"
+    },
+    {
+      "old": "application/Drivers/USART/usart.h",
+      "new": "application/Inc/system/drivers/usart/usart.h",
+      "module": "system",
+      "status": "moved",
+      "sha256_before": "bceffb91ccdb346e7243999c355e55e256e0a88e630be077363432bb28e86751",
+      "sha256_after": "bceffb91ccdb346e7243999c355e55e256e0a88e630be077363432bb28e86751"
+    },
+    {
+      "old": "application/Drivers/USB/usb.c",
+      "new": "application/Src/transport/usb/legacy/drivers/stm32_usb/usb.c",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "53997ba041714ce13b3a318ed7b548d0a7beac398abdc5f35e988c93a88c7694",
+      "sha256_after": "53997ba041714ce13b3a318ed7b548d0a7beac398abdc5f35e988c93a88c7694"
+    },
+    {
+      "old": "application/Drivers/USB/usb.h",
+      "new": "application/Inc/transport/usb/legacy/drivers/stm32_usb/usb.h",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "7d699c784e35d99735760a4b2bd99659769eab543249a2f00932f76c846e887e",
+      "sha256_after": "7d699c784e35d99735760a4b2bd99659769eab543249a2f00932f76c846e887e"
+    },
+    {
+      "old": "application/Drivers/USB/usb_host_monitor.c",
+      "new": "application/Src/transport/usb/legacy/drivers/stm32_usb/usb_host_monitor.c",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "c44dc45042abdcd4ed4b3258cc50bcdfc0ccc831965a3ded7a73ab6bb701e804",
+      "sha256_after": "c44dc45042abdcd4ed4b3258cc50bcdfc0ccc831965a3ded7a73ab6bb701e804"
+    },
+    {
+      "old": "application/Drivers/USB/usb_host_monitor.h",
+      "new": "application/Inc/transport/usb/legacy/drivers/stm32_usb/usb_host_monitor.h",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "eaaaaab13d1c56f29d25aec5368ba01db5533cee7e92c989983821ad8e1f135b",
+      "sha256_after": "eaaaaab13d1c56f29d25aec5368ba01db5533cee7e92c989983821ad8e1f135b"
+    },
+    {
+      "old": "application/Drivers/USB/usb_monitor_hooks.h",
+      "new": "application/Inc/transport/usb/legacy/drivers/stm32_usb/usb_monitor_hooks.h",
+      "module": "transport",
+      "status": "moved",
+      "sha256_before": "b4920e9ea56468d9667347e235fc9745c3ff8b0b54df5162b1bf58e93a6dbace",
+      "sha256_after": "b4920e9ea56468d9667347e235fc9745c3ff8b0b54df5162b1bf58e93a6dbace"
+    }
+  ]
+}

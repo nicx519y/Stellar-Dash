@@ -1,0 +1,917 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_main_list.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_main_list.cpp"
+  19              		.section	.text._Z23ScreenMain_FindMenuMetah,"ax",%progbits
+  20              		.align	1
+  21              		.global	_Z23ScreenMain_FindMenuMetah
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_Z23ScreenMain_FindMenuMetah:
+  27              	.LVL0:
+  28              	.LFB2156:
+   1:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** #include "screen_control/spi_screen_main_list.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+   3:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** #include "screen_control/spi_screen_ui_common.hpp"
+   4:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   5:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** #include "ch585_update_mode.hpp"
+   6:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+   7:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** static const ScreenMenuMeta kMenuMeta[] = {
+   8:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {0, SCREEN_FEATURE_INPUT_MODE_SWITCH, "Platform"},
+   9:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {1, SCREEN_FEATURE_PROFILES_SWITCH, "Profiles"},
+  10:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {2, SCREEN_FEATURE_SOCD_MODE_SWITCH, "SOCD"},
+  11:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {3, SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH, "Connection"},
+  12:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {11, SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET, "Performance"},
+  13:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {4, SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST, "Light Brightness"},
+  14:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {5, SCREEN_FEATURE_LED_EFFECT_SWITCH, "Light Effect"},
+  15:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {6, SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST, "Ambient Brightness"},
+  16:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {7, SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH, "Ambient Effect"},
+  17:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {8, SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST, "Screen Brightness"},
+  18:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {9, SCREEN_FEATURE_WEB_CONFIG_ENTRY, "Web Config"},
+  19:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {10, SCREEN_FEATURE_CALIBRATION_MODE_SWITCH, "Calibration Mode"},
+  20:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     {12, 0u, "CH585 Flash"},
+  21:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** };
+  22:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+  23:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** const ScreenMenuMeta* ScreenMain_FindMenuMeta(uint8_t id) {
+  29              		.loc 1 23 59 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  24:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
+  33              		.loc 1 24 5 view .LVU1
+  34              	.LBB9:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 2
+
+
+  35              		.loc 1 24 26 discriminator 1 view .LVU2
+  36              	.LBE9:
+  23:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
+  37              		.loc 1 23 59 is_stmt 0 view .LVU3
+  38 0000 30B5     		push	{r4, r5, lr}
+  39              	.LCFI0:
+  40              		.cfi_def_cfa_offset 12
+  41              		.cfi_offset 4, -12
+  42              		.cfi_offset 5, -8
+  43              		.cfi_offset 14, -4
+  23:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
+  44              		.loc 1 23 59 view .LVU4
+  45 0002 0246     		mov	r2, r0
+  46              	.LBB10:
+  47              		.loc 1 24 17 view .LVU5
+  48 0004 0023     		movs	r3, #0
+  49 0006 0C25     		movs	r5, #12
+  25:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (kMenuMeta[i].id == id) return &kMenuMeta[i];
+  50              		.loc 1 25 26 view .LVU6
+  51 0008 0549     		ldr	r1, .L6
+  52              	.LVL1:
+  53              	.L4:
+  54              		.loc 1 25 9 is_stmt 1 view .LVU7
+  55 000a 05FB03F4 		mul	r4, r5, r3
+  56              		.loc 1 25 26 is_stmt 0 view .LVU8
+  57 000e 6018     		adds	r0, r4, r1
+  58              		.loc 1 25 9 view .LVU9
+  59 0010 0C5D     		ldrb	r4, [r1, r4]	@ zero_extendqisi2
+  60 0012 9442     		cmp	r4, r2
+  61 0014 03D0     		beq	.L1
+  24:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
+  62              		.loc 1 24 5 is_stmt 1 discriminator 2 view .LVU10
+  63 0016 0133     		adds	r3, r3, #1
+  64              	.LVL2:
+  24:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
+  65              		.loc 1 24 26 discriminator 1 view .LVU11
+  66 0018 0D2B     		cmp	r3, #13
+  67 001a F6D1     		bne	.L4
+  68              	.LBE10:
+  26:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     }
+  27:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     return nullptr;
+  69              		.loc 1 27 12 is_stmt 0 view .LVU12
+  70 001c 0020     		movs	r0, #0
+  71              	.L1:
+  28:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** }
+  72              		.loc 1 28 1 view .LVU13
+  73 001e 30BD     		pop	{r4, r5, pc}
+  74              	.L7:
+  75              		.align	2
+  76              	.L6:
+  77 0020 00000000 		.word	_ZL9kMenuMeta
+  78              		.cfi_endproc
+  79              	.LFE2156:
+  81              		.section	.rodata._Z26ScreenMain_InputModeAbbrev9InputMode.str1.1,"aMS",%progbits,1
+  82              	.LC0:
+  83 0000 504300   		.ascii	"PC\000"
+  84              		.section	.text._Z26ScreenMain_InputModeAbbrev9InputMode,"ax",%progbits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 3
+
+
+  85              		.align	1
+  86              		.global	_Z26ScreenMain_InputModeAbbrev9InputMode
+  87              		.syntax unified
+  88              		.thumb
+  89              		.thumb_func
+  91              	_Z26ScreenMain_InputModeAbbrev9InputMode:
+  92              	.LVL3:
+  93              	.LFB2157:
+  29:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+  30:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** const char* ScreenMain_InputModeAbbrev(InputMode mode) {
+  94              		.loc 1 30 56 is_stmt 1 view -0
+  95              		.cfi_startproc
+  96              		@ args = 0, pretend = 0, frame = 0
+  97              		@ frame_needed = 0, uses_anonymous_args = 0
+  98              		@ link register save eliminated.
+  31:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     switch (mode) {
+  99              		.loc 1 31 5 view .LVU15
+ 100 0000 0138     		subs	r0, r0, #1
+ 101              	.LVL4:
+ 102              		.loc 1 31 5 is_stmt 0 view .LVU16
+ 103 0002 C0B2     		uxtb	r0, r0
+ 104              	.LVL5:
+ 105              		.loc 1 31 5 view .LVU17
+ 106 0004 0328     		cmp	r0, #3
+ 107 0006 9ABF     		itte	ls
+ 108 0008 024B     		ldrls	r3, .L11
+ 109 000a 53F82000 		ldrls	r0, [r3, r0, lsl #2]
+  30:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     switch (mode) {
+ 110              		.loc 1 30 56 view .LVU18
+ 111 000e 0248     		ldrhi	r0, .L11+4
+  32:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         case InputMode::INPUT_MODE_PS4:
+  33:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         case InputMode::INPUT_MODE_PS5:
+  34:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             return "PS";
+  35:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         case InputMode::INPUT_MODE_XBOX:
+  36:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             return "Xbox";
+  37:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         case InputMode::INPUT_MODE_SWITCH:
+  38:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             return "NS";
+  39:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         case InputMode::INPUT_MODE_XINPUT:
+  40:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         default:
+  41:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             return "PC";
+  42:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     }
+  43:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** }
+ 112              		.loc 1 43 1 view .LVU19
+ 113 0010 7047     		bx	lr
+ 114              	.L12:
+ 115 0012 00BF     		.align	2
+ 116              	.L11:
+ 117 0014 00000000 		.word	CSWTCH.14
+ 118 0018 00000000 		.word	.LC0
+ 119              		.cfi_endproc
+ 120              	.LFE2157:
+ 122              		.section	.text._Z25ScreenMain_RebuildMenuIdsRK19ScreenControlConfigPhh,"ax",%progbits
+ 123              		.align	1
+ 124              		.global	_Z25ScreenMain_RebuildMenuIdsRK19ScreenControlConfigPhh
+ 125              		.syntax unified
+ 126              		.thumb
+ 127              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 4
+
+
+ 129              	_Z25ScreenMain_RebuildMenuIdsRK19ScreenControlConfigPhh:
+ 130              	.LVL6:
+ 131              	.LFB2158:
+  44:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+  45:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds, uint8_t outCap) {
+ 132              		.loc 1 45 99 is_stmt 1 view -0
+ 133              		.cfi_startproc
+ 134              		@ args = 0, pretend = 0, frame = 32
+ 135              		@ frame_needed = 0, uses_anonymous_args = 0
+  46:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (!outIds || outCap == 0) return 0;
+ 136              		.loc 1 46 5 view .LVU21
+  45:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (!outIds || outCap == 0) return 0;
+ 137              		.loc 1 45 99 is_stmt 0 view .LVU22
+ 138 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 139              	.LCFI1:
+ 140              		.cfi_def_cfa_offset 36
+ 141              		.cfi_offset 4, -36
+ 142              		.cfi_offset 5, -32
+ 143              		.cfi_offset 6, -28
+ 144              		.cfi_offset 7, -24
+ 145              		.cfi_offset 8, -20
+ 146              		.cfi_offset 9, -16
+ 147              		.cfi_offset 10, -12
+ 148              		.cfi_offset 11, -8
+ 149              		.cfi_offset 14, -4
+ 150 0004 0746     		mov	r7, r0
+ 151 0006 89B0     		sub	sp, sp, #36
+ 152              	.LCFI2:
+ 153              		.cfi_def_cfa_offset 72
+  45:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (!outIds || outCap == 0) return 0;
+ 154              		.loc 1 45 99 view .LVU23
+ 155 0008 1546     		mov	r5, r2
+ 156              		.loc 1 46 5 view .LVU24
+ 157 000a 0E46     		mov	r6, r1
+ 158 000c 0029     		cmp	r1, #0
+ 159 000e 58D0     		beq	.L26
+ 160              		.loc 1 46 17 discriminator 2 view .LVU25
+ 161 0010 002A     		cmp	r2, #0
+ 162 0012 58D0     		beq	.L27
+  47:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     uint8_t count = 0;
+ 163              		.loc 1 47 5 is_stmt 1 view .LVU26
+ 164              	.LVL7:
+  48:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     const uint32_t mask = sc.featuresMask;
+ 165              		.loc 1 48 5 view .LVU27
+ 166 0014 07F1330A 		add	r10, r7, #51
+  47:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     uint8_t count = 0;
+ 167              		.loc 1 47 13 is_stmt 0 view .LVU28
+ 168 0018 0024     		movs	r4, #0
+ 169 001a 3F37     		adds	r7, r7, #63
+ 170              	.LBB11:
+ 171              	.LBB12:
+  49:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     bool seen[32] = {false};
+  50:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+  51:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
+  52:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         uint8_t id = sc.featuresOrder[i];
+  53:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         const ScreenMenuMeta* meta = ScreenMain_FindMenuMeta(id);
+  54:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (!meta) continue;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 5
+
+
+  55:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if ((mask & meta->bit) == 0) continue;
+  56:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
+  57:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+ 172              		.loc 1 57 70 discriminator 1 view .LVU29
+ 173 001c 4FF0010B 		mov	fp, #1
+ 174              	.LBE12:
+ 175              	.LBE11:
+  48:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     const uint32_t mask = sc.featuresMask;
+ 176              		.loc 1 48 20 view .LVU30
+ 177 0020 D0F83090 		ldr	r9, [r0, #48]
+ 178              	.LVL8:
+  49:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     bool seen[32] = {false};
+ 179              		.loc 1 49 5 is_stmt 1 view .LVU31
+  49:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     bool seen[32] = {false};
+ 180              		.loc 1 49 10 is_stmt 0 view .LVU32
+ 181 0024 2022     		movs	r2, #32
+ 182              	.LVL9:
+  49:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     bool seen[32] = {false};
+ 183              		.loc 1 49 10 view .LVU33
+ 184 0026 0021     		movs	r1, #0
+ 185              	.LVL10:
+  49:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     bool seen[32] = {false};
+ 186              		.loc 1 49 10 view .LVU34
+ 187 0028 6846     		mov	r0, sp
+ 188              	.LVL11:
+  49:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     bool seen[32] = {false};
+ 189              		.loc 1 49 10 view .LVU35
+ 190 002a FFF7FEFF 		bl	memset
+ 191              	.LVL12:
+  51:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         uint8_t id = sc.featuresOrder[i];
+ 192              		.loc 1 51 5 is_stmt 1 view .LVU36
+ 193              	.LBB14:
+  51:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         uint8_t id = sc.featuresOrder[i];
+ 194              		.loc 1 51 28 discriminator 1 view .LVU37
+ 195              	.L19:
+ 196              	.LBB13:
+  52:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         const ScreenMenuMeta* meta = ScreenMain_FindMenuMeta(id);
+ 197              		.loc 1 52 9 view .LVU38
+  52:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         const ScreenMenuMeta* meta = ScreenMain_FindMenuMeta(id);
+ 198              		.loc 1 52 17 is_stmt 0 view .LVU39
+ 199 002e 1AF8018F 		ldrb	r8, [r10, #1]!	@ zero_extendqisi2
+ 200              	.LVL13:
+  53:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (!meta) continue;
+ 201              		.loc 1 53 9 is_stmt 1 view .LVU40
+  53:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (!meta) continue;
+ 202              		.loc 1 53 61 is_stmt 0 view .LVU41
+ 203 0032 4046     		mov	r0, r8
+ 204 0034 FFF7FEFF 		bl	_Z23ScreenMain_FindMenuMetah
+ 205              	.LVL14:
+  54:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if ((mask & meta->bit) == 0) continue;
+ 206              		.loc 1 54 9 is_stmt 1 view .LVU42
+ 207 0038 A0B1     		cbz	r0, .L17
+  55:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
+ 208              		.loc 1 55 9 view .LVU43
+  55:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
+ 209              		.loc 1 55 19 is_stmt 0 view .LVU44
+ 210 003a 4368     		ldr	r3, [r0, #4]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 6
+
+
+  55:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
+ 211              		.loc 1 55 9 view .LVU45
+ 212 003c 19EA030F 		tst	r9, r3
+ 213 0040 10D0     		beq	.L17
+  56:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+ 214              		.loc 1 56 9 is_stmt 1 view .LVU46
+ 215 0042 B8F11F0F 		cmp	r8, #31
+ 216 0046 07D8     		bhi	.L18
+  56:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+ 217              		.loc 1 56 70 is_stmt 0 discriminator 1 view .LVU47
+ 218 0048 08F12003 		add	r3, r8, #32
+ 219 004c 6B44     		add	r3, sp, r3
+  56:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+ 220              		.loc 1 56 60 discriminator 1 view .LVU48
+ 221 004e 13F8202C 		ldrb	r2, [r3, #-32]	@ zero_extendqisi2
+ 222 0052 3AB9     		cbnz	r2, .L17
+ 223              		.loc 1 57 9 is_stmt 1 view .LVU49
+ 224              		.loc 1 57 61 discriminator 1 view .LVU50
+ 225              		.loc 1 57 70 is_stmt 0 discriminator 1 view .LVU51
+ 226 0054 03F820BC 		strb	fp, [r3, #-32]
+ 227              	.L18:
+  58:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         if (count < outCap) outIds[count++] = id;
+ 228              		.loc 1 58 9 is_stmt 1 view .LVU52
+ 229 0058 A542     		cmp	r5, r4
+ 230              		.loc 1 58 29 discriminator 1 view .LVU53
+ 231              		.loc 1 58 41 is_stmt 0 discriminator 1 view .LVU54
+ 232 005a 82BF     		ittt	hi
+ 233 005c 631C     		addhi	r3, r4, #1
+ 234              	.LVL15:
+ 235              		.loc 1 58 45 discriminator 1 view .LVU55
+ 236 005e 06F80480 		strbhi	r8, [r6, r4]
+ 237              		.loc 1 58 41 discriminator 1 view .LVU56
+ 238 0062 DCB2     		uxtbhi	r4, r3
+ 239              	.LVL16:
+ 240              	.L17:
+ 241              		.loc 1 58 41 discriminator 1 view .LVU57
+ 242              	.LBE13:
+  51:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         uint8_t id = sc.featuresOrder[i];
+ 243              		.loc 1 51 5 is_stmt 1 discriminator 2 view .LVU58
+  51:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         uint8_t id = sc.featuresOrder[i];
+ 244              		.loc 1 51 28 discriminator 1 view .LVU59
+ 245 0064 BA45     		cmp	r10, r7
+ 246 0066 E2D1     		bne	.L19
+ 247              	.LBE14:
+  59:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     }
+  60:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+  61:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (count == 0) {
+ 248              		.loc 1 61 5 view .LVU60
+ 249              	.LBB15:
+ 250 0068 ECB9     		cbnz	r4, .L20
+ 251              	.LBB16:
+  62:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
+ 252              		.loc 1 62 21 is_stmt 0 view .LVU61
+ 253 006a 2346     		mov	r3, r4
+ 254              	.LBB17:
+  63:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             uint8_t id = kMenuMeta[i].id;
+ 255              		.loc 1 63 21 view .LVU62
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 7
+
+
+ 256 006c 0C20     		movs	r0, #12
+ 257              	.LVL17:
+ 258              		.loc 1 63 21 view .LVU63
+ 259 006e 174F     		ldr	r7, .L39
+ 260              	.LVL18:
+  64:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             if (id == 12u) continue;
+  65:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
+  66:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+ 261              		.loc 1 66 74 discriminator 1 view .LVU64
+ 262 0070 4FF0010C 		mov	ip, #1
+ 263              	.L25:
+ 264              	.LVL19:
+  63:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             uint8_t id = kMenuMeta[i].id;
+ 265              		.loc 1 63 13 is_stmt 1 view .LVU65
+  63:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             uint8_t id = kMenuMeta[i].id;
+ 266              		.loc 1 63 21 is_stmt 0 view .LVU66
+ 267 0074 00FB03F2 		mul	r2, r0, r3
+ 268 0078 BA5C     		ldrb	r2, [r7, r2]	@ zero_extendqisi2
+ 269              	.LVL20:
+  64:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             if (id == 12u) continue;
+ 270              		.loc 1 64 13 is_stmt 1 view .LVU67
+ 271 007a 0C2A     		cmp	r2, #12
+ 272 007c 10D0     		beq	.L24
+  65:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+ 273              		.loc 1 65 13 view .LVU68
+ 274 007e 1F2A     		cmp	r2, #31
+ 275 0080 09D8     		bhi	.L22
+  65:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+ 276              		.loc 1 65 74 is_stmt 0 discriminator 1 view .LVU69
+ 277 0082 02F12001 		add	r1, r2, #32
+ 278 0086 6944     		add	r1, sp, r1
+  65:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+ 279              		.loc 1 65 64 discriminator 1 view .LVU70
+ 280 0088 11F820EC 		ldrb	lr, [r1, #-32]	@ zero_extendqisi2
+ 281 008c BEF1000F 		cmp	lr, #0
+ 282 0090 06D1     		bne	.L24
+ 283              		.loc 1 66 13 is_stmt 1 view .LVU71
+ 284              		.loc 1 66 65 discriminator 1 view .LVU72
+ 285              		.loc 1 66 74 is_stmt 0 discriminator 1 view .LVU73
+ 286 0092 01F820CC 		strb	ip, [r1, #-32]
+ 287              	.L22:
+  67:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             if (count < outCap) outIds[count++] = kMenuMeta[i].id;
+ 288              		.loc 1 67 13 is_stmt 1 view .LVU74
+ 289 0096 A542     		cmp	r5, r4
+ 290              		.loc 1 67 33 discriminator 1 view .LVU75
+ 291              		.loc 1 67 45 is_stmt 0 discriminator 1 view .LVU76
+ 292 0098 82BF     		ittt	hi
+ 293 009a 611C     		addhi	r1, r4, #1
+ 294              	.LVL21:
+ 295              		.loc 1 67 49 discriminator 1 view .LVU77
+ 296 009c 3255     		strbhi	r2, [r6, r4]
+ 297              		.loc 1 67 45 discriminator 1 view .LVU78
+ 298 009e CCB2     		uxtbhi	r4, r1
+ 299              	.LVL22:
+ 300              	.L24:
+ 301              		.loc 1 67 45 discriminator 1 view .LVU79
+ 302              	.LBE17:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 8
+
+
+  62:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             uint8_t id = kMenuMeta[i].id;
+ 303              		.loc 1 62 9 is_stmt 1 discriminator 2 view .LVU80
+ 304 00a0 0133     		adds	r3, r3, #1
+ 305              	.LVL23:
+  62:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             uint8_t id = kMenuMeta[i].id;
+ 306              		.loc 1 62 30 discriminator 1 view .LVU81
+ 307 00a2 0D2B     		cmp	r3, #13
+ 308 00a4 E6D1     		bne	.L25
+ 309              	.LVL24:
+ 310              	.L20:
+  62:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****             uint8_t id = kMenuMeta[i].id;
+ 311              		.loc 1 62 30 is_stmt 0 discriminator 1 view .LVU82
+ 312              	.LBE16:
+ 313              	.LBE15:
+  68:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         }
+  69:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     }
+  70:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+  71:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     /* Migration-only service entry: never exposed through normal menu JSON. */
+  72:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (CH585_UPDATE_MODE.isManualEntryVisible() && count < outCap) {
+ 314              		.loc 1 72 5 is_stmt 1 view .LVU83
+ 315              	.LBB18:
+ 316              	.LBI18:
+ 317              		.file 2 "Cpp_Core/Inc/ch585_update_mode.hpp"
+   1:Cpp_Core/Inc/ch585_update_mode.hpp **** #ifndef CH585_UPDATE_MODE_HPP
+   2:Cpp_Core/Inc/ch585_update_mode.hpp **** #define CH585_UPDATE_MODE_HPP
+   3:Cpp_Core/Inc/ch585_update_mode.hpp **** 
+   4:Cpp_Core/Inc/ch585_update_mode.hpp **** class Ch585UpdateMode {
+   5:Cpp_Core/Inc/ch585_update_mode.hpp **** public:
+   6:Cpp_Core/Inc/ch585_update_mode.hpp ****     Ch585UpdateMode(const Ch585UpdateMode&) = delete;
+   7:Cpp_Core/Inc/ch585_update_mode.hpp ****     Ch585UpdateMode& operator=(const Ch585UpdateMode&) = delete;
+   8:Cpp_Core/Inc/ch585_update_mode.hpp **** 
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     static Ch585UpdateMode& getInstance()
+ 318              		.loc 2 9 29 view .LVU84
+  10:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         static Ch585UpdateMode instance;
+ 319              		.loc 2 11 9 view .LVU85
+  12:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 320              		.loc 2 12 9 view .LVU86
+ 321              	.LBE18:
+ 322              		.loc 1 72 47 is_stmt 0 discriminator 1 view .LVU87
+ 323 00a6 0A48     		ldr	r0, .L39+4
+ 324 00a8 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode20isManualEntryVisibleEv
+ 325              	.LVL25:
+ 326              		.loc 1 72 50 discriminator 2 view .LVU88
+ 327 00ac 28B1     		cbz	r0, .L14
+ 328              		.loc 1 72 50 discriminator 1 view .LVU89
+ 329 00ae AC42     		cmp	r4, r5
+ 330 00b0 03D2     		bcs	.L14
+  73:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         outIds[count++] = 12u;
+ 331              		.loc 1 73 9 is_stmt 1 view .LVU90
+ 332              		.loc 1 73 21 is_stmt 0 view .LVU91
+ 333 00b2 631C     		adds	r3, r4, #1
+ 334              	.LVL26:
+ 335              		.loc 1 73 25 view .LVU92
+ 336 00b4 0C22     		movs	r2, #12
+ 337 00b6 3255     		strb	r2, [r6, r4]
+ 338              		.loc 1 73 21 view .LVU93
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 9
+
+
+ 339 00b8 DCB2     		uxtb	r4, r3
+ 340              	.LVL27:
+ 341              	.L14:
+  74:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     }
+  75:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+  76:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     return count;
+  77:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** }
+ 342              		.loc 1 77 1 view .LVU94
+ 343 00ba 2046     		mov	r0, r4
+ 344 00bc 09B0     		add	sp, sp, #36
+ 345              	.LCFI3:
+ 346              		.cfi_remember_state
+ 347              		.cfi_def_cfa_offset 36
+ 348              		@ sp needed
+ 349 00be BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 350              	.LVL28:
+ 351              	.L26:
+ 352              	.LCFI4:
+ 353              		.cfi_restore_state
+  46:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     uint8_t count = 0;
+ 354              		.loc 1 46 40 discriminator 3 view .LVU95
+ 355 00c2 0C46     		mov	r4, r1
+ 356 00c4 F9E7     		b	.L14
+ 357              	.L27:
+  46:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     uint8_t count = 0;
+ 358              		.loc 1 46 40 discriminator 3 view .LVU96
+ 359 00c6 1446     		mov	r4, r2
+ 360 00c8 F7E7     		b	.L14
+ 361              	.L40:
+ 362 00ca 00BF     		.align	2
+ 363              	.L39:
+ 364 00cc 00000000 		.word	_ZL9kMenuMeta
+ 365 00d0 00000000 		.word	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 366              		.cfi_endproc
+ 367              	.LFE2158:
+ 369              		.section	.rodata._Z21ScreenMain_RenderListP13ST7789_HandleRK13ScreenUiStylePKhhhbimm.str1.1,"aMS",
+ 370              	.LC1:
+ 371 0000 00       		.ascii	"\000"
+ 372              		.section	.text._Z21ScreenMain_RenderListP13ST7789_HandleRK13ScreenUiStylePKhhhbimm,"ax",%progbits
+ 373              		.align	1
+ 374              		.global	_Z21ScreenMain_RenderListP13ST7789_HandleRK13ScreenUiStylePKhhhbimm
+ 375              		.syntax unified
+ 376              		.thumb
+ 377              		.thumb_func
+ 379              	_Z21ScreenMain_RenderListP13ST7789_HandleRK13ScreenUiStylePKhhhbimm:
+ 380              	.LVL29:
+ 381              	.LFB2159:
+  78:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** 
+  79:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** void ScreenMain_RenderList(ST7789_Handle* lcd,
+  80:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****                            const ScreenUiStyle& style,
+  81:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****                            const uint8_t* menuIds,
+  82:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****                            uint8_t menuCount,
+  83:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****                            uint8_t menuIndex,
+  84:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****                            bool animActive,
+  85:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****                            int animDir,
+  86:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****                            uint32_t animStartMs,
+  87:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****                            uint32_t nowMs) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 10
+
+
+ 382              		.loc 1 87 44 is_stmt 1 view -0
+ 383              		.cfi_startproc
+ 384              		@ args = 20, pretend = 0, frame = 128
+ 385              		@ frame_needed = 0, uses_anonymous_args = 0
+ 386              		.loc 1 87 44 is_stmt 0 view .LVU98
+ 387 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 388              	.LCFI5:
+ 389              		.cfi_def_cfa_offset 36
+ 390              		.cfi_offset 4, -36
+ 391              		.cfi_offset 5, -32
+ 392              		.cfi_offset 6, -28
+ 393              		.cfi_offset 7, -24
+ 394              		.cfi_offset 8, -20
+ 395              		.cfi_offset 9, -16
+ 396              		.cfi_offset 10, -12
+ 397              		.cfi_offset 11, -8
+ 398              		.cfi_offset 14, -4
+ 399 0004 ABB0     		sub	sp, sp, #172
+ 400              	.LCFI6:
+ 401              		.cfi_def_cfa_offset 208
+ 402              		.loc 1 87 44 view .LVU99
+ 403 0006 0E46     		mov	r6, r1
+  88:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (!lcd || !menuIds || menuCount == 0) return;
+ 404              		.loc 1 88 5 is_stmt 1 view .LVU100
+  87:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (!lcd || !menuIds || menuCount == 0) return;
+ 405              		.loc 1 87 44 is_stmt 0 view .LVU101
+ 406 0008 1446     		mov	r4, r2
+ 407 000a 9846     		mov	r8, r3
+ 408 000c 9DF8D070 		ldrb	r7, [sp, #208]	@ zero_extendqisi2
+ 409              		.loc 1 88 5 view .LVU102
+ 410 0010 0546     		mov	r5, r0
+ 411 0012 0028     		cmp	r0, #0
+ 412 0014 36D0     		beq	.L41
+ 413              		.loc 1 88 14 discriminator 2 view .LVU103
+ 414 0016 002A     		cmp	r2, #0
+ 415 0018 34D0     		beq	.L41
+ 416              		.loc 1 88 26 discriminator 4 view .LVU104
+ 417 001a 002B     		cmp	r3, #0
+ 418 001c 32D0     		beq	.L41
+  89:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     const char* labels[32] = {0};
+ 419              		.loc 1 89 5 is_stmt 1 view .LVU105
+ 420              		.loc 1 89 17 is_stmt 0 view .LVU106
+ 421 001e 8022     		movs	r2, #128
+ 422              	.LVL30:
+ 423              		.loc 1 89 17 view .LVU107
+ 424 0020 0021     		movs	r1, #0
+ 425              	.LVL31:
+ 426              		.loc 1 89 17 view .LVU108
+ 427 0022 0AA8     		add	r0, sp, #40
+ 428              	.LVL32:
+ 429              		.loc 1 89 17 view .LVU109
+ 430 0024 0DF12809 		add	r9, sp, #40
+ 431 0028 FFF7FEFF 		bl	memset
+ 432              	.LVL33:
+  90:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     uint8_t renderCount = menuCount;
+ 433              		.loc 1 90 5 is_stmt 1 view .LVU110
+  91:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (renderCount > (uint8_t)(sizeof(labels) / sizeof(labels[0]))) renderCount = (uint8_t)(sizeof
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 11
+
+
+ 434              		.loc 1 91 5 view .LVU111
+ 435 002c B8F1200F 		cmp	r8, #32
+ 436              	.LBB19:
+ 437              	.LBB20:
+  92:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (uint8_t i = 0; i < renderCount; i++) {
+  93:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         const ScreenMenuMeta* meta = ScreenMain_FindMenuMeta(menuIds[i]);
+  94:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         labels[i] = (meta && meta->label) ? meta->label : "";
+ 438              		.loc 1 94 43 is_stmt 0 discriminator 4 view .LVU112
+ 439 0030 DFF85CB0 		ldr	fp, .L56
+ 440              	.LBE20:
+ 441              	.LBE19:
+  91:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     if (renderCount > (uint8_t)(sizeof(labels) / sizeof(labels[0]))) renderCount = (uint8_t)(sizeof
+ 442              		.loc 1 91 5 view .LVU113
+ 443 0034 28BF     		it	cs
+ 444 0036 4FF02008 		movcs	r8, #32
+ 445              	.LVL34:
+  92:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (uint8_t i = 0; i < renderCount; i++) {
+ 446              		.loc 1 92 5 is_stmt 1 view .LVU114
+ 447              	.LBB24:
+  92:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (uint8_t i = 0; i < renderCount; i++) {
+ 448              		.loc 1 92 27 discriminator 1 view .LVU115
+ 449 003a 04EB080A 		add	r10, r4, r8
+ 450              	.LVL35:
+ 451              	.L44:
+ 452              	.LBB21:
+  93:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         labels[i] = (meta && meta->label) ? meta->label : "";
+ 453              		.loc 1 93 9 view .LVU116
+  93:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         labels[i] = (meta && meta->label) ? meta->label : "";
+ 454              		.loc 1 93 61 is_stmt 0 view .LVU117
+ 455 003e 14F8010B 		ldrb	r0, [r4], #1	@ zero_extendqisi2
+ 456              	.LVL36:
+  93:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****         labels[i] = (meta && meta->label) ? meta->label : "";
+ 457              		.loc 1 93 61 view .LVU118
+ 458 0042 FFF7FEFF 		bl	_Z23ScreenMain_FindMenuMetah
+ 459              	.LVL37:
+ 460              		.loc 1 94 9 is_stmt 1 view .LVU119
+ 461              		.loc 1 94 43 is_stmt 0 view .LVU120
+ 462 0046 00B3     		cbz	r0, .L45
+ 463              		.loc 1 94 36 discriminator 1 view .LVU121
+ 464 0048 8268     		ldr	r2, [r0, #8]
+ 465              		.loc 1 94 43 discriminator 4 view .LVU122
+ 466 004a 002A     		cmp	r2, #0
+ 467 004c 08BF     		it	eq
+ 468 004e 5A46     		moveq	r2, fp
+ 469              	.L43:
+ 470              	.LBE21:
+  92:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (uint8_t i = 0; i < renderCount; i++) {
+ 471              		.loc 1 92 27 discriminator 1 view .LVU123
+ 472 0050 5445     		cmp	r4, r10
+ 473              	.LBB22:
+ 474              		.loc 1 94 19 discriminator 6 view .LVU124
+ 475 0052 49F8042B 		str	r2, [r9], #4
+ 476              	.LBE22:
+  92:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (uint8_t i = 0; i < renderCount; i++) {
+ 477              		.loc 1 92 5 is_stmt 1 discriminator 2 view .LVU125
+ 478              	.LVL38:
+  92:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     for (uint8_t i = 0; i < renderCount; i++) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 12
+
+
+ 479              		.loc 1 92 27 discriminator 1 view .LVU126
+ 480 0056 F2D1     		bne	.L44
+ 481              	.LBE24:
+  95:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     }
+  96:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     ScreenDetailRender_List(lcd, "", labels, renderCount, menuIndex, menuIndex, style, SPI_SCREEN_M
+ 482              		.loc 1 96 5 view .LVU127
+ 483              		.loc 1 96 28 is_stmt 0 view .LVU128
+ 484 0058 0023     		movs	r3, #0
+ 485 005a 0AAA     		add	r2, sp, #40
+ 486 005c 0C49     		ldr	r1, .L56
+ 487 005e 2846     		mov	r0, r5
+ 488              	.LVL39:
+ 489              		.loc 1 96 28 view .LVU129
+ 490 0060 0893     		str	r3, [sp, #32]
+ 491 0062 389B     		ldr	r3, [sp, #224]
+ 492 0064 0793     		str	r3, [sp, #28]
+ 493 0066 379B     		ldr	r3, [sp, #220]
+ 494 0068 0693     		str	r3, [sp, #24]
+ 495 006a 369B     		ldr	r3, [sp, #216]
+ 496 006c 0593     		str	r3, [sp, #20]
+ 497 006e 9DF8D430 		ldrb	r3, [sp, #212]	@ zero_extendqisi2
+ 498 0072 0493     		str	r3, [sp, #16]
+ 499 0074 2223     		movs	r3, #34
+ 500 0076 CDE90077 		strd	r7, r7, [sp]
+ 501 007a CDE90263 		strd	r6, r3, [sp, #8]
+ 502 007e 4346     		mov	r3, r8
+ 503 0080 FFF7FEFF 		bl	_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+ 504              	.LVL40:
+ 505              	.L41:
+  97:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp **** }
+ 506              		.loc 1 97 1 view .LVU130
+ 507 0084 2BB0     		add	sp, sp, #172
+ 508              	.LCFI7:
+ 509              		.cfi_remember_state
+ 510              		.cfi_def_cfa_offset 36
+ 511              		@ sp needed
+ 512 0086 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 513              	.LVL41:
+ 514              	.L45:
+ 515              	.LCFI8:
+ 516              		.cfi_restore_state
+ 517              	.LBB25:
+ 518              	.LBB23:
+  94:Cpp_Core/Src/screen_control/spi_screen_main_list.cpp ****     }
+ 519              		.loc 1 94 43 discriminator 4 view .LVU131
+ 520 008a 014A     		ldr	r2, .L56
+ 521 008c E0E7     		b	.L43
+ 522              	.L57:
+ 523 008e 00BF     		.align	2
+ 524              	.L56:
+ 525 0090 00000000 		.word	.LC1
+ 526              	.LBE23:
+ 527              	.LBE25:
+ 528              		.cfi_endproc
+ 529              	.LFE2159:
+ 531              		.section	.rodata.str1.1,"aMS",%progbits,1
+ 532              	.LC2:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 13
+
+
+ 533 0000 505300   		.ascii	"PS\000"
+ 534              	.LC3:
+ 535 0003 4E5300   		.ascii	"NS\000"
+ 536              	.LC4:
+ 537 0006 58626F78 		.ascii	"Xbox\000"
+ 537      00
+ 538              		.section	.rodata.CSWTCH.14,"a"
+ 539              		.align	2
+ 542              	CSWTCH.14:
+ 543 0000 00000000 		.word	.LC2
+ 544 0004 00000000 		.word	.LC2
+ 545 0008 03000000 		.word	.LC3
+ 546 000c 06000000 		.word	.LC4
+ 547              		.section	.rodata.str1.1
+ 548              	.LC5:
+ 549 000b 506C6174 		.ascii	"Platform\000"
+ 549      666F726D 
+ 549      00
+ 550              	.LC6:
+ 551 0014 50726F66 		.ascii	"Profiles\000"
+ 551      696C6573 
+ 551      00
+ 552              	.LC7:
+ 553 001d 534F4344 		.ascii	"SOCD\000"
+ 553      00
+ 554              	.LC8:
+ 555 0022 436F6E6E 		.ascii	"Connection\000"
+ 555      65637469 
+ 555      6F6E00
+ 556              	.LC9:
+ 557 002d 50657266 		.ascii	"Performance\000"
+ 557      6F726D61 
+ 557      6E636500 
+ 558              	.LC10:
+ 559 0039 4C696768 		.ascii	"Light Brightness\000"
+ 559      74204272 
+ 559      69676874 
+ 559      6E657373 
+ 559      00
+ 560              	.LC11:
+ 561 004a 4C696768 		.ascii	"Light Effect\000"
+ 561      74204566 
+ 561      66656374 
+ 561      00
+ 562              	.LC12:
+ 563 0057 416D6269 		.ascii	"Ambient Brightness\000"
+ 563      656E7420 
+ 563      42726967 
+ 563      68746E65 
+ 563      737300
+ 564              	.LC13:
+ 565 006a 416D6269 		.ascii	"Ambient Effect\000"
+ 565      656E7420 
+ 565      45666665 
+ 565      637400
+ 566              	.LC14:
+ 567 0079 53637265 		.ascii	"Screen Brightness\000"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 14
+
+
+ 567      656E2042 
+ 567      72696768 
+ 567      746E6573 
+ 567      7300
+ 568              	.LC15:
+ 569 008b 57656220 		.ascii	"Web Config\000"
+ 569      436F6E66 
+ 569      696700
+ 570              	.LC16:
+ 571 0096 43616C69 		.ascii	"Calibration Mode\000"
+ 571      62726174 
+ 571      696F6E20 
+ 571      4D6F6465 
+ 571      00
+ 572              	.LC17:
+ 573 00a7 43483538 		.ascii	"CH585 Flash\000"
+ 573      3520466C 
+ 573      61736800 
+ 574              		.section	.rodata._ZL9kMenuMeta,"a"
+ 575              		.align	2
+ 578              	_ZL9kMenuMeta:
+ 579 0000 00       		.byte	0
+ 580 0001 000000   		.space	3
+ 581 0004 01000000 		.word	1
+ 582 0008 0B000000 		.word	.LC5
+ 583 000c 01       		.byte	1
+ 584 000d 000000   		.space	3
+ 585 0010 02000000 		.word	2
+ 586 0014 14000000 		.word	.LC6
+ 587 0018 02       		.byte	2
+ 588 0019 000000   		.space	3
+ 589 001c 04000000 		.word	4
+ 590 0020 1D000000 		.word	.LC7
+ 591 0024 03       		.byte	3
+ 592 0025 000000   		.space	3
+ 593 0028 08000000 		.word	8
+ 594 002c 22000000 		.word	.LC8
+ 595 0030 0B       		.byte	11
+ 596 0031 000000   		.space	3
+ 597 0034 00080000 		.word	2048
+ 598 0038 2D000000 		.word	.LC9
+ 599 003c 04       		.byte	4
+ 600 003d 000000   		.space	3
+ 601 0040 10000000 		.word	16
+ 602 0044 39000000 		.word	.LC10
+ 603 0048 05       		.byte	5
+ 604 0049 000000   		.space	3
+ 605 004c 20000000 		.word	32
+ 606 0050 4A000000 		.word	.LC11
+ 607 0054 06       		.byte	6
+ 608 0055 000000   		.space	3
+ 609 0058 40000000 		.word	64
+ 610 005c 57000000 		.word	.LC12
+ 611 0060 07       		.byte	7
+ 612 0061 000000   		.space	3
+ 613 0064 80000000 		.word	128
+ 614 0068 6A000000 		.word	.LC13
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 15
+
+
+ 615 006c 08       		.byte	8
+ 616 006d 000000   		.space	3
+ 617 0070 00010000 		.word	256
+ 618 0074 79000000 		.word	.LC14
+ 619 0078 09       		.byte	9
+ 620 0079 000000   		.space	3
+ 621 007c 00020000 		.word	512
+ 622 0080 8B000000 		.word	.LC15
+ 623 0084 0A       		.byte	10
+ 624 0085 000000   		.space	3
+ 625 0088 00040000 		.word	1024
+ 626 008c 96000000 		.word	.LC16
+ 627 0090 0C       		.byte	12
+ 628 0091 000000   		.space	3
+ 629 0094 00000000 		.word	0
+ 630 0098 A7000000 		.word	.LC17
+ 631              		.weak	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 632              		.section	.bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance,"awG",%nobits,_ZZN15Ch585UpdateMode11
+ 635              	_ZZN15Ch585UpdateMode11getInstanceEvE8instance:
+ 636 0000 00       		.space	1
+ 637              		.text
+ 638              	.Letext0:
+ 639              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 640              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 641              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 642              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 643              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 644              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 645              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 646              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 647              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 648              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 649              		.file 13 "Cpp_Core/Inc/enums.hpp"
+ 650              		.file 14 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 651              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 652              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 653              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 654              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 655              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 656              		.file 20 "Core/Inc/board_cfg.h"
+ 657              		.file 21 "Cpp_Core/Inc/config.hpp"
+ 658              		.file 22 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 659              		.file 23 "Drivers/SPI-ST7789/st7789.h"
+ 660              		.file 24 "Cpp_Core/Inc/screen_control/spi_screen_main_list.hpp"
+ 661              		.file 25 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 662              		.file 26 "Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s 			page 16
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_main_list.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:20     .text._Z23ScreenMain_FindMenuMetah:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:26     .text._Z23ScreenMain_FindMenuMetah:00000000 _Z23ScreenMain_FindMenuMetah
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:77     .text._Z23ScreenMain_FindMenuMetah:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:578    .rodata._ZL9kMenuMeta:00000000 _ZL9kMenuMeta
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:85     .text._Z26ScreenMain_InputModeAbbrev9InputMode:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:91     .text._Z26ScreenMain_InputModeAbbrev9InputMode:00000000 _Z26ScreenMain_InputModeAbbrev9InputMode
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:117    .text._Z26ScreenMain_InputModeAbbrev9InputMode:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:542    .rodata.CSWTCH.14:00000000 CSWTCH.14
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:123    .text._Z25ScreenMain_RebuildMenuIdsRK19ScreenControlConfigPhh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:129    .text._Z25ScreenMain_RebuildMenuIdsRK19ScreenControlConfigPhh:00000000 _Z25ScreenMain_RebuildMenuIdsRK19ScreenControlConfigPhh
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:364    .text._Z25ScreenMain_RebuildMenuIdsRK19ScreenControlConfigPhh:000000cc $d
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:635    .bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance:00000000 _ZZN15Ch585UpdateMode11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:373    .text._Z21ScreenMain_RenderListP13ST7789_HandleRK13ScreenUiStylePKhhhbimm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:379    .text._Z21ScreenMain_RenderListP13ST7789_HandleRK13ScreenUiStylePKhhhbimm:00000000 _Z21ScreenMain_RenderListP13ST7789_HandleRK13ScreenUiStylePKhhhbimm
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:525    .text._Z21ScreenMain_RenderListP13ST7789_HandleRK13ScreenUiStylePKhhhbimm:00000090 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:539    .rodata.CSWTCH.14:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:575    .rodata._ZL9kMenuMeta:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccFYUOw2.s:636    .bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+memset
+_ZNK15Ch585UpdateMode20isManualEntryVisibleEv
+_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb

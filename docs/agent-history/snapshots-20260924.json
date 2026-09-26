@@ -1,0 +1,26 @@
+[
+  {
+    "source": "AGENTS.md",
+    "snapshot": "root-agents-20260924.txt",
+    "sha256": "2d29b99c7465ce98806f314abcc6b35b2ffa7d3e364ad07dce5a5f50606b683b",
+    "bytes": 18782
+  },
+  {
+    "source": "application/AGENTS.md",
+    "snapshot": "application-agents-20260924.txt",
+    "sha256": "69c1d3c84a4ce732250cce827b7a3afdbf7e7c8ad9575b20b6b23675cc5a6762",
+    "bytes": 1079
+  },
+  {
+    "source": "RF_PHY_Hop/AGENTS.md",
+    "snapshot": "rf-phy-hop-agents-20260924.txt",
+    "sha256": "596db5872c17c9fe73dbd2067e9c82489b20726f5e3c8f26f78fb3ee202af2c8",
+    "bytes": 85483
+  },
+  {
+    "source": "connect-monitor/AGENTS.md",
+    "snapshot": "connect-monitor-agents-20260924.txt",
+    "sha256": "52c4b61966e659e928c9d4b2816477e9db7428c044095e174bc0107981fb9839",
+    "bytes": 19288
+  }
+]

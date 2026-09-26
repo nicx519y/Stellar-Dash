@@ -1,10 +1,11 @@
 import { useLanguage } from "@/contexts/language-context";
 import { AbsoluteCenter, Alert, Badge, Box, Card, Center, Icon, List, ProgressCircle, Spinner, Text, Button, VStack } from "@chakra-ui/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { CiCircleCheck, CiCircleRemove, CiSaveUp1 } from "react-icons/ci";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { FirmwarePackage } from "@/types/types";
 import { openDialog as openSuccessDialog, updateDialogMessage } from "./dialog-cannot-close";
+import { scheduleAuthorizedReconnect } from "@/lib/device-transport/authorized-reconnect";
 
 enum UpdateStatus {
     Idle = 0,
@@ -21,7 +22,6 @@ enum ProgressPercent {
 }
 
 const REFRESH_PAGE_DELAY_SECONDS = 5; // 固件更新成功后，延迟5秒自动刷新页面
-const RECONNECT_DELAY_SECONDS = 3; // 固件更新失败后，延迟3秒重新连接websocket
 
 export function FirmwareContent() {
     const { t } = useLanguage();
@@ -36,22 +36,26 @@ export function FirmwareContent() {
         checkFirmwareUpdate,
         downloadFirmwarePackage,
         uploadFirmwareToDevice,
+        uploadCh585Firmware,
         dataIsReady,
         setFirmwareUpdating,
         firmwareUpdating,
-        wsConnected,
-        connectWebSocket,
+        deviceConnected,
+        reconnectDevice,
         setFinishConfigDisabled,
     } = useGamepadConfig();
+    const [ch585Uploading, setCh585Uploading] = useState(false);
+    const [ch585Progress, setCh585Progress] = useState(0);
+    const [ch585Message, setCh585Message] = useState<string | null>(null);
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
     const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion ? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
     const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split(/\s{2,}/) || [], [firmwareUpdateInfo]);
 
     // useEffect(() => {
-    //     if(wsConnected) {
+    //     if(deviceConnected) {
     //         fetchFirmwareMetadata();
     //     }
-    // }, [wsConnected]);
+    // }, [deviceConnected]);
 
     const firmwrareCurrentVersion = useMemo(() => {
         return firmwareInfo?.firmware?.version || "";
@@ -131,17 +135,21 @@ export function FirmwareContent() {
         }
     }, [countdownSeconds, successDialogId]);
 
-    // webcosket断开，如果是在固件更新中，则重新连接websocket，并延迟检查固件更新状态
+    // 设备连接断开时，如果固件正在更新则重新连接设备，并延迟检查固件更新状态
     useEffect(() => {
-        if (!wsConnected && firmwareUpdating) {
-            console.log('firmware: reconnect websocket.');
-            setTimeout(connectWebSocket, RECONNECT_DELAY_SECONDS);
-        } else if (wsConnected && firmwareUpdating) {
+        if (!deviceConnected && firmwareUpdating) {
+            console.log('firmware: reconnect device.');
+            return scheduleAuthorizedReconnect(reconnectDevice, (error) => {
+                console.error('firmware: automatic reconnect failed.', error);
+                setUpdateStatus(UpdateStatus.UpdateFailed);
+                setFirmwareUpdating(false);
+            });
+        } else if (deviceConnected && firmwareUpdating) {
             console.log('firmware: check update status.');
             checkUpdateStatusLoop();
         }
 
-    }, [wsConnected, firmwareUpdating]);
+    }, [deviceConnected, firmwareUpdating, reconnectDevice, setFirmwareUpdating]);
 
     // 当固件更新状态改变时，更新完成配置按钮的禁用状态
     useEffect(() => {
@@ -219,10 +227,33 @@ export function FirmwareContent() {
         }
     }
 
+    const selectCh585Firmware = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        if (file.name !== 'RF_PHY_Hop_TX.bin') {
+            setCh585Message('Select the combined RF_PHY_Hop_TX.bin built by RF_PHY_Hop/TX/Makefile.');
+            return;
+        }
+        setCh585Uploading(true);
+        setCh585Progress(0);
+        setCh585Message('Hold GPIO1 + FN for 2 seconds when the device asks for firmware authorization.');
+        try {
+            const image = new Uint8Array(await file.arrayBuffer());
+            await uploadCh585Firmware(image, setCh585Progress);
+            setCh585Message('Staging verified. The device is rebooting to update CH585 over SPI.');
+            setFirmwareUpdating(true);
+        } catch (error) {
+            setCh585Message(error instanceof Error ? error.message : 'CH585 firmware upload failed.');
+        } finally {
+            setCh585Uploading(false);
+        }
+    };
+
 
 
     return (
-        <Center p="18px">
+        <VStack p="18px" gap="18px">
             <style>
                 {`
                     @keyframes bounce {
@@ -359,6 +390,49 @@ export function FirmwareContent() {
                     )}
                 </VStack>
             </Center>
-        </Center>
+
+            <Card.Root w="700px">
+                <Card.Body>
+                    <VStack align="stretch" gap="12px">
+                        <Text fontSize="1.2rem" fontWeight="semibold">CH585 Firmware</Text>
+                        <Text fontSize=".85rem" color="GrayText">
+                            Upload the combined RF_PHY_Hop_TX.bin. It is SHA-256 verified in STM32 QSPI,
+                            then the device reboots and programs only the CH585 application region through SPI IAP.
+                        </Text>
+                        <Text fontSize=".8rem" color="orange.600">
+                            This operation never enables read protection, firmware locks, or option-byte protection.
+                        </Text>
+                        {ch585Uploading && (
+                            <Box>
+                                <Text fontSize=".8rem" mb="4px">Staging: {ch585Progress}%</Text>
+                                <Box h="6px" bg="gray.200" borderRadius="full" overflow="hidden">
+                                    <Box h="full" bg="green.500" width={`${ch585Progress}%`} />
+                                </Box>
+                            </Box>
+                        )}
+                        {ch585Message && (
+                            <Alert.Root status={ch585Message.includes('failed') || ch585Message.startsWith('Select') ? 'error' : 'info'}>
+                                <Alert.Indicator />
+                                <Alert.Content><Alert.Title fontSize=".8rem">{ch585Message}</Alert.Title></Alert.Content>
+                            </Alert.Root>
+                        )}
+                        <input
+                            id="ch585-firmware-file"
+                            type="file"
+                            accept=".bin,application/octet-stream"
+                            hidden
+                            onChange={selectCh585Firmware}
+                        />
+                        <Button
+                            colorPalette="green"
+                            disabled={ch585Uploading || !deviceConnected}
+                            onClick={() => document.getElementById('ch585-firmware-file')?.click()}
+                        >
+                            {ch585Uploading ? `Staging ${ch585Progress}%` : 'Select RF_PHY_Hop_TX.bin'}
+                        </Button>
+                    </VStack>
+                </Card.Body>
+            </Card.Root>
+        </VStack>
     );
 }

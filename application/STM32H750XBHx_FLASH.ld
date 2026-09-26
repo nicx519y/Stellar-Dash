@@ -55,8 +55,8 @@ ENTRY(Reset_Handler)
 /* Highest address of the user mode stack */
 _estack = ORIGIN(DTCMRAM) + LENGTH(DTCMRAM);    /* end of DTCMRAM */
 /* Generate a link error if heap and stack don't fit into RAM */
-_Min_Heap_Size = 0x400;      /* 32KB 堆 */
-_Min_Stack_Size = 0x200;     /* 8KB 栈 */
+_Min_Heap_Size = 0x8000;     /* 32KB minimum heap */
+_Min_Stack_Size = 0x2000;    /* 8KB protected MSP stack */
 
 /* Specify the memory areas */
 MEMORY
@@ -65,8 +65,10 @@ ITCMRAM (xrw)                 : ORIGIN = 0x00000000, LENGTH = 64K
 DTCMRAM (xrw)                 : ORIGIN = 0x20000000, LENGTH = 128K
 RAM (xrw)                     : ORIGIN = 0x24000000, LENGTH = 512K
 RAM_D2 (xrw)                  : ORIGIN = 0x30000000, LENGTH = 288K
-RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 64K
+/* Final 2 KiB: diagnostic trace, then the unchanged authentication mailbox. */
+RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 62K
 FLASH (rx)                    : ORIGIN = 0x90000000, LENGTH = 2048K
+BOOT_PROFILE (rw) : ORIGIN = 0x3800F800, LENGTH = 1K
 }
 
 /* Define Flash起始地址符号供代码使用 */
@@ -75,6 +77,16 @@ _flash_start = ORIGIN(FLASH);
 /* Define output sections */
 SECTIONS
 {
+  .boot_profile (NOLOAD) :
+  {
+    KEEP(*(.boot_profile))
+  } >BOOT_PROFILE
+  ASSERT(SIZEOF(.boot_profile) == 0 || SIZEOF(.boot_profile) == 1024,
+         "invalid boot profile size")
+  ASSERT(ORIGIN(RAM_D3) + LENGTH(RAM_D3) <= ORIGIN(BOOT_PROFILE),
+         "RAM_D3 overlaps boot profile")
+  ASSERT(ORIGIN(BOOT_PROFILE) + LENGTH(BOOT_PROFILE) == 0x3800FC00,
+         "boot profile overlaps authentication mailbox")
   /* 向量表必须在 Flash */
   _sivector = LOADADDR(.isr_vector);
   .isr_vector :
@@ -197,6 +209,13 @@ SECTIONS
     __bss_end__ = _ebss;
   } >RAM
 
+  /* One-shot STOP recovery marker; ordinary reset only, never persistent Flash. */
+  .sleep_fault (NOLOAD) :
+  {
+    . = ALIGN(4);
+    KEEP(*(.sleep_fault))
+  } >RAM
+
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack :
   {
@@ -209,7 +228,7 @@ SECTIONS
   } >DTCMRAM
 
   
-  ._RAM_D2_Area :
+  ._RAM_D2_Area (NOLOAD) :
   {
       . = ALIGN(32);
       *(.DMA_Section)         /* RAM_D2 area section */
@@ -217,7 +236,7 @@ SECTIONS
       . = ALIGN(32);
   } >RAM_D2
 
-  ._RAM_D3_Area :
+  ._RAM_D3_Area (NOLOAD) :
   {
       . = ALIGN(32);
       *(.BDMA_Section)         /* RAM_D2 area section */
@@ -235,7 +254,8 @@ SECTIONS
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
 
+  ASSERT(ORIGIN(RAM_D3) + LENGTH(RAM_D3) <= 0x3800FC00,
+         "RAM_D3 overlaps the boot attestation mailbox")
 
 }
-
 

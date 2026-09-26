@@ -1,0 +1,50 @@
+{
+  "schema": "hbox-webhid-security-golden-v1",
+  "protocolVersion": 1,
+  "warning": "Public deterministic TEST ONLY values; never use these keys in production.",
+  "derivationLabels": {
+    "permit": "HBox TEST ONLY WebHID V1 permit signing scalar",
+    "browser": "HBox TEST ONLY WebHID V1 browser ECDH scalar",
+    "device": "HBox TEST ONLY WebHID V1 device ECDH scalar"
+  },
+  "permit": {
+    "size": 236,
+    "signedSize": 172,
+    "authorizationPublicKeySec1Hex": "045d0c084526f131df4a0dc402ff036c3a95c0159ab105cc0fb8605562bc838feda2306ab66356adcff16e120770078104776d8de446cb1ebe39878a70d32f6970",
+    "signedBytesHex": "485350310101ac0000112233445566778899aabbccddeeff102132435465768798a9bacbdcedfe0f67de7d274bfd88d86f78f88b1536d065000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f1b3e0477662bc85707abcbb2d9ee4518cd13cb3b36e63b0483c5b95522a98889a2ea3fca99f54a32ff17abe84da490aa32ae0f6291d5f593c341bde81fbd1d510700000000000000000000000000000001000000",
+    "signatureP1363Hex": "e1cf9e4f794325a54944107e1da7e3538e4b14a4bdf95df45480dc087dae57e76b11f107f3c340f8546f068cd3e37b33c84e44e1a99f5431b8404c4b81fe872f",
+    "bytesHex": "485350310101ac0000112233445566778899aabbccddeeff102132435465768798a9bacbdcedfe0f67de7d274bfd88d86f78f88b1536d065000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f1b3e0477662bc85707abcbb2d9ee4518cd13cb3b36e63b0483c5b95522a98889a2ea3fca99f54a32ff17abe84da490aa32ae0f6291d5f593c341bde81fbd1d510700000000000000000000000000000001000000e1cf9e4f794325a54944107e1da7e3538e4b14a4bdf95df45480dc087dae57e76b11f107f3c340f8546f068cd3e37b33c84e44e1a99f5431b8404c4b81fe872f",
+    "sha256Hex": "d2c801cc9026f6dd93f3647798c2f42c78bcfca6539178575a7a9d16dffdf5cd"
+  },
+  "session": {
+    "sessionId": "ECEyQ1RldoeYqbrL3O3-Dw",
+    "browserPublicKeySec1Hex": "0412ca7df27bd8121874a4717f021256abc692d7682dffb6b504f6025957a0a9b9743eaddd8763daddb4f4f38bb67589034cd74fcf712e4070481a1b24d13e586d",
+    "devicePublicKeySec1Hex": "04b26c85af75660b5ce23c016fb9f713f90fa00028d6a9bb9a45e33d6ff542e6278184eff6c007df9f5289076386d31ac97fe616ff4cc77e98df906aadfdb0055a",
+    "sharedSecretHex": "652fd43e14551b7b70b7ef34bccf5bbe092ad73bbee2e00389a09bcb1cad6b44",
+    "saltHex": "d2c801cc9026f6dd93f3647798c2f42c78bcfca6539178575a7a9d16dffdf5cd",
+    "browserToDeviceKeyHex": "00abe329566a655dd0e2d767f7ca6933ae3f3ef44f3cee9d556ff0b7984e24fd",
+    "deviceToBrowserKeyHex": "76b8b54e73d9d8db5558e404319c92482c224b32441e95dcbce78efd44f305cd",
+    "browserToDeviceNoncePrefixHex": "f2ff00661542ca8f",
+    "deviceToBrowserNoncePrefixHex": "e19d9ca122d0657b",
+    "browserSequence": 16909060,
+    "deviceSequence": 168496141,
+    "browserToDeviceNonceHex": "f2ff00661542ca8f01020304",
+    "deviceToBrowserNonceHex": "e19d9ca122d0657b0a0b0c0d"
+  },
+  "reports": {
+    "browserToDevice": {
+      "type": 16,
+      "flags": 13,
+      "sequence": 16909060,
+      "plaintextHex": "7b22636f6d6d616e64223a226765745f676c6f62616c5f636f6e666967227d",
+      "reportHex": "01100d1f0403020188e84e783654788e7e81e436a3396d5a1f00e485af1e7a46436dc7412f3ef3000000000000000000000000001b9caf14002bdafbf51a07f0"
+    },
+    "deviceToBrowser": {
+      "type": 17,
+      "flags": 5,
+      "sequence": 168496141,
+      "plaintextHex": "7b227472616e73616374696f6e4964223a372c226572724e6f223a307d",
+      "reportHex": "0111051d0d0c0b0ae9f5b07f92788b3f50d9cb02e260e0e5f1962d9303a0b8da40d8c837070000000000000000000000000000005e1b3ee0c9697cd8bf3790bd"
+    }
+  }
+}
