@@ -122,6 +122,17 @@ bool UsbBoardLink::transact(uint8_t command,
         return false;
     }
 
+    /* USB control opcodes share one event number. A late reply to another
+     * transaction must not complete this call (or suppress its request). */
+    const auto matchesResponse = [&](const usb_board_link_frame_t &frame) {
+        if (frame.command != expectedEvent) return false;
+        if (command != USB_BOARD_CMD_USB_CONTROL) return true;
+        const auto *header = static_cast<const usb_board_control_header_v1_t *>(payload);
+        return header != nullptr && payloadLength >= USB_BOARD_CONTROL_HEADER_BYTES &&
+            frame.length >= USB_BOARD_CONTROL_HEADER_BYTES &&
+            frame.payload[0] == header->opcode && frame.payload[1] == header->transaction;
+    };
+
     /*
      * A response can assert W_INT at the exact retry boundary. Drain it
      * before clocking a retry so a late ROLE_SELECTED frame is never shifted
@@ -144,7 +155,7 @@ bool UsbBoardLink::transact(uint8_t command,
         }
         lastObservedEvent = decoded.command;
         handleEvent(decoded.command, decoded.payload, decoded.length);
-        if (decoded.command != expectedEvent) {
+        if (!matchesResponse(decoded)) {
             continue;
         }
         if (decoded.length > responseCapacity) {
@@ -192,7 +203,7 @@ bool UsbBoardLink::transact(uint8_t command,
             ++observedEvents;
             lastObservedEvent = decoded.command;
             handleEvent(decoded.command, decoded.payload, decoded.length);
-            if (decoded.command != expectedEvent) {
+            if (!matchesResponse(decoded)) {
                 continue;
             }
             if (decoded.length > responseCapacity) {
@@ -459,8 +470,21 @@ bool UsbBoardLink::enableWebHidDataPlane()
         selectedProfile != USB_BOARD_PROFILE_WEB_CONFIG) return false;
     uint8_t capability[12] = {}, size = 0u, request[8] = {};
     WebConfig_RecordStartupStage(0x41u, 3u);
-    if (!sendControl(USB_BOARD_CONTROL_HS_CAPS, nullptr, 0u, capability,
-                     sizeof(capability), &size) || size != sizeof(capability) ||
+    /* This read-only query may race the final profile/state event or time
+     * out during startup. Retry only transport/not-ready failures; a valid
+     * incompatible response must still fail closed without switching SPI. */
+    bool discovered = false;
+    for (unsigned attempt = 0u; attempt < 3u && !discovered; ++attempt) {
+        uint8_t status = USB_BOARD_STATUS_NOT_READY;
+        discovered = sendControl(USB_BOARD_CONTROL_HS_CAPS, nullptr, 0u, capability,
+            sizeof(capability), &size, &status);
+        if (!discovered) {
+            if (status != USB_BOARD_STATUS_NOT_READY && status != USB_BOARD_STATUS_BUSY &&
+                status != USB_BOARD_STATUS_OK) return false;
+            if (attempt + 1u < 3u) HAL_Delay(1u);
+        }
+    }
+    if (!discovered || size != sizeof(capability) ||
         whf_u32(capability) != WEBHID_CAPABILITY_MAGIC ||
         whf_u16(capability+8) != WEBHID_REPORT_BYTES ||
         capability[10] != WHF_CAPACITY || capability[11] != WEBHID_PROTOCOL_VERSION ||
@@ -770,7 +794,8 @@ bool UsbBoardLink::sendControl(usb_board_control_opcode_t opcode,
                   sizeof(response),
                   &responseLength,
                   opcode == USB_BOARD_CONTROL_RF_BINDING ? 2000u : kControlTimeoutMs);
-    if (opcode == USB_BOARD_CONTROL_CONNECT || opcode == USB_BOARD_CONTROL_HS_PREPARE) {
+    if (opcode == USB_BOARD_CONTROL_CONNECT || opcode == USB_BOARD_CONTROL_HS_PREPARE ||
+        opcode == USB_BOARD_CONTROL_HS_CAPS) {
         const uint32_t field = opcode == USB_BOARD_CONTROL_CONNECT ? 4u : 6u;
         WebConfig_RecordStartupStage((received ? 0x80000000u : 0u) |
             (uint32_t(responseLength) << 16u) | (uint32_t(response.header.opcode) << 8u) |

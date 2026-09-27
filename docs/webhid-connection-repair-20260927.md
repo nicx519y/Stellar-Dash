@@ -77,3 +77,21 @@ TX USB OUT 主循环每移走一项软件队列数据，原来都会在屏蔽 US
 TX 构建通过（1.8 秒，FLASH 105276 / RAM 121124 字节），三项端点定向源码契约通过；已有 RWX LOAD 链接警告仍在。既有入口 `python tools/hbox.py flash tx` 返回 APPLIED / COMPLETE / 100%；应用打包 109372 字节，SHA-256 `afec2b25148096ee8f68a2d0cff080035192550d6534f4630f415a7cab8a0421`，IAP 前缀与上一产物一致且未刷写。日志 `usb-out-rearm-build.log`、`usb-out-rearm-contract.log`、`usb-out-rearm-flash.log`。烧录后普通复位，再做同一四包并发测试，所有长度通过；随后同一会话连续 10 轮 3984/12000 字节查询，共 20 次请求全部成功，临时氛围灯预览和按键监测同时开启。ST-LINK 结束后读取会话/块首错均为零，rx_accepted=rx_released=201，CRC/协议错误/重复块均为零。日志 `native-parallel-fixed.log`、`native-parallel-repeat.log`。
 
 以上原生硬件对照完成后，用户确认“可以了”，灯光配置断开问题已获得浏览器使用确认。这些短请求结果仍不计为原高速吞吐计划的验收。未修改任何保护位或锁定状态。
+
+## 2026-09-27 再次连接失败：高速能力查询未完成
+
+本轮现场 Windows 仍枚举 VID CAFE / PID 4021，输入/输出 HID 长度 1025（含 Windows 的 report ID 占位），Feature 33。只读 Feature 返回 HS、1024 字节、bridgeReady=0、fault=1、spiHz=0、epoch=0；STM32 主动发布的启动记录为 stage=6、HS stage=0x41，双方链路尚未建立，块首错为空。说明失败发生在高速能力查询阶段，早于 PREPARE 和浏览器加密会话。保留现场后一次普通复位即恢复 ready=1，不能据此把偶发问题当作解决。
+
+修复 `usb_board_link.cpp`：
+
+- 对只读 HS_CAPS 查询的传输失败、NOT_READY、BUSY 最多尝试三次；有效但不兼容的能力及明确拒绝仍立即失败，不切换 SPI、不启用旧配置协议。
+- 通用控制事务在发送前排空和发送后等待两个阶段均核对 opcode/transaction；不同事务的迟到回复继续排空，不再提前返回并阻止新请求发送。该缺陷由生产函数主机对照复现；原现场没有保留 HS_CAPS 回复细节，不能断言这次首次失败一定由旧回复引起。
+- 将 HS_CAPS 收发结果纳入已有启动诊断；若在该阶段最终失败，保留响应状态和事务编号。后续成功的 PREPARE 会复用这些诊断槽位。
+
+验证：`python -m unittest tools.tests.test_webhid_startup tools.tests.test_webhid_fast_link` 的定向五项通过；测试使用实际生产函数，覆盖发送前/后旧回复、事务编号回绕、超时、有界重试、协议不匹配和角色拒绝。相同两项新增测试应用到修改前函数均正常报告断言失败。第一次测试收集误带入既有 LED fixture，其缺少 `LedStripController.stop` 的编译桩而失败；随后修正测试模块的导入方式，只收集本次目标，没有修改 LED 测试或生产代码。最终新增两项再次通过。
+
+完整无锁 A 槽构建 61.4 秒退出 0；临时日志包装器打印 GBK 无法表示的字符时报错，底层构建完成及 manifest 另行核实。`python tools/hbox.py flash app A` 退出 0，371260 字节，SHA-256 `70819400680a82e8eaab00e1254f8bb7eda8852ef797997b2b8f69f39adafb59`，目标 0x90000000，物理回读通过、metadata 最后提交，内部 Flash 一致而跳过擦写。没有更新 TX、网页或 bootloader。
+
+刷写启动及随后两次普通复位均为 HS / 1024 / 7.5 MHz / ready=1 / fault=0。后两次控制事务编号比首次多一次，说明存在额外尝试，但现有最终快照不足以单独区分 CAPS 或 PREPARE 的重试。原生 HID 建立加密会话后，128、512、995、996、1200、1992 字节的只读 get_global_config 请求全部应答成功，随后普通复位清理诊断会话。日志为 `.hbox/webhid-hs/startup-host-final.log`、`startup-host-final2.log`、`startup-before.log`、`startup-build.log`、`startup-flash.log`、`startup-encrypted-read.log`。这些不是带宽验收；浏览器控制返回 `nodeRepl.fetch request failed`，已请求用户确认网页连接。USB 普通输入的问题尚未继续实机定位，RF 回归/采样未运行。
+
+未修改任何保护位或锁定状态。
