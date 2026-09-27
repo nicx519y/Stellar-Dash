@@ -263,7 +263,7 @@ void USBHS_Device_Init ( FunctionalState sta )
  * @return  none
  */
 __HIGH_CODE
-uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mod )
+uint8_t USBHS_Endp_DataUpTimed( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mod, uint32_t *armed_tick )
 {
     uint8_t endp_en;
 
@@ -294,6 +294,8 @@ uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mo
 
                 /* Set end-point busy */
                 USBHS_Endp_Busy[ endp ] |= DEF_UEP_BUSY;
+                /* Capture after the DMA copy, before ACK exposes this report. */
+                if(armed_tick)*armed_tick=TMR0_GetCurrentTimer();
                 /* end-point n response tx ack */
                 USBHSD_UEP_TLEN( endp ) = len;
                 USBHSD_UEP_TXCTRL( endp ) = (USBHSD_UEP_TXCTRL( endp ) &= ~USBHS_UEP_T_RES_MASK) | USBHS_UEP_T_RES_ACK;
@@ -314,6 +316,12 @@ uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mo
     }
 
     return 0;
+}
+
+__HIGH_CODE
+uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mod )
+{
+    return USBHS_Endp_DataUpTimed(endp,pbuf,len,mod,0);
 }
 
 /*********************************************************************

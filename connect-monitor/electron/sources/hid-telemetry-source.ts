@@ -9,6 +9,8 @@ import { parseApplicationHidTelemetryFrame } from "./application-hid-telemetry-s
 import { parseDongleHidTelemetryFrame } from "./dongle-hid-telemetry-source";
 import { deviceRole, matchesHidTelemetryDevice } from "./hid-device-selection";
 import type { TelemetryDevice } from "../../shared/device-binding";
+import { HidControlQueue } from "./hid-control-queue";
+import { HidControlDiagnostics } from "./hid-control-diagnostics";
 
 type PublishFn = (event: MonitorEvent) => void;
 type SourceOptions = {
@@ -64,21 +66,23 @@ let requestedControlSeq = 0;
 let lastControlAttemptAt = 0;
 let controlWriteSucceeded = false;
 let sourceGeneration = 0;
-let controlPending = 0;
-let controlTail: Promise<void> = Promise.resolve();
+const rfControls = new HidControlQueue();
+const usbControls = new HidControlQueue();
+let diagnostics = new HidControlDiagnostics();
 
 // Serialize control transfers only. Awaiting native I/O leaves the worker's
 // data callbacks, MessagePort and forwarding timers free to run.
-function queueControl<T>(action: () => Promise<T>): Promise<T> {
-  if (controlPending >= 16) return Promise.reject(new Error("HID control queue full"));
+function queueControl<T>(action: () => Promise<T>, name = "control", renewal = false,
+  mode: "USB" | "RF24G" = "RF24G"): Promise<T> {
   const generation = sourceGeneration;
-  controlPending++;
-  const result = controlTail.then(() => {
+  return (mode === "USB" ? usbControls : rfControls).enqueue(name, () => {
     if (generation !== sourceGeneration) throw new Error("HID control session expired");
     return action();
-  });
-  controlTail = result.then(() => {}, () => {}).finally(() => { controlPending--; });
-  return result;
+  }, renewal);
+}
+
+export function getHidControlDiagnostics() {
+  return { rf: rfControls.stats(), usb: usbControls.stats(), ...diagnostics.snapshot() };
 }
 
 function liveHandle(handle: any): boolean { return activeControlHandles.includes(handle) && handle === selectedHandle("RF24G"); }
@@ -214,10 +218,11 @@ function parseStatusReport(raw: Uint8Array): DeviceConfigStatus | null {
 async function refreshDebugStatus(handle: any): Promise<DeviceConfigStatus | null> {
   if (!liveHandle(handle) || typeof handle.getFeatureReport !== "function") return null;
   try {
-    const report = await handle.getFeatureReport(0, CTL_FRAME_SIZE + 1);
+    const report = await diagnostics.io<ArrayLike<number>>("rf:get-status", () => handle.getFeatureReport(0, CTL_FRAME_SIZE + 1));
     if (!liveHandle(handle)) return null;
     const parsed = parseStatusReport(Uint8Array.from(report));
     if (parsed) {
+      diagnostics.record("rf-status", { requestedSeq: requestedControlSeq, ...parsed });
       telemetryLeaseSupport.set(handle, parsed.telemetryLeaseSupported === true);
       // GET_REPORT can still describe the previous SET_REPORT. A successful
       // USB write is not proof that this RX/TX configuration was applied.
@@ -243,6 +248,7 @@ async function refreshDebugStatus(handle: any): Promise<DeviceConfigStatus | nul
       }
       return parsed;
     }
+    diagnostics.record("rf-status-invalid", {});
   } catch (_err) {
     // Some HID backends do not support feature GET_REPORT on this interface.
   }
@@ -251,9 +257,13 @@ async function refreshDebugStatus(handle: any): Promise<DeviceConfigStatus | nul
 
 async function writeControlFrame(handle: any, frame: Buffer): Promise<boolean> {
   if (!liveHandle(handle)) return false;
+  const command = getU32LE(frame, 0) === CTL_MAGIC ? frame[7] : "fast";
+  const lease = command === CMD_HID_TELEMETRY_LEASE && (frame[8] & FLAG_HID_TELEMETRY)
+    ? "telemetry" : command === 4 ? "latency" : undefined;
+  if (!lease) diagnostics.record("rf-control", { command, target: frame[6], seq: frame[5], flags: getU32LE(frame, 8) });
   try {
     if (typeof handle.sendFeatureReport === "function") {
-      await handle.sendFeatureReport([0, ...frame]);
+      await diagnostics.io(`rf:set-feature:${command}`, () => handle.sendFeatureReport([0, ...frame]), lease);
       return liveHandle(handle);
     }
   } catch (_err) {
@@ -262,7 +272,7 @@ async function writeControlFrame(handle: any, frame: Buffer): Promise<boolean> {
 
   try {
     if (liveHandle(handle) && typeof handle.write === "function") {
-      await handle.write([0, ...frame]);
+      await diagnostics.io(`rf:write:${command}`, () => handle.write([0, ...frame]), lease);
       return liveHandle(handle);
     }
   } catch (_err) {
@@ -281,7 +291,7 @@ export function sendFastRecovery(request: FastRequest, deadline = Date.now() + 2
   if(request.operation===2)fastLeaseActive=true;
   fastLeaseId=request.testId;
   return {ok:true,message:"USB write accepted; wait for firmware status"};
-  });
+  }, "fast-control");
 }
 export function getHidDebugConfigStatus(): DebugConfigStatus {
   if(selectedMode === "USB") {
@@ -295,8 +305,9 @@ export function getHidDebugConfigStatus(): DebugConfigStatus {
 
 export function sendDebugConfig(config: DebugConfig): Promise<DebugConfigStatus> {
   const requestedMode=config.sourceMode??"RF24G";
+  // The two device queues may finish out of order; display the latest request.
+  selectedMode=requestedMode;
   return queueControl(async () => {
-    selectedMode=requestedMode;
     if(requestedMode==="USB") {
       usbDesired={...config};
       const peer=usbPeers.get(selectedHandle("USB"));
@@ -304,7 +315,7 @@ export function sendDebugConfig(config: DebugConfig): Promise<DebugConfigStatus>
       return getHidDebugConfigStatus();
     }
     return applyDebugConfig(config);
-  });
+  }, "configure", false, requestedMode);
 }
 
 async function applyDebugConfig(config: DebugConfig): Promise<DebugConfigStatus> {
@@ -381,6 +392,7 @@ const MISSING_STATUS_INTERVAL_MS = 3000;
 
 export function startHidTelemetrySource(publish: PublishFn, options: SourceOptions = {}): () => Promise<void> {
   sourceGeneration++;
+  diagnostics = new HidControlDiagnostics();
   externalBinding = options.externalBinding === true;
   identities.clear();
   bindingChanged = options.onControlReady;
@@ -408,6 +420,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   let lastMissingStatusAt = 0;
   let rfWasConnected = false;
   let lastRfTelemetryAt = 0;
+  let lastRfTelemetrySeq: number | undefined;
   let lastStatusCheckAt = 0;
   let scanning: Promise<void> | null = null;
   const closingHandles = new Map<any, Promise<void>>();
@@ -533,8 +546,13 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
             if(handle!==selectedHandle("RF24G"))return;
             const publishSelected=(event:MonitorEvent)=>publish({...event,sourceMode:"RF24G",deviceId:identity.id,deviceGeneration:identity.generation});
             for (const ev of dongleEvents) {
-              if (ev.kind === "packet" && ev.messageType.startsWith("RFH_RHM1_"))
+              if (ev.kind === "packet" && ev.messageType.startsWith("RFH_RHM1_")) {
+                if (lastRfTelemetryAt && ev.timestampMs - lastRfTelemetryAt > 1600)
+                  diagnostics.record("rf-telemetry-gap", { gapMs: ev.timestampMs - lastRfTelemetryAt,
+                    previousSeq: lastRfTelemetrySeq, seq: ev.seq, sampleWindowMs: ev.sampleWindowMs });
                 lastRfTelemetryAt = ev.timestampMs;
+                lastRfTelemetrySeq = ev.seq;
+              }
               // A TX-only restart leaves the RX USB handle and its previous
               // "Applied" status alive. Reapply the current configuration once
               // after RF recovery; a capture lease alone cannot enable TX.
@@ -577,18 +595,53 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   };
   scanAndOpen();
   const rescanTimer = setInterval(scanAndOpen, DEVICE_RESCAN_INTERVAL_MS);
+  // USB TX has a different handle/protocol. Its GET_REPORT must never hold up
+  // RX renewals. Each lane still serializes all transfers to its own device.
+  let usbMaintenancePending = false;
+  const usbMaintenanceTimer = setInterval(() => {
+    if (stopped || usbMaintenancePending) return;
+    usbMaintenancePending = true;
+    void queueControl(async () => {
+      if (stopped) return;
+      const usb = usbPeers.get(selectedHandle("USB"));
+      if (usb) await diagnostics.io("usb:maintain", () => usb.maintain());
+    }, "usb-maintain", false, "USB").catch(error => {
+      diagnostics.record("usb-maintenance-error", { error: String(error) });
+    }).finally(() => { usbMaintenancePending = false; });
+  }, 1000);
+
+  // Coalesce to ONE queued/running renewal, including while native I/O is
+  // stuck. Never release the queue with Promise.race and pile up driver calls.
+  let leasePending = false;
+  let lastLeaseTick = performance.now();
+  const captureLeaseTimer = setInterval(() => {
+    if (stopped) return;
+    const now = performance.now();
+    if (now - lastLeaseTick > 1000) diagnostics.record("lease-timer-late", { intervalMs: Math.round(now - lastLeaseTick) });
+    lastLeaseTick = now;
+    if (leasePending) return;
+    leasePending = true;
+    void queueControl(async () => {
+      if (stopped) return;
+      if (preferredControlHandle !== selectedHandle("RF24G")) preferredControlHandle = null;
+      const handle = preferredControlHandle;
+      if (!handle) return;
+      if (currentHidTelemetryEnabled && telemetryLeaseSupport.get(handle))
+        await writeControlFrame(handle, buildTelemetryLeaseFrame(true));
+      if (stopped) return;
+      if (currentLatencyEnabled) await writeControlFrame(handle, buildCaptureLeaseFrame());
+      if (fastLeaseActive && !stopped) await writeControlFrame(handle, buildFastControl({operation:5,testId:fastLeaseId}));
+    }, "rf-renew-leases", true).catch(error => {
+      diagnostics.record("rf-renew-error", { error: String(error) });
+    }).finally(() => { leasePending = false; });
+  }, 500);
+
   let maintenancePending = false;
-  const captureLeaseTimer=setInterval(()=>{
-    if (stopped || maintenancePending || controlPending) return;
+  const maintenanceTimer = setInterval(() => {
+    if (stopped || maintenancePending) return;
     maintenancePending = true;
     void queueControl(async () => {
-    const usb=usbPeers.get(selectedHandle("USB"));
-    if(usb)await usb.maintain();
-    if(preferredControlHandle!==selectedHandle("RF24G"))preferredControlHandle=null;
-    if(currentHidTelemetryEnabled && preferredControlHandle && telemetryLeaseSupport.get(preferredControlHandle))
-      await writeControlFrame(preferredControlHandle, buildTelemetryLeaseFrame(true));
-    if(fastLeaseActive && preferredControlHandle)await writeControlFrame(preferredControlHandle,buildFastControl({operation:5,testId:fastLeaseId}));
-    if(currentLatencyEnabled && preferredControlHandle)await writeControlFrame(preferredControlHandle,buildCaptureLeaseFrame());
+    if (stopped) return;
     if (!desiredConfig) return;
     const handle = selectedHandle("RF24G");
     if (!handle) return;
@@ -597,7 +650,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
       now - Math.max(lastRfTelemetryAt, lastControlAttemptAt) > 3000;
     // Once configuration is applied and RHM1 is flowing, polling GET_REPORT
     // adds a blocking control transfer without changing any decision. Keep
-    // the one-second USB lease, but read status only while applying or stale.
+    // the independent USB lease, but read status only while applying or stale.
     if (debugStatus.state === "Applied" && !telemetrySilent) return;
     if (now - lastStatusCheckAt < CONTROL_RETRY_INTERVAL_MS) return;
     lastStatusCheckAt = now;
@@ -611,6 +664,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
       (status.flags & FLAG_HID_TELEMETRY) === 0 &&
       (status.flags & ~FLAG_HID_TELEMETRY) === (configFlags(desiredConfig) & ~FLAG_HID_TELEMETRY);
     if (telemetryOnlyExpired) {
+      diagnostics.record("rf-telemetry-reenable", { requestedSeq: requestedControlSeq, ...status });
       if (await writeControlFrame(handle, buildControlFrame(desiredConfig, requestedControlSeq, 1)))
         await refreshDebugStatus(handle);
       return;
@@ -625,17 +679,22 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
       (rfWasConnected && (status.txStatus !== "Applied" || status.txAppliedSeq !== requestedControlSeq))
     ));
     if (needsApply && (!desiredConfig.hidTelemetryEnabled || telemetryLeaseSupport.get(handle) !== false) &&
-        Date.now() - lastControlAttemptAt >= CONTROL_RETRY_INTERVAL_MS)
+        Date.now() - lastControlAttemptAt >= CONTROL_RETRY_INTERVAL_MS) {
+      diagnostics.record("rf-config-reapply", { requestedSeq: requestedControlSeq, status, controlWriteSucceeded });
       await applyDebugConfig(desiredConfig);
-    }).catch(() => {}).finally(() => { maintenancePending = false; });
+    }
+    }, "rf-reconcile").catch(error => {
+      diagnostics.record("rf-maintenance-error", { error: String(error) });
+    }).finally(() => { maintenancePending = false; });
   },1000);
 
   return async () => {
     stopped = true;
     clearInterval(rescanTimer);clearInterval(captureLeaseTimer);
+    clearInterval(maintenanceTimer);clearInterval(usbMaintenanceTimer);
     // A normal pause/quit releases the USB-only capture before closing HID.
     // A stalled or crashed worker is covered by the firmware lease timeout.
-    await controlTail;
+    await Promise.all([rfControls.idle(), usbControls.idle()]);
     for(const peer of usbPeers.values())await peer.close();
     usbPeers.clear();
     const handle = selectedHandle("RF24G");
@@ -649,7 +708,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
     }
     activeControlHandles = [];
     preferredControlHandle = null;
-    await Promise.allSettled([scanning, ...closingHandles.values(), controlTail]);
+    await Promise.allSettled([scanning, ...closingHandles.values()]);
     identities.clear(); announceDevices(); bindingChanged=undefined;
   };
 }

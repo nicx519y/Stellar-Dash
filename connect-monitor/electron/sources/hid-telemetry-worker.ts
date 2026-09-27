@@ -1,7 +1,7 @@
 // All native control I/O is asynchronous, including inside this reader worker.
 import { parentPort } from "node:worker_threads";
 import { BoundedDelivery } from "../pipeline/bounded-delivery";
-import { getHidDebugConfigStatus, sendDebugConfig, sendFastRecovery, startHidTelemetrySource, selectTelemetryDevices } from "./hid-telemetry-source";
+import { getHidDebugConfigStatus, getHidControlDiagnostics, sendDebugConfig, sendFastRecovery, startHidTelemetrySource, selectTelemetryDevices } from "./hid-telemetry-source";
 import type { DebugConfig, MonitorEvent } from "../../shared/monitor-types";
 import type { FastRequest } from "../../shared/fast-recovery";
 
@@ -11,7 +11,8 @@ let configRevision = 0;
 let stopped = false;
 let configError: string | undefined;
 const status = () => port.postMessage({ type: "status", revision: configRevision,
-  status: configError ? { ...getHidDebugConfigStatus(), state: "Failed", message: configError } : getHidDebugConfigStatus(), queue: events.stats() });
+  status: configError ? { ...getHidDebugConfigStatus(), state: "Failed", message: configError } : getHidDebugConfigStatus(),
+  queue: { ...events.stats(), control: getHidControlDiagnostics() } });
 const stop = startHidTelemetrySource(event => events.enqueue([event]), {
   onControlReady: () => port.postMessage({ type: "ready" }),
   externalBinding: true,

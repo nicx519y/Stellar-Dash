@@ -67,9 +67,15 @@ function latencyRowKey(row: ButtonLatencyEvent) {
 
 function toLatencyTableRow(row: ButtonLatencyEvent): LatencyTableRow {
   const stageTotal = row.sourceMode === "USB" ? usbStageTotalUs(row) : null;
+  // RLT2 (including saved rows without latencyFrame) combined queue wait and
+  // in-flight time. Never relabel that combined value as the new USB stage.
+  const legacyUsb = row.sourceMode !== "USB" && row.measurement === "usb" &&
+    !!row.relativeStagesUs && row.latencyFrame !== "RLT3";
+  const stages = legacyUsb ? [...row.relativeStagesUs!.slice(0,7),null,null] : row.relativeStagesUs;
+  const legacyNote = legacyUsb ? " · 旧版 USB 未拆分，需更新 RX" : "";
   return {
     key: row.traceId ?? latencyRowKey(row),
-    relativeTexts: Array.from({length:8},(_,i)=>formatLatencyPart(typeof row.relativeStagesUs?.[i] === "number" ? row.relativeStagesUs[i]!/1000 : undefined)),
+    relativeTexts: Array.from({length:9},(_,i)=>formatLatencyPart(typeof stages?.[i] === "number" ? stages[i]!/1000 : undefined)),
     buttonLabel: changedButtonLabels(row),
     stm32Text: (row.latencyStageFlags ?? 0) & 2 ? "SAT ≈6ms" : formatLatencyPart(row.stm32Ms),
     txText: (row.latencyStageFlags ?? 0) & 4 ? "SAT ≈6ms" : formatLatencyPart(row.txMs),
@@ -79,7 +85,7 @@ function toLatencyTableRow(row: ButtonLatencyEvent): LatencyTableRow {
     rxSubmitText: formatLatencyPart(row.rxSubmitMs),
     rxText: (row.latencyStageFlags ?? 0) & 8 ? "SAT" : formatLatencyPart(row.rxMs),
     totalText: row.sourceMode === "USB"
-      ? (stageTotal === null ? "阶段不完整" : formatStageTotal(stageTotal)) : row.measurement === "usb" ? (row.latencyMs === null ? (row.measurementReason ?? "Incomplete") : `≈${formatLatency(row.latencyMs)}ms`) : row.measurement === "windows" && row.latencyMinMs !== undefined && row.latencyMaxMs !== undefined
+      ? (stageTotal === null ? "阶段不完整" : formatStageTotal(stageTotal)) : row.measurement === "usb" ? (row.latencyMs === null ? (row.measurementReason ?? "Incomplete") : `≈${formatLatency(row.latencyMs)}ms`)+legacyNote : row.measurement === "windows" && row.latencyMinMs !== undefined && row.latencyMaxMs !== undefined
       ? `${formatLatency(row.latencyMinMs)}–${formatLatency(row.latencyMaxMs)}ms` : row.measurement === "trace" ? (row.measurementReason ?? "No match") : "—",
   };
 }

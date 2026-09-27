@@ -137,6 +137,9 @@ extern void USBHS_IRQHandler( void );
 extern void USBHS_Sleep_WakeUp_Cfg( void );
 extern void USBHD_Sleep_Wakeup_Operate( void );
 extern uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mod );
+/* Caller masks IRQs through publication of its in-flight report identity.
+ * armed_tick is written only on success, immediately before endpoint ACK. */
+extern uint8_t USBHS_Endp_DataUpTimed( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mod, uint32_t *armed_tick );
 
 #ifdef __cplusplus
 }

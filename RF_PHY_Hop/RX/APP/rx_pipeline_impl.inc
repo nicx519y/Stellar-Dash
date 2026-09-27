@@ -32,7 +32,10 @@ __HIGH_CODE static void pipe_kick(void){
     }
     if(r->generation!=g_demo_radio_generation || r->epoch!=g_demo_input_epoch){
         pipe_drop(r,1);rfq_pop(&g_pipe);SYS_RecoverIrq(key);return;}
-    if(USBHS_Endp_DataUp(DEF_UEP2,r->bytes,20,DEF_UEP_CPY_LOAD)==0){
+    uint32_t armed_tick;
+    if(USBHS_Endp_DataUpTimed(DEF_UEP2,r->bytes,20,DEF_UEP_CPY_LOAD,&armed_tick)==0){
+        if(r->tag && r->session==g_relative_session){relative_rx_t *t=&g_relative_rx[r->tag];
+            if(t->row==r->row && !(t->flags&12u))t->submit=armed_tick;}
         r->submit_cycles=SysTick->CNT;rfq_copy(&g_pipe.flight,r);g_pipe.busy=1;
         RXP_Count(RP_SUBMITTED);RXP_Time(RT_QUEUE_WAIT,r->submit_cycles-r->ready_cycles,r->id,r->generation);
         if(r->neutral)g_demo_neutral_pending=0;

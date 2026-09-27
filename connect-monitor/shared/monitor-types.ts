@@ -202,6 +202,9 @@ export interface ButtonLatencyEvent extends EventOrigin {
   action: "press" | "release" | "change";
   latencyMs: number | null;
   measurement?: "stages" | "windows" | "trace" | "usb";
+  // UME1: ADC/logic/SPI wait/SPI/USB wait/USB (six measured stages).
+  // RLT3: ADC/logic/SPI wait/SPI/TX/RF estimate/RX/USB wait/USB.
+  // RLT2: eight stages, with combined USB wait + USB at index 7.
   relativeStagesUs?: Array<number | null>;
   measurementReason?: string;
   traceId?: string;

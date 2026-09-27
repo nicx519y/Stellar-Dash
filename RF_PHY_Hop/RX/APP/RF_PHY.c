@@ -271,7 +271,7 @@ static uint32_t g_relative_air_clock;
 static void short_rx_edge(const rf_rx_pending_t *p,uint32_t process);
 static void short_rx_trace(const uint8_t *p);
 static uint8_t short_send_trace(void);
-__HIGH_CODE static void short_dirty(relative_rx_t *r){r->revision=(r->revision+1u)&127u;r->dirty=3;}
+__HIGH_CODE static void short_dirty(relative_rx_t *r){r->revision=(r->revision+1u)&63u;r->dirty=7;}
 static rfh_aux_rx_t g_aux_rx;
 static uint32_t g_aux_rx_clock;
 static uint32_t g_short_tx_stats[6],g_short_stats_seq;
@@ -4735,21 +4735,23 @@ static uint8_t short_send_trace(void) {
         uint8_t page,revision;
         uint8_t report[32];demo_zero_bytes(report,sizeof(report));
         uint16_t row=r->row;
-        page=(r->dirty&1u)?0u:1u;revision=r->revision;
-        rfh_put_u32(report,0x32544c52u); /* RLT2, local durations, no PC clock */
+        page=(r->dirty&1u)?0u:(r->dirty&2u)?1u:2u;revision=r->revision;
+        rfh_put_u32(report,0x33544c52u); /* RLT3: nine stages over three pages. */
         rfh_put_u16(report+4,session);rfh_put_u16(report+6,r->row);
         report[8]=(uint8_t)r->mask;report[9]=(uint8_t)(r->mask>>8);report[10]=(uint8_t)(r->mask>>16);
-        report[11]=(revision<<1)|page;report[12]=r->flags;report[13]=(uint8_t)r->previous;report[14]=(uint8_t)(r->previous>>8);report[15]=(uint8_t)(r->previous>>16);
+        report[11]=(revision<<2)|page;report[12]=r->flags;report[13]=(uint8_t)r->previous;report[14]=(uint8_t)(r->previous>>8);report[15]=(uint8_t)(r->previous>>16);
         if(page==0)for(unsigned j=0;j<4;j++)rfh_put_u32(report+16+4*j,r->source[j]);
-        else {
+        else if(page==1u) {
             rfh_put_u32(report+16,r->tx);
             /* Launch-to-RX boundary model: packet airtime plus configured ramp.
              * ISR latency is not calibrated; desktop labels the total estimated. */
             rfh_put_u32(report+20,(r->len+11u)*((RF_AUTO_DEMO_PHY_PROPS==LLE_MODE_PHY_2M)?4u:8u)+24u+(RFH_INPUT_TX_SEND_TIME_UNITS+1u)/2u);
             if(r->flags&4u) {
                 rfh_put_u32(report+24,demo_tmr0_elapsed_cycles(r->rx,r->ready)/g_demo_cycles_per_us);
-                rfh_put_u32(report+28,demo_tmr0_elapsed_cycles(r->ready,r->done)/g_demo_cycles_per_us);
+                rfh_put_u32(report+28,demo_tmr0_elapsed_cycles(r->ready,r->submit)/g_demo_cycles_per_us);
             }
+        } else if(r->flags&4u) {
+            rfh_put_u32(report+16,demo_tmr0_elapsed_cycles(r->submit,r->done)/g_demo_cycles_per_us);
         }
         if(!demo_submit_hid_report(report))return 0;
         short_trace_sent(scan,revision,row,session,page);

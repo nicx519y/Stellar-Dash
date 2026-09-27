@@ -11,8 +11,15 @@ import { useMonitorStream } from "./useMonitorStream";
 
 const LATENCY_ROW_HEIGHT = 30;
 const LATENCY_ROW_OVERSCAN = 5;
-const RF_LATENCY_COLUMNS = ["Button", "ADC", "Logic", "SPI wait", "SPI", "TX", "RF≈", "RX", "USB", "Total≈"];
-const USB_LATENCY_COLUMNS = ["Button", "ADC", "Logic", "SPI wait", "SPI", "CH wait", "USB", "阶段合计"];
+const RF_LATENCY_COLUMNS = ["Button", "ADC", "Logic", "SPI wait", "SPI", "TX", "RF≈", "RX", "USB wait", "USB", "Total≈"];
+const USB_LATENCY_COLUMNS = ["Button", "ADC", "Logic", "SPI wait", "SPI", "USB wait", "USB", "阶段合计"];
+
+function columnTitle(label: string, usb: boolean) {
+  if(label==="Button")return "↓ Press · ↑ Release. Only button state changes are shown, including incomplete measurements.";
+  if(label==="USB")return "USB 端点提交（ACK 前）→ IN 完成中断；不包含提交前等待或 Windows/游戏处理。";
+  if(label==="USB wait")return usb ? "CH585 接纳输入 → USB 端点提交（原 CH wait，包含提交前处理及排队）。" : "RX 报告准备好 → USB 端点提交（包含排队及端点装载）。旧版 RX 未拆分此阶段，需更新 RX 固件。";
+  return undefined;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -69,7 +76,7 @@ function LatencyVirtualList({ rows, usb }: { rows: LatencyTableSnapshot["rows"];
         bg="rgba(92,255,138,0.045)"
       >
         {columns.map((label, index) => (
-          <Text key={index} fontSize="sm" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"} title={index === 0 ? "↓ Press · ↑ Release. Only button state changes are shown, including incomplete measurements." : undefined}>
+          <Text key={index} fontSize="sm" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"} title={columnTitle(label,usb)}>
             {label}
           </Text>
         ))}
