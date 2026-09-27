@@ -19,7 +19,6 @@ export type PreferredGamepad = {
 };
 
 const PRESS_THRESHOLD = 0.5;
-const DEVICE_ID_HINT = /(xbox|xinput|controller|hbox)/i;
 
 const releasedButtonStates = HITBOX_BUTTON_MAP.map((_button, buttonIndex) => ({
   buttonIndex,
@@ -39,14 +38,8 @@ function chooseGamepad(gamepads: Gamepad[], preferred?: PreferredGamepad | null)
     if (exact) return exact;
   }
 
-  const standardGamepads = gamepads.filter((gamepad) => gamepad.mapping === "standard");
-  return (
-    standardGamepads.find((gamepad) => DEVICE_ID_HINT.test(gamepad.id)) ??
-    standardGamepads[0] ??
-    gamepads.find((gamepad) => DEVICE_ID_HINT.test(gamepad.id)) ??
-    gamepads[0] ??
-    null
-  );
+  // No name/order fallback: an unbound browser gamepad has no proven USB/RF identity.
+  return null;
 }
 
 function isPressed(button: GamepadButton | undefined) {

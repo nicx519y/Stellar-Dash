@@ -46,6 +46,8 @@ function resolveServerStoragePaths(
         uploadDir,
         galleryAssetDir,
         firmwareDataFile: path.join(dataDir, 'firmware_list.json'),
+        firmwareReleaseDatabase: path.join(dataDir, 'firmware_releases.sqlite3'),
+        firmwareReleaseAssetDir: path.join(dataDir, 'firmware-release-assets'),
         deviceDataFile: path.join(dataDir, 'device_ids.json'),
         accountDatabase: path.join(dataDir, 'accounts.sqlite3'),
         userAccountDatabase: path.join(dataDir, 'user_accounts.sqlite3'),

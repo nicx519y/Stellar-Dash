@@ -21,6 +21,24 @@ function formatLatencyPart(value: number | undefined) {
   return `${formatLatency(value)}ms`;
 }
 
+// Each duration is measured within one MCU. Summing these stages does not
+// require a clock offset; the uninstrumented inter-MCU handoff is excluded.
+function usbStageTotalUs(row: ButtonLatencyEvent): number | null {
+  const stages = row.relativeStagesUs;
+  if (!stages || stages.length < 6) return null;
+  let total = 0;
+  for (let i = 0; i < 6; i += 1) {
+    const value = stages[i];
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+    total += value;
+  }
+  return total;
+}
+
+function formatStageTotal(totalUs: number) {
+  return `${(totalUs / 1000).toFixed(3)}ms`;
+}
+
 function changedButtonLabels(row: ButtonLatencyEvent) {
   const changed = (row.previousStandardMask ^ row.standardMask) >>> 0;
   const labels: string[] = [];
@@ -48,6 +66,7 @@ function latencyRowKey(row: ButtonLatencyEvent) {
 }
 
 function toLatencyTableRow(row: ButtonLatencyEvent): LatencyTableRow {
+  const stageTotal = row.sourceMode === "USB" ? usbStageTotalUs(row) : null;
   return {
     key: row.traceId ?? latencyRowKey(row),
     relativeTexts: Array.from({length:8},(_,i)=>formatLatencyPart(typeof row.relativeStagesUs?.[i] === "number" ? row.relativeStagesUs[i]!/1000 : undefined)),
@@ -59,7 +78,8 @@ function toLatencyTableRow(row: ButtonLatencyEvent): LatencyTableRow {
     rxEpWaitText: formatLatencyPart(row.rxEpWaitMs),
     rxSubmitText: formatLatencyPart(row.rxSubmitMs),
     rxText: (row.latencyStageFlags ?? 0) & 8 ? "SAT" : formatLatencyPart(row.rxMs),
-    totalText: row.measurement === "usb" ? (row.latencyMs === null ? (row.measurementReason ?? "Incomplete") : `≈${formatLatency(row.latencyMs)}ms`) : row.measurement === "windows" && row.latencyMinMs !== undefined && row.latencyMaxMs !== undefined
+    totalText: row.sourceMode === "USB"
+      ? (stageTotal === null ? "阶段不完整" : formatStageTotal(stageTotal)) : row.measurement === "usb" ? (row.latencyMs === null ? (row.measurementReason ?? "Incomplete") : `≈${formatLatency(row.latencyMs)}ms`) : row.measurement === "windows" && row.latencyMinMs !== undefined && row.latencyMaxMs !== undefined
       ? `${formatLatency(row.latencyMinMs)}–${formatLatency(row.latencyMaxMs)}ms` : row.measurement === "trace" ? (row.measurementReason ?? "No match") : "—",
   };
 }
@@ -86,6 +106,20 @@ function buildLatencyTableSummaryFromVisibleRows(
   visibleRows: ButtonLatencyEvent[],
   status: ButtonLatencyStatusEvent | null,
 ): LatencyTableSummary {
+  if(visibleRows.some(row=>row.sourceMode==="USB") || status?.sourceMode==="USB") {
+    const usb = visibleRows.filter(row => row.sourceMode === "USB");
+    const totals = usb.map(usbStageTotalUs).filter((value): value is number => value !== null);
+    const recent = totals.slice(-50);
+    const average = recent.length ? recent.reduce((sum, value) => sum + value, 0) / recent.length : null;
+    return {
+      visibleCount: usb.length,
+      maxRows: MAX_LATENCY_ROWS,
+      headerText: average === null ? "USB 阶段尚不完整" : formatStageTotal(average),
+      statusText: `${usb.length} 次状态变化 · ${totals.length} 阶段齐全`,
+      splitLabel: "六阶段合计 · 不含交接间隙 · 均值取最近 50 条有效记录",
+      badgeColor: average === null ? "gray" : "green",
+    };
+  }
   const usb = visibleRows.filter(row=>row.measurement === "usb");
   const allComplete = usb.filter(row=>row.latencyMs!==null);
   const complete = allComplete.slice(-50);

@@ -5,6 +5,11 @@ CH585 Maintenance HID collection through WebHID. The browser and STM32 open
 an encrypted direct session without a device certificate or server permit.
 User and administrator sign-in remains on the server for account actions.
 
+The administrator firmware catalog is at `/admin/firmware/`; published releases
+can be browsed without a HID connection at `/firmware/releases/`. See the
+[upload and publishing guide](../../docs/firmware-release-catalog.md) for the
+signed bundle format and local setup. This catalog does not install firmware.
+
 Configuration reconnects use device module fingerprints and an IndexedDB cache.
 The connection overlay stays blocking until validation and synchronization finish.
 See [the cache protocol and validation guide](../../docs/webconfig-config-cache.md).

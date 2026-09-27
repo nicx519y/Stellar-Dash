@@ -38,15 +38,23 @@ static volatile uint8_t s_ready;
 static volatile uint8_t s_tx_armed;
 static volatile uint8_t s_tx_nss_seen;
 static volatile uint8_t s_release_gap_pending;
+static volatile uint32_t s_release_gap_started_cycles;
+static uint32_t s_release_gap_cycles_per_us;
 static volatile uint8_t s_port_fault;
 static volatile uint8_t s_fast_input;
 static volatile uint8_t s_fast_webhid;
+static uint32_t s_input_fault_detail[3];
 
 static void record_overflow(uint8_t cause, uint32_t produced, uint32_t consumed)
 {
     uint32_t detail = cause | ((uint32_t)R8_SPI0_INT_FLAG << 8u) |
         ((uint32_t)R8_SPI0_FIFO_COUNT << 16u) | ((uint32_t)s_tx_armed << 24u);
     usb_webhid_fast_port_detail(detail, produced, consumed);
+    if(s_fast_input && !s_input_fault_detail[0]) {
+        s_input_fault_detail[0]=detail;
+        s_input_fault_detail[1]=produced;
+        s_input_fault_detail[2]=consumed;
+    }
     s_port_fault = USB_BOARD_STATUS_QUEUE_FULL;
 }
 
@@ -61,13 +69,13 @@ static void spi_fifo_clear(void)
     R8_SPI0_CTRL_MOD &= (uint8_t)~RB_SPI_ALL_CLEAR;
 }
 
-static void port_lock(void)
+static USB_WEBHID_RAM void port_lock(void)
 {
     PFIC_DisableIRQ(SPI0_IRQn);
     PFIC_DisableIRQ(GPIO_A_IRQn);
 }
 
-static void port_unlock(void)
+static USB_WEBHID_RAM void port_unlock(void)
 {
     /*
      * shutdown() intentionally leaves both shared IRQs masked.  Late parser
@@ -98,17 +106,17 @@ static void rx_fifo_start(void)
     SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_HF | SPI0_IT_FIFO_OV);
 }
 
-static uint32_t rx_dma_position(void)
+static USB_WEBHID_RAM uint32_t rx_dma_position(void)
 {
     return usb_spi_rx_dma_position(R32_SPI0_DMA_NOW, (uint32_t)s_rx_dma,
                                    s_rx_dma_last_pos);
 }
 
-/* Bootstrap/IAP timing remains unchanged. The fast copier belongs only to
- * the committed WebConfig data plane. */
+/* Bootstrap/IAP timing remains unchanged. Application input and committed
+ * WebConfig use bounded SRAM copies. */
 static void *port_copy(void *destination, const void *source, size_t length)
 {
-    if(s_fast_webhid && usb_webhid_fast_ready())
+    if(s_fast_input || (s_fast_webhid && usb_webhid_fast_ready()))
         return usb_webhid_copy(destination,source,length);
     return memcpy(destination,source,length);
 }
@@ -193,7 +201,7 @@ static void rx_dma_start(uint8_t reset_buffer)
     SPI0_ITCfg(ENABLE, SPI0_IT_DMA_END);
 }
 
-static void rx_dma_collect_locked(void)
+static USB_WEBHID_RAM void rx_dma_collect_locked(void)
 {
     uint8_t flags;
     uint32_t position;
@@ -394,6 +402,7 @@ static void tx_dma_finish(void)
     __asm volatile("fence iorw, iorw" ::: "memory");
     /* W_INT high is the invariant that RX DMA is fully ready for a write. */
     GPIOA_SetBits(USB_SPI_IRQ_PIN);
+    s_release_gap_started_cycles = SysTick->CNTL;
     s_release_gap_pending = 1u;
 }
 
@@ -420,6 +429,8 @@ bool usb_board_link_port_init(void)
     s_tx_armed = 0u;
     s_tx_nss_seen = 0u;
     s_release_gap_pending = 0u;
+    s_release_gap_started_cycles = 0u;
+    s_release_gap_cycles_per_us = GetSysClock() / 1000000u;
     s_port_fault = USB_BOARD_STATUS_OK;
     s_fast_input = 0u;
     s_fast_webhid = 0u;
@@ -450,7 +461,7 @@ void usb_board_link_port_shutdown(void)
     /* Deliberately leave both IRQs disabled after shutdown. */
 }
 
-void usb_board_link_port_process(void)
+USB_WEBHID_RAM void usb_board_link_port_process(void)
 {
     uint8_t nss_high;
 
@@ -476,9 +487,16 @@ void usb_board_link_port_process(void)
         /* PREPARE is acknowledged while the master still uses bootstrap
          * timing. Shorten the release only after the high-speed probe has
          * been committed by both peers, never at the RX-backend switch. */
-        DelayUs(s_fast_webhid && usb_webhid_fast_ready() ? 20u : USB_SPI_RELEASE_GAP_US);
+        const uint32_t gap_cycles = s_release_gap_cycles_per_us *
+            (s_fast_webhid && usb_webhid_fast_ready() ? 20u : USB_SPI_RELEASE_GAP_US);
+        /* Count from W_INT release, without stopping parsing/EP1 service in
+         * the outer loop. Unsigned subtraction also handles CNTL wrap. */
         port_lock();
-        s_release_gap_pending = 0u;
+        if((s_release_gap_pending != 0u) &&
+           ((uint32_t)(SysTick->CNTL - s_release_gap_started_cycles) >= gap_cycles))
+        {
+            s_release_gap_pending = 0u;
+        }
         port_unlock();
         return;
     }
@@ -521,7 +539,7 @@ void usb_board_link_port_process(void)
     port_unlock();
 }
 
-uint16_t usb_board_link_port_read_rx(uint8_t *data, uint16_t capacity)
+USB_WEBHID_RAM uint16_t usb_board_link_port_read_rx(uint8_t *data, uint16_t capacity)
 {
     uint16_t count, first;
     if(!data || !capacity) return 0u;
@@ -624,8 +642,14 @@ bool usb_board_link_port_set_fast_input(bool enabled)
     if((s_tx_armed == 0u) && (nss_is_high() != 0u))
     {
         service_pending_nss_rise_locked();
+        if(enabled && !s_fast_input) memset(s_input_fault_detail,0,sizeof(s_input_fault_detail));
         s_fast_input = enabled ? 1u : 0u;
         rx_backend_start(1u);
+        /* Continuous input is collected by the main loop and before TX
+         * arbitration. Avoid copying each 14-byte frame in an 8-kHz NSS ISR;
+         * DMA_END still counts wraps, and CNT_END retires TX events. */
+        if(enabled) R16_PA_INT_EN &= (uint16_t)~USB_SPI_NSS_PIN;
+        else GPIOA_ITModeCfg(USB_SPI_NSS_PIN, GPIO_ITMode_RiseEdge);
         changed = true;
     }
     port_unlock();
@@ -635,6 +659,13 @@ bool usb_board_link_port_set_fast_input(bool enabled)
 bool usb_board_link_port_is_fast_input(void)
 {
     return (s_ready != 0u) && (s_fast_input != 0u);
+}
+
+void usb_board_link_port_input_fault_detail(uint32_t detail[3])
+{
+    port_lock();
+    memcpy(detail,s_input_fault_detail,sizeof(s_input_fault_detail));
+    port_unlock();
 }
 
 void usb_board_link_port_spi_irq_handler(void)
@@ -657,7 +688,20 @@ void usb_board_link_port_spi_irq_handler(void)
     {
         if(completed != 0u)
         {
-            tx_dma_finish();
+            /* A zero byte counter alone does not hand the bus back. Keep
+             * the FIFO, MISO and DMA buffer owned until the master releases
+             * NSS; retiring here while NSS is low can truncate the tail.
+             * Mask this level source but retain CNT_END for the main-loop
+             * completion check (which also supports input mode without a
+             * per-frame NSS interrupt). */
+            if(nss_is_high() != 0u)
+            {
+                tx_dma_finish();
+            }
+            else
+            {
+                SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END);
+            }
         }
         else if(flags != 0u)
         {

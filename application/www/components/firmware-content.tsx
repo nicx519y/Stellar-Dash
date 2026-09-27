@@ -6,6 +6,7 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { FirmwarePackage } from "@/types/types";
 import { openDialog as openSuccessDialog, updateDialogMessage } from "./dialog-cannot-close";
 import { scheduleAuthorizedReconnect } from "@/lib/device-transport/authorized-reconnect";
+import { FirmwareReleaseCatalog } from './firmware-release-catalog';
 
 enum UpdateStatus {
     Idle = 0,
@@ -254,6 +255,7 @@ export function FirmwareContent() {
 
     return (
         <VStack p="18px" gap="18px">
+            <FirmwareReleaseCatalog />
             <style>
                 {`
                     @keyframes bounce {

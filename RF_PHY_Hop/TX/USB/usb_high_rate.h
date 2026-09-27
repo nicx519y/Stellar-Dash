@@ -25,7 +25,11 @@ void usb_high_rate_init(void);
 void usb_high_rate_reset(void);
 bool usb_high_rate_is_turbo_presentation(void);
 bool usb_high_rate_is_streaming(void);
+/* Native EP1 must remain neutral throughout an HBC1 presentation transition. */
+bool usb_high_rate_native_input_allowed(void);
 uint16_t usb_high_rate_effective_rate_hz(void);
+/* Native input needs only the rate advertised to the HBC1 capability query. */
+void usb_high_rate_note_native_rate(uint8_t input_flags);
 
 bool usb_high_rate_handle_control(const hbox_client_control_v1_t *request,
                                   hbox_client_control_v1_t *response,

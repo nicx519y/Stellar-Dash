@@ -22,9 +22,9 @@ test('native XInput maps every direction/button and trigger threshold', () => {
     state.Gamepad = { wButtons: buttons, bLeftTrigger: left, bRightTrigger: right }; return 0;
   });
   const bits = [0x1000,0x2000,0x4000,0x8000,0x100,0x200,0,0,0x20,0x10,0x40,0x80,1,2,4,8];
-  bits.forEach((bit, index) => { if (bit) { buttons=bit; assert.equal(read().standardMask, 1<<index); } });
-  buttons=0;left=127;right=128;assert.equal(read().standardMask,1<<7);
-  left=255;right=0;assert.equal(read().standardMask,1<<6);
+  bits.forEach((bit, index) => { if (bit) { buttons=bit; assert.equal(read(0).standardMask, 1<<index); } });
+  buttons=0;left=127;right=128;assert.equal(read(0).standardMask,1<<7);
+  left=255;right=0;assert.equal(read(0).standardMask,1<<6);
 });
 
 test('unplug clears pressed state; same slot can reconnect with a held key', () => {
@@ -33,21 +33,24 @@ test('unplug clears pressed state; same slot can reconnect with a held key', () 
     if(!connected || slot!==2)return 1167;
     state.Gamepad={wButtons:2,bLeftTrigger:0,bRightTrigger:0};return 0;
   });
-  assert.equal(read().standardMask,1<<13);
-  connected=false;assert.equal(read().standardMask,0);assert.equal(read().connected,false);
-  connected=true;assert.equal(read().standardMask,1<<13);
+  assert.equal(read(2).standardMask,1<<13);
+  connected=false;assert.equal(read(2).standardMask,0);assert.equal(read(2).connected,false);
+  connected=true;assert.equal(read(2).standardMask,1<<13);
 });
 
-test('selected XInput slot is stable; failed slots do not prevent discovery', () => {
+test('explicit XInput slot never falls back to another connected controller', () => {
   const online=new Set([2]);
   const read=createNativeGamepadReader((slot,state)=>{
     if(slot===1)throw Error('transient');
     if(!online.has(slot))return 1167;
     state.Gamepad={wButtons:1,bLeftTrigger:0,bRightTrigger:0};return 0;
   });
-  assert.equal(read().deviceId,'Windows XInput 3');
-  online.add(0);assert.equal(read().deviceId,'Windows XInput 3');
-  online.delete(2);assert.equal(read().deviceId,'Windows XInput 1');
+  assert.equal(read(2).deviceId,'Windows XInput 3');
+  online.add(0);assert.equal(read(2).deviceId,'Windows XInput 3');
+  online.delete(2);assert.equal(read(2).connected,false);
+  assert.equal(read(null).connected,false);
+  assert.equal(read(1).connected,false);
+  assert.equal(read(4).connected,false);
 });
 
 test('canvas mapping works without browser Gamepad access and releases stale state', () => {

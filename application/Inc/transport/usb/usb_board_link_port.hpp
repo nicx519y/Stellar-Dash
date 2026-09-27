@@ -20,6 +20,7 @@ bool USBBoardLinkPort_TryShutdown();
 // RF wake only: one real SELECT_ROLE exchange with a total 20-ms budget.
 bool USBBoardLinkPort_SelectRfRoleOnce();
 bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength);
+bool USBBoardLinkPort_LastMonitorTiming(uint32_t *start, uint32_t *end);
 bool USBBoardLinkPort_Transact(const uint8_t *frame,
                                uint8_t frameLength,
                                uint8_t *response,

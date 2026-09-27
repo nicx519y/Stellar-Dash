@@ -85,6 +85,7 @@ public:
     bool isVoltageValid() const;
     bool isFastCharging() const;
     bool isLowBattery() const;
+    bool isPolling() const;
     bool prepareSystemSleep();
     bool restoreSystemWake();
 
@@ -97,6 +98,12 @@ private:
     void configureSafetyGpios();
     bool initializeDevices();
     void refreshSnapshot(bool clearGaugeAlert);
+    void publishSnapshot(const BQ25895_State& charger_state,
+                         const MAX17048_State& gauge_state,
+                         bool charger_ok, bool gauge_ok);
+    void stepPoll(uint32_t now);
+    void beginChargerJob(BQ25895_JobKind kind, BQ25895_InputProfile profile);
+    void beginGaugeJob(MAX17048_JobKind kind);
     void processLowVoltageProtection();
     void setChargingEnabled(bool enabled);
     bool isFastChargeDetected() const;
@@ -105,6 +112,26 @@ private:
     BQ25895_Handle charger_{};
     MAX17048_Handle gauge_{};
     PowerSnapshot snapshot_{};
+
+    enum class PollPhase : uint8_t {
+        Idle, InitCharger, WaitAdc, ReadCharger, InitGauge, ReadGauge,
+        ClearGauge, Profile, ConfigureProfile, VerifyProfile, Publish
+    };
+    PollPhase poll_phase_ = PollPhase::Idle;
+    BQ25895_Job charger_job_{};
+    MAX17048_Job gauge_job_{};
+    BQ25895_State poll_charger_{};
+    MAX17048_State poll_gauge_{};
+    uint32_t pending_irq_flags_ = 0;
+    uint32_t poll_started_ms_ = 0;
+    uint32_t adc_started_ms_ = 0;
+    uint32_t adc_poll_ms_ = 0;
+    uint8_t poll_fault_ = 0;
+    bool poll_charger_ok_ = false;
+    bool poll_gauge_ok_ = false;
+    bool poll_clear_gauge_ = false;
+    bool poll_recovery_ = false;
+    bool profile_repair_attempted_ = false;
 
     volatile uint32_t irq_flags_ = 0;
     uint32_t last_poll_ms_ = 0;

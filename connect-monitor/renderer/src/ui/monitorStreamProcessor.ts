@@ -198,6 +198,8 @@ function isHopActivePacket(packet: PacketEvent) {
 }
 
 export class MonitorStreamProcessor {
+  private devices: MonitorStreamSnapshot["devices"] = [];
+  private usb: MonitorStreamSnapshot["usb"] = {};
   private events: MonitorEvent[] = [];
   private packetRows: PacketRow[] = [];
   private inputPacketRows: PacketRow[] = [];
@@ -222,6 +224,31 @@ export class MonitorStreamProcessor {
     if (batch.length === 0) return;
 
     this.events = appendTrim(this.events, batch, MAX_EVENTS);
+    for(const event of batch) {
+      if(event.kind==="device_status") {
+        const key=event.deviceId??event.mode;
+        this.devices=[...this.devices.filter(d=>(d.deviceId??d.mode)!==key),event].slice(-32);
+      }
+      if(event.sourceMode!=="USB" && !(event.kind==="device_status" && event.mode==="USB"))continue;
+      const key=event.deviceId??"legacy-usb";
+      let current=this.usb[key]??{statistics:null,status:null,rates:[],latency:{items:[],status:null}};
+      if(event.session!==undefined && current.session!==event.session) {
+        current={...current,session:event.session,statistics:null,rates:[],latency:{items:[],status:null}};
+      }
+      if(event.kind==="power_status")current={...current,powerStatus:event};
+      if(event.kind==="usb_statistics") {
+        current={...current,statistics:event,rates:appendTrim(current.rates,event.rateHz===null?[]:[{tMs:event.timestampMs,hz:event.rateHz}],500)};
+      } else if(event.kind==="device_status")current={...current,status:event};
+      else if(event.kind==="button_latency") {
+        const old=current.latency.items;
+        const found=old.some(r=>r.traceId===event.traceId);
+        current={...current,latency:{...current.latency,items:found?old.map(r=>r.traceId===event.traceId?event:r):appendTrim(old,[event],300)}};
+      } else if(event.kind==="button_latency_status")current={...current,latency:{...current.latency,status:event}};
+      this.usb={...this.usb,[key]:current};
+      if(Object.keys(this.usb).length>16) {const first=Object.keys(this.usb)[0];delete this.usb[first];}
+    }
+    // RF histories retain their existing semantics. USB has a separate device/session history.
+    batch=batch.filter(e=>e.sourceMode!=="USB" && e.kind!=="usb_statistics");
     this.packetRows = appendTrim(
       this.packetRows,
       batch.filter(isPacket).map((p) => ({ ...p, id: this.formatId("pkt", p.timestampMs) })),
@@ -286,6 +313,7 @@ export class MonitorStreamProcessor {
 
   clear(): void {
     const empty = createEmptyMonitorStreamSnapshot();
+    this.devices=empty.devices;this.usb=empty.usb;
     this.events = empty.events;
     this.packetRows = [];
     this.inputPacketRows = empty.packets.items;
@@ -310,6 +338,8 @@ export class MonitorStreamProcessor {
   snapshot(): MonitorStreamSnapshot {
     const windowSec = 30;
     return {
+      devices:this.devices,
+      usb:this.usb,
       events: this.events,
       packets: {
         items: this.packetRows,

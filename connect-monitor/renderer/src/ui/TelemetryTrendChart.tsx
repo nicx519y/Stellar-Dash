@@ -116,9 +116,11 @@ export function TelemetryTrendChart({
   rateSeries,
   lossSeries,
   channelSwitches,
+  showRfMetrics = true,
   height = 360,
 }: {
   rateSeries: RatePoint[];
+  showRfMetrics?: boolean;
   lossSeries: LossPoint[];
   channelSwitches: ChannelSwitchRow[];
   height?: number | string;
@@ -248,11 +250,11 @@ export function TelemetryTrendChart({
           top: 0,
           right: 0,
           textStyle: { color: "#b7c4bd" },
-          data: ["Report Rate", "Input Deficit", "Channel Events"],
+          data: showRfMetrics ? ["Report Rate", "Input Deficit", "Channel Events"] : ["Report Rate"],
         },
         grid: {
           left: 54,
-          right: 58,
+          right: showRfMetrics ? 58 : 18,
           top: 38,
           bottom: 64,
         },
@@ -316,6 +318,7 @@ export function TelemetryTrendChart({
           {
             type: "value",
             name: "%",
+            show: showRfMetrics,
             min: 0,
             max: chartData.maxLoss,
             axisLabel: { color: "#a0aec0", formatter: "{value}%" },
@@ -359,7 +362,7 @@ export function TelemetryTrendChart({
             name: "Input Deficit",
             type: "line",
             yAxisIndex: 1,
-            data: chartData.lossData,
+            data: showRfMetrics ? chartData.lossData : [],
             showSymbol: false,
             symbol: "none",
             smooth: false,
@@ -370,7 +373,7 @@ export function TelemetryTrendChart({
             name: "Channel Events",
             type: "scatter",
             yAxisIndex: 2,
-            data: chartData.eventData,
+            data: showRfMetrics ? chartData.eventData : [],
             symbol: "pin",
             symbolSize: 24,
             itemStyle: {
@@ -395,7 +398,7 @@ export function TelemetryTrendChart({
     requestAnimationFrame(() => {
       suppressZoomEventRef.current = false;
     });
-  }, [chartData]);
+  }, [chartData, showRfMetrics]);
 
   return (
     <Box

@@ -1,4 +1,5 @@
 export interface HidDeviceInfo {
+  path?: string;
   vendorId?: number;
   productId?: number;
   usagePage?: number;
@@ -17,6 +18,7 @@ export interface HidTarget {
 
 const DEFAULT_TELEMETRY_USB_IDS = [
   { vendorId: 0x045e, productId: 0x028e },
+  { vendorId: 0xcafe, productId: 0x4024 },
   { vendorId: 0x045e, productId: 0x02ff },
   { vendorId: 0x1a86, productId: 0xfe0c },
 ] as const;
@@ -31,12 +33,21 @@ function isLikelyHBoxDevice(device: HidDeviceInfo): boolean {
   return textIncludes(device.manufacturer, "hbox") || textIncludes(device.product, "hbox");
 }
 
-function isWebConfigInterface(device: HidDeviceInfo): boolean {
+export function isWebConfigInterface(device: HidDeviceInfo): boolean {
   return (
     (device.vendorId === WEB_CONFIG_USB_ID.vendorId && device.productId === WEB_CONFIG_USB_ID.productId) ||
     textIncludes(device.product, "webconfig") ||
     textIncludes(device.serialNumber, "hbox-webconfig")
   );
+}
+
+/** A hardware role hint is not proof of telemetry protocol support. */
+export function deviceRole(device: HidDeviceInfo): "USB" | "RF24G" | null {
+  if (isWebConfigInterface(device)) return null;
+  if (device.vendorId === 0xcafe && device.productId === 0x4024) return "USB";
+  if ((device.vendorId === 0x045e && device.productId === 0x02ff) ||
+      (device.vendorId === 0x1a86 && device.productId === 0xfe0c)) return "RF24G";
+  return null;
 }
 
 function isKnownTelemetryUsbId(device: HidDeviceInfo): boolean {
@@ -53,7 +64,10 @@ function isLikelyTelemetryInterface(device: HidDeviceInfo): boolean {
         ? device.interfaceNumber
         : undefined;
 
-  if (device.usagePage === 0xff00) return true;
+  const role = deviceRole(device);
+  if (role && interfaceNumber !== undefined && interfaceNumber >= 0 &&
+      interfaceNumber !== (role === "USB" ? 4 : 3)) return false;
+  if (device.usagePage === 0xff00) return device.usage === undefined || device.usage === 1;
   if (interfaceNumber === 3 && isLikelyHBoxDevice(device)) return true;
   return false;
 }

@@ -18,8 +18,12 @@ constexpr size_t kMaximumSerializedResponseBytes = 16u * 1024u;
  * which copies the result into its outbound storage before another request is
  * dispatched. Keeping this buffer out of newlib's 32 KiB heap avoids a second
  * near-16 KiB allocation while the command handler's cJSON tree is alive.
+ * This CPU-only scratch is cleared before every serialization and on session
+ * reset. The existing D2 NOLOAD area needs no startup initialization for it;
+ * keep AXI SRAM available for executable code and ordinary static state.
  */
-std::array<char, kMaximumSerializedResponseBytes + 5u> serializedResponse = {};
+__attribute__((section(".DMA_Section.WebHidRpcResponse"), aligned(32)))
+std::array<char, kMaximumSerializedResponseBytes + 5u> serializedResponse;
 
 bool commandIn(const std::string &command,
                const char *const *values,

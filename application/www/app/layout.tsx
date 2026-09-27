@@ -155,8 +155,8 @@ function RouteAwareContent({ children }: { children: React.ReactNode }) {
         pathname === '/webhid-trace/';
     const isEmailVerification = pathname === '/auth/verify' ||
         pathname === '/auth/verify/';
-    const isAdministration = pathname === '/admin/users' ||
-        pathname === '/admin/users/';
+    const isAdministration = pathname.startsWith('/admin/');
+    const isFirmwareCatalog = pathname === '/firmware/releases' || pathname === '/firmware/releases/';
 
     // The trace viewer is deliberately outside GamepadConfigProvider. It only
     // receives same-origin trace broadcasts and must never open or lease HID.
@@ -169,7 +169,7 @@ function RouteAwareContent({ children }: { children: React.ReactNode }) {
 
     // Email verification must remain usable without opening, requesting, or
     // leasing a HID device.
-    if (isEmailVerification || isAdministration) {
+    if (isEmailVerification || isAdministration || isFirmwareCatalog) {
         return (
             <LanguageProvider>
                 <UserAuthProvider>

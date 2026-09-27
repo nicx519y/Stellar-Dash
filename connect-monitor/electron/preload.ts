@@ -1,9 +1,20 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { HitboxBounds, HitboxOptions, HitboxSummary, LatencyTableBounds } from "../shared/monitor-types";
+import type { BindingChoice, DeviceBindings } from "../shared/device-binding";
+import type { ConnectionMode } from "../shared/monitor-types";
 
 contextBridge.exposeInMainWorld("connectMonitorApi", {
   getVersion: () => "0.1.0",
   getNativeGamepad: () => ipcRenderer.invoke("hitbox:getNativeGamepad"),
+  getHitboxOptions: () => ipcRenderer.invoke("hitbox:getOptions"),
+  getDeviceBindings: () => ipcRenderer.invoke("devices:get"),
+  setDeviceSource: (mode:ConnectionMode) => ipcRenderer.invoke("devices:source",mode),
+  selectDevices: (mode:ConnectionMode,choice:BindingChoice|null) => ipcRenderer.invoke("devices:select",mode,choice),
+  onDeviceBindings: (handler:(value:DeviceBindings)=>void) => {
+    const listener=(_event:unknown,value:DeviceBindings)=>handler(value);
+    ipcRenderer.on("devices:changed",listener);
+    return ()=>ipcRenderer.off("devices:changed",listener);
+  },
   onEvents: (handler: (events: unknown[]) => void | Promise<void>) => {
     const listener = async (_event: unknown, events: unknown[], sequence: number) => {
       try { await handler(events); }

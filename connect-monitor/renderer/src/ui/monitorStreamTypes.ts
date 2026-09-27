@@ -1,4 +1,6 @@
 import type {
+  DeviceStatusEvent,
+  UsbStatisticsEvent,
   ButtonLatencyEvent,
   ButtonLatencyStatusEvent,
   ErrorEvent,
@@ -60,7 +62,15 @@ export type ButtonLatencySummary = {
   status: ButtonLatencyStatusEvent | null;
 };
 
+export type UsbStreamSnapshot = {
+  session?: number; powerStatus?: PowerStatusEvent | null;
+  statistics: UsbStatisticsEvent | null; status: DeviceStatusEvent | null; rates: RatePoint[];
+  latency: ButtonLatencySummary;
+};
+
 export type MonitorStreamSnapshot = {
+  devices: DeviceStatusEvent[];
+  usb: Record<string, UsbStreamSnapshot>;
   events: MonitorEvent[];
   packets: PacketSummary;
   errors: ErrorSummary;
@@ -94,6 +104,8 @@ export type MonitorStreamWorkerResponse = {
 
 export function createEmptyMonitorStreamSnapshot(): MonitorStreamSnapshot {
   return {
+    devices: [],
+    usb: {},
     events: [],
     packets: {
       items: [],

@@ -3,6 +3,15 @@ import { Worker } from "node:worker_threads";
 import type { DebugConfig, DebugConfigStatus, MonitorEvent } from "../../shared/monitor-types";
 import type { FastRequest } from "../../shared/fast-recovery";
 import { buildFastControl } from "./fast-recovery-control";
+import type { TelemetryDevice } from "../../shared/device-binding";
+
+let telemetryTargets: {USB:string|null;RF24G:string|null} = {USB:null,RF24G:null};
+export function selectTelemetryDevices(targets: typeof telemetryTargets): void {
+  telemetryTargets={...targets};
+  if(session)session.revision++;
+  status={...status,state:"Applying",message:"设备绑定已变化，等待新设备配置"};
+  session?.worker?.postMessage({type:"binding",targets:telemetryTargets});
+}
 
 type Result = { ok: boolean; message?: string };
 type Session = {
@@ -64,7 +73,7 @@ export function sendFastRecovery(request: FastRequest): Promise<Result> {
   });
 }
 
-export function startHidTelemetrySource(publish: (event: MonitorEvent) => void, options: { onControlReady?: () => void } = {}): () => void {
+export function startHidTelemetrySource(publish: (event: MonitorEvent) => void, options: { onControlReady?: () => void; onDevices?: (devices:TelemetryDevice[])=>void } = {}): () => void {
   const current: Session = { worker: null, stopped: false, configBusy: false, sentRevision: -1, revision: 0, pendingConfig: null, pending: new Map() };
   session = current;
   status = { state: "Idle", rxStatus: "Idle", txStatus: "Idle", lastSeq: 0 };
@@ -83,7 +92,8 @@ export function startHidTelemetrySource(publish: (event: MonitorEvent) => void, 
     current.worker = worker;
     worker.on("message", message => {
       if (current.stopped || session !== current) return;
-      if (message.type === "ready") options.onControlReady?.();
+      if (message.type === "devices") options.onDevices?.(message.devices);
+      else if (message.type === "ready") options.onControlReady?.();
       else if (message.type === "events") {
         try { for (const event of message.batch as MonitorEvent[]) publish(event); }
         finally { worker.postMessage({ type: "ack", sequence: message.sequence }); }
@@ -101,12 +111,14 @@ export function startHidTelemetrySource(publish: (event: MonitorEvent) => void, 
     const failed = (message: string) => {
       if (current.stopped || session !== current) return;
       fail(message);
+      options.onDevices?.([]);
       publish({ kind: "device_status", timestampMs: Date.now(), mode: "RF24G", state: "Disconnected", statusLabel: message, targetRateHz: 0, actualRateHz: 0 });
       cancelRequests();
       current.stopped = true;
     };
     worker.on("error", error => failed(`HID worker: ${error.message}`));
     worker.on("exit", code => { current.worker = null; failed(`HID reader exited (${code}); pause/resume to retry`); });
+    worker.postMessage({type:"binding",targets:telemetryTargets});
     dispatchConfig(current);
   }).catch(error => {
     if (session === current && !current.stopped) { fail(String(error)); current.stopped = true; cancelRequests(); }
@@ -114,6 +126,7 @@ export function startHidTelemetrySource(publish: (event: MonitorEvent) => void, 
 
   return () => {
     current.stopped = true;
+    options.onDevices?.([]);
     if (session === current) { session = null; fail("HID reader stopped"); }
     cancelRequests();
     const worker = current.worker;

@@ -30,6 +30,7 @@ bool usb_board_link_port_take_fault(uint8_t *fault);
 bool usb_board_link_port_queue_event(const uint8_t *frame, uint8_t length);
 bool usb_board_link_port_set_fast_input(bool enabled);
 bool usb_board_link_port_is_fast_input(void);
+void usb_board_link_port_input_fault_detail(uint32_t detail[3]);
 
 #ifdef __cplusplus
 }

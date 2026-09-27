@@ -49,8 +49,10 @@ HANDLE findNativeControl(std::string& error) {
     PHIDP_PREPARSED_DATA preparsed = nullptr;
     HIDP_CAPS caps{};
     const bool accepted = HidD_GetAttributes(candidate, &attributes) &&
-        attributes.VendorID == HBOX_CLIENT_NATIVE_VID &&
-        attributes.ProductID == HBOX_CLIENT_NATIVE_PID &&
+        ((attributes.VendorID == HBOX_CLIENT_NATIVE_VID &&
+          attributes.ProductID == HBOX_CLIENT_NATIVE_PID) ||
+         (attributes.VendorID == HBOX_CLIENT_COMPOSITE_VID &&
+          attributes.ProductID == HBOX_CLIENT_COMPOSITE_PID)) &&
         HidD_GetPreparsedData(candidate, &preparsed) &&
         HidP_GetCaps(preparsed, &caps) == HIDP_STATUS_SUCCESS &&
         caps.UsagePage == 0xFF00u && caps.Usage == 0x0001u &&

@@ -7,10 +7,12 @@ import { AsyncMonitorEventStore } from "./pipeline/async-event-store";
 import { BoundedDelivery } from "./pipeline/bounded-delivery";
 import { startRuntimeDiagnostics } from "./runtime-diagnostics";
 import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
-import { getHidDebugConfigStatus, getHidQueueStats, sendDebugConfig, sendFastRecovery, startHidTelemetrySource, waitForHidShutdown } from "./sources/hid-telemetry-client";
+import { getHidDebugConfigStatus, getHidQueueStats, sendDebugConfig, sendFastRecovery, startHidTelemetrySource, waitForHidShutdown, selectTelemetryDevices } from "./sources/hid-telemetry-client";
 import { SerialLogManager } from "./sources/serial-log-manager";
 import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
-import { readNativeGamepad } from "./sources/native-gamepad";
+import { GamepadService } from "./sources/gamepad-service";
+import type { BindingChoice, TelemetryDevice } from "../shared/device-binding";
+import type { ConnectionMode, MonitorEvent } from "../shared/monitor-types";
 import type {
   DebugConfig,
   DebugConfigStatus,
@@ -61,6 +63,62 @@ let debugConfig: DebugConfig = {
   autoHopEnabled: true,
   manualChannel: null,
 };
+
+const bindingPath = path.join(app.getPath("userData"), "device-bindings.json");
+const gamepads = new GamepadService(refreshBindings);
+let bindingSignature = "";
+let controlBindingSignature = "";
+let telemetryViewSignature = "";
+let compactHitbox = true;
+let saveBindingTail: Promise<void> = Promise.resolve();
+function hitboxOptions(): HitboxOptions {
+  const binding=gamepads.registry.binding(gamepads.registry.activeSource);
+  return {compact:compactHitbox,sourceMode:binding.sourceMode,bindingGeneration:binding.generation};
+}
+function refreshBindings() {
+  if(isShuttingDown)return;
+  const state=gamepads.registry.snapshot();
+  const targets={USB:state.bindings.USB.telemetryAvailable?state.bindings.USB.telemetryId:null,
+    RF24G:state.bindings.RF24G.telemetryAvailable?state.bindings.RF24G.telemetryId:null};
+  const controls=JSON.stringify(targets);
+  if(controls!==controlBindingSignature) {controlBindingSignature=controls;selectTelemetryDevices(targets);}
+  const viewSignature=JSON.stringify([targets,state.telemetry.filter(d=>d.id===targets.USB||d.id===targets.RF24G).map(d=>[d.id,d.generation])]);
+  if(telemetryViewSignature && telemetryViewSignature!==viewSignature) {
+    // Keep persisted logs, but never display aggregates from the previous physical peer.
+    mainEvents.clear();latencyEvents.clear();broadcastMonitorCleared();
+  }
+  telemetryViewSignature=viewSignature;
+  gamepads.select();
+  const signature=JSON.stringify(state);
+  if(signature===bindingSignature)return;
+  bindingSignature=signature;
+  mainWindow?.webContents.send("devices:changed",state);
+  latencyTableView?.webContents.send("devices:changed",state);
+  hitboxView?.webContents.send("hitbox:options",hitboxOptions());
+}
+function telemetryDevicesChanged(devices:TelemetryDevice[]) {
+  gamepads.registry.telemetry=devices;
+  refreshBindings();
+}
+function isCurrentDeviceEvent(event:MonitorEvent) {
+  if(!event.deviceId)return true;
+  const mode=event.sourceMode??(event.kind==="device_status"?event.mode:undefined);
+  if(!mode)return true;
+  const binding=gamepads.registry.binding(mode);
+  const identity=gamepads.registry.telemetry.find(d=>d.id===event.deviceId);
+  return binding.telemetryId===event.deviceId && (event.deviceGeneration===undefined || identity?.generation===event.deviceGeneration);
+}
+function persistBindings() {
+  // XInput slots are deliberately session-only; they must never survive restart.
+  const choices=Object.fromEntries(Object.entries(gamepads.registry.choices).filter(([,c])=>!c.gamepadId?.startsWith("xinput:")));
+  const json=JSON.stringify(choices,null,2);
+  saveBindingTail=saveBindingTail.catch(()=>{}).then(async()=>{
+    await fs.mkdir(path.dirname(bindingPath),{recursive:true});
+    await fs.writeFile(bindingPath+".tmp",json,"utf8");
+    await fs.rename(bindingPath+".tmp",bindingPath);
+  });
+  return saveBindingTail;
+}
 
 type ExportMarkdownRequest = {
   suggestedFileName?: string;
@@ -129,7 +187,7 @@ function sanitizeHitboxBounds(value: unknown): SanitizedHitboxBounds | null {
   return {
     rect: { x, y, width: Math.max(1, width), height: Math.max(1, height) },
     visible,
-    options: { compact: bounds?.compact !== false },
+    options: { ...hitboxOptions(), compact: bounds?.compact !== false },
   };
 }
 
@@ -164,6 +222,9 @@ function sanitizeHitboxSummary(value: unknown): HitboxSummary {
   const timestampMs = sanitizeNumber(summary?.timestampMs);
   return {
     connected: Boolean(summary?.connected),
+    sourceMode: summary?.sourceMode === "USB" ? "USB" : "RF24G",
+    bindingGeneration: typeof summary?.bindingGeneration === "number" ? summary.bindingGeneration : -1,
+    reason: typeof summary?.reason === "string" ? summary.reason.slice(0,256) : "",
     deviceId: typeof summary?.deviceId === "string" && summary.deviceId.length > 0 ? summary.deviceId.slice(0, 256) : null,
     pressedCount: Math.max(0, Math.min(32, Math.round(pressedCount ?? 0))),
     timestampMs: timestampMs ?? Date.now(),
@@ -241,6 +302,7 @@ function sanitizeDebugConfig(value: unknown): DebugConfig {
     hidTelemetryEnabled: Boolean(cfg?.hidTelemetryEnabled),
     latencyMeasurementEnabled: cfg?.latencyMeasurementEnabled === true,
     hidPeriodMs,
+    sourceMode: cfg?.sourceMode === "USB" ? "USB" : "RF24G",
     autoHopEnabled,
     manualChannel,
   };
@@ -267,19 +329,21 @@ function applyDebugConfigToDevice(): DebugConfigStatus {
 async function shutdownAndClearDatabase(): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
+  gamepads.stop();
   stopSources();
   serialLogManager.dispose();
   clearRuntimeDatabase();
   serialLogs.clear();
   stopDiagnostics?.();
   await Promise.race([
-    Promise.allSettled([eventStore.close(), waitForHidShutdown()]),
+    Promise.allSettled([eventStore.close(), waitForHidShutdown(),saveBindingTail]),
     new Promise(resolve => setTimeout(resolve, 2500)),
   ]);
 }
 
 function createWindow(): void {
   const win = new BrowserWindow({
+    title: "Conn-Monitor",
     width: 1800,
     height: 1000,
     minWidth: 1800,
@@ -353,17 +417,31 @@ app.whenReady().then(async () => {
     history: eventStore.stats(), hid: getHidQueueStats(),
   }));
   await loadDebugConfig();
+  gamepads.registry.activeSource=debugConfig.sourceMode??"RF24G";
+  try {
+    const saved=JSON.parse(await fs.readFile(bindingPath,"utf8"));
+    for(const mode of ["USB","RF24G"] as const) {
+      const choice=saved[mode];
+      if(choice && (choice.gamepadId===null || typeof choice.gamepadId==="string") &&
+          (choice.telemetryId===null || typeof choice.telemetryId==="string") && !choice.gamepadId?.startsWith("xinput:"))
+        gamepads.registry.choices[mode]={gamepadId:choice.gamepadId,telemetryId:choice.telemetryId};
+    }
+  } catch {}
+  if(process.env.MONITOR_MOCK!=="1") {
+    const helper=path.join(__dirname,"..","native","xora-gamepad-helper.exe").replace(/app\.asar([\\/])/i,"app.asar.unpacked$1");
+    gamepads.start(helper);
+  }
   clearRuntimeDatabase();
   if (process.env.MONITOR_MOCK === "1") {
     bootstrapMockInput();
   }
   stopHidSource = startHidTelemetrySource(
     (event) => {
-      if (!paused) {
+      if (!paused && isCurrentDeviceEvent(event)) {
         eventBus.publish(event);
       }
     },
-    { onControlReady: applyDebugConfigToDevice },
+    { onControlReady: applyDebugConfigToDevice, onDevices:telemetryDevicesChanged },
   );
   if (process.env.MONITOR_SERIAL_ENABLE === "1" || process.env.MONITOR_SERIAL_PATH) {
     stopSerialSource = startSerialTelemetrySource((event) => {
@@ -374,8 +452,8 @@ app.whenReady().then(async () => {
   }
   eventBus.subscribe((event) => {
     mainEvents.enqueue([event]);
-    // The embedded table only consumes latency rows/status, not entire charts.
-    if (event.kind === "button_latency" || event.kind === "button_latency_status") {
+    // The embedded table needs device lifecycle to select the same USB session, plus latency rows.
+    if (event.kind === "device_status" || event.kind === "button_latency" || event.kind === "button_latency_status") {
       latencyEvents.enqueue([event]);
     }
   });
@@ -383,7 +461,7 @@ app.whenReady().then(async () => {
 });
 
 ipcMain.handle("monitor:getSnapshot", (_evt, limit?: number) => {
-  return eventBus.snapshot(typeof limit === "number" ? limit : 500);
+  return eventBus.snapshot(typeof limit === "number" ? limit : 500).filter(isCurrentDeviceEvent);
 });
 
 ipcMain.handle("monitor:queryEvents", (_evt, beforeTimestampMs: number, limit?: number) => {
@@ -415,11 +493,11 @@ ipcMain.handle("monitor:setPaused", (_evt, nextPaused: boolean) => {
   if (!stopHidSource) {
     stopHidSource = startHidTelemetrySource(
       (event) => {
-        if (!paused) {
+        if (!paused && isCurrentDeviceEvent(event)) {
           eventBus.publish(event);
         }
       },
-      { onControlReady: applyDebugConfigToDevice },
+      { onControlReady: applyDebugConfigToDevice, onDevices:telemetryDevicesChanged },
     );
   }
   if (!stopSerialSource && (process.env.MONITOR_SERIAL_ENABLE === "1" || process.env.MONITOR_SERIAL_PATH)) {
@@ -522,6 +600,7 @@ ipcMain.on("hitbox:setBounds", (event, bounds: unknown) => {
 
   hitboxView.setBounds(nextBounds.rect);
   hitboxView.setVisible(true);
+  compactHitbox=nextBounds.options.compact;
   hitboxView.webContents.send("hitbox:options", nextBounds.options);
 });
 
@@ -544,12 +623,38 @@ ipcMain.on("latencyTable:setBounds", (event, bounds: unknown) => {
 
 ipcMain.on("hitbox:summary", (event, summary: unknown) => {
   if (!mainWindow || !hitboxView || event.sender !== hitboxView.webContents) return;
-  mainWindow.webContents.send("hitbox:summary", sanitizeHitboxSummary(summary));
+  const value=sanitizeHitboxSummary(summary);
+  const binding=gamepads.registry.binding(gamepads.registry.activeSource);
+  if(value.sourceMode!==binding.sourceMode || value.bindingGeneration!==binding.generation)return;
+  mainWindow.webContents.send("hitbox:summary", value);
 });
 
 ipcMain.handle("hitbox:getNativeGamepad", (event) => {
   if (!hitboxView || event.sender !== hitboxView.webContents) return null;
-  return readNativeGamepad();
+  return gamepads.registry.read(gamepads.readings);
+});
+
+ipcMain.handle("hitbox:getOptions",event=>{
+  if(event.sender!==hitboxView?.webContents)return null;
+  return hitboxOptions();
+});
+ipcMain.handle("devices:get",event=>{
+  if(event.sender!==mainWindow?.webContents && event.sender!==latencyTableView?.webContents)return null;
+  return gamepads.registry.snapshot();
+});
+ipcMain.handle("devices:source",(event,mode:ConnectionMode)=>{
+  if(event.sender!==mainWindow?.webContents || (mode!=="USB" && mode!=="RF24G"))return;
+  gamepads.registry.activeSource=mode;
+  refreshBindings();
+});
+ipcMain.handle("devices:select",async(event,mode:ConnectionMode,choice:BindingChoice|null)=>{
+  if(event.sender!==mainWindow?.webContents || (mode!=="USB" && mode!=="RF24G"))throw new Error("Invalid source");
+  if(choice && ((choice.gamepadId!==null && typeof choice.gamepadId!=="string") ||
+    (choice.telemetryId!==null && typeof choice.telemetryId!=="string")))throw new Error("Invalid selection");
+  gamepads.registry.choose(mode,choice);
+  refreshBindings();
+  await persistBindings();
+  return gamepads.registry.snapshot();
 });
 
 ipcMain.on("monitor:events:ready", (event) => {

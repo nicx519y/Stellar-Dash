@@ -1,4 +1,6 @@
 import type { FastRequest } from "../../shared/fast-recovery";
+import type { BindingChoice, DeviceBindings } from "../../shared/device-binding";
+import type { ConnectionMode } from "../../shared/monitor-types";
 import type {
   DebugConfig,
   DebugConfigStatus,
@@ -17,6 +19,11 @@ declare global {
     connectMonitorApi: {
       getVersion(): string;
       getNativeGamepad(): Promise<NativeGamepadSnapshot | null>;
+      getHitboxOptions(): Promise<HitboxOptions|null>;
+      getDeviceBindings(): Promise<DeviceBindings>;
+      setDeviceSource(mode:ConnectionMode):Promise<void>;
+      selectDevices(mode:ConnectionMode,choice:BindingChoice|null):Promise<DeviceBindings>;
+      onDeviceBindings(handler:(value:DeviceBindings)=>void):()=>void;
       onEvents(handler: (events: MonitorEvent[]) => void | Promise<void>): () => void;
       onMonitorCleared(handler: () => void): () => void;
       getSnapshot(limit?: number): Promise<MonitorEvent[]>;

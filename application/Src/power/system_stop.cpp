@@ -2,6 +2,7 @@
 #include "system_stop.hpp"
 #include "stop_timer_timing.hpp"
 #include "board_cfg.h"
+#include "power_i2c_bus.h"
 #include "stm32h7xx_hal.h"
 
 extern "C" void PowerManager_NotifyChargerIrqFromISR(void);
@@ -191,7 +192,9 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
     *wakePins = 0u;
     if (__get_PRIMASK() || __get_IPSR() ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk)) return true;
-    // The power bus is synchronous in the main loop. Never stop mid-transfer.
+    // The cooperative power bus owns its buffer through completion consumption,
+    // including the interval after hardware BUSY falls but before HAL finishes.
+    if (PowerI2C_AsyncBusy()) return true;
     const bool i2cClocked = (RCC->APB1LENR & RCC_APB1LENR_I2C1EN) != 0u;
     if (i2cClocked && (I2C1->ISR & I2C_ISR_BUSY)) return true;
     if (intervalMs == 0u || intervalMs > StopTimerTiming::maxSleepMs || !startTimer(intervalMs)) return false;

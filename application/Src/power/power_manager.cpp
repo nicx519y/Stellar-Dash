@@ -151,25 +151,187 @@ void PowerManager::loop()
     return;
 #else
     const uint32_t now = HAL_GetTick();
-    const uint32_t irq_flags = consumeIrqFlags();
-    const bool poll_due = (uint32_t)(now - last_poll_ms_) >= kPowerPollIntervalMs;
+    const uint32_t flags = consumeIrqFlags();
+    pending_irq_flags_ |= flags;
+    if ((flags & kIrqCharger) != 0u) { setChargingEnabled(false); }
 
-    if (irq_flags != 0u || poll_due) {
-        last_poll_ms_ = now;
-        refreshSnapshot((irq_flags & kIrqGauge) != 0u);
-    }
-
-    if ((!snapshot_.charger_online || !snapshot_.gauge_online || !profile_valid_) &&
-        (uint32_t)(now - last_reinitialize_ms_) >= kDeviceRetryIntervalMs) {
-        last_reinitialize_ms_ = now;
-        setChargingEnabled(false);
-        PowerI2C_DeInit();
-        if (PowerI2C_Init()) {
-            (void)initializeDevices();
-            refreshSnapshot(false);
+    if (poll_phase_ == PollPhase::Idle) {
+        const bool recovery = (!snapshot_.charger_online || !snapshot_.gauge_online || !profile_valid_) &&
+            (uint32_t)(now - last_reinitialize_ms_) >= kDeviceRetryIntervalMs;
+        if (!recovery && pending_irq_flags_ == 0u &&
+            (uint32_t)(now - last_poll_ms_) < kPowerPollIntervalMs) { return; }
+        last_poll_ms_ = poll_started_ms_ = now;
+        poll_clear_gauge_ = (pending_irq_flags_ & kIrqGauge) != 0u;
+        pending_irq_flags_ = 0;
+        poll_recovery_ = recovery;
+        profile_repair_attempted_ = false;
+        poll_fault_ = 0;
+        poll_charger_ = {};
+        poll_gauge_ = {};
+        poll_charger_ok_ = poll_gauge_ok_ = false;
+        if (recovery) {
+            last_reinitialize_ms_ = now;
+            setChargingEnabled(false);
+            profile_valid_ = false;
+            PowerI2C_DeInit();
+            charger_ = {};
+            gauge_ = {};
+            if (!PowerI2C_Init()) {
+                poll_phase_ = PollPhase::Publish;
+                return;
+            }
+            charger_.i2c = gauge_.i2c = PowerI2C_GetHandle();
+            beginChargerJob(BQ25895_JOB_INIT, BQ25895_INPUT_PROFILE_5V_1P5A);
+            poll_phase_ = PollPhase::InitCharger;
+        } else {
+            beginChargerJob(BQ25895_JOB_READ, charger_.input_profile);
+            poll_phase_ = PollPhase::ReadCharger;
         }
     }
+    // Discard an overdue cycle on the next service pass instead of enabling
+    // charging from stale readings. Recovery includes ADC warmup.
+    if (poll_phase_ != PollPhase::Publish &&
+        (uint32_t)(now - poll_started_ms_) >= (poll_recovery_ ? 2000u : 500u)) {
+        setChargingEnabled(false);
+        PowerI2C_DeInit();
+        (void)PowerI2C_Init();
+        charger_.online = gauge_.online = false;
+        profile_valid_ = poll_charger_ok_ = poll_gauge_ok_ = false;
+        poll_phase_ = PollPhase::Publish;
+    }
+    stepPoll(now);
 #endif
+}
+
+void PowerManager::beginChargerJob(BQ25895_JobKind kind, BQ25895_InputProfile profile)
+{
+    charger_job_ = {};
+    charger_job_.kind = kind;
+    charger_job_.profile = profile;
+}
+
+void PowerManager::beginGaugeJob(MAX17048_JobKind kind)
+{
+    gauge_job_ = {};
+    gauge_job_.kind = kind;
+    gauge_job_.alert_soc_percent = kGaugeAlertSocPercent;
+}
+
+void PowerManager::stepPoll(uint32_t now)
+{
+    PowerI2C_Result result;
+    switch (poll_phase_) {
+    case PollPhase::Idle:
+        break;
+    case PollPhase::InitCharger:
+        result = BQ25895_Step(&charger_, &charger_job_, &poll_charger_);
+        if (result == POWER_I2C_PENDING) { return; }
+        if (result == POWER_I2C_DONE) {
+            adc_started_ms_ = now;
+            beginChargerJob(BQ25895_JOB_READ, charger_.input_profile);
+            poll_phase_ = PollPhase::ReadCharger;
+        } else {
+            beginGaugeJob(MAX17048_JOB_INIT);
+            poll_phase_ = PollPhase::InitGauge;
+        }
+        break;
+    case PollPhase::WaitAdc:
+        if ((uint32_t)(now - adc_poll_ms_) >= kInitialAdcPollMs) {
+            beginChargerJob(BQ25895_JOB_READ, charger_.input_profile);
+            poll_phase_ = PollPhase::ReadCharger;
+        }
+        break;
+    case PollPhase::ReadCharger:
+        result = BQ25895_Step(&charger_, &charger_job_, &poll_charger_);
+        poll_fault_ |= poll_charger_.fault;
+        poll_charger_.fault = poll_fault_;
+        if (poll_fault_ != 0 || result == POWER_I2C_FAILED) { setChargingEnabled(false); }
+        if (result == POWER_I2C_PENDING) { return; }
+        poll_charger_ok_ = result == POWER_I2C_DONE;
+        if (poll_recovery_ && poll_charger_ok_ &&
+            !(poll_charger_.vbus_good && poll_charger_.vbus_mv >= 3900u) &&
+            (uint32_t)(now - adc_started_ms_) < kInitialAdcTimeoutMs) {
+            adc_poll_ms_ = now;
+            poll_phase_ = PollPhase::WaitAdc;
+        } else {
+            beginGaugeJob(poll_recovery_ ? MAX17048_JOB_INIT : MAX17048_JOB_READ);
+            poll_phase_ = poll_recovery_ ? PollPhase::InitGauge : PollPhase::ReadGauge;
+        }
+        break;
+    case PollPhase::InitGauge:
+        result = MAX17048_Step(&gauge_, &gauge_job_, &poll_gauge_);
+        if (result == POWER_I2C_PENDING) { return; }
+        if (result == POWER_I2C_DONE) {
+            beginGaugeJob(MAX17048_JOB_READ);
+            poll_phase_ = PollPhase::ReadGauge;
+        } else { poll_phase_ = PollPhase::Profile; }
+        break;
+    case PollPhase::ReadGauge:
+        result = MAX17048_Step(&gauge_, &gauge_job_, &poll_gauge_);
+        if (result == POWER_I2C_FAILED) { setChargingEnabled(false); }
+        if (result == POWER_I2C_PENDING) { return; }
+        poll_gauge_ok_ = result == POWER_I2C_DONE;
+        if (poll_gauge_ok_ && !poll_gauge_.valid) { setChargingEnabled(false); }
+        if (poll_gauge_ok_ && (poll_clear_gauge_ || poll_gauge_.alert)) {
+            beginGaugeJob(MAX17048_JOB_CLEAR_ALERT);
+            poll_phase_ = PollPhase::ClearGauge;
+        } else { poll_phase_ = PollPhase::Profile; }
+        break;
+    case PollPhase::ClearGauge:
+        result = MAX17048_Step(&gauge_, &gauge_job_, &poll_gauge_);
+        if (result == POWER_I2C_PENDING) { return; }
+        poll_gauge_ok_ = result == POWER_I2C_DONE;
+        if (!poll_gauge_ok_) { setChargingEnabled(false); }
+        poll_phase_ = PollPhase::Profile;
+        break;
+    case PollPhase::Profile: {
+        if (!poll_charger_ok_) { poll_phase_ = PollPhase::Publish; break; }
+        const BQ25895_InputProfile desired = poll_charger_.vbus_good
+            ? inputProfileForVbus(poll_charger_.vbus_mv) : charger_.input_profile;
+        if (!profile_valid_ || !charger_.profile_configured || desired != charger_.input_profile) {
+            setChargingEnabled(false);
+            profile_valid_ = false;
+            profile_repair_attempted_ = true;
+            beginChargerJob(BQ25895_JOB_CONFIGURE, desired);
+            poll_phase_ = PollPhase::ConfigureProfile;
+        } else if ((uint32_t)(now - last_profile_check_ms_) >= kProfileVerifyIntervalMs) {
+            beginChargerJob(BQ25895_JOB_VERIFY, desired);
+            poll_phase_ = PollPhase::VerifyProfile;
+        } else { poll_phase_ = PollPhase::Publish; }
+        break;
+    }
+    case PollPhase::ConfigureProfile:
+        result = BQ25895_Step(&charger_, &charger_job_, &poll_charger_);
+        if (result == POWER_I2C_PENDING) { return; }
+        if (result == POWER_I2C_DONE) {
+            beginChargerJob(BQ25895_JOB_VERIFY, charger_.input_profile);
+            poll_phase_ = PollPhase::VerifyProfile;
+        } else {
+            poll_charger_ok_ = false;
+            poll_phase_ = PollPhase::Publish;
+        }
+        break;
+    case PollPhase::VerifyProfile:
+        result = BQ25895_Step(&charger_, &charger_job_, &poll_charger_);
+        if (result == POWER_I2C_PENDING) { return; }
+        last_profile_check_ms_ = now;
+        profile_valid_ = result == POWER_I2C_DONE;
+        if (!profile_valid_) {
+            setChargingEnabled(false);
+            if (!profile_repair_attempted_) {
+                profile_repair_attempted_ = true;
+                beginChargerJob(BQ25895_JOB_CONFIGURE, charger_.input_profile);
+                poll_phase_ = PollPhase::ConfigureProfile;
+                break;
+            }
+        }
+        poll_phase_ = PollPhase::Publish;
+        break;
+    case PollPhase::Publish:
+        publishSnapshot(poll_charger_, poll_gauge_, poll_charger_ok_, poll_gauge_ok_);
+        poll_phase_ = PollPhase::Idle;
+        break;
+    }
 }
 
 PowerSnapshot PowerManager::getSnapshot() const
@@ -217,8 +379,14 @@ bool PowerManager::isLowBattery() const
     return snapshot_.valid && snapshot_.cell_mv < kLowBatteryMv;
 }
 
+bool PowerManager::isPolling() const
+{
+    return poll_phase_ != PollPhase::Idle || PowerI2C_AsyncBusy();
+}
+
 bool PowerManager::prepareSystemSleep()
 {
+    if (isPolling()) { return false; }
     if (BOARD_MODE.isStable() &&
         BOARD_MODE.current() == BoardMode::Rf &&
         CH585_ROLE_BOOTSTRAP.isLocked() &&
@@ -411,6 +579,13 @@ void PowerManager::refreshSnapshot(bool clearGaugeAlert)
         }
     }
 
+    publishSnapshot(charger_state, gauge_state, charger_ok, gauge_ok);
+}
+
+void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
+                                   const MAX17048_State& gauge_state,
+                                   bool charger_ok, bool gauge_ok)
+{
     snapshot_.charger_online = charger_ok;
     snapshot_.gauge_online = gauge_ok;
     snapshot_.valid = gauge_ok && gauge_state.valid;
@@ -516,8 +691,14 @@ void PowerManager::processLowVoltageProtection()
 
 void PowerManager::setChargingEnabled(bool enabled)
 {
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    // An IRQ arriving during a cycle requires a fresh snapshot before CE can
+    // be re-enabled. Keep this check atomic with the physical GPIO write.
+    enabled = enabled && irq_flags_ == 0u && pending_irq_flags_ == 0u;
     BOARD_POWER.setChargeEnabled(enabled);
     charging_enabled_ = enabled;
+    if (primask == 0u) { __enable_irq(); }
 }
 
 bool PowerManager::isFastChargeDetected() const

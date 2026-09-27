@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-import type { HitboxSummary } from "../../shared/monitor-types";
+import type { HitboxOptions, HitboxSummary } from "../../shared/monitor-types";
 import { HitboxCanvas } from "./ui/HitboxCanvas";
 
 function initialCompactMode() {
@@ -9,19 +9,20 @@ function initialCompactMode() {
 }
 
 function HitboxApp() {
-  const [compact, setCompact] = useState(initialCompactMode);
+  const [options, setOptions] = useState<HitboxOptions>(()=>({compact:initialCompactMode(),sourceMode:"RF24G",bindingGeneration:-1}));
 
   useEffect(() => {
-    return window.connectMonitorApi?.onHitboxOptions?.((options) => {
-      setCompact(options.compact);
-    });
+    let active=true,received=false;
+    const stop=window.connectMonitorApi?.onHitboxOptions?.(value=>{received=true;setOptions(value);});
+    window.connectMonitorApi?.getHitboxOptions?.().then(value=>{if(active && !received && value)setOptions(value);}).catch(()=>{});
+    return ()=>{active=false;stop?.();};
   }, []);
 
   const publishSummary = useCallback((summary: HitboxSummary) => {
     window.connectMonitorApi?.publishHitboxSummary?.(summary);
   }, []);
 
-  return <HitboxCanvas compact={compact} onSummary={publishSummary} />;
+  return <HitboxCanvas compact={options.compact} sourceMode={options.sourceMode??"RF24G"} bindingGeneration={options.bindingGeneration??-1} onSummary={publishSummary} />;
 }
 
 const globalStyle = document.createElement("style");

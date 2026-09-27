@@ -303,7 +303,8 @@ extern "C" void SystemSleep_Idle(void)
     // RF powers CH585 off and schedules maintenance using current power state.
     if (!idleContextValid || !policy.enabled() || !userEnabled ||
         !STORAGE_MANAGER.getAutoSleepEnabled() || policy.state() != State::Sleeping ||
-        !BOARD_MODE.isStable() || rawKeys() != 0u || __get_PRIMASK() != 0u ||
+        !BOARD_MODE.isStable() || POWER_MANAGER.isPolling() ||
+        rawKeys() != 0u || __get_PRIMASK() != 0u ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return;
     const uint32_t elapsed = HAL_GetTick() - lastKeepalive;
     const uint32_t interval = INPUT_STATE.sleepTransportOff()

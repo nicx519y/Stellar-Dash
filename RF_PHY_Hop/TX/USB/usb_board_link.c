@@ -11,6 +11,8 @@
 #include "usb_profiles.h"
 #include "webhid_protocol.h"
 #include "usb_webhid_fast.h"
+#include "usb_webhid_memory.h"
+#include "usb_monitor.h"
 
 #define USB_LINK_INPUT_VERSION_MASK 0xF0u
 
@@ -75,12 +77,21 @@ static bool queue_event(uint8_t command, const void *payload, uint8_t length)
 
 static bool queue_fault(uint8_t fault, uint8_t command)
 {
-    uint8_t payload[2];
+    uint8_t payload[14];
+    uint8_t length = 2u;
     payload[0] = fault;
     payload[1] = command;
+    if(s_role == USB_BOARD_ROLE_USB && command == 0u && fault == USB_BOARD_STATUS_QUEUE_FULL) {
+        uint32_t detail[3];
+        usb_board_link_port_input_fault_detail(detail);
+        if(detail[0]) {
+            memcpy(payload+2,detail,sizeof(detail));
+            length=sizeof(payload);
+        }
+    }
     s_last_fault = fault;
     usb_high_rate_note_board_link_fault();
-    return queue_event(USB_BOARD_EVT_FAULT, payload, sizeof(payload));
+    return queue_event(USB_BOARD_EVT_FAULT, payload, length);
 }
 
 static void build_state(usb_board_usb_state_v1_t *state)
@@ -196,7 +207,7 @@ static void handle_caps(void)
     caps.max_frame_bytes = USB_BOARD_LINK_MAX_FRAME_BYTES;
     caps.input_state_bytes = USB_BOARD_INPUT_V1_BYTES;
     caps.firmware_major = 2u;
-    caps.firmware_minor = 1u;
+    caps.firmware_minor = 2u;
     caps.firmware_patch = 0u;
     caps.feature_flags = USB_BOARD_CAP_FEATURE_TELEMETRY_HID |
                          USB_BOARD_CAP_FEATURE_CONTROL_V1 |
@@ -343,7 +354,7 @@ static void handle_set_profile(const usb_board_link_frame_t *frame)
                       sizeof(response));
 }
 
-static void handle_input(const usb_board_link_frame_t *frame)
+static USB_WEBHID_RAM void handle_input(const usb_board_link_frame_t *frame)
 {
     const usb_board_input_v1_t *input;
     if(frame->length != sizeof(usb_board_input_v1_t))
@@ -354,7 +365,7 @@ static void handle_input(const usb_board_link_frame_t *frame)
     input = (const usb_board_input_v1_t *)frame->payload;
     if(((input->flags & USB_LINK_INPUT_VERSION_MASK) !=
         (USB_BOARD_INPUT_FORMAT_VERSION << USB_BOARD_INPUT_VERSION_SHIFT)) ||
-       (usb_board_input_crc8(frame->payload,
+       (usb_input_crc8(frame->payload,
                              (uint8_t)(frame->length - 1u)) != input->crc8))
     {
         queue_fault(USB_BOARD_STATUS_CRC_ERROR, frame->command);
@@ -612,6 +623,14 @@ static void dispatch(const usb_board_link_frame_t *frame)
         }
         break;
 
+    case UM_BOARD_COMMAND:
+        if(s_role == USB_BOARD_ROLE_USB) {
+            uint8_t reply[32], length=0;
+            if(usb_monitor_board(frame->payload,frame->length,reply,&length) && length)
+                (void)queue_event(UM_BOARD_EVENT,reply,length);
+        }
+        break;
+
     case USB_BOARD_CMD_USB_CONTROL:
         handle_control(frame);
         break;
@@ -693,10 +712,12 @@ void usb_board_link_init(usb_board_role_t locked_role)
     }
 }
 
-void usb_board_link_process(void)
+USB_WEBHID_RAM void usb_board_link_process(void)
 {
     uint8_t bytes[256];
     uint16_t received, index;
+    const uint16_t input_budget = s_role == USB_BOARD_ROLE_USB
+        ? USB_BOARD_LINK_MAX_FRAME_BYTES : sizeof(bytes);
     uint8_t port_fault;
     usb_board_link_frame_t completed;
 
@@ -713,7 +734,7 @@ void usb_board_link_process(void)
         s_state_dirty = 1u;
         usb_webhid_fast_fault(port_fault);
     }
-    while((received=usb_board_link_port_read_rx(bytes,sizeof(bytes)))!=0u)
+    while((received=usb_board_link_port_read_rx(bytes,input_budget))!=0u)
     {
         for(index=0u;index<received;) {
             uint16_t used=s_parser.state == USB_BOARD_PARSE_WAIT_SYNC
@@ -721,6 +742,11 @@ void usb_board_link_process(void)
             if(used) { index+=used; continue; }
             if(usb_board_link_parser_feed(&s_parser, bytes[index++], &completed)) dispatch(&completed);
         }
+        /* Continuous input can keep RX nonempty indefinitely. Yield after
+         * one bounded chunk so usb_device_process can publish the latest
+         * input and fault/control events are serviced. Parser state retains
+         * a frame split at the chunk boundary. */
+        if(s_role == USB_BOARD_ROLE_USB) break;
     }
     if(s_caps_requested != 0u)
     {

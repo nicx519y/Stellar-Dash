@@ -1,0 +1,57 @@
+{
+  "stm32Sha256": "1bf51a74a7db26fbc52c409c2dad4d40b0f6c95958b312ff37b0ae6838c88500",
+  "txPackageSha256": "1e0e78dd4a75424f1c7b4ec17c8853df6779de08a3057c0b9e7f1419d53e9eb7",
+  "method": "Read-only minimal Cortex-M SRAM and SPI CFG1, no halt. Ordinary cached object fields may be stale. g_usb_input_fault is explicitly cache-cleaned.",
+  "snapshots": [
+    {
+      "label": "usb-after-flash",
+      "at": "2026-09-27T03:26:33.880290+00:00",
+      "read_usb_input_fault": {
+        "magic": "0x0",
+        "tick": 0,
+        "status": 0,
+        "command": 0,
+        "detail": "0x0",
+        "cause": 0,
+        "produced": 0,
+        "consumed": 0,
+        "stage": "0x4"
+      },
+      "inspect_usb_input": {
+        "role": 2,
+        "profile": 1,
+        "mounted": 1,
+        "fault": 9,
+        "fastInput": true,
+        "inputSequence": 52,
+        "requestedHz": 8000,
+        "spiPrescaler": 8
+      }
+    },
+    {
+      "label": "usb-before-webconfig-test",
+      "at": "2026-09-27T03:28:58.939544+00:00",
+      "read_usb_input_fault": {
+        "magic": "0x0",
+        "tick": 0,
+        "status": 0,
+        "command": 0,
+        "detail": "0x0",
+        "cause": 0,
+        "produced": 0,
+        "consumed": 0,
+        "stage": "0x4"
+      },
+      "inspect_usb_input": {
+        "role": 2,
+        "profile": 1,
+        "mounted": 1,
+        "fault": 9,
+        "fastInput": true,
+        "inputSequence": 141,
+        "requestedHz": 8000,
+        "spiPrescaler": 8
+      }
+    }
+  ]
+}

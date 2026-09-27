@@ -1,3 +1,4 @@
+import { UsbMonitorPeer } from "./usb-monitor";
 import { rxProfileDecoder } from "./rx-profile";
 import { buildFastControl } from "./fast-recovery-control";
 import type { FastRequest } from "../../shared/fast-recovery";
@@ -6,12 +7,37 @@ import type { DebugConfig, DebugConfigStatus, DebugApplyState, MonitorEvent } fr
 import { buttonLatencyTracker, monotonicNowUsForMonitor } from "./button-latency-source";
 import { parseApplicationHidTelemetryFrame } from "./application-hid-telemetry-source";
 import { parseDongleHidTelemetryFrame } from "./dongle-hid-telemetry-source";
-import { matchesHidTelemetryDevice } from "./hid-device-selection";
+import { deviceRole, matchesHidTelemetryDevice } from "./hid-device-selection";
+import type { TelemetryDevice } from "../../shared/device-binding";
 
 type PublishFn = (event: MonitorEvent) => void;
 type SourceOptions = {
   onControlReady?: () => void;
+  onDevices?: (devices: TelemetryDevice[]) => void;
+  externalBinding?: boolean;
 };
+
+const identities = new Map<any, TelemetryDevice>();
+let externalBinding = false;
+let targets: Record<"USB" | "RF24G", string | null> = { USB: null, RF24G: null };
+let bindingChanged: (() => void) | undefined;
+let deviceGeneration = 0;
+function selectedHandle(mode: "USB" | "RF24G"): any | null {
+  const candidates = [...identities].filter(([, d]) => d.sourceMode === mode && d.capable);
+  if (externalBinding) return candidates.find(([, d]) => d.id === targets[mode])?.[0] ?? null;
+  return candidates.length === 1 ? candidates[0][0] : null;
+}
+export function selectTelemetryDevices(next: typeof targets): void {
+  if (targets.USB === next.USB && targets.RF24G === next.RF24G) return;
+  targets = { ...next };
+  sourceGeneration++;
+  preferredControlHandle = null;
+  controlWriteSucceeded = false;
+  fastLeaseActive = false;
+  relativeLatency.reset(); rxProfileDecoder.reset(); buttonLatencyTracker.reset();
+  for (const [handle, peer] of usbPeers) if (handle !== selectedHandle("USB")) peer.suspend();
+  bindingChanged?.();
+}
 
 const CTL_MAGIC = 0x314c5443;
 const CTL_VERSION = 1;
@@ -23,6 +49,9 @@ const FLAG_AUTO_HOP = 0x10;
 const APPLY_STATES: DebugApplyState[] = ["Idle", "Applied", "Applying", "Failed"];
 
 let activeControlHandles: any[] = [];
+const usbPeers = new Map<any, UsbMonitorPeer>();
+let selectedMode: "USB" | "RF24G" = "RF24G";
+let usbDesired: DebugConfig | null = null;
 const telemetryLeaseSupport = new Map<any, boolean>();
 let preferredControlHandle: any | null = null;
 let nextControlSeq = 1;
@@ -52,7 +81,7 @@ function queueControl<T>(action: () => Promise<T>): Promise<T> {
   return result;
 }
 
-function liveHandle(handle: any): boolean { return activeControlHandles.includes(handle); }
+function liveHandle(handle: any): boolean { return activeControlHandles.includes(handle) && handle === selectedHandle("RF24G"); }
 const CONTROL_RETRY_INTERVAL_MS = 2000;
 const relativeLatency=new RelativeLatencyDecoder();
 let debugStatus: DebugConfigStatus = {
@@ -246,7 +275,7 @@ export function sendFastRecovery(request: FastRequest, deadline = Date.now() + 2
   const frame=buildFastControl(request);
   return queueControl(async () => {
   if (Date.now() > deadline) return {ok:false,message:"Control request expired before execution"};
-  const handle=preferredControlHandle??activeControlHandles[0];
+  const handle=selectedHandle("RF24G");
   if(!handle || !await writeControlFrame(handle,frame))return {ok:false,message:"No writable RX HID interface"};
   if(request.operation===1)fastLeaseActive=!!request.enabled;
   if(request.operation===2)fastLeaseActive=true;
@@ -255,11 +284,27 @@ export function sendFastRecovery(request: FastRequest, deadline = Date.now() + 2
   });
 }
 export function getHidDebugConfigStatus(): DebugConfigStatus {
+  if(selectedMode === "USB") {
+    const peer=usbPeers.get(selectedHandle("USB"));
+    if(peer)return peer.getStatus();
+    return {state:"Failed",rxStatus:"Idle",txStatus:"Failed",lastSeq:0,message:"未绑定可用的 USB 遥测设备，请检查设备选择或 TX 监测能力"};
+  }
+  if (!selectedHandle("RF24G")) return {state:"Failed",rxStatus:"Failed",txStatus:"Idle",lastSeq:0,message:"未绑定唯一 RX 遥测设备，请检查设备选择"};
   return debugStatus;
 }
 
 export function sendDebugConfig(config: DebugConfig): Promise<DebugConfigStatus> {
-  return queueControl(() => applyDebugConfig(config));
+  const requestedMode=config.sourceMode??"RF24G";
+  return queueControl(async () => {
+    selectedMode=requestedMode;
+    if(requestedMode==="USB") {
+      usbDesired={...config};
+      const peer=usbPeers.get(selectedHandle("USB"));
+      if(peer)await peer.configure(config);
+      return getHidDebugConfigStatus();
+    }
+    return applyDebugConfig(config);
+  });
 }
 
 async function applyDebugConfig(config: DebugConfig): Promise<DebugConfigStatus> {
@@ -286,9 +331,8 @@ async function applyDebugConfig(config: DebugConfig): Promise<DebugConfigStatus>
   requestedControlSeq = seq;
   nextControlSeq = nextControlSeq === 255 ? 1 : nextControlSeq + 1;
   const frame = buildControlFrame(config, seq);
-  const handles = preferredControlHandle
-    ? [preferredControlHandle, ...activeControlHandles.filter((handle) => handle !== preferredControlHandle)]
-    : [...activeControlHandles];
+  const selected = selectedHandle("RF24G");
+  const handles = selected ? [selected] : [];
 
   debugStatus = {
     state: "Applying",
@@ -337,6 +381,16 @@ const MISSING_STATUS_INTERVAL_MS = 3000;
 
 export function startHidTelemetrySource(publish: PublishFn, options: SourceOptions = {}): () => Promise<void> {
   sourceGeneration++;
+  externalBinding = options.externalBinding === true;
+  identities.clear();
+  bindingChanged = options.onControlReady;
+  let inventorySignature = "";
+  const announceDevices = () => {
+    const devices=[...identities.values()];
+    const signature=JSON.stringify(devices);
+    if(signature===inventorySignature)return false;
+    inventorySignature=signature;options.onDevices?.(devices);return true;
+  };
   let HID: any;
   try {
     HID = require("node-hid");
@@ -348,6 +402,8 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   const targetVid = normalizeHexId(process.env.MONITOR_VID);
   const targetPid = normalizeHexId(process.env.MONITOR_PID) ?? null;
   const opened: any[] = [];
+  const paths=new Map<any,string>();
+  const decoders=new Map<any,RelativeLatencyDecoder>();
   let stopped = false;
   let lastMissingStatusAt = 0;
   let rfWasConnected = false;
@@ -355,6 +411,14 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   let lastStatusCheckAt = 0;
   let scanning: Promise<void> | null = null;
   const closingHandles = new Map<any, Promise<void>>();
+  const legacyUsbIds = new Map<any, string>();
+  const closeLegacyUsb = (handle: any) => {
+    const deviceId = legacyUsbIds.get(handle);
+    if (!deviceId) return;
+    legacyUsbIds.delete(handle);
+    publish({kind:"device_status",timestampMs:Date.now(),mode:"USB",sourceMode:"USB",deviceId,
+      state:"Disconnected",targetRateHz:0,actualRateHz:0,rateValid:false,statusLabel:"USB 已断开"});
+  };
 
   const publishMissingThrottled = () => {
     const now = Date.now();
@@ -375,12 +439,20 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   const closeHandle = (handle: any): Promise<void> => {
     const closing = closingHandles.get(handle);
     if (closing) return closing;
+    const usb=usbPeers.get(handle);
+    if(usb) { usbPeers.delete(handle);void usb.close(false); }
+    closeLegacyUsb(handle);
+    identities.delete(handle);
+    announceDevices();
+    paths.delete(handle);decoders.delete(handle);
+    if(activeControlHandles.includes(handle)) {
     sourceGeneration++;
     fastLeaseActive=false;
     rfWasConnected = false;
     controlWriteSucceeded = false;
     debugStatus = { ...debugStatus, state: "Failed", rxStatus: "Failed", txStatus: "Failed", message: "HID disconnected" };
     buttonLatencyTracker.reset();
+    }
     const idx = opened.indexOf(handle);
     if (idx >= 0) {
       opened.splice(idx, 1);
@@ -397,32 +469,69 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   };
 
   const openDevices = async () => {
-    if (stopped || opened.length > 0 || closingHandles.size) return;
+    if (stopped || closingHandles.size) return;
 
     const devices = await findTargetDevices();
     if (stopped) return;
+    const visiblePaths=new Set(devices.map((d:any)=>d.path));
+    for(const [handle,devicePath] of [...paths]) if(!visiblePaths.has(devicePath))await closeHandle(handle);
     if (devices.length === 0) {
-      publishMissingThrottled();
+      if(!opened.length)publishMissingThrottled();
       return;
     }
 
     for (const dev of devices) {
       if (stopped) break;
+      if(!dev.path || [...paths.values()].includes(dev.path))continue;
       try {
-        const handle = dev.path ? await HID.HIDAsync.open(dev.path) : await HID.HIDAsync.open(dev.vendorId, dev.productId);
+        const handle = await HID.HIDAsync.open(dev.path);
         if (stopped) { await handle.close(); break; }
+        opened.push(handle);paths.set(handle,dev.path);
+        decoders.set(handle,new RelativeLatencyDecoder());
+        let isRf=false;
+        handle.on("error", () => {
+          const wasSelected=handle===selectedHandle("RF24G");
+          void closeHandle(handle);
+          if (!stopped && isRf && wasSelected) publishRfDeviceMissing(publish);
+        });
+        try {isRf=deviceRole(dev)!=="USB" && parseStatusReport(Uint8Array.from(await handle.getFeatureReport(0,33)))!==null;}catch{}
+        const generation=++deviceGeneration;
+        const identity: TelemetryDevice = {id:dev.path,path:dev.path,vendorId:dev.vendorId,productId:dev.productId,
+          serialNumber:dev.serialNumber,interfaceNumber:dev.interface??dev.interfaceNumber,
+          generation,sourceMode:deviceRole(dev),capable:false};
+        identities.set(handle,identity);
+        const peer=new UsbMonitorPeer(handle,ev=>{
+          if(handle===selectedHandle("USB"))publish({...ev,deviceGeneration:identity.generation});
+        },dev.path,()=>handle===selectedHandle("USB"));
+        const isUsb=!isRf && deviceRole(dev)!=="RF24G" && await peer.identify();
+        if(stopped || !opened.includes(handle)) {await closeHandle(handle);continue;}
+        if(isUsb) {identity.sourceMode="USB";identity.capable=true;usbPeers.set(handle,peer);}
+        else if(isRf) {identity.sourceMode="RF24G";identity.capable=true;activeControlHandles.push(handle);}
+        else if(deviceRole(dev)==="USB") {
+          identity.sourceMode="USB";
+          legacyUsbIds.set(handle,peer.id);
+          publish({kind:"device_status",timestampMs:Date.now(),mode:"USB",sourceMode:"USB",deviceId:peer.id,state:"Connected",
+            targetRateHz:0,actualRateHz:0,rateValid:false,statusLabel:"设备缺少 USB 监测能力，请更新固件"});
+        }
         handle.on("data", (buf: Uint8Array) => {
-          if (stopped || !liveHandle(handle)) return;
+          if (stopped || !opened.includes(handle)) return;
           try {
-            const relative=relativeLatency.parse(buf);
-            if(relative!==null){for(const ev of relative)publish(ev);return;}
+            if(isUsb) {if(handle===selectedHandle("USB"))peer.parse(buf);return;}
+            if(isRf && handle!==selectedHandle("RF24G"))return;
+            const relative=isRf?decoders.get(handle)!.parse(buf):null;
+            if(relative!==null){for(const ev of relative)publish({...ev,sourceMode:"RF24G",deviceId:paths.get(handle),deviceGeneration:identity.generation,...(ev.kind==="button_latency"?{traceId:`${paths.get(handle)}:${identity.generation}:${ev.traceId}`}:{})});return;}
             const hostMonoUs = monotonicNowUsForMonitor();
             const appEvents = parseApplicationHidTelemetryFrame(buf);
-            if (appEvents.length > 0) {
-              for (const ev of appEvents) publish(ev);
+            if (appEvents.length > 0 && !isRf) {
+              if(identity.sourceMode!=="USB") {identity.sourceMode="USB";announceDevices();}
+              if(handle!==selectedHandle("USB"))return;
+              for (const ev of appEvents) publish({...ev,sourceMode:"USB",deviceId:peer.id});
               return;
             }
-            const dongleEvents = parseDongleHidTelemetryFrame(buf, Date.now(), hostMonoUs);
+            const dongleEvents = isUsb?[]:parseDongleHidTelemetryFrame(buf, Date.now(), hostMonoUs);
+            if(!isRf && dongleEvents.length) {closeLegacyUsb(handle);isRf=true;identity.sourceMode="RF24G";identity.capable=true;activeControlHandles.push(handle);announceDevices();options.onControlReady?.();}
+            if(handle!==selectedHandle("RF24G"))return;
+            const publishSelected=(event:MonitorEvent)=>publish({...event,sourceMode:"RF24G",deviceId:identity.id,deviceGeneration:identity.generation});
             for (const ev of dongleEvents) {
               if (ev.kind === "packet" && ev.messageType.startsWith("RFH_RHM1_"))
                 lastRfTelemetryAt = ev.timestampMs;
@@ -438,29 +547,24 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
               if (ev.kind === "device_status" && ["Disconnected", "Reconnecting", "Error"].includes(ev.state))
                 buttonLatencyTracker.reset();
               if (ev.kind === "packet" && (ev.messageType === "RFH_RHL1" || ev.messageType === "RFH_RHL2")) {
-                buttonLatencyTracker.handleLatencyPacket(ev, publish);
+                buttonLatencyTracker.handleLatencyPacket(ev, publishSelected);
               }
               if (ev.kind === "packet" && (ev.messageType === "RFH_RHC3" || ev.messageType === "RFH_RHC4" || ev.messageType === "RFH_RHE3"))
-                buttonLatencyTracker.handleTracePacket(ev,publish);
-              publish(ev);
+                buttonLatencyTracker.handleTracePacket(ev,publishSelected);
+              publishSelected(ev);
             }
           } catch (_err) {
-            publishRfDeviceMissing(publish);
+            if(isRf)publishRfDeviceMissing(publish);
           }
         });
-        handle.on("error", () => {
-          void closeHandle(handle);
-          if (!stopped) publishRfDeviceMissing(publish);
-        });
-        opened.push(handle);
-        activeControlHandles.push(handle);
-        buttonLatencyTracker.reset();relativeLatency.reset();rxProfileDecoder.reset();
-        options.onControlReady?.();
+
       } catch (_err) {
         publishMissingThrottled();
         // ignore a single device open failure to keep monitor running
       }
     }
+
+    if(announceDevices())options.onControlReady?.();
 
     if (!stopped && opened.length === 0) {
       publishMissingThrottled();
@@ -478,12 +582,15 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
     if (stopped || maintenancePending || controlPending) return;
     maintenancePending = true;
     void queueControl(async () => {
+    const usb=usbPeers.get(selectedHandle("USB"));
+    if(usb)await usb.maintain();
+    if(preferredControlHandle!==selectedHandle("RF24G"))preferredControlHandle=null;
     if(currentHidTelemetryEnabled && preferredControlHandle && telemetryLeaseSupport.get(preferredControlHandle))
       await writeControlFrame(preferredControlHandle, buildTelemetryLeaseFrame(true));
     if(fastLeaseActive && preferredControlHandle)await writeControlFrame(preferredControlHandle,buildFastControl({operation:5,testId:fastLeaseId}));
     if(currentLatencyEnabled && preferredControlHandle)await writeControlFrame(preferredControlHandle,buildCaptureLeaseFrame());
     if (!desiredConfig) return;
-    const handle = preferredControlHandle ?? activeControlHandles[0];
+    const handle = selectedHandle("RF24G");
     if (!handle) return;
     const now = Date.now();
     const telemetrySilent = desiredConfig.hidTelemetryEnabled &&
@@ -529,7 +636,9 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
     // A normal pause/quit releases the USB-only capture before closing HID.
     // A stalled or crashed worker is covered by the firmware lease timeout.
     await controlTail;
-    const handle = preferredControlHandle ?? activeControlHandles[0];
+    for(const peer of usbPeers.values())await peer.close();
+    usbPeers.clear();
+    const handle = selectedHandle("RF24G");
     if (handle && telemetryLeaseSupport.get(handle))
       await writeControlFrame(handle, buildTelemetryLeaseFrame(false));
     sourceGeneration++;
@@ -541,5 +650,6 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
     activeControlHandles = [];
     preferredControlHandle = null;
     await Promise.allSettled([scanning, ...closingHandles.values(), controlTail]);
+    identities.clear(); announceDevices(); bindingChanged=undefined;
   };
 }

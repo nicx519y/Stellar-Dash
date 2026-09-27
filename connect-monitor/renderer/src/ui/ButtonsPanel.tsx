@@ -1,7 +1,8 @@
-import { Badge, Box, Card } from "@chakra-ui/react";
+import { Badge, Box, Card, Text } from "@chakra-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { HitboxBounds, HitboxSummary } from "../../../shared/monitor-types";
+import type { ConnectionMode, HitboxBounds, HitboxSummary } from "../../../shared/monitor-types";
+import type { DeviceBindings } from "../../../shared/device-binding";
 import { PanelHeader, panelSurfaceProps } from "./panelStyles";
 
 const disconnectedSummary: HitboxSummary = {
@@ -93,10 +94,27 @@ function HitboxViewSlot({ compact }: { compact: boolean }) {
   );
 }
 
-export function ButtonsPanel({ compact = false }: { compact?: boolean }) {
+export function ButtonsPanel({ compact = false, sourceMode, devices }: { compact?: boolean;sourceMode:ConnectionMode;devices:DeviceBindings|null }) {
   const [summary, setSummary] = useState<HitboxSummary>(disconnectedSummary);
-  const sourceLabel = summary.connected ? "XInput Connected" : "Disconnected";
-  const meta = `${summary.pressedCount} pressed`;
+  const [selecting,setSelecting]=useState(false);
+  const [pad,setPad]=useState("");
+  const [peer,setPeer]=useState("");
+  const [error,setError]=useState("");
+  const [saving,setSaving]=useState(false);
+  const binding=devices?.bindings[sourceMode];
+  const current=summary.sourceMode===sourceMode && summary.bindingGeneration===binding?.generation?summary:disconnectedSummary;
+  const sourceLabel = `${sourceMode==="USB"?"USB · 有线 TX":"RF · RX"} · ${current.connected?"已连接":"未连接"}`;
+  const meta = `${current.pressedCount} pressed`;
+  useEffect(()=>{setSelecting(false);setError("");},[sourceMode]);
+  const openSelection=()=>{setPad(binding?.gamepadId??"");setPeer(binding?.telemetryId??"");setError("");setSelecting(v=>!v);};
+  const save=async(automatic=false)=>{
+    setSaving(true);setError("");
+    try {await window.connectMonitorApi.selectDevices(sourceMode,automatic?null:{gamepadId:pad||null,telemetryId:peer||null});setSelecting(false);}
+    catch(e){setError(String(e));}finally{setSaving(false);}
+  };
+  const candidates=devices?.gamepads.filter(d=>!d.sourceMode||d.sourceMode===sourceMode)??[];
+  const selectStyle={background:"#101f28",color:"#e6f3f4",border:"1px solid #456",borderRadius:4,padding:4,width:"100%"};
+  const hex=(n:number)=>n.toString(16).padStart(4,"0").toUpperCase();
 
   useEffect(() => {
     return window.connectMonitorApi?.onHitboxSummary?.((nextSummary) => {
@@ -110,7 +128,7 @@ export function ButtonsPanel({ compact = false }: { compact?: boolean }) {
         title="Gamepad Buttons"
         meta={meta}
         action={
-          <Badge colorPalette={summary.connected ? "green" : "gray"}>
+          <Badge as="button" cursor="pointer" onClick={openSelection} title="选择设备" colorPalette={current.connected ? "green" : "gray"}>
             {sourceLabel}
           </Badge>
         }
@@ -125,7 +143,22 @@ export function ButtonsPanel({ compact = false }: { compact?: boolean }) {
         flex="1"
         minH={0}
       >
-        <HitboxViewSlot compact={compact} />
+        {selecting?<Box display="flex" flexDirection="column" gap={2} fontSize="sm">
+          <label>游戏手柄<select aria-label="游戏手柄" style={selectStyle} value={pad} onChange={e=>setPad(e.target.value)}>
+            <option value="">未绑定</option>
+            {candidates.map(d=><option key={d.id} value={d.id}>{d.name} · {d.backend==="xinput"?"临时槽位":`${hex(d.vendorId)}:${hex(d.productId)}`} · {d.id}</option>)}
+          </select></label>
+          <label>遥测设备<select aria-label="遥测设备" style={selectStyle} value={peer} onChange={e=>setPeer(e.target.value)}>
+            <option value="">不绑定遥测</option>
+            {devices?.telemetry.filter(d=>d.sourceMode===sourceMode).map(d=><option key={d.id} value={d.id}>{hex(d.vendorId)}:{hex(d.productId)} · {d.serialNumber||d.path} {d.capable?"":"（能力不可用）"}</option>)}
+          </select></label>
+          <Text color="gray.400">XInput 临时槽位需手动核对，断开后重新选择。</Text>
+          <Box display="flex" gap={4}><button disabled={saving} onClick={()=>void save()}>保存绑定</button><button disabled={saving} onClick={()=>void save(true)}>自动识别</button><button onClick={()=>setSelecting(false)}>取消</button></Box>
+          {error&&<Text color="red.300">{error}</Text>}
+        </Box>:<>
+          {(binding?.reason||current.reason)&&<Text fontSize="xs" color="gray.400">{binding?.reason||current.reason}</Text>}
+          <HitboxViewSlot compact={compact} />
+        </>}
       </Card.Body>
     </Card.Root>
   );

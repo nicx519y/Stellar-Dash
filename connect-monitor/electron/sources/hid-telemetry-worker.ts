@@ -1,7 +1,7 @@
 // All native control I/O is asynchronous, including inside this reader worker.
 import { parentPort } from "node:worker_threads";
 import { BoundedDelivery } from "../pipeline/bounded-delivery";
-import { getHidDebugConfigStatus, sendDebugConfig, sendFastRecovery, startHidTelemetrySource } from "./hid-telemetry-source";
+import { getHidDebugConfigStatus, sendDebugConfig, sendFastRecovery, startHidTelemetrySource, selectTelemetryDevices } from "./hid-telemetry-source";
 import type { DebugConfig, MonitorEvent } from "../../shared/monitor-types";
 import type { FastRequest } from "../../shared/fast-recovery";
 
@@ -14,6 +14,8 @@ const status = () => port.postMessage({ type: "status", revision: configRevision
   status: configError ? { ...getHidDebugConfigStatus(), state: "Failed", message: configError } : getHidDebugConfigStatus(), queue: events.stats() });
 const stop = startHidTelemetrySource(event => events.enqueue([event]), {
   onControlReady: () => port.postMessage({ type: "ready" }),
+  externalBinding: true,
+  onDevices: devices => port.postMessage({ type: "devices", devices }),
 });
 const flush = () => events.flush((batch, sequence) => port.postMessage({ type: "events", batch, sequence }));
 const timer = setInterval(flush, 20);
@@ -21,9 +23,11 @@ const statusTimer = setInterval(status, 500);
 port.on("message", async (message: {
   type: string; sequence: number; revision: number; config: DebugConfig;
   id: number; deadline: number; request: FastRequest;
+  targets: {USB:string|null;RF24G:string|null};
 }) => {
   if (stopped) return;
-  if (message.type === "ack") { events.acknowledge(message.sequence); flush(); }
+  if (message.type === "binding") { events.clear();selectTelemetryDevices(message.targets); }
+  else if (message.type === "ack") { events.acknowledge(message.sequence); flush(); }
   else if (message.type === "config") {
     try { await sendDebugConfig(message.config); configError = undefined; }
     catch (error) { configError = String(error); }

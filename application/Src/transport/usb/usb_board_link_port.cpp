@@ -44,7 +44,7 @@ static constexpr uint32_t kEventReleaseTimeoutMs = 20u;
 static constexpr uint32_t kOwnershipGuardSlowUs = 200u;
 static constexpr uint32_t kOwnershipGuardFastUs = 20u;
 static constexpr uint32_t kExpectedSpiClockHz = 120000000u;
-static constexpr uint32_t kFastSpiPrescaler = 16u;
+static constexpr uint32_t kFastSpiPrescaler = 8u;
 static constexpr uint32_t kInputFrameBytes =
     USB_BOARD_INPUT_V1_BYTES + USB_BOARD_LINK_HEADER_BYTES +
     USB_BOARD_LINK_CHECKSUM_BYTES;
@@ -345,7 +345,7 @@ bool USBBoardLinkPort_Init()
     /*
      * SELECT_ROLE, CAPS and IAP are compatibility-plane transactions.  They
      * always start at the already-validated /256 rate. Only an explicit
-     * FAST_INPUT_V2 acknowledgement may switch Application to /16.
+     * FAST_INPUT_V2 acknowledgement may switch Application to /8.
      */
     s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
     s_hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
@@ -391,6 +391,7 @@ bool USBBoardLinkPort_InitIap()
         return false;
     }
     s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+    s_hspi.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
     if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
         s_ready = false;
         return false;
@@ -404,7 +405,7 @@ bool USBBoardLinkPort_EnableFastApplication()
         return false;
     }
     if (s_fastApplication &&
-        s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_16) {
+        s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_8) {
         return true;
     }
     if (!refreshEventRelease() || !eventLineIsHigh()) {
@@ -419,7 +420,8 @@ bool USBBoardLinkPort_EnableFastApplication()
         s_ready = false;
         return false;
     }
-    s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+    s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+    s_hspi.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
     if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
         /* Keep the compatible 1-kHz path available if fast mode cannot arm. */
         s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
@@ -450,6 +452,7 @@ bool USBBoardLinkPort_DisableFastApplication()
         return false;
     }
     s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+    s_hspi.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
     if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
         s_ready = false;
         s_fastApplication = false;
@@ -470,6 +473,11 @@ bool USBBoardLinkPort_EnableWebHid(uint32_t spiHz)
     chipSelect(true);
     if(HAL_SPI_DeInit(&s_hspi)!=HAL_OK) return false;
     s_hspi.Init.BaudRatePrescaler=spiHz==15000000u ? SPI_BAUDRATEPRESCALER_8 : SPI_BAUDRATEPRESCALER_16;
+    /* Continuous 15 MHz DMA clocks exposed first-bit corruption on CH585
+     * MISO. Keep SCK at 15 MHz and allow one SCK idle cycle between bytes
+     * for the slave's next-byte output setup. Bootstrap/input are separate
+     * modes and retain their existing inter-data timing. */
+    s_hspi.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_01CYCLE;
     if(HAL_SPI_Init(&s_hspi)!=HAL_OK) return false;
     __HAL_RCC_DMA2_CLK_ENABLE();
     DMA_HandleTypeDef *handles[2]={&s_hsTxDma,&s_hsRxDma};
@@ -504,7 +512,7 @@ bool USBBoardLinkPort_SendWebHidBlock(const uint8_t *data, uint16_t length)
 bool USBBoardLinkPort_IsFastApplication()
 {
     return s_ready && s_fastApplication &&
-           s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_16;
+           s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_8;
 }
 
 uint32_t USBBoardLinkPort_ClockHz()
@@ -535,6 +543,7 @@ bool USBBoardLinkPort_InitApplication()
         return false;
     }
     s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+    s_hspi.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
     if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
         s_ready = false;
         return false;
@@ -615,8 +624,15 @@ bool USBBoardLinkPort_SelectRfRoleOnce()
     return false;
 }
 
+static uint32_t monitorSpiStart, monitorSpiEnd;
+static bool monitorSpiValid;
+bool USBBoardLinkPort_LastMonitorTiming(uint32_t *start,uint32_t *end) {
+    *start=monitorSpiStart;*end=monitorSpiEnd;return monitorSpiValid;
+}
+
 bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
 {
+    monitorSpiValid=false;
     if ((frame == nullptr) || (frameLength < 4u) ||
         (frameLength > USB_BOARD_LINK_MAX_FRAME_BYTES) ||
         (!USBBoardLinkPort_Init())) {
@@ -652,8 +668,10 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
         wireFrame = paddedCapsFrame;
         wireLength = sizeof(paddedCapsFrame);
     }
+    monitorSpiStart=DWT->CYCCNT;
     const HAL_StatusTypeDef result =
         HAL_SPI_Transmit(&s_hspi, wireFrame, wireLength, kSpiTimeoutMs);
+    monitorSpiEnd=DWT->CYCCNT;monitorSpiValid=result==HAL_OK;
     if ((result == HAL_OK) &&
         (frame[1] == USB_BOARD_CMD_SELECT_ROLE)) {
         /*

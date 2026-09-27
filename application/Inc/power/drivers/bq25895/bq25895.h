@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "stm32h7xx_hal.h"
+#include "power_i2c_bus.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,20 @@ bool BQ25895_VerifySafeProfile(BQ25895_Handle* handle);
 bool BQ25895_EnableContinuousAdc(BQ25895_Handle* handle);
 bool BQ25895_ReadState(BQ25895_Handle* handle, BQ25895_State* state);
 bool BQ25895_IsFatalFault(uint8_t fault);
+
+typedef enum {
+    BQ25895_JOB_READ, BQ25895_JOB_INIT,
+    BQ25895_JOB_CONFIGURE, BQ25895_JOB_VERIFY
+} BQ25895_JobKind;
+typedef struct {
+    BQ25895_JobKind kind;
+    BQ25895_InputProfile profile;
+    uint8_t index;
+    uint8_t values[7];
+} BQ25895_Job;
+/* One cooperative step; keep job and state alive until DONE/FAILED. */
+PowerI2C_Result BQ25895_Step(BQ25895_Handle* handle, BQ25895_Job* job,
+                           BQ25895_State* state);
 
 #ifdef __cplusplus
 }

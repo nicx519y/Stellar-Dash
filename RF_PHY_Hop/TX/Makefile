@@ -226,7 +226,12 @@ $(OUT_DIR)/%.o: %.c
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-$(COMMON_CODEC_OBJ): $(COMMON_CODEC_SRC)
+# SRAM input hot paths must not indirect through Flash jump tables.
+USB_INPUT_HOT_OBJS := $(COMMON_CODEC_OBJ) $(OUT_DIR)/USB/usb_board_link.o $(OUT_DIR)/USB/usb_device.o $(OUT_DIR)/USB/usb_profiles.o $(OUT_DIR)/USB/usb_monitor.o $(OUT_DIR)/USB/usb_device_port_ch585.o $(OUT_DIR)/USB/usb_high_rate.o
+$(USB_INPUT_HOT_OBJS): CFLAGS += -fno-jump-tables -fno-tree-switch-conversion
+$(USB_INPUT_HOT_OBJS): Makefile
+$(COMMON_CODEC_OBJ): CFLAGS += -DUSB_BOARD_LINK_RX_RAM=1
+$(COMMON_CODEC_OBJ): $(COMMON_CODEC_SRC) Makefile
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 

@@ -1,4 +1,5 @@
 #include "usb_high_rate.h"
+#include "usb_webhid_memory.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -109,9 +110,19 @@ bool usb_high_rate_is_turbo_presentation(void)
            (s_state == USB_HIGH_RATE_FALLBACK_PENDING);
 }
 
+bool usb_high_rate_native_input_allowed(void)
+{
+    return s_state == USB_HIGH_RATE_NATIVE;
+}
+
 bool usb_high_rate_is_streaming(void)
 {
     return s_state == USB_HIGH_RATE_TURBO_ACTIVE;
+}
+
+USB_WEBHID_RAM void usb_high_rate_note_native_rate(uint8_t input_flags)
+{
+    s_effective_rate_hz = usb_board_input_rate_hz(input_flags);
 }
 
 uint16_t usb_high_rate_effective_rate_hz(void)

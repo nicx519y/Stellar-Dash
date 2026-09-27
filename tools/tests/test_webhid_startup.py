@@ -62,9 +62,9 @@ int main(){
     def test_caps_retry_is_bounded_and_incompatible_bridge_never_switches_spi(self):
         self.native(PREAMBLE+r'''
 static whf_link_t s_hsLink;static bool s_hsReady;static uint32_t s_hsEpoch;
-static uint8_t s_hsBlock[WHF_BLOCK_BYTES];static constexpr uint32_t kWebHidSpiHz=7500000,kEventDrainTimeoutMs=20;
+static uint8_t s_hsBlock[WHF_BLOCK_BYTES];static constexpr uint32_t kWebHidSpiHz=15000000,kEventDrainTimeoutMs=20;
 static unsigned queries, prepares, switches, failures;static bool incompatible, unsupported;
-bool USBBoardLinkPort_EnableWebHid(uint32_t hz){assert(hz==7500000);++switches;return true;}
+bool USBBoardLinkPort_EnableWebHid(uint32_t hz){assert(hz==15000000);++switches;return true;}
 bool USBBoardLinkPort_SendWebHidBlock(const uint8_t*,uint16_t){s_hsLink.rx_block=1;return true;}
 struct UsbBoardLink {
  bool capsValid=true,transactionActive=false;

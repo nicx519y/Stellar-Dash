@@ -90,7 +90,9 @@ function sendFile(request, response, path) {
     response.setHeader('Content-Type', MIME_TYPES.get(extension) ?? 'application/octet-stream');
     response.setHeader(
         'Cache-Control',
-        extension === '.html' ? 'no-cache' : 'public, max-age=3600',
+        extension === '.html' || extension === '.txt'
+            ? 'no-cache, no-store'
+            : 'public, max-age=3600',
     );
 
     if (request.method === 'HEAD') {

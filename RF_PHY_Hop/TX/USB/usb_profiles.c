@@ -1,4 +1,5 @@
 #include "usb_profiles.h"
+#include "usb_webhid_memory.h"
 
 #include <string.h>
 
@@ -42,7 +43,7 @@ static uint8_t dpad_hat(uint32_t actions, uint8_t neutral)
     return neutral;
 }
 
-uint16_t usb_profiles_xinput_buttons(uint32_t actions)
+USB_WEBHID_RAM uint16_t usb_profiles_xinput_buttons(uint32_t actions)
 {
     uint16_t buttons = 0u;
     buttons |= (actions & (1ul << 0)) ? 0x0001u : 0u;
@@ -63,13 +64,13 @@ uint16_t usb_profiles_xinput_buttons(uint32_t actions)
     return buttons;
 }
 
-static bool build_xinput(const usb_board_input_v1_t *input,
+static USB_WEBHID_RAM bool build_xinput(const usb_board_input_v1_t *input,
                          usb_profile_report_t *report)
 {
     const uint32_t actions = input->action_mask_le;
     const uint16_t buttons = usb_profiles_xinput_buttons(actions);
 
-    memset(report, 0, sizeof(*report));
+    usb_webhid_fill(report, 0, sizeof(*report));
     report->length = USB_PROFILE_XINPUT_REPORT_BYTES;
     report->bytes[0] = 0x00u;
     report->bytes[1] = 0x14u;
@@ -85,7 +86,7 @@ static bool build_ps4_compat(const usb_board_input_v1_t *input,
 {
     const uint32_t actions = input->action_mask_le;
 
-    memset(report, 0, sizeof(*report));
+    usb_webhid_fill(report, 0, sizeof(*report));
     report->length = USB_PROFILE_PS4_REPORT_BYTES;
     report->bytes[0] = 0x01u;
     report->bytes[1] = 0x80u;
@@ -150,7 +151,7 @@ static bool build_switch(const usb_board_input_v1_t *input,
     const uint32_t actions = input->action_mask_le;
     const uint16_t buttons = switch_buttons(actions);
 
-    memset(report, 0, sizeof(*report));
+    usb_webhid_fill(report, 0, sizeof(*report));
     report->length = USB_PROFILE_SWITCH_REPORT_BYTES;
     report->bytes[0] = (uint8_t)buttons;
     report->bytes[1] = (uint8_t)(buttons >> 8);
@@ -168,7 +169,7 @@ static bool build_xbox_one(const usb_board_input_v1_t *input,
     const uint32_t actions = input->action_mask_le;
     usb_xbox_one_input_report_t *gip;
 
-    memset(report, 0, sizeof(*report));
+    usb_webhid_fill(report, 0, sizeof(*report));
     report->length = USB_PROFILE_XBOX_ONE_REPORT_BYTES;
     gip = (usb_xbox_one_input_report_t *)report->bytes;
 
@@ -227,7 +228,7 @@ uint16_t usb_profiles_capability_flags(void)
            USB_BOARD_CAP_PROFILE_WEB_CONFIG;
 }
 
-bool usb_profiles_build_report(usb_board_profile_t profile,
+USB_WEBHID_RAM bool usb_profiles_build_report(usb_board_profile_t profile,
                                const usb_board_input_v1_t *input,
                                usb_profile_report_t *report)
 {
@@ -249,7 +250,7 @@ bool usb_profiles_build_report(usb_board_profile_t profile,
     case USB_BOARD_PROFILE_XBOX_ONE:
         return build_xbox_one(input, report);
     case USB_BOARD_PROFILE_WEB_CONFIG:
-        memset(report, 0, sizeof(*report));
+        usb_webhid_fill(report, 0, sizeof(*report));
         return true;
     default:
         return false;

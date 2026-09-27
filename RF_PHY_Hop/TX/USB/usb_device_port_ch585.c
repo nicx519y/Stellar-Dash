@@ -1,4 +1,5 @@
 #include "usb_webhid_memory.h"
+#include "usb_monitor.h"
 #include "usb_device.h"
 
 #include <string.h>
@@ -114,6 +115,19 @@ static uint8_t s_hid_protocol;
 static uint8_t s_remote_wakeup;
 static uint16_t s_last_report_length;
 static uint8_t s_last_telemetry_length;
+static uint8_t s_monitor_response[32];
+static uint8_t s_monitor_response_selected;
+/* Native XInput only: four complete reports, never a pointer into SPI staging.
+ * All publication/consumption is serialized with the USB ISR. */
+#define USBDEV_NATIVE_QUEUE_DEPTH 4u
+#define USBDEV_NATIVE_MAX_AGE_US 2000u
+#define USBDEV_NATIVE_REPORT_BYTES 20u
+typedef struct {
+    uint8_t bytes[USBDEV_NATIVE_REPORT_BYTES];
+    uint32_t token, received_us;
+} usbdev_native_report_t;
+static usbdev_native_report_t s_native_queue[USBDEV_NATIVE_QUEUE_DEPTH];
+static uint8_t s_native_head, s_native_count, s_native_mode, s_native_paused;
 static hbox_client_control_v1_t s_high_rate_control_response;
 static usb_board_profile_t s_profile;
 
@@ -140,6 +154,46 @@ USB_BOARD_STATIC_ASSERT(sizeof(xinput_configuration_descriptor) == 0xB2u);
 USB_BOARD_STATIC_ASSERT(sizeof(xinput_telemetry_hid_report_descriptor) == 27u);
 USB_BOARD_STATIC_ASSERT(USB_XBOX_DEVICE_PACKET_BYTES <= USBDEV_INTERRUPT_BYTES);
 
+/* Windows' 045E:028E hardware-ID match binds the whole device to XUSB and
+ * hides IF4. Use a distinct composite identity and bind only the IF0..3 IAD
+ * to XUSB10; IF4 retains the standard HID driver and EP7 telemetry. */
+static const uint8_t s_native_device_descriptor[] = {
+    18u, 1u, 0u, 2u, 0xEFu, 2u, 1u, 64u,
+    (uint8_t)HBOX_CLIENT_COMPOSITE_VID, (uint8_t)(HBOX_CLIENT_COMPOSITE_VID >> 8),
+    (uint8_t)HBOX_CLIENT_COMPOSITE_PID, (uint8_t)(HBOX_CLIENT_COMPOSITE_PID >> 8),
+    0u, 1u, 1u, 2u, 3u, 1u
+};
+static const uint8_t s_native_qualifier[] = {10u,6u,0u,2u,0xEFu,2u,1u,64u,1u,0u};
+static const uint8_t s_native_iad[] = {8u,0x0Bu,0u,4u,0xFFu,0x5Du,1u,0u};
+#define USBDEV_NATIVE_MS_VENDOR_CODE 0x20u
+static const uint8_t s_native_os_string[] = {
+    18u,3u,'M',0,'S',0,'F',0,'T',0,'1',0,'0',0,'0',0,
+    USBDEV_NATIVE_MS_VENDOR_CODE,0
+};
+static const uint8_t s_native_compatible_id[] = {
+    40u,0,0,0, 0,1, 4,0, 1, 0,0,0,0,0,0,0,
+    0,1, 'X','U','S','B','1','0',0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0
+};
+static const uint8_t s_native_properties[] = {10u,0,0,0,0,1,5,0,0,0};
+USB_BOARD_STATIC_ASSERT(sizeof(s_native_compatible_id) == 40u);
+USB_BOARD_STATIC_ASSERT(sizeof(xinput_configuration_descriptor) + sizeof(s_native_iad) <= USBDEV_CONTROL_BUFFER_BYTES);
+
+static const uint8_t *native_configuration(uint8_t type, uint16_t *length)
+{
+    /* Reuse EP0 scratch; no extra persistent RAM or input-path work. */
+    const uint16_t total = sizeof(xinput_configuration_descriptor) + sizeof(s_native_iad);
+    memcpy(s_control_response, xinput_configuration_descriptor, 9u);
+    memcpy(s_control_response + 9u, s_native_iad, sizeof(s_native_iad));
+    memcpy(s_control_response + 9u + sizeof(s_native_iad),
+           xinput_configuration_descriptor + 9u, sizeof(xinput_configuration_descriptor) - 9u);
+    s_control_response[1] = type;
+    s_control_response[2] = (uint8_t)total;
+    s_control_response[3] = (uint8_t)(total >> 8);
+    *length = total;
+    return s_control_response;
+}
+
+
 static uint8_t profile_interface_count(void)
 {
     if(s_profile == USB_BOARD_PROFILE_XINPUT)
@@ -160,7 +214,7 @@ static bool profile_supports_remote_wakeup(void)
            (s_profile == USB_BOARD_PROFILE_XBOX_ONE);
 }
 
-static uint32_t device_now_us(void)
+static USB_WEBHID_RAM uint32_t device_now_us(void)
 {
     uint32_t cycles_per_us = GetSysClock() / 1000000u;
     const uint32_t now = SysTick->CNTL;
@@ -293,6 +347,12 @@ static bool data_path_reset(bool settle_same_bus)
                       USBHS_UEP_T_RES_NAK);
     }
     s_ep1_busy = 0u;
+    s_native_head=s_native_count=0u;
+    s_native_paused=usb_high_rate_native_input_allowed()?0u:1u;
+    s_native_mode=(s_profile==USB_BOARD_PROFILE_XINPUT &&
+                   !usb_high_rate_is_turbo_presentation())?1u:0u;
+    usb_monitor_reset();
+    s_monitor_response_selected=0u;
     s_webhid_ep1_complete_pending = 0u;
     s_last_report_length = 0u;
     memset(s_ep1_tx, 0, sizeof(s_ep1_tx));
@@ -654,16 +714,22 @@ static const uint8_t *descriptor_for_setup(uint16_t value,
         switch(type)
         {
         case USB_DESCR_TYP_DEVICE:
-            descriptor = xinput_device_descriptor;
-            descriptor_length = sizeof(xinput_device_descriptor);
+            descriptor = s_native_device_descriptor;
+            descriptor_length = sizeof(s_native_device_descriptor);
             break;
         case USB_DESCR_TYP_CONFIG:
-            descriptor = xinput_configuration_descriptor;
-            descriptor_length = sizeof(xinput_configuration_descriptor);
+        case USB_DESCR_TYP_SPEED:
+            descriptor = native_configuration(type, &descriptor_length);
+            break;
+        case USB_DESCR_TYP_QUALIF:
+            descriptor = s_native_qualifier;
+            descriptor_length = sizeof(s_native_qualifier);
             break;
         case USB_DESCR_TYP_STRING:
-            descriptor =
-                xinput_string_descriptor(number, &descriptor_length);
+            if(number == 0xEEu) {
+                descriptor = s_native_os_string;
+                descriptor_length = sizeof(s_native_os_string);
+            } else descriptor = xinput_string_descriptor(number, &descriptor_length);
             break;
         case USB_DESCR_TYP_REPORT:
             if(interface_number == USBDEV_XINPUT_HID_INTERFACE)
@@ -880,6 +946,73 @@ static void endpoints_init(void)
     (void)data_path_reset(false);
 }
 
+/* Bounded native-only refill. Caller holds interrupt ownership. Clear DONE and
+ * release the old DMA buffer before entering from the completion ISR. Publish
+ * the new monitor token and busy flag before ACK exposes the report to SIE. */
+static USB_WEBHID_RAM void native_input_kick(void)
+{
+    if(!s_native_mode || s_native_paused || !s_mounted || s_suspended ||
+       s_transport_reset_pending || s_ep1_busy || !s_native_count)return;
+    const uint32_t now=usb_monitor_now();
+    while(s_native_count) /* At most USBDEV_NATIVE_QUEUE_DEPTH entries. */
+    {
+        usbdev_native_report_t *r=&s_native_queue[s_native_head];
+        s_native_head=(uint8_t)((s_native_head+1u)%USBDEV_NATIVE_QUEUE_DEPTH);
+        --s_native_count;
+        if(now-r->received_us>USBDEV_NATIVE_MAX_AGE_US)
+        {
+            usb_monitor_drop(r->token,UM_TIMEOUT);
+            continue;
+        }
+        usb_webhid_copy(s_ep1_tx,r->bytes,USBDEV_NATIVE_REPORT_BYTES);
+        usb_webhid_copy(s_last_report,r->bytes,USBDEV_NATIVE_REPORT_BYTES);
+        s_last_report_length=USBDEV_NATIVE_REPORT_BYTES;
+        s_ep1_busy=1u;
+        usb_monitor_arm(r->token);
+        R16_U2EP1_T_LEN=USBDEV_NATIVE_REPORT_BYTES;
+        R8_U2EP1_TX_CTRL=(uint8_t)((R8_U2EP1_TX_CTRL &
+                                  (uint8_t)~USBHS_UEP_T_RES_MASK) |
+                                  USBHS_UEP_T_RES_ACK);
+        break;
+    }
+}
+
+USB_WEBHID_RAM bool usb_device_hw_queue_native_input(
+    const usb_board_input_v1_t *input,const uint8_t *report,uint8_t length)
+{
+    uint32_t lock;
+    lock=usb_device_irq_save();
+    if(!s_native_mode || !input || !report || length!=USBDEV_NATIVE_REPORT_BYTES)
+    {
+        usb_device_irq_restore(lock);
+        return false;
+    }
+    const uint32_t now=usb_monitor_now();
+    const uint32_t token=usb_monitor_input(input,now);
+    if(!s_mounted || s_suspended || s_native_paused || s_transport_reset_pending)
+    {
+        usb_monitor_drop(token,UM_SEND_FAILED);
+    }
+    else
+    {
+        if(s_native_count==USBDEV_NATIVE_QUEUE_DEPTH)
+        {
+            /* Keep fresh state without silently losing the old edge record. */
+            usb_monitor_drop(s_native_queue[s_native_head].token,UM_OVERWRITTEN);
+            s_native_head=(uint8_t)((s_native_head+1u)%USBDEV_NATIVE_QUEUE_DEPTH);
+            --s_native_count;
+        }
+        usbdev_native_report_t *r=&s_native_queue[
+            (s_native_head+s_native_count)%USBDEV_NATIVE_QUEUE_DEPTH];
+        usb_webhid_copy(r->bytes,report,USBDEV_NATIVE_REPORT_BYTES);
+        r->token=token;r->received_us=now;
+        ++s_native_count;
+        native_input_kick();
+    }
+    usb_device_irq_restore(lock);
+    return true;
+}
+
 static bool ep1_send(const uint8_t *data, uint16_t length)
 {
     bool armed = false;
@@ -973,6 +1106,9 @@ static bool process_hid_get_report(void)
            ((uint8_t)s_setup_index == USBDEV_XINPUT_HID_INTERFACE) &&
            (s_setup_report_id == 0u))
         {
+            if(s_monitor_response_selected) {
+                ep0_tx(s_monitor_response,32u,s_setup_length);return true;
+            }
             ep0_tx((const uint8_t *)&s_high_rate_control_response,
                    sizeof(s_high_rate_control_response),
                    s_setup_length);
@@ -1060,12 +1196,21 @@ static bool process_control_out(void)
                (s_setup_report_id == 0u) &&
                (length == sizeof(hbox_client_control_v1_t)))
             {
+                if(um_u32(data)==UM_CONTROL_MAGIC) {
+                    s_monitor_response_selected=usb_monitor_control(data,length,s_monitor_response,usb_device_monitor_speed());
+                    return s_monitor_response_selected!=0u;
+                }
+                s_monitor_response_selected=0u;
                 (void)usb_high_rate_handle_control(
                     (const hbox_client_control_v1_t *)data,
                     &s_high_rate_control_response,
                     device_now_ms(),
                     device_is_high_speed(),
                     false);
+                /* A successful native RELEASE can cancel ARMING without a
+                 * detach/reset. Resume input in that case as well. */
+                if(s_native_mode)
+                    s_native_paused=usb_high_rate_native_input_allowed()?0u:1u;
                 return true;
             }
             return usb_ps4_feature_set(
@@ -1343,6 +1488,17 @@ static void handle_setup(void)
             ep0_stall();
             return;
         }
+        if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
+           (setup->bRequest == USBDEV_NATIVE_MS_VENDOR_CODE) &&
+           (setup->bRequestType == 0xC0u || setup->bRequestType == 0xC1u) &&
+           (setup->wValue == 0u) &&
+           (setup->wIndex == 4u || setup->wIndex == 5u))
+        {
+            if(setup->wIndex == 4u)
+                ep0_tx(s_native_compatible_id, sizeof(s_native_compatible_id), setup->wLength);
+            else ep0_tx(s_native_properties, sizeof(s_native_properties), setup->wLength);
+            return;
+        }
         if((s_profile == USB_BOARD_PROFILE_XBOX_ONE) &&
            ((setup->bRequestType & 0x80u) != 0u) &&
            (setup->bRequest == USBDEV_XBOX_OS_VENDOR_CODE) &&
@@ -1585,19 +1741,24 @@ bool usb_device_hw_send_report(const uint8_t *report, uint8_t length)
         return (report != 0) &&
                (length == USB_XBOX_DEVICE_INPUT_BYTES);
     }
-    if(!ep1_send(report, length))
-    {
-        return false;
-    }
+    const bool sent=ep1_send(report,length);
+    if(!sent) return false;
     usb_webhid_copy(s_last_report, report, length);
     s_last_report_length = length;
     return true;
 }
 
-void usb_device_hw_submit_input(const usb_board_input_v1_t *input)
+USB_WEBHID_RAM void usb_device_hw_submit_input(const usb_board_input_v1_t *input)
 {
     if((s_profile == USB_BOARD_PROFILE_XINPUT) && (input != 0))
     {
+        if(s_native_mode)
+        {
+            /* No Turbo packet is consumed here. Avoid a second button map,
+             * clock conversion and Flash call for every native 8 kHz sample. */
+            usb_high_rate_note_native_rate(input->flags);
+            return;
+        }
         usb_high_rate_submit_input(input,
                                    usb_profiles_xinput_buttons(
                                        input->action_mask_le),
@@ -1655,6 +1816,16 @@ void usb_device_hw_process(void)
 
     if(high_rate_event == USB_HIGH_RATE_EVENT_SEND_NEUTRAL)
     {
+        /* Stop native refill before the HBC1 neutral/detach transition. */
+        uint32_t native_lock;native_lock=usb_device_irq_save();
+        s_native_paused=1u;
+        while(s_native_count)
+        {
+            usb_monitor_drop(s_native_queue[s_native_head].token,UM_SEND_FAILED);
+            s_native_head=(uint8_t)((s_native_head+1u)%USBDEV_NATIVE_QUEUE_DEPTH);
+            --s_native_count;
+        }
+        usb_device_irq_restore(native_lock);
         static const uint8_t neutral_xinput_report[20] = {
             0x00u, 0x14u
         };
@@ -1705,6 +1876,13 @@ void usb_device_hw_process(void)
         usb_device_webhid_report_complete();
     }
 
+    if(s_native_mode)
+    {
+        uint32_t native_lock;native_lock=usb_device_irq_save();
+        s_native_paused=usb_high_rate_native_input_allowed()?0u:1u;
+        native_input_kick();
+        usb_device_irq_restore(native_lock);
+    }
     if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
        usb_high_rate_is_turbo_presentation())
     {
@@ -1917,11 +2095,13 @@ usb_board_usb_speed_t usb_management_control_hw_speed(void)
         : USB_BOARD_USB_SPEED_FULL;
 }
 
-static void complete_in_endpoint(uint8_t endpoint)
+static USB_WEBHID_RAM void complete_in_endpoint(uint8_t endpoint)
 {
     switch(endpoint)
     {
     case 1u:
+        if(s_native_mode && s_ep1_busy)
+            usb_monitor_complete();
         if((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
            (s_ep1_busy != 0u))
         {
@@ -1936,6 +2116,7 @@ static void complete_in_endpoint(uint8_t endpoint)
                       USBHS_UEP_T_RES_NAK);
         R8_U2EP1_TX_CTRL &= (uint8_t)~USBHS_UEP_T_DONE;
         s_ep1_busy = 0u;
+        native_input_kick();
         break;
     case 3u:
         R16_U2EP3_T_LEN = 0u;
@@ -2148,4 +2329,8 @@ void USB2_DEVICE_IRQHandler(void)
     {
         R8_USB2_INT_FG = flags;
     }
+}
+
+uint8_t usb_device_monitor_speed(void) {
+    return !s_mounted?0u:s_suspended?3u:device_is_high_speed()?2u:1u;
 }

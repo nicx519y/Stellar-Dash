@@ -27,6 +27,8 @@ bootloader/-O2
 bootloader/build-unlocked/
 bootloader/build-boot-profile*/
 releases
+!application/www/app/firmware/releases/
+!application/www/app/firmware/releases/page.tsx
 tools/__pycache__
 tools/tests/__pycache__/
 *.py[cod]

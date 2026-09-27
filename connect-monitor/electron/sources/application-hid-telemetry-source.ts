@@ -164,7 +164,9 @@ export function parseApplicationHidTelemetryFrame(report: Uint8Array, timestampM
       mode: "USB",
       state: "Connected",
       targetRateHz,
-      actualRateHz: targetRateHz,
+      actualRateHz: 0,
+      rateValid: false,
+      statusLabel: "旧版 USB 统计不提供 EP1 完成率",
     },
     {
       kind: "latency",

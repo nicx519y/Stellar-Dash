@@ -4,15 +4,13 @@ type State = { Gamepad?: { wButtons: number; bLeftTrigger: number; bRightTrigger
 type ReadState = (slot: number, state: State) => number;
 
 export function createNativeGamepadReader(read: ReadState) {
-  let preferred = 0;
-  return (): NativeGamepadSnapshot => {
-    const slots = [preferred, ...[0, 1, 2, 3].filter((slot) => slot !== preferred)];
+  return (selectedSlot: number | null): NativeGamepadSnapshot => {
+    const slots = selectedSlot !== null && Number.isInteger(selectedSlot) && selectedSlot >= 0 && selectedSlot < 4 ? [selectedSlot] : [];
     for (const slot of slots) {
       const state: State = {};
       let result: number;
       try { result = read(slot, state); } catch { continue; }
       if (result !== 0 || !state.Gamepad) continue;
-      preferred = slot;
       const g = state.Gamepad;
       const bits = [0x1000, 0x2000, 0x4000, 0x8000, 0x0100, 0x0200,
         0, 0, 0x0020, 0x0010, 0x0040, 0x0080, 0x0001, 0x0002, 0x0004, 0x0008];
@@ -25,9 +23,9 @@ export function createNativeGamepadReader(read: ReadState) {
   };
 }
 
-let reader: (() => NativeGamepadSnapshot) | null | undefined;
+let reader: ((slot: number | null) => NativeGamepadSnapshot) | null | undefined;
 
-export function readNativeGamepad(): NativeGamepadSnapshot | null {
+export function readNativeGamepad(selectedSlot: number | null): NativeGamepadSnapshot | null {
   if (reader === undefined) {
     reader = null;
     if (process.platform === "win32") {
@@ -41,8 +39,8 @@ export function readNativeGamepad(): NativeGamepadSnapshot | null {
         const state = koffi.struct({ dwPacketNumber: "uint32", Gamepad: gamepad });
         const read = lib.func("__stdcall", "XInputGetState", "uint32", ["uint32", koffi.out(koffi.pointer(state))]);
         reader = createNativeGamepadReader(read);
-      } catch { /* Browser Gamepad remains available on unsupported systems. */ }
+      } catch { /* Caller reports unavailable; never guess another controller. */ }
     }
   }
-  return reader ? reader() : null;
+  return reader ? reader(selectedSlot) : null;
 }

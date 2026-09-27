@@ -36,10 +36,10 @@ test('administration page uses Chakra components without custom styling systems'
 });
 
 test('administration route is mounted outside the HID provider', () => {
-    assert.match(rootLayout, /pathname === '\/admin\/users'/);
+    assert.match(rootLayout, /pathname\.startsWith\('\/admin\/'\)/);
     assert.match(
         rootLayout,
-        /if \(isEmailVerification \|\| isAdministration\)\s*\{[\s\S]*?<UserAuthProvider>/
+        /if \(isEmailVerification \|\| isAdministration \|\| isFirmwareCatalog\)\s*\{[\s\S]*?<UserAuthProvider>/
     );
 });
 

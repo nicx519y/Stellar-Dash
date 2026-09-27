@@ -262,6 +262,29 @@ bool BQ25895_EnableContinuousAdc(BQ25895_Handle* handle)
     return update_register(handle, BQ_REG_ADC_CONTROL, 0x40u, 0x40u);
 }
 
+static void decode_state(uint8_t status, uint8_t fault_latched,
+                         uint8_t fault_current, uint8_t battery_adc,
+                         uint8_t vbus_adc, uint8_t charge_current_adc,
+                         uint8_t dpm_status, BQ25895_State* state)
+{
+    memset(state, 0, sizeof(*state));
+    state->system_status = status;
+    state->fault = (uint8_t)(fault_latched | fault_current);
+    state->vbus_status = (uint8_t)((status >> 5) & 0x07u);
+    state->charge_status = (uint8_t)((status >> 3) & 0x03u);
+    state->power_good = (status & 0x04u) != 0u;
+    state->vbus_good = (vbus_adc & 0x80u) != 0u;
+    state->battery_mv = (uint16_t)(2304u + ((uint16_t)(battery_adc & 0x7Fu) * 20u));
+    state->vbus_mv = (uint16_t)(2600u + ((uint16_t)(vbus_adc & 0x7Fu) * 100u));
+    state->charge_current_ma = (uint16_t)((uint16_t)(charge_current_adc & 0x7Fu) * 50u);
+    /* REG13 exposes only voltage/current DPM status plus the IDPM limit. */
+    state->thermal_regulation = (battery_adc & 0x80u) != 0u;
+    state->input_voltage_regulation = (dpm_status & 0x80u) != 0u;
+    state->input_current_regulation = (dpm_status & 0x40u) != 0u;
+    state->input_current_limit_ma =
+        (uint16_t)(100u + ((uint16_t)(dpm_status & 0x3Fu) * 50u));
+}
+
 bool BQ25895_ReadState(BQ25895_Handle* handle, BQ25895_State* state)
 {
     if (handle == NULL || state == NULL || !handle->online) {
@@ -292,22 +315,8 @@ bool BQ25895_ReadState(BQ25895_Handle* handle, BQ25895_State* state)
         return false;
     }
 
-    memset(state, 0, sizeof(*state));
-    state->system_status = status;
-    state->fault = (uint8_t)(fault_latched | fault_current);
-    state->vbus_status = (uint8_t)((status >> 5) & 0x07u);
-    state->charge_status = (uint8_t)((status >> 3) & 0x03u);
-    state->power_good = (status & 0x04u) != 0u;
-    state->vbus_good = (vbus_adc & 0x80u) != 0u;
-    state->battery_mv = (uint16_t)(2304u + ((uint16_t)(battery_adc & 0x7Fu) * 20u));
-    state->vbus_mv = (uint16_t)(2600u + ((uint16_t)(vbus_adc & 0x7Fu) * 100u));
-    state->charge_current_ma = (uint16_t)((uint16_t)(charge_current_adc & 0x7Fu) * 50u);
-    /* REG13 exposes only voltage/current DPM status plus the IDPM limit. */
-    state->thermal_regulation = (battery_adc & 0x80u) != 0u;
-    state->input_voltage_regulation = (dpm_status & 0x80u) != 0u;
-    state->input_current_regulation = (dpm_status & 0x40u) != 0u;
-    state->input_current_limit_ma =
-        (uint16_t)(100u + ((uint16_t)(dpm_status & 0x3Fu) * 50u));
+    decode_state(status, fault_latched, fault_current, battery_adc, vbus_adc,
+                 charge_current_adc, dpm_status, state);
     return true;
 }
 
@@ -319,4 +328,77 @@ bool BQ25895_IsFatalFault(uint8_t fault)
      * external TS network, not firmware derating, is the safety authority.
      */
     return fault != 0u;
+}
+
+PowerI2C_Result BQ25895_Step(BQ25895_Handle* handle, BQ25895_Job* job,
+                           BQ25895_State* state)
+{
+    static const uint8_t state_regs[] = {
+        BQ_REG_SYSTEM_STATUS, BQ_REG_FAULT, BQ_REG_FAULT,
+        BQ_REG_BATTERY_ADC, BQ_REG_VBUS_ADC,
+        BQ_REG_CHARGE_CURRENT_ADC, BQ_REG_DPM_STATUS
+    };
+    if (handle == NULL || handle->i2c == NULL || job == NULL || state == NULL ||
+        (job->kind != BQ25895_JOB_INIT && !handle->online)) {
+        return POWER_I2C_FAILED;
+    }
+    PowerI2C_Register op = {BQ25895_I2C_ADDRESS_7BIT, 0, 1, POWER_I2C_READ, 0, 0, 0};
+    uint32_t count = 0;
+    if (job->kind == BQ25895_JOB_READ) {
+        count = sizeof(state_regs);
+        if (job->index >= count) { return POWER_I2C_FAILED; }
+        op.reg = state_regs[job->index];
+    } else if (job->kind == BQ25895_JOB_INIT) {
+        count = 2;
+        if (job->index >= count) { return POWER_I2C_FAILED; }
+        op.reg = job->index == 0 ? BQ_REG_PART_INFORMATION : BQ_REG_ADC_CONTROL;
+        if (job->index == 1) {
+            op.kind = POWER_I2C_UPDATE;
+            op.mask = op.value = op.verify_mask = 0x40u;
+        }
+    } else {
+        const uint32_t common_count = sizeof(k_safe_common_profile) / sizeof(k_safe_common_profile[0]);
+        uint32_t input_count;
+        const BQ25895_ProfileField* input = input_profile_fields(job->profile, &input_count);
+        count = common_count + input_count;
+        if (job->index >= count) { return POWER_I2C_FAILED; }
+        const BQ25895_ProfileField* field = job->index < common_count
+            ? &k_safe_common_profile[job->index] : &input[job->index - common_count];
+        op.reg = field->reg;
+        op.mask = op.verify_mask = field->mask;
+        op.value = field->value;
+        op.kind = job->kind == BQ25895_JOB_CONFIGURE ? POWER_I2C_UPDATE : POWER_I2C_VERIFY;
+    }
+    uint16_t value = 0;
+    PowerI2C_Result result = PowerI2C_StepRegister(&op, &value);
+    if (result == POWER_I2C_DONE && job->kind == BQ25895_JOB_INIT && job->index == 0 &&
+        (value & BQ_PART_INFORMATION_MASK) != BQ_PART_INFORMATION_BQ25895_REV1) {
+        result = POWER_I2C_FAILED;
+    }
+    if (result == POWER_I2C_FAILED) {
+        /* Verification can be repaired by the caller with CE disabled. */
+        if (job->kind != BQ25895_JOB_VERIFY) {
+            handle->online = false;
+            handle->profile_configured = false;
+        }
+        return result;
+    }
+    if (result == POWER_I2C_PENDING) { return result; }
+    if (job->kind == BQ25895_JOB_READ) {
+        job->values[job->index] = (uint8_t)value;
+        /* Publish protection bits immediately, including the first latched read. */
+        if (job->index == 1 || job->index == 2) { state->fault |= (uint8_t)value; }
+    }
+    if (++job->index < count) { return POWER_I2C_PENDING; }
+    if (job->kind == BQ25895_JOB_READ) {
+        const uint8_t* v = job->values;
+        decode_state(v[0], v[1], v[2], v[3], v[4], v[5], v[6], state);
+    } else if (job->kind == BQ25895_JOB_INIT) {
+        handle->online = true;
+        handle->profile_configured = false;
+    } else if (job->kind == BQ25895_JOB_CONFIGURE) {
+        handle->input_profile = job->profile;
+        handle->profile_configured = true;
+    }
+    return POWER_I2C_DONE;
 }

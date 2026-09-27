@@ -73,6 +73,10 @@ function setHostedFileHeaders(response, filePath) {
             'Content-Security-Policy',
             htmlSecurityPolicy(filePath)
         );
+    } else if (normalized.endsWith('.txt')) {
+        // Next's exported route payloads carry a build ID but have stable URLs.
+        // A cached payload from an older build forces a full document navigation.
+        response.set('Cache-Control', 'no-cache, no-store');
     } else if (normalized.includes('/_next/static/')) {
         response.set(
             'Cache-Control',

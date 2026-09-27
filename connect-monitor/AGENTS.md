@@ -1,6 +1,6 @@
 # connect-monitor 协作规则
 
-继承 [仓库规则](../AGENTS.md)。本目录是 Electron/React RF 诊断客户端；与 RX HID telemetry 配套，不是 WebConfig 产品页面。
+继承 [仓库规则](../AGENTS.md)。本目录是 Electron/React USB/RF 诊断客户端；与 TX/RX HID telemetry 配套，不是 WebConfig 产品页面。
 
 ## 仍有效的用户约束
 
@@ -18,7 +18,8 @@
 
 ## 指标与控制语义
 
-- Report Rate 表示 RX 合法 DATA 的窗口速率，不是 HID telemetry 包频率。Packet Loss、软件丢弃、状态合并和 USB 拥塞属于不同统计，不相互代替。
+- RF Report Rate 表示 RX 合法 DATA 的窗口速率；USB Report Rate 使用 UMS1 的 EP1 完成计数差和设备时间差。两者都不是 HID telemetry 包频率。Packet Loss、软件丢弃、状态合并和 USB 拥塞属于不同统计，不相互代替。
+- USB XInput 监测使用独立 UMC1/UMS1/UME1 协议及设备会话；不可向 USB TX 发送 RF CTL1。`measurement="usb"` 只表示延迟终点，来源按 `sourceMode` 区分。协议和误差模型见 [USB 监测说明](../docs/usb-connect-monitor.md)。
 - Link Lost Duration 是固件 DATA 静默判定；Link Recovered Duration 是主机看到恢复事件的时间差，不能当作同一延迟。
 - `RHM1` 是主统计；`RHS1`、`RHD1`、`RHF3`、`RHT5`、`RIG5`、`RLS1`、`RXP1` 等诊断不应抬高 DATA 输入计数。版本、页数、量纲和 sentinel 按生产者及解析器核对。
 - 分页快照只有收齐且新鲜时才可用；缺页、乱序、重连或旧固件缺能力时显示不可用，不能以零值代替。直方图分位数只代表桶上界。
@@ -41,6 +42,8 @@
 | 离线日志报告 | 仓库根目录 `python tools/rf_link_report.py <monitor-events.jsonl> --since-ms <Unix毫秒>` |
 
 修改 worker/主进程后，旧运行进程不会自动使用新代码；需要验证时完整退出再启动。测试脚本按实际文件选择，暂停约束解除前不自动运行；不要把 `test:hid-selection` 当作全套覆盖。
+
+Windows 的 `build:electron` 同时构建 C++/WinRT 手柄辅助程序，需要 CMake、MSVC 桌面工具链和 Windows SDK。USB/RF 绑定与人工验收见 [设备绑定说明](docs/device-binding.md)；按键读取不得回退到未经选择的 XInput 槽位或浏览器手柄。
 
 纯 renderer 修改先做相关类型检查，需产物时运行 `npm run build:renderer`；Electron 源码修改使用 `npm run build:electron`；跨进程契约修改检查两端。无对应源码变化不重复完整构建，不自动生成安装包或启动实机观察；上述范围选择不解除本文件的暂停测试要求。
 

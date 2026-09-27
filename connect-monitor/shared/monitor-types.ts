@@ -12,7 +12,16 @@ export type LinkState =
 export type ErrorLevel = "INFO" | "WARN" | "ERROR" | "FATAL";
 export type Ch585Role = "Unknown" | "RF" | "USB" | "Maintenance";
 
-export interface DeviceStatusEvent {
+export interface EventOrigin { sourceMode?: ConnectionMode; deviceId?: string; session?: number; deviceGeneration?: number; }
+
+export interface UsbStatisticsEvent extends EventOrigin {
+  kind: "usb_statistics"; timestampMs: number; session: number; deviceUs: number;
+  received: number; completed: number; overwritten: number; effectiveRateHz: number;
+  speed: number; diagnosticDrops: number; rateHz: number | null; receivedHz: number | null;
+}
+
+export interface DeviceStatusEvent extends EventOrigin {
+  rateValid?: boolean;
   kind: "device_status";
   timestampMs: number;
   mode: ConnectionMode;
@@ -22,7 +31,7 @@ export interface DeviceStatusEvent {
   actualRateHz: number;
 }
 
-export interface PacketEvent {
+export interface PacketEvent extends EventOrigin {
   rxProfile?: RxProfile;
   rfTxMetrics?: RfTxMetrics;
   rfProtocolVersion?: number;
@@ -174,7 +183,7 @@ export interface PacketEvent {
   syncTxTickUs?: number;
 }
 
-export interface LatencyEvent {
+export interface LatencyEvent extends EventOrigin {
   kind: "latency";
   timestampMs: number;
   seq: number;
@@ -183,7 +192,7 @@ export interface LatencyEvent {
   rfToUsbSubmitUs?: number;
 }
 
-export interface ButtonLatencyEvent {
+export interface ButtonLatencyEvent extends EventOrigin {
   kind: "button_latency";
   timestampMs: number;
   inputSeq: number;
@@ -215,7 +224,7 @@ export interface ButtonLatencyEvent {
   confidence: "high" | "medium" | "low";
 }
 
-export interface ButtonLatencyStatusEvent {
+export interface ButtonLatencyStatusEvent extends EventOrigin {
   kind: "button_latency_status";
   timestampMs: number;
   status: "Syncing" | "No HID telemetry" | "No XInput" | "No match" | "Locked" | "Waiting edge" | "Live";
@@ -227,7 +236,7 @@ export interface ButtonLatencyStatusEvent {
   syncPcReceiveUs?: number;
 }
 
-export interface PowerStatusEvent {
+export interface PowerStatusEvent extends EventOrigin {
   kind: "power_status";
   timestampMs: number;
   h1Mv: number;
@@ -252,7 +261,7 @@ export interface PowerStatusEvent {
   formatVersion?: 1 | 2;
 }
 
-export interface ErrorEvent {
+export interface ErrorEvent extends EventOrigin {
   kind: "error";
   timestampMs: number;
   source: string;
@@ -263,6 +272,7 @@ export interface ErrorEvent {
 }
 
 export type MonitorEvent =
+  | UsbStatisticsEvent
   | DeviceStatusEvent
   | PacketEvent
   | LatencyEvent
@@ -291,6 +301,7 @@ export type DebugApplyState = "Idle" | "Applying" | "Applied" | "Partial" | "Fai
 export type DebugHidPeriodMs = 100 | 250 | 500 | 1000;
 
 export interface DebugConfig {
+  sourceMode?: ConnectionMode;
   latencyMeasurementEnabled?: boolean;
   hidTelemetryEnabled: boolean;
   hidPeriodMs: DebugHidPeriodMs;
@@ -326,9 +337,14 @@ export interface LatencyTableBounds {
 
 export interface HitboxOptions {
   compact: boolean;
+  sourceMode?: ConnectionMode;
+  bindingGeneration?: number;
 }
 
 export interface HitboxSummary {
+  sourceMode?: ConnectionMode;
+  bindingGeneration?: number;
+  reason?: string;
   connected: boolean;
   deviceId: string | null;
   pressedCount: number;
@@ -336,6 +352,9 @@ export interface HitboxSummary {
 }
 
 export interface NativeGamepadSnapshot {
+  sourceMode?: ConnectionMode;
+  bindingGeneration?: number;
+  reason?: string;
   connected: boolean;
   deviceId: string | null;
   standardMask: number;

@@ -40,6 +40,7 @@ export interface CreatedServiceToken {
 }
 
 export interface AdminRuntime {
+  firmware: import('./firmware-types').FirmwareRuntime;
   listUsers(input: {
     query?: string;
     limit?: number;

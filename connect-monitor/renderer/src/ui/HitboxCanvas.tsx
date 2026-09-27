@@ -1,13 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
-import type { HitboxSummary, NativeGamepadSnapshot } from "../../../shared/monitor-types";
+import type { ConnectionMode, HitboxSummary, NativeGamepadSnapshot } from "../../../shared/monitor-types";
 import {
   createHitboxSummary,
   gamepadSnapshotSignature,
-  readGamepadButtonsSnapshot,
   nativeGamepadButtonsSnapshot,
   type GamepadButtonsSnapshot,
-  type PreferredGamepad,
 } from "./gamepadButtons";
 import { HITBOX_BUTTON_MAP, type HitboxButtonConfig } from "./hitboxButtonMap";
 
@@ -161,23 +159,26 @@ function resizeCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) 
 
 export function HitboxCanvas({
   compact,
+  sourceMode,
+  bindingGeneration,
   onSummary,
 }: {
   compact: boolean;
+  sourceMode: ConnectionMode;
+  bindingGeneration: number;
   onSummary?: (summary: HitboxSummary) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onSummaryRef = useRef(onSummary);
   onSummaryRef.current = onSummary;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
 
     let rafId = 0;
-    let preferred: PreferredGamepad | null = null;
-    let native: NativeGamepadSnapshot | null = null;
+    let native: NativeGamepadSnapshot = {connected:false,deviceId:null,standardMask:0,timestampMs:0,sourceMode,bindingGeneration};
     let nativePending = false;
     let active = true;
     let lastDrawSignature = "";
@@ -187,7 +188,7 @@ export function HitboxCanvas({
     let lastCssHeight = 0;
 
     const publishSummary = (snapshot: GamepadButtonsSnapshot, force = false) => {
-      const summary = createHitboxSummary(snapshot);
+      const summary = {...createHitboxSummary(snapshot),sourceMode,bindingGeneration,reason:native.reason};
       const summarySignature = `${summary.connected ? "1" : "0"}:${summary.deviceId ?? ""}:${summary.pressedCount}`;
       const now = performance.now();
       if (!force && summarySignature === lastSummarySignature && now - lastSummaryAt < SUMMARY_INTERVAL_MS) {
@@ -202,17 +203,11 @@ export function HitboxCanvas({
       if (!nativePending && window.connectMonitorApi?.getNativeGamepad) {
         nativePending = true;
         window.connectMonitorApi.getNativeGamepad().then((value) => {
-          if (active) native = value;
+          if (active && value?.sourceMode===sourceMode && value.bindingGeneration===bindingGeneration) native = value;
         }).catch(() => { /* Keep old state only until its 1s freshness deadline. */ })
           .finally(() => { nativePending = false; });
       }
-      const browser = native ? null : readGamepadButtonsSnapshot(preferred);
-      const snapshot = native ? nativeGamepadButtonsSnapshot(native) : browser!;
-      if (browser?.selected) {
-        preferred = browser.selected;
-      } else if (!snapshot.connected) {
-        preferred = null;
-      }
+      const snapshot = nativeGamepadButtonsSnapshot(native);
 
       const size = resizeCanvas(canvas, ctx);
       const drawSignature = `${gamepadSnapshotSignature(snapshot)}:${compact ? "1" : "0"}`;
@@ -226,6 +221,12 @@ export function HitboxCanvas({
       publishSummary(snapshot);
       rafId = window.requestAnimationFrame(tick);
     };
+
+    // Erase the previous device before the next paint, even if native I/O is pending.
+    const initialSize=resizeCanvas(canvas,ctx);
+    const initialSnapshot=nativeGamepadButtonsSnapshot(native);
+    drawHitbox(ctx,initialSize.width,initialSize.height,initialSnapshot,compact);
+    publishSummary(initialSnapshot,true);
 
     const forceRefresh = () => {
       lastDrawSignature = "";
@@ -244,7 +245,7 @@ export function HitboxCanvas({
       window.removeEventListener("gamepadconnected", forceRefresh);
       window.removeEventListener("gamepaddisconnected", forceRefresh);
     };
-  }, [compact]);
+  }, [compact,sourceMode,bindingGeneration]);
 
   return (
     <canvas

@@ -45,6 +45,7 @@ const {
     resolveHostedWebConfigOptions
 } = require('./hosted-webconfig');
 const { resolveServerStoragePaths } = require('./server-paths');
+const { FirmwareReleaseStore, initFirmwareReleaseRoutes } = require('./firmware-releases');
 const { DeviceAccountStore } = require('./device-account-store');
 const { UserAccountStore } = require('./user-account-store');
 const {
@@ -260,6 +261,14 @@ initImageGalleryRoutes(app, {
     adminAccess
 });
 initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth);
+const firmwareReleaseStore = new FirmwareReleaseStore({
+    databasePath: storagePaths.firmwareReleaseDatabase,
+    assetRoot: storagePaths.firmwareReleaseAssetDir,
+    publicKey: config.firmwareReleasePublicKey,
+    legacyStore: storage_manager
+});
+app.locals.firmwareReleaseStore = firmwareReleaseStore;
+initFirmwareReleaseRoutes(app, { store: firmwareReleaseStore, adminAccess, deviceAccess });
 
 /*
  * The V2 WebConfig is a normal HTTPS-hosted static export. API and download

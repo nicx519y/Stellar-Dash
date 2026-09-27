@@ -1,4 +1,5 @@
 import type { AccountRole } from '@/lib/user-auth/types';
+import { firmwareRuntime } from './firmware-hosted';
 import {
   AdminApiError,
   AdminRuntime,
@@ -42,6 +43,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const adminRuntime: AdminRuntime = {
+  firmware: firmwareRuntime,
   listUsers(input) {
     const query = new URLSearchParams({
       query: input.query || '',

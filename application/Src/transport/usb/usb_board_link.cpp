@@ -1,3 +1,6 @@
+#include "usb_monitor_protocol.h"
+#include "trace_clock.hpp"
+#include "micro_timer.hpp"
 #include "usb_board_link.hpp"
 #include "usb_board_link_c_api.h"
 
@@ -17,17 +20,32 @@
  * Publish whole dedicated cache lines so a running-core SWD read is reliable. */
 extern "C" {
 alignas(32) volatile uint32_t g_webhid_link_fault[32] = {};
+/* First USB-input overflow metadata only; no input reports or session keys. */
+alignas(32) volatile uint32_t g_usb_input_fault[8] = {};
 }
 
 namespace {
+struct UsbSourceMonitor {
+    TraceClock clock;
+    uint32_t session=0, query=0, queryAt=0, lastQueryMs=0, lastReplyMs=0;
+    uint32_t previous=0, event=0, trigger=0, complete=0, ready=0, sampleUs=0, drops=0;
+    uint8_t enabled=0, baseline=0, sampleValid=0, clockPending=0, head=0, count=0;
+    uint8_t clockFrame[24]={}, edges[8][40]={};
+};
+// CPU-only diagnostic state in the existing NOLOAD D2 area; initialized on role selection.
+__attribute__((section(".DMA_Section"), aligned(32))) UsbSourceMonitor usbMon;
+uint32_t usbMonitorNow() {
+    return usbMon.clock.observe(DWT->CYCCNT,HAL_GetTick(),SystemCoreClock/1000000u);
+}
+
 static whf_link_t s_hsLink;
 static uint8_t s_hsBlock[WHF_BLOCK_BYTES];
 static bool s_hsReady;
 static bool s_hsSessionInvalid;
 static uint32_t s_hsEpoch;
-/* Board-level comparison build: qualify the supported 7.5 MHz candidate after
- * a 15 MHz report was rejected with a nonzero reserved header byte. */
-static constexpr uint32_t kWebHidSpiHz = 7500000u;
+/* Use the TX-advertised 15 MHz application data rate. Bootstrap/IAP retain
+ * their separate slow clock and PREPARE/probe/COMMIT ownership checks. */
+static constexpr uint32_t kWebHidSpiHz = 15000000u;
 
 static constexpr uint32_t kControlTimeoutMs = 20u;
 static constexpr uint32_t kEventDrainTimeoutMs = 20u;
@@ -309,6 +327,7 @@ bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
     if (!supportedRole(role) || roleLocked) {
         return roleLocked && (selectedRole == role);
     }
+    usbMon=UsbSourceMonitor{};
     usbSubsystemEvidence = false;
     if (!USBBoardLinkPort_Init()) {
         return false;
@@ -525,6 +544,11 @@ bool UsbBoardLink::enableWebHidDataPlane()
 
 bool UsbBoardLink::enableFastInputDataPlane()
 {
+    const auto recordStage = [](uint32_t stage) {
+        g_usb_input_fault[7] = stage;
+        SCB_CleanDCache_by_Addr((uint32_t *)g_usb_input_fault,sizeof(g_usb_input_fault));
+        __DSB();
+    };
     if (!capsValid || selectedRole != USB_BOARD_ROLE_USB ||
         selectedProfile != USB_BOARD_PROFILE_XINPUT ||
         (caps.feature_flags &
@@ -537,11 +561,21 @@ bool UsbBoardLink::enableFastInputDataPlane()
 
     fastDataPlaneFaultPending = false;
     fastDataPlaneFault = USB_BOARD_STATUS_OK;
-    if (!setDataPlane(USB_BOARD_DATA_PLANE_FAST_INPUT_V2)) {
+    recordStage(1u);
+    bool prepared = false;
+    /* SET_DATA_PLANE is idempotent. A busy NSS boundary or a lost reply
+     * must not permanently disable fast input for this connection. */
+    for(unsigned attempt=0u; attempt<3u && !prepared; ++attempt) {
+        prepared=setDataPlane(USB_BOARD_DATA_PLANE_FAST_INPUT_V2);
+        if(!prepared && attempt+1u<3u) HAL_Delay(1u);
+    }
+    if (!prepared) {
+        recordStage(0xE1u);
         APP_STAGE_ERROR("U05F", "FAST_INPUT_V2 handshake rejected");
         return false;
     }
     if (!USBBoardLinkPort_EnableFastApplication()) {
+        recordStage(0xE2u);
         APP_STAGE_ERROR("U05F",
                         "FAST_INPUT_V2 local SPI switch failed: spi4_hz=%lu",
                         static_cast<unsigned long>(
@@ -581,12 +615,14 @@ bool UsbBoardLink::enableFastInputDataPlane()
         response.nonce_le == probe.nonce_le &&
         response.crc16_le == probe.crc16_le;
     if (!probeOk) {
+        recordStage(0xE3u);
         APP_STAGE_ERROR("U05P", "FAST_INPUT_V2 maximum-frame probe failed");
         (void)restoreCompatibleDataPlane();
         return false;
     }
 
     fastApplication = true;
+    recordStage(4u);
     APP_STAGE("U05P",
               "FAST_INPUT_V2 probe accepted: spi4_hz=%lu nonce=%08lx",
               static_cast<unsigned long>(USBBoardLinkPort_ClockHz()),
@@ -751,7 +787,30 @@ bool UsbBoardLink::submitInput(uint32_t processedActionMask,
     input.crc8 = usb_board_input_crc8(
         reinterpret_cast<const uint8_t *>(&input),
         static_cast<uint8_t>(sizeof(input) - 1u));
-    return send(USB_BOARD_CMD_INPUT_STATE, &input, sizeof(input));
+    const bool edge=(usbMon.enabled&UM_LATENCY) && usbMon.baseline && usbMon.previous!=processedActionMask;
+    const uint32_t previous=usbMon.previous;
+    usbMon.previous=processedActionMask;usbMon.baseline=1u;
+    const bool ok=send(USB_BOARD_CMD_INPUT_STATE, &input, sizeof(input));
+    if(edge && usbMon.sampleValid) {
+        // Sparse metadata never changes the 10-byte input ABI or waits for credit.
+        if(usbMon.count<8u) {
+            uint8_t *p=usbMon.edges[(usbMon.head+usbMon.count)%8u];memset(p,0,40);
+            p[0]=UM_BOARD_EDGE;p[1]=UM_VERSION;p[2]=ok?0u:UM_SEND_FAILED;p[3]=input.seq;
+            um_put32(p+4,usbMon.session);um_put32(p+8,++usbMon.event);
+            um_put32(p+12,previous);um_put32(p+16,processedActionMask);um_put32(p+20,usbMon.sampleUs);
+            const uint32_t scale=SystemCoreClock/1000000u;
+            um_put32(p+24,(usbMon.complete-usbMon.trigger)/scale);
+            um_put32(p+28,(usbMon.ready-usbMon.complete)/scale);
+            uint32_t start=0,end=0;
+            const bool timing=ok && USBBoardLinkPort_LastMonitorTiming(&start,&end);
+            um_put32(p+32,timing?(start-usbMon.ready)/scale:UM_UNKNOWN);
+            um_put32(p+36,timing?(end-start)/scale:UM_UNKNOWN);
+            usbMon.count++;
+        } else usbMon.drops++;
+        // A missing sidecar remains a partial CH585 edge, never a fabricated duration.
+    }
+    usbMon.sampleValid=0u;
+    return ok;
 }
 
 bool UsbBoardLink::sendControl(usb_board_control_opcode_t opcode,
@@ -1061,6 +1120,22 @@ void UsbBoardLink::handleEvent(uint8_t command,
                                const uint8_t *payload,
                                uint8_t length)
 {
+    if(command==UM_BOARD_EVENT && length==20u && payload[0]==UM_BOARD_QUERY &&
+       payload[1]==UM_VERSION && um_u32(payload+8)==usbMon.query) {
+        const uint32_t now=usbMonitorNow(), peer=um_u32(payload+4);
+        if(now-usbMon.queryAt>500000u)return;
+        if(peer!=usbMon.session || ((payload[2]^usbMon.enabled)&UM_LATENCY)) {
+            usbMon.baseline=0;usbMon.head=usbMon.count=0;
+        }
+        usbMon.session=peer;usbMon.enabled=payload[2];usbMon.lastReplyMs=HAL_GetTick();
+        uint8_t *p=usbMon.clockFrame;memset(p,0,24);
+        p[0]=UM_BOARD_CLOCK;p[1]=UM_VERSION;um_put32(p+4,peer);um_put32(p+8,usbMon.query);
+        // CH585-minus-STM32 interval, no symmetry assumption. Queue time widens it.
+        um_put32(p+12,um_u32(payload+16)-now-4u);
+        um_put32(p+16,um_u32(payload+12)-usbMon.queryAt+4u);
+        um_put32(p+20,um_u32(payload+12));usbMon.clockPending=1u;
+        return;
+    }
     if ((command == USB_BOARD_EVT_USB_STATE) &&
         (length == sizeof(usbState))) {
         usb_board_usb_state_v1_t updated = {};
@@ -1104,6 +1179,14 @@ void UsbBoardLink::handleEvent(uint8_t command,
             credits[update.channel] = boundedCredits;
         }
     } else if ((command == USB_BOARD_EVT_FAULT) && (length != 0u)) {
+        if(selectedRole == USB_BOARD_ROLE_USB && length == 14u && !g_usb_input_fault[0]) {
+            g_usb_input_fault[1]=HAL_GetTick();
+            g_usb_input_fault[2]=payload[0]; g_usb_input_fault[3]=payload[1];
+            for(unsigned i=0;i<3u;++i) g_usb_input_fault[4u+i]=whf_u32(payload+2u+4u*i);
+            g_usb_input_fault[0]=0x55494631u;
+            SCB_CleanDCache_by_Addr((uint32_t *)g_usb_input_fault,sizeof(g_usb_input_fault));
+            __DSB();
+        }
         usbState.last_fault = payload[0];
         if (s_hsReady) USBBoardLink_HsTransportFault();
         if (fastApplication || USBBoardLinkPort_IsFastApplication()) {
@@ -1213,11 +1296,13 @@ void UsbBoardLink::process()
             whf_commit(&s_hsLink, s_hsBlock);
     }
     flushReceiveCredits();
+    pumpMonitor();
     pumpTelemetry();
 }
 
 void UsbBoardLink::shutdown()
 {
+    usbMon=UsbSourceMonitor{};
     s_hsReady = false; whf_init(&s_hsLink, 0u);
     USBBoardLinkPort_Shutdown();
     selectedRole = USB_BOARD_ROLE_NONE;
@@ -1338,4 +1423,45 @@ extern "C" void UsbBoardLink_SetWebConfigReceiveCallback(
 extern "C" void UsbBoardLink_Process(void)
 {
     USB_BOARD_LINK.process();
+}
+
+void UsbBoardLink::monitorSample(uint32_t trigger,uint32_t complete) {
+    if(!(usbMon.enabled&UM_LATENCY)) {usbMon.sampleValid=0u;return;}
+    usbMon.ready=DWT->CYCCNT;
+    const uint32_t scale=SystemCoreClock/1000000u;
+    usbMon.sampleUs=usbMon.clock.observe(usbMon.ready,HAL_GetTick(),scale)-(usbMon.ready-trigger)/scale;
+    usbMon.trigger=trigger;usbMon.complete=complete;usbMon.sampleValid=1u;
+}
+bool UsbBoardLink::tryMonitorSend(const uint8_t *payload,uint8_t length) {
+    LinkTransactionGuard transaction(transactionActive);
+    if(!transaction || USBBoardLinkPort_HasEvent())return false;
+    uint8_t frame[64],size=0;
+    return usb_board_link_encode(UM_BOARD_COMMAND,payload,length,frame,sizeof(frame),&size) &&
+           USBBoardLinkPort_Send(frame,size);
+}
+void UsbBoardLink::pumpMonitor() {
+    if(!capsValid || selectedRole!=USB_BOARD_ROLE_USB || selectedProfile!=USB_BOARD_PROFILE_XINPUT ||
+       !isDeviceMounted() || isDeviceSuspended()) { usbMon.enabled=usbMon.baseline=0u;return; }
+    // 2.2 is the first USB-side monitor-capable firmware. Old firmware gets no new commands.
+    if(caps.firmware_major<2u || (caps.firmware_major==2u && caps.firmware_minor<2u))return;
+    const uint32_t now=HAL_GetTick();
+    if(now-usbMon.lastReplyMs>3000u)usbMon.enabled=usbMon.baseline=0u;
+    if(usbMon.count) {
+        uint8_t *p=usbMon.edges[usbMon.head];
+        // Avoid ambiguous matches after an 8-bit input sequence wrap.
+        if(usbMonitorNow()-um_u32(p+20)>UM_MATCH_US) {
+            p[2]|=UM_UNMATCHED;
+        }
+        if(tryMonitorSend(p,40)) { usbMon.head=(usbMon.head+1u)%8u;usbMon.count--; }
+        return;
+    }
+    if(usbMon.clockPending) {
+        if(!(usbMon.enabled&UM_LATENCY) || tryMonitorSend(usbMon.clockFrame,24))usbMon.clockPending=0u;
+        return;
+    }
+    if(now-usbMon.lastQueryMs>=1000u) {
+        uint8_t p[16]={UM_BOARD_QUERY,UM_VERSION};um_put32(p+8,++usbMon.query);um_put32(p+12,usbMon.drops);
+        usbMon.queryAt=usbMonitorNow();
+        if(tryMonitorSend(p,sizeof(p)))usbMon.lastQueryMs=now;
+    }
 }

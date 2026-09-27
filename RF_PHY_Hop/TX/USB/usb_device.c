@@ -1,5 +1,6 @@
 #include "usb_webhid_memory.h"
 #include "usb_device.h"
+#include "usb_monitor.h"
 
 #include <string.h>
 
@@ -138,6 +139,8 @@ void usb_device_process(void)
     {
         s_telemetry_pending = 0u;
     }
+    if(s_profile == USB_BOARD_PROFILE_XINPUT)
+        (void)usb_monitor_process(usb_device_hw_is_suspended()?3u:usb_device_monitor_speed());
     if((s_webhid_count != 0u) &&
        (s_webhid_report_in_flight == 0u) &&
        usb_device_hw_is_mounted())
@@ -197,12 +200,12 @@ bool usb_device_set_profile(usb_board_profile_t profile)
     return usb_device_init(profile);
 }
 
-bool usb_device_submit_input(const usb_board_input_v1_t *input)
+USB_WEBHID_RAM bool usb_device_submit_input(const usb_board_input_v1_t *input)
 {
     if((s_initialized == 0u) || (input == 0) ||
        (((input->flags >> USB_BOARD_INPUT_VERSION_SHIFT) & 0x0Fu) !=
         USB_BOARD_INPUT_FORMAT_VERSION) ||
-       (usb_board_input_crc8((const uint8_t *)input,
+       (usb_input_crc8((const uint8_t *)input,
                               (uint8_t)(sizeof(*input) - 1u)) != input->crc8) ||
        !usb_profiles_build_report(s_profile, input, &s_latest_report))
     {
@@ -210,6 +213,12 @@ bool usb_device_submit_input(const usb_board_input_v1_t *input)
         return false;
     }
     usb_device_hw_submit_input(input);
+    if(s_profile == USB_BOARD_PROFILE_XINPUT &&
+       usb_device_hw_queue_native_input(input,s_latest_report.bytes,s_latest_report.length))
+    {
+        s_report_pending=0u;
+        return true;
+    }
     usb_device_hw_set_actions(input->action_mask_le);
     s_report_pending = (s_latest_report.length != 0u) ? 1u : 0u;
     return true;
@@ -349,5 +358,12 @@ __attribute__((weak)) bool usb_device_hw_control(const uint8_t *payload,
 {
     (void)payload;
     (void)length;
+    return false;
+}
+
+__attribute__((weak)) bool usb_device_hw_queue_native_input(
+    const usb_board_input_v1_t *input,const uint8_t *report,uint8_t length)
+{
+    (void)input;(void)report;(void)length;
     return false;
 }

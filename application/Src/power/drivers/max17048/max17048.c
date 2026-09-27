@@ -142,6 +142,23 @@ bool MAX17048_ClearAlert(MAX17048_Handle* handle)
     return true;
 }
 
+static void decode_state(uint16_t raw_vcell, uint16_t raw_soc,
+                         uint16_t status, uint16_t config, MAX17048_State* state)
+{
+    memset(state, 0, sizeof(*state));
+    /* VCELL LSB is 78.125 uV, exactly 5/64 mV. */
+    state->cell_mv = (uint16_t)(((uint32_t)raw_vcell * 5u + 32u) / 64u);
+    /* SOC is unsigned 8.8 fixed point. */
+    uint32_t soc_permille = ((uint32_t)raw_soc * 10u + 128u) / 256u;
+    if (soc_permille > 1000u) {
+        soc_permille = 1000u;
+    }
+    state->soc_permille = (uint16_t)soc_permille;
+    state->status = status;
+    state->alert = (config & 0x0020u) != 0u;
+    state->valid = state->cell_mv >= 2500u && state->cell_mv <= 5000u;
+}
+
 bool MAX17048_ReadState(MAX17048_Handle* handle, MAX17048_State* state)
 {
     if (handle == NULL || state == NULL || !handle->online) {
@@ -160,17 +177,52 @@ bool MAX17048_ReadState(MAX17048_Handle* handle, MAX17048_State* state)
         return false;
     }
 
-    memset(state, 0, sizeof(*state));
-    /* VCELL LSB is 78.125 uV, exactly 5/64 mV. */
-    state->cell_mv = (uint16_t)(((uint32_t)raw_vcell * 5u + 32u) / 64u);
-    /* SOC is unsigned 8.8 fixed point. */
-    uint32_t soc_permille = ((uint32_t)raw_soc * 10u + 128u) / 256u;
-    if (soc_permille > 1000u) {
-        soc_permille = 1000u;
-    }
-    state->soc_permille = (uint16_t)soc_permille;
-    state->status = status;
-    state->alert = (config & 0x0020u) != 0u;
-    state->valid = state->cell_mv >= 2500u && state->cell_mv <= 5000u;
+    decode_state(raw_vcell, raw_soc, status, config, state);
     return true;
+}
+
+PowerI2C_Result MAX17048_Step(MAX17048_Handle* handle, MAX17048_Job* job,
+                            MAX17048_State* state)
+{
+    static const uint8_t state_regs[] = {MAX_REG_VCELL, MAX_REG_SOC, MAX_REG_STATUS, MAX_REG_CONFIG};
+    if (handle == NULL || handle->i2c == NULL || job == NULL || state == NULL ||
+        (job->kind != MAX17048_JOB_INIT && !handle->online)) {
+        return POWER_I2C_FAILED;
+    }
+    PowerI2C_Register op = {MAX17048_I2C_ADDRESS_7BIT, 0, 2, POWER_I2C_READ, 0, 0, 0};
+    const uint8_t count = job->kind == MAX17048_JOB_READ ? 4 : 2;
+    if (job->index >= count) { return POWER_I2C_FAILED; }
+    if (job->kind == MAX17048_JOB_READ) {
+        op.reg = state_regs[job->index];
+    } else if (job->kind == MAX17048_JOB_INIT) {
+        op.reg = job->index == 0 ? MAX_REG_VERSION : MAX_REG_CONFIG;
+        if (job->index == 1) {
+            uint8_t threshold = job->alert_soc_percent;
+            if (threshold < 1) { threshold = 1; }
+            if (threshold > 32) { threshold = 32; }
+            op.kind = POWER_I2C_UPDATE;
+            op.mask = 0x003Fu;
+            op.value = 32u - threshold;
+            op.verify_mask = 0x001Fu;
+        }
+    } else {
+        op.reg = job->index == 0 ? MAX_REG_CONFIG : MAX_REG_STATUS;
+        op.kind = POWER_I2C_UPDATE;
+        op.mask = job->index == 0 ? 0x0020u : (uint16_t)~0x4000u;
+    }
+    uint16_t value = 0;
+    PowerI2C_Result result = PowerI2C_StepRegister(&op, &value);
+    if (result == POWER_I2C_DONE && job->kind == MAX17048_JOB_INIT && job->index == 0) {
+        if (value == 0 || value == 0xFFFFu) { result = POWER_I2C_FAILED; }
+        else { handle->version = value; }
+    }
+    if (result == POWER_I2C_FAILED) { handle->online = false; return result; }
+    if (result == POWER_I2C_PENDING) { return result; }
+    if (job->kind == MAX17048_JOB_READ) { job->values[job->index] = value; }
+    if (++job->index < count) { return POWER_I2C_PENDING; }
+    if (job->kind == MAX17048_JOB_READ) {
+        const uint16_t* v = job->values;
+        decode_state(v[0], v[1], v[2], v[3], state);
+    } else if (job->kind == MAX17048_JOB_INIT) { handle->online = true; }
+    return POWER_I2C_DONE;
 }

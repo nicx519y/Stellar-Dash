@@ -90,7 +90,9 @@ function parseManifestAddress(value, fieldName) {
  * are intentionally small, flat archives; ZIP64, encryption and nested paths
  * are rejected so upload validation remains deterministic and fail-closed.
  */
-function readFlatZipEntries(filePath) {
+function readFlatZipEntries(filePath, limits = {}) {
+    const maxEntrySize = limits.maxEntrySize || MAX_OTA_ENTRY_SIZE;
+    const maxTotalSize = limits.maxTotalSize || MAX_OTA_UNCOMPRESSED_SIZE;
     const archive = fs.readFileSync(filePath);
     const eocdSignature = 0x06054b50;
     const searchStart = Math.max(0, archive.length - 65557);
@@ -109,6 +111,9 @@ function readFlatZipEntries(filePath) {
         throw new Error('multi-disk ZIP is not supported');
     }
     const entryCount = archive.readUInt16LE(eocdOffset + 10);
+    if (entryCount > (limits.maxEntries || 32)) {
+        throw new Error('ZIP contains too many entries');
+    }
     const centralSize = archive.readUInt32LE(eocdOffset + 12);
     const centralOffset = archive.readUInt32LE(eocdOffset + 16);
     if (entryCount === 0xffff || centralSize === 0xffffffff ||
@@ -137,7 +142,7 @@ function readFlatZipEntries(filePath) {
             throw new Error('truncated ZIP central directory entry');
         }
         const name = archive.subarray(offset + 46, offset + 46 + nameLength).toString('utf8');
-        if (!name || name.includes('/') || name.includes('\\') || entries.has(name)) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(name) || entries.has(name)) {
             throw new Error(`invalid or duplicate ZIP entry: ${name}`);
         }
         if ((flags & 0x0001) !== 0) {
@@ -147,8 +152,8 @@ function readFlatZipEntries(filePath) {
             throw new Error(`unsupported ZIP compression method for ${name}`);
         }
         totalUncompressedSize += uncompressedSize;
-        if (uncompressedSize > MAX_OTA_ENTRY_SIZE ||
-            totalUncompressedSize > MAX_OTA_UNCOMPRESSED_SIZE) {
+        if (uncompressedSize > maxEntrySize ||
+            totalUncompressedSize > maxTotalSize) {
             throw new Error('ZIP uncompressed size exceeds the STM32 OTA boundary');
         }
         if (localOffset + 30 > archive.length ||
@@ -179,7 +184,7 @@ function readFlatZipEntries(filePath) {
                 // Bound output independently so a forged DEFLATE stream cannot
                 // turn a small upload into a server-side memory bomb.
                 maxOutputLength: Math.min(
-                    MAX_OTA_ENTRY_SIZE,
+                    maxEntrySize,
                     uncompressedSize
                 ) + 1
             });

@@ -47,6 +47,7 @@ public:
                      const uint8_t *payload,
                      uint16_t length);
     void process();
+    void monitorSample(uint32_t triggerCycles, uint32_t completeCycles);
     void shutdown();
     void requestWebConfigTransportReset();
 
@@ -90,6 +91,8 @@ private:
     void handleEvent(uint8_t command, const uint8_t *payload, uint8_t length);
     void serviceWebConfigTransportReset();
     void pumpTelemetry();
+    void pumpMonitor();
+    bool tryMonitorSend(const uint8_t *payload, uint8_t length);
     bool trySendTelemetry(const uint8_t *payload, uint8_t length);
     bool sendBulkInternal(usb_board_channel_t channel,
                           uint8_t transaction,

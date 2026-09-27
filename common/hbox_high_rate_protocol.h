@@ -15,6 +15,10 @@ extern "C" {
 #define HBOX_CLIENT_INPUT_BYTES            64u
 #define HBOX_CLIENT_NATIVE_VID             0x045Eu
 #define HBOX_CLIENT_NATIVE_PID             0x028Eu
+/* Native XInput + independent telemetry HID. Legacy 045E:028E remains
+ * recognized by host tools, but Windows binds that entire device to XUSB. */
+#define HBOX_CLIENT_COMPOSITE_VID          0xCAFEu
+#define HBOX_CLIENT_COMPOSITE_PID          0x4024u
 #define HBOX_CLIENT_HIGH_RATE_VID          0xCAFEu
 #define HBOX_CLIENT_HIGH_RATE_PID          0x4023u
 #define HBOX_CLIENT_HEARTBEAT_MS            250u

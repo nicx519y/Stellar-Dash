@@ -216,6 +216,7 @@ bool InputState::submitInputReport(const GamepadState& state,
         const uint16_t ageUs = static_cast<uint16_t>(
             age > UINT16_MAX ? UINT16_MAX : age);
         MonitorTelemetry_SetPendingUsbSeq(reportSequence);
+        USB_BOARD_LINK.monitorSample(sample.triggerCycles,sample.completeCycles);
         if (USB_DRIVER.submit(state, ageUs)) {
             MonitorTelemetry_OnUsbReportSubmitted(USB_BOARD_INPUT_V1_BYTES);
             return true;

@@ -1,3 +1,5 @@
+import { useMonitorSource } from "./monitorSource";
+import { UsbMonitorPanel } from "./UsbMonitorPanel";
 import {
   Badge,
   Box,
@@ -7,29 +9,25 @@ import {
   Heading,
   HStack,
   IconButton,
-  Image,
-  SegmentGroup,
   Switch,
+  Tabs,
   Text,
   VStack,
 } from "@chakra-ui/react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FaListUl, FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowRestore, FaTerminal } from "react-icons/fa";
+import { FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowRestore } from "react-icons/fa";
 import { GrClearOption } from "react-icons/gr";
 import { LuWifi, LuWifiHigh, LuWifiLow, LuWifiZero } from "react-icons/lu";
 import { TfiClose } from "react-icons/tfi";
-import type { DebugApplyState, DebugConfig, DebugConfigStatus, DebugHidPeriodMs, MonitorEvent, PacketEvent, PowerStatusEvent } from "../../../shared/monitor-types";
-import rfMonitorLogo from "../assets/rf-monitor-logo.png";
+import type { DebugApplyState, DebugConfig, DebugConfigStatus, MonitorEvent, PacketEvent, PowerStatusEvent } from "../../../shared/monitor-types";
 import { useMonitorStream } from "./useMonitorStream";
 import { ButtonLatencyPanel } from "./ButtonLatencyPanel";
 import { ButtonsPanel } from "./ButtonsPanel";
+import { useDeviceBindings } from "./useDeviceBindings";
 import { publishCardClear } from "./cardClear";
-import { ChannelPanel } from "./ChannelPanel";
 import { ChannelScorePanel } from "./ChannelScorePanel";
-import { PacketsPanel } from "./PacketsPanel";
 import { RatePanel } from "./RatePanel";
-import { SerialLogPanel } from "./SerialLogPanel";
 import { neonGreen, panelSurfaceProps, toolbarActionButtonProps } from "./panelStyles";
 import { clearSerialLogLines } from "./serialLogStore";
 
@@ -121,23 +119,6 @@ function RssiSignalIcon({ level }: { level: number }) {
   const icons = [LuWifiZero, LuWifiLow, LuWifiHigh, LuWifi] as const;
   const Icon = icons[Math.max(0, Math.min(3, level))];
   return <Icon aria-hidden size={18} />;
-}
-
-function AppLogo() {
-  return (
-    <Image
-      src={rfMonitorLogo}
-      alt="RF-Monitor"
-      h="40px"
-      w="auto"
-      ml="-12px"
-      maxW={{ base: "220px", md: "320px" }}
-      objectFit="contain"
-      display="block"
-      opacity={1}
-      filter="contrast(1.18) brightness(1.22)"
-    />
-  );
 }
 
 function WindowControls() {
@@ -279,7 +260,9 @@ function MetricCard({
         ) : null}
         {status || target ? (
           <HStack mt={2} justify="space-between">
-            {status ? <Badge colorPalette={badgeColor(status)}>{statusLabel ?? status}</Badge> : <Box />}
+            {status ? <Badge colorPalette={badgeColor(status)} maxW="100%" title={statusLabel ?? status}>
+              <Text truncate>{statusLabel ?? status}</Text>
+            </Badge> : <Box />}
           </HStack>
         ) : (
           <Text fontSize="sm" color="gray.400" mt={2}>
@@ -342,11 +325,13 @@ function MetricCard({
 function RateLossMetricCard({
   reportHz,
   packetLoss,
+  usb,
 }: {
   reportHz: number;
   packetLoss: number;
+  usb?: { rateHz: number | null; overwritten: number | null };
 }) {
-  const lossAlert = packetLoss >= 3;
+  const lossAlert = !usb && packetLoss >= 3;
 
   const MetricSection = ({
     title,
@@ -392,17 +377,17 @@ function RateLossMetricCard({
         <Box h="50%" py={2}>
           <MetricSection
             title="Report Rate"
-            value={reportHz.toFixed(1)}
+            value={usb ? usb.rateHz?.toFixed(1) ?? "—" : reportHz.toFixed(1)}
             unit="Hz"
-            description="HID telemetry / Monitoring packet rate"
+            description={usb ? "实际 EP1 IN 完成计数 / 设备时间" : "RX valid DATA / Device telemetry window"}
           />
         </Box>
         <Box h="50%" py={2}>
           <MetricSection
-            title="RF Input Deficit"
-            value={packetLoss.toFixed(2)}
-            unit="%"
-            description="Recent telemetry window packet loss rate"
+            title={usb ? "Pending Overwrites" : "RF Input Deficit"}
+            value={usb ? usb.overwritten?.toLocaleString() ?? "—" : packetLoss.toFixed(2)}
+            unit={usb ? "次" : "%"}
+            description={usb ? "待发送状态累计覆盖次数" : "Recent telemetry window packet loss rate"}
             alert={lossAlert}
           />
         </Box>
@@ -606,56 +591,6 @@ function DebugSwitch({
   );
 }
 
-function PeriodSegmentedControl({
-  value,
-  onChange,
-}: {
-  value: DebugHidPeriodMs;
-  onChange: (period: DebugHidPeriodMs) => void;
-}) {
-  const periods: DebugHidPeriodMs[] = [100, 250, 500, 1000];
-
-  return (
-    <SegmentGroup.Root
-      value={String(value)}
-      size="xs"
-      colorPalette="green"
-      onValueChange={(details) => {
-        const next = Number(details.value);
-        if (next === 100 || next === 250 || next === 500 || next === 1000) {
-          onChange(next);
-        }
-      }}
-      display="flex"
-      alignItems="center"
-      borderWidth="1px"
-      borderColor="rgba(92,255,138,0.22)"
-      borderRadius="7px"
-      bg="rgba(0,0,0,0.22)"
-      p="2px"
-    >
-      <SegmentGroup.Indicator bg="rgba(92,255,138,0.2)" borderColor="rgba(92,255,138,0.48)" />
-      {periods.map((period) => (
-        <SegmentGroup.Item
-          key={period}
-          value={String(period)}
-          minW={period === 1000 ? "45px" : "36px"}
-          h="22px"
-          px={2}
-          borderRadius="5px"
-          cursor="pointer"
-          justifyContent="center"
-        >
-          <SegmentGroup.ItemHiddenInput />
-          <SegmentGroup.ItemText fontSize="11px" color={value === period ? neonGreen : "gray.300"}>
-            {period}
-          </SegmentGroup.ItemText>
-        </SegmentGroup.Item>
-      ))}
-    </SegmentGroup.Root>
-  );
-}
-
 function DebugControlCard({
   config,
   status,
@@ -682,14 +617,14 @@ function DebugControlCard({
     >
       <Card.Body px={4} py={3}>
         <HStack justify="space-between" align="center">
-          <Text fontSize="sm" color="gray.400">
+          <Text fontSize="sm" color="gray.400" flexShrink={0}>
             Debug Control
           </Text>
-          <Badge colorPalette={debugBadgeColor(status)}>{status}</Badge>
+          {message ? <Text flex="1" minW={0} fontSize="xs" color="orange.200" truncate title={message}>{message}</Text> : null}
+          <Badge flexShrink={0} colorPalette={debugBadgeColor(status)} title={message || undefined}>{status}</Badge>
         </HStack>
         <VStack align="stretch" gap={2} mt={3}>
-          {message ? <Text fontSize="xs" color="orange.200">{message}</Text> : null}
-          <HStack justify="space-between" gap={2} align="center">
+          <HStack gap={2} align="center">
             <DebugSwitch
               label="HID"
               checked={config.hidTelemetryEnabled}
@@ -700,13 +635,10 @@ function DebugControlCard({
               checked={config.latencyMeasurementEnabled === true}
               onCheckedChange={(checked) => applyConfig({ ...config, latencyMeasurementEnabled: checked })}
             />
-            <PeriodSegmentedControl
-              value={config.hidPeriodMs}
-              onChange={(period) => applyConfig({ ...config, hidPeriodMs: period })}
-            />
             <Button
               {...toolbarActionButtonProps}
               w="134px"
+              ml="auto"
               variant={paused ? "solid" : toolbarActionButtonProps.variant}
               colorPalette={paused ? "yellow" : "green"}
               onClick={onPauseToggle}
@@ -732,106 +664,7 @@ function DebugControlCard({
   );
 }
 
-function TrafficPanels({
-  packets,
-  allPackets,
-  channelSwitches,
-  channelScores,
-  serialLogClearVersion,
-  debugConfig,
-  applyDebugConfig,
-  paused,
-  onClearPackets,
-  onClearChannelEvents,
-}: {
-  packets: ReturnType<typeof useMonitorStream>["packets"];
-  allPackets: PacketEvent[];
-  channelSwitches: ReturnType<typeof useMonitorStream>["channelSwitches"];
-  channelScores: ReturnType<typeof useMonitorStream>["channelScores"];
-  serialLogClearVersion: number;
-  debugConfig: DebugConfig;
-  applyDebugConfig: (next: DebugConfig) => Promise<DebugConfigStatus | null>;
-  paused: boolean;
-  onClearPackets: () => void;
-  onClearChannelEvents: () => void;
-}) {
-  const [activeTab, setActiveTab] = useState<"traffic" | "log">("traffic");
-  const activeTabProps = {
-    variant: "solid",
-    colorPalette: "green",
-    bg: "rgba(92,255,138,0.18)",
-    color: neonGreen,
-    borderColor: "rgba(92,255,138,0.64)",
-    boxShadow: "0 0 14px rgba(92,255,138,0.18)",
-  } as const;
-
-  return (
-    <Box flex="1" minH={0} display="flex" flexDirection="column" gap="10px">
-      <HStack
-        role="tablist"
-        aria-label="Traffic view"
-        gap={2}
-        flexShrink={0}
-        p="3px"
-        alignSelf="flex-start"
-        borderWidth="1px"
-        borderRadius="8px"
-        borderColor="rgba(92,255,138,0.18)"
-        bg="rgba(0,0,0,0.28)"
-      >
-        <Button
-          {...toolbarActionButtonProps}
-          {...(activeTab === "traffic" ? activeTabProps : {})}
-          role="tab"
-          aria-selected={activeTab === "traffic"}
-          onClick={() => setActiveTab("traffic")}
-        >
-          <FaListUl />
-          Packets / Channel Events / Scores
-        </Button>
-        <Button
-          {...toolbarActionButtonProps}
-          {...(activeTab === "log" ? activeTabProps : {})}
-          role="tab"
-          aria-selected={activeTab === "log"}
-          onClick={() => setActiveTab("log")}
-        >
-          <FaTerminal />
-          Log
-        </Button>
-      </HStack>
-      {activeTab === "traffic" ? (
-        <Box
-          flex="1"
-          minH={0}
-          display="grid"
-          gridTemplateColumns={{ base: "1fr", xl: "minmax(0, 1fr) 800px 250px" }}
-          gap="10px"
-          alignItems="stretch"
-        >
-          <PacketsPanel items={packets.items} fillHeight onClearData={onClearPackets} />
-          <ChannelPanel items={channelSwitches} fillHeight onClearData={onClearChannelEvents} />
-          <ChannelScorePanel
-            items={channelScores}
-            packets={allPackets}
-            fillHeight
-            config={debugConfig}
-            paused={paused}
-            applyConfig={applyDebugConfig}
-          />
-        </Box>
-      ) : (
-        <SerialLogPanel clearVersion={serialLogClearVersion} />
-      )}
-    </Box>
-  );
-}
-
-type DataCardKey =
-  | "trend"
-  | "latency"
-  | "packets"
-  | "channelEvents";
+type DataCardKey = "trend" | "latency";
 
 type DataCardClearMarks = Partial<Record<DataCardKey, number>>;
 
@@ -840,20 +673,33 @@ function after(timestampMs: number, clearAfterMs: number | undefined) {
 }
 
 export function App() {
-  const { events, packets, latency, buttonLatency, powerStatus, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
-  const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
+  const { devices, usb, events, packets, latency, buttonLatency: rfButtonLatency, powerStatus: rfPowerStatus, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
+  const [sourceMode,chooseSource]=useMonitorSource(devices);
+  const deviceBindings=useDeviceBindings(sourceMode);
+  const usbKey=deviceBindings.state?.bindings.USB.telemetryId??undefined;
+  const usbStream=usbKey?usb[usbKey]:undefined;
+  const powerStatus=sourceMode==="USB"?(usbStream?.powerStatus??null):rfPowerStatus;
+  const buttonLatency=sourceMode==="USB"?(usbStream?.latency??{items:[],status:null}):rfButtonLatency;
+  const [now,setNow]=useState(Date.now());
+  useEffect(()=>{const t=window.setInterval(()=>setNow(Date.now()),500);return ()=>window.clearInterval(t);},[]);
+  const usbStatistics = usbStream?.statistics;
+  const usbFresh = !!usbStatistics && now - usbStatistics.timestampMs <= 2000 &&
+    usbStream?.status?.state === "Connected" && usbStream.status.rateValid !== false;
+  const usbRate = usbFresh ? usbStatistics.rateHz : null;
   const [cardClearMarks, setCardClearMarks] = useState<DataCardClearMarks>({});
   const [debugConfig, setDebugConfig] = useState<DebugConfig>(defaultDebugConfig);
+  const [configLoaded,setConfigLoaded]=useState(false);
   const [debugStatus, setDebugStatus] = useState<DebugApplyState>("Idle");
   const [debugMessage, setDebugMessage] = useState("");
   const [voltageHistory, setVoltageHistory] = useState<VoltageHistoryPoint[]>([]);
+  useEffect(()=>setVoltageHistory([]),[sourceMode,usbKey]);
 
   const markCardCleared = (key: DataCardKey) => {
     const timestampMs = key === "latency" ? publishCardClear("latency") : Date.now();
     setCardClearMarks((current) => ({ ...current, [key]: timestampMs }));
   };
 
-  const rfStatus = useMemo(() => latestStatus(events, "RF24G"), [events]);
+  const rfStatus = useMemo(() => devices.filter(d=>d.mode==="RF24G").at(-1)??latestStatus(events, "RF24G"), [devices,events]);
   const rfRssi = useMemo(() => latestRssiPacket(packets.items), [packets.items]);
   const rfConnected = rfStatus?.state === "Connected";
   const rfActualHz = rfStatus?.actualRateHz ?? 0;
@@ -924,24 +770,12 @@ export function App() {
   );
   const latencyStatus = buttonLatency.status && after(buttonLatency.status.timestampMs, cardClearMarks.latency)
     ? buttonLatency.status
-    : null;
-  const packetRows = useMemo(
-    () => packets.items.filter((packet) => after(packet.timestampMs, cardClearMarks.packets)),
-    [packets.items, cardClearMarks.packets],
-  );
-  const visiblePackets = useMemo(() => ({ ...packets, items: packetRows }), [packets, packetRows]);
-  const visibleChannelSwitches = useMemo(
-    () => channelSwitches.filter((row) => after(row.timestampMs, cardClearMarks.channelEvents)),
-    [channelSwitches, cardClearMarks.channelEvents],
-  );
+    : sourceMode==="USB"?{kind:"button_latency_status" as const,sourceMode:"USB" as const,timestampMs:now,status:"Waiting edge" as const}:null;
   const handleClearData = () => {
     clear();
     setCardClearMarks({});
     setVoltageHistory([]);
-    setSerialLogClearVersion((version) => version + 1);
-    void clearSerialLogLines()
-      .then(() => setSerialLogClearVersion((version) => version + 1))
-      .catch(() => {});
+    void clearSerialLogLines().catch(() => {});
   };
   const applyDebugConfig = (next: DebugConfig): Promise<DebugConfigStatus | null> => {
     setDebugConfig(next);
@@ -954,8 +788,8 @@ export function App() {
 
   useEffect(() => {
     window.connectMonitorApi?.getDebugConfig?.()
-      .then((saved) => setDebugConfig({ ...defaultDebugConfig, ...saved }))
-      .catch(() => {});
+      .then((saved) => {setDebugConfig({ ...defaultDebugConfig, ...saved });setConfigLoaded(true);})
+      .catch(() => setConfigLoaded(true));
     window.connectMonitorApi?.getDebugConfigStatus?.()
       .then((nextStatus) => { setDebugStatus(nextStatus.state); setDebugMessage(nextStatus.message ?? ""); })
       .catch(() => {});
@@ -966,6 +800,10 @@ export function App() {
     }, 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(()=>{
+    if(configLoaded && debugConfig.sourceMode!==sourceMode)void applyDebugConfig({...debugConfig,sourceMode});
+  },[sourceMode,debugConfig.sourceMode,configLoaded]);
 
   return (
     <Box
@@ -1008,7 +846,19 @@ export function App() {
         boxShadow="0 12px 36px rgba(0,0,0,0.28)"
         style={dragRegionStyle}
       >
-        <AppLogo />
+        <HStack gap={5} minW={0}>
+          <Tabs.Root value={sourceMode} onValueChange={({ value }) => {
+            if (value === "RF24G" || value === "USB") chooseSource(value);
+          }} size="sm" variant="enclosed" colorPalette="green" style={noDragRegionStyle}>
+            <Tabs.List aria-label="监测来源" bg="rgba(0,0,0,0.28)" borderWidth="1px"
+              borderColor="rgba(92,255,138,0.22)" borderRadius="8px" p="3px">
+              <Tabs.Trigger value="RF24G" minW="68px" color="gray.400"
+                _selected={{ color: neonGreen, bg: "rgba(92,255,138,0.16)" }}>RF</Tabs.Trigger>
+              <Tabs.Trigger value="USB" minW="68px" color="gray.400"
+                _selected={{ color: neonGreen, bg: "rgba(92,255,138,0.16)" }}>USB</Tabs.Trigger>
+            </Tabs.List>
+          </Tabs.Root>
+        </HStack>
         <HStack gap={3} style={noDragRegionStyle}>
           <WindowControls />
         </HStack>
@@ -1041,7 +891,20 @@ export function App() {
             onPauseToggle={() => setPaused(!paused)}
             onClearData={handleClearData}
           />
-          <MetricCard
+          {sourceMode === "USB" ? <MetricCard
+            title="USB Connection"
+            status={usbStream?.status?.state ?? "Disconnected"}
+            statusLabel={usbStream?.status?.statusLabel ?? "未发现 USB 监测接口"}
+            target={`XInput · ${usbStatistics?.effectiveRateHz ?? "—"} Hz`}
+            value={usbRate?.toFixed(1) ?? "—"}
+            unit="Hz"
+            cornerPrefixLabel="BAT"
+            cornerPrefixValue={batteryVoltageText}
+            cornerPrefixDetail={batteryCornerDetail}
+            cornerPrefixAlert={Boolean(powerStatus?.lowBattery)}
+            cornerLabel="USB"
+            cornerValue={usbStatistics?.speed === 2 ? "HS" : usbStatistics?.speed === 1 ? "FS" : "—"}
+          /> : <MetricCard
             title="RF Connection"
             status={rfStatus?.state ?? "Disconnected"}
             statusLabel={rfStatus?.statusLabel}
@@ -1056,25 +919,41 @@ export function App() {
             cornerValue={displayRssiValue(rfRssi)}
             cornerDetail={displayRssiDetail(rfRssi)}
             cornerSignalLevel={rssiSignalLevel(rfRssi)}
-          />
-          <RateLossMetricCard reportHz={reportHz} packetLoss={latestLoss} />
+          />}
+          <RateLossMetricCard reportHz={reportHz} packetLoss={latestLoss}
+            usb={sourceMode === "USB" ? { rateHz: usbRate, overwritten: usbStatistics?.overwritten ?? null } : undefined} />
           <VoltageTimelineCard points={voltageHistory} />
         </Box>
 
         <VStack gap="10px" align="stretch" flex="1" minH={0}>
           <Box
             display="grid"
-            gridTemplateColumns={{
-              base: "1fr",
-              xl: "minmax(400px, 1fr) 725px 625px",
-            }}
+            gridTemplateColumns={sourceMode === "USB"
+              ? { base: "1fr", xl: "minmax(0, 1fr) 625px" }
+              : { base: "1fr", xl: "250px minmax(0, 1fr) 625px" }}
             gap="10px"
             alignItems="stretch"
-            h="min(420px, 48%)"
+            h="420px"
             minH={0}
             flexShrink={0}
           >
-            <RatePanel
+            {sourceMode === "RF24G" && <ChannelScorePanel
+              items={channelScores}
+              packets={packets.items}
+              fillHeight
+              config={debugConfig}
+              paused={paused}
+              applyConfig={applyDebugConfig}
+            />}
+            <ButtonLatencyPanel
+              rows={latencyRows}
+              status={latencyStatus}
+              onClearData={() => markCardCleared("latency")}
+            />
+            <ButtonsPanel compact sourceMode={sourceMode} devices={deviceBindings.state} />
+          </Box>
+          <Box flex="1" minH={0} minW={0}>
+            {sourceMode==="USB"?<UsbMonitorPanel usb={usbStream} now={now} clearAfter={cardClearMarks.trend} onClearData={()=>markCardCleared("trend")}/>:<RatePanel
               packets={trendPackets}
               latency={latency}
               rateSeries={trendRateSeries}
@@ -1087,26 +966,8 @@ export function App() {
               chartHeight="100%"
               compact
               onClearData={() => markCardCleared("trend")}
-            />
-            <ButtonLatencyPanel
-              rows={latencyRows}
-              status={latencyStatus}
-              onClearData={() => markCardCleared("latency")}
-            />
-            <ButtonsPanel compact />
+            />}
           </Box>
-          <TrafficPanels
-            packets={visiblePackets}
-            allPackets={packets.items}
-            channelSwitches={visibleChannelSwitches}
-            channelScores={channelScores}
-            serialLogClearVersion={serialLogClearVersion}
-            debugConfig={debugConfig}
-            applyDebugConfig={applyDebugConfig}
-            paused={paused}
-            onClearPackets={() => markCardCleared("packets")}
-            onClearChannelEvents={() => markCardCleared("channelEvents")}
-          />
         </VStack>
       </Box>
     </Box>

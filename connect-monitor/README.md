@@ -1,13 +1,15 @@
 # connect-monitor Design Notes
 
-`connect-monitor` is a PC client for observing HBox USB and wireless input paths.
+`connect-monitor` is a PC client for observing XORA USB and wireless input paths.
+
+Current USB protocol, measurement boundaries and acceptance steps: [USB XInput monitoring](../docs/usb-connect-monitor.md).
 
 ## 1. Scope
 
 Observed paths:
 
-- Wired mode: `HBox(application) -> USB(XInput) -> PC`
-- Wireless mode: `HBox(application) -> RFModule -> dongle -> USB(XInput) -> PC`
+- Wired mode: `XORA STM32 -> SPI BoardLink -> CH585 TX -> USB XInput -> PC`
+- Wireless mode: `XORA STM32 -> CH585 TX -> RF -> CH585 RX -> USB XInput -> PC`
 
 Monitoring goals:
 
@@ -30,7 +32,7 @@ Priority order:
 3. Dongle text telemetry for development and debugging
 4. PC-side XInput observation for future cross-checking
 
-The application telemetry path uses a separate HID IN interface in the XInput composite device and emits `MON1` binary frames. The dongle telemetry path uses an independent telemetry channel and emits `DMN1` binary frames.
+The USB XInput telemetry interface emits `UMS1` completion statistics, `UME1` button events and existing `MPW2` power reports, controlled by `UMC1`. RF uses its existing `RHM1` statistics and relative latency protocol. `MON1`/`DMN1` remain legacy parsers; a legacy target rate is never treated as measured USB throughput.
 
 ## 3. Client Layers
 
@@ -131,3 +133,7 @@ npx electron tests/electron-stream-smoke.cjs
 
 The Electron smoke check uses synthetic input and a separate temporary profile,
 including a stalled renderer and reload. It does not open hardware devices.
+
+## USB / RF device binding
+
+Gamepad Buttons follows the selected USB / RF source and identifies controllers by Windows hardware identity. Click its source badge to choose a gamepad and telemetry device when automatic identification is ambiguous. Windows builds now include a C++/WinRT helper and require CMake, the MSVC desktop toolchain, and a Windows SDK. See [device binding and manual acceptance](docs/device-binding.md). Restart the complete monitor after rebuilding; automatic regression and hardware sampling remain paused under AGENTS.md.

@@ -51,6 +51,9 @@ test('hosted export serves HTML and immutable Next assets', async t => {
         path.join(root, '_next', 'static', 'app.123.js'),
         'globalThis.HBOX=true;'
     );
+    fs.mkdirSync(path.join(root, 'admin', 'users'), { recursive: true });
+    const navigationPath = path.join(root, 'admin', 'users', 'index.txt');
+    fs.writeFileSync(navigationPath, '0:{"b":"first-build","f":[]}');
 
     const app = express();
     app.use(securityHeaders);
@@ -92,6 +95,20 @@ test('hosted export serves HTML and immutable Next assets', async t => {
     const asset = await request(server, '/_next/static/app.123.js');
     assert.equal(asset.status, 200);
     assert.match(asset.headers['cache-control'], /immutable/);
+
+    const navigation = await request(server, '/admin/users/index.txt?_rsc=route');
+    assert.equal(navigation.status, 200);
+    assert.match(navigation.headers['content-type'], /^text\/plain/);
+    assert.equal(navigation.headers['cache-control'], 'no-cache, no-store');
+    assert.match(navigation.body, /first-build/);
+    fs.writeFileSync(navigationPath, '0:{"b":"second-build","f":[]}');
+    const rebuiltNavigation = await request(server, '/admin/users/index.txt?_rsc=route');
+    assert.equal(rebuiltNavigation.headers['cache-control'], 'no-cache, no-store');
+    assert.match(rebuiltNavigation.body, /second-build/);
+
+    const missingNavigation = await request(server, '/admin/missing/index.txt');
+    assert.equal(missingNavigation.status, 404);
+    assert.doesNotMatch(missingNavigation.body, /<!doctype html>/);
 
     const routeFallback = await request(server, '/global');
     assert.equal(routeFallback.status, 200);

@@ -2,6 +2,17 @@
 
 #include <string.h>
 
+/* TX-only execution placement; the wire format and other consumers retain
+ * their existing implementation. The copy implementation lives in TX SRAM. */
+#if defined(USB_BOARD_LINK_RX_RAM) && defined(__riscv)
+#define USB_CODEC_RAM __attribute__((section(".highcode"), noinline))
+extern void *usb_webhid_copy(void *, const void *, size_t);
+#define USB_CODEC_COPY usb_webhid_copy
+#else
+#define USB_CODEC_RAM
+#define USB_CODEC_COPY memcpy
+#endif
+
 uint8_t usb_board_link_frame_size(uint8_t payload_length)
 {
     if(payload_length > USB_BOARD_LINK_MAX_PAYLOAD_BYTES)
@@ -86,7 +97,7 @@ void usb_board_link_parser_init(usb_board_link_parser_t *parser)
     parser->state = USB_BOARD_PARSE_WAIT_SYNC;
 }
 
-static void usb_board_link_parser_restart(usb_board_link_parser_t *parser)
+static USB_CODEC_RAM void usb_board_link_parser_restart(usb_board_link_parser_t *parser)
 {
     parser->state = USB_BOARD_PARSE_COMMAND;
     parser->frame.command = 0u;
@@ -95,7 +106,7 @@ static void usb_board_link_parser_restart(usb_board_link_parser_t *parser)
     parser->checksum = USB_BOARD_LINK_SYNC;
 }
 
-bool usb_board_link_parser_feed(usb_board_link_parser_t *parser,
+USB_CODEC_RAM bool usb_board_link_parser_feed(usb_board_link_parser_t *parser,
                                 uint8_t byte,
                                 usb_board_link_frame_t *completed_frame)
 {
@@ -146,7 +157,7 @@ bool usb_board_link_parser_feed(usb_board_link_parser_t *parser,
     case USB_BOARD_PARSE_CHECKSUM:
         if(byte == parser->checksum)
         {
-            *completed_frame = parser->frame;
+            USB_CODEC_COPY(completed_frame, &parser->frame, sizeof(*completed_frame));
             parser->state = USB_BOARD_PARSE_WAIT_SYNC;
             return true;
         }

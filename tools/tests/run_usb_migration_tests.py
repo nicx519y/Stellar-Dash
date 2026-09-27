@@ -70,6 +70,7 @@ def main() -> int:
                 USB / "usb_legacy_descriptors.c",
                 USB / "usb_ps4_features.c",
                 USB / "usb_profiles.c",
+                USB / "usb_webhid_memory.c",
             ],
             [COMMON, USB, *application_include_dirs()],
         )

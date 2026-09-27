@@ -1,4 +1,5 @@
 import type { AccountRole, AuthSession } from '@/lib/user-auth/types';
+import { firmwareRuntime } from './firmware-mock';
 import {
   AdminApiError,
   AdminRuntime,
@@ -83,6 +84,7 @@ function updatePreviewSession(user: AdminUser) {
 }
 
 export const adminRuntime: AdminRuntime = {
+  firmware: firmwareRuntime,
   async listUsers({ query = '', limit = 20, offset = 0 }) {
     const needle = query.trim().toLowerCase();
     const matches = readArray<AdminUser>(USERS_KEY, defaultUsers).filter(user =>
