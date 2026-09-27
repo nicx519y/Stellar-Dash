@@ -11,7 +11,7 @@ int main(void)
 
     assert(usb_spi_rx_dma_delta(0u, 0u, false) == 0u);
     assert(usb_spi_rx_dma_delta(0u, 64u, false) == 64u);
-    assert(usb_spi_rx_dma_delta(1010u, 10u, true) == 24u);
+    assert(usb_spi_rx_dma_delta(USB_SPI_RX_DMA_BYTES - 14u, 10u, true) == 24u);
     assert(usb_spi_rx_dma_delta(17u, 17u, true) ==
            USB_SPI_RX_DMA_BYTES);
 

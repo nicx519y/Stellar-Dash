@@ -36,7 +36,7 @@ import {
 } from './scope-policy';
 import { exportWebHidConfigSections } from './webhid-config-export';
 import { crc32 } from '../crc32';
-import { ConfigSyncCache } from './config-cache';
+import { discardPersistentConfigCache } from './discard-config-cache';
 
 if (WEBHID_MAX_FIRMWARE_PACKET_SIZE > WEBHID_MAX_STREAM_SIZE) {
   throw new Error('WebHID firmware packet exceeds the device stream boundary');
@@ -69,7 +69,6 @@ const HBOX_CONFIG_BACKUP_VERSION = 3;
 
 /** HID-native command/session facade used by React and typed feature clients. */
 export class DeviceCommandClient {
-  readonly configCache: ConfigSyncCache;
   private state = DeviceTransportState.DISCONNECTED;
   private phase = DeviceConnectionPhase.IDLE;
   private readonly queue = new DeviceRequestQueue();
@@ -107,7 +106,7 @@ export class DeviceCommandClient {
     private readonly initialScopes: readonly DeviceScope[] = DEFAULT_DEVICE_SCOPES,
     private readonly startupTimeoutMs = 30_000,
   ) {
-    this.configCache = new ConfigSyncCache(transport.kind);
+    discardPersistentConfigCache();
     if (!Number.isFinite(startupTimeoutMs) || startupTimeoutMs <= 0) {
       throw new DeviceTransportError('protocol', '设备启动超时必须是正数');
     }
@@ -453,7 +452,6 @@ export class DeviceCommandClient {
       await this.ensureScopes(requiredScopes, generation);
     }
     return this.runAfterScopeUpgrade(generation, async () => {
-      this.configCache.invalidateForCommand(command, params);
       const response = await this.transport.request(command, params, {
         // Every command enters DeviceRequestQueue. Its per-entry controller
         // follows both caller cancellation and lifecycle queue.clear().
@@ -461,8 +459,6 @@ export class DeviceCommandClient {
         timeoutMs: options.timeoutMs,
         responseTimeoutMode: options.responseTimeoutMode,
       });
-      this.assertLifecycleActive(generation);
-      await this.configCache.observe(response.data, params).catch(() => {});
       this.assertLifecycleActive(generation);
       return response.data;
     });
@@ -560,9 +556,9 @@ export class DeviceCommandClient {
     }
     const catalog = await this.getImageCatalogWithinTransaction(generation, queueSignal);
     if (
-      catalog.protocolVersion !== 3 ||
-      catalog.imageTransferVersion !== 2 ||
-      catalog.imageDataBytesPerReport !== 44 ||
+      catalog.protocolVersion !== 4 ||
+      catalog.imageTransferVersion !== 3 ||
+      catalog.imageDataBytesPerReport !== 996 ||
       (catalog.imageTransferFlags & 0x0003) !== 0x0003
     ) {
       throw new DeviceTransportError(
@@ -581,7 +577,7 @@ export class DeviceCommandClient {
     beginView.setUint32(10, total, true);
     beginView.setUint8(14, frameCount);
     beginView.setUint8(15, fps);
-    beginView.setUint8(16, 2);
+    beginView.setUint8(16, 3);
     beginView.setUint8(17, 0);
     const expectedPayloadCrc32 = crc32(request.data);
     beginView.setUint32(18, expectedPayloadCrc32, true);
@@ -1288,7 +1284,6 @@ export class DeviceCommandClient {
   }
 
   private setState(state: DeviceTransportState): void {
-    if (state === DeviceTransportState.DISCONNECTED || state === DeviceTransportState.ERROR) this.configCache.endSession();
     if (state !== this.state) {
       this.state = state;
       this.stateHandlers.forEach((handler) => handler(state));
@@ -1585,7 +1580,7 @@ function parseFirmwareChunkResult(
 function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceImageCatalog {
   const view = new DataView(response);
   if (
-    (view.byteLength !== 64 && view.byteLength !== 76 && view.byteLength !== 80) ||
+    (view.byteLength !== 64 && view.byteLength !== 76 && view.byteLength !== 82) ||
     view.getUint8(0) !== 0xb4 ||
     view.getUint8(1) > 1 ||
     view.getUint8(6) > 1 ||
@@ -1600,9 +1595,9 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
     throw new DeviceTransportError('protocol', 'Image catalog request was rejected');
   }
   const extended = view.byteLength >= 76;
-  const fastTransfer = view.byteLength === 80;
+  const fastTransfer = view.byteLength === 82;
   if (extended && (
-    view.getUint8(64) !== (fastTransfer ? 3 : 2) ||
+    view.getUint8(64) !== (fastTransfer ? 4 : 2) ||
     view.getUint8(65) < 1 || view.getUint8(65) > 10 ||
     view.getUint8(66) > 10 ||
     (view.getUint8(7) === 1 && view.getUint8(66) < 1) ||
@@ -1611,9 +1606,9 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
     throw new DeviceTransportError('protocol', 'Extended image catalog is invalid');
   }
   if (fastTransfer && (
-    view.getUint8(76) !== 2 ||
-    view.getUint8(77) !== 44 ||
-    (view.getUint16(78, true) & 0x0003) !== 0x0003
+    view.getUint8(76) !== 3 ||
+    view.getUint8(77) !== 0 || view.getUint16(78, true) !== 996 ||
+    (view.getUint16(80, true) & 0x0003) !== 0x0003
   )) {
     throw new DeviceTransportError('protocol', 'Fast image transfer capabilities are invalid');
   }
@@ -1622,8 +1617,8 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
     maxUserFrames: extended ? view.getUint8(65) : 6,
     maxSystemFrames: extended ? view.getUint8(66) : 8,
     imageTransferVersion: fastTransfer ? view.getUint8(76) : 0,
-    imageDataBytesPerReport: fastTransfer ? view.getUint8(77) : 0,
-    imageTransferFlags: fastTransfer ? view.getUint16(78, true) : 0,
+    imageDataBytesPerReport: fastTransfer ? view.getUint16(78, true) : 0,
+    imageTransferFlags: fastTransfer ? view.getUint16(80, true) : 0,
     user: {
       valid: view.getUint8(6) === 1,
       width: view.getUint16(8, true),

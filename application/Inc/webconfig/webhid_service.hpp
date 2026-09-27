@@ -35,7 +35,7 @@ public:
 private:
     WebHidService() = default;
 
-    static constexpr size_t kRxQueueDepth = 4u;
+    static constexpr size_t kRxQueueDepth = WEBHID_REPORT_WINDOW;
     // CH585 can forward one full four-report USB OUT window before the next
     // WebHID service tick. Drain that complete window in the same tick so a
     // fragmented bootstrap request cannot leave two stale reports occupying
@@ -105,6 +105,7 @@ private:
         ButtonState,
         Sample,
         Checkpoint,
+        Benchmark,
     };
 
 #pragma pack(push, 1)
@@ -126,18 +127,21 @@ private:
                   "PERF_EDGE ABI must remain 22 bytes");
 
     bool validateBootContext();
+    bool handleBenchmarkRpc(uint32_t transactionId, const std::string &command, void *params);
+    bool processBenchmarkData(const uint8_t *payload, uint16_t length);
+    void pumpBenchmark();
     bool processReport(const uint8_t report[WEBHID_REPORT_BYTES]);
     bool acceptLogicalFragment(uint8_t type,
                                bool secure,
                                uint8_t flags,
                                const uint8_t *payload,
-                               uint8_t length);
+                               uint16_t length);
     bool processBootstrap(const uint8_t *message, size_t length);
     bool processSecureRpc(const uint8_t *message, size_t length);
-    bool processStreamFragment(const uint8_t *payload, uint8_t length);
+    bool processStreamFragment(const uint8_t *payload, uint16_t length);
     bool processImageData(uint8_t flags,
                           const uint8_t *payload,
-                          uint8_t length);
+                          uint16_t length);
 
     bool handleAttestationCreate(uint32_t transactionId, void *params);
     bool handleDirectOpen(uint32_t transactionId, void *params);
@@ -162,7 +166,7 @@ private:
     bool sendFrame(uint8_t type,
                    uint8_t flags,
                    const uint8_t *payload,
-                   uint8_t length,
+                   uint16_t length,
                    bool secure,
                    OutboundFrameSource source);
     bool sendRpcResult(uint32_t transactionId,
@@ -222,6 +226,7 @@ private:
     bool firmwareActionAuthorized = false;
     std::array<char, 33> authorizedFirmwareSession = {};
     uint32_t permitDeadlineMs = 0u;
+    uint32_t sessionEpoch = 0u;
     uint32_t lastRxSequence = 0u;
     uint32_t nextTxSequence = 1u;
     /*

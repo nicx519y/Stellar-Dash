@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "usb_auth.h"
+#include "usb_webhid_fast.h"
 #include "rf_binding_protocol.h"
 
 static uint8_t s_connected;
@@ -89,6 +90,15 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
                 response.header.data_length=RFB_RESPONSE_SIZE;
             }
             break;
+        case USB_BOARD_CONTROL_HS_CAPS:
+        case USB_BOARD_CONTROL_HS_PREPARE:
+        case USB_BOARD_CONTROL_HS_COMMIT:
+        case USB_BOARD_CONTROL_HS_STATS:
+    case USB_BOARD_CONTROL_HS_STOP:
+            if(s_binding_role != USB_BOARD_ROLE_MAINTENANCE) { status=USB_BOARD_STATUS_BAD_ROLE; break; }
+            status=(usb_board_status_t)usb_webhid_fast_control(request.header.opcode,request.data,request.header.data_length,response.data,&response.header.data_length);
+            break;
+
         case USB_BOARD_CONTROL_CONNECT:
             status = validate_no_data(&request);
             if(status == USB_BOARD_STATUS_OK)
@@ -183,24 +193,6 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
             }
             break;
 
-        case USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT:
-            status = validate_no_data(&request);
-            if(status == USB_BOARD_STATUS_OK)
-            {
-                usb_board_bulk_credit_v1_t credit;
-                memset(&credit, 0, sizeof(credit));
-                if(!usb_management_control_hw_get_webconfig_credit(&credit))
-                {
-                    status = USB_BOARD_STATUS_NOT_READY;
-                }
-                else
-                {
-                    memcpy(response.data, &credit, sizeof(credit));
-                    response.header.data_length = sizeof(credit);
-                }
-            }
-            break;
-
         default:
             status = USB_BOARD_STATUS_UNSUPPORTED;
             break;
@@ -263,12 +255,4 @@ __attribute__((weak)) usb_board_usb_speed_t
 usb_management_control_hw_speed(void)
 {
     return USB_BOARD_USB_SPEED_NONE;
-}
-
-__attribute__((weak)) bool
-usb_management_control_hw_get_webconfig_credit(
-    usb_board_bulk_credit_v1_t *credit)
-{
-    (void)credit;
-    return false;
 }

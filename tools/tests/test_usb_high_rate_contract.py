@@ -35,6 +35,7 @@ class UsbHighRateContractTests(unittest.TestCase):
                     "-Wall",
                     "-Wextra",
                     "-Werror",
+                    f"-I{include}",
                     *application_include_flags(),
                     str(source),
                     "-o",

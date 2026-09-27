@@ -9,6 +9,48 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 function gate() { let resolve; const promise = new Promise(r => resolve = r); return { promise, resolve }; }
 
+test('provider Finish waits behind autosave, drains newer edits, and never exits after a failed save', async () => {
+  const fs = require('node:fs');
+  const { transform } = require('sucrase');
+  const source = fs.readFileSync(require('node:path').join(__dirname, '../contexts/gamepad-config-context.tsx'), 'utf8');
+  const start = source.indexOf('    const performDeferredConfigFlush = async');
+  const end = source.indexOf('    const refreshDeviceConfig =', start);
+  const compiled = transform(source.slice(start, end), { transforms: ['typescript'] }).code;
+  for (const failure of [false, true]) {
+    const held = gate(); const calls = [];
+    const queue = new DeferredConfigCoordinator(undefined, { cooldownMs: 0 });
+    const dependencies = {
+      initializationGenerationRef: { current: 1 }, configReadyRef: { current: true },
+      configStoreRef: { current: { confirmed: { 'selected-profile': 'a' }, get: () => 'a' } },
+      deferredConfigRef: { current: queue }, deferredFlushTailRef: { current: Promise.resolve() },
+      boundaryCountRef: { current: 0 }, recoveryRef: { current: false }, longDeviceActivityRef: { current: false },
+      autoFlushRef: { current: null }, feedbackSuspendedRef: { current: false }, screenPreviewRef: { current: null },
+      buttonMonitorLeaseRef: { current: { suspend: async () => false } },
+      ledPreviewRef: { current: { active: false, suspend: () => 1, resume: async () => {} } },
+      deviceClientRef: { current: { flushQueue: async () => calls.push('drain') } },
+      setDeferredConfigSaving: () => {}, setConfigBoundaryBusy: () => {}, updateSyncPause: () => {}, setError: () => {},
+    };
+    const finish = Function(...Object.keys(dependencies), compiled + '\nreturn flushDeferredConfig;')(...Object.values(dependencies));
+    queue.stage('a', async () => { calls.push('save'); await held.promise; if (failure) throw Error('save failed'); calls.push('ack'); });
+    const automatic = dependencies.autoFlushRef.current().catch(() => {});
+    await tick();
+    queue.stage('b', async () => calls.push('newer edit'));
+    const closing = finish(() => calls.push('exit'), false, async () => calls.push('stop activities'));
+    await tick(); assert.deepEqual(calls, ['save']);
+    held.resolve();
+    if (failure) {
+      await assert.rejects(closing, /save failed/);
+      assert.ok(!calls.includes('exit')); assert.equal(queue.dirty, true);
+    } else {
+      await closing;
+      assert.deepEqual(calls, ['save', 'ack', 'stop activities', 'newer edit', 'drain', 'exit']);
+      assert.equal(queue.dirty, false);
+    }
+    await automatic;
+    queue.clear();
+  }
+});
+
 test('provider autosave keeps live feedback running and does not replay LEDs after ordinary saves', async () => {
   const fs = require('node:fs');
   const { transform } = require('sucrase');
@@ -153,7 +195,7 @@ test('clear invalidates old completion and never commits its followers or clears
 test('debounce coalesces edits, pause blocks automatic work, failure is retained until retry', async () => {
   let calls = 0; let reject = true;
   const queue = new DeferredConfigCoordinator(undefined, {
-    debounceMs: 15, maxWaitMs: 50, cooldownMs: 0, autoFlush: () => queue.flush(false),
+    debounceMs: 15, cooldownMs: 0, autoFlush: () => queue.flush(false),
   });
   queue.pause(true);
   for (let i = 0; i < 20; i++) queue.stage('global', async () => { calls++; if (reject) throw new Error('device refused'); });
@@ -166,16 +208,45 @@ test('debounce coalesces edits, pause blocks automatic work, failure is retained
   queue.clear();
 });
 
-test('continuous edits still become eligible by max wait', async () => {
+test('continuous edits reset the trailing delay without a maximum-wait save', async () => {
   let calls = 0;
   const queue = new DeferredConfigCoordinator(undefined, {
-    debounceMs: 35, maxWaitMs: 55, cooldownMs: 0, autoFlush: () => queue.flush(false),
+    debounceMs: 50, cooldownMs: 0, autoFlush: () => queue.flush(false),
   });
-  const edit = () => queue.stage('global', async () => { calls++; });
-  edit();
-  const timer = setInterval(edit, 8);
-  await delay(80); clearInterval(timer);
-  assert.ok(calls >= 1); queue.clear();
+  for (let i = 0; i < 10; i++) {
+    queue.stage('global', async () => { calls++; });
+    await delay(10);
+    assert.equal(calls, 0);
+  }
+  await delay(60); assert.equal(calls, 1); queue.clear();
+});
+
+test('default idle period is 3 seconds and every edit restarts it', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'] });
+  let calls = 0;
+  const queue = new DeferredConfigCoordinator(undefined, { cooldownMs: 0, autoFlush: () => queue.flush(false) });
+  queue.stage('global', async () => { calls++; });
+  t.mock.timers.tick(2999); assert.equal(calls, 0);
+  queue.stage('global', async () => { calls++; });
+  t.mock.timers.tick(2999); assert.equal(calls, 0);
+  t.mock.timers.tick(1); await tick(); assert.equal(calls, 1);
+  queue.clear();
+});
+
+test('edits during an automatic write wait for a new idle period; Finish drains immediately after ACK', async () => {
+  const held = gate(); const calls = [];
+  const queue = new DeferredConfigCoordinator(undefined, {
+    debounceMs: 25, cooldownMs: 0, autoFlush: () => queue.flush(false),
+  });
+  queue.stage('a', async () => { calls.push('a'); await held.promise; });
+  queue.stage('b', async () => calls.push('b1'));
+  await delay(40); assert.deepEqual(calls, ['a']);
+  queue.stage('b', async () => calls.push('b2'));
+  const finish = queue.flush().then(() => calls.push('exit'));
+  await tick(); assert.deepEqual(calls, ['a']);
+  held.resolve(); await finish;
+  assert.deepEqual(calls, ['a', 'b2', 'exit']);
+  queue.clear();
 });
 
 test('cooldown begins after acknowledgement and never releases a still-active write', async () => {

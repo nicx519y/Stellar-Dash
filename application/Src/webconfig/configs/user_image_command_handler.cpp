@@ -149,7 +149,8 @@ struct BinaryGetBgImageInfoResponseV2 {
 struct BinaryGetBgImageInfoResponseV3 {
     BinaryGetBgImageInfoResponseV2 v2;
     uint8_t image_transfer_version;
-    uint8_t image_data_bytes_per_report;
+    uint8_t reserved_fast;
+    uint16_t image_data_bytes_per_report;
     uint16_t image_transfer_flags;
 };
 
@@ -173,15 +174,15 @@ static_assert(sizeof(BinaryGetBgImageInfoResponse) == 64u,
               "Legacy image catalog response ABI changed");
 static_assert(sizeof(BinaryGetBgImageInfoResponseV2) == 76u,
               "Extended image catalog response ABI changed");
-static_assert(sizeof(BinaryGetBgImageInfoResponseV3) == 80u,
+static_assert(sizeof(BinaryGetBgImageInfoResponseV3) == 82u,
               "Fast image catalog response ABI changed");
 static_assert(sizeof(BinaryUserImageBeginHeaderV3) == 22u,
               "Fast image begin request ABI changed");
 static_assert(sizeof(BinaryUserImageCommitResponseV2) == 83u,
               "Fast image commit response ABI changed");
 
-static constexpr uint8_t IMAGE_TRANSFER_VERSION = 2u;
-static constexpr uint8_t IMAGE_DATA_BYTES_PER_REPORT = 44u;
+static constexpr uint8_t IMAGE_TRANSFER_VERSION = 3u;
+static constexpr uint16_t IMAGE_DATA_BYTES_PER_REPORT = 996u;
 static constexpr uint16_t IMAGE_TRANSFER_FLAG_CONTINUOUS = 1u << 0;
 static constexpr uint16_t IMAGE_TRANSFER_FLAG_TERMINAL_ACK_ONLY = 1u << 1;
 static constexpr uint32_t IMAGE_UPLOAD_TIMEOUT_MS = 30000u;
@@ -534,7 +535,7 @@ static void send_get_bg_info_response(uint32_t cid, uint8_t requested_version) {
         v2.user_crc32 = userIdx.payload_crc32;
     }
 
-    v2.catalog_version = requested_version >= 2u ? 3u : 2u;
+    v2.catalog_version = requested_version >= 2u ? 4u : 2u;
     v2.max_user_frames = HBoxUserImage::MAX_USER_FRAMES;
     v2.max_system_frames = 0u;
     response.image_transfer_version = IMAGE_TRANSFER_VERSION;

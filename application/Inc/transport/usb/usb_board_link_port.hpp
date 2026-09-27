@@ -11,6 +11,10 @@ bool USBBoardLinkPort_EnableFastApplication();
 bool USBBoardLinkPort_DisableFastApplication();
 bool USBBoardLinkPort_IsFastApplication();
 uint32_t USBBoardLinkPort_ClockHz();
+bool USBBoardLinkPort_EnableWebHid(uint32_t spiHz);
+bool USBBoardLinkPort_SendWebHidBlock(const uint8_t *data, uint16_t length);
+void USBBoardLink_HsAcceptBlock(const uint8_t *data, uint16_t length);
+void USBBoardLink_HsTransportFault();
 void USBBoardLinkPort_Shutdown();
 bool USBBoardLinkPort_TryShutdown();
 // RF wake only: one real SELECT_ROLE exchange with a total 20-ms budget.

@@ -8,6 +8,12 @@
 #include "stm32h7xx_hal.h"
 #include "usb_board_link_protocol.h"
 #include "usb_board_link_codec.h"
+#include "webhid_fast_link.h"
+#include "webhid_benchmark.h"
+#include "states/webconfig_state.hpp"
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+extern "C" webhid_benchmark_snapshot_t g_webhid_benchmark;
+#endif
 
 #ifndef CH585_SPI_INSTANCE
 #define CH585_SPI_INSTANCE RF_BRIDGE_SPI_INSTANCE
@@ -25,7 +31,9 @@ namespace {
 
 static constexpr uint32_t kSpiTimeoutMs = 5u;
 static constexpr uint32_t kReadGapMs = 1u;
-static constexpr uint32_t kEventReleaseTimeoutMs = 2u;
+/* This is a deadline, not pacing: return as soon as RX-ready is observed.
+ * DMA direction changes during PREPARE must finish before another command. */
+static constexpr uint32_t kEventReleaseTimeoutMs = 20u;
 /*
  * PA12 rising-edge handling on CH585 is the RX rearm boundary.  A concurrent
  * USBHS ISR can delay that edge handler, so bootstrap, CAPS, and IAP retain
@@ -51,6 +59,44 @@ static SPI_HandleTypeDef s_hspi;
 static bool s_ready;
 static bool s_waitingEventRelease;
 static bool s_fastApplication;
+static bool s_fastWebHid;
+static DMA_HandleTypeDef s_hsTxDma, s_hsRxDma;
+__attribute__((section(".DMA_Section"), aligned(32))) static uint8_t s_hsTx[4096];
+__attribute__((section(".DMA_Section"), aligned(32))) static uint8_t s_hsRx[4096];
+static uint8_t s_hsRead[WHF_BLOCK_BYTES];
+
+static bool hsDma(const uint8_t *tx, uint8_t *rx, uint16_t size)
+{
+    const uint32_t cyclesStarted=DWT->CYCCNT;
+    if(!s_fastWebHid || size==0u || size>sizeof(s_hsTx)) return false;
+    if(tx) memcpy(s_hsTx,tx,size); else memset(s_hsTx,0xFF,size);
+    const int32_t cacheSize=static_cast<int32_t>((size+31u)&~31u);
+    SCB_CleanDCache_by_Addr(reinterpret_cast<uint32_t *>(s_hsTx),cacheSize);
+    SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t *>(s_hsRx),cacheSize);
+    __DSB();
+    if(HAL_SPI_TransmitReceive_DMA(&s_hspi,s_hsTx,s_hsRx,size)!=HAL_OK) return false;
+    const uint32_t start=HAL_GetTick();
+    /* Dedicated streams are polled here; handlers execute HAL completion
+     * bookkeeping without taking over the RF-owned SPI4 interrupt vector. */
+    while(HAL_SPI_GetState(&s_hspi)!=HAL_SPI_STATE_READY) {
+        HAL_DMA_IRQHandler(&s_hsTxDma); HAL_DMA_IRQHandler(&s_hsRxDma);
+        HAL_SPI_IRQHandler(&s_hspi);
+        if(HAL_GetTick()-start>=10u) { (void)HAL_SPI_Abort(&s_hspi); return false; }
+    }
+    __DSB();
+    SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t *>(s_hsRx),cacheSize);
+    if(rx) memcpy(rx,s_hsRx,size);
+    const bool ok=HAL_SPI_GetError(&s_hspi)==HAL_SPI_ERROR_NONE;
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    if(g_webhid_benchmark.magic==WEBHID_BENCHMARK_MAGIC && g_webhid_benchmark.state==1u) {
+        g_webhid_benchmark.dma_us+=(DWT->CYCCNT-cyclesStarted)/(SystemCoreClock/1000000u);
+        ++g_webhid_benchmark.dma_blocks; if(!ok) ++g_webhid_benchmark.dma_errors;
+    }
+#else
+    (void)cyclesStarted;
+#endif
+    return ok;
+}
 
 static void enableGpioClock(GPIO_TypeDef *port)
 {
@@ -89,7 +135,7 @@ static void ownershipGuardDelay()
      * first clock.  The second W_INT sample then resolves a concurrent event
      * claim before the first SPI clock.
      */
-    const uint32_t guardUs = s_fastApplication
+    const uint32_t guardUs = (s_fastApplication || s_fastWebHid)
         ? kOwnershipGuardFastUs
         : kOwnershipGuardSlowUs;
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
@@ -170,9 +216,27 @@ static bool readFrame(uint8_t *response,
             chipSelect(true);
             s_waitingEventRelease = true;
             (void)waitEventHigh(kEventReleaseTimeoutMs);
+            WebConfig_RecordStartupFrame(raw, rawLength, 1u);
             return false;
         }
         ++rawLength;
+
+        if(s_fastWebHid && !found && rawLength>=4u && raw[rawLength-4u]==WHF_SYNC) {
+            const uint8_t at=rawLength-4u;
+            const uint16_t blockSize=whf_u16(raw+at+2u);
+            bool ok=raw[at+1u]==2u && blockSize>=WHF_HEADER_BYTES && blockSize<=WHF_BLOCK_BYTES;
+            if(ok) {
+                memcpy(s_hsRead,raw+at,4u);
+                ok=hsDma(nullptr,s_hsRead+4u,static_cast<uint16_t>(blockSize-4u));
+            }
+            chipSelect(true); s_waitingEventRelease=true;
+            (void)waitEventHigh(kEventReleaseTimeoutMs);
+            if(!ok) { USBBoardLink_HsTransportFault(); return false; }
+            USBBoardLink_HsAcceptBlock(s_hsRead,blockSize);
+            /* Preserve the small control-event API while delivering large
+             * reports through its separate, bounded data-plane receiver. */
+            return usb_board_link_encode(0xFEu,nullptr,0u,response,responseCapacity,responseLength);
+        }
 
         if (!found && (rawLength >= USB_BOARD_LINK_HEADER_BYTES)) {
             for (uint8_t index = 0u; (index + 2u) < rawLength; ++index) {
@@ -205,8 +269,10 @@ static bool readFrame(uint8_t *response,
     if (!found || (rawLength < (uint8_t)(start + total)) ||
         (usb_board_link_checksum(&raw[start], (uint16_t)(total - 1u)) !=
          raw[start + total - 1u])) {
+        WebConfig_RecordStartupFrame(raw, rawLength, 2u);
         return false;
     }
+    WebConfig_RecordStartupFrame(raw, rawLength, 0u);
     memcpy(response, &raw[start], total);
     *responseLength = total;
     return true;
@@ -316,6 +382,7 @@ bool USBBoardLinkPort_InitIap()
      * bring-up even after the WebConfig test override is removed.
      */
     s_fastApplication = false;
+    s_fastWebHid = false;
     if (s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
         return true;
     }
@@ -367,6 +434,7 @@ bool USBBoardLinkPort_EnableFastApplication()
 
 bool USBBoardLinkPort_DisableFastApplication()
 {
+    s_fastWebHid = false;
     if (!USBBoardLinkPort_Init()) {
         return false;
     }
@@ -390,6 +458,47 @@ bool USBBoardLinkPort_DisableFastApplication()
     s_waitingEventRelease = false;
     s_fastApplication = false;
     return true;
+}
+
+bool USBBoardLinkPort_EnableWebHid(uint32_t spiHz)
+{
+    if(!USBBoardLinkPort_Init() || s_fastApplication ||
+       USBBoardLinkPort_ClockHz()!=kExpectedSpiClockHz ||
+       (spiHz!=15000000u && spiHz!=7500000u) ||
+       !refreshEventRelease() || !eventLineIsHigh()) return false;
+    s_fastWebHid=false;
+    chipSelect(true);
+    if(HAL_SPI_DeInit(&s_hspi)!=HAL_OK) return false;
+    s_hspi.Init.BaudRatePrescaler=spiHz==15000000u ? SPI_BAUDRATEPRESCALER_8 : SPI_BAUDRATEPRESCALER_16;
+    if(HAL_SPI_Init(&s_hspi)!=HAL_OK) return false;
+    __HAL_RCC_DMA2_CLK_ENABLE();
+    DMA_HandleTypeDef *handles[2]={&s_hsTxDma,&s_hsRxDma};
+    for(unsigned i=0;i<2;++i) {
+        DMA_HandleTypeDef &dma=*handles[i]; memset(&dma,0,sizeof(dma));
+        dma.Instance=i==0 ? DMA2_Stream6 : DMA2_Stream7;
+        dma.Init.Request=i==0 ? DMA_REQUEST_SPI4_TX : DMA_REQUEST_SPI4_RX;
+        dma.Init.Direction=i==0 ? DMA_MEMORY_TO_PERIPH : DMA_PERIPH_TO_MEMORY;
+        dma.Init.PeriphInc=DMA_PINC_DISABLE; dma.Init.MemInc=DMA_MINC_ENABLE;
+        dma.Init.PeriphDataAlignment=DMA_PDATAALIGN_BYTE; dma.Init.MemDataAlignment=DMA_MDATAALIGN_BYTE;
+        dma.Init.Mode=DMA_NORMAL; dma.Init.Priority=DMA_PRIORITY_HIGH; dma.Init.FIFOMode=DMA_FIFOMODE_DISABLE;
+        if(HAL_DMA_Init(&dma)!=HAL_OK) return false;
+    }
+    __HAL_LINKDMA(&s_hspi,hdmatx,s_hsTxDma);
+    __HAL_LINKDMA(&s_hspi,hdmarx,s_hsRxDma);
+    s_fastWebHid=true;
+    return true;
+}
+
+bool USBBoardLinkPort_SendWebHidBlock(const uint8_t *data, uint16_t length)
+{
+    if(!s_fastWebHid || !data || length<WHF_HEADER_BYTES || length>WHF_BLOCK_BYTES ||
+       !refreshEventRelease() || !eventLineIsHigh()) return false;
+    chipSelect(false); ownershipGuardDelay();
+    if(!eventLineIsHigh()) { chipSelect(true); return false; }
+    const bool ok=hsDma(data,nullptr,length);
+    chipSelect(true);
+    if(!ok) USBBoardLink_HsTransportFault();
+    return ok;
 }
 
 bool USBBoardLinkPort_IsFastApplication()
@@ -416,6 +525,7 @@ bool USBBoardLinkPort_InitApplication()
      * reliability is established, not inside the bootstrap boundary.
      */
     s_fastApplication = false;
+    s_fastWebHid = false;
     if (s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
         return true;
     }
@@ -443,6 +553,7 @@ bool USBBoardLinkPort_TryShutdown()
     s_waitingEventRelease = false;
     s_fastApplication = false;
     s_ready = false;
+    s_fastWebHid = false;
     return true;
 }
 

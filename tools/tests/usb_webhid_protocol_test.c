@@ -8,14 +8,14 @@
 
 static void test_protocol_layout(void)
 {
-    webhid_secure_report_v1_t report;
+    webhid_secure_report_v2_t report;
     uint8_t wire[WEBHID_REPORT_BYTES];
-    uint8_t index;
+    uint16_t index;
 
     assert(sizeof(report) == WEBHID_REPORT_BYTES);
-    assert(offsetof(webhid_secure_report_v1_t, sequence_le) == 4u);
-    assert(offsetof(webhid_secure_report_v1_t, payload) == 8u);
-    assert(offsetof(webhid_secure_report_v1_t, tag) == 52u);
+    assert(offsetof(webhid_secure_report_v2_t, sequence_le) == 8u);
+    assert(offsetof(webhid_secure_report_v2_t, payload) == 16u);
+    assert(offsetof(webhid_secure_report_v2_t, tag) == 1012u);
     assert(sizeof(webhid_perf_sample_v1_t) ==
            WEBHID_PERF_SAMPLE_BYTES);
     assert(offsetof(webhid_perf_sample_v1_t, current_distance_um_le) ==
@@ -77,8 +77,8 @@ static void test_descriptors(void)
             const uint8_t address = descriptor[offset + 2u];
             ++endpoints;
             assert(descriptor[offset + 3u] == 0x03u);
-            assert(descriptor[offset + 4u] == WEBHID_REPORT_BYTES);
-            assert(descriptor[offset + 5u] == 0u);
+            assert(descriptor[offset + 4u] == 0u);
+            assert(descriptor[offset + 5u] == 4u);
             assert(descriptor[offset + 6u] == 1u);
             saw_in |= (address == USB_WEBHID_ENDPOINT_IN) ? 1u : 0u;
             saw_out |= (address == USB_WEBHID_ENDPOINT_OUT) ? 1u : 0u;
@@ -95,6 +95,10 @@ static void test_descriptors(void)
     assert(length == USB_WEBHID_CONFIG_DESCRIPTOR_BYTES);
     assert(descriptor[1] == 0x07u);
 
+    descriptor = usb_webhid_configuration_for_speed(false, false, &length);
+    assert(descriptor[1] == 2u && descriptor[31] == 64u && descriptor[32] == 0u);
+    descriptor = usb_webhid_configuration_for_speed(false, true, &length);
+    assert(descriptor[1] == 7u && descriptor[31] == 0u && descriptor[32] == 4u);
     descriptor = usb_webhid_report_descriptor(&length);
     assert(descriptor != NULL);
     assert(length == USB_WEBHID_REPORT_DESCRIPTOR_BYTES);

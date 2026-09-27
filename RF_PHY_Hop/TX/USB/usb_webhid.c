@@ -20,7 +20,7 @@ static const uint8_t s_device_descriptor[
     0x00u, 0x00u, 0x00u, USB_WEBHID_EP0_BYTES,
     0xFEu, 0xCAu, /* VID 0xCAFE */
     0x21u, 0x40u, /* PID 0x4021: dedicated HBox WebHID profile */
-    0x00u, 0x02u, /* bcdDevice 2.00 */
+    0x00u, 0x03u, /* bcdDevice 3.00: single HS V2 interface */
     0x01u, 0x02u, 0x03u, 0x01u
 };
 
@@ -33,7 +33,7 @@ static const uint8_t s_qualifier_descriptor[
 
 /*
  * Vendor-defined, report-ID-free HID descriptor.  WebHID sends and receives
- * one complete SecureHidReportV1 per interrupt transaction.
+ * one complete SecureHidReportV2 per interrupt transaction.
  */
 static const uint8_t s_report_descriptor[
     USB_WEBHID_REPORT_DESCRIPTOR_BYTES] = {
@@ -43,10 +43,11 @@ static const uint8_t s_report_descriptor[
     0x15u, 0x00u,              /* Logical Minimum 0 */
     0x26u, 0xFFu, 0x00u,       /* Logical Maximum 255 */
     0x75u, 0x08u,              /* Report Size 8 */
-    0x95u, 0x40u,              /* Report Count 64 */
+    0x96u, 0x00u, 0x04u,       /* Report Count 1024 */
     0x09u, 0x02u, 0x81u, 0x02u, /* Input: Data,Var,Abs */
-    0x95u, 0x40u,              /* Report Count 64 */
+    0x96u, 0x00u, 0x04u,       /* Report Count 1024 */
     0x09u, 0x03u, 0x91u, 0x02u, /* Output: Data,Var,Abs */
+    0x95u, 0x20u, 0x09u, 0x04u, 0xB1u, 0x02u, /* 32-byte capability Feature */
     0xC0u
 };
 
@@ -67,16 +68,16 @@ static const uint8_t s_configuration_descriptor[
     0x11u, 0x01u, 0x00u, 0x01u, USB_DESC_REPORT,
     USB_WEBHID_REPORT_DESCRIPTOR_BYTES, 0x00u,
 
-    /* Interrupt IN and OUT, both fixed at one 64-byte report. */
+    /* HS interrupt IN/OUT: one 1024-byte report per microframe. */
     0x07u, USB_DESC_ENDPOINT, USB_WEBHID_ENDPOINT_IN,
-    0x03u, USB_WEBHID_REPORT_BYTES, 0x00u, 0x01u,
+    0x03u, 0x00u, 0x04u, 0x01u,
     0x07u, USB_DESC_ENDPOINT, USB_WEBHID_ENDPOINT_OUT,
-    0x03u, USB_WEBHID_REPORT_BYTES, 0x00u, 0x01u
+    0x03u, 0x00u, 0x04u, 0x01u
 };
 
 static const uint8_t s_other_speed_descriptor[
     USB_WEBHID_CONFIG_DESCRIPTOR_BYTES] = {
-    /* Same 64-byte interrupt endpoints at the other negotiated bus speed. */
+    /* FS enumeration only. Capability EP0 explains why data is unavailable. */
     0x09u, USB_DESC_OTHER_SPEED,
     USB_WEBHID_CONFIG_DESCRIPTOR_BYTES, 0x00u,
     0x01u, 0x01u, 0x00u, 0x80u, 0x32u,
@@ -87,16 +88,16 @@ static const uint8_t s_other_speed_descriptor[
     0x11u, 0x01u, 0x00u, 0x01u, USB_DESC_REPORT,
     USB_WEBHID_REPORT_DESCRIPTOR_BYTES, 0x00u,
     0x07u, USB_DESC_ENDPOINT, USB_WEBHID_ENDPOINT_IN,
-    0x03u, USB_WEBHID_REPORT_BYTES, 0x00u, 0x01u,
+    0x03u, 0x40u, 0x00u, 0x01u,
     0x07u, USB_DESC_ENDPOINT, USB_WEBHID_ENDPOINT_OUT,
-    0x03u, USB_WEBHID_REPORT_BYTES, 0x00u, 0x01u
+    0x03u, 0x40u, 0x00u, 0x01u
 };
 
 static uint8_t s_string[64];
 static const char *const s_ascii_strings[] = {
     "",
-    "HBox",
-    "HBox WebConfig",
+    "XORA",
+    "XORA WebConfig",
     "HBOX-WEBCONFIG-V2",
     "WebConfig"
 };
@@ -153,6 +154,20 @@ const uint8_t *usb_webhid_other_speed_descriptor(uint16_t *length)
         *length = sizeof(s_other_speed_descriptor);
     }
     return s_other_speed_descriptor;
+}
+
+const uint8_t *usb_webhid_configuration_for_speed(bool high_speed,
+                                                  bool other_speed,
+                                                  uint16_t *length)
+{
+    static uint8_t descriptor[USB_WEBHID_CONFIG_DESCRIPTOR_BYTES];
+    const uint8_t *source = (high_speed != other_speed)
+        ? s_configuration_descriptor : s_other_speed_descriptor;
+    uint16_t i;
+    for(i = 0u; i < sizeof(descriptor); ++i) descriptor[i] = source[i];
+    descriptor[1] = other_speed ? USB_DESC_OTHER_SPEED : USB_DESC_CONFIGURATION;
+    if(length != 0) *length = sizeof(descriptor);
+    return descriptor;
 }
 
 const uint8_t *usb_webhid_report_descriptor(uint16_t *length)

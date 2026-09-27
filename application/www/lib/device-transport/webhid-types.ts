@@ -30,6 +30,7 @@ export interface WebHidDevice {
   open(): Promise<void>;
   close(): Promise<void>;
   sendReport(reportId: number, data: BufferSource): Promise<void>;
+  receiveFeatureReport(reportId: number): Promise<DataView>;
   addEventListener(
     type: 'inputreport',
     listener: (event: WebHidInputReportEvent) => void,

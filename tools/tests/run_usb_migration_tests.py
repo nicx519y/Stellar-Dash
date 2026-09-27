@@ -150,6 +150,7 @@ def main() -> int:
             [
                 TESTS / "usb_webhid_flow_control_test.c",
                 USB / "usb_device.c",
+                USB / "usb_webhid_memory.c",
                 USB / "usb_net_bridge.c",
             ],
             [COMMON, USB],

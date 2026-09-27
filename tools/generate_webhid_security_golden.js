@@ -22,7 +22,7 @@ const OUTPUT_PATH = path.resolve(
     '..',
     'common',
     'test_vectors',
-    'webhid_security_v1.json'
+    'webhid_security_v2.json'
 );
 const LABELS = Object.freeze({
     permit: 'HBox TEST ONLY WebHID V1 permit signing scalar',
@@ -188,7 +188,7 @@ function makePermit(permitPublic, browserPublic, devicePublic) {
 }
 
 function hkdf(sharedSecret, salt, sessionId, direction, nonce = false) {
-    const context = Buffer.from(`HBox WebHID v1\0${sessionId}`, 'utf8');
+    const context = Buffer.from(`XORA WebHID v2\0${sessionId}`, 'utf8');
     const suffix = Buffer.from(
         nonce ? `\0${direction}\0nonce` : `\0${direction}`,
         'utf8'
@@ -211,28 +211,29 @@ function makeNonce(prefix, sequence) {
     return nonce;
 }
 
-function makeReport(key, noncePrefix, type, flags, sequence, plaintext) {
-    const report = Buffer.alloc(64);
-    report[0] = 1;
+function makeReport(key, noncePrefix, type, flags, sequence, plaintext, epoch) {
+    const report = Buffer.alloc(1024);
+    report[0] = 2;
     report[1] = type;
     report[2] = flags | 0x01;
-    report[3] = plaintext.length;
-    report.writeUInt32LE(sequence, 4);
+    report.writeUInt16LE(plaintext.length, 4);
+    report.writeUInt32LE(sequence, 8);
+    report.writeUInt32LE(epoch, 12);
     const cipher = crypto.createCipheriv(
         'aes-256-gcm',
         key,
         makeNonce(noncePrefix, sequence),
         { authTagLength: 12 }
     );
-    cipher.setAAD(report.subarray(0, 8), {
+    cipher.setAAD(report.subarray(0, 16), {
         plaintextLength: plaintext.length
     });
     const ciphertext = Buffer.concat([
         cipher.update(plaintext),
         cipher.final()
     ]);
-    ciphertext.copy(report, 8);
-    cipher.getAuthTag().copy(report, 52);
+    ciphertext.copy(report, 16);
+    cipher.getAuthTag().copy(report, 1012);
     return report;
 }
 
@@ -291,7 +292,7 @@ function generateVector() {
         0x10,
         0x0c,
         browserSequence,
-        browserPlaintext
+        browserPlaintext, permitHash.readUInt32LE(0) || 1
     );
     const deviceReport = makeReport(
         deviceToBrowserKey,
@@ -299,12 +300,12 @@ function generateVector() {
         0x11,
         0x04,
         deviceSequence,
-        devicePlaintext
+        devicePlaintext, permitHash.readUInt32LE(0) || 1
     );
 
     return {
-        schema: 'hbox-webhid-security-golden-v1',
-        protocolVersion: 1,
+        schema: 'xora-webhid-security-golden-v2',
+        protocolVersion: 2,
         warning:
             'Public deterministic TEST ONLY values; never use these keys in production.',
         derivationLabels: LABELS,

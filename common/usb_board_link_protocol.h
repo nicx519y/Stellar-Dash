@@ -175,7 +175,12 @@ typedef enum
      * retried without replaying an uncorrelated absolute grant.
      */
     USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT = 0x07u,
-    USB_BOARD_CONTROL_RF_BINDING = 0x08u
+    USB_BOARD_CONTROL_RF_BINDING = 0x08u,
+    USB_BOARD_CONTROL_HS_CAPS = 0x30u,
+    USB_BOARD_CONTROL_HS_PREPARE = 0x31u,
+    USB_BOARD_CONTROL_HS_COMMIT = 0x32u,
+    USB_BOARD_CONTROL_HS_STATS = 0x34,
+    USB_BOARD_CONTROL_HS_STOP = 0x33u
 } usb_board_control_opcode_t;
 
 typedef enum

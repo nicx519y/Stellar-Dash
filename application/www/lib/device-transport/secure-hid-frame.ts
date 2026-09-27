@@ -1,9 +1,9 @@
 import { DeviceTransportError } from './types';
 
-export const SECURE_HID_REPORT_VERSION = 1;
-export const SECURE_HID_REPORT_SIZE = 64;
-export const SECURE_HID_HEADER_SIZE = 8;
-export const SECURE_HID_PAYLOAD_SIZE = 44;
+export const SECURE_HID_REPORT_VERSION = 2;
+export const SECURE_HID_REPORT_SIZE = 1024;
+export const SECURE_HID_HEADER_SIZE = 16;
+export const SECURE_HID_PAYLOAD_SIZE = 996;
 export const SECURE_HID_TAG_SIZE = 12;
 
 export enum SecureHidFrameType {
@@ -18,6 +18,7 @@ export enum SecureHidFrameType {
   BUTTON_STATE = 0x23,
   STREAM_CHUNK = 0x30,
   IMAGE_DATA = 0x31,
+  BENCHMARK_DATA = 0x32,
   ERROR = 0x7f,
 }
 
@@ -39,6 +40,7 @@ export interface SecureHidFrame {
 }
 
 export interface HidSessionCipher {
+  readonly epoch: number;
   seal(header: Uint8Array, sequence: number, plaintext: Uint8Array): Promise<{
     ciphertext: Uint8Array;
     tag: Uint8Array;
@@ -61,7 +63,7 @@ function assertPayloadLength(length: number): void {
   if (!Number.isInteger(length) || length < 0 || length > SECURE_HID_PAYLOAD_SIZE) {
     throw new DeviceTransportError(
       'protocol',
-      `SecureHidReportV1 payload length ${length} exceeds ${SECURE_HID_PAYLOAD_SIZE}`,
+      `SecureHidReportV2 payload length ${length} exceeds ${SECURE_HID_PAYLOAD_SIZE}`,
     );
   }
 }
@@ -86,7 +88,7 @@ export class SecureHidReportCodec {
   }): Promise<Uint8Array> {
     assertPayloadLength(frame.payload.byteLength);
     if (!Number.isSafeInteger(frame.sequence) || frame.sequence <= 0 || frame.sequence > 0xffffffff) {
-      throw new DeviceTransportError('protocol', 'SecureHidReportV1 sequence must be a non-zero u32');
+      throw new DeviceTransportError('protocol', 'SecureHidReportV2 sequence must be a non-zero u32');
     }
     if (!frame.secure && !isBootstrapFrameType(frame.type)) {
       throw new DeviceTransportError('authentication-required', 'Protected HID frame cannot be sent before authentication');
@@ -98,9 +100,11 @@ export class SecureHidReportCodec {
     const report = new Uint8Array(SECURE_HID_REPORT_SIZE);
     report[0] = SECURE_HID_REPORT_VERSION;
     report[1] = frame.type;
-    report[2] = frame.flags | (frame.secure ? SecureHidFrameFlags.SECURE : 0);
-    report[3] = frame.payload.byteLength;
-    new DataView(report.buffer).setUint32(4, frame.sequence, true);
+    const view = new DataView(report.buffer);
+    view.setUint16(2, frame.flags | (frame.secure ? SecureHidFrameFlags.SECURE : 0), true);
+    view.setUint16(4, frame.payload.byteLength, true);
+    view.setUint32(8, frame.sequence, true);
+    view.setUint32(12, frame.secure ? this.cipher!.epoch : 0, true);
     const header = report.slice(0, SECURE_HID_HEADER_SIZE);
 
     if (frame.secure) {
@@ -124,21 +128,28 @@ export class SecureHidReportCodec {
     if (bytes.byteLength !== SECURE_HID_REPORT_SIZE) {
       throw new DeviceTransportError(
         'protocol',
-        `SecureHidReportV1 must be exactly ${SECURE_HID_REPORT_SIZE} bytes`,
+        `SecureHidReportV2 must be exactly ${SECURE_HID_REPORT_SIZE} bytes`,
       );
     }
     if (bytes[0] !== SECURE_HID_REPORT_VERSION) {
       throw new DeviceTransportError('protocol', `Unsupported SecureHidReport version ${bytes[0]}`);
     }
     const type = bytes[1] as SecureHidFrameType;
-    const flags = bytes[2];
-    const payloadLength = bytes[3];
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const flags = view.getUint16(2, true);
+    const payloadLength = view.getUint16(4, true);
+    if (view.getUint16(6, true) !== 0 || (flags & ~0x0f) !== 0) {
+      throw new DeviceTransportError('protocol', 'Invalid V2 reserved fields or flags');
+    }
     assertPayloadLength(payloadLength);
-    const sequence = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(4, true);
+    const sequence = view.getUint32(8, true);
     if (sequence === 0) {
-      throw new DeviceTransportError('protocol', 'SecureHidReportV1 sequence zero is reserved');
+      throw new DeviceTransportError('protocol', 'SecureHidReportV2 sequence zero is reserved');
     }
     const secure = (flags & SecureHidFrameFlags.SECURE) !== 0;
+    if (view.getUint32(12, true) !== (secure ? this.cipher?.epoch : 0)) {
+      throw new DeviceTransportError('authentication-failed', 'HID report belongs to another session');
+    }
     if (!secure && !isBootstrapFrameType(type)) {
       throw new DeviceTransportError('authentication-required', 'Received an unauthenticated protected HID frame');
     }
@@ -148,7 +159,7 @@ export class SecureHidReportCodec {
     );
     for (let index = payloadLength; index < paddedPayload.byteLength; index += 1) {
       if (paddedPayload[index] !== 0) {
-        throw new DeviceTransportError('protocol', 'SecureHidReportV1 contains non-zero payload padding');
+        throw new DeviceTransportError('protocol', 'SecureHidReportV2 contains non-zero payload padding');
       }
     }
     const header = bytes.slice(0, SECURE_HID_HEADER_SIZE);

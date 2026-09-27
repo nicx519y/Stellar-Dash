@@ -152,6 +152,22 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
             "the USB OUT ring must hold a complete 9-12 frame WebConfig RPC burst",
         )
 
+    def test_webhid_out_rearm_does_not_rewrite_an_active_endpoint(self) -> None:
+        # USB DMA keeps running while the CPU IRQ is masked. A dequeue may
+        # rearm only NAK+!DONE; rewriting ACK can erase a concurrent completion.
+        start = self.source.index("usb_webhid_fast_submit(s_webhid_out[")
+        end = self.source.index("PFIC_EnableIRQ(USB2_DEVICE_IRQn);", start)
+        rearm = self.source[start:end]
+        self.assertRegex(rearm, r"const uint8_t control = R8_U2EP2_RX_CTRL;")
+        self.assertRegex(
+            rearm,
+            r"control & \(USBHS_UEP_R_RES_MASK \| USBHS_UEP_R_DONE\)\) =="
+            r"\s*USBHS_UEP_R_RES_NAK",
+        )
+        self.assertIn("device_is_high_speed() && usb_webhid_fast_ready()", rearm)
+        self.assertIn("(control & (uint8_t)~USBHS_UEP_R_RES_MASK)", rearm)
+        self.assertNotIn("(R8_U2EP2_RX_CTRL &", rearm)
+
     def test_suspend_pauses_without_ending_the_webhid_generation(self) -> None:
         start = self.source.index(
             "else if((flags & USBHS_UDIF_SUSPEND) != 0u)"
@@ -185,7 +201,7 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
         status = arm.index("PFIC_GetStatusIRQ(USB2_DEVICE_IRQn)")
         disable = arm.index("PFIC_DisableIRQ(USB2_DEVICE_IRQn);")
         mounted = arm.index("s_mounted != 0u", disable)
-        copy = arm.index("memcpy(s_ep1_tx, data, length);", mounted)
+        copy = arm.index("usb_webhid_copy(s_ep1_tx, data, length);", mounted)
         busy = arm.index("s_ep1_busy = 1u;", copy)
         tx_length = arm.index("R16_U2EP1_T_LEN = length;", busy)
         ack = arm.index("USBHS_UEP_T_RES_ACK", tx_length)

@@ -1,6 +1,5 @@
 import { Flex, Box, VStack,  Text } from "@chakra-ui/react";
 import DistanceBar from "./distance-bar";
-import { useEffect } from "react";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 
 export default function ButtonsPerformanceTestField(
@@ -21,21 +20,6 @@ export default function ButtonsPerformanceTestField(
     const { topDeadzone, bottomDeadzone } = defaultProfile.triggerConfigs?.triggerConfigs?.[index] || { topDeadzone: 0, bottomDeadzone: 0 };
 
     const labelWidth = 50;
-
-    useEffect(() => {
-        if(index == 0) {
-            console.log(
-                'pressStartDistance:', pressStartDistance, 
-                'pressTriggerDistance:', pressTriggerDistance, 
-                'releaseStartDistance:', releaseStartDistance, 
-                'releaseTriggerDistance:', releaseTriggerDistance,
-                'topDeadzone:', topDeadzone,
-                'bottomDeadzone:', bottomDeadzone
-            );
-        }
-
-
-    }, [pressStartDistance, pressTriggerDistance, releaseStartDistance, releaseTriggerDistance]);
 
     const getPressTravel = () => {
         return Math.abs(pressTriggerDistance - pressStartDistance);

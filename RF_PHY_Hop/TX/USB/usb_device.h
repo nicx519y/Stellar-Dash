@@ -21,7 +21,6 @@ bool usb_device_submit_webhid_report(const uint8_t *data, uint16_t length);
 void usb_device_webhid_report_complete(void);
 /* True only after the current mounted, non-suspended WebHID generation has
  * published its receiver capacity. */
-bool usb_device_webhid_credit_ready(void);
 /* Called by the hardware backend after disconnect/bus-reset/profile reset. */
 void usb_device_transport_reset(void);
 bool usb_device_control(const uint8_t *payload, uint8_t length);
@@ -37,7 +36,7 @@ bool usb_device_hw_send_report(const uint8_t *report, uint8_t length);
 void usb_device_hw_submit_input(const usb_board_input_v1_t *input);
 void usb_device_hw_set_actions(uint32_t action_mask);
 bool usb_device_hw_send_telemetry(const uint8_t *data, uint8_t length);
-bool usb_device_hw_send_webhid_report(const uint8_t *data, uint8_t length);
+bool usb_device_hw_send_webhid_report(const uint8_t *data, uint16_t length);
 void usb_device_hw_process(void);
 bool usb_device_hw_is_mounted(void);
 bool usb_device_hw_is_suspended(void);

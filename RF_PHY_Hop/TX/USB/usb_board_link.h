@@ -19,16 +19,13 @@ bool usb_board_link_publish_bulk(usb_board_channel_t channel,
                                  const uint8_t *data,
                                  uint16_t length);
 void usb_board_link_reset_channel(usb_board_channel_t channel);
-void usb_board_link_webconfig_set_ready(bool ready,
-                                        uint8_t available_reports);
-void usb_board_link_webconfig_pause(void);
-void usb_board_link_webconfig_report_consumed(void);
 
 /* Hardware SPI slave port, low-active event signal on PA5. */
 bool usb_board_link_port_init(void);
 void usb_board_link_port_shutdown(void);
 void usb_board_link_port_process(void);
 bool usb_board_link_port_pop_rx(uint8_t *byte);
+uint16_t usb_board_link_port_read_rx(uint8_t *data, uint16_t capacity);
 bool usb_board_link_port_take_fault(uint8_t *fault);
 bool usb_board_link_port_queue_event(const uint8_t *frame, uint8_t length);
 bool usb_board_link_port_set_fast_input(bool enabled);

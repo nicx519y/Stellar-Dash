@@ -413,9 +413,9 @@ export class MockDeviceTransport implements DeviceTransport {
     if (!transfer || bytes.byteLength !== transfer.data.byteLength) {
       throw new DeviceTransportError('protocol', 'No matching fast image transfer');
     }
-    for (let offset = 0; offset < bytes.byteLength; offset += 44) {
+    for (let offset = 0; offset < bytes.byteLength; offset += 996) {
       if (options?.signal?.aborted) throw new DOMException('Upload aborted', 'AbortError');
-      const end = Math.min(offset + 44, bytes.byteLength);
+      const end = Math.min(offset + 996, bytes.byteLength);
       transfer.data.set(bytes.subarray(offset, end), offset);
       transfer.received = end;
       transfer.lastReceived = end === bytes.byteLength;
@@ -1212,7 +1212,7 @@ export class MockDeviceTransport implements DeviceTransport {
         && width > 0 && width <= 320
         && height > 0 && height <= 172
         && frameCount >= 1 && frameCount <= 6
-        && transferVersion === 2
+        && transferVersion === 3
         && reserved === 0
         && total === frameSize * frameCount
         && ((frameCount === 1 && format === 1 && fps === 0)
@@ -1293,7 +1293,7 @@ export class MockDeviceTransport implements DeviceTransport {
       const requestedVersion = request.getUint8(1);
       const extended = requestedVersion === 1;
       const fast = requestedVersion === 2;
-      const response = new ArrayBuffer(fast ? 80 : extended ? 76 : 64);
+      const response = new ArrayBuffer(fast ? 82 : extended ? 76 : 64);
       const view = new DataView(response);
       view.setUint8(0, 0xb4);
       view.setUint8(1, 1);
@@ -1301,7 +1301,7 @@ export class MockDeviceTransport implements DeviceTransport {
       writeImageInfo(view, 6, this.images.user);
       writeImageInfo(view, 7, this.images.system);
       if (extended || fast) {
-        view.setUint8(64, fast ? 3 : 2);
+        view.setUint8(64, fast ? 4 : 2);
         view.setUint8(65, 6);
         view.setUint8(66, 0);
         view.setUint8(67, 0);
@@ -1309,9 +1309,9 @@ export class MockDeviceTransport implements DeviceTransport {
         view.setUint32(72, this.images.system ? crc32(this.images.system.data) : 0, true);
       }
       if (fast) {
-        view.setUint8(76, 2);
-        view.setUint8(77, 44);
-        view.setUint16(78, 0x0003, true);
+        view.setUint8(76, 3);
+        view.setUint16(78, 996, true);
+        view.setUint16(80, 0x0003, true);
       }
       return response;
     }

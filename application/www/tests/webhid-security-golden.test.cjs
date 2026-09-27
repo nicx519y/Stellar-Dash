@@ -14,7 +14,7 @@ const vector = require(path.resolve(
   '..',
   'common',
   'test_vectors',
-  'webhid_security_v1.json',
+  'webhid_security_v2.json',
 ));
 const {
   SecureHidFrameFlags,
@@ -155,7 +155,7 @@ test('browser rejects header, ciphertext, and tag tampering on golden reports',
     const codec = new SecureHidReportCodec(
       new AesGcmHidSessionCipher(keys),
     );
-    for (const offset of [4, 8, 63]) {
+    for (const offset of [8, 16, 1023]) {
       const damaged = fromHex(vector.reports.deviceToBrowser.reportHex);
       damaged[offset] ^= 0x01;
       await assert.rejects(

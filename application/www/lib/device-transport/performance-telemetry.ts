@@ -16,7 +16,6 @@ import {
   PerformanceCheckpoint,
   PerformanceCheckpointAssembler,
   PerformanceEdge,
-  PerformanceSample,
   PerformanceTelemetryCache,
   applyCheckpointPreservingEdges,
   parsePerformanceCheckpointChunk,
@@ -38,7 +37,7 @@ export interface PerformanceTelemetryStartOptions {
 }
 
 /**
- * Parses telemetry in a worker where available and coalesces 100 Hz input into
+ * Parses small telemetry records in transport order and coalesces 100 Hz input into
  * at most one React-facing update per animation frame.
  */
 export class PerformanceTelemetryController {
@@ -50,7 +49,7 @@ export class PerformanceTelemetryController {
   private readonly handlers = new Set<(snapshot: ButtonPerformanceMonitoringBinaryData) => void>();
   private readonly unsubscribers: Unsubscribe[] = [];
   private readonly recentEdges: PerformanceEdge[] = [];
-  private worker: Worker | null = null;
+  private renderGeneration = 0;
   private renderScheduled = false;
   private lastEdgeSequence: number | null = null;
   private edgesDuringCheckpoint = 0;
@@ -76,27 +75,12 @@ export class PerformanceTelemetryController {
       return;
     }
     this.requestSession.begin();
-    if (typeof Worker !== 'undefined') {
-      this.worker = new Worker(new URL('./performance-worker.ts', import.meta.url), {
-        type: 'module',
-        name: 'hbox-performance-telemetry',
-      });
-      this.worker.onmessage = (event: MessageEvent<WorkerResult>) => {
-        if (event.data.kind === 'sample') this.cache.applySample(event.data.value);
-        if (event.data.kind === 'edge') this.applyEdge(event.data.value);
-        if (event.data.kind === 'error') {
-          this.requestCheckpoint();
-          return;
-        }
-        this.scheduleRender();
-      };
-    }
     this.unsubscribers.push(
       this.transport.subscribe<Uint8Array>('performance.sample', (event) => {
-        this.parseOrPost('sample', event);
+        this.parseTelemetry('sample', event);
       }),
       this.transport.subscribe<Uint8Array>('performance.edge', (event) => {
-        this.parseOrPost('edge', event);
+        this.parseTelemetry('edge', event);
       }),
       this.transport.subscribe<Uint8Array>('performance.checkpoint', (event) => {
         this.applyCheckpointChunk(event);
@@ -124,8 +108,7 @@ export class PerformanceTelemetryController {
     this.requestSession.end();
     this.clockSyncScheduler.stop();
     this.unsubscribers.splice(0).forEach((unsubscribe) => unsubscribe());
-    this.worker?.terminate();
-    this.worker = null;
+    this.renderGeneration++;
     this.renderScheduled = false;
     this.checkpointAssembler.reset(true);
     this.recentEdges.length = 0;
@@ -145,6 +128,8 @@ export class PerformanceTelemetryController {
   /** Start a UI test with no samples, edges, or checkpoint history from the
    * previous test run. Transport subscriptions and clock sync stay alive. */
   resetMonitoringSession(): void {
+    this.renderGeneration++;
+    this.renderScheduled = false;
     this.cache.reset();
     this.checkpointAssembler.reset(true);
     this.recentEdges.length = 0;
@@ -153,15 +138,16 @@ export class PerformanceTelemetryController {
     this.requestSession.completeCheckpoint();
   }
 
-  private parseOrPost(kind: 'sample' | 'edge', event: DeviceEvent<Uint8Array>): void {
-    const bytes = event.data.slice();
-    if (this.worker) {
-      this.worker.postMessage({ kind, payload: bytes.buffer }, [bytes.buffer]);
-      return;
+  private parseTelemetry(kind: 'sample' | 'edge', event: DeviceEvent<Uint8Array>): void {
+    try {
+      // 22/44-byte records need no Worker round trip. All report types must
+      // update the cache in the same order as authenticated transport delivery.
+      if (kind === 'sample') this.cache.applySample(parsePerformanceSample(event.data));
+      else this.applyEdge(parsePerformanceEdge(event.data));
+      this.scheduleRender();
+    } catch {
+      this.requestCheckpoint();
     }
-    if (kind === 'sample') this.cache.applySample(parsePerformanceSample(bytes));
-    else this.applyEdge(parsePerformanceEdge(bytes));
-    this.scheduleRender();
   }
 
   private applyEdge(edge: PerformanceEdge): void {
@@ -226,10 +212,12 @@ export class PerformanceTelemetryController {
   private scheduleRender(): void {
     if (this.renderScheduled) return;
     this.renderScheduled = true;
+    const generation = this.renderGeneration;
     const schedule = typeof requestAnimationFrame === 'function'
       ? requestAnimationFrame
       : (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 16) as unknown as number;
     schedule(() => {
+      if (generation !== this.renderGeneration) return;
       this.renderScheduled = false;
       const snapshot = this.cache.snapshot();
       this.handlers.forEach((handler) => handler(snapshot));
@@ -249,11 +237,6 @@ export class PerformanceTelemetryController {
   }
 
 }
-
-type WorkerResult =
-  | { kind: 'sample'; value: PerformanceSample }
-  | { kind: 'edge'; value: PerformanceEdge }
-  | { kind: 'error'; message: string };
 
 function sequenceIsAfter(value: number, baseline: number): boolean {
   const distance = (value - baseline) >>> 0;

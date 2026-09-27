@@ -54,23 +54,28 @@ void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const Scree
     static const char* const usbModeErrorLines[] = {
         "USB switch position is required.",
         "Move the physical switch to USB.",
-        "Press Retry or hold Back to exit."
+        "Press Quit or hold Back to exit."
     };
     static const char* const maintenanceErrorLines[] = {
         "USB maintenance is unavailable.",
         "Check the CH585 firmware and link.",
-        "Press Retry to test the link.",
-        "Hold Back to exit."
+        "Press Quit or hold Back to exit.",
+        "Re-enter WebConfig to retry."
     };
     static const char* const securityErrorLines[] = {
         "Device security check failed.",
         "Check identity and trust setup.",
-        "Press Retry or hold Back to exit."
+        "Press Quit or hold Back to exit."
     };
     static const char* const storageInitErrorLines[] = {
         "QSPI storage is unavailable.",
         "Configuration access is disabled.",
-        "Press Retry or hold Back to exit."
+        "Press Quit or hold Back to exit."
+    };
+    static const char* const adcErrorLines[] = {
+        "Input sampling stopped.",
+        "The USB session is closed.",
+        "Press Quit or hold Back to exit."
     };
     static const char* const storageErrorLines[] = {
         "Configuration save failed.",
@@ -109,6 +114,10 @@ void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const Scree
             lines = storageErrorLines;
             lineCount = (uint8_t)(sizeof(storageErrorLines) / sizeof(storageErrorLines[0]));
             break;
+        case WebConfigRuntimeStatus::ErrorAdc:
+            lines = adcErrorLines;
+            lineCount = (uint8_t)(sizeof(adcErrorLines) / sizeof(adcErrorLines[0]));
+            break;
         case WebConfigRuntimeStatus::Starting:
         default:
             break;
@@ -118,10 +127,6 @@ void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const Scree
 
 bool ScreenDetailWebConfig_OnConfirm(uint8_t index) {
     (void)index;
-    if (WEB_CONFIG_STATE.canRetry()) {
-        WEB_CONFIG_STATE.requestRetry();
-        return false;
-    }
     if (WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::Starting) {
         return false;
     }
@@ -137,8 +142,7 @@ const char* ScreenDetailWebConfig_ConfirmLabel(void)
     if (WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::Starting) {
         return "Wait";
     }
-    if (WEB_CONFIG_STATE.canRetry() ||
-        WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::ErrorStorage) {
+    if (WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::ErrorStorage) {
         return "Retry";
     }
     return "Quit";

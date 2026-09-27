@@ -238,6 +238,9 @@ export class PerformanceCheckpointAssembler {
 
 export class PerformanceTelemetryCache {
   private timestampUs = 0;
+  private hasTimestamp = false;
+  private readonly liveTimestamps: Array<number | undefined> = new Array(PERFORMANCE_BUTTON_COUNT);
+  private readonly edgeTimestamps: Array<number | undefined> = new Array(PERFORMANCE_BUTTON_COUNT);
   private maxTravelDistanceUm = 0;
   private droppedSamples = 0;
   private readonly buttons: ButtonPerformanceData[] = Array.from(
@@ -256,6 +259,9 @@ export class PerformanceTelemetryCache {
 
   reset(): void {
     this.timestampUs = 0;
+    this.hasTimestamp = false;
+    this.liveTimestamps.fill(undefined);
+    this.edgeTimestamps.fill(undefined);
     this.maxTravelDistanceUm = 0;
     this.droppedSamples = 0;
     for (let buttonIndex = 0; buttonIndex < this.buttons.length; buttonIndex += 1) {
@@ -273,9 +279,11 @@ export class PerformanceTelemetryCache {
   }
 
   applySample(sample: PerformanceSample): void {
-    this.timestampUs = sample.deviceTimestampUs;
+    this.advanceTimestamp(sample.deviceTimestampUs);
     this.droppedSamples += sample.droppedSamples;
     for (let index = 0; index < PERFORMANCE_BUTTON_COUNT; index += 1) {
+      if (!timestampAtLeast(sample.deviceTimestampUs, this.liveTimestamps[index])) continue;
+      this.liveTimestamps[index] = sample.deviceTimestampUs;
       const button = this.buttons[index];
       button.isPressed = (sample.pressedMask & (1 << index)) !== 0;
       button.currentDistance = micrometresToMillimetres(sample.currentDistanceUm[index]);
@@ -284,10 +292,15 @@ export class PerformanceTelemetryCache {
 
   applyEdge(edge: PerformanceEdge): void {
     if (edge.buttonIndex >= this.buttons.length) return;
-    this.timestampUs = edge.deviceTimestampUs;
+    this.advanceTimestamp(edge.deviceTimestampUs);
     const button = this.buttons[edge.buttonIndex];
-    button.isPressed = edge.pressed;
-    button.currentDistance = micrometresToMillimetres(edge.currentDistanceUm);
+    if (timestampAtLeast(edge.deviceTimestampUs, this.liveTimestamps[edge.buttonIndex])) {
+      this.liveTimestamps[edge.buttonIndex] = edge.deviceTimestampUs;
+      button.isPressed = edge.pressed;
+      button.currentDistance = micrometresToMillimetres(edge.currentDistanceUm);
+    }
+    if (!timestampAtLeast(edge.deviceTimestampUs, this.edgeTimestamps[edge.buttonIndex])) return;
+    this.edgeTimestamps[edge.buttonIndex] = edge.deviceTimestampUs;
     button.pressTriggerDistance = micrometresToMillimetres(edge.pressTriggerDistanceUm);
     button.pressStartDistance = micrometresToMillimetres(edge.pressStartDistanceUm);
     button.releaseTriggerDistance = micrometresToMillimetres(edge.releaseTriggerDistanceUm);
@@ -295,20 +308,32 @@ export class PerformanceTelemetryCache {
   }
 
   applyCheckpoint(checkpoint: PerformanceCheckpoint): void {
-    this.timestampUs = checkpoint.deviceTimestampUs;
+    this.advanceTimestamp(checkpoint.deviceTimestampUs);
     this.maxTravelDistanceUm = checkpoint.maxTravelDistanceUm;
     this.droppedSamples = checkpoint.droppedSamples;
     for (const value of checkpoint.buttons) {
       if (value.buttonIndex < 0 || value.buttonIndex >= this.buttons.length) continue;
       const button = this.buttons[value.buttonIndex];
       button.virtualPin = value.virtualPin;
-      button.isPressed = value.pressed;
-      button.currentDistance = micrometresToMillimetres(value.currentDistanceUm);
+      // Checkpoint chunks can finish after newer samples/edges. Restore missing
+      // history without rolling back the live position or a newer trigger.
+      if (timestampAtLeast(checkpoint.deviceTimestampUs, this.liveTimestamps[value.buttonIndex])) {
+        this.liveTimestamps[value.buttonIndex] = checkpoint.deviceTimestampUs;
+        button.isPressed = value.pressed;
+        button.currentDistance = micrometresToMillimetres(value.currentDistanceUm);
+      }
+      if (!timestampAtLeast(checkpoint.deviceTimestampUs, this.edgeTimestamps[value.buttonIndex])) continue;
+      this.edgeTimestamps[value.buttonIndex] = checkpoint.deviceTimestampUs;
       button.pressTriggerDistance = micrometresToMillimetres(value.pressTriggerDistanceUm);
       button.pressStartDistance = micrometresToMillimetres(value.pressStartDistanceUm);
       button.releaseTriggerDistance = micrometresToMillimetres(value.releaseTriggerDistanceUm);
       button.releaseStartDistance = micrometresToMillimetres(value.releaseStartDistanceUm);
     }
+  }
+
+  private advanceTimestamp(timestamp: number): void {
+    if (!this.hasTimestamp || timestampAtLeast(timestamp, this.timestampUs)) this.timestampUs = timestamp;
+    this.hasTimestamp = true;
   }
 
   snapshot(): ButtonPerformanceMonitoringBinaryData {
@@ -363,6 +388,10 @@ function micrometresToMillimetres(value: number): number {
 function sequenceIsAfter(value: number, baseline: number): boolean {
   const distance = (value - baseline) >>> 0;
   return distance !== 0 && distance < 0x8000_0000;
+}
+
+function timestampAtLeast(value: number, baseline: number | undefined): boolean {
+  return baseline === undefined || value === baseline || sequenceIsAfter(value, baseline);
 }
 
 function nextCheckpointId(value: number): number {

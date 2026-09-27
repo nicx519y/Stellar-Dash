@@ -226,7 +226,7 @@ function DeviceConnectionCard({ state, children, title }: {
   return (
     <Box ref={shell} data-testid="device-status-card" data-loading-variant="connection"
       data-connection-state={displayed} role="dialog" aria-modal="true" aria-label={snapshot.current.title}
-      width="min(520px, calc(100vw - 32px))" height={{ base: "520px", sm: "456px" }} boxSizing="border-box"
+      width="min(600px, calc(100vw - 32px))" height={{ base: "520px", sm: "456px" }} boxSizing="border-box"
       border="1px solid" borderColor="rgba(159, 211, 133, 0.2)" borderRadius="24px"
       bg="linear-gradient(145deg, #17221d 0%, #101619 45%, #0d1218 100%)"
       boxShadow="0 32px 100px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)"

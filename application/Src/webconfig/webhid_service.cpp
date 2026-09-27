@@ -1,4 +1,6 @@
 #include "webhid_service.hpp"
+#include "webhid_benchmark.h"
+#include "webhid_fast_link.h"
 
 #include <algorithm>
 #include <cmath>
@@ -34,7 +36,52 @@
 #include "cJSON.h"
 #include "main_runtime_control.hpp"
 
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+extern "C" {
+__attribute__((section(".BDMA_Section"), aligned(32), used))
+webhid_benchmark_snapshot_t g_webhid_benchmark;
+}
+static uint32_t benchmarkRandom, benchmarkCrc;
+static void benchmarkPublish() {
+    __DMB();
+    ++g_webhid_benchmark.consistency;
+    __DMB();
+    SCB_CleanDCache_by_Addr(reinterpret_cast<uint32_t *>(&g_webhid_benchmark), sizeof(g_webhid_benchmark));
+    __DSB();
+}
+#endif
+
+extern "C" {
+// First rejected report: metadata only, never keys, plaintext or ciphertext.
+__attribute__((aligned(32), used)) uint32_t g_webhid_session_fault[32] = {};
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+// Development timing only: magic, tick, calls, gap total/max, telemetry/output
+// CPU time, send attempts/backpressure. No report content or session material.
+__attribute__((aligned(32), used)) uint32_t g_webhid_perf_timing[16] = {};
+#endif
+}
+
 namespace {
+uint32_t diagnosticCommand = 0u;
+uint32_t diagnosticTransaction = 0u;
+bool recordSessionFault(uint32_t reason, uint32_t sequence = 0u,
+                        uint32_t previous = 0u, uint32_t detail = 0u)
+{
+    if (g_webhid_session_fault[0] == 0u) {
+        g_webhid_session_fault[1] = HAL_GetTick();
+        g_webhid_session_fault[2] = reason;
+        g_webhid_session_fault[3] = sequence;
+        g_webhid_session_fault[4] = previous;
+        g_webhid_session_fault[5] = detail;
+        g_webhid_session_fault[6] = diagnosticCommand;
+        g_webhid_session_fault[7] = diagnosticTransaction;
+        __DMB();
+        g_webhid_session_fault[0] = 0x57534632u;
+        SCB_CleanDCache_by_Addr(g_webhid_session_fault, sizeof(g_webhid_session_fault));
+        __DSB();
+    }
+    return false;
+}
 
 constexpr uint8_t kKnownFrameFlags =
     WEBHID_REPORT_FLAG_ENCRYPTED |
@@ -260,11 +307,9 @@ done:
 }
 #endif
 
-void webhidReportReceived(const uint8_t report[WEBHID_REPORT_BYTES])
+bool webhidReportReceived(const uint8_t report[WEBHID_REPORT_BYTES])
 {
-    if (!WEBHID_SERVICE.enqueueReport(report)) {
-        USB_BOARD_LINK.releaseWebConfigReceiveCredit();
-    }
+    return WEBHID_SERVICE.enqueueReport(report);
 }
 
 void configJsonEvent(const char *json, size_t length)
@@ -504,7 +549,7 @@ constexpr size_t kImageMutationResponseBytes = 79u;
 constexpr size_t kImageCommitResponseBytes = 83u;
 constexpr size_t kImageInfoResponseBytes = 64u;
 constexpr size_t kExtendedImageInfoResponseBytes = 76u;
-constexpr size_t kFastImageInfoResponseBytes = 80u;
+constexpr size_t kFastImageInfoResponseBytes = 82u;
 constexpr size_t kImageReadResponseHeaderBytes = 55u;
 
 bool binaryRequestShapeValid(
@@ -681,11 +726,12 @@ BinaryAckStatus describeBinaryAck(
             return BinaryAckStatus::ProtocolError;
         }
         if (fastRequested &&
-            (response[64] != 3u ||
+            (response[64] != 4u ||
              response[65] == 0u || response[65] > 10u ||
              response[66] != 0u || response[67] != 0u ||
-             response[76] != 2u || response[77] != 44u ||
-             loadLe16(&response[78]) != 0x0003u)) {
+             response[76] != 3u || response[77] != 0u ||
+             loadLe16(&response[78]) != WEBHID_REPORT_PAYLOAD_BYTES ||
+             loadLe16(&response[80]) != 0x0003u)) {
             return BinaryAckStatus::ProtocolError;
         }
         cJSON_AddStringToObject(ack, "kind", "image.info");
@@ -1118,6 +1164,11 @@ void WebHidService::resetSession(bool keepBootIdentity,
     HBoxCrypto_Zeroize(
         pendingSessionId.data(), pendingSessionId.size());
     sessionEstablished = false;
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    if(g_webhid_benchmark.magic==WEBHID_BENCHMARK_MAGIC && g_webhid_benchmark.state==1u) {
+        ++g_webhid_benchmark.consistency; g_webhid_benchmark.state=4u; benchmarkPublish();
+    }
+#endif
     waitingForPermit = false;
     sessionActivationPending = false;
     grantedScopes = 0u;
@@ -1254,12 +1305,17 @@ bool WebHidService::enqueueReport(
     __disable_irq();
     if (rxCount >= kRxQueueDepth) {
         __enable_irq();
+        recordSessionFault(10u, 0u, lastRxSequence, rxCount);
         resetSession(true);
         return false;
     }
     memcpy(rxQueue[rxTail].data(), report, WEBHID_REPORT_BYTES);
     rxTail = static_cast<uint8_t>((rxTail + 1u) % kRxQueueDepth);
     ++rxCount;
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    if(g_webhid_benchmark.magic==WEBHID_BENCHMARK_MAGIC && g_webhid_benchmark.state==1u && rxCount>g_webhid_benchmark.rx_peak)
+        g_webhid_benchmark.rx_peak=rxCount;
+#endif
     __enable_irq();
     return true;
 }
@@ -1389,6 +1445,12 @@ void WebHidService::process()
     if (!initialized) {
         return;
     }
+    if (UsbBoardLink_WebConfigTakeFault()) {
+        /* A DMA/CRC failure has ambiguous delivery. Invalidate keys and
+         * business transactions even if SPI negotiation already recovered. */
+        resetSession(true, false);
+        return;
+    }
     if (!USB_DRIVER.isReady() ||
         USB_DRIVER.profile() != USB_BOARD_PROFILE_WEB_CONFIG ||
         !USB_BOARD_LINK.isRoleLocked() ||
@@ -1432,7 +1494,7 @@ void WebHidService::process()
         memcpy(report.data(),
                rxQueue[rxHead].data(),
                WEBHID_REPORT_BYTES);
-        webhid_secure_report_v1_t queuedHeader = {};
+        webhid_secure_report_v2_t queuedHeader = {};
         memcpy(&queuedHeader, report.data(), sizeof(queuedHeader));
         /*
          * A complete logical request may consume the full 16 KiB response
@@ -1450,8 +1512,14 @@ void WebHidService::process()
             static_cast<uint8_t>((rxHead + 1u) % kRxQueueDepth);
         --rxCount;
         __enable_irq();
+        const uint32_t processingStart=monotonicMicros();
         const bool accepted = processReport(report.data());
-        USB_BOARD_LINK.releaseWebConfigReceiveCredit();
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+        if(g_webhid_benchmark.magic==WEBHID_BENCHMARK_MAGIC && g_webhid_benchmark.state==1u)
+            g_webhid_benchmark.process_us += monotonicMicros()-processingStart;
+#else
+        (void)processingStart;
+#endif
         if (!accepted) {
             resetSession(true);
             return;
@@ -1459,8 +1527,33 @@ void WebHidService::process()
         ++processed;
     }
 
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    const uint32_t perfStarted = monotonicMicros();
+    if (performanceEnabled) {
+        auto &d = g_webhid_perf_timing;
+        if (d[2] != 0u) {
+            const uint32_t gap = perfStarted - d[10];
+            d[3] += gap; d[4] = std::max(d[4], gap);
+        }
+        ++d[2]; d[10] = perfStarted;
+    }
+#endif
     updateTelemetry();
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    const uint32_t perfOutputStarted = monotonicMicros();
+#endif
     pumpOutput();
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    if (performanceEnabled) {
+        auto &d = g_webhid_perf_timing;
+        d[5] += perfOutputStarted - perfStarted;
+        d[6] += monotonicMicros() - perfOutputStarted;
+        if (HAL_GetTick() - d[1] >= 1000u) {
+            d[0] = 0x57505432u; d[1] = HAL_GetTick();
+            SCB_CleanDCache_by_Addr(d, sizeof(d)); __DSB();
+        }
+    }
+#endif
     if (DeviceCommandHandler::needReboot &&
         static_cast<int32_t>(
             HAL_GetTick() - DeviceCommandHandler::rebootTick) >= 0) {
@@ -1471,7 +1564,7 @@ void WebHidService::process()
 bool WebHidService::processReport(
     const uint8_t raw[WEBHID_REPORT_BYTES])
 {
-    webhid_secure_report_v1_t report;
+    webhid_secure_report_v2_t report;
     uint8_t plaintext[WEBHID_REPORT_PAYLOAD_BYTES] = {};
     uint8_t nonce[12] = {};
     bool secure;
@@ -1479,15 +1572,16 @@ bool WebHidService::processReport(
     memcpy(&report, raw, sizeof(report));
     if (report.version != WEBHID_PROTOCOL_VERSION ||
         report.payload_length > WEBHID_REPORT_PAYLOAD_BYTES ||
+        report.reserved != 0u ||
         (report.flags & ~kKnownFrameFlags) != 0u ||
         report.sequence_le == 0u) {
-        return false;
+        return recordSessionFault(1u, report.sequence_le, lastRxSequence, report.type);
     }
-    for (uint8_t index = report.payload_length;
+    for (uint16_t index = report.payload_length;
          index < WEBHID_REPORT_PAYLOAD_BYTES;
          ++index) {
         if (report.payload[index] != 0u) {
-            return false;
+            return recordSessionFault(2u, report.sequence_le, lastRxSequence, report.type);
         }
     }
     secure =
@@ -1518,12 +1612,14 @@ bool WebHidService::processReport(
     }
     if (lastRxSequence != 0u &&
         report.sequence_le != lastRxSequence + 1u) {
-        return false;
+        return recordSessionFault(3u, report.sequence_le, lastRxSequence, report.type);
     }
     if (secure != sessionEstablished) {
-        return false;
+        return recordSessionFault(4u, report.sequence_le, lastRxSequence, report.type);
     }
+    if (report.epoch_le != (secure ? sessionEpoch : 0u)) { return recordSessionFault(5u, report.sequence_le, lastRxSequence, report.type); }
     if (secure) {
+        const uint32_t decryptStart=monotonicMicros();
         makeNonce(rxNoncePrefix, report.sequence_le, nonce);
         if (HBoxCrypto_Aes256GcmDecrypt(
                 rxKey.data(),
@@ -1534,17 +1630,26 @@ bool WebHidService::processReport(
                 report.payload_length,
                 report.tag,
                 plaintext) != 0) {
-            return false;
+            return recordSessionFault(6u, report.sequence_le, lastRxSequence, report.type);
         }
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+        if(g_webhid_benchmark.magic==WEBHID_BENCHMARK_MAGIC && g_webhid_benchmark.state==1u)
+            g_webhid_benchmark.decrypt_us += monotonicMicros()-decryptStart;
+#else
+        (void)decryptStart;
+#endif
     } else {
         if (report.type != WEBHID_REPORT_BOOTSTRAP_REQUEST ||
             !allZero(report.tag, sizeof(report.tag))) {
-            return false;
+            return recordSessionFault(7u, report.sequence_le, lastRxSequence, report.type);
         }
         memcpy(plaintext, report.payload, report.payload_length);
     }
     lastRxSequence = report.sequence_le;
 
+    if (report.type == WEBHID_BENCHMARK_REPORT) {
+        return secure && processBenchmarkData(plaintext, report.payload_length);
+    }
     if (report.type == WEBHID_REPORT_STREAM_FRAGMENT) {
         return secure &&
                processStreamFragment(
@@ -1561,13 +1666,14 @@ bool WebHidService::processReport(
          report.type != WEBHID_REPORT_BOOTSTRAP_REQUEST) ||
         (secure &&
          report.type != WEBHID_REPORT_SECURE_REQUEST)) {
-        return false;
+        return recordSessionFault(8u, report.sequence_le, lastRxSequence, report.type);
     }
-    return acceptLogicalFragment(report.type,
+    const bool accepted = acceptLogicalFragment(report.type,
                                  secure,
                                  report.flags,
                                  plaintext,
                                  report.payload_length);
+    return accepted || recordSessionFault(9u, report.sequence_le, lastRxSequence, report.type);
 }
 
 bool WebHidService::acceptLogicalFragment(
@@ -1575,7 +1681,7 @@ bool WebHidService::acceptLogicalFragment(
     bool secure,
     uint8_t flags,
     const uint8_t *payload,
-    uint8_t length)
+    uint16_t length)
 {
     const bool fragmented =
         (flags & WEBHID_REPORT_FLAG_FRAGMENTED) != 0u;
@@ -2311,7 +2417,7 @@ bool WebHidService::installSessionKeys(
     const uint8_t peerPublicKey[65],
     const std::string &sessionId)
 {
-    static const char contextPrefix[] = "HBox WebHID v1";
+    static const char contextPrefix[] = "XORA WebHID v2";
     static const char browserDirection[] = "browser-to-device";
     static const char deviceDirection[] = "device-to-browser";
     uint8_t sharedSecret[32] = {};
@@ -2358,6 +2464,8 @@ bool WebHidService::installSessionKeys(
         makeInfo(browserDirection, true);
     const std::vector<uint8_t> txNonceInfo =
         makeInfo(deviceDirection, true);
+    sessionEpoch = loadLe32(permitHash);
+    if (sessionEpoch == 0u) sessionEpoch = 1u;
     const bool derived =
         HBoxCrypto_HkdfSha256(
             permitHash,
@@ -2443,6 +2551,9 @@ bool WebHidService::processSecureRpc(
     }
 
     const std::string command(commandItem->valuestring);
+    diagnosticCommand = command == "push_leds_config" ? 1u :
+        command == "update_profile" ? 2u : command == "session.end" ? 3u : 4u;
+    diagnosticTransaction = transactionId;
     const bool createFirmware =
         command == "create_firmware_upgrade_session" ||
         command == "ch585_update_begin";
@@ -2607,6 +2718,9 @@ bool WebHidService::processSecureRpc(
              * across the mode boundary after the performance ACK. */
             clearButtonStateQueue();
             performanceEnabled = true;
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+            memset(g_webhid_perf_timing, 0, sizeof(g_webhid_perf_timing));
+#endif
             nextSampleAtMs = HAL_GetTick();
             nextCheckpointAtMs = HAL_GetTick();
             samplePending = false;
@@ -2646,6 +2760,8 @@ bool WebHidService::handleSpecialRpc(
 {
     (void)opaqueRoot;
     handled = true;
+    if (command == "benchmark.start" || command == "benchmark.status" || command == "benchmark.stop")
+        return handleBenchmarkRpc(transactionId, command, params);
     if (command == "binary.exchange") {
         return handleBinaryExchange(transactionId, params);
     }
@@ -3166,10 +3282,10 @@ bool WebHidService::handleStreamRpc(
 
 bool WebHidService::processStreamFragment(
     const uint8_t *payload,
-    uint8_t length)
+    uint16_t length)
 {
-    static constexpr uint8_t kHeaderBytes = 14u;
-    static constexpr uint8_t kDataBytes =
+    static constexpr uint16_t kHeaderBytes = 15u;
+    static constexpr uint16_t kDataBytes =
         WEBHID_REPORT_PAYLOAD_BYTES - kHeaderBytes;
     if (!sessionEstablished ||
         payload == nullptr ||
@@ -3182,13 +3298,13 @@ bool WebHidService::processStreamFragment(
     const uint32_t transferId = loadLe32(&payload[1]);
     const uint32_t offset = loadLe32(&payload[5]);
     const uint32_t total = loadLe32(&payload[9]);
-    const uint8_t dataLength = payload[13];
+    const uint16_t dataLength = static_cast<uint16_t>(payload[13] | (payload[14] << 8));
     if (type != stream.type ||
         transferId != stream.transferId ||
         total != stream.expectedLength ||
         offset != stream.received ||
         dataLength > kDataBytes ||
-        length != static_cast<uint8_t>(
+        length != static_cast<uint16_t>(
                       kHeaderBytes + dataLength) ||
         static_cast<uint64_t>(offset) + dataLength >
             stream.expectedLength) {
@@ -3206,7 +3322,7 @@ bool WebHidService::processStreamFragment(
 bool WebHidService::processImageData(
     uint8_t flags,
     const uint8_t *payload,
-    uint8_t length)
+    uint16_t length)
 {
     const uint8_t imageFlags = static_cast<uint8_t>(
         flags & static_cast<uint8_t>(~WEBHID_REPORT_FLAG_ENCRYPTED));
@@ -3279,7 +3395,7 @@ bool WebHidService::sendFrame(
     uint8_t type,
     uint8_t flags,
     const uint8_t *payload,
-    uint8_t length,
+    uint16_t length,
     bool secure,
     OutboundFrameSource source)
 {
@@ -3320,12 +3436,13 @@ bool WebHidService::sendFrame(
         return true;
     }
 
-    webhid_secure_report_v1_t report = {};
+    webhid_secure_report_v2_t report = {};
     report.version = WEBHID_PROTOCOL_VERSION;
     report.type = type;
     report.flags = flags;
     report.payload_length = length;
     report.sequence_le = nextTxSequence;
+    report.epoch_le = secure ? sessionEpoch : 0u;
     if (secure) {
         report.flags |= WEBHID_REPORT_FLAG_ENCRYPTED;
         uint8_t nonce[12] = {};
@@ -3347,8 +3464,14 @@ bool WebHidService::sendFrame(
         memcpy(report.payload, payload, length);
     }
 
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    if (performanceEnabled) ++g_webhid_perf_timing[7];
+#endif
     if (!UsbBoardLink_WebConfigSendReport(
             reinterpret_cast<const uint8_t *>(&report))) {
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+        if (performanceEnabled) ++g_webhid_perf_timing[8];
+#endif
         memcpy(g_responseScratch.data(), &report, sizeof(report));
         pendingFrameSource = source;
         HBoxCrypto_Zeroize(&report, sizeof(report));
@@ -3468,8 +3591,8 @@ bool WebHidService::pumpLogicalOutput()
     const size_t total = message.length;
     const size_t remaining =
         total > message.offset ? total - message.offset : 0u;
-    const uint8_t fragmentLength =
-        static_cast<uint8_t>(
+    const uint16_t fragmentLength =
+        static_cast<uint16_t>(
             std::min(
                 remaining,
                 static_cast<size_t>(
@@ -3969,6 +4092,8 @@ void WebHidService::pumpOutput()
     case OutboundFrameSource::Checkpoint:
         (void)sendCheckpointChunk();
         return;
+    case OutboundFrameSource::Benchmark:
+        pumpBenchmark(); return;
     case OutboundFrameSource::None:
         break;
     }
@@ -3982,6 +4107,8 @@ void WebHidService::pumpOutput()
     if (!sessionEstablished) {
         return;
     }
+    pumpBenchmark();
+    if (pendingFrameSource == OutboundFrameSource::Benchmark) return;
     if (edgeCount != 0u) {
         (void)sendOneEdge();
         return;
@@ -3990,17 +4117,126 @@ void WebHidService::pumpOutput()
         (void)sendOneButtonState();
         return;
     }
-    if (checkpointActive) {
-        (void)sendCheckpointChunk();
-        return;
-    }
+    // A checkpoint consists of nine historical chunks. Keep current travel
+    // flowing between them; enqueue at most one sample and one checkpoint per
+    // pass, respecting the pinned report and reserved control slot.
     if (samplePending) {
         if (sendLatestSample(sampleTimestampUs)) {
             samplePending = false;
         }
+        if (pendingFrameSource != OutboundFrameSource::None) return;
+        if (checkpointActive) (void)sendCheckpointChunk();
+        return;
+    }
+    if (checkpointActive) {
+        (void)sendCheckpointChunk();
         return;
     }
     if (queueOneEvent()) {
         (void)pumpLogicalOutput();
     }
+}
+
+bool WebHidService::handleBenchmarkRpc(uint32_t transactionId, const std::string &command, void *opaque)
+{
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    if (!hasScope(HBOX_SCOPE_CONFIG_READ)) return sendRpcResult(transactionId, 403, nullptr, "config.read required");
+    cJSON *params=static_cast<cJSON *>(opaque);
+    uint32_t run=0u;
+    if (!params || !parseU32(cJSON_GetObjectItemCaseSensitive(params,"runId"),run) || !run)
+        return sendRpcResult(transactionId,400,nullptr,"runId must be nonzero");
+    auto &b=g_webhid_benchmark;
+    if (command=="benchmark.start") {
+        uint32_t direction=0u,seed=0u,duration=0u;
+        if(b.magic==WEBHID_BENCHMARK_MAGIC && b.state==1u)
+            return sendRpcResult(transactionId,409,nullptr,"benchmark already running");
+        if(!parseU32(cJSON_GetObjectItemCaseSensitive(params,"direction"),direction) || direction>1u ||
+           !parseU32(cJSON_GetObjectItemCaseSensitive(params,"seed"),seed) ||
+           !parseU32(cJSON_GetObjectItemCaseSensitive(params,"durationMs"),duration) || duration<100u || duration>600000u)
+            return sendRpcResult(transactionId,400,nullptr,"invalid benchmark parameters");
+        memset(&b,0,sizeof(b)); b.consistency=1u;
+        b.magic=WEBHID_BENCHMARK_MAGIC; b.version=2u; b.size=sizeof(b);
+        b.run_id=run; b.state=1u; b.direction=direction; b.seed=seed;
+        b.started_ms=HAL_GetTick(); b.duration_ms=duration; b.spi_hz=15000000u;
+        b.report_bytes=WEBHID_REPORT_BYTES; b.window=WEBHID_REPORT_WINDOW;
+        strncpy(b.build_id,__DATE__ " " __TIME__,sizeof(b.build_id)-1u);
+        benchmarkRandom=seed; benchmarkCrc=0xFFFFFFFFu;
+        benchmarkPublish();
+    } else {
+        if(b.magic!=WEBHID_BENCHMARK_MAGIC || b.run_id!=run)
+            return sendRpcResult(transactionId,409,nullptr,"benchmark generation mismatch");
+        if(command=="benchmark.stop") {
+            uint32_t bytes=0u,crc=0u;
+            bool verified=parseU32(cJSON_GetObjectItemCaseSensitive(params,"bytes"),bytes) &&
+                parseU32(cJSON_GetObjectItemCaseSensitive(params,"crc32"),crc) &&
+                bytes==b.bytes && crc==b.crc32 && !b.errors;
+            ++b.consistency; b.state=verified?3u:4u;
+            uint8_t stats[32]={}, statsSize=0u;
+            if(USB_BOARD_LINK.sendControl(USB_BOARD_CONTROL_HS_STATS,nullptr,0u,stats,sizeof(stats),&statsSize) && statsSize==sizeof(stats)) {
+                b.tx_usb_speed=whf_u32(stats); b.tx_queue_peak=whf_u32(stats+4);
+                b.tx_backpressure=whf_u32(stats+8); b.tx_spi_blocks=whf_u32(stats+12);
+                b.tx_crc_errors=whf_u32(stats+16); b.tx_protocol_errors=whf_u32(stats+20);
+                b.tx_duplicates=whf_u32(stats+24); b.connection_epoch=whf_u32(stats+28);
+            } else { ++b.errors; b.state=4u; }
+            b.elapsed_ms=HAL_GetTick()-b.started_ms;
+            benchmarkPublish();
+        }
+    }
+    cJSON *data=cJSON_CreateObject();
+    if(!data) return false;
+    cJSON_AddNumberToObject(data,"runId",b.run_id);
+    cJSON_AddNumberToObject(data,"state",b.state);
+    cJSON_AddNumberToObject(data,"bytes",b.bytes);
+    cJSON_AddNumberToObject(data,"reports",b.reports);
+    cJSON_AddNumberToObject(data,"crc32",b.crc32);
+    cJSON_AddNumberToObject(data,"errors",b.errors);
+    cJSON_AddNumberToObject(data,"elapsedMs",b.elapsed_ms);
+    cJSON_AddNumberToObject(data,"spiHz",b.spi_hz);
+    cJSON_AddStringToObject(data,"buildId",b.build_id);
+    bool ok=sendRpcResult(transactionId,0,data); cJSON_Delete(data); return ok;
+#else
+    (void)command; (void)opaque;
+    return sendRpcResult(transactionId,404,nullptr,"benchmark requires unlocked development firmware");
+#endif
+}
+
+bool WebHidService::processBenchmarkData(const uint8_t *payload, uint16_t length)
+{
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    auto &b=g_webhid_benchmark;
+    if(b.magic!=WEBHID_BENCHMARK_MAGIC || b.state!=1u || b.direction!=0u || length<=8u ||
+       whf_u32(payload)!=b.run_id || whf_u32(payload+4)!=b.bytes) return false;
+    ++b.consistency;
+    for(uint16_t i=8u;i<length;++i) {
+        benchmarkRandom=webhid_benchmark_next(benchmarkRandom);
+        if(payload[i]!=(uint8_t)(benchmarkRandom>>24)) ++b.errors;
+    }
+    benchmarkCrc=whf_crc_update(benchmarkCrc,payload+8,length-8u);
+    b.bytes+=length-8u; ++b.reports; b.crc32=~benchmarkCrc;
+    b.elapsed_ms=HAL_GetTick()-b.started_ms;
+    benchmarkPublish(); return b.errors==0u;
+#else
+    (void)payload; (void)length; return false;
+#endif
+}
+
+void WebHidService::pumpBenchmark()
+{
+#if HBOX_SECURE_BOOT_REQUIRED == 0
+    auto &b=g_webhid_benchmark;
+    if(b.magic!=WEBHID_BENCHMARK_MAGIC || b.state!=1u || b.direction!=1u || !sessionEstablished) return;
+    if(HAL_GetTick()-b.started_ms>=b.duration_ms && pendingFrameSource!=OutboundFrameSource::Benchmark) {
+        ++b.consistency; b.state=2u; b.elapsed_ms=HAL_GetTick()-b.started_ms; benchmarkPublish(); return;
+    }
+    uint8_t payload[WEBHID_REPORT_PAYLOAD_BYTES];
+    whf_put32(payload,b.run_id); whf_put32(payload+4,b.bytes);
+    uint32_t random=benchmarkRandom;
+    for(unsigned i=8u;i<sizeof(payload);++i) { random=webhid_benchmark_next(random); payload[i]=(uint8_t)(random>>24); }
+    if(sendFrame(WEBHID_BENCHMARK_REPORT,0u,payload,sizeof(payload),true,OutboundFrameSource::Benchmark)) {
+        ++b.consistency; benchmarkRandom=random;
+        benchmarkCrc=whf_crc_update(benchmarkCrc,payload+8,sizeof(payload)-8u);
+        b.bytes+=sizeof(payload)-8u; ++b.reports; b.crc32=~benchmarkCrc;
+        b.elapsed_ms=HAL_GetTick()-b.started_ms; benchmarkPublish();
+    }
+#endif
 }

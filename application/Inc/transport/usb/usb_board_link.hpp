@@ -23,6 +23,7 @@ public:
     bool setProfile(usb_board_profile_t profile);
     bool getUsbLinkState(usb_board_control_link_state_v1_t &state);
     bool enableFastInputDataPlane();
+    bool enableWebHidDataPlane();
     bool restoreCompatibleDataPlane();
     bool takeFastDataPlaneFault(uint8_t &fault);
     bool submitInput(uint32_t processedActionMask,
@@ -48,8 +49,6 @@ public:
     void process();
     void shutdown();
     void requestWebConfigTransportReset();
-    void releaseWebConfigReceiveCredit();
-    void setWebConfigReceiverReady(bool ready);
 
     usb_board_role_t role() const { return selectedRole; }
     usb_board_profile_t profile() const { return selectedProfile; }
@@ -83,18 +82,7 @@ private:
     bool send(uint8_t command, const void *payload, uint8_t payloadLength);
     bool sendLocked(uint8_t command,
                      const void *payload,
-                     uint8_t payloadLength,
-                     bool validateWebConfigTransmit,
-                     uint32_t expectedGeneration,
-                     uint8_t expectedTransaction,
-                     uint8_t expectedFragment,
-                     uint16_t expectedOffset);
-    bool sendWebConfigFragment(const void *payload,
-                               uint8_t payloadLength,
-                               uint32_t expectedGeneration,
-                               uint8_t expectedTransaction,
-                               uint8_t expectedFragment,
-                               uint16_t expectedOffset);
+                     uint8_t payloadLength);
     bool drainEventsLocked(uint32_t timeoutMs);
     bool grantInitialReceiveCredits();
     void returnReceiveCredit(usb_board_channel_t channel);
@@ -108,19 +96,6 @@ private:
                           const uint8_t *payload,
                           uint16_t length,
                           bool waitForCredit);
-    bool sendWebConfigReport(uint8_t transaction,
-                             const uint8_t *payload,
-                             uint16_t length,
-                             bool waitForCredit);
-    bool pullWebConfigCredit(uint32_t expectedGeneration,
-                             uint8_t expectedTransaction,
-                             uint8_t expectedFragment,
-                             uint16_t expectedOffset);
-    bool webConfigTransmitMatches(uint32_t expectedGeneration,
-                                  uint8_t expectedTransaction,
-                                  uint8_t expectedFragment,
-                                  uint16_t expectedOffset) const;
-    void resetWebConfigTransmit();
     uint8_t creditFor(usb_board_channel_t channel) const;
     void consumeCredit(usb_board_channel_t channel);
     bool setDataPlane(usb_board_data_plane_t mode);
@@ -132,11 +107,6 @@ private:
     uint8_t credits[USB_BOARD_CHANNEL_SLOTS] = {};
     uint8_t receiveCredits[USB_BOARD_CHANNEL_SLOTS] = {};
     uint8_t receiveCreditDirty[USB_BOARD_CHANNEL_SLOTS] = {};
-    uint8_t webConfigTxPayload[USB_BOARD_LINK_MAX_FRAME_BYTES] = {};
-    uint16_t webConfigTxOffset = 0u;
-    uint16_t webConfigTxCrc = 0u;
-    uint8_t webConfigTxTransaction = 0u;
-    uint8_t webConfigTxFragment = 0u;
     uint8_t inputSequence = 0u;
     uint8_t telemetryTransaction = 0u;
     uint8_t controlTransaction = 0u;
@@ -149,12 +119,9 @@ private:
     uint8_t fastDataPlaneFault = USB_BOARD_STATUS_OK;
     bool usbSubsystemEvidence = false;
     bool transactionActive = false;
-    bool webConfigTxActive = false;
-    bool webConfigTxCreditConsumed = false;
-    uint32_t webConfigTxGeneration = 0u;
-    uint32_t webConfigCreditQueryAfterMs = 0u;
     WebConfigTransportState webConfigTransportState =
         WebConfigTransportState::Ready;
+    uint8_t webConfigResetAttempts = 0u;
 };
 
 #define USB_BOARD_LINK UsbBoardLink::getInstance()

@@ -109,7 +109,7 @@ static size_t make_info(
     uint8_t *output,
     size_t capacity)
 {
-    static const char prefix[] = "HBox WebHID v1";
+    static const char prefix[] = "XORA WebHID v2";
     static const char suffix[] = "nonce";
     size_t length = 0u;
 
@@ -153,30 +153,30 @@ static void make_nonce(
 }
 
 static void verify_report(
-    const uint8_t report[64],
+    const uint8_t report[WEBHID_REPORT_BYTES],
     const uint8_t *plaintext,
     size_t plaintext_length,
     const uint8_t key[32],
     const uint8_t nonce_prefix[8])
 {
     uint8_t nonce[12] = {0};
-    uint8_t ciphertext[44] = {0};
+    uint8_t ciphertext[WEBHID_REPORT_PAYLOAD_BYTES] = {0};
     uint8_t tag[12] = {0};
-    uint8_t decrypted[44] = {0};
-    uint8_t damaged[64] = {0};
+    uint8_t decrypted[WEBHID_REPORT_PAYLOAD_BYTES] = {0};
+    uint8_t damaged[WEBHID_REPORT_BYTES] = {0};
     size_t index;
 
     assert(report[0] == WEBHID_PROTOCOL_VERSION);
     assert((report[2] & WEBHID_REPORT_FLAG_ENCRYPTED) != 0u);
-    assert(report[3] == plaintext_length);
+    assert((size_t)(report[4] | ((uint16_t)report[5] << 8)) == plaintext_length);
     assert(plaintext_length <= WEBHID_REPORT_PAYLOAD_BYTES);
-    for (index = 8u + plaintext_length; index < 52u; ++index) {
+    for (index = 16u + plaintext_length; index < 1012u; ++index) {
         assert(report[index] == 0u);
     }
 
     make_nonce(
         nonce_prefix,
-        read_u32_le(&report[4]),
+        read_u32_le(&report[8]),
         nonce);
     assert(HBoxCrypto_Aes256GcmEncrypt(
                key,
@@ -187,57 +187,57 @@ static void verify_report(
                plaintext_length,
                ciphertext,
                tag) == 0);
-    assert(memcmp(ciphertext, &report[8], plaintext_length) == 0);
-    assert(memcmp(tag, &report[52], sizeof(tag)) == 0);
+    assert(memcmp(ciphertext, &report[16], plaintext_length) == 0);
+    assert(memcmp(tag, &report[1012], sizeof(tag)) == 0);
     assert(HBoxCrypto_Aes256GcmDecrypt(
                key,
                nonce,
                report,
                WEBHID_REPORT_HEADER_BYTES,
-               &report[8],
+               &report[16],
                plaintext_length,
-               &report[52],
+               &report[1012],
                decrypted) == 0);
     assert(memcmp(decrypted, plaintext, plaintext_length) == 0);
 
     memcpy(damaged, report, sizeof(damaged));
+    damaged[16] ^= 1u;
+    assert(HBoxCrypto_Aes256GcmDecrypt(
+               key,
+               nonce,
+               damaged,
+               WEBHID_REPORT_HEADER_BYTES,
+               &damaged[16],
+               plaintext_length,
+               &damaged[1012],
+               decrypted) != 0);
+
+    memcpy(damaged, report, sizeof(damaged));
+    damaged[1023] ^= 1u;
+    assert(HBoxCrypto_Aes256GcmDecrypt(
+               key,
+               nonce,
+               damaged,
+               WEBHID_REPORT_HEADER_BYTES,
+               &damaged[16],
+               plaintext_length,
+               &damaged[1012],
+               decrypted) != 0);
+
+    memcpy(damaged, report, sizeof(damaged));
     damaged[8] ^= 1u;
-    assert(HBoxCrypto_Aes256GcmDecrypt(
-               key,
-               nonce,
-               damaged,
-               WEBHID_REPORT_HEADER_BYTES,
-               &damaged[8],
-               plaintext_length,
-               &damaged[52],
-               decrypted) != 0);
-
-    memcpy(damaged, report, sizeof(damaged));
-    damaged[63] ^= 1u;
-    assert(HBoxCrypto_Aes256GcmDecrypt(
-               key,
-               nonce,
-               damaged,
-               WEBHID_REPORT_HEADER_BYTES,
-               &damaged[8],
-               plaintext_length,
-               &damaged[52],
-               decrypted) != 0);
-
-    memcpy(damaged, report, sizeof(damaged));
-    damaged[4] ^= 1u;
     make_nonce(
         nonce_prefix,
-        read_u32_le(&damaged[4]),
+        read_u32_le(&damaged[8]),
         nonce);
     assert(HBoxCrypto_Aes256GcmDecrypt(
                key,
                nonce,
                damaged,
                WEBHID_REPORT_HEADER_BYTES,
-               &damaged[8],
+               &damaged[16],
                plaintext_length,
-               &damaged[52],
+               &damaged[1012],
                decrypted) != 0);
 }
 
@@ -266,10 +266,10 @@ int main(int argc, char **argv)
     uint8_t device_shared[32] = {0};
     uint8_t digest[32] = {0};
     uint8_t info[128] = {0};
-    uint8_t browser_report[64] = {0};
-    uint8_t device_report[64] = {0};
-    uint8_t browser_plaintext[44] = {0};
-    uint8_t device_plaintext[44] = {0};
+    uint8_t browser_report[WEBHID_REPORT_BYTES] = {0};
+    uint8_t device_report[WEBHID_REPORT_BYTES] = {0};
+    uint8_t browser_plaintext[WEBHID_REPORT_PAYLOAD_BYTES] = {0};
+    uint8_t device_plaintext[WEBHID_REPORT_PAYLOAD_BYTES] = {0};
     uint32_t rng_state = 0x48424f58u;
     size_t browser_plaintext_length;
     size_t device_plaintext_length;

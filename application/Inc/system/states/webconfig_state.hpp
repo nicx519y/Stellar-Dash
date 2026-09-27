@@ -5,6 +5,10 @@
 
 #include "base_state.hpp"
 
+/* Retained through transport cleanup; debugger reads need no CPU halt. */
+void WebConfig_RecordStartupStage(uint32_t stage, uint32_t field = 1u);
+void WebConfig_RecordStartupFrame(const uint8_t *bytes, uint32_t length, uint32_t result);
+
 enum class WebConfigRuntimeStatus : uint8_t
 {
     Starting = 0,
@@ -44,7 +48,6 @@ private:
     void enterFailure(WebConfigRuntimeStatus failureStatus);
 
     bool isRunning = false;
-    bool retryRequested = false;
     bool recoveryUiPending = false;
     bool startupTickTracePending = false;
     WebConfigRuntimeStatus runtimeStatus = WebConfigRuntimeStatus::Starting;

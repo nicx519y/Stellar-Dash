@@ -8,6 +8,7 @@ const GCM_TAG_BITS = SECURE_HID_TAG_SIZE * 8;
 const NONCE_PREFIX_SIZE = 8;
 
 export interface BrowserSessionKeys {
+  epoch: number;
   txKey: CryptoKey;
   rxKey: CryptoKey;
   txNoncePrefix: Uint8Array;
@@ -15,6 +16,7 @@ export interface BrowserSessionKeys {
 }
 
 export class AesGcmHidSessionCipher implements HidSessionCipher {
+  get epoch(): number { return this.keys.epoch; }
   constructor(private readonly keys: BrowserSessionKeys) {
     if (
       keys.txNoncePrefix.byteLength !== NONCE_PREFIX_SIZE ||
@@ -94,7 +96,7 @@ export async function deriveBrowserSessionKeys(
     256,
   );
   const hkdfKey = await crypto.subtle.importKey('raw', sharedSecret, 'HKDF', false, ['deriveBits', 'deriveKey']);
-  const context = new TextEncoder().encode(`HBox WebHID v1\0${sessionId}`);
+  const context = new TextEncoder().encode(`XORA WebHID v2\0${sessionId}`);
 
   const deriveKey = (direction: string) => crypto.subtle.deriveKey(
     {
@@ -122,6 +124,7 @@ export async function deriveBrowserSessionKeys(
   );
 
   return {
+    epoch: new DataView(salt.buffer, salt.byteOffset, salt.byteLength).getUint32(0, true) || 1,
     txKey: await deriveKey('browser-to-device'),
     rxKey: await deriveKey('device-to-browser'),
     txNoncePrefix: await derivePrefix('browser-to-device'),

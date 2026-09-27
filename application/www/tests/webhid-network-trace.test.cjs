@@ -209,9 +209,9 @@ test('WebHID transport mirrors plaintext only at its existing crypto boundaries'
 
   const decode = source.indexOf('const frame = await this.codec.decode(report);');
   const rxTrace = source.indexOf("direction: 'rx'", decode);
-  const encode = source.indexOf('const report = await this.codec.encode');
+  const encode = source.indexOf('report = await this.codec.encode');
   const txTrace = source.indexOf("direction: 'tx'", encode);
-  const sendReport = source.indexOf('await device.sendReport(this.reportId, report);', encode);
+  const sendReport = source.indexOf('device.sendReport(this.reportId, report)', encode);
 
   assert.ok(decode >= 0 && rxTrace > decode, 'RX trace must run after authenticated decode');
   assert.ok(encode >= 0 && txTrace > encode, 'TX trace must have both plaintext and wire report');

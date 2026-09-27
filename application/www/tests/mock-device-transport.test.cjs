@@ -1,3 +1,4 @@
+const { capability } = require('./webhid-v2-fixture.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -331,6 +332,7 @@ test('the close barrier waits for the physical WebHID handle before reopening it
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox delayed-close fixture',
     collections: [],
@@ -382,6 +384,7 @@ test('a stale encrypted device session retries on the same open HID handle', asy
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox stale-session fixture',
     collections: [],
@@ -449,6 +452,7 @@ test('disconnect aborts scope reauthorization and reconnect waits for it to sett
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox scope-upgrade fixture',
     collections: [],
@@ -561,6 +565,7 @@ test('scope upgrade drains active HID RPCs without aborting or physically closin
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox scope serialization fixture',
     collections: [],
@@ -651,6 +656,7 @@ test('a physical WebHID disconnect aborts scope upgrade before reconnecting', as
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox physical-disconnect fixture',
     collections: [],
@@ -1388,7 +1394,7 @@ test('uploads, reports, reads and deletes an in-memory background image', async 
   view.setUint16(8, 2, true);
   view.setUint32(10, pixels.length, true);
   view.setUint8(14, 1);
-  view.setUint8(16, 2);
+  view.setUint8(16, 3);
   view.setUint32(18, crc32(pixels), true);
   const beginResponse = new DataView(await sendBinary(transport, begin, 0xb0));
   assert.equal(beginResponse.getUint8(1), 1);
@@ -1408,7 +1414,7 @@ test('uploads, reports, reads and deletes an in-memory background image', async 
   view.setUint8(1, 2);
   view.setUint32(2, cid, true);
   const infoResponse = new DataView(await sendBinary(transport, info, 0xb4));
-  assert.equal(infoResponse.byteLength, 80);
+  assert.equal(infoResponse.byteLength, 82);
   assert.equal(infoResponse.getUint8(6), 1);
   assert.equal(infoResponse.getUint8(7), 0);
   assert.equal(infoResponse.getUint32(12, true), pixels.length);
@@ -1548,11 +1554,11 @@ test('typed image client covers upload, catalog, read and delete without publish
     fps: 0,
   });
   const catalog = await adapter.getImageCatalog();
-  assert.equal(catalog.protocolVersion, 3);
+  assert.equal(catalog.protocolVersion, 4);
   assert.equal(catalog.maxUserFrames, 6);
   assert.equal(catalog.maxSystemFrames, 0);
-  assert.equal(catalog.imageTransferVersion, 2);
-  assert.equal(catalog.imageDataBytesPerReport, 44);
+  assert.equal(catalog.imageTransferVersion, 3);
+  assert.equal(catalog.imageDataBytesPerReport, 996);
   assert.equal(catalog.imageTransferFlags & 3, 3);
   assert.equal(catalog.user.valid, true);
   assert.equal(catalog.user.size, pixels.byteLength);
@@ -1684,7 +1690,7 @@ test('image upload progress reaches total only after the commit ACK', async () =
   assert.equal(progress.at(-1)[1], pixels.byteLength);
   assert.ok(progress.slice(0, -1).every(([sent, total], index, values) =>
     total === pixels.byteLength && sent < total && (index === 0 || sent > values[index - 1][0])));
-  assert.ok(progress.slice(0, -1).every(([sent]) => sent % 44 === 0));
+  assert.ok(progress.slice(0, -1).every(([sent]) => sent % 996 === 0));
   adapter.dispose();
 });
 

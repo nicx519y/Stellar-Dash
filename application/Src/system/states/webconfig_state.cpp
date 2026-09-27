@@ -20,6 +20,40 @@
 #include "usbdriver.hpp"
 #include "webhid_service.hpp"
 #include "ch585_firmware_update.hpp"
+#include "main_runtime_control.hpp"
+
+/* Own complete cache lines so SWD sees diagnostics without sharing cache
+ * maintenance with unrelated state. Words 0..7: magic, stage, tick, HS stage,
+ * CONNECT result/transaction, PREPARE result/transaction (then probe status).
+ * Words 8..23 retain only PREPARE control-frame evidence, never session data.
+ * Failure cleanup deliberately preserves this snapshot. */
+extern "C" {
+alignas(32) volatile uint32_t g_webconfig_startup[24] = {};
+}
+
+void WebConfig_RecordStartupStage(uint32_t stage, uint32_t field)
+{
+    if (field == 0u || field >= 8u) return;
+    g_webconfig_startup[0] = 0x57435332u;
+    g_webconfig_startup[field] = stage;
+    g_webconfig_startup[2] = HAL_GetTick();
+    SCB_CleanDCache_by_Addr((uint32_t *)g_webconfig_startup, sizeof(g_webconfig_startup));
+    __DSB();
+}
+
+void WebConfig_RecordStartupFrame(const uint8_t *bytes, uint32_t length, uint32_t result)
+{
+    if (g_webconfig_startup[1] != 0x33u || g_webconfig_startup[3] != 0x42u) return;
+    ++g_webconfig_startup[8];
+    g_webconfig_startup[9] = result;
+    g_webconfig_startup[10] = length;
+    for (unsigned i = 12u; i < 24u; ++i) g_webconfig_startup[i] = 0u;
+    const uint32_t count = length < 48u ? length : 48u;
+    for (uint32_t i = 0u; i < count; ++i)
+        g_webconfig_startup[12u + i / 4u] |= uint32_t(bytes[i]) << ((i % 4u) * 8u);
+    SCB_CleanDCache_by_Addr((uint32_t *)g_webconfig_startup, sizeof(g_webconfig_startup));
+    __DSB();
+}
 
 namespace {
 
@@ -51,7 +85,7 @@ bool WebConfigState::enter() {
     LOG_INFO("WEBCONFIG", "Starting web configuration state setup");
     APP_DBG("WebConfigState::setup");
     APP_STAGE("W01", "WebConfig state setup begin");
-    retryRequested = false;
+    WebConfig_RecordStartupStage(1u);
     recoveryUiPending = false;
     startupTickTracePending = false;
     isRunning = false;
@@ -84,8 +118,13 @@ bool WebConfigState::enter() {
     CH585_ROLE_BOOTSTRAP.setSelector(UsbBoardLink_SelectRoleCallback);
     USB_DRIVER.setRequestedReportRateHz(1000u);
     USB_DRIVER.setFastInputAllowed(false);
-    if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Maintenance) ||
-        !USB_DRIVER.prepare(InputMode::INPUT_MODE_CONFIG)) {
+    WebConfig_RecordStartupStage(2u);
+    if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Maintenance)) {
+        enterFailure(WebConfigRuntimeStatus::ErrorMaintenance);
+        return false;
+    }
+    WebConfig_RecordStartupStage(3u);
+    if (!USB_DRIVER.prepare(InputMode::INPUT_MODE_CONFIG)) {
         APP_STAGE_ERROR("W04", "CH585 maintenance role or CONFIG USB preparation failed");
         enterFailure(WebConfigRuntimeStatus::ErrorMaintenance);
         LOG_ERROR("WEBCONFIG", "CH585 maintenance capability gate failed");
@@ -100,6 +139,7 @@ bool WebConfigState::enter() {
      */
     DeviceCommandDispatcher::getInstance().initializeHandlers();
     APP_STAGE("W05", "WebConfig command handlers initialized");
+    WebConfig_RecordStartupStage(4u);
     if (!WEBHID_SERVICE.setup()) {
         APP_STAGE_ERROR("W06", "secure WebHID service setup failed");
         enterFailure(WebConfigRuntimeStatus::ErrorSecurity);
@@ -108,6 +148,7 @@ bool WebConfigState::enter() {
         return false;
     }
     APP_STAGE("W06", "secure WebHID service ready before USB exposure");
+    WebConfig_RecordStartupStage(5u);
     if (!USB_DRIVER.connect()) {
         APP_STAGE_ERROR("W06E", "CONFIG USB connect failed after WebHID setup");
         enterFailure(WebConfigRuntimeStatus::ErrorMaintenance);
@@ -160,6 +201,7 @@ bool WebConfigState::enter() {
     isRunning = true;
     startupTickTracePending = true;
     runtimeStatus = WebConfigRuntimeStatus::Ready;
+    WebConfig_RecordStartupStage(6u);
     APP_STAGE("W08", "WebConfig runtime ready");
 
     // Logger_Flush();
@@ -170,12 +212,6 @@ void WebConfigState::tick() {
     if (recoveryUiPending) {
         recoveryUiPending = false;
         enterWebFailureUiState();
-        return;
-    }
-
-    if (retryRequested) {
-        retryRequested = false;
-        (void)enter();
         return;
     }
 
@@ -247,7 +283,6 @@ void WebConfigState::tick() {
 void WebConfigState::exit() {
     isRunning = false;
     SPIScreenManager::getInstance().clearBrightnessPreview();
-    retryRequested = false;
     recoveryUiPending = false;
     REPORT_SCHEDULER.stop();
     /*
@@ -283,7 +318,11 @@ bool WebConfigState::canRetry() const
 void WebConfigState::requestRetry()
 {
     if (canRetry()) {
-        retryRequested = true;
+        /* Failed enter() transfers ownership to SafeRecovery, whose tick
+         * cannot consume a WebConfig-local flag. The common dispatcher
+         * performs this ordinary reset after the LCD/input frame returns.
+         * Persisted WebConfig mode is retained; no Flash write is needed. */
+        MainRuntime_RequestReset();
     }
 }
 

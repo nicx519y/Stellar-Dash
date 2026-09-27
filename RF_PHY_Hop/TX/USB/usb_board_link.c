@@ -10,6 +10,7 @@
 #include "usb_net_bridge.h"
 #include "usb_profiles.h"
 #include "webhid_protocol.h"
+#include "usb_webhid_fast.h"
 
 #define USB_LINK_INPUT_VERSION_MASK 0xF0u
 
@@ -40,7 +41,6 @@ static uint8_t s_caps_requested;
 static usb_board_usb_state_v1_t s_last_state;
 static uint8_t s_tx_credits[USB_BOARD_CHANNEL_SLOTS];
 static uint8_t s_credit_dirty_mask;
-static uint8_t s_webconfig_credit_paused;
 static uint8_t s_next_transaction[USB_BOARD_CHANNEL_SLOTS];
 static usb_board_outbound_t s_outbound;
 
@@ -382,7 +382,10 @@ static void handle_fragment(const usb_board_link_frame_t *frame)
     }
     memcpy(&header, frame->payload, sizeof(header));
     channel = (usb_board_channel_t)header.channel;
-    webconfig_report = channel == USB_BOARD_CHANNEL_WEBCONFIG;
+    if(channel == USB_BOARD_CHANNEL_WEBCONFIG) {
+        (void)queue_fault(USB_BOARD_STATUS_UNSUPPORTED, channel); return;
+    }
+    webconfig_report = false;
     first = (header.flags & USB_BOARD_FRAGMENT_FLAG_FIRST) != 0u;
     if(channel == USB_BOARD_CHANNEL_NETWORK)
     {
@@ -664,6 +667,7 @@ static void dispatch(const usb_board_link_frame_t *frame)
 void usb_board_link_init(usb_board_role_t locked_role)
 {
     usb_board_link_parser_init(&s_parser);
+    usb_webhid_fast_reset();
     memset(&s_last_state, 0, sizeof(s_last_state));
     memset(s_tx_credits, 0, sizeof(s_tx_credits));
     memset(s_next_transaction, 0, sizeof(s_next_transaction));
@@ -678,7 +682,6 @@ void usb_board_link_init(usb_board_role_t locked_role)
     s_port_fault_pending = USB_BOARD_STATUS_OK;
     s_caps_requested = 0u;
     s_credit_dirty_mask = 0u;
-    s_webconfig_credit_paused = 0u;
     {
         uint8_t channel;
         for(channel = USB_BOARD_CHANNEL_USB_DEVICE;
@@ -692,7 +695,8 @@ void usb_board_link_init(usb_board_role_t locked_role)
 
 void usb_board_link_process(void)
 {
-    uint8_t byte;
+    uint8_t bytes[256];
+    uint16_t received, index;
     uint8_t port_fault;
     usb_board_link_frame_t completed;
 
@@ -707,12 +711,15 @@ void usb_board_link_process(void)
         s_port_fault_pending = port_fault;
         s_last_fault = port_fault;
         s_state_dirty = 1u;
+        usb_webhid_fast_fault(port_fault);
     }
-    while(usb_board_link_port_pop_rx(&byte))
+    while((received=usb_board_link_port_read_rx(bytes,sizeof(bytes)))!=0u)
     {
-        if(usb_board_link_parser_feed(&s_parser, byte, &completed))
-        {
-            dispatch(&completed);
+        for(index=0u;index<received;) {
+            uint16_t used=s_parser.state == USB_BOARD_PARSE_WAIT_SYNC
+                ? usb_webhid_fast_feed_block(bytes+index,(uint16_t)(received-index)) : 0u;
+            if(used) { index+=used; continue; }
+            if(usb_board_link_parser_feed(&s_parser, bytes[index++], &completed)) dispatch(&completed);
         }
     }
     if(s_caps_requested != 0u)
@@ -730,6 +737,7 @@ void usb_board_link_process(void)
         }
         queue_one_credit();
         pump_outbound();
+        usb_webhid_fast_process();
     }
     usb_board_link_port_process();
 }
@@ -759,8 +767,7 @@ bool usb_board_link_publish_bulk(usb_board_channel_t channel,
        (length > USB_BOARD_BULK_MESSAGE_MAX_BYTES) ||
        ((length != 0u) && (data == 0)) ||
        (channel == USB_BOARD_CHANNEL_NETWORK) ||
-       ((channel == USB_BOARD_CHANNEL_WEBCONFIG) &&
-        (s_role != USB_BOARD_ROLE_MAINTENANCE)))
+       (channel == USB_BOARD_CHANNEL_WEBCONFIG))
     {
         return false;
     }
@@ -793,72 +800,5 @@ void usb_board_link_reset_channel(usb_board_channel_t channel)
     }
     ++s_next_transaction[index];
     usb_net_bridge_reset_channel(channel);
-    if(channel == USB_BOARD_CHANNEL_WEBCONFIG)
-    {
-        s_webconfig_credit_paused = 0u;
-    }
-    else
-    {
-        mark_credit_dirty(channel);
-    }
-}
-
-void usb_board_link_webconfig_set_ready(bool ready,
-                                        uint8_t available_reports)
-{
-    const uint8_t credits =
-        (available_reports >
-         USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW)
-            ? USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW
-            : available_reports;
-
-    if(!ready)
-    {
-        s_webconfig_credit_paused = 0u;
-        usb_net_bridge_reset_channel(
-            USB_BOARD_CHANNEL_WEBCONFIG);
-    }
-    else
-    {
-        s_webconfig_credit_paused = 0u;
-        usb_net_bridge_set_credit(
-            USB_BOARD_CHANNEL_WEBCONFIG, credits);
-    }
-}
-
-void usb_board_link_webconfig_pause(void)
-{
-    /*
-     * USB suspend is not a generation boundary. Advertise zero for new work
-     * while preserving grants already observed by STM32 and any partial
-     * reassembly slot; resume publishes the exact capacity via set_ready().
-     */
-    s_webconfig_credit_paused = 1u;
-}
-
-void usb_board_link_webconfig_report_consumed(void)
-{
-    usb_net_bridge_return_credit(USB_BOARD_CHANNEL_WEBCONFIG);
-}
-
-bool usb_management_control_hw_get_webconfig_credit(
-    usb_board_bulk_credit_v1_t *credit)
-{
-    if((credit == 0) || (s_ready == 0u) ||
-       (s_role != USB_BOARD_ROLE_MAINTENANCE) ||
-       (usb_device_profile() != USB_BOARD_PROFILE_WEB_CONFIG) ||
-       !usb_device_webhid_credit_ready())
-    {
-        return false;
-    }
-
-    credit->channel = USB_BOARD_CHANNEL_WEBCONFIG;
-    credit->credits = (s_webconfig_credit_paused != 0u)
-        ? 0u
-        : usb_net_bridge_credit(USB_BOARD_CHANNEL_WEBCONFIG);
-    if(credit->credits > USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW)
-    {
-        credit->credits = USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW;
-    }
-    return true;
+    if(channel != USB_BOARD_CHANNEL_WEBCONFIG) mark_credit_dirty(channel);
 }

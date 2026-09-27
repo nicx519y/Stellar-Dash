@@ -1,3 +1,4 @@
+#include "usb_webhid_memory.h"
 #include "usb_device.h"
 
 #include <string.h>
@@ -13,6 +14,7 @@
 #include "usb_profiles.h"
 #include "usb_ps4_features.h"
 #include "usb_webhid.h"
+#include "usb_webhid_fast.h"
 #include "usb_xbox_device.h"
 #include "webhid_protocol.h"
 
@@ -24,7 +26,7 @@
 #include "../../../application/Inc/transport/usb/legacy/drivers/xinput/XInputDescriptors.hpp"
 
 #define USBDEV_EP0_BYTES                  64u
-#define USBDEV_ENDPOINT_BYTES            512u
+#define USBDEV_ENDPOINT_BYTES           1024u
 #define USBDEV_INTERRUPT_BYTES            64u
 #define USBDEV_CONTROL_BUFFER_BYTES       256u
 #define USBDEV_XINPUT_HID_INTERFACE         4u
@@ -41,7 +43,7 @@
  * remains one complete report; this ring only absorbs the bounded host burst
  * and never relaxes downstream ownership.
  */
-#define USBDEV_WEBHID_OUT_QUEUE_DEPTH        16u
+#define USBDEV_WEBHID_OUT_QUEUE_DEPTH         8u
 #define USBDEV_HID_REPORT_INPUT              1u
 #define USBDEV_HID_REPORT_OUTPUT             2u
 #define USBDEV_HID_REPORT_FEATURE            3u
@@ -82,7 +84,7 @@ static uint8_t s_control_response[USBDEV_CONTROL_BUFFER_BYTES];
 static uint8_t s_control_out[USBDEV_CONTROL_BUFFER_BYTES];
 static uint8_t s_other_speed[USBDEV_OTHER_SPEED_BYTES];
 static uint8_t s_xinput_string[256];
-static uint8_t s_last_report[USBDEV_INTERRUPT_BYTES];
+static uint8_t s_last_report[WEBHID_REPORT_BYTES];
 static uint8_t s_last_telemetry[USB_BOARD_TELEMETRY_FRAME_BYTES];
 static uint8_t s_xbox_out[USB_XBOX_DEVICE_PACKET_BYTES];
 static uint8_t s_high_rate_out[HBOX_CLIENT_CONTROL_BYTES];
@@ -110,7 +112,7 @@ static volatile uint8_t s_webhid_transport_reset_complete;
 static uint8_t s_hid_idle;
 static uint8_t s_hid_protocol;
 static uint8_t s_remote_wakeup;
-static uint8_t s_last_report_length;
+static uint16_t s_last_report_length;
 static uint8_t s_last_telemetry_length;
 static hbox_client_control_v1_t s_high_rate_control_response;
 static usb_board_profile_t s_profile;
@@ -350,7 +352,7 @@ static void webhid_try_reopen_out_endpoint(void)
        (s_webhid_transport_reset_complete == 0u) ||
        (s_connected == 0u) ||
        (s_mounted == 0u) ||
-       (s_suspended != 0u))
+       (s_suspended != 0u) || !device_is_high_speed() || !usb_webhid_fast_ready())
     {
         return;
     }
@@ -366,7 +368,8 @@ static bool webhid_out_enqueue(const uint8_t *data, uint16_t length)
 {
     uint8_t tail;
 
-    if((data == 0) || (length != WEBHID_REPORT_BYTES) ||
+    if(!device_is_high_speed() || !usb_webhid_fast_ready() ||
+       (data == 0) || (length != WEBHID_REPORT_BYTES) ||
        (s_webhid_out_count >= USBDEV_WEBHID_OUT_QUEUE_DEPTH))
     {
         return false;
@@ -614,8 +617,7 @@ static const uint8_t *descriptor_for_setup(uint16_t value,
             break;
         case USB_DESCR_TYP_CONFIG:
             descriptor =
-                usb_webhid_configuration_descriptor(
-                    &descriptor_length);
+                usb_webhid_configuration_for_speed(device_is_high_speed(), false, &descriptor_length);
             break;
         case USB_DESCR_TYP_QUALIF:
             descriptor =
@@ -623,7 +625,7 @@ static const uint8_t *descriptor_for_setup(uint16_t value,
             break;
         case USB_DESCR_TYP_SPEED:
             descriptor =
-                usb_webhid_other_speed_descriptor(&descriptor_length);
+                usb_webhid_configuration_for_speed(device_is_high_speed(), true, &descriptor_length);
             break;
         case USB_DESCR_TYP_REPORT:
             if(interface_number == USB_WEBHID_INTERFACE)
@@ -793,7 +795,7 @@ static void endpoint_controls_reset(void)
     }
     else if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
-        R8_U2EP2_RX_CTRL = USBHS_UEP_R_RES_ACK;
+        R8_U2EP2_RX_CTRL = device_is_high_speed() && usb_webhid_fast_ready() ? USBHS_UEP_R_RES_ACK : USBHS_UEP_R_RES_NAK;
     }
 }
 
@@ -834,7 +836,8 @@ static void endpoints_init(void)
     }
     else if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
-        ep2_max = WEBHID_REPORT_BYTES;
+        interrupt_max = device_is_high_speed() ? WEBHID_REPORT_BYTES : 64u;
+        ep2_max = interrupt_max;
         tx_enable |= RB_EP1_EN;
         rx_enable |= RB_EP2_EN;
     }
@@ -877,7 +880,7 @@ static void endpoints_init(void)
     (void)data_path_reset(false);
 }
 
-static bool ep1_send(const uint8_t *data, uint8_t length)
+static bool ep1_send(const uint8_t *data, uint16_t length)
 {
     bool armed = false;
     uint8_t irq_was_enabled;
@@ -893,7 +896,7 @@ static bool ep1_send(const uint8_t *data, uint8_t length)
      * the USB2 ISR. Keep that reset indivisible from the final readiness
      * check through arming EP1; otherwise the ISR can clear the generation
      * after the check and this function can re-arm its old ciphertext.
-     * The critical section copies at most one 64-byte interrupt report.
+     * The critical section copies at most one 1024-byte report in SRAM.
      */
     irq_was_enabled =
         (PFIC_GetStatusIRQ(USB2_DEVICE_IRQn) != 0u) ? 1u : 0u;
@@ -904,7 +907,7 @@ static bool ep1_send(const uint8_t *data, uint8_t length)
     if((s_mounted != 0u) && (s_suspended == 0u) &&
        (s_ep1_busy == 0u))
     {
-        memcpy(s_ep1_tx, data, length);
+        usb_webhid_copy(s_ep1_tx, data, length);
         s_ep1_busy = 1u;
         R16_U2EP1_T_LEN = length;
         R8_U2EP1_TX_CTRL =
@@ -959,6 +962,12 @@ static bool process_hid_get_report(void)
 
     if(s_setup_report_type == USBDEV_HID_REPORT_FEATURE)
     {
+        if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG && s_setup_report_id == 0u && s_setup_index == 0u) {
+            webhid_capability_v2_t capability;
+            usb_webhid_fast_capability(&capability,device_is_high_speed()?2u:1u);
+            memcpy(s_control_response,&capability,sizeof(capability));
+            ep0_tx(s_control_response,sizeof(capability),s_setup_length); return true;
+        }
         if((s_profile == USB_BOARD_PROFILE_XINPUT) &&
            !usb_high_rate_is_turbo_presentation() &&
            ((uint8_t)s_setup_index == USBDEV_XINPUT_HID_INTERFACE) &&
@@ -1273,6 +1282,7 @@ static void handle_setup(void)
             return;
 
         case HID_SET_REPORT:
+            if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG) { ep0_stall(); return; }
             ep0_receive(USBDEV_CONTROL_OUT_HID_REPORT,
                         setup->wLength);
             return;
@@ -1579,7 +1589,7 @@ bool usb_device_hw_send_report(const uint8_t *report, uint8_t length)
     {
         return false;
     }
-    memcpy(s_last_report, report, length);
+    usb_webhid_copy(s_last_report, report, length);
     s_last_report_length = length;
     return true;
 }
@@ -1619,15 +1629,16 @@ bool usb_device_hw_send_telemetry(const uint8_t *data, uint8_t length)
 }
 
 bool usb_device_hw_send_webhid_report(const uint8_t *data,
-                                      uint8_t length)
+                                      uint16_t length)
 {
-    if((data == 0) || (length != WEBHID_REPORT_BYTES) ||
+    if(!device_is_high_speed() || !usb_webhid_fast_ready() ||
+       (data == 0) || (length != WEBHID_REPORT_BYTES) ||
        (s_profile != USB_BOARD_PROFILE_WEB_CONFIG) ||
        !ep1_send(data, length))
     {
         return false;
     }
-    memcpy(s_last_report, data, length);
+    usb_webhid_copy(s_last_report, data, length);
     s_last_report_length = length;
     return true;
 }
@@ -1760,23 +1771,28 @@ void usb_device_hw_process(void)
     {
         PFIC_DisableIRQ(USB2_DEVICE_IRQn);
         if((s_webhid_out_count != 0u) &&
-           usb_board_link_publish_bulk(
-               USB_BOARD_CHANNEL_WEBCONFIG,
-               s_webhid_out[s_webhid_out_head],
-               WEBHID_REPORT_BYTES))
+           usb_webhid_fast_submit(s_webhid_out[s_webhid_out_head]))
         {
-            memset(s_webhid_out[s_webhid_out_head],
+            usb_webhid_fill(s_webhid_out[s_webhid_out_head],
                    0,
                    WEBHID_REPORT_BYTES);
             s_webhid_out_head =
                 (uint8_t)((s_webhid_out_head + 1u) %
                           USBDEV_WEBHID_OUT_QUEUE_DEPTH);
             --s_webhid_out_count;
-            if(s_webhid_ep2_blocked == 0u)
+            /* Masking the CPU IRQ does not stop the USB SIE. Never rewrite
+             * an ACK-armed endpoint here: a packet can finish between the
+             * register read and write, and that stale write clears its DONE
+             * bit before the ISR copies the DMA buffer. Only rearm an idle
+             * NAK endpoint after queue space becomes available. */
+            const uint8_t control = R8_U2EP2_RX_CTRL;
+            if(s_webhid_ep2_blocked == 0u &&
+               (control & (USBHS_UEP_R_RES_MASK | USBHS_UEP_R_DONE)) ==
+                   USBHS_UEP_R_RES_NAK &&
+               device_is_high_speed() && usb_webhid_fast_ready())
             {
                 R8_U2EP2_RX_CTRL =
-                    (uint8_t)((R8_U2EP2_RX_CTRL &
-                               (uint8_t)~USBHS_UEP_R_RES_MASK) |
+                    (uint8_t)((control & (uint8_t)~USBHS_UEP_R_RES_MASK) |
                               USBHS_UEP_R_RES_ACK);
             }
         }
@@ -1997,7 +2013,7 @@ static void complete_out_endpoint(uint8_t endpoint)
                       (((s_profile == USB_BOARD_PROFILE_XBOX_ONE) &&
                         (s_xbox_out_ready != 0u)) ||
                        ((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-                        ((s_webhid_ep2_blocked != 0u) ||
+                        ((s_webhid_ep2_blocked != 0u) || !device_is_high_speed() || !usb_webhid_fast_ready() ||
                          (s_webhid_out_count >=
                           USBDEV_WEBHID_OUT_QUEUE_DEPTH))) ||
                        ((s_profile == USB_BOARD_PROFILE_XINPUT) &&

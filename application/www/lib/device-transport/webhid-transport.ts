@@ -41,6 +41,7 @@ import {
   traceWebHidLogical,
   updateWebHidLogicalTrace,
 } from './webhid-network-trace';
+import { parseWebHidCapability } from './webhid-capability';
 import { parseButtonStateBinaryData } from '../button-binary-parser';
 
 const textEncoder = new TextEncoder();
@@ -61,13 +62,8 @@ export const FIRMWARE_BINARY_HEADER_SIZE = 106;
 export const WEBHID_FIRMWARE_CHUNK_DATA_SIZE = 4096;
 export const WEBHID_MAX_FIRMWARE_PACKET_SIZE =
   FIRMWARE_BINARY_HEADER_SIZE + WEBHID_FIRMWARE_CHUNK_DATA_SIZE;
-const STREAM_HEADER_SIZE = 14;
+const STREAM_HEADER_SIZE = 15;
 const STREAM_DATA_SIZE = SECURE_HID_PAYLOAD_SIZE - STREAM_HEADER_SIZE;
-// Chromium on Windows can reject a HID OUT promise with NotAllowedError while
-// the interrupt endpoint is temporarily NAKing. Image streaming retries the
-// exact same encrypted report for a short bounded period; ordinary RPC writes
-// retain their fail-fast behavior.
-const IMAGE_BACKPRESSURE_RETRY_LIMIT_MS = 2_000;
 const KNOWN_REPORT_FLAGS =
   SecureHidFrameFlags.SECURE |
   SecureHidFrameFlags.FRAGMENTED |
@@ -89,15 +85,15 @@ function isDiscardablePreSessionSecureReport(report: Uint8Array): boolean {
     report[0] !== SECURE_HID_REPORT_VERSION ||
     (report[2] & SecureHidFrameFlags.SECURE) === 0 ||
     (report[2] & ~KNOWN_REPORT_FLAGS) !== 0 ||
-    report[3] > SECURE_HID_PAYLOAD_SIZE ||
+    new DataView(report.buffer, report.byteOffset).getUint16(4, true) > SECURE_HID_PAYLOAD_SIZE ||
     new DataView(report.buffer, report.byteOffset, report.byteLength)
-      .getUint32(4, true) === 0 ||
+      .getUint32(8, true) === 0 ||
     !DISCARDABLE_PRE_SESSION_SECURE_TYPES.has(report[1] as SecureHidFrameType)
   ) {
     return false;
   }
   for (
-    let index = SECURE_HID_HEADER_SIZE + report[3];
+    let index = SECURE_HID_HEADER_SIZE + new DataView(report.buffer, report.byteOffset).getUint16(4, true);
     index < SECURE_HID_HEADER_SIZE + SECURE_HID_PAYLOAD_SIZE;
     index += 1
   ) {
@@ -170,7 +166,6 @@ export interface WebHidTransportOptions {
    * host-side burst limit Chromium can queue most of a fragmented JSON request
    * at once and surface that temporary backpressure as NotAllowedError.
    */
-  framePacingMs?: number;
   navigator?: WebHidNavigator;
   /**
    * Browser transports always enforce a lease. Injected test navigators may
@@ -206,12 +201,16 @@ export class WebHidTransport implements DeviceTransport {
   private readonly requestTimeoutMs: number;
   private readonly openTimeoutMs: number;
   private readonly closeTimeoutMs: number;
-  private readonly framePacingMs: number;
   private readonly hid: WebHidNavigator | null;
   private readonly codec = new SecureHidReportCodec();
   private device: WebHidDevice | null = null;
   private nextSequence = 1;
-  private nextPhysicalWriteAtMs = 0;
+  private submissionChain: Promise<void> = Promise.resolve();
+  private pendingInputReports = 0;
+  private timing = { encryptionMs: 0, submissionWaitMs: 0, nativeSendMs: 0, streamCreditWaitMs: 0, sentReports: 0 };
+
+  getTimingSnapshot() { return { ...this.timing }; }
+
   private lastRxSequence = 0;
   private nextTransactionId = 1;
   private writeChain: Promise<void> = Promise.resolve();
@@ -254,10 +253,6 @@ export class WebHidTransport implements DeviceTransport {
     this.openTimeoutMs = options.openTimeoutMs ?? DEFAULT_OPEN_TIMEOUT_MS;
     this.closeTimeoutMs = options.closeTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;
     const usesInjectedNavigator = options.navigator !== undefined;
-    this.framePacingMs = Math.max(
-      0,
-      options.framePacingMs ?? (usesInjectedNavigator ? 0 : 8),
-    );
     this.hid = options.navigator ?? getWebHidNavigator();
     this.connectionLease = usesInjectedNavigator
       ? options.connectionLease ?? null
@@ -548,6 +543,7 @@ export class WebHidTransport implements DeviceTransport {
         throw new DOMException('Upload aborted', 'AbortError');
       }
       if (credit === 0) {
+        const creditStarted = performance.now();
         const grant = await this.request<{ credit: number }>(
           'stream.credit',
           { transferId },
@@ -556,32 +552,40 @@ export class WebHidTransport implements DeviceTransport {
             timeoutMs: this.remainingOperationTime(deadline, 'WebHID stream upload'),
           },
         );
+        this.timing.streamCreditWaitMs += performance.now() - creditStarted;
         credit = clampCredit(grant.data?.credit);
         if (credit === 0) {
           throw new DeviceTransportError('protocol', 'Device returned zero stream credit');
         }
       }
-      const chunk = bytes.slice(offset, offset + STREAM_DATA_SIZE);
-      const payload = new Uint8Array(STREAM_HEADER_SIZE + chunk.byteLength);
-      const view = new DataView(payload.buffer);
-      payload[0] = streamCode(stream);
-      view.setUint32(1, transferId, true);
-      view.setUint32(5, offset, true);
-      view.setUint32(9, bytes.byteLength, true);
-      payload[13] = chunk.byteLength;
-      payload.set(chunk, STREAM_HEADER_SIZE);
-      await this.sendFrame(
-        SecureHidFrameType.STREAM_CHUNK,
-        payload,
-        SecureHidFrameFlags.ACK_REQUIRED,
-        true,
-        {
-          signal: options.signal,
-          timeoutMs: this.remainingOperationTime(deadline, 'WebHID stream upload'),
-        },
-      );
-      offset += chunk.byteLength;
-      credit -= 1;
+      const payloads: Uint8Array[] = [];
+      while (payloads.length < 4 && credit > 0 && offset < bytes.byteLength) {
+        const chunk = bytes.subarray(offset, offset + STREAM_DATA_SIZE);
+        const payload = new Uint8Array(STREAM_HEADER_SIZE + chunk.byteLength);
+        const view = new DataView(payload.buffer);
+        payload[0] = streamCode(stream);
+        view.setUint32(1, transferId, true);
+        view.setUint32(5, offset, true);
+        view.setUint32(9, bytes.byteLength, true);
+        view.setUint16(13, chunk.byteLength, true);
+        payload.set(chunk, STREAM_HEADER_SIZE);
+        payloads.push(payload);
+        offset += chunk.byteLength;
+        credit -= 1;
+      }
+      const operation = this.enqueueWriteOperation(async (device, generation) => {
+        options.signal?.throwIfAborted();
+        this.remainingOperationTime(deadline, 'WebHID stream upload');
+        await Promise.all(payloads.map(payload => this.writeFrameNow(device, generation,
+          SecureHidFrameType.STREAM_CHUNK, payload, SecureHidFrameFlags.ACK_REQUIRED,
+          true, null, false, { deadline, signal: options.signal })));
+      });
+      try {
+        await this.awaitWithDeadline(operation, deadline, options.signal, 'WebHID stream upload');
+      } catch (error) {
+        await this.shutdownConnection(asOperationError(error, 'WebHID stream upload'));
+        throw error;
+      }
       options.onProgress?.(offset, bytes.byteLength);
     }
     const completed = await this.request<DeviceUploadResult>(
@@ -616,28 +620,23 @@ export class WebHidTransport implements DeviceTransport {
 
     const device = this.device!;
     const generation = this.connectionGeneration;
-    const operation = this.enqueueWriteOperation(async (activeDevice, activeGeneration) => {
-      for (let offset = 0; offset < bytes.byteLength; offset += SECURE_HID_PAYLOAD_SIZE) {
-        if (options.signal?.aborted) {
-          throw new DOMException('Upload aborted', 'AbortError');
-        }
+    const operation = (async () => {
+      for (let base = 0; base < bytes.byteLength; base += 4 * SECURE_HID_PAYLOAD_SIZE) {
+        if (options.signal?.aborted) throw new DOMException('Upload aborted', 'AbortError');
         this.remainingOperationTime(deadline, 'WebHID image payload upload');
-        const end = Math.min(offset + SECURE_HID_PAYLOAD_SIZE, bytes.byteLength);
-        const last = end === bytes.byteLength;
-        await this.writeFrameNow(
-          activeDevice,
-          activeGeneration,
-          SecureHidFrameType.IMAGE_DATA,
-          bytes.subarray(offset, end),
-          last ? SecureHidFrameFlags.LAST : 0,
-          true,
-          null,
-          false,
-          { deadline, signal: options.signal },
-        );
-        options.onProgress?.(end, bytes.byteLength);
+        await this.enqueueWriteOperation(async (activeDevice, activeGeneration) => {
+          const writes: Promise<void>[] = [];
+          for (let offset = base; offset < Math.min(base + 4 * SECURE_HID_PAYLOAD_SIZE, bytes.byteLength); offset += SECURE_HID_PAYLOAD_SIZE) {
+            const end = Math.min(offset + SECURE_HID_PAYLOAD_SIZE, bytes.byteLength);
+            writes.push(this.writeFrameNow(activeDevice, activeGeneration, SecureHidFrameType.IMAGE_DATA,
+              bytes.subarray(offset, end), end === bytes.byteLength ? SecureHidFrameFlags.LAST : 0,
+              true, null, false, { deadline, signal: options.signal }));
+          }
+          await Promise.all(writes);
+        });
+        options.onProgress?.(Math.min(base + 4 * SECURE_HID_PAYLOAD_SIZE, bytes.byteLength), bytes.byteLength);
       }
-    });
+    })();
 
     try {
       await this.awaitWithDeadline(
@@ -657,6 +656,23 @@ export class WebHidTransport implements DeviceTransport {
         void this.shutdownConnection(normalized, generation, device, true).catch(() => undefined);
       }
       throw normalized;
+    }
+  }
+
+  async sendBenchmarkReports(payloads: readonly Uint8Array[], signal: AbortSignal): Promise<void> {
+    this.requireAuthenticated();
+    if (payloads.length < 1 || payloads.length > 4) throw new DeviceTransportError('protocol', 'Benchmark window must be 1..4');
+    const operation = this.enqueueWriteOperation(async (device, generation) => {
+      signal.throwIfAborted();
+      await Promise.all(payloads.map(payload => this.writeFrameNow(device, generation,
+        SecureHidFrameType.BENCHMARK_DATA, payload, 0, true)));
+    });
+    try {
+      await this.awaitWithDeadline(operation, Date.now() + 10000, signal, 'WebHID benchmark');
+    } catch (error) {
+      const failure=asOperationError(error, 'WebHID benchmark');
+      await this.shutdownConnection(failure);
+      throw failure;
     }
   }
 
@@ -755,6 +771,14 @@ export class WebHidTransport implements DeviceTransport {
       );
     }
     this.assertPhysicalConnectAttemptActive(attempt);
+    if (typeof device.receiveFeatureReport !== 'function') {
+      throw new DeviceTransportError('protocol', 'XORA 固件不支持高速能力查询');
+    }
+    const capability = await this.awaitWithDeadline(
+      this.trackPhysicalConnectNative(attempt, device.receiveFeatureReport(0)),
+      Date.now() + this.openTimeoutMs, undefined, 'WebHID capability query');
+    parseWebHidCapability(capability);
+    this.assertPhysicalConnectAttemptActive(attempt);
     this.connectionGeneration += 1;
     this.device = device;
     attempt.established = true;
@@ -788,6 +812,11 @@ export class WebHidTransport implements DeviceTransport {
     }
     const generation = this.connectionGeneration;
     const device = this.device;
+    if (this.pendingInputReports >= 32) {
+      void this.shutdownConnection(new DeviceTransportError('protocol', 'WebHID receive queue exhausted; reconnect required'), generation, device, true);
+      return;
+    }
+    ++this.pendingInputReports;
     const report = new Uint8Array(
       event.data.buffer,
       event.data.byteOffset,
@@ -811,7 +840,7 @@ export class WebHidTransport implements DeviceTransport {
     // Keep the queue reusable without attaching a late error handler that could
     // revive ERROR after close(). shutdownConnection() consumes protocol errors
     // synchronously and invalidates all callbacks from this connection generation.
-    this.readChain = processing.catch(() => undefined);
+    this.readChain = processing.catch(() => undefined).finally(() => { --this.pendingInputReports; });
   };
 
   private readonly handleNavigatorDisconnect = (event: Event & { device?: WebHidDevice }): void => {
@@ -944,6 +973,9 @@ export class WebHidTransport implements DeviceTransport {
     this.lastRxSequence = frame.sequence;
 
     switch (frame.type) {
+      case SecureHidFrameType.BENCHMARK_DATA:
+        this.emit('benchmark.data', frame.payload);
+        break;
       case SecureHidFrameType.PERF_SAMPLE:
         this.emit('performance.sample', frame.payload);
         break;
@@ -1120,19 +1152,13 @@ export class WebHidTransport implements DeviceTransport {
     const fragments = fragmentPayload(logicalPayload);
     await this.enqueueWriteOperation(async (device, generation) => {
       onWriting?.();
-      for (let index = 0; index < fragments.length; index += 1) {
-        let flags = 0;
-        if (fragments.length > 1) flags |= SecureHidFrameFlags.FRAGMENTED;
-        if (index === fragments.length - 1) flags |= SecureHidFrameFlags.LAST;
-        await this.writeFrameNow(
-          device,
-          generation,
-          type,
-          fragments[index],
-          flags,
-          secure,
-          logicalRecordId,
-        );
+      for (let base = 0; base < fragments.length; base += 4) {
+        await Promise.all(fragments.slice(base, base + 4).map((payload, offset) => {
+          const index = base + offset;
+          let flags = fragments.length > 1 ? SecureHidFrameFlags.FRAGMENTED : 0;
+          if (index === fragments.length - 1) flags |= SecureHidFrameFlags.LAST;
+          return this.writeFrameNow(device, generation, type, payload, flags, secure, logicalRecordId);
+        }));
       }
     });
   }
@@ -1368,7 +1394,7 @@ export class WebHidTransport implements DeviceTransport {
     flags: number,
     secure: boolean,
     logicalRecordId: string | null = null,
-    paced = true,
+    _paced = true,
     imageBackpressure?: { deadline: number; signal?: AbortSignal },
   ): Promise<void> {
     if (!this.isActiveConnection(generation, device)) {
@@ -1395,19 +1421,26 @@ export class WebHidTransport implements DeviceTransport {
       );
       throw exhausted;
     }
-    const report = await this.codec.encode({ type, flags, sequence, payload, secure });
-    if (!this.isActiveConnection(generation, device)) {
-      throw new DeviceTransportError('disconnected', 'WebHID device disconnected during write');
-    }
-    const pacingDelay = paced ? this.nextPhysicalWriteAtMs - Date.now() : 0;
-    if (pacingDelay > 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, pacingDelay));
+    const previous = this.submissionChain;
+    let submitted!: () => void;
+    this.submissionChain = new Promise<void>((resolve) => { submitted = resolve; });
+    let report: Uint8Array;
+    try {
+      const encodeStarted = performance.now();
+      report = await this.codec.encode({ type, flags, sequence, payload, secure });
+      this.timing.encryptionMs += performance.now() - encodeStarted;
+      const waitStarted = performance.now();
+      await previous;
+      this.timing.submissionWaitMs += performance.now() - waitStarted;
       if (!this.isActiveConnection(generation, device)) {
-        throw new DeviceTransportError(
-          'disconnected',
-          'WebHID device disconnected while waiting for endpoint capacity',
-        );
+        throw new DeviceTransportError('disconnected', 'WebHID device disconnected during write');
       }
+      if (imageBackpressure?.signal?.aborted) throw abortedOperationError('WebHID upload', imageBackpressure.signal);
+    } catch (error) {
+      await previous;
+      submitted();
+      void this.shutdownConnection(asOperationError(error, 'WebHID encryption'), generation, device, true);
+      throw error;
     }
     traceWebHidFrame({
       direction: 'tx',
@@ -1420,51 +1453,20 @@ export class WebHidTransport implements DeviceTransport {
       wireReport: report,
       logicalRecordId,
     });
-    const writeStartedAtMs = Date.now();
-    let backpressureStartedAtMs = 0;
-    for (;;) {
-      try {
-        await device.sendReport(this.reportId, report);
-        if (paced) {
-          this.nextPhysicalWriteAtMs = writeStartedAtMs + this.framePacingMs;
-        }
-        break;
-      } catch (error) {
-        const canRetryImageBackpressure =
-          imageBackpressure !== undefined &&
-          isTransientImageBackpressureError(error) &&
-          device.opened &&
-          this.isActiveConnection(generation, device);
-        if (canRetryImageBackpressure) {
-          if (imageBackpressure.signal?.aborted) {
-            throw abortedOperationError(
-              'WebHID image payload upload',
-              imageBackpressure.signal,
-            );
-          }
-          this.remainingOperationTime(
-            imageBackpressure.deadline,
-            'WebHID image payload upload',
-          );
-          const now = Date.now();
-          if (backpressureStartedAtMs === 0) backpressureStartedAtMs = now;
-          if (now - backpressureStartedAtMs < IMAGE_BACKPRESSURE_RETRY_LIMIT_MS) {
-            // Yield one browser task so the completed USB transfer/NAK state
-            // can be observed. There is no fixed delay on successful packets.
-            await new Promise<void>((resolve) => setTimeout(resolve, 0));
-            continue;
-          }
-        }
-        const nativeName = error instanceof DOMException && error.name
-          ? ` (${error.name})`
-          : '';
-        const nativeMessage = error instanceof Error ? error.message : String(error);
-        throw new DeviceTransportError(
-          'disconnected',
-          `WebHID report write failed${nativeName}: ${nativeMessage}`,
-          error,
-        );
-      }
+    try {
+      // USB OUT NAK propagates backpressure into these bounded native promises.
+      // A failed native write has ambiguous delivery, so never resend ciphertext.
+      const sendStarted = performance.now();
+      const pending = device.sendReport(this.reportId, report);
+      submitted();
+      await pending;
+      this.timing.nativeSendMs += performance.now() - sendStarted;
+      ++this.timing.sentReports;
+    } catch (error) {
+      submitted();
+      const failure = new DeviceTransportError('disconnected', `WebHID report write failed (${error instanceof Error ? error.name : 'Error'}): ${error instanceof Error ? error.message : String(error)}; reconnect required`, error);
+      void this.shutdownConnection(failure, generation, device, true);
+      throw failure;
     }
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected after write');
@@ -2103,12 +2105,6 @@ function asOperationError(error: unknown, label: string): DeviceTransportError {
     return new OperationAbortedError(label, error);
   }
   return asTransportError(error);
-}
-
-function isTransientImageBackpressureError(error: unknown): boolean {
-  return error instanceof DOMException &&
-    error.name === 'NotAllowedError' &&
-    /failed to write the report/i.test(error.message);
 }
 
 async function toBytes(source: Blob | ArrayBuffer | Uint8Array): Promise<Uint8Array> {

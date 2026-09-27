@@ -1,11 +1,13 @@
 #include "boot_profile.h"
 #include "usbdriver.hpp"
+#include "usb_board_link_port.hpp"
 
 #include "board_cfg.h"
 #include "board_power.hpp"
 #include "stm32h7xx_hal.h"
 #include "system_logger.h"
 #include "usb_board_link.hpp"
+#include "states/webconfig_state.hpp"
 
 namespace {
 
@@ -172,6 +174,7 @@ bool USBDriver::prepare(InputMode inputMode)
     }
 
     bool capabilitiesReady = false;
+    if (requestedProfile == USB_BOARD_PROFILE_WEB_CONFIG) WebConfig_RecordStartupStage(0x31u);
     do {
         USB_BOARD_LINK.process();
         if (USB_BOARD_LINK.getCapabilities()) {
@@ -205,6 +208,7 @@ bool USBDriver::prepare(InputMode inputMode)
     }
 
     bool profileReady = false;
+    if (requestedProfile == USB_BOARD_PROFILE_WEB_CONFIG) WebConfig_RecordStartupStage(0x32u);
     const uint32_t profileStartedAt = HAL_GetTick();
     do {
         USB_BOARD_LINK.process();
@@ -222,6 +226,13 @@ bool USBDriver::prepare(InputMode inputMode)
     APP_STAGE("U03", "CH585 profile selected: profile=%u",
               static_cast<unsigned int>(requestedProfile));
 
+    if (requestedProfile == USB_BOARD_PROFILE_WEB_CONFIG) WebConfig_RecordStartupStage(0x33u);
+    if (requestedProfile == USB_BOARD_PROFILE_WEB_CONFIG && !USB_BOARD_LINK.enableWebHidDataPlane()) {
+        APP_STAGE_ERROR("U03H", "WebHID V2 high-speed initialization failed");
+        // Keep EP0 capability enumeration available to explain initialization
+        // failure. The report data path remains disabled; no legacy fallback.
+        (void)USBBoardLinkPort_DisableFastApplication();
+    }
     activeProfile = requestedProfile;
     prepared = true;
     return true;

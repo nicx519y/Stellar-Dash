@@ -17,7 +17,6 @@ import { UserAuthProvider } from '@/contexts/user-auth-context';
 import {
     DeviceConnectionPhase,
     DeviceTransportError,
-    reconnectRequiresPermission,
 } from '@/lib/device-transport';
 import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-network-trace';
 import { usePathname } from 'next/navigation';
@@ -39,7 +38,6 @@ const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
 function AppContent({ children }: { children: React.ReactNode }) {
     const {
         connectDevice,
-        reconnectDevice,
         deviceError,
         deviceConnected,
         devicePhase,
@@ -76,14 +74,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
         setIsReconnecting(true);
 
         try {
-            // Only a click may open the WebHID chooser. Page-load discovery
-            // reports permission-required; this user gesture upgrades the
-            // retry to chooser mode.
-            if (reconnectRequiresPermission(deviceError)) {
-                await connectDevice();
-            } else {
-                await reconnectDevice();
-            }
+            // This explicit click always lets the user select the device,
+            // including after a timeout with a previously granted handle.
+            // Background reconnects keep using the authorized-device path.
+            await connectDevice();
         } catch (error) {
             const description = error instanceof DeviceTransportError
                 ? connectionErrorMessage({ transportCode: error.code, type: 'connection' }, currentLanguage)
@@ -96,7 +90,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             reconnectInFlightRef.current = false;
             setIsReconnecting(false);
         }
-    }, [connectDevice, reconnectDevice, deviceError, t, currentLanguage]);
+    }, [connectDevice, t, currentLanguage]);
 
     return (
         <Flex
@@ -167,6 +161,9 @@ function RouteAwareContent({ children }: { children: React.ReactNode }) {
     // The trace viewer is deliberately outside GamepadConfigProvider. It only
     // receives same-origin trace broadcasts and must never open or lease HID.
     if (isTraceViewer) {
+        return <>{children}</>;
+    }
+    if (pathname === '/webhid-benchmark' || pathname === '/webhid-benchmark/') {
         return <>{children}</>;
     }
 

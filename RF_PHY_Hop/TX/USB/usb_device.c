@@ -1,3 +1,4 @@
+#include "usb_webhid_memory.h"
 #include "usb_device.h"
 
 #include <string.h>
@@ -8,7 +9,7 @@
 #include "usb_profiles.h"
 #include "webhid_protocol.h"
 
-#define USB_DEVICE_WEBHID_QUEUE_DEPTH 4u
+#define USB_DEVICE_WEBHID_QUEUE_DEPTH 1u /* Endpoint staging; the V2 link owns the eight report slots. */
 
 static usb_board_profile_t s_profile;
 static usb_profile_report_t s_latest_report;
@@ -27,29 +28,11 @@ static uint8_t s_last_fault;
 
 static void clear_webhid_queue(void)
 {
-    memset(s_webhid_queue, 0, sizeof(s_webhid_queue));
+    usb_webhid_fill(s_webhid_queue, 0, sizeof(s_webhid_queue));
     s_webhid_head = 0u;
     s_webhid_tail = 0u;
     s_webhid_count = 0u;
     s_webhid_report_in_flight = 0u;
-}
-
-static uint8_t webhid_available_reports(void)
-{
-    uint8_t reserved = s_webhid_count;
-    if((s_webhid_report_in_flight != 0u) &&
-       (reserved < USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW))
-    {
-        ++reserved;
-    }
-    if(usb_net_bridge_message_active(USB_BOARD_CHANNEL_WEBCONFIG) &&
-       (reserved < USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW))
-    {
-        ++reserved;
-    }
-    return (reserved < USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW)
-        ? (uint8_t)(USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW - reserved)
-        : 0u;
 }
 
 void usb_device_transport_reset(void)
@@ -62,44 +45,12 @@ void usb_device_transport_reset(void)
     s_webhid_link_ready = 0u;
 }
 
-static void sync_webhid_link_capacity(void)
+static void sync_webhid_connection(void)
 {
-    const uint8_t mounted =
-        usb_device_hw_is_mounted() ? 1u : 0u;
-    const uint8_t suspended =
-        usb_device_hw_is_suspended() ? 1u : 0u;
-    const uint8_t ready =
-        (s_initialized != 0u) &&
-        (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-        (mounted != 0u) &&
-        (suspended == 0u);
-
-    if(ready == s_webhid_link_ready)
-    {
-        return;
-    }
-    if(ready == 0u)
-    {
-        if((s_initialized != 0u) &&
-           (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-           (mounted != 0u) && (suspended != 0u))
-        {
-            /* Preserve queued and partially reassembled reports on suspend. */
-            usb_board_link_webconfig_pause();
-        }
-        else
-        {
-            clear_webhid_queue();
-            usb_board_link_webconfig_set_ready(false, 0u);
-        }
-    }
-    else
-    {
-        usb_board_link_webconfig_set_ready(
-            true,
-            webhid_available_reports());
-    }
-    s_webhid_link_ready = ready;
+    const bool mounted=usb_device_hw_is_mounted();
+    const bool ready=s_initialized && s_profile==USB_BOARD_PROFILE_WEB_CONFIG && mounted && !usb_device_hw_is_suspended();
+    if(!mounted && s_webhid_link_ready) clear_webhid_queue();
+    s_webhid_link_ready=ready?1u:0u;
 }
 
 static usb_auth_scheme_t auth_scheme_for_profile(usb_board_profile_t profile)
@@ -150,7 +101,6 @@ void usb_device_shutdown(void)
 {
     if(s_webhid_link_ready != 0u)
     {
-        usb_board_link_webconfig_set_ready(false, 0u);
         s_webhid_link_ready = 0u;
     }
     if(s_initialized != 0u)
@@ -171,7 +121,7 @@ void usb_device_process(void)
     }
     usb_auth_process();
     usb_device_hw_process();
-    sync_webhid_link_capacity();
+    sync_webhid_connection();
     if((s_report_pending != 0u) && usb_device_hw_is_mounted() &&
        usb_device_hw_send_report(s_latest_report.bytes,
                                  s_latest_report.length))
@@ -201,7 +151,7 @@ void usb_device_process(void)
         if(usb_device_hw_send_webhid_report(
                s_webhid_queue[s_webhid_head], WEBHID_REPORT_BYTES))
         {
-            memset(s_webhid_queue[s_webhid_head],
+            usb_webhid_fill(s_webhid_queue[s_webhid_head],
                    0,
                    WEBHID_REPORT_BYTES);
             s_webhid_head =
@@ -220,7 +170,7 @@ void usb_device_webhid_report_complete(void)
 {
     /*
      * The CH585 backend calls this from usb_device_hw_process(), not the USB
-     * ISR, after a real EP1 IN completion. This keeps board-link credit/dirty
+     * ISR, after a real EP1 IN completion. This keeps queue ownership
      * bookkeeping in process context and makes duplicate DONE notifications
      * harmless.
      */
@@ -231,21 +181,6 @@ void usb_device_webhid_report_complete(void)
         return;
     }
     s_webhid_report_in_flight = 0u;
-    usb_board_link_webconfig_report_consumed();
-}
-
-bool usb_device_webhid_credit_ready(void)
-{
-    /*
-     * Check the hardware state as well as the process-context generation bit.
-     * BUS_RST and suspend update the hardware flags in the ISR before
-     * usb_device_process() can retire the old BoardLink capacity.
-     */
-    return (s_initialized != 0u) &&
-           (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-           (s_webhid_link_ready != 0u) &&
-           usb_device_hw_is_mounted() &&
-           !usb_device_hw_is_suspended();
 }
 
 bool usb_device_set_profile(usb_board_profile_t profile)
@@ -314,7 +249,7 @@ bool usb_device_submit_webhid_report(const uint8_t *data, uint16_t length)
         return false;
     }
 
-    memcpy(s_webhid_queue[s_webhid_tail], data, WEBHID_REPORT_BYTES);
+    usb_webhid_copy(s_webhid_queue[s_webhid_tail], data, WEBHID_REPORT_BYTES);
     s_webhid_tail =
         (uint8_t)((s_webhid_tail + 1u) %
                   USB_DEVICE_WEBHID_QUEUE_DEPTH);
@@ -388,7 +323,7 @@ __attribute__((weak)) bool usb_device_hw_send_telemetry(
 
 __attribute__((weak)) bool usb_device_hw_send_webhid_report(
     const uint8_t *data,
-    uint8_t length)
+    uint16_t length)
 {
     (void)data;
     (void)length;

@@ -1,3 +1,4 @@
+const { capability } = require('./webhid-v2-fixture.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -92,49 +93,30 @@ const {
   parseButtonStateBinaryData,
 } = require('../lib/button-binary-parser.ts');
 
-test('explicit WebHID frame pacing spaces native OUT submissions', async () => {
-  const writeStartedAt = [];
-  const device = {
-    opened: true,
-    async sendReport() { writeStartedAt.push(Date.now()); },
-  };
-  const transport = new WebHidTransport({
-    navigator: makeHidNavigator(device),
-    framePacingMs: 25,
-  });
+test('V2 encryptions may finish out of order but native submissions preserve sequence', async () => {
+  const sequences = [];
+  const device = { opened: true, async sendReport(_id, report) {
+    sequences.push(new DataView(report.buffer).getUint32(8, true));
+  } };
+  const transport = new WebHidTransport({ navigator: makeHidNavigator(device) });
   transport.device = device;
-
-  await transport.writeFrameNow(
-    device,
-    0,
-    SecureHidFrameType.BOOTSTRAP_REQUEST,
-    new Uint8Array([1]),
-    0,
-    false,
-  );
-  await transport.writeFrameNow(
-    device,
-    0,
-    SecureHidFrameType.BOOTSTRAP_REQUEST,
-    new Uint8Array([2]),
-    0,
-    false,
-  );
-
-  assert.equal(writeStartedAt.length, 2);
-  assert.ok(
-    writeStartedAt[1] - writeStartedAt[0] >= 20,
-    `native writes were only ${writeStartedAt[1] - writeStartedAt[0]}ms apart`,
-  );
+  transport.codec.setCipher({ epoch: 1, async seal(_h, sequence, plaintext) {
+    await new Promise(resolve => setTimeout(resolve, (5-sequence)*2));
+    return { ciphertext: plaintext, tag: new Uint8Array(12) };
+  }});
+  await Promise.all([1,2,3,4].map(() => transport.writeFrameNow(device, 0,
+    SecureHidFrameType.IMAGE_DATA, new Uint8Array([1]), 0, true)));
+  assert.deepEqual(sequences, [1,2,3,4]);
 });
 
-test('image payload uses serial 44-byte reports without pacing or stream credit RPC', async () => {
+test('image payload uses a bounded four-report V2 pipeline without stream credit RPC', async () => {
   const reports = [];
   let inFlight = 0;
   let maximumInFlight = 0;
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox image stream fixture',
     collections: [],
@@ -152,10 +134,10 @@ test('image payload uses serial 44-byte reports without pacing or stream credit 
   };
   const transport = new WebHidTransport({
     navigator: makeHidNavigator(device),
-    framePacingMs: 1000,
   });
   await transport.connect();
   transport.establishSecureSession({
+    epoch: 1,
     async seal(_header, _sequence, plaintext) {
       return { ciphertext: plaintext.slice(), tag: new Uint8Array(12) };
     },
@@ -165,33 +147,31 @@ test('image payload uses serial 44-byte reports without pacing or stream credit 
   });
   let rpcCalls = 0;
   transport.request = async () => { rpcCalls += 1; throw new Error('image stream must not use RPC'); };
-  transport.nextPhysicalWriteAtMs = Date.now() + 10_000;
-  const pacingSentinel = transport.nextPhysicalWriteAtMs;
   const progress = [];
 
-  await transport.uploadImagePayload(new Uint8Array(100), {
+  await transport.uploadImagePayload(new Uint8Array(4000), {
     onProgress: (sent, total) => progress.push([sent, total]),
   });
 
   assert.equal(rpcCalls, 0);
-  assert.equal(maximumInFlight, 1);
-  assert.equal(reports.length, 3);
-  assert.deepEqual(reports.map(report => report[1]), [0x31, 0x31, 0x31]);
-  assert.deepEqual(reports.map(report => report[3]), [44, 44, 12]);
+  assert.equal(maximumInFlight, 4);
+  assert.equal(reports.length, 5);
+  assert.deepEqual(reports.map(report => report[1]), [0x31, 0x31, 0x31, 0x31, 0x31]);
+  assert.deepEqual(reports.map(report => new DataView(report.buffer).getUint16(4, true)), [996, 996, 996, 996, 16]);
   assert.equal(reports[0][2], SecureHidFrameFlags.SECURE);
   assert.equal(reports[1][2], SecureHidFrameFlags.SECURE);
-  assert.equal(reports[2][2], SecureHidFrameFlags.SECURE | SecureHidFrameFlags.LAST);
-  assert.equal(transport.nextPhysicalWriteAtMs, pacingSentinel);
-  assert.deepEqual(progress, [[44, 100], [88, 100], [100, 100]]);
+  assert.equal(reports[4][2], SecureHidFrameFlags.SECURE | SecureHidFrameFlags.LAST);
+  assert.deepEqual(progress, [[3984, 4000], [4000, 4000]]);
   await transport.close();
 });
 
-test('image payload retries the identical report when Windows exposes endpoint NAK as NotAllowedError', async () => {
+test('ambiguous native image write failure terminates the session without retrying ciphertext', async () => {
   const attempts = [];
   let transientFailures = 2;
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox image backpressure fixture',
     collections: [],
@@ -209,10 +189,10 @@ test('image payload retries the identical report when Windows exposes endpoint N
   };
   const transport = new WebHidTransport({
     navigator: makeHidNavigator(device),
-    framePacingMs: 1000,
   });
   await transport.connect();
   transport.establishSecureSession({
+    epoch: 1,
     async seal(_header, _sequence, plaintext) {
       return { ciphertext: plaintext.slice(), tag: new Uint8Array(12) };
     },
@@ -222,18 +202,11 @@ test('image payload retries the identical report when Windows exposes endpoint N
   });
   const progress = [];
 
-  await transport.uploadImagePayload(new Uint8Array(45), {
+  await assert.rejects(transport.uploadImagePayload(new Uint8Array(45), {
     onProgress: (sent, total) => progress.push([sent, total]),
-  });
-
-  assert.equal(attempts.length, 4);
-  assert.deepEqual(attempts[0], attempts[1]);
-  assert.deepEqual(attempts[1], attempts[2]);
-  assert.equal(attempts[0][1], SecureHidFrameType.IMAGE_DATA);
-  assert.equal(attempts[0][3], 44);
-  assert.equal(attempts[3][3], 1);
-  assert.deepEqual(progress, [[44, 45], [45, 45]]);
-  assert.equal(device.opened, true);
+  }), /write failed/);
+  assert.equal(attempts.length, 1);
+  assert.deepEqual(progress, []);
   await transport.close();
 });
 
@@ -395,6 +368,7 @@ for (const directConnectKind of ['automatic', 'chooser']) {
     const device = {
       opened: false,
       vendorId: 0xcafe,
+    receiveFeatureReport: capability,
       productId: 0x4021,
       productName: `HBox pending ${directConnectKind} lease`,
       collections: [],
@@ -453,6 +427,7 @@ for (const firstConnectKind of ['automatic', 'chooser']) {
     const device = {
       opened: false,
       vendorId: 0xcafe,
+    receiveFeatureReport: capability,
       productId: 0x4021,
       productName: `HBox concurrent ${firstConnectKind}`,
       collections: [],
@@ -514,6 +489,7 @@ test('the client delegates the single physical lease exclusively to its WebHID t
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox shared lease fixture',
     collections: [],
@@ -659,6 +635,7 @@ test('bounded close timeout retains the lease until native close settles and dis
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox pagehide close fixture',
     collections: [],
@@ -733,6 +710,7 @@ test('a physical disconnect releases the lease even when native HID close never 
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox physical release fixture',
     collections: [],
@@ -783,6 +761,7 @@ for (const pendingStage of ['getDevices', 'requestDevice']) {
     const device = {
       opened: false,
       vendorId: 0xcafe,
+    receiveFeatureReport: capability,
       productId: 0x4021,
       productName: `HBox pending ${pendingStage}`,
       collections: [],
@@ -846,6 +825,7 @@ test('a late device.open after dispose is closed before the lease is released', 
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox late open fixture',
     collections: [],
@@ -897,6 +877,7 @@ test('an unrelated HID disconnect cannot settle or replace the active physical r
   const makeDevice = (name) => ({
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: name,
     collections: [],
@@ -935,6 +916,7 @@ test('a rejected native close keeps the lease until a real disconnect of that de
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox rejected close fixture',
     collections: [],
@@ -1156,7 +1138,7 @@ test('WebHID and mock firmware APIs remain same-origin', () => {
   );
 });
 
-test('SecureHidReportV1 encodes the locked 64-byte bootstrap ABI', async () => {
+test('SecureHidReportV2 encodes the 1024-byte bootstrap ABI', async () => {
   const codec = new SecureHidReportCodec();
   const payload = Uint8Array.from([1, 2, 3, 4]);
   const report = await codec.encode({
@@ -1167,16 +1149,16 @@ test('SecureHidReportV1 encodes the locked 64-byte bootstrap ABI', async () => {
     secure: false,
   });
 
-  assert.equal(report.byteLength, 64);
-  assert.deepEqual(Array.from(report.slice(0, 8)), [
-    1,
+  assert.equal(report.byteLength, 1024);
+  assert.deepEqual(Array.from(report.slice(0, 16)), [
+    2,
     SecureHidFrameType.BOOTSTRAP_REQUEST,
-    SecureHidFrameFlags.LAST,
-    4,
+    SecureHidFrameFlags.LAST, 0,
+    4, 0, 0, 0,
     0x78,
     0x56,
     0x34,
-    0x12,
+    0x12, 0, 0, 0, 0,
   ]);
   assert.deepEqual((await codec.decode(report)).payload, payload);
 });
@@ -1204,6 +1186,7 @@ test('AES-GCM authenticates header, payload and 12-byte tag', async () => {
   const prefix = Uint8Array.from([0, 1, 2, 3, 4, 5, 6, 7]);
   const codec = new SecureHidReportCodec(
     new AesGcmHidSessionCipher({
+    epoch: 1,
       txKey: key,
       rxKey: key,
       txNoncePrefix: prefix,
@@ -1220,16 +1203,16 @@ test('AES-GCM authenticates header, payload and 12-byte tag', async () => {
   });
   assert.deepEqual((await codec.decode(report)).payload, payload);
 
-  report[63] ^= 0x01;
+  report[1023] ^= 0x01;
   await assert.rejects(codec.decode(report), /authentication failed/);
 });
 
-test('logical payload fragmentation is bounded to 44 bytes and reassembles', () => {
-  const source = Uint8Array.from({ length: 100 }, (_, index) => index);
+test('logical payload fragmentation is bounded to 996 bytes and reassembles', () => {
+  const source = Uint8Array.from({ length: 2004 }, (_, index) => index);
   const fragments = fragmentPayload(source);
-  assert.deepEqual(fragments.map((fragment) => fragment.byteLength), [44, 44, 12]);
+  assert.deepEqual(fragments.map((fragment) => fragment.byteLength), [996, 996, 12]);
 
-  const assembler = new FragmentAssembler(128);
+  const assembler = new FragmentAssembler(4096);
   let complete = null;
   fragments.forEach((payload, index) => {
     complete = assembler.push({
@@ -1339,6 +1322,7 @@ test('WebHID page-load connect requires an explicit choice when multiple devices
   const makeDevice = (productName) => ({
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName,
     collections: [],
@@ -1390,6 +1374,7 @@ test('WebHID discovery and physical open cannot leave connection loading forever
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox blocked open',
     collections: [],
@@ -1563,6 +1548,7 @@ test('WebHID bootstrap supports fragmented request/response but protected RPC st
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -1616,10 +1602,10 @@ test('WebHID bootstrap supports fragmented request/response but protected RPC st
   assert.equal(transport.state, DeviceTransportState.AUTHENTICATING);
   await assert.rejects(transport.request('get_global_config'), /尚未通过在线证明/);
   const result = await transport.bootstrapRequest('test.bootstrap', {
-    large: 'x'.repeat(120),
+    large: 'x'.repeat(2400),
   });
   assert.equal(result.accepted, true);
-  assert.equal(result.echo.length, 120);
+  assert.equal(result.echo.length, 2400);
   await transport.close();
 });
 
@@ -1633,6 +1619,7 @@ test('stale secure device output before session setup does not consume bootstrap
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox stale secure queue fixture',
     collections: [],
@@ -1666,7 +1653,7 @@ test('stale secure device output before session setup does not consume bootstrap
           stale[0] = SECURE_HID_REPORT_VERSION;
           stale[1] = type;
           stale[2] = SecureHidFrameFlags.SECURE | SecureHidFrameFlags.LAST;
-          new DataView(stale.buffer).setUint32(4, 100 + index, true);
+          new DataView(stale.buffer).setUint32(8, 100 + index, true);
           stale.fill(index + 1, SECURE_HID_REPORT_SIZE - 12);
           inputListener({
             device,
@@ -1730,6 +1717,7 @@ test('a permanently pending permit sendReport stays fatal, isolates its generati
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -1785,6 +1773,7 @@ test('a rejected native sendReport is a fatal physical disconnect, not a reusabl
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox rejected write fixture',
     collections: [],
@@ -1829,6 +1818,7 @@ test('the Nth fragment may hang forever without interleaving, leaking pending RP
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox fragmented blocked-write fixture',
     collections: [],
@@ -1855,19 +1845,19 @@ test('the Nth fragment may hang forever without interleaving, leaking pending RP
     await assert.rejects(
       transport.bootstrapRequest(
         'blocked.fragment',
-        { marker: 'F'.repeat(320) },
+        { marker: 'F'.repeat(3200) },
         { timeoutMs: 25 },
       ),
       /blocked\.fragment.*超时/,
     );
-    assert.equal(writes, 3);
+    assert.equal(writes, 4);
     assert.equal(transport.pendingBootstrap.size, 0);
     const failedGeneration = transport.connectionGeneration;
     await waitFor(() => transport.state === DeviceTransportState.DISCONNECTED, 250);
 
     releaseThirdWrite();
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(writes, 3, 'no later fragment may escape the invalidated writer');
+    assert.equal(writes, 4, 'no later fragment may escape the invalidated writer');
     assert.equal(transport.connectionGeneration, failedGeneration);
     assert.equal(transport.state, DeviceTransportState.DISCONNECTED);
     assert.equal(transport.pendingBootstrap.size, 0);
@@ -1882,6 +1872,7 @@ test('a completed logical write with no response has one deadline and leaves no 
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox missing-response fixture',
     collections: [],
@@ -1901,7 +1892,7 @@ test('a completed logical write with no response has one deadline and leaves no 
   await assert.rejects(
     transport.bootstrapRequest(
       'missing.response',
-      { marker: 'R'.repeat(180) },
+      { marker: 'R'.repeat(3600) },
       { timeoutMs: 25 },
     ),
     /missing\.response.*超时/,
@@ -1921,6 +1912,7 @@ test('an explicitly recoverable authenticated response timeout keeps the session
   );
   const prefix = Uint8Array.from([9, 8, 7, 6, 5, 4, 3, 2]);
   const cipher = new AesGcmHidSessionCipher({
+    epoch: 1,
     txKey: key,
     rxKey: key,
     txNoncePrefix: prefix,
@@ -1932,6 +1924,7 @@ test('an explicitly recoverable authenticated response timeout keeps the session
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox recoverable RPC timeout fixture',
     collections: [],
@@ -2097,6 +2090,7 @@ test('recoverable bootstrap response timeouts allow two bounded same-handle resy
     const device = {
       opened: false,
       vendorId: 0xcafe,
+    receiveFeatureReport: capability,
       productId: 0x4021,
       productName: 'HBox stale-attestation fixture',
       collections: [],
@@ -2202,6 +2196,7 @@ test('bootstrap write-stage and ordinary RPC timeouts never enter bootstrap resy
     const device = {
       opened: false,
       vendorId: 0xcafe,
+    receiveFeatureReport: capability,
       productId: 0x4021,
       productName: 'HBox non-recoverable timeout fixture',
       collections: [],
@@ -2277,6 +2272,7 @@ test('bootstrap retries share the original startup hard deadline', async () => {
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox retry startup deadline fixture',
     collections: [],
@@ -2342,6 +2338,7 @@ test(`a late settled ${bootstrapCommand} response at old sequence ${staleRespons
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox late bootstrap fixture',
     collections: [],
@@ -2444,6 +2441,7 @@ test('a new bootstrap sequence one ends a truncated old-response drain', async (
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox truncated late permit ACK fixture',
     collections: [],
@@ -2466,7 +2464,7 @@ test('a new bootstrap sequence one ends a truncated old-response drain', async (
       const stalePayload = new TextEncoder().encode(JSON.stringify({
         transactionId: request.transactionId - 1,
         errNo: 0,
-        data: { accepted: true, padding: 's'.repeat(80) },
+        data: { accepted: true, padding: 's'.repeat(1600) },
       }));
       const staleFragment = fragmentPayload(stalePayload)[0];
       const staleReport = await codec.encode({
@@ -2531,6 +2529,7 @@ test('WebHID close is bounded when the platform close promise never settles', as
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -2560,6 +2559,7 @@ test('a timed-out close quarantines the handle until disconnect and the old clos
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox late-close fixture',
     collections: [],
@@ -2604,6 +2604,7 @@ test('an abort signal bounds a queued WebHID operation and invalidates stale wri
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -2640,6 +2641,7 @@ test('concurrent multi-fragment logical requests never interleave and sequence f
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -2691,10 +2693,10 @@ test('concurrent multi-fragment logical requests never interleave and sequence f
   await transport.connect();
 
   const first = transport.bootstrapRequest('first.request', {
-    marker: 'A'.repeat(240),
+    marker: 'A'.repeat(2400),
   });
   const second = transport.bootstrapRequest('second.request', {
-    marker: 'B'.repeat(240),
+    marker: 'B'.repeat(2400),
   });
   const [firstResult, secondResult] = await Promise.all([first, second]);
 
@@ -2716,6 +2718,7 @@ test('an authenticated input tag failure destroys the session and stale readers 
   );
   const prefix = Uint8Array.from([0, 1, 2, 3, 4, 5, 6, 7]);
   const cipher = new AesGcmHidSessionCipher({
+    epoch: 1,
     txKey: key,
     rxKey: key,
     txNoncePrefix: prefix,
@@ -2727,6 +2730,7 @@ test('an authenticated input tag failure destroys the session and stale readers 
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -2764,7 +2768,7 @@ test('an authenticated input tag failure destroys the session and stale readers 
     payload: new Uint8Array(44),
     secure: true,
   });
-  corrupted[63] ^= 0x80;
+  corrupted[1023] ^= 0x80;
   const listener = inputListener;
   listener({
     device,
@@ -2795,6 +2799,7 @@ test('authenticated RX gaps fail closed because V1 cannot prove missing reports 
   );
   const prefix = Uint8Array.from([2, 4, 6, 8, 10, 12, 14, 16]);
   const cipher = new AesGcmHidSessionCipher({
+    epoch: 1,
     txKey: key,
     rxKey: key,
     txNoncePrefix: prefix,
@@ -2805,6 +2810,7 @@ test('authenticated RX gaps fail closed because V1 cannot prove missing reports 
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -2851,6 +2857,7 @@ test('authenticated BUTTON_STATE is decoded once and emitted through the shared 
   );
   const prefix = Uint8Array.from([20, 18, 16, 14, 12, 10, 8, 6]);
   const cipher = new AesGcmHidSessionCipher({
+    epoch: 1,
     txKey: key,
     rxKey: key,
     txNoncePrefix: prefix,
@@ -2861,6 +2868,7 @@ test('authenticated BUTTON_STATE is decoded once and emitted through the shared 
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -2923,6 +2931,7 @@ test('a gap inside a fragmented authenticated RPC rejects pending work and never
   );
   const prefix = Uint8Array.from([16, 15, 14, 13, 12, 11, 10, 9]);
   const cipher = new AesGcmHidSessionCipher({
+    epoch: 1,
     txKey: key,
     rxKey: key,
     txNoncePrefix: prefix,
@@ -2933,6 +2942,7 @@ test('a gap inside a fragmented authenticated RPC rejects pending work and never
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -2961,7 +2971,7 @@ test('a gap inside a fragmented authenticated RPC rejects pending work and never
   const payload = new TextEncoder().encode(JSON.stringify({
     transactionId: 1,
     errNo: 0,
-    data: { marker: 'R'.repeat(120) },
+    data: { marker: 'R'.repeat(2400) },
   }));
   const fragments = fragmentPayload(payload);
   assert.ok(fragments.length >= 3);
@@ -3000,6 +3010,7 @@ test('TX sequence exhaustion destroys the session and stale input cannot revive 
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -3068,6 +3079,7 @@ test('a clean reconnect starts a new HID sequence generation at one', async () =
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -3105,6 +3117,7 @@ test('scope reauthorization ends the encrypted session only after its secure ACK
   );
   const prefix = Uint8Array.from([9, 8, 7, 6, 5, 4, 3, 2]);
   const cipher = new AesGcmHidSessionCipher({
+    epoch: 1,
     txKey: key,
     rxKey: key,
     txNoncePrefix: prefix,
@@ -3117,6 +3130,7 @@ test('scope reauthorization ends the encrypted session only after its secure ACK
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -3395,6 +3409,7 @@ test('WebHID keeps JSON at 16 KiB while streams stay at 8 KiB and firmware chunk
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox WebConfig',
     collections: [],
@@ -3407,6 +3422,7 @@ test('WebHID keeps JSON at 16 KiB while streams stay at 8 KiB and firmware chunk
   const transport = new WebHidTransport({ navigator: makeHidNavigator(device) });
   await transport.connect();
   transport.establishSecureSession({
+    epoch: 1,
     async seal(_header, _sequence, plaintext) {
       return { ciphertext: plaintext.slice(), tag: new Uint8Array(12) };
     },
@@ -3434,42 +3450,26 @@ test('WebHID keeps JSON at 16 KiB while streams stay at 8 KiB and firmware chunk
   await transport.close();
 });
 
-test('one stream deadline expires during a middle fragment instead of resetting per write', async () => {
+test('one stream deadline bounds four in-flight reports and prevents final commit', async () => {
   const { transport, device } = await makeUploadDeadlineTransport();
   let frameCalls = 0;
   let completeCalls = 0;
-  const observedTimeouts = [];
-  transport.request = async (command, _params, options = {}) => {
-    observedTimeouts.push({ command, timeoutMs: options.timeoutMs });
+  transport.request = async (command) => {
     if (command === 'stream.complete') completeCalls += 1;
-    await boundedFixtureDelay(15, options.timeoutMs, command);
-    return {
-      transactionId: 1,
-      data: command === 'stream.begin'
-        ? { transferId: 1, credit: 255 }
-        : { complete: true },
-    };
+    return { transactionId: 1, data: command === 'stream.begin'
+      ? { transferId: 1, credit: 4 } : { complete: true } };
   };
-  transport.sendFrame = async (_type, _payload, _flags, _secure, options = {}) => {
-    frameCalls += 1;
-    observedTimeouts.push({ command: `frame-${frameCalls}`, timeoutMs: options.timeoutMs });
-    await boundedFixtureDelay(15, options.timeoutMs, `frame-${frameCalls}`);
+  device.sendReport = async () => {
+    ++frameCalls;
+    await new Promise(resolve => setTimeout(resolve, 100));
   };
-
   await assert.rejects(
-    transport.upload('firmware', new Uint8Array(90), { timeoutMs: 50 }),
+    transport.upload('firmware', new Uint8Array(5000), { timeoutMs: 50 }),
     /timeout|超时/i,
   );
-  assert.ok(frameCalls >= 2 && frameCalls <= 3);
-  assert.equal(completeCalls, 0);
-  for (let index = 1; index < observedTimeouts.length; index += 1) {
-    assert.ok(
-      observedTimeouts[index].timeoutMs < observedTimeouts[index - 1].timeoutMs,
-      'every stream stage must receive only the remaining absolute deadline',
-    );
-  }
+  assert.equal(frameCalls, 4, 'only one bounded window may reach native WebHID');
+  assert.equal(completeCalls, 0, 'timed out data must never commit');
   await transport.close();
-  assert.equal(device.opened, false);
 });
 
 test('stream.complete shares the original upload deadline', async () => {
@@ -3546,6 +3546,7 @@ test('WebHID typed image reads reject malformed success, error and length fields
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox image-read fixture',
     collections: [],
@@ -3982,6 +3983,7 @@ async function makeUploadDeadlineTransport() {
   const device = {
     opened: false,
     vendorId: 0xcafe,
+    receiveFeatureReport: capability,
     productId: 0x4021,
     productName: 'HBox stream deadline fixture',
     collections: [],
@@ -3994,6 +3996,7 @@ async function makeUploadDeadlineTransport() {
   const transport = new WebHidTransport({ navigator: makeHidNavigator(device) });
   await transport.connect();
   transport.establishSecureSession({
+    epoch: 1,
     async seal(_header, _sequence, plaintext) {
       return { ciphertext: plaintext.slice(), tag: new Uint8Array(12) };
     },

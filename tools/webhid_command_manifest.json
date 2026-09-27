@@ -1,5 +1,11 @@
 {
   "version": 1,
+  "transport": {"protocolVersion": 2, "reportBytes": 1024, "payloadBytes": 996, "featureBytes": 32, "requiresHighSpeed": true},
+  "developmentCommands": [
+    {"name": "benchmark.start", "scope": "config.read", "buildGuard": "HBOX_SECURE_BOOT_REQUIRED == 0", "writesFlash": false},
+    {"name": "benchmark.status", "scope": "config.read", "buildGuard": "HBOX_SECURE_BOOT_REQUIRED == 0", "writesFlash": false},
+    {"name": "benchmark.stop", "scope": "config.read", "buildGuard": "HBOX_SECURE_BOOT_REQUIRED == 0", "writesFlash": false}
+  ],
   "legacyCommandCount": 68,
   "commandCount": 71,
   "migrationStatusCounts": {
@@ -112,7 +118,7 @@
   "binaryRequests": [
     {"opcode": "0x01", "capability": "stm32-firmware-chunk", "webhidPath": "stream:firmware", "responseOpcode": "0x81", "scope": "firmware.update"},
     {"opcode": "0x30", "capability": "image-upload-begin", "webhidPath": "binary.exchange", "responseOpcode": "0xB0", "scope": "asset.write"},
-    {"opcode": "0x31", "capability": "image-upload-chunk", "webhidPath": "stream:image", "responseOpcode": "0xB1", "scope": "asset.write"},
+    {"opcode": "0x31", "capability": "image-upload-chunk", "webhidPath": "report:image-data", "responseOpcode": "0xB1", "scope": "asset.write", "binaryOpcodeRetired": true},
     {"opcode": "0x32", "capability": "image-commit", "webhidPath": "binary.exchange", "responseOpcode": "0xB2", "scope": "asset.write"},
     {"opcode": "0x33", "capability": "image-delete", "webhidPath": "binary.exchange", "responseOpcode": "0xB3", "scope": "asset.write"},
     {"opcode": "0x34", "capability": "image-info", "webhidPath": "binary.exchange", "responseOpcode": "0xB4", "scope": "config.read"},

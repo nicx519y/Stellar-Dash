@@ -545,7 +545,13 @@ export function LEDsSettingContent() {
                                                                 </HStack>
                                                                 <ColorPicker.SwatchGroup gap={.5} p={0.5} >
                                                                     {colorSwatches.map((item) => (
-                                                                        <ColorPicker.SwatchTrigger key={item} value={item}>
+                                                                        <ColorPicker.SwatchTrigger key={item} value={item}
+                                                                            onClick={() => {
+                                                                                // Swatches do not emit onValueChangeEnd. Batch the
+                                                                                // selected color with the preview/save revision.
+                                                                                handleLedColorChange(index, parseColor(item));
+                                                                                requestLedsCommit();
+                                                                            }}>
                                                                             <ColorPicker.Swatch value={item} boxSize="5">
                                                                                 <ColorPicker.SwatchIndicator>
                                                                                     <LuCheck />
@@ -781,7 +787,11 @@ export function LEDsSettingContent() {
                                                                 </HStack>
                                                                 <ColorPicker.SwatchGroup gap={.5} p={0.5}>
                                                                     {colorSwatches.map((item) => (
-                                                                        <ColorPicker.SwatchTrigger key={item} value={item}>
+                                                                        <ColorPicker.SwatchTrigger key={item} value={item}
+                                                                            onClick={() => {
+                                                                                handleAroundLedColorChange(index, parseColor(item));
+                                                                                requestLedsCommit();
+                                                                            }}>
                                                                             <ColorPicker.Swatch value={item} boxSize="5">
                                                                                 <ColorPicker.SwatchIndicator>
                                                                                     <LuCheck />

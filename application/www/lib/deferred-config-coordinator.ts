@@ -4,7 +4,7 @@ export interface ConfigSyncState { pendingCount: number; saving: boolean; paused
 interface Options {
   autoFlush?: () => Promise<void>;
   onState?: (state: ConfigSyncState) => void;
-  debounceMs?: number; maxWaitMs?: number; cooldownMs?: number;
+  debounceMs?: number; cooldownMs?: number;
 }
 /** Finite automatic batches; the physical queue still owns every HID exchange. */
 export class DeferredConfigCoordinator {
@@ -14,7 +14,6 @@ export class DeferredConfigCoordinator {
   private flight: Promise<void> | null = null;
   private automaticFlight = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private firstEdit = 0;
   private lastEdit = 0;
   private lastCompleted = 0;
   private activeKey: string | null = null;
@@ -25,7 +24,6 @@ export class DeferredConfigCoordinator {
   get state(): ConfigSyncState { return { pendingCount: this.entries.size, saving: !!this.flight || this.automaticFlight, paused: this.paused, error: this.error }; }
   stage(key: string, commit: DeferredConfigCommit, priority = 0): void {
     if (!key) throw new Error('Deferred config resource key is required');
-    if (!this.dirty) this.firstEdit = Date.now();
     this.lastEdit = Date.now();
     this.entries.set(key, { revision: ++this.revision, priority, commit });
     this.notify(); this.schedule();
@@ -44,7 +42,7 @@ export class DeferredConfigCoordinator {
     const generation = this.generation;
     do {
       if (generation !== this.generation) throw new Error('Configuration session ended');
-      const operation = this.round(generation);
+      const operation = this.round(generation, all);
       this.flight = operation; this.notify();
       try { await operation; this.error = null; }
       catch (error) {
@@ -56,12 +54,15 @@ export class DeferredConfigCoordinator {
       }
     } while (all && this.dirty);
   }
-  private async round(generation: number): Promise<void> {
+  private async round(generation: number, all: boolean): Promise<void> {
     const keys = [...this.entries].sort(([ak, a], [bk, b]) => a.priority - b.priority || ak.localeCompare(bk)).map(([key]) => key);
     for (const key of keys) {
       const wait = Math.max(0, this.lastCompleted + (this.options.cooldownMs ?? 500) - Date.now());
       if (wait) await new Promise(resolve => setTimeout(resolve, wait));
       if (generation !== this.generation) throw new Error('Configuration session ended');
+      // An edit during a save restarts the idle period for every unsent resource.
+      // Explicit boundaries (Finish Configuration) drain immediately instead.
+      if (!all && this.options.autoFlush && Date.now() < this.lastEdit + (this.options.debounceMs ?? 3000)) return;
       const entry = this.entries.get(key);
       if (!entry) continue;
       if (key.startsWith('macros:') && this.entries.has(`profile:${key.slice(7)}`)) continue;
@@ -79,7 +80,7 @@ export class DeferredConfigCoordinator {
   private schedule(): void {
     this.cancelTimer();
     if (!this.options.autoFlush || !this.dirty || this.paused || this.error || this.flight || this.automaticFlight) return;
-    const due = Math.min(this.lastEdit + (this.options.debounceMs ?? 1000), this.firstEdit + (this.options.maxWaitMs ?? 5000));
+    const due = this.lastEdit + (this.options.debounceMs ?? 3000);
     this.timer = setTimeout(() => {
       this.timer = null; this.automaticFlight = true; this.notify();
       const generation = this.generation;
@@ -87,7 +88,6 @@ export class DeferredConfigCoordinator {
         if (generation === this.generation) this.error = error instanceof Error ? error.message : String(error);
       }).finally(() => {
         this.automaticFlight = false;
-        this.firstEdit = this.lastEdit || Date.now();
         this.notify(); this.schedule();
       });
     }, Math.max(0, due - Date.now()));

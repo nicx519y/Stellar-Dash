@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 VECTOR_PATH = (
-    ROOT / "common" / "test_vectors" / "webhid_security_v1.json"
+    ROOT / "common" / "test_vectors" / "webhid_security_v2.json"
 )
 MBEDTLS = ROOT / "application" / "Libs" / "mbedtls"
 

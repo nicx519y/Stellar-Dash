@@ -1,16 +1,15 @@
 import type { GameProfile, GameProfileList } from '../../types/gamepad-config';
 import type { ConfigResources } from '../session-config-store';
 import { readConfigSnapshot, type ConfigRequester } from './config-snapshot';
-import { ConfigSyncCache, cachedModuleValid, makeCachedModule, type CachedConfigModules } from './config-cache';
 import { decodeConfigResource, isDigest, isRecord, parseConfigManifest, resourceRequest, type ConfigManifest } from './config-modules';
 import { DeviceTransportError } from './types';
 
 export interface ConfigSyncProgress { completed: number; total: number; phase?: 'checking' | 'reading' | 'complete' }
-export interface ConfigSyncResult { resources: ConfigResources; manifest?: ConfigManifest; modules?: CachedConfigModules }
-export async function readIncrementalConfigSnapshot(
+export interface ConfigSyncResult { resources: ConfigResources; manifest?: ConfigManifest }
+/** Always read every resource from the device; versions only guard this load's consistency. */
+export async function readDeviceConfigSnapshot(
   request: ConfigRequester,
   convert: (profile: GameProfile) => GameProfile | null | undefined,
-  cache: ConfigSyncCache,
   progress: (value: ConfigSyncProgress) => void = () => {},
   isCurrent: () => boolean = () => true,
 ): Promise<ConfigSyncResult> {
@@ -28,14 +27,7 @@ export async function readIncrementalConfigSnapshot(
     return { resources };
   }
   const initial = manifest;
-  const loaded = await cache.load(manifest);
-  check();
-  const modules: CachedConfigModules = {};
-  for (const key of Object.keys(manifest.modules)) {
-    const value = loaded[key];
-    if (value?.version !== manifest.modules[key] || !await cachedModuleValid(value)) continue;
-    try { decodeConfigResource(key, value.data, convert); modules[key] = value; } catch { /* reread malformed cached data */ }
-  }
+  const modules: Record<string, { version: string; data: unknown }> = {};
   for (let round = 0; round < 3; round++) {
     check();
     const stale = Object.keys(manifest.modules).filter(key => modules[key]?.version !== manifest.modules[key]);
@@ -50,7 +42,7 @@ export async function readIncrementalConfigSnapshot(
       if (!isDigest(version)) throw new Error(`Missing configuration response version: ${key}`);
       const body = response?.[spec.field];
       decodeConfigResource(key, body, convert);
-      modules[key] = await makeCachedModule(version, body);
+      modules[key] = { version, data: body };
       check();
       progress({ completed: ++completed, total: ordered.length, phase: 'reading' });
     }
@@ -68,7 +60,7 @@ export async function readIncrementalConfigSnapshot(
     resources['selected-profile'] = list.defaultId;
     check();
     progress({ completed: ordered.length, total: ordered.length, phase: 'complete' });
-    return { resources, manifest, modules };
+    return { resources, manifest };
   }
   throw new Error('Device configuration kept changing during synchronization');
 }

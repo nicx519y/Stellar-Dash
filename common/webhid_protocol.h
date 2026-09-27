@@ -10,13 +10,16 @@ extern "C" {
 /*
  * Browser <-> STM32 WebConfig transport carried opaquely by the on-board
  * CH585.  The CH585 must not inspect, authenticate, decrypt, or rewrite these
- * reports; it only moves complete 64-byte reports between USB and BoardLink.
+ * reports; it only moves complete 1024-byte reports between USB and BoardLink.
  */
-#define WEBHID_PROTOCOL_VERSION             1u
-#define WEBHID_REPORT_BYTES                64u
-#define WEBHID_REPORT_HEADER_BYTES          8u
-#define WEBHID_REPORT_PAYLOAD_BYTES        44u
+#define WEBHID_PROTOCOL_VERSION             2u
+#define WEBHID_REPORT_BYTES              1024u
+#define WEBHID_REPORT_HEADER_BYTES         16u
+#define WEBHID_REPORT_PAYLOAD_BYTES       996u
 #define WEBHID_REPORT_TAG_BYTES            12u
+#define WEBHID_CAPABILITY_BYTES            32u
+#define WEBHID_CAPABILITY_MAGIC     0x32485758u /* XWH2 */
+#define WEBHID_REPORT_WINDOW                8u
 #define WEBHID_PERF_KEY_COUNT              18u
 #define WEBHID_PERF_SAMPLE_BYTES           44u
 #define WEBHID_PERF_CHECKPOINT_BYTES       44u
@@ -66,12 +69,32 @@ typedef struct WEBHID_PACKED
 {
     uint8_t version;
     uint8_t type;
-    uint8_t flags;
-    uint8_t payload_length;
+    uint16_t flags;
+    uint16_t payload_length;
+    uint16_t reserved;
     uint32_t sequence_le;
+    uint32_t epoch_le;
     uint8_t payload[WEBHID_REPORT_PAYLOAD_BYTES];
     uint8_t tag[WEBHID_REPORT_TAG_BYTES];
-} webhid_secure_report_v1_t;
+} webhid_secure_report_v2_t;
+
+/* Public, read-only GET_REPORT(feature, id=0); no keys or mutable state. */
+typedef struct WEBHID_PACKED
+{
+    uint32_t magic_le;
+    uint16_t version_le;
+    uint16_t report_bytes_le;
+    uint8_t usb_speed; /* 0 disconnected, 1 full, 2 high */
+    uint8_t bridge_ready;
+    uint8_t fault;
+    uint8_t window;
+    uint32_t spi_hz_le;
+    uint32_t connection_epoch_le;
+    /* Zero when ready; first port-fault metadata only, never report data. */
+    uint32_t fault_detail_le;
+    uint32_t fault_produced_le;
+    uint32_t fault_consumed_le;
+} webhid_capability_v2_t;
 
 /*
  * Compact 100 Hz Hall telemetry.  Distances are unsigned micrometres.  The
@@ -147,7 +170,8 @@ typedef struct WEBHID_PACKED
 #define WEBHID_STATIC_ASSERT(expr) \
     typedef char WEBHID_STATIC_ASSERT_GLUE(webhid_static_assert_, __LINE__)[(expr) ? 1 : -1]
 
-WEBHID_STATIC_ASSERT(sizeof(webhid_secure_report_v1_t) ==
+WEBHID_STATIC_ASSERT(sizeof(webhid_capability_v2_t) == WEBHID_CAPABILITY_BYTES);
+WEBHID_STATIC_ASSERT(sizeof(webhid_secure_report_v2_t) ==
                      WEBHID_REPORT_BYTES);
 WEBHID_STATIC_ASSERT(sizeof(webhid_perf_sample_v1_t) ==
                      WEBHID_PERF_SAMPLE_BYTES);

@@ -6,6 +6,25 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class WebConfigStateContractTests(unittest.TestCase):
+    def test_webconfig_error_confirm_exits_instead_of_retrying_the_link(self) -> None:
+        screen = (ROOT / 'application/Src/display/screen_control/spi_screen_detail_web_config.cpp').read_text(encoding='utf-8')
+        confirm = screen[screen.index('bool ScreenDetailWebConfig_OnConfirm'):screen.index('bool ScreenDetailWebConfig_OnBack')]
+        self.assertIn('return exitWebConfig();', confirm)
+        self.assertNotIn('requestRetry', confirm)
+        self.assertIn('case WebConfigRuntimeStatus::ErrorAdc:', screen)
+
+    def test_recovery_retry_is_owned_by_the_live_main_dispatcher(self) -> None:
+        state = (ROOT / 'application/Src/system/states/webconfig_state.cpp').read_text(encoding='utf-8')
+        main = (ROOT / 'application/Src/system/main_state_machine.cpp').read_text(encoding='utf-8')
+        retry = state[state.index('void WebConfigState::requestRetry()'):state.index('void WebConfigState::reportStorageFailure()')]
+        self.assertIn('if (canRetry())', retry)
+        self.assertIn('MainRuntime_RequestReset();', retry)
+        self.assertNotIn('retryRequested', state)
+        self.assertNotIn('saveConfig', retry)
+        loop = main[main.index('while (true)'):]
+        self.assertLess(loop.index('serviceSharedRuntime();'), loop.index('if (resetPending)'))
+        self.assertLess(loop.index('if (resetPending)'), loop.index('NVIC_SystemReset();'))
+
     def test_webhid_callback_is_ready_before_ch585_exposes_usb(self) -> None:
         state = (
             ROOT / 'application/Src/system/states/webconfig_state.cpp'
@@ -718,7 +737,9 @@ class WebConfigStateContractTests(unittest.TestCase):
         checkpoint = pump.index("if (checkpointActive)")
         sample = pump.index("if (samplePending)")
         self.assertLess(pinned, control)
-        self.assertLess(checkpoint, sample)
+        # Live travel must not wait behind all nine historical chunks.
+        self.assertLess(control, sample)
+        self.assertLess(sample, checkpoint)
 
     def test_webhid_control_plane_runs_before_adc_optional_work(self) -> None:
         source = (

@@ -88,7 +88,7 @@ import {
 
 import { SessionConfigStore, cloneConfig, configDifferences, restoredConfigDraft, type ConfigDraftBackup, type ConfigResources } from '@/lib/session-config-store';
 import { writeConfigResource } from '@/lib/device-transport/config-snapshot';
-import { readIncrementalConfigSnapshot, type ConfigSyncProgress, type ConfigSyncResult } from '@/lib/device-transport/config-sync';
+import { readDeviceConfigSnapshot, type ConfigSyncProgress, type ConfigSyncResult } from '@/lib/device-transport/config-sync';
 
 // 导入固件工具函数
 import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
@@ -851,10 +851,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             void initializeDeviceSession({
                 loaders: {
                     configuration: async () => {
-                        syncResult = await readIncrementalConfigSnapshot(
+                        syncResult = await readDeviceConfigSnapshot(
                             (command, params) => client.requestInitialization(command, params, { signal: controller.signal }),
                             converProfileDetails,
-                            client.configCache,
                             (progress) => { if (generation === initializationGenerationRef.current && !controller.signal.aborted) setConfigReadProgress(progress); },
                             () => generation === initializationGenerationRef.current && !controller.signal.aborted,
                         );
@@ -876,7 +875,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     if (!client.markReady()) return;
                     postReadyRequestSchedulerRef.current?.beginSession();
                     buttonMonitorLeaseRef.current?.beginSession();
-                    if (syncResult.manifest && syncResult.modules) client.configCache.activate(syncResult.manifest, syncResult.modules);
                     const identity = syncResult.manifest
                         ? `${client.transport.kind}:${syncResult.manifest.deviceCacheKey}`
                         : client.transport.session?.deviceId ?? (configuredTransportMode() === 'mock' ? 'mock' : '');
