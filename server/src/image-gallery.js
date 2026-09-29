@@ -1,5 +1,6 @@
 'use strict';
 
+const { parseJpegUimg, JPEG_MAX_FRAMES } = require('../../common/uimg-jpeg.cjs');
 const crypto = require('crypto');
 const fs = require('fs-extra');
 const path = require('path');
@@ -9,7 +10,7 @@ const multer = require('multer');
 const USER_GALLERY_LIMIT = 10;
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 const MAX_PREVIEW_BYTES = 2 * 1024 * 1024;
-const MAX_DEVICE_BYTES = 4096 + 320 * 172 * 2 * 12;
+const MAX_DEVICE_BYTES = MAX_SOURCE_BYTES;
 const SOURCE_TYPES = new Map([
     ['image/png', '.png'],
     ['image/jpeg', '.jpg'],
@@ -69,6 +70,12 @@ function parseUimg(buffer) {
     if (!Buffer.isBuffer(buffer) || buffer.length < 4096 || buffer.length > MAX_DEVICE_BYTES) {
         throw new ImageGalleryError('GALLERY_UIMG_INVALID', 'Device image has an invalid size.');
     }
+    if (buffer.readUInt16LE(4) === 5) {
+        try {
+            const { payload, format, ...metadata } = parseJpegUimg(buffer);
+            return metadata;
+        } catch { throw new ImageGalleryError('GALLERY_UIMG_INVALID', 'Invalid JPEG device image.'); }
+    }
     const magic = buffer.readUInt32LE(0);
     const version = buffer.readUInt16LE(4);
     const indexedFrames = version === 3 ? 10 : version === 4 ? 12 : 0;
@@ -95,7 +102,7 @@ function parseUimg(buffer) {
         !buffer.subarray(idOffset, payloadCrcOffset).equals(expectedId) || width !== 320 || height !== 172 ||
         frameCount < 1 || frameCount > (version === 3 ? 6 : 12) ||
         format !== (sequence ? 2 : 1) ||
-        (sequence ? (fps !== 3 && (version !== 4 || fps !== 6)) : fps !== 0) ||
+        (sequence ? (fps !== 3 && (version !== 4 || (fps !== 6 && fps !== 12))) : fps !== 0) ||
         frameSize !== expectedFrameSize || framesOffset !== 4096 ||
         payloadBytes !== expectedFrameSize * frameCount || buffer.length !== framesOffset + payloadBytes) {
         throw new ImageGalleryError('GALLERY_UIMG_INVALID', 'Device image metadata is invalid.');
@@ -442,9 +449,9 @@ function deviceFingerprint(query) {
     };
     if (!Object.values(result).every(Number.isInteger) ||
         result.width !== 320 || result.height !== 172 ||
-        result.frameCount < 1 || result.frameCount > 12 ||
-        (result.frameCount === 1 ? result.fps !== 0 : (result.fps !== 3 && result.fps !== 6)) ||
-        result.payloadBytes !== result.width * result.height * 2 * result.frameCount ||
+        result.frameCount < 1 || result.frameCount > JPEG_MAX_FRAMES ||
+        (result.frameCount === 1 ? result.fps !== 0 : (result.fps !== 3 && result.fps !== 6 && result.fps !== 12)) ||
+        (result.payloadBytes < 8 + result.frameCount * 8 + 4 || result.payloadBytes > MAX_DEVICE_BYTES - 4096) ||
         result.payloadCrc32 < 0 || result.payloadCrc32 > 0xffffffff) {
         throw new ImageGalleryError('GALLERY_FINGERPRINT_INVALID', 'Device image fingerprint is invalid.');
     }

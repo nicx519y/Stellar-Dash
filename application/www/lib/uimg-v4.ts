@@ -1,3 +1,4 @@
+import { parseJpegUimg, JPEG_FORMAT } from '../../../common/uimg-jpeg.cjs';
 import { crc32 } from './crc32';
 import {
   parseUimgV3,
@@ -8,24 +9,25 @@ import {
 } from './uimg-v3';
 
 export const UIMG_MAX_FRAMES = 12;
-export const UIMG_ANIMATION_FPS = 6;
+export const UIMG_ANIMATION_FPS = 12;
 export const UIMG_LEGACY_ANIMATION_FPS = 3;
 export const UIMG_MAX_PAYLOAD_BYTES = UIMG_WIDTH * UIMG_HEIGHT * 2 * UIMG_MAX_FRAMES;
 export const IMAGE_TRANSFER_FLAG_6_FPS = 1 << 2;
 
 export function isSupportedImageFps(frameCount: number, fps: number): boolean {
-  return frameCount === 1 ? fps === 0 : fps === UIMG_ANIMATION_FPS || fps === UIMG_LEGACY_ANIMATION_FPS;
+  return frameCount === 1 ? fps === 0 : fps === UIMG_ANIMATION_FPS || fps === 6 || fps === UIMG_LEGACY_ANIMATION_FPS;
 }
 
-// Doubling the playback rate requires doubling held frames, not just changing
-// metadata. Keep the first two seconds when an old asset exceeds capacity.
+// Preserve legacy timing when adapting raw frames; never silently truncate.
 export function prepareUimgInstallation(image: ParsedUimgV3): ParsedUimgV3 {
-  if (image.frameCount <= 1 || image.fps === UIMG_ANIMATION_FPS) return image;
+  if (image.format === JPEG_FORMAT || image.frameCount <= 1 || image.fps === UIMG_ANIMATION_FPS) return image;
   const frameSize = image.width * image.height * 2;
-  const frameCount = Math.min(UIMG_MAX_FRAMES, image.frameCount * 2);
+  const repeat = UIMG_ANIMATION_FPS / image.fps;
+  const frameCount = image.frameCount * repeat;
+  if (frameCount > UIMG_MAX_FRAMES) throw new Error(`Image frame limit exceeded: ${frameCount}/${UIMG_MAX_FRAMES}`);
   const payload = new Uint8Array(frameSize * frameCount);
   for (let frame = 0; frame < frameCount; frame++) {
-    const offset = Math.floor(frame / 2) * frameSize;
+    const offset = Math.floor(frame / repeat) * frameSize;
     payload.set(image.payload.subarray(offset, offset + frameSize), frame * frameSize);
   }
   return { ...image, frameCount, fps: UIMG_ANIMATION_FPS, payload,
@@ -70,6 +72,7 @@ export function parseUimg(input: ArrayBuffer | Uint8Array): ParsedUimgV3 {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   if (bytes.byteLength < UIMG_HEADER_BYTES) throw new Error('UIMG file is truncated');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint16(4, true) === 5) return parseJpegUimg(bytes);
   if (view.getUint16(4, true) === 3) return parseUimgV3(bytes);
   const width = view.getUint16(8, true);
   const height = view.getUint16(10, true);
@@ -98,5 +101,5 @@ export function parseUimg(input: ArrayBuffer | Uint8Array): ParsedUimgV3 {
   if (view.getUint32(HEADER_CRC_OFFSET, true) !== crc32(bytes.subarray(0, HEADER_CRC_OFFSET))) throw new Error('UIMG header CRC is invalid');
   const payload = bytes.subarray(framesOffset);
   if (crc32(payload) !== payloadCrc32) throw new Error('UIMG payload CRC is invalid');
-  return { width, height, frameCount, fps, payloadBytes, payloadCrc32, payload };
+  return { width, height, frameCount, fps, format: sequence ? 2 : 1, payloadBytes, payloadCrc32, payload };
 }

@@ -33,6 +33,9 @@ export interface DeviceImageMetadata {
 
 export interface DeviceImageCatalog {
   protocolVersion: number;
+  maxImagePayloadBytes: number;
+  maxJpegFrames: number;
+  maxAnimationFps: number;
   maxUserFrames: number;
   maxSystemFrames: number;
   imageTransferVersion: number;
@@ -43,6 +46,7 @@ export interface DeviceImageCatalog {
 }
 
 export interface DeviceImageUploadRequest extends DeviceRequestOptions {
+  format?: number;
   width: number;
   height: number;
   data: Uint8Array;

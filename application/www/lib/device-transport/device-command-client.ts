@@ -1,3 +1,5 @@
+import { assertImageFits, galleryImageLimits } from '../gallery-image-limits';
+import { JPEG_CAPABILITY, JPEG_FORMAT, JPEG_MAX_FRAMES, validateJpegPayload } from '../../../../common/uimg-jpeg.cjs';
 import { DeviceRequestQueue } from './device-request-queue';
 import { deviceCommandSchedule } from './device-request-policy';
 import {
@@ -482,7 +484,7 @@ export class DeviceCommandClient {
     const frame = new Uint8Array(6);
     const view = new DataView(frame.buffer);
     view.setUint8(0, 0x34);
-    view.setUint8(1, 2); // Request Catalog v3 and fast image-stream capabilities.
+    view.setUint8(1, 3); // Request capacity catalog v5, including the device byte limit and FPS.
     view.setUint32(2, cid, true);
     let response: ArrayBuffer;
     try {
@@ -551,20 +553,23 @@ export class DeviceCommandClient {
     const width = checkedUnsignedInteger(request.width, 0xffff, 'Image width');
     const height = checkedUnsignedInteger(request.height, 0xffff, 'Image height');
     const total = checkedUnsignedInteger(request.data.byteLength, 0xffff_ffff, 'Image size');
-    const frameCount = checkedUnsignedInteger(request.frameCount, UIMG_MAX_FRAMES, 'Image frame count');
+    const frameCount = checkedUnsignedInteger(request.frameCount, request.format === JPEG_FORMAT ? JPEG_MAX_FRAMES : UIMG_MAX_FRAMES, 'Image frame count');
     const fps = checkedUnsignedInteger(request.fps, UIMG_ANIMATION_FPS, 'Image FPS');
     if (frameCount < 1) {
       throw new DeviceTransportError('protocol', 'Image frame count must be at least one');
     }
+    const jpeg = request.format === JPEG_FORMAT;
+    if (jpeg) validateJpegPayload(request.data, frameCount, width, height);
     // Validate before BEGIN: it erases the previous device image.
     if (width < 1 || width > 320 || height < 1 || height > 172 ||
-        total !== width * height * 2 * frameCount || total > UIMG_MAX_PAYLOAD_BYTES ||
+        (jpeg ? (width !== 320 || height !== 172 || (frameCount > 1 && fps !== 6 && fps !== 12)) :
+          (total !== width * height * 2 * frameCount || total > UIMG_MAX_PAYLOAD_BYTES)) ||
         !isSupportedImageFps(frameCount, fps)) {
       throw new DeviceTransportError('protocol', 'Invalid image dimensions, size or animation metadata');
     }
     const catalog = await this.getImageCatalogWithinTransaction(generation, queueSignal);
     if (
-      catalog.protocolVersion !== 4 ||
+      (catalog.protocolVersion !== 4 && catalog.protocolVersion !== 5) ||
       catalog.imageTransferVersion !== 3 ||
       catalog.imageDataBytesPerReport !== 996 ||
       (catalog.imageTransferFlags & 0x0003) !== 0x0003
@@ -574,17 +579,22 @@ export class DeviceCommandClient {
         '设备固件不支持快速图片传输，请先升级设备固件',
       );
     }
-    if (frameCount > catalog.maxUserFrames) {
+    if (jpeg && !(catalog.imageTransferFlags & JPEG_CAPABILITY)) {
+      throw new ImageTransferError('jpeg-required', 'Device firmware does not support JPEG images');
+    }
+    if (!jpeg && frameCount > catalog.maxUserFrames) {
       throw new ImageTransferError('frame-limit', `设备固件最多支持 ${catalog.maxUserFrames} 帧图片，请先升级设备固件`, catalog.maxUserFrames);
     }
-    if (fps === UIMG_ANIMATION_FPS && (catalog.imageTransferFlags & IMAGE_TRANSFER_FLAG_6_FPS) === 0) {
+    if (fps === 6 && (catalog.imageTransferFlags & IMAGE_TRANSFER_FLAG_6_FPS) === 0) {
       throw new ImageTransferError('animation-rate', 'Device firmware does not support 6 FPS images');
     }
+    const limits = galleryImageLimits(catalog);
+    assertImageFits(total, jpeg ? frameCount : 1, limits);
     const cid = nextCorrelationId();
     const begin = new Uint8Array(22);
     const beginView = new DataView(begin.buffer);
     beginView.setUint8(0, 0x30);
-    beginView.setUint8(1, frameCount > 1 ? 1 : 0);
+    beginView.setUint8(1, jpeg ? 2 : frameCount > 1 ? 1 : 0);
     beginView.setUint32(2, cid, true);
     beginView.setUint16(6, width, true);
     beginView.setUint16(8, height, true);
@@ -647,7 +657,7 @@ export class DeviceCommandClient {
     const frame = new Uint8Array(6);
     const view = new DataView(frame.buffer);
     view.setUint8(0, 0x34);
-    view.setUint8(1, 2);
+    view.setUint8(1, 3);
     view.setUint32(2, cid, true);
     let response: ArrayBuffer;
     try {
@@ -873,12 +883,12 @@ export class DeviceCommandClient {
     const width = checkedUnsignedInteger(Number(image.width), 0xffff, 'Image width');
     const height = checkedUnsignedInteger(Number(image.height), 0xffff, 'Image height');
     const size = checkedUnsignedInteger(Number(image.size), 0xffff_ffff, 'Image size');
-    const frameCount = checkedUnsignedInteger(Number(image.frameCount), UIMG_MAX_FRAMES, 'Image frame count');
+    const frameCount = checkedUnsignedInteger(Number(image.frameCount), image.format === JPEG_FORMAT ? JPEG_MAX_FRAMES : UIMG_MAX_FRAMES, 'Image frame count');
     const fps = checkedUnsignedInteger(Number(image.fps), UIMG_ANIMATION_FPS, 'Image FPS');
     if (size !== data.byteLength || size === 0 || frameCount < 1) {
       throw new DeviceTransportError('protocol', 'User image backup length is invalid');
     }
-    const uploaded = await this.uploadImage({ width, height, data, frameCount, fps });
+    const uploaded = await this.uploadImage({ width, height, data, frameCount, fps, format: Number(image.format) });
     if (!uploaded.success) {
       throw new DeviceTransportError(
         'protocol',
@@ -1594,7 +1604,7 @@ function parseFirmwareChunkResult(
 function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceImageCatalog {
   const view = new DataView(response);
   if (
-    (view.byteLength !== 64 && view.byteLength !== 76 && view.byteLength !== 82) ||
+    (view.byteLength !== 64 && view.byteLength !== 76 && view.byteLength !== 82 && view.byteLength !== 88) ||
     view.getUint8(0) !== 0xb4 ||
     view.getUint8(1) > 1 ||
     view.getUint8(6) > 1 ||
@@ -1609,9 +1619,10 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
     throw new DeviceTransportError('protocol', 'Image catalog request was rejected');
   }
   const extended = view.byteLength >= 76;
-  const fastTransfer = view.byteLength === 82;
+  const capacity = view.byteLength === 88;
+  const fastTransfer = view.byteLength >= 82;
   if (extended && (
-    view.getUint8(64) !== (fastTransfer ? 4 : 2) ||
+    view.getUint8(64) !== (capacity ? 5 : fastTransfer ? 4 : 2) ||
     view.getUint8(65) < 1 || view.getUint8(65) > UIMG_MAX_FRAMES ||
     view.getUint8(66) > 10 ||
     (view.getUint8(7) === 1 && view.getUint8(66) < 1) ||
@@ -1626,7 +1637,13 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
   )) {
     throw new DeviceTransportError('protocol', 'Fast image transfer capabilities are invalid');
   }
+  if (capacity && (view.getUint32(82, true) < 20 || !view.getUint8(86) || view.getUint8(87) !== 12)) {
+    throw new DeviceTransportError('protocol', 'Invalid device image capacity');
+  }
   return {
+    maxImagePayloadBytes: capacity ? view.getUint32(82, true) : 0,
+    maxJpegFrames: capacity ? view.getUint8(86) : 0,
+    maxAnimationFps: capacity ? view.getUint8(87) : 0,
     protocolVersion: extended ? view.getUint8(64) : 1,
     maxUserFrames: extended ? view.getUint8(65) : 6,
     maxSystemFrames: extended ? view.getUint8(66) : 8,

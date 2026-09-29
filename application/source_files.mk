@@ -29,6 +29,8 @@ Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hsem.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c_ex.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mdma.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_jpeg.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma2d.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_qspi.c \
@@ -163,6 +165,7 @@ Src/display/screen_control/spi_screen_detail_tournament_mode.cpp \
 Src/display/screen_control/spi_screen_detail_web_config.cpp \
 Src/display/screen_control/spi_screen_main_list.cpp \
 Src/display/screen_control/spi_screen_manager.cpp \
+Src/display/screen_control/jpeg_player.cpp \
 Src/display/screen_control/spi_screen_standby.cpp \
 Src/display/screen_control/spi_screen_timed_popup.cpp \
 Src/display/screen_control/spi_screen_ui_common.cpp \

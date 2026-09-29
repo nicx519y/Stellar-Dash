@@ -169,7 +169,7 @@ test('image payload uses a bounded four-report V2 pipeline without stream credit
   progress.length = 0;
   const twelveFrames = new Uint8Array(320 * 172 * 2 * 12);
   for (let index = 0; index < twelveFrames.length; index += 1) twelveFrames[index] = index % 251;
-  assert.equal(WEBHID_MAX_IMAGE_PAYLOAD_SIZE, twelveFrames.length);
+  assert.equal(WEBHID_MAX_IMAGE_PAYLOAD_SIZE, 0xffffffff);
   await transport.uploadImagePayload(twelveFrames, {
     onProgress: (sent, total) => progress.push([sent, total]),
   });
@@ -182,7 +182,7 @@ test('image payload uses a bounded four-report V2 pipeline without stream credit
   assert.equal(maximumInFlight, 4);
   assert.deepEqual(progress.at(-1), [twelveFrames.length, twelveFrames.length]);
   const sentReports = reports.length;
-  await assert.rejects(transport.uploadImagePayload(new Uint8Array(twelveFrames.length + 1)), /must contain/);
+  await assert.rejects(transport.uploadImagePayload(new Uint8Array(0)), /must contain/);
   assert.equal(reports.length, sentReports);
   await transport.close();
 });

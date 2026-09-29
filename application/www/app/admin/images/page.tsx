@@ -3,6 +3,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Center, Flex, HStack, Image, Input, SimpleGrid, Spinner, Text } from '@chakra-ui/react';
 import { LuGripVertical, LuTrash2, LuUpload } from 'react-icons/lu';
+import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { galleryImageLimits } from '@/lib/gallery-image-limits';
+import { galleryErrorMessage } from '@/lib/gallery-error-message';
 import { useLanguage } from '@/contexts/language-context';
 import { useUserAuth } from '@/contexts/user-auth-context';
 import { AdminCard, AdminPageHeader } from '@/components/admin/admin-surface';
@@ -62,6 +65,7 @@ async function uploadOfficial(item: Extract<DraftItem, { kind: 'new' }>, sortOrd
 }
 
 export default function AdminImagesPage() {
+  const { getDeviceImageCatalog } = useGamepadConfig();
   const { currentLanguage } = useLanguage();
   const { session, loading: sessionLoading } = useUserAuth();
   const zh = currentLanguage === 'zh';
@@ -156,11 +160,12 @@ export default function AdminImagesPage() {
     setBusy('processing');
     setError('');
     try {
+      const limits = galleryImageLimits(await getDeviceImageCatalog());
       const staged: (DraftItem | undefined)[] = new Array(files.length);
       const failures: string[] = [];
       await mapWithConcurrency(files, 4, async (file, index) => {
         try {
-          const processed = await processGalleryImage(file);
+          const processed = await processGalleryImage(file, limits);
           const gif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
           const previewUrl = URL.createObjectURL(gif ? file : processed.preview);
           pendingPreviewUrls.current.add(previewUrl);
@@ -169,13 +174,13 @@ export default function AdminImagesPage() {
             title: file.name.replace(/\.[^.]+$/, '').trim().slice(0, 120) || 'Image',
           };
         } catch (reason) {
-          failures.push(`${file.name}: ${reason instanceof Error ? reason.message : String(reason)}`);
+          failures.push(`${file.name}: ${galleryErrorMessage(reason, currentLanguage)}`);
         }
       });
       const ready = staged.filter((item): item is DraftItem => item !== undefined);
       if (ready.length) setItems(current => [...current, ...ready]);
       if (failures.length) setError(failures.join('\n'));
-    } finally { setBusy(null); }
+    } catch (error) { setError(galleryErrorMessage(error, currentLanguage)); } finally { setBusy(null); }
   };
 
   const fileDrag = (event: React.DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('Files');

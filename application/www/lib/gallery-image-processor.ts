@@ -1,6 +1,6 @@
-import { processGifToRGB565Sequence, processImageToRGB565 } from './screen-control-image';
-import { buildUimgV4, UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES } from './uimg-v4';
-
+import type { GalleryImageLimits } from './gallery-image-limits';
+import { processGalleryJpeg } from './gallery-jpeg-processor';
+import { buildJpegUimg } from '../../../common/uimg-jpeg.cjs';
 export type GalleryProcessedImage = {
   preview: Blob;
   deviceAsset: Uint8Array;
@@ -11,29 +11,13 @@ export type GalleryProcessedImage = {
   payloadCrc32: number;
 };
 
-type Pending = { file: File; resolve: (value: GalleryProcessedImage) => void; reject: (reason: unknown) => void };
+type Pending = { file: File; limits: GalleryImageLimits; resolve: (value: GalleryProcessedImage) => void; reject: (reason: unknown) => void };
 
-function dataUrlBlob(value: string): Blob {
-  const [header, encoded] = value.split(',', 2);
-  const mime = /data:([^;]+)/.exec(header)?.[1] || 'image/png';
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return new Blob([bytes], { type: mime });
-}
-
-async function fallback(file: File): Promise<GalleryProcessedImage> {
-  const gif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
-  const sequence = gif ? await processGifToRGB565Sequence(file, UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES) : null;
-  const processed = sequence || await processImageToRGB565(file);
-  const frameCount = sequence?.frameCount || 1;
-  const fps = frameCount > 1 ? UIMG_ANIMATION_FPS : 0;
-  const deviceAsset = buildUimgV4(processed.data, frameCount, fps);
-  return {
-    preview: dataUrlBlob(processed.previewUrl), deviceAsset,
-    width: processed.width, height: processed.height, frameCount, fps,
-    payloadCrc32: new DataView(deviceAsset.buffer, deviceAsset.byteOffset).getUint32(92, true),
-  };
+async function fallback(file: File, limits: GalleryImageLimits): Promise<GalleryProcessedImage> {
+  const result = await processGalleryJpeg(file, limits);
+  const deviceAsset = buildJpegUimg(new Uint8Array(result.payload), result.frameCount);
+  return { ...result, width: 320, height: 172, deviceAsset,
+    payloadCrc32: new DataView(deviceAsset.buffer).getUint32(92, true) };
 }
 
 class GalleryImageWorkerPool {
@@ -50,13 +34,13 @@ class GalleryImageWorkerPool {
     } catch { this.supported = false; this.idle.forEach(worker => worker.terminate()); this.idle = []; }
   }
 
-  process(file: File): Promise<GalleryProcessedImage> {
+  process(file: File, limits: GalleryImageLimits): Promise<GalleryProcessedImage> {
     if (!this.supported) {
-      const task = this.fallbackTail.then(() => fallback(file));
+      const task = this.fallbackTail.then(() => fallback(file, limits));
       this.fallbackTail = task.then(() => undefined, () => undefined);
       return task;
     }
-    return new Promise((resolve, reject) => { this.queue.push({ file, resolve, reject }); this.pump(); });
+    return new Promise((resolve, reject) => { this.queue.push({ file, limits, resolve, reject }); this.pump(); });
   }
 
   private pump() {
@@ -68,7 +52,7 @@ class GalleryImageWorkerPool {
         try {
           if (event.data?.error) throw new Error(event.data.error);
           const payload = new Uint8Array(event.data.payload as ArrayBuffer);
-          const deviceAsset = buildUimgV4(payload, event.data.frameCount, event.data.fps);
+          const deviceAsset = buildJpegUimg(payload, event.data.frameCount);
           task.resolve({
             preview: event.data.preview as Blob, deviceAsset,
             width: 320, height: 172, frameCount: event.data.frameCount, fps: event.data.fps,
@@ -78,13 +62,13 @@ class GalleryImageWorkerPool {
         finish();
       };
       worker.onerror = event => { task.reject(new Error(event.message || 'Image worker failed')); finish(); };
-      worker.postMessage({ file: task.file });
+      worker.postMessage({ file: task.file, limits: task.limits });
     }
   }
 }
 
 let pool: GalleryImageWorkerPool | null = null;
-export function processGalleryImage(file: File): Promise<GalleryProcessedImage> {
+export function processGalleryImage(file: File, limits: GalleryImageLimits): Promise<GalleryProcessedImage> {
   pool ||= new GalleryImageWorkerPool();
-  return pool.process(file);
+  return pool.process(file, limits);
 }

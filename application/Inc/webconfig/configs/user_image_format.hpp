@@ -11,6 +11,10 @@ namespace HBoxUserImage {
 constexpr uint32_t MAGIC = 0x474D4955u; // "UIMG"
 constexpr uint16_t VERSION = 4u;
 constexpr uint16_t LEGACY_VERSION = 3u;
+constexpr uint16_t JPEG_VERSION = 5u;
+constexpr uint8_t FORMAT_JPEG_SEQUENCE = 3u;
+constexpr uint8_t MAX_JPEG_FRAMES = 180u;
+constexpr uint32_t MAX_JPEG_PAYLOAD_BYTES = 0x17f000u;
 constexpr uint8_t FORMAT_RGB565LE_SINGLE = 1u;
 constexpr uint8_t FORMAT_RGB565LE_SEQUENCE = 2u;
 constexpr uint32_t HEADER_SIZE = 4096u;
@@ -22,15 +26,16 @@ constexpr uint32_t FULL_FRAME_SIZE =
 constexpr uint8_t MAX_USER_FRAMES = 12u;
 constexpr uint32_t LEGACY_USER_IMAGE_OFFSET =
     HEADER_SIZE + 8u * FULL_FRAME_SIZE;
-constexpr uint8_t ANIMATION_FPS = 6u;
+constexpr uint8_t ANIMATION_FPS = 12u;
 constexpr uint8_t LEGACY_ANIMATION_FPS = 3u;
 constexpr uint16_t IMAGE_TRANSFER_FLAG_CONTINUOUS = 1u << 0;
 constexpr uint16_t IMAGE_TRANSFER_FLAG_TERMINAL_ACK_ONLY = 1u << 1;
 constexpr uint16_t IMAGE_TRANSFER_FLAG_6_FPS = 1u << 2;
+constexpr uint16_t IMAGE_TRANSFER_FLAG_JPEG = 1u << 3;
 constexpr uint16_t IMAGE_TRANSFER_REQUIRED_FLAGS =
     IMAGE_TRANSFER_FLAG_CONTINUOUS | IMAGE_TRANSFER_FLAG_TERMINAL_ACK_ONLY;
 constexpr uint16_t IMAGE_TRANSFER_SUPPORTED_FLAGS =
-    IMAGE_TRANSFER_REQUIRED_FLAGS | IMAGE_TRANSFER_FLAG_6_FPS;
+    IMAGE_TRANSFER_REQUIRED_FLAGS | IMAGE_TRANSFER_FLAG_6_FPS | IMAGE_TRANSFER_FLAG_JPEG;
 
 inline bool isSupportedImageTransferFlags(uint16_t flags)
 {
@@ -40,7 +45,7 @@ inline bool isSupportedImageTransferFlags(uint16_t flags)
 
 inline bool isSupportedAnimationFps(uint8_t fps)
 {
-    return fps == ANIMATION_FPS || fps == LEGACY_ANIMATION_FPS;
+    return fps == ANIMATION_FPS || fps == 6u || fps == LEGACY_ANIMATION_FPS;
 }
 constexpr uint8_t MAX_V3_INDEXED_FRAMES = 10u;
 constexpr uint8_t MAX_INDEXED_FRAMES = 12u;
@@ -182,6 +187,18 @@ inline bool validateStructure(const HeaderV3& header, const char* expectedId,
 inline bool validateStructure(const HeaderV4& header, const char* expectedId,
                               uint32_t areaSize, uint8_t maxFrames)
 {
+    if (header.version == JPEG_VERSION) {
+        if (header.magic != MAGIC || header.valid != 1u || header.format != FORMAT_JPEG_SEQUENCE ||
+            header.width != MAX_WIDTH || header.height != MAX_HEIGHT || header.reserved0 != 0u ||
+            header.frame_count == 0u || header.frame_count > MAX_JPEG_FRAMES ||
+            (header.frame_count == 1u ? header.fps != 0u : (header.fps != 6u && header.fps != ANIMATION_FPS)) ||
+            header.frame_size != FULL_FRAME_SIZE || header.frames_offset != HEADER_SIZE ||
+            areaSize <= HEADER_SIZE || header.total_size < 8u + 8u * header.frame_count ||
+            header.total_size > MAX_JPEG_PAYLOAD_BYTES || header.total_size > areaSize - HEADER_SIZE ||
+            !idMatches(header.id, expectedId)) return false;
+        for (auto offset : header.frame_offsets) if (offset != 0u) return false;
+        return header.header_crc32 == calculateHeaderCrc(header);
+    }
     return validateStructureVersion(header, VERSION, MAX_INDEXED_FRAMES,
                                     expectedId, areaSize, maxFrames);
 }
@@ -192,7 +209,7 @@ inline bool decodeHeader(const uint8_t* bytes, size_t length, const char* expect
     if (!bytes || length < sizeof(HeaderV4)) return false;
     uint16_t version = 0u;
     std::memcpy(&version, bytes + offsetof(HeaderV3, version), sizeof(version));
-    if (version == VERSION) {
+    if (version == VERSION || version == JPEG_VERSION) {
         std::memcpy(&out, bytes, sizeof(out));
         return validateStructure(out, expectedId, areaSize, maxFrames);
     }

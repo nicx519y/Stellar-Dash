@@ -95,6 +95,13 @@ SECTIONS
     KEEP(*(.isr_vector))
     . = ALIGN(4);
 
+    /* Codec code uses spare ITCM and is copied by the existing vector-span
+       startup copy. The vector entries themselves remain at the same address. */
+    *stm32h7xx_hal_jpeg.o(.text .text.* .rodata .rodata.*)
+    *stm32h7xx_hal_dma2d.o(.text .text.* .rodata .rodata.*)
+    *jpeg_player.o(.text .text.* .rodata .rodata.*)
+    *user_image_command_handler.o(.text .text.* .rodata .rodata.*)
+    . = ALIGN(4);
     _evector = .;           /* 添加向量表结束标记 */
   } >ITCMRAM AT>FLASH
 

@@ -3,6 +3,7 @@ import { DeviceTransportError } from './types';
 export type ImageTransferFailure =
   | 'catalog-request-failed'
   | 'fast-transfer-required'
+  | 'jpeg-required'
   | 'animation-rate'
   | 'frame-limit';
 

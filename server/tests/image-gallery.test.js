@@ -248,3 +248,23 @@ test('repeated legacy frames match after timing conversion while retaining galle
         assert.equal(store.findByFingerprint(fingerprint, null, read).scope, 'system');
     }
 });
+
+
+test('gallery accepts indexed JPEG sequences and rejects damaged compressed assets', () => {
+    const bytes = fs.readFileSync(path.resolve(__dirname, '../../common/test_vectors/uimg-jpeg/sequence.uimg'));
+    const parsed = parseUimg(bytes);
+    assert.equal(parsed.frameCount, 18); assert.equal(parsed.fps, 6);
+    assert.equal(parsed.payloadBytes, bytes.length - 4096);
+    for (const offset of [13, 96, 4096 + 8, 4096 + 200]) {
+        const damaged = Buffer.from(bytes); damaged[offset] ^= 1;
+        assert.throws(() => parseUimg(damaged));
+    }
+});
+
+
+test('gallery accepts current 12 FPS JPEG and retains legacy 6 FPS compatibility', () => {
+    for (const [name, fps] of [['sequence-12fps.uimg', 12], ['sequence.uimg', 6]]) {
+        const parsed = parseUimg(fs.readFileSync(path.resolve(__dirname, '../../common/test_vectors/uimg-jpeg', name)));
+        assert.equal(parsed.fps, fps); assert.equal(parsed.frameCount, 18);
+    }
+});

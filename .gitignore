@@ -34,8 +34,10 @@ tools/tests/__pycache__/
 *.py[cod]
 .hbox/
 server/node_modules/
+# Server runtime state and files uploaded through the admin UI.
 server/uploads/
 server/data/
+server/gallery-assets/
 temp_package/
 common/__pycache__
 

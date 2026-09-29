@@ -707,13 +707,14 @@ BinaryAckStatus describeBinaryAck(
     case kImageInfoOpcode: {
         const uint8_t requestedVersion = request[1];
         const bool extendedRequested = requestedVersion == 1u;
-        const bool fastRequested = requestedVersion == 2u;
-        const size_t expectedResponseLength = fastRequested
+        const bool capacityRequested = requestedVersion == 3u;
+        const bool fastRequested = requestedVersion >= 2u;
+        const size_t expectedResponseLength = capacityRequested ? 88u : fastRequested
             ? kFastImageInfoResponseBytes
             : extendedRequested
                 ? kExtendedImageInfoResponseBytes
                 : kImageInfoResponseBytes;
-        if (requestedVersion > 2u ||
+        if (requestedVersion > 3u ||
             responseLength != expectedResponseLength ||
             loadLe32(&response[2]) != loadLe32(&request[2]) ||
             response[6] > 1u || response[7] > 1u) {
@@ -728,7 +729,7 @@ BinaryAckStatus describeBinaryAck(
             return BinaryAckStatus::ProtocolError;
         }
         if (fastRequested &&
-            (response[64] != 4u ||
+            (response[64] != (capacityRequested ? 5u : 4u) ||
              response[65] == 0u || response[65] > HBoxUserImage::MAX_USER_FRAMES ||
              response[66] != 0u || response[67] != 0u ||
              response[76] != 3u || response[77] != 0u ||
@@ -736,6 +737,8 @@ BinaryAckStatus describeBinaryAck(
              !HBoxUserImage::isSupportedImageTransferFlags(loadLe16(&response[80])))) {
             return BinaryAckStatus::ProtocolError;
         }
+        if (capacityRequested && (loadLe32(&response[82]) < 20u || response[86] == 0u ||
+            response[87] != HBoxUserImage::ANIMATION_FPS)) return BinaryAckStatus::ProtocolError;
         cJSON_AddStringToObject(ack, "kind", "image.info");
         cJSON_AddNumberToObject(
             ack, "cid", loadLe32(&response[2]));

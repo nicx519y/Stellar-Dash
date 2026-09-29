@@ -428,7 +428,7 @@ void testCatalogThroughRpcValidator()
     UserImageCommandHandler::handleBinaryMessage(
         reinterpret_cast<const uint8_t *>(&request), sizeof(request));
     require(reply.size() == 82u && reply[1] == 1u &&
-                reply[6] == 1u && loadLe16(&reply[80]) == 7u,
+                reply[6] == 1u && loadLe16(&reply[80]) == 15u,
             "real catalog must advertise the stored image and 6 FPS capability");
     const auto catalog = reply;
     auto validate = [&]() {
@@ -450,7 +450,7 @@ void testCatalogThroughRpcValidator()
     reply[80] = 3u;
     require(validate() == BinaryAckStatus::Accepted,
             "RPC must accept legacy transfer capability flags");
-    for (const uint8_t flags : {0u, 1u, 2u, 4u, 5u, 6u, 11u, 15u}) {
+    for (const uint8_t flags : {0u, 1u, 2u, 4u, 5u, 6u, 19u, 31u}) {
         reply = catalog;
         reply[80] = flags;
         require(validate() == BinaryAckStatus::ProtocolError,
@@ -466,8 +466,54 @@ void testCatalogThroughRpcValidator()
     reply.pop_back();
     require(validate() == BinaryAckStatus::ProtocolError,
             "truncated catalog must fail closed");
+    request.reserved = 3u;
+    UserImageCommandHandler::handleBinaryMessage(reinterpret_cast<const uint8_t*>(&request), sizeof(request));
+    require(reply.size() == 88u && reply[64] == 5u && reply[86] == 180u && reply[87] == 12u,
+            "capacity catalog must advertise 12 FPS and JPEG frame limit");
+    require(loadLe32(&reply[82]) == kUserArea - HBoxUserImage::HEADER_SIZE,
+            "capacity must derive from current device partition");
+    require(validate() == BinaryAckStatus::Accepted, "RPC must accept capacity catalog");
+    reply[86] = 0u;
+    require(validate() == BinaryAckStatus::ProtocolError, "zero frame capacity must be rejected");
     require(writes.size() == 2u,
             "catalog reads and RPC validation must not write flash");
+}
+
+void testJpegSequenceCommitAndMalformedDirectory()
+{
+    std::FILE* file = std::fopen("common/test_vectors/uimg-jpeg/sequence-12fps.uimg", "rb");
+    require(file != nullptr, "JPEG golden asset is required");
+    std::fseek(file, 0, SEEK_END); const long size = std::ftell(file); std::rewind(file);
+    std::vector<uint8_t> asset(static_cast<size_t>(size));
+    require(std::fread(asset.data(), 1, asset.size(), file) == asset.size(), "read JPEG fixture");
+    std::fclose(file);
+    std::vector<uint8_t> payload(asset.begin() + 4096, asset.end());
+    for (bool damage : {false, true}) {
+        resetFixture();
+        auto bytes = payload;
+        if (damage) bytes[8] ^= 4u; // Valid CRC, invalid first JPEG frame offset.
+        Begin request;
+        request.imageType = 2; request.cid = 50; request.width = 320; request.height = 172;
+        request.frameCount = 18; request.fps = 12; request.total = bytes.size();
+        request.payloadCrc32 = CRC32::calculate(bytes.data(), bytes.size());
+        UserImageCommandHandler::handleBinaryMessage(reinterpret_cast<const uint8_t*>(&request), sizeof(request));
+        require(replySucceeded(0xb0u), "JPEG BEGIN permits variable size and more than twelve frames");
+        stream(bytes); mutate(0x32u, 50);
+        if (damage) {
+            require(!replySucceeded(0xb2u), "malformed JPEG directory must not commit");
+            require(storedUserHeader().magic == UINT32_MAX, "invalid JPEG must leave header uncommitted");
+        } else {
+            require(replySucceeded(0xb2u), "valid JPEG sequence must commit");
+            const auto header = storedUserHeader();
+            require(header.version == 5 && header.format == 3 && header.frame_count == 18 && header.fps == 12,
+                    "JPEG header must preserve compressed size and timeline");
+            require(std::memcmp(flash.data() + offsetOf(kUserBase) + 4096, bytes.data(), bytes.size()) == 0,
+                    "JPEG payload must survive stream and Flash readback intact");
+            require(writes.back().first == offsetOf(kUserBase), "JPEG header is committed last");
+            require(UserImageCommandHandler::isBackgroundImageAvailable(HBoxUserImage::USER_ID),
+                    "JPEG image must be readable after commit");
+        }
+    }
 }
 
 void testLastAndTimeoutValidation()
@@ -554,6 +600,7 @@ int main()
     testCapacityAndDeleteFailure();
     testPageStreamingTailAndWriteFailure();
     testCatalogThroughRpcValidator();
+    testJpegSequenceCommitAndMalformedDirectory();
     testLastAndTimeoutValidation();
     std::puts("user image QSPI reliability tests passed");
     return 0;

@@ -1,3 +1,4 @@
+import { JPEG_CAPABILITY, JPEG_FORMAT, validateJpegPayload } from '../../../../common/uimg-jpeg.cjs';
 import { firmwareRuntime as mockFirmwareCatalog } from '../admin/firmware-mock';
 import { mockInstallPackage, mockVerificationKey } from '../admin/firmware-install-mock';
 import type { FirmwareInventory } from './release-install-client';
@@ -69,6 +70,8 @@ export interface MockStorage {
 }
 
 export interface MockDeviceTransportOptions {
+  imageCapacityBytes?: number;
+  maxJpegFrames?: number;
   /** Test-only gate: hold or reject a command before the simulated device acts. */
   beforeRequest?: (command: string, params: Record<string, unknown>) => Promise<void>;
   /**
@@ -316,7 +319,11 @@ export class MockDeviceTransport implements DeviceTransport {
   private readonly storageKey: string;
   private readonly beforeRequest?: MockDeviceTransportOptions['beforeRequest'];
 
+  private readonly imageCapacityBytes: number;
+  private readonly maxJpegFrames: number;
   constructor(options: MockDeviceTransportOptions = {}) {
+    this.imageCapacityBytes = options.imageCapacityBytes ?? 0x17f000;
+    this.maxJpegFrames = options.maxJpegFrames ?? 180;
     this.beforeRequest = options.beforeRequest;
     this.storage = options.storage === undefined
       ? getBrowserSessionStorage()
@@ -1269,7 +1276,8 @@ export class MockDeviceTransport implements DeviceTransport {
       const height = request.getUint16(8, true);
       const frameCount = Math.max(1, request.getUint8(14));
       const fps = request.getUint8(15);
-      const format = request.getUint8(1) === 1 ? 2 : 1;
+      const format = request.getUint8(1) === 2 ? JPEG_FORMAT : request.getUint8(1) === 1 ? 2 : 1;
+      const jpeg = format === JPEG_FORMAT;
       const frameSize = width * height * 2;
       const transferVersion = request.getUint8(16);
       const reserved = request.getUint8(17);
@@ -1277,11 +1285,11 @@ export class MockDeviceTransport implements DeviceTransport {
       const valid = total > 0
         && width > 0 && width <= 320
         && height > 0 && height <= 172
-        && frameCount >= 1 && frameCount <= UIMG_MAX_FRAMES
+        && frameCount >= 1 && frameCount <= (jpeg ? this.maxJpegFrames : UIMG_MAX_FRAMES)
         && transferVersion === 3
         && reserved === 0
-        && total === frameSize * frameCount
-        && ((frameCount === 1 && format === 1 && fps === 0)
+        && (jpeg ? total <= this.imageCapacityBytes && total >= 8 + frameCount * 8 && width === 320 && height === 172 : total === frameSize * frameCount)
+        && ((jpeg && (frameCount === 1 ? fps === 0 : fps === 6 || fps === 12)) || (frameCount === 1 && format === 1 && fps === 0)
           || (frameCount > 1 && format === 2 && isSupportedImageFps(frameCount, fps)));
       if (valid) {
         this.imageTransfers.set(cid, {
@@ -1317,10 +1325,13 @@ export class MockDeviceTransport implements DeviceTransport {
     if (command === 0x32 && bytes.byteLength >= 6) {
       const cid = request.getUint32(2, true);
       const transfer = this.imageTransfers.get(cid);
-      const valid = !!transfer
+      let valid = !!transfer
         && transfer.lastReceived
         && transfer.received === transfer.data.byteLength
         && crc32(transfer.data) === transfer.expectedCrc32;
+      if (transfer && valid && transfer.format === JPEG_FORMAT) {
+        try { validateJpegPayload(transfer.data, transfer.frameCount, transfer.width, transfer.height); } catch { valid = false; }
+      }
       if (transfer && valid) {
         this.images.user = {
           width: transfer.width,
@@ -1358,8 +1369,9 @@ export class MockDeviceTransport implements DeviceTransport {
     if (command === 0x34 && bytes.byteLength >= 6) {
       const requestedVersion = request.getUint8(1);
       const extended = requestedVersion === 1;
-      const fast = requestedVersion === 2;
-      const response = new ArrayBuffer(fast ? 82 : extended ? 76 : 64);
+      const capacity = requestedVersion === 3;
+      const fast = requestedVersion >= 2;
+      const response = new ArrayBuffer(capacity ? 88 : fast ? 82 : extended ? 76 : 64);
       const view = new DataView(response);
       view.setUint8(0, 0xb4);
       view.setUint8(1, 1);
@@ -1367,7 +1379,7 @@ export class MockDeviceTransport implements DeviceTransport {
       writeImageInfo(view, 6, this.images.user);
       writeImageInfo(view, 7, this.images.system);
       if (extended || fast) {
-        view.setUint8(64, fast ? 4 : 2);
+        view.setUint8(64, capacity ? 5 : fast ? 4 : 2);
         view.setUint8(65, UIMG_MAX_FRAMES);
         view.setUint8(66, 0);
         view.setUint8(67, 0);
@@ -1377,7 +1389,12 @@ export class MockDeviceTransport implements DeviceTransport {
       if (fast) {
         view.setUint8(76, 3);
         view.setUint16(78, 996, true);
-        view.setUint16(80, 0x0003 | IMAGE_TRANSFER_FLAG_6_FPS, true);
+        view.setUint16(80, 0x0003 | IMAGE_TRANSFER_FLAG_6_FPS | JPEG_CAPABILITY, true);
+      }
+      if (capacity) {
+        view.setUint32(82, this.imageCapacityBytes, true);
+        view.setUint8(86, this.maxJpegFrames);
+        view.setUint8(87, 12);
       }
       return response;
     }

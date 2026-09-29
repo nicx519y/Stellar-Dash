@@ -6,6 +6,7 @@ export const UIMG_HEIGHT = 172;
 export const UIMG_MAX_FRAMES = 6;
 
 export type ParsedUimgV3 = {
+  format?: number;
   width: number;
   height: number;
   frameCount: number;

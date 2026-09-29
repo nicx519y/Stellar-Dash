@@ -1,3 +1,5 @@
+#include "screen_control/jpeg_player.hpp"
+#include "configs/user_image_jpeg.hpp"
 #include "screen_control/spi_screen_standby.hpp"
 
 #include <string.h>
@@ -28,6 +30,8 @@ static uint16_t g_image_w = 0;
 static uint16_t g_image_h = 0;
 static uint8_t g_anim_frame_count = 1;
 static uint8_t g_anim_fps = 0;
+static bool g_jpeg = false;
+static uint32_t g_jpeg_epoch = 0, g_jpeg_last_offset = 0;
 static uint32_t g_anim_frame_size = 0;
 static uint32_t g_image_base_addr = 0;
 static uint8_t g_anim_frame_index = 0;
@@ -57,6 +61,8 @@ static bool ensure_qspi_mmap(void)
 
 static void reset_image_runtime(void)
 {
+    ScreenJpeg_Cancel();
+    g_jpeg = false; g_jpeg_last_offset = 0;
     g_image_source_ready = false;
     g_image_source_valid = false;
     g_image_kind = STANDBY_IMAGE_NONE;
@@ -103,6 +109,7 @@ static void adopt_uimg_source(uint32_t baseAddr,
     g_image_h = header.height;
     g_anim_frame_count = header.frame_count;
     g_anim_fps = header.fps;
+    g_jpeg = header.format == HBoxUserImage::FORMAT_JPEG_SEQUENCE;
     g_anim_frame_size = header.frame_size;
 }
 
@@ -133,6 +140,10 @@ static bool resolve_uimg_source(const char* imageId)
         LOG_WARN("ScreenStandby", "Rejected invalid UIMG asset: %s", imageId);
         return false;
     }
+    if (header.format == HBoxUserImage::FORMAT_JPEG_SEQUENCE &&
+        !HBoxUserImage::validateJpegPayload([&](uint32_t offset, uint8_t* out, uint32_t length) {
+            memcpy(out, base + HBoxUserImage::HEADER_SIZE + offset, length); return true;
+        }, header.total_size, header.frame_count, header.width, header.height)) return false;
     adopt_uimg_source(baseAddr, header);
     return true;
 }
@@ -205,6 +216,7 @@ static void draw_button_layout(ST7789_Handle* lcd, uint32_t inputMask)
 
 void ScreenStandby_Init(uint32_t nowMs, uint32_t inputMask)
 {
+    ScreenJpeg_Cancel();
     g_active = false;
     g_need_redraw = true;
     g_last_activity_ms = nowMs;
@@ -238,6 +250,7 @@ void ScreenStandby_InvalidateImageCache(void)
 {
     reset_image_runtime();
     if (g_display == 1u) {
+        ScreenJpeg_Cancel();
         g_active = false;
         g_last_activity_ms = HAL_GetTick();
     }
@@ -255,7 +268,8 @@ void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool screenIn
     if (screenInputEvent) {
         g_last_activity_ms = nowMs;
         if (g_active) {
-            g_active = false;
+            ScreenJpeg_Cancel();
+    g_active = false;
             g_need_redraw = true;
         }
     }
@@ -282,6 +296,7 @@ bool ScreenStandby_IsActive(void)
 bool ScreenStandby_Deactivate(void)
 {
     if (!g_active) return false;
+    ScreenJpeg_Cancel();
     g_active = false;
     g_need_redraw = true;
     g_anim_frame_index = 0u;
@@ -302,6 +317,22 @@ void ScreenStandby_Render(ST7789_Handle* lcd, uint32_t inputMask)
     if (!lcd || !g_active) return;
     if (g_display == 1u) {
         ensure_image_source();
+        if (g_image_source_valid && g_jpeg) {
+            const uint32_t now = HAL_GetTick();
+            if (g_need_redraw) { g_jpeg_epoch = now; g_jpeg_last_offset = 0; }
+            const uint8_t frame = g_anim_fps ? uint8_t((uint32_t(now - g_jpeg_epoch) / 1000u * g_anim_fps +
+                (uint32_t(now - g_jpeg_epoch) % 1000u) * g_anim_fps / 1000u) % g_anim_frame_count) : 0u;
+            const auto* payload = reinterpret_cast<const uint8_t*>(g_image_base_addr + HBoxUserImage::HEADER_SIZE);
+            const uint32_t offset = HBoxUserImage::jpegLe32(payload + 8u + frame * 8u);
+            const uint32_t length = HBoxUserImage::jpegLe32(payload + 12u + frame * 8u);
+            if (offset != g_jpeg_last_offset) {
+                if (!ScreenJpeg_Begin(payload + offset, (length + 3u) & ~3u, lcd)) {
+                    g_image_source_valid = false; ST7789_FillScreen(lcd, g_bg);
+                } else g_jpeg_last_offset = offset;
+            }
+            g_need_redraw = false;
+            return;
+        }
         bool animated = g_image_source_valid && g_image_kind == STANDBY_IMAGE_UIMG && g_anim_frame_count > 1u && g_anim_fps > 0u;
         uint32_t nowMs = HAL_GetTick();
         bool needFrame = g_need_redraw;

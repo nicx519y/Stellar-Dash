@@ -1,3 +1,4 @@
+#include "configs/user_image_jpeg.hpp"
 #include "configs/user_image_command_handler.hpp"
 #include "configs/user_image_format.hpp"
 #include "qspi-w25q64.h"
@@ -154,6 +155,13 @@ struct BinaryGetBgImageInfoResponseV3 {
     uint16_t image_transfer_flags;
 };
 
+struct BinaryGetBgImageInfoResponseV4 {
+    BinaryGetBgImageInfoResponseV3 v3;
+    uint32_t max_payload_bytes;
+    uint8_t max_jpeg_frames;
+    uint8_t max_animation_fps;
+};
+
 struct BinaryReadBgImageChunkResponseHeader {
     uint8_t command;
     uint8_t success;
@@ -176,6 +184,7 @@ static_assert(sizeof(BinaryGetBgImageInfoResponseV2) == 76u,
               "Extended image catalog response ABI changed");
 static_assert(sizeof(BinaryGetBgImageInfoResponseV3) == 82u,
               "Fast image catalog response ABI changed");
+static_assert(sizeof(BinaryGetBgImageInfoResponseV4) == 88u, "Image capacity catalog ABI changed");
 static_assert(sizeof(BinaryUserImageBeginHeaderV3) == 22u,
               "Fast image begin request ABI changed");
 static_assert(sizeof(BinaryUserImageCommitResponseV2) == 83u,
@@ -526,7 +535,8 @@ void UserImageCommandHandler::initializeStorageMigration() {
 }
 
 static void send_get_bg_info_response(uint32_t cid, uint8_t requested_version) {
-    BinaryGetBgImageInfoResponseV3 response = {0};
+    BinaryGetBgImageInfoResponseV4 full = {0};
+    auto& response = full.v3;
     BinaryGetBgImageInfoResponseV2& v2 = response.v2;
     BinaryGetBgImageInfoResponse& resp = v2.legacy;
     resp.command = BINARY_CMD_GET_BG_IMAGE_INFO_RESP;
@@ -546,20 +556,23 @@ static void send_get_bg_info_response(uint32_t cid, uint8_t requested_version) {
         v2.user_crc32 = userIdx.payload_crc32;
     }
 
-    v2.catalog_version = requested_version >= 2u ? 4u : 2u;
+    v2.catalog_version = requested_version >= 3u ? 5u : requested_version >= 2u ? 4u : 2u;
     v2.max_user_frames = HBoxUserImage::MAX_USER_FRAMES;
     v2.max_system_frames = 0u;
     response.image_transfer_version = IMAGE_TRANSFER_VERSION;
     response.image_data_bytes_per_report = IMAGE_DATA_BYTES_PER_REPORT;
     response.image_transfer_flags =
         HBoxUserImage::IMAGE_TRANSFER_SUPPORTED_FLAGS;
-    const size_t response_size = requested_version >= 2u
+    full.max_payload_bytes = USER_IMAGE_AREA_SIZE - HBoxUserImage::HEADER_SIZE;
+    full.max_jpeg_frames = HBoxUserImage::MAX_JPEG_FRAMES;
+    full.max_animation_fps = HBoxUserImage::ANIMATION_FPS;
+    const size_t response_size = requested_version >= 3u ? sizeof(full) : requested_version >= 2u
         ? sizeof(response)
         : requested_version == 1u
             ? sizeof(v2)
             : sizeof(v2.legacy);
     ConfigTransport_ReplyBinary(
-        reinterpret_cast<const uint8_t *>(&response),
+        reinterpret_cast<const uint8_t *>(&full),
         response_size);
 }
 
@@ -647,18 +660,20 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
                 send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "Invalid dimensions");
                 break;
             }
-            if (frame_count == 0u || frame_count > HBoxUserImage::MAX_USER_FRAMES) {
-                send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "Too many frames (max 12)");
+            if (frame_count == 0u || frame_count > (image_type == 2u ? HBoxUserImage::MAX_JPEG_FRAMES : HBoxUserImage::MAX_USER_FRAMES)) {
+                send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, image_type == 2u ? "Too many JPEG frames (max 180)" : "Too many frames (max 12)");
                 break;
             }
-            if ((frame_count == 1u && (image_type != 0u || fps != 0u)) ||
-                (frame_count > 1u && (image_type != 1u || !HBoxUserImage::isSupportedAnimationFps(fps)))) {
+            if ((image_type == 2u && (width != 320u || height != 172u || (frame_count == 1u ? fps != 0u : (fps != 6u && fps != HBoxUserImage::ANIMATION_FPS)))) ||
+                (image_type != 2u && ((frame_count == 1u && (image_type != 0u || fps != 0u)) ||
+                (frame_count > 1u && (image_type != 1u || !HBoxUserImage::isSupportedAnimationFps(fps)))))) {
                 send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "Invalid animation metadata");
                 break;
             }
             const uint32_t frame_size = static_cast<uint32_t>(width) * static_cast<uint32_t>(height) * 2u;
             const uint32_t expected_size = frame_size * static_cast<uint32_t>(frame_count);
-            if (total_size == 0u || expected_size != total_size) {
+            if (total_size == 0u || (image_type != 2u && expected_size != total_size) ||
+                (image_type == 2u && total_size < 8u + frame_count * 8u)) {
                 send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "Size mismatch");
                 break;
             }
@@ -697,7 +712,7 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
             g_user_image_upload_session.erase_ms = erase_ms;
             g_user_image_upload_session.frame_count = frame_count;
             g_user_image_upload_session.fps = fps;
-            g_user_image_upload_session.format = frame_count > 1u
+            g_user_image_upload_session.format = image_type == 2u ? HBoxUserImage::FORMAT_JPEG_SEQUENCE : frame_count > 1u
                 ? HBoxUserImage::FORMAT_RGB565LE_SEQUENCE
                 : HBoxUserImage::FORMAT_RGB565LE_SINGLE;
             g_user_image_upload_crc.reset();
@@ -776,9 +791,19 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
                 break;
             }
 
+            const bool jpeg = g_user_image_upload_session.format == HBoxUserImage::FORMAT_JPEG_SEQUENCE;
+            if (jpeg && !HBoxUserImage::validateJpegPayload([](uint32_t offset, uint8_t* out, uint32_t length) {
+                    return qspi_read_bytes(USER_IMAGE_BASE_ADDR + HBoxUserImage::HEADER_SIZE + offset, out, length);
+                }, g_user_image_upload_session.total, g_user_image_upload_session.frame_count,
+                g_user_image_upload_session.width, g_user_image_upload_session.height)) {
+                send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT_RESP, false, h->cid,
+                    g_user_image_upload_session.received, g_user_image_upload_session.total, "Invalid JPEG sequence");
+                clear_user_image_upload_session();
+                break;
+            }
             HeaderV4 idx = {0};
             idx.magic = HBoxUserImage::MAGIC;
-            idx.version = HBoxUserImage::VERSION;
+            idx.version = jpeg ? HBoxUserImage::JPEG_VERSION : HBoxUserImage::VERSION;
             idx.valid = 1u;
             idx.format = g_user_image_upload_session.format;
             idx.width = g_user_image_upload_session.width;
@@ -789,7 +814,7 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
             idx.frames_offset = HBoxUserImage::HEADER_SIZE;
             idx.total_size = g_user_image_upload_session.total;
             for (uint32_t i = 0; i < HBoxUserImage::MAX_INDEXED_FRAMES; i++) {
-                if (i < idx.frame_count) {
+                if (!jpeg && i < idx.frame_count) {
                     idx.frame_offsets[i] = idx.frames_offset + i * idx.frame_size;
                 } else {
                     idx.frame_offsets[i] = 0;

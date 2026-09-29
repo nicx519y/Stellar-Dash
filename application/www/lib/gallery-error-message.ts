@@ -16,6 +16,7 @@ const deviceErrors: Partial<Record<DeviceTransportError['code'], [string, string
 };
 
 const knownErrors: Record<string, [string, string]> = {
+  'Failed to fetch': ['图片数据读取失败，请检查网络连接或浏览器控制台中的拦截信息。', 'Could not read image data. Check the connection or blocked requests in the browser console.'],
   'Gallery image verification failed': ['图库图片校验失败，请重新加载后重试。', 'Gallery image verification failed. Reload and try again.'],
   'Gallery source image is invalid': ['图库原图无效，请重新上传。', 'The gallery source image is invalid. Upload it again.'],
   'Gallery upload failed': ['图库上传失败，请检查网络后重试。', 'Gallery upload failed. Check your connection and try again.'],
@@ -38,6 +39,12 @@ const galleryApiErrors: Record<string, [string, string]> = {
 };
 
 export function galleryErrorMessage(error: unknown, language: Language): string {
+  const message = error instanceof Error ? error.message : '';
+  const capacity = /^Image capacity exceeded: (\d+)\/(\d+)$/.exec(message);
+  const frames = /^Image frame limit exceeded: (\d+)\/(\d+)$/.exec(message);
+  if (capacity) return language === 'zh' ? `JPEG 序列需要 ${capacity[1]} 字节，超过设备容量 ${capacity[2]} 字节，无法安装。请缩短 GIF 后重试。` : `JPEG sequence needs ${capacity[1]} bytes; device capacity is ${capacity[2]} bytes. Installation blocked. Shorten the GIF and retry.`;
+  if (frames) return language === 'zh' ? `GIF 需要 ${frames[1]} 帧，超过设备上限 ${frames[2]} 帧，无法安装。请缩短 GIF。` : `GIF needs ${frames[1]} frames; the device supports ${frames[2]}. Installation blocked. Shorten the GIF.`;
+  if (message === 'Image capacity unavailable') return language === 'zh' ? '无法获取设备图片容量或设备不支持 12 FPS。请连接设备并升级固件后重试。' : 'Image capacity or 12 FPS support is unavailable. Connect the device and update its firmware.';
   const zh = language === 'zh';
   if (error instanceof GalleryApiError) {
     const message = galleryApiErrors[error.code];
@@ -60,10 +67,12 @@ export function galleryErrorMessage(error: unknown, language: Language): string 
         return zh
           ? `设备固件最多支持 ${error.maxFrames} 帧图片，请先升级设备固件。`
           : `The device firmware supports at most ${error.maxFrames} image frames. Update the device firmware first.`;
+      case 'jpeg-required':
+        return zh ? '此图片需要支持 JPEG 的设备固件，请先升级固件。' : 'This image requires device firmware with JPEG support. Update the firmware first.';
       case 'animation-rate':
         return zh
-          ? '设备固件尚不支持 6 FPS 动图，请先升级设备固件。当前图片未被修改。'
-          : 'The device firmware does not support 6 FPS animations yet. Update it first. The current image was not changed.';
+          ? '设备固件尚不支持 12 FPS 动图，请先升级设备固件。当前图片未被修改。'
+          : 'The device firmware does not support 12 FPS animations yet. Update it first. The current image was not changed.';
     }
   }
   if (error instanceof DeviceTransportError) {

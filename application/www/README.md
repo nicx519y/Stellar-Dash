@@ -144,24 +144,25 @@ not be deployed as the genuine-device V2 site.
 
 ## Background image compatibility
 
-GIF conversion uses 6 FPS and at most 12 RGB565 frames (up to two seconds of
-device playback). Both the worker and canvas fallback use the same frame
-selection policy: sample the original timeline every 1/6 second, repeat held
-frames, and capture only the first two seconds when capacity is exceeded.
-Long clips are never compressed to fit; the final partial tick can extend a
-short clip by less than 1/6 second. Gallery cards display the original animated GIF; device
-playback uses the sampled frames. The WebHID payload limit is shared with UIMG
-v4 so twelve-frame images reach the transport intact.
+New uploads use baseline JPEG frames in UIMG v5 (320 × 172, browser quality
+0.82). GIF conversion samples the original timeline at 12 FPS and shares identical
+JPEG frames without changing held-frame duration. Before conversion, WebConfig
+requests the connected device's capacity catalog v5. It reports payload byte
+capacity, JPEG frame limit and maximum animation FPS; there is no Flash-size
+fallback in the frontend. Personal and official gallery conversion require a
+connected compatible device.
 
-Image catalog transfer flag bit 2 advertises 6 FPS support. The client checks
-this before BEGIN, which erases the previous image. Existing UIMG v3/v4 files
-at 3 FPS remain readable; installation repeats each verified frame twice to
-preserve its timing at 6 FPS, capturing at most the first two seconds. Server
-fingerprint matching recognizes this conversion with the same publication and
-owner checks. Previously converted GIF assets already missing original frame
-delays must be regenerated from the source GIF to recover those delays. Existing installed images retain
-their stored rate until replaced. Deploy the server, WebConfig and matching
-STM32 firmware together; a WebConfig update alone does not update the device.
+The complete sequence is converted and checked against the reported capacity.
+Excess bytes or frames cause an error; no prefix is saved or installed. Installation
+queries the device again inside the serialized upload transaction and rejects
+oversized assets before BEGIN can erase the current image. Missing capacity
+metadata blocks installation. Existing GIF assets at older rates are regenerated
+from their original source at 12 FPS before installing; their timeline is not sped up.
+
+The firmware currently reports 180 JPEG playback ticks (15 seconds at 12 FPS),
+with actual byte capacity derived from its image partition. Old installed 3/6 FPS
+assets remain readable at their stored rate until replaced. Deploy the server,
+WebConfig and firmware together. See [JPEG format and playback](../../docs/jpeg-image-format.md).
 
 ## Connection and account behavior
 

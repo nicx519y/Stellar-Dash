@@ -1559,7 +1559,7 @@ test('typed image client covers upload, catalog, read and delete without publish
     fps: 0,
   });
   const catalog = await adapter.getImageCatalog();
-  assert.equal(catalog.protocolVersion, 4);
+  assert.equal(catalog.protocolVersion, 5);
   assert.equal(catalog.maxUserFrames, 12);
   assert.equal(catalog.maxSystemFrames, 0);
   assert.equal(catalog.imageTransferVersion, 3);
@@ -2244,12 +2244,12 @@ test('whole-release Mock installs, reloads, reinstalls and recovers a TX failure
 });
 
 
-test('GIF sampling defaults to six FPS across a one-second loop', () => {
+test('GIF sampling defaults to twelve FPS across a one-second loop', () => {
   const { frameTimesUs, totalUs } = gifFrameTimelineUs(Array.from({ length: 25 }, () => ({ delay: 40 })));
   const selected = selectGifFrameIndices(frameTimesUs, totalUs);
-  assert.equal(selected.length, 6);
+  assert.equal(selected.length, 12);
   assert.equal(selected[0], 0);
-  assert.equal(selected.at(-1), 20);
+  assert.equal(selected.at(-1), 22);
 });
 
 test('six FPS support and image metadata are checked before destructive BEGIN', async () => {
@@ -2275,4 +2275,76 @@ test('six FPS support and image metadata are checked before destructive BEGIN', 
   await assert.rejects(adapter.uploadImage({width:1,height:1,data:new Uint8Array(4),frameCount:2,fps:5}), /metadata/);
   assert.equal(begins, 0);
   adapter.dispose();
+});
+
+
+test('JPEG upload, catalog, readback and backup restore preserve compressed 18-frame payload', async () => {
+  const { parseJpegUimg } = require('../../../common/uimg-jpeg.cjs');
+  const parsed = parseJpegUimg(new Uint8Array(fs.readFileSync(path.resolve(__dirname, '../../../common/test_vectors/uimg-jpeg/sequence.uimg'))));
+  const transport = new MockDeviceTransport({ storage: null });
+  const client = new DeviceCommandClient(transport);
+  try {
+    await client.connect(); client.markReady();
+    assert.equal((await client.uploadImage({ ...parsed, data: parsed.payload })).success, true);
+    const catalog = await client.getImageCatalog();
+    assert.equal(catalog.user.format, 3); assert.equal(catalog.user.frameCount, 18);
+    assert.equal(catalog.user.size, parsed.payload.length);
+    assert.deepEqual(await client.readImage('user', parsed.payload.length), parsed.payload);
+    const backup = await client.exportConfig();
+    await client.deleteImage(); await client.importConfig(backup);
+    assert.deepEqual(await client.readImage('user', parsed.payload.length), parsed.payload);
+    const request = transport.request.bind(transport); let begins = 0;
+    transport.request = async (command, params, options) => {
+      const opcode = command === 'binary.exchange' ? Buffer.from(params.data, 'base64')[0] : 0;
+      if (opcode === 0x30) begins++;
+      const envelope = await request(command, params, options);
+      if (opcode !== 0x34) return envelope;
+      const bytes = Buffer.from(envelope.data.data, 'base64'); bytes.writeUInt16LE(7, 80);
+      return { ...envelope, data: { ...envelope.data, data: bytes.toString('base64') } };
+    };
+    await assert.rejects(client.uploadImage({ ...parsed, data: parsed.payload }), error => error.reason === 'jpeg-required');
+    assert.equal(begins, 0);
+  } finally { client.dispose(); }
+});
+
+
+test('12 FPS installation uses each device capacity and fails before BEGIN without altering installed data', async () => {
+  const { parseJpegUimg } = require('../../../common/uimg-jpeg.cjs');
+  const parsed = parseJpegUimg(new Uint8Array(fs.readFileSync(path.resolve(__dirname, '../../../common/test_vectors/uimg-jpeg/sequence-12fps.uimg'))));
+  assert.equal(parsed.fps, 12);
+  for (const capacity of [parsed.payload.length - 1, parsed.payload.length, parsed.payload.length + 100]) {
+    const transport = new MockDeviceTransport({ storage: null, imageCapacityBytes: capacity });
+    const client = new DeviceCommandClient(transport);
+    try {
+      await client.connect();client.markReady();
+      await client.uploadImage({width:1,height:1,data:Uint8Array.of(1,2),frameCount:1,fps:0});
+      const original = await client.getImageCatalog();
+      assert.equal(original.maxImagePayloadBytes, capacity); assert.equal(original.maxAnimationFps, 12);
+      const request=transport.request.bind(transport);let begins=0;
+      transport.request=async(command,params,options)=>{
+        if(command==='binary.exchange' && Buffer.from(params.data,'base64')[0]===0x30)begins++;
+        return request(command,params,options);
+      };
+      if(capacity < parsed.payload.length){
+        await assert.rejects(client.uploadImage({...parsed,data:parsed.payload}),/Image capacity exceeded/);
+        assert.equal(begins,0);assert.deepEqual((await client.getImageCatalog()).user,original.user);
+      } else {
+        await client.uploadImage({...parsed,data:parsed.payload}); assert.equal(begins,1);
+        assert.equal((await client.getImageCatalog()).user.fps,12);
+        assert.deepEqual(await client.readImage('user',parsed.payload.length),parsed.payload);
+      }
+      // Capacity must be fetched again; an older response cannot inherit a cached limit.
+      transport.request=async(command,params,options)=>{
+        const opcode=command==='binary.exchange'?Buffer.from(params.data,'base64')[0]:0;
+        if(opcode===0x30)begins++;
+        const response=await request(command,params,options);
+        if(opcode!==0x34)return response;
+        const bytes=Buffer.from(response.data.data,'base64').subarray(0,82);bytes[64]=4;
+        return {...response,data:{...response.data,data:bytes.toString('base64')}};
+      };
+      const before=begins;
+      await assert.rejects(client.uploadImage({...parsed,data:parsed.payload}),/Image capacity unavailable/);
+      assert.equal(begins,before);
+    } finally {client.dispose();}
+  }
 });

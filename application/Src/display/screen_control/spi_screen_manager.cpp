@@ -1,3 +1,4 @@
+#include "screen_control/jpeg_player.hpp"
 #include "screen_control/lcd_wake_frame.hpp"
 #include "screen_control/spi_screen_manager.hpp"
 
@@ -448,6 +449,7 @@ void SPIScreenManager::shutdown() {
         return;
     }
 
+    ScreenJpeg_Cancel();
     SPIST7789_DeInit();
     APP_STAGE("S90", "screen hardware shut down");
     memset(&g_lcd, 0, sizeof(g_lcd));
@@ -656,6 +658,12 @@ void SPIScreenManager::loop() {
     }
     if (!g_inited) return;
     SPIST7789_Service();
+    if (ScreenJpeg_Active()) {
+        const int jpeg = ScreenJpeg_Poll();
+        if (jpeg > 0) ST7789_FrameEnd(&g_lcd);
+        if (jpeg < 0) ScreenStandby_Deactivate();
+        return;
+    }
     // RF cold restart can outlast the LCD's first-frame deadline. Once LCD
     // resume has requested a fresh frame, service/render it while the input
     // owner is still restoring. Otherwise no frame is ever submitted before
@@ -773,6 +781,7 @@ void SPIScreenManager::loop() {
     } else {
         renderFrame();
     }
+    if (ScreenJpeg_Active()) return; // Never publish a partially decoded frame.
     ST7789_FrameEnd(&g_lcd);
     if (g_wakeBacklightPending && !g_lcd.dirty_valid) g_wakeFrame.submitted();
     if (firstFrame) {

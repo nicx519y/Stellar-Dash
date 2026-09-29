@@ -1,5 +1,7 @@
 'use client';
 
+import { JPEG_FORMAT, JPEG_MAX_FRAMES } from '../../../common/uimg-jpeg.cjs';
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Dialog, Flex, Grid, HStack, Image, Spinner, Tabs, Text, VStack } from '@chakra-ui/react';
 import { LuCheck, LuImagePlus, LuPlus, LuTrash2 } from 'react-icons/lu';
@@ -9,6 +11,7 @@ import { useLanguage } from '@/contexts/language-context';
 import { showToast } from './ui/toaster';
 import { SettingDescription } from './ui/setting-description';
 import { ScreenPreviewFrame } from './screen-standby-preview';
+import { galleryImageLimits } from '@/lib/gallery-image-limits';
 import { processGalleryImage } from '@/lib/gallery-image-processor';
 import {
   deleteMyGalleryImages,
@@ -199,10 +202,10 @@ function GalleryTile({
   </Box>;
 }
 
-async function loadGallerySourcePreview(
+async function loadGallerySourceBlob(
   image: GalleryImage,
   fetchAuthorized: PropsWithFetch,
-): Promise<string> {
+): Promise<Blob> {
   const response = image.scope === 'system'
     ? await fetchAuthorized(image.sourceUrl, { cache: 'force-cache' })
     : await fetch(image.sourceUrl, { cache: 'force-cache', credentials: 'same-origin' });
@@ -213,7 +216,7 @@ async function loadGallerySourcePreview(
       !['image/png', 'image/jpeg', 'image/gif'].includes(mime)) {
     throw new Error('Gallery source image is invalid');
   }
-  return URL.createObjectURL(source);
+  return source;
 }
 
 export function BackgroundImageGallery({ disabled, config, onInstalled, onAvailabilityChange, onBusyChange }: Props) {
@@ -322,7 +325,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
           return;
         }
         const expected = catalog.user.width * catalog.user.height * 2 * catalog.user.frameCount;
-        if (expected !== catalog.user.size || catalog.user.frameCount < 1 || catalog.user.frameCount > UIMG_MAX_FRAMES) throw new Error('Invalid device image catalog');
+        if ((catalog.user.format === JPEG_FORMAT ? (catalog.user.size < 8 + catalog.user.frameCount * 8 || catalog.user.size > catalog.maxImagePayloadBytes || catalog.user.frameCount > JPEG_MAX_FRAMES) : (expected !== catalog.user.size || catalog.user.frameCount > UIMG_MAX_FRAMES)) || catalog.user.frameCount < 1) throw new Error('Invalid device image catalog');
         const fp = fingerprint(catalog.user);
         const cached = loadDeviceImagePreview(previewIdentity, fp);
         if (cached) {
@@ -354,7 +357,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
             setCurrentGalleryId(null);
             return;
           }
-          const previewUrl = await loadGallerySourcePreview(image, authorizedFetch);
+          const previewUrl = URL.createObjectURL(await loadGallerySourceBlob(image, authorizedFetch));
           if (!isCurrent()) {
             URL.revokeObjectURL(previewUrl);
             return;
@@ -480,7 +483,8 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
     });
     let installedPreview = '';
     try {
-      installedPreview = await loadGallerySourcePreview(image, authorizedFetch);
+      const source = await loadGallerySourceBlob(image, authorizedFetch);
+      installedPreview = URL.createObjectURL(source);
       const response = image.scope === 'system' ? await authorizedFetch(image.deviceAssetUrl) : await fetch(image.deviceAssetUrl, { credentials: 'same-origin' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const bytes = new Uint8Array(await response.arrayBuffer());
@@ -488,10 +492,17 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
       const digest = await sha256Hex(bytes);
       if (digest !== image.deviceSha256 || parsed.payloadCrc32 !== image.payloadCrc32 || parsed.payloadBytes !== image.payloadBytes || parsed.frameCount !== image.frameCount || parsed.fps !== image.fps) throw new Error('Gallery image verification failed');
       // Verify the stored asset before adapting legacy frame timing.
-      const installation = prepareUimgInstallation(parsed);
+      const limits = galleryImageLimits(await getDeviceImageCatalog());
+      let installation = parsed;
+      if (image.sourceMime === 'image/gif' && parsed.fps !== UIMG_ANIMATION_FPS) {
+        // Reuse the authenticated source bytes. Fetching the preview blob URL
+        // is blocked by the hosted connect-src policy.
+        const converted = await processGalleryImage(new File([source], 'source.gif', { type: 'image/gif' }), limits);
+        installation = parseUimg(converted.deviceAsset);
+      } else installation = prepareUimgInstallation(parsed);
       await uploadDeviceImage({
         width: installation.width, height: installation.height, data: installation.payload,
-        frameCount: installation.frameCount, fps: installation.fps,
+        frameCount: installation.frameCount, fps: installation.fps, format: installation.format,
         // The client reports total only after COMMIT succeeds. Keep a small
         // visible remainder for the catalog read-back below, then finish both
         // progress indicators together after the device identity is verified.
@@ -590,7 +601,8 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   const uploadOne = async (item: UploadState) => {
     try {
       setUpload(item.id, { status: 'processing', progress: 0, error: undefined });
-      const processed = await processGalleryImage(item.file);
+      const limits = galleryImageLimits(await getDeviceImageCatalog());
+      const processed = await processGalleryImage(item.file, limits);
       setUpload(item.id, { status: 'uploading', progress: 0 });
       const created = await uploadMyGalleryImage({
         source: item.file, preview: processed.preview, deviceAsset: processed.deviceAsset,
@@ -804,9 +816,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
         <Dialog.Footer flexShrink="0" display="block">
           <SettingDescription
             text={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP
-              .replace('{frames}', String(UIMG_MAX_FRAMES))
-              .replace('{fps}', String(UIMG_ANIMATION_FPS))
-              .replace('{seconds}', String(UIMG_MAX_FRAMES / UIMG_ANIMATION_FPS))}
+              .replace('{fps}', String(UIMG_ANIMATION_FPS))}
             fontSize="xs"
           />
         </Dialog.Footer>

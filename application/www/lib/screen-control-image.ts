@@ -1,3 +1,4 @@
+import { JPEG_MAX_FRAMES } from '../../../common/uimg-jpeg.cjs';
 import { decompressFrames, parseGIF } from 'gifuct-js';
 import { calculateImageCoverRect } from './image-cover';
 import { UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES } from './uimg-v4';
@@ -181,7 +182,7 @@ export const selectGifFrameIndices = (
     maxFramesInput = UIMG_MAX_FRAMES,
 ) => {
     const targetFps = Math.max(1, Math.min(UIMG_ANIMATION_FPS, Math.floor(targetFpsInput)));
-    const maxFrames = Math.max(1, Math.min(UIMG_MAX_FRAMES, Math.floor(maxFramesInput)));
+    const maxFrames = Math.max(1, Math.min(JPEG_MAX_FRAMES, Math.floor(maxFramesInput)));
     if (frameTimesUs.length <= 1 || totalUs <= 0) return [0];
     const count = Math.min(maxFrames, Math.max(1, Math.ceil(totalUs * targetFps / 1_000_000)));
     const selected: number[] = [];
