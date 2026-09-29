@@ -1,9 +1,0 @@
-{
-  "scene": "13-mechanical-transformation.blend",
-  "frames": 120,
-  "fps": 12,
-  "articulated_panels": 18,
-  "animation_actions": "present",
-  "fold_to_logo": "verified",
-  "final_lights": "off"
-}

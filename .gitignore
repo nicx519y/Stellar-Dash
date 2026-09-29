@@ -7,7 +7,7 @@
 /www/next-env.d.ts
 application/www/.next*
 .playwright-cli/
-output/playwright/
+/output/
 
 # 日志
 *.log
