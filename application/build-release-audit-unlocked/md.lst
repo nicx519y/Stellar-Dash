@@ -1,0 +1,3039 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"md.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/md.c"
+  19              		.section	.text.mbedtls_md_list,"ax",%progbits
+  20              		.align	1
+  21              		.global	mbedtls_md_list
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	mbedtls_md_list:
+  27              	.LFB6:
+   1:Libs/mbedtls/library/md.c **** /**
+   2:Libs/mbedtls/library/md.c ****  * \file md.c
+   3:Libs/mbedtls/library/md.c ****  *
+   4:Libs/mbedtls/library/md.c ****  * \brief Generic message digest wrapper for Mbed TLS
+   5:Libs/mbedtls/library/md.c ****  *
+   6:Libs/mbedtls/library/md.c ****  * \author Adriaan de Jong <dejong@fox-it.com>
+   7:Libs/mbedtls/library/md.c ****  *
+   8:Libs/mbedtls/library/md.c ****  *  Copyright The Mbed TLS Contributors
+   9:Libs/mbedtls/library/md.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+  10:Libs/mbedtls/library/md.c ****  */
+  11:Libs/mbedtls/library/md.c **** 
+  12:Libs/mbedtls/library/md.c **** #include "common.h"
+  13:Libs/mbedtls/library/md.c **** 
+  14:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD_C)
+  15:Libs/mbedtls/library/md.c **** 
+  16:Libs/mbedtls/library/md.c **** #include "mbedtls/md.h"
+  17:Libs/mbedtls/library/md.c **** #include "mbedtls/md_internal.h"
+  18:Libs/mbedtls/library/md.c **** #include "mbedtls/platform_util.h"
+  19:Libs/mbedtls/library/md.c **** #include "mbedtls/error.h"
+  20:Libs/mbedtls/library/md.c **** 
+  21:Libs/mbedtls/library/md.c **** #include "mbedtls/md2.h"
+  22:Libs/mbedtls/library/md.c **** #include "mbedtls/md4.h"
+  23:Libs/mbedtls/library/md.c **** #include "mbedtls/md5.h"
+  24:Libs/mbedtls/library/md.c **** #include "mbedtls/ripemd160.h"
+  25:Libs/mbedtls/library/md.c **** #include "mbedtls/sha1.h"
+  26:Libs/mbedtls/library/md.c **** #include "mbedtls/sha256.h"
+  27:Libs/mbedtls/library/md.c **** #include "mbedtls/sha512.h"
+  28:Libs/mbedtls/library/md.c **** 
+  29:Libs/mbedtls/library/md.c **** #include "mbedtls/platform.h"
+  30:Libs/mbedtls/library/md.c **** 
+  31:Libs/mbedtls/library/md.c **** #include <string.h>
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 2
+
+
+  32:Libs/mbedtls/library/md.c **** 
+  33:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_FS_IO)
+  34:Libs/mbedtls/library/md.c **** #include <stdio.h>
+  35:Libs/mbedtls/library/md.c **** #endif
+  36:Libs/mbedtls/library/md.c **** 
+  37:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+  38:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_md2_info = {
+  39:Libs/mbedtls/library/md.c ****     "MD2",
+  40:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_MD2,
+  41:Libs/mbedtls/library/md.c ****     16,
+  42:Libs/mbedtls/library/md.c ****     16,
+  43:Libs/mbedtls/library/md.c **** };
+  44:Libs/mbedtls/library/md.c **** #endif
+  45:Libs/mbedtls/library/md.c **** 
+  46:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+  47:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_md4_info = {
+  48:Libs/mbedtls/library/md.c ****     "MD4",
+  49:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_MD4,
+  50:Libs/mbedtls/library/md.c ****     16,
+  51:Libs/mbedtls/library/md.c ****     64,
+  52:Libs/mbedtls/library/md.c **** };
+  53:Libs/mbedtls/library/md.c **** #endif
+  54:Libs/mbedtls/library/md.c **** 
+  55:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+  56:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_md5_info = {
+  57:Libs/mbedtls/library/md.c ****     "MD5",
+  58:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_MD5,
+  59:Libs/mbedtls/library/md.c ****     16,
+  60:Libs/mbedtls/library/md.c ****     64,
+  61:Libs/mbedtls/library/md.c **** };
+  62:Libs/mbedtls/library/md.c **** #endif
+  63:Libs/mbedtls/library/md.c **** 
+  64:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+  65:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_ripemd160_info = {
+  66:Libs/mbedtls/library/md.c ****     "RIPEMD160",
+  67:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_RIPEMD160,
+  68:Libs/mbedtls/library/md.c ****     20,
+  69:Libs/mbedtls/library/md.c ****     64,
+  70:Libs/mbedtls/library/md.c **** };
+  71:Libs/mbedtls/library/md.c **** #endif
+  72:Libs/mbedtls/library/md.c **** 
+  73:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+  74:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_sha1_info = {
+  75:Libs/mbedtls/library/md.c ****     "SHA1",
+  76:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA1,
+  77:Libs/mbedtls/library/md.c ****     20,
+  78:Libs/mbedtls/library/md.c ****     64,
+  79:Libs/mbedtls/library/md.c **** };
+  80:Libs/mbedtls/library/md.c **** #endif
+  81:Libs/mbedtls/library/md.c **** 
+  82:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+  83:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_sha224_info = {
+  84:Libs/mbedtls/library/md.c ****     "SHA224",
+  85:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA224,
+  86:Libs/mbedtls/library/md.c ****     28,
+  87:Libs/mbedtls/library/md.c ****     64,
+  88:Libs/mbedtls/library/md.c **** };
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 3
+
+
+  89:Libs/mbedtls/library/md.c **** 
+  90:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_sha256_info = {
+  91:Libs/mbedtls/library/md.c ****     "SHA256",
+  92:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA256,
+  93:Libs/mbedtls/library/md.c ****     32,
+  94:Libs/mbedtls/library/md.c ****     64,
+  95:Libs/mbedtls/library/md.c **** };
+  96:Libs/mbedtls/library/md.c **** #endif
+  97:Libs/mbedtls/library/md.c **** 
+  98:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+  99:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 100:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_sha384_info = {
+ 101:Libs/mbedtls/library/md.c ****     "SHA384",
+ 102:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA384,
+ 103:Libs/mbedtls/library/md.c ****     48,
+ 104:Libs/mbedtls/library/md.c ****     128,
+ 105:Libs/mbedtls/library/md.c **** };
+ 106:Libs/mbedtls/library/md.c **** #endif
+ 107:Libs/mbedtls/library/md.c **** 
+ 108:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t mbedtls_sha512_info = {
+ 109:Libs/mbedtls/library/md.c ****     "SHA512",
+ 110:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA512,
+ 111:Libs/mbedtls/library/md.c ****     64,
+ 112:Libs/mbedtls/library/md.c ****     128,
+ 113:Libs/mbedtls/library/md.c **** };
+ 114:Libs/mbedtls/library/md.c **** #endif
+ 115:Libs/mbedtls/library/md.c **** 
+ 116:Libs/mbedtls/library/md.c **** /*
+ 117:Libs/mbedtls/library/md.c ****  * Reminder: update profiles in x509_crt.c when adding a new hash!
+ 118:Libs/mbedtls/library/md.c ****  */
+ 119:Libs/mbedtls/library/md.c **** static const int supported_digests[] = {
+ 120:Libs/mbedtls/library/md.c **** 
+ 121:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 122:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA512,
+ 123:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 124:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA384,
+ 125:Libs/mbedtls/library/md.c **** #endif
+ 126:Libs/mbedtls/library/md.c **** #endif
+ 127:Libs/mbedtls/library/md.c **** 
+ 128:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 129:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA256,
+ 130:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA224,
+ 131:Libs/mbedtls/library/md.c **** #endif
+ 132:Libs/mbedtls/library/md.c **** 
+ 133:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 134:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_SHA1,
+ 135:Libs/mbedtls/library/md.c **** #endif
+ 136:Libs/mbedtls/library/md.c **** 
+ 137:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 138:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_RIPEMD160,
+ 139:Libs/mbedtls/library/md.c **** #endif
+ 140:Libs/mbedtls/library/md.c **** 
+ 141:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 142:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_MD5,
+ 143:Libs/mbedtls/library/md.c **** #endif
+ 144:Libs/mbedtls/library/md.c **** 
+ 145:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 4
+
+
+ 146:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_MD4,
+ 147:Libs/mbedtls/library/md.c **** #endif
+ 148:Libs/mbedtls/library/md.c **** 
+ 149:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 150:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_MD2,
+ 151:Libs/mbedtls/library/md.c **** #endif
+ 152:Libs/mbedtls/library/md.c **** 
+ 153:Libs/mbedtls/library/md.c ****     MBEDTLS_MD_NONE
+ 154:Libs/mbedtls/library/md.c **** };
+ 155:Libs/mbedtls/library/md.c **** 
+ 156:Libs/mbedtls/library/md.c **** const int *mbedtls_md_list(void)
+ 157:Libs/mbedtls/library/md.c **** {
+  28              		.loc 1 157 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+ 158:Libs/mbedtls/library/md.c ****     return supported_digests;
+  33              		.loc 1 158 5 view .LVU1
+ 159:Libs/mbedtls/library/md.c **** }
+  34              		.loc 1 159 1 is_stmt 0 view .LVU2
+  35 0000 0048     		ldr	r0, .L2
+  36 0002 7047     		bx	lr
+  37              	.L3:
+  38              		.align	2
+  39              	.L2:
+  40 0004 00000000 		.word	supported_digests
+  41              		.cfi_endproc
+  42              	.LFE6:
+  44              		.section	.text.mbedtls_md_info_from_type,"ax",%progbits
+  45              		.align	1
+  46              		.global	mbedtls_md_info_from_type
+  47              		.syntax unified
+  48              		.thumb
+  49              		.thumb_func
+  51              	mbedtls_md_info_from_type:
+  52              	.LVL0:
+  53              	.LFB8:
+ 160:Libs/mbedtls/library/md.c **** 
+ 161:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t *mbedtls_md_info_from_string(const char *md_name)
+ 162:Libs/mbedtls/library/md.c **** {
+ 163:Libs/mbedtls/library/md.c ****     if (NULL == md_name) {
+ 164:Libs/mbedtls/library/md.c ****         return NULL;
+ 165:Libs/mbedtls/library/md.c ****     }
+ 166:Libs/mbedtls/library/md.c **** 
+ 167:Libs/mbedtls/library/md.c ****     /* Get the appropriate digest information */
+ 168:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 169:Libs/mbedtls/library/md.c ****     if (!strcmp("MD2", md_name)) {
+ 170:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_MD2);
+ 171:Libs/mbedtls/library/md.c ****     }
+ 172:Libs/mbedtls/library/md.c **** #endif
+ 173:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 174:Libs/mbedtls/library/md.c ****     if (!strcmp("MD4", md_name)) {
+ 175:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_MD4);
+ 176:Libs/mbedtls/library/md.c ****     }
+ 177:Libs/mbedtls/library/md.c **** #endif
+ 178:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 5
+
+
+ 179:Libs/mbedtls/library/md.c ****     if (!strcmp("MD5", md_name)) {
+ 180:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_MD5);
+ 181:Libs/mbedtls/library/md.c ****     }
+ 182:Libs/mbedtls/library/md.c **** #endif
+ 183:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 184:Libs/mbedtls/library/md.c ****     if (!strcmp("RIPEMD160", md_name)) {
+ 185:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_RIPEMD160);
+ 186:Libs/mbedtls/library/md.c ****     }
+ 187:Libs/mbedtls/library/md.c **** #endif
+ 188:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 189:Libs/mbedtls/library/md.c ****     if (!strcmp("SHA1", md_name) || !strcmp("SHA", md_name)) {
+ 190:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
+ 191:Libs/mbedtls/library/md.c ****     }
+ 192:Libs/mbedtls/library/md.c **** #endif
+ 193:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 194:Libs/mbedtls/library/md.c ****     if (!strcmp("SHA224", md_name)) {
+ 195:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA224);
+ 196:Libs/mbedtls/library/md.c ****     }
+ 197:Libs/mbedtls/library/md.c ****     if (!strcmp("SHA256", md_name)) {
+ 198:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+ 199:Libs/mbedtls/library/md.c ****     }
+ 200:Libs/mbedtls/library/md.c **** #endif
+ 201:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 202:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 203:Libs/mbedtls/library/md.c ****     if (!strcmp("SHA384", md_name)) {
+ 204:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA384);
+ 205:Libs/mbedtls/library/md.c ****     }
+ 206:Libs/mbedtls/library/md.c **** #endif
+ 207:Libs/mbedtls/library/md.c ****     if (!strcmp("SHA512", md_name)) {
+ 208:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA512);
+ 209:Libs/mbedtls/library/md.c ****     }
+ 210:Libs/mbedtls/library/md.c **** #endif
+ 211:Libs/mbedtls/library/md.c ****     return NULL;
+ 212:Libs/mbedtls/library/md.c **** }
+ 213:Libs/mbedtls/library/md.c **** 
+ 214:Libs/mbedtls/library/md.c **** const mbedtls_md_info_t *mbedtls_md_info_from_type(mbedtls_md_type_t md_type)
+ 215:Libs/mbedtls/library/md.c **** {
+  54              		.loc 1 215 1 is_stmt 1 view -0
+  55              		.cfi_startproc
+  56              		@ args = 0, pretend = 0, frame = 0
+  57              		@ frame_needed = 0, uses_anonymous_args = 0
+  58              		@ link register save eliminated.
+ 216:Libs/mbedtls/library/md.c ****     switch (md_type) {
+  59              		.loc 1 216 5 view .LVU4
+  60 0000 0528     		cmp	r0, #5
+  61 0002 03D0     		beq	.L6
+  62 0004 0628     		cmp	r0, #6
+  63 0006 03D1     		bne	.L7
+ 217:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 218:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD2:
+ 219:Libs/mbedtls/library/md.c ****             return &mbedtls_md2_info;
+ 220:Libs/mbedtls/library/md.c **** #endif
+ 221:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 222:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD4:
+ 223:Libs/mbedtls/library/md.c ****             return &mbedtls_md4_info;
+ 224:Libs/mbedtls/library/md.c **** #endif
+ 225:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 6
+
+
+ 226:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD5:
+ 227:Libs/mbedtls/library/md.c ****             return &mbedtls_md5_info;
+ 228:Libs/mbedtls/library/md.c **** #endif
+ 229:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 230:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_RIPEMD160:
+ 231:Libs/mbedtls/library/md.c ****             return &mbedtls_ripemd160_info;
+ 232:Libs/mbedtls/library/md.c **** #endif
+ 233:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 234:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA1:
+ 235:Libs/mbedtls/library/md.c ****             return &mbedtls_sha1_info;
+ 236:Libs/mbedtls/library/md.c **** #endif
+ 237:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 238:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA224:
+ 239:Libs/mbedtls/library/md.c ****             return &mbedtls_sha224_info;
+ 240:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA256:
+ 241:Libs/mbedtls/library/md.c ****             return &mbedtls_sha256_info;
+  64              		.loc 1 241 20 is_stmt 0 view .LVU5
+  65 0008 0248     		ldr	r0, .L8
+  66              	.LVL1:
+  67              		.loc 1 241 20 view .LVU6
+  68 000a 7047     		bx	lr
+  69              	.LVL2:
+  70              	.L6:
+ 216:Libs/mbedtls/library/md.c ****     switch (md_type) {
+  71              		.loc 1 216 5 view .LVU7
+  72 000c 0248     		ldr	r0, .L8+4
+  73              	.LVL3:
+ 216:Libs/mbedtls/library/md.c ****     switch (md_type) {
+  74              		.loc 1 216 5 view .LVU8
+  75 000e 7047     		bx	lr
+  76              	.LVL4:
+  77              	.L7:
+ 242:Libs/mbedtls/library/md.c **** #endif
+ 243:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 244:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 245:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA384:
+ 246:Libs/mbedtls/library/md.c ****             return &mbedtls_sha384_info;
+ 247:Libs/mbedtls/library/md.c **** #endif
+ 248:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA512:
+ 249:Libs/mbedtls/library/md.c ****             return &mbedtls_sha512_info;
+ 250:Libs/mbedtls/library/md.c **** #endif
+ 251:Libs/mbedtls/library/md.c ****         default:
+ 252:Libs/mbedtls/library/md.c ****             return NULL;
+  78              		.loc 1 252 20 view .LVU9
+  79 0010 0020     		movs	r0, #0
+  80              	.LVL5:
+ 253:Libs/mbedtls/library/md.c ****     }
+ 254:Libs/mbedtls/library/md.c **** }
+  81              		.loc 1 254 1 view .LVU10
+  82 0012 7047     		bx	lr
+  83              	.L9:
+  84              		.align	2
+  85              	.L8:
+  86 0014 00000000 		.word	mbedtls_sha256_info
+  87 0018 00000000 		.word	mbedtls_sha224_info
+  88              		.cfi_endproc
+  89              	.LFE8:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 7
+
+
+  91              		.section	.rodata.mbedtls_md_info_from_string.str1.4,"aMS",%progbits,1
+  92              		.align	2
+  93              	.LC0:
+  94 0000 53484132 		.ascii	"SHA224\000"
+  94      323400
+  95 0007 00       		.align	2
+  96              	.LC1:
+  97 0008 53484132 		.ascii	"SHA256\000"
+  97      353600
+  98              		.section	.text.mbedtls_md_info_from_string,"ax",%progbits
+  99              		.align	1
+ 100              		.global	mbedtls_md_info_from_string
+ 101              		.syntax unified
+ 102              		.thumb
+ 103              		.thumb_func
+ 105              	mbedtls_md_info_from_string:
+ 106              	.LVL6:
+ 107              	.LFB7:
+ 162:Libs/mbedtls/library/md.c ****     if (NULL == md_name) {
+ 108              		.loc 1 162 1 is_stmt 1 view -0
+ 109              		.cfi_startproc
+ 110              		@ args = 0, pretend = 0, frame = 0
+ 111              		@ frame_needed = 0, uses_anonymous_args = 0
+ 162:Libs/mbedtls/library/md.c ****     if (NULL == md_name) {
+ 112              		.loc 1 162 1 is_stmt 0 view .LVU12
+ 113 0000 10B5     		push	{r4, lr}
+ 114              	.LCFI0:
+ 115              		.cfi_def_cfa_offset 8
+ 116              		.cfi_offset 4, -8
+ 117              		.cfi_offset 14, -4
+ 163:Libs/mbedtls/library/md.c ****         return NULL;
+ 118              		.loc 1 163 5 is_stmt 1 view .LVU13
+ 163:Libs/mbedtls/library/md.c ****         return NULL;
+ 119              		.loc 1 163 8 is_stmt 0 view .LVU14
+ 120 0002 0446     		mov	r4, r0
+ 121 0004 60B1     		cbz	r0, .L10
+ 194:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA224);
+ 122              		.loc 1 194 5 is_stmt 1 view .LVU15
+ 194:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA224);
+ 123              		.loc 1 194 10 is_stmt 0 view .LVU16
+ 124 0006 0146     		mov	r1, r0
+ 125 0008 0948     		ldr	r0, .L17
+ 126              	.LVL7:
+ 194:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA224);
+ 127              		.loc 1 194 10 view .LVU17
+ 128 000a FFF7FEFF 		bl	strcmp
+ 129              	.LVL8:
+ 194:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA224);
+ 130              		.loc 1 194 8 discriminator 1 view .LVU18
+ 131 000e 40B1     		cbz	r0, .L16
+ 197:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+ 132              		.loc 1 197 5 is_stmt 1 view .LVU19
+ 197:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+ 133              		.loc 1 197 10 is_stmt 0 view .LVU20
+ 134 0010 2146     		mov	r1, r4
+ 135 0012 0848     		ldr	r0, .L17+4
+ 136 0014 FFF7FEFF 		bl	strcmp
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 8
+
+
+ 137              	.LVL9:
+ 197:Libs/mbedtls/library/md.c ****         return mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+ 138              		.loc 1 197 8 discriminator 1 view .LVU21
+ 139 0018 38B9     		cbnz	r0, .L14
+ 198:Libs/mbedtls/library/md.c ****     }
+ 140              		.loc 1 198 9 is_stmt 1 view .LVU22
+ 198:Libs/mbedtls/library/md.c ****     }
+ 141              		.loc 1 198 16 is_stmt 0 view .LVU23
+ 142 001a 0620     		movs	r0, #6
+ 143 001c FFF7FEFF 		bl	mbedtls_md_info_from_type
+ 144              	.LVL10:
+ 145              	.L10:
+ 212:Libs/mbedtls/library/md.c **** 
+ 146              		.loc 1 212 1 view .LVU24
+ 147 0020 10BD     		pop	{r4, pc}
+ 148              	.LVL11:
+ 149              	.L16:
+ 195:Libs/mbedtls/library/md.c ****     }
+ 150              		.loc 1 195 9 is_stmt 1 view .LVU25
+ 195:Libs/mbedtls/library/md.c ****     }
+ 151              		.loc 1 195 16 is_stmt 0 view .LVU26
+ 152 0022 0520     		movs	r0, #5
+ 153 0024 FFF7FEFF 		bl	mbedtls_md_info_from_type
+ 154              	.LVL12:
+ 155 0028 FAE7     		b	.L10
+ 156              	.L14:
+ 211:Libs/mbedtls/library/md.c **** }
+ 157              		.loc 1 211 12 view .LVU27
+ 158 002a 0020     		movs	r0, #0
+ 159 002c F8E7     		b	.L10
+ 160              	.L18:
+ 161 002e 00BF     		.align	2
+ 162              	.L17:
+ 163 0030 00000000 		.word	.LC0
+ 164 0034 08000000 		.word	.LC1
+ 165              		.cfi_endproc
+ 166              	.LFE7:
+ 168              		.section	.text.mbedtls_md_init,"ax",%progbits
+ 169              		.align	1
+ 170              		.global	mbedtls_md_init
+ 171              		.syntax unified
+ 172              		.thumb
+ 173              		.thumb_func
+ 175              	mbedtls_md_init:
+ 176              	.LVL13:
+ 177              	.LFB9:
+ 255:Libs/mbedtls/library/md.c **** 
+ 256:Libs/mbedtls/library/md.c **** void mbedtls_md_init(mbedtls_md_context_t *ctx)
+ 257:Libs/mbedtls/library/md.c **** {
+ 178              		.loc 1 257 1 is_stmt 1 view -0
+ 179              		.cfi_startproc
+ 180              		@ args = 0, pretend = 0, frame = 0
+ 181              		@ frame_needed = 0, uses_anonymous_args = 0
+ 182              		@ link register save eliminated.
+ 258:Libs/mbedtls/library/md.c ****     memset(ctx, 0, sizeof(mbedtls_md_context_t));
+ 183              		.loc 1 258 5 view .LVU29
+ 184 0000 0023     		movs	r3, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 9
+
+
+ 185 0002 0360     		str	r3, [r0]	@ unaligned
+ 186 0004 4360     		str	r3, [r0, #4]	@ unaligned
+ 187 0006 8360     		str	r3, [r0, #8]	@ unaligned
+ 259:Libs/mbedtls/library/md.c **** }
+ 188              		.loc 1 259 1 is_stmt 0 view .LVU30
+ 189 0008 7047     		bx	lr
+ 190              		.cfi_endproc
+ 191              	.LFE9:
+ 193              		.section	.text.mbedtls_md_free,"ax",%progbits
+ 194              		.align	1
+ 195              		.global	mbedtls_md_free
+ 196              		.syntax unified
+ 197              		.thumb
+ 198              		.thumb_func
+ 200              	mbedtls_md_free:
+ 201              	.LVL14:
+ 202              	.LFB10:
+ 260:Libs/mbedtls/library/md.c **** 
+ 261:Libs/mbedtls/library/md.c **** void mbedtls_md_free(mbedtls_md_context_t *ctx)
+ 262:Libs/mbedtls/library/md.c **** {
+ 203              		.loc 1 262 1 is_stmt 1 view -0
+ 204              		.cfi_startproc
+ 205              		@ args = 0, pretend = 0, frame = 0
+ 206              		@ frame_needed = 0, uses_anonymous_args = 0
+ 263:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 207              		.loc 1 263 5 view .LVU32
+ 208              		.loc 1 263 8 is_stmt 0 view .LVU33
+ 209 0000 F0B1     		cbz	r0, .L26
+ 262:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 210              		.loc 1 262 1 view .LVU34
+ 211 0002 10B5     		push	{r4, lr}
+ 212              	.LCFI1:
+ 213              		.cfi_def_cfa_offset 8
+ 214              		.cfi_offset 4, -8
+ 215              		.cfi_offset 14, -4
+ 216 0004 0446     		mov	r4, r0
+ 217              		.loc 1 263 27 discriminator 1 view .LVU35
+ 218 0006 0368     		ldr	r3, [r0]
+ 219              		.loc 1 263 21 discriminator 1 view .LVU36
+ 220 0008 B3B1     		cbz	r3, .L20
+ 264:Libs/mbedtls/library/md.c ****         return;
+ 265:Libs/mbedtls/library/md.c ****     }
+ 266:Libs/mbedtls/library/md.c **** 
+ 267:Libs/mbedtls/library/md.c ****     if (ctx->md_ctx != NULL) {
+ 221              		.loc 1 267 5 is_stmt 1 view .LVU37
+ 222              		.loc 1 267 12 is_stmt 0 view .LVU38
+ 223 000a 4068     		ldr	r0, [r0, #4]
+ 224              	.LVL15:
+ 225              		.loc 1 267 8 view .LVU39
+ 226 000c 30B1     		cbz	r0, .L22
+ 268:Libs/mbedtls/library/md.c ****         switch (ctx->md_info->type) {
+ 227              		.loc 1 268 9 is_stmt 1 view .LVU40
+ 228              		.loc 1 268 29 is_stmt 0 view .LVU41
+ 229 000e 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 230              		.loc 1 268 9 view .LVU42
+ 231 0010 053B     		subs	r3, r3, #5
+ 232 0012 012B     		cmp	r3, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 10
+
+
+ 233 0014 11D9     		bls	.L29
+ 234              	.L23:
+ 269:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 270:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_MD2:
+ 271:Libs/mbedtls/library/md.c ****                 mbedtls_md2_free(ctx->md_ctx);
+ 272:Libs/mbedtls/library/md.c ****                 break;
+ 273:Libs/mbedtls/library/md.c **** #endif
+ 274:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 275:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_MD4:
+ 276:Libs/mbedtls/library/md.c ****                 mbedtls_md4_free(ctx->md_ctx);
+ 277:Libs/mbedtls/library/md.c ****                 break;
+ 278:Libs/mbedtls/library/md.c **** #endif
+ 279:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 280:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_MD5:
+ 281:Libs/mbedtls/library/md.c ****                 mbedtls_md5_free(ctx->md_ctx);
+ 282:Libs/mbedtls/library/md.c ****                 break;
+ 283:Libs/mbedtls/library/md.c **** #endif
+ 284:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 285:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_RIPEMD160:
+ 286:Libs/mbedtls/library/md.c ****                 mbedtls_ripemd160_free(ctx->md_ctx);
+ 287:Libs/mbedtls/library/md.c ****                 break;
+ 288:Libs/mbedtls/library/md.c **** #endif
+ 289:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 290:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_SHA1:
+ 291:Libs/mbedtls/library/md.c ****                 mbedtls_sha1_free(ctx->md_ctx);
+ 292:Libs/mbedtls/library/md.c ****                 break;
+ 293:Libs/mbedtls/library/md.c **** #endif
+ 294:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 295:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_SHA224:
+ 296:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_SHA256:
+ 297:Libs/mbedtls/library/md.c ****                 mbedtls_sha256_free(ctx->md_ctx);
+ 298:Libs/mbedtls/library/md.c ****                 break;
+ 299:Libs/mbedtls/library/md.c **** #endif
+ 300:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 301:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 302:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_SHA384:
+ 303:Libs/mbedtls/library/md.c **** #endif
+ 304:Libs/mbedtls/library/md.c ****             case MBEDTLS_MD_SHA512:
+ 305:Libs/mbedtls/library/md.c ****                 mbedtls_sha512_free(ctx->md_ctx);
+ 306:Libs/mbedtls/library/md.c ****                 break;
+ 307:Libs/mbedtls/library/md.c **** #endif
+ 308:Libs/mbedtls/library/md.c ****             default:
+ 309:Libs/mbedtls/library/md.c ****                 /* Shouldn't happen */
+ 310:Libs/mbedtls/library/md.c ****                 break;
+ 311:Libs/mbedtls/library/md.c ****         }
+ 312:Libs/mbedtls/library/md.c ****         mbedtls_free(ctx->md_ctx);
+ 235              		.loc 1 312 9 is_stmt 1 view .LVU43
+ 236 0016 6068     		ldr	r0, [r4, #4]
+ 237 0018 FFF7FEFF 		bl	free
+ 238              	.LVL16:
+ 239              	.L22:
+ 313:Libs/mbedtls/library/md.c ****     }
+ 314:Libs/mbedtls/library/md.c **** 
+ 315:Libs/mbedtls/library/md.c ****     if (ctx->hmac_ctx != NULL) {
+ 240              		.loc 1 315 5 view .LVU44
+ 241              		.loc 1 315 12 is_stmt 0 view .LVU45
+ 242 001c A068     		ldr	r0, [r4, #8]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 11
+
+
+ 243              		.loc 1 315 8 view .LVU46
+ 244 001e 38B1     		cbz	r0, .L24
+ 316:Libs/mbedtls/library/md.c ****         mbedtls_platform_zeroize(ctx->hmac_ctx,
+ 245              		.loc 1 316 9 is_stmt 1 view .LVU47
+ 317:Libs/mbedtls/library/md.c ****                                  2 * ctx->md_info->block_size);
+ 246              		.loc 1 317 41 is_stmt 0 view .LVU48
+ 247 0020 2368     		ldr	r3, [r4]
+ 248              		.loc 1 317 50 view .LVU49
+ 249 0022 9979     		ldrb	r1, [r3, #6]	@ zero_extendqisi2
+ 316:Libs/mbedtls/library/md.c ****         mbedtls_platform_zeroize(ctx->hmac_ctx,
+ 250              		.loc 1 316 9 view .LVU50
+ 251 0024 4900     		lsls	r1, r1, #1
+ 252 0026 FFF7FEFF 		bl	mbedtls_platform_zeroize
+ 253              	.LVL17:
+ 318:Libs/mbedtls/library/md.c ****         mbedtls_free(ctx->hmac_ctx);
+ 254              		.loc 1 318 9 is_stmt 1 view .LVU51
+ 255 002a A068     		ldr	r0, [r4, #8]
+ 256 002c FFF7FEFF 		bl	free
+ 257              	.LVL18:
+ 258              	.L24:
+ 319:Libs/mbedtls/library/md.c ****     }
+ 320:Libs/mbedtls/library/md.c **** 
+ 321:Libs/mbedtls/library/md.c ****     mbedtls_platform_zeroize(ctx, sizeof(mbedtls_md_context_t));
+ 259              		.loc 1 321 5 view .LVU52
+ 260 0030 0C21     		movs	r1, #12
+ 261 0032 2046     		mov	r0, r4
+ 262 0034 FFF7FEFF 		bl	mbedtls_platform_zeroize
+ 263              	.LVL19:
+ 264              	.L20:
+ 322:Libs/mbedtls/library/md.c **** }
+ 265              		.loc 1 322 1 is_stmt 0 view .LVU53
+ 266 0038 10BD     		pop	{r4, pc}
+ 267              	.LVL20:
+ 268              	.L29:
+ 297:Libs/mbedtls/library/md.c ****                 break;
+ 269              		.loc 1 297 17 is_stmt 1 view .LVU54
+ 270 003a FFF7FEFF 		bl	mbedtls_sha256_free
+ 271              	.LVL21:
+ 298:Libs/mbedtls/library/md.c **** #endif
+ 272              		.loc 1 298 17 view .LVU55
+ 273 003e EAE7     		b	.L23
+ 274              	.LVL22:
+ 275              	.L26:
+ 276              	.LCFI2:
+ 277              		.cfi_def_cfa_offset 0
+ 278              		.cfi_restore 4
+ 279              		.cfi_restore 14
+ 298:Libs/mbedtls/library/md.c **** #endif
+ 280              		.loc 1 298 17 is_stmt 0 view .LVU56
+ 281 0040 7047     		bx	lr
+ 282              		.cfi_endproc
+ 283              	.LFE10:
+ 285              		.section	.text.mbedtls_md_clone,"ax",%progbits
+ 286              		.align	1
+ 287              		.global	mbedtls_md_clone
+ 288              		.syntax unified
+ 289              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 12
+
+
+ 290              		.thumb_func
+ 292              	mbedtls_md_clone:
+ 293              	.LVL23:
+ 294              	.LFB11:
+ 323:Libs/mbedtls/library/md.c **** 
+ 324:Libs/mbedtls/library/md.c **** int mbedtls_md_clone(mbedtls_md_context_t *dst,
+ 325:Libs/mbedtls/library/md.c ****                      const mbedtls_md_context_t *src)
+ 326:Libs/mbedtls/library/md.c **** {
+ 295              		.loc 1 326 1 is_stmt 1 view -0
+ 296              		.cfi_startproc
+ 297              		@ args = 0, pretend = 0, frame = 0
+ 298              		@ frame_needed = 0, uses_anonymous_args = 0
+ 327:Libs/mbedtls/library/md.c ****     if (dst == NULL || dst->md_info == NULL ||
+ 299              		.loc 1 327 5 view .LVU58
+ 300              		.loc 1 327 8 is_stmt 0 view .LVU59
+ 301 0000 88B1     		cbz	r0, .L32
+ 302              		.loc 1 327 27 discriminator 1 view .LVU60
+ 303 0002 0268     		ldr	r2, [r0]
+ 304              		.loc 1 327 21 discriminator 1 view .LVU61
+ 305 0004 8AB1     		cbz	r2, .L33
+ 306              		.loc 1 327 45 discriminator 2 view .LVU62
+ 307 0006 91B1     		cbz	r1, .L34
+ 326:Libs/mbedtls/library/md.c ****     if (dst == NULL || dst->md_info == NULL ||
+ 308              		.loc 1 326 1 view .LVU63
+ 309 0008 08B5     		push	{r3, lr}
+ 310              	.LCFI3:
+ 311              		.cfi_def_cfa_offset 8
+ 312              		.cfi_offset 3, -8
+ 313              		.cfi_offset 14, -4
+ 328:Libs/mbedtls/library/md.c ****         src == NULL || src->md_info == NULL ||
+ 314              		.loc 1 328 27 view .LVU64
+ 315 000a 0B68     		ldr	r3, [r1]
+ 316              		.loc 1 328 21 view .LVU65
+ 317 000c 8BB1     		cbz	r3, .L35
+ 318              		.loc 1 328 45 discriminator 1 view .LVU66
+ 319 000e 9A42     		cmp	r2, r3
+ 320 0010 11D1     		bne	.L36
+ 329:Libs/mbedtls/library/md.c ****         dst->md_info != src->md_info) {
+ 330:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 331:Libs/mbedtls/library/md.c ****     }
+ 332:Libs/mbedtls/library/md.c **** 
+ 333:Libs/mbedtls/library/md.c ****     switch (src->md_info->type) {
+ 321              		.loc 1 333 5 is_stmt 1 view .LVU67
+ 322              		.loc 1 333 25 is_stmt 0 view .LVU68
+ 323 0012 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 324              		.loc 1 333 5 view .LVU69
+ 325 0014 053B     		subs	r3, r3, #5
+ 326 0016 012B     		cmp	r3, #1
+ 327 0018 0FD8     		bhi	.L37
+ 334:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 335:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD2:
+ 336:Libs/mbedtls/library/md.c ****             mbedtls_md2_clone(dst->md_ctx, src->md_ctx);
+ 337:Libs/mbedtls/library/md.c ****             break;
+ 338:Libs/mbedtls/library/md.c **** #endif
+ 339:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 340:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD4:
+ 341:Libs/mbedtls/library/md.c ****             mbedtls_md4_clone(dst->md_ctx, src->md_ctx);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 13
+
+
+ 342:Libs/mbedtls/library/md.c ****             break;
+ 343:Libs/mbedtls/library/md.c **** #endif
+ 344:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 345:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD5:
+ 346:Libs/mbedtls/library/md.c ****             mbedtls_md5_clone(dst->md_ctx, src->md_ctx);
+ 347:Libs/mbedtls/library/md.c ****             break;
+ 348:Libs/mbedtls/library/md.c **** #endif
+ 349:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 350:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_RIPEMD160:
+ 351:Libs/mbedtls/library/md.c ****             mbedtls_ripemd160_clone(dst->md_ctx, src->md_ctx);
+ 352:Libs/mbedtls/library/md.c ****             break;
+ 353:Libs/mbedtls/library/md.c **** #endif
+ 354:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 355:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA1:
+ 356:Libs/mbedtls/library/md.c ****             mbedtls_sha1_clone(dst->md_ctx, src->md_ctx);
+ 357:Libs/mbedtls/library/md.c ****             break;
+ 358:Libs/mbedtls/library/md.c **** #endif
+ 359:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 360:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA224:
+ 361:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA256:
+ 362:Libs/mbedtls/library/md.c ****             mbedtls_sha256_clone(dst->md_ctx, src->md_ctx);
+ 328              		.loc 1 362 13 is_stmt 1 view .LVU70
+ 329 001a 4968     		ldr	r1, [r1, #4]
+ 330              	.LVL24:
+ 331              		.loc 1 362 13 is_stmt 0 view .LVU71
+ 332 001c 4068     		ldr	r0, [r0, #4]
+ 333              	.LVL25:
+ 334              		.loc 1 362 13 view .LVU72
+ 335 001e FFF7FEFF 		bl	mbedtls_sha256_clone
+ 336              	.LVL26:
+ 363:Libs/mbedtls/library/md.c ****             break;
+ 337              		.loc 1 363 13 is_stmt 1 view .LVU73
+ 364:Libs/mbedtls/library/md.c **** #endif
+ 365:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 366:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 367:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA384:
+ 368:Libs/mbedtls/library/md.c **** #endif
+ 369:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA512:
+ 370:Libs/mbedtls/library/md.c ****             mbedtls_sha512_clone(dst->md_ctx, src->md_ctx);
+ 371:Libs/mbedtls/library/md.c ****             break;
+ 372:Libs/mbedtls/library/md.c **** #endif
+ 373:Libs/mbedtls/library/md.c ****         default:
+ 374:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 375:Libs/mbedtls/library/md.c ****     }
+ 376:Libs/mbedtls/library/md.c **** 
+ 377:Libs/mbedtls/library/md.c ****     return 0;
+ 338              		.loc 1 377 5 view .LVU74
+ 339              		.loc 1 377 12 is_stmt 0 view .LVU75
+ 340 0022 0020     		movs	r0, #0
+ 341              	.L30:
+ 378:Libs/mbedtls/library/md.c **** }
+ 342              		.loc 1 378 1 view .LVU76
+ 343 0024 08BD     		pop	{r3, pc}
+ 344              	.LVL27:
+ 345              	.L32:
+ 346              	.LCFI4:
+ 347              		.cfi_def_cfa_offset 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 14
+
+
+ 348              		.cfi_restore 3
+ 349              		.cfi_restore 14
+ 330:Libs/mbedtls/library/md.c ****     }
+ 350              		.loc 1 330 16 view .LVU77
+ 351 0026 0648     		ldr	r0, .L42
+ 352              	.LVL28:
+ 330:Libs/mbedtls/library/md.c ****     }
+ 353              		.loc 1 330 16 view .LVU78
+ 354 0028 7047     		bx	lr
+ 355              	.LVL29:
+ 356              	.L33:
+ 330:Libs/mbedtls/library/md.c ****     }
+ 357              		.loc 1 330 16 view .LVU79
+ 358 002a 0548     		ldr	r0, .L42
+ 359              	.LVL30:
+ 330:Libs/mbedtls/library/md.c ****     }
+ 360              		.loc 1 330 16 view .LVU80
+ 361 002c 7047     		bx	lr
+ 362              	.LVL31:
+ 363              	.L34:
+ 330:Libs/mbedtls/library/md.c ****     }
+ 364              		.loc 1 330 16 view .LVU81
+ 365 002e 0448     		ldr	r0, .L42
+ 366              	.LVL32:
+ 367              		.loc 1 378 1 view .LVU82
+ 368 0030 7047     		bx	lr
+ 369              	.LVL33:
+ 370              	.L35:
+ 371              	.LCFI5:
+ 372              		.cfi_def_cfa_offset 8
+ 373              		.cfi_offset 3, -8
+ 374              		.cfi_offset 14, -4
+ 330:Libs/mbedtls/library/md.c ****     }
+ 375              		.loc 1 330 16 view .LVU83
+ 376 0032 0348     		ldr	r0, .L42
+ 377              	.LVL34:
+ 330:Libs/mbedtls/library/md.c ****     }
+ 378              		.loc 1 330 16 view .LVU84
+ 379 0034 F6E7     		b	.L30
+ 380              	.LVL35:
+ 381              	.L36:
+ 330:Libs/mbedtls/library/md.c ****     }
+ 382              		.loc 1 330 16 view .LVU85
+ 383 0036 0248     		ldr	r0, .L42
+ 384              	.LVL36:
+ 330:Libs/mbedtls/library/md.c ****     }
+ 385              		.loc 1 330 16 view .LVU86
+ 386 0038 F4E7     		b	.L30
+ 387              	.LVL37:
+ 388              	.L37:
+ 374:Libs/mbedtls/library/md.c ****     }
+ 389              		.loc 1 374 20 view .LVU87
+ 390 003a 0148     		ldr	r0, .L42
+ 391              	.LVL38:
+ 374:Libs/mbedtls/library/md.c ****     }
+ 392              		.loc 1 374 20 view .LVU88
+ 393 003c F2E7     		b	.L30
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 15
+
+
+ 394              	.L43:
+ 395 003e 00BF     		.align	2
+ 396              	.L42:
+ 397 0040 00AFFFFF 		.word	-20736
+ 398              		.cfi_endproc
+ 399              	.LFE11:
+ 401              		.section	.text.mbedtls_md_setup,"ax",%progbits
+ 402              		.align	1
+ 403              		.global	mbedtls_md_setup
+ 404              		.syntax unified
+ 405              		.thumb
+ 406              		.thumb_func
+ 408              	mbedtls_md_setup:
+ 409              	.LVL39:
+ 410              	.LFB13:
+ 379:Libs/mbedtls/library/md.c **** 
+ 380:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_DEPRECATED_REMOVED)
+ 381:Libs/mbedtls/library/md.c **** int mbedtls_md_init_ctx(mbedtls_md_context_t *ctx, const mbedtls_md_info_t *md_info)
+ 382:Libs/mbedtls/library/md.c **** {
+ 383:Libs/mbedtls/library/md.c ****     return mbedtls_md_setup(ctx, md_info, 1);
+ 384:Libs/mbedtls/library/md.c **** }
+ 385:Libs/mbedtls/library/md.c **** #endif
+ 386:Libs/mbedtls/library/md.c **** 
+ 387:Libs/mbedtls/library/md.c **** #define ALLOC(type)                                                   \
+ 388:Libs/mbedtls/library/md.c ****     do {                                                                \
+ 389:Libs/mbedtls/library/md.c ****         ctx->md_ctx = mbedtls_calloc(1, sizeof(mbedtls_##type##_context)); \
+ 390:Libs/mbedtls/library/md.c ****         if (ctx->md_ctx == NULL)                                       \
+ 391:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_ALLOC_FAILED;                      \
+ 392:Libs/mbedtls/library/md.c ****         mbedtls_##type##_init(ctx->md_ctx);                           \
+ 393:Libs/mbedtls/library/md.c ****     }                                                                   \
+ 394:Libs/mbedtls/library/md.c ****     while (0)
+ 395:Libs/mbedtls/library/md.c **** 
+ 396:Libs/mbedtls/library/md.c **** int mbedtls_md_setup(mbedtls_md_context_t *ctx, const mbedtls_md_info_t *md_info, int hmac)
+ 397:Libs/mbedtls/library/md.c **** {
+ 411              		.loc 1 397 1 is_stmt 1 view -0
+ 412              		.cfi_startproc
+ 413              		@ args = 0, pretend = 0, frame = 0
+ 414              		@ frame_needed = 0, uses_anonymous_args = 0
+ 415              		.loc 1 397 1 is_stmt 0 view .LVU90
+ 416 0000 70B5     		push	{r4, r5, r6, lr}
+ 417              	.LCFI6:
+ 418              		.cfi_def_cfa_offset 16
+ 419              		.cfi_offset 4, -16
+ 420              		.cfi_offset 5, -12
+ 421              		.cfi_offset 6, -8
+ 422              		.cfi_offset 14, -4
+ 398:Libs/mbedtls/library/md.c ****     if (md_info == NULL || ctx == NULL) {
+ 423              		.loc 1 398 5 is_stmt 1 view .LVU91
+ 424              		.loc 1 398 8 is_stmt 0 view .LVU92
+ 425 0002 0028     		cmp	r0, #0
+ 426 0004 18BF     		it	ne
+ 427 0006 0029     		cmpne	r1, #0
+ 428 0008 22D0     		beq	.L46
+ 429 000a 1446     		mov	r4, r2
+ 430 000c 0E46     		mov	r6, r1
+ 431 000e 0546     		mov	r5, r0
+ 399:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 16
+
+
+ 400:Libs/mbedtls/library/md.c ****     }
+ 401:Libs/mbedtls/library/md.c **** 
+ 402:Libs/mbedtls/library/md.c ****     ctx->md_info = md_info;
+ 432              		.loc 1 402 5 is_stmt 1 view .LVU93
+ 433              		.loc 1 402 18 is_stmt 0 view .LVU94
+ 434 0010 0160     		str	r1, [r0]
+ 403:Libs/mbedtls/library/md.c ****     ctx->md_ctx = NULL;
+ 435              		.loc 1 403 5 is_stmt 1 view .LVU95
+ 436              		.loc 1 403 17 is_stmt 0 view .LVU96
+ 437 0012 0023     		movs	r3, #0
+ 438 0014 4360     		str	r3, [r0, #4]
+ 404:Libs/mbedtls/library/md.c ****     ctx->hmac_ctx = NULL;
+ 439              		.loc 1 404 5 is_stmt 1 view .LVU97
+ 440              		.loc 1 404 19 is_stmt 0 view .LVU98
+ 441 0016 8360     		str	r3, [r0, #8]
+ 405:Libs/mbedtls/library/md.c **** 
+ 406:Libs/mbedtls/library/md.c ****     switch (md_info->type) {
+ 442              		.loc 1 406 5 is_stmt 1 view .LVU99
+ 443              		.loc 1 406 20 is_stmt 0 view .LVU100
+ 444 0018 0B79     		ldrb	r3, [r1, #4]	@ zero_extendqisi2
+ 445              		.loc 1 406 5 view .LVU101
+ 446 001a 053B     		subs	r3, r3, #5
+ 447 001c 012B     		cmp	r3, #1
+ 448 001e 19D8     		bhi	.L47
+ 407:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 408:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD2:
+ 409:Libs/mbedtls/library/md.c ****             ALLOC(md2);
+ 410:Libs/mbedtls/library/md.c ****             break;
+ 411:Libs/mbedtls/library/md.c **** #endif
+ 412:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 413:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD4:
+ 414:Libs/mbedtls/library/md.c ****             ALLOC(md4);
+ 415:Libs/mbedtls/library/md.c ****             break;
+ 416:Libs/mbedtls/library/md.c **** #endif
+ 417:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 418:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD5:
+ 419:Libs/mbedtls/library/md.c ****             ALLOC(md5);
+ 420:Libs/mbedtls/library/md.c ****             break;
+ 421:Libs/mbedtls/library/md.c **** #endif
+ 422:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 423:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_RIPEMD160:
+ 424:Libs/mbedtls/library/md.c ****             ALLOC(ripemd160);
+ 425:Libs/mbedtls/library/md.c ****             break;
+ 426:Libs/mbedtls/library/md.c **** #endif
+ 427:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 428:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA1:
+ 429:Libs/mbedtls/library/md.c ****             ALLOC(sha1);
+ 430:Libs/mbedtls/library/md.c ****             break;
+ 431:Libs/mbedtls/library/md.c **** #endif
+ 432:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 433:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA224:
+ 434:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA256:
+ 435:Libs/mbedtls/library/md.c ****             ALLOC(sha256);
+ 449              		.loc 1 435 13 is_stmt 1 view .LVU102
+ 450              		.loc 1 435 13 view .LVU103
+ 451 0020 6C21     		movs	r1, #108
+ 452              	.LVL40:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 17
+
+
+ 453              		.loc 1 435 13 is_stmt 0 view .LVU104
+ 454 0022 0120     		movs	r0, #1
+ 455              	.LVL41:
+ 456              		.loc 1 435 13 view .LVU105
+ 457 0024 FFF7FEFF 		bl	calloc
+ 458              	.LVL42:
+ 459              		.loc 1 435 13 discriminator 1 view .LVU106
+ 460 0028 6860     		str	r0, [r5, #4]
+ 461              		.loc 1 435 13 is_stmt 1 discriminator 1 view .LVU107
+ 462 002a A8B1     		cbz	r0, .L48
+ 463              		.loc 1 435 13 discriminator 2 view .LVU108
+ 464 002c FFF7FEFF 		bl	mbedtls_sha256_init
+ 465              	.LVL43:
+ 466              		.loc 1 435 13 discriminator 1 view .LVU109
+ 436:Libs/mbedtls/library/md.c ****             break;
+ 467              		.loc 1 436 13 view .LVU110
+ 437:Libs/mbedtls/library/md.c **** #endif
+ 438:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 439:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 440:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA384:
+ 441:Libs/mbedtls/library/md.c **** #endif
+ 442:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA512:
+ 443:Libs/mbedtls/library/md.c ****             ALLOC(sha512);
+ 444:Libs/mbedtls/library/md.c ****             break;
+ 445:Libs/mbedtls/library/md.c **** #endif
+ 446:Libs/mbedtls/library/md.c ****         default:
+ 447:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 448:Libs/mbedtls/library/md.c ****     }
+ 449:Libs/mbedtls/library/md.c **** 
+ 450:Libs/mbedtls/library/md.c ****     if (hmac != 0) {
+ 468              		.loc 1 450 5 view .LVU111
+ 469              		.loc 1 450 8 is_stmt 0 view .LVU112
+ 470 0030 0CB9     		cbnz	r4, .L51
+ 471              	.LVL44:
+ 472              	.L45:
+ 451:Libs/mbedtls/library/md.c ****         ctx->hmac_ctx = mbedtls_calloc(2, md_info->block_size);
+ 452:Libs/mbedtls/library/md.c ****         if (ctx->hmac_ctx == NULL) {
+ 453:Libs/mbedtls/library/md.c ****             mbedtls_md_free(ctx);
+ 454:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_ALLOC_FAILED;
+ 455:Libs/mbedtls/library/md.c ****         }
+ 456:Libs/mbedtls/library/md.c ****     }
+ 457:Libs/mbedtls/library/md.c **** 
+ 458:Libs/mbedtls/library/md.c ****     return 0;
+ 459:Libs/mbedtls/library/md.c **** }
+ 473              		.loc 1 459 1 view .LVU113
+ 474 0032 2046     		mov	r0, r4
+ 475 0034 70BD     		pop	{r4, r5, r6, pc}
+ 476              	.LVL45:
+ 477              	.L51:
+ 451:Libs/mbedtls/library/md.c ****         ctx->hmac_ctx = mbedtls_calloc(2, md_info->block_size);
+ 478              		.loc 1 451 9 is_stmt 1 view .LVU114
+ 451:Libs/mbedtls/library/md.c ****         ctx->hmac_ctx = mbedtls_calloc(2, md_info->block_size);
+ 479              		.loc 1 451 25 is_stmt 0 view .LVU115
+ 480 0036 B179     		ldrb	r1, [r6, #6]	@ zero_extendqisi2
+ 481 0038 0220     		movs	r0, #2
+ 482 003a FFF7FEFF 		bl	calloc
+ 483              	.LVL46:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 18
+
+
+ 451:Libs/mbedtls/library/md.c ****         ctx->hmac_ctx = mbedtls_calloc(2, md_info->block_size);
+ 484              		.loc 1 451 23 discriminator 1 view .LVU116
+ 485 003e A860     		str	r0, [r5, #8]
+ 452:Libs/mbedtls/library/md.c ****             mbedtls_md_free(ctx);
+ 486              		.loc 1 452 9 is_stmt 1 view .LVU117
+ 452:Libs/mbedtls/library/md.c ****             mbedtls_md_free(ctx);
+ 487              		.loc 1 452 12 is_stmt 0 view .LVU118
+ 488 0040 08B1     		cbz	r0, .L52
+ 458:Libs/mbedtls/library/md.c **** }
+ 489              		.loc 1 458 12 view .LVU119
+ 490 0042 0024     		movs	r4, #0
+ 491              	.LVL47:
+ 458:Libs/mbedtls/library/md.c **** }
+ 492              		.loc 1 458 12 view .LVU120
+ 493 0044 F5E7     		b	.L45
+ 494              	.LVL48:
+ 495              	.L52:
+ 453:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_ALLOC_FAILED;
+ 496              		.loc 1 453 13 is_stmt 1 view .LVU121
+ 497 0046 2846     		mov	r0, r5
+ 498 0048 FFF7FEFF 		bl	mbedtls_md_free
+ 499              	.LVL49:
+ 454:Libs/mbedtls/library/md.c ****         }
+ 500              		.loc 1 454 13 view .LVU122
+ 454:Libs/mbedtls/library/md.c ****         }
+ 501              		.loc 1 454 20 is_stmt 0 view .LVU123
+ 502 004c 034C     		ldr	r4, .L53
+ 503              	.LVL50:
+ 454:Libs/mbedtls/library/md.c ****         }
+ 504              		.loc 1 454 20 view .LVU124
+ 505 004e F0E7     		b	.L45
+ 506              	.LVL51:
+ 507              	.L46:
+ 399:Libs/mbedtls/library/md.c ****     }
+ 508              		.loc 1 399 16 view .LVU125
+ 509 0050 034C     		ldr	r4, .L53+4
+ 510 0052 EEE7     		b	.L45
+ 511              	.L47:
+ 447:Libs/mbedtls/library/md.c ****     }
+ 512              		.loc 1 447 20 view .LVU126
+ 513 0054 024C     		ldr	r4, .L53+4
+ 514 0056 ECE7     		b	.L45
+ 515              	.LVL52:
+ 516              	.L48:
+ 435:Libs/mbedtls/library/md.c ****             break;
+ 517              		.loc 1 435 13 discriminator 1 view .LVU127
+ 518 0058 004C     		ldr	r4, .L53
+ 519              	.LVL53:
+ 435:Libs/mbedtls/library/md.c ****             break;
+ 520              		.loc 1 435 13 discriminator 1 view .LVU128
+ 521 005a EAE7     		b	.L45
+ 522              	.L54:
+ 523              		.align	2
+ 524              	.L53:
+ 525 005c 80AEFFFF 		.word	-20864
+ 526 0060 00AFFFFF 		.word	-20736
+ 527              		.cfi_endproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 19
+
+
+ 528              	.LFE13:
+ 530              		.section	.text.mbedtls_md_init_ctx,"ax",%progbits
+ 531              		.align	1
+ 532              		.global	mbedtls_md_init_ctx
+ 533              		.syntax unified
+ 534              		.thumb
+ 535              		.thumb_func
+ 537              	mbedtls_md_init_ctx:
+ 538              	.LVL54:
+ 539              	.LFB12:
+ 382:Libs/mbedtls/library/md.c ****     return mbedtls_md_setup(ctx, md_info, 1);
+ 540              		.loc 1 382 1 is_stmt 1 view -0
+ 541              		.cfi_startproc
+ 542              		@ args = 0, pretend = 0, frame = 0
+ 543              		@ frame_needed = 0, uses_anonymous_args = 0
+ 382:Libs/mbedtls/library/md.c ****     return mbedtls_md_setup(ctx, md_info, 1);
+ 544              		.loc 1 382 1 is_stmt 0 view .LVU130
+ 545 0000 08B5     		push	{r3, lr}
+ 546              	.LCFI7:
+ 547              		.cfi_def_cfa_offset 8
+ 548              		.cfi_offset 3, -8
+ 549              		.cfi_offset 14, -4
+ 383:Libs/mbedtls/library/md.c **** }
+ 550              		.loc 1 383 5 is_stmt 1 view .LVU131
+ 383:Libs/mbedtls/library/md.c **** }
+ 551              		.loc 1 383 12 is_stmt 0 view .LVU132
+ 552 0002 0122     		movs	r2, #1
+ 553 0004 FFF7FEFF 		bl	mbedtls_md_setup
+ 554              	.LVL55:
+ 384:Libs/mbedtls/library/md.c **** #endif
+ 555              		.loc 1 384 1 view .LVU133
+ 556 0008 08BD     		pop	{r3, pc}
+ 557              		.cfi_endproc
+ 558              	.LFE12:
+ 560              		.section	.text.mbedtls_md_starts,"ax",%progbits
+ 561              		.align	1
+ 562              		.global	mbedtls_md_starts
+ 563              		.syntax unified
+ 564              		.thumb
+ 565              		.thumb_func
+ 567              	mbedtls_md_starts:
+ 568              	.LVL56:
+ 569              	.LFB14:
+ 460:Libs/mbedtls/library/md.c **** #undef ALLOC
+ 461:Libs/mbedtls/library/md.c **** 
+ 462:Libs/mbedtls/library/md.c **** int mbedtls_md_starts(mbedtls_md_context_t *ctx)
+ 463:Libs/mbedtls/library/md.c **** {
+ 570              		.loc 1 463 1 is_stmt 1 view -0
+ 571              		.cfi_startproc
+ 572              		@ args = 0, pretend = 0, frame = 0
+ 573              		@ frame_needed = 0, uses_anonymous_args = 0
+ 464:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 574              		.loc 1 464 5 view .LVU135
+ 575              		.loc 1 464 8 is_stmt 0 view .LVU136
+ 576 0000 98B1     		cbz	r0, .L61
+ 463:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 577              		.loc 1 463 1 view .LVU137
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 20
+
+
+ 578 0002 08B5     		push	{r3, lr}
+ 579              	.LCFI8:
+ 580              		.cfi_def_cfa_offset 8
+ 581              		.cfi_offset 3, -8
+ 582              		.cfi_offset 14, -4
+ 583              		.loc 1 464 27 discriminator 1 view .LVU138
+ 584 0004 0368     		ldr	r3, [r0]
+ 585              		.loc 1 464 21 discriminator 1 view .LVU139
+ 586 0006 93B1     		cbz	r3, .L62
+ 465:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 466:Libs/mbedtls/library/md.c ****     }
+ 467:Libs/mbedtls/library/md.c **** 
+ 468:Libs/mbedtls/library/md.c ****     switch (ctx->md_info->type) {
+ 587              		.loc 1 468 5 is_stmt 1 view .LVU140
+ 588              		.loc 1 468 25 is_stmt 0 view .LVU141
+ 589 0008 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 590              		.loc 1 468 5 view .LVU142
+ 591 000a 052B     		cmp	r3, #5
+ 592 000c 03D0     		beq	.L59
+ 593 000e 062B     		cmp	r3, #6
+ 594 0010 06D0     		beq	.L60
+ 595 0012 0848     		ldr	r0, .L67
+ 596              	.LVL57:
+ 597              		.loc 1 468 5 view .LVU143
+ 598 0014 03E0     		b	.L57
+ 599              	.LVL58:
+ 600              	.L59:
+ 469:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 470:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD2:
+ 471:Libs/mbedtls/library/md.c ****             return mbedtls_md2_starts_ret(ctx->md_ctx);
+ 472:Libs/mbedtls/library/md.c **** #endif
+ 473:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 474:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD4:
+ 475:Libs/mbedtls/library/md.c ****             return mbedtls_md4_starts_ret(ctx->md_ctx);
+ 476:Libs/mbedtls/library/md.c **** #endif
+ 477:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 478:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD5:
+ 479:Libs/mbedtls/library/md.c ****             return mbedtls_md5_starts_ret(ctx->md_ctx);
+ 480:Libs/mbedtls/library/md.c **** #endif
+ 481:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 482:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_RIPEMD160:
+ 483:Libs/mbedtls/library/md.c ****             return mbedtls_ripemd160_starts_ret(ctx->md_ctx);
+ 484:Libs/mbedtls/library/md.c **** #endif
+ 485:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 486:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA1:
+ 487:Libs/mbedtls/library/md.c ****             return mbedtls_sha1_starts_ret(ctx->md_ctx);
+ 488:Libs/mbedtls/library/md.c **** #endif
+ 489:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 490:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA224:
+ 491:Libs/mbedtls/library/md.c ****             return mbedtls_sha256_starts_ret(ctx->md_ctx, 1);
+ 601              		.loc 1 491 13 is_stmt 1 view .LVU144
+ 602              		.loc 1 491 20 is_stmt 0 view .LVU145
+ 603 0016 0121     		movs	r1, #1
+ 604 0018 4068     		ldr	r0, [r0, #4]
+ 605              	.LVL59:
+ 606              		.loc 1 491 20 view .LVU146
+ 607 001a FFF7FEFF 		bl	mbedtls_sha256_starts_ret
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 21
+
+
+ 608              	.LVL60:
+ 609              	.L57:
+ 492:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA256:
+ 493:Libs/mbedtls/library/md.c ****             return mbedtls_sha256_starts_ret(ctx->md_ctx, 0);
+ 494:Libs/mbedtls/library/md.c **** #endif
+ 495:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 496:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 497:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA384:
+ 498:Libs/mbedtls/library/md.c ****             return mbedtls_sha512_starts_ret(ctx->md_ctx, 1);
+ 499:Libs/mbedtls/library/md.c **** #endif
+ 500:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA512:
+ 501:Libs/mbedtls/library/md.c ****             return mbedtls_sha512_starts_ret(ctx->md_ctx, 0);
+ 502:Libs/mbedtls/library/md.c **** #endif
+ 503:Libs/mbedtls/library/md.c ****         default:
+ 504:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 505:Libs/mbedtls/library/md.c ****     }
+ 506:Libs/mbedtls/library/md.c **** }
+ 610              		.loc 1 506 1 view .LVU147
+ 611 001e 08BD     		pop	{r3, pc}
+ 612              	.LVL61:
+ 613              	.L60:
+ 493:Libs/mbedtls/library/md.c **** #endif
+ 614              		.loc 1 493 13 is_stmt 1 view .LVU148
+ 493:Libs/mbedtls/library/md.c **** #endif
+ 615              		.loc 1 493 20 is_stmt 0 view .LVU149
+ 616 0020 0021     		movs	r1, #0
+ 617 0022 4068     		ldr	r0, [r0, #4]
+ 618              	.LVL62:
+ 493:Libs/mbedtls/library/md.c **** #endif
+ 619              		.loc 1 493 20 view .LVU150
+ 620 0024 FFF7FEFF 		bl	mbedtls_sha256_starts_ret
+ 621              	.LVL63:
+ 622 0028 F9E7     		b	.L57
+ 623              	.LVL64:
+ 624              	.L61:
+ 625              	.LCFI9:
+ 626              		.cfi_def_cfa_offset 0
+ 627              		.cfi_restore 3
+ 628              		.cfi_restore 14
+ 465:Libs/mbedtls/library/md.c ****     }
+ 629              		.loc 1 465 16 view .LVU151
+ 630 002a 0248     		ldr	r0, .L67
+ 631              	.LVL65:
+ 632              		.loc 1 506 1 view .LVU152
+ 633 002c 7047     		bx	lr
+ 634              	.LVL66:
+ 635              	.L62:
+ 636              	.LCFI10:
+ 637              		.cfi_def_cfa_offset 8
+ 638              		.cfi_offset 3, -8
+ 639              		.cfi_offset 14, -4
+ 465:Libs/mbedtls/library/md.c ****     }
+ 640              		.loc 1 465 16 view .LVU153
+ 641 002e 0148     		ldr	r0, .L67
+ 642              	.LVL67:
+ 465:Libs/mbedtls/library/md.c ****     }
+ 643              		.loc 1 465 16 view .LVU154
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 22
+
+
+ 644 0030 F5E7     		b	.L57
+ 645              	.L68:
+ 646 0032 00BF     		.align	2
+ 647              	.L67:
+ 648 0034 00AFFFFF 		.word	-20736
+ 649              		.cfi_endproc
+ 650              	.LFE14:
+ 652              		.section	.text.mbedtls_md_update,"ax",%progbits
+ 653              		.align	1
+ 654              		.global	mbedtls_md_update
+ 655              		.syntax unified
+ 656              		.thumb
+ 657              		.thumb_func
+ 659              	mbedtls_md_update:
+ 660              	.LVL68:
+ 661              	.LFB15:
+ 507:Libs/mbedtls/library/md.c **** 
+ 508:Libs/mbedtls/library/md.c **** int mbedtls_md_update(mbedtls_md_context_t *ctx, const unsigned char *input, size_t ilen)
+ 509:Libs/mbedtls/library/md.c **** {
+ 662              		.loc 1 509 1 is_stmt 1 view -0
+ 663              		.cfi_startproc
+ 664              		@ args = 0, pretend = 0, frame = 0
+ 665              		@ frame_needed = 0, uses_anonymous_args = 0
+ 510:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 666              		.loc 1 510 5 view .LVU156
+ 667              		.loc 1 510 8 is_stmt 0 view .LVU157
+ 668 0000 50B1     		cbz	r0, .L71
+ 509:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 669              		.loc 1 509 1 view .LVU158
+ 670 0002 08B5     		push	{r3, lr}
+ 671              	.LCFI11:
+ 672              		.cfi_def_cfa_offset 8
+ 673              		.cfi_offset 3, -8
+ 674              		.cfi_offset 14, -4
+ 675              		.loc 1 510 27 discriminator 1 view .LVU159
+ 676 0004 0368     		ldr	r3, [r0]
+ 677              		.loc 1 510 21 discriminator 1 view .LVU160
+ 678 0006 4BB1     		cbz	r3, .L72
+ 511:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 512:Libs/mbedtls/library/md.c ****     }
+ 513:Libs/mbedtls/library/md.c **** 
+ 514:Libs/mbedtls/library/md.c ****     switch (ctx->md_info->type) {
+ 679              		.loc 1 514 5 is_stmt 1 view .LVU161
+ 680              		.loc 1 514 25 is_stmt 0 view .LVU162
+ 681 0008 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 682              		.loc 1 514 5 view .LVU163
+ 683 000a 053B     		subs	r3, r3, #5
+ 684 000c 012B     		cmp	r3, #1
+ 685 000e 07D8     		bhi	.L73
+ 515:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 516:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD2:
+ 517:Libs/mbedtls/library/md.c ****             return mbedtls_md2_update_ret(ctx->md_ctx, input, ilen);
+ 518:Libs/mbedtls/library/md.c **** #endif
+ 519:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 520:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD4:
+ 521:Libs/mbedtls/library/md.c ****             return mbedtls_md4_update_ret(ctx->md_ctx, input, ilen);
+ 522:Libs/mbedtls/library/md.c **** #endif
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 23
+
+
+ 523:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 524:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD5:
+ 525:Libs/mbedtls/library/md.c ****             return mbedtls_md5_update_ret(ctx->md_ctx, input, ilen);
+ 526:Libs/mbedtls/library/md.c **** #endif
+ 527:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 528:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_RIPEMD160:
+ 529:Libs/mbedtls/library/md.c ****             return mbedtls_ripemd160_update_ret(ctx->md_ctx, input, ilen);
+ 530:Libs/mbedtls/library/md.c **** #endif
+ 531:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 532:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA1:
+ 533:Libs/mbedtls/library/md.c ****             return mbedtls_sha1_update_ret(ctx->md_ctx, input, ilen);
+ 534:Libs/mbedtls/library/md.c **** #endif
+ 535:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 536:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA224:
+ 537:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA256:
+ 538:Libs/mbedtls/library/md.c ****             return mbedtls_sha256_update_ret(ctx->md_ctx, input, ilen);
+ 686              		.loc 1 538 13 is_stmt 1 view .LVU164
+ 687              		.loc 1 538 20 is_stmt 0 view .LVU165
+ 688 0010 4068     		ldr	r0, [r0, #4]
+ 689              	.LVL69:
+ 690              		.loc 1 538 20 view .LVU166
+ 691 0012 FFF7FEFF 		bl	mbedtls_sha256_update_ret
+ 692              	.LVL70:
+ 693              	.L69:
+ 539:Libs/mbedtls/library/md.c **** #endif
+ 540:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 541:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 542:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA384:
+ 543:Libs/mbedtls/library/md.c **** #endif
+ 544:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA512:
+ 545:Libs/mbedtls/library/md.c ****             return mbedtls_sha512_update_ret(ctx->md_ctx, input, ilen);
+ 546:Libs/mbedtls/library/md.c **** #endif
+ 547:Libs/mbedtls/library/md.c ****         default:
+ 548:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 549:Libs/mbedtls/library/md.c ****     }
+ 550:Libs/mbedtls/library/md.c **** }
+ 694              		.loc 1 550 1 view .LVU167
+ 695 0016 08BD     		pop	{r3, pc}
+ 696              	.LVL71:
+ 697              	.L71:
+ 698              	.LCFI12:
+ 699              		.cfi_def_cfa_offset 0
+ 700              		.cfi_restore 3
+ 701              		.cfi_restore 14
+ 511:Libs/mbedtls/library/md.c ****     }
+ 702              		.loc 1 511 16 view .LVU168
+ 703 0018 0248     		ldr	r0, .L78
+ 704              	.LVL72:
+ 705              		.loc 1 550 1 view .LVU169
+ 706 001a 7047     		bx	lr
+ 707              	.LVL73:
+ 708              	.L72:
+ 709              	.LCFI13:
+ 710              		.cfi_def_cfa_offset 8
+ 711              		.cfi_offset 3, -8
+ 712              		.cfi_offset 14, -4
+ 511:Libs/mbedtls/library/md.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 24
+
+
+ 713              		.loc 1 511 16 view .LVU170
+ 714 001c 0148     		ldr	r0, .L78
+ 715              	.LVL74:
+ 511:Libs/mbedtls/library/md.c ****     }
+ 716              		.loc 1 511 16 view .LVU171
+ 717 001e FAE7     		b	.L69
+ 718              	.LVL75:
+ 719              	.L73:
+ 548:Libs/mbedtls/library/md.c ****     }
+ 720              		.loc 1 548 20 view .LVU172
+ 721 0020 0048     		ldr	r0, .L78
+ 722              	.LVL76:
+ 548:Libs/mbedtls/library/md.c ****     }
+ 723              		.loc 1 548 20 view .LVU173
+ 724 0022 F8E7     		b	.L69
+ 725              	.L79:
+ 726              		.align	2
+ 727              	.L78:
+ 728 0024 00AFFFFF 		.word	-20736
+ 729              		.cfi_endproc
+ 730              	.LFE15:
+ 732              		.section	.text.mbedtls_md_finish,"ax",%progbits
+ 733              		.align	1
+ 734              		.global	mbedtls_md_finish
+ 735              		.syntax unified
+ 736              		.thumb
+ 737              		.thumb_func
+ 739              	mbedtls_md_finish:
+ 740              	.LVL77:
+ 741              	.LFB16:
+ 551:Libs/mbedtls/library/md.c **** 
+ 552:Libs/mbedtls/library/md.c **** int mbedtls_md_finish(mbedtls_md_context_t *ctx, unsigned char *output)
+ 553:Libs/mbedtls/library/md.c **** {
+ 742              		.loc 1 553 1 is_stmt 1 view -0
+ 743              		.cfi_startproc
+ 744              		@ args = 0, pretend = 0, frame = 0
+ 745              		@ frame_needed = 0, uses_anonymous_args = 0
+ 554:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 746              		.loc 1 554 5 view .LVU175
+ 747              		.loc 1 554 8 is_stmt 0 view .LVU176
+ 748 0000 50B1     		cbz	r0, .L82
+ 553:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 749              		.loc 1 553 1 view .LVU177
+ 750 0002 08B5     		push	{r3, lr}
+ 751              	.LCFI14:
+ 752              		.cfi_def_cfa_offset 8
+ 753              		.cfi_offset 3, -8
+ 754              		.cfi_offset 14, -4
+ 755              		.loc 1 554 27 discriminator 1 view .LVU178
+ 756 0004 0368     		ldr	r3, [r0]
+ 757              		.loc 1 554 21 discriminator 1 view .LVU179
+ 758 0006 4BB1     		cbz	r3, .L83
+ 555:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 556:Libs/mbedtls/library/md.c ****     }
+ 557:Libs/mbedtls/library/md.c **** 
+ 558:Libs/mbedtls/library/md.c ****     switch (ctx->md_info->type) {
+ 759              		.loc 1 558 5 is_stmt 1 view .LVU180
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 25
+
+
+ 760              		.loc 1 558 25 is_stmt 0 view .LVU181
+ 761 0008 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 762              		.loc 1 558 5 view .LVU182
+ 763 000a 053B     		subs	r3, r3, #5
+ 764 000c 012B     		cmp	r3, #1
+ 765 000e 07D8     		bhi	.L84
+ 559:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 560:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD2:
+ 561:Libs/mbedtls/library/md.c ****             return mbedtls_md2_finish_ret(ctx->md_ctx, output);
+ 562:Libs/mbedtls/library/md.c **** #endif
+ 563:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 564:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD4:
+ 565:Libs/mbedtls/library/md.c ****             return mbedtls_md4_finish_ret(ctx->md_ctx, output);
+ 566:Libs/mbedtls/library/md.c **** #endif
+ 567:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 568:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD5:
+ 569:Libs/mbedtls/library/md.c ****             return mbedtls_md5_finish_ret(ctx->md_ctx, output);
+ 570:Libs/mbedtls/library/md.c **** #endif
+ 571:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 572:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_RIPEMD160:
+ 573:Libs/mbedtls/library/md.c ****             return mbedtls_ripemd160_finish_ret(ctx->md_ctx, output);
+ 574:Libs/mbedtls/library/md.c **** #endif
+ 575:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 576:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA1:
+ 577:Libs/mbedtls/library/md.c ****             return mbedtls_sha1_finish_ret(ctx->md_ctx, output);
+ 578:Libs/mbedtls/library/md.c **** #endif
+ 579:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 580:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA224:
+ 581:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA256:
+ 582:Libs/mbedtls/library/md.c ****             return mbedtls_sha256_finish_ret(ctx->md_ctx, output);
+ 766              		.loc 1 582 13 is_stmt 1 view .LVU183
+ 767              		.loc 1 582 20 is_stmt 0 view .LVU184
+ 768 0010 4068     		ldr	r0, [r0, #4]
+ 769              	.LVL78:
+ 770              		.loc 1 582 20 view .LVU185
+ 771 0012 FFF7FEFF 		bl	mbedtls_sha256_finish_ret
+ 772              	.LVL79:
+ 773              	.L80:
+ 583:Libs/mbedtls/library/md.c **** #endif
+ 584:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 585:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 586:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA384:
+ 587:Libs/mbedtls/library/md.c **** #endif
+ 588:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA512:
+ 589:Libs/mbedtls/library/md.c ****             return mbedtls_sha512_finish_ret(ctx->md_ctx, output);
+ 590:Libs/mbedtls/library/md.c **** #endif
+ 591:Libs/mbedtls/library/md.c ****         default:
+ 592:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 593:Libs/mbedtls/library/md.c ****     }
+ 594:Libs/mbedtls/library/md.c **** }
+ 774              		.loc 1 594 1 view .LVU186
+ 775 0016 08BD     		pop	{r3, pc}
+ 776              	.LVL80:
+ 777              	.L82:
+ 778              	.LCFI15:
+ 779              		.cfi_def_cfa_offset 0
+ 780              		.cfi_restore 3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 26
+
+
+ 781              		.cfi_restore 14
+ 555:Libs/mbedtls/library/md.c ****     }
+ 782              		.loc 1 555 16 view .LVU187
+ 783 0018 0248     		ldr	r0, .L89
+ 784              	.LVL81:
+ 785              		.loc 1 594 1 view .LVU188
+ 786 001a 7047     		bx	lr
+ 787              	.LVL82:
+ 788              	.L83:
+ 789              	.LCFI16:
+ 790              		.cfi_def_cfa_offset 8
+ 791              		.cfi_offset 3, -8
+ 792              		.cfi_offset 14, -4
+ 555:Libs/mbedtls/library/md.c ****     }
+ 793              		.loc 1 555 16 view .LVU189
+ 794 001c 0148     		ldr	r0, .L89
+ 795              	.LVL83:
+ 555:Libs/mbedtls/library/md.c ****     }
+ 796              		.loc 1 555 16 view .LVU190
+ 797 001e FAE7     		b	.L80
+ 798              	.LVL84:
+ 799              	.L84:
+ 592:Libs/mbedtls/library/md.c ****     }
+ 800              		.loc 1 592 20 view .LVU191
+ 801 0020 0048     		ldr	r0, .L89
+ 802              	.LVL85:
+ 592:Libs/mbedtls/library/md.c ****     }
+ 803              		.loc 1 592 20 view .LVU192
+ 804 0022 F8E7     		b	.L80
+ 805              	.L90:
+ 806              		.align	2
+ 807              	.L89:
+ 808 0024 00AFFFFF 		.word	-20736
+ 809              		.cfi_endproc
+ 810              	.LFE16:
+ 812              		.section	.text.mbedtls_md,"ax",%progbits
+ 813              		.align	1
+ 814              		.global	mbedtls_md
+ 815              		.syntax unified
+ 816              		.thumb
+ 817              		.thumb_func
+ 819              	mbedtls_md:
+ 820              	.LVL86:
+ 821              	.LFB17:
+ 595:Libs/mbedtls/library/md.c **** 
+ 596:Libs/mbedtls/library/md.c **** int mbedtls_md(const mbedtls_md_info_t *md_info, const unsigned char *input, size_t ilen,
+ 597:Libs/mbedtls/library/md.c ****                unsigned char *output)
+ 598:Libs/mbedtls/library/md.c **** {
+ 822              		.loc 1 598 1 is_stmt 1 view -0
+ 823              		.cfi_startproc
+ 824              		@ args = 0, pretend = 0, frame = 0
+ 825              		@ frame_needed = 0, uses_anonymous_args = 0
+ 599:Libs/mbedtls/library/md.c ****     if (md_info == NULL) {
+ 826              		.loc 1 599 5 view .LVU194
+ 827              		.loc 1 599 8 is_stmt 0 view .LVU195
+ 828 0000 A0B1     		cbz	r0, .L95
+ 598:Libs/mbedtls/library/md.c ****     if (md_info == NULL) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 27
+
+
+ 829              		.loc 1 598 1 view .LVU196
+ 830 0002 08B5     		push	{r3, lr}
+ 831              	.LCFI17:
+ 832              		.cfi_def_cfa_offset 8
+ 833              		.cfi_offset 3, -8
+ 834              		.cfi_offset 14, -4
+ 835 0004 8C46     		mov	ip, r1
+ 836 0006 1146     		mov	r1, r2
+ 837              	.LVL87:
+ 598:Libs/mbedtls/library/md.c ****     if (md_info == NULL) {
+ 838              		.loc 1 598 1 view .LVU197
+ 839 0008 1A46     		mov	r2, r3
+ 840              	.LVL88:
+ 600:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 601:Libs/mbedtls/library/md.c ****     }
+ 602:Libs/mbedtls/library/md.c **** 
+ 603:Libs/mbedtls/library/md.c ****     switch (md_info->type) {
+ 841              		.loc 1 603 5 is_stmt 1 view .LVU198
+ 842              		.loc 1 603 20 is_stmt 0 view .LVU199
+ 843 000a 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 844              	.LVL89:
+ 845              		.loc 1 603 5 view .LVU200
+ 846 000c 052B     		cmp	r3, #5
+ 847 000e 03D0     		beq	.L93
+ 848 0010 062B     		cmp	r3, #6
+ 849 0012 06D0     		beq	.L94
+ 850 0014 0648     		ldr	r0, .L100
+ 851              	.LVL90:
+ 852              		.loc 1 603 5 view .LVU201
+ 853 0016 03E0     		b	.L91
+ 854              	.LVL91:
+ 855              	.L93:
+ 604:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 605:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD2:
+ 606:Libs/mbedtls/library/md.c ****             return mbedtls_md2_ret(input, ilen, output);
+ 607:Libs/mbedtls/library/md.c **** #endif
+ 608:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 609:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD4:
+ 610:Libs/mbedtls/library/md.c ****             return mbedtls_md4_ret(input, ilen, output);
+ 611:Libs/mbedtls/library/md.c **** #endif
+ 612:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 613:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD5:
+ 614:Libs/mbedtls/library/md.c ****             return mbedtls_md5_ret(input, ilen, output);
+ 615:Libs/mbedtls/library/md.c **** #endif
+ 616:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 617:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_RIPEMD160:
+ 618:Libs/mbedtls/library/md.c ****             return mbedtls_ripemd160_ret(input, ilen, output);
+ 619:Libs/mbedtls/library/md.c **** #endif
+ 620:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 621:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA1:
+ 622:Libs/mbedtls/library/md.c ****             return mbedtls_sha1_ret(input, ilen, output);
+ 623:Libs/mbedtls/library/md.c **** #endif
+ 624:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 625:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA224:
+ 626:Libs/mbedtls/library/md.c ****             return mbedtls_sha256_ret(input, ilen, output, 1);
+ 856              		.loc 1 626 13 is_stmt 1 view .LVU202
+ 857              		.loc 1 626 20 is_stmt 0 view .LVU203
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 28
+
+
+ 858 0018 0123     		movs	r3, #1
+ 859 001a 6046     		mov	r0, ip
+ 860              	.LVL92:
+ 861              		.loc 1 626 20 view .LVU204
+ 862 001c FFF7FEFF 		bl	mbedtls_sha256_ret
+ 863              	.LVL93:
+ 864              	.L91:
+ 627:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA256:
+ 628:Libs/mbedtls/library/md.c ****             return mbedtls_sha256_ret(input, ilen, output, 0);
+ 629:Libs/mbedtls/library/md.c **** #endif
+ 630:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 631:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 632:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA384:
+ 633:Libs/mbedtls/library/md.c ****             return mbedtls_sha512_ret(input, ilen, output, 1);
+ 634:Libs/mbedtls/library/md.c **** #endif
+ 635:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA512:
+ 636:Libs/mbedtls/library/md.c ****             return mbedtls_sha512_ret(input, ilen, output, 0);
+ 637:Libs/mbedtls/library/md.c **** #endif
+ 638:Libs/mbedtls/library/md.c ****         default:
+ 639:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 640:Libs/mbedtls/library/md.c ****     }
+ 641:Libs/mbedtls/library/md.c **** }
+ 865              		.loc 1 641 1 view .LVU205
+ 866 0020 08BD     		pop	{r3, pc}
+ 867              	.LVL94:
+ 868              	.L94:
+ 628:Libs/mbedtls/library/md.c **** #endif
+ 869              		.loc 1 628 13 is_stmt 1 view .LVU206
+ 628:Libs/mbedtls/library/md.c **** #endif
+ 870              		.loc 1 628 20 is_stmt 0 view .LVU207
+ 871 0022 0023     		movs	r3, #0
+ 872 0024 6046     		mov	r0, ip
+ 873              	.LVL95:
+ 628:Libs/mbedtls/library/md.c **** #endif
+ 874              		.loc 1 628 20 view .LVU208
+ 875 0026 FFF7FEFF 		bl	mbedtls_sha256_ret
+ 876              	.LVL96:
+ 628:Libs/mbedtls/library/md.c **** #endif
+ 877              		.loc 1 628 20 view .LVU209
+ 878 002a F9E7     		b	.L91
+ 879              	.LVL97:
+ 880              	.L95:
+ 881              	.LCFI18:
+ 882              		.cfi_def_cfa_offset 0
+ 883              		.cfi_restore 3
+ 884              		.cfi_restore 14
+ 600:Libs/mbedtls/library/md.c ****     }
+ 885              		.loc 1 600 16 view .LVU210
+ 886 002c 0048     		ldr	r0, .L100
+ 887              	.LVL98:
+ 888              		.loc 1 641 1 view .LVU211
+ 889 002e 7047     		bx	lr
+ 890              	.L101:
+ 891              		.align	2
+ 892              	.L100:
+ 893 0030 00AFFFFF 		.word	-20736
+ 894              		.cfi_endproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 29
+
+
+ 895              	.LFE17:
+ 897              		.section	.text.mbedtls_md_hmac_starts,"ax",%progbits
+ 898              		.align	1
+ 899              		.global	mbedtls_md_hmac_starts
+ 900              		.syntax unified
+ 901              		.thumb
+ 902              		.thumb_func
+ 904              	mbedtls_md_hmac_starts:
+ 905              	.LVL99:
+ 906              	.LFB18:
+ 642:Libs/mbedtls/library/md.c **** 
+ 643:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_FS_IO)
+ 644:Libs/mbedtls/library/md.c **** int mbedtls_md_file(const mbedtls_md_info_t *md_info, const char *path, unsigned char *output)
+ 645:Libs/mbedtls/library/md.c **** {
+ 646:Libs/mbedtls/library/md.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 647:Libs/mbedtls/library/md.c ****     FILE *f;
+ 648:Libs/mbedtls/library/md.c ****     size_t n;
+ 649:Libs/mbedtls/library/md.c ****     mbedtls_md_context_t ctx;
+ 650:Libs/mbedtls/library/md.c ****     unsigned char buf[1024];
+ 651:Libs/mbedtls/library/md.c **** 
+ 652:Libs/mbedtls/library/md.c ****     if (md_info == NULL) {
+ 653:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 654:Libs/mbedtls/library/md.c ****     }
+ 655:Libs/mbedtls/library/md.c **** 
+ 656:Libs/mbedtls/library/md.c ****     if ((f = fopen(path, "rb")) == NULL) {
+ 657:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_FILE_IO_ERROR;
+ 658:Libs/mbedtls/library/md.c ****     }
+ 659:Libs/mbedtls/library/md.c **** 
+ 660:Libs/mbedtls/library/md.c ****     mbedtls_md_init(&ctx);
+ 661:Libs/mbedtls/library/md.c **** 
+ 662:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_setup(&ctx, md_info, 0)) != 0) {
+ 663:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 664:Libs/mbedtls/library/md.c ****     }
+ 665:Libs/mbedtls/library/md.c **** 
+ 666:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_starts(&ctx)) != 0) {
+ 667:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 668:Libs/mbedtls/library/md.c ****     }
+ 669:Libs/mbedtls/library/md.c **** 
+ 670:Libs/mbedtls/library/md.c ****     while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
+ 671:Libs/mbedtls/library/md.c ****         if ((ret = mbedtls_md_update(&ctx, buf, n)) != 0) {
+ 672:Libs/mbedtls/library/md.c ****             goto cleanup;
+ 673:Libs/mbedtls/library/md.c ****         }
+ 674:Libs/mbedtls/library/md.c ****     }
+ 675:Libs/mbedtls/library/md.c **** 
+ 676:Libs/mbedtls/library/md.c ****     if (ferror(f) != 0) {
+ 677:Libs/mbedtls/library/md.c ****         ret = MBEDTLS_ERR_MD_FILE_IO_ERROR;
+ 678:Libs/mbedtls/library/md.c ****     } else {
+ 679:Libs/mbedtls/library/md.c ****         ret = mbedtls_md_finish(&ctx, output);
+ 680:Libs/mbedtls/library/md.c ****     }
+ 681:Libs/mbedtls/library/md.c **** 
+ 682:Libs/mbedtls/library/md.c **** cleanup:
+ 683:Libs/mbedtls/library/md.c ****     mbedtls_platform_zeroize(buf, sizeof(buf));
+ 684:Libs/mbedtls/library/md.c ****     fclose(f);
+ 685:Libs/mbedtls/library/md.c ****     mbedtls_md_free(&ctx);
+ 686:Libs/mbedtls/library/md.c **** 
+ 687:Libs/mbedtls/library/md.c ****     return ret;
+ 688:Libs/mbedtls/library/md.c **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 30
+
+
+ 689:Libs/mbedtls/library/md.c **** #endif /* MBEDTLS_FS_IO */
+ 690:Libs/mbedtls/library/md.c **** 
+ 691:Libs/mbedtls/library/md.c **** int mbedtls_md_hmac_starts(mbedtls_md_context_t *ctx, const unsigned char *key, size_t keylen)
+ 692:Libs/mbedtls/library/md.c **** {
+ 907              		.loc 1 692 1 is_stmt 1 view -0
+ 908              		.cfi_startproc
+ 909              		@ args = 0, pretend = 0, frame = 32
+ 910              		@ frame_needed = 0, uses_anonymous_args = 0
+ 911              		.loc 1 692 1 is_stmt 0 view .LVU213
+ 912 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 913              	.LCFI19:
+ 914              		.cfi_def_cfa_offset 24
+ 915              		.cfi_offset 4, -24
+ 916              		.cfi_offset 5, -20
+ 917              		.cfi_offset 6, -16
+ 918              		.cfi_offset 7, -12
+ 919              		.cfi_offset 8, -8
+ 920              		.cfi_offset 14, -4
+ 921 0004 88B0     		sub	sp, sp, #32
+ 922              	.LCFI20:
+ 923              		.cfi_def_cfa_offset 56
+ 693:Libs/mbedtls/library/md.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 924              		.loc 1 693 5 is_stmt 1 view .LVU214
+ 925              	.LVL100:
+ 694:Libs/mbedtls/library/md.c ****     unsigned char sum[MBEDTLS_MD_MAX_SIZE];
+ 926              		.loc 1 694 5 view .LVU215
+ 695:Libs/mbedtls/library/md.c ****     unsigned char *ipad, *opad;
+ 927              		.loc 1 695 5 view .LVU216
+ 696:Libs/mbedtls/library/md.c ****     size_t i;
+ 928              		.loc 1 696 5 view .LVU217
+ 697:Libs/mbedtls/library/md.c **** 
+ 698:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL || ctx->hmac_ctx == NULL) {
+ 929              		.loc 1 698 5 view .LVU218
+ 930              		.loc 1 698 8 is_stmt 0 view .LVU219
+ 931 0006 0028     		cmp	r0, #0
+ 932 0008 54D0     		beq	.L108
+ 933 000a 0C46     		mov	r4, r1
+ 934 000c 1746     		mov	r7, r2
+ 935 000e 8046     		mov	r8, r0
+ 936              		.loc 1 698 27 discriminator 1 view .LVU220
+ 937 0010 0368     		ldr	r3, [r0]
+ 938              		.loc 1 698 21 discriminator 1 view .LVU221
+ 939 0012 002B     		cmp	r3, #0
+ 940 0014 50D0     		beq	.L109
+ 941              		.loc 1 698 51 discriminator 2 view .LVU222
+ 942 0016 8268     		ldr	r2, [r0, #8]
+ 943              	.LVL101:
+ 944              		.loc 1 698 45 discriminator 2 view .LVU223
+ 945 0018 002A     		cmp	r2, #0
+ 946 001a 4FD0     		beq	.L110
+ 699:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 700:Libs/mbedtls/library/md.c ****     }
+ 701:Libs/mbedtls/library/md.c **** 
+ 702:Libs/mbedtls/library/md.c ****     if (keylen > (size_t) ctx->md_info->block_size) {
+ 947              		.loc 1 702 5 is_stmt 1 view .LVU224
+ 948              		.loc 1 702 39 is_stmt 0 view .LVU225
+ 949 001c 9B79     		ldrb	r3, [r3, #6]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 31
+
+
+ 950              		.loc 1 702 8 view .LVU226
+ 951 001e BB42     		cmp	r3, r7
+ 952 0020 14D2     		bcs	.L104
+ 703:Libs/mbedtls/library/md.c ****         if ((ret = mbedtls_md_starts(ctx)) != 0) {
+ 953              		.loc 1 703 9 is_stmt 1 view .LVU227
+ 954              		.loc 1 703 20 is_stmt 0 view .LVU228
+ 955 0022 FFF7FEFF 		bl	mbedtls_md_starts
+ 956              	.LVL102:
+ 957              		.loc 1 703 12 discriminator 1 view .LVU229
+ 958 0026 0646     		mov	r6, r0
+ 959 0028 98BB     		cbnz	r0, .L105
+ 704:Libs/mbedtls/library/md.c ****             goto cleanup;
+ 705:Libs/mbedtls/library/md.c ****         }
+ 706:Libs/mbedtls/library/md.c ****         if ((ret = mbedtls_md_update(ctx, key, keylen)) != 0) {
+ 960              		.loc 1 706 9 is_stmt 1 view .LVU230
+ 961              		.loc 1 706 20 is_stmt 0 view .LVU231
+ 962 002a 3A46     		mov	r2, r7
+ 963 002c 2146     		mov	r1, r4
+ 964 002e 4046     		mov	r0, r8
+ 965              	.LVL103:
+ 966              		.loc 1 706 20 view .LVU232
+ 967 0030 FFF7FEFF 		bl	mbedtls_md_update
+ 968              	.LVL104:
+ 969              		.loc 1 706 12 discriminator 1 view .LVU233
+ 970 0034 0646     		mov	r6, r0
+ 971 0036 60BB     		cbnz	r0, .L105
+ 707:Libs/mbedtls/library/md.c ****             goto cleanup;
+ 708:Libs/mbedtls/library/md.c ****         }
+ 709:Libs/mbedtls/library/md.c ****         if ((ret = mbedtls_md_finish(ctx, sum)) != 0) {
+ 972              		.loc 1 709 9 is_stmt 1 view .LVU234
+ 973              		.loc 1 709 20 is_stmt 0 view .LVU235
+ 974 0038 6946     		mov	r1, sp
+ 975 003a 4046     		mov	r0, r8
+ 976              	.LVL105:
+ 977              		.loc 1 709 20 view .LVU236
+ 978 003c FFF7FEFF 		bl	mbedtls_md_finish
+ 979              	.LVL106:
+ 980              		.loc 1 709 12 discriminator 1 view .LVU237
+ 981 0040 0646     		mov	r6, r0
+ 982 0042 30BB     		cbnz	r0, .L105
+ 710:Libs/mbedtls/library/md.c ****             goto cleanup;
+ 711:Libs/mbedtls/library/md.c ****         }
+ 712:Libs/mbedtls/library/md.c **** 
+ 713:Libs/mbedtls/library/md.c ****         keylen = ctx->md_info->size;
+ 983              		.loc 1 713 9 is_stmt 1 view .LVU238
+ 984              		.loc 1 713 21 is_stmt 0 view .LVU239
+ 985 0044 D8F80030 		ldr	r3, [r8]
+ 986              		.loc 1 713 30 view .LVU240
+ 987 0048 5F79     		ldrb	r7, [r3, #5]	@ zero_extendqisi2
+ 988              	.LVL107:
+ 714:Libs/mbedtls/library/md.c ****         key = sum;
+ 989              		.loc 1 714 9 is_stmt 1 view .LVU241
+ 990              		.loc 1 714 13 is_stmt 0 view .LVU242
+ 991 004a 6C46     		mov	r4, sp
+ 992              	.LVL108:
+ 993              	.L104:
+ 715:Libs/mbedtls/library/md.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 32
+
+
+ 716:Libs/mbedtls/library/md.c **** 
+ 717:Libs/mbedtls/library/md.c ****     ipad = (unsigned char *) ctx->hmac_ctx;
+ 994              		.loc 1 717 5 is_stmt 1 view .LVU243
+ 995              		.loc 1 717 10 is_stmt 0 view .LVU244
+ 996 004c D8F80850 		ldr	r5, [r8, #8]
+ 997              	.LVL109:
+ 718:Libs/mbedtls/library/md.c ****     opad = (unsigned char *) ctx->hmac_ctx + ctx->md_info->block_size;
+ 998              		.loc 1 718 5 is_stmt 1 view .LVU245
+ 999              		.loc 1 718 49 is_stmt 0 view .LVU246
+ 1000 0050 D8F80030 		ldr	r3, [r8]
+ 1001              		.loc 1 718 58 view .LVU247
+ 1002 0054 9A79     		ldrb	r2, [r3, #6]	@ zero_extendqisi2
+ 1003              		.loc 1 718 10 view .LVU248
+ 1004 0056 AE18     		adds	r6, r5, r2
+ 1005              	.LVL110:
+ 719:Libs/mbedtls/library/md.c **** 
+ 720:Libs/mbedtls/library/md.c ****     memset(ipad, 0x36, ctx->md_info->block_size);
+ 1006              		.loc 1 720 5 is_stmt 1 view .LVU249
+ 1007 0058 3621     		movs	r1, #54
+ 1008 005a 2846     		mov	r0, r5
+ 1009 005c FFF7FEFF 		bl	memset
+ 1010              	.LVL111:
+ 721:Libs/mbedtls/library/md.c ****     memset(opad, 0x5C, ctx->md_info->block_size);
+ 1011              		.loc 1 721 5 view .LVU250
+ 1012              		.loc 1 721 27 is_stmt 0 view .LVU251
+ 1013 0060 D8F80030 		ldr	r3, [r8]
+ 1014              		.loc 1 721 5 view .LVU252
+ 1015 0064 9A79     		ldrb	r2, [r3, #6]	@ zero_extendqisi2
+ 1016 0066 5C21     		movs	r1, #92
+ 1017 0068 3046     		mov	r0, r6
+ 1018 006a FFF7FEFF 		bl	memset
+ 1019              	.LVL112:
+ 722:Libs/mbedtls/library/md.c **** 
+ 723:Libs/mbedtls/library/md.c ****     for (i = 0; i < keylen; i++) {
+ 1020              		.loc 1 723 5 is_stmt 1 view .LVU253
+ 1021              		.loc 1 723 12 is_stmt 0 view .LVU254
+ 1022 006e 0023     		movs	r3, #0
+ 1023              		.loc 1 723 5 view .LVU255
+ 1024 0070 08E0     		b	.L106
+ 1025              	.LVL113:
+ 1026              	.L107:
+ 724:Libs/mbedtls/library/md.c ****         ipad[i] = (unsigned char) (ipad[i] ^ key[i]);
+ 1027              		.loc 1 724 9 is_stmt 1 view .LVU256
+ 1028              		.loc 1 724 40 is_stmt 0 view .LVU257
+ 1029 0072 EA5C     		ldrb	r2, [r5, r3]	@ zero_extendqisi2
+ 1030              		.loc 1 724 49 view .LVU258
+ 1031 0074 E15C     		ldrb	r1, [r4, r3]	@ zero_extendqisi2
+ 1032              		.loc 1 724 19 view .LVU259
+ 1033 0076 4A40     		eors	r2, r2, r1
+ 1034              		.loc 1 724 17 view .LVU260
+ 1035 0078 EA54     		strb	r2, [r5, r3]
+ 725:Libs/mbedtls/library/md.c ****         opad[i] = (unsigned char) (opad[i] ^ key[i]);
+ 1036              		.loc 1 725 9 is_stmt 1 view .LVU261
+ 1037              		.loc 1 725 40 is_stmt 0 view .LVU262
+ 1038 007a F05C     		ldrb	r0, [r6, r3]	@ zero_extendqisi2
+ 1039              		.loc 1 725 49 view .LVU263
+ 1040 007c E25C     		ldrb	r2, [r4, r3]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 33
+
+
+ 1041              		.loc 1 725 19 view .LVU264
+ 1042 007e 5040     		eors	r0, r0, r2
+ 1043              		.loc 1 725 17 view .LVU265
+ 1044 0080 F054     		strb	r0, [r6, r3]
+ 723:Libs/mbedtls/library/md.c ****         ipad[i] = (unsigned char) (ipad[i] ^ key[i]);
+ 1045              		.loc 1 723 30 is_stmt 1 discriminator 3 view .LVU266
+ 1046 0082 0133     		adds	r3, r3, #1
+ 1047              	.LVL114:
+ 1048              	.L106:
+ 723:Libs/mbedtls/library/md.c ****         ipad[i] = (unsigned char) (ipad[i] ^ key[i]);
+ 1049              		.loc 1 723 19 discriminator 1 view .LVU267
+ 1050 0084 9F42     		cmp	r7, r3
+ 1051 0086 F4D8     		bhi	.L107
+ 726:Libs/mbedtls/library/md.c ****     }
+ 727:Libs/mbedtls/library/md.c **** 
+ 728:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_starts(ctx)) != 0) {
+ 1052              		.loc 1 728 5 view .LVU268
+ 1053              		.loc 1 728 16 is_stmt 0 view .LVU269
+ 1054 0088 4046     		mov	r0, r8
+ 1055 008a FFF7FEFF 		bl	mbedtls_md_starts
+ 1056              	.LVL115:
+ 1057              		.loc 1 728 8 discriminator 1 view .LVU270
+ 1058 008e 0646     		mov	r6, r0
+ 1059              	.LVL116:
+ 1060              		.loc 1 728 8 discriminator 1 view .LVU271
+ 1061 0090 38B1     		cbz	r0, .L112
+ 1062              	.LVL117:
+ 1063              	.L105:
+ 729:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 730:Libs/mbedtls/library/md.c ****     }
+ 731:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_update(ctx, ipad,
+ 732:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 733:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 734:Libs/mbedtls/library/md.c ****     }
+ 735:Libs/mbedtls/library/md.c **** 
+ 736:Libs/mbedtls/library/md.c **** cleanup:
+ 737:Libs/mbedtls/library/md.c ****     mbedtls_platform_zeroize(sum, sizeof(sum));
+ 1064              		.loc 1 737 5 is_stmt 1 view .LVU272
+ 1065 0092 2021     		movs	r1, #32
+ 1066 0094 6846     		mov	r0, sp
+ 1067              	.LVL118:
+ 1068              		.loc 1 737 5 is_stmt 0 view .LVU273
+ 1069 0096 FFF7FEFF 		bl	mbedtls_platform_zeroize
+ 1070              	.LVL119:
+ 738:Libs/mbedtls/library/md.c **** 
+ 739:Libs/mbedtls/library/md.c ****     return ret;
+ 1071              		.loc 1 739 5 is_stmt 1 view .LVU274
+ 1072              	.L102:
+ 740:Libs/mbedtls/library/md.c **** }
+ 1073              		.loc 1 740 1 is_stmt 0 view .LVU275
+ 1074 009a 3046     		mov	r0, r6
+ 1075 009c 08B0     		add	sp, sp, #32
+ 1076              	.LCFI21:
+ 1077              		.cfi_remember_state
+ 1078              		.cfi_def_cfa_offset 24
+ 1079              		@ sp needed
+ 1080 009e BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 34
+
+
+ 1081              	.LVL120:
+ 1082              	.L112:
+ 1083              	.LCFI22:
+ 1084              		.cfi_restore_state
+ 731:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 1085              		.loc 1 731 5 is_stmt 1 view .LVU276
+ 732:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1086              		.loc 1 732 37 is_stmt 0 view .LVU277
+ 1087 00a2 D8F80030 		ldr	r3, [r8]
+ 731:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 1088              		.loc 1 731 16 view .LVU278
+ 1089 00a6 9A79     		ldrb	r2, [r3, #6]	@ zero_extendqisi2
+ 1090 00a8 2946     		mov	r1, r5
+ 1091 00aa 4046     		mov	r0, r8
+ 1092              	.LVL121:
+ 731:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 1093              		.loc 1 731 16 view .LVU279
+ 1094 00ac FFF7FEFF 		bl	mbedtls_md_update
+ 1095              	.LVL122:
+ 1096 00b0 0646     		mov	r6, r0
+ 1097              	.LVL123:
+ 733:Libs/mbedtls/library/md.c ****     }
+ 1098              		.loc 1 733 9 is_stmt 1 view .LVU280
+ 736:Libs/mbedtls/library/md.c ****     mbedtls_platform_zeroize(sum, sizeof(sum));
+ 1099              		.loc 1 736 1 is_stmt 0 view .LVU281
+ 1100 00b2 EEE7     		b	.L105
+ 1101              	.LVL124:
+ 1102              	.L108:
+ 699:Libs/mbedtls/library/md.c ****     }
+ 1103              		.loc 1 699 16 view .LVU282
+ 1104 00b4 024E     		ldr	r6, .L113
+ 1105 00b6 F0E7     		b	.L102
+ 1106              	.L109:
+ 699:Libs/mbedtls/library/md.c ****     }
+ 1107              		.loc 1 699 16 view .LVU283
+ 1108 00b8 014E     		ldr	r6, .L113
+ 1109 00ba EEE7     		b	.L102
+ 1110              	.LVL125:
+ 1111              	.L110:
+ 699:Libs/mbedtls/library/md.c ****     }
+ 1112              		.loc 1 699 16 view .LVU284
+ 1113 00bc 004E     		ldr	r6, .L113
+ 1114 00be ECE7     		b	.L102
+ 1115              	.L114:
+ 1116              		.align	2
+ 1117              	.L113:
+ 1118 00c0 00AFFFFF 		.word	-20736
+ 1119              		.cfi_endproc
+ 1120              	.LFE18:
+ 1122              		.section	.text.mbedtls_md_hmac_update,"ax",%progbits
+ 1123              		.align	1
+ 1124              		.global	mbedtls_md_hmac_update
+ 1125              		.syntax unified
+ 1126              		.thumb
+ 1127              		.thumb_func
+ 1129              	mbedtls_md_hmac_update:
+ 1130              	.LVL126:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 35
+
+
+ 1131              	.LFB19:
+ 741:Libs/mbedtls/library/md.c **** 
+ 742:Libs/mbedtls/library/md.c **** int mbedtls_md_hmac_update(mbedtls_md_context_t *ctx, const unsigned char *input, size_t ilen)
+ 743:Libs/mbedtls/library/md.c **** {
+ 1132              		.loc 1 743 1 is_stmt 1 view -0
+ 1133              		.cfi_startproc
+ 1134              		@ args = 0, pretend = 0, frame = 0
+ 1135              		@ frame_needed = 0, uses_anonymous_args = 0
+ 744:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL || ctx->hmac_ctx == NULL) {
+ 1136              		.loc 1 744 5 view .LVU286
+ 1137              		.loc 1 744 8 is_stmt 0 view .LVU287
+ 1138 0000 48B1     		cbz	r0, .L117
+ 743:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL || ctx->hmac_ctx == NULL) {
+ 1139              		.loc 1 743 1 view .LVU288
+ 1140 0002 08B5     		push	{r3, lr}
+ 1141              	.LCFI23:
+ 1142              		.cfi_def_cfa_offset 8
+ 1143              		.cfi_offset 3, -8
+ 1144              		.cfi_offset 14, -4
+ 1145 0004 0346     		mov	r3, r0
+ 1146              		.loc 1 744 27 discriminator 1 view .LVU289
+ 1147 0006 0068     		ldr	r0, [r0]
+ 1148              	.LVL127:
+ 1149              		.loc 1 744 21 discriminator 1 view .LVU290
+ 1150 0008 38B1     		cbz	r0, .L118
+ 1151              		.loc 1 744 51 discriminator 2 view .LVU291
+ 1152 000a 9868     		ldr	r0, [r3, #8]
+ 1153              		.loc 1 744 45 discriminator 2 view .LVU292
+ 1154 000c 38B1     		cbz	r0, .L119
+ 745:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 746:Libs/mbedtls/library/md.c ****     }
+ 747:Libs/mbedtls/library/md.c **** 
+ 748:Libs/mbedtls/library/md.c ****     return mbedtls_md_update(ctx, input, ilen);
+ 1155              		.loc 1 748 5 is_stmt 1 view .LVU293
+ 1156              		.loc 1 748 12 is_stmt 0 view .LVU294
+ 1157 000e 1846     		mov	r0, r3
+ 1158 0010 FFF7FEFF 		bl	mbedtls_md_update
+ 1159              	.LVL128:
+ 1160              	.L115:
+ 749:Libs/mbedtls/library/md.c **** }
+ 1161              		.loc 1 749 1 view .LVU295
+ 1162 0014 08BD     		pop	{r3, pc}
+ 1163              	.LVL129:
+ 1164              	.L117:
+ 1165              	.LCFI24:
+ 1166              		.cfi_def_cfa_offset 0
+ 1167              		.cfi_restore 3
+ 1168              		.cfi_restore 14
+ 745:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 1169              		.loc 1 745 16 view .LVU296
+ 1170 0016 0348     		ldr	r0, .L124
+ 1171              	.LVL130:
+ 1172              		.loc 1 749 1 view .LVU297
+ 1173 0018 7047     		bx	lr
+ 1174              	.LVL131:
+ 1175              	.L118:
+ 1176              	.LCFI25:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 36
+
+
+ 1177              		.cfi_def_cfa_offset 8
+ 1178              		.cfi_offset 3, -8
+ 1179              		.cfi_offset 14, -4
+ 745:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 1180              		.loc 1 745 16 view .LVU298
+ 1181 001a 0248     		ldr	r0, .L124
+ 1182 001c FAE7     		b	.L115
+ 1183              	.L119:
+ 1184 001e 0148     		ldr	r0, .L124
+ 1185 0020 F8E7     		b	.L115
+ 1186              	.L125:
+ 1187 0022 00BF     		.align	2
+ 1188              	.L124:
+ 1189 0024 00AFFFFF 		.word	-20736
+ 1190              		.cfi_endproc
+ 1191              	.LFE19:
+ 1193              		.section	.text.mbedtls_md_hmac_finish,"ax",%progbits
+ 1194              		.align	1
+ 1195              		.global	mbedtls_md_hmac_finish
+ 1196              		.syntax unified
+ 1197              		.thumb
+ 1198              		.thumb_func
+ 1200              	mbedtls_md_hmac_finish:
+ 1201              	.LVL132:
+ 1202              	.LFB20:
+ 750:Libs/mbedtls/library/md.c **** 
+ 751:Libs/mbedtls/library/md.c **** int mbedtls_md_hmac_finish(mbedtls_md_context_t *ctx, unsigned char *output)
+ 752:Libs/mbedtls/library/md.c **** {
+ 1203              		.loc 1 752 1 is_stmt 1 view -0
+ 1204              		.cfi_startproc
+ 1205              		@ args = 0, pretend = 0, frame = 32
+ 1206              		@ frame_needed = 0, uses_anonymous_args = 0
+ 753:Libs/mbedtls/library/md.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1207              		.loc 1 753 5 view .LVU300
+ 754:Libs/mbedtls/library/md.c ****     unsigned char tmp[MBEDTLS_MD_MAX_SIZE];
+ 1208              		.loc 1 754 5 view .LVU301
+ 755:Libs/mbedtls/library/md.c ****     unsigned char *opad;
+ 1209              		.loc 1 755 5 view .LVU302
+ 756:Libs/mbedtls/library/md.c **** 
+ 757:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL || ctx->hmac_ctx == NULL) {
+ 1210              		.loc 1 757 5 view .LVU303
+ 1211              		.loc 1 757 8 is_stmt 0 view .LVU304
+ 1212 0000 78B3     		cbz	r0, .L128
+ 752:Libs/mbedtls/library/md.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1213              		.loc 1 752 1 view .LVU305
+ 1214 0002 70B5     		push	{r4, r5, r6, lr}
+ 1215              	.LCFI26:
+ 1216              		.cfi_def_cfa_offset 16
+ 1217              		.cfi_offset 4, -16
+ 1218              		.cfi_offset 5, -12
+ 1219              		.cfi_offset 6, -8
+ 1220              		.cfi_offset 14, -4
+ 1221 0004 88B0     		sub	sp, sp, #32
+ 1222              	.LCFI27:
+ 1223              		.cfi_def_cfa_offset 48
+ 1224 0006 0E46     		mov	r6, r1
+ 1225 0008 0446     		mov	r4, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 37
+
+
+ 1226              		.loc 1 757 27 discriminator 1 view .LVU306
+ 1227 000a 0268     		ldr	r2, [r0]
+ 1228              		.loc 1 757 21 discriminator 1 view .LVU307
+ 1229 000c 62B3     		cbz	r2, .L129
+ 1230              		.loc 1 757 51 discriminator 2 view .LVU308
+ 1231 000e 8568     		ldr	r5, [r0, #8]
+ 1232              		.loc 1 757 45 discriminator 2 view .LVU309
+ 1233 0010 65B3     		cbz	r5, .L130
+ 758:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 759:Libs/mbedtls/library/md.c ****     }
+ 760:Libs/mbedtls/library/md.c **** 
+ 761:Libs/mbedtls/library/md.c ****     opad = (unsigned char *) ctx->hmac_ctx + ctx->md_info->block_size;
+ 1234              		.loc 1 761 5 is_stmt 1 view .LVU310
+ 1235              		.loc 1 761 58 is_stmt 0 view .LVU311
+ 1236 0012 9279     		ldrb	r2, [r2, #6]	@ zero_extendqisi2
+ 1237              		.loc 1 761 10 view .LVU312
+ 1238 0014 1544     		add	r5, r5, r2
+ 1239              	.LVL133:
+ 762:Libs/mbedtls/library/md.c **** 
+ 763:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_finish(ctx, tmp)) != 0) {
+ 1240              		.loc 1 763 5 is_stmt 1 view .LVU313
+ 1241              		.loc 1 763 16 is_stmt 0 view .LVU314
+ 1242 0016 6946     		mov	r1, sp
+ 1243              	.LVL134:
+ 1244              		.loc 1 763 16 view .LVU315
+ 1245 0018 FFF7FEFF 		bl	mbedtls_md_finish
+ 1246              	.LVL135:
+ 1247              		.loc 1 763 8 discriminator 1 view .LVU316
+ 1248 001c 0346     		mov	r3, r0
+ 1249 001e 10B1     		cbz	r0, .L135
+ 1250              	.LVL136:
+ 1251              	.L126:
+ 764:Libs/mbedtls/library/md.c ****         return ret;
+ 765:Libs/mbedtls/library/md.c ****     }
+ 766:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_starts(ctx)) != 0) {
+ 767:Libs/mbedtls/library/md.c ****         return ret;
+ 768:Libs/mbedtls/library/md.c ****     }
+ 769:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_update(ctx, opad,
+ 770:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 771:Libs/mbedtls/library/md.c ****         return ret;
+ 772:Libs/mbedtls/library/md.c ****     }
+ 773:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_update(ctx, tmp,
+ 774:Libs/mbedtls/library/md.c ****                                  ctx->md_info->size)) != 0) {
+ 775:Libs/mbedtls/library/md.c ****         return ret;
+ 776:Libs/mbedtls/library/md.c ****     }
+ 777:Libs/mbedtls/library/md.c ****     return mbedtls_md_finish(ctx, output);
+ 778:Libs/mbedtls/library/md.c **** }
+ 1252              		.loc 1 778 1 view .LVU317
+ 1253 0020 1846     		mov	r0, r3
+ 1254 0022 08B0     		add	sp, sp, #32
+ 1255              	.LCFI28:
+ 1256              		.cfi_remember_state
+ 1257              		.cfi_def_cfa_offset 16
+ 1258              		@ sp needed
+ 1259 0024 70BD     		pop	{r4, r5, r6, pc}
+ 1260              	.LVL137:
+ 1261              	.L135:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 38
+
+
+ 1262              	.LCFI29:
+ 1263              		.cfi_restore_state
+ 766:Libs/mbedtls/library/md.c ****         return ret;
+ 1264              		.loc 1 766 5 is_stmt 1 view .LVU318
+ 766:Libs/mbedtls/library/md.c ****         return ret;
+ 1265              		.loc 1 766 16 is_stmt 0 view .LVU319
+ 1266 0026 2046     		mov	r0, r4
+ 1267              	.LVL138:
+ 766:Libs/mbedtls/library/md.c ****         return ret;
+ 1268              		.loc 1 766 16 view .LVU320
+ 1269 0028 FFF7FEFF 		bl	mbedtls_md_starts
+ 1270              	.LVL139:
+ 766:Libs/mbedtls/library/md.c ****         return ret;
+ 1271              		.loc 1 766 8 discriminator 1 view .LVU321
+ 1272 002c 0346     		mov	r3, r0
+ 1273 002e 0028     		cmp	r0, #0
+ 1274 0030 F6D1     		bne	.L126
+ 769:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 1275              		.loc 1 769 5 is_stmt 1 view .LVU322
+ 770:Libs/mbedtls/library/md.c ****         return ret;
+ 1276              		.loc 1 770 37 is_stmt 0 view .LVU323
+ 1277 0032 2368     		ldr	r3, [r4]
+ 769:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 1278              		.loc 1 769 16 view .LVU324
+ 1279 0034 9A79     		ldrb	r2, [r3, #6]	@ zero_extendqisi2
+ 1280 0036 2946     		mov	r1, r5
+ 1281 0038 2046     		mov	r0, r4
+ 1282              	.LVL140:
+ 769:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 1283              		.loc 1 769 16 view .LVU325
+ 1284 003a FFF7FEFF 		bl	mbedtls_md_update
+ 1285              	.LVL141:
+ 769:Libs/mbedtls/library/md.c ****                                  ctx->md_info->block_size)) != 0) {
+ 1286              		.loc 1 769 8 discriminator 1 view .LVU326
+ 1287 003e 0346     		mov	r3, r0
+ 1288 0040 0028     		cmp	r0, #0
+ 1289 0042 EDD1     		bne	.L126
+ 773:Libs/mbedtls/library/md.c ****                                  ctx->md_info->size)) != 0) {
+ 1290              		.loc 1 773 5 is_stmt 1 view .LVU327
+ 774:Libs/mbedtls/library/md.c ****         return ret;
+ 1291              		.loc 1 774 37 is_stmt 0 view .LVU328
+ 1292 0044 2368     		ldr	r3, [r4]
+ 773:Libs/mbedtls/library/md.c ****                                  ctx->md_info->size)) != 0) {
+ 1293              		.loc 1 773 16 view .LVU329
+ 1294 0046 5A79     		ldrb	r2, [r3, #5]	@ zero_extendqisi2
+ 1295 0048 6946     		mov	r1, sp
+ 1296 004a 2046     		mov	r0, r4
+ 1297              	.LVL142:
+ 773:Libs/mbedtls/library/md.c ****                                  ctx->md_info->size)) != 0) {
+ 1298              		.loc 1 773 16 view .LVU330
+ 1299 004c FFF7FEFF 		bl	mbedtls_md_update
+ 1300              	.LVL143:
+ 773:Libs/mbedtls/library/md.c ****                                  ctx->md_info->size)) != 0) {
+ 1301              		.loc 1 773 8 discriminator 1 view .LVU331
+ 1302 0050 0346     		mov	r3, r0
+ 1303 0052 0028     		cmp	r0, #0
+ 1304 0054 E4D1     		bne	.L126
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 39
+
+
+ 777:Libs/mbedtls/library/md.c **** }
+ 1305              		.loc 1 777 5 is_stmt 1 view .LVU332
+ 777:Libs/mbedtls/library/md.c **** }
+ 1306              		.loc 1 777 12 is_stmt 0 view .LVU333
+ 1307 0056 3146     		mov	r1, r6
+ 1308 0058 2046     		mov	r0, r4
+ 1309              	.LVL144:
+ 777:Libs/mbedtls/library/md.c **** }
+ 1310              		.loc 1 777 12 view .LVU334
+ 1311 005a FFF7FEFF 		bl	mbedtls_md_finish
+ 1312              	.LVL145:
+ 777:Libs/mbedtls/library/md.c **** }
+ 1313              		.loc 1 777 12 view .LVU335
+ 1314 005e 0346     		mov	r3, r0
+ 1315 0060 DEE7     		b	.L126
+ 1316              	.LVL146:
+ 1317              	.L128:
+ 1318              	.LCFI30:
+ 1319              		.cfi_def_cfa_offset 0
+ 1320              		.cfi_restore 4
+ 1321              		.cfi_restore 5
+ 1322              		.cfi_restore 6
+ 1323              		.cfi_restore 14
+ 758:Libs/mbedtls/library/md.c ****     }
+ 1324              		.loc 1 758 16 view .LVU336
+ 1325 0062 034B     		ldr	r3, .L136
+ 1326              		.loc 1 778 1 view .LVU337
+ 1327 0064 1846     		mov	r0, r3
+ 1328              	.LVL147:
+ 1329              		.loc 1 778 1 view .LVU338
+ 1330 0066 7047     		bx	lr
+ 1331              	.LVL148:
+ 1332              	.L129:
+ 1333              	.LCFI31:
+ 1334              		.cfi_def_cfa_offset 48
+ 1335              		.cfi_offset 4, -16
+ 1336              		.cfi_offset 5, -12
+ 1337              		.cfi_offset 6, -8
+ 1338              		.cfi_offset 14, -4
+ 758:Libs/mbedtls/library/md.c ****     }
+ 1339              		.loc 1 758 16 view .LVU339
+ 1340 0068 014B     		ldr	r3, .L136
+ 1341 006a D9E7     		b	.L126
+ 1342              	.L130:
+ 1343 006c 004B     		ldr	r3, .L136
+ 1344 006e D7E7     		b	.L126
+ 1345              	.L137:
+ 1346              		.align	2
+ 1347              	.L136:
+ 1348 0070 00AFFFFF 		.word	-20736
+ 1349              		.cfi_endproc
+ 1350              	.LFE20:
+ 1352              		.section	.text.mbedtls_md_hmac_reset,"ax",%progbits
+ 1353              		.align	1
+ 1354              		.global	mbedtls_md_hmac_reset
+ 1355              		.syntax unified
+ 1356              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 40
+
+
+ 1357              		.thumb_func
+ 1359              	mbedtls_md_hmac_reset:
+ 1360              	.LVL149:
+ 1361              	.LFB21:
+ 779:Libs/mbedtls/library/md.c **** 
+ 780:Libs/mbedtls/library/md.c **** int mbedtls_md_hmac_reset(mbedtls_md_context_t *ctx)
+ 781:Libs/mbedtls/library/md.c **** {
+ 1362              		.loc 1 781 1 is_stmt 1 view -0
+ 1363              		.cfi_startproc
+ 1364              		@ args = 0, pretend = 0, frame = 0
+ 1365              		@ frame_needed = 0, uses_anonymous_args = 0
+ 782:Libs/mbedtls/library/md.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1366              		.loc 1 782 5 view .LVU341
+ 783:Libs/mbedtls/library/md.c ****     unsigned char *ipad;
+ 1367              		.loc 1 783 5 view .LVU342
+ 784:Libs/mbedtls/library/md.c **** 
+ 785:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL || ctx->hmac_ctx == NULL) {
+ 1368              		.loc 1 785 5 view .LVU343
+ 1369              		.loc 1 785 8 is_stmt 0 view .LVU344
+ 1370 0000 80B1     		cbz	r0, .L140
+ 781:Libs/mbedtls/library/md.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1371              		.loc 1 781 1 view .LVU345
+ 1372 0002 38B5     		push	{r3, r4, r5, lr}
+ 1373              	.LCFI32:
+ 1374              		.cfi_def_cfa_offset 16
+ 1375              		.cfi_offset 3, -16
+ 1376              		.cfi_offset 4, -12
+ 1377              		.cfi_offset 5, -8
+ 1378              		.cfi_offset 14, -4
+ 1379 0004 0446     		mov	r4, r0
+ 1380              		.loc 1 785 27 discriminator 1 view .LVU346
+ 1381 0006 0368     		ldr	r3, [r0]
+ 1382              		.loc 1 785 21 discriminator 1 view .LVU347
+ 1383 0008 73B1     		cbz	r3, .L141
+ 1384              		.loc 1 785 51 discriminator 2 view .LVU348
+ 1385 000a 8568     		ldr	r5, [r0, #8]
+ 1386              		.loc 1 785 45 discriminator 2 view .LVU349
+ 1387 000c 75B1     		cbz	r5, .L142
+ 786:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 787:Libs/mbedtls/library/md.c ****     }
+ 788:Libs/mbedtls/library/md.c **** 
+ 789:Libs/mbedtls/library/md.c ****     ipad = (unsigned char *) ctx->hmac_ctx;
+ 1388              		.loc 1 789 5 is_stmt 1 view .LVU350
+ 1389              	.LVL150:
+ 790:Libs/mbedtls/library/md.c **** 
+ 791:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_starts(ctx)) != 0) {
+ 1390              		.loc 1 791 5 view .LVU351
+ 1391              		.loc 1 791 16 is_stmt 0 view .LVU352
+ 1392 000e FFF7FEFF 		bl	mbedtls_md_starts
+ 1393              	.LVL151:
+ 1394              		.loc 1 791 8 discriminator 1 view .LVU353
+ 1395 0012 00B1     		cbz	r0, .L147
+ 1396              	.LVL152:
+ 1397              	.L138:
+ 792:Libs/mbedtls/library/md.c ****         return ret;
+ 793:Libs/mbedtls/library/md.c ****     }
+ 794:Libs/mbedtls/library/md.c ****     return mbedtls_md_update(ctx, ipad, ctx->md_info->block_size);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 41
+
+
+ 795:Libs/mbedtls/library/md.c **** }
+ 1398              		.loc 1 795 1 view .LVU354
+ 1399 0014 38BD     		pop	{r3, r4, r5, pc}
+ 1400              	.LVL153:
+ 1401              	.L147:
+ 794:Libs/mbedtls/library/md.c **** }
+ 1402              		.loc 1 794 5 is_stmt 1 view .LVU355
+ 794:Libs/mbedtls/library/md.c **** }
+ 1403              		.loc 1 794 44 is_stmt 0 view .LVU356
+ 1404 0016 2368     		ldr	r3, [r4]
+ 794:Libs/mbedtls/library/md.c **** }
+ 1405              		.loc 1 794 12 view .LVU357
+ 1406 0018 9A79     		ldrb	r2, [r3, #6]	@ zero_extendqisi2
+ 1407 001a 2946     		mov	r1, r5
+ 1408 001c 2046     		mov	r0, r4
+ 1409              	.LVL154:
+ 794:Libs/mbedtls/library/md.c **** }
+ 1410              		.loc 1 794 12 view .LVU358
+ 1411 001e FFF7FEFF 		bl	mbedtls_md_update
+ 1412              	.LVL155:
+ 1413 0022 F7E7     		b	.L138
+ 1414              	.LVL156:
+ 1415              	.L140:
+ 1416              	.LCFI33:
+ 1417              		.cfi_def_cfa_offset 0
+ 1418              		.cfi_restore 3
+ 1419              		.cfi_restore 4
+ 1420              		.cfi_restore 5
+ 1421              		.cfi_restore 14
+ 786:Libs/mbedtls/library/md.c ****     }
+ 1422              		.loc 1 786 16 view .LVU359
+ 1423 0024 0248     		ldr	r0, .L148
+ 1424              	.LVL157:
+ 1425              		.loc 1 795 1 view .LVU360
+ 1426 0026 7047     		bx	lr
+ 1427              	.LVL158:
+ 1428              	.L141:
+ 1429              	.LCFI34:
+ 1430              		.cfi_def_cfa_offset 16
+ 1431              		.cfi_offset 3, -16
+ 1432              		.cfi_offset 4, -12
+ 1433              		.cfi_offset 5, -8
+ 1434              		.cfi_offset 14, -4
+ 786:Libs/mbedtls/library/md.c ****     }
+ 1435              		.loc 1 786 16 view .LVU361
+ 1436 0028 0148     		ldr	r0, .L148
+ 1437              	.LVL159:
+ 786:Libs/mbedtls/library/md.c ****     }
+ 1438              		.loc 1 786 16 view .LVU362
+ 1439 002a F3E7     		b	.L138
+ 1440              	.LVL160:
+ 1441              	.L142:
+ 786:Libs/mbedtls/library/md.c ****     }
+ 1442              		.loc 1 786 16 view .LVU363
+ 1443 002c 0048     		ldr	r0, .L148
+ 1444              	.LVL161:
+ 786:Libs/mbedtls/library/md.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 42
+
+
+ 1445              		.loc 1 786 16 view .LVU364
+ 1446 002e F1E7     		b	.L138
+ 1447              	.L149:
+ 1448              		.align	2
+ 1449              	.L148:
+ 1450 0030 00AFFFFF 		.word	-20736
+ 1451              		.cfi_endproc
+ 1452              	.LFE21:
+ 1454              		.section	.text.mbedtls_md_hmac,"ax",%progbits
+ 1455              		.align	1
+ 1456              		.global	mbedtls_md_hmac
+ 1457              		.syntax unified
+ 1458              		.thumb
+ 1459              		.thumb_func
+ 1461              	mbedtls_md_hmac:
+ 1462              	.LVL162:
+ 1463              	.LFB22:
+ 796:Libs/mbedtls/library/md.c **** 
+ 797:Libs/mbedtls/library/md.c **** int mbedtls_md_hmac(const mbedtls_md_info_t *md_info,
+ 798:Libs/mbedtls/library/md.c ****                     const unsigned char *key, size_t keylen,
+ 799:Libs/mbedtls/library/md.c ****                     const unsigned char *input, size_t ilen,
+ 800:Libs/mbedtls/library/md.c ****                     unsigned char *output)
+ 801:Libs/mbedtls/library/md.c **** {
+ 1464              		.loc 1 801 1 is_stmt 1 view -0
+ 1465              		.cfi_startproc
+ 1466              		@ args = 8, pretend = 0, frame = 16
+ 1467              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1468              		.loc 1 801 1 is_stmt 0 view .LVU366
+ 1469 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 1470              	.LCFI35:
+ 1471              		.cfi_def_cfa_offset 20
+ 1472              		.cfi_offset 4, -20
+ 1473              		.cfi_offset 5, -16
+ 1474              		.cfi_offset 6, -12
+ 1475              		.cfi_offset 7, -8
+ 1476              		.cfi_offset 14, -4
+ 1477 0002 85B0     		sub	sp, sp, #20
+ 1478              	.LCFI36:
+ 1479              		.cfi_def_cfa_offset 40
+ 802:Libs/mbedtls/library/md.c ****     mbedtls_md_context_t ctx;
+ 1480              		.loc 1 802 5 is_stmt 1 view .LVU367
+ 803:Libs/mbedtls/library/md.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1481              		.loc 1 803 5 view .LVU368
+ 1482              	.LVL163:
+ 804:Libs/mbedtls/library/md.c **** 
+ 805:Libs/mbedtls/library/md.c ****     if (md_info == NULL) {
+ 1483              		.loc 1 805 5 view .LVU369
+ 1484              		.loc 1 805 8 is_stmt 0 view .LVU370
+ 1485 0004 48B3     		cbz	r0, .L153
+ 1486 0006 0F46     		mov	r7, r1
+ 1487 0008 1446     		mov	r4, r2
+ 1488 000a 1D46     		mov	r5, r3
+ 1489 000c 0646     		mov	r6, r0
+ 806:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 807:Libs/mbedtls/library/md.c ****     }
+ 808:Libs/mbedtls/library/md.c **** 
+ 809:Libs/mbedtls/library/md.c ****     mbedtls_md_init(&ctx);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 43
+
+
+ 1490              		.loc 1 809 5 is_stmt 1 view .LVU371
+ 1491 000e 01A8     		add	r0, sp, #4
+ 1492              	.LVL164:
+ 1493              		.loc 1 809 5 is_stmt 0 view .LVU372
+ 1494 0010 FFF7FEFF 		bl	mbedtls_md_init
+ 1495              	.LVL165:
+ 810:Libs/mbedtls/library/md.c **** 
+ 811:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_setup(&ctx, md_info, 1)) != 0) {
+ 1496              		.loc 1 811 5 is_stmt 1 view .LVU373
+ 1497              		.loc 1 811 16 is_stmt 0 view .LVU374
+ 1498 0014 0122     		movs	r2, #1
+ 1499 0016 3146     		mov	r1, r6
+ 1500 0018 01A8     		add	r0, sp, #4
+ 1501 001a FFF7FEFF 		bl	mbedtls_md_setup
+ 1502              	.LVL166:
+ 1503              		.loc 1 811 8 discriminator 1 view .LVU375
+ 1504 001e 0646     		mov	r6, r0
+ 1505              	.LVL167:
+ 1506              		.loc 1 811 8 discriminator 1 view .LVU376
+ 1507 0020 28B1     		cbz	r0, .L155
+ 1508              	.L152:
+ 812:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 813:Libs/mbedtls/library/md.c ****     }
+ 814:Libs/mbedtls/library/md.c **** 
+ 815:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_hmac_starts(&ctx, key, keylen)) != 0) {
+ 816:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 817:Libs/mbedtls/library/md.c ****     }
+ 818:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_hmac_update(&ctx, input, ilen)) != 0) {
+ 819:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 820:Libs/mbedtls/library/md.c ****     }
+ 821:Libs/mbedtls/library/md.c ****     if ((ret = mbedtls_md_hmac_finish(&ctx, output)) != 0) {
+ 822:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 823:Libs/mbedtls/library/md.c ****     }
+ 824:Libs/mbedtls/library/md.c **** 
+ 825:Libs/mbedtls/library/md.c **** cleanup:
+ 826:Libs/mbedtls/library/md.c ****     mbedtls_md_free(&ctx);
+ 1509              		.loc 1 826 5 is_stmt 1 view .LVU377
+ 1510 0022 01A8     		add	r0, sp, #4
+ 1511              	.LVL168:
+ 1512              		.loc 1 826 5 is_stmt 0 view .LVU378
+ 1513 0024 FFF7FEFF 		bl	mbedtls_md_free
+ 1514              	.LVL169:
+ 827:Libs/mbedtls/library/md.c **** 
+ 828:Libs/mbedtls/library/md.c ****     return ret;
+ 1515              		.loc 1 828 5 is_stmt 1 view .LVU379
+ 1516              	.L150:
+ 829:Libs/mbedtls/library/md.c **** }
+ 1517              		.loc 1 829 1 is_stmt 0 view .LVU380
+ 1518 0028 3046     		mov	r0, r6
+ 1519 002a 05B0     		add	sp, sp, #20
+ 1520              	.LCFI37:
+ 1521              		.cfi_remember_state
+ 1522              		.cfi_def_cfa_offset 20
+ 1523              		@ sp needed
+ 1524 002c F0BD     		pop	{r4, r5, r6, r7, pc}
+ 1525              	.LVL170:
+ 1526              	.L155:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 44
+
+
+ 1527              	.LCFI38:
+ 1528              		.cfi_restore_state
+ 815:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1529              		.loc 1 815 5 is_stmt 1 view .LVU381
+ 815:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1530              		.loc 1 815 16 is_stmt 0 view .LVU382
+ 1531 002e 2246     		mov	r2, r4
+ 1532 0030 3946     		mov	r1, r7
+ 1533 0032 01A8     		add	r0, sp, #4
+ 1534              	.LVL171:
+ 815:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1535              		.loc 1 815 16 view .LVU383
+ 1536 0034 FFF7FEFF 		bl	mbedtls_md_hmac_starts
+ 1537              	.LVL172:
+ 815:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1538              		.loc 1 815 8 discriminator 1 view .LVU384
+ 1539 0038 0646     		mov	r6, r0
+ 1540 003a 0028     		cmp	r0, #0
+ 1541 003c F1D1     		bne	.L152
+ 818:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1542              		.loc 1 818 5 is_stmt 1 view .LVU385
+ 818:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1543              		.loc 1 818 16 is_stmt 0 view .LVU386
+ 1544 003e 0A9A     		ldr	r2, [sp, #40]
+ 1545 0040 2946     		mov	r1, r5
+ 1546 0042 01A8     		add	r0, sp, #4
+ 1547              	.LVL173:
+ 818:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1548              		.loc 1 818 16 view .LVU387
+ 1549 0044 FFF7FEFF 		bl	mbedtls_md_hmac_update
+ 1550              	.LVL174:
+ 818:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1551              		.loc 1 818 8 discriminator 1 view .LVU388
+ 1552 0048 0646     		mov	r6, r0
+ 1553 004a 0028     		cmp	r0, #0
+ 1554 004c E9D1     		bne	.L152
+ 821:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1555              		.loc 1 821 5 is_stmt 1 view .LVU389
+ 821:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1556              		.loc 1 821 16 is_stmt 0 view .LVU390
+ 1557 004e 0B99     		ldr	r1, [sp, #44]
+ 1558 0050 01A8     		add	r0, sp, #4
+ 1559              	.LVL175:
+ 821:Libs/mbedtls/library/md.c ****         goto cleanup;
+ 1560              		.loc 1 821 16 view .LVU391
+ 1561 0052 FFF7FEFF 		bl	mbedtls_md_hmac_finish
+ 1562              	.LVL176:
+ 1563 0056 0646     		mov	r6, r0
+ 1564              	.LVL177:
+ 822:Libs/mbedtls/library/md.c ****     }
+ 1565              		.loc 1 822 9 is_stmt 1 view .LVU392
+ 825:Libs/mbedtls/library/md.c ****     mbedtls_md_free(&ctx);
+ 1566              		.loc 1 825 1 is_stmt 0 view .LVU393
+ 1567 0058 E3E7     		b	.L152
+ 1568              	.LVL178:
+ 1569              	.L153:
+ 806:Libs/mbedtls/library/md.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 45
+
+
+ 1570              		.loc 1 806 16 view .LVU394
+ 1571 005a 014E     		ldr	r6, .L156
+ 1572 005c E4E7     		b	.L150
+ 1573              	.L157:
+ 1574 005e 00BF     		.align	2
+ 1575              	.L156:
+ 1576 0060 00AFFFFF 		.word	-20736
+ 1577              		.cfi_endproc
+ 1578              	.LFE22:
+ 1580              		.section	.text.mbedtls_md_process,"ax",%progbits
+ 1581              		.align	1
+ 1582              		.global	mbedtls_md_process
+ 1583              		.syntax unified
+ 1584              		.thumb
+ 1585              		.thumb_func
+ 1587              	mbedtls_md_process:
+ 1588              	.LVL179:
+ 1589              	.LFB23:
+ 830:Libs/mbedtls/library/md.c **** 
+ 831:Libs/mbedtls/library/md.c **** int mbedtls_md_process(mbedtls_md_context_t *ctx, const unsigned char *data)
+ 832:Libs/mbedtls/library/md.c **** {
+ 1590              		.loc 1 832 1 is_stmt 1 view -0
+ 1591              		.cfi_startproc
+ 1592              		@ args = 0, pretend = 0, frame = 0
+ 1593              		@ frame_needed = 0, uses_anonymous_args = 0
+ 833:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 1594              		.loc 1 833 5 view .LVU396
+ 1595              		.loc 1 833 8 is_stmt 0 view .LVU397
+ 1596 0000 50B1     		cbz	r0, .L160
+ 832:Libs/mbedtls/library/md.c ****     if (ctx == NULL || ctx->md_info == NULL) {
+ 1597              		.loc 1 832 1 view .LVU398
+ 1598 0002 08B5     		push	{r3, lr}
+ 1599              	.LCFI39:
+ 1600              		.cfi_def_cfa_offset 8
+ 1601              		.cfi_offset 3, -8
+ 1602              		.cfi_offset 14, -4
+ 1603              		.loc 1 833 27 discriminator 1 view .LVU399
+ 1604 0004 0368     		ldr	r3, [r0]
+ 1605              		.loc 1 833 21 discriminator 1 view .LVU400
+ 1606 0006 4BB1     		cbz	r3, .L161
+ 834:Libs/mbedtls/library/md.c ****         return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 835:Libs/mbedtls/library/md.c ****     }
+ 836:Libs/mbedtls/library/md.c **** 
+ 837:Libs/mbedtls/library/md.c ****     switch (ctx->md_info->type) {
+ 1607              		.loc 1 837 5 is_stmt 1 view .LVU401
+ 1608              		.loc 1 837 25 is_stmt 0 view .LVU402
+ 1609 0008 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 1610              		.loc 1 837 5 view .LVU403
+ 1611 000a 053B     		subs	r3, r3, #5
+ 1612 000c 012B     		cmp	r3, #1
+ 1613 000e 07D8     		bhi	.L162
+ 838:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD2_C)
+ 839:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD2:
+ 840:Libs/mbedtls/library/md.c ****             return mbedtls_internal_md2_process(ctx->md_ctx);
+ 841:Libs/mbedtls/library/md.c **** #endif
+ 842:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD4_C)
+ 843:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD4:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 46
+
+
+ 844:Libs/mbedtls/library/md.c ****             return mbedtls_internal_md4_process(ctx->md_ctx, data);
+ 845:Libs/mbedtls/library/md.c **** #endif
+ 846:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_MD5_C)
+ 847:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_MD5:
+ 848:Libs/mbedtls/library/md.c ****             return mbedtls_internal_md5_process(ctx->md_ctx, data);
+ 849:Libs/mbedtls/library/md.c **** #endif
+ 850:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_RIPEMD160_C)
+ 851:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_RIPEMD160:
+ 852:Libs/mbedtls/library/md.c ****             return mbedtls_internal_ripemd160_process(ctx->md_ctx, data);
+ 853:Libs/mbedtls/library/md.c **** #endif
+ 854:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA1_C)
+ 855:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA1:
+ 856:Libs/mbedtls/library/md.c ****             return mbedtls_internal_sha1_process(ctx->md_ctx, data);
+ 857:Libs/mbedtls/library/md.c **** #endif
+ 858:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA256_C)
+ 859:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA224:
+ 860:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA256:
+ 861:Libs/mbedtls/library/md.c ****             return mbedtls_internal_sha256_process(ctx->md_ctx, data);
+ 1614              		.loc 1 861 13 is_stmt 1 view .LVU404
+ 1615              		.loc 1 861 20 is_stmt 0 view .LVU405
+ 1616 0010 4068     		ldr	r0, [r0, #4]
+ 1617              	.LVL180:
+ 1618              		.loc 1 861 20 view .LVU406
+ 1619 0012 FFF7FEFF 		bl	mbedtls_internal_sha256_process
+ 1620              	.LVL181:
+ 1621              	.L158:
+ 862:Libs/mbedtls/library/md.c **** #endif
+ 863:Libs/mbedtls/library/md.c **** #if defined(MBEDTLS_SHA512_C)
+ 864:Libs/mbedtls/library/md.c **** #if !defined(MBEDTLS_SHA512_NO_SHA384)
+ 865:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA384:
+ 866:Libs/mbedtls/library/md.c **** #endif
+ 867:Libs/mbedtls/library/md.c ****         case MBEDTLS_MD_SHA512:
+ 868:Libs/mbedtls/library/md.c ****             return mbedtls_internal_sha512_process(ctx->md_ctx, data);
+ 869:Libs/mbedtls/library/md.c **** #endif
+ 870:Libs/mbedtls/library/md.c ****         default:
+ 871:Libs/mbedtls/library/md.c ****             return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+ 872:Libs/mbedtls/library/md.c ****     }
+ 873:Libs/mbedtls/library/md.c **** }
+ 1622              		.loc 1 873 1 view .LVU407
+ 1623 0016 08BD     		pop	{r3, pc}
+ 1624              	.LVL182:
+ 1625              	.L160:
+ 1626              	.LCFI40:
+ 1627              		.cfi_def_cfa_offset 0
+ 1628              		.cfi_restore 3
+ 1629              		.cfi_restore 14
+ 834:Libs/mbedtls/library/md.c ****     }
+ 1630              		.loc 1 834 16 view .LVU408
+ 1631 0018 0248     		ldr	r0, .L167
+ 1632              	.LVL183:
+ 1633              		.loc 1 873 1 view .LVU409
+ 1634 001a 7047     		bx	lr
+ 1635              	.LVL184:
+ 1636              	.L161:
+ 1637              	.LCFI41:
+ 1638              		.cfi_def_cfa_offset 8
+ 1639              		.cfi_offset 3, -8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 47
+
+
+ 1640              		.cfi_offset 14, -4
+ 834:Libs/mbedtls/library/md.c ****     }
+ 1641              		.loc 1 834 16 view .LVU410
+ 1642 001c 0148     		ldr	r0, .L167
+ 1643              	.LVL185:
+ 834:Libs/mbedtls/library/md.c ****     }
+ 1644              		.loc 1 834 16 view .LVU411
+ 1645 001e FAE7     		b	.L158
+ 1646              	.LVL186:
+ 1647              	.L162:
+ 871:Libs/mbedtls/library/md.c ****     }
+ 1648              		.loc 1 871 20 view .LVU412
+ 1649 0020 0048     		ldr	r0, .L167
+ 1650              	.LVL187:
+ 871:Libs/mbedtls/library/md.c ****     }
+ 1651              		.loc 1 871 20 view .LVU413
+ 1652 0022 F8E7     		b	.L158
+ 1653              	.L168:
+ 1654              		.align	2
+ 1655              	.L167:
+ 1656 0024 00AFFFFF 		.word	-20736
+ 1657              		.cfi_endproc
+ 1658              	.LFE23:
+ 1660              		.section	.text.mbedtls_md_get_size,"ax",%progbits
+ 1661              		.align	1
+ 1662              		.global	mbedtls_md_get_size
+ 1663              		.syntax unified
+ 1664              		.thumb
+ 1665              		.thumb_func
+ 1667              	mbedtls_md_get_size:
+ 1668              	.LVL188:
+ 1669              	.LFB24:
+ 874:Libs/mbedtls/library/md.c **** 
+ 875:Libs/mbedtls/library/md.c **** unsigned char mbedtls_md_get_size(const mbedtls_md_info_t *md_info)
+ 876:Libs/mbedtls/library/md.c **** {
+ 1670              		.loc 1 876 1 is_stmt 1 view -0
+ 1671              		.cfi_startproc
+ 1672              		@ args = 0, pretend = 0, frame = 0
+ 1673              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1674              		@ link register save eliminated.
+ 877:Libs/mbedtls/library/md.c ****     if (md_info == NULL) {
+ 1675              		.loc 1 877 5 view .LVU415
+ 1676              		.loc 1 877 8 is_stmt 0 view .LVU416
+ 1677 0000 08B1     		cbz	r0, .L171
+ 878:Libs/mbedtls/library/md.c ****         return 0;
+ 879:Libs/mbedtls/library/md.c ****     }
+ 880:Libs/mbedtls/library/md.c **** 
+ 881:Libs/mbedtls/library/md.c ****     return md_info->size;
+ 1678              		.loc 1 881 5 is_stmt 1 view .LVU417
+ 1679              		.loc 1 881 19 is_stmt 0 view .LVU418
+ 1680 0002 4079     		ldrb	r0, [r0, #5]	@ zero_extendqisi2
+ 1681              	.LVL189:
+ 1682              		.loc 1 881 19 view .LVU419
+ 1683 0004 7047     		bx	lr
+ 1684              	.LVL190:
+ 1685              	.L171:
+ 878:Libs/mbedtls/library/md.c ****         return 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 48
+
+
+ 1686              		.loc 1 878 16 view .LVU420
+ 1687 0006 0020     		movs	r0, #0
+ 1688              	.LVL191:
+ 882:Libs/mbedtls/library/md.c **** }
+ 1689              		.loc 1 882 1 view .LVU421
+ 1690 0008 7047     		bx	lr
+ 1691              		.cfi_endproc
+ 1692              	.LFE24:
+ 1694              		.section	.text.mbedtls_md_get_type,"ax",%progbits
+ 1695              		.align	1
+ 1696              		.global	mbedtls_md_get_type
+ 1697              		.syntax unified
+ 1698              		.thumb
+ 1699              		.thumb_func
+ 1701              	mbedtls_md_get_type:
+ 1702              	.LVL192:
+ 1703              	.LFB25:
+ 883:Libs/mbedtls/library/md.c **** 
+ 884:Libs/mbedtls/library/md.c **** mbedtls_md_type_t mbedtls_md_get_type(const mbedtls_md_info_t *md_info)
+ 885:Libs/mbedtls/library/md.c **** {
+ 1704              		.loc 1 885 1 is_stmt 1 view -0
+ 1705              		.cfi_startproc
+ 1706              		@ args = 0, pretend = 0, frame = 0
+ 1707              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1708              		@ link register save eliminated.
+ 886:Libs/mbedtls/library/md.c ****     if (md_info == NULL) {
+ 1709              		.loc 1 886 5 view .LVU423
+ 1710              		.loc 1 886 8 is_stmt 0 view .LVU424
+ 1711 0000 08B1     		cbz	r0, .L174
+ 887:Libs/mbedtls/library/md.c ****         return MBEDTLS_MD_NONE;
+ 888:Libs/mbedtls/library/md.c ****     }
+ 889:Libs/mbedtls/library/md.c **** 
+ 890:Libs/mbedtls/library/md.c ****     return md_info->type;
+ 1712              		.loc 1 890 5 is_stmt 1 view .LVU425
+ 1713              		.loc 1 890 19 is_stmt 0 view .LVU426
+ 1714 0002 0079     		ldrb	r0, [r0, #4]	@ zero_extendqisi2
+ 1715              	.LVL193:
+ 1716              		.loc 1 890 19 view .LVU427
+ 1717 0004 7047     		bx	lr
+ 1718              	.LVL194:
+ 1719              	.L174:
+ 887:Libs/mbedtls/library/md.c ****         return MBEDTLS_MD_NONE;
+ 1720              		.loc 1 887 16 view .LVU428
+ 1721 0006 0020     		movs	r0, #0
+ 1722              	.LVL195:
+ 891:Libs/mbedtls/library/md.c **** }
+ 1723              		.loc 1 891 1 view .LVU429
+ 1724 0008 7047     		bx	lr
+ 1725              		.cfi_endproc
+ 1726              	.LFE25:
+ 1728              		.section	.text.mbedtls_md_get_name,"ax",%progbits
+ 1729              		.align	1
+ 1730              		.global	mbedtls_md_get_name
+ 1731              		.syntax unified
+ 1732              		.thumb
+ 1733              		.thumb_func
+ 1735              	mbedtls_md_get_name:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 49
+
+
+ 1736              	.LVL196:
+ 1737              	.LFB26:
+ 892:Libs/mbedtls/library/md.c **** 
+ 893:Libs/mbedtls/library/md.c **** const char *mbedtls_md_get_name(const mbedtls_md_info_t *md_info)
+ 894:Libs/mbedtls/library/md.c **** {
+ 1738              		.loc 1 894 1 is_stmt 1 view -0
+ 1739              		.cfi_startproc
+ 1740              		@ args = 0, pretend = 0, frame = 0
+ 1741              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1742              		@ link register save eliminated.
+ 895:Libs/mbedtls/library/md.c ****     if (md_info == NULL) {
+ 1743              		.loc 1 895 5 view .LVU431
+ 1744              		.loc 1 895 8 is_stmt 0 view .LVU432
+ 1745 0000 08B1     		cbz	r0, .L177
+ 896:Libs/mbedtls/library/md.c ****         return NULL;
+ 897:Libs/mbedtls/library/md.c ****     }
+ 898:Libs/mbedtls/library/md.c **** 
+ 899:Libs/mbedtls/library/md.c ****     return md_info->name;
+ 1746              		.loc 1 899 5 is_stmt 1 view .LVU433
+ 1747              		.loc 1 899 19 is_stmt 0 view .LVU434
+ 1748 0002 0068     		ldr	r0, [r0]
+ 1749              	.LVL197:
+ 1750              		.loc 1 899 19 view .LVU435
+ 1751 0004 7047     		bx	lr
+ 1752              	.LVL198:
+ 1753              	.L177:
+ 900:Libs/mbedtls/library/md.c **** }
+ 1754              		.loc 1 900 1 view .LVU436
+ 1755 0006 7047     		bx	lr
+ 1756              		.cfi_endproc
+ 1757              	.LFE26:
+ 1759              		.section	.rodata.supported_digests,"a"
+ 1760              		.align	2
+ 1763              	supported_digests:
+ 1764 0000 06000000 		.word	6
+ 1765 0004 05000000 		.word	5
+ 1766 0008 00000000 		.word	0
+ 1767              		.global	mbedtls_sha256_info
+ 1768              		.section	.rodata.mbedtls_sha256_info,"a"
+ 1769              		.align	2
+ 1772              	mbedtls_sha256_info:
+ 1773 0000 08000000 		.word	.LC1
+ 1774 0004 06       		.byte	6
+ 1775 0005 20       		.byte	32
+ 1776 0006 40       		.byte	64
+ 1777 0007 00       		.space	1
+ 1778              		.global	mbedtls_sha224_info
+ 1779              		.section	.rodata.mbedtls_sha224_info,"a"
+ 1780              		.align	2
+ 1783              	mbedtls_sha224_info:
+ 1784 0000 00000000 		.word	.LC0
+ 1785 0004 05       		.byte	5
+ 1786 0005 1C       		.byte	28
+ 1787 0006 40       		.byte	64
+ 1788 0007 00       		.space	1
+ 1789              		.text
+ 1790              	.Letext0:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 50
+
+
+ 1791              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1792              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1793              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1794              		.file 5 "Libs/mbedtls/include/mbedtls/md.h"
+ 1795              		.file 6 "Libs/mbedtls/include/mbedtls/md_internal.h"
+ 1796              		.file 7 "Libs/mbedtls/include/mbedtls/sha256.h"
+ 1797              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdlib.h"
+ 1798              		.file 9 "Libs/mbedtls/include/mbedtls/platform_util.h"
+ 1799              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 51
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 md.c
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:20     .text.mbedtls_md_list:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:26     .text.mbedtls_md_list:00000000 mbedtls_md_list
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:40     .text.mbedtls_md_list:00000004 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1763   .rodata.supported_digests:00000000 supported_digests
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:45     .text.mbedtls_md_info_from_type:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:51     .text.mbedtls_md_info_from_type:00000000 mbedtls_md_info_from_type
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:86     .text.mbedtls_md_info_from_type:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1772   .rodata.mbedtls_sha256_info:00000000 mbedtls_sha256_info
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1783   .rodata.mbedtls_sha224_info:00000000 mbedtls_sha224_info
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:92     .rodata.mbedtls_md_info_from_string.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:99     .text.mbedtls_md_info_from_string:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:105    .text.mbedtls_md_info_from_string:00000000 mbedtls_md_info_from_string
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:163    .text.mbedtls_md_info_from_string:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:169    .text.mbedtls_md_init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:175    .text.mbedtls_md_init:00000000 mbedtls_md_init
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:194    .text.mbedtls_md_free:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:200    .text.mbedtls_md_free:00000000 mbedtls_md_free
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:286    .text.mbedtls_md_clone:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:292    .text.mbedtls_md_clone:00000000 mbedtls_md_clone
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:397    .text.mbedtls_md_clone:00000040 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:402    .text.mbedtls_md_setup:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:408    .text.mbedtls_md_setup:00000000 mbedtls_md_setup
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:525    .text.mbedtls_md_setup:0000005c $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:531    .text.mbedtls_md_init_ctx:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:537    .text.mbedtls_md_init_ctx:00000000 mbedtls_md_init_ctx
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:561    .text.mbedtls_md_starts:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:567    .text.mbedtls_md_starts:00000000 mbedtls_md_starts
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:648    .text.mbedtls_md_starts:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:653    .text.mbedtls_md_update:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:659    .text.mbedtls_md_update:00000000 mbedtls_md_update
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:728    .text.mbedtls_md_update:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:733    .text.mbedtls_md_finish:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:739    .text.mbedtls_md_finish:00000000 mbedtls_md_finish
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:808    .text.mbedtls_md_finish:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:813    .text.mbedtls_md:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:819    .text.mbedtls_md:00000000 mbedtls_md
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:893    .text.mbedtls_md:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:898    .text.mbedtls_md_hmac_starts:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:904    .text.mbedtls_md_hmac_starts:00000000 mbedtls_md_hmac_starts
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1118   .text.mbedtls_md_hmac_starts:000000c0 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1123   .text.mbedtls_md_hmac_update:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1129   .text.mbedtls_md_hmac_update:00000000 mbedtls_md_hmac_update
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1189   .text.mbedtls_md_hmac_update:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1194   .text.mbedtls_md_hmac_finish:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1200   .text.mbedtls_md_hmac_finish:00000000 mbedtls_md_hmac_finish
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1348   .text.mbedtls_md_hmac_finish:00000070 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1353   .text.mbedtls_md_hmac_reset:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1359   .text.mbedtls_md_hmac_reset:00000000 mbedtls_md_hmac_reset
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1450   .text.mbedtls_md_hmac_reset:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1455   .text.mbedtls_md_hmac:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1461   .text.mbedtls_md_hmac:00000000 mbedtls_md_hmac
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1576   .text.mbedtls_md_hmac:00000060 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1581   .text.mbedtls_md_process:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1587   .text.mbedtls_md_process:00000000 mbedtls_md_process
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1656   .text.mbedtls_md_process:00000024 $d
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s 			page 52
+
+
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1661   .text.mbedtls_md_get_size:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1667   .text.mbedtls_md_get_size:00000000 mbedtls_md_get_size
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1695   .text.mbedtls_md_get_type:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1701   .text.mbedtls_md_get_type:00000000 mbedtls_md_get_type
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1729   .text.mbedtls_md_get_name:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1735   .text.mbedtls_md_get_name:00000000 mbedtls_md_get_name
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1760   .rodata.supported_digests:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1769   .rodata.mbedtls_sha256_info:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccN55BSI.s:1780   .rodata.mbedtls_sha224_info:00000000 $d
+
+UNDEFINED SYMBOLS
+strcmp
+free
+mbedtls_platform_zeroize
+mbedtls_sha256_free
+mbedtls_sha256_clone
+calloc
+mbedtls_sha256_init
+mbedtls_sha256_starts_ret
+mbedtls_sha256_update_ret
+mbedtls_sha256_finish_ret
+mbedtls_sha256_ret
+memset
+mbedtls_internal_sha256_process

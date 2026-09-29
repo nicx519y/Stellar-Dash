@@ -1,0 +1,1163 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_ui_common.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/display/screen_control/spi_screen_ui_common.cpp"
+  19              		.section	.text._ZL14screenui_luma8m,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZL14screenui_luma8m:
+  26              	.LVL0:
+  27              	.LFB1271:
+   1:Src/display/screen_control/spi_screen_ui_common.cpp **** #include "screen_control/spi_screen_ui_common.hpp"
+   2:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+   3:Src/display/screen_control/spi_screen_ui_common.cpp **** #include <string.h>
+   4:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+   5:Src/display/screen_control/spi_screen_ui_common.cpp **** #include "screen_control/spi_screen_layout.hpp"
+   6:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+   7:Src/display/screen_control/spi_screen_ui_common.cpp **** uint32_t ScreenUI_RGB888(uint32_t v) {
+   8:Src/display/screen_control/spi_screen_ui_common.cpp ****     return v & 0x00FFFFFFu;
+   9:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+  10:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  11:Src/display/screen_control/spi_screen_ui_common.cpp **** uint32_t ScreenUI_BlendToWhite(uint32_t rgb, uint8_t alpha255) {
+  12:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t r = (rgb >> 16) & 0xFFu;
+  13:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t g = (rgb >> 8) & 0xFFu;
+  14:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t b = rgb & 0xFFu;
+  15:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  16:Src/display/screen_control/spi_screen_ui_common.cpp ****     r = r + ((255u - r) * alpha255) / 255u;
+  17:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = g + ((255u - g) * alpha255) / 255u;
+  18:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = b + ((255u - b) * alpha255) / 255u;
+  19:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  20:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (r << 16) | (g << 8) | b;
+  21:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+  22:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  23:Src/display/screen_control/spi_screen_ui_common.cpp **** uint32_t ScreenUI_BlendToBlack(uint32_t rgb, uint8_t alpha255) {
+  24:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t r = (rgb >> 16) & 0xFFu;
+  25:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t g = (rgb >> 8) & 0xFFu;
+  26:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t b = rgb & 0xFFu;
+  27:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  28:Src/display/screen_control/spi_screen_ui_common.cpp ****     r = (r * (255u - alpha255)) / 255u;
+  29:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = (g * (255u - alpha255)) / 255u;
+  30:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = (b * (255u - alpha255)) / 255u;
+  31:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 2
+
+
+  32:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (r << 16) | (g << 8) | b;
+  33:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+  34:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  35:Src/display/screen_control/spi_screen_ui_common.cpp **** static uint32_t screenui_luma8(uint32_t rgb) {
+  28              		.loc 1 35 46 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  36:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t r = (rgb >> 16) & 0xFFu;
+  33              		.loc 1 36 5 view .LVU1
+  34              		.loc 1 36 14 is_stmt 0 view .LVU2
+  35 0000 C0F30742 		ubfx	r2, r0, #16, #8
+  36              	.LVL1:
+  37:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t g = (rgb >> 8) & 0xFFu;
+  37              		.loc 1 37 5 is_stmt 1 view .LVU3
+  38              		.loc 1 37 14 is_stmt 0 view .LVU4
+  39 0004 C0F30723 		ubfx	r3, r0, #8, #8
+  40              	.LVL2:
+  38:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t b = rgb & 0xFFu;
+  41              		.loc 1 38 5 is_stmt 1 view .LVU5
+  42              		.loc 1 38 14 is_stmt 0 view .LVU6
+  43 0008 C0B2     		uxtb	r0, r0
+  44              	.LVL3:
+  39:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (uint32_t)((r * 54u + g * 183u + b * 19u) >> 8);
+  45              		.loc 1 39 5 is_stmt 1 view .LVU7
+  46              		.loc 1 39 36 is_stmt 0 view .LVU8
+  47 000a B721     		movs	r1, #183
+  48 000c 01FB03F3 		mul	r3, r1, r3
+  49              	.LVL4:
+  50              		.loc 1 39 32 view .LVU9
+  51 0010 3621     		movs	r1, #54
+  52 0012 01FB0233 		mla	r3, r1, r2, r3
+  53              		.loc 1 39 47 view .LVU10
+  54 0016 00EBC002 		add	r2, r0, r0, lsl #3
+  55              	.LVL5:
+  56              		.loc 1 39 47 view .LVU11
+  57 001a 00EB4200 		add	r0, r0, r2, lsl #1
+  58              	.LVL6:
+  59              		.loc 1 39 43 view .LVU12
+  60 001e 1844     		add	r0, r0, r3
+  40:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+  61              		.loc 1 40 1 view .LVU13
+  62 0020 000A     		lsrs	r0, r0, #8
+  63 0022 7047     		bx	lr
+  64              		.cfi_endproc
+  65              	.LFE1271:
+  67              		.section	.text._Z15ScreenUI_RGB888m,"ax",%progbits
+  68              		.align	1
+  69              		.global	_Z15ScreenUI_RGB888m
+  70              		.syntax unified
+  71              		.thumb
+  72              		.thumb_func
+  74              	_Z15ScreenUI_RGB888m:
+  75              	.LVL7:
+  76              	.LFB1268:
+   7:Src/display/screen_control/spi_screen_ui_common.cpp ****     return v & 0x00FFFFFFu;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 3
+
+
+  77              		.loc 1 7 38 is_stmt 1 view -0
+  78              		.cfi_startproc
+  79              		@ args = 0, pretend = 0, frame = 0
+  80              		@ frame_needed = 0, uses_anonymous_args = 0
+  81              		@ link register save eliminated.
+   8:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+  82              		.loc 1 8 5 view .LVU15
+   9:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  83              		.loc 1 9 1 is_stmt 0 view .LVU16
+  84 0000 20F07F40 		bic	r0, r0, #-16777216
+  85              	.LVL8:
+   9:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  86              		.loc 1 9 1 view .LVU17
+  87 0004 7047     		bx	lr
+  88              		.cfi_endproc
+  89              	.LFE1268:
+  91              		.section	.text._Z21ScreenUI_BlendToWhitemh,"ax",%progbits
+  92              		.align	1
+  93              		.global	_Z21ScreenUI_BlendToWhitemh
+  94              		.syntax unified
+  95              		.thumb
+  96              		.thumb_func
+  98              	_Z21ScreenUI_BlendToWhitemh:
+  99              	.LVL9:
+ 100              	.LFB1269:
+  11:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t r = (rgb >> 16) & 0xFFu;
+ 101              		.loc 1 11 64 is_stmt 1 view -0
+ 102              		.cfi_startproc
+ 103              		@ args = 0, pretend = 0, frame = 0
+ 104              		@ frame_needed = 0, uses_anonymous_args = 0
+  11:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t r = (rgb >> 16) & 0xFFu;
+ 105              		.loc 1 11 64 is_stmt 0 view .LVU19
+ 106 0000 10B5     		push	{r4, lr}
+ 107              	.LCFI0:
+ 108              		.cfi_def_cfa_offset 8
+ 109              		.cfi_offset 4, -8
+ 110              		.cfi_offset 14, -4
+  12:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t g = (rgb >> 8) & 0xFFu;
+ 111              		.loc 1 12 5 is_stmt 1 view .LVU20
+  12:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t g = (rgb >> 8) & 0xFFu;
+ 112              		.loc 1 12 14 is_stmt 0 view .LVU21
+ 113 0002 C0F3074C 		ubfx	ip, r0, #16, #8
+ 114              	.LVL10:
+  13:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t b = rgb & 0xFFu;
+ 115              		.loc 1 13 5 is_stmt 1 view .LVU22
+  13:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t b = rgb & 0xFFu;
+ 116              		.loc 1 13 14 is_stmt 0 view .LVU23
+ 117 0006 C0F30723 		ubfx	r3, r0, #8, #8
+ 118              	.LVL11:
+  14:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 119              		.loc 1 14 5 is_stmt 1 view .LVU24
+  14:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 120              		.loc 1 14 14 is_stmt 0 view .LVU25
+ 121 000a C0B2     		uxtb	r0, r0
+ 122              	.LVL12:
+  16:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = g + ((255u - g) * alpha255) / 255u;
+ 123              		.loc 1 16 5 is_stmt 1 view .LVU26
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 4
+
+
+  16:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = g + ((255u - g) * alpha255) / 255u;
+ 124              		.loc 1 16 20 is_stmt 0 view .LVU27
+ 125 000c CCF1FF02 		rsb	r2, ip, #255
+  16:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = g + ((255u - g) * alpha255) / 255u;
+ 126              		.loc 1 16 25 view .LVU28
+ 127 0010 01FB02F2 		mul	r2, r1, r2
+  16:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = g + ((255u - g) * alpha255) / 255u;
+ 128              		.loc 1 16 37 view .LVU29
+ 129 0014 0C4C     		ldr	r4, .L5
+ 130 0016 A4FB02E2 		umull	lr, r2, r4, r2
+  16:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = g + ((255u - g) * alpha255) / 255u;
+ 131              		.loc 1 16 7 view .LVU30
+ 132 001a 0CEBD21C 		add	ip, ip, r2, lsr #7
+ 133              	.LVL13:
+  17:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = b + ((255u - b) * alpha255) / 255u;
+ 134              		.loc 1 17 5 is_stmt 1 view .LVU31
+  17:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = b + ((255u - b) * alpha255) / 255u;
+ 135              		.loc 1 17 20 is_stmt 0 view .LVU32
+ 136 001e C3F1FF02 		rsb	r2, r3, #255
+  17:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = b + ((255u - b) * alpha255) / 255u;
+ 137              		.loc 1 17 25 view .LVU33
+ 138 0022 01FB02F2 		mul	r2, r1, r2
+  17:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = b + ((255u - b) * alpha255) / 255u;
+ 139              		.loc 1 17 37 view .LVU34
+ 140 0026 A4FB02E2 		umull	lr, r2, r4, r2
+  17:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = b + ((255u - b) * alpha255) / 255u;
+ 141              		.loc 1 17 7 view .LVU35
+ 142 002a 03EBD213 		add	r3, r3, r2, lsr #7
+ 143              	.LVL14:
+  18:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 144              		.loc 1 18 5 is_stmt 1 view .LVU36
+  18:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 145              		.loc 1 18 20 is_stmt 0 view .LVU37
+ 146 002e C0F1FF02 		rsb	r2, r0, #255
+  18:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 147              		.loc 1 18 25 view .LVU38
+ 148 0032 02FB01F1 		mul	r1, r2, r1
+ 149              	.LVL15:
+  18:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 150              		.loc 1 18 37 view .LVU39
+ 151 0036 A4FB0141 		umull	r4, r1, r4, r1
+  18:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 152              		.loc 1 18 7 view .LVU40
+ 153 003a 00EBD110 		add	r0, r0, r1, lsr #7
+ 154              	.LVL16:
+  20:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 155              		.loc 1 20 5 is_stmt 1 view .LVU41
+  20:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 156              		.loc 1 20 27 is_stmt 0 view .LVU42
+ 157 003e 1B02     		lsls	r3, r3, #8
+ 158              	.LVL17:
+  20:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 159              		.loc 1 20 22 view .LVU43
+ 160 0040 43EA0C43 		orr	r3, r3, ip, lsl #16
+  21:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 161              		.loc 1 21 1 view .LVU44
+ 162 0044 1843     		orrs	r0, r0, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 5
+
+
+ 163              	.LVL18:
+  21:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 164              		.loc 1 21 1 view .LVU45
+ 165 0046 10BD     		pop	{r4, pc}
+ 166              	.L6:
+ 167              		.align	2
+ 168              	.L5:
+ 169 0048 81808080 		.word	-2139062143
+ 170              		.cfi_endproc
+ 171              	.LFE1269:
+ 173              		.section	.text._Z21ScreenUI_BlendToBlackmh,"ax",%progbits
+ 174              		.align	1
+ 175              		.global	_Z21ScreenUI_BlendToBlackmh
+ 176              		.syntax unified
+ 177              		.thumb
+ 178              		.thumb_func
+ 180              	_Z21ScreenUI_BlendToBlackmh:
+ 181              	.LVL19:
+ 182              	.LFB1270:
+  23:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t r = (rgb >> 16) & 0xFFu;
+ 183              		.loc 1 23 64 is_stmt 1 view -0
+ 184              		.cfi_startproc
+ 185              		@ args = 0, pretend = 0, frame = 0
+ 186              		@ frame_needed = 0, uses_anonymous_args = 0
+ 187              		@ link register save eliminated.
+  23:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t r = (rgb >> 16) & 0xFFu;
+ 188              		.loc 1 23 64 is_stmt 0 view .LVU47
+ 189 0000 10B4     		push	{r4}
+ 190              	.LCFI1:
+ 191              		.cfi_def_cfa_offset 4
+ 192              		.cfi_offset 4, -4
+  24:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t g = (rgb >> 8) & 0xFFu;
+ 193              		.loc 1 24 5 is_stmt 1 view .LVU48
+  24:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t g = (rgb >> 8) & 0xFFu;
+ 194              		.loc 1 24 14 is_stmt 0 view .LVU49
+ 195 0002 C0F30742 		ubfx	r2, r0, #16, #8
+ 196              	.LVL20:
+  25:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t b = rgb & 0xFFu;
+ 197              		.loc 1 25 5 is_stmt 1 view .LVU50
+  25:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t b = rgb & 0xFFu;
+ 198              		.loc 1 25 14 is_stmt 0 view .LVU51
+ 199 0006 C0F30723 		ubfx	r3, r0, #8, #8
+ 200              	.LVL21:
+  26:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 201              		.loc 1 26 5 is_stmt 1 view .LVU52
+  26:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 202              		.loc 1 26 14 is_stmt 0 view .LVU53
+ 203 000a C0B2     		uxtb	r0, r0
+ 204              	.LVL22:
+  28:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = (g * (255u - alpha255)) / 255u;
+ 205              		.loc 1 28 5 is_stmt 1 view .LVU54
+  28:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = (g * (255u - alpha255)) / 255u;
+ 206              		.loc 1 28 20 is_stmt 0 view .LVU55
+ 207 000c C1F1FF01 		rsb	r1, r1, #255
+ 208              	.LVL23:
+  28:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = (g * (255u - alpha255)) / 255u;
+ 209              		.loc 1 28 12 view .LVU56
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 6
+
+
+ 210 0010 01FB02F2 		mul	r2, r1, r2
+ 211              	.LVL24:
+  28:Src/display/screen_control/spi_screen_ui_common.cpp ****     g = (g * (255u - alpha255)) / 255u;
+ 212              		.loc 1 28 7 view .LVU57
+ 213 0014 0A4C     		ldr	r4, .L9
+ 214 0016 A4FB02C2 		umull	ip, r2, r4, r2
+ 215 001a D209     		lsrs	r2, r2, #7
+ 216              	.LVL25:
+  29:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = (b * (255u - alpha255)) / 255u;
+ 217              		.loc 1 29 5 is_stmt 1 view .LVU58
+  29:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = (b * (255u - alpha255)) / 255u;
+ 218              		.loc 1 29 12 is_stmt 0 view .LVU59
+ 219 001c 01FB03F3 		mul	r3, r1, r3
+ 220              	.LVL26:
+  29:Src/display/screen_control/spi_screen_ui_common.cpp ****     b = (b * (255u - alpha255)) / 255u;
+ 221              		.loc 1 29 7 view .LVU60
+ 222 0020 A4FB03C3 		umull	ip, r3, r4, r3
+ 223 0024 DB09     		lsrs	r3, r3, #7
+ 224              	.LVL27:
+  30:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 225              		.loc 1 30 5 is_stmt 1 view .LVU61
+  30:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 226              		.loc 1 30 12 is_stmt 0 view .LVU62
+ 227 0026 00FB01F1 		mul	r1, r0, r1
+  30:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 228              		.loc 1 30 7 view .LVU63
+ 229 002a A4FB0140 		umull	r4, r0, r4, r1
+ 230              	.LVL28:
+  32:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 231              		.loc 1 32 5 is_stmt 1 view .LVU64
+  32:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 232              		.loc 1 32 27 is_stmt 0 view .LVU65
+ 233 002e 1B02     		lsls	r3, r3, #8
+ 234              	.LVL29:
+  32:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 235              		.loc 1 32 22 view .LVU66
+ 236 0030 43EA0243 		orr	r3, r3, r2, lsl #16
+  33:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 237              		.loc 1 33 1 view .LVU67
+ 238 0034 43EAD010 		orr	r0, r3, r0, lsr #7
+ 239              	.LVL30:
+  33:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 240              		.loc 1 33 1 view .LVU68
+ 241 0038 5DF8044B 		ldr	r4, [sp], #4
+ 242              	.LCFI2:
+ 243              		.cfi_restore 4
+ 244              		.cfi_def_cfa_offset 0
+ 245 003c 7047     		bx	lr
+ 246              	.L10:
+ 247 003e 00BF     		.align	2
+ 248              	.L9:
+ 249 0040 81808080 		.word	-2139062143
+ 250              		.cfi_endproc
+ 251              	.LFE1270:
+ 253              		.section	.text._Z24ScreenUI_HighlightFromBgmh,"ax",%progbits
+ 254              		.align	1
+ 255              		.global	_Z24ScreenUI_HighlightFromBgmh
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 7
+
+
+ 256              		.syntax unified
+ 257              		.thumb
+ 258              		.thumb_func
+ 260              	_Z24ScreenUI_HighlightFromBgmh:
+ 261              	.LVL31:
+ 262              	.LFB1272:
+  41:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  42:Src/display/screen_control/spi_screen_ui_common.cpp **** uint32_t ScreenUI_HighlightFromBg(uint32_t bg, uint8_t amount) {
+ 263              		.loc 1 42 64 is_stmt 1 view -0
+ 264              		.cfi_startproc
+ 265              		@ args = 0, pretend = 0, frame = 0
+ 266              		@ frame_needed = 0, uses_anonymous_args = 0
+ 267              		.loc 1 42 64 is_stmt 0 view .LVU70
+ 268 0000 38B5     		push	{r3, r4, r5, lr}
+ 269              	.LCFI3:
+ 270              		.cfi_def_cfa_offset 16
+ 271              		.cfi_offset 3, -16
+ 272              		.cfi_offset 4, -12
+ 273              		.cfi_offset 5, -8
+ 274              		.cfi_offset 14, -4
+ 275 0002 0446     		mov	r4, r0
+ 276 0004 0D46     		mov	r5, r1
+  43:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (screenui_luma8(bg) < 128u) ? ScreenUI_BlendToWhite(bg, amount) : ScreenUI_BlendToBlack(
+ 277              		.loc 1 43 5 is_stmt 1 view .LVU71
+ 278              		.loc 1 43 27 is_stmt 0 view .LVU72
+ 279 0006 FFF7FEFF 		bl	_ZL14screenui_luma8m
+ 280              	.LVL32:
+ 281              		.loc 1 43 40 discriminator 1 view .LVU73
+ 282 000a 7F28     		cmp	r0, #127
+ 283 000c 04D8     		bhi	.L12
+ 284              		.loc 1 43 63 discriminator 1 view .LVU74
+ 285 000e 2946     		mov	r1, r5
+ 286 0010 2046     		mov	r0, r4
+ 287 0012 FFF7FEFF 		bl	_Z21ScreenUI_BlendToWhitemh
+ 288              	.LVL33:
+ 289              	.L11:
+  44:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 290              		.loc 1 44 1 view .LVU75
+ 291 0016 38BD     		pop	{r3, r4, r5, pc}
+ 292              	.LVL34:
+ 293              	.L12:
+  43:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (screenui_luma8(bg) < 128u) ? ScreenUI_BlendToWhite(bg, amount) : ScreenUI_BlendToBlack(
+ 294              		.loc 1 43 99 discriminator 2 view .LVU76
+ 295 0018 2946     		mov	r1, r5
+ 296 001a 2046     		mov	r0, r4
+ 297 001c FFF7FEFF 		bl	_Z21ScreenUI_BlendToBlackmh
+ 298              	.LVL35:
+  43:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (screenui_luma8(bg) < 128u) ? ScreenUI_BlendToWhite(bg, amount) : ScreenUI_BlendToBlack(
+ 299              		.loc 1 43 110 view .LVU77
+ 300 0020 F9E7     		b	.L11
+ 301              		.cfi_endproc
+ 302              	.LFE1272:
+ 304              		.section	.text._Z23ScreenUI_MutedTextForBgmmh,"ax",%progbits
+ 305              		.align	1
+ 306              		.global	_Z23ScreenUI_MutedTextForBgmmh
+ 307              		.syntax unified
+ 308              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 8
+
+
+ 309              		.thumb_func
+ 311              	_Z23ScreenUI_MutedTextForBgmmh:
+ 312              	.LVL36:
+ 313              	.LFB1273:
+  45:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  46:Src/display/screen_control/spi_screen_ui_common.cpp **** uint32_t ScreenUI_MutedTextForBg(uint32_t fg, uint32_t bg, uint8_t amount) {
+ 314              		.loc 1 46 76 is_stmt 1 view -0
+ 315              		.cfi_startproc
+ 316              		@ args = 0, pretend = 0, frame = 0
+ 317              		@ frame_needed = 0, uses_anonymous_args = 0
+ 318              		.loc 1 46 76 is_stmt 0 view .LVU79
+ 319 0000 70B5     		push	{r4, r5, r6, lr}
+ 320              	.LCFI4:
+ 321              		.cfi_def_cfa_offset 16
+ 322              		.cfi_offset 4, -16
+ 323              		.cfi_offset 5, -12
+ 324              		.cfi_offset 6, -8
+ 325              		.cfi_offset 14, -4
+  47:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t fr = (fg >> 16) & 0xFFu;
+ 326              		.loc 1 47 5 is_stmt 1 view .LVU80
+ 327              		.loc 1 47 14 is_stmt 0 view .LVU81
+ 328 0002 C0F30744 		ubfx	r4, r0, #16, #8
+ 329              	.LVL37:
+  48:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t fgc = (fg >> 8) & 0xFFu;
+ 330              		.loc 1 48 5 is_stmt 1 view .LVU82
+ 331              		.loc 1 48 14 is_stmt 0 view .LVU83
+ 332 0006 C0F30726 		ubfx	r6, r0, #8, #8
+ 333              	.LVL38:
+  49:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t fb = fg & 0xFFu;
+ 334              		.loc 1 49 5 is_stmt 1 view .LVU84
+ 335              		.loc 1 49 14 is_stmt 0 view .LVU85
+ 336 000a 5FFA80FE 		uxtb	lr, r0
+ 337              	.LVL39:
+  50:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t br = (bg >> 16) & 0xFFu;
+ 338              		.loc 1 50 5 is_stmt 1 view .LVU86
+ 339              		.loc 1 50 14 is_stmt 0 view .LVU87
+ 340 000e C1F3074C 		ubfx	ip, r1, #16, #8
+ 341              	.LVL40:
+  51:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t bgc = (bg >> 8) & 0xFFu;
+ 342              		.loc 1 51 5 is_stmt 1 view .LVU88
+ 343              		.loc 1 51 14 is_stmt 0 view .LVU89
+ 344 0012 C1F30723 		ubfx	r3, r1, #8, #8
+ 345              	.LVL41:
+  52:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t bb = bg & 0xFFu;
+ 346              		.loc 1 52 5 is_stmt 1 view .LVU90
+ 347              		.loc 1 52 14 is_stmt 0 view .LVU91
+ 348 0016 C9B2     		uxtb	r1, r1
+ 349              	.LVL42:
+  53:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t r = (fr * (255u - amount) + br * amount) / 255u;
+ 350              		.loc 1 53 5 is_stmt 1 view .LVU92
+ 351              		.loc 1 53 30 is_stmt 0 view .LVU93
+ 352 0018 C2F1FF05 		rsb	r5, r2, #255
+ 353              		.loc 1 53 45 view .LVU94
+ 354 001c 0CFB02FC 		mul	ip, ip, r2
+ 355              	.LVL43:
+ 356              		.loc 1 53 40 view .LVU95
+ 357 0020 04FB05CC 		mla	ip, r4, r5, ip
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 9
+
+
+ 358              		.loc 1 53 14 view .LVU96
+ 359 0024 0B4C     		ldr	r4, .L17
+ 360              	.LVL44:
+ 361              		.loc 1 53 14 view .LVU97
+ 362 0026 A4FB0C0C 		umull	r0, ip, r4, ip
+ 363              	.LVL45:
+ 364              		.loc 1 53 14 view .LVU98
+ 365 002a 4FEADC1C 		lsr	ip, ip, #7
+ 366              	.LVL46:
+  54:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t g = (fgc * (255u - amount) + bgc * amount) / 255u;
+ 367              		.loc 1 54 5 is_stmt 1 view .LVU99
+ 368              		.loc 1 54 47 is_stmt 0 view .LVU100
+ 369 002e 02FB03F3 		mul	r3, r2, r3
+ 370              	.LVL47:
+ 371              		.loc 1 54 41 view .LVU101
+ 372 0032 06FB0533 		mla	r3, r6, r5, r3
+ 373              		.loc 1 54 14 view .LVU102
+ 374 0036 A4FB0303 		umull	r0, r3, r4, r3
+ 375 003a DB09     		lsrs	r3, r3, #7
+ 376              	.LVL48:
+  55:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t b = (fb * (255u - amount) + bb * amount) / 255u;
+ 377              		.loc 1 55 5 is_stmt 1 view .LVU103
+ 378              		.loc 1 55 45 is_stmt 0 view .LVU104
+ 379 003c 01FB02F0 		mul	r0, r1, r2
+ 380              		.loc 1 55 40 view .LVU105
+ 381 0040 0EFB0500 		mla	r0, lr, r5, r0
+ 382              		.loc 1 55 14 view .LVU106
+ 383 0044 A4FB0040 		umull	r4, r0, r4, r0
+ 384              	.LVL49:
+  56:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (r << 16) | (g << 8) | b;
+ 385              		.loc 1 56 5 is_stmt 1 view .LVU107
+ 386              		.loc 1 56 27 is_stmt 0 view .LVU108
+ 387 0048 1B02     		lsls	r3, r3, #8
+ 388              	.LVL50:
+ 389              		.loc 1 56 22 view .LVU109
+ 390 004a 43EA0C43 		orr	r3, r3, ip, lsl #16
+  57:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 391              		.loc 1 57 1 view .LVU110
+ 392 004e 43EAD010 		orr	r0, r3, r0, lsr #7
+ 393              	.LVL51:
+ 394              		.loc 1 57 1 view .LVU111
+ 395 0052 70BD     		pop	{r4, r5, r6, pc}
+ 396              	.LVL52:
+ 397              	.L18:
+ 398              		.loc 1 57 1 view .LVU112
+ 399              		.align	2
+ 400              	.L17:
+ 401 0054 81808080 		.word	-2139062143
+ 402              		.cfi_endproc
+ 403              	.LFE1273:
+ 405              		.section	.text._Z18ScreenUI_CharCellWh,"ax",%progbits
+ 406              		.align	1
+ 407              		.global	_Z18ScreenUI_CharCellWh
+ 408              		.syntax unified
+ 409              		.thumb
+ 410              		.thumb_func
+ 412              	_Z18ScreenUI_CharCellWh:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 10
+
+
+ 413              	.LVL53:
+ 414              	.LFB1274:
+  58:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  59:Src/display/screen_control/spi_screen_ui_common.cpp **** uint16_t ScreenUI_CharCellW(uint8_t scale) {
+ 415              		.loc 1 59 44 is_stmt 1 view -0
+ 416              		.cfi_startproc
+ 417              		@ args = 0, pretend = 0, frame = 0
+ 418              		@ frame_needed = 0, uses_anonymous_args = 0
+ 419              		@ link register save eliminated.
+  60:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (scale == 0) scale = 1;
+ 420              		.loc 1 60 5 view .LVU114
+ 421 0000 0346     		mov	r3, r0
+ 422 0002 18B1     		cbz	r0, .L22
+  61:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (scale == 3) return 9;
+ 423              		.loc 1 61 5 view .LVU115
+ 424 0004 0328     		cmp	r0, #3
+ 425 0006 02D1     		bne	.L20
+ 426              		.loc 1 61 28 is_stmt 0 discriminator 1 view .LVU116
+ 427 0008 0920     		movs	r0, #9
+ 428              	.LVL54:
+  62:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (uint16_t)(6u * scale);
+  63:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 429              		.loc 1 63 1 view .LVU117
+ 430 000a 7047     		bx	lr
+ 431              	.LVL55:
+ 432              	.L22:
+  60:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (scale == 3) return 9;
+ 433              		.loc 1 60 27 discriminator 1 view .LVU118
+ 434 000c 0123     		movs	r3, #1
+ 435              	.L20:
+ 436              	.LVL56:
+  62:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (uint16_t)(6u * scale);
+ 437              		.loc 1 62 5 is_stmt 1 view .LVU119
+  62:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (uint16_t)(6u * scale);
+ 438              		.loc 1 62 33 is_stmt 0 view .LVU120
+ 439 000e 03EB4300 		add	r0, r3, r3, lsl #1
+ 440 0012 4000     		lsls	r0, r0, #1
+ 441 0014 80B2     		uxth	r0, r0
+ 442 0016 7047     		bx	lr
+ 443              		.cfi_endproc
+ 444              	.LFE1274:
+ 446              		.section	.text._Z18ScreenUI_CharCellHh,"ax",%progbits
+ 447              		.align	1
+ 448              		.global	_Z18ScreenUI_CharCellHh
+ 449              		.syntax unified
+ 450              		.thumb
+ 451              		.thumb_func
+ 453              	_Z18ScreenUI_CharCellHh:
+ 454              	.LVL57:
+ 455              	.LFB1275:
+  64:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  65:Src/display/screen_control/spi_screen_ui_common.cpp **** uint16_t ScreenUI_CharCellH(uint8_t scale) {
+ 456              		.loc 1 65 44 is_stmt 1 view -0
+ 457              		.cfi_startproc
+ 458              		@ args = 0, pretend = 0, frame = 0
+ 459              		@ frame_needed = 0, uses_anonymous_args = 0
+ 460              		@ link register save eliminated.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 11
+
+
+  66:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (scale == 0) scale = 1;
+ 461              		.loc 1 66 5 view .LVU122
+ 462 0000 0346     		mov	r3, r0
+ 463 0002 18B1     		cbz	r0, .L27
+  67:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (scale == 3) return 12;
+ 464              		.loc 1 67 5 view .LVU123
+ 465 0004 0328     		cmp	r0, #3
+ 466 0006 02D1     		bne	.L25
+ 467              		.loc 1 67 28 is_stmt 0 discriminator 1 view .LVU124
+ 468 0008 0C20     		movs	r0, #12
+ 469              	.LVL58:
+  68:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (uint16_t)(8u * scale);
+  69:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 470              		.loc 1 69 1 view .LVU125
+ 471 000a 7047     		bx	lr
+ 472              	.LVL59:
+ 473              	.L27:
+  66:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (scale == 3) return 12;
+ 474              		.loc 1 66 27 discriminator 1 view .LVU126
+ 475 000c 0123     		movs	r3, #1
+ 476              	.L25:
+ 477              	.LVL60:
+  68:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (uint16_t)(8u * scale);
+ 478              		.loc 1 68 5 is_stmt 1 view .LVU127
+  68:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (uint16_t)(8u * scale);
+ 479              		.loc 1 68 33 is_stmt 0 view .LVU128
+ 480 000e D800     		lsls	r0, r3, #3
+ 481 0010 7047     		bx	lr
+ 482              		.cfi_endproc
+ 483              	.LFE1275:
+ 485              		.section	.text._Z16ScreenUI_TextPxWPKch,"ax",%progbits
+ 486              		.align	1
+ 487              		.global	_Z16ScreenUI_TextPxWPKch
+ 488              		.syntax unified
+ 489              		.thumb
+ 490              		.thumb_func
+ 492              	_Z16ScreenUI_TextPxWPKch:
+ 493              	.LVL61:
+ 494              	.LFB1276:
+  70:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  71:Src/display/screen_control/spi_screen_ui_common.cpp **** uint16_t ScreenUI_TextPxW(const char* s, uint8_t scale) {
+ 495              		.loc 1 71 57 is_stmt 1 view -0
+ 496              		.cfi_startproc
+ 497              		@ args = 0, pretend = 0, frame = 0
+ 498              		@ frame_needed = 0, uses_anonymous_args = 0
+  72:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (!s || scale == 0) return 0;
+ 499              		.loc 1 72 5 view .LVU130
+ 500 0000 0029     		cmp	r1, #0
+ 501 0002 18BF     		it	ne
+ 502 0004 0028     		cmpne	r0, #0
+ 503 0006 0BD0     		beq	.L31
+  71:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (!s || scale == 0) return 0;
+ 504              		.loc 1 71 57 is_stmt 0 view .LVU131
+ 505 0008 38B5     		push	{r3, r4, r5, lr}
+ 506              	.LCFI5:
+ 507              		.cfi_def_cfa_offset 16
+ 508              		.cfi_offset 3, -16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 12
+
+
+ 509              		.cfi_offset 4, -12
+ 510              		.cfi_offset 5, -8
+ 511              		.cfi_offset 14, -4
+ 512 000a 0D46     		mov	r5, r1
+  73:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint16_t len = (uint16_t)strlen(s);
+ 513              		.loc 1 73 5 is_stmt 1 view .LVU132
+ 514              		.loc 1 73 36 is_stmt 0 view .LVU133
+ 515 000c FFF7FEFF 		bl	strlen
+ 516              	.LVL62:
+ 517              		.loc 1 73 14 discriminator 1 view .LVU134
+ 518 0010 84B2     		uxth	r4, r0
+ 519              	.LVL63:
+  74:Src/display/screen_control/spi_screen_ui_common.cpp ****     return (uint16_t)(len * ScreenUI_CharCellW(scale));
+ 520              		.loc 1 74 5 is_stmt 1 view .LVU135
+ 521              		.loc 1 74 47 is_stmt 0 view .LVU136
+ 522 0012 2846     		mov	r0, r5
+ 523 0014 FFF7FEFF 		bl	_Z18ScreenUI_CharCellWh
+ 524              	.LVL64:
+ 525              		.loc 1 74 54 discriminator 1 view .LVU137
+ 526 0018 10FB04F0 		smulbb	r0, r0, r4
+ 527 001c 80B2     		uxth	r0, r0
+  75:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 528              		.loc 1 75 1 view .LVU138
+ 529 001e 38BD     		pop	{r3, r4, r5, pc}
+ 530              	.LVL65:
+ 531              	.L31:
+ 532              	.LCFI6:
+ 533              		.cfi_def_cfa_offset 0
+ 534              		.cfi_restore 3
+ 535              		.cfi_restore 4
+ 536              		.cfi_restore 5
+ 537              		.cfi_restore 14
+  72:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint16_t len = (uint16_t)strlen(s);
+ 538              		.loc 1 72 34 discriminator 1 view .LVU139
+ 539 0020 0020     		movs	r0, #0
+ 540              	.LVL66:
+ 541              		.loc 1 75 1 view .LVU140
+ 542 0022 7047     		bx	lr
+ 543              		.cfi_endproc
+ 544              	.LFE1276:
+ 546              		.section	.text._Z16ScreenUI_TextPxHh,"ax",%progbits
+ 547              		.align	1
+ 548              		.global	_Z16ScreenUI_TextPxHh
+ 549              		.syntax unified
+ 550              		.thumb
+ 551              		.thumb_func
+ 553              	_Z16ScreenUI_TextPxHh:
+ 554              	.LVL67:
+ 555              	.LFB1277:
+  76:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  77:Src/display/screen_control/spi_screen_ui_common.cpp **** uint16_t ScreenUI_TextPxH(uint8_t scale) {
+ 556              		.loc 1 77 42 is_stmt 1 view -0
+ 557              		.cfi_startproc
+ 558              		@ args = 0, pretend = 0, frame = 0
+ 559              		@ frame_needed = 0, uses_anonymous_args = 0
+  78:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (scale == 0) return 0;
+ 560              		.loc 1 78 5 view .LVU142
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 13
+
+
+ 561 0000 18B1     		cbz	r0, .L38
+  77:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (scale == 0) return 0;
+ 562              		.loc 1 77 42 is_stmt 0 view .LVU143
+ 563 0002 08B5     		push	{r3, lr}
+ 564              	.LCFI7:
+ 565              		.cfi_def_cfa_offset 8
+ 566              		.cfi_offset 3, -8
+ 567              		.cfi_offset 14, -4
+  79:Src/display/screen_control/spi_screen_ui_common.cpp ****     return ScreenUI_CharCellH(scale);
+ 568              		.loc 1 79 5 is_stmt 1 view .LVU144
+ 569              		.loc 1 79 30 is_stmt 0 view .LVU145
+ 570 0004 FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 571              	.LVL68:
+  80:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 572              		.loc 1 80 1 view .LVU146
+ 573 0008 08BD     		pop	{r3, pc}
+ 574              	.LVL69:
+ 575              	.L38:
+ 576              	.LCFI8:
+ 577              		.cfi_def_cfa_offset 0
+ 578              		.cfi_restore 3
+ 579              		.cfi_restore 14
+  78:Src/display/screen_control/spi_screen_ui_common.cpp ****     return ScreenUI_CharCellH(scale);
+ 580              		.loc 1 78 28 discriminator 1 view .LVU147
+ 581 000a 0020     		movs	r0, #0
+ 582              	.LVL70:
+ 583              		.loc 1 80 1 view .LVU148
+ 584 000c 7047     		bx	lr
+ 585              		.cfi_endproc
+ 586              	.LFE1277:
+ 588              		.section	.text._Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh,"ax",%progbits
+ 589              		.align	1
+ 590              		.global	_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh
+ 591              		.syntax unified
+ 592              		.thumb
+ 593              		.thumb_func
+ 595              	_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh:
+ 596              	.LVL71:
+ 597              	.LFB1278:
+  81:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  82:Src/display/screen_control/spi_screen_ui_common.cpp **** void ScreenUI_DrawStringCenteredInBox(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint1
+ 598              		.loc 1 82 163 is_stmt 1 view -0
+ 599              		.cfi_startproc
+ 600              		@ args = 20, pretend = 0, frame = 40
+ 601              		@ frame_needed = 0, uses_anonymous_args = 0
+ 602              		.loc 1 82 163 is_stmt 0 view .LVU150
+ 603 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 604              	.LCFI9:
+ 605              		.cfi_def_cfa_offset 36
+ 606              		.cfi_offset 4, -36
+ 607              		.cfi_offset 5, -32
+ 608              		.cfi_offset 6, -28
+ 609              		.cfi_offset 7, -24
+ 610              		.cfi_offset 8, -20
+ 611              		.cfi_offset 9, -16
+ 612              		.cfi_offset 10, -12
+ 613              		.cfi_offset 11, -8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 14
+
+
+ 614              		.cfi_offset 14, -4
+ 615 0004 8FB0     		sub	sp, sp, #60
+ 616              	.LCFI10:
+ 617              		.cfi_def_cfa_offset 96
+ 618 0006 BDF86090 		ldrh	r9, [sp, #96]
+ 619 000a DDF86480 		ldr	r8, [sp, #100]
+ 620 000e 9DF87060 		ldrb	r6, [sp, #112]	@ zero_extendqisi2
+  83:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (!lcd || !s || scale == 0) return;
+ 621              		.loc 1 83 5 is_stmt 1 view .LVU151
+ 622              		.loc 1 83 9 is_stmt 0 view .LVU152
+ 623 0012 0590     		str	r0, [sp, #20]
+ 624              		.loc 1 83 5 view .LVU153
+ 625 0014 B8F1000F 		cmp	r8, #0
+ 626 0018 18BF     		it	ne
+ 627 001a 0028     		cmpne	r0, #0
+ 628 001c 46D0     		beq	.L43
+ 629 001e 0D46     		mov	r5, r1
+ 630 0020 9346     		mov	fp, r2
+ 631 0022 1C46     		mov	r4, r3
+ 632              		.loc 1 83 20 discriminator 2 view .LVU154
+ 633 0024 002E     		cmp	r6, #0
+ 634 0026 41D0     		beq	.L43
+  84:Src/display/screen_control/spi_screen_ui_common.cpp ****     const uint16_t tw = ScreenUI_TextPxW(s, scale);
+ 635              		.loc 1 84 5 is_stmt 1 view .LVU155
+ 636              		.loc 1 84 41 is_stmt 0 view .LVU156
+ 637 0028 3146     		mov	r1, r6
+ 638              	.LVL72:
+ 639              		.loc 1 84 41 view .LVU157
+ 640 002a 4046     		mov	r0, r8
+ 641              	.LVL73:
+ 642              		.loc 1 84 41 view .LVU158
+ 643 002c FFF7FEFF 		bl	_Z16ScreenUI_TextPxWPKch
+ 644              	.LVL74:
+ 645              		.loc 1 84 41 view .LVU159
+ 646 0030 8246     		mov	r10, r0
+ 647              	.LVL75:
+  85:Src/display/screen_control/spi_screen_ui_common.cpp ****     const uint16_t th = ScreenUI_TextPxH(scale);
+ 648              		.loc 1 85 5 is_stmt 1 view .LVU160
+ 649              		.loc 1 85 41 is_stmt 0 view .LVU161
+ 650 0032 3046     		mov	r0, r6
+ 651 0034 FFF7FEFF 		bl	_Z16ScreenUI_TextPxHh
+ 652              	.LVL76:
+ 653 0038 0746     		mov	r7, r0
+ 654              	.LVL77:
+  86:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+  87:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (w < tw || h < th) {
+ 655              		.loc 1 87 5 is_stmt 1 view .LVU162
+ 656              	.LBB2:
+ 657 003a 4845     		cmp	r0, r9
+ 658 003c 98BF     		it	ls
+ 659 003e A245     		cmpls	r10, r4
+ 660 0040 37D9     		bls	.L45
+ 661              	.LBB3:
+  88:Src/display/screen_control/spi_screen_ui_common.cpp ****         uint16_t maxChars = (uint16_t)(w / ScreenUI_CharCellW(scale));
+ 662              		.loc 1 88 9 view .LVU163
+ 663              		.loc 1 88 62 is_stmt 0 view .LVU164
+ 664 0042 3046     		mov	r0, r6
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 15
+
+
+ 665              	.LVL78:
+ 666              		.loc 1 88 62 view .LVU165
+ 667 0044 FFF7FEFF 		bl	_Z18ScreenUI_CharCellWh
+ 668              	.LVL79:
+ 669              		.loc 1 88 69 discriminator 1 view .LVU166
+ 670 0048 B4FBF0FA 		udiv	r10, r4, r0
+ 671              	.LVL80:
+  89:Src/display/screen_control/spi_screen_ui_common.cpp ****         if (maxChars == 0) return;
+ 672              		.loc 1 89 9 is_stmt 1 view .LVU167
+ 673 004c A042     		cmp	r0, r4
+ 674 004e 2DD8     		bhi	.L43
+  90:Src/display/screen_control/spi_screen_ui_common.cpp ****         char tmp[32] = {0};
+ 675              		.loc 1 90 9 view .LVU168
+ 676              		.loc 1 90 14 is_stmt 0 view .LVU169
+ 677 0050 2022     		movs	r2, #32
+ 678 0052 0021     		movs	r1, #0
+ 679 0054 06A8     		add	r0, sp, #24
+ 680 0056 FFF7FEFF 		bl	memset
+ 681              	.LVL81:
+  91:Src/display/screen_control/spi_screen_ui_common.cpp ****         if (maxChars >= sizeof(tmp)) maxChars = (uint16_t)(sizeof(tmp) - 1);
+ 682              		.loc 1 91 9 is_stmt 1 view .LVU170
+ 683 005a BAF11F0F 		cmp	r10, #31
+ 684 005e 01D9     		bls	.L47
+ 685              		.loc 1 91 47 is_stmt 0 discriminator 1 view .LVU171
+ 686 0060 4FF01F0A 		mov	r10, #31
+ 687              	.LVL82:
+ 688              	.L47:
+  92:Src/display/screen_control/spi_screen_ui_common.cpp ****         memcpy(tmp, s, maxChars);
+ 689              		.loc 1 92 9 is_stmt 1 view .LVU172
+ 690              		.loc 1 92 15 is_stmt 0 view .LVU173
+ 691 0064 5246     		mov	r2, r10
+ 692 0066 4146     		mov	r1, r8
+ 693 0068 06A8     		add	r0, sp, #24
+ 694 006a FFF7FEFF 		bl	memcpy
+ 695              	.LVL83:
+  93:Src/display/screen_control/spi_screen_ui_common.cpp ****         tmp[maxChars] = '\0';
+ 696              		.loc 1 93 9 is_stmt 1 view .LVU174
+ 697              		.loc 1 93 23 is_stmt 0 view .LVU175
+ 698 006e 0AF13803 		add	r3, r10, #56
+ 699 0072 0DEB030A 		add	r10, sp, r3
+ 700              	.LVL84:
+ 701              		.loc 1 93 23 view .LVU176
+ 702 0076 0023     		movs	r3, #0
+ 703              	.LVL85:
+ 704              		.loc 1 93 23 view .LVU177
+ 705 0078 0AF8203C 		strb	r3, [r10, #-32]
+  94:Src/display/screen_control/spi_screen_ui_common.cpp ****         const uint16_t tw2 = ScreenUI_TextPxW(tmp, scale);
+ 706              		.loc 1 94 9 is_stmt 1 view .LVU178
+ 707              		.loc 1 94 46 is_stmt 0 view .LVU179
+ 708 007c 3146     		mov	r1, r6
+ 709 007e 06A8     		add	r0, sp, #24
+ 710 0080 FFF7FEFF 		bl	_Z16ScreenUI_TextPxWPKch
+ 711              	.LVL86:
+  95:Src/display/screen_control/spi_screen_ui_common.cpp ****         const uint16_t cx = (uint16_t)(x + (w - tw2) / 2u);
+ 712              		.loc 1 95 9 is_stmt 1 view .LVU180
+ 713              		.loc 1 95 47 is_stmt 0 view .LVU181
+ 714 0084 211A     		subs	r1, r4, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 16
+
+
+ 715              		.loc 1 95 42 view .LVU182
+ 716 0086 C1F34F01 		ubfx	r1, r1, #1, #16
+ 717              		.loc 1 95 24 view .LVU183
+ 718 008a 2944     		add	r1, r1, r5
+ 719              	.LVL87:
+  96:Src/display/screen_control/spi_screen_ui_common.cpp ****         const uint16_t cy = (uint16_t)(y + (h - th) / 2u);
+ 720              		.loc 1 96 9 is_stmt 1 view .LVU184
+ 721              		.loc 1 96 47 is_stmt 0 view .LVU185
+ 722 008c A9EB0702 		sub	r2, r9, r7
+ 723              		.loc 1 96 42 view .LVU186
+ 724 0090 C2F34F02 		ubfx	r2, r2, #1, #16
+ 725              		.loc 1 96 24 view .LVU187
+ 726 0094 5A44     		add	r2, r2, fp
+ 727              	.LVL88:
+  97:Src/display/screen_control/spi_screen_ui_common.cpp ****         ST7789_DrawString(lcd, cx, cy, tmp, fg, bg, scale);
+ 728              		.loc 1 97 9 is_stmt 1 view .LVU188
+ 729              		.loc 1 97 26 is_stmt 0 view .LVU189
+ 730 0096 0296     		str	r6, [sp, #8]
+ 731 0098 1B9B     		ldr	r3, [sp, #108]
+ 732 009a 0193     		str	r3, [sp, #4]
+ 733 009c 1A9B     		ldr	r3, [sp, #104]
+ 734 009e 0093     		str	r3, [sp]
+ 735 00a0 06AB     		add	r3, sp, #24
+ 736 00a2 92B2     		uxth	r2, r2
+ 737              		.loc 1 97 26 view .LVU190
+ 738 00a4 89B2     		uxth	r1, r1
+ 739              		.loc 1 97 26 view .LVU191
+ 740 00a6 0598     		ldr	r0, [sp, #20]
+ 741              	.LVL89:
+ 742              		.loc 1 97 26 view .LVU192
+ 743 00a8 FFF7FEFF 		bl	ST7789_DrawString
+ 744              	.LVL90:
+  98:Src/display/screen_control/spi_screen_ui_common.cpp ****         return;
+ 745              		.loc 1 98 9 is_stmt 1 view .LVU193
+ 746              	.L43:
+ 747              		.loc 1 98 9 is_stmt 0 view .LVU194
+ 748              	.LBE3:
+ 749              	.LBE2:
+  99:Src/display/screen_control/spi_screen_ui_common.cpp ****     }
+ 100:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 101:Src/display/screen_control/spi_screen_ui_common.cpp ****     const uint16_t cx = (uint16_t)(x + (w - tw) / 2u);
+ 102:Src/display/screen_control/spi_screen_ui_common.cpp ****     const uint16_t cy = (uint16_t)(y + (h - th) / 2u);
+ 103:Src/display/screen_control/spi_screen_ui_common.cpp ****     ST7789_DrawString(lcd, cx, cy, s, fg, bg, scale);
+ 104:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 750              		.loc 1 104 1 view .LVU195
+ 751 00ac 0FB0     		add	sp, sp, #60
+ 752              	.LCFI11:
+ 753              		.cfi_remember_state
+ 754              		.cfi_def_cfa_offset 36
+ 755              		@ sp needed
+ 756 00ae BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 757              	.LVL91:
+ 758              	.L45:
+ 759              	.LCFI12:
+ 760              		.cfi_restore_state
+ 101:Src/display/screen_control/spi_screen_ui_common.cpp ****     const uint16_t cy = (uint16_t)(y + (h - th) / 2u);
+ 761              		.loc 1 101 5 is_stmt 1 view .LVU196
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 17
+
+
+ 101:Src/display/screen_control/spi_screen_ui_common.cpp ****     const uint16_t cy = (uint16_t)(y + (h - th) / 2u);
+ 762              		.loc 1 101 43 is_stmt 0 view .LVU197
+ 763 00b2 A4EB0A01 		sub	r1, r4, r10
+ 101:Src/display/screen_control/spi_screen_ui_common.cpp ****     const uint16_t cy = (uint16_t)(y + (h - th) / 2u);
+ 764              		.loc 1 101 38 view .LVU198
+ 765 00b6 C1F34F01 		ubfx	r1, r1, #1, #16
+ 101:Src/display/screen_control/spi_screen_ui_common.cpp ****     const uint16_t cy = (uint16_t)(y + (h - th) / 2u);
+ 766              		.loc 1 101 20 view .LVU199
+ 767 00ba 2944     		add	r1, r1, r5
+ 768              	.LVL92:
+ 102:Src/display/screen_control/spi_screen_ui_common.cpp ****     ST7789_DrawString(lcd, cx, cy, s, fg, bg, scale);
+ 769              		.loc 1 102 5 is_stmt 1 view .LVU200
+ 102:Src/display/screen_control/spi_screen_ui_common.cpp ****     ST7789_DrawString(lcd, cx, cy, s, fg, bg, scale);
+ 770              		.loc 1 102 43 is_stmt 0 view .LVU201
+ 771 00bc A9EB0002 		sub	r2, r9, r0
+ 102:Src/display/screen_control/spi_screen_ui_common.cpp ****     ST7789_DrawString(lcd, cx, cy, s, fg, bg, scale);
+ 772              		.loc 1 102 38 view .LVU202
+ 773 00c0 C2F34F02 		ubfx	r2, r2, #1, #16
+ 102:Src/display/screen_control/spi_screen_ui_common.cpp ****     ST7789_DrawString(lcd, cx, cy, s, fg, bg, scale);
+ 774              		.loc 1 102 20 view .LVU203
+ 775 00c4 5A44     		add	r2, r2, fp
+ 776              	.LVL93:
+ 103:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 777              		.loc 1 103 5 is_stmt 1 view .LVU204
+ 103:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 778              		.loc 1 103 22 is_stmt 0 view .LVU205
+ 779 00c6 0296     		str	r6, [sp, #8]
+ 780 00c8 1B9B     		ldr	r3, [sp, #108]
+ 781 00ca 0193     		str	r3, [sp, #4]
+ 782 00cc 1A9B     		ldr	r3, [sp, #104]
+ 783 00ce 0093     		str	r3, [sp]
+ 784 00d0 4346     		mov	r3, r8
+ 785 00d2 92B2     		uxth	r2, r2
+ 103:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 786              		.loc 1 103 22 view .LVU206
+ 787 00d4 89B2     		uxth	r1, r1
+ 103:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 788              		.loc 1 103 22 view .LVU207
+ 789 00d6 0598     		ldr	r0, [sp, #20]
+ 790              	.LVL94:
+ 103:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 791              		.loc 1 103 22 view .LVU208
+ 792 00d8 FFF7FEFF 		bl	ST7789_DrawString
+ 793              	.LVL95:
+ 103:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 794              		.loc 1 103 22 view .LVU209
+ 795 00dc E6E7     		b	.L43
+ 796              		.cfi_endproc
+ 797              	.LFE1278:
+ 799              		.section	.text._Z21ScreenUI_EaseOutCubicmm,"ax",%progbits
+ 800              		.align	1
+ 801              		.global	_Z21ScreenUI_EaseOutCubicmm
+ 802              		.syntax unified
+ 803              		.thumb
+ 804              		.thumb_func
+ 806              	_Z21ScreenUI_EaseOutCubicmm:
+ 807              	.LVL96:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 18
+
+
+ 808              	.LFB1279:
+ 105:Src/display/screen_control/spi_screen_ui_common.cpp **** 
+ 106:Src/display/screen_control/spi_screen_ui_common.cpp **** uint32_t ScreenUI_EaseOutCubic(uint32_t t, uint32_t d) {
+ 809              		.loc 1 106 56 is_stmt 1 view -0
+ 810              		.cfi_startproc
+ 811              		@ args = 0, pretend = 0, frame = 0
+ 812              		@ frame_needed = 0, uses_anonymous_args = 0
+ 813              		@ link register save eliminated.
+ 107:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (d == 0) return 1000;
+ 814              		.loc 1 107 5 view .LVU211
+ 815 0000 B9B1     		cbz	r1, .L52
+ 108:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (t >= d) return 1000;
+ 816              		.loc 1 108 5 view .LVU212
+ 817 0002 8142     		cmp	r1, r0
+ 818 0004 18D9     		bls	.L53
+ 109:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t u = (uint32_t)(1000u - (t * 1000u) / d);
+ 819              		.loc 1 109 5 view .LVU213
+ 820              		.loc 1 109 40 is_stmt 0 view .LVU214
+ 821 0006 4FF47A73 		mov	r3, #1000
+ 822 000a 00FB03F3 		mul	r3, r0, r3
+ 823              		.loc 1 109 49 view .LVU215
+ 824 000e B3FBF1F3 		udiv	r3, r3, r1
+ 825              		.loc 1 109 14 view .LVU216
+ 826 0012 C3F57A73 		rsb	r3, r3, #1000
+ 827              	.LVL97:
+ 110:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t u2 = (u * u) / 1000u;
+ 828              		.loc 1 110 5 is_stmt 1 view .LVU217
+ 829              		.loc 1 110 22 is_stmt 0 view .LVU218
+ 830 0016 03FB03F2 		mul	r2, r3, r3
+ 831              		.loc 1 110 14 view .LVU219
+ 832 001a 0949     		ldr	r1, .L54
+ 833              	.LVL98:
+ 834              		.loc 1 110 14 view .LVU220
+ 835 001c A1FB0202 		umull	r0, r2, r1, r2
+ 836              	.LVL99:
+ 837              		.loc 1 110 14 view .LVU221
+ 838 0020 9209     		lsrs	r2, r2, #6
+ 839              	.LVL100:
+ 111:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t u3 = (u2 * u) / 1000u;
+ 840              		.loc 1 111 5 is_stmt 1 view .LVU222
+ 841              		.loc 1 111 23 is_stmt 0 view .LVU223
+ 842 0022 02FB03F0 		mul	r0, r2, r3
+ 843              		.loc 1 111 14 view .LVU224
+ 844 0026 A1FB0010 		umull	r1, r0, r1, r0
+ 845 002a 8009     		lsrs	r0, r0, #6
+ 846              	.LVL101:
+ 112:Src/display/screen_control/spi_screen_ui_common.cpp ****     return 1000u - u3;
+ 847              		.loc 1 112 5 is_stmt 1 view .LVU225
+ 848              		.loc 1 112 20 is_stmt 0 view .LVU226
+ 849 002c C0F57A70 		rsb	r0, r0, #1000
+ 850              	.LVL102:
+ 851              		.loc 1 112 20 view .LVU227
+ 852 0030 7047     		bx	lr
+ 853              	.LVL103:
+ 854              	.L52:
+ 107:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (t >= d) return 1000;
+ 855              		.loc 1 107 24 discriminator 1 view .LVU228
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 19
+
+
+ 856 0032 4FF47A70 		mov	r0, #1000
+ 857              	.LVL104:
+ 107:Src/display/screen_control/spi_screen_ui_common.cpp ****     if (t >= d) return 1000;
+ 858              		.loc 1 107 24 discriminator 1 view .LVU229
+ 859 0036 7047     		bx	lr
+ 860              	.LVL105:
+ 861              	.L53:
+ 108:Src/display/screen_control/spi_screen_ui_common.cpp ****     uint32_t u = (uint32_t)(1000u - (t * 1000u) / d);
+ 862              		.loc 1 108 24 discriminator 1 view .LVU230
+ 863 0038 4FF47A70 		mov	r0, #1000
+ 864              	.LVL106:
+ 113:Src/display/screen_control/spi_screen_ui_common.cpp **** }
+ 865              		.loc 1 113 1 view .LVU231
+ 866 003c 7047     		bx	lr
+ 867              	.L55:
+ 868 003e 00BF     		.align	2
+ 869              	.L54:
+ 870 0040 D34D6210 		.word	274877907
+ 871              		.cfi_endproc
+ 872              	.LFE1279:
+ 874              		.text
+ 875              	.Letext0:
+ 876              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 877              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 878              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 879              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 880              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 881              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 882              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 883              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 884              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 885              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 886              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 887              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 888              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 889              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 890              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 891              		.file 17 "Inc/system/board_cfg.h"
+ 892              		.file 18 "Inc/display/drivers/st7789/st7789.h"
+ 893              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 894              		.file 20 "Inc/support/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s 			page 20
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_ui_common.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:20     .text._ZL14screenui_luma8m:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:25     .text._ZL14screenui_luma8m:00000000 _ZL14screenui_luma8m
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:68     .text._Z15ScreenUI_RGB888m:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:74     .text._Z15ScreenUI_RGB888m:00000000 _Z15ScreenUI_RGB888m
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:92     .text._Z21ScreenUI_BlendToWhitemh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:98     .text._Z21ScreenUI_BlendToWhitemh:00000000 _Z21ScreenUI_BlendToWhitemh
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:169    .text._Z21ScreenUI_BlendToWhitemh:00000048 $d
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:174    .text._Z21ScreenUI_BlendToBlackmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:180    .text._Z21ScreenUI_BlendToBlackmh:00000000 _Z21ScreenUI_BlendToBlackmh
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:249    .text._Z21ScreenUI_BlendToBlackmh:00000040 $d
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:254    .text._Z24ScreenUI_HighlightFromBgmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:260    .text._Z24ScreenUI_HighlightFromBgmh:00000000 _Z24ScreenUI_HighlightFromBgmh
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:305    .text._Z23ScreenUI_MutedTextForBgmmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:311    .text._Z23ScreenUI_MutedTextForBgmmh:00000000 _Z23ScreenUI_MutedTextForBgmmh
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:401    .text._Z23ScreenUI_MutedTextForBgmmh:00000054 $d
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:406    .text._Z18ScreenUI_CharCellWh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:412    .text._Z18ScreenUI_CharCellWh:00000000 _Z18ScreenUI_CharCellWh
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:447    .text._Z18ScreenUI_CharCellHh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:453    .text._Z18ScreenUI_CharCellHh:00000000 _Z18ScreenUI_CharCellHh
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:486    .text._Z16ScreenUI_TextPxWPKch:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:492    .text._Z16ScreenUI_TextPxWPKch:00000000 _Z16ScreenUI_TextPxWPKch
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:547    .text._Z16ScreenUI_TextPxHh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:553    .text._Z16ScreenUI_TextPxHh:00000000 _Z16ScreenUI_TextPxHh
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:589    .text._Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:595    .text._Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh:00000000 _Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:800    .text._Z21ScreenUI_EaseOutCubicmm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:806    .text._Z21ScreenUI_EaseOutCubicmm:00000000 _Z21ScreenUI_EaseOutCubicmm
+C:\Users\nicx5\AppData\Local\Temp\cc9MvXja.s:870    .text._Z21ScreenUI_EaseOutCubicmm:00000040 $d
+
+UNDEFINED SYMBOLS
+strlen
+memset
+memcpy
+ST7789_DrawString

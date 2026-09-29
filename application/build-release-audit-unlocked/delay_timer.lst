@@ -1,0 +1,480 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"delay_timer.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/support/delay_timer.c"
+  19              		.section	.text.DelayTimer_Init,"ax",%progbits
+  20              		.align	1
+  21              		.global	DelayTimer_Init
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	DelayTimer_Init:
+  27              	.LFB335:
+   1:Src/support/delay_timer.c **** #include "delay_timer.h"
+   2:Src/support/delay_timer.c **** 
+   3:Src/support/delay_timer.c **** static TIM_HandleTypeDef htim6;
+   4:Src/support/delay_timer.c **** static void (*timer_callback)(void) = NULL;
+   5:Src/support/delay_timer.c **** 
+   6:Src/support/delay_timer.c **** void DelayTimer_Init(void) {
+  28              		.loc 1 6 28 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 40
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32 0000 10B5     		push	{r4, lr}
+  33              	.LCFI0:
+  34              		.cfi_def_cfa_offset 8
+  35              		.cfi_offset 4, -8
+  36              		.cfi_offset 14, -4
+  37 0002 8AB0     		sub	sp, sp, #40
+  38              	.LCFI1:
+  39              		.cfi_def_cfa_offset 48
+   7:Src/support/delay_timer.c ****     __HAL_RCC_TIM6_CLK_ENABLE();
+  40              		.loc 1 7 5 view .LVU1
+  41              	.LBB2:
+  42              		.loc 1 7 5 view .LVU2
+  43              		.loc 1 7 5 view .LVU3
+  44 0004 194B     		ldr	r3, .L4
+  45 0006 D3F8E820 		ldr	r2, [r3, #232]
+  46 000a 42F01002 		orr	r2, r2, #16
+  47 000e C3F8E820 		str	r2, [r3, #232]
+  48              		.loc 1 7 5 view .LVU4
+  49 0012 D3F8E830 		ldr	r3, [r3, #232]
+  50 0016 03F01003 		and	r3, r3, #16
+  51 001a 0093     		str	r3, [sp]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 2
+
+
+  52              		.loc 1 7 5 view .LVU5
+  53 001c 009B     		ldr	r3, [sp]
+  54              	.LBE2:
+  55              		.loc 1 7 5 view .LVU6
+   8:Src/support/delay_timer.c ****     
+   9:Src/support/delay_timer.c ****     htim6.Instance = TIM6;
+  56              		.loc 1 9 5 view .LVU7
+  57              		.loc 1 9 20 is_stmt 0 view .LVU8
+  58 001e 144B     		ldr	r3, .L4+4
+  59 0020 144A     		ldr	r2, .L4+8
+  60 0022 1A60     		str	r2, [r3]
+  10:Src/support/delay_timer.c ****     
+  11:Src/support/delay_timer.c ****     RCC_ClkInitTypeDef clkconfig;
+  61              		.loc 1 11 5 is_stmt 1 view .LVU9
+  12:Src/support/delay_timer.c ****     uint32_t pFLatency;
+  62              		.loc 1 12 5 view .LVU10
+  13:Src/support/delay_timer.c ****     HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
+  63              		.loc 1 13 5 view .LVU11
+  64 0024 01A9     		add	r1, sp, #4
+  65 0026 02A8     		add	r0, sp, #8
+  66 0028 FFF7FEFF 		bl	HAL_RCC_GetClockConfig
+  67              	.LVL0:
+  14:Src/support/delay_timer.c ****     
+  15:Src/support/delay_timer.c ****     uint32_t pclk1 = HAL_RCC_GetPCLK1Freq();
+  68              		.loc 1 15 5 view .LVU12
+  69              		.loc 1 15 22 is_stmt 0 view .LVU13
+  70 002c FFF7FEFF 		bl	HAL_RCC_GetPCLK1Freq
+  71              	.LVL1:
+  16:Src/support/delay_timer.c ****     uint32_t tim_clock;
+  72              		.loc 1 16 5 is_stmt 1 view .LVU14
+  17:Src/support/delay_timer.c ****     
+  18:Src/support/delay_timer.c ****     if (clkconfig.APB1CLKDivider == RCC_HCLK_DIV1) {
+  73              		.loc 1 18 5 view .LVU15
+  74              		.loc 1 18 18 is_stmt 0 view .LVU16
+  75 0030 079B     		ldr	r3, [sp, #28]
+  76              		.loc 1 18 8 view .LVU17
+  77 0032 03B1     		cbz	r3, .L2
+  19:Src/support/delay_timer.c ****         tim_clock = pclk1;
+  20:Src/support/delay_timer.c ****     } else {
+  21:Src/support/delay_timer.c ****         tim_clock = 2 * pclk1;
+  78              		.loc 1 21 9 is_stmt 1 view .LVU18
+  79              		.loc 1 21 19 is_stmt 0 view .LVU19
+  80 0034 4000     		lsls	r0, r0, #1
+  81              	.LVL2:
+  82              	.L2:
+  22:Src/support/delay_timer.c ****     }
+  23:Src/support/delay_timer.c ****     
+  24:Src/support/delay_timer.c ****     uint32_t prescaler = (tim_clock / 1000000) - 1;
+  83              		.loc 1 24 5 is_stmt 1 view .LVU20
+  84              		.loc 1 24 37 is_stmt 0 view .LVU21
+  85 0036 104B     		ldr	r3, .L4+12
+  86 0038 A3FB0023 		umull	r2, r3, r3, r0
+  87 003c 9B0C     		lsrs	r3, r3, #18
+  88              		.loc 1 24 14 view .LVU22
+  89 003e 013B     		subs	r3, r3, #1
+  90              	.LVL3:
+  25:Src/support/delay_timer.c ****     
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 3
+
+
+  26:Src/support/delay_timer.c ****     htim6.Init.Prescaler = prescaler;
+  91              		.loc 1 26 5 is_stmt 1 view .LVU23
+  92              		.loc 1 26 26 is_stmt 0 view .LVU24
+  93 0040 0B48     		ldr	r0, .L4+4
+  94              	.LVL4:
+  95              		.loc 1 26 26 view .LVU25
+  96 0042 4360     		str	r3, [r0, #4]
+  27:Src/support/delay_timer.c ****     htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  97              		.loc 1 27 5 is_stmt 1 view .LVU26
+  98              		.loc 1 27 28 is_stmt 0 view .LVU27
+  99 0044 0024     		movs	r4, #0
+ 100 0046 8460     		str	r4, [r0, #8]
+  28:Src/support/delay_timer.c ****     htim6.Init.Period = 0xFFFF;
+ 101              		.loc 1 28 5 is_stmt 1 view .LVU28
+ 102              		.loc 1 28 23 is_stmt 0 view .LVU29
+ 103 0048 4FF6FF73 		movw	r3, #65535
+ 104              	.LVL5:
+ 105              		.loc 1 28 23 view .LVU30
+ 106 004c C360     		str	r3, [r0, #12]
+  29:Src/support/delay_timer.c ****     htim6.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+ 107              		.loc 1 29 5 is_stmt 1 view .LVU31
+ 108              		.loc 1 29 30 is_stmt 0 view .LVU32
+ 109 004e 0461     		str	r4, [r0, #16]
+  30:Src/support/delay_timer.c ****     htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+ 110              		.loc 1 30 5 is_stmt 1 view .LVU33
+ 111              		.loc 1 30 34 is_stmt 0 view .LVU34
+ 112 0050 8461     		str	r4, [r0, #24]
+  31:Src/support/delay_timer.c ****     
+  32:Src/support/delay_timer.c ****     HAL_TIM_Base_Init(&htim6);
+ 113              		.loc 1 32 5 is_stmt 1 view .LVU35
+ 114 0052 FFF7FEFF 		bl	HAL_TIM_Base_Init
+ 115              	.LVL6:
+  33:Src/support/delay_timer.c ****     
+  34:Src/support/delay_timer.c ****     HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 5, 0);
+ 116              		.loc 1 34 5 view .LVU36
+ 117 0056 2246     		mov	r2, r4
+ 118 0058 0521     		movs	r1, #5
+ 119 005a 3620     		movs	r0, #54
+ 120 005c FFF7FEFF 		bl	HAL_NVIC_SetPriority
+ 121              	.LVL7:
+  35:Src/support/delay_timer.c ****     HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+ 122              		.loc 1 35 5 view .LVU37
+ 123 0060 3620     		movs	r0, #54
+ 124 0062 FFF7FEFF 		bl	HAL_NVIC_EnableIRQ
+ 125              	.LVL8:
+  36:Src/support/delay_timer.c **** }
+ 126              		.loc 1 36 1 is_stmt 0 view .LVU38
+ 127 0066 0AB0     		add	sp, sp, #40
+ 128              	.LCFI2:
+ 129              		.cfi_def_cfa_offset 8
+ 130              		@ sp needed
+ 131 0068 10BD     		pop	{r4, pc}
+ 132              	.L5:
+ 133 006a 00BF     		.align	2
+ 134              	.L4:
+ 135 006c 00440258 		.word	1476543488
+ 136 0070 00000000 		.word	htim6
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 4
+
+
+ 137 0074 00100040 		.word	1073745920
+ 138 0078 83DE1B43 		.word	1125899907
+ 139              		.cfi_endproc
+ 140              	.LFE335:
+ 142              		.section	.text.DelayTimer_Start,"ax",%progbits
+ 143              		.align	1
+ 144              		.global	DelayTimer_Start
+ 145              		.syntax unified
+ 146              		.thumb
+ 147              		.thumb_func
+ 149              	DelayTimer_Start:
+ 150              	.LVL9:
+ 151              	.LFB336:
+  37:Src/support/delay_timer.c **** 
+  38:Src/support/delay_timer.c **** void DelayTimer_Start(uint16_t delay_us) {
+ 152              		.loc 1 38 42 is_stmt 1 view -0
+ 153              		.cfi_startproc
+ 154              		@ args = 0, pretend = 0, frame = 0
+ 155              		@ frame_needed = 0, uses_anonymous_args = 0
+ 156              		.loc 1 38 42 is_stmt 0 view .LVU40
+ 157 0000 08B5     		push	{r3, lr}
+ 158              	.LCFI3:
+ 159              		.cfi_def_cfa_offset 8
+ 160              		.cfi_offset 3, -8
+ 161              		.cfi_offset 14, -4
+  39:Src/support/delay_timer.c ****     if (delay_us == 0) {
+ 162              		.loc 1 39 5 is_stmt 1 view .LVU41
+ 163              		.loc 1 39 8 is_stmt 0 view .LVU42
+ 164 0002 20B9     		cbnz	r0, .L7
+  40:Src/support/delay_timer.c ****         if (timer_callback) {
+ 165              		.loc 1 40 9 is_stmt 1 view .LVU43
+ 166              		.loc 1 40 13 is_stmt 0 view .LVU44
+ 167 0004 084B     		ldr	r3, .L11
+ 168 0006 1B68     		ldr	r3, [r3]
+ 169              		.loc 1 40 12 view .LVU45
+ 170 0008 6BB1     		cbz	r3, .L6
+  41:Src/support/delay_timer.c ****             timer_callback();
+ 171              		.loc 1 41 13 is_stmt 1 view .LVU46
+ 172 000a 9847     		blx	r3
+ 173              	.LVL10:
+  42:Src/support/delay_timer.c ****         }
+  43:Src/support/delay_timer.c ****         return;
+ 174              		.loc 1 43 9 view .LVU47
+ 175 000c 0BE0     		b	.L6
+ 176              	.LVL11:
+ 177              	.L7:
+ 178              		.loc 1 43 9 is_stmt 0 view .LVU48
+ 179 000e 0346     		mov	r3, r0
+  44:Src/support/delay_timer.c ****     }
+  45:Src/support/delay_timer.c ****     
+  46:Src/support/delay_timer.c ****     __HAL_TIM_SET_AUTORELOAD(&htim6, delay_us);
+ 180              		.loc 1 46 5 is_stmt 1 view .LVU49
+ 181              		.loc 1 46 5 view .LVU50
+ 182 0010 0648     		ldr	r0, .L11+4
+ 183              	.LVL12:
+ 184              		.loc 1 46 5 is_stmt 0 view .LVU51
+ 185 0012 0268     		ldr	r2, [r0]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 5
+
+
+ 186 0014 D362     		str	r3, [r2, #44]
+ 187              		.loc 1 46 5 is_stmt 1 view .LVU52
+ 188 0016 C360     		str	r3, [r0, #12]
+ 189              		.loc 1 46 5 view .LVU53
+  47:Src/support/delay_timer.c ****     __HAL_TIM_SET_COUNTER(&htim6, 0);
+ 190              		.loc 1 47 5 view .LVU54
+ 191 0018 0023     		movs	r3, #0
+ 192 001a 5362     		str	r3, [r2, #36]
+  48:Src/support/delay_timer.c ****     __HAL_TIM_CLEAR_IT(&htim6, TIM_IT_UPDATE);
+ 193              		.loc 1 48 5 view .LVU55
+ 194 001c 6FF00103 		mvn	r3, #1
+ 195 0020 1361     		str	r3, [r2, #16]
+  49:Src/support/delay_timer.c ****     
+  50:Src/support/delay_timer.c ****     HAL_TIM_Base_Start_IT(&htim6);
+ 196              		.loc 1 50 5 view .LVU56
+ 197 0022 FFF7FEFF 		bl	HAL_TIM_Base_Start_IT
+ 198              	.LVL13:
+ 199              	.L6:
+  51:Src/support/delay_timer.c **** }
+ 200              		.loc 1 51 1 is_stmt 0 view .LVU57
+ 201 0026 08BD     		pop	{r3, pc}
+ 202              	.L12:
+ 203              		.align	2
+ 204              	.L11:
+ 205 0028 00000000 		.word	timer_callback
+ 206 002c 00000000 		.word	htim6
+ 207              		.cfi_endproc
+ 208              	.LFE336:
+ 210              		.section	.text.DelayTimer_Stop,"ax",%progbits
+ 211              		.align	1
+ 212              		.global	DelayTimer_Stop
+ 213              		.syntax unified
+ 214              		.thumb
+ 215              		.thumb_func
+ 217              	DelayTimer_Stop:
+ 218              	.LFB337:
+  52:Src/support/delay_timer.c **** 
+  53:Src/support/delay_timer.c **** void DelayTimer_Stop(void) {
+ 219              		.loc 1 53 28 is_stmt 1 view -0
+ 220              		.cfi_startproc
+ 221              		@ args = 0, pretend = 0, frame = 0
+ 222              		@ frame_needed = 0, uses_anonymous_args = 0
+ 223 0000 08B5     		push	{r3, lr}
+ 224              	.LCFI4:
+ 225              		.cfi_def_cfa_offset 8
+ 226              		.cfi_offset 3, -8
+ 227              		.cfi_offset 14, -4
+  54:Src/support/delay_timer.c ****     HAL_TIM_Base_Stop_IT(&htim6);
+ 228              		.loc 1 54 5 view .LVU59
+ 229 0002 0248     		ldr	r0, .L15
+ 230 0004 FFF7FEFF 		bl	HAL_TIM_Base_Stop_IT
+ 231              	.LVL14:
+  55:Src/support/delay_timer.c **** }
+ 232              		.loc 1 55 1 is_stmt 0 view .LVU60
+ 233 0008 08BD     		pop	{r3, pc}
+ 234              	.L16:
+ 235 000a 00BF     		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 6
+
+
+ 236              	.L15:
+ 237 000c 00000000 		.word	htim6
+ 238              		.cfi_endproc
+ 239              	.LFE337:
+ 241              		.section	.text.DelayTimer_SetCallback,"ax",%progbits
+ 242              		.align	1
+ 243              		.global	DelayTimer_SetCallback
+ 244              		.syntax unified
+ 245              		.thumb
+ 246              		.thumb_func
+ 248              	DelayTimer_SetCallback:
+ 249              	.LVL15:
+ 250              	.LFB338:
+  56:Src/support/delay_timer.c **** 
+  57:Src/support/delay_timer.c **** void DelayTimer_SetCallback(void (*callback)(void)) {
+ 251              		.loc 1 57 53 is_stmt 1 view -0
+ 252              		.cfi_startproc
+ 253              		@ args = 0, pretend = 0, frame = 0
+ 254              		@ frame_needed = 0, uses_anonymous_args = 0
+ 255              		@ link register save eliminated.
+  58:Src/support/delay_timer.c ****     timer_callback = callback;
+ 256              		.loc 1 58 5 view .LVU62
+ 257              		.loc 1 58 20 is_stmt 0 view .LVU63
+ 258 0000 014B     		ldr	r3, .L18
+ 259 0002 1860     		str	r0, [r3]
+  59:Src/support/delay_timer.c **** }
+ 260              		.loc 1 59 1 view .LVU64
+ 261 0004 7047     		bx	lr
+ 262              	.L19:
+ 263 0006 00BF     		.align	2
+ 264              	.L18:
+ 265 0008 00000000 		.word	timer_callback
+ 266              		.cfi_endproc
+ 267              	.LFE338:
+ 269              		.section	.text.TIM6_DAC_IRQHandler,"ax",%progbits
+ 270              		.align	1
+ 271              		.global	TIM6_DAC_IRQHandler
+ 272              		.syntax unified
+ 273              		.thumb
+ 274              		.thumb_func
+ 276              	TIM6_DAC_IRQHandler:
+ 277              	.LFB339:
+  60:Src/support/delay_timer.c **** 
+  61:Src/support/delay_timer.c **** void TIM6_DAC_IRQHandler(void) {
+ 278              		.loc 1 61 32 is_stmt 1 view -0
+ 279              		.cfi_startproc
+ 280              		@ args = 0, pretend = 0, frame = 0
+ 281              		@ frame_needed = 0, uses_anonymous_args = 0
+ 282 0000 08B5     		push	{r3, lr}
+ 283              	.LCFI5:
+ 284              		.cfi_def_cfa_offset 8
+ 285              		.cfi_offset 3, -8
+ 286              		.cfi_offset 14, -4
+  62:Src/support/delay_timer.c ****     if (__HAL_TIM_GET_FLAG(&htim6, TIM_FLAG_UPDATE) != RESET) {
+ 287              		.loc 1 62 5 view .LVU66
+ 288              		.loc 1 62 9 is_stmt 0 view .LVU67
+ 289 0002 0B4B     		ldr	r3, .L24
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 7
+
+
+ 290 0004 1B68     		ldr	r3, [r3]
+ 291 0006 1A69     		ldr	r2, [r3, #16]
+ 292              		.loc 1 62 8 view .LVU68
+ 293 0008 12F0010F 		tst	r2, #1
+ 294 000c 03D0     		beq	.L20
+  63:Src/support/delay_timer.c ****         if (__HAL_TIM_GET_IT_SOURCE(&htim6, TIM_IT_UPDATE) != RESET) {
+ 295              		.loc 1 63 9 is_stmt 1 view .LVU69
+ 296              		.loc 1 63 13 is_stmt 0 view .LVU70
+ 297 000e DA68     		ldr	r2, [r3, #12]
+ 298              		.loc 1 63 12 view .LVU71
+ 299 0010 12F0010F 		tst	r2, #1
+ 300 0014 00D1     		bne	.L23
+ 301              	.L20:
+  64:Src/support/delay_timer.c ****             __HAL_TIM_CLEAR_IT(&htim6, TIM_IT_UPDATE);
+  65:Src/support/delay_timer.c ****             
+  66:Src/support/delay_timer.c ****             HAL_TIM_Base_Stop_IT(&htim6);
+  67:Src/support/delay_timer.c ****             
+  68:Src/support/delay_timer.c ****             if (timer_callback) {
+  69:Src/support/delay_timer.c ****                 timer_callback();
+  70:Src/support/delay_timer.c ****             }
+  71:Src/support/delay_timer.c ****         }
+  72:Src/support/delay_timer.c ****     }
+  73:Src/support/delay_timer.c **** }
+ 302              		.loc 1 73 1 view .LVU72
+ 303 0016 08BD     		pop	{r3, pc}
+ 304              	.L23:
+  64:Src/support/delay_timer.c ****             __HAL_TIM_CLEAR_IT(&htim6, TIM_IT_UPDATE);
+ 305              		.loc 1 64 13 is_stmt 1 view .LVU73
+ 306 0018 6FF00102 		mvn	r2, #1
+ 307 001c 1A61     		str	r2, [r3, #16]
+  66:Src/support/delay_timer.c ****             
+ 308              		.loc 1 66 13 view .LVU74
+ 309 001e 0448     		ldr	r0, .L24
+ 310 0020 FFF7FEFF 		bl	HAL_TIM_Base_Stop_IT
+ 311              	.LVL16:
+  68:Src/support/delay_timer.c ****                 timer_callback();
+ 312              		.loc 1 68 13 view .LVU75
+  68:Src/support/delay_timer.c ****                 timer_callback();
+ 313              		.loc 1 68 17 is_stmt 0 view .LVU76
+ 314 0024 034B     		ldr	r3, .L24+4
+ 315 0026 1B68     		ldr	r3, [r3]
+  68:Src/support/delay_timer.c ****                 timer_callback();
+ 316              		.loc 1 68 16 view .LVU77
+ 317 0028 002B     		cmp	r3, #0
+ 318 002a F4D0     		beq	.L20
+  69:Src/support/delay_timer.c ****             }
+ 319              		.loc 1 69 17 is_stmt 1 view .LVU78
+ 320 002c 9847     		blx	r3
+ 321              	.LVL17:
+ 322              		.loc 1 73 1 is_stmt 0 view .LVU79
+ 323 002e F2E7     		b	.L20
+ 324              	.L25:
+ 325              		.align	2
+ 326              	.L24:
+ 327 0030 00000000 		.word	htim6
+ 328 0034 00000000 		.word	timer_callback
+ 329              		.cfi_endproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 8
+
+
+ 330              	.LFE339:
+ 332              		.section	.bss.timer_callback,"aw",%nobits
+ 333              		.align	2
+ 336              	timer_callback:
+ 337 0000 00000000 		.space	4
+ 338              		.section	.bss.htim6,"aw",%nobits
+ 339              		.align	2
+ 342              	htim6:
+ 343 0000 00000000 		.space	76
+ 343      00000000 
+ 343      00000000 
+ 343      00000000 
+ 343      00000000 
+ 344              		.text
+ 345              	.Letext0:
+ 346              		.file 2 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 347              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 348              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 349              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h7xx.h"
+ 350              		.file 6 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 351              		.file 7 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc.h"
+ 352              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 353              		.file 9 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 354              		.file 10 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_cortex.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s 			page 9
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 delay_timer.c
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:20     .text.DelayTimer_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:26     .text.DelayTimer_Init:00000000 DelayTimer_Init
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:135    .text.DelayTimer_Init:0000006c $d
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:342    .bss.htim6:00000000 htim6
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:143    .text.DelayTimer_Start:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:149    .text.DelayTimer_Start:00000000 DelayTimer_Start
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:205    .text.DelayTimer_Start:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:336    .bss.timer_callback:00000000 timer_callback
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:211    .text.DelayTimer_Stop:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:217    .text.DelayTimer_Stop:00000000 DelayTimer_Stop
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:237    .text.DelayTimer_Stop:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:242    .text.DelayTimer_SetCallback:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:248    .text.DelayTimer_SetCallback:00000000 DelayTimer_SetCallback
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:265    .text.DelayTimer_SetCallback:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:270    .text.TIM6_DAC_IRQHandler:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:276    .text.TIM6_DAC_IRQHandler:00000000 TIM6_DAC_IRQHandler
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:327    .text.TIM6_DAC_IRQHandler:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:333    .bss.timer_callback:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc295kMG.s:339    .bss.htim6:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_RCC_GetClockConfig
+HAL_RCC_GetPCLK1Freq
+HAL_TIM_Base_Init
+HAL_NVIC_SetPriority
+HAL_NVIC_EnableIRQ
+HAL_TIM_Base_Start_IT
+HAL_TIM_Base_Stop_IT

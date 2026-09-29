@@ -1,0 +1,2659 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"bq25895.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/power/drivers/bq25895/bq25895.c"
+  19              		.section	.text.input_profile_fields,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	input_profile_fields:
+  26              	.LVL0:
+  27              	.LFB335:
+   1:Src/power/drivers/bq25895/bq25895.c **** #include "bq25895.h"
+   2:Src/power/drivers/bq25895/bq25895.c **** 
+   3:Src/power/drivers/bq25895/bq25895.c **** #include <string.h>
+   4:Src/power/drivers/bq25895/bq25895.c **** 
+   5:Src/power/drivers/bq25895/bq25895.c **** enum {
+   6:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_INPUT_SOURCE_CONTROL = 0x00,
+   7:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_ADC_CONTROL = 0x02,
+   8:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_CHARGE_CURRENT = 0x04,
+   9:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_PRECHARGE_TERM_CURRENT = 0x05,
+  10:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_CHARGE_VOLTAGE = 0x06,
+  11:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_TIMER_CONTROL = 0x07,
+  12:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_IR_THERMAL_CONTROL = 0x08,
+  13:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_SYSTEM_STATUS = 0x0B,
+  14:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_FAULT = 0x0C,
+  15:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_VINDPM = 0x0D,
+  16:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_BATTERY_ADC = 0x0E,
+  17:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_VBUS_ADC = 0x11,
+  18:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_CHARGE_CURRENT_ADC = 0x12,
+  19:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_DPM_STATUS = 0x13,
+  20:Src/power/drivers/bq25895/bq25895.c ****     BQ_REG_PART_INFORMATION = 0x14,
+  21:Src/power/drivers/bq25895/bq25895.c **** };
+  22:Src/power/drivers/bq25895/bq25895.c **** 
+  23:Src/power/drivers/bq25895/bq25895.c **** enum {
+  24:Src/power/drivers/bq25895/bq25895.c ****     BQ_I2C_TIMEOUT_MS = 20,
+  25:Src/power/drivers/bq25895/bq25895.c ****     BQ_PART_INFORMATION_MASK = 0x3B,
+  26:Src/power/drivers/bq25895/bq25895.c ****     BQ_PART_INFORMATION_BQ25895_REV1 = 0x39,
+  27:Src/power/drivers/bq25895/bq25895.c ****     BQ_VINDPM_FORCE_MASK = 0x80,
+  28:Src/power/drivers/bq25895/bq25895.c ****     BQ_VINDPM_BASE_MV = 2600,
+  29:Src/power/drivers/bq25895/bq25895.c ****     BQ_VINDPM_STEP_MV = 100,
+  30:Src/power/drivers/bq25895/bq25895.c ****     BQ_VINDPM_5V_TARGET_MV = 4400,
+  31:Src/power/drivers/bq25895/bq25895.c ****     BQ_VINDPM_9V_TARGET_MV = 8200,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 2
+
+
+  32:Src/power/drivers/bq25895/bq25895.c ****     BQ_VINDPM_5V_REGISTER =
+  33:Src/power/drivers/bq25895/bq25895.c ****         BQ_VINDPM_FORCE_MASK |
+  34:Src/power/drivers/bq25895/bq25895.c ****         ((BQ_VINDPM_5V_TARGET_MV - BQ_VINDPM_BASE_MV) / BQ_VINDPM_STEP_MV),
+  35:Src/power/drivers/bq25895/bq25895.c ****     BQ_VINDPM_9V_REGISTER =
+  36:Src/power/drivers/bq25895/bq25895.c ****         BQ_VINDPM_FORCE_MASK |
+  37:Src/power/drivers/bq25895/bq25895.c ****         ((BQ_VINDPM_9V_TARGET_MV - BQ_VINDPM_BASE_MV) / BQ_VINDPM_STEP_MV),
+  38:Src/power/drivers/bq25895/bq25895.c **** };
+  39:Src/power/drivers/bq25895/bq25895.c **** 
+  40:Src/power/drivers/bq25895/bq25895.c **** _Static_assert(BQ_VINDPM_5V_TARGET_MV >= 3900,
+  41:Src/power/drivers/bq25895/bq25895.c ****                "5 V VINDPM target is below the supported range");
+  42:Src/power/drivers/bq25895/bq25895.c **** _Static_assert(((BQ_VINDPM_5V_TARGET_MV - BQ_VINDPM_BASE_MV) %
+  43:Src/power/drivers/bq25895/bq25895.c ****                 BQ_VINDPM_STEP_MV) == 0,
+  44:Src/power/drivers/bq25895/bq25895.c ****                "5 V VINDPM target must align to the 100 mV register step");
+  45:Src/power/drivers/bq25895/bq25895.c **** _Static_assert(((BQ_VINDPM_9V_TARGET_MV - BQ_VINDPM_BASE_MV) %
+  46:Src/power/drivers/bq25895/bq25895.c ****                 BQ_VINDPM_STEP_MV) == 0,
+  47:Src/power/drivers/bq25895/bq25895.c ****                "9 V VINDPM target must align to the 100 mV register step");
+  48:Src/power/drivers/bq25895/bq25895.c **** _Static_assert(BQ_VINDPM_5V_REGISTER == 0x92u,
+  49:Src/power/drivers/bq25895/bq25895.c ****                "4.4 V FORCE_VINDPM encoding changed");
+  50:Src/power/drivers/bq25895/bq25895.c **** _Static_assert(BQ_VINDPM_9V_REGISTER == 0xB8u,
+  51:Src/power/drivers/bq25895/bq25895.c ****                "8.2 V FORCE_VINDPM encoding changed");
+  52:Src/power/drivers/bq25895/bq25895.c **** 
+  53:Src/power/drivers/bq25895/bq25895.c **** typedef struct {
+  54:Src/power/drivers/bq25895/bq25895.c ****     uint8_t reg;
+  55:Src/power/drivers/bq25895/bq25895.c ****     uint8_t mask;
+  56:Src/power/drivers/bq25895/bq25895.c ****     uint8_t value;
+  57:Src/power/drivers/bq25895/bq25895.c **** } BQ25895_ProfileField;
+  58:Src/power/drivers/bq25895/bq25895.c **** 
+  59:Src/power/drivers/bq25895/bq25895.c **** /*
+  60:Src/power/drivers/bq25895/bq25895.c ****  * Safe 1S2P / 8000 mAh common charging profile.  Input current and VINDPM
+  61:Src/power/drivers/bq25895/bq25895.c ****  * are selected separately after VBUS ADC identifies a 5 V or 9 V source.
+  62:Src/power/drivers/bq25895/bq25895.c ****  * BQ25895 DPDM/MaxCharge and ICO are disabled because the board's USB-C/PD
+  63:Src/power/drivers/bq25895/bq25895.c ****  * negotiation is owned by CH224A and BQ25895 D+/D- are not connected.
+  64:Src/power/drivers/bq25895/bq25895.c ****  *
+  65:Src/power/drivers/bq25895/bq25895.c ****  * Common profile:
+  66:Src/power/drivers/bq25895/bq25895.c ****  *   ICHG 1.6 A
+  67:Src/power/drivers/bq25895/bq25895.c ****  *   IPRECHG 256 mA, ITERM 64 mA
+  68:Src/power/drivers/bq25895/bq25895.c ****  *   VREG 4.192 V, BATLOWV 3.0 V, VRECHG 100 mV
+  69:Src/power/drivers/bq25895/bq25895.c ****  *   watchdog disabled, termination enabled, 8-hour safety timer
+  70:Src/power/drivers/bq25895/bq25895.c ****  *   BAT_COMP/VCLAMP disabled, TREG 80 C
+  71:Src/power/drivers/bq25895/bq25895.c ****  */
+  72:Src/power/drivers/bq25895/bq25895.c **** static const BQ25895_ProfileField k_safe_common_profile[] = {
+  73:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_ADC_CONTROL, 0x1Du, 0x00u},
+  74:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_CHARGE_CURRENT, 0xFFu, 0x19u},
+  75:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_PRECHARGE_TERM_CURRENT, 0xFFu, 0x30u},
+  76:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_CHARGE_VOLTAGE, 0xFFu, 0x5Au},
+  77:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_TIMER_CONTROL, 0xBEu, 0x8Au},
+  78:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_IR_THERMAL_CONTROL, 0xFFu, 0x01u},
+  79:Src/power/drivers/bq25895/bq25895.c **** };
+  80:Src/power/drivers/bq25895/bq25895.c **** 
+  81:Src/power/drivers/bq25895/bq25895.c **** /* Both qualified input profiles use IINLIM=1.5 A with hardware ILIM kept on. */
+  82:Src/power/drivers/bq25895/bq25895.c **** static const BQ25895_ProfileField k_input_profile_5v[] = {
+  83:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_INPUT_SOURCE_CONTROL, 0xFFu, 0x5Cu},
+  84:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_VINDPM, 0xFFu, BQ_VINDPM_5V_REGISTER},
+  85:Src/power/drivers/bq25895/bq25895.c **** };
+  86:Src/power/drivers/bq25895/bq25895.c **** 
+  87:Src/power/drivers/bq25895/bq25895.c **** static const BQ25895_ProfileField k_input_profile_9v[] = {
+  88:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_INPUT_SOURCE_CONTROL, 0xFFu, 0x5Cu},
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 3
+
+
+  89:Src/power/drivers/bq25895/bq25895.c ****     {BQ_REG_VINDPM, 0xFFu, BQ_VINDPM_9V_REGISTER},
+  90:Src/power/drivers/bq25895/bq25895.c **** };
+  91:Src/power/drivers/bq25895/bq25895.c **** 
+  92:Src/power/drivers/bq25895/bq25895.c **** static const BQ25895_ProfileField* input_profile_fields(
+  93:Src/power/drivers/bq25895/bq25895.c ****     BQ25895_InputProfile input_profile,
+  94:Src/power/drivers/bq25895/bq25895.c ****     uint32_t* count)
+  95:Src/power/drivers/bq25895/bq25895.c **** {
+  28              		.loc 1 95 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  96:Src/power/drivers/bq25895/bq25895.c ****     if (count == NULL) {
+  33              		.loc 1 96 5 view .LVU1
+  34              		.loc 1 96 8 is_stmt 0 view .LVU2
+  35 0000 49B1     		cbz	r1, .L4
+  97:Src/power/drivers/bq25895/bq25895.c ****         return NULL;
+  98:Src/power/drivers/bq25895/bq25895.c ****     }
+  99:Src/power/drivers/bq25895/bq25895.c ****     if (input_profile == BQ25895_INPUT_PROFILE_9V_1P5A) {
+  36              		.loc 1 99 5 is_stmt 1 view .LVU3
+  37              		.loc 1 99 8 is_stmt 0 view .LVU4
+  38 0002 0128     		cmp	r0, #1
+  39 0004 03D0     		beq	.L5
+ 100:Src/power/drivers/bq25895/bq25895.c ****         *count = (uint32_t)(sizeof(k_input_profile_9v) /
+ 101:Src/power/drivers/bq25895/bq25895.c ****                             sizeof(k_input_profile_9v[0]));
+ 102:Src/power/drivers/bq25895/bq25895.c ****         return k_input_profile_9v;
+ 103:Src/power/drivers/bq25895/bq25895.c ****     }
+ 104:Src/power/drivers/bq25895/bq25895.c ****     *count = (uint32_t)(sizeof(k_input_profile_5v) /
+  40              		.loc 1 104 5 is_stmt 1 view .LVU5
+  41              		.loc 1 104 12 is_stmt 0 view .LVU6
+  42 0006 0222     		movs	r2, #2
+  43 0008 0A60     		str	r2, [r1]
+ 105:Src/power/drivers/bq25895/bq25895.c ****                         sizeof(k_input_profile_5v[0]));
+ 106:Src/power/drivers/bq25895/bq25895.c ****     return k_input_profile_5v;
+  44              		.loc 1 106 5 is_stmt 1 view .LVU7
+  45              		.loc 1 106 12 is_stmt 0 view .LVU8
+  46 000a 0448     		ldr	r0, .L6
+  47              	.LVL1:
+  48              		.loc 1 106 12 view .LVU9
+  49 000c 7047     		bx	lr
+  50              	.LVL2:
+  51              	.L5:
+ 100:Src/power/drivers/bq25895/bq25895.c ****         *count = (uint32_t)(sizeof(k_input_profile_9v) /
+  52              		.loc 1 100 9 is_stmt 1 view .LVU10
+ 100:Src/power/drivers/bq25895/bq25895.c ****         *count = (uint32_t)(sizeof(k_input_profile_9v) /
+  53              		.loc 1 100 16 is_stmt 0 view .LVU11
+  54 000e 0222     		movs	r2, #2
+  55 0010 0A60     		str	r2, [r1]
+ 102:Src/power/drivers/bq25895/bq25895.c ****     }
+  56              		.loc 1 102 9 is_stmt 1 view .LVU12
+ 102:Src/power/drivers/bq25895/bq25895.c ****     }
+  57              		.loc 1 102 16 is_stmt 0 view .LVU13
+  58 0012 0348     		ldr	r0, .L6+4
+  59              	.LVL3:
+ 102:Src/power/drivers/bq25895/bq25895.c ****     }
+  60              		.loc 1 102 16 view .LVU14
+  61 0014 7047     		bx	lr
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 4
+
+
+  62              	.LVL4:
+  63              	.L4:
+  97:Src/power/drivers/bq25895/bq25895.c ****     }
+  64              		.loc 1 97 16 view .LVU15
+  65 0016 0846     		mov	r0, r1
+  66              	.LVL5:
+ 107:Src/power/drivers/bq25895/bq25895.c **** }
+  67              		.loc 1 107 1 view .LVU16
+  68 0018 7047     		bx	lr
+  69              	.L7:
+  70 001a 00BF     		.align	2
+  71              	.L6:
+  72 001c 00000000 		.word	k_input_profile_5v
+  73 0020 00000000 		.word	k_input_profile_9v
+  74              		.cfi_endproc
+  75              	.LFE335:
+  77              		.section	.text.decode_state,"ax",%progbits
+  78              		.align	1
+  79              		.syntax unified
+  80              		.thumb
+  81              		.thumb_func
+  83              	decode_state:
+  84              	.LVL6:
+  85              	.LFB345:
+ 108:Src/power/drivers/bq25895/bq25895.c **** 
+ 109:Src/power/drivers/bq25895/bq25895.c **** static bool read_register(BQ25895_Handle* handle, uint8_t reg, uint8_t* value)
+ 110:Src/power/drivers/bq25895/bq25895.c **** {
+ 111:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+ 112:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 113:Src/power/drivers/bq25895/bq25895.c ****     }
+ 114:Src/power/drivers/bq25895/bq25895.c ****     return HAL_I2C_Mem_Read(
+ 115:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 116:Src/power/drivers/bq25895/bq25895.c ****                (uint16_t)(BQ25895_I2C_ADDRESS_7BIT << 1),
+ 117:Src/power/drivers/bq25895/bq25895.c ****                reg,
+ 118:Src/power/drivers/bq25895/bq25895.c ****                I2C_MEMADD_SIZE_8BIT,
+ 119:Src/power/drivers/bq25895/bq25895.c ****                value,
+ 120:Src/power/drivers/bq25895/bq25895.c ****                1u,
+ 121:Src/power/drivers/bq25895/bq25895.c ****                BQ_I2C_TIMEOUT_MS) == HAL_OK;
+ 122:Src/power/drivers/bq25895/bq25895.c **** }
+ 123:Src/power/drivers/bq25895/bq25895.c **** 
+ 124:Src/power/drivers/bq25895/bq25895.c **** static bool write_register(BQ25895_Handle* handle, uint8_t reg, uint8_t value)
+ 125:Src/power/drivers/bq25895/bq25895.c **** {
+ 126:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || handle->i2c == NULL) {
+ 127:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 128:Src/power/drivers/bq25895/bq25895.c ****     }
+ 129:Src/power/drivers/bq25895/bq25895.c ****     return HAL_I2C_Mem_Write(
+ 130:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 131:Src/power/drivers/bq25895/bq25895.c ****                (uint16_t)(BQ25895_I2C_ADDRESS_7BIT << 1),
+ 132:Src/power/drivers/bq25895/bq25895.c ****                reg,
+ 133:Src/power/drivers/bq25895/bq25895.c ****                I2C_MEMADD_SIZE_8BIT,
+ 134:Src/power/drivers/bq25895/bq25895.c ****                &value,
+ 135:Src/power/drivers/bq25895/bq25895.c ****                1u,
+ 136:Src/power/drivers/bq25895/bq25895.c ****                BQ_I2C_TIMEOUT_MS) == HAL_OK;
+ 137:Src/power/drivers/bq25895/bq25895.c **** }
+ 138:Src/power/drivers/bq25895/bq25895.c **** 
+ 139:Src/power/drivers/bq25895/bq25895.c **** static bool update_register(BQ25895_Handle* handle, uint8_t reg, uint8_t mask, uint8_t value)
+ 140:Src/power/drivers/bq25895/bq25895.c **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 5
+
+
+ 141:Src/power/drivers/bq25895/bq25895.c ****     uint8_t before = 0;
+ 142:Src/power/drivers/bq25895/bq25895.c ****     if (!read_register(handle, reg, &before)) {
+ 143:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 144:Src/power/drivers/bq25895/bq25895.c ****     }
+ 145:Src/power/drivers/bq25895/bq25895.c **** 
+ 146:Src/power/drivers/bq25895/bq25895.c ****     const uint8_t after = (uint8_t)((before & (uint8_t)~mask) | (value & mask));
+ 147:Src/power/drivers/bq25895/bq25895.c ****     if (after != before && !write_register(handle, reg, after)) {
+ 148:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 149:Src/power/drivers/bq25895/bq25895.c ****     }
+ 150:Src/power/drivers/bq25895/bq25895.c **** 
+ 151:Src/power/drivers/bq25895/bq25895.c ****     uint8_t verify = 0;
+ 152:Src/power/drivers/bq25895/bq25895.c ****     return read_register(handle, reg, &verify) && ((verify & mask) == (value & mask));
+ 153:Src/power/drivers/bq25895/bq25895.c **** }
+ 154:Src/power/drivers/bq25895/bq25895.c **** 
+ 155:Src/power/drivers/bq25895/bq25895.c **** bool BQ25895_Init(BQ25895_Handle* handle, I2C_HandleTypeDef* i2c)
+ 156:Src/power/drivers/bq25895/bq25895.c **** {
+ 157:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || i2c == NULL) {
+ 158:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 159:Src/power/drivers/bq25895/bq25895.c ****     }
+ 160:Src/power/drivers/bq25895/bq25895.c **** 
+ 161:Src/power/drivers/bq25895/bq25895.c ****     memset(handle, 0, sizeof(*handle));
+ 162:Src/power/drivers/bq25895/bq25895.c ****     handle->i2c = i2c;
+ 163:Src/power/drivers/bq25895/bq25895.c ****     if (HAL_I2C_IsDeviceReady(
+ 164:Src/power/drivers/bq25895/bq25895.c ****             i2c,
+ 165:Src/power/drivers/bq25895/bq25895.c ****             (uint16_t)(BQ25895_I2C_ADDRESS_7BIT << 1),
+ 166:Src/power/drivers/bq25895/bq25895.c ****             2u,
+ 167:Src/power/drivers/bq25895/bq25895.c ****             BQ_I2C_TIMEOUT_MS) != HAL_OK) {
+ 168:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 169:Src/power/drivers/bq25895/bq25895.c ****     }
+ 170:Src/power/drivers/bq25895/bq25895.c **** 
+ 171:Src/power/drivers/bq25895/bq25895.c ****     uint8_t part_information = 0;
+ 172:Src/power/drivers/bq25895/bq25895.c ****     if (!read_register(handle, BQ_REG_PART_INFORMATION, &part_information)) {
+ 173:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 174:Src/power/drivers/bq25895/bq25895.c ****     }
+ 175:Src/power/drivers/bq25895/bq25895.c ****     if ((part_information & BQ_PART_INFORMATION_MASK) !=
+ 176:Src/power/drivers/bq25895/bq25895.c ****         BQ_PART_INFORMATION_BQ25895_REV1) {
+ 177:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 178:Src/power/drivers/bq25895/bq25895.c ****     }
+ 179:Src/power/drivers/bq25895/bq25895.c **** 
+ 180:Src/power/drivers/bq25895/bq25895.c ****     handle->online = true;
+ 181:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 182:Src/power/drivers/bq25895/bq25895.c **** }
+ 183:Src/power/drivers/bq25895/bq25895.c **** 
+ 184:Src/power/drivers/bq25895/bq25895.c **** static bool apply_profile_fields(BQ25895_Handle* handle,
+ 185:Src/power/drivers/bq25895/bq25895.c ****                                  const BQ25895_ProfileField* fields,
+ 186:Src/power/drivers/bq25895/bq25895.c ****                                  uint32_t count)
+ 187:Src/power/drivers/bq25895/bq25895.c **** {
+ 188:Src/power/drivers/bq25895/bq25895.c ****     for (uint32_t i = 0; i < count; ++i) {
+ 189:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 190:Src/power/drivers/bq25895/bq25895.c ****         if (!update_register(handle, field->reg, field->mask, field->value)) {
+ 191:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 192:Src/power/drivers/bq25895/bq25895.c ****         }
+ 193:Src/power/drivers/bq25895/bq25895.c ****     }
+ 194:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 195:Src/power/drivers/bq25895/bq25895.c **** }
+ 196:Src/power/drivers/bq25895/bq25895.c **** 
+ 197:Src/power/drivers/bq25895/bq25895.c **** static bool verify_profile_fields(BQ25895_Handle* handle,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 6
+
+
+ 198:Src/power/drivers/bq25895/bq25895.c ****                                   const BQ25895_ProfileField* fields,
+ 199:Src/power/drivers/bq25895/bq25895.c ****                                   uint32_t count)
+ 200:Src/power/drivers/bq25895/bq25895.c **** {
+ 201:Src/power/drivers/bq25895/bq25895.c ****     for (uint32_t i = 0; i < count; ++i) {
+ 202:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 203:Src/power/drivers/bq25895/bq25895.c ****         uint8_t value = 0;
+ 204:Src/power/drivers/bq25895/bq25895.c ****         if (!read_register(handle, field->reg, &value) ||
+ 205:Src/power/drivers/bq25895/bq25895.c ****             (value & field->mask) != (field->value & field->mask)) {
+ 206:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 207:Src/power/drivers/bq25895/bq25895.c ****         }
+ 208:Src/power/drivers/bq25895/bq25895.c ****     }
+ 209:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 210:Src/power/drivers/bq25895/bq25895.c **** }
+ 211:Src/power/drivers/bq25895/bq25895.c **** 
+ 212:Src/power/drivers/bq25895/bq25895.c **** bool BQ25895_ConfigureSafeProfile(BQ25895_Handle* handle,
+ 213:Src/power/drivers/bq25895/bq25895.c ****                                   BQ25895_InputProfile input_profile)
+ 214:Src/power/drivers/bq25895/bq25895.c **** {
+ 215:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || !handle->online) {
+ 216:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 217:Src/power/drivers/bq25895/bq25895.c ****     }
+ 218:Src/power/drivers/bq25895/bq25895.c **** 
+ 219:Src/power/drivers/bq25895/bq25895.c ****     uint32_t input_field_count = 0;
+ 220:Src/power/drivers/bq25895/bq25895.c ****     const BQ25895_ProfileField* input_fields =
+ 221:Src/power/drivers/bq25895/bq25895.c ****         input_profile_fields(input_profile, &input_field_count);
+ 222:Src/power/drivers/bq25895/bq25895.c ****     const bool configured =
+ 223:Src/power/drivers/bq25895/bq25895.c ****         input_fields != NULL &&
+ 224:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(
+ 225:Src/power/drivers/bq25895/bq25895.c ****             handle,
+ 226:Src/power/drivers/bq25895/bq25895.c ****             k_safe_common_profile,
+ 227:Src/power/drivers/bq25895/bq25895.c ****             (uint32_t)(sizeof(k_safe_common_profile) /
+ 228:Src/power/drivers/bq25895/bq25895.c ****                        sizeof(k_safe_common_profile[0]))) &&
+ 229:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(handle, input_fields, input_field_count);
+ 230:Src/power/drivers/bq25895/bq25895.c ****     if (!configured) {
+ 231:Src/power/drivers/bq25895/bq25895.c ****         handle->online = false;
+ 232:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = false;
+ 233:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 234:Src/power/drivers/bq25895/bq25895.c ****     }
+ 235:Src/power/drivers/bq25895/bq25895.c **** 
+ 236:Src/power/drivers/bq25895/bq25895.c ****     handle->input_profile = input_profile;
+ 237:Src/power/drivers/bq25895/bq25895.c ****     handle->profile_configured = true;
+ 238:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 239:Src/power/drivers/bq25895/bq25895.c **** }
+ 240:Src/power/drivers/bq25895/bq25895.c **** 
+ 241:Src/power/drivers/bq25895/bq25895.c **** bool BQ25895_VerifySafeProfile(BQ25895_Handle* handle)
+ 242:Src/power/drivers/bq25895/bq25895.c **** {
+ 243:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || !handle->online || !handle->profile_configured) {
+ 244:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 245:Src/power/drivers/bq25895/bq25895.c ****     }
+ 246:Src/power/drivers/bq25895/bq25895.c **** 
+ 247:Src/power/drivers/bq25895/bq25895.c ****     uint32_t input_field_count = 0;
+ 248:Src/power/drivers/bq25895/bq25895.c ****     const BQ25895_ProfileField* input_fields =
+ 249:Src/power/drivers/bq25895/bq25895.c ****         input_profile_fields(handle->input_profile, &input_field_count);
+ 250:Src/power/drivers/bq25895/bq25895.c ****     return input_fields != NULL &&
+ 251:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(
+ 252:Src/power/drivers/bq25895/bq25895.c ****                handle,
+ 253:Src/power/drivers/bq25895/bq25895.c ****                k_safe_common_profile,
+ 254:Src/power/drivers/bq25895/bq25895.c ****                (uint32_t)(sizeof(k_safe_common_profile) /
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 7
+
+
+ 255:Src/power/drivers/bq25895/bq25895.c ****                           sizeof(k_safe_common_profile[0]))) &&
+ 256:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 257:Src/power/drivers/bq25895/bq25895.c **** }
+ 258:Src/power/drivers/bq25895/bq25895.c **** 
+ 259:Src/power/drivers/bq25895/bq25895.c **** bool BQ25895_EnableContinuousAdc(BQ25895_Handle* handle)
+ 260:Src/power/drivers/bq25895/bq25895.c **** {
+ 261:Src/power/drivers/bq25895/bq25895.c ****     /* CONV_RATE=1. No protocol/DPDM bits are changed. */
+ 262:Src/power/drivers/bq25895/bq25895.c ****     return update_register(handle, BQ_REG_ADC_CONTROL, 0x40u, 0x40u);
+ 263:Src/power/drivers/bq25895/bq25895.c **** }
+ 264:Src/power/drivers/bq25895/bq25895.c **** 
+ 265:Src/power/drivers/bq25895/bq25895.c **** static void decode_state(uint8_t status, uint8_t fault_latched,
+ 266:Src/power/drivers/bq25895/bq25895.c ****                          uint8_t fault_current, uint8_t battery_adc,
+ 267:Src/power/drivers/bq25895/bq25895.c ****                          uint8_t vbus_adc, uint8_t charge_current_adc,
+ 268:Src/power/drivers/bq25895/bq25895.c ****                          uint8_t dpm_status, BQ25895_State* state)
+ 269:Src/power/drivers/bq25895/bq25895.c **** {
+  86              		.loc 1 269 1 is_stmt 1 view -0
+  87              		.cfi_startproc
+  88              		@ args = 16, pretend = 0, frame = 0
+  89              		@ frame_needed = 0, uses_anonymous_args = 0
+  90              		.loc 1 269 1 is_stmt 0 view .LVU18
+  91 0000 30B5     		push	{r4, r5, lr}
+  92              	.LCFI0:
+  93              		.cfi_def_cfa_offset 12
+  94              		.cfi_offset 4, -12
+  95              		.cfi_offset 5, -8
+  96              		.cfi_offset 14, -4
+  97 0002 9DF80CE0 		ldrb	lr, [sp, #12]	@ zero_extendqisi2
+  98 0006 9DF814C0 		ldrb	ip, [sp, #20]	@ zero_extendqisi2
+  99 000a 069C     		ldr	r4, [sp, #24]
+ 270:Src/power/drivers/bq25895/bq25895.c ****     memset(state, 0, sizeof(*state));
+ 100              		.loc 1 270 5 is_stmt 1 view .LVU19
+ 101 000c 0025     		movs	r5, #0
+ 102 000e 2560     		str	r5, [r4]	@ unaligned
+ 103 0010 6560     		str	r5, [r4, #4]	@ unaligned
+ 104 0012 A560     		str	r5, [r4, #8]	@ unaligned
+ 105 0014 E560     		str	r5, [r4, #12]	@ unaligned
+ 106 0016 2582     		strh	r5, [r4, #16]	@ unaligned
+ 271:Src/power/drivers/bq25895/bq25895.c ****     state->system_status = status;
+ 107              		.loc 1 271 5 view .LVU20
+ 108              		.loc 1 271 26 is_stmt 0 view .LVU21
+ 109 0018 2070     		strb	r0, [r4]
+ 272:Src/power/drivers/bq25895/bq25895.c ****     state->fault = (uint8_t)(fault_latched | fault_current);
+ 110              		.loc 1 272 5 is_stmt 1 view .LVU22
+ 111              		.loc 1 272 20 is_stmt 0 view .LVU23
+ 112 001a 1143     		orrs	r1, r1, r2
+ 113              	.LVL7:
+ 114              		.loc 1 272 18 view .LVU24
+ 115 001c 6170     		strb	r1, [r4, #1]
+ 273:Src/power/drivers/bq25895/bq25895.c ****     state->vbus_status = (uint8_t)((status >> 5) & 0x07u);
+ 116              		.loc 1 273 5 is_stmt 1 view .LVU25
+ 117              		.loc 1 273 26 is_stmt 0 view .LVU26
+ 118 001e 4209     		lsrs	r2, r0, #5
+ 119              	.LVL8:
+ 120              		.loc 1 273 24 view .LVU27
+ 121 0020 A270     		strb	r2, [r4, #2]
+ 274:Src/power/drivers/bq25895/bq25895.c ****     state->charge_status = (uint8_t)((status >> 3) & 0x03u);
+ 122              		.loc 1 274 5 is_stmt 1 view .LVU28
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 8
+
+
+ 123              		.loc 1 274 28 is_stmt 0 view .LVU29
+ 124 0022 C0F3C102 		ubfx	r2, r0, #3, #2
+ 125              		.loc 1 274 26 view .LVU30
+ 126 0026 E270     		strb	r2, [r4, #3]
+ 275:Src/power/drivers/bq25895/bq25895.c ****     state->power_good = (status & 0x04u) != 0u;
+ 127              		.loc 1 275 5 is_stmt 1 view .LVU31
+ 128              		.loc 1 275 42 is_stmt 0 view .LVU32
+ 129 0028 C0F38000 		ubfx	r0, r0, #2, #1
+ 130              	.LVL9:
+ 131              		.loc 1 275 23 view .LVU33
+ 132 002c 2073     		strb	r0, [r4, #12]
+ 276:Src/power/drivers/bq25895/bq25895.c ****     state->vbus_good = (vbus_adc & 0x80u) != 0u;
+ 133              		.loc 1 276 5 is_stmt 1 view .LVU34
+ 134              		.loc 1 276 43 is_stmt 0 view .LVU35
+ 135 002e 4FEADE12 		lsr	r2, lr, #7
+ 136              		.loc 1 276 22 view .LVU36
+ 137 0032 6273     		strb	r2, [r4, #13]
+ 277:Src/power/drivers/bq25895/bq25895.c ****     state->battery_mv = (uint16_t)(2304u + ((uint16_t)(battery_adc & 0x7Fu) * 20u));
+ 138              		.loc 1 277 5 is_stmt 1 view .LVU37
+ 139              		.loc 1 277 25 is_stmt 0 view .LVU38
+ 140 0034 03F07F02 		and	r2, r3, #127
+ 141 0038 02EB8202 		add	r2, r2, r2, lsl #2
+ 142 003c 9200     		lsls	r2, r2, #2
+ 143 003e 02F51062 		add	r2, r2, #2304
+ 144              		.loc 1 277 23 view .LVU39
+ 145 0042 A280     		strh	r2, [r4, #4]	@ movhi
+ 278:Src/power/drivers/bq25895/bq25895.c ****     state->vbus_mv = (uint16_t)(2600u + ((uint16_t)(vbus_adc & 0x7Fu) * 100u));
+ 146              		.loc 1 278 5 is_stmt 1 view .LVU40
+ 147              		.loc 1 278 22 is_stmt 0 view .LVU41
+ 148 0044 0EF07F0E 		and	lr, lr, #127
+ 149 0048 0EEB8E0E 		add	lr, lr, lr, lsl #2
+ 150 004c 0EEB8E0E 		add	lr, lr, lr, lsl #2
+ 151 0050 4FEA8E0E 		lsl	lr, lr, #2
+ 152 0054 0EF6282E 		addw	lr, lr, #2600
+ 153              		.loc 1 278 20 view .LVU42
+ 154 0058 A4F806E0 		strh	lr, [r4, #6]	@ movhi
+ 279:Src/power/drivers/bq25895/bq25895.c ****     state->charge_current_ma = (uint16_t)((uint16_t)(charge_current_adc & 0x7Fu) * 50u);
+ 155              		.loc 1 279 5 is_stmt 1 view .LVU43
+ 156              		.loc 1 279 32 is_stmt 0 view .LVU44
+ 157 005c 9DF81020 		ldrb	r2, [sp, #16]	@ zero_extendqisi2
+ 158 0060 02F07F02 		and	r2, r2, #127
+ 159 0064 02EB8202 		add	r2, r2, r2, lsl #2
+ 160 0068 02EB8202 		add	r2, r2, r2, lsl #2
+ 161 006c 5200     		lsls	r2, r2, #1
+ 162              		.loc 1 279 30 view .LVU45
+ 163 006e 2281     		strh	r2, [r4, #8]	@ movhi
+ 280:Src/power/drivers/bq25895/bq25895.c ****     /* REG13 exposes only voltage/current DPM status plus the IDPM limit. */
+ 281:Src/power/drivers/bq25895/bq25895.c ****     state->thermal_regulation = (battery_adc & 0x80u) != 0u;
+ 164              		.loc 1 281 5 is_stmt 1 view .LVU46
+ 165              		.loc 1 281 55 is_stmt 0 view .LVU47
+ 166 0070 DB09     		lsrs	r3, r3, #7
+ 167              	.LVL10:
+ 168              		.loc 1 281 31 view .LVU48
+ 169 0072 A373     		strb	r3, [r4, #14]
+ 282:Src/power/drivers/bq25895/bq25895.c ****     state->input_voltage_regulation = (dpm_status & 0x80u) != 0u;
+ 170              		.loc 1 282 5 is_stmt 1 view .LVU49
+ 171              		.loc 1 282 60 is_stmt 0 view .LVU50
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 9
+
+
+ 172 0074 4FEADC13 		lsr	r3, ip, #7
+ 173              		.loc 1 282 37 view .LVU51
+ 174 0078 2374     		strb	r3, [r4, #16]
+ 283:Src/power/drivers/bq25895/bq25895.c ****     state->input_current_regulation = (dpm_status & 0x40u) != 0u;
+ 175              		.loc 1 283 5 is_stmt 1 view .LVU52
+ 176              		.loc 1 283 60 is_stmt 0 view .LVU53
+ 177 007a CCF38013 		ubfx	r3, ip, #6, #1
+ 178              		.loc 1 283 37 view .LVU54
+ 179 007e E373     		strb	r3, [r4, #15]
+ 284:Src/power/drivers/bq25895/bq25895.c ****     state->input_current_limit_ma =
+ 180              		.loc 1 284 5 is_stmt 1 view .LVU55
+ 285:Src/power/drivers/bq25895/bq25895.c ****         (uint16_t)(100u + ((uint16_t)(dpm_status & 0x3Fu) * 50u));
+ 181              		.loc 1 285 9 is_stmt 0 view .LVU56
+ 182 0080 0CF03F0C 		and	ip, ip, #63
+ 183 0084 0CEB8C0C 		add	ip, ip, ip, lsl #2
+ 184 0088 0CEB8C0C 		add	ip, ip, ip, lsl #2
+ 185 008c 4FEA4C0C 		lsl	ip, ip, #1
+ 186 0090 0CF1640C 		add	ip, ip, #100
+ 284:Src/power/drivers/bq25895/bq25895.c ****     state->input_current_limit_ma =
+ 187              		.loc 1 284 35 view .LVU57
+ 188 0094 A4F80AC0 		strh	ip, [r4, #10]	@ movhi
+ 286:Src/power/drivers/bq25895/bq25895.c **** }
+ 189              		.loc 1 286 1 view .LVU58
+ 190 0098 30BD     		pop	{r4, r5, pc}
+ 191              		.loc 1 286 1 view .LVU59
+ 192              		.cfi_endproc
+ 193              	.LFE345:
+ 195              		.section	.text.read_register,"ax",%progbits
+ 196              		.align	1
+ 197              		.syntax unified
+ 198              		.thumb
+ 199              		.thumb_func
+ 201              	read_register:
+ 202              	.LVL11:
+ 203              	.LFB336:
+ 110:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+ 204              		.loc 1 110 1 is_stmt 1 view -0
+ 205              		.cfi_startproc
+ 206              		@ args = 0, pretend = 0, frame = 0
+ 207              		@ frame_needed = 0, uses_anonymous_args = 0
+ 111:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 208              		.loc 1 111 5 view .LVU61
+ 111:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 209              		.loc 1 111 8 is_stmt 0 view .LVU62
+ 210 0000 98B1     		cbz	r0, .L12
+ 111:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 211              		.loc 1 111 33 discriminator 1 view .LVU63
+ 212 0002 0068     		ldr	r0, [r0]
+ 213              	.LVL12:
+ 111:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 214              		.loc 1 111 24 discriminator 1 view .LVU64
+ 215 0004 98B1     		cbz	r0, .L13
+ 111:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 216              		.loc 1 111 47 discriminator 2 view .LVU65
+ 217 0006 A2B1     		cbz	r2, .L14
+ 110:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+ 218              		.loc 1 110 1 view .LVU66
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 10
+
+
+ 219 0008 00B5     		push	{lr}
+ 220              	.LCFI1:
+ 221              		.cfi_def_cfa_offset 4
+ 222              		.cfi_offset 14, -4
+ 223 000a 85B0     		sub	sp, sp, #20
+ 224              	.LCFI2:
+ 225              		.cfi_def_cfa_offset 24
+ 114:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 226              		.loc 1 114 5 is_stmt 1 view .LVU67
+ 114:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 227              		.loc 1 114 12 is_stmt 0 view .LVU68
+ 228 000c 1423     		movs	r3, #20
+ 229 000e 0293     		str	r3, [sp, #8]
+ 230 0010 0123     		movs	r3, #1
+ 231 0012 0193     		str	r3, [sp, #4]
+ 232 0014 0092     		str	r2, [sp]
+ 233 0016 0A46     		mov	r2, r1
+ 234              	.LVL13:
+ 114:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 235              		.loc 1 114 12 view .LVU69
+ 236 0018 D421     		movs	r1, #212
+ 237              	.LVL14:
+ 114:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 238              		.loc 1 114 12 view .LVU70
+ 239 001a FFF7FEFF 		bl	HAL_I2C_Mem_Read
+ 240              	.LVL15:
+ 121:Src/power/drivers/bq25895/bq25895.c **** }
+ 241              		.loc 1 121 35 view .LVU71
+ 242 001e B0FA80F0 		clz	r0, r0
+ 243 0022 4009     		lsrs	r0, r0, #5
+ 122:Src/power/drivers/bq25895/bq25895.c **** 
+ 244              		.loc 1 122 1 view .LVU72
+ 245 0024 05B0     		add	sp, sp, #20
+ 246              	.LCFI3:
+ 247              		.cfi_def_cfa_offset 4
+ 248              		@ sp needed
+ 249 0026 5DF804FB 		ldr	pc, [sp], #4
+ 250              	.LVL16:
+ 251              	.L12:
+ 252              	.LCFI4:
+ 253              		.cfi_def_cfa_offset 0
+ 254              		.cfi_restore 14
+ 112:Src/power/drivers/bq25895/bq25895.c ****     }
+ 255              		.loc 1 112 16 view .LVU73
+ 256 002a 0020     		movs	r0, #0
+ 257              	.LVL17:
+ 112:Src/power/drivers/bq25895/bq25895.c ****     }
+ 258              		.loc 1 112 16 view .LVU74
+ 259 002c 7047     		bx	lr
+ 260              	.L13:
+ 261 002e 0020     		movs	r0, #0
+ 262 0030 7047     		bx	lr
+ 263              	.L14:
+ 264 0032 0020     		movs	r0, #0
+ 122:Src/power/drivers/bq25895/bq25895.c **** 
+ 265              		.loc 1 122 1 view .LVU75
+ 266 0034 7047     		bx	lr
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 11
+
+
+ 267              		.cfi_endproc
+ 268              	.LFE336:
+ 270              		.section	.text.verify_profile_fields,"ax",%progbits
+ 271              		.align	1
+ 272              		.syntax unified
+ 273              		.thumb
+ 274              		.thumb_func
+ 276              	verify_profile_fields:
+ 277              	.LVL18:
+ 278              	.LFB341:
+ 200:Src/power/drivers/bq25895/bq25895.c ****     for (uint32_t i = 0; i < count; ++i) {
+ 279              		.loc 1 200 1 is_stmt 1 view -0
+ 280              		.cfi_startproc
+ 281              		@ args = 0, pretend = 0, frame = 8
+ 282              		@ frame_needed = 0, uses_anonymous_args = 0
+ 200:Src/power/drivers/bq25895/bq25895.c ****     for (uint32_t i = 0; i < count; ++i) {
+ 283              		.loc 1 200 1 is_stmt 0 view .LVU77
+ 284 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 285              	.LCFI5:
+ 286              		.cfi_def_cfa_offset 24
+ 287              		.cfi_offset 4, -24
+ 288              		.cfi_offset 5, -20
+ 289              		.cfi_offset 6, -16
+ 290              		.cfi_offset 7, -12
+ 291              		.cfi_offset 8, -8
+ 292              		.cfi_offset 14, -4
+ 293 0004 82B0     		sub	sp, sp, #8
+ 294              	.LCFI6:
+ 295              		.cfi_def_cfa_offset 32
+ 296 0006 8046     		mov	r8, r0
+ 297 0008 0E46     		mov	r6, r1
+ 298 000a 1746     		mov	r7, r2
+ 201:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 299              		.loc 1 201 5 is_stmt 1 view .LVU78
+ 300              	.LBB2:
+ 201:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 301              		.loc 1 201 10 view .LVU79
+ 302              	.LVL19:
+ 201:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 303              		.loc 1 201 19 is_stmt 0 view .LVU80
+ 304 000c 0024     		movs	r4, #0
+ 201:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 305              		.loc 1 201 5 view .LVU81
+ 306 000e 00E0     		b	.L20
+ 307              	.LVL20:
+ 308              	.L22:
+ 201:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 309              		.loc 1 201 37 is_stmt 1 discriminator 2 view .LVU82
+ 310 0010 0134     		adds	r4, r4, #1
+ 311              	.LVL21:
+ 312              	.L20:
+ 201:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 313              		.loc 1 201 28 discriminator 1 view .LVU83
+ 314 0012 BC42     		cmp	r4, r7
+ 315 0014 17D2     		bcs	.L26
+ 316              	.LBB3:
+ 202:Src/power/drivers/bq25895/bq25895.c ****         uint8_t value = 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 12
+
+
+ 317              		.loc 1 202 9 view .LVU84
+ 202:Src/power/drivers/bq25895/bq25895.c ****         uint8_t value = 0;
+ 318              		.loc 1 202 52 is_stmt 0 view .LVU85
+ 319 0016 04EB4403 		add	r3, r4, r4, lsl #1
+ 202:Src/power/drivers/bq25895/bq25895.c ****         uint8_t value = 0;
+ 320              		.loc 1 202 37 view .LVU86
+ 321 001a F518     		adds	r5, r6, r3
+ 322              	.LVL22:
+ 203:Src/power/drivers/bq25895/bq25895.c ****         if (!read_register(handle, field->reg, &value) ||
+ 323              		.loc 1 203 9 is_stmt 1 view .LVU87
+ 203:Src/power/drivers/bq25895/bq25895.c ****         if (!read_register(handle, field->reg, &value) ||
+ 324              		.loc 1 203 17 is_stmt 0 view .LVU88
+ 325 001c 0022     		movs	r2, #0
+ 326 001e 8DF80720 		strb	r2, [sp, #7]
+ 204:Src/power/drivers/bq25895/bq25895.c ****             (value & field->mask) != (field->value & field->mask)) {
+ 327              		.loc 1 204 9 is_stmt 1 view .LVU89
+ 204:Src/power/drivers/bq25895/bq25895.c ****             (value & field->mask) != (field->value & field->mask)) {
+ 328              		.loc 1 204 14 is_stmt 0 view .LVU90
+ 329 0022 0DF10702 		add	r2, sp, #7
+ 330 0026 F15C     		ldrb	r1, [r6, r3]	@ zero_extendqisi2
+ 331 0028 4046     		mov	r0, r8
+ 332 002a FFF7FEFF 		bl	read_register
+ 333              	.LVL23:
+ 204:Src/power/drivers/bq25895/bq25895.c ****             (value & field->mask) != (field->value & field->mask)) {
+ 334              		.loc 1 204 12 discriminator 1 view .LVU91
+ 335 002e 30B1     		cbz	r0, .L21
+ 205:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 336              		.loc 1 205 44 view .LVU92
+ 337 0030 AB78     		ldrb	r3, [r5, #2]	@ zero_extendqisi2
+ 205:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 338              		.loc 1 205 27 view .LVU93
+ 339 0032 6A78     		ldrb	r2, [r5, #1]	@ zero_extendqisi2
+ 205:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 340              		.loc 1 205 35 view .LVU94
+ 341 0034 9DF80710 		ldrb	r1, [sp, #7]	@ zero_extendqisi2
+ 342 0038 4B40     		eors	r3, r3, r1
+ 204:Src/power/drivers/bq25895/bq25895.c ****             (value & field->mask) != (field->value & field->mask)) {
+ 343              		.loc 1 204 56 discriminator 1 view .LVU95
+ 344 003a 1A42     		tst	r2, r3
+ 345 003c E8D0     		beq	.L22
+ 346              	.L21:
+ 206:Src/power/drivers/bq25895/bq25895.c ****         }
+ 347              		.loc 1 206 13 is_stmt 1 view .LVU96
+ 206:Src/power/drivers/bq25895/bq25895.c ****         }
+ 348              		.loc 1 206 20 is_stmt 0 view .LVU97
+ 349 003e 0020     		movs	r0, #0
+ 350              	.LVL24:
+ 351              	.L23:
+ 206:Src/power/drivers/bq25895/bq25895.c ****         }
+ 352              		.loc 1 206 20 view .LVU98
+ 353              	.LBE3:
+ 354              	.LBE2:
+ 210:Src/power/drivers/bq25895/bq25895.c **** 
+ 355              		.loc 1 210 1 view .LVU99
+ 356 0040 02B0     		add	sp, sp, #8
+ 357              	.LCFI7:
+ 358              		.cfi_remember_state
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 13
+
+
+ 359              		.cfi_def_cfa_offset 24
+ 360              		@ sp needed
+ 361 0042 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 362              	.LVL25:
+ 363              	.L26:
+ 364              	.LCFI8:
+ 365              		.cfi_restore_state
+ 209:Src/power/drivers/bq25895/bq25895.c **** }
+ 366              		.loc 1 209 12 view .LVU100
+ 367 0046 0120     		movs	r0, #1
+ 368 0048 FAE7     		b	.L23
+ 369              		.cfi_endproc
+ 370              	.LFE341:
+ 372              		.section	.text.write_register,"ax",%progbits
+ 373              		.align	1
+ 374              		.syntax unified
+ 375              		.thumb
+ 376              		.thumb_func
+ 378              	write_register:
+ 379              	.LVL26:
+ 380              	.LFB337:
+ 125:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || handle->i2c == NULL) {
+ 381              		.loc 1 125 1 is_stmt 1 view -0
+ 382              		.cfi_startproc
+ 383              		@ args = 0, pretend = 0, frame = 8
+ 384              		@ frame_needed = 0, uses_anonymous_args = 0
+ 125:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || handle->i2c == NULL) {
+ 385              		.loc 1 125 1 is_stmt 0 view .LVU102
+ 386 0000 00B5     		push	{lr}
+ 387              	.LCFI9:
+ 388              		.cfi_def_cfa_offset 4
+ 389              		.cfi_offset 14, -4
+ 390 0002 87B0     		sub	sp, sp, #28
+ 391              	.LCFI10:
+ 392              		.cfi_def_cfa_offset 32
+ 393 0004 8DF81720 		strb	r2, [sp, #23]
+ 126:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 394              		.loc 1 126 5 is_stmt 1 view .LVU103
+ 126:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 395              		.loc 1 126 8 is_stmt 0 view .LVU104
+ 396 0008 90B1     		cbz	r0, .L29
+ 126:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 397              		.loc 1 126 33 discriminator 1 view .LVU105
+ 398 000a 0068     		ldr	r0, [r0]
+ 399              	.LVL27:
+ 126:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 400              		.loc 1 126 24 discriminator 1 view .LVU106
+ 401 000c 90B1     		cbz	r0, .L30
+ 129:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 402              		.loc 1 129 5 is_stmt 1 view .LVU107
+ 129:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 403              		.loc 1 129 12 is_stmt 0 view .LVU108
+ 404 000e 1423     		movs	r3, #20
+ 405 0010 0293     		str	r3, [sp, #8]
+ 406 0012 0123     		movs	r3, #1
+ 407 0014 0193     		str	r3, [sp, #4]
+ 408 0016 0DF11702 		add	r2, sp, #23
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 14
+
+
+ 409              	.LVL28:
+ 129:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 410              		.loc 1 129 12 view .LVU109
+ 411 001a 0092     		str	r2, [sp]
+ 412 001c 0A46     		mov	r2, r1
+ 413              	.LVL29:
+ 129:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 414              		.loc 1 129 12 view .LVU110
+ 415 001e D421     		movs	r1, #212
+ 416              	.LVL30:
+ 129:Src/power/drivers/bq25895/bq25895.c ****                handle->i2c,
+ 417              		.loc 1 129 12 view .LVU111
+ 418 0020 FFF7FEFF 		bl	HAL_I2C_Mem_Write
+ 419              	.LVL31:
+ 136:Src/power/drivers/bq25895/bq25895.c **** }
+ 420              		.loc 1 136 35 view .LVU112
+ 421 0024 B0FA80F0 		clz	r0, r0
+ 422 0028 4009     		lsrs	r0, r0, #5
+ 423              	.L28:
+ 137:Src/power/drivers/bq25895/bq25895.c **** 
+ 424              		.loc 1 137 1 view .LVU113
+ 425 002a 07B0     		add	sp, sp, #28
+ 426              	.LCFI11:
+ 427              		.cfi_remember_state
+ 428              		.cfi_def_cfa_offset 4
+ 429              		@ sp needed
+ 430 002c 5DF804FB 		ldr	pc, [sp], #4
+ 431              	.LVL32:
+ 432              	.L29:
+ 433              	.LCFI12:
+ 434              		.cfi_restore_state
+ 127:Src/power/drivers/bq25895/bq25895.c ****     }
+ 435              		.loc 1 127 16 view .LVU114
+ 436 0030 0020     		movs	r0, #0
+ 437              	.LVL33:
+ 127:Src/power/drivers/bq25895/bq25895.c ****     }
+ 438              		.loc 1 127 16 view .LVU115
+ 439 0032 FAE7     		b	.L28
+ 440              	.L30:
+ 441 0034 0020     		movs	r0, #0
+ 442 0036 F8E7     		b	.L28
+ 443              		.cfi_endproc
+ 444              	.LFE337:
+ 446              		.section	.text.update_register,"ax",%progbits
+ 447              		.align	1
+ 448              		.syntax unified
+ 449              		.thumb
+ 450              		.thumb_func
+ 452              	update_register:
+ 453              	.LVL34:
+ 454              	.LFB338:
+ 140:Src/power/drivers/bq25895/bq25895.c ****     uint8_t before = 0;
+ 455              		.loc 1 140 1 is_stmt 1 view -0
+ 456              		.cfi_startproc
+ 457              		@ args = 0, pretend = 0, frame = 8
+ 458              		@ frame_needed = 0, uses_anonymous_args = 0
+ 140:Src/power/drivers/bq25895/bq25895.c ****     uint8_t before = 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 15
+
+
+ 459              		.loc 1 140 1 is_stmt 0 view .LVU117
+ 460 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 461              	.LCFI13:
+ 462              		.cfi_def_cfa_offset 20
+ 463              		.cfi_offset 4, -20
+ 464              		.cfi_offset 5, -16
+ 465              		.cfi_offset 6, -12
+ 466              		.cfi_offset 7, -8
+ 467              		.cfi_offset 14, -4
+ 468 0002 83B0     		sub	sp, sp, #12
+ 469              	.LCFI14:
+ 470              		.cfi_def_cfa_offset 32
+ 471 0004 0646     		mov	r6, r0
+ 472 0006 0F46     		mov	r7, r1
+ 473 0008 1546     		mov	r5, r2
+ 474 000a 1C46     		mov	r4, r3
+ 141:Src/power/drivers/bq25895/bq25895.c ****     if (!read_register(handle, reg, &before)) {
+ 475              		.loc 1 141 5 is_stmt 1 view .LVU118
+ 141:Src/power/drivers/bq25895/bq25895.c ****     if (!read_register(handle, reg, &before)) {
+ 476              		.loc 1 141 13 is_stmt 0 view .LVU119
+ 477 000c 0023     		movs	r3, #0
+ 478              	.LVL35:
+ 141:Src/power/drivers/bq25895/bq25895.c ****     if (!read_register(handle, reg, &before)) {
+ 479              		.loc 1 141 13 view .LVU120
+ 480 000e 8DF80730 		strb	r3, [sp, #7]
+ 142:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 481              		.loc 1 142 5 is_stmt 1 view .LVU121
+ 142:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 482              		.loc 1 142 10 is_stmt 0 view .LVU122
+ 483 0012 0DF10702 		add	r2, sp, #7
+ 484              	.LVL36:
+ 142:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 485              		.loc 1 142 10 view .LVU123
+ 486 0016 FFF7FEFF 		bl	read_register
+ 487              	.LVL37:
+ 142:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 488              		.loc 1 142 8 discriminator 1 view .LVU124
+ 489 001a 0346     		mov	r3, r0
+ 490 001c F0B1     		cbz	r0, .L33
+ 146:Src/power/drivers/bq25895/bq25895.c ****     if (after != before && !write_register(handle, reg, after)) {
+ 491              		.loc 1 146 5 is_stmt 1 view .LVU125
+ 146:Src/power/drivers/bq25895/bq25895.c ****     if (after != before && !write_register(handle, reg, after)) {
+ 492              		.loc 1 146 27 is_stmt 0 view .LVU126
+ 493 001e 9DF80720 		ldrb	r2, [sp, #7]	@ zero_extendqisi2
+ 494 0022 82EA0403 		eor	r3, r2, r4
+ 495 0026 2B40     		ands	r3, r3, r5
+ 146:Src/power/drivers/bq25895/bq25895.c ****     if (after != before && !write_register(handle, reg, after)) {
+ 496              		.loc 1 146 19 view .LVU127
+ 497 0028 5A40     		eors	r2, r2, r3
+ 498              	.LVL38:
+ 147:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 499              		.loc 1 147 5 is_stmt 1 view .LVU128
+ 147:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 500              		.loc 1 147 8 is_stmt 0 view .LVU129
+ 501 002a 2BB1     		cbz	r3, .L34
+ 147:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 502              		.loc 1 147 29 discriminator 1 view .LVU130
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 16
+
+
+ 503 002c 3946     		mov	r1, r7
+ 504 002e 3046     		mov	r0, r6
+ 505 0030 FFF7FEFF 		bl	write_register
+ 506              	.LVL39:
+ 147:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 507              		.loc 1 147 25 discriminator 1 view .LVU131
+ 508 0034 0346     		mov	r3, r0
+ 509 0036 88B1     		cbz	r0, .L33
+ 510              	.L34:
+ 151:Src/power/drivers/bq25895/bq25895.c ****     return read_register(handle, reg, &verify) && ((verify & mask) == (value & mask));
+ 511              		.loc 1 151 5 is_stmt 1 view .LVU132
+ 151:Src/power/drivers/bq25895/bq25895.c ****     return read_register(handle, reg, &verify) && ((verify & mask) == (value & mask));
+ 512              		.loc 1 151 13 is_stmt 0 view .LVU133
+ 513 0038 0023     		movs	r3, #0
+ 514 003a 8DF80630 		strb	r3, [sp, #6]
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 515              		.loc 1 152 5 is_stmt 1 view .LVU134
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 516              		.loc 1 152 12 is_stmt 0 view .LVU135
+ 517 003e 0DF10602 		add	r2, sp, #6
+ 518 0042 3946     		mov	r1, r7
+ 519 0044 3046     		mov	r0, r6
+ 520 0046 FFF7FEFF 		bl	read_register
+ 521              	.LVL40:
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 522              		.loc 1 152 48 discriminator 1 view .LVU136
+ 523 004a 30B1     		cbz	r0, .L36
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 524              		.loc 1 152 68 discriminator 1 view .LVU137
+ 525 004c 9DF80630 		ldrb	r3, [sp, #6]	@ zero_extendqisi2
+ 526 0050 5C40     		eors	r4, r4, r3
+ 527              	.LVL41:
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 528              		.loc 1 152 48 discriminator 1 view .LVU138
+ 529 0052 2542     		tst	r5, r4
+ 530 0054 05D0     		beq	.L37
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 531              		.loc 1 152 48 discriminator 4 view .LVU139
+ 532 0056 0023     		movs	r3, #0
+ 533 0058 00E0     		b	.L33
+ 534              	.L36:
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 535              		.loc 1 152 48 discriminator 4 view .LVU140
+ 536 005a 0023     		movs	r3, #0
+ 537              	.LVL42:
+ 538              	.L33:
+ 153:Src/power/drivers/bq25895/bq25895.c **** 
+ 539              		.loc 1 153 1 view .LVU141
+ 540 005c 1846     		mov	r0, r3
+ 541 005e 03B0     		add	sp, sp, #12
+ 542              	.LCFI15:
+ 543              		.cfi_remember_state
+ 544              		.cfi_def_cfa_offset 20
+ 545              		@ sp needed
+ 546 0060 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 547              	.LVL43:
+ 548              	.L37:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 17
+
+
+ 549              	.LCFI16:
+ 550              		.cfi_restore_state
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 551              		.loc 1 152 48 discriminator 3 view .LVU142
+ 552 0062 0123     		movs	r3, #1
+ 152:Src/power/drivers/bq25895/bq25895.c **** }
+ 553              		.loc 1 152 48 view .LVU143
+ 554 0064 FAE7     		b	.L33
+ 555              		.cfi_endproc
+ 556              	.LFE338:
+ 558              		.section	.text.apply_profile_fields,"ax",%progbits
+ 559              		.align	1
+ 560              		.syntax unified
+ 561              		.thumb
+ 562              		.thumb_func
+ 564              	apply_profile_fields:
+ 565              	.LVL44:
+ 566              	.LFB340:
+ 187:Src/power/drivers/bq25895/bq25895.c ****     for (uint32_t i = 0; i < count; ++i) {
+ 567              		.loc 1 187 1 is_stmt 1 view -0
+ 568              		.cfi_startproc
+ 569              		@ args = 0, pretend = 0, frame = 0
+ 570              		@ frame_needed = 0, uses_anonymous_args = 0
+ 187:Src/power/drivers/bq25895/bq25895.c ****     for (uint32_t i = 0; i < count; ++i) {
+ 571              		.loc 1 187 1 is_stmt 0 view .LVU145
+ 572 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 573              	.LCFI17:
+ 574              		.cfi_def_cfa_offset 24
+ 575              		.cfi_offset 3, -24
+ 576              		.cfi_offset 4, -20
+ 577              		.cfi_offset 5, -16
+ 578              		.cfi_offset 6, -12
+ 579              		.cfi_offset 7, -8
+ 580              		.cfi_offset 14, -4
+ 581 0002 0746     		mov	r7, r0
+ 582 0004 0D46     		mov	r5, r1
+ 583 0006 1646     		mov	r6, r2
+ 188:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 584              		.loc 1 188 5 is_stmt 1 view .LVU146
+ 585              	.LBB4:
+ 188:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 586              		.loc 1 188 10 view .LVU147
+ 587              	.LVL45:
+ 188:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 588              		.loc 1 188 19 is_stmt 0 view .LVU148
+ 589 0008 0024     		movs	r4, #0
+ 188:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 590              		.loc 1 188 5 view .LVU149
+ 591 000a 00E0     		b	.L40
+ 592              	.LVL46:
+ 593              	.L45:
+ 188:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ 594              		.loc 1 188 37 is_stmt 1 discriminator 2 view .LVU150
+ 595 000c 0134     		adds	r4, r4, #1
+ 596              	.LVL47:
+ 597              	.L40:
+ 188:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = &fields[i];
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 18
+
+
+ 598              		.loc 1 188 28 discriminator 1 view .LVU151
+ 599 000e B442     		cmp	r4, r6
+ 600 0010 10D2     		bcs	.L44
+ 601              	.LBB5:
+ 189:Src/power/drivers/bq25895/bq25895.c ****         if (!update_register(handle, field->reg, field->mask, field->value)) {
+ 602              		.loc 1 189 9 view .LVU152
+ 189:Src/power/drivers/bq25895/bq25895.c ****         if (!update_register(handle, field->reg, field->mask, field->value)) {
+ 603              		.loc 1 189 52 is_stmt 0 view .LVU153
+ 604 0012 04EB440C 		add	ip, r4, r4, lsl #1
+ 189:Src/power/drivers/bq25895/bq25895.c ****         if (!update_register(handle, field->reg, field->mask, field->value)) {
+ 605              		.loc 1 189 37 view .LVU154
+ 606 0016 05EB0C0E 		add	lr, r5, ip
+ 607              	.LVL48:
+ 190:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 608              		.loc 1 190 9 is_stmt 1 view .LVU155
+ 190:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 609              		.loc 1 190 14 is_stmt 0 view .LVU156
+ 610 001a 9EF80230 		ldrb	r3, [lr, #2]	@ zero_extendqisi2
+ 611 001e 9EF80120 		ldrb	r2, [lr, #1]	@ zero_extendqisi2
+ 612 0022 15F80C10 		ldrb	r1, [r5, ip]	@ zero_extendqisi2
+ 613 0026 3846     		mov	r0, r7
+ 614 0028 FFF7FEFF 		bl	update_register
+ 615              	.LVL49:
+ 190:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 616              		.loc 1 190 12 discriminator 1 view .LVU157
+ 617 002c 0346     		mov	r3, r0
+ 618 002e 0028     		cmp	r0, #0
+ 619 0030 ECD1     		bne	.L45
+ 620 0032 00E0     		b	.L41
+ 621              	.LVL50:
+ 622              	.L44:
+ 190:Src/power/drivers/bq25895/bq25895.c ****             return false;
+ 623              		.loc 1 190 12 discriminator 1 view .LVU158
+ 624              	.LBE5:
+ 625              	.LBE4:
+ 194:Src/power/drivers/bq25895/bq25895.c **** }
+ 626              		.loc 1 194 12 view .LVU159
+ 627 0034 0123     		movs	r3, #1
+ 628              	.L41:
+ 195:Src/power/drivers/bq25895/bq25895.c **** 
+ 629              		.loc 1 195 1 view .LVU160
+ 630 0036 1846     		mov	r0, r3
+ 631 0038 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 195:Src/power/drivers/bq25895/bq25895.c **** 
+ 632              		.loc 1 195 1 view .LVU161
+ 633              		.cfi_endproc
+ 634              	.LFE340:
+ 636              		.section	.text.BQ25895_Init,"ax",%progbits
+ 637              		.align	1
+ 638              		.global	BQ25895_Init
+ 639              		.syntax unified
+ 640              		.thumb
+ 641              		.thumb_func
+ 643              	BQ25895_Init:
+ 644              	.LVL51:
+ 645              	.LFB339:
+ 156:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || i2c == NULL) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 19
+
+
+ 646              		.loc 1 156 1 is_stmt 1 view -0
+ 647              		.cfi_startproc
+ 648              		@ args = 0, pretend = 0, frame = 8
+ 649              		@ frame_needed = 0, uses_anonymous_args = 0
+ 156:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || i2c == NULL) {
+ 650              		.loc 1 156 1 is_stmt 0 view .LVU163
+ 651 0000 70B5     		push	{r4, r5, r6, lr}
+ 652              	.LCFI18:
+ 653              		.cfi_def_cfa_offset 16
+ 654              		.cfi_offset 4, -16
+ 655              		.cfi_offset 5, -12
+ 656              		.cfi_offset 6, -8
+ 657              		.cfi_offset 14, -4
+ 658 0002 82B0     		sub	sp, sp, #8
+ 659              	.LCFI19:
+ 660              		.cfi_def_cfa_offset 24
+ 157:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 661              		.loc 1 157 5 is_stmt 1 view .LVU164
+ 157:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 662              		.loc 1 157 8 is_stmt 0 view .LVU165
+ 663 0004 0029     		cmp	r1, #0
+ 664 0006 18BF     		it	ne
+ 665 0008 0028     		cmpne	r0, #0
+ 666 000a 0CBF     		ite	eq
+ 667 000c 0124     		moveq	r4, #1
+ 668 000e 0024     		movne	r4, #0
+ 669 0010 03D1     		bne	.L51
+ 158:Src/power/drivers/bq25895/bq25895.c ****     }
+ 670              		.loc 1 158 16 view .LVU166
+ 671 0012 0024     		movs	r4, #0
+ 672              	.LVL52:
+ 673              	.L47:
+ 182:Src/power/drivers/bq25895/bq25895.c **** 
+ 674              		.loc 1 182 1 view .LVU167
+ 675 0014 2046     		mov	r0, r4
+ 676 0016 02B0     		add	sp, sp, #8
+ 677              	.LCFI20:
+ 678              		.cfi_remember_state
+ 679              		.cfi_def_cfa_offset 16
+ 680              		@ sp needed
+ 681 0018 70BD     		pop	{r4, r5, r6, pc}
+ 682              	.LVL53:
+ 683              	.L51:
+ 684              	.LCFI21:
+ 685              		.cfi_restore_state
+ 182:Src/power/drivers/bq25895/bq25895.c **** 
+ 686              		.loc 1 182 1 view .LVU168
+ 687 001a 0546     		mov	r5, r0
+ 688 001c 0E46     		mov	r6, r1
+ 161:Src/power/drivers/bq25895/bq25895.c ****     handle->i2c = i2c;
+ 689              		.loc 1 161 5 is_stmt 1 view .LVU169
+ 690 001e 0023     		movs	r3, #0
+ 691 0020 0360     		str	r3, [r0]	@ unaligned
+ 692 0022 4360     		str	r3, [r0, #4]	@ unaligned
+ 162:Src/power/drivers/bq25895/bq25895.c ****     if (HAL_I2C_IsDeviceReady(
+ 693              		.loc 1 162 5 view .LVU170
+ 162:Src/power/drivers/bq25895/bq25895.c ****     if (HAL_I2C_IsDeviceReady(
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 20
+
+
+ 694              		.loc 1 162 17 is_stmt 0 view .LVU171
+ 695 0024 0160     		str	r1, [r0]
+ 163:Src/power/drivers/bq25895/bq25895.c ****             i2c,
+ 696              		.loc 1 163 5 is_stmt 1 view .LVU172
+ 163:Src/power/drivers/bq25895/bq25895.c ****             i2c,
+ 697              		.loc 1 163 9 is_stmt 0 view .LVU173
+ 698 0026 1423     		movs	r3, #20
+ 699 0028 0222     		movs	r2, #2
+ 700 002a D421     		movs	r1, #212
+ 701              	.LVL54:
+ 163:Src/power/drivers/bq25895/bq25895.c ****             i2c,
+ 702              		.loc 1 163 9 view .LVU174
+ 703 002c 3046     		mov	r0, r6
+ 704              	.LVL55:
+ 163:Src/power/drivers/bq25895/bq25895.c ****             i2c,
+ 705              		.loc 1 163 9 view .LVU175
+ 706 002e FFF7FEFF 		bl	HAL_I2C_IsDeviceReady
+ 707              	.LVL56:
+ 163:Src/power/drivers/bq25895/bq25895.c ****             i2c,
+ 708              		.loc 1 163 8 discriminator 1 view .LVU176
+ 709 0032 0028     		cmp	r0, #0
+ 710 0034 EED1     		bne	.L47
+ 171:Src/power/drivers/bq25895/bq25895.c ****     if (!read_register(handle, BQ_REG_PART_INFORMATION, &part_information)) {
+ 711              		.loc 1 171 5 is_stmt 1 view .LVU177
+ 171:Src/power/drivers/bq25895/bq25895.c ****     if (!read_register(handle, BQ_REG_PART_INFORMATION, &part_information)) {
+ 712              		.loc 1 171 13 is_stmt 0 view .LVU178
+ 713 0036 0023     		movs	r3, #0
+ 714 0038 8DF80730 		strb	r3, [sp, #7]
+ 172:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 715              		.loc 1 172 5 is_stmt 1 view .LVU179
+ 172:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 716              		.loc 1 172 10 is_stmt 0 view .LVU180
+ 717 003c 0DF10702 		add	r2, sp, #7
+ 718 0040 1421     		movs	r1, #20
+ 719 0042 2846     		mov	r0, r5
+ 720 0044 FFF7FEFF 		bl	read_register
+ 721              	.LVL57:
+ 172:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 722              		.loc 1 172 8 discriminator 1 view .LVU181
+ 723 0048 48B1     		cbz	r0, .L49
+ 175:Src/power/drivers/bq25895/bq25895.c ****         BQ_PART_INFORMATION_BQ25895_REV1) {
+ 724              		.loc 1 175 5 is_stmt 1 view .LVU182
+ 175:Src/power/drivers/bq25895/bq25895.c ****         BQ_PART_INFORMATION_BQ25895_REV1) {
+ 725              		.loc 1 175 27 is_stmt 0 view .LVU183
+ 726 004a 9DF80730 		ldrb	r3, [sp, #7]	@ zero_extendqisi2
+ 175:Src/power/drivers/bq25895/bq25895.c ****         BQ_PART_INFORMATION_BQ25895_REV1) {
+ 727              		.loc 1 175 8 view .LVU184
+ 728 004e 03F03B03 		and	r3, r3, #59
+ 729 0052 392B     		cmp	r3, #57
+ 730 0054 DED1     		bne	.L47
+ 180:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 731              		.loc 1 180 5 is_stmt 1 view .LVU185
+ 180:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 732              		.loc 1 180 20 is_stmt 0 view .LVU186
+ 733 0056 0123     		movs	r3, #1
+ 734 0058 2B71     		strb	r3, [r5, #4]
+ 181:Src/power/drivers/bq25895/bq25895.c **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 21
+
+
+ 735              		.loc 1 181 5 is_stmt 1 view .LVU187
+ 181:Src/power/drivers/bq25895/bq25895.c **** }
+ 736              		.loc 1 181 12 is_stmt 0 view .LVU188
+ 737 005a 0446     		mov	r4, r0
+ 738 005c DAE7     		b	.L47
+ 739              	.L49:
+ 173:Src/power/drivers/bq25895/bq25895.c ****     }
+ 740              		.loc 1 173 16 view .LVU189
+ 741 005e 0446     		mov	r4, r0
+ 742 0060 D8E7     		b	.L47
+ 743              		.cfi_endproc
+ 744              	.LFE339:
+ 746              		.section	.text.BQ25895_ConfigureSafeProfile,"ax",%progbits
+ 747              		.align	1
+ 748              		.global	BQ25895_ConfigureSafeProfile
+ 749              		.syntax unified
+ 750              		.thumb
+ 751              		.thumb_func
+ 753              	BQ25895_ConfigureSafeProfile:
+ 754              	.LVL58:
+ 755              	.LFB342:
+ 214:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || !handle->online) {
+ 756              		.loc 1 214 1 is_stmt 1 view -0
+ 757              		.cfi_startproc
+ 758              		@ args = 0, pretend = 0, frame = 8
+ 759              		@ frame_needed = 0, uses_anonymous_args = 0
+ 215:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 760              		.loc 1 215 5 view .LVU191
+ 215:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 761              		.loc 1 215 8 is_stmt 0 view .LVU192
+ 762 0000 58B3     		cbz	r0, .L56
+ 214:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || !handle->online) {
+ 763              		.loc 1 214 1 view .LVU193
+ 764 0002 70B5     		push	{r4, r5, r6, lr}
+ 765              	.LCFI22:
+ 766              		.cfi_def_cfa_offset 16
+ 767              		.cfi_offset 4, -16
+ 768              		.cfi_offset 5, -12
+ 769              		.cfi_offset 6, -8
+ 770              		.cfi_offset 14, -4
+ 771 0004 82B0     		sub	sp, sp, #8
+ 772              	.LCFI23:
+ 773              		.cfi_def_cfa_offset 24
+ 774 0006 0C46     		mov	r4, r1
+ 775 0008 0546     		mov	r5, r0
+ 215:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 776              		.loc 1 215 34 discriminator 1 view .LVU194
+ 777 000a 0079     		ldrb	r0, [r0, #4]	@ zero_extendqisi2
+ 778              	.LVL59:
+ 215:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 779              		.loc 1 215 24 discriminator 1 view .LVU195
+ 780 000c 08B9     		cbnz	r0, .L64
+ 781              	.LVL60:
+ 782              	.L53:
+ 239:Src/power/drivers/bq25895/bq25895.c **** 
+ 783              		.loc 1 239 1 view .LVU196
+ 784 000e 02B0     		add	sp, sp, #8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 22
+
+
+ 785              	.LCFI24:
+ 786              		.cfi_remember_state
+ 787              		.cfi_def_cfa_offset 16
+ 788              		@ sp needed
+ 789 0010 70BD     		pop	{r4, r5, r6, pc}
+ 790              	.LVL61:
+ 791              	.L64:
+ 792              	.LCFI25:
+ 793              		.cfi_restore_state
+ 219:Src/power/drivers/bq25895/bq25895.c ****     const BQ25895_ProfileField* input_fields =
+ 794              		.loc 1 219 5 is_stmt 1 view .LVU197
+ 219:Src/power/drivers/bq25895/bq25895.c ****     const BQ25895_ProfileField* input_fields =
+ 795              		.loc 1 219 14 is_stmt 0 view .LVU198
+ 796 0012 0023     		movs	r3, #0
+ 797 0014 0193     		str	r3, [sp, #4]
+ 220:Src/power/drivers/bq25895/bq25895.c ****         input_profile_fields(input_profile, &input_field_count);
+ 798              		.loc 1 220 5 is_stmt 1 view .LVU199
+ 221:Src/power/drivers/bq25895/bq25895.c ****     const bool configured =
+ 799              		.loc 1 221 9 is_stmt 0 view .LVU200
+ 800 0016 01A9     		add	r1, sp, #4
+ 801              	.LVL62:
+ 221:Src/power/drivers/bq25895/bq25895.c ****     const bool configured =
+ 802              		.loc 1 221 9 view .LVU201
+ 803 0018 2046     		mov	r0, r4
+ 804 001a FFF7FEFF 		bl	input_profile_fields
+ 805              	.LVL63:
+ 222:Src/power/drivers/bq25895/bq25895.c ****         input_fields != NULL &&
+ 806              		.loc 1 222 5 is_stmt 1 view .LVU202
+ 228:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(handle, input_fields, input_field_count);
+ 807              		.loc 1 228 59 is_stmt 0 view .LVU203
+ 808 001e 0646     		mov	r6, r0
+ 809 0020 78B1     		cbz	r0, .L57
+ 224:Src/power/drivers/bq25895/bq25895.c ****             handle,
+ 810              		.loc 1 224 9 view .LVU204
+ 811 0022 0622     		movs	r2, #6
+ 812 0024 0E49     		ldr	r1, .L67
+ 813 0026 2846     		mov	r0, r5
+ 814              	.LVL64:
+ 224:Src/power/drivers/bq25895/bq25895.c ****             handle,
+ 815              		.loc 1 224 9 view .LVU205
+ 816 0028 FFF7FEFF 		bl	apply_profile_fields
+ 817              	.LVL65:
+ 223:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(
+ 818              		.loc 1 223 30 view .LVU206
+ 819 002c 08B9     		cbnz	r0, .L65
+ 228:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(handle, input_fields, input_field_count);
+ 820              		.loc 1 228 59 discriminator 1 view .LVU207
+ 821 002e 0023     		movs	r3, #0
+ 822 0030 08E0     		b	.L54
+ 823              	.L65:
+ 229:Src/power/drivers/bq25895/bq25895.c ****     if (!configured) {
+ 824              		.loc 1 229 9 view .LVU208
+ 825 0032 019A     		ldr	r2, [sp, #4]
+ 826 0034 3146     		mov	r1, r6
+ 827 0036 2846     		mov	r0, r5
+ 828 0038 FFF7FEFF 		bl	apply_profile_fields
+ 829              	.LVL66:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 23
+
+
+ 228:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(handle, input_fields, input_field_count);
+ 830              		.loc 1 228 59 discriminator 3 view .LVU209
+ 831 003c 40B1     		cbz	r0, .L59
+ 228:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(handle, input_fields, input_field_count);
+ 832              		.loc 1 228 59 discriminator 2 view .LVU210
+ 833 003e 0123     		movs	r3, #1
+ 834 0040 00E0     		b	.L54
+ 835              	.LVL67:
+ 836              	.L57:
+ 228:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(handle, input_fields, input_field_count);
+ 837              		.loc 1 228 59 discriminator 1 view .LVU211
+ 838 0042 0023     		movs	r3, #0
+ 839              	.LVL68:
+ 840              	.L54:
+ 230:Src/power/drivers/bq25895/bq25895.c ****         handle->online = false;
+ 841              		.loc 1 230 5 is_stmt 1 view .LVU212
+ 230:Src/power/drivers/bq25895/bq25895.c ****         handle->online = false;
+ 842              		.loc 1 230 8 is_stmt 0 view .LVU213
+ 843 0044 1846     		mov	r0, r3
+ 844 0046 2BB1     		cbz	r3, .L66
+ 236:Src/power/drivers/bq25895/bq25895.c ****     handle->profile_configured = true;
+ 845              		.loc 1 236 5 is_stmt 1 view .LVU214
+ 236:Src/power/drivers/bq25895/bq25895.c ****     handle->profile_configured = true;
+ 846              		.loc 1 236 27 is_stmt 0 view .LVU215
+ 847 0048 AC71     		strb	r4, [r5, #6]
+ 237:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 848              		.loc 1 237 5 is_stmt 1 view .LVU216
+ 237:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 849              		.loc 1 237 32 is_stmt 0 view .LVU217
+ 850 004a 0123     		movs	r3, #1
+ 851              	.LVL69:
+ 237:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 852              		.loc 1 237 32 view .LVU218
+ 853 004c 6B71     		strb	r3, [r5, #5]
+ 238:Src/power/drivers/bq25895/bq25895.c **** }
+ 854              		.loc 1 238 5 is_stmt 1 view .LVU219
+ 238:Src/power/drivers/bq25895/bq25895.c **** }
+ 855              		.loc 1 238 12 is_stmt 0 view .LVU220
+ 856 004e DEE7     		b	.L53
+ 857              	.LVL70:
+ 858              	.L59:
+ 228:Src/power/drivers/bq25895/bq25895.c ****         apply_profile_fields(handle, input_fields, input_field_count);
+ 859              		.loc 1 228 59 discriminator 1 view .LVU221
+ 860 0050 0023     		movs	r3, #0
+ 861 0052 F7E7     		b	.L54
+ 862              	.LVL71:
+ 863              	.L66:
+ 231:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = false;
+ 864              		.loc 1 231 9 is_stmt 1 view .LVU222
+ 231:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = false;
+ 865              		.loc 1 231 24 is_stmt 0 view .LVU223
+ 866 0054 2B71     		strb	r3, [r5, #4]
+ 232:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 867              		.loc 1 232 9 is_stmt 1 view .LVU224
+ 232:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 868              		.loc 1 232 36 is_stmt 0 view .LVU225
+ 869 0056 6B71     		strb	r3, [r5, #5]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 24
+
+
+ 233:Src/power/drivers/bq25895/bq25895.c ****     }
+ 870              		.loc 1 233 9 is_stmt 1 view .LVU226
+ 233:Src/power/drivers/bq25895/bq25895.c ****     }
+ 871              		.loc 1 233 16 is_stmt 0 view .LVU227
+ 872 0058 D9E7     		b	.L53
+ 873              	.LVL72:
+ 874              	.L56:
+ 875              	.LCFI26:
+ 876              		.cfi_def_cfa_offset 0
+ 877              		.cfi_restore 4
+ 878              		.cfi_restore 5
+ 879              		.cfi_restore 6
+ 880              		.cfi_restore 14
+ 216:Src/power/drivers/bq25895/bq25895.c ****     }
+ 881              		.loc 1 216 16 view .LVU228
+ 882 005a 0020     		movs	r0, #0
+ 883              	.LVL73:
+ 239:Src/power/drivers/bq25895/bq25895.c **** 
+ 884              		.loc 1 239 1 view .LVU229
+ 885 005c 7047     		bx	lr
+ 886              	.L68:
+ 887 005e 00BF     		.align	2
+ 888              	.L67:
+ 889 0060 00000000 		.word	k_safe_common_profile
+ 890              		.cfi_endproc
+ 891              	.LFE342:
+ 893              		.section	.text.BQ25895_VerifySafeProfile,"ax",%progbits
+ 894              		.align	1
+ 895              		.global	BQ25895_VerifySafeProfile
+ 896              		.syntax unified
+ 897              		.thumb
+ 898              		.thumb_func
+ 900              	BQ25895_VerifySafeProfile:
+ 901              	.LVL74:
+ 902              	.LFB343:
+ 242:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || !handle->online || !handle->profile_configured) {
+ 903              		.loc 1 242 1 is_stmt 1 view -0
+ 904              		.cfi_startproc
+ 905              		@ args = 0, pretend = 0, frame = 8
+ 906              		@ frame_needed = 0, uses_anonymous_args = 0
+ 243:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 907              		.loc 1 243 5 view .LVU231
+ 243:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 908              		.loc 1 243 8 is_stmt 0 view .LVU232
+ 909 0000 20B3     		cbz	r0, .L72
+ 242:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || !handle->online || !handle->profile_configured) {
+ 910              		.loc 1 242 1 view .LVU233
+ 911 0002 30B5     		push	{r4, r5, lr}
+ 912              	.LCFI27:
+ 913              		.cfi_def_cfa_offset 12
+ 914              		.cfi_offset 4, -12
+ 915              		.cfi_offset 5, -8
+ 916              		.cfi_offset 14, -4
+ 917 0004 83B0     		sub	sp, sp, #12
+ 918              	.LCFI28:
+ 919              		.cfi_def_cfa_offset 24
+ 920 0006 0446     		mov	r4, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 25
+
+
+ 243:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 921              		.loc 1 243 34 discriminator 1 view .LVU234
+ 922 0008 0079     		ldrb	r0, [r0, #4]	@ zero_extendqisi2
+ 923              	.LVL75:
+ 243:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 924              		.loc 1 243 24 discriminator 1 view .LVU235
+ 925 000a 08B1     		cbz	r0, .L70
+ 243:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 926              		.loc 1 243 53 discriminator 2 view .LVU236
+ 927 000c 6079     		ldrb	r0, [r4, #5]	@ zero_extendqisi2
+ 243:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 928              		.loc 1 243 43 discriminator 2 view .LVU237
+ 929 000e 08B9     		cbnz	r0, .L80
+ 930              	.L70:
+ 257:Src/power/drivers/bq25895/bq25895.c **** 
+ 931              		.loc 1 257 1 view .LVU238
+ 932 0010 03B0     		add	sp, sp, #12
+ 933              	.LCFI29:
+ 934              		.cfi_remember_state
+ 935              		.cfi_def_cfa_offset 12
+ 936              		@ sp needed
+ 937 0012 30BD     		pop	{r4, r5, pc}
+ 938              	.LVL76:
+ 939              	.L80:
+ 940              	.LCFI30:
+ 941              		.cfi_restore_state
+ 247:Src/power/drivers/bq25895/bq25895.c ****     const BQ25895_ProfileField* input_fields =
+ 942              		.loc 1 247 5 is_stmt 1 view .LVU239
+ 247:Src/power/drivers/bq25895/bq25895.c ****     const BQ25895_ProfileField* input_fields =
+ 943              		.loc 1 247 14 is_stmt 0 view .LVU240
+ 944 0014 0023     		movs	r3, #0
+ 945 0016 0193     		str	r3, [sp, #4]
+ 248:Src/power/drivers/bq25895/bq25895.c ****         input_profile_fields(handle->input_profile, &input_field_count);
+ 946              		.loc 1 248 5 is_stmt 1 view .LVU241
+ 249:Src/power/drivers/bq25895/bq25895.c ****     return input_fields != NULL &&
+ 947              		.loc 1 249 9 is_stmt 0 view .LVU242
+ 948 0018 01A9     		add	r1, sp, #4
+ 949 001a A079     		ldrb	r0, [r4, #6]	@ zero_extendqisi2
+ 950 001c FFF7FEFF 		bl	input_profile_fields
+ 951              	.LVL77:
+ 250:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(
+ 952              		.loc 1 250 5 is_stmt 1 view .LVU243
+ 255:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 953              		.loc 1 255 62 is_stmt 0 view .LVU244
+ 954 0020 0546     		mov	r5, r0
+ 955 0022 78B1     		cbz	r0, .L73
+ 251:Src/power/drivers/bq25895/bq25895.c ****                handle,
+ 956              		.loc 1 251 12 view .LVU245
+ 957 0024 0622     		movs	r2, #6
+ 958 0026 0A49     		ldr	r1, .L82
+ 959 0028 2046     		mov	r0, r4
+ 960              	.LVL78:
+ 251:Src/power/drivers/bq25895/bq25895.c ****                handle,
+ 961              		.loc 1 251 12 view .LVU246
+ 962 002a FFF7FEFF 		bl	verify_profile_fields
+ 963              	.LVL79:
+ 250:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 26
+
+
+ 964              		.loc 1 250 33 view .LVU247
+ 965 002e 08B9     		cbnz	r0, .L81
+ 255:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 966              		.loc 1 255 62 discriminator 1 view .LVU248
+ 967 0030 0020     		movs	r0, #0
+ 968 0032 EDE7     		b	.L70
+ 969              	.L81:
+ 256:Src/power/drivers/bq25895/bq25895.c **** }
+ 970              		.loc 1 256 12 view .LVU249
+ 971 0034 019A     		ldr	r2, [sp, #4]
+ 972 0036 2946     		mov	r1, r5
+ 973 0038 2046     		mov	r0, r4
+ 974 003a FFF7FEFF 		bl	verify_profile_fields
+ 975              	.LVL80:
+ 255:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 976              		.loc 1 255 62 discriminator 3 view .LVU250
+ 977 003e 18B1     		cbz	r0, .L75
+ 255:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 978              		.loc 1 255 62 discriminator 2 view .LVU251
+ 979 0040 0120     		movs	r0, #1
+ 980 0042 E5E7     		b	.L70
+ 981              	.LVL81:
+ 982              	.L73:
+ 255:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 983              		.loc 1 255 62 discriminator 1 view .LVU252
+ 984 0044 0020     		movs	r0, #0
+ 985              	.LVL82:
+ 255:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 986              		.loc 1 255 62 discriminator 1 view .LVU253
+ 987 0046 E3E7     		b	.L70
+ 988              	.L75:
+ 255:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 989              		.loc 1 255 62 discriminator 1 view .LVU254
+ 990 0048 0020     		movs	r0, #0
+ 255:Src/power/drivers/bq25895/bq25895.c ****            verify_profile_fields(handle, input_fields, input_field_count);
+ 991              		.loc 1 255 62 view .LVU255
+ 992 004a E1E7     		b	.L70
+ 993              	.LVL83:
+ 994              	.L72:
+ 995              	.LCFI31:
+ 996              		.cfi_def_cfa_offset 0
+ 997              		.cfi_restore 4
+ 998              		.cfi_restore 5
+ 999              		.cfi_restore 14
+ 244:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1000              		.loc 1 244 16 view .LVU256
+ 1001 004c 0020     		movs	r0, #0
+ 1002              	.LVL84:
+ 257:Src/power/drivers/bq25895/bq25895.c **** 
+ 1003              		.loc 1 257 1 view .LVU257
+ 1004 004e 7047     		bx	lr
+ 1005              	.L83:
+ 1006              		.align	2
+ 1007              	.L82:
+ 1008 0050 00000000 		.word	k_safe_common_profile
+ 1009              		.cfi_endproc
+ 1010              	.LFE343:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 27
+
+
+ 1012              		.section	.text.BQ25895_EnableContinuousAdc,"ax",%progbits
+ 1013              		.align	1
+ 1014              		.global	BQ25895_EnableContinuousAdc
+ 1015              		.syntax unified
+ 1016              		.thumb
+ 1017              		.thumb_func
+ 1019              	BQ25895_EnableContinuousAdc:
+ 1020              	.LVL85:
+ 1021              	.LFB344:
+ 260:Src/power/drivers/bq25895/bq25895.c ****     /* CONV_RATE=1. No protocol/DPDM bits are changed. */
+ 1022              		.loc 1 260 1 is_stmt 1 view -0
+ 1023              		.cfi_startproc
+ 1024              		@ args = 0, pretend = 0, frame = 0
+ 1025              		@ frame_needed = 0, uses_anonymous_args = 0
+ 260:Src/power/drivers/bq25895/bq25895.c ****     /* CONV_RATE=1. No protocol/DPDM bits are changed. */
+ 1026              		.loc 1 260 1 is_stmt 0 view .LVU259
+ 1027 0000 08B5     		push	{r3, lr}
+ 1028              	.LCFI32:
+ 1029              		.cfi_def_cfa_offset 8
+ 1030              		.cfi_offset 3, -8
+ 1031              		.cfi_offset 14, -4
+ 262:Src/power/drivers/bq25895/bq25895.c **** }
+ 1032              		.loc 1 262 5 is_stmt 1 view .LVU260
+ 262:Src/power/drivers/bq25895/bq25895.c **** }
+ 1033              		.loc 1 262 12 is_stmt 0 view .LVU261
+ 1034 0002 4023     		movs	r3, #64
+ 1035 0004 1A46     		mov	r2, r3
+ 1036 0006 0221     		movs	r1, #2
+ 1037 0008 FFF7FEFF 		bl	update_register
+ 1038              	.LVL86:
+ 263:Src/power/drivers/bq25895/bq25895.c **** 
+ 1039              		.loc 1 263 1 view .LVU262
+ 1040 000c 08BD     		pop	{r3, pc}
+ 1041              		.cfi_endproc
+ 1042              	.LFE344:
+ 1044              		.section	.text.BQ25895_ReadState,"ax",%progbits
+ 1045              		.align	1
+ 1046              		.global	BQ25895_ReadState
+ 1047              		.syntax unified
+ 1048              		.thumb
+ 1049              		.thumb_func
+ 1051              	BQ25895_ReadState:
+ 1052              	.LVL87:
+ 1053              	.LFB346:
+ 287:Src/power/drivers/bq25895/bq25895.c **** 
+ 288:Src/power/drivers/bq25895/bq25895.c **** bool BQ25895_ReadState(BQ25895_Handle* handle, BQ25895_State* state)
+ 289:Src/power/drivers/bq25895/bq25895.c **** {
+ 1054              		.loc 1 289 1 is_stmt 1 view -0
+ 1055              		.cfi_startproc
+ 1056              		@ args = 0, pretend = 0, frame = 8
+ 1057              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1058              		.loc 1 289 1 is_stmt 0 view .LVU264
+ 1059 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 1060              	.LCFI33:
+ 1061              		.cfi_def_cfa_offset 20
+ 1062              		.cfi_offset 4, -20
+ 1063              		.cfi_offset 5, -16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 28
+
+
+ 1064              		.cfi_offset 6, -12
+ 1065              		.cfi_offset 7, -8
+ 1066              		.cfi_offset 14, -4
+ 1067 0002 87B0     		sub	sp, sp, #28
+ 1068              	.LCFI34:
+ 1069              		.cfi_def_cfa_offset 48
+ 290:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || state == NULL || !handle->online) {
+ 1070              		.loc 1 290 5 is_stmt 1 view .LVU265
+ 1071              		.loc 1 290 8 is_stmt 0 view .LVU266
+ 1072 0004 0029     		cmp	r1, #0
+ 1073 0006 18BF     		it	ne
+ 1074 0008 0028     		cmpne	r0, #0
+ 1075 000a 0CBF     		ite	eq
+ 1076 000c 0124     		moveq	r4, #1
+ 1077 000e 0024     		movne	r4, #0
+ 1078 0010 62D0     		beq	.L90
+ 1079 0012 0646     		mov	r6, r0
+ 1080 0014 0F46     		mov	r7, r1
+ 1081              		.loc 1 290 51 discriminator 1 view .LVU267
+ 1082 0016 0579     		ldrb	r5, [r0, #4]	@ zero_extendqisi2
+ 1083              		.loc 1 290 41 discriminator 1 view .LVU268
+ 1084 0018 002D     		cmp	r5, #0
+ 1085 001a 5ED0     		beq	.L87
+ 291:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 292:Src/power/drivers/bq25895/bq25895.c ****     }
+ 293:Src/power/drivers/bq25895/bq25895.c **** 
+ 294:Src/power/drivers/bq25895/bq25895.c ****     uint8_t status = 0;
+ 1086              		.loc 1 294 5 is_stmt 1 view .LVU269
+ 1087              		.loc 1 294 13 is_stmt 0 view .LVU270
+ 1088 001c 0023     		movs	r3, #0
+ 1089 001e 8DF81730 		strb	r3, [sp, #23]
+ 295:Src/power/drivers/bq25895/bq25895.c ****     uint8_t fault_latched = 0;
+ 1090              		.loc 1 295 5 is_stmt 1 view .LVU271
+ 1091              		.loc 1 295 13 is_stmt 0 view .LVU272
+ 1092 0022 8DF81630 		strb	r3, [sp, #22]
+ 296:Src/power/drivers/bq25895/bq25895.c ****     uint8_t fault_current = 0;
+ 1093              		.loc 1 296 5 is_stmt 1 view .LVU273
+ 1094              		.loc 1 296 13 is_stmt 0 view .LVU274
+ 1095 0026 8DF81530 		strb	r3, [sp, #21]
+ 297:Src/power/drivers/bq25895/bq25895.c ****     uint8_t battery_adc = 0;
+ 1096              		.loc 1 297 5 is_stmt 1 view .LVU275
+ 1097              		.loc 1 297 13 is_stmt 0 view .LVU276
+ 1098 002a 8DF81430 		strb	r3, [sp, #20]
+ 298:Src/power/drivers/bq25895/bq25895.c ****     uint8_t vbus_adc = 0;
+ 1099              		.loc 1 298 5 is_stmt 1 view .LVU277
+ 1100              		.loc 1 298 13 is_stmt 0 view .LVU278
+ 1101 002e 8DF81330 		strb	r3, [sp, #19]
+ 299:Src/power/drivers/bq25895/bq25895.c ****     uint8_t charge_current_adc = 0;
+ 1102              		.loc 1 299 5 is_stmt 1 view .LVU279
+ 1103              		.loc 1 299 13 is_stmt 0 view .LVU280
+ 1104 0032 8DF81230 		strb	r3, [sp, #18]
+ 300:Src/power/drivers/bq25895/bq25895.c ****     uint8_t dpm_status = 0;
+ 1105              		.loc 1 300 5 is_stmt 1 view .LVU281
+ 1106              		.loc 1 300 13 is_stmt 0 view .LVU282
+ 1107 0036 8DF81130 		strb	r3, [sp, #17]
+ 301:Src/power/drivers/bq25895/bq25895.c **** 
+ 302:Src/power/drivers/bq25895/bq25895.c ****     /*
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 29
+
+
+ 303:Src/power/drivers/bq25895/bq25895.c ****      * REG0C is read twice per the device fault-latch behavior.  OR'ing the
+ 304:Src/power/drivers/bq25895/bq25895.c ****      * latched and current values ensures that a transient protection event
+ 305:Src/power/drivers/bq25895/bq25895.c ****      * cannot be hidden before the caller has disabled CE.
+ 306:Src/power/drivers/bq25895/bq25895.c ****      */
+ 307:Src/power/drivers/bq25895/bq25895.c ****     if (!read_register(handle, BQ_REG_SYSTEM_STATUS, &status) ||
+ 1108              		.loc 1 307 5 is_stmt 1 view .LVU283
+ 1109              		.loc 1 307 10 is_stmt 0 view .LVU284
+ 1110 003a 0DF11702 		add	r2, sp, #23
+ 1111 003e 0B21     		movs	r1, #11
+ 1112              	.LVL88:
+ 1113              		.loc 1 307 10 view .LVU285
+ 1114 0040 FFF7FEFF 		bl	read_register
+ 1115              	.LVL89:
+ 1116              		.loc 1 307 8 discriminator 1 view .LVU286
+ 1117 0044 18B9     		cbnz	r0, .L92
+ 1118              	.L88:
+ 308:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_FAULT, &fault_latched) ||
+ 309:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_FAULT, &fault_current) ||
+ 310:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_BATTERY_ADC, &battery_adc) ||
+ 311:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_VBUS_ADC, &vbus_adc) ||
+ 312:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_CHARGE_CURRENT_ADC, &charge_current_adc) ||
+ 313:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_DPM_STATUS, &dpm_status)) {
+ 314:Src/power/drivers/bq25895/bq25895.c ****         handle->online = false;
+ 1119              		.loc 1 314 9 is_stmt 1 view .LVU287
+ 1120              		.loc 1 314 24 is_stmt 0 view .LVU288
+ 1121 0046 0023     		movs	r3, #0
+ 1122 0048 3371     		strb	r3, [r6, #4]
+ 315:Src/power/drivers/bq25895/bq25895.c ****         return false;
+ 1123              		.loc 1 315 9 is_stmt 1 view .LVU289
+ 1124              		.loc 1 315 16 is_stmt 0 view .LVU290
+ 1125 004a 2546     		mov	r5, r4
+ 1126 004c 45E0     		b	.L87
+ 1127              	.L92:
+ 308:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_FAULT, &fault_latched) ||
+ 1128              		.loc 1 308 10 view .LVU291
+ 1129 004e 0DF11602 		add	r2, sp, #22
+ 1130 0052 0C21     		movs	r1, #12
+ 1131 0054 3046     		mov	r0, r6
+ 1132 0056 FFF7FEFF 		bl	read_register
+ 1133              	.LVL90:
+ 307:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_FAULT, &fault_latched) ||
+ 1134              		.loc 1 307 63 discriminator 1 view .LVU292
+ 1135 005a 0028     		cmp	r0, #0
+ 1136 005c F3D0     		beq	.L88
+ 309:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_BATTERY_ADC, &battery_adc) ||
+ 1137              		.loc 1 309 10 view .LVU293
+ 1138 005e 0DF11502 		add	r2, sp, #21
+ 1139 0062 0C21     		movs	r1, #12
+ 1140 0064 3046     		mov	r0, r6
+ 1141 0066 FFF7FEFF 		bl	read_register
+ 1142              	.LVL91:
+ 308:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_FAULT, &fault_current) ||
+ 1143              		.loc 1 308 62 view .LVU294
+ 1144 006a 0028     		cmp	r0, #0
+ 1145 006c EBD0     		beq	.L88
+ 310:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_VBUS_ADC, &vbus_adc) ||
+ 1146              		.loc 1 310 10 view .LVU295
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 30
+
+
+ 1147 006e 05AA     		add	r2, sp, #20
+ 1148 0070 0E21     		movs	r1, #14
+ 1149 0072 3046     		mov	r0, r6
+ 1150 0074 FFF7FEFF 		bl	read_register
+ 1151              	.LVL92:
+ 309:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_BATTERY_ADC, &battery_adc) ||
+ 1152              		.loc 1 309 62 view .LVU296
+ 1153 0078 0028     		cmp	r0, #0
+ 1154 007a E4D0     		beq	.L88
+ 311:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_CHARGE_CURRENT_ADC, &charge_current_adc) ||
+ 1155              		.loc 1 311 10 view .LVU297
+ 1156 007c 0DF11302 		add	r2, sp, #19
+ 1157 0080 1121     		movs	r1, #17
+ 1158 0082 3046     		mov	r0, r6
+ 1159 0084 FFF7FEFF 		bl	read_register
+ 1160              	.LVL93:
+ 310:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_VBUS_ADC, &vbus_adc) ||
+ 1161              		.loc 1 310 66 view .LVU298
+ 1162 0088 0028     		cmp	r0, #0
+ 1163 008a DCD0     		beq	.L88
+ 312:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_DPM_STATUS, &dpm_status)) {
+ 1164              		.loc 1 312 10 view .LVU299
+ 1165 008c 0DF11202 		add	r2, sp, #18
+ 1166 0090 1221     		movs	r1, #18
+ 1167 0092 3046     		mov	r0, r6
+ 1168 0094 FFF7FEFF 		bl	read_register
+ 1169              	.LVL94:
+ 311:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_CHARGE_CURRENT_ADC, &charge_current_adc) ||
+ 1170              		.loc 1 311 60 view .LVU300
+ 1171 0098 0028     		cmp	r0, #0
+ 1172 009a D4D0     		beq	.L88
+ 313:Src/power/drivers/bq25895/bq25895.c ****         handle->online = false;
+ 1173              		.loc 1 313 10 view .LVU301
+ 1174 009c 0DF11102 		add	r2, sp, #17
+ 1175 00a0 1321     		movs	r1, #19
+ 1176 00a2 3046     		mov	r0, r6
+ 1177 00a4 FFF7FEFF 		bl	read_register
+ 1178              	.LVL95:
+ 312:Src/power/drivers/bq25895/bq25895.c ****         !read_register(handle, BQ_REG_DPM_STATUS, &dpm_status)) {
+ 1179              		.loc 1 312 80 view .LVU302
+ 1180 00a8 0546     		mov	r5, r0
+ 1181 00aa 0028     		cmp	r0, #0
+ 1182 00ac CBD0     		beq	.L88
+ 316:Src/power/drivers/bq25895/bq25895.c ****     }
+ 317:Src/power/drivers/bq25895/bq25895.c **** 
+ 318:Src/power/drivers/bq25895/bq25895.c ****     decode_state(status, fault_latched, fault_current, battery_adc, vbus_adc,
+ 1183              		.loc 1 318 5 is_stmt 1 view .LVU303
+ 1184 00ae 0397     		str	r7, [sp, #12]
+ 1185 00b0 9DF81130 		ldrb	r3, [sp, #17]	@ zero_extendqisi2
+ 1186 00b4 0293     		str	r3, [sp, #8]
+ 1187 00b6 9DF81230 		ldrb	r3, [sp, #18]	@ zero_extendqisi2
+ 1188 00ba 0193     		str	r3, [sp, #4]
+ 1189 00bc 9DF81330 		ldrb	r3, [sp, #19]	@ zero_extendqisi2
+ 1190 00c0 0093     		str	r3, [sp]
+ 1191 00c2 9DF81430 		ldrb	r3, [sp, #20]	@ zero_extendqisi2
+ 1192 00c6 9DF81520 		ldrb	r2, [sp, #21]	@ zero_extendqisi2
+ 1193 00ca 9DF81610 		ldrb	r1, [sp, #22]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 31
+
+
+ 1194 00ce 9DF81700 		ldrb	r0, [sp, #23]	@ zero_extendqisi2
+ 1195 00d2 FFF7FEFF 		bl	decode_state
+ 1196              	.LVL96:
+ 319:Src/power/drivers/bq25895/bq25895.c ****                  charge_current_adc, dpm_status, state);
+ 320:Src/power/drivers/bq25895/bq25895.c ****     return true;
+ 1197              		.loc 1 320 5 view .LVU304
+ 1198              		.loc 1 320 12 is_stmt 0 view .LVU305
+ 1199 00d6 00E0     		b	.L87
+ 1200              	.LVL97:
+ 1201              	.L90:
+ 291:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1202              		.loc 1 291 16 view .LVU306
+ 1203 00d8 0025     		movs	r5, #0
+ 1204              	.LVL98:
+ 1205              	.L87:
+ 321:Src/power/drivers/bq25895/bq25895.c **** }
+ 1206              		.loc 1 321 1 view .LVU307
+ 1207 00da 2846     		mov	r0, r5
+ 1208 00dc 07B0     		add	sp, sp, #28
+ 1209              	.LCFI35:
+ 1210              		.cfi_def_cfa_offset 20
+ 1211              		@ sp needed
+ 1212 00de F0BD     		pop	{r4, r5, r6, r7, pc}
+ 1213              		.cfi_endproc
+ 1214              	.LFE346:
+ 1216              		.section	.text.BQ25895_IsFatalFault,"ax",%progbits
+ 1217              		.align	1
+ 1218              		.global	BQ25895_IsFatalFault
+ 1219              		.syntax unified
+ 1220              		.thumb
+ 1221              		.thumb_func
+ 1223              	BQ25895_IsFatalFault:
+ 1224              	.LVL99:
+ 1225              	.LFB347:
+ 322:Src/power/drivers/bq25895/bq25895.c **** 
+ 323:Src/power/drivers/bq25895/bq25895.c **** bool BQ25895_IsFatalFault(uint8_t fault)
+ 324:Src/power/drivers/bq25895/bq25895.c **** {
+ 1226              		.loc 1 324 1 is_stmt 1 view -0
+ 1227              		.cfi_startproc
+ 1228              		@ args = 0, pretend = 0, frame = 0
+ 1229              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1230              		@ link register save eliminated.
+ 325:Src/power/drivers/bq25895/bq25895.c ****     /*
+ 326:Src/power/drivers/bq25895/bq25895.c ****      * This first-board policy is deliberately conservative.  It includes
+ 327:Src/power/drivers/bq25895/bq25895.c ****      * JEITA warm/cool indications: the pack requirement is 10..45 C and the
+ 328:Src/power/drivers/bq25895/bq25895.c ****      * external TS network, not firmware derating, is the safety authority.
+ 329:Src/power/drivers/bq25895/bq25895.c ****      */
+ 330:Src/power/drivers/bq25895/bq25895.c ****     return fault != 0u;
+ 1231              		.loc 1 330 5 view .LVU309
+ 331:Src/power/drivers/bq25895/bq25895.c **** }
+ 1232              		.loc 1 331 1 is_stmt 0 view .LVU310
+ 1233 0000 0038     		subs	r0, r0, #0
+ 1234              		.loc 1 331 1 view .LVU311
+ 1235 0002 18BF     		it	ne
+ 1236 0004 0120     		movne	r0, #1
+ 1237              	.LVL100:
+ 1238              		.loc 1 331 1 view .LVU312
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 32
+
+
+ 1239 0006 7047     		bx	lr
+ 1240              		.cfi_endproc
+ 1241              	.LFE347:
+ 1243              		.section	.text.BQ25895_Step,"ax",%progbits
+ 1244              		.align	1
+ 1245              		.global	BQ25895_Step
+ 1246              		.syntax unified
+ 1247              		.thumb
+ 1248              		.thumb_func
+ 1250              	BQ25895_Step:
+ 1251              	.LVL101:
+ 1252              	.LFB348:
+ 332:Src/power/drivers/bq25895/bq25895.c **** 
+ 333:Src/power/drivers/bq25895/bq25895.c **** PowerI2C_Result BQ25895_Step(BQ25895_Handle* handle, BQ25895_Job* job,
+ 334:Src/power/drivers/bq25895/bq25895.c ****                            BQ25895_State* state)
+ 335:Src/power/drivers/bq25895/bq25895.c **** {
+ 1253              		.loc 1 335 1 is_stmt 1 view -0
+ 1254              		.cfi_startproc
+ 1255              		@ args = 0, pretend = 0, frame = 24
+ 1256              		@ frame_needed = 0, uses_anonymous_args = 0
+ 336:Src/power/drivers/bq25895/bq25895.c ****     static const uint8_t state_regs[] = {
+ 1257              		.loc 1 336 5 view .LVU314
+ 337:Src/power/drivers/bq25895/bq25895.c ****         BQ_REG_SYSTEM_STATUS, BQ_REG_FAULT, BQ_REG_FAULT,
+ 338:Src/power/drivers/bq25895/bq25895.c ****         BQ_REG_BATTERY_ADC, BQ_REG_VBUS_ADC,
+ 339:Src/power/drivers/bq25895/bq25895.c ****         BQ_REG_CHARGE_CURRENT_ADC, BQ_REG_DPM_STATUS
+ 340:Src/power/drivers/bq25895/bq25895.c ****     };
+ 341:Src/power/drivers/bq25895/bq25895.c ****     if (handle == NULL || handle->i2c == NULL || job == NULL || state == NULL ||
+ 1258              		.loc 1 341 5 view .LVU315
+ 1259              		.loc 1 341 8 is_stmt 0 view .LVU316
+ 1260 0000 0028     		cmp	r0, #0
+ 1261 0002 00F0C980 		beq	.L112
+ 335:Src/power/drivers/bq25895/bq25895.c ****     static const uint8_t state_regs[] = {
+ 1262              		.loc 1 335 1 view .LVU317
+ 1263 0006 F0B5     		push	{r4, r5, r6, r7, lr}
+ 1264              	.LCFI36:
+ 1265              		.cfi_def_cfa_offset 20
+ 1266              		.cfi_offset 4, -20
+ 1267              		.cfi_offset 5, -16
+ 1268              		.cfi_offset 6, -12
+ 1269              		.cfi_offset 7, -8
+ 1270              		.cfi_offset 14, -4
+ 1271 0008 8BB0     		sub	sp, sp, #44
+ 1272              	.LCFI37:
+ 1273              		.cfi_def_cfa_offset 64
+ 1274 000a 0C46     		mov	r4, r1
+ 1275 000c 1546     		mov	r5, r2
+ 1276 000e 0646     		mov	r6, r0
+ 1277              		.loc 1 341 33 discriminator 1 view .LVU318
+ 1278 0010 0368     		ldr	r3, [r0]
+ 1279              		.loc 1 341 24 discriminator 1 view .LVU319
+ 1280 0012 002B     		cmp	r3, #0
+ 1281 0014 00F0C280 		beq	.L113
+ 1282              		.loc 1 341 71 discriminator 2 view .LVU320
+ 1283 0018 B2FA82F3 		clz	r3, r2
+ 1284 001c 5B09     		lsrs	r3, r3, #5
+ 1285              		.loc 1 341 62 discriminator 2 view .LVU321
+ 1286 001e 0029     		cmp	r1, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 33
+
+
+ 1287 0020 00F0BE80 		beq	.L114
+ 1288 0024 002B     		cmp	r3, #0
+ 1289 0026 40F0BB80 		bne	.L114
+ 342:Src/power/drivers/bq25895/bq25895.c ****         (job->kind != BQ25895_JOB_INIT && !handle->online)) {
+ 1290              		.loc 1 342 13 view .LVU322
+ 1291 002a 0B78     		ldrb	r3, [r1]	@ zero_extendqisi2
+ 341:Src/power/drivers/bq25895/bq25895.c ****         (job->kind != BQ25895_JOB_INIT && !handle->online)) {
+ 1292              		.loc 1 341 79 discriminator 3 view .LVU323
+ 1293 002c 012B     		cmp	r3, #1
+ 1294 002e 03D0     		beq	.L96
+ 1295              		.loc 1 342 50 view .LVU324
+ 1296 0030 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 1297              		.loc 1 342 40 view .LVU325
+ 1298 0032 002B     		cmp	r3, #0
+ 1299 0034 00F0B780 		beq	.L115
+ 1300              	.L96:
+ 343:Src/power/drivers/bq25895/bq25895.c ****         return POWER_I2C_FAILED;
+ 344:Src/power/drivers/bq25895/bq25895.c ****     }
+ 345:Src/power/drivers/bq25895/bq25895.c ****     PowerI2C_Register op = {BQ25895_I2C_ADDRESS_7BIT, 0, 1, POWER_I2C_READ, 0, 0, 0};
+ 1301              		.loc 1 345 5 is_stmt 1 view .LVU326
+ 1302              		.loc 1 345 23 is_stmt 0 view .LVU327
+ 1303 0038 5F4A     		ldr	r2, .L136
+ 1304              	.LVL102:
+ 1305              		.loc 1 345 23 view .LVU328
+ 1306 003a 07AB     		add	r3, sp, #28
+ 1307 003c 07CA     		ldm	r2, {r0, r1, r2}
+ 1308              	.LVL103:
+ 1309              		.loc 1 345 23 view .LVU329
+ 1310 003e 03C3     		stmia	r3!, {r0, r1}
+ 1311 0040 1A80     		strh	r2, [r3]	@ movhi
+ 346:Src/power/drivers/bq25895/bq25895.c ****     uint32_t count = 0;
+ 1312              		.loc 1 346 5 is_stmt 1 view .LVU330
+ 1313              	.LVL104:
+ 347:Src/power/drivers/bq25895/bq25895.c ****     if (job->kind == BQ25895_JOB_READ) {
+ 1314              		.loc 1 347 5 view .LVU331
+ 1315              		.loc 1 347 12 is_stmt 0 view .LVU332
+ 1316 0042 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 1317              		.loc 1 347 8 view .LVU333
+ 1318 0044 002B     		cmp	r3, #0
+ 1319 0046 32D1     		bne	.L97
+ 348:Src/power/drivers/bq25895/bq25895.c ****         count = sizeof(state_regs);
+ 1320              		.loc 1 348 9 is_stmt 1 view .LVU334
+ 1321              	.LVL105:
+ 349:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 1322              		.loc 1 349 9 view .LVU335
+ 1323              		.loc 1 349 16 is_stmt 0 view .LVU336
+ 1324 0048 A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ 1325              		.loc 1 349 12 view .LVU337
+ 1326 004a 062B     		cmp	r3, #6
+ 1327 004c 00F2AD80 		bhi	.L116
+ 350:Src/power/drivers/bq25895/bq25895.c ****         op.reg = state_regs[job->index];
+ 1328              		.loc 1 350 9 is_stmt 1 view .LVU338
+ 1329              		.loc 1 350 28 is_stmt 0 view .LVU339
+ 1330 0050 5A4A     		ldr	r2, .L136+4
+ 1331 0052 D35C     		ldrb	r3, [r2, r3]	@ zero_extendqisi2
+ 1332              		.loc 1 350 16 view .LVU340
+ 1333 0054 8DF81D30 		strb	r3, [sp, #29]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 34
+
+
+ 348:Src/power/drivers/bq25895/bq25895.c ****         count = sizeof(state_regs);
+ 1334              		.loc 1 348 15 view .LVU341
+ 1335 0058 0727     		movs	r7, #7
+ 1336              	.LVL106:
+ 1337              	.L98:
+ 351:Src/power/drivers/bq25895/bq25895.c ****     } else if (job->kind == BQ25895_JOB_INIT) {
+ 352:Src/power/drivers/bq25895/bq25895.c ****         count = 2;
+ 353:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 354:Src/power/drivers/bq25895/bq25895.c ****         op.reg = job->index == 0 ? BQ_REG_PART_INFORMATION : BQ_REG_ADC_CONTROL;
+ 355:Src/power/drivers/bq25895/bq25895.c ****         if (job->index == 1) {
+ 356:Src/power/drivers/bq25895/bq25895.c ****             op.kind = POWER_I2C_UPDATE;
+ 357:Src/power/drivers/bq25895/bq25895.c ****             op.mask = op.value = op.verify_mask = 0x40u;
+ 358:Src/power/drivers/bq25895/bq25895.c ****         }
+ 359:Src/power/drivers/bq25895/bq25895.c ****     } else {
+ 360:Src/power/drivers/bq25895/bq25895.c ****         const uint32_t common_count = sizeof(k_safe_common_profile) / sizeof(k_safe_common_profile[
+ 361:Src/power/drivers/bq25895/bq25895.c ****         uint32_t input_count;
+ 362:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* input = input_profile_fields(job->profile, &input_count);
+ 363:Src/power/drivers/bq25895/bq25895.c ****         count = common_count + input_count;
+ 364:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 365:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = job->index < common_count
+ 366:Src/power/drivers/bq25895/bq25895.c ****             ? &k_safe_common_profile[job->index] : &input[job->index - common_count];
+ 367:Src/power/drivers/bq25895/bq25895.c ****         op.reg = field->reg;
+ 368:Src/power/drivers/bq25895/bq25895.c ****         op.mask = op.verify_mask = field->mask;
+ 369:Src/power/drivers/bq25895/bq25895.c ****         op.value = field->value;
+ 370:Src/power/drivers/bq25895/bq25895.c ****         op.kind = job->kind == BQ25895_JOB_CONFIGURE ? POWER_I2C_UPDATE : POWER_I2C_VERIFY;
+ 371:Src/power/drivers/bq25895/bq25895.c ****     }
+ 372:Src/power/drivers/bq25895/bq25895.c ****     uint16_t value = 0;
+ 1338              		.loc 1 372 5 is_stmt 1 view .LVU342
+ 1339              		.loc 1 372 14 is_stmt 0 view .LVU343
+ 1340 005a 0023     		movs	r3, #0
+ 1341 005c ADF81A30 		strh	r3, [sp, #26]	@ movhi
+ 373:Src/power/drivers/bq25895/bq25895.c ****     PowerI2C_Result result = PowerI2C_StepRegister(&op, &value);
+ 1342              		.loc 1 373 5 is_stmt 1 view .LVU344
+ 1343              		.loc 1 373 30 is_stmt 0 view .LVU345
+ 1344 0060 0DF11A01 		add	r1, sp, #26
+ 1345 0064 07A8     		add	r0, sp, #28
+ 1346 0066 FFF7FEFF 		bl	PowerI2C_StepRegister
+ 1347              	.LVL107:
+ 374:Src/power/drivers/bq25895/bq25895.c ****     if (result == POWER_I2C_DONE && job->kind == BQ25895_JOB_INIT && job->index == 0 &&
+ 1348              		.loc 1 374 5 is_stmt 1 view .LVU346
+ 1349              		.loc 1 374 8 is_stmt 0 view .LVU347
+ 1350 006a 0128     		cmp	r0, #1
+ 1351 006c 63D0     		beq	.L128
+ 1352              	.L105:
+ 375:Src/power/drivers/bq25895/bq25895.c ****         (value & BQ_PART_INFORMATION_MASK) != BQ_PART_INFORMATION_BQ25895_REV1) {
+ 376:Src/power/drivers/bq25895/bq25895.c ****         result = POWER_I2C_FAILED;
+ 377:Src/power/drivers/bq25895/bq25895.c ****     }
+ 378:Src/power/drivers/bq25895/bq25895.c ****     if (result == POWER_I2C_FAILED) {
+ 1353              		.loc 1 378 5 is_stmt 1 view .LVU348
+ 1354              		.loc 1 378 8 is_stmt 0 view .LVU349
+ 1355 006e 0228     		cmp	r0, #2
+ 1356 0070 6ED0     		beq	.L106
+ 379:Src/power/drivers/bq25895/bq25895.c ****         /* Verification can be repaired by the caller with CE disabled. */
+ 380:Src/power/drivers/bq25895/bq25895.c ****         if (job->kind != BQ25895_JOB_VERIFY) {
+ 381:Src/power/drivers/bq25895/bq25895.c ****             handle->online = false;
+ 382:Src/power/drivers/bq25895/bq25895.c ****             handle->profile_configured = false;
+ 383:Src/power/drivers/bq25895/bq25895.c ****         }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 35
+
+
+ 384:Src/power/drivers/bq25895/bq25895.c ****         return result;
+ 385:Src/power/drivers/bq25895/bq25895.c ****     }
+ 386:Src/power/drivers/bq25895/bq25895.c ****     if (result == POWER_I2C_PENDING) { return result; }
+ 1357              		.loc 1 386 5 is_stmt 1 view .LVU350
+ 1358              		.loc 1 386 8 is_stmt 0 view .LVU351
+ 1359 0072 0028     		cmp	r0, #0
+ 1360 0074 00F09580 		beq	.L95
+ 387:Src/power/drivers/bq25895/bq25895.c ****     if (job->kind == BQ25895_JOB_READ) {
+ 1361              		.loc 1 387 5 is_stmt 1 view .LVU352
+ 1362              		.loc 1 387 12 is_stmt 0 view .LVU353
+ 1363 0078 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 1364              		.loc 1 387 8 view .LVU354
+ 1365 007a 43B9     		cbnz	r3, .L109
+ 388:Src/power/drivers/bq25895/bq25895.c ****         job->values[job->index] = (uint8_t)value;
+ 1366              		.loc 1 388 9 is_stmt 1 view .LVU355
+ 1367              		.loc 1 388 24 is_stmt 0 view .LVU356
+ 1368 007c A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ 1369              		.loc 1 388 35 view .LVU357
+ 1370 007e 9DF81A20 		ldrb	r2, [sp, #26]	@ zero_extendqisi2
+ 1371              		.loc 1 388 33 view .LVU358
+ 1372 0082 E118     		adds	r1, r4, r3
+ 1373 0084 CA70     		strb	r2, [r1, #3]
+ 389:Src/power/drivers/bq25895/bq25895.c ****         /* Publish protection bits immediately, including the first latched read. */
+ 390:Src/power/drivers/bq25895/bq25895.c ****         if (job->index == 1 || job->index == 2) { state->fault |= (uint8_t)value; }
+ 1374              		.loc 1 390 9 is_stmt 1 view .LVU359
+ 1375              		.loc 1 390 29 is_stmt 0 view .LVU360
+ 1376 0086 013B     		subs	r3, r3, #1
+ 1377 0088 DBB2     		uxtb	r3, r3
+ 1378              		.loc 1 390 12 view .LVU361
+ 1379 008a 012B     		cmp	r3, #1
+ 1380 008c 67D9     		bls	.L129
+ 1381              	.L109:
+ 391:Src/power/drivers/bq25895/bq25895.c ****     }
+ 392:Src/power/drivers/bq25895/bq25895.c ****     if (++job->index < count) { return POWER_I2C_PENDING; }
+ 1382              		.loc 1 392 5 is_stmt 1 view .LVU362
+ 1383              		.loc 1 392 14 is_stmt 0 view .LVU363
+ 1384 008e A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ 1385              		.loc 1 392 9 view .LVU364
+ 1386 0090 0133     		adds	r3, r3, #1
+ 1387 0092 DBB2     		uxtb	r3, r3
+ 1388              		.loc 1 392 8 view .LVU365
+ 1389 0094 A370     		strb	r3, [r4, #2]
+ 1390 0096 BB42     		cmp	r3, r7
+ 1391 0098 C0F08B80 		bcc	.L122
+ 393:Src/power/drivers/bq25895/bq25895.c ****     if (job->kind == BQ25895_JOB_READ) {
+ 1392              		.loc 1 393 5 is_stmt 1 view .LVU366
+ 1393              		.loc 1 393 12 is_stmt 0 view .LVU367
+ 1394 009c 2078     		ldrb	r0, [r4]	@ zero_extendqisi2
+ 1395              	.LVL108:
+ 1396              		.loc 1 393 8 view .LVU368
+ 1397 009e 0028     		cmp	r0, #0
+ 1398 00a0 61D0     		beq	.L130
+ 394:Src/power/drivers/bq25895/bq25895.c ****         const uint8_t* v = job->values;
+ 395:Src/power/drivers/bq25895/bq25895.c ****         decode_state(v[0], v[1], v[2], v[3], v[4], v[5], v[6], state);
+ 396:Src/power/drivers/bq25895/bq25895.c ****     } else if (job->kind == BQ25895_JOB_INIT) {
+ 1399              		.loc 1 396 12 is_stmt 1 view .LVU369
+ 1400              		.loc 1 396 15 is_stmt 0 view .LVU370
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 36
+
+
+ 1401 00a2 0128     		cmp	r0, #1
+ 1402 00a4 6ED0     		beq	.L131
+ 397:Src/power/drivers/bq25895/bq25895.c ****         handle->online = true;
+ 398:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = false;
+ 399:Src/power/drivers/bq25895/bq25895.c ****     } else if (job->kind == BQ25895_JOB_CONFIGURE) {
+ 1403              		.loc 1 399 12 is_stmt 1 view .LVU371
+ 1404              		.loc 1 399 15 is_stmt 0 view .LVU372
+ 1405 00a6 0228     		cmp	r0, #2
+ 1406 00a8 71D0     		beq	.L132
+ 400:Src/power/drivers/bq25895/bq25895.c ****         handle->input_profile = job->profile;
+ 401:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = true;
+ 402:Src/power/drivers/bq25895/bq25895.c ****     }
+ 403:Src/power/drivers/bq25895/bq25895.c ****     return POWER_I2C_DONE;
+ 1407              		.loc 1 403 12 view .LVU373
+ 1408 00aa 0120     		movs	r0, #1
+ 1409 00ac 79E0     		b	.L95
+ 1410              	.LVL109:
+ 1411              	.L97:
+ 351:Src/power/drivers/bq25895/bq25895.c ****         count = 2;
+ 1412              		.loc 1 351 12 is_stmt 1 view .LVU374
+ 351:Src/power/drivers/bq25895/bq25895.c ****         count = 2;
+ 1413              		.loc 1 351 15 is_stmt 0 view .LVU375
+ 1414 00ae 012B     		cmp	r3, #1
+ 1415 00b0 17D1     		bne	.L99
+ 352:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 1416              		.loc 1 352 9 is_stmt 1 view .LVU376
+ 1417              	.LVL110:
+ 353:Src/power/drivers/bq25895/bq25895.c ****         op.reg = job->index == 0 ? BQ_REG_PART_INFORMATION : BQ_REG_ADC_CONTROL;
+ 1418              		.loc 1 353 9 view .LVU377
+ 353:Src/power/drivers/bq25895/bq25895.c ****         op.reg = job->index == 0 ? BQ_REG_PART_INFORMATION : BQ_REG_ADC_CONTROL;
+ 1419              		.loc 1 353 16 is_stmt 0 view .LVU378
+ 1420 00b2 A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ 353:Src/power/drivers/bq25895/bq25895.c ****         op.reg = job->index == 0 ? BQ_REG_PART_INFORMATION : BQ_REG_ADC_CONTROL;
+ 1421              		.loc 1 353 12 view .LVU379
+ 1422 00b4 012B     		cmp	r3, #1
+ 1423 00b6 7AD8     		bhi	.L117
+ 354:Src/power/drivers/bq25895/bq25895.c ****         if (job->index == 1) {
+ 1424              		.loc 1 354 9 is_stmt 1 view .LVU380
+ 354:Src/power/drivers/bq25895/bq25895.c ****         if (job->index == 1) {
+ 1425              		.loc 1 354 16 is_stmt 0 view .LVU381
+ 1426 00b8 33B9     		cbnz	r3, .L118
+ 354:Src/power/drivers/bq25895/bq25895.c ****         if (job->index == 1) {
+ 1427              		.loc 1 354 16 discriminator 1 view .LVU382
+ 1428 00ba 1422     		movs	r2, #20
+ 1429              	.L100:
+ 354:Src/power/drivers/bq25895/bq25895.c ****         if (job->index == 1) {
+ 1430              		.loc 1 354 16 discriminator 4 view .LVU383
+ 1431 00bc 8DF81D20 		strb	r2, [sp, #29]
+ 355:Src/power/drivers/bq25895/bq25895.c ****             op.kind = POWER_I2C_UPDATE;
+ 1432              		.loc 1 355 9 is_stmt 1 view .LVU384
+ 355:Src/power/drivers/bq25895/bq25895.c ****             op.kind = POWER_I2C_UPDATE;
+ 1433              		.loc 1 355 12 is_stmt 0 view .LVU385
+ 1434 00c0 012B     		cmp	r3, #1
+ 1435 00c2 03D0     		beq	.L133
+ 352:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 1436              		.loc 1 352 15 view .LVU386
+ 1437 00c4 0227     		movs	r7, #2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 37
+
+
+ 1438 00c6 C8E7     		b	.L98
+ 1439              	.L118:
+ 354:Src/power/drivers/bq25895/bq25895.c ****         if (job->index == 1) {
+ 1440              		.loc 1 354 16 discriminator 2 view .LVU387
+ 1441 00c8 0222     		movs	r2, #2
+ 1442 00ca F7E7     		b	.L100
+ 1443              	.L133:
+ 356:Src/power/drivers/bq25895/bq25895.c ****             op.mask = op.value = op.verify_mask = 0x40u;
+ 1444              		.loc 1 356 13 is_stmt 1 view .LVU388
+ 356:Src/power/drivers/bq25895/bq25895.c ****             op.mask = op.value = op.verify_mask = 0x40u;
+ 1445              		.loc 1 356 21 is_stmt 0 view .LVU389
+ 1446 00cc 8DF81F30 		strb	r3, [sp, #31]
+ 357:Src/power/drivers/bq25895/bq25895.c ****         }
+ 1447              		.loc 1 357 13 is_stmt 1 view .LVU390
+ 357:Src/power/drivers/bq25895/bq25895.c ****         }
+ 1448              		.loc 1 357 49 is_stmt 0 view .LVU391
+ 1449 00d0 4023     		movs	r3, #64
+ 1450 00d2 ADF82430 		strh	r3, [sp, #36]	@ movhi
+ 357:Src/power/drivers/bq25895/bq25895.c ****         }
+ 1451              		.loc 1 357 32 view .LVU392
+ 1452 00d6 ADF82030 		strh	r3, [sp, #32]	@ movhi
+ 357:Src/power/drivers/bq25895/bq25895.c ****         }
+ 1453              		.loc 1 357 21 view .LVU393
+ 1454 00da ADF82230 		strh	r3, [sp, #34]	@ movhi
+ 352:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 1455              		.loc 1 352 15 view .LVU394
+ 1456 00de 0227     		movs	r7, #2
+ 1457 00e0 BBE7     		b	.L98
+ 1458              	.LVL111:
+ 1459              	.L99:
+ 1460              	.LBB6:
+ 360:Src/power/drivers/bq25895/bq25895.c ****         uint32_t input_count;
+ 1461              		.loc 1 360 9 is_stmt 1 view .LVU395
+ 361:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* input = input_profile_fields(job->profile, &input_count);
+ 1462              		.loc 1 361 9 view .LVU396
+ 362:Src/power/drivers/bq25895/bq25895.c ****         count = common_count + input_count;
+ 1463              		.loc 1 362 9 view .LVU397
+ 362:Src/power/drivers/bq25895/bq25895.c ****         count = common_count + input_count;
+ 1464              		.loc 1 362 45 is_stmt 0 view .LVU398
+ 1465 00e2 05A9     		add	r1, sp, #20
+ 1466 00e4 6078     		ldrb	r0, [r4, #1]	@ zero_extendqisi2
+ 1467 00e6 FFF7FEFF 		bl	input_profile_fields
+ 1468              	.LVL112:
+ 363:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 1469              		.loc 1 363 9 is_stmt 1 view .LVU399
+ 363:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 1470              		.loc 1 363 30 is_stmt 0 view .LVU400
+ 1471 00ea 059F     		ldr	r7, [sp, #20]
+ 363:Src/power/drivers/bq25895/bq25895.c ****         if (job->index >= count) { return POWER_I2C_FAILED; }
+ 1472              		.loc 1 363 15 view .LVU401
+ 1473 00ec 0637     		adds	r7, r7, #6
+ 1474              	.LVL113:
+ 364:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = job->index < common_count
+ 1475              		.loc 1 364 9 is_stmt 1 view .LVU402
+ 364:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = job->index < common_count
+ 1476              		.loc 1 364 16 is_stmt 0 view .LVU403
+ 1477 00ee A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 38
+
+
+ 364:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = job->index < common_count
+ 1478              		.loc 1 364 12 view .LVU404
+ 1479 00f0 BB42     		cmp	r3, r7
+ 1480 00f2 17D2     		bcs	.L134
+ 365:Src/power/drivers/bq25895/bq25895.c ****             ? &k_safe_common_profile[job->index] : &input[job->index - common_count];
+ 1481              		.loc 1 365 9 is_stmt 1 view .LVU405
+ 366:Src/power/drivers/bq25895/bq25895.c ****         op.reg = field->reg;
+ 1482              		.loc 1 366 50 is_stmt 0 view .LVU406
+ 1483 00f4 052B     		cmp	r3, #5
+ 1484 00f6 17D8     		bhi	.L102
+ 366:Src/power/drivers/bq25895/bq25895.c ****         op.reg = field->reg;
+ 1485              		.loc 1 366 50 discriminator 1 view .LVU407
+ 1486 00f8 03EB4302 		add	r2, r3, r3, lsl #1
+ 1487 00fc 304B     		ldr	r3, .L136+8
+ 1488 00fe 1344     		add	r3, r3, r2
+ 1489              	.L103:
+ 1490              	.LVL114:
+ 367:Src/power/drivers/bq25895/bq25895.c ****         op.mask = op.verify_mask = field->mask;
+ 1491              		.loc 1 367 9 is_stmt 1 view .LVU408
+ 367:Src/power/drivers/bq25895/bq25895.c ****         op.mask = op.verify_mask = field->mask;
+ 1492              		.loc 1 367 23 is_stmt 0 view .LVU409
+ 1493 0100 1A78     		ldrb	r2, [r3]	@ zero_extendqisi2
+ 367:Src/power/drivers/bq25895/bq25895.c ****         op.mask = op.verify_mask = field->mask;
+ 1494              		.loc 1 367 16 view .LVU410
+ 1495 0102 8DF81D20 		strb	r2, [sp, #29]
+ 368:Src/power/drivers/bq25895/bq25895.c ****         op.value = field->value;
+ 1496              		.loc 1 368 9 is_stmt 1 view .LVU411
+ 368:Src/power/drivers/bq25895/bq25895.c ****         op.value = field->value;
+ 1497              		.loc 1 368 41 is_stmt 0 view .LVU412
+ 1498 0106 5A78     		ldrb	r2, [r3, #1]	@ zero_extendqisi2
+ 368:Src/power/drivers/bq25895/bq25895.c ****         op.value = field->value;
+ 1499              		.loc 1 368 34 view .LVU413
+ 1500 0108 ADF82420 		strh	r2, [sp, #36]	@ movhi
+ 368:Src/power/drivers/bq25895/bq25895.c ****         op.value = field->value;
+ 1501              		.loc 1 368 17 view .LVU414
+ 1502 010c ADF82220 		strh	r2, [sp, #34]	@ movhi
+ 369:Src/power/drivers/bq25895/bq25895.c ****         op.kind = job->kind == BQ25895_JOB_CONFIGURE ? POWER_I2C_UPDATE : POWER_I2C_VERIFY;
+ 1503              		.loc 1 369 9 is_stmt 1 view .LVU415
+ 369:Src/power/drivers/bq25895/bq25895.c ****         op.kind = job->kind == BQ25895_JOB_CONFIGURE ? POWER_I2C_UPDATE : POWER_I2C_VERIFY;
+ 1504              		.loc 1 369 25 is_stmt 0 view .LVU416
+ 1505 0110 9B78     		ldrb	r3, [r3, #2]	@ zero_extendqisi2
+ 1506              	.LVL115:
+ 369:Src/power/drivers/bq25895/bq25895.c ****         op.kind = job->kind == BQ25895_JOB_CONFIGURE ? POWER_I2C_UPDATE : POWER_I2C_VERIFY;
+ 1507              		.loc 1 369 18 view .LVU417
+ 1508 0112 ADF82030 		strh	r3, [sp, #32]	@ movhi
+ 370:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1509              		.loc 1 370 9 is_stmt 1 view .LVU418
+ 370:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1510              		.loc 1 370 22 is_stmt 0 view .LVU419
+ 1511 0116 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 370:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1512              		.loc 1 370 73 view .LVU420
+ 1513 0118 022B     		cmp	r3, #2
+ 1514 011a 0AD0     		beq	.L135
+ 370:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1515              		.loc 1 370 73 discriminator 2 view .LVU421
+ 1516 011c 0223     		movs	r3, #2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 39
+
+
+ 1517              	.L104:
+ 370:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1518              		.loc 1 370 17 discriminator 4 view .LVU422
+ 1519 011e 8DF81F30 		strb	r3, [sp, #31]
+ 1520 0122 9AE7     		b	.L98
+ 1521              	.LVL116:
+ 1522              	.L134:
+ 364:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = job->index < common_count
+ 1523              		.loc 1 364 36 is_stmt 1 discriminator 1 view .LVU423
+ 364:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = job->index < common_count
+ 1524              		.loc 1 364 43 is_stmt 0 discriminator 1 view .LVU424
+ 1525 0124 0220     		movs	r0, #2
+ 1526              	.LVL117:
+ 364:Src/power/drivers/bq25895/bq25895.c ****         const BQ25895_ProfileField* field = job->index < common_count
+ 1527              		.loc 1 364 43 discriminator 1 view .LVU425
+ 1528 0126 3CE0     		b	.L95
+ 1529              	.LVL118:
+ 1530              	.L102:
+ 366:Src/power/drivers/bq25895/bq25895.c ****         op.reg = field->reg;
+ 1531              		.loc 1 366 58 discriminator 2 view .LVU426
+ 1532 0128 03EB4303 		add	r3, r3, r3, lsl #1
+ 1533 012c 123B     		subs	r3, r3, #18
+ 366:Src/power/drivers/bq25895/bq25895.c ****         op.reg = field->reg;
+ 1534              		.loc 1 366 50 discriminator 2 view .LVU427
+ 1535 012e 0344     		add	r3, r3, r0
+ 1536 0130 E6E7     		b	.L103
+ 1537              	.LVL119:
+ 1538              	.L135:
+ 370:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1539              		.loc 1 370 73 discriminator 1 view .LVU428
+ 1540 0132 0123     		movs	r3, #1
+ 1541 0134 F3E7     		b	.L104
+ 1542              	.LVL120:
+ 1543              	.L128:
+ 370:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1544              		.loc 1 370 73 discriminator 1 view .LVU429
+ 1545              	.LBE6:
+ 374:Src/power/drivers/bq25895/bq25895.c ****         (value & BQ_PART_INFORMATION_MASK) != BQ_PART_INFORMATION_BQ25895_REV1) {
+ 1546              		.loc 1 374 40 discriminator 1 view .LVU430
+ 1547 0136 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 374:Src/power/drivers/bq25895/bq25895.c ****         (value & BQ_PART_INFORMATION_MASK) != BQ_PART_INFORMATION_BQ25895_REV1) {
+ 1548              		.loc 1 374 34 discriminator 1 view .LVU431
+ 1549 0138 012B     		cmp	r3, #1
+ 1550 013a 98D1     		bne	.L105
+ 374:Src/power/drivers/bq25895/bq25895.c ****         (value & BQ_PART_INFORMATION_MASK) != BQ_PART_INFORMATION_BQ25895_REV1) {
+ 1551              		.loc 1 374 73 discriminator 2 view .LVU432
+ 1552 013c A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ 374:Src/power/drivers/bq25895/bq25895.c ****         (value & BQ_PART_INFORMATION_MASK) != BQ_PART_INFORMATION_BQ25895_REV1) {
+ 1553              		.loc 1 374 67 discriminator 2 view .LVU433
+ 1554 013e 002B     		cmp	r3, #0
+ 1555 0140 95D1     		bne	.L105
+ 375:Src/power/drivers/bq25895/bq25895.c ****         result = POWER_I2C_FAILED;
+ 1556              		.loc 1 375 16 view .LVU434
+ 1557 0142 BDF81A30 		ldrh	r3, [sp, #26]
+ 374:Src/power/drivers/bq25895/bq25895.c ****         (value & BQ_PART_INFORMATION_MASK) != BQ_PART_INFORMATION_BQ25895_REV1) {
+ 1558              		.loc 1 374 86 discriminator 3 view .LVU435
+ 1559 0146 03F03B03 		and	r3, r3, #59
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 40
+
+
+ 1560 014a 392B     		cmp	r3, #57
+ 1561 014c 8FD0     		beq	.L105
+ 376:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1562              		.loc 1 376 16 view .LVU436
+ 1563 014e 0220     		movs	r0, #2
+ 1564              	.LVL121:
+ 1565              	.L106:
+ 380:Src/power/drivers/bq25895/bq25895.c ****             handle->online = false;
+ 1566              		.loc 1 380 9 is_stmt 1 view .LVU437
+ 380:Src/power/drivers/bq25895/bq25895.c ****             handle->online = false;
+ 1567              		.loc 1 380 16 is_stmt 0 view .LVU438
+ 1568 0150 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 380:Src/power/drivers/bq25895/bq25895.c ****             handle->online = false;
+ 1569              		.loc 1 380 12 view .LVU439
+ 1570 0152 032B     		cmp	r3, #3
+ 1571 0154 25D0     		beq	.L95
+ 381:Src/power/drivers/bq25895/bq25895.c ****             handle->profile_configured = false;
+ 1572              		.loc 1 381 13 is_stmt 1 view .LVU440
+ 381:Src/power/drivers/bq25895/bq25895.c ****             handle->profile_configured = false;
+ 1573              		.loc 1 381 28 is_stmt 0 view .LVU441
+ 1574 0156 0023     		movs	r3, #0
+ 1575 0158 3371     		strb	r3, [r6, #4]
+ 382:Src/power/drivers/bq25895/bq25895.c ****         }
+ 1576              		.loc 1 382 13 is_stmt 1 view .LVU442
+ 382:Src/power/drivers/bq25895/bq25895.c ****         }
+ 1577              		.loc 1 382 40 is_stmt 0 view .LVU443
+ 1578 015a 7371     		strb	r3, [r6, #5]
+ 384:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1579              		.loc 1 384 9 is_stmt 1 view .LVU444
+ 384:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1580              		.loc 1 384 16 is_stmt 0 view .LVU445
+ 1581 015c 21E0     		b	.L95
+ 1582              	.LVL122:
+ 1583              	.L129:
+ 390:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1584              		.loc 1 390 51 is_stmt 1 discriminator 1 view .LVU446
+ 390:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1585              		.loc 1 390 56 is_stmt 0 discriminator 1 view .LVU447
+ 1586 015e 6B78     		ldrb	r3, [r5, #1]	@ zero_extendqisi2
+ 390:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1587              		.loc 1 390 64 discriminator 1 view .LVU448
+ 1588 0160 1A43     		orrs	r2, r2, r3
+ 1589 0162 6A70     		strb	r2, [r5, #1]
+ 1590 0164 93E7     		b	.L109
+ 1591              	.LVL123:
+ 1592              	.L130:
+ 1593              	.LBB7:
+ 394:Src/power/drivers/bq25895/bq25895.c ****         decode_state(v[0], v[1], v[2], v[3], v[4], v[5], v[6], state);
+ 1594              		.loc 1 394 9 is_stmt 1 view .LVU449
+ 395:Src/power/drivers/bq25895/bq25895.c ****     } else if (job->kind == BQ25895_JOB_INIT) {
+ 1595              		.loc 1 395 9 view .LVU450
+ 1596 0166 0395     		str	r5, [sp, #12]
+ 1597 0168 637A     		ldrb	r3, [r4, #9]	@ zero_extendqisi2
+ 1598 016a 0293     		str	r3, [sp, #8]
+ 1599 016c 237A     		ldrb	r3, [r4, #8]	@ zero_extendqisi2
+ 1600 016e 0193     		str	r3, [sp, #4]
+ 1601 0170 E379     		ldrb	r3, [r4, #7]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 41
+
+
+ 1602 0172 0093     		str	r3, [sp]
+ 1603 0174 A379     		ldrb	r3, [r4, #6]	@ zero_extendqisi2
+ 1604 0176 6279     		ldrb	r2, [r4, #5]	@ zero_extendqisi2
+ 1605 0178 2179     		ldrb	r1, [r4, #4]	@ zero_extendqisi2
+ 1606 017a E078     		ldrb	r0, [r4, #3]	@ zero_extendqisi2
+ 1607 017c FFF7FEFF 		bl	decode_state
+ 1608              	.LVL124:
+ 1609              	.LBE7:
+ 1610              		.loc 1 403 12 is_stmt 0 view .LVU451
+ 1611 0180 0120     		movs	r0, #1
+ 1612 0182 0EE0     		b	.L95
+ 1613              	.LVL125:
+ 1614              	.L131:
+ 397:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = false;
+ 1615              		.loc 1 397 9 is_stmt 1 view .LVU452
+ 397:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = false;
+ 1616              		.loc 1 397 24 is_stmt 0 view .LVU453
+ 1617 0184 0123     		movs	r3, #1
+ 1618 0186 3371     		strb	r3, [r6, #4]
+ 398:Src/power/drivers/bq25895/bq25895.c ****     } else if (job->kind == BQ25895_JOB_CONFIGURE) {
+ 1619              		.loc 1 398 9 is_stmt 1 view .LVU454
+ 398:Src/power/drivers/bq25895/bq25895.c ****     } else if (job->kind == BQ25895_JOB_CONFIGURE) {
+ 1620              		.loc 1 398 36 is_stmt 0 view .LVU455
+ 1621 0188 0023     		movs	r3, #0
+ 1622 018a 7371     		strb	r3, [r6, #5]
+ 1623 018c 09E0     		b	.L95
+ 1624              	.L132:
+ 400:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = true;
+ 1625              		.loc 1 400 9 is_stmt 1 view .LVU456
+ 400:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = true;
+ 1626              		.loc 1 400 36 is_stmt 0 view .LVU457
+ 1627 018e 6378     		ldrb	r3, [r4, #1]	@ zero_extendqisi2
+ 400:Src/power/drivers/bq25895/bq25895.c ****         handle->profile_configured = true;
+ 1628              		.loc 1 400 31 view .LVU458
+ 1629 0190 B371     		strb	r3, [r6, #6]
+ 401:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1630              		.loc 1 401 9 is_stmt 1 view .LVU459
+ 401:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1631              		.loc 1 401 36 is_stmt 0 view .LVU460
+ 1632 0192 0120     		movs	r0, #1
+ 1633 0194 7071     		strb	r0, [r6, #5]
+ 1634 0196 04E0     		b	.L95
+ 1635              	.LVL126:
+ 1636              	.L112:
+ 1637              	.LCFI38:
+ 1638              		.cfi_def_cfa_offset 0
+ 1639              		.cfi_restore 4
+ 1640              		.cfi_restore 5
+ 1641              		.cfi_restore 6
+ 1642              		.cfi_restore 7
+ 1643              		.cfi_restore 14
+ 343:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1644              		.loc 1 343 16 view .LVU461
+ 1645 0198 0220     		movs	r0, #2
+ 1646              	.LVL127:
+ 404:Src/power/drivers/bq25895/bq25895.c **** }
+ 1647              		.loc 1 404 1 view .LVU462
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 42
+
+
+ 1648 019a 7047     		bx	lr
+ 1649              	.LVL128:
+ 1650              	.L113:
+ 1651              	.LCFI39:
+ 1652              		.cfi_def_cfa_offset 64
+ 1653              		.cfi_offset 4, -20
+ 1654              		.cfi_offset 5, -16
+ 1655              		.cfi_offset 6, -12
+ 1656              		.cfi_offset 7, -8
+ 1657              		.cfi_offset 14, -4
+ 343:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1658              		.loc 1 343 16 view .LVU463
+ 1659 019c 0220     		movs	r0, #2
+ 1660              	.LVL129:
+ 343:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1661              		.loc 1 343 16 view .LVU464
+ 1662 019e 00E0     		b	.L95
+ 1663              	.LVL130:
+ 1664              	.L114:
+ 343:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1665              		.loc 1 343 16 view .LVU465
+ 1666 01a0 0220     		movs	r0, #2
+ 1667              	.LVL131:
+ 1668              	.L95:
+ 1669              		.loc 1 404 1 view .LVU466
+ 1670 01a2 0BB0     		add	sp, sp, #44
+ 1671              	.LCFI40:
+ 1672              		.cfi_remember_state
+ 1673              		.cfi_def_cfa_offset 20
+ 1674              		@ sp needed
+ 1675 01a4 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 1676              	.LVL132:
+ 1677              	.L115:
+ 1678              	.LCFI41:
+ 1679              		.cfi_restore_state
+ 343:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1680              		.loc 1 343 16 view .LVU467
+ 1681 01a6 0220     		movs	r0, #2
+ 1682              	.LVL133:
+ 343:Src/power/drivers/bq25895/bq25895.c ****     }
+ 1683              		.loc 1 343 16 view .LVU468
+ 1684 01a8 FBE7     		b	.L95
+ 1685              	.LVL134:
+ 1686              	.L116:
+ 349:Src/power/drivers/bq25895/bq25895.c ****         op.reg = state_regs[job->index];
+ 1687              		.loc 1 349 43 discriminator 1 view .LVU469
+ 1688 01aa 0220     		movs	r0, #2
+ 1689 01ac F9E7     		b	.L95
+ 1690              	.LVL135:
+ 1691              	.L117:
+ 353:Src/power/drivers/bq25895/bq25895.c ****         op.reg = job->index == 0 ? BQ_REG_PART_INFORMATION : BQ_REG_ADC_CONTROL;
+ 1692              		.loc 1 353 43 discriminator 1 view .LVU470
+ 1693 01ae 0220     		movs	r0, #2
+ 1694 01b0 F7E7     		b	.L95
+ 1695              	.LVL136:
+ 1696              	.L122:
+ 392:Src/power/drivers/bq25895/bq25895.c ****     if (job->kind == BQ25895_JOB_READ) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 43
+
+
+ 1697              		.loc 1 392 40 discriminator 1 view .LVU471
+ 1698 01b2 0020     		movs	r0, #0
+ 1699              	.LVL137:
+ 392:Src/power/drivers/bq25895/bq25895.c ****     if (job->kind == BQ25895_JOB_READ) {
+ 1700              		.loc 1 392 40 discriminator 1 view .LVU472
+ 1701 01b4 F5E7     		b	.L95
+ 1702              	.L137:
+ 1703 01b6 00BF     		.align	2
+ 1704              	.L136:
+ 1705 01b8 00000000 		.word	.LANCHOR0
+ 1706 01bc 00000000 		.word	state_regs.0
+ 1707 01c0 00000000 		.word	k_safe_common_profile
+ 1708              		.cfi_endproc
+ 1709              	.LFE348:
+ 1711              		.section	.rodata.state_regs.0,"a"
+ 1712              		.align	2
+ 1715              	state_regs.0:
+ 1716 0000 0B0C0C0E 		.ascii	"\013\014\014\016\021\022\023"
+ 1716      111213
+ 1717              		.section	.rodata.k_input_profile_9v,"a"
+ 1718              		.align	2
+ 1721              	k_input_profile_9v:
+ 1722 0000 00       		.byte	0
+ 1723 0001 FF       		.byte	-1
+ 1724 0002 5C       		.byte	92
+ 1725 0003 0D       		.byte	13
+ 1726 0004 FF       		.byte	-1
+ 1727 0005 B8       		.byte	-72
+ 1728              		.section	.rodata.k_input_profile_5v,"a"
+ 1729              		.align	2
+ 1732              	k_input_profile_5v:
+ 1733 0000 00       		.byte	0
+ 1734 0001 FF       		.byte	-1
+ 1735 0002 5C       		.byte	92
+ 1736 0003 0D       		.byte	13
+ 1737 0004 FF       		.byte	-1
+ 1738 0005 92       		.byte	-110
+ 1739              		.section	.rodata.k_safe_common_profile,"a"
+ 1740              		.align	2
+ 1743              	k_safe_common_profile:
+ 1744 0000 02       		.byte	2
+ 1745 0001 1D       		.byte	29
+ 1746 0002 00       		.byte	0
+ 1747 0003 04       		.byte	4
+ 1748 0004 FF       		.byte	-1
+ 1749 0005 19       		.byte	25
+ 1750 0006 05       		.byte	5
+ 1751 0007 FF       		.byte	-1
+ 1752 0008 30       		.byte	48
+ 1753 0009 06       		.byte	6
+ 1754 000a FF       		.byte	-1
+ 1755 000b 5A       		.byte	90
+ 1756 000c 07       		.byte	7
+ 1757 000d BE       		.byte	-66
+ 1758 000e 8A       		.byte	-118
+ 1759 000f 08       		.byte	8
+ 1760 0010 FF       		.byte	-1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 44
+
+
+ 1761 0011 01       		.byte	1
+ 1762              		.section	.rodata
+ 1763              		.align	2
+ 1764              		.set	.LANCHOR0,. + 0
+ 1765              	.LC0:
+ 1766 0000 6A       		.byte	106
+ 1767 0001 00       		.byte	0
+ 1768 0002 01       		.byte	1
+ 1769 0003 00       		.byte	0
+ 1770 0004 0000     		.short	0
+ 1771 0006 0000     		.short	0
+ 1772 0008 0000     		.short	0
+ 1773              		.text
+ 1774              	.Letext0:
+ 1775              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1776              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1777              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1778              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1779              		.file 6 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 1780              		.file 7 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 1781              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c.h"
+ 1782              		.file 9 "Inc/power/drivers/power_i2c_bus/power_i2c_bus.h"
+ 1783              		.file 10 "Inc/power/drivers/bq25895/bq25895.h"
+ 1784              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s 			page 45
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 bq25895.c
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:20     .text.input_profile_fields:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:25     .text.input_profile_fields:00000000 input_profile_fields
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:72     .text.input_profile_fields:0000001c $d
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1732   .rodata.k_input_profile_5v:00000000 k_input_profile_5v
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1721   .rodata.k_input_profile_9v:00000000 k_input_profile_9v
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:78     .text.decode_state:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:83     .text.decode_state:00000000 decode_state
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:196    .text.read_register:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:201    .text.read_register:00000000 read_register
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:271    .text.verify_profile_fields:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:276    .text.verify_profile_fields:00000000 verify_profile_fields
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:373    .text.write_register:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:378    .text.write_register:00000000 write_register
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:447    .text.update_register:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:452    .text.update_register:00000000 update_register
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:559    .text.apply_profile_fields:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:564    .text.apply_profile_fields:00000000 apply_profile_fields
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:637    .text.BQ25895_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:643    .text.BQ25895_Init:00000000 BQ25895_Init
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:747    .text.BQ25895_ConfigureSafeProfile:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:753    .text.BQ25895_ConfigureSafeProfile:00000000 BQ25895_ConfigureSafeProfile
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:889    .text.BQ25895_ConfigureSafeProfile:00000060 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1743   .rodata.k_safe_common_profile:00000000 k_safe_common_profile
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:894    .text.BQ25895_VerifySafeProfile:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:900    .text.BQ25895_VerifySafeProfile:00000000 BQ25895_VerifySafeProfile
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1008   .text.BQ25895_VerifySafeProfile:00000050 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1013   .text.BQ25895_EnableContinuousAdc:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1019   .text.BQ25895_EnableContinuousAdc:00000000 BQ25895_EnableContinuousAdc
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1045   .text.BQ25895_ReadState:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1051   .text.BQ25895_ReadState:00000000 BQ25895_ReadState
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1217   .text.BQ25895_IsFatalFault:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1223   .text.BQ25895_IsFatalFault:00000000 BQ25895_IsFatalFault
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1244   .text.BQ25895_Step:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1250   .text.BQ25895_Step:00000000 BQ25895_Step
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1705   .text.BQ25895_Step:000001b8 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1715   .rodata.state_regs.0:00000000 state_regs.0
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1712   .rodata.state_regs.0:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1718   .rodata.k_input_profile_9v:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1729   .rodata.k_input_profile_5v:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1740   .rodata.k_safe_common_profile:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIjIlaS.s:1763   .rodata:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_I2C_Mem_Read
+HAL_I2C_Mem_Write
+HAL_I2C_IsDeviceReady
+PowerI2C_StepRegister

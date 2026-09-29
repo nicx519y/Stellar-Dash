@@ -1,0 +1,2385 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"device_security_crypto.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "../common/device_security_crypto.c"
+  19              		.section	.text.load_group,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	load_group:
+  26              	.LVL0:
+  27              	.LFB8:
+   1:../common/device_security_crypto.c **** #include "device_security_crypto.h"
+   2:../common/device_security_crypto.c **** 
+   3:../common/device_security_crypto.c **** #include <string.h>
+   4:../common/device_security_crypto.c **** 
+   5:../common/device_security_crypto.c **** #include "mbedtls/ecdh.h"
+   6:../common/device_security_crypto.c **** #include "mbedtls/ecdsa.h"
+   7:../common/device_security_crypto.c **** #include "mbedtls/ecp.h"
+   8:../common/device_security_crypto.c **** #include "mbedtls/gcm.h"
+   9:../common/device_security_crypto.c **** #include "mbedtls/hkdf.h"
+  10:../common/device_security_crypto.c **** #include "mbedtls/md.h"
+  11:../common/device_security_crypto.c **** #include "mbedtls/platform_util.h"
+  12:../common/device_security_crypto.c **** #include "mbedtls/sha256.h"
+  13:../common/device_security_crypto.c **** 
+  14:../common/device_security_crypto.c **** static int load_group(mbedtls_ecp_group *group)
+  15:../common/device_security_crypto.c **** {
+  28              		.loc 1 15 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		.loc 1 15 1 is_stmt 0 view .LVU1
+  33 0000 10B5     		push	{r4, lr}
+  34              	.LCFI0:
+  35              		.cfi_def_cfa_offset 8
+  36              		.cfi_offset 4, -8
+  37              		.cfi_offset 14, -4
+  38 0002 0446     		mov	r4, r0
+  16:../common/device_security_crypto.c ****     mbedtls_ecp_group_init(group);
+  39              		.loc 1 16 5 is_stmt 1 view .LVU2
+  40 0004 FFF7FEFF 		bl	mbedtls_ecp_group_init
+  41              	.LVL1:
+  17:../common/device_security_crypto.c ****     return mbedtls_ecp_group_load(group,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 2
+
+
+  42              		.loc 1 17 5 view .LVU3
+  43              		.loc 1 17 12 is_stmt 0 view .LVU4
+  44 0008 0321     		movs	r1, #3
+  45 000a 2046     		mov	r0, r4
+  46 000c FFF7FEFF 		bl	mbedtls_ecp_group_load
+  47              	.LVL2:
+  18:../common/device_security_crypto.c ****                                   MBEDTLS_ECP_DP_SECP256R1);
+  19:../common/device_security_crypto.c **** }
+  48              		.loc 1 19 1 view .LVU5
+  49 0010 10BD     		pop	{r4, pc}
+  50              		.loc 1 19 1 view .LVU6
+  51              		.cfi_endproc
+  52              	.LFE8:
+  54              		.section	.text.write_public,"ax",%progbits
+  55              		.align	1
+  56              		.syntax unified
+  57              		.thumb
+  58              		.thumb_func
+  60              	write_public:
+  61              	.LVL3:
+  62              	.LFB10:
+  20:../common/device_security_crypto.c **** 
+  21:../common/device_security_crypto.c **** static int load_public(const mbedtls_ecp_group *group,
+  22:../common/device_security_crypto.c ****                        mbedtls_ecp_point *point,
+  23:../common/device_security_crypto.c ****                        const uint8_t public_key[65])
+  24:../common/device_security_crypto.c **** {
+  25:../common/device_security_crypto.c ****     int result;
+  26:../common/device_security_crypto.c ****     mbedtls_ecp_point_init(point);
+  27:../common/device_security_crypto.c ****     result = mbedtls_ecp_point_read_binary(group,
+  28:../common/device_security_crypto.c ****                                            point,
+  29:../common/device_security_crypto.c ****                                            public_key,
+  30:../common/device_security_crypto.c ****                                            65u);
+  31:../common/device_security_crypto.c ****     if (result == 0) {
+  32:../common/device_security_crypto.c ****         result = mbedtls_ecp_check_pubkey(group, point);
+  33:../common/device_security_crypto.c ****     }
+  34:../common/device_security_crypto.c ****     return result;
+  35:../common/device_security_crypto.c **** }
+  36:../common/device_security_crypto.c **** 
+  37:../common/device_security_crypto.c **** static int write_public(const mbedtls_ecp_group *group,
+  38:../common/device_security_crypto.c ****                         const mbedtls_ecp_point *point,
+  39:../common/device_security_crypto.c ****                         uint8_t public_key[65])
+  40:../common/device_security_crypto.c **** {
+  63              		.loc 1 40 1 is_stmt 1 view -0
+  64              		.cfi_startproc
+  65              		@ args = 0, pretend = 0, frame = 8
+  66              		@ frame_needed = 0, uses_anonymous_args = 0
+  67              		.loc 1 40 1 is_stmt 0 view .LVU8
+  68 0000 10B5     		push	{r4, lr}
+  69              	.LCFI1:
+  70              		.cfi_def_cfa_offset 8
+  71              		.cfi_offset 4, -8
+  72              		.cfi_offset 14, -4
+  73 0002 84B0     		sub	sp, sp, #16
+  74              	.LCFI2:
+  75              		.cfi_def_cfa_offset 24
+  76 0004 1346     		mov	r3, r2
+  41:../common/device_security_crypto.c ****     size_t written = 0u;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 3
+
+
+  77              		.loc 1 41 5 is_stmt 1 view .LVU9
+  78              		.loc 1 41 12 is_stmt 0 view .LVU10
+  79 0006 0022     		movs	r2, #0
+  80              	.LVL4:
+  81              		.loc 1 41 12 view .LVU11
+  82 0008 0392     		str	r2, [sp, #12]
+  42:../common/device_security_crypto.c ****     int result = mbedtls_ecp_point_write_binary(
+  83              		.loc 1 42 5 is_stmt 1 view .LVU12
+  84              		.loc 1 42 18 is_stmt 0 view .LVU13
+  85 000a 4124     		movs	r4, #65
+  86 000c 0194     		str	r4, [sp, #4]
+  87 000e 0093     		str	r3, [sp]
+  88 0010 03AB     		add	r3, sp, #12
+  89              	.LVL5:
+  90              		.loc 1 42 18 view .LVU14
+  91 0012 FFF7FEFF 		bl	mbedtls_ecp_point_write_binary
+  92              	.LVL6:
+  43:../common/device_security_crypto.c ****         group,
+  44:../common/device_security_crypto.c ****         point,
+  45:../common/device_security_crypto.c ****         MBEDTLS_ECP_PF_UNCOMPRESSED,
+  46:../common/device_security_crypto.c ****         &written,
+  47:../common/device_security_crypto.c ****         public_key,
+  48:../common/device_security_crypto.c ****         65u);
+  49:../common/device_security_crypto.c ****     return (result == 0 && written == 65u) ? 0 : -1;
+  93              		.loc 1 49 5 is_stmt 1 view .LVU15
+  94              		.loc 1 49 48 is_stmt 0 view .LVU16
+  95 0016 38B9     		cbnz	r0, .L5
+  96              		.loc 1 49 36 discriminator 1 view .LVU17
+  97 0018 039B     		ldr	r3, [sp, #12]
+  98              		.loc 1 49 25 discriminator 1 view .LVU18
+  99 001a A342     		cmp	r3, r4
+ 100 001c 01D1     		bne	.L7
+ 101              	.L3:
+  50:../common/device_security_crypto.c **** }
+ 102              		.loc 1 50 1 view .LVU19
+ 103 001e 04B0     		add	sp, sp, #16
+ 104              	.LCFI3:
+ 105              		.cfi_remember_state
+ 106              		.cfi_def_cfa_offset 8
+ 107              		@ sp needed
+ 108 0020 10BD     		pop	{r4, pc}
+ 109              	.LVL7:
+ 110              	.L7:
+ 111              	.LCFI4:
+ 112              		.cfi_restore_state
+  49:../common/device_security_crypto.c **** }
+ 113              		.loc 1 49 48 discriminator 4 view .LVU20
+ 114 0022 4FF0FF30 		mov	r0, #-1
+ 115 0026 FAE7     		b	.L3
+ 116              	.L5:
+ 117 0028 4FF0FF30 		mov	r0, #-1
+  49:../common/device_security_crypto.c **** }
+ 118              		.loc 1 49 48 view .LVU21
+ 119 002c F7E7     		b	.L3
+ 120              		.cfi_endproc
+ 121              	.LFE10:
+ 123              		.section	.text.load_public,"ax",%progbits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 4
+
+
+ 124              		.align	1
+ 125              		.syntax unified
+ 126              		.thumb
+ 127              		.thumb_func
+ 129              	load_public:
+ 130              	.LVL8:
+ 131              	.LFB9:
+  24:../common/device_security_crypto.c ****     int result;
+ 132              		.loc 1 24 1 is_stmt 1 view -0
+ 133              		.cfi_startproc
+ 134              		@ args = 0, pretend = 0, frame = 0
+ 135              		@ frame_needed = 0, uses_anonymous_args = 0
+  24:../common/device_security_crypto.c ****     int result;
+ 136              		.loc 1 24 1 is_stmt 0 view .LVU23
+ 137 0000 70B5     		push	{r4, r5, r6, lr}
+ 138              	.LCFI5:
+ 139              		.cfi_def_cfa_offset 16
+ 140              		.cfi_offset 4, -16
+ 141              		.cfi_offset 5, -12
+ 142              		.cfi_offset 6, -8
+ 143              		.cfi_offset 14, -4
+ 144 0002 0546     		mov	r5, r0
+ 145 0004 0C46     		mov	r4, r1
+ 146 0006 1646     		mov	r6, r2
+  25:../common/device_security_crypto.c ****     mbedtls_ecp_point_init(point);
+ 147              		.loc 1 25 5 is_stmt 1 view .LVU24
+  26:../common/device_security_crypto.c ****     result = mbedtls_ecp_point_read_binary(group,
+ 148              		.loc 1 26 5 view .LVU25
+ 149 0008 0846     		mov	r0, r1
+ 150              	.LVL9:
+  26:../common/device_security_crypto.c ****     result = mbedtls_ecp_point_read_binary(group,
+ 151              		.loc 1 26 5 is_stmt 0 view .LVU26
+ 152 000a FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 153              	.LVL10:
+  27:../common/device_security_crypto.c ****                                            point,
+ 154              		.loc 1 27 5 is_stmt 1 view .LVU27
+  27:../common/device_security_crypto.c ****                                            point,
+ 155              		.loc 1 27 14 is_stmt 0 view .LVU28
+ 156 000e 4123     		movs	r3, #65
+ 157 0010 3246     		mov	r2, r6
+ 158 0012 2146     		mov	r1, r4
+ 159 0014 2846     		mov	r0, r5
+ 160 0016 FFF7FEFF 		bl	mbedtls_ecp_point_read_binary
+ 161              	.LVL11:
+  31:../common/device_security_crypto.c ****         result = mbedtls_ecp_check_pubkey(group, point);
+ 162              		.loc 1 31 5 is_stmt 1 view .LVU29
+  31:../common/device_security_crypto.c ****         result = mbedtls_ecp_check_pubkey(group, point);
+ 163              		.loc 1 31 8 is_stmt 0 view .LVU30
+ 164 001a 00B1     		cbz	r0, .L11
+ 165              	.LVL12:
+ 166              	.L8:
+  35:../common/device_security_crypto.c **** 
+ 167              		.loc 1 35 1 view .LVU31
+ 168 001c 70BD     		pop	{r4, r5, r6, pc}
+ 169              	.LVL13:
+ 170              	.L11:
+  32:../common/device_security_crypto.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 5
+
+
+ 171              		.loc 1 32 9 is_stmt 1 view .LVU32
+  32:../common/device_security_crypto.c ****     }
+ 172              		.loc 1 32 18 is_stmt 0 view .LVU33
+ 173 001e 2146     		mov	r1, r4
+ 174 0020 2846     		mov	r0, r5
+ 175 0022 FFF7FEFF 		bl	mbedtls_ecp_check_pubkey
+ 176              	.LVL14:
+  34:../common/device_security_crypto.c **** }
+ 177              		.loc 1 34 5 is_stmt 1 view .LVU34
+  34:../common/device_security_crypto.c **** }
+ 178              		.loc 1 34 12 is_stmt 0 view .LVU35
+ 179 0026 F9E7     		b	.L8
+ 180              		.cfi_endproc
+ 181              	.LFE9:
+ 183              		.section	.text.HBoxCrypto_Sha256,"ax",%progbits
+ 184              		.align	1
+ 185              		.global	HBoxCrypto_Sha256
+ 186              		.syntax unified
+ 187              		.thumb
+ 188              		.thumb_func
+ 190              	HBoxCrypto_Sha256:
+ 191              	.LVL15:
+ 192              	.LFB11:
+  51:../common/device_security_crypto.c **** 
+  52:../common/device_security_crypto.c **** int HBoxCrypto_Sha256(const uint8_t *data, size_t length, uint8_t out[32])
+  53:../common/device_security_crypto.c **** {
+ 193              		.loc 1 53 1 is_stmt 1 view -0
+ 194              		.cfi_startproc
+ 195              		@ args = 0, pretend = 0, frame = 0
+ 196              		@ frame_needed = 0, uses_anonymous_args = 0
+  54:../common/device_security_crypto.c ****     if ((data == NULL && length != 0u) || out == NULL) {
+ 197              		.loc 1 54 5 view .LVU37
+ 198              		.loc 1 54 15 is_stmt 0 view .LVU38
+ 199 0000 8446     		mov	ip, r0
+ 200              		.loc 1 54 23 view .LVU39
+ 201 0002 B0FA80F0 		clz	r0, r0
+ 202              	.LVL16:
+ 203              		.loc 1 54 23 view .LVU40
+ 204 0006 4009     		lsrs	r0, r0, #5
+ 205 0008 0029     		cmp	r1, #0
+ 206 000a 08BF     		it	eq
+ 207 000c 0020     		moveq	r0, #0
+ 208              		.loc 1 54 8 view .LVU41
+ 209 000e 38B9     		cbnz	r0, .L14
+  53:../common/device_security_crypto.c ****     if ((data == NULL && length != 0u) || out == NULL) {
+ 210              		.loc 1 53 1 view .LVU42
+ 211 0010 08B5     		push	{r3, lr}
+ 212              	.LCFI6:
+ 213              		.cfi_def_cfa_offset 8
+ 214              		.cfi_offset 3, -8
+ 215              		.cfi_offset 14, -4
+ 216 0012 8E46     		mov	lr, r1
+ 217              		.loc 1 54 40 discriminator 1 view .LVU43
+ 218 0014 3AB1     		cbz	r2, .L15
+  55:../common/device_security_crypto.c ****         return -1;
+  56:../common/device_security_crypto.c ****     }
+  57:../common/device_security_crypto.c ****     return mbedtls_sha256_ret(data, length, out, 0);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 6
+
+
+ 219              		.loc 1 57 5 is_stmt 1 view .LVU44
+ 220              		.loc 1 57 12 is_stmt 0 view .LVU45
+ 221 0016 0023     		movs	r3, #0
+ 222 0018 6046     		mov	r0, ip
+ 223 001a FFF7FEFF 		bl	mbedtls_sha256_ret
+ 224              	.LVL17:
+ 225              	.L12:
+  58:../common/device_security_crypto.c **** }
+ 226              		.loc 1 58 1 view .LVU46
+ 227 001e 08BD     		pop	{r3, pc}
+ 228              	.LVL18:
+ 229              	.L14:
+ 230              	.LCFI7:
+ 231              		.cfi_def_cfa_offset 0
+ 232              		.cfi_restore 3
+ 233              		.cfi_restore 14
+  55:../common/device_security_crypto.c ****         return -1;
+ 234              		.loc 1 55 16 view .LVU47
+ 235 0020 4FF0FF30 		mov	r0, #-1
+ 236              		.loc 1 58 1 view .LVU48
+ 237 0024 7047     		bx	lr
+ 238              	.L15:
+ 239              	.LCFI8:
+ 240              		.cfi_def_cfa_offset 8
+ 241              		.cfi_offset 3, -8
+ 242              		.cfi_offset 14, -4
+  55:../common/device_security_crypto.c ****         return -1;
+ 243              		.loc 1 55 16 view .LVU49
+ 244 0026 4FF0FF30 		mov	r0, #-1
+ 245 002a F8E7     		b	.L12
+ 246              		.cfi_endproc
+ 247              	.LFE11:
+ 249              		.section	.text.HBoxCrypto_P256PublicFromPrivate,"ax",%progbits
+ 250              		.align	1
+ 251              		.global	HBoxCrypto_P256PublicFromPrivate
+ 252              		.syntax unified
+ 253              		.thumb
+ 254              		.thumb_func
+ 256              	HBoxCrypto_P256PublicFromPrivate:
+ 257              	.LVL19:
+ 258              	.LFB12:
+  59:../common/device_security_crypto.c **** 
+  60:../common/device_security_crypto.c **** int HBoxCrypto_P256PublicFromPrivate(const uint8_t private_key[32],
+  61:../common/device_security_crypto.c ****                                     uint8_t public_key[65])
+  62:../common/device_security_crypto.c **** {
+ 259              		.loc 1 62 1 is_stmt 1 view -0
+ 260              		.cfi_startproc
+ 261              		@ args = 0, pretend = 0, frame = 176
+ 262              		@ frame_needed = 0, uses_anonymous_args = 0
+ 263              		.loc 1 62 1 is_stmt 0 view .LVU51
+ 264 0000 70B5     		push	{r4, r5, r6, lr}
+ 265              	.LCFI9:
+ 266              		.cfi_def_cfa_offset 16
+ 267              		.cfi_offset 4, -16
+ 268              		.cfi_offset 5, -12
+ 269              		.cfi_offset 6, -8
+ 270              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 7
+
+
+ 271 0002 AEB0     		sub	sp, sp, #184
+ 272              	.LCFI10:
+ 273              		.cfi_def_cfa_offset 200
+  63:../common/device_security_crypto.c ****     int result;
+ 274              		.loc 1 63 5 is_stmt 1 view .LVU52
+  64:../common/device_security_crypto.c ****     mbedtls_ecp_group group;
+ 275              		.loc 1 64 5 view .LVU53
+  65:../common/device_security_crypto.c ****     mbedtls_mpi private_value;
+ 276              		.loc 1 65 5 view .LVU54
+  66:../common/device_security_crypto.c ****     mbedtls_ecp_point public_value;
+ 277              		.loc 1 66 5 view .LVU55
+  67:../common/device_security_crypto.c **** 
+  68:../common/device_security_crypto.c ****     if (private_key == NULL || public_key == NULL) {
+ 278              		.loc 1 68 5 view .LVU56
+ 279              		.loc 1 68 8 is_stmt 0 view .LVU57
+ 280 0004 0029     		cmp	r1, #0
+ 281 0006 18BF     		it	ne
+ 282 0008 0028     		cmpne	r0, #0
+ 283 000a 3AD0     		beq	.L23
+ 284 000c 0546     		mov	r5, r0
+ 285 000e 0E46     		mov	r6, r1
+  69:../common/device_security_crypto.c ****         return -1;
+  70:../common/device_security_crypto.c ****     }
+  71:../common/device_security_crypto.c ****     mbedtls_mpi_init(&private_value);
+ 286              		.loc 1 71 5 is_stmt 1 view .LVU58
+ 287 0010 0CA8     		add	r0, sp, #48
+ 288              	.LVL20:
+ 289              		.loc 1 71 5 is_stmt 0 view .LVU59
+ 290 0012 FFF7FEFF 		bl	mbedtls_mpi_init
+ 291              	.LVL21:
+  72:../common/device_security_crypto.c ****     mbedtls_ecp_point_init(&public_value);
+ 292              		.loc 1 72 5 is_stmt 1 view .LVU60
+ 293 0016 03A8     		add	r0, sp, #12
+ 294 0018 FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 295              	.LVL22:
+  73:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0 &&
+ 296              		.loc 1 73 5 view .LVU61
+ 297              		.loc 1 73 19 is_stmt 0 view .LVU62
+ 298 001c 0FA8     		add	r0, sp, #60
+ 299 001e FFF7FEFF 		bl	load_group
+ 300              	.LVL23:
+ 301              		.loc 1 73 8 discriminator 1 view .LVU63
+ 302 0022 0446     		mov	r4, r0
+ 303 0024 58B1     		cbz	r0, .L25
+ 304              	.L22:
+  74:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(
+  75:../common/device_security_crypto.c ****              &private_value, private_key, 32u)) == 0 &&
+  76:../common/device_security_crypto.c ****         (result = mbedtls_ecp_check_privkey(
+  77:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+  78:../common/device_security_crypto.c ****         (result = mbedtls_ecp_mul(
+  79:../common/device_security_crypto.c ****              &group,
+  80:../common/device_security_crypto.c ****              &public_value,
+  81:../common/device_security_crypto.c ****              &private_value,
+  82:../common/device_security_crypto.c ****              &group.G,
+  83:../common/device_security_crypto.c ****              NULL,
+  84:../common/device_security_crypto.c ****              NULL)) == 0) {
+  85:../common/device_security_crypto.c ****         result = write_public(&group, &public_value, public_key);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 8
+
+
+  86:../common/device_security_crypto.c ****     }
+  87:../common/device_security_crypto.c ****     mbedtls_ecp_point_free(&public_value);
+ 305              		.loc 1 87 5 is_stmt 1 view .LVU64
+ 306 0026 03A8     		add	r0, sp, #12
+ 307              	.LVL24:
+ 308              		.loc 1 87 5 is_stmt 0 view .LVU65
+ 309 0028 FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 310              	.LVL25:
+  88:../common/device_security_crypto.c ****     mbedtls_mpi_free(&private_value);
+ 311              		.loc 1 88 5 is_stmt 1 view .LVU66
+ 312 002c 0CA8     		add	r0, sp, #48
+ 313 002e FFF7FEFF 		bl	mbedtls_mpi_free
+ 314              	.LVL26:
+  89:../common/device_security_crypto.c ****     mbedtls_ecp_group_free(&group);
+ 315              		.loc 1 89 5 view .LVU67
+ 316 0032 0FA8     		add	r0, sp, #60
+ 317 0034 FFF7FEFF 		bl	mbedtls_ecp_group_free
+ 318              	.LVL27:
+  90:../common/device_security_crypto.c ****     return result;
+ 319              		.loc 1 90 5 view .LVU68
+ 320              	.L20:
+  91:../common/device_security_crypto.c **** }
+ 321              		.loc 1 91 1 is_stmt 0 view .LVU69
+ 322 0038 2046     		mov	r0, r4
+ 323 003a 2EB0     		add	sp, sp, #184
+ 324              	.LCFI11:
+ 325              		.cfi_remember_state
+ 326              		.cfi_def_cfa_offset 16
+ 327              		@ sp needed
+ 328 003c 70BD     		pop	{r4, r5, r6, pc}
+ 329              	.LVL28:
+ 330              	.L25:
+ 331              	.LCFI12:
+ 332              		.cfi_restore_state
+  74:../common/device_security_crypto.c ****              &private_value, private_key, 32u)) == 0 &&
+ 333              		.loc 1 74 19 view .LVU70
+ 334 003e 2022     		movs	r2, #32
+ 335 0040 2946     		mov	r1, r5
+ 336 0042 0CA8     		add	r0, sp, #48
+ 337              	.LVL29:
+  74:../common/device_security_crypto.c ****              &private_value, private_key, 32u)) == 0 &&
+ 338              		.loc 1 74 19 view .LVU71
+ 339 0044 FFF7FEFF 		bl	mbedtls_mpi_read_binary
+ 340              	.LVL30:
+  73:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(
+ 341              		.loc 1 73 44 discriminator 1 view .LVU72
+ 342 0048 0446     		mov	r4, r0
+ 343 004a 0028     		cmp	r0, #0
+ 344 004c EBD1     		bne	.L22
+  76:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+ 345              		.loc 1 76 19 view .LVU73
+ 346 004e 0CA9     		add	r1, sp, #48
+ 347 0050 0FA8     		add	r0, sp, #60
+ 348              	.LVL31:
+  76:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+ 349              		.loc 1 76 19 view .LVU74
+ 350 0052 FFF7FEFF 		bl	mbedtls_ecp_check_privkey
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 9
+
+
+ 351              	.LVL32:
+  75:../common/device_security_crypto.c ****         (result = mbedtls_ecp_check_privkey(
+ 352              		.loc 1 75 54 view .LVU75
+ 353 0056 0446     		mov	r4, r0
+ 354 0058 0028     		cmp	r0, #0
+ 355 005a E4D1     		bne	.L22
+  78:../common/device_security_crypto.c ****              &group,
+ 356              		.loc 1 78 19 view .LVU76
+ 357 005c 0023     		movs	r3, #0
+ 358 005e 0193     		str	r3, [sp, #4]
+ 359 0060 0093     		str	r3, [sp]
+ 360 0062 19AB     		add	r3, sp, #100
+ 361 0064 0CAA     		add	r2, sp, #48
+ 362 0066 03A9     		add	r1, sp, #12
+ 363 0068 0FA8     		add	r0, sp, #60
+ 364              	.LVL33:
+  78:../common/device_security_crypto.c ****              &group,
+ 365              		.loc 1 78 19 view .LVU77
+ 366 006a FFF7FEFF 		bl	mbedtls_ecp_mul
+ 367              	.LVL34:
+  77:../common/device_security_crypto.c ****         (result = mbedtls_ecp_mul(
+ 368              		.loc 1 77 44 view .LVU78
+ 369 006e 0446     		mov	r4, r0
+ 370 0070 0028     		cmp	r0, #0
+ 371 0072 D8D1     		bne	.L22
+  85:../common/device_security_crypto.c ****     }
+ 372              		.loc 1 85 9 is_stmt 1 view .LVU79
+  85:../common/device_security_crypto.c ****     }
+ 373              		.loc 1 85 18 is_stmt 0 view .LVU80
+ 374 0074 3246     		mov	r2, r6
+ 375 0076 03A9     		add	r1, sp, #12
+ 376 0078 0FA8     		add	r0, sp, #60
+ 377              	.LVL35:
+  85:../common/device_security_crypto.c ****     }
+ 378              		.loc 1 85 18 view .LVU81
+ 379 007a FFF7FEFF 		bl	write_public
+ 380              	.LVL36:
+ 381 007e 0446     		mov	r4, r0
+ 382              	.LVL37:
+  85:../common/device_security_crypto.c ****     }
+ 383              		.loc 1 85 18 view .LVU82
+ 384 0080 D1E7     		b	.L22
+ 385              	.LVL38:
+ 386              	.L23:
+  69:../common/device_security_crypto.c ****     }
+ 387              		.loc 1 69 16 view .LVU83
+ 388 0082 4FF0FF34 		mov	r4, #-1
+ 389 0086 D7E7     		b	.L20
+ 390              		.cfi_endproc
+ 391              	.LFE12:
+ 393              		.section	.text.HBoxCrypto_P256Generate,"ax",%progbits
+ 394              		.align	1
+ 395              		.global	HBoxCrypto_P256Generate
+ 396              		.syntax unified
+ 397              		.thumb
+ 398              		.thumb_func
+ 400              	HBoxCrypto_P256Generate:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 10
+
+
+ 401              	.LVL39:
+ 402              	.LFB13:
+  92:../common/device_security_crypto.c **** 
+  93:../common/device_security_crypto.c **** int HBoxCrypto_P256Generate(uint8_t private_key[32],
+  94:../common/device_security_crypto.c ****                             uint8_t public_key[65],
+  95:../common/device_security_crypto.c ****                             hbox_crypto_rng_fn rng,
+  96:../common/device_security_crypto.c ****                             void *rng_context)
+  97:../common/device_security_crypto.c **** {
+ 403              		.loc 1 97 1 is_stmt 1 view -0
+ 404              		.cfi_startproc
+ 405              		@ args = 0, pretend = 0, frame = 176
+ 406              		@ frame_needed = 0, uses_anonymous_args = 0
+ 407              		.loc 1 97 1 is_stmt 0 view .LVU85
+ 408 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 409              	.LCFI13:
+ 410              		.cfi_def_cfa_offset 24
+ 411              		.cfi_offset 4, -24
+ 412              		.cfi_offset 5, -20
+ 413              		.cfi_offset 6, -16
+ 414              		.cfi_offset 7, -12
+ 415              		.cfi_offset 8, -8
+ 416              		.cfi_offset 14, -4
+ 417 0004 AEB0     		sub	sp, sp, #184
+ 418              	.LCFI14:
+ 419              		.cfi_def_cfa_offset 208
+  98:../common/device_security_crypto.c ****     int result;
+ 420              		.loc 1 98 5 is_stmt 1 view .LVU86
+  99:../common/device_security_crypto.c ****     mbedtls_ecp_group group;
+ 421              		.loc 1 99 5 view .LVU87
+ 100:../common/device_security_crypto.c ****     mbedtls_mpi private_value;
+ 422              		.loc 1 100 5 view .LVU88
+ 101:../common/device_security_crypto.c ****     mbedtls_ecp_point public_value;
+ 423              		.loc 1 101 5 view .LVU89
+ 102:../common/device_security_crypto.c **** 
+ 103:../common/device_security_crypto.c ****     if (private_key == NULL || public_key == NULL || rng == NULL) {
+ 424              		.loc 1 103 5 view .LVU90
+ 425              		.loc 1 103 8 is_stmt 0 view .LVU91
+ 426 0006 0029     		cmp	r1, #0
+ 427 0008 18BF     		it	ne
+ 428 000a 0028     		cmpne	r0, #0
+ 429 000c 41D0     		beq	.L30
+ 430 000e 1446     		mov	r4, r2
+ 431 0010 1D46     		mov	r5, r3
+ 432 0012 0746     		mov	r7, r0
+ 433 0014 8846     		mov	r8, r1
+ 434              		.loc 1 103 51 discriminator 1 view .LVU92
+ 435 0016 002A     		cmp	r2, #0
+ 436 0018 3ED0     		beq	.L31
+ 104:../common/device_security_crypto.c ****         return -1;
+ 105:../common/device_security_crypto.c ****     }
+ 106:../common/device_security_crypto.c ****     mbedtls_mpi_init(&private_value);
+ 437              		.loc 1 106 5 is_stmt 1 view .LVU93
+ 438 001a 0CA8     		add	r0, sp, #48
+ 439              	.LVL40:
+ 440              		.loc 1 106 5 is_stmt 0 view .LVU94
+ 441 001c FFF7FEFF 		bl	mbedtls_mpi_init
+ 442              	.LVL41:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 11
+
+
+ 107:../common/device_security_crypto.c ****     mbedtls_ecp_point_init(&public_value);
+ 443              		.loc 1 107 5 is_stmt 1 view .LVU95
+ 444 0020 03A8     		add	r0, sp, #12
+ 445 0022 FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 446              	.LVL42:
+ 108:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0 &&
+ 447              		.loc 1 108 5 view .LVU96
+ 448              		.loc 1 108 19 is_stmt 0 view .LVU97
+ 449 0026 0FA8     		add	r0, sp, #60
+ 450 0028 FFF7FEFF 		bl	load_group
+ 451              	.LVL43:
+ 452              		.loc 1 108 8 discriminator 1 view .LVU98
+ 453 002c 0646     		mov	r6, r0
+ 454 002e 40B9     		cbnz	r0, .L28
+ 109:../common/device_security_crypto.c ****         (result = mbedtls_ecp_gen_keypair(
+ 455              		.loc 1 109 19 view .LVU99
+ 456 0030 0095     		str	r5, [sp]
+ 457 0032 2346     		mov	r3, r4
+ 458 0034 03AA     		add	r2, sp, #12
+ 459 0036 0CA9     		add	r1, sp, #48
+ 460 0038 0FA8     		add	r0, sp, #60
+ 461              	.LVL44:
+ 462              		.loc 1 109 19 view .LVU100
+ 463 003a FFF7FEFF 		bl	mbedtls_ecp_gen_keypair
+ 464              	.LVL45:
+ 108:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0 &&
+ 465              		.loc 1 108 44 discriminator 1 view .LVU101
+ 466 003e 0646     		mov	r6, r0
+ 467 0040 B0B1     		cbz	r0, .L33
+ 468              	.L28:
+ 469              	.LVL46:
+ 110:../common/device_security_crypto.c ****              &group,
+ 111:../common/device_security_crypto.c ****              &private_value,
+ 112:../common/device_security_crypto.c ****              &public_value,
+ 113:../common/device_security_crypto.c ****              rng,
+ 114:../common/device_security_crypto.c ****              rng_context)) == 0 &&
+ 115:../common/device_security_crypto.c ****         (result = mbedtls_mpi_write_binary(
+ 116:../common/device_security_crypto.c ****              &private_value, private_key, 32u)) == 0) {
+ 117:../common/device_security_crypto.c ****         result = write_public(&group, &public_value, public_key);
+ 118:../common/device_security_crypto.c ****     }
+ 119:../common/device_security_crypto.c ****     if (result != 0) {
+ 120:../common/device_security_crypto.c ****         memset(private_key, 0, 32u);
+ 470              		.loc 1 120 9 is_stmt 1 view .LVU102
+ 471 0042 2022     		movs	r2, #32
+ 472 0044 0021     		movs	r1, #0
+ 473 0046 3846     		mov	r0, r7
+ 474 0048 FFF7FEFF 		bl	memset
+ 475              	.LVL47:
+ 121:../common/device_security_crypto.c ****         memset(public_key, 0, 65u);
+ 476              		.loc 1 121 9 view .LVU103
+ 477 004c 4122     		movs	r2, #65
+ 478 004e 0021     		movs	r1, #0
+ 479 0050 4046     		mov	r0, r8
+ 480 0052 FFF7FEFF 		bl	memset
+ 481              	.LVL48:
+ 482              	.L29:
+ 122:../common/device_security_crypto.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 12
+
+
+ 123:../common/device_security_crypto.c ****     mbedtls_ecp_point_free(&public_value);
+ 483              		.loc 1 123 5 view .LVU104
+ 484 0056 03A8     		add	r0, sp, #12
+ 485 0058 FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 486              	.LVL49:
+ 124:../common/device_security_crypto.c ****     mbedtls_mpi_free(&private_value);
+ 487              		.loc 1 124 5 view .LVU105
+ 488 005c 0CA8     		add	r0, sp, #48
+ 489 005e FFF7FEFF 		bl	mbedtls_mpi_free
+ 490              	.LVL50:
+ 125:../common/device_security_crypto.c ****     mbedtls_ecp_group_free(&group);
+ 491              		.loc 1 125 5 view .LVU106
+ 492 0062 0FA8     		add	r0, sp, #60
+ 493 0064 FFF7FEFF 		bl	mbedtls_ecp_group_free
+ 494              	.LVL51:
+ 126:../common/device_security_crypto.c ****     return result;
+ 495              		.loc 1 126 5 view .LVU107
+ 496              	.L26:
+ 127:../common/device_security_crypto.c **** }
+ 497              		.loc 1 127 1 is_stmt 0 view .LVU108
+ 498 0068 3046     		mov	r0, r6
+ 499 006a 2EB0     		add	sp, sp, #184
+ 500              	.LCFI15:
+ 501              		.cfi_remember_state
+ 502              		.cfi_def_cfa_offset 24
+ 503              		@ sp needed
+ 504 006c BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 505              	.LVL52:
+ 506              	.L33:
+ 507              	.LCFI16:
+ 508              		.cfi_restore_state
+ 115:../common/device_security_crypto.c ****              &private_value, private_key, 32u)) == 0) {
+ 509              		.loc 1 115 19 view .LVU109
+ 510 0070 2022     		movs	r2, #32
+ 511 0072 3946     		mov	r1, r7
+ 512 0074 0CA8     		add	r0, sp, #48
+ 513              	.LVL53:
+ 115:../common/device_security_crypto.c ****              &private_value, private_key, 32u)) == 0) {
+ 514              		.loc 1 115 19 view .LVU110
+ 515 0076 FFF7FEFF 		bl	mbedtls_mpi_write_binary
+ 516              	.LVL54:
+ 114:../common/device_security_crypto.c ****         (result = mbedtls_mpi_write_binary(
+ 517              		.loc 1 114 33 view .LVU111
+ 518 007a 0646     		mov	r6, r0
+ 519 007c 0028     		cmp	r0, #0
+ 520 007e E0D1     		bne	.L28
+ 117:../common/device_security_crypto.c ****     }
+ 521              		.loc 1 117 9 is_stmt 1 view .LVU112
+ 117:../common/device_security_crypto.c ****     }
+ 522              		.loc 1 117 18 is_stmt 0 view .LVU113
+ 523 0080 4246     		mov	r2, r8
+ 524 0082 03A9     		add	r1, sp, #12
+ 525 0084 0FA8     		add	r0, sp, #60
+ 526              	.LVL55:
+ 117:../common/device_security_crypto.c ****     }
+ 527              		.loc 1 117 18 view .LVU114
+ 528 0086 FFF7FEFF 		bl	write_public
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 13
+
+
+ 529              	.LVL56:
+ 119:../common/device_security_crypto.c ****         memset(private_key, 0, 32u);
+ 530              		.loc 1 119 5 is_stmt 1 view .LVU115
+ 119:../common/device_security_crypto.c ****         memset(private_key, 0, 32u);
+ 531              		.loc 1 119 8 is_stmt 0 view .LVU116
+ 532 008a 0646     		mov	r6, r0
+ 533 008c 0028     		cmp	r0, #0
+ 534 008e E2D0     		beq	.L29
+ 535 0090 D7E7     		b	.L28
+ 536              	.LVL57:
+ 537              	.L30:
+ 104:../common/device_security_crypto.c ****     }
+ 538              		.loc 1 104 16 view .LVU117
+ 539 0092 4FF0FF36 		mov	r6, #-1
+ 540 0096 E7E7     		b	.L26
+ 541              	.L31:
+ 104:../common/device_security_crypto.c ****     }
+ 542              		.loc 1 104 16 view .LVU118
+ 543 0098 4FF0FF36 		mov	r6, #-1
+ 544 009c E4E7     		b	.L26
+ 545              		.cfi_endproc
+ 546              	.LFE13:
+ 548              		.section	.text.HBoxCrypto_P256SignDigest,"ax",%progbits
+ 549              		.align	1
+ 550              		.global	HBoxCrypto_P256SignDigest
+ 551              		.syntax unified
+ 552              		.thumb
+ 553              		.thumb_func
+ 555              	HBoxCrypto_P256SignDigest:
+ 556              	.LVL58:
+ 557              	.LFB14:
+ 128:../common/device_security_crypto.c **** 
+ 129:../common/device_security_crypto.c **** int HBoxCrypto_P256SignDigest(const uint8_t private_key[32],
+ 130:../common/device_security_crypto.c ****                               const uint8_t digest[32],
+ 131:../common/device_security_crypto.c ****                               uint8_t signature[64],
+ 132:../common/device_security_crypto.c ****                               hbox_crypto_rng_fn rng,
+ 133:../common/device_security_crypto.c ****                               void *rng_context)
+ 134:../common/device_security_crypto.c **** {
+ 558              		.loc 1 134 1 is_stmt 1 view -0
+ 559              		.cfi_startproc
+ 560              		@ args = 4, pretend = 0, frame = 160
+ 561              		@ frame_needed = 0, uses_anonymous_args = 0
+ 562              		.loc 1 134 1 is_stmt 0 view .LVU120
+ 563 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 564              	.LCFI17:
+ 565              		.cfi_def_cfa_offset 24
+ 566              		.cfi_offset 4, -24
+ 567              		.cfi_offset 5, -20
+ 568              		.cfi_offset 6, -16
+ 569              		.cfi_offset 7, -12
+ 570              		.cfi_offset 8, -8
+ 571              		.cfi_offset 14, -4
+ 572 0004 ACB0     		sub	sp, sp, #176
+ 573              	.LCFI18:
+ 574              		.cfi_def_cfa_offset 200
+ 135:../common/device_security_crypto.c ****     int result;
+ 575              		.loc 1 135 5 is_stmt 1 view .LVU121
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 14
+
+
+ 136:../common/device_security_crypto.c ****     mbedtls_ecp_group group;
+ 576              		.loc 1 136 5 view .LVU122
+ 137:../common/device_security_crypto.c ****     mbedtls_mpi private_value;
+ 577              		.loc 1 137 5 view .LVU123
+ 138:../common/device_security_crypto.c ****     mbedtls_mpi r;
+ 578              		.loc 1 138 5 view .LVU124
+ 139:../common/device_security_crypto.c ****     mbedtls_mpi s;
+ 579              		.loc 1 139 5 view .LVU125
+ 140:../common/device_security_crypto.c **** 
+ 141:../common/device_security_crypto.c ****     if (private_key == NULL || digest == NULL || signature == NULL ||
+ 580              		.loc 1 141 5 view .LVU126
+ 581              		.loc 1 141 8 is_stmt 0 view .LVU127
+ 582 0006 0029     		cmp	r1, #0
+ 583 0008 18BF     		it	ne
+ 584 000a 0028     		cmpne	r0, #0
+ 585 000c 5BD0     		beq	.L38
+ 586 000e 1446     		mov	r4, r2
+ 587 0010 1D46     		mov	r5, r3
+ 588 0012 0646     		mov	r6, r0
+ 589 0014 0F46     		mov	r7, r1
+ 142:../common/device_security_crypto.c ****         rng == NULL) {
+ 590              		.loc 1 142 13 view .LVU128
+ 591 0016 B3FA83F3 		clz	r3, r3
+ 592              	.LVL59:
+ 593              		.loc 1 142 13 view .LVU129
+ 594 001a 5B09     		lsrs	r3, r3, #5
+ 141:../common/device_security_crypto.c ****         rng == NULL) {
+ 595              		.loc 1 141 68 discriminator 1 view .LVU130
+ 596 001c 002A     		cmp	r2, #0
+ 597 001e 55D0     		beq	.L39
+ 598 0020 002B     		cmp	r3, #0
+ 599 0022 53D1     		bne	.L39
+ 143:../common/device_security_crypto.c ****         return -1;
+ 144:../common/device_security_crypto.c ****     }
+ 145:../common/device_security_crypto.c ****     mbedtls_mpi_init(&private_value);
+ 600              		.loc 1 145 5 is_stmt 1 view .LVU131
+ 601 0024 0AA8     		add	r0, sp, #40
+ 602              	.LVL60:
+ 603              		.loc 1 145 5 is_stmt 0 view .LVU132
+ 604 0026 FFF7FEFF 		bl	mbedtls_mpi_init
+ 605              	.LVL61:
+ 146:../common/device_security_crypto.c ****     mbedtls_mpi_init(&r);
+ 606              		.loc 1 146 5 is_stmt 1 view .LVU133
+ 607 002a 07A8     		add	r0, sp, #28
+ 608 002c FFF7FEFF 		bl	mbedtls_mpi_init
+ 609              	.LVL62:
+ 147:../common/device_security_crypto.c ****     mbedtls_mpi_init(&s);
+ 610              		.loc 1 147 5 view .LVU134
+ 611 0030 04A8     		add	r0, sp, #16
+ 612 0032 FFF7FEFF 		bl	mbedtls_mpi_init
+ 613              	.LVL63:
+ 148:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0 &&
+ 614              		.loc 1 148 5 view .LVU135
+ 615              		.loc 1 148 19 is_stmt 0 view .LVU136
+ 616 0036 0DA8     		add	r0, sp, #52
+ 617 0038 FFF7FEFF 		bl	load_group
+ 618              	.LVL64:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 15
+
+
+ 619              		.loc 1 148 8 discriminator 1 view .LVU137
+ 620 003c 8046     		mov	r8, r0
+ 621 003e 30B9     		cbnz	r0, .L36
+ 149:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(
+ 622              		.loc 1 149 19 view .LVU138
+ 623 0040 2022     		movs	r2, #32
+ 624 0042 3146     		mov	r1, r6
+ 625 0044 0AA8     		add	r0, sp, #40
+ 626              	.LVL65:
+ 627              		.loc 1 149 19 view .LVU139
+ 628 0046 FFF7FEFF 		bl	mbedtls_mpi_read_binary
+ 629              	.LVL66:
+ 148:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0 &&
+ 630              		.loc 1 148 44 discriminator 1 view .LVU140
+ 631 004a 8046     		mov	r8, r0
+ 632 004c A0B1     		cbz	r0, .L41
+ 633              	.L36:
+ 634              	.LVL67:
+ 150:../common/device_security_crypto.c ****              &private_value, private_key, 32u)) == 0 &&
+ 151:../common/device_security_crypto.c ****         (result = mbedtls_ecp_check_privkey(
+ 152:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+ 153:../common/device_security_crypto.c ****         (result = mbedtls_ecdsa_sign(
+ 154:../common/device_security_crypto.c ****              &group,
+ 155:../common/device_security_crypto.c ****              &r,
+ 156:../common/device_security_crypto.c ****              &s,
+ 157:../common/device_security_crypto.c ****              &private_value,
+ 158:../common/device_security_crypto.c ****              digest,
+ 159:../common/device_security_crypto.c ****              32u,
+ 160:../common/device_security_crypto.c ****              rng,
+ 161:../common/device_security_crypto.c ****              rng_context)) == 0 &&
+ 162:../common/device_security_crypto.c ****         (result = mbedtls_mpi_write_binary(
+ 163:../common/device_security_crypto.c ****              &r, signature, 32u)) == 0) {
+ 164:../common/device_security_crypto.c ****         result = mbedtls_mpi_write_binary(&s, &signature[32], 32u);
+ 165:../common/device_security_crypto.c ****     }
+ 166:../common/device_security_crypto.c ****     if (result != 0) {
+ 167:../common/device_security_crypto.c ****         memset(signature, 0, 64u);
+ 635              		.loc 1 167 9 is_stmt 1 view .LVU141
+ 636 004e 4022     		movs	r2, #64
+ 637 0050 0021     		movs	r1, #0
+ 638 0052 2046     		mov	r0, r4
+ 639 0054 FFF7FEFF 		bl	memset
+ 640              	.LVL68:
+ 641              	.L37:
+ 168:../common/device_security_crypto.c ****     }
+ 169:../common/device_security_crypto.c ****     mbedtls_mpi_free(&s);
+ 642              		.loc 1 169 5 view .LVU142
+ 643 0058 04A8     		add	r0, sp, #16
+ 644 005a FFF7FEFF 		bl	mbedtls_mpi_free
+ 645              	.LVL69:
+ 170:../common/device_security_crypto.c ****     mbedtls_mpi_free(&r);
+ 646              		.loc 1 170 5 view .LVU143
+ 647 005e 07A8     		add	r0, sp, #28
+ 648 0060 FFF7FEFF 		bl	mbedtls_mpi_free
+ 649              	.LVL70:
+ 171:../common/device_security_crypto.c ****     mbedtls_mpi_free(&private_value);
+ 650              		.loc 1 171 5 view .LVU144
+ 651 0064 0AA8     		add	r0, sp, #40
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 16
+
+
+ 652 0066 FFF7FEFF 		bl	mbedtls_mpi_free
+ 653              	.LVL71:
+ 172:../common/device_security_crypto.c ****     mbedtls_ecp_group_free(&group);
+ 654              		.loc 1 172 5 view .LVU145
+ 655 006a 0DA8     		add	r0, sp, #52
+ 656 006c FFF7FEFF 		bl	mbedtls_ecp_group_free
+ 657              	.LVL72:
+ 173:../common/device_security_crypto.c ****     return result;
+ 658              		.loc 1 173 5 view .LVU146
+ 659              	.L34:
+ 174:../common/device_security_crypto.c **** }
+ 660              		.loc 1 174 1 is_stmt 0 view .LVU147
+ 661 0070 4046     		mov	r0, r8
+ 662 0072 2CB0     		add	sp, sp, #176
+ 663              	.LCFI19:
+ 664              		.cfi_remember_state
+ 665              		.cfi_def_cfa_offset 24
+ 666              		@ sp needed
+ 667 0074 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 668              	.LVL73:
+ 669              	.L41:
+ 670              	.LCFI20:
+ 671              		.cfi_restore_state
+ 151:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+ 672              		.loc 1 151 19 view .LVU148
+ 673 0078 0AA9     		add	r1, sp, #40
+ 674 007a 0DA8     		add	r0, sp, #52
+ 675              	.LVL74:
+ 151:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+ 676              		.loc 1 151 19 view .LVU149
+ 677 007c FFF7FEFF 		bl	mbedtls_ecp_check_privkey
+ 678              	.LVL75:
+ 150:../common/device_security_crypto.c ****         (result = mbedtls_ecp_check_privkey(
+ 679              		.loc 1 150 54 view .LVU150
+ 680 0080 8046     		mov	r8, r0
+ 681 0082 0028     		cmp	r0, #0
+ 682 0084 E3D1     		bne	.L36
+ 153:../common/device_security_crypto.c ****              &group,
+ 683              		.loc 1 153 19 view .LVU151
+ 684 0086 329B     		ldr	r3, [sp, #200]
+ 685 0088 0393     		str	r3, [sp, #12]
+ 686 008a 0295     		str	r5, [sp, #8]
+ 687 008c 2023     		movs	r3, #32
+ 688 008e 0193     		str	r3, [sp, #4]
+ 689 0090 0097     		str	r7, [sp]
+ 690 0092 0AAB     		add	r3, sp, #40
+ 691 0094 04AA     		add	r2, sp, #16
+ 692 0096 07A9     		add	r1, sp, #28
+ 693 0098 0DA8     		add	r0, sp, #52
+ 694              	.LVL76:
+ 153:../common/device_security_crypto.c ****              &group,
+ 695              		.loc 1 153 19 view .LVU152
+ 696 009a FFF7FEFF 		bl	mbedtls_ecdsa_sign
+ 697              	.LVL77:
+ 152:../common/device_security_crypto.c ****         (result = mbedtls_ecdsa_sign(
+ 698              		.loc 1 152 44 view .LVU153
+ 699 009e 8046     		mov	r8, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 17
+
+
+ 700 00a0 0028     		cmp	r0, #0
+ 701 00a2 D4D1     		bne	.L36
+ 162:../common/device_security_crypto.c ****              &r, signature, 32u)) == 0) {
+ 702              		.loc 1 162 19 view .LVU154
+ 703 00a4 2022     		movs	r2, #32
+ 704 00a6 2146     		mov	r1, r4
+ 705 00a8 07A8     		add	r0, sp, #28
+ 706              	.LVL78:
+ 162:../common/device_security_crypto.c ****              &r, signature, 32u)) == 0) {
+ 707              		.loc 1 162 19 view .LVU155
+ 708 00aa FFF7FEFF 		bl	mbedtls_mpi_write_binary
+ 709              	.LVL79:
+ 161:../common/device_security_crypto.c ****         (result = mbedtls_mpi_write_binary(
+ 710              		.loc 1 161 33 view .LVU156
+ 711 00ae 8046     		mov	r8, r0
+ 712 00b0 0028     		cmp	r0, #0
+ 713 00b2 CCD1     		bne	.L36
+ 164:../common/device_security_crypto.c ****     }
+ 714              		.loc 1 164 9 is_stmt 1 view .LVU157
+ 164:../common/device_security_crypto.c ****     }
+ 715              		.loc 1 164 18 is_stmt 0 view .LVU158
+ 716 00b4 2022     		movs	r2, #32
+ 717 00b6 A118     		adds	r1, r4, r2
+ 718 00b8 04A8     		add	r0, sp, #16
+ 719              	.LVL80:
+ 164:../common/device_security_crypto.c ****     }
+ 720              		.loc 1 164 18 view .LVU159
+ 721 00ba FFF7FEFF 		bl	mbedtls_mpi_write_binary
+ 722              	.LVL81:
+ 166:../common/device_security_crypto.c ****         memset(signature, 0, 64u);
+ 723              		.loc 1 166 5 is_stmt 1 view .LVU160
+ 166:../common/device_security_crypto.c ****         memset(signature, 0, 64u);
+ 724              		.loc 1 166 8 is_stmt 0 view .LVU161
+ 725 00be 8046     		mov	r8, r0
+ 726 00c0 0028     		cmp	r0, #0
+ 727 00c2 C9D0     		beq	.L37
+ 728 00c4 C3E7     		b	.L36
+ 729              	.LVL82:
+ 730              	.L38:
+ 143:../common/device_security_crypto.c ****     }
+ 731              		.loc 1 143 16 view .LVU162
+ 732 00c6 4FF0FF38 		mov	r8, #-1
+ 733 00ca D1E7     		b	.L34
+ 734              	.LVL83:
+ 735              	.L39:
+ 143:../common/device_security_crypto.c ****     }
+ 736              		.loc 1 143 16 view .LVU163
+ 737 00cc 4FF0FF38 		mov	r8, #-1
+ 738 00d0 CEE7     		b	.L34
+ 739              		.cfi_endproc
+ 740              	.LFE14:
+ 742              		.section	.text.HBoxCrypto_P256VerifyDigest,"ax",%progbits
+ 743              		.align	1
+ 744              		.global	HBoxCrypto_P256VerifyDigest
+ 745              		.syntax unified
+ 746              		.thumb
+ 747              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 18
+
+
+ 749              	HBoxCrypto_P256VerifyDigest:
+ 750              	.LVL84:
+ 751              	.LFB15:
+ 175:../common/device_security_crypto.c **** 
+ 176:../common/device_security_crypto.c **** int HBoxCrypto_P256VerifyDigest(const uint8_t public_key[65],
+ 177:../common/device_security_crypto.c ****                                 const uint8_t digest[32],
+ 178:../common/device_security_crypto.c ****                                 const uint8_t signature[64])
+ 179:../common/device_security_crypto.c **** {
+ 752              		.loc 1 179 1 is_stmt 1 view -0
+ 753              		.cfi_startproc
+ 754              		@ args = 0, pretend = 0, frame = 184
+ 755              		@ frame_needed = 0, uses_anonymous_args = 0
+ 756              		.loc 1 179 1 is_stmt 0 view .LVU165
+ 757 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 758              	.LCFI21:
+ 759              		.cfi_def_cfa_offset 20
+ 760              		.cfi_offset 4, -20
+ 761              		.cfi_offset 5, -16
+ 762              		.cfi_offset 6, -12
+ 763              		.cfi_offset 7, -8
+ 764              		.cfi_offset 14, -4
+ 765 0002 B1B0     		sub	sp, sp, #196
+ 766              	.LCFI22:
+ 767              		.cfi_def_cfa_offset 216
+ 180:../common/device_security_crypto.c ****     int result;
+ 768              		.loc 1 180 5 is_stmt 1 view .LVU166
+ 181:../common/device_security_crypto.c ****     mbedtls_ecp_group group;
+ 769              		.loc 1 181 5 view .LVU167
+ 182:../common/device_security_crypto.c ****     mbedtls_ecp_point public_value;
+ 770              		.loc 1 182 5 view .LVU168
+ 183:../common/device_security_crypto.c ****     mbedtls_mpi r;
+ 771              		.loc 1 183 5 view .LVU169
+ 184:../common/device_security_crypto.c ****     mbedtls_mpi s;
+ 772              		.loc 1 184 5 view .LVU170
+ 185:../common/device_security_crypto.c **** 
+ 186:../common/device_security_crypto.c ****     if (public_key == NULL || digest == NULL || signature == NULL) {
+ 773              		.loc 1 186 5 view .LVU171
+ 774              		.loc 1 186 8 is_stmt 0 view .LVU172
+ 775 0004 0029     		cmp	r1, #0
+ 776 0006 18BF     		it	ne
+ 777 0008 0028     		cmpne	r0, #0
+ 778 000a 45D0     		beq	.L45
+ 779 000c 1446     		mov	r4, r2
+ 780 000e 0646     		mov	r6, r0
+ 781 0010 0F46     		mov	r7, r1
+ 782              		.loc 1 186 46 discriminator 1 view .LVU173
+ 783 0012 002A     		cmp	r2, #0
+ 784 0014 43D0     		beq	.L46
+ 187:../common/device_security_crypto.c ****         return -1;
+ 188:../common/device_security_crypto.c ****     }
+ 189:../common/device_security_crypto.c ****     mbedtls_ecp_point_init(&public_value);
+ 785              		.loc 1 189 5 is_stmt 1 view .LVU174
+ 786 0016 08A8     		add	r0, sp, #32
+ 787              	.LVL85:
+ 788              		.loc 1 189 5 is_stmt 0 view .LVU175
+ 789 0018 FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 790              	.LVL86:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 19
+
+
+ 190:../common/device_security_crypto.c ****     mbedtls_mpi_init(&r);
+ 791              		.loc 1 190 5 is_stmt 1 view .LVU176
+ 792 001c 05A8     		add	r0, sp, #20
+ 793 001e FFF7FEFF 		bl	mbedtls_mpi_init
+ 794              	.LVL87:
+ 191:../common/device_security_crypto.c ****     mbedtls_mpi_init(&s);
+ 795              		.loc 1 191 5 view .LVU177
+ 796 0022 02A8     		add	r0, sp, #8
+ 797 0024 FFF7FEFF 		bl	mbedtls_mpi_init
+ 798              	.LVL88:
+ 192:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0 &&
+ 799              		.loc 1 192 5 view .LVU178
+ 800              		.loc 1 192 19 is_stmt 0 view .LVU179
+ 801 0028 11A8     		add	r0, sp, #68
+ 802 002a FFF7FEFF 		bl	load_group
+ 803              	.LVL89:
+ 804              		.loc 1 192 8 discriminator 1 view .LVU180
+ 805 002e 0546     		mov	r5, r0
+ 806 0030 70B1     		cbz	r0, .L48
+ 807              	.L44:
+ 193:../common/device_security_crypto.c ****         (result = load_public(&group, &public_value, public_key)) == 0 &&
+ 194:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(&r, signature, 32u)) == 0 &&
+ 195:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(
+ 196:../common/device_security_crypto.c ****              &s, &signature[32], 32u)) == 0) {
+ 197:../common/device_security_crypto.c ****         result = mbedtls_ecdsa_verify(
+ 198:../common/device_security_crypto.c ****             &group, digest, 32u, &public_value, &r, &s);
+ 199:../common/device_security_crypto.c ****     }
+ 200:../common/device_security_crypto.c ****     mbedtls_mpi_free(&s);
+ 808              		.loc 1 200 5 is_stmt 1 view .LVU181
+ 809 0032 02A8     		add	r0, sp, #8
+ 810              	.LVL90:
+ 811              		.loc 1 200 5 is_stmt 0 view .LVU182
+ 812 0034 FFF7FEFF 		bl	mbedtls_mpi_free
+ 813              	.LVL91:
+ 201:../common/device_security_crypto.c ****     mbedtls_mpi_free(&r);
+ 814              		.loc 1 201 5 is_stmt 1 view .LVU183
+ 815 0038 05A8     		add	r0, sp, #20
+ 816 003a FFF7FEFF 		bl	mbedtls_mpi_free
+ 817              	.LVL92:
+ 202:../common/device_security_crypto.c ****     mbedtls_ecp_point_free(&public_value);
+ 818              		.loc 1 202 5 view .LVU184
+ 819 003e 08A8     		add	r0, sp, #32
+ 820 0040 FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 821              	.LVL93:
+ 203:../common/device_security_crypto.c ****     mbedtls_ecp_group_free(&group);
+ 822              		.loc 1 203 5 view .LVU185
+ 823 0044 11A8     		add	r0, sp, #68
+ 824 0046 FFF7FEFF 		bl	mbedtls_ecp_group_free
+ 825              	.LVL94:
+ 204:../common/device_security_crypto.c ****     return result;
+ 826              		.loc 1 204 5 view .LVU186
+ 827              	.L42:
+ 205:../common/device_security_crypto.c **** }
+ 828              		.loc 1 205 1 is_stmt 0 view .LVU187
+ 829 004a 2846     		mov	r0, r5
+ 830 004c 31B0     		add	sp, sp, #196
+ 831              	.LCFI23:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 20
+
+
+ 832              		.cfi_remember_state
+ 833              		.cfi_def_cfa_offset 20
+ 834              		@ sp needed
+ 835 004e F0BD     		pop	{r4, r5, r6, r7, pc}
+ 836              	.LVL95:
+ 837              	.L48:
+ 838              	.LCFI24:
+ 839              		.cfi_restore_state
+ 193:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(&r, signature, 32u)) == 0 &&
+ 840              		.loc 1 193 19 view .LVU188
+ 841 0050 3246     		mov	r2, r6
+ 842 0052 08A9     		add	r1, sp, #32
+ 843 0054 11A8     		add	r0, sp, #68
+ 844              	.LVL96:
+ 193:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(&r, signature, 32u)) == 0 &&
+ 845              		.loc 1 193 19 view .LVU189
+ 846 0056 FFF7FEFF 		bl	load_public
+ 847              	.LVL97:
+ 192:../common/device_security_crypto.c ****         (result = load_public(&group, &public_value, public_key)) == 0 &&
+ 848              		.loc 1 192 44 discriminator 1 view .LVU190
+ 849 005a 0546     		mov	r5, r0
+ 850 005c 0028     		cmp	r0, #0
+ 851 005e E8D1     		bne	.L44
+ 194:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(
+ 852              		.loc 1 194 19 view .LVU191
+ 853 0060 2022     		movs	r2, #32
+ 854 0062 2146     		mov	r1, r4
+ 855 0064 05A8     		add	r0, sp, #20
+ 856              	.LVL98:
+ 194:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(
+ 857              		.loc 1 194 19 view .LVU192
+ 858 0066 FFF7FEFF 		bl	mbedtls_mpi_read_binary
+ 859              	.LVL99:
+ 193:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(&r, signature, 32u)) == 0 &&
+ 860              		.loc 1 193 72 view .LVU193
+ 861 006a 0546     		mov	r5, r0
+ 862 006c 0028     		cmp	r0, #0
+ 863 006e E0D1     		bne	.L44
+ 195:../common/device_security_crypto.c ****              &s, &signature[32], 32u)) == 0) {
+ 864              		.loc 1 195 19 view .LVU194
+ 865 0070 2022     		movs	r2, #32
+ 866 0072 A118     		adds	r1, r4, r2
+ 867 0074 02A8     		add	r0, sp, #8
+ 868              	.LVL100:
+ 195:../common/device_security_crypto.c ****              &s, &signature[32], 32u)) == 0) {
+ 869              		.loc 1 195 19 view .LVU195
+ 870 0076 FFF7FEFF 		bl	mbedtls_mpi_read_binary
+ 871              	.LVL101:
+ 194:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(
+ 872              		.loc 1 194 69 view .LVU196
+ 873 007a 0546     		mov	r5, r0
+ 874 007c 0028     		cmp	r0, #0
+ 875 007e D8D1     		bne	.L44
+ 197:../common/device_security_crypto.c ****             &group, digest, 32u, &public_value, &r, &s);
+ 876              		.loc 1 197 9 is_stmt 1 view .LVU197
+ 197:../common/device_security_crypto.c ****             &group, digest, 32u, &public_value, &r, &s);
+ 877              		.loc 1 197 18 is_stmt 0 view .LVU198
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 21
+
+
+ 878 0080 02AB     		add	r3, sp, #8
+ 879 0082 0193     		str	r3, [sp, #4]
+ 880 0084 05AB     		add	r3, sp, #20
+ 881 0086 0093     		str	r3, [sp]
+ 882 0088 08AB     		add	r3, sp, #32
+ 883 008a 2022     		movs	r2, #32
+ 884 008c 3946     		mov	r1, r7
+ 885 008e 11A8     		add	r0, sp, #68
+ 886              	.LVL102:
+ 197:../common/device_security_crypto.c ****             &group, digest, 32u, &public_value, &r, &s);
+ 887              		.loc 1 197 18 view .LVU199
+ 888 0090 FFF7FEFF 		bl	mbedtls_ecdsa_verify
+ 889              	.LVL103:
+ 890 0094 0546     		mov	r5, r0
+ 891              	.LVL104:
+ 197:../common/device_security_crypto.c ****             &group, digest, 32u, &public_value, &r, &s);
+ 892              		.loc 1 197 18 view .LVU200
+ 893 0096 CCE7     		b	.L44
+ 894              	.LVL105:
+ 895              	.L45:
+ 187:../common/device_security_crypto.c ****     }
+ 896              		.loc 1 187 16 view .LVU201
+ 897 0098 4FF0FF35 		mov	r5, #-1
+ 898 009c D5E7     		b	.L42
+ 899              	.L46:
+ 187:../common/device_security_crypto.c ****     }
+ 900              		.loc 1 187 16 view .LVU202
+ 901 009e 4FF0FF35 		mov	r5, #-1
+ 902 00a2 D2E7     		b	.L42
+ 903              		.cfi_endproc
+ 904              	.LFE15:
+ 906              		.section	.text.HBoxCrypto_P256ValidatePublicKey,"ax",%progbits
+ 907              		.align	1
+ 908              		.global	HBoxCrypto_P256ValidatePublicKey
+ 909              		.syntax unified
+ 910              		.thumb
+ 911              		.thumb_func
+ 913              	HBoxCrypto_P256ValidatePublicKey:
+ 914              	.LVL106:
+ 915              	.LFB16:
+ 206:../common/device_security_crypto.c **** 
+ 207:../common/device_security_crypto.c **** int HBoxCrypto_P256ValidatePublicKey(const uint8_t public_key[65])
+ 208:../common/device_security_crypto.c **** {
+ 916              		.loc 1 208 1 is_stmt 1 view -0
+ 917              		.cfi_startproc
+ 918              		@ args = 0, pretend = 0, frame = 160
+ 919              		@ frame_needed = 0, uses_anonymous_args = 0
+ 920              		.loc 1 208 1 is_stmt 0 view .LVU204
+ 921 0000 30B5     		push	{r4, r5, lr}
+ 922              	.LCFI25:
+ 923              		.cfi_def_cfa_offset 12
+ 924              		.cfi_offset 4, -12
+ 925              		.cfi_offset 5, -8
+ 926              		.cfi_offset 14, -4
+ 927 0002 A9B0     		sub	sp, sp, #164
+ 928              	.LCFI26:
+ 929              		.cfi_def_cfa_offset 176
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 22
+
+
+ 209:../common/device_security_crypto.c ****     int result;
+ 930              		.loc 1 209 5 is_stmt 1 view .LVU205
+ 210:../common/device_security_crypto.c ****     mbedtls_ecp_group group;
+ 931              		.loc 1 210 5 view .LVU206
+ 211:../common/device_security_crypto.c ****     mbedtls_ecp_point public_value;
+ 932              		.loc 1 211 5 view .LVU207
+ 212:../common/device_security_crypto.c **** 
+ 213:../common/device_security_crypto.c ****     if (public_key == NULL) {
+ 933              		.loc 1 213 5 view .LVU208
+ 934              		.loc 1 213 8 is_stmt 0 view .LVU209
+ 935 0004 C0B1     		cbz	r0, .L52
+ 936 0006 0546     		mov	r5, r0
+ 214:../common/device_security_crypto.c ****         return -1;
+ 215:../common/device_security_crypto.c ****     }
+ 216:../common/device_security_crypto.c ****     mbedtls_ecp_point_init(&public_value);
+ 937              		.loc 1 216 5 is_stmt 1 view .LVU210
+ 938 0008 6846     		mov	r0, sp
+ 939              	.LVL107:
+ 940              		.loc 1 216 5 is_stmt 0 view .LVU211
+ 941 000a FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 942              	.LVL108:
+ 217:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0) {
+ 943              		.loc 1 217 5 is_stmt 1 view .LVU212
+ 944              		.loc 1 217 19 is_stmt 0 view .LVU213
+ 945 000e 09A8     		add	r0, sp, #36
+ 946 0010 FFF7FEFF 		bl	load_group
+ 947              	.LVL109:
+ 948              		.loc 1 217 8 discriminator 1 view .LVU214
+ 949 0014 0446     		mov	r4, r0
+ 950 0016 40B1     		cbz	r0, .L54
+ 951              	.L51:
+ 218:../common/device_security_crypto.c ****         result = load_public(&group, &public_value, public_key);
+ 219:../common/device_security_crypto.c ****     }
+ 220:../common/device_security_crypto.c ****     mbedtls_ecp_point_free(&public_value);
+ 952              		.loc 1 220 5 is_stmt 1 view .LVU215
+ 953 0018 6846     		mov	r0, sp
+ 954              	.LVL110:
+ 955              		.loc 1 220 5 is_stmt 0 view .LVU216
+ 956 001a FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 957              	.LVL111:
+ 221:../common/device_security_crypto.c ****     mbedtls_ecp_group_free(&group);
+ 958              		.loc 1 221 5 is_stmt 1 view .LVU217
+ 959 001e 09A8     		add	r0, sp, #36
+ 960 0020 FFF7FEFF 		bl	mbedtls_ecp_group_free
+ 961              	.LVL112:
+ 222:../common/device_security_crypto.c ****     return result;
+ 962              		.loc 1 222 5 view .LVU218
+ 963              	.L49:
+ 223:../common/device_security_crypto.c **** }
+ 964              		.loc 1 223 1 is_stmt 0 view .LVU219
+ 965 0024 2046     		mov	r0, r4
+ 966 0026 29B0     		add	sp, sp, #164
+ 967              	.LCFI27:
+ 968              		.cfi_remember_state
+ 969              		.cfi_def_cfa_offset 12
+ 970              		@ sp needed
+ 971 0028 30BD     		pop	{r4, r5, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 23
+
+
+ 972              	.LVL113:
+ 973              	.L54:
+ 974              	.LCFI28:
+ 975              		.cfi_restore_state
+ 218:../common/device_security_crypto.c ****     }
+ 976              		.loc 1 218 9 is_stmt 1 view .LVU220
+ 218:../common/device_security_crypto.c ****     }
+ 977              		.loc 1 218 18 is_stmt 0 view .LVU221
+ 978 002a 2A46     		mov	r2, r5
+ 979 002c 6946     		mov	r1, sp
+ 980 002e 09A8     		add	r0, sp, #36
+ 981              	.LVL114:
+ 218:../common/device_security_crypto.c ****     }
+ 982              		.loc 1 218 18 view .LVU222
+ 983 0030 FFF7FEFF 		bl	load_public
+ 984              	.LVL115:
+ 985 0034 0446     		mov	r4, r0
+ 986              	.LVL116:
+ 218:../common/device_security_crypto.c ****     }
+ 987              		.loc 1 218 18 view .LVU223
+ 988 0036 EFE7     		b	.L51
+ 989              	.LVL117:
+ 990              	.L52:
+ 214:../common/device_security_crypto.c ****     }
+ 991              		.loc 1 214 16 view .LVU224
+ 992 0038 4FF0FF34 		mov	r4, #-1
+ 993 003c F2E7     		b	.L49
+ 994              		.cfi_endproc
+ 995              	.LFE16:
+ 997              		.section	.text.HBoxCrypto_P256Ecdh,"ax",%progbits
+ 998              		.align	1
+ 999              		.global	HBoxCrypto_P256Ecdh
+ 1000              		.syntax unified
+ 1001              		.thumb
+ 1002              		.thumb_func
+ 1004              	HBoxCrypto_P256Ecdh:
+ 1005              	.LVL118:
+ 1006              	.LFB17:
+ 224:../common/device_security_crypto.c **** 
+ 225:../common/device_security_crypto.c **** int HBoxCrypto_P256Ecdh(const uint8_t private_key[32],
+ 226:../common/device_security_crypto.c ****                         const uint8_t peer_public_key[65],
+ 227:../common/device_security_crypto.c ****                         uint8_t shared_secret[32],
+ 228:../common/device_security_crypto.c ****                         hbox_crypto_rng_fn rng,
+ 229:../common/device_security_crypto.c ****                         void *rng_context)
+ 230:../common/device_security_crypto.c **** {
+ 1007              		.loc 1 230 1 is_stmt 1 view -0
+ 1008              		.cfi_startproc
+ 1009              		@ args = 4, pretend = 0, frame = 184
+ 1010              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1011              		.loc 1 230 1 is_stmt 0 view .LVU226
+ 1012 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 1013              	.LCFI29:
+ 1014              		.cfi_def_cfa_offset 24
+ 1015              		.cfi_offset 4, -24
+ 1016              		.cfi_offset 5, -20
+ 1017              		.cfi_offset 6, -16
+ 1018              		.cfi_offset 7, -12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 24
+
+
+ 1019              		.cfi_offset 8, -8
+ 1020              		.cfi_offset 14, -4
+ 1021 0004 B0B0     		sub	sp, sp, #192
+ 1022              	.LCFI30:
+ 1023              		.cfi_def_cfa_offset 216
+ 231:../common/device_security_crypto.c ****     int result;
+ 1024              		.loc 1 231 5 is_stmt 1 view .LVU227
+ 232:../common/device_security_crypto.c ****     mbedtls_ecp_group group;
+ 1025              		.loc 1 232 5 view .LVU228
+ 233:../common/device_security_crypto.c ****     mbedtls_mpi private_value;
+ 1026              		.loc 1 233 5 view .LVU229
+ 234:../common/device_security_crypto.c ****     mbedtls_mpi secret;
+ 1027              		.loc 1 234 5 view .LVU230
+ 235:../common/device_security_crypto.c ****     mbedtls_ecp_point peer;
+ 1028              		.loc 1 235 5 view .LVU231
+ 236:../common/device_security_crypto.c **** 
+ 237:../common/device_security_crypto.c ****     if (private_key == NULL || peer_public_key == NULL ||
+ 1029              		.loc 1 237 5 view .LVU232
+ 1030              		.loc 1 237 8 is_stmt 0 view .LVU233
+ 1031 0006 0029     		cmp	r1, #0
+ 1032 0008 18BF     		it	ne
+ 1033 000a 0028     		cmpne	r0, #0
+ 1034 000c 58D0     		beq	.L59
+ 1035 000e 1446     		mov	r4, r2
+ 1036 0010 1D46     		mov	r5, r3
+ 1037 0012 0646     		mov	r6, r0
+ 1038 0014 0F46     		mov	r7, r1
+ 238:../common/device_security_crypto.c ****         shared_secret == NULL || rng == NULL) {
+ 1039              		.loc 1 238 38 view .LVU234
+ 1040 0016 B3FA83F3 		clz	r3, r3
+ 1041              	.LVL119:
+ 1042              		.loc 1 238 38 view .LVU235
+ 1043 001a 5B09     		lsrs	r3, r3, #5
+ 1044              		.loc 1 238 31 view .LVU236
+ 1045 001c 002A     		cmp	r2, #0
+ 1046 001e 52D0     		beq	.L60
+ 1047 0020 002B     		cmp	r3, #0
+ 1048 0022 50D1     		bne	.L60
+ 239:../common/device_security_crypto.c ****         return -1;
+ 240:../common/device_security_crypto.c ****     }
+ 241:../common/device_security_crypto.c ****     mbedtls_mpi_init(&private_value);
+ 1049              		.loc 1 241 5 is_stmt 1 view .LVU237
+ 1050 0024 0EA8     		add	r0, sp, #56
+ 1051              	.LVL120:
+ 1052              		.loc 1 241 5 is_stmt 0 view .LVU238
+ 1053 0026 FFF7FEFF 		bl	mbedtls_mpi_init
+ 1054              	.LVL121:
+ 242:../common/device_security_crypto.c ****     mbedtls_mpi_init(&secret);
+ 1055              		.loc 1 242 5 is_stmt 1 view .LVU239
+ 1056 002a 0BA8     		add	r0, sp, #44
+ 1057 002c FFF7FEFF 		bl	mbedtls_mpi_init
+ 1058              	.LVL122:
+ 243:../common/device_security_crypto.c ****     mbedtls_ecp_point_init(&peer);
+ 1059              		.loc 1 243 5 view .LVU240
+ 1060 0030 02A8     		add	r0, sp, #8
+ 1061 0032 FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 1062              	.LVL123:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 25
+
+
+ 244:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0 &&
+ 1063              		.loc 1 244 5 view .LVU241
+ 1064              		.loc 1 244 19 is_stmt 0 view .LVU242
+ 1065 0036 11A8     		add	r0, sp, #68
+ 1066 0038 FFF7FEFF 		bl	load_group
+ 1067              	.LVL124:
+ 1068              		.loc 1 244 8 discriminator 1 view .LVU243
+ 1069 003c 8046     		mov	r8, r0
+ 1070 003e 30B9     		cbnz	r0, .L57
+ 245:../common/device_security_crypto.c ****         (result = mbedtls_mpi_read_binary(
+ 1071              		.loc 1 245 19 view .LVU244
+ 1072 0040 2022     		movs	r2, #32
+ 1073 0042 3146     		mov	r1, r6
+ 1074 0044 0EA8     		add	r0, sp, #56
+ 1075              	.LVL125:
+ 1076              		.loc 1 245 19 view .LVU245
+ 1077 0046 FFF7FEFF 		bl	mbedtls_mpi_read_binary
+ 1078              	.LVL126:
+ 244:../common/device_security_crypto.c ****     if ((result = load_group(&group)) == 0 &&
+ 1079              		.loc 1 244 44 discriminator 1 view .LVU246
+ 1080 004a 8046     		mov	r8, r0
+ 1081 004c A0B1     		cbz	r0, .L62
+ 1082              	.L57:
+ 1083              	.LVL127:
+ 246:../common/device_security_crypto.c ****              &private_value, private_key, 32u)) == 0 &&
+ 247:../common/device_security_crypto.c ****         (result = mbedtls_ecp_check_privkey(
+ 248:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+ 249:../common/device_security_crypto.c ****         (result = load_public(&group, &peer, peer_public_key)) == 0 &&
+ 250:../common/device_security_crypto.c ****         (result = mbedtls_ecdh_compute_shared(
+ 251:../common/device_security_crypto.c ****              &group,
+ 252:../common/device_security_crypto.c ****              &secret,
+ 253:../common/device_security_crypto.c ****              &peer,
+ 254:../common/device_security_crypto.c ****              &private_value,
+ 255:../common/device_security_crypto.c ****              rng,
+ 256:../common/device_security_crypto.c ****              rng_context)) == 0) {
+ 257:../common/device_security_crypto.c ****         result = mbedtls_mpi_write_binary(&secret, shared_secret, 32u);
+ 258:../common/device_security_crypto.c ****     }
+ 259:../common/device_security_crypto.c ****     if (result != 0) {
+ 260:../common/device_security_crypto.c ****         memset(shared_secret, 0, 32u);
+ 1084              		.loc 1 260 9 is_stmt 1 view .LVU247
+ 1085 004e 2022     		movs	r2, #32
+ 1086 0050 0021     		movs	r1, #0
+ 1087 0052 2046     		mov	r0, r4
+ 1088 0054 FFF7FEFF 		bl	memset
+ 1089              	.LVL128:
+ 1090              	.L58:
+ 261:../common/device_security_crypto.c ****     }
+ 262:../common/device_security_crypto.c ****     mbedtls_ecp_point_free(&peer);
+ 1091              		.loc 1 262 5 view .LVU248
+ 1092 0058 02A8     		add	r0, sp, #8
+ 1093 005a FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 1094              	.LVL129:
+ 263:../common/device_security_crypto.c ****     mbedtls_mpi_free(&secret);
+ 1095              		.loc 1 263 5 view .LVU249
+ 1096 005e 0BA8     		add	r0, sp, #44
+ 1097 0060 FFF7FEFF 		bl	mbedtls_mpi_free
+ 1098              	.LVL130:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 26
+
+
+ 264:../common/device_security_crypto.c ****     mbedtls_mpi_free(&private_value);
+ 1099              		.loc 1 264 5 view .LVU250
+ 1100 0064 0EA8     		add	r0, sp, #56
+ 1101 0066 FFF7FEFF 		bl	mbedtls_mpi_free
+ 1102              	.LVL131:
+ 265:../common/device_security_crypto.c ****     mbedtls_ecp_group_free(&group);
+ 1103              		.loc 1 265 5 view .LVU251
+ 1104 006a 11A8     		add	r0, sp, #68
+ 1105 006c FFF7FEFF 		bl	mbedtls_ecp_group_free
+ 1106              	.LVL132:
+ 266:../common/device_security_crypto.c ****     return result;
+ 1107              		.loc 1 266 5 view .LVU252
+ 1108              	.L55:
+ 267:../common/device_security_crypto.c **** }
+ 1109              		.loc 1 267 1 is_stmt 0 view .LVU253
+ 1110 0070 4046     		mov	r0, r8
+ 1111 0072 30B0     		add	sp, sp, #192
+ 1112              	.LCFI31:
+ 1113              		.cfi_remember_state
+ 1114              		.cfi_def_cfa_offset 24
+ 1115              		@ sp needed
+ 1116 0074 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 1117              	.LVL133:
+ 1118              	.L62:
+ 1119              	.LCFI32:
+ 1120              		.cfi_restore_state
+ 247:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+ 1121              		.loc 1 247 19 view .LVU254
+ 1122 0078 0EA9     		add	r1, sp, #56
+ 1123 007a 11A8     		add	r0, sp, #68
+ 1124              	.LVL134:
+ 247:../common/device_security_crypto.c ****              &group, &private_value)) == 0 &&
+ 1125              		.loc 1 247 19 view .LVU255
+ 1126 007c FFF7FEFF 		bl	mbedtls_ecp_check_privkey
+ 1127              	.LVL135:
+ 246:../common/device_security_crypto.c ****         (result = mbedtls_ecp_check_privkey(
+ 1128              		.loc 1 246 54 view .LVU256
+ 1129 0080 8046     		mov	r8, r0
+ 1130 0082 0028     		cmp	r0, #0
+ 1131 0084 E3D1     		bne	.L57
+ 249:../common/device_security_crypto.c ****         (result = mbedtls_ecdh_compute_shared(
+ 1132              		.loc 1 249 19 view .LVU257
+ 1133 0086 3A46     		mov	r2, r7
+ 1134 0088 02A9     		add	r1, sp, #8
+ 1135 008a 11A8     		add	r0, sp, #68
+ 1136              	.LVL136:
+ 249:../common/device_security_crypto.c ****         (result = mbedtls_ecdh_compute_shared(
+ 1137              		.loc 1 249 19 view .LVU258
+ 1138 008c FFF7FEFF 		bl	load_public
+ 1139              	.LVL137:
+ 248:../common/device_security_crypto.c ****         (result = load_public(&group, &peer, peer_public_key)) == 0 &&
+ 1140              		.loc 1 248 44 view .LVU259
+ 1141 0090 8046     		mov	r8, r0
+ 1142 0092 0028     		cmp	r0, #0
+ 1143 0094 DBD1     		bne	.L57
+ 250:../common/device_security_crypto.c ****              &group,
+ 1144              		.loc 1 250 19 view .LVU260
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 27
+
+
+ 1145 0096 369B     		ldr	r3, [sp, #216]
+ 1146 0098 0193     		str	r3, [sp, #4]
+ 1147 009a 0095     		str	r5, [sp]
+ 1148 009c 0EAB     		add	r3, sp, #56
+ 1149 009e 02AA     		add	r2, sp, #8
+ 1150 00a0 0BA9     		add	r1, sp, #44
+ 1151 00a2 11A8     		add	r0, sp, #68
+ 1152              	.LVL138:
+ 250:../common/device_security_crypto.c ****              &group,
+ 1153              		.loc 1 250 19 view .LVU261
+ 1154 00a4 FFF7FEFF 		bl	mbedtls_ecdh_compute_shared
+ 1155              	.LVL139:
+ 249:../common/device_security_crypto.c ****         (result = mbedtls_ecdh_compute_shared(
+ 1156              		.loc 1 249 69 view .LVU262
+ 1157 00a8 8046     		mov	r8, r0
+ 1158 00aa 0028     		cmp	r0, #0
+ 1159 00ac CFD1     		bne	.L57
+ 257:../common/device_security_crypto.c ****     }
+ 1160              		.loc 1 257 9 is_stmt 1 view .LVU263
+ 257:../common/device_security_crypto.c ****     }
+ 1161              		.loc 1 257 18 is_stmt 0 view .LVU264
+ 1162 00ae 2022     		movs	r2, #32
+ 1163 00b0 2146     		mov	r1, r4
+ 1164 00b2 0BA8     		add	r0, sp, #44
+ 1165              	.LVL140:
+ 257:../common/device_security_crypto.c ****     }
+ 1166              		.loc 1 257 18 view .LVU265
+ 1167 00b4 FFF7FEFF 		bl	mbedtls_mpi_write_binary
+ 1168              	.LVL141:
+ 259:../common/device_security_crypto.c ****         memset(shared_secret, 0, 32u);
+ 1169              		.loc 1 259 5 is_stmt 1 view .LVU266
+ 259:../common/device_security_crypto.c ****         memset(shared_secret, 0, 32u);
+ 1170              		.loc 1 259 8 is_stmt 0 view .LVU267
+ 1171 00b8 8046     		mov	r8, r0
+ 1172 00ba 0028     		cmp	r0, #0
+ 1173 00bc CCD0     		beq	.L58
+ 1174 00be C6E7     		b	.L57
+ 1175              	.LVL142:
+ 1176              	.L59:
+ 239:../common/device_security_crypto.c ****     }
+ 1177              		.loc 1 239 16 view .LVU268
+ 1178 00c0 4FF0FF38 		mov	r8, #-1
+ 1179 00c4 D4E7     		b	.L55
+ 1180              	.LVL143:
+ 1181              	.L60:
+ 239:../common/device_security_crypto.c ****     }
+ 1182              		.loc 1 239 16 view .LVU269
+ 1183 00c6 4FF0FF38 		mov	r8, #-1
+ 1184 00ca D1E7     		b	.L55
+ 1185              		.cfi_endproc
+ 1186              	.LFE17:
+ 1188              		.section	.text.HBoxCrypto_HkdfSha256,"ax",%progbits
+ 1189              		.align	1
+ 1190              		.global	HBoxCrypto_HkdfSha256
+ 1191              		.syntax unified
+ 1192              		.thumb
+ 1193              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 28
+
+
+ 1195              	HBoxCrypto_HkdfSha256:
+ 1196              	.LVL144:
+ 1197              	.LFB18:
+ 268:../common/device_security_crypto.c **** 
+ 269:../common/device_security_crypto.c **** int HBoxCrypto_HkdfSha256(const uint8_t *salt,
+ 270:../common/device_security_crypto.c ****                           size_t salt_length,
+ 271:../common/device_security_crypto.c ****                           const uint8_t *input,
+ 272:../common/device_security_crypto.c ****                           size_t input_length,
+ 273:../common/device_security_crypto.c ****                           const uint8_t *info,
+ 274:../common/device_security_crypto.c ****                           size_t info_length,
+ 275:../common/device_security_crypto.c ****                           uint8_t *output,
+ 276:../common/device_security_crypto.c ****                           size_t output_length)
+ 277:../common/device_security_crypto.c **** {
+ 1198              		.loc 1 277 1 is_stmt 1 view -0
+ 1199              		.cfi_startproc
+ 1200              		@ args = 16, pretend = 0, frame = 0
+ 1201              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1202              		.loc 1 277 1 is_stmt 0 view .LVU271
+ 1203 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 1204              	.LCFI33:
+ 1205              		.cfi_def_cfa_offset 36
+ 1206              		.cfi_offset 4, -36
+ 1207              		.cfi_offset 5, -32
+ 1208              		.cfi_offset 6, -28
+ 1209              		.cfi_offset 7, -24
+ 1210              		.cfi_offset 8, -20
+ 1211              		.cfi_offset 9, -16
+ 1212              		.cfi_offset 10, -12
+ 1213              		.cfi_offset 11, -8
+ 1214              		.cfi_offset 14, -4
+ 1215 0004 87B0     		sub	sp, sp, #28
+ 1216              	.LCFI34:
+ 1217              		.cfi_def_cfa_offset 64
+ 1218 0006 0446     		mov	r4, r0
+ 1219 0008 0D46     		mov	r5, r1
+ 1220 000a 1646     		mov	r6, r2
+ 1221 000c 1F46     		mov	r7, r3
+ 1222 000e DDF84080 		ldr	r8, [sp, #64]
+ 1223 0012 DDF84490 		ldr	r9, [sp, #68]
+ 1224 0016 DDF848A0 		ldr	r10, [sp, #72]
+ 1225 001a DDF84CB0 		ldr	fp, [sp, #76]
+ 278:../common/device_security_crypto.c ****     const mbedtls_md_info_t *sha256 =
+ 1226              		.loc 1 278 5 is_stmt 1 view .LVU272
+ 279:../common/device_security_crypto.c ****         mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+ 1227              		.loc 1 279 9 is_stmt 0 view .LVU273
+ 1228 001e 0620     		movs	r0, #6
+ 1229              	.LVL145:
+ 1230              		.loc 1 279 9 view .LVU274
+ 1231 0020 FFF7FEFF 		bl	mbedtls_md_info_from_type
+ 1232              	.LVL146:
+ 280:../common/device_security_crypto.c ****     if (sha256 == NULL || (salt == NULL && salt_length != 0u) ||
+ 1233              		.loc 1 280 5 is_stmt 1 view .LVU275
+ 1234              		.loc 1 280 8 is_stmt 0 view .LVU276
+ 1235 0024 70B3     		cbz	r0, .L65
+ 1236              		.loc 1 280 41 discriminator 1 view .LVU277
+ 1237 0026 B4FA84F3 		clz	r3, r4
+ 1238 002a 5B09     		lsrs	r3, r3, #5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 29
+
+
+ 1239 002c 002D     		cmp	r5, #0
+ 1240 002e 08BF     		it	eq
+ 1241 0030 0023     		moveq	r3, #0
+ 1242              		.loc 1 280 24 discriminator 1 view .LVU278
+ 1243 0032 53BB     		cbnz	r3, .L66
+ 281:../common/device_security_crypto.c ****         (input == NULL && input_length != 0u) ||
+ 1244              		.loc 1 281 24 view .LVU279
+ 1245 0034 B6FA86F3 		clz	r3, r6
+ 1246 0038 5B09     		lsrs	r3, r3, #5
+ 1247 003a 002F     		cmp	r7, #0
+ 1248 003c 08BF     		it	eq
+ 1249 003e 0023     		moveq	r3, #0
+ 280:../common/device_security_crypto.c ****     if (sha256 == NULL || (salt == NULL && salt_length != 0u) ||
+ 1250              		.loc 1 280 63 discriminator 2 view .LVU280
+ 1251 0040 33BB     		cbnz	r3, .L67
+ 282:../common/device_security_crypto.c ****         (info == NULL && info_length != 0u) ||
+ 1252              		.loc 1 282 23 view .LVU281
+ 1253 0042 B8FA88F3 		clz	r3, r8
+ 1254 0046 5B09     		lsrs	r3, r3, #5
+ 1255 0048 B9F1000F 		cmp	r9, #0
+ 1256 004c 08BF     		it	eq
+ 1257 004e 0023     		moveq	r3, #0
+ 281:../common/device_security_crypto.c ****         (input == NULL && input_length != 0u) ||
+ 1258              		.loc 1 281 47 view .LVU282
+ 1259 0050 0BBB     		cbnz	r3, .L68
+ 283:../common/device_security_crypto.c ****         (output == NULL && output_length != 0u)) {
+ 1260              		.loc 1 283 25 view .LVU283
+ 1261 0052 BAFA8AF3 		clz	r3, r10
+ 1262 0056 5B09     		lsrs	r3, r3, #5
+ 1263 0058 BBF1000F 		cmp	fp, #0
+ 1264 005c 08BF     		it	eq
+ 1265 005e 0023     		moveq	r3, #0
+ 282:../common/device_security_crypto.c ****         (info == NULL && info_length != 0u) ||
+ 1266              		.loc 1 282 45 view .LVU284
+ 1267 0060 E3B9     		cbnz	r3, .L69
+ 284:../common/device_security_crypto.c ****         return -1;
+ 285:../common/device_security_crypto.c ****     }
+ 286:../common/device_security_crypto.c ****     return mbedtls_hkdf(sha256,
+ 1268              		.loc 1 286 5 is_stmt 1 view .LVU285
+ 1269              		.loc 1 286 12 is_stmt 0 view .LVU286
+ 1270 0062 CDF810B0 		str	fp, [sp, #16]
+ 1271 0066 CDF80CA0 		str	r10, [sp, #12]
+ 1272 006a CDF80890 		str	r9, [sp, #8]
+ 1273 006e CDF80480 		str	r8, [sp, #4]
+ 1274 0072 0097     		str	r7, [sp]
+ 1275 0074 3346     		mov	r3, r6
+ 1276 0076 2A46     		mov	r2, r5
+ 1277 0078 2146     		mov	r1, r4
+ 1278 007a FFF7FEFF 		bl	mbedtls_hkdf
+ 1279              	.LVL147:
+ 1280              	.L63:
+ 287:../common/device_security_crypto.c ****                         salt,
+ 288:../common/device_security_crypto.c ****                         salt_length,
+ 289:../common/device_security_crypto.c ****                         input,
+ 290:../common/device_security_crypto.c ****                         input_length,
+ 291:../common/device_security_crypto.c ****                         info,
+ 292:../common/device_security_crypto.c ****                         info_length,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 30
+
+
+ 293:../common/device_security_crypto.c ****                         output,
+ 294:../common/device_security_crypto.c ****                         output_length);
+ 295:../common/device_security_crypto.c **** }
+ 1281              		.loc 1 295 1 view .LVU287
+ 1282 007e 07B0     		add	sp, sp, #28
+ 1283              	.LCFI35:
+ 1284              		.cfi_remember_state
+ 1285              		.cfi_def_cfa_offset 36
+ 1286              		@ sp needed
+ 1287 0080 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 1288              	.LVL148:
+ 1289              	.L65:
+ 1290              	.LCFI36:
+ 1291              		.cfi_restore_state
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1292              		.loc 1 284 16 view .LVU288
+ 1293 0084 4FF0FF30 		mov	r0, #-1
+ 1294              	.LVL149:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1295              		.loc 1 284 16 view .LVU289
+ 1296 0088 F9E7     		b	.L63
+ 1297              	.LVL150:
+ 1298              	.L66:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1299              		.loc 1 284 16 view .LVU290
+ 1300 008a 4FF0FF30 		mov	r0, #-1
+ 1301              	.LVL151:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1302              		.loc 1 284 16 view .LVU291
+ 1303 008e F6E7     		b	.L63
+ 1304              	.LVL152:
+ 1305              	.L67:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1306              		.loc 1 284 16 view .LVU292
+ 1307 0090 4FF0FF30 		mov	r0, #-1
+ 1308              	.LVL153:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1309              		.loc 1 284 16 view .LVU293
+ 1310 0094 F3E7     		b	.L63
+ 1311              	.LVL154:
+ 1312              	.L68:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1313              		.loc 1 284 16 view .LVU294
+ 1314 0096 4FF0FF30 		mov	r0, #-1
+ 1315              	.LVL155:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1316              		.loc 1 284 16 view .LVU295
+ 1317 009a F0E7     		b	.L63
+ 1318              	.LVL156:
+ 1319              	.L69:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1320              		.loc 1 284 16 view .LVU296
+ 1321 009c 4FF0FF30 		mov	r0, #-1
+ 1322              	.LVL157:
+ 284:../common/device_security_crypto.c ****         return -1;
+ 1323              		.loc 1 284 16 view .LVU297
+ 1324 00a0 EDE7     		b	.L63
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 31
+
+
+ 1325              		.cfi_endproc
+ 1326              	.LFE18:
+ 1328              		.section	.text.HBoxCrypto_Aes256GcmEncrypt,"ax",%progbits
+ 1329              		.align	1
+ 1330              		.global	HBoxCrypto_Aes256GcmEncrypt
+ 1331              		.syntax unified
+ 1332              		.thumb
+ 1333              		.thumb_func
+ 1335              	HBoxCrypto_Aes256GcmEncrypt:
+ 1336              	.LVL158:
+ 1337              	.LFB19:
+ 296:../common/device_security_crypto.c **** 
+ 297:../common/device_security_crypto.c **** int HBoxCrypto_Aes256GcmEncrypt(const uint8_t key[32],
+ 298:../common/device_security_crypto.c ****                                 const uint8_t nonce[12],
+ 299:../common/device_security_crypto.c ****                                 const uint8_t *aad,
+ 300:../common/device_security_crypto.c ****                                 size_t aad_length,
+ 301:../common/device_security_crypto.c ****                                 const uint8_t *plaintext,
+ 302:../common/device_security_crypto.c ****                                 size_t plaintext_length,
+ 303:../common/device_security_crypto.c ****                                 uint8_t *ciphertext,
+ 304:../common/device_security_crypto.c ****                                 uint8_t tag[12])
+ 305:../common/device_security_crypto.c **** {
+ 1338              		.loc 1 305 1 is_stmt 1 view -0
+ 1339              		.cfi_startproc
+ 1340              		@ args = 16, pretend = 0, frame = 384
+ 1341              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1342              		.loc 1 305 1 is_stmt 0 view .LVU299
+ 1343 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 1344              	.LCFI37:
+ 1345              		.cfi_def_cfa_offset 36
+ 1346              		.cfi_offset 4, -36
+ 1347              		.cfi_offset 5, -32
+ 1348              		.cfi_offset 6, -28
+ 1349              		.cfi_offset 7, -24
+ 1350              		.cfi_offset 8, -20
+ 1351              		.cfi_offset 9, -16
+ 1352              		.cfi_offset 10, -12
+ 1353              		.cfi_offset 11, -8
+ 1354              		.cfi_offset 14, -4
+ 1355 0004 E9B0     		sub	sp, sp, #420
+ 1356              	.LCFI38:
+ 1357              		.cfi_def_cfa_offset 456
+ 1358 0006 729E     		ldr	r6, [sp, #456]
+ 1359 0008 DDF8CC81 		ldr	r8, [sp, #460]
+ 1360 000c DDF8D091 		ldr	r9, [sp, #464]
+ 1361 0010 759F     		ldr	r7, [sp, #468]
+ 306:../common/device_security_crypto.c ****     int result;
+ 1362              		.loc 1 306 5 is_stmt 1 view .LVU300
+ 307:../common/device_security_crypto.c ****     mbedtls_gcm_context context;
+ 1363              		.loc 1 307 5 view .LVU301
+ 308:../common/device_security_crypto.c ****     if (key == NULL || nonce == NULL ||
+ 1364              		.loc 1 308 5 view .LVU302
+ 1365              		.loc 1 308 8 is_stmt 0 view .LVU303
+ 1366 0012 0029     		cmp	r1, #0
+ 1367 0014 18BF     		it	ne
+ 1368 0016 0028     		cmpne	r0, #0
+ 1369 0018 41D0     		beq	.L74
+ 1370 001a 1446     		mov	r4, r2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 32
+
+
+ 1371 001c 1D46     		mov	r5, r3
+ 1372 001e 8246     		mov	r10, r0
+ 1373 0020 8B46     		mov	fp, r1
+ 309:../common/device_security_crypto.c ****         (aad == NULL && aad_length != 0u) ||
+ 1374              		.loc 1 309 22 view .LVU304
+ 1375 0022 B2FA82F3 		clz	r3, r2
+ 1376              	.LVL159:
+ 1377              		.loc 1 309 22 view .LVU305
+ 1378 0026 5B09     		lsrs	r3, r3, #5
+ 1379 0028 002D     		cmp	r5, #0
+ 1380 002a 08BF     		it	eq
+ 1381 002c 0023     		moveq	r3, #0
+ 308:../common/device_security_crypto.c ****     if (key == NULL || nonce == NULL ||
+ 1382              		.loc 1 308 38 discriminator 1 view .LVU306
+ 1383 002e 002B     		cmp	r3, #0
+ 1384 0030 38D1     		bne	.L75
+ 310:../common/device_security_crypto.c ****         (plaintext == NULL && plaintext_length != 0u) ||
+ 1385              		.loc 1 310 48 view .LVU307
+ 1386 0032 B8F10003 		subs	r3, r8, #0
+ 1387 0036 18BF     		it	ne
+ 1388 0038 0123     		movne	r3, #1
+ 1389              		.loc 1 310 28 view .LVU308
+ 1390 003a 002E     		cmp	r6, #0
+ 1391 003c 14BF     		ite	ne
+ 1392 003e 0022     		movne	r2, #0
+ 1393 0040 03F00102 		andeq	r2, r3, #1
+ 1394              	.LVL160:
+ 309:../common/device_security_crypto.c ****         (aad == NULL && aad_length != 0u) ||
+ 1395              		.loc 1 309 43 view .LVU309
+ 1396 0044 8ABB     		cbnz	r2, .L76
+ 311:../common/device_security_crypto.c ****         (ciphertext == NULL && plaintext_length != 0u) || tag == NULL) {
+ 1397              		.loc 1 311 29 view .LVU310
+ 1398 0046 B9F1000F 		cmp	r9, #0
+ 1399 004a 14BF     		ite	ne
+ 1400 004c 0023     		movne	r3, #0
+ 1401 004e 03F00103 		andeq	r3, r3, #1
+ 310:../common/device_security_crypto.c ****         (plaintext == NULL && plaintext_length != 0u) ||
+ 1402              		.loc 1 310 55 view .LVU311
+ 1403 0052 6BBB     		cbnz	r3, .L77
+ 1404              		.loc 1 311 56 view .LVU312
+ 1405 0054 7FB3     		cbz	r7, .L78
+ 312:../common/device_security_crypto.c ****         return -1;
+ 313:../common/device_security_crypto.c ****     }
+ 314:../common/device_security_crypto.c ****     mbedtls_gcm_init(&context);
+ 1406              		.loc 1 314 5 is_stmt 1 view .LVU313
+ 1407 0056 08A8     		add	r0, sp, #32
+ 1408              	.LVL161:
+ 1409              		.loc 1 314 5 is_stmt 0 view .LVU314
+ 1410 0058 FFF7FEFF 		bl	mbedtls_gcm_init
+ 1411              	.LVL162:
+ 315:../common/device_security_crypto.c ****     result = mbedtls_gcm_setkey(
+ 1412              		.loc 1 315 5 is_stmt 1 view .LVU315
+ 1413              		.loc 1 315 14 is_stmt 0 view .LVU316
+ 1414 005c 4FF48073 		mov	r3, #256
+ 1415 0060 5246     		mov	r2, r10
+ 1416 0062 0221     		movs	r1, #2
+ 1417 0064 08A8     		add	r0, sp, #32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 33
+
+
+ 1418 0066 FFF7FEFF 		bl	mbedtls_gcm_setkey
+ 1419              	.LVL163:
+ 316:../common/device_security_crypto.c ****         &context, MBEDTLS_CIPHER_ID_AES, key, 256u);
+ 317:../common/device_security_crypto.c ****     if (result == 0) {
+ 1420              		.loc 1 317 5 is_stmt 1 view .LVU317
+ 1421              		.loc 1 317 8 is_stmt 0 view .LVU318
+ 1422 006a 8246     		mov	r10, r0
+ 1423              	.LVL164:
+ 1424              		.loc 1 317 8 view .LVU319
+ 1425 006c 30B1     		cbz	r0, .L80
+ 1426              	.L73:
+ 318:../common/device_security_crypto.c ****         result = mbedtls_gcm_crypt_and_tag(
+ 319:../common/device_security_crypto.c ****             &context,
+ 320:../common/device_security_crypto.c ****             MBEDTLS_GCM_ENCRYPT,
+ 321:../common/device_security_crypto.c ****             plaintext_length,
+ 322:../common/device_security_crypto.c ****             nonce,
+ 323:../common/device_security_crypto.c ****             12u,
+ 324:../common/device_security_crypto.c ****             aad,
+ 325:../common/device_security_crypto.c ****             aad_length,
+ 326:../common/device_security_crypto.c ****             plaintext,
+ 327:../common/device_security_crypto.c ****             ciphertext,
+ 328:../common/device_security_crypto.c ****             12u,
+ 329:../common/device_security_crypto.c ****             tag);
+ 330:../common/device_security_crypto.c ****     }
+ 331:../common/device_security_crypto.c ****     mbedtls_gcm_free(&context);
+ 1427              		.loc 1 331 5 is_stmt 1 view .LVU320
+ 1428 006e 08A8     		add	r0, sp, #32
+ 1429              	.LVL165:
+ 1430              		.loc 1 331 5 is_stmt 0 view .LVU321
+ 1431 0070 FFF7FEFF 		bl	mbedtls_gcm_free
+ 1432              	.LVL166:
+ 332:../common/device_security_crypto.c ****     return result;
+ 1433              		.loc 1 332 5 is_stmt 1 view .LVU322
+ 1434              	.L71:
+ 333:../common/device_security_crypto.c **** }
+ 1435              		.loc 1 333 1 is_stmt 0 view .LVU323
+ 1436 0074 5046     		mov	r0, r10
+ 1437 0076 69B0     		add	sp, sp, #420
+ 1438              	.LCFI39:
+ 1439              		.cfi_remember_state
+ 1440              		.cfi_def_cfa_offset 36
+ 1441              		@ sp needed
+ 1442 0078 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 1443              	.LVL167:
+ 1444              	.L80:
+ 1445              	.LCFI40:
+ 1446              		.cfi_restore_state
+ 318:../common/device_security_crypto.c ****         result = mbedtls_gcm_crypt_and_tag(
+ 1447              		.loc 1 318 9 is_stmt 1 view .LVU324
+ 318:../common/device_security_crypto.c ****         result = mbedtls_gcm_crypt_and_tag(
+ 1448              		.loc 1 318 18 is_stmt 0 view .LVU325
+ 1449 007c 0697     		str	r7, [sp, #24]
+ 1450 007e 0C23     		movs	r3, #12
+ 1451 0080 0593     		str	r3, [sp, #20]
+ 1452 0082 CDF81090 		str	r9, [sp, #16]
+ 1453 0086 0396     		str	r6, [sp, #12]
+ 1454 0088 0295     		str	r5, [sp, #8]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 34
+
+
+ 1455 008a 0194     		str	r4, [sp, #4]
+ 1456 008c 0093     		str	r3, [sp]
+ 1457 008e 5B46     		mov	r3, fp
+ 1458 0090 4246     		mov	r2, r8
+ 1459 0092 0121     		movs	r1, #1
+ 1460 0094 08A8     		add	r0, sp, #32
+ 1461              	.LVL168:
+ 318:../common/device_security_crypto.c ****         result = mbedtls_gcm_crypt_and_tag(
+ 1462              		.loc 1 318 18 view .LVU326
+ 1463 0096 FFF7FEFF 		bl	mbedtls_gcm_crypt_and_tag
+ 1464              	.LVL169:
+ 1465 009a 8246     		mov	r10, r0
+ 1466              	.LVL170:
+ 318:../common/device_security_crypto.c ****         result = mbedtls_gcm_crypt_and_tag(
+ 1467              		.loc 1 318 18 view .LVU327
+ 1468 009c E7E7     		b	.L73
+ 1469              	.LVL171:
+ 1470              	.L74:
+ 312:../common/device_security_crypto.c ****     }
+ 1471              		.loc 1 312 16 view .LVU328
+ 1472 009e 4FF0FF3A 		mov	r10, #-1
+ 1473 00a2 E7E7     		b	.L71
+ 1474              	.LVL172:
+ 1475              	.L75:
+ 312:../common/device_security_crypto.c ****     }
+ 1476              		.loc 1 312 16 view .LVU329
+ 1477 00a4 4FF0FF3A 		mov	r10, #-1
+ 1478 00a8 E4E7     		b	.L71
+ 1479              	.LVL173:
+ 1480              	.L76:
+ 312:../common/device_security_crypto.c ****     }
+ 1481              		.loc 1 312 16 view .LVU330
+ 1482 00aa 4FF0FF3A 		mov	r10, #-1
+ 1483 00ae E1E7     		b	.L71
+ 1484              	.L77:
+ 312:../common/device_security_crypto.c ****     }
+ 1485              		.loc 1 312 16 view .LVU331
+ 1486 00b0 4FF0FF3A 		mov	r10, #-1
+ 1487 00b4 DEE7     		b	.L71
+ 1488              	.L78:
+ 312:../common/device_security_crypto.c ****     }
+ 1489              		.loc 1 312 16 view .LVU332
+ 1490 00b6 4FF0FF3A 		mov	r10, #-1
+ 1491 00ba DBE7     		b	.L71
+ 1492              		.cfi_endproc
+ 1493              	.LFE19:
+ 1495              		.section	.text.HBoxCrypto_Aes256GcmDecrypt,"ax",%progbits
+ 1496              		.align	1
+ 1497              		.global	HBoxCrypto_Aes256GcmDecrypt
+ 1498              		.syntax unified
+ 1499              		.thumb
+ 1500              		.thumb_func
+ 1502              	HBoxCrypto_Aes256GcmDecrypt:
+ 1503              	.LVL174:
+ 1504              	.LFB20:
+ 334:../common/device_security_crypto.c **** 
+ 335:../common/device_security_crypto.c **** int HBoxCrypto_Aes256GcmDecrypt(const uint8_t key[32],
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 35
+
+
+ 336:../common/device_security_crypto.c ****                                 const uint8_t nonce[12],
+ 337:../common/device_security_crypto.c ****                                 const uint8_t *aad,
+ 338:../common/device_security_crypto.c ****                                 size_t aad_length,
+ 339:../common/device_security_crypto.c ****                                 const uint8_t *ciphertext,
+ 340:../common/device_security_crypto.c ****                                 size_t ciphertext_length,
+ 341:../common/device_security_crypto.c ****                                 const uint8_t tag[12],
+ 342:../common/device_security_crypto.c ****                                 uint8_t *plaintext)
+ 343:../common/device_security_crypto.c **** {
+ 1505              		.loc 1 343 1 is_stmt 1 view -0
+ 1506              		.cfi_startproc
+ 1507              		@ args = 16, pretend = 0, frame = 384
+ 1508              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1509              		.loc 1 343 1 is_stmt 0 view .LVU334
+ 1510 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 1511              	.LCFI41:
+ 1512              		.cfi_def_cfa_offset 36
+ 1513              		.cfi_offset 4, -36
+ 1514              		.cfi_offset 5, -32
+ 1515              		.cfi_offset 6, -28
+ 1516              		.cfi_offset 7, -24
+ 1517              		.cfi_offset 8, -20
+ 1518              		.cfi_offset 9, -16
+ 1519              		.cfi_offset 10, -12
+ 1520              		.cfi_offset 11, -8
+ 1521              		.cfi_offset 14, -4
+ 1522 0004 E7B0     		sub	sp, sp, #412
+ 1523              	.LCFI42:
+ 1524              		.cfi_def_cfa_offset 448
+ 1525 0006 709E     		ldr	r6, [sp, #448]
+ 1526 0008 DDF8C481 		ldr	r8, [sp, #452]
+ 1527 000c 729F     		ldr	r7, [sp, #456]
+ 1528 000e DDF8CC91 		ldr	r9, [sp, #460]
+ 344:../common/device_security_crypto.c ****     int result;
+ 1529              		.loc 1 344 5 is_stmt 1 view .LVU335
+ 345:../common/device_security_crypto.c ****     mbedtls_gcm_context context;
+ 1530              		.loc 1 345 5 view .LVU336
+ 346:../common/device_security_crypto.c ****     if (key == NULL || nonce == NULL ||
+ 1531              		.loc 1 346 5 view .LVU337
+ 1532              		.loc 1 346 8 is_stmt 0 view .LVU338
+ 1533 0012 0029     		cmp	r1, #0
+ 1534 0014 18BF     		it	ne
+ 1535 0016 0028     		cmpne	r0, #0
+ 1536 0018 3FD0     		beq	.L84
+ 1537 001a 1446     		mov	r4, r2
+ 1538 001c 1D46     		mov	r5, r3
+ 1539 001e 8246     		mov	r10, r0
+ 1540 0020 8B46     		mov	fp, r1
+ 347:../common/device_security_crypto.c ****         (aad == NULL && aad_length != 0u) ||
+ 1541              		.loc 1 347 22 view .LVU339
+ 1542 0022 B2FA82F3 		clz	r3, r2
+ 1543              	.LVL175:
+ 1544              		.loc 1 347 22 view .LVU340
+ 1545 0026 5B09     		lsrs	r3, r3, #5
+ 1546 0028 002D     		cmp	r5, #0
+ 1547 002a 08BF     		it	eq
+ 1548 002c 0023     		moveq	r3, #0
+ 346:../common/device_security_crypto.c ****     if (key == NULL || nonce == NULL ||
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 36
+
+
+ 1549              		.loc 1 346 38 discriminator 1 view .LVU341
+ 1550 002e 002B     		cmp	r3, #0
+ 1551 0030 36D1     		bne	.L85
+ 348:../common/device_security_crypto.c ****         (ciphertext == NULL && ciphertext_length != 0u) ||
+ 1552              		.loc 1 348 50 view .LVU342
+ 1553 0032 B8F10003 		subs	r3, r8, #0
+ 1554 0036 18BF     		it	ne
+ 1555 0038 0123     		movne	r3, #1
+ 1556              		.loc 1 348 29 view .LVU343
+ 1557 003a 002E     		cmp	r6, #0
+ 1558 003c 14BF     		ite	ne
+ 1559 003e 0022     		movne	r2, #0
+ 1560 0040 03F00102 		andeq	r2, r3, #1
+ 1561              	.LVL176:
+ 347:../common/device_security_crypto.c ****         (aad == NULL && aad_length != 0u) ||
+ 1562              		.loc 1 347 43 view .LVU344
+ 1563 0044 7ABB     		cbnz	r2, .L86
+ 349:../common/device_security_crypto.c ****         (plaintext == NULL && ciphertext_length != 0u) || tag == NULL) {
+ 1564              		.loc 1 349 28 view .LVU345
+ 1565 0046 B9F1000F 		cmp	r9, #0
+ 1566 004a 14BF     		ite	ne
+ 1567 004c 0023     		movne	r3, #0
+ 1568 004e 03F00103 		andeq	r3, r3, #1
+ 348:../common/device_security_crypto.c ****         (ciphertext == NULL && ciphertext_length != 0u) ||
+ 1569              		.loc 1 348 57 view .LVU346
+ 1570 0052 5BBB     		cbnz	r3, .L87
+ 1571              		.loc 1 349 56 view .LVU347
+ 1572 0054 6FB3     		cbz	r7, .L88
+ 350:../common/device_security_crypto.c ****         return -1;
+ 351:../common/device_security_crypto.c ****     }
+ 352:../common/device_security_crypto.c ****     mbedtls_gcm_init(&context);
+ 1573              		.loc 1 352 5 is_stmt 1 view .LVU348
+ 1574 0056 06A8     		add	r0, sp, #24
+ 1575              	.LVL177:
+ 1576              		.loc 1 352 5 is_stmt 0 view .LVU349
+ 1577 0058 FFF7FEFF 		bl	mbedtls_gcm_init
+ 1578              	.LVL178:
+ 353:../common/device_security_crypto.c ****     result = mbedtls_gcm_setkey(
+ 1579              		.loc 1 353 5 is_stmt 1 view .LVU350
+ 1580              		.loc 1 353 14 is_stmt 0 view .LVU351
+ 1581 005c 4FF48073 		mov	r3, #256
+ 1582 0060 5246     		mov	r2, r10
+ 1583 0062 0221     		movs	r1, #2
+ 1584 0064 06A8     		add	r0, sp, #24
+ 1585 0066 FFF7FEFF 		bl	mbedtls_gcm_setkey
+ 1586              	.LVL179:
+ 354:../common/device_security_crypto.c ****         &context, MBEDTLS_CIPHER_ID_AES, key, 256u);
+ 355:../common/device_security_crypto.c ****     if (result == 0) {
+ 1587              		.loc 1 355 5 is_stmt 1 view .LVU352
+ 1588              		.loc 1 355 8 is_stmt 0 view .LVU353
+ 1589 006a 8246     		mov	r10, r0
+ 1590              	.LVL180:
+ 1591              		.loc 1 355 8 view .LVU354
+ 1592 006c 30B1     		cbz	r0, .L90
+ 1593              	.L83:
+ 356:../common/device_security_crypto.c ****         result = mbedtls_gcm_auth_decrypt(
+ 357:../common/device_security_crypto.c ****             &context,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 37
+
+
+ 358:../common/device_security_crypto.c ****             ciphertext_length,
+ 359:../common/device_security_crypto.c ****             nonce,
+ 360:../common/device_security_crypto.c ****             12u,
+ 361:../common/device_security_crypto.c ****             aad,
+ 362:../common/device_security_crypto.c ****             aad_length,
+ 363:../common/device_security_crypto.c ****             tag,
+ 364:../common/device_security_crypto.c ****             12u,
+ 365:../common/device_security_crypto.c ****             ciphertext,
+ 366:../common/device_security_crypto.c ****             plaintext);
+ 367:../common/device_security_crypto.c ****     }
+ 368:../common/device_security_crypto.c ****     mbedtls_gcm_free(&context);
+ 1594              		.loc 1 368 5 is_stmt 1 view .LVU355
+ 1595 006e 06A8     		add	r0, sp, #24
+ 1596              	.LVL181:
+ 1597              		.loc 1 368 5 is_stmt 0 view .LVU356
+ 1598 0070 FFF7FEFF 		bl	mbedtls_gcm_free
+ 1599              	.LVL182:
+ 369:../common/device_security_crypto.c ****     return result;
+ 1600              		.loc 1 369 5 is_stmt 1 view .LVU357
+ 1601              	.L81:
+ 370:../common/device_security_crypto.c **** }
+ 1602              		.loc 1 370 1 is_stmt 0 view .LVU358
+ 1603 0074 5046     		mov	r0, r10
+ 1604 0076 67B0     		add	sp, sp, #412
+ 1605              	.LCFI43:
+ 1606              		.cfi_remember_state
+ 1607              		.cfi_def_cfa_offset 36
+ 1608              		@ sp needed
+ 1609 0078 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 1610              	.LVL183:
+ 1611              	.L90:
+ 1612              	.LCFI44:
+ 1613              		.cfi_restore_state
+ 356:../common/device_security_crypto.c ****         result = mbedtls_gcm_auth_decrypt(
+ 1614              		.loc 1 356 9 is_stmt 1 view .LVU359
+ 356:../common/device_security_crypto.c ****         result = mbedtls_gcm_auth_decrypt(
+ 1615              		.loc 1 356 18 is_stmt 0 view .LVU360
+ 1616 007c CDF81490 		str	r9, [sp, #20]
+ 1617 0080 0496     		str	r6, [sp, #16]
+ 1618 0082 0C23     		movs	r3, #12
+ 1619 0084 0393     		str	r3, [sp, #12]
+ 1620 0086 0297     		str	r7, [sp, #8]
+ 1621 0088 0195     		str	r5, [sp, #4]
+ 1622 008a 0094     		str	r4, [sp]
+ 1623 008c 5A46     		mov	r2, fp
+ 1624 008e 4146     		mov	r1, r8
+ 1625 0090 06A8     		add	r0, sp, #24
+ 1626              	.LVL184:
+ 356:../common/device_security_crypto.c ****         result = mbedtls_gcm_auth_decrypt(
+ 1627              		.loc 1 356 18 view .LVU361
+ 1628 0092 FFF7FEFF 		bl	mbedtls_gcm_auth_decrypt
+ 1629              	.LVL185:
+ 1630 0096 8246     		mov	r10, r0
+ 1631              	.LVL186:
+ 356:../common/device_security_crypto.c ****         result = mbedtls_gcm_auth_decrypt(
+ 1632              		.loc 1 356 18 view .LVU362
+ 1633 0098 E9E7     		b	.L83
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 38
+
+
+ 1634              	.LVL187:
+ 1635              	.L84:
+ 350:../common/device_security_crypto.c ****     }
+ 1636              		.loc 1 350 16 view .LVU363
+ 1637 009a 4FF0FF3A 		mov	r10, #-1
+ 1638 009e E9E7     		b	.L81
+ 1639              	.LVL188:
+ 1640              	.L85:
+ 350:../common/device_security_crypto.c ****     }
+ 1641              		.loc 1 350 16 view .LVU364
+ 1642 00a0 4FF0FF3A 		mov	r10, #-1
+ 1643 00a4 E6E7     		b	.L81
+ 1644              	.LVL189:
+ 1645              	.L86:
+ 350:../common/device_security_crypto.c ****     }
+ 1646              		.loc 1 350 16 view .LVU365
+ 1647 00a6 4FF0FF3A 		mov	r10, #-1
+ 1648 00aa E3E7     		b	.L81
+ 1649              	.L87:
+ 350:../common/device_security_crypto.c ****     }
+ 1650              		.loc 1 350 16 view .LVU366
+ 1651 00ac 4FF0FF3A 		mov	r10, #-1
+ 1652 00b0 E0E7     		b	.L81
+ 1653              	.L88:
+ 350:../common/device_security_crypto.c ****     }
+ 1654              		.loc 1 350 16 view .LVU367
+ 1655 00b2 4FF0FF3A 		mov	r10, #-1
+ 1656 00b6 DDE7     		b	.L81
+ 1657              		.cfi_endproc
+ 1658              	.LFE20:
+ 1660              		.section	.text.HBoxCrypto_Zeroize,"ax",%progbits
+ 1661              		.align	1
+ 1662              		.global	HBoxCrypto_Zeroize
+ 1663              		.syntax unified
+ 1664              		.thumb
+ 1665              		.thumb_func
+ 1667              	HBoxCrypto_Zeroize:
+ 1668              	.LVL190:
+ 1669              	.LFB21:
+ 371:../common/device_security_crypto.c **** 
+ 372:../common/device_security_crypto.c **** void HBoxCrypto_Zeroize(void *value, size_t length)
+ 373:../common/device_security_crypto.c **** {
+ 1670              		.loc 1 373 1 is_stmt 1 view -0
+ 1671              		.cfi_startproc
+ 1672              		@ args = 0, pretend = 0, frame = 0
+ 1673              		@ frame_needed = 0, uses_anonymous_args = 0
+ 374:../common/device_security_crypto.c ****     if (value != NULL) {
+ 1674              		.loc 1 374 5 view .LVU369
+ 1675              		.loc 1 374 8 is_stmt 0 view .LVU370
+ 1676 0000 18B1     		cbz	r0, .L94
+ 373:../common/device_security_crypto.c ****     if (value != NULL) {
+ 1677              		.loc 1 373 1 view .LVU371
+ 1678 0002 08B5     		push	{r3, lr}
+ 1679              	.LCFI45:
+ 1680              		.cfi_def_cfa_offset 8
+ 1681              		.cfi_offset 3, -8
+ 1682              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 39
+
+
+ 375:../common/device_security_crypto.c ****         mbedtls_platform_zeroize(value, length);
+ 1683              		.loc 1 375 9 is_stmt 1 view .LVU372
+ 1684 0004 FFF7FEFF 		bl	mbedtls_platform_zeroize
+ 1685              	.LVL191:
+ 376:../common/device_security_crypto.c ****     }
+ 377:../common/device_security_crypto.c **** }
+ 1686              		.loc 1 377 1 is_stmt 0 view .LVU373
+ 1687 0008 08BD     		pop	{r3, pc}
+ 1688              	.LVL192:
+ 1689              	.L94:
+ 1690              	.LCFI46:
+ 1691              		.cfi_def_cfa_offset 0
+ 1692              		.cfi_restore 3
+ 1693              		.cfi_restore 14
+ 1694              		.loc 1 377 1 view .LVU374
+ 1695 000a 7047     		bx	lr
+ 1696              		.cfi_endproc
+ 1697              	.LFE21:
+ 1699              		.text
+ 1700              	.Letext0:
+ 1701              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1702              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1703              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1704              		.file 5 "../common/device_security_crypto.h"
+ 1705              		.file 6 "Libs/mbedtls/include/mbedtls/bignum.h"
+ 1706              		.file 7 "Libs/mbedtls/include/mbedtls/ecp.h"
+ 1707              		.file 8 "Libs/mbedtls/include/mbedtls/md.h"
+ 1708              		.file 9 "Libs/mbedtls/include/mbedtls/cipher.h"
+ 1709              		.file 10 "Libs/mbedtls/include/mbedtls/gcm.h"
+ 1710              		.file 11 "Libs/mbedtls/include/mbedtls/platform_util.h"
+ 1711              		.file 12 "Libs/mbedtls/include/mbedtls/hkdf.h"
+ 1712              		.file 13 "Libs/mbedtls/include/mbedtls/ecdh.h"
+ 1713              		.file 14 "Libs/mbedtls/include/mbedtls/ecdsa.h"
+ 1714              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1715              		.file 16 "Libs/mbedtls/include/mbedtls/sha256.h"
+ 1716              		.file 17 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 40
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 device_security_crypto.c
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:20     .text.load_group:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:25     .text.load_group:00000000 load_group
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:55     .text.write_public:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:60     .text.write_public:00000000 write_public
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:124    .text.load_public:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:129    .text.load_public:00000000 load_public
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:184    .text.HBoxCrypto_Sha256:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:190    .text.HBoxCrypto_Sha256:00000000 HBoxCrypto_Sha256
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:250    .text.HBoxCrypto_P256PublicFromPrivate:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:256    .text.HBoxCrypto_P256PublicFromPrivate:00000000 HBoxCrypto_P256PublicFromPrivate
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:394    .text.HBoxCrypto_P256Generate:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:400    .text.HBoxCrypto_P256Generate:00000000 HBoxCrypto_P256Generate
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:549    .text.HBoxCrypto_P256SignDigest:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:555    .text.HBoxCrypto_P256SignDigest:00000000 HBoxCrypto_P256SignDigest
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:743    .text.HBoxCrypto_P256VerifyDigest:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:749    .text.HBoxCrypto_P256VerifyDigest:00000000 HBoxCrypto_P256VerifyDigest
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:907    .text.HBoxCrypto_P256ValidatePublicKey:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:913    .text.HBoxCrypto_P256ValidatePublicKey:00000000 HBoxCrypto_P256ValidatePublicKey
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:998    .text.HBoxCrypto_P256Ecdh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1004   .text.HBoxCrypto_P256Ecdh:00000000 HBoxCrypto_P256Ecdh
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1189   .text.HBoxCrypto_HkdfSha256:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1195   .text.HBoxCrypto_HkdfSha256:00000000 HBoxCrypto_HkdfSha256
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1329   .text.HBoxCrypto_Aes256GcmEncrypt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1335   .text.HBoxCrypto_Aes256GcmEncrypt:00000000 HBoxCrypto_Aes256GcmEncrypt
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1496   .text.HBoxCrypto_Aes256GcmDecrypt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1502   .text.HBoxCrypto_Aes256GcmDecrypt:00000000 HBoxCrypto_Aes256GcmDecrypt
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1661   .text.HBoxCrypto_Zeroize:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s:1667   .text.HBoxCrypto_Zeroize:00000000 HBoxCrypto_Zeroize
+
+UNDEFINED SYMBOLS
+mbedtls_ecp_group_init
+mbedtls_ecp_group_load
+mbedtls_ecp_point_write_binary
+mbedtls_ecp_point_init
+mbedtls_ecp_point_read_binary
+mbedtls_ecp_check_pubkey
+mbedtls_sha256_ret
+mbedtls_mpi_init
+mbedtls_ecp_point_free
+mbedtls_mpi_free
+mbedtls_ecp_group_free
+mbedtls_mpi_read_binary
+mbedtls_ecp_check_privkey
+mbedtls_ecp_mul
+mbedtls_ecp_gen_keypair
+memset
+mbedtls_mpi_write_binary
+mbedtls_ecdsa_sign
+mbedtls_ecdsa_verify
+mbedtls_ecdh_compute_shared
+mbedtls_md_info_from_type
+mbedtls_hkdf
+mbedtls_gcm_init
+mbedtls_gcm_setkey
+mbedtls_gcm_free
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc13LHsC.s 			page 41
+
+
+mbedtls_gcm_crypt_and_tag
+mbedtls_gcm_auth_decrypt
+mbedtls_platform_zeroize

@@ -1,0 +1,1792 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"max17048.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/power/drivers/max17048/max17048.c"
+  19              		.section	.text.decode_state,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	decode_state:
+  26              	.LVL0:
+  27              	.LFB340:
+   1:Src/power/drivers/max17048/max17048.c **** #include "max17048.h"
+   2:Src/power/drivers/max17048/max17048.c **** 
+   3:Src/power/drivers/max17048/max17048.c **** #include <string.h>
+   4:Src/power/drivers/max17048/max17048.c **** 
+   5:Src/power/drivers/max17048/max17048.c **** enum {
+   6:Src/power/drivers/max17048/max17048.c ****     MAX_REG_VCELL = 0x02,
+   7:Src/power/drivers/max17048/max17048.c ****     MAX_REG_SOC = 0x04,
+   8:Src/power/drivers/max17048/max17048.c ****     MAX_REG_VERSION = 0x08,
+   9:Src/power/drivers/max17048/max17048.c ****     MAX_REG_CONFIG = 0x0C,
+  10:Src/power/drivers/max17048/max17048.c ****     MAX_REG_STATUS = 0x1A,
+  11:Src/power/drivers/max17048/max17048.c ****     MAX_I2C_TIMEOUT_MS = 20,
+  12:Src/power/drivers/max17048/max17048.c **** };
+  13:Src/power/drivers/max17048/max17048.c **** 
+  14:Src/power/drivers/max17048/max17048.c **** static bool read_register16(MAX17048_Handle* handle, uint8_t reg, uint16_t* value)
+  15:Src/power/drivers/max17048/max17048.c **** {
+  16:Src/power/drivers/max17048/max17048.c ****     uint8_t bytes[2] = {0, 0};
+  17:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+  18:Src/power/drivers/max17048/max17048.c ****         return false;
+  19:Src/power/drivers/max17048/max17048.c ****     }
+  20:Src/power/drivers/max17048/max17048.c ****     if (HAL_I2C_Mem_Read(
+  21:Src/power/drivers/max17048/max17048.c ****             handle->i2c,
+  22:Src/power/drivers/max17048/max17048.c ****             (uint16_t)(MAX17048_I2C_ADDRESS_7BIT << 1),
+  23:Src/power/drivers/max17048/max17048.c ****             reg,
+  24:Src/power/drivers/max17048/max17048.c ****             I2C_MEMADD_SIZE_8BIT,
+  25:Src/power/drivers/max17048/max17048.c ****             bytes,
+  26:Src/power/drivers/max17048/max17048.c ****             sizeof(bytes),
+  27:Src/power/drivers/max17048/max17048.c ****             MAX_I2C_TIMEOUT_MS) != HAL_OK) {
+  28:Src/power/drivers/max17048/max17048.c ****         return false;
+  29:Src/power/drivers/max17048/max17048.c ****     }
+  30:Src/power/drivers/max17048/max17048.c ****     *value = (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
+  31:Src/power/drivers/max17048/max17048.c ****     return true;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 2
+
+
+  32:Src/power/drivers/max17048/max17048.c **** }
+  33:Src/power/drivers/max17048/max17048.c **** 
+  34:Src/power/drivers/max17048/max17048.c **** static bool write_register16(MAX17048_Handle* handle, uint8_t reg, uint16_t value)
+  35:Src/power/drivers/max17048/max17048.c **** {
+  36:Src/power/drivers/max17048/max17048.c ****     uint8_t bytes[2] = {
+  37:Src/power/drivers/max17048/max17048.c ****         (uint8_t)(value >> 8),
+  38:Src/power/drivers/max17048/max17048.c ****         (uint8_t)(value & 0xFFu),
+  39:Src/power/drivers/max17048/max17048.c ****     };
+  40:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL) {
+  41:Src/power/drivers/max17048/max17048.c ****         return false;
+  42:Src/power/drivers/max17048/max17048.c ****     }
+  43:Src/power/drivers/max17048/max17048.c ****     return HAL_I2C_Mem_Write(
+  44:Src/power/drivers/max17048/max17048.c ****                handle->i2c,
+  45:Src/power/drivers/max17048/max17048.c ****                (uint16_t)(MAX17048_I2C_ADDRESS_7BIT << 1),
+  46:Src/power/drivers/max17048/max17048.c ****                reg,
+  47:Src/power/drivers/max17048/max17048.c ****                I2C_MEMADD_SIZE_8BIT,
+  48:Src/power/drivers/max17048/max17048.c ****                bytes,
+  49:Src/power/drivers/max17048/max17048.c ****                sizeof(bytes),
+  50:Src/power/drivers/max17048/max17048.c ****                MAX_I2C_TIMEOUT_MS) == HAL_OK;
+  51:Src/power/drivers/max17048/max17048.c **** }
+  52:Src/power/drivers/max17048/max17048.c **** 
+  53:Src/power/drivers/max17048/max17048.c **** bool MAX17048_Init(MAX17048_Handle* handle, I2C_HandleTypeDef* i2c)
+  54:Src/power/drivers/max17048/max17048.c **** {
+  55:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || i2c == NULL) {
+  56:Src/power/drivers/max17048/max17048.c ****         return false;
+  57:Src/power/drivers/max17048/max17048.c ****     }
+  58:Src/power/drivers/max17048/max17048.c **** 
+  59:Src/power/drivers/max17048/max17048.c ****     memset(handle, 0, sizeof(*handle));
+  60:Src/power/drivers/max17048/max17048.c ****     handle->i2c = i2c;
+  61:Src/power/drivers/max17048/max17048.c ****     if (HAL_I2C_IsDeviceReady(
+  62:Src/power/drivers/max17048/max17048.c ****             i2c,
+  63:Src/power/drivers/max17048/max17048.c ****             (uint16_t)(MAX17048_I2C_ADDRESS_7BIT << 1),
+  64:Src/power/drivers/max17048/max17048.c ****             2u,
+  65:Src/power/drivers/max17048/max17048.c ****             MAX_I2C_TIMEOUT_MS) != HAL_OK) {
+  66:Src/power/drivers/max17048/max17048.c ****         return false;
+  67:Src/power/drivers/max17048/max17048.c ****     }
+  68:Src/power/drivers/max17048/max17048.c **** 
+  69:Src/power/drivers/max17048/max17048.c ****     uint16_t version = 0;
+  70:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VERSION, &version) ||
+  71:Src/power/drivers/max17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+  72:Src/power/drivers/max17048/max17048.c ****         return false;
+  73:Src/power/drivers/max17048/max17048.c ****     }
+  74:Src/power/drivers/max17048/max17048.c **** 
+  75:Src/power/drivers/max17048/max17048.c ****     handle->version = version;
+  76:Src/power/drivers/max17048/max17048.c ****     handle->online = true;
+  77:Src/power/drivers/max17048/max17048.c ****     return true;
+  78:Src/power/drivers/max17048/max17048.c **** }
+  79:Src/power/drivers/max17048/max17048.c **** 
+  80:Src/power/drivers/max17048/max17048.c **** bool MAX17048_ConfigureAlert(MAX17048_Handle* handle, uint8_t soc_threshold_percent)
+  81:Src/power/drivers/max17048/max17048.c **** {
+  82:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || !handle->online) {
+  83:Src/power/drivers/max17048/max17048.c ****         return false;
+  84:Src/power/drivers/max17048/max17048.c ****     }
+  85:Src/power/drivers/max17048/max17048.c ****     if (soc_threshold_percent < 1u) {
+  86:Src/power/drivers/max17048/max17048.c ****         soc_threshold_percent = 1u;
+  87:Src/power/drivers/max17048/max17048.c ****     } else if (soc_threshold_percent > 32u) {
+  88:Src/power/drivers/max17048/max17048.c ****         soc_threshold_percent = 32u;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 3
+
+
+  89:Src/power/drivers/max17048/max17048.c ****     }
+  90:Src/power/drivers/max17048/max17048.c **** 
+  91:Src/power/drivers/max17048/max17048.c ****     uint16_t config = 0;
+  92:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+  93:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+  94:Src/power/drivers/max17048/max17048.c ****         return false;
+  95:Src/power/drivers/max17048/max17048.c ****     }
+  96:Src/power/drivers/max17048/max17048.c **** 
+  97:Src/power/drivers/max17048/max17048.c ****     /* Preserve RCOMP; clear ALRT and program ATHD=(32-threshold). */
+  98:Src/power/drivers/max17048/max17048.c ****     const uint16_t athd = (uint16_t)(32u - soc_threshold_percent);
+  99:Src/power/drivers/max17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 100:Src/power/drivers/max17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 101:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 102:Src/power/drivers/max17048/max17048.c ****         return false;
+ 103:Src/power/drivers/max17048/max17048.c ****     }
+ 104:Src/power/drivers/max17048/max17048.c **** 
+ 105:Src/power/drivers/max17048/max17048.c ****     uint16_t verify = 0;
+ 106:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &verify) ||
+ 107:Src/power/drivers/max17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 108:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 109:Src/power/drivers/max17048/max17048.c ****         return false;
+ 110:Src/power/drivers/max17048/max17048.c ****     }
+ 111:Src/power/drivers/max17048/max17048.c ****     return true;
+ 112:Src/power/drivers/max17048/max17048.c **** }
+ 113:Src/power/drivers/max17048/max17048.c **** 
+ 114:Src/power/drivers/max17048/max17048.c **** bool MAX17048_ClearAlert(MAX17048_Handle* handle)
+ 115:Src/power/drivers/max17048/max17048.c **** {
+ 116:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 117:Src/power/drivers/max17048/max17048.c ****         return false;
+ 118:Src/power/drivers/max17048/max17048.c ****     }
+ 119:Src/power/drivers/max17048/max17048.c ****     uint16_t config = 0;
+ 120:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 121:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 122:Src/power/drivers/max17048/max17048.c ****         return false;
+ 123:Src/power/drivers/max17048/max17048.c ****     }
+ 124:Src/power/drivers/max17048/max17048.c ****     config &= (uint16_t)~0x0020u;
+ 125:Src/power/drivers/max17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 126:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 127:Src/power/drivers/max17048/max17048.c ****         return false;
+ 128:Src/power/drivers/max17048/max17048.c ****     }
+ 129:Src/power/drivers/max17048/max17048.c **** 
+ 130:Src/power/drivers/max17048/max17048.c ****     /*
+ 131:Src/power/drivers/max17048/max17048.c ****      * CONFIG.ALRT releases the active-low pin.  Clear the STATUS cause bits as
+ 132:Src/power/drivers/max17048/max17048.c ****      * well so a later threshold crossing can generate a fresh alert; preserve
+ 133:Src/power/drivers/max17048/max17048.c ****      * only EnVR, which is a configuration bit in the otherwise W1/W0 status
+ 134:Src/power/drivers/max17048/max17048.c ****      * field.
+ 135:Src/power/drivers/max17048/max17048.c ****      */
+ 136:Src/power/drivers/max17048/max17048.c ****     uint16_t status = 0;
+ 137:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_STATUS, &status) ||
+ 138:Src/power/drivers/max17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 139:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 140:Src/power/drivers/max17048/max17048.c ****         return false;
+ 141:Src/power/drivers/max17048/max17048.c ****     }
+ 142:Src/power/drivers/max17048/max17048.c ****     return true;
+ 143:Src/power/drivers/max17048/max17048.c **** }
+ 144:Src/power/drivers/max17048/max17048.c **** 
+ 145:Src/power/drivers/max17048/max17048.c **** static void decode_state(uint16_t raw_vcell, uint16_t raw_soc,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 4
+
+
+ 146:Src/power/drivers/max17048/max17048.c ****                          uint16_t status, uint16_t config, MAX17048_State* state)
+ 147:Src/power/drivers/max17048/max17048.c **** {
+  28              		.loc 1 147 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 4, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  33              		.loc 1 147 1 is_stmt 0 view .LVU1
+  34 0000 30B4     		push	{r4, r5}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 8
+  37              		.cfi_offset 4, -8
+  38              		.cfi_offset 5, -4
+  39 0002 029C     		ldr	r4, [sp, #8]
+ 148:Src/power/drivers/max17048/max17048.c ****     memset(state, 0, sizeof(*state));
+  40              		.loc 1 148 5 is_stmt 1 view .LVU2
+  41 0004 4FF0000C 		mov	ip, #0
+  42 0008 C4F800C0 		str	ip, [r4]	@ unaligned
+  43 000c C4F804C0 		str	ip, [r4, #4]	@ unaligned
+ 149:Src/power/drivers/max17048/max17048.c ****     /* VCELL LSB is 78.125 uV, exactly 5/64 mV. */
+ 150:Src/power/drivers/max17048/max17048.c ****     state->cell_mv = (uint16_t)(((uint32_t)raw_vcell * 5u + 32u) / 64u);
+  44              		.loc 1 150 5 view .LVU3
+  45              		.loc 1 150 54 is_stmt 0 view .LVU4
+  46 0010 00EB8000 		add	r0, r0, r0, lsl #2
+  47              	.LVL1:
+  48              		.loc 1 150 59 view .LVU5
+  49 0014 2030     		adds	r0, r0, #32
+  50              		.loc 1 150 22 view .LVU6
+  51 0016 8009     		lsrs	r0, r0, #6
+  52              		.loc 1 150 20 view .LVU7
+  53 0018 2080     		strh	r0, [r4]	@ movhi
+ 151:Src/power/drivers/max17048/max17048.c ****     /* SOC is unsigned 8.8 fixed point. */
+ 152:Src/power/drivers/max17048/max17048.c ****     uint32_t soc_permille = ((uint32_t)raw_soc * 10u + 128u) / 256u;
+  54              		.loc 1 152 5 is_stmt 1 view .LVU8
+  55              		.loc 1 152 48 is_stmt 0 view .LVU9
+  56 001a 01EB8101 		add	r1, r1, r1, lsl #2
+  57              	.LVL2:
+  58              		.loc 1 152 48 view .LVU10
+  59 001e 4900     		lsls	r1, r1, #1
+  60              		.loc 1 152 54 view .LVU11
+  61 0020 8031     		adds	r1, r1, #128
+  62              		.loc 1 152 14 view .LVU12
+  63 0022 4FEA112C 		lsr	ip, r1, #8
+  64              	.LVL3:
+ 153:Src/power/drivers/max17048/max17048.c ****     if (soc_permille > 1000u) {
+  65              		.loc 1 153 5 is_stmt 1 view .LVU13
+  66              		.loc 1 153 8 is_stmt 0 view .LVU14
+  67 0026 0B4D     		ldr	r5, .L5
+  68 0028 A942     		cmp	r1, r5
+  69 002a 01D9     		bls	.L2
+ 154:Src/power/drivers/max17048/max17048.c ****         soc_permille = 1000u;
+  70              		.loc 1 154 22 view .LVU15
+  71 002c 4FF47A7C 		mov	ip, #1000
+  72              	.LVL4:
+  73              	.L2:
+ 155:Src/power/drivers/max17048/max17048.c ****     }
+ 156:Src/power/drivers/max17048/max17048.c ****     state->soc_permille = (uint16_t)soc_permille;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 5
+
+
+  74              		.loc 1 156 5 is_stmt 1 view .LVU16
+  75              		.loc 1 156 25 is_stmt 0 view .LVU17
+  76 0030 A4F802C0 		strh	ip, [r4, #2]	@ movhi
+ 157:Src/power/drivers/max17048/max17048.c ****     state->status = status;
+  77              		.loc 1 157 5 is_stmt 1 view .LVU18
+  78              		.loc 1 157 19 is_stmt 0 view .LVU19
+  79 0034 A280     		strh	r2, [r4, #4]	@ movhi
+ 158:Src/power/drivers/max17048/max17048.c ****     state->alert = (config & 0x0020u) != 0u;
+  80              		.loc 1 158 5 is_stmt 1 view .LVU20
+  81              		.loc 1 158 39 is_stmt 0 view .LVU21
+  82 0036 C3F34013 		ubfx	r3, r3, #5, #1
+  83              	.LVL5:
+  84              		.loc 1 158 18 view .LVU22
+  85 003a A371     		strb	r3, [r4, #6]
+ 159:Src/power/drivers/max17048/max17048.c ****     state->valid = state->cell_mv >= 2500u && state->cell_mv <= 5000u;
+  86              		.loc 1 159 5 is_stmt 1 view .LVU23
+  87              		.loc 1 159 44 is_stmt 0 view .LVU24
+  88 003c A0F6C410 		subw	r0, r0, #2500
+  89 0040 80B2     		uxth	r0, r0
+  90 0042 40F6C413 		movw	r3, #2500
+  91 0046 9842     		cmp	r0, r3
+  92 0048 8CBF     		ite	hi
+  93 004a 0020     		movhi	r0, #0
+  94 004c 0120     		movls	r0, #1
+  95              		.loc 1 159 18 view .LVU25
+  96 004e E071     		strb	r0, [r4, #7]
+ 160:Src/power/drivers/max17048/max17048.c **** }
+  97              		.loc 1 160 1 view .LVU26
+  98 0050 30BC     		pop	{r4, r5}
+  99              	.LCFI1:
+ 100              		.cfi_restore 5
+ 101              		.cfi_restore 4
+ 102              		.cfi_def_cfa_offset 0
+ 103              	.LVL6:
+ 104              		.loc 1 160 1 view .LVU27
+ 105 0052 7047     		bx	lr
+ 106              	.L6:
+ 107              		.align	2
+ 108              	.L5:
+ 109 0054 FFE80300 		.word	256255
+ 110              		.cfi_endproc
+ 111              	.LFE340:
+ 113              		.section	.text.read_register16,"ax",%progbits
+ 114              		.align	1
+ 115              		.syntax unified
+ 116              		.thumb
+ 117              		.thumb_func
+ 119              	read_register16:
+ 120              	.LVL7:
+ 121              	.LFB335:
+  15:Src/power/drivers/max17048/max17048.c ****     uint8_t bytes[2] = {0, 0};
+ 122              		.loc 1 15 1 is_stmt 1 view -0
+ 123              		.cfi_startproc
+ 124              		@ args = 0, pretend = 0, frame = 8
+ 125              		@ frame_needed = 0, uses_anonymous_args = 0
+  15:Src/power/drivers/max17048/max17048.c ****     uint8_t bytes[2] = {0, 0};
+ 126              		.loc 1 15 1 is_stmt 0 view .LVU29
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 6
+
+
+ 127 0000 10B5     		push	{r4, lr}
+ 128              	.LCFI2:
+ 129              		.cfi_def_cfa_offset 8
+ 130              		.cfi_offset 4, -8
+ 131              		.cfi_offset 14, -4
+ 132 0002 86B0     		sub	sp, sp, #24
+ 133              	.LCFI3:
+ 134              		.cfi_def_cfa_offset 32
+  16:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+ 135              		.loc 1 16 5 is_stmt 1 view .LVU30
+  16:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || value == NULL) {
+ 136              		.loc 1 16 13 is_stmt 0 view .LVU31
+ 137 0004 0023     		movs	r3, #0
+ 138 0006 ADF81430 		strh	r3, [sp, #20]	@ movhi
+  17:Src/power/drivers/max17048/max17048.c ****         return false;
+ 139              		.loc 1 17 5 is_stmt 1 view .LVU32
+  17:Src/power/drivers/max17048/max17048.c ****         return false;
+ 140              		.loc 1 17 8 is_stmt 0 view .LVU33
+ 141 000a C8B1     		cbz	r0, .L9
+ 142 000c 1446     		mov	r4, r2
+  17:Src/power/drivers/max17048/max17048.c ****         return false;
+ 143              		.loc 1 17 33 discriminator 1 view .LVU34
+ 144 000e 0068     		ldr	r0, [r0]
+ 145              	.LVL8:
+  17:Src/power/drivers/max17048/max17048.c ****         return false;
+ 146              		.loc 1 17 24 discriminator 1 view .LVU35
+ 147 0010 C0B1     		cbz	r0, .L10
+  17:Src/power/drivers/max17048/max17048.c ****         return false;
+ 148              		.loc 1 17 47 discriminator 2 view .LVU36
+ 149 0012 CAB1     		cbz	r2, .L11
+  20:Src/power/drivers/max17048/max17048.c ****             handle->i2c,
+ 150              		.loc 1 20 5 is_stmt 1 view .LVU37
+  20:Src/power/drivers/max17048/max17048.c ****             handle->i2c,
+ 151              		.loc 1 20 9 is_stmt 0 view .LVU38
+ 152 0014 1423     		movs	r3, #20
+ 153 0016 0293     		str	r3, [sp, #8]
+ 154 0018 0223     		movs	r3, #2
+ 155 001a 0193     		str	r3, [sp, #4]
+ 156 001c 05AB     		add	r3, sp, #20
+ 157 001e 0093     		str	r3, [sp]
+ 158 0020 0123     		movs	r3, #1
+ 159 0022 0A46     		mov	r2, r1
+ 160              	.LVL9:
+  20:Src/power/drivers/max17048/max17048.c ****             handle->i2c,
+ 161              		.loc 1 20 9 view .LVU39
+ 162 0024 6C21     		movs	r1, #108
+ 163              	.LVL10:
+  20:Src/power/drivers/max17048/max17048.c ****             handle->i2c,
+ 164              		.loc 1 20 9 view .LVU40
+ 165 0026 FFF7FEFF 		bl	HAL_I2C_Mem_Read
+ 166              	.LVL11:
+  20:Src/power/drivers/max17048/max17048.c ****             handle->i2c,
+ 167              		.loc 1 20 8 discriminator 1 view .LVU41
+ 168 002a 78B9     		cbnz	r0, .L12
+  30:Src/power/drivers/max17048/max17048.c ****     return true;
+ 169              		.loc 1 30 5 is_stmt 1 view .LVU42
+  30:Src/power/drivers/max17048/max17048.c ****     return true;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 7
+
+
+ 170              		.loc 1 30 41 is_stmt 0 view .LVU43
+ 171 002c 9DF81420 		ldrb	r2, [sp, #20]	@ zero_extendqisi2
+  30:Src/power/drivers/max17048/max17048.c ****     return true;
+ 172              		.loc 1 30 58 view .LVU44
+ 173 0030 9DF81530 		ldrb	r3, [sp, #21]	@ zero_extendqisi2
+  30:Src/power/drivers/max17048/max17048.c ****     return true;
+ 174              		.loc 1 30 14 view .LVU45
+ 175 0034 43EA0223 		orr	r3, r3, r2, lsl #8
+  30:Src/power/drivers/max17048/max17048.c ****     return true;
+ 176              		.loc 1 30 12 view .LVU46
+ 177 0038 2380     		strh	r3, [r4]	@ movhi
+  31:Src/power/drivers/max17048/max17048.c **** }
+ 178              		.loc 1 31 5 is_stmt 1 view .LVU47
+  31:Src/power/drivers/max17048/max17048.c **** }
+ 179              		.loc 1 31 12 is_stmt 0 view .LVU48
+ 180 003a 0120     		movs	r0, #1
+ 181              	.LVL12:
+ 182              	.L8:
+  32:Src/power/drivers/max17048/max17048.c **** 
+ 183              		.loc 1 32 1 view .LVU49
+ 184 003c 06B0     		add	sp, sp, #24
+ 185              	.LCFI4:
+ 186              		.cfi_remember_state
+ 187              		.cfi_def_cfa_offset 8
+ 188              		@ sp needed
+ 189 003e 10BD     		pop	{r4, pc}
+ 190              	.LVL13:
+ 191              	.L9:
+ 192              	.LCFI5:
+ 193              		.cfi_restore_state
+  18:Src/power/drivers/max17048/max17048.c ****     }
+ 194              		.loc 1 18 16 view .LVU50
+ 195 0040 0020     		movs	r0, #0
+ 196              	.LVL14:
+  18:Src/power/drivers/max17048/max17048.c ****     }
+ 197              		.loc 1 18 16 view .LVU51
+ 198 0042 FBE7     		b	.L8
+ 199              	.L10:
+  18:Src/power/drivers/max17048/max17048.c ****     }
+ 200              		.loc 1 18 16 view .LVU52
+ 201 0044 0020     		movs	r0, #0
+ 202 0046 F9E7     		b	.L8
+ 203              	.L11:
+ 204 0048 0020     		movs	r0, #0
+ 205 004a F7E7     		b	.L8
+ 206              	.LVL15:
+ 207              	.L12:
+  28:Src/power/drivers/max17048/max17048.c ****     }
+ 208              		.loc 1 28 16 view .LVU53
+ 209 004c 0020     		movs	r0, #0
+ 210 004e F5E7     		b	.L8
+ 211              		.cfi_endproc
+ 212              	.LFE335:
+ 214              		.section	.text.write_register16,"ax",%progbits
+ 215              		.align	1
+ 216              		.syntax unified
+ 217              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 8
+
+
+ 218              		.thumb_func
+ 220              	write_register16:
+ 221              	.LVL16:
+ 222              	.LFB336:
+  35:Src/power/drivers/max17048/max17048.c ****     uint8_t bytes[2] = {
+ 223              		.loc 1 35 1 is_stmt 1 view -0
+ 224              		.cfi_startproc
+ 225              		@ args = 0, pretend = 0, frame = 8
+ 226              		@ frame_needed = 0, uses_anonymous_args = 0
+  35:Src/power/drivers/max17048/max17048.c ****     uint8_t bytes[2] = {
+ 227              		.loc 1 35 1 is_stmt 0 view .LVU55
+ 228 0000 00B5     		push	{lr}
+ 229              	.LCFI6:
+ 230              		.cfi_def_cfa_offset 4
+ 231              		.cfi_offset 14, -4
+ 232 0002 87B0     		sub	sp, sp, #28
+ 233              	.LCFI7:
+ 234              		.cfi_def_cfa_offset 32
+  36:Src/power/drivers/max17048/max17048.c ****         (uint8_t)(value >> 8),
+ 235              		.loc 1 36 5 is_stmt 1 view .LVU56
+  37:Src/power/drivers/max17048/max17048.c ****         (uint8_t)(value & 0xFFu),
+ 236              		.loc 1 37 9 is_stmt 0 view .LVU57
+ 237 0004 130A     		lsrs	r3, r2, #8
+  36:Src/power/drivers/max17048/max17048.c ****         (uint8_t)(value >> 8),
+ 238              		.loc 1 36 13 view .LVU58
+ 239 0006 8DF81430 		strb	r3, [sp, #20]
+ 240 000a 8DF81520 		strb	r2, [sp, #21]
+  40:Src/power/drivers/max17048/max17048.c ****         return false;
+ 241              		.loc 1 40 5 is_stmt 1 view .LVU59
+  40:Src/power/drivers/max17048/max17048.c ****         return false;
+ 242              		.loc 1 40 8 is_stmt 0 view .LVU60
+ 243 000e 90B1     		cbz	r0, .L16
+  40:Src/power/drivers/max17048/max17048.c ****         return false;
+ 244              		.loc 1 40 33 discriminator 1 view .LVU61
+ 245 0010 0068     		ldr	r0, [r0]
+ 246              	.LVL17:
+  40:Src/power/drivers/max17048/max17048.c ****         return false;
+ 247              		.loc 1 40 24 discriminator 1 view .LVU62
+ 248 0012 90B1     		cbz	r0, .L17
+  43:Src/power/drivers/max17048/max17048.c ****                handle->i2c,
+ 249              		.loc 1 43 5 is_stmt 1 view .LVU63
+  43:Src/power/drivers/max17048/max17048.c ****                handle->i2c,
+ 250              		.loc 1 43 12 is_stmt 0 view .LVU64
+ 251 0014 1423     		movs	r3, #20
+ 252 0016 0293     		str	r3, [sp, #8]
+ 253 0018 0223     		movs	r3, #2
+ 254 001a 0193     		str	r3, [sp, #4]
+ 255 001c 05AB     		add	r3, sp, #20
+ 256 001e 0093     		str	r3, [sp]
+ 257 0020 0123     		movs	r3, #1
+ 258 0022 0A46     		mov	r2, r1
+ 259              	.LVL18:
+  43:Src/power/drivers/max17048/max17048.c ****                handle->i2c,
+ 260              		.loc 1 43 12 view .LVU65
+ 261 0024 6C21     		movs	r1, #108
+ 262              	.LVL19:
+  43:Src/power/drivers/max17048/max17048.c ****                handle->i2c,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 9
+
+
+ 263              		.loc 1 43 12 view .LVU66
+ 264 0026 FFF7FEFF 		bl	HAL_I2C_Mem_Write
+ 265              	.LVL20:
+  50:Src/power/drivers/max17048/max17048.c **** }
+ 266              		.loc 1 50 36 view .LVU67
+ 267 002a B0FA80F0 		clz	r0, r0
+ 268 002e 4009     		lsrs	r0, r0, #5
+ 269              	.L15:
+  51:Src/power/drivers/max17048/max17048.c **** 
+ 270              		.loc 1 51 1 view .LVU68
+ 271 0030 07B0     		add	sp, sp, #28
+ 272              	.LCFI8:
+ 273              		.cfi_remember_state
+ 274              		.cfi_def_cfa_offset 4
+ 275              		@ sp needed
+ 276 0032 5DF804FB 		ldr	pc, [sp], #4
+ 277              	.LVL21:
+ 278              	.L16:
+ 279              	.LCFI9:
+ 280              		.cfi_restore_state
+  41:Src/power/drivers/max17048/max17048.c ****     }
+ 281              		.loc 1 41 16 view .LVU69
+ 282 0036 0020     		movs	r0, #0
+ 283              	.LVL22:
+  41:Src/power/drivers/max17048/max17048.c ****     }
+ 284              		.loc 1 41 16 view .LVU70
+ 285 0038 FAE7     		b	.L15
+ 286              	.L17:
+ 287 003a 0020     		movs	r0, #0
+ 288 003c F8E7     		b	.L15
+ 289              		.cfi_endproc
+ 290              	.LFE336:
+ 292              		.section	.text.MAX17048_Init,"ax",%progbits
+ 293              		.align	1
+ 294              		.global	MAX17048_Init
+ 295              		.syntax unified
+ 296              		.thumb
+ 297              		.thumb_func
+ 299              	MAX17048_Init:
+ 300              	.LVL23:
+ 301              	.LFB337:
+  54:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || i2c == NULL) {
+ 302              		.loc 1 54 1 is_stmt 1 view -0
+ 303              		.cfi_startproc
+ 304              		@ args = 0, pretend = 0, frame = 8
+ 305              		@ frame_needed = 0, uses_anonymous_args = 0
+  54:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || i2c == NULL) {
+ 306              		.loc 1 54 1 is_stmt 0 view .LVU72
+ 307 0000 70B5     		push	{r4, r5, r6, lr}
+ 308              	.LCFI10:
+ 309              		.cfi_def_cfa_offset 16
+ 310              		.cfi_offset 4, -16
+ 311              		.cfi_offset 5, -12
+ 312              		.cfi_offset 6, -8
+ 313              		.cfi_offset 14, -4
+ 314 0002 82B0     		sub	sp, sp, #8
+ 315              	.LCFI11:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 10
+
+
+ 316              		.cfi_def_cfa_offset 24
+  55:Src/power/drivers/max17048/max17048.c ****         return false;
+ 317              		.loc 1 55 5 is_stmt 1 view .LVU73
+  55:Src/power/drivers/max17048/max17048.c ****         return false;
+ 318              		.loc 1 55 8 is_stmt 0 view .LVU74
+ 319 0004 0029     		cmp	r1, #0
+ 320 0006 18BF     		it	ne
+ 321 0008 0028     		cmpne	r0, #0
+ 322 000a 0CBF     		ite	eq
+ 323 000c 0124     		moveq	r4, #1
+ 324 000e 0024     		movne	r4, #0
+ 325 0010 03D1     		bne	.L24
+  56:Src/power/drivers/max17048/max17048.c ****     }
+ 326              		.loc 1 56 16 view .LVU75
+ 327 0012 0024     		movs	r4, #0
+ 328              	.LVL24:
+ 329              	.L20:
+  78:Src/power/drivers/max17048/max17048.c **** 
+ 330              		.loc 1 78 1 view .LVU76
+ 331 0014 2046     		mov	r0, r4
+ 332 0016 02B0     		add	sp, sp, #8
+ 333              	.LCFI12:
+ 334              		.cfi_remember_state
+ 335              		.cfi_def_cfa_offset 16
+ 336              		@ sp needed
+ 337 0018 70BD     		pop	{r4, r5, r6, pc}
+ 338              	.LVL25:
+ 339              	.L24:
+ 340              	.LCFI13:
+ 341              		.cfi_restore_state
+  78:Src/power/drivers/max17048/max17048.c **** 
+ 342              		.loc 1 78 1 view .LVU77
+ 343 001a 0546     		mov	r5, r0
+ 344 001c 0E46     		mov	r6, r1
+  59:Src/power/drivers/max17048/max17048.c ****     handle->i2c = i2c;
+ 345              		.loc 1 59 5 is_stmt 1 view .LVU78
+ 346 001e 0023     		movs	r3, #0
+ 347 0020 0360     		str	r3, [r0]	@ unaligned
+ 348 0022 4360     		str	r3, [r0, #4]	@ unaligned
+  60:Src/power/drivers/max17048/max17048.c ****     if (HAL_I2C_IsDeviceReady(
+ 349              		.loc 1 60 5 view .LVU79
+  60:Src/power/drivers/max17048/max17048.c ****     if (HAL_I2C_IsDeviceReady(
+ 350              		.loc 1 60 17 is_stmt 0 view .LVU80
+ 351 0024 0160     		str	r1, [r0]
+  61:Src/power/drivers/max17048/max17048.c ****             i2c,
+ 352              		.loc 1 61 5 is_stmt 1 view .LVU81
+  61:Src/power/drivers/max17048/max17048.c ****             i2c,
+ 353              		.loc 1 61 9 is_stmt 0 view .LVU82
+ 354 0026 1423     		movs	r3, #20
+ 355 0028 0222     		movs	r2, #2
+ 356 002a 6C21     		movs	r1, #108
+ 357              	.LVL26:
+  61:Src/power/drivers/max17048/max17048.c ****             i2c,
+ 358              		.loc 1 61 9 view .LVU83
+ 359 002c 3046     		mov	r0, r6
+ 360              	.LVL27:
+  61:Src/power/drivers/max17048/max17048.c ****             i2c,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 11
+
+
+ 361              		.loc 1 61 9 view .LVU84
+ 362 002e FFF7FEFF 		bl	HAL_I2C_IsDeviceReady
+ 363              	.LVL28:
+  61:Src/power/drivers/max17048/max17048.c ****             i2c,
+ 364              		.loc 1 61 8 discriminator 1 view .LVU85
+ 365 0032 0028     		cmp	r0, #0
+ 366 0034 EED1     		bne	.L20
+  69:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VERSION, &version) ||
+ 367              		.loc 1 69 5 is_stmt 1 view .LVU86
+  69:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VERSION, &version) ||
+ 368              		.loc 1 69 14 is_stmt 0 view .LVU87
+ 369 0036 0023     		movs	r3, #0
+ 370 0038 ADF80630 		strh	r3, [sp, #6]	@ movhi
+  70:Src/power/drivers/max17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+ 371              		.loc 1 70 5 is_stmt 1 view .LVU88
+  70:Src/power/drivers/max17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+ 372              		.loc 1 70 10 is_stmt 0 view .LVU89
+ 373 003c 0DF10602 		add	r2, sp, #6
+ 374 0040 0821     		movs	r1, #8
+ 375 0042 2846     		mov	r0, r5
+ 376 0044 FFF7FEFF 		bl	read_register16
+ 377              	.LVL29:
+  70:Src/power/drivers/max17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+ 378              		.loc 1 70 8 discriminator 1 view .LVU90
+ 379 0048 60B1     		cbz	r0, .L22
+  71:Src/power/drivers/max17048/max17048.c ****         return false;
+ 380              		.loc 1 71 17 view .LVU91
+ 381 004a BDF80630 		ldrh	r3, [sp, #6]
+  70:Src/power/drivers/max17048/max17048.c ****         version == 0u || version == 0xFFFFu) {
+ 382              		.loc 1 70 61 discriminator 1 view .LVU92
+ 383 004e 002B     		cmp	r3, #0
+ 384 0050 E0D0     		beq	.L20
+  71:Src/power/drivers/max17048/max17048.c ****         return false;
+ 385              		.loc 1 71 23 view .LVU93
+ 386 0052 4FF6FF71 		movw	r1, #65535
+ 387 0056 8B42     		cmp	r3, r1
+ 388 0058 DCD0     		beq	.L20
+  75:Src/power/drivers/max17048/max17048.c ****     handle->online = true;
+ 389              		.loc 1 75 5 is_stmt 1 view .LVU94
+  75:Src/power/drivers/max17048/max17048.c ****     handle->online = true;
+ 390              		.loc 1 75 21 is_stmt 0 view .LVU95
+ 391 005a EB80     		strh	r3, [r5, #6]	@ movhi
+  76:Src/power/drivers/max17048/max17048.c ****     return true;
+ 392              		.loc 1 76 5 is_stmt 1 view .LVU96
+  76:Src/power/drivers/max17048/max17048.c ****     return true;
+ 393              		.loc 1 76 20 is_stmt 0 view .LVU97
+ 394 005c 0123     		movs	r3, #1
+ 395 005e 2B71     		strb	r3, [r5, #4]
+  77:Src/power/drivers/max17048/max17048.c **** }
+ 396              		.loc 1 77 5 is_stmt 1 view .LVU98
+  77:Src/power/drivers/max17048/max17048.c **** }
+ 397              		.loc 1 77 12 is_stmt 0 view .LVU99
+ 398 0060 0446     		mov	r4, r0
+ 399 0062 D7E7     		b	.L20
+ 400              	.L22:
+  72:Src/power/drivers/max17048/max17048.c ****     }
+ 401              		.loc 1 72 16 view .LVU100
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 12
+
+
+ 402 0064 0446     		mov	r4, r0
+ 403 0066 D5E7     		b	.L20
+ 404              		.cfi_endproc
+ 405              	.LFE337:
+ 407              		.section	.text.MAX17048_ConfigureAlert,"ax",%progbits
+ 408              		.align	1
+ 409              		.global	MAX17048_ConfigureAlert
+ 410              		.syntax unified
+ 411              		.thumb
+ 412              		.thumb_func
+ 414              	MAX17048_ConfigureAlert:
+ 415              	.LVL30:
+ 416              	.LFB338:
+  81:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 417              		.loc 1 81 1 is_stmt 1 view -0
+ 418              		.cfi_startproc
+ 419              		@ args = 0, pretend = 0, frame = 8
+ 420              		@ frame_needed = 0, uses_anonymous_args = 0
+  82:Src/power/drivers/max17048/max17048.c ****         return false;
+ 421              		.loc 1 82 5 view .LVU102
+  82:Src/power/drivers/max17048/max17048.c ****         return false;
+ 422              		.loc 1 82 8 is_stmt 0 view .LVU103
+ 423 0000 0028     		cmp	r0, #0
+ 424 0002 3BD0     		beq	.L31
+  81:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 425              		.loc 1 81 1 view .LVU104
+ 426 0004 30B5     		push	{r4, r5, lr}
+ 427              	.LCFI14:
+ 428              		.cfi_def_cfa_offset 12
+ 429              		.cfi_offset 4, -12
+ 430              		.cfi_offset 5, -8
+ 431              		.cfi_offset 14, -4
+ 432 0006 83B0     		sub	sp, sp, #12
+ 433              	.LCFI15:
+ 434              		.cfi_def_cfa_offset 24
+ 435 0008 0C46     		mov	r4, r1
+ 436 000a 0546     		mov	r5, r0
+  82:Src/power/drivers/max17048/max17048.c ****         return false;
+ 437              		.loc 1 82 34 discriminator 1 view .LVU105
+ 438 000c 0079     		ldrb	r0, [r0, #4]	@ zero_extendqisi2
+ 439              	.LVL31:
+  82:Src/power/drivers/max17048/max17048.c ****         return false;
+ 440              		.loc 1 82 24 discriminator 1 view .LVU106
+ 441 000e 80B1     		cbz	r0, .L26
+  85:Src/power/drivers/max17048/max17048.c ****         soc_threshold_percent = 1u;
+ 442              		.loc 1 85 5 is_stmt 1 view .LVU107
+  85:Src/power/drivers/max17048/max17048.c ****         soc_threshold_percent = 1u;
+ 443              		.loc 1 85 8 is_stmt 0 view .LVU108
+ 444 0010 19B1     		cbz	r1, .L32
+  87:Src/power/drivers/max17048/max17048.c ****         soc_threshold_percent = 32u;
+ 445              		.loc 1 87 12 is_stmt 1 view .LVU109
+  87:Src/power/drivers/max17048/max17048.c ****         soc_threshold_percent = 32u;
+ 446              		.loc 1 87 15 is_stmt 0 view .LVU110
+ 447 0012 2029     		cmp	r1, #32
+ 448 0014 02D9     		bls	.L27
+  88:Src/power/drivers/max17048/max17048.c ****     }
+ 449              		.loc 1 88 31 view .LVU111
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 13
+
+
+ 450 0016 2024     		movs	r4, #32
+ 451 0018 00E0     		b	.L27
+ 452              	.L32:
+  86:Src/power/drivers/max17048/max17048.c ****     } else if (soc_threshold_percent > 32u) {
+ 453              		.loc 1 86 31 view .LVU112
+ 454 001a 0124     		movs	r4, #1
+ 455              	.L27:
+ 456              	.LVL32:
+  91:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 457              		.loc 1 91 5 is_stmt 1 view .LVU113
+  91:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 458              		.loc 1 91 14 is_stmt 0 view .LVU114
+ 459 001c 0023     		movs	r3, #0
+ 460 001e ADF80630 		strh	r3, [sp, #6]	@ movhi
+  92:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 461              		.loc 1 92 5 is_stmt 1 view .LVU115
+  92:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 462              		.loc 1 92 10 is_stmt 0 view .LVU116
+ 463 0022 0DF10602 		add	r2, sp, #6
+ 464 0026 0C21     		movs	r1, #12
+ 465 0028 2846     		mov	r0, r5
+ 466 002a FFF7FEFF 		bl	read_register16
+ 467              	.LVL33:
+  92:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 468              		.loc 1 92 8 discriminator 1 view .LVU117
+ 469 002e 10B9     		cbnz	r0, .L28
+  93:Src/power/drivers/max17048/max17048.c ****         return false;
+ 470              		.loc 1 93 9 is_stmt 1 view .LVU118
+  93:Src/power/drivers/max17048/max17048.c ****         return false;
+ 471              		.loc 1 93 24 is_stmt 0 view .LVU119
+ 472 0030 2871     		strb	r0, [r5, #4]
+  94:Src/power/drivers/max17048/max17048.c ****     }
+ 473              		.loc 1 94 9 is_stmt 1 view .LVU120
+ 474              	.LVL34:
+ 475              	.L26:
+ 112:Src/power/drivers/max17048/max17048.c **** 
+ 476              		.loc 1 112 1 is_stmt 0 view .LVU121
+ 477 0032 03B0     		add	sp, sp, #12
+ 478              	.LCFI16:
+ 479              		.cfi_remember_state
+ 480              		.cfi_def_cfa_offset 12
+ 481              		@ sp needed
+ 482 0034 30BD     		pop	{r4, r5, pc}
+ 483              	.LVL35:
+ 484              	.L28:
+ 485              	.LCFI17:
+ 486              		.cfi_restore_state
+  98:Src/power/drivers/max17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 487              		.loc 1 98 5 is_stmt 1 view .LVU122
+  98:Src/power/drivers/max17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 488              		.loc 1 98 20 is_stmt 0 view .LVU123
+ 489 0036 C4F12004 		rsb	r4, r4, #32
+ 490              	.LVL36:
+  98:Src/power/drivers/max17048/max17048.c ****     config = (uint16_t)((config & (uint16_t)~0x003Fu) | athd);
+ 491              		.loc 1 98 20 view .LVU124
+ 492 003a A4B2     		uxth	r4, r4
+ 493              	.LVL37:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 14
+
+
+  99:Src/power/drivers/max17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 494              		.loc 1 99 5 is_stmt 1 view .LVU125
+  99:Src/power/drivers/max17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 495              		.loc 1 99 33 is_stmt 0 view .LVU126
+ 496 003c BDF80620 		ldrh	r2, [sp, #6]
+ 497 0040 22F03F02 		bic	r2, r2, #63
+ 498 0044 2243     		orrs	r2, r2, r4
+  99:Src/power/drivers/max17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 499              		.loc 1 99 12 view .LVU127
+ 500 0046 ADF80620 		strh	r2, [sp, #6]	@ movhi
+ 100:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 501              		.loc 1 100 5 is_stmt 1 view .LVU128
+ 100:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 502              		.loc 1 100 10 is_stmt 0 view .LVU129
+ 503 004a 0C21     		movs	r1, #12
+ 504 004c 2846     		mov	r0, r5
+ 505 004e FFF7FEFF 		bl	write_register16
+ 506              	.LVL38:
+ 100:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 507              		.loc 1 100 8 discriminator 1 view .LVU130
+ 508 0052 08B9     		cbnz	r0, .L29
+ 101:Src/power/drivers/max17048/max17048.c ****         return false;
+ 509              		.loc 1 101 9 is_stmt 1 view .LVU131
+ 101:Src/power/drivers/max17048/max17048.c ****         return false;
+ 510              		.loc 1 101 24 is_stmt 0 view .LVU132
+ 511 0054 2871     		strb	r0, [r5, #4]
+ 102:Src/power/drivers/max17048/max17048.c ****     }
+ 512              		.loc 1 102 9 is_stmt 1 view .LVU133
+ 102:Src/power/drivers/max17048/max17048.c ****     }
+ 513              		.loc 1 102 16 is_stmt 0 view .LVU134
+ 514 0056 ECE7     		b	.L26
+ 515              	.L29:
+ 105:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &verify) ||
+ 516              		.loc 1 105 5 is_stmt 1 view .LVU135
+ 105:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &verify) ||
+ 517              		.loc 1 105 14 is_stmt 0 view .LVU136
+ 518 0058 0023     		movs	r3, #0
+ 519 005a ADF80430 		strh	r3, [sp, #4]	@ movhi
+ 106:Src/power/drivers/max17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 520              		.loc 1 106 5 is_stmt 1 view .LVU137
+ 106:Src/power/drivers/max17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 521              		.loc 1 106 10 is_stmt 0 view .LVU138
+ 522 005e 01AA     		add	r2, sp, #4
+ 523 0060 0C21     		movs	r1, #12
+ 524 0062 2846     		mov	r0, r5
+ 525 0064 FFF7FEFF 		bl	read_register16
+ 526              	.LVL39:
+ 106:Src/power/drivers/max17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 527              		.loc 1 106 8 discriminator 1 view .LVU139
+ 528 0068 28B1     		cbz	r0, .L30
+ 107:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 529              		.loc 1 107 17 view .LVU140
+ 530 006a BDF80430 		ldrh	r3, [sp, #4]
+ 106:Src/power/drivers/max17048/max17048.c ****         (verify & 0x001Fu) != athd) {
+ 531              		.loc 1 106 59 discriminator 1 view .LVU141
+ 532 006e 03F01F03 		and	r3, r3, #31
+ 533 0072 9C42     		cmp	r4, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 15
+
+
+ 534 0074 DDD0     		beq	.L26
+ 535              	.L30:
+ 108:Src/power/drivers/max17048/max17048.c ****         return false;
+ 536              		.loc 1 108 9 is_stmt 1 view .LVU142
+ 108:Src/power/drivers/max17048/max17048.c ****         return false;
+ 537              		.loc 1 108 24 is_stmt 0 view .LVU143
+ 538 0076 0020     		movs	r0, #0
+ 539 0078 2871     		strb	r0, [r5, #4]
+ 109:Src/power/drivers/max17048/max17048.c ****     }
+ 540              		.loc 1 109 9 is_stmt 1 view .LVU144
+ 109:Src/power/drivers/max17048/max17048.c ****     }
+ 541              		.loc 1 109 16 is_stmt 0 view .LVU145
+ 542 007a DAE7     		b	.L26
+ 543              	.LVL40:
+ 544              	.L31:
+ 545              	.LCFI18:
+ 546              		.cfi_def_cfa_offset 0
+ 547              		.cfi_restore 4
+ 548              		.cfi_restore 5
+ 549              		.cfi_restore 14
+  83:Src/power/drivers/max17048/max17048.c ****     }
+ 550              		.loc 1 83 16 view .LVU146
+ 551 007c 0020     		movs	r0, #0
+ 552              	.LVL41:
+ 112:Src/power/drivers/max17048/max17048.c **** 
+ 553              		.loc 1 112 1 view .LVU147
+ 554 007e 7047     		bx	lr
+ 555              		.cfi_endproc
+ 556              	.LFE338:
+ 558              		.section	.text.MAX17048_ClearAlert,"ax",%progbits
+ 559              		.align	1
+ 560              		.global	MAX17048_ClearAlert
+ 561              		.syntax unified
+ 562              		.thumb
+ 563              		.thumb_func
+ 565              	MAX17048_ClearAlert:
+ 566              	.LVL42:
+ 567              	.LFB339:
+ 115:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 568              		.loc 1 115 1 is_stmt 1 view -0
+ 569              		.cfi_startproc
+ 570              		@ args = 0, pretend = 0, frame = 8
+ 571              		@ frame_needed = 0, uses_anonymous_args = 0
+ 116:Src/power/drivers/max17048/max17048.c ****         return false;
+ 572              		.loc 1 116 5 view .LVU149
+ 116:Src/power/drivers/max17048/max17048.c ****         return false;
+ 573              		.loc 1 116 8 is_stmt 0 view .LVU150
+ 574 0000 B8B3     		cbz	r0, .L43
+ 115:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || !handle->online) {
+ 575              		.loc 1 115 1 view .LVU151
+ 576 0002 10B5     		push	{r4, lr}
+ 577              	.LCFI19:
+ 578              		.cfi_def_cfa_offset 8
+ 579              		.cfi_offset 4, -8
+ 580              		.cfi_offset 14, -4
+ 581 0004 82B0     		sub	sp, sp, #8
+ 582              	.LCFI20:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 16
+
+
+ 583              		.cfi_def_cfa_offset 16
+ 584 0006 0446     		mov	r4, r0
+ 116:Src/power/drivers/max17048/max17048.c ****         return false;
+ 585              		.loc 1 116 34 discriminator 1 view .LVU152
+ 586 0008 0079     		ldrb	r0, [r0, #4]	@ zero_extendqisi2
+ 587              	.LVL43:
+ 116:Src/power/drivers/max17048/max17048.c ****         return false;
+ 588              		.loc 1 116 24 discriminator 1 view .LVU153
+ 589 000a 08B9     		cbnz	r0, .L48
+ 590              	.L39:
+ 143:Src/power/drivers/max17048/max17048.c **** 
+ 591              		.loc 1 143 1 view .LVU154
+ 592 000c 02B0     		add	sp, sp, #8
+ 593              	.LCFI21:
+ 594              		.cfi_remember_state
+ 595              		.cfi_def_cfa_offset 8
+ 596              		@ sp needed
+ 597 000e 10BD     		pop	{r4, pc}
+ 598              	.LVL44:
+ 599              	.L48:
+ 600              	.LCFI22:
+ 601              		.cfi_restore_state
+ 119:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 602              		.loc 1 119 5 is_stmt 1 view .LVU155
+ 119:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 603              		.loc 1 119 14 is_stmt 0 view .LVU156
+ 604 0010 0023     		movs	r3, #0
+ 605 0012 ADF80630 		strh	r3, [sp, #6]	@ movhi
+ 120:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 606              		.loc 1 120 5 is_stmt 1 view .LVU157
+ 120:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 607              		.loc 1 120 10 is_stmt 0 view .LVU158
+ 608 0016 0DF10602 		add	r2, sp, #6
+ 609 001a 0C21     		movs	r1, #12
+ 610 001c 2046     		mov	r0, r4
+ 611 001e FFF7FEFF 		bl	read_register16
+ 612              	.LVL45:
+ 120:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 613              		.loc 1 120 8 discriminator 1 view .LVU159
+ 614 0022 08B9     		cbnz	r0, .L40
+ 121:Src/power/drivers/max17048/max17048.c ****         return false;
+ 615              		.loc 1 121 9 is_stmt 1 view .LVU160
+ 121:Src/power/drivers/max17048/max17048.c ****         return false;
+ 616              		.loc 1 121 24 is_stmt 0 view .LVU161
+ 617 0024 2071     		strb	r0, [r4, #4]
+ 122:Src/power/drivers/max17048/max17048.c ****     }
+ 618              		.loc 1 122 9 is_stmt 1 view .LVU162
+ 122:Src/power/drivers/max17048/max17048.c ****     }
+ 619              		.loc 1 122 16 is_stmt 0 view .LVU163
+ 620 0026 F1E7     		b	.L39
+ 621              	.L40:
+ 124:Src/power/drivers/max17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 622              		.loc 1 124 5 is_stmt 1 view .LVU164
+ 124:Src/power/drivers/max17048/max17048.c ****     if (!write_register16(handle, MAX_REG_CONFIG, config)) {
+ 623              		.loc 1 124 12 is_stmt 0 view .LVU165
+ 624 0028 BDF80620 		ldrh	r2, [sp, #6]
+ 625 002c 22F02002 		bic	r2, r2, #32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 17
+
+
+ 626 0030 92B2     		uxth	r2, r2
+ 627 0032 ADF80620 		strh	r2, [sp, #6]	@ movhi
+ 125:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 628              		.loc 1 125 5 is_stmt 1 view .LVU166
+ 125:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 629              		.loc 1 125 10 is_stmt 0 view .LVU167
+ 630 0036 0C21     		movs	r1, #12
+ 631 0038 2046     		mov	r0, r4
+ 632 003a FFF7FEFF 		bl	write_register16
+ 633              	.LVL46:
+ 125:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 634              		.loc 1 125 8 discriminator 1 view .LVU168
+ 635 003e 08B9     		cbnz	r0, .L41
+ 126:Src/power/drivers/max17048/max17048.c ****         return false;
+ 636              		.loc 1 126 9 is_stmt 1 view .LVU169
+ 126:Src/power/drivers/max17048/max17048.c ****         return false;
+ 637              		.loc 1 126 24 is_stmt 0 view .LVU170
+ 638 0040 2071     		strb	r0, [r4, #4]
+ 127:Src/power/drivers/max17048/max17048.c ****     }
+ 639              		.loc 1 127 9 is_stmt 1 view .LVU171
+ 127:Src/power/drivers/max17048/max17048.c ****     }
+ 640              		.loc 1 127 16 is_stmt 0 view .LVU172
+ 641 0042 E3E7     		b	.L39
+ 642              	.L41:
+ 136:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_STATUS, &status) ||
+ 643              		.loc 1 136 5 is_stmt 1 view .LVU173
+ 136:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_STATUS, &status) ||
+ 644              		.loc 1 136 14 is_stmt 0 view .LVU174
+ 645 0044 0023     		movs	r3, #0
+ 646 0046 ADF80430 		strh	r3, [sp, #4]	@ movhi
+ 137:Src/power/drivers/max17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 647              		.loc 1 137 5 is_stmt 1 view .LVU175
+ 137:Src/power/drivers/max17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 648              		.loc 1 137 10 is_stmt 0 view .LVU176
+ 649 004a 01AA     		add	r2, sp, #4
+ 650 004c 1A21     		movs	r1, #26
+ 651 004e 2046     		mov	r0, r4
+ 652 0050 FFF7FEFF 		bl	read_register16
+ 653              	.LVL47:
+ 137:Src/power/drivers/max17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 654              		.loc 1 137 8 discriminator 1 view .LVU177
+ 655 0054 10B9     		cbnz	r0, .L49
+ 656              	.L42:
+ 139:Src/power/drivers/max17048/max17048.c ****         return false;
+ 657              		.loc 1 139 9 is_stmt 1 view .LVU178
+ 139:Src/power/drivers/max17048/max17048.c ****         return false;
+ 658              		.loc 1 139 24 is_stmt 0 view .LVU179
+ 659 0056 0020     		movs	r0, #0
+ 660 0058 2071     		strb	r0, [r4, #4]
+ 140:Src/power/drivers/max17048/max17048.c ****     }
+ 661              		.loc 1 140 9 is_stmt 1 view .LVU180
+ 140:Src/power/drivers/max17048/max17048.c ****     }
+ 662              		.loc 1 140 16 is_stmt 0 view .LVU181
+ 663 005a D7E7     		b	.L39
+ 664              	.L49:
+ 138:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 665              		.loc 1 138 10 view .LVU182
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 18
+
+
+ 666 005c BDF80420 		ldrh	r2, [sp, #4]
+ 667 0060 02F48042 		and	r2, r2, #16384
+ 668 0064 1A21     		movs	r1, #26
+ 669 0066 2046     		mov	r0, r4
+ 670 0068 FFF7FEFF 		bl	write_register16
+ 671              	.LVL48:
+ 137:Src/power/drivers/max17048/max17048.c ****         !write_register16(handle, MAX_REG_STATUS, (uint16_t)(status & 0x4000u))) {
+ 672              		.loc 1 137 59 discriminator 1 view .LVU183
+ 673 006c 0028     		cmp	r0, #0
+ 674 006e CDD1     		bne	.L39
+ 675 0070 F1E7     		b	.L42
+ 676              	.LVL49:
+ 677              	.L43:
+ 678              	.LCFI23:
+ 679              		.cfi_def_cfa_offset 0
+ 680              		.cfi_restore 4
+ 681              		.cfi_restore 14
+ 117:Src/power/drivers/max17048/max17048.c ****     }
+ 682              		.loc 1 117 16 view .LVU184
+ 683 0072 0020     		movs	r0, #0
+ 684              	.LVL50:
+ 143:Src/power/drivers/max17048/max17048.c **** 
+ 685              		.loc 1 143 1 view .LVU185
+ 686 0074 7047     		bx	lr
+ 687              		.cfi_endproc
+ 688              	.LFE339:
+ 690              		.section	.text.MAX17048_ReadState,"ax",%progbits
+ 691              		.align	1
+ 692              		.global	MAX17048_ReadState
+ 693              		.syntax unified
+ 694              		.thumb
+ 695              		.thumb_func
+ 697              	MAX17048_ReadState:
+ 698              	.LVL51:
+ 699              	.LFB341:
+ 161:Src/power/drivers/max17048/max17048.c **** 
+ 162:Src/power/drivers/max17048/max17048.c **** bool MAX17048_ReadState(MAX17048_Handle* handle, MAX17048_State* state)
+ 163:Src/power/drivers/max17048/max17048.c **** {
+ 700              		.loc 1 163 1 is_stmt 1 view -0
+ 701              		.cfi_startproc
+ 702              		@ args = 0, pretend = 0, frame = 8
+ 703              		@ frame_needed = 0, uses_anonymous_args = 0
+ 704              		.loc 1 163 1 is_stmt 0 view .LVU187
+ 705 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 706              	.LCFI24:
+ 707              		.cfi_def_cfa_offset 20
+ 708              		.cfi_offset 4, -20
+ 709              		.cfi_offset 5, -16
+ 710              		.cfi_offset 6, -12
+ 711              		.cfi_offset 7, -8
+ 712              		.cfi_offset 14, -4
+ 713 0002 85B0     		sub	sp, sp, #20
+ 714              	.LCFI25:
+ 715              		.cfi_def_cfa_offset 40
+ 164:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || state == NULL || !handle->online) {
+ 716              		.loc 1 164 5 is_stmt 1 view .LVU188
+ 717              		.loc 1 164 8 is_stmt 0 view .LVU189
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 19
+
+
+ 718 0004 0029     		cmp	r1, #0
+ 719 0006 18BF     		it	ne
+ 720 0008 0028     		cmpne	r0, #0
+ 721 000a 0CBF     		ite	eq
+ 722 000c 0124     		moveq	r4, #1
+ 723 000e 0024     		movne	r4, #0
+ 724 0010 39D0     		beq	.L54
+ 725 0012 0646     		mov	r6, r0
+ 726 0014 0F46     		mov	r7, r1
+ 727              		.loc 1 164 51 discriminator 1 view .LVU190
+ 728 0016 0579     		ldrb	r5, [r0, #4]	@ zero_extendqisi2
+ 729              		.loc 1 164 41 discriminator 1 view .LVU191
+ 730 0018 B5B3     		cbz	r5, .L51
+ 165:Src/power/drivers/max17048/max17048.c ****         return false;
+ 166:Src/power/drivers/max17048/max17048.c ****     }
+ 167:Src/power/drivers/max17048/max17048.c **** 
+ 168:Src/power/drivers/max17048/max17048.c ****     uint16_t raw_vcell = 0;
+ 731              		.loc 1 168 5 is_stmt 1 view .LVU192
+ 732              		.loc 1 168 14 is_stmt 0 view .LVU193
+ 733 001a 0023     		movs	r3, #0
+ 734 001c ADF80E30 		strh	r3, [sp, #14]	@ movhi
+ 169:Src/power/drivers/max17048/max17048.c ****     uint16_t raw_soc = 0;
+ 735              		.loc 1 169 5 is_stmt 1 view .LVU194
+ 736              		.loc 1 169 14 is_stmt 0 view .LVU195
+ 737 0020 ADF80C30 		strh	r3, [sp, #12]	@ movhi
+ 170:Src/power/drivers/max17048/max17048.c ****     uint16_t status = 0;
+ 738              		.loc 1 170 5 is_stmt 1 view .LVU196
+ 739              		.loc 1 170 14 is_stmt 0 view .LVU197
+ 740 0024 ADF80A30 		strh	r3, [sp, #10]	@ movhi
+ 171:Src/power/drivers/max17048/max17048.c ****     uint16_t config = 0;
+ 741              		.loc 1 171 5 is_stmt 1 view .LVU198
+ 742              		.loc 1 171 14 is_stmt 0 view .LVU199
+ 743 0028 ADF80830 		strh	r3, [sp, #8]	@ movhi
+ 172:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VCELL, &raw_vcell) ||
+ 744              		.loc 1 172 5 is_stmt 1 view .LVU200
+ 745              		.loc 1 172 10 is_stmt 0 view .LVU201
+ 746 002c 0DF10E02 		add	r2, sp, #14
+ 747 0030 0221     		movs	r1, #2
+ 748              	.LVL52:
+ 749              		.loc 1 172 10 view .LVU202
+ 750 0032 FFF7FEFF 		bl	read_register16
+ 751              	.LVL53:
+ 752              		.loc 1 172 8 discriminator 1 view .LVU203
+ 753 0036 18B9     		cbnz	r0, .L56
+ 754              	.L52:
+ 173:Src/power/drivers/max17048/max17048.c ****         !read_register16(handle, MAX_REG_SOC, &raw_soc) ||
+ 174:Src/power/drivers/max17048/max17048.c ****         !read_register16(handle, MAX_REG_STATUS, &status) ||
+ 175:Src/power/drivers/max17048/max17048.c ****         !read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 176:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 755              		.loc 1 176 9 is_stmt 1 view .LVU204
+ 756              		.loc 1 176 24 is_stmt 0 view .LVU205
+ 757 0038 0023     		movs	r3, #0
+ 758 003a 3371     		strb	r3, [r6, #4]
+ 177:Src/power/drivers/max17048/max17048.c ****         return false;
+ 759              		.loc 1 177 9 is_stmt 1 view .LVU206
+ 760              		.loc 1 177 16 is_stmt 0 view .LVU207
+ 761 003c 2546     		mov	r5, r4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 20
+
+
+ 762 003e 23E0     		b	.L51
+ 763              	.L56:
+ 173:Src/power/drivers/max17048/max17048.c ****         !read_register16(handle, MAX_REG_SOC, &raw_soc) ||
+ 764              		.loc 1 173 10 view .LVU208
+ 765 0040 03AA     		add	r2, sp, #12
+ 766 0042 0421     		movs	r1, #4
+ 767 0044 3046     		mov	r0, r6
+ 768 0046 FFF7FEFF 		bl	read_register16
+ 769              	.LVL54:
+ 172:Src/power/drivers/max17048/max17048.c ****     if (!read_register16(handle, MAX_REG_VCELL, &raw_vcell) ||
+ 770              		.loc 1 172 61 discriminator 1 view .LVU209
+ 771 004a 0028     		cmp	r0, #0
+ 772 004c F4D0     		beq	.L52
+ 174:Src/power/drivers/max17048/max17048.c ****         !read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 773              		.loc 1 174 10 view .LVU210
+ 774 004e 0DF10A02 		add	r2, sp, #10
+ 775 0052 1A21     		movs	r1, #26
+ 776 0054 3046     		mov	r0, r6
+ 777 0056 FFF7FEFF 		bl	read_register16
+ 778              	.LVL55:
+ 173:Src/power/drivers/max17048/max17048.c ****         !read_register16(handle, MAX_REG_SOC, &raw_soc) ||
+ 779              		.loc 1 173 57 view .LVU211
+ 780 005a 0028     		cmp	r0, #0
+ 781 005c ECD0     		beq	.L52
+ 175:Src/power/drivers/max17048/max17048.c ****         handle->online = false;
+ 782              		.loc 1 175 10 view .LVU212
+ 783 005e 02AA     		add	r2, sp, #8
+ 784 0060 0C21     		movs	r1, #12
+ 785 0062 3046     		mov	r0, r6
+ 786 0064 FFF7FEFF 		bl	read_register16
+ 787              	.LVL56:
+ 174:Src/power/drivers/max17048/max17048.c ****         !read_register16(handle, MAX_REG_CONFIG, &config)) {
+ 788              		.loc 1 174 59 view .LVU213
+ 789 0068 0546     		mov	r5, r0
+ 790 006a 0028     		cmp	r0, #0
+ 791 006c E4D0     		beq	.L52
+ 178:Src/power/drivers/max17048/max17048.c ****     }
+ 179:Src/power/drivers/max17048/max17048.c **** 
+ 180:Src/power/drivers/max17048/max17048.c ****     decode_state(raw_vcell, raw_soc, status, config, state);
+ 792              		.loc 1 180 5 is_stmt 1 view .LVU214
+ 793 006e 0097     		str	r7, [sp]
+ 794 0070 BDF80830 		ldrh	r3, [sp, #8]
+ 795 0074 BDF80A20 		ldrh	r2, [sp, #10]
+ 796 0078 BDF80C10 		ldrh	r1, [sp, #12]
+ 797 007c BDF80E00 		ldrh	r0, [sp, #14]
+ 798 0080 FFF7FEFF 		bl	decode_state
+ 799              	.LVL57:
+ 181:Src/power/drivers/max17048/max17048.c ****     return true;
+ 800              		.loc 1 181 5 view .LVU215
+ 801              		.loc 1 181 12 is_stmt 0 view .LVU216
+ 802 0084 00E0     		b	.L51
+ 803              	.LVL58:
+ 804              	.L54:
+ 165:Src/power/drivers/max17048/max17048.c ****     }
+ 805              		.loc 1 165 16 view .LVU217
+ 806 0086 0025     		movs	r5, #0
+ 807              	.LVL59:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 21
+
+
+ 808              	.L51:
+ 182:Src/power/drivers/max17048/max17048.c **** }
+ 809              		.loc 1 182 1 view .LVU218
+ 810 0088 2846     		mov	r0, r5
+ 811 008a 05B0     		add	sp, sp, #20
+ 812              	.LCFI26:
+ 813              		.cfi_def_cfa_offset 20
+ 814              		@ sp needed
+ 815 008c F0BD     		pop	{r4, r5, r6, r7, pc}
+ 816              		.cfi_endproc
+ 817              	.LFE341:
+ 819              		.section	.text.MAX17048_Step,"ax",%progbits
+ 820              		.align	1
+ 821              		.global	MAX17048_Step
+ 822              		.syntax unified
+ 823              		.thumb
+ 824              		.thumb_func
+ 826              	MAX17048_Step:
+ 827              	.LVL60:
+ 828              	.LFB342:
+ 183:Src/power/drivers/max17048/max17048.c **** 
+ 184:Src/power/drivers/max17048/max17048.c **** PowerI2C_Result MAX17048_Step(MAX17048_Handle* handle, MAX17048_Job* job,
+ 185:Src/power/drivers/max17048/max17048.c ****                             MAX17048_State* state)
+ 186:Src/power/drivers/max17048/max17048.c **** {
+ 829              		.loc 1 186 1 is_stmt 1 view -0
+ 830              		.cfi_startproc
+ 831              		@ args = 0, pretend = 0, frame = 16
+ 832              		@ frame_needed = 0, uses_anonymous_args = 0
+ 187:Src/power/drivers/max17048/max17048.c ****     static const uint8_t state_regs[] = {MAX_REG_VCELL, MAX_REG_SOC, MAX_REG_STATUS, MAX_REG_CONFIG
+ 833              		.loc 1 187 5 view .LVU220
+ 188:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || job == NULL || state == NULL ||
+ 834              		.loc 1 188 5 view .LVU221
+ 835              		.loc 1 188 8 is_stmt 0 view .LVU222
+ 836 0000 0028     		cmp	r0, #0
+ 837 0002 00F09D80 		beq	.L73
+ 186:Src/power/drivers/max17048/max17048.c ****     static const uint8_t state_regs[] = {MAX_REG_VCELL, MAX_REG_SOC, MAX_REG_STATUS, MAX_REG_CONFIG
+ 838              		.loc 1 186 1 view .LVU223
+ 839 0006 F0B5     		push	{r4, r5, r6, r7, lr}
+ 840              	.LCFI27:
+ 841              		.cfi_def_cfa_offset 20
+ 842              		.cfi_offset 4, -20
+ 843              		.cfi_offset 5, -16
+ 844              		.cfi_offset 6, -12
+ 845              		.cfi_offset 7, -8
+ 846              		.cfi_offset 14, -4
+ 847 0008 87B0     		sub	sp, sp, #28
+ 848              	.LCFI28:
+ 849              		.cfi_def_cfa_offset 48
+ 850 000a 0C46     		mov	r4, r1
+ 851 000c 1646     		mov	r6, r2
+ 852 000e 0546     		mov	r5, r0
+ 853              		.loc 1 188 33 discriminator 1 view .LVU224
+ 854 0010 0368     		ldr	r3, [r0]
+ 855              		.loc 1 188 24 discriminator 1 view .LVU225
+ 856 0012 002B     		cmp	r3, #0
+ 857 0014 00F09680 		beq	.L74
+ 858              		.loc 1 188 71 discriminator 2 view .LVU226
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 22
+
+
+ 859 0018 B2FA82F3 		clz	r3, r2
+ 860 001c 5B09     		lsrs	r3, r3, #5
+ 861              		.loc 1 188 62 discriminator 2 view .LVU227
+ 862 001e 0029     		cmp	r1, #0
+ 863 0020 00F09280 		beq	.L75
+ 864 0024 002B     		cmp	r3, #0
+ 865 0026 40F08F80 		bne	.L75
+ 189:Src/power/drivers/max17048/max17048.c ****         (job->kind != MAX17048_JOB_INIT && !handle->online)) {
+ 866              		.loc 1 189 13 view .LVU228
+ 867 002a 0B78     		ldrb	r3, [r1]	@ zero_extendqisi2
+ 188:Src/power/drivers/max17048/max17048.c ****     if (handle == NULL || handle->i2c == NULL || job == NULL || state == NULL ||
+ 868              		.loc 1 188 79 discriminator 3 view .LVU229
+ 869 002c 012B     		cmp	r3, #1
+ 870 002e 03D0     		beq	.L59
+ 871              		.loc 1 189 51 view .LVU230
+ 872 0030 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 873              		.loc 1 189 41 view .LVU231
+ 874 0032 002B     		cmp	r3, #0
+ 875 0034 00F08B80 		beq	.L76
+ 876              	.L59:
+ 190:Src/power/drivers/max17048/max17048.c ****         return POWER_I2C_FAILED;
+ 191:Src/power/drivers/max17048/max17048.c ****     }
+ 192:Src/power/drivers/max17048/max17048.c ****     PowerI2C_Register op = {MAX17048_I2C_ADDRESS_7BIT, 0, 2, POWER_I2C_READ, 0, 0, 0};
+ 877              		.loc 1 192 5 is_stmt 1 view .LVU232
+ 878              		.loc 1 192 23 is_stmt 0 view .LVU233
+ 879 0038 4849     		ldr	r1, .L94
+ 880              	.LVL61:
+ 881              		.loc 1 192 23 view .LVU234
+ 882 003a 03AB     		add	r3, sp, #12
+ 883 003c 07C9     		ldm	r1, {r0, r1, r2}
+ 884              	.LVL62:
+ 885              		.loc 1 192 23 view .LVU235
+ 886 003e 03C3     		stmia	r3!, {r0, r1}
+ 887 0040 1A80     		strh	r2, [r3]	@ movhi
+ 193:Src/power/drivers/max17048/max17048.c ****     const uint8_t count = job->kind == MAX17048_JOB_READ ? 4 : 2;
+ 888              		.loc 1 193 5 is_stmt 1 view .LVU236
+ 889              		.loc 1 193 30 is_stmt 0 view .LVU237
+ 890 0042 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 891              		.loc 1 193 19 view .LVU238
+ 892 0044 5BBB     		cbnz	r3, .L77
+ 893              		.loc 1 193 19 discriminator 1 view .LVU239
+ 894 0046 0427     		movs	r7, #4
+ 895              	.L60:
+ 896              	.LVL63:
+ 194:Src/power/drivers/max17048/max17048.c ****     if (job->index >= count) { return POWER_I2C_FAILED; }
+ 897              		.loc 1 194 5 is_stmt 1 view .LVU240
+ 898              		.loc 1 194 12 is_stmt 0 view .LVU241
+ 899 0048 6278     		ldrb	r2, [r4, #1]	@ zero_extendqisi2
+ 900              		.loc 1 194 8 view .LVU242
+ 901 004a BA42     		cmp	r2, r7
+ 902 004c 80F08180 		bcs	.L78
+ 195:Src/power/drivers/max17048/max17048.c ****     if (job->kind == MAX17048_JOB_READ) {
+ 903              		.loc 1 195 5 is_stmt 1 view .LVU243
+ 904              		.loc 1 195 8 is_stmt 0 view .LVU244
+ 905 0050 3BBB     		cbnz	r3, .L61
+ 196:Src/power/drivers/max17048/max17048.c ****         op.reg = state_regs[job->index];
+ 906              		.loc 1 196 9 is_stmt 1 view .LVU245
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 23
+
+
+ 907              		.loc 1 196 28 is_stmt 0 view .LVU246
+ 908 0052 434B     		ldr	r3, .L94+4
+ 909 0054 9B5C     		ldrb	r3, [r3, r2]	@ zero_extendqisi2
+ 910              		.loc 1 196 16 view .LVU247
+ 911 0056 8DF80D30 		strb	r3, [sp, #13]
+ 912              	.L62:
+ 197:Src/power/drivers/max17048/max17048.c ****     } else if (job->kind == MAX17048_JOB_INIT) {
+ 198:Src/power/drivers/max17048/max17048.c ****         op.reg = job->index == 0 ? MAX_REG_VERSION : MAX_REG_CONFIG;
+ 199:Src/power/drivers/max17048/max17048.c ****         if (job->index == 1) {
+ 200:Src/power/drivers/max17048/max17048.c ****             uint8_t threshold = job->alert_soc_percent;
+ 201:Src/power/drivers/max17048/max17048.c ****             if (threshold < 1) { threshold = 1; }
+ 202:Src/power/drivers/max17048/max17048.c ****             if (threshold > 32) { threshold = 32; }
+ 203:Src/power/drivers/max17048/max17048.c ****             op.kind = POWER_I2C_UPDATE;
+ 204:Src/power/drivers/max17048/max17048.c ****             op.mask = 0x003Fu;
+ 205:Src/power/drivers/max17048/max17048.c ****             op.value = 32u - threshold;
+ 206:Src/power/drivers/max17048/max17048.c ****             op.verify_mask = 0x001Fu;
+ 207:Src/power/drivers/max17048/max17048.c ****         }
+ 208:Src/power/drivers/max17048/max17048.c ****     } else {
+ 209:Src/power/drivers/max17048/max17048.c ****         op.reg = job->index == 0 ? MAX_REG_CONFIG : MAX_REG_STATUS;
+ 210:Src/power/drivers/max17048/max17048.c ****         op.kind = POWER_I2C_UPDATE;
+ 211:Src/power/drivers/max17048/max17048.c ****         op.mask = job->index == 0 ? 0x0020u : (uint16_t)~0x4000u;
+ 212:Src/power/drivers/max17048/max17048.c ****     }
+ 213:Src/power/drivers/max17048/max17048.c ****     uint16_t value = 0;
+ 913              		.loc 1 213 5 is_stmt 1 view .LVU248
+ 914              		.loc 1 213 14 is_stmt 0 view .LVU249
+ 915 005a 0023     		movs	r3, #0
+ 916 005c ADF80A30 		strh	r3, [sp, #10]	@ movhi
+ 214:Src/power/drivers/max17048/max17048.c ****     PowerI2C_Result result = PowerI2C_StepRegister(&op, &value);
+ 917              		.loc 1 214 5 is_stmt 1 view .LVU250
+ 918              		.loc 1 214 30 is_stmt 0 view .LVU251
+ 919 0060 0DF10A01 		add	r1, sp, #10
+ 920 0064 03A8     		add	r0, sp, #12
+ 921 0066 FFF7FEFF 		bl	PowerI2C_StepRegister
+ 922              	.LVL64:
+ 215:Src/power/drivers/max17048/max17048.c ****     if (result == POWER_I2C_DONE && job->kind == MAX17048_JOB_INIT && job->index == 0) {
+ 923              		.loc 1 215 5 is_stmt 1 view .LVU252
+ 924              		.loc 1 215 8 is_stmt 0 view .LVU253
+ 925 006a 0128     		cmp	r0, #1
+ 926 006c 4BD0     		beq	.L90
+ 927              	.L68:
+ 216:Src/power/drivers/max17048/max17048.c ****         if (value == 0 || value == 0xFFFFu) { result = POWER_I2C_FAILED; }
+ 217:Src/power/drivers/max17048/max17048.c ****         else { handle->version = value; }
+ 218:Src/power/drivers/max17048/max17048.c ****     }
+ 219:Src/power/drivers/max17048/max17048.c ****     if (result == POWER_I2C_FAILED) { handle->online = false; return result; }
+ 928              		.loc 1 219 5 is_stmt 1 view .LVU254
+ 929              		.loc 1 219 8 is_stmt 0 view .LVU255
+ 930 006e 0228     		cmp	r0, #2
+ 931 0070 57D0     		beq	.L69
+ 220:Src/power/drivers/max17048/max17048.c ****     if (result == POWER_I2C_PENDING) { return result; }
+ 932              		.loc 1 220 5 is_stmt 1 view .LVU256
+ 933              		.loc 1 220 8 is_stmt 0 view .LVU257
+ 934 0072 0028     		cmp	r0, #0
+ 935 0074 69D0     		beq	.L58
+ 221:Src/power/drivers/max17048/max17048.c ****     if (job->kind == MAX17048_JOB_READ) { job->values[job->index] = value; }
+ 936              		.loc 1 221 5 is_stmt 1 view .LVU258
+ 937              		.loc 1 221 12 is_stmt 0 view .LVU259
+ 938 0076 2078     		ldrb	r0, [r4]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 24
+
+
+ 939              	.LVL65:
+ 940              		.loc 1 221 8 view .LVU260
+ 941 0078 28B9     		cbnz	r0, .L71
+ 942              		.loc 1 221 43 is_stmt 1 discriminator 1 view .LVU261
+ 943              		.loc 1 221 58 is_stmt 0 discriminator 1 view .LVU262
+ 944 007a 6378     		ldrb	r3, [r4, #1]	@ zero_extendqisi2
+ 945              		.loc 1 221 67 discriminator 1 view .LVU263
+ 946 007c 04EB4303 		add	r3, r4, r3, lsl #1
+ 947 0080 BDF80A20 		ldrh	r2, [sp, #10]
+ 948 0084 9A80     		strh	r2, [r3, #4]	@ movhi
+ 949              	.L71:
+ 222:Src/power/drivers/max17048/max17048.c ****     if (++job->index < count) { return POWER_I2C_PENDING; }
+ 950              		.loc 1 222 5 is_stmt 1 view .LVU264
+ 951              		.loc 1 222 14 is_stmt 0 view .LVU265
+ 952 0086 6378     		ldrb	r3, [r4, #1]	@ zero_extendqisi2
+ 953              		.loc 1 222 9 view .LVU266
+ 954 0088 0133     		adds	r3, r3, #1
+ 955 008a DBB2     		uxtb	r3, r3
+ 956              		.loc 1 222 8 view .LVU267
+ 957 008c 6370     		strb	r3, [r4, #1]
+ 958 008e BB42     		cmp	r3, r7
+ 959 0090 61D3     		bcc	.L84
+ 223:Src/power/drivers/max17048/max17048.c ****     if (job->kind == MAX17048_JOB_READ) {
+ 960              		.loc 1 223 5 is_stmt 1 view .LVU268
+ 961              		.loc 1 223 8 is_stmt 0 view .LVU269
+ 962 0092 0028     		cmp	r0, #0
+ 963 0094 48D0     		beq	.L91
+ 224:Src/power/drivers/max17048/max17048.c ****         const uint16_t* v = job->values;
+ 225:Src/power/drivers/max17048/max17048.c ****         decode_state(v[0], v[1], v[2], v[3], state);
+ 226:Src/power/drivers/max17048/max17048.c ****     } else if (job->kind == MAX17048_JOB_INIT) { handle->online = true; }
+ 964              		.loc 1 226 12 is_stmt 1 view .LVU270
+ 965              		.loc 1 226 15 is_stmt 0 view .LVU271
+ 966 0096 0128     		cmp	r0, #1
+ 967 0098 4FD0     		beq	.L92
+ 227:Src/power/drivers/max17048/max17048.c ****     return POWER_I2C_DONE;
+ 968              		.loc 1 227 12 view .LVU272
+ 969 009a 0120     		movs	r0, #1
+ 970 009c 55E0     		b	.L58
+ 971              	.LVL66:
+ 972              	.L77:
+ 193:Src/power/drivers/max17048/max17048.c ****     if (job->index >= count) { return POWER_I2C_FAILED; }
+ 973              		.loc 1 193 19 discriminator 2 view .LVU273
+ 974 009e 0227     		movs	r7, #2
+ 975 00a0 D2E7     		b	.L60
+ 976              	.LVL67:
+ 977              	.L61:
+ 197:Src/power/drivers/max17048/max17048.c ****         op.reg = job->index == 0 ? MAX_REG_VERSION : MAX_REG_CONFIG;
+ 978              		.loc 1 197 12 is_stmt 1 view .LVU274
+ 197:Src/power/drivers/max17048/max17048.c ****         op.reg = job->index == 0 ? MAX_REG_VERSION : MAX_REG_CONFIG;
+ 979              		.loc 1 197 15 is_stmt 0 view .LVU275
+ 980 00a2 012B     		cmp	r3, #1
+ 981 00a4 0CD0     		beq	.L93
+ 209:Src/power/drivers/max17048/max17048.c ****         op.kind = POWER_I2C_UPDATE;
+ 982              		.loc 1 209 9 is_stmt 1 view .LVU276
+ 209:Src/power/drivers/max17048/max17048.c ****         op.kind = POWER_I2C_UPDATE;
+ 983              		.loc 1 209 16 is_stmt 0 view .LVU277
+ 984 00a6 4ABB     		cbnz	r2, .L81
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 25
+
+
+ 209:Src/power/drivers/max17048/max17048.c ****         op.kind = POWER_I2C_UPDATE;
+ 985              		.loc 1 209 16 discriminator 1 view .LVU278
+ 986 00a8 0C23     		movs	r3, #12
+ 987              	.L66:
+ 209:Src/power/drivers/max17048/max17048.c ****         op.kind = POWER_I2C_UPDATE;
+ 988              		.loc 1 209 16 discriminator 4 view .LVU279
+ 989 00aa 8DF80D30 		strb	r3, [sp, #13]
+ 210:Src/power/drivers/max17048/max17048.c ****         op.mask = job->index == 0 ? 0x0020u : (uint16_t)~0x4000u;
+ 990              		.loc 1 210 9 is_stmt 1 view .LVU280
+ 210:Src/power/drivers/max17048/max17048.c ****         op.mask = job->index == 0 ? 0x0020u : (uint16_t)~0x4000u;
+ 991              		.loc 1 210 17 is_stmt 0 view .LVU281
+ 992 00ae 0123     		movs	r3, #1
+ 993 00b0 8DF80F30 		strb	r3, [sp, #15]
+ 211:Src/power/drivers/max17048/max17048.c ****     }
+ 994              		.loc 1 211 9 is_stmt 1 view .LVU282
+ 211:Src/power/drivers/max17048/max17048.c ****     }
+ 995              		.loc 1 211 22 is_stmt 0 view .LVU283
+ 996 00b4 6378     		ldrb	r3, [r4, #1]	@ zero_extendqisi2
+ 211:Src/power/drivers/max17048/max17048.c ****     }
+ 997              		.loc 1 211 17 view .LVU284
+ 998 00b6 1BBB     		cbnz	r3, .L82
+ 211:Src/power/drivers/max17048/max17048.c ****     }
+ 999              		.loc 1 211 17 discriminator 1 view .LVU285
+ 1000 00b8 2023     		movs	r3, #32
+ 1001              	.L67:
+ 211:Src/power/drivers/max17048/max17048.c ****     }
+ 1002              		.loc 1 211 17 discriminator 4 view .LVU286
+ 1003 00ba ADF81230 		strh	r3, [sp, #18]	@ movhi
+ 1004 00be CCE7     		b	.L62
+ 1005              	.L93:
+ 198:Src/power/drivers/max17048/max17048.c ****         if (job->index == 1) {
+ 1006              		.loc 1 198 9 is_stmt 1 view .LVU287
+ 198:Src/power/drivers/max17048/max17048.c ****         if (job->index == 1) {
+ 1007              		.loc 1 198 16 is_stmt 0 view .LVU288
+ 1008 00c0 C2B9     		cbnz	r2, .L79
+ 198:Src/power/drivers/max17048/max17048.c ****         if (job->index == 1) {
+ 1009              		.loc 1 198 16 discriminator 1 view .LVU289
+ 1010 00c2 0823     		movs	r3, #8
+ 1011              	.L64:
+ 198:Src/power/drivers/max17048/max17048.c ****         if (job->index == 1) {
+ 1012              		.loc 1 198 16 discriminator 4 view .LVU290
+ 1013 00c4 8DF80D30 		strb	r3, [sp, #13]
+ 199:Src/power/drivers/max17048/max17048.c ****             uint8_t threshold = job->alert_soc_percent;
+ 1014              		.loc 1 199 9 is_stmt 1 view .LVU291
+ 199:Src/power/drivers/max17048/max17048.c ****             uint8_t threshold = job->alert_soc_percent;
+ 1015              		.loc 1 199 16 is_stmt 0 view .LVU292
+ 1016 00c8 6378     		ldrb	r3, [r4, #1]	@ zero_extendqisi2
+ 199:Src/power/drivers/max17048/max17048.c ****             uint8_t threshold = job->alert_soc_percent;
+ 1017              		.loc 1 199 12 view .LVU293
+ 1018 00ca 012B     		cmp	r3, #1
+ 1019 00cc C5D1     		bne	.L62
+ 1020              	.LBB2:
+ 200:Src/power/drivers/max17048/max17048.c ****             if (threshold < 1) { threshold = 1; }
+ 1021              		.loc 1 200 13 is_stmt 1 view .LVU294
+ 200:Src/power/drivers/max17048/max17048.c ****             if (threshold < 1) { threshold = 1; }
+ 1022              		.loc 1 200 21 is_stmt 0 view .LVU295
+ 1023 00ce A278     		ldrb	r2, [r4, #2]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 26
+
+
+ 1024              	.LVL68:
+ 201:Src/power/drivers/max17048/max17048.c ****             if (threshold > 32) { threshold = 32; }
+ 1025              		.loc 1 201 13 is_stmt 1 view .LVU296
+ 201:Src/power/drivers/max17048/max17048.c ****             if (threshold > 32) { threshold = 32; }
+ 1026              		.loc 1 201 16 is_stmt 0 view .LVU297
+ 1027 00d0 12B1     		cbz	r2, .L65
+ 202:Src/power/drivers/max17048/max17048.c ****             op.kind = POWER_I2C_UPDATE;
+ 1028              		.loc 1 202 13 is_stmt 1 view .LVU298
+ 202:Src/power/drivers/max17048/max17048.c ****             op.kind = POWER_I2C_UPDATE;
+ 1029              		.loc 1 202 16 is_stmt 0 view .LVU299
+ 1030 00d2 202A     		cmp	r2, #32
+ 1031 00d4 10D8     		bhi	.L80
+ 1032 00d6 1346     		mov	r3, r2
+ 1033              	.L65:
+ 1034              	.LVL69:
+ 203:Src/power/drivers/max17048/max17048.c ****             op.mask = 0x003Fu;
+ 1035              		.loc 1 203 13 is_stmt 1 view .LVU300
+ 203:Src/power/drivers/max17048/max17048.c ****             op.mask = 0x003Fu;
+ 1036              		.loc 1 203 21 is_stmt 0 view .LVU301
+ 1037 00d8 0122     		movs	r2, #1
+ 1038 00da 8DF80F20 		strb	r2, [sp, #15]
+ 204:Src/power/drivers/max17048/max17048.c ****             op.value = 32u - threshold;
+ 1039              		.loc 1 204 13 is_stmt 1 view .LVU302
+ 204:Src/power/drivers/max17048/max17048.c ****             op.value = 32u - threshold;
+ 1040              		.loc 1 204 21 is_stmt 0 view .LVU303
+ 1041 00de 3F22     		movs	r2, #63
+ 1042 00e0 ADF81220 		strh	r2, [sp, #18]	@ movhi
+ 205:Src/power/drivers/max17048/max17048.c ****             op.verify_mask = 0x001Fu;
+ 1043              		.loc 1 205 13 is_stmt 1 view .LVU304
+ 205:Src/power/drivers/max17048/max17048.c ****             op.verify_mask = 0x001Fu;
+ 1044              		.loc 1 205 28 is_stmt 0 view .LVU305
+ 1045 00e4 C3F12003 		rsb	r3, r3, #32
+ 1046              	.LVL70:
+ 205:Src/power/drivers/max17048/max17048.c ****             op.verify_mask = 0x001Fu;
+ 1047              		.loc 1 205 22 view .LVU306
+ 1048 00e8 ADF81030 		strh	r3, [sp, #16]	@ movhi
+ 206:Src/power/drivers/max17048/max17048.c ****         }
+ 1049              		.loc 1 206 13 is_stmt 1 view .LVU307
+ 206:Src/power/drivers/max17048/max17048.c ****         }
+ 1050              		.loc 1 206 28 is_stmt 0 view .LVU308
+ 1051 00ec 1F23     		movs	r3, #31
+ 1052 00ee ADF81430 		strh	r3, [sp, #20]	@ movhi
+ 1053 00f2 B2E7     		b	.L62
+ 1054              	.LVL71:
+ 1055              	.L79:
+ 206:Src/power/drivers/max17048/max17048.c ****         }
+ 1056              		.loc 1 206 28 view .LVU309
+ 1057              	.LBE2:
+ 198:Src/power/drivers/max17048/max17048.c ****         if (job->index == 1) {
+ 1058              		.loc 1 198 16 discriminator 2 view .LVU310
+ 1059 00f4 0C23     		movs	r3, #12
+ 1060 00f6 E5E7     		b	.L64
+ 1061              	.LVL72:
+ 1062              	.L80:
+ 1063              	.LBB3:
+ 202:Src/power/drivers/max17048/max17048.c ****             op.kind = POWER_I2C_UPDATE;
+ 1064              		.loc 1 202 45 discriminator 1 view .LVU311
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 27
+
+
+ 1065 00f8 2023     		movs	r3, #32
+ 1066 00fa EDE7     		b	.L65
+ 1067              	.LVL73:
+ 1068              	.L81:
+ 202:Src/power/drivers/max17048/max17048.c ****             op.kind = POWER_I2C_UPDATE;
+ 1069              		.loc 1 202 45 discriminator 1 view .LVU312
+ 1070              	.LBE3:
+ 209:Src/power/drivers/max17048/max17048.c ****         op.kind = POWER_I2C_UPDATE;
+ 1071              		.loc 1 209 16 discriminator 2 view .LVU313
+ 1072 00fc 1A23     		movs	r3, #26
+ 1073 00fe D4E7     		b	.L66
+ 1074              	.L82:
+ 211:Src/power/drivers/max17048/max17048.c ****     }
+ 1075              		.loc 1 211 17 discriminator 2 view .LVU314
+ 1076 0100 4BF6FF73 		movw	r3, #49151
+ 1077 0104 D9E7     		b	.L67
+ 1078              	.LVL74:
+ 1079              	.L90:
+ 215:Src/power/drivers/max17048/max17048.c ****         if (value == 0 || value == 0xFFFFu) { result = POWER_I2C_FAILED; }
+ 1080              		.loc 1 215 68 discriminator 1 view .LVU315
+ 1081 0106 2388     		ldrh	r3, [r4]
+ 1082 0108 012B     		cmp	r3, #1
+ 1083 010a B0D1     		bne	.L68
+ 216:Src/power/drivers/max17048/max17048.c ****         else { handle->version = value; }
+ 1084              		.loc 1 216 9 is_stmt 1 view .LVU316
+ 216:Src/power/drivers/max17048/max17048.c ****         else { handle->version = value; }
+ 1085              		.loc 1 216 24 is_stmt 0 view .LVU317
+ 1086 010c BDF80A20 		ldrh	r2, [sp, #10]
+ 1087 0110 531E     		subs	r3, r2, #1
+ 1088 0112 9BB2     		uxth	r3, r3
+ 216:Src/power/drivers/max17048/max17048.c ****         else { handle->version = value; }
+ 1089              		.loc 1 216 12 view .LVU318
+ 1090 0114 4FF6FD71 		movw	r1, #65533
+ 1091 0118 8B42     		cmp	r3, r1
+ 1092 011a 01D8     		bhi	.L83
+ 217:Src/power/drivers/max17048/max17048.c ****     }
+ 1093              		.loc 1 217 16 is_stmt 1 view .LVU319
+ 217:Src/power/drivers/max17048/max17048.c ****     }
+ 1094              		.loc 1 217 32 is_stmt 0 view .LVU320
+ 1095 011c EA80     		strh	r2, [r5, #6]	@ movhi
+ 1096 011e A6E7     		b	.L68
+ 1097              	.L83:
+ 216:Src/power/drivers/max17048/max17048.c ****         else { handle->version = value; }
+ 1098              		.loc 1 216 54 discriminator 1 view .LVU321
+ 1099 0120 0220     		movs	r0, #2
+ 1100              	.LVL75:
+ 1101              	.L69:
+ 219:Src/power/drivers/max17048/max17048.c ****     if (result == POWER_I2C_PENDING) { return result; }
+ 1102              		.loc 1 219 39 is_stmt 1 discriminator 1 view .LVU322
+ 219:Src/power/drivers/max17048/max17048.c ****     if (result == POWER_I2C_PENDING) { return result; }
+ 1103              		.loc 1 219 54 is_stmt 0 discriminator 1 view .LVU323
+ 1104 0122 0023     		movs	r3, #0
+ 1105 0124 2B71     		strb	r3, [r5, #4]
+ 219:Src/power/drivers/max17048/max17048.c ****     if (result == POWER_I2C_PENDING) { return result; }
+ 1106              		.loc 1 219 63 is_stmt 1 discriminator 1 view .LVU324
+ 219:Src/power/drivers/max17048/max17048.c ****     if (result == POWER_I2C_PENDING) { return result; }
+ 1107              		.loc 1 219 70 is_stmt 0 view .LVU325
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 28
+
+
+ 1108 0126 10E0     		b	.L58
+ 1109              	.LVL76:
+ 1110              	.L91:
+ 1111              	.LBB4:
+ 224:Src/power/drivers/max17048/max17048.c ****         decode_state(v[0], v[1], v[2], v[3], state);
+ 1112              		.loc 1 224 9 is_stmt 1 view .LVU326
+ 225:Src/power/drivers/max17048/max17048.c ****     } else if (job->kind == MAX17048_JOB_INIT) { handle->online = true; }
+ 1113              		.loc 1 225 9 view .LVU327
+ 1114 0128 0096     		str	r6, [sp]
+ 1115 012a 6389     		ldrh	r3, [r4, #10]
+ 1116 012c 2289     		ldrh	r2, [r4, #8]
+ 1117 012e E188     		ldrh	r1, [r4, #6]
+ 1118 0130 A088     		ldrh	r0, [r4, #4]
+ 1119 0132 FFF7FEFF 		bl	decode_state
+ 1120              	.LVL77:
+ 1121              	.LBE4:
+ 1122              		.loc 1 227 12 is_stmt 0 view .LVU328
+ 1123 0136 0120     		movs	r0, #1
+ 1124 0138 07E0     		b	.L58
+ 1125              	.LVL78:
+ 1126              	.L92:
+ 226:Src/power/drivers/max17048/max17048.c ****     return POWER_I2C_DONE;
+ 1127              		.loc 1 226 50 is_stmt 1 discriminator 1 view .LVU329
+ 226:Src/power/drivers/max17048/max17048.c ****     return POWER_I2C_DONE;
+ 1128              		.loc 1 226 65 is_stmt 0 discriminator 1 view .LVU330
+ 1129 013a 0123     		movs	r3, #1
+ 1130 013c 2B71     		strb	r3, [r5, #4]
+ 1131 013e 04E0     		b	.L58
+ 1132              	.LVL79:
+ 1133              	.L73:
+ 1134              	.LCFI29:
+ 1135              		.cfi_def_cfa_offset 0
+ 1136              		.cfi_restore 4
+ 1137              		.cfi_restore 5
+ 1138              		.cfi_restore 6
+ 1139              		.cfi_restore 7
+ 1140              		.cfi_restore 14
+ 190:Src/power/drivers/max17048/max17048.c ****     }
+ 1141              		.loc 1 190 16 view .LVU331
+ 1142 0140 0220     		movs	r0, #2
+ 1143              	.LVL80:
+ 228:Src/power/drivers/max17048/max17048.c **** }
+ 1144              		.loc 1 228 1 view .LVU332
+ 1145 0142 7047     		bx	lr
+ 1146              	.LVL81:
+ 1147              	.L74:
+ 1148              	.LCFI30:
+ 1149              		.cfi_def_cfa_offset 48
+ 1150              		.cfi_offset 4, -20
+ 1151              		.cfi_offset 5, -16
+ 1152              		.cfi_offset 6, -12
+ 1153              		.cfi_offset 7, -8
+ 1154              		.cfi_offset 14, -4
+ 190:Src/power/drivers/max17048/max17048.c ****     }
+ 1155              		.loc 1 190 16 view .LVU333
+ 1156 0144 0220     		movs	r0, #2
+ 1157              	.LVL82:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 29
+
+
+ 190:Src/power/drivers/max17048/max17048.c ****     }
+ 1158              		.loc 1 190 16 view .LVU334
+ 1159 0146 00E0     		b	.L58
+ 1160              	.LVL83:
+ 1161              	.L75:
+ 190:Src/power/drivers/max17048/max17048.c ****     }
+ 1162              		.loc 1 190 16 view .LVU335
+ 1163 0148 0220     		movs	r0, #2
+ 1164              	.LVL84:
+ 1165              	.L58:
+ 1166              		.loc 1 228 1 view .LVU336
+ 1167 014a 07B0     		add	sp, sp, #28
+ 1168              	.LCFI31:
+ 1169              		.cfi_remember_state
+ 1170              		.cfi_def_cfa_offset 20
+ 1171              		@ sp needed
+ 1172 014c F0BD     		pop	{r4, r5, r6, r7, pc}
+ 1173              	.LVL85:
+ 1174              	.L76:
+ 1175              	.LCFI32:
+ 1176              		.cfi_restore_state
+ 190:Src/power/drivers/max17048/max17048.c ****     }
+ 1177              		.loc 1 190 16 view .LVU337
+ 1178 014e 0220     		movs	r0, #2
+ 1179              	.LVL86:
+ 190:Src/power/drivers/max17048/max17048.c ****     }
+ 1180              		.loc 1 190 16 view .LVU338
+ 1181 0150 FBE7     		b	.L58
+ 1182              	.LVL87:
+ 1183              	.L78:
+ 194:Src/power/drivers/max17048/max17048.c ****     if (job->kind == MAX17048_JOB_READ) {
+ 1184              		.loc 1 194 39 discriminator 1 view .LVU339
+ 1185 0152 0220     		movs	r0, #2
+ 1186 0154 F9E7     		b	.L58
+ 1187              	.LVL88:
+ 1188              	.L84:
+ 222:Src/power/drivers/max17048/max17048.c ****     if (job->kind == MAX17048_JOB_READ) {
+ 1189              		.loc 1 222 40 discriminator 1 view .LVU340
+ 1190 0156 0020     		movs	r0, #0
+ 1191 0158 F7E7     		b	.L58
+ 1192              	.L95:
+ 1193 015a 00BF     		.align	2
+ 1194              	.L94:
+ 1195 015c 00000000 		.word	.LANCHOR0
+ 1196 0160 00000000 		.word	state_regs.0
+ 1197              		.cfi_endproc
+ 1198              	.LFE342:
+ 1200              		.section	.rodata.state_regs.0,"a"
+ 1201              		.align	2
+ 1204              	state_regs.0:
+ 1205 0000 02041A0C 		.ascii	"\002\004\032\014"
+ 1206              		.section	.rodata
+ 1207              		.align	2
+ 1208              		.set	.LANCHOR0,. + 0
+ 1209              	.LC0:
+ 1210 0000 36       		.byte	54
+ 1211 0001 00       		.byte	0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 30
+
+
+ 1212 0002 02       		.byte	2
+ 1213 0003 00       		.byte	0
+ 1214 0004 0000     		.short	0
+ 1215 0006 0000     		.short	0
+ 1216 0008 0000     		.short	0
+ 1217              		.text
+ 1218              	.Letext0:
+ 1219              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1220              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1221              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1222              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1223              		.file 6 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 1224              		.file 7 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 1225              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c.h"
+ 1226              		.file 9 "Inc/power/drivers/power_i2c_bus/power_i2c_bus.h"
+ 1227              		.file 10 "Inc/power/drivers/max17048/max17048.h"
+ 1228              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s 			page 31
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 max17048.c
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:20     .text.decode_state:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:25     .text.decode_state:00000000 decode_state
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:109    .text.decode_state:00000054 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:114    .text.read_register16:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:119    .text.read_register16:00000000 read_register16
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:215    .text.write_register16:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:220    .text.write_register16:00000000 write_register16
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:293    .text.MAX17048_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:299    .text.MAX17048_Init:00000000 MAX17048_Init
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:408    .text.MAX17048_ConfigureAlert:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:414    .text.MAX17048_ConfigureAlert:00000000 MAX17048_ConfigureAlert
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:559    .text.MAX17048_ClearAlert:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:565    .text.MAX17048_ClearAlert:00000000 MAX17048_ClearAlert
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:691    .text.MAX17048_ReadState:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:697    .text.MAX17048_ReadState:00000000 MAX17048_ReadState
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:820    .text.MAX17048_Step:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:826    .text.MAX17048_Step:00000000 MAX17048_Step
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:1195   .text.MAX17048_Step:0000015c $d
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:1204   .rodata.state_regs.0:00000000 state_regs.0
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:1201   .rodata.state_regs.0:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCS02XQ.s:1207   .rodata:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_I2C_Mem_Read
+HAL_I2C_Mem_Write
+HAL_I2C_IsDeviceReady
+PowerI2C_StepRegister

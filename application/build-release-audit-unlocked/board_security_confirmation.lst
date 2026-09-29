@@ -1,0 +1,617 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"board_security_confirmation.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/system/board_security_confirmation.cpp"
+  19              		.section	.text._ZN12_GLOBAL__N_119maintenanceGateOpenEv,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZN12_GLOBAL__N_119maintenanceGateOpenEv:
+  26              	.LFB1304:
+   1:Src/system/board_security_confirmation.cpp **** #include "board_security_confirmation.h"
+   2:Src/system/board_security_confirmation.cpp **** 
+   3:Src/system/board_security_confirmation.cpp **** #include "board_cfg.h"
+   4:Src/system/board_security_confirmation.cpp **** #include "board_mode.hpp"
+   5:Src/system/board_security_confirmation.cpp **** #include "physical_confirmation.h"
+   6:Src/system/board_security_confirmation.cpp **** #include "stm32h7xx_hal.h"
+   7:Src/system/board_security_confirmation.cpp **** #include "usb_board_link.hpp"
+   8:Src/system/board_security_confirmation.cpp **** 
+   9:Src/system/board_security_confirmation.cpp **** namespace {
+  10:Src/system/board_security_confirmation.cpp **** 
+  11:Src/system/board_security_confirmation.cpp **** hbox_physical_confirmation_t confirmation = {};
+  12:Src/system/board_security_confirmation.cpp **** 
+  13:Src/system/board_security_confirmation.cpp **** bool maintenanceGateOpen()
+  14:Src/system/board_security_confirmation.cpp **** {
+  27              		.loc 1 14 1 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              		@ link register save eliminated.
+  15:Src/system/board_security_confirmation.cpp ****     return BOARD_MODE.isStable() &&
+  32              		.loc 1 15 5 view .LVU1
+  33              	.LVL0:
+  34              	.LBB18:
+  35              	.LBI18:
+  36              		.file 2 "Inc/system/board_mode.hpp"
+   1:Inc/system/board_mode.hpp **** #ifndef BOARD_MODE_HPP
+   2:Inc/system/board_mode.hpp **** #define BOARD_MODE_HPP
+   3:Inc/system/board_mode.hpp **** 
+   4:Inc/system/board_mode.hpp **** #include <stdint.h>
+   5:Inc/system/board_mode.hpp **** 
+   6:Inc/system/board_mode.hpp **** enum class BoardMode : uint8_t {
+   7:Inc/system/board_mode.hpp ****     Usb = 0,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 2
+
+
+   8:Inc/system/board_mode.hpp ****     Rf = 1,
+   9:Inc/system/board_mode.hpp ****     CenterOff = 2,
+  10:Inc/system/board_mode.hpp ****     Fault = 3,
+  11:Inc/system/board_mode.hpp **** };
+  12:Inc/system/board_mode.hpp **** 
+  13:Inc/system/board_mode.hpp **** class BoardModeManager {
+  14:Inc/system/board_mode.hpp **** public:
+  15:Inc/system/board_mode.hpp ****     BoardModeManager(const BoardModeManager&) = delete;
+  16:Inc/system/board_mode.hpp ****     BoardModeManager& operator=(const BoardModeManager&) = delete;
+  17:Inc/system/board_mode.hpp **** 
+  18:Inc/system/board_mode.hpp ****     static BoardModeManager& getInstance()
+  19:Inc/system/board_mode.hpp ****     {
+  20:Inc/system/board_mode.hpp ****         static BoardModeManager instance;
+  21:Inc/system/board_mode.hpp ****         return instance;
+  22:Inc/system/board_mode.hpp ****     }
+  23:Inc/system/board_mode.hpp **** 
+  24:Inc/system/board_mode.hpp ****     void setup();
+  25:Inc/system/board_mode.hpp ****     void update(uint32_t nowMs);
+  26:Inc/system/board_mode.hpp ****     BoardMode current() const { return stableMode; }
+  27:Inc/system/board_mode.hpp ****     bool isStable() const { return stable; }
+  37              		.loc 2 27 10 view .LVU2
+  38              	.LBB19:
+  39              		.loc 2 27 29 view .LVU3
+  40              		.loc 2 27 36 is_stmt 0 view .LVU4
+  41 0000 084B     		ldr	r3, .L6
+  42 0002 187A     		ldrb	r0, [r3, #8]	@ zero_extendqisi2
+  43              	.LVL1:
+  44              		.loc 2 27 36 view .LVU5
+  45              	.LBE19:
+  46              	.LBE18:
+  16:Src/system/board_security_confirmation.cpp ****            BOARD_MODE.current() == BoardMode::Usb &&
+  17:Src/system/board_security_confirmation.cpp ****            USB_BOARD_LINK.isRoleLocked() &&
+  47              		.loc 1 17 42 view .LVU6
+  48 0004 48B1     		cbz	r0, .L2
+  49              	.LVL2:
+  50              	.LBB20:
+  51              	.LBI20:
+  26:Inc/system/board_mode.hpp ****     bool isStable() const { return stable; }
+  52              		.loc 2 26 15 is_stmt 1 view .LVU7
+  53              	.LBB21:
+  26:Inc/system/board_mode.hpp ****     bool isStable() const { return stable; }
+  54              		.loc 2 26 33 view .LVU8
+  26:Inc/system/board_mode.hpp ****     bool isStable() const { return stable; }
+  55              		.loc 2 26 40 is_stmt 0 view .LVU9
+  56 0006 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+  57              	.LVL3:
+  26:Inc/system/board_mode.hpp ****     bool isStable() const { return stable; }
+  58              		.loc 2 26 40 view .LVU10
+  59              	.LBE21:
+  60              	.LBE20:
+  15:Src/system/board_security_confirmation.cpp ****            BOARD_MODE.current() == BoardMode::Usb &&
+  61              		.loc 1 15 34 view .LVU11
+  62 0008 4BB9     		cbnz	r3, .L3
+  63              	.LVL4:
+  64              	.LBB22:
+  65              	.LBI22:
+  66              		.file 3 "Inc/transport/usb/usb_board_link.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 3
+
+
+   1:Inc/transport/usb/usb_board_link.hpp **** #ifndef USB_BOARD_LINK_HPP
+   2:Inc/transport/usb/usb_board_link.hpp **** #define USB_BOARD_LINK_HPP
+   3:Inc/transport/usb/usb_board_link.hpp **** 
+   4:Inc/transport/usb/usb_board_link.hpp **** #include <stdint.h>
+   5:Inc/transport/usb/usb_board_link.hpp **** 
+   6:Inc/transport/usb/usb_board_link.hpp **** #include "ch585_role_bootstrap.hpp"
+   7:Inc/transport/usb/usb_board_link.hpp **** #include "usb_board_link_protocol.h"
+   8:Inc/transport/usb/usb_board_link.hpp **** #include "release_install_protocol.h"
+   9:Inc/transport/usb/usb_board_link.hpp **** 
+  10:Inc/transport/usb/usb_board_link.hpp **** class UsbBoardLink
+  11:Inc/transport/usb/usb_board_link.hpp **** {
+  12:Inc/transport/usb/usb_board_link.hpp **** public:
+  13:Inc/transport/usb/usb_board_link.hpp ****     UsbBoardLink(UsbBoardLink const &) = delete;
+  14:Inc/transport/usb/usb_board_link.hpp ****     void operator=(UsbBoardLink const &) = delete;
+  15:Inc/transport/usb/usb_board_link.hpp **** 
+  16:Inc/transport/usb/usb_board_link.hpp ****     static UsbBoardLink &getInstance()
+  17:Inc/transport/usb/usb_board_link.hpp ****     {
+  18:Inc/transport/usb/usb_board_link.hpp ****         static UsbBoardLink instance;
+  19:Inc/transport/usb/usb_board_link.hpp ****         return instance;
+  20:Inc/transport/usb/usb_board_link.hpp ****     }
+  21:Inc/transport/usb/usb_board_link.hpp **** 
+  22:Inc/transport/usb/usb_board_link.hpp ****     bool selectRole(usb_board_role_t role, uint32_t timeoutMs);
+  23:Inc/transport/usb/usb_board_link.hpp ****     bool getCapabilities();
+  24:Inc/transport/usb/usb_board_link.hpp ****     bool getReleaseIdentity(xora_release_identity_t &identity);
+  25:Inc/transport/usb/usb_board_link.hpp ****     bool setProfile(usb_board_profile_t profile);
+  26:Inc/transport/usb/usb_board_link.hpp ****     bool getUsbLinkState(usb_board_control_link_state_v1_t &state);
+  27:Inc/transport/usb/usb_board_link.hpp ****     bool enableFastInputDataPlane();
+  28:Inc/transport/usb/usb_board_link.hpp ****     bool enableWebHidDataPlane();
+  29:Inc/transport/usb/usb_board_link.hpp ****     bool restoreCompatibleDataPlane();
+  30:Inc/transport/usb/usb_board_link.hpp ****     bool takeFastDataPlaneFault(uint8_t &fault);
+  31:Inc/transport/usb/usb_board_link.hpp ****     bool submitInput(uint32_t processedActionMask,
+  32:Inc/transport/usb/usb_board_link.hpp ****                      uint16_t ageUs = 0u,
+  33:Inc/transport/usb/usb_board_link.hpp ****                      uint8_t batteryCode = 0u,
+  34:Inc/transport/usb/usb_board_link.hpp ****                      bool batteryValid = false,
+  35:Inc/transport/usb/usb_board_link.hpp ****                      uint16_t reportRateHz = 1000u);
+  36:Inc/transport/usb/usb_board_link.hpp ****     bool sendControl(usb_board_control_opcode_t opcode,
+  37:Inc/transport/usb/usb_board_link.hpp ****                      const uint8_t *payload = nullptr,
+  38:Inc/transport/usb/usb_board_link.hpp ****                      uint8_t length = 0u,
+  39:Inc/transport/usb/usb_board_link.hpp ****                      uint8_t *response = nullptr,
+  40:Inc/transport/usb/usb_board_link.hpp ****                      uint8_t responseCapacity = 0u,
+  41:Inc/transport/usb/usb_board_link.hpp ****                      uint8_t *responseLength = nullptr,
+  42:Inc/transport/usb/usb_board_link.hpp ****                      uint8_t *remoteStatus = nullptr);
+  43:Inc/transport/usb/usb_board_link.hpp ****     bool sendBulk(usb_board_channel_t channel,
+  44:Inc/transport/usb/usb_board_link.hpp ****                   uint8_t transaction,
+  45:Inc/transport/usb/usb_board_link.hpp ****                   const uint8_t *payload,
+  46:Inc/transport/usb/usb_board_link.hpp ****                   uint16_t length);
+  47:Inc/transport/usb/usb_board_link.hpp ****     bool trySendBulk(usb_board_channel_t channel,
+  48:Inc/transport/usb/usb_board_link.hpp ****                      uint8_t transaction,
+  49:Inc/transport/usb/usb_board_link.hpp ****                      const uint8_t *payload,
+  50:Inc/transport/usb/usb_board_link.hpp ****                      uint16_t length);
+  51:Inc/transport/usb/usb_board_link.hpp ****     void process();
+  52:Inc/transport/usb/usb_board_link.hpp ****     void monitorSample(uint32_t triggerCycles, uint32_t completeCycles);
+  53:Inc/transport/usb/usb_board_link.hpp ****     void shutdown();
+  54:Inc/transport/usb/usb_board_link.hpp ****     void requestWebConfigTransportReset();
+  55:Inc/transport/usb/usb_board_link.hpp **** 
+  56:Inc/transport/usb/usb_board_link.hpp ****     usb_board_role_t role() const { return selectedRole; }
+  57:Inc/transport/usb/usb_board_link.hpp ****     usb_board_profile_t profile() const { return selectedProfile; }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 4
+
+
+  58:Inc/transport/usb/usb_board_link.hpp ****     bool isRoleLocked() const { return roleLocked; }
+  67              		.loc 3 58 10 is_stmt 1 view .LVU12
+  68              	.LBB23:
+  69              		.loc 3 58 33 view .LVU13
+  70              		.loc 3 58 40 is_stmt 0 view .LVU14
+  71 000a 074B     		ldr	r3, .L6+4
+  72 000c 93F83400 		ldrb	r0, [r3, #52]	@ zero_extendqisi2
+  73              	.LVL5:
+  74              		.loc 3 58 40 view .LVU15
+  75              	.LBE23:
+  76              	.LBE22:
+  16:Src/system/board_security_confirmation.cpp ****            USB_BOARD_LINK.isRoleLocked() &&
+  77              		.loc 1 16 51 view .LVU16
+  78 0010 18B1     		cbz	r0, .L2
+  79              	.LVL6:
+  80              	.LBB24:
+  81              	.LBI24:
+  56:Inc/transport/usb/usb_board_link.hpp ****     usb_board_profile_t profile() const { return selectedProfile; }
+  82              		.loc 3 56 22 is_stmt 1 view .LVU17
+  83              	.LBB25:
+  56:Inc/transport/usb/usb_board_link.hpp ****     usb_board_profile_t profile() const { return selectedProfile; }
+  84              		.loc 3 56 37 view .LVU18
+  56:Inc/transport/usb/usb_board_link.hpp ****     usb_board_profile_t profile() const { return selectedProfile; }
+  85              		.loc 3 56 44 is_stmt 0 view .LVU19
+  86 0012 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+  87              	.LVL7:
+  56:Inc/transport/usb/usb_board_link.hpp ****     usb_board_profile_t profile() const { return selectedProfile; }
+  88              		.loc 3 56 44 view .LVU20
+  89              	.LBE25:
+  90              	.LBE24:
+  91              		.loc 1 17 42 discriminator 3 view .LVU21
+  92 0014 032B     		cmp	r3, #3
+  93 0016 01D0     		beq	.L5
+  94              		.loc 1 17 42 discriminator 1 view .LVU22
+  95 0018 0020     		movs	r0, #0
+  96              	.L2:
+  18:Src/system/board_security_confirmation.cpp ****            USB_BOARD_LINK.role() == USB_BOARD_ROLE_MAINTENANCE;
+  19:Src/system/board_security_confirmation.cpp **** }
+  97              		.loc 1 19 1 view .LVU23
+  98 001a 7047     		bx	lr
+  99              	.L5:
+ 100 001c 7047     		bx	lr
+ 101              	.L3:
+  17:Src/system/board_security_confirmation.cpp ****            USB_BOARD_LINK.role() == USB_BOARD_ROLE_MAINTENANCE;
+ 102              		.loc 1 17 42 discriminator 1 view .LVU24
+ 103 001e 0020     		movs	r0, #0
+ 104 0020 7047     		bx	lr
+ 105              	.L7:
+ 106 0022 00BF     		.align	2
+ 107              	.L6:
+ 108 0024 00000000 		.word	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 109 0028 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 110              		.cfi_endproc
+ 111              	.LFE1304:
+ 113              		.section	.text._ZN12_GLOBAL__N_124confirmationButtonStatesERbS0_,"ax",%progbits
+ 114              		.align	1
+ 115              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 5
+
+
+ 116              		.thumb
+ 117              		.thumb_func
+ 119              	_ZN12_GLOBAL__N_124confirmationButtonStatesERbS0_:
+ 120              	.LVL8:
+ 121              	.LFB1305:
+  20:Src/system/board_security_confirmation.cpp **** 
+  21:Src/system/board_security_confirmation.cpp **** void confirmationButtonStates(bool &allReleased, bool &bothPressed)
+  22:Src/system/board_security_confirmation.cpp **** {
+ 122              		.loc 1 22 1 is_stmt 1 view -0
+ 123              		.cfi_startproc
+ 124              		@ args = 0, pretend = 0, frame = 0
+ 125              		@ frame_needed = 0, uses_anonymous_args = 0
+ 126              		.loc 1 22 1 is_stmt 0 view .LVU26
+ 127 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 128              	.LCFI0:
+ 129              		.cfi_def_cfa_offset 24
+ 130              		.cfi_offset 3, -24
+ 131              		.cfi_offset 4, -20
+ 132              		.cfi_offset 5, -16
+ 133              		.cfi_offset 6, -12
+ 134              		.cfi_offset 7, -8
+ 135              		.cfi_offset 14, -4
+ 136 0002 0646     		mov	r6, r0
+ 137 0004 0D46     		mov	r5, r1
+  23:Src/system/board_security_confirmation.cpp ****     /*
+  24:Src/system/board_security_confirmation.cpp ****      * GPIO1 (PC6) and FN (PC9) are independent, pull-up, active-low physical
+  25:Src/system/board_security_confirmation.cpp ****      * inputs.  Reading the pins directly prevents a remapped logical input,
+  26:Src/system/board_security_confirmation.cpp ****      * macro, USB report, or RF packet from authorizing a dangerous action.
+  27:Src/system/board_security_confirmation.cpp ****      */
+  28:Src/system/board_security_confirmation.cpp ****     const GPIO_PinState gpio1 =
+ 138              		.loc 1 28 5 is_stmt 1 view .LVU27
+  29:Src/system/board_security_confirmation.cpp ****         HAL_GPIO_ReadPin(GPIO_BTN1_PORT, GPIO_BTN1_PIN);
+ 139              		.loc 1 29 25 is_stmt 0 view .LVU28
+ 140 0006 0D4F     		ldr	r7, .L10
+ 141 0008 4021     		movs	r1, #64
+ 142              	.LVL9:
+ 143              		.loc 1 29 25 view .LVU29
+ 144 000a 3846     		mov	r0, r7
+ 145              	.LVL10:
+ 146              		.loc 1 29 25 view .LVU30
+ 147 000c FFF7FEFF 		bl	HAL_GPIO_ReadPin
+ 148              	.LVL11:
+ 149 0010 0446     		mov	r4, r0
+ 150              	.LVL12:
+  30:Src/system/board_security_confirmation.cpp ****     const GPIO_PinState fn =
+ 151              		.loc 1 30 5 is_stmt 1 view .LVU31
+  31:Src/system/board_security_confirmation.cpp ****         HAL_GPIO_ReadPin(GPIO_BTN4_PORT, GPIO_BTN4_PIN);
+ 152              		.loc 1 31 25 is_stmt 0 view .LVU32
+ 153 0012 4FF40071 		mov	r1, #512
+ 154 0016 3846     		mov	r0, r7
+ 155 0018 FFF7FEFF 		bl	HAL_GPIO_ReadPin
+ 156              	.LVL13:
+  32:Src/system/board_security_confirmation.cpp ****     allReleased = gpio1 == GPIO_PIN_SET && fn == GPIO_PIN_SET;
+ 157              		.loc 1 32 5 is_stmt 1 view .LVU33
+ 158              		.loc 1 32 41 is_stmt 0 view .LVU34
+ 159 001c 012C     		cmp	r4, #1
+ 160 001e 08BF     		it	eq
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 6
+
+
+ 161 0020 0128     		cmpeq	r0, #1
+ 162 0022 0CBF     		ite	eq
+ 163 0024 0123     		moveq	r3, #1
+ 164 0026 0023     		movne	r3, #0
+ 165              		.loc 1 32 17 view .LVU35
+ 166 0028 3370     		strb	r3, [r6]
+  33:Src/system/board_security_confirmation.cpp ****     bothPressed = gpio1 == GPIO_PIN_RESET && fn == GPIO_PIN_RESET;
+ 167              		.loc 1 33 5 is_stmt 1 view .LVU36
+ 168              		.loc 1 33 43 is_stmt 0 view .LVU37
+ 169 002a 0443     		orrs	r4, r4, r0
+ 170              	.LVL14:
+ 171              		.loc 1 33 43 view .LVU38
+ 172 002c 14F0FF0F 		tst	r4, #255
+ 173 0030 0CBF     		ite	eq
+ 174 0032 0123     		moveq	r3, #1
+ 175 0034 0023     		movne	r3, #0
+ 176              		.loc 1 33 17 view .LVU39
+ 177 0036 2B70     		strb	r3, [r5]
+  34:Src/system/board_security_confirmation.cpp **** }
+ 178              		.loc 1 34 1 view .LVU40
+ 179 0038 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 180              	.LVL15:
+ 181              	.L11:
+ 182              		.loc 1 34 1 view .LVU41
+ 183 003a 00BF     		.align	2
+ 184              	.L10:
+ 185 003c 00080258 		.word	1476528128
+ 186              		.cfi_endproc
+ 187              	.LFE1305:
+ 189              		.section	.text.HBoxBoardSecurityConfirmation_Reset,"ax",%progbits
+ 190              		.align	1
+ 191              		.global	HBoxBoardSecurityConfirmation_Reset
+ 192              		.syntax unified
+ 193              		.thumb
+ 194              		.thumb_func
+ 196              	HBoxBoardSecurityConfirmation_Reset:
+ 197              	.LFB1306:
+  35:Src/system/board_security_confirmation.cpp **** 
+  36:Src/system/board_security_confirmation.cpp **** } // namespace
+  37:Src/system/board_security_confirmation.cpp **** 
+  38:Src/system/board_security_confirmation.cpp **** extern "C" void HBoxBoardSecurityConfirmation_Reset(void)
+  39:Src/system/board_security_confirmation.cpp **** {
+ 198              		.loc 1 39 1 is_stmt 1 view -0
+ 199              		.cfi_startproc
+ 200              		@ args = 0, pretend = 0, frame = 0
+ 201              		@ frame_needed = 0, uses_anonymous_args = 0
+ 202 0000 08B5     		push	{r3, lr}
+ 203              	.LCFI1:
+ 204              		.cfi_def_cfa_offset 8
+ 205              		.cfi_offset 3, -8
+ 206              		.cfi_offset 14, -4
+  40:Src/system/board_security_confirmation.cpp ****     HBoxPhysicalConfirmation_Init(&confirmation, HAL_GetTick());
+ 207              		.loc 1 40 5 view .LVU43
+ 208              		.loc 1 40 34 is_stmt 0 view .LVU44
+ 209 0002 FFF7FEFF 		bl	HAL_GetTick
+ 210              	.LVL16:
+ 211 0006 0146     		mov	r1, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 7
+
+
+ 212              		.loc 1 40 34 discriminator 1 view .LVU45
+ 213 0008 0148     		ldr	r0, .L14
+ 214 000a FFF7FEFF 		bl	HBoxPhysicalConfirmation_Init
+ 215              	.LVL17:
+  41:Src/system/board_security_confirmation.cpp **** }
+ 216              		.loc 1 41 1 view .LVU46
+ 217 000e 08BD     		pop	{r3, pc}
+ 218              	.L15:
+ 219              		.align	2
+ 220              	.L14:
+ 221 0010 00000000 		.word	_ZN12_GLOBAL__N_112confirmationE
+ 222              		.cfi_endproc
+ 223              	.LFE1306:
+ 225              		.section	.text.HBoxBoardSecurityConfirmation_Poll,"ax",%progbits
+ 226              		.align	1
+ 227              		.global	HBoxBoardSecurityConfirmation_Poll
+ 228              		.syntax unified
+ 229              		.thumb
+ 230              		.thumb_func
+ 232              	HBoxBoardSecurityConfirmation_Poll:
+ 233              	.LFB1307:
+  42:Src/system/board_security_confirmation.cpp **** 
+  43:Src/system/board_security_confirmation.cpp **** extern "C" void HBoxBoardSecurityConfirmation_Poll(void)
+  44:Src/system/board_security_confirmation.cpp **** {
+ 234              		.loc 1 44 1 is_stmt 1 view -0
+ 235              		.cfi_startproc
+ 236              		@ args = 0, pretend = 0, frame = 8
+ 237              		@ frame_needed = 0, uses_anonymous_args = 0
+ 238 0000 30B5     		push	{r4, r5, lr}
+ 239              	.LCFI2:
+ 240              		.cfi_def_cfa_offset 12
+ 241              		.cfi_offset 4, -12
+ 242              		.cfi_offset 5, -8
+ 243              		.cfi_offset 14, -4
+ 244 0002 85B0     		sub	sp, sp, #20
+ 245              	.LCFI3:
+ 246              		.cfi_def_cfa_offset 32
+  45:Src/system/board_security_confirmation.cpp ****     const uint32_t nowMs = HAL_GetTick();
+ 247              		.loc 1 45 5 view .LVU48
+ 248              		.loc 1 45 39 is_stmt 0 view .LVU49
+ 249 0004 FFF7FEFF 		bl	HAL_GetTick
+ 250              	.LVL18:
+ 251 0008 0446     		mov	r4, r0
+ 252              	.LVL19:
+  46:Src/system/board_security_confirmation.cpp ****     const bool gateOpen = maintenanceGateOpen();
+ 253              		.loc 1 46 5 is_stmt 1 view .LVU50
+ 254              		.loc 1 46 46 is_stmt 0 view .LVU51
+ 255 000a FFF7FEFF 		bl	_ZN12_GLOBAL__N_119maintenanceGateOpenEv
+ 256              	.LVL20:
+  47:Src/system/board_security_confirmation.cpp ****     bool allReleased = false;
+ 257              		.loc 1 47 5 is_stmt 1 view .LVU52
+ 258              		.loc 1 47 10 is_stmt 0 view .LVU53
+ 259 000e 0023     		movs	r3, #0
+ 260 0010 8DF80F30 		strb	r3, [sp, #15]
+  48:Src/system/board_security_confirmation.cpp ****     bool bothPressed = false;
+ 261              		.loc 1 48 5 is_stmt 1 view .LVU54
+ 262              		.loc 1 48 10 is_stmt 0 view .LVU55
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 8
+
+
+ 263 0014 8DF80E30 		strb	r3, [sp, #14]
+  49:Src/system/board_security_confirmation.cpp ****     if (gateOpen) {
+ 264              		.loc 1 49 5 is_stmt 1 view .LVU56
+ 265 0018 0546     		mov	r5, r0
+ 266 001a 58B9     		cbnz	r0, .L19
+ 267              	.LVL21:
+ 268              	.L17:
+  50:Src/system/board_security_confirmation.cpp ****         confirmationButtonStates(allReleased, bothPressed);
+  51:Src/system/board_security_confirmation.cpp ****     }
+  52:Src/system/board_security_confirmation.cpp ****     HBoxPhysicalConfirmation_Update(
+ 269              		.loc 1 52 5 view .LVU57
+ 270              		.loc 1 52 36 is_stmt 0 view .LVU58
+ 271 001c 9DF80E30 		ldrb	r3, [sp, #14]	@ zero_extendqisi2
+ 272 0020 0093     		str	r3, [sp]
+ 273 0022 9DF80F30 		ldrb	r3, [sp, #15]	@ zero_extendqisi2
+ 274 0026 2A46     		mov	r2, r5
+ 275 0028 2146     		mov	r1, r4
+ 276 002a 0648     		ldr	r0, .L20
+ 277 002c FFF7FEFF 		bl	HBoxPhysicalConfirmation_Update
+ 278              	.LVL22:
+  53:Src/system/board_security_confirmation.cpp ****         &confirmation,
+  54:Src/system/board_security_confirmation.cpp ****         nowMs,
+  55:Src/system/board_security_confirmation.cpp ****         gateOpen,
+  56:Src/system/board_security_confirmation.cpp ****         allReleased,
+  57:Src/system/board_security_confirmation.cpp ****         bothPressed);
+  58:Src/system/board_security_confirmation.cpp **** }
+ 279              		.loc 1 58 1 view .LVU59
+ 280 0030 05B0     		add	sp, sp, #20
+ 281              	.LCFI4:
+ 282              		.cfi_remember_state
+ 283              		.cfi_def_cfa_offset 12
+ 284              		@ sp needed
+ 285 0032 30BD     		pop	{r4, r5, pc}
+ 286              	.LVL23:
+ 287              	.L19:
+ 288              	.LCFI5:
+ 289              		.cfi_restore_state
+  50:Src/system/board_security_confirmation.cpp ****         confirmationButtonStates(allReleased, bothPressed);
+ 290              		.loc 1 50 9 is_stmt 1 view .LVU60
+  50:Src/system/board_security_confirmation.cpp ****         confirmationButtonStates(allReleased, bothPressed);
+ 291              		.loc 1 50 33 is_stmt 0 view .LVU61
+ 292 0034 0DF10E01 		add	r1, sp, #14
+ 293 0038 0DF10F00 		add	r0, sp, #15
+ 294              	.LVL24:
+  50:Src/system/board_security_confirmation.cpp ****         confirmationButtonStates(allReleased, bothPressed);
+ 295              		.loc 1 50 33 view .LVU62
+ 296 003c FFF7FEFF 		bl	_ZN12_GLOBAL__N_124confirmationButtonStatesERbS0_
+ 297              	.LVL25:
+ 298 0040 ECE7     		b	.L17
+ 299              	.L21:
+ 300 0042 00BF     		.align	2
+ 301              	.L20:
+ 302 0044 00000000 		.word	_ZN12_GLOBAL__N_112confirmationE
+ 303              		.cfi_endproc
+ 304              	.LFE1307:
+ 306              		.section	.text.HBoxBoard_DangerousActionConfirmed,"ax",%progbits
+ 307              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 9
+
+
+ 308              		.global	HBoxBoard_DangerousActionConfirmed
+ 309              		.syntax unified
+ 310              		.thumb
+ 311              		.thumb_func
+ 313              	HBoxBoard_DangerousActionConfirmed:
+ 314              	.LFB1308:
+  59:Src/system/board_security_confirmation.cpp **** 
+  60:Src/system/board_security_confirmation.cpp **** extern "C" bool HBoxBoard_DangerousActionConfirmed(void)
+  61:Src/system/board_security_confirmation.cpp **** {
+ 315              		.loc 1 61 1 is_stmt 1 view -0
+ 316              		.cfi_startproc
+ 317              		@ args = 0, pretend = 0, frame = 0
+ 318              		@ frame_needed = 0, uses_anonymous_args = 0
+ 319 0000 10B5     		push	{r4, lr}
+ 320              	.LCFI6:
+ 321              		.cfi_def_cfa_offset 8
+ 322              		.cfi_offset 4, -8
+ 323              		.cfi_offset 14, -4
+  62:Src/system/board_security_confirmation.cpp ****     const uint32_t nowMs = HAL_GetTick();
+ 324              		.loc 1 62 5 view .LVU64
+ 325              		.loc 1 62 39 is_stmt 0 view .LVU65
+ 326 0002 FFF7FEFF 		bl	HAL_GetTick
+ 327              	.LVL26:
+ 328 0006 0446     		mov	r4, r0
+ 329              	.LVL27:
+  63:Src/system/board_security_confirmation.cpp ****     return HBoxPhysicalConfirmation_Consume(
+ 330              		.loc 1 63 5 is_stmt 1 view .LVU66
+ 331              		.loc 1 63 44 is_stmt 0 view .LVU67
+ 332 0008 FFF7FEFF 		bl	_ZN12_GLOBAL__N_119maintenanceGateOpenEv
+ 333              	.LVL28:
+ 334              		.loc 1 63 44 view .LVU68
+ 335 000c 0246     		mov	r2, r0
+ 336              		.loc 1 63 44 discriminator 1 view .LVU69
+ 337 000e 2146     		mov	r1, r4
+ 338 0010 0148     		ldr	r0, .L24
+ 339 0012 FFF7FEFF 		bl	HBoxPhysicalConfirmation_Consume
+ 340              	.LVL29:
+  64:Src/system/board_security_confirmation.cpp ****         &confirmation,
+  65:Src/system/board_security_confirmation.cpp ****         nowMs,
+  66:Src/system/board_security_confirmation.cpp ****         maintenanceGateOpen());
+  67:Src/system/board_security_confirmation.cpp **** }
+ 341              		.loc 1 67 1 view .LVU70
+ 342 0016 10BD     		pop	{r4, pc}
+ 343              	.LVL30:
+ 344              	.L25:
+ 345              		.loc 1 67 1 view .LVU71
+ 346              		.align	2
+ 347              	.L24:
+ 348 0018 00000000 		.word	_ZN12_GLOBAL__N_112confirmationE
+ 349              		.cfi_endproc
+ 350              	.LFE1308:
+ 352              		.section	.bss._ZN12_GLOBAL__N_112confirmationE,"aw",%nobits
+ 353              		.align	2
+ 356              	_ZN12_GLOBAL__N_112confirmationE:
+ 357 0000 00000000 		.space	12
+ 357      00000000 
+ 357      00000000 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 10
+
+
+ 358              		.weak	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 359              		.section	.bss._ZZN12UsbBoardLink11getInstanceEvE8instance,"awG",%nobits,_ZZN12UsbBoardLink11getIns
+ 360              		.align	2
+ 363              	_ZZN12UsbBoardLink11getInstanceEvE8instance:
+ 364 0000 00000000 		.space	64
+ 364      00000000 
+ 364      00000000 
+ 364      00000000 
+ 364      00000000 
+ 365              		.weak	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 366              		.section	.data._ZZN16BoardModeManager11getInstanceEvE8instance,"awG",%progbits,_ZZN16BoardModeMana
+ 367              		.align	2
+ 370              	_ZZN16BoardModeManager11getInstanceEvE8instance:
+ 371 0000 02       		.byte	2
+ 372 0001 02       		.byte	2
+ 373 0002 0000     		.space	2
+ 374 0004 00000000 		.word	0
+ 375 0008 00       		.byte	0
+ 376 0009 00       		.byte	0
+ 377 000a 0000     		.space	2
+ 378              		.text
+ 379              	.Letext0:
+ 380              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 381              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 382              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 383              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 384              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 385              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 386              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 387              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 388              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 389              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 390              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 391              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 392              		.file 16 "Inc/system/board_cfg.h"
+ 393              		.file 17 "../common/physical_confirmation.h"
+ 394              		.file 18 "Inc/transport/ch585_role_bootstrap.hpp"
+ 395              		.file 19 "../common/usb_board_link_protocol.h"
+ 396              		.file 20 "../common/release_install_protocol.h"
+ 397              		.file 21 "Inc/support/enums.hpp"
+ 398              		.file 22 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s 			page 11
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 board_security_confirmation.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:20     .text._ZN12_GLOBAL__N_119maintenanceGateOpenEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:25     .text._ZN12_GLOBAL__N_119maintenanceGateOpenEv:00000000 _ZN12_GLOBAL__N_119maintenanceGateOpenEv
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:108    .text._ZN12_GLOBAL__N_119maintenanceGateOpenEv:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:370    .data._ZZN16BoardModeManager11getInstanceEvE8instance:00000000 _ZZN16BoardModeManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:363    .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 _ZZN12UsbBoardLink11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:114    .text._ZN12_GLOBAL__N_124confirmationButtonStatesERbS0_:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:119    .text._ZN12_GLOBAL__N_124confirmationButtonStatesERbS0_:00000000 _ZN12_GLOBAL__N_124confirmationButtonStatesERbS0_
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:185    .text._ZN12_GLOBAL__N_124confirmationButtonStatesERbS0_:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:190    .text.HBoxBoardSecurityConfirmation_Reset:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:196    .text.HBoxBoardSecurityConfirmation_Reset:00000000 HBoxBoardSecurityConfirmation_Reset
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:221    .text.HBoxBoardSecurityConfirmation_Reset:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:356    .bss._ZN12_GLOBAL__N_112confirmationE:00000000 _ZN12_GLOBAL__N_112confirmationE
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:226    .text.HBoxBoardSecurityConfirmation_Poll:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:232    .text.HBoxBoardSecurityConfirmation_Poll:00000000 HBoxBoardSecurityConfirmation_Poll
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:302    .text.HBoxBoardSecurityConfirmation_Poll:00000044 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:307    .text.HBoxBoard_DangerousActionConfirmed:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:313    .text.HBoxBoard_DangerousActionConfirmed:00000000 HBoxBoard_DangerousActionConfirmed
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:348    .text.HBoxBoard_DangerousActionConfirmed:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:353    .bss._ZN12_GLOBAL__N_112confirmationE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:360    .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPC43Aa.s:367    .data._ZZN16BoardModeManager11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_GPIO_ReadPin
+HAL_GetTick
+HBoxPhysicalConfirmation_Init
+HBoxPhysicalConfirmation_Update
+HBoxPhysicalConfirmation_Consume
