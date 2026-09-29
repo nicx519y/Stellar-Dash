@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="240" viewBox="0 0 1000 240" fill="none" role="img" aria-labelledby="xora-title xora-description">
+  <title id="xora-title">XORA · 星溯</title>
+  <desc id="xora-description">Champagne arcade-button O and pearl-silver lettering with a four-point star cut into the X. Transparent background.</desc>
+  <defs>
+    <linearGradient id="pearl-silver" x1="0" y1="16" x2="0" y2="225" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.32" stop-color="#F3F3F3"/>
+      <stop offset="0.66" stop-color="#D8D8D8"/>
+      <stop offset="1" stop-color="#B3B3B3"/>
+    </linearGradient>
+    <linearGradient id="button-rim" x1="384" y1="43" x2="384" y2="197" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#F4EAD8"/>
+      <stop offset="1" stop-color="#D8C9A6"/>
+    </linearGradient>
+    <linearGradient id="champagne" x1="384" y1="50" x2="384" y2="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF8E9"/>
+      <stop offset="0.25" stop-color="#F5E4BE"/>
+      <stop offset="0.55" stop-color="#DFC18A"/>
+      <stop offset="0.8" stop-color="#C4A363"/>
+      <stop offset="1" stop-color="#A88845"/>
+    </linearGradient>
+    <radialGradient id="button-highlight" cx="0.36" cy="0.2" r="0.73">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g id="x-star" fill="url(#pearl-silver)">
+    <path d="M8 25H85L144 80 135 110 105 120Z"/>
+    <path d="M204 25H280L183 120 153 110 144 80Z"/>
+    <path d="M8 215H85L144 160 135 130 105 120Z"/>
+    <path d="M204 215H280L183 120 153 130 144 160Z"/>
+  </g>
+  <g id="o-arcade-button">
+    <circle cx="384" cy="120" r="101" stroke="url(#pearl-silver)" stroke-width="20"/>
+    <circle cx="384" cy="120" r="77" fill="url(#button-rim)"/>
+    <circle cx="384" cy="120" r="70" fill="url(#champagne)"/>
+    <circle cx="384" cy="120" r="70" fill="url(#button-highlight)"/>
+  </g>
+  <g id="ra-wordmark" fill="url(#pearl-silver)">
+    <path id="letter-r" d="M511 25H646C691 25 717 48 717 85 717 119 690 147 651 150L713 215H647L589 151H570V215H511V107H639C655 107 663 99 663 88 663 78 655 71 639 71H511Z"/>
+    <path id="letter-a" d="M715 215 821 40Q835 16 849 16 866 16 880 40L992 215H919L850 99 782 215Z"/>
+  </g>
+</svg>

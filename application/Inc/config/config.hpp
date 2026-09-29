@@ -1,0 +1,240 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#include <string.h>
+#include "power_config.hpp"
+#include <map>
+#include "enums.hpp"
+#include "stm32h750xx.h"
+#include "stm32h7xx_hal.h"
+#include "board_cfg.h"
+#include "cJSON.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct
+{
+    uint32_t gameControllerButtonMask; // 游戏控制器按钮掩码 0001 0000 0010 0000 0000 0000 0000 0000  说明包含哪些游戏控制器按钮
+    uint32_t virtualPinMask;           // 虚拟引脚掩码 0001 0000 0010 0000 0000 0000 0000 0000  说明包含哪些虚拟引脚
+} KeyCombination;
+
+#define MAX_NUM_MACROS 5
+#define MAX_MACRO_STEPS 32
+#define MAX_MACRO_TRIGGER_KEYS 4
+
+typedef struct __attribute__((packed))
+{
+    uint16_t timeMs;
+    uint32_t buttonMask;
+    uint32_t dynamicMask;
+} MacroStep;
+
+typedef struct __attribute__((packed))
+{
+    uint8_t numSteps;
+    uint8_t numTriggerKeys;
+    uint8_t triggerKeys[MAX_MACRO_TRIGGER_KEYS];
+    uint8_t reserved0[1];
+    MacroStep steps[MAX_MACRO_STEPS];
+} MacroConfig;
+
+typedef struct
+{
+    SOCDMode socdMode;
+    bool fourWayMode;
+    bool invertXAxis;
+    bool invertYAxis;
+    bool keysEnableTag[NUM_ADC_BUTTONS]; // 0-15 表示第0-15个按钮 1表示启用 0表示禁用
+    // 将 std::map 替换为固定大小的数组
+    uint32_t keyMapping[NUM_GAME_CONTROLLER_BUTTONS]; // 按键映射，20个按钮类型，每个4字节
+    KeyCombination keyCombinations[MAX_KEY_COMBINATION];   // 按键组合键配置 说明 哪些游戏控制器按键组合键对应哪些物理按键
+    MacroConfig macros[MAX_NUM_MACROS];
+} KeysConfig;
+
+typedef struct
+{
+    int32_t         virtualPin;         // 虚拟pin
+    GamepadHotkey   action;             // 快键功能
+    bool            isHold;             // 是否长按
+    bool            isLocked;           // 是否锁定
+} GamepadHotkeyEntry;
+
+typedef struct
+{
+    uint32_t    virtualPin;             // 虚拟pin
+    float_t     maxDistance;            // 最大行程 单位毫米
+} ADCButton;
+
+typedef struct
+{
+    uint32_t        virtualPin;
+} GPIOButton;
+
+
+typedef struct __attribute__((packed))
+{
+    uint32_t   virtualPin;
+    float_t    pressAccuracy;          // 按下精度 单位毫米
+    float_t    releaseAccuracy;        // 回弹精度 单位毫米
+    float_t    topDeadzone;            // 顶部死区 单位毫米
+    float_t    bottomDeadzone;         // 底部死区 单位毫米
+} RapidTriggerProfile;
+
+typedef struct
+{
+    bool isAllBtnsConfiguring;
+    ADCButtonDebounceAlgorithm debounceAlgorithm;
+    RapidTriggerProfile triggerConfigs[NUM_ADC_BUTTONS];
+} TriggerConfigs;
+
+typedef struct
+{
+    bool ledEnabled;
+    LEDEffect ledEffect;   
+    uint32_t ledColor1;    // 0x000000-0xFFFFFF
+    uint32_t ledColor2;    // 0x000000-0xFFFFFF
+    uint32_t ledColor3;    // 0x000000-0xFFFFFF
+    uint8_t ledBrightness; // 0-100
+    uint8_t ledAnimationSpeed;      // 1-5
+
+    bool aroundLedEnabled;       // 是否启用环绕灯效
+    bool aroundLedSyncToMainLed; // 是否同步主灯效
+    bool aroundLedTriggerByButton; // 是否由按钮触发环绕灯动画
+    AroundLEDEffect aroundLedEffect; // 环绕灯效
+    uint32_t aroundLedColor1;    // 0x000000-0xFFFFFF
+    uint32_t aroundLedColor2;    // 0x000000-0xFFFFFF
+    uint32_t aroundLedColor3;    // 0x000000-0xFFFFFF
+    uint8_t aroundLedBrightness; // 0-100
+    uint8_t aroundLedAnimationSpeed; // 1-5
+} LEDProfile;
+
+typedef struct
+{
+    char id[16];
+    char name[24];
+    bool enabled;
+    bool isCompetitionProfile;
+    KeysConfig keysConfig;
+    TriggerConfigs triggerConfigs;
+    LEDProfile ledsConfigs;
+} GamepadProfile;
+
+#define SCREEN_FEATURE_INPUT_MODE_SWITCH          (1u << 0)
+#define SCREEN_FEATURE_PROFILES_SWITCH            (1u << 1)
+#define SCREEN_FEATURE_SOCD_MODE_SWITCH           (1u << 2)
+#define SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH     (1u << 3)
+#define SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST      (1u << 4)
+#define SCREEN_FEATURE_LED_EFFECT_SWITCH          (1u << 5)
+#define SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST  (1u << 6)
+#define SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH      (1u << 7)
+#define SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST   (1u << 8)
+#define SCREEN_FEATURE_WEB_CONFIG_ENTRY           (1u << 9)
+#define SCREEN_FEATURE_CALIBRATION_MODE_SWITCH    (1u << 10)
+#define SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET (1u << 11)
+#define SCREEN_FEATURE_COUNT                      12u
+
+typedef enum
+{
+    SCREEN_STYLE_DARK = 0,
+    SCREEN_STYLE_LIGHT = 1
+} ScreenStyle;
+
+typedef struct
+{
+    uint8_t brightness;              // 屏幕亮度（0-100）
+    uint8_t standbyDisplay;          // 待机显示：0 None, 1 BackgroundImage, 2 ButtonLayout
+    uint16_t standbyTimeoutSeconds;  // 占用原 reserved0[2]，保持持久化布局
+    uint8_t screenStyle;             // 屏幕风格：0 Dark, 1 Light
+    uint8_t reservedStyle[7];        // 保留旧颜色字段占位，用于兼容迁移
+    char backgroundImageId[32];      // 背景图片ID；当前仅允许已验证的 USER_IMAGE
+    uint16_t currentPageId;          // 当前页面ID
+    uint16_t reserved1;              // 保留字节（对齐）
+    uint32_t featuresMask;           // 功能开关位图（SCREEN_FEATURE_*）
+    uint8_t featuresOrder[SCREEN_FEATURE_COUNT];
+    /* Persistent service flags; retains the former reserved2 byte layout. */
+    uint8_t serviceFlags;
+} ScreenControlConfig;
+
+static inline uint16_t normalizeScreenStandbyTimeoutSeconds(uint16_t seconds) {
+    return (seconds == 10u || seconds == 30u || seconds == 60u ||
+            seconds == 120u || seconds == 300u) ? seconds : 10u;
+}
+
+#define SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE (1u << 0)
+#define SCREEN_SERVICE_CH585_IAP_CONFIRMED      (1u << 1)
+
+
+
+/*
+ * Latest-PCB immutable layout snapshot.
+ *
+ * This deliberately occupies the same three bytes as the former reserved0[]
+ * member so a V1 configuration can be migrated without changing sizeof(Config)
+ * or shifting any following fields in QSPI.
+ */
+typedef struct
+{
+    uint8_t batteryPackCount;         // 单个 1S2P 电池包
+    uint8_t keyLedCount;              // 18 Hall + 4 GPIO = 22
+    uint8_t ambientLedCount;          // 40 颗环境灯
+} HardwareLayoutConfig;
+
+#ifdef __cplusplus
+static_assert(sizeof(HardwareLayoutConfig) == 3u,
+              "HardwareLayoutConfig must preserve the former reserved0[3] layout");
+#endif
+
+typedef struct
+{
+    uint32_t version;
+    BootMode bootMode;
+    InputMode inputMode;
+    ConnectionMode connectionMode;
+    WirelessReportRate wirelessReportRate;
+    // Persisted RF power hint. It is a boot-time hint only; runtime must
+    // still converge CH584 to the target connection-mode policy.
+    uint8_t reservedConnection0;
+    char defaultProfileId[16];
+    uint8_t numProfilesMax;
+    GamepadProfile profiles[NUM_PROFILES];
+    GamepadHotkeyEntry hotkeys[NUM_GAMEPAD_HOTKEYS];
+    bool autoCalibrationEnabled;
+    HardwareLayoutConfig hardware;
+    ScreenControlConfig screenControl;
+    PowerConfig power;
+} Config;
+
+namespace ConfigUtils {
+    bool load(Config& config);
+    bool save(Config& config);
+    bool reset(Config& config);
+    bool fromStorage(Config& config);
+    void makeDefaultProfile(GamepadProfile& profile, const char* id, bool isEnabled);
+
+    // JSON serialization/deserialization
+    cJSON* toJSON(Config& config);
+    bool fromJSON(Config& config, cJSON* json);
+    cJSON* buildHotkeysConfigJSON(Config& config);
+    cJSON* buildScreenControlConfigJSON(Config& config);
+
+    // Mappings helpers
+    const char* getInputModeString(InputMode mode);
+    InputMode getInputModeFromString(const char* str);
+    const char* getConnectionModeString(ConnectionMode mode);
+    ConnectionMode getConnectionModeFromString(const char* str);
+    const char* getWirelessReportRateString(WirelessReportRate rate);
+    WirelessReportRate getWirelessReportRateFromString(const char* str);
+    uint16_t getWirelessReportRateHz(WirelessReportRate rate);
+    const char* getScreenStyleString(uint8_t style);
+    uint8_t getScreenStyleFromString(const char* str);
+    const char* getGamepadHotkeyString(GamepadHotkey action);
+    GamepadHotkey getGamepadHotkeyFromString(const char* str);
+};
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

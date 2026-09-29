@@ -1,0 +1,731 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"safe_recovery_state.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/states/safe_recovery_state.cpp"
+  19              		.section	.text._ZN17SafeRecoveryStateD2Ev,"axG",%progbits,_ZN17SafeRecoveryStateD5Ev,comdat
+  20              		.align	1
+  21              		.weak	_ZN17SafeRecoveryStateD2Ev
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN17SafeRecoveryStateD2Ev:
+  27              	.LVL0:
+  28              	.LFB12:
+  29              		.file 2 "Cpp_Core/Inc/states/safe_recovery_state.hpp"
+   1:Cpp_Core/Inc/states/safe_recovery_state.hpp **** #ifndef SAFE_RECOVERY_STATE_HPP
+   2:Cpp_Core/Inc/states/safe_recovery_state.hpp **** #define SAFE_RECOVERY_STATE_HPP
+   3:Cpp_Core/Inc/states/safe_recovery_state.hpp **** 
+   4:Cpp_Core/Inc/states/safe_recovery_state.hpp **** #include "base_state.hpp"
+   5:Cpp_Core/Inc/states/safe_recovery_state.hpp **** 
+   6:Cpp_Core/Inc/states/safe_recovery_state.hpp **** class SafeRecoveryState final : public BaseState {
+  30              		.loc 2 6 7 view -0
+  31              		.cfi_startproc
+  32              		@ args = 0, pretend = 0, frame = 0
+  33              		@ frame_needed = 0, uses_anonymous_args = 0
+  34              		@ link register save eliminated.
+  35              	.LBB23:
+  36              	.LBI23:
+  37              		.file 3 "Cpp_Core/Inc/states/base_state.hpp"
+   1:Cpp_Core/Inc/states/base_state.hpp **** #ifndef __BASE_STATE_H__
+   2:Cpp_Core/Inc/states/base_state.hpp **** #define __BASE_STATE_H__
+   3:Cpp_Core/Inc/states/base_state.hpp **** 
+   4:Cpp_Core/Inc/states/base_state.hpp **** class BaseState {
+   5:Cpp_Core/Inc/states/base_state.hpp ****     public:
+   6:Cpp_Core/Inc/states/base_state.hpp ****         virtual ~BaseState() = default;
+  38              		.loc 3 6 17 view .LVU1
+  39              		.loc 3 6 17 is_stmt 0 view .LVU2
+  40              	.LBE23:
+  41              		.loc 2 6 7 view .LVU3
+  42 0000 7047     		bx	lr
+  43              		.cfi_endproc
+  44              	.LFE12:
+  46              		.weak	_ZN17SafeRecoveryStateD1Ev
+  47              		.thumb_set _ZN17SafeRecoveryStateD1Ev,_ZN17SafeRecoveryStateD2Ev
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 2
+
+
+  48              		.section	.text._ZN17SafeRecoveryState4tickEv,"ax",%progbits
+  49              		.align	1
+  50              		.global	_ZN17SafeRecoveryState4tickEv
+  51              		.syntax unified
+  52              		.thumb
+  53              		.thumb_func
+  55              	_ZN17SafeRecoveryState4tickEv:
+  56              	.LVL1:
+  57              	.LFB1902:
+   1:Cpp_Core/Src/states/safe_recovery_state.cpp **** #include "states/safe_recovery_state.hpp"
+   2:Cpp_Core/Src/states/safe_recovery_state.cpp **** 
+   3:Cpp_Core/Src/states/safe_recovery_state.cpp **** #include "board_cfg.h"
+   4:Cpp_Core/Src/states/safe_recovery_state.cpp **** #include "board_power.hpp"
+   5:Cpp_Core/Src/states/safe_recovery_state.cpp **** #include "ch585_role_bootstrap.hpp"
+   6:Cpp_Core/Src/states/safe_recovery_state.cpp **** #include "rf_bridge_port.hpp"
+   7:Cpp_Core/Src/states/safe_recovery_state.cpp **** #include "usb_board_link.hpp"
+   8:Cpp_Core/Src/states/safe_recovery_state.cpp **** #include "usbdriver.hpp"
+   9:Cpp_Core/Src/states/safe_recovery_state.cpp **** #include "system_logger.h"
+  10:Cpp_Core/Src/states/safe_recovery_state.cpp **** 
+  11:Cpp_Core/Src/states/safe_recovery_state.cpp **** bool SafeRecoveryState::enter()
+  12:Cpp_Core/Src/states/safe_recovery_state.cpp **** {
+  13:Cpp_Core/Src/states/safe_recovery_state.cpp ****     USB_DRIVER.shutdown();
+  14:Cpp_Core/Src/states/safe_recovery_state.cpp ****     USB_BOARD_LINK.shutdown();
+  15:Cpp_Core/Src/states/safe_recovery_state.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+  16:Cpp_Core/Src/states/safe_recovery_state.cpp ****     RFBridgePort_Shutdown();
+  17:Cpp_Core/Src/states/safe_recovery_state.cpp ****     BOARD_POWER.enterRecoveryUiState();
+  18:Cpp_Core/Src/states/safe_recovery_state.cpp ****     BOARD_POWER.setCh585Enabled(false);
+  19:Cpp_Core/Src/states/safe_recovery_state.cpp ****     APP_STAGE_ERROR("A13R", "entered safe recovery state; CH585 transports disabled");
+  20:Cpp_Core/Src/states/safe_recovery_state.cpp ****     return true;
+  21:Cpp_Core/Src/states/safe_recovery_state.cpp **** }
+  22:Cpp_Core/Src/states/safe_recovery_state.cpp **** 
+  23:Cpp_Core/Src/states/safe_recovery_state.cpp **** void SafeRecoveryState::tick()
+  24:Cpp_Core/Src/states/safe_recovery_state.cpp **** {
+  58              		.loc 1 24 1 is_stmt 1 view -0
+  59              		.cfi_startproc
+  60              		@ args = 0, pretend = 0, frame = 0
+  61              		@ frame_needed = 0, uses_anonymous_args = 0
+  62              		@ link register save eliminated.
+  25:Cpp_Core/Src/states/safe_recovery_state.cpp **** }
+  63              		.loc 1 25 1 is_stmt 0 view .LVU5
+  64 0000 7047     		bx	lr
+  65              		.cfi_endproc
+  66              	.LFE1902:
+  68              		.global	_ZN17SafeRecoveryState4exitEv
+  69              		.thumb_set _ZN17SafeRecoveryState4exitEv,_ZN17SafeRecoveryState4tickEv
+  70              		.section	.text._ZN17SafeRecoveryStateD0Ev,"axG",%progbits,_ZN17SafeRecoveryStateD5Ev,comdat
+  71              		.align	1
+  72              		.weak	_ZN17SafeRecoveryStateD0Ev
+  73              		.syntax unified
+  74              		.thumb
+  75              		.thumb_func
+  77              	_ZN17SafeRecoveryStateD0Ev:
+  78              	.LVL2:
+  79              	.LFB14:
+  80              		.loc 2 6 7 is_stmt 1 view -0
+  81              		.cfi_startproc
+  82              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 3
+
+
+  83              		@ frame_needed = 0, uses_anonymous_args = 0
+  84              		.loc 2 6 7 is_stmt 0 view .LVU7
+  85 0000 10B5     		push	{r4, lr}
+  86              	.LCFI0:
+  87              		.cfi_def_cfa_offset 8
+  88              		.cfi_offset 4, -8
+  89              		.cfi_offset 14, -4
+  90              		.loc 2 6 7 view .LVU8
+  91 0002 0446     		mov	r4, r0
+  92              	.LVL3:
+  93              	.LBB24:
+  94              	.LBI24:
+  95              		.loc 2 6 7 is_stmt 1 view .LVU9
+  96              	.LBB25:
+  97              	.LBI25:
+  98              		.loc 3 6 17 view .LVU10
+  99              		.loc 3 6 17 is_stmt 0 view .LVU11
+ 100              	.LBE25:
+ 101              	.LBE24:
+ 102              		.loc 2 6 7 discriminator 1 view .LVU12
+ 103 0004 0421     		movs	r1, #4
+ 104 0006 FFF7FEFF 		bl	_ZdlPvj
+ 105              	.LVL4:
+ 106              		.loc 2 6 7 view .LVU13
+ 107 000a 2046     		mov	r0, r4
+ 108 000c 10BD     		pop	{r4, pc}
+ 109              		.loc 2 6 7 view .LVU14
+ 110              		.cfi_endproc
+ 111              	.LFE14:
+ 113              		.section	.rodata.AppStartupLog_Printf.constprop.0.str1.1,"aMS",%progbits,1
+ 114              	.LC0:
+ 115 0000 5B455252 		.ascii	"[ERROR]\000"
+ 115      4F525D00 
+ 116              	.LC1:
+ 117 0008 41313352 		.ascii	"A13R\000"
+ 117      00
+ 118              	.LC2:
+ 119 000d 5B415050 		.ascii	"[APP][STARTUP][%s]%s \000"
+ 119      5D5B5354 
+ 119      41525455 
+ 119      505D5B25 
+ 119      735D2573 
+ 120              	.LC3:
+ 121 0023 656E7465 		.ascii	"entered safe recovery state; CH585 transports disab"
+ 121      72656420 
+ 121      73616665 
+ 121      20726563 
+ 121      6F766572 
+ 122 0056 6C656400 		.ascii	"led\000"
+ 123              	.LC4:
+ 124 005a 0D00     		.ascii	"\015\000"
+ 125              		.section	.text.AppStartupLog_Printf.constprop.0,"ax",%progbits
+ 126              		.align	1
+ 127              		.syntax unified
+ 128              		.thumb
+ 129              		.thumb_func
+ 131              	AppStartupLog_Printf.constprop.0:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 4
+
+
+ 132              	.LVL5:
+ 133              	.LFB2018:
+ 134              		.file 4 "Core/Inc/board_cfg.h"
+   1:Core/Inc/board_cfg.h **** /*
+   2:Core/Inc/board_cfg.h ****  * The MIT License (MIT)
+   3:Core/Inc/board_cfg.h ****  *
+   4:Core/Inc/board_cfg.h ****  * Copyright (c) 2021, Ha Thach (tinyusb.org)
+   5:Core/Inc/board_cfg.h ****  *
+   6:Core/Inc/board_cfg.h ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   7:Core/Inc/board_cfg.h ****  * of this software and associated documentation files (the "Software"), to deal
+   8:Core/Inc/board_cfg.h ****  * in the Software without restriction, including without limitation the rights
+   9:Core/Inc/board_cfg.h ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  10:Core/Inc/board_cfg.h ****  * copies of the Software, and to permit persons to whom the Software is
+  11:Core/Inc/board_cfg.h ****  * furnished to do so, subject to the following conditions:
+  12:Core/Inc/board_cfg.h ****  *
+  13:Core/Inc/board_cfg.h ****  * The above copyright notice and this permission notice shall be included in
+  14:Core/Inc/board_cfg.h ****  * all copies or substantial portions of the Software.
+  15:Core/Inc/board_cfg.h ****  *
+  16:Core/Inc/board_cfg.h ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  17:Core/Inc/board_cfg.h ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  18:Core/Inc/board_cfg.h ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  19:Core/Inc/board_cfg.h ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  20:Core/Inc/board_cfg.h ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  21:Core/Inc/board_cfg.h ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  22:Core/Inc/board_cfg.h ****  * THE SOFTWARE.
+  23:Core/Inc/board_cfg.h ****  *
+  24:Core/Inc/board_cfg.h ****  * This file is part of the TinyUSB stack.
+  25:Core/Inc/board_cfg.h ****  */
+  26:Core/Inc/board_cfg.h **** 
+  27:Core/Inc/board_cfg.h **** #ifndef __BOARD_H__
+  28:Core/Inc/board_cfg.h **** #define __BOARD_H__
+  29:Core/Inc/board_cfg.h **** 
+  30:Core/Inc/board_cfg.h **** #include "stm32h750xx.h"
+  31:Core/Inc/board_cfg.h **** #include "stm32h7xx_hal.h"
+  32:Core/Inc/board_cfg.h **** #include <stdarg.h>
+  33:Core/Inc/board_cfg.h **** #include <stdbool.h>
+  34:Core/Inc/board_cfg.h **** #include <stdio.h>
+  35:Core/Inc/board_cfg.h **** 
+  36:Core/Inc/board_cfg.h **** #ifdef __cplusplus
+  37:Core/Inc/board_cfg.h ****  extern "C" {
+  38:Core/Inc/board_cfg.h **** #endif
+  39:Core/Inc/board_cfg.h **** 
+  40:Core/Inc/board_cfg.h **** 
+  41:Core/Inc/board_cfg.h **** #define SYSTEM_CLOCK_FREQ      480000000
+  42:Core/Inc/board_cfg.h **** 
+  43:Core/Inc/board_cfg.h **** #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
+  44:Core/Inc/board_cfg.h **** 
+  45:Core/Inc/board_cfg.h **** // STM32H7系列的唯一ID存储地址（96位，12字节）
+  46:Core/Inc/board_cfg.h **** #define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+  47:Core/Inc/board_cfg.h **** 
+  48:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_Msk
+  49:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+  50:Core/Inc/board_cfg.h **** #endif
+  51:Core/Inc/board_cfg.h **** 
+  52:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_RN
+  53:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+  54:Core/Inc/board_cfg.h **** #endif
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 5
+
+
+  55:Core/Inc/board_cfg.h **** 
+  56:Core/Inc/board_cfg.h **** /* Debug print configuration.
+  57:Core/Inc/board_cfg.h ****  * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+  58:Core/Inc/board_cfg.h ****  * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+  59:Core/Inc/board_cfg.h ****  */
+  60:Core/Inc/board_cfg.h **** #ifndef APPLICATION_SERIAL_PRINT
+  61:Core/Inc/board_cfg.h **** #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+  62:Core/Inc/board_cfg.h **** #endif
+  63:Core/Inc/board_cfg.h **** 
+  64:Core/Inc/board_cfg.h **** #ifndef APPLICATION_DEBUG_PRINT
+  65:Core/Inc/board_cfg.h **** #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+  66:Core/Inc/board_cfg.h **** #endif
+  67:Core/Inc/board_cfg.h **** 
+  68:Core/Inc/board_cfg.h **** #ifndef APP_LOG_VERBOSE
+  69:Core/Inc/board_cfg.h **** #define APP_LOG_VERBOSE 0
+  70:Core/Inc/board_cfg.h **** #endif
+  71:Core/Inc/board_cfg.h **** 
+  72:Core/Inc/board_cfg.h **** /* Concise production startup milestones, independent from verbose APP_DBG. */
+  73:Core/Inc/board_cfg.h **** #ifndef APPLICATION_STARTUP_LOG
+  74:Core/Inc/board_cfg.h **** #define APPLICATION_STARTUP_LOG 1
+  75:Core/Inc/board_cfg.h **** #endif
+  76:Core/Inc/board_cfg.h **** 
+  77:Core/Inc/board_cfg.h **** #if APPLICATION_STARTUP_LOG
+  78:Core/Inc/board_cfg.h **** static inline void AppStartupLog_Printf(const char *stage,
+ 135              		.loc 4 78 20 is_stmt 1 view -0
+ 136              		.cfi_startproc
+ 137              		@ args = 4, pretend = 8, frame = 8
+ 138              		@ frame_needed = 0, uses_anonymous_args = 1
+  79:Core/Inc/board_cfg.h ****                                         const char *level,
+  80:Core/Inc/board_cfg.h ****                                         const char *fmt, ...)
+  81:Core/Inc/board_cfg.h **** {
+  82:Core/Inc/board_cfg.h ****     va_list args;
+ 139              		.loc 4 82 5 view .LVU16
+  83:Core/Inc/board_cfg.h ****     printf("[APP][STARTUP][%s]%s ", stage, level);
+ 140              		.loc 4 83 5 view .LVU17
+  78:Core/Inc/board_cfg.h ****                                         const char *level,
+ 141              		.loc 4 78 20 is_stmt 0 view .LVU18
+ 142 0000 0CB4     		push	{r2, r3}
+ 143              	.LCFI1:
+ 144              		.cfi_def_cfa_offset 8
+ 145              		.cfi_offset 2, -8
+ 146              		.cfi_offset 3, -4
+ 147 0002 07B5     		push	{r0, r1, r2, lr}
+ 148              	.LCFI2:
+ 149              		.cfi_def_cfa_offset 24
+ 150              		.cfi_offset 14, -12
+ 151              		.loc 4 83 11 view .LVU19
+ 152 0004 084A     		ldr	r2, .L5
+ 153 0006 0949     		ldr	r1, .L5+4
+ 154              	.LVL6:
+ 155              		.loc 4 83 11 view .LVU20
+ 156 0008 0948     		ldr	r0, .L5+8
+ 157              	.LVL7:
+ 158              		.loc 4 83 11 view .LVU21
+ 159 000a FFF7FEFF 		bl	printf
+ 160              	.LVL8:
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 6
+
+
+ 161              		.loc 4 84 5 is_stmt 1 view .LVU22
+ 162 000e 05A9     		add	r1, sp, #20
+  85:Core/Inc/board_cfg.h ****     vprintf(fmt, args);
+ 163              		.loc 4 85 12 is_stmt 0 view .LVU23
+ 164 0010 0848     		ldr	r0, .L5+12
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+ 165              		.loc 4 84 5 view .LVU24
+ 166 0012 0191     		str	r1, [sp, #4]
+ 167              		.loc 4 85 5 is_stmt 1 view .LVU25
+ 168              		.loc 4 85 12 is_stmt 0 view .LVU26
+ 169 0014 FFF7FEFF 		bl	vprintf
+ 170              	.LVL9:
+  86:Core/Inc/board_cfg.h ****     va_end(args);
+ 171              		.loc 4 86 5 is_stmt 1 view .LVU27
+  87:Core/Inc/board_cfg.h ****     printf("\r\n");
+ 172              		.loc 4 87 5 view .LVU28
+ 173              		.loc 4 87 11 is_stmt 0 view .LVU29
+ 174 0018 0748     		ldr	r0, .L5+16
+ 175 001a FFF7FEFF 		bl	puts
+ 176              	.LVL10:
+  88:Core/Inc/board_cfg.h **** }
+ 177              		.loc 4 88 1 view .LVU30
+ 178 001e 03B0     		add	sp, sp, #12
+ 179              	.LCFI3:
+ 180              		.cfi_def_cfa_offset 12
+ 181              		@ sp needed
+ 182 0020 5DF804EB 		ldr	lr, [sp], #4
+ 183              	.LCFI4:
+ 184              		.cfi_restore 14
+ 185              		.cfi_def_cfa_offset 8
+ 186 0024 02B0     		add	sp, sp, #8
+ 187              	.LCFI5:
+ 188              		.cfi_restore 3
+ 189              		.cfi_restore 2
+ 190              		.cfi_def_cfa_offset 0
+ 191 0026 7047     		bx	lr
+ 192              	.L6:
+ 193              		.align	2
+ 194              	.L5:
+ 195 0028 00000000 		.word	.LC0
+ 196 002c 08000000 		.word	.LC1
+ 197 0030 0D000000 		.word	.LC2
+ 198 0034 23000000 		.word	.LC3
+ 199 0038 5A000000 		.word	.LC4
+ 200              		.cfi_endproc
+ 201              	.LFE2018:
+ 203              		.section	.text._ZN17SafeRecoveryState5enterEv,"ax",%progbits
+ 204              		.align	1
+ 205              		.global	_ZN17SafeRecoveryState5enterEv
+ 206              		.syntax unified
+ 207              		.thumb
+ 208              		.thumb_func
+ 210              	_ZN17SafeRecoveryState5enterEv:
+ 211              	.LVL11:
+ 212              	.LFB1901:
+  12:Cpp_Core/Src/states/safe_recovery_state.cpp ****     USB_DRIVER.shutdown();
+ 213              		.loc 1 12 1 is_stmt 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 7
+
+
+ 214              		.cfi_startproc
+ 215              		@ args = 0, pretend = 0, frame = 0
+ 216              		@ frame_needed = 0, uses_anonymous_args = 0
+  13:Cpp_Core/Src/states/safe_recovery_state.cpp ****     USB_BOARD_LINK.shutdown();
+ 217              		.loc 1 13 5 view .LVU32
+ 218              	.LBB26:
+ 219              	.LBI26:
+ 220              		.file 5 "Cpp_Core/Inc/usbdriver.hpp"
+   1:Cpp_Core/Inc/usbdriver.hpp **** #ifndef USB_DRIVER_HPP
+   2:Cpp_Core/Inc/usbdriver.hpp **** #define USB_DRIVER_HPP
+   3:Cpp_Core/Inc/usbdriver.hpp **** 
+   4:Cpp_Core/Inc/usbdriver.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/usbdriver.hpp **** 
+   6:Cpp_Core/Inc/usbdriver.hpp **** #include "enums.hpp"
+   7:Cpp_Core/Inc/usbdriver.hpp **** #include "gamepad/GamepadState.hpp"
+   8:Cpp_Core/Inc/usbdriver.hpp **** #include "usb_board_link_protocol.h"
+   9:Cpp_Core/Inc/usbdriver.hpp **** #include "usb_report_rate_policy.hpp"
+  10:Cpp_Core/Inc/usbdriver.hpp **** 
+  11:Cpp_Core/Inc/usbdriver.hpp **** bool get_usb_mounted(void);
+  12:Cpp_Core/Inc/usbdriver.hpp **** bool get_usb_suspended(void);
+  13:Cpp_Core/Inc/usbdriver.hpp **** 
+  14:Cpp_Core/Inc/usbdriver.hpp **** class USBDriver
+  15:Cpp_Core/Inc/usbdriver.hpp **** {
+  16:Cpp_Core/Inc/usbdriver.hpp **** public:
+  17:Cpp_Core/Inc/usbdriver.hpp ****     USBDriver(const USBDriver &) = delete;
+  18:Cpp_Core/Inc/usbdriver.hpp ****     USBDriver &operator=(const USBDriver &) = delete;
+  19:Cpp_Core/Inc/usbdriver.hpp **** 
+  20:Cpp_Core/Inc/usbdriver.hpp ****     static USBDriver &getInstance()
+ 221              		.loc 5 20 23 view .LVU33
+  21:Cpp_Core/Inc/usbdriver.hpp ****     {
+  22:Cpp_Core/Inc/usbdriver.hpp ****         static USBDriver instance;
+ 222              		.loc 5 22 9 view .LVU34
+  23:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+ 223              		.loc 5 23 9 view .LVU35
+ 224              	.LBE26:
+  12:Cpp_Core/Src/states/safe_recovery_state.cpp ****     USB_DRIVER.shutdown();
+ 225              		.loc 1 12 1 is_stmt 0 view .LVU36
+ 226 0000 10B5     		push	{r4, lr}
+ 227              	.LCFI6:
+ 228              		.cfi_def_cfa_offset 8
+ 229              		.cfi_offset 4, -8
+ 230              		.cfi_offset 14, -4
+  13:Cpp_Core/Src/states/safe_recovery_state.cpp ****     USB_BOARD_LINK.shutdown();
+ 231              		.loc 1 13 24 discriminator 1 view .LVU37
+ 232 0002 0D48     		ldr	r0, .L8
+ 233              	.LVL12:
+  13:Cpp_Core/Src/states/safe_recovery_state.cpp ****     USB_BOARD_LINK.shutdown();
+ 234              		.loc 1 13 24 discriminator 1 view .LVU38
+ 235 0004 FFF7FEFF 		bl	_ZN9USBDriver8shutdownEv
+ 236              	.LVL13:
+  14:Cpp_Core/Src/states/safe_recovery_state.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 237              		.loc 1 14 5 is_stmt 1 view .LVU39
+ 238              	.LBB27:
+ 239              	.LBI27:
+ 240              		.file 6 "Cpp_Core/Inc/usb_board_link.hpp"
+   1:Cpp_Core/Inc/usb_board_link.hpp **** #ifndef USB_BOARD_LINK_HPP
+   2:Cpp_Core/Inc/usb_board_link.hpp **** #define USB_BOARD_LINK_HPP
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 8
+
+
+   3:Cpp_Core/Inc/usb_board_link.hpp **** 
+   4:Cpp_Core/Inc/usb_board_link.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/usb_board_link.hpp **** 
+   6:Cpp_Core/Inc/usb_board_link.hpp **** #include "ch585_role_bootstrap.hpp"
+   7:Cpp_Core/Inc/usb_board_link.hpp **** #include "usb_board_link_protocol.h"
+   8:Cpp_Core/Inc/usb_board_link.hpp **** 
+   9:Cpp_Core/Inc/usb_board_link.hpp **** class UsbBoardLink
+  10:Cpp_Core/Inc/usb_board_link.hpp **** {
+  11:Cpp_Core/Inc/usb_board_link.hpp **** public:
+  12:Cpp_Core/Inc/usb_board_link.hpp ****     UsbBoardLink(UsbBoardLink const &) = delete;
+  13:Cpp_Core/Inc/usb_board_link.hpp ****     void operator=(UsbBoardLink const &) = delete;
+  14:Cpp_Core/Inc/usb_board_link.hpp **** 
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     static UsbBoardLink &getInstance()
+ 241              		.loc 6 15 26 view .LVU40
+  16:Cpp_Core/Inc/usb_board_link.hpp ****     {
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         static UsbBoardLink instance;
+ 242              		.loc 6 17 9 view .LVU41
+  18:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 243              		.loc 6 18 9 view .LVU42
+ 244              	.LBE27:
+  17:Cpp_Core/Src/states/safe_recovery_state.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 245              		.loc 1 17 37 is_stmt 0 discriminator 1 view .LVU43
+ 246 0008 0C4C     		ldr	r4, .L8+4
+  14:Cpp_Core/Src/states/safe_recovery_state.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 247              		.loc 1 14 28 discriminator 1 view .LVU44
+ 248 000a 0D48     		ldr	r0, .L8+8
+ 249 000c FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 250              	.LVL14:
+  15:Cpp_Core/Src/states/safe_recovery_state.cpp ****     RFBridgePort_Shutdown();
+ 251              		.loc 1 15 5 is_stmt 1 view .LVU45
+ 252              	.LBB28:
+ 253              	.LBI28:
+ 254              		.file 7 "Cpp_Core/Inc/ch585_role_bootstrap.hpp"
+   1:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #ifndef CH585_ROLE_BOOTSTRAP_HPP
+   2:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #define CH585_ROLE_BOOTSTRAP_HPP
+   3:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+   4:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+   6:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** enum class Ch585Role : uint8_t {
+   7:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     SafeIdle = 0x00,
+   8:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Rf = 0x01,
+   9:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Usb = 0x02,
+  10:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Maintenance = 0x03,
+  11:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** };
+  12:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  13:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** enum class Ch585BootstrapState : uint8_t {
+  14:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Off = 0,
+  15:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Booting = 1,
+  16:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Selecting = 2,
+  17:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Locked = 3,
+  18:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Failed = 4,
+  19:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** };
+  20:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  21:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** /* One invocation performs one UsbBoardLink SELECT_ROLE transaction. */
+  22:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** using Ch585RoleSelector = bool (*)(Ch585Role requestedRole);
+  23:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  24:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** class Ch585RoleBootstrap {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 9
+
+
+  25:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** public:
+  26:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap(const Ch585RoleBootstrap&) = delete;
+  27:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap& operator=(const Ch585RoleBootstrap&) = delete;
+  28:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     static Ch585RoleBootstrap& getInstance()
+ 255              		.loc 7 29 32 view .LVU46
+  30:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         static Ch585RoleBootstrap instance;
+ 256              		.loc 7 31 9 view .LVU47
+  32:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 257              		.loc 7 32 9 view .LVU48
+ 258              	.LBE28:
+  15:Cpp_Core/Src/states/safe_recovery_state.cpp ****     RFBridgePort_Shutdown();
+ 259              		.loc 1 15 34 is_stmt 0 discriminator 1 view .LVU49
+ 260 0010 0C48     		ldr	r0, .L8+12
+ 261 0012 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 262              	.LVL15:
+  16:Cpp_Core/Src/states/safe_recovery_state.cpp ****     BOARD_POWER.enterRecoveryUiState();
+ 263              		.loc 1 16 5 is_stmt 1 view .LVU50
+  16:Cpp_Core/Src/states/safe_recovery_state.cpp ****     BOARD_POWER.enterRecoveryUiState();
+ 264              		.loc 1 16 26 is_stmt 0 view .LVU51
+ 265 0016 FFF7FEFF 		bl	_Z21RFBridgePort_Shutdownv
+ 266              	.LVL16:
+  17:Cpp_Core/Src/states/safe_recovery_state.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 267              		.loc 1 17 5 is_stmt 1 view .LVU52
+ 268              	.LBB29:
+ 269              	.LBI29:
+ 270              		.file 8 "Cpp_Core/Inc/board_power.hpp"
+   1:Cpp_Core/Inc/board_power.hpp **** #ifndef BOARD_POWER_HPP
+   2:Cpp_Core/Inc/board_power.hpp **** #define BOARD_POWER_HPP
+   3:Cpp_Core/Inc/board_power.hpp **** 
+   4:Cpp_Core/Inc/board_power.hpp **** #include <stdbool.h>
+   5:Cpp_Core/Inc/board_power.hpp **** #include <stdint.h>
+   6:Cpp_Core/Inc/board_power.hpp **** 
+   7:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+   8:Cpp_Core/Inc/board_power.hpp **** extern "C" {
+   9:Cpp_Core/Inc/board_power.hpp **** #endif
+  10:Cpp_Core/Inc/board_power.hpp **** 
+  11:Cpp_Core/Inc/board_power.hpp **** /*
+  12:Cpp_Core/Inc/board_power.hpp ****  * Re-asserts PI4 without changing any other rail.  The bootloader leaves PI4
+  13:Cpp_Core/Inc/board_power.hpp ****  * high before jumping to the XIP application; this hook preserves that state
+  14:Cpp_Core/Inc/board_power.hpp ****  * as the application runtime is brought up.
+  15:Cpp_Core/Inc/board_power.hpp ****  */
+  16:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EarlyMainHold(void);
+  17:Cpp_Core/Inc/board_power.hpp **** 
+  18:Cpp_Core/Inc/board_power.hpp **** /* Configures all board power-control pins to their fail-safe defaults. */
+  19:Cpp_Core/Inc/board_power.hpp **** void BoardPower_Initialize(void);
+  20:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetChargeEnabled(bool enabled);
+  21:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetHallEnabled(bool enabled);
+  22:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EnableHallForAdc(void);
+  23:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetKeyLedEnabled(bool enabled);
+  24:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetAmbientLedEnabled(bool enabled);
+  25:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetLcdEnabled(bool enabled);
+  26:Cpp_Core/Inc/board_power.hpp **** 
+  27:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+  28:Cpp_Core/Inc/board_power.hpp **** }
+  29:Cpp_Core/Inc/board_power.hpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 10
+
+
+  30:Cpp_Core/Inc/board_power.hpp **** class BoardPower {
+  31:Cpp_Core/Inc/board_power.hpp **** public:
+  32:Cpp_Core/Inc/board_power.hpp ****     BoardPower(const BoardPower&) = delete;
+  33:Cpp_Core/Inc/board_power.hpp ****     BoardPower& operator=(const BoardPower&) = delete;
+  34:Cpp_Core/Inc/board_power.hpp **** 
+  35:Cpp_Core/Inc/board_power.hpp ****     static BoardPower& getInstance()
+ 271              		.loc 8 35 24 view .LVU53
+  36:Cpp_Core/Inc/board_power.hpp ****     {
+  37:Cpp_Core/Inc/board_power.hpp ****         static BoardPower instance;
+ 272              		.loc 8 37 9 view .LVU54
+  38:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 273              		.loc 8 38 9 view .LVU55
+ 274              	.LBE29:
+  17:Cpp_Core/Src/states/safe_recovery_state.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 275              		.loc 1 17 37 is_stmt 0 discriminator 1 view .LVU56
+ 276 001a 2046     		mov	r0, r4
+ 277 001c FFF7FEFF 		bl	_ZN10BoardPower20enterRecoveryUiStateEv
+ 278              	.LVL17:
+  18:Cpp_Core/Src/states/safe_recovery_state.cpp ****     APP_STAGE_ERROR("A13R", "entered safe recovery state; CH585 transports disabled");
+ 279              		.loc 1 18 5 is_stmt 1 view .LVU57
+ 280              	.LBB30:
+ 281              	.LBI30:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 282              		.loc 8 35 24 view .LVU58
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 283              		.loc 8 37 9 view .LVU59
+ 284              		.loc 8 38 9 view .LVU60
+ 285              	.LBE30:
+  18:Cpp_Core/Src/states/safe_recovery_state.cpp ****     APP_STAGE_ERROR("A13R", "entered safe recovery state; CH585 transports disabled");
+ 286              		.loc 1 18 32 is_stmt 0 discriminator 1 view .LVU61
+ 287 0020 2046     		mov	r0, r4
+ 288 0022 0021     		movs	r1, #0
+ 289 0024 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 290              	.LVL18:
+  19:Cpp_Core/Src/states/safe_recovery_state.cpp ****     return true;
+ 291              		.loc 1 19 5 is_stmt 1 view .LVU62
+ 292 0028 074A     		ldr	r2, .L8+16
+ 293 002a 0849     		ldr	r1, .L8+20
+ 294 002c 0848     		ldr	r0, .L8+24
+ 295 002e FFF7FEFF 		bl	AppStartupLog_Printf.constprop.0
+ 296              	.LVL19:
+  20:Cpp_Core/Src/states/safe_recovery_state.cpp **** }
+ 297              		.loc 1 20 5 view .LVU63
+  21:Cpp_Core/Src/states/safe_recovery_state.cpp **** 
+ 298              		.loc 1 21 1 is_stmt 0 view .LVU64
+ 299 0032 0120     		movs	r0, #1
+ 300 0034 10BD     		pop	{r4, pc}
+ 301              	.L9:
+ 302 0036 00BF     		.align	2
+ 303              	.L8:
+ 304 0038 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 305 003c 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 306 0040 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 307 0044 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 308 0048 23000000 		.word	.LC3
+ 309 004c 00000000 		.word	.LC0
+ 310 0050 08000000 		.word	.LC1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 11
+
+
+ 311              		.cfi_endproc
+ 312              	.LFE1901:
+ 314              		.global	_ZTV17SafeRecoveryState
+ 315              		.section	.rodata._ZTV17SafeRecoveryState,"a"
+ 316              		.align	2
+ 319              	_ZTV17SafeRecoveryState:
+ 320 0000 00000000 		.word	0
+ 321 0004 00000000 		.word	0
+ 322 0008 00000000 		.word	_ZN17SafeRecoveryStateD1Ev
+ 323 000c 00000000 		.word	_ZN17SafeRecoveryStateD0Ev
+ 324 0010 00000000 		.word	_ZN17SafeRecoveryState5enterEv
+ 325 0014 00000000 		.word	_ZN17SafeRecoveryState4tickEv
+ 326 0018 00000000 		.word	_ZN17SafeRecoveryState4exitEv
+ 327              		.weak	_ZZN9USBDriver11getInstanceEvE8instance
+ 328              		.section	.data._ZZN9USBDriver11getInstanceEvE8instance,"awG",%progbits,_ZZN9USBDriver11getInstance
+ 329              		.align	2
+ 332              	_ZZN9USBDriver11getInstanceEvE8instance:
+ 333 0000 00       		.byte	0
+ 334 0001 00       		.byte	0
+ 335 0002 0000     		.space	2
+ 336 0004 00000000 		.word	0
+ 337 0008 00       		.byte	0
+ 338 0009 00       		.byte	0
+ 339 000a 00       		.byte	0
+ 340 000b 00       		.byte	0
+ 341 000c E803     		.short	1000
+ 342 000e 01       		.byte	1
+ 343 000f 00       		.byte	0
+ 344 0010 00       		.byte	0
+ 345 0011 000000   		.space	3
+ 346              		.weak	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 347              		.section	.bss._ZZN12UsbBoardLink11getInstanceEvE8instance,"awG",%nobits,_ZZN12UsbBoardLink11getIns
+ 348              		.align	2
+ 351              	_ZZN12UsbBoardLink11getInstanceEvE8instance:
+ 352 0000 00000000 		.space	148
+ 352      00000000 
+ 352      00000000 
+ 352      00000000 
+ 352      00000000 
+ 353              		.weak	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 354              		.section	.bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance,"awG",%nobits,_ZZN18Ch585RoleBoots
+ 355              		.align	2
+ 358              	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:
+ 359 0000 00000000 		.space	8
+ 359      00000000 
+ 360              		.weak	_ZZN10BoardPower11getInstanceEvE8instance
+ 361              		.section	.data._ZZN10BoardPower11getInstanceEvE8instance,"awG",%progbits,_ZZN10BoardPower11getInst
+ 364              	_ZZN10BoardPower11getInstanceEvE8instance:
+ 365 0000 00       		.byte	0
+ 366 0001 00       		.byte	0
+ 367 0002 00       		.byte	0
+ 368 0003 00       		.byte	0
+ 369 0004 00       		.byte	0
+ 370 0005 00       		.byte	0
+ 371 0006 00       		.byte	0
+ 372 0007 00       		.byte	0
+ 373 0008 00       		.byte	0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 12
+
+
+ 374 0009 01       		.byte	1
+ 375 000a 00       		.byte	0
+ 376              		.text
+ 377              	.Letext0:
+ 378              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 379              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 380              		.file 11 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 381              		.file 12 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 382              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 383              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 384              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 385              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 386              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 387              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 388              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 389              		.file 20 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 390              		.file 21 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 391              		.file 22 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 392              		.file 23 "Cpp_Core/Inc/enums.hpp"
+ 393              		.file 24 "../common/usb_board_link_protocol.h"
+ 394              		.file 25 "Cpp_Core/Inc/gamepad/GamepadState.hpp"
+ 395              		.file 26 "Cpp_Core/Inc/usb_report_rate_policy.hpp"
+ 396              		.file 27 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/new"
+ 397              		.file 28 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 398              		.file 29 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 399              		.file 30 "<built-in>"
+ 400              		.file 31 "Cpp_Core/Inc/rf_bridge_port.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s 			page 13
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 safe_recovery_state.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:20     .text._ZN17SafeRecoveryStateD2Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:26     .text._ZN17SafeRecoveryStateD2Ev:00000000 _ZN17SafeRecoveryStateD2Ev
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:26     .text._ZN17SafeRecoveryStateD2Ev:00000000 _ZN17SafeRecoveryStateD1Ev
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:49     .text._ZN17SafeRecoveryState4tickEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:55     .text._ZN17SafeRecoveryState4tickEv:00000000 _ZN17SafeRecoveryState4tickEv
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:55     .text._ZN17SafeRecoveryState4tickEv:00000000 _ZN17SafeRecoveryState4exitEv
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:71     .text._ZN17SafeRecoveryStateD0Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:77     .text._ZN17SafeRecoveryStateD0Ev:00000000 _ZN17SafeRecoveryStateD0Ev
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:126    .text.AppStartupLog_Printf.constprop.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:131    .text.AppStartupLog_Printf.constprop.0:00000000 AppStartupLog_Printf.constprop.0
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:195    .text.AppStartupLog_Printf.constprop.0:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:204    .text._ZN17SafeRecoveryState5enterEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:210    .text._ZN17SafeRecoveryState5enterEv:00000000 _ZN17SafeRecoveryState5enterEv
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:304    .text._ZN17SafeRecoveryState5enterEv:00000038 $d
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:332    .data._ZZN9USBDriver11getInstanceEvE8instance:00000000 _ZZN9USBDriver11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:364    .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 _ZZN10BoardPower11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:351    .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 _ZZN12UsbBoardLink11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:358    .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 _ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:319    .rodata._ZTV17SafeRecoveryState:00000000 _ZTV17SafeRecoveryState
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:316    .rodata._ZTV17SafeRecoveryState:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:329    .data._ZZN9USBDriver11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:348    .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc8Pa78l.s:355    .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 $d
+                           .group:00000000 _ZN17SafeRecoveryStateD5Ev
+
+UNDEFINED SYMBOLS
+_ZdlPvj
+printf
+vprintf
+puts
+_ZN9USBDriver8shutdownEv
+_ZN12UsbBoardLink8shutdownEv
+_ZN18Ch585RoleBootstrap8shutdownEv
+_Z21RFBridgePort_Shutdownv
+_ZN10BoardPower20enterRecoveryUiStateEv
+_ZN10BoardPower15setCh585EnabledEb

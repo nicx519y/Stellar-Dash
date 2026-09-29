@@ -16,7 +16,18 @@ extern "C" {
 #define METADATA_VERSION_MINOR          0
 #define DEVICE_MODEL_STRING             "STM32H750_HBOX"
 #define BOOTLOADER_VERSION              0x00010000  // 1.0.0
-#define HARDWARE_VERSION                0x00010000  // 1.0.0
+#define HARDWARE_VERSION_STRING         "2.0.0"
+#define HARDWARE_VERSION_CODE_V2        0x00020000
+#define HARDWARE_VERSION                HARDWARE_VERSION_CODE_V2
+#define FIRMWARE_SECURITY_VERSION        1u
+
+#define FIRMWARE_SIGNATURE_NONE                 0u
+#define FIRMWARE_SIGNATURE_ECDSA_P256_SHA256    1u
+
+static inline bool firmware_hardware_version_is_current(uint32_t version_code)
+{
+    return version_code == HARDWARE_VERSION;
+}
 
 // 组件相关常量
 #define FIRMWARE_COMPONENT_COUNT        3
@@ -100,8 +111,10 @@ typedef struct {
     uint8_t signature[64];              // 数字签名（预留，可选）
     uint32_t signature_algorithm;       // 签名算法标识
     
-    // === 预留区域 === (64字节)
-    uint8_t reserved[64];               // 预留空间，用于未来扩展
+    // === 安全策略/预留区域 === (64字节)
+    uint32_t security_version;          // 防降级安全版本（单调递增）
+    uint8_t webresources_optional;      // V2 B/S架构允许WebResources为0长度
+    uint8_t reserved[59];               // 必须为0并纳入签名
 } __attribute__((packed)) FirmwareMetadata;
 
 /* ================================ 静态断言检查 ================================ */
@@ -124,6 +137,7 @@ _Static_assert(sizeof(FirmwareMetadata) == METADATA_STRUCT_SIZE,
 
 // 外部Flash基地址
 #define EXTERNAL_FLASH_BASE         0x90000000
+#define EXTERNAL_FLASH_SIZE         0x00800000
 #define SLOT_SIZE                   0x2B0000    // 2.625MB per slot
 
 // 槽A地址配置
@@ -163,8 +177,17 @@ _Static_assert(sizeof(FirmwareMetadata) == METADATA_STRUCT_SIZE,
 #define SYS_IMAGE_RESOURCES_ADDR    0x905B0000  // 256KB
 #define SYS_IMAGE_RESOURCES_SIZE    0x40000
 
-#define USER_IMAGE_RESOURCES_ADDR   0x905F0000  // 2.0625MB
-#define USER_IMAGE_RESOURCES_SIZE   0x210000
+#define USER_IMAGE_RESOURCES_ADDR   0x905F0000  // 1.5625MB
+#define USER_IMAGE_RESOURCES_SIZE   0x190000
+
+/* Dedicated 512KB staging area for the combined CH585 IAP+application BIN.
+ * The status journal owns a complete 64 KiB erase sector.  Payload must be
+ * written and verified before a READY record is committed to the journal. */
+#define CH585_FIRMWARE_STAGING_ADDR       0x90780000
+#define CH585_FIRMWARE_STAGING_SIZE       0x80000
+#define CH585_FIRMWARE_STAGING_HEADER_SIZE 0x10000
+#define CH585_FIRMWARE_STAGING_DATA_ADDR  (CH585_FIRMWARE_STAGING_ADDR + CH585_FIRMWARE_STAGING_HEADER_SIZE)
+#define CH585_FIRMWARE_STAGING_DATA_SIZE  (CH585_FIRMWARE_STAGING_SIZE - CH585_FIRMWARE_STAGING_HEADER_SIZE)
 
 #ifdef __cplusplus
 }

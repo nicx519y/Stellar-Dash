@@ -64,14 +64,27 @@ MEMORY
 DTCMRAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
 RAM (xrw)      : ORIGIN = 0x24000000, LENGTH = 512K
 RAM_D2 (xrw)      : ORIGIN = 0x30000000, LENGTH = 288K
-RAM_D3 (xrw)      : ORIGIN = 0x38000000, LENGTH = 64K
+RAM_D3 (xrw)      : ORIGIN = 0x38000000, LENGTH = 62K
 ITCMRAM (xrw)      : ORIGIN = 0x00000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 128K
+FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 112K
+IDENTITY (r)    : ORIGIN = 0x0801C000, LENGTH = 4K
+SECURITY_VERSION (r) : ORIGIN = 0x0801D000, LENGTH = 12K
+BOOT_PROFILE (rw) : ORIGIN = 0x3800F800, LENGTH = 1K
 }
 
 /* Define output sections */
 SECTIONS
 {
+  .boot_profile (NOLOAD) :
+  {
+    KEEP(*(.boot_profile))
+  } >BOOT_PROFILE
+  ASSERT(SIZEOF(.boot_profile) == 0 || SIZEOF(.boot_profile) == 1024,
+         "invalid boot profile size")
+  ASSERT(ORIGIN(RAM_D3) + LENGTH(RAM_D3) <= ORIGIN(BOOT_PROFILE),
+         "RAM_D3 overlaps boot profile")
+  ASSERT(ORIGIN(BOOT_PROFILE) + LENGTH(BOOT_PROFILE) == 0x3800FC00,
+         "boot profile overlaps authentication mailbox")
   /* The startup code goes first into FLASH */
   .isr_vector :
   {
@@ -188,6 +201,28 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+
+  /*
+   * Reserved append-only state in the tail of the single 128KiB internal
+   * Flash sector. No loadable section may be placed here. Field firmware must
+   * never erase the sector.
+   */
+  __hbox_identity_region_start__ = ORIGIN(IDENTITY);
+  __hbox_identity_region_end__ =
+      ORIGIN(IDENTITY) + LENGTH(IDENTITY);
+  __hbox_security_version_region_start__ =
+      ORIGIN(SECURITY_VERSION);
+  __hbox_security_version_region_end__ =
+      ORIGIN(SECURITY_VERSION) + LENGTH(SECURITY_VERSION);
+
+  ASSERT(ORIGIN(FLASH) + LENGTH(FLASH) == ORIGIN(IDENTITY),
+         "bootloader/identity layout gap or overlap")
+  ASSERT(ORIGIN(IDENTITY) + LENGTH(IDENTITY) ==
+             ORIGIN(SECURITY_VERSION),
+         "identity/security-version overlap")
+  ASSERT(ORIGIN(SECURITY_VERSION) + LENGTH(SECURITY_VERSION) ==
+             0x08020000,
+         "internal-Flash security layout exceeds H750xB sector")
 }
 
 

@@ -1,0 +1,1182 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_ch585_flash.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp"
+  19              		.section	.text._Z32ScreenDetailCh585Flash_InitIndexv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_Z32ScreenDetailCh585Flash_InitIndexv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_Z32ScreenDetailCh585Flash_InitIndexv:
+  27              	.LFB1290:
+   1:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** 
+   3:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** #include "ch585_update_mode.hpp"
+   4:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** #include "ch585_iap_client.hpp"
+   5:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** #include "ch585_firmware_update.hpp"
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** #include "stm32h7xx.h"
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** #include "main_runtime_control.hpp"
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** 
+  10:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** uint8_t ScreenDetailCh585Flash_InitIndex(void)
+  11:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** {
+  28              		.loc 1 11 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     return 0u;
+  33              		.loc 1 12 5 view .LVU1
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+  34              		.loc 1 13 1 is_stmt 0 view .LVU2
+  35 0000 0020     		movs	r0, #0
+  36 0002 7047     		bx	lr
+  37              		.cfi_endproc
+  38              	.LFE1290:
+  40              		.section	.text._Z29ScreenDetailCh585Flash_RotatePha,"ax",%progbits
+  41              		.align	1
+  42              		.global	_Z29ScreenDetailCh585Flash_RotatePha
+  43              		.syntax unified
+  44              		.thumb
+  45              		.thumb_func
+  47              	_Z29ScreenDetailCh585Flash_RotatePha:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 2
+
+
+  48              	.LVL0:
+  49              	.LFB1291:
+  14:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** 
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** void ScreenDetailCh585Flash_Rotate(uint8_t* ioIndex, int8_t det)
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** {
+  50              		.loc 1 16 1 is_stmt 1 view -0
+  51              		.cfi_startproc
+  52              		@ args = 0, pretend = 0, frame = 0
+  53              		@ frame_needed = 0, uses_anonymous_args = 0
+  54              		@ link register save eliminated.
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     (void)ioIndex;
+  55              		.loc 1 17 5 view .LVU4
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     (void)det;
+  56              		.loc 1 18 5 view .LVU5
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+  57              		.loc 1 19 1 is_stmt 0 view .LVU6
+  58 0000 7047     		bx	lr
+  59              		.cfi_endproc
+  60              	.LFE1291:
+  62              		.section	.rodata._Z29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.1,"aMS",
+  63              	.LC0:
+  64 0000 43483538 		.ascii	"CH585 Flash\000"
+  64      3520466C 
+  64      61736800 
+  65              		.section	.text._Z29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+  66              		.align	1
+  67              		.global	_Z29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyle
+  68              		.syntax unified
+  69              		.thumb
+  70              		.thumb_func
+  72              	_Z29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+  73              	.LVL1:
+  74              	.LFB1292:
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** 
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** void ScreenDetailCh585Flash_Render(ST7789_Handle* lcd,
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****                                    uint8_t index,
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****                                    const ScreenUiStyle& style)
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** {
+  75              		.loc 1 24 1 is_stmt 1 view -0
+  76              		.cfi_startproc
+  77              		@ args = 0, pretend = 0, frame = 0
+  78              		@ frame_needed = 0, uses_anonymous_args = 0
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     (void)index;
+  79              		.loc 1 25 5 view .LVU8
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     static const char* const enterLines[] = {
+  80              		.loc 1 26 5 view .LVU9
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Temporary CH585 ISP entry.",
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Press Enter to hold CH585 off.",
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Then use BOOT and Power for ISP.",
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Use WCHISPStudio; no flash locks."
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     };
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     static const char* const readyLines[] = {
+  81              		.loc 1 32 5 view .LVU10
+  33:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "CH585 power is OFF.",
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Hold the physical BOOT button.",
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Press Power while holding BOOT.",
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Keep holding until WCH finds it."
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 3
+
+
+  37:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     };
+  38:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     static const char* const poweredLines[] = {
+  82              		.loc 1 38 5 view .LVU11
+  39:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "CH585 is powered in manual ISP.",
+  40:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Flash the combined image in WCH.",
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Release BOOT after flash succeeds.",
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Press Verify for IAP + App CAPS."
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     };
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     static const char* const probeFailedLines[] = {
+  83              		.loc 1 44 5 view .LVU12
+  45:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "IAP was not detected over SPI.",
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Manual ISP mode is still active.",
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Press Back to power off and retry.",
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "No protection or lock was changed."
+  49:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     };
+  50:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     static const char* const updatePendingLines[] = {
+  84              		.loc 1 50 5 view .LVU13
+  51:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "CH585 firmware is staged.",
+  52:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "The local SPI update is starting.",
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Do not disconnect device power.",
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "The IAP loader remains recoverable."
+  55:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     };
+  56:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     static const char* const updateFailedLines[] = {
+  85              		.loc 1 56 5 view .LVU14
+  57:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "CH585 SPI firmware update failed.",
+  58:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "The staged firmware is preserved.",
+  59:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "Press Retry to run the update again.",
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         "No protection or lock was changed."
+  61:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     };
+  62:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     const bool active = CH585_UPDATE_MODE.isManualIspActive();
+  86              		.loc 1 62 5 view .LVU15
+  87              	.LBB48:
+  88              	.LBI48:
+  89              		.file 2 "Cpp_Core/Inc/ch585_update_mode.hpp"
+   1:Cpp_Core/Inc/ch585_update_mode.hpp **** #ifndef CH585_UPDATE_MODE_HPP
+   2:Cpp_Core/Inc/ch585_update_mode.hpp **** #define CH585_UPDATE_MODE_HPP
+   3:Cpp_Core/Inc/ch585_update_mode.hpp **** 
+   4:Cpp_Core/Inc/ch585_update_mode.hpp **** class Ch585UpdateMode {
+   5:Cpp_Core/Inc/ch585_update_mode.hpp **** public:
+   6:Cpp_Core/Inc/ch585_update_mode.hpp ****     Ch585UpdateMode(const Ch585UpdateMode&) = delete;
+   7:Cpp_Core/Inc/ch585_update_mode.hpp ****     Ch585UpdateMode& operator=(const Ch585UpdateMode&) = delete;
+   8:Cpp_Core/Inc/ch585_update_mode.hpp **** 
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     static Ch585UpdateMode& getInstance()
+  90              		.loc 2 9 29 view .LVU16
+  10:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         static Ch585UpdateMode instance;
+  91              		.loc 2 11 9 view .LVU17
+  12:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+  92              		.loc 2 12 9 view .LVU18
+  93              	.LBE48:
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     (void)index;
+  94              		.loc 1 24 1 is_stmt 0 view .LVU19
+  95 0000 F7B5     		push	{r0, r1, r2, r4, r5, r6, r7, lr}
+  96              	.LCFI0:
+  97              		.cfi_def_cfa_offset 32
+  98              		.cfi_offset 4, -20
+  99              		.cfi_offset 5, -16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 4
+
+
+ 100              		.cfi_offset 6, -12
+ 101              		.cfi_offset 7, -8
+ 102              		.cfi_offset 14, -4
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     (void)index;
+ 103              		.loc 1 24 1 view .LVU20
+ 104 0002 0646     		mov	r6, r0
+ 105              		.loc 1 62 60 discriminator 1 view .LVU21
+ 106 0004 1648     		ldr	r0, .L17
+ 107              	.LVL2:
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     (void)index;
+ 108              		.loc 1 24 1 view .LVU22
+ 109 0006 1746     		mov	r7, r2
+ 110              		.loc 1 62 60 discriminator 1 view .LVU23
+ 111 0008 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 112              	.LVL3:
+ 113              		.loc 1 62 60 discriminator 1 view .LVU24
+ 114 000c 0546     		mov	r5, r0
+ 115              	.LVL4:
+  63:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     const bool powered = CH585_UPDATE_MODE.isManualIspPowered();
+ 116              		.loc 1 63 5 is_stmt 1 view .LVU25
+ 117              	.LBB49:
+ 118              	.LBI49:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 119              		.loc 2 9 29 view .LVU26
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 120              		.loc 2 11 9 view .LVU27
+ 121              		.loc 2 12 9 view .LVU28
+ 122              	.LBE49:
+ 123              		.loc 1 63 62 is_stmt 0 discriminator 1 view .LVU29
+ 124 000e 1448     		ldr	r0, .L17
+ 125 0010 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode18isManualIspPoweredEv
+ 126              	.LVL5:
+ 127 0014 0446     		mov	r4, r0
+ 128              	.LVL6:
+  64:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     const bool probeFailed =
+ 129              		.loc 1 64 5 is_stmt 1 view .LVU30
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         active && powered &&
+  66:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         CH585_IAP_CLIENT.status() != Ch585IapClientStatus::Idle &&
+ 130              		.loc 1 66 65 is_stmt 0 view .LVU31
+ 131 0016 25B1     		cbz	r5, .L4
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         active && powered &&
+ 132              		.loc 1 65 16 view .LVU32
+ 133 0018 18B1     		cbz	r0, .L4
+ 134              	.LVL7:
+ 135              	.LBB50:
+ 136              	.LBI50:
+ 137              		.file 3 "Cpp_Core/Inc/ch585_iap_client.hpp"
+   1:Cpp_Core/Inc/ch585_iap_client.hpp **** #ifndef CH585_IAP_CLIENT_HPP
+   2:Cpp_Core/Inc/ch585_iap_client.hpp **** #define CH585_IAP_CLIENT_HPP
+   3:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+   4:Cpp_Core/Inc/ch585_iap_client.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+   6:Cpp_Core/Inc/ch585_iap_client.hpp **** #include "ch585_staging.h"
+   7:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+   8:Cpp_Core/Inc/ch585_iap_client.hpp **** enum class Ch585IapClientStatus : uint8_t {
+   9:Cpp_Core/Inc/ch585_iap_client.hpp ****     Idle = 0,
+  10:Cpp_Core/Inc/ch585_iap_client.hpp ****     Ready,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 5
+
+
+  11:Cpp_Core/Inc/ch585_iap_client.hpp ****     LinkError,
+  12:Cpp_Core/Inc/ch585_iap_client.hpp ****     ProtocolError,
+  13:Cpp_Core/Inc/ch585_iap_client.hpp ****     DeviceError,
+  14:Cpp_Core/Inc/ch585_iap_client.hpp ****     InvalidImage,
+  15:Cpp_Core/Inc/ch585_iap_client.hpp ****     Completed
+  16:Cpp_Core/Inc/ch585_iap_client.hpp **** };
+  17:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+  18:Cpp_Core/Inc/ch585_iap_client.hpp **** class Ch585IapClient {
+  19:Cpp_Core/Inc/ch585_iap_client.hpp **** public:
+  20:Cpp_Core/Inc/ch585_iap_client.hpp ****     Ch585IapClient(const Ch585IapClient&) = delete;
+  21:Cpp_Core/Inc/ch585_iap_client.hpp ****     Ch585IapClient& operator=(const Ch585IapClient&) = delete;
+  22:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+  23:Cpp_Core/Inc/ch585_iap_client.hpp ****     static Ch585IapClient& getInstance()
+  24:Cpp_Core/Inc/ch585_iap_client.hpp ****     {
+  25:Cpp_Core/Inc/ch585_iap_client.hpp ****         static Ch585IapClient instance;
+  26:Cpp_Core/Inc/ch585_iap_client.hpp ****         return instance;
+  27:Cpp_Core/Inc/ch585_iap_client.hpp ****     }
+  28:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+  29:Cpp_Core/Inc/ch585_iap_client.hpp ****     bool probe();
+  30:Cpp_Core/Inc/ch585_iap_client.hpp ****     bool programCombinedImage(uint32_t mappedAddress, uint32_t totalSize);
+  31:Cpp_Core/Inc/ch585_iap_client.hpp ****     bool validateApplication();
+  32:Cpp_Core/Inc/ch585_iap_client.hpp ****     Ch585IapClientStatus status() const { return currentStatus; }
+ 138              		.loc 3 32 26 is_stmt 1 view .LVU33
+ 139              	.LBB51:
+ 140              		.loc 3 32 43 view .LVU34
+ 141              		.loc 3 32 50 is_stmt 0 view .LVU35
+ 142 001a 124B     		ldr	r3, .L17+4
+ 143              	.LBE51:
+ 144              	.LBE50:
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         active && powered &&
+ 145              		.loc 1 65 27 discriminator 1 view .LVU36
+ 146 001c 9B7B     		ldrb	r3, [r3, #14]	@ zero_extendqisi2
+ 147 001e 012B     		cmp	r3, #1
+ 148 0020 1AD8     		bhi	.L7
+ 149              	.L4:
+ 150              	.LVL8:
+  67:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         CH585_IAP_CLIENT.status() != Ch585IapClientStatus::Ready;
+  68:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     const char* const* lines = probeFailed ? probeFailedLines
+ 151              		.loc 1 68 5 is_stmt 1 view .LVU37
+ 152              	.LBB52:
+ 153              	.LBI52:
+ 154              		.file 4 "Cpp_Core/Inc/ch585_firmware_update.hpp"
+   1:Cpp_Core/Inc/ch585_firmware_update.hpp **** #ifndef CH585_FIRMWARE_UPDATE_HPP
+   2:Cpp_Core/Inc/ch585_firmware_update.hpp **** #define CH585_FIRMWARE_UPDATE_HPP
+   3:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   4:Cpp_Core/Inc/ch585_firmware_update.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   6:Cpp_Core/Inc/ch585_firmware_update.hpp **** #ifdef __cplusplus
+   7:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   8:Cpp_Core/Inc/ch585_firmware_update.hpp **** enum class Ch585FirmwareUpdateStatus : uint8_t {
+   9:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Idle = 0,
+  10:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Receiving,
+  11:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ready,
+  12:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Scheduled,
+  13:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Programming,
+  14:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Completed,
+  15:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Failed
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 6
+
+
+  16:Cpp_Core/Inc/ch585_firmware_update.hpp **** };
+  17:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+  18:Cpp_Core/Inc/ch585_firmware_update.hpp **** class Ch585FirmwareUpdate {
+  19:Cpp_Core/Inc/ch585_firmware_update.hpp **** public:
+  20:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ch585FirmwareUpdate(const Ch585FirmwareUpdate&) = delete;
+  21:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ch585FirmwareUpdate& operator=(const Ch585FirmwareUpdate&) = delete;
+  22:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     static Ch585FirmwareUpdate& getInstance()
+ 155              		.loc 4 23 33 view .LVU38
+  24:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         static Ch585FirmwareUpdate instance;
+ 156              		.loc 4 25 9 view .LVU39
+  26:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 157              		.loc 4 26 9 view .LVU40
+ 158              	.LBE52:
+  69:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         : (CH585_FIRMWARE_UPDATE.isPending() ? updatePendingLines
+ 159              		.loc 1 69 43 is_stmt 0 discriminator 1 view .LVU41
+ 160 0022 1148     		ldr	r0, .L17+8
+ 161              	.LVL9:
+ 162              		.loc 1 69 43 discriminator 1 view .LVU42
+ 163 0024 FFF7FEFF 		bl	_ZNK19Ch585FirmwareUpdate9isPendingEv
+ 164              	.LVL10:
+  70:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         : (active ? (powered ? poweredLines : readyLines)
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         : (CH585_FIRMWARE_UPDATE.hasFailed() ? updateFailedLines : enterLines)));
+ 165              		.loc 1 71 80 discriminator 2 view .LVU43
+ 166 0028 C0B9     		cbnz	r0, .L8
+ 167              		.loc 1 71 80 discriminator 5 view .LVU44
+ 168 002a 65B1     		cbz	r5, .L6
+ 169              		.loc 1 71 80 discriminator 9 view .LVU45
+ 170 002c 0F4B     		ldr	r3, .L17+12
+ 171 002e 104A     		ldr	r2, .L17+16
+ 172 0030 002C     		cmp	r4, #0
+ 173 0032 08BF     		it	eq
+ 174 0034 1A46     		moveq	r2, r3
+ 175              	.LVL11:
+ 176              	.L5:
+  72:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     ScreenDetailRender_TitleLines(lcd,
+ 177              		.loc 1 72 5 is_stmt 1 view .LVU46
+ 178              		.loc 1 72 34 is_stmt 0 view .LVU47
+ 179 0036 0423     		movs	r3, #4
+ 180 0038 0E49     		ldr	r1, .L17+20
+ 181 003a 3046     		mov	r0, r6
+ 182 003c 0097     		str	r7, [sp]
+ 183 003e FFF7FEFF 		bl	_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+ 184              	.LVL12:
+  73:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****                                   "CH585 Flash",
+  74:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****                                   lines,
+  75:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****                                   4u,
+  76:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****                                   style);
+  77:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+ 185              		.loc 1 77 1 view .LVU48
+ 186 0042 03B0     		add	sp, sp, #12
+ 187              	.LCFI1:
+ 188              		.cfi_remember_state
+ 189              		.cfi_def_cfa_offset 20
+ 190              		@ sp needed
+ 191 0044 F0BD     		pop	{r4, r5, r6, r7, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 7
+
+
+ 192              	.LVL13:
+ 193              	.L6:
+ 194              	.LCFI2:
+ 195              		.cfi_restore_state
+ 196              	.LBB53:
+ 197              	.LBI53:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 198              		.loc 4 23 33 is_stmt 1 view .LVU49
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 199              		.loc 4 25 9 view .LVU50
+ 200              		.loc 4 26 9 view .LVU51
+ 201              	.LBE53:
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     ScreenDetailRender_TitleLines(lcd,
+ 202              		.loc 1 71 43 is_stmt 0 discriminator 1 view .LVU52
+ 203 0046 0848     		ldr	r0, .L17+8
+ 204 0048 FFF7FEFF 		bl	_ZNK19Ch585FirmwareUpdate9hasFailedEv
+ 205              	.LVL14:
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     ScreenDetailRender_TitleLines(lcd,
+ 206              		.loc 1 71 80 discriminator 14 view .LVU53
+ 207 004c 0A4B     		ldr	r3, .L17+24
+ 208 004e 0B4A     		ldr	r2, .L17+28
+ 209 0050 0028     		cmp	r0, #0
+ 210 0052 08BF     		it	eq
+ 211 0054 1A46     		moveq	r2, r3
+ 212 0056 EEE7     		b	.L5
+ 213              	.LVL15:
+ 214              	.L7:
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     ScreenDetailRender_TitleLines(lcd,
+ 215              		.loc 1 71 80 discriminator 1 view .LVU54
+ 216 0058 094A     		ldr	r2, .L17+32
+ 217 005a ECE7     		b	.L5
+ 218              	.LVL16:
+ 219              	.L8:
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     ScreenDetailRender_TitleLines(lcd,
+ 220              		.loc 1 71 80 discriminator 4 view .LVU55
+ 221 005c 094A     		ldr	r2, .L17+36
+ 222 005e EAE7     		b	.L5
+ 223              	.L18:
+ 224              		.align	2
+ 225              	.L17:
+ 226 0060 00000000 		.word	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 227 0064 00000000 		.word	_ZZN14Ch585IapClient11getInstanceEvE8instance
+ 228 0068 00000000 		.word	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 229 006c 00000000 		.word	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines
+ 230 0070 00000000 		.word	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE12poweredLines
+ 231 0074 00000000 		.word	.LC0
+ 232 0078 00000000 		.word	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10enterLines
+ 233 007c 00000000 		.word	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE17updateFailedLines
+ 234 0080 00000000 		.word	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE16probeFailedLines
+ 235 0084 00000000 		.word	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE18updatePendingLines
+ 236              		.cfi_endproc
+ 237              	.LFE1292:
+ 239              		.section	.text._Z32ScreenDetailCh585Flash_OnConfirmh,"ax",%progbits
+ 240              		.align	1
+ 241              		.global	_Z32ScreenDetailCh585Flash_OnConfirmh
+ 242              		.syntax unified
+ 243              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 8
+
+
+ 244              		.thumb_func
+ 246              	_Z32ScreenDetailCh585Flash_OnConfirmh:
+ 247              	.LVL17:
+ 248              	.LFB1293:
+  78:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** 
+  79:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** bool ScreenDetailCh585Flash_OnConfirm(uint8_t index)
+  80:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** {
+ 249              		.loc 1 80 1 is_stmt 1 view -0
+ 250              		.cfi_startproc
+ 251              		@ args = 0, pretend = 0, frame = 0
+ 252              		@ frame_needed = 0, uses_anonymous_args = 0
+  81:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     (void)index;
+ 253              		.loc 1 81 5 view .LVU57
+  82:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (CH585_FIRMWARE_UPDATE.isPending()) return false;
+ 254              		.loc 1 82 5 view .LVU58
+ 255              	.LBB54:
+ 256              	.LBI54:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 257              		.loc 4 23 33 view .LVU59
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 258              		.loc 4 25 9 view .LVU60
+ 259              		.loc 4 26 9 view .LVU61
+ 260              	.LBE54:
+  80:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     (void)index;
+ 261              		.loc 1 80 1 is_stmt 0 view .LVU62
+ 262 0000 08B5     		push	{r3, lr}
+ 263              	.LCFI3:
+ 264              		.cfi_def_cfa_offset 8
+ 265              		.cfi_offset 3, -8
+ 266              		.cfi_offset 14, -4
+ 267              		.loc 1 82 40 discriminator 1 view .LVU63
+ 268 0002 1348     		ldr	r0, .L32
+ 269              	.LVL18:
+ 270              		.loc 1 82 40 discriminator 1 view .LVU64
+ 271 0004 FFF7FEFF 		bl	_ZNK19Ch585FirmwareUpdate9isPendingEv
+ 272              	.LVL19:
+ 273              		.loc 1 82 5 discriminator 2 view .LVU65
+ 274 0008 90B9     		cbnz	r0, .L27
+  83:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     const bool active = CH585_UPDATE_MODE.isManualIspActive();
+ 275              		.loc 1 83 5 is_stmt 1 view .LVU66
+ 276              	.LBB55:
+ 277              	.LBI55:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 278              		.loc 2 9 29 view .LVU67
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 279              		.loc 2 11 9 view .LVU68
+ 280              		.loc 2 12 9 view .LVU69
+ 281              	.LBE55:
+ 282              		.loc 1 83 60 is_stmt 0 discriminator 1 view .LVU70
+ 283 000a 1248     		ldr	r0, .L32+4
+ 284 000c FFF7FEFF 		bl	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 285              	.LVL20:
+  84:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (!active) {
+ 286              		.loc 1 84 5 is_stmt 1 view .LVU71
+ 287 0010 80B9     		cbnz	r0, .L22
+  85:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         if (CH585_FIRMWARE_UPDATE.hasFailed()) {
+ 288              		.loc 1 85 9 view .LVU72
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 9
+
+
+ 289              	.LBB56:
+ 290              	.LBI56:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 291              		.loc 4 23 33 view .LVU73
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 292              		.loc 4 25 9 view .LVU74
+ 293              		.loc 4 26 9 view .LVU75
+ 294              	.LBE56:
+ 295              		.loc 1 85 44 is_stmt 0 discriminator 1 view .LVU76
+ 296 0012 0F48     		ldr	r0, .L32
+ 297              	.LVL21:
+ 298              		.loc 1 85 44 discriminator 1 view .LVU77
+ 299 0014 FFF7FEFF 		bl	_ZNK19Ch585FirmwareUpdate9hasFailedEv
+ 300              	.LVL22:
+ 301              		.loc 1 85 9 discriminator 2 view .LVU78
+ 302 0018 20B1     		cbz	r0, .L23
+  86:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****             return CH585_FIRMWARE_UPDATE.requestRetry();
+ 303              		.loc 1 86 13 is_stmt 1 view .LVU79
+ 304              	.LBB57:
+ 305              	.LBI57:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 306              		.loc 4 23 33 view .LVU80
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 307              		.loc 4 25 9 view .LVU81
+ 308              		.loc 4 26 9 view .LVU82
+ 309              	.LBE57:
+ 310              		.loc 1 86 54 is_stmt 0 discriminator 1 view .LVU83
+ 311 001a 0D48     		ldr	r0, .L32
+  87:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         }
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         if (!CH585_UPDATE_MODE.requestManualIsp()) return false;
+  89:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         MainRuntime_RequestReset();
+  90:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return false;
+  91:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+  92:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (!CH585_UPDATE_MODE.isManualIspPowered()) {
+  93:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return CH585_UPDATE_MODE.powerOnManualIsp();
+  94:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+  95:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (!CH585_UPDATE_MODE.requestExitManualIsp()) return false;
+  96:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     MainRuntime_RequestReset();
+  97:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     return false;
+  98:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+ 312              		.loc 1 98 1 view .LVU84
+ 313 001c BDE80840 		pop	{r3, lr}
+ 314              	.LCFI4:
+ 315              		.cfi_remember_state
+ 316              		.cfi_restore 14
+ 317              		.cfi_restore 3
+ 318              		.cfi_def_cfa_offset 0
+  86:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****             return CH585_FIRMWARE_UPDATE.requestRetry();
+ 319              		.loc 1 86 54 discriminator 1 view .LVU85
+ 320 0020 FFF7FEBF 		b	_ZN19Ch585FirmwareUpdate12requestRetryEv
+ 321              	.LVL23:
+ 322              	.L23:
+ 323              	.LCFI5:
+ 324              		.cfi_restore_state
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         MainRuntime_RequestReset();
+ 325              		.loc 1 88 9 is_stmt 1 view .LVU86
+ 326              	.LBB58:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 10
+
+
+ 327              	.LBI58:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 328              		.loc 2 9 29 view .LVU87
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 329              		.loc 2 11 9 view .LVU88
+ 330              		.loc 2 12 9 view .LVU89
+ 331              	.LBE58:
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         MainRuntime_RequestReset();
+ 332              		.loc 1 88 48 is_stmt 0 discriminator 1 view .LVU90
+ 333 0024 0B48     		ldr	r0, .L32+4
+ 334 0026 FFF7FEFF 		bl	_ZN15Ch585UpdateMode16requestManualIspEv
+ 335              	.LVL24:
+ 336              	.L31:
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         MainRuntime_RequestReset();
+ 337              		.loc 1 88 9 discriminator 2 view .LVU91
+ 338 002a 08B1     		cbz	r0, .L27
+  89:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return false;
+ 339              		.loc 1 89 9 is_stmt 1 view .LVU92
+  89:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return false;
+ 340              		.loc 1 89 33 is_stmt 0 view .LVU93
+ 341 002c FFF7FEFF 		bl	MainRuntime_RequestReset
+ 342              	.LVL25:
+  90:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+ 343              		.loc 1 90 9 is_stmt 1 view .LVU94
+ 344              	.L27:
+ 345              		.loc 1 98 1 is_stmt 0 view .LVU95
+ 346 0030 0020     		movs	r0, #0
+ 347 0032 08BD     		pop	{r3, pc}
+ 348              	.LVL26:
+ 349              	.L22:
+  92:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return CH585_UPDATE_MODE.powerOnManualIsp();
+ 350              		.loc 1 92 5 is_stmt 1 view .LVU96
+ 351              	.LBB59:
+ 352              	.LBI59:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 353              		.loc 2 9 29 view .LVU97
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 354              		.loc 2 11 9 view .LVU98
+ 355              		.loc 2 12 9 view .LVU99
+ 356              	.LBE59:
+  92:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return CH585_UPDATE_MODE.powerOnManualIsp();
+ 357              		.loc 1 92 46 is_stmt 0 discriminator 1 view .LVU100
+ 358 0034 0748     		ldr	r0, .L32+4
+ 359              	.LVL27:
+  92:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return CH585_UPDATE_MODE.powerOnManualIsp();
+ 360              		.loc 1 92 46 discriminator 1 view .LVU101
+ 361 0036 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode18isManualIspPoweredEv
+ 362              	.LVL28:
+  92:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return CH585_UPDATE_MODE.powerOnManualIsp();
+ 363              		.loc 1 92 5 discriminator 2 view .LVU102
+ 364 003a 20B9     		cbnz	r0, .L25
+  93:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+ 365              		.loc 1 93 9 is_stmt 1 view .LVU103
+ 366              	.LBB60:
+ 367              	.LBI60:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 368              		.loc 2 9 29 view .LVU104
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 11
+
+
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 369              		.loc 2 11 9 view .LVU105
+ 370              		.loc 2 12 9 view .LVU106
+ 371              	.LBE60:
+  93:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+ 372              		.loc 1 93 50 is_stmt 0 discriminator 1 view .LVU107
+ 373 003c 0548     		ldr	r0, .L32+4
+ 374              		.loc 1 98 1 view .LVU108
+ 375 003e BDE80840 		pop	{r3, lr}
+ 376              	.LCFI6:
+ 377              		.cfi_remember_state
+ 378              		.cfi_restore 14
+ 379              		.cfi_restore 3
+ 380              		.cfi_def_cfa_offset 0
+  93:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+ 381              		.loc 1 93 50 discriminator 1 view .LVU109
+ 382 0042 FFF7FEBF 		b	_ZN15Ch585UpdateMode16powerOnManualIspEv
+ 383              	.LVL29:
+ 384              	.L25:
+ 385              	.LCFI7:
+ 386              		.cfi_restore_state
+  95:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     MainRuntime_RequestReset();
+ 387              		.loc 1 95 5 is_stmt 1 view .LVU110
+ 388              	.LBB61:
+ 389              	.LBI61:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 390              		.loc 2 9 29 view .LVU111
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 391              		.loc 2 11 9 view .LVU112
+ 392              		.loc 2 12 9 view .LVU113
+ 393              	.LBE61:
+  95:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     MainRuntime_RequestReset();
+ 394              		.loc 1 95 48 is_stmt 0 discriminator 1 view .LVU114
+ 395 0046 0348     		ldr	r0, .L32+4
+ 396 0048 FFF7FEFF 		bl	_ZN15Ch585UpdateMode20requestExitManualIspEv
+ 397              	.LVL30:
+ 398 004c EDE7     		b	.L31
+ 399              	.L33:
+ 400 004e 00BF     		.align	2
+ 401              	.L32:
+ 402 0050 00000000 		.word	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 403 0054 00000000 		.word	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 404              		.cfi_endproc
+ 405              	.LFE1293:
+ 407              		.section	.text._Z29ScreenDetailCh585Flash_OnBackv,"ax",%progbits
+ 408              		.align	1
+ 409              		.global	_Z29ScreenDetailCh585Flash_OnBackv
+ 410              		.syntax unified
+ 411              		.thumb
+ 412              		.thumb_func
+ 414              	_Z29ScreenDetailCh585Flash_OnBackv:
+ 415              	.LFB1294:
+  99:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** 
+ 100:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** bool ScreenDetailCh585Flash_OnBack(void)
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** {
+ 416              		.loc 1 101 1 is_stmt 1 view -0
+ 417              		.cfi_startproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 12
+
+
+ 418              		@ args = 0, pretend = 0, frame = 0
+ 419              		@ frame_needed = 0, uses_anonymous_args = 0
+ 102:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (!CH585_UPDATE_MODE.isManualIspActive()) return true;
+ 420              		.loc 1 102 5 view .LVU116
+ 421              	.LBB62:
+ 422              	.LBI62:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 423              		.loc 2 9 29 view .LVU117
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 424              		.loc 2 11 9 view .LVU118
+ 425              		.loc 2 12 9 view .LVU119
+ 426              	.LBE62:
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (!CH585_UPDATE_MODE.isManualIspActive()) return true;
+ 427              		.loc 1 101 1 is_stmt 0 view .LVU120
+ 428 0000 08B5     		push	{r3, lr}
+ 429              	.LCFI8:
+ 430              		.cfi_def_cfa_offset 8
+ 431              		.cfi_offset 3, -8
+ 432              		.cfi_offset 14, -4
+ 433              		.loc 1 102 45 discriminator 1 view .LVU121
+ 434 0002 0848     		ldr	r0, .L39
+ 435 0004 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 436              	.LVL31:
+ 437              		.loc 1 102 5 discriminator 2 view .LVU122
+ 438 0008 48B1     		cbz	r0, .L38
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (CH585_UPDATE_MODE.isManualIspPowered()) {
+ 439              		.loc 1 103 5 is_stmt 1 view .LVU123
+ 440              	.LBB63:
+ 441              	.LBI63:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 442              		.loc 2 9 29 view .LVU124
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 443              		.loc 2 11 9 view .LVU125
+ 444              		.loc 2 12 9 view .LVU126
+ 445              	.LBE63:
+ 446              		.loc 1 103 45 is_stmt 0 discriminator 1 view .LVU127
+ 447 000a 0648     		ldr	r0, .L39
+ 448 000c FFF7FEFF 		bl	_ZNK15Ch585UpdateMode18isManualIspPoweredEv
+ 449              	.LVL32:
+ 450              		.loc 1 103 5 discriminator 2 view .LVU128
+ 451 0010 08B9     		cbnz	r0, .L36
+ 452              	.L37:
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         CH585_UPDATE_MODE.powerOffManualIsp();
+ 105:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+ 106:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     return false;
+ 453              		.loc 1 106 12 view .LVU129
+ 454 0012 0020     		movs	r0, #0
+ 455              	.L35:
+ 107:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+ 456              		.loc 1 107 1 view .LVU130
+ 457 0014 08BD     		pop	{r3, pc}
+ 458              	.L36:
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         CH585_UPDATE_MODE.powerOffManualIsp();
+ 459              		.loc 1 104 9 is_stmt 1 view .LVU131
+ 460              	.LBB64:
+ 461              	.LBI64:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 13
+
+
+ 462              		.loc 2 9 29 view .LVU132
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 463              		.loc 2 11 9 view .LVU133
+ 464              		.loc 2 12 9 view .LVU134
+ 465              	.LBE64:
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+ 466              		.loc 1 104 44 is_stmt 0 discriminator 1 view .LVU135
+ 467 0016 0348     		ldr	r0, .L39
+ 468 0018 FFF7FEFF 		bl	_ZN15Ch585UpdateMode17powerOffManualIspEv
+ 469              	.LVL33:
+ 470 001c F9E7     		b	.L37
+ 471              	.L38:
+ 102:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (CH585_UPDATE_MODE.isManualIspPowered()) {
+ 472              		.loc 1 102 56 discriminator 1 view .LVU136
+ 473 001e 0120     		movs	r0, #1
+ 474 0020 F8E7     		b	.L35
+ 475              	.L40:
+ 476 0022 00BF     		.align	2
+ 477              	.L39:
+ 478 0024 00000000 		.word	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 479              		.cfi_endproc
+ 480              	.LFE1294:
+ 482              		.section	.rodata._Z35ScreenDetailCh585Flash_ConfirmLabelv.str1.1,"aMS",%progbits,1
+ 483              	.LC1:
+ 484 0000 57616974 		.ascii	"Wait\000"
+ 484      00
+ 485              	.LC2:
+ 486 0005 456E7465 		.ascii	"Enter\000"
+ 486      7200
+ 487              	.LC3:
+ 488 000b 506F7765 		.ascii	"Power\000"
+ 488      7200
+ 489              	.LC4:
+ 490 0011 56657269 		.ascii	"Verify\000"
+ 490      667900
+ 491              	.LC5:
+ 492 0018 52657472 		.ascii	"Retry\000"
+ 492      7900
+ 493              		.section	.text._Z35ScreenDetailCh585Flash_ConfirmLabelv,"ax",%progbits
+ 494              		.align	1
+ 495              		.global	_Z35ScreenDetailCh585Flash_ConfirmLabelv
+ 496              		.syntax unified
+ 497              		.thumb
+ 498              		.thumb_func
+ 500              	_Z35ScreenDetailCh585Flash_ConfirmLabelv:
+ 501              	.LFB1295:
+ 108:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** 
+ 109:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** const char* ScreenDetailCh585Flash_ConfirmLabel(void)
+ 110:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** {
+ 502              		.loc 1 110 1 is_stmt 1 view -0
+ 503              		.cfi_startproc
+ 504              		@ args = 0, pretend = 0, frame = 0
+ 505              		@ frame_needed = 0, uses_anonymous_args = 0
+ 111:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (CH585_FIRMWARE_UPDATE.isPending()) return "Wait";
+ 506              		.loc 1 111 5 view .LVU138
+ 507              	.LBB65:
+ 508              	.LBI65:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 14
+
+
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 509              		.loc 4 23 33 view .LVU139
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 510              		.loc 4 25 9 view .LVU140
+ 511              		.loc 4 26 9 view .LVU141
+ 512              	.LBE65:
+ 110:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (CH585_FIRMWARE_UPDATE.isPending()) return "Wait";
+ 513              		.loc 1 110 1 is_stmt 0 view .LVU142
+ 514 0000 08B5     		push	{r3, lr}
+ 515              	.LCFI9:
+ 516              		.cfi_def_cfa_offset 8
+ 517              		.cfi_offset 3, -8
+ 518              		.cfi_offset 14, -4
+ 519              		.loc 1 111 40 discriminator 1 view .LVU143
+ 520 0002 0D48     		ldr	r0, .L48
+ 521 0004 FFF7FEFF 		bl	_ZNK19Ch585FirmwareUpdate9isPendingEv
+ 522              	.LVL34:
+ 523              		.loc 1 111 5 discriminator 2 view .LVU144
+ 524 0008 98B9     		cbnz	r0, .L44
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (!CH585_UPDATE_MODE.isManualIspActive()) {
+ 525              		.loc 1 112 5 is_stmt 1 view .LVU145
+ 526              	.LBB66:
+ 527              	.LBI66:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 528              		.loc 2 9 29 view .LVU146
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 529              		.loc 2 11 9 view .LVU147
+ 530              		.loc 2 12 9 view .LVU148
+ 531              	.LBE66:
+ 532              		.loc 1 112 45 is_stmt 0 discriminator 1 view .LVU149
+ 533 000a 0C48     		ldr	r0, .L48+4
+ 534 000c FFF7FEFF 		bl	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 535              	.LVL35:
+ 536              		.loc 1 112 5 discriminator 2 view .LVU150
+ 537 0010 48B9     		cbnz	r0, .L43
+ 113:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****         return CH585_FIRMWARE_UPDATE.hasFailed() ? "Retry" : "Enter";
+ 538              		.loc 1 113 9 is_stmt 1 view .LVU151
+ 539              	.LBB67:
+ 540              	.LBI67:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 541              		.loc 4 23 33 view .LVU152
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 542              		.loc 4 25 9 view .LVU153
+ 543              		.loc 4 26 9 view .LVU154
+ 544              	.LBE67:
+ 545              		.loc 1 113 47 is_stmt 0 discriminator 1 view .LVU155
+ 546 0012 0948     		ldr	r0, .L48
+ 547 0014 FFF7FEFF 		bl	_ZNK19Ch585FirmwareUpdate9hasFailedEv
+ 548              	.LVL36:
+ 549              		.loc 1 113 62 discriminator 1 view .LVU156
+ 550 0018 094B     		ldr	r3, .L48+8
+ 551 001a 0A4A     		ldr	r2, .L48+12
+ 552              	.L47:
+ 114:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     }
+ 115:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     return CH585_UPDATE_MODE.isManualIspPowered() ? "Verify" : "Power";
+ 553              		.loc 1 115 51 discriminator 1 view .LVU157
+ 554 001c 0028     		cmp	r0, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 15
+
+
+ 555 001e 18BF     		it	ne
+ 556 0020 1346     		movne	r3, r2
+ 557              	.L41:
+ 116:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+ 558              		.loc 1 116 1 view .LVU158
+ 559 0022 1846     		mov	r0, r3
+ 560 0024 08BD     		pop	{r3, pc}
+ 561              	.L43:
+ 115:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+ 562              		.loc 1 115 5 is_stmt 1 view .LVU159
+ 563              	.LBB68:
+ 564              	.LBI68:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 565              		.loc 2 9 29 view .LVU160
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 566              		.loc 2 11 9 view .LVU161
+ 567              		.loc 2 12 9 view .LVU162
+ 568              	.LBE68:
+ 115:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+ 569              		.loc 1 115 48 is_stmt 0 discriminator 1 view .LVU163
+ 570 0026 0548     		ldr	r0, .L48+4
+ 571 0028 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode18isManualIspPoweredEv
+ 572              	.LVL37:
+ 115:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp **** }
+ 573              		.loc 1 115 51 discriminator 1 view .LVU164
+ 574 002c 064B     		ldr	r3, .L48+16
+ 575 002e 074A     		ldr	r2, .L48+20
+ 576 0030 F4E7     		b	.L47
+ 577              	.L44:
+ 111:Cpp_Core/Src/screen_control/spi_screen_detail_ch585_flash.cpp ****     if (!CH585_UPDATE_MODE.isManualIspActive()) {
+ 578              		.loc 1 111 51 discriminator 1 view .LVU165
+ 579 0032 074B     		ldr	r3, .L48+24
+ 580 0034 F5E7     		b	.L41
+ 581              	.L49:
+ 582 0036 00BF     		.align	2
+ 583              	.L48:
+ 584 0038 00000000 		.word	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 585 003c 00000000 		.word	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 586 0040 05000000 		.word	.LC2
+ 587 0044 18000000 		.word	.LC5
+ 588 0048 0B000000 		.word	.LC3
+ 589 004c 11000000 		.word	.LC4
+ 590 0050 00000000 		.word	.LC1
+ 591              		.cfi_endproc
+ 592              	.LFE1295:
+ 594              		.section	.rodata.str1.1,"aMS",%progbits,1
+ 595              	.LC6:
+ 596 0000 43483538 		.ascii	"CH585 SPI firmware update failed.\000"
+ 596      35205350 
+ 596      49206669 
+ 596      726D7761 
+ 596      72652075 
+ 597              	.LC7:
+ 598 0022 54686520 		.ascii	"The staged firmware is preserved.\000"
+ 598      73746167 
+ 598      65642066 
+ 598      69726D77 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 16
+
+
+ 598      61726520 
+ 599              	.LC8:
+ 600 0044 50726573 		.ascii	"Press Retry to run the update again.\000"
+ 600      73205265 
+ 600      74727920 
+ 600      746F2072 
+ 600      756E2074 
+ 601              	.LC9:
+ 602 0069 4E6F2070 		.ascii	"No protection or lock was changed.\000"
+ 602      726F7465 
+ 602      6374696F 
+ 602      6E206F72 
+ 602      206C6F63 
+ 603              		.section	.rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE17updateFail
+ 604              		.align	2
+ 607              	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE17updateFailedLines:
+ 608 0000 00000000 		.word	.LC6
+ 609 0004 22000000 		.word	.LC7
+ 610 0008 44000000 		.word	.LC8
+ 611 000c 69000000 		.word	.LC9
+ 612              		.section	.rodata.str1.1
+ 613              	.LC10:
+ 614 008c 43483538 		.ascii	"CH585 firmware is staged.\000"
+ 614      35206669 
+ 614      726D7761 
+ 614      72652069 
+ 614      73207374 
+ 615              	.LC11:
+ 616 00a6 54686520 		.ascii	"The local SPI update is starting.\000"
+ 616      6C6F6361 
+ 616      6C205350 
+ 616      49207570 
+ 616      64617465 
+ 617              	.LC12:
+ 618 00c8 446F206E 		.ascii	"Do not disconnect device power.\000"
+ 618      6F742064 
+ 618      6973636F 
+ 618      6E6E6563 
+ 618      74206465 
+ 619              	.LC13:
+ 620 00e8 54686520 		.ascii	"The IAP loader remains recoverable.\000"
+ 620      49415020 
+ 620      6C6F6164 
+ 620      65722072 
+ 620      656D6169 
+ 621              		.section	.rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE18updatePend
+ 622              		.align	2
+ 625              	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE18updatePendingLines:
+ 626 0000 8C000000 		.word	.LC10
+ 627 0004 A6000000 		.word	.LC11
+ 628 0008 C8000000 		.word	.LC12
+ 629 000c E8000000 		.word	.LC13
+ 630              		.section	.rodata.str1.1
+ 631              	.LC14:
+ 632 010c 49415020 		.ascii	"IAP was not detected over SPI.\000"
+ 632      77617320 
+ 632      6E6F7420 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 17
+
+
+ 632      64657465 
+ 632      63746564 
+ 633              	.LC15:
+ 634 012b 4D616E75 		.ascii	"Manual ISP mode is still active.\000"
+ 634      616C2049 
+ 634      5350206D 
+ 634      6F646520 
+ 634      69732073 
+ 635              	.LC16:
+ 636 014c 50726573 		.ascii	"Press Back to power off and retry.\000"
+ 636      73204261 
+ 636      636B2074 
+ 636      6F20706F 
+ 636      77657220 
+ 637              		.section	.rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE16probeFaile
+ 638              		.align	2
+ 641              	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE16probeFailedLines:
+ 642 0000 0C010000 		.word	.LC14
+ 643 0004 2B010000 		.word	.LC15
+ 644 0008 4C010000 		.word	.LC16
+ 645 000c 69000000 		.word	.LC9
+ 646              		.section	.rodata.str1.1
+ 647              	.LC17:
+ 648 016f 43483538 		.ascii	"CH585 is powered in manual ISP.\000"
+ 648      35206973 
+ 648      20706F77 
+ 648      65726564 
+ 648      20696E20 
+ 649              	.LC18:
+ 650 018f 466C6173 		.ascii	"Flash the combined image in WCH.\000"
+ 650      68207468 
+ 650      6520636F 
+ 650      6D62696E 
+ 650      65642069 
+ 651              	.LC19:
+ 652 01b0 52656C65 		.ascii	"Release BOOT after flash succeeds.\000"
+ 652      61736520 
+ 652      424F4F54 
+ 652      20616674 
+ 652      65722066 
+ 653              	.LC20:
+ 654 01d3 50726573 		.ascii	"Press Verify for IAP + App CAPS.\000"
+ 654      73205665 
+ 654      72696679 
+ 654      20666F72 
+ 654      20494150 
+ 655              		.section	.rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE12poweredLin
+ 656              		.align	2
+ 659              	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE12poweredLines:
+ 660 0000 6F010000 		.word	.LC17
+ 661 0004 8F010000 		.word	.LC18
+ 662 0008 B0010000 		.word	.LC19
+ 663 000c D3010000 		.word	.LC20
+ 664              		.section	.rodata.str1.1
+ 665              	.LC21:
+ 666 01f4 43483538 		.ascii	"CH585 power is OFF.\000"
+ 666      3520706F 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 18
+
+
+ 666      77657220 
+ 666      6973204F 
+ 666      46462E00 
+ 667              	.LC22:
+ 668 0208 486F6C64 		.ascii	"Hold the physical BOOT button.\000"
+ 668      20746865 
+ 668      20706879 
+ 668      73696361 
+ 668      6C20424F 
+ 669              	.LC23:
+ 670 0227 50726573 		.ascii	"Press Power while holding BOOT.\000"
+ 670      7320506F 
+ 670      77657220 
+ 670      7768696C 
+ 670      6520686F 
+ 671              	.LC24:
+ 672 0247 4B656570 		.ascii	"Keep holding until WCH finds it.\000"
+ 672      20686F6C 
+ 672      64696E67 
+ 672      20756E74 
+ 672      696C2057 
+ 673              		.section	.rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines
+ 674              		.align	2
+ 677              	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines:
+ 678 0000 F4010000 		.word	.LC21
+ 679 0004 08020000 		.word	.LC22
+ 680 0008 27020000 		.word	.LC23
+ 681 000c 47020000 		.word	.LC24
+ 682              		.section	.rodata.str1.1
+ 683              	.LC25:
+ 684 0268 54656D70 		.ascii	"Temporary CH585 ISP entry.\000"
+ 684      6F726172 
+ 684      79204348 
+ 684      35383520 
+ 684      49535020 
+ 685              	.LC26:
+ 686 0283 50726573 		.ascii	"Press Enter to hold CH585 off.\000"
+ 686      7320456E 
+ 686      74657220 
+ 686      746F2068 
+ 686      6F6C6420 
+ 687              	.LC27:
+ 688 02a2 5468656E 		.ascii	"Then use BOOT and Power for ISP.\000"
+ 688      20757365 
+ 688      20424F4F 
+ 688      5420616E 
+ 688      6420506F 
+ 689              	.LC28:
+ 690 02c3 55736520 		.ascii	"Use WCHISPStudio; no flash locks.\000"
+ 690      57434849 
+ 690      53505374 
+ 690      7564696F 
+ 690      3B206E6F 
+ 691              		.section	.rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10enterLines
+ 692              		.align	2
+ 695              	_ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10enterLines:
+ 696 0000 68020000 		.word	.LC25
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 19
+
+
+ 697 0004 83020000 		.word	.LC26
+ 698 0008 A2020000 		.word	.LC27
+ 699 000c C3020000 		.word	.LC28
+ 700              		.weak	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 701              		.section	.bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance,"awG",%nobits,_ZZN19Ch585Firmware
+ 702              		.align	2
+ 705              	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:
+ 706 0000 00000000 		.space	48
+ 706      00000000 
+ 706      00000000 
+ 706      00000000 
+ 706      00000000 
+ 707              		.weak	_ZZN14Ch585IapClient11getInstanceEvE8instance
+ 708              		.section	.bss._ZZN14Ch585IapClient11getInstanceEvE8instance,"awG",%nobits,_ZZN14Ch585IapClient11ge
+ 709              		.align	2
+ 712              	_ZZN14Ch585IapClient11getInstanceEvE8instance:
+ 713 0000 00000000 		.space	16
+ 713      00000000 
+ 713      00000000 
+ 713      00000000 
+ 714              		.weak	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 715              		.section	.bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance,"awG",%nobits,_ZZN15Ch585UpdateMode11
+ 718              	_ZZN15Ch585UpdateMode11getInstanceEvE8instance:
+ 719 0000 00       		.space	1
+ 720              		.text
+ 721              	.Letext0:
+ 722              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 723              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 724              		.file 7 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 725              		.file 8 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 726              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 727              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 728              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 729              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 730              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 731              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 732              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 733              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 734              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 735              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 736              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 737              		.file 20 "Core/Inc/board_cfg.h"
+ 738              		.file 21 "Drivers/SPI-ST7789/st7789.h"
+ 739              		.file 22 "../common/ch585_staging.h"
+ 740              		.file 23 "Cpp_Core/Inc/enums.hpp"
+ 741              		.file 24 "Cpp_Core/Inc/main_runtime_control.hpp"
+ 742              		.file 25 "Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s 			page 20
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_ch585_flash.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:20     .text._Z32ScreenDetailCh585Flash_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:26     .text._Z32ScreenDetailCh585Flash_InitIndexv:00000000 _Z32ScreenDetailCh585Flash_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:41     .text._Z29ScreenDetailCh585Flash_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:47     .text._Z29ScreenDetailCh585Flash_RotatePha:00000000 _Z29ScreenDetailCh585Flash_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:66     .text._Z29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:72     .text._Z29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:226    .text._Z29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000060 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:718    .bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance:00000000 _ZZN15Ch585UpdateMode11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:712    .bss._ZZN14Ch585IapClient11getInstanceEvE8instance:00000000 _ZZN14Ch585IapClient11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:705    .bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:00000000 _ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:677    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines:00000000 _ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:659    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE12poweredLines:00000000 _ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE12poweredLines
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:695    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10enterLines:00000000 _ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10enterLines
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:607    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE17updateFailedLines:00000000 _ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE17updateFailedLines
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:641    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE16probeFailedLines:00000000 _ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE16probeFailedLines
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:625    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE18updatePendingLines:00000000 _ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE18updatePendingLines
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:240    .text._Z32ScreenDetailCh585Flash_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:246    .text._Z32ScreenDetailCh585Flash_OnConfirmh:00000000 _Z32ScreenDetailCh585Flash_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:402    .text._Z32ScreenDetailCh585Flash_OnConfirmh:00000050 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:408    .text._Z29ScreenDetailCh585Flash_OnBackv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:414    .text._Z29ScreenDetailCh585Flash_OnBackv:00000000 _Z29ScreenDetailCh585Flash_OnBackv
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:478    .text._Z29ScreenDetailCh585Flash_OnBackv:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:494    .text._Z35ScreenDetailCh585Flash_ConfirmLabelv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:500    .text._Z35ScreenDetailCh585Flash_ConfirmLabelv:00000000 _Z35ScreenDetailCh585Flash_ConfirmLabelv
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:584    .text._Z35ScreenDetailCh585Flash_ConfirmLabelv:00000038 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:604    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE17updateFailedLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:622    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE18updatePendingLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:638    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE16probeFailedLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:656    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE12poweredLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:674    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:692    .rodata._ZZ29ScreenDetailCh585Flash_RenderP13ST7789_HandlehRK13ScreenUiStyleE10enterLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:702    .bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:709    .bss._ZZN14Ch585IapClient11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccEWgccG.s:719    .bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+_ZNK15Ch585UpdateMode17isManualIspActiveEv
+_ZNK15Ch585UpdateMode18isManualIspPoweredEv
+_ZNK19Ch585FirmwareUpdate9isPendingEv
+_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+_ZNK19Ch585FirmwareUpdate9hasFailedEv
+_ZN19Ch585FirmwareUpdate12requestRetryEv
+_ZN15Ch585UpdateMode16requestManualIspEv
+MainRuntime_RequestReset
+_ZN15Ch585UpdateMode16powerOnManualIspEv
+_ZN15Ch585UpdateMode20requestExitManualIspEv
+_ZN15Ch585UpdateMode17powerOffManualIspEv

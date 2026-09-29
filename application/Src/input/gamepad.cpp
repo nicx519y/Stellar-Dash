@@ -1,0 +1,431 @@
+#include "gamepad.hpp"
+#include "storagemanager.hpp"
+#include "micro_timer.hpp"
+
+static void on_default_profile_changed_gamepad(void) {
+    Gamepad::getInstance().refreshDefaultProfile();
+}
+
+Gamepad::Gamepad()
+{
+	options = Storage::getInstance().getDefaultGamepadProfile();
+    mapDpadUp = nullptr;
+    mapDpadDown = nullptr;
+    mapDpadLeft = nullptr;
+    mapDpadRight = nullptr;
+    mapButtonB1 = nullptr;
+    mapButtonB2 = nullptr;
+    mapButtonB3 = nullptr;
+    mapButtonB4 = nullptr;
+    mapButtonL1 = nullptr;
+    mapButtonR1 = nullptr;
+    mapButtonL2 = nullptr;
+    mapButtonR2 = nullptr;
+    mapButtonS1 = nullptr;
+    mapButtonS2 = nullptr;
+    mapButtonL3 = nullptr;
+    mapButtonR3 = nullptr;
+    mapButtonA1 = nullptr;
+    mapButtonA2 = nullptr;
+    mapButtonFn = nullptr;
+
+    Storage::getInstance().registerDefaultProfileChangedCallback(on_default_profile_changed_gamepad);
+}
+
+void Gamepad::setup()
+{
+	APP_DBG("Gamepad setup: start");
+    if (mapDpadUp != nullptr) {
+        deinit();
+    }
+    options = Storage::getInstance().getDefaultGamepadProfile();
+    memset(macroTriggerMask, 0, sizeof(macroTriggerMask));
+    memset(macroTriggerLatched, 0, sizeof(macroTriggerLatched));
+    macroPlaying = false;
+    macroFinishPending = false;
+    macroFinishPendingStartMs = 0;
+    macroPlayingIndex = 0;
+    macroPlayingStepIndex = 0;
+    macroStepStartMs = 0;
+    macroOutputMask = 0;
+    macroDynamicCommandMask = 0;
+    lastButtonCommandMask = 0;
+    prevPhysicalMacroMask = 0;
+
+    // 将 std::map 访问改为数组访问
+    mapDpadUp    = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_UP], GAMEPAD_MASK_UP);
+    mapDpadDown  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_DOWN], GAMEPAD_MASK_DOWN);
+    mapDpadLeft  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_LEFT], GAMEPAD_MASK_LEFT);
+    mapDpadRight = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT], GAMEPAD_MASK_RIGHT);
+    mapButtonB1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B1], GAMEPAD_MASK_B1);
+    mapButtonB2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B2], GAMEPAD_MASK_B2);
+    mapButtonB3  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B3], GAMEPAD_MASK_B3);
+    mapButtonB4  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B4], GAMEPAD_MASK_B4);
+    mapButtonL1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L1], GAMEPAD_MASK_L1);
+    mapButtonR1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R1], GAMEPAD_MASK_R1);
+    mapButtonL2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L2], GAMEPAD_MASK_L2);
+    mapButtonR2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R2], GAMEPAD_MASK_R2);
+    mapButtonS1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S1], GAMEPAD_MASK_S1);
+    mapButtonS2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2], GAMEPAD_MASK_S2);
+    mapButtonL3  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L3], GAMEPAD_MASK_L3);
+    mapButtonR3  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R3], GAMEPAD_MASK_R3);
+    mapButtonA1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1], GAMEPAD_MASK_A1);
+    mapButtonA2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A2], GAMEPAD_MASK_A2);
+    mapButtonFn  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_FN], AUX_MASK_FUNCTION);
+
+	APP_DBG("Gamepad setup: keyMapping init done");
+
+	for(int i = 0; i < MAX_KEY_COMBINATION; i++) {
+		KeyCombination& combo = options->keysConfig.keyCombinations[i];
+		if(combo.gameControllerButtonMask == 0 || combo.virtualPinMask == 0) {
+			continue;
+		}
+		
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_DPAD_UP))  mapDpadUp->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_DPAD_DOWN))  mapDpadDown->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_DPAD_LEFT))  mapDpadLeft->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT))  mapDpadRight->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_B1))  mapButtonB1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_B2))  mapButtonB2->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_B3))  mapButtonB3->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_B4))  mapButtonB4->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_L1))  mapButtonL1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_R1))  mapButtonR1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_L2))  mapButtonL2->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_R2))  mapButtonR2->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_S1))  mapButtonS1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_S2))  mapButtonS2->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_L3))  mapButtonL3->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_R3))  mapButtonR3->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_A1))  mapButtonA1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_A2))  mapButtonA2->virtualPinMask |= combo.virtualPinMask;
+	}
+	
+	APP_DBG("Gamepad setup: keyCombinations init done");
+
+    for (uint8_t i = 0; i < MAX_NUM_MACROS; i++) {
+        const MacroConfig& macro = options->keysConfig.macros[i];
+        uint32_t triggerMask = 0;
+        for (uint8_t t = 0; t < macro.numTriggerKeys && t < MAX_MACRO_TRIGGER_KEYS; t++) {
+            uint8_t key = macro.triggerKeys[t];
+            if (key < 32) triggerMask |= (1UL << key);
+        }
+        macroTriggerMask[i] = triggerMask;
+    }
+
+}
+
+bool Gamepad::isMacroTriggerPressed(uint8_t macroIndex, Mask_t virtualPinMask) const {
+    uint32_t triggerMask = macroTriggerMask[macroIndex];
+    if (triggerMask == 0) return false;
+    return (virtualPinMask & triggerMask) != 0;
+}
+
+void Gamepad::startMacroPlayback(uint8_t macroIndex, uint32_t nowMs) {
+    const MacroConfig& macro = options->keysConfig.macros[macroIndex];
+    if (macro.numSteps == 0) return;
+
+    macroPlaying = true;
+    macroFinishPending = false;
+    macroFinishPendingStartMs = 0;
+    macroPlayingIndex = macroIndex;
+    macroPlayingStepIndex = 0;
+    macroStepStartMs = nowMs;
+    macroDynamicCommandMask = lastButtonCommandMask;
+    macroOutputMask = (macro.steps[0].buttonMask & ~macro.steps[0].dynamicMask)
+        | (macro.steps[0].dynamicMask ? macroDynamicCommandMask : 0);
+
+    if (macro.numSteps <= 1) {
+        macroFinishPending = true;
+        macroFinishPendingStartMs = nowMs;
+    }
+}
+
+void Gamepad::updateMacroPlayback(uint32_t nowMs) {
+    if (!macroPlaying) return;
+
+    const MacroConfig& macro = options->keysConfig.macros[macroPlayingIndex];
+    if (macro.numSteps == 0) {
+        macroPlaying = false;
+        macroFinishPending = false;
+        macroFinishPendingStartMs = 0;
+        macroOutputMask = 0;
+        macroDynamicCommandMask = 0;
+        return;
+    }
+
+    while (macroPlayingStepIndex + 1 < macro.numSteps) {
+        uint16_t nextDelay = macro.steps[macroPlayingStepIndex + 1].timeMs;
+        uint32_t elapsed = nowMs - macroStepStartMs;
+        if (elapsed < nextDelay) break;
+        macroStepStartMs += nextDelay;
+        macroPlayingStepIndex++;
+        const MacroStep& step = macro.steps[macroPlayingStepIndex];
+        macroOutputMask = (step.buttonMask & ~step.dynamicMask)
+            | (step.dynamicMask ? macroDynamicCommandMask : 0);
+    }
+
+    if (macroPlayingStepIndex + 1 >= macro.numSteps) {
+        if (!macroFinishPending) {
+            macroFinishPending = true;
+            macroFinishPendingStartMs = nowMs;
+        }
+    }
+}
+
+void Gamepad::applyMacroOutputToState() {
+    if (!macroPlaying) return;
+
+    uint32_t m = macroOutputMask;
+    state.dpad = 0
+        | ((m & (1UL << 0)) ? GAMEPAD_MASK_UP : 0)
+        | ((m & (1UL << 1)) ? GAMEPAD_MASK_DOWN : 0)
+        | ((m & (1UL << 2)) ? GAMEPAD_MASK_LEFT : 0)
+        | ((m & (1UL << 3)) ? GAMEPAD_MASK_RIGHT : 0);
+
+    state.buttons = 0
+        | ((m & (1UL << 4)) ? GAMEPAD_MASK_B1 : 0)
+        | ((m & (1UL << 5)) ? GAMEPAD_MASK_B2 : 0)
+        | ((m & (1UL << 6)) ? GAMEPAD_MASK_B3 : 0)
+        | ((m & (1UL << 7)) ? GAMEPAD_MASK_B4 : 0)
+        | ((m & (1UL << 8)) ? GAMEPAD_MASK_L1 : 0)
+        | ((m & (1UL << 9)) ? GAMEPAD_MASK_R1 : 0)
+        | ((m & (1UL << 10)) ? GAMEPAD_MASK_L2 : 0)
+        | ((m & (1UL << 11)) ? GAMEPAD_MASK_R2 : 0)
+        | ((m & (1UL << 12)) ? GAMEPAD_MASK_S1 : 0)
+        | ((m & (1UL << 13)) ? GAMEPAD_MASK_S2 : 0)
+        | ((m & (1UL << 14)) ? GAMEPAD_MASK_L3 : 0)
+        | ((m & (1UL << 15)) ? GAMEPAD_MASK_R3 : 0)
+        | ((m & (1UL << 16)) ? GAMEPAD_MASK_A1 : 0)
+        | ((m & (1UL << 17)) ? GAMEPAD_MASK_A2 : 0);
+}
+
+void Gamepad::finishMacroPlaybackIfPending(uint32_t nowMs) {
+    if (!macroPlaying || !macroFinishPending) return;
+    uint32_t elapsedMs = nowMs - macroFinishPendingStartMs;
+    if (elapsedMs < 17) {
+        return;
+    }
+    macroPlaying = false;
+    macroFinishPending = false;
+    macroFinishPendingStartMs = 0;
+    macroOutputMask = 0;
+    macroDynamicCommandMask = 0;
+}
+
+uint32_t Gamepad::buildMacroMaskFromCurrentState() const {
+    uint32_t m = 0;
+    m |= (state.dpad & GAMEPAD_MASK_UP) ? (1UL << 0) : 0;
+    m |= (state.dpad & GAMEPAD_MASK_DOWN) ? (1UL << 1) : 0;
+    m |= (state.dpad & GAMEPAD_MASK_LEFT) ? (1UL << 2) : 0;
+    m |= (state.dpad & GAMEPAD_MASK_RIGHT) ? (1UL << 3) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_B1) ? (1UL << 4) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_B2) ? (1UL << 5) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_B3) ? (1UL << 6) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_B4) ? (1UL << 7) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_L1) ? (1UL << 8) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_R1) ? (1UL << 9) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_L2) ? (1UL << 10) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_R2) ? (1UL << 11) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_S1) ? (1UL << 12) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_S2) ? (1UL << 13) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_L3) ? (1UL << 14) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_R3) ? (1UL << 15) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_A1) ? (1UL << 16) : 0;
+    m |= (state.buttons & GAMEPAD_MASK_A2) ? (1UL << 17) : 0;
+    return m;
+}
+
+void Gamepad::updateLastButtonCommand(uint32_t physicalMacroMask) {
+    uint32_t riseMask = physicalMacroMask & ~prevPhysicalMacroMask;
+    prevPhysicalMacroMask = physicalMacroMask;
+    if (riseMask == 0) return;
+    uint32_t lowestBit = riseMask & (0U - riseMask);
+    if (lowestBit != 0) {
+        lastButtonCommandMask = lowestBit;
+    }
+}
+
+void Gamepad::process()
+{
+	memcpy(&rawState, &state, sizeof(GamepadState));
+
+	// NOTE: Inverted X/Y-axis must run before SOCD and Dpad processing
+	if (options->keysConfig.invertXAxis) {
+		bool left = (state.dpad & mapDpadLeft->buttonMask) != 0;
+		bool right = (state.dpad & mapDpadRight->buttonMask) != 0;
+		state.dpad &= ~(mapDpadLeft->buttonMask | mapDpadRight->buttonMask);
+		if (left)
+			state.dpad |= mapDpadRight->buttonMask;
+		if (right)
+			state.dpad |= mapDpadLeft->buttonMask;
+	}
+
+	if (options->keysConfig.invertYAxis) {
+		bool up = (state.dpad & mapDpadUp->buttonMask) != 0;
+		bool down = (state.dpad & mapDpadDown->buttonMask) != 0;
+		state.dpad &= ~(mapDpadUp->buttonMask | mapDpadDown->buttonMask);
+		if (up)
+			state.dpad |= mapDpadDown->buttonMask;
+		if (down)
+			state.dpad |= mapDpadUp->buttonMask;
+	}
+
+	// 4-way before SOCD, might have better history without losing any coherent functionality
+	if (options->keysConfig.fourWayMode) {
+		state.dpad = filterToFourWayMode(state.dpad);
+	}
+
+	state.dpad = runSOCDCleaner(resolveSOCDMode(*options), state.dpad);
+}
+
+void Gamepad::deinit()
+{
+    delete mapDpadUp;
+	delete mapDpadDown;
+	delete mapDpadLeft;
+	delete mapDpadRight;
+	delete mapButtonB1;
+	delete mapButtonB2;
+	delete mapButtonB3;
+	delete mapButtonB4;
+	delete mapButtonL1;
+	delete mapButtonR1;
+	delete mapButtonL2;
+	delete mapButtonR2;
+	delete mapButtonS1;
+	delete mapButtonS2;
+	delete mapButtonL3;
+	delete mapButtonR3;
+	delete mapButtonA1;
+    delete mapButtonA2;
+	delete mapButtonFn;
+
+    mapDpadUp = nullptr;
+    mapDpadDown = nullptr;
+    mapDpadLeft = nullptr;
+    mapDpadRight = nullptr;
+    mapButtonB1 = nullptr;
+    mapButtonB2 = nullptr;
+    mapButtonB3 = nullptr;
+    mapButtonB4 = nullptr;
+    mapButtonL1 = nullptr;
+    mapButtonR1 = nullptr;
+    mapButtonL2 = nullptr;
+    mapButtonR2 = nullptr;
+    mapButtonS1 = nullptr;
+    mapButtonS2 = nullptr;
+    mapButtonL3 = nullptr;
+    mapButtonR3 = nullptr;
+    mapButtonA1 = nullptr;
+    mapButtonA2 = nullptr;
+    mapButtonFn = nullptr;
+	
+	this->clearState();
+    memset(macroTriggerMask, 0, sizeof(macroTriggerMask));
+    memset(macroTriggerLatched, 0, sizeof(macroTriggerLatched));
+    macroPlaying = false;
+    macroFinishPending = false;
+    macroFinishPendingStartMs = 0;
+    macroOutputMask = 0;
+    macroDynamicCommandMask = 0;
+    lastButtonCommandMask = 0;
+    prevPhysicalMacroMask = 0;
+
+}
+
+
+void Gamepad::read(Mask_t values)
+{
+	
+	state.aux = 0
+		| (values & mapButtonFn->virtualPinMask)   ? mapButtonFn->buttonMask : 0;
+
+	state.dpad = 0
+		| ((values & mapDpadUp->virtualPinMask)    ? mapDpadUp->buttonMask : 0)
+		| ((values & mapDpadDown->virtualPinMask)  ? mapDpadDown->buttonMask : 0)
+		| ((values & mapDpadLeft->virtualPinMask)  ? mapDpadLeft->buttonMask  : 0)
+		| ((values & mapDpadRight->virtualPinMask) ? mapDpadRight->buttonMask : 0)
+	;
+
+	state.buttons = 0
+		| ((values & mapButtonB1->virtualPinMask)  ? mapButtonB1->buttonMask  : 0)
+		| ((values & mapButtonB2->virtualPinMask)  ? mapButtonB2->buttonMask  : 0)
+		| ((values & mapButtonB3->virtualPinMask)  ? mapButtonB3->buttonMask  : 0)
+		| ((values & mapButtonB4->virtualPinMask)  ? mapButtonB4->buttonMask  : 0)
+		| ((values & mapButtonL1->virtualPinMask)  ? mapButtonL1->buttonMask  : 0)
+		| ((values & mapButtonR1->virtualPinMask)  ? mapButtonR1->buttonMask  : 0)
+		| ((values & mapButtonL2->virtualPinMask)  ? mapButtonL2->buttonMask  : 0)
+		| ((values & mapButtonR2->virtualPinMask)  ? mapButtonR2->buttonMask  : 0)
+		| ((values & mapButtonS1->virtualPinMask)  ? mapButtonS1->buttonMask  : 0)
+		| ((values & mapButtonS2->virtualPinMask)  ? mapButtonS2->buttonMask  : 0)
+		| ((values & mapButtonL3->virtualPinMask)  ? mapButtonL3->buttonMask  : 0)
+		| ((values & mapButtonR3->virtualPinMask)  ? mapButtonR3->buttonMask  : 0)
+		| ((values & mapButtonA1->virtualPinMask)  ? mapButtonA1->buttonMask  : 0)
+		| ((values & mapButtonA2->virtualPinMask)  ? mapButtonA2->buttonMask  : 0)
+	;
+
+	state.lx = GAMEPAD_JOYSTICK_MID;
+	state.ly = GAMEPAD_JOYSTICK_MID;
+	state.rx = GAMEPAD_JOYSTICK_MID;
+	state.ry = GAMEPAD_JOYSTICK_MID;
+	state.lt = 0;
+	state.rt = 0;
+    uint32_t nowMs = MICROS_TIMER.micros() / 1000;
+    uint32_t physicalMacroMask = buildMacroMaskFromCurrentState();
+    updateLastButtonCommand(physicalMacroMask);
+
+    if (!macroPlaying) {
+        for (uint8_t i = 0; i < MAX_NUM_MACROS; i++) {
+            const MacroConfig& macro = options->keysConfig.macros[i];
+            bool pressed = isMacroTriggerPressed(i, values);
+            if (!pressed) {
+                macroTriggerLatched[i] = false;
+                continue;
+            }
+            if (macroTriggerLatched[i]) continue;
+            macroTriggerLatched[i] = true;
+            if (macro.numSteps == 0) continue;
+            startMacroPlayback(i, nowMs);
+            break;
+        }
+    }
+
+    updateMacroPlayback(nowMs);
+    applyMacroOutputToState();
+
+	process();
+    finishMacroPlaybackIfPending(nowMs);
+}
+
+void Gamepad::clearState()
+{
+	state.dpad = 0;
+	state.buttons = 0;
+	state.aux = 0;
+	state.lx = GAMEPAD_JOYSTICK_MID;
+	state.ly = GAMEPAD_JOYSTICK_MID;
+	state.rx = GAMEPAD_JOYSTICK_MID;
+	state.ry = GAMEPAD_JOYSTICK_MID;
+	state.lt = 0;
+	state.rt = 0;
+    memset(macroTriggerLatched, 0, sizeof(macroTriggerLatched));
+    macroPlaying = false;
+    macroFinishPending = false;
+    macroFinishPendingStartMs = 0;
+    macroOutputMask = 0;
+    macroDynamicCommandMask = 0;
+    lastButtonCommandMask = 0;
+    prevPhysicalMacroMask = 0;
+}
+
+void Gamepad::setSOCDMode(SOCDMode socdMode) {
+    options->keysConfig.socdMode = socdMode;
+}
+
+void Gamepad::refreshDefaultProfile() {
+    deinit();
+    setup();
+}
+
+

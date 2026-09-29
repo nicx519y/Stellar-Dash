@@ -1,6 +1,8 @@
 #include "dual_slot_config.h"
+#include "boot_profile.h"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
+#include "firmware_security.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -109,9 +111,9 @@ static FirmwareValidationResult validate_metadata(const FirmwareMetadata* metada
         return FIRMWARE_INVALID_DEVICE;
     }
     
-    // 4. 验证硬件版本兼容性
-    if (metadata->hardware_version > HARDWARE_VERSION) {
-        print_debug_info("Metadata validation failed: Hardware version too high (0x%08X > 0x%08X)", 
+    // 4. V2 bootloader 只接受精确匹配的 V2 元数据
+    if (!firmware_hardware_version_is_current(metadata->hardware_version)) {
+        print_debug_info("Metadata validation failed: Hardware version mismatch (0x%08X != 0x%08X)",
                          metadata->hardware_version, HARDWARE_VERSION);
         return FIRMWARE_INVALID_DEVICE;
     }
@@ -149,6 +151,16 @@ static FirmwareValidationResult validate_metadata(const FirmwareMetadata* metada
                          metadata->component_count, FIRMWARE_COMPONENT_COUNT);
         return FIRMWARE_CORRUPTED;
     }
+
+#if HBOX_SECURE_BOOT_REQUIRED
+    FirmwareValidationResult security_validation =
+        FirmwareSecurity_ValidateMetadata(metadata);
+    if (security_validation != FIRMWARE_VALID) {
+        print_debug_info("Metadata security validation failed: %d",
+                         security_validation);
+        return security_validation;
+    }
+#endif
     
     print_debug_info("Metadata validation successful: Version=%s, Slot=%d, Components=%d", 
                      metadata->firmware_version, metadata->target_slot, metadata->component_count);
@@ -217,7 +229,7 @@ int8_t DualSlot_LoadMetadata(FirmwareMetadata* metadata) {
     // 退出内存映射模式
     bool was_mapped = QSPI_W25Qxx_IsMemoryMappedMode();
     if (was_mapped) {
-        if (QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) {
+        if (BP_CALL(BP_UNMAP, QSPI_W25Qxx_ExitMemoryMappedMode()) != QSPI_W25Qxx_OK) {
             print_debug_info("Failed to exit memory mapped mode");
             return -2;
         }
@@ -225,15 +237,15 @@ int8_t DualSlot_LoadMetadata(FirmwareMetadata* metadata) {
     
     // 从Flash读取元数据
     uint32_t flash_address = METADATA_ADDR - EXTERNAL_FLASH_BASE;
-    int8_t result = QSPI_W25Qxx_ReadBuffer(
+    int8_t result = BP_CALL(BP_METADATA_READ, QSPI_W25Qxx_ReadBuffer(
         (uint8_t*)metadata, 
         flash_address,
         METADATA_STRUCT_SIZE
-    );
+    ));
     
     // 恢复内存映射模式
     if (was_mapped) {
-        QSPI_W25Qxx_EnterMemoryMappedMode();
+        BP_CALL(BP_MAP, QSPI_W25Qxx_EnterMemoryMappedMode());
     }
     
     if (result != QSPI_W25Qxx_OK) {
@@ -246,10 +258,8 @@ int8_t DualSlot_LoadMetadata(FirmwareMetadata* metadata) {
     size_t device_model_offset = offsetof(FirmwareMetadata, device_model);
     
     // 验证元数据完整性
-    FirmwareValidationResult validation = validate_metadata(metadata);
+    FirmwareValidationResult validation = BP_CALL(BP_METADATA_STRUCTURE, validate_metadata(metadata));
     if (validation != FIRMWARE_VALID) {
-        // 初始化默认元数据
-        init_default_metadata(metadata);
         return -4;
     }
     
@@ -412,6 +422,23 @@ bool DualSlot_IsSlotValid(FirmwareSlot slot) {
         return false;
     }
     
+    /* An unlocked recovery may have no usable metadata yet. In that case
+     * permit a vector-checked slot so a development image can still boot.
+     * The selected slot with valid metadata retains its image hash check.
+     */
+#if HBOX_SECURE_BOOT_REQUIRED
+    if (!g_metadata_loaded ||
+        !FirmwareSecurity_ValidateSlot(&g_current_metadata, slot)) {
+        return false;
+    }
+#else
+    if (g_metadata_loaded &&
+        g_current_metadata.target_slot == (uint8_t)slot &&
+        !FirmwareSecurity_ValidateSlot(&g_current_metadata, slot)) {
+        return false;
+    }
+#endif
+
     // 检查应用程序向量表
     uint32_t* app_vector = (uint32_t*)app_address;
     uint32_t stack_pointer = app_vector[0];
@@ -445,4 +472,4 @@ void DualSlot_PrintMetadata(const FirmwareMetadata* metadata) {
                          i, comp->name, comp->address, comp->size, comp->active);
     }
     print_debug_info("=====================================");
-} 
+}

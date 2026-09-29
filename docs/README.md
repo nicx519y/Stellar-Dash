@@ -1,6 +1,15 @@
-# STM32 HBox 双槽升级开发工具链
+# STM32 XORA 双槽升级开发工具链
 
 基于STM32 H750的双槽固件升级系统完整开发工具链，支持Bootloader、Application、WebResources的开发构建和发版打包。
+
+> V2 WebConfig 的本地实机调试、制造身份、生产公钥注入、KMS/Redis 部署和实机发布门禁分别见
+> [WEBCONFIG_LOCAL_HARDWARE_DEBUG.md](./WEBCONFIG_LOCAL_HARDWARE_DEBUG.md)、
+> [DEVICE_IDENTITY_PROVISIONING.md](./DEVICE_IDENTITY_PROVISIONING.md) 与
+> [WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md](./WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md)。
+> 新 PCB 当前已验证的启动、LCD/菜单 bring-up 架构、无锁开发构建和已知限制见
+> [PCB_V2_DISPLAY_MENU_BRINGUP.md](./PCB_V2_DISPLAY_MENU_BRINGUP.md)。
+> 仓库中的全零信任根和单进程内存认证存储只用于 fail-closed 开发基线，不代表
+> 量产安全配置。
 
 ## 目录
 
@@ -13,15 +22,17 @@
 - [发版阶段：打包和分发](#发版阶段打包和分发)
 - [固件升级架构](#固件升级架构)
 - [故障排除](#故障排除)
+- [V2 安全制造与部署](./DEVICE_IDENTITY_PROVISIONING.md)
 
 ## 项目结构
 
 ```
 HBox_Git/
 ├── application/          # 应用程序代码
-│   ├── Cpp_Core/         # C++核心代码
-│   │   ├── Src/firmware/ # 固件管理器实现
-│   │   └── Inc/firmware/ # 固件管理器头文件
+│   ├── Src/<模块>/       # 自研实现与外设驱动，firmware/ 为升级模块
+│   ├── Inc/<模块>/       # 与 Src 对应的模块头文件
+│   ├── Core/            # 生成入口、IRQ、HAL MSP 与系统启动
+│   ├── source_files.mk  # 显式源码清单与链接顺序
 │   └── build/           # 应用程序构建输出
 ├── bootloader/          # 引导程序代码
 │   ├── Core/Src/        # Bootloader核心实现
@@ -47,6 +58,8 @@ HBox_Git/
 ```
 
 ## 双槽升级架构原理
+
+STM32 模块导航、逐文件迁移表和无行为变更验证见 [模块整理记录](stm32-module-refactor.md)。
 
 ### 架构概述
 

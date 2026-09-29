@@ -1,0 +1,31 @@
+{
+  "stm32": {
+    "bytes": 371612,
+    "sha256": "5cf20963169ab2ec4b48971d42ab0fbceff267167686e40ef678bcc1e42d32e6"
+  },
+  "txPackageSha256": "d660620445b388b6941af56c82984bc1fefe63f495408e291a950b87dfbbc5ac",
+  "spiHz": 15000000,
+  "webconfigInterDataIdleCycles": 1,
+  "nativeReadonlyTransactions": 60,
+  "nativeReadonlySizes": [
+    128,
+    512,
+    995,
+    996,
+    1200,
+    1992
+  ],
+  "requestAndReplyChecks": "All transaction IDs matched; all RPC error codes zero. See .hbox/webhid-hs/spi15-gap-readonly.log",
+  "fixedPatternBefore": {
+    "bytesCompared": 1020,
+    "mismatches": 191,
+    "allMismatchXor": 128
+  },
+  "fixedPatternAfter": {
+    "bytesCompared": 1020,
+    "mismatches": 0,
+    "blockCrcFaultRecord": 0
+  },
+  "patternCaveat": "First four report bytes in shared DMA staging were overwritten by a subsequent short control transfer and excluded from direct comparison. Whole-block CRC and encrypted RPC checks passed independently.",
+  "browserVerification": "pending user confirmation"
+}

@@ -1,0 +1,123 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - banner:
+          - generic:
+            - generic:
+              - heading [level=2]: Administration
+            - paragraph: Manage account roles and scoped service tokens.
+          - generic:
+            - button: Back to WebConfig
+            - button:
+              - generic: "3"
+            - button: 中文
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - heading [level=2]: Users
+                  - paragraph: Role changes take effect on every active session immediately.
+                - button: Refresh
+              - generic:
+                - generic:
+                  - textbox:
+                    - /placeholder: Search email or display name
+                  - button: Search
+              - generic:
+                - table:
+                  - rowgroup:
+                    - row:
+                      - columnheader: Email
+                      - columnheader: Display name
+                      - columnheader: Role
+                      - columnheader: Registered
+                      - columnheader: Last login
+                  - rowgroup:
+                    - row:
+                      - cell: 33618409@qq.com
+                      - cell: "33618409"
+                      - cell:
+                        - generic:
+                          - combobox
+                      - cell: Aug 29, 2026, 7:16 PM
+                      - cell: Aug 29, 2026, 7:16 PM
+                    - row:
+                      - cell: user@example.com
+                      - cell: Preview user
+                      - cell:
+                        - generic:
+                          - combobox
+                      - cell: Aug 29, 2026, 7:16 PM
+                      - cell: Never
+              - generic:
+                - paragraph: Showing 1-2 of 2
+                - generic:
+                  - button [disabled]: Previous
+                  - button [disabled]: Next
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - heading [level=2]: Service tokens
+                - paragraph: Use scoped tokens for release and device automation. Secrets are shown only once.
+              - generic:
+                - generic:
+                  - generic:
+                    - group:
+                      - generic:
+                        - text: Token name
+                        - generic: "*"
+                      - textbox:
+                        - /placeholder: Release automation
+                    - group:
+                      - generic:
+                        - text: Expires in days
+                        - generic: "*"
+                      - spinbutton: "90"
+                  - group:
+                    - generic:
+                      - text: Scopes
+                      - generic: "*"
+                    - generic:
+                      - button [pressed]: device.manage
+                      - button [pressed]: firmware.manage
+                  - button: Create token
+              - generic:
+                - table:
+                  - rowgroup:
+                    - row:
+                      - columnheader: Token name
+                      - columnheader: Scopes
+                      - columnheader: Created
+                      - columnheader: Expiry
+                      - columnheader: Last used
+                      - columnheader: Status
+                      - columnheader: Actions
+                  - rowgroup:
+                    - row:
+                      - cell: Release automation
+                      - cell:
+                        - generic:
+                          - generic: device.manage
+                          - generic: firmware.manage
+                      - cell: Aug 29, 2026, 7:16 PM
+                      - cell: Nov 27, 2026, 7:16 PM
+                      - cell: Never
+                      - cell:
+                        - generic: Active
+                      - cell:
+                        - button: Revoke
+  - generic:
+    - alert
+  - region "top Notifications alt+T"
+  - dialog [ref=e184]:
+    - heading "Service token created" [level=2] [ref=e186]
+    - generic [ref=e188]:
+      - generic [ref=e189]: Copy this secret now. It cannot be viewed again after this dialog closes.
+      - textbox [active] [ref=e194]: stsvc_c2atXQJ3lERCagm2Trw_maB2sRcb9i1hfHn-Komp1Yg
+      - button "Copy" [ref=e195] [cursor=pointer]
+    - button "Close" [ref=e200] [cursor=pointer]
+    - button "Close" [ref=e201] [cursor=pointer]

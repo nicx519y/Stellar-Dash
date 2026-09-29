@@ -307,7 +307,7 @@ export function SettingContentLayout({
                 className={className}
             >
                 {/* 左侧边栏 */}
-                <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
+                <Flex flex={0} justifyContent="flex-start" alignSelf="stretch" minH={0}>
                     {sideContent}
                 </Flex>
 
@@ -346,7 +346,23 @@ interface SideContentProps {
 }
 
 export function SideContent({ children }: SideContentProps) {
-    return <>{children}</>;
+    return (
+        <Flex
+            direction="column"
+            gap={3}
+            alignItems="stretch"
+            width="228px"
+            minWidth="228px"
+            flexShrink={0}
+            minH={0}
+            height="100%"
+            borderRightWidth="1px"
+            borderColor="border"
+            pr="18px"
+        >
+            {children}
+        </Flex>
+    );
 }
 
 // 中间hitbox内容组件
@@ -422,4 +438,4 @@ export function BottomButtons({ config }: BottomButtonsProps) {
             </Card.Root>
         </Box>
     );
-} 
+}

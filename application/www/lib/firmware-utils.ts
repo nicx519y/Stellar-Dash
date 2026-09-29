@@ -171,6 +171,7 @@ export const extractFirmwarePackage = async (data: Uint8Array): Promise<{ manife
     try {
         // 使用JSZip解压ZIP文件
         const zip = await JSZip.loadAsync(data);
+        const requiredComponentNames = ['application', 'webresources', 'adc_mapping'] as const;
         
         // 1. 读取manifest.json
         const manifestFile = zip.file('manifest.json');
@@ -184,6 +185,29 @@ export const extractFirmwarePackage = async (data: Uint8Array): Promise<{ manife
         // 验证manifest结构
         if (!manifest.version || !manifest.slot || !manifest.components || !Array.isArray(manifest.components)) {
             throw new Error('manifest.json format is invalid');
+        }
+
+        const manifestComponentNames = manifest.components.map(component => component.name);
+        const uniqueComponentNames = new Set(manifestComponentNames);
+        if (
+            manifest.components.length !== requiredComponentNames.length ||
+            uniqueComponentNames.size !== requiredComponentNames.length ||
+            requiredComponentNames.some(name => !uniqueComponentNames.has(name))
+        ) {
+            throw new Error('STM32 OTA requires exactly application, webresources and adc_mapping');
+        }
+
+        const componentFiles = manifest.components.map(component => component.file);
+        if (new Set(componentFiles).size !== componentFiles.length) {
+            throw new Error('manifest.json contains duplicate component files');
+        }
+
+        const expectedArchiveFiles = new Set(['manifest.json', ...componentFiles]);
+        const unexpectedArchiveFiles = Object.values(zip.files)
+            .filter(entry => !entry.dir && !expectedArchiveFiles.has(entry.name))
+            .map(entry => entry.name);
+        if (unexpectedArchiveFiles.length > 0) {
+            throw new Error(`firmware package contains unexpected files: ${unexpectedArchiveFiles.join(', ')}`);
         }
         
         // 2. 读取所有组件文件
@@ -205,20 +229,13 @@ export const extractFirmwarePackage = async (data: Uint8Array): Promise<{ manife
             
             // 验证文件大小
             if (componentData.length !== comp.size) {
-                console.warn(`component ${comp.name} file size mismatch: expected ${comp.size}, actual ${componentData.length}`);
+                throw new Error(`component ${comp.name} file size mismatch: expected ${comp.size}, actual ${componentData.length}`);
             }
             
             // 验证SHA256校验和
-            try {
-                const calculatedHash = await calculateSHA256(componentData);
-                if (calculatedHash !== comp.sha256) {
-                    console.warn(`component ${comp.name} SHA256 checksum mismatch: expected ${comp.sha256}, actual ${calculatedHash}`);
-                    // 在开发环境中可能需要抛出错误，这里先警告
-                    // throw new Error(`component ${comp.name} SHA256 checksum mismatch`);
-                }
-            } catch (checksumError) {
-                console.warn(`component ${comp.name} SHA256 checksum calculation failed:`, checksumError);
-                // 继续处理，不因为校验和计算失败而中断
+            const calculatedHash = await calculateSHA256(componentData);
+            if (calculatedHash.toLowerCase() !== comp.sha256.toLowerCase()) {
+                throw new Error(`component ${comp.name} SHA256 checksum mismatch`);
             }
             
             // 创建组件对象
@@ -237,4 +254,4 @@ export const extractFirmwarePackage = async (data: Uint8Array): Promise<{ manife
             throw new Error('failed to extract firmware package: unknown error');
         }
     }
-}; 
+};

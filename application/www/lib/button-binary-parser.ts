@@ -1,7 +1,7 @@
-/**
- * 按键状态二进制数据解析器
- * 对应C++端的ButtonStateBinaryData结构体
- */
+/** 单帧 WebHID BUTTON_STATE 负载，与 common/webhid_protocol.h 对齐。 */
+
+export const BUTTON_STATE_PAYLOAD_SIZE = 12;
+export const BUTTON_STATE_ACTIVE_FLAG = 1 << 0;
 
 // 按键状态二进制数据结构（与C++端保持一致）
 export interface ButtonStateBinaryData {
@@ -9,6 +9,8 @@ export interface ButtonStateBinaryData {
   isActive: boolean;      // 布尔值：true=活跃，false=非活跃
   triggerMask: number;    // 32位按键触发掩码
   totalButtons: number;   // 总按键数量
+  eventSequence: number;  // 固件按键事件序号（独立于物理HID序号）
+  droppedSnapshots: number; // 本会话累计丢弃/合并的状态快照
 }
 
 // 命令号定义
@@ -24,30 +26,32 @@ export function parseButtonStateBinaryData(buffer: ArrayBuffer | Uint8Array): Bu
     // 确保是ArrayBuffer
     const arrayBuffer = buffer instanceof ArrayBuffer ? buffer : buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
     
-    // 检查数据长度，ButtonStateBinaryData结构体大小为8字节
-    if (arrayBuffer.byteLength < 8) {
-      console.warn('二进制数据长度不足，期望至少8字节，实际:', arrayBuffer.byteLength);
+    if (arrayBuffer.byteLength !== BUTTON_STATE_PAYLOAD_SIZE) {
       return null;
     }
     
     const dataView = new DataView(arrayBuffer);
     
-    // 按照C++结构体的内存布局解析
-    // #pragma pack(push, 1) 确保紧密排列
-    const command = dataView.getUint8(0);           // offset 0: uint8_t command
-    const isActiveRaw = dataView.getUint8(1);       // offset 1: uint8_t isActive
-    const triggerMask = dataView.getUint32(2, true); // offset 2: uint32_t triggerMask (小端序)
-    const totalButtons = dataView.getUint8(6);      // offset 6: uint8_t totalButtons
-    // offset 7-8: uint8_t reserved[2] - 保留字节，不解析
-    
-    // 转换isActive为布尔值
-    const isActive = isActiveRaw !== 0;
+    const eventSequence = dataView.getUint32(0, true);
+    const triggerMask = dataView.getUint32(4, true);
+    const droppedSnapshots = dataView.getUint16(8, true);
+    const totalButtons = dataView.getUint8(10);
+    const flags = dataView.getUint8(11);
+    if (
+      eventSequence === 0
+      || totalButtons > 32
+      || (flags & ~BUTTON_STATE_ACTIVE_FLAG) !== 0
+    ) {
+      return null;
+    }
     
     const result: ButtonStateBinaryData = {
-      command,
-      isActive,
+      command: BUTTON_STATE_CHANGED_CMD,
+      isActive: (flags & BUTTON_STATE_ACTIVE_FLAG) !== 0,
       triggerMask,
-      totalButtons
+      totalButtons,
+      eventSequence,
+      droppedSnapshots,
     };
     
     return result;
@@ -96,4 +100,4 @@ export function isButtonTriggered(triggerMask: number, buttonIndex: number): boo
     return false;
   }
   return (triggerMask & (1 << buttonIndex)) !== 0;
-} 
+}

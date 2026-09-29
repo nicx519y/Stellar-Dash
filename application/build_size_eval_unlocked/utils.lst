@@ -1,0 +1,1517 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"utils.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Core/Src/utils.c"
+  19              		.section	.text.RGBToHex,"ax",%progbits
+  20              		.align	1
+  21              		.global	RGBToHex
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	RGBToHex:
+  27              	.LVL0:
+  28              	.LFB339:
+   1:Core/Src/utils.c **** #include "utils.h"
+   2:Core/Src/utils.c **** #include <stdio.h>
+   3:Core/Src/utils.c **** #include <math.h>
+   4:Core/Src/utils.c **** #include "board_cfg.h"
+   5:Core/Src/utils.c **** 
+   6:Core/Src/utils.c **** uint32_t RGBToHex(uint8_t red, uint8_t green, uint8_t blue)
+   7:Core/Src/utils.c **** {
+  29              		.loc 1 7 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+   8:Core/Src/utils.c ****   return ((green & 0xff) << 16 | (red & 0xff) << 8 | (blue & 0xff));
+  34              		.loc 1 8 3 view .LVU1
+  35              		.loc 1 8 52 is_stmt 0 view .LVU2
+  36 0000 42EA0020 		orr	r0, r2, r0, lsl #8
+  37              	.LVL1:
+   9:Core/Src/utils.c **** }
+  38              		.loc 1 9 1 view .LVU3
+  39 0004 40EA0140 		orr	r0, r0, r1, lsl #16
+  40 0008 7047     		bx	lr
+  41              		.cfi_endproc
+  42              	.LFE339:
+  44              		.section	.text.hexToRGB,"ax",%progbits
+  45              		.align	1
+  46              		.global	hexToRGB
+  47              		.syntax unified
+  48              		.thumb
+  49              		.thumb_func
+  51              	hexToRGB:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 2
+
+
+  52              	.LVL2:
+  53              	.LFB340:
+  10:Core/Src/utils.c **** 
+  11:Core/Src/utils.c **** struct RGBColor hexToRGB(uint32_t color)
+  12:Core/Src/utils.c **** {
+  54              		.loc 1 12 1 is_stmt 1 view -0
+  55              		.cfi_startproc
+  56              		@ args = 0, pretend = 0, frame = 8
+  57              		@ frame_needed = 0, uses_anonymous_args = 0
+  58              		@ link register save eliminated.
+  13:Core/Src/utils.c ****     struct RGBColor c = {
+  59              		.loc 1 13 5 view .LVU5
+  12:Core/Src/utils.c ****     struct RGBColor c = {
+  60              		.loc 1 12 1 is_stmt 0 view .LVU6
+  61 0000 0346     		mov	r3, r0
+  62              	.LVL3:
+  14:Core/Src/utils.c ****         .r = (uint8_t) (color >> 16 & 0xff),
+  15:Core/Src/utils.c ****         .g = (uint8_t) (color >> 8 & 0xff),
+  16:Core/Src/utils.c ****         .b = (uint8_t) (color & 0xff),
+  17:Core/Src/utils.c ****     };
+  18:Core/Src/utils.c ****     return c;
+  63              		.loc 1 18 5 is_stmt 1 view .LVU7
+  64              		.loc 1 18 12 is_stmt 0 view .LVU8
+  65 0002 0020     		movs	r0, #0
+  66              	.LVL4:
+  12:Core/Src/utils.c ****     struct RGBColor c = {
+  67              		.loc 1 12 1 view .LVU9
+  68 0004 82B0     		sub	sp, sp, #8
+  69              	.LCFI0:
+  70              		.cfi_def_cfa_offset 8
+  71              		.loc 1 18 12 view .LVU10
+  72 0006 C3F30742 		ubfx	r2, r3, #16, #8
+  73 000a 62F30700 		bfi	r0, r2, #0, #8
+  74 000e C3F30722 		ubfx	r2, r3, #8, #8
+  75 0012 62F30F20 		bfi	r0, r2, #8, #8
+  19:Core/Src/utils.c **** }
+  76              		.loc 1 19 1 view .LVU11
+  77 0016 63F31740 		bfi	r0, r3, #16, #8
+  78 001a 02B0     		add	sp, sp, #8
+  79              	.LCFI1:
+  80              		.cfi_def_cfa_offset 0
+  81              		@ sp needed
+  82 001c 7047     		bx	lr
+  83              		.cfi_endproc
+  84              	.LFE340:
+  86              		.section	.text.equations,"ax",%progbits
+  87              		.align	1
+  88              		.global	equations
+  89              		.syntax unified
+  90              		.thumb
+  91              		.thumb_func
+  93              	equations:
+  94              	.LVL5:
+  95              	.LFB341:
+  20:Core/Src/utils.c **** 
+  21:Core/Src/utils.c **** 
+  22:Core/Src/utils.c **** // 定义常量
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 3
+
+
+  23:Core/Src/utils.c **** #ifndef M_PI
+  24:Core/Src/utils.c **** #define M_PI		3.14159265358979323846
+  25:Core/Src/utils.c **** #endif
+  26:Core/Src/utils.c **** 
+  27:Core/Src/utils.c **** #define MU_0 (4 * M_PI * 1e-7) // 真空磁导率
+  28:Core/Src/utils.c **** 
+  29:Core/Src/utils.c **** // 定义方程组
+  30:Core/Src/utils.c **** void equations(float_t vars[], float_t B1, float_t B2, float_t L, float_t R, float_t d, float_t eqs
+  96              		.loc 1 30 104 is_stmt 1 view -0
+  97              		.cfi_startproc
+  98              		@ args = 0, pretend = 0, frame = 0
+  99              		@ frame_needed = 0, uses_anonymous_args = 0
+  31:Core/Src/utils.c ****     float_t M = vars[0];
+ 100              		.loc 1 31 5 view .LVU13
+  30:Core/Src/utils.c ****     float_t M = vars[0];
+ 101              		.loc 1 30 104 is_stmt 0 view .LVU14
+ 102 0000 10B5     		push	{r4, lr}
+ 103              	.LCFI2:
+ 104              		.cfi_def_cfa_offset 8
+ 105              		.cfi_offset 4, -8
+ 106              		.cfi_offset 14, -4
+ 107 0002 2DED0E8B 		vpush.64	{d8, d9, d10, d11, d12, d13, d14}
+ 108              	.LCFI3:
+ 109              		.cfi_def_cfa_offset 64
+ 110              		.cfi_offset 80, -64
+ 111              		.cfi_offset 81, -60
+ 112              		.cfi_offset 82, -56
+ 113              		.cfi_offset 83, -52
+ 114              		.cfi_offset 84, -48
+ 115              		.cfi_offset 85, -44
+ 116              		.cfi_offset 86, -40
+ 117              		.cfi_offset 87, -36
+ 118              		.cfi_offset 88, -32
+ 119              		.cfi_offset 89, -28
+ 120              		.cfi_offset 90, -24
+ 121              		.cfi_offset 91, -20
+ 122              		.cfi_offset 92, -16
+ 123              		.cfi_offset 93, -12
+  32:Core/Src/utils.c ****     float_t z1 = vars[1];
+ 124              		.loc 1 32 13 view .LVU15
+ 125 0006 90ED018A 		vldr.32	s16, [r0, #4]
+  33:Core/Src/utils.c **** 
+  34:Core/Src/utils.c ****     float_t term1_1 = (L / 2 + z1) / sqrt(R * R + (L / 2 + z1) * (L / 2 + z1));
+ 126              		.loc 1 34 30 view .LVU16
+ 127 000a F6EE00AA 		vmov.f32	s21, #5.0e-1
+  30:Core/Src/utils.c ****     float_t M = vars[0];
+ 128              		.loc 1 30 104 view .LVU17
+ 129 000e F0EE409A 		vmov.f32	s19, s0
+ 130 0012 0C46     		mov	r4, r1
+ 131              		.loc 1 34 30 view .LVU18
+ 132 0014 B0EE480A 		vmov.f32	s0, s16
+ 133              	.LVL6:
+  31:Core/Src/utils.c ****     float_t z1 = vars[1];
+ 134              		.loc 1 31 13 view .LVU19
+ 135 0018 90ED00DA 		vldr.32	s26, [r0]
+ 136              	.LVL7:
+  32:Core/Src/utils.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 4
+
+
+ 137              		.loc 1 32 5 is_stmt 1 view .LVU20
+ 138              		.loc 1 34 5 view .LVU21
+  30:Core/Src/utils.c ****     float_t M = vars[0];
+ 139              		.loc 1 30 104 is_stmt 0 view .LVU22
+ 140 001c B0EE609A 		vmov.f32	s18, s1
+ 141 0020 B0EE41AA 		vmov.f32	s20, s2
+ 142              		.loc 1 34 30 view .LVU23
+ 143 0024 A1EE2A0A 		vfma.f32	s0, s2, s21
+ 144              	.LVL8:
+  30:Core/Src/utils.c ****     float_t M = vars[0];
+ 145              		.loc 1 30 104 view .LVU24
+ 146 0028 F0EE618A 		vmov.f32	s17, s3
+ 147 002c B0EE42EA 		vmov.f32	s28, s4
+ 148              		.loc 1 34 30 view .LVU25
+ 149 0030 B7EEC0BA 		vcvt.f64.f32	d11, s0
+ 150              		.loc 1 34 64 view .LVU26
+ 151 0034 20EE000A 		vmul.f32	s0, s0, s0
+ 152              		.loc 1 34 49 view .LVU27
+ 153 0038 A1EEA10A 		vfma.f32	s0, s3, s3
+ 154              		.loc 1 34 38 view .LVU28
+ 155 003c B7EEC00A 		vcvt.f64.f32	d0, s0
+ 156 0040 FFF7FEFF 		bl	sqrt
+ 157              	.LVL9:
+ 158              		.loc 1 34 36 discriminator 1 view .LVU29
+ 159 0044 8BEE007B 		vdiv.f64	d7, d11, d0
+  35:Core/Src/utils.c ****     float_t term1_2 = (L / 2 - z1) / sqrt(R * R + (L / 2 - z1) * (L / 2 - z1));
+ 160              		.loc 1 35 30 view .LVU30
+ 161 0048 B0EE480A 		vmov.f32	s0, s16
+ 162 004c 9AEE2A0A 		vfnms.f32	s0, s20, s21
+ 163 0050 B7EEC0CA 		vcvt.f64.f32	d12, s0
+ 164              		.loc 1 35 64 view .LVU31
+ 165 0054 20EE000A 		vmul.f32	s0, s0, s0
+ 166              		.loc 1 35 49 view .LVU32
+ 167 0058 A8EEA80A 		vfma.f32	s0, s17, s17
+ 168              		.loc 1 35 38 view .LVU33
+ 169 005c B7EEC00A 		vcvt.f64.f32	d0, s0
+  34:Core/Src/utils.c ****     float_t term1_2 = (L / 2 - z1) / sqrt(R * R + (L / 2 - z1) * (L / 2 - z1));
+ 170              		.loc 1 34 13 discriminator 1 view .LVU34
+ 171 0060 F7EEC7BB 		vcvt.f32.f64	s23, d7
+ 172              	.LVL10:
+ 173              		.loc 1 35 5 is_stmt 1 view .LVU35
+ 174              		.loc 1 35 38 is_stmt 0 view .LVU36
+ 175 0064 FFF7FEFF 		bl	sqrt
+ 176              	.LVL11:
+ 177              		.loc 1 35 36 discriminator 1 view .LVU37
+ 178 0068 8CEE007B 		vdiv.f64	d7, d12, d0
+  36:Core/Src/utils.c ****     float_t term2_1 = (L / 2 + (z1 + d)) / sqrt(R * R + (L / 2 + (z1 + d)) * (L / 2 + (z1 + d)));
+ 179              		.loc 1 36 36 view .LVU38
+ 180 006c 38EE0E8A 		vadd.f32	s16, s16, s28
+ 181              	.LVL12:
+ 182              		.loc 1 36 30 view .LVU39
+ 183 0070 B0EE480A 		vmov.f32	s0, s16
+ 184 0074 AAEE2A0A 		vfma.f32	s0, s20, s21
+ 185 0078 B7EEC0CA 		vcvt.f64.f32	d12, s0
+ 186              		.loc 1 36 76 view .LVU40
+ 187 007c 20EE000A 		vmul.f32	s0, s0, s0
+ 188              		.loc 1 36 55 view .LVU41
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 5
+
+
+ 189 0080 A8EEA80A 		vfma.f32	s0, s17, s17
+ 190              		.loc 1 36 44 view .LVU42
+ 191 0084 B7EEC00A 		vcvt.f64.f32	d0, s0
+  35:Core/Src/utils.c ****     float_t term1_2 = (L / 2 - z1) / sqrt(R * R + (L / 2 - z1) * (L / 2 - z1));
+ 192              		.loc 1 35 13 discriminator 1 view .LVU43
+ 193 0088 F7EEC7DB 		vcvt.f32.f64	s27, d7
+ 194              	.LVL13:
+ 195              		.loc 1 36 5 is_stmt 1 view .LVU44
+ 196              		.loc 1 36 44 is_stmt 0 view .LVU45
+ 197 008c FFF7FEFF 		bl	sqrt
+ 198              	.LVL14:
+ 199              		.loc 1 36 42 discriminator 1 view .LVU46
+ 200 0090 8CEE006B 		vdiv.f64	d6, d12, d0
+  37:Core/Src/utils.c ****     float_t term2_2 = (L / 2 - (z1 + d)) / sqrt(R * R + (L / 2 - (z1 + d)) * (L / 2 - (z1 + d)));
+ 201              		.loc 1 37 30 view .LVU47
+ 202 0094 9AEE2A8A 		vfnms.f32	s16, s20, s21
+ 203 0098 B7EEC8AA 		vcvt.f64.f32	d10, s16
+ 204              	.LVL15:
+ 205              		.loc 1 37 76 view .LVU48
+ 206 009c 28EE088A 		vmul.f32	s16, s16, s16
+ 207              		.loc 1 37 55 view .LVU49
+ 208 00a0 A8EEA88A 		vfma.f32	s16, s17, s17
+ 209              		.loc 1 37 44 view .LVU50
+ 210 00a4 B7EEC80A 		vcvt.f64.f32	d0, s16
+  36:Core/Src/utils.c ****     float_t term2_1 = (L / 2 + (z1 + d)) / sqrt(R * R + (L / 2 + (z1 + d)) * (L / 2 + (z1 + d)));
+ 211              		.loc 1 36 13 discriminator 1 view .LVU51
+ 212 00a8 B7EEC6BB 		vcvt.f32.f64	s22, d6
+ 213              	.LVL16:
+ 214              		.loc 1 37 5 is_stmt 1 view .LVU52
+ 215              		.loc 1 37 44 is_stmt 0 view .LVU53
+ 216 00ac FFF7FEFF 		bl	sqrt
+ 217              	.LVL17:
+ 218              		.loc 1 37 42 discriminator 1 view .LVU54
+ 219 00b0 8AEE007B 		vdiv.f64	d7, d10, d0
+  38:Core/Src/utils.c **** 
+  39:Core/Src/utils.c ****     eqs[0] = B1 - (MU_0 / 2) * M * (term1_1 - term1_2);
+ 220              		.loc 1 39 30 view .LVU55
+ 221 00b4 B7EECD4A 		vcvt.f64.f32	d4, s26
+ 222              		.loc 1 39 17 view .LVU56
+ 223 00b8 B7EEE90A 		vcvt.f64.f32	d0, s19
+ 224 00bc 9FED105B 		vldr.64	d5, .L4
+ 225 00c0 25EE445B 		vnmul.f64	d5, d5, d4
+  37:Core/Src/utils.c ****     float_t term2_2 = (L / 2 - (z1 + d)) / sqrt(R * R + (L / 2 - (z1 + d)) * (L / 2 - (z1 + d)));
+ 226              		.loc 1 37 13 discriminator 1 view .LVU57
+ 227 00c4 F7EEC76B 		vcvt.f32.f64	s13, d7
+ 228              	.LVL18:
+ 229              		.loc 1 39 5 is_stmt 1 view .LVU58
+ 230              		.loc 1 39 45 is_stmt 0 view .LVU59
+ 231 00c8 3BEEED7A 		vsub.f32	s14, s23, s27
+  40:Core/Src/utils.c ****     eqs[1] = B2 - (MU_0 / 2) * M * (term2_1 - term2_2);
+ 232              		.loc 1 40 45 view .LVU60
+ 233 00cc 3BEE666A 		vsub.f32	s12, s22, s13
+  39:Core/Src/utils.c ****     eqs[1] = B2 - (MU_0 / 2) * M * (term2_1 - term2_2);
+ 234              		.loc 1 39 45 view .LVU61
+ 235 00d0 B7EEC77A 		vcvt.f64.f32	d7, s14
+ 236              		.loc 1 40 45 view .LVU62
+ 237 00d4 B7EEC66A 		vcvt.f64.f32	d6, s12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 6
+
+
+  39:Core/Src/utils.c ****     eqs[1] = B2 - (MU_0 / 2) * M * (term2_1 - term2_2);
+ 238              		.loc 1 39 17 view .LVU63
+ 239 00d8 A7EE050B 		vfma.f64	d0, d7, d5
+ 240              		.loc 1 40 17 view .LVU64
+ 241 00dc B7EEC97A 		vcvt.f64.f32	d7, s18
+  41:Core/Src/utils.c **** }
+ 242              		.loc 1 41 1 view .LVU65
+ 243 00e0 BDEC0E8B 		vldm	sp!, {d8-d14}
+ 244              	.LCFI4:
+ 245              		.cfi_restore 92
+ 246              		.cfi_restore 93
+ 247              		.cfi_restore 90
+ 248              		.cfi_restore 91
+ 249              		.cfi_restore 88
+ 250              		.cfi_restore 89
+ 251              		.cfi_restore 86
+ 252              		.cfi_restore 87
+ 253              		.cfi_restore 84
+ 254              		.cfi_restore 85
+ 255              		.cfi_restore 82
+ 256              		.cfi_restore 83
+ 257              		.cfi_restore 80
+ 258              		.cfi_restore 81
+ 259              		.cfi_def_cfa_offset 8
+ 260              	.LVL19:
+  40:Core/Src/utils.c ****     eqs[1] = B2 - (MU_0 / 2) * M * (term2_1 - term2_2);
+ 261              		.loc 1 40 17 view .LVU66
+ 262 00e4 A6EE057B 		vfma.f64	d7, d6, d5
+  39:Core/Src/utils.c ****     eqs[1] = B2 - (MU_0 / 2) * M * (term2_1 - term2_2);
+ 263              		.loc 1 39 17 view .LVU67
+ 264 00e8 B7EEC00B 		vcvt.f32.f64	s0, d0
+ 265 00ec 84ED000A 		vstr.32	s0, [r4]
+  40:Core/Src/utils.c ****     eqs[1] = B2 - (MU_0 / 2) * M * (term2_1 - term2_2);
+ 266              		.loc 1 40 5 is_stmt 1 view .LVU68
+  40:Core/Src/utils.c ****     eqs[1] = B2 - (MU_0 / 2) * M * (term2_1 - term2_2);
+ 267              		.loc 1 40 17 is_stmt 0 view .LVU69
+ 268 00f0 B7EEC77B 		vcvt.f32.f64	s14, d7
+ 269 00f4 84ED017A 		vstr.32	s14, [r4, #4]
+ 270              		.loc 1 41 1 view .LVU70
+ 271 00f8 10BD     		pop	{r4, pc}
+ 272              	.LVL20:
+ 273              	.L5:
+ 274              		.loc 1 41 1 view .LVU71
+ 275 00fa 00BFAFF3 		.align	3
+ 275      0080
+ 276              	.L4:
+ 277 0100 CBF6990F 		.word	261748427
+ 278 0104 3715A53E 		.word	1051006263
+ 279              		.cfi_endproc
+ 280              	.LFE341:
+ 282              		.section	.text.newton_raphson,"ax",%progbits
+ 283              		.align	1
+ 284              		.global	newton_raphson
+ 285              		.syntax unified
+ 286              		.thumb
+ 287              		.thumb_func
+ 289              	newton_raphson:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 7
+
+
+ 290              	.LVL21:
+ 291              	.LFB342:
+  42:Core/Src/utils.c **** 
+  43:Core/Src/utils.c **** /**
+  44:Core/Src/utils.c ****  * 牛顿-拉夫森法求解方程组，求解磁化强度
+  45:Core/Src/utils.c ****  * 通过迭代法求解方程组，直到误差小于1e-6
+  46:Core/Src/utils.c ****  * 
+  47:Core/Src/utils.c ****  * @param vars 用于存储猜测的磁化强度范围
+  48:Core/Src/utils.c ****  * @param B1 第一个点的磁场强度
+  49:Core/Src/utils.c ****  * @param B2 第二个点的磁场强度
+  50:Core/Src/utils.c ****  * @param L 磁芯长度
+  51:Core/Src/utils.c ****  * @param R 磁芯半径
+  52:Core/Src/utils.c ****  * @param d 两个测试点之间的距离
+  53:Core/Src/utils.c ****  */
+  54:Core/Src/utils.c **** void newton_raphson(float_t vars[], float_t B1, float_t B2, float_t L, float_t R, float_t d) {
+ 292              		.loc 1 54 94 is_stmt 1 view -0
+ 293              		.cfi_startproc
+ 294              		@ args = 0, pretend = 0, frame = 40
+ 295              		@ frame_needed = 0, uses_anonymous_args = 0
+  55:Core/Src/utils.c ****     float_t tol = 1e-6; // 误差容限
+ 296              		.loc 1 55 5 view .LVU73
+  56:Core/Src/utils.c ****     int max_iter = 100; // 最大迭代次数
+ 297              		.loc 1 56 5 view .LVU74
+  57:Core/Src/utils.c ****     float_t eqs[2];
+ 298              		.loc 1 57 5 view .LVU75
+  58:Core/Src/utils.c ****     float_t J[2][2]; // 雅可比矩阵
+ 299              		.loc 1 58 5 view .LVU76
+  59:Core/Src/utils.c ****     float_t delta[2];
+ 300              		.loc 1 59 5 view .LVU77
+  60:Core/Src/utils.c ****     int iter;
+ 301              		.loc 1 60 5 view .LVU78
+  61:Core/Src/utils.c **** 
+  62:Core/Src/utils.c ****     for (iter = 0; iter < max_iter; iter++) {
+ 302              		.loc 1 62 5 view .LVU79
+ 303              		.loc 1 62 25 discriminator 1 view .LVU80
+  54:Core/Src/utils.c ****     float_t tol = 1e-6; // 误差容限
+ 304              		.loc 1 54 94 is_stmt 0 view .LVU81
+ 305 0000 2DE9F043 		push	{r4, r5, r6, r7, r8, r9, lr}
+ 306              	.LCFI5:
+ 307              		.cfi_def_cfa_offset 28
+ 308              		.cfi_offset 4, -28
+ 309              		.cfi_offset 5, -24
+ 310              		.cfi_offset 6, -20
+ 311              		.cfi_offset 7, -16
+ 312              		.cfi_offset 8, -12
+ 313              		.cfi_offset 9, -8
+ 314              		.cfi_offset 14, -4
+ 315 0004 2DED088B 		vpush.64	{d8, d9, d10, d11}
+ 316              	.LCFI6:
+ 317              		.cfi_def_cfa_offset 60
+ 318              		.cfi_offset 80, -60
+ 319              		.cfi_offset 81, -56
+ 320              		.cfi_offset 82, -52
+ 321              		.cfi_offset 83, -48
+ 322              		.cfi_offset 84, -44
+ 323              		.cfi_offset 85, -40
+ 324              		.cfi_offset 86, -36
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 8
+
+
+ 325              		.cfi_offset 87, -32
+ 326 0008 F0EE408A 		vmov.f32	s17, s0
+ 327 000c 8BB0     		sub	sp, sp, #44
+ 328              	.LCFI7:
+ 329              		.cfi_def_cfa_offset 104
+  54:Core/Src/utils.c ****     float_t tol = 1e-6; // 误差容限
+ 330              		.loc 1 54 94 view .LVU82
+ 331 000e B0EE609A 		vmov.f32	s18, s1
+ 332 0012 0446     		mov	r4, r0
+ 333 0014 F0EE419A 		vmov.f32	s19, s2
+ 334 0018 6426     		movs	r6, #100
+ 335 001a B0EE61AA 		vmov.f32	s20, s3
+ 336              	.LBB2:
+ 337              	.LBB3:
+ 338              	.LBB4:
+  63:Core/Src/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+  64:Core/Src/utils.c **** 
+  65:Core/Src/utils.c ****         // 计算雅可比矩阵
+  66:Core/Src/utils.c ****         float_t h = 1e-6; // 微小增量
+  67:Core/Src/utils.c ****         float_t vars_temp[2];
+  68:Core/Src/utils.c **** 
+  69:Core/Src/utils.c ****         for (int i = 0; i < 2; i++) {
+  70:Core/Src/utils.c ****             for (int j = 0; j < 2; j++) {
+  71:Core/Src/utils.c ****                 vars_temp[j] = vars[j];
+  72:Core/Src/utils.c ****             }
+  73:Core/Src/utils.c ****             vars_temp[i] += h;
+ 339              		.loc 1 73 26 view .LVU83
+ 340 001e 9FED418A 		vldr.32	s16, .L16
+ 341              	.LBE4:
+ 342              	.LBE3:
+ 343              	.LBE2:
+  54:Core/Src/utils.c ****     float_t tol = 1e-6; // 误差容限
+ 344              		.loc 1 54 94 view .LVU84
+ 345 0022 F0EE42AA 		vmov.f32	s21, s4
+ 346              	.LVL22:
+ 347              	.L11:
+ 348              	.LBB13:
+  63:Core/Src/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+ 349              		.loc 1 63 9 is_stmt 1 view .LVU85
+ 350 0026 02AD     		add	r5, sp, #8
+ 351 0028 06AF     		add	r7, sp, #24
+ 352              	.LBB10:
+  69:Core/Src/utils.c ****             for (int j = 0; j < 2; j++) {
+ 353              		.loc 1 69 18 is_stmt 0 view .LVU86
+ 354 002a 4FF00008 		mov	r8, #0
+ 355              	.LBE10:
+  63:Core/Src/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+ 356              		.loc 1 63 9 view .LVU87
+ 357 002e B0EE6A2A 		vmov.f32	s4, s21
+ 358 0032 A946     		mov	r9, r5
+ 359 0034 F0EE4A1A 		vmov.f32	s3, s20
+ 360 0038 B0EE691A 		vmov.f32	s2, s19
+ 361 003c 6946     		mov	r1, sp
+ 362 003e F0EE490A 		vmov.f32	s1, s18
+ 363 0042 2046     		mov	r0, r4
+ 364 0044 B0EE680A 		vmov.f32	s0, s17
+ 365 0048 FFF7FEFF 		bl	equations
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 9
+
+
+ 366              	.LVL23:
+  66:Core/Src/utils.c ****         float_t vars_temp[2];
+ 367              		.loc 1 66 9 is_stmt 1 view .LVU88
+  67:Core/Src/utils.c **** 
+ 368              		.loc 1 67 9 view .LVU89
+  69:Core/Src/utils.c ****             for (int j = 0; j < 2; j++) {
+ 369              		.loc 1 69 9 view .LVU90
+ 370              	.LBB11:
+  69:Core/Src/utils.c ****             for (int j = 0; j < 2; j++) {
+ 371              		.loc 1 69 14 view .LVU91
+  69:Core/Src/utils.c ****             for (int j = 0; j < 2; j++) {
+ 372              		.loc 1 69 27 discriminator 1 view .LVU92
+ 373              	.L7:
+ 374              	.LBB9:
+ 375              	.LBB5:
+  70:Core/Src/utils.c ****                 vars_temp[j] = vars[j];
+ 376              		.loc 1 70 31 discriminator 1 view .LVU93
+  71:Core/Src/utils.c ****             }
+ 377              		.loc 1 71 17 view .LVU94
+  71:Core/Src/utils.c ****             }
+ 378              		.loc 1 71 36 is_stmt 0 view .LVU95
+ 379 004c D4ED00BA 		vldr.32	s23, [r4]
+ 380              	.LBE5:
+  74:Core/Src/utils.c ****             float_t eqs_temp[2];
+  75:Core/Src/utils.c ****             equations(vars_temp, B1, B2, L, R, d, eqs_temp);
+ 381              		.loc 1 75 13 view .LVU96
+ 382 0050 B0EE6A2A 		vmov.f32	s4, s21
+ 383              	.LBB6:
+  71:Core/Src/utils.c ****             }
+ 384              		.loc 1 71 36 view .LVU97
+ 385 0054 94ED01BA 		vldr.32	s22, [r4, #4]
+ 386              	.LBE6:
+ 387              		.loc 1 75 13 view .LVU98
+ 388 0058 F0EE4A1A 		vmov.f32	s3, s20
+ 389              	.LBB7:
+  71:Core/Src/utils.c ****             }
+ 390              		.loc 1 71 30 view .LVU99
+ 391 005c CDED02BA 		vstr.32	s23, [sp, #8]
+  70:Core/Src/utils.c ****                 vars_temp[j] = vars[j];
+ 392              		.loc 1 70 37 is_stmt 1 discriminator 3 view .LVU100
+ 393              	.LVL24:
+  70:Core/Src/utils.c ****                 vars_temp[j] = vars[j];
+ 394              		.loc 1 70 31 discriminator 1 view .LVU101
+  71:Core/Src/utils.c ****             }
+ 395              		.loc 1 71 17 view .LVU102
+ 396              	.LBE7:
+ 397              		.loc 1 75 13 is_stmt 0 view .LVU103
+ 398 0060 B0EE691A 		vmov.f32	s2, s19
+ 399              	.LBB8:
+  71:Core/Src/utils.c ****             }
+ 400              		.loc 1 71 30 view .LVU104
+ 401 0064 8DED03BA 		vstr.32	s22, [sp, #12]
+  70:Core/Src/utils.c ****                 vars_temp[j] = vars[j];
+ 402              		.loc 1 70 37 is_stmt 1 discriminator 3 view .LVU105
+ 403              	.LVL25:
+  70:Core/Src/utils.c ****                 vars_temp[j] = vars[j];
+ 404              		.loc 1 70 31 discriminator 1 view .LVU106
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 10
+
+
+ 405              	.LBE8:
+  73:Core/Src/utils.c ****             float_t eqs_temp[2];
+ 406              		.loc 1 73 13 view .LVU107
+ 407              		.loc 1 75 13 is_stmt 0 view .LVU108
+ 408 0068 F0EE490A 		vmov.f32	s1, s18
+  73:Core/Src/utils.c ****             float_t eqs_temp[2];
+ 409              		.loc 1 73 22 view .LVU109
+ 410 006c D5ED007A 		vldr.32	s15, [r5]
+ 411              		.loc 1 75 13 view .LVU110
+ 412 0070 B0EE680A 		vmov.f32	s0, s17
+ 413 0074 04A9     		add	r1, sp, #16
+ 414 0076 4846     		mov	r0, r9
+  73:Core/Src/utils.c ****             float_t eqs_temp[2];
+ 415              		.loc 1 73 26 view .LVU111
+ 416 0078 77EE887A 		vadd.f32	s15, s15, s16
+ 417 007c E5EC017A 		vstmia.32	r5!, {s15}
+  74:Core/Src/utils.c ****             float_t eqs_temp[2];
+ 418              		.loc 1 74 13 is_stmt 1 view .LVU112
+ 419              		.loc 1 75 13 view .LVU113
+ 420 0080 FFF7FEFF 		bl	equations
+ 421              	.LVL26:
+  76:Core/Src/utils.c ****             J[0][i] = (eqs_temp[0] - eqs[0]) / h;
+ 422              		.loc 1 76 13 view .LVU114
+ 423              		.loc 1 76 41 is_stmt 0 view .LVU115
+ 424 0084 DDED005A 		vldr.32	s11, [sp]
+ 425              		.loc 1 76 36 view .LVU116
+ 426 0088 DDED047A 		vldr.32	s15, [sp, #16]
+ 427 008c 77EEE57A 		vsub.f32	s15, s15, s11
+ 428              		.loc 1 76 46 view .LVU117
+ 429 0090 87EE887A 		vdiv.f32	s14, s15, s16
+  77:Core/Src/utils.c ****             J[1][i] = (eqs_temp[1] - eqs[1]) / h;
+ 430              		.loc 1 77 41 view .LVU118
+ 431 0094 DDED017A 		vldr.32	s15, [sp, #4]
+  76:Core/Src/utils.c ****             J[0][i] = (eqs_temp[0] - eqs[0]) / h;
+ 432              		.loc 1 76 21 view .LVU119
+ 433 0098 A7EC017A 		vstmia.32	r7!, {s14}
+ 434              		.loc 1 77 13 is_stmt 1 view .LVU120
+ 435              		.loc 1 77 36 is_stmt 0 view .LVU121
+ 436 009c 9DED057A 		vldr.32	s14, [sp, #20]
+ 437 00a0 37EE677A 		vsub.f32	s14, s14, s15
+ 438              		.loc 1 77 46 view .LVU122
+ 439 00a4 C7EE086A 		vdiv.f32	s13, s14, s16
+ 440              		.loc 1 77 21 view .LVU123
+ 441 00a8 C7ED016A 		vstr.32	s13, [r7, #4]
+ 442              	.LBE9:
+  69:Core/Src/utils.c ****             for (int j = 0; j < 2; j++) {
+ 443              		.loc 1 69 33 is_stmt 1 discriminator 2 view .LVU124
+ 444              	.LVL27:
+  69:Core/Src/utils.c ****             for (int j = 0; j < 2; j++) {
+ 445              		.loc 1 69 27 discriminator 1 view .LVU125
+ 446 00ac B8F1000F 		cmp	r8, #0
+ 447 00b0 34D0     		beq	.L13
+ 448              	.LBE11:
+  78:Core/Src/utils.c ****         }
+  79:Core/Src/utils.c **** 
+  80:Core/Src/utils.c ****         // 计算 delta = J^(-1) * eqs
+  81:Core/Src/utils.c ****         float_t det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 11
+
+
+ 449              		.loc 1 81 9 view .LVU126
+ 450              		.loc 1 81 47 is_stmt 0 view .LVU127
+ 451 00b2 9DED077A 		vldr.32	s14, [sp, #28]
+ 452              		.loc 1 81 57 view .LVU128
+ 453 00b6 9DED085A 		vldr.32	s10, [sp, #32]
+ 454              		.loc 1 81 37 view .LVU129
+ 455 00ba DDED096A 		vldr.32	s13, [sp, #36]
+ 456              		.loc 1 81 17 view .LVU130
+ 457 00be 25EE476A 		vnmul.f32	s12, s10, s14
+ 458              		.loc 1 81 27 view .LVU131
+ 459 00c2 DDED064A 		vldr.32	s9, [sp, #24]
+  82:Core/Src/utils.c ****         delta[0] = (J[1][1] * eqs[0] - J[0][1] * eqs[1]) / det;
+ 460              		.loc 1 82 38 view .LVU132
+ 461 00c6 27EE677A 		vnmul.f32	s14, s14, s15
+  83:Core/Src/utils.c ****         delta[1] = (-J[1][0] * eqs[0] + J[0][0] * eqs[1]) / det;
+ 462              		.loc 1 83 49 view .LVU133
+ 463 00ca 67EEA47A 		vmul.f32	s15, s15, s9
+  81:Core/Src/utils.c ****         delta[0] = (J[1][1] * eqs[0] - J[0][1] * eqs[1]) / det;
+ 464              		.loc 1 81 17 view .LVU134
+ 465 00ce A4EEA66A 		vfma.f32	s12, s9, s13
+ 466              	.LVL28:
+  82:Core/Src/utils.c ****         delta[0] = (J[1][1] * eqs[0] - J[0][1] * eqs[1]) / det;
+ 467              		.loc 1 82 9 is_stmt 1 view .LVU135
+  82:Core/Src/utils.c ****         delta[0] = (J[1][1] * eqs[0] - J[0][1] * eqs[1]) / det;
+ 468              		.loc 1 82 38 is_stmt 0 view .LVU136
+ 469 00d2 A5EEA67A 		vfma.f32	s14, s11, s13
+ 470              		.loc 1 83 39 view .LVU137
+ 471 00d6 E5EE657A 		vfms.f32	s15, s10, s11
+  82:Core/Src/utils.c ****         delta[0] = (J[1][1] * eqs[0] - J[0][1] * eqs[1]) / det;
+ 472              		.loc 1 82 58 view .LVU138
+ 473 00da C7EE066A 		vdiv.f32	s13, s14, s12
+ 474              	.LVL29:
+ 475              		.loc 1 83 9 is_stmt 1 view .LVU139
+ 476              		.loc 1 83 59 is_stmt 0 view .LVU140
+ 477 00de 87EE867A 		vdiv.f32	s14, s15, s12
+ 478              	.LVL30:
+  84:Core/Src/utils.c **** 
+  85:Core/Src/utils.c ****         // 更新变量
+  86:Core/Src/utils.c ****         vars[0] -= delta[0];
+ 479              		.loc 1 86 9 is_stmt 1 view .LVU141
+ 480              		.loc 1 86 17 is_stmt 0 view .LVU142
+ 481 00e2 7BEEE6BA 		vsub.f32	s23, s23, s13
+  87:Core/Src/utils.c ****         vars[1] -= delta[1];
+  88:Core/Src/utils.c **** 
+  89:Core/Src/utils.c ****         // 检查收敛
+  90:Core/Src/utils.c ****         if (fabs(delta[0]) < tol && fabs(delta[1]) < tol) {
+ 482              		.loc 1 90 13 view .LVU143
+ 483 00e6 F0EEE66A 		vabs.f32	s13, s13
+ 484              	.LVL31:
+  86:Core/Src/utils.c ****         vars[1] -= delta[1];
+ 485              		.loc 1 86 17 view .LVU144
+ 486 00ea C4ED00BA 		vstr.32	s23, [r4]
+  87:Core/Src/utils.c ****         vars[1] -= delta[1];
+ 487              		.loc 1 87 9 is_stmt 1 view .LVU145
+ 488              		.loc 1 90 12 is_stmt 0 view .LVU146
+ 489 00ee F4EEC86A 		vcmpe.f32	s13, s16
+  87:Core/Src/utils.c ****         vars[1] -= delta[1];
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 12
+
+
+ 490              		.loc 1 87 17 view .LVU147
+ 491 00f2 3BEE47BA 		vsub.f32	s22, s22, s14
+ 492              		.loc 1 90 12 view .LVU148
+ 493 00f6 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+  87:Core/Src/utils.c ****         vars[1] -= delta[1];
+ 494              		.loc 1 87 17 view .LVU149
+ 495 00fa 84ED01BA 		vstr.32	s22, [r4, #4]
+ 496              		.loc 1 90 9 is_stmt 1 view .LVU150
+ 497              		.loc 1 90 12 is_stmt 0 view .LVU151
+ 498 00fe 06D5     		bpl	.L8
+ 499              		.loc 1 90 37 discriminator 1 view .LVU152
+ 500 0100 B0EEC77A 		vabs.f32	s14, s14
+ 501              	.LVL32:
+ 502              		.loc 1 90 34 discriminator 1 view .LVU153
+ 503 0104 B4EEC87A 		vcmpe.f32	s14, s16
+ 504 0108 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 505 010c 01D4     		bmi	.L6
+ 506              	.L8:
+ 507              	.LBE13:
+  62:Core/Src/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+ 508              		.loc 1 62 41 is_stmt 1 discriminator 2 view .LVU154
+ 509              	.LVL33:
+  62:Core/Src/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+ 510              		.loc 1 62 25 discriminator 1 view .LVU155
+ 511 010e 013E     		subs	r6, r6, #1
+ 512              	.LVL34:
+  62:Core/Src/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+ 513              		.loc 1 62 25 is_stmt 0 discriminator 1 view .LVU156
+ 514 0110 89D1     		bne	.L11
+ 515              	.LVL35:
+ 516              	.L6:
+  91:Core/Src/utils.c ****             break;
+  92:Core/Src/utils.c ****         }
+  93:Core/Src/utils.c ****     }
+  94:Core/Src/utils.c **** }
+ 517              		.loc 1 94 1 view .LVU157
+ 518 0112 0BB0     		add	sp, sp, #44
+ 519              	.LCFI8:
+ 520              		.cfi_remember_state
+ 521              		.cfi_def_cfa_offset 60
+ 522              		@ sp needed
+ 523 0114 BDEC088B 		vldm	sp!, {d8-d11}
+ 524              	.LCFI9:
+ 525              		.cfi_restore 86
+ 526              		.cfi_restore 87
+ 527              		.cfi_restore 84
+ 528              		.cfi_restore 85
+ 529              		.cfi_restore 82
+ 530              		.cfi_restore 83
+ 531              		.cfi_restore 80
+ 532              		.cfi_restore 81
+ 533              		.cfi_def_cfa_offset 28
+ 534              	.LVL36:
+ 535              		.loc 1 94 1 view .LVU158
+ 536 0118 BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+ 537              	.LVL37:
+ 538              	.L13:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 13
+
+
+ 539              	.LCFI10:
+ 540              		.cfi_restore_state
+ 541              	.LBB14:
+ 542              	.LBB12:
+ 543              		.loc 1 94 1 view .LVU159
+ 544 011c 4FF00108 		mov	r8, #1
+ 545              	.LVL38:
+ 546              		.loc 1 94 1 view .LVU160
+ 547 0120 94E7     		b	.L7
+ 548              	.L17:
+ 549 0122 00BF     		.align	2
+ 550              	.L16:
+ 551 0124 BD378635 		.word	897988541
+ 552              	.LBE12:
+ 553              	.LBE14:
+ 554              		.cfi_endproc
+ 555              	.LFE342:
+ 557              		.section	.text.calculate_axial_magnetic_field,"ax",%progbits
+ 558              		.align	1
+ 559              		.global	calculate_axial_magnetic_field
+ 560              		.syntax unified
+ 561              		.thumb
+ 562              		.thumb_func
+ 564              	calculate_axial_magnetic_field:
+ 565              	.LVL39:
+ 566              	.LFB343:
+  95:Core/Src/utils.c **** 
+  96:Core/Src/utils.c **** // 计算轴线上磁场强度的函数
+  97:Core/Src/utils.c **** float_t calculate_axial_magnetic_field(float_t L, float_t R, float_t M, float_t z) {
+ 567              		.loc 1 97 84 is_stmt 1 view -0
+ 568              		.cfi_startproc
+ 569              		@ args = 0, pretend = 0, frame = 0
+ 570              		@ frame_needed = 0, uses_anonymous_args = 0
+  98:Core/Src/utils.c ****     float_t term1 = (L / 2 + z) / sqrt(R * R + (L / 2 + z) * (L / 2 + z));
+ 571              		.loc 1 98 5 view .LVU162
+  97:Core/Src/utils.c ****     float_t term1 = (L / 2 + z) / sqrt(R * R + (L / 2 + z) * (L / 2 + z));
+ 572              		.loc 1 97 84 is_stmt 0 view .LVU163
+ 573 0000 08B5     		push	{r3, lr}
+ 574              	.LCFI11:
+ 575              		.cfi_def_cfa_offset 8
+ 576              		.cfi_offset 3, -8
+ 577              		.cfi_offset 14, -4
+ 578              		.loc 1 98 28 view .LVU164
+ 579 0002 F0EE617A 		vmov.f32	s15, s3
+  97:Core/Src/utils.c ****     float_t term1 = (L / 2 + z) / sqrt(R * R + (L / 2 + z) * (L / 2 + z));
+ 580              		.loc 1 97 84 view .LVU165
+ 581 0006 2DED088B 		vpush.64	{d8, d9, d10, d11}
+ 582              	.LCFI12:
+ 583              		.cfi_def_cfa_offset 40
+ 584              		.cfi_offset 80, -40
+ 585              		.cfi_offset 81, -36
+ 586              		.cfi_offset 82, -32
+ 587              		.cfi_offset 83, -28
+ 588              		.cfi_offset 84, -24
+ 589              		.cfi_offset 85, -20
+ 590              		.cfi_offset 86, -16
+ 591              		.cfi_offset 87, -12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 14
+
+
+ 592              		.loc 1 98 28 view .LVU166
+ 593 000a F6EE00AA 		vmov.f32	s21, #5.0e-1
+  97:Core/Src/utils.c ****     float_t term1 = (L / 2 + z) / sqrt(R * R + (L / 2 + z) * (L / 2 + z));
+ 594              		.loc 1 97 84 view .LVU167
+ 595 000e B0EE40AA 		vmov.f32	s20, s0
+ 596 0012 F0EE609A 		vmov.f32	s19, s1
+ 597              		.loc 1 98 28 view .LVU168
+ 598 0016 E0EE2A7A 		vfma.f32	s15, s0, s21
+  97:Core/Src/utils.c ****     float_t term1 = (L / 2 + z) / sqrt(R * R + (L / 2 + z) * (L / 2 + z));
+ 599              		.loc 1 97 84 view .LVU169
+ 600 001a B0EE419A 		vmov.f32	s18, s2
+ 601 001e B0EE618A 		vmov.f32	s16, s3
+ 602              		.loc 1 98 28 view .LVU170
+ 603 0022 B7EEE7BA 		vcvt.f64.f32	d11, s15
+ 604              		.loc 1 98 60 view .LVU171
+ 605 0026 67EEA77A 		vmul.f32	s15, s15, s15
+ 606              		.loc 1 98 46 view .LVU172
+ 607 002a E0EEA07A 		vfma.f32	s15, s1, s1
+ 608              		.loc 1 98 35 view .LVU173
+ 609 002e B7EEE70A 		vcvt.f64.f32	d0, s15
+ 610              	.LVL40:
+ 611              		.loc 1 98 35 view .LVU174
+ 612 0032 FFF7FEFF 		bl	sqrt
+ 613              	.LVL41:
+ 614              		.loc 1 98 33 discriminator 1 view .LVU175
+ 615 0036 8BEE007B 		vdiv.f64	d7, d11, d0
+  99:Core/Src/utils.c ****     float_t term2 = (L / 2 - z) / sqrt(R * R + (L / 2 - z) * (L / 2 - z));
+ 616              		.loc 1 99 28 view .LVU176
+ 617 003a F0EE481A 		vmov.f32	s3, s16
+ 618 003e DAEE2A1A 		vfnms.f32	s3, s20, s21
+ 619 0042 B7EEE1AA 		vcvt.f64.f32	d10, s3
+ 620              	.LVL42:
+ 621              		.loc 1 99 60 view .LVU177
+ 622 0046 61EEA11A 		vmul.f32	s3, s3, s3
+ 623              		.loc 1 99 46 view .LVU178
+ 624 004a E9EEA91A 		vfma.f32	s3, s19, s19
+ 625              		.loc 1 99 35 view .LVU179
+ 626 004e B7EEE10A 		vcvt.f64.f32	d0, s3
+  98:Core/Src/utils.c ****     float_t term1 = (L / 2 + z) / sqrt(R * R + (L / 2 + z) * (L / 2 + z));
+ 627              		.loc 1 98 13 discriminator 1 view .LVU180
+ 628 0052 F7EEC78B 		vcvt.f32.f64	s17, d7
+ 629              	.LVL43:
+ 630              		.loc 1 99 5 is_stmt 1 view .LVU181
+ 631              		.loc 1 99 35 is_stmt 0 view .LVU182
+ 632 0056 FFF7FEFF 		bl	sqrt
+ 633              	.LVL44:
+ 100:Core/Src/utils.c ****     float_t B_z = (MU_0 / 2) * M * (term1 - term2);
+ 634              		.loc 1 100 5 is_stmt 1 view .LVU183
+ 101:Core/Src/utils.c ****     return B_z;
+ 635              		.loc 1 101 5 view .LVU184
+  99:Core/Src/utils.c ****     float_t term2 = (L / 2 - z) / sqrt(R * R + (L / 2 - z) * (L / 2 - z));
+ 636              		.loc 1 99 33 is_stmt 0 discriminator 1 view .LVU185
+ 637 005a 8AEE007B 		vdiv.f64	d7, d10, d0
+ 100:Core/Src/utils.c ****     float_t B_z = (MU_0 / 2) * M * (term1 - term2);
+ 638              		.loc 1 100 30 view .LVU186
+ 639 005e B7EEC91A 		vcvt.f64.f32	d1, s18
+  99:Core/Src/utils.c ****     float_t term2 = (L / 2 - z) / sqrt(R * R + (L / 2 - z) * (L / 2 - z));
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 15
+
+
+ 640              		.loc 1 99 13 discriminator 1 view .LVU187
+ 641 0062 B7EEC77B 		vcvt.f32.f64	s14, d7
+ 642              	.LVL45:
+ 100:Core/Src/utils.c ****     float_t B_z = (MU_0 / 2) * M * (term1 - term2);
+ 643              		.loc 1 100 43 view .LVU188
+ 644 0066 38EEC70A 		vsub.f32	s0, s17, s14
+ 100:Core/Src/utils.c ****     float_t B_z = (MU_0 / 2) * M * (term1 - term2);
+ 645              		.loc 1 100 30 view .LVU189
+ 646 006a 9FED077B 		vldr.64	d7, .L19
+ 647              	.LVL46:
+ 100:Core/Src/utils.c ****     float_t B_z = (MU_0 / 2) * M * (term1 - term2);
+ 648              		.loc 1 100 43 view .LVU190
+ 649 006e B7EEC00A 		vcvt.f64.f32	d0, s0
+ 100:Core/Src/utils.c ****     float_t B_z = (MU_0 / 2) * M * (term1 - term2);
+ 650              		.loc 1 100 30 view .LVU191
+ 651 0072 21EE071B 		vmul.f64	d1, d1, d7
+ 102:Core/Src/utils.c **** }
+ 652              		.loc 1 102 1 view .LVU192
+ 653 0076 BDEC088B 		vldm	sp!, {d8-d11}
+ 654              	.LCFI13:
+ 655              		.cfi_restore 86
+ 656              		.cfi_restore 87
+ 657              		.cfi_restore 84
+ 658              		.cfi_restore 85
+ 659              		.cfi_restore 82
+ 660              		.cfi_restore 83
+ 661              		.cfi_restore 80
+ 662              		.cfi_restore 81
+ 663              		.cfi_def_cfa_offset 8
+ 664              	.LVL47:
+ 100:Core/Src/utils.c ****     float_t B_z = (MU_0 / 2) * M * (term1 - term2);
+ 665              		.loc 1 100 34 view .LVU193
+ 666 007a 20EE010B 		vmul.f64	d0, d0, d1
+ 667              		.loc 1 102 1 view .LVU194
+ 668 007e B7EEC00B 		vcvt.f32.f64	s0, d0
+ 669 0082 08BD     		pop	{r3, pc}
+ 670              	.L20:
+ 671 0084 AFF30080 		.align	3
+ 672              	.L19:
+ 673 0088 CBF6990F 		.word	261748427
+ 674 008c 3715A53E 		.word	1051006263
+ 675              		.cfi_endproc
+ 676              	.LFE343:
+ 678              		.section	.text.find_distance_for_axial_field,"ax",%progbits
+ 679              		.align	1
+ 680              		.global	find_distance_for_axial_field
+ 681              		.syntax unified
+ 682              		.thumb
+ 683              		.thumb_func
+ 685              	find_distance_for_axial_field:
+ 686              	.LVL48:
+ 687              	.LFB344:
+ 103:Core/Src/utils.c **** 
+ 104:Core/Src/utils.c **** #define TOLERANCE 10 // 误差容忍度
+ 105:Core/Src/utils.c **** 
+ 106:Core/Src/utils.c **** // 使用二分法反向求解轴线上距离
+ 107:Core/Src/utils.c **** float_t find_distance_for_axial_field(float_t L, float_t R, float_t M, float_t B_target) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 16
+
+
+ 688              		.loc 1 107 90 is_stmt 1 view -0
+ 689              		.cfi_startproc
+ 690              		@ args = 0, pretend = 0, frame = 0
+ 691              		@ frame_needed = 0, uses_anonymous_args = 0
+ 692              		@ link register save eliminated.
+ 108:Core/Src/utils.c ****     float_t low = 0.0;
+ 693              		.loc 1 108 5 view .LVU196
+ 109:Core/Src/utils.c ****     float_t high = 10.0; // 假设一个较大的初始上限
+ 694              		.loc 1 109 5 view .LVU197
+ 110:Core/Src/utils.c ****     float_t mid;
+ 695              		.loc 1 110 5 view .LVU198
+ 111:Core/Src/utils.c **** 
+ 112:Core/Src/utils.c ****     while (high - low > TOLERANCE) {
+ 696              		.loc 1 112 5 view .LVU199
+ 697              		.loc 1 112 23 view .LVU200
+ 113:Core/Src/utils.c ****         mid = (low + high) / 2.0;
+ 114:Core/Src/utils.c ****         float_t B_mid = calculate_axial_magnetic_field(L, R, M, mid);
+ 115:Core/Src/utils.c **** 
+ 116:Core/Src/utils.c ****         if (B_mid > B_target) {
+ 117:Core/Src/utils.c ****             low = mid;
+ 118:Core/Src/utils.c ****         } else {
+ 119:Core/Src/utils.c ****             high = mid;
+ 120:Core/Src/utils.c ****         }
+ 121:Core/Src/utils.c ****     }
+ 122:Core/Src/utils.c **** 
+ 123:Core/Src/utils.c ****     return (low + high) / 2.0;
+ 698              		.loc 1 123 5 view .LVU201
+ 124:Core/Src/utils.c **** }
+ 699              		.loc 1 124 1 is_stmt 0 view .LVU202
+ 700 0000 B1EE040A 		vmov.f32	s0, #5.0e+0
+ 701              	.LVL49:
+ 702              		.loc 1 124 1 view .LVU203
+ 703 0004 7047     		bx	lr
+ 704              		.cfi_endproc
+ 705              	.LFE344:
+ 707              		.section	.text.unlikely.abort,"ax",%progbits
+ 708              		.align	1
+ 709              		.weak	abort
+ 710              		.syntax unified
+ 711              		.thumb
+ 712              		.thumb_func
+ 714              	abort:
+ 715              	.LFB346:
+ 125:Core/Src/utils.c **** 
+ 126:Core/Src/utils.c **** /******************************** hack 解决 未定义的符号__aeabi_assert 报错 begin *******
+ 127:Core/Src/utils.c **** 
+ 128:Core/Src/utils.c **** __attribute__((weak, noreturn))
+ 129:Core/Src/utils.c **** void __aeabi_assert(const char *expr, const char *file, int line)
+ 130:Core/Src/utils.c **** {
+ 131:Core/Src/utils.c ****     char str[12], *p;
+ 132:Core/Src/utils.c **** 
+ 133:Core/Src/utils.c ****     fputs("*** assertion failed: ", stderr);
+ 134:Core/Src/utils.c ****     fputs(expr, stderr);
+ 135:Core/Src/utils.c ****     fputs(", file ", stderr);
+ 136:Core/Src/utils.c ****     fputs(file, stderr);
+ 137:Core/Src/utils.c ****     fputs(", line ", stderr);
+ 138:Core/Src/utils.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 17
+
+
+ 139:Core/Src/utils.c ****     p = str + sizeof(str);
+ 140:Core/Src/utils.c ****     *--p = '\0';
+ 141:Core/Src/utils.c ****     *--p = '\n';
+ 142:Core/Src/utils.c ****     while (line > 0)
+ 143:Core/Src/utils.c ****     {
+ 144:Core/Src/utils.c ****         *--p = '0' + (line % 10);
+ 145:Core/Src/utils.c ****         line /= 10;
+ 146:Core/Src/utils.c ****     }
+ 147:Core/Src/utils.c ****     fputs(p, stderr);
+ 148:Core/Src/utils.c **** 
+ 149:Core/Src/utils.c ****     abort();
+ 150:Core/Src/utils.c **** }
+ 151:Core/Src/utils.c **** 
+ 152:Core/Src/utils.c **** __attribute__((weak))
+ 153:Core/Src/utils.c **** void abort(void)
+ 154:Core/Src/utils.c **** {
+ 716              		.loc 1 154 1 is_stmt 1 view -0
+ 717              		.cfi_startproc
+ 718              		@ Volatile: function does not return.
+ 719              		@ args = 0, pretend = 0, frame = 0
+ 720              		@ frame_needed = 0, uses_anonymous_args = 0
+ 721              		@ link register save eliminated.
+ 722              	.L23:
+ 155:Core/Src/utils.c ****     for (;;)
+ 723              		.loc 1 155 5 view .LVU205
+ 724              		.loc 1 155 5 view .LVU206
+ 725 0000 FEE7     		b	.L23
+ 726              		.cfi_endproc
+ 727              	.LFE346:
+ 729              		.section	.rodata.__aeabi_assert.str1.1,"aMS",%progbits,1
+ 730              	.LC0:
+ 731 0000 2A2A2A20 		.ascii	"*** assertion failed: \000"
+ 731      61737365 
+ 731      7274696F 
+ 731      6E206661 
+ 731      696C6564 
+ 732              	.LC1:
+ 733 0017 2C206669 		.ascii	", file \000"
+ 733      6C652000 
+ 734              	.LC2:
+ 735 001f 2C206C69 		.ascii	", line \000"
+ 735      6E652000 
+ 736              		.section	.text.__aeabi_assert,"ax",%progbits
+ 737              		.align	1
+ 738              		.weak	__aeabi_assert
+ 739              		.syntax unified
+ 740              		.thumb
+ 741              		.thumb_func
+ 743              	__aeabi_assert:
+ 744              	.LVL50:
+ 745              	.LFB345:
+ 130:Core/Src/utils.c ****     char str[12], *p;
+ 746              		.loc 1 130 1 view -0
+ 747              		.cfi_startproc
+ 748              		@ Volatile: function does not return.
+ 749              		@ args = 0, pretend = 0, frame = 16
+ 750              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 18
+
+
+ 131:Core/Src/utils.c **** 
+ 751              		.loc 1 131 5 view .LVU208
+ 133:Core/Src/utils.c ****     fputs(expr, stderr);
+ 752              		.loc 1 133 5 view .LVU209
+ 133:Core/Src/utils.c ****     fputs(expr, stderr);
+ 753              		.loc 1 133 37 is_stmt 0 view .LVU210
+ 754 0000 194D     		ldr	r5, .L27
+ 130:Core/Src/utils.c ****     char str[12], *p;
+ 755              		.loc 1 130 1 view .LVU211
+ 756 0002 0E46     		mov	r6, r1
+ 757 0004 1446     		mov	r4, r2
+ 758 0006 8FB5     		push	{r0, r1, r2, r3, r7, lr}
+ 759              	.LCFI14:
+ 760              		.cfi_def_cfa_offset 24
+ 761              		.cfi_offset 7, -8
+ 762              		.cfi_offset 14, -4
+ 133:Core/Src/utils.c ****     fputs(expr, stderr);
+ 763              		.loc 1 133 37 view .LVU212
+ 764 0008 2B68     		ldr	r3, [r5]
+ 130:Core/Src/utils.c ****     char str[12], *p;
+ 765              		.loc 1 130 1 view .LVU213
+ 766 000a 0746     		mov	r7, r0
+ 133:Core/Src/utils.c ****     fputs(expr, stderr);
+ 767              		.loc 1 133 5 view .LVU214
+ 768 000c 1748     		ldr	r0, .L27+4
+ 769              	.LVL51:
+ 133:Core/Src/utils.c ****     fputs(expr, stderr);
+ 770              		.loc 1 133 5 view .LVU215
+ 771 000e D968     		ldr	r1, [r3, #12]
+ 772              	.LVL52:
+ 133:Core/Src/utils.c ****     fputs(expr, stderr);
+ 773              		.loc 1 133 5 view .LVU216
+ 774 0010 FFF7FEFF 		bl	fputs
+ 775              	.LVL53:
+ 134:Core/Src/utils.c ****     fputs(", file ", stderr);
+ 776              		.loc 1 134 5 is_stmt 1 view .LVU217
+ 134:Core/Src/utils.c ****     fputs(", file ", stderr);
+ 777              		.loc 1 134 17 is_stmt 0 view .LVU218
+ 778 0014 2B68     		ldr	r3, [r5]
+ 134:Core/Src/utils.c ****     fputs(", file ", stderr);
+ 779              		.loc 1 134 5 view .LVU219
+ 780 0016 3846     		mov	r0, r7
+ 781 0018 D968     		ldr	r1, [r3, #12]
+ 782 001a FFF7FEFF 		bl	fputs
+ 783              	.LVL54:
+ 135:Core/Src/utils.c ****     fputs(file, stderr);
+ 784              		.loc 1 135 5 is_stmt 1 view .LVU220
+ 135:Core/Src/utils.c ****     fputs(file, stderr);
+ 785              		.loc 1 135 22 is_stmt 0 view .LVU221
+ 786 001e 2B68     		ldr	r3, [r5]
+ 135:Core/Src/utils.c ****     fputs(file, stderr);
+ 787              		.loc 1 135 5 view .LVU222
+ 788 0020 1348     		ldr	r0, .L27+8
+ 789 0022 D968     		ldr	r1, [r3, #12]
+ 790 0024 FFF7FEFF 		bl	fputs
+ 791              	.LVL55:
+ 136:Core/Src/utils.c ****     fputs(", line ", stderr);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 19
+
+
+ 792              		.loc 1 136 5 is_stmt 1 view .LVU223
+ 136:Core/Src/utils.c ****     fputs(", line ", stderr);
+ 793              		.loc 1 136 17 is_stmt 0 view .LVU224
+ 794 0028 2B68     		ldr	r3, [r5]
+ 136:Core/Src/utils.c ****     fputs(", line ", stderr);
+ 795              		.loc 1 136 5 view .LVU225
+ 796 002a 3046     		mov	r0, r6
+ 797 002c D968     		ldr	r1, [r3, #12]
+ 798 002e FFF7FEFF 		bl	fputs
+ 799              	.LVL56:
+ 137:Core/Src/utils.c **** 
+ 800              		.loc 1 137 5 is_stmt 1 view .LVU226
+ 137:Core/Src/utils.c **** 
+ 801              		.loc 1 137 22 is_stmt 0 view .LVU227
+ 802 0032 2B68     		ldr	r3, [r5]
+ 137:Core/Src/utils.c **** 
+ 803              		.loc 1 137 5 view .LVU228
+ 804 0034 0F48     		ldr	r0, .L27+12
+ 805 0036 D968     		ldr	r1, [r3, #12]
+ 806 0038 FFF7FEFF 		bl	fputs
+ 807              	.LVL57:
+ 139:Core/Src/utils.c ****     *--p = '\0';
+ 808              		.loc 1 139 5 is_stmt 1 view .LVU229
+ 140:Core/Src/utils.c ****     *--p = '\n';
+ 809              		.loc 1 140 5 view .LVU230
+ 141:Core/Src/utils.c ****     while (line > 0)
+ 810              		.loc 1 141 5 view .LVU231
+ 141:Core/Src/utils.c ****     while (line > 0)
+ 811              		.loc 1 141 10 is_stmt 0 view .LVU232
+ 812 003c 0A23     		movs	r3, #10
+ 813 003e 0DF10E00 		add	r0, sp, #14
+ 814              	.LVL58:
+ 141:Core/Src/utils.c ****     while (line > 0)
+ 815              		.loc 1 141 10 view .LVU233
+ 816 0042 ADF80E30 		strh	r3, [sp, #14]	@ movhi
+ 142:Core/Src/utils.c ****     {
+ 817              		.loc 1 142 5 is_stmt 1 view .LVU234
+ 818              	.LVL59:
+ 819              	.L25:
+ 142:Core/Src/utils.c ****     {
+ 820              		.loc 1 142 17 view .LVU235
+ 821 0046 002C     		cmp	r4, #0
+ 822 0048 05DC     		bgt	.L26
+ 147:Core/Src/utils.c **** 
+ 823              		.loc 1 147 5 view .LVU236
+ 147:Core/Src/utils.c **** 
+ 824              		.loc 1 147 14 is_stmt 0 view .LVU237
+ 825 004a 2B68     		ldr	r3, [r5]
+ 147:Core/Src/utils.c **** 
+ 826              		.loc 1 147 5 view .LVU238
+ 827 004c D968     		ldr	r1, [r3, #12]
+ 828 004e FFF7FEFF 		bl	fputs
+ 829              	.LVL60:
+ 149:Core/Src/utils.c **** }
+ 830              		.loc 1 149 5 is_stmt 1 view .LVU239
+ 831 0052 FFF7FEFF 		bl	abort
+ 832              	.LVL61:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 20
+
+
+ 833              	.L26:
+ 144:Core/Src/utils.c ****         line /= 10;
+ 834              		.loc 1 144 9 view .LVU240
+ 144:Core/Src/utils.c ****         line /= 10;
+ 835              		.loc 1 144 28 is_stmt 0 view .LVU241
+ 836 0056 94FBF3F2 		sdiv	r2, r4, r3
+ 837 005a 03FB1244 		mls	r4, r3, r2, r4
+ 838              	.LVL62:
+ 144:Core/Src/utils.c ****         line /= 10;
+ 839              		.loc 1 144 20 view .LVU242
+ 840 005e 3034     		adds	r4, r4, #48
+ 144:Core/Src/utils.c ****         line /= 10;
+ 841              		.loc 1 144 14 view .LVU243
+ 842 0060 00F8014D 		strb	r4, [r0, #-1]!
+ 843              	.LVL63:
+ 145:Core/Src/utils.c ****     }
+ 844              		.loc 1 145 9 is_stmt 1 view .LVU244
+ 145:Core/Src/utils.c ****     }
+ 845              		.loc 1 145 14 is_stmt 0 view .LVU245
+ 846 0064 1446     		mov	r4, r2
+ 847              	.LVL64:
+ 145:Core/Src/utils.c ****     }
+ 848              		.loc 1 145 14 view .LVU246
+ 849 0066 EEE7     		b	.L25
+ 850              	.L28:
+ 851              		.align	2
+ 852              	.L27:
+ 853 0068 00000000 		.word	_impure_ptr
+ 854 006c 00000000 		.word	.LC0
+ 855 0070 17000000 		.word	.LC1
+ 856 0074 1F000000 		.word	.LC2
+ 857              		.cfi_endproc
+ 858              	.LFE345:
+ 860              		.section	.text.ram_alloc,"ax",%progbits
+ 861              		.align	1
+ 862              		.global	ram_alloc
+ 863              		.syntax unified
+ 864              		.thumb
+ 865              		.thumb_func
+ 867              	ram_alloc:
+ 868              	.LVL65:
+ 869              	.LFB347:
+ 156:Core/Src/utils.c ****         ;
+ 157:Core/Src/utils.c **** }
+ 158:Core/Src/utils.c **** /******************************** hack 解决 未定义的符号__aeabi_assert 报错 end *********
+ 159:Core/Src/utils.c **** 
+ 160:Core/Src/utils.c **** /******************************** RAM内存动态分配 begin *************************************
+ 161:Core/Src/utils.c **** // 定义RAM区域的起始地址和大小（根据链接器脚本中的定义）
+ 162:Core/Src/utils.c **** #define RAM_START_ADDR      0x24000000
+ 163:Core/Src/utils.c **** #define RAM_SIZE           (512 * 1024)  // 512KB
+ 164:Core/Src/utils.c **** #define RAM_ALIGNMENT      32
+ 165:Core/Src/utils.c **** 
+ 166:Core/Src/utils.c **** // 用于跟踪RAM分配的简单分配器
+ 167:Core/Src/utils.c **** static uint32_t current_ram_addr = RAM_START_ADDR;
+ 168:Core/Src/utils.c **** 
+ 169:Core/Src/utils.c **** // 简单的内存分配函数，返回对齐的地址
+ 170:Core/Src/utils.c **** void* ram_alloc(size_t size) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 21
+
+
+ 870              		.loc 1 170 30 is_stmt 1 view -0
+ 871              		.cfi_startproc
+ 872              		@ args = 0, pretend = 0, frame = 0
+ 873              		@ frame_needed = 0, uses_anonymous_args = 0
+ 874              		@ link register save eliminated.
+ 171:Core/Src/utils.c **** 	// 确保大小是32字节对齐的
+ 172:Core/Src/utils.c **** 	size = (size + RAM_ALIGNMENT - 1) & ~(RAM_ALIGNMENT - 1);
+ 875              		.loc 1 172 2 view .LVU248
+ 173:Core/Src/utils.c **** 	
+ 174:Core/Src/utils.c **** 	// 检查是否有足够的空间
+ 175:Core/Src/utils.c **** 	if (current_ram_addr + size > RAM_START_ADDR + RAM_SIZE) {
+ 876              		.loc 1 175 23 is_stmt 0 view .LVU249
+ 877 0000 064A     		ldr	r2, .L32
+ 172:Core/Src/utils.c **** 	
+ 878              		.loc 1 172 31 view .LVU250
+ 879 0002 00F11F03 		add	r3, r0, #31
+ 880              	.LVL66:
+ 881              		.loc 1 175 2 is_stmt 1 view .LVU251
+ 882              		.loc 1 175 5 is_stmt 0 view .LVU252
+ 883 0006 0649     		ldr	r1, .L32+4
+ 884              		.loc 1 175 23 view .LVU253
+ 885 0008 1068     		ldr	r0, [r2]
+ 172:Core/Src/utils.c **** 	
+ 886              		.loc 1 172 7 view .LVU254
+ 887 000a 23F01F03 		bic	r3, r3, #31
+ 888              	.LVL67:
+ 889              		.loc 1 175 23 view .LVU255
+ 890 000e 0344     		add	r3, r3, r0
+ 891              	.LVL68:
+ 892              		.loc 1 175 5 view .LVU256
+ 893 0010 8B42     		cmp	r3, r1
+ 176:Core/Src/utils.c **** 		return NULL;
+ 177:Core/Src/utils.c **** 	}
+ 178:Core/Src/utils.c **** 	
+ 179:Core/Src/utils.c **** 	// 保存当前地址
+ 180:Core/Src/utils.c **** 	void* allocated_addr = (void*)current_ram_addr;
+ 894              		.loc 1 180 2 is_stmt 1 view .LVU257
+ 895              	.LVL69:
+ 181:Core/Src/utils.c **** 	
+ 182:Core/Src/utils.c **** 	// 更新下一个可用地址
+ 183:Core/Src/utils.c **** 	current_ram_addr += size;
+ 896              		.loc 1 183 2 view .LVU258
+ 176:Core/Src/utils.c **** 		return NULL;
+ 897              		.loc 1 176 10 is_stmt 0 view .LVU259
+ 898 0012 8CBF     		ite	hi
+ 899 0014 0020     		movhi	r0, #0
+ 900              	.LVL70:
+ 901              		.loc 1 183 19 view .LVU260
+ 902 0016 1360     		strls	r3, [r2]
+ 903              	.LVL71:
+ 184:Core/Src/utils.c **** 	
+ 185:Core/Src/utils.c **** 	return allocated_addr;
+ 904              		.loc 1 185 2 is_stmt 1 view .LVU261
+ 186:Core/Src/utils.c **** }
+ 905              		.loc 1 186 1 is_stmt 0 view .LVU262
+ 906 0018 7047     		bx	lr
+ 907              	.L33:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 22
+
+
+ 908 001a 00BF     		.align	2
+ 909              	.L32:
+ 910 001c 00000000 		.word	current_ram_addr
+ 911 0020 00000824 		.word	604504064
+ 912              		.cfi_endproc
+ 913              	.LFE347:
+ 915              		.section	.text.read_uint32_be,"ax",%progbits
+ 916              		.align	1
+ 917              		.global	read_uint32_be
+ 918              		.syntax unified
+ 919              		.thumb
+ 920              		.thumb_func
+ 922              	read_uint32_be:
+ 923              	.LVL72:
+ 924              	.LFB348:
+ 187:Core/Src/utils.c **** /******************************** RAM内存动态分配 end ***************************************
+ 188:Core/Src/utils.c **** 
+ 189:Core/Src/utils.c **** // 大端读取函数定义
+ 190:Core/Src/utils.c **** uint32_t read_uint32_be(const uint8_t* data) {
+ 925              		.loc 1 190 46 is_stmt 1 view -0
+ 926              		.cfi_startproc
+ 927              		@ args = 0, pretend = 0, frame = 0
+ 928              		@ frame_needed = 0, uses_anonymous_args = 0
+ 929              		@ link register save eliminated.
+ 191:Core/Src/utils.c ****     return ((uint32_t)data[0] << 24) | 
+ 930              		.loc 1 191 5 view .LVU264
+ 931 0000 0068     		ldr	r0, [r0]	@ unaligned
+ 932              	.LVL73:
+ 192:Core/Src/utils.c ****            ((uint32_t)data[1] << 16) | 
+ 193:Core/Src/utils.c ****            ((uint32_t)data[2] << 8) | 
+ 194:Core/Src/utils.c ****            (uint32_t)data[3];
+ 195:Core/Src/utils.c **** }
+ 933              		.loc 1 195 1 is_stmt 0 view .LVU265
+ 934 0002 00BA     		rev	r0, r0
+ 935 0004 7047     		bx	lr
+ 936              		.cfi_endproc
+ 937              	.LFE348:
+ 939              		.section	.text.read_uint32_le,"ax",%progbits
+ 940              		.align	1
+ 941              		.global	read_uint32_le
+ 942              		.syntax unified
+ 943              		.thumb
+ 944              		.thumb_func
+ 946              	read_uint32_le:
+ 947              	.LVL74:
+ 948              	.LFB349:
+ 196:Core/Src/utils.c **** 
+ 197:Core/Src/utils.c **** // 小端读取函数定义
+ 198:Core/Src/utils.c **** uint32_t read_uint32_le(const uint8_t* data) {
+ 949              		.loc 1 198 46 is_stmt 1 view -0
+ 950              		.cfi_startproc
+ 951              		@ args = 0, pretend = 0, frame = 0
+ 952              		@ frame_needed = 0, uses_anonymous_args = 0
+ 953              		@ link register save eliminated.
+ 199:Core/Src/utils.c ****     return ((uint32_t)data[3] << 24) | 
+ 954              		.loc 1 199 5 view .LVU267
+ 200:Core/Src/utils.c ****            ((uint32_t)data[2] << 16) | 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 23
+
+
+ 201:Core/Src/utils.c ****            ((uint32_t)data[1] << 8) | 
+ 202:Core/Src/utils.c ****            (uint32_t)data[0];
+ 203:Core/Src/utils.c **** }
+ 955              		.loc 1 203 1 is_stmt 0 view .LVU268
+ 956 0000 0068     		ldr	r0, [r0]	@ unaligned
+ 957              	.LVL75:
+ 958              		.loc 1 203 1 view .LVU269
+ 959 0002 7047     		bx	lr
+ 960              		.cfi_endproc
+ 961              	.LFE349:
+ 963              		.section	.rodata.printBinary.str1.1,"aMS",%progbits,1
+ 964              	.LC3:
+ 965 0000 25733062 		.ascii	"%s0b\000"
+ 965      00
+ 966              	.LC4:
+ 967 0005 256400   		.ascii	"%d\000"
+ 968              		.section	.text.printBinary,"ax",%progbits
+ 969              		.align	1
+ 970              		.global	printBinary
+ 971              		.syntax unified
+ 972              		.thumb
+ 973              		.thumb_func
+ 975              	printBinary:
+ 976              	.LVL76:
+ 977              	.LFB350:
+ 204:Core/Src/utils.c **** 
+ 205:Core/Src/utils.c **** // 将32位整数转换为二进制字符串
+ 206:Core/Src/utils.c **** void printBinary(const char* prefix, uint32_t value) {
+ 978              		.loc 1 206 54 is_stmt 1 view -0
+ 979              		.cfi_startproc
+ 980              		@ args = 0, pretend = 0, frame = 0
+ 981              		@ frame_needed = 0, uses_anonymous_args = 0
+ 207:Core/Src/utils.c ****     printf("%s0b", prefix);
+ 982              		.loc 1 207 5 view .LVU271
+ 206:Core/Src/utils.c ****     printf("%s0b", prefix);
+ 983              		.loc 1 206 54 is_stmt 0 view .LVU272
+ 984 0000 70B5     		push	{r4, r5, r6, lr}
+ 985              	.LCFI15:
+ 986              		.cfi_def_cfa_offset 16
+ 987              		.cfi_offset 4, -16
+ 988              		.cfi_offset 5, -12
+ 989              		.cfi_offset 6, -8
+ 990              		.cfi_offset 14, -4
+ 991              	.LBB15:
+ 208:Core/Src/utils.c ****     for (int i = 31; i >= 0; i--) {
+ 992              		.loc 1 208 14 view .LVU273
+ 993 0002 1F24     		movs	r4, #31
+ 209:Core/Src/utils.c ****         printf("%d", (int)((value >> i) & 1));
+ 994              		.loc 1 209 9 view .LVU274
+ 995 0004 0D4E     		ldr	r6, .L41
+ 996              	.LBE15:
+ 206:Core/Src/utils.c ****     printf("%s0b", prefix);
+ 997              		.loc 1 206 54 view .LVU275
+ 998 0006 0D46     		mov	r5, r1
+ 207:Core/Src/utils.c ****     for (int i = 31; i >= 0; i--) {
+ 999              		.loc 1 207 5 view .LVU276
+ 1000 0008 0146     		mov	r1, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 24
+
+
+ 1001              	.LVL77:
+ 207:Core/Src/utils.c ****     for (int i = 31; i >= 0; i--) {
+ 1002              		.loc 1 207 5 view .LVU277
+ 1003 000a 0D48     		ldr	r0, .L41+4
+ 1004              	.LVL78:
+ 207:Core/Src/utils.c ****     for (int i = 31; i >= 0; i--) {
+ 1005              		.loc 1 207 5 view .LVU278
+ 1006 000c FFF7FEFF 		bl	printf
+ 1007              	.LVL79:
+ 208:Core/Src/utils.c ****     for (int i = 31; i >= 0; i--) {
+ 1008              		.loc 1 208 5 is_stmt 1 view .LVU279
+ 1009              	.LBB16:
+ 208:Core/Src/utils.c ****     for (int i = 31; i >= 0; i--) {
+ 1010              		.loc 1 208 10 view .LVU280
+ 208:Core/Src/utils.c ****     for (int i = 31; i >= 0; i--) {
+ 1011              		.loc 1 208 24 discriminator 1 view .LVU281
+ 1012              	.L40:
+ 1013              		.loc 1 209 9 view .LVU282
+ 1014              		.loc 1 209 35 is_stmt 0 view .LVU283
+ 1015 0010 25FA04F1 		lsr	r1, r5, r4
+ 1016              		.loc 1 209 9 view .LVU284
+ 1017 0014 3046     		mov	r0, r6
+ 1018 0016 01F00101 		and	r1, r1, #1
+ 1019 001a FFF7FEFF 		bl	printf
+ 1020              	.LVL80:
+ 210:Core/Src/utils.c ****         if (i % 8 == 0) printf(" ");  // 每8位添加一个空格
+ 1021              		.loc 1 210 9 is_stmt 1 view .LVU285
+ 1022              		.loc 1 210 12 is_stmt 0 view .LVU286
+ 1023 001e 14F0070F 		tst	r4, #7
+ 1024 0022 04F1FF34 		add	r4, r4, #-1
+ 1025 0026 F3D1     		bne	.L40
+ 1026              		.loc 1 210 25 is_stmt 1 discriminator 1 view .LVU287
+ 1027 0028 2020     		movs	r0, #32
+ 1028 002a FFF7FEFF 		bl	putchar
+ 1029              	.LVL81:
+ 208:Core/Src/utils.c ****         printf("%d", (int)((value >> i) & 1));
+ 1030              		.loc 1 208 31 discriminator 2 view .LVU288
+ 208:Core/Src/utils.c ****         printf("%d", (int)((value >> i) & 1));
+ 1031              		.loc 1 208 24 discriminator 1 view .LVU289
+ 1032 002e 631C     		adds	r3, r4, #1
+ 1033 0030 EED1     		bne	.L40
+ 1034              	.LBE16:
+ 211:Core/Src/utils.c ****     }
+ 212:Core/Src/utils.c ****     printf("\n");
+ 1035              		.loc 1 212 5 view .LVU290
+ 1036 0032 0A20     		movs	r0, #10
+ 213:Core/Src/utils.c **** }
+ 1037              		.loc 1 213 1 is_stmt 0 view .LVU291
+ 1038 0034 BDE87040 		pop	{r4, r5, r6, lr}
+ 1039              	.LCFI16:
+ 1040              		.cfi_restore 14
+ 1041              		.cfi_restore 6
+ 1042              		.cfi_restore 5
+ 1043              		.cfi_restore 4
+ 1044              		.cfi_def_cfa_offset 0
+ 1045              	.LVL82:
+ 212:Core/Src/utils.c **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 25
+
+
+ 1046              		.loc 1 212 5 view .LVU292
+ 1047 0038 FFF7FEBF 		b	putchar
+ 1048              	.LVL83:
+ 1049              	.L42:
+ 212:Core/Src/utils.c **** }
+ 1050              		.loc 1 212 5 view .LVU293
+ 1051              		.align	2
+ 1052              	.L41:
+ 1053 003c 05000000 		.word	.LC4
+ 1054 0040 00000000 		.word	.LC3
+ 1055              		.cfi_endproc
+ 1056              	.LFE350:
+ 1058              		.section	.data.current_ram_addr,"aw"
+ 1059              		.align	2
+ 1062              	current_ram_addr:
+ 1063 0000 00000024 		.word	603979776
+ 1064              		.text
+ 1065              	.Letext0:
+ 1066              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1067              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1068              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1069              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1070              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_types.h"
+ 1071              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/reent.h"
+ 1072              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/lock.h"
+ 1073              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1074              		.file 10 "Core/Inc/utils.h"
+ 1075              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 1076              		.file 12 "Core/Inc/board_cfg.h"
+ 1077              		.file 13 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s 			page 26
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 utils.c
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:20     .text.RGBToHex:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:26     .text.RGBToHex:00000000 RGBToHex
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:45     .text.hexToRGB:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:51     .text.hexToRGB:00000000 hexToRGB
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:87     .text.equations:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:93     .text.equations:00000000 equations
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:277    .text.equations:00000100 $d
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:283    .text.newton_raphson:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:289    .text.newton_raphson:00000000 newton_raphson
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:551    .text.newton_raphson:00000124 $d
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:558    .text.calculate_axial_magnetic_field:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:564    .text.calculate_axial_magnetic_field:00000000 calculate_axial_magnetic_field
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:673    .text.calculate_axial_magnetic_field:00000088 $d
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:679    .text.find_distance_for_axial_field:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:685    .text.find_distance_for_axial_field:00000000 find_distance_for_axial_field
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:708    .text.unlikely.abort:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:714    .text.unlikely.abort:00000000 abort
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:737    .text.__aeabi_assert:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:743    .text.__aeabi_assert:00000000 __aeabi_assert
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:853    .text.__aeabi_assert:00000068 $d
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:861    .text.ram_alloc:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:867    .text.ram_alloc:00000000 ram_alloc
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:910    .text.ram_alloc:0000001c $d
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:1062   .data.current_ram_addr:00000000 current_ram_addr
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:916    .text.read_uint32_be:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:922    .text.read_uint32_be:00000000 read_uint32_be
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:940    .text.read_uint32_le:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:946    .text.read_uint32_le:00000000 read_uint32_le
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:969    .text.printBinary:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:975    .text.printBinary:00000000 printBinary
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:1053   .text.printBinary:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccppAkmW.s:1059   .data.current_ram_addr:00000000 $d
+
+UNDEFINED SYMBOLS
+sqrt
+fputs
+_impure_ptr
+printf
+putchar

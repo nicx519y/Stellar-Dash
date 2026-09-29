@@ -3,26 +3,61 @@
 import { Provider } from "@/components/ui/provider"
 import StyledComponentsRegistry from '@/lib/registry'
 import { SettingsLayout } from '@/components/settings-layout'
+import { useRouterStore } from '@/components/router';
 import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-config-context'
-import { Flex } from '@chakra-ui/react'
+import { Flex, HStack } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
-import { openReconnectModal, closeReconnectModal, setReconnectModalLoading } from "@/components/reconnect-modal"
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { DialogConfirm } from '@/components/dialog-confirm'
 import { DialogForm } from "@/components/dialog-form";
 import { DialogCannotClose } from '@/components/dialog-cannot-close'
 import { DialogEditCombination } from '@/components/dialog-edit-combination'
 import { LanguageProvider, useLanguage } from '@/contexts/language-context';
+import { UserAuthProvider } from '@/contexts/user-auth-context';
+import {
+    DeviceConnectionPhase,
+    DeviceTransportError,
+} from '@/lib/device-transport';
+import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-network-trace';
+import { usePathname } from 'next/navigation';
+import { UserAuthControl } from '@/components/user-auth-control';
+import { ConfigDraftRecovery } from '@/components/config-sync-status';
+import { LanguageSwitcher } from '@/components/language-switcher';
+import { connectionErrorMessage } from '@/lib/connection-presentation';
+
+const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
+    phase === DeviceConnectionPhase.DISCOVERING
+    || phase === DeviceConnectionPhase.OPENING
+    || phase === DeviceConnectionPhase.ATTESTING
+    || phase === DeviceConnectionPhase.AUTHORIZING
+    || phase === DeviceConnectionPhase.INITIALIZING
+);
 
 
 // 创建一个内部组件来使用 context
 function AppContent({ children }: { children: React.ReactNode }) {
-    const { isLoading, connectWebSocket, showReconnect } = useGamepadConfig();
-    const [showLoading, setShowLoading] = useState(false);
+    const firmwarePage = useRouterStore(state => state.currentRoute === 'firmware');
+    const {
+        connectDevice,
+        deviceError,
+        deviceConnected,
+        devicePhase,
+        dataIsReady,
+        configReadProgress,
+    } = useGamepadConfig();
     const [isReconnecting, setIsReconnecting] = useState(false);
+    const reconnectInFlightRef = useRef(false);
     const { error, setError } = useGamepadConfig();
-    const { t } = useLanguage();
+    const { t, currentLanguage } = useLanguage();
+    const connectionPending = !deviceConnected
+        || !dataIsReady
+        || devicePhase !== DeviceConnectionPhase.READY;
+    const connectionInProgress = isConnectionInProgress(devicePhase);
+
+    useEffect(() => {
+        initializeWebHidNetworkTrace();
+    }, []);
 
     // 全局错误处理
     useEffect(() => {
@@ -35,56 +70,29 @@ function AppContent({ children }: { children: React.ReactNode }) {
         }
     }, [error, setError]);
 
-    // 全局loading处理
-    useEffect(() => {
-        let timer: NodeJS.Timeout;
-        // 延迟300ms显示loading
-        if (!isLoading) {
-            timer = setTimeout(() => {
-                setShowLoading(false);
-            }, 300);
-        } else {
-            setShowLoading(true);
-        }
+    const handleReconnect = useCallback(async () => {
+        if (reconnectInFlightRef.current) return;
+        reconnectInFlightRef.current = true;
+        setIsReconnecting(true);
 
-        return () => {
-            // 清理定时器
-            if (timer) {
-                clearTimeout(timer);
-            }
-        };
-    }, [isLoading]);
-
-    // 初始化状态
-    useEffect(() => {
-        if (!showReconnect) {
-            setIsReconnecting(false);
-            closeReconnectModal();
-        } else {
-            openReconnectModal({
-                title: t.RECONNECT_MODAL_TITLE,
-                message: t.RECONNECT_MODAL_MESSAGE,
-                buttonText: t.RECONNECT_MODAL_BUTTON,
-                onReconnect: async () => {
-                    setIsReconnecting(true);
-                    setReconnectModalLoading(true);
-                    try {
-                        await connectWebSocket();
-                    } catch {
-                        toaster.error({
-                            title: t.RECONNECT_FAILED_TITLE,
-                            description: t.RECONNECT_FAILED_MESSAGE,
-                        });
-                        setIsReconnecting(false);
-                        setReconnectModalLoading(false);
-                    } finally {
-                        
-                    }
-                },
-                isLoading: isReconnecting,
+        try {
+            // This explicit click always lets the user select the device,
+            // including after a timeout with a previously granted handle.
+            // Background reconnects keep using the authorized-device path.
+            await connectDevice();
+        } catch (error) {
+            const description = error instanceof DeviceTransportError
+                ? connectionErrorMessage({ transportCode: error.code, type: 'connection' }, currentLanguage)
+                : t.RECONNECT_FAILED_MESSAGE;
+            toaster.error({
+                title: t.RECONNECT_FAILED_TITLE,
+                description,
             });
+        } finally {
+            reconnectInFlightRef.current = false;
+            setIsReconnecting(false);
         }
-    }, [showReconnect, t, connectWebSocket]);
+    }, [connectDevice, t, currentLanguage]);
 
     return (
         <Flex
@@ -104,17 +112,86 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 </SettingsLayout>
                 {/* <Center as="footer" height="40px" borderTop="1px solid" borderColor="rgba(0, 150, 255, 0.15)">
                     <Text fontSize="sm" color="gray.500">
-                        © 2024 Hitbox Web Config. All rights reserved.
+                        © 2024 XORA Web Config. All rights reserved.
                     </Text>
                 </Center> */}
             </Flex>
             <Toaster />
-            <LoadingModal isOpen={showLoading} />
+            <LoadingModal
+                isOpen={connectionPending && !firmwarePage}
+                variant="connection"
+                connectionState={connectionInProgress ? 'connecting' : 'waiting'}
+                connectionPhase={devicePhase}
+                configReadProgress={configReadProgress}
+                noDeviceAction={{
+                    label: t.RECONNECT_MODAL_BUTTON,
+                    onClick: handleReconnect,
+                    loading: isReconnecting,
+                }}
+                noDeviceTitle={t.RECONNECT_MODAL_TITLE}
+                noDeviceSteps={[
+                    t.RECONNECT_MODAL_STEP_WEBCONFIG,
+                    t.RECONNECT_MODAL_STEP_USB,
+                    t.RECONNECT_MODAL_STEP_RECONNECT,
+                ]}
+                noDeviceMessage={connectionErrorMessage(deviceError, currentLanguage)}
+                headerAction={connectionPending ? (
+                    <HStack gap={2}>
+                        <UserAuthControl />
+                        <LanguageSwitcher />
+                    </HStack>
+                ) : undefined}
+            />
+            <ConfigDraftRecovery />
             <DialogConfirm />
             <DialogForm />
             <DialogCannotClose />
             <DialogEditCombination />
         </Flex>
+    );
+}
+
+function RouteAwareContent({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const isTraceViewer = pathname === '/webhid-trace' ||
+        pathname === '/webhid-trace/';
+    const isEmailVerification = pathname === '/auth/verify' ||
+        pathname === '/auth/verify/';
+    const isAdministration = pathname.startsWith('/admin/');
+    const isFirmwareCatalog = pathname === '/firmware/releases' || pathname === '/firmware/releases/';
+
+    // The trace viewer is deliberately outside GamepadConfigProvider. It only
+    // receives same-origin trace broadcasts and must never open or lease HID.
+    if (isTraceViewer) {
+        return <>{children}</>;
+    }
+    if (pathname === '/webhid-benchmark' || pathname === '/webhid-benchmark/') {
+        return <>{children}</>;
+    }
+
+    // Email verification must remain usable without opening, requesting, or
+    // leasing a HID device.
+    if (isEmailVerification || isAdministration || isFirmwareCatalog) {
+        return (
+            <LanguageProvider>
+                <UserAuthProvider>
+                    {children}
+                    <Toaster />
+                </UserAuthProvider>
+            </LanguageProvider>
+        );
+    }
+
+    return (
+        <GamepadConfigProvider>
+            <LanguageProvider>
+                <UserAuthProvider>
+                    <AppContent>
+                        {children}
+                    </AppContent>
+                </UserAuthProvider>
+            </LanguageProvider>
+        </GamepadConfigProvider>
     );
 }
 
@@ -1287,14 +1364,9 @@ jnOfAJzDQKWmAn8IvAdQobcBbwN8wlP5aQRoACQWM/D/QN+5DmrsiuEAAAAASUVORK5CYII=
             <body style={{ height: '100vh', margin: 0 }}>
                 <StyledComponentsRegistry>
                     <Provider>
-                        <GamepadConfigProvider>
-                            <LanguageProvider>
-                                <AppContent>
-                                    {children}
-                                </AppContent>
-                                
-                            </LanguageProvider>
-                        </GamepadConfigProvider>
+                        <RouteAwareContent>
+                            {children}
+                        </RouteAwareContent>
                     </Provider>
                 </StyledComponentsRegistry>
             </body>

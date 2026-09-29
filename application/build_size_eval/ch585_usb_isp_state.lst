@@ -1,0 +1,525 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ch585_usb_isp_state.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/states/ch585_usb_isp_state.cpp"
+  19              		.section	.text._ZN16Ch585UsbIspStateD2Ev,"axG",%progbits,_ZN16Ch585UsbIspStateD5Ev,comdat
+  20              		.align	1
+  21              		.weak	_ZN16Ch585UsbIspStateD2Ev
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN16Ch585UsbIspStateD2Ev:
+  27              	.LVL0:
+  28              	.LFB12:
+  29              		.file 2 "Cpp_Core/Inc/states/ch585_usb_isp_state.hpp"
+   1:Cpp_Core/Inc/states/ch585_usb_isp_state.hpp **** #ifndef CH585_USB_ISP_STATE_HPP
+   2:Cpp_Core/Inc/states/ch585_usb_isp_state.hpp **** #define CH585_USB_ISP_STATE_HPP
+   3:Cpp_Core/Inc/states/ch585_usb_isp_state.hpp **** 
+   4:Cpp_Core/Inc/states/ch585_usb_isp_state.hpp **** #include "base_state.hpp"
+   5:Cpp_Core/Inc/states/ch585_usb_isp_state.hpp **** 
+   6:Cpp_Core/Inc/states/ch585_usb_isp_state.hpp **** class Ch585UsbIspState final : public BaseState {
+  30              		.loc 2 6 7 view -0
+  31              		.cfi_startproc
+  32              		@ args = 0, pretend = 0, frame = 0
+  33              		@ frame_needed = 0, uses_anonymous_args = 0
+  34              		@ link register save eliminated.
+  35              	.LBB17:
+  36              	.LBI17:
+  37              		.file 3 "Cpp_Core/Inc/states/base_state.hpp"
+   1:Cpp_Core/Inc/states/base_state.hpp **** #ifndef __BASE_STATE_H__
+   2:Cpp_Core/Inc/states/base_state.hpp **** #define __BASE_STATE_H__
+   3:Cpp_Core/Inc/states/base_state.hpp **** 
+   4:Cpp_Core/Inc/states/base_state.hpp **** class BaseState {
+   5:Cpp_Core/Inc/states/base_state.hpp ****     public:
+   6:Cpp_Core/Inc/states/base_state.hpp ****         virtual ~BaseState() = default;
+  38              		.loc 3 6 17 view .LVU1
+  39              		.loc 3 6 17 is_stmt 0 view .LVU2
+  40              	.LBE17:
+  41              		.loc 2 6 7 view .LVU3
+  42 0000 7047     		bx	lr
+  43              		.cfi_endproc
+  44              	.LFE12:
+  46              		.weak	_ZN16Ch585UsbIspStateD1Ev
+  47              		.thumb_set _ZN16Ch585UsbIspStateD1Ev,_ZN16Ch585UsbIspStateD2Ev
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 2
+
+
+  48              		.section	.text._ZN16Ch585UsbIspState4tickEv,"ax",%progbits
+  49              		.align	1
+  50              		.global	_ZN16Ch585UsbIspState4tickEv
+  51              		.syntax unified
+  52              		.thumb
+  53              		.thumb_func
+  55              	_ZN16Ch585UsbIspState4tickEv:
+  56              	.LVL1:
+  57              	.LFB1302:
+   1:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** #include "states/ch585_usb_isp_state.hpp"
+   2:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** 
+   3:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** #include "board_cfg.h"
+   4:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** #include "ch585_update_mode.hpp"
+   5:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** #include "system_logger.h"
+   6:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** 
+   7:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** bool Ch585UsbIspState::enter()
+   8:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** {
+   9:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     /* This is the proven USB-ROM recovery path.  It deliberately owns no
+  10:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****      * CH585 SPI role and never starts the STM32 USB host/link runtime. */
+  11:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     CH585_UPDATE_MODE.setupManualIspRuntime();
+  12:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     APP_STAGE("M01S", "entered isolated CH585 USB ISP state");
+  13:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     return true;
+  14:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** }
+  15:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** 
+  16:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** void Ch585UsbIspState::tick()
+  17:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** {
+  58              		.loc 1 17 1 is_stmt 1 view -0
+  59              		.cfi_startproc
+  60              		@ args = 0, pretend = 0, frame = 0
+  61              		@ frame_needed = 0, uses_anonymous_args = 0
+  62              		@ link register save eliminated.
+  18:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     /* Power/Verify/Back remain owned by the existing screen detail handlers. */
+  19:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** }
+  63              		.loc 1 19 1 is_stmt 0 view .LVU5
+  64 0000 7047     		bx	lr
+  65              		.cfi_endproc
+  66              	.LFE1302:
+  68              		.section	.text._ZN16Ch585UsbIspState4exitEv,"ax",%progbits
+  69              		.align	1
+  70              		.global	_ZN16Ch585UsbIspState4exitEv
+  71              		.syntax unified
+  72              		.thumb
+  73              		.thumb_func
+  75              	_ZN16Ch585UsbIspState4exitEv:
+  76              	.LVL2:
+  77              	.LFB1303:
+  20:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** 
+  21:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** void Ch585UsbIspState::exit()
+  22:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** {
+  78              		.loc 1 22 1 is_stmt 1 view -0
+  79              		.cfi_startproc
+  80              		@ args = 0, pretend = 0, frame = 0
+  81              		@ frame_needed = 0, uses_anonymous_args = 0
+  82              		@ link register save eliminated.
+  23:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     CH585_UPDATE_MODE.shutdownManualIspRuntime();
+  83              		.loc 1 23 5 view .LVU7
+  84              	.LBB18:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 3
+
+
+  85              	.LBI18:
+  86              		.file 4 "Cpp_Core/Inc/ch585_update_mode.hpp"
+   1:Cpp_Core/Inc/ch585_update_mode.hpp **** #ifndef CH585_UPDATE_MODE_HPP
+   2:Cpp_Core/Inc/ch585_update_mode.hpp **** #define CH585_UPDATE_MODE_HPP
+   3:Cpp_Core/Inc/ch585_update_mode.hpp **** 
+   4:Cpp_Core/Inc/ch585_update_mode.hpp **** class Ch585UpdateMode {
+   5:Cpp_Core/Inc/ch585_update_mode.hpp **** public:
+   6:Cpp_Core/Inc/ch585_update_mode.hpp ****     Ch585UpdateMode(const Ch585UpdateMode&) = delete;
+   7:Cpp_Core/Inc/ch585_update_mode.hpp ****     Ch585UpdateMode& operator=(const Ch585UpdateMode&) = delete;
+   8:Cpp_Core/Inc/ch585_update_mode.hpp **** 
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     static Ch585UpdateMode& getInstance()
+  87              		.loc 4 9 29 view .LVU8
+  10:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         static Ch585UpdateMode instance;
+  88              		.loc 4 11 9 view .LVU9
+  12:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+  89              		.loc 4 12 9 view .LVU10
+  90              	.LBE18:
+  91              		.loc 1 23 47 is_stmt 0 discriminator 1 view .LVU11
+  92 0000 0148     		ldr	r0, .L4
+  93              	.LVL3:
+  94              		.loc 1 23 47 discriminator 1 view .LVU12
+  95 0002 FFF7FEBF 		b	_ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv
+  96              	.LVL4:
+  97              	.L5:
+  98 0006 00BF     		.align	2
+  99              	.L4:
+ 100 0008 00000000 		.word	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 101              		.cfi_endproc
+ 102              	.LFE1303:
+ 104              		.section	.text._ZN16Ch585UsbIspStateD0Ev,"axG",%progbits,_ZN16Ch585UsbIspStateD5Ev,comdat
+ 105              		.align	1
+ 106              		.weak	_ZN16Ch585UsbIspStateD0Ev
+ 107              		.syntax unified
+ 108              		.thumb
+ 109              		.thumb_func
+ 111              	_ZN16Ch585UsbIspStateD0Ev:
+ 112              	.LVL5:
+ 113              	.LFB14:
+ 114              		.loc 2 6 7 is_stmt 1 view -0
+ 115              		.cfi_startproc
+ 116              		@ args = 0, pretend = 0, frame = 0
+ 117              		@ frame_needed = 0, uses_anonymous_args = 0
+ 118              		.loc 2 6 7 is_stmt 0 view .LVU14
+ 119 0000 10B5     		push	{r4, lr}
+ 120              	.LCFI0:
+ 121              		.cfi_def_cfa_offset 8
+ 122              		.cfi_offset 4, -8
+ 123              		.cfi_offset 14, -4
+ 124              		.loc 2 6 7 view .LVU15
+ 125 0002 0446     		mov	r4, r0
+ 126              	.LVL6:
+ 127              	.LBB19:
+ 128              	.LBI19:
+ 129              		.loc 2 6 7 is_stmt 1 view .LVU16
+ 130              	.LBB20:
+ 131              	.LBI20:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 4
+
+
+ 132              		.loc 3 6 17 view .LVU17
+ 133              		.loc 3 6 17 is_stmt 0 view .LVU18
+ 134              	.LBE20:
+ 135              	.LBE19:
+ 136              		.loc 2 6 7 discriminator 1 view .LVU19
+ 137 0004 0421     		movs	r1, #4
+ 138 0006 FFF7FEFF 		bl	_ZdlPvj
+ 139              	.LVL7:
+ 140              		.loc 2 6 7 view .LVU20
+ 141 000a 2046     		mov	r0, r4
+ 142 000c 10BD     		pop	{r4, pc}
+ 143              		.loc 2 6 7 view .LVU21
+ 144              		.cfi_endproc
+ 145              	.LFE14:
+ 147              		.section	.rodata.AppStartupLog_Printf.constprop.0.str1.1,"aMS",%progbits,1
+ 148              	.LC0:
+ 149 0000 00       		.ascii	"\000"
+ 150              	.LC1:
+ 151 0001 4D303153 		.ascii	"M01S\000"
+ 151      00
+ 152              	.LC2:
+ 153 0006 5B415050 		.ascii	"[APP][STARTUP][%s]%s \000"
+ 153      5D5B5354 
+ 153      41525455 
+ 153      505D5B25 
+ 153      735D2573 
+ 154              	.LC3:
+ 155 001c 656E7465 		.ascii	"entered isolated CH585 USB ISP state\000"
+ 155      72656420 
+ 155      69736F6C 
+ 155      61746564 
+ 155      20434835 
+ 156              	.LC4:
+ 157 0041 0D00     		.ascii	"\015\000"
+ 158              		.section	.text.AppStartupLog_Printf.constprop.0,"ax",%progbits
+ 159              		.align	1
+ 160              		.syntax unified
+ 161              		.thumb
+ 162              		.thumb_func
+ 164              	AppStartupLog_Printf.constprop.0:
+ 165              	.LVL8:
+ 166              	.LFB1418:
+ 167              		.file 5 "Core/Inc/board_cfg.h"
+   1:Core/Inc/board_cfg.h **** /*
+   2:Core/Inc/board_cfg.h ****  * The MIT License (MIT)
+   3:Core/Inc/board_cfg.h ****  *
+   4:Core/Inc/board_cfg.h ****  * Copyright (c) 2021, Ha Thach (tinyusb.org)
+   5:Core/Inc/board_cfg.h ****  *
+   6:Core/Inc/board_cfg.h ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   7:Core/Inc/board_cfg.h ****  * of this software and associated documentation files (the "Software"), to deal
+   8:Core/Inc/board_cfg.h ****  * in the Software without restriction, including without limitation the rights
+   9:Core/Inc/board_cfg.h ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  10:Core/Inc/board_cfg.h ****  * copies of the Software, and to permit persons to whom the Software is
+  11:Core/Inc/board_cfg.h ****  * furnished to do so, subject to the following conditions:
+  12:Core/Inc/board_cfg.h ****  *
+  13:Core/Inc/board_cfg.h ****  * The above copyright notice and this permission notice shall be included in
+  14:Core/Inc/board_cfg.h ****  * all copies or substantial portions of the Software.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 5
+
+
+  15:Core/Inc/board_cfg.h ****  *
+  16:Core/Inc/board_cfg.h ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  17:Core/Inc/board_cfg.h ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  18:Core/Inc/board_cfg.h ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  19:Core/Inc/board_cfg.h ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  20:Core/Inc/board_cfg.h ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  21:Core/Inc/board_cfg.h ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  22:Core/Inc/board_cfg.h ****  * THE SOFTWARE.
+  23:Core/Inc/board_cfg.h ****  *
+  24:Core/Inc/board_cfg.h ****  * This file is part of the TinyUSB stack.
+  25:Core/Inc/board_cfg.h ****  */
+  26:Core/Inc/board_cfg.h **** 
+  27:Core/Inc/board_cfg.h **** #ifndef __BOARD_H__
+  28:Core/Inc/board_cfg.h **** #define __BOARD_H__
+  29:Core/Inc/board_cfg.h **** 
+  30:Core/Inc/board_cfg.h **** #include "stm32h750xx.h"
+  31:Core/Inc/board_cfg.h **** #include "stm32h7xx_hal.h"
+  32:Core/Inc/board_cfg.h **** #include <stdarg.h>
+  33:Core/Inc/board_cfg.h **** #include <stdbool.h>
+  34:Core/Inc/board_cfg.h **** #include <stdio.h>
+  35:Core/Inc/board_cfg.h **** 
+  36:Core/Inc/board_cfg.h **** #ifdef __cplusplus
+  37:Core/Inc/board_cfg.h ****  extern "C" {
+  38:Core/Inc/board_cfg.h **** #endif
+  39:Core/Inc/board_cfg.h **** 
+  40:Core/Inc/board_cfg.h **** 
+  41:Core/Inc/board_cfg.h **** #define SYSTEM_CLOCK_FREQ      480000000
+  42:Core/Inc/board_cfg.h **** 
+  43:Core/Inc/board_cfg.h **** #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
+  44:Core/Inc/board_cfg.h **** 
+  45:Core/Inc/board_cfg.h **** // STM32H7系列的唯一ID存储地址（96位，12字节）
+  46:Core/Inc/board_cfg.h **** #define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+  47:Core/Inc/board_cfg.h **** 
+  48:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_Msk
+  49:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+  50:Core/Inc/board_cfg.h **** #endif
+  51:Core/Inc/board_cfg.h **** 
+  52:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_RN
+  53:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+  54:Core/Inc/board_cfg.h **** #endif
+  55:Core/Inc/board_cfg.h **** 
+  56:Core/Inc/board_cfg.h **** /* Debug print configuration.
+  57:Core/Inc/board_cfg.h ****  * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+  58:Core/Inc/board_cfg.h ****  * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+  59:Core/Inc/board_cfg.h ****  */
+  60:Core/Inc/board_cfg.h **** #ifndef APPLICATION_SERIAL_PRINT
+  61:Core/Inc/board_cfg.h **** #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+  62:Core/Inc/board_cfg.h **** #endif
+  63:Core/Inc/board_cfg.h **** 
+  64:Core/Inc/board_cfg.h **** #ifndef APPLICATION_DEBUG_PRINT
+  65:Core/Inc/board_cfg.h **** #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+  66:Core/Inc/board_cfg.h **** #endif
+  67:Core/Inc/board_cfg.h **** 
+  68:Core/Inc/board_cfg.h **** #ifndef APP_LOG_VERBOSE
+  69:Core/Inc/board_cfg.h **** #define APP_LOG_VERBOSE 0
+  70:Core/Inc/board_cfg.h **** #endif
+  71:Core/Inc/board_cfg.h **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 6
+
+
+  72:Core/Inc/board_cfg.h **** /* Concise production startup milestones, independent from verbose APP_DBG. */
+  73:Core/Inc/board_cfg.h **** #ifndef APPLICATION_STARTUP_LOG
+  74:Core/Inc/board_cfg.h **** #define APPLICATION_STARTUP_LOG 1
+  75:Core/Inc/board_cfg.h **** #endif
+  76:Core/Inc/board_cfg.h **** 
+  77:Core/Inc/board_cfg.h **** #if APPLICATION_STARTUP_LOG
+  78:Core/Inc/board_cfg.h **** static inline void AppStartupLog_Printf(const char *stage,
+ 168              		.loc 5 78 20 is_stmt 1 view -0
+ 169              		.cfi_startproc
+ 170              		@ args = 4, pretend = 8, frame = 8
+ 171              		@ frame_needed = 0, uses_anonymous_args = 1
+  79:Core/Inc/board_cfg.h ****                                         const char *level,
+  80:Core/Inc/board_cfg.h ****                                         const char *fmt, ...)
+  81:Core/Inc/board_cfg.h **** {
+  82:Core/Inc/board_cfg.h ****     va_list args;
+ 172              		.loc 5 82 5 view .LVU23
+  83:Core/Inc/board_cfg.h ****     printf("[APP][STARTUP][%s]%s ", stage, level);
+ 173              		.loc 5 83 5 view .LVU24
+  78:Core/Inc/board_cfg.h ****                                         const char *level,
+ 174              		.loc 5 78 20 is_stmt 0 view .LVU25
+ 175 0000 0CB4     		push	{r2, r3}
+ 176              	.LCFI1:
+ 177              		.cfi_def_cfa_offset 8
+ 178              		.cfi_offset 2, -8
+ 179              		.cfi_offset 3, -4
+ 180 0002 07B5     		push	{r0, r1, r2, lr}
+ 181              	.LCFI2:
+ 182              		.cfi_def_cfa_offset 24
+ 183              		.cfi_offset 14, -12
+ 184              		.loc 5 83 11 view .LVU26
+ 185 0004 084A     		ldr	r2, .L8
+ 186 0006 0949     		ldr	r1, .L8+4
+ 187              	.LVL9:
+ 188              		.loc 5 83 11 view .LVU27
+ 189 0008 0948     		ldr	r0, .L8+8
+ 190              	.LVL10:
+ 191              		.loc 5 83 11 view .LVU28
+ 192 000a FFF7FEFF 		bl	printf
+ 193              	.LVL11:
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+ 194              		.loc 5 84 5 is_stmt 1 view .LVU29
+ 195 000e 05A9     		add	r1, sp, #20
+  85:Core/Inc/board_cfg.h ****     vprintf(fmt, args);
+ 196              		.loc 5 85 12 is_stmt 0 view .LVU30
+ 197 0010 0848     		ldr	r0, .L8+12
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+ 198              		.loc 5 84 5 view .LVU31
+ 199 0012 0191     		str	r1, [sp, #4]
+ 200              		.loc 5 85 5 is_stmt 1 view .LVU32
+ 201              		.loc 5 85 12 is_stmt 0 view .LVU33
+ 202 0014 FFF7FEFF 		bl	vprintf
+ 203              	.LVL12:
+  86:Core/Inc/board_cfg.h ****     va_end(args);
+ 204              		.loc 5 86 5 is_stmt 1 view .LVU34
+  87:Core/Inc/board_cfg.h ****     printf("\r\n");
+ 205              		.loc 5 87 5 view .LVU35
+ 206              		.loc 5 87 11 is_stmt 0 view .LVU36
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 7
+
+
+ 207 0018 0748     		ldr	r0, .L8+16
+ 208 001a FFF7FEFF 		bl	puts
+ 209              	.LVL13:
+  88:Core/Inc/board_cfg.h **** }
+ 210              		.loc 5 88 1 view .LVU37
+ 211 001e 03B0     		add	sp, sp, #12
+ 212              	.LCFI3:
+ 213              		.cfi_def_cfa_offset 12
+ 214              		@ sp needed
+ 215 0020 5DF804EB 		ldr	lr, [sp], #4
+ 216              	.LCFI4:
+ 217              		.cfi_restore 14
+ 218              		.cfi_def_cfa_offset 8
+ 219 0024 02B0     		add	sp, sp, #8
+ 220              	.LCFI5:
+ 221              		.cfi_restore 3
+ 222              		.cfi_restore 2
+ 223              		.cfi_def_cfa_offset 0
+ 224 0026 7047     		bx	lr
+ 225              	.L9:
+ 226              		.align	2
+ 227              	.L8:
+ 228 0028 00000000 		.word	.LC0
+ 229 002c 01000000 		.word	.LC1
+ 230 0030 06000000 		.word	.LC2
+ 231 0034 1C000000 		.word	.LC3
+ 232 0038 41000000 		.word	.LC4
+ 233              		.cfi_endproc
+ 234              	.LFE1418:
+ 236              		.section	.text._ZN16Ch585UsbIspState5enterEv,"ax",%progbits
+ 237              		.align	1
+ 238              		.global	_ZN16Ch585UsbIspState5enterEv
+ 239              		.syntax unified
+ 240              		.thumb
+ 241              		.thumb_func
+ 243              	_ZN16Ch585UsbIspState5enterEv:
+ 244              	.LVL14:
+ 245              	.LFB1301:
+   8:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     /* This is the proven USB-ROM recovery path.  It deliberately owns no
+ 246              		.loc 1 8 1 is_stmt 1 view -0
+ 247              		.cfi_startproc
+ 248              		@ args = 0, pretend = 0, frame = 0
+ 249              		@ frame_needed = 0, uses_anonymous_args = 0
+  11:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     APP_STAGE("M01S", "entered isolated CH585 USB ISP state");
+ 250              		.loc 1 11 5 view .LVU39
+ 251              	.LBB21:
+ 252              	.LBI21:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 253              		.loc 4 9 29 view .LVU40
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 254              		.loc 4 11 9 view .LVU41
+ 255              		.loc 4 12 9 view .LVU42
+ 256              	.LBE21:
+   8:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     /* This is the proven USB-ROM recovery path.  It deliberately owns no
+ 257              		.loc 1 8 1 is_stmt 0 view .LVU43
+ 258 0000 08B5     		push	{r3, lr}
+ 259              	.LCFI6:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 8
+
+
+ 260              		.cfi_def_cfa_offset 8
+ 261              		.cfi_offset 3, -8
+ 262              		.cfi_offset 14, -4
+  11:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     APP_STAGE("M01S", "entered isolated CH585 USB ISP state");
+ 263              		.loc 1 11 44 discriminator 1 view .LVU44
+ 264 0002 0548     		ldr	r0, .L11
+ 265              	.LVL15:
+  11:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     APP_STAGE("M01S", "entered isolated CH585 USB ISP state");
+ 266              		.loc 1 11 44 discriminator 1 view .LVU45
+ 267 0004 FFF7FEFF 		bl	_ZN15Ch585UpdateMode21setupManualIspRuntimeEv
+ 268              	.LVL16:
+  12:Cpp_Core/Src/states/ch585_usb_isp_state.cpp ****     return true;
+ 269              		.loc 1 12 5 is_stmt 1 view .LVU46
+ 270 0008 044A     		ldr	r2, .L11+4
+ 271 000a 0549     		ldr	r1, .L11+8
+ 272 000c 0548     		ldr	r0, .L11+12
+ 273 000e FFF7FEFF 		bl	AppStartupLog_Printf.constprop.0
+ 274              	.LVL17:
+  13:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** }
+ 275              		.loc 1 13 5 view .LVU47
+  14:Cpp_Core/Src/states/ch585_usb_isp_state.cpp **** 
+ 276              		.loc 1 14 1 is_stmt 0 view .LVU48
+ 277 0012 0120     		movs	r0, #1
+ 278 0014 08BD     		pop	{r3, pc}
+ 279              	.L12:
+ 280 0016 00BF     		.align	2
+ 281              	.L11:
+ 282 0018 00000000 		.word	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 283 001c 1C000000 		.word	.LC3
+ 284 0020 00000000 		.word	.LC0
+ 285 0024 01000000 		.word	.LC1
+ 286              		.cfi_endproc
+ 287              	.LFE1301:
+ 289              		.global	_ZTV16Ch585UsbIspState
+ 290              		.section	.rodata._ZTV16Ch585UsbIspState,"a"
+ 291              		.align	2
+ 294              	_ZTV16Ch585UsbIspState:
+ 295 0000 00000000 		.word	0
+ 296 0004 00000000 		.word	0
+ 297 0008 00000000 		.word	_ZN16Ch585UsbIspStateD1Ev
+ 298 000c 00000000 		.word	_ZN16Ch585UsbIspStateD0Ev
+ 299 0010 00000000 		.word	_ZN16Ch585UsbIspState5enterEv
+ 300 0014 00000000 		.word	_ZN16Ch585UsbIspState4tickEv
+ 301 0018 00000000 		.word	_ZN16Ch585UsbIspState4exitEv
+ 302              		.weak	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 303              		.section	.bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance,"awG",%nobits,_ZZN15Ch585UpdateMode11
+ 306              	_ZZN15Ch585UpdateMode11getInstanceEvE8instance:
+ 307 0000 00       		.space	1
+ 308              		.text
+ 309              	.Letext0:
+ 310              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 311              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 312              		.file 8 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 313              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 314              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 315              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 316              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 9
+
+
+ 317              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 318              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 319              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 320              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 321              		.file 17 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 322              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 323              		.file 19 "<built-in>"
+ 324              		.file 20 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s 			page 10
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ch585_usb_isp_state.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:20     .text._ZN16Ch585UsbIspStateD2Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:26     .text._ZN16Ch585UsbIspStateD2Ev:00000000 _ZN16Ch585UsbIspStateD2Ev
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:26     .text._ZN16Ch585UsbIspStateD2Ev:00000000 _ZN16Ch585UsbIspStateD1Ev
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:49     .text._ZN16Ch585UsbIspState4tickEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:55     .text._ZN16Ch585UsbIspState4tickEv:00000000 _ZN16Ch585UsbIspState4tickEv
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:69     .text._ZN16Ch585UsbIspState4exitEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:75     .text._ZN16Ch585UsbIspState4exitEv:00000000 _ZN16Ch585UsbIspState4exitEv
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:100    .text._ZN16Ch585UsbIspState4exitEv:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:306    .bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance:00000000 _ZZN15Ch585UpdateMode11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:105    .text._ZN16Ch585UsbIspStateD0Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:111    .text._ZN16Ch585UsbIspStateD0Ev:00000000 _ZN16Ch585UsbIspStateD0Ev
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:159    .text.AppStartupLog_Printf.constprop.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:164    .text.AppStartupLog_Printf.constprop.0:00000000 AppStartupLog_Printf.constprop.0
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:228    .text.AppStartupLog_Printf.constprop.0:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:237    .text._ZN16Ch585UsbIspState5enterEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:243    .text._ZN16Ch585UsbIspState5enterEv:00000000 _ZN16Ch585UsbIspState5enterEv
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:282    .text._ZN16Ch585UsbIspState5enterEv:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:294    .rodata._ZTV16Ch585UsbIspState:00000000 _ZTV16Ch585UsbIspState
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:291    .rodata._ZTV16Ch585UsbIspState:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLfWdaw.s:307    .bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance:00000000 $d
+                           .group:00000000 _ZN16Ch585UsbIspStateD5Ev
+
+UNDEFINED SYMBOLS
+_ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv
+_ZdlPvj
+printf
+vprintf
+puts
+_ZN15Ch585UpdateMode21setupManualIspRuntimeEv

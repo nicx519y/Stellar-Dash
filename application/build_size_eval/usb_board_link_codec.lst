@@ -1,0 +1,1438 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"usb_board_link_codec.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "../common/usb_board_link_codec.c"
+  19              		.section	.text.usb_board_link_frame_size,"ax",%progbits
+  20              		.align	1
+  21              		.global	usb_board_link_frame_size
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	usb_board_link_frame_size:
+  27              	.LVL0:
+  28              	.LFB3:
+   1:../common/usb_board_link_codec.c **** #include "usb_board_link_codec.h"
+   2:../common/usb_board_link_codec.c **** 
+   3:../common/usb_board_link_codec.c **** #include <string.h>
+   4:../common/usb_board_link_codec.c **** 
+   5:../common/usb_board_link_codec.c **** uint8_t usb_board_link_frame_size(uint8_t payload_length)
+   6:../common/usb_board_link_codec.c **** {
+  29              		.loc 1 6 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+   7:../common/usb_board_link_codec.c ****     if(payload_length > USB_BOARD_LINK_MAX_PAYLOAD_BYTES)
+  34              		.loc 1 7 5 view .LVU1
+  35              		.loc 1 7 7 is_stmt 0 view .LVU2
+  36 0000 3C28     		cmp	r0, #60
+   8:../common/usb_board_link_codec.c ****     {
+   9:../common/usb_board_link_codec.c ****         return 0u;
+  10:../common/usb_board_link_codec.c ****     }
+  11:../common/usb_board_link_codec.c ****     return (uint8_t)(USB_BOARD_LINK_HEADER_BYTES + payload_length +
+  37              		.loc 1 11 5 is_stmt 1 view .LVU3
+  38              		.loc 1 11 12 is_stmt 0 view .LVU4
+  39 0002 9ABF     		itte	ls
+  40 0004 0430     		addls	r0, r0, #4
+  41              	.LVL1:
+  42              		.loc 1 11 12 view .LVU5
+  43 0006 C0B2     		uxtbls	r0, r0
+   9:../common/usb_board_link_codec.c ****     }
+  44              		.loc 1 9 16 view .LVU6
+  45 0008 0020     		movhi	r0, #0
+  12:../common/usb_board_link_codec.c ****                      USB_BOARD_LINK_CHECKSUM_BYTES);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 2
+
+
+  13:../common/usb_board_link_codec.c **** }
+  46              		.loc 1 13 1 view .LVU7
+  47 000a 7047     		bx	lr
+  48              		.cfi_endproc
+  49              	.LFE3:
+  51              		.section	.text.usb_board_link_encode,"ax",%progbits
+  52              		.align	1
+  53              		.global	usb_board_link_encode
+  54              		.syntax unified
+  55              		.thumb
+  56              		.thumb_func
+  58              	usb_board_link_encode:
+  59              	.LVL2:
+  60              	.LFB4:
+  14:../common/usb_board_link_codec.c **** 
+  15:../common/usb_board_link_codec.c **** bool usb_board_link_encode(uint8_t command,
+  16:../common/usb_board_link_codec.c ****                            const void *payload,
+  17:../common/usb_board_link_codec.c ****                            uint8_t payload_length,
+  18:../common/usb_board_link_codec.c ****                            uint8_t *output,
+  19:../common/usb_board_link_codec.c ****                            uint8_t output_capacity,
+  20:../common/usb_board_link_codec.c ****                            uint8_t *output_length)
+  21:../common/usb_board_link_codec.c **** {
+  61              		.loc 1 21 1 is_stmt 1 view -0
+  62              		.cfi_startproc
+  63              		@ args = 8, pretend = 0, frame = 0
+  64              		@ frame_needed = 0, uses_anonymous_args = 0
+  22:../common/usb_board_link_codec.c ****     uint8_t frame_length = usb_board_link_frame_size(payload_length);
+  65              		.loc 1 22 5 view .LVU9
+  66              	.LBB12:
+  67              	.LBI12:
+   5:../common/usb_board_link_codec.c **** {
+  68              		.loc 1 5 9 view .LVU10
+  69              	.LBB13:
+   7:../common/usb_board_link_codec.c ****     {
+  70              		.loc 1 7 5 view .LVU11
+   7:../common/usb_board_link_codec.c ****     {
+  71              		.loc 1 7 7 is_stmt 0 view .LVU12
+  72 0000 3C2A     		cmp	r2, #60
+  11:../common/usb_board_link_codec.c ****                      USB_BOARD_LINK_CHECKSUM_BYTES);
+  73              		.loc 1 11 5 is_stmt 1 view .LVU13
+  74              	.LBE13:
+  75              	.LBE12:
+  21:../common/usb_board_link_codec.c ****     uint8_t frame_length = usb_board_link_frame_size(payload_length);
+  76              		.loc 1 21 1 is_stmt 0 view .LVU14
+  77 0002 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+  78              	.LCFI0:
+  79              		.cfi_def_cfa_offset 24
+  80              		.cfi_offset 3, -24
+  81              		.cfi_offset 4, -20
+  82              		.cfi_offset 5, -16
+  83              		.cfi_offset 6, -12
+  84              		.cfi_offset 7, -8
+  85              		.cfi_offset 14, -4
+  21:../common/usb_board_link_codec.c ****     uint8_t frame_length = usb_board_link_frame_size(payload_length);
+  86              		.loc 1 21 1 view .LVU15
+  87 0004 079E     		ldr	r6, [sp, #28]
+  88              	.LBB16:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 3
+
+
+  89              	.LBB14:
+  11:../common/usb_board_link_codec.c ****                      USB_BOARD_LINK_CHECKSUM_BYTES);
+  90              		.loc 1 11 12 view .LVU16
+  91 0006 98BF     		it	ls
+  92 0008 151D     		addls	r5, r2, #4
+  93              	.LBE14:
+  94              	.LBE16:
+  21:../common/usb_board_link_codec.c ****     uint8_t frame_length = usb_board_link_frame_size(payload_length);
+  95              		.loc 1 21 1 view .LVU17
+  96 000a 1C46     		mov	r4, r3
+  97              	.LBB17:
+  98              	.LBB15:
+   9:../common/usb_board_link_codec.c ****     }
+  99              		.loc 1 9 16 view .LVU18
+ 100 000c 8CBF     		ite	hi
+ 101 000e 0025     		movhi	r5, #0
+ 102              	.LVL3:
+  11:../common/usb_board_link_codec.c ****                      USB_BOARD_LINK_CHECKSUM_BYTES);
+ 103              		.loc 1 11 12 view .LVU19
+ 104 0010 EDB2     		uxtbls	r5, r5
+ 105              	.LVL4:
+  11:../common/usb_board_link_codec.c ****                      USB_BOARD_LINK_CHECKSUM_BYTES);
+ 106              		.loc 1 11 12 view .LVU20
+ 107              	.LBE15:
+ 108              	.LBE17:
+  23:../common/usb_board_link_codec.c **** 
+  24:../common/usb_board_link_codec.c ****     if(output_length != (uint8_t *)0)
+ 109              		.loc 1 24 5 is_stmt 1 view .LVU21
+ 110              		.loc 1 24 7 is_stmt 0 view .LVU22
+ 111 0012 0EB9     		cbnz	r6, .L6
+ 112              	.LVL5:
+ 113              	.L8:
+  25:../common/usb_board_link_codec.c ****     {
+  26:../common/usb_board_link_codec.c ****         *output_length = 0u;
+  27:../common/usb_board_link_codec.c ****     }
+  28:../common/usb_board_link_codec.c ****     if((output == (uint8_t *)0) || (output_length == (uint8_t *)0) ||
+  29:../common/usb_board_link_codec.c ****        (frame_length == 0u) || (frame_length > output_capacity) ||
+  30:../common/usb_board_link_codec.c ****        ((payload_length != 0u) && (payload == (const void *)0)))
+  31:../common/usb_board_link_codec.c ****     {
+  32:../common/usb_board_link_codec.c ****         return false;
+ 114              		.loc 1 32 16 view .LVU23
+ 115 0014 0020     		movs	r0, #0
+ 116              	.LVL6:
+ 117              	.L7:
+  33:../common/usb_board_link_codec.c ****     }
+  34:../common/usb_board_link_codec.c **** 
+  35:../common/usb_board_link_codec.c ****     output[0] = USB_BOARD_LINK_SYNC;
+  36:../common/usb_board_link_codec.c ****     output[1] = command;
+  37:../common/usb_board_link_codec.c ****     output[2] = payload_length;
+  38:../common/usb_board_link_codec.c ****     if(payload_length != 0u)
+  39:../common/usb_board_link_codec.c ****     {
+  40:../common/usb_board_link_codec.c ****         memcpy(&output[3], payload, payload_length);
+  41:../common/usb_board_link_codec.c ****     }
+  42:../common/usb_board_link_codec.c ****     output[frame_length - 1u] =
+  43:../common/usb_board_link_codec.c ****         usb_board_link_checksum(output, (uint16_t)(frame_length - 1u));
+  44:../common/usb_board_link_codec.c ****     *output_length = frame_length;
+  45:../common/usb_board_link_codec.c ****     return true;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 4
+
+
+  46:../common/usb_board_link_codec.c **** }
+ 118              		.loc 1 46 1 view .LVU24
+ 119 0016 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 120              	.LVL7:
+ 121              	.L6:
+  26:../common/usb_board_link_codec.c ****     }
+ 122              		.loc 1 26 9 is_stmt 1 view .LVU25
+  26:../common/usb_board_link_codec.c ****     }
+ 123              		.loc 1 26 24 is_stmt 0 view .LVU26
+ 124 0018 0023     		movs	r3, #0
+ 125              	.LVL8:
+  26:../common/usb_board_link_codec.c ****     }
+ 126              		.loc 1 26 24 view .LVU27
+ 127 001a 3370     		strb	r3, [r6]
+  28:../common/usb_board_link_codec.c ****        (frame_length == 0u) || (frame_length > output_capacity) ||
+ 128              		.loc 1 28 5 is_stmt 1 view .LVU28
+  28:../common/usb_board_link_codec.c ****        (frame_length == 0u) || (frame_length > output_capacity) ||
+ 129              		.loc 1 28 7 is_stmt 0 view .LVU29
+ 130 001c 002C     		cmp	r4, #0
+ 131 001e F9D0     		beq	.L8
+  28:../common/usb_board_link_codec.c ****        (frame_length == 0u) || (frame_length > output_capacity) ||
+ 132              		.loc 1 28 68 discriminator 2 view .LVU30
+ 133 0020 002D     		cmp	r5, #0
+ 134 0022 F7D0     		beq	.L8
+  29:../common/usb_board_link_codec.c ****        ((payload_length != 0u) && (payload == (const void *)0)))
+ 135              		.loc 1 29 29 view .LVU31
+ 136 0024 9DF81830 		ldrb	r3, [sp, #24]	@ zero_extendqisi2
+ 137 0028 9D42     		cmp	r5, r3
+ 138 002a F3D8     		bhi	.L8
+  29:../common/usb_board_link_codec.c ****        ((payload_length != 0u) && (payload == (const void *)0)))
+ 139              		.loc 1 29 65 discriminator 1 view .LVU32
+ 140 002c 0AB1     		cbz	r2, .L9
+  30:../common/usb_board_link_codec.c ****     {
+ 141              		.loc 1 30 32 view .LVU33
+ 142 002e 0029     		cmp	r1, #0
+ 143 0030 F0D0     		beq	.L8
+ 144              	.L9:
+  35:../common/usb_board_link_codec.c ****     output[1] = command;
+ 145              		.loc 1 35 5 is_stmt 1 view .LVU34
+  35:../common/usb_board_link_codec.c ****     output[1] = command;
+ 146              		.loc 1 35 15 is_stmt 0 view .LVU35
+ 147 0032 5A23     		movs	r3, #90
+  36:../common/usb_board_link_codec.c ****     output[2] = payload_length;
+ 148              		.loc 1 36 15 view .LVU36
+ 149 0034 6070     		strb	r0, [r4, #1]
+  37:../common/usb_board_link_codec.c ****     if(payload_length != 0u)
+ 150              		.loc 1 37 15 view .LVU37
+ 151 0036 A270     		strb	r2, [r4, #2]
+  35:../common/usb_board_link_codec.c ****     output[1] = command;
+ 152              		.loc 1 35 15 view .LVU38
+ 153 0038 2370     		strb	r3, [r4]
+  36:../common/usb_board_link_codec.c ****     output[2] = payload_length;
+ 154              		.loc 1 36 5 is_stmt 1 view .LVU39
+  37:../common/usb_board_link_codec.c ****     if(payload_length != 0u)
+ 155              		.loc 1 37 5 view .LVU40
+  38:../common/usb_board_link_codec.c ****     {
+ 156              		.loc 1 38 5 view .LVU41
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 5
+
+
+  38:../common/usb_board_link_codec.c ****     {
+ 157              		.loc 1 38 7 is_stmt 0 view .LVU42
+ 158 003a 12B1     		cbz	r2, .L10
+  40:../common/usb_board_link_codec.c ****     }
+ 159              		.loc 1 40 9 is_stmt 1 view .LVU43
+ 160 003c E01C     		adds	r0, r4, #3
+ 161              	.LVL9:
+  40:../common/usb_board_link_codec.c ****     }
+ 162              		.loc 1 40 9 is_stmt 0 view .LVU44
+ 163 003e FFF7FEFF 		bl	memcpy
+ 164              	.LVL10:
+ 165              	.L10:
+  42:../common/usb_board_link_codec.c ****         usb_board_link_checksum(output, (uint16_t)(frame_length - 1u));
+ 166              		.loc 1 42 5 is_stmt 1 view .LVU45
+  43:../common/usb_board_link_codec.c ****     *output_length = frame_length;
+ 167              		.loc 1 43 9 is_stmt 0 view .LVU46
+ 168 0042 691E     		subs	r1, r5, #1
+  42:../common/usb_board_link_codec.c ****         usb_board_link_checksum(output, (uint16_t)(frame_length - 1u));
+ 169              		.loc 1 42 11 view .LVU47
+ 170 0044 0022     		movs	r2, #0
+  43:../common/usb_board_link_codec.c ****     *output_length = frame_length;
+ 171              		.loc 1 43 9 view .LVU48
+ 172 0046 8FB2     		uxth	r7, r1
+ 173              	.LVL11:
+ 174              	.LBB18:
+ 175              	.LBI18:
+ 176              		.file 2 "../common/usb_board_link_protocol.h"
+   1:../common/usb_board_link_protocol.h **** #ifndef USB_BOARD_LINK_PROTOCOL_H
+   2:../common/usb_board_link_protocol.h **** #define USB_BOARD_LINK_PROTOCOL_H
+   3:../common/usb_board_link_protocol.h **** 
+   4:../common/usb_board_link_protocol.h **** #include <stdint.h>
+   5:../common/usb_board_link_protocol.h **** 
+   6:../common/usb_board_link_protocol.h **** #ifdef __cplusplus
+   7:../common/usb_board_link_protocol.h **** extern "C" {
+   8:../common/usb_board_link_protocol.h **** #endif
+   9:../common/usb_board_link_protocol.h **** 
+  10:../common/usb_board_link_protocol.h **** /*
+  11:../common/usb_board_link_protocol.h ****  * STM32 <-> on-board CH585 USB control/data link.
+  12:../common/usb_board_link_protocol.h ****  *
+  13:../common/usb_board_link_protocol.h ****  * This namespace is intentionally separate from the frozen RF 0xA5 protocol.
+  14:../common/usb_board_link_protocol.h ****  * A CH585 instance locks into exactly one role after USB_BOARD_CMD_SELECT_ROLE:
+  15:../common/usb_board_link_protocol.h ****  * - RF role: this parser is disabled and the existing 0xA5 stack owns SPI.
+  16:../common/usb_board_link_protocol.h ****  * - USB/maintenance role: the RF stack is never initialized.
+  17:../common/usb_board_link_protocol.h ****  */
+  18:../common/usb_board_link_protocol.h **** #define USB_BOARD_LINK_SYNC                 0x5Au
+  19:../common/usb_board_link_protocol.h **** #define USB_BOARD_LINK_VERSION              1u
+  20:../common/usb_board_link_protocol.h **** #define USB_BOARD_LINK_MAX_FRAME_BYTES      64u
+  21:../common/usb_board_link_protocol.h **** #define USB_BOARD_LINK_HEADER_BYTES         3u
+  22:../common/usb_board_link_protocol.h **** #define USB_BOARD_LINK_CHECKSUM_BYTES       1u
+  23:../common/usb_board_link_protocol.h **** #define USB_BOARD_LINK_MAX_PAYLOAD_BYTES    \
+  24:../common/usb_board_link_protocol.h ****     (USB_BOARD_LINK_MAX_FRAME_BYTES - USB_BOARD_LINK_HEADER_BYTES - USB_BOARD_LINK_CHECKSUM_BYTES)
+  25:../common/usb_board_link_protocol.h **** 
+  26:../common/usb_board_link_protocol.h **** #define USB_BOARD_INPUT_V1_BYTES            10u
+  27:../common/usb_board_link_protocol.h **** #define USB_BOARD_TELEMETRY_FRAME_BYTES     32u
+  28:../common/usb_board_link_protocol.h **** #define USB_BOARD_FRAGMENT_HEADER_BYTES     8u
+  29:../common/usb_board_link_protocol.h **** #define USB_BOARD_FRAGMENT_DATA_BYTES       \
+  30:../common/usb_board_link_protocol.h ****     (USB_BOARD_LINK_MAX_PAYLOAD_BYTES - USB_BOARD_FRAGMENT_HEADER_BYTES)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 6
+
+
+  31:../common/usb_board_link_protocol.h **** #define USB_BOARD_BULK_MESSAGE_MAX_BYTES    1536u
+  32:../common/usb_board_link_protocol.h **** #define USB_BOARD_BULK_CREDIT_WINDOW        4u
+  33:../common/usb_board_link_protocol.h **** /*
+  34:../common/usb_board_link_protocol.h ****  * WebHID reports use one whole-report receiver slot. WebConfig capacity is
+  35:../common/usb_board_link_protocol.h ****  * read through the transaction-correlated USB_CONTROL pull RPC; asynchronous
+  36:../common/usb_board_link_protocol.h ****  * absolute credit events are intentionally ignored for this channel because a
+  37:../common/usb_board_link_protocol.h ****  * delayed snapshot could re-authorize an already-consumed slot. Other bulk
+  38:../common/usb_board_link_protocol.h ****  * channels retain the four-message window.
+  39:../common/usb_board_link_protocol.h ****  */
+  40:../common/usb_board_link_protocol.h **** #define USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW 1u
+  41:../common/usb_board_link_protocol.h **** 
+  42:../common/usb_board_link_protocol.h **** #define USB_BOARD_FRAGMENT_FLAG_FIRST       0x01u
+  43:../common/usb_board_link_protocol.h **** #define USB_BOARD_FRAGMENT_FLAG_LAST        0x02u
+  44:../common/usb_board_link_protocol.h **** 
+  45:../common/usb_board_link_protocol.h **** #define USB_BOARD_INPUT_FLAG_PROCESSED      0x01u
+  46:../common/usb_board_link_protocol.h **** #define USB_BOARD_INPUT_FLAG_BATTERY_VALID  0x02u
+  47:../common/usb_board_link_protocol.h **** #define USB_BOARD_INPUT_FORMAT_VERSION      1u
+  48:../common/usb_board_link_protocol.h **** #define USB_BOARD_INPUT_VERSION_SHIFT       4u
+  49:../common/usb_board_link_protocol.h **** 
+  50:../common/usb_board_link_protocol.h **** typedef enum
+  51:../common/usb_board_link_protocol.h **** {
+  52:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_SELECT_ROLE   = 0x01u,
+  53:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_GET_CAPS      = 0x02u,
+  54:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_SET_PROFILE   = 0x03u,
+  55:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_INPUT_STATE   = 0x04u,
+  56:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_USB_CONTROL   = 0x05u,
+  57:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_BULK_FRAGMENT = 0x06u,
+  58:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_BULK_CREDIT   = 0x07u,
+  59:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_SET_DATA_PLANE = 0x08u,
+  60:../common/usb_board_link_protocol.h ****     USB_BOARD_CMD_DATA_PLANE_PROBE = 0x09u,
+  61:../common/usb_board_link_protocol.h **** 
+  62:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_ROLE_SELECTED = 0x81u,
+  63:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_CAPS          = 0x82u,
+  64:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_PROFILE_SET   = 0x83u,
+  65:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_USB_CONTROL   = 0x85u,
+  66:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_BULK_FRAGMENT = 0x86u,
+  67:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_BULK_CREDIT   = 0x87u,
+  68:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_USB_STATE     = 0x88u,
+  69:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_DATA_PLANE_SET = 0x89u,
+  70:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_DATA_PLANE_PROBE = 0x8Au,
+  71:../common/usb_board_link_protocol.h ****     USB_BOARD_EVT_FAULT         = 0x8Fu
+  72:../common/usb_board_link_protocol.h **** } usb_board_command_t;
+  73:../common/usb_board_link_protocol.h **** 
+  74:../common/usb_board_link_protocol.h **** typedef enum
+  75:../common/usb_board_link_protocol.h **** {
+  76:../common/usb_board_link_protocol.h ****     USB_BOARD_ROLE_NONE        = 0x00u,
+  77:../common/usb_board_link_protocol.h ****     USB_BOARD_ROLE_RF          = 0x01u,
+  78:../common/usb_board_link_protocol.h ****     USB_BOARD_ROLE_USB         = 0x02u,
+  79:../common/usb_board_link_protocol.h ****     USB_BOARD_ROLE_MAINTENANCE = 0x03u
+  80:../common/usb_board_link_protocol.h **** } usb_board_role_t;
+  81:../common/usb_board_link_protocol.h **** 
+  82:../common/usb_board_link_protocol.h **** typedef enum
+  83:../common/usb_board_link_protocol.h **** {
+  84:../common/usb_board_link_protocol.h ****     USB_BOARD_PROFILE_NONE       = 0x00u,
+  85:../common/usb_board_link_protocol.h ****     USB_BOARD_PROFILE_XINPUT     = 0x01u,
+  86:../common/usb_board_link_protocol.h ****     USB_BOARD_PROFILE_PS4        = 0x02u,
+  87:../common/usb_board_link_protocol.h ****     USB_BOARD_PROFILE_PS5_COMPAT = 0x03u,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 7
+
+
+  88:../common/usb_board_link_protocol.h ****     USB_BOARD_PROFILE_SWITCH     = 0x04u,
+  89:../common/usb_board_link_protocol.h ****     USB_BOARD_PROFILE_XBOX_ONE   = 0x05u,
+  90:../common/usb_board_link_protocol.h ****     USB_BOARD_PROFILE_WEB_CONFIG = 0x06u
+  91:../common/usb_board_link_protocol.h **** } usb_board_profile_t;
+  92:../common/usb_board_link_protocol.h **** 
+  93:../common/usb_board_link_protocol.h **** typedef enum
+  94:../common/usb_board_link_protocol.h **** {
+  95:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_OK             = 0x00u,
+  96:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_BAD_FRAME      = 0x01u,
+  97:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_BAD_LENGTH     = 0x02u,
+  98:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_BAD_ROLE       = 0x03u,
+  99:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_ROLE_LOCKED    = 0x04u,
+ 100:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_UNSUPPORTED    = 0x05u,
+ 101:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_NOT_READY      = 0x06u,
+ 102:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_BUSY           = 0x07u,
+ 103:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_CRC_ERROR      = 0x08u,
+ 104:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_QUEUE_FULL     = 0x09u,
+ 105:../common/usb_board_link_protocol.h ****     USB_BOARD_STATUS_INTERNAL_ERROR = 0x0Au
+ 106:../common/usb_board_link_protocol.h **** } usb_board_status_t;
+ 107:../common/usb_board_link_protocol.h **** 
+ 108:../common/usb_board_link_protocol.h **** typedef enum
+ 109:../common/usb_board_link_protocol.h **** {
+ 110:../common/usb_board_link_protocol.h ****     USB_BOARD_CHANNEL_USB_DEVICE = 0x01u,
+ 111:../common/usb_board_link_protocol.h ****     USB_BOARD_CHANNEL_USB_HOST   = 0x02u,
+ 112:../common/usb_board_link_protocol.h ****     USB_BOARD_CHANNEL_NETWORK    = 0x03u,
+ 113:../common/usb_board_link_protocol.h ****     USB_BOARD_CHANNEL_TELEMETRY  = 0x04u,
+ 114:../common/usb_board_link_protocol.h ****     USB_BOARD_CHANNEL_AUTH       = 0x05u,
+ 115:../common/usb_board_link_protocol.h ****     /* Opaque 64-byte SecureHidReportV1 messages; maintenance role only. */
+ 116:../common/usb_board_link_protocol.h ****     USB_BOARD_CHANNEL_WEBCONFIG  = 0x06u
+ 117:../common/usb_board_link_protocol.h **** } usb_board_channel_t;
+ 118:../common/usb_board_link_protocol.h **** 
+ 119:../common/usb_board_link_protocol.h **** #define USB_BOARD_CHANNEL_LAST USB_BOARD_CHANNEL_WEBCONFIG
+ 120:../common/usb_board_link_protocol.h **** #define USB_BOARD_CHANNEL_SLOTS ((uint8_t)USB_BOARD_CHANNEL_LAST + 1u)
+ 121:../common/usb_board_link_protocol.h **** 
+ 122:../common/usb_board_link_protocol.h **** /*
+ 123:../common/usb_board_link_protocol.h ****  * USB_BOARD_CMD_USB_CONTROL is a board-management RPC.  Host EP0 requests are
+ 124:../common/usb_board_link_protocol.h ****  * intentionally not tunneled over SPI: enumeration and console
+ 125:../common/usb_board_link_protocol.h ****  * authentication timing remain local to CH585. SET_MAC is a retained legacy
+ 126:../common/usb_board_link_protocol.h ****  * opcode and returns UNSUPPORTED in the V2 WebHID profile.
+ 127:../common/usb_board_link_protocol.h ****  */
+ 128:../common/usb_board_link_protocol.h **** typedef enum
+ 129:../common/usb_board_link_protocol.h **** {
+ 130:../common/usb_board_link_protocol.h ****     USB_BOARD_CONTROL_CONNECT         = 0x01u,
+ 131:../common/usb_board_link_protocol.h ****     USB_BOARD_CONTROL_DISCONNECT      = 0x02u,
+ 132:../common/usb_board_link_protocol.h ****     USB_BOARD_CONTROL_GET_LINK_STATE  = 0x03u,
+ 133:../common/usb_board_link_protocol.h ****     USB_BOARD_CONTROL_CLEAR_FAULT     = 0x04u,
+ 134:../common/usb_board_link_protocol.h ****     USB_BOARD_CONTROL_SET_MAC         = 0x05u,
+ 135:../common/usb_board_link_protocol.h ****     USB_BOARD_CONTROL_GET_AUTH_STATUS = 0x06u,
+ 136:../common/usb_board_link_protocol.h ****     /*
+ 137:../common/usb_board_link_protocol.h ****      * Read-only, transaction-correlated snapshot of the CH585 whole-report
+ 138:../common/usb_board_link_protocol.h ****      * WebConfig credit. Unlike EVT_BULK_CREDIT, a lost response can be safely
+ 139:../common/usb_board_link_protocol.h ****      * retried without replaying an uncorrelated absolute grant.
+ 140:../common/usb_board_link_protocol.h ****      */
+ 141:../common/usb_board_link_protocol.h ****     USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT = 0x07u
+ 142:../common/usb_board_link_protocol.h **** } usb_board_control_opcode_t;
+ 143:../common/usb_board_link_protocol.h **** 
+ 144:../common/usb_board_link_protocol.h **** typedef enum
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 8
+
+
+ 145:../common/usb_board_link_protocol.h **** {
+ 146:../common/usb_board_link_protocol.h ****     USB_BOARD_USB_SPEED_NONE = 0x00u,
+ 147:../common/usb_board_link_protocol.h ****     USB_BOARD_USB_SPEED_FULL = 0x01u,
+ 148:../common/usb_board_link_protocol.h ****     USB_BOARD_USB_SPEED_HIGH = 0x02u
+ 149:../common/usb_board_link_protocol.h **** } usb_board_usb_speed_t;
+ 150:../common/usb_board_link_protocol.h **** 
+ 151:../common/usb_board_link_protocol.h **** enum
+ 152:../common/usb_board_link_protocol.h **** {
+ 153:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_ROLE_RF          = (1u << 0),
+ 154:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_ROLE_USB         = (1u << 1),
+ 155:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_ROLE_MAINTENANCE = (1u << 2)
+ 156:../common/usb_board_link_protocol.h **** };
+ 157:../common/usb_board_link_protocol.h **** 
+ 158:../common/usb_board_link_protocol.h **** enum
+ 159:../common/usb_board_link_protocol.h **** {
+ 160:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_PROFILE_XINPUT     = (1u << 0),
+ 161:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_PROFILE_PS4        = (1u << 1),
+ 162:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_PROFILE_PS5_COMPAT = (1u << 2),
+ 163:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_PROFILE_SWITCH     = (1u << 3),
+ 164:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_PROFILE_XBOX_ONE   = (1u << 4),
+ 165:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_PROFILE_WEB_CONFIG = (1u << 5)
+ 166:../common/usb_board_link_protocol.h **** };
+ 167:../common/usb_board_link_protocol.h **** 
+ 168:../common/usb_board_link_protocol.h **** enum
+ 169:../common/usb_board_link_protocol.h **** {
+ 170:../common/usb_board_link_protocol.h ****     /*
+ 171:../common/usb_board_link_protocol.h ****      * XInput exposes a second, vendor-defined HID interface whose only IN
+ 172:../common/usb_board_link_protocol.h ****      * report is a complete 32-byte MPW2 telemetry frame.
+ 173:../common/usb_board_link_protocol.h ****      */
+ 174:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_FEATURE_TELEMETRY_HID = (1u << 0),
+ 175:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_FEATURE_CONTROL_V1    = (1u << 1),
+ 176:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_FEATURE_CDC_NCM       = (1u << 2), /* legacy capability */
+ 177:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_FEATURE_LOCAL_AUTH    = (1u << 3),
+ 178:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_FEATURE_WEBHID_V1     = (1u << 4),
+ 179:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT = (1u << 5),
+ 180:../common/usb_board_link_protocol.h ****     /* Deprecated. V1 switched immediately after CAPS and must not be used. */
+ 181:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_FEATURE_SPI_FAST_V1_DEPRECATED = (1u << 6),
+ 182:../common/usb_board_link_protocol.h ****     /* Explicit, probed XInput-only fast data plane. */
+ 183:../common/usb_board_link_protocol.h ****     USB_BOARD_CAP_FEATURE_SPI_FAST_INPUT_V2 = (1u << 7)
+ 184:../common/usb_board_link_protocol.h **** };
+ 185:../common/usb_board_link_protocol.h **** 
+ 186:../common/usb_board_link_protocol.h **** typedef enum
+ 187:../common/usb_board_link_protocol.h **** {
+ 188:../common/usb_board_link_protocol.h ****     USB_BOARD_DATA_PLANE_COMPAT        = 0x00u,
+ 189:../common/usb_board_link_protocol.h ****     USB_BOARD_DATA_PLANE_FAST_INPUT_V2 = 0x01u
+ 190:../common/usb_board_link_protocol.h **** } usb_board_data_plane_t;
+ 191:../common/usb_board_link_protocol.h **** 
+ 192:../common/usb_board_link_protocol.h **** #define USB_BOARD_DATA_PLANE_PROBE_VERSION       1u
+ 193:../common/usb_board_link_protocol.h **** #define USB_BOARD_DATA_PLANE_PROBE_PATTERN_BYTES 52u
+ 194:../common/usb_board_link_protocol.h **** #define USB_BOARD_DATA_PLANE_PROBE_PATTERN_SEED  0xA7u
+ 195:../common/usb_board_link_protocol.h **** #define USB_BOARD_DATA_PLANE_PROBE_PATTERN_STEP  37u
+ 196:../common/usb_board_link_protocol.h **** 
+ 197:../common/usb_board_link_protocol.h **** #if defined(__GNUC__)
+ 198:../common/usb_board_link_protocol.h **** #define USB_BOARD_PACKED __attribute__((packed))
+ 199:../common/usb_board_link_protocol.h **** #else
+ 200:../common/usb_board_link_protocol.h **** #define USB_BOARD_PACKED
+ 201:../common/usb_board_link_protocol.h **** #endif
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 9
+
+
+ 202:../common/usb_board_link_protocol.h **** 
+ 203:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 204:../common/usb_board_link_protocol.h **** {
+ 205:../common/usb_board_link_protocol.h ****     uint8_t role;
+ 206:../common/usb_board_link_protocol.h **** } usb_board_role_select_v1_t;
+ 207:../common/usb_board_link_protocol.h **** 
+ 208:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 209:../common/usb_board_link_protocol.h **** {
+ 210:../common/usb_board_link_protocol.h ****     uint8_t role;
+ 211:../common/usb_board_link_protocol.h ****     uint8_t status;
+ 212:../common/usb_board_link_protocol.h **** } usb_board_role_selected_v1_t;
+ 213:../common/usb_board_link_protocol.h **** 
+ 214:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 215:../common/usb_board_link_protocol.h **** {
+ 216:../common/usb_board_link_protocol.h ****     uint8_t protocol_version;
+ 217:../common/usb_board_link_protocol.h ****     uint8_t role_flags;
+ 218:../common/usb_board_link_protocol.h ****     uint16_t profile_flags;
+ 219:../common/usb_board_link_protocol.h ****     uint8_t max_frame_bytes;
+ 220:../common/usb_board_link_protocol.h ****     uint8_t input_state_bytes;
+ 221:../common/usb_board_link_protocol.h ****     uint8_t firmware_major;
+ 222:../common/usb_board_link_protocol.h ****     uint8_t firmware_minor;
+ 223:../common/usb_board_link_protocol.h ****     uint8_t firmware_patch;
+ 224:../common/usb_board_link_protocol.h ****     uint8_t feature_flags;
+ 225:../common/usb_board_link_protocol.h **** } usb_board_caps_v1_t;
+ 226:../common/usb_board_link_protocol.h **** 
+ 227:../common/usb_board_link_protocol.h **** /*
+ 228:../common/usb_board_link_protocol.h ****  * This is an independent USB-side logical input ABI.  It deliberately mirrors
+ 229:../common/usb_board_link_protocol.h ****  * the compact processed state size without including any RF protocol header.
+ 230:../common/usb_board_link_protocol.h ****  */
+ 231:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 232:../common/usb_board_link_protocol.h **** {
+ 233:../common/usb_board_link_protocol.h ****     uint8_t seq;
+ 234:../common/usb_board_link_protocol.h ****     uint8_t flags;
+ 235:../common/usb_board_link_protocol.h ****     uint32_t action_mask_le;
+ 236:../common/usb_board_link_protocol.h ****     uint16_t age_us_le;
+ 237:../common/usb_board_link_protocol.h ****     uint8_t battery_code;
+ 238:../common/usb_board_link_protocol.h ****     uint8_t crc8;
+ 239:../common/usb_board_link_protocol.h **** } usb_board_input_v1_t;
+ 240:../common/usb_board_link_protocol.h **** 
+ 241:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 242:../common/usb_board_link_protocol.h **** {
+ 243:../common/usb_board_link_protocol.h ****     uint8_t channel;
+ 244:../common/usb_board_link_protocol.h ****     uint8_t transaction;
+ 245:../common/usb_board_link_protocol.h ****     uint8_t fragment_index;
+ 246:../common/usb_board_link_protocol.h ****     uint8_t flags;
+ 247:../common/usb_board_link_protocol.h ****     uint16_t total_length_le;
+ 248:../common/usb_board_link_protocol.h ****     uint16_t message_crc16_le;
+ 249:../common/usb_board_link_protocol.h **** } usb_board_fragment_header_v1_t;
+ 250:../common/usb_board_link_protocol.h **** 
+ 251:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 252:../common/usb_board_link_protocol.h **** {
+ 253:../common/usb_board_link_protocol.h ****     uint8_t profile;
+ 254:../common/usb_board_link_protocol.h **** } usb_board_set_profile_v1_t;
+ 255:../common/usb_board_link_protocol.h **** 
+ 256:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 257:../common/usb_board_link_protocol.h **** {
+ 258:../common/usb_board_link_protocol.h ****     uint8_t profile;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 10
+
+
+ 259:../common/usb_board_link_protocol.h ****     uint8_t status;
+ 260:../common/usb_board_link_protocol.h **** } usb_board_profile_set_v1_t;
+ 261:../common/usb_board_link_protocol.h **** 
+ 262:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 263:../common/usb_board_link_protocol.h **** {
+ 264:../common/usb_board_link_protocol.h ****     uint8_t mode;
+ 265:../common/usb_board_link_protocol.h **** } usb_board_set_data_plane_v1_t;
+ 266:../common/usb_board_link_protocol.h **** 
+ 267:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 268:../common/usb_board_link_protocol.h **** {
+ 269:../common/usb_board_link_protocol.h ****     uint8_t mode;
+ 270:../common/usb_board_link_protocol.h ****     uint8_t status;
+ 271:../common/usb_board_link_protocol.h **** } usb_board_data_plane_set_v1_t;
+ 272:../common/usb_board_link_protocol.h **** 
+ 273:../common/usb_board_link_protocol.h **** /*
+ 274:../common/usb_board_link_protocol.h ****  * The probe deliberately occupies the complete 60-byte BoardLink payload.
+ 275:../common/usb_board_link_protocol.h ****  * crc16_le covers mode, version, nonce and the fixed pattern (58 bytes).
+ 276:../common/usb_board_link_protocol.h ****  */
+ 277:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 278:../common/usb_board_link_protocol.h **** {
+ 279:../common/usb_board_link_protocol.h ****     uint8_t mode;
+ 280:../common/usb_board_link_protocol.h ****     uint8_t version;
+ 281:../common/usb_board_link_protocol.h ****     uint32_t nonce_le;
+ 282:../common/usb_board_link_protocol.h ****     uint8_t pattern[USB_BOARD_DATA_PLANE_PROBE_PATTERN_BYTES];
+ 283:../common/usb_board_link_protocol.h ****     uint16_t crc16_le;
+ 284:../common/usb_board_link_protocol.h **** } usb_board_data_plane_probe_v1_t;
+ 285:../common/usb_board_link_protocol.h **** 
+ 286:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 287:../common/usb_board_link_protocol.h **** {
+ 288:../common/usb_board_link_protocol.h ****     uint8_t mode;
+ 289:../common/usb_board_link_protocol.h ****     uint8_t status;
+ 290:../common/usb_board_link_protocol.h ****     uint32_t nonce_le;
+ 291:../common/usb_board_link_protocol.h ****     uint16_t crc16_le;
+ 292:../common/usb_board_link_protocol.h **** } usb_board_data_plane_probe_result_v1_t;
+ 293:../common/usb_board_link_protocol.h **** 
+ 294:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 295:../common/usb_board_link_protocol.h **** {
+ 296:../common/usb_board_link_protocol.h ****     uint8_t device_mounted;
+ 297:../common/usb_board_link_protocol.h ****     uint8_t device_suspended;
+ 298:../common/usb_board_link_protocol.h ****     /* Host controller initialized; downstream enumeration is reported by
+ 299:../common/usb_board_link_protocol.h ****      * host_attached/auth status and must not gate PI13 VBUS enable. */
+ 300:../common/usb_board_link_protocol.h ****     uint8_t host_ready;
+ 301:../common/usb_board_link_protocol.h ****     uint8_t host_attached;
+ 302:../common/usb_board_link_protocol.h ****     uint8_t profile;
+ 303:../common/usb_board_link_protocol.h ****     uint8_t last_fault;
+ 304:../common/usb_board_link_protocol.h **** } usb_board_usb_state_v1_t;
+ 305:../common/usb_board_link_protocol.h **** 
+ 306:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 307:../common/usb_board_link_protocol.h **** {
+ 308:../common/usb_board_link_protocol.h ****     uint8_t channel;
+ 309:../common/usb_board_link_protocol.h ****     uint8_t credits;
+ 310:../common/usb_board_link_protocol.h **** } usb_board_bulk_credit_v1_t;
+ 311:../common/usb_board_link_protocol.h **** 
+ 312:../common/usb_board_link_protocol.h **** /*
+ 313:../common/usb_board_link_protocol.h ****  * Variable-length USB_CONTROL messages use the first four bytes as a common
+ 314:../common/usb_board_link_protocol.h ****  * header.  A request sets status to USB_BOARD_STATUS_OK.  A response echoes
+ 315:../common/usb_board_link_protocol.h ****  * opcode/transaction and places the operation result in status.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 11
+
+
+ 316:../common/usb_board_link_protocol.h ****  *
+ 317:../common/usb_board_link_protocol.h ****  * The serialized length is sizeof(header) + data_length; the fixed-size
+ 318:../common/usb_board_link_protocol.h ****  * request/response containers make the 60-byte payload ceiling explicit.
+ 319:../common/usb_board_link_protocol.h ****  */
+ 320:../common/usb_board_link_protocol.h **** #define USB_BOARD_CONTROL_HEADER_BYTES 4u
+ 321:../common/usb_board_link_protocol.h **** #define USB_BOARD_CONTROL_DATA_BYTES \
+ 322:../common/usb_board_link_protocol.h ****     (USB_BOARD_LINK_MAX_PAYLOAD_BYTES - USB_BOARD_CONTROL_HEADER_BYTES)
+ 323:../common/usb_board_link_protocol.h **** 
+ 324:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 325:../common/usb_board_link_protocol.h **** {
+ 326:../common/usb_board_link_protocol.h ****     uint8_t opcode;
+ 327:../common/usb_board_link_protocol.h ****     uint8_t transaction;
+ 328:../common/usb_board_link_protocol.h ****     uint8_t status;
+ 329:../common/usb_board_link_protocol.h ****     uint8_t data_length;
+ 330:../common/usb_board_link_protocol.h **** } usb_board_control_header_v1_t;
+ 331:../common/usb_board_link_protocol.h **** 
+ 332:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 333:../common/usb_board_link_protocol.h **** {
+ 334:../common/usb_board_link_protocol.h ****     usb_board_control_header_v1_t header;
+ 335:../common/usb_board_link_protocol.h ****     uint8_t data[USB_BOARD_CONTROL_DATA_BYTES];
+ 336:../common/usb_board_link_protocol.h **** } usb_board_control_request_v1_t;
+ 337:../common/usb_board_link_protocol.h **** 
+ 338:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 339:../common/usb_board_link_protocol.h **** {
+ 340:../common/usb_board_link_protocol.h ****     usb_board_control_header_v1_t header;
+ 341:../common/usb_board_link_protocol.h ****     uint8_t data[USB_BOARD_CONTROL_DATA_BYTES];
+ 342:../common/usb_board_link_protocol.h **** } usb_board_control_response_v1_t;
+ 343:../common/usb_board_link_protocol.h **** 
+ 344:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 345:../common/usb_board_link_protocol.h **** {
+ 346:../common/usb_board_link_protocol.h ****     uint8_t connected;
+ 347:../common/usb_board_link_protocol.h ****     uint8_t link_up;
+ 348:../common/usb_board_link_protocol.h ****     uint8_t data_alt_setting;
+ 349:../common/usb_board_link_protocol.h ****     uint8_t speed;
+ 350:../common/usb_board_link_protocol.h ****     uint8_t last_fault;
+ 351:../common/usb_board_link_protocol.h ****     uint8_t reserved;
+ 352:../common/usb_board_link_protocol.h **** } usb_board_control_link_state_v1_t;
+ 353:../common/usb_board_link_protocol.h **** 
+ 354:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 355:../common/usb_board_link_protocol.h **** {
+ 356:../common/usb_board_link_protocol.h ****     uint8_t state;
+ 357:../common/usb_board_link_protocol.h ****     uint8_t scheme;
+ 358:../common/usb_board_link_protocol.h ****     uint8_t last_error;
+ 359:../common/usb_board_link_protocol.h ****     uint8_t complete;
+ 360:../common/usb_board_link_protocol.h ****     uint16_t blob_length_le;
+ 361:../common/usb_board_link_protocol.h ****     uint32_t capabilities_le;
+ 362:../common/usb_board_link_protocol.h **** } usb_board_control_auth_status_v1_t;
+ 363:../common/usb_board_link_protocol.h **** 
+ 364:../common/usb_board_link_protocol.h **** /*
+ 365:../common/usb_board_link_protocol.h ****  * Credits are receiver-owned absolute values, not deltas:
+ 366:../common/usb_board_link_protocol.h ****  * - CMD_BULK_CREDIT grants CH585 permission to emit 0x86 fragments.
+ 367:../common/usb_board_link_protocol.h ****  * - EVT_BULK_CREDIT grants STM32 permission to emit 0x06 traffic on non-
+ 368:../common/usb_board_link_protocol.h ****  *   WebConfig channels.
+ 369:../common/usb_board_link_protocol.h ****  * - WEBCONFIG never publishes EVT_BULK_CREDIT. STM32 pulls its current
+ 370:../common/usb_board_link_protocol.h ****  *   complete-report capacity through GET_WEBCONFIG_CREDIT and consumes that
+ 371:../common/usb_board_link_protocol.h ****  *   one slot across all BoardLink fragments. The slot is returned only after
+ 372:../common/usb_board_link_protocol.h ****  *   the report has completed USB EP1 IN, or after an explicit transport reset.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 12
+
+
+ 373:../common/usb_board_link_protocol.h ****  * - Other channels retain one-credit-per-fragment behavior.
+ 374:../common/usb_board_link_protocol.h ****  */
+ 375:../common/usb_board_link_protocol.h **** 
+ 376:../common/usb_board_link_protocol.h **** typedef struct USB_BOARD_PACKED
+ 377:../common/usb_board_link_protocol.h **** {
+ 378:../common/usb_board_link_protocol.h ****     uint8_t status;
+ 379:../common/usb_board_link_protocol.h **** } usb_board_control_result_v1_t;
+ 380:../common/usb_board_link_protocol.h **** 
+ 381:../common/usb_board_link_protocol.h **** #define USB_BOARD_STATIC_ASSERT_GLUE_(a, b) a##b
+ 382:../common/usb_board_link_protocol.h **** #define USB_BOARD_STATIC_ASSERT_GLUE(a, b) USB_BOARD_STATIC_ASSERT_GLUE_(a, b)
+ 383:../common/usb_board_link_protocol.h **** #define USB_BOARD_STATIC_ASSERT(expr) \
+ 384:../common/usb_board_link_protocol.h ****     typedef char USB_BOARD_STATIC_ASSERT_GLUE(usb_board_static_assert_, __LINE__)[(expr) ? 1 : -1]
+ 385:../common/usb_board_link_protocol.h **** 
+ 386:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(USB_BOARD_LINK_MAX_PAYLOAD_BYTES == 60u);
+ 387:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(USB_BOARD_FRAGMENT_DATA_BYTES == 52u);
+ 388:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(USB_BOARD_CHANNEL_SLOTS == 7u);
+ 389:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(USB_BOARD_TELEMETRY_FRAME_BYTES <=
+ 390:../common/usb_board_link_protocol.h ****                         USB_BOARD_FRAGMENT_DATA_BYTES);
+ 391:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_caps_v1_t) == 10u);
+ 392:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_input_v1_t) == USB_BOARD_INPUT_V1_BYTES);
+ 393:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_fragment_header_v1_t) == USB_BOARD_FRAGMENT_HEADER_BYTES);
+ 394:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_set_data_plane_v1_t) == 1u);
+ 395:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_data_plane_set_v1_t) == 2u);
+ 396:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_data_plane_probe_v1_t) ==
+ 397:../common/usb_board_link_protocol.h ****                         USB_BOARD_LINK_MAX_PAYLOAD_BYTES);
+ 398:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_data_plane_probe_result_v1_t) == 8u);
+ 399:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_usb_state_v1_t) == 6u);
+ 400:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_bulk_credit_v1_t) == 2u);
+ 401:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_control_result_v1_t) == 1u);
+ 402:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_control_header_v1_t) ==
+ 403:../common/usb_board_link_protocol.h ****                         USB_BOARD_CONTROL_HEADER_BYTES);
+ 404:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_control_request_v1_t) ==
+ 405:../common/usb_board_link_protocol.h ****                         USB_BOARD_LINK_MAX_PAYLOAD_BYTES);
+ 406:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_control_response_v1_t) ==
+ 407:../common/usb_board_link_protocol.h ****                         USB_BOARD_LINK_MAX_PAYLOAD_BYTES);
+ 408:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_control_link_state_v1_t) == 6u);
+ 409:../common/usb_board_link_protocol.h **** USB_BOARD_STATIC_ASSERT(sizeof(usb_board_control_auth_status_v1_t) == 10u);
+ 410:../common/usb_board_link_protocol.h **** 
+ 411:../common/usb_board_link_protocol.h **** static inline uint8_t usb_board_link_checksum(const uint8_t *data, uint16_t length)
+ 177              		.loc 2 411 23 is_stmt 1 view .LVU49
+ 178              	.LBB19:
+ 412:../common/usb_board_link_protocol.h **** {
+ 413:../common/usb_board_link_protocol.h ****     uint8_t sum = 0u;
+ 179              		.loc 2 413 5 view .LVU50
+ 414:../common/usb_board_link_protocol.h ****     uint16_t index;
+ 180              		.loc 2 414 5 view .LVU51
+ 415:../common/usb_board_link_protocol.h **** 
+ 416:../common/usb_board_link_protocol.h ****     if(data == (const uint8_t *)0)
+ 181              		.loc 2 416 5 view .LVU52
+ 182              	.LBB20:
+ 183              	.LBB21:
+ 417:../common/usb_board_link_protocol.h ****     {
+ 418:../common/usb_board_link_protocol.h ****         return 0u;
+ 419:../common/usb_board_link_protocol.h ****     }
+ 420:../common/usb_board_link_protocol.h **** 
+ 421:../common/usb_board_link_protocol.h ****     for(index = 0u; index < length; ++index)
+ 184              		.loc 2 421 27 discriminator 1 view .LVU53
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 13
+
+
+ 413:../common/usb_board_link_protocol.h ****     uint16_t index;
+ 185              		.loc 2 413 13 is_stmt 0 view .LVU54
+ 186 0048 1346     		mov	r3, r2
+ 187              	.LVL12:
+ 188              	.L11:
+ 422:../common/usb_board_link_protocol.h ****     {
+ 423:../common/usb_board_link_protocol.h ****         sum = (uint8_t)(sum + data[index]);
+ 189              		.loc 2 423 9 is_stmt 1 view .LVU55
+ 190              		.loc 2 423 13 is_stmt 0 view .LVU56
+ 191 004a A05C     		ldrb	r0, [r4, r2]	@ zero_extendqisi2
+ 421:../common/usb_board_link_protocol.h ****     {
+ 192              		.loc 2 421 27 discriminator 1 view .LVU57
+ 193 004c 0132     		adds	r2, r2, #1
+ 194              	.LVL13:
+ 195              		.loc 2 423 13 view .LVU58
+ 196 004e 0344     		add	r3, r3, r0
+ 197              	.LVL14:
+ 421:../common/usb_board_link_protocol.h ****     {
+ 198              		.loc 2 421 27 discriminator 1 view .LVU59
+ 199 0050 90B2     		uxth	r0, r2
+ 200 0052 8742     		cmp	r7, r0
+ 201              		.loc 2 423 13 view .LVU60
+ 202 0054 DBB2     		uxtb	r3, r3
+ 203              	.LVL15:
+ 421:../common/usb_board_link_protocol.h ****     {
+ 204              		.loc 2 421 37 is_stmt 1 discriminator 3 view .LVU61
+ 421:../common/usb_board_link_protocol.h ****     {
+ 205              		.loc 2 421 27 discriminator 1 view .LVU62
+ 206 0056 F8D8     		bhi	.L11
+ 207              	.LVL16:
+ 421:../common/usb_board_link_protocol.h ****     {
+ 208              		.loc 2 421 27 is_stmt 0 discriminator 1 view .LVU63
+ 209              	.LBE21:
+ 210              	.LBE20:
+ 211              	.LBE19:
+ 212              	.LBE18:
+  42:../common/usb_board_link_codec.c ****         usb_board_link_checksum(output, (uint16_t)(frame_length - 1u));
+ 213              		.loc 1 42 31 view .LVU64
+ 214 0058 6354     		strb	r3, [r4, r1]
+  44:../common/usb_board_link_codec.c ****     return true;
+ 215              		.loc 1 44 5 is_stmt 1 view .LVU65
+  45:../common/usb_board_link_codec.c **** }
+ 216              		.loc 1 45 12 is_stmt 0 view .LVU66
+ 217 005a 0120     		movs	r0, #1
+  44:../common/usb_board_link_codec.c ****     return true;
+ 218              		.loc 1 44 20 view .LVU67
+ 219 005c 3570     		strb	r5, [r6]
+  45:../common/usb_board_link_codec.c **** }
+ 220              		.loc 1 45 5 is_stmt 1 view .LVU68
+  45:../common/usb_board_link_codec.c **** }
+ 221              		.loc 1 45 12 is_stmt 0 view .LVU69
+ 222 005e DAE7     		b	.L7
+ 223              		.cfi_endproc
+ 224              	.LFE4:
+ 226              		.section	.text.usb_board_link_decode,"ax",%progbits
+ 227              		.align	1
+ 228              		.global	usb_board_link_decode
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 14
+
+
+ 229              		.syntax unified
+ 230              		.thumb
+ 231              		.thumb_func
+ 233              	usb_board_link_decode:
+ 234              	.LVL17:
+ 235              	.LFB5:
+  47:../common/usb_board_link_codec.c **** 
+  48:../common/usb_board_link_codec.c **** bool usb_board_link_decode(const uint8_t *data,
+  49:../common/usb_board_link_codec.c ****                            uint8_t data_length,
+  50:../common/usb_board_link_codec.c ****                            usb_board_link_frame_t *frame)
+  51:../common/usb_board_link_codec.c **** {
+ 236              		.loc 1 51 1 is_stmt 1 view -0
+ 237              		.cfi_startproc
+ 238              		@ args = 0, pretend = 0, frame = 0
+ 239              		@ frame_needed = 0, uses_anonymous_args = 0
+  52:../common/usb_board_link_codec.c ****     uint8_t payload_length;
+ 240              		.loc 1 52 5 view .LVU71
+  53:../common/usb_board_link_codec.c ****     uint8_t expected_length;
+ 241              		.loc 1 53 5 view .LVU72
+  54:../common/usb_board_link_codec.c **** 
+  55:../common/usb_board_link_codec.c ****     if((data == (const uint8_t *)0) || (frame == (usb_board_link_frame_t *)0) ||
+ 242              		.loc 1 55 5 view .LVU73
+  51:../common/usb_board_link_codec.c ****     uint8_t payload_length;
+ 243              		.loc 1 51 1 is_stmt 0 view .LVU74
+ 244 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 245              	.LCFI1:
+ 246              		.cfi_def_cfa_offset 24
+ 247              		.cfi_offset 3, -24
+ 248              		.cfi_offset 4, -20
+ 249              		.cfi_offset 5, -16
+ 250              		.cfi_offset 6, -12
+ 251              		.cfi_offset 7, -8
+ 252              		.cfi_offset 14, -4
+  51:../common/usb_board_link_codec.c ****     uint8_t payload_length;
+ 253              		.loc 1 51 1 view .LVU75
+ 254 0002 1346     		mov	r3, r2
+ 255              		.loc 1 55 7 view .LVU76
+ 256 0004 08B3     		cbz	r0, .L30
+ 257              		.loc 1 55 37 discriminator 1 view .LVU77
+ 258 0006 32B3     		cbz	r2, .L40
+ 259              		.loc 1 55 79 discriminator 2 view .LVU78
+ 260 0008 0329     		cmp	r1, #3
+ 261 000a 24D9     		bls	.L40
+  56:../common/usb_board_link_codec.c ****        (data_length < 4u) || (data[0] != USB_BOARD_LINK_SYNC))
+ 262              		.loc 1 56 27 view .LVU79
+ 263 000c 0278     		ldrb	r2, [r0]	@ zero_extendqisi2
+ 264              	.LVL18:
+ 265              		.loc 1 56 27 view .LVU80
+ 266 000e 5A2A     		cmp	r2, #90
+ 267 0010 21D1     		bne	.L40
+  57:../common/usb_board_link_codec.c ****     {
+  58:../common/usb_board_link_codec.c ****         return false;
+  59:../common/usb_board_link_codec.c ****     }
+  60:../common/usb_board_link_codec.c **** 
+  61:../common/usb_board_link_codec.c ****     payload_length = data[2];
+ 268              		.loc 1 61 5 is_stmt 1 view .LVU81
+ 269              		.loc 1 61 20 is_stmt 0 view .LVU82
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 15
+
+
+ 270 0012 8278     		ldrb	r2, [r0, #2]	@ zero_extendqisi2
+ 271              	.LVL19:
+  62:../common/usb_board_link_codec.c ****     expected_length = usb_board_link_frame_size(payload_length);
+ 272              		.loc 1 62 5 is_stmt 1 view .LVU83
+ 273              	.LBB28:
+ 274              	.LBI28:
+   5:../common/usb_board_link_codec.c **** {
+ 275              		.loc 1 5 9 view .LVU84
+ 276              	.LBB29:
+   7:../common/usb_board_link_codec.c ****     {
+ 277              		.loc 1 7 5 view .LVU85
+   7:../common/usb_board_link_codec.c ****     {
+ 278              		.loc 1 7 7 is_stmt 0 view .LVU86
+ 279 0014 3C2A     		cmp	r2, #60
+ 280 0016 1ED8     		bhi	.L40
+  11:../common/usb_board_link_codec.c ****                      USB_BOARD_LINK_CHECKSUM_BYTES);
+ 281              		.loc 1 11 5 is_stmt 1 view .LVU87
+ 282              	.LVL20:
+  11:../common/usb_board_link_codec.c ****                      USB_BOARD_LINK_CHECKSUM_BYTES);
+ 283              		.loc 1 11 5 is_stmt 0 view .LVU88
+ 284              	.LBE29:
+ 285              	.LBE28:
+  63:../common/usb_board_link_codec.c ****     if((expected_length == 0u) || (data_length != expected_length) ||
+ 286              		.loc 1 63 5 is_stmt 1 view .LVU89
+ 287              	.LBB31:
+ 288              	.LBB30:
+  11:../common/usb_board_link_codec.c ****                      USB_BOARD_LINK_CHECKSUM_BYTES);
+ 289              		.loc 1 11 12 is_stmt 0 view .LVU90
+ 290 0018 141D     		adds	r4, r2, #4
+ 291              	.LBE30:
+ 292              	.LBE31:
+ 293              		.loc 1 63 32 discriminator 1 view .LVU91
+ 294 001a E4B2     		uxtb	r4, r4
+ 295 001c A142     		cmp	r1, r4
+ 296 001e 1AD1     		bne	.L40
+  64:../common/usb_board_link_codec.c ****        (usb_board_link_checksum(data, (uint16_t)(data_length - 1u)) !=
+ 297              		.loc 1 64 9 view .LVU92
+ 298 0020 4E1E     		subs	r6, r1, #1
+ 299 0022 0025     		movs	r5, #0
+ 300 0024 B6B2     		uxth	r6, r6
+ 301              	.LVL21:
+ 302              	.LBB32:
+ 303              	.LBI32:
+ 411:../common/usb_board_link_protocol.h **** {
+ 304              		.loc 2 411 23 is_stmt 1 view .LVU93
+ 305              	.LBB33:
+ 413:../common/usb_board_link_protocol.h ****     uint16_t index;
+ 306              		.loc 2 413 5 view .LVU94
+ 414:../common/usb_board_link_protocol.h **** 
+ 307              		.loc 2 414 5 view .LVU95
+ 416:../common/usb_board_link_protocol.h ****     {
+ 308              		.loc 2 416 5 view .LVU96
+ 309              	.LBB34:
+ 310              	.LBB35:
+ 421:../common/usb_board_link_protocol.h ****     {
+ 311              		.loc 2 421 27 discriminator 1 view .LVU97
+ 413:../common/usb_board_link_protocol.h ****     uint16_t index;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 16
+
+
+ 312              		.loc 2 413 13 is_stmt 0 view .LVU98
+ 313 0026 2C46     		mov	r4, r5
+ 314              	.LVL22:
+ 315              	.L31:
+ 316              		.loc 2 423 9 is_stmt 1 view .LVU99
+ 317              		.loc 2 423 13 is_stmt 0 view .LVU100
+ 318 0028 475D     		ldrb	r7, [r0, r5]	@ zero_extendqisi2
+ 421:../common/usb_board_link_protocol.h ****     {
+ 319              		.loc 2 421 27 discriminator 1 view .LVU101
+ 320 002a 0135     		adds	r5, r5, #1
+ 321              	.LVL23:
+ 322              		.loc 2 423 13 view .LVU102
+ 323 002c 3C44     		add	r4, r4, r7
+ 324              	.LVL24:
+ 421:../common/usb_board_link_protocol.h ****     {
+ 325              		.loc 2 421 27 discriminator 1 view .LVU103
+ 326 002e AFB2     		uxth	r7, r5
+ 327 0030 B742     		cmp	r7, r6
+ 328              		.loc 2 423 13 view .LVU104
+ 329 0032 E4B2     		uxtb	r4, r4
+ 330              	.LVL25:
+ 421:../common/usb_board_link_protocol.h ****     {
+ 331              		.loc 2 421 37 is_stmt 1 discriminator 3 view .LVU105
+ 421:../common/usb_board_link_protocol.h ****     {
+ 332              		.loc 2 421 27 discriminator 1 view .LVU106
+ 333 0034 F8D3     		bcc	.L31
+ 334              	.LVL26:
+ 421:../common/usb_board_link_protocol.h ****     {
+ 335              		.loc 2 421 27 is_stmt 0 discriminator 1 view .LVU107
+ 336              	.LBE35:
+ 337              	.LBE34:
+ 338              	.LBE33:
+ 339              	.LBE32:
+ 340              		.loc 1 64 69 view .LVU108
+ 341 0036 0144     		add	r1, r1, r0
+ 342              	.LVL27:
+  63:../common/usb_board_link_codec.c ****        (usb_board_link_checksum(data, (uint16_t)(data_length - 1u)) !=
+ 343              		.loc 1 63 68 discriminator 2 view .LVU109
+ 344 0038 11F8011C 		ldrb	r1, [r1, #-1]	@ zero_extendqisi2
+ 345 003c A142     		cmp	r1, r4
+ 346 003e 0AD1     		bne	.L40
+  65:../common/usb_board_link_codec.c ****         data[data_length - 1u]))
+  66:../common/usb_board_link_codec.c ****     {
+  67:../common/usb_board_link_codec.c ****         return false;
+  68:../common/usb_board_link_codec.c ****     }
+  69:../common/usb_board_link_codec.c **** 
+  70:../common/usb_board_link_codec.c ****     frame->command = data[1];
+ 347              		.loc 1 70 5 is_stmt 1 view .LVU110
+ 348              		.loc 1 70 26 is_stmt 0 view .LVU111
+ 349 0040 4178     		ldrb	r1, [r0, #1]	@ zero_extendqisi2
+  71:../common/usb_board_link_codec.c ****     frame->length = payload_length;
+ 350              		.loc 1 71 19 view .LVU112
+ 351 0042 5A70     		strb	r2, [r3, #1]
+  70:../common/usb_board_link_codec.c ****     frame->length = payload_length;
+ 352              		.loc 1 70 20 view .LVU113
+ 353 0044 1970     		strb	r1, [r3]
+ 354              		.loc 1 71 5 is_stmt 1 view .LVU114
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 17
+
+
+  72:../common/usb_board_link_codec.c ****     if(payload_length != 0u)
+ 355              		.loc 1 72 5 view .LVU115
+ 356              		.loc 1 72 7 is_stmt 0 view .LVU116
+ 357 0046 0AB9     		cbnz	r2, .L32
+ 358              	.LVL28:
+ 359              	.L33:
+  73:../common/usb_board_link_codec.c ****     {
+  74:../common/usb_board_link_codec.c ****         memcpy(frame->payload, &data[3], payload_length);
+  75:../common/usb_board_link_codec.c ****     }
+  76:../common/usb_board_link_codec.c ****     return true;
+ 360              		.loc 1 76 12 view .LVU117
+ 361 0048 0120     		movs	r0, #1
+ 362              	.LVL29:
+ 363              	.L30:
+  77:../common/usb_board_link_codec.c **** }
+ 364              		.loc 1 77 1 view .LVU118
+ 365 004a F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 366              	.LVL30:
+ 367              	.L32:
+  74:../common/usb_board_link_codec.c ****     }
+ 368              		.loc 1 74 9 is_stmt 1 view .LVU119
+ 369 004c C11C     		adds	r1, r0, #3
+ 370 004e 981C     		adds	r0, r3, #2
+ 371              	.LVL31:
+  74:../common/usb_board_link_codec.c ****     }
+ 372              		.loc 1 74 9 is_stmt 0 view .LVU120
+ 373 0050 FFF7FEFF 		bl	memcpy
+ 374              	.LVL32:
+  74:../common/usb_board_link_codec.c ****     }
+ 375              		.loc 1 74 9 view .LVU121
+ 376 0054 F8E7     		b	.L33
+ 377              	.LVL33:
+ 378              	.L40:
+  58:../common/usb_board_link_codec.c ****     }
+ 379              		.loc 1 58 16 view .LVU122
+ 380 0056 0020     		movs	r0, #0
+ 381              	.LVL34:
+  58:../common/usb_board_link_codec.c ****     }
+ 382              		.loc 1 58 16 view .LVU123
+ 383 0058 F7E7     		b	.L30
+ 384              		.cfi_endproc
+ 385              	.LFE5:
+ 387              		.section	.text.usb_board_link_parser_init,"ax",%progbits
+ 388              		.align	1
+ 389              		.global	usb_board_link_parser_init
+ 390              		.syntax unified
+ 391              		.thumb
+ 392              		.thumb_func
+ 394              	usb_board_link_parser_init:
+ 395              	.LVL35:
+ 396              	.LFB6:
+  78:../common/usb_board_link_codec.c **** 
+  79:../common/usb_board_link_codec.c **** void usb_board_link_parser_init(usb_board_link_parser_t *parser)
+  80:../common/usb_board_link_codec.c **** {
+ 397              		.loc 1 80 1 is_stmt 1 view -0
+ 398              		.cfi_startproc
+ 399              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 18
+
+
+ 400              		@ frame_needed = 0, uses_anonymous_args = 0
+ 401              		@ link register save eliminated.
+  81:../common/usb_board_link_codec.c ****     if(parser == (usb_board_link_parser_t *)0)
+ 402              		.loc 1 81 5 view .LVU125
+ 403              		.loc 1 81 7 is_stmt 0 view .LVU126
+ 404 0000 18B1     		cbz	r0, .L42
+  82:../common/usb_board_link_codec.c ****     {
+  83:../common/usb_board_link_codec.c ****         return;
+  84:../common/usb_board_link_codec.c ****     }
+  85:../common/usb_board_link_codec.c ****     memset(parser, 0, sizeof(*parser));
+ 405              		.loc 1 85 5 is_stmt 1 view .LVU127
+ 406 0002 4122     		movs	r2, #65
+ 407 0004 0021     		movs	r1, #0
+ 408 0006 FFF7FEBF 		b	memset
+ 409              	.LVL36:
+ 410              	.L42:
+  86:../common/usb_board_link_codec.c ****     parser->state = USB_BOARD_PARSE_WAIT_SYNC;
+  87:../common/usb_board_link_codec.c **** }
+ 411              		.loc 1 87 1 is_stmt 0 view .LVU128
+ 412 000a 7047     		bx	lr
+ 413              		.cfi_endproc
+ 414              	.LFE6:
+ 416              		.section	.text.usb_board_link_parser_feed,"ax",%progbits
+ 417              		.align	1
+ 418              		.global	usb_board_link_parser_feed
+ 419              		.syntax unified
+ 420              		.thumb
+ 421              		.thumb_func
+ 423              	usb_board_link_parser_feed:
+ 424              	.LVL37:
+ 425              	.LFB8:
+  88:../common/usb_board_link_codec.c **** 
+  89:../common/usb_board_link_codec.c **** static void usb_board_link_parser_restart(usb_board_link_parser_t *parser)
+  90:../common/usb_board_link_codec.c **** {
+  91:../common/usb_board_link_codec.c ****     parser->state = USB_BOARD_PARSE_COMMAND;
+  92:../common/usb_board_link_codec.c ****     parser->frame.command = 0u;
+  93:../common/usb_board_link_codec.c ****     parser->frame.length = 0u;
+  94:../common/usb_board_link_codec.c ****     parser->payload_index = 0u;
+  95:../common/usb_board_link_codec.c ****     parser->checksum = USB_BOARD_LINK_SYNC;
+  96:../common/usb_board_link_codec.c **** }
+  97:../common/usb_board_link_codec.c **** 
+  98:../common/usb_board_link_codec.c **** bool usb_board_link_parser_feed(usb_board_link_parser_t *parser,
+  99:../common/usb_board_link_codec.c ****                                 uint8_t byte,
+ 100:../common/usb_board_link_codec.c ****                                 usb_board_link_frame_t *completed_frame)
+ 101:../common/usb_board_link_codec.c **** {
+ 426              		.loc 1 101 1 is_stmt 1 view -0
+ 427              		.cfi_startproc
+ 428              		@ args = 0, pretend = 0, frame = 0
+ 429              		@ frame_needed = 0, uses_anonymous_args = 0
+ 102:../common/usb_board_link_codec.c ****     if((parser == (usb_board_link_parser_t *)0) ||
+ 430              		.loc 1 102 5 view .LVU130
+ 101:../common/usb_board_link_codec.c ****     if((parser == (usb_board_link_parser_t *)0) ||
+ 431              		.loc 1 101 1 is_stmt 0 view .LVU131
+ 432 0000 10B5     		push	{r4, lr}
+ 433              	.LCFI2:
+ 434              		.cfi_def_cfa_offset 8
+ 435              		.cfi_offset 4, -8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 19
+
+
+ 436              		.cfi_offset 14, -4
+ 437              		.loc 1 102 7 view .LVU132
+ 438 0002 A0B1     		cbz	r0, .L46
+ 439              		.loc 1 102 49 discriminator 1 view .LVU133
+ 440 0004 9AB1     		cbz	r2, .L46
+ 103:../common/usb_board_link_codec.c ****        (completed_frame == (usb_board_link_frame_t *)0))
+ 104:../common/usb_board_link_codec.c ****     {
+ 105:../common/usb_board_link_codec.c ****         return false;
+ 106:../common/usb_board_link_codec.c ****     }
+ 107:../common/usb_board_link_codec.c **** 
+ 108:../common/usb_board_link_codec.c ****     switch(parser->state)
+ 441              		.loc 1 108 5 is_stmt 1 view .LVU134
+ 442 0006 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 443 0008 042B     		cmp	r3, #4
+ 444 000a 1DD8     		bhi	.L48
+ 445 000c DFE803F0 		tbb	[pc, r3]
+ 446              	.L50:
+ 447 0010 03       		.byte	(.L54-.L50)/2
+ 448 0011 11       		.byte	(.L53-.L50)/2
+ 449 0012 1A       		.byte	(.L52-.L50)/2
+ 450 0013 2C       		.byte	(.L51-.L50)/2
+ 451 0014 3E       		.byte	(.L49-.L50)/2
+ 452 0015 00       		.p2align 1
+ 453              	.L54:
+ 109:../common/usb_board_link_codec.c ****     {
+ 110:../common/usb_board_link_codec.c ****     case USB_BOARD_PARSE_WAIT_SYNC:
+ 111:../common/usb_board_link_codec.c ****         if(byte == USB_BOARD_LINK_SYNC)
+ 454              		.loc 1 111 9 view .LVU135
+ 455              		.loc 1 111 11 is_stmt 0 view .LVU136
+ 456 0016 5A29     		cmp	r1, #90
+ 457 0018 09D1     		bne	.L46
+ 458              	.L60:
+ 112:../common/usb_board_link_codec.c ****         {
+ 113:../common/usb_board_link_codec.c ****             usb_board_link_parser_restart(parser);
+ 459              		.loc 1 113 13 is_stmt 1 view .LVU137
+ 460              	.LVL38:
+ 461              	.LBB40:
+ 462              	.LBI40:
+  89:../common/usb_board_link_codec.c **** {
+ 463              		.loc 1 89 13 view .LVU138
+ 464              	.LBB41:
+  91:../common/usb_board_link_codec.c ****     parser->frame.command = 0u;
+ 465              		.loc 1 91 5 view .LVU139
+  91:../common/usb_board_link_codec.c ****     parser->frame.command = 0u;
+ 466              		.loc 1 91 19 is_stmt 0 view .LVU140
+ 467 001a 0123     		movs	r3, #1
+ 468 001c 0370     		strb	r3, [r0]
+  92:../common/usb_board_link_codec.c ****     parser->frame.length = 0u;
+ 469              		.loc 1 92 5 is_stmt 1 view .LVU141
+  92:../common/usb_board_link_codec.c ****     parser->frame.length = 0u;
+ 470              		.loc 1 92 27 is_stmt 0 view .LVU142
+ 471 001e 0023     		movs	r3, #0
+ 472 0020 4370     		strb	r3, [r0, #1]
+  93:../common/usb_board_link_codec.c ****     parser->payload_index = 0u;
+ 473              		.loc 1 93 5 is_stmt 1 view .LVU143
+  93:../common/usb_board_link_codec.c ****     parser->payload_index = 0u;
+ 474              		.loc 1 93 26 is_stmt 0 view .LVU144
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 20
+
+
+ 475 0022 8370     		strb	r3, [r0, #2]
+  94:../common/usb_board_link_codec.c ****     parser->checksum = USB_BOARD_LINK_SYNC;
+ 476              		.loc 1 94 5 is_stmt 1 view .LVU145
+  94:../common/usb_board_link_codec.c ****     parser->checksum = USB_BOARD_LINK_SYNC;
+ 477              		.loc 1 94 27 is_stmt 0 view .LVU146
+ 478 0024 80F83F30 		strb	r3, [r0, #63]
+  95:../common/usb_board_link_codec.c **** }
+ 479              		.loc 1 95 5 is_stmt 1 view .LVU147
+  95:../common/usb_board_link_codec.c **** }
+ 480              		.loc 1 95 22 is_stmt 0 view .LVU148
+ 481 0028 5A23     		movs	r3, #90
+ 482 002a 80F84030 		strb	r3, [r0, #64]
+ 483              	.LVL39:
+ 484              	.L46:
+  95:../common/usb_board_link_codec.c **** }
+ 485              		.loc 1 95 22 view .LVU149
+ 486              	.LBE41:
+ 487              	.LBE40:
+ 105:../common/usb_board_link_codec.c ****     }
+ 488              		.loc 1 105 16 view .LVU150
+ 489 002e 0020     		movs	r0, #0
+ 490              	.LVL40:
+ 491              	.L55:
+ 114:../common/usb_board_link_codec.c ****         }
+ 115:../common/usb_board_link_codec.c ****         break;
+ 116:../common/usb_board_link_codec.c **** 
+ 117:../common/usb_board_link_codec.c ****     case USB_BOARD_PARSE_COMMAND:
+ 118:../common/usb_board_link_codec.c ****         parser->frame.command = byte;
+ 119:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 120:../common/usb_board_link_codec.c ****         parser->state = USB_BOARD_PARSE_LENGTH;
+ 121:../common/usb_board_link_codec.c ****         break;
+ 122:../common/usb_board_link_codec.c **** 
+ 123:../common/usb_board_link_codec.c ****     case USB_BOARD_PARSE_LENGTH:
+ 124:../common/usb_board_link_codec.c ****         if(byte > USB_BOARD_LINK_MAX_PAYLOAD_BYTES)
+ 125:../common/usb_board_link_codec.c ****         {
+ 126:../common/usb_board_link_codec.c ****             parser->state = USB_BOARD_PARSE_WAIT_SYNC;
+ 127:../common/usb_board_link_codec.c ****             break;
+ 128:../common/usb_board_link_codec.c ****         }
+ 129:../common/usb_board_link_codec.c ****         parser->frame.length = byte;
+ 130:../common/usb_board_link_codec.c ****         parser->payload_index = 0u;
+ 131:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 132:../common/usb_board_link_codec.c ****         parser->state = (byte == 0u)
+ 133:../common/usb_board_link_codec.c ****             ? USB_BOARD_PARSE_CHECKSUM
+ 134:../common/usb_board_link_codec.c ****             : USB_BOARD_PARSE_PAYLOAD;
+ 135:../common/usb_board_link_codec.c ****         break;
+ 136:../common/usb_board_link_codec.c **** 
+ 137:../common/usb_board_link_codec.c ****     case USB_BOARD_PARSE_PAYLOAD:
+ 138:../common/usb_board_link_codec.c ****         parser->frame.payload[parser->payload_index++] = byte;
+ 139:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 140:../common/usb_board_link_codec.c ****         if(parser->payload_index >= parser->frame.length)
+ 141:../common/usb_board_link_codec.c ****         {
+ 142:../common/usb_board_link_codec.c ****             parser->state = USB_BOARD_PARSE_CHECKSUM;
+ 143:../common/usb_board_link_codec.c ****         }
+ 144:../common/usb_board_link_codec.c ****         break;
+ 145:../common/usb_board_link_codec.c **** 
+ 146:../common/usb_board_link_codec.c ****     case USB_BOARD_PARSE_CHECKSUM:
+ 147:../common/usb_board_link_codec.c ****         if(byte == parser->checksum)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 21
+
+
+ 148:../common/usb_board_link_codec.c ****         {
+ 149:../common/usb_board_link_codec.c ****             *completed_frame = parser->frame;
+ 150:../common/usb_board_link_codec.c ****             parser->state = USB_BOARD_PARSE_WAIT_SYNC;
+ 151:../common/usb_board_link_codec.c ****             return true;
+ 152:../common/usb_board_link_codec.c ****         }
+ 153:../common/usb_board_link_codec.c ****         if(byte == USB_BOARD_LINK_SYNC)
+ 154:../common/usb_board_link_codec.c ****         {
+ 155:../common/usb_board_link_codec.c ****             usb_board_link_parser_restart(parser);
+ 156:../common/usb_board_link_codec.c ****         }
+ 157:../common/usb_board_link_codec.c ****         else
+ 158:../common/usb_board_link_codec.c ****         {
+ 159:../common/usb_board_link_codec.c ****             parser->state = USB_BOARD_PARSE_WAIT_SYNC;
+ 160:../common/usb_board_link_codec.c ****         }
+ 161:../common/usb_board_link_codec.c ****         break;
+ 162:../common/usb_board_link_codec.c **** 
+ 163:../common/usb_board_link_codec.c ****     default:
+ 164:../common/usb_board_link_codec.c ****         parser->state = USB_BOARD_PARSE_WAIT_SYNC;
+ 165:../common/usb_board_link_codec.c ****         break;
+ 166:../common/usb_board_link_codec.c ****     }
+ 167:../common/usb_board_link_codec.c ****     return false;
+ 168:../common/usb_board_link_codec.c **** }
+ 492              		.loc 1 168 1 view .LVU151
+ 493 0030 10BD     		pop	{r4, pc}
+ 494              	.LVL41:
+ 495              	.L53:
+ 118:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 496              		.loc 1 118 9 is_stmt 1 view .LVU152
+ 119:../common/usb_board_link_codec.c ****         parser->state = USB_BOARD_PARSE_LENGTH;
+ 497              		.loc 1 119 28 is_stmt 0 view .LVU153
+ 498 0032 90F84030 		ldrb	r3, [r0, #64]	@ zero_extendqisi2
+ 118:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 499              		.loc 1 118 31 view .LVU154
+ 500 0036 4170     		strb	r1, [r0, #1]
+ 119:../common/usb_board_link_codec.c ****         parser->state = USB_BOARD_PARSE_LENGTH;
+ 501              		.loc 1 119 9 is_stmt 1 view .LVU155
+ 119:../common/usb_board_link_codec.c ****         parser->state = USB_BOARD_PARSE_LENGTH;
+ 502              		.loc 1 119 28 is_stmt 0 view .LVU156
+ 503 0038 0B44     		add	r3, r3, r1
+ 119:../common/usb_board_link_codec.c ****         parser->state = USB_BOARD_PARSE_LENGTH;
+ 504              		.loc 1 119 26 view .LVU157
+ 505 003a 80F84030 		strb	r3, [r0, #64]
+ 120:../common/usb_board_link_codec.c ****         break;
+ 506              		.loc 1 120 9 is_stmt 1 view .LVU158
+ 120:../common/usb_board_link_codec.c ****         break;
+ 507              		.loc 1 120 23 is_stmt 0 view .LVU159
+ 508 003e 0223     		movs	r3, #2
+ 509              	.LVL42:
+ 510              	.L70:
+ 120:../common/usb_board_link_codec.c ****         break;
+ 511              		.loc 1 120 23 view .LVU160
+ 512 0040 0370     		strb	r3, [r0]
+ 121:../common/usb_board_link_codec.c **** 
+ 513              		.loc 1 121 9 is_stmt 1 view .LVU161
+ 514 0042 F4E7     		b	.L46
+ 515              	.LVL43:
+ 516              	.L52:
+ 124:../common/usb_board_link_codec.c ****         {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 22
+
+
+ 517              		.loc 1 124 9 view .LVU162
+ 124:../common/usb_board_link_codec.c ****         {
+ 518              		.loc 1 124 11 is_stmt 0 view .LVU163
+ 519 0044 3C29     		cmp	r1, #60
+ 520 0046 01D9     		bls	.L56
+ 521              	.L48:
+ 164:../common/usb_board_link_codec.c ****         break;
+ 522              		.loc 1 164 9 is_stmt 1 view .LVU164
+ 164:../common/usb_board_link_codec.c ****         break;
+ 523              		.loc 1 164 23 is_stmt 0 view .LVU165
+ 524 0048 0023     		movs	r3, #0
+ 525 004a F9E7     		b	.L70
+ 526              	.L56:
+ 129:../common/usb_board_link_codec.c ****         parser->payload_index = 0u;
+ 527              		.loc 1 129 9 is_stmt 1 view .LVU166
+ 130:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 528              		.loc 1 130 31 is_stmt 0 view .LVU167
+ 529 004c 0023     		movs	r3, #0
+ 134:../common/usb_board_link_codec.c ****         break;
+ 530              		.loc 1 134 13 discriminator 1 view .LVU168
+ 531 004e 0029     		cmp	r1, #0
+ 129:../common/usb_board_link_codec.c ****         parser->payload_index = 0u;
+ 532              		.loc 1 129 30 view .LVU169
+ 533 0050 8170     		strb	r1, [r0, #2]
+ 130:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 534              		.loc 1 130 9 is_stmt 1 view .LVU170
+ 130:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 535              		.loc 1 130 31 is_stmt 0 view .LVU171
+ 536 0052 80F83F30 		strb	r3, [r0, #63]
+ 131:../common/usb_board_link_codec.c ****         parser->state = (byte == 0u)
+ 537              		.loc 1 131 9 is_stmt 1 view .LVU172
+ 131:../common/usb_board_link_codec.c ****         parser->state = (byte == 0u)
+ 538              		.loc 1 131 28 is_stmt 0 view .LVU173
+ 539 0056 90F84030 		ldrb	r3, [r0, #64]	@ zero_extendqisi2
+ 540 005a 0B44     		add	r3, r3, r1
+ 131:../common/usb_board_link_codec.c ****         parser->state = (byte == 0u)
+ 541              		.loc 1 131 26 view .LVU174
+ 542 005c 80F84030 		strb	r3, [r0, #64]
+ 132:../common/usb_board_link_codec.c ****             ? USB_BOARD_PARSE_CHECKSUM
+ 543              		.loc 1 132 9 is_stmt 1 view .LVU175
+ 134:../common/usb_board_link_codec.c ****         break;
+ 544              		.loc 1 134 13 is_stmt 0 discriminator 1 view .LVU176
+ 545 0060 14BF     		ite	ne
+ 546 0062 0323     		movne	r3, #3
+ 547 0064 0423     		moveq	r3, #4
+ 548 0066 EBE7     		b	.L70
+ 549              	.L51:
+ 138:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 550              		.loc 1 138 9 is_stmt 1 view .LVU177
+ 138:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 551              		.loc 1 138 37 is_stmt 0 view .LVU178
+ 552 0068 90F83F20 		ldrb	r2, [r0, #63]	@ zero_extendqisi2
+ 553              	.LVL44:
+ 138:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 554              		.loc 1 138 52 view .LVU179
+ 555 006c 531C     		adds	r3, r2, #1
+ 138:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 23
+
+
+ 556              		.loc 1 138 56 view .LVU180
+ 557 006e 0244     		add	r2, r2, r0
+ 138:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 558              		.loc 1 138 52 view .LVU181
+ 559 0070 DBB2     		uxtb	r3, r3
+ 560 0072 80F83F30 		strb	r3, [r0, #63]
+ 138:../common/usb_board_link_codec.c ****         parser->checksum = (uint8_t)(parser->checksum + byte);
+ 561              		.loc 1 138 56 view .LVU182
+ 562 0076 D170     		strb	r1, [r2, #3]
+ 139:../common/usb_board_link_codec.c ****         if(parser->payload_index >= parser->frame.length)
+ 563              		.loc 1 139 9 is_stmt 1 view .LVU183
+ 139:../common/usb_board_link_codec.c ****         if(parser->payload_index >= parser->frame.length)
+ 564              		.loc 1 139 28 is_stmt 0 view .LVU184
+ 565 0078 90F84020 		ldrb	r2, [r0, #64]	@ zero_extendqisi2
+ 566 007c 0A44     		add	r2, r2, r1
+ 139:../common/usb_board_link_codec.c ****         if(parser->payload_index >= parser->frame.length)
+ 567              		.loc 1 139 26 view .LVU185
+ 568 007e 80F84020 		strb	r2, [r0, #64]
+ 140:../common/usb_board_link_codec.c ****         {
+ 569              		.loc 1 140 9 is_stmt 1 view .LVU186
+ 140:../common/usb_board_link_codec.c ****         {
+ 570              		.loc 1 140 11 is_stmt 0 view .LVU187
+ 571 0082 8278     		ldrb	r2, [r0, #2]	@ zero_extendqisi2
+ 572 0084 9A42     		cmp	r2, r3
+ 573 0086 D2D8     		bhi	.L46
+ 142:../common/usb_board_link_codec.c ****         }
+ 574              		.loc 1 142 13 is_stmt 1 view .LVU188
+ 142:../common/usb_board_link_codec.c ****         }
+ 575              		.loc 1 142 27 is_stmt 0 view .LVU189
+ 576 0088 0423     		movs	r3, #4
+ 577 008a D9E7     		b	.L70
+ 578              	.LVL45:
+ 579              	.L49:
+ 147:../common/usb_board_link_codec.c ****         {
+ 580              		.loc 1 147 9 is_stmt 1 view .LVU190
+ 147:../common/usb_board_link_codec.c ****         {
+ 581              		.loc 1 147 11 is_stmt 0 view .LVU191
+ 582 008c 90F84030 		ldrb	r3, [r0, #64]	@ zero_extendqisi2
+ 583 0090 8B42     		cmp	r3, r1
+ 584 0092 0ED1     		bne	.L58
+ 149:../common/usb_board_link_codec.c ****             parser->state = USB_BOARD_PARSE_WAIT_SYNC;
+ 585              		.loc 1 149 13 is_stmt 1 view .LVU192
+ 149:../common/usb_board_link_codec.c ****             parser->state = USB_BOARD_PARSE_WAIT_SYNC;
+ 586              		.loc 1 149 30 is_stmt 0 view .LVU193
+ 587 0094 431C     		adds	r3, r0, #1
+ 588 0096 00F13D01 		add	r1, r0, #61
+ 589              	.LVL46:
+ 590              	.L59:
+ 149:../common/usb_board_link_codec.c ****             parser->state = USB_BOARD_PARSE_WAIT_SYNC;
+ 591              		.loc 1 149 30 view .LVU194
+ 592 009a 53F8044B 		ldr	r4, [r3], #4	@ unaligned
+ 593 009e 8B42     		cmp	r3, r1
+ 594 00a0 42F8044B 		str	r4, [r2], #4	@ unaligned
+ 595 00a4 F9D1     		bne	.L59
+ 596 00a6 1B88     		ldrh	r3, [r3]	@ unaligned
+ 597 00a8 1380     		strh	r3, [r2]	@ unaligned
+ 150:../common/usb_board_link_codec.c ****             return true;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 24
+
+
+ 598              		.loc 1 150 13 is_stmt 1 view .LVU195
+ 150:../common/usb_board_link_codec.c ****             return true;
+ 599              		.loc 1 150 27 is_stmt 0 view .LVU196
+ 600 00aa 0023     		movs	r3, #0
+ 601 00ac 0370     		strb	r3, [r0]
+ 151:../common/usb_board_link_codec.c ****         }
+ 602              		.loc 1 151 13 is_stmt 1 view .LVU197
+ 151:../common/usb_board_link_codec.c ****         }
+ 603              		.loc 1 151 20 is_stmt 0 view .LVU198
+ 604 00ae 0120     		movs	r0, #1
+ 605              	.LVL47:
+ 151:../common/usb_board_link_codec.c ****         }
+ 606              		.loc 1 151 20 view .LVU199
+ 607 00b0 BEE7     		b	.L55
+ 608              	.LVL48:
+ 609              	.L58:
+ 153:../common/usb_board_link_codec.c ****         {
+ 610              		.loc 1 153 9 is_stmt 1 view .LVU200
+ 153:../common/usb_board_link_codec.c ****         {
+ 611              		.loc 1 153 11 is_stmt 0 view .LVU201
+ 612 00b2 5A29     		cmp	r1, #90
+ 613 00b4 C8D1     		bne	.L48
+ 614 00b6 B0E7     		b	.L60
+ 615              		.cfi_endproc
+ 616              	.LFE8:
+ 618              		.text
+ 619              	.Letext0:
+ 620              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 621              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 622              		.file 5 "../common/usb_board_link_codec.h"
+ 623              		.file 6 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 624              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 625              		.file 8 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s 			page 25
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 usb_board_link_codec.c
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:20     .text.usb_board_link_frame_size:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:26     .text.usb_board_link_frame_size:00000000 usb_board_link_frame_size
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:52     .text.usb_board_link_encode:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:58     .text.usb_board_link_encode:00000000 usb_board_link_encode
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:227    .text.usb_board_link_decode:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:233    .text.usb_board_link_decode:00000000 usb_board_link_decode
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:388    .text.usb_board_link_parser_init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:394    .text.usb_board_link_parser_init:00000000 usb_board_link_parser_init
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:417    .text.usb_board_link_parser_feed:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:423    .text.usb_board_link_parser_feed:00000000 usb_board_link_parser_feed
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:447    .text.usb_board_link_parser_feed:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:452    .text.usb_board_link_parser_feed:00000015 $d
+C:\Users\nicx5\AppData\Local\Temp\ccANMKya.s:452    .text.usb_board_link_parser_feed:00000016 $t
+
+UNDEFINED SYMBOLS
+memcpy
+memset

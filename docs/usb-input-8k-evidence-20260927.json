@@ -1,0 +1,157 @@
+{
+  "stm32Sha256": "9bbeb1f0bc20c9820fdb9b5e0e68d638e79579638545790a2903cb47f892cdf8",
+  "txPackageSha256": "1e0e78dd4a75424f1c7b4ec17c8853df6779de08a3057c0b9e7f1419d53e9eb7",
+  "method": "Read-only minimal Cortex-M SRAM and SPI CFG1, no halt. Ordinary cached object fields may be stale. g_usb_input_fault is explicitly cache-cleaned.",
+  "snapshots": [
+    {
+      "label": "boot1-start",
+      "at": "2026-09-27T02:51:11.878784+00:00",
+      "read_usb_input_fault": {
+        "magic": "0x0",
+        "tick": 0,
+        "status": 0,
+        "command": 0,
+        "detail": "0x0",
+        "cause": 0,
+        "produced": 0,
+        "consumed": 0,
+        "stage": "0x4"
+      },
+      "inspect_usb_input": {
+        "role": 2,
+        "profile": 1,
+        "mounted": 1,
+        "fault": 9,
+        "fastInput": true,
+        "inputSequence": 130,
+        "requestedHz": 8000,
+        "spiPrescaler": 16
+      }
+    },
+    {
+      "label": "boot1-later",
+      "at": "2026-09-27T02:52:42.454789+00:00",
+      "read_usb_input_fault": {
+        "magic": "0x0",
+        "tick": 0,
+        "status": 0,
+        "command": 0,
+        "detail": "0x0",
+        "cause": 0,
+        "produced": 0,
+        "consumed": 0,
+        "stage": "0x4"
+      },
+      "inspect_usb_input": {
+        "role": 2,
+        "profile": 1,
+        "mounted": 1,
+        "fault": 9,
+        "fastInput": true,
+        "inputSequence": 7,
+        "requestedHz": 8000,
+        "spiPrescaler": 16
+      }
+    },
+    {
+      "label": "boot2-start",
+      "at": "2026-09-27T02:52:48.066995+00:00",
+      "read_usb_input_fault": {
+        "magic": "0x0",
+        "tick": 0,
+        "status": 0,
+        "command": 0,
+        "detail": "0x0",
+        "cause": 0,
+        "produced": 0,
+        "consumed": 0,
+        "stage": "0x4"
+      },
+      "inspect_usb_input": {
+        "role": 2,
+        "profile": 1,
+        "mounted": 1,
+        "fault": 9,
+        "fastInput": true,
+        "inputSequence": 38,
+        "requestedHz": 8000,
+        "spiPrescaler": 16
+      }
+    },
+    {
+      "label": "boot2-later",
+      "at": "2026-09-27T02:53:41.734310+00:00",
+      "read_usb_input_fault": {
+        "magic": "0x0",
+        "tick": 0,
+        "status": 0,
+        "command": 0,
+        "detail": "0x0",
+        "cause": 0,
+        "produced": 0,
+        "consumed": 0,
+        "stage": "0x4"
+      },
+      "inspect_usb_input": {
+        "role": 2,
+        "profile": 1,
+        "mounted": 1,
+        "fault": 9,
+        "fastInput": true,
+        "inputSequence": 179,
+        "requestedHz": 8000,
+        "spiPrescaler": 16
+      }
+    },
+    {
+      "label": "boot3-start",
+      "at": "2026-09-27T02:53:47.331355+00:00",
+      "read_usb_input_fault": {
+        "magic": "0x0",
+        "tick": 0,
+        "status": 0,
+        "command": 0,
+        "detail": "0x0",
+        "cause": 0,
+        "produced": 0,
+        "consumed": 0,
+        "stage": "0x4"
+      },
+      "inspect_usb_input": {
+        "role": 2,
+        "profile": 1,
+        "mounted": 1,
+        "fault": 9,
+        "fastInput": true,
+        "inputSequence": 34,
+        "requestedHz": 8000,
+        "spiPrescaler": 16
+      }
+    },
+    {
+      "label": "boot3-after-user-confirmation",
+      "at": "2026-09-27T02:55:08.112712+00:00",
+      "read_usb_input_fault": {
+        "magic": "0x0",
+        "tick": 0,
+        "status": 0,
+        "command": 0,
+        "detail": "0x0",
+        "cause": 0,
+        "produced": 0,
+        "consumed": 0,
+        "stage": "0x4"
+      },
+      "inspect_usb_input": {
+        "role": 2,
+        "profile": 1,
+        "mounted": 1,
+        "fault": 9,
+        "fastInput": true,
+        "inputSequence": 129,
+        "requestedHz": 8000,
+        "spiPrescaler": 16
+      }
+    }
+  ]
+}

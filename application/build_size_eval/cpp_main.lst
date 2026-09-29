@@ -1,0 +1,2000 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"cpp_main.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/cpp_main.cpp"
+  19              		.section	.rodata.AppStartupLog_Printf.constprop.0.str1.1,"aMS",%progbits,1
+  20              	.LC0:
+  21 0000 41313000 		.ascii	"A10\000"
+  22              	.LC1:
+  23 0004 5B415050 		.ascii	"[APP][STARTUP][%s]%s \000"
+  23      5D5B5354 
+  23      41525455 
+  23      505D5B25 
+  23      735D2573 
+  24              	.LC2:
+  25 001a 0D00     		.ascii	"\015\000"
+  26              		.section	.text.AppStartupLog_Printf.constprop.0,"ax",%progbits
+  27              		.align	1
+  28              		.syntax unified
+  29              		.thumb
+  30              		.thumb_func
+  32              	AppStartupLog_Printf.constprop.0:
+  33              	.LVL0:
+  34              	.LFB4712:
+  35              		.file 2 "Core/Inc/board_cfg.h"
+   1:Core/Inc/board_cfg.h **** /*
+   2:Core/Inc/board_cfg.h ****  * The MIT License (MIT)
+   3:Core/Inc/board_cfg.h ****  *
+   4:Core/Inc/board_cfg.h ****  * Copyright (c) 2021, Ha Thach (tinyusb.org)
+   5:Core/Inc/board_cfg.h ****  *
+   6:Core/Inc/board_cfg.h ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   7:Core/Inc/board_cfg.h ****  * of this software and associated documentation files (the "Software"), to deal
+   8:Core/Inc/board_cfg.h ****  * in the Software without restriction, including without limitation the rights
+   9:Core/Inc/board_cfg.h ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  10:Core/Inc/board_cfg.h ****  * copies of the Software, and to permit persons to whom the Software is
+  11:Core/Inc/board_cfg.h ****  * furnished to do so, subject to the following conditions:
+  12:Core/Inc/board_cfg.h ****  *
+  13:Core/Inc/board_cfg.h ****  * The above copyright notice and this permission notice shall be included in
+  14:Core/Inc/board_cfg.h ****  * all copies or substantial portions of the Software.
+  15:Core/Inc/board_cfg.h ****  *
+  16:Core/Inc/board_cfg.h ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  17:Core/Inc/board_cfg.h ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  18:Core/Inc/board_cfg.h ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  19:Core/Inc/board_cfg.h ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 2
+
+
+  20:Core/Inc/board_cfg.h ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  21:Core/Inc/board_cfg.h ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  22:Core/Inc/board_cfg.h ****  * THE SOFTWARE.
+  23:Core/Inc/board_cfg.h ****  *
+  24:Core/Inc/board_cfg.h ****  * This file is part of the TinyUSB stack.
+  25:Core/Inc/board_cfg.h ****  */
+  26:Core/Inc/board_cfg.h **** 
+  27:Core/Inc/board_cfg.h **** #ifndef __BOARD_H__
+  28:Core/Inc/board_cfg.h **** #define __BOARD_H__
+  29:Core/Inc/board_cfg.h **** 
+  30:Core/Inc/board_cfg.h **** #include "stm32h750xx.h"
+  31:Core/Inc/board_cfg.h **** #include "stm32h7xx_hal.h"
+  32:Core/Inc/board_cfg.h **** #include <stdarg.h>
+  33:Core/Inc/board_cfg.h **** #include <stdbool.h>
+  34:Core/Inc/board_cfg.h **** #include <stdio.h>
+  35:Core/Inc/board_cfg.h **** 
+  36:Core/Inc/board_cfg.h **** #ifdef __cplusplus
+  37:Core/Inc/board_cfg.h ****  extern "C" {
+  38:Core/Inc/board_cfg.h **** #endif
+  39:Core/Inc/board_cfg.h **** 
+  40:Core/Inc/board_cfg.h **** 
+  41:Core/Inc/board_cfg.h **** #define SYSTEM_CLOCK_FREQ      480000000
+  42:Core/Inc/board_cfg.h **** 
+  43:Core/Inc/board_cfg.h **** #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
+  44:Core/Inc/board_cfg.h **** 
+  45:Core/Inc/board_cfg.h **** // STM32H7系列的唯一ID存储地址（96位，12字节）
+  46:Core/Inc/board_cfg.h **** #define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+  47:Core/Inc/board_cfg.h **** 
+  48:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_Msk
+  49:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+  50:Core/Inc/board_cfg.h **** #endif
+  51:Core/Inc/board_cfg.h **** 
+  52:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_RN
+  53:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+  54:Core/Inc/board_cfg.h **** #endif
+  55:Core/Inc/board_cfg.h **** 
+  56:Core/Inc/board_cfg.h **** /* Debug print configuration.
+  57:Core/Inc/board_cfg.h ****  * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+  58:Core/Inc/board_cfg.h ****  * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+  59:Core/Inc/board_cfg.h ****  */
+  60:Core/Inc/board_cfg.h **** #ifndef APPLICATION_SERIAL_PRINT
+  61:Core/Inc/board_cfg.h **** #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+  62:Core/Inc/board_cfg.h **** #endif
+  63:Core/Inc/board_cfg.h **** 
+  64:Core/Inc/board_cfg.h **** #ifndef APPLICATION_DEBUG_PRINT
+  65:Core/Inc/board_cfg.h **** #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+  66:Core/Inc/board_cfg.h **** #endif
+  67:Core/Inc/board_cfg.h **** 
+  68:Core/Inc/board_cfg.h **** #ifndef APP_LOG_VERBOSE
+  69:Core/Inc/board_cfg.h **** #define APP_LOG_VERBOSE 0
+  70:Core/Inc/board_cfg.h **** #endif
+  71:Core/Inc/board_cfg.h **** 
+  72:Core/Inc/board_cfg.h **** /* Concise production startup milestones, independent from verbose APP_DBG. */
+  73:Core/Inc/board_cfg.h **** #ifndef APPLICATION_STARTUP_LOG
+  74:Core/Inc/board_cfg.h **** #define APPLICATION_STARTUP_LOG 1
+  75:Core/Inc/board_cfg.h **** #endif
+  76:Core/Inc/board_cfg.h **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 3
+
+
+  77:Core/Inc/board_cfg.h **** #if APPLICATION_STARTUP_LOG
+  78:Core/Inc/board_cfg.h **** static inline void AppStartupLog_Printf(const char *stage,
+  36              		.loc 2 78 20 view -0
+  37              		.cfi_startproc
+  38              		@ args = 4, pretend = 8, frame = 8
+  39              		@ frame_needed = 0, uses_anonymous_args = 1
+  79:Core/Inc/board_cfg.h ****                                         const char *level,
+  80:Core/Inc/board_cfg.h ****                                         const char *fmt, ...)
+  81:Core/Inc/board_cfg.h **** {
+  82:Core/Inc/board_cfg.h ****     va_list args;
+  40              		.loc 2 82 5 view .LVU1
+  83:Core/Inc/board_cfg.h ****     printf("[APP][STARTUP][%s]%s ", stage, level);
+  41              		.loc 2 83 5 view .LVU2
+  78:Core/Inc/board_cfg.h ****                                         const char *level,
+  42              		.loc 2 78 20 is_stmt 0 view .LVU3
+  43 0000 0CB4     		push	{r2, r3}
+  44              	.LCFI0:
+  45              		.cfi_def_cfa_offset 8
+  46              		.cfi_offset 2, -8
+  47              		.cfi_offset 3, -4
+  48 0002 37B5     		push	{r0, r1, r2, r4, r5, lr}
+  49              	.LCFI1:
+  50              		.cfi_def_cfa_offset 32
+  51              		.cfi_offset 4, -20
+  52              		.cfi_offset 5, -16
+  53              		.cfi_offset 14, -12
+  78:Core/Inc/board_cfg.h ****                                         const char *level,
+  54              		.loc 2 78 20 view .LVU4
+  55 0004 06AC     		add	r4, sp, #24
+  56 0006 0A46     		mov	r2, r1
+  57              		.loc 2 83 11 view .LVU5
+  58 0008 0948     		ldr	r0, .L2
+  59              	.LVL1:
+  78:Core/Inc/board_cfg.h ****                                         const char *level,
+  60              		.loc 2 78 20 view .LVU6
+  61 000a 54F8045B 		ldr	r5, [r4], #4
+  62              		.loc 2 83 11 view .LVU7
+  63 000e 0949     		ldr	r1, .L2+4
+  64              	.LVL2:
+  65              		.loc 2 83 11 view .LVU8
+  66 0010 FFF7FEFF 		bl	printf
+  67              	.LVL3:
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  68              		.loc 2 84 5 is_stmt 1 view .LVU9
+  85:Core/Inc/board_cfg.h ****     vprintf(fmt, args);
+  69              		.loc 2 85 12 is_stmt 0 view .LVU10
+  70 0014 2146     		mov	r1, r4
+  71 0016 2846     		mov	r0, r5
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  72              		.loc 2 84 5 view .LVU11
+  73 0018 0194     		str	r4, [sp, #4]
+  74              		.loc 2 85 5 is_stmt 1 view .LVU12
+  75              		.loc 2 85 12 is_stmt 0 view .LVU13
+  76 001a FFF7FEFF 		bl	vprintf
+  77              	.LVL4:
+  86:Core/Inc/board_cfg.h ****     va_end(args);
+  78              		.loc 2 86 5 is_stmt 1 view .LVU14
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 4
+
+
+  87:Core/Inc/board_cfg.h ****     printf("\r\n");
+  79              		.loc 2 87 5 view .LVU15
+  80              		.loc 2 87 11 is_stmt 0 view .LVU16
+  81 001e 0648     		ldr	r0, .L2+8
+  82 0020 FFF7FEFF 		bl	puts
+  83              	.LVL5:
+  88:Core/Inc/board_cfg.h **** }
+  84              		.loc 2 88 1 view .LVU17
+  85 0024 03B0     		add	sp, sp, #12
+  86              	.LCFI2:
+  87              		.cfi_def_cfa_offset 20
+  88              		@ sp needed
+  89 0026 BDE83040 		pop	{r4, r5, lr}
+  90              	.LCFI3:
+  91              		.cfi_restore 14
+  92              		.cfi_restore 5
+  93              		.cfi_restore 4
+  94              		.cfi_def_cfa_offset 8
+  95 002a 02B0     		add	sp, sp, #8
+  96              	.LCFI4:
+  97              		.cfi_restore 3
+  98              		.cfi_restore 2
+  99              		.cfi_def_cfa_offset 0
+ 100 002c 7047     		bx	lr
+ 101              	.L3:
+ 102 002e 00BF     		.align	2
+ 103              	.L2:
+ 104 0030 04000000 		.word	.LC1
+ 105 0034 00000000 		.word	.LC0
+ 106 0038 1A000000 		.word	.LC2
+ 107              		.cfi_endproc
+ 108              	.LFE4712:
+ 110              		.section	.text._ZN10ADCManager11getInstanceEv,"axG",%progbits,_ZN10ADCManager11getInstanceEv,comda
+ 111              		.align	1
+ 112              		.weak	_ZN10ADCManager11getInstanceEv
+ 113              		.syntax unified
+ 114              		.thumb
+ 115              		.thumb_func
+ 117              	_ZN10ADCManager11getInstanceEv:
+ 118              	.LFB3966:
+ 119              		.file 3 "Cpp_Core/Inc/adc_btns/adc_manager.hpp"
+   1:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #ifndef __ADC_VALUES_MAPPING_HPP__
+   2:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #define __ADC_VALUES_MAPPING_HPP__
+   3:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+   4:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "qspi-w25q64.h"
+   5:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include <stdio.h>
+   6:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include <stdint.h>
+   7:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include <string.h>
+   8:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include <vector>
+   9:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include <string>
+  10:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include <array>
+  11:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "stm32h7xx.h"
+  12:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "stm32h750xx.h"
+  13:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "adc_btns_error.hpp"
+  14:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "cJSON.h"
+  15:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "adc.h"
+  16:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "message_center.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 5
+
+
+  17:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include <algorithm>  // 为 std::sort
+  18:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "board_cfg.h"
+  19:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** #include "adc_btns/adc_sample_assembler.hpp"
+  20:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  21:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct ADCCommonCalibrationPair {
+  22:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint16_t topValue;
+  23:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint16_t bottomValue;
+  24:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** };
+  25:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  26:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct ADCCommonConfig {
+  27:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t version;
+  28:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     char defaultMappingId[16];
+  29:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     char calibratedMappingId[16];
+  30:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     ADCCommonCalibrationPair manualCalibrationValues[NUM_ADC_BUTTONS];
+  31:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     ADCCommonCalibrationPair autoCalibrationValues[NUM_ADC_BUTTONS];
+  32:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** };
+  33:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  34:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct ADCValuesMapping {
+  35:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     char id[16];                                            // 映射ID
+  36:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     char name[16];                                          // 映射名称
+  37:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     size_t length;                                          // 映射长度
+  38:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     float_t step;                                           // 步长
+  39:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint16_t samplingNoise;                                 // 噪声阈值
+  40:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint16_t samplingFrequency;                             // 采样频率
+  41:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t originalValues[MAX_ADC_VALUES_LENGTH];         // 采集原始值
+  42:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     
+  43:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     // 自动校准值：每个按键的初始值(完全按下)和末尾值(完全释放)
+  44:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     struct {
+  45:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         uint16_t topValue;      // 完全按下时的值(初始值)
+  46:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         uint16_t bottomValue;   // 完全释放时的值(末尾值)
+  47:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     } autoCalibrationValues[NUM_ADC_BUTTONS];
+  48:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     
+  49:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     // 手动校准值：每个按键的初始值(完全按下)和末尾值(完全释放)
+  50:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     struct {
+  51:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         uint16_t topValue;      // 完全按下时的值(初始值)
+  52:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         uint16_t bottomValue;   // 完全释放时的值(末尾值)
+  53:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     } manualCalibrationValues[NUM_ADC_BUTTONS];
+  54:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** };
+  55:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  56:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct ADCValuesMappingStore {
+  57:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t version;
+  58:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint8_t num;
+  59:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     char defaultId[16];
+  60:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     ADCValuesMapping mapping[NUM_ADC_VALUES_MAPPING];
+  61:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** };
+  62:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  63:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** // 采样统计相关成员，每个ADC一个
+  64:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct ADCBufferInfo {
+  65:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t* buffer;
+  66:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     const uint8_t* indexMap;
+  67:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint8_t count;
+  68:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** };
+  69:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  70:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** // 每个通道的统计信息
+  71:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct ADCChannelStats {
+  72:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint8_t adcIndex;
+  73:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t samplingFreq;  // 采样频率
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 6
+
+
+  74:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t averageValue;  // 采样均值
+  75:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t count;         // 采样次数
+  76:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t startTime;     // 开始时间
+  77:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t endTime;       // 结束时间
+  78:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t noiseValue;    // 噪声值
+  79:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     std::vector<uint32_t> values;
+  80:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     std::vector<uint32_t> diffValues;
+  81:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** };
+  82:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  83:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct ADCButtonValueInfo {
+  84:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint8_t virtualPin;
+  85:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     uint32_t* valuePtr;
+  86:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** };
+  87:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  88:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct ADCIndexInfo {
+  89:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     int8_t ADCIndex;
+  90:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     int8_t indexInDMA;
+  91:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** };
+  92:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  93:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** struct AdcSampleFrame : BasicAdcSampleFrame<NUM_ADC_BUTTONS> {};
+  94:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+  95:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** class ADCManager {
+  96:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****     public:
+  97:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCManager(ADCManager const&) = delete;
+  98:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void operator=(ADCManager const&) = delete;
+  99:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         static ADCManager& getInstance() {
+ 120              		.loc 3 99 28 is_stmt 1 view -0
+ 121              		.cfi_startproc
+ 122              		@ args = 0, pretend = 0, frame = 0
+ 123              		@ frame_needed = 0, uses_anonymous_args = 0
+ 100:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             static ADCManager instance;
+ 124              		.loc 3 100 13 view .LVU19
+  99:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             static ADCManager instance;
+ 125              		.loc 3 99 28 is_stmt 0 view .LVU20
+ 126 0000 10B5     		push	{r4, lr}
+ 127              	.LCFI5:
+ 128              		.cfi_def_cfa_offset 8
+ 129              		.cfi_offset 4, -8
+ 130              		.cfi_offset 14, -4
+ 131              		.loc 3 100 31 view .LVU21
+ 132 0002 0B4C     		ldr	r4, .L11
+ 133 0004 2368     		ldr	r3, [r4]
+ 134 0006 BFF35B8F 		dmb	ish
+ 135              		.loc 3 100 31 discriminator 1 view .LVU22
+ 136 000a DB07     		lsls	r3, r3, #31
+ 137 000c 0ED4     		bmi	.L6
+ 138 000e 2046     		mov	r0, r4
+ 139 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+ 140              	.LVL6:
+ 141 0014 50B1     		cbz	r0, .L6
+ 142              	.LBB26:
+ 143              	.LBI26:
+  99:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             static ADCManager instance;
+ 144              		.loc 3 99 28 is_stmt 1 view .LVU23
+ 145              	.LBB27:
+ 146              		.loc 3 100 31 is_stmt 0 discriminator 2 view .LVU24
+ 147 0016 0748     		ldr	r0, .L11+4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 7
+
+
+ 148 0018 FFF7FEFF 		bl	_ZN10ADCManagerC1Ev
+ 149              	.LVL7:
+ 150              		.loc 3 100 31 discriminator 1 view .LVU25
+ 151 001c 064A     		ldr	r2, .L11+8
+ 152 001e 0749     		ldr	r1, .L11+12
+ 153 0020 0448     		ldr	r0, .L11+4
+ 154 0022 FFF7FEFF 		bl	__aeabi_atexit
+ 155              	.LVL8:
+ 156              		.loc 3 100 31 discriminator 2 view .LVU26
+ 157 0026 2046     		mov	r0, r4
+ 158 0028 FFF7FEFF 		bl	__cxa_guard_release
+ 159              	.LVL9:
+ 160              	.L6:
+ 161              	.LBE27:
+ 162              	.LBE26:
+ 101:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             return instance;
+ 163              		.loc 3 101 13 is_stmt 1 view .LVU27
+ 102:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         }
+ 164              		.loc 3 102 9 is_stmt 0 view .LVU28
+ 165 002c 0148     		ldr	r0, .L11+4
+ 166 002e 10BD     		pop	{r4, pc}
+ 167              	.L12:
+ 168              		.align	2
+ 169              	.L11:
+ 170 0030 00000000 		.word	_ZGVZN10ADCManager11getInstanceEvE8instance
+ 171 0034 00000000 		.word	_ZZN10ADCManager11getInstanceEvE8instance
+ 172 0038 00000000 		.word	__dso_handle
+ 173 003c 00000000 		.word	_ZN10ADCManagerD1Ev
+ 174              		.cfi_endproc
+ 175              	.LFE3966:
+ 177              		.section	.rodata._ZN10ADCManager18ADCValuesTestPrintEv.str1.1,"aMS",%progbits,1
+ 178              	.LC3:
+ 179 0000 256C7500 		.ascii	"%lu\000"
+ 180              	.LC4:
+ 181 0004 2C2000   		.ascii	", \000"
+ 182              		.section	.text._ZN10ADCManager18ADCValuesTestPrintEv,"axG",%progbits,_ZN10ADCManager18ADCValuesTes
+ 183              		.align	1
+ 184              		.weak	_ZN10ADCManager18ADCValuesTestPrintEv
+ 185              		.syntax unified
+ 186              		.thumb
+ 187              		.thumb_func
+ 189              	_ZN10ADCManager18ADCValuesTestPrintEv:
+ 190              	.LVL10:
+ 191              	.LFB3969:
+ 103:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 104:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 保存存储
+ 105:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         int8_t saveStore();
+ 106:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         int8_t saveCommon();
+ 107:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 108:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // WebConfig backup/restore snapshot. Callers must validate all fields
+ 109:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // before restoreBackup; the manager keeps the two QSPI regions in sync
+ 110:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // and rolls the first write back if the second write fails.
+ 111:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void copyBackup(ADCValuesMappingStore& storeOut, ADCCommonConfig& commonOut) const;
+ 112:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError restoreBackup(const ADCValuesMappingStore& storeIn,
+ 113:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                    const ADCCommonConfig& commonIn);
+ 114:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 115:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 获取映射索引
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 8
+
+
+ 116:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         int8_t findMappingById(const char* const id) const;
+ 117:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 118:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 获取映射
+ 119:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         const ADCValuesMapping* getMapping(const char* const id) const;
+ 120:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 121:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 获取映射列表
+ 122:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         std::vector<ADCValuesMapping*> getMappingList();
+ 123:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 124:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 创建映射
+ 125:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError createADCMapping(const char* name, size_t length, float_t step,
+ 126:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                       std::string* createdId = nullptr);
+ 127:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 128:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 删除映射
+ 129:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError removeADCMapping(const char* id);
+ 130:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 131:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 重命名映射
+ 132:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError renameADCMapping(const char* id, const char* name);
+ 133:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 134:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 更新映射
+ 135:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError updateADCMapping(const char* id, const ADCValuesMapping& mapping);
+ 136:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 137:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 标记映射
+ 138:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError markMapping(const char* const id, 
+ 139:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                const uint32_t* const values,
+ 140:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                const uint16_t samplingNoise,
+ 141:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                const uint16_t samplingFrequency);
+ 142:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 143:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 设置默认映射
+ 144:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError setDefaultMapping(const char* id);
+ 145:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 146:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 获取默认映射
+ 147:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         std::string getDefaultMapping() const;
+ 148:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 149:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // Install one server-managed mapping into the shared A/B-independent
+ 150:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // journal. The expected digest uses the HBOX-ADC-MAP-V1 wire format.
+ 151:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError installSharedMapping(const ADCValuesMapping& mapping,
+ 152:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                           const char* expectedSha256);
+ 153:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // Remove the server-installed shared record and restore the current
+ 154:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // firmware slot's read-only factory mapping in RAM. The slot mapping
+ 155:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // partition itself is never modified.
+ 156:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError clearSharedMapping(const char* expectedMappingId);
+ 157:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         bool isSharedMappingInstalled() const { return sharedMappingInstalled; }
+ 158:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 159:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 获取校准值
+ 160:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError getCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCa
+ 161:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         
+ 162:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 设置校准值
+ 163:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCa
+ 164:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 165:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // Atomically clear one calibration bank in ADC_COMMON_CONFIG.
+ 166:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError clearCalibrationValues(const char* mappingId, bool isAutoCalibration);
+ 167:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 168:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 挂载三路 TIM2 触发的循环 DMA（INPUT/校准/WebConfig 共用）
+ 169:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 
+ 170:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                    uint8_t virtualPin = 0, 
+ 171:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                    uint32_t samplingCountMax = 0);
+ 172:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 9
+
+
+ 173:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 停止一次采样率统计；后台循环 DMA 保持运行
+ 174:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void stopADCSamping();
+ 175:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 176:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 物理模式/电源切换专用：无条件停止所有循环 DMA。
+ 177:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void forceStopAllSampling();
+ 178:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         bool rearmInputSampling();
+ 179:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         
+ 180:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // 通知采样完成 (由 HAL_ADC_ConvCpltCallback 调用)
+ 181:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void notifyTimerTrigger(uint32_t triggerCycles);
+ 182:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void notifyConversionComplete(ADC_HandleTypeDef *hadc,
+ 183:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                                       uint8_t completedHalf);
+ 184:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void notifyConversionError(ADC_HandleTypeDef *hadc);
+ 185:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void resetInputSamples();
+ 186:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         bool consumeLatestInputSample(AdcSampleFrame& out);
+ 187:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         bool copyLatestInputSample(AdcSampleFrame& out) const;
+ 188:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         bool isInputSampleStreamHealthy() const;
+ 189:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // Finish sampling statistics and publish their notification from the
+ 190:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         // main loop; DMA IRQ handlers only raise the pending flag.
+ 191:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         void processPendingSamplingStats();
+ 192:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         
+ 193:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         bool isDmaSamplingActive() const { return dmaSamplingActive; }
+ 194:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 195:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         /**
+ 196:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****          * @brief 读取ADC值 按virtualPin排序
+ 197:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****          * 值要减去ADC_BASE_V 基准电压
+ 198:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****          * @return 按virtualPin排序的ADC值
+ 199:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****          */
+ 200:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& readADCValues() const;
+ 201:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 202:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         inline void ADCValuesTestPrint() {
+ 192              		.loc 3 202 21 is_stmt 1 view -0
+ 193              		.cfi_startproc
+ 194              		@ args = 0, pretend = 0, frame = 0
+ 195              		@ frame_needed = 0, uses_anonymous_args = 0
+ 203:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = readADCValues();
+ 196              		.loc 3 203 13 view .LVU30
+ 202:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = readADCValues();
+ 197              		.loc 3 202 21 is_stmt 0 view .LVU31
+ 198 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 199              	.LCFI6:
+ 200              		.cfi_def_cfa_offset 24
+ 201              		.cfi_offset 3, -24
+ 202              		.cfi_offset 4, -20
+ 203              		.cfi_offset 5, -16
+ 204              		.cfi_offset 6, -12
+ 205              		.cfi_offset 7, -8
+ 206              		.cfi_offset 14, -4
+ 207              		.loc 3 203 93 view .LVU32
+ 208 0002 FFF7FEFF 		bl	_ZNK10ADCManager13readADCValuesEv
+ 209              	.LVL11:
+ 210              	.LBB28:
+ 204:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 205:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             // const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = rawADCBufferInfoL
+ 206:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 207:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++){
+ 208:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 printf("%lu", *adcValues[i].valuePtr);
+ 211              		.loc 3 208 23 discriminator 1 view .LVU33
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 10
+
+
+ 212 0006 0B4F     		ldr	r7, .L16
+ 213              	.LBE28:
+ 203:Cpp_Core/Inc/adc_btns/adc_manager.hpp **** 
+ 214              		.loc 3 203 93 view .LVU34
+ 215 0008 0446     		mov	r4, r0
+ 216              	.LVL12:
+ 207:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 printf("%lu", *adcValues[i].valuePtr);
+ 217              		.loc 3 207 13 is_stmt 1 view .LVU35
+ 218              	.LBB29:
+ 207:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 printf("%lu", *adcValues[i].valuePtr);
+ 219              		.loc 3 207 34 discriminator 1 view .LVU36
+ 220 000a 00F19006 		add	r6, r0, #144
+ 209:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 if(i != NUM_ADC_BUTTONS - 1){
+ 210:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                     printf(", ");
+ 221              		.loc 3 210 27 is_stmt 0 view .LVU37
+ 222 000e 0A4D     		ldr	r5, .L16+4
+ 223              	.LVL13:
+ 224              	.L15:
+ 208:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 if(i != NUM_ADC_BUTTONS - 1){
+ 225              		.loc 3 208 17 is_stmt 1 view .LVU38
+ 208:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 if(i != NUM_ADC_BUTTONS - 1){
+ 226              		.loc 3 208 23 is_stmt 0 discriminator 1 view .LVU39
+ 227 0010 6368     		ldr	r3, [r4, #4]
+ 209:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 if(i != NUM_ADC_BUTTONS - 1){
+ 228              		.loc 3 209 17 view .LVU40
+ 229 0012 0834     		adds	r4, r4, #8
+ 230              	.LVL14:
+ 208:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 if(i != NUM_ADC_BUTTONS - 1){
+ 231              		.loc 3 208 23 discriminator 1 view .LVU41
+ 232 0014 3846     		mov	r0, r7
+ 233 0016 1968     		ldr	r1, [r3]
+ 234 0018 FFF7FEFF 		bl	printf
+ 235              	.LVL15:
+ 209:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 if(i != NUM_ADC_BUTTONS - 1){
+ 236              		.loc 3 209 17 is_stmt 1 view .LVU42
+ 237 001c B442     		cmp	r4, r6
+ 238 001e 04D1     		bne	.L14
+ 207:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 printf("%lu", *adcValues[i].valuePtr);
+ 239              		.loc 3 207 13 discriminator 2 view .LVU43
+ 240              	.LVL16:
+ 207:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 printf("%lu", *adcValues[i].valuePtr);
+ 241              		.loc 3 207 34 discriminator 1 view .LVU44
+ 242              	.LBE29:
+ 211:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 }
+ 212:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             }
+ 213:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****             printf("\n");
+ 243              		.loc 3 213 13 view .LVU45
+ 244              		.loc 3 213 19 is_stmt 0 view .LVU46
+ 245 0020 0A20     		movs	r0, #10
+ 214:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         }
+ 246              		.loc 3 214 9 view .LVU47
+ 247 0022 BDE8F840 		pop	{r3, r4, r5, r6, r7, lr}
+ 248              	.LCFI7:
+ 249              		.cfi_remember_state
+ 250              		.cfi_restore 14
+ 251              		.cfi_restore 7
+ 252              		.cfi_restore 6
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 11
+
+
+ 253              		.cfi_restore 5
+ 254              		.cfi_restore 4
+ 255              		.cfi_restore 3
+ 256              		.cfi_def_cfa_offset 0
+ 257              	.LVL17:
+ 213:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****         }
+ 258              		.loc 3 213 19 view .LVU48
+ 259 0026 FFF7FEBF 		b	putchar
+ 260              	.LVL18:
+ 261              	.L14:
+ 262              	.LCFI8:
+ 263              		.cfi_restore_state
+ 264              	.LBB30:
+ 210:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 }
+ 265              		.loc 3 210 21 is_stmt 1 view .LVU49
+ 210:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 }
+ 266              		.loc 3 210 27 is_stmt 0 view .LVU50
+ 267 002a 2846     		mov	r0, r5
+ 268 002c FFF7FEFF 		bl	printf
+ 269              	.LVL19:
+ 207:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 printf("%lu", *adcValues[i].valuePtr);
+ 270              		.loc 3 207 13 is_stmt 1 discriminator 2 view .LVU51
+ 207:Cpp_Core/Inc/adc_btns/adc_manager.hpp ****                 printf("%lu", *adcValues[i].valuePtr);
+ 271              		.loc 3 207 34 discriminator 1 view .LVU52
+ 272 0030 EEE7     		b	.L15
+ 273              	.L17:
+ 274 0032 00BF     		.align	2
+ 275              	.L16:
+ 276 0034 00000000 		.word	.LC3
+ 277 0038 04000000 		.word	.LC4
+ 278              	.LBE30:
+ 279              		.cfi_endproc
+ 280              	.LFE3969:
+ 282              		.section	.text._ZN11MicrosTimer11getInstanceEv,"axG",%progbits,_ZN11MicrosTimer11getInstanceEv,com
+ 283              		.align	1
+ 284              		.weak	_ZN11MicrosTimer11getInstanceEv
+ 285              		.syntax unified
+ 286              		.thumb
+ 287              		.thumb_func
+ 289              	_ZN11MicrosTimer11getInstanceEv:
+ 290              	.LFB3970:
+ 291              		.file 4 "Cpp_Core/Inc/micro_timer.hpp"
+   1:Cpp_Core/Inc/micro_timer.hpp **** #ifndef __MICROS_TIMER_HPP__
+   2:Cpp_Core/Inc/micro_timer.hpp **** #define __MICROS_TIMER_HPP__
+   3:Cpp_Core/Inc/micro_timer.hpp **** 
+   4:Cpp_Core/Inc/micro_timer.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/micro_timer.hpp **** #include "tim.h"
+   6:Cpp_Core/Inc/micro_timer.hpp **** 
+   7:Cpp_Core/Inc/micro_timer.hpp **** class MicrosTimer {
+   8:Cpp_Core/Inc/micro_timer.hpp **** public:
+   9:Cpp_Core/Inc/micro_timer.hpp ****     // 禁止拷贝构造和赋值
+  10:Cpp_Core/Inc/micro_timer.hpp ****     MicrosTimer(const MicrosTimer&) = delete;
+  11:Cpp_Core/Inc/micro_timer.hpp ****     MicrosTimer& operator=(const MicrosTimer&) = delete;
+  12:Cpp_Core/Inc/micro_timer.hpp **** 
+  13:Cpp_Core/Inc/micro_timer.hpp ****     // 获取单例实例
+  14:Cpp_Core/Inc/micro_timer.hpp ****     static MicrosTimer& getInstance() {
+ 292              		.loc 4 14 25 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 12
+
+
+ 293              		.cfi_startproc
+ 294              		@ args = 0, pretend = 0, frame = 0
+ 295              		@ frame_needed = 0, uses_anonymous_args = 0
+  15:Cpp_Core/Inc/micro_timer.hpp ****         static MicrosTimer instance;
+ 296              		.loc 4 15 9 view .LVU54
+  14:Cpp_Core/Inc/micro_timer.hpp ****         static MicrosTimer instance;
+ 297              		.loc 4 14 25 is_stmt 0 view .LVU55
+ 298 0000 10B5     		push	{r4, lr}
+ 299              	.LCFI9:
+ 300              		.cfi_def_cfa_offset 8
+ 301              		.cfi_offset 4, -8
+ 302              		.cfi_offset 14, -4
+ 303              		.loc 4 15 28 view .LVU56
+ 304 0002 094C     		ldr	r4, .L25
+ 305 0004 2368     		ldr	r3, [r4]
+ 306 0006 BFF35B8F 		dmb	ish
+ 307              		.loc 4 15 28 discriminator 1 view .LVU57
+ 308 000a DB07     		lsls	r3, r3, #31
+ 309 000c 09D4     		bmi	.L20
+ 310 000e 2046     		mov	r0, r4
+ 311 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+ 312              	.LVL20:
+ 313 0014 28B1     		cbz	r0, .L20
+ 314              	.LBB33:
+ 315              	.LBI33:
+  14:Cpp_Core/Inc/micro_timer.hpp ****         static MicrosTimer instance;
+ 316              		.loc 4 14 25 is_stmt 1 view .LVU58
+ 317              	.LBB34:
+ 318              		.loc 4 15 28 is_stmt 0 discriminator 2 view .LVU59
+ 319 0016 0548     		ldr	r0, .L25+4
+ 320 0018 FFF7FEFF 		bl	_ZN11MicrosTimerC1Ev
+ 321              	.LVL21:
+ 322              		.loc 4 15 28 discriminator 1 view .LVU60
+ 323 001c 2046     		mov	r0, r4
+ 324 001e FFF7FEFF 		bl	__cxa_guard_release
+ 325              	.LVL22:
+ 326              	.L20:
+ 327              	.LBE34:
+ 328              	.LBE33:
+  16:Cpp_Core/Inc/micro_timer.hpp ****         return instance;
+ 329              		.loc 4 16 9 is_stmt 1 view .LVU61
+  17:Cpp_Core/Inc/micro_timer.hpp ****     }
+ 330              		.loc 4 17 5 is_stmt 0 view .LVU62
+ 331 0022 0248     		ldr	r0, .L25+4
+ 332 0024 10BD     		pop	{r4, pc}
+ 333              	.L26:
+ 334 0026 00BF     		.align	2
+ 335              	.L25:
+ 336 0028 00000000 		.word	_ZGVZN11MicrosTimer11getInstanceEvE8instance
+ 337 002c 00000000 		.word	_ZZN11MicrosTimer11getInstanceEvE8instance
+ 338              		.cfi_endproc
+ 339              	.LFE3970:
+ 341              		.section	.text._ZN21ADCCalibrationManager11getInstanceEv,"axG",%progbits,_ZN21ADCCalibrationManage
+ 342              		.align	1
+ 343              		.weak	_ZN21ADCCalibrationManager11getInstanceEv
+ 344              		.syntax unified
+ 345              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 13
+
+
+ 346              		.thumb_func
+ 348              	_ZN21ADCCalibrationManager11getInstanceEv:
+ 349              	.LFB3985:
+ 350              		.file 5 "Cpp_Core/Inc/adc_btns/adc_calibration.hpp"
+   1:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** #ifndef __ADC_CALIBRATION_HPP__
+   2:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** #define __ADC_CALIBRATION_HPP__
+   3:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** 
+   4:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** #include <cstdint>
+   5:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** #include <array>
+   6:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** #include <functional>
+   7:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** #include "adc_btns_error.hpp"
+   8:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** #include "board_cfg.h"
+   9:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** #include "storagemanager.hpp"
+  10:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** 
+  11:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** // 回调函数类型定义
+  12:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** using CalibrationCompletedCallback = std::function<void(uint8_t buttonIndex, uint16_t topValue, uin
+  13:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** using AllCalibrationCompletedCallback = std::function<void(uint8_t totalButtons, uint8_t successCou
+  14:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** using CalibrationStatusChangedCallback = std::function<void()>;
+  15:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** 
+  16:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** // LED颜色枚举
+  17:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** enum class CalibrationLEDColor {
+  18:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     OFF = 0,        // 关闭
+  19:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     RED = 1,        // 红色 - 未校准
+  20:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     CYAN = 2,       // 天蓝色 - 正在校准topValue（按键释放状态）
+  21:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     DARK_BLUE = 3,  // 深海蓝 - 正在校准bottomValue（按键按下状态）
+  22:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     GREEN = 4,      // 绿色 - 校准完成
+  23:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     YELLOW = 5      // 黄色 - 校准出错
+  24:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** };
+  25:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** 
+  26:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** // 校准阶段枚举
+  27:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** enum class CalibrationPhase {
+  28:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     IDLE = 0,           // 空闲
+  29:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     TOP_SAMPLING,       // 采样topValue阶段（按键释放状态）
+  30:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     BOTTOM_SAMPLING,    // 采样bottomValue阶段（按键按下状态）
+  31:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     COMPLETED,          // 校准完成
+  32:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ERROR               // 校准错误
+  33:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** };
+  34:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** 
+  35:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** // 单个按键的校准状态
+  36:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** struct ButtonCalibrationState {
+  37:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     CalibrationPhase phase = CalibrationPhase::IDLE;       // 校准阶段
+  38:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     CalibrationLEDColor ledColor = CalibrationLEDColor::RED; // LED颜色
+  39:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     bool isCalibrated = false;                             // 是否已校准
+  40:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     bool needSaveToFlash = false;                          // 是否需要保存到Flash
+  41:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     
+  42:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 采样数据 - 修改为基于时间的采样机制
+  43:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     std::array<uint16_t, 100> sampleBuffer = {0};         // 采样缓冲区（保存最后100个�
+  44:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint8_t sampleCount = 0;                               // 当前采样数量
+  45:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint8_t bufferIndex = 0;                               // 缓冲区索引（循环使用）
+  46:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint16_t minSample = UINT16_MAX;                       // 最小采样值
+  47:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint16_t maxSample = 0;                                // 最大采样值
+  48:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     
+  49:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 时间管理（每个按键独立管理）
+  50:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint32_t lastSampleTime = 0;                          // 上次采样时间
+  51:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint32_t samplingStartTime = 0;                       // 采样开始时间
+  52:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     bool samplingStarted = false;                         // 是否已开始采样（第一个有�
+  53:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 14
+
+
+  54:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 校准结果
+  55:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint16_t bottomValue = 0;                              // 底部值（按下状态）
+  56:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint16_t topValue = 0;                                 // 顶部值（释放状态）
+  57:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     
+  58:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 校准配置
+  59:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint16_t expectedBottomValue = 0;                      // 期望的底部值（来自originValu
+  60:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint16_t expectedTopValue = 0;                         // 期望的顶部值（来自originValu
+  61:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint16_t toleranceRange = ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE;                          // 
+  62:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     uint16_t stabilityThreshold = ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD;                     
+  63:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** };
+  64:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** 
+  65:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** /**
+  66:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****  * ADC校准管理器类
+  67:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****  */
+  68:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** class ADCCalibrationManager {
+  69:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** private:
+  70:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 单例模式：私有构造函数
+  71:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ADCCalibrationManager();
+  72:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ~ADCCalibrationManager();
+  73:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     
+  74:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 禁用拷贝构造和赋值
+  75:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ADCCalibrationManager(const ADCCalibrationManager&) = delete;
+  76:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ADCCalibrationManager& operator=(const ADCCalibrationManager&) = delete;
+  77:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** 
+  78:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** public:
+  79:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 单例模式：获取实例
+  80:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     static ADCCalibrationManager& getInstance() {
+ 351              		.loc 5 80 35 is_stmt 1 view -0
+ 352              		.cfi_startproc
+ 353              		@ args = 0, pretend = 0, frame = 0
+ 354              		@ frame_needed = 0, uses_anonymous_args = 0
+  81:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****         static ADCCalibrationManager instance;
+ 355              		.loc 5 81 9 view .LVU64
+  80:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****         static ADCCalibrationManager instance;
+ 356              		.loc 5 80 35 is_stmt 0 view .LVU65
+ 357 0000 10B5     		push	{r4, lr}
+ 358              	.LCFI10:
+ 359              		.cfi_def_cfa_offset 8
+ 360              		.cfi_offset 4, -8
+ 361              		.cfi_offset 14, -4
+ 362              		.loc 5 81 38 view .LVU66
+ 363 0002 0B4C     		ldr	r4, .L34
+ 364 0004 2368     		ldr	r3, [r4]
+ 365 0006 BFF35B8F 		dmb	ish
+ 366              		.loc 5 81 38 discriminator 1 view .LVU67
+ 367 000a DB07     		lsls	r3, r3, #31
+ 368 000c 0ED4     		bmi	.L29
+ 369 000e 2046     		mov	r0, r4
+ 370 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+ 371              	.LVL23:
+ 372 0014 50B1     		cbz	r0, .L29
+ 373              	.LBB37:
+ 374              	.LBI37:
+  80:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****         static ADCCalibrationManager instance;
+ 375              		.loc 5 80 35 is_stmt 1 view .LVU68
+ 376              	.LBB38:
+ 377              		.loc 5 81 38 is_stmt 0 discriminator 2 view .LVU69
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 15
+
+
+ 378 0016 0748     		ldr	r0, .L34+4
+ 379 0018 FFF7FEFF 		bl	_ZN21ADCCalibrationManagerC1Ev
+ 380              	.LVL24:
+ 381              		.loc 5 81 38 discriminator 1 view .LVU70
+ 382 001c 064A     		ldr	r2, .L34+8
+ 383 001e 0749     		ldr	r1, .L34+12
+ 384 0020 0448     		ldr	r0, .L34+4
+ 385 0022 FFF7FEFF 		bl	__aeabi_atexit
+ 386              	.LVL25:
+ 387              		.loc 5 81 38 discriminator 2 view .LVU71
+ 388 0026 2046     		mov	r0, r4
+ 389 0028 FFF7FEFF 		bl	__cxa_guard_release
+ 390              	.LVL26:
+ 391              	.L29:
+ 392              	.LBE38:
+ 393              	.LBE37:
+  82:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****         return instance;
+ 394              		.loc 5 82 9 is_stmt 1 view .LVU72
+  83:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     }
+ 395              		.loc 5 83 5 is_stmt 0 view .LVU73
+ 396 002c 0148     		ldr	r0, .L34+4
+ 397 002e 10BD     		pop	{r4, pc}
+ 398              	.L35:
+ 399              		.align	2
+ 400              	.L34:
+ 401 0030 00000000 		.word	_ZGVZN21ADCCalibrationManager11getInstanceEvE8instance
+ 402 0034 00000000 		.word	_ZZN21ADCCalibrationManager11getInstanceEvE8instance
+ 403 0038 00000000 		.word	__dso_handle
+ 404 003c 00000000 		.word	_ZN21ADCCalibrationManagerD1Ev
+ 405              		.cfi_endproc
+ 406              	.LFE3985:
+ 408              		.section	.rodata.cpp_main.str1.1,"aMS",%progbits,1
+ 409              	.LC5:
+ 410 0000 432B2B20 		.ascii	"C++ runtime active; starting main state machine\000"
+ 410      72756E74 
+ 410      696D6520 
+ 410      61637469 
+ 410      76653B20 
+ 411              	.LC6:
+ 412 0030 00       		.ascii	"\000"
+ 413              	.LC7:
+ 414 0031 6D61696E 		.ascii	"main state machine returned unexpectedly\000"
+ 414      20737461 
+ 414      7465206D 
+ 414      61636869 
+ 414      6E652072 
+ 415              	.LC8:
+ 416 005a 5B455252 		.ascii	"[ERROR]\000"
+ 416      4F525D00 
+ 417              		.section	.text.cpp_main,"ax",%progbits
+ 418              		.align	1
+ 419              		.global	cpp_main
+ 420              		.syntax unified
+ 421              		.thumb
+ 422              		.thumb_func
+ 424              	cpp_main:
+ 425              	.LFB4006:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 16
+
+
+   1:Cpp_Core/Src/cpp_main.cpp **** #include "cpp_main.hpp"
+   2:Cpp_Core/Src/cpp_main.cpp **** #include <stdio.h>
+   3:Cpp_Core/Src/cpp_main.cpp **** #include "main_state_machine.hpp"
+   4:Cpp_Core/Src/cpp_main.cpp **** #include "qspi-w25q64.h"
+   5:Cpp_Core/Src/cpp_main.cpp **** #include "pwm-ws2812b.h"
+   6:Cpp_Core/Src/cpp_main.cpp **** #include "message_center.hpp"
+   7:Cpp_Core/Src/cpp_main.cpp **** #include "adc.h"
+   8:Cpp_Core/Src/cpp_main.cpp **** #include "adc_btns/adc_manager.hpp"
+   9:Cpp_Core/Src/cpp_main.cpp **** #include "micro_timer.hpp"
+  10:Cpp_Core/Src/cpp_main.cpp **** #include "leds/leds_manager.hpp"
+  11:Cpp_Core/Src/cpp_main.cpp **** #include "adc_btns/adc_calibration.hpp"
+  12:Cpp_Core/Src/cpp_main.cpp **** #include "system_logger.h"
+  13:Cpp_Core/Src/cpp_main.cpp **** #include "utils.h"
+  14:Cpp_Core/Src/cpp_main.cpp **** #include "board_cfg.h"
+  15:Cpp_Core/Src/cpp_main.cpp **** #include "report_scheduler.hpp"
+  16:Cpp_Core/Src/cpp_main.cpp **** 
+  17:Cpp_Core/Src/cpp_main.cpp **** extern "C" {
+  18:Cpp_Core/Src/cpp_main.cpp ****     int cpp_main(void) 
+  19:Cpp_Core/Src/cpp_main.cpp ****     {   
+ 426              		.loc 1 19 5 is_stmt 1 view -0
+ 427              		.cfi_startproc
+ 428              		@ args = 0, pretend = 0, frame = 0
+ 429              		@ frame_needed = 0, uses_anonymous_args = 0
+  20:Cpp_Core/Src/cpp_main.cpp **** 
+  21:Cpp_Core/Src/cpp_main.cpp ****         // Logger_ClearFlash();
+  22:Cpp_Core/Src/cpp_main.cpp ****         // Logger_PrintAllLogs(printf);
+  23:Cpp_Core/Src/cpp_main.cpp **** 
+  24:Cpp_Core/Src/cpp_main.cpp ****         LOG_INFO("CPP_MAIN", "C++ main application startup ...");
+ 430              		.loc 1 24 9 view .LVU75
+  25:Cpp_Core/Src/cpp_main.cpp ****         APP_STAGE("A10", "C++ runtime active; starting main state machine");
+ 431              		.loc 1 25 9 view .LVU76
+  19:Cpp_Core/Src/cpp_main.cpp **** 
+ 432              		.loc 1 19 5 is_stmt 0 view .LVU77
+ 433 0000 10B5     		push	{r4, lr}
+ 434              	.LCFI11:
+ 435              		.cfi_def_cfa_offset 8
+ 436              		.cfi_offset 4, -8
+ 437              		.cfi_offset 14, -4
+ 438              		.loc 1 25 9 view .LVU78
+ 439 0002 084C     		ldr	r4, .L37
+ 440 0004 084A     		ldr	r2, .L37+4
+ 441 0006 0949     		ldr	r1, .L37+8
+ 442 0008 2046     		mov	r0, r4
+ 443 000a FFF7FEFF 		bl	AppStartupLog_Printf.constprop.0
+ 444              	.LVL27:
+  26:Cpp_Core/Src/cpp_main.cpp **** 
+  27:Cpp_Core/Src/cpp_main.cpp ****         // 注释掉原有的状态机启动，用于手动校准测试
+  28:Cpp_Core/Src/cpp_main.cpp ****         MAIN_STATE_MACHINE.setup();
+ 445              		.loc 1 28 9 is_stmt 1 view .LVU79
+ 446              	.LBB39:
+ 447              	.LBI39:
+ 448              		.file 6 "Cpp_Core/Inc/main_state_machine.hpp"
+   1:Cpp_Core/Inc/main_state_machine.hpp **** #ifndef _MAIN_STATE_MACHINE_
+   2:Cpp_Core/Inc/main_state_machine.hpp **** #define _MAIN_STATE_MACHINE_
+   3:Cpp_Core/Inc/main_state_machine.hpp **** 
+   4:Cpp_Core/Inc/main_state_machine.hpp **** #include "storagemanager.hpp"
+   5:Cpp_Core/Inc/main_state_machine.hpp **** #include "states/base_state.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 17
+
+
+   6:Cpp_Core/Inc/main_state_machine.hpp **** #include "states/webconfig_state.hpp"
+   7:Cpp_Core/Inc/main_state_machine.hpp **** #include "states/input_state.hpp"
+   8:Cpp_Core/Inc/main_state_machine.hpp **** 
+   9:Cpp_Core/Inc/main_state_machine.hpp **** enum class MainRuntimeState : uint8_t {
+  10:Cpp_Core/Inc/main_state_machine.hpp ****     Input = 0,
+  11:Cpp_Core/Inc/main_state_machine.hpp ****     WebConfig,
+  12:Cpp_Core/Inc/main_state_machine.hpp ****     Calibration,
+  13:Cpp_Core/Inc/main_state_machine.hpp ****     Ch585UsbIsp,
+  14:Cpp_Core/Inc/main_state_machine.hpp ****     Ch585BridgeUpdate,
+  15:Cpp_Core/Inc/main_state_machine.hpp ****     SafeRecovery,
+  16:Cpp_Core/Inc/main_state_machine.hpp **** };
+  17:Cpp_Core/Inc/main_state_machine.hpp **** 
+  18:Cpp_Core/Inc/main_state_machine.hpp **** class MainStateMachine {
+  19:Cpp_Core/Inc/main_state_machine.hpp ****     public:
+  20:Cpp_Core/Inc/main_state_machine.hpp ****         MainStateMachine(MainStateMachine const&) = delete;
+  21:Cpp_Core/Inc/main_state_machine.hpp ****         void operator=(MainStateMachine const&) = delete;
+  22:Cpp_Core/Inc/main_state_machine.hpp ****         static MainStateMachine& getInstance() {
+ 449              		.loc 6 22 34 view .LVU80
+  23:Cpp_Core/Inc/main_state_machine.hpp ****             static MainStateMachine instance;
+ 450              		.loc 6 23 13 view .LVU81
+  24:Cpp_Core/Inc/main_state_machine.hpp ****             return instance;
+ 451              		.loc 6 24 13 view .LVU82
+ 452              	.LBE39:
+ 453              		.loc 1 28 33 is_stmt 0 discriminator 1 view .LVU83
+ 454 000e 0848     		ldr	r0, .L37+12
+ 455 0010 FFF7FEFF 		bl	_ZN16MainStateMachine5setupEv
+ 456              	.LVL28:
+  29:Cpp_Core/Src/cpp_main.cpp ****         APP_STAGE_ERROR("A10", "main state machine returned unexpectedly");
+ 457              		.loc 1 29 9 is_stmt 1 view .LVU84
+ 458 0014 2046     		mov	r0, r4
+ 459 0016 074A     		ldr	r2, .L37+16
+ 460 0018 0749     		ldr	r1, .L37+20
+ 461 001a FFF7FEFF 		bl	AppStartupLog_Printf.constprop.0
+ 462              	.LVL29:
+  30:Cpp_Core/Src/cpp_main.cpp ****     
+  31:Cpp_Core/Src/cpp_main.cpp ****         // 手动校准测试
+  32:Cpp_Core/Src/cpp_main.cpp ****         // manual_calibration_test();
+  33:Cpp_Core/Src/cpp_main.cpp **** 
+  34:Cpp_Core/Src/cpp_main.cpp ****         // adc_test();
+  35:Cpp_Core/Src/cpp_main.cpp ****         return 0;
+ 463              		.loc 1 35 9 view .LVU85
+  36:Cpp_Core/Src/cpp_main.cpp ****     }
+ 464              		.loc 1 36 5 is_stmt 0 view .LVU86
+ 465 001e 0020     		movs	r0, #0
+ 466 0020 10BD     		pop	{r4, pc}
+ 467              	.L38:
+ 468 0022 00BF     		.align	2
+ 469              	.L37:
+ 470 0024 00000000 		.word	.LC0
+ 471 0028 00000000 		.word	.LC5
+ 472 002c 30000000 		.word	.LC6
+ 473 0030 00000000 		.word	_ZZN16MainStateMachine11getInstanceEvE8instance
+ 474 0034 31000000 		.word	.LC7
+ 475 0038 5A000000 		.word	.LC8
+ 476              		.cfi_endproc
+ 477              	.LFE4006:
+ 479              		.section	.text._Z8adc_testv,"ax",%progbits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 18
+
+
+ 480              		.align	1
+ 481              		.global	_Z8adc_testv
+ 482              		.syntax unified
+ 483              		.thumb
+ 484              		.thumb_func
+ 486              	_Z8adc_testv:
+ 487              	.LFB4007:
+  37:Cpp_Core/Src/cpp_main.cpp **** }
+  38:Cpp_Core/Src/cpp_main.cpp **** 
+  39:Cpp_Core/Src/cpp_main.cpp **** void adc_test(void) {
+ 488              		.loc 1 39 21 is_stmt 1 view -0
+ 489              		.cfi_startproc
+ 490              		@ args = 0, pretend = 0, frame = 8
+ 491              		@ frame_needed = 0, uses_anonymous_args = 0
+  40:Cpp_Core/Src/cpp_main.cpp ****     ADCManager::getInstance().startADCSamping(false);
+ 492              		.loc 1 40 5 view .LVU88
+  39:Cpp_Core/Src/cpp_main.cpp ****     ADCManager::getInstance().startADCSamping(false);
+ 493              		.loc 1 39 21 is_stmt 0 view .LVU89
+ 494 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 495              	.LCFI12:
+ 496              		.cfi_def_cfa_offset 24
+ 497              		.cfi_offset 4, -12
+ 498              		.cfi_offset 5, -8
+ 499              		.cfi_offset 14, -4
+ 500              		.loc 1 40 28 view .LVU90
+ 501 0002 FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 502              	.LVL30:
+ 503              		.loc 1 40 46 discriminator 1 view .LVU91
+ 504 0006 0023     		movs	r3, #0
+  41:Cpp_Core/Src/cpp_main.cpp ****     REPORT_SCHEDULER.start(1000u);
+  42:Cpp_Core/Src/cpp_main.cpp ****     WS2812B_Test();
+  43:Cpp_Core/Src/cpp_main.cpp **** 
+  44:Cpp_Core/Src/cpp_main.cpp ****     int8_t brightness = 0; 
+  45:Cpp_Core/Src/cpp_main.cpp ****     int8_t direction = 1;
+ 505              		.loc 1 45 12 view .LVU92
+ 506 0008 0125     		movs	r5, #1
+  44:Cpp_Core/Src/cpp_main.cpp ****     int8_t direction = 1;
+ 507              		.loc 1 44 12 view .LVU93
+ 508 000a 0024     		movs	r4, #0
+  40:Cpp_Core/Src/cpp_main.cpp ****     REPORT_SCHEDULER.start(1000u);
+ 509              		.loc 1 40 46 discriminator 1 view .LVU94
+ 510 000c 1946     		mov	r1, r3
+ 511 000e 1A46     		mov	r2, r3
+ 512 0010 FFF7FEFF 		bl	_ZN10ADCManager15startADCSampingEbhm
+ 513              	.LVL31:
+  41:Cpp_Core/Src/cpp_main.cpp ****     REPORT_SCHEDULER.start(1000u);
+ 514              		.loc 1 41 5 is_stmt 1 view .LVU95
+ 515              	.LBB40:
+ 516              	.LBI40:
+ 517              		.file 7 "Cpp_Core/Inc/report_scheduler.hpp"
+   1:Cpp_Core/Inc/report_scheduler.hpp **** #ifndef REPORT_SCHEDULER_HPP
+   2:Cpp_Core/Inc/report_scheduler.hpp **** #define REPORT_SCHEDULER_HPP
+   3:Cpp_Core/Inc/report_scheduler.hpp **** 
+   4:Cpp_Core/Inc/report_scheduler.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/report_scheduler.hpp **** 
+   6:Cpp_Core/Inc/report_scheduler.hpp **** class ReportScheduler {
+   7:Cpp_Core/Inc/report_scheduler.hpp **** public:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 19
+
+
+   8:Cpp_Core/Inc/report_scheduler.hpp ****     ReportScheduler(ReportScheduler const&) = delete;
+   9:Cpp_Core/Inc/report_scheduler.hpp ****     void operator=(ReportScheduler const&) = delete;
+  10:Cpp_Core/Inc/report_scheduler.hpp **** 
+  11:Cpp_Core/Inc/report_scheduler.hpp ****     static ReportScheduler& getInstance() {
+ 518              		.loc 7 11 29 view .LVU96
+  12:Cpp_Core/Inc/report_scheduler.hpp ****         static ReportScheduler instance;
+ 519              		.loc 7 12 9 view .LVU97
+  13:Cpp_Core/Inc/report_scheduler.hpp ****         return instance;
+ 520              		.loc 7 13 9 view .LVU98
+ 521              	.LBE40:
+  41:Cpp_Core/Src/cpp_main.cpp ****     WS2812B_Test();
+ 522              		.loc 1 41 27 is_stmt 0 discriminator 1 view .LVU99
+ 523 0014 4FF47A71 		mov	r1, #1000
+ 524 0018 1448     		ldr	r0, .L47
+ 525 001a FFF7FEFF 		bl	_ZN15ReportScheduler5startEt
+ 526              	.LVL32:
+  42:Cpp_Core/Src/cpp_main.cpp **** 
+ 527              		.loc 1 42 5 is_stmt 1 view .LVU100
+  42:Cpp_Core/Src/cpp_main.cpp **** 
+ 528              		.loc 1 42 17 is_stmt 0 view .LVU101
+ 529 001e FFF7FEFF 		bl	WS2812B_Test
+ 530              	.LVL33:
+  44:Cpp_Core/Src/cpp_main.cpp ****     int8_t direction = 1;
+ 531              		.loc 1 44 5 is_stmt 1 view .LVU102
+ 532              		.loc 1 45 5 view .LVU103
+  46:Cpp_Core/Src/cpp_main.cpp ****     uint8_t step = 4;
+ 533              		.loc 1 46 5 view .LVU104
+  47:Cpp_Core/Src/cpp_main.cpp ****     uint8_t max_brightness = 80;
+ 534              		.loc 1 47 5 view .LVU105
+  48:Cpp_Core/Src/cpp_main.cpp ****     uint8_t delay_time = 20;
+ 535              		.loc 1 48 5 view .LVU106
+  49:Cpp_Core/Src/cpp_main.cpp **** 
+  50:Cpp_Core/Src/cpp_main.cpp **** 
+  51:Cpp_Core/Src/cpp_main.cpp ****     uint32_t last_time = MICROS_TIMER.micros();
+ 536              		.loc 1 51 5 view .LVU107
+ 537              		.loc 1 51 26 is_stmt 0 view .LVU108
+ 538 0022 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 539              	.LVL34:
+ 540              		.loc 1 51 45 discriminator 1 view .LVU109
+ 541 0026 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 542              	.LVL35:
+ 543              		.loc 1 51 46 discriminator 2 view .LVU110
+ 544 002a 0190     		str	r0, [sp, #4]
+ 545              	.LVL36:
+ 546              	.L40:
+  52:Cpp_Core/Src/cpp_main.cpp **** 
+  53:Cpp_Core/Src/cpp_main.cpp ****     while(1) {
+ 547              		.loc 1 53 5 is_stmt 1 view .LVU111
+  54:Cpp_Core/Src/cpp_main.cpp ****         if(MICROS_TIMER.checkInterval(delay_time * 1000, last_time)) {
+ 548              		.loc 1 54 9 view .LVU112
+ 549              		.loc 1 54 12 is_stmt 0 view .LVU113
+ 550 002c FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 551              	.LVL37:
+ 552              		.loc 1 54 38 discriminator 1 view .LVU114
+ 553 0030 01AA     		add	r2, sp, #4
+ 554 0032 44F62061 		movw	r1, #20000
+ 555 0036 FFF7FEFF 		bl	_ZN11MicrosTimer13checkIntervalEmRm
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 20
+
+
+ 556              	.LVL38:
+ 557              		.loc 1 54 9 discriminator 2 view .LVU115
+ 558 003a 0028     		cmp	r0, #0
+ 559 003c F6D0     		beq	.L40
+  55:Cpp_Core/Src/cpp_main.cpp ****             // 柔和的控制灯光亮度 模拟呼吸灯
+  56:Cpp_Core/Src/cpp_main.cpp ****             // APP_DBG("brightness: %d, direction: %d", brightness, direction);
+  57:Cpp_Core/Src/cpp_main.cpp ****             WS2812B_SetAllLEDBrightness(uint8_t(brightness));
+ 560              		.loc 1 57 13 is_stmt 1 view .LVU116
+ 561              		.loc 1 57 40 is_stmt 0 view .LVU117
+ 562 003e E4B2     		uxtb	r4, r4
+ 563 0040 2046     		mov	r0, r4
+  58:Cpp_Core/Src/cpp_main.cpp ****             brightness += direction * step;
+ 564              		.loc 1 58 24 view .LVU118
+ 565 0042 04EB8504 		add	r4, r4, r5, lsl #2
+  57:Cpp_Core/Src/cpp_main.cpp ****             brightness += direction * step;
+ 566              		.loc 1 57 40 view .LVU119
+ 567 0046 FFF7FEFF 		bl	WS2812B_SetAllLEDBrightness
+ 568              	.LVL39:
+ 569              		.loc 1 58 13 is_stmt 1 view .LVU120
+ 570              		.loc 1 58 24 is_stmt 0 view .LVU121
+ 571 004a 64B2     		sxtb	r4, r4
+ 572              	.LVL40:
+  59:Cpp_Core/Src/cpp_main.cpp ****             if(brightness >= max_brightness) {
+ 573              		.loc 1 59 13 is_stmt 1 view .LVU122
+ 574 004c 4F2C     		cmp	r4, #79
+ 575 004e 04DC     		bgt	.L43
+  60:Cpp_Core/Src/cpp_main.cpp ****                 brightness = max_brightness;
+  61:Cpp_Core/Src/cpp_main.cpp ****                 direction = -1;
+  62:Cpp_Core/Src/cpp_main.cpp ****             } else if(brightness <= 0) {
+ 576              		.loc 1 62 20 view .LVU123
+ 577 0050 002C     		cmp	r4, #0
+ 578 0052 05DC     		bgt	.L41
+  63:Cpp_Core/Src/cpp_main.cpp ****                 brightness = 0;
+  64:Cpp_Core/Src/cpp_main.cpp ****                     direction = 1;
+ 579              		.loc 1 64 31 is_stmt 0 view .LVU124
+ 580 0054 0125     		movs	r5, #1
+  63:Cpp_Core/Src/cpp_main.cpp ****                 brightness = 0;
+ 581              		.loc 1 63 28 view .LVU125
+ 582 0056 0024     		movs	r4, #0
+ 583              	.LVL41:
+  63:Cpp_Core/Src/cpp_main.cpp ****                 brightness = 0;
+ 584              		.loc 1 63 28 view .LVU126
+ 585 0058 02E0     		b	.L41
+ 586              	.LVL42:
+ 587              	.L43:
+  61:Cpp_Core/Src/cpp_main.cpp ****             } else if(brightness <= 0) {
+ 588              		.loc 1 61 27 view .LVU127
+ 589 005a 4FF0FF35 		mov	r5, #-1
+  60:Cpp_Core/Src/cpp_main.cpp ****                 brightness = max_brightness;
+ 590              		.loc 1 60 28 view .LVU128
+ 591 005e 5024     		movs	r4, #80
+ 592              	.LVL43:
+ 593              	.L41:
+  65:Cpp_Core/Src/cpp_main.cpp ****             }
+  66:Cpp_Core/Src/cpp_main.cpp **** 
+  67:Cpp_Core/Src/cpp_main.cpp ****             ADCManager::getInstance().ADCValuesTestPrint();
+ 594              		.loc 1 67 13 is_stmt 1 view .LVU129
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 21
+
+
+ 595              		.loc 1 67 36 is_stmt 0 view .LVU130
+ 596 0060 FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 597              	.LVL44:
+ 598              		.loc 1 67 57 discriminator 1 view .LVU131
+ 599 0064 FFF7FEFF 		bl	_ZN10ADCManager18ADCValuesTestPrintEv
+ 600              	.LVL45:
+ 601 0068 E0E7     		b	.L40
+ 602              	.L48:
+ 603 006a 00BF     		.align	2
+ 604              	.L47:
+ 605 006c 00000000 		.word	_ZZN15ReportScheduler11getInstanceEvE8instance
+ 606              		.cfi_endproc
+ 607              	.LFE4007:
+ 609              		.section	.text._Z23manual_calibration_testv,"ax",%progbits
+ 610              		.align	1
+ 611              		.global	_Z23manual_calibration_testv
+ 612              		.syntax unified
+ 613              		.thumb
+ 614              		.thumb_func
+ 616              	_Z23manual_calibration_testv:
+ 617              	.LFB4008:
+  68:Cpp_Core/Src/cpp_main.cpp ****         }
+  69:Cpp_Core/Src/cpp_main.cpp ****     }
+  70:Cpp_Core/Src/cpp_main.cpp **** }
+  71:Cpp_Core/Src/cpp_main.cpp **** 
+  72:Cpp_Core/Src/cpp_main.cpp **** /**
+  73:Cpp_Core/Src/cpp_main.cpp ****  * 手动校准测试函数
+  74:Cpp_Core/Src/cpp_main.cpp ****  */
+  75:Cpp_Core/Src/cpp_main.cpp **** void manual_calibration_test(void) {
+ 618              		.loc 1 75 36 is_stmt 1 view -0
+ 619              		.cfi_startproc
+ 620              		@ args = 0, pretend = 0, frame = 0
+ 621              		@ frame_needed = 0, uses_anonymous_args = 0
+  76:Cpp_Core/Src/cpp_main.cpp ****     APP_DBG("Starting manual calibration test...");
+ 622              		.loc 1 76 5 view .LVU133
+  77:Cpp_Core/Src/cpp_main.cpp ****     
+  78:Cpp_Core/Src/cpp_main.cpp ****     // 初始化ADC管理器
+  79:Cpp_Core/Src/cpp_main.cpp ****     ADCManager::getInstance().startADCSamping(false);
+ 623              		.loc 1 79 5 view .LVU134
+  75:Cpp_Core/Src/cpp_main.cpp ****     APP_DBG("Starting manual calibration test...");
+ 624              		.loc 1 75 36 is_stmt 0 view .LVU135
+ 625 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 626              	.LCFI13:
+ 627              		.cfi_def_cfa_offset 24
+ 628              		.cfi_offset 3, -24
+ 629              		.cfi_offset 4, -20
+ 630              		.cfi_offset 5, -16
+ 631              		.cfi_offset 6, -12
+ 632              		.cfi_offset 7, -8
+ 633              		.cfi_offset 14, -4
+ 634              		.loc 1 79 28 view .LVU136
+ 635 0002 FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 636              	.LVL46:
+ 637              		.loc 1 79 46 discriminator 1 view .LVU137
+ 638 0006 0023     		movs	r3, #0
+ 639 0008 1946     		mov	r1, r3
+ 640 000a 1A46     		mov	r2, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 22
+
+
+ 641 000c FFF7FEFF 		bl	_ZN10ADCManager15startADCSampingEbhm
+ 642              	.LVL47:
+  80:Cpp_Core/Src/cpp_main.cpp ****     REPORT_SCHEDULER.start(1000u);
+ 643              		.loc 1 80 5 is_stmt 1 view .LVU138
+ 644              	.LBB41:
+ 645              	.LBI41:
+  11:Cpp_Core/Inc/report_scheduler.hpp ****         static ReportScheduler instance;
+ 646              		.loc 7 11 29 view .LVU139
+  12:Cpp_Core/Inc/report_scheduler.hpp ****         return instance;
+ 647              		.loc 7 12 9 view .LVU140
+ 648              		.loc 7 13 9 view .LVU141
+ 649              	.LBE41:
+ 650              		.loc 1 80 27 is_stmt 0 discriminator 1 view .LVU142
+ 651 0010 4FF47A71 		mov	r1, #1000
+ 652 0014 2148     		ldr	r0, .L56
+ 653 0016 FFF7FEFF 		bl	_ZN15ReportScheduler5startEt
+ 654              	.LVL48:
+  81:Cpp_Core/Src/cpp_main.cpp ****     // 等待3秒
+  82:Cpp_Core/Src/cpp_main.cpp ****     HAL_Delay(1000);
+ 655              		.loc 1 82 5 is_stmt 1 view .LVU143
+ 656              		.loc 1 82 14 is_stmt 0 view .LVU144
+ 657 001a 4FF47A70 		mov	r0, #1000
+ 658 001e FFF7FEFF 		bl	HAL_Delay
+ 659              	.LVL49:
+  83:Cpp_Core/Src/cpp_main.cpp ****     
+  84:Cpp_Core/Src/cpp_main.cpp ****     // 开始手动校准
+  85:Cpp_Core/Src/cpp_main.cpp ****     APP_DBG("Starting manual calibration...");
+ 660              		.loc 1 85 5 is_stmt 1 view .LVU145
+  86:Cpp_Core/Src/cpp_main.cpp ****     ADC_CALIBRATION_MANAGER.resetAllCalibration();
+ 661              		.loc 1 86 5 view .LVU146
+ 662 0022 FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 663              	.LVL50:
+ 664              		.loc 1 86 48 is_stmt 0 discriminator 1 view .LVU147
+ 665 0026 FFF7FEFF 		bl	_ZN21ADCCalibrationManager19resetAllCalibrationEv
+ 666              	.LVL51:
+  87:Cpp_Core/Src/cpp_main.cpp ****     ADCBtnsError result = ADC_CALIBRATION_MANAGER.startManualCalibration();
+ 667              		.loc 1 87 5 is_stmt 1 view .LVU148
+ 668              		.loc 1 87 27 is_stmt 0 view .LVU149
+ 669 002a FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 670              	.LVL52:
+ 671              		.loc 1 87 73 discriminator 1 view .LVU150
+ 672 002e FFF7FEFF 		bl	_ZN21ADCCalibrationManager22startManualCalibrationEv
+ 673              	.LVL53:
+  88:Cpp_Core/Src/cpp_main.cpp ****     
+  89:Cpp_Core/Src/cpp_main.cpp ****     if (result == ADCBtnsError::SUCCESS) {
+ 674              		.loc 1 89 5 is_stmt 1 view .LVU151
+ 675              	.LBB42:
+ 676 0032 90BB     		cbnz	r0, .L49
+ 677              	.LBB43:
+  90:Cpp_Core/Src/cpp_main.cpp ****         uint8_t activeCount = ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount();
+ 678              		.loc 1 90 9 view .LVU152
+ 679              		.loc 1 90 31 is_stmt 0 view .LVU153
+ 680 0034 FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 681              	.LVL54:
+ 682              		.loc 1 90 31 view .LVU154
+ 683              	.LBE43:
+ 684              	.LBE42:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 23
+
+
+ 685              	.LBB45:
+  91:Cpp_Core/Src/cpp_main.cpp ****         uint8_t uncalibratedCount = ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount();
+  92:Cpp_Core/Src/cpp_main.cpp ****     } else {
+  93:Cpp_Core/Src/cpp_main.cpp ****         APP_ERR("Failed to start manual calibration, error: %d", static_cast<int>(result));
+  94:Cpp_Core/Src/cpp_main.cpp ****         return;
+  95:Cpp_Core/Src/cpp_main.cpp ****     }
+  96:Cpp_Core/Src/cpp_main.cpp ****     
+  97:Cpp_Core/Src/cpp_main.cpp ****     // 主循环 - 处理校准逻辑
+  98:Cpp_Core/Src/cpp_main.cpp ****     uint32_t last_status_update = HAL_GetTick();
+  99:Cpp_Core/Src/cpp_main.cpp ****     uint32_t last_adc_print = HAL_GetTick();
+ 100:Cpp_Core/Src/cpp_main.cpp ****     
+ 101:Cpp_Core/Src/cpp_main.cpp ****     while (true) {
+ 102:Cpp_Core/Src/cpp_main.cpp ****         // 处理校准逻辑
+ 103:Cpp_Core/Src/cpp_main.cpp ****         ADC_CALIBRATION_MANAGER.processCalibration();
+ 104:Cpp_Core/Src/cpp_main.cpp ****         
+ 105:Cpp_Core/Src/cpp_main.cpp ****         // 每秒更新一次状态
+ 106:Cpp_Core/Src/cpp_main.cpp ****         uint32_t now = HAL_GetTick();
+ 107:Cpp_Core/Src/cpp_main.cpp ****         if (now - last_status_update > 1000) {
+ 108:Cpp_Core/Src/cpp_main.cpp ****             // print_calibration_status();
+ 109:Cpp_Core/Src/cpp_main.cpp ****             last_status_update = now;
+ 110:Cpp_Core/Src/cpp_main.cpp ****             
+ 111:Cpp_Core/Src/cpp_main.cpp ****             // 检查是否全部完成
+ 112:Cpp_Core/Src/cpp_main.cpp ****             if (!ADC_CALIBRATION_MANAGER.isCalibrationActive()) {
+ 113:Cpp_Core/Src/cpp_main.cpp ****                 APP_DBG("All buttons calibration completed!");
+ 114:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 115:Cpp_Core/Src/cpp_main.cpp ****             }
+ 116:Cpp_Core/Src/cpp_main.cpp ****         }
+ 117:Cpp_Core/Src/cpp_main.cpp ****         
+ 118:Cpp_Core/Src/cpp_main.cpp ****         // 每5秒打印一次ADC值，便于调试
+ 119:Cpp_Core/Src/cpp_main.cpp ****         if (now - last_adc_print > 5000) {
+ 686              		.loc 1 119 9 view .LVU155
+ 687 0038 41F28837 		movw	r7, #5000
+ 688              	.LBE45:
+ 689              	.LBB48:
+ 690              	.LBB44:
+  90:Cpp_Core/Src/cpp_main.cpp ****         uint8_t activeCount = ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount();
+ 691              		.loc 1 90 86 discriminator 1 view .LVU156
+ 692 003c FFF7FEFF 		bl	_ZNK21ADCCalibrationManager31getActiveCalibrationButtonCountEv
+ 693              	.LVL55:
+  91:Cpp_Core/Src/cpp_main.cpp ****         uint8_t uncalibratedCount = ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount();
+ 694              		.loc 1 91 9 is_stmt 1 view .LVU157
+  91:Cpp_Core/Src/cpp_main.cpp ****         uint8_t uncalibratedCount = ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount();
+ 695              		.loc 1 91 37 is_stmt 0 view .LVU158
+ 696 0040 FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 697              	.LVL56:
+  91:Cpp_Core/Src/cpp_main.cpp ****         uint8_t uncalibratedCount = ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount();
+ 698              		.loc 1 91 87 discriminator 1 view .LVU159
+ 699 0044 FFF7FEFF 		bl	_ZNK21ADCCalibrationManager26getUncalibratedButtonCountEv
+ 700              	.LVL57:
+ 701              	.LBE44:
+ 702              	.LBE48:
+  98:Cpp_Core/Src/cpp_main.cpp ****     uint32_t last_adc_print = HAL_GetTick();
+ 703              		.loc 1 98 5 is_stmt 1 view .LVU160
+  98:Cpp_Core/Src/cpp_main.cpp ****     uint32_t last_adc_print = HAL_GetTick();
+ 704              		.loc 1 98 46 is_stmt 0 view .LVU161
+ 705 0048 FFF7FEFF 		bl	HAL_GetTick
+ 706              	.LVL58:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 24
+
+
+ 707 004c 0546     		mov	r5, r0
+ 708              	.LVL59:
+  99:Cpp_Core/Src/cpp_main.cpp ****     
+ 709              		.loc 1 99 5 is_stmt 1 view .LVU162
+  99:Cpp_Core/Src/cpp_main.cpp ****     
+ 710              		.loc 1 99 42 is_stmt 0 view .LVU163
+ 711 004e FFF7FEFF 		bl	HAL_GetTick
+ 712              	.LVL60:
+  99:Cpp_Core/Src/cpp_main.cpp ****     
+ 713              		.loc 1 99 42 view .LVU164
+ 714 0052 0646     		mov	r6, r0
+ 715              	.LVL61:
+ 716              	.L51:
+ 101:Cpp_Core/Src/cpp_main.cpp ****         // 处理校准逻辑
+ 717              		.loc 1 101 5 is_stmt 1 view .LVU165
+ 718              	.LBB49:
+ 103:Cpp_Core/Src/cpp_main.cpp ****         
+ 719              		.loc 1 103 9 view .LVU166
+ 720 0054 FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 721              	.LVL62:
+ 103:Cpp_Core/Src/cpp_main.cpp ****         
+ 722              		.loc 1 103 51 is_stmt 0 discriminator 1 view .LVU167
+ 723 0058 FFF7FEFF 		bl	_ZN21ADCCalibrationManager18processCalibrationEv
+ 724              	.LVL63:
+ 106:Cpp_Core/Src/cpp_main.cpp ****         if (now - last_status_update > 1000) {
+ 725              		.loc 1 106 9 is_stmt 1 view .LVU168
+ 106:Cpp_Core/Src/cpp_main.cpp ****         if (now - last_status_update > 1000) {
+ 726              		.loc 1 106 35 is_stmt 0 view .LVU169
+ 727 005c FFF7FEFF 		bl	HAL_GetTick
+ 728              	.LVL64:
+ 107:Cpp_Core/Src/cpp_main.cpp ****             // print_calibration_status();
+ 729              		.loc 1 107 17 view .LVU170
+ 730 0060 431B     		subs	r3, r0, r5
+ 106:Cpp_Core/Src/cpp_main.cpp ****         if (now - last_status_update > 1000) {
+ 731              		.loc 1 106 35 view .LVU171
+ 732 0062 0446     		mov	r4, r0
+ 733              	.LVL65:
+ 107:Cpp_Core/Src/cpp_main.cpp ****             // print_calibration_status();
+ 734              		.loc 1 107 9 is_stmt 1 view .LVU172
+ 735 0064 B3F57A7F 		cmp	r3, #1000
+ 736 0068 04D9     		bls	.L52
+ 109:Cpp_Core/Src/cpp_main.cpp ****             
+ 737              		.loc 1 109 13 view .LVU173
+ 738              	.LVL66:
+ 112:Cpp_Core/Src/cpp_main.cpp ****                 APP_DBG("All buttons calibration completed!");
+ 739              		.loc 1 112 13 view .LVU174
+ 112:Cpp_Core/Src/cpp_main.cpp ****                 APP_DBG("All buttons calibration completed!");
+ 740              		.loc 1 112 18 is_stmt 0 view .LVU175
+ 741 006a FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 742              	.LVL67:
+ 743              	.LBB46:
+ 744              	.LBI46:
+  84:Cpp_Core/Inc/adc_btns/adc_calibration.hpp **** 
+  85:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 校准控制
+  86:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ADCBtnsError startManualCalibration();                 // 开始手动校准
+  87:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ADCBtnsError stopCalibration();                        // 停止校准
+  88:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ADCBtnsError resetAllCalibration();                    // 重置所有按键校准
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 25
+
+
+  89:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     
+  90:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 校准处理
+  91:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     void processCalibration();                             // 处理校准逻辑（主循环调用�
+  92:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     ADCBtnsError addSample(uint8_t buttonIndex, uint16_t adcValue); // 添加采样值
+  93:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     
+  94:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 回调函数设置
+  95:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     void setCalibrationCompletedCallback(CalibrationCompletedCallback callback);
+  96:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     void setAllCalibrationCompletedCallback(AllCalibrationCompletedCallback callback);
+  97:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     void setCalibrationStatusChangedCallback(CalibrationStatusChangedCallback callback);
+  98:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     void clearCallbacks();                                 // 清除所有回调函数
+  99:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     
+ 100:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     // 状态查询
+ 101:Cpp_Core/Inc/adc_btns/adc_calibration.hpp ****     bool isCalibrationActive() const { return calibrationActive; }
+ 745              		.loc 5 101 10 is_stmt 1 view .LVU176
+ 746              	.LBB47:
+ 747              		.loc 5 101 40 view .LVU177
+ 748              		.loc 5 101 40 is_stmt 0 view .LVU178
+ 749              	.LBE47:
+ 750              	.LBE46:
+ 112:Cpp_Core/Src/cpp_main.cpp ****                 APP_DBG("All buttons calibration completed!");
+ 751              		.loc 1 112 13 discriminator 2 view .LVU179
+ 752 006e 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 753 0070 63B1     		cbz	r3, .L53
+ 109:Cpp_Core/Src/cpp_main.cpp ****             
+ 754              		.loc 1 109 32 view .LVU180
+ 755 0072 2546     		mov	r5, r4
+ 756              	.LVL68:
+ 757              	.L52:
+ 758              		.loc 1 119 9 is_stmt 1 view .LVU181
+ 759              		.loc 1 119 17 is_stmt 0 view .LVU182
+ 760 0074 A31B     		subs	r3, r4, r6
+ 761              		.loc 1 119 9 view .LVU183
+ 762 0076 BB42     		cmp	r3, r7
+ 763 0078 04D9     		bls	.L54
+ 120:Cpp_Core/Src/cpp_main.cpp ****             ADCManager::getInstance().ADCValuesTestPrint();
+ 764              		.loc 1 120 13 is_stmt 1 view .LVU184
+ 121:Cpp_Core/Src/cpp_main.cpp ****             last_adc_print = now;
+ 765              		.loc 1 121 28 is_stmt 0 view .LVU185
+ 766 007a 2646     		mov	r6, r4
+ 767              	.LVL69:
+ 120:Cpp_Core/Src/cpp_main.cpp ****             ADCManager::getInstance().ADCValuesTestPrint();
+ 768              		.loc 1 120 36 view .LVU186
+ 769 007c FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 770              	.LVL70:
+ 120:Cpp_Core/Src/cpp_main.cpp ****             ADCManager::getInstance().ADCValuesTestPrint();
+ 771              		.loc 1 120 57 discriminator 1 view .LVU187
+ 772 0080 FFF7FEFF 		bl	_ZN10ADCManager18ADCValuesTestPrintEv
+ 773              	.LVL71:
+ 774              		.loc 1 121 13 is_stmt 1 view .LVU188
+ 775              	.L54:
+ 122:Cpp_Core/Src/cpp_main.cpp ****         }
+ 123:Cpp_Core/Src/cpp_main.cpp ****         
+ 124:Cpp_Core/Src/cpp_main.cpp ****         // 短暂延时避免CPU占用过高
+ 125:Cpp_Core/Src/cpp_main.cpp ****         HAL_Delay(10);
+ 776              		.loc 1 125 9 view .LVU189
+ 777              		.loc 1 125 18 is_stmt 0 view .LVU190
+ 778 0084 0A20     		movs	r0, #10
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 26
+
+
+ 779 0086 FFF7FEFF 		bl	HAL_Delay
+ 780              	.LVL72:
+ 781              	.LBE49:
+ 101:Cpp_Core/Src/cpp_main.cpp ****         // 处理校准逻辑
+ 782              		.loc 1 101 5 is_stmt 1 view .LVU191
+ 126:Cpp_Core/Src/cpp_main.cpp ****     }
+ 783              		.loc 1 126 5 is_stmt 0 view .LVU192
+ 784 008a E3E7     		b	.L51
+ 785              	.LVL73:
+ 786              	.L53:
+ 787              	.LBB50:
+ 113:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 788              		.loc 1 113 17 is_stmt 1 view .LVU193
+ 114:Cpp_Core/Src/cpp_main.cpp ****             }
+ 789              		.loc 1 114 17 view .LVU194
+ 790              	.LBE50:
+ 127:Cpp_Core/Src/cpp_main.cpp ****     
+ 128:Cpp_Core/Src/cpp_main.cpp ****     // 校准完成后的处理
+ 129:Cpp_Core/Src/cpp_main.cpp ****     APP_DBG("Manual calibration test completed!");
+ 791              		.loc 1 129 5 view .LVU195
+ 130:Cpp_Core/Src/cpp_main.cpp ****     
+ 131:Cpp_Core/Src/cpp_main.cpp ****     // 显示最终结果
+ 132:Cpp_Core/Src/cpp_main.cpp ****     print_final_calibration_results();
+ 792              		.loc 1 132 5 view .LVU196
+ 793              		.loc 1 132 36 is_stmt 0 view .LVU197
+ 794 008c FFF7FEFF 		bl	_Z31print_final_calibration_resultsv
+ 795              	.LVL74:
+ 796              	.L55:
+ 133:Cpp_Core/Src/cpp_main.cpp ****     
+ 134:Cpp_Core/Src/cpp_main.cpp ****     // 保持LED显示最终状态
+ 135:Cpp_Core/Src/cpp_main.cpp ****     while (true) {
+ 797              		.loc 1 135 5 is_stmt 1 view .LVU198
+ 136:Cpp_Core/Src/cpp_main.cpp ****         HAL_Delay(1000);
+ 798              		.loc 1 136 9 discriminator 1 view .LVU199
+ 799              		.loc 1 136 18 is_stmt 0 discriminator 1 view .LVU200
+ 800 0090 4FF47A70 		mov	r0, #1000
+ 801 0094 FFF7FEFF 		bl	HAL_Delay
+ 802              	.LVL75:
+ 137:Cpp_Core/Src/cpp_main.cpp ****         APP_DBG("Calibration test finished. System will stay in this state.");
+ 803              		.loc 1 137 9 is_stmt 1 view .LVU201
+ 135:Cpp_Core/Src/cpp_main.cpp ****         HAL_Delay(1000);
+ 804              		.loc 1 135 5 view .LVU202
+ 805 0098 FAE7     		b	.L55
+ 806              	.LVL76:
+ 807              	.L49:
+ 138:Cpp_Core/Src/cpp_main.cpp ****     }
+ 139:Cpp_Core/Src/cpp_main.cpp **** }
+ 808              		.loc 1 139 1 is_stmt 0 view .LVU203
+ 809 009a F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 810              	.L57:
+ 811              		.align	2
+ 812              	.L56:
+ 813 009c 00000000 		.word	_ZZN15ReportScheduler11getInstanceEvE8instance
+ 814              		.cfi_endproc
+ 815              	.LFE4008:
+ 817              		.section	.text._Z24print_calibration_statusv,"ax",%progbits
+ 818              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 27
+
+
+ 819              		.global	_Z24print_calibration_statusv
+ 820              		.syntax unified
+ 821              		.thumb
+ 822              		.thumb_func
+ 824              	_Z24print_calibration_statusv:
+ 825              	.LFB4009:
+ 140:Cpp_Core/Src/cpp_main.cpp **** 
+ 141:Cpp_Core/Src/cpp_main.cpp **** /**
+ 142:Cpp_Core/Src/cpp_main.cpp ****  * 打印校准状态
+ 143:Cpp_Core/Src/cpp_main.cpp ****  */
+ 144:Cpp_Core/Src/cpp_main.cpp **** void print_calibration_status(void) {
+ 826              		.loc 1 144 37 is_stmt 1 view -0
+ 827              		.cfi_startproc
+ 828              		@ args = 0, pretend = 0, frame = 8
+ 829              		@ frame_needed = 0, uses_anonymous_args = 0
+ 145:Cpp_Core/Src/cpp_main.cpp ****     if (!ADC_CALIBRATION_MANAGER.isCalibrationActive()) {
+ 830              		.loc 1 145 5 view .LVU205
+ 144:Cpp_Core/Src/cpp_main.cpp ****     if (!ADC_CALIBRATION_MANAGER.isCalibrationActive()) {
+ 831              		.loc 1 144 37 is_stmt 0 view .LVU206
+ 832 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 833              	.LCFI14:
+ 834              		.cfi_def_cfa_offset 24
+ 835              		.cfi_offset 4, -12
+ 836              		.cfi_offset 5, -8
+ 837              		.cfi_offset 14, -4
+ 838              		.loc 1 145 10 view .LVU207
+ 839 0002 FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 840              	.LVL77:
+ 841              	.LBB51:
+ 842              	.LBI51:
+ 843              		.loc 5 101 10 is_stmt 1 view .LVU208
+ 844              	.LBB52:
+ 845              		.loc 5 101 40 view .LVU209
+ 846              		.loc 5 101 40 is_stmt 0 view .LVU210
+ 847              	.LBE52:
+ 848              	.LBE51:
+ 849              		.loc 1 145 5 discriminator 2 view .LVU211
+ 850 0006 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 851 0008 3BB3     		cbz	r3, .L58
+ 852 000a 0024     		movs	r4, #0
+ 853              	.L61:
+ 854 000c E5B2     		uxtb	r5, r4
+ 855              	.LVL78:
+ 856              	.LBB53:
+ 857              	.LBB54:
+ 146:Cpp_Core/Src/cpp_main.cpp ****         return;
+ 147:Cpp_Core/Src/cpp_main.cpp ****     }
+ 148:Cpp_Core/Src/cpp_main.cpp ****     
+ 149:Cpp_Core/Src/cpp_main.cpp ****     APP_DBG("=== Calibration Status ===");
+ 150:Cpp_Core/Src/cpp_main.cpp ****     
+ 151:Cpp_Core/Src/cpp_main.cpp ****     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+ 152:Cpp_Core/Src/cpp_main.cpp ****         const char* phase_str = "";
+ 858              		.loc 1 152 9 is_stmt 1 view .LVU212
+ 153:Cpp_Core/Src/cpp_main.cpp ****         const char* led_color_str = "";
+ 859              		.loc 1 153 9 view .LVU213
+ 154:Cpp_Core/Src/cpp_main.cpp ****         
+ 155:Cpp_Core/Src/cpp_main.cpp ****         CalibrationPhase phase = ADC_CALIBRATION_MANAGER.getButtonPhase(i);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 28
+
+
+ 860              		.loc 1 155 9 view .LVU214
+ 861              		.loc 1 155 34 is_stmt 0 view .LVU215
+ 862 000e FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 863              	.LVL79:
+ 864              		.loc 1 155 72 discriminator 1 view .LVU216
+ 865 0012 2946     		mov	r1, r5
+ 866 0014 FFF7FEFF 		bl	_ZNK21ADCCalibrationManager14getButtonPhaseEh
+ 867              	.LVL80:
+ 156:Cpp_Core/Src/cpp_main.cpp ****         CalibrationLEDColor color = ADC_CALIBRATION_MANAGER.getButtonLEDColor(i);
+ 868              		.loc 1 156 9 is_stmt 1 view .LVU217
+ 869              		.loc 1 156 37 is_stmt 0 view .LVU218
+ 870 0018 FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 871              	.LVL81:
+ 872              		.loc 1 156 78 discriminator 1 view .LVU219
+ 873 001c 2946     		mov	r1, r5
+ 874 001e FFF7FEFF 		bl	_ZNK21ADCCalibrationManager17getButtonLEDColorEh
+ 875              	.LVL82:
+ 157:Cpp_Core/Src/cpp_main.cpp ****         
+ 158:Cpp_Core/Src/cpp_main.cpp ****         switch (phase) {
+ 876              		.loc 1 158 9 is_stmt 1 view .LVU220
+ 159:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationPhase::IDLE:
+ 160:Cpp_Core/Src/cpp_main.cpp ****                 phase_str = "IDLE";
+ 161:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 162:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationPhase::TOP_SAMPLING:
+ 163:Cpp_Core/Src/cpp_main.cpp ****                 phase_str = "TOP_SAMPLING (release)";
+ 164:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 165:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationPhase::BOTTOM_SAMPLING:
+ 166:Cpp_Core/Src/cpp_main.cpp ****                 phase_str = "BOTTOM_SAMPLING (pressed)";
+ 167:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 168:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationPhase::COMPLETED:
+ 169:Cpp_Core/Src/cpp_main.cpp ****                 phase_str = "COMPLETED";
+ 170:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 171:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationPhase::ERROR:
+ 877              		.loc 1 171 13 view .LVU221
+ 172:Cpp_Core/Src/cpp_main.cpp ****                 phase_str = "ERROR";
+ 878              		.loc 1 172 17 view .LVU222
+ 173:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 879              		.loc 1 173 17 view .LVU223
+ 174:Cpp_Core/Src/cpp_main.cpp ****         }
+ 175:Cpp_Core/Src/cpp_main.cpp ****         
+ 176:Cpp_Core/Src/cpp_main.cpp ****         switch (color) {
+ 880              		.loc 1 176 9 view .LVU224
+ 177:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationLEDColor::RED:
+ 178:Cpp_Core/Src/cpp_main.cpp ****                 led_color_str = "RED";
+ 179:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 180:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationLEDColor::CYAN:
+ 181:Cpp_Core/Src/cpp_main.cpp ****                 led_color_str = "CYAN";
+ 182:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 183:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationLEDColor::DARK_BLUE:
+ 184:Cpp_Core/Src/cpp_main.cpp ****                 led_color_str = "DARK_BLUE";
+ 185:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 186:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationLEDColor::GREEN:
+ 187:Cpp_Core/Src/cpp_main.cpp ****                 led_color_str = "GREEN";
+ 188:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 189:Cpp_Core/Src/cpp_main.cpp ****             case CalibrationLEDColor::YELLOW:
+ 190:Cpp_Core/Src/cpp_main.cpp ****                 led_color_str = "YELLOW";
+ 191:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 29
+
+
+ 192:Cpp_Core/Src/cpp_main.cpp ****             default:
+ 881              		.loc 1 192 13 view .LVU225
+ 193:Cpp_Core/Src/cpp_main.cpp ****                 led_color_str = "OFF";
+ 882              		.loc 1 193 17 view .LVU226
+ 194:Cpp_Core/Src/cpp_main.cpp ****                 break;
+ 883              		.loc 1 194 17 view .LVU227
+ 195:Cpp_Core/Src/cpp_main.cpp ****         }
+ 196:Cpp_Core/Src/cpp_main.cpp ****         
+ 197:Cpp_Core/Src/cpp_main.cpp ****         APP_DBG("Button%d: %s [%s]", i, phase_str, led_color_str);
+ 884              		.loc 1 197 9 view .LVU228
+ 198:Cpp_Core/Src/cpp_main.cpp ****         
+ 199:Cpp_Core/Src/cpp_main.cpp ****         if (ADC_CALIBRATION_MANAGER.isButtonCalibrated(i)) {
+ 885              		.loc 1 199 9 view .LVU229
+ 886              	.LBB55:
+ 887              		.loc 1 199 13 is_stmt 0 view .LVU230
+ 888 0022 FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 889              	.LVL83:
+ 890              		.loc 1 199 55 discriminator 1 view .LVU231
+ 891 0026 2946     		mov	r1, r5
+ 892 0028 FFF7FEFF 		bl	_ZNK21ADCCalibrationManager18isButtonCalibratedEh
+ 893              	.LVL84:
+ 894              		.loc 1 199 9 discriminator 2 view .LVU232
+ 895 002c 38B1     		cbz	r0, .L60
+ 896              	.LBB56:
+ 200:Cpp_Core/Src/cpp_main.cpp ****             uint16_t topValue, bottomValue;
+ 897              		.loc 1 200 13 is_stmt 1 view .LVU233
+ 201:Cpp_Core/Src/cpp_main.cpp ****             if (ADC_CALIBRATION_MANAGER.getCalibrationValues(i, topValue, bottomValue) == ADCBtnsEr
+ 898              		.loc 1 201 13 view .LVU234
+ 899              		.loc 1 201 17 is_stmt 0 view .LVU235
+ 900 002e FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 901              	.LVL85:
+ 902              		.loc 1 201 61 discriminator 1 view .LVU236
+ 903 0032 0DF10603 		add	r3, sp, #6
+ 904 0036 01AA     		add	r2, sp, #4
+ 905 0038 2946     		mov	r1, r5
+ 906 003a FFF7FEFF 		bl	_ZNK21ADCCalibrationManager20getCalibrationValuesEhRtS0_
+ 907              	.LVL86:
+ 202:Cpp_Core/Src/cpp_main.cpp ****                 APP_DBG("  Calibration values: top=%d, bottom=%d", topValue, bottomValue);
+ 908              		.loc 1 202 17 is_stmt 1 view .LVU237
+ 909              	.L60:
+ 910              	.LBE56:
+ 911              	.LBE55:
+ 912              	.LBE54:
+ 151:Cpp_Core/Src/cpp_main.cpp ****         const char* phase_str = "";
+ 913              		.loc 1 151 5 discriminator 2 view .LVU238
+ 151:Cpp_Core/Src/cpp_main.cpp ****         const char* phase_str = "";
+ 914              		.loc 1 151 27 discriminator 1 view .LVU239
+ 915 003e 0134     		adds	r4, r4, #1
+ 916              	.LVL87:
+ 151:Cpp_Core/Src/cpp_main.cpp ****         const char* phase_str = "";
+ 917              		.loc 1 151 27 is_stmt 0 discriminator 1 view .LVU240
+ 918 0040 122C     		cmp	r4, #18
+ 919 0042 E3D1     		bne	.L61
+ 920              	.LBE53:
+ 203:Cpp_Core/Src/cpp_main.cpp ****             }
+ 204:Cpp_Core/Src/cpp_main.cpp ****         }
+ 205:Cpp_Core/Src/cpp_main.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 30
+
+
+ 206:Cpp_Core/Src/cpp_main.cpp ****     
+ 207:Cpp_Core/Src/cpp_main.cpp ****     uint8_t activeCount = ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount();
+ 921              		.loc 1 207 5 is_stmt 1 view .LVU241
+ 922              		.loc 1 207 27 is_stmt 0 view .LVU242
+ 923 0044 FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 924              	.LVL88:
+ 925              		.loc 1 207 82 discriminator 1 view .LVU243
+ 926 0048 FFF7FEFF 		bl	_ZNK21ADCCalibrationManager31getActiveCalibrationButtonCountEv
+ 927              	.LVL89:
+ 208:Cpp_Core/Src/cpp_main.cpp ****     uint8_t uncalibratedCount = ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount();
+ 928              		.loc 1 208 5 is_stmt 1 view .LVU244
+ 929              		.loc 1 208 33 is_stmt 0 view .LVU245
+ 930 004c FFF7FEFF 		bl	_ZN21ADCCalibrationManager11getInstanceEv
+ 931              	.LVL90:
+ 209:Cpp_Core/Src/cpp_main.cpp ****     
+ 210:Cpp_Core/Src/cpp_main.cpp ****     APP_DBG("Progress: %d active, %d uncalibrated", activeCount, uncalibratedCount);
+ 211:Cpp_Core/Src/cpp_main.cpp ****     APP_DBG("==========================");
+ 212:Cpp_Core/Src/cpp_main.cpp **** }
+ 932              		.loc 1 212 1 view .LVU246
+ 933 0050 03B0     		add	sp, sp, #12
+ 934              	.LCFI15:
+ 935              		.cfi_remember_state
+ 936              		.cfi_def_cfa_offset 12
+ 937              		@ sp needed
+ 938 0052 BDE83040 		pop	{r4, r5, lr}
+ 939              	.LCFI16:
+ 940              		.cfi_restore 14
+ 941              		.cfi_restore 5
+ 942              		.cfi_restore 4
+ 943              		.cfi_def_cfa_offset 0
+ 944              	.LVL91:
+ 208:Cpp_Core/Src/cpp_main.cpp ****     uint8_t uncalibratedCount = ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount();
+ 945              		.loc 1 208 83 discriminator 1 view .LVU247
+ 946 0056 FFF7FEBF 		b	_ZNK21ADCCalibrationManager26getUncalibratedButtonCountEv
+ 947              	.LVL92:
+ 948              	.L58:
+ 949              	.LCFI17:
+ 950              		.cfi_restore_state
+ 951              		.loc 1 212 1 view .LVU248
+ 952 005a 03B0     		add	sp, sp, #12
+ 953              	.LCFI18:
+ 954              		.cfi_def_cfa_offset 12
+ 955              		@ sp needed
+ 956 005c 30BD     		pop	{r4, r5, pc}
+ 957              		.cfi_endproc
+ 958              	.LFE4009:
+ 960              		.weak	_ZZN15ReportScheduler11getInstanceEvE8instance
+ 961              		.section	.data._ZZN15ReportScheduler11getInstanceEvE8instance,"awG",%progbits,_ZZN15ReportSchedule
+ 962              		.align	2
+ 965              	_ZZN15ReportScheduler11getInstanceEvE8instance:
+ 966 0000 E803     		.short	1000
+ 967 0002 0000     		.space	2
+ 968 0004 00000000 		.word	0
+ 969 0008 00000000 		.word	0
+ 970 000c 00       		.byte	0
+ 971 000d 000000   		.space	3
+ 972              		.weak	_ZGVZN21ADCCalibrationManager11getInstanceEvE8instance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 31
+
+
+ 973              		.section	.bss._ZGVZN21ADCCalibrationManager11getInstanceEvE8instance,"awG",%nobits,_ZGVZN21ADCCali
+ 974              		.align	2
+ 977              	_ZGVZN21ADCCalibrationManager11getInstanceEvE8instance:
+ 978 0000 00000000 		.space	4
+ 979              		.weak	_ZZN21ADCCalibrationManager11getInstanceEvE8instance
+ 980              		.section	.bss._ZZN21ADCCalibrationManager11getInstanceEvE8instance,"awG",%nobits,_ZZN21ADCCalibrat
+ 981              		.align	2
+ 984              	_ZZN21ADCCalibrationManager11getInstanceEvE8instance:
+ 985 0000 00000000 		.space	4376
+ 985      00000000 
+ 985      00000000 
+ 985      00000000 
+ 985      00000000 
+ 986              		.weak	_ZGVZN11MicrosTimer11getInstanceEvE8instance
+ 987              		.section	.bss._ZGVZN11MicrosTimer11getInstanceEvE8instance,"awG",%nobits,_ZGVZN11MicrosTimer11getI
+ 988              		.align	2
+ 991              	_ZGVZN11MicrosTimer11getInstanceEvE8instance:
+ 992 0000 00000000 		.space	4
+ 993              		.weak	_ZZN11MicrosTimer11getInstanceEvE8instance
+ 994              		.section	.bss._ZZN11MicrosTimer11getInstanceEvE8instance,"awG",%nobits,_ZZN11MicrosTimer11getInsta
+ 995              		.align	2
+ 998              	_ZZN11MicrosTimer11getInstanceEvE8instance:
+ 999 0000 00000000 		.space	4
+ 1000              		.weak	_ZGVZN10ADCManager11getInstanceEvE8instance
+ 1001              		.section	.bss._ZGVZN10ADCManager11getInstanceEvE8instance,"awG",%nobits,_ZGVZN10ADCManager11getIns
+ 1002              		.align	2
+ 1005              	_ZGVZN10ADCManager11getInstanceEvE8instance:
+ 1006 0000 00000000 		.space	4
+ 1007              		.weak	_ZZN10ADCManager11getInstanceEvE8instance
+ 1008              		.section	.bss._ZZN10ADCManager11getInstanceEvE8instance,"awG",%nobits,_ZZN10ADCManager11getInstanc
+ 1009              		.align	2
+ 1012              	_ZZN10ADCManager11getInstanceEvE8instance:
+ 1013 0000 00000000 		.space	3464
+ 1013      00000000 
+ 1013      00000000 
+ 1013      00000000 
+ 1013      00000000 
+ 1014              		.weak	_ZZN16MainStateMachine11getInstanceEvE8instance
+ 1015              		.section	.data._ZZN16MainStateMachine11getInstanceEvE8instance,"awG",%progbits,_ZZN16MainStateMach
+ 1016              		.align	2
+ 1019              	_ZZN16MainStateMachine11getInstanceEvE8instance:
+ 1020 0000 00000000 		.word	0
+ 1021 0004 05       		.byte	5
+ 1022 0005 00       		.byte	0
+ 1023 0006 00       		.byte	0
+ 1024 0007 00       		.space	1
+ 1025              		.text
+ 1026              	.Letext0:
+ 1027              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1028              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1029              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdint.h"
+ 1030              		.file 11 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1031              		.file 12 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h7xx.h"
+ 1032              		.file 13 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1033              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/basic_string.h"
+ 1034              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 1035              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 32
+
+
+ 1036              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 1037              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 1038              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 1039              		.file 20 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/new_allocator.h"
+ 1040              		.file 21 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/allocator.h"
+ 1041              		.file 22 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 1042              		.file 23 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_function.h"
+ 1043              		.file 24 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/charconv.h"
+ 1044              		.file 25 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/algorithmfwd.h"
+ 1045              		.file 26 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdlib"
+ 1046              		.file 27 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/functional"
+ 1047              		.file 28 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdint"
+ 1048              		.file 29 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cwchar"
+ 1049              		.file 30 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/char_traits.h"
+ 1050              		.file 31 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/clocale"
+ 1051              		.file 32 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/string_view"
+ 1052              		.file 33 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdio"
+ 1053              		.file 34 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/alloc_traits.h"
+ 1054              		.file 35 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/initializer_list"
+ 1055              		.file 36 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/stl_vector.h"
+ 1056              		.file 37 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/vector.tcc"
+ 1057              		.file 38 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/array"
+ 1058              		.file 39 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/stringfwd.h"
+ 1059              		.file 40 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/refwrap.h"
+ 1060              		.file 41 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/stl_iterator_base_
+ 1061              		.file 42 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 1062              		.file 43 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/ext/alloc_traits.h"
+ 1063              		.file 44 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/stl_iterator.h"
+ 1064              		.file 45 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_types.h"
+ 1065              		.file 46 "<built-in>"
+ 1066              		.file 47 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/reent.h"
+ 1067              		.file 48 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/lock.h"
+ 1068              		.file 49 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1069              		.file 50 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdlib.h"
+ 1070              		.file 51 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 1071              		.file 52 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 1072              		.file 53 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 1073              		.file 54 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_adc.h"
+ 1074              		.file 55 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 1075              		.file 56 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 1076              		.file 57 "Cpp_Core/Inc/enums.hpp"
+ 1077              		.file 58 "Cpp_Core/Inc/states/base_state.hpp"
+ 1078              		.file 59 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/wchar.h"
+ 1079              		.file 60 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/locale.h"
+ 1080              		.file 61 "Cpp_Core/Inc/adc_btns/adc_btns_error.hpp"
+ 1081              		.file 62 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/pstl/execution_defs.h"
+ 1082              		.file 63 "Cpp_Core/Inc/adc_btns/adc_sample_assembler.hpp"
+ 1083              		.file 64 "../common/system_logger.h"
+ 1084              		.file 65 "Cpp_Core/Inc/cpp_main.hpp"
+ 1085              		.file 66 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 1086              		.file 67 "Drivers/PWM-WS2812B/pwm-ws2812b.h"
+ 1087              		.file 68 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 33
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 cpp_main.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:27     .text.AppStartupLog_Printf.constprop.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:32     .text.AppStartupLog_Printf.constprop.0:00000000 AppStartupLog_Printf.constprop.0
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:104    .text.AppStartupLog_Printf.constprop.0:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:111    .text._ZN10ADCManager11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:117    .text._ZN10ADCManager11getInstanceEv:00000000 _ZN10ADCManager11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:170    .text._ZN10ADCManager11getInstanceEv:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:1005   .bss._ZGVZN10ADCManager11getInstanceEvE8instance:00000000 _ZGVZN10ADCManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:1012   .bss._ZZN10ADCManager11getInstanceEvE8instance:00000000 _ZZN10ADCManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:183    .text._ZN10ADCManager18ADCValuesTestPrintEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:189    .text._ZN10ADCManager18ADCValuesTestPrintEv:00000000 _ZN10ADCManager18ADCValuesTestPrintEv
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:276    .text._ZN10ADCManager18ADCValuesTestPrintEv:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:283    .text._ZN11MicrosTimer11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:289    .text._ZN11MicrosTimer11getInstanceEv:00000000 _ZN11MicrosTimer11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:336    .text._ZN11MicrosTimer11getInstanceEv:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:991    .bss._ZGVZN11MicrosTimer11getInstanceEvE8instance:00000000 _ZGVZN11MicrosTimer11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:998    .bss._ZZN11MicrosTimer11getInstanceEvE8instance:00000000 _ZZN11MicrosTimer11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:342    .text._ZN21ADCCalibrationManager11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:348    .text._ZN21ADCCalibrationManager11getInstanceEv:00000000 _ZN21ADCCalibrationManager11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:401    .text._ZN21ADCCalibrationManager11getInstanceEv:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:977    .bss._ZGVZN21ADCCalibrationManager11getInstanceEvE8instance:00000000 _ZGVZN21ADCCalibrationManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:984    .bss._ZZN21ADCCalibrationManager11getInstanceEvE8instance:00000000 _ZZN21ADCCalibrationManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:418    .text.cpp_main:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:424    .text.cpp_main:00000000 cpp_main
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:470    .text.cpp_main:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:1019   .data._ZZN16MainStateMachine11getInstanceEvE8instance:00000000 _ZZN16MainStateMachine11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:480    .text._Z8adc_testv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:486    .text._Z8adc_testv:00000000 _Z8adc_testv
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:605    .text._Z8adc_testv:0000006c $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:965    .data._ZZN15ReportScheduler11getInstanceEvE8instance:00000000 _ZZN15ReportScheduler11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:610    .text._Z23manual_calibration_testv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:616    .text._Z23manual_calibration_testv:00000000 _Z23manual_calibration_testv
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:813    .text._Z23manual_calibration_testv:0000009c $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:818    .text._Z24print_calibration_statusv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:824    .text._Z24print_calibration_statusv:00000000 _Z24print_calibration_statusv
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:962    .data._ZZN15ReportScheduler11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:974    .bss._ZGVZN21ADCCalibrationManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:981    .bss._ZZN21ADCCalibrationManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:988    .bss._ZGVZN11MicrosTimer11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:995    .bss._ZZN11MicrosTimer11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:1002   .bss._ZGVZN10ADCManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:1009   .bss._ZZN10ADCManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s:1016   .data._ZZN16MainStateMachine11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+printf
+vprintf
+puts
+__cxa_guard_acquire
+_ZN10ADCManagerC1Ev
+__aeabi_atexit
+__cxa_guard_release
+__dso_handle
+_ZN10ADCManagerD1Ev
+_ZNK10ADCManager13readADCValuesEv
+putchar
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccW16YTh.s 			page 34
+
+
+_ZN11MicrosTimerC1Ev
+_ZN21ADCCalibrationManagerC1Ev
+_ZN21ADCCalibrationManagerD1Ev
+_ZN16MainStateMachine5setupEv
+_ZN10ADCManager15startADCSampingEbhm
+_ZN15ReportScheduler5startEt
+WS2812B_Test
+_ZN11MicrosTimer6microsEv
+_ZN11MicrosTimer13checkIntervalEmRm
+WS2812B_SetAllLEDBrightness
+HAL_Delay
+_ZN21ADCCalibrationManager19resetAllCalibrationEv
+_ZN21ADCCalibrationManager22startManualCalibrationEv
+_ZNK21ADCCalibrationManager31getActiveCalibrationButtonCountEv
+_ZNK21ADCCalibrationManager26getUncalibratedButtonCountEv
+HAL_GetTick
+_ZN21ADCCalibrationManager18processCalibrationEv
+_Z31print_final_calibration_resultsv
+_ZNK21ADCCalibrationManager14getButtonPhaseEh
+_ZNK21ADCCalibrationManager17getButtonLEDColorEh
+_ZNK21ADCCalibrationManager18isButtonCalibratedEh
+_ZNK21ADCCalibrationManager20getCalibrationValuesEhRtS0_

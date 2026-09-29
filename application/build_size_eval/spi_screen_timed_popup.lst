@@ -1,0 +1,677 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_timed_popup.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp"
+  19              		.section	.rodata._Z22ScreenTimedPopup_ResetP16ScreenTimedPopup.str1.1,"aMS",%progbits,1
+  20              	.LC0:
+  21 0000 00       		.ascii	"\000"
+  22              		.section	.text._Z22ScreenTimedPopup_ResetP16ScreenTimedPopup,"ax",%progbits
+  23              		.align	1
+  24              		.global	_Z22ScreenTimedPopup_ResetP16ScreenTimedPopup
+  25              		.syntax unified
+  26              		.thumb
+  27              		.thumb_func
+  29              	_Z22ScreenTimedPopup_ResetP16ScreenTimedPopup:
+  30              	.LVL0:
+  31              	.LFB1270:
+   1:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** #include "screen_control/spi_screen_timed_popup.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+   3:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** #include "screen_control/spi_screen_ui_common.hpp"
+   4:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+   5:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** static bool tick_reached(uint32_t nowMs, uint32_t targetMs) {
+   6:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     return (int32_t)(nowMs - targetMs) >= 0;
+   7:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+   8:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+   9:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** void ScreenTimedPopup_Reset(ScreenTimedPopup* popup) {
+  32              		.loc 1 9 54 view -0
+  33              		.cfi_startproc
+  34              		@ args = 0, pretend = 0, frame = 0
+  35              		@ frame_needed = 0, uses_anonymous_args = 0
+  36              		@ link register save eliminated.
+  10:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!popup) return;
+  37              		.loc 1 10 5 view .LVU1
+  38 0000 30B1     		cbz	r0, .L1
+  11:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->visible = false;
+  39              		.loc 1 11 5 view .LVU2
+  40              		.loc 1 11 20 is_stmt 0 view .LVU3
+  41 0002 0023     		movs	r3, #0
+  12:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->closeAtMs = 0u;
+  13:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->title = "";
+  42              		.loc 1 13 18 view .LVU4
+  43 0004 034A     		ldr	r2, .L6
+  11:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->visible = false;
+  44              		.loc 1 11 20 view .LVU5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 2
+
+
+  45 0006 0370     		strb	r3, [r0]
+  12:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->closeAtMs = 0u;
+  46              		.loc 1 12 5 is_stmt 1 view .LVU6
+  12:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->closeAtMs = 0u;
+  47              		.loc 1 12 22 is_stmt 0 view .LVU7
+  48 0008 4360     		str	r3, [r0, #4]
+  49              		.loc 1 13 5 is_stmt 1 view .LVU8
+  14:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->lines = nullptr;
+  15:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->lineCount = 0u;
+  50              		.loc 1 15 22 is_stmt 0 view .LVU9
+  51 000a 0374     		strb	r3, [r0, #16]
+  14:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->lines = nullptr;
+  52              		.loc 1 14 18 view .LVU10
+  53 000c C0E90223 		strd	r2, r3, [r0, #8]
+  54              		.loc 1 15 5 is_stmt 1 view .LVU11
+  55              	.L1:
+  16:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+  56              		.loc 1 16 1 is_stmt 0 view .LVU12
+  57 0010 7047     		bx	lr
+  58              	.L7:
+  59 0012 00BF     		.align	2
+  60              	.L6:
+  61 0014 00000000 		.word	.LC0
+  62              		.cfi_endproc
+  63              	.LFE1270:
+  65              		.section	.text._Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm,"ax",%progbits
+  66              		.align	1
+  67              		.global	_Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm
+  68              		.syntax unified
+  69              		.thumb
+  70              		.thumb_func
+  72              	_Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm:
+  73              	.LVL1:
+  74              	.LFB1271:
+  17:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  18:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** void ScreenTimedPopup_Show(ScreenTimedPopup* popup, const char* title, const char* const* lines, ui
+  75              		.loc 1 18 154 is_stmt 1 view -0
+  76              		.cfi_startproc
+  77              		@ args = 8, pretend = 0, frame = 0
+  78              		@ frame_needed = 0, uses_anonymous_args = 0
+  19:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!popup) return;
+  79              		.loc 1 19 5 view .LVU14
+  18:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!popup) return;
+  80              		.loc 1 18 154 is_stmt 0 view .LVU15
+  81 0000 30B5     		push	{r4, r5, lr}
+  82              	.LCFI0:
+  83              		.cfi_def_cfa_offset 12
+  84              		.cfi_offset 4, -12
+  85              		.cfi_offset 5, -8
+  86              		.cfi_offset 14, -4
+  87              		.loc 1 19 5 view .LVU16
+  88 0002 60B1     		cbz	r0, .L8
+  20:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->visible = true;
+  89              		.loc 1 20 5 is_stmt 1 view .LVU17
+  90              		.loc 1 20 20 is_stmt 0 view .LVU18
+  91 0004 0124     		movs	r4, #1
+  21:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->closeAtMs = nowMs + durationMs;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 3
+
+
+  22:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->title = title ? title : "";
+  23:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->lines = lines;
+  24:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->lineCount = lineCount;
+  92              		.loc 1 24 22 view .LVU19
+  93 0006 0374     		strb	r3, [r0, #16]
+  20:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->visible = true;
+  94              		.loc 1 20 20 view .LVU20
+  95 0008 0470     		strb	r4, [r0]
+  21:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->closeAtMs = nowMs + durationMs;
+  96              		.loc 1 21 5 is_stmt 1 view .LVU21
+  21:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->closeAtMs = nowMs + durationMs;
+  97              		.loc 1 21 30 is_stmt 0 view .LVU22
+  98 000a DDE90354 		ldrd	r5, r4, [sp, #12]
+  99 000e 2C44     		add	r4, r4, r5
+  21:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->closeAtMs = nowMs + durationMs;
+ 100              		.loc 1 21 22 view .LVU23
+ 101 0010 4460     		str	r4, [r0, #4]
+  22:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->lines = lines;
+ 102              		.loc 1 22 5 is_stmt 1 view .LVU24
+  22:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->lines = lines;
+ 103              		.loc 1 22 26 is_stmt 0 discriminator 2 view .LVU25
+ 104 0012 034C     		ldr	r4, .L15
+ 105 0014 0029     		cmp	r1, #0
+ 106 0016 08BF     		it	eq
+ 107 0018 2146     		moveq	r1, r4
+ 108              	.LVL2:
+  23:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->lineCount = lineCount;
+ 109              		.loc 1 23 18 view .LVU26
+ 110 001a C0E90212 		strd	r1, r2, [r0, #8]
+ 111              		.loc 1 24 5 is_stmt 1 view .LVU27
+ 112              	.L8:
+  25:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+ 113              		.loc 1 25 1 is_stmt 0 view .LVU28
+ 114 001e 30BD     		pop	{r4, r5, pc}
+ 115              	.LVL3:
+ 116              	.L16:
+ 117              		.loc 1 25 1 view .LVU29
+ 118              		.align	2
+ 119              	.L15:
+ 120 0020 00000000 		.word	.LC0
+ 121              		.cfi_endproc
+ 122              	.LFE1271:
+ 124              		.section	.text._Z22ScreenTimedPopup_CloseP16ScreenTimedPopup,"ax",%progbits
+ 125              		.align	1
+ 126              		.global	_Z22ScreenTimedPopup_CloseP16ScreenTimedPopup
+ 127              		.syntax unified
+ 128              		.thumb
+ 129              		.thumb_func
+ 131              	_Z22ScreenTimedPopup_CloseP16ScreenTimedPopup:
+ 132              	.LVL4:
+ 133              	.LFB1272:
+  26:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  27:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** void ScreenTimedPopup_Close(ScreenTimedPopup* popup) {
+ 134              		.loc 1 27 54 is_stmt 1 view -0
+ 135              		.cfi_startproc
+ 136              		@ args = 0, pretend = 0, frame = 0
+ 137              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 4
+
+
+ 138              		@ link register save eliminated.
+  28:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!popup) return;
+ 139              		.loc 1 28 5 view .LVU31
+ 140 0000 08B1     		cbz	r0, .L17
+  29:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     popup->visible = false;
+ 141              		.loc 1 29 5 view .LVU32
+ 142              		.loc 1 29 20 is_stmt 0 view .LVU33
+ 143 0002 0023     		movs	r3, #0
+ 144 0004 0370     		strb	r3, [r0]
+ 145              	.L17:
+  30:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+ 146              		.loc 1 30 1 view .LVU34
+ 147 0006 7047     		bx	lr
+ 148              		.cfi_endproc
+ 149              	.LFE1272:
+ 151              		.section	.text._Z23ScreenTimedPopup_UpdateP16ScreenTimedPopupm,"ax",%progbits
+ 152              		.align	1
+ 153              		.global	_Z23ScreenTimedPopup_UpdateP16ScreenTimedPopupm
+ 154              		.syntax unified
+ 155              		.thumb
+ 156              		.thumb_func
+ 158              	_Z23ScreenTimedPopup_UpdateP16ScreenTimedPopupm:
+ 159              	.LVL5:
+ 160              	.LFB1273:
+  31:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  32:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** void ScreenTimedPopup_Update(ScreenTimedPopup* popup, uint32_t nowMs) {
+ 161              		.loc 1 32 71 is_stmt 1 view -0
+ 162              		.cfi_startproc
+ 163              		@ args = 0, pretend = 0, frame = 0
+ 164              		@ frame_needed = 0, uses_anonymous_args = 0
+ 165              		@ link register save eliminated.
+  33:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!popup || !popup->visible) return;
+ 166              		.loc 1 33 5 view .LVU36
+ 167 0000 38B1     		cbz	r0, .L22
+ 168              		.loc 1 33 16 is_stmt 0 discriminator 2 view .LVU37
+ 169 0002 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 170 0004 2BB1     		cbz	r3, .L22
+  34:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (tick_reached(nowMs, popup->closeAtMs)) {
+ 171              		.loc 1 34 5 is_stmt 1 view .LVU38
+ 172              	.LVL6:
+ 173              	.LBB4:
+ 174              	.LBI4:
+   5:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     return (int32_t)(nowMs - targetMs) >= 0;
+ 175              		.loc 1 5 13 view .LVU39
+ 176              	.LBB5:
+   6:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+ 177              		.loc 1 6 5 view .LVU40
+   6:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+ 178              		.loc 1 6 28 is_stmt 0 view .LVU41
+ 179 0006 4368     		ldr	r3, [r0, #4]
+ 180 0008 C91A     		subs	r1, r1, r3
+ 181              	.LVL7:
+   6:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+ 182              		.loc 1 6 28 view .LVU42
+ 183              	.LBE5:
+ 184              	.LBE4:
+ 185              		.loc 1 34 5 discriminator 1 view .LVU43
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 5
+
+
+ 186 000a 0029     		cmp	r1, #0
+  35:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         popup->visible = false;
+ 187              		.loc 1 35 9 is_stmt 1 view .LVU44
+ 188              		.loc 1 35 24 is_stmt 0 view .LVU45
+ 189 000c A4BF     		itt	ge
+ 190 000e 0023     		movge	r3, #0
+ 191 0010 0370     		strbge	r3, [r0]
+ 192              	.L22:
+  36:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     }
+  37:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+ 193              		.loc 1 37 1 view .LVU46
+ 194 0012 7047     		bx	lr
+ 195              		.cfi_endproc
+ 196              	.LFE1273:
+ 198              		.section	.text._Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup,"ax",%progbits
+ 199              		.align	1
+ 200              		.global	_Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup
+ 201              		.syntax unified
+ 202              		.thumb
+ 203              		.thumb_func
+ 205              	_Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup:
+ 206              	.LVL8:
+ 207              	.LFB1274:
+  38:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  39:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** bool ScreenTimedPopup_IsVisible(const ScreenTimedPopup* popup) {
+ 208              		.loc 1 39 64 is_stmt 1 view -0
+ 209              		.cfi_startproc
+ 210              		@ args = 0, pretend = 0, frame = 0
+ 211              		@ frame_needed = 0, uses_anonymous_args = 0
+ 212              		@ link register save eliminated.
+  40:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     return popup ? popup->visible : false;
+ 213              		.loc 1 40 5 view .LVU48
+ 214              		.loc 1 40 18 is_stmt 0 view .LVU49
+ 215 0000 00B1     		cbz	r0, .L31
+ 216              		.loc 1 40 27 discriminator 1 view .LVU50
+ 217 0002 0078     		ldrb	r0, [r0]	@ zero_extendqisi2
+ 218              	.LVL9:
+ 219              	.L31:
+  41:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+ 220              		.loc 1 41 1 view .LVU51
+ 221 0004 7047     		bx	lr
+ 222              		.cfi_endproc
+ 223              	.LFE1274:
+ 225              		.section	.text._Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle,"a
+ 226              		.align	1
+ 227              		.global	_Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle
+ 228              		.syntax unified
+ 229              		.thumb
+ 230              		.thumb_func
+ 232              	_Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle:
+ 233              	.LVL10:
+ 234              	.LFB1275:
+  42:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  43:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** void ScreenTimedPopup_Render(const ScreenTimedPopup* popup, ST7789_Handle* lcd, const ScreenUiStyle
+ 235              		.loc 1 43 109 is_stmt 1 view -0
+ 236              		.cfi_startproc
+ 237              		@ args = 0, pretend = 0, frame = 8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 6
+
+
+ 238              		@ frame_needed = 0, uses_anonymous_args = 0
+  44:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!popup || !popup->visible) return;
+ 239              		.loc 1 44 5 view .LVU53
+  43:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!popup || !popup->visible) return;
+ 240              		.loc 1 43 109 is_stmt 0 view .LVU54
+ 241 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 242              	.LCFI1:
+ 243              		.cfi_def_cfa_offset 36
+ 244              		.cfi_offset 4, -36
+ 245              		.cfi_offset 5, -32
+ 246              		.cfi_offset 6, -28
+ 247              		.cfi_offset 7, -24
+ 248              		.cfi_offset 8, -20
+ 249              		.cfi_offset 9, -16
+ 250              		.cfi_offset 10, -12
+ 251              		.cfi_offset 11, -8
+ 252              		.cfi_offset 14, -4
+ 253 0004 0F46     		mov	r7, r1
+ 254 0006 89B0     		sub	sp, sp, #36
+ 255              	.LCFI2:
+ 256              		.cfi_def_cfa_offset 72
+  43:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!popup || !popup->visible) return;
+ 257              		.loc 1 43 109 view .LVU55
+ 258 0008 1646     		mov	r6, r2
+ 259              		.loc 1 44 5 view .LVU56
+ 260 000a 0546     		mov	r5, r0
+ 261 000c 0028     		cmp	r0, #0
+ 262 000e 54D0     		beq	.L33
+ 263              		.loc 1 44 16 discriminator 2 view .LVU57
+ 264 0010 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 265 0012 002B     		cmp	r3, #0
+ 266 0014 51D0     		beq	.L33
+  45:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     if (!lcd) return;
+ 267              		.loc 1 45 5 is_stmt 1 view .LVU58
+ 268 0016 0029     		cmp	r1, #0
+ 269 0018 4FD0     		beq	.L33
+  46:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  47:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t w = ST7789_WIDTH;
+ 270              		.loc 1 47 5 view .LVU59
+ 271              	.LVL11:
+  48:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t h = ST7789_HEIGHT;
+ 272              		.loc 1 48 5 view .LVU60
+  49:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
+ 273              		.loc 1 49 5 view .LVU61
+  50:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
+ 274              		.loc 1 50 5 view .LVU62
+  51:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  52:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint8_t titleScale = 2u;
+ 275              		.loc 1 52 5 view .LVU63
+  53:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint8_t textScale = 2u;
+ 276              		.loc 1 53 5 view .LVU64
+  54:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
+ 277              		.loc 1 54 5 view .LVU65
+ 278              		.loc 1 54 47 is_stmt 0 view .LVU66
+ 279 001a 0220     		movs	r0, #2
+ 280              	.LVL12:
+ 281              		.loc 1 54 47 view .LVU67
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 7
+
+
+ 282 001c FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 283              	.LVL13:
+ 284              		.loc 1 54 47 view .LVU68
+ 285 0020 8146     		mov	r9, r0
+ 286              	.LVL14:
+  55:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 287              		.loc 1 55 5 is_stmt 1 view .LVU69
+ 288              		.loc 1 55 46 is_stmt 0 view .LVU70
+ 289 0022 0220     		movs	r0, #2
+ 290 0024 FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 291              	.LVL15:
+  56:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t titleGap = 10u;
+  57:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t lineGap = 4u;
+  58:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t linesH = (popup->lineCount == 0u) ? 0u : (uint16_t)(popup->lineCount * lineH + (
+ 292              		.loc 1 58 37 view .LVU71
+ 293 0028 2B7C     		ldrb	r3, [r5, #16]	@ zero_extendqisi2
+  55:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 294              		.loc 1 55 46 view .LVU72
+ 295 002a 8046     		mov	r8, r0
+ 296              	.LVL16:
+  56:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t titleGap = 10u;
+ 297              		.loc 1 56 5 is_stmt 1 view .LVU73
+  57:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t linesH = (popup->lineCount == 0u) ? 0u : (uint16_t)(popup->lineCount * lineH + (
+ 298              		.loc 1 57 5 view .LVU74
+ 299              		.loc 1 58 5 view .LVU75
+ 300              		.loc 1 58 20 is_stmt 0 view .LVU76
+ 301 002c 2BB1     		cbz	r3, .L36
+ 302              		.loc 1 58 117 discriminator 1 view .LVU77
+ 303 002e 5A1E     		subs	r2, r3, #1
+ 304              		.loc 1 58 89 discriminator 1 view .LVU78
+ 305 0030 13FB00F3 		smulbb	r3, r3, r0
+ 306              		.loc 1 58 20 discriminator 1 view .LVU79
+ 307 0034 03EB8203 		add	r3, r3, r2, lsl #2
+ 308 0038 9BB2     		uxth	r3, r3
+ 309              	.L36:
+ 310              	.LVL17:
+  59:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t blockH = (uint16_t)(titleH + titleGap + linesH);
+ 311              		.loc 1 59 5 is_stmt 1 view .LVU80
+ 312 003a 09F10A04 		add	r4, r9, #10
+  60:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t startY = (blockH < h) ? (uint16_t)((h - blockH) / 2u) : 0u;
+  61:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint32_t mutedText = ScreenUI_MutedTextForBg(style.text, style.bg, 96u);
+  62:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  63:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
+  64:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     ScreenUI_DrawStringCenteredInBox(lcd, listX, startY, listW, titleH, popup->title ? popup->title
+ 313              		.loc 1 64 37 is_stmt 0 discriminator 4 view .LVU81
+ 314 003e 4FF0020A 		mov	r10, #2
+ 315              		.loc 1 64 37 discriminator 2 view .LVU82
+ 316 0042 DFF8BCB0 		ldr	fp, .L51
+ 317 0046 A2B2     		uxth	r2, r4
+  59:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t blockH = (uint16_t)(titleH + titleGap + linesH);
+ 318              		.loc 1 59 20 view .LVU83
+ 319 0048 13FA84F4 		uxtah	r4, r3, r4
+ 320 004c A4B2     		uxth	r4, r4
+ 321              	.LVL18:
+  60:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t startY = (blockH < h) ? (uint16_t)((h - blockH) / 2u) : 0u;
+ 322              		.loc 1 60 5 is_stmt 1 view .LVU84
+ 323 004e 0792     		str	r2, [sp, #28]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 8
+
+
+  61:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+ 324              		.loc 1 61 55 is_stmt 0 view .LVU85
+ 325 0050 6022     		movs	r2, #96
+  60:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t startY = (blockH < h) ? (uint16_t)((h - blockH) / 2u) : 0u;
+ 326              		.loc 1 60 20 view .LVU86
+ 327 0052 AB2C     		cmp	r4, #171
+  60:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t startY = (blockH < h) ? (uint16_t)((h - blockH) / 2u) : 0u;
+ 328              		.loc 1 60 58 discriminator 1 view .LVU87
+ 329 0054 94BF     		ite	ls
+ 330 0056 C4F1AC04 		rsbls	r4, r4, #172
+ 331              	.LVL19:
+  60:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t startY = (blockH < h) ? (uint16_t)((h - blockH) / 2u) : 0u;
+ 332              		.loc 1 60 20 discriminator 2 view .LVU88
+ 333 005a 0024     		movhi	r4, #0
+  61:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+ 334              		.loc 1 61 55 view .LVU89
+ 335 005c D6E90010 		ldrd	r1, r0, [r6]
+ 336              	.LVL20:
+  60:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     const uint16_t startY = (blockH < h) ? (uint16_t)((h - blockH) / 2u) : 0u;
+ 337              		.loc 1 60 20 discriminator 1 view .LVU90
+ 338 0060 98BF     		it	ls
+ 339 0062 C4F34F04 		ubfxls	r4, r4, #1, #16
+ 340              	.LVL21:
+  61:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+ 341              		.loc 1 61 5 is_stmt 1 view .LVU91
+  61:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+ 342              		.loc 1 61 55 is_stmt 0 view .LVU92
+ 343 0066 FFF7FEFF 		bl	_Z23ScreenUI_MutedTextForBgmmh
+ 344              	.LVL22:
+  63:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     ScreenUI_DrawStringCenteredInBox(lcd, listX, startY, listW, titleH, popup->title ? popup->title
+ 345              		.loc 1 63 20 view .LVU93
+ 346 006a 3368     		ldr	r3, [r6]
+ 347 006c 0022     		movs	r2, #0
+ 348 006e 2821     		movs	r1, #40
+  61:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+ 349              		.loc 1 61 55 view .LVU94
+ 350 0070 0690     		str	r0, [sp, #24]
+ 351              	.LVL23:
+  63:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     ScreenUI_DrawStringCenteredInBox(lcd, listX, startY, listW, titleH, popup->title ? popup->title
+ 352              		.loc 1 63 5 is_stmt 1 view .LVU95
+  63:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     ScreenUI_DrawStringCenteredInBox(lcd, listX, startY, listW, titleH, popup->title ? popup->title
+ 353              		.loc 1 63 20 is_stmt 0 view .LVU96
+ 354 0072 0193     		str	r3, [sp, #4]
+ 355 0074 AC23     		movs	r3, #172
+ 356 0076 3846     		mov	r0, r7
+ 357              	.LVL24:
+  63:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     ScreenUI_DrawStringCenteredInBox(lcd, listX, startY, listW, titleH, popup->title ? popup->title
+ 358              		.loc 1 63 20 view .LVU97
+ 359 0078 0093     		str	r3, [sp]
+ 360 007a F023     		movs	r3, #240
+ 361 007c FFF7FEFF 		bl	ST7789_FillRect
+ 362              	.LVL25:
+ 363              		.loc 1 64 5 is_stmt 1 view .LVU98
+ 364              		.loc 1 64 80 is_stmt 0 view .LVU99
+ 365 0080 AB68     		ldr	r3, [r5, #8]
+ 366              		.loc 1 64 37 discriminator 4 view .LVU100
+ 367 0082 CDF810A0 		str	r10, [sp, #16]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 9
+
+
+ 368 0086 2821     		movs	r1, #40
+ 369 0088 3268     		ldr	r2, [r6]
+ 370              		.loc 1 64 37 discriminator 2 view .LVU101
+ 371 008a 002B     		cmp	r3, #0
+ 372 008c 08BF     		it	eq
+ 373 008e 5B46     		moveq	r3, fp
+ 374              		.loc 1 64 37 discriminator 4 view .LVU102
+ 375 0090 3846     		mov	r0, r7
+ 376 0092 0392     		str	r2, [sp, #12]
+ 377 0094 7268     		ldr	r2, [r6, #4]
+ 378 0096 CDF80090 		str	r9, [sp]
+ 379              	.LBB6:
+  65:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+  66:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     uint16_t y = (uint16_t)(startY + titleH + titleGap);
+  67:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     for (uint8_t i = 0; i < popup->lineCount; i++) {
+ 380              		.loc 1 67 5 view .LVU103
+ 381 009a 4FF00009 		mov	r9, #0
+ 382              	.LVL26:
+ 383              		.loc 1 67 5 view .LVU104
+ 384              	.LBE6:
+  64:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** 
+ 385              		.loc 1 64 37 discriminator 4 view .LVU105
+ 386 009e CDE90132 		strd	r3, r2, [sp, #4]
+ 387 00a2 F023     		movs	r3, #240
+ 388 00a4 2246     		mov	r2, r4
+ 389 00a6 FFF7FEFF 		bl	_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh
+ 390              	.LVL27:
+  66:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     for (uint8_t i = 0; i < popup->lineCount; i++) {
+ 391              		.loc 1 66 5 is_stmt 1 view .LVU106
+  66:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     for (uint8_t i = 0; i < popup->lineCount; i++) {
+ 392              		.loc 1 66 14 is_stmt 0 view .LVU107
+ 393 00aa 079B     		ldr	r3, [sp, #28]
+ 394 00ac 1C44     		add	r4, r4, r3
+ 395              	.LVL28:
+  66:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     for (uint8_t i = 0; i < popup->lineCount; i++) {
+ 396              		.loc 1 66 14 view .LVU108
+ 397 00ae A4B2     		uxth	r4, r4
+ 398              	.LVL29:
+ 399              		.loc 1 67 5 is_stmt 1 view .LVU109
+ 400              	.L39:
+ 401              	.LBB9:
+ 402              		.loc 1 67 27 discriminator 1 view .LVU110
+ 403 00b0 2A7C     		ldrb	r2, [r5, #16]	@ zero_extendqisi2
+ 404 00b2 5FFA89F3 		uxtb	r3, r9
+ 405 00b6 9A42     		cmp	r2, r3
+ 406 00b8 02D8     		bhi	.L41
+ 407              	.LVL30:
+ 408              	.L33:
+ 409              		.loc 1 67 27 is_stmt 0 discriminator 1 view .LVU111
+ 410              	.LBE9:
+  68:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+  69:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         ScreenUI_DrawStringCenteredInBox(lcd, listX, y, listW, lineH, line, mutedText, style.bg, te
+  70:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         y = (uint16_t)(y + lineH + lineGap);
+  71:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     }
+  72:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp **** }
+ 411              		.loc 1 72 1 view .LVU112
+ 412 00ba 09B0     		add	sp, sp, #36
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 10
+
+
+ 413              	.LCFI3:
+ 414              		.cfi_remember_state
+ 415              		.cfi_def_cfa_offset 36
+ 416              		@ sp needed
+ 417 00bc BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 418              	.LVL31:
+ 419              	.L41:
+ 420              	.LCFI4:
+ 421              		.cfi_restore_state
+ 422              	.LBB10:
+ 423              	.LBB7:
+  68:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+ 424              		.loc 1 68 9 is_stmt 1 view .LVU113
+  68:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+ 425              		.loc 1 68 36 is_stmt 0 view .LVU114
+ 426 00c0 EA68     		ldr	r2, [r5, #12]
+  68:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+ 427              		.loc 1 68 62 view .LVU115
+ 428 00c2 D2B1     		cbz	r2, .L44
+  68:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+ 429              		.loc 1 68 59 discriminator 1 view .LVU116
+ 430 00c4 52F82330 		ldr	r3, [r2, r3, lsl #2]
+  68:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+ 431              		.loc 1 68 62 discriminator 4 view .LVU117
+ 432 00c8 002B     		cmp	r3, #0
+ 433 00ca 08BF     		it	eq
+ 434 00cc 5B46     		moveq	r3, fp
+ 435              	.L40:
+ 436              	.LVL32:
+  69:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         y = (uint16_t)(y + lineH + lineGap);
+ 437              		.loc 1 69 9 is_stmt 1 view .LVU118
+  69:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         y = (uint16_t)(y + lineH + lineGap);
+ 438              		.loc 1 69 41 is_stmt 0 view .LVU119
+ 439 00ce CDF810A0 		str	r10, [sp, #16]
+ 440 00d2 2821     		movs	r1, #40
+ 441 00d4 3268     		ldr	r2, [r6]
+ 442 00d6 3846     		mov	r0, r7
+ 443 00d8 CDF80080 		str	r8, [sp]
+ 444 00dc 09F10109 		add	r9, r9, #1
+ 445              	.LVL33:
+  69:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         y = (uint16_t)(y + lineH + lineGap);
+ 446              		.loc 1 69 41 view .LVU120
+ 447 00e0 0392     		str	r2, [sp, #12]
+ 448 00e2 069A     		ldr	r2, [sp, #24]
+ 449 00e4 CDE90132 		strd	r3, r2, [sp, #4]
+ 450 00e8 F023     		movs	r3, #240
+ 451              	.LVL34:
+  69:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         y = (uint16_t)(y + lineH + lineGap);
+ 452              		.loc 1 69 41 view .LVU121
+ 453 00ea 2246     		mov	r2, r4
+ 454 00ec FFF7FEFF 		bl	_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh
+ 455              	.LVL35:
+  70:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     }
+ 456              		.loc 1 70 9 is_stmt 1 view .LVU122
+  70:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     }
+ 457              		.loc 1 70 11 is_stmt 0 view .LVU123
+ 458 00f0 08F10403 		add	r3, r8, #4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 11
+
+
+ 459 00f4 2344     		add	r3, r3, r4
+ 460 00f6 9CB2     		uxth	r4, r3
+ 461              	.LVL36:
+  70:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****     }
+ 462              		.loc 1 70 11 view .LVU124
+ 463              	.LBE7:
+  67:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+ 464              		.loc 1 67 5 is_stmt 1 discriminator 2 view .LVU125
+  67:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+ 465              		.loc 1 67 5 is_stmt 0 discriminator 2 view .LVU126
+ 466 00f8 DAE7     		b	.L39
+ 467              	.LVL37:
+ 468              	.L44:
+ 469              	.LBB8:
+  68:Cpp_Core/Src/screen_control/spi_screen_timed_popup.cpp ****         ScreenUI_DrawStringCenteredInBox(lcd, listX, y, listW, lineH, line, mutedText, style.bg, te
+ 470              		.loc 1 68 62 discriminator 4 view .LVU127
+ 471 00fa 014B     		ldr	r3, .L51
+ 472 00fc E7E7     		b	.L40
+ 473              	.L52:
+ 474 00fe 00BF     		.align	2
+ 475              	.L51:
+ 476 0100 00000000 		.word	.LC0
+ 477              	.LBE8:
+ 478              	.LBE10:
+ 479              		.cfi_endproc
+ 480              	.LFE1275:
+ 482              		.text
+ 483              	.Letext0:
+ 484              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 485              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 486              		.file 4 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 487              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 488              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 489              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 490              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 491              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 492              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 493              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 494              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 495              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 496              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 497              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 498              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 499              		.file 17 "Core/Inc/board_cfg.h"
+ 500              		.file 18 "Drivers/SPI-ST7789/st7789.h"
+ 501              		.file 19 "Cpp_Core/Inc/screen_control/spi_screen_timed_popup.hpp"
+ 502              		.file 20 "Cpp_Core/Inc/screen_control/spi_screen_ui_common.hpp"
+ 503              		.file 21 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s 			page 12
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_timed_popup.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:23     .text._Z22ScreenTimedPopup_ResetP16ScreenTimedPopup:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:29     .text._Z22ScreenTimedPopup_ResetP16ScreenTimedPopup:00000000 _Z22ScreenTimedPopup_ResetP16ScreenTimedPopup
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:61     .text._Z22ScreenTimedPopup_ResetP16ScreenTimedPopup:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:66     .text._Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:72     .text._Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm:00000000 _Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:120    .text._Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:125    .text._Z22ScreenTimedPopup_CloseP16ScreenTimedPopup:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:131    .text._Z22ScreenTimedPopup_CloseP16ScreenTimedPopup:00000000 _Z22ScreenTimedPopup_CloseP16ScreenTimedPopup
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:152    .text._Z23ScreenTimedPopup_UpdateP16ScreenTimedPopupm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:158    .text._Z23ScreenTimedPopup_UpdateP16ScreenTimedPopupm:00000000 _Z23ScreenTimedPopup_UpdateP16ScreenTimedPopupm
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:199    .text._Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:205    .text._Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup:00000000 _Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:226    .text._Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:232    .text._Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle:00000000 _Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccHUttWM.s:476    .text._Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle:00000100 $d
+
+UNDEFINED SYMBOLS
+_Z18ScreenUI_CharCellHh
+_Z23ScreenUI_MutedTextForBgmmh
+ST7789_FillRect
+_Z32ScreenUI_DrawStringCenteredInBoxP13ST7789_HandlettttPKcmmh

@@ -1,0 +1,1575 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"security_version_journal.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "../common/security_version_journal.c"
+  19              		.section	.text.record_crc32,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	record_crc32:
+  26              	.LVL0:
+  27              	.LFB1:
+   1:../common/security_version_journal.c **** #include "security_version_journal.h"
+   2:../common/security_version_journal.c **** 
+   3:../common/security_version_journal.c **** #include <stddef.h>
+   4:../common/security_version_journal.c **** #include <string.h>
+   5:../common/security_version_journal.c **** 
+   6:../common/security_version_journal.c **** static uint32_t crc32_update(uint32_t crc, uint8_t value)
+   7:../common/security_version_journal.c **** {
+   8:../common/security_version_journal.c ****     uint32_t bit;
+   9:../common/security_version_journal.c **** 
+  10:../common/security_version_journal.c ****     crc ^= value;
+  11:../common/security_version_journal.c ****     for (bit = 0u; bit < 8u; ++bit) {
+  12:../common/security_version_journal.c ****         uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
+  13:../common/security_version_journal.c ****         crc = (crc >> 1u) ^ (0xEDB88320u & mask);
+  14:../common/security_version_journal.c ****     }
+  15:../common/security_version_journal.c ****     return crc;
+  16:../common/security_version_journal.c **** }
+  17:../common/security_version_journal.c **** 
+  18:../common/security_version_journal.c **** static uint32_t record_crc32(
+  19:../common/security_version_journal.c ****     const hbox_security_version_record_v1_t *record)
+  20:../common/security_version_journal.c **** {
+  28              		.loc 1 20 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  21:../common/security_version_journal.c ****     const uint8_t *bytes = (const uint8_t *)record;
+  32              		.loc 1 21 5 view .LVU1
+  22:../common/security_version_journal.c ****     const size_t skip_offset =
+  33              		.loc 1 22 5 view .LVU2
+  23:../common/security_version_journal.c ****         offsetof(hbox_security_version_record_v1_t, record_crc32_le);
+  24:../common/security_version_journal.c ****     uint32_t crc = 0xFFFFFFFFu;
+  34              		.loc 1 24 5 view .LVU3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 2
+
+
+  25:../common/security_version_journal.c ****     size_t index;
+  35              		.loc 1 25 5 view .LVU4
+  26:../common/security_version_journal.c **** 
+  27:../common/security_version_journal.c ****     for (index = 0u; index < sizeof(*record); ++index) {
+  36              		.loc 1 27 5 view .LVU5
+  37              		.loc 1 27 28 discriminator 1 view .LVU6
+  20:../common/security_version_journal.c ****     const uint8_t *bytes = (const uint8_t *)record;
+  38              		.loc 1 20 1 is_stmt 0 view .LVU7
+  39 0000 30B5     		push	{r4, r5, lr}
+  40              	.LCFI0:
+  41              		.cfi_def_cfa_offset 12
+  42              		.cfi_offset 4, -12
+  43              		.cfi_offset 5, -8
+  44              		.cfi_offset 14, -4
+  45              		.loc 1 27 16 view .LVU8
+  46 0002 0022     		movs	r2, #0
+  24:../common/security_version_journal.c ****     size_t index;
+  47              		.loc 1 24 14 view .LVU9
+  48 0004 4FF0FF33 		mov	r3, #-1
+  49              	.LBB5:
+  50              	.LBB6:
+  51              	.LBB7:
+  13:../common/security_version_journal.c ****     }
+  52              		.loc 1 13 42 view .LVU10
+  53 0008 0A4D     		ldr	r5, .L7
+  54              	.LVL1:
+  55              	.L4:
+  13:../common/security_version_journal.c ****     }
+  56              		.loc 1 13 42 view .LVU11
+  57              	.LBE7:
+  58              	.LBE6:
+  59              	.LBE5:
+  28:../common/security_version_journal.c ****         if (index >= skip_offset &&
+  60              		.loc 1 28 9 is_stmt 1 view .LVU12
+  61              		.loc 1 28 12 is_stmt 0 view .LVU13
+  62 000a A2F11801 		sub	r1, r2, #24
+  63 000e 0329     		cmp	r1, #3
+  64 0010 0AD9     		bls	.L2
+  29:../common/security_version_journal.c ****             index < skip_offset + sizeof(record->record_crc32_le)) {
+  30:../common/security_version_journal.c ****             continue;
+  31:../common/security_version_journal.c ****         }
+  32:../common/security_version_journal.c ****         crc = crc32_update(crc, bytes[index]);
+  65              		.loc 1 32 9 is_stmt 1 view .LVU14
+  66              	.LVL2:
+  67              	.LBB11:
+  68              	.LBI5:
+   6:../common/security_version_journal.c **** {
+  69              		.loc 1 6 17 view .LVU15
+  70              	.LBB10:
+   8:../common/security_version_journal.c **** 
+  71              		.loc 1 8 5 view .LVU16
+  10:../common/security_version_journal.c ****     for (bit = 0u; bit < 8u; ++bit) {
+  72              		.loc 1 10 5 view .LVU17
+  10:../common/security_version_journal.c ****     for (bit = 0u; bit < 8u; ++bit) {
+  73              		.loc 1 10 9 is_stmt 0 view .LVU18
+  74 0012 815C     		ldrb	r1, [r0, r2]	@ zero_extendqisi2
+  75 0014 4B40     		eors	r3, r3, r1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 3
+
+
+  76              	.LVL3:
+  11:../common/security_version_journal.c ****         uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
+  77              		.loc 1 11 5 is_stmt 1 view .LVU19
+  11:../common/security_version_journal.c ****         uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
+  78              		.loc 1 11 24 discriminator 1 view .LVU20
+  10:../common/security_version_journal.c ****     for (bit = 0u; bit < 8u; ++bit) {
+  79              		.loc 1 10 9 is_stmt 0 view .LVU21
+  80 0016 0821     		movs	r1, #8
+  81              	.LVL4:
+  82              	.L3:
+  83              	.LBB8:
+  12:../common/security_version_journal.c ****         crc = (crc >> 1u) ^ (0xEDB88320u & mask);
+  84              		.loc 1 12 9 is_stmt 1 view .LVU22
+  13:../common/security_version_journal.c ****     }
+  85              		.loc 1 13 9 view .LVU23
+  13:../common/security_version_journal.c ****     }
+  86              		.loc 1 13 42 is_stmt 0 view .LVU24
+  87 0018 43F30004 		sbfx	r4, r3, #0, #1
+  88              	.LBE8:
+  11:../common/security_version_journal.c ****         uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
+  89              		.loc 1 11 24 discriminator 1 view .LVU25
+  90 001c 0139     		subs	r1, r1, #1
+  91              	.LVL5:
+  92              	.LBB9:
+  13:../common/security_version_journal.c ****     }
+  93              		.loc 1 13 42 view .LVU26
+  94 001e 04EA0504 		and	r4, r4, r5
+  13:../common/security_version_journal.c ****     }
+  95              		.loc 1 13 13 view .LVU27
+  96 0022 84EA5303 		eor	r3, r4, r3, lsr #1
+  97              	.LVL6:
+  13:../common/security_version_journal.c ****     }
+  98              		.loc 1 13 13 view .LVU28
+  99              	.LBE9:
+  11:../common/security_version_journal.c ****         uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
+ 100              		.loc 1 11 30 is_stmt 1 discriminator 3 view .LVU29
+  11:../common/security_version_journal.c ****         uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
+ 101              		.loc 1 11 24 discriminator 1 view .LVU30
+ 102 0026 F7D1     		bne	.L3
+ 103              	.LVL7:
+ 104              	.L2:
+  11:../common/security_version_journal.c ****         uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
+ 105              		.loc 1 11 24 is_stmt 0 discriminator 1 view .LVU31
+ 106              	.LBE10:
+ 107              	.LBE11:
+  27:../common/security_version_journal.c ****         if (index >= skip_offset &&
+ 108              		.loc 1 27 47 is_stmt 1 discriminator 2 view .LVU32
+ 109 0028 0132     		adds	r2, r2, #1
+ 110              	.LVL8:
+  27:../common/security_version_journal.c ****         if (index >= skip_offset &&
+ 111              		.loc 1 27 28 discriminator 1 view .LVU33
+ 112 002a 202A     		cmp	r2, #32
+ 113 002c EDD1     		bne	.L4
+  33:../common/security_version_journal.c ****     }
+  34:../common/security_version_journal.c ****     return crc ^ 0xFFFFFFFFu;
+ 114              		.loc 1 34 5 view .LVU34
+  35:../common/security_version_journal.c **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 4
+
+
+ 115              		.loc 1 35 1 is_stmt 0 view .LVU35
+ 116 002e D843     		mvns	r0, r3
+ 117              	.LVL9:
+ 118              		.loc 1 35 1 view .LVU36
+ 119 0030 30BD     		pop	{r4, r5, pc}
+ 120              	.L8:
+ 121 0032 00BF     		.align	2
+ 122              	.L7:
+ 123 0034 2083B8ED 		.word	-306674912
+ 124              		.cfi_endproc
+ 125              	.LFE1:
+ 127              		.section	.text.HBoxSecurityVersionJournal_Load,"ax",%progbits
+ 128              		.align	1
+ 129              		.global	HBoxSecurityVersionJournal_Load
+ 130              		.syntax unified
+ 131              		.thumb
+ 132              		.thumb_func
+ 134              	HBoxSecurityVersionJournal_Load:
+ 135              	.LVL10:
+ 136              	.LFB7:
+  36:../common/security_version_journal.c **** 
+  37:../common/security_version_journal.c **** static int record_is_erased(
+  38:../common/security_version_journal.c ****     const hbox_security_version_record_v1_t *record)
+  39:../common/security_version_journal.c **** {
+  40:../common/security_version_journal.c ****     const uint8_t *bytes = (const uint8_t *)record;
+  41:../common/security_version_journal.c ****     size_t index;
+  42:../common/security_version_journal.c **** 
+  43:../common/security_version_journal.c ****     for (index = 0u; index < sizeof(*record); ++index) {
+  44:../common/security_version_journal.c ****         if (bytes[index] != 0xFFu) {
+  45:../common/security_version_journal.c ****             return 0;
+  46:../common/security_version_journal.c ****         }
+  47:../common/security_version_journal.c ****     }
+  48:../common/security_version_journal.c ****     return 1;
+  49:../common/security_version_journal.c **** }
+  50:../common/security_version_journal.c **** 
+  51:../common/security_version_journal.c **** static int backend_is_valid(
+  52:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+  53:../common/security_version_journal.c ****     int require_program)
+  54:../common/security_version_journal.c **** {
+  55:../common/security_version_journal.c ****     return backend != NULL &&
+  56:../common/security_version_journal.c ****            backend->record_count != 0u &&
+  57:../common/security_version_journal.c ****            backend->read_record != NULL &&
+  58:../common/security_version_journal.c ****            (!require_program || backend->program_record_atomic != NULL);
+  59:../common/security_version_journal.c **** }
+  60:../common/security_version_journal.c **** 
+  61:../common/security_version_journal.c **** static int record_is_valid(
+  62:../common/security_version_journal.c ****     const hbox_security_version_record_v1_t *record,
+  63:../common/security_version_journal.c ****     uint32_t expected_ordinal,
+  64:../common/security_version_journal.c ****     uint32_t previous_minimum,
+  65:../common/security_version_journal.c ****     uint32_t previous_crc)
+  66:../common/security_version_journal.c **** {
+  67:../common/security_version_journal.c ****     return record->magic_le == HBOX_SECURITY_VERSION_RECORD_MAGIC &&
+  68:../common/security_version_journal.c ****            record->format_le == HBOX_SECURITY_VERSION_JOURNAL_FORMAT &&
+  69:../common/security_version_journal.c ****            record->record_bytes_le ==
+  70:../common/security_version_journal.c ****                HBOX_SECURITY_VERSION_RECORD_BYTES &&
+  71:../common/security_version_journal.c ****            record->ordinal_le == expected_ordinal &&
+  72:../common/security_version_journal.c ****            record->minimum_version_le != 0u &&
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 5
+
+
+  73:../common/security_version_journal.c ****            record->minimum_version_inverse_le ==
+  74:../common/security_version_journal.c ****                ~record->minimum_version_le &&
+  75:../common/security_version_journal.c ****            record->minimum_version_le > previous_minimum &&
+  76:../common/security_version_journal.c ****            record->previous_record_crc32_le == previous_crc &&
+  77:../common/security_version_journal.c ****            record->committed_le ==
+  78:../common/security_version_journal.c ****                HBOX_SECURITY_VERSION_RECORD_COMMITTED &&
+  79:../common/security_version_journal.c ****            record->record_crc32_le == record_crc32(record);
+  80:../common/security_version_journal.c **** }
+  81:../common/security_version_journal.c **** 
+  82:../common/security_version_journal.c **** static void build_record(
+  83:../common/security_version_journal.c ****     hbox_security_version_record_v1_t *record,
+  84:../common/security_version_journal.c ****     uint32_t ordinal,
+  85:../common/security_version_journal.c ****     uint32_t minimum_version,
+  86:../common/security_version_journal.c ****     uint32_t previous_crc)
+  87:../common/security_version_journal.c **** {
+  88:../common/security_version_journal.c ****     memset(record, 0, sizeof(*record));
+  89:../common/security_version_journal.c ****     record->magic_le = HBOX_SECURITY_VERSION_RECORD_MAGIC;
+  90:../common/security_version_journal.c ****     record->format_le = HBOX_SECURITY_VERSION_JOURNAL_FORMAT;
+  91:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+  92:../common/security_version_journal.c ****     record->ordinal_le = ordinal;
+  93:../common/security_version_journal.c ****     record->minimum_version_le = minimum_version;
+  94:../common/security_version_journal.c ****     record->minimum_version_inverse_le = ~minimum_version;
+  95:../common/security_version_journal.c ****     record->previous_record_crc32_le = previous_crc;
+  96:../common/security_version_journal.c ****     record->committed_le = HBOX_SECURITY_VERSION_RECORD_COMMITTED;
+  97:../common/security_version_journal.c ****     record->record_crc32_le = record_crc32(record);
+  98:../common/security_version_journal.c **** }
+  99:../common/security_version_journal.c **** 
+ 100:../common/security_version_journal.c **** static hbox_security_version_status_t verify_programmed_state(
+ 101:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 102:../common/security_version_journal.c ****     uint32_t expected_minimum)
+ 103:../common/security_version_journal.c **** {
+ 104:../common/security_version_journal.c ****     uint32_t actual_minimum = 0u;
+ 105:../common/security_version_journal.c ****     hbox_security_version_status_t status =
+ 106:../common/security_version_journal.c ****         HBoxSecurityVersionJournal_Load(
+ 107:../common/security_version_journal.c ****             backend, &actual_minimum, NULL);
+ 108:../common/security_version_journal.c **** 
+ 109:../common/security_version_journal.c ****     if (status != HBOX_SECURITY_VERSION_OK) {
+ 110:../common/security_version_journal.c ****         return status;
+ 111:../common/security_version_journal.c ****     }
+ 112:../common/security_version_journal.c ****     return actual_minimum == expected_minimum
+ 113:../common/security_version_journal.c ****                ? HBOX_SECURITY_VERSION_OK
+ 114:../common/security_version_journal.c ****                : HBOX_SECURITY_VERSION_CORRUPT;
+ 115:../common/security_version_journal.c **** }
+ 116:../common/security_version_journal.c **** 
+ 117:../common/security_version_journal.c **** hbox_security_version_status_t HBoxSecurityVersionJournal_Load(
+ 118:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 119:../common/security_version_journal.c ****     uint32_t *minimum_version,
+ 120:../common/security_version_journal.c ****     uint32_t *used_records)
+ 121:../common/security_version_journal.c **** {
+ 137              		.loc 1 121 1 is_stmt 1 view -0
+ 138              		.cfi_startproc
+ 139              		@ args = 0, pretend = 0, frame = 40
+ 140              		@ frame_needed = 0, uses_anonymous_args = 0
+ 122:../common/security_version_journal.c ****     hbox_security_version_record_v1_t record;
+ 141              		.loc 1 122 5 view .LVU38
+ 123:../common/security_version_journal.c ****     uint32_t previous_minimum = 0u;
+ 142              		.loc 1 123 5 view .LVU39
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 6
+
+
+ 124:../common/security_version_journal.c ****     uint32_t previous_crc = 0u;
+ 143              		.loc 1 124 5 view .LVU40
+ 125:../common/security_version_journal.c ****     uint32_t used = 0u;
+ 144              		.loc 1 125 5 view .LVU41
+ 126:../common/security_version_journal.c ****     uint32_t index;
+ 145              		.loc 1 126 5 view .LVU42
+ 127:../common/security_version_journal.c ****     int saw_erased = 0;
+ 146              		.loc 1 127 5 view .LVU43
+ 128:../common/security_version_journal.c **** 
+ 129:../common/security_version_journal.c ****     if (minimum_version == NULL) {
+ 147              		.loc 1 129 5 view .LVU44
+ 121:../common/security_version_journal.c ****     hbox_security_version_record_v1_t record;
+ 148              		.loc 1 121 1 is_stmt 0 view .LVU45
+ 149 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 150              	.LCFI1:
+ 151              		.cfi_def_cfa_offset 36
+ 152              		.cfi_offset 4, -36
+ 153              		.cfi_offset 5, -32
+ 154              		.cfi_offset 6, -28
+ 155              		.cfi_offset 7, -24
+ 156              		.cfi_offset 8, -20
+ 157              		.cfi_offset 9, -16
+ 158              		.cfi_offset 10, -12
+ 159              		.cfi_offset 11, -8
+ 160              		.cfi_offset 14, -4
+ 161 0004 0446     		mov	r4, r0
+ 162 0006 8BB0     		sub	sp, sp, #44
+ 163              	.LCFI2:
+ 164              		.cfi_def_cfa_offset 80
+ 121:../common/security_version_journal.c ****     hbox_security_version_record_v1_t record;
+ 165              		.loc 1 121 1 view .LVU46
+ 166 0008 1646     		mov	r6, r2
+ 167              		.loc 1 129 8 view .LVU47
+ 168 000a 8946     		mov	r9, r1
+ 169 000c 19B9     		cbnz	r1, .L10
+ 170              	.L13:
+ 130:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_UNAVAILABLE;
+ 171              		.loc 1 130 16 view .LVU48
+ 172 000e 0120     		movs	r0, #1
+ 173              	.LVL11:
+ 174              	.L47:
+ 131:../common/security_version_journal.c ****     }
+ 132:../common/security_version_journal.c ****     *minimum_version = 0u;
+ 133:../common/security_version_journal.c ****     if (used_records != NULL) {
+ 134:../common/security_version_journal.c ****         *used_records = 0u;
+ 135:../common/security_version_journal.c ****     }
+ 136:../common/security_version_journal.c ****     if (!backend_is_valid(backend, 0)) {
+ 137:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_UNAVAILABLE;
+ 138:../common/security_version_journal.c ****     }
+ 139:../common/security_version_journal.c **** 
+ 140:../common/security_version_journal.c ****     for (index = 0u; index < backend->record_count; ++index) {
+ 141:../common/security_version_journal.c ****         if (!backend->read_record(
+ 142:../common/security_version_journal.c ****                 backend->context, index, &record)) {
+ 143:../common/security_version_journal.c ****             memset(&record, 0, sizeof(record));
+ 144:../common/security_version_journal.c ****             return HBOX_SECURITY_VERSION_IO_ERROR;
+ 145:../common/security_version_journal.c ****         }
+ 146:../common/security_version_journal.c ****         if (record_is_erased(&record)) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 7
+
+
+ 147:../common/security_version_journal.c ****             saw_erased = 1;
+ 148:../common/security_version_journal.c ****             continue;
+ 149:../common/security_version_journal.c ****         }
+ 150:../common/security_version_journal.c ****         if (saw_erased ||
+ 151:../common/security_version_journal.c ****             !record_is_valid(
+ 152:../common/security_version_journal.c ****                 &record, used + 1u, previous_minimum, previous_crc)) {
+ 153:../common/security_version_journal.c ****             memset(&record, 0, sizeof(record));
+ 154:../common/security_version_journal.c ****             return HBOX_SECURITY_VERSION_CORRUPT;
+ 155:../common/security_version_journal.c ****         }
+ 156:../common/security_version_journal.c ****         previous_minimum = record.minimum_version_le;
+ 157:../common/security_version_journal.c ****         previous_crc = record.record_crc32_le;
+ 158:../common/security_version_journal.c ****         ++used;
+ 159:../common/security_version_journal.c ****     }
+ 160:../common/security_version_journal.c **** 
+ 161:../common/security_version_journal.c ****     memset(&record, 0, sizeof(record));
+ 162:../common/security_version_journal.c ****     if (used == 0u) {
+ 163:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_UNPROVISIONED;
+ 164:../common/security_version_journal.c ****     }
+ 165:../common/security_version_journal.c ****     *minimum_version = previous_minimum;
+ 166:../common/security_version_journal.c ****     if (used_records != NULL) {
+ 167:../common/security_version_journal.c ****         *used_records = used;
+ 168:../common/security_version_journal.c ****     }
+ 169:../common/security_version_journal.c ****     return HBOX_SECURITY_VERSION_OK;
+ 170:../common/security_version_journal.c **** }
+ 175              		.loc 1 170 1 view .LVU49
+ 176 0010 0BB0     		add	sp, sp, #44
+ 177              	.LCFI3:
+ 178              		.cfi_remember_state
+ 179              		.cfi_def_cfa_offset 36
+ 180              		@ sp needed
+ 181 0012 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 182              	.LVL12:
+ 183              	.L10:
+ 184              	.LCFI4:
+ 185              		.cfi_restore_state
+ 132:../common/security_version_journal.c ****     if (used_records != NULL) {
+ 186              		.loc 1 132 5 is_stmt 1 view .LVU50
+ 132:../common/security_version_journal.c ****     if (used_records != NULL) {
+ 187              		.loc 1 132 22 is_stmt 0 view .LVU51
+ 188 0016 0023     		movs	r3, #0
+ 189 0018 0B60     		str	r3, [r1]
+ 133:../common/security_version_journal.c ****         *used_records = 0u;
+ 190              		.loc 1 133 5 is_stmt 1 view .LVU52
+ 133:../common/security_version_journal.c ****         *used_records = 0u;
+ 191              		.loc 1 133 8 is_stmt 0 view .LVU53
+ 192 001a 02B1     		cbz	r2, .L12
+ 134:../common/security_version_journal.c ****     }
+ 193              		.loc 1 134 9 is_stmt 1 view .LVU54
+ 134:../common/security_version_journal.c ****     }
+ 194              		.loc 1 134 23 is_stmt 0 view .LVU55
+ 195 001c 1360     		str	r3, [r2]
+ 196              	.L12:
+ 136:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_UNAVAILABLE;
+ 197              		.loc 1 136 5 is_stmt 1 view .LVU56
+ 198              	.LVL13:
+ 199              	.LBB22:
+ 200              	.LBI22:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 8
+
+
+  51:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 201              		.loc 1 51 12 view .LVU57
+ 202              	.LBB23:
+  55:../common/security_version_journal.c ****            backend->record_count != 0u &&
+ 203              		.loc 1 55 5 view .LVU58
+  57:../common/security_version_journal.c ****            (!require_program || backend->program_record_atomic != NULL);
+ 204              		.loc 1 57 41 is_stmt 0 view .LVU59
+ 205 001e 002C     		cmp	r4, #0
+ 206 0020 F5D0     		beq	.L13
+  55:../common/security_version_journal.c ****            backend->record_count != 0u &&
+ 207              		.loc 1 55 28 view .LVU60
+ 208 0022 6368     		ldr	r3, [r4, #4]
+ 209 0024 002B     		cmp	r3, #0
+ 210 0026 F2D0     		beq	.L13
+  56:../common/security_version_journal.c ****            backend->read_record != NULL &&
+ 211              		.loc 1 56 40 view .LVU61
+ 212 0028 A368     		ldr	r3, [r4, #8]
+ 213 002a 002B     		cmp	r3, #0
+ 214 002c EFD0     		beq	.L13
+ 215              	.LBE23:
+ 216              	.LBE22:
+ 217              	.LBB24:
+ 218              	.LBB25:
+ 127:../common/security_version_journal.c **** 
+ 219              		.loc 1 127 9 view .LVU62
+ 220 002e 0025     		movs	r5, #0
+ 140:../common/security_version_journal.c ****         if (!backend->read_record(
+ 221              		.loc 1 140 16 view .LVU63
+ 222 0030 AA46     		mov	r10, r5
+ 125:../common/security_version_journal.c ****     uint32_t index;
+ 223              		.loc 1 125 14 view .LVU64
+ 224 0032 2F46     		mov	r7, r5
+ 124:../common/security_version_journal.c ****     uint32_t used = 0u;
+ 225              		.loc 1 124 14 view .LVU65
+ 226 0034 A846     		mov	r8, r5
+ 123:../common/security_version_journal.c ****     uint32_t previous_crc = 0u;
+ 227              		.loc 1 123 14 view .LVU66
+ 228 0036 AB46     		mov	fp, r5
+ 229 0038 12E0     		b	.L14
+ 230              	.LVL14:
+ 231              	.L19:
+ 141:../common/security_version_journal.c ****                 backend->context, index, &record)) {
+ 232              		.loc 1 141 9 is_stmt 1 view .LVU67
+ 141:../common/security_version_journal.c ****                 backend->context, index, &record)) {
+ 233              		.loc 1 141 14 is_stmt 0 view .LVU68
+ 234 003a A368     		ldr	r3, [r4, #8]
+ 235 003c 02AA     		add	r2, sp, #8
+ 236 003e 5146     		mov	r1, r10
+ 237 0040 2068     		ldr	r0, [r4]
+ 238 0042 9847     		blx	r3
+ 239              	.LVL15:
+ 141:../common/security_version_journal.c ****                 backend->context, index, &record)) {
+ 240              		.loc 1 141 12 discriminator 1 view .LVU69
+ 241 0044 0028     		cmp	r0, #0
+ 242 0046 45D0     		beq	.L24
+ 141:../common/security_version_journal.c ****                 backend->context, index, &record)) {
+ 243              		.loc 1 141 12 discriminator 1 view .LVU70
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 9
+
+
+ 244 0048 02AA     		add	r2, sp, #8
+ 245              	.LBB26:
+ 246              	.LBB27:
+  43:../common/security_version_journal.c ****         if (bytes[index] != 0xFFu) {
+ 247              		.loc 1 43 16 view .LVU71
+ 248 004a 0023     		movs	r3, #0
+ 249              	.L17:
+ 250              	.LVL16:
+  44:../common/security_version_journal.c ****             return 0;
+ 251              		.loc 1 44 9 is_stmt 1 view .LVU72
+  44:../common/security_version_journal.c ****             return 0;
+ 252              		.loc 1 44 18 is_stmt 0 view .LVU73
+ 253 004c 12F8010B 		ldrb	r0, [r2], #1	@ zero_extendqisi2
+  44:../common/security_version_journal.c ****             return 0;
+ 254              		.loc 1 44 12 view .LVU74
+ 255 0050 FF28     		cmp	r0, #255
+ 256 0052 43D1     		bne	.L16
+  43:../common/security_version_journal.c ****         if (bytes[index] != 0xFFu) {
+ 257              		.loc 1 43 47 is_stmt 1 discriminator 2 view .LVU75
+ 258 0054 0133     		adds	r3, r3, #1
+ 259              	.LVL17:
+  43:../common/security_version_journal.c ****         if (bytes[index] != 0xFFu) {
+ 260              		.loc 1 43 28 discriminator 1 view .LVU76
+ 261 0056 202B     		cmp	r3, #32
+ 262 0058 F8D1     		bne	.L17
+ 263              	.LBE27:
+ 264              	.LBE26:
+ 147:../common/security_version_journal.c ****             continue;
+ 265              		.loc 1 147 24 is_stmt 0 view .LVU77
+ 266 005a 0125     		movs	r5, #1
+ 267              	.LVL18:
+ 268              	.L18:
+ 140:../common/security_version_journal.c ****         if (!backend->read_record(
+ 269              		.loc 1 140 53 is_stmt 1 discriminator 2 view .LVU78
+ 270 005c 0AF1010A 		add	r10, r10, #1
+ 271              	.LVL19:
+ 272              	.L14:
+ 140:../common/security_version_journal.c ****         if (!backend->read_record(
+ 273              		.loc 1 140 28 discriminator 1 view .LVU79
+ 274 0060 6368     		ldr	r3, [r4, #4]
+ 275 0062 9A45     		cmp	r10, r3
+ 276 0064 E9D3     		bcc	.L19
+ 161:../common/security_version_journal.c ****     if (used == 0u) {
+ 277              		.loc 1 161 5 view .LVU80
+ 278 0066 2022     		movs	r2, #32
+ 279 0068 0021     		movs	r1, #0
+ 280 006a 02A8     		add	r0, sp, #8
+ 281 006c FFF7FEFF 		bl	memset
+ 282              	.LVL20:
+ 162:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_UNPROVISIONED;
+ 283              		.loc 1 162 5 view .LVU81
+ 162:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_UNPROVISIONED;
+ 284              		.loc 1 162 8 is_stmt 0 view .LVU82
+ 285 0070 97B3     		cbz	r7, .L35
+ 165:../common/security_version_journal.c ****     if (used_records != NULL) {
+ 286              		.loc 1 165 5 is_stmt 1 view .LVU83
+ 165:../common/security_version_journal.c ****     if (used_records != NULL) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 10
+
+
+ 287              		.loc 1 165 22 is_stmt 0 view .LVU84
+ 288 0072 C9F800B0 		str	fp, [r9]
+ 166:../common/security_version_journal.c ****         *used_records = used;
+ 289              		.loc 1 166 5 is_stmt 1 view .LVU85
+ 166:../common/security_version_journal.c ****         *used_records = used;
+ 290              		.loc 1 166 8 is_stmt 0 view .LVU86
+ 291 0076 5EBB     		cbnz	r6, .L20
+ 292              	.L21:
+ 169:../common/security_version_journal.c **** }
+ 293              		.loc 1 169 12 view .LVU87
+ 294 0078 0020     		movs	r0, #0
+ 295 007a C9E7     		b	.L47
+ 296              	.L48:
+ 297              	.LVL21:
+ 298              	.LBB28:
+ 299              	.LBI28:
+  61:../common/security_version_journal.c ****     const hbox_security_version_record_v1_t *record,
+ 300              		.loc 1 61 12 is_stmt 1 view .LVU88
+ 301              	.LBB29:
+  67:../common/security_version_journal.c ****            record->format_le == HBOX_SECURITY_VERSION_JOURNAL_FORMAT &&
+ 302              		.loc 1 67 5 view .LVU89
+  78:../common/security_version_journal.c ****            record->record_crc32_le == record_crc32(record);
+ 303              		.loc 1 78 55 is_stmt 0 view .LVU90
+ 304 007c 029B     		ldr	r3, [sp, #8]
+ 305 007e 194A     		ldr	r2, .L49
+ 306 0080 9342     		cmp	r3, r2
+ 307 0082 2DD1     		bne	.L36
+  67:../common/security_version_journal.c ****            record->format_le == HBOX_SECURITY_VERSION_JOURNAL_FORMAT &&
+ 308              		.loc 1 67 67 view .LVU91
+ 309 0084 BDF80C30 		ldrh	r3, [sp, #12]
+ 310 0088 012B     		cmp	r3, #1
+ 311 008a 29D1     		bne	.L36
+  68:../common/security_version_journal.c ****            record->record_bytes_le ==
+ 312              		.loc 1 68 70 view .LVU92
+ 313 008c BDF80E30 		ldrh	r3, [sp, #14]
+ 314 0090 202B     		cmp	r3, #32
+ 315 0092 25D1     		bne	.L36
+ 316              	.LBE29:
+ 317              	.LBE28:
+ 151:../common/security_version_journal.c ****                 &record, used + 1u, previous_minimum, previous_crc)) {
+ 318              		.loc 1 151 14 view .LVU93
+ 319 0094 0137     		adds	r7, r7, #1
+ 320              	.LVL22:
+ 321              	.LBB31:
+ 322              	.LBB30:
+  70:../common/security_version_journal.c ****            record->ordinal_le == expected_ordinal &&
+ 323              		.loc 1 70 51 view .LVU94
+ 324 0096 049B     		ldr	r3, [sp, #16]
+ 325 0098 9F42     		cmp	r7, r3
+ 326 009a 21D1     		bne	.L36
+  72:../common/security_version_journal.c ****            record->minimum_version_inverse_le ==
+ 327              		.loc 1 72 18 view .LVU95
+ 328 009c 059B     		ldr	r3, [sp, #20]
+  71:../common/security_version_journal.c ****            record->minimum_version_le != 0u &&
+ 329              		.loc 1 71 51 view .LVU96
+ 330 009e FBB1     		cbz	r3, .L36
+  74:../common/security_version_journal.c ****            record->minimum_version_le > previous_minimum &&
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 11
+
+
+ 331              		.loc 1 74 16 view .LVU97
+ 332 00a0 D843     		mvns	r0, r3
+  72:../common/security_version_journal.c ****            record->minimum_version_inverse_le ==
+ 333              		.loc 1 72 45 view .LVU98
+ 334 00a2 069A     		ldr	r2, [sp, #24]
+ 335 00a4 8242     		cmp	r2, r0
+ 336 00a6 1BD1     		bne	.L36
+  74:../common/security_version_journal.c ****            record->minimum_version_le > previous_minimum &&
+ 337              		.loc 1 74 44 view .LVU99
+ 338 00a8 9B45     		cmp	fp, r3
+ 339 00aa 19D2     		bcs	.L36
+  75:../common/security_version_journal.c ****            record->previous_record_crc32_le == previous_crc &&
+ 340              		.loc 1 75 58 view .LVU100
+ 341 00ac 079A     		ldr	r2, [sp, #28]
+ 342 00ae 9045     		cmp	r8, r2
+ 343 00b0 16D1     		bne	.L36
+  76:../common/security_version_journal.c ****            record->committed_le ==
+ 344              		.loc 1 76 61 view .LVU101
+ 345 00b2 0D48     		ldr	r0, .L49+4
+ 346 00b4 099A     		ldr	r2, [sp, #36]
+ 347 00b6 8242     		cmp	r2, r0
+ 348 00b8 12D1     		bne	.L36
+  79:../common/security_version_journal.c **** }
+ 349              		.loc 1 79 39 view .LVU102
+ 350 00ba 02A8     		add	r0, sp, #8
+ 351              	.LVL23:
+  79:../common/security_version_journal.c **** }
+ 352              		.loc 1 79 39 view .LVU103
+ 353 00bc 0193     		str	r3, [sp, #4]
+ 354 00be FFF7FEFF 		bl	record_crc32
+ 355              	.LVL24:
+  78:../common/security_version_journal.c ****            record->record_crc32_le == record_crc32(record);
+ 356              		.loc 1 78 55 discriminator 3 view .LVU104
+ 357 00c2 089A     		ldr	r2, [sp, #32]
+  79:../common/security_version_journal.c **** }
+ 358              		.loc 1 79 39 view .LVU105
+ 359 00c4 8046     		mov	r8, r0
+ 360              	.LVL25:
+  78:../common/security_version_journal.c ****            record->record_crc32_le == record_crc32(record);
+ 361              		.loc 1 78 55 discriminator 3 view .LVU106
+ 362 00c6 019B     		ldr	r3, [sp, #4]
+ 363 00c8 8242     		cmp	r2, r0
+ 364 00ca 09D1     		bne	.L36
+ 365              	.LBE30:
+ 366              	.LBE31:
+ 156:../common/security_version_journal.c ****         previous_crc = record.record_crc32_le;
+ 367              		.loc 1 156 26 view .LVU107
+ 368 00cc 9B46     		mov	fp, r3
+ 369              	.LVL26:
+ 156:../common/security_version_journal.c ****         previous_crc = record.record_crc32_le;
+ 370              		.loc 1 156 26 view .LVU108
+ 371 00ce C5E7     		b	.L18
+ 372              	.LVL27:
+ 373              	.L20:
+ 167:../common/security_version_journal.c ****     }
+ 374              		.loc 1 167 9 is_stmt 1 view .LVU109
+ 167:../common/security_version_journal.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 12
+
+
+ 375              		.loc 1 167 23 is_stmt 0 view .LVU110
+ 376 00d0 3760     		str	r7, [r6]
+ 377 00d2 D1E7     		b	.L21
+ 378              	.L24:
+ 144:../common/security_version_journal.c ****         }
+ 379              		.loc 1 144 20 view .LVU111
+ 380 00d4 0420     		movs	r0, #4
+ 381 00d6 9BE7     		b	.L47
+ 382              	.L35:
+ 163:../common/security_version_journal.c ****     }
+ 383              		.loc 1 163 16 view .LVU112
+ 384 00d8 0220     		movs	r0, #2
+ 385 00da 99E7     		b	.L47
+ 386              	.LVL28:
+ 387              	.L16:
+ 150:../common/security_version_journal.c ****             !record_is_valid(
+ 388              		.loc 1 150 9 is_stmt 1 view .LVU113
+ 150:../common/security_version_journal.c ****             !record_is_valid(
+ 389              		.loc 1 150 12 is_stmt 0 view .LVU114
+ 390 00dc 002D     		cmp	r5, #0
+ 391 00de CDD0     		beq	.L48
+ 392              	.LVL29:
+ 393              	.L36:
+ 154:../common/security_version_journal.c ****         }
+ 394              		.loc 1 154 20 view .LVU115
+ 395 00e0 0320     		movs	r0, #3
+ 396              	.LVL30:
+ 154:../common/security_version_journal.c ****         }
+ 397              		.loc 1 154 20 view .LVU116
+ 398 00e2 95E7     		b	.L47
+ 399              	.L50:
+ 400              		.align	2
+ 401              	.L49:
+ 402 00e4 534A5631 		.word	827738707
+ 403 00e8 54494D43 		.word	1129138516
+ 404              	.LBE25:
+ 405              	.LBE24:
+ 406              		.cfi_endproc
+ 407              	.LFE7:
+ 409              		.section	.text.HBoxSecurityVersionJournal_Provision,"ax",%progbits
+ 410              		.align	1
+ 411              		.global	HBoxSecurityVersionJournal_Provision
+ 412              		.syntax unified
+ 413              		.thumb
+ 414              		.thumb_func
+ 416              	HBoxSecurityVersionJournal_Provision:
+ 417              	.LVL31:
+ 418              	.LFB8:
+ 171:../common/security_version_journal.c **** 
+ 172:../common/security_version_journal.c **** hbox_security_version_status_t HBoxSecurityVersionJournal_Provision(
+ 173:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 174:../common/security_version_journal.c ****     uint32_t initial_minimum_version)
+ 175:../common/security_version_journal.c **** {
+ 419              		.loc 1 175 1 is_stmt 1 view -0
+ 420              		.cfi_startproc
+ 421              		@ args = 0, pretend = 0, frame = 40
+ 422              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 13
+
+
+ 176:../common/security_version_journal.c ****     hbox_security_version_record_v1_t record;
+ 423              		.loc 1 176 5 view .LVU118
+ 177:../common/security_version_journal.c ****     uint32_t ignored = 0u;
+ 424              		.loc 1 177 5 view .LVU119
+ 175:../common/security_version_journal.c ****     hbox_security_version_record_v1_t record;
+ 425              		.loc 1 175 1 is_stmt 0 view .LVU120
+ 426 0000 70B5     		push	{r4, r5, r6, lr}
+ 427              	.LCFI5:
+ 428              		.cfi_def_cfa_offset 16
+ 429              		.cfi_offset 4, -16
+ 430              		.cfi_offset 5, -12
+ 431              		.cfi_offset 6, -8
+ 432              		.cfi_offset 14, -4
+ 433              		.loc 1 177 14 view .LVU121
+ 434 0002 0025     		movs	r5, #0
+ 175:../common/security_version_journal.c ****     hbox_security_version_record_v1_t record;
+ 435              		.loc 1 175 1 view .LVU122
+ 436 0004 8AB0     		sub	sp, sp, #40
+ 437              	.LCFI6:
+ 438              		.cfi_def_cfa_offset 56
+ 175:../common/security_version_journal.c ****     hbox_security_version_record_v1_t record;
+ 439              		.loc 1 175 1 view .LVU123
+ 440 0006 0446     		mov	r4, r0
+ 178:../common/security_version_journal.c ****     hbox_security_version_status_t status;
+ 179:../common/security_version_journal.c **** 
+ 180:../common/security_version_journal.c ****     if (initial_minimum_version == 0u ||
+ 441              		.loc 1 180 8 view .LVU124
+ 442 0008 0E46     		mov	r6, r1
+ 177:../common/security_version_journal.c ****     hbox_security_version_status_t status;
+ 443              		.loc 1 177 14 view .LVU125
+ 444 000a 0095     		str	r5, [sp]
+ 178:../common/security_version_journal.c ****     hbox_security_version_status_t status;
+ 445              		.loc 1 178 5 is_stmt 1 view .LVU126
+ 446              		.loc 1 180 5 view .LVU127
+ 447              		.loc 1 180 8 is_stmt 0 view .LVU128
+ 448 000c 0029     		cmp	r1, #0
+ 449 000e 3ED0     		beq	.L59
+ 450              	.LVL32:
+ 451              	.LBB40:
+ 452              	.LBI40:
+  51:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 453              		.loc 1 51 12 is_stmt 1 view .LVU129
+ 454              	.LBB41:
+  55:../common/security_version_journal.c ****            backend->record_count != 0u &&
+ 455              		.loc 1 55 5 view .LVU130
+  57:../common/security_version_journal.c ****            (!require_program || backend->program_record_atomic != NULL);
+ 456              		.loc 1 57 41 is_stmt 0 view .LVU131
+ 457 0010 0028     		cmp	r0, #0
+ 458 0012 3CD0     		beq	.L59
+  55:../common/security_version_journal.c ****            backend->record_count != 0u &&
+ 459              		.loc 1 55 28 view .LVU132
+ 460 0014 4368     		ldr	r3, [r0, #4]
+ 461 0016 002B     		cmp	r3, #0
+ 462 0018 39D0     		beq	.L59
+  56:../common/security_version_journal.c ****            backend->read_record != NULL &&
+ 463              		.loc 1 56 40 view .LVU133
+ 464 001a 8368     		ldr	r3, [r0, #8]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 14
+
+
+ 465 001c 002B     		cmp	r3, #0
+ 466 001e 36D0     		beq	.L59
+ 467              	.LVL33:
+ 468              	.LBB42:
+ 469              	.LBI42:
+  51:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 470              		.loc 1 51 12 is_stmt 1 view .LVU134
+ 471              	.LBB43:
+  58:../common/security_version_journal.c **** }
+ 472              		.loc 1 58 30 is_stmt 0 view .LVU135
+ 473 0020 C368     		ldr	r3, [r0, #12]
+ 474 0022 002B     		cmp	r3, #0
+ 475 0024 33D0     		beq	.L59
+ 476              	.LVL34:
+  58:../common/security_version_journal.c **** }
+ 477              		.loc 1 58 30 view .LVU136
+ 478              	.LBE43:
+ 479              	.LBE42:
+ 480              	.LBE41:
+ 481              	.LBE40:
+ 181:../common/security_version_journal.c ****         !backend_is_valid(backend, 1)) {
+ 182:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_UNAVAILABLE;
+ 183:../common/security_version_journal.c ****     }
+ 184:../common/security_version_journal.c **** 
+ 185:../common/security_version_journal.c ****     status = HBoxSecurityVersionJournal_Load(
+ 482              		.loc 1 185 5 is_stmt 1 view .LVU137
+ 483              		.loc 1 185 14 is_stmt 0 view .LVU138
+ 484 0026 2A46     		mov	r2, r5
+ 485 0028 6946     		mov	r1, sp
+ 486              	.LVL35:
+ 487              		.loc 1 185 14 view .LVU139
+ 488 002a FFF7FEFF 		bl	HBoxSecurityVersionJournal_Load
+ 489              	.LVL36:
+ 186:../common/security_version_journal.c ****         backend, &ignored, NULL);
+ 187:../common/security_version_journal.c ****     if (status != HBOX_SECURITY_VERSION_UNPROVISIONED) {
+ 490              		.loc 1 187 5 is_stmt 1 view .LVU140
+ 491              		.loc 1 187 8 is_stmt 0 view .LVU141
+ 492 002e 0228     		cmp	r0, #2
+ 493 0030 04D0     		beq	.L53
+ 188:../common/security_version_journal.c ****         return status == HBOX_SECURITY_VERSION_OK
+ 494              		.loc 1 188 9 is_stmt 1 view .LVU142
+ 189:../common/security_version_journal.c ****                    ? HBOX_SECURITY_VERSION_ROLLBACK
+ 190:../common/security_version_journal.c ****                    : status;
+ 495              		.loc 1 190 20 is_stmt 0 discriminator 2 view .LVU143
+ 496 0032 A842     		cmp	r0, r5
+ 497 0034 08BF     		it	eq
+ 498 0036 0620     		moveq	r0, #6
+ 499              	.LVL37:
+ 500              	.L52:
+ 191:../common/security_version_journal.c ****     }
+ 192:../common/security_version_journal.c **** 
+ 193:../common/security_version_journal.c ****     build_record(&record, 1u, initial_minimum_version, 0u);
+ 194:../common/security_version_journal.c ****     if (!backend->program_record_atomic(
+ 195:../common/security_version_journal.c ****             backend->context, 0u, &record)) {
+ 196:../common/security_version_journal.c ****         memset(&record, 0, sizeof(record));
+ 197:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_IO_ERROR;
+ 198:../common/security_version_journal.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 15
+
+
+ 199:../common/security_version_journal.c ****     memset(&record, 0, sizeof(record));
+ 200:../common/security_version_journal.c ****     return verify_programmed_state(backend, initial_minimum_version);
+ 201:../common/security_version_journal.c **** }
+ 501              		.loc 1 201 1 view .LVU144
+ 502 0038 0AB0     		add	sp, sp, #40
+ 503              	.LCFI7:
+ 504              		.cfi_remember_state
+ 505              		.cfi_def_cfa_offset 16
+ 506              		@ sp needed
+ 507 003a 70BD     		pop	{r4, r5, r6, pc}
+ 508              	.LVL38:
+ 509              	.L53:
+ 510              	.LCFI8:
+ 511              		.cfi_restore_state
+ 193:../common/security_version_journal.c ****     if (!backend->program_record_atomic(
+ 512              		.loc 1 193 5 is_stmt 1 view .LVU145
+ 513              	.LBB44:
+ 514              	.LBI44:
+  82:../common/security_version_journal.c ****     hbox_security_version_record_v1_t *record,
+ 515              		.loc 1 82 13 view .LVU146
+ 516              	.LBB45:
+  88:../common/security_version_journal.c ****     record->magic_le = HBOX_SECURITY_VERSION_RECORD_MAGIC;
+ 517              		.loc 1 88 5 view .LVU147
+  90:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+ 518              		.loc 1 90 23 is_stmt 0 view .LVU148
+ 519 003c 164A     		ldr	r2, .L63
+  97:../common/security_version_journal.c **** }
+ 520              		.loc 1 97 31 view .LVU149
+ 521 003e 02A8     		add	r0, sp, #8
+ 522              	.LVL39:
+  90:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+ 523              		.loc 1 90 23 view .LVU150
+ 524 0040 164B     		ldr	r3, .L63+4
+  88:../common/security_version_journal.c ****     record->magic_le = HBOX_SECURITY_VERSION_RECORD_MAGIC;
+ 525              		.loc 1 88 5 view .LVU151
+ 526 0042 0895     		str	r5, [sp, #32]
+  89:../common/security_version_journal.c ****     record->format_le = HBOX_SECURITY_VERSION_JOURNAL_FORMAT;
+ 527              		.loc 1 89 5 is_stmt 1 view .LVU152
+  90:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+ 528              		.loc 1 90 5 view .LVU153
+  91:../common/security_version_journal.c ****     record->ordinal_le = ordinal;
+ 529              		.loc 1 91 5 view .LVU154
+  92:../common/security_version_journal.c ****     record->minimum_version_le = minimum_version;
+ 530              		.loc 1 92 5 view .LVU155
+  90:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+ 531              		.loc 1 90 23 is_stmt 0 view .LVU156
+ 532 0044 CDE90223 		strd	r2, r3, [sp, #8]
+  92:../common/security_version_journal.c ****     record->minimum_version_le = minimum_version;
+ 533              		.loc 1 92 24 view .LVU157
+ 534 0048 0123     		movs	r3, #1
+  93:../common/security_version_journal.c ****     record->minimum_version_inverse_le = ~minimum_version;
+ 535              		.loc 1 93 32 view .LVU158
+ 536 004a CDE90436 		strd	r3, r6, [sp, #16]
+  94:../common/security_version_journal.c ****     record->previous_record_crc32_le = previous_crc;
+ 537              		.loc 1 94 5 is_stmt 1 view .LVU159
+  94:../common/security_version_journal.c ****     record->previous_record_crc32_le = previous_crc;
+ 538              		.loc 1 94 42 is_stmt 0 view .LVU160
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 16
+
+
+ 539 004e F343     		mvns	r3, r6
+  95:../common/security_version_journal.c ****     record->committed_le = HBOX_SECURITY_VERSION_RECORD_COMMITTED;
+ 540              		.loc 1 95 38 view .LVU161
+ 541 0050 CDE90635 		strd	r3, r5, [sp, #24]
+  96:../common/security_version_journal.c ****     record->record_crc32_le = record_crc32(record);
+ 542              		.loc 1 96 5 is_stmt 1 view .LVU162
+  96:../common/security_version_journal.c ****     record->record_crc32_le = record_crc32(record);
+ 543              		.loc 1 96 26 is_stmt 0 view .LVU163
+ 544 0054 124B     		ldr	r3, .L63+8
+ 545 0056 0993     		str	r3, [sp, #36]
+  97:../common/security_version_journal.c **** }
+ 546              		.loc 1 97 5 is_stmt 1 view .LVU164
+  97:../common/security_version_journal.c **** }
+ 547              		.loc 1 97 31 is_stmt 0 view .LVU165
+ 548 0058 FFF7FEFF 		bl	record_crc32
+ 549              	.LVL40:
+  97:../common/security_version_journal.c **** }
+ 550              		.loc 1 97 31 view .LVU166
+ 551              	.LBE45:
+ 552              	.LBE44:
+ 194:../common/security_version_journal.c ****             backend->context, 0u, &record)) {
+ 553              		.loc 1 194 10 view .LVU167
+ 554 005c E368     		ldr	r3, [r4, #12]
+ 555 005e 02AA     		add	r2, sp, #8
+ 556              	.LVL41:
+ 557              	.LBB47:
+ 558              	.LBB46:
+  97:../common/security_version_journal.c **** }
+ 559              		.loc 1 97 29 discriminator 1 view .LVU168
+ 560 0060 0890     		str	r0, [sp, #32]
+ 561              	.LVL42:
+  97:../common/security_version_journal.c **** }
+ 562              		.loc 1 97 29 discriminator 1 view .LVU169
+ 563              	.LBE46:
+ 564              	.LBE47:
+ 194:../common/security_version_journal.c ****             backend->context, 0u, &record)) {
+ 565              		.loc 1 194 5 is_stmt 1 view .LVU170
+ 194:../common/security_version_journal.c ****             backend->context, 0u, &record)) {
+ 566              		.loc 1 194 10 is_stmt 0 view .LVU171
+ 567 0062 2946     		mov	r1, r5
+ 568 0064 2068     		ldr	r0, [r4]
+ 569 0066 9847     		blx	r3
+ 570              	.LVL43:
+ 194:../common/security_version_journal.c ****             backend->context, 0u, &record)) {
+ 571              		.loc 1 194 8 discriminator 1 view .LVU172
+ 572 0068 98B1     		cbz	r0, .L61
+ 199:../common/security_version_journal.c ****     return verify_programmed_state(backend, initial_minimum_version);
+ 573              		.loc 1 199 5 is_stmt 1 view .LVU173
+ 574 006a 2022     		movs	r2, #32
+ 575 006c 2946     		mov	r1, r5
+ 576 006e 02A8     		add	r0, sp, #8
+ 577 0070 FFF7FEFF 		bl	memset
+ 578              	.LVL44:
+ 200:../common/security_version_journal.c **** }
+ 579              		.loc 1 200 5 view .LVU174
+ 580              	.LBB48:
+ 581              	.LBI48:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 17
+
+
+ 100:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 582              		.loc 1 100 39 view .LVU175
+ 583              	.LBB49:
+ 104:../common/security_version_journal.c ****     hbox_security_version_status_t status =
+ 584              		.loc 1 104 5 view .LVU176
+ 106:../common/security_version_journal.c ****             backend, &actual_minimum, NULL);
+ 585              		.loc 1 106 9 is_stmt 0 view .LVU177
+ 586 0074 2A46     		mov	r2, r5
+ 587 0076 01A9     		add	r1, sp, #4
+ 588 0078 2046     		mov	r0, r4
+ 104:../common/security_version_journal.c ****     hbox_security_version_status_t status =
+ 589              		.loc 1 104 14 view .LVU178
+ 590 007a 0195     		str	r5, [sp, #4]
+ 105:../common/security_version_journal.c ****         HBoxSecurityVersionJournal_Load(
+ 591              		.loc 1 105 5 is_stmt 1 view .LVU179
+ 106:../common/security_version_journal.c ****             backend, &actual_minimum, NULL);
+ 592              		.loc 1 106 9 is_stmt 0 view .LVU180
+ 593 007c FFF7FEFF 		bl	HBoxSecurityVersionJournal_Load
+ 594              	.LVL45:
+ 109:../common/security_version_journal.c ****         return status;
+ 595              		.loc 1 109 5 is_stmt 1 view .LVU181
+ 109:../common/security_version_journal.c ****         return status;
+ 596              		.loc 1 109 8 is_stmt 0 view .LVU182
+ 597 0080 0028     		cmp	r0, #0
+ 598 0082 D9D1     		bne	.L52
+ 112:../common/security_version_journal.c ****                ? HBOX_SECURITY_VERSION_OK
+ 599              		.loc 1 112 5 is_stmt 1 view .LVU183
+ 114:../common/security_version_journal.c **** }
+ 600              		.loc 1 114 16 is_stmt 0 discriminator 2 view .LVU184
+ 601 0084 019B     		ldr	r3, [sp, #4]
+ 602 0086 9E42     		cmp	r6, r3
+ 603 0088 18BF     		it	ne
+ 604 008a 0320     		movne	r0, #3
+ 605              	.LVL46:
+ 114:../common/security_version_journal.c **** }
+ 606              		.loc 1 114 16 discriminator 2 view .LVU185
+ 607 008c D4E7     		b	.L52
+ 608              	.LVL47:
+ 609              	.L59:
+ 114:../common/security_version_journal.c **** }
+ 610              		.loc 1 114 16 discriminator 2 view .LVU186
+ 611              	.LBE49:
+ 612              	.LBE48:
+ 182:../common/security_version_journal.c ****     }
+ 613              		.loc 1 182 16 view .LVU187
+ 614 008e 0120     		movs	r0, #1
+ 615              	.LVL48:
+ 182:../common/security_version_journal.c ****     }
+ 616              		.loc 1 182 16 view .LVU188
+ 617 0090 D2E7     		b	.L52
+ 618              	.LVL49:
+ 619              	.L61:
+ 197:../common/security_version_journal.c ****     }
+ 620              		.loc 1 197 16 view .LVU189
+ 621 0092 0420     		movs	r0, #4
+ 622 0094 D0E7     		b	.L52
+ 623              	.L64:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 18
+
+
+ 624 0096 00BF     		.align	2
+ 625              	.L63:
+ 626 0098 534A5631 		.word	827738707
+ 627 009c 01002000 		.word	2097153
+ 628 00a0 54494D43 		.word	1129138516
+ 629              		.cfi_endproc
+ 630              	.LFE8:
+ 632              		.section	.text.HBoxSecurityVersionJournal_Advance,"ax",%progbits
+ 633              		.align	1
+ 634              		.global	HBoxSecurityVersionJournal_Advance
+ 635              		.syntax unified
+ 636              		.thumb
+ 637              		.thumb_func
+ 639              	HBoxSecurityVersionJournal_Advance:
+ 640              	.LVL50:
+ 641              	.LFB9:
+ 202:../common/security_version_journal.c **** 
+ 203:../common/security_version_journal.c **** hbox_security_version_status_t HBoxSecurityVersionJournal_Advance(
+ 204:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 205:../common/security_version_journal.c ****     uint32_t requested_minimum_version)
+ 206:../common/security_version_journal.c **** {
+ 642              		.loc 1 206 1 is_stmt 1 view -0
+ 643              		.cfi_startproc
+ 644              		@ args = 0, pretend = 0, frame = 80
+ 645              		@ frame_needed = 0, uses_anonymous_args = 0
+ 207:../common/security_version_journal.c ****     hbox_security_version_record_v1_t previous;
+ 646              		.loc 1 207 5 view .LVU191
+ 208:../common/security_version_journal.c ****     hbox_security_version_record_v1_t record;
+ 647              		.loc 1 208 5 view .LVU192
+ 209:../common/security_version_journal.c ****     uint32_t current_minimum = 0u;
+ 648              		.loc 1 209 5 view .LVU193
+ 206:../common/security_version_journal.c ****     hbox_security_version_record_v1_t previous;
+ 649              		.loc 1 206 1 is_stmt 0 view .LVU194
+ 650 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 651              	.LCFI9:
+ 652              		.cfi_def_cfa_offset 20
+ 653              		.cfi_offset 4, -20
+ 654              		.cfi_offset 5, -16
+ 655              		.cfi_offset 6, -12
+ 656              		.cfi_offset 7, -8
+ 657              		.cfi_offset 14, -4
+ 658              		.loc 1 209 14 view .LVU195
+ 659 0002 0023     		movs	r3, #0
+ 206:../common/security_version_journal.c ****     hbox_security_version_record_v1_t previous;
+ 660              		.loc 1 206 1 view .LVU196
+ 661 0004 95B0     		sub	sp, sp, #84
+ 662              	.LCFI10:
+ 663              		.cfi_def_cfa_offset 104
+ 206:../common/security_version_journal.c ****     hbox_security_version_record_v1_t previous;
+ 664              		.loc 1 206 1 view .LVU197
+ 665 0006 0446     		mov	r4, r0
+ 210:../common/security_version_journal.c ****     uint32_t used = 0u;
+ 211:../common/security_version_journal.c ****     hbox_security_version_status_t status;
+ 212:../common/security_version_journal.c **** 
+ 213:../common/security_version_journal.c ****     if (requested_minimum_version == 0u ||
+ 666              		.loc 1 213 8 view .LVU198
+ 667 0008 0D46     		mov	r5, r1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 19
+
+
+ 210:../common/security_version_journal.c ****     uint32_t used = 0u;
+ 668              		.loc 1 210 14 view .LVU199
+ 669 000a CDE90133 		strd	r3, r3, [sp, #4]
+ 211:../common/security_version_journal.c **** 
+ 670              		.loc 1 211 5 is_stmt 1 view .LVU200
+ 671              		.loc 1 213 5 view .LVU201
+ 672              		.loc 1 213 8 is_stmt 0 view .LVU202
+ 673 000e 0029     		cmp	r1, #0
+ 674 0010 51D0     		beq	.L74
+ 675              	.LVL51:
+ 676              	.LBB58:
+ 677              	.LBI58:
+  51:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 678              		.loc 1 51 12 is_stmt 1 view .LVU203
+ 679              	.LBB59:
+  55:../common/security_version_journal.c ****            backend->record_count != 0u &&
+ 680              		.loc 1 55 5 view .LVU204
+  57:../common/security_version_journal.c ****            (!require_program || backend->program_record_atomic != NULL);
+ 681              		.loc 1 57 41 is_stmt 0 view .LVU205
+ 682 0012 0028     		cmp	r0, #0
+ 683 0014 4FD0     		beq	.L74
+  55:../common/security_version_journal.c ****            backend->record_count != 0u &&
+ 684              		.loc 1 55 28 view .LVU206
+ 685 0016 4368     		ldr	r3, [r0, #4]
+ 686 0018 002B     		cmp	r3, #0
+ 687 001a 4CD0     		beq	.L74
+  56:../common/security_version_journal.c ****            backend->read_record != NULL &&
+ 688              		.loc 1 56 40 view .LVU207
+ 689 001c 8368     		ldr	r3, [r0, #8]
+ 690 001e 002B     		cmp	r3, #0
+ 691 0020 49D0     		beq	.L74
+ 692              	.LVL52:
+ 693              	.LBB60:
+ 694              	.LBI60:
+  51:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 695              		.loc 1 51 12 is_stmt 1 view .LVU208
+ 696              	.LBB61:
+  58:../common/security_version_journal.c **** }
+ 697              		.loc 1 58 30 is_stmt 0 view .LVU209
+ 698 0022 C368     		ldr	r3, [r0, #12]
+ 699 0024 002B     		cmp	r3, #0
+ 700 0026 46D0     		beq	.L74
+ 701              	.LVL53:
+  58:../common/security_version_journal.c **** }
+ 702              		.loc 1 58 30 view .LVU210
+ 703              	.LBE61:
+ 704              	.LBE60:
+ 705              	.LBE59:
+ 706              	.LBE58:
+ 214:../common/security_version_journal.c ****         !backend_is_valid(backend, 1)) {
+ 215:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_UNAVAILABLE;
+ 216:../common/security_version_journal.c ****     }
+ 217:../common/security_version_journal.c **** 
+ 218:../common/security_version_journal.c ****     status = HBoxSecurityVersionJournal_Load(
+ 707              		.loc 1 218 5 is_stmt 1 view .LVU211
+ 708              		.loc 1 218 14 is_stmt 0 view .LVU212
+ 709 0028 02AA     		add	r2, sp, #8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 20
+
+
+ 710 002a 01A9     		add	r1, sp, #4
+ 711              	.LVL54:
+ 712              		.loc 1 218 14 view .LVU213
+ 713 002c FFF7FEFF 		bl	HBoxSecurityVersionJournal_Load
+ 714              	.LVL55:
+ 219:../common/security_version_journal.c ****         backend, &current_minimum, &used);
+ 220:../common/security_version_journal.c ****     if (status != HBOX_SECURITY_VERSION_OK) {
+ 715              		.loc 1 220 5 is_stmt 1 view .LVU214
+ 716              		.loc 1 220 8 is_stmt 0 view .LVU215
+ 717 0030 70B9     		cbnz	r0, .L66
+ 221:../common/security_version_journal.c ****         return status;
+ 222:../common/security_version_journal.c ****     }
+ 223:../common/security_version_journal.c ****     if (requested_minimum_version < current_minimum) {
+ 718              		.loc 1 223 5 is_stmt 1 view .LVU216
+ 719              		.loc 1 223 35 is_stmt 0 view .LVU217
+ 720 0032 019B     		ldr	r3, [sp, #4]
+ 721              		.loc 1 223 8 view .LVU218
+ 722 0034 AB42     		cmp	r3, r5
+ 723 0036 40D8     		bhi	.L75
+ 224:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_ROLLBACK;
+ 225:../common/security_version_journal.c ****     }
+ 226:../common/security_version_journal.c ****     if (requested_minimum_version == current_minimum) {
+ 724              		.loc 1 226 5 is_stmt 1 view .LVU219
+ 725              		.loc 1 226 8 is_stmt 0 view .LVU220
+ 726 0038 0AD0     		beq	.L66
+ 227:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_OK;
+ 228:../common/security_version_journal.c ****     }
+ 229:../common/security_version_journal.c ****     if (used >= backend->record_count) {
+ 727              		.loc 1 229 5 is_stmt 1 view .LVU221
+ 728              		.loc 1 229 14 is_stmt 0 view .LVU222
+ 729 003a 029F     		ldr	r7, [sp, #8]
+ 730              		.loc 1 229 8 view .LVU223
+ 731 003c 6368     		ldr	r3, [r4, #4]
+ 732 003e BB42     		cmp	r3, r7
+ 733 0040 3DD9     		bls	.L76
+ 230:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_FULL;
+ 231:../common/security_version_journal.c ****     }
+ 232:../common/security_version_journal.c ****     if (!backend->read_record(
+ 734              		.loc 1 232 5 is_stmt 1 view .LVU224
+ 735              		.loc 1 232 10 is_stmt 0 view .LVU225
+ 736 0042 A368     		ldr	r3, [r4, #8]
+ 737 0044 04AA     		add	r2, sp, #16
+ 738 0046 791E     		subs	r1, r7, #1
+ 739 0048 2068     		ldr	r0, [r4]
+ 740              	.LVL56:
+ 741              		.loc 1 232 10 view .LVU226
+ 742 004a 9847     		blx	r3
+ 743              	.LVL57:
+ 744              		.loc 1 232 8 discriminator 1 view .LVU227
+ 745 004c 10B9     		cbnz	r0, .L67
+ 746              	.L68:
+ 233:../common/security_version_journal.c ****             backend->context, used - 1u, &previous)) {
+ 234:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_IO_ERROR;
+ 747              		.loc 1 234 16 view .LVU228
+ 748 004e 0420     		movs	r0, #4
+ 749              	.LVL58:
+ 750              	.L66:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 21
+
+
+ 235:../common/security_version_journal.c ****     }
+ 236:../common/security_version_journal.c **** 
+ 237:../common/security_version_journal.c ****     build_record(
+ 238:../common/security_version_journal.c ****         &record,
+ 239:../common/security_version_journal.c ****         used + 1u,
+ 240:../common/security_version_journal.c ****         requested_minimum_version,
+ 241:../common/security_version_journal.c ****         previous.record_crc32_le);
+ 242:../common/security_version_journal.c ****     memset(&previous, 0, sizeof(previous));
+ 243:../common/security_version_journal.c ****     if (!backend->program_record_atomic(
+ 244:../common/security_version_journal.c ****             backend->context, used, &record)) {
+ 245:../common/security_version_journal.c ****         memset(&record, 0, sizeof(record));
+ 246:../common/security_version_journal.c ****         return HBOX_SECURITY_VERSION_IO_ERROR;
+ 247:../common/security_version_journal.c ****     }
+ 248:../common/security_version_journal.c ****     memset(&record, 0, sizeof(record));
+ 249:../common/security_version_journal.c ****     return verify_programmed_state(backend, requested_minimum_version);
+ 250:../common/security_version_journal.c **** }
+ 751              		.loc 1 250 1 view .LVU229
+ 752 0050 15B0     		add	sp, sp, #84
+ 753              	.LCFI11:
+ 754              		.cfi_remember_state
+ 755              		.cfi_def_cfa_offset 20
+ 756              		@ sp needed
+ 757 0052 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 758              	.LVL59:
+ 759              	.L67:
+ 760              	.LCFI12:
+ 761              		.cfi_restore_state
+ 237:../common/security_version_journal.c ****         &record,
+ 762              		.loc 1 237 5 is_stmt 1 view .LVU230
+ 763              	.LBB62:
+ 764              	.LBI62:
+  82:../common/security_version_journal.c ****     hbox_security_version_record_v1_t *record,
+ 765              		.loc 1 82 13 view .LVU231
+ 766              	.LBB63:
+  88:../common/security_version_journal.c ****     record->magic_le = HBOX_SECURITY_VERSION_RECORD_MAGIC;
+ 767              		.loc 1 88 5 view .LVU232
+  90:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+ 768              		.loc 1 90 23 is_stmt 0 view .LVU233
+ 769 0054 1B4A     		ldr	r2, .L81
+  88:../common/security_version_journal.c ****     record->magic_le = HBOX_SECURITY_VERSION_RECORD_MAGIC;
+ 770              		.loc 1 88 5 view .LVU234
+ 771 0056 0026     		movs	r6, #0
+  90:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+ 772              		.loc 1 90 23 view .LVU235
+ 773 0058 1B4B     		ldr	r3, .L81+4
+  97:../common/security_version_journal.c **** }
+ 774              		.loc 1 97 31 view .LVU236
+ 775 005a 0CA8     		add	r0, sp, #48
+ 776              	.LVL60:
+  88:../common/security_version_journal.c ****     record->magic_le = HBOX_SECURITY_VERSION_RECORD_MAGIC;
+ 777              		.loc 1 88 5 view .LVU237
+ 778 005c 1296     		str	r6, [sp, #72]
+  89:../common/security_version_journal.c ****     record->format_le = HBOX_SECURITY_VERSION_JOURNAL_FORMAT;
+ 779              		.loc 1 89 5 is_stmt 1 view .LVU238
+  90:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+ 780              		.loc 1 90 5 view .LVU239
+  91:../common/security_version_journal.c ****     record->ordinal_le = ordinal;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 22
+
+
+ 781              		.loc 1 91 5 view .LVU240
+  90:../common/security_version_journal.c ****     record->record_bytes_le = HBOX_SECURITY_VERSION_RECORD_BYTES;
+ 782              		.loc 1 90 23 is_stmt 0 view .LVU241
+ 783 005e CDE90C23 		strd	r2, r3, [sp, #48]
+  92:../common/security_version_journal.c ****     record->minimum_version_le = minimum_version;
+ 784              		.loc 1 92 5 is_stmt 1 view .LVU242
+ 785              	.LBE63:
+ 786              	.LBE62:
+ 237:../common/security_version_journal.c ****         &record,
+ 787              		.loc 1 237 5 is_stmt 0 view .LVU243
+ 788 0062 7B1C     		adds	r3, r7, #1
+ 789              	.LVL61:
+ 790              	.LBB66:
+ 791              	.LBB64:
+  93:../common/security_version_journal.c ****     record->minimum_version_inverse_le = ~minimum_version;
+ 792              		.loc 1 93 32 view .LVU244
+ 793 0064 CDE90E35 		strd	r3, r5, [sp, #56]
+  94:../common/security_version_journal.c ****     record->previous_record_crc32_le = previous_crc;
+ 794              		.loc 1 94 5 is_stmt 1 view .LVU245
+  94:../common/security_version_journal.c ****     record->previous_record_crc32_le = previous_crc;
+ 795              		.loc 1 94 42 is_stmt 0 view .LVU246
+ 796 0068 EB43     		mvns	r3, r5
+ 797              	.LVL62:
+  94:../common/security_version_journal.c ****     record->previous_record_crc32_le = previous_crc;
+ 798              		.loc 1 94 40 view .LVU247
+ 799 006a 1093     		str	r3, [sp, #64]
+  95:../common/security_version_journal.c ****     record->committed_le = HBOX_SECURITY_VERSION_RECORD_COMMITTED;
+ 800              		.loc 1 95 5 is_stmt 1 view .LVU248
+  95:../common/security_version_journal.c ****     record->committed_le = HBOX_SECURITY_VERSION_RECORD_COMMITTED;
+ 801              		.loc 1 95 38 is_stmt 0 view .LVU249
+ 802 006c 0A9B     		ldr	r3, [sp, #40]
+ 803 006e 1193     		str	r3, [sp, #68]
+  96:../common/security_version_journal.c ****     record->record_crc32_le = record_crc32(record);
+ 804              		.loc 1 96 5 is_stmt 1 view .LVU250
+  96:../common/security_version_journal.c ****     record->record_crc32_le = record_crc32(record);
+ 805              		.loc 1 96 26 is_stmt 0 view .LVU251
+ 806 0070 164B     		ldr	r3, .L81+8
+ 807 0072 1393     		str	r3, [sp, #76]
+  97:../common/security_version_journal.c **** }
+ 808              		.loc 1 97 5 is_stmt 1 view .LVU252
+  97:../common/security_version_journal.c **** }
+ 809              		.loc 1 97 31 is_stmt 0 view .LVU253
+ 810 0074 FFF7FEFF 		bl	record_crc32
+ 811              	.LVL63:
+  97:../common/security_version_journal.c **** }
+ 812              		.loc 1 97 31 view .LVU254
+ 813              	.LBE64:
+ 814              	.LBE66:
+ 242:../common/security_version_journal.c ****     if (!backend->program_record_atomic(
+ 815              		.loc 1 242 5 view .LVU255
+ 816 0078 2022     		movs	r2, #32
+ 817 007a 3146     		mov	r1, r6
+ 818              	.LBB67:
+ 819              	.LBB65:
+  97:../common/security_version_journal.c **** }
+ 820              		.loc 1 97 29 discriminator 1 view .LVU256
+ 821 007c 1290     		str	r0, [sp, #72]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 23
+
+
+ 822              	.LVL64:
+  97:../common/security_version_journal.c **** }
+ 823              		.loc 1 97 29 discriminator 1 view .LVU257
+ 824              	.LBE65:
+ 825              	.LBE67:
+ 242:../common/security_version_journal.c ****     if (!backend->program_record_atomic(
+ 826              		.loc 1 242 5 is_stmt 1 view .LVU258
+ 827 007e 04A8     		add	r0, sp, #16
+ 828 0080 FFF7FEFF 		bl	memset
+ 829              	.LVL65:
+ 243:../common/security_version_journal.c ****             backend->context, used, &record)) {
+ 830              		.loc 1 243 5 view .LVU259
+ 243:../common/security_version_journal.c ****             backend->context, used, &record)) {
+ 831              		.loc 1 243 10 is_stmt 0 view .LVU260
+ 832 0084 E368     		ldr	r3, [r4, #12]
+ 833 0086 0CAA     		add	r2, sp, #48
+ 834 0088 3946     		mov	r1, r7
+ 835 008a 2068     		ldr	r0, [r4]
+ 836 008c 9847     		blx	r3
+ 837              	.LVL66:
+ 243:../common/security_version_journal.c ****             backend->context, used, &record)) {
+ 838              		.loc 1 243 8 discriminator 1 view .LVU261
+ 839 008e 0028     		cmp	r0, #0
+ 840 0090 DDD0     		beq	.L68
+ 248:../common/security_version_journal.c ****     return verify_programmed_state(backend, requested_minimum_version);
+ 841              		.loc 1 248 5 is_stmt 1 view .LVU262
+ 842 0092 2022     		movs	r2, #32
+ 843 0094 3146     		mov	r1, r6
+ 844 0096 0CA8     		add	r0, sp, #48
+ 845 0098 FFF7FEFF 		bl	memset
+ 846              	.LVL67:
+ 249:../common/security_version_journal.c **** }
+ 847              		.loc 1 249 5 view .LVU263
+ 848              	.LBB68:
+ 849              	.LBI68:
+ 100:../common/security_version_journal.c ****     const hbox_security_version_journal_backend_t *backend,
+ 850              		.loc 1 100 39 view .LVU264
+ 851              	.LBB69:
+ 104:../common/security_version_journal.c ****     hbox_security_version_status_t status =
+ 852              		.loc 1 104 5 view .LVU265
+ 106:../common/security_version_journal.c ****             backend, &actual_minimum, NULL);
+ 853              		.loc 1 106 9 is_stmt 0 view .LVU266
+ 854 009c 3246     		mov	r2, r6
+ 855 009e 03A9     		add	r1, sp, #12
+ 856 00a0 2046     		mov	r0, r4
+ 104:../common/security_version_journal.c ****     hbox_security_version_status_t status =
+ 857              		.loc 1 104 14 view .LVU267
+ 858 00a2 0396     		str	r6, [sp, #12]
+ 105:../common/security_version_journal.c ****         HBoxSecurityVersionJournal_Load(
+ 859              		.loc 1 105 5 is_stmt 1 view .LVU268
+ 106:../common/security_version_journal.c ****             backend, &actual_minimum, NULL);
+ 860              		.loc 1 106 9 is_stmt 0 view .LVU269
+ 861 00a4 FFF7FEFF 		bl	HBoxSecurityVersionJournal_Load
+ 862              	.LVL68:
+ 109:../common/security_version_journal.c ****         return status;
+ 863              		.loc 1 109 5 is_stmt 1 view .LVU270
+ 109:../common/security_version_journal.c ****         return status;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 24
+
+
+ 864              		.loc 1 109 8 is_stmt 0 view .LVU271
+ 865 00a8 0028     		cmp	r0, #0
+ 866 00aa D1D1     		bne	.L66
+ 112:../common/security_version_journal.c ****                ? HBOX_SECURITY_VERSION_OK
+ 867              		.loc 1 112 5 is_stmt 1 view .LVU272
+ 114:../common/security_version_journal.c **** }
+ 868              		.loc 1 114 16 is_stmt 0 discriminator 2 view .LVU273
+ 869 00ac 039B     		ldr	r3, [sp, #12]
+ 870 00ae 9D42     		cmp	r5, r3
+ 871 00b0 18BF     		it	ne
+ 872 00b2 0320     		movne	r0, #3
+ 873              	.LVL69:
+ 114:../common/security_version_journal.c **** }
+ 874              		.loc 1 114 16 discriminator 2 view .LVU274
+ 875 00b4 CCE7     		b	.L66
+ 876              	.LVL70:
+ 877              	.L74:
+ 114:../common/security_version_journal.c **** }
+ 878              		.loc 1 114 16 discriminator 2 view .LVU275
+ 879              	.LBE69:
+ 880              	.LBE68:
+ 215:../common/security_version_journal.c ****     }
+ 881              		.loc 1 215 16 view .LVU276
+ 882 00b6 0120     		movs	r0, #1
+ 883              	.LVL71:
+ 215:../common/security_version_journal.c ****     }
+ 884              		.loc 1 215 16 view .LVU277
+ 885 00b8 CAE7     		b	.L66
+ 886              	.LVL72:
+ 887              	.L75:
+ 224:../common/security_version_journal.c ****     }
+ 888              		.loc 1 224 16 view .LVU278
+ 889 00ba 0620     		movs	r0, #6
+ 890              	.LVL73:
+ 224:../common/security_version_journal.c ****     }
+ 891              		.loc 1 224 16 view .LVU279
+ 892 00bc C8E7     		b	.L66
+ 893              	.LVL74:
+ 894              	.L76:
+ 230:../common/security_version_journal.c ****     }
+ 895              		.loc 1 230 16 view .LVU280
+ 896 00be 0520     		movs	r0, #5
+ 897              	.LVL75:
+ 230:../common/security_version_journal.c ****     }
+ 898              		.loc 1 230 16 view .LVU281
+ 899 00c0 C6E7     		b	.L66
+ 900              	.L82:
+ 901 00c2 00BF     		.align	2
+ 902              	.L81:
+ 903 00c4 534A5631 		.word	827738707
+ 904 00c8 01002000 		.word	2097153
+ 905 00cc 54494D43 		.word	1129138516
+ 906              		.cfi_endproc
+ 907              	.LFE9:
+ 909              		.section	.rodata.HBoxSecurityVersion_StatusString.str1.1,"aMS",%progbits,1
+ 910              	.LC0:
+ 911 0000 756E6B6E 		.ascii	"unknown\000"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 25
+
+
+ 911      6F776E00 
+ 912              		.section	.text.HBoxSecurityVersion_StatusString,"ax",%progbits
+ 913              		.align	1
+ 914              		.global	HBoxSecurityVersion_StatusString
+ 915              		.syntax unified
+ 916              		.thumb
+ 917              		.thumb_func
+ 919              	HBoxSecurityVersion_StatusString:
+ 920              	.LVL76:
+ 921              	.LFB10:
+ 251:../common/security_version_journal.c **** 
+ 252:../common/security_version_journal.c **** const char *HBoxSecurityVersion_StatusString(
+ 253:../common/security_version_journal.c ****     hbox_security_version_status_t status)
+ 254:../common/security_version_journal.c **** {
+ 922              		.loc 1 254 1 is_stmt 1 view -0
+ 923              		.cfi_startproc
+ 924              		@ args = 0, pretend = 0, frame = 0
+ 925              		@ frame_needed = 0, uses_anonymous_args = 0
+ 926              		@ link register save eliminated.
+ 255:../common/security_version_journal.c ****     switch (status) {
+ 927              		.loc 1 255 5 view .LVU283
+ 928 0000 0628     		cmp	r0, #6
+ 929 0002 9ABF     		itte	ls
+ 930 0004 024B     		ldrls	r3, .L86
+ 931 0006 53F82000 		ldrls	r0, [r3, r0, lsl #2]
+ 932              	.LVL77:
+ 254:../common/security_version_journal.c ****     switch (status) {
+ 933              		.loc 1 254 1 is_stmt 0 view .LVU284
+ 934 000a 0248     		ldrhi	r0, .L86+4
+ 256:../common/security_version_journal.c ****     case HBOX_SECURITY_VERSION_OK:
+ 257:../common/security_version_journal.c ****         return "ok";
+ 258:../common/security_version_journal.c ****     case HBOX_SECURITY_VERSION_UNAVAILABLE:
+ 259:../common/security_version_journal.c ****         return "provider-unavailable";
+ 260:../common/security_version_journal.c ****     case HBOX_SECURITY_VERSION_UNPROVISIONED:
+ 261:../common/security_version_journal.c ****         return "unprovisioned";
+ 262:../common/security_version_journal.c ****     case HBOX_SECURITY_VERSION_CORRUPT:
+ 263:../common/security_version_journal.c ****         return "corrupt";
+ 264:../common/security_version_journal.c ****     case HBOX_SECURITY_VERSION_IO_ERROR:
+ 265:../common/security_version_journal.c ****         return "io-error";
+ 266:../common/security_version_journal.c ****     case HBOX_SECURITY_VERSION_FULL:
+ 267:../common/security_version_journal.c ****         return "journal-full";
+ 268:../common/security_version_journal.c ****     case HBOX_SECURITY_VERSION_ROLLBACK:
+ 269:../common/security_version_journal.c ****         return "rollback";
+ 270:../common/security_version_journal.c ****     default:
+ 271:../common/security_version_journal.c ****         return "unknown";
+ 272:../common/security_version_journal.c ****     }
+ 273:../common/security_version_journal.c **** }
+ 935              		.loc 1 273 1 view .LVU285
+ 936 000c 7047     		bx	lr
+ 937              	.L87:
+ 938 000e 00BF     		.align	2
+ 939              	.L86:
+ 940 0010 00000000 		.word	CSWTCH.23
+ 941 0014 00000000 		.word	.LC0
+ 942              		.cfi_endproc
+ 943              	.LFE10:
+ 945              		.section	.rodata.str1.1,"aMS",%progbits,1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 26
+
+
+ 946              	.LC1:
+ 947 0000 6F6B00   		.ascii	"ok\000"
+ 948              	.LC2:
+ 949 0003 70726F76 		.ascii	"provider-unavailable\000"
+ 949      69646572 
+ 949      2D756E61 
+ 949      7661696C 
+ 949      61626C65 
+ 950              	.LC3:
+ 951 0018 756E7072 		.ascii	"unprovisioned\000"
+ 951      6F766973 
+ 951      696F6E65 
+ 951      6400
+ 952              	.LC4:
+ 953 0026 636F7272 		.ascii	"corrupt\000"
+ 953      75707400 
+ 954              	.LC5:
+ 955 002e 696F2D65 		.ascii	"io-error\000"
+ 955      72726F72 
+ 955      00
+ 956              	.LC6:
+ 957 0037 6A6F7572 		.ascii	"journal-full\000"
+ 957      6E616C2D 
+ 957      66756C6C 
+ 957      00
+ 958              	.LC7:
+ 959 0044 726F6C6C 		.ascii	"rollback\000"
+ 959      6261636B 
+ 959      00
+ 960              		.section	.rodata.CSWTCH.23,"a"
+ 961              		.align	2
+ 964              	CSWTCH.23:
+ 965 0000 00000000 		.word	.LC1
+ 966 0004 03000000 		.word	.LC2
+ 967 0008 18000000 		.word	.LC3
+ 968 000c 26000000 		.word	.LC4
+ 969 0010 2E000000 		.word	.LC5
+ 970 0014 37000000 		.word	.LC6
+ 971 0018 44000000 		.word	.LC7
+ 972              		.text
+ 973              	.Letext0:
+ 974              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 975              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 976              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 977              		.file 5 "../common/security_version_journal.h"
+ 978              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 979              		.file 7 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s 			page 27
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 security_version_journal.c
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:20     .text.record_crc32:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:25     .text.record_crc32:00000000 record_crc32
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:123    .text.record_crc32:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:128    .text.HBoxSecurityVersionJournal_Load:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:134    .text.HBoxSecurityVersionJournal_Load:00000000 HBoxSecurityVersionJournal_Load
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:402    .text.HBoxSecurityVersionJournal_Load:000000e4 $d
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:410    .text.HBoxSecurityVersionJournal_Provision:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:416    .text.HBoxSecurityVersionJournal_Provision:00000000 HBoxSecurityVersionJournal_Provision
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:626    .text.HBoxSecurityVersionJournal_Provision:00000098 $d
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:633    .text.HBoxSecurityVersionJournal_Advance:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:639    .text.HBoxSecurityVersionJournal_Advance:00000000 HBoxSecurityVersionJournal_Advance
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:903    .text.HBoxSecurityVersionJournal_Advance:000000c4 $d
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:913    .text.HBoxSecurityVersion_StatusString:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:919    .text.HBoxSecurityVersion_StatusString:00000000 HBoxSecurityVersion_StatusString
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:940    .text.HBoxSecurityVersion_StatusString:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:964    .rodata.CSWTCH.23:00000000 CSWTCH.23
+C:\Users\nicx5\AppData\Local\Temp\ccslRp0b.s:961    .rodata.CSWTCH.23:00000000 $d
+
+UNDEFINED SYMBOLS
+memset

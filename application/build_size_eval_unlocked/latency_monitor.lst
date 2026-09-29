@@ -1,0 +1,859 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"latency_monitor.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/latency_monitor.cpp"
+  19              		.section	.text._ZN11MicrosTimer11getInstanceEv,"axG",%progbits,_ZN11MicrosTimer11getInstanceEv,com
+  20              		.align	1
+  21              		.weak	_ZN11MicrosTimer11getInstanceEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN11MicrosTimer11getInstanceEv:
+  27              	.LFB1267:
+  28              		.file 2 "Cpp_Core/Inc/micro_timer.hpp"
+   1:Cpp_Core/Inc/micro_timer.hpp **** #ifndef __MICROS_TIMER_HPP__
+   2:Cpp_Core/Inc/micro_timer.hpp **** #define __MICROS_TIMER_HPP__
+   3:Cpp_Core/Inc/micro_timer.hpp **** 
+   4:Cpp_Core/Inc/micro_timer.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/micro_timer.hpp **** #include "tim.h"
+   6:Cpp_Core/Inc/micro_timer.hpp **** 
+   7:Cpp_Core/Inc/micro_timer.hpp **** class MicrosTimer {
+   8:Cpp_Core/Inc/micro_timer.hpp **** public:
+   9:Cpp_Core/Inc/micro_timer.hpp ****     // 禁止拷贝构造和赋值
+  10:Cpp_Core/Inc/micro_timer.hpp ****     MicrosTimer(const MicrosTimer&) = delete;
+  11:Cpp_Core/Inc/micro_timer.hpp ****     MicrosTimer& operator=(const MicrosTimer&) = delete;
+  12:Cpp_Core/Inc/micro_timer.hpp **** 
+  13:Cpp_Core/Inc/micro_timer.hpp ****     // 获取单例实例
+  14:Cpp_Core/Inc/micro_timer.hpp ****     static MicrosTimer& getInstance() {
+  29              		.loc 2 14 25 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  15:Cpp_Core/Inc/micro_timer.hpp ****         static MicrosTimer instance;
+  33              		.loc 2 15 9 view .LVU1
+  14:Cpp_Core/Inc/micro_timer.hpp ****         static MicrosTimer instance;
+  34              		.loc 2 14 25 is_stmt 0 view .LVU2
+  35 0000 10B5     		push	{r4, lr}
+  36              	.LCFI0:
+  37              		.cfi_def_cfa_offset 8
+  38              		.cfi_offset 4, -8
+  39              		.cfi_offset 14, -4
+  40              		.loc 2 15 28 view .LVU3
+  41 0002 094C     		ldr	r4, .L8
+  42 0004 2368     		ldr	r3, [r4]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 2
+
+
+  43 0006 BFF35B8F 		dmb	ish
+  44              		.loc 2 15 28 discriminator 1 view .LVU4
+  45 000a DB07     		lsls	r3, r3, #31
+  46 000c 09D4     		bmi	.L3
+  47 000e 2046     		mov	r0, r4
+  48 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+  49              	.LVL0:
+  50 0014 28B1     		cbz	r0, .L3
+  51              	.LBB4:
+  52              	.LBI4:
+  14:Cpp_Core/Inc/micro_timer.hpp ****         static MicrosTimer instance;
+  53              		.loc 2 14 25 is_stmt 1 view .LVU5
+  54              	.LBB5:
+  55              		.loc 2 15 28 is_stmt 0 discriminator 2 view .LVU6
+  56 0016 0548     		ldr	r0, .L8+4
+  57 0018 FFF7FEFF 		bl	_ZN11MicrosTimerC1Ev
+  58              	.LVL1:
+  59              		.loc 2 15 28 discriminator 1 view .LVU7
+  60 001c 2046     		mov	r0, r4
+  61 001e FFF7FEFF 		bl	__cxa_guard_release
+  62              	.LVL2:
+  63              	.L3:
+  64              	.LBE5:
+  65              	.LBE4:
+  16:Cpp_Core/Inc/micro_timer.hpp ****         return instance;
+  66              		.loc 2 16 9 is_stmt 1 view .LVU8
+  17:Cpp_Core/Inc/micro_timer.hpp ****     }
+  67              		.loc 2 17 5 is_stmt 0 view .LVU9
+  68 0022 0248     		ldr	r0, .L8+4
+  69 0024 10BD     		pop	{r4, pc}
+  70              	.L9:
+  71 0026 00BF     		.align	2
+  72              	.L8:
+  73 0028 00000000 		.word	_ZGVZN11MicrosTimer11getInstanceEvE8instance
+  74 002c 00000000 		.word	_ZZN11MicrosTimer11getInstanceEvE8instance
+  75              		.cfi_endproc
+  76              	.LFE1267:
+  78              		.section	.text._ZN14LatencyMonitor12sofTriggeredEv,"ax",%progbits
+  79              		.align	1
+  80              		.global	_ZN14LatencyMonitor12sofTriggeredEv
+  81              		.syntax unified
+  82              		.thumb
+  83              		.thumb_func
+  85              	_ZN14LatencyMonitor12sofTriggeredEv:
+  86              	.LVL3:
+  87              	.LFB1274:
+   1:Cpp_Core/Src/latency_monitor.cpp **** #include "latency_monitor.hpp"
+   2:Cpp_Core/Src/latency_monitor.cpp **** #include <stdio.h>
+   3:Cpp_Core/Src/latency_monitor.cpp **** 
+   4:Cpp_Core/Src/latency_monitor.cpp **** /*
+   5:Cpp_Core/Src/latency_monitor.cpp **** ADC sampling is paced exclusively by the TIM2 report clock.  This monitor is
+   6:Cpp_Core/Src/latency_monitor.cpp **** diagnostic only and must not delay or restart ADC conversions.
+   7:Cpp_Core/Src/latency_monitor.cpp **** */
+   8:Cpp_Core/Src/latency_monitor.cpp **** 
+   9:Cpp_Core/Src/latency_monitor.cpp **** void LatencyMonitor::sofTriggered() {
+  88              		.loc 1 9 37 is_stmt 1 view -0
+  89              		.cfi_startproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 3
+
+
+  90              		@ args = 0, pretend = 0, frame = 0
+  91              		@ frame_needed = 0, uses_anonymous_args = 0
+  10:Cpp_Core/Src/latency_monitor.cpp ****     // 记录当前 SOF 的时间戳。注意 SOF 每 1ms 会更新一次。
+  11:Cpp_Core/Src/latency_monitor.cpp ****     t0_sof = MICROS_TIMER.micros();
+  92              		.loc 1 11 5 view .LVU11
+   9:Cpp_Core/Src/latency_monitor.cpp ****     // 记录当前 SOF 的时间戳。注意 SOF 每 1ms 会更新一次。
+  93              		.loc 1 9 37 is_stmt 0 view .LVU12
+  94 0000 10B5     		push	{r4, lr}
+  95              	.LCFI1:
+  96              		.cfi_def_cfa_offset 8
+  97              		.cfi_offset 4, -8
+  98              		.cfi_offset 14, -4
+   9:Cpp_Core/Src/latency_monitor.cpp ****     // 记录当前 SOF 的时间戳。注意 SOF 每 1ms 会更新一次。
+  99              		.loc 1 9 37 view .LVU13
+ 100 0002 0446     		mov	r4, r0
+ 101              		.loc 1 11 14 view .LVU14
+ 102 0004 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 103              	.LVL4:
+ 104              		.loc 1 11 33 discriminator 1 view .LVU15
+ 105 0008 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 106              	.LVL5:
+  12:Cpp_Core/Src/latency_monitor.cpp ****     frame_counter++;
+ 107              		.loc 1 12 18 view .LVU16
+ 108 000c A36C     		ldr	r3, [r4, #72]
+  11:Cpp_Core/Src/latency_monitor.cpp ****     frame_counter++;
+ 109              		.loc 1 11 12 discriminator 2 view .LVU17
+ 110 000e 2060     		str	r0, [r4]
+ 111              		.loc 1 12 5 is_stmt 1 view .LVU18
+ 112              		.loc 1 12 18 is_stmt 0 view .LVU19
+ 113 0010 0133     		adds	r3, r3, #1
+ 114 0012 A364     		str	r3, [r4, #72]
+  13:Cpp_Core/Src/latency_monitor.cpp **** }
+ 115              		.loc 1 13 1 view .LVU20
+ 116 0014 10BD     		pop	{r4, pc}
+ 117              		.loc 1 13 1 view .LVU21
+ 118              		.cfi_endproc
+ 119              	.LFE1274:
+ 121              		.section	.text._ZN14LatencyMonitor13samplingArmedEv,"ax",%progbits
+ 122              		.align	1
+ 123              		.global	_ZN14LatencyMonitor13samplingArmedEv
+ 124              		.syntax unified
+ 125              		.thumb
+ 126              		.thumb_func
+ 128              	_ZN14LatencyMonitor13samplingArmedEv:
+ 129              	.LVL6:
+ 130              	.LFB1275:
+  14:Cpp_Core/Src/latency_monitor.cpp **** 
+  15:Cpp_Core/Src/latency_monitor.cpp **** void LatencyMonitor::samplingArmed() {
+ 131              		.loc 1 15 38 is_stmt 1 view -0
+ 132              		.cfi_startproc
+ 133              		@ args = 0, pretend = 0, frame = 0
+ 134              		@ frame_needed = 0, uses_anonymous_args = 0
+ 135              		@ link register save eliminated.
+  16:Cpp_Core/Src/latency_monitor.cpp ****     // 在 SOF 回调里触发采样时调用，用于把“本次采样”绑定到当前 SOF。
+  17:Cpp_Core/Src/latency_monitor.cpp ****     // 后续 samplingStarted 会把这个 SOF 再复制到 sof_for_report，避免被下一次 SOF
+  18:Cpp_Core/Src/latency_monitor.cpp ****     sof_pending = t0_sof;
+ 136              		.loc 1 18 5 view .LVU23
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 4
+
+
+ 137              		.loc 1 18 17 is_stmt 0 view .LVU24
+ 138 0000 0368     		ldr	r3, [r0]
+ 139 0002 4360     		str	r3, [r0, #4]
+  19:Cpp_Core/Src/latency_monitor.cpp **** }
+ 140              		.loc 1 19 1 view .LVU25
+ 141 0004 7047     		bx	lr
+ 142              		.cfi_endproc
+ 143              	.LFE1275:
+ 145              		.section	.text._ZN14LatencyMonitor15samplingStartedEv,"ax",%progbits
+ 146              		.align	1
+ 147              		.global	_ZN14LatencyMonitor15samplingStartedEv
+ 148              		.syntax unified
+ 149              		.thumb
+ 150              		.thumb_func
+ 152              	_ZN14LatencyMonitor15samplingStartedEv:
+ 153              	.LVL7:
+ 154              	.LFB1276:
+  20:Cpp_Core/Src/latency_monitor.cpp **** 
+  21:Cpp_Core/Src/latency_monitor.cpp **** void LatencyMonitor::samplingStarted() {
+ 155              		.loc 1 21 40 is_stmt 1 view -0
+ 156              		.cfi_startproc
+ 157              		@ args = 0, pretend = 0, frame = 0
+ 158              		@ frame_needed = 0, uses_anonymous_args = 0
+  22:Cpp_Core/Src/latency_monitor.cpp ****     // 真正开始 ADC DMA 采样的时刻（考虑了 delay_us 之后才会走到这里）
+  23:Cpp_Core/Src/latency_monitor.cpp ****     t0_sampling_start = MICROS_TIMER.micros();
+ 159              		.loc 1 23 5 view .LVU27
+  21:Cpp_Core/Src/latency_monitor.cpp ****     // 真正开始 ADC DMA 采样的时刻（考虑了 delay_us 之后才会走到这里）
+ 160              		.loc 1 21 40 is_stmt 0 view .LVU28
+ 161 0000 10B5     		push	{r4, lr}
+ 162              	.LCFI2:
+ 163              		.cfi_def_cfa_offset 8
+ 164              		.cfi_offset 4, -8
+ 165              		.cfi_offset 14, -4
+  21:Cpp_Core/Src/latency_monitor.cpp ****     // 真正开始 ADC DMA 采样的时刻（考虑了 delay_us 之后才会走到这里）
+ 166              		.loc 1 21 40 view .LVU29
+ 167 0002 0446     		mov	r4, r0
+ 168              		.loc 1 23 25 view .LVU30
+ 169 0004 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 170              	.LVL8:
+ 171              		.loc 1 23 44 discriminator 1 view .LVU31
+ 172 0008 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 173              	.LVL9:
+  24:Cpp_Core/Src/latency_monitor.cpp ****     // 锁定本次 report 对应的 SOF
+  25:Cpp_Core/Src/latency_monitor.cpp ****     sof_for_report = sof_pending;
+ 174              		.loc 1 25 20 view .LVU32
+ 175 000c 6368     		ldr	r3, [r4, #4]
+  23:Cpp_Core/Src/latency_monitor.cpp ****     // 锁定本次 report 对应的 SOF
+ 176              		.loc 1 23 23 discriminator 2 view .LVU33
+ 177 000e E060     		str	r0, [r4, #12]
+ 178              		.loc 1 25 5 is_stmt 1 view .LVU34
+ 179              		.loc 1 25 20 is_stmt 0 view .LVU35
+ 180 0010 A360     		str	r3, [r4, #8]
+  26:Cpp_Core/Src/latency_monitor.cpp **** }
+ 181              		.loc 1 26 1 view .LVU36
+ 182 0012 10BD     		pop	{r4, pc}
+ 183              		.loc 1 26 1 view .LVU37
+ 184              		.cfi_endproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 5
+
+
+ 185              	.LFE1276:
+ 187              		.section	.text._ZN14LatencyMonitor17samplingCompletedEv,"ax",%progbits
+ 188              		.align	1
+ 189              		.global	_ZN14LatencyMonitor17samplingCompletedEv
+ 190              		.syntax unified
+ 191              		.thumb
+ 192              		.thumb_func
+ 194              	_ZN14LatencyMonitor17samplingCompletedEv:
+ 195              	.LVL10:
+ 196              	.LFB1277:
+  27:Cpp_Core/Src/latency_monitor.cpp **** 
+  28:Cpp_Core/Src/latency_monitor.cpp **** void LatencyMonitor::samplingCompleted() {
+ 197              		.loc 1 28 42 is_stmt 1 view -0
+ 198              		.cfi_startproc
+ 199              		@ args = 0, pretend = 0, frame = 0
+ 200              		@ frame_needed = 0, uses_anonymous_args = 0
+  29:Cpp_Core/Src/latency_monitor.cpp ****     // 三路 ADC DMA 均完成（采样完成）
+  30:Cpp_Core/Src/latency_monitor.cpp ****     t1_sampling = MICROS_TIMER.micros();
+ 201              		.loc 1 30 5 view .LVU39
+  28:Cpp_Core/Src/latency_monitor.cpp ****     // 三路 ADC DMA 均完成（采样完成）
+ 202              		.loc 1 28 42 is_stmt 0 view .LVU40
+ 203 0000 10B5     		push	{r4, lr}
+ 204              	.LCFI3:
+ 205              		.cfi_def_cfa_offset 8
+ 206              		.cfi_offset 4, -8
+ 207              		.cfi_offset 14, -4
+  28:Cpp_Core/Src/latency_monitor.cpp ****     // 三路 ADC DMA 均完成（采样完成）
+ 208              		.loc 1 28 42 view .LVU41
+ 209 0002 0446     		mov	r4, r0
+ 210              		.loc 1 30 19 view .LVU42
+ 211 0004 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 212              	.LVL11:
+ 213              		.loc 1 30 38 discriminator 1 view .LVU43
+ 214 0008 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 215              	.LVL12:
+  31:Cpp_Core/Src/latency_monitor.cpp ****     if (t1_sampling >= t0_sampling_start) {
+ 216              		.loc 1 31 24 view .LVU44
+ 217 000c E368     		ldr	r3, [r4, #12]
+  30:Cpp_Core/Src/latency_monitor.cpp ****     if (t1_sampling >= t0_sampling_start) {
+ 218              		.loc 1 30 17 discriminator 2 view .LVU45
+ 219 000e E061     		str	r0, [r4, #28]
+ 220              		.loc 1 31 5 is_stmt 1 view .LVU46
+ 221 0010 9842     		cmp	r0, r3
+  32:Cpp_Core/Src/latency_monitor.cpp ****         diff_sampling = t1_sampling - t0_sampling_start;
+ 222              		.loc 1 32 9 view .LVU47
+ 223              		.loc 1 32 37 is_stmt 0 view .LVU48
+ 224 0012 2CBF     		ite	cs
+ 225 0014 C31A     		subcs	r3, r0, r3
+  33:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+  34:Cpp_Core/Src/latency_monitor.cpp ****         diff_sampling = 0;
+ 226              		.loc 1 34 23 view .LVU49
+ 227 0016 0023     		movcc	r3, #0
+ 228 0018 E362     		str	r3, [r4, #44]
+  35:Cpp_Core/Src/latency_monitor.cpp ****     }
+  36:Cpp_Core/Src/latency_monitor.cpp **** }
+ 229              		.loc 1 36 1 view .LVU50
+ 230 001a 10BD     		pop	{r4, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 6
+
+
+ 231              		.loc 1 36 1 view .LVU51
+ 232              		.cfi_endproc
+ 233              	.LFE1277:
+ 235              		.section	.text._ZN14LatencyMonitor19processingCompletedEv,"ax",%progbits
+ 236              		.align	1
+ 237              		.global	_ZN14LatencyMonitor19processingCompletedEv
+ 238              		.syntax unified
+ 239              		.thumb
+ 240              		.thumb_func
+ 242              	_ZN14LatencyMonitor19processingCompletedEv:
+ 243              	.LVL13:
+ 244              	.LFB1278:
+  37:Cpp_Core/Src/latency_monitor.cpp **** 
+  38:Cpp_Core/Src/latency_monitor.cpp **** void LatencyMonitor::processingCompleted() {
+ 245              		.loc 1 38 44 is_stmt 1 view -0
+ 246              		.cfi_startproc
+ 247              		@ args = 0, pretend = 0, frame = 0
+ 248              		@ frame_needed = 0, uses_anonymous_args = 0
+  39:Cpp_Core/Src/latency_monitor.cpp ****     // 按键状态读取/打包完成（处理完成）
+  40:Cpp_Core/Src/latency_monitor.cpp ****     t2_processing = MICROS_TIMER.micros();
+ 249              		.loc 1 40 5 view .LVU53
+  38:Cpp_Core/Src/latency_monitor.cpp ****     // 按键状态读取/打包完成（处理完成）
+ 250              		.loc 1 38 44 is_stmt 0 view .LVU54
+ 251 0000 10B5     		push	{r4, lr}
+ 252              	.LCFI4:
+ 253              		.cfi_def_cfa_offset 8
+ 254              		.cfi_offset 4, -8
+ 255              		.cfi_offset 14, -4
+  38:Cpp_Core/Src/latency_monitor.cpp ****     // 按键状态读取/打包完成（处理完成）
+ 256              		.loc 1 38 44 view .LVU55
+ 257 0002 0446     		mov	r4, r0
+ 258              		.loc 1 40 21 view .LVU56
+ 259 0004 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 260              	.LVL14:
+ 261              		.loc 1 40 40 discriminator 1 view .LVU57
+ 262 0008 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 263              	.LVL15:
+  41:Cpp_Core/Src/latency_monitor.cpp ****     // 锁定本次 report 对应的采样开始时间，避免被下一帧采样覆盖
+  42:Cpp_Core/Src/latency_monitor.cpp ****     sampling_start_for_report = t0_sampling_start;
+ 264              		.loc 1 42 31 view .LVU58
+ 265 000c E368     		ldr	r3, [r4, #12]
+  40:Cpp_Core/Src/latency_monitor.cpp ****     // 锁定本次 report 对应的采样开始时间，避免被下一帧采样覆盖
+ 266              		.loc 1 40 19 discriminator 2 view .LVU59
+ 267 000e 2062     		str	r0, [r4, #32]
+ 268              		.loc 1 42 5 is_stmt 1 view .LVU60
+ 269              		.loc 1 42 31 is_stmt 0 view .LVU61
+ 270 0010 2361     		str	r3, [r4, #16]
+  43:Cpp_Core/Src/latency_monitor.cpp ****     if (t2_processing >= t1_sampling) {
+ 271              		.loc 1 43 5 is_stmt 1 view .LVU62
+ 272              		.loc 1 43 26 is_stmt 0 view .LVU63
+ 273 0012 E369     		ldr	r3, [r4, #28]
+ 274              		.loc 1 43 5 view .LVU64
+ 275 0014 9842     		cmp	r0, r3
+  44:Cpp_Core/Src/latency_monitor.cpp ****         diff_processing = t2_processing - t1_sampling;
+ 276              		.loc 1 44 9 is_stmt 1 view .LVU65
+ 277              		.loc 1 44 41 is_stmt 0 view .LVU66
+ 278 0016 2CBF     		ite	cs
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 7
+
+
+ 279 0018 C31A     		subcs	r3, r0, r3
+  45:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+  46:Cpp_Core/Src/latency_monitor.cpp ****         diff_processing = 0;
+ 280              		.loc 1 46 25 view .LVU67
+ 281 001a 0023     		movcc	r3, #0
+ 282 001c 2363     		str	r3, [r4, #48]
+  47:Cpp_Core/Src/latency_monitor.cpp ****     }
+  48:Cpp_Core/Src/latency_monitor.cpp **** }
+ 283              		.loc 1 48 1 view .LVU68
+ 284 001e 10BD     		pop	{r4, pc}
+ 285              		.loc 1 48 1 view .LVU69
+ 286              		.cfi_endproc
+ 287              	.LFE1278:
+ 289              		.section	.text._ZN14LatencyMonitor12usbInStartedEv,"ax",%progbits
+ 290              		.align	1
+ 291              		.global	_ZN14LatencyMonitor12usbInStartedEv
+ 292              		.syntax unified
+ 293              		.thumb
+ 294              		.thumb_func
+ 296              	_ZN14LatencyMonitor12usbInStartedEv:
+ 297              	.LVL16:
+ 298              	.LFB1279:
+  49:Cpp_Core/Src/latency_monitor.cpp **** 
+  50:Cpp_Core/Src/latency_monitor.cpp **** void LatencyMonitor::usbInStarted() {
+ 299              		.loc 1 50 37 is_stmt 1 view -0
+ 300              		.cfi_startproc
+ 301              		@ args = 0, pretend = 0, frame = 0
+ 302              		@ frame_needed = 0, uses_anonymous_args = 0
+  51:Cpp_Core/Src/latency_monitor.cpp ****     // report 已经提交给 USB 控制器，等待主机来取
+  52:Cpp_Core/Src/latency_monitor.cpp ****     t3_usb_start = MICROS_TIMER.micros();
+ 303              		.loc 1 52 5 view .LVU71
+  50:Cpp_Core/Src/latency_monitor.cpp ****     // report 已经提交给 USB 控制器，等待主机来取
+ 304              		.loc 1 50 37 is_stmt 0 view .LVU72
+ 305 0000 10B5     		push	{r4, lr}
+ 306              	.LCFI5:
+ 307              		.cfi_def_cfa_offset 8
+ 308              		.cfi_offset 4, -8
+ 309              		.cfi_offset 14, -4
+  50:Cpp_Core/Src/latency_monitor.cpp ****     // report 已经提交给 USB 控制器，等待主机来取
+ 310              		.loc 1 50 37 view .LVU73
+ 311 0002 0446     		mov	r4, r0
+ 312              		.loc 1 52 20 view .LVU74
+ 313 0004 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 314              	.LVL17:
+ 315              		.loc 1 52 39 discriminator 1 view .LVU75
+ 316 0008 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 317              	.LVL18:
+  53:Cpp_Core/Src/latency_monitor.cpp ****     // 锁定本次 report 的采样起点与 SOF 起点
+  54:Cpp_Core/Src/latency_monitor.cpp ****     sampling_start_at_usb_start = sampling_start_for_report;
+ 318              		.loc 1 54 33 view .LVU76
+ 319 000c 2369     		ldr	r3, [r4, #16]
+  52:Cpp_Core/Src/latency_monitor.cpp ****     // 锁定本次 report 的采样起点与 SOF 起点
+ 320              		.loc 1 52 18 discriminator 2 view .LVU77
+ 321 000e 6062     		str	r0, [r4, #36]
+ 322              		.loc 1 54 5 is_stmt 1 view .LVU78
+ 323              		.loc 1 54 33 is_stmt 0 view .LVU79
+ 324 0010 6361     		str	r3, [r4, #20]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 8
+
+
+  55:Cpp_Core/Src/latency_monitor.cpp ****     sof_at_usb_start = sof_for_report;
+ 325              		.loc 1 55 5 is_stmt 1 view .LVU80
+ 326              		.loc 1 55 22 is_stmt 0 view .LVU81
+ 327 0012 A368     		ldr	r3, [r4, #8]
+ 328 0014 A361     		str	r3, [r4, #24]
+  56:Cpp_Core/Src/latency_monitor.cpp ****     if (t3_usb_start >= t2_processing) {
+ 329              		.loc 1 56 5 is_stmt 1 view .LVU82
+ 330              		.loc 1 56 25 is_stmt 0 view .LVU83
+ 331 0016 236A     		ldr	r3, [r4, #32]
+ 332              		.loc 1 56 5 view .LVU84
+ 333 0018 9842     		cmp	r0, r3
+  57:Cpp_Core/Src/latency_monitor.cpp ****         diff_usb_start = t3_usb_start - t2_processing;
+ 334              		.loc 1 57 9 is_stmt 1 view .LVU85
+ 335              		.loc 1 57 39 is_stmt 0 view .LVU86
+ 336 001a 2CBF     		ite	cs
+ 337 001c C01A     		subcs	r0, r0, r3
+  58:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+  59:Cpp_Core/Src/latency_monitor.cpp ****         diff_usb_start = 0;
+ 338              		.loc 1 59 24 view .LVU87
+ 339 001e 0020     		movcc	r0, #0
+ 340 0020 6063     		str	r0, [r4, #52]
+  60:Cpp_Core/Src/latency_monitor.cpp ****     }
+  61:Cpp_Core/Src/latency_monitor.cpp **** }
+ 341              		.loc 1 61 1 view .LVU88
+ 342 0022 10BD     		pop	{r4, pc}
+ 343              		.loc 1 61 1 view .LVU89
+ 344              		.cfi_endproc
+ 345              	.LFE1279:
+ 347              		.section	.text._ZN14LatencyMonitor13usbInTransferEv,"ax",%progbits
+ 348              		.align	1
+ 349              		.global	_ZN14LatencyMonitor13usbInTransferEv
+ 350              		.syntax unified
+ 351              		.thumb
+ 352              		.thumb_func
+ 354              	_ZN14LatencyMonitor13usbInTransferEv:
+ 355              	.LVL19:
+ 356              	.LFB1280:
+  62:Cpp_Core/Src/latency_monitor.cpp **** 
+  63:Cpp_Core/Src/latency_monitor.cpp **** void LatencyMonitor::usbInTransfer() {
+ 357              		.loc 1 63 38 is_stmt 1 view -0
+ 358              		.cfi_startproc
+ 359              		@ args = 0, pretend = 0, frame = 0
+ 360              		@ frame_needed = 0, uses_anonymous_args = 0
+  64:Cpp_Core/Src/latency_monitor.cpp ****     // IN 传输完成回调（从提交到完成之间可能包含等待+传输）
+  65:Cpp_Core/Src/latency_monitor.cpp ****     t4_usb_in = MICROS_TIMER.micros();
+ 361              		.loc 1 65 5 view .LVU91
+  63:Cpp_Core/Src/latency_monitor.cpp ****     // IN 传输完成回调（从提交到完成之间可能包含等待+传输）
+ 362              		.loc 1 63 38 is_stmt 0 view .LVU92
+ 363 0000 70B5     		push	{r4, r5, r6, lr}
+ 364              	.LCFI6:
+ 365              		.cfi_def_cfa_offset 16
+ 366              		.cfi_offset 4, -16
+ 367              		.cfi_offset 5, -12
+ 368              		.cfi_offset 6, -8
+ 369              		.cfi_offset 14, -4
+  63:Cpp_Core/Src/latency_monitor.cpp ****     // IN 传输完成回调（从提交到完成之间可能包含等待+传输）
+ 370              		.loc 1 63 38 view .LVU93
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 9
+
+
+ 371 0002 0446     		mov	r4, r0
+ 372              		.loc 1 65 17 view .LVU94
+ 373 0004 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 374              	.LVL20:
+ 375              		.loc 1 65 36 discriminator 1 view .LVU95
+ 376 0008 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 377              	.LVL21:
+  66:Cpp_Core/Src/latency_monitor.cpp ****     if (t4_usb_in >= t3_usb_start) {
+ 378              		.loc 1 66 22 view .LVU96
+ 379 000c 636A     		ldr	r3, [r4, #36]
+  65:Cpp_Core/Src/latency_monitor.cpp ****     if (t4_usb_in >= t3_usb_start) {
+ 380              		.loc 1 65 15 discriminator 2 view .LVU97
+ 381 000e A062     		str	r0, [r4, #40]
+ 382              		.loc 1 66 5 is_stmt 1 view .LVU98
+ 383 0010 9842     		cmp	r0, r3
+ 384 0012 41D2     		bcs	.L23
+ 385 0014 0023     		movs	r3, #0
+ 386 0016 A363     		str	r3, [r4, #56]
+  67:Cpp_Core/Src/latency_monitor.cpp ****         diff_usb_in = t4_usb_in - t3_usb_start;
+  68:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+  69:Cpp_Core/Src/latency_monitor.cpp ****         diff_usb_in = 0;
+  70:Cpp_Core/Src/latency_monitor.cpp ****     }
+  71:Cpp_Core/Src/latency_monitor.cpp **** 
+  72:Cpp_Core/Src/latency_monitor.cpp ****     // 兼容旧逻辑：记录全局最小 IN（通常会在跨帧或等待小时出现更小值�
+  73:Cpp_Core/Src/latency_monitor.cpp ****     if (diff_usb_in > 0 && diff_usb_in < min_usb_in) {
+ 387              		.loc 1 73 5 view .LVU99
+ 388              	.L24:
+  63:Cpp_Core/Src/latency_monitor.cpp ****     // IN 传输完成回调（从提交到完成之间可能包含等待+传输）
+ 389              		.loc 1 63 38 is_stmt 0 view .LVU100
+ 390 0018 0023     		movs	r3, #0
+ 391              	.L26:
+  74:Cpp_Core/Src/latency_monitor.cpp ****         min_usb_in = diff_usb_in;
+  75:Cpp_Core/Src/latency_monitor.cpp ****     }
+  76:Cpp_Core/Src/latency_monitor.cpp **** 
+  77:Cpp_Core/Src/latency_monitor.cpp ****     // Total：采样开始 -> 传输完成
+  78:Cpp_Core/Src/latency_monitor.cpp ****     if (t4_usb_in >= sampling_start_at_usb_start) {
+ 392              		.loc 1 78 5 is_stmt 1 view .LVU101
+ 393              		.loc 1 78 22 is_stmt 0 view .LVU102
+ 394 001a 6269     		ldr	r2, [r4, #20]
+  79:Cpp_Core/Src/latency_monitor.cpp ****         total_latency = t4_usb_in - sampling_start_at_usb_start;
+  80:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+  81:Cpp_Core/Src/latency_monitor.cpp ****         total_latency = 0;
+  82:Cpp_Core/Src/latency_monitor.cpp ****     }
+  83:Cpp_Core/Src/latency_monitor.cpp ****     
+  84:Cpp_Core/Src/latency_monitor.cpp ****     // SOF2ACK：绑定到本次 report 的 SOF -> 传输完成
+  85:Cpp_Core/Src/latency_monitor.cpp ****     if (t4_usb_in >= sof_at_usb_start) {
+ 395              		.loc 1 85 22 view .LVU103
+ 396 001c A169     		ldr	r1, [r4, #24]
+  78:Cpp_Core/Src/latency_monitor.cpp ****         total_latency = t4_usb_in - sampling_start_at_usb_start;
+ 397              		.loc 1 78 5 view .LVU104
+ 398 001e 9042     		cmp	r0, r2
+  79:Cpp_Core/Src/latency_monitor.cpp ****         total_latency = t4_usb_in - sampling_start_at_usb_start;
+ 399              		.loc 1 79 9 is_stmt 1 view .LVU105
+  86:Cpp_Core/Src/latency_monitor.cpp ****         sof2ack_latency = t4_usb_in - sof_at_usb_start;
+  87:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+  88:Cpp_Core/Src/latency_monitor.cpp ****         sof2ack_latency = 0;
+  89:Cpp_Core/Src/latency_monitor.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 10
+
+
+  90:Cpp_Core/Src/latency_monitor.cpp ****     
+  91:Cpp_Core/Src/latency_monitor.cpp ****     acc_sampling += diff_sampling;
+ 400              		.loc 1 91 21 is_stmt 0 view .LVU106
+ 401 0020 E66A     		ldr	r6, [r4, #44]
+  79:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+ 402              		.loc 1 79 35 view .LVU107
+ 403 0022 2CBF     		ite	cs
+ 404 0024 821A     		subcs	r2, r0, r2
+  81:Cpp_Core/Src/latency_monitor.cpp ****     }
+ 405              		.loc 1 81 23 view .LVU108
+ 406 0026 0022     		movcc	r2, #0
+  85:Cpp_Core/Src/latency_monitor.cpp ****         sof2ack_latency = t4_usb_in - sof_at_usb_start;
+ 407              		.loc 1 85 5 view .LVU109
+ 408 0028 8842     		cmp	r0, r1
+ 409 002a E263     		str	r2, [r4, #60]
+  85:Cpp_Core/Src/latency_monitor.cpp ****         sof2ack_latency = t4_usb_in - sof_at_usb_start;
+ 410              		.loc 1 85 5 is_stmt 1 view .LVU110
+  86:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+ 411              		.loc 1 86 9 view .LVU111
+  86:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+ 412              		.loc 1 86 37 is_stmt 0 view .LVU112
+ 413 002c 2CBF     		ite	cs
+ 414 002e 401A     		subcs	r0, r0, r1
+  88:Cpp_Core/Src/latency_monitor.cpp ****     }
+ 415              		.loc 1 88 25 view .LVU113
+ 416 0030 0020     		movcc	r0, #0
+ 417              		.loc 1 91 18 view .LVU114
+ 418 0032 D4E91415 		ldrd	r1, r5, [r4, #80]
+ 419 0036 2064     		str	r0, [r4, #64]
+ 420              		.loc 1 91 5 is_stmt 1 view .LVU115
+ 421              		.loc 1 91 18 is_stmt 0 view .LVU116
+ 422 0038 8919     		adds	r1, r1, r6
+  92:Cpp_Core/Src/latency_monitor.cpp ****     acc_processing += diff_processing;
+ 423              		.loc 1 92 23 view .LVU117
+ 424 003a 266B     		ldr	r6, [r4, #48]
+  91:Cpp_Core/Src/latency_monitor.cpp ****     acc_processing += diff_processing;
+ 425              		.loc 1 91 18 view .LVU118
+ 426 003c 45F10005 		adc	r5, r5, #0
+ 427 0040 C4E91415 		strd	r1, r5, [r4, #80]
+ 428              		.loc 1 92 5 is_stmt 1 view .LVU119
+ 429              		.loc 1 92 20 is_stmt 0 view .LVU120
+ 430 0044 D4E91615 		ldrd	r1, r5, [r4, #88]
+ 431 0048 8919     		adds	r1, r1, r6
+  93:Cpp_Core/Src/latency_monitor.cpp ****     acc_usb_start += diff_usb_start;
+ 432              		.loc 1 93 22 view .LVU121
+ 433 004a 666B     		ldr	r6, [r4, #52]
+  92:Cpp_Core/Src/latency_monitor.cpp ****     acc_processing += diff_processing;
+ 434              		.loc 1 92 20 view .LVU122
+ 435 004c 45F10005 		adc	r5, r5, #0
+ 436 0050 C4E91615 		strd	r1, r5, [r4, #88]
+ 437              		.loc 1 93 5 is_stmt 1 view .LVU123
+ 438              		.loc 1 93 19 is_stmt 0 view .LVU124
+ 439 0054 D4E91815 		ldrd	r1, r5, [r4, #96]
+ 440 0058 8919     		adds	r1, r1, r6
+ 441 005a 45F10005 		adc	r5, r5, #0
+ 442 005e C4E91815 		strd	r1, r5, [r4, #96]
+  94:Cpp_Core/Src/latency_monitor.cpp ****     acc_usb_in += diff_usb_in;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 11
+
+
+ 443              		.loc 1 94 5 is_stmt 1 view .LVU125
+ 444              		.loc 1 94 16 is_stmt 0 view .LVU126
+ 445 0062 D4E91A15 		ldrd	r1, r5, [r4, #104]
+ 446 0066 C918     		adds	r1, r1, r3
+ 447 0068 45F10005 		adc	r5, r5, #0
+ 448 006c C4E91A15 		strd	r1, r5, [r4, #104]
+  95:Cpp_Core/Src/latency_monitor.cpp ****     acc_total += total_latency;
+ 449              		.loc 1 95 5 is_stmt 1 view .LVU127
+ 450              		.loc 1 95 15 is_stmt 0 view .LVU128
+ 451 0070 D4E91C31 		ldrd	r3, r1, [r4, #112]
+ 452 0074 9B18     		adds	r3, r3, r2
+ 453 0076 41F10001 		adc	r1, r1, #0
+ 454 007a C4E91C31 		strd	r3, r1, [r4, #112]
+  96:Cpp_Core/Src/latency_monitor.cpp ****     acc_sof2ack += sof2ack_latency;
+ 455              		.loc 1 96 5 is_stmt 1 view .LVU129
+ 456              		.loc 1 96 17 is_stmt 0 view .LVU130
+ 457 007e D4E91E32 		ldrd	r3, r2, [r4, #120]
+ 458 0082 1B18     		adds	r3, r3, r0
+ 459 0084 42F10002 		adc	r2, r2, #0
+ 460 0088 C4E91E32 		strd	r3, r2, [r4, #120]
+  97:Cpp_Core/Src/latency_monitor.cpp ****     sample_count++;
+ 461              		.loc 1 97 5 is_stmt 1 view .LVU131
+ 462              		.loc 1 97 17 is_stmt 0 view .LVU132
+ 463 008c D4F88030 		ldr	r3, [r4, #128]
+ 464 0090 0133     		adds	r3, r3, #1
+ 465 0092 C4F88030 		str	r3, [r4, #128]
+  98:Cpp_Core/Src/latency_monitor.cpp **** }
+ 466              		.loc 1 98 1 view .LVU133
+ 467 0096 70BD     		pop	{r4, r5, r6, pc}
+ 468              	.LVL22:
+ 469              	.L23:
+  67:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+ 470              		.loc 1 67 9 is_stmt 1 view .LVU134
+  67:Cpp_Core/Src/latency_monitor.cpp ****     } else {
+ 471              		.loc 1 67 33 is_stmt 0 view .LVU135
+ 472 0098 C31A     		subs	r3, r0, r3
+ 473 009a A363     		str	r3, [r4, #56]
+  73:Cpp_Core/Src/latency_monitor.cpp ****         min_usb_in = diff_usb_in;
+ 474              		.loc 1 73 5 is_stmt 1 view .LVU136
+ 475 009c 002B     		cmp	r3, #0
+ 476 009e BBD0     		beq	.L24
+  73:Cpp_Core/Src/latency_monitor.cpp ****         min_usb_in = diff_usb_in;
+ 477              		.loc 1 73 25 is_stmt 0 discriminator 1 view .LVU137
+ 478 00a0 D4F88420 		ldr	r2, [r4, #132]
+ 479 00a4 9342     		cmp	r3, r2
+  74:Cpp_Core/Src/latency_monitor.cpp ****     }
+ 480              		.loc 1 74 9 is_stmt 1 view .LVU138
+  74:Cpp_Core/Src/latency_monitor.cpp ****     }
+ 481              		.loc 1 74 20 is_stmt 0 view .LVU139
+ 482 00a6 38BF     		it	cc
+ 483 00a8 C4F88430 		strcc	r3, [r4, #132]
+ 484 00ac B5E7     		b	.L26
+ 485              		.cfi_endproc
+ 486              	.LFE1280:
+ 488              		.section	.text._ZN14LatencyMonitor7processEv,"ax",%progbits
+ 489              		.align	1
+ 490              		.global	_ZN14LatencyMonitor7processEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 12
+
+
+ 491              		.syntax unified
+ 492              		.thumb
+ 493              		.thumb_func
+ 495              	_ZN14LatencyMonitor7processEv:
+ 496              	.LVL23:
+ 497              	.LFB1281:
+  99:Cpp_Core/Src/latency_monitor.cpp **** 
+ 100:Cpp_Core/Src/latency_monitor.cpp **** void LatencyMonitor::process() {
+ 498              		.loc 1 100 32 is_stmt 1 view -0
+ 499              		.cfi_startproc
+ 500              		@ args = 0, pretend = 0, frame = 0
+ 501              		@ frame_needed = 0, uses_anonymous_args = 0
+ 101:Cpp_Core/Src/latency_monitor.cpp ****     // 每秒打印一次统计平均值（Frames 约等于 1000 / bInterval 的有效上报次数�
+ 102:Cpp_Core/Src/latency_monitor.cpp ****     uint32_t now = HAL_GetTick();
+ 502              		.loc 1 102 5 view .LVU141
+ 100:Cpp_Core/Src/latency_monitor.cpp ****     // 每秒打印一次统计平均值（Frames 约等于 1000 / bInterval 的有效上报次数�
+ 503              		.loc 1 100 32 is_stmt 0 view .LVU142
+ 504 0000 10B5     		push	{r4, lr}
+ 505              	.LCFI7:
+ 506              		.cfi_def_cfa_offset 8
+ 507              		.cfi_offset 4, -8
+ 508              		.cfi_offset 14, -4
+ 100:Cpp_Core/Src/latency_monitor.cpp ****     // 每秒打印一次统计平均值（Frames 约等于 1000 / bInterval 的有效上报次数�
+ 509              		.loc 1 100 32 view .LVU143
+ 510 0002 0446     		mov	r4, r0
+ 511              		.loc 1 102 31 view .LVU144
+ 512 0004 FFF7FEFF 		bl	HAL_GetTick
+ 513              	.LVL24:
+ 103:Cpp_Core/Src/latency_monitor.cpp ****     if (now - last_print_time >= 1000) {
+ 514              		.loc 1 103 5 is_stmt 1 view .LVU145
+ 515              	.LBB6:
+ 516              		.loc 1 103 13 is_stmt 0 view .LVU146
+ 517 0008 636C     		ldr	r3, [r4, #68]
+ 518 000a C31A     		subs	r3, r0, r3
+ 519              		.loc 1 103 5 view .LVU147
+ 520 000c B3F57A7F 		cmp	r3, #1000
+ 521 0010 16D3     		bcc	.L33
+ 522              	.LBB7:
+ 104:Cpp_Core/Src/latency_monitor.cpp ****         if (sample_count > 0) {
+ 523              		.loc 1 104 9 is_stmt 1 view .LVU148
+ 105:Cpp_Core/Src/latency_monitor.cpp ****             uint32_t avg_sampling = (uint32_t)(acc_sampling / sample_count);
+ 106:Cpp_Core/Src/latency_monitor.cpp ****             uint32_t avg_processing = (uint32_t)(acc_processing / sample_count);
+ 107:Cpp_Core/Src/latency_monitor.cpp ****             uint32_t avg_usb_start = (uint32_t)(acc_usb_start / sample_count);
+ 108:Cpp_Core/Src/latency_monitor.cpp ****             uint32_t avg_usb_in = (uint32_t)(acc_usb_in / sample_count);
+ 109:Cpp_Core/Src/latency_monitor.cpp ****             uint32_t avg_total = (uint32_t)(acc_total / sample_count);
+ 110:Cpp_Core/Src/latency_monitor.cpp ****             uint32_t avg_sof2ack = (uint32_t)(acc_sof2ack / sample_count);
+ 111:Cpp_Core/Src/latency_monitor.cpp ****             
+ 112:Cpp_Core/Src/latency_monitor.cpp ****             APP_DBG("[LATENCY] Frames: %lu, Avg(us) - Samp: %lu, Proc: %lu, Start: %lu, IN: %lu, To
+ 113:Cpp_Core/Src/latency_monitor.cpp ****                     frame_counter, avg_sampling, avg_processing, avg_usb_start, avg_usb_in, avg_tot
+ 114:Cpp_Core/Src/latency_monitor.cpp ****         }
+ 115:Cpp_Core/Src/latency_monitor.cpp ****         
+ 116:Cpp_Core/Src/latency_monitor.cpp ****         frame_counter = 0;
+ 524              		.loc 1 116 9 view .LVU149
+ 117:Cpp_Core/Src/latency_monitor.cpp ****         acc_sampling = 0;
+ 525              		.loc 1 117 22 is_stmt 0 view .LVU150
+ 526 0012 0023     		movs	r3, #0
+ 527 0014 0022     		movs	r2, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 13
+
+
+ 116:Cpp_Core/Src/latency_monitor.cpp ****         acc_sampling = 0;
+ 528              		.loc 1 116 23 view .LVU151
+ 529 0016 0021     		movs	r1, #0
+ 118:Cpp_Core/Src/latency_monitor.cpp ****         acc_processing = 0;
+ 119:Cpp_Core/Src/latency_monitor.cpp ****         acc_usb_start = 0;
+ 120:Cpp_Core/Src/latency_monitor.cpp ****         acc_usb_in = 0;
+ 121:Cpp_Core/Src/latency_monitor.cpp ****         acc_total = 0;
+ 122:Cpp_Core/Src/latency_monitor.cpp ****         acc_sof2ack = 0;
+ 123:Cpp_Core/Src/latency_monitor.cpp ****         sample_count = 0;
+ 124:Cpp_Core/Src/latency_monitor.cpp ****         min_usb_in = 0xFFFFFFFF;
+ 125:Cpp_Core/Src/latency_monitor.cpp ****         last_print_time = now;
+ 530              		.loc 1 125 25 view .LVU152
+ 531 0018 6064     		str	r0, [r4, #68]
+ 117:Cpp_Core/Src/latency_monitor.cpp ****         acc_processing = 0;
+ 532              		.loc 1 117 22 view .LVU153
+ 533 001a C4E91423 		strd	r2, [r4, #80]
+ 118:Cpp_Core/Src/latency_monitor.cpp ****         acc_processing = 0;
+ 534              		.loc 1 118 24 view .LVU154
+ 535 001e C4E91623 		strd	r2, [r4, #88]
+ 119:Cpp_Core/Src/latency_monitor.cpp ****         acc_usb_in = 0;
+ 536              		.loc 1 119 23 view .LVU155
+ 537 0022 C4E91823 		strd	r2, [r4, #96]
+ 120:Cpp_Core/Src/latency_monitor.cpp ****         acc_total = 0;
+ 538              		.loc 1 120 20 view .LVU156
+ 539 0026 C4E91A23 		strd	r2, [r4, #104]
+ 121:Cpp_Core/Src/latency_monitor.cpp ****         acc_sof2ack = 0;
+ 540              		.loc 1 121 19 view .LVU157
+ 541 002a C4E91C23 		strd	r2, [r4, #112]
+ 122:Cpp_Core/Src/latency_monitor.cpp ****         sample_count = 0;
+ 542              		.loc 1 122 21 view .LVU158
+ 543 002e C4E91E23 		strd	r2, [r4, #120]
+ 124:Cpp_Core/Src/latency_monitor.cpp ****         last_print_time = now;
+ 544              		.loc 1 124 20 view .LVU159
+ 545 0032 4FF0FF33 		mov	r3, #-1
+ 116:Cpp_Core/Src/latency_monitor.cpp ****         acc_sampling = 0;
+ 546              		.loc 1 116 23 view .LVU160
+ 547 0036 A164     		str	r1, [r4, #72]
+ 117:Cpp_Core/Src/latency_monitor.cpp ****         acc_processing = 0;
+ 548              		.loc 1 117 9 is_stmt 1 view .LVU161
+ 118:Cpp_Core/Src/latency_monitor.cpp ****         acc_usb_start = 0;
+ 549              		.loc 1 118 9 view .LVU162
+ 119:Cpp_Core/Src/latency_monitor.cpp ****         acc_usb_in = 0;
+ 550              		.loc 1 119 9 view .LVU163
+ 120:Cpp_Core/Src/latency_monitor.cpp ****         acc_total = 0;
+ 551              		.loc 1 120 9 view .LVU164
+ 121:Cpp_Core/Src/latency_monitor.cpp ****         acc_sof2ack = 0;
+ 552              		.loc 1 121 9 view .LVU165
+ 122:Cpp_Core/Src/latency_monitor.cpp ****         sample_count = 0;
+ 553              		.loc 1 122 9 view .LVU166
+ 123:Cpp_Core/Src/latency_monitor.cpp ****         min_usb_in = 0xFFFFFFFF;
+ 554              		.loc 1 123 9 view .LVU167
+ 123:Cpp_Core/Src/latency_monitor.cpp ****         min_usb_in = 0xFFFFFFFF;
+ 555              		.loc 1 123 22 is_stmt 0 view .LVU168
+ 556 0038 C4F88010 		str	r1, [r4, #128]
+ 124:Cpp_Core/Src/latency_monitor.cpp ****         last_print_time = now;
+ 557              		.loc 1 124 9 is_stmt 1 view .LVU169
+ 124:Cpp_Core/Src/latency_monitor.cpp ****         last_print_time = now;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 14
+
+
+ 558              		.loc 1 124 20 is_stmt 0 view .LVU170
+ 559 003c C4F88430 		str	r3, [r4, #132]
+ 560              		.loc 1 125 9 is_stmt 1 view .LVU171
+ 561              	.L33:
+ 562              		.loc 1 125 9 is_stmt 0 view .LVU172
+ 563              	.LBE7:
+ 564              	.LBE6:
+ 126:Cpp_Core/Src/latency_monitor.cpp ****     }
+ 127:Cpp_Core/Src/latency_monitor.cpp **** }
+ 565              		.loc 1 127 1 view .LVU173
+ 566 0040 10BD     		pop	{r4, pc}
+ 567              		.loc 1 127 1 view .LVU174
+ 568              		.cfi_endproc
+ 569              	.LFE1281:
+ 571              		.weak	_ZGVZN11MicrosTimer11getInstanceEvE8instance
+ 572              		.section	.bss._ZGVZN11MicrosTimer11getInstanceEvE8instance,"awG",%nobits,_ZGVZN11MicrosTimer11getI
+ 573              		.align	2
+ 576              	_ZGVZN11MicrosTimer11getInstanceEvE8instance:
+ 577 0000 00000000 		.space	4
+ 578              		.weak	_ZZN11MicrosTimer11getInstanceEvE8instance
+ 579              		.section	.bss._ZZN11MicrosTimer11getInstanceEvE8instance,"awG",%nobits,_ZZN11MicrosTimer11getInsta
+ 580              		.align	2
+ 583              	_ZZN11MicrosTimer11getInstanceEvE8instance:
+ 584 0000 00000000 		.space	4
+ 585              		.text
+ 586              	.Letext0:
+ 587              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 588              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 589              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 590              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 591              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 592              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 593              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 594              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 595              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 596              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 597              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 598              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 599              		.file 15 "Core/Inc/board_cfg.h"
+ 600              		.file 16 "Cpp_Core/Inc/latency_monitor.hpp"
+ 601              		.file 17 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s 			page 15
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 latency_monitor.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:20     .text._ZN11MicrosTimer11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:26     .text._ZN11MicrosTimer11getInstanceEv:00000000 _ZN11MicrosTimer11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:73     .text._ZN11MicrosTimer11getInstanceEv:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:576    .bss._ZGVZN11MicrosTimer11getInstanceEvE8instance:00000000 _ZGVZN11MicrosTimer11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:583    .bss._ZZN11MicrosTimer11getInstanceEvE8instance:00000000 _ZZN11MicrosTimer11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:79     .text._ZN14LatencyMonitor12sofTriggeredEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:85     .text._ZN14LatencyMonitor12sofTriggeredEv:00000000 _ZN14LatencyMonitor12sofTriggeredEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:122    .text._ZN14LatencyMonitor13samplingArmedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:128    .text._ZN14LatencyMonitor13samplingArmedEv:00000000 _ZN14LatencyMonitor13samplingArmedEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:146    .text._ZN14LatencyMonitor15samplingStartedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:152    .text._ZN14LatencyMonitor15samplingStartedEv:00000000 _ZN14LatencyMonitor15samplingStartedEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:188    .text._ZN14LatencyMonitor17samplingCompletedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:194    .text._ZN14LatencyMonitor17samplingCompletedEv:00000000 _ZN14LatencyMonitor17samplingCompletedEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:236    .text._ZN14LatencyMonitor19processingCompletedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:242    .text._ZN14LatencyMonitor19processingCompletedEv:00000000 _ZN14LatencyMonitor19processingCompletedEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:290    .text._ZN14LatencyMonitor12usbInStartedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:296    .text._ZN14LatencyMonitor12usbInStartedEv:00000000 _ZN14LatencyMonitor12usbInStartedEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:348    .text._ZN14LatencyMonitor13usbInTransferEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:354    .text._ZN14LatencyMonitor13usbInTransferEv:00000000 _ZN14LatencyMonitor13usbInTransferEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:489    .text._ZN14LatencyMonitor7processEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:495    .text._ZN14LatencyMonitor7processEv:00000000 _ZN14LatencyMonitor7processEv
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:573    .bss._ZGVZN11MicrosTimer11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccIOFaqG.s:580    .bss._ZZN11MicrosTimer11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+__cxa_guard_acquire
+_ZN11MicrosTimerC1Ev
+__cxa_guard_release
+_ZN11MicrosTimer6microsEv
+HAL_GetTick

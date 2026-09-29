@@ -1,0 +1,48 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - tablist [ref=e42]:
+          - tab "Global Setting" [ref=e43] [cursor=pointer]
+          - separator [ref=e47]
+          - tab "Keys Setting" [ref=e48] [cursor=pointer]
+          - separator [ref=e52]
+          - tab "Buttons Performance" [ref=e53] [cursor=pointer]
+          - separator [ref=e60]
+          - tab "Lighting Setting" [ref=e61] [cursor=pointer]
+          - separator [ref=e65]
+          - tab "Switch Marking" [ref=e66] [cursor=pointer]
+          - separator [ref=e71]
+          - tab "Firmware" [ref=e72] [cursor=pointer]
+          - separator [ref=e76]
+          - tab "View Logs" [ref=e77] [cursor=pointer]
+        - button "Finish Configuration" [ref=e84] [cursor=pointer]
+      - generic [ref=e87]:
+        - generic [ref=e88]: MOCK DEVICE
+        - button "Sign in" [disabled] [ref=e89]
+        - button "中文" [ref=e96] [cursor=pointer]
+    - generic [ref=e102]:
+      - generic [ref=e103]:
+        - heading "Official Gallery" [level=2] [ref=e109]
+        - paragraph [ref=e110]: Manage system images shown in WebConfig.
+      - generic [ref=e111]:
+        - button "Accounts" [ref=e112] [cursor=pointer]
+        - button "Sign in" [disabled] [ref=e115]
+        - button "中文" [ref=e122] [cursor=pointer]
+  - region "top Notifications alt+T"
+  - generic [ref=e125]:
+    - dialog "Device Not Connected" [ref=e128]:
+      - heading "Device Not Connected" [level=3] [ref=e130]
+      - generic [ref=e132]:
+        - generic [ref=e133]:
+          - generic [ref=e134]: "1"
+          - paragraph [ref=e135]: Switch the device to WebConfig mode.
+        - generic [ref=e136]:
+          - generic [ref=e137]: "2"
+          - paragraph [ref=e138]: Connect the device to this computer using USB.
+        - generic [ref=e139]:
+          - generic [ref=e140]: "3"
+          - paragraph [ref=e141]: Click Reconnect Device to establish the connection.
+    - generic [ref=e143]:
+      - button "Sign in" [disabled] [ref=e144]
+      - button "中文" [ref=e151] [cursor=pointer]

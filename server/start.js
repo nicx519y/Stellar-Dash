@@ -12,10 +12,11 @@ const path = require('path');
 // 检查Node.js版本
 function checkNodeVersion() {
     const version = process.version;
-    const majorVersion = parseInt(version.slice(1).split('.')[0]);
+    const versionParts = version.slice(1).split('.').map(Number);
+    const [majorVersion, minorVersion] = versionParts;
     
-    if (majorVersion < 14) {
-        console.error('❌ 错误: 需要 Node.js 14.0.0 或更高版本');
+    if (majorVersion < 18 || (majorVersion === 18 && minorVersion < 17)) {
+        console.error('❌ 错误: 需要 Node.js 18.17.0 或更高版本');
         console.error(`当前版本: ${version}`);
         process.exit(1);
     }
@@ -133,4 +134,4 @@ if (require.main === module) {
     main();
 }
 
-module.exports = { main }; 
+module.exports = { main };

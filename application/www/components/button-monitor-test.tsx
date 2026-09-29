@@ -275,7 +275,7 @@ export function ButtonMonitorTest() {
                                     3. 绿色的按键表示当前被按下，灰色表示未按下
                                 </Text>
                                 <Text fontSize="sm" >
-                                    4. 使用WebSocket推送模式，无需轮询即可实时获取状态
+                                    4. 使用WebHID事件推送模式，无需轮询即可实时获取状态
                                 </Text>
                                 <Text fontSize="sm" >
                                     5. 日志面板显示详细的操作记录和状态变化

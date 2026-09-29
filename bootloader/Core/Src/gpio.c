@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "gpio.h"
+#include "board_cfg.h"
 
 /* USER CODE BEGIN 0 */
 
@@ -51,7 +52,34 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
+  __HAL_RCC_GPIOI_CLK_ENABLE();
 
+}
+
+void Board_InitSafePowerState(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  __HAL_RCC_GPIOI_CLK_ENABLE();
+  __DSB();
+
+  /*
+   * Load every output latch before enabling any output driver.  This keeps
+   * MAIN_POWER_EN, LCD_EN and CH585_EN asserted, disables charging, and leaves
+   * every other optional or high-current rail off without producing an enable
+   * glitch. LCD remains powered so boot/recovery code can present a visible
+   * state. CH585 stays powered during bootloader execution so an assembled
+   * board can be programmed without a hardware pull-up on its enable input.
+   */
+  GPIOI->BSRR = (uint32_t)BOARD_SAFE_POWER_HIGH_PINS |
+                ((uint32_t)BOARD_SAFE_POWER_LOW_PINS << 16u);
+
+  GPIO_InitStruct.Pin = BOARD_SAFE_POWER_OUTPUT_PINS;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+  __DSB();
 }
 
 /* USER CODE BEGIN 2 */

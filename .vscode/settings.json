@@ -71,7 +71,8 @@
         "iomanip": "cpp",
         "sstream": "cpp",
         "stdbool.h": "c",
-        "stm32h7xx_hal_dma.h": "c"
+        "stm32h7xx_hal_dma.h": "c",
+        "platform_port.h": "c"
     },
     "cmake.sourceDirectory": "E:/Works/STM32/HBox_Git/application/Libs/mbedtls/programs/test/cmake_subproject"
 }

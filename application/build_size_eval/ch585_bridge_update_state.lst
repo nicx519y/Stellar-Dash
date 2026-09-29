@@ -1,0 +1,773 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ch585_bridge_update_state.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/states/ch585_bridge_update_state.cpp"
+  19              		.section	.text._ZN22Ch585BridgeUpdateStateD2Ev,"axG",%progbits,_ZN22Ch585BridgeUpdateStateD5Ev,com
+  20              		.align	1
+  21              		.weak	_ZN22Ch585BridgeUpdateStateD2Ev
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN22Ch585BridgeUpdateStateD2Ev:
+  27              	.LVL0:
+  28              	.LFB12:
+  29              		.file 2 "Cpp_Core/Inc/states/ch585_bridge_update_state.hpp"
+   1:Cpp_Core/Inc/states/ch585_bridge_update_state.hpp **** #ifndef CH585_BRIDGE_UPDATE_STATE_HPP
+   2:Cpp_Core/Inc/states/ch585_bridge_update_state.hpp **** #define CH585_BRIDGE_UPDATE_STATE_HPP
+   3:Cpp_Core/Inc/states/ch585_bridge_update_state.hpp **** 
+   4:Cpp_Core/Inc/states/ch585_bridge_update_state.hpp **** #include "base_state.hpp"
+   5:Cpp_Core/Inc/states/ch585_bridge_update_state.hpp **** 
+   6:Cpp_Core/Inc/states/ch585_bridge_update_state.hpp **** class Ch585BridgeUpdateState final : public BaseState {
+  30              		.loc 2 6 7 view -0
+  31              		.cfi_startproc
+  32              		@ args = 0, pretend = 0, frame = 0
+  33              		@ frame_needed = 0, uses_anonymous_args = 0
+  34              		@ link register save eliminated.
+  35              	.LBB26:
+  36              	.LBI26:
+  37              		.file 3 "Cpp_Core/Inc/states/base_state.hpp"
+   1:Cpp_Core/Inc/states/base_state.hpp **** #ifndef __BASE_STATE_H__
+   2:Cpp_Core/Inc/states/base_state.hpp **** #define __BASE_STATE_H__
+   3:Cpp_Core/Inc/states/base_state.hpp **** 
+   4:Cpp_Core/Inc/states/base_state.hpp **** class BaseState {
+   5:Cpp_Core/Inc/states/base_state.hpp ****     public:
+   6:Cpp_Core/Inc/states/base_state.hpp ****         virtual ~BaseState() = default;
+  38              		.loc 3 6 17 view .LVU1
+  39              		.loc 3 6 17 is_stmt 0 view .LVU2
+  40              	.LBE26:
+  41              		.loc 2 6 7 view .LVU3
+  42 0000 7047     		bx	lr
+  43              		.cfi_endproc
+  44              	.LFE12:
+  46              		.weak	_ZN22Ch585BridgeUpdateStateD1Ev
+  47              		.thumb_set _ZN22Ch585BridgeUpdateStateD1Ev,_ZN22Ch585BridgeUpdateStateD2Ev
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 2
+
+
+  48              		.section	.text._ZN22Ch585BridgeUpdateState4exitEv,"ax",%progbits
+  49              		.align	1
+  50              		.global	_ZN22Ch585BridgeUpdateState4exitEv
+  51              		.syntax unified
+  52              		.thumb
+  53              		.thumb_func
+  55              	_ZN22Ch585BridgeUpdateState4exitEv:
+  56              	.LVL1:
+  57              	.LFB2234:
+   1:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** #include "states/ch585_bridge_update_state.hpp"
+   2:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** 
+   3:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** #include "ch585_firmware_update.hpp"
+   4:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** #include "main_state_machine.hpp"
+   5:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** #include "system_logger.h"
+   6:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** 
+   7:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** bool Ch585BridgeUpdateState::enter()
+   8:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** {
+   9:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     resetRequested = false;
+  10:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     APP_STAGE("A07U", "entered isolated CH585 bridge update state; UI remains offline");
+  11:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     const bool completed = CH585_FIRMWARE_UPDATE.performPendingUpdate();
+  12:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     if (!CH585_FIRMWARE_UPDATE.wasClaimed()) {
+  13:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         APP_STAGE_ERROR("A07U", "CH585 READY was not claimed; entering safe recovery");
+  14:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         return false;
+  15:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     }
+  16:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     APP_STAGE(completed ? "M12S" : "M11S",
+  17:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****               "CH585 bridge update state reached terminal journal record");
+  18:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     resetRequested = true;
+  19:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     return true;
+  20:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** }
+  21:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** 
+  22:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** void Ch585BridgeUpdateState::tick()
+  23:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** {
+  24:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     if (resetRequested) {
+  25:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         resetRequested = false;
+  26:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         MAIN_STATE_MACHINE.requestReset();
+  27:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     }
+  28:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** }
+  29:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** 
+  30:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** void Ch585BridgeUpdateState::exit()
+  31:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** {
+  58              		.loc 1 31 1 is_stmt 1 view -0
+  59              		.cfi_startproc
+  60              		@ args = 0, pretend = 0, frame = 0
+  61              		@ frame_needed = 0, uses_anonymous_args = 0
+  62              		@ link register save eliminated.
+  32:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     resetRequested = false;
+  63              		.loc 1 32 5 view .LVU5
+  64              		.loc 1 32 20 is_stmt 0 view .LVU6
+  65 0000 0023     		movs	r3, #0
+  66 0002 0371     		strb	r3, [r0, #4]
+  33:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** }
+  67              		.loc 1 33 1 view .LVU7
+  68 0004 7047     		bx	lr
+  69              		.cfi_endproc
+  70              	.LFE2234:
+  72              		.section	.rodata.AppStartupLog_Printf.str1.1,"aMS",%progbits,1
+  73              	.LC0:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 3
+
+
+  74 0000 5B415050 		.ascii	"[APP][STARTUP][%s]%s \000"
+  74      5D5B5354 
+  74      41525455 
+  74      505D5B25 
+  74      735D2573 
+  75              	.LC1:
+  76 0016 0D00     		.ascii	"\015\000"
+  77              		.section	.text.AppStartupLog_Printf,"ax",%progbits
+  78              		.align	1
+  79              		.syntax unified
+  80              		.thumb
+  81              		.thumb_func
+  83              	AppStartupLog_Printf:
+  84              	.LVL2:
+  85              	.LFB2174:
+  86              		.file 4 "Core/Inc/board_cfg.h"
+   1:Core/Inc/board_cfg.h **** /*
+   2:Core/Inc/board_cfg.h ****  * The MIT License (MIT)
+   3:Core/Inc/board_cfg.h ****  *
+   4:Core/Inc/board_cfg.h ****  * Copyright (c) 2021, Ha Thach (tinyusb.org)
+   5:Core/Inc/board_cfg.h ****  *
+   6:Core/Inc/board_cfg.h ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   7:Core/Inc/board_cfg.h ****  * of this software and associated documentation files (the "Software"), to deal
+   8:Core/Inc/board_cfg.h ****  * in the Software without restriction, including without limitation the rights
+   9:Core/Inc/board_cfg.h ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  10:Core/Inc/board_cfg.h ****  * copies of the Software, and to permit persons to whom the Software is
+  11:Core/Inc/board_cfg.h ****  * furnished to do so, subject to the following conditions:
+  12:Core/Inc/board_cfg.h ****  *
+  13:Core/Inc/board_cfg.h ****  * The above copyright notice and this permission notice shall be included in
+  14:Core/Inc/board_cfg.h ****  * all copies or substantial portions of the Software.
+  15:Core/Inc/board_cfg.h ****  *
+  16:Core/Inc/board_cfg.h ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  17:Core/Inc/board_cfg.h ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  18:Core/Inc/board_cfg.h ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  19:Core/Inc/board_cfg.h ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  20:Core/Inc/board_cfg.h ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  21:Core/Inc/board_cfg.h ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  22:Core/Inc/board_cfg.h ****  * THE SOFTWARE.
+  23:Core/Inc/board_cfg.h ****  *
+  24:Core/Inc/board_cfg.h ****  * This file is part of the TinyUSB stack.
+  25:Core/Inc/board_cfg.h ****  */
+  26:Core/Inc/board_cfg.h **** 
+  27:Core/Inc/board_cfg.h **** #ifndef __BOARD_H__
+  28:Core/Inc/board_cfg.h **** #define __BOARD_H__
+  29:Core/Inc/board_cfg.h **** 
+  30:Core/Inc/board_cfg.h **** #include "stm32h750xx.h"
+  31:Core/Inc/board_cfg.h **** #include "stm32h7xx_hal.h"
+  32:Core/Inc/board_cfg.h **** #include <stdarg.h>
+  33:Core/Inc/board_cfg.h **** #include <stdbool.h>
+  34:Core/Inc/board_cfg.h **** #include <stdio.h>
+  35:Core/Inc/board_cfg.h **** 
+  36:Core/Inc/board_cfg.h **** #ifdef __cplusplus
+  37:Core/Inc/board_cfg.h ****  extern "C" {
+  38:Core/Inc/board_cfg.h **** #endif
+  39:Core/Inc/board_cfg.h **** 
+  40:Core/Inc/board_cfg.h **** 
+  41:Core/Inc/board_cfg.h **** #define SYSTEM_CLOCK_FREQ      480000000
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 4
+
+
+  42:Core/Inc/board_cfg.h **** 
+  43:Core/Inc/board_cfg.h **** #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
+  44:Core/Inc/board_cfg.h **** 
+  45:Core/Inc/board_cfg.h **** // STM32H7系列的唯一ID存储地址（96位，12字节）
+  46:Core/Inc/board_cfg.h **** #define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+  47:Core/Inc/board_cfg.h **** 
+  48:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_Msk
+  49:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+  50:Core/Inc/board_cfg.h **** #endif
+  51:Core/Inc/board_cfg.h **** 
+  52:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_RN
+  53:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+  54:Core/Inc/board_cfg.h **** #endif
+  55:Core/Inc/board_cfg.h **** 
+  56:Core/Inc/board_cfg.h **** /* Debug print configuration.
+  57:Core/Inc/board_cfg.h ****  * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+  58:Core/Inc/board_cfg.h ****  * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+  59:Core/Inc/board_cfg.h ****  */
+  60:Core/Inc/board_cfg.h **** #ifndef APPLICATION_SERIAL_PRINT
+  61:Core/Inc/board_cfg.h **** #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+  62:Core/Inc/board_cfg.h **** #endif
+  63:Core/Inc/board_cfg.h **** 
+  64:Core/Inc/board_cfg.h **** #ifndef APPLICATION_DEBUG_PRINT
+  65:Core/Inc/board_cfg.h **** #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+  66:Core/Inc/board_cfg.h **** #endif
+  67:Core/Inc/board_cfg.h **** 
+  68:Core/Inc/board_cfg.h **** #ifndef APP_LOG_VERBOSE
+  69:Core/Inc/board_cfg.h **** #define APP_LOG_VERBOSE 0
+  70:Core/Inc/board_cfg.h **** #endif
+  71:Core/Inc/board_cfg.h **** 
+  72:Core/Inc/board_cfg.h **** /* Concise production startup milestones, independent from verbose APP_DBG. */
+  73:Core/Inc/board_cfg.h **** #ifndef APPLICATION_STARTUP_LOG
+  74:Core/Inc/board_cfg.h **** #define APPLICATION_STARTUP_LOG 1
+  75:Core/Inc/board_cfg.h **** #endif
+  76:Core/Inc/board_cfg.h **** 
+  77:Core/Inc/board_cfg.h **** #if APPLICATION_STARTUP_LOG
+  78:Core/Inc/board_cfg.h **** static inline void AppStartupLog_Printf(const char *stage,
+  79:Core/Inc/board_cfg.h ****                                         const char *level,
+  80:Core/Inc/board_cfg.h ****                                         const char *fmt, ...)
+  81:Core/Inc/board_cfg.h **** {
+  87              		.loc 4 81 1 is_stmt 1 view -0
+  88              		.cfi_startproc
+  89              		@ args = 4, pretend = 8, frame = 8
+  90              		@ frame_needed = 0, uses_anonymous_args = 1
+  82:Core/Inc/board_cfg.h ****     va_list args;
+  91              		.loc 4 82 5 view .LVU9
+  83:Core/Inc/board_cfg.h ****     printf("[APP][STARTUP][%s]%s ", stage, level);
+  92              		.loc 4 83 5 view .LVU10
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  93              		.loc 4 81 1 is_stmt 0 view .LVU11
+  94 0000 0CB4     		push	{r2, r3}
+  95              	.LCFI0:
+  96              		.cfi_def_cfa_offset 8
+  97              		.cfi_offset 2, -8
+  98              		.cfi_offset 3, -4
+  99 0002 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 100              	.LCFI1:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 5
+
+
+ 101              		.cfi_def_cfa_offset 32
+ 102              		.cfi_offset 4, -20
+ 103              		.cfi_offset 5, -16
+ 104              		.cfi_offset 14, -12
+  81:Core/Inc/board_cfg.h ****     va_list args;
+ 105              		.loc 4 81 1 view .LVU12
+ 106 0004 06AC     		add	r4, sp, #24
+ 107 0006 0A46     		mov	r2, r1
+ 108              		.loc 4 83 11 view .LVU13
+ 109 0008 0146     		mov	r1, r0
+ 110              	.LVL3:
+ 111              		.loc 4 83 11 view .LVU14
+ 112 000a 0948     		ldr	r0, .L4
+ 113              	.LVL4:
+  81:Core/Inc/board_cfg.h ****     va_list args;
+ 114              		.loc 4 81 1 view .LVU15
+ 115 000c 54F8045B 		ldr	r5, [r4], #4
+ 116              		.loc 4 83 11 view .LVU16
+ 117 0010 FFF7FEFF 		bl	printf
+ 118              	.LVL5:
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+ 119              		.loc 4 84 5 is_stmt 1 view .LVU17
+  85:Core/Inc/board_cfg.h ****     vprintf(fmt, args);
+ 120              		.loc 4 85 12 is_stmt 0 view .LVU18
+ 121 0014 2146     		mov	r1, r4
+ 122 0016 2846     		mov	r0, r5
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+ 123              		.loc 4 84 5 view .LVU19
+ 124 0018 0194     		str	r4, [sp, #4]
+ 125              		.loc 4 85 5 is_stmt 1 view .LVU20
+ 126              		.loc 4 85 12 is_stmt 0 view .LVU21
+ 127 001a FFF7FEFF 		bl	vprintf
+ 128              	.LVL6:
+  86:Core/Inc/board_cfg.h ****     va_end(args);
+ 129              		.loc 4 86 5 is_stmt 1 view .LVU22
+  87:Core/Inc/board_cfg.h ****     printf("\r\n");
+ 130              		.loc 4 87 5 view .LVU23
+ 131              		.loc 4 87 11 is_stmt 0 view .LVU24
+ 132 001e 0548     		ldr	r0, .L4+4
+ 133 0020 FFF7FEFF 		bl	puts
+ 134              	.LVL7:
+  88:Core/Inc/board_cfg.h **** }
+ 135              		.loc 4 88 1 view .LVU25
+ 136 0024 03B0     		add	sp, sp, #12
+ 137              	.LCFI2:
+ 138              		.cfi_def_cfa_offset 20
+ 139              		@ sp needed
+ 140 0026 BDE83040 		pop	{r4, r5, lr}
+ 141              	.LCFI3:
+ 142              		.cfi_restore 14
+ 143              		.cfi_restore 5
+ 144              		.cfi_restore 4
+ 145              		.cfi_def_cfa_offset 8
+ 146 002a 02B0     		add	sp, sp, #8
+ 147              	.LCFI4:
+ 148              		.cfi_restore 3
+ 149              		.cfi_restore 2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 6
+
+
+ 150              		.cfi_def_cfa_offset 0
+ 151 002c 7047     		bx	lr
+ 152              	.L5:
+ 153 002e 00BF     		.align	2
+ 154              	.L4:
+ 155 0030 00000000 		.word	.LC0
+ 156 0034 16000000 		.word	.LC1
+ 157              		.cfi_endproc
+ 158              	.LFE2174:
+ 160              		.section	.text._ZN22Ch585BridgeUpdateStateD0Ev,"axG",%progbits,_ZN22Ch585BridgeUpdateStateD5Ev,com
+ 161              		.align	1
+ 162              		.weak	_ZN22Ch585BridgeUpdateStateD0Ev
+ 163              		.syntax unified
+ 164              		.thumb
+ 165              		.thumb_func
+ 167              	_ZN22Ch585BridgeUpdateStateD0Ev:
+ 168              	.LVL8:
+ 169              	.LFB14:
+ 170              		.loc 2 6 7 is_stmt 1 view -0
+ 171              		.cfi_startproc
+ 172              		@ args = 0, pretend = 0, frame = 0
+ 173              		@ frame_needed = 0, uses_anonymous_args = 0
+ 174              		.loc 2 6 7 is_stmt 0 view .LVU27
+ 175 0000 10B5     		push	{r4, lr}
+ 176              	.LCFI5:
+ 177              		.cfi_def_cfa_offset 8
+ 178              		.cfi_offset 4, -8
+ 179              		.cfi_offset 14, -4
+ 180              		.loc 2 6 7 view .LVU28
+ 181 0002 0446     		mov	r4, r0
+ 182              	.LVL9:
+ 183              	.LBB27:
+ 184              	.LBI27:
+ 185              		.loc 2 6 7 is_stmt 1 view .LVU29
+ 186              	.LBB28:
+ 187              	.LBI28:
+ 188              		.loc 3 6 17 view .LVU30
+ 189              		.loc 3 6 17 is_stmt 0 view .LVU31
+ 190              	.LBE28:
+ 191              	.LBE27:
+ 192              		.loc 2 6 7 discriminator 1 view .LVU32
+ 193 0004 0821     		movs	r1, #8
+ 194 0006 FFF7FEFF 		bl	_ZdlPvj
+ 195              	.LVL10:
+ 196              		.loc 2 6 7 view .LVU33
+ 197 000a 2046     		mov	r0, r4
+ 198 000c 10BD     		pop	{r4, pc}
+ 199              		.loc 2 6 7 view .LVU34
+ 200              		.cfi_endproc
+ 201              	.LFE14:
+ 203              		.section	.rodata._ZN22Ch585BridgeUpdateState5enterEv.str1.1,"aMS",%progbits,1
+ 204              	.LC2:
+ 205 0000 4D313253 		.ascii	"M12S\000"
+ 205      00
+ 206              	.LC3:
+ 207 0005 4D313153 		.ascii	"M11S\000"
+ 207      00
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 7
+
+
+ 208              	.LC4:
+ 209 000a 656E7465 		.ascii	"entered isolated CH585 bridge update state; UI rema"
+ 209      72656420 
+ 209      69736F6C 
+ 209      61746564 
+ 209      20434835 
+ 210 003d 696E7320 		.ascii	"ins offline\000"
+ 210      6F66666C 
+ 210      696E6500 
+ 211              	.LC5:
+ 212 0049 00       		.ascii	"\000"
+ 213              	.LC6:
+ 214 004a 41303755 		.ascii	"A07U\000"
+ 214      00
+ 215              	.LC7:
+ 216 004f 43483538 		.ascii	"CH585 READY was not claimed; entering safe recovery"
+ 216      35205245 
+ 216      41445920 
+ 216      77617320 
+ 216      6E6F7420 
+ 217 0082 00       		.ascii	"\000"
+ 218              	.LC8:
+ 219 0083 5B455252 		.ascii	"[ERROR]\000"
+ 219      4F525D00 
+ 220              	.LC9:
+ 221 008b 43483538 		.ascii	"CH585 bridge update state reached terminal journal "
+ 221      35206272 
+ 221      69646765 
+ 221      20757064 
+ 221      61746520 
+ 222 00be 7265636F 		.ascii	"record\000"
+ 222      726400
+ 223              		.section	.text._ZN22Ch585BridgeUpdateState5enterEv,"ax",%progbits
+ 224              		.align	1
+ 225              		.global	_ZN22Ch585BridgeUpdateState5enterEv
+ 226              		.syntax unified
+ 227              		.thumb
+ 228              		.thumb_func
+ 230              	_ZN22Ch585BridgeUpdateState5enterEv:
+ 231              	.LVL11:
+ 232              	.LFB2232:
+   8:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     resetRequested = false;
+ 233              		.loc 1 8 1 is_stmt 1 view -0
+ 234              		.cfi_startproc
+ 235              		@ args = 0, pretend = 0, frame = 0
+ 236              		@ frame_needed = 0, uses_anonymous_args = 0
+   9:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     APP_STAGE("A07U", "entered isolated CH585 bridge update state; UI remains offline");
+ 237              		.loc 1 9 5 view .LVU36
+   9:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     APP_STAGE("A07U", "entered isolated CH585 bridge update state; UI remains offline");
+ 238              		.loc 1 9 20 is_stmt 0 view .LVU37
+ 239 0000 0023     		movs	r3, #0
+  10:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     const bool completed = CH585_FIRMWARE_UPDATE.performPendingUpdate();
+ 240              		.loc 1 10 5 view .LVU38
+ 241 0002 114A     		ldr	r2, .L12
+ 242 0004 1149     		ldr	r1, .L12+4
+   8:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     resetRequested = false;
+ 243              		.loc 1 8 1 view .LVU39
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 8
+
+
+ 244 0006 70B5     		push	{r4, r5, r6, lr}
+ 245              	.LCFI6:
+ 246              		.cfi_def_cfa_offset 16
+ 247              		.cfi_offset 4, -16
+ 248              		.cfi_offset 5, -12
+ 249              		.cfi_offset 6, -8
+ 250              		.cfi_offset 14, -4
+  11:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     if (!CH585_FIRMWARE_UPDATE.wasClaimed()) {
+ 251              		.loc 1 11 70 discriminator 1 view .LVU40
+ 252 0008 114D     		ldr	r5, .L12+8
+   8:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     resetRequested = false;
+ 253              		.loc 1 8 1 view .LVU41
+ 254 000a 0446     		mov	r4, r0
+   9:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     APP_STAGE("A07U", "entered isolated CH585 bridge update state; UI remains offline");
+ 255              		.loc 1 9 20 view .LVU42
+ 256 000c 0371     		strb	r3, [r0, #4]
+  10:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     const bool completed = CH585_FIRMWARE_UPDATE.performPendingUpdate();
+ 257              		.loc 1 10 5 is_stmt 1 view .LVU43
+ 258 000e 1148     		ldr	r0, .L12+12
+ 259              	.LVL12:
+  10:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     const bool completed = CH585_FIRMWARE_UPDATE.performPendingUpdate();
+ 260              		.loc 1 10 5 is_stmt 0 view .LVU44
+ 261 0010 FFF7FEFF 		bl	AppStartupLog_Printf
+ 262              	.LVL13:
+  11:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     if (!CH585_FIRMWARE_UPDATE.wasClaimed()) {
+ 263              		.loc 1 11 5 is_stmt 1 view .LVU45
+ 264              	.LBB38:
+ 265              	.LBI38:
+ 266              		.file 5 "Cpp_Core/Inc/ch585_firmware_update.hpp"
+   1:Cpp_Core/Inc/ch585_firmware_update.hpp **** #ifndef CH585_FIRMWARE_UPDATE_HPP
+   2:Cpp_Core/Inc/ch585_firmware_update.hpp **** #define CH585_FIRMWARE_UPDATE_HPP
+   3:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   4:Cpp_Core/Inc/ch585_firmware_update.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   6:Cpp_Core/Inc/ch585_firmware_update.hpp **** #ifdef __cplusplus
+   7:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   8:Cpp_Core/Inc/ch585_firmware_update.hpp **** enum class Ch585FirmwareUpdateStatus : uint8_t {
+   9:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Idle = 0,
+  10:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Receiving,
+  11:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ready,
+  12:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Scheduled,
+  13:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Programming,
+  14:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Completed,
+  15:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Failed
+  16:Cpp_Core/Inc/ch585_firmware_update.hpp **** };
+  17:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+  18:Cpp_Core/Inc/ch585_firmware_update.hpp **** class Ch585FirmwareUpdate {
+  19:Cpp_Core/Inc/ch585_firmware_update.hpp **** public:
+  20:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ch585FirmwareUpdate(const Ch585FirmwareUpdate&) = delete;
+  21:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ch585FirmwareUpdate& operator=(const Ch585FirmwareUpdate&) = delete;
+  22:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     static Ch585FirmwareUpdate& getInstance()
+ 267              		.loc 5 23 33 view .LVU46
+  24:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         static Ch585FirmwareUpdate instance;
+ 268              		.loc 5 25 9 view .LVU47
+  26:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 9
+
+
+ 269              		.loc 5 26 9 view .LVU48
+ 270              	.LBE38:
+  11:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     if (!CH585_FIRMWARE_UPDATE.wasClaimed()) {
+ 271              		.loc 1 11 70 is_stmt 0 discriminator 1 view .LVU49
+ 272 0014 2846     		mov	r0, r5
+ 273 0016 FFF7FEFF 		bl	_ZN19Ch585FirmwareUpdate20performPendingUpdateEv
+ 274              	.LVL14:
+  12:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         APP_STAGE_ERROR("A07U", "CH585 READY was not claimed; entering safe recovery");
+ 275              		.loc 1 12 5 is_stmt 1 view .LVU50
+ 276              	.LBB39:
+ 277              	.LBI39:
+  27:Cpp_Core/Inc/ch585_firmware_update.hpp ****     }
+  28:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+  29:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool begin(uint32_t totalSize, const uint8_t expectedSha256[32]);
+  30:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool write(uint32_t offset, const uint8_t* data, uint32_t length);
+  31:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool finalizeAndSchedule();
+  32:Cpp_Core/Inc/ch585_firmware_update.hpp ****     void process();
+  33:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool performPendingUpdate();
+  34:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool requestRetry();
+  35:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool acknowledgeManualRecovery();
+  36:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool hasReadyStagedImage();
+  37:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool hasAppliedImage() const;
+  38:Cpp_Core/Inc/ch585_firmware_update.hpp ****     bool wasClaimed() const { return updateClaimed; }
+ 278              		.loc 5 38 10 view .LVU51
+ 279              	.LBB40:
+ 280              		.loc 5 38 31 view .LVU52
+ 281              		.loc 5 38 38 is_stmt 0 view .LVU53
+ 282 001a 95F82D50 		ldrb	r5, [r5, #45]	@ zero_extendqisi2
+ 283              	.LVL15:
+ 284              		.loc 5 38 38 view .LVU54
+ 285              	.LBE40:
+ 286              	.LBE39:
+  12:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         APP_STAGE_ERROR("A07U", "CH585 READY was not claimed; entering safe recovery");
+ 287              		.loc 1 12 5 discriminator 2 view .LVU55
+ 288 001e 35B9     		cbnz	r5, .L8
+ 289              	.LBB41:
+ 290              	.LBI41:
+   7:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** {
+ 291              		.loc 1 7 6 is_stmt 1 view .LVU56
+ 292              	.LVL16:
+ 293              	.LBB42:
+  13:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         return false;
+ 294              		.loc 1 13 9 view .LVU57
+ 295 0020 0D4A     		ldr	r2, .L12+16
+ 296 0022 0E49     		ldr	r1, .L12+20
+ 297 0024 0B48     		ldr	r0, .L12+12
+ 298              	.LVL17:
+  13:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         return false;
+ 299              		.loc 1 13 9 is_stmt 0 view .LVU58
+ 300 0026 FFF7FEFF 		bl	AppStartupLog_Printf
+ 301              	.LVL18:
+  14:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     }
+ 302              		.loc 1 14 9 is_stmt 1 view .LVU59
+ 303              	.L9:
+  14:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     }
+ 304              		.loc 1 14 9 is_stmt 0 view .LVU60
+ 305              	.LBE42:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 10
+
+
+ 306              	.LBE41:
+  20:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** 
+ 307              		.loc 1 20 1 view .LVU61
+ 308 002a 2846     		mov	r0, r5
+ 309 002c 70BD     		pop	{r4, r5, r6, pc}
+ 310              	.LVL19:
+ 311              	.L8:
+  16:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****               "CH585 bridge update state reached terminal journal record");
+ 312              		.loc 1 16 5 is_stmt 1 view .LVU62
+  16:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****               "CH585 bridge update state reached terminal journal record");
+ 313              		.loc 1 16 5 is_stmt 0 discriminator 4 view .LVU63
+ 314 002e 0C4B     		ldr	r3, .L12+24
+ 315 0030 0C4E     		ldr	r6, .L12+28
+ 316 0032 0D4A     		ldr	r2, .L12+32
+ 317 0034 0028     		cmp	r0, #0
+ 318 0036 0CBF     		ite	eq
+ 319 0038 3046     		moveq	r0, r6
+ 320 003a 1846     		movne	r0, r3
+ 321              	.LVL20:
+  16:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****               "CH585 bridge update state reached terminal journal record");
+ 322              		.loc 1 16 5 discriminator 4 view .LVU64
+ 323 003c 0349     		ldr	r1, .L12+4
+ 324 003e FFF7FEFF 		bl	AppStartupLog_Printf
+ 325              	.LVL21:
+  18:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     return true;
+ 326              		.loc 1 18 5 is_stmt 1 view .LVU65
+  18:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     return true;
+ 327              		.loc 1 18 20 is_stmt 0 view .LVU66
+ 328 0042 0123     		movs	r3, #1
+ 329 0044 2371     		strb	r3, [r4, #4]
+  19:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** }
+ 330              		.loc 1 19 5 is_stmt 1 view .LVU67
+  19:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** }
+ 331              		.loc 1 19 12 is_stmt 0 view .LVU68
+ 332 0046 F0E7     		b	.L9
+ 333              	.L13:
+ 334              		.align	2
+ 335              	.L12:
+ 336 0048 0A000000 		.word	.LC4
+ 337 004c 49000000 		.word	.LC5
+ 338 0050 00000000 		.word	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 339 0054 4A000000 		.word	.LC6
+ 340 0058 4F000000 		.word	.LC7
+ 341 005c 83000000 		.word	.LC8
+ 342 0060 00000000 		.word	.LC2
+ 343 0064 05000000 		.word	.LC3
+ 344 0068 8B000000 		.word	.LC9
+ 345              		.cfi_endproc
+ 346              	.LFE2232:
+ 348              		.section	.text._ZN22Ch585BridgeUpdateState4tickEv,"ax",%progbits
+ 349              		.align	1
+ 350              		.global	_ZN22Ch585BridgeUpdateState4tickEv
+ 351              		.syntax unified
+ 352              		.thumb
+ 353              		.thumb_func
+ 355              	_ZN22Ch585BridgeUpdateState4tickEv:
+ 356              	.LVL22:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 11
+
+
+ 357              	.LFB2233:
+  23:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     if (resetRequested) {
+ 358              		.loc 1 23 1 is_stmt 1 view -0
+ 359              		.cfi_startproc
+ 360              		@ args = 0, pretend = 0, frame = 0
+ 361              		@ frame_needed = 0, uses_anonymous_args = 0
+ 362              		@ link register save eliminated.
+  24:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         resetRequested = false;
+ 363              		.loc 1 24 5 view .LVU70
+ 364 0000 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 365 0002 23B1     		cbz	r3, .L14
+ 366              	.LVL23:
+ 367              	.LBB46:
+ 368              	.LBI46:
+  22:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** {
+ 369              		.loc 1 22 6 view .LVU71
+ 370              	.LBB47:
+  25:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         MAIN_STATE_MACHINE.requestReset();
+ 371              		.loc 1 25 9 view .LVU72
+  25:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****         MAIN_STATE_MACHINE.requestReset();
+ 372              		.loc 1 25 24 is_stmt 0 view .LVU73
+ 373 0004 0023     		movs	r3, #0
+ 374 0006 0371     		strb	r3, [r0, #4]
+  26:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     }
+ 375              		.loc 1 26 9 is_stmt 1 view .LVU74
+ 376              	.LBB48:
+ 377              	.LBI48:
+ 378              		.file 6 "Cpp_Core/Inc/main_state_machine.hpp"
+   1:Cpp_Core/Inc/main_state_machine.hpp **** #ifndef _MAIN_STATE_MACHINE_
+   2:Cpp_Core/Inc/main_state_machine.hpp **** #define _MAIN_STATE_MACHINE_
+   3:Cpp_Core/Inc/main_state_machine.hpp **** 
+   4:Cpp_Core/Inc/main_state_machine.hpp **** #include "storagemanager.hpp"
+   5:Cpp_Core/Inc/main_state_machine.hpp **** #include "states/base_state.hpp"
+   6:Cpp_Core/Inc/main_state_machine.hpp **** #include "states/webconfig_state.hpp"
+   7:Cpp_Core/Inc/main_state_machine.hpp **** #include "states/input_state.hpp"
+   8:Cpp_Core/Inc/main_state_machine.hpp **** 
+   9:Cpp_Core/Inc/main_state_machine.hpp **** enum class MainRuntimeState : uint8_t {
+  10:Cpp_Core/Inc/main_state_machine.hpp ****     Input = 0,
+  11:Cpp_Core/Inc/main_state_machine.hpp ****     WebConfig,
+  12:Cpp_Core/Inc/main_state_machine.hpp ****     Calibration,
+  13:Cpp_Core/Inc/main_state_machine.hpp ****     Ch585UsbIsp,
+  14:Cpp_Core/Inc/main_state_machine.hpp ****     Ch585BridgeUpdate,
+  15:Cpp_Core/Inc/main_state_machine.hpp ****     SafeRecovery,
+  16:Cpp_Core/Inc/main_state_machine.hpp **** };
+  17:Cpp_Core/Inc/main_state_machine.hpp **** 
+  18:Cpp_Core/Inc/main_state_machine.hpp **** class MainStateMachine {
+  19:Cpp_Core/Inc/main_state_machine.hpp ****     public:
+  20:Cpp_Core/Inc/main_state_machine.hpp ****         MainStateMachine(MainStateMachine const&) = delete;
+  21:Cpp_Core/Inc/main_state_machine.hpp ****         void operator=(MainStateMachine const&) = delete;
+  22:Cpp_Core/Inc/main_state_machine.hpp ****         static MainStateMachine& getInstance() {
+ 379              		.loc 6 22 34 view .LVU75
+  23:Cpp_Core/Inc/main_state_machine.hpp ****             static MainStateMachine instance;
+ 380              		.loc 6 23 13 view .LVU76
+  24:Cpp_Core/Inc/main_state_machine.hpp ****             return instance;
+ 381              		.loc 6 24 13 view .LVU77
+ 382              	.LBE48:
+  26:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 12
+
+
+ 383              		.loc 1 26 40 is_stmt 0 discriminator 1 view .LVU78
+ 384 0008 0148     		ldr	r0, .L16
+ 385              	.LVL24:
+  26:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     }
+ 386              		.loc 1 26 40 discriminator 1 view .LVU79
+ 387 000a FFF7FEBF 		b	_ZN16MainStateMachine12requestResetEv
+ 388              	.LVL25:
+ 389              	.L14:
+  26:Cpp_Core/Src/states/ch585_bridge_update_state.cpp ****     }
+ 390              		.loc 1 26 40 discriminator 1 view .LVU80
+ 391              	.LBE47:
+ 392              	.LBE46:
+  28:Cpp_Core/Src/states/ch585_bridge_update_state.cpp **** 
+ 393              		.loc 1 28 1 view .LVU81
+ 394 000e 7047     		bx	lr
+ 395              	.L17:
+ 396              		.align	2
+ 397              	.L16:
+ 398 0010 00000000 		.word	_ZZN16MainStateMachine11getInstanceEvE8instance
+ 399              		.cfi_endproc
+ 400              	.LFE2233:
+ 402              		.global	_ZTV22Ch585BridgeUpdateState
+ 403              		.section	.rodata._ZTV22Ch585BridgeUpdateState,"a"
+ 404              		.align	2
+ 407              	_ZTV22Ch585BridgeUpdateState:
+ 408 0000 00000000 		.word	0
+ 409 0004 00000000 		.word	0
+ 410 0008 00000000 		.word	_ZN22Ch585BridgeUpdateStateD1Ev
+ 411 000c 00000000 		.word	_ZN22Ch585BridgeUpdateStateD0Ev
+ 412 0010 00000000 		.word	_ZN22Ch585BridgeUpdateState5enterEv
+ 413 0014 00000000 		.word	_ZN22Ch585BridgeUpdateState4tickEv
+ 414 0018 00000000 		.word	_ZN22Ch585BridgeUpdateState4exitEv
+ 415              		.weak	_ZZN16MainStateMachine11getInstanceEvE8instance
+ 416              		.section	.data._ZZN16MainStateMachine11getInstanceEvE8instance,"awG",%progbits,_ZZN16MainStateMach
+ 417              		.align	2
+ 420              	_ZZN16MainStateMachine11getInstanceEvE8instance:
+ 421 0000 00000000 		.word	0
+ 422 0004 05       		.byte	5
+ 423 0005 00       		.byte	0
+ 424 0006 00       		.byte	0
+ 425 0007 00       		.space	1
+ 426              		.weak	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 427              		.section	.bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance,"awG",%nobits,_ZZN19Ch585Firmware
+ 428              		.align	2
+ 431              	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:
+ 432 0000 00000000 		.space	48
+ 432      00000000 
+ 432      00000000 
+ 432      00000000 
+ 432      00000000 
+ 433              		.text
+ 434              	.Letext0:
+ 435              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 436              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 437              		.file 9 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 438              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 439              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 13
+
+
+ 440              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 441              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 442              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 443              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 444              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 445              		.file 17 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 446              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 447              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 448              		.file 20 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 449              		.file 21 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/new"
+ 450              		.file 22 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 451              		.file 23 "<built-in>"
+ 452              		.file 24 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 453              		.file 25 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s 			page 14
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ch585_bridge_update_state.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:20     .text._ZN22Ch585BridgeUpdateStateD2Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:26     .text._ZN22Ch585BridgeUpdateStateD2Ev:00000000 _ZN22Ch585BridgeUpdateStateD2Ev
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:26     .text._ZN22Ch585BridgeUpdateStateD2Ev:00000000 _ZN22Ch585BridgeUpdateStateD1Ev
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:49     .text._ZN22Ch585BridgeUpdateState4exitEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:55     .text._ZN22Ch585BridgeUpdateState4exitEv:00000000 _ZN22Ch585BridgeUpdateState4exitEv
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:78     .text.AppStartupLog_Printf:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:83     .text.AppStartupLog_Printf:00000000 AppStartupLog_Printf
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:155    .text.AppStartupLog_Printf:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:161    .text._ZN22Ch585BridgeUpdateStateD0Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:167    .text._ZN22Ch585BridgeUpdateStateD0Ev:00000000 _ZN22Ch585BridgeUpdateStateD0Ev
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:224    .text._ZN22Ch585BridgeUpdateState5enterEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:230    .text._ZN22Ch585BridgeUpdateState5enterEv:00000000 _ZN22Ch585BridgeUpdateState5enterEv
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:336    .text._ZN22Ch585BridgeUpdateState5enterEv:00000048 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:431    .bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:00000000 _ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:349    .text._ZN22Ch585BridgeUpdateState4tickEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:355    .text._ZN22Ch585BridgeUpdateState4tickEv:00000000 _ZN22Ch585BridgeUpdateState4tickEv
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:398    .text._ZN22Ch585BridgeUpdateState4tickEv:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:420    .data._ZZN16MainStateMachine11getInstanceEvE8instance:00000000 _ZZN16MainStateMachine11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:407    .rodata._ZTV22Ch585BridgeUpdateState:00000000 _ZTV22Ch585BridgeUpdateState
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:404    .rodata._ZTV22Ch585BridgeUpdateState:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:417    .data._ZZN16MainStateMachine11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHH8Akp.s:428    .bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:00000000 $d
+                           .group:00000000 _ZN22Ch585BridgeUpdateStateD5Ev
+
+UNDEFINED SYMBOLS
+printf
+vprintf
+puts
+_ZdlPvj
+_ZN19Ch585FirmwareUpdate20performPendingUpdateEv
+_ZN16MainStateMachine12requestResetEv

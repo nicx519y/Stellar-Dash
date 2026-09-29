@@ -25,17 +25,24 @@ export function ButtonsPerformanceContent() {
     const [isTestingModeActivity, setIsTestingModeActivity] = useState<boolean>(false);
     const { t } = useLanguage();
 
-    const { defaultProfile, sendPendingCommandImmediately, setFinishConfigDisabled, globalConfig } = useGamepadConfig();
-    const { setError } = useGamepadConfig();
+    const {
+        defaultProfile,
+        flushDeferredConfig,
+        setFinishConfigDisabled,
+        globalConfig,
+        setError,
+        deviceConnected,
+        indexMapToGameControllerButtonOrCombination,
+    } = useGamepadConfig();
     const [selectedButtons, setSelectedButtons] = useState<number[]>([]);
     const initializedSelectionProfileIdRef = useRef<string | null>(null);
 
     const [performanceData, setPerformanceData] = useState<ButtonPerformanceMonitoringData | null>(null);
     const [allButtonsData, setAllButtonsData] = useState<ButtonPerformanceData[]>([]);
+    const [isTestingTransition, setIsTestingTransition] = useState(false);
     const monitorIsActive = useRef(false);
-
-    // 使用 context 中的 indexMapToGameControllerButtonOrCombination 方法
-    const { indexMapToGameControllerButtonOrCombination } = useGamepadConfig();
+    const transitionRef = useRef(false);
+    const mountedRef = useRef(true);
 
     const mappedRapidTriggerButtons = useMemo(() => {
         const keyMapping = defaultProfile.keysConfig?.keyMapping ?? {};
@@ -50,7 +57,7 @@ export function ButtonsPerformanceContent() {
         if (initializedSelectionProfileIdRef.current === defaultProfile.id) return;
         initializedSelectionProfileIdRef.current = defaultProfile.id;
         setSelectedButtons(mappedRapidTriggerButtons.length > 0 ? mappedRapidTriggerButtons : RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS);
-    }, [defaultProfile.id]);
+    }, [defaultProfile.id, mappedRapidTriggerButtons]);
 
     const highlightIds = useMemo(() => selectedButtons, [selectedButtons]);
 
@@ -69,80 +76,106 @@ export function ButtonsPerformanceContent() {
         },
         onMonitoringStateChange: (active) => {
             console.log(`Monitoring state: ${active ? 'started' : 'stopped'}`);
+            monitorIsActive.current = active;
+            if (!active && mountedRef.current && !deviceConnected) {
+                setIsTestingModeActivity(false);
+                setPerformanceData(null);
+                setAllButtonsData([]);
+            }
         },
         onButtonPerformanceData: (data: ButtonPerformanceMonitoringData) => {
             setPerformanceData(data);
-
-            // 实时更新所有按键数据
-            const updatedAllButtonsData = [...allButtonsData];
-            
-            for(let i = 0; i < data.buttonCount; i++) {
-                const buttonData: ButtonPerformanceData = data.buttonData[i];
-                updatedAllButtonsData[buttonData.buttonIndex] = buttonData;
-            }
-
-            setAllButtonsData(updatedAllButtonsData);
+            setAllButtonsData((previous) => {
+                const updated = [...previous];
+                for (let i = 0; i < data.buttonCount; i++) {
+                    const buttonData = data.buttonData[i];
+                    updated[buttonData.buttonIndex] = buttonData;
+                }
+                return updated;
+            });
         },
         useEventBus: true, // 使用 eventBus 监听
     });
 
     const handleStartMonitoring = async () => {
-
-        if(monitorIsActive.current == true) return;
-        monitorIsActive.current = true;
+        if (monitorIsActive.current || transitionRef.current) return;
+        transitionRef.current = true;
+        setIsTestingTransition(true);
 
         setError(null);
         console.log('Starting button performance monitoring...');
-
-        setAllButtonsData([]); // reset all buttons data
+        setPerformanceData(null);
+        setAllButtonsData([]);
 
         try {
-            await startMonitoring();
+            // The ordinary monitor stays suspended through the durable commit
+            // and the performance-mode transition. A failed transition resumes
+            // the ordinary monitor and leaves the page usable.
+            await flushDeferredConfig(startMonitoring);
+            monitorIsActive.current = true;
+            if (mountedRef.current) setIsTestingModeActivity(true);
         } catch (err) {
             console.error('Failed to start monitoring:', err);
             monitorIsActive.current = false;
+            if (mountedRef.current) setIsTestingModeActivity(false);
+        } finally {
+            transitionRef.current = false;
+            if (mountedRef.current) setIsTestingTransition(false);
         }
     };
 
     const handleStopMonitoring = async () => {
-
-        if(monitorIsActive.current == false) return;
+        if (transitionRef.current) return;
+        if (!monitorIsActive.current) {
+            setIsTestingModeActivity(false);
+            setPerformanceData(null);
+            setAllButtonsData([]);
+            return;
+        }
+        transitionRef.current = true;
+        setIsTestingTransition(true);
         monitorIsActive.current = false;
 
         console.log('Stopping button performance monitoring...');
         try {
             await stopMonitoring();
-            setAllButtonsData([]);
-            
         } catch (err) {
             console.error('Failed to stop monitoring:', err);
-            monitorIsActive.current = true;
+        } finally {
+            if (mountedRef.current) {
+                setIsTestingModeActivity(false);
+                setPerformanceData(null);
+                setAllButtonsData([]);
+                setIsTestingTransition(false);
+            }
+            transitionRef.current = false;
         }
     };
 
-    useEffect(() => {
-        if(isTestingModeActivity) {
-            sendPendingCommandImmediately('update_profile'); // 切换测试模式之前立即保存配置
-            handleStartMonitoring();
-        } else {
-            handleStopMonitoring();
-        }
-    }, [isTestingModeActivity]);
-
     // 当测试模式状态改变时，更新完成配置按钮的禁用状态 
     useEffect(() => {
-        setFinishConfigDisabled(isTestingModeActivity);
+        setFinishConfigDisabled(isTestingModeActivity || isTestingTransition);
         return () => {
             setFinishConfigDisabled(false);
         }
-    }, [isTestingModeActivity]);
+    }, [isTestingModeActivity, isTestingTransition, setFinishConfigDisabled]);
+
+    useEffect(() => {
+        if (!deviceConnected) {
+            monitorIsActive.current = false;
+            transitionRef.current = false;
+            setIsTestingTransition(false);
+            setIsTestingModeActivity(false);
+            setPerformanceData(null);
+            setAllButtonsData([]);
+        }
+    }, [deviceConnected]);
 
     useEffect(() => {
         return () => {
-            if(monitorIsActive.current == true) {
-                handleStopMonitoring();
-            }
-            sendPendingCommandImmediately('update_profile');
+            mountedRef.current = false;
+            transitionRef.current = false;
+            monitorIsActive.current = false;
         }
     }, []);
 
@@ -186,7 +219,12 @@ export function ButtonsPerformanceContent() {
                 color: (isTestingModeActivity ? "blue" : "green") as "blue" | "green",
                 size: "sm" as const,
                 width: "240px",
-                onClick: () => setIsTestingModeActivity(!isTestingModeActivity),
+                disabled: isTestingTransition || !deviceConnected,
+                onClick: () => {
+                    void (isTestingModeActivity
+                        ? handleStopMonitoring()
+                        : handleStartMonitoring());
+                },
             }
         ],
         gap: 8,
@@ -198,7 +236,7 @@ export function ButtonsPerformanceContent() {
             disabled={isTestingModeActivity}
         >
             <SideContent>
-                <ProfileSelect disabled={isTestingModeActivity} />
+                <ProfileSelect disabled={isTestingModeActivity || isTestingTransition} />
             </SideContent>
             
             <HitboxContent>

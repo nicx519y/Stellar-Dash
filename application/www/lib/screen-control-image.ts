@@ -1,9 +1,62 @@
-import * as gifuct from 'gifuct-js';
+import { JPEG_MAX_FRAMES } from '../../../common/uimg-jpeg.cjs';
+import { decompressFrames, parseGIF } from 'gifuct-js';
+import { calculateImageCoverRect } from './image-cover';
+import { UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES } from './uimg-v4';
 
 export type ProcessedRGB565Image = { width: number; height: number; data: Uint8Array; previewUrl: string };
 export type ProcessedRGB565Sequence = ProcessedRGB565Image & { frames: string[]; fps: number; frameCount: number };
 
+export type RGB565ContentBounds = { x: number; y: number; width: number; height: number };
+
+/**
+ * Finds full rows/columns of exact RGB565 black around an image. Older gallery
+ * assets were letterboxed before being converted to RGB565, so CSS cannot hide
+ * those bars. The 75% guard avoids magnifying tiny or intentionally dark art.
+ */
+export const findRgb565ContentBounds = (
+    rgb565le: Uint8Array,
+    width: number,
+    height: number,
+): RGB565ContentBounds => {
+    const full = { x: 0, y: 0, width, height };
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 ||
+        rgb565le.byteLength !== width * height * 2) {
+        return full;
+    }
+
+    const isBlack = (x: number, y: number) => {
+        const offset = (y * width + x) * 2;
+        return rgb565le[offset] === 0 && rgb565le[offset + 1] === 0;
+    };
+    const columnIsBlack = (x: number) => {
+        for (let y = 0; y < height; y++) if (!isBlack(x, y)) return false;
+        return true;
+    };
+    const rowIsBlack = (y: number) => {
+        for (let x = 0; x < width; x++) if (!isBlack(x, y)) return false;
+        return true;
+    };
+
+    let left = 0;
+    let right = width - 1;
+    let top = 0;
+    let bottom = height - 1;
+    while (left <= right && columnIsBlack(left)) left++;
+    while (right >= left && columnIsBlack(right)) right--;
+    while (top <= bottom && rowIsBlack(top)) top++;
+    while (bottom >= top && rowIsBlack(bottom)) bottom--;
+
+    const contentWidth = right - left + 1;
+    const contentHeight = bottom - top + 1;
+    if (contentWidth < width * 0.75 || contentHeight < height * 0.75) return full;
+    return { x: left, y: top, width: contentWidth, height: contentHeight };
+};
+
 export const rgb565ToPngDataUrl = (rgb565le: Uint8Array, width: number, height: number) => {
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 ||
+        width > 320 || height > 172 || rgb565le.byteLength !== width * height * 2) {
+        throw new Error('RGB565 image payload does not match its dimensions');
+    }
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -22,24 +75,52 @@ export const rgb565ToPngDataUrl = (rgb565le: Uint8Array, width: number, height: 
     }
     const img = new ImageData(rgba, width, height);
     ctx.putImageData(img, 0, 0);
-    return canvas.toDataURL('image/png');
+    const bounds = findRgb565ContentBounds(rgb565le, width, height);
+    if (bounds.x === 0 && bounds.y === 0 && bounds.width === width && bounds.height === height) {
+        return canvas.toDataURL('image/png');
+    }
+
+    const fitted = document.createElement('canvas');
+    fitted.width = width;
+    fitted.height = height;
+    const fittedCtx = fitted.getContext('2d')!;
+    fittedCtx.imageSmoothingEnabled = true;
+    fittedCtx.imageSmoothingQuality = 'high';
+    fittedCtx.drawImage(
+        canvas,
+        bounds.x,
+        bounds.y,
+        bounds.width,
+        bounds.height,
+        0,
+        0,
+        width,
+        height,
+    );
+    return fitted.toDataURL('image/png');
 };
 
 const processSourceToRGB565 = (source: CanvasImageSource, sourceWidth: number, sourceHeight: number) => {
     const maxW = 320;
     const maxH = 172;
-    const scale = Math.min(1, Math.min(maxW / sourceWidth, maxH / sourceHeight));
-    const w = Math.max(1, Math.floor(sourceWidth * scale));
-    const h = Math.max(1, Math.floor(sourceHeight * scale));
     const canvas = document.createElement('canvas');
     canvas.width = maxW;
     canvas.height = maxH;
     const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, maxW, maxH);
-    const dx = Math.floor((maxW - w) / 2);
-    const dy = Math.floor((maxH - h) / 2);
-    ctx.drawImage(source, dx, dy, w, h);
+    const crop = calculateImageCoverRect(sourceWidth, sourceHeight, maxW, maxH);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(
+        source,
+        crop.sourceX,
+        crop.sourceY,
+        crop.sourceWidth,
+        crop.sourceHeight,
+        0,
+        0,
+        maxW,
+        maxH,
+    );
     const imgData = ctx.getImageData(0, 0, maxW, maxH);
     const src = imgData.data;
     const out = new Uint8Array(maxW * maxH * 2);
@@ -61,34 +142,6 @@ const processSourceToRGB565 = (source: CanvasImageSource, sourceWidth: number, s
 export const processImageToRGB565 = async (file: File): Promise<ProcessedRGB565Image> => {
     const bitmap = await createImageBitmap(file);
     return processSourceToRGB565(bitmap, bitmap.width, bitmap.height);
-};
-
-const selectFrames = (frameTimesUs: number[], totalUs: number, targetFps: number, maxFrames: number) => {
-    const selected: number[] = [];
-    const frameCount = frameTimesUs.length;
-    if (frameCount <= 0 || totalUs <= 0) return [0];
-
-    const intervalUs = Math.floor(1_000_000 / targetFps);
-    const targetCount = Math.min(maxFrames, Math.max(1, Math.floor(totalUs / intervalUs)));
-    const used = new Set<number>();
-    for (let n = 0; n < targetCount; n++) {
-        const targetTime = n * intervalUs;
-        let best = -1;
-        let bestDiff = Number.POSITIVE_INFINITY;
-        for (let i = 0; i < frameCount; i++) {
-            if (used.has(i)) continue;
-            const diff = Math.abs(frameTimesUs[i] - targetTime);
-            if (diff < bestDiff) {
-                bestDiff = diff;
-                best = i;
-            }
-        }
-        if (best >= 0) {
-            used.add(best);
-            selected.push(best);
-        }
-    }
-    return selected.length > 0 ? selected : [0];
 };
 
 const blendPatchInto = (dstRgba: Uint8ClampedArray, dstWidth: number, patch: Uint8ClampedArray, patchWidth: number, patchHeight: number, left: number, top: number) => {
@@ -120,37 +173,48 @@ const blendPatchInto = (dstRgba: Uint8ClampedArray, dstWidth: number, patch: Uin
         }
     }
 };
-const ensureLastFrameIncluded = (selected: number[], frameCount: number, maxFrames: number) => {
-    const uniq = Array.from(new Set(selected.filter((i) => i >= 0 && i < frameCount)));
-    uniq.sort((a, b) => a - b);
-    if (frameCount <= 0) return [0];
-    const last = frameCount - 1;
-    if (uniq.length < maxFrames && uniq[uniq.length - 1] !== last) {
-        uniq.push(last);
-        uniq.sort((a, b) => a - b);
+// Sample at playback timestamps, retaining repeated indices for held frames.
+// Capacity limits the captured duration; it must never compress the timeline.
+export const selectGifFrameIndices = (
+    frameTimesUs: number[],
+    totalUs: number,
+    targetFpsInput = UIMG_ANIMATION_FPS,
+    maxFramesInput = UIMG_MAX_FRAMES,
+) => {
+    const targetFps = Math.max(1, Math.min(UIMG_ANIMATION_FPS, Math.floor(targetFpsInput)));
+    const maxFrames = Math.max(1, Math.min(JPEG_MAX_FRAMES, Math.floor(maxFramesInput)));
+    if (frameTimesUs.length <= 1 || totalUs <= 0) return [0];
+    const count = Math.min(maxFrames, Math.max(1, Math.ceil(totalUs * targetFps / 1_000_000)));
+    const selected: number[] = [];
+    let source = 0;
+    for (let sample = 0; sample < count; sample++) {
+        const timestampUs = sample * 1_000_000 / targetFps;
+        while (source + 1 < frameTimesUs.length && frameTimesUs[source + 1] <= timestampUs) source++;
+        selected.push(source);
     }
-    return uniq.length > 0 ? uniq : [0];
+    return selected;
+};
+
+// gifuct-js exposes decompressed frame delays in milliseconds, not GIF
+// centiseconds. Keep both the worker and canvas fallback on one time base.
+export const gifFrameTimelineUs = (frames: readonly { delay?: number }[]) => {
+    const frameTimesUs: number[] = [];
+    let totalUs = 0;
+    for (const frame of frames) {
+        frameTimesUs.push(totalUs);
+        const delayMs = typeof frame.delay === 'number' && Number.isFinite(frame.delay) && frame.delay > 0
+            ? frame.delay
+            : 100;
+        totalUs += delayMs * 1000;
+    }
+    return { frameTimesUs, totalUs };
 };
 
 
 export const processGifToRGB565Sequence = async (file: File, targetFpsInput: number, maxFramesInput: number): Promise<ProcessedRGB565Sequence> => {
-    const targetFps = Math.max(1, Math.min(5, Math.floor(targetFpsInput)));
-    const maxFrames = Math.max(1, Math.min(10, Math.floor(maxFramesInput)));
+    const targetFps = Math.max(1, Math.min(UIMG_ANIMATION_FPS, Math.floor(targetFpsInput)));
+    const maxFrames = Math.max(1, Math.min(UIMG_MAX_FRAMES, Math.floor(maxFramesInput)));
     const buf = await file.arrayBuffer();
-
-    const parseGIF: ((b: ArrayBuffer | Uint8Array) => unknown) | undefined =
-        (gifuct as unknown as { parseGIF?: (b: ArrayBuffer | Uint8Array) => unknown }).parseGIF ??
-        (gifuct as unknown as { default?: { parseGIF?: (b: ArrayBuffer | Uint8Array) => unknown } }).default?.parseGIF;
-    const decompressFrames:
-        | ((gif: unknown, buildImagePatches: boolean) => Array<{ patch: Uint8ClampedArray; delay?: number; dims?: { width: number; height: number; top: number; left: number }; disposalType?: number }>)
-        | undefined =
-        (gifuct as unknown as { decompressFrames?: (gif: unknown, buildImagePatches: boolean) => Array<{ patch: Uint8ClampedArray; delay?: number; dims?: { width: number; height: number; top: number; left: number }; disposalType?: number }> }).decompressFrames ??
-        (gifuct as unknown as { default?: { decompressFrames?: (gif: unknown, buildImagePatches: boolean) => Array<{ patch: Uint8ClampedArray; delay?: number; dims?: { width: number; height: number; top: number; left: number }; disposalType?: number }> } }).default?.decompressFrames;
-
-    if (!parseGIF || !decompressFrames) {
-        const single = await processImageToRGB565(file);
-        return { ...single, frames: [single.previewUrl], fps: targetFps, frameCount: 1 };
-    }
 
     const gif = parseGIF(new Uint8Array(buf));
     const lsd = (gif as unknown as { lsd?: { width?: number; height?: number } }).lsd;
@@ -173,25 +237,13 @@ export const processGifToRGB565Sequence = async (file: File, targetFpsInput: num
 
     if (!inputWidth || !inputHeight || inputFrameCount <= 1) {
         const single = await processImageToRGB565(file);
-        return { ...single, frames: [single.previewUrl], fps: targetFps, frameCount: 1 };
+        return { ...single, frames: [single.previewUrl], fps: 0, frameCount: 1 };
     }
 
-    let totalUs = 0;
-    const frameTimesUs: number[] = [];
-    for (let i = 0; i < inputFrameCount; i++) {
-        frameTimesUs[i] = totalUs;
-        const frame = frames[i];
-        const delayCs = typeof frame?.delay === 'number' && frame.delay > 0 ? frame.delay : 10;
-        totalUs += delayCs * 10_000;
-    }
-    if (totalUs <= 0) totalUs = inputFrameCount * 200_000;
+    const { frameTimesUs, totalUs } = gifFrameTimelineUs(frames);
 
-    const avgFps = inputFrameCount / (totalUs / 1_000_000);
-    const selectedRaw = avgFps > targetFps
-        ? selectFrames(frameTimesUs, totalUs, targetFps, maxFrames)
-        : Array.from({ length: Math.min(maxFrames, inputFrameCount) }, (_, i) => i);
-    const selected = ensureLastFrameIncluded(selectedRaw, inputFrameCount, maxFrames);
-    const selectedSet = new Set<number>(selected);
+    const selected = selectGifFrameIndices(frameTimesUs, totalUs, targetFps, maxFrames);
+    let nextSample = 0;
 
     const srcCanvas = document.createElement('canvas');
     srcCanvas.width = inputWidth;
@@ -225,12 +277,15 @@ export const processGifToRGB565Sequence = async (file: File, targetFpsInput: num
             }
         }
 
-        if (selectedSet.has(i)) {
+        if (selected[nextSample] === i) {
             const imageData = new ImageData(new Uint8ClampedArray(canvasRgba), inputWidth, inputHeight);
             srcCtx.putImageData(imageData, 0, 0);
             const processed = processSourceToRGB565(srcCanvas, inputWidth, inputHeight);
-            framesData.push(processed.data);
-            previewUrls.push(processed.previewUrl);
+            while (selected[nextSample] === i) {
+                framesData.push(processed.data);
+                previewUrls.push(processed.previewUrl);
+                nextSample++;
+            }
         }
 
         if (disposalType === 2 && dims) {
@@ -256,7 +311,7 @@ export const processGifToRGB565Sequence = async (file: File, targetFpsInput: num
 
     if (framesData.length <= 0) {
         const single = await processImageToRGB565(file);
-        return { ...single, frames: [single.previewUrl], fps: targetFps, frameCount: 1 };
+        return { ...single, frames: [single.previewUrl], fps: 0, frameCount: 1 };
     }
 
     const frameSize = framesData[0]?.length ?? 320 * 172 * 2;

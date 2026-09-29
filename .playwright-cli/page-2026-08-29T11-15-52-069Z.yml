@@ -1,0 +1,10 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - heading "Administration" [level=2] [ref=e10]
+      - paragraph [ref=e11]: Manage account roles and scoped service tokens.
+    - generic [ref=e12]:
+      - button "Back to WebConfig" [ref=e13] [cursor=pointer]
+      - button "Sign in" [disabled] [ref=e16]
+      - button "中文" [ref=e23] [cursor=pointer]
+  - region "top Notifications alt+T"

@@ -1,0 +1,863 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_input_mode.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp"
+  19              		.section	.text._ZN7Storage11getInstanceEv,"axG",%progbits,_ZN7Storage11getInstanceEv,comdat
+  20              		.align	1
+  21              		.weak	_ZN7Storage11getInstanceEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN7Storage11getInstanceEv:
+  27              	.LFB2158:
+  28              		.file 2 "Cpp_Core/Inc/storagemanager.hpp"
+   1:Cpp_Core/Inc/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Cpp_Core/Inc/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Cpp_Core/Inc/storagemanager.hpp **** 
+   4:Cpp_Core/Inc/storagemanager.hpp **** #include "config.hpp"
+   5:Cpp_Core/Inc/storagemanager.hpp **** 
+   6:Cpp_Core/Inc/storagemanager.hpp **** // Forward declarations
+   7:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesMarker;
+   9:Cpp_Core/Inc/storagemanager.hpp **** 
+  10:Cpp_Core/Inc/storagemanager.hpp **** class Storage {
+  11:Cpp_Core/Inc/storagemanager.hpp **** public:
+  12:Cpp_Core/Inc/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Cpp_Core/Inc/storagemanager.hpp **** 
+  14:Cpp_Core/Inc/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Cpp_Core/Inc/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Cpp_Core/Inc/storagemanager.hpp **** 	
+  17:Cpp_Core/Inc/storagemanager.hpp **** 	static Storage& getInstance() {
+  29              		.loc 2 17 18 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  33              		.loc 2 18 3 view .LVU1
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  34              		.loc 2 17 18 is_stmt 0 view .LVU2
+  35 0000 10B5     		push	{r4, lr}
+  36              	.LCFI0:
+  37              		.cfi_def_cfa_offset 8
+  38              		.cfi_offset 4, -8
+  39              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 2
+
+
+  40              		.loc 2 18 18 view .LVU3
+  41 0002 074C     		ldr	r4, .L8
+  42 0004 2368     		ldr	r3, [r4]
+  43 0006 BFF35B8F 		dmb	ish
+  44              		.loc 2 18 18 discriminator 1 view .LVU4
+  45 000a DB07     		lsls	r3, r3, #31
+  46 000c 06D4     		bmi	.L3
+  47              	.LBB49:
+  48              	.LBI49:
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  49              		.loc 2 17 18 is_stmt 1 view .LVU5
+  50              	.LBB50:
+  51              		.loc 2 18 18 is_stmt 0 discriminator 1 view .LVU6
+  52 000e 2046     		mov	r0, r4
+  53 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+  54              	.LVL0:
+  55 0014 10B1     		cbz	r0, .L3
+  56              	.LVL1:
+  57              	.LBB51:
+  58              	.LBI51:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  20:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  21:Cpp_Core/Inc/storagemanager.hpp **** 
+  22:Cpp_Core/Inc/storagemanager.hpp **** 	Config config;
+  23:Cpp_Core/Inc/storagemanager.hpp **** 	
+  24:Cpp_Core/Inc/storagemanager.hpp **** 	void initConfig();
+  25:Cpp_Core/Inc/storagemanager.hpp **** 	bool saveConfig();
+  26:Cpp_Core/Inc/storagemanager.hpp **** 	bool resetConfig();
+  27:Cpp_Core/Inc/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Cpp_Core/Inc/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Cpp_Core/Inc/storagemanager.hpp **** 		return config.inputMode;
+  30:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  31:Cpp_Core/Inc/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+  32:Cpp_Core/Inc/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Cpp_Core/Inc/storagemanager.hpp **** 		return config.connectionMode;
+  34:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  35:Cpp_Core/Inc/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Cpp_Core/Inc/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Cpp_Core/Inc/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  39:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  42:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  43:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  44:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  45:Cpp_Core/Inc/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  46:Cpp_Core/Inc/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  47:Cpp_Core/Inc/storagemanager.hpp **** 		return config.reservedConnection0;
+  48:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  49:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  50:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  51:Cpp_Core/Inc/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  52:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  53:Cpp_Core/Inc/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+  54:Cpp_Core/Inc/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  55:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 3
+
+
+  56:Cpp_Core/Inc/storagemanager.hpp **** 		return config.hotkeys;
+  57:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  58:Cpp_Core/Inc/storagemanager.hpp **** 
+  59:Cpp_Core/Inc/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  60:Cpp_Core/Inc/storagemanager.hpp **** 	BootMode getBootMode() {
+  61:Cpp_Core/Inc/storagemanager.hpp **** 		return config.bootMode;
+  62:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  63:Cpp_Core/Inc/storagemanager.hpp **** 
+  64:Cpp_Core/Inc/storagemanager.hpp **** private:
+  65:Cpp_Core/Inc/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+  59              		.loc 2 65 2 is_stmt 1 view .LVU7
+  60              		.loc 2 65 2 is_stmt 0 view .LVU8
+  61              	.LBE51:
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  62              		.loc 2 18 18 discriminator 1 view .LVU9
+  63 0016 2046     		mov	r0, r4
+  64 0018 FFF7FEFF 		bl	__cxa_guard_release
+  65              	.LVL2:
+  66              	.L3:
+  67              	.LBE50:
+  68              	.LBE49:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  69              		.loc 2 19 3 is_stmt 1 view .LVU10
+  20:Cpp_Core/Inc/storagemanager.hpp **** 
+  70              		.loc 2 20 2 is_stmt 0 view .LVU11
+  71 001c 0148     		ldr	r0, .L8+4
+  72 001e 10BD     		pop	{r4, pc}
+  73              	.L9:
+  74              		.align	2
+  75              	.L8:
+  76 0020 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+  77 0024 00000000 		.word	_ZZN7Storage11getInstanceEvE8instance
+  78              		.cfi_endproc
+  79              	.LFE2158:
+  81              		.section	.text._Z31ScreenDetailInputMode_InitIndexv,"ax",%progbits
+  82              		.align	1
+  83              		.global	_Z31ScreenDetailInputMode_InitIndexv
+  84              		.syntax unified
+  85              		.thumb
+  86              		.thumb_func
+  88              	_Z31ScreenDetailInputMode_InitIndexv:
+  89              	.LFB2171:
+   1:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** #include "main_runtime_control.hpp"
+   3:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** 
+   4:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** #include "board_mode.hpp"
+   5:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** #include "storagemanager.hpp"
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** 
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** static const InputMode kInputModes[] = {
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     INPUT_MODE_XINPUT,
+  10:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     INPUT_MODE_PS4,
+  11:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     INPUT_MODE_XBOX,
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     INPUT_MODE_SWITCH,
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** };
+  14:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** 
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** static const char* kInputModeLabels[] = {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 4
+
+
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     "PC",
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     "PS",
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     "Xbox",
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     "NS",
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** };
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** 
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** uint8_t ScreenDetailInputMode_InitIndex(void) {
+  90              		.loc 1 22 47 is_stmt 1 view -0
+  91              		.cfi_startproc
+  92              		@ args = 0, pretend = 0, frame = 0
+  93              		@ frame_needed = 0, uses_anonymous_args = 0
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (!BOARD_MODE.isStable() ||
+  94              		.loc 1 23 5 view .LVU13
+  95              	.LVL3:
+  96              	.LBB52:
+  97              	.LBI52:
+  98              		.file 3 "Cpp_Core/Inc/board_mode.hpp"
+   1:Cpp_Core/Inc/board_mode.hpp **** #ifndef BOARD_MODE_HPP
+   2:Cpp_Core/Inc/board_mode.hpp **** #define BOARD_MODE_HPP
+   3:Cpp_Core/Inc/board_mode.hpp **** 
+   4:Cpp_Core/Inc/board_mode.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/board_mode.hpp **** 
+   6:Cpp_Core/Inc/board_mode.hpp **** enum class BoardMode : uint8_t {
+   7:Cpp_Core/Inc/board_mode.hpp ****     Usb = 0,
+   8:Cpp_Core/Inc/board_mode.hpp ****     Rf = 1,
+   9:Cpp_Core/Inc/board_mode.hpp ****     CenterOff = 2,
+  10:Cpp_Core/Inc/board_mode.hpp ****     Fault = 3,
+  11:Cpp_Core/Inc/board_mode.hpp **** };
+  12:Cpp_Core/Inc/board_mode.hpp **** 
+  13:Cpp_Core/Inc/board_mode.hpp **** class BoardModeManager {
+  14:Cpp_Core/Inc/board_mode.hpp **** public:
+  15:Cpp_Core/Inc/board_mode.hpp ****     BoardModeManager(const BoardModeManager&) = delete;
+  16:Cpp_Core/Inc/board_mode.hpp ****     BoardModeManager& operator=(const BoardModeManager&) = delete;
+  17:Cpp_Core/Inc/board_mode.hpp **** 
+  18:Cpp_Core/Inc/board_mode.hpp ****     static BoardModeManager& getInstance()
+  19:Cpp_Core/Inc/board_mode.hpp ****     {
+  20:Cpp_Core/Inc/board_mode.hpp ****         static BoardModeManager instance;
+  21:Cpp_Core/Inc/board_mode.hpp ****         return instance;
+  22:Cpp_Core/Inc/board_mode.hpp ****     }
+  23:Cpp_Core/Inc/board_mode.hpp **** 
+  24:Cpp_Core/Inc/board_mode.hpp ****     void setup();
+  25:Cpp_Core/Inc/board_mode.hpp ****     void update(uint32_t nowMs);
+  26:Cpp_Core/Inc/board_mode.hpp ****     BoardMode current() const { return stableMode; }
+  27:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+  99              		.loc 3 27 10 view .LVU14
+ 100              	.LBB53:
+ 101              		.loc 3 27 29 view .LVU15
+ 102              		.loc 3 27 29 is_stmt 0 view .LVU16
+ 103              	.LBE53:
+ 104              	.LBE52:
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (!BOARD_MODE.isStable() ||
+ 105              		.loc 1 22 47 view .LVU17
+ 106 0000 08B5     		push	{r3, lr}
+ 107              	.LCFI1:
+ 108              		.cfi_def_cfa_offset 8
+ 109              		.cfi_offset 3, -8
+ 110              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 5
+
+
+ 111              	.LBB55:
+ 112              	.LBB54:
+ 113              		.loc 3 27 36 view .LVU18
+ 114 0002 094B     		ldr	r3, .L26
+ 115              	.LBE54:
+ 116              	.LBE55:
+ 117              		.loc 1 23 32 discriminator 2 view .LVU19
+ 118 0004 1A7A     		ldrb	r2, [r3, #8]	@ zero_extendqisi2
+ 119 0006 5AB1     		cbz	r2, .L11
+ 120              	.LVL4:
+ 121              	.LBB56:
+ 122              	.LBI56:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 123              		.loc 3 26 15 is_stmt 1 view .LVU20
+ 124              	.LBB57:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 125              		.loc 3 26 33 view .LVU21
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 126              		.loc 3 26 33 is_stmt 0 view .LVU22
+ 127              	.LBE57:
+ 128              	.LBE56:
+ 129              		.loc 1 23 32 discriminator 2 view .LVU23
+ 130 0008 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 131 000a 4BB9     		cbnz	r3, .L11
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         BOARD_MODE.current() != BoardMode::Usb) {
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         return 0;
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     }
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     InputMode mode = STORAGE_MANAGER.getInputMode();
+ 132              		.loc 1 27 5 is_stmt 1 view .LVU24
+ 133              		.loc 1 27 22 is_stmt 0 view .LVU25
+ 134 000c FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 135              	.LVL5:
+ 136              	.LBB58:
+ 137              	.LBI58:
+  28:Cpp_Core/Inc/storagemanager.hpp **** 		return config.inputMode;
+ 138              		.loc 2 28 18 is_stmt 1 view .LVU26
+ 139              	.LBB59:
+  29:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ 140              		.loc 2 29 3 view .LVU27
+  29:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ 141              		.loc 2 29 17 is_stmt 0 view .LVU28
+ 142 0010 4079     		ldrb	r0, [r0, #5]	@ zero_extendqisi2
+ 143              	.LVL6:
+  29:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ 144              		.loc 2 29 17 view .LVU29
+ 145              	.LBE59:
+ 146              	.LBE58:
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 147              		.loc 1 28 5 is_stmt 1 view .LVU30
+ 148              	.LBB60:
+ 149              		.loc 1 28 27 discriminator 1 view .LVU31
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         if (kInputModes[i] == mode) return i;
+ 150              		.loc 1 29 9 view .LVU32
+ 151 0012 28B1     		cbz	r0, .L11
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 152              		.loc 1 28 5 discriminator 2 view .LVU33
+ 153              	.LVL7:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 6
+
+
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 154              		.loc 1 28 27 discriminator 1 view .LVU34
+ 155              		.loc 1 29 9 view .LVU35
+ 156 0014 0128     		cmp	r0, #1
+ 157 0016 04D0     		beq	.L12
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 158              		.loc 1 28 5 discriminator 2 view .LVU36
+ 159              	.LVL8:
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 160              		.loc 1 28 27 discriminator 1 view .LVU37
+ 161              		.loc 1 29 9 view .LVU38
+ 162 0018 0428     		cmp	r0, #4
+ 163 001a 03D0     		beq	.L13
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 164              		.loc 1 28 5 discriminator 2 view .LVU39
+ 165              	.LVL9:
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 166              		.loc 1 28 27 discriminator 1 view .LVU40
+ 167              		.loc 1 29 9 view .LVU41
+ 168 001c 0328     		cmp	r0, #3
+ 169 001e 00D0     		beq	.L12
+ 170              	.LVL10:
+ 171              	.L11:
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 172              		.loc 1 28 5 discriminator 2 view .LVU42
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
+ 173              		.loc 1 28 27 discriminator 1 view .LVU43
+ 174              	.LBE60:
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     }
+ 175              		.loc 1 25 16 is_stmt 0 view .LVU44
+ 176 0020 0020     		movs	r0, #0
+ 177              	.LVL11:
+ 178              	.L12:
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     }
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     return 0;
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** }
+ 179              		.loc 1 32 1 view .LVU45
+ 180 0022 08BD     		pop	{r3, pc}
+ 181              	.LVL12:
+ 182              	.L13:
+ 183              	.LBB61:
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         if (kInputModes[i] == mode) return i;
+ 184              		.loc 1 28 5 discriminator 2 view .LVU46
+ 185 0024 0220     		movs	r0, #2
+ 186              	.LVL13:
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         if (kInputModes[i] == mode) return i;
+ 187              		.loc 1 28 5 discriminator 2 view .LVU47
+ 188 0026 FCE7     		b	.L12
+ 189              	.L27:
+ 190              		.align	2
+ 191              	.L26:
+ 192 0028 00000000 		.word	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 193              	.LBE61:
+ 194              		.cfi_endproc
+ 195              	.LFE2171:
+ 197              		.section	.text._Z28ScreenDetailInputMode_RotatePha,"ax",%progbits
+ 198              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 7
+
+
+ 199              		.global	_Z28ScreenDetailInputMode_RotatePha
+ 200              		.syntax unified
+ 201              		.thumb
+ 202              		.thumb_func
+ 204              	_Z28ScreenDetailInputMode_RotatePha:
+ 205              	.LVL14:
+ 206              	.LFB2172:
+  33:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** 
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** void ScreenDetailInputMode_Rotate(uint8_t* ioIndex, int8_t det) {
+ 207              		.loc 1 34 65 is_stmt 1 view -0
+ 208              		.cfi_startproc
+ 209              		@ args = 0, pretend = 0, frame = 0
+ 210              		@ frame_needed = 0, uses_anonymous_args = 0
+ 211              		@ link register save eliminated.
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (!ioIndex) return;
+ 212              		.loc 1 35 5 view .LVU49
+ 213 0000 60B1     		cbz	r0, .L28
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (!BOARD_MODE.isStable() ||
+ 214              		.loc 1 36 5 view .LVU50
+ 215              	.LVL15:
+ 216              	.LBB62:
+ 217              	.LBI62:
+ 218              		.loc 3 27 10 view .LVU51
+ 219              	.LBB63:
+ 220              		.loc 3 27 29 view .LVU52
+ 221              		.loc 3 27 36 is_stmt 0 view .LVU53
+ 222 0002 074B     		ldr	r3, .L38
+ 223              	.LBE63:
+ 224              	.LBE62:
+ 225              		.loc 1 36 32 discriminator 2 view .LVU54
+ 226 0004 1A7A     		ldrb	r2, [r3, #8]	@ zero_extendqisi2
+ 227 0006 0AB1     		cbz	r2, .L30
+ 228              	.LVL16:
+ 229              	.LBB64:
+ 230              	.LBI64:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 231              		.loc 3 26 15 is_stmt 1 view .LVU55
+ 232              	.LBB65:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 233              		.loc 3 26 33 view .LVU56
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 234              		.loc 3 26 33 is_stmt 0 view .LVU57
+ 235              	.LBE65:
+ 236              	.LBE64:
+ 237              		.loc 1 36 32 discriminator 2 view .LVU58
+ 238 0008 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 239 000a 13B1     		cbz	r3, .L31
+ 240              	.L30:
+  37:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         BOARD_MODE.current() != BoardMode::Usb) {
+  38:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         *ioIndex = 0;
+ 241              		.loc 1 38 9 is_stmt 1 view .LVU59
+ 242              		.loc 1 38 18 is_stmt 0 view .LVU60
+ 243 000c 0023     		movs	r3, #0
+ 244 000e 0370     		strb	r3, [r0]
+  39:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         return;
+ 245              		.loc 1 39 9 is_stmt 1 view .LVU61
+ 246 0010 7047     		bx	lr
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 8
+
+
+ 247              	.L31:
+  40:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     }
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     int32_t idx = (int32_t)(*ioIndex) + det;
+ 248              		.loc 1 41 5 view .LVU62
+ 249              	.LVL17:
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (idx < 0) idx = 0;
+ 250              		.loc 1 42 5 view .LVU63
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (idx >= (int32_t)(sizeof(kInputModes) / sizeof(kInputModes[0]))) idx = (int32_t)(sizeof(kInp
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     *ioIndex = (uint8_t)idx;
+ 251              		.loc 1 44 5 view .LVU64
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (idx < 0) idx = 0;
+ 252              		.loc 1 41 19 is_stmt 0 view .LVU65
+ 253 0012 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (idx < 0) idx = 0;
+ 254              		.loc 1 41 13 view .LVU66
+ 255 0014 1944     		add	r1, r1, r3
+ 256              	.LVL18:
+ 257              		.loc 1 44 14 view .LVU67
+ 258 0016 81F30201 		usat	r1, #2, r1
+ 259 001a 0170     		strb	r1, [r0]
+ 260              	.LVL19:
+ 261              	.L28:
+  45:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** }
+ 262              		.loc 1 45 1 view .LVU68
+ 263 001c 7047     		bx	lr
+ 264              	.L39:
+ 265 001e 00BF     		.align	2
+ 266              	.L38:
+ 267 0020 00000000 		.word	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 268              		.cfi_endproc
+ 269              	.LFE2172:
+ 271              		.section	.rodata._Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.1,"aMS",%
+ 272              	.LC0:
+ 273 0000 506C6174 		.ascii	"Platform\000"
+ 273      666F726D 
+ 273      00
+ 274              		.section	.text._Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+ 275              		.align	1
+ 276              		.global	_Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 277              		.syntax unified
+ 278              		.thumb
+ 279              		.thumb_func
+ 281              	_Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+ 282              	.LVL20:
+ 283              	.LFB2173:
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** 
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
+ 284              		.loc 1 47 98 is_stmt 1 view -0
+ 285              		.cfi_startproc
+ 286              		@ args = 0, pretend = 0, frame = 8
+ 287              		@ frame_needed = 0, uses_anonymous_args = 0
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     uint8_t selected = ScreenDetailInputMode_InitIndex();
+ 288              		.loc 1 48 5 view .LVU70
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     uint8_t selected = ScreenDetailInputMode_InitIndex();
+ 289              		.loc 1 47 98 is_stmt 0 view .LVU71
+ 290 0000 70B5     		push	{r4, r5, r6, lr}
+ 291              	.LCFI2:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 9
+
+
+ 292              		.cfi_def_cfa_offset 16
+ 293              		.cfi_offset 4, -16
+ 294              		.cfi_offset 5, -12
+ 295              		.cfi_offset 6, -8
+ 296              		.cfi_offset 14, -4
+ 297 0002 8CB0     		sub	sp, sp, #48
+ 298              	.LCFI3:
+ 299              		.cfi_def_cfa_offset 64
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     uint8_t selected = ScreenDetailInputMode_InitIndex();
+ 300              		.loc 1 47 98 view .LVU72
+ 301 0004 1646     		mov	r6, r2
+ 302 0006 0546     		mov	r5, r0
+ 303 0008 0C46     		mov	r4, r1
+ 304              		.loc 1 48 55 view .LVU73
+ 305 000a FFF7FEFF 		bl	_Z31ScreenDetailInputMode_InitIndexv
+ 306              	.LVL21:
+  49:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     bool disabledItems[sizeof(kInputModes) / sizeof(kInputModes[0])] = {false};
+ 307              		.loc 1 49 5 is_stmt 1 view .LVU74
+ 308              		.loc 1 49 10 is_stmt 0 view .LVU75
+ 309 000e 0023     		movs	r3, #0
+ 310 0010 0B93     		str	r3, [sp, #44]
+  50:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (!BOARD_MODE.isStable() ||
+ 311              		.loc 1 50 5 is_stmt 1 view .LVU76
+ 312              	.LVL22:
+ 313              	.LBB66:
+ 314              	.LBB67:
+ 315              	.LBI67:
+ 316              		.loc 3 27 10 view .LVU77
+ 317              	.LBB68:
+ 318              		.loc 3 27 29 view .LVU78
+ 319              		.loc 3 27 36 is_stmt 0 view .LVU79
+ 320 0012 114B     		ldr	r3, .L44
+ 321              	.LBE68:
+ 322              	.LBE67:
+ 323              		.loc 1 50 32 discriminator 2 view .LVU80
+ 324 0014 1A7A     		ldrb	r2, [r3, #8]	@ zero_extendqisi2
+ 325 0016 DAB9     		cbnz	r2, .L41
+ 326              	.L43:
+ 327              	.LVL23:
+ 328              	.LBB69:
+ 329              	.LBB70:
+  51:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         BOARD_MODE.current() != BoardMode::Usb) {
+  52:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         index = 0;
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         for (uint8_t i = 1; i < (uint8_t)(sizeof(disabledItems) / sizeof(disabledItems[0])); i++) {
+ 330              		.loc 1 53 31 is_stmt 1 discriminator 1 view .LVU81
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****             disabledItems[i] = true;
+ 331              		.loc 1 54 13 view .LVU82
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****             disabledItems[i] = true;
+ 332              		.loc 1 53 9 discriminator 3 view .LVU83
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****             disabledItems[i] = true;
+ 333              		.loc 1 53 31 discriminator 1 view .LVU84
+ 334              		.loc 1 54 13 view .LVU85
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****             disabledItems[i] = true;
+ 335              		.loc 1 53 9 discriminator 3 view .LVU86
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****             disabledItems[i] = true;
+ 336              		.loc 1 53 31 discriminator 1 view .LVU87
+ 337              		.loc 1 54 13 view .LVU88
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 10
+
+
+ 338              		.loc 1 54 30 is_stmt 0 view .LVU89
+ 339 0018 0123     		movs	r3, #1
+ 340              	.LBE70:
+  52:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         for (uint8_t i = 1; i < (uint8_t)(sizeof(disabledItems) / sizeof(disabledItems[0])); i++) {
+ 341              		.loc 1 52 15 view .LVU90
+ 342 001a 0024     		movs	r4, #0
+ 343              	.LBB71:
+ 344              		.loc 1 54 30 view .LVU91
+ 345 001c 8DF82D30 		strb	r3, [sp, #45]
+ 346 0020 40F20113 		movw	r3, #257
+ 347 0024 ADF82E30 		strh	r3, [sp, #46]	@ movhi
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****             disabledItems[i] = true;
+ 348              		.loc 1 53 9 is_stmt 1 discriminator 3 view .LVU92
+ 349              	.LVL24:
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****             disabledItems[i] = true;
+ 350              		.loc 1 53 31 discriminator 1 view .LVU93
+ 351              	.L42:
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****             disabledItems[i] = true;
+ 352              		.loc 1 53 31 is_stmt 0 discriminator 1 view .LVU94
+ 353              	.LBE71:
+ 354              	.LBE69:
+ 355              	.LBE66:
+  55:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         }
+  56:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     }
+  57:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     ScreenDetailRender_List(lcd, "Platform", kInputModeLabels, (uint8_t)(sizeof(kInputModeLabels) /
+ 356              		.loc 1 57 5 is_stmt 1 view .LVU95
+ 357              		.loc 1 57 28 is_stmt 0 view .LVU96
+ 358 0028 0BAB     		add	r3, sp, #44
+ 359 002a 0C4A     		ldr	r2, .L44+4
+ 360 002c 0C49     		ldr	r1, .L44+8
+ 361 002e 0893     		str	r3, [sp, #32]
+ 362 0030 0023     		movs	r3, #0
+ 363 0032 CDE90633 		strd	r3, r3, [sp, #24]
+ 364 0036 CDE90433 		strd	r3, r3, [sp, #16]
+ 365 003a 1C23     		movs	r3, #28
+ 366 003c CDE90040 		strd	r4, r0, [sp]
+ 367 0040 CDE90263 		strd	r6, r3, [sp, #8]
+ 368 0044 2846     		mov	r0, r5
+ 369              	.LVL25:
+ 370              		.loc 1 57 28 view .LVU97
+ 371 0046 0423     		movs	r3, #4
+ 372 0048 FFF7FEFF 		bl	_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+ 373              	.LVL26:
+  58:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** }
+ 374              		.loc 1 58 1 view .LVU98
+ 375 004c 0CB0     		add	sp, sp, #48
+ 376              	.LCFI4:
+ 377              		.cfi_remember_state
+ 378              		.cfi_def_cfa_offset 16
+ 379              		@ sp needed
+ 380 004e 70BD     		pop	{r4, r5, r6, pc}
+ 381              	.LVL27:
+ 382              	.L41:
+ 383              	.LCFI5:
+ 384              		.cfi_restore_state
+ 385              	.LBB74:
+ 386              	.LBB72:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 11
+
+
+ 387              	.LBI72:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 388              		.loc 3 26 15 is_stmt 1 view .LVU99
+ 389              	.LBB73:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 390              		.loc 3 26 33 view .LVU100
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 391              		.loc 3 26 33 is_stmt 0 view .LVU101
+ 392              	.LBE73:
+ 393              	.LBE72:
+  50:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         BOARD_MODE.current() != BoardMode::Usb) {
+ 394              		.loc 1 50 32 discriminator 2 view .LVU102
+ 395 0050 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 396 0052 002B     		cmp	r3, #0
+ 397 0054 E0D1     		bne	.L43
+ 398 0056 E7E7     		b	.L42
+ 399              	.L45:
+ 400              		.align	2
+ 401              	.L44:
+ 402 0058 00000000 		.word	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 403 005c 00000000 		.word	_ZL16kInputModeLabels
+ 404 0060 00000000 		.word	.LC0
+ 405              	.LBE74:
+ 406              		.cfi_endproc
+ 407              	.LFE2173:
+ 409              		.section	.text._Z31ScreenDetailInputMode_OnConfirmh,"ax",%progbits
+ 410              		.align	1
+ 411              		.global	_Z31ScreenDetailInputMode_OnConfirmh
+ 412              		.syntax unified
+ 413              		.thumb
+ 414              		.thumb_func
+ 416              	_Z31ScreenDetailInputMode_OnConfirmh:
+ 417              	.LVL28:
+ 418              	.LFB2174:
+  59:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** 
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** void ScreenDetailInputMode_OnConfirm(uint8_t index) {
+ 419              		.loc 1 60 53 is_stmt 1 view -0
+ 420              		.cfi_startproc
+ 421              		@ args = 0, pretend = 0, frame = 0
+ 422              		@ frame_needed = 0, uses_anonymous_args = 0
+  61:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (!BOARD_MODE.isStable() ||
+ 423              		.loc 1 61 5 view .LVU104
+ 424              	.LBB75:
+ 425              	.LBI75:
+ 426              		.loc 3 27 10 view .LVU105
+ 427              	.LBB76:
+ 428              		.loc 3 27 29 view .LVU106
+ 429              		.loc 3 27 36 is_stmt 0 view .LVU107
+ 430 0000 0E4B     		ldr	r3, .L51
+ 431              	.LBE76:
+ 432              	.LBE75:
+ 433              		.loc 1 61 32 discriminator 2 view .LVU108
+ 434 0002 1A7A     		ldrb	r2, [r3, #8]	@ zero_extendqisi2
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (!BOARD_MODE.isStable() ||
+ 435              		.loc 1 60 53 view .LVU109
+ 436 0004 10B5     		push	{r4, lr}
+ 437              	.LCFI6:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 12
+
+
+ 438              		.cfi_def_cfa_offset 8
+ 439              		.cfi_offset 4, -8
+ 440              		.cfi_offset 14, -4
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (!BOARD_MODE.isStable() ||
+ 441              		.loc 1 60 53 view .LVU110
+ 442 0006 0446     		mov	r4, r0
+ 443              		.loc 1 61 32 discriminator 2 view .LVU111
+ 444 0008 B2B1     		cbz	r2, .L46
+ 445              	.LVL29:
+ 446              	.LBB77:
+ 447              	.LBI77:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 448              		.loc 3 26 15 is_stmt 1 view .LVU112
+ 449              	.LBB78:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 450              		.loc 3 26 33 view .LVU113
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 451              		.loc 3 26 33 is_stmt 0 view .LVU114
+ 452              	.LBE78:
+ 453              	.LBE77:
+ 454              		.loc 1 61 32 discriminator 2 view .LVU115
+ 455 000a 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 456 000c A3B9     		cbnz	r3, .L46
+  62:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         BOARD_MODE.current() != BoardMode::Usb) {
+  63:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         return;
+  64:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     }
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     if (index < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0]))) {
+ 457              		.loc 1 65 5 is_stmt 1 view .LVU116
+ 458 000e 0328     		cmp	r0, #3
+ 459 0010 12D8     		bhi	.L46
+  66:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         STORAGE_MANAGER.setInputMode(kInputModes[index]);
+ 460              		.loc 1 66 9 view .LVU117
+ 461 0012 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 462              	.LVL30:
+ 463              		.loc 1 66 37 is_stmt 0 discriminator 1 view .LVU118
+ 464 0016 0A4B     		ldr	r3, .L51+4
+ 465 0018 195D     		ldrb	r1, [r3, r4]	@ zero_extendqisi2
+ 466 001a FFF7FEFF 		bl	_ZN7Storage12setInputModeE9InputMode
+ 467              	.LVL31:
+  67:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+ 468              		.loc 1 67 9 is_stmt 1 view .LVU119
+ 469 001e FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 470              	.LVL32:
+ 471              		.loc 1 67 36 is_stmt 0 discriminator 1 view .LVU120
+ 472 0022 0221     		movs	r1, #2
+ 473 0024 FFF7FEFF 		bl	_ZN7Storage11setBootModeE8BootMode
+ 474              	.LVL33:
+  68:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         STORAGE_MANAGER.saveConfig();
+ 475              		.loc 1 68 9 is_stmt 1 view .LVU121
+ 476 0028 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 477              	.LVL34:
+ 478              		.loc 1 68 35 is_stmt 0 discriminator 1 view .LVU122
+ 479 002c FFF7FEFF 		bl	_ZN7Storage10saveConfigEv
+ 480              	.LVL35:
+  69:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         MainRuntime_RequestReset();
+ 481              		.loc 1 69 9 is_stmt 1 view .LVU123
+  70:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 13
+
+
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp **** }
+ 482              		.loc 1 71 1 is_stmt 0 view .LVU124
+ 483 0030 BDE81040 		pop	{r4, lr}
+ 484              	.LCFI7:
+ 485              		.cfi_remember_state
+ 486              		.cfi_restore 14
+ 487              		.cfi_restore 4
+ 488              		.cfi_def_cfa_offset 0
+ 489              	.LVL36:
+  69:Cpp_Core/Src/screen_control/spi_screen_detail_input_mode.cpp ****         MainRuntime_RequestReset();
+ 490              		.loc 1 69 33 view .LVU125
+ 491 0034 FFF7FEBF 		b	MainRuntime_RequestReset
+ 492              	.LVL37:
+ 493              	.L46:
+ 494              	.LCFI8:
+ 495              		.cfi_restore_state
+ 496              		.loc 1 71 1 view .LVU126
+ 497 0038 10BD     		pop	{r4, pc}
+ 498              	.L52:
+ 499 003a 00BF     		.align	2
+ 500              	.L51:
+ 501 003c 00000000 		.word	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 502 0040 00000000 		.word	_ZL11kInputModes
+ 503              		.cfi_endproc
+ 504              	.LFE2174:
+ 506              		.section	.rodata.str1.1,"aMS",%progbits,1
+ 507              	.LC1:
+ 508 0000 504300   		.ascii	"PC\000"
+ 509              	.LC2:
+ 510 0003 505300   		.ascii	"PS\000"
+ 511              	.LC3:
+ 512 0006 58626F78 		.ascii	"Xbox\000"
+ 512      00
+ 513              	.LC4:
+ 514 000b 4E5300   		.ascii	"NS\000"
+ 515              		.section	.data._ZL16kInputModeLabels,"aw"
+ 516              		.align	2
+ 519              	_ZL16kInputModeLabels:
+ 520 0000 00000000 		.word	.LC1
+ 521 0004 03000000 		.word	.LC2
+ 522 0008 06000000 		.word	.LC3
+ 523 000c 0B000000 		.word	.LC4
+ 524              		.section	.rodata._ZL11kInputModes,"a"
+ 527              	_ZL11kInputModes:
+ 528 0000 00       		.byte	0
+ 529 0001 01       		.byte	1
+ 530 0002 04       		.byte	4
+ 531 0003 03       		.byte	3
+ 532              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 533              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 534              		.align	2
+ 537              	_ZGVZN7Storage11getInstanceEvE8instance:
+ 538 0000 00000000 		.space	4
+ 539              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 540              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 541              		.align	2
+ 544              	_ZZN7Storage11getInstanceEvE8instance:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 14
+
+
+ 545 0000 00000000 		.space	36484
+ 545      00000000 
+ 545      00000000 
+ 545      00000000 
+ 545      00000000 
+ 546              		.weak	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 547              		.section	.data._ZZN16BoardModeManager11getInstanceEvE8instance,"awG",%progbits,_ZZN16BoardModeMana
+ 548              		.align	2
+ 551              	_ZZN16BoardModeManager11getInstanceEvE8instance:
+ 552 0000 02       		.byte	2
+ 553 0001 02       		.byte	2
+ 554 0002 0000     		.space	2
+ 555 0004 00000000 		.word	0
+ 556 0008 00       		.byte	0
+ 557 0009 00       		.byte	0
+ 558 000a 0000     		.space	2
+ 559              		.text
+ 560              	.Letext0:
+ 561              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 562              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 563              		.file 6 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 564              		.file 7 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 565              		.file 8 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 566              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 567              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 568              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 569              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 570              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 571              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 572              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 573              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 574              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 575              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 576              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 577              		.file 20 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 578              		.file 21 "Core/Inc/board_cfg.h"
+ 579              		.file 22 "Cpp_Core/Inc/enums.hpp"
+ 580              		.file 23 "Drivers/SPI-ST7789/st7789.h"
+ 581              		.file 24 "Cpp_Core/Inc/config.hpp"
+ 582              		.file 25 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 583              		.file 26 "Cpp_Core/Inc/main_runtime_control.hpp"
+ 584              		.file 27 "Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s 			page 15
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_input_mode.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:20     .text._ZN7Storage11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:26     .text._ZN7Storage11getInstanceEv:00000000 _ZN7Storage11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:76     .text._ZN7Storage11getInstanceEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:537    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:544    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:82     .text._Z31ScreenDetailInputMode_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:88     .text._Z31ScreenDetailInputMode_InitIndexv:00000000 _Z31ScreenDetailInputMode_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:192    .text._Z31ScreenDetailInputMode_InitIndexv:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:551    .data._ZZN16BoardModeManager11getInstanceEvE8instance:00000000 _ZZN16BoardModeManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:198    .text._Z28ScreenDetailInputMode_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:204    .text._Z28ScreenDetailInputMode_RotatePha:00000000 _Z28ScreenDetailInputMode_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:267    .text._Z28ScreenDetailInputMode_RotatePha:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:275    .text._Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:281    .text._Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:402    .text._Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000058 $d
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:519    .data._ZL16kInputModeLabels:00000000 _ZL16kInputModeLabels
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:410    .text._Z31ScreenDetailInputMode_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:416    .text._Z31ScreenDetailInputMode_OnConfirmh:00000000 _Z31ScreenDetailInputMode_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:501    .text._Z31ScreenDetailInputMode_OnConfirmh:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:527    .rodata._ZL11kInputModes:00000000 _ZL11kInputModes
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:516    .data._ZL16kInputModeLabels:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:534    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:541    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccavKVPH.s:548    .data._ZZN16BoardModeManager11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+__cxa_guard_acquire
+__cxa_guard_release
+_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+_ZN7Storage12setInputModeE9InputMode
+_ZN7Storage11setBootModeE8BootMode
+_ZN7Storage10saveConfigEv
+MainRuntime_RequestReset

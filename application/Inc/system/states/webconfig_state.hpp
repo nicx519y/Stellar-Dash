@@ -1,0 +1,58 @@
+#ifndef WEB_CONFIG_STATE_HPP
+#define WEB_CONFIG_STATE_HPP
+
+#include <stdint.h>
+
+#include "base_state.hpp"
+
+/* Retained through transport cleanup; debugger reads need no CPU halt. */
+void WebConfig_RecordStartupStage(uint32_t stage, uint32_t field = 1u);
+void WebConfig_RecordStartupFrame(const uint8_t *bytes, uint32_t length, uint32_t result);
+
+enum class WebConfigRuntimeStatus : uint8_t
+{
+    Starting = 0,
+    Ready,
+    Authenticated,
+    ErrorUsbMode,
+    ErrorMaintenance,
+    ErrorSecurity,
+    ErrorStorageInit,
+    ErrorAdc,
+    ErrorStorage,
+};
+
+class WebConfigState : public BaseState
+{
+public:
+    WebConfigState(WebConfigState const &) = delete;
+    void operator=(WebConfigState const &) = delete;
+
+    static WebConfigState &getInstance()
+    {
+        static WebConfigState instance;
+        return instance;
+    }
+
+    bool enter() override;
+    void tick() override;
+    void exit() override;
+
+    WebConfigRuntimeStatus status() const { return runtimeStatus; }
+    bool canRetry() const;
+    void requestRetry();
+    void reportStorageFailure();
+
+private:
+    WebConfigState() = default;
+    void enterFailure(WebConfigRuntimeStatus failureStatus);
+
+    bool isRunning = false;
+    bool recoveryUiPending = false;
+    bool startupTickTracePending = false;
+    WebConfigRuntimeStatus runtimeStatus = WebConfigRuntimeStatus::Starting;
+};
+
+#define WEB_CONFIG_STATE WebConfigState::getInstance()
+
+#endif

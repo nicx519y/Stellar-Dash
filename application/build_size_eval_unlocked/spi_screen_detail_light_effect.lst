@@ -1,0 +1,546 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_light_effect.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp"
+  19              		.section	.text._ZL15default_profilev,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZL15default_profilev:
+  26              	.LFB2165:
+   1:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** 
+   3:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** #include "storagemanager.hpp"
+   4:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   5:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** 
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** static const char* kLightEffectLabels[] = {
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     "Static",
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     "Breathing",
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     "Star",
+  10:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     "Flowing",
+  11:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     "Ripple",
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     "Transform",
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** };
+  14:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** 
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** static GamepadProfile* default_profile(void) {
+  27              		.loc 1 15 46 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     return STORAGE_MANAGER.getDefaultGamepadProfile();
+  31              		.loc 1 16 5 view .LVU1
+  32              	.LBB15:
+  33              	.LBI15:
+  34              		.file 2 "Cpp_Core/Inc/storagemanager.hpp"
+   1:Cpp_Core/Inc/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Cpp_Core/Inc/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Cpp_Core/Inc/storagemanager.hpp **** 
+   4:Cpp_Core/Inc/storagemanager.hpp **** #include "config.hpp"
+   5:Cpp_Core/Inc/storagemanager.hpp **** 
+   6:Cpp_Core/Inc/storagemanager.hpp **** // Forward declarations
+   7:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesMarker;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 2
+
+
+   9:Cpp_Core/Inc/storagemanager.hpp **** 
+  10:Cpp_Core/Inc/storagemanager.hpp **** class Storage {
+  11:Cpp_Core/Inc/storagemanager.hpp **** public:
+  12:Cpp_Core/Inc/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Cpp_Core/Inc/storagemanager.hpp **** 
+  14:Cpp_Core/Inc/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Cpp_Core/Inc/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Cpp_Core/Inc/storagemanager.hpp **** 	
+  17:Cpp_Core/Inc/storagemanager.hpp **** 	static Storage& getInstance() {
+  35              		.loc 2 17 18 view .LVU2
+  36              	.LBB16:
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  37              		.loc 2 18 3 view .LVU3
+  38              	.LBE16:
+  39              	.LBE15:
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     return STORAGE_MANAGER.getDefaultGamepadProfile();
+  40              		.loc 1 15 46 is_stmt 0 view .LVU4
+  41 0000 10B5     		push	{r4, lr}
+  42              	.LCFI0:
+  43              		.cfi_def_cfa_offset 8
+  44              		.cfi_offset 4, -8
+  45              		.cfi_offset 14, -4
+  46              	.LBB21:
+  47              	.LBB20:
+  48              		.loc 2 18 18 view .LVU5
+  49 0002 0A4C     		ldr	r4, .L8
+  50 0004 2368     		ldr	r3, [r4]
+  51 0006 BFF35B8F 		dmb	ish
+  52              		.loc 2 18 18 discriminator 1 view .LVU6
+  53 000a DB07     		lsls	r3, r3, #31
+  54 000c 06D4     		bmi	.L3
+  55              	.LBB17:
+  56              	.LBI17:
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  57              		.loc 2 17 18 is_stmt 1 view .LVU7
+  58              	.LBB18:
+  59              		.loc 2 18 18 is_stmt 0 discriminator 1 view .LVU8
+  60 000e 2046     		mov	r0, r4
+  61 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+  62              	.LVL0:
+  63 0014 10B1     		cbz	r0, .L3
+  64              	.LVL1:
+  65              	.LBB19:
+  66              	.LBI19:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  20:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  21:Cpp_Core/Inc/storagemanager.hpp **** 
+  22:Cpp_Core/Inc/storagemanager.hpp **** 	Config config;
+  23:Cpp_Core/Inc/storagemanager.hpp **** 	
+  24:Cpp_Core/Inc/storagemanager.hpp **** 	void initConfig();
+  25:Cpp_Core/Inc/storagemanager.hpp **** 	bool saveConfig();
+  26:Cpp_Core/Inc/storagemanager.hpp **** 	bool resetConfig();
+  27:Cpp_Core/Inc/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Cpp_Core/Inc/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Cpp_Core/Inc/storagemanager.hpp **** 		return config.inputMode;
+  30:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  31:Cpp_Core/Inc/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 3
+
+
+  32:Cpp_Core/Inc/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Cpp_Core/Inc/storagemanager.hpp **** 		return config.connectionMode;
+  34:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  35:Cpp_Core/Inc/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Cpp_Core/Inc/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Cpp_Core/Inc/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  39:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  42:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  43:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  44:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  45:Cpp_Core/Inc/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  46:Cpp_Core/Inc/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  47:Cpp_Core/Inc/storagemanager.hpp **** 		return config.reservedConnection0;
+  48:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  49:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  50:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  51:Cpp_Core/Inc/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  52:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  53:Cpp_Core/Inc/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+  54:Cpp_Core/Inc/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  55:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+  56:Cpp_Core/Inc/storagemanager.hpp **** 		return config.hotkeys;
+  57:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  58:Cpp_Core/Inc/storagemanager.hpp **** 
+  59:Cpp_Core/Inc/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  60:Cpp_Core/Inc/storagemanager.hpp **** 	BootMode getBootMode() {
+  61:Cpp_Core/Inc/storagemanager.hpp **** 		return config.bootMode;
+  62:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  63:Cpp_Core/Inc/storagemanager.hpp **** 
+  64:Cpp_Core/Inc/storagemanager.hpp **** private:
+  65:Cpp_Core/Inc/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+  67              		.loc 2 65 2 is_stmt 1 view .LVU9
+  68              		.loc 2 65 2 is_stmt 0 view .LVU10
+  69              	.LBE19:
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  70              		.loc 2 18 18 discriminator 1 view .LVU11
+  71 0016 2046     		mov	r0, r4
+  72 0018 FFF7FEFF 		bl	__cxa_guard_release
+  73              	.LVL2:
+  74              	.L3:
+  75              	.LBE18:
+  76              	.LBE17:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  77              		.loc 2 19 3 is_stmt 1 view .LVU12
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  78              		.loc 2 19 3 is_stmt 0 view .LVU13
+  79              	.LBE20:
+  80              	.LBE21:
+  81              	.LBB22:
+  82              	.LBI22:
+  50:Cpp_Core/Inc/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  83              		.loc 2 50 18 is_stmt 1 view .LVU14
+  84              	.LBB23:
+  51:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 4
+
+
+  85              		.loc 2 51 3 view .LVU15
+  51:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  86              		.loc 2 51 27 is_stmt 0 view .LVU16
+  87 001c 0449     		ldr	r1, .L8+4
+  88              	.LBE23:
+  89              	.LBE22:
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** }
+  90              		.loc 1 17 1 view .LVU17
+  91 001e BDE81040 		pop	{r4, lr}
+  92              	.LCFI1:
+  93              		.cfi_restore 14
+  94              		.cfi_restore 4
+  95              		.cfi_def_cfa_offset 0
+  96              	.LBB25:
+  97              	.LBB24:
+  51:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  98              		.loc 2 51 27 view .LVU18
+  99 0022 A1F10B00 		sub	r0, r1, #11
+ 100 0026 FFF7FEBF 		b	_ZN7Storage17getGamepadProfileEPc
+ 101              	.LVL3:
+ 102              	.L9:
+ 103 002a 00BF     		.align	2
+ 104              	.L8:
+ 105 002c 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+ 106 0030 0B000000 		.word	_ZZN7Storage11getInstanceEvE8instance+11
+ 107              	.LBE24:
+ 108              	.LBE25:
+ 109              		.cfi_endproc
+ 110              	.LFE2165:
+ 112              		.section	.text._Z33ScreenDetailLightEffect_InitIndexv,"ax",%progbits
+ 113              		.align	1
+ 114              		.global	_Z33ScreenDetailLightEffect_InitIndexv
+ 115              		.syntax unified
+ 116              		.thumb
+ 117              		.thumb_func
+ 119              	_Z33ScreenDetailLightEffect_InitIndexv:
+ 120              	.LFB2166:
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** 
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** uint8_t ScreenDetailLightEffect_InitIndex(void) {
+ 121              		.loc 1 19 49 is_stmt 1 view -0
+ 122              		.cfi_startproc
+ 123              		@ args = 0, pretend = 0, frame = 0
+ 124              		@ frame_needed = 0, uses_anonymous_args = 0
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     GamepadProfile* p = default_profile();
+ 125              		.loc 1 20 5 view .LVU20
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     GamepadProfile* p = default_profile();
+ 126              		.loc 1 19 49 is_stmt 0 view .LVU21
+ 127 0000 08B5     		push	{r3, lr}
+ 128              	.LCFI2:
+ 129              		.cfi_def_cfa_offset 8
+ 130              		.cfi_offset 3, -8
+ 131              		.cfi_offset 14, -4
+ 132              		.loc 1 20 40 view .LVU22
+ 133 0002 FFF7FEFF 		bl	_ZL15default_profilev
+ 134              	.LVL4:
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (!p) return 0;
+ 135              		.loc 1 21 5 is_stmt 1 view .LVU23
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 5
+
+
+ 136 0006 20B1     		cbz	r0, .L11
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     uint8_t v = (uint8_t)p->ledsConfigs.ledEffect;
+ 137              		.loc 1 22 5 view .LVU24
+ 138              		.loc 1 22 13 is_stmt 0 view .LVU25
+ 139 0008 90F8B508 		ldrb	r0, [r0, #2229]	@ zero_extendqisi2
+ 140              	.LVL5:
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (v >= (uint8_t)NUM_EFFECTS) v = 0;
+ 141              		.loc 1 23 5 is_stmt 1 view .LVU26
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (!p) return 0;
+ 142              		.loc 1 21 20 is_stmt 0 discriminator 1 view .LVU27
+ 143 000c 0628     		cmp	r0, #6
+ 144 000e 28BF     		it	cs
+ 145 0010 0020     		movcs	r0, #0
+ 146              	.LVL6:
+ 147              	.L11:
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     return v;
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** }
+ 148              		.loc 1 25 1 view .LVU28
+ 149 0012 08BD     		pop	{r3, pc}
+ 150              		.cfi_endproc
+ 151              	.LFE2166:
+ 153              		.section	.text._Z30ScreenDetailLightEffect_RotatePha,"ax",%progbits
+ 154              		.align	1
+ 155              		.global	_Z30ScreenDetailLightEffect_RotatePha
+ 156              		.syntax unified
+ 157              		.thumb
+ 158              		.thumb_func
+ 160              	_Z30ScreenDetailLightEffect_RotatePha:
+ 161              	.LVL7:
+ 162              	.LFB2167:
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** 
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** void ScreenDetailLightEffect_Rotate(uint8_t* ioIndex, int8_t det) {
+ 163              		.loc 1 27 67 is_stmt 1 view -0
+ 164              		.cfi_startproc
+ 165              		@ args = 0, pretend = 0, frame = 0
+ 166              		@ frame_needed = 0, uses_anonymous_args = 0
+ 167              		@ link register save eliminated.
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (!ioIndex) return;
+ 168              		.loc 1 28 5 view .LVU30
+ 169 0000 38B1     		cbz	r0, .L14
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     int32_t idx = (int32_t)(*ioIndex) + det;
+ 170              		.loc 1 29 5 view .LVU31
+ 171              	.LVL8:
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (idx < 0) idx = 0;
+ 172              		.loc 1 30 5 view .LVU32
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (idx >= (int32_t)NUM_EFFECTS) idx = (int32_t)NUM_EFFECTS - 1;
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     *ioIndex = (uint8_t)idx;
+ 173              		.loc 1 32 5 view .LVU33
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (idx < 0) idx = 0;
+ 174              		.loc 1 29 19 is_stmt 0 view .LVU34
+ 175 0002 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (idx < 0) idx = 0;
+ 176              		.loc 1 29 13 view .LVU35
+ 177 0004 1944     		add	r1, r1, r3
+ 178              	.LVL9:
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (idx >= (int32_t)NUM_EFFECTS) idx = (int32_t)NUM_EFFECTS - 1;
+ 179              		.loc 1 31 5 view .LVU36
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 6
+
+
+ 180 0006 0529     		cmp	r1, #5
+ 181 0008 A8BF     		it	ge
+ 182 000a 0521     		movge	r1, #5
+ 183              		.loc 1 32 14 view .LVU37
+ 184 000c 21EAE171 		bic	r1, r1, r1, asr #31
+ 185 0010 0170     		strb	r1, [r0]
+ 186              	.LVL10:
+ 187              	.L14:
+  33:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** }
+ 188              		.loc 1 33 1 view .LVU38
+ 189 0012 7047     		bx	lr
+ 190              		.cfi_endproc
+ 191              	.LFE2167:
+ 193              		.section	.rodata._Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.1,"aMS"
+ 194              	.LC0:
+ 195 0000 4C696768 		.ascii	"Light Effect\000"
+ 195      74204566 
+ 195      66656374 
+ 195      00
+ 196              		.section	.text._Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+ 197              		.align	1
+ 198              		.global	_Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 199              		.syntax unified
+ 200              		.thumb
+ 201              		.thumb_func
+ 203              	_Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+ 204              	.LVL11:
+ 205              	.LFB2168:
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** 
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** void ScreenDetailLightEffect_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) 
+ 206              		.loc 1 35 100 is_stmt 1 view -0
+ 207              		.cfi_startproc
+ 208              		@ args = 0, pretend = 0, frame = 0
+ 209              		@ frame_needed = 0, uses_anonymous_args = 0
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     uint8_t selected = ScreenDetailLightEffect_InitIndex();
+ 210              		.loc 1 36 5 view .LVU40
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     uint8_t selected = ScreenDetailLightEffect_InitIndex();
+ 211              		.loc 1 35 100 is_stmt 0 view .LVU41
+ 212 0000 70B5     		push	{r4, r5, r6, lr}
+ 213              	.LCFI3:
+ 214              		.cfi_def_cfa_offset 16
+ 215              		.cfi_offset 4, -16
+ 216              		.cfi_offset 5, -12
+ 217              		.cfi_offset 6, -8
+ 218              		.cfi_offset 14, -4
+ 219 0002 8AB0     		sub	sp, sp, #40
+ 220              	.LCFI4:
+ 221              		.cfi_def_cfa_offset 56
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     uint8_t selected = ScreenDetailLightEffect_InitIndex();
+ 222              		.loc 1 35 100 view .LVU42
+ 223 0004 0D46     		mov	r5, r1
+ 224 0006 1646     		mov	r6, r2
+ 225 0008 0446     		mov	r4, r0
+ 226              		.loc 1 36 57 view .LVU43
+ 227 000a FFF7FEFF 		bl	_Z33ScreenDetailLightEffect_InitIndexv
+ 228              	.LVL12:
+  37:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     ScreenDetailRender_List(lcd, "Light Effect", kLightEffectLabels, (uint8_t)(sizeof(kLightEffectL
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 7
+
+
+ 229              		.loc 1 37 5 is_stmt 1 view .LVU44
+ 230              		.loc 1 37 28 is_stmt 0 view .LVU45
+ 231 000e 0023     		movs	r3, #0
+ 232 0010 084A     		ldr	r2, .L20
+ 233 0012 0493     		str	r3, [sp, #16]
+ 234 0014 0849     		ldr	r1, .L20+4
+ 235 0016 CDE90733 		strd	r3, r3, [sp, #28]
+ 236 001a CDE90533 		strd	r3, r3, [sp, #20]
+ 237 001e 1C23     		movs	r3, #28
+ 238 0020 CDE90050 		strd	r5, r0, [sp]
+ 239 0024 CDE90263 		strd	r6, r3, [sp, #8]
+ 240 0028 2046     		mov	r0, r4
+ 241              	.LVL13:
+ 242              		.loc 1 37 28 view .LVU46
+ 243 002a 0623     		movs	r3, #6
+ 244 002c FFF7FEFF 		bl	_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+ 245              	.LVL14:
+  38:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** }
+ 246              		.loc 1 38 1 view .LVU47
+ 247 0030 0AB0     		add	sp, sp, #40
+ 248              	.LCFI5:
+ 249              		.cfi_def_cfa_offset 16
+ 250              		@ sp needed
+ 251 0032 70BD     		pop	{r4, r5, r6, pc}
+ 252              	.LVL15:
+ 253              	.L21:
+ 254              		.loc 1 38 1 view .LVU48
+ 255              		.align	2
+ 256              	.L20:
+ 257 0034 00000000 		.word	_ZL18kLightEffectLabels
+ 258 0038 00000000 		.word	.LC0
+ 259              		.cfi_endproc
+ 260              	.LFE2168:
+ 262              		.section	.text._Z33ScreenDetailLightEffect_OnConfirmh,"ax",%progbits
+ 263              		.align	1
+ 264              		.global	_Z33ScreenDetailLightEffect_OnConfirmh
+ 265              		.syntax unified
+ 266              		.thumb
+ 267              		.thumb_func
+ 269              	_Z33ScreenDetailLightEffect_OnConfirmh:
+ 270              	.LVL16:
+ 271              	.LFB2169:
+  39:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** 
+  40:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** void ScreenDetailLightEffect_OnConfirm(uint8_t index) {
+ 272              		.loc 1 40 55 is_stmt 1 view -0
+ 273              		.cfi_startproc
+ 274              		@ args = 0, pretend = 0, frame = 0
+ 275              		@ frame_needed = 0, uses_anonymous_args = 0
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     GamepadProfile* p = default_profile();
+ 276              		.loc 1 41 5 view .LVU50
+  40:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     GamepadProfile* p = default_profile();
+ 277              		.loc 1 40 55 is_stmt 0 view .LVU51
+ 278 0000 10B5     		push	{r4, lr}
+ 279              	.LCFI6:
+ 280              		.cfi_def_cfa_offset 8
+ 281              		.cfi_offset 4, -8
+ 282              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 8
+
+
+  40:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     GamepadProfile* p = default_profile();
+ 283              		.loc 1 40 55 view .LVU52
+ 284 0002 0446     		mov	r4, r0
+ 285              		.loc 1 41 40 view .LVU53
+ 286 0004 FFF7FEFF 		bl	_ZL15default_profilev
+ 287              	.LVL17:
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp ****     if (p && index < (uint8_t)NUM_EFFECTS) p->ledsConfigs.ledEffect = (LEDEffect)index;
+ 288              		.loc 1 42 5 is_stmt 1 view .LVU54
+ 289 0008 18B1     		cbz	r0, .L22
+ 290              		.loc 1 42 11 is_stmt 0 discriminator 1 view .LVU55
+ 291 000a 052C     		cmp	r4, #5
+ 292              		.loc 1 42 44 is_stmt 1 discriminator 2 view .LVU56
+ 293              		.loc 1 42 69 is_stmt 0 discriminator 2 view .LVU57
+ 294 000c 98BF     		it	ls
+ 295 000e 80F8B548 		strbls	r4, [r0, #2229]
+ 296              	.L22:
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_light_effect.cpp **** }
+ 297              		.loc 1 43 1 view .LVU58
+ 298 0012 10BD     		pop	{r4, pc}
+ 299              		.loc 1 43 1 view .LVU59
+ 300              		.cfi_endproc
+ 301              	.LFE2169:
+ 303              		.section	.rodata.str1.1,"aMS",%progbits,1
+ 304              	.LC1:
+ 305 0000 53746174 		.ascii	"Static\000"
+ 305      696300
+ 306              	.LC2:
+ 307 0007 42726561 		.ascii	"Breathing\000"
+ 307      7468696E 
+ 307      6700
+ 308              	.LC3:
+ 309 0011 53746172 		.ascii	"Star\000"
+ 309      00
+ 310              	.LC4:
+ 311 0016 466C6F77 		.ascii	"Flowing\000"
+ 311      696E6700 
+ 312              	.LC5:
+ 313 001e 52697070 		.ascii	"Ripple\000"
+ 313      6C6500
+ 314              	.LC6:
+ 315 0025 5472616E 		.ascii	"Transform\000"
+ 315      73666F72 
+ 315      6D00
+ 316              		.section	.data._ZL18kLightEffectLabels,"aw"
+ 317              		.align	2
+ 320              	_ZL18kLightEffectLabels:
+ 321 0000 00000000 		.word	.LC1
+ 322 0004 07000000 		.word	.LC2
+ 323 0008 11000000 		.word	.LC3
+ 324 000c 16000000 		.word	.LC4
+ 325 0010 1E000000 		.word	.LC5
+ 326 0014 25000000 		.word	.LC6
+ 327              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 328              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 329              		.align	2
+ 332              	_ZGVZN7Storage11getInstanceEvE8instance:
+ 333 0000 00000000 		.space	4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 9
+
+
+ 334              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 335              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 336              		.align	2
+ 339              	_ZZN7Storage11getInstanceEvE8instance:
+ 340 0000 00000000 		.space	36484
+ 340      00000000 
+ 340      00000000 
+ 340      00000000 
+ 340      00000000 
+ 341              		.text
+ 342              	.Letext0:
+ 343              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 344              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 345              		.file 5 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 346              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 347              		.file 7 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 348              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 349              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 350              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 351              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 352              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 353              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 354              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 355              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 356              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 357              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 358              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 359              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 360              		.file 20 "Core/Inc/board_cfg.h"
+ 361              		.file 21 "Cpp_Core/Inc/enums.hpp"
+ 362              		.file 22 "Drivers/SPI-ST7789/st7789.h"
+ 363              		.file 23 "Cpp_Core/Inc/config.hpp"
+ 364              		.file 24 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 365              		.file 25 "Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s 			page 10
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_light_effect.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:20     .text._ZL15default_profilev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:25     .text._ZL15default_profilev:00000000 _ZL15default_profilev
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:105    .text._ZL15default_profilev:0000002c $d
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:332    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:339    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:113    .text._Z33ScreenDetailLightEffect_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:119    .text._Z33ScreenDetailLightEffect_InitIndexv:00000000 _Z33ScreenDetailLightEffect_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:154    .text._Z30ScreenDetailLightEffect_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:160    .text._Z30ScreenDetailLightEffect_RotatePha:00000000 _Z30ScreenDetailLightEffect_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:197    .text._Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:203    .text._Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:257    .text._Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:320    .data._ZL18kLightEffectLabels:00000000 _ZL18kLightEffectLabels
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:263    .text._Z33ScreenDetailLightEffect_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:269    .text._Z33ScreenDetailLightEffect_OnConfirmh:00000000 _Z33ScreenDetailLightEffect_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:317    .data._ZL18kLightEffectLabels:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:329    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccWJJ5MX.s:336    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+__cxa_guard_acquire
+__cxa_guard_release
+_ZN7Storage17getGamepadProfileEPc
+_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb

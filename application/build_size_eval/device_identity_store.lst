@@ -1,0 +1,2175 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"device_identity_store.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "../common/device_identity_store.c"
+  19              		.section	.text.program_and_verify_flashword,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	program_and_verify_flashword:
+  26              	.LVL0:
+  27              	.LFB9:
+   1:../common/device_identity_store.c **** #include "device_identity_store.h"
+   2:../common/device_identity_store.c **** 
+   3:../common/device_identity_store.c **** #include <stddef.h>
+   4:../common/device_identity_store.c **** #include <string.h>
+   5:../common/device_identity_store.c **** 
+   6:../common/device_identity_store.c **** #include "device_security_boot_context.h"
+   7:../common/device_identity_store.c **** 
+   8:../common/device_identity_store.c **** #ifndef HBOX_DEVICE_IDENTITY_PROVIDER_READY
+   9:../common/device_identity_store.c **** #define HBOX_DEVICE_IDENTITY_PROVIDER_READY 0
+  10:../common/device_identity_store.c **** #endif
+  11:../common/device_identity_store.c **** 
+  12:../common/device_identity_store.c **** #define IDENTITY_RECORD_FLASHWORDS \
+  13:../common/device_identity_store.c ****     (HBOX_DEVICE_IDENTITY_RECORD_BYTES / HBOX_INTERNAL_FLASH_PROGRAM_BYTES)
+  14:../common/device_identity_store.c **** #define IDENTITY_COMMIT_FLASHWORD IDENTITY_RECORD_FLASHWORDS
+  15:../common/device_identity_store.c **** #define IDENTITY_SLOT_FLASHWORDS \
+  16:../common/device_identity_store.c ****     (HBOX_DEVICE_IDENTITY_SLOT_BYTES / HBOX_INTERNAL_FLASH_PROGRAM_BYTES)
+  17:../common/device_identity_store.c **** 
+  18:../common/device_identity_store.c **** static int all_zero(const uint8_t *value, size_t length)
+  19:../common/device_identity_store.c **** {
+  20:../common/device_identity_store.c ****     uint8_t combined = 0u;
+  21:../common/device_identity_store.c ****     size_t index;
+  22:../common/device_identity_store.c ****     for (index = 0u; index < length; ++index) {
+  23:../common/device_identity_store.c ****         combined |= value[index];
+  24:../common/device_identity_store.c ****     }
+  25:../common/device_identity_store.c ****     return combined == 0u;
+  26:../common/device_identity_store.c **** }
+  27:../common/device_identity_store.c **** 
+  28:../common/device_identity_store.c **** static int all_erased(const uint8_t *value, size_t length)
+  29:../common/device_identity_store.c **** {
+  30:../common/device_identity_store.c ****     size_t index;
+  31:../common/device_identity_store.c ****     for (index = 0u; index < length; ++index) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 2
+
+
+  32:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+  33:../common/device_identity_store.c ****             return 0;
+  34:../common/device_identity_store.c ****         }
+  35:../common/device_identity_store.c ****     }
+  36:../common/device_identity_store.c ****     return 1;
+  37:../common/device_identity_store.c **** }
+  38:../common/device_identity_store.c **** 
+  39:../common/device_identity_store.c **** static uint32_t commit_crc32(
+  40:../common/device_identity_store.c ****     const hbox_device_identity_commit_v1_t *commit)
+  41:../common/device_identity_store.c **** {
+  42:../common/device_identity_store.c ****     return HBoxSecurity_Crc32Skipping(
+  43:../common/device_identity_store.c ****         (const uint8_t *)commit,
+  44:../common/device_identity_store.c ****         sizeof(*commit),
+  45:../common/device_identity_store.c ****         offsetof(hbox_device_identity_commit_v1_t, commit_crc32_le),
+  46:../common/device_identity_store.c ****         sizeof(commit->commit_crc32_le));
+  47:../common/device_identity_store.c **** }
+  48:../common/device_identity_store.c **** 
+  49:../common/device_identity_store.c **** static int record_is_valid(
+  50:../common/device_identity_store.c ****     const hbox_device_identity_record_v1_t *record)
+  51:../common/device_identity_store.c **** {
+  52:../common/device_identity_store.c ****     uint32_t expected_crc;
+  53:../common/device_identity_store.c ****     uint8_t nonzero_private = 0u;
+  54:../common/device_identity_store.c ****     size_t index;
+  55:../common/device_identity_store.c **** 
+  56:../common/device_identity_store.c ****     if (record->magic_le != HBOX_DEVICE_IDENTITY_MAGIC ||
+  57:../common/device_identity_store.c ****         record->version != HBOX_DEVICE_IDENTITY_VERSION ||
+  58:../common/device_identity_store.c ****         record->locked != HBOX_DEVICE_IDENTITY_LOCKED ||
+  59:../common/device_identity_store.c ****         record->total_bytes_le != sizeof(*record) ||
+  60:../common/device_identity_store.c ****         !all_zero(record->reserved, sizeof(record->reserved)) ||
+  61:../common/device_identity_store.c ****         record->device_certificate.magic_le !=
+  62:../common/device_identity_store.c ****             HBOX_DEVICE_CERTIFICATE_MAGIC ||
+  63:../common/device_identity_store.c ****         record->device_certificate.version !=
+  64:../common/device_identity_store.c ****             HBOX_SECURITY_PROTOCOL_VERSION ||
+  65:../common/device_identity_store.c ****         record->device_certificate.signed_bytes_le !=
+  66:../common/device_identity_store.c ****             HBOX_DEVICE_CERTIFICATE_SIGNED_BYTES) {
+  67:../common/device_identity_store.c ****         return 0;
+  68:../common/device_identity_store.c ****     }
+  69:../common/device_identity_store.c ****     for (index = 0u; index < sizeof(record->device_private_key); ++index) {
+  70:../common/device_identity_store.c ****         nonzero_private |= record->device_private_key[index];
+  71:../common/device_identity_store.c ****     }
+  72:../common/device_identity_store.c ****     expected_crc = HBoxSecurity_Crc32Skipping(
+  73:../common/device_identity_store.c ****         (const uint8_t *)record,
+  74:../common/device_identity_store.c ****         sizeof(*record),
+  75:../common/device_identity_store.c ****         offsetof(hbox_device_identity_record_v1_t, crc32_le),
+  76:../common/device_identity_store.c ****         sizeof(record->crc32_le));
+  77:../common/device_identity_store.c ****     if (nonzero_private == 0u || expected_crc == 0u ||
+  78:../common/device_identity_store.c ****         expected_crc != record->crc32_le) {
+  79:../common/device_identity_store.c ****         return 0;
+  80:../common/device_identity_store.c ****     }
+  81:../common/device_identity_store.c ****     return 1;
+  82:../common/device_identity_store.c **** }
+  83:../common/device_identity_store.c **** 
+  84:../common/device_identity_store.c **** static int commit_is_valid(
+  85:../common/device_identity_store.c ****     const hbox_device_identity_commit_v1_t *commit,
+  86:../common/device_identity_store.c ****     uint32_t slot_index,
+  87:../common/device_identity_store.c ****     uint32_t record_crc)
+  88:../common/device_identity_store.c **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 3
+
+
+  89:../common/device_identity_store.c ****     uint32_t expected_crc;
+  90:../common/device_identity_store.c **** 
+  91:../common/device_identity_store.c ****     if (commit->magic_le != HBOX_DEVICE_IDENTITY_COMMIT_MAGIC ||
+  92:../common/device_identity_store.c ****         commit->version != HBOX_DEVICE_IDENTITY_COMMIT_VERSION ||
+  93:../common/device_identity_store.c ****         commit->reserved0 != 0u ||
+  94:../common/device_identity_store.c ****         commit->total_bytes_le != sizeof(*commit) ||
+  95:../common/device_identity_store.c ****         commit->slot_ordinal_le != slot_index + 1u ||
+  96:../common/device_identity_store.c ****         commit->record_crc32_le != record_crc ||
+  97:../common/device_identity_store.c ****         commit->record_crc32_inverse_le != ~record_crc ||
+  98:../common/device_identity_store.c ****         commit->committed_le != HBOX_DEVICE_IDENTITY_COMMITTED ||
+  99:../common/device_identity_store.c ****         !all_zero(commit->reserved1, sizeof(commit->reserved1))) {
+ 100:../common/device_identity_store.c ****         return 0;
+ 101:../common/device_identity_store.c ****     }
+ 102:../common/device_identity_store.c ****     expected_crc = commit_crc32(commit);
+ 103:../common/device_identity_store.c ****     return expected_crc != 0u &&
+ 104:../common/device_identity_store.c ****            expected_crc == commit->commit_crc32_le;
+ 105:../common/device_identity_store.c **** }
+ 106:../common/device_identity_store.c **** 
+ 107:../common/device_identity_store.c **** static int backend_is_valid(
+ 108:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 109:../common/device_identity_store.c ****     int require_factory_write)
+ 110:../common/device_identity_store.c **** {
+ 111:../common/device_identity_store.c ****     return backend != NULL &&
+ 112:../common/device_identity_store.c ****            backend->slot_count != 0u &&
+ 113:../common/device_identity_store.c ****            backend->slot_count <= HBOX_DEVICE_IDENTITY_SLOT_COUNT &&
+ 114:../common/device_identity_store.c ****            backend->read_flashword != NULL &&
+ 115:../common/device_identity_store.c ****            (!require_factory_write ||
+ 116:../common/device_identity_store.c ****             (backend->program_flashword != NULL &&
+ 117:../common/device_identity_store.c ****              backend->factory_authorized != NULL));
+ 118:../common/device_identity_store.c **** }
+ 119:../common/device_identity_store.c **** 
+ 120:../common/device_identity_store.c **** static int read_slot(
+ 121:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 122:../common/device_identity_store.c ****     uint32_t slot_index,
+ 123:../common/device_identity_store.c ****     uint8_t slot[HBOX_DEVICE_IDENTITY_SLOT_BYTES])
+ 124:../common/device_identity_store.c **** {
+ 125:../common/device_identity_store.c ****     uint32_t flashword;
+ 126:../common/device_identity_store.c **** 
+ 127:../common/device_identity_store.c ****     for (flashword = 0u;
+ 128:../common/device_identity_store.c ****          flashword < IDENTITY_SLOT_FLASHWORDS;
+ 129:../common/device_identity_store.c ****          ++flashword) {
+ 130:../common/device_identity_store.c ****         if (!backend->read_flashword(
+ 131:../common/device_identity_store.c ****                 backend->context,
+ 132:../common/device_identity_store.c ****                 slot_index,
+ 133:../common/device_identity_store.c ****                 flashword,
+ 134:../common/device_identity_store.c ****                 slot + flashword * HBOX_INTERNAL_FLASH_PROGRAM_BYTES)) {
+ 135:../common/device_identity_store.c ****             memset(slot, 0, HBOX_DEVICE_IDENTITY_SLOT_BYTES);
+ 136:../common/device_identity_store.c ****             return 0;
+ 137:../common/device_identity_store.c ****         }
+ 138:../common/device_identity_store.c ****     }
+ 139:../common/device_identity_store.c ****     return 1;
+ 140:../common/device_identity_store.c **** }
+ 141:../common/device_identity_store.c **** 
+ 142:../common/device_identity_store.c **** hbox_device_identity_status_t HBoxIdentityStore_LoadFromBackend(
+ 143:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 144:../common/device_identity_store.c ****     hbox_device_identity_record_v1_t *record)
+ 145:../common/device_identity_store.c **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 4
+
+
+ 146:../common/device_identity_store.c ****     uint8_t slot[HBOX_DEVICE_IDENTITY_SLOT_BYTES];
+ 147:../common/device_identity_store.c ****     hbox_device_identity_record_v1_t candidate;
+ 148:../common/device_identity_store.c ****     hbox_device_identity_commit_v1_t commit;
+ 149:../common/device_identity_store.c ****     uint32_t valid_count = 0u;
+ 150:../common/device_identity_store.c ****     uint32_t slot_index;
+ 151:../common/device_identity_store.c **** 
+ 152:../common/device_identity_store.c ****     if (record == NULL || !backend_is_valid(backend, 0)) {
+ 153:../common/device_identity_store.c ****         if (record != NULL) {
+ 154:../common/device_identity_store.c ****             memset(record, 0, sizeof(*record));
+ 155:../common/device_identity_store.c ****         }
+ 156:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_UNAVAILABLE;
+ 157:../common/device_identity_store.c ****     }
+ 158:../common/device_identity_store.c ****     memset(record, 0, sizeof(*record));
+ 159:../common/device_identity_store.c ****     memset(&candidate, 0, sizeof(candidate));
+ 160:../common/device_identity_store.c ****     memset(&commit, 0, sizeof(commit));
+ 161:../common/device_identity_store.c **** 
+ 162:../common/device_identity_store.c ****     for (slot_index = 0u;
+ 163:../common/device_identity_store.c ****          slot_index < backend->slot_count;
+ 164:../common/device_identity_store.c ****         ++slot_index) {
+ 165:../common/device_identity_store.c ****         if (!read_slot(backend, slot_index, slot)) {
+ 166:../common/device_identity_store.c ****             memset(&candidate, 0, sizeof(candidate));
+ 167:../common/device_identity_store.c ****             memset(&commit, 0, sizeof(commit));
+ 168:../common/device_identity_store.c ****             memset(record, 0, sizeof(*record));
+ 169:../common/device_identity_store.c ****             return HBOX_DEVICE_IDENTITY_IO_ERROR;
+ 170:../common/device_identity_store.c ****         }
+ 171:../common/device_identity_store.c ****         if (all_erased(slot, sizeof(slot))) {
+ 172:../common/device_identity_store.c ****             continue;
+ 173:../common/device_identity_store.c ****         }
+ 174:../common/device_identity_store.c ****         memcpy(&candidate, slot, sizeof(candidate));
+ 175:../common/device_identity_store.c ****         memcpy(&commit, slot + sizeof(candidate), sizeof(commit));
+ 176:../common/device_identity_store.c **** 
+ 177:../common/device_identity_store.c ****         /*
+ 178:../common/device_identity_store.c ****          * A slot without a valid final commit flashword is an abandoned
+ 179:../common/device_identity_store.c ****          * factory attempt.  It is never accepted and a later erased slot can
+ 180:../common/device_identity_store.c ****          * be used without erasing the single internal-Flash sector.
+ 181:../common/device_identity_store.c ****          */
+ 182:../common/device_identity_store.c ****         if (!commit_is_valid(
+ 183:../common/device_identity_store.c ****                 &commit, slot_index, candidate.crc32_le)) {
+ 184:../common/device_identity_store.c ****             continue;
+ 185:../common/device_identity_store.c ****         }
+ 186:../common/device_identity_store.c ****         if (!record_is_valid(&candidate)) {
+ 187:../common/device_identity_store.c ****             memset(slot, 0, sizeof(slot));
+ 188:../common/device_identity_store.c ****             memset(&candidate, 0, sizeof(candidate));
+ 189:../common/device_identity_store.c ****             memset(&commit, 0, sizeof(commit));
+ 190:../common/device_identity_store.c ****             memset(record, 0, sizeof(*record));
+ 191:../common/device_identity_store.c ****             return HBOX_DEVICE_IDENTITY_CORRUPT;
+ 192:../common/device_identity_store.c ****         }
+ 193:../common/device_identity_store.c ****         ++valid_count;
+ 194:../common/device_identity_store.c ****         if (valid_count != 1u) {
+ 195:../common/device_identity_store.c ****             memset(slot, 0, sizeof(slot));
+ 196:../common/device_identity_store.c ****             memset(&candidate, 0, sizeof(candidate));
+ 197:../common/device_identity_store.c ****             memset(&commit, 0, sizeof(commit));
+ 198:../common/device_identity_store.c ****             memset(record, 0, sizeof(*record));
+ 199:../common/device_identity_store.c ****             return HBOX_DEVICE_IDENTITY_CORRUPT;
+ 200:../common/device_identity_store.c ****         }
+ 201:../common/device_identity_store.c ****         memcpy(record, &candidate, sizeof(*record));
+ 202:../common/device_identity_store.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 5
+
+
+ 203:../common/device_identity_store.c **** 
+ 204:../common/device_identity_store.c ****     memset(slot, 0, sizeof(slot));
+ 205:../common/device_identity_store.c ****     memset(&candidate, 0, sizeof(candidate));
+ 206:../common/device_identity_store.c ****     memset(&commit, 0, sizeof(commit));
+ 207:../common/device_identity_store.c ****     return valid_count == 1u
+ 208:../common/device_identity_store.c ****                ? HBOX_DEVICE_IDENTITY_OK
+ 209:../common/device_identity_store.c ****                : HBOX_DEVICE_IDENTITY_UNPROVISIONED;
+ 210:../common/device_identity_store.c **** }
+ 211:../common/device_identity_store.c **** 
+ 212:../common/device_identity_store.c **** static void build_commit(
+ 213:../common/device_identity_store.c ****     hbox_device_identity_commit_v1_t *commit,
+ 214:../common/device_identity_store.c ****     uint32_t slot_index,
+ 215:../common/device_identity_store.c ****     uint32_t record_crc)
+ 216:../common/device_identity_store.c **** {
+ 217:../common/device_identity_store.c ****     memset(commit, 0, sizeof(*commit));
+ 218:../common/device_identity_store.c ****     commit->magic_le = HBOX_DEVICE_IDENTITY_COMMIT_MAGIC;
+ 219:../common/device_identity_store.c ****     commit->version = HBOX_DEVICE_IDENTITY_COMMIT_VERSION;
+ 220:../common/device_identity_store.c ****     commit->total_bytes_le = sizeof(*commit);
+ 221:../common/device_identity_store.c ****     commit->slot_ordinal_le = slot_index + 1u;
+ 222:../common/device_identity_store.c ****     commit->record_crc32_le = record_crc;
+ 223:../common/device_identity_store.c ****     commit->record_crc32_inverse_le = ~record_crc;
+ 224:../common/device_identity_store.c ****     commit->committed_le = HBOX_DEVICE_IDENTITY_COMMITTED;
+ 225:../common/device_identity_store.c ****     commit->commit_crc32_le = commit_crc32(commit);
+ 226:../common/device_identity_store.c **** }
+ 227:../common/device_identity_store.c **** 
+ 228:../common/device_identity_store.c **** static int program_and_verify_flashword(
+ 229:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 230:../common/device_identity_store.c ****     uint32_t slot_index,
+ 231:../common/device_identity_store.c ****     uint32_t flashword_index,
+ 232:../common/device_identity_store.c ****     const uint8_t input[HBOX_INTERNAL_FLASH_PROGRAM_BYTES])
+ 233:../common/device_identity_store.c **** {
+  28              		.loc 1 233 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 64
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+ 234:../common/device_identity_store.c ****     uint8_t erased[HBOX_INTERNAL_FLASH_PROGRAM_BYTES];
+  32              		.loc 1 234 5 view .LVU1
+ 235:../common/device_identity_store.c ****     uint8_t readback[HBOX_INTERNAL_FLASH_PROGRAM_BYTES];
+  33              		.loc 1 235 5 view .LVU2
+ 236:../common/device_identity_store.c ****     int result = 0;
+  34              		.loc 1 236 5 view .LVU3
+ 237:../common/device_identity_store.c **** 
+ 238:../common/device_identity_store.c ****     if (!backend->read_flashword(
+  35              		.loc 1 238 5 view .LVU4
+ 233:../common/device_identity_store.c ****     uint8_t erased[HBOX_INTERNAL_FLASH_PROGRAM_BYTES];
+  36              		.loc 1 233 1 is_stmt 0 view .LVU5
+  37 0000 2DE9F043 		push	{r4, r5, r6, r7, r8, r9, lr}
+  38              	.LCFI0:
+  39              		.cfi_def_cfa_offset 28
+  40              		.cfi_offset 4, -28
+  41              		.cfi_offset 5, -24
+  42              		.cfi_offset 6, -20
+  43              		.cfi_offset 7, -16
+  44              		.cfi_offset 8, -12
+  45              		.cfi_offset 9, -8
+  46              		.cfi_offset 14, -4
+  47 0004 91B0     		sub	sp, sp, #68
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 6
+
+
+  48              	.LCFI1:
+  49              		.cfi_def_cfa_offset 96
+ 233:../common/device_identity_store.c ****     uint8_t erased[HBOX_INTERNAL_FLASH_PROGRAM_BYTES];
+  50              		.loc 1 233 1 view .LVU6
+  51 0006 0446     		mov	r4, r0
+  52 0008 9846     		mov	r8, r3
+  53              		.loc 1 238 10 view .LVU7
+  54 000a 8568     		ldr	r5, [r0, #8]
+  55 000c 6B46     		mov	r3, sp
+  56              	.LVL1:
+  57              		.loc 1 238 10 view .LVU8
+  58 000e 0068     		ldr	r0, [r0]
+  59              	.LVL2:
+ 233:../common/device_identity_store.c ****     uint8_t erased[HBOX_INTERNAL_FLASH_PROGRAM_BYTES];
+  60              		.loc 1 233 1 view .LVU9
+  61 0010 0E46     		mov	r6, r1
+  62 0012 1746     		mov	r7, r2
+  63              		.loc 1 238 10 view .LVU10
+  64 0014 A847     		blx	r5
+  65              	.LVL3:
+  66              		.loc 1 238 8 discriminator 1 view .LVU11
+  67 0016 18B9     		cbnz	r0, .L2
+  68              	.L4:
+ 236:../common/device_identity_store.c ****     int result = 0;
+  69              		.loc 1 236 9 view .LVU12
+  70 0018 0020     		movs	r0, #0
+  71              	.LVL4:
+  72              	.L1:
+ 239:../common/device_identity_store.c ****             backend->context,
+ 240:../common/device_identity_store.c ****             slot_index,
+ 241:../common/device_identity_store.c ****             flashword_index,
+ 242:../common/device_identity_store.c ****             erased) ||
+ 243:../common/device_identity_store.c ****         !all_erased(erased, sizeof(erased)) ||
+ 244:../common/device_identity_store.c ****         !backend->program_flashword(
+ 245:../common/device_identity_store.c ****             backend->context,
+ 246:../common/device_identity_store.c ****             slot_index,
+ 247:../common/device_identity_store.c ****             flashword_index,
+ 248:../common/device_identity_store.c ****             input) ||
+ 249:../common/device_identity_store.c ****         !backend->read_flashword(
+ 250:../common/device_identity_store.c ****             backend->context,
+ 251:../common/device_identity_store.c ****             slot_index,
+ 252:../common/device_identity_store.c ****             flashword_index,
+ 253:../common/device_identity_store.c ****             readback)) {
+ 254:../common/device_identity_store.c ****         goto done;
+ 255:../common/device_identity_store.c ****     }
+ 256:../common/device_identity_store.c ****     result = memcmp(input, readback, sizeof(readback)) == 0;
+ 257:../common/device_identity_store.c **** 
+ 258:../common/device_identity_store.c **** done:
+ 259:../common/device_identity_store.c ****     memset(erased, 0, sizeof(erased));
+ 260:../common/device_identity_store.c ****     memset(readback, 0, sizeof(readback));
+ 261:../common/device_identity_store.c ****     return result;
+ 262:../common/device_identity_store.c **** }
+  73              		.loc 1 262 1 view .LVU13
+  74 001a 11B0     		add	sp, sp, #68
+  75              	.LCFI2:
+  76              		.cfi_remember_state
+  77              		.cfi_def_cfa_offset 28
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 7
+
+
+  78              		@ sp needed
+  79 001c BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+  80              	.LVL5:
+  81              	.L2:
+  82              	.LCFI3:
+  83              		.cfi_restore_state
+  84              		.loc 1 262 1 view .LVU14
+  85 0020 6D46     		mov	r5, sp
+  86              	.LBB4:
+  87              	.LBB5:
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+  88              		.loc 1 31 16 view .LVU15
+  89 0022 4FF00009 		mov	r9, #0
+  90              	.L5:
+  91              	.LVL6:
+  32:../common/device_identity_store.c ****             return 0;
+  92              		.loc 1 32 9 is_stmt 1 view .LVU16
+  32:../common/device_identity_store.c ****             return 0;
+  93              		.loc 1 32 18 is_stmt 0 view .LVU17
+  94 0026 15F8013B 		ldrb	r3, [r5], #1	@ zero_extendqisi2
+  32:../common/device_identity_store.c ****             return 0;
+  95              		.loc 1 32 12 view .LVU18
+  96 002a FF2B     		cmp	r3, #255
+  97 002c F4D1     		bne	.L4
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+  98              		.loc 1 31 38 is_stmt 1 discriminator 2 view .LVU19
+  99 002e 09F10109 		add	r9, r9, #1
+ 100              	.LVL7:
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 101              		.loc 1 31 28 discriminator 1 view .LVU20
+ 102 0032 B9F1200F 		cmp	r9, #32
+ 103 0036 F6D1     		bne	.L5
+ 104              	.LVL8:
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 105              		.loc 1 31 28 is_stmt 0 discriminator 1 view .LVU21
+ 106              	.LBE5:
+ 107              	.LBE4:
+ 244:../common/device_identity_store.c ****             backend->context,
+ 108              		.loc 1 244 10 view .LVU22
+ 109 0038 E568     		ldr	r5, [r4, #12]
+ 110 003a 4346     		mov	r3, r8
+ 111 003c 3A46     		mov	r2, r7
+ 112 003e 3146     		mov	r1, r6
+ 113 0040 2068     		ldr	r0, [r4]
+ 114 0042 A847     		blx	r5
+ 115              	.LVL9:
+ 243:../common/device_identity_store.c ****         !backend->program_flashword(
+ 116              		.loc 1 243 45 view .LVU23
+ 117 0044 0028     		cmp	r0, #0
+ 118 0046 E7D0     		beq	.L4
+ 249:../common/device_identity_store.c ****             backend->context,
+ 119              		.loc 1 249 10 view .LVU24
+ 120 0048 A568     		ldr	r5, [r4, #8]
+ 121 004a 08AB     		add	r3, sp, #32
+ 122 004c 3A46     		mov	r2, r7
+ 123 004e 3146     		mov	r1, r6
+ 124 0050 2068     		ldr	r0, [r4]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 8
+
+
+ 125 0052 A847     		blx	r5
+ 126              	.LVL10:
+ 248:../common/device_identity_store.c ****         !backend->read_flashword(
+ 127              		.loc 1 248 20 view .LVU25
+ 128 0054 0028     		cmp	r0, #0
+ 129 0056 DFD0     		beq	.L4
+ 130              	.L3:
+ 256:../common/device_identity_store.c **** 
+ 131              		.loc 1 256 5 is_stmt 1 view .LVU26
+ 256:../common/device_identity_store.c **** 
+ 132              		.loc 1 256 14 is_stmt 0 view .LVU27
+ 133 0058 4A46     		mov	r2, r9
+ 134 005a 08A9     		add	r1, sp, #32
+ 135 005c 4046     		mov	r0, r8
+ 136 005e FFF7FEFF 		bl	memcmp
+ 137              	.LVL11:
+ 256:../common/device_identity_store.c **** 
+ 138              		.loc 1 256 56 discriminator 1 view .LVU28
+ 139 0062 B0FA80F0 		clz	r0, r0
+ 140 0066 4009     		lsrs	r0, r0, #5
+ 141              	.LVL12:
+ 259:../common/device_identity_store.c ****     memset(readback, 0, sizeof(readback));
+ 142              		.loc 1 259 5 is_stmt 1 view .LVU29
+ 260:../common/device_identity_store.c ****     return result;
+ 143              		.loc 1 260 5 view .LVU30
+ 261:../common/device_identity_store.c **** }
+ 144              		.loc 1 261 5 view .LVU31
+ 261:../common/device_identity_store.c **** }
+ 145              		.loc 1 261 12 is_stmt 0 view .LVU32
+ 146 0068 D7E7     		b	.L1
+ 147              		.cfi_endproc
+ 148              	.LFE9:
+ 150              		.section	.text.read_slot,"ax",%progbits
+ 151              		.align	1
+ 152              		.syntax unified
+ 153              		.thumb
+ 154              		.thumb_func
+ 156              	read_slot:
+ 157              	.LVL13:
+ 158              	.LFB6:
+ 124:../common/device_identity_store.c ****     uint32_t flashword;
+ 159              		.loc 1 124 1 is_stmt 1 view -0
+ 160              		.cfi_startproc
+ 161              		@ args = 0, pretend = 0, frame = 0
+ 162              		@ frame_needed = 0, uses_anonymous_args = 0
+ 124:../common/device_identity_store.c ****     uint32_t flashword;
+ 163              		.loc 1 124 1 is_stmt 0 view .LVU34
+ 164 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 165              	.LCFI4:
+ 166              		.cfi_def_cfa_offset 24
+ 167              		.cfi_offset 4, -24
+ 168              		.cfi_offset 5, -20
+ 169              		.cfi_offset 6, -16
+ 170              		.cfi_offset 7, -12
+ 171              		.cfi_offset 8, -8
+ 172              		.cfi_offset 14, -4
+ 124:../common/device_identity_store.c ****     uint32_t flashword;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 9
+
+
+ 173              		.loc 1 124 1 view .LVU35
+ 174 0004 0646     		mov	r6, r0
+ 125:../common/device_identity_store.c **** 
+ 175              		.loc 1 125 5 is_stmt 1 view .LVU36
+ 127:../common/device_identity_store.c ****          flashword < IDENTITY_SLOT_FLASHWORDS;
+ 176              		.loc 1 127 5 view .LVU37
+ 177              	.LVL14:
+ 128:../common/device_identity_store.c ****          ++flashword) {
+ 178              		.loc 1 128 20 view .LVU38
+ 124:../common/device_identity_store.c ****     uint32_t flashword;
+ 179              		.loc 1 124 1 is_stmt 0 view .LVU39
+ 180 0006 8846     		mov	r8, r1
+ 181 0008 1746     		mov	r7, r2
+ 127:../common/device_identity_store.c ****          flashword < IDENTITY_SLOT_FLASHWORDS;
+ 182              		.loc 1 127 20 view .LVU40
+ 183 000a 0025     		movs	r5, #0
+ 184              	.LVL15:
+ 185              	.L20:
+ 130:../common/device_identity_store.c ****                 backend->context,
+ 186              		.loc 1 130 9 is_stmt 1 view .LVU41
+ 130:../common/device_identity_store.c ****                 backend->context,
+ 187              		.loc 1 130 14 is_stmt 0 view .LVU42
+ 188 000c B468     		ldr	r4, [r6, #8]
+ 189 000e 07EB4513 		add	r3, r7, r5, lsl #5
+ 190 0012 2A46     		mov	r2, r5
+ 191 0014 4146     		mov	r1, r8
+ 192 0016 3068     		ldr	r0, [r6]
+ 193 0018 A047     		blx	r4
+ 194              	.LVL16:
+ 130:../common/device_identity_store.c ****                 backend->context,
+ 195              		.loc 1 130 12 discriminator 1 view .LVU43
+ 196 001a 0446     		mov	r4, r0
+ 197 001c 40B9     		cbnz	r0, .L18
+ 198              	.LVL17:
+ 199              	.LBB8:
+ 200              	.LBI8:
+ 120:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 201              		.loc 1 120 12 is_stmt 1 view .LVU44
+ 202              	.LBB9:
+ 135:../common/device_identity_store.c ****             return 0;
+ 203              		.loc 1 135 13 view .LVU45
+ 204 001e 0146     		mov	r1, r0
+ 205 0020 4FF49072 		mov	r2, #288
+ 206 0024 3846     		mov	r0, r7
+ 207 0026 FFF7FEFF 		bl	memset
+ 208              	.LVL18:
+ 136:../common/device_identity_store.c ****         }
+ 209              		.loc 1 136 13 view .LVU46
+ 210              	.L17:
+ 136:../common/device_identity_store.c ****         }
+ 211              		.loc 1 136 13 is_stmt 0 view .LVU47
+ 212              	.LBE9:
+ 213              	.LBE8:
+ 140:../common/device_identity_store.c **** 
+ 214              		.loc 1 140 1 view .LVU48
+ 215 002a 2046     		mov	r0, r4
+ 216 002c BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 10
+
+
+ 217              	.LVL19:
+ 218              	.L18:
+ 129:../common/device_identity_store.c ****         if (!backend->read_flashword(
+ 219              		.loc 1 129 10 is_stmt 1 view .LVU49
+ 220 0030 0135     		adds	r5, r5, #1
+ 221              	.LVL20:
+ 128:../common/device_identity_store.c ****          ++flashword) {
+ 222              		.loc 1 128 20 view .LVU50
+ 223 0032 092D     		cmp	r5, #9
+ 224 0034 EAD1     		bne	.L20
+ 139:../common/device_identity_store.c **** }
+ 225              		.loc 1 139 12 is_stmt 0 view .LVU51
+ 226 0036 0124     		movs	r4, #1
+ 227 0038 F7E7     		b	.L17
+ 228              		.cfi_endproc
+ 229              	.LFE6:
+ 231              		.section	.text.record_is_valid,"ax",%progbits
+ 232              		.align	1
+ 233              		.syntax unified
+ 234              		.thumb
+ 235              		.thumb_func
+ 237              	record_is_valid:
+ 238              	.LVL21:
+ 239              	.LFB3:
+  51:../common/device_identity_store.c ****     uint32_t expected_crc;
+ 240              		.loc 1 51 1 is_stmt 1 view -0
+ 241              		.cfi_startproc
+ 242              		@ args = 0, pretend = 0, frame = 0
+ 243              		@ frame_needed = 0, uses_anonymous_args = 0
+  52:../common/device_identity_store.c ****     uint8_t nonzero_private = 0u;
+ 244              		.loc 1 52 5 view .LVU53
+  53:../common/device_identity_store.c ****     size_t index;
+ 245              		.loc 1 53 5 view .LVU54
+  54:../common/device_identity_store.c **** 
+ 246              		.loc 1 54 5 view .LVU55
+  56:../common/device_identity_store.c ****         record->version != HBOX_DEVICE_IDENTITY_VERSION ||
+ 247              		.loc 1 56 5 view .LVU56
+  51:../common/device_identity_store.c ****     uint32_t expected_crc;
+ 248              		.loc 1 51 1 is_stmt 0 view .LVU57
+ 249 0000 38B5     		push	{r3, r4, r5, lr}
+ 250              	.LCFI5:
+ 251              		.cfi_def_cfa_offset 16
+ 252              		.cfi_offset 3, -16
+ 253              		.cfi_offset 4, -12
+ 254              		.cfi_offset 5, -8
+ 255              		.cfi_offset 14, -4
+  56:../common/device_identity_store.c ****         record->version != HBOX_DEVICE_IDENTITY_VERSION ||
+ 256              		.loc 1 56 15 view .LVU58
+ 257 0002 0268     		ldr	r2, [r0]	@ unaligned
+  51:../common/device_identity_store.c ****     uint32_t expected_crc;
+ 258              		.loc 1 51 1 view .LVU59
+ 259 0004 0446     		mov	r4, r0
+  56:../common/device_identity_store.c ****         record->version != HBOX_DEVICE_IDENTITY_VERSION ||
+ 260              		.loc 1 56 8 view .LVU60
+ 261 0006 204B     		ldr	r3, .L36
+ 262 0008 9A42     		cmp	r2, r3
+ 263 000a 01D0     		beq	.L23
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 11
+
+
+ 264              	.LVL22:
+ 265              	.L25:
+  67:../common/device_identity_store.c ****     }
+ 266              		.loc 1 67 16 view .LVU61
+ 267 000c 0020     		movs	r0, #0
+ 268              	.L22:
+  82:../common/device_identity_store.c **** 
+ 269              		.loc 1 82 1 view .LVU62
+ 270 000e 38BD     		pop	{r3, r4, r5, pc}
+ 271              	.LVL23:
+ 272              	.L23:
+  56:../common/device_identity_store.c ****         record->version != HBOX_DEVICE_IDENTITY_VERSION ||
+ 273              		.loc 1 56 56 discriminator 1 view .LVU63
+ 274 0010 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+ 275 0012 012B     		cmp	r3, #1
+ 276 0014 FAD1     		bne	.L25
+  57:../common/device_identity_store.c ****         record->locked != HBOX_DEVICE_IDENTITY_LOCKED ||
+ 277              		.loc 1 57 57 view .LVU64
+ 278 0016 4379     		ldrb	r3, [r0, #5]	@ zero_extendqisi2
+ 279 0018 012B     		cmp	r3, #1
+ 280 001a F7D1     		bne	.L25
+  58:../common/device_identity_store.c ****         record->total_bytes_le != sizeof(*record) ||
+ 281              		.loc 1 58 55 view .LVU65
+ 282 001c C388     		ldrh	r3, [r0, #6]	@ unaligned
+ 283 001e B3F5807F 		cmp	r3, #256
+ 284 0022 F3D1     		bne	.L25
+ 285              	.LVL24:
+ 286              	.LBB12:
+ 287              	.LBI12:
+  18:../common/device_identity_store.c **** {
+ 288              		.loc 1 18 12 is_stmt 1 view .LVU66
+ 289              	.LBB13:
+  20:../common/device_identity_store.c ****     size_t index;
+ 290              		.loc 1 20 5 view .LVU67
+  21:../common/device_identity_store.c ****     for (index = 0u; index < length; ++index) {
+ 291              		.loc 1 21 5 view .LVU68
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 292              		.loc 1 22 5 view .LVU69
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 293              		.loc 1 22 28 discriminator 1 view .LVU70
+ 294 0024 00F1FB03 		add	r3, r0, #251
+ 295 0028 00F1FF02 		add	r2, r0, #255
+  20:../common/device_identity_store.c ****     size_t index;
+ 296              		.loc 1 20 13 is_stmt 0 view .LVU71
+ 297 002c 0025     		movs	r5, #0
+ 298              	.LVL25:
+ 299              	.L26:
+  23:../common/device_identity_store.c ****     }
+ 300              		.loc 1 23 9 is_stmt 1 view .LVU72
+  23:../common/device_identity_store.c ****     }
+ 301              		.loc 1 23 18 is_stmt 0 view .LVU73
+ 302 002e 13F8011F 		ldrb	r1, [r3, #1]!	@ zero_extendqisi2
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 303              		.loc 1 22 28 discriminator 1 view .LVU74
+ 304 0032 9342     		cmp	r3, r2
+  23:../common/device_identity_store.c ****     }
+ 305              		.loc 1 23 18 view .LVU75
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 12
+
+
+ 306 0034 45EA0105 		orr	r5, r5, r1
+ 307              	.LVL26:
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 308              		.loc 1 22 38 is_stmt 1 discriminator 3 view .LVU76
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 309              		.loc 1 22 28 discriminator 1 view .LVU77
+ 310 0038 F9D1     		bne	.L26
+  25:../common/device_identity_store.c **** }
+ 311              		.loc 1 25 5 view .LVU78
+ 312              	.LVL27:
+  25:../common/device_identity_store.c **** }
+ 313              		.loc 1 25 5 is_stmt 0 view .LVU79
+ 314              	.LBE13:
+ 315              	.LBE12:
+  59:../common/device_identity_store.c ****         !all_zero(record->reserved, sizeof(record->reserved)) ||
+ 316              		.loc 1 59 51 view .LVU80
+ 317 003a 002D     		cmp	r5, #0
+ 318 003c E6D1     		bne	.L25
+  61:../common/device_identity_store.c ****             HBOX_DEVICE_CERTIFICATE_MAGIC ||
+ 319              		.loc 1 61 35 view .LVU81
+ 320 003e E26A     		ldr	r2, [r4, #44]	@ unaligned
+  60:../common/device_identity_store.c ****         record->device_certificate.magic_le !=
+ 321              		.loc 1 60 63 view .LVU82
+ 322 0040 124B     		ldr	r3, .L36+4
+ 323 0042 9A42     		cmp	r2, r3
+ 324 0044 E2D1     		bne	.L25
+  62:../common/device_identity_store.c ****         record->device_certificate.version !=
+ 325              		.loc 1 62 43 view .LVU83
+ 326 0046 94F83030 		ldrb	r3, [r4, #48]	@ zero_extendqisi2
+ 327 004a 012B     		cmp	r3, #1
+ 328 004c DED1     		bne	.L25
+  64:../common/device_identity_store.c ****         record->device_certificate.signed_bytes_le !=
+ 329              		.loc 1 64 44 view .LVU84
+ 330 004e 638E     		ldrh	r3, [r4, #50]	@ unaligned
+ 331 0050 902B     		cmp	r3, #144
+ 332 0052 DBD1     		bne	.L25
+ 333 0054 04F10B03 		add	r3, r4, #11
+ 334 0058 04F12B02 		add	r2, r4, #43
+ 335              	.LVL28:
+ 336              	.L27:
+  70:../common/device_identity_store.c ****     }
+ 337              		.loc 1 70 9 is_stmt 1 view .LVU85
+  70:../common/device_identity_store.c ****     }
+ 338              		.loc 1 70 25 is_stmt 0 view .LVU86
+ 339 005c 13F8011F 		ldrb	r1, [r3, #1]!	@ zero_extendqisi2
+  69:../common/device_identity_store.c ****         nonzero_private |= record->device_private_key[index];
+ 340              		.loc 1 69 28 discriminator 1 view .LVU87
+ 341 0060 9342     		cmp	r3, r2
+  70:../common/device_identity_store.c ****     }
+ 342              		.loc 1 70 25 view .LVU88
+ 343 0062 45EA0105 		orr	r5, r5, r1
+ 344              	.LVL29:
+  69:../common/device_identity_store.c ****         nonzero_private |= record->device_private_key[index];
+ 345              		.loc 1 69 66 is_stmt 1 discriminator 3 view .LVU89
+  69:../common/device_identity_store.c ****         nonzero_private |= record->device_private_key[index];
+ 346              		.loc 1 69 28 discriminator 1 view .LVU90
+ 347 0066 F9D1     		bne	.L27
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 13
+
+
+  72:../common/device_identity_store.c ****         (const uint8_t *)record,
+ 348              		.loc 1 72 5 view .LVU91
+  72:../common/device_identity_store.c ****         (const uint8_t *)record,
+ 349              		.loc 1 72 20 is_stmt 0 view .LVU92
+ 350 0068 0423     		movs	r3, #4
+ 351 006a 0822     		movs	r2, #8
+ 352 006c 4FF48071 		mov	r1, #256
+ 353 0070 2046     		mov	r0, r4
+ 354              	.LVL30:
+  72:../common/device_identity_store.c ****         (const uint8_t *)record,
+ 355              		.loc 1 72 20 view .LVU93
+ 356 0072 FFF7FEFF 		bl	HBoxSecurity_Crc32Skipping
+ 357              	.LVL31:
+  77:../common/device_identity_store.c ****         expected_crc != record->crc32_le) {
+ 358              		.loc 1 77 5 is_stmt 1 view .LVU94
+  77:../common/device_identity_store.c ****         expected_crc != record->crc32_le) {
+ 359              		.loc 1 77 8 is_stmt 0 view .LVU95
+ 360 0076 002D     		cmp	r5, #0
+ 361 0078 C8D0     		beq	.L25
+  77:../common/device_identity_store.c ****         expected_crc != record->crc32_le) {
+ 362              		.loc 1 77 31 discriminator 1 view .LVU96
+ 363 007a 0028     		cmp	r0, #0
+ 364 007c C6D0     		beq	.L25
+  78:../common/device_identity_store.c ****         return 0;
+ 365              		.loc 1 78 31 view .LVU97
+ 366 007e A368     		ldr	r3, [r4, #8]	@ unaligned
+  77:../common/device_identity_store.c ****         expected_crc != record->crc32_le) {
+ 367              		.loc 1 77 53 discriminator 2 view .LVU98
+ 368 0080 1B1A     		subs	r3, r3, r0
+ 369 0082 5842     		rsbs	r0, r3, #0
+ 370              	.LVL32:
+  77:../common/device_identity_store.c ****         expected_crc != record->crc32_le) {
+ 371              		.loc 1 77 53 discriminator 2 view .LVU99
+ 372 0084 5841     		adcs	r0, r0, r3
+ 373 0086 C2E7     		b	.L22
+ 374              	.L37:
+ 375              		.align	2
+ 376              	.L36:
+ 377 0088 48494431 		.word	826558792
+ 378 008c 48444331 		.word	826491976
+ 379              		.cfi_endproc
+ 380              	.LFE3:
+ 382              		.section	.text.HBoxIdentityStore_LoadFromBackend.part.0,"ax",%progbits
+ 383              		.align	1
+ 384              		.syntax unified
+ 385              		.thumb
+ 386              		.thumb_func
+ 388              	HBoxIdentityStore_LoadFromBackend.part.0:
+ 389              	.LVL33:
+ 390              	.LFB16:
+ 142:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 391              		.loc 1 142 31 is_stmt 1 view -0
+ 392              		.cfi_startproc
+ 393              		@ args = 0, pretend = 0, frame = 576
+ 394              		@ frame_needed = 0, uses_anonymous_args = 0
+ 158:../common/device_identity_store.c ****     memset(&candidate, 0, sizeof(candidate));
+ 395              		.loc 1 158 5 view .LVU101
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 14
+
+
+ 142:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 396              		.loc 1 142 31 is_stmt 0 view .LVU102
+ 397 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 398              	.LCFI6:
+ 399              		.cfi_def_cfa_offset 36
+ 400              		.cfi_offset 4, -36
+ 401              		.cfi_offset 5, -32
+ 402              		.cfi_offset 6, -28
+ 403              		.cfi_offset 7, -24
+ 404              		.cfi_offset 8, -20
+ 405              		.cfi_offset 9, -16
+ 406              		.cfi_offset 10, -12
+ 407              		.cfi_offset 11, -8
+ 408              		.cfi_offset 14, -4
+ 409 0004 8846     		mov	r8, r1
+ 410 0006 ADF5117D 		sub	sp, sp, #580
+ 411              	.LCFI7:
+ 412              		.cfi_def_cfa_offset 616
+ 162:../common/device_identity_store.c ****          slot_index < backend->slot_count;
+ 413              		.loc 1 162 21 view .LVU103
+ 414 000a 0027     		movs	r7, #0
+ 158:../common/device_identity_store.c ****     memset(&candidate, 0, sizeof(candidate));
+ 415              		.loc 1 158 5 view .LVU104
+ 416 000c 4FF48072 		mov	r2, #256
+ 417 0010 0021     		movs	r1, #0
+ 418              	.LVL34:
+ 142:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 419              		.loc 1 142 31 view .LVU105
+ 420 0012 8146     		mov	r9, r0
+ 158:../common/device_identity_store.c ****     memset(&candidate, 0, sizeof(candidate));
+ 421              		.loc 1 158 5 view .LVU106
+ 422 0014 4046     		mov	r0, r8
+ 423              	.LVL35:
+ 149:../common/device_identity_store.c ****     uint32_t slot_index;
+ 424              		.loc 1 149 14 view .LVU107
+ 425 0016 3E46     		mov	r6, r7
+ 158:../common/device_identity_store.c ****     memset(&candidate, 0, sizeof(candidate));
+ 426              		.loc 1 158 5 view .LVU108
+ 427 0018 FFF7FEFF 		bl	memset
+ 428              	.LVL36:
+ 159:../common/device_identity_store.c ****     memset(&commit, 0, sizeof(commit));
+ 429              		.loc 1 159 5 is_stmt 1 view .LVU109
+ 430              	.LBB22:
+ 431              	.LBB23:
+  91:../common/device_identity_store.c ****         commit->version != HBOX_DEVICE_IDENTITY_COMMIT_VERSION ||
+ 432              		.loc 1 91 8 is_stmt 0 view .LVU110
+ 433 001c DFF81CA1 		ldr	r10, .L57+4
+ 434              	.LBE23:
+ 435              	.LBE22:
+ 159:../common/device_identity_store.c ****     memset(&commit, 0, sizeof(commit));
+ 436              		.loc 1 159 5 view .LVU111
+ 437 0020 4FF48072 		mov	r2, #256
+ 438 0024 0021     		movs	r1, #0
+ 439 0026 08A8     		add	r0, sp, #32
+ 440 0028 FFF7FEFF 		bl	memset
+ 441              	.LVL37:
+ 160:../common/device_identity_store.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 15
+
+
+ 442              		.loc 1 160 5 is_stmt 1 view .LVU112
+ 443 002c 2022     		movs	r2, #32
+ 444 002e 0021     		movs	r1, #0
+ 445 0030 6846     		mov	r0, sp
+ 446 0032 FFF7FEFF 		bl	memset
+ 447              	.LVL38:
+ 162:../common/device_identity_store.c ****          slot_index < backend->slot_count;
+ 448              		.loc 1 162 5 view .LVU113
+ 449              	.L39:
+ 163:../common/device_identity_store.c ****         ++slot_index) {
+ 450              		.loc 1 163 21 view .LVU114
+ 451 0036 D9F80430 		ldr	r3, [r9, #4]
+ 452 003a 9F42     		cmp	r7, r3
+ 453 003c 03D3     		bcc	.L50
+ 204:../common/device_identity_store.c ****     memset(&candidate, 0, sizeof(candidate));
+ 454              		.loc 1 204 5 view .LVU115
+ 205:../common/device_identity_store.c ****     memset(&commit, 0, sizeof(commit));
+ 455              		.loc 1 205 5 view .LVU116
+ 206:../common/device_identity_store.c ****     return valid_count == 1u
+ 456              		.loc 1 206 5 view .LVU117
+ 207:../common/device_identity_store.c ****                ? HBOX_DEVICE_IDENTITY_OK
+ 457              		.loc 1 207 5 view .LVU118
+ 209:../common/device_identity_store.c **** }
+ 458              		.loc 1 209 16 is_stmt 0 view .LVU119
+ 459 003e 7000     		lsls	r0, r6, #1
+ 460 0040 80F00200 		eor	r0, r0, #2
+ 461 0044 0CE0     		b	.L41
+ 462              	.L50:
+ 165:../common/device_identity_store.c ****             memset(&candidate, 0, sizeof(candidate));
+ 463              		.loc 1 165 9 is_stmt 1 view .LVU120
+ 165:../common/device_identity_store.c ****             memset(&candidate, 0, sizeof(candidate));
+ 464              		.loc 1 165 14 is_stmt 0 view .LVU121
+ 465 0046 3946     		mov	r1, r7
+ 466 0048 48AA     		add	r2, sp, #288
+ 467 004a 4846     		mov	r0, r9
+ 468 004c FFF7FEFF 		bl	read_slot
+ 469              	.LVL39:
+ 165:../common/device_identity_store.c ****             memset(&candidate, 0, sizeof(candidate));
+ 470              		.loc 1 165 12 discriminator 1 view .LVU122
+ 471 0050 0146     		mov	r1, r0
+ 472 0052 48B9     		cbnz	r0, .L40
+ 166:../common/device_identity_store.c ****             memset(&commit, 0, sizeof(commit));
+ 473              		.loc 1 166 13 is_stmt 1 view .LVU123
+ 167:../common/device_identity_store.c ****             memset(record, 0, sizeof(*record));
+ 474              		.loc 1 167 13 view .LVU124
+ 168:../common/device_identity_store.c ****             return HBOX_DEVICE_IDENTITY_IO_ERROR;
+ 475              		.loc 1 168 13 view .LVU125
+ 476 0054 4FF48072 		mov	r2, #256
+ 477 0058 4046     		mov	r0, r8
+ 478 005a FFF7FEFF 		bl	memset
+ 479              	.LVL40:
+ 169:../common/device_identity_store.c ****         }
+ 480              		.loc 1 169 13 view .LVU126
+ 169:../common/device_identity_store.c ****         }
+ 481              		.loc 1 169 20 is_stmt 0 view .LVU127
+ 482 005e 0420     		movs	r0, #4
+ 483              	.LVL41:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 16
+
+
+ 484              	.L41:
+ 210:../common/device_identity_store.c **** 
+ 485              		.loc 1 210 1 view .LVU128
+ 486 0060 0DF5117D 		add	sp, sp, #580
+ 487              	.LCFI8:
+ 488              		.cfi_remember_state
+ 489              		.cfi_def_cfa_offset 36
+ 490              		@ sp needed
+ 491 0064 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 492              	.LVL42:
+ 493              	.L40:
+ 494              	.LCFI9:
+ 495              		.cfi_restore_state
+ 210:../common/device_identity_store.c **** 
+ 496              		.loc 1 210 1 view .LVU129
+ 497 0068 48AA     		add	r2, sp, #288
+ 498              	.LBB31:
+ 499              	.LBB32:
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 500              		.loc 1 31 16 view .LVU130
+ 501 006a 0023     		movs	r3, #0
+ 502              	.L43:
+ 503              	.LVL43:
+  32:../common/device_identity_store.c ****             return 0;
+ 504              		.loc 1 32 9 is_stmt 1 view .LVU131
+  32:../common/device_identity_store.c ****             return 0;
+ 505              		.loc 1 32 18 is_stmt 0 view .LVU132
+ 506 006c 12F8011B 		ldrb	r1, [r2], #1	@ zero_extendqisi2
+  32:../common/device_identity_store.c ****             return 0;
+ 507              		.loc 1 32 12 view .LVU133
+ 508 0070 FF29     		cmp	r1, #255
+ 509 0072 56D1     		bne	.L51
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 510              		.loc 1 31 38 is_stmt 1 discriminator 2 view .LVU134
+ 511 0074 0133     		adds	r3, r3, #1
+ 512              	.LVL44:
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 513              		.loc 1 31 28 discriminator 1 view .LVU135
+ 514 0076 B3F5907F 		cmp	r3, #288
+ 515 007a F7D1     		bne	.L43
+  36:../common/device_identity_store.c **** }
+ 516              		.loc 1 36 12 is_stmt 0 view .LVU136
+ 517 007c 4FF0010B 		mov	fp, #1
+ 518              	.L42:
+ 519              	.LVL45:
+  36:../common/device_identity_store.c **** }
+ 520              		.loc 1 36 12 view .LVU137
+ 521              	.LBE32:
+ 522              	.LBE31:
+ 523              	.LBB34:
+ 524              	.LBB28:
+  95:../common/device_identity_store.c ****         commit->record_crc32_le != record_crc ||
+ 525              		.loc 1 95 47 view .LVU138
+ 526 0080 0137     		adds	r7, r7, #1
+ 527              	.LVL46:
+  95:../common/device_identity_store.c ****         commit->record_crc32_le != record_crc ||
+ 528              		.loc 1 95 47 view .LVU139
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 17
+
+
+ 529              	.LBE28:
+ 530              	.LBE34:
+ 171:../common/device_identity_store.c ****             continue;
+ 531              		.loc 1 171 12 discriminator 1 view .LVU140
+ 532 0082 BBF1000F 		cmp	fp, #0
+ 533 0086 D6D1     		bne	.L39
+ 174:../common/device_identity_store.c ****         memcpy(&commit, slot + sizeof(candidate), sizeof(commit));
+ 534              		.loc 1 174 9 is_stmt 1 view .LVU141
+ 175:../common/device_identity_store.c **** 
+ 535              		.loc 1 175 9 is_stmt 0 view .LVU142
+ 536 0088 88AD     		add	r5, sp, #544
+ 174:../common/device_identity_store.c ****         memcpy(&commit, slot + sizeof(candidate), sizeof(commit));
+ 537              		.loc 1 174 9 view .LVU143
+ 538 008a 4FF48072 		mov	r2, #256
+ 539 008e 48A9     		add	r1, sp, #288
+ 540 0090 08A8     		add	r0, sp, #32
+ 541 0092 FFF7FEFF 		bl	memcpy
+ 542              	.LVL47:
+ 175:../common/device_identity_store.c **** 
+ 543              		.loc 1 175 9 is_stmt 1 view .LVU144
+ 544 0096 6C46     		mov	r4, sp
+ 545 0098 0FCD     		ldmia	r5!, {r0, r1, r2, r3}
+ 546 009a 0FC4     		stmia	r4!, {r0, r1, r2, r3}
+ 547 009c 95E80F00 		ldm	r5, {r0, r1, r2, r3}
+ 548 00a0 84E80F00 		stm	r4, {r0, r1, r2, r3}
+ 182:../common/device_identity_store.c ****                 &commit, slot_index, candidate.crc32_le)) {
+ 549              		.loc 1 182 9 view .LVU145
+ 550              	.LBB35:
+ 551              	.LBB29:
+  91:../common/device_identity_store.c ****         commit->version != HBOX_DEVICE_IDENTITY_COMMIT_VERSION ||
+ 552              		.loc 1 91 8 is_stmt 0 view .LVU146
+ 553 00a4 009A     		ldr	r2, [sp]
+ 554              	.LBE29:
+ 555              	.LBE35:
+ 182:../common/device_identity_store.c ****                 &commit, slot_index, candidate.crc32_le)) {
+ 556              		.loc 1 182 14 view .LVU147
+ 557 00a6 0A9B     		ldr	r3, [sp, #40]
+ 558              	.LVL48:
+ 559              	.LBB36:
+ 560              	.LBI22:
+  84:../common/device_identity_store.c ****     const hbox_device_identity_commit_v1_t *commit,
+ 561              		.loc 1 84 12 is_stmt 1 view .LVU148
+ 562              	.LBB30:
+  89:../common/device_identity_store.c **** 
+ 563              		.loc 1 89 5 view .LVU149
+  91:../common/device_identity_store.c ****         commit->version != HBOX_DEVICE_IDENTITY_COMMIT_VERSION ||
+ 564              		.loc 1 91 5 view .LVU150
+  91:../common/device_identity_store.c ****         commit->version != HBOX_DEVICE_IDENTITY_COMMIT_VERSION ||
+ 565              		.loc 1 91 8 is_stmt 0 view .LVU151
+ 566 00a8 5245     		cmp	r2, r10
+ 567 00aa C4D1     		bne	.L39
+  91:../common/device_identity_store.c ****         commit->version != HBOX_DEVICE_IDENTITY_COMMIT_VERSION ||
+ 568              		.loc 1 91 63 discriminator 1 view .LVU152
+ 569 00ac 9DF80420 		ldrb	r2, [sp, #4]	@ zero_extendqisi2
+ 570 00b0 012A     		cmp	r2, #1
+ 571 00b2 C0D1     		bne	.L39
+  93:../common/device_identity_store.c ****         commit->total_bytes_le != sizeof(*commit) ||
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 18
+
+
+ 572              		.loc 1 93 15 view .LVU153
+ 573 00b4 9DF80520 		ldrb	r2, [sp, #5]	@ zero_extendqisi2
+  92:../common/device_identity_store.c ****         commit->reserved0 != 0u ||
+ 574              		.loc 1 92 64 view .LVU154
+ 575 00b8 002A     		cmp	r2, #0
+ 576 00ba BCD1     		bne	.L39
+  93:../common/device_identity_store.c ****         commit->total_bytes_le != sizeof(*commit) ||
+ 577              		.loc 1 93 33 view .LVU155
+ 578 00bc BDF80610 		ldrh	r1, [sp, #6]
+ 579 00c0 2029     		cmp	r1, #32
+ 580 00c2 B8D1     		bne	.L39
+  94:../common/device_identity_store.c ****         commit->slot_ordinal_le != slot_index + 1u ||
+ 581              		.loc 1 94 51 view .LVU156
+ 582 00c4 0299     		ldr	r1, [sp, #8]
+ 583 00c6 B942     		cmp	r1, r7
+ 584 00c8 B5D1     		bne	.L39
+  95:../common/device_identity_store.c ****         commit->record_crc32_le != record_crc ||
+ 585              		.loc 1 95 52 view .LVU157
+ 586 00ca 0399     		ldr	r1, [sp, #12]
+ 587 00cc 8B42     		cmp	r3, r1
+ 588 00ce B2D1     		bne	.L39
+  97:../common/device_identity_store.c ****         commit->committed_le != HBOX_DEVICE_IDENTITY_COMMITTED ||
+ 589              		.loc 1 97 44 view .LVU158
+ 590 00d0 DB43     		mvns	r3, r3
+ 591              	.LVL49:
+  96:../common/device_identity_store.c ****         commit->record_crc32_inverse_le != ~record_crc ||
+ 592              		.loc 1 96 47 view .LVU159
+ 593 00d2 9842     		cmp	r0, r3
+ 594 00d4 AFD1     		bne	.L39
+  97:../common/device_identity_store.c ****         commit->committed_le != HBOX_DEVICE_IDENTITY_COMMITTED ||
+ 595              		.loc 1 97 56 view .LVU160
+ 596 00d6 0699     		ldr	r1, [sp, #24]
+ 597 00d8 174B     		ldr	r3, .L57
+ 598 00da 9942     		cmp	r1, r3
+ 599 00dc ABD1     		bne	.L39
+ 600 00de 0DF11B01 		add	r1, sp, #27
+ 601              	.LBB24:
+ 602              	.LBB25:
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 603              		.loc 1 22 16 view .LVU161
+ 604 00e2 5B46     		mov	r3, fp
+ 605              	.L47:
+ 606              	.LVL50:
+  23:../common/device_identity_store.c ****     }
+ 607              		.loc 1 23 9 is_stmt 1 view .LVU162
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 608              		.loc 1 22 38 is_stmt 0 discriminator 3 view .LVU163
+ 609 00e4 0133     		adds	r3, r3, #1
+ 610              	.LVL51:
+  23:../common/device_identity_store.c ****     }
+ 611              		.loc 1 23 18 view .LVU164
+ 612 00e6 11F8010F 		ldrb	r0, [r1, #1]!	@ zero_extendqisi2
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 613              		.loc 1 22 28 discriminator 1 view .LVU165
+ 614 00ea 042B     		cmp	r3, #4
+  23:../common/device_identity_store.c ****     }
+ 615              		.loc 1 23 18 view .LVU166
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 19
+
+
+ 616 00ec 42EA0002 		orr	r2, r2, r0
+ 617              	.LVL52:
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 618              		.loc 1 22 38 is_stmt 1 discriminator 3 view .LVU167
+  22:../common/device_identity_store.c ****         combined |= value[index];
+ 619              		.loc 1 22 28 discriminator 1 view .LVU168
+ 620 00f0 F8D1     		bne	.L47
+  25:../common/device_identity_store.c **** }
+ 621              		.loc 1 25 5 view .LVU169
+ 622              	.LVL53:
+  25:../common/device_identity_store.c **** }
+ 623              		.loc 1 25 5 is_stmt 0 view .LVU170
+ 624              	.LBE25:
+ 625              	.LBE24:
+  98:../common/device_identity_store.c ****         !all_zero(commit->reserved1, sizeof(commit->reserved1))) {
+ 626              		.loc 1 98 64 view .LVU171
+ 627 00f2 002A     		cmp	r2, #0
+ 628 00f4 9FD1     		bne	.L39
+ 102:../common/device_identity_store.c ****     return expected_crc != 0u &&
+ 629              		.loc 1 102 5 is_stmt 1 view .LVU172
+ 630              	.LVL54:
+ 631              	.LBB26:
+ 632              	.LBI26:
+  39:../common/device_identity_store.c ****     const hbox_device_identity_commit_v1_t *commit)
+ 633              		.loc 1 39 17 view .LVU173
+ 634              	.LBB27:
+  42:../common/device_identity_store.c ****         (const uint8_t *)commit,
+ 635              		.loc 1 42 5 view .LVU174
+  42:../common/device_identity_store.c ****         (const uint8_t *)commit,
+ 636              		.loc 1 42 12 is_stmt 0 view .LVU175
+ 637 00f6 1422     		movs	r2, #20
+ 638 00f8 2021     		movs	r1, #32
+ 639 00fa 6846     		mov	r0, sp
+ 640 00fc FFF7FEFF 		bl	HBoxSecurity_Crc32Skipping
+ 641              	.LVL55:
+  42:../common/device_identity_store.c ****         (const uint8_t *)commit,
+ 642              		.loc 1 42 12 view .LVU176
+ 643              	.LBE27:
+ 644              	.LBE26:
+ 103:../common/device_identity_store.c ****            expected_crc == commit->commit_crc32_le;
+ 645              		.loc 1 103 5 is_stmt 1 view .LVU177
+ 103:../common/device_identity_store.c ****            expected_crc == commit->commit_crc32_le;
+ 646              		.loc 1 103 31 is_stmt 0 view .LVU178
+ 647 0100 0028     		cmp	r0, #0
+ 648 0102 98D0     		beq	.L39
+ 103:../common/device_identity_store.c ****            expected_crc == commit->commit_crc32_le;
+ 649              		.loc 1 103 31 discriminator 1 view .LVU179
+ 650 0104 059B     		ldr	r3, [sp, #20]
+ 651 0106 8342     		cmp	r3, r0
+ 652 0108 95D1     		bne	.L39
+ 653              	.LVL56:
+ 103:../common/device_identity_store.c ****            expected_crc == commit->commit_crc32_le;
+ 654              		.loc 1 103 31 discriminator 1 view .LVU180
+ 655              	.LBE30:
+ 656              	.LBE36:
+ 186:../common/device_identity_store.c ****             memset(slot, 0, sizeof(slot));
+ 657              		.loc 1 186 9 is_stmt 1 view .LVU181
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 20
+
+
+ 186:../common/device_identity_store.c ****             memset(slot, 0, sizeof(slot));
+ 658              		.loc 1 186 14 is_stmt 0 view .LVU182
+ 659 010a 08A8     		add	r0, sp, #32
+ 660 010c FFF7FEFF 		bl	record_is_valid
+ 661              	.LVL57:
+ 190:../common/device_identity_store.c ****             return HBOX_DEVICE_IDENTITY_CORRUPT;
+ 662              		.loc 1 190 13 view .LVU183
+ 663 0110 4FF48072 		mov	r2, #256
+ 186:../common/device_identity_store.c ****             memset(slot, 0, sizeof(slot));
+ 664              		.loc 1 186 12 discriminator 1 view .LVU184
+ 665 0114 40B9     		cbnz	r0, .L48
+ 666              	.LVL58:
+ 667              	.L49:
+ 187:../common/device_identity_store.c ****             memset(&candidate, 0, sizeof(candidate));
+ 668              		.loc 1 187 13 is_stmt 1 view .LVU185
+ 188:../common/device_identity_store.c ****             memset(&commit, 0, sizeof(commit));
+ 669              		.loc 1 188 13 view .LVU186
+ 189:../common/device_identity_store.c ****             memset(record, 0, sizeof(*record));
+ 670              		.loc 1 189 13 view .LVU187
+ 190:../common/device_identity_store.c ****             return HBOX_DEVICE_IDENTITY_CORRUPT;
+ 671              		.loc 1 190 13 view .LVU188
+ 672 0116 0021     		movs	r1, #0
+ 673 0118 4046     		mov	r0, r8
+ 674 011a FFF7FEFF 		bl	memset
+ 675              	.LVL59:
+ 191:../common/device_identity_store.c ****         }
+ 676              		.loc 1 191 13 view .LVU189
+ 191:../common/device_identity_store.c ****         }
+ 677              		.loc 1 191 20 is_stmt 0 view .LVU190
+ 678 011e 0320     		movs	r0, #3
+ 679 0120 9EE7     		b	.L41
+ 680              	.LVL60:
+ 681              	.L51:
+ 682              	.LBB37:
+ 683              	.LBB33:
+  33:../common/device_identity_store.c ****         }
+ 684              		.loc 1 33 20 view .LVU191
+ 685 0122 4FF0000B 		mov	fp, #0
+ 686 0126 ABE7     		b	.L42
+ 687              	.LVL61:
+ 688              	.L48:
+  33:../common/device_identity_store.c ****         }
+ 689              		.loc 1 33 20 view .LVU192
+ 690              	.LBE33:
+ 691              	.LBE37:
+ 193:../common/device_identity_store.c ****         if (valid_count != 1u) {
+ 692              		.loc 1 193 9 is_stmt 1 view .LVU193
+ 194:../common/device_identity_store.c ****             memset(slot, 0, sizeof(slot));
+ 693              		.loc 1 194 9 view .LVU194
+ 194:../common/device_identity_store.c ****             memset(slot, 0, sizeof(slot));
+ 694              		.loc 1 194 12 is_stmt 0 view .LVU195
+ 695 0128 002E     		cmp	r6, #0
+ 696 012a F4D1     		bne	.L49
+ 201:../common/device_identity_store.c ****     }
+ 697              		.loc 1 201 9 is_stmt 1 view .LVU196
+ 698 012c 08A9     		add	r1, sp, #32
+ 699 012e 4046     		mov	r0, r8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 21
+
+
+ 193:../common/device_identity_store.c ****         if (valid_count != 1u) {
+ 700              		.loc 1 193 9 is_stmt 0 view .LVU197
+ 701 0130 0126     		movs	r6, #1
+ 702              	.LVL62:
+ 201:../common/device_identity_store.c ****     }
+ 703              		.loc 1 201 9 view .LVU198
+ 704 0132 FFF7FEFF 		bl	memcpy
+ 705              	.LVL63:
+ 164:../common/device_identity_store.c ****         if (!read_slot(backend, slot_index, slot)) {
+ 706              		.loc 1 164 9 is_stmt 1 view .LVU199
+ 164:../common/device_identity_store.c ****         if (!read_slot(backend, slot_index, slot)) {
+ 707              		.loc 1 164 9 is_stmt 0 view .LVU200
+ 708 0136 7EE7     		b	.L39
+ 709              	.L58:
+ 710              		.align	2
+ 711              	.L57:
+ 712 0138 434D4954 		.word	1414090051
+ 713 013c 48494331 		.word	826493256
+ 714              		.cfi_endproc
+ 715              	.LFE16:
+ 717              		.section	.text.HBoxIdentityStore_LoadFromBackend,"ax",%progbits
+ 718              		.align	1
+ 719              		.global	HBoxIdentityStore_LoadFromBackend
+ 720              		.syntax unified
+ 721              		.thumb
+ 722              		.thumb_func
+ 724              	HBoxIdentityStore_LoadFromBackend:
+ 725              	.LVL64:
+ 726              	.LFB7:
+ 145:../common/device_identity_store.c ****     uint8_t slot[HBOX_DEVICE_IDENTITY_SLOT_BYTES];
+ 727              		.loc 1 145 1 is_stmt 1 view -0
+ 728              		.cfi_startproc
+ 729              		@ args = 0, pretend = 0, frame = 0
+ 730              		@ frame_needed = 0, uses_anonymous_args = 0
+ 146:../common/device_identity_store.c ****     hbox_device_identity_record_v1_t candidate;
+ 731              		.loc 1 146 5 view .LVU202
+ 147:../common/device_identity_store.c ****     hbox_device_identity_commit_v1_t commit;
+ 732              		.loc 1 147 5 view .LVU203
+ 148:../common/device_identity_store.c ****     uint32_t valid_count = 0u;
+ 733              		.loc 1 148 5 view .LVU204
+ 149:../common/device_identity_store.c ****     uint32_t slot_index;
+ 734              		.loc 1 149 5 view .LVU205
+ 150:../common/device_identity_store.c **** 
+ 735              		.loc 1 150 5 view .LVU206
+ 152:../common/device_identity_store.c ****         if (record != NULL) {
+ 736              		.loc 1 152 5 view .LVU207
+ 145:../common/device_identity_store.c ****     uint8_t slot[HBOX_DEVICE_IDENTITY_SLOT_BYTES];
+ 737              		.loc 1 145 1 is_stmt 0 view .LVU208
+ 738 0000 10B5     		push	{r4, lr}
+ 739              	.LCFI10:
+ 740              		.cfi_def_cfa_offset 8
+ 741              		.cfi_offset 4, -8
+ 742              		.cfi_offset 14, -4
+ 152:../common/device_identity_store.c ****         if (record != NULL) {
+ 743              		.loc 1 152 8 view .LVU209
+ 744 0002 0C46     		mov	r4, r1
+ 745 0004 81B1     		cbz	r1, .L62
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 22
+
+
+ 746              	.LVL65:
+ 747              	.LBB42:
+ 748              	.LBI42:
+ 107:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 749              		.loc 1 107 12 is_stmt 1 view .LVU210
+ 750              	.LBB43:
+ 111:../common/device_identity_store.c ****            backend->slot_count != 0u &&
+ 751              		.loc 1 111 5 view .LVU211
+ 114:../common/device_identity_store.c ****            (!require_factory_write ||
+ 752              		.loc 1 114 44 is_stmt 0 view .LVU212
+ 753 0006 48B1     		cbz	r0, .L61
+ 111:../common/device_identity_store.c ****            backend->slot_count != 0u &&
+ 754              		.loc 1 111 28 view .LVU213
+ 755 0008 4268     		ldr	r2, [r0, #4]
+ 756 000a 013A     		subs	r2, r2, #1
+ 757 000c 0D2A     		cmp	r2, #13
+ 758 000e 05D8     		bhi	.L61
+ 113:../common/device_identity_store.c ****            backend->read_flashword != NULL &&
+ 759              		.loc 1 113 67 view .LVU214
+ 760 0010 8368     		ldr	r3, [r0, #8]
+ 761 0012 1BB1     		cbz	r3, .L61
+ 762              	.LVL66:
+ 113:../common/device_identity_store.c ****            backend->read_flashword != NULL &&
+ 763              		.loc 1 113 67 view .LVU215
+ 764              	.LBE43:
+ 765              	.LBE42:
+ 210:../common/device_identity_store.c **** 
+ 766              		.loc 1 210 1 view .LVU216
+ 767 0014 BDE81040 		pop	{r4, lr}
+ 768              	.LCFI11:
+ 769              		.cfi_remember_state
+ 770              		.cfi_restore 14
+ 771              		.cfi_restore 4
+ 772              		.cfi_def_cfa_offset 0
+ 773 0018 FFF7FEBF 		b	HBoxIdentityStore_LoadFromBackend.part.0
+ 774              	.LVL67:
+ 775              	.L61:
+ 776              	.LCFI12:
+ 777              		.cfi_restore_state
+ 153:../common/device_identity_store.c ****             memset(record, 0, sizeof(*record));
+ 778              		.loc 1 153 9 is_stmt 1 view .LVU217
+ 154:../common/device_identity_store.c ****         }
+ 779              		.loc 1 154 13 view .LVU218
+ 780 001c 4FF48072 		mov	r2, #256
+ 781 0020 0021     		movs	r1, #0
+ 782              	.LVL68:
+ 154:../common/device_identity_store.c ****         }
+ 783              		.loc 1 154 13 is_stmt 0 view .LVU219
+ 784 0022 2046     		mov	r0, r4
+ 785              	.LVL69:
+ 154:../common/device_identity_store.c ****         }
+ 786              		.loc 1 154 13 view .LVU220
+ 787 0024 FFF7FEFF 		bl	memset
+ 788              	.LVL70:
+ 789              	.L62:
+ 210:../common/device_identity_store.c **** 
+ 790              		.loc 1 210 1 view .LVU221
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 23
+
+
+ 791 0028 0120     		movs	r0, #1
+ 792 002a 10BD     		pop	{r4, pc}
+ 210:../common/device_identity_store.c **** 
+ 793              		.loc 1 210 1 view .LVU222
+ 794              		.cfi_endproc
+ 795              	.LFE7:
+ 797              		.section	.text.HBoxIdentityStore_ProvisionFactory,"ax",%progbits
+ 798              		.align	1
+ 799              		.global	HBoxIdentityStore_ProvisionFactory
+ 800              		.syntax unified
+ 801              		.thumb
+ 802              		.thumb_func
+ 804              	HBoxIdentityStore_ProvisionFactory:
+ 805              	.LVL71:
+ 806              	.LFB10:
+ 263:../common/device_identity_store.c **** 
+ 264:../common/device_identity_store.c **** hbox_device_identity_status_t HBoxIdentityStore_ProvisionFactory(
+ 265:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 266:../common/device_identity_store.c ****     const hbox_device_identity_record_v1_t *record)
+ 267:../common/device_identity_store.c **** {
+ 807              		.loc 1 267 1 is_stmt 1 view -0
+ 808              		.cfi_startproc
+ 809              		@ args = 0, pretend = 0, frame = 576
+ 810              		@ frame_needed = 0, uses_anonymous_args = 0
+ 268:../common/device_identity_store.c ****     uint8_t slot[HBOX_DEVICE_IDENTITY_SLOT_BYTES];
+ 811              		.loc 1 268 5 view .LVU224
+ 269:../common/device_identity_store.c ****     hbox_device_identity_record_v1_t loaded;
+ 812              		.loc 1 269 5 view .LVU225
+ 270:../common/device_identity_store.c ****     hbox_device_identity_commit_v1_t commit;
+ 813              		.loc 1 270 5 view .LVU226
+ 271:../common/device_identity_store.c ****     hbox_device_identity_status_t status;
+ 814              		.loc 1 271 5 view .LVU227
+ 272:../common/device_identity_store.c ****     uint32_t selected_slot = UINT32_MAX;
+ 815              		.loc 1 272 5 view .LVU228
+ 273:../common/device_identity_store.c ****     uint32_t slot_index;
+ 816              		.loc 1 273 5 view .LVU229
+ 274:../common/device_identity_store.c ****     uint32_t flashword;
+ 817              		.loc 1 274 5 view .LVU230
+ 275:../common/device_identity_store.c **** 
+ 276:../common/device_identity_store.c ****     if (record == NULL || !backend_is_valid(backend, 1)) {
+ 818              		.loc 1 276 5 view .LVU231
+ 267:../common/device_identity_store.c ****     uint8_t slot[HBOX_DEVICE_IDENTITY_SLOT_BYTES];
+ 819              		.loc 1 267 1 is_stmt 0 view .LVU232
+ 820 0000 2DE9F043 		push	{r4, r5, r6, r7, r8, r9, lr}
+ 821              	.LCFI13:
+ 822              		.cfi_def_cfa_offset 28
+ 823              		.cfi_offset 4, -28
+ 824              		.cfi_offset 5, -24
+ 825              		.cfi_offset 6, -20
+ 826              		.cfi_offset 7, -16
+ 827              		.cfi_offset 8, -12
+ 828              		.cfi_offset 9, -8
+ 829              		.cfi_offset 14, -4
+ 830 0004 0546     		mov	r5, r0
+ 831 0006 ADF5117D 		sub	sp, sp, #580
+ 832              	.LCFI14:
+ 833              		.cfi_def_cfa_offset 608
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 24
+
+
+ 834              		.loc 1 276 8 view .LVU233
+ 835 000a 0E46     		mov	r6, r1
+ 836 000c 0029     		cmp	r1, #0
+ 837 000e 00F0A280 		beq	.L88
+ 838              	.LVL72:
+ 839              	.LBB54:
+ 840              	.LBI54:
+ 107:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 841              		.loc 1 107 12 is_stmt 1 view .LVU234
+ 842              	.LBB55:
+ 111:../common/device_identity_store.c ****            backend->slot_count != 0u &&
+ 843              		.loc 1 111 5 view .LVU235
+ 114:../common/device_identity_store.c ****            (!require_factory_write ||
+ 844              		.loc 1 114 44 is_stmt 0 view .LVU236
+ 845 0012 0028     		cmp	r0, #0
+ 846 0014 00F09F80 		beq	.L88
+ 111:../common/device_identity_store.c ****            backend->slot_count != 0u &&
+ 847              		.loc 1 111 28 view .LVU237
+ 848 0018 4368     		ldr	r3, [r0, #4]
+ 849 001a 013B     		subs	r3, r3, #1
+ 850 001c 0D2B     		cmp	r3, #13
+ 851 001e 00F29A80 		bhi	.L88
+ 113:../common/device_identity_store.c ****            backend->read_flashword != NULL &&
+ 852              		.loc 1 113 67 view .LVU238
+ 853 0022 8368     		ldr	r3, [r0, #8]
+ 854 0024 002B     		cmp	r3, #0
+ 855 0026 00F09680 		beq	.L88
+ 856              	.LVL73:
+ 857              	.LBB56:
+ 858              	.LBI56:
+ 107:../common/device_identity_store.c ****     const hbox_device_identity_backend_t *backend,
+ 859              		.loc 1 107 12 is_stmt 1 view .LVU239
+ 860              	.LBB57:
+ 115:../common/device_identity_store.c ****             (backend->program_flashword != NULL &&
+ 861              		.loc 1 115 36 is_stmt 0 view .LVU240
+ 862 002a C368     		ldr	r3, [r0, #12]
+ 863 002c 002B     		cmp	r3, #0
+ 864 002e 00F09280 		beq	.L88
+ 117:../common/device_identity_store.c **** }
+ 865              		.loc 1 117 21 view .LVU241
+ 866 0032 0369     		ldr	r3, [r0, #16]
+ 116:../common/device_identity_store.c ****              backend->factory_authorized != NULL));
+ 867              		.loc 1 116 49 view .LVU242
+ 868 0034 002B     		cmp	r3, #0
+ 869 0036 00F08E80 		beq	.L88
+ 870              	.LVL74:
+ 116:../common/device_identity_store.c ****              backend->factory_authorized != NULL));
+ 871              		.loc 1 116 49 view .LVU243
+ 872              	.LBE57:
+ 873              	.LBE56:
+ 874              	.LBE55:
+ 875              	.LBE54:
+ 277:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_UNAVAILABLE;
+ 278:../common/device_identity_store.c ****     }
+ 279:../common/device_identity_store.c ****     if (!backend->factory_authorized(backend->context)) {
+ 876              		.loc 1 279 5 is_stmt 1 view .LVU244
+ 877              		.loc 1 279 10 is_stmt 0 view .LVU245
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 25
+
+
+ 878 003a 0068     		ldr	r0, [r0]
+ 879              	.LVL75:
+ 880              		.loc 1 279 10 view .LVU246
+ 881 003c 9847     		blx	r3
+ 882              	.LVL76:
+ 883              		.loc 1 279 8 discriminator 1 view .LVU247
+ 884 003e 0028     		cmp	r0, #0
+ 885 0040 00F08B80 		beq	.L89
+ 280:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_FACTORY_DENIED;
+ 281:../common/device_identity_store.c ****     }
+ 282:../common/device_identity_store.c ****     if (!record_is_valid(record)) {
+ 886              		.loc 1 282 5 is_stmt 1 view .LVU248
+ 887              		.loc 1 282 10 is_stmt 0 view .LVU249
+ 888 0044 3046     		mov	r0, r6
+ 889 0046 FFF7FEFF 		bl	record_is_valid
+ 890              	.LVL77:
+ 891              		.loc 1 282 8 discriminator 1 view .LVU250
+ 892 004a 0028     		cmp	r0, #0
+ 893 004c 7FD0     		beq	.L74
+ 283:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_CORRUPT;
+ 284:../common/device_identity_store.c ****     }
+ 285:../common/device_identity_store.c **** 
+ 286:../common/device_identity_store.c ****     status = HBoxIdentityStore_LoadFromBackend(backend, &loaded);
+ 894              		.loc 1 286 5 is_stmt 1 view .LVU251
+ 895              		.loc 1 286 14 is_stmt 0 view .LVU252
+ 896 004e 08A9     		add	r1, sp, #32
+ 897 0050 2846     		mov	r0, r5
+ 898 0052 FFF7FEFF 		bl	HBoxIdentityStore_LoadFromBackend
+ 899              	.LVL78:
+ 900 0056 0446     		mov	r4, r0
+ 901              	.LVL79:
+ 287:../common/device_identity_store.c ****     memset(&loaded, 0, sizeof(loaded));
+ 902              		.loc 1 287 5 is_stmt 1 view .LVU253
+ 903 0058 4FF48072 		mov	r2, #256
+ 904 005c 0021     		movs	r1, #0
+ 905 005e 08A8     		add	r0, sp, #32
+ 906 0060 FFF7FEFF 		bl	memset
+ 907              	.LVL80:
+ 288:../common/device_identity_store.c ****     if (status == HBOX_DEVICE_IDENTITY_OK) {
+ 908              		.loc 1 288 5 view .LVU254
+ 909              		.loc 1 288 8 is_stmt 0 view .LVU255
+ 910 0064 002C     		cmp	r4, #0
+ 911 0066 7AD0     		beq	.L90
+ 289:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_ALREADY_PROVISIONED;
+ 290:../common/device_identity_store.c ****     }
+ 291:../common/device_identity_store.c ****     if (status != HBOX_DEVICE_IDENTITY_UNPROVISIONED) {
+ 912              		.loc 1 291 5 is_stmt 1 view .LVU256
+ 913              		.loc 1 291 8 is_stmt 0 view .LVU257
+ 914 0068 022C     		cmp	r4, #2
+ 915 006a 0DD1     		bne	.L73
+ 292:../common/device_identity_store.c ****         return status;
+ 293:../common/device_identity_store.c ****     }
+ 294:../common/device_identity_store.c **** 
+ 295:../common/device_identity_store.c ****     for (slot_index = 0u;
+ 916              		.loc 1 295 21 view .LVU258
+ 917 006c 0024     		movs	r4, #0
+ 918              	.LVL81:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 26
+
+
+ 919              	.L75:
+ 296:../common/device_identity_store.c ****          slot_index < backend->slot_count;
+ 920              		.loc 1 296 21 is_stmt 1 view .LVU259
+ 921 006e 6B68     		ldr	r3, [r5, #4]
+ 922 0070 A342     		cmp	r3, r4
+ 923 0072 02D8     		bhi	.L80
+ 272:../common/device_identity_store.c ****     uint32_t slot_index;
+ 924              		.loc 1 272 14 is_stmt 0 view .LVU260
+ 925 0074 4FF0FF34 		mov	r4, #-1
+ 926              	.LVL82:
+ 272:../common/device_identity_store.c ****     uint32_t slot_index;
+ 927              		.loc 1 272 14 view .LVU261
+ 928 0078 15E0     		b	.L79
+ 929              	.LVL83:
+ 930              	.L80:
+ 297:../common/device_identity_store.c ****          ++slot_index) {
+ 298:../common/device_identity_store.c ****         if (!read_slot(backend, slot_index, slot)) {
+ 931              		.loc 1 298 9 is_stmt 1 view .LVU262
+ 932              		.loc 1 298 14 is_stmt 0 view .LVU263
+ 933 007a 48AA     		add	r2, sp, #288
+ 934 007c 2146     		mov	r1, r4
+ 935 007e 2846     		mov	r0, r5
+ 936 0080 FFF7FEFF 		bl	read_slot
+ 937              	.LVL84:
+ 938              		.loc 1 298 12 discriminator 1 view .LVU264
+ 939 0084 28B9     		cbnz	r0, .L76
+ 940              	.LVL85:
+ 941              	.L81:
+ 299:../common/device_identity_store.c ****             memset(slot, 0, sizeof(slot));
+ 300:../common/device_identity_store.c ****             return HBOX_DEVICE_IDENTITY_IO_ERROR;
+ 942              		.loc 1 300 20 view .LVU265
+ 943 0086 0424     		movs	r4, #4
+ 944              	.LVL86:
+ 945              	.L73:
+ 301:../common/device_identity_store.c ****         }
+ 302:../common/device_identity_store.c ****         if (all_erased(slot, sizeof(slot))) {
+ 303:../common/device_identity_store.c ****             selected_slot = slot_index;
+ 304:../common/device_identity_store.c ****             break;
+ 305:../common/device_identity_store.c ****         }
+ 306:../common/device_identity_store.c ****     }
+ 307:../common/device_identity_store.c ****     memset(slot, 0, sizeof(slot));
+ 308:../common/device_identity_store.c ****     if (selected_slot == UINT32_MAX) {
+ 309:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_FULL;
+ 310:../common/device_identity_store.c ****     }
+ 311:../common/device_identity_store.c **** 
+ 312:../common/device_identity_store.c ****     /*
+ 313:../common/device_identity_store.c ****      * Program and verify all eight record flashwords first.  The ninth
+ 314:../common/device_identity_store.c ****      * flashword is the only authority that makes a slot visible to Load().
+ 315:../common/device_identity_store.c ****      */
+ 316:../common/device_identity_store.c ****     for (flashword = 0u;
+ 317:../common/device_identity_store.c ****          flashword < IDENTITY_RECORD_FLASHWORDS;
+ 318:../common/device_identity_store.c ****          ++flashword) {
+ 319:../common/device_identity_store.c ****         if (!program_and_verify_flashword(
+ 320:../common/device_identity_store.c ****                 backend,
+ 321:../common/device_identity_store.c ****                 selected_slot,
+ 322:../common/device_identity_store.c ****                 flashword,
+ 323:../common/device_identity_store.c ****                 (const uint8_t *)record +
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 27
+
+
+ 324:../common/device_identity_store.c ****                     flashword * HBOX_INTERNAL_FLASH_PROGRAM_BYTES)) {
+ 325:../common/device_identity_store.c ****             return HBOX_DEVICE_IDENTITY_IO_ERROR;
+ 326:../common/device_identity_store.c ****         }
+ 327:../common/device_identity_store.c ****     }
+ 328:../common/device_identity_store.c **** 
+ 329:../common/device_identity_store.c ****     build_commit(&commit, selected_slot, record->crc32_le);
+ 330:../common/device_identity_store.c ****     if (!program_and_verify_flashword(
+ 331:../common/device_identity_store.c ****             backend,
+ 332:../common/device_identity_store.c ****             selected_slot,
+ 333:../common/device_identity_store.c ****             IDENTITY_COMMIT_FLASHWORD,
+ 334:../common/device_identity_store.c ****             (const uint8_t *)&commit)) {
+ 335:../common/device_identity_store.c ****         memset(&commit, 0, sizeof(commit));
+ 336:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_IO_ERROR;
+ 337:../common/device_identity_store.c ****     }
+ 338:../common/device_identity_store.c ****     memset(&commit, 0, sizeof(commit));
+ 339:../common/device_identity_store.c **** 
+ 340:../common/device_identity_store.c ****     status = HBoxIdentityStore_LoadFromBackend(backend, &loaded);
+ 341:../common/device_identity_store.c ****     if (status == HBOX_DEVICE_IDENTITY_OK &&
+ 342:../common/device_identity_store.c ****         memcmp(&loaded, record, sizeof(loaded)) != 0) {
+ 343:../common/device_identity_store.c ****         status = HBOX_DEVICE_IDENTITY_CORRUPT;
+ 344:../common/device_identity_store.c ****     }
+ 345:../common/device_identity_store.c ****     memset(&loaded, 0, sizeof(loaded));
+ 346:../common/device_identity_store.c ****     return status;
+ 347:../common/device_identity_store.c **** }
+ 946              		.loc 1 347 1 view .LVU266
+ 947 0088 2046     		mov	r0, r4
+ 948 008a 0DF5117D 		add	sp, sp, #580
+ 949              	.LCFI15:
+ 950              		.cfi_remember_state
+ 951              		.cfi_def_cfa_offset 28
+ 952              		@ sp needed
+ 953 008e BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+ 954              	.LVL87:
+ 955              	.L76:
+ 956              	.LCFI16:
+ 957              		.cfi_restore_state
+ 958              		.loc 1 347 1 view .LVU267
+ 959 0092 48AA     		add	r2, sp, #288
+ 960              	.LBB58:
+ 961              	.LBB59:
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 962              		.loc 1 31 16 view .LVU268
+ 963 0094 0023     		movs	r3, #0
+ 964              	.L78:
+ 965              	.LVL88:
+  32:../common/device_identity_store.c ****             return 0;
+ 966              		.loc 1 32 9 is_stmt 1 view .LVU269
+  32:../common/device_identity_store.c ****             return 0;
+ 967              		.loc 1 32 18 is_stmt 0 view .LVU270
+ 968 0096 12F8011B 		ldrb	r1, [r2], #1	@ zero_extendqisi2
+  32:../common/device_identity_store.c ****             return 0;
+ 969              		.loc 1 32 12 view .LVU271
+ 970 009a FF29     		cmp	r1, #255
+ 971 009c 59D1     		bne	.L77
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 972              		.loc 1 31 38 is_stmt 1 discriminator 2 view .LVU272
+ 973 009e 0133     		adds	r3, r3, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 28
+
+
+ 974              	.LVL89:
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 975              		.loc 1 31 28 discriminator 1 view .LVU273
+ 976 00a0 B3F5907F 		cmp	r3, #288
+ 977 00a4 F7D1     		bne	.L78
+ 978              	.LVL90:
+ 979              	.L79:
+  31:../common/device_identity_store.c ****         if (value[index] != 0xFFu) {
+ 980              		.loc 1 31 28 is_stmt 0 discriminator 1 view .LVU274
+ 981              	.LBE59:
+ 982              	.LBE58:
+ 307:../common/device_identity_store.c ****     if (selected_slot == UINT32_MAX) {
+ 983              		.loc 1 307 5 is_stmt 1 view .LVU275
+ 984 00a6 4FF49072 		mov	r2, #288
+ 985 00aa 0021     		movs	r1, #0
+ 986 00ac 0DEB0200 		add	r0, sp, r2
+ 987 00b0 FFF7FEFF 		bl	memset
+ 988              	.LVL91:
+ 308:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_FULL;
+ 989              		.loc 1 308 5 view .LVU276
+ 308:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_FULL;
+ 990              		.loc 1 308 8 is_stmt 0 view .LVU277
+ 991 00b4 631C     		adds	r3, r4, #1
+ 992 00b6 54D0     		beq	.L91
+ 316:../common/device_identity_store.c ****          flashword < IDENTITY_RECORD_FLASHWORDS;
+ 993              		.loc 1 316 20 view .LVU278
+ 994 00b8 0027     		movs	r7, #0
+ 995              	.LVL92:
+ 996              	.L82:
+ 319:../common/device_identity_store.c ****                 backend,
+ 997              		.loc 1 319 9 is_stmt 1 view .LVU279
+ 319:../common/device_identity_store.c ****                 backend,
+ 998              		.loc 1 319 14 is_stmt 0 view .LVU280
+ 999 00ba 06EB4713 		add	r3, r6, r7, lsl #5
+ 1000 00be 3A46     		mov	r2, r7
+ 1001 00c0 2146     		mov	r1, r4
+ 1002 00c2 2846     		mov	r0, r5
+ 1003 00c4 FFF7FEFF 		bl	program_and_verify_flashword
+ 1004              	.LVL93:
+ 319:../common/device_identity_store.c ****                 backend,
+ 1005              		.loc 1 319 12 discriminator 1 view .LVU281
+ 1006 00c8 0028     		cmp	r0, #0
+ 1007 00ca DCD0     		beq	.L81
+ 318:../common/device_identity_store.c ****         if (!program_and_verify_flashword(
+ 1008              		.loc 1 318 10 is_stmt 1 view .LVU282
+ 1009 00cc 0137     		adds	r7, r7, #1
+ 1010              	.LVL94:
+ 317:../common/device_identity_store.c ****          ++flashword) {
+ 1011              		.loc 1 317 20 view .LVU283
+ 1012 00ce 082F     		cmp	r7, #8
+ 1013 00d0 F3D1     		bne	.L82
+ 329:../common/device_identity_store.c ****     if (!program_and_verify_flashword(
+ 1014              		.loc 1 329 5 view .LVU284
+ 1015              	.LBB60:
+ 1016              	.LBB61:
+ 217:../common/device_identity_store.c ****     commit->magic_le = HBOX_DEVICE_IDENTITY_COMMIT_MAGIC;
+ 1017              		.loc 1 217 5 is_stmt 0 view .LVU285
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 29
+
+
+ 1018 00d2 1B22     		movs	r2, #27
+ 1019 00d4 0021     		movs	r1, #0
+ 1020 00d6 0DF10500 		add	r0, sp, #5
+ 1021              	.LBE61:
+ 1022              	.LBE60:
+ 329:../common/device_identity_store.c ****     if (!program_and_verify_flashword(
+ 1023              		.loc 1 329 48 view .LVU286
+ 1024 00da D6F80880 		ldr	r8, [r6, #8]	@ unaligned
+ 1025              	.LVL95:
+ 1026              	.LBB70:
+ 1027              	.LBI60:
+ 212:../common/device_identity_store.c ****     hbox_device_identity_commit_v1_t *commit,
+ 1028              		.loc 1 212 13 is_stmt 1 view .LVU287
+ 1029              	.LBB68:
+ 217:../common/device_identity_store.c ****     commit->magic_le = HBOX_DEVICE_IDENTITY_COMMIT_MAGIC;
+ 1030              		.loc 1 217 5 view .LVU288
+ 1031 00de FFF7FEFF 		bl	memset
+ 1032              	.LVL96:
+ 218:../common/device_identity_store.c ****     commit->version = HBOX_DEVICE_IDENTITY_COMMIT_VERSION;
+ 1033              		.loc 1 218 5 view .LVU289
+ 218:../common/device_identity_store.c ****     commit->version = HBOX_DEVICE_IDENTITY_COMMIT_VERSION;
+ 1034              		.loc 1 218 22 is_stmt 0 view .LVU290
+ 1035 00e2 214B     		ldr	r3, .L106
+ 220:../common/device_identity_store.c ****     commit->slot_ordinal_le = slot_index + 1u;
+ 1036              		.loc 1 220 28 view .LVU291
+ 1037 00e4 4FF02009 		mov	r9, #32
+ 1038              	.LBB62:
+ 1039              	.LBB63:
+  42:../common/device_identity_store.c ****         (const uint8_t *)commit,
+ 1040              		.loc 1 42 12 view .LVU292
+ 1041 00e8 1422     		movs	r2, #20
+ 1042              	.LBE63:
+ 1043              	.LBE62:
+ 218:../common/device_identity_store.c ****     commit->version = HBOX_DEVICE_IDENTITY_COMMIT_VERSION;
+ 1044              		.loc 1 218 22 view .LVU293
+ 1045 00ea 0093     		str	r3, [sp]
+ 219:../common/device_identity_store.c ****     commit->total_bytes_le = sizeof(*commit);
+ 1046              		.loc 1 219 5 is_stmt 1 view .LVU294
+ 219:../common/device_identity_store.c ****     commit->total_bytes_le = sizeof(*commit);
+ 1047              		.loc 1 219 21 is_stmt 0 view .LVU295
+ 1048 00ec 0123     		movs	r3, #1
+ 1049              	.LBB66:
+ 1050              	.LBB64:
+  42:../common/device_identity_store.c ****         (const uint8_t *)commit,
+ 1051              		.loc 1 42 12 view .LVU296
+ 1052 00ee 4946     		mov	r1, r9
+ 1053 00f0 6846     		mov	r0, sp
+ 1054              	.LBE64:
+ 1055              	.LBE66:
+ 219:../common/device_identity_store.c ****     commit->total_bytes_le = sizeof(*commit);
+ 1056              		.loc 1 219 21 view .LVU297
+ 1057 00f2 8DF80430 		strb	r3, [sp, #4]
+ 220:../common/device_identity_store.c ****     commit->slot_ordinal_le = slot_index + 1u;
+ 1058              		.loc 1 220 5 is_stmt 1 view .LVU298
+ 221:../common/device_identity_store.c ****     commit->record_crc32_le = record_crc;
+ 1059              		.loc 1 221 42 is_stmt 0 view .LVU299
+ 1060 00f6 E318     		adds	r3, r4, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 30
+
+
+ 220:../common/device_identity_store.c ****     commit->slot_ordinal_le = slot_index + 1u;
+ 1061              		.loc 1 220 28 view .LVU300
+ 1062 00f8 ADF80690 		strh	r9, [sp, #6]	@ movhi
+ 221:../common/device_identity_store.c ****     commit->record_crc32_le = record_crc;
+ 1063              		.loc 1 221 5 is_stmt 1 view .LVU301
+ 222:../common/device_identity_store.c ****     commit->record_crc32_inverse_le = ~record_crc;
+ 1064              		.loc 1 222 29 is_stmt 0 view .LVU302
+ 1065 00fc CDE90238 		strd	r3, r8, [sp, #8]
+ 223:../common/device_identity_store.c ****     commit->committed_le = HBOX_DEVICE_IDENTITY_COMMITTED;
+ 1066              		.loc 1 223 5 is_stmt 1 view .LVU303
+ 223:../common/device_identity_store.c ****     commit->committed_le = HBOX_DEVICE_IDENTITY_COMMITTED;
+ 1067              		.loc 1 223 39 is_stmt 0 view .LVU304
+ 1068 0100 6FEA0803 		mvn	r3, r8
+ 223:../common/device_identity_store.c ****     commit->committed_le = HBOX_DEVICE_IDENTITY_COMMITTED;
+ 1069              		.loc 1 223 37 view .LVU305
+ 1070 0104 0493     		str	r3, [sp, #16]
+ 224:../common/device_identity_store.c ****     commit->commit_crc32_le = commit_crc32(commit);
+ 1071              		.loc 1 224 5 is_stmt 1 view .LVU306
+ 224:../common/device_identity_store.c ****     commit->commit_crc32_le = commit_crc32(commit);
+ 1072              		.loc 1 224 26 is_stmt 0 view .LVU307
+ 1073 0106 194B     		ldr	r3, .L106+4
+ 1074 0108 0693     		str	r3, [sp, #24]
+ 225:../common/device_identity_store.c **** }
+ 1075              		.loc 1 225 5 is_stmt 1 view .LVU308
+ 1076              	.LVL97:
+ 1077              	.LBB67:
+ 1078              	.LBI62:
+  39:../common/device_identity_store.c ****     const hbox_device_identity_commit_v1_t *commit)
+ 1079              		.loc 1 39 17 view .LVU309
+ 1080              	.LBB65:
+  42:../common/device_identity_store.c ****         (const uint8_t *)commit,
+ 1081              		.loc 1 42 5 view .LVU310
+  42:../common/device_identity_store.c ****         (const uint8_t *)commit,
+ 1082              		.loc 1 42 12 is_stmt 0 view .LVU311
+ 1083 010a 0423     		movs	r3, #4
+ 1084 010c FFF7FEFF 		bl	HBoxSecurity_Crc32Skipping
+ 1085              	.LVL98:
+  42:../common/device_identity_store.c ****         (const uint8_t *)commit,
+ 1086              		.loc 1 42 12 view .LVU312
+ 1087              	.LBE65:
+ 1088              	.LBE67:
+ 1089              	.LBE68:
+ 1090              	.LBE70:
+ 330:../common/device_identity_store.c ****             backend,
+ 1091              		.loc 1 330 10 view .LVU313
+ 1092 0110 6B46     		mov	r3, sp
+ 1093              	.LBB71:
+ 1094              	.LBB69:
+ 225:../common/device_identity_store.c **** }
+ 1095              		.loc 1 225 29 discriminator 1 view .LVU314
+ 1096 0112 0590     		str	r0, [sp, #20]
+ 1097              	.LVL99:
+ 225:../common/device_identity_store.c **** }
+ 1098              		.loc 1 225 29 discriminator 1 view .LVU315
+ 1099              	.LBE69:
+ 1100              	.LBE71:
+ 330:../common/device_identity_store.c ****             backend,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 31
+
+
+ 1101              		.loc 1 330 5 is_stmt 1 view .LVU316
+ 330:../common/device_identity_store.c ****             backend,
+ 1102              		.loc 1 330 10 is_stmt 0 view .LVU317
+ 1103 0114 3A46     		mov	r2, r7
+ 1104 0116 2146     		mov	r1, r4
+ 1105 0118 2846     		mov	r0, r5
+ 1106 011a FFF7FEFF 		bl	program_and_verify_flashword
+ 1107              	.LVL100:
+ 330:../common/device_identity_store.c ****             backend,
+ 1108              		.loc 1 330 8 discriminator 1 view .LVU318
+ 1109 011e 0028     		cmp	r0, #0
+ 1110 0120 B1D0     		beq	.L81
+ 338:../common/device_identity_store.c **** 
+ 1111              		.loc 1 338 5 is_stmt 1 view .LVU319
+ 1112 0122 4A46     		mov	r2, r9
+ 1113 0124 0021     		movs	r1, #0
+ 1114 0126 6846     		mov	r0, sp
+ 1115 0128 FFF7FEFF 		bl	memset
+ 1116              	.LVL101:
+ 340:../common/device_identity_store.c ****     if (status == HBOX_DEVICE_IDENTITY_OK &&
+ 1117              		.loc 1 340 5 view .LVU320
+ 340:../common/device_identity_store.c ****     if (status == HBOX_DEVICE_IDENTITY_OK &&
+ 1118              		.loc 1 340 14 is_stmt 0 view .LVU321
+ 1119 012c 0DEB0901 		add	r1, sp, r9
+ 1120 0130 2846     		mov	r0, r5
+ 1121 0132 FFF7FEFF 		bl	HBoxIdentityStore_LoadFromBackend
+ 1122              	.LVL102:
+ 341:../common/device_identity_store.c ****         memcmp(&loaded, record, sizeof(loaded)) != 0) {
+ 1123              		.loc 1 341 5 is_stmt 1 view .LVU322
+ 341:../common/device_identity_store.c ****         memcmp(&loaded, record, sizeof(loaded)) != 0) {
+ 1124              		.loc 1 341 8 is_stmt 0 view .LVU323
+ 1125 0136 0446     		mov	r4, r0
+ 1126 0138 0028     		cmp	r0, #0
+ 1127 013a A5D1     		bne	.L73
+ 342:../common/device_identity_store.c ****         status = HBOX_DEVICE_IDENTITY_CORRUPT;
+ 1128              		.loc 1 342 9 view .LVU324
+ 1129 013c 4FF48072 		mov	r2, #256
+ 1130 0140 3146     		mov	r1, r6
+ 1131 0142 0DEB0900 		add	r0, sp, r9
+ 1132              	.LVL103:
+ 342:../common/device_identity_store.c ****         status = HBOX_DEVICE_IDENTITY_CORRUPT;
+ 1133              		.loc 1 342 9 view .LVU325
+ 1134 0146 FFF7FEFF 		bl	memcmp
+ 1135              	.LVL104:
+ 341:../common/device_identity_store.c ****         memcmp(&loaded, record, sizeof(loaded)) != 0) {
+ 1136              		.loc 1 341 43 discriminator 1 view .LVU326
+ 1137 014a 0028     		cmp	r0, #0
+ 1138 014c 9CD0     		beq	.L73
+ 1139              	.LVL105:
+ 1140              	.L74:
+ 343:../common/device_identity_store.c ****     }
+ 1141              		.loc 1 343 9 is_stmt 1 view .LVU327
+ 343:../common/device_identity_store.c ****     }
+ 1142              		.loc 1 343 16 is_stmt 0 view .LVU328
+ 1143 014e 0324     		movs	r4, #3
+ 1144 0150 9AE7     		b	.L73
+ 1145              	.LVL106:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 32
+
+
+ 1146              	.L77:
+ 297:../common/device_identity_store.c ****         if (!read_slot(backend, slot_index, slot)) {
+ 1147              		.loc 1 297 10 is_stmt 1 view .LVU329
+ 1148 0152 0134     		adds	r4, r4, #1
+ 1149              	.LVL107:
+ 297:../common/device_identity_store.c ****         if (!read_slot(backend, slot_index, slot)) {
+ 1150              		.loc 1 297 10 is_stmt 0 view .LVU330
+ 1151 0154 8BE7     		b	.L75
+ 1152              	.LVL108:
+ 1153              	.L88:
+ 277:../common/device_identity_store.c ****     }
+ 1154              		.loc 1 277 16 view .LVU331
+ 1155 0156 0124     		movs	r4, #1
+ 1156 0158 96E7     		b	.L73
+ 1157              	.LVL109:
+ 1158              	.L89:
+ 280:../common/device_identity_store.c ****     }
+ 1159              		.loc 1 280 16 view .LVU332
+ 1160 015a 0724     		movs	r4, #7
+ 1161 015c 94E7     		b	.L73
+ 1162              	.LVL110:
+ 1163              	.L90:
+ 289:../common/device_identity_store.c ****     }
+ 1164              		.loc 1 289 16 view .LVU333
+ 1165 015e 0624     		movs	r4, #6
+ 1166              	.LVL111:
+ 289:../common/device_identity_store.c ****     }
+ 1167              		.loc 1 289 16 view .LVU334
+ 1168 0160 92E7     		b	.L73
+ 1169              	.LVL112:
+ 1170              	.L91:
+ 309:../common/device_identity_store.c ****     }
+ 1171              		.loc 1 309 16 view .LVU335
+ 1172 0162 0524     		movs	r4, #5
+ 1173              	.LVL113:
+ 309:../common/device_identity_store.c ****     }
+ 1174              		.loc 1 309 16 view .LVU336
+ 1175 0164 90E7     		b	.L73
+ 1176              	.L107:
+ 1177 0166 00BF     		.align	2
+ 1178              	.L106:
+ 1179 0168 48494331 		.word	826493256
+ 1180 016c 434D4954 		.word	1414090051
+ 1181              		.cfi_endproc
+ 1182              	.LFE10:
+ 1184              		.section	.text.HBoxIdentityStore_LoadStatus,"ax",%progbits
+ 1185              		.align	1
+ 1186              		.global	HBoxIdentityStore_LoadStatus
+ 1187              		.syntax unified
+ 1188              		.thumb
+ 1189              		.thumb_func
+ 1191              	HBoxIdentityStore_LoadStatus:
+ 1192              	.LVL114:
+ 1193              	.LFB11:
+ 348:../common/device_identity_store.c **** 
+ 349:../common/device_identity_store.c **** hbox_device_identity_status_t HBoxIdentityStore_LoadStatus(
+ 350:../common/device_identity_store.c ****     hbox_device_identity_record_v1_t *record)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 33
+
+
+ 351:../common/device_identity_store.c **** {
+ 1194              		.loc 1 351 1 is_stmt 1 view -0
+ 1195              		.cfi_startproc
+ 1196              		@ args = 0, pretend = 0, frame = 0
+ 1197              		@ frame_needed = 0, uses_anonymous_args = 0
+ 352:../common/device_identity_store.c **** #if HBOX_DEVICE_IDENTITY_PROVIDER_READY
+ 353:../common/device_identity_store.c ****     hbox_device_identity_backend_t backend;
+ 354:../common/device_identity_store.c **** 
+ 355:../common/device_identity_store.c ****     if (record == NULL) {
+ 356:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_UNAVAILABLE;
+ 357:../common/device_identity_store.c ****     }
+ 358:../common/device_identity_store.c ****     memset(&backend, 0, sizeof(backend));
+ 359:../common/device_identity_store.c ****     if (!HBoxIdentityStoreProvider_Open(&backend)) {
+ 360:../common/device_identity_store.c ****         memset(record, 0, sizeof(*record));
+ 361:../common/device_identity_store.c ****         return HBOX_DEVICE_IDENTITY_UNAVAILABLE;
+ 362:../common/device_identity_store.c ****     }
+ 363:../common/device_identity_store.c ****     return HBoxIdentityStore_LoadFromBackend(&backend, record);
+ 364:../common/device_identity_store.c **** #else
+ 365:../common/device_identity_store.c ****     if (record != NULL) {
+ 1198              		.loc 1 365 5 view .LVU338
+ 351:../common/device_identity_store.c **** #if HBOX_DEVICE_IDENTITY_PROVIDER_READY
+ 1199              		.loc 1 351 1 is_stmt 0 view .LVU339
+ 1200 0000 08B5     		push	{r3, lr}
+ 1201              	.LCFI17:
+ 1202              		.cfi_def_cfa_offset 8
+ 1203              		.cfi_offset 3, -8
+ 1204              		.cfi_offset 14, -4
+ 1205              		.loc 1 365 8 view .LVU340
+ 1206 0002 20B1     		cbz	r0, .L109
+ 1207              	.LVL115:
+ 1208              	.LBB74:
+ 1209              	.LBI74:
+ 349:../common/device_identity_store.c ****     hbox_device_identity_record_v1_t *record)
+ 1210              		.loc 1 349 31 is_stmt 1 view .LVU341
+ 1211              	.LBB75:
+ 366:../common/device_identity_store.c ****         memset(record, 0, sizeof(*record));
+ 1212              		.loc 1 366 9 view .LVU342
+ 1213 0004 4FF48072 		mov	r2, #256
+ 1214 0008 0021     		movs	r1, #0
+ 1215 000a FFF7FEFF 		bl	memset
+ 1216              	.LVL116:
+ 1217              	.L109:
+ 1218              		.loc 1 366 9 is_stmt 0 view .LVU343
+ 1219              	.LBE75:
+ 1220              	.LBE74:
+ 367:../common/device_identity_store.c ****     }
+ 368:../common/device_identity_store.c ****     return HBOX_DEVICE_IDENTITY_UNAVAILABLE;
+ 1221              		.loc 1 368 5 is_stmt 1 view .LVU344
+ 369:../common/device_identity_store.c **** #endif
+ 370:../common/device_identity_store.c **** }
+ 1222              		.loc 1 370 1 is_stmt 0 view .LVU345
+ 1223 000e 0120     		movs	r0, #1
+ 1224 0010 08BD     		pop	{r3, pc}
+ 1225              		.cfi_endproc
+ 1226              	.LFE11:
+ 1228              		.section	.text.HBoxIdentityStore_Load,"ax",%progbits
+ 1229              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 34
+
+
+ 1230              		.global	HBoxIdentityStore_Load
+ 1231              		.syntax unified
+ 1232              		.thumb
+ 1233              		.thumb_func
+ 1235              	HBoxIdentityStore_Load:
+ 1236              	.LVL117:
+ 1237              	.LFB12:
+ 371:../common/device_identity_store.c **** 
+ 372:../common/device_identity_store.c **** int HBoxIdentityStore_Load(hbox_device_identity_record_v1_t *record)
+ 373:../common/device_identity_store.c **** {
+ 1238              		.loc 1 373 1 is_stmt 1 view -0
+ 1239              		.cfi_startproc
+ 1240              		@ args = 0, pretend = 0, frame = 0
+ 1241              		@ frame_needed = 0, uses_anonymous_args = 0
+ 374:../common/device_identity_store.c ****     return HBoxIdentityStore_LoadStatus(record) ==
+ 1242              		.loc 1 374 5 view .LVU347
+ 373:../common/device_identity_store.c ****     return HBoxIdentityStore_LoadStatus(record) ==
+ 1243              		.loc 1 373 1 is_stmt 0 view .LVU348
+ 1244 0000 08B5     		push	{r3, lr}
+ 1245              	.LCFI18:
+ 1246              		.cfi_def_cfa_offset 8
+ 1247              		.cfi_offset 3, -8
+ 1248              		.cfi_offset 14, -4
+ 1249              		.loc 1 374 12 view .LVU349
+ 1250 0002 FFF7FEFF 		bl	HBoxIdentityStore_LoadStatus
+ 1251              	.LVL118:
+ 375:../common/device_identity_store.c ****            HBOX_DEVICE_IDENTITY_OK;
+ 376:../common/device_identity_store.c **** }
+ 1252              		.loc 1 376 1 view .LVU350
+ 1253 0006 B0FA80F0 		clz	r0, r0
+ 1254 000a 4009     		lsrs	r0, r0, #5
+ 1255 000c 08BD     		pop	{r3, pc}
+ 1256              		.cfi_endproc
+ 1257              	.LFE12:
+ 1259              		.section	.rodata.HBoxIdentityStore_StatusString.str1.1,"aMS",%progbits,1
+ 1260              	.LC0:
+ 1261 0000 756E6B6E 		.ascii	"unknown\000"
+ 1261      6F776E00 
+ 1262              		.section	.text.HBoxIdentityStore_StatusString,"ax",%progbits
+ 1263              		.align	1
+ 1264              		.global	HBoxIdentityStore_StatusString
+ 1265              		.syntax unified
+ 1266              		.thumb
+ 1267              		.thumb_func
+ 1269              	HBoxIdentityStore_StatusString:
+ 1270              	.LVL119:
+ 1271              	.LFB13:
+ 377:../common/device_identity_store.c **** 
+ 378:../common/device_identity_store.c **** const char *HBoxIdentityStore_StatusString(
+ 379:../common/device_identity_store.c ****     hbox_device_identity_status_t status)
+ 380:../common/device_identity_store.c **** {
+ 1272              		.loc 1 380 1 is_stmt 1 view -0
+ 1273              		.cfi_startproc
+ 1274              		@ args = 0, pretend = 0, frame = 0
+ 1275              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1276              		@ link register save eliminated.
+ 381:../common/device_identity_store.c ****     switch (status) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 35
+
+
+ 1277              		.loc 1 381 5 view .LVU352
+ 1278 0000 0728     		cmp	r0, #7
+ 1279 0002 9ABF     		itte	ls
+ 1280 0004 024B     		ldrls	r3, .L117
+ 1281 0006 53F82000 		ldrls	r0, [r3, r0, lsl #2]
+ 1282              	.LVL120:
+ 380:../common/device_identity_store.c ****     switch (status) {
+ 1283              		.loc 1 380 1 is_stmt 0 view .LVU353
+ 1284 000a 0248     		ldrhi	r0, .L117+4
+ 382:../common/device_identity_store.c ****     case HBOX_DEVICE_IDENTITY_OK:
+ 383:../common/device_identity_store.c ****         return "ok";
+ 384:../common/device_identity_store.c ****     case HBOX_DEVICE_IDENTITY_UNAVAILABLE:
+ 385:../common/device_identity_store.c ****         return "provider-unavailable";
+ 386:../common/device_identity_store.c ****     case HBOX_DEVICE_IDENTITY_UNPROVISIONED:
+ 387:../common/device_identity_store.c ****         return "unprovisioned";
+ 388:../common/device_identity_store.c ****     case HBOX_DEVICE_IDENTITY_CORRUPT:
+ 389:../common/device_identity_store.c ****         return "corrupt";
+ 390:../common/device_identity_store.c ****     case HBOX_DEVICE_IDENTITY_IO_ERROR:
+ 391:../common/device_identity_store.c ****         return "io-error";
+ 392:../common/device_identity_store.c ****     case HBOX_DEVICE_IDENTITY_FULL:
+ 393:../common/device_identity_store.c ****         return "full";
+ 394:../common/device_identity_store.c ****     case HBOX_DEVICE_IDENTITY_ALREADY_PROVISIONED:
+ 395:../common/device_identity_store.c ****         return "already-provisioned";
+ 396:../common/device_identity_store.c ****     case HBOX_DEVICE_IDENTITY_FACTORY_DENIED:
+ 397:../common/device_identity_store.c ****         return "factory-denied";
+ 398:../common/device_identity_store.c ****     default:
+ 399:../common/device_identity_store.c ****         return "unknown";
+ 400:../common/device_identity_store.c ****     }
+ 401:../common/device_identity_store.c **** }
+ 1285              		.loc 1 401 1 view .LVU354
+ 1286 000c 7047     		bx	lr
+ 1287              	.L118:
+ 1288 000e 00BF     		.align	2
+ 1289              	.L117:
+ 1290 0010 00000000 		.word	CSWTCH.17
+ 1291 0014 00000000 		.word	.LC0
+ 1292              		.cfi_endproc
+ 1293              	.LFE13:
+ 1295              		.section	.rodata.str1.1,"aMS",%progbits,1
+ 1296              	.LC1:
+ 1297 0000 6F6B00   		.ascii	"ok\000"
+ 1298              	.LC2:
+ 1299 0003 70726F76 		.ascii	"provider-unavailable\000"
+ 1299      69646572 
+ 1299      2D756E61 
+ 1299      7661696C 
+ 1299      61626C65 
+ 1300              	.LC3:
+ 1301 0018 756E7072 		.ascii	"unprovisioned\000"
+ 1301      6F766973 
+ 1301      696F6E65 
+ 1301      6400
+ 1302              	.LC4:
+ 1303 0026 636F7272 		.ascii	"corrupt\000"
+ 1303      75707400 
+ 1304              	.LC5:
+ 1305 002e 696F2D65 		.ascii	"io-error\000"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 36
+
+
+ 1305      72726F72 
+ 1305      00
+ 1306              	.LC6:
+ 1307 0037 66756C6C 		.ascii	"full\000"
+ 1307      00
+ 1308              	.LC7:
+ 1309 003c 616C7265 		.ascii	"already-provisioned\000"
+ 1309      6164792D 
+ 1309      70726F76 
+ 1309      6973696F 
+ 1309      6E656400 
+ 1310              	.LC8:
+ 1311 0050 66616374 		.ascii	"factory-denied\000"
+ 1311      6F72792D 
+ 1311      64656E69 
+ 1311      656400
+ 1312              		.section	.rodata.CSWTCH.17,"a"
+ 1313              		.align	2
+ 1316              	CSWTCH.17:
+ 1317 0000 00000000 		.word	.LC1
+ 1318 0004 03000000 		.word	.LC2
+ 1319 0008 18000000 		.word	.LC3
+ 1320 000c 26000000 		.word	.LC4
+ 1321 0010 2E000000 		.word	.LC5
+ 1322 0014 37000000 		.word	.LC6
+ 1323 0018 3C000000 		.word	.LC7
+ 1324 001c 50000000 		.word	.LC8
+ 1325              		.text
+ 1326              	.Letext0:
+ 1327              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1328              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1329              		.file 4 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1330              		.file 5 "../common/device_security_protocol.h"
+ 1331              		.file 6 "../common/device_identity_store.h"
+ 1332              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1333              		.file 8 "../common/device_security_boot_context.h"
+ 1334              		.file 9 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s 			page 37
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 device_identity_store.c
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:20     .text.program_and_verify_flashword:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:25     .text.program_and_verify_flashword:00000000 program_and_verify_flashword
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:151    .text.read_slot:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:156    .text.read_slot:00000000 read_slot
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:232    .text.record_is_valid:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:237    .text.record_is_valid:00000000 record_is_valid
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:377    .text.record_is_valid:00000088 $d
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:383    .text.HBoxIdentityStore_LoadFromBackend.part.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:388    .text.HBoxIdentityStore_LoadFromBackend.part.0:00000000 HBoxIdentityStore_LoadFromBackend.part.0
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:712    .text.HBoxIdentityStore_LoadFromBackend.part.0:00000138 $d
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:718    .text.HBoxIdentityStore_LoadFromBackend:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:724    .text.HBoxIdentityStore_LoadFromBackend:00000000 HBoxIdentityStore_LoadFromBackend
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:798    .text.HBoxIdentityStore_ProvisionFactory:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:804    .text.HBoxIdentityStore_ProvisionFactory:00000000 HBoxIdentityStore_ProvisionFactory
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1179   .text.HBoxIdentityStore_ProvisionFactory:00000168 $d
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1185   .text.HBoxIdentityStore_LoadStatus:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1191   .text.HBoxIdentityStore_LoadStatus:00000000 HBoxIdentityStore_LoadStatus
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1229   .text.HBoxIdentityStore_Load:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1235   .text.HBoxIdentityStore_Load:00000000 HBoxIdentityStore_Load
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1263   .text.HBoxIdentityStore_StatusString:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1269   .text.HBoxIdentityStore_StatusString:00000000 HBoxIdentityStore_StatusString
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1290   .text.HBoxIdentityStore_StatusString:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1316   .rodata.CSWTCH.17:00000000 CSWTCH.17
+C:\Users\nicx5\AppData\Local\Temp\cc1t18di.s:1313   .rodata.CSWTCH.17:00000000 $d
+
+UNDEFINED SYMBOLS
+memcmp
+memset
+HBoxSecurity_Crc32Skipping
+memcpy

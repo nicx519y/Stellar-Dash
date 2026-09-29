@@ -1,0 +1,519 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"board_mode.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/board_mode.cpp"
+  19              		.section	.text._ZNK16BoardModeManager7readRawEv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZNK16BoardModeManager7readRawEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZNK16BoardModeManager7readRawEv:
+  27              	.LVL0:
+  28              	.LFB1275:
+   1:Cpp_Core/Src/board_mode.cpp **** #include "board_mode.hpp"
+   2:Cpp_Core/Src/board_mode.cpp **** 
+   3:Cpp_Core/Src/board_mode.cpp **** #include "board_cfg.h"
+   4:Cpp_Core/Src/board_mode.cpp **** #include "stm32h7xx_hal.h"
+   5:Cpp_Core/Src/board_mode.cpp **** 
+   6:Cpp_Core/Src/board_mode.cpp **** BoardMode BoardModeManager::readRaw() const
+   7:Cpp_Core/Src/board_mode.cpp **** {
+  29              		.loc 1 7 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+   8:Cpp_Core/Src/board_mode.cpp ****     const bool usbN = HAL_GPIO_ReadPin(MODE_USB_N_PORT, MODE_USB_N_PIN) == GPIO_PIN_SET;
+  33              		.loc 1 8 5 view .LVU1
+   7:Cpp_Core/Src/board_mode.cpp ****     const bool usbN = HAL_GPIO_ReadPin(MODE_USB_N_PORT, MODE_USB_N_PIN) == GPIO_PIN_SET;
+  34              		.loc 1 7 1 is_stmt 0 view .LVU2
+  35 0000 10B5     		push	{r4, lr}
+  36              	.LCFI0:
+  37              		.cfi_def_cfa_offset 8
+  38              		.cfi_offset 4, -8
+  39              		.cfi_offset 14, -4
+  40              		.loc 1 8 39 view .LVU3
+  41 0002 4FF40061 		mov	r1, #2048
+  42 0006 0A48     		ldr	r0, .L6
+  43              	.LVL1:
+  44              		.loc 1 8 39 view .LVU4
+  45 0008 FFF7FEFF 		bl	HAL_GPIO_ReadPin
+  46              	.LVL2:
+  47 000c 0446     		mov	r4, r0
+  48              	.LVL3:
+   9:Cpp_Core/Src/board_mode.cpp ****     const bool rfN = HAL_GPIO_ReadPin(MODE_RF_N_PORT, MODE_RF_N_PIN) == GPIO_PIN_SET;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 2
+
+
+  49              		.loc 1 9 5 is_stmt 1 view .LVU5
+  50              		.loc 1 9 38 is_stmt 0 view .LVU6
+  51 000e 4FF48051 		mov	r1, #4096
+  52 0012 0748     		ldr	r0, .L6
+  53 0014 FFF7FEFF 		bl	HAL_GPIO_ReadPin
+  54              	.LVL4:
+  10:Cpp_Core/Src/board_mode.cpp **** 
+  11:Cpp_Core/Src/board_mode.cpp ****     if (!usbN && rfN) {
+  55              		.loc 1 11 5 is_stmt 1 view .LVU7
+  56 0018 012C     		cmp	r4, #1
+  57 001a 05D0     		beq	.L2
+  12:Cpp_Core/Src/board_mode.cpp ****         return BoardMode::Usb;
+  13:Cpp_Core/Src/board_mode.cpp ****     }
+  14:Cpp_Core/Src/board_mode.cpp ****     if (usbN && !rfN) {
+  15:Cpp_Core/Src/board_mode.cpp ****         return BoardMode::Rf;
+  16:Cpp_Core/Src/board_mode.cpp ****     }
+  17:Cpp_Core/Src/board_mode.cpp ****     if (usbN && rfN) {
+  18:Cpp_Core/Src/board_mode.cpp ****         return BoardMode::CenterOff;
+  19:Cpp_Core/Src/board_mode.cpp ****     }
+  20:Cpp_Core/Src/board_mode.cpp ****     return BoardMode::Fault;
+  58              		.loc 1 20 23 is_stmt 0 view .LVU8
+  59 001c 0128     		cmp	r0, #1
+  60 001e 0CBF     		ite	eq
+  61 0020 0024     		moveq	r4, #0
+  62              	.LVL5:
+  63              		.loc 1 20 23 view .LVU9
+  64 0022 0324     		movne	r4, #3
+  65              	.L3:
+  21:Cpp_Core/Src/board_mode.cpp **** }
+  66              		.loc 1 21 1 view .LVU10
+  67 0024 2046     		mov	r0, r4
+  68              	.LVL6:
+  69              		.loc 1 21 1 view .LVU11
+  70 0026 10BD     		pop	{r4, pc}
+  71              	.LVL7:
+  72              	.L2:
+  18:Cpp_Core/Src/board_mode.cpp ****     }
+  73              		.loc 1 18 27 view .LVU12
+  74 0028 0128     		cmp	r0, #1
+  75 002a 08BF     		it	eq
+  76 002c 0224     		moveq	r4, #2
+  77              	.LVL8:
+  18:Cpp_Core/Src/board_mode.cpp ****     }
+  78              		.loc 1 18 27 view .LVU13
+  79 002e F9E7     		b	.L3
+  80              	.L7:
+  81              		.align	2
+  82              	.L6:
+  83 0030 00200258 		.word	1476534272
+  84              		.cfi_endproc
+  85              	.LFE1275:
+  87              		.section	.text._ZN16BoardModeManager6updateEm,"ax",%progbits
+  88              		.align	1
+  89              		.global	_ZN16BoardModeManager6updateEm
+  90              		.syntax unified
+  91              		.thumb
+  92              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 3
+
+
+  94              	_ZN16BoardModeManager6updateEm:
+  95              	.LVL9:
+  96              	.LFB1277:
+  22:Cpp_Core/Src/board_mode.cpp **** 
+  23:Cpp_Core/Src/board_mode.cpp **** void BoardModeManager::setup()
+  24:Cpp_Core/Src/board_mode.cpp **** {
+  25:Cpp_Core/Src/board_mode.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+  26:Cpp_Core/Src/board_mode.cpp **** 
+  27:Cpp_Core/Src/board_mode.cpp ****     GPIO_InitTypeDef init = {};
+  28:Cpp_Core/Src/board_mode.cpp ****     init.Pin = MODE_USB_N_PIN | MODE_RF_N_PIN;
+  29:Cpp_Core/Src/board_mode.cpp ****     init.Mode = GPIO_MODE_INPUT;
+  30:Cpp_Core/Src/board_mode.cpp ****     init.Pull = GPIO_PULLUP;
+  31:Cpp_Core/Src/board_mode.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+  32:Cpp_Core/Src/board_mode.cpp ****     HAL_GPIO_Init(GPIOI, &init);
+  33:Cpp_Core/Src/board_mode.cpp **** 
+  34:Cpp_Core/Src/board_mode.cpp ****     candidateMode = readRaw();
+  35:Cpp_Core/Src/board_mode.cpp ****     candidateSinceMs = HAL_GetTick();
+  36:Cpp_Core/Src/board_mode.cpp ****     stableMode = BoardMode::CenterOff;
+  37:Cpp_Core/Src/board_mode.cpp ****     stable = false;
+  38:Cpp_Core/Src/board_mode.cpp ****     changed = false;
+  39:Cpp_Core/Src/board_mode.cpp **** 
+  40:Cpp_Core/Src/board_mode.cpp ****     /* Establish a deterministic boot selection using the same 20 ms rule. */
+  41:Cpp_Core/Src/board_mode.cpp ****     HAL_Delay(BOARD_MODE_DEBOUNCE_MS);
+  42:Cpp_Core/Src/board_mode.cpp ****     update(HAL_GetTick());
+  43:Cpp_Core/Src/board_mode.cpp **** }
+  44:Cpp_Core/Src/board_mode.cpp **** 
+  45:Cpp_Core/Src/board_mode.cpp **** void BoardModeManager::update(uint32_t nowMs)
+  46:Cpp_Core/Src/board_mode.cpp **** {
+  97              		.loc 1 46 1 is_stmt 1 view -0
+  98              		.cfi_startproc
+  99              		@ args = 0, pretend = 0, frame = 0
+ 100              		@ frame_needed = 0, uses_anonymous_args = 0
+  47:Cpp_Core/Src/board_mode.cpp ****     const BoardMode raw = readRaw();
+ 101              		.loc 1 47 5 view .LVU15
+  46:Cpp_Core/Src/board_mode.cpp ****     const BoardMode raw = readRaw();
+ 102              		.loc 1 46 1 is_stmt 0 view .LVU16
+ 103 0000 38B5     		push	{r3, r4, r5, lr}
+ 104              	.LCFI1:
+ 105              		.cfi_def_cfa_offset 16
+ 106              		.cfi_offset 3, -16
+ 107              		.cfi_offset 4, -12
+ 108              		.cfi_offset 5, -8
+ 109              		.cfi_offset 14, -4
+  46:Cpp_Core/Src/board_mode.cpp ****     const BoardMode raw = readRaw();
+ 110              		.loc 1 46 1 view .LVU17
+ 111 0002 0446     		mov	r4, r0
+ 112 0004 0D46     		mov	r5, r1
+ 113              		.loc 1 47 34 view .LVU18
+ 114 0006 FFF7FEFF 		bl	_ZNK16BoardModeManager7readRawEv
+ 115              	.LVL10:
+  48:Cpp_Core/Src/board_mode.cpp ****     if (raw != candidateMode) {
+ 116              		.loc 1 48 5 is_stmt 1 view .LVU19
+ 117 000a 6378     		ldrb	r3, [r4, #1]	@ zero_extendqisi2
+ 118 000c 8342     		cmp	r3, r0
+ 119 000e 02D0     		beq	.L9
+  49:Cpp_Core/Src/board_mode.cpp ****         candidateMode = raw;
+ 120              		.loc 1 49 9 view .LVU20
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 4
+
+
+ 121              		.loc 1 49 23 is_stmt 0 view .LVU21
+ 122 0010 6070     		strb	r0, [r4, #1]
+  50:Cpp_Core/Src/board_mode.cpp ****         candidateSinceMs = nowMs;
+ 123              		.loc 1 50 9 is_stmt 1 view .LVU22
+ 124              		.loc 1 50 26 is_stmt 0 view .LVU23
+ 125 0012 6560     		str	r5, [r4, #4]
+  51:Cpp_Core/Src/board_mode.cpp ****         return;
+ 126              		.loc 1 51 9 is_stmt 1 view .LVU24
+ 127              	.LVL11:
+ 128              	.L8:
+  52:Cpp_Core/Src/board_mode.cpp ****     }
+  53:Cpp_Core/Src/board_mode.cpp **** 
+  54:Cpp_Core/Src/board_mode.cpp ****     if ((uint32_t)(nowMs - candidateSinceMs) < BOARD_MODE_DEBOUNCE_MS) {
+  55:Cpp_Core/Src/board_mode.cpp ****         return;
+  56:Cpp_Core/Src/board_mode.cpp ****     }
+  57:Cpp_Core/Src/board_mode.cpp **** 
+  58:Cpp_Core/Src/board_mode.cpp ****     if (!stable || stableMode != candidateMode) {
+  59:Cpp_Core/Src/board_mode.cpp ****         stableMode = candidateMode;
+  60:Cpp_Core/Src/board_mode.cpp ****         stable = true;
+  61:Cpp_Core/Src/board_mode.cpp ****         changed = true;
+  62:Cpp_Core/Src/board_mode.cpp ****     }
+  63:Cpp_Core/Src/board_mode.cpp **** }
+ 129              		.loc 1 63 1 is_stmt 0 view .LVU25
+ 130 0014 38BD     		pop	{r3, r4, r5, pc}
+ 131              	.LVL12:
+ 132              	.L9:
+  54:Cpp_Core/Src/board_mode.cpp ****         return;
+ 133              		.loc 1 54 5 is_stmt 1 view .LVU26
+  54:Cpp_Core/Src/board_mode.cpp ****         return;
+ 134              		.loc 1 54 26 is_stmt 0 view .LVU27
+ 135 0016 6368     		ldr	r3, [r4, #4]
+ 136 0018 ED1A     		subs	r5, r5, r3
+ 137              	.LVL13:
+  54:Cpp_Core/Src/board_mode.cpp ****         return;
+ 138              		.loc 1 54 5 view .LVU28
+ 139 001a 132D     		cmp	r5, #19
+ 140 001c FAD9     		bls	.L8
+  58:Cpp_Core/Src/board_mode.cpp ****         stableMode = candidateMode;
+ 141              		.loc 1 58 5 is_stmt 1 view .LVU29
+ 142 001e 237A     		ldrb	r3, [r4, #8]	@ zero_extendqisi2
+ 143 0020 13B1     		cbz	r3, .L11
+  58:Cpp_Core/Src/board_mode.cpp ****         stableMode = candidateMode;
+ 144              		.loc 1 58 17 is_stmt 0 discriminator 1 view .LVU30
+ 145 0022 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 146 0024 8342     		cmp	r3, r0
+ 147 0026 F5D0     		beq	.L8
+ 148              	.L11:
+  59:Cpp_Core/Src/board_mode.cpp ****         stable = true;
+ 149              		.loc 1 59 9 is_stmt 1 view .LVU31
+  60:Cpp_Core/Src/board_mode.cpp ****         changed = true;
+ 150              		.loc 1 60 16 is_stmt 0 view .LVU32
+ 151 0028 40F20113 		movw	r3, #257
+  59:Cpp_Core/Src/board_mode.cpp ****         stable = true;
+ 152              		.loc 1 59 20 view .LVU33
+ 153 002c 2070     		strb	r0, [r4]
+  60:Cpp_Core/Src/board_mode.cpp ****         changed = true;
+ 154              		.loc 1 60 9 is_stmt 1 view .LVU34
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 5
+
+
+  61:Cpp_Core/Src/board_mode.cpp ****     }
+ 155              		.loc 1 61 9 view .LVU35
+  60:Cpp_Core/Src/board_mode.cpp ****         changed = true;
+ 156              		.loc 1 60 16 is_stmt 0 view .LVU36
+ 157 002e 2381     		strh	r3, [r4, #8]	@ movhi
+ 158 0030 F0E7     		b	.L8
+ 159              		.cfi_endproc
+ 160              	.LFE1277:
+ 162              		.section	.text._ZN16BoardModeManager5setupEv,"ax",%progbits
+ 163              		.align	1
+ 164              		.global	_ZN16BoardModeManager5setupEv
+ 165              		.syntax unified
+ 166              		.thumb
+ 167              		.thumb_func
+ 169              	_ZN16BoardModeManager5setupEv:
+ 170              	.LVL14:
+ 171              	.LFB1276:
+  24:Cpp_Core/Src/board_mode.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+ 172              		.loc 1 24 1 is_stmt 1 view -0
+ 173              		.cfi_startproc
+ 174              		@ args = 0, pretend = 0, frame = 24
+ 175              		@ frame_needed = 0, uses_anonymous_args = 0
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 176              		.loc 1 25 5 view .LVU38
+ 177              	.LBB2:
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 178              		.loc 1 25 5 view .LVU39
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 179              		.loc 1 25 5 view .LVU40
+ 180 0000 194B     		ldr	r3, .L16
+ 181              	.LBE2:
+  27:Cpp_Core/Src/board_mode.cpp ****     init.Pin = MODE_USB_N_PIN | MODE_RF_N_PIN;
+ 182              		.loc 1 27 22 is_stmt 0 view .LVU41
+ 183 0002 0021     		movs	r1, #0
+ 184              	.LBB3:
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 185              		.loc 1 25 5 view .LVU42
+ 186 0004 D3F8E020 		ldr	r2, [r3, #224]
+ 187 0008 42F48072 		orr	r2, r2, #256
+ 188              	.LBE3:
+  24:Cpp_Core/Src/board_mode.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+ 189              		.loc 1 24 1 view .LVU43
+ 190 000c 10B5     		push	{r4, lr}
+ 191              	.LCFI2:
+ 192              		.cfi_def_cfa_offset 8
+ 193              		.cfi_offset 4, -8
+ 194              		.cfi_offset 14, -4
+ 195 000e 86B0     		sub	sp, sp, #24
+ 196              	.LCFI3:
+ 197              		.cfi_def_cfa_offset 32
+ 198              	.LBB4:
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 199              		.loc 1 25 5 view .LVU44
+ 200 0010 C3F8E020 		str	r2, [r3, #224]
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 201              		.loc 1 25 5 is_stmt 1 view .LVU45
+ 202 0014 D3F8E030 		ldr	r3, [r3, #224]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 6
+
+
+ 203              	.LBE4:
+  24:Cpp_Core/Src/board_mode.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+ 204              		.loc 1 24 1 is_stmt 0 view .LVU46
+ 205 0018 0446     		mov	r4, r0
+  27:Cpp_Core/Src/board_mode.cpp ****     init.Pin = MODE_USB_N_PIN | MODE_RF_N_PIN;
+ 206              		.loc 1 27 22 view .LVU47
+ 207 001a 1022     		movs	r2, #16
+ 208 001c 02A8     		add	r0, sp, #8
+ 209              	.LVL15:
+ 210              	.LBB5:
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 211              		.loc 1 25 5 view .LVU48
+ 212 001e 03F48073 		and	r3, r3, #256
+ 213 0022 0093     		str	r3, [sp]
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 214              		.loc 1 25 5 is_stmt 1 view .LVU49
+ 215 0024 009B     		ldr	r3, [sp]
+ 216              	.LBE5:
+  25:Cpp_Core/Src/board_mode.cpp **** 
+ 217              		.loc 1 25 5 view .LVU50
+  27:Cpp_Core/Src/board_mode.cpp ****     init.Pin = MODE_USB_N_PIN | MODE_RF_N_PIN;
+ 218              		.loc 1 27 5 view .LVU51
+  27:Cpp_Core/Src/board_mode.cpp ****     init.Pin = MODE_USB_N_PIN | MODE_RF_N_PIN;
+ 219              		.loc 1 27 22 is_stmt 0 view .LVU52
+ 220 0026 FFF7FEFF 		bl	memset
+ 221              	.LVL16:
+  28:Cpp_Core/Src/board_mode.cpp ****     init.Mode = GPIO_MODE_INPUT;
+ 222              		.loc 1 28 5 is_stmt 1 view .LVU53
+  28:Cpp_Core/Src/board_mode.cpp ****     init.Mode = GPIO_MODE_INPUT;
+ 223              		.loc 1 28 14 is_stmt 0 view .LVU54
+ 224 002a 4FF4C053 		mov	r3, #6144
+  32:Cpp_Core/Src/board_mode.cpp **** 
+ 225              		.loc 1 32 18 view .LVU55
+ 226 002e 01A9     		add	r1, sp, #4
+ 227 0030 0E48     		ldr	r0, .L16+4
+  28:Cpp_Core/Src/board_mode.cpp ****     init.Mode = GPIO_MODE_INPUT;
+ 228              		.loc 1 28 14 view .LVU56
+ 229 0032 0193     		str	r3, [sp, #4]
+  29:Cpp_Core/Src/board_mode.cpp ****     init.Pull = GPIO_PULLUP;
+ 230              		.loc 1 29 5 is_stmt 1 view .LVU57
+  30:Cpp_Core/Src/board_mode.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+ 231              		.loc 1 30 5 view .LVU58
+  30:Cpp_Core/Src/board_mode.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+ 232              		.loc 1 30 15 is_stmt 0 view .LVU59
+ 233 0034 0123     		movs	r3, #1
+ 234 0036 0393     		str	r3, [sp, #12]
+  31:Cpp_Core/Src/board_mode.cpp ****     HAL_GPIO_Init(GPIOI, &init);
+ 235              		.loc 1 31 5 is_stmt 1 view .LVU60
+  32:Cpp_Core/Src/board_mode.cpp **** 
+ 236              		.loc 1 32 5 view .LVU61
+  32:Cpp_Core/Src/board_mode.cpp **** 
+ 237              		.loc 1 32 18 is_stmt 0 view .LVU62
+ 238 0038 FFF7FEFF 		bl	HAL_GPIO_Init
+ 239              	.LVL17:
+  34:Cpp_Core/Src/board_mode.cpp ****     candidateSinceMs = HAL_GetTick();
+ 240              		.loc 1 34 5 is_stmt 1 view .LVU63
+  34:Cpp_Core/Src/board_mode.cpp ****     candidateSinceMs = HAL_GetTick();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 7
+
+
+ 241              		.loc 1 34 28 is_stmt 0 view .LVU64
+ 242 003c 2046     		mov	r0, r4
+ 243 003e FFF7FEFF 		bl	_ZNK16BoardModeManager7readRawEv
+ 244              	.LVL18:
+  34:Cpp_Core/Src/board_mode.cpp ****     candidateSinceMs = HAL_GetTick();
+ 245              		.loc 1 34 19 discriminator 1 view .LVU65
+ 246 0042 6070     		strb	r0, [r4, #1]
+  35:Cpp_Core/Src/board_mode.cpp ****     stableMode = BoardMode::CenterOff;
+ 247              		.loc 1 35 5 is_stmt 1 view .LVU66
+  35:Cpp_Core/Src/board_mode.cpp ****     stableMode = BoardMode::CenterOff;
+ 248              		.loc 1 35 35 is_stmt 0 view .LVU67
+ 249 0044 FFF7FEFF 		bl	HAL_GetTick
+ 250              	.LVL19:
+  36:Cpp_Core/Src/board_mode.cpp ****     stable = false;
+ 251              		.loc 1 36 16 view .LVU68
+ 252 0048 0223     		movs	r3, #2
+  35:Cpp_Core/Src/board_mode.cpp ****     stableMode = BoardMode::CenterOff;
+ 253              		.loc 1 35 22 discriminator 1 view .LVU69
+ 254 004a 6060     		str	r0, [r4, #4]
+  36:Cpp_Core/Src/board_mode.cpp ****     stable = false;
+ 255              		.loc 1 36 5 is_stmt 1 view .LVU70
+  41:Cpp_Core/Src/board_mode.cpp ****     update(HAL_GetTick());
+ 256              		.loc 1 41 14 is_stmt 0 view .LVU71
+ 257 004c 1420     		movs	r0, #20
+  36:Cpp_Core/Src/board_mode.cpp ****     stable = false;
+ 258              		.loc 1 36 16 view .LVU72
+ 259 004e 2370     		strb	r3, [r4]
+  37:Cpp_Core/Src/board_mode.cpp ****     changed = false;
+ 260              		.loc 1 37 5 is_stmt 1 view .LVU73
+  38:Cpp_Core/Src/board_mode.cpp **** 
+ 261              		.loc 1 38 5 view .LVU74
+  37:Cpp_Core/Src/board_mode.cpp ****     changed = false;
+ 262              		.loc 1 37 12 is_stmt 0 view .LVU75
+ 263 0050 0023     		movs	r3, #0
+ 264 0052 2381     		strh	r3, [r4, #8]	@ movhi
+  41:Cpp_Core/Src/board_mode.cpp ****     update(HAL_GetTick());
+ 265              		.loc 1 41 5 is_stmt 1 view .LVU76
+  41:Cpp_Core/Src/board_mode.cpp ****     update(HAL_GetTick());
+ 266              		.loc 1 41 14 is_stmt 0 view .LVU77
+ 267 0054 FFF7FEFF 		bl	HAL_Delay
+ 268              	.LVL20:
+  42:Cpp_Core/Src/board_mode.cpp **** }
+ 269              		.loc 1 42 5 is_stmt 1 view .LVU78
+  42:Cpp_Core/Src/board_mode.cpp **** }
+ 270              		.loc 1 42 11 is_stmt 0 view .LVU79
+ 271 0058 FFF7FEFF 		bl	HAL_GetTick
+ 272              	.LVL21:
+ 273 005c 0146     		mov	r1, r0
+  42:Cpp_Core/Src/board_mode.cpp **** }
+ 274              		.loc 1 42 11 discriminator 1 view .LVU80
+ 275 005e 2046     		mov	r0, r4
+ 276 0060 FFF7FEFF 		bl	_ZN16BoardModeManager6updateEm
+ 277              	.LVL22:
+  43:Cpp_Core/Src/board_mode.cpp **** 
+ 278              		.loc 1 43 1 view .LVU81
+ 279 0064 06B0     		add	sp, sp, #24
+ 280              	.LCFI4:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 8
+
+
+ 281              		.cfi_def_cfa_offset 8
+ 282              		@ sp needed
+ 283 0066 10BD     		pop	{r4, pc}
+ 284              	.LVL23:
+ 285              	.L17:
+  43:Cpp_Core/Src/board_mode.cpp **** 
+ 286              		.loc 1 43 1 view .LVU82
+ 287              		.align	2
+ 288              	.L16:
+ 289 0068 00440258 		.word	1476543488
+ 290 006c 00200258 		.word	1476534272
+ 291              		.cfi_endproc
+ 292              	.LFE1276:
+ 294              		.section	.text._ZN16BoardModeManager14consumeChangedEv,"ax",%progbits
+ 295              		.align	1
+ 296              		.global	_ZN16BoardModeManager14consumeChangedEv
+ 297              		.syntax unified
+ 298              		.thumb
+ 299              		.thumb_func
+ 301              	_ZN16BoardModeManager14consumeChangedEv:
+ 302              	.LVL24:
+ 303              	.LFB1278:
+  64:Cpp_Core/Src/board_mode.cpp **** 
+  65:Cpp_Core/Src/board_mode.cpp **** bool BoardModeManager::consumeChanged()
+  66:Cpp_Core/Src/board_mode.cpp **** {
+ 304              		.loc 1 66 1 is_stmt 1 view -0
+ 305              		.cfi_startproc
+ 306              		@ args = 0, pretend = 0, frame = 0
+ 307              		@ frame_needed = 0, uses_anonymous_args = 0
+ 308              		@ link register save eliminated.
+  67:Cpp_Core/Src/board_mode.cpp ****     const bool result = changed;
+ 309              		.loc 1 67 5 view .LVU84
+  66:Cpp_Core/Src/board_mode.cpp ****     const bool result = changed;
+ 310              		.loc 1 66 1 is_stmt 0 view .LVU85
+ 311 0000 0346     		mov	r3, r0
+  68:Cpp_Core/Src/board_mode.cpp ****     changed = false;
+ 312              		.loc 1 68 13 view .LVU86
+ 313 0002 0022     		movs	r2, #0
+  67:Cpp_Core/Src/board_mode.cpp ****     const bool result = changed;
+ 314              		.loc 1 67 16 view .LVU87
+ 315 0004 407A     		ldrb	r0, [r0, #9]	@ zero_extendqisi2
+ 316              	.LVL25:
+ 317              		.loc 1 68 5 is_stmt 1 view .LVU88
+ 318              		.loc 1 68 13 is_stmt 0 view .LVU89
+ 319 0006 5A72     		strb	r2, [r3, #9]
+ 320              	.LVL26:
+  69:Cpp_Core/Src/board_mode.cpp ****     return result;
+ 321              		.loc 1 69 5 is_stmt 1 view .LVU90
+  70:Cpp_Core/Src/board_mode.cpp **** }
+ 322              		.loc 1 70 1 is_stmt 0 view .LVU91
+ 323 0008 7047     		bx	lr
+ 324              		.cfi_endproc
+ 325              	.LFE1278:
+ 327              		.text
+ 328              	.Letext0:
+ 329              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 330              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 9
+
+
+ 331              		.file 4 "Cpp_Core/Inc/board_mode.hpp"
+ 332              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 333              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 334              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 335              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 336              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 337              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 338              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 339              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 340              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 341              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 342              		.file 15 "Core/Inc/board_cfg.h"
+ 343              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 344              		.file 17 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s 			page 10
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 board_mode.cpp
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:20     .text._ZNK16BoardModeManager7readRawEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:26     .text._ZNK16BoardModeManager7readRawEv:00000000 _ZNK16BoardModeManager7readRawEv
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:83     .text._ZNK16BoardModeManager7readRawEv:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:88     .text._ZN16BoardModeManager6updateEm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:94     .text._ZN16BoardModeManager6updateEm:00000000 _ZN16BoardModeManager6updateEm
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:163    .text._ZN16BoardModeManager5setupEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:169    .text._ZN16BoardModeManager5setupEv:00000000 _ZN16BoardModeManager5setupEv
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:289    .text._ZN16BoardModeManager5setupEv:00000068 $d
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:295    .text._ZN16BoardModeManager14consumeChangedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cck5l99e.s:301    .text._ZN16BoardModeManager14consumeChangedEv:00000000 _ZN16BoardModeManager14consumeChangedEv
+
+UNDEFINED SYMBOLS
+HAL_GPIO_ReadPin
+memset
+HAL_GPIO_Init
+HAL_GetTick
+HAL_Delay

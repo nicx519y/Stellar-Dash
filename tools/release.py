@@ -34,6 +34,12 @@ from intelhex import IntelHex  # 添加Intel HEX处理库
 # 导入统一的固件元数据常量
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
 from firmware_metadata import *
+from firmware_signing import (
+    FirmwareSigningError,
+    canonical_metadata,
+    raw_signature_to_der,
+    sign_metadata,
+)
 
 # 使用统一的常量定义，移除重复定义
 # FIRMWARE_MAGIC, METADATA_VERSION_MAJOR, METADATA_VERSION_MINOR 等
@@ -41,6 +47,500 @@ from firmware_metadata import *
 
 # 保留release.py特有的常量
 OPENOCD_CONFIG = "interface/stlink.cfg -f target/stm32h7x.cfg"
+STM32_OTA_COMPONENTS = ("application", "webresources", "adc_mapping")
+LATEST_HARDWARE_VERSION = "2.0.0"
+HARDWARE_VERSION_CODE_V2 = 0x00020000
+_SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_P256_SIGNATURE_RE = re.compile(r"^[0-9a-f]{128}$")
+SIGNED_METADATA_FILENAME = "metadata.bin"
+_TRUST_HEADER_MARKERS = (
+    "#define HBOX_MANUFACTURER_CA_KEY_PROVISIONED 1u",
+    "#define HBOX_FIRMWARE_RELEASE_PUBLIC_KEY_PROVISIONED 1u",
+    "#define HBOX_WEBCONFIG_AUTH_KEY_SLOT_COUNT 2u",
+)
+
+STM32_OTA_LAYOUT = {
+    "A": {
+        "application": (SLOT_A_APPLICATION_ADDR, SLOT_A_APPLICATION_SIZE),
+        "webresources": (SLOT_A_WEBRESOURCES_ADDR, SLOT_A_WEBRESOURCES_SIZE),
+        "adc_mapping": (SLOT_A_ADC_MAPPING_ADDR, SLOT_A_ADC_MAPPING_SIZE),
+    },
+    "B": {
+        "application": (SLOT_B_APPLICATION_ADDR, SLOT_B_APPLICATION_SIZE),
+        "webresources": (SLOT_B_WEBRESOURCES_ADDR, SLOT_B_WEBRESOURCES_SIZE),
+        "adc_mapping": (SLOT_B_ADC_MAPPING_ADDR, SLOT_B_ADC_MAPPING_SIZE),
+    },
+}
+
+
+def require_v2_trust_bundle(
+    environment: Optional[Dict[str, str]] = None,
+) -> Tuple[Path, str]:
+    """Require an approved public-only trust header for a V2 release build."""
+
+    environment = os.environ if environment is None else environment
+    raw_path = environment.get("HBOX_TRUST_HEADER", "").strip()
+    expected_hash = environment.get(
+        "HBOX_TRUST_HEADER_SHA256", ""
+    ).strip().lower()
+    if not raw_path:
+        raise RuntimeError(
+            "V2正式发布必须设置HBOX_TRUST_HEADER，禁止发布全零信任开发镜像"
+        )
+    if not _SHA256_RE.fullmatch(expected_hash):
+        raise RuntimeError(
+            "V2正式发布必须设置已审批的HBOX_TRUST_HEADER_SHA256"
+        )
+
+    header = Path(raw_path).expanduser().resolve()
+    if not header.is_file():
+        raise RuntimeError(f"HBOX_TRUST_HEADER不存在: {header}")
+    data = header.read_bytes()
+    if len(data) == 0 or len(data) > 64 * 1024:
+        raise RuntimeError("HBOX_TRUST_HEADER大小无效")
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != expected_hash:
+        raise RuntimeError(
+            "HBOX_TRUST_HEADER_SHA256与实际公钥bundle不一致"
+        )
+    text = data.decode("utf-8", errors="strict")
+    if any(marker not in text for marker in _TRUST_HEADER_MARKERS):
+        raise RuntimeError("HBOX_TRUST_HEADER缺少已配置公钥门禁")
+    mask_match = re.search(
+        r"#define\s+HBOX_WEBCONFIG_AUTH_KEY_PROVISIONED_MASK\s+"
+        r"0x([0-9A-Fa-f]{2})u",
+        text,
+    )
+    if not mask_match or int(mask_match.group(1), 16) == 0:
+        raise RuntimeError("WebConfig authorization公钥槽未配置")
+    if "PRIVATE KEY" in text or "BEGIN EC" in text or "BEGIN PRIVATE" in text:
+        raise RuntimeError("trust header只能包含公钥，检测到私钥材料")
+    return header, digest
+
+
+def load_firmware_release_public_key_from_trust_header(
+    header: Path,
+) -> bytes:
+    """Extract the provisioned SEC1 P-256 release key from a trust header."""
+
+    text = header.read_text(encoding="utf-8", errors="strict")
+    match = re.search(
+        r"hbox_firmware_release_public_key\s*\[\s*65\s*\]\s*=\s*"
+        r"\{(?P<body>.*?)\}\s*;",
+        text,
+        re.DOTALL,
+    )
+    if match is None:
+        raise RuntimeError(
+            "HBOX_TRUST_HEADER缺少hbox_firmware_release_public_key[65]"
+        )
+    values = re.findall(r"0x([0-9A-Fa-f]{2})(?:u|U)?", match.group("body"))
+    if len(values) != 65:
+        raise RuntimeError("firmware release公钥必须恰好包含65字节")
+    public_key = bytes(int(value, 16) for value in values)
+    if public_key[0] != 0x04 or not any(public_key[1:]):
+        raise RuntimeError("firmware release公钥不是有效的SEC1未压缩P-256格式")
+    return public_key
+
+
+def verify_signed_metadata(
+    metadata: bytes,
+    firmware_release_public_key: bytes,
+) -> None:
+    """Verify the exact metadata signature using an approved release key."""
+
+    if len(metadata) != METADATA_STRUCT_SIZE:
+        raise ValueError(
+            f"metadata.bin大小错误: {len(metadata)} != {METADATA_STRUCT_SIZE}"
+        )
+    if (
+        len(firmware_release_public_key) != 65
+        or firmware_release_public_key[0] != 0x04
+    ):
+        raise ValueError("firmware release公钥格式无效")
+
+    # id-ecPublicKey + prime256v1 followed by a 65-byte SEC1 BIT STRING.
+    public_der = (
+        b"\x30\x59"
+        b"\x30\x13"
+        b"\x06\x07\x2A\x86\x48\xCE\x3D\x02\x01"
+        b"\x06\x08\x2A\x86\x48\xCE\x3D\x03\x01\x07"
+        b"\x03\x42\x00"
+        + firmware_release_public_key
+    )
+    signature = metadata[
+        FIRMWARE_SIGNATURE_OFFSET :
+        FIRMWARE_SIGNATURE_OFFSET + 64
+    ]
+    if not any(signature[:32]) or not any(signature[32:]):
+        raise ValueError("metadata.bin包含零值P-256签名分量")
+
+    with tempfile.TemporaryDirectory(prefix="hbox-metadata-verify-") as temp:
+        directory = Path(temp)
+        public_file = directory / "release-public.der"
+        metadata_file = directory / "metadata.canonical.bin"
+        signature_file = directory / "metadata-signature.der"
+        public_file.write_bytes(public_der)
+        metadata_file.write_bytes(canonical_metadata(metadata))
+        signature_file.write_bytes(raw_signature_to_der(signature))
+        try:
+            result = subprocess.run(
+                [
+                    "openssl",
+                    "dgst",
+                    "-sha256",
+                    "-verify",
+                    str(public_file),
+                    "-keyform",
+                    "DER",
+                    "-signature",
+                    str(signature_file),
+                    str(metadata_file),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+        except FileNotFoundError as exc:
+            raise ValueError("OpenSSL不可用，无法验证metadata签名") from exc
+    if result.returncode != 0:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"metadata.bin发布签名验证失败: {detail or 'invalid signature'}")
+
+
+def _parse_manifest_address(value: Any, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} 不是有效地址")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value, 0)
+        except ValueError as exc:
+            raise ValueError(f"{field_name} 不是有效地址: {value}") from exc
+    raise ValueError(f"{field_name} 不是有效地址")
+
+
+def validate_stm32_ota_manifest(manifest: Dict[str, Any]) -> None:
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest根节点必须是对象")
+
+    version = manifest.get("version")
+    if not isinstance(version, str) or not _SEMVER_RE.fullmatch(version):
+        raise ValueError("manifest.version必须是三段式版本号")
+
+    slot_value = manifest.get("slot")
+    if slot_value not in STM32_OTA_LAYOUT:
+        raise ValueError("manifest.slot必须是A或B")
+    slot = slot_value
+
+    if manifest.get("hardware_version") != LATEST_HARDWARE_VERSION:
+        raise ValueError(
+            f"V2 OTA包hardware_version必须是{LATEST_HARDWARE_VERSION}"
+        )
+    if manifest.get("hardware_version_code") != HARDWARE_VERSION_CODE_V2:
+        raise ValueError(
+            f"V2 OTA包hardware_version_code必须是0x{HARDWARE_VERSION_CODE_V2:08X}"
+        )
+    if manifest.get("ota_scope") != "STM32_ONLY":
+        raise ValueError("V2 OTA包ota_scope必须是STM32_ONLY")
+    if manifest.get("ch585_update") != "MANUAL_INDEPENDENT_FLASH":
+        raise ValueError("CH585不得包含在STM32 OTA包内")
+    if manifest.get("signature_algorithm") != FIRMWARE_SIGNATURE_ECDSA_P256_SHA256:
+        raise ValueError("V2 OTA必须使用ECDSA_P256_SHA256签名")
+    if not _SHA256_RE.fullmatch(str(manifest.get("firmware_hash", ""))):
+        raise ValueError("V2 OTA缺少有效firmware_hash")
+    if not _P256_SIGNATURE_RE.fullmatch(str(manifest.get("signature", ""))):
+        raise ValueError("V2 OTA缺少有效P-256 raw签名")
+    if not _SHA256_RE.fullmatch(
+        str(manifest.get("trust_bundle_sha256", ""))
+    ):
+        raise ValueError("V2 OTA缺少构建信任bundle SHA-256")
+    security_version = manifest.get("security_version")
+    if (
+        isinstance(security_version, bool)
+        or not isinstance(security_version, int)
+        or security_version < FIRMWARE_SECURITY_VERSION
+    ):
+        raise ValueError("V2 OTA安全版本低于门限")
+    build_timestamp = manifest.get("build_timestamp")
+    if (
+        isinstance(build_timestamp, bool)
+        or not isinstance(build_timestamp, int)
+        or not 0 <= build_timestamp <= 0xFFFFFFFF
+    ):
+        raise ValueError("V2 OTA缺少有效build_timestamp")
+    if not isinstance(manifest.get("webresources_optional"), bool):
+        raise ValueError("V2 OTA缺少webresources_optional策略")
+
+    metadata_info = manifest.get("metadata")
+    if not isinstance(metadata_info, dict):
+        raise ValueError("V2 OTA缺少signed metadata描述")
+    if metadata_info.get("file") != SIGNED_METADATA_FILENAME:
+        raise ValueError(
+            f"signed metadata文件必须是{SIGNED_METADATA_FILENAME}"
+        )
+    if metadata_info.get("size") != METADATA_STRUCT_SIZE:
+        raise ValueError(
+            f"signed metadata大小必须是{METADATA_STRUCT_SIZE}字节"
+        )
+    if not _SHA256_RE.fullmatch(str(metadata_info.get("sha256", ""))):
+        raise ValueError("signed metadata缺少有效SHA-256")
+
+    components = manifest.get("components")
+    if not isinstance(components, list):
+        raise ValueError("manifest缺少components列表")
+    if not all(isinstance(component, dict) for component in components):
+        raise ValueError("manifest.components成员必须是对象")
+    names = tuple(component.get("name") for component in components)
+    if len(names) != len(STM32_OTA_COMPONENTS) or set(names) != set(STM32_OTA_COMPONENTS):
+        raise ValueError(
+            "STM32 OTA只允许三个组件: " + ", ".join(STM32_OTA_COMPONENTS)
+        )
+
+    for component in components:
+        name = component["name"]
+        optional_webresources = (
+            name == "webresources"
+            and manifest["webresources_optional"]
+            and component.get("active") is False
+            and component.get("size") == 0
+        )
+        if optional_webresources:
+            if component.get("file") != "" or component.get("file_type") != "none":
+                raise ValueError("可选webresources必须使用空文件和none类型")
+            if component.get("sha256") != "0" * 64:
+                raise ValueError("可选webresources必须使用零SHA-256占位")
+            address = _parse_manifest_address(
+                component.get("address"), f"{name}.address"
+            )
+            expected_address, _ = STM32_OTA_LAYOUT[slot][name]
+            if address != expected_address:
+                raise ValueError("可选webresources地址错误")
+            continue
+        if not isinstance(component.get("file"), str) or not component["file"]:
+            raise ValueError(f"组件 {name} 缺少有效文件名")
+        if Path(component["file"]).name != component["file"]:
+            raise ValueError(f"组件 {name} 文件名不能包含路径")
+        if component.get("file_type") != "bin":
+            raise ValueError(f"组件 {name} file_type必须是bin")
+
+        expected_address, max_size = STM32_OTA_LAYOUT[slot][name]
+        address = _parse_manifest_address(component.get("address"), f"{name}.address")
+        if address != expected_address:
+            raise ValueError(
+                f"组件 {name} 地址错误: 0x{address:08X}, "
+                f"槽{slot}应为0x{expected_address:08X}"
+            )
+
+        size = component.get("size")
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            raise ValueError(f"组件 {name} size必须是正整数")
+        if size > max_size:
+            raise ValueError(
+                f"组件 {name} 大小0x{size:X}超过区域上限0x{max_size:X}"
+            )
+
+        sha256 = component.get("sha256")
+        if not isinstance(sha256, str) or not _SHA256_RE.fullmatch(sha256):
+            raise ValueError(f"组件 {name} sha256必须是64位小写十六进制")
+
+
+def _decode_fixed_metadata_text(
+    metadata: bytes,
+    offset: int,
+    width: int,
+    field_name: str,
+) -> str:
+    encoded = metadata[offset : offset + width]
+    content, separator, padding = encoded.partition(b"\0")
+    if not separator or any(padding):
+        raise ValueError(f"metadata.bin字段{field_name}不是规范零填充")
+    try:
+        return content.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"metadata.bin字段{field_name}不是有效UTF-8") from exc
+
+
+def validate_signed_metadata_matches_manifest(
+    metadata: bytes,
+    manifest: Dict[str, Any],
+    firmware_release_public_key: bytes | None = None,
+) -> None:
+    """Require metadata.bin to be the exact signed boot contract in manifest."""
+
+    if len(metadata) != METADATA_STRUCT_SIZE:
+        raise ValueError(
+            f"metadata.bin大小错误: {len(metadata)} != {METADATA_STRUCT_SIZE}"
+        )
+    if struct.unpack_from("<I", metadata, 0)[0] != FIRMWARE_MAGIC:
+        raise ValueError("metadata.bin magic错误")
+    if struct.unpack_from("<I", metadata, 4)[0] != METADATA_VERSION_MAJOR:
+        raise ValueError("metadata.bin major version错误")
+    if struct.unpack_from("<I", metadata, 8)[0] != METADATA_VERSION_MINOR:
+        raise ValueError("metadata.bin minor version错误")
+    if struct.unpack_from("<I", metadata, 12)[0] != METADATA_STRUCT_SIZE:
+        raise ValueError("metadata.bin声明大小错误")
+    stored_crc = struct.unpack_from("<I", metadata, METADATA_CRC32_OFFSET)[0]
+    expected_crc = calculate_crc32(
+        metadata, METADATA_CRC32_OFFSET, 4
+    )
+    if stored_crc == 0 or stored_crc != expected_crc:
+        raise ValueError("metadata.bin CRC32错误")
+
+    if _decode_fixed_metadata_text(metadata, 20, 32, "firmware_version") != manifest["version"]:
+        raise ValueError("metadata.bin firmware_version与manifest不一致")
+    expected_slot = (
+        FIRMWARE_SLOT_A
+        if str(manifest["slot"]).upper() == "A"
+        else FIRMWARE_SLOT_B
+    )
+    if metadata[52] != expected_slot:
+        raise ValueError("metadata.bin target_slot与manifest不一致")
+    if _decode_fixed_metadata_text(metadata, 53, 32, "build_date") != manifest["build_date"]:
+        raise ValueError("metadata.bin build_date与manifest不一致")
+    if struct.unpack_from("<I", metadata, 85)[0] != manifest["build_timestamp"]:
+        raise ValueError("metadata.bin build_timestamp与manifest不一致")
+    if _decode_fixed_metadata_text(metadata, 89, 32, "device_model") != DEVICE_MODEL_STRING:
+        raise ValueError("metadata.bin device_model错误")
+    if struct.unpack_from("<I", metadata, 121)[0] != manifest["hardware_version_code"]:
+        raise ValueError("metadata.bin hardware_version与manifest不一致")
+    if struct.unpack_from("<I", metadata, 125)[0] != BOOTLOADER_VERSION:
+        raise ValueError("metadata.bin bootloader_min_version错误")
+    if struct.unpack_from("<I", metadata, 129)[0] != FIRMWARE_COMPONENT_COUNT:
+        raise ValueError("metadata.bin component_count必须为3")
+
+    component_offset = 133
+    for index, component in enumerate(manifest["components"]):
+        base = component_offset + index * COMPONENT_STRUCT_SIZE
+        if _decode_fixed_metadata_text(metadata, base, 32, f"components[{index}].name") != component["name"]:
+            raise ValueError("metadata.bin组件name与manifest不一致")
+        if _decode_fixed_metadata_text(metadata, base + 32, 64, f"components[{index}].file") != component["file"]:
+            raise ValueError("metadata.bin组件file与manifest不一致")
+        if struct.unpack_from("<I", metadata, base + 96)[0] != _parse_manifest_address(
+            component["address"], f"{component['name']}.address"
+        ):
+            raise ValueError("metadata.bin组件address与manifest不一致")
+        if struct.unpack_from("<I", metadata, base + 100)[0] != component["size"]:
+            raise ValueError("metadata.bin组件size与manifest不一致")
+        if _decode_fixed_metadata_text(
+            metadata, base + 104, 65, f"components[{index}].sha256"
+        ) != component["sha256"]:
+            raise ValueError("metadata.bin组件SHA-256与manifest不一致")
+        expected_active = 1 if component.get("active", True) else 0
+        if metadata[base + 169] != expected_active:
+            raise ValueError("metadata.bin组件active与manifest不一致")
+
+    embedded_hash = metadata[
+        FIRMWARE_HASH_OFFSET : FIRMWARE_HASH_OFFSET + 32
+    ]
+    expected_hash = hashlib.sha256(canonical_metadata(metadata)).digest()
+    if embedded_hash != expected_hash:
+        raise ValueError("metadata.bin firmware_hash错误")
+    if embedded_hash.hex() != manifest["firmware_hash"]:
+        raise ValueError("metadata.bin firmware_hash与manifest不一致")
+    embedded_signature = metadata[
+        FIRMWARE_SIGNATURE_OFFSET : FIRMWARE_SIGNATURE_OFFSET + 64
+    ]
+    if (
+        not any(embedded_signature[:32])
+        or not any(embedded_signature[32:])
+    ):
+        raise ValueError("metadata.bin包含零值P-256签名分量")
+    if embedded_signature.hex() != manifest["signature"]:
+        raise ValueError("metadata.bin signature与manifest不一致")
+    if struct.unpack_from(
+        "<I", metadata, FIRMWARE_SIGNATURE_ALGORITHM_OFFSET
+    )[0] != manifest["signature_algorithm"]:
+        raise ValueError("metadata.bin signature_algorithm与manifest不一致")
+    if struct.unpack_from(
+        "<I", metadata, FIRMWARE_SECURITY_VERSION_OFFSET
+    )[0] != manifest["security_version"]:
+        raise ValueError("metadata.bin security_version与manifest不一致")
+    if metadata[FIRMWARE_WEBRESOURCES_OPTIONAL_OFFSET] != int(
+        manifest["webresources_optional"]
+    ):
+        raise ValueError("metadata.bin webresources_optional与manifest不一致")
+    if any(metadata[FIRMWARE_WEBRESOURCES_OPTIONAL_OFFSET + 1 :]):
+        raise ValueError("metadata.bin reserved区域必须全零")
+
+    if firmware_release_public_key is not None:
+        verify_signed_metadata(metadata, firmware_release_public_key)
+
+
+def validate_stm32_ota_package(
+    package_path: Path,
+    firmware_release_public_key: bytes | None = None,
+) -> Dict[str, Any]:
+    with zipfile.ZipFile(package_path, "r") as archive:
+        if any(info.is_dir() for info in archive.infolist()):
+            raise ValueError(f"{package_path.name} 不允许包含目录条目")
+        infos = [info for info in archive.infolist() if not info.is_dir()]
+        archive_names = [info.filename for info in infos]
+        if len(archive_names) != len(set(archive_names)):
+            raise ValueError(f"{package_path.name} 包含重复ZIP条目")
+        if any(Path(name).name != name for name in archive_names):
+            raise ValueError(f"{package_path.name} ZIP条目不得包含路径")
+
+        try:
+            manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+        except KeyError as exc:
+            raise ValueError(f"{package_path.name} 缺少 manifest.json") from exc
+        validate_stm32_ota_manifest(manifest)
+
+        metadata_info = manifest["metadata"]
+        expected_files = {"manifest.json", metadata_info["file"]}
+        component_files = [
+            component["file"]
+            for component in manifest["components"]
+            if component.get("active", True) and component.get("size", 0) > 0
+        ]
+        if len(component_files) != len(set(component_files)):
+            raise ValueError("三个组件必须使用不同的文件名")
+        expected_files.update(component_files)
+        archive_files = {info.filename for info in archive.infolist() if not info.is_dir()}
+        if archive_files != expected_files:
+            extras = sorted(archive_files - expected_files)
+            missing = sorted(expected_files - archive_files)
+            raise ValueError(
+                f"OTA包文件集合不匹配; extra={extras or 'none'} missing={missing or 'none'}"
+            )
+
+        metadata = archive.read(metadata_info["file"])
+        if len(metadata) != metadata_info["size"]:
+            raise ValueError(
+                "metadata.bin size不一致: "
+                f"manifest={metadata_info['size']} zip={len(metadata)}"
+            )
+        actual_metadata_sha256 = hashlib.sha256(metadata).hexdigest()
+        if actual_metadata_sha256 != metadata_info["sha256"]:
+            raise ValueError(
+                "metadata.bin SHA-256不一致: "
+                f"manifest={metadata_info['sha256']} "
+                f"zip={actual_metadata_sha256}"
+            )
+        validate_signed_metadata_matches_manifest(
+            metadata, manifest, firmware_release_public_key
+        )
+
+        for component in manifest["components"]:
+            if not component.get("active", True) and component.get("size") == 0:
+                continue
+            data = archive.read(component["file"])
+            if len(data) != component["size"]:
+                raise ValueError(
+                    f"组件 {component['name']} size不一致: "
+                    f"manifest={component['size']} zip={len(data)}"
+                )
+            actual_sha256 = hashlib.sha256(data).hexdigest()
+            if actual_sha256 != component["sha256"]:
+                raise ValueError(
+                    f"组件 {component['name']} SHA-256不一致: "
+                    f"manifest={component['sha256']} zip={actual_sha256}"
+                )
+
+        return manifest
 
 class ReleaseConfig:
     """Release工具的统一配置管理类"""
@@ -65,10 +565,6 @@ class ReleaseConfig:
                 "timeout": 300,
                 "retry_count": 3
             },
-            "admin": {
-                "default_username": "admin",
-                "prompt_for_password": True
-            },
             "build": {
                 "default_version": "1.0.0",
                 "auto_timestamp": True
@@ -89,7 +585,9 @@ class ReleaseConfig:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
                 print(f"✓ 已加载配置文件: {self.config_file}")
-                return self.merge_config(self.default_config, config)
+                merged = self.merge_config(self.default_config, config)
+                merged.pop("admin", None)
+                return merged
             else:
                 # 创建默认配置文件
                 self.save_config(self.default_config)
@@ -135,12 +633,6 @@ class ReleaseConfig:
             return custom_url
         return self.config["server"]["default_url"]
     
-    def get_admin_username(self, custom_username: str = None) -> str:
-        """获取管理员用户名"""
-        if custom_username:
-            return custom_username
-        return self.config["admin"]["default_username"]
-    
     def get_timeout(self) -> int:
         """获取请求超时时间"""
         return self.config["server"]["timeout"]
@@ -161,10 +653,6 @@ class ReleaseConfig:
         """是否在刷写后验证"""
         return self.config["flash"]["verify_after_flash"]
     
-    def should_prompt_for_password(self) -> bool:
-        """是否提示输入密码"""
-        return self.config["admin"]["prompt_for_password"]
-    
     def update_config(self, section: str, key: str, value: Any):
         """更新配置项"""
         if section not in self.config:
@@ -183,10 +671,7 @@ class ReleaseConfig:
         for section, items in self.config.items():
             print(f"\n[{section.upper()}]")
             for key, value in items.items():
-                if key == "default_username" and self.should_prompt_for_password():
-                    print(f"  {key}: {value} (需要输入密码)")
-                else:
-                    print(f"  {key}: {value}")
+                print(f"  {key}: {value}")
         
         print(f"\n配置文件: {self.config_file}")
         print("=" * 60)
@@ -211,15 +696,14 @@ class ReleaseConfig:
             print("1. 服务器默认地址")
             print("2. 请求超时时间")
             print("3. 重试次数")
-            print("4. 默认管理员用户名")
-            print("5. 默认槽位")
-            print("6. 默认版本号")
-            print("7. 刷写后验证")
-            print("8. 重置为默认配置")
+            print("4. 默认槽位")
+            print("5. 默认版本号")
+            print("6. 刷写后验证")
+            print("7. 重置为默认配置")
             print("0. 退出")
             
             try:
-                choice = input("\n请选择要编辑的配置项 (0-8): ").strip()
+                choice = input("\n请选择要编辑的配置项 (0-7): ").strip()
                 
                 if choice == "0":
                     break
@@ -238,28 +722,23 @@ class ReleaseConfig:
                     if new_retry and new_retry.isdigit():
                         self.update_config("server", "retry_count", int(new_retry))
                 elif choice == "4":
-                    current_username = self.get_admin_username()
-                    new_username = input(f"当前管理员用户名: {current_username}\n新的管理员用户名: ").strip()
-                    if new_username:
-                        self.update_config("admin", "default_username", new_username)
-                elif choice == "5":
                     current_slot = self.get_default_slot()
                     new_slot = input(f"当前默认槽位: {current_slot}\n新的默认槽位 (A/B): ").strip().upper()
                     if new_slot in ["A", "B"]:
                         self.update_config("flash", "default_slot", new_slot)
-                elif choice == "6":
+                elif choice == "5":
                     current_version = self.get_default_version()
                     new_version = input(f"当前默认版本: {current_version}\n新的默认版本: ").strip()
                     if new_version:
                         self.update_config("build", "default_version", new_version)
-                elif choice == "7":
+                elif choice == "6":
                     current_verify = self.should_verify_after_flash()
                     new_verify = input(f"当前刷写后验证: {current_verify}\n是否启用刷写后验证 (y/n): ").strip().lower()
                     if new_verify in ["y", "yes", "是"]:
                         self.update_config("flash", "verify_after_flash", True)
                     elif new_verify in ["n", "no", "否"]:
                         self.update_config("flash", "verify_after_flash", False)
-                elif choice == "8":
+                elif choice == "7":
                     confirm = input("确认重置为默认配置？(y/N): ").strip().lower()
                     if confirm in ["y", "yes", "是"]:
                         self.reset_config()
@@ -572,8 +1051,18 @@ def calculate_crc32(data, skip_offset=None, skip_size=None):
     crc = zlib.crc32(after_skip, crc) & 0xffffffff
     return crc
 
-def create_metadata_binary(version, slot, build_date, components):
-    """创建与C结构体对齐的元数据二进制数据"""
+def create_metadata_binary(
+    version,
+    slot,
+    build_date,
+    components,
+    *,
+    signing_key=None,
+    security_version=FIRMWARE_SECURITY_VERSION,
+    webresources_optional=False,
+    build_timestamp=None,
+):
+    """创建并签名与C结构体严格对齐的V2元数据。"""
     
     print(f"创建元数据二进制: 版本={version}, 槽位={slot}, 组件数={len(components)}")
     
@@ -620,7 +1109,9 @@ def create_metadata_binary(version, slot, build_date, components):
     offset += 32
     
     # build_timestamp (uint32_t)
-    timestamp = int(time.time())
+    timestamp = int(time.time()) if build_timestamp is None else int(build_timestamp)
+    if timestamp < 0 or timestamp > 0xFFFFFFFF:
+        raise ValueError("build_timestamp必须是uint32")
     struct.pack_into('<I', metadata_buffer, offset, timestamp)
     offset += 4
     
@@ -690,30 +1181,52 @@ def create_metadata_binary(version, slot, build_date, components):
             offset = component_end
     
     # === 安全签名区域 ===
-    # firmware_hash (uint8_t[32]) - 预留，填充为0
+    # firmware_hash (uint8_t[32]) - 签名阶段填充
+    firmware_hash_offset = offset
     offset += 32
     
-    # signature (uint8_t[64]) - 预留，填充为0
+    # signature (uint8_t[64]) - raw r || s，签名阶段填充
+    signature_offset = offset
     offset += 64
     
-    # signature_algorithm (uint32_t) - 预留，填充为0
-    struct.pack_into('<I', metadata_buffer, offset, 0)
+    # signature_algorithm (uint32_t)
+    struct.pack_into(
+        '<I',
+        metadata_buffer,
+        offset,
+        FIRMWARE_SIGNATURE_ECDSA_P256_SHA256,
+    )
     offset += 4
     
-    # === 预留区域 ===
-    # reserved (uint8_t[64]) - 填充为0
-    offset += 64
+    # === 安全策略/预留区域 ===
+    if (
+        isinstance(security_version, bool)
+        or not isinstance(security_version, int)
+        or security_version < FIRMWARE_SECURITY_VERSION
+        or security_version > 0xFFFFFFFF
+    ):
+        raise ValueError("security_version必须是有效且不低于当前门限的uint32")
+    struct.pack_into('<I', metadata_buffer, offset, security_version)
+    offset += 4
+    struct.pack_into(
+        '<B', metadata_buffer, offset, 1 if webresources_optional else 0
+    )
+    offset += 1
+    offset += 59  # reserved，保持全0并纳入签名
     
     # 验证总大小
-    if offset != METADATA_SIZE:
-        print(f"警告: 元数据大小不匹配! 期望={METADATA_SIZE}, 实际={offset}")
-        # 调整缓冲区大小以匹配实际计算的大小
-        if offset < METADATA_SIZE:
-            # 如果计算的大小小于期望大小，保持原大小（已经用0填充）
-            pass
-        else:
-            # 如果计算的大小大于期望大小，截断到期望大小
-            metadata_buffer = metadata_buffer[:METADATA_SIZE]
+    if offset != METADATA_STRUCT_SIZE:
+        raise RuntimeError(
+            f"元数据大小不匹配: 期望={METADATA_STRUCT_SIZE}, 实际={offset}"
+        )
+
+    digest, signature = sign_metadata(bytes(metadata_buffer), signing_key)
+    metadata_buffer[
+        firmware_hash_offset : firmware_hash_offset + len(digest)
+    ] = digest
+    metadata_buffer[
+        signature_offset : signature_offset + len(signature)
+    ] = signature
     
     # 计算并设置CRC32校验和（跳过CRC字段本身）
     crc32_value = calculate_crc32(metadata_buffer, crc32_offset, 4)
@@ -742,6 +1255,8 @@ def create_metadata_binary(version, slot, build_date, components):
     print(f"  - 槽位: {slot}")
     print(f"  - 设备型号: {DEVICE_MODEL_STRING}")
     print(f"  - 组件数量: {len(components)}")
+    print(f"  - 安全版本: {security_version}")
+    print(f"  - 签名算法: ECDSA-P256-SHA256")
     print(f"  - CRC32: 0x{crc32_value:08X}")
     print(f"  - 总大小: {len(metadata_buffer)} 字节")
     
@@ -789,6 +1304,8 @@ class ReleaseFlasher:
         self.application_dir = project_root / "application"  # 添加application目录
         self.openocd_configs_dir = self.tools_dir / "openocd_configs"
         self.temp_dir = None
+        self.trust_bundle_sha256 = None
+        self.firmware_release_public_key = None
         
         # OpenOCD配置文件 - 使用tools目录下的配置
         self.openocd_config = self.openocd_configs_dir / "ST-LINK-QSPIFLASH.cfg"
@@ -815,6 +1332,19 @@ class ReleaseFlasher:
         package_file = Path(package_path)
         if not package_file.exists():
             raise FileNotFoundError(f"Release包不存在: {package_path}")
+        trust_header, trust_bundle_sha256 = require_v2_trust_bundle()
+        release_public_key = (
+            load_firmware_release_public_key_from_trust_header(
+                trust_header
+            )
+        )
+        manifest = validate_stm32_ota_package(
+            package_file, release_public_key
+        )
+        if manifest["trust_bundle_sha256"] != trust_bundle_sha256:
+            raise ValueError(
+                "release包trust_bundle_sha256与当前批准bundle不一致"
+            )
         
         # 创建临时目录
         self.temp_dir = Path(tempfile.mkdtemp(prefix="release_flash_"))
@@ -831,7 +1361,9 @@ class ReleaseFlasher:
                 raise FileNotFoundError("Release包中缺少manifest.json文件")
             
             with open(manifest_file, 'r', encoding='utf-8') as f:
-                manifest = json.load(f)
+                extracted_manifest = json.load(f)
+            if extracted_manifest != manifest:
+                raise ValueError("解压后的manifest与已验证内容不一致")
             
             print(f"成功解压Release包: {package_file.name}")
             print(f"版本: {manifest.get('version', 'Unknown')}")
@@ -954,42 +1486,46 @@ class ReleaseFlasher:
     
     def flash_release_package(self, package_path: str, target_slot: str = None, 
                             components: List[str] = None) -> bool:
-        """刷写release包到设备"""
+        """原样刷写已验证release包；禁止改槽、删组件或现场重签。"""
         try:
             # 解压release包
             manifest, temp_dir = self.extract_release_package(package_path)
-            
-            # 确定目标槽位
-            if target_slot is None:
-                target_slot = manifest.get('slot', 'A').upper()
+
+            package_slot = manifest['slot'].upper()
+            if target_slot is not None and target_slot.upper() != package_slot:
+                print(
+                    "错误: 已签名release包禁止改写目标槽位; "
+                    f"package={package_slot}, requested={target_slot.upper()}"
+                )
+                return False
+            target_slot = package_slot
             
             print(f"开始刷写release包: {Path(package_path).name}")
             print(f"目标槽位: {target_slot}")
             
-            # 确定要刷写的组件 - 处理components为列表的情况
             manifest_components = manifest.get('components', [])
-            if isinstance(manifest_components, list):
-                # components是列表格式，转换为字典格式以便后续处理
-                components_dict = {}
-                for comp in manifest_components:
-                    components_dict[comp['name']] = comp
-                available_components = list(components_dict.keys())
-            else:
-                # components是字典格式（旧格式兼容）
-                components_dict = manifest_components
-                available_components = list(components_dict.keys())
-            
-            if components is None:
-                components = available_components
-            else:
-                # 验证指定的组件是否存在
-                invalid_components = [c for c in components if c not in available_components]
-                if invalid_components:
-                    print(f"错误: 指定的组件不存在: {invalid_components}")
-                    print(f"可用组件: {available_components}")
-                    return False
-            
-            print(f"将刷写组件: {components}")
+            components_dict = {
+                component['name']: component
+                for component in manifest_components
+            }
+            required_components = [
+                component['name']
+                for component in manifest_components
+                if component.get('active', True)
+                and component.get('size', 0) > 0
+            ]
+            if components is not None and (
+                len(components) != len(required_components)
+                or set(components) != set(required_components)
+            ):
+                print(
+                    "错误: 已签名release包禁止遗漏或增加安全组件; "
+                    f"required={required_components}, requested={components}"
+                )
+                return False
+            components = required_components
+
+            print(f"将原样刷写已签名组件: {components}")
             
             # 刷写各个组件
             success_count = 0
@@ -999,8 +1535,7 @@ class ReleaseFlasher:
                 component_info = components_dict[component_name]
                 component_file = temp_dir / component_info['file']
                 
-                # 根据目标槽位调整地址
-                target_address = self.get_slot_address(component_name, target_slot)
+                target_address = f"0x{_parse_manifest_address(component_info['address'], component_name + '.address'):08X}"
                 
                 # 获取文件类型信息（从manifest或文件扩展名）
                 file_type = component_info.get('file_type', None)
@@ -1012,45 +1547,18 @@ class ReleaseFlasher:
                 else:
                     print(f"组件 {component_name} 刷写失败")
                     return False
-            
-            
-            # 生成并刷写元数据
-            print(f"\n[{success_count + 1}/{total_count + 1}] 生成并刷写元数据...")
-            
-            # 使用新的create_metadata_binary函数
-            components_list = []
-            for comp_name in components:
-                if comp_name in ('sys_assets', 'sysbg'):
-                    continue
-                comp_info = components_dict[comp_name]
-                components_list.append({
-                    'name': comp_name,
-                    'file': comp_info['file'],
-                    'address': self.get_slot_address(comp_name, target_slot),
-                    'size': comp_info['size'],
-                    'sha256': comp_info['sha256'],
-                    'active': True
-                })
-            
-            # 生成元数据二进制
-            metadata_binary = create_metadata_binary(
-                version=manifest.get('version', '1.0.0'),
-                slot=target_slot,
-                build_date=manifest.get('build_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
-                components=components_list
+            print(
+                f"\n[{success_count + 1}/{total_count + 1}] "
+                "刷写包内exact signed metadata.bin..."
             )
-            
-            # 写入临时文件
-            metadata_file = temp_dir / "metadata.bin"
-            with open(metadata_file, 'wb') as f:
-                f.write(metadata_binary)
+            metadata_file = temp_dir / manifest['metadata']['file']
             
             # 刷写元数据
             if self.flash_metadata(metadata_file):
-                print(f"✓ 所有组件和元数据刷写成功!")
+                print("[OK] 所有组件和exact signed metadata刷写成功!")
                 return True
             else:
-                print(f"✗ 元数据刷写失败")
+                print("[ERROR] metadata.bin刷写失败")
                 return False
                 
         except Exception as e:
@@ -1141,6 +1649,8 @@ class ReleaseManager:
         self.releases_dir = self.project_root / "releases"
         self.openocd_configs_dir = self.tools_dir / "openocd_configs"
         self.temp_dir = None
+        self.trust_bundle_sha256 = None
+        self.firmware_release_public_key = None
         
         # 加载统一配置
         self.config = get_config()
@@ -1174,62 +1684,31 @@ class ReleaseManager:
         self.releases_dir.mkdir(exist_ok=True)
         print(f"发版目录: {self.releases_dir}")
     
-    def get_admin_credentials(self, admin_username: str = None, admin_password: str = None) -> tuple:
-        """
-        获取管理员认证凭据
-        优先级：命令行参数 > 环境变量 > 配置默认值 > 交互式输入
-        
-        Args:
-            admin_username: 命令行传入的用户名（可选）
-            admin_password: 命令行传入的密码（可选）
-        
-        Returns:
-            tuple: (username, password) 如果获取失败返回 (None, None)
-        """
-        # 处理管理员用户名
-        if not admin_username:
-            admin_username = os.getenv('ADMIN_USERNAME')
-        
-        if not admin_username:
-            admin_username = self.config.get_admin_username()
-        
-        if not admin_username:
-            admin_username = input("请输入管理员用户名 (默认: admin): ").strip()
-            if not admin_username:
-                admin_username = 'admin'
-        
-        # 处理管理员密码
-        if not admin_password:
-            admin_password = os.getenv('ADMIN_PASSWORD')
-        
-        if not admin_password and self.config.should_prompt_for_password():
-            import getpass
-            admin_password = getpass.getpass("请输入管理员密码: ")
-        
-        if not admin_password:
-            print("错误: 管理员密码不能为空")
-            return None, None
-        
-        return admin_username, admin_password
-    
-    def generate_basic_auth_headers(self, admin_username: str, admin_password: str) -> dict:
-        """
-        生成Basic认证请求头
-        
-        Args:
-            admin_username: 管理员用户名
-            admin_password: 管理员密码
-        
-        Returns:
-            dict: 包含Authorization头的字典
-        """
-        import base64
-        credentials = f"{admin_username}:{admin_password}"
-        auth_token = base64.b64encode(credentials.encode()).decode()
-        
-        return {
-            'Authorization': f'Basic {auth_token}'
-        }
+    def get_service_token(self, token_file: str = None) -> str | None:
+        """Read an administrator service token from a dedicated file."""
+        configured = token_file or os.getenv('HBOX_ADMIN_SERVICE_TOKEN_FILE')
+        if not configured:
+            print(
+                "错误: 需要 --service-token-file 或 "
+                "HBOX_ADMIN_SERVICE_TOKEN_FILE"
+            )
+            return None
+        token_path = Path(configured).expanduser().resolve()
+        try:
+            token = token_path.read_text(encoding='utf-8').strip()
+        except OSError as exc:
+            print(f"错误: 无法读取服务令牌文件 {token_path}: {exc}")
+            return None
+        if not re.fullmatch(r'stsvc_[A-Za-z0-9_-]{43}', token):
+            print("错误: 服务令牌文件格式无效")
+            return None
+        return token
+
+    def generate_service_token_headers(self, token_file: str = None) -> dict | None:
+        token = self.get_service_token(token_file)
+        if not token:
+            return None
+        return {'Authorization': f'Bearer {token}'}
     
     def calculate_checksum(self, data: bytes) -> str:
         """计算SHA256校验和"""
@@ -1349,7 +1828,7 @@ class ReleaseManager:
         elif not progress:
             print("正在生成/复制系统图片资源...")
 
-        assets_dir = self.application_dir / "assets" / "icons"
+        assets_dir = self.application_dir / "assets" / "sysicons"
         if not assets_dir.exists():
             raise FileNotFoundError(f"未找到 assets 目录: {assets_dir}")
 
@@ -1414,10 +1893,6 @@ class ReleaseManager:
         elif not progress:
             print("正在生成/复制系统背景图片(sysbg)...")
 
-        sysbg_dir = self.application_dir / "assets" / "sysbg"
-        if not sysbg_dir.exists():
-            raise FileNotFoundError(f"未找到 sysbg 目录: {sysbg_dir}")
-
         packer = self.tools_dir / "pack_assets.py"
         if not packer.exists():
             raise FileNotFoundError(f"未找到 assets 打包脚本: {packer}")
@@ -1428,9 +1903,7 @@ class ReleaseManager:
         cmd = [
             sys.executable,
             str(packer),
-            "--sysbg-dir", str(sysbg_dir),
-            "--sysbg-output", str(out_bin),
-            "--sysbg-max-size", hex(USER_IMAGE_RESOURCES_SIZE),
+            "--empty-sysbg-output", str(out_bin),
         ]
         result = self.run_cmd(cmd, cwd=self.project_root, check=False)
         if result.returncode != 0:
@@ -1445,12 +1918,22 @@ class ReleaseManager:
             print(f"成功复制系统背景图片: {out_bin} -> {dst}")
         return dst
 
-    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file=None, sysbg_file=None):
-        """生成manifest文件（使用BIN文件）"""
+    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component):
+        """生成manifest和与其逐字段一致的已签名metadata.bin。"""
+        build_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        build_timestamp = int(time.time())
         manifest = {
             "version": version,
             "slot": slot,
-            "build_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "build_date": build_date,
+            "build_timestamp": build_timestamp,
+            "hardware_version": "2.0.0",
+            "hardware_version_code": HARDWARE_VERSION,
+            "ota_scope": "STM32_ONLY",
+            "ch585_update": "MANUAL_INDEPENDENT_FLASH",
+            "security_version": FIRMWARE_SECURITY_VERSION,
+            "webresources_optional": True,
+            "trust_bundle_sha256": self.trust_bundle_sha256,
             "components": []
         }
         
@@ -1461,17 +1944,19 @@ class ReleaseManager:
             "address": app_component['address'],
             "size": app_bin_file.stat().st_size,
             "sha256": self.sha256sum_file(app_bin_file),
-            "file_type": "bin"  # 标记为BIN文件
+            "file_type": "bin",
+            "active": True,
         })
         
-        # WebResources组件
+        # V2页面由HTTPS服务器托管；保留逻辑槽位但不再发布固件资源。
         manifest["components"].append({
             "name": "webresources",
-            "file": web_file.name,
+            "file": "",
             "address": "0x90100000" if slot == "A" else "0x903B0000",
-            "size": web_file.stat().st_size,
-            "sha256": self.sha256sum_file(web_file),
-            "file_type": "bin"
+            "size": 0,
+            "sha256": "0" * 64,
+            "file_type": "none",
+            "active": False,
         })
         
         # ADC Mapping组件
@@ -1481,30 +1966,37 @@ class ReleaseManager:
             "address": "0x90280000" if slot == "A" else "0x90530000",
             "size": adc_file.stat().st_size,
             "sha256": self.sha256sum_file(adc_file),
-            "file_type": "bin"
+            "file_type": "bin",
+            "active": True,
         })
 
-        if sys_assets_file is not None:
-            manifest["components"].append({
-                "name": "sys_assets",
-                "file": sys_assets_file.name,
-                "address": f"0x{SYS_IMAGE_RESOURCES_ADDR:08X}",
-                "size": sys_assets_file.stat().st_size,
-                "sha256": self.sha256sum_file(sys_assets_file),
-                "file_type": "bin"
-            })
+        metadata = create_metadata_binary(
+            version=version,
+            slot=slot,
+            build_date=build_date,
+            build_timestamp=build_timestamp,
+            components=manifest["components"],
+            security_version=manifest["security_version"],
+            webresources_optional=True,
+        )
+        manifest["signature_algorithm"] = struct.unpack_from(
+            "<I", metadata, FIRMWARE_SIGNATURE_ALGORITHM_OFFSET
+        )[0]
+        manifest["firmware_hash"] = metadata[
+            FIRMWARE_HASH_OFFSET : FIRMWARE_HASH_OFFSET + 32
+        ].hex()
+        manifest["signature"] = metadata[
+            FIRMWARE_SIGNATURE_OFFSET : FIRMWARE_SIGNATURE_OFFSET + 64
+        ].hex()
+        manifest["metadata"] = {
+            "file": SIGNED_METADATA_FILENAME,
+            "size": len(metadata),
+            "sha256": hashlib.sha256(metadata).hexdigest(),
+        }
 
-        if sysbg_file is not None:
-            manifest["components"].append({
-                "name": "sysbg",
-                "file": sysbg_file.name,
-                "address": f"0x{USER_IMAGE_RESOURCES_ADDR:08X}",
-                "size": sysbg_file.stat().st_size,
-                "sha256": self.sha256sum_file(sysbg_file),
-                "file_type": "bin"
-            })
-        
-        return manifest
+        validate_stm32_ota_manifest(manifest)
+        validate_signed_metadata_matches_manifest(metadata, manifest)
+        return manifest, metadata
 
     def make_auto_release_pkg(self, slot, version, out_dir, build_timestamp, progress=None, start_step=0):
         """生成单个槽的release包（使用Intel HEX分割处理）"""
@@ -1554,15 +2046,12 @@ class ReleaseManager:
             
             # 5. 复制其他必要的组件
             adc_file = self.copy_adc_mapping_from_resources(out_dir, progress, start_step + 5)
-            web_file = self.copy_webresources_for_auto(out_dir, progress, start_step + 6)
-            sys_assets_file = self.copy_system_assets_for_auto(out_dir, progress, start_step + 7)
-            sysbg_file = self.copy_sysbg_for_auto(out_dir, progress, start_step + 8)
-            
+            web_file = None
             # 6. 生成标准manifest（使用BIN文件）
             if progress:
-                progress.set_step(start_step + 9, f"槽{slot}: 生成manifest...")
-            manifest = self.make_manifest_for_auto_with_bin(
-                slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file, sysbg_file
+                progress.set_step(start_step + 7, f"槽{slot}: 生成manifest...")
+            manifest, signed_metadata = self.make_manifest_for_auto_with_bin(
+                slot, app_bin_file, adc_file, web_file, version, app_component
             )
             
             # 添加HEX处理信息
@@ -1579,10 +2068,12 @@ class ReleaseManager:
             manifest_file = out_dir / 'manifest.json'
             with open(manifest_file, 'w', encoding='utf-8') as f:
                 json.dump(manifest, f, indent=2, ensure_ascii=False)
+            metadata_file = out_dir / SIGNED_METADATA_FILENAME
+            metadata_file.write_bytes(signed_metadata)
             
             # 7. 打包并移动到releases目录
             if progress:
-                progress.set_step(start_step + 10, f"槽{slot}: 打包并移动到releases目录...")
+                progress.set_step(start_step + 8, f"槽{slot}: 打包并移动到releases目录...")
             package_name = f'hbox_firmware_{version}_{slot.lower()}_{build_timestamp}.zip'
             temp_package_path = out_dir / package_name
             final_package_path = self.releases_dir / package_name
@@ -1593,11 +2084,19 @@ class ReleaseManager:
                 zf.write(app_bin_file, app_bin_file.name)
                 
                 # 共同文件
-                zf.write(web_file, web_file.name)
                 zf.write(adc_file, adc_file.name)
-                zf.write(sys_assets_file, sys_assets_file.name)
-                zf.write(sysbg_file, sysbg_file.name)
+                zf.write(metadata_file, metadata_file.name)
                 zf.write(manifest_file, manifest_file.name)
+
+            # ZIP是实际发布/上传边界；移动到releases前重新从ZIP读取并严格核验。
+            if self.firmware_release_public_key is None:
+                raise RuntimeError(
+                    "未加载批准的firmware release公钥，禁止生成正式包"
+                )
+            validate_stm32_ota_package(
+                temp_package_path,
+                self.firmware_release_public_key,
+            )
             
             # 移动到最终位置
             shutil.move(temp_package_path, final_package_path)
@@ -1616,6 +2115,14 @@ class ReleaseManager:
 
     def create_auto_release(self, version: str) -> List[str]:
         """自动构建双槽release包（使用Intel HEX分割处理）"""
+        trust_header, self.trust_bundle_sha256 = (
+            require_v2_trust_bundle()
+        )
+        self.firmware_release_public_key = (
+            load_firmware_release_public_key_from_trust_header(
+                trust_header
+            )
+        )
         print("=== STM32 HBox 双槽Release包生成工具 ===")
         print(f"工作目录: {self.project_root}")
         print(f"输出目录: {self.releases_dir}")
@@ -1634,8 +2141,8 @@ class ReleaseManager:
         build_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         print(f"构建时间戳: {build_timestamp}")
         
-        # 创建统一进度条 (每个槽10步，共20步)
-        progress = ProgressBar(20)
+        # 每个槽8步；OTA固定为 application/webresources/adc_mapping 三组件。
+        progress = ProgressBar(16)
         
         success_count = 0
         generated_packages = []
@@ -1643,7 +2150,7 @@ class ReleaseManager:
         try:
             for i, slot in enumerate(['A', 'B']):
                 try:
-                    start_step = i * 10  # 每个槽10步
+                    start_step = i * 8
                     package_path = self.make_auto_release_pkg(slot, version, out_dir, build_timestamp, progress, start_step)
                     success_count += 1
                     generated_packages.append(package_path)
@@ -1723,37 +2230,24 @@ class ReleaseManager:
         print(f"验证发版包: {package_file}")
         
         try:
-            with zipfile.ZipFile(package_file, 'r') as zf:
-                # 读取manifest
-                with zf.open('manifest.json') as f:
-                    manifest = json.load(f)
-                
-                # 验证每个组件
-                for comp_info in manifest["components"]:
-                    comp_name = comp_info["name"]
-                    comp_file = comp_info["file"]
-                    expected_checksum = comp_info["sha256"]
-                    
-                    # 读取组件数据
-                    with zf.open(comp_file) as f:
-                        data = f.read()
-                    
-                    # 计算校验和
-                    actual_checksum = self.calculate_checksum(data)
-                    
-                    if actual_checksum == expected_checksum:
-                        print(f"  ✓ {comp_name}: 校验通过")
-                    else:
-                        print(f"  ✗ {comp_name}: 校验失败")
-                        print(f"    期望: {expected_checksum}")
-                        print(f"    实际: {actual_checksum}")
-                        return False
-                
-                print("✓ 发版包验证通过")
-                return True
+            trust_header, trust_bundle_sha256 = require_v2_trust_bundle()
+            release_public_key = (
+                load_firmware_release_public_key_from_trust_header(
+                    trust_header
+                )
+            )
+            manifest = validate_stm32_ota_package(
+                Path(package_file), release_public_key
+            )
+            if manifest["trust_bundle_sha256"] != trust_bundle_sha256:
+                raise ValueError(
+                    "release包trust_bundle_sha256与当前批准bundle不一致"
+                )
+            print("[OK] release包、组件和exact signed metadata验证通过")
+            return True
                 
         except Exception as e:
-            print(f"✗ 验证失败: {e}")
+            print(f"[ERROR] 验证失败: {e}")
             return False
 
     # ==================== 刷写功能 ====================
@@ -1879,7 +2373,7 @@ class ReleaseManager:
     def upload_firmware_to_server(self, slot_a_path: str = None, slot_b_path: str = None, 
                                  server_url: str = None, 
                                  desc: str = None, 
-                                 admin_username: str = None, admin_password: str = None) -> bool:
+                                 service_token_file: str = None) -> bool:
         """上传固件包到服务器"""
         
         if not slot_a_path and not slot_b_path:
@@ -1889,64 +2383,110 @@ class ReleaseManager:
         # 获取服务器URL（优先使用参数，其次使用配置）
         server_url = self.config.get_server_url(server_url)
 
-        # 获取管理员认证凭据
-        admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
-        if not admin_username or not admin_password:
+        auth_headers = self.generate_service_token_headers(service_token_file)
+        if not auth_headers:
+            return False
+
+        try:
+            trust_header, self.trust_bundle_sha256 = (
+                require_v2_trust_bundle()
+            )
+            release_public_key = (
+                load_firmware_release_public_key_from_trust_header(
+                    trust_header
+                )
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"错误: 无法加载批准的release信任bundle: {exc}")
             return False
         
-        # 解析包信息
-        package_info = None
+        # 上传元数据只能来自包内manifest；文件名和表单都不是信任来源。
+        package_paths = {}
         if slot_a_path:
-            package_info = self.parse_package_info(slot_a_path)
-            if not package_info:
-                print(f"错误: 无法解析包名格式: {slot_a_path}")
+            package_paths["slotA"] = Path(slot_a_path)
+        if slot_b_path:
+            package_paths["slotB"] = Path(slot_b_path)
+
+        package_manifests = {}
+        for field_name, package_file in package_paths.items():
+            slot_label = "槽A" if field_name == "slotA" else "槽B"
+            if not package_file.exists():
+                print(f"错误: {slot_label}文件不存在: {package_file}")
                 return False
-        elif slot_b_path:
-            package_info = self.parse_package_info(slot_b_path)
-            if not package_info:
-                print(f"错误: 无法解析包名格式: {slot_b_path}")
+            try:
+                manifest = validate_stm32_ota_package(
+                    package_file, release_public_key
+                )
+                if (
+                    manifest["trust_bundle_sha256"]
+                    != self.trust_bundle_sha256
+                ):
+                    raise ValueError(
+                        "包内trust_bundle_sha256与当前批准bundle不一致"
+                    )
+                package_manifests[field_name] = manifest
+            except (OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
+                print(f"错误: {slot_label}包不符合STM32三组件OTA边界: {exc}")
                 return False
-        
-        version = package_info['version']
+
+        expected_slot_by_field = {"slotA": "A", "slotB": "B"}
+        for field_name, manifest in package_manifests.items():
+            expected_slot = expected_slot_by_field[field_name]
+            if manifest["slot"].upper() != expected_slot:
+                print(
+                    f"错误: {field_name}上传字段包含槽{manifest['slot']}包，"
+                    f"必须是槽{expected_slot}"
+                )
+                return False
+
+        versions = {manifest["version"] for manifest in package_manifests.values()}
+        hardware_versions = {
+            manifest["hardware_version"] for manifest in package_manifests.values()
+        }
+        if len(versions) != 1 or len(hardware_versions) != 1:
+            print("错误: 双槽包的version和hardware_version必须完全一致")
+            return False
+
+        version = next(iter(versions))
+        hardware_version = next(iter(hardware_versions))
+        if hardware_version != LATEST_HARDWARE_VERSION:
+            print(f"错误: 本发布工具只允许上传V2硬件包 ({LATEST_HARDWARE_VERSION})")
+            return False
+
         if not desc:
             desc = f"自动上传的固件包，版本 {version}"
-        
+
         print("=" * 60)
         print("上传固件包到服务器")
         print("=" * 60)
         print(f"服务器地址: {server_url}")
+        print(f"硬件版本: {hardware_version}")
         print(f"版本号: {version}")
+        print(f"信任bundle: {trust_header}")
+        print(f"信任bundle SHA-256: {self.trust_bundle_sha256}")
         print(f"描述: {desc}")
-        print(f"👤 管理员用户名: {admin_username}")
-        
-        # 检查文件是否存在
+        print("🔐 认证方式: scoped service token")
+
         files_to_upload = {}
-        if slot_a_path:
-            slot_a_file = Path(slot_a_path)
-            if not slot_a_file.exists():
-                print(f"错误: 槽A文件不存在: {slot_a_path}")
-                return False
-            files_to_upload['slotA'] = (slot_a_file.name, open(slot_a_file, 'rb'), 'application/zip')
-            print(f"槽A包: {slot_a_file.name} ({slot_a_file.stat().st_size / 1024 / 1024:.1f} MB)")
-        
-        if slot_b_path:
-            slot_b_file = Path(slot_b_path)
-            if not slot_b_file.exists():
-                print(f"错误: 槽B文件不存在: {slot_b_path}")
-                return False
-            files_to_upload['slotB'] = (slot_b_file.name, open(slot_b_file, 'rb'), 'application/zip')
-            print(f"槽B包: {slot_b_file.name} ({slot_b_file.stat().st_size / 1024 / 1024:.1f} MB)")
+        for field_name, package_file in package_paths.items():
+            files_to_upload[field_name] = (
+                package_file.name,
+                open(package_file, "rb"),
+                "application/zip",
+            )
+            slot_label = "槽A" if field_name == "slotA" else "槽B"
+            print(f"{slot_label}包: {package_file.name} ({package_file.stat().st_size / 1024 / 1024:.1f} MB)")
         
         print()
         
         try:
-            # 生成认证请求头
-            headers = self.generate_basic_auth_headers(admin_username, admin_password)
-            
             # 准备上传数据
             form_data = {
                 'version': version,
-                'desc': desc
+                'desc': desc,
+                'hardwareVersion': hardware_version,
+                'otaComponents': ','.join(STM32_OTA_COMPONENTS),
+                'ch585Update': 'manual-independent-flash'
             }
             
             upload_url = f"{server_url}/api/firmwares/upload"
@@ -1957,7 +2497,7 @@ class ReleaseManager:
                 upload_url,
                 data=form_data,
                 files=files_to_upload,
-                headers=headers,
+                headers=auth_headers,
                 timeout=self.config.get_timeout(),  # 使用配置的超时时间
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
@@ -2012,7 +2552,7 @@ class ReleaseManager:
                     pass
     
     def upload_latest_packages(self, version: str = None, server_url: str = None, 
-                             desc: str = None, admin_username: str = None, admin_password: str = None) -> bool:
+                             desc: str = None, service_token_file: str = None) -> bool:
         """上传最新的双槽包到服务器"""
         
         # 获取服务器URL（优先使用参数，其次使用配置）
@@ -2086,14 +2626,13 @@ class ReleaseManager:
             slot_b_path=slot_b_path,
             server_url=server_url,
             desc=desc,
-            admin_username=admin_username,
-            admin_password=admin_password
+            service_token_file=service_token_file
         )
 
     # ==================== 固件删除功能 ====================
     
     def delete_firmware_from_server(self, firmware_id: str, server_url: str = None,
-                                    admin_username: str = None, admin_password: str = None) -> bool:
+                                    service_token_file: str = None) -> bool:
         """从服务器删除指定ID的固件"""
         
         # 获取服务器URL（优先使用参数，其次使用配置）
@@ -2158,11 +2697,11 @@ class ReleaseManager:
             delete_url = f"{server_url}/api/firmwares/{firmware_id}"
             print(f"正在删除: {delete_url}")
             
-            # 获取管理员认证凭据并生成请求头
-            admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
-            if not admin_username or not admin_password:
+            auth_headers = self.generate_service_token_headers(
+                service_token_file
+            )
+            if not auth_headers:
                 return False
-            auth_headers = self.generate_basic_auth_headers(admin_username, admin_password)
             
             response = requests.delete(
                 delete_url,
@@ -2217,8 +2756,8 @@ class ReleaseManager:
             return False
 
     def clear_firmware_versions_from_server(self, target_version: str, server_url: str = None, 
-                                           admin_username: str = None, admin_password: str = None) -> bool:
-        """清空服务器上指定版本及之前的所有固件"""
+                                           service_token_file: str = None) -> bool:
+        """仅清空V2硬件上指定版本及之前的固件。"""
         
         # 获取服务器URL（优先使用参数，其次使用配置）
         server_url = self.config.get_server_url(server_url)
@@ -2227,21 +2766,16 @@ class ReleaseManager:
         print("清空服务器固件版本")
         print("=" * 60)
         print(f"服务器地址: {server_url}")
+        print(f"硬件版本: {LATEST_HARDWARE_VERSION}")
         print(f"目标版本: {target_version} (包含此版本及之前的所有版本)")
         
-        # 获取管理员认证凭据
-        admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
-        if not admin_username or not admin_password:
+        auth_headers = self.generate_service_token_headers(service_token_file)
+        if not auth_headers:
             return False
-            
-        print(f"👤 管理员用户名: {admin_username}")
-        print("🔐 管理员密码: [已隐藏]")
+        print("🔐 认证方式: scoped service token")
         print()
         
         try:
-            # 生成认证请求头
-            auth_headers = self.generate_basic_auth_headers(admin_username, admin_password)
-            
             # 先获取当前所有固件列表，以便用户确认
             list_url = f"{server_url}/api/firmwares"
             print(f"正在获取固件列表: {list_url}")
@@ -2261,9 +2795,12 @@ class ReleaseManager:
                 print(f"✗ 获取固件列表失败: {result.get('message', '未知错误')}")
                 return False
             
-            firmwares = result['data']
+            firmwares = [
+                firmware for firmware in result['data']
+                if firmware.get('hardwareVersion') == LATEST_HARDWARE_VERSION
+            ]
             if not firmwares:
-                print("服务器上没有固件，无需清空")
+                print(f"服务器上没有硬件 {LATEST_HARDWARE_VERSION} 的固件，无需清空")
                 return True
             
             # 调试：显示第一个固件的结构（如果存在）
@@ -2309,7 +2846,8 @@ class ReleaseManager:
             print(f"正在清空固件: {clear_url}")
             
             request_data = {
-                "targetVersion": target_version
+                "targetVersion": target_version,
+                "hardwareVersion": LATEST_HARDWARE_VERSION
             }
             
             # 合并认证请求头和Content-Type
@@ -2357,7 +2895,7 @@ class ReleaseManager:
                     error_info = response.json()
                     print(f"错误信息: {error_info.get('message', 'Authentication failed')}")
                 except:
-                    print("请检查管理员用户名和密码")
+                    print("请检查服务令牌文件及令牌有效期")
                 return False
             else:
                 print(f"✗ 清空失败: HTTP {response.status_code}")
@@ -2386,6 +2924,12 @@ class ReleaseManager:
     
     def build_and_flash_slot_a_app(self) -> bool:
         """快速构建槽A的application并直接刷写到设备"""
+        print(
+            "错误: V2 quick现场构建/重签/刷写已禁用；请先用auto生成"
+            "exact signed release包，再使用flash原样刷写"
+        )
+        return False
+
         print("=== 快速构建并刷写槽A Application ===")
         print(f"工作目录: {self.project_root}")
         
@@ -2698,9 +3242,9 @@ class ReleaseManager:
 
     def flash_system_assets(self) -> bool:
         try:
-            icons_dir = self.application_dir / "assets" / "icons"
+            icons_dir = self.application_dir / "assets" / "sysicons"
             if not icons_dir.exists():
-                print(f"错误: 未找到 icons 目录: {icons_dir}")
+                print(f"错误: 未找到 sysicons 目录: {icons_dir}")
                 return False
 
             packer = self.tools_dir / "pack_assets.py"
@@ -2742,15 +3286,14 @@ class ReleaseManager:
             print(f"刷写系统图片资源时发生错误: {e}")
             return False
 
-    def register_device_id(self, server_url: str = None, 
-                           admin_username: str = None, admin_password: str = None) -> bool:
+    def register_device_id(self, server_url: str = None,
+                           service_token_file: str = None) -> bool:
         """
         注册设备ID到服务器（使用管理员认证）
         
         Args:
             server_url: 服务器URL
-            admin_username: 管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）
-            admin_password: 管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）
+            service_token_file: 服务令牌文件路径
         
         Returns:
             bool: 注册是否成功
@@ -2762,13 +3305,12 @@ class ReleaseManager:
             # 获取服务器URL（优先使用参数，其次使用配置）
             server_url = self.config.get_server_url(server_url)
             
-            # 获取管理员认证凭据
-            admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
-            if not admin_username or not admin_password:
+            auth_headers = self.generate_service_token_headers(
+                service_token_file
+            )
+            if not auth_headers:
                 return False
-            
-            print(f"👤 管理员用户名: {admin_username}")
-            print("🔐 管理员密码: [已隐藏]")
+            print("🔐 认证方式: scoped service token")
             
             # 直接读取设备唯一ID
             if not self.openocd_config.exists():
@@ -2847,7 +3389,7 @@ class ReleaseManager:
             # 生成认证请求头
             headers = {
                 'Content-Type': 'application/json',
-                **self.generate_basic_auth_headers(admin_username, admin_password)
+                **auth_headers
             }
             
             # 发送注册请求
@@ -2881,7 +3423,7 @@ class ReleaseManager:
                     error_info = response.json()
                     print(f"   错误信息: {error_info.get('message', 'Authentication failed')}")
                 except:
-                    print("   请检查管理员用户名和密码")
+                    print("   请检查服务令牌文件及令牌有效期")
                 return False
             else:
                 print(f"❌ 服务器响应错误: HTTP {response.status_code}")
@@ -2914,6 +3456,12 @@ class ReleaseManager:
 
     def build_and_flash_app_and_web(self, slot: str = "A") -> bool:
         """快捷编译 application 并烧录 application 和 web resource"""
+        print(
+            "错误: V2 appweb现场构建/重签/刷写已禁用；Hosted WebConfig"
+            "不写入QSPI，请使用auto + flash"
+        )
+        return False
+
         print(f"=== 快捷编译并烧录 Application + Web Resource (槽{slot}) ===")
         print(f"工作目录: {self.project_root}")
         try:
@@ -3027,18 +3575,16 @@ def main():
   注册到指定服务器:
     python release.py register --server http://192.168.1.100:3000
   
-  指定管理员凭据:
-    python release.py register --admin-username admin --admin-password mypassword
+  指定服务令牌文件:
+    python release.py register --service-token-file /run/secrets/hbox-service-token
   
   使用环境变量:
-    export ADMIN_USERNAME=admin
-    export ADMIN_PASSWORD=mypassword
+    export HBOX_ADMIN_SERVICE_TOKEN_FILE=/run/secrets/hbox-service-token
     python release.py register
   
   说明:
-    - 需要提供管理员用户名和密码进行认证
-    - 优先使用命令行参数，其次环境变量，最后交互式输入
-    - 默认管理员用户名为'admin'，密码需要配置
+    - 需要具有 device.manage 范围的服务令牌
+    - 服务令牌只从专用文件读取
 
 配置管理:
   显示当前配置:
@@ -3053,13 +3599,12 @@ def main():
   
   快速设置配置项:
     python release.py config --set-server http://192.168.1.100:3000
-    python release.py config --set-username admin
     python release.py config --set-timeout 300
     python release.py config --set-retry 3
   
   说明:
     - 配置文件保存在 tools/release_config.json
-    - 支持服务器地址、管理员用户名、超时时间等配置
+    - 支持服务器地址、超时时间等配置
     - 所有网络相关命令都会使用配置的默认值
     - 命令行参数优先级高于配置文件
 
@@ -3123,18 +3668,15 @@ Intel HEX文件处理（测试功能）:
   上传指定的固件包:
     python release.py upload --slot-a hbox_firmware_1.0.0_a_20250613_112625.zip --slot-b hbox_firmware_1.0.0_b_20250613_112625.zip
 
-  使用命令行参数指定管理员认证:
-    python release.py upload --admin-username admin --admin-password mypassword
+  指定服务令牌文件:
+    python release.py upload --service-token-file /run/secrets/hbox-service-token
   
-  使用环境变量指定管理员认证:
-    export ADMIN_USERNAME=admin
-    export ADMIN_PASSWORD=mypassword
+  使用环境变量指定服务令牌文件:
+    export HBOX_ADMIN_SERVICE_TOKEN_FILE=/run/secrets/hbox-service-token
     python release.py upload
   
   说明:
-    - 上传固件需要管理员认证
-    - 优先使用命令行参数，其次环境变量，最后交互式输入
-    - 默认管理员用户名为'admin'，密码需要配置
+    - 上传固件需要具有 firmware.manage 范围的服务令牌
 
 删除服务器固件:
   删除指定ID的固件:
@@ -3150,12 +3692,11 @@ Intel HEX文件处理（测试功能）:
   清空指定服务器上的固件:
     python release.py clear 1.0.5 --server http://192.168.1.100:3000
   
-  使用命令行参数指定管理员认证:
-    python release.py clear 1.0.5 --admin-username admin --admin-password mypassword
+  指定服务令牌文件:
+    python release.py clear 1.0.5 --service-token-file /run/secrets/hbox-service-token
   
-  使用环境变量指定管理员认证:
-    export ADMIN_USERNAME=admin
-    export ADMIN_PASSWORD=mypassword
+  使用环境变量指定服务令牌文件:
+    export HBOX_ADMIN_SERVICE_TOKEN_FILE=/run/secrets/hbox-service-token
     python release.py clear 1.0.5
   
   说明: 
@@ -3209,8 +3750,7 @@ Intel HEX增强模式说明:
     # 注册设备ID命令
     register_parser = subparsers.add_parser('register', help='注册设备ID到服务器')
     register_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
-    register_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
-    register_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    register_parser.add_argument("--service-token-file", help="服务令牌文件（或 HBOX_ADMIN_SERVICE_TOKEN_FILE）")
     
     # 配置管理命令
     config_parser = subparsers.add_parser('config', help='配置管理')
@@ -3218,7 +3758,6 @@ Intel HEX增强模式说明:
     config_parser.add_argument("--edit", action="store_true", help="交互式编辑配置")
     config_parser.add_argument("--reset", action="store_true", help="重置为默认配置")
     config_parser.add_argument("--set-server", help="设置默认服务器地址")
-    config_parser.add_argument("--set-username", help="设置默认管理员用户名")
     config_parser.add_argument("--set-timeout", type=int, help="设置请求超时时间（秒）")
     config_parser.add_argument("--set-retry", type=int, help="设置重试次数")
     
@@ -3240,10 +3779,14 @@ Intel HEX增强模式说明:
     # 刷写发版包命令
     flash_parser = subparsers.add_parser('flash', help='刷写release包')
     flash_parser.add_argument("package", nargs="?", help="要刷写的release包路径（可选，不指定则交互式选择）")
-    flash_parser.add_argument("--slot", choices=["A", "B"], help="目标槽位（可选，默认使用包中指定的槽位）")
+    flash_parser.add_argument(
+        "--slot",
+        choices=["A", "B"],
+        help="槽位一致性检查（若提供，必须与已签名包完全相同）",
+    )
     flash_parser.add_argument("--components", nargs="+", 
                             choices=["application", "webresources", "adc_mapping", "sys_assets", "sysbg"],
-                            help="要刷写的组件（可选，默认刷写所有组件）")
+                            help="组件一致性检查（若提供，必须包含包内全部active安全组件）")
     
     # 上传命令
     upload_parser = subparsers.add_parser('upload', help='上传固件包到服务器')
@@ -3252,22 +3795,19 @@ Intel HEX增强模式说明:
     upload_parser.add_argument("--desc", help="指定固件描述（可选）")
     upload_parser.add_argument("--slot-a", help="指定槽A的固件包路径（可选）")
     upload_parser.add_argument("--slot-b", help="指定槽B的固件包路径（可选）")
-    upload_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
-    upload_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    upload_parser.add_argument("--service-token-file", help="服务令牌文件（或 HBOX_ADMIN_SERVICE_TOKEN_FILE）")
     
     # 删除命令
     delete_parser = subparsers.add_parser('delete', help='删除服务器固件')
     delete_parser.add_argument("firmware_id", help="要删除的固件ID")
     delete_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
-    delete_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
-    delete_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    delete_parser.add_argument("--service-token-file", help="服务令牌文件（或 HBOX_ADMIN_SERVICE_TOKEN_FILE）")
     
     # 清空命令
     clear_parser = subparsers.add_parser('clear', help='清空指定版本及之前的所有固件')
     clear_parser.add_argument("target_version", help="目标版本号（将删除此版本及之前的所有固件）")
     clear_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
-    clear_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
-    clear_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    clear_parser.add_argument("--service-token-file", help="服务令牌文件（或 HBOX_ADMIN_SERVICE_TOKEN_FILE）")
     
     appweb_parser = subparsers.add_parser('appweb', help='快捷编译 application 并烧录 application 和 web resource')
     appweb_parser.add_argument("--slot", choices=["A", "B"], default="A", help="目标槽位（可选，默认: A）")
@@ -3330,9 +3870,7 @@ Intel HEX增强模式说明:
         elif args.command == 'register':
             # 注册设备ID到服务器
             server_url = args.server
-            admin_username = args.admin_username
-            admin_password = args.admin_password
-            if manager.register_device_id(server_url, admin_username, admin_password):
+            if manager.register_device_id(server_url, args.service_token_file):
                 print("\n✓ 设备ID注册成功")
                 return 0
             else:
@@ -3422,8 +3960,7 @@ Intel HEX增强模式说明:
                     slot_b_path=args.slot_b,
                     server_url=args.server,
                     desc=args.desc,
-                    admin_username=args.admin_username,
-                    admin_password=args.admin_password
+                    service_token_file=args.service_token_file
                 ):
                     print("\n✓ 固件包上传成功")
                     return 0
@@ -3436,8 +3973,7 @@ Intel HEX增强模式说明:
                     version=args.version,
                     server_url=args.server,
                     desc=args.desc,
-                    admin_username=args.admin_username,
-                    admin_password=args.admin_password
+                    service_token_file=args.service_token_file
                 ):
                     print("\n✓ 固件包上传成功")
                     return 0
@@ -3449,10 +3985,9 @@ Intel HEX增强模式说明:
             # 删除服务器固件
             firmware_id = args.firmware_id
             server_url = args.server
-            admin_username = args.admin_username
-            admin_password = args.admin_password
-            
-            if manager.delete_firmware_from_server(firmware_id, server_url, admin_username, admin_password):
+            if manager.delete_firmware_from_server(
+                firmware_id, server_url, args.service_token_file
+            ):
                 print("\n✓ 固件删除成功")
                 return 0
             else:
@@ -3463,10 +3998,9 @@ Intel HEX增强模式说明:
             # 清空服务器固件
             target_version = args.target_version
             server_url = args.server
-            admin_username = args.admin_username
-            admin_password = args.admin_password
-            
-            if manager.clear_firmware_versions_from_server(target_version, server_url, admin_username, admin_password):
+            if manager.clear_firmware_versions_from_server(
+                target_version, server_url, args.service_token_file
+            ):
                 print("\n✓ 固件清空成功")
                 return 0
             else:
@@ -3488,9 +4022,6 @@ Intel HEX增强模式说明:
                 return 0
             elif args.set_server:
                 config.update_config("server", "default_url", args.set_server)
-                return 0
-            elif args.set_username:
-                config.update_config("admin", "default_username", args.set_username)
                 return 0
             elif args.set_timeout:
                 config.update_config("server", "timeout", args.set_timeout)

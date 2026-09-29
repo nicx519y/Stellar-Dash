@@ -1,247 +1,132 @@
-"use client"
+"use client";
 
-import { PROFILE_NAME_MAX_LENGTH } from "@/types/gamepad-config";
-import { useMemo } from "react";
-import {  Button, Card, HStack, VStack } from "@chakra-ui/react";
+import { GameProfile, PROFILE_NAME_MAX_LENGTH } from "@/types/gamepad-config";
+import { useEffect, useRef, useState } from "react";
+import { Box, Button, HStack, IconButton, Separator, Text, VStack } from "@chakra-ui/react";
 import { Tooltip } from "@/components/ui/tooltip";
-import {
-    IconButton,
-    createListCollection,
-} from "@chakra-ui/react"
-
-
-import { LuTrash, LuPlus, LuPencil } from "react-icons/lu"
-import { FaLock } from "react-icons/fa"
-import { openConfirm } from '@/components/dialog-confirm';
+import { LuLayers3, LuPencil } from "react-icons/lu";
+import { FaLock } from "react-icons/fa";
 import { openForm } from '@/components/dialog-form';
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from '@/contexts/language-context';
-import { useColorMode } from "./ui/color-mode";
+import { profileSlots } from '@/lib/profile-slots';
 
-export function ProfileSelect(
-    props: {
-        disabled?: boolean,
-    }
-) {
-
-    const { profileList, switchProfile, createProfile, deleteProfile, updateProfileDetails } = useGamepadConfig();
+export function ProfileSelect({ disabled = false }: { disabled?: boolean }) {
+    const { profileList, switchProfile, stageDeferredProfileDetails, configEditingBlocked,
+        deviceConnected, deviceSession, dataIsReady, isLoading, rfBindingBusy } = useGamepadConfig();
     const { t } = useLanguage();
-    const { disabled } = props;
-    const { colorMode } = useColorMode();
-    const isDisabled = useMemo(() => {
-        return disabled ?? false;
-    }, [disabled]);
+    const [operation, setOperation] = useState<'dialog' | 'save' | 'switch' | null>(null);
+    const [error, setError] = useState('');
+    const busy = useRef(false);
+    const mounted = useRef(false);
+    useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; };
+    }, []);
+    const { slots, compatible } = profileSlots(profileList);
+    const blocked = disabled || !deviceConnected || !dataIsReady || isLoading || configEditingBlocked || rfBindingBusy || !compatible;
+    const live = useRef({ blocked, profileList, deviceSession });
+    live.current = { blocked, profileList, deviceSession };
 
-    const defaultProfile = useMemo(() => {
-        const profile = profileList.items.find(p => p.id === profileList.defaultId);
-        return profile;
-    }, [profileList]);
-
-    const profilesCollection = useMemo(() => {
+    const select = async (profile: GameProfile) => {
+        if (live.current.blocked || busy.current || profile.id === profileList.defaultId) return;
+        busy.current = true;
+        setOperation('switch');
+        setError('');
         try {
-            return createListCollection({
-                items: profileList.items.map(p => ({
-                    value: p.id,
-                    label: p.name,
-                })),
+            await switchProfile(profile.id);
+        } catch {
+            setError(t.PROFILE_SELECT_OPERATION_FAILED);
+        } finally {
+            busy.current = false;
+            setOperation(null);
+        }
+    };
+
+    const rename = async (profile: GameProfile) => {
+        if (live.current.blocked || busy.current) return;
+        const session = live.current.deviceSession;
+        busy.current = true;
+        setOperation('dialog');
+        setError('');
+        try {
+            const result = await openForm({
+                title: t.DIALOG_RENAME_PROFILE_TITLE,
+                fields: [{
+                    name: 'profileName', label: t.PROFILE_NAME_LABEL,
+                    defaultValue: profile.name, placeholder: t.PROFILE_NAME_PLACEHOLDER,
+                    validate: (value) => {
+                        if (!value.length || value.length > PROFILE_NAME_MAX_LENGTH)
+                            return t.PROFILE_SELECT_VALIDATION_LENGTH.replace('{0}', String(value.length));
+                        if (!/^[A-Za-z0-9_-]+$/.test(value)) return t.PROFILE_SELECT_VALIDATION_SPECIAL_CHARS;
+                        if (value === profile.name) return t.PROFILE_SELECT_VALIDATION_SAME_NAME;
+                        if (live.current.profileList.items.some((item) => item.id !== profile.id && item.name === value))
+                            return t.PROFILE_SELECT_VALIDATION_EXISTS;
+                        return undefined;
+                    },
+                }],
+            });
+            if (!result || !mounted.current || live.current.blocked || live.current.deviceSession !== session || !live.current.profileList.items.some(
+                (item) => item.id === profile.id && item.slotIndex === profile.slotIndex)) return;
+            setOperation('save');
+            stageDeferredProfileDetails(profile.id, {
+                id: profile.id, name: result.profileName,
             });
         } catch {
-            return createListCollection({ items: [] });
-        }
-    }, [profileList]);
-
-    const profileMap = useMemo(() => {
-        const m = new Map<string, { isCompetitionProfile?: boolean }>();
-        profileList.items.forEach((p) => m.set(p.id, { isCompetitionProfile: p.isCompetitionProfile }));
-        return m;
-    }, [profileList.items]);
-
-    /**
-     * Validate the profile name.
-     * @param name - The name to validate.
-     * @param setInvalid - The function to set the invalid state.
-     * @param setErrorMessage - The function to set the error message.
-     * @returns - Whether the profile name is valid.
-     */
-    const validateProfileName = (name: string): [boolean, string] => {
-
-        if (name.length > PROFILE_NAME_MAX_LENGTH || name.length < 1) {
-            return [false, t.PROFILE_SELECT_VALIDATION_LENGTH.replace("{0}", name.length.toString())];
-        }
-
-        if (!/^[A-Za-z0-9]+$/.test(name)) {
-            return [false, t.PROFILE_SELECT_VALIDATION_SPECIAL_CHARS];
-        }
-
-        if (name === defaultProfile?.name) {
-            return [false, t.PROFILE_SELECT_VALIDATION_SAME_NAME];
-        }
-
-        if (profileList.items.find(p => p.name === name)) {
-            return [false, t.PROFILE_SELECT_VALIDATION_EXISTS];
-        }
-
-        return [true, ""];
-    }
-
-    /**
-     * Change the default profile.
-     * @param value - The id of the profile to set as default.
-     */
-    const onDefaultProfileChange = async (value: string) => {
-        if (value === defaultProfile?.id) {
-            return;
-        }
-        return await switchProfile(value);
-    }
-
-    /**
-     * Open the rename dialog.
-     */
-    const renameProfileClick = async () => {
-        const result = await openForm({
-            title: t.DIALOG_RENAME_PROFILE_TITLE,
-            fields: [{
-                name: "profileName",
-                label: t.PROFILE_NAME_LABEL,
-                defaultValue: defaultProfile?.name,
-                placeholder: t.PROFILE_NAME_PLACEHOLDER,
-                validate: (value) => {
-                    const [isValid, errorMessage] = validateProfileName(value);
-                    if (!isValid) {
-                        return errorMessage;
-                    }
-                    return undefined;
-                }
-            }]
-        });
-
-        if (result) {
-            await updateProfileDetails(defaultProfile?.id ?? "", {
-                id: defaultProfile?.id ?? "",
-                name: result.profileName
-            }, false, true, true);
+            setError(t.PROFILE_SELECT_OPERATION_FAILED);
+        } finally {
+            busy.current = false;
+            setOperation(null);
         }
     };
-
-    /**
-     * Open the add dialog.
-     */
-    const createProfileClick = async () => {
-        const result = await openForm({
-            title: t.PROFILE_CREATE_DIALOG_TITLE,
-            fields: [{
-                name: "profileName",
-                label: t.PROFILE_NAME_LABEL,
-                placeholder: t.PROFILE_NAME_PLACEHOLDER,
-                validate: (value) => {
-                    const [isValid, errorMessage] = validateProfileName(value);
-                    if (!isValid) {
-                        return errorMessage;
-                    }
-                    return undefined;
-                }
-            }]
-        });
-
-        if (result) {
-            await createProfile(result.profileName);
-        }
-    };
-
-    /**
-     * Open the delete dialog.
-     */
-    const deleteProfileClick = async () => {
-        const confirmed = await openConfirm({
-            title: t.PROFILE_DELETE_DIALOG_TITLE,
-            message: t.PROFILE_DELETE_CONFIRM_MESSAGE
-        });
-
-        if (confirmed) {
-            await onDeleteConfirm();
-        }
-    };
-
-    /**************************************************************** set api confirmation ******************************************************************************** */
-    /**
-     * Confirm the deletion of the default profile.
-     */
-    const onDeleteConfirm = async () => {
-        return await deleteProfile(defaultProfile?.id ?? "");
-    }
-
-    const menuItems = [
-        {
-            value: "create",
-            label: t.PROFILE_SELECT_CREATE_BUTTON,
-            icon: <LuPlus />,
-            onClick: createProfileClick
-        },
-        
-        {
-            value: "delete",
-            label: t.PROFILE_SELECT_DELETE_BUTTON,
-            icon: <LuTrash />,
-            onClick: deleteProfileClick
-        },
-
-        {
-            value: "rename",
-            label: t.PROFILE_SELECT_RENAME_BUTTON,
-            icon: <LuPencil />,
-            onClick: renameProfileClick
-        },
-    ]
-
 
     return (
-        <Card.Root w="100%" minH="450px" >
-            <Card.Header >
-                <Card.Title fontSize={"md"} color={isDisabled ? "gray.500" :  colorMode === "dark" ? "white" : "black"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
-            </Card.Header>
-            <Card.Body>
-                <VStack  gap={1} >
-                    
-                    {
-                        profilesCollection.items.map((item) => (
-                            <Button 
-                                key={item.value} 
-                                w="180px" 
-                                size="sm" 
-                                variant={defaultProfile?.id === item.value ? "surface" : "ghost" } 
-                                colorPalette={defaultProfile?.id === item.value ? "green" : "gray"} 
-                                _hover={{
-                                    color: defaultProfile?.id === item.value ? "gray.100" : "gray.200",
-                                }}
-                                color={defaultProfile?.id === item.value ? "gray.100" : "gray.400"}
-                                onClick={() => defaultProfile?.id !== item.value && onDefaultProfileChange(item.value)}
-                                justifyContent="flex-start" 
-                                disabled={isDisabled}
-                            >
-                                <HStack w="100%" justifyContent="space-between">
-                                    <span>{item.label}</span>
-                                    {profileMap.get(item.value)?.isCompetitionProfile ? <FaLock color="#f59e0b" /> : null}
-                                </HStack>
+        <VStack as="section" aria-label={t.PROFILE_SELECT_TITLE} align="stretch" gap={3} h="100%" minH={0}>
+            <Text fontSize="md" fontWeight="semibold" color={disabled ? 'fg.muted' : 'fg'} flexShrink={0}>
+                {t.PROFILE_SELECT_TITLE}
+            </Text>
+            {dataIsReady && !compatible && <Text role="status" fontSize="xs" color="fg.muted">{t.PROFILE_SELECT_FIRMWARE_REQUIRED}</Text>}
+            {error && <Text role="alert" fontSize="xs" color="fg.error">{error}</Text>}
+            <VStack align="stretch" gap={0} overflowY="auto" minH={0} flex={1}
+                separator={<Separator />}>
+                {slots.map((profile, index) => {
+                    const selected = profile?.id === profileList.defaultId;
+                    return (
+                        <HStack key={index} gap={0} flexShrink={0} minH="36px" borderRadius="md"
+                            bg={selected ? 'green.solid' : 'transparent'}
+                            transition="background-color 150ms ease"
+                            _hover={{ bg: selected ? 'green.500' : 'bg.emphasized' }}
+                            _focusWithin={{ bg: selected ? 'green.500' : 'bg.emphasized' }}
+                            css={{
+                                '& .profile-edit': { opacity: 0, pointerEvents: 'none' },
+                                '&:hover .profile-edit, &:focus-within .profile-edit': { opacity: 1, pointerEvents: 'auto' },
+                                '& .profile-edit svg': { opacity: 0.55, transition: 'opacity 150ms ease' },
+                                '& .profile-edit:hover svg, & .profile-edit:focus-visible svg': { opacity: 1 },
+                                '@media (hover: none)': { '& .profile-edit': { opacity: 1, pointerEvents: 'auto' } },
+                            }}>
+                            <Button size="sm" variant="ghost" flex={1} minW={0} px={2} justifyContent="flex-start"
+                                color={selected ? 'green.contrast' : 'fg.muted'} aria-pressed={selected}
+                                _hover={{ bg: 'transparent' }}
+                                disabled={blocked || !!operation || !profile}
+                                onClick={() => profile && void select(profile)}>
+                                <Box flexShrink={0} aria-hidden="true"><LuLayers3 size={15} /></Box>
+                                <Text as="span" truncate title={profile?.name}>{profile?.name || t.PROFILE_SELECT_UNAVAILABLE}</Text>
+                                {profile?.isCompetitionProfile && <Box flexShrink={0} color="orange.400"><FaLock aria-label={t.SETTINGS_KEY_MAPPING_COMPETITION_MODE_LABEL} size={10} /></Box>}
                             </Button>
-                        ))
-                    }
-                </VStack>
-            </Card.Body>
-            <Card.Footer >
-                <HStack w="100%" gap={1} justifyContent={"flex-end"} >
-                    {
-                        menuItems.map((item) => (
-                            <Tooltip key={item.value} content={item.label} >
-                                <IconButton key={item.value} w="32px" size="xs" variant="ghost" colorPalette="green" onClick={item.onClick} disabled={isDisabled}  >
-                                    {item.icon}
+                            <Tooltip content={t.PROFILE_SELECT_RENAME_BUTTON}>
+                                <IconButton className="profile-edit" size="xs" variant="ghost" flexShrink={0}
+                                    color={selected ? 'green.contrast' : undefined}
+                                    _hover={{ bg: 'transparent' }}
+                                    aria-label={t.PROFILE_SELECT_RENAME_BUTTON + ': ' + (profile?.name || t.PROFILE_SELECT_UNAVAILABLE)}
+                                    disabled={blocked || !!operation || !profile}
+                                    onClick={() => profile && void rename(profile)}>
+                                    <LuPencil />
                                 </IconButton>
                             </Tooltip>
-                        ))
-                    }
-                </HStack>
-            </Card.Footer>
-        </Card.Root>
-        
-    )
+                        </HStack>
+                    );
+                })}
+            </VStack>
+        </VStack>
+    );
 }

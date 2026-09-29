@@ -1,0 +1,2427 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ecp_curves.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/ecp_curves.c"
+  19              		.section	.text.add32,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	add32:
+  26              	.LVL0:
+  27              	.LFB8:
+   1:Libs/mbedtls/library/ecp_curves.c **** /*
+   2:Libs/mbedtls/library/ecp_curves.c ****  *  Elliptic curves over GF(p): curve-specific data and functions
+   3:Libs/mbedtls/library/ecp_curves.c ****  *
+   4:Libs/mbedtls/library/ecp_curves.c ****  *  Copyright The Mbed TLS Contributors
+   5:Libs/mbedtls/library/ecp_curves.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   6:Libs/mbedtls/library/ecp_curves.c ****  */
+   7:Libs/mbedtls/library/ecp_curves.c **** 
+   8:Libs/mbedtls/library/ecp_curves.c **** #include "common.h"
+   9:Libs/mbedtls/library/ecp_curves.c **** 
+  10:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_C)
+  11:Libs/mbedtls/library/ecp_curves.c **** 
+  12:Libs/mbedtls/library/ecp_curves.c **** #include "mbedtls/ecp.h"
+  13:Libs/mbedtls/library/ecp_curves.c **** #include "mbedtls/platform_util.h"
+  14:Libs/mbedtls/library/ecp_curves.c **** #include "mbedtls/error.h"
+  15:Libs/mbedtls/library/ecp_curves.c **** #include "mbedtls/bn_mul.h"
+  16:Libs/mbedtls/library/ecp_curves.c **** 
+  17:Libs/mbedtls/library/ecp_curves.c **** #include "ecp_invasive.h"
+  18:Libs/mbedtls/library/ecp_curves.c **** 
+  19:Libs/mbedtls/library/ecp_curves.c **** #include <string.h>
+  20:Libs/mbedtls/library/ecp_curves.c **** 
+  21:Libs/mbedtls/library/ecp_curves.c **** #if !defined(MBEDTLS_ECP_ALT)
+  22:Libs/mbedtls/library/ecp_curves.c **** 
+  23:Libs/mbedtls/library/ecp_curves.c **** /* Parameter validation macros based on platform_util.h */
+  24:Libs/mbedtls/library/ecp_curves.c **** #define ECP_VALIDATE_RET(cond)    \
+  25:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_ECP_BAD_INPUT_DATA)
+  26:Libs/mbedtls/library/ecp_curves.c **** #define ECP_VALIDATE(cond)        \
+  27:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_INTERNAL_VALIDATE(cond)
+  28:Libs/mbedtls/library/ecp_curves.c **** 
+  29:Libs/mbedtls/library/ecp_curves.c **** #define ECP_MPI_INIT(s, n, p) { s, (n), (mbedtls_mpi_uint *) (p) }
+  30:Libs/mbedtls/library/ecp_curves.c **** 
+  31:Libs/mbedtls/library/ecp_curves.c **** #define ECP_MPI_INIT_ARRAY(x)   \
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 2
+
+
+  32:Libs/mbedtls/library/ecp_curves.c ****     ECP_MPI_INIT(1, sizeof(x) / sizeof(mbedtls_mpi_uint), x)
+  33:Libs/mbedtls/library/ecp_curves.c **** 
+  34:Libs/mbedtls/library/ecp_curves.c **** /*
+  35:Libs/mbedtls/library/ecp_curves.c ****  * Note: the constants are in little-endian order
+  36:Libs/mbedtls/library/ecp_curves.c ****  * to be directly usable in MPIs
+  37:Libs/mbedtls/library/ecp_curves.c ****  */
+  38:Libs/mbedtls/library/ecp_curves.c **** 
+  39:Libs/mbedtls/library/ecp_curves.c **** /*
+  40:Libs/mbedtls/library/ecp_curves.c ****  * Domain parameters for secp192r1
+  41:Libs/mbedtls/library/ecp_curves.c ****  */
+  42:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192R1_ENABLED)
+  43:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192r1_p[] = {
+  44:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+  45:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+  46:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+  47:Libs/mbedtls/library/ecp_curves.c **** };
+  48:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192r1_b[] = {
+  49:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB1, 0xB9, 0x46, 0xC1, 0xEC, 0xDE, 0xB8, 0xFE),
+  50:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x49, 0x30, 0x24, 0x72, 0xAB, 0xE9, 0xA7, 0x0F),
+  51:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE7, 0x80, 0x9C, 0xE5, 0x19, 0x05, 0x21, 0x64),
+  52:Libs/mbedtls/library/ecp_curves.c **** };
+  53:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192r1_gx[] = {
+  54:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x12, 0x10, 0xFF, 0x82, 0xFD, 0x0A, 0xFF, 0xF4),
+  55:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x00, 0x88, 0xA1, 0x43, 0xEB, 0x20, 0xBF, 0x7C),
+  56:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF6, 0x90, 0x30, 0xB0, 0x0E, 0xA8, 0x8D, 0x18),
+  57:Libs/mbedtls/library/ecp_curves.c **** };
+  58:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192r1_gy[] = {
+  59:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x11, 0x48, 0x79, 0x1E, 0xA1, 0x77, 0xF9, 0x73),
+  60:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xD5, 0xCD, 0x24, 0x6B, 0xED, 0x11, 0x10, 0x63),
+  61:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x78, 0xDA, 0xC8, 0xFF, 0x95, 0x2B, 0x19, 0x07),
+  62:Libs/mbedtls/library/ecp_curves.c **** };
+  63:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192r1_n[] = {
+  64:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x31, 0x28, 0xD2, 0xB4, 0xB1, 0xC9, 0x6B, 0x14),
+  65:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x36, 0xF8, 0xDE, 0x99, 0xFF, 0xFF, 0xFF, 0xFF),
+  66:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+  67:Libs/mbedtls/library/ecp_curves.c **** };
+  68:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP192R1_ENABLED */
+  69:Libs/mbedtls/library/ecp_curves.c **** 
+  70:Libs/mbedtls/library/ecp_curves.c **** /*
+  71:Libs/mbedtls/library/ecp_curves.c ****  * Domain parameters for secp224r1
+  72:Libs/mbedtls/library/ecp_curves.c ****  */
+  73:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP224R1_ENABLED)
+  74:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224r1_p[] = {
+  75:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
+  76:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF),
+  77:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+  78:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00),
+  79:Libs/mbedtls/library/ecp_curves.c **** };
+  80:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224r1_b[] = {
+  81:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB4, 0xFF, 0x55, 0x23, 0x43, 0x39, 0x0B, 0x27),
+  82:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xBA, 0xD8, 0xBF, 0xD7, 0xB7, 0xB0, 0x44, 0x50),
+  83:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x56, 0x32, 0x41, 0xF5, 0xAB, 0xB3, 0x04, 0x0C),
+  84:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_4(0x85, 0x0A, 0x05, 0xB4),
+  85:Libs/mbedtls/library/ecp_curves.c **** };
+  86:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224r1_gx[] = {
+  87:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x21, 0x1D, 0x5C, 0x11, 0xD6, 0x80, 0x32, 0x34),
+  88:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x22, 0x11, 0xC2, 0x56, 0xD3, 0xC1, 0x03, 0x4A),
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 3
+
+
+  89:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB9, 0x90, 0x13, 0x32, 0x7F, 0xBF, 0xB4, 0x6B),
+  90:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_4(0xBD, 0x0C, 0x0E, 0xB7),
+  91:Libs/mbedtls/library/ecp_curves.c **** };
+  92:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224r1_gy[] = {
+  93:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x34, 0x7E, 0x00, 0x85, 0x99, 0x81, 0xD5, 0x44),
+  94:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x64, 0x47, 0x07, 0x5A, 0xA0, 0x75, 0x43, 0xCD),
+  95:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE6, 0xDF, 0x22, 0x4C, 0xFB, 0x23, 0xF7, 0xB5),
+  96:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_4(0x88, 0x63, 0x37, 0xBD),
+  97:Libs/mbedtls/library/ecp_curves.c **** };
+  98:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224r1_n[] = {
+  99:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x3D, 0x2A, 0x5C, 0x5C, 0x45, 0x29, 0xDD, 0x13),
+ 100:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x3E, 0xF0, 0xB8, 0xE0, 0xA2, 0x16, 0xFF, 0xFF),
+ 101:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 102:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_4(0xFF, 0xFF, 0xFF, 0xFF),
+ 103:Libs/mbedtls/library/ecp_curves.c **** };
+ 104:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP224R1_ENABLED */
+ 105:Libs/mbedtls/library/ecp_curves.c **** 
+ 106:Libs/mbedtls/library/ecp_curves.c **** /*
+ 107:Libs/mbedtls/library/ecp_curves.c ****  * Domain parameters for secp256r1
+ 108:Libs/mbedtls/library/ecp_curves.c ****  */
+ 109:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED)
+ 110:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256r1_p[] = {
+ 111:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 112:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00),
+ 113:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
+ 114:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF),
+ 115:Libs/mbedtls/library/ecp_curves.c **** };
+ 116:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256r1_b[] = {
+ 117:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x4B, 0x60, 0xD2, 0x27, 0x3E, 0x3C, 0xCE, 0x3B),
+ 118:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF6, 0xB0, 0x53, 0xCC, 0xB0, 0x06, 0x1D, 0x65),
+ 119:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xBC, 0x86, 0x98, 0x76, 0x55, 0xBD, 0xEB, 0xB3),
+ 120:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE7, 0x93, 0x3A, 0xAA, 0xD8, 0x35, 0xC6, 0x5A),
+ 121:Libs/mbedtls/library/ecp_curves.c **** };
+ 122:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256r1_gx[] = {
+ 123:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x96, 0xC2, 0x98, 0xD8, 0x45, 0x39, 0xA1, 0xF4),
+ 124:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA0, 0x33, 0xEB, 0x2D, 0x81, 0x7D, 0x03, 0x77),
+ 125:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF2, 0x40, 0xA4, 0x63, 0xE5, 0xE6, 0xBC, 0xF8),
+ 126:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x47, 0x42, 0x2C, 0xE1, 0xF2, 0xD1, 0x17, 0x6B),
+ 127:Libs/mbedtls/library/ecp_curves.c **** };
+ 128:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256r1_gy[] = {
+ 129:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF5, 0x51, 0xBF, 0x37, 0x68, 0x40, 0xB6, 0xCB),
+ 130:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xCE, 0x5E, 0x31, 0x6B, 0x57, 0x33, 0xCE, 0x2B),
+ 131:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x16, 0x9E, 0x0F, 0x7C, 0x4A, 0xEB, 0xE7, 0x8E),
+ 132:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x9B, 0x7F, 0x1A, 0xFE, 0xE2, 0x42, 0xE3, 0x4F),
+ 133:Libs/mbedtls/library/ecp_curves.c **** };
+ 134:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256r1_n[] = {
+ 135:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x51, 0x25, 0x63, 0xFC, 0xC2, 0xCA, 0xB9, 0xF3),
+ 136:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x84, 0x9E, 0x17, 0xA7, 0xAD, 0xFA, 0xE6, 0xBC),
+ 137:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 138:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF),
+ 139:Libs/mbedtls/library/ecp_curves.c **** };
+ 140:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP256R1_ENABLED */
+ 141:Libs/mbedtls/library/ecp_curves.c **** 
+ 142:Libs/mbedtls/library/ecp_curves.c **** /*
+ 143:Libs/mbedtls/library/ecp_curves.c ****  * Domain parameters for secp384r1
+ 144:Libs/mbedtls/library/ecp_curves.c ****  */
+ 145:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 4
+
+
+ 146:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp384r1_p[] = {
+ 147:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00),
+ 148:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF),
+ 149:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 150:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 151:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 152:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 153:Libs/mbedtls/library/ecp_curves.c **** };
+ 154:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp384r1_b[] = {
+ 155:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xEF, 0x2A, 0xEC, 0xD3, 0xED, 0xC8, 0x85, 0x2A),
+ 156:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x9D, 0xD1, 0x2E, 0x8A, 0x8D, 0x39, 0x56, 0xC6),
+ 157:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x5A, 0x87, 0x13, 0x50, 0x8F, 0x08, 0x14, 0x03),
+ 158:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x12, 0x41, 0x81, 0xFE, 0x6E, 0x9C, 0x1D, 0x18),
+ 159:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x19, 0x2D, 0xF8, 0xE3, 0x6B, 0x05, 0x8E, 0x98),
+ 160:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE4, 0xE7, 0x3E, 0xE2, 0xA7, 0x2F, 0x31, 0xB3),
+ 161:Libs/mbedtls/library/ecp_curves.c **** };
+ 162:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp384r1_gx[] = {
+ 163:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB7, 0x0A, 0x76, 0x72, 0x38, 0x5E, 0x54, 0x3A),
+ 164:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x6C, 0x29, 0x55, 0xBF, 0x5D, 0xF2, 0x02, 0x55),
+ 165:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x38, 0x2A, 0x54, 0x82, 0xE0, 0x41, 0xF7, 0x59),
+ 166:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x98, 0x9B, 0xA7, 0x8B, 0x62, 0x3B, 0x1D, 0x6E),
+ 167:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x74, 0xAD, 0x20, 0xF3, 0x1E, 0xC7, 0xB1, 0x8E),
+ 168:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x37, 0x05, 0x8B, 0xBE, 0x22, 0xCA, 0x87, 0xAA),
+ 169:Libs/mbedtls/library/ecp_curves.c **** };
+ 170:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp384r1_gy[] = {
+ 171:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x5F, 0x0E, 0xEA, 0x90, 0x7C, 0x1D, 0x43, 0x7A),
+ 172:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x9D, 0x81, 0x7E, 0x1D, 0xCE, 0xB1, 0x60, 0x0A),
+ 173:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xC0, 0xB8, 0xF0, 0xB5, 0x13, 0x31, 0xDA, 0xE9),
+ 174:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x7C, 0x14, 0x9A, 0x28, 0xBD, 0x1D, 0xF4, 0xF8),
+ 175:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x29, 0xDC, 0x92, 0x92, 0xBF, 0x98, 0x9E, 0x5D),
+ 176:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x6F, 0x2C, 0x26, 0x96, 0x4A, 0xDE, 0x17, 0x36),
+ 177:Libs/mbedtls/library/ecp_curves.c **** };
+ 178:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp384r1_n[] = {
+ 179:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x73, 0x29, 0xC5, 0xCC, 0x6A, 0x19, 0xEC, 0xEC),
+ 180:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x7A, 0xA7, 0xB0, 0x48, 0xB2, 0x0D, 0x1A, 0x58),
+ 181:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xDF, 0x2D, 0x37, 0xF4, 0x81, 0x4D, 0x63, 0xC7),
+ 182:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 183:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 184:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 185:Libs/mbedtls/library/ecp_curves.c **** };
+ 186:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP384R1_ENABLED */
+ 187:Libs/mbedtls/library/ecp_curves.c **** 
+ 188:Libs/mbedtls/library/ecp_curves.c **** /*
+ 189:Libs/mbedtls/library/ecp_curves.c ****  * Domain parameters for secp521r1
+ 190:Libs/mbedtls/library/ecp_curves.c ****  */
+ 191:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+ 192:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp521r1_p[] = {
+ 193:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 194:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 195:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 196:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 197:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 198:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 199:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 200:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 201:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0xFF, 0x01),
+ 202:Libs/mbedtls/library/ecp_curves.c **** };
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 5
+
+
+ 203:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp521r1_b[] = {
+ 204:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x00, 0x3F, 0x50, 0x6B, 0xD4, 0x1F, 0x45, 0xEF),
+ 205:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF1, 0x34, 0x2C, 0x3D, 0x88, 0xDF, 0x73, 0x35),
+ 206:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x07, 0xBF, 0xB1, 0x3B, 0xBD, 0xC0, 0x52, 0x16),
+ 207:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x7B, 0x93, 0x7E, 0xEC, 0x51, 0x39, 0x19, 0x56),
+ 208:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE1, 0x09, 0xF1, 0x8E, 0x91, 0x89, 0xB4, 0xB8),
+ 209:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF3, 0x15, 0xB3, 0x99, 0x5B, 0x72, 0xDA, 0xA2),
+ 210:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xEE, 0x40, 0x85, 0xB6, 0xA0, 0x21, 0x9A, 0x92),
+ 211:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x1F, 0x9A, 0x1C, 0x8E, 0x61, 0xB9, 0x3E, 0x95),
+ 212:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0x51, 0x00),
+ 213:Libs/mbedtls/library/ecp_curves.c **** };
+ 214:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp521r1_gx[] = {
+ 215:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x66, 0xBD, 0xE5, 0xC2, 0x31, 0x7E, 0x7E, 0xF9),
+ 216:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x9B, 0x42, 0x6A, 0x85, 0xC1, 0xB3, 0x48, 0x33),
+ 217:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xDE, 0xA8, 0xFF, 0xA2, 0x27, 0xC1, 0x1D, 0xFE),
+ 218:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x28, 0x59, 0xE7, 0xEF, 0x77, 0x5E, 0x4B, 0xA1),
+ 219:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xBA, 0x3D, 0x4D, 0x6B, 0x60, 0xAF, 0x28, 0xF8),
+ 220:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x21, 0xB5, 0x3F, 0x05, 0x39, 0x81, 0x64, 0x9C),
+ 221:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x42, 0xB4, 0x95, 0x23, 0x66, 0xCB, 0x3E, 0x9E),
+ 222:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xCD, 0xE9, 0x04, 0x04, 0xB7, 0x06, 0x8E, 0x85),
+ 223:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0xC6, 0x00),
+ 224:Libs/mbedtls/library/ecp_curves.c **** };
+ 225:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp521r1_gy[] = {
+ 226:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x50, 0x66, 0xD1, 0x9F, 0x76, 0x94, 0xBE, 0x88),
+ 227:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x40, 0xC2, 0x72, 0xA2, 0x86, 0x70, 0x3C, 0x35),
+ 228:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x61, 0x07, 0xAD, 0x3F, 0x01, 0xB9, 0x50, 0xC5),
+ 229:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x40, 0x26, 0xF4, 0x5E, 0x99, 0x72, 0xEE, 0x97),
+ 230:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x2C, 0x66, 0x3E, 0x27, 0x17, 0xBD, 0xAF, 0x17),
+ 231:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x68, 0x44, 0x9B, 0x57, 0x49, 0x44, 0xF5, 0x98),
+ 232:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xD9, 0x1B, 0x7D, 0x2C, 0xB4, 0x5F, 0x8A, 0x5C),
+ 233:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x04, 0xC0, 0x3B, 0x9A, 0x78, 0x6A, 0x29, 0x39),
+ 234:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0x18, 0x01),
+ 235:Libs/mbedtls/library/ecp_curves.c **** };
+ 236:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp521r1_n[] = {
+ 237:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x09, 0x64, 0x38, 0x91, 0x1E, 0xB7, 0x6F, 0xBB),
+ 238:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xAE, 0x47, 0x9C, 0x89, 0xB8, 0xC9, 0xB5, 0x3B),
+ 239:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xD0, 0xA5, 0x09, 0xF7, 0x48, 0x01, 0xCC, 0x7F),
+ 240:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x6B, 0x96, 0x2F, 0xBF, 0x83, 0x87, 0x86, 0x51),
+ 241:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFA, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 242:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 243:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 244:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 245:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0xFF, 0x01),
+ 246:Libs/mbedtls/library/ecp_curves.c **** };
+ 247:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP521R1_ENABLED */
+ 248:Libs/mbedtls/library/ecp_curves.c **** 
+ 249:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192K1_ENABLED)
+ 250:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192k1_p[] = {
+ 251:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x37, 0xEE, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF),
+ 252:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 253:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 254:Libs/mbedtls/library/ecp_curves.c **** };
+ 255:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192k1_a[] = {
+ 256:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0x00, 0x00),
+ 257:Libs/mbedtls/library/ecp_curves.c **** };
+ 258:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192k1_b[] = {
+ 259:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0x03, 0x00),
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 6
+
+
+ 260:Libs/mbedtls/library/ecp_curves.c **** };
+ 261:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192k1_gx[] = {
+ 262:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x7D, 0x6C, 0xE0, 0xEA, 0xB1, 0xD1, 0xA5, 0x1D),
+ 263:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x34, 0xF4, 0xB7, 0x80, 0x02, 0x7D, 0xB0, 0x26),
+ 264:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xAE, 0xE9, 0x57, 0xC0, 0x0E, 0xF1, 0x4F, 0xDB),
+ 265:Libs/mbedtls/library/ecp_curves.c **** };
+ 266:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192k1_gy[] = {
+ 267:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x9D, 0x2F, 0x5E, 0xD9, 0x88, 0xAA, 0x82, 0x40),
+ 268:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x34, 0x86, 0xBE, 0x15, 0xD0, 0x63, 0x41, 0x84),
+ 269:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA7, 0x28, 0x56, 0x9C, 0x6D, 0x2F, 0x2F, 0x9B),
+ 270:Libs/mbedtls/library/ecp_curves.c **** };
+ 271:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp192k1_n[] = {
+ 272:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x8D, 0xFD, 0xDE, 0x74, 0x6A, 0x46, 0x69, 0x0F),
+ 273:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x17, 0xFC, 0xF2, 0x26, 0xFE, 0xFF, 0xFF, 0xFF),
+ 274:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 275:Libs/mbedtls/library/ecp_curves.c **** };
+ 276:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP192K1_ENABLED */
+ 277:Libs/mbedtls/library/ecp_curves.c **** 
+ 278:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP224K1_ENABLED)
+ 279:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224k1_p[] = {
+ 280:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x6D, 0xE5, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF),
+ 281:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 282:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 283:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_4(0xFF, 0xFF, 0xFF, 0xFF),
+ 284:Libs/mbedtls/library/ecp_curves.c **** };
+ 285:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224k1_a[] = {
+ 286:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0x00, 0x00),
+ 287:Libs/mbedtls/library/ecp_curves.c **** };
+ 288:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224k1_b[] = {
+ 289:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0x05, 0x00),
+ 290:Libs/mbedtls/library/ecp_curves.c **** };
+ 291:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224k1_gx[] = {
+ 292:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x5C, 0xA4, 0xB7, 0xB6, 0x0E, 0x65, 0x7E, 0x0F),
+ 293:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA9, 0x75, 0x70, 0xE4, 0xE9, 0x67, 0xA4, 0x69),
+ 294:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA1, 0x28, 0xFC, 0x30, 0xDF, 0x99, 0xF0, 0x4D),
+ 295:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_4(0x33, 0x5B, 0x45, 0xA1),
+ 296:Libs/mbedtls/library/ecp_curves.c **** };
+ 297:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224k1_gy[] = {
+ 298:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA5, 0x61, 0x6D, 0x55, 0xDB, 0x4B, 0xCA, 0xE2),
+ 299:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x59, 0xBD, 0xB0, 0xC0, 0xF7, 0x19, 0xE3, 0xF7),
+ 300:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xD6, 0xFB, 0xCA, 0x82, 0x42, 0x34, 0xBA, 0x7F),
+ 301:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_4(0xED, 0x9F, 0x08, 0x7E),
+ 302:Libs/mbedtls/library/ecp_curves.c **** };
+ 303:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp224k1_n[] = {
+ 304:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF7, 0xB1, 0x9F, 0x76, 0x71, 0xA9, 0xF0, 0xCA),
+ 305:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x84, 0x61, 0xEC, 0xD2, 0xE8, 0xDC, 0x01, 0x00),
+ 306:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
+ 307:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00),
+ 308:Libs/mbedtls/library/ecp_curves.c **** };
+ 309:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP224K1_ENABLED */
+ 310:Libs/mbedtls/library/ecp_curves.c **** 
+ 311:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP256K1_ENABLED)
+ 312:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256k1_p[] = {
+ 313:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x2F, 0xFC, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF),
+ 314:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 315:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 316:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 7
+
+
+ 317:Libs/mbedtls/library/ecp_curves.c **** };
+ 318:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256k1_a[] = {
+ 319:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0x00, 0x00),
+ 320:Libs/mbedtls/library/ecp_curves.c **** };
+ 321:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256k1_b[] = {
+ 322:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_2(0x07, 0x00),
+ 323:Libs/mbedtls/library/ecp_curves.c **** };
+ 324:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256k1_gx[] = {
+ 325:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x98, 0x17, 0xF8, 0x16, 0x5B, 0x81, 0xF2, 0x59),
+ 326:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xD9, 0x28, 0xCE, 0x2D, 0xDB, 0xFC, 0x9B, 0x02),
+ 327:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x07, 0x0B, 0x87, 0xCE, 0x95, 0x62, 0xA0, 0x55),
+ 328:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xAC, 0xBB, 0xDC, 0xF9, 0x7E, 0x66, 0xBE, 0x79),
+ 329:Libs/mbedtls/library/ecp_curves.c **** };
+ 330:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256k1_gy[] = {
+ 331:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB8, 0xD4, 0x10, 0xFB, 0x8F, 0xD0, 0x47, 0x9C),
+ 332:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x19, 0x54, 0x85, 0xA6, 0x48, 0xB4, 0x17, 0xFD),
+ 333:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA8, 0x08, 0x11, 0x0E, 0xFC, 0xFB, 0xA4, 0x5D),
+ 334:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x65, 0xC4, 0xA3, 0x26, 0x77, 0xDA, 0x3A, 0x48),
+ 335:Libs/mbedtls/library/ecp_curves.c **** };
+ 336:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint secp256k1_n[] = {
+ 337:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x41, 0x41, 0x36, 0xD0, 0x8C, 0x5E, 0xD2, 0xBF),
+ 338:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x3B, 0xA0, 0x48, 0xAF, 0xE6, 0xDC, 0xAE, 0xBA),
+ 339:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 340:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+ 341:Libs/mbedtls/library/ecp_curves.c **** };
+ 342:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP256K1_ENABLED */
+ 343:Libs/mbedtls/library/ecp_curves.c **** 
+ 344:Libs/mbedtls/library/ecp_curves.c **** /*
+ 345:Libs/mbedtls/library/ecp_curves.c ****  * Domain parameters for brainpoolP256r1 (RFC 5639 3.4)
+ 346:Libs/mbedtls/library/ecp_curves.c ****  */
+ 347:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_BP256R1_ENABLED)
+ 348:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP256r1_p[] = {
+ 349:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x77, 0x53, 0x6E, 0x1F, 0x1D, 0x48, 0x13, 0x20),
+ 350:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x28, 0x20, 0x26, 0xD5, 0x23, 0xF6, 0x3B, 0x6E),
+ 351:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x72, 0x8D, 0x83, 0x9D, 0x90, 0x0A, 0x66, 0x3E),
+ 352:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xBC, 0xA9, 0xEE, 0xA1, 0xDB, 0x57, 0xFB, 0xA9),
+ 353:Libs/mbedtls/library/ecp_curves.c **** };
+ 354:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP256r1_a[] = {
+ 355:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xD9, 0xB5, 0x30, 0xF3, 0x44, 0x4B, 0x4A, 0xE9),
+ 356:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x6C, 0x5C, 0xDC, 0x26, 0xC1, 0x55, 0x80, 0xFB),
+ 357:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE7, 0xFF, 0x7A, 0x41, 0x30, 0x75, 0xF6, 0xEE),
+ 358:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x57, 0x30, 0x2C, 0xFC, 0x75, 0x09, 0x5A, 0x7D),
+ 359:Libs/mbedtls/library/ecp_curves.c **** };
+ 360:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP256r1_b[] = {
+ 361:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB6, 0x07, 0x8C, 0xFF, 0x18, 0xDC, 0xCC, 0x6B),
+ 362:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xCE, 0xE1, 0xF7, 0x5C, 0x29, 0x16, 0x84, 0x95),
+ 363:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xBF, 0x7C, 0xD7, 0xBB, 0xD9, 0xB5, 0x30, 0xF3),
+ 364:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x44, 0x4B, 0x4A, 0xE9, 0x6C, 0x5C, 0xDC, 0x26),
+ 365:Libs/mbedtls/library/ecp_curves.c **** };
+ 366:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP256r1_gx[] = {
+ 367:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x62, 0x32, 0xCE, 0x9A, 0xBD, 0x53, 0x44, 0x3A),
+ 368:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xC2, 0x23, 0xBD, 0xE3, 0xE1, 0x27, 0xDE, 0xB9),
+ 369:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xAF, 0xB7, 0x81, 0xFC, 0x2F, 0x48, 0x4B, 0x2C),
+ 370:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xCB, 0x57, 0x7E, 0xCB, 0xB9, 0xAE, 0xD2, 0x8B),
+ 371:Libs/mbedtls/library/ecp_curves.c **** };
+ 372:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP256r1_gy[] = {
+ 373:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x97, 0x69, 0x04, 0x2F, 0xC7, 0x54, 0x1D, 0x5C),
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 8
+
+
+ 374:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x54, 0x8E, 0xED, 0x2D, 0x13, 0x45, 0x77, 0xC2),
+ 375:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xC9, 0x1D, 0x61, 0x14, 0x1A, 0x46, 0xF8, 0x97),
+ 376:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFD, 0xC4, 0xDA, 0xC3, 0x35, 0xF8, 0x7E, 0x54),
+ 377:Libs/mbedtls/library/ecp_curves.c **** };
+ 378:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP256r1_n[] = {
+ 379:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA7, 0x56, 0x48, 0x97, 0x82, 0x0E, 0x1E, 0x90),
+ 380:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF7, 0xA6, 0x61, 0xB5, 0xA3, 0x7A, 0x39, 0x8C),
+ 381:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x71, 0x8D, 0x83, 0x9D, 0x90, 0x0A, 0x66, 0x3E),
+ 382:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xBC, 0xA9, 0xEE, 0xA1, 0xDB, 0x57, 0xFB, 0xA9),
+ 383:Libs/mbedtls/library/ecp_curves.c **** };
+ 384:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_BP256R1_ENABLED */
+ 385:Libs/mbedtls/library/ecp_curves.c **** 
+ 386:Libs/mbedtls/library/ecp_curves.c **** /*
+ 387:Libs/mbedtls/library/ecp_curves.c ****  * Domain parameters for brainpoolP384r1 (RFC 5639 3.6)
+ 388:Libs/mbedtls/library/ecp_curves.c ****  */
+ 389:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_BP384R1_ENABLED)
+ 390:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP384r1_p[] = {
+ 391:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x53, 0xEC, 0x07, 0x31, 0x13, 0x00, 0x47, 0x87),
+ 392:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x71, 0x1A, 0x1D, 0x90, 0x29, 0xA7, 0xD3, 0xAC),
+ 393:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x23, 0x11, 0xB7, 0x7F, 0x19, 0xDA, 0xB1, 0x12),
+ 394:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB4, 0x56, 0x54, 0xED, 0x09, 0x71, 0x2F, 0x15),
+ 395:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xDF, 0x41, 0xE6, 0x50, 0x7E, 0x6F, 0x5D, 0x0F),
+ 396:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x28, 0x6D, 0x38, 0xA3, 0x82, 0x1E, 0xB9, 0x8C),
+ 397:Libs/mbedtls/library/ecp_curves.c **** };
+ 398:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP384r1_a[] = {
+ 399:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x26, 0x28, 0xCE, 0x22, 0xDD, 0xC7, 0xA8, 0x04),
+ 400:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xEB, 0xD4, 0x3A, 0x50, 0x4A, 0x81, 0xA5, 0x8A),
+ 401:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x0F, 0xF9, 0x91, 0xBA, 0xEF, 0x65, 0x91, 0x13),
+ 402:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x87, 0x27, 0xB2, 0x4F, 0x8E, 0xA2, 0xBE, 0xC2),
+ 403:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA0, 0xAF, 0x05, 0xCE, 0x0A, 0x08, 0x72, 0x3C),
+ 404:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x0C, 0x15, 0x8C, 0x3D, 0xC6, 0x82, 0xC3, 0x7B),
+ 405:Libs/mbedtls/library/ecp_curves.c **** };
+ 406:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP384r1_b[] = {
+ 407:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x11, 0x4C, 0x50, 0xFA, 0x96, 0x86, 0xB7, 0x3A),
+ 408:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x94, 0xC9, 0xDB, 0x95, 0x02, 0x39, 0xB4, 0x7C),
+ 409:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xD5, 0x62, 0xEB, 0x3E, 0xA5, 0x0E, 0x88, 0x2E),
+ 410:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA6, 0xD2, 0xDC, 0x07, 0xE1, 0x7D, 0xB7, 0x2F),
+ 411:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x7C, 0x44, 0xF0, 0x16, 0x54, 0xB5, 0x39, 0x8B),
+ 412:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x26, 0x28, 0xCE, 0x22, 0xDD, 0xC7, 0xA8, 0x04),
+ 413:Libs/mbedtls/library/ecp_curves.c **** };
+ 414:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP384r1_gx[] = {
+ 415:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x1E, 0xAF, 0xD4, 0x47, 0xE2, 0xB2, 0x87, 0xEF),
+ 416:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xAA, 0x46, 0xD6, 0x36, 0x34, 0xE0, 0x26, 0xE8),
+ 417:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE8, 0x10, 0xBD, 0x0C, 0xFE, 0xCA, 0x7F, 0xDB),
+ 418:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE3, 0x4F, 0xF1, 0x7E, 0xE7, 0xA3, 0x47, 0x88),
+ 419:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x6B, 0x3F, 0xC1, 0xB7, 0x81, 0x3A, 0xA6, 0xA2),
+ 420:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFF, 0x45, 0xCF, 0x68, 0xF0, 0x64, 0x1C, 0x1D),
+ 421:Libs/mbedtls/library/ecp_curves.c **** };
+ 422:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP384r1_gy[] = {
+ 423:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x15, 0x53, 0x3C, 0x26, 0x41, 0x03, 0x82, 0x42),
+ 424:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x11, 0x81, 0x91, 0x77, 0x21, 0x46, 0x46, 0x0E),
+ 425:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x28, 0x29, 0x91, 0xF9, 0x4F, 0x05, 0x9C, 0xE1),
+ 426:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x64, 0x58, 0xEC, 0xFE, 0x29, 0x0B, 0xB7, 0x62),
+ 427:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x52, 0xD5, 0xCF, 0x95, 0x8E, 0xEB, 0xB1, 0x5C),
+ 428:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA4, 0xC2, 0xF9, 0x20, 0x75, 0x1D, 0xBE, 0x8A),
+ 429:Libs/mbedtls/library/ecp_curves.c **** };
+ 430:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP384r1_n[] = {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 9
+
+
+ 431:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x65, 0x65, 0x04, 0xE9, 0x02, 0x32, 0x88, 0x3B),
+ 432:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x10, 0xC3, 0x7F, 0x6B, 0xAF, 0xB6, 0x3A, 0xCF),
+ 433:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA7, 0x25, 0x04, 0xAC, 0x6C, 0x6E, 0x16, 0x1F),
+ 434:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB3, 0x56, 0x54, 0xED, 0x09, 0x71, 0x2F, 0x15),
+ 435:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xDF, 0x41, 0xE6, 0x50, 0x7E, 0x6F, 0x5D, 0x0F),
+ 436:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x28, 0x6D, 0x38, 0xA3, 0x82, 0x1E, 0xB9, 0x8C),
+ 437:Libs/mbedtls/library/ecp_curves.c **** };
+ 438:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_BP384R1_ENABLED */
+ 439:Libs/mbedtls/library/ecp_curves.c **** 
+ 440:Libs/mbedtls/library/ecp_curves.c **** /*
+ 441:Libs/mbedtls/library/ecp_curves.c ****  * Domain parameters for brainpoolP512r1 (RFC 5639 3.7)
+ 442:Libs/mbedtls/library/ecp_curves.c ****  */
+ 443:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_BP512R1_ENABLED)
+ 444:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP512r1_p[] = {
+ 445:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xF3, 0x48, 0x3A, 0x58, 0x56, 0x60, 0xAA, 0x28),
+ 446:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x85, 0xC6, 0x82, 0x2D, 0x2F, 0xFF, 0x81, 0x28),
+ 447:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xE6, 0x80, 0xA3, 0xE6, 0x2A, 0xA1, 0xCD, 0xAE),
+ 448:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x42, 0x68, 0xC6, 0x9B, 0x00, 0x9B, 0x4D, 0x7D),
+ 449:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x71, 0x08, 0x33, 0x70, 0xCA, 0x9C, 0x63, 0xD6),
+ 450:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x0E, 0xD2, 0xC9, 0xB3, 0xB3, 0x8D, 0x30, 0xCB),
+ 451:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x07, 0xFC, 0xC9, 0x33, 0xAE, 0xE6, 0xD4, 0x3F),
+ 452:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x8B, 0xC4, 0xE9, 0xDB, 0xB8, 0x9D, 0xDD, 0xAA),
+ 453:Libs/mbedtls/library/ecp_curves.c **** };
+ 454:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP512r1_a[] = {
+ 455:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xCA, 0x94, 0xFC, 0x77, 0x4D, 0xAC, 0xC1, 0xE7),
+ 456:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB9, 0xC7, 0xF2, 0x2B, 0xA7, 0x17, 0x11, 0x7F),
+ 457:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xB5, 0xC8, 0x9A, 0x8B, 0xC9, 0xF1, 0x2E, 0x0A),
+ 458:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA1, 0x3A, 0x25, 0xA8, 0x5A, 0x5D, 0xED, 0x2D),
+ 459:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xBC, 0x63, 0x98, 0xEA, 0xCA, 0x41, 0x34, 0xA8),
+ 460:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x10, 0x16, 0xF9, 0x3D, 0x8D, 0xDD, 0xCB, 0x94),
+ 461:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xC5, 0x4C, 0x23, 0xAC, 0x45, 0x71, 0x32, 0xE2),
+ 462:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x89, 0x3B, 0x60, 0x8B, 0x31, 0xA3, 0x30, 0x78),
+ 463:Libs/mbedtls/library/ecp_curves.c **** };
+ 464:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP512r1_b[] = {
+ 465:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x23, 0xF7, 0x16, 0x80, 0x63, 0xBD, 0x09, 0x28),
+ 466:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xDD, 0xE5, 0xBA, 0x5E, 0xB7, 0x50, 0x40, 0x98),
+ 467:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x67, 0x3E, 0x08, 0xDC, 0xCA, 0x94, 0xFC, 0x77),
+ 468:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x4D, 0xAC, 0xC1, 0xE7, 0xB9, 0xC7, 0xF2, 0x2B),
+ 469:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xA7, 0x17, 0x11, 0x7F, 0xB5, 0xC8, 0x9A, 0x8B),
+ 470:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xC9, 0xF1, 0x2E, 0x0A, 0xA1, 0x3A, 0x25, 0xA8),
+ 471:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x5A, 0x5D, 0xED, 0x2D, 0xBC, 0x63, 0x98, 0xEA),
+ 472:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xCA, 0x41, 0x34, 0xA8, 0x10, 0x16, 0xF9, 0x3D),
+ 473:Libs/mbedtls/library/ecp_curves.c **** };
+ 474:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP512r1_gx[] = {
+ 475:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x22, 0xF8, 0xB9, 0xBC, 0x09, 0x22, 0x35, 0x8B),
+ 476:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x68, 0x5E, 0x6A, 0x40, 0x47, 0x50, 0x6D, 0x7C),
+ 477:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x5F, 0x7D, 0xB9, 0x93, 0x7B, 0x68, 0xD1, 0x50),
+ 478:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x8D, 0xD4, 0xD0, 0xE2, 0x78, 0x1F, 0x3B, 0xFF),
+ 479:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x8E, 0x09, 0xD0, 0xF4, 0xEE, 0x62, 0x3B, 0xB4),
+ 480:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xC1, 0x16, 0xD9, 0xB5, 0x70, 0x9F, 0xED, 0x85),
+ 481:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x93, 0x6A, 0x4C, 0x9C, 0x2E, 0x32, 0x21, 0x5A),
+ 482:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x64, 0xD9, 0x2E, 0xD8, 0xBD, 0xE4, 0xAE, 0x81),
+ 483:Libs/mbedtls/library/ecp_curves.c **** };
+ 484:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP512r1_gy[] = {
+ 485:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x92, 0x08, 0xD8, 0x3A, 0x0F, 0x1E, 0xCD, 0x78),
+ 486:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x06, 0x54, 0xF0, 0xA8, 0x2F, 0x2B, 0xCA, 0xD1),
+ 487:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xAE, 0x63, 0x27, 0x8A, 0xD8, 0x4B, 0xCA, 0x5B),
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 10
+
+
+ 488:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x5E, 0x48, 0x5F, 0x4A, 0x49, 0xDE, 0xDC, 0xB2),
+ 489:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x11, 0x81, 0x1F, 0x88, 0x5B, 0xC5, 0x00, 0xA0),
+ 490:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x1A, 0x7B, 0xA5, 0x24, 0x00, 0xF7, 0x09, 0xF2),
+ 491:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xFD, 0x22, 0x78, 0xCF, 0xA9, 0xBF, 0xEA, 0xC0),
+ 492:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xEC, 0x32, 0x63, 0x56, 0x5D, 0x38, 0xDE, 0x7D),
+ 493:Libs/mbedtls/library/ecp_curves.c **** };
+ 494:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_uint brainpoolP512r1_n[] = {
+ 495:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x69, 0x00, 0xA9, 0x9C, 0x82, 0x96, 0x87, 0xB5),
+ 496:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0xDD, 0xDA, 0x5D, 0x08, 0x81, 0xD3, 0xB1, 0x1D),
+ 497:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x47, 0x10, 0xAC, 0x7F, 0x19, 0x61, 0x86, 0x41),
+ 498:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x19, 0x26, 0xA9, 0x4C, 0x41, 0x5C, 0x3E, 0x55),
+ 499:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x70, 0x08, 0x33, 0x70, 0xCA, 0x9C, 0x63, 0xD6),
+ 500:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x0E, 0xD2, 0xC9, 0xB3, 0xB3, 0x8D, 0x30, 0xCB),
+ 501:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x07, 0xFC, 0xC9, 0x33, 0xAE, 0xE6, 0xD4, 0x3F),
+ 502:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_BYTES_TO_T_UINT_8(0x8B, 0xC4, 0xE9, 0xDB, 0xB8, 0x9D, 0xDD, 0xAA),
+ 503:Libs/mbedtls/library/ecp_curves.c **** };
+ 504:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_BP512R1_ENABLED */
+ 505:Libs/mbedtls/library/ecp_curves.c **** 
+ 506:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192R1_ENABLED) ||   \
+ 507:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP224R1_ENABLED) ||   \
+ 508:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED) ||   \
+ 509:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED) ||   \
+ 510:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED) ||   \
+ 511:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_BP256R1_ENABLED)   ||   \
+ 512:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_BP384R1_ENABLED)   ||   \
+ 513:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_BP512R1_ENABLED)   ||   \
+ 514:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP192K1_ENABLED) ||   \
+ 515:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP224K1_ENABLED) ||   \
+ 516:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP256K1_ENABLED)
+ 517:Libs/mbedtls/library/ecp_curves.c **** /* For these curves, we build the group parameters dynamically. */
+ 518:Libs/mbedtls/library/ecp_curves.c **** #define ECP_LOAD_GROUP
+ 519:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 520:Libs/mbedtls/library/ecp_curves.c **** 
+ 521:Libs/mbedtls/library/ecp_curves.c **** #if defined(ECP_LOAD_GROUP)
+ 522:Libs/mbedtls/library/ecp_curves.c **** /*
+ 523:Libs/mbedtls/library/ecp_curves.c ****  * Create an MPI from embedded constants
+ 524:Libs/mbedtls/library/ecp_curves.c ****  * (assumes len is an exact multiple of sizeof(mbedtls_mpi_uint))
+ 525:Libs/mbedtls/library/ecp_curves.c ****  */
+ 526:Libs/mbedtls/library/ecp_curves.c **** static inline void ecp_mpi_load(mbedtls_mpi *X, const mbedtls_mpi_uint *p, size_t len)
+ 527:Libs/mbedtls/library/ecp_curves.c **** {
+ 528:Libs/mbedtls/library/ecp_curves.c ****     X->s = 1;
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->n = len / sizeof(mbedtls_mpi_uint);
+ 530:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 531:Libs/mbedtls/library/ecp_curves.c **** }
+ 532:Libs/mbedtls/library/ecp_curves.c **** 
+ 533:Libs/mbedtls/library/ecp_curves.c **** /*
+ 534:Libs/mbedtls/library/ecp_curves.c ****  * Set an MPI to static value 1
+ 535:Libs/mbedtls/library/ecp_curves.c ****  */
+ 536:Libs/mbedtls/library/ecp_curves.c **** static inline void ecp_mpi_set1(mbedtls_mpi *X)
+ 537:Libs/mbedtls/library/ecp_curves.c **** {
+ 538:Libs/mbedtls/library/ecp_curves.c ****     static const mbedtls_mpi_uint one[] = { 1 };
+ 539:Libs/mbedtls/library/ecp_curves.c ****     X->s = 1;
+ 540:Libs/mbedtls/library/ecp_curves.c ****     X->n = 1;
+ 541:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) one; /* X->p will not be modified so the cast is safe */
+ 542:Libs/mbedtls/library/ecp_curves.c **** }
+ 543:Libs/mbedtls/library/ecp_curves.c **** 
+ 544:Libs/mbedtls/library/ecp_curves.c **** /*
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 11
+
+
+ 545:Libs/mbedtls/library/ecp_curves.c ****  * Make group available from embedded constants
+ 546:Libs/mbedtls/library/ecp_curves.c ****  */
+ 547:Libs/mbedtls/library/ecp_curves.c **** static int ecp_group_load(mbedtls_ecp_group *grp,
+ 548:Libs/mbedtls/library/ecp_curves.c ****                           const mbedtls_mpi_uint *p,  size_t plen,
+ 549:Libs/mbedtls/library/ecp_curves.c ****                           const mbedtls_mpi_uint *a,  size_t alen,
+ 550:Libs/mbedtls/library/ecp_curves.c ****                           const mbedtls_mpi_uint *b,  size_t blen,
+ 551:Libs/mbedtls/library/ecp_curves.c ****                           const mbedtls_mpi_uint *gx, size_t gxlen,
+ 552:Libs/mbedtls/library/ecp_curves.c ****                           const mbedtls_mpi_uint *gy, size_t gylen,
+ 553:Libs/mbedtls/library/ecp_curves.c ****                           const mbedtls_mpi_uint *n,  size_t nlen)
+ 554:Libs/mbedtls/library/ecp_curves.c **** {
+ 555:Libs/mbedtls/library/ecp_curves.c ****     ecp_mpi_load(&grp->P, p, plen);
+ 556:Libs/mbedtls/library/ecp_curves.c ****     if (a != NULL) {
+ 557:Libs/mbedtls/library/ecp_curves.c ****         ecp_mpi_load(&grp->A, a, alen);
+ 558:Libs/mbedtls/library/ecp_curves.c ****     }
+ 559:Libs/mbedtls/library/ecp_curves.c ****     ecp_mpi_load(&grp->B, b, blen);
+ 560:Libs/mbedtls/library/ecp_curves.c ****     ecp_mpi_load(&grp->N, n, nlen);
+ 561:Libs/mbedtls/library/ecp_curves.c **** 
+ 562:Libs/mbedtls/library/ecp_curves.c ****     ecp_mpi_load(&grp->G.X, gx, gxlen);
+ 563:Libs/mbedtls/library/ecp_curves.c ****     ecp_mpi_load(&grp->G.Y, gy, gylen);
+ 564:Libs/mbedtls/library/ecp_curves.c ****     ecp_mpi_set1(&grp->G.Z);
+ 565:Libs/mbedtls/library/ecp_curves.c **** 
+ 566:Libs/mbedtls/library/ecp_curves.c ****     grp->pbits = mbedtls_mpi_bitlen(&grp->P);
+ 567:Libs/mbedtls/library/ecp_curves.c ****     grp->nbits = mbedtls_mpi_bitlen(&grp->N);
+ 568:Libs/mbedtls/library/ecp_curves.c **** 
+ 569:Libs/mbedtls/library/ecp_curves.c ****     grp->h = 1;
+ 570:Libs/mbedtls/library/ecp_curves.c **** 
+ 571:Libs/mbedtls/library/ecp_curves.c ****     return 0;
+ 572:Libs/mbedtls/library/ecp_curves.c **** }
+ 573:Libs/mbedtls/library/ecp_curves.c **** #endif /* ECP_LOAD_GROUP */
+ 574:Libs/mbedtls/library/ecp_curves.c **** 
+ 575:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_NIST_OPTIM)
+ 576:Libs/mbedtls/library/ecp_curves.c **** /* Forward declarations */
+ 577:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192R1_ENABLED)
+ 578:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p192(mbedtls_mpi *);
+ 579:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 580:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP224R1_ENABLED)
+ 581:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p224(mbedtls_mpi *);
+ 582:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 583:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED)
+ 584:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p256(mbedtls_mpi *);
+ 585:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 586:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+ 587:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p384(mbedtls_mpi *);
+ 588:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 589:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+ 590:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p521(mbedtls_mpi *);
+ 591:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 592:Libs/mbedtls/library/ecp_curves.c **** 
+ 593:Libs/mbedtls/library/ecp_curves.c **** #define NIST_MODP(P)      grp->modp = ecp_mod_ ## P;
+ 594:Libs/mbedtls/library/ecp_curves.c **** #else
+ 595:Libs/mbedtls/library/ecp_curves.c **** #define NIST_MODP(P)
+ 596:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_NIST_OPTIM */
+ 597:Libs/mbedtls/library/ecp_curves.c **** 
+ 598:Libs/mbedtls/library/ecp_curves.c **** /* Additional forward declarations */
+ 599:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
+ 600:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p255(mbedtls_mpi *);
+ 601:Libs/mbedtls/library/ecp_curves.c **** #endif
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 12
+
+
+ 602:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+ 603:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p448(mbedtls_mpi *);
+ 604:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 605:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192K1_ENABLED)
+ 606:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p192k1(mbedtls_mpi *);
+ 607:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 608:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP224K1_ENABLED)
+ 609:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p224k1(mbedtls_mpi *);
+ 610:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 611:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP256K1_ENABLED)
+ 612:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p256k1(mbedtls_mpi *);
+ 613:Libs/mbedtls/library/ecp_curves.c **** #endif
+ 614:Libs/mbedtls/library/ecp_curves.c **** 
+ 615:Libs/mbedtls/library/ecp_curves.c **** #if defined(ECP_LOAD_GROUP)
+ 616:Libs/mbedtls/library/ecp_curves.c **** #define LOAD_GROUP_A(G)   ecp_group_load(grp,            \
+ 617:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _p,  sizeof(G ## _p),   \
+ 618:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _a,  sizeof(G ## _a),   \
+ 619:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _b,  sizeof(G ## _b),   \
+ 620:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _gx, sizeof(G ## _gx),   \
+ 621:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _gy, sizeof(G ## _gy),   \
+ 622:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _n,  sizeof(G ## _n))
+ 623:Libs/mbedtls/library/ecp_curves.c **** 
+ 624:Libs/mbedtls/library/ecp_curves.c **** #define LOAD_GROUP(G)     ecp_group_load(grp,            \
+ 625:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _p,  sizeof(G ## _p),   \
+ 626:Libs/mbedtls/library/ecp_curves.c ****                                          NULL,     0,                    \
+ 627:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _b,  sizeof(G ## _b),   \
+ 628:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _gx, sizeof(G ## _gx),   \
+ 629:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _gy, sizeof(G ## _gy),   \
+ 630:Libs/mbedtls/library/ecp_curves.c ****                                          G ## _n,  sizeof(G ## _n))
+ 631:Libs/mbedtls/library/ecp_curves.c **** #endif /* ECP_LOAD_GROUP */
+ 632:Libs/mbedtls/library/ecp_curves.c **** 
+ 633:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
+ 634:Libs/mbedtls/library/ecp_curves.c **** /* Constants used by ecp_use_curve25519() */
+ 635:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_sint curve25519_a24 = 0x01DB42;
+ 636:Libs/mbedtls/library/ecp_curves.c **** static const unsigned char curve25519_part_of_n[] = {
+ 637:Libs/mbedtls/library/ecp_curves.c ****     0x14, 0xDE, 0xF9, 0xDE, 0xA2, 0xF7, 0x9C, 0xD6,
+ 638:Libs/mbedtls/library/ecp_curves.c ****     0x58, 0x12, 0x63, 0x1A, 0x5C, 0xF5, 0xD3, 0xED,
+ 639:Libs/mbedtls/library/ecp_curves.c **** };
+ 640:Libs/mbedtls/library/ecp_curves.c **** 
+ 641:Libs/mbedtls/library/ecp_curves.c **** /*
+ 642:Libs/mbedtls/library/ecp_curves.c ****  * Specialized function for creating the Curve25519 group
+ 643:Libs/mbedtls/library/ecp_curves.c ****  */
+ 644:Libs/mbedtls/library/ecp_curves.c **** static int ecp_use_curve25519(mbedtls_ecp_group *grp)
+ 645:Libs/mbedtls/library/ecp_curves.c **** {
+ 646:Libs/mbedtls/library/ecp_curves.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 647:Libs/mbedtls/library/ecp_curves.c **** 
+ 648:Libs/mbedtls/library/ecp_curves.c ****     /* Actually ( A + 2 ) / 4 */
+ 649:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(&grp->A, curve25519_a24));
+ 650:Libs/mbedtls/library/ecp_curves.c **** 
+ 651:Libs/mbedtls/library/ecp_curves.c ****     /* P = 2^255 - 19 */
+ 652:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(&grp->P, 1));
+ 653:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_shift_l(&grp->P, 255));
+ 654:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_sub_int(&grp->P, &grp->P, 19));
+ 655:Libs/mbedtls/library/ecp_curves.c ****     grp->pbits = mbedtls_mpi_bitlen(&grp->P);
+ 656:Libs/mbedtls/library/ecp_curves.c **** 
+ 657:Libs/mbedtls/library/ecp_curves.c ****     /* N = 2^252 + 27742317777372353535851937790883648493 */
+ 658:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_read_binary(&grp->N,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 13
+
+
+ 659:Libs/mbedtls/library/ecp_curves.c ****                                             curve25519_part_of_n, sizeof(curve25519_part_of_n)));
+ 660:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_set_bit(&grp->N, 252, 1));
+ 661:Libs/mbedtls/library/ecp_curves.c **** 
+ 662:Libs/mbedtls/library/ecp_curves.c ****     /* Y intentionally not set, since we use x/z coordinates.
+ 663:Libs/mbedtls/library/ecp_curves.c ****      * This is used as a marker to identify Montgomery curves! */
+ 664:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(&grp->G.X, 9));
+ 665:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(&grp->G.Z, 1));
+ 666:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi_free(&grp->G.Y);
+ 667:Libs/mbedtls/library/ecp_curves.c **** 
+ 668:Libs/mbedtls/library/ecp_curves.c ****     /* Actually, the required msb for private keys */
+ 669:Libs/mbedtls/library/ecp_curves.c ****     grp->nbits = 254;
+ 670:Libs/mbedtls/library/ecp_curves.c **** 
+ 671:Libs/mbedtls/library/ecp_curves.c **** cleanup:
+ 672:Libs/mbedtls/library/ecp_curves.c ****     if (ret != 0) {
+ 673:Libs/mbedtls/library/ecp_curves.c ****         mbedtls_ecp_group_free(grp);
+ 674:Libs/mbedtls/library/ecp_curves.c ****     }
+ 675:Libs/mbedtls/library/ecp_curves.c **** 
+ 676:Libs/mbedtls/library/ecp_curves.c ****     return ret;
+ 677:Libs/mbedtls/library/ecp_curves.c **** }
+ 678:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_CURVE25519_ENABLED */
+ 679:Libs/mbedtls/library/ecp_curves.c **** 
+ 680:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+ 681:Libs/mbedtls/library/ecp_curves.c **** /* Constants used by ecp_use_curve448() */
+ 682:Libs/mbedtls/library/ecp_curves.c **** static const mbedtls_mpi_sint curve448_a24 = 0x98AA;
+ 683:Libs/mbedtls/library/ecp_curves.c **** static const unsigned char curve448_part_of_n[] = {
+ 684:Libs/mbedtls/library/ecp_curves.c ****     0x83, 0x35, 0xDC, 0x16, 0x3B, 0xB1, 0x24,
+ 685:Libs/mbedtls/library/ecp_curves.c ****     0xB6, 0x51, 0x29, 0xC9, 0x6F, 0xDE, 0x93,
+ 686:Libs/mbedtls/library/ecp_curves.c ****     0x3D, 0x8D, 0x72, 0x3A, 0x70, 0xAA, 0xDC,
+ 687:Libs/mbedtls/library/ecp_curves.c ****     0x87, 0x3D, 0x6D, 0x54, 0xA7, 0xBB, 0x0D,
+ 688:Libs/mbedtls/library/ecp_curves.c **** };
+ 689:Libs/mbedtls/library/ecp_curves.c **** 
+ 690:Libs/mbedtls/library/ecp_curves.c **** /*
+ 691:Libs/mbedtls/library/ecp_curves.c ****  * Specialized function for creating the Curve448 group
+ 692:Libs/mbedtls/library/ecp_curves.c ****  */
+ 693:Libs/mbedtls/library/ecp_curves.c **** static int ecp_use_curve448(mbedtls_ecp_group *grp)
+ 694:Libs/mbedtls/library/ecp_curves.c **** {
+ 695:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi Ns;
+ 696:Libs/mbedtls/library/ecp_curves.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 697:Libs/mbedtls/library/ecp_curves.c **** 
+ 698:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi_init(&Ns);
+ 699:Libs/mbedtls/library/ecp_curves.c **** 
+ 700:Libs/mbedtls/library/ecp_curves.c ****     /* Actually ( A + 2 ) / 4 */
+ 701:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(&grp->A, curve448_a24));
+ 702:Libs/mbedtls/library/ecp_curves.c **** 
+ 703:Libs/mbedtls/library/ecp_curves.c ****     /* P = 2^448 - 2^224 - 1 */
+ 704:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(&grp->P, 1));
+ 705:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_shift_l(&grp->P, 224));
+ 706:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_sub_int(&grp->P, &grp->P, 1));
+ 707:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_shift_l(&grp->P, 224));
+ 708:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_sub_int(&grp->P, &grp->P, 1));
+ 709:Libs/mbedtls/library/ecp_curves.c ****     grp->pbits = mbedtls_mpi_bitlen(&grp->P);
+ 710:Libs/mbedtls/library/ecp_curves.c **** 
+ 711:Libs/mbedtls/library/ecp_curves.c ****     /* Y intentionally not set, since we use x/z coordinates.
+ 712:Libs/mbedtls/library/ecp_curves.c ****      * This is used as a marker to identify Montgomery curves! */
+ 713:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(&grp->G.X, 5));
+ 714:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(&grp->G.Z, 1));
+ 715:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi_free(&grp->G.Y);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 14
+
+
+ 716:Libs/mbedtls/library/ecp_curves.c **** 
+ 717:Libs/mbedtls/library/ecp_curves.c ****     /* N = 2^446 - 13818066809895115352007386748515426880336692474882178609894547503885 */
+ 718:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_set_bit(&grp->N, 446, 1));
+ 719:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_read_binary(&Ns,
+ 720:Libs/mbedtls/library/ecp_curves.c ****                                             curve448_part_of_n, sizeof(curve448_part_of_n)));
+ 721:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_sub_mpi(&grp->N, &grp->N, &Ns));
+ 722:Libs/mbedtls/library/ecp_curves.c **** 
+ 723:Libs/mbedtls/library/ecp_curves.c ****     /* Actually, the required msb for private keys */
+ 724:Libs/mbedtls/library/ecp_curves.c ****     grp->nbits = 447;
+ 725:Libs/mbedtls/library/ecp_curves.c **** 
+ 726:Libs/mbedtls/library/ecp_curves.c **** cleanup:
+ 727:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi_free(&Ns);
+ 728:Libs/mbedtls/library/ecp_curves.c ****     if (ret != 0) {
+ 729:Libs/mbedtls/library/ecp_curves.c ****         mbedtls_ecp_group_free(grp);
+ 730:Libs/mbedtls/library/ecp_curves.c ****     }
+ 731:Libs/mbedtls/library/ecp_curves.c **** 
+ 732:Libs/mbedtls/library/ecp_curves.c ****     return ret;
+ 733:Libs/mbedtls/library/ecp_curves.c **** }
+ 734:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_CURVE448_ENABLED */
+ 735:Libs/mbedtls/library/ecp_curves.c **** 
+ 736:Libs/mbedtls/library/ecp_curves.c **** /*
+ 737:Libs/mbedtls/library/ecp_curves.c ****  * Set a group using well-known domain parameters
+ 738:Libs/mbedtls/library/ecp_curves.c ****  */
+ 739:Libs/mbedtls/library/ecp_curves.c **** int mbedtls_ecp_group_load(mbedtls_ecp_group *grp, mbedtls_ecp_group_id id)
+ 740:Libs/mbedtls/library/ecp_curves.c **** {
+ 741:Libs/mbedtls/library/ecp_curves.c ****     ECP_VALIDATE_RET(grp != NULL);
+ 742:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_ecp_group_free(grp);
+ 743:Libs/mbedtls/library/ecp_curves.c **** 
+ 744:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_ecp_group_init(grp);
+ 745:Libs/mbedtls/library/ecp_curves.c **** 
+ 746:Libs/mbedtls/library/ecp_curves.c ****     grp->id = id;
+ 747:Libs/mbedtls/library/ecp_curves.c **** 
+ 748:Libs/mbedtls/library/ecp_curves.c ****     switch (id) {
+ 749:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192R1_ENABLED)
+ 750:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_SECP192R1:
+ 751:Libs/mbedtls/library/ecp_curves.c ****             NIST_MODP(p192);
+ 752:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP(secp192r1);
+ 753:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP192R1_ENABLED */
+ 754:Libs/mbedtls/library/ecp_curves.c **** 
+ 755:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP224R1_ENABLED)
+ 756:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_SECP224R1:
+ 757:Libs/mbedtls/library/ecp_curves.c ****             NIST_MODP(p224);
+ 758:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP(secp224r1);
+ 759:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP224R1_ENABLED */
+ 760:Libs/mbedtls/library/ecp_curves.c **** 
+ 761:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED)
+ 762:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_SECP256R1:
+ 763:Libs/mbedtls/library/ecp_curves.c ****             NIST_MODP(p256);
+ 764:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP(secp256r1);
+ 765:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP256R1_ENABLED */
+ 766:Libs/mbedtls/library/ecp_curves.c **** 
+ 767:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+ 768:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_SECP384R1:
+ 769:Libs/mbedtls/library/ecp_curves.c ****             NIST_MODP(p384);
+ 770:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP(secp384r1);
+ 771:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP384R1_ENABLED */
+ 772:Libs/mbedtls/library/ecp_curves.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 15
+
+
+ 773:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+ 774:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_SECP521R1:
+ 775:Libs/mbedtls/library/ecp_curves.c ****             NIST_MODP(p521);
+ 776:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP(secp521r1);
+ 777:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP521R1_ENABLED */
+ 778:Libs/mbedtls/library/ecp_curves.c **** 
+ 779:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192K1_ENABLED)
+ 780:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_SECP192K1:
+ 781:Libs/mbedtls/library/ecp_curves.c ****             grp->modp = ecp_mod_p192k1;
+ 782:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP_A(secp192k1);
+ 783:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP192K1_ENABLED */
+ 784:Libs/mbedtls/library/ecp_curves.c **** 
+ 785:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP224K1_ENABLED)
+ 786:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_SECP224K1:
+ 787:Libs/mbedtls/library/ecp_curves.c ****             grp->modp = ecp_mod_p224k1;
+ 788:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP_A(secp224k1);
+ 789:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP224K1_ENABLED */
+ 790:Libs/mbedtls/library/ecp_curves.c **** 
+ 791:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP256K1_ENABLED)
+ 792:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_SECP256K1:
+ 793:Libs/mbedtls/library/ecp_curves.c ****             grp->modp = ecp_mod_p256k1;
+ 794:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP_A(secp256k1);
+ 795:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP256K1_ENABLED */
+ 796:Libs/mbedtls/library/ecp_curves.c **** 
+ 797:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_BP256R1_ENABLED)
+ 798:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_BP256R1:
+ 799:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP_A(brainpoolP256r1);
+ 800:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_BP256R1_ENABLED */
+ 801:Libs/mbedtls/library/ecp_curves.c **** 
+ 802:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_BP384R1_ENABLED)
+ 803:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_BP384R1:
+ 804:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP_A(brainpoolP384r1);
+ 805:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_BP384R1_ENABLED */
+ 806:Libs/mbedtls/library/ecp_curves.c **** 
+ 807:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_BP512R1_ENABLED)
+ 808:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_BP512R1:
+ 809:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP_A(brainpoolP512r1);
+ 810:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_BP512R1_ENABLED */
+ 811:Libs/mbedtls/library/ecp_curves.c **** 
+ 812:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
+ 813:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_CURVE25519:
+ 814:Libs/mbedtls/library/ecp_curves.c ****             grp->modp = ecp_mod_p255;
+ 815:Libs/mbedtls/library/ecp_curves.c ****             return ecp_use_curve25519(grp);
+ 816:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_CURVE25519_ENABLED */
+ 817:Libs/mbedtls/library/ecp_curves.c **** 
+ 818:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+ 819:Libs/mbedtls/library/ecp_curves.c ****         case MBEDTLS_ECP_DP_CURVE448:
+ 820:Libs/mbedtls/library/ecp_curves.c ****             grp->modp = ecp_mod_p448;
+ 821:Libs/mbedtls/library/ecp_curves.c ****             return ecp_use_curve448(grp);
+ 822:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_CURVE448_ENABLED */
+ 823:Libs/mbedtls/library/ecp_curves.c **** 
+ 824:Libs/mbedtls/library/ecp_curves.c ****         default:
+ 825:Libs/mbedtls/library/ecp_curves.c ****             grp->id = MBEDTLS_ECP_DP_NONE;
+ 826:Libs/mbedtls/library/ecp_curves.c ****             return MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+ 827:Libs/mbedtls/library/ecp_curves.c ****     }
+ 828:Libs/mbedtls/library/ecp_curves.c **** }
+ 829:Libs/mbedtls/library/ecp_curves.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 16
+
+
+ 830:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_NIST_OPTIM)
+ 831:Libs/mbedtls/library/ecp_curves.c **** /*
+ 832:Libs/mbedtls/library/ecp_curves.c ****  * Fast reduction modulo the primes used by the NIST curves.
+ 833:Libs/mbedtls/library/ecp_curves.c ****  *
+ 834:Libs/mbedtls/library/ecp_curves.c ****  * These functions are critical for speed, but not needed for correct
+ 835:Libs/mbedtls/library/ecp_curves.c ****  * operations. So, we make the choice to heavily rely on the internals of our
+ 836:Libs/mbedtls/library/ecp_curves.c ****  * bignum library, which creates a tight coupling between these functions and
+ 837:Libs/mbedtls/library/ecp_curves.c ****  * our MPI implementation.  However, the coupling between the ECP module and
+ 838:Libs/mbedtls/library/ecp_curves.c ****  * MPI remains loose, since these functions can be deactivated at will.
+ 839:Libs/mbedtls/library/ecp_curves.c ****  */
+ 840:Libs/mbedtls/library/ecp_curves.c **** 
+ 841:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192R1_ENABLED)
+ 842:Libs/mbedtls/library/ecp_curves.c **** /*
+ 843:Libs/mbedtls/library/ecp_curves.c ****  * Compared to the way things are presented in FIPS 186-3 D.2,
+ 844:Libs/mbedtls/library/ecp_curves.c ****  * we proceed in columns, from right (least significant chunk) to left,
+ 845:Libs/mbedtls/library/ecp_curves.c ****  * adding chunks to N in place, and keeping a carry for the next chunk.
+ 846:Libs/mbedtls/library/ecp_curves.c ****  * This avoids moving things around in memory, and uselessly adding zeros,
+ 847:Libs/mbedtls/library/ecp_curves.c ****  * compared to the more straightforward, line-oriented approach.
+ 848:Libs/mbedtls/library/ecp_curves.c ****  *
+ 849:Libs/mbedtls/library/ecp_curves.c ****  * For this prime we need to handle data in chunks of 64 bits.
+ 850:Libs/mbedtls/library/ecp_curves.c ****  * Since this is always a multiple of our basic mbedtls_mpi_uint, we can
+ 851:Libs/mbedtls/library/ecp_curves.c ****  * use a mbedtls_mpi_uint * to designate such a chunk, and small loops to handle it.
+ 852:Libs/mbedtls/library/ecp_curves.c ****  */
+ 853:Libs/mbedtls/library/ecp_curves.c **** 
+ 854:Libs/mbedtls/library/ecp_curves.c **** /* Add 64-bit chunks (dst += src) and update carry */
+ 855:Libs/mbedtls/library/ecp_curves.c **** static inline void add64(mbedtls_mpi_uint *dst, mbedtls_mpi_uint *src, mbedtls_mpi_uint *carry)
+ 856:Libs/mbedtls/library/ecp_curves.c **** {
+ 857:Libs/mbedtls/library/ecp_curves.c ****     unsigned char i;
+ 858:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi_uint c = 0;
+ 859:Libs/mbedtls/library/ecp_curves.c ****     for (i = 0; i < 8 / sizeof(mbedtls_mpi_uint); i++, dst++, src++) {
+ 860:Libs/mbedtls/library/ecp_curves.c ****         *dst += c;      c  = (*dst < c);
+ 861:Libs/mbedtls/library/ecp_curves.c ****         *dst += *src;   c += (*dst < *src);
+ 862:Libs/mbedtls/library/ecp_curves.c ****     }
+ 863:Libs/mbedtls/library/ecp_curves.c ****     *carry += c;
+ 864:Libs/mbedtls/library/ecp_curves.c **** }
+ 865:Libs/mbedtls/library/ecp_curves.c **** 
+ 866:Libs/mbedtls/library/ecp_curves.c **** /* Add carry to a 64-bit chunk and update carry */
+ 867:Libs/mbedtls/library/ecp_curves.c **** static inline void carry64(mbedtls_mpi_uint *dst, mbedtls_mpi_uint *carry)
+ 868:Libs/mbedtls/library/ecp_curves.c **** {
+ 869:Libs/mbedtls/library/ecp_curves.c ****     unsigned char i;
+ 870:Libs/mbedtls/library/ecp_curves.c ****     for (i = 0; i < 8 / sizeof(mbedtls_mpi_uint); i++, dst++) {
+ 871:Libs/mbedtls/library/ecp_curves.c ****         *dst += *carry;
+ 872:Libs/mbedtls/library/ecp_curves.c ****         *carry  = (*dst < *carry);
+ 873:Libs/mbedtls/library/ecp_curves.c ****     }
+ 874:Libs/mbedtls/library/ecp_curves.c **** }
+ 875:Libs/mbedtls/library/ecp_curves.c **** 
+ 876:Libs/mbedtls/library/ecp_curves.c **** #define WIDTH       8 / sizeof(mbedtls_mpi_uint)
+ 877:Libs/mbedtls/library/ecp_curves.c **** #define A(i)      N->p + (i) * WIDTH
+ 878:Libs/mbedtls/library/ecp_curves.c **** #define ADD(i)    add64(p, A(i), &c)
+ 879:Libs/mbedtls/library/ecp_curves.c **** #define NEXT        p += WIDTH; carry64(p, &c)
+ 880:Libs/mbedtls/library/ecp_curves.c **** #define LAST        p += WIDTH; *p = c; while (++p < end) *p = 0
+ 881:Libs/mbedtls/library/ecp_curves.c **** 
+ 882:Libs/mbedtls/library/ecp_curves.c **** /*
+ 883:Libs/mbedtls/library/ecp_curves.c ****  * Fast quasi-reduction modulo p192 (FIPS 186-3 D.2.1)
+ 884:Libs/mbedtls/library/ecp_curves.c ****  */
+ 885:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p192(mbedtls_mpi *N)
+ 886:Libs/mbedtls/library/ecp_curves.c **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 17
+
+
+ 887:Libs/mbedtls/library/ecp_curves.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 888:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi_uint c = 0;
+ 889:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi_uint *p, *end;
+ 890:Libs/mbedtls/library/ecp_curves.c **** 
+ 891:Libs/mbedtls/library/ecp_curves.c ****     /* Make sure we have enough blocks so that A(5) is legal */
+ 892:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(N, 6 * WIDTH));
+ 893:Libs/mbedtls/library/ecp_curves.c **** 
+ 894:Libs/mbedtls/library/ecp_curves.c ****     p = N->p;
+ 895:Libs/mbedtls/library/ecp_curves.c ****     end = p + N->n;
+ 896:Libs/mbedtls/library/ecp_curves.c **** 
+ 897:Libs/mbedtls/library/ecp_curves.c ****     ADD(3); ADD(5);             NEXT;     // A0 += A3 + A5
+ 898:Libs/mbedtls/library/ecp_curves.c ****     ADD(3); ADD(4); ADD(5);   NEXT;       // A1 += A3 + A4 + A5
+ 899:Libs/mbedtls/library/ecp_curves.c ****     ADD(4); ADD(5);             LAST;     // A2 += A4 + A5
+ 900:Libs/mbedtls/library/ecp_curves.c **** 
+ 901:Libs/mbedtls/library/ecp_curves.c **** cleanup:
+ 902:Libs/mbedtls/library/ecp_curves.c ****     return ret;
+ 903:Libs/mbedtls/library/ecp_curves.c **** }
+ 904:Libs/mbedtls/library/ecp_curves.c **** 
+ 905:Libs/mbedtls/library/ecp_curves.c **** #undef WIDTH
+ 906:Libs/mbedtls/library/ecp_curves.c **** #undef A
+ 907:Libs/mbedtls/library/ecp_curves.c **** #undef ADD
+ 908:Libs/mbedtls/library/ecp_curves.c **** #undef NEXT
+ 909:Libs/mbedtls/library/ecp_curves.c **** #undef LAST
+ 910:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP192R1_ENABLED */
+ 911:Libs/mbedtls/library/ecp_curves.c **** 
+ 912:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP224R1_ENABLED) ||   \
+ 913:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED) ||   \
+ 914:Libs/mbedtls/library/ecp_curves.c ****     defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+ 915:Libs/mbedtls/library/ecp_curves.c **** /*
+ 916:Libs/mbedtls/library/ecp_curves.c ****  * The reader is advised to first understand ecp_mod_p192() since the same
+ 917:Libs/mbedtls/library/ecp_curves.c ****  * general structure is used here, but with additional complications:
+ 918:Libs/mbedtls/library/ecp_curves.c ****  * (1) chunks of 32 bits, and (2) subtractions.
+ 919:Libs/mbedtls/library/ecp_curves.c ****  */
+ 920:Libs/mbedtls/library/ecp_curves.c **** 
+ 921:Libs/mbedtls/library/ecp_curves.c **** /*
+ 922:Libs/mbedtls/library/ecp_curves.c ****  * For these primes, we need to handle data in chunks of 32 bits.
+ 923:Libs/mbedtls/library/ecp_curves.c ****  * This makes it more complicated if we use 64 bits limbs in MPI,
+ 924:Libs/mbedtls/library/ecp_curves.c ****  * which prevents us from using a uniform access method as for p192.
+ 925:Libs/mbedtls/library/ecp_curves.c ****  *
+ 926:Libs/mbedtls/library/ecp_curves.c ****  * So, we define a mini abstraction layer to access 32 bit chunks,
+ 927:Libs/mbedtls/library/ecp_curves.c ****  * load them in 'cur' for work, and store them back from 'cur' when done.
+ 928:Libs/mbedtls/library/ecp_curves.c ****  *
+ 929:Libs/mbedtls/library/ecp_curves.c ****  * While at it, also define the size of N in terms of 32-bit chunks.
+ 930:Libs/mbedtls/library/ecp_curves.c ****  */
+ 931:Libs/mbedtls/library/ecp_curves.c **** #define LOAD32      cur = A(i);
+ 932:Libs/mbedtls/library/ecp_curves.c **** 
+ 933:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_HAVE_INT32)  /* 32 bit */
+ 934:Libs/mbedtls/library/ecp_curves.c **** 
+ 935:Libs/mbedtls/library/ecp_curves.c **** #define MAX32       N->n
+ 936:Libs/mbedtls/library/ecp_curves.c **** #define A(j)      N->p[j]
+ 937:Libs/mbedtls/library/ecp_curves.c **** #define STORE32     N->p[i] = cur;
+ 938:Libs/mbedtls/library/ecp_curves.c **** 
+ 939:Libs/mbedtls/library/ecp_curves.c **** #else                               /* 64-bit */
+ 940:Libs/mbedtls/library/ecp_curves.c **** 
+ 941:Libs/mbedtls/library/ecp_curves.c **** #define MAX32       N->n * 2
+ 942:Libs/mbedtls/library/ecp_curves.c **** #define A(j) (j) % 2 ? (uint32_t) (N->p[(j)/2] >> 32) : \
+ 943:Libs/mbedtls/library/ecp_curves.c ****     (uint32_t) (N->p[(j)/2])
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 18
+
+
+ 944:Libs/mbedtls/library/ecp_curves.c **** #define STORE32                                   \
+ 945:Libs/mbedtls/library/ecp_curves.c ****     if (i % 2) {                                 \
+ 946:Libs/mbedtls/library/ecp_curves.c ****         N->p[i/2] &= 0x00000000FFFFFFFF;          \
+ 947:Libs/mbedtls/library/ecp_curves.c ****         N->p[i/2] |= ((mbedtls_mpi_uint) cur) << 32;        \
+ 948:Libs/mbedtls/library/ecp_curves.c ****     } else {                                      \
+ 949:Libs/mbedtls/library/ecp_curves.c ****         N->p[i/2] &= 0xFFFFFFFF00000000;          \
+ 950:Libs/mbedtls/library/ecp_curves.c ****         N->p[i/2] |= (mbedtls_mpi_uint) cur;                \
+ 951:Libs/mbedtls/library/ecp_curves.c ****     }
+ 952:Libs/mbedtls/library/ecp_curves.c **** 
+ 953:Libs/mbedtls/library/ecp_curves.c **** #endif /* sizeof( mbedtls_mpi_uint ) */
+ 954:Libs/mbedtls/library/ecp_curves.c **** 
+ 955:Libs/mbedtls/library/ecp_curves.c **** /*
+ 956:Libs/mbedtls/library/ecp_curves.c ****  * Helpers for addition and subtraction of chunks, with signed carry.
+ 957:Libs/mbedtls/library/ecp_curves.c ****  */
+ 958:Libs/mbedtls/library/ecp_curves.c **** static inline void add32(uint32_t *dst, uint32_t src, signed char *carry)
+ 959:Libs/mbedtls/library/ecp_curves.c **** {
+  28              		.loc 1 959 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+ 960:Libs/mbedtls/library/ecp_curves.c ****     *dst += src;
+  33              		.loc 1 960 5 view .LVU1
+  34 0000 0368     		ldr	r3, [r0]
+  35 0002 5B18     		adds	r3, r3, r1
+  36              		.loc 1 960 10 is_stmt 0 view .LVU2
+  37 0004 0360     		str	r3, [r0]
+ 961:Libs/mbedtls/library/ecp_curves.c ****     *carry += (*dst < src);
+  38              		.loc 1 961 5 is_stmt 1 view .LVU3
+  39              		.loc 1 961 12 is_stmt 0 view .LVU4
+  40 0006 1378     		ldrb	r3, [r2]	@ zero_extendqisi2
+  41 0008 43F10003 		adc	r3, r3, #0
+  42 000c 1370     		strb	r3, [r2]
+ 962:Libs/mbedtls/library/ecp_curves.c **** }
+  43              		.loc 1 962 1 view .LVU5
+  44 000e 7047     		bx	lr
+  45              		.cfi_endproc
+  46              	.LFE8:
+  48              		.section	.text.sub32,"ax",%progbits
+  49              		.align	1
+  50              		.syntax unified
+  51              		.thumb
+  52              		.thumb_func
+  54              	sub32:
+  55              	.LVL1:
+  56              	.LFB9:
+ 963:Libs/mbedtls/library/ecp_curves.c **** 
+ 964:Libs/mbedtls/library/ecp_curves.c **** static inline void sub32(uint32_t *dst, uint32_t src, signed char *carry)
+ 965:Libs/mbedtls/library/ecp_curves.c **** {
+  57              		.loc 1 965 1 is_stmt 1 view -0
+  58              		.cfi_startproc
+  59              		@ args = 0, pretend = 0, frame = 0
+  60              		@ frame_needed = 0, uses_anonymous_args = 0
+ 966:Libs/mbedtls/library/ecp_curves.c ****     *carry -= (*dst < src);
+  61              		.loc 1 966 5 view .LVU7
+  62              		.loc 1 966 12 is_stmt 0 view .LVU8
+  63 0000 1378     		ldrb	r3, [r2]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 19
+
+
+ 965:Libs/mbedtls/library/ecp_curves.c ****     *carry -= (*dst < src);
+  64              		.loc 1 965 1 view .LVU9
+  65 0002 10B5     		push	{r4, lr}
+  66              	.LCFI0:
+  67              		.cfi_def_cfa_offset 8
+  68              		.cfi_offset 4, -8
+  69              		.cfi_offset 14, -4
+  70              		.loc 1 966 21 view .LVU10
+  71 0004 0468     		ldr	r4, [r0]
+  72              		.loc 1 966 12 view .LVU11
+  73 0006 8C42     		cmp	r4, r1
+  74 0008 38BF     		it	cc
+  75 000a 013B     		subcc	r3, r3, #1
+  76 000c 1370     		strb	r3, [r2]
+ 967:Libs/mbedtls/library/ecp_curves.c ****     *dst -= src;
+  77              		.loc 1 967 5 is_stmt 1 view .LVU12
+  78              		.loc 1 967 10 is_stmt 0 view .LVU13
+  79 000e 0368     		ldr	r3, [r0]
+  80 0010 5B1A     		subs	r3, r3, r1
+  81 0012 0360     		str	r3, [r0]
+ 968:Libs/mbedtls/library/ecp_curves.c **** }
+  82              		.loc 1 968 1 view .LVU14
+  83 0014 10BD     		pop	{r4, pc}
+  84              		.cfi_endproc
+  85              	.LFE9:
+  87              		.section	.text.ecp_mod_p256,"ax",%progbits
+  88              		.align	1
+  89              		.syntax unified
+  90              		.thumb
+  91              		.thumb_func
+  93              	ecp_mod_p256:
+  94              	.LVL2:
+  95              	.LFB11:
+ 969:Libs/mbedtls/library/ecp_curves.c **** 
+ 970:Libs/mbedtls/library/ecp_curves.c **** #define ADD(j)    add32(&cur, A(j), &c);
+ 971:Libs/mbedtls/library/ecp_curves.c **** #define SUB(j)    sub32(&cur, A(j), &c);
+ 972:Libs/mbedtls/library/ecp_curves.c **** 
+ 973:Libs/mbedtls/library/ecp_curves.c **** #define ciL    (sizeof(mbedtls_mpi_uint))         /* chars in limb  */
+ 974:Libs/mbedtls/library/ecp_curves.c **** #define biL    (ciL << 3)                         /* bits  in limb  */
+ 975:Libs/mbedtls/library/ecp_curves.c **** 
+ 976:Libs/mbedtls/library/ecp_curves.c **** /*
+ 977:Libs/mbedtls/library/ecp_curves.c ****  * Helpers for the main 'loop'
+ 978:Libs/mbedtls/library/ecp_curves.c ****  */
+ 979:Libs/mbedtls/library/ecp_curves.c **** #define INIT(b)                                                       \
+ 980:Libs/mbedtls/library/ecp_curves.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;                    \
+ 981:Libs/mbedtls/library/ecp_curves.c ****     signed char c = 0, cc;                                              \
+ 982:Libs/mbedtls/library/ecp_curves.c ****     uint32_t cur;                                                       \
+ 983:Libs/mbedtls/library/ecp_curves.c ****     size_t i = 0, bits = (b);                                           \
+ 984:Libs/mbedtls/library/ecp_curves.c ****     /* N is the size of the product of two b-bit numbers, plus one */   \
+ 985:Libs/mbedtls/library/ecp_curves.c ****     /* limb for fix_negative */                                         \
+ 986:Libs/mbedtls/library/ecp_curves.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(N, (b) * 2 / biL + 1));      \
+ 987:Libs/mbedtls/library/ecp_curves.c ****     LOAD32;
+ 988:Libs/mbedtls/library/ecp_curves.c **** 
+ 989:Libs/mbedtls/library/ecp_curves.c **** #define NEXT                    \
+ 990:Libs/mbedtls/library/ecp_curves.c ****     STORE32; i++; LOAD32;       \
+ 991:Libs/mbedtls/library/ecp_curves.c ****     cc = c; c = 0;              \
+ 992:Libs/mbedtls/library/ecp_curves.c ****     if (cc < 0)                \
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 20
+
+
+ 993:Libs/mbedtls/library/ecp_curves.c ****     sub32(&cur, -cc, &c); \
+ 994:Libs/mbedtls/library/ecp_curves.c ****     else                        \
+ 995:Libs/mbedtls/library/ecp_curves.c ****     add32(&cur, cc, &c);  \
+ 996:Libs/mbedtls/library/ecp_curves.c **** 
+ 997:Libs/mbedtls/library/ecp_curves.c **** #define LAST                                    \
+ 998:Libs/mbedtls/library/ecp_curves.c ****     STORE32; i++;                               \
+ 999:Libs/mbedtls/library/ecp_curves.c ****     cur = c > 0 ? c : 0; STORE32;               \
+1000:Libs/mbedtls/library/ecp_curves.c ****     cur = 0; while (++i < MAX32) { STORE32; }  \
+1001:Libs/mbedtls/library/ecp_curves.c ****     if (c < 0) mbedtls_ecp_fix_negative(N, c, bits);
+1002:Libs/mbedtls/library/ecp_curves.c **** 
+1003:Libs/mbedtls/library/ecp_curves.c **** /*
+1004:Libs/mbedtls/library/ecp_curves.c ****  * If the result is negative, we get it in the form
+1005:Libs/mbedtls/library/ecp_curves.c ****  * c * 2^bits + N, with c negative and N positive shorter than 'bits'
+1006:Libs/mbedtls/library/ecp_curves.c ****  */
+1007:Libs/mbedtls/library/ecp_curves.c **** MBEDTLS_STATIC_TESTABLE
+1008:Libs/mbedtls/library/ecp_curves.c **** void mbedtls_ecp_fix_negative(mbedtls_mpi *N, signed char c, size_t bits)
+1009:Libs/mbedtls/library/ecp_curves.c **** {
+1010:Libs/mbedtls/library/ecp_curves.c ****     size_t i;
+1011:Libs/mbedtls/library/ecp_curves.c **** 
+1012:Libs/mbedtls/library/ecp_curves.c ****     /* Set N := 2^bits - 1 - N. We know that 0 <= N < 2^bits, so
+1013:Libs/mbedtls/library/ecp_curves.c ****      * set the absolute value to 0xfff...fff - N. There is no carry
+1014:Libs/mbedtls/library/ecp_curves.c ****      * since we're subtracting from all-bits-one.  */
+1015:Libs/mbedtls/library/ecp_curves.c ****     for (i = 0; i <= bits / 8 / sizeof(mbedtls_mpi_uint); i++) {
+1016:Libs/mbedtls/library/ecp_curves.c ****         N->p[i] = ~(mbedtls_mpi_uint) 0 - N->p[i];
+1017:Libs/mbedtls/library/ecp_curves.c ****     }
+1018:Libs/mbedtls/library/ecp_curves.c ****     /* Add 1, taking care of the carry. */
+1019:Libs/mbedtls/library/ecp_curves.c ****     i = 0;
+1020:Libs/mbedtls/library/ecp_curves.c ****     do {
+1021:Libs/mbedtls/library/ecp_curves.c ****         ++N->p[i];
+1022:Libs/mbedtls/library/ecp_curves.c ****     } while (N->p[i++] == 0 && i <= bits / 8 / sizeof(mbedtls_mpi_uint));
+1023:Libs/mbedtls/library/ecp_curves.c ****     /* Invert the sign.
+1024:Libs/mbedtls/library/ecp_curves.c ****      * Now N = N0 - 2^bits where N0 is the initial value of N. */
+1025:Libs/mbedtls/library/ecp_curves.c ****     N->s = -1;
+1026:Libs/mbedtls/library/ecp_curves.c **** 
+1027:Libs/mbedtls/library/ecp_curves.c ****     /* Add |c| * 2^bits to the absolute value. Since c and N are
+1028:Libs/mbedtls/library/ecp_curves.c ****      * negative, this adds c * 2^bits. */
+1029:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_mpi_uint msw = (mbedtls_mpi_uint) -c;
+1030:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_HAVE_INT64)
+1031:Libs/mbedtls/library/ecp_curves.c ****     if (bits == 224) {
+1032:Libs/mbedtls/library/ecp_curves.c ****         msw <<= 32;
+1033:Libs/mbedtls/library/ecp_curves.c ****     }
+1034:Libs/mbedtls/library/ecp_curves.c **** #endif
+1035:Libs/mbedtls/library/ecp_curves.c ****     N->p[bits / 8 / sizeof(mbedtls_mpi_uint)] += msw;
+1036:Libs/mbedtls/library/ecp_curves.c **** }
+1037:Libs/mbedtls/library/ecp_curves.c **** 
+1038:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP224R1_ENABLED)
+1039:Libs/mbedtls/library/ecp_curves.c **** /*
+1040:Libs/mbedtls/library/ecp_curves.c ****  * Fast quasi-reduction modulo p224 (FIPS 186-3 D.2.2)
+1041:Libs/mbedtls/library/ecp_curves.c ****  */
+1042:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p224(mbedtls_mpi *N)
+1043:Libs/mbedtls/library/ecp_curves.c **** {
+1044:Libs/mbedtls/library/ecp_curves.c ****     INIT(224);
+1045:Libs/mbedtls/library/ecp_curves.c **** 
+1046:Libs/mbedtls/library/ecp_curves.c ****     SUB(7); SUB(11);               NEXT;      // A0 += -A7 - A11
+1047:Libs/mbedtls/library/ecp_curves.c ****     SUB(8); SUB(12);               NEXT;      // A1 += -A8 - A12
+1048:Libs/mbedtls/library/ecp_curves.c ****     SUB(9); SUB(13);               NEXT;      // A2 += -A9 - A13
+1049:Libs/mbedtls/library/ecp_curves.c ****     SUB(10); ADD(7); ADD(11);    NEXT;        // A3 += -A10 + A7 + A11
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 21
+
+
+1050:Libs/mbedtls/library/ecp_curves.c ****     SUB(11); ADD(8); ADD(12);    NEXT;        // A4 += -A11 + A8 + A12
+1051:Libs/mbedtls/library/ecp_curves.c ****     SUB(12); ADD(9); ADD(13);    NEXT;        // A5 += -A12 + A9 + A13
+1052:Libs/mbedtls/library/ecp_curves.c ****     SUB(13); ADD(10);               LAST;     // A6 += -A13 + A10
+1053:Libs/mbedtls/library/ecp_curves.c **** 
+1054:Libs/mbedtls/library/ecp_curves.c **** cleanup:
+1055:Libs/mbedtls/library/ecp_curves.c ****     return ret;
+1056:Libs/mbedtls/library/ecp_curves.c **** }
+1057:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP224R1_ENABLED */
+1058:Libs/mbedtls/library/ecp_curves.c **** 
+1059:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED)
+1060:Libs/mbedtls/library/ecp_curves.c **** /*
+1061:Libs/mbedtls/library/ecp_curves.c ****  * Fast quasi-reduction modulo p256 (FIPS 186-3 D.2.3)
+1062:Libs/mbedtls/library/ecp_curves.c ****  */
+1063:Libs/mbedtls/library/ecp_curves.c **** static int ecp_mod_p256(mbedtls_mpi *N)
+1064:Libs/mbedtls/library/ecp_curves.c **** {
+  96              		.loc 1 1064 1 is_stmt 1 view -0
+  97              		.cfi_startproc
+  98              		@ args = 0, pretend = 0, frame = 24
+  99              		@ frame_needed = 0, uses_anonymous_args = 0
+1065:Libs/mbedtls/library/ecp_curves.c ****     INIT(256);
+ 100              		.loc 1 1065 5 view .LVU16
+ 101              		.loc 1 1065 5 view .LVU17
+1064:Libs/mbedtls/library/ecp_curves.c ****     INIT(256);
+ 102              		.loc 1 1064 1 is_stmt 0 view .LVU18
+ 103 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 104              	.LCFI1:
+ 105              		.cfi_def_cfa_offset 36
+ 106              		.cfi_offset 4, -36
+ 107              		.cfi_offset 5, -32
+ 108              		.cfi_offset 6, -28
+ 109              		.cfi_offset 7, -24
+ 110              		.cfi_offset 8, -20
+ 111              		.cfi_offset 9, -16
+ 112              		.cfi_offset 10, -12
+ 113              		.cfi_offset 11, -8
+ 114              		.cfi_offset 14, -4
+ 115              		.loc 1 1065 5 view .LVU19
+ 116 0004 0023     		movs	r3, #0
+1064:Libs/mbedtls/library/ecp_curves.c ****     INIT(256);
+ 117              		.loc 1 1064 1 view .LVU20
+ 118 0006 87B0     		sub	sp, sp, #28
+ 119              	.LCFI2:
+ 120              		.cfi_def_cfa_offset 64
+ 121              		.loc 1 1065 5 view .LVU21
+ 122 0008 1121     		movs	r1, #17
+1064:Libs/mbedtls/library/ecp_curves.c ****     INIT(256);
+ 123              		.loc 1 1064 1 view .LVU22
+ 124 000a 0390     		str	r0, [sp, #12]
+ 125              		.loc 1 1065 5 view .LVU23
+ 126 000c 8DF81330 		strb	r3, [sp, #19]
+ 127              		.loc 1 1065 5 is_stmt 1 view .LVU24
+ 128              		.loc 1 1065 5 view .LVU25
+ 129              	.LVL3:
+ 130              		.loc 1 1065 5 view .LVU26
+ 131              		.loc 1 1065 5 view .LVU27
+ 132 0010 FFF7FEFF 		bl	mbedtls_mpi_grow
+ 133              	.LVL4:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 22
+
+
+ 134              		.loc 1 1065 5 is_stmt 0 discriminator 1 view .LVU28
+ 135 0014 0290     		str	r0, [sp, #8]
+ 136 0016 0028     		cmp	r0, #0
+ 137 0018 40F05381 		bne	.L5
+ 138              		.loc 1 1065 5 is_stmt 1 discriminator 2 view .LVU29
+ 139              		.loc 1 1065 5 discriminator 2 view .LVU30
+ 140 001c 039B     		ldr	r3, [sp, #12]
+1066:Libs/mbedtls/library/ecp_curves.c **** 
+1067:Libs/mbedtls/library/ecp_curves.c ****     ADD(8); ADD(9);
+ 141              		.loc 1 1067 5 is_stmt 0 view .LVU31
+ 142 001e 0DF11302 		add	r2, sp, #19
+ 143 0022 05A8     		add	r0, sp, #20
+ 144              	.LVL5:
+1065:Libs/mbedtls/library/ecp_curves.c **** 
+ 145              		.loc 1 1065 5 discriminator 2 view .LVU32
+ 146 0024 9C68     		ldr	r4, [r3, #8]
+ 147 0026 2368     		ldr	r3, [r4]
+ 148 0028 0593     		str	r3, [sp, #20]
+1065:Libs/mbedtls/library/ecp_curves.c **** 
+ 149              		.loc 1 1065 5 is_stmt 1 discriminator 2 view .LVU33
+1065:Libs/mbedtls/library/ecp_curves.c **** 
+ 150              		.loc 1 1065 14 discriminator 2 view .LVU34
+ 151              		.loc 1 1067 5 view .LVU35
+ 152 002a 236A     		ldr	r3, [r4, #32]
+ 153 002c 1946     		mov	r1, r3
+ 154 002e 0193     		str	r3, [sp, #4]
+ 155 0030 FFF7FEFF 		bl	add32
+ 156              	.LVL6:
+ 157              		.loc 1 1067 11 discriminator 1 view .LVU36
+ 158              		.loc 1 1067 13 discriminator 1 view .LVU37
+ 159 0034 D4F824B0 		ldr	fp, [r4, #36]
+ 160 0038 5946     		mov	r1, fp
+ 161 003a FFF7FEFF 		bl	add32
+ 162              	.LVL7:
+ 163              		.loc 1 1067 19 discriminator 2 view .LVU38
+1068:Libs/mbedtls/library/ecp_curves.c ****     SUB(11); SUB(12); SUB(13); SUB(14);             NEXT;         // A0
+ 164              		.loc 1 1068 5 view .LVU39
+ 165 003e D4F82C90 		ldr	r9, [r4, #44]
+ 166 0042 4946     		mov	r1, r9
+ 167 0044 FFF7FEFF 		bl	sub32
+ 168              	.LVL8:
+ 169              		.loc 1 1068 12 discriminator 1 view .LVU40
+ 170              		.loc 1 1068 14 discriminator 1 view .LVU41
+ 171 0048 D4F83080 		ldr	r8, [r4, #48]
+ 172 004c 4146     		mov	r1, r8
+ 173 004e FFF7FEFF 		bl	sub32
+ 174              	.LVL9:
+ 175              		.loc 1 1068 21 discriminator 2 view .LVU42
+ 176              		.loc 1 1068 23 discriminator 2 view .LVU43
+ 177 0052 656B     		ldr	r5, [r4, #52]
+ 178 0054 2946     		mov	r1, r5
+ 179 0056 FFF7FEFF 		bl	sub32
+ 180              	.LVL10:
+ 181              		.loc 1 1068 30 discriminator 3 view .LVU44
+ 182              		.loc 1 1068 32 discriminator 3 view .LVU45
+ 183 005a A66B     		ldr	r6, [r4, #56]
+ 184 005c 3146     		mov	r1, r6
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 23
+
+
+ 185 005e FFF7FEFF 		bl	sub32
+ 186              	.LVL11:
+ 187              		.loc 1 1068 39 discriminator 4 view .LVU46
+ 188              		.loc 1 1068 53 discriminator 4 view .LVU47
+ 189 0062 059B     		ldr	r3, [sp, #20]
+ 190 0064 9DF91310 		ldrsb	r1, [sp, #19]
+ 191 0068 2360     		str	r3, [r4]
+ 192              		.loc 1 1068 53 discriminator 4 view .LVU48
+ 193              		.loc 1 1068 53 discriminator 4 view .LVU49
+ 194              	.LVL12:
+ 195              		.loc 1 1068 53 discriminator 4 view .LVU50
+ 196 006a 6368     		ldr	r3, [r4, #4]
+ 197 006c 0029     		cmp	r1, #0
+ 198 006e 0593     		str	r3, [sp, #20]
+ 199              		.loc 1 1068 53 discriminator 4 view .LVU51
+ 200              		.loc 1 1068 53 discriminator 4 view .LVU52
+ 201              	.LVL13:
+ 202              		.loc 1 1068 53 discriminator 4 view .LVU53
+ 203 0070 029B     		ldr	r3, [sp, #8]
+ 204 0072 8DF81330 		strb	r3, [sp, #19]
+ 205              		.loc 1 1068 53 discriminator 4 view .LVU54
+ 206 0076 80F22881 		bge	.L8
+ 207              		.loc 1 1068 53 discriminator 1 view .LVU55
+ 208 007a 4942     		rsbs	r1, r1, #0
+ 209              	.LVL14:
+ 210              		.loc 1 1068 53 is_stmt 0 discriminator 1 view .LVU56
+ 211 007c FFF7FEFF 		bl	sub32
+ 212              	.LVL15:
+ 213              	.L9:
+ 214              		.loc 1 1068 57 is_stmt 1 discriminator 4 view .LVU57
+1069:Libs/mbedtls/library/ecp_curves.c **** 
+1070:Libs/mbedtls/library/ecp_curves.c ****     ADD(9); ADD(10);
+ 215              		.loc 1 1070 5 view .LVU58
+ 216 0080 0DF11302 		add	r2, sp, #19
+ 217 0084 05A8     		add	r0, sp, #20
+ 218 0086 5946     		mov	r1, fp
+ 219 0088 FFF7FEFF 		bl	add32
+ 220              	.LVL16:
+ 221              		.loc 1 1070 11 discriminator 1 view .LVU59
+ 222              		.loc 1 1070 13 discriminator 1 view .LVU60
+ 223 008c D4F828A0 		ldr	r10, [r4, #40]
+ 224 0090 5146     		mov	r1, r10
+ 225 0092 FFF7FEFF 		bl	add32
+ 226              	.LVL17:
+ 227              		.loc 1 1070 20 discriminator 2 view .LVU61
+1071:Libs/mbedtls/library/ecp_curves.c ****     SUB(12); SUB(13); SUB(14); SUB(15);             NEXT;         // A1
+ 228              		.loc 1 1071 5 view .LVU62
+ 229 0096 4146     		mov	r1, r8
+ 230 0098 FFF7FEFF 		bl	sub32
+ 231              	.LVL18:
+ 232              		.loc 1 1071 12 discriminator 1 view .LVU63
+ 233              		.loc 1 1071 14 discriminator 1 view .LVU64
+ 234 009c 2946     		mov	r1, r5
+ 235 009e FFF7FEFF 		bl	sub32
+ 236              	.LVL19:
+ 237              		.loc 1 1071 21 discriminator 2 view .LVU65
+ 238              		.loc 1 1071 23 discriminator 2 view .LVU66
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 24
+
+
+ 239 00a2 3146     		mov	r1, r6
+ 240 00a4 FFF7FEFF 		bl	sub32
+ 241              	.LVL20:
+ 242              		.loc 1 1071 30 discriminator 3 view .LVU67
+ 243              		.loc 1 1071 32 discriminator 3 view .LVU68
+ 244 00a8 E76B     		ldr	r7, [r4, #60]
+ 245 00aa 3946     		mov	r1, r7
+ 246 00ac FFF7FEFF 		bl	sub32
+ 247              	.LVL21:
+ 248              		.loc 1 1071 39 discriminator 4 view .LVU69
+ 249              		.loc 1 1071 53 discriminator 4 view .LVU70
+ 250 00b0 059B     		ldr	r3, [sp, #20]
+ 251 00b2 9DF91310 		ldrsb	r1, [sp, #19]
+ 252 00b6 6360     		str	r3, [r4, #4]
+ 253              		.loc 1 1071 53 discriminator 4 view .LVU71
+ 254              		.loc 1 1071 53 discriminator 4 view .LVU72
+ 255              	.LVL22:
+ 256              		.loc 1 1071 53 discriminator 4 view .LVU73
+ 257 00b8 A368     		ldr	r3, [r4, #8]
+ 258 00ba 0593     		str	r3, [sp, #20]
+ 259              		.loc 1 1071 53 discriminator 4 view .LVU74
+ 260              		.loc 1 1071 53 discriminator 4 view .LVU75
+ 261              	.LVL23:
+ 262              		.loc 1 1071 53 discriminator 4 view .LVU76
+ 263 00bc 0023     		movs	r3, #0
+ 264 00be 9942     		cmp	r1, r3
+ 265 00c0 8DF81330 		strb	r3, [sp, #19]
+ 266              		.loc 1 1071 53 discriminator 4 view .LVU77
+ 267 00c4 80F20481 		bge	.L10
+ 268              		.loc 1 1071 53 discriminator 1 view .LVU78
+ 269 00c8 4942     		rsbs	r1, r1, #0
+ 270              	.LVL24:
+ 271              		.loc 1 1071 53 is_stmt 0 discriminator 1 view .LVU79
+ 272 00ca FFF7FEFF 		bl	sub32
+ 273              	.LVL25:
+ 274              	.L11:
+ 275              		.loc 1 1071 57 is_stmt 1 discriminator 4 view .LVU80
+1072:Libs/mbedtls/library/ecp_curves.c **** 
+1073:Libs/mbedtls/library/ecp_curves.c ****     ADD(10); ADD(11);
+ 276              		.loc 1 1073 5 view .LVU81
+ 277 00ce 0DF11302 		add	r2, sp, #19
+ 278 00d2 05A8     		add	r0, sp, #20
+ 279 00d4 5146     		mov	r1, r10
+ 280 00d6 FFF7FEFF 		bl	add32
+ 281              	.LVL26:
+ 282              		.loc 1 1073 12 discriminator 1 view .LVU82
+ 283              		.loc 1 1073 14 discriminator 1 view .LVU83
+ 284 00da 4946     		mov	r1, r9
+ 285 00dc FFF7FEFF 		bl	add32
+ 286              	.LVL27:
+ 287              		.loc 1 1073 21 discriminator 2 view .LVU84
+1074:Libs/mbedtls/library/ecp_curves.c ****     SUB(13); SUB(14); SUB(15);                        NEXT;       // A2
+ 288              		.loc 1 1074 5 view .LVU85
+ 289 00e0 2946     		mov	r1, r5
+ 290 00e2 FFF7FEFF 		bl	sub32
+ 291              	.LVL28:
+ 292              		.loc 1 1074 12 discriminator 1 view .LVU86
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 25
+
+
+ 293              		.loc 1 1074 14 discriminator 1 view .LVU87
+ 294 00e6 3146     		mov	r1, r6
+ 295 00e8 FFF7FEFF 		bl	sub32
+ 296              	.LVL29:
+ 297              		.loc 1 1074 21 discriminator 2 view .LVU88
+ 298              		.loc 1 1074 23 discriminator 2 view .LVU89
+ 299 00ec 3946     		mov	r1, r7
+ 300 00ee FFF7FEFF 		bl	sub32
+ 301              	.LVL30:
+ 302              		.loc 1 1074 30 discriminator 3 view .LVU90
+ 303              		.loc 1 1074 55 discriminator 3 view .LVU91
+ 304 00f2 059B     		ldr	r3, [sp, #20]
+ 305 00f4 9DF91310 		ldrsb	r1, [sp, #19]
+ 306 00f8 A360     		str	r3, [r4, #8]
+ 307              		.loc 1 1074 55 discriminator 3 view .LVU92
+ 308              		.loc 1 1074 55 discriminator 3 view .LVU93
+ 309              	.LVL31:
+ 310              		.loc 1 1074 55 discriminator 3 view .LVU94
+ 311 00fa E368     		ldr	r3, [r4, #12]
+ 312 00fc 0593     		str	r3, [sp, #20]
+ 313              		.loc 1 1074 55 discriminator 3 view .LVU95
+ 314              		.loc 1 1074 55 discriminator 3 view .LVU96
+ 315              	.LVL32:
+ 316              		.loc 1 1074 55 discriminator 3 view .LVU97
+ 317 00fe 0023     		movs	r3, #0
+ 318 0100 9942     		cmp	r1, r3
+ 319 0102 8DF81330 		strb	r3, [sp, #19]
+ 320              		.loc 1 1074 55 discriminator 3 view .LVU98
+ 321 0106 80F2E680 		bge	.L12
+ 322              		.loc 1 1074 55 discriminator 1 view .LVU99
+ 323 010a 4942     		rsbs	r1, r1, #0
+ 324              	.LVL33:
+ 325              		.loc 1 1074 55 is_stmt 0 discriminator 1 view .LVU100
+ 326 010c FFF7FEFF 		bl	sub32
+ 327              	.LVL34:
+ 328              	.L13:
+ 329              		.loc 1 1074 59 is_stmt 1 discriminator 4 view .LVU101
+1075:Libs/mbedtls/library/ecp_curves.c **** 
+1076:Libs/mbedtls/library/ecp_curves.c ****     ADD(11); ADD(11); ADD(12); ADD(12); ADD(13);
+ 330              		.loc 1 1076 5 view .LVU102
+ 331 0110 0DF11302 		add	r2, sp, #19
+ 332 0114 05A8     		add	r0, sp, #20
+ 333 0116 4946     		mov	r1, r9
+ 334 0118 FFF7FEFF 		bl	add32
+ 335              	.LVL35:
+ 336              		.loc 1 1076 12 discriminator 1 view .LVU103
+ 337              		.loc 1 1076 14 discriminator 1 view .LVU104
+ 338 011c FFF7FEFF 		bl	add32
+ 339              	.LVL36:
+ 340              		.loc 1 1076 21 discriminator 2 view .LVU105
+ 341              		.loc 1 1076 23 discriminator 2 view .LVU106
+ 342 0120 4146     		mov	r1, r8
+ 343 0122 FFF7FEFF 		bl	add32
+ 344              	.LVL37:
+ 345              		.loc 1 1076 30 discriminator 3 view .LVU107
+ 346              		.loc 1 1076 32 discriminator 3 view .LVU108
+ 347 0126 FFF7FEFF 		bl	add32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 26
+
+
+ 348              	.LVL38:
+ 349              		.loc 1 1076 39 discriminator 4 view .LVU109
+ 350              		.loc 1 1076 41 discriminator 4 view .LVU110
+ 351 012a 2946     		mov	r1, r5
+ 352 012c FFF7FEFF 		bl	add32
+ 353              	.LVL39:
+ 354              		.loc 1 1076 48 discriminator 5 view .LVU111
+1077:Libs/mbedtls/library/ecp_curves.c ****     SUB(15); SUB(8); SUB(9);                        NEXT;         // A3
+ 355              		.loc 1 1077 5 view .LVU112
+ 356 0130 3946     		mov	r1, r7
+ 357 0132 FFF7FEFF 		bl	sub32
+ 358              	.LVL40:
+ 359              		.loc 1 1077 12 discriminator 1 view .LVU113
+ 360              		.loc 1 1077 14 discriminator 1 view .LVU114
+ 361 0136 0199     		ldr	r1, [sp, #4]
+ 362 0138 FFF7FEFF 		bl	sub32
+ 363              	.LVL41:
+ 364              		.loc 1 1077 20 discriminator 2 view .LVU115
+ 365              		.loc 1 1077 22 discriminator 2 view .LVU116
+ 366 013c 5946     		mov	r1, fp
+ 367 013e FFF7FEFF 		bl	sub32
+ 368              	.LVL42:
+ 369              		.loc 1 1077 28 discriminator 3 view .LVU117
+ 370              		.loc 1 1077 53 discriminator 3 view .LVU118
+ 371 0142 059B     		ldr	r3, [sp, #20]
+ 372 0144 9DF91310 		ldrsb	r1, [sp, #19]
+ 373 0148 E360     		str	r3, [r4, #12]
+ 374              		.loc 1 1077 53 discriminator 3 view .LVU119
+ 375              		.loc 1 1077 53 discriminator 3 view .LVU120
+ 376              	.LVL43:
+ 377              		.loc 1 1077 53 discriminator 3 view .LVU121
+ 378 014a 2369     		ldr	r3, [r4, #16]
+ 379 014c 0593     		str	r3, [sp, #20]
+ 380              		.loc 1 1077 53 discriminator 3 view .LVU122
+ 381              		.loc 1 1077 53 discriminator 3 view .LVU123
+ 382              	.LVL44:
+ 383              		.loc 1 1077 53 discriminator 3 view .LVU124
+ 384 014e 0023     		movs	r3, #0
+ 385 0150 9942     		cmp	r1, r3
+ 386 0152 8DF81330 		strb	r3, [sp, #19]
+ 387              		.loc 1 1077 53 discriminator 3 view .LVU125
+ 388 0156 80F2C180 		bge	.L14
+ 389              		.loc 1 1077 53 discriminator 1 view .LVU126
+ 390 015a 4942     		rsbs	r1, r1, #0
+ 391              	.LVL45:
+ 392              		.loc 1 1077 53 is_stmt 0 discriminator 1 view .LVU127
+ 393 015c FFF7FEFF 		bl	sub32
+ 394              	.LVL46:
+ 395              	.L15:
+ 396              		.loc 1 1077 57 is_stmt 1 discriminator 4 view .LVU128
+1078:Libs/mbedtls/library/ecp_curves.c **** 
+1079:Libs/mbedtls/library/ecp_curves.c ****     ADD(12); ADD(12); ADD(13); ADD(13); ADD(14);
+ 397              		.loc 1 1079 5 view .LVU129
+ 398 0160 0DF11302 		add	r2, sp, #19
+ 399 0164 05A8     		add	r0, sp, #20
+ 400 0166 4146     		mov	r1, r8
+ 401 0168 FFF7FEFF 		bl	add32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 27
+
+
+ 402              	.LVL47:
+ 403              		.loc 1 1079 12 discriminator 1 view .LVU130
+ 404              		.loc 1 1079 14 discriminator 1 view .LVU131
+ 405 016c FFF7FEFF 		bl	add32
+ 406              	.LVL48:
+ 407              		.loc 1 1079 21 discriminator 2 view .LVU132
+ 408              		.loc 1 1079 23 discriminator 2 view .LVU133
+ 409 0170 2946     		mov	r1, r5
+ 410 0172 FFF7FEFF 		bl	add32
+ 411              	.LVL49:
+ 412              		.loc 1 1079 30 discriminator 3 view .LVU134
+ 413              		.loc 1 1079 32 discriminator 3 view .LVU135
+ 414 0176 FFF7FEFF 		bl	add32
+ 415              	.LVL50:
+ 416              		.loc 1 1079 39 discriminator 4 view .LVU136
+ 417              		.loc 1 1079 41 discriminator 4 view .LVU137
+ 418 017a 3146     		mov	r1, r6
+ 419 017c FFF7FEFF 		bl	add32
+ 420              	.LVL51:
+ 421              		.loc 1 1079 48 discriminator 5 view .LVU138
+1080:Libs/mbedtls/library/ecp_curves.c ****     SUB(9); SUB(10);                                   NEXT;      // A4
+ 422              		.loc 1 1080 5 view .LVU139
+ 423 0180 5946     		mov	r1, fp
+ 424 0182 FFF7FEFF 		bl	sub32
+ 425              	.LVL52:
+ 426              		.loc 1 1080 11 discriminator 1 view .LVU140
+ 427              		.loc 1 1080 13 discriminator 1 view .LVU141
+ 428 0186 5146     		mov	r1, r10
+ 429 0188 FFF7FEFF 		bl	sub32
+ 430              	.LVL53:
+ 431              		.loc 1 1080 20 discriminator 2 view .LVU142
+ 432              		.loc 1 1080 56 discriminator 2 view .LVU143
+ 433 018c 059B     		ldr	r3, [sp, #20]
+ 434 018e 9DF91310 		ldrsb	r1, [sp, #19]
+ 435 0192 2361     		str	r3, [r4, #16]
+ 436              		.loc 1 1080 56 discriminator 2 view .LVU144
+ 437              		.loc 1 1080 56 discriminator 2 view .LVU145
+ 438              	.LVL54:
+ 439              		.loc 1 1080 56 discriminator 2 view .LVU146
+ 440 0194 6369     		ldr	r3, [r4, #20]
+ 441 0196 0593     		str	r3, [sp, #20]
+ 442              		.loc 1 1080 56 discriminator 2 view .LVU147
+ 443              		.loc 1 1080 56 discriminator 2 view .LVU148
+ 444              	.LVL55:
+ 445              		.loc 1 1080 56 discriminator 2 view .LVU149
+ 446 0198 0023     		movs	r3, #0
+ 447 019a 9942     		cmp	r1, r3
+ 448 019c 8DF81330 		strb	r3, [sp, #19]
+ 449              		.loc 1 1080 56 discriminator 2 view .LVU150
+ 450 01a0 80F29F80 		bge	.L16
+ 451              		.loc 1 1080 56 discriminator 1 view .LVU151
+ 452 01a4 4942     		rsbs	r1, r1, #0
+ 453              	.LVL56:
+ 454              		.loc 1 1080 56 is_stmt 0 discriminator 1 view .LVU152
+ 455 01a6 FFF7FEFF 		bl	sub32
+ 456              	.LVL57:
+ 457              	.L17:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 28
+
+
+ 458              		.loc 1 1080 60 is_stmt 1 discriminator 4 view .LVU153
+1081:Libs/mbedtls/library/ecp_curves.c **** 
+1082:Libs/mbedtls/library/ecp_curves.c ****     ADD(13); ADD(13); ADD(14); ADD(14); ADD(15);
+ 459              		.loc 1 1082 5 view .LVU154
+ 460 01aa 0DF11302 		add	r2, sp, #19
+ 461 01ae 05A8     		add	r0, sp, #20
+ 462 01b0 2946     		mov	r1, r5
+ 463 01b2 FFF7FEFF 		bl	add32
+ 464              	.LVL58:
+ 465              		.loc 1 1082 12 discriminator 1 view .LVU155
+ 466              		.loc 1 1082 14 discriminator 1 view .LVU156
+ 467 01b6 FFF7FEFF 		bl	add32
+ 468              	.LVL59:
+ 469              		.loc 1 1082 21 discriminator 2 view .LVU157
+ 470              		.loc 1 1082 23 discriminator 2 view .LVU158
+ 471 01ba 3146     		mov	r1, r6
+ 472 01bc FFF7FEFF 		bl	add32
+ 473              	.LVL60:
+ 474              		.loc 1 1082 30 discriminator 3 view .LVU159
+ 475              		.loc 1 1082 32 discriminator 3 view .LVU160
+ 476 01c0 FFF7FEFF 		bl	add32
+ 477              	.LVL61:
+ 478              		.loc 1 1082 39 discriminator 4 view .LVU161
+ 479              		.loc 1 1082 41 discriminator 4 view .LVU162
+ 480 01c4 3946     		mov	r1, r7
+ 481 01c6 FFF7FEFF 		bl	add32
+ 482              	.LVL62:
+ 483              		.loc 1 1082 48 discriminator 5 view .LVU163
+1083:Libs/mbedtls/library/ecp_curves.c ****     SUB(10); SUB(11);                                   NEXT;     // A5
+ 484              		.loc 1 1083 5 view .LVU164
+ 485 01ca 5146     		mov	r1, r10
+ 486 01cc FFF7FEFF 		bl	sub32
+ 487              	.LVL63:
+ 488              		.loc 1 1083 12 discriminator 1 view .LVU165
+ 489              		.loc 1 1083 14 discriminator 1 view .LVU166
+ 490 01d0 4946     		mov	r1, r9
+ 491 01d2 FFF7FEFF 		bl	sub32
+ 492              	.LVL64:
+ 493              		.loc 1 1083 21 discriminator 2 view .LVU167
+ 494              		.loc 1 1083 57 discriminator 2 view .LVU168
+ 495 01d6 059B     		ldr	r3, [sp, #20]
+ 496 01d8 9DF91310 		ldrsb	r1, [sp, #19]
+ 497 01dc 6361     		str	r3, [r4, #20]
+ 498              		.loc 1 1083 57 discriminator 2 view .LVU169
+ 499              		.loc 1 1083 57 discriminator 2 view .LVU170
+ 500              	.LVL65:
+ 501              		.loc 1 1083 57 discriminator 2 view .LVU171
+ 502 01de A369     		ldr	r3, [r4, #24]
+ 503 01e0 0593     		str	r3, [sp, #20]
+ 504              		.loc 1 1083 57 discriminator 2 view .LVU172
+ 505              		.loc 1 1083 57 discriminator 2 view .LVU173
+ 506              	.LVL66:
+ 507              		.loc 1 1083 57 discriminator 2 view .LVU174
+ 508 01e2 0023     		movs	r3, #0
+ 509 01e4 9942     		cmp	r1, r3
+ 510 01e6 8DF81330 		strb	r3, [sp, #19]
+ 511              		.loc 1 1083 57 discriminator 2 view .LVU175
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 29
+
+
+ 512 01ea 7DDA     		bge	.L18
+ 513              		.loc 1 1083 57 discriminator 1 view .LVU176
+ 514 01ec 4942     		rsbs	r1, r1, #0
+ 515              	.LVL67:
+ 516              		.loc 1 1083 57 is_stmt 0 discriminator 1 view .LVU177
+ 517 01ee FFF7FEFF 		bl	sub32
+ 518              	.LVL68:
+ 519              	.L19:
+ 520              		.loc 1 1083 61 is_stmt 1 discriminator 4 view .LVU178
+1084:Libs/mbedtls/library/ecp_curves.c **** 
+1085:Libs/mbedtls/library/ecp_curves.c ****     ADD(14); ADD(14); ADD(15); ADD(15); ADD(14); ADD(13);
+ 521              		.loc 1 1085 5 view .LVU179
+ 522 01f2 0DF11302 		add	r2, sp, #19
+ 523 01f6 05A8     		add	r0, sp, #20
+ 524 01f8 3146     		mov	r1, r6
+ 525 01fa FFF7FEFF 		bl	add32
+ 526              	.LVL69:
+ 527              		.loc 1 1085 12 discriminator 1 view .LVU180
+ 528              		.loc 1 1085 14 discriminator 1 view .LVU181
+ 529 01fe FFF7FEFF 		bl	add32
+ 530              	.LVL70:
+ 531              		.loc 1 1085 21 discriminator 2 view .LVU182
+ 532              		.loc 1 1085 23 discriminator 2 view .LVU183
+ 533 0202 3946     		mov	r1, r7
+ 534 0204 FFF7FEFF 		bl	add32
+ 535              	.LVL71:
+ 536              		.loc 1 1085 30 discriminator 3 view .LVU184
+ 537              		.loc 1 1085 32 discriminator 3 view .LVU185
+ 538 0208 FFF7FEFF 		bl	add32
+ 539              	.LVL72:
+ 540              		.loc 1 1085 39 discriminator 4 view .LVU186
+ 541              		.loc 1 1085 41 discriminator 4 view .LVU187
+ 542 020c 3146     		mov	r1, r6
+ 543 020e FFF7FEFF 		bl	add32
+ 544              	.LVL73:
+ 545              		.loc 1 1085 48 discriminator 5 view .LVU188
+ 546              		.loc 1 1085 50 discriminator 5 view .LVU189
+ 547 0212 2946     		mov	r1, r5
+ 548 0214 FFF7FEFF 		bl	add32
+ 549              	.LVL74:
+ 550              		.loc 1 1085 57 discriminator 6 view .LVU190
+1086:Libs/mbedtls/library/ecp_curves.c ****     SUB(8); SUB(9);                                   NEXT;       // A6
+ 551              		.loc 1 1086 5 view .LVU191
+ 552 0218 0199     		ldr	r1, [sp, #4]
+ 553 021a FFF7FEFF 		bl	sub32
+ 554              	.LVL75:
+ 555              		.loc 1 1086 11 discriminator 1 view .LVU192
+ 556              		.loc 1 1086 13 discriminator 1 view .LVU193
+ 557 021e 5946     		mov	r1, fp
+ 558 0220 FFF7FEFF 		bl	sub32
+ 559              	.LVL76:
+ 560              		.loc 1 1086 19 discriminator 2 view .LVU194
+ 561              		.loc 1 1086 55 discriminator 2 view .LVU195
+ 562 0224 059B     		ldr	r3, [sp, #20]
+ 563 0226 9DF91310 		ldrsb	r1, [sp, #19]
+ 564 022a A361     		str	r3, [r4, #24]
+ 565              		.loc 1 1086 55 discriminator 2 view .LVU196
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 30
+
+
+ 566              		.loc 1 1086 55 discriminator 2 view .LVU197
+ 567              	.LVL77:
+ 568              		.loc 1 1086 55 discriminator 2 view .LVU198
+ 569 022c E369     		ldr	r3, [r4, #28]
+ 570 022e 0593     		str	r3, [sp, #20]
+ 571              		.loc 1 1086 55 discriminator 2 view .LVU199
+ 572              		.loc 1 1086 55 discriminator 2 view .LVU200
+ 573              	.LVL78:
+ 574              		.loc 1 1086 55 discriminator 2 view .LVU201
+ 575 0230 0023     		movs	r3, #0
+ 576 0232 9942     		cmp	r1, r3
+ 577 0234 8DF81330 		strb	r3, [sp, #19]
+ 578              		.loc 1 1086 55 discriminator 2 view .LVU202
+ 579 0238 59DA     		bge	.L20
+ 580              		.loc 1 1086 55 discriminator 1 view .LVU203
+ 581 023a 4942     		rsbs	r1, r1, #0
+ 582              	.LVL79:
+ 583              		.loc 1 1086 55 is_stmt 0 discriminator 1 view .LVU204
+ 584 023c FFF7FEFF 		bl	sub32
+ 585              	.LVL80:
+ 586              	.L21:
+ 587              		.loc 1 1086 59 is_stmt 1 discriminator 4 view .LVU205
+1087:Libs/mbedtls/library/ecp_curves.c **** 
+1088:Libs/mbedtls/library/ecp_curves.c ****     ADD(15); ADD(15); ADD(15); ADD(8);
+ 588              		.loc 1 1088 5 view .LVU206
+ 589 0240 0DF11302 		add	r2, sp, #19
+ 590 0244 05A8     		add	r0, sp, #20
+ 591 0246 3946     		mov	r1, r7
+ 592 0248 FFF7FEFF 		bl	add32
+ 593              	.LVL81:
+ 594              		.loc 1 1088 12 discriminator 1 view .LVU207
+ 595              		.loc 1 1088 14 discriminator 1 view .LVU208
+ 596 024c FFF7FEFF 		bl	add32
+ 597              	.LVL82:
+ 598              		.loc 1 1088 21 discriminator 2 view .LVU209
+ 599              		.loc 1 1088 23 discriminator 2 view .LVU210
+ 600 0250 FFF7FEFF 		bl	add32
+ 601              	.LVL83:
+ 602              		.loc 1 1088 30 discriminator 3 view .LVU211
+ 603              		.loc 1 1088 32 discriminator 3 view .LVU212
+ 604 0254 0199     		ldr	r1, [sp, #4]
+ 605 0256 FFF7FEFF 		bl	add32
+ 606              	.LVL84:
+ 607              		.loc 1 1088 38 discriminator 4 view .LVU213
+1089:Libs/mbedtls/library/ecp_curves.c ****     SUB(10); SUB(11); SUB(12); SUB(13);             LAST;         // A7
+ 608              		.loc 1 1089 5 view .LVU214
+ 609 025a 5146     		mov	r1, r10
+ 610 025c FFF7FEFF 		bl	sub32
+ 611              	.LVL85:
+ 612              		.loc 1 1089 12 discriminator 1 view .LVU215
+ 613              		.loc 1 1089 14 discriminator 1 view .LVU216
+ 614 0260 4946     		mov	r1, r9
+ 615 0262 FFF7FEFF 		bl	sub32
+ 616              	.LVL86:
+ 617              		.loc 1 1089 21 discriminator 2 view .LVU217
+ 618              		.loc 1 1089 23 discriminator 2 view .LVU218
+ 619 0266 4146     		mov	r1, r8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 31
+
+
+ 620 0268 FFF7FEFF 		bl	sub32
+ 621              	.LVL87:
+ 622              		.loc 1 1089 30 discriminator 3 view .LVU219
+ 623              		.loc 1 1089 32 discriminator 3 view .LVU220
+ 624 026c 2946     		mov	r1, r5
+ 625 026e FFF7FEFF 		bl	sub32
+ 626              	.LVL88:
+ 627              		.loc 1 1089 39 discriminator 4 view .LVU221
+ 628              		.loc 1 1089 53 discriminator 4 view .LVU222
+ 629 0272 059B     		ldr	r3, [sp, #20]
+ 630 0274 9DF91310 		ldrsb	r1, [sp, #19]
+ 631              		.loc 1 1089 53 is_stmt 0 discriminator 3 view .LVU223
+ 632 0278 0020     		movs	r0, #0
+ 633              		.loc 1 1089 53 discriminator 4 view .LVU224
+ 634 027a E361     		str	r3, [r4, #28]
+ 635              		.loc 1 1089 53 is_stmt 1 discriminator 4 view .LVU225
+ 636              		.loc 1 1089 53 discriminator 4 view .LVU226
+ 637              	.LVL89:
+ 638              		.loc 1 1089 53 discriminator 4 view .LVU227
+ 639              		.loc 1 1089 53 discriminator 4 view .LVU228
+ 640 027c 21EAE173 		bic	r3, r1, r1, asr #31
+ 641 0280 2362     		str	r3, [r4, #32]
+ 642              		.loc 1 1089 53 discriminator 4 view .LVU229
+ 643              		.loc 1 1089 53 discriminator 4 view .LVU230
+ 644              		.loc 1 1089 53 discriminator 4 view .LVU231
+ 645              		.loc 1 1089 53 is_stmt 0 discriminator 1 view .LVU232
+ 646 0282 039B     		ldr	r3, [sp, #12]
+ 647 0284 5A68     		ldr	r2, [r3, #4]
+ 648              		.loc 1 1089 53 discriminator 4 view .LVU233
+ 649 0286 0823     		movs	r3, #8
+ 650              	.LVL90:
+ 651              	.L22:
+ 652              		.loc 1 1089 53 is_stmt 1 discriminator 1 view .LVU234
+ 653              		.loc 1 1089 53 discriminator 1 view .LVU235
+ 654 0288 0133     		adds	r3, r3, #1
+ 655              	.LVL91:
+ 656              		.loc 1 1089 53 is_stmt 0 discriminator 1 view .LVU236
+ 657 028a 9A42     		cmp	r2, r3
+ 658 028c 32D8     		bhi	.L23
+ 659              		.loc 1 1089 53 is_stmt 1 discriminator 4 view .LVU237
+ 660 028e 0029     		cmp	r1, #0
+ 661 0290 17DA     		bge	.L5
+ 662 0292 231F     		subs	r3, r4, #4
+ 663              	.LVL92:
+ 664              		.loc 1 1089 53 is_stmt 0 discriminator 4 view .LVU238
+ 665 0294 04F12005 		add	r5, r4, #32
+ 666 0298 1A46     		mov	r2, r3
+ 667              	.L25:
+ 668              	.LBB18:
+ 669              	.LBB19:
+1016:Libs/mbedtls/library/ecp_curves.c ****     }
+ 670              		.loc 1 1016 9 is_stmt 1 view .LVU239
+1016:Libs/mbedtls/library/ecp_curves.c ****     }
+ 671              		.loc 1 1016 41 is_stmt 0 view .LVU240
+ 672 029a 52F8040F 		ldr	r0, [r2, #4]!
+ 673 029e C043     		mvns	r0, r0
+1015:Libs/mbedtls/library/ecp_curves.c ****         N->p[i] = ~(mbedtls_mpi_uint) 0 - N->p[i];
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 32
+
+
+ 674              		.loc 1 1015 19 discriminator 1 view .LVU241
+ 675 02a0 AA42     		cmp	r2, r5
+1016:Libs/mbedtls/library/ecp_curves.c ****     }
+ 676              		.loc 1 1016 17 view .LVU242
+ 677 02a2 1060     		str	r0, [r2]
+1015:Libs/mbedtls/library/ecp_curves.c ****         N->p[i] = ~(mbedtls_mpi_uint) 0 - N->p[i];
+ 678              		.loc 1 1015 60 is_stmt 1 discriminator 3 view .LVU243
+1015:Libs/mbedtls/library/ecp_curves.c ****         N->p[i] = ~(mbedtls_mpi_uint) 0 - N->p[i];
+ 679              		.loc 1 1015 19 discriminator 1 view .LVU244
+ 680 02a4 F9D1     		bne	.L25
+ 681              	.L27:
+1020:Libs/mbedtls/library/ecp_curves.c ****         ++N->p[i];
+ 682              		.loc 1 1020 5 view .LVU245
+1021:Libs/mbedtls/library/ecp_curves.c ****     } while (N->p[i++] == 0 && i <= bits / 8 / sizeof(mbedtls_mpi_uint));
+ 683              		.loc 1 1021 9 view .LVU246
+ 684 02a6 53F8042F 		ldr	r2, [r3, #4]!
+ 685 02aa 0132     		adds	r2, r2, #1
+ 686 02ac 1A60     		str	r2, [r3]
+1022:Libs/mbedtls/library/ecp_curves.c ****     /* Invert the sign.
+ 687              		.loc 1 1022 29 discriminator 2 view .LVU247
+ 688 02ae 0AB9     		cbnz	r2, .L26
+1022:Libs/mbedtls/library/ecp_curves.c ****     /* Invert the sign.
+ 689              		.loc 1 1022 29 is_stmt 0 discriminator 1 view .LVU248
+ 690 02b0 AB42     		cmp	r3, r5
+ 691 02b2 F8D1     		bne	.L27
+ 692              	.L26:
+1025:Libs/mbedtls/library/ecp_curves.c **** 
+ 693              		.loc 1 1025 5 is_stmt 1 view .LVU249
+1025:Libs/mbedtls/library/ecp_curves.c **** 
+ 694              		.loc 1 1025 10 is_stmt 0 view .LVU250
+ 695 02b4 4FF0FF33 		mov	r3, #-1
+ 696 02b8 039A     		ldr	r2, [sp, #12]
+ 697 02ba 1360     		str	r3, [r2]
+1029:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_HAVE_INT64)
+ 698              		.loc 1 1029 5 is_stmt 1 view .LVU251
+ 699              	.LVL93:
+1035:Libs/mbedtls/library/ecp_curves.c **** }
+ 700              		.loc 1 1035 5 view .LVU252
+1035:Libs/mbedtls/library/ecp_curves.c **** }
+ 701              		.loc 1 1035 47 is_stmt 0 view .LVU253
+ 702 02bc 236A     		ldr	r3, [r4, #32]
+ 703 02be 5B1A     		subs	r3, r3, r1
+ 704 02c0 2362     		str	r3, [r4, #32]
+ 705              	.LBE19:
+ 706              	.LBE18:
+ 707              		.loc 1 1089 57 is_stmt 1 discriminator 7 view .LVU254
+1090:Libs/mbedtls/library/ecp_curves.c **** 
+1091:Libs/mbedtls/library/ecp_curves.c **** cleanup:
+1092:Libs/mbedtls/library/ecp_curves.c ****     return ret;
+ 708              		.loc 1 1092 5 view .LVU255
+ 709              	.L7:
+ 710              	.LVL94:
+ 711              	.L5:
+1093:Libs/mbedtls/library/ecp_curves.c **** }
+ 712              		.loc 1 1093 1 is_stmt 0 view .LVU256
+ 713 02c2 0298     		ldr	r0, [sp, #8]
+ 714 02c4 07B0     		add	sp, sp, #28
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 33
+
+
+ 715              	.LCFI3:
+ 716              		.cfi_remember_state
+ 717              		.cfi_def_cfa_offset 36
+ 718              		@ sp needed
+ 719 02c6 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 720              	.LVL95:
+ 721              	.L8:
+ 722              	.LCFI4:
+ 723              		.cfi_restore_state
+1068:Libs/mbedtls/library/ecp_curves.c **** 
+ 724              		.loc 1 1068 53 is_stmt 1 discriminator 2 view .LVU257
+ 725 02ca FFF7FEFF 		bl	add32
+ 726              	.LVL96:
+ 727 02ce D7E6     		b	.L9
+ 728              	.LVL97:
+ 729              	.L10:
+1071:Libs/mbedtls/library/ecp_curves.c **** 
+ 730              		.loc 1 1071 53 discriminator 2 view .LVU258
+ 731 02d0 FFF7FEFF 		bl	add32
+ 732              	.LVL98:
+ 733 02d4 FBE6     		b	.L11
+ 734              	.LVL99:
+ 735              	.L12:
+1074:Libs/mbedtls/library/ecp_curves.c **** 
+ 736              		.loc 1 1074 55 discriminator 2 view .LVU259
+ 737 02d6 FFF7FEFF 		bl	add32
+ 738              	.LVL100:
+ 739 02da 19E7     		b	.L13
+ 740              	.LVL101:
+ 741              	.L14:
+1077:Libs/mbedtls/library/ecp_curves.c **** 
+ 742              		.loc 1 1077 53 discriminator 2 view .LVU260
+ 743 02dc FFF7FEFF 		bl	add32
+ 744              	.LVL102:
+ 745 02e0 3EE7     		b	.L15
+ 746              	.LVL103:
+ 747              	.L16:
+1080:Libs/mbedtls/library/ecp_curves.c **** 
+ 748              		.loc 1 1080 56 discriminator 2 view .LVU261
+ 749 02e2 FFF7FEFF 		bl	add32
+ 750              	.LVL104:
+ 751 02e6 60E7     		b	.L17
+ 752              	.LVL105:
+ 753              	.L18:
+1083:Libs/mbedtls/library/ecp_curves.c **** 
+ 754              		.loc 1 1083 57 discriminator 2 view .LVU262
+ 755 02e8 FFF7FEFF 		bl	add32
+ 756              	.LVL106:
+ 757 02ec 81E7     		b	.L19
+ 758              	.LVL107:
+ 759              	.L20:
+1086:Libs/mbedtls/library/ecp_curves.c **** 
+ 760              		.loc 1 1086 55 discriminator 2 view .LVU263
+ 761 02ee FFF7FEFF 		bl	add32
+ 762              	.LVL108:
+ 763 02f2 A5E7     		b	.L21
+ 764              	.LVL109:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 34
+
+
+ 765              	.L23:
+1089:Libs/mbedtls/library/ecp_curves.c **** 
+ 766              		.loc 1 1089 53 discriminator 3 view .LVU264
+ 767 02f4 44F82300 		str	r0, [r4, r3, lsl #2]
+ 768 02f8 C6E7     		b	.L22
+ 769              		.cfi_endproc
+ 770              	.LFE11:
+ 772              		.section	.text.mbedtls_ecp_group_load,"ax",%progbits
+ 773              		.align	1
+ 774              		.global	mbedtls_ecp_group_load
+ 775              		.syntax unified
+ 776              		.thumb
+ 777              		.thumb_func
+ 779              	mbedtls_ecp_group_load:
+ 780              	.LVL110:
+ 781              	.LFB7:
+ 740:Libs/mbedtls/library/ecp_curves.c ****     ECP_VALIDATE_RET(grp != NULL);
+ 782              		.loc 1 740 1 view -0
+ 783              		.cfi_startproc
+ 784              		@ args = 0, pretend = 0, frame = 0
+ 785              		@ frame_needed = 0, uses_anonymous_args = 0
+ 741:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_ecp_group_free(grp);
+ 786              		.loc 1 741 5 view .LVU266
+ 741:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_ecp_group_free(grp);
+ 787              		.loc 1 741 5 view .LVU267
+ 741:Libs/mbedtls/library/ecp_curves.c ****     mbedtls_ecp_group_free(grp);
+ 788              		.loc 1 741 5 view .LVU268
+ 742:Libs/mbedtls/library/ecp_curves.c **** 
+ 789              		.loc 1 742 5 view .LVU269
+ 740:Libs/mbedtls/library/ecp_curves.c ****     ECP_VALIDATE_RET(grp != NULL);
+ 790              		.loc 1 740 1 is_stmt 0 view .LVU270
+ 791 0000 38B5     		push	{r3, r4, r5, lr}
+ 792              	.LCFI5:
+ 793              		.cfi_def_cfa_offset 16
+ 794              		.cfi_offset 3, -16
+ 795              		.cfi_offset 4, -12
+ 796              		.cfi_offset 5, -8
+ 797              		.cfi_offset 14, -4
+ 740:Libs/mbedtls/library/ecp_curves.c ****     ECP_VALIDATE_RET(grp != NULL);
+ 798              		.loc 1 740 1 view .LVU271
+ 799 0002 0446     		mov	r4, r0
+ 800 0004 0D46     		mov	r5, r1
+ 742:Libs/mbedtls/library/ecp_curves.c **** 
+ 801              		.loc 1 742 5 view .LVU272
+ 802 0006 FFF7FEFF 		bl	mbedtls_ecp_group_free
+ 803              	.LVL111:
+ 744:Libs/mbedtls/library/ecp_curves.c **** 
+ 804              		.loc 1 744 5 is_stmt 1 view .LVU273
+ 805 000a 2046     		mov	r0, r4
+ 806 000c FFF7FEFF 		bl	mbedtls_ecp_group_init
+ 807              	.LVL112:
+ 746:Libs/mbedtls/library/ecp_curves.c **** 
+ 808              		.loc 1 746 5 view .LVU274
+ 748:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192R1_ENABLED)
+ 809              		.loc 1 748 5 is_stmt 0 view .LVU275
+ 810 0010 032D     		cmp	r5, #3
+ 746:Libs/mbedtls/library/ecp_curves.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 35
+
+
+ 811              		.loc 1 746 13 view .LVU276
+ 812 0012 2570     		strb	r5, [r4]
+ 748:Libs/mbedtls/library/ecp_curves.c **** #if defined(MBEDTLS_ECP_DP_SECP192R1_ENABLED)
+ 813              		.loc 1 748 5 is_stmt 1 view .LVU277
+ 814 0014 27D1     		bne	.L31
+ 763:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP(secp256r1);
+ 815              		.loc 1 763 13 view .LVU278
+ 816 0016 164B     		ldr	r3, .L33
+ 817              	.LBB50:
+ 818              	.LBB51:
+ 819              	.LBB52:
+ 820              	.LBB53:
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 821              		.loc 1 529 10 is_stmt 0 view .LVU279
+ 822 0018 0125     		movs	r5, #1
+ 823              	.LVL113:
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 824              		.loc 1 530 10 view .LVU280
+ 825 001a 164A     		ldr	r2, .L33+4
+ 826              	.LBE53:
+ 827              	.LBE52:
+ 566:Libs/mbedtls/library/ecp_curves.c ****     grp->nbits = mbedtls_mpi_bitlen(&grp->N);
+ 828              		.loc 1 566 18 view .LVU281
+ 829 001c 201D     		adds	r0, r4, #4
+ 830              	.LBE51:
+ 831              	.LBE50:
+ 763:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP(secp256r1);
+ 832              		.loc 1 763 13 view .LVU282
+ 833 001e 6366     		str	r3, [r4, #100]
+ 763:Libs/mbedtls/library/ecp_curves.c ****             return LOAD_GROUP(secp256r1);
+ 834              		.loc 1 763 28 is_stmt 1 view .LVU283
+ 764:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP256R1_ENABLED */
+ 835              		.loc 1 764 13 view .LVU284
+ 836              	.LVL114:
+ 837              	.LBB87:
+ 838              	.LBI50:
+ 547:Libs/mbedtls/library/ecp_curves.c ****                           const mbedtls_mpi_uint *p,  size_t plen,
+ 839              		.loc 1 547 12 view .LVU285
+ 840              	.LBB86:
+ 555:Libs/mbedtls/library/ecp_curves.c ****     if (a != NULL) {
+ 841              		.loc 1 555 5 view .LVU286
+ 842              	.LBB56:
+ 843              	.LBI52:
+ 526:Libs/mbedtls/library/ecp_curves.c **** {
+ 844              		.loc 1 526 20 view .LVU287
+ 845              	.LBB54:
+ 528:Libs/mbedtls/library/ecp_curves.c ****     X->n = len / sizeof(mbedtls_mpi_uint);
+ 846              		.loc 1 528 5 view .LVU288
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 847              		.loc 1 529 10 is_stmt 0 view .LVU289
+ 848 0020 0823     		movs	r3, #8
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 849              		.loc 1 530 10 view .LVU290
+ 850 0022 E260     		str	r2, [r4, #12]
+ 851              	.LBE54:
+ 852              	.LBE56:
+ 853              	.LBB57:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 36
+
+
+ 854              	.LBB58:
+ 855 0024 144A     		ldr	r2, .L33+8
+ 856              	.LBE58:
+ 857              	.LBE57:
+ 858              	.LBB61:
+ 859              	.LBB62:
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 860              		.loc 1 529 10 view .LVU291
+ 861 0026 A363     		str	r3, [r4, #56]
+ 862              	.LBE62:
+ 863              	.LBE61:
+ 864              	.LBB65:
+ 865              	.LBB59:
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 866              		.loc 1 530 10 view .LVU292
+ 867 0028 6262     		str	r2, [r4, #36]
+ 868              	.LBE59:
+ 869              	.LBE65:
+ 870              	.LBB66:
+ 871              	.LBB67:
+ 872 002a 144A     		ldr	r2, .L33+12
+ 873              	.LBE67:
+ 874              	.LBE66:
+ 875              	.LBB70:
+ 876              	.LBB71:
+ 540:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) one; /* X->p will not be modified so the cast is safe */
+ 877              		.loc 1 540 10 view .LVU293
+ 878 002c 6564     		str	r5, [r4, #68]
+ 879              	.LBE71:
+ 880              	.LBE70:
+ 881              	.LBB74:
+ 882              	.LBB68:
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 883              		.loc 1 530 10 view .LVU294
+ 884 002e 6265     		str	r2, [r4, #84]
+ 885              	.LBE68:
+ 886              	.LBE74:
+ 887              	.LBB75:
+ 888              	.LBB76:
+ 889 0030 134A     		ldr	r2, .L33+16
+ 890              	.LBE76:
+ 891              	.LBE75:
+ 892              	.LBB78:
+ 893              	.LBB55:
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 894              		.loc 1 529 10 view .LVU295
+ 895 0032 C4E90153 		strd	r5, r3, [r4, #4]
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 896              		.loc 1 530 5 is_stmt 1 view .LVU296
+ 897              	.LVL115:
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 898              		.loc 1 530 5 is_stmt 0 view .LVU297
+ 899              	.LBE55:
+ 900              	.LBE78:
+ 556:Libs/mbedtls/library/ecp_curves.c ****         ecp_mpi_load(&grp->A, a, alen);
+ 901              		.loc 1 556 5 is_stmt 1 view .LVU298
+ 559:Libs/mbedtls/library/ecp_curves.c ****     ecp_mpi_load(&grp->N, n, nlen);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 37
+
+
+ 902              		.loc 1 559 5 view .LVU299
+ 903              	.LBB79:
+ 904              	.LBI57:
+ 526:Libs/mbedtls/library/ecp_curves.c **** {
+ 905              		.loc 1 526 20 view .LVU300
+ 906              	.LBB60:
+ 528:Libs/mbedtls/library/ecp_curves.c ****     X->n = len / sizeof(mbedtls_mpi_uint);
+ 907              		.loc 1 528 5 view .LVU301
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 908              		.loc 1 529 10 is_stmt 0 view .LVU302
+ 909 0036 C4E90753 		strd	r5, r3, [r4, #28]
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 910              		.loc 1 530 5 is_stmt 1 view .LVU303
+ 911              	.LVL116:
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 912              		.loc 1 530 5 is_stmt 0 view .LVU304
+ 913              	.LBE60:
+ 914              	.LBE79:
+ 560:Libs/mbedtls/library/ecp_curves.c **** 
+ 915              		.loc 1 560 5 is_stmt 1 view .LVU305
+ 916              	.LBB80:
+ 917              	.LBI66:
+ 526:Libs/mbedtls/library/ecp_curves.c **** {
+ 918              		.loc 1 526 20 view .LVU306
+ 919              	.LBB69:
+ 528:Libs/mbedtls/library/ecp_curves.c ****     X->n = len / sizeof(mbedtls_mpi_uint);
+ 920              		.loc 1 528 5 view .LVU307
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 921              		.loc 1 529 10 is_stmt 0 view .LVU308
+ 922 003a C4E91353 		strd	r5, r3, [r4, #76]
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 923              		.loc 1 530 5 is_stmt 1 view .LVU309
+ 924              	.LVL117:
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 925              		.loc 1 530 5 is_stmt 0 view .LVU310
+ 926              	.LBE69:
+ 927              	.LBE80:
+ 562:Libs/mbedtls/library/ecp_curves.c ****     ecp_mpi_load(&grp->G.Y, gy, gylen);
+ 928              		.loc 1 562 5 is_stmt 1 view .LVU311
+ 929              	.LBB81:
+ 930              	.LBI75:
+ 526:Libs/mbedtls/library/ecp_curves.c **** {
+ 931              		.loc 1 526 20 view .LVU312
+ 932              	.LBB77:
+ 528:Libs/mbedtls/library/ecp_curves.c ****     X->n = len / sizeof(mbedtls_mpi_uint);
+ 933              		.loc 1 528 5 view .LVU313
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 934              		.loc 1 529 10 is_stmt 0 view .LVU314
+ 935 003e C4E90A53 		strd	r5, r3, [r4, #40]
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 936              		.loc 1 530 5 is_stmt 1 view .LVU315
+ 937              	.LBE77:
+ 938              	.LBE81:
+ 939              	.LBB82:
+ 940              	.LBB63:
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 941              		.loc 1 530 10 is_stmt 0 view .LVU316
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 38
+
+
+ 942 0042 104B     		ldr	r3, .L33+20
+ 943              	.LBE63:
+ 944              	.LBE82:
+ 945              	.LBB83:
+ 946              	.LBB72:
+ 539:Libs/mbedtls/library/ecp_curves.c ****     X->n = 1;
+ 947              		.loc 1 539 10 view .LVU317
+ 948 0044 C4E90F35 		strd	r3, r5, [r4, #60]
+ 541:Libs/mbedtls/library/ecp_curves.c **** }
+ 949              		.loc 1 541 10 view .LVU318
+ 950 0048 0F4B     		ldr	r3, .L33+24
+ 951              	.LBE72:
+ 952              	.LBE83:
+ 953              	.LBB84:
+ 954              	.LBB64:
+ 528:Libs/mbedtls/library/ecp_curves.c ****     X->n = len / sizeof(mbedtls_mpi_uint);
+ 955              		.loc 1 528 10 view .LVU319
+ 956 004a C4E90C25 		strd	r2, r5, [r4, #48]
+ 529:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) p;
+ 957              		.loc 1 529 5 is_stmt 1 view .LVU320
+ 530:Libs/mbedtls/library/ecp_curves.c **** }
+ 958              		.loc 1 530 5 view .LVU321
+ 959              	.LBE64:
+ 960              	.LBE84:
+ 961              	.LBB85:
+ 962              	.LBB73:
+ 540:Libs/mbedtls/library/ecp_curves.c ****     X->p = (mbedtls_mpi_uint *) one; /* X->p will not be modified so the cast is safe */
+ 963              		.loc 1 540 5 view .LVU322
+ 541:Libs/mbedtls/library/ecp_curves.c **** }
+ 964              		.loc 1 541 5 view .LVU323
+ 541:Libs/mbedtls/library/ecp_curves.c **** }
+ 965              		.loc 1 541 10 is_stmt 0 view .LVU324
+ 966 004e A364     		str	r3, [r4, #72]
+ 967              	.LBE73:
+ 968              	.LBE85:
+ 566:Libs/mbedtls/library/ecp_curves.c ****     grp->nbits = mbedtls_mpi_bitlen(&grp->N);
+ 969              		.loc 1 566 5 is_stmt 1 view .LVU325
+ 566:Libs/mbedtls/library/ecp_curves.c ****     grp->nbits = mbedtls_mpi_bitlen(&grp->N);
+ 970              		.loc 1 566 18 is_stmt 0 view .LVU326
+ 971 0050 FFF7FEFF 		bl	mbedtls_mpi_bitlen
+ 972              	.LVL118:
+ 566:Libs/mbedtls/library/ecp_curves.c ****     grp->nbits = mbedtls_mpi_bitlen(&grp->N);
+ 973              		.loc 1 566 16 discriminator 1 view .LVU327
+ 974 0054 A065     		str	r0, [r4, #88]
+ 567:Libs/mbedtls/library/ecp_curves.c **** 
+ 975              		.loc 1 567 5 is_stmt 1 view .LVU328
+ 567:Libs/mbedtls/library/ecp_curves.c **** 
+ 976              		.loc 1 567 18 is_stmt 0 view .LVU329
+ 977 0056 04F14C00 		add	r0, r4, #76
+ 978 005a FFF7FEFF 		bl	mbedtls_mpi_bitlen
+ 979              	.LVL119:
+ 569:Libs/mbedtls/library/ecp_curves.c **** 
+ 980              		.loc 1 569 12 view .LVU330
+ 981 005e C4E91705 		strd	r0, r5, [r4, #92]
+ 571:Libs/mbedtls/library/ecp_curves.c **** }
+ 982              		.loc 1 571 5 is_stmt 1 view .LVU331
+ 983              	.LVL120:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 39
+
+
+ 571:Libs/mbedtls/library/ecp_curves.c **** }
+ 984              		.loc 1 571 5 is_stmt 0 view .LVU332
+ 985              	.LBE86:
+ 986              	.LBE87:
+ 764:Libs/mbedtls/library/ecp_curves.c **** #endif /* MBEDTLS_ECP_DP_SECP256R1_ENABLED */
+ 987              		.loc 1 764 20 view .LVU333
+ 988 0062 0020     		movs	r0, #0
+ 989              	.LVL121:
+ 990              	.L30:
+ 828:Libs/mbedtls/library/ecp_curves.c **** 
+ 991              		.loc 1 828 1 view .LVU334
+ 992 0064 38BD     		pop	{r3, r4, r5, pc}
+ 993              	.LVL122:
+ 994              	.L31:
+ 825:Libs/mbedtls/library/ecp_curves.c ****             return MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+ 995              		.loc 1 825 13 is_stmt 1 view .LVU335
+ 825:Libs/mbedtls/library/ecp_curves.c ****             return MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+ 996              		.loc 1 825 21 is_stmt 0 view .LVU336
+ 997 0066 0023     		movs	r3, #0
+ 826:Libs/mbedtls/library/ecp_curves.c ****     }
+ 998              		.loc 1 826 20 view .LVU337
+ 999 0068 0848     		ldr	r0, .L33+28
+ 825:Libs/mbedtls/library/ecp_curves.c ****             return MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+ 1000              		.loc 1 825 21 view .LVU338
+ 1001 006a 2370     		strb	r3, [r4]
+ 826:Libs/mbedtls/library/ecp_curves.c ****     }
+ 1002              		.loc 1 826 13 is_stmt 1 view .LVU339
+ 826:Libs/mbedtls/library/ecp_curves.c ****     }
+ 1003              		.loc 1 826 20 is_stmt 0 view .LVU340
+ 1004 006c FAE7     		b	.L30
+ 1005              	.L34:
+ 1006 006e 00BF     		.align	2
+ 1007              	.L33:
+ 1008 0070 00000000 		.word	ecp_mod_p256
+ 1009 0074 00000000 		.word	secp256r1_p
+ 1010 0078 00000000 		.word	secp256r1_b
+ 1011 007c 00000000 		.word	secp256r1_n
+ 1012 0080 00000000 		.word	secp256r1_gx
+ 1013 0084 00000000 		.word	secp256r1_gy
+ 1014 0088 00000000 		.word	one.0
+ 1015 008c 80B1FFFF 		.word	-20096
+ 1016              		.cfi_endproc
+ 1017              	.LFE7:
+ 1019              		.section	.rodata.one.0,"a"
+ 1020              		.align	2
+ 1023              	one.0:
+ 1024 0000 01000000 		.word	1
+ 1025              		.section	.rodata.secp256r1_n,"a"
+ 1026              		.align	2
+ 1029              	secp256r1_n:
+ 1030 0000 512563FC 		.word	-60611247
+ 1031 0004 C2CAB9F3 		.word	-205927742
+ 1032 0008 849E17A7 		.word	-1491624316
+ 1033 000c ADFAE6BC 		.word	-1125713235
+ 1034 0010 FFFFFFFF 		.word	-1
+ 1035 0014 FFFFFFFF 		.word	-1
+ 1036 0018 00000000 		.word	0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 40
+
+
+ 1037 001c FFFFFFFF 		.word	-1
+ 1038              		.section	.rodata.secp256r1_gy,"a"
+ 1039              		.align	2
+ 1042              	secp256r1_gy:
+ 1043 0000 F551BF37 		.word	935285237
+ 1044 0004 6840B6CB 		.word	-877248408
+ 1045 0008 CE5E316B 		.word	1798397646
+ 1046 000c 5733CE2B 		.word	734933847
+ 1047 0010 169E0F7C 		.word	2081398294
+ 1048 0014 4AEBE78E 		.word	-1897403574
+ 1049 0018 9B7F1AFE 		.word	-31817829
+ 1050 001c E242E34F 		.word	1340293858
+ 1051              		.section	.rodata.secp256r1_gx,"a"
+ 1052              		.align	2
+ 1055              	secp256r1_gx:
+ 1056 0000 96C298D8 		.word	-661077354
+ 1057 0004 4539A1F4 		.word	-190760635
+ 1058 0008 A033EB2D 		.word	770388896
+ 1059 000c 817D0377 		.word	1996717441
+ 1060 0010 F240A463 		.word	1671708914
+ 1061 0014 E5E6BCF8 		.word	-121837851
+ 1062 0018 47422CE1 		.word	-517193145
+ 1063 001c F2D1176B 		.word	1796723186
+ 1064              		.section	.rodata.secp256r1_b,"a"
+ 1065              		.align	2
+ 1068              	secp256r1_b:
+ 1069 0000 4B60D227 		.word	668098635
+ 1070 0004 3E3CCE3B 		.word	1003371582
+ 1071 0008 F6B053CC 		.word	-866930442
+ 1072 000c B0061D65 		.word	1696401072
+ 1073 0010 BC869876 		.word	1989707452
+ 1074 0014 55BDEBB3 		.word	-1276396203
+ 1075 0018 E7933AAA 		.word	-1439001625
+ 1076 001c D835C65A 		.word	1522939352
+ 1077              		.section	.rodata.secp256r1_p,"a"
+ 1078              		.align	2
+ 1081              	secp256r1_p:
+ 1082 0000 FFFFFFFF 		.word	-1
+ 1083 0004 FFFFFFFF 		.word	-1
+ 1084 0008 FFFFFFFF 		.word	-1
+ 1085 000c 00000000 		.word	0
+ 1086 0010 00000000 		.word	0
+ 1087 0014 00000000 		.word	0
+ 1088 0018 01000000 		.word	1
+ 1089 001c FFFFFFFF 		.word	-1
+ 1090              		.text
+ 1091              	.Letext0:
+ 1092              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1093              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1094              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1095              		.file 5 "Libs/mbedtls/include/mbedtls/bignum.h"
+ 1096              		.file 6 "Libs/mbedtls/include/mbedtls/ecp.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s 			page 41
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ecp_curves.c
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:20     .text.add32:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:25     .text.add32:00000000 add32
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:49     .text.sub32:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:54     .text.sub32:00000000 sub32
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:88     .text.ecp_mod_p256:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:93     .text.ecp_mod_p256:00000000 ecp_mod_p256
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:773    .text.mbedtls_ecp_group_load:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:779    .text.mbedtls_ecp_group_load:00000000 mbedtls_ecp_group_load
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1008   .text.mbedtls_ecp_group_load:00000070 $d
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1081   .rodata.secp256r1_p:00000000 secp256r1_p
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1068   .rodata.secp256r1_b:00000000 secp256r1_b
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1029   .rodata.secp256r1_n:00000000 secp256r1_n
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1055   .rodata.secp256r1_gx:00000000 secp256r1_gx
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1042   .rodata.secp256r1_gy:00000000 secp256r1_gy
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1023   .rodata.one.0:00000000 one.0
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1020   .rodata.one.0:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1026   .rodata.secp256r1_n:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1039   .rodata.secp256r1_gy:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1052   .rodata.secp256r1_gx:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1065   .rodata.secp256r1_b:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccsRezgf.s:1078   .rodata.secp256r1_p:00000000 $d
+
+UNDEFINED SYMBOLS
+mbedtls_mpi_grow
+mbedtls_ecp_group_free
+mbedtls_ecp_group_init
+mbedtls_mpi_bitlen

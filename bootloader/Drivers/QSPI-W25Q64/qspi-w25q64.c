@@ -45,6 +45,7 @@
 ***/
 
 #include "qspi-w25q64.h"
+#include "boot_profile.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
@@ -162,14 +163,14 @@ int8_t QSPI_W25Qxx_Init(void)
 {
     uint32_t Device_ID;
     
-    MX_QUADSPI_Init();
-    QSPI_W25Qxx_Reset();
-    Device_ID = QSPI_W25Qxx_ReadID();
+    BP_RUN(BP_QSPI_CONTROLLER, MX_QUADSPI_Init());
+    BP_CALL(BP_QSPI_RESET, QSPI_W25Qxx_Reset());
+    Device_ID = BP_CALL(BP_QSPI_ID, QSPI_W25Qxx_ReadID());
     
     if(Device_ID == W25Qxx_FLASH_ID)
     {   
         // 启用Quad模式
-        if (QSPI_W25Qxx_QuadEnable() != QSPI_W25Qxx_OK) {
+        if (BP_CALL(BP_QSPI_QUAD, QSPI_W25Qxx_QuadEnable()) != QSPI_W25Qxx_OK) {
             QSPI_W25Qxx_DBG("Quad Enable failed!");
             return W25Qxx_ERROR_INIT;
         }
@@ -897,7 +898,7 @@ int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void)
 	}
 	
 	/* 等待复位完成 */
-	HAL_Delay(5);
+	BP_RUN(BP_UNMAP_WAIT, HAL_Delay(5));
 	
 	/* 重新初始化QSPI控制器 */
 	// 可以调用您的QSPI初始化函数，或者在这里添加必要的初始化代码

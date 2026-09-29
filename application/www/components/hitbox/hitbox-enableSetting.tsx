@@ -216,7 +216,7 @@ export default function HitboxEnableSetting({
                 onMouseUp={handleClick}
                 $scale={scale}
             >
-                <title>hitbox</title>
+                <title>XORA</title>
                 <StyledFrame x="0.36" y="0.36" width={HITBOX_WIDTH} height={HITBOX_HEIGHT} rx="10" />
 
                 {/* 渲染按钮外框 */}

@@ -1,0 +1,411 @@
+#include "configs/calibration_command_handler.hpp"
+#include "system_logger.h"
+#include "adc_btns/adc_calibration.hpp"
+#include "configs/webconfig_btns_manager.hpp"
+#include "configs/webconfig_leds_manager.hpp"
+#include "config_transport_sink.hpp"
+#include <cstring>
+
+// 获取校准管理器实例
+#define ADC_CALIBRATION_MANAGER ADCCalibrationManager::getInstance()
+// 获取按键管理器实例  
+#define WEBCONFIG_BTNS_MANAGER WebConfigBtnsManager::getInstance()
+
+// ============================================================================
+// CalibrationCommandHandler 单例实现
+// ============================================================================
+
+CalibrationCommandHandler& CalibrationCommandHandler::getInstance() {
+    static CalibrationCommandHandler instance;
+
+    // 设置校准状态变更回调，当状态变化时自动推送通知
+    static bool callbackSet = false;
+    if (!callbackSet) {
+        ADC_CALIBRATION_MANAGER.setCalibrationStatusChangedCallback([]() {
+            // 校准状态发生变化，发送推送通知
+            CalibrationCommandHandler::getInstance().sendCalibrationStatusNotification();
+        });
+        callbackSet = true;
+    }
+    
+    return instance;
+}
+
+// ============================================================================
+// 推送功能实现
+// ============================================================================
+
+/**
+ * @brief 推送校准状态变化通知
+ */
+void CalibrationCommandHandler::sendCalibrationStatusNotification() {
+    // 构建校准状态数据
+    cJSON* notificationData = cJSON_CreateObject();
+    cJSON* statusJSON = buildCalibrationStatusJSON();
+    
+    cJSON_AddItemToObject(notificationData, "calibrationStatus", statusJSON);
+    cJSON_AddStringToObject(notificationData, "type", "calibration_update");
+    cJSON_AddNumberToObject(notificationData, "timestamp", HAL_GetTick());
+    
+    // 创建通知消息（无CID的消息表示这是服务器主动推送）
+    cJSON* notification = cJSON_CreateObject();
+    cJSON_AddStringToObject(notification, "command", "calibration_update");
+    cJSON_AddNumberToObject(notification, "errNo", 0);
+    cJSON_AddItemToObject(notification, "data", notificationData);
+    
+    // 转换为JSON字符串
+    char* notificationString = cJSON_PrintUnformatted(notification);
+    if (notificationString) {
+        ConfigTransport_PublishJson(
+            notificationString, strlen(notificationString));
+        
+        // LOG_INFO("DeviceCommand", "Calibration status notification sent to all clients");
+        
+        // 释放JSON字符串内存
+        free(notificationString);
+    } else {
+        LOG_ERROR("DeviceCommand", "Failed to serialize calibration notification");
+    }
+    
+    // 清理JSON对象
+    cJSON_Delete(notification);
+}
+
+// ============================================================================
+// 校准相关命令实现
+// ============================================================================
+
+/**
+ * @brief 开始手动校准
+ * 对应HTTP接口: POST /api/start-manual-calibration
+ * 
+ * DeviceCommand命令格式:
+ * {
+ *   "cid": 1,
+ *   "command": "start_manual_calibration",
+ *   "params": {}
+ * }
+ * 
+ * 响应格式:
+ * {
+ *   "cid": 1,
+ *   "command": "start_manual_calibration",
+ *   "errNo": 0,
+ *   "data": {
+ *     "message": "Manual calibration started",
+ *     "calibrationStatus": {
+ *       "isActive": true,
+ *       "uncalibratedCount": 8,
+ *       "activeCalibrationCount": 8,
+ *       "allCalibrated": false
+ *     }
+ *   }
+ * }
+ */
+DeviceCommandResponse CalibrationCommandHandler::handleStartManualCalibration(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling start_manual_calibration command, cid: %d", request.getCid());
+
+    /* Calibration owns the key strip and raw ADC observations exclusively.
+     * Clear any page preview before starting so its animation loop cannot
+     * overwrite calibration colours after this command returns. */
+    if (WEBCONFIG_LEDS_MANAGER.isInPreviewMode()) {
+        WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
+    }
+    WEBCONFIG_BTNS_MANAGER.stopButtonWorkers();
+
+    // 开始手动校准
+    ADCBtnsError error = ADC_CALIBRATION_MANAGER.startManualCalibration();
+    if(error != ADCBtnsError::SUCCESS) {
+        LOG_ERROR("DeviceCommand", "start_manual_calibration: Failed to start manual calibration");
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to start manual calibration");
+    }
+    
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Manual calibration started");
+    
+    // 添加校准状态信息
+    cJSON* statusJSON = buildCalibrationStatusJSON();
+    
+    cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
+    
+    // LOG_INFO("DeviceCommand", "start_manual_calibration command completed successfully");
+    
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+/**
+ * @brief 结束手动校准
+ * 对应HTTP接口: POST /api/stop-manual-calibration
+ * 
+ * DeviceCommand命令格式:
+ * {
+ *   "cid": 2,
+ *   "command": "stop_manual_calibration",
+ *   "params": {}
+ * }
+ * 
+ * 响应格式:
+ * {
+ *   "cid": 2,
+ *   "command": "stop_manual_calibration",
+ *   "errNo": 0,
+ *   "data": {
+ *     "message": "Manual calibration stopped",
+ *     "calibrationStatus": {
+ *       "isActive": false,
+ *       "uncalibratedCount": 3,
+ *       "activeCalibrationCount": 0,
+ *       "allCalibrated": false
+ *     }
+ *   }
+ * }
+ */
+DeviceCommandResponse CalibrationCommandHandler::handleStopManualCalibration(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling stop_manual_calibration command, cid: %d", request.getCid());
+    
+    // 停止手动校准
+    ADCBtnsError error = ADC_CALIBRATION_MANAGER.stopCalibration();
+    
+    if(error != ADCBtnsError::SUCCESS) {
+        LOG_ERROR("DeviceCommand", "stop_manual_calibration: Failed to stop manual calibration");
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to stop manual calibration");
+    }
+    
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Manual calibration stopped");
+    
+    // 添加校准状态信息
+    cJSON* statusJSON = buildCalibrationStatusJSON();
+    
+    cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
+    
+    // LOG_INFO("DeviceCommand", "stop_manual_calibration command completed successfully");
+    
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+/**
+ * @brief 获取校准状态
+ * 对应HTTP接口: GET /api/get-calibration-status
+ * 
+ * DeviceCommand命令格式:
+ * {
+ *   "cid": 3,
+ *   "command": "get_calibration_status",
+ *   "params": {}
+ * }
+ * 
+ * 响应格式:
+ * {
+ *   "cid": 3,
+ *   "command": "get_calibration_status",
+ *   "errNo": 0,
+ *   "data": {
+ *     "calibrationStatus": {
+ *       "isActive": true,
+ *       "uncalibratedCount": 3,
+ *       "activeCalibrationCount": 8,
+ *       "allCalibrated": false,
+ *       "buttons": [
+ *         {
+ *           "index": 0,
+ *           "phase": "TOP_SAMPLING",
+ *           "isCalibrated": false,
+ *           "topValue": 0,
+ *           "bottomValue": 0,
+ *           "ledColor": "CYAN"
+ *         }
+ *       ]
+ *     }
+ *   }
+ * }
+ */
+DeviceCommandResponse CalibrationCommandHandler::handleGetCalibrationStatus(const DeviceCommandRequest& request) {
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON* statusJSON = buildCalibrationStatusJSON();
+    
+    cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
+    
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+/**
+ * @brief 清除手动校准数据
+ * 对应HTTP接口: POST /api/clear-manual-calibration-data
+ * 
+ * DeviceCommand命令格式:
+ * {
+ *   "cid": 4,
+ *   "command": "clear_manual_calibration_data",
+ *   "params": {}
+ * }
+ * 
+ * 响应格式:
+ * {
+ *   "cid": 4,
+ *   "command": "clear_manual_calibration_data",
+ *   "errNo": 0,
+ *   "data": {
+ *     "message": "Manual calibration data cleared successfully",
+ *     "calibrationStatus": {
+ *       "isActive": false,
+ *       "uncalibratedCount": 8,
+ *       "activeCalibrationCount": 0,
+ *       "allCalibrated": false
+ *     }
+ *   }
+ * }
+ */
+DeviceCommandResponse CalibrationCommandHandler::handleClearManualCalibrationData(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling clear_manual_calibration_data command, cid: %d", request.getCid());
+    
+    // 清除所有手动校准数据
+    ADCBtnsError error = ADC_CALIBRATION_MANAGER.resetAllCalibration();
+    if(error != ADCBtnsError::SUCCESS) {
+        LOG_ERROR("DeviceCommand", "clear_manual_calibration_data: Failed to clear manual calibration data");
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to clear manual calibration data");
+    }
+    
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Manual calibration data cleared successfully");
+    
+    // 添加清除后的校准状态信息
+    cJSON* statusJSON = buildCalibrationStatusJSON();
+    
+    cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
+    
+    // LOG_INFO("DeviceCommand", "clear_manual_calibration_data command completed successfully");
+
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+// ============================================================================
+// 命令路由处理
+// ============================================================================
+
+DeviceCommandResponse CalibrationCommandHandler::handle(const DeviceCommandRequest& request) {
+    const std::string& command = request.getCommand();
+    
+    // 校准相关命令
+    if (command == "start_manual_calibration") {
+        return handleStartManualCalibration(request);
+    } else if (command == "stop_manual_calibration") {
+        return handleStopManualCalibration(request);
+    } else if (command == "get_calibration_status") {
+        return handleGetCalibrationStatus(request);
+    } else if (command == "clear_manual_calibration_data") {
+        return handleClearManualCalibrationData(request);
+    } else if (command == "check_is_manual_calibration_completed") {
+        return handleCheckIsManualCalibrationCompleted(request);
+    }
+    
+    return create_error_response(request.getCid(), command, -1, "Unknown calibration command");
+}
+
+// ============================================================================
+// 辅助函数实现
+// ============================================================================
+
+/**
+ * @brief 构建校准状态的JSON结构
+ * @return cJSON* 校准状态JSON对象
+ */
+cJSON* CalibrationCommandHandler::buildCalibrationStatusJSON() {
+    cJSON* statusJSON = cJSON_CreateObject();
+    
+    // 添加总体校准状态
+    cJSON_AddBoolToObject(statusJSON, "isActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
+    cJSON_AddNumberToObject(statusJSON, "uncalibratedCount", ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount());
+    cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
+    cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
+    
+    // 注意：即使所有按钮都校准完成，也不自动关闭校准模式
+    // 只有用户手动调用停止校准接口才会关闭校准模式
+    // 这样设计是为了让用户有机会确认校准结果
+    
+    // 添加每个按钮的详细状态
+    cJSON* buttonsArray = cJSON_CreateArray();
+    
+    for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        cJSON* buttonJSON = cJSON_CreateObject();
+        
+        cJSON_AddNumberToObject(buttonJSON, "index", i);
+        
+        // 获取校准阶段
+        CalibrationPhase phase = ADC_CALIBRATION_MANAGER.getButtonPhase(i);
+        cJSON_AddStringToObject(buttonJSON, "phase", getPhaseString(phase));
+        
+        // 获取校准状态
+        cJSON_AddBoolToObject(buttonJSON, "isCalibrated", ADC_CALIBRATION_MANAGER.isButtonCalibrated(i));
+        
+        // 获取校准值
+        uint16_t topValue = 0, bottomValue = 0;
+        ADC_CALIBRATION_MANAGER.getCalibrationValues(i, topValue, bottomValue);
+        cJSON_AddNumberToObject(buttonJSON, "topValue", topValue);
+        cJSON_AddNumberToObject(buttonJSON, "bottomValue", bottomValue);
+        
+        // 获取LED颜色
+        CalibrationLEDColor ledColor = ADC_CALIBRATION_MANAGER.getButtonLEDColor(i);
+        cJSON_AddStringToObject(buttonJSON, "ledColor", getLEDColorString(ledColor));
+        
+        cJSON_AddItemToArray(buttonsArray, buttonJSON);
+    }
+    
+    cJSON_AddItemToObject(statusJSON, "buttons", buttonsArray);
+    
+    return statusJSON;
+}
+
+DeviceCommandResponse CalibrationCommandHandler::handleCheckIsManualCalibrationCompleted(const DeviceCommandRequest& request) {
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(dataJSON, "isCompleted", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated(false)); // 不使用缓存，重新加载校准数据
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+/**
+ * @brief 构建按键状态的JSON结构
+ * @return cJSON* 按键状态JSON对象
+ */
+cJSON* CalibrationCommandHandler::buildButtonStatesJSON() {
+    // 此函数预留，当前在handleGetButtonStates中直接构建JSON
+    // 如果需要复用可以在这里实现
+    return cJSON_CreateObject();
+}
+
+/**
+ * @brief 将校准阶段枚举转换为字符串
+ * @param phase 校准阶段
+ * @return 对应的字符串
+ */
+const char* CalibrationCommandHandler::getPhaseString(CalibrationPhase phase) {
+    switch(phase) {
+        case CalibrationPhase::IDLE: return "IDLE";
+        case CalibrationPhase::TOP_SAMPLING: return "TOP_SAMPLING";
+        case CalibrationPhase::BOTTOM_SAMPLING: return "BOTTOM_SAMPLING";
+        case CalibrationPhase::COMPLETED: return "COMPLETED";
+        case CalibrationPhase::ERROR: return "ERROR";
+        default: return "UNKNOWN";
+    }
+}
+
+/**
+ * @brief 将LED颜色枚举转换为字符串
+ * @param color LED颜色
+ * @return 对应的字符串
+ */
+const char* CalibrationCommandHandler::getLEDColorString(CalibrationLEDColor color) {
+    switch(color) {
+        case CalibrationLEDColor::OFF: return "OFF";
+        case CalibrationLEDColor::RED: return "RED";
+        case CalibrationLEDColor::CYAN: return "CYAN";
+        case CalibrationLEDColor::DARK_BLUE: return "DARK_BLUE";
+        case CalibrationLEDColor::GREEN: return "GREEN";
+        case CalibrationLEDColor::YELLOW: return "YELLOW";
+        default: return "UNKNOWN";
+    }
+}

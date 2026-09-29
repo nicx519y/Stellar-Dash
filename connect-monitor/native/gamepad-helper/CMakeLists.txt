@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.24)
+project(XoraGamepadHelper LANGUAGES CXX)
+add_executable(xora-gamepad-helper main.cpp)
+target_compile_features(xora-gamepad-helper PRIVATE cxx_std_20)
+target_compile_definitions(xora-gamepad-helper PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+set_property(TARGET xora-gamepad-helper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_compile_options(xora-gamepad-helper PRIVATE /W4 /EHsc /utf-8)
+target_link_libraries(xora-gamepad-helper PRIVATE windowsapp xinput9_1_0)

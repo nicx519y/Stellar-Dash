@@ -98,3 +98,20 @@ export function openConfirm(options: { title?: string; message: string; closable
         });
     });
 }
+
+/**
+ * Resolve and close the active confirmation dialog without treating it as an
+ * affirmative user action. Transport disconnects use this to invalidate a
+ * prompt that belongs to the previous device session.
+ */
+export function cancelConfirm(): void {
+    const { isOpen, resolve } = useConfirmStore.getState();
+    if (!isOpen) {
+        return;
+    }
+    resolve?.(false);
+    useConfirmStore.setState({
+        isOpen: false,
+        resolve: undefined,
+    });
+}

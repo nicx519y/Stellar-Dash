@@ -1,0 +1,250 @@
+- generic [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - tablist [ref=e42]:
+          - tab "Global Setting" [selected] [ref=e43] [cursor=pointer]
+          - separator [ref=e47]
+          - tab "Keys Setting" [ref=e48] [cursor=pointer]
+          - separator [ref=e52]
+          - tab "Buttons Performance" [ref=e53] [cursor=pointer]
+          - separator [ref=e60]
+          - tab "Lighting Setting" [ref=e61] [cursor=pointer]
+          - separator [ref=e65]
+          - tab "Switch Marking" [ref=e66] [cursor=pointer]
+          - separator [ref=e71]
+          - tab "Firmware" [ref=e72] [cursor=pointer]
+          - separator [ref=e76]
+          - tab "View Logs" [ref=e77] [cursor=pointer]
+        - button "Finish Configuration" [ref=e84] [cursor=pointer]
+      - generic [ref=e87]:
+        - generic [ref=e88]: MOCK DEVICE
+        - status "Authenticated device" [ref=e127]:
+          - paragraph [ref=e131]: Authenticated device
+        - button "Sign in" [ref=e89] [cursor=pointer]
+        - button "中文" [ref=e96] [cursor=pointer]
+    - generic [ref=e135]:
+      - generic [ref=e138]:
+        - heading "Platform" [level=3] [ref=e140]
+        - radiogroup [ref=e142]:
+          - generic [ref=e143]:
+            - generic [ref=e144]:
+              - radio "Windows PC" [checked] [ref=e145]
+              - generic [ref=e146]: Windows PC
+            - generic [ref=e151]:
+              - radio "PlayStation" [ref=e152]
+              - generic [ref=e153]: PlayStation
+            - generic [ref=e158]:
+              - radio "Xbox One|Series" [ref=e159]
+              - generic [ref=e160]: Xbox One|Series
+            - generic [ref=e165]:
+              - radio "Nintendo Switch" [ref=e166]
+              - generic [ref=e167]: Nintendo Switch
+      - generic [ref=e173]:
+        - generic [ref=e179]:
+          - button "Start Calibration" [ref=e180] [cursor=pointer]
+          - button "Reset Calibration" [ref=e183] [cursor=pointer]
+        - img "hitbox" [ref=e188]:
+          - generic [ref=e190] [cursor=pointer]
+          - generic [ref=e191] [cursor=pointer]
+          - generic [ref=e192] [cursor=pointer]
+          - generic [ref=e193] [cursor=pointer]
+          - generic [ref=e194] [cursor=pointer]
+          - generic [ref=e195] [cursor=pointer]
+          - generic [ref=e196] [cursor=pointer]
+          - generic [ref=e197] [cursor=pointer]
+          - generic [ref=e198] [cursor=pointer]
+          - generic [ref=e199] [cursor=pointer]
+          - generic [ref=e200] [cursor=pointer]
+          - generic [ref=e201] [cursor=pointer]
+          - generic [ref=e202] [cursor=pointer]
+          - generic [ref=e203] [cursor=pointer]
+          - generic [ref=e204] [cursor=pointer]
+          - generic [ref=e205] [cursor=pointer]
+          - generic [ref=e206] [cursor=pointer]
+          - generic [ref=e207] [cursor=pointer]
+          - generic [ref=e208] [cursor=pointer]
+          - generic [ref=e209] [cursor=pointer]
+          - generic: "1"
+          - generic: "2"
+          - generic: "3"
+          - generic: "4"
+          - generic: "5"
+          - generic: "6"
+          - generic: "7"
+          - generic: "8"
+          - generic: "9"
+          - generic: "10"
+          - generic: "11"
+          - generic: "12"
+          - generic: "13"
+          - generic: "14"
+          - generic: "15"
+          - generic: "16"
+          - generic: "17"
+          - generic: "18"
+          - generic: "19"
+          - generic: "20"
+          - generic: "21"
+          - generic: Fn
+      - generic [ref=e215]:
+        - tablist [ref=e216]:
+          - tab "Basic" [ref=e217] [cursor=pointer]
+          - tab "Screen Control" [active] [selected] [ref=e221] [cursor=pointer]
+          - tab "Hotkey" [ref=e226] [cursor=pointer]
+        - tabpanel "Screen Control" [ref=e267]:
+          - paragraph [ref=e270]: Customize the screen control features, such as brightness, contrast, and color.
+          - generic [ref=e271]:
+            - generic [ref=e272]:
+              - separator [ref=e273]
+              - paragraph [ref=e274]: Basic Settings
+              - separator [ref=e275]
+            - generic [ref=e276]:
+              - generic [ref=e277]:
+                - generic [ref=e278]: Brightness
+                - generic [ref=e279]: "70"
+              - slider "Brightness" [ref=e283]
+            - radiogroup [ref=e284]:
+              - generic [ref=e285]:
+                - generic [ref=e286]:
+                  - radio "Dark" [checked] [ref=e287]
+                  - generic [ref=e288]: Dark
+                - generic [ref=e290]:
+                  - radio "Light" [ref=e291]
+                  - generic [ref=e292]: Light
+            - generic [ref=e294]:
+              - separator [ref=e295]
+              - paragraph [ref=e296]: Standby Display
+              - separator [ref=e297]
+            - radiogroup [ref=e299]:
+              - generic [ref=e300]:
+                - generic [ref=e301]:
+                  - radio "None" [ref=e302]
+                  - generic [ref=e303]: None
+                - generic [ref=e305]:
+                  - radio "Background Image" [ref=e306]
+                  - generic [ref=e307]: Background Image
+                - generic [ref=e309]:
+                  - radio "Button Layout" [checked] [ref=e310]
+                  - generic [ref=e311]: Button Layout
+            - list [ref=e315]:
+              - listitem [ref=e316]: Open the gallery to choose an official image or manage up to 10 images in your account. Hold an image for 3 seconds to install it on this device.
+              - listitem [ref=e317]: GIFs are sampled across the full animation to at most 6 frames and play at 3 FPS (about 2 seconds).
+            - generic [ref=e319] [cursor=pointer]
+            - generic [ref=e325]:
+              - separator [ref=e326]
+              - paragraph [ref=e327]: Features Display
+              - separator [ref=e328]
+            - radiogroup [ref=e329]:
+              - table [ref=e330]:
+                - rowgroup [ref=e331]:
+                  - row [ref=e332]:
+                    - cell [ref=e333]:
+                      - paragraph [ref=e343]: Connection Mode Switch
+                    - cell [ref=e344]:
+                      - radio [ref=e347]
+                    - cell [ref=e349]:
+                      - generic [ref=e350]:
+                        - checkbox [checked] [ref=e351]
+                        - generic [aria-hidden] [ref=e352] [cursor=pointer]
+                  - row [ref=e354]:
+                    - cell [ref=e355]:
+                      - paragraph [ref=e365]: Platform Switch
+                    - cell "First Screen" [ref=e366]:
+                      - generic [ref=e368]:
+                        - radio "First Screen" [checked] [ref=e369]
+                        - generic [ref=e372]: First Screen
+                    - cell [ref=e373]:
+                      - generic [ref=e374]:
+                        - checkbox [checked] [ref=e375]
+                        - generic [aria-hidden] [ref=e376] [cursor=pointer]
+                  - row [ref=e378]:
+                    - cell [ref=e379]:
+                      - paragraph [ref=e389]: Profiles Switch
+                    - cell [ref=e390]:
+                      - radio [ref=e393]
+                    - cell [ref=e395]:
+                      - generic [ref=e396]:
+                        - checkbox [checked] [ref=e397]
+                        - generic [aria-hidden] [ref=e398] [cursor=pointer]
+                  - row [ref=e400]:
+                    - cell [ref=e401]:
+                      - paragraph [ref=e411]: SOCD Mode Switch
+                    - cell [ref=e412]:
+                      - radio [ref=e415]
+                    - cell [ref=e417]:
+                      - generic [ref=e418]:
+                        - checkbox [checked] [ref=e419]
+                        - generic [aria-hidden] [ref=e420] [cursor=pointer]
+                  - row [ref=e422]:
+                    - cell [ref=e423]:
+                      - paragraph [ref=e433]: Buttons Performance
+                    - cell [ref=e434]:
+                      - radio [ref=e437]
+                    - cell [ref=e439]:
+                      - generic [ref=e440]:
+                        - checkbox [checked] [ref=e441]
+                        - generic [aria-hidden] [ref=e442] [cursor=pointer]
+                  - row [ref=e444]:
+                    - cell [ref=e445]:
+                      - paragraph [ref=e455]: LED Brightness Adjust
+                    - cell [ref=e456]:
+                      - radio [ref=e459]
+                    - cell [ref=e461]:
+                      - generic [ref=e462]:
+                        - checkbox [checked] [ref=e463]
+                        - generic [aria-hidden] [ref=e464] [cursor=pointer]
+                  - row [ref=e466]:
+                    - cell [ref=e467]:
+                      - paragraph [ref=e477]: LED Effect Switch
+                    - cell [ref=e478]:
+                      - radio [ref=e481]
+                    - cell [ref=e483]:
+                      - generic [ref=e484]:
+                        - checkbox [checked] [ref=e485]
+                        - generic [aria-hidden] [ref=e486] [cursor=pointer]
+                  - row [ref=e488]:
+                    - cell [ref=e489]:
+                      - paragraph [ref=e499]: Ambient Brightness Adjust
+                    - cell [ref=e500]:
+                      - radio [ref=e503]
+                    - cell [ref=e505]:
+                      - generic [ref=e506]:
+                        - checkbox [checked] [ref=e507]
+                        - generic [aria-hidden] [ref=e508] [cursor=pointer]
+                  - row [ref=e510]:
+                    - cell [ref=e511]:
+                      - paragraph [ref=e521]: Ambient Effect Switch
+                    - cell [ref=e522]:
+                      - radio [ref=e525]
+                    - cell [ref=e527]:
+                      - generic [ref=e528]:
+                        - checkbox [checked] [ref=e529]
+                        - generic [aria-hidden] [ref=e530] [cursor=pointer]
+                  - row [ref=e532]:
+                    - cell [ref=e533]:
+                      - paragraph [ref=e543]: Screen Brightness Adjust
+                    - cell [ref=e544]:
+                      - radio [ref=e547]
+                    - cell [ref=e549]:
+                      - generic [ref=e550]:
+                        - checkbox [checked] [ref=e551]
+                        - generic [aria-hidden] [ref=e552] [cursor=pointer]
+                  - row [ref=e554]:
+                    - cell [ref=e555]:
+                      - paragraph [ref=e565]: Web Config Entry
+                    - cell [ref=e566]:
+                      - radio [ref=e569]
+                    - cell [ref=e571]:
+                      - checkbox [checked] [disabled] [ref=e573]
+                  - row [ref=e576]:
+                    - cell [ref=e577]:
+                      - paragraph [ref=e587]: Calibration Mode Switch
+                    - cell [ref=e588]:
+                      - radio [ref=e591]
+                    - cell [ref=e593]:
+                      - generic [ref=e594]:
+                        - checkbox [checked] [ref=e595]
+                        - generic [aria-hidden] [ref=e596] [cursor=pointer]
+  - alert [ref=e266]
+  - region "top Notifications alt+T"

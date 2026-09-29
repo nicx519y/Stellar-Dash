@@ -1,0 +1,3032 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_standby.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_standby.cpp"
+  19              		.section	.text._ZL19reset_image_runtimev,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZL19reset_image_runtimev:
+  26              	.LFB1271:
+   1:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #include "screen_control/spi_screen_standby.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+   3:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #include <string.h>
+   4:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+   5:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #include "board_cfg.h"
+   6:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #include "qspi-w25q64.h"
+   7:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+   8:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #ifndef SPI_SCREEN_STANDBY_TIMEOUT_MS
+   9:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #define SPI_SCREEN_STANDBY_TIMEOUT_MS 5000u
+  10:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #endif
+  11:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  12:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** extern "C" uint32_t HAL_GetTick(void);
+  13:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  14:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint8_t g_display = 0;
+  15:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static char g_bg_image_id[32] = {0};
+  16:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint32_t g_bg = 0;
+  17:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint32_t g_fg = 0xFFFFFFu;
+  18:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  19:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool g_active = false;
+  20:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool g_need_redraw = true;
+  21:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint32_t g_last_activity_ms = 0;
+  22:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint32_t g_last_input_mask = 0;
+  23:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool g_image_source_ready = false;
+  24:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool g_image_source_valid = false;
+  25:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint8_t g_image_kind = 0;
+  26:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint8_t* g_image_pixels = nullptr;
+  27:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint16_t g_image_w = 0;
+  28:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint16_t g_image_h = 0;
+  29:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint8_t g_anim_frame_count = 1;
+  30:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint8_t g_anim_fps = 0;
+  31:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint32_t g_anim_frame_size = 0;
+  32:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint32_t g_anim_frame_offsets[10] = {0};
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 2
+
+
+  33:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint8_t g_anim_frame_index = 0;
+  34:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static uint32_t g_anim_next_ms = 0;
+  35:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  36:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** enum : uint8_t {
+  37:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     STANDBY_IMAGE_NONE = 0u,
+  38:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     STANDBY_IMAGE_HIMG_RGB565 = 1u,
+  39:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     STANDBY_IMAGE_UIMG = 2u
+  40:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** };
+  41:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  42:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t UIMG_MAGIC = 0x474D4955u;
+  43:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint8_t UIMG_FORMAT_RGB565_SINGLE = 1u;
+  44:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint8_t UIMG_FORMAT_RGB565_SEQUENCE = 2u;
+  45:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t UIMG_HEADER_SIZE = 4096u;
+  46:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t SYSBG_MAX_FRAMES = 8u;
+  47:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t SYSBG_FRAME_W = 320u;
+  48:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t SYSBG_FRAME_H = 172u;
+  49:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t SYSBG_FRAME_SIZE = SYSBG_FRAME_W * SYSBG_FRAME_H * 2u;
+  50:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t SYSBG_RESERVED_SIZE = UIMG_HEADER_SIZE + SYSBG_MAX_FRAMES * SYSBG_FRAME_SIZE;
+  51:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t USER_IMAGE_BASE_ADDR = USER_IMAGE_RESOURCES_ADDR + SYSBG_RESERVED_SIZE;
+  52:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const uint32_t USER_IMAGE_AREA_SIZE = USER_IMAGE_RESOURCES_SIZE - SYSBG_RESERVED_SIZE;
+  53:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  54:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const char* USER_IMAGE_ID = "USER_IMAGE";
+  55:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static const char* SYSTEM_IMAGE_ID = "SYSTEM_DEFAULT";
+  56:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  57:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #pragma pack(push, 1)
+  58:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** typedef struct
+  59:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+  60:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t magic;
+  61:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t version;
+  62:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint8_t valid;
+  63:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint8_t format;
+  64:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t width;
+  65:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t height;
+  66:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t size;
+  67:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t offset;
+  68:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     char id[16];
+  69:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** } StandbyUimgHeaderV1;
+  70:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  71:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** typedef struct
+  72:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+  73:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t magic;
+  74:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t version;
+  75:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint8_t valid;
+  76:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint8_t format;
+  77:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t width;
+  78:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t height;
+  79:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint8_t frame_count;
+  80:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint8_t fps;
+  81:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t reserved0;
+  82:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frame_size;
+  83:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frames_offset;
+  84:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t total_size;
+  85:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frame_offsets[10];
+  86:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     char id[16];
+  87:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** } StandbyUimgHeaderV2;
+  88:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** #pragma pack(pop)
+  89:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 3
+
+
+  90:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool tick_reached(uint32_t nowMs, uint32_t targetMs)
+  91:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+  92:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return (int32_t)(nowMs - targetMs) >= 0;
+  93:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+  94:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+  95:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool ensure_qspi_mmap(void)
+  96:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+  97:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (QSPI_W25Qxx_IsMemoryMappedMode()) return true;
+  98:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     int8_t r = QSPI_W25Qxx_EnterMemoryMappedMode();
+  99:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (r != QSPI_W25Qxx_OK) return false;
+ 100:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return QSPI_W25Qxx_IsMemoryMappedMode();
+ 101:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 102:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 103:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static void reset_image_runtime(void)
+ 104:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+  27              		.loc 1 104 1 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+ 105:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_ready = false;
+  31              		.loc 1 105 5 view .LVU1
+ 104:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_ready = false;
+  32              		.loc 1 104 1 is_stmt 0 view .LVU2
+  33 0000 10B5     		push	{r4, lr}
+  34              	.LCFI0:
+  35              		.cfi_def_cfa_offset 8
+  36              		.cfi_offset 4, -8
+  37              		.cfi_offset 14, -4
+  38              		.loc 1 105 26 view .LVU3
+  39 0002 0E4B     		ldr	r3, .L2
+  40 0004 0024     		movs	r4, #0
+ 106:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_valid = false;
+ 107:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_kind = STANDBY_IMAGE_NONE;
+ 108:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = nullptr;
+ 109:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = 0;
+ 110:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = 0;
+ 111:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+  41              		.loc 1 111 24 view .LVU4
+  42 0006 0122     		movs	r2, #1
+ 112:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 113:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = 0u;
+ 114:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
+  43              		.loc 1 114 11 view .LVU5
+  44 0008 0D48     		ldr	r0, .L2+4
+ 105:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_valid = false;
+  45              		.loc 1 105 26 view .LVU6
+  46 000a 1C70     		strb	r4, [r3]
+ 106:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_valid = false;
+  47              		.loc 1 106 5 is_stmt 1 view .LVU7
+  48              		.loc 1 114 11 is_stmt 0 view .LVU8
+  49 000c 2146     		mov	r1, r4
+ 106:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_valid = false;
+  50              		.loc 1 106 26 view .LVU9
+  51 000e 0D4B     		ldr	r3, .L2+8
+  52 0010 1C70     		strb	r4, [r3]
+ 107:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = nullptr;
+  53              		.loc 1 107 5 is_stmt 1 view .LVU10
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 4
+
+
+ 107:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = nullptr;
+  54              		.loc 1 107 18 is_stmt 0 view .LVU11
+  55 0012 0D4B     		ldr	r3, .L2+12
+  56 0014 1C70     		strb	r4, [r3]
+ 108:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = 0;
+  57              		.loc 1 108 5 is_stmt 1 view .LVU12
+ 108:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = 0;
+  58              		.loc 1 108 20 is_stmt 0 view .LVU13
+  59 0016 0D4B     		ldr	r3, .L2+16
+  60 0018 1C60     		str	r4, [r3]
+ 109:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = 0;
+  61              		.loc 1 109 5 is_stmt 1 view .LVU14
+ 109:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = 0;
+  62              		.loc 1 109 15 is_stmt 0 view .LVU15
+  63 001a 0D4B     		ldr	r3, .L2+20
+  64 001c 1C80     		strh	r4, [r3]	@ movhi
+ 110:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+  65              		.loc 1 110 5 is_stmt 1 view .LVU16
+ 110:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+  66              		.loc 1 110 15 is_stmt 0 view .LVU17
+  67 001e 0D4B     		ldr	r3, .L2+24
+  68 0020 1C80     		strh	r4, [r3]	@ movhi
+ 111:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+  69              		.loc 1 111 5 is_stmt 1 view .LVU18
+ 111:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+  70              		.loc 1 111 24 is_stmt 0 view .LVU19
+  71 0022 0D4B     		ldr	r3, .L2+28
+  72 0024 1A70     		strb	r2, [r3]
+ 112:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = 0u;
+  73              		.loc 1 112 5 is_stmt 1 view .LVU20
+  74              		.loc 1 114 11 is_stmt 0 view .LVU21
+  75 0026 2822     		movs	r2, #40
+ 112:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = 0u;
+  76              		.loc 1 112 16 view .LVU22
+  77 0028 0C4B     		ldr	r3, .L2+32
+  78 002a 1C70     		strb	r4, [r3]
+ 113:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
+  79              		.loc 1 113 5 is_stmt 1 view .LVU23
+  80              		.loc 1 114 5 view .LVU24
+  81              		.loc 1 114 11 is_stmt 0 view .LVU25
+  82 002c FFF7FEFF 		bl	memset
+  83              	.LVL0:
+ 115:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_index = 0u;
+  84              		.loc 1 115 5 is_stmt 1 view .LVU26
+  85              		.loc 1 115 24 is_stmt 0 view .LVU27
+  86 0030 0B4B     		ldr	r3, .L2+36
+  87 0032 1C70     		strb	r4, [r3]
+ 116:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_next_ms = 0u;
+  88              		.loc 1 116 5 is_stmt 1 view .LVU28
+  89              		.loc 1 116 20 is_stmt 0 view .LVU29
+  90 0034 0B4B     		ldr	r3, .L2+40
+  91 0036 1C60     		str	r4, [r3]
+ 117:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+  92              		.loc 1 117 1 view .LVU30
+  93 0038 10BD     		pop	{r4, pc}
+  94              	.L3:
+  95 003a 00BF     		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 5
+
+
+  96              	.L2:
+  97 003c 00000000 		.word	_ZL20g_image_source_ready
+  98 0040 00000000 		.word	_ZL20g_anim_frame_offsets
+  99 0044 00000000 		.word	_ZL20g_image_source_valid
+ 100 0048 00000000 		.word	_ZL12g_image_kind
+ 101 004c 00000000 		.word	_ZL14g_image_pixels
+ 102 0050 00000000 		.word	_ZL9g_image_w
+ 103 0054 00000000 		.word	_ZL9g_image_h
+ 104 0058 00000000 		.word	_ZL18g_anim_frame_count
+ 105 005c 00000000 		.word	_ZL10g_anim_fps
+ 106 0060 00000000 		.word	_ZL18g_anim_frame_index
+ 107 0064 00000000 		.word	_ZL14g_anim_next_ms
+ 108              		.cfi_endproc
+ 109              	.LFE1271:
+ 111              		.section	.text._Z18ScreenStandby_Initmm,"ax",%progbits
+ 112              		.align	1
+ 113              		.global	_Z18ScreenStandby_Initmm
+ 114              		.syntax unified
+ 115              		.thumb
+ 116              		.thumb_func
+ 118              	_Z18ScreenStandby_Initmm:
+ 119              	.LVL1:
+ 120              	.LFB1279:
+ 118:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 119:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool parse_uimg_v1(const StandbyUimgHeaderV1* v1, uint32_t maxSize)
+ 120:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 121:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!v1) return false;
+ 122:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1->magic != UIMG_MAGIC || v1->valid != 1u) return false;
+ 123:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frameSize = (uint32_t)v1->width * (uint32_t)v1->height * 2u;
+ 124:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameSize == 0u) return false;
+ 125:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1->size != frameSize) return false;
+ 126:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1->offset < UIMG_HEADER_SIZE) return false;
+ 127:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if ((uint64_t)v1->offset + (uint64_t)frameSize > (uint64_t)maxSize) return false;
+ 128:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 129:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_kind = STANDBY_IMAGE_UIMG;
+ 130:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = v1->width;
+ 131:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = v1->height;
+ 132:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 133:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 134:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = frameSize;
+ 135:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_offsets[0] = v1->offset;
+ 136:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return true;
+ 137:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 138:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 139:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool parse_uimg_v2(const StandbyUimgHeaderV2* v2, uint32_t maxSize)
+ 140:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 141:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!v2) return false;
+ 142:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v2->magic != UIMG_MAGIC || v2->valid != 1u) return false;
+ 143:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 144:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint8_t frameCount = v2->frame_count;
+ 145:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameCount == 0u) frameCount = 1u;
+ 146:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameCount > 10u) frameCount = 10u;
+ 147:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint8_t fps = v2->fps;
+ 148:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (fps > 5u) fps = 5u;
+ 149:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frameSize = (uint32_t)v2->width * (uint32_t)v2->height * 2u;
+ 150:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameSize == 0u) return false;
+ 151:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v2->frame_size != frameSize) return false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 6
+
+
+ 152:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v2->frames_offset < UIMG_HEADER_SIZE) return false;
+ 153:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if ((uint64_t)v2->frames_offset + (uint64_t)frameSize > (uint64_t)maxSize) return false;
+ 154:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 155:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v2->format == UIMG_FORMAT_RGB565_SEQUENCE) {
+ 156:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t expected = frameSize * (uint32_t)frameCount;
+ 157:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != expected) return false;
+ 158:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else if (v2->format == UIMG_FORMAT_RGB565_SINGLE) {
+ 159:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         frameCount = 1u;
+ 160:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         fps = 0u;
+ 161:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != frameSize) return false;
+ 162:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else {
+ 163:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return false;
+ 164:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 165:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 166:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     for (uint8_t i = 0; i < frameCount; i++) {
+ 167:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t off = v2->frame_offsets[i];
+ 168:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (off == 0u) {
+ 169:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             off = v2->frames_offset + (uint32_t)i * frameSize;
+ 170:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 171:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (off < UIMG_HEADER_SIZE) return false;
+ 172:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if ((uint64_t)off + (uint64_t)frameSize > (uint64_t)maxSize) return false;
+ 173:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_anim_frame_offsets[i] = off;
+ 174:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 175:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 176:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_kind = STANDBY_IMAGE_UIMG;
+ 177:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = v2->width;
+ 178:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = v2->height;
+ 179:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = frameCount;
+ 180:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = fps;
+ 181:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = frameSize;
+ 182:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return true;
+ 183:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 184:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 185:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool resolve_uimg_source(const char* imageId)
+ 186:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 187:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!imageId || imageId[0] == '\0') return false;
+ 188:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
+ 189:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 190:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t baseAddr = 0u;
+ 191:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t areaSize = 0u;
+ 192:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (strncmp(imageId, SYSTEM_IMAGE_ID, 16) == 0) {
+ 193:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         baseAddr = USER_IMAGE_RESOURCES_ADDR;
+ 194:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         areaSize = SYSBG_RESERVED_SIZE;
+ 195:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else if (strncmp(imageId, USER_IMAGE_ID, 16) == 0) {
+ 196:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         baseAddr = USER_IMAGE_BASE_ADDR;
+ 197:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         areaSize = USER_IMAGE_AREA_SIZE;
+ 198:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else {
+ 199:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return false;
+ 200:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 201:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (areaSize < sizeof(StandbyUimgHeaderV1)) return false;
+ 202:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 203:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     const uint8_t* base = (const uint8_t*)(uintptr_t)baseAddr;
+ 204:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     StandbyUimgHeaderV1 v1 = {0};
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memcpy(&v1, base, sizeof(v1));
+ 206:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ 207:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 208:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 7
+
+
+ 209:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.version == 1u) {
+ 210:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return parse_uimg_v1(&v1, areaSize);
+ 211:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 212:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (areaSize < sizeof(StandbyUimgHeaderV2)) return false;
+ 213:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     StandbyUimgHeaderV2 v2 = {0};
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memcpy(&v2, base, sizeof(v2));
+ 215:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 216:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 217:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 218:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static bool resolve_himg_source(const char* imageId)
+ 219:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 220:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!imageId || imageId[0] == '\0') return false;
+ 221:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
+ 222:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 223:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     ST7789_AssetInfo info;
+ 224:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memset(&info, 0, sizeof(info));
+ 225:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!ST7789_Assets_Find(imageId, &info)) return false;
+ 226:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (info.type != ST7789_ASSET_TYPE_RGB565LE) return false;
+ 227:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!info.data || info.width == 0u || info.height == 0u) return false;
+ 228:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 229:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_kind = STANDBY_IMAGE_HIMG_RGB565;
+ 230:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = (const uint8_t*)info.data;
+ 231:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = info.width;
+ 232:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = info.height;
+ 233:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 234:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 235:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = (uint32_t)info.width * 2u * (uint32_t)info.height;
+ 236:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return true;
+ 237:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 238:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 239:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static void ensure_image_source(void)
+ 240:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 241:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_image_source_ready) return;
+ 242:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_ready = true;
+ 243:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_valid = false;
+ 244:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_kind = STANDBY_IMAGE_NONE;
+ 245:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = nullptr;
+ 246:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = 0;
+ 247:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = 0;
+ 248:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 249:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 250:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = 0u;
+ 251:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
+ 252:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!ensure_qspi_mmap()) {
+ 253:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 254:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 255:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 256:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (resolve_uimg_source(g_bg_image_id)) {
+ 257:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_image_source_valid = true;
+ 258:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 259:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 260:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (resolve_himg_source(g_bg_image_id)) {
+ 261:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_image_source_valid = true;
+ 262:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 263:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 264:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 265:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static void draw_image_frame(ST7789_Handle* lcd, uint8_t frameIndex)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 8
+
+
+ 266:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 267:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t x = 0u;
+ 268:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t y = 0u;
+ 269:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_image_w < ST7789_WIDTH) {
+ 270:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         x = (uint16_t)((ST7789_WIDTH - g_image_w) / 2u);
+ 271:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 272:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_image_h < ST7789_HEIGHT) {
+ 273:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         y = (uint16_t)((ST7789_HEIGHT - g_image_h) / 2u);
+ 274:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 275:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 276:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_image_kind == STANDBY_IMAGE_HIMG_RGB565) {
+ 277:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_image_pixels) return;
+ 278:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, g_image_pixels, ST7789_BITMAP_RGB565_LE,
+ 279:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 280:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 281:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_image_kind == STANDBY_IMAGE_UIMG) {
+ 282:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (frameIndex >= g_anim_frame_count) frameIndex = 0u;
+ 283:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t addr = 0u;
+ 284:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (strncmp(g_bg_image_id, SYSTEM_IMAGE_ID, 16) == 0) {
+ 285:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             addr = USER_IMAGE_RESOURCES_ADDR + g_anim_frame_offsets[frameIndex];
+ 286:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 287:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             addr = USER_IMAGE_BASE_ADDR + g_anim_frame_offsets[frameIndex];
+ 288:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 289:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         const uint8_t* pixels = (const uint8_t*)(uintptr_t)addr;
+ 290:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, pixels, ST7789_BITMAP_RGB565_LE, (uint32
+ 291:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 292:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 293:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 294:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 295:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** static void draw_button_layout(ST7789_Handle* lcd, uint32_t inputMask)
+ 296:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 297:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     const float scale = (float)ST7789_WIDTH / BOARD_WIDTH;
+ 298:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     ST7789_FillScreen(lcd, g_bg);
+ 299:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     for (uint32_t i = 0; i < (uint32_t)(NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+ 300:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float cx = HITBOX_BUTTON_POS_LIST[i].x * scale;
+ 301:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float cy = HITBOX_BUTTON_POS_LIST[i].y * scale;
+ 302:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float diameter = HITBOX_BUTTON_POS_LIST[i].r * scale;
+ 303:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int x = (int)(cx + 0.5f);
+ 304:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int y = (int)(cy + 0.5f);
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int r = (int)((diameter * 0.5f + 0.5f) * 9 / 10);
+ 306:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 307:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         bool pressed = (inputMask & (1u << i)) != 0u;
+ 308:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (pressed) {
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             ST7789_FillCircle(lcd, x, y, r, g_fg);
+ 310:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 311:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             ST7789_DrawCircle(lcd, x, y, r, g_fg);
+ 312:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             ST7789_DrawCircle(lcd, x, y, r - 1, g_fg);
+ 313:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 314:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 315:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 316:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 317:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** void ScreenStandby_Init(uint32_t nowMs, uint32_t inputMask)
+ 318:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 121              		.loc 1 318 1 is_stmt 1 view -0
+ 122              		.cfi_startproc
+ 123              		@ args = 0, pretend = 0, frame = 0
+ 124              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 9
+
+
+ 125              		@ link register save eliminated.
+ 319:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_active = false;
+ 126              		.loc 1 319 5 view .LVU32
+ 127              		.loc 1 319 14 is_stmt 0 view .LVU33
+ 128 0000 054B     		ldr	r3, .L5
+ 129 0002 0022     		movs	r2, #0
+ 130 0004 1A70     		strb	r2, [r3]
+ 320:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_need_redraw = true;
+ 131              		.loc 1 320 5 is_stmt 1 view .LVU34
+ 132              		.loc 1 320 19 is_stmt 0 view .LVU35
+ 133 0006 0122     		movs	r2, #1
+ 134 0008 044B     		ldr	r3, .L5+4
+ 135 000a 1A70     		strb	r2, [r3]
+ 321:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_last_activity_ms = nowMs;
+ 136              		.loc 1 321 5 is_stmt 1 view .LVU36
+ 137              		.loc 1 321 24 is_stmt 0 view .LVU37
+ 138 000c 044B     		ldr	r3, .L5+8
+ 139 000e 1860     		str	r0, [r3]
+ 322:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_last_input_mask = inputMask;
+ 140              		.loc 1 322 5 is_stmt 1 view .LVU38
+ 141              		.loc 1 322 23 is_stmt 0 view .LVU39
+ 142 0010 044B     		ldr	r3, .L5+12
+ 143 0012 1960     		str	r1, [r3]
+ 323:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     reset_image_runtime();
+ 144              		.loc 1 323 5 is_stmt 1 view .LVU40
+ 145              		.loc 1 323 24 is_stmt 0 view .LVU41
+ 146 0014 FFF7FEBF 		b	_ZL19reset_image_runtimev
+ 147              	.LVL2:
+ 148              	.L6:
+ 149              		.loc 1 323 24 view .LVU42
+ 150              		.align	2
+ 151              	.L5:
+ 152 0018 00000000 		.word	_ZL8g_active
+ 153 001c 00000000 		.word	_ZL13g_need_redraw
+ 154 0020 00000000 		.word	_ZL18g_last_activity_ms
+ 155 0024 00000000 		.word	_ZL17g_last_input_mask
+ 156              		.cfi_endproc
+ 157              	.LFE1279:
+ 159              		.section	.rodata._Z23ScreenStandby_ConfigurehPKcmm.str1.1,"aMS",%progbits,1
+ 160              	.LC0:
+ 161 0000 00       		.ascii	"\000"
+ 162              		.section	.text._Z23ScreenStandby_ConfigurehPKcmm,"ax",%progbits
+ 163              		.align	1
+ 164              		.global	_Z23ScreenStandby_ConfigurehPKcmm
+ 165              		.syntax unified
+ 166              		.thumb
+ 167              		.thumb_func
+ 169              	_Z23ScreenStandby_ConfigurehPKcmm:
+ 170              	.LVL3:
+ 171              	.LFB1280:
+ 324:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 325:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 326:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** void ScreenStandby_Configure(uint8_t standbyDisplay, const char* backgroundImageId, uint32_t bgRgb8
+ 327:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 172              		.loc 1 327 1 is_stmt 1 view -0
+ 173              		.cfi_startproc
+ 174              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 10
+
+
+ 175              		@ frame_needed = 0, uses_anonymous_args = 0
+ 328:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_display != standbyDisplay) {
+ 176              		.loc 1 328 5 view .LVU44
+ 327:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_display != standbyDisplay) {
+ 177              		.loc 1 327 1 is_stmt 0 view .LVU45
+ 178 0000 70B5     		push	{r4, r5, r6, lr}
+ 179              	.LCFI1:
+ 180              		.cfi_def_cfa_offset 16
+ 181              		.cfi_offset 4, -16
+ 182              		.cfi_offset 5, -12
+ 183              		.cfi_offset 6, -8
+ 184              		.cfi_offset 14, -4
+ 327:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_display != standbyDisplay) {
+ 185              		.loc 1 327 1 view .LVU46
+ 186 0002 1D46     		mov	r5, r3
+ 187              		.loc 1 328 19 view .LVU47
+ 188 0004 184B     		ldr	r3, .L21
+ 189              	.LVL4:
+ 327:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_display != standbyDisplay) {
+ 190              		.loc 1 327 1 view .LVU48
+ 191 0006 1646     		mov	r6, r2
+ 192 0008 0C46     		mov	r4, r1
+ 193              		.loc 1 328 5 view .LVU49
+ 194 000a 1A78     		ldrb	r2, [r3]	@ zero_extendqisi2
+ 195              	.LVL5:
+ 329:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_display = standbyDisplay;
+ 330:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_need_redraw = true;
+ 331:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 332:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (strncmp(g_bg_image_id, backgroundImageId ? backgroundImageId : "", sizeof(g_bg_image_id)) !
+ 196              		.loc 1 332 16 discriminator 4 view .LVU50
+ 197 000c 1749     		ldr	r1, .L21+4
+ 198              	.LVL6:
+ 328:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_display = standbyDisplay;
+ 199              		.loc 1 328 5 view .LVU51
+ 200 000e 8242     		cmp	r2, r0
+ 329:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_display = standbyDisplay;
+ 201              		.loc 1 329 9 is_stmt 1 view .LVU52
+ 329:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_display = standbyDisplay;
+ 202              		.loc 1 329 19 is_stmt 0 view .LVU53
+ 203 0010 1EBF     		ittt	ne
+ 204 0012 1870     		strbne	r0, [r3]
+ 330:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 205              		.loc 1 330 9 is_stmt 1 view .LVU54
+ 330:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 206              		.loc 1 330 23 is_stmt 0 view .LVU55
+ 207 0014 0122     		movne	r2, #1
+ 208 0016 164B     		ldrne	r3, .L21+8
+ 209              		.loc 1 332 16 discriminator 4 view .LVU56
+ 210 0018 1648     		ldr	r0, .L21+12
+ 211              	.LVL7:
+ 330:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 212              		.loc 1 330 23 view .LVU57
+ 213 001a 18BF     		it	ne
+ 214 001c 1A70     		strbne	r2, [r3]
+ 215              		.loc 1 332 5 is_stmt 1 view .LVU58
+ 216              		.loc 1 332 16 is_stmt 0 discriminator 4 view .LVU59
+ 217 001e 2022     		movs	r2, #32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 11
+
+
+ 218 0020 002C     		cmp	r4, #0
+ 219 0022 18BF     		it	ne
+ 220 0024 2146     		movne	r1, r4
+ 221 0026 FFF7FEFF 		bl	strncmp
+ 222              	.LVL8:
+ 223              		.loc 1 332 5 discriminator 1 view .LVU60
+ 224 002a 78B1     		cbz	r0, .L10
+ 333:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         memset(g_bg_image_id, 0, sizeof(g_bg_image_id));
+ 225              		.loc 1 333 9 is_stmt 1 view .LVU61
+ 226              		.loc 1 333 15 is_stmt 0 view .LVU62
+ 227 002c 2022     		movs	r2, #32
+ 228 002e 0021     		movs	r1, #0
+ 229 0030 1048     		ldr	r0, .L21+12
+ 230 0032 FFF7FEFF 		bl	memset
+ 231              	.LVL9:
+ 334:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (backgroundImageId) {
+ 232              		.loc 1 334 9 is_stmt 1 view .LVU63
+ 233 0036 24B1     		cbz	r4, .L11
+ 335:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             strncpy(g_bg_image_id, backgroundImageId, sizeof(g_bg_image_id) - 1u);
+ 234              		.loc 1 335 13 view .LVU64
+ 235              		.loc 1 335 20 is_stmt 0 view .LVU65
+ 236 0038 1F22     		movs	r2, #31
+ 237 003a 2146     		mov	r1, r4
+ 238 003c 0D48     		ldr	r0, .L21+12
+ 239 003e FFF7FEFF 		bl	strncpy
+ 240              	.LVL10:
+ 241              	.L11:
+ 336:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 337:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_need_redraw = true;
+ 242              		.loc 1 337 9 is_stmt 1 view .LVU66
+ 243              		.loc 1 337 23 is_stmt 0 view .LVU67
+ 244 0042 0B4B     		ldr	r3, .L21+8
+ 245 0044 0122     		movs	r2, #1
+ 246 0046 1A70     		strb	r2, [r3]
+ 338:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         reset_image_runtime();
+ 247              		.loc 1 338 9 is_stmt 1 view .LVU68
+ 248              		.loc 1 338 28 is_stmt 0 view .LVU69
+ 249 0048 FFF7FEFF 		bl	_ZL19reset_image_runtimev
+ 250              	.LVL11:
+ 251              	.L10:
+ 339:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 340:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_bg != bgRgb888 || g_fg != fgRgb888) {
+ 252              		.loc 1 340 5 is_stmt 1 view .LVU70
+ 253              		.loc 1 340 14 is_stmt 0 view .LVU71
+ 254 004c 0A4A     		ldr	r2, .L21+16
+ 255              		.loc 1 340 5 view .LVU72
+ 256 004e 1368     		ldr	r3, [r2]
+ 257 0050 B342     		cmp	r3, r6
+ 258 0052 0A4B     		ldr	r3, .L21+20
+ 259 0054 02D1     		bne	.L12
+ 260              		.loc 1 340 26 discriminator 1 view .LVU73
+ 261 0056 1968     		ldr	r1, [r3]
+ 262 0058 A942     		cmp	r1, r5
+ 263 005a 04D0     		beq	.L7
+ 264              	.L12:
+ 341:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_bg = bgRgb888;
+ 265              		.loc 1 341 9 is_stmt 1 view .LVU74
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 12
+
+
+ 342:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_fg = fgRgb888;
+ 266              		.loc 1 342 14 is_stmt 0 view .LVU75
+ 267 005c 1D60     		str	r5, [r3]
+ 341:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_bg = bgRgb888;
+ 268              		.loc 1 341 14 view .LVU76
+ 269 005e 1660     		str	r6, [r2]
+ 270              		.loc 1 342 9 is_stmt 1 view .LVU77
+ 343:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_need_redraw = true;
+ 271              		.loc 1 343 9 view .LVU78
+ 272              		.loc 1 343 23 is_stmt 0 view .LVU79
+ 273 0060 0122     		movs	r2, #1
+ 274 0062 034B     		ldr	r3, .L21+8
+ 275 0064 1A70     		strb	r2, [r3]
+ 276              	.L7:
+ 344:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 345:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 277              		.loc 1 345 1 view .LVU80
+ 278 0066 70BD     		pop	{r4, r5, r6, pc}
+ 279              	.LVL12:
+ 280              	.L22:
+ 281              		.loc 1 345 1 view .LVU81
+ 282              		.align	2
+ 283              	.L21:
+ 284 0068 00000000 		.word	_ZL9g_display
+ 285 006c 00000000 		.word	.LC0
+ 286 0070 00000000 		.word	_ZL13g_need_redraw
+ 287 0074 00000000 		.word	_ZL13g_bg_image_id
+ 288 0078 00000000 		.word	_ZL4g_bg
+ 289 007c 00000000 		.word	_ZL4g_fg
+ 290              		.cfi_endproc
+ 291              	.LFE1280:
+ 293              		.section	.text._Z25ScreenStandby_NotifyInputmmbb,"ax",%progbits
+ 294              		.align	1
+ 295              		.global	_Z25ScreenStandby_NotifyInputmmbb
+ 296              		.syntax unified
+ 297              		.thumb
+ 298              		.thumb_func
+ 300              	_Z25ScreenStandby_NotifyInputmmbb:
+ 301              	.LVL13:
+ 302              	.LFB1281:
+ 346:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 347:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool activityEvent, bool wakeEve
+ 348:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 303              		.loc 1 348 1 is_stmt 1 view -0
+ 304              		.cfi_startproc
+ 305              		@ args = 0, pretend = 0, frame = 0
+ 306              		@ frame_needed = 0, uses_anonymous_args = 0
+ 349:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     bool activeInput = activityEvent;
+ 307              		.loc 1 349 5 view .LVU83
+ 350:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (inputMask != g_last_input_mask) {
+ 308              		.loc 1 350 5 view .LVU84
+ 348:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     bool activeInput = activityEvent;
+ 309              		.loc 1 348 1 is_stmt 0 view .LVU85
+ 310 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 311              	.LCFI2:
+ 312              		.cfi_def_cfa_offset 20
+ 313              		.cfi_offset 4, -20
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 13
+
+
+ 314              		.cfi_offset 5, -16
+ 315              		.cfi_offset 6, -12
+ 316              		.cfi_offset 7, -8
+ 317              		.cfi_offset 14, -4
+ 318              		.loc 1 350 19 view .LVU86
+ 319 0002 104E     		ldr	r6, .L38
+ 351:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_last_input_mask = inputMask;
+ 352:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         activeInput = true;
+ 353:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (g_active && g_display == 2u) {
+ 320              		.loc 1 353 9 view .LVU87
+ 321 0004 104C     		ldr	r4, .L38+4
+ 350:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_last_input_mask = inputMask;
+ 322              		.loc 1 350 5 view .LVU88
+ 323 0006 3768     		ldr	r7, [r6]
+ 324              		.loc 1 353 9 view .LVU89
+ 325 0008 2578     		ldrb	r5, [r4]	@ zero_extendqisi2
+ 350:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_last_input_mask = inputMask;
+ 326              		.loc 1 350 5 view .LVU90
+ 327 000a 8F42     		cmp	r7, r1
+ 328 000c 14D0     		beq	.L24
+ 351:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_last_input_mask = inputMask;
+ 329              		.loc 1 351 9 is_stmt 1 view .LVU91
+ 330 000e 0F4A     		ldr	r2, .L38+8
+ 331              	.LVL14:
+ 351:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_last_input_mask = inputMask;
+ 332              		.loc 1 351 27 is_stmt 0 view .LVU92
+ 333 0010 3160     		str	r1, [r6]
+ 352:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (g_active && g_display == 2u) {
+ 334              		.loc 1 352 9 is_stmt 1 view .LVU93
+ 335              	.LVL15:
+ 336              		.loc 1 353 9 view .LVU94
+ 337 0012 0DB9     		cbnz	r5, .L25
+ 338              	.LVL16:
+ 354:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             g_need_redraw = true;
+ 355:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 356:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 357:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (activeInput) {
+ 358:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_last_activity_ms = nowMs;
+ 339              		.loc 1 358 9 view .LVU95
+ 340              		.loc 1 358 28 is_stmt 0 view .LVU96
+ 341 0014 1060     		str	r0, [r2]
+ 359:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 360:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_active && wakeEvent) {
+ 342              		.loc 1 360 5 is_stmt 1 view .LVU97
+ 343              	.LVL17:
+ 344              	.L23:
+ 361:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_active = false;
+ 362:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_need_redraw = true;
+ 363:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 364:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 345              		.loc 1 364 1 is_stmt 0 view .LVU98
+ 346 0016 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 347              	.LVL18:
+ 348              	.L25:
+ 353:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             g_need_redraw = true;
+ 349              		.loc 1 353 35 discriminator 1 view .LVU99
+ 350 0018 0D49     		ldr	r1, .L38+12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 14
+
+
+ 351              	.LVL19:
+ 358:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 352              		.loc 1 358 28 view .LVU100
+ 353 001a 1060     		str	r0, [r2]
+ 353:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             g_need_redraw = true;
+ 354              		.loc 1 353 22 discriminator 1 view .LVU101
+ 355 001c 0978     		ldrb	r1, [r1]	@ zero_extendqisi2
+ 356 001e 0229     		cmp	r1, #2
+ 354:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 357              		.loc 1 354 13 is_stmt 1 view .LVU102
+ 354:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 358              		.loc 1 354 27 is_stmt 0 view .LVU103
+ 359 0020 02BF     		ittt	eq
+ 360 0022 0C49     		ldreq	r1, .L38+16
+ 361 0024 0125     		moveq	r5, #1
+ 362 0026 0D70     		strbeq	r5, [r1]
+ 357:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_last_activity_ms = nowMs;
+ 363              		.loc 1 357 5 is_stmt 1 view .LVU104
+ 364              	.LVL20:
+ 358:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 365              		.loc 1 358 9 view .LVU105
+ 360:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_active = false;
+ 366              		.loc 1 360 5 view .LVU106
+ 367              	.L27:
+ 360:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_active = false;
+ 368              		.loc 1 360 18 is_stmt 0 discriminator 1 view .LVU107
+ 369 0028 002B     		cmp	r3, #0
+ 370 002a F4D0     		beq	.L23
+ 361:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_need_redraw = true;
+ 371              		.loc 1 361 9 is_stmt 1 view .LVU108
+ 361:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_need_redraw = true;
+ 372              		.loc 1 361 18 is_stmt 0 view .LVU109
+ 373 002c 0023     		movs	r3, #0
+ 374              	.LVL21:
+ 362:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 375              		.loc 1 362 23 view .LVU110
+ 376 002e 0122     		movs	r2, #1
+ 361:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_need_redraw = true;
+ 377              		.loc 1 361 18 view .LVU111
+ 378 0030 2370     		strb	r3, [r4]
+ 362:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 379              		.loc 1 362 9 is_stmt 1 view .LVU112
+ 362:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 380              		.loc 1 362 23 is_stmt 0 view .LVU113
+ 381 0032 084B     		ldr	r3, .L38+16
+ 382 0034 1A70     		strb	r2, [r3]
+ 383              		.loc 1 364 1 view .LVU114
+ 384 0036 EEE7     		b	.L23
+ 385              	.LVL22:
+ 386              	.L24:
+ 357:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_last_activity_ms = nowMs;
+ 387              		.loc 1 357 5 is_stmt 1 view .LVU115
+ 388 0038 0AB1     		cbz	r2, .L28
+ 389              	.LVL23:
+ 358:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 390              		.loc 1 358 9 view .LVU116
+ 358:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 15
+
+
+ 391              		.loc 1 358 28 is_stmt 0 view .LVU117
+ 392 003a 044A     		ldr	r2, .L38+8
+ 393              	.LVL24:
+ 358:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 394              		.loc 1 358 28 view .LVU118
+ 395 003c 1060     		str	r0, [r2]
+ 396              	.L28:
+ 360:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_active = false;
+ 397              		.loc 1 360 5 is_stmt 1 view .LVU119
+ 398 003e 002D     		cmp	r5, #0
+ 399 0040 F2D1     		bne	.L27
+ 400 0042 E8E7     		b	.L23
+ 401              	.L39:
+ 402              		.align	2
+ 403              	.L38:
+ 404 0044 00000000 		.word	_ZL17g_last_input_mask
+ 405 0048 00000000 		.word	_ZL8g_active
+ 406 004c 00000000 		.word	_ZL18g_last_activity_ms
+ 407 0050 00000000 		.word	_ZL9g_display
+ 408 0054 00000000 		.word	_ZL13g_need_redraw
+ 409              		.cfi_endproc
+ 410              	.LFE1281:
+ 412              		.section	.text._Z18ScreenStandby_Tickm,"ax",%progbits
+ 413              		.align	1
+ 414              		.global	_Z18ScreenStandby_Tickm
+ 415              		.syntax unified
+ 416              		.thumb
+ 417              		.thumb_func
+ 419              	_Z18ScreenStandby_Tickm:
+ 420              	.LVL25:
+ 421              	.LFB1282:
+ 365:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 366:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** void ScreenStandby_Tick(uint32_t nowMs)
+ 367:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 422              		.loc 1 367 1 view -0
+ 423              		.cfi_startproc
+ 424              		@ args = 0, pretend = 0, frame = 0
+ 425              		@ frame_needed = 0, uses_anonymous_args = 0
+ 426              		@ link register save eliminated.
+ 368:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_active) return;
+ 427              		.loc 1 368 5 view .LVU121
+ 428 0000 084A     		ldr	r2, .L45
+ 429 0002 1378     		ldrb	r3, [r2]	@ zero_extendqisi2
+ 430 0004 6BB9     		cbnz	r3, .L40
+ 369:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_display == 0u) return;
+ 431              		.loc 1 369 5 view .LVU122
+ 432              		.loc 1 369 19 is_stmt 0 view .LVU123
+ 433 0006 084B     		ldr	r3, .L45+4
+ 434              		.loc 1 369 5 view .LVU124
+ 435 0008 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 436 000a 53B1     		cbz	r3, .L40
+ 370:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if ((uint32_t)(nowMs - g_last_activity_ms) < SPI_SCREEN_STANDBY_TIMEOUT_MS) return;
+ 437              		.loc 1 370 5 is_stmt 1 view .LVU125
+ 438              		.loc 1 370 26 is_stmt 0 view .LVU126
+ 439 000c 074B     		ldr	r3, .L45+8
+ 440 000e 1B68     		ldr	r3, [r3]
+ 441 0010 C01A     		subs	r0, r0, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 16
+
+
+ 442              	.LVL26:
+ 443              		.loc 1 370 5 view .LVU127
+ 444 0012 41F28733 		movw	r3, #4999
+ 445 0016 9842     		cmp	r0, r3
+ 371:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_active = true;
+ 446              		.loc 1 371 5 is_stmt 1 view .LVU128
+ 447              		.loc 1 371 14 is_stmt 0 view .LVU129
+ 448 0018 81BF     		itttt	hi
+ 449 001a 0123     		movhi	r3, #1
+ 450 001c 1370     		strbhi	r3, [r2]
+ 372:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_need_redraw = true;
+ 451              		.loc 1 372 5 is_stmt 1 view .LVU130
+ 452              		.loc 1 372 19 is_stmt 0 view .LVU131
+ 453 001e 044A     		ldrhi	r2, .L45+12
+ 454 0020 1370     		strbhi	r3, [r2]
+ 455              	.L40:
+ 373:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 456              		.loc 1 373 1 view .LVU132
+ 457 0022 7047     		bx	lr
+ 458              	.L46:
+ 459              		.align	2
+ 460              	.L45:
+ 461 0024 00000000 		.word	_ZL8g_active
+ 462 0028 00000000 		.word	_ZL9g_display
+ 463 002c 00000000 		.word	_ZL18g_last_activity_ms
+ 464 0030 00000000 		.word	_ZL13g_need_redraw
+ 465              		.cfi_endproc
+ 466              	.LFE1282:
+ 468              		.section	.text._Z22ScreenStandby_IsActivev,"ax",%progbits
+ 469              		.align	1
+ 470              		.global	_Z22ScreenStandby_IsActivev
+ 471              		.syntax unified
+ 472              		.thumb
+ 473              		.thumb_func
+ 475              	_Z22ScreenStandby_IsActivev:
+ 476              	.LFB1283:
+ 374:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 375:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** bool ScreenStandby_IsActive(void)
+ 376:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 477              		.loc 1 376 1 is_stmt 1 view -0
+ 478              		.cfi_startproc
+ 479              		@ args = 0, pretend = 0, frame = 0
+ 480              		@ frame_needed = 0, uses_anonymous_args = 0
+ 481              		@ link register save eliminated.
+ 377:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return g_active;
+ 482              		.loc 1 377 5 view .LVU134
+ 378:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 483              		.loc 1 378 1 is_stmt 0 view .LVU135
+ 484 0000 014B     		ldr	r3, .L48
+ 485 0002 1878     		ldrb	r0, [r3]	@ zero_extendqisi2
+ 486 0004 7047     		bx	lr
+ 487              	.L49:
+ 488 0006 00BF     		.align	2
+ 489              	.L48:
+ 490 0008 00000000 		.word	_ZL8g_active
+ 491              		.cfi_endproc
+ 492              	.LFE1283:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 17
+
+
+ 494              		.section	.text._Z24ScreenStandby_Deactivatev,"ax",%progbits
+ 495              		.align	1
+ 496              		.global	_Z24ScreenStandby_Deactivatev
+ 497              		.syntax unified
+ 498              		.thumb
+ 499              		.thumb_func
+ 501              	_Z24ScreenStandby_Deactivatev:
+ 502              	.LFB1284:
+ 379:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 380:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** bool ScreenStandby_Deactivate(void)
+ 381:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 503              		.loc 1 381 1 is_stmt 1 view -0
+ 504              		.cfi_startproc
+ 505              		@ args = 0, pretend = 0, frame = 0
+ 506              		@ frame_needed = 0, uses_anonymous_args = 0
+ 507              		@ link register save eliminated.
+ 382:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!g_active) return false;
+ 508              		.loc 1 382 5 view .LVU137
+ 509              		.loc 1 382 9 is_stmt 0 view .LVU138
+ 510 0000 064A     		ldr	r2, .L55
+ 511 0002 1078     		ldrb	r0, [r2]	@ zero_extendqisi2
+ 512              		.loc 1 382 5 view .LVU139
+ 513 0004 40B1     		cbz	r0, .L51
+ 383:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_active = false;
+ 514              		.loc 1 383 5 is_stmt 1 view .LVU140
+ 515              		.loc 1 383 14 is_stmt 0 view .LVU141
+ 516 0006 0023     		movs	r3, #0
+ 384:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_need_redraw = true;
+ 517              		.loc 1 384 19 view .LVU142
+ 518 0008 0121     		movs	r1, #1
+ 383:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_active = false;
+ 519              		.loc 1 383 14 view .LVU143
+ 520 000a 1370     		strb	r3, [r2]
+ 521              		.loc 1 384 5 is_stmt 1 view .LVU144
+ 522              		.loc 1 384 19 is_stmt 0 view .LVU145
+ 523 000c 044A     		ldr	r2, .L55+4
+ 524 000e 1170     		strb	r1, [r2]
+ 385:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_index = 0u;
+ 525              		.loc 1 385 5 is_stmt 1 view .LVU146
+ 526              		.loc 1 385 24 is_stmt 0 view .LVU147
+ 527 0010 044A     		ldr	r2, .L55+8
+ 528 0012 1370     		strb	r3, [r2]
+ 386:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_next_ms = 0u;
+ 529              		.loc 1 386 5 is_stmt 1 view .LVU148
+ 530              		.loc 1 386 20 is_stmt 0 view .LVU149
+ 531 0014 044A     		ldr	r2, .L55+12
+ 532 0016 1360     		str	r3, [r2]
+ 387:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return true;
+ 533              		.loc 1 387 5 is_stmt 1 view .LVU150
+ 534              	.L51:
+ 388:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 535              		.loc 1 388 1 is_stmt 0 view .LVU151
+ 536 0018 7047     		bx	lr
+ 537              	.L56:
+ 538 001a 00BF     		.align	2
+ 539              	.L55:
+ 540 001c 00000000 		.word	_ZL8g_active
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 18
+
+
+ 541 0020 00000000 		.word	_ZL13g_need_redraw
+ 542 0024 00000000 		.word	_ZL18g_anim_frame_index
+ 543 0028 00000000 		.word	_ZL14g_anim_next_ms
+ 544              		.cfi_endproc
+ 545              	.LFE1284:
+ 547              		.section	.rodata._Z20ScreenStandby_RenderP13ST7789_Handlem.str1.1,"aMS",%progbits,1
+ 548              	.LC1:
+ 549 0000 53595354 		.ascii	"SYSTEM_DEFAULT\000"
+ 549      454D5F44 
+ 549      45464155 
+ 549      4C5400
+ 550              	.LC2:
+ 551 000f 55534552 		.ascii	"USER_IMAGE\000"
+ 551      5F494D41 
+ 551      474500
+ 552              		.section	.text._Z20ScreenStandby_RenderP13ST7789_Handlem,"ax",%progbits
+ 553              		.align	1
+ 554              		.global	_Z20ScreenStandby_RenderP13ST7789_Handlem
+ 555              		.syntax unified
+ 556              		.thumb
+ 557              		.thumb_func
+ 559              	_Z20ScreenStandby_RenderP13ST7789_Handlem:
+ 560              	.LVL27:
+ 561              	.LFB1285:
+ 389:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 390:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** void ScreenStandby_Render(ST7789_Handle* lcd, uint32_t inputMask)
+ 391:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 562              		.loc 1 391 1 is_stmt 1 view -0
+ 563              		.cfi_startproc
+ 564              		@ args = 0, pretend = 0, frame = 96
+ 565              		@ frame_needed = 0, uses_anonymous_args = 0
+ 392:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!lcd || !g_active) return;
+ 566              		.loc 1 392 5 view .LVU153
+ 391:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!lcd || !g_active) return;
+ 567              		.loc 1 391 1 is_stmt 0 view .LVU154
+ 568 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 569              	.LCFI3:
+ 570              		.cfi_def_cfa_offset 36
+ 571              		.cfi_offset 4, -36
+ 572              		.cfi_offset 5, -32
+ 573              		.cfi_offset 6, -28
+ 574              		.cfi_offset 7, -24
+ 575              		.cfi_offset 8, -20
+ 576              		.cfi_offset 9, -16
+ 577              		.cfi_offset 10, -12
+ 578              		.cfi_offset 11, -8
+ 579              		.cfi_offset 14, -4
+ 580 0004 8A46     		mov	r10, r1
+ 581              		.loc 1 392 5 view .LVU155
+ 582 0006 0546     		mov	r5, r0
+ 391:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!lcd || !g_active) return;
+ 583              		.loc 1 391 1 view .LVU156
+ 584 0008 2DED028B 		vpush.64	{d8}
+ 585              	.LCFI4:
+ 586              		.cfi_def_cfa_offset 44
+ 587              		.cfi_offset 80, -44
+ 588              		.cfi_offset 81, -40
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 19
+
+
+ 589 000c 9DB0     		sub	sp, sp, #116
+ 590              	.LCFI5:
+ 591              		.cfi_def_cfa_offset 160
+ 592              		.loc 1 392 5 view .LVU157
+ 593 000e 0028     		cmp	r0, #0
+ 594 0010 00F0CB80 		beq	.L57
+ 595              		.loc 1 392 17 discriminator 2 view .LVU158
+ 596 0014 A34B     		ldr	r3, .L153
+ 597              		.loc 1 392 14 discriminator 2 view .LVU159
+ 598 0016 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 599 0018 002B     		cmp	r3, #0
+ 600 001a 00F0C680 		beq	.L57
+ 393:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_display == 1u) {
+ 601              		.loc 1 393 5 is_stmt 1 view .LVU160
+ 602              	.LBB38:
+ 603              		.loc 1 393 19 is_stmt 0 view .LVU161
+ 604 001e A24B     		ldr	r3, .L153+4
+ 605 0020 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 606              		.loc 1 393 5 view .LVU162
+ 607 0022 012B     		cmp	r3, #1
+ 608 0024 40F00582 		bne	.L61
+ 609              	.LBB39:
+ 394:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ensure_image_source();
+ 610              		.loc 1 394 9 is_stmt 1 view .LVU163
+ 611              	.LBB40:
+ 612              	.LBI40:
+ 239:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 613              		.loc 1 239 13 view .LVU164
+ 614              	.LBB41:
+ 241:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_ready = true;
+ 615              		.loc 1 241 5 view .LVU165
+ 616 0028 A04A     		ldr	r2, .L153+8
+ 617 002a DFF8C8B2 		ldr	fp, .L153+80
+ 618 002e 1178     		ldrb	r1, [r2]	@ zero_extendqisi2
+ 619              	.LVL28:
+ 241:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_ready = true;
+ 620              		.loc 1 241 5 is_stmt 0 view .LVU166
+ 621 0030 0029     		cmp	r1, #0
+ 622 0032 40F0C780 		bne	.L63
+ 242:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_valid = false;
+ 623              		.loc 1 242 5 is_stmt 1 view .LVU167
+ 242:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_source_valid = false;
+ 624              		.loc 1 242 26 is_stmt 0 view .LVU168
+ 625 0036 1370     		strb	r3, [r2]
+ 243:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_kind = STANDBY_IMAGE_NONE;
+ 626              		.loc 1 243 5 is_stmt 1 view .LVU169
+ 244:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = nullptr;
+ 627              		.loc 1 244 18 is_stmt 0 view .LVU170
+ 628 0038 9D4A     		ldr	r2, .L153+12
+ 251:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!ensure_qspi_mmap()) {
+ 629              		.loc 1 251 11 view .LVU171
+ 630 003a 9E48     		ldr	r0, .L153+16
+ 631              	.LVL29:
+ 244:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = nullptr;
+ 632              		.loc 1 244 18 view .LVU172
+ 633 003c 1170     		strb	r1, [r2]
+ 245:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 20
+
+
+ 634              		.loc 1 245 20 view .LVU173
+ 635 003e 9E4A     		ldr	r2, .L153+20
+ 243:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_kind = STANDBY_IMAGE_NONE;
+ 636              		.loc 1 243 26 view .LVU174
+ 637 0040 8BF80010 		strb	r1, [fp]
+ 244:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = nullptr;
+ 638              		.loc 1 244 5 is_stmt 1 view .LVU175
+ 245:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = 0;
+ 639              		.loc 1 245 5 view .LVU176
+ 245:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = 0;
+ 640              		.loc 1 245 20 is_stmt 0 view .LVU177
+ 641 0044 1160     		str	r1, [r2]
+ 246:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = 0;
+ 642              		.loc 1 246 5 is_stmt 1 view .LVU178
+ 246:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = 0;
+ 643              		.loc 1 246 15 is_stmt 0 view .LVU179
+ 644 0046 9D4A     		ldr	r2, .L153+24
+ 645 0048 1180     		strh	r1, [r2]	@ movhi
+ 247:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 646              		.loc 1 247 5 is_stmt 1 view .LVU180
+ 247:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 647              		.loc 1 247 15 is_stmt 0 view .LVU181
+ 648 004a 9D4A     		ldr	r2, .L153+28
+ 649 004c 1180     		strh	r1, [r2]	@ movhi
+ 248:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 650              		.loc 1 248 5 is_stmt 1 view .LVU182
+ 248:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 651              		.loc 1 248 24 is_stmt 0 view .LVU183
+ 652 004e 9D4A     		ldr	r2, .L153+32
+ 653 0050 1370     		strb	r3, [r2]
+ 249:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = 0u;
+ 654              		.loc 1 249 5 is_stmt 1 view .LVU184
+ 251:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!ensure_qspi_mmap()) {
+ 655              		.loc 1 251 11 is_stmt 0 view .LVU185
+ 656 0052 2822     		movs	r2, #40
+ 249:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = 0u;
+ 657              		.loc 1 249 16 view .LVU186
+ 658 0054 9C4B     		ldr	r3, .L153+36
+ 659 0056 1970     		strb	r1, [r3]
+ 250:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
+ 660              		.loc 1 250 5 is_stmt 1 view .LVU187
+ 251:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!ensure_qspi_mmap()) {
+ 661              		.loc 1 251 5 view .LVU188
+ 251:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!ensure_qspi_mmap()) {
+ 662              		.loc 1 251 11 is_stmt 0 view .LVU189
+ 663 0058 FFF7FEFF 		bl	memset
+ 664              	.LVL30:
+ 252:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 665              		.loc 1 252 5 is_stmt 1 view .LVU190
+ 666              	.LBB42:
+ 667              	.LBI42:
+  95:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 668              		.loc 1 95 13 view .LVU191
+ 669              	.LBB43:
+  97:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     int8_t r = QSPI_W25Qxx_EnterMemoryMappedMode();
+ 670              		.loc 1 97 5 view .LVU192
+  97:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     int8_t r = QSPI_W25Qxx_EnterMemoryMappedMode();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 21
+
+
+ 671              		.loc 1 97 39 is_stmt 0 view .LVU193
+ 672 005c FFF7FEFF 		bl	QSPI_W25Qxx_IsMemoryMappedMode
+ 673              	.LVL31:
+  97:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     int8_t r = QSPI_W25Qxx_EnterMemoryMappedMode();
+ 674              		.loc 1 97 5 discriminator 1 view .LVU194
+ 675 0060 0028     		cmp	r0, #0
+ 676 0062 00F0A780 		beq	.L64
+ 677              	.L68:
+ 678              	.LBE43:
+ 679              	.LBE42:
+ 256:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_image_source_valid = true;
+ 680              		.loc 1 256 5 is_stmt 1 view .LVU195
+ 681              	.LBB45:
+ 682              	.LBI45:
+ 185:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 683              		.loc 1 185 13 view .LVU196
+ 684              	.LVL32:
+ 685              	.LBB46:
+ 187:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
+ 686              		.loc 1 187 5 view .LVU197
+ 187:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
+ 687              		.loc 1 187 30 is_stmt 0 discriminator 2 view .LVU198
+ 688 0066 994C     		ldr	r4, .L153+40
+ 187:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
+ 689              		.loc 1 187 18 discriminator 2 view .LVU199
+ 690 0068 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 691 006a 002B     		cmp	r3, #0
+ 692 006c 00F0AA80 		beq	.L63
+ 188:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 693              		.loc 1 188 5 is_stmt 1 view .LVU200
+ 188:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 694              		.loc 1 188 40 is_stmt 0 view .LVU201
+ 695 0070 FFF7FEFF 		bl	QSPI_W25Qxx_IsMemoryMappedMode
+ 696              	.LVL33:
+ 188:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 697              		.loc 1 188 5 discriminator 1 view .LVU202
+ 698 0074 0028     		cmp	r0, #0
+ 699 0076 40F0AA80 		bne	.L69
+ 700              	.LVL34:
+ 701              	.L73:
+ 188:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 702              		.loc 1 188 5 discriminator 1 view .LVU203
+ 703              	.LBE46:
+ 704              	.LBE45:
+ 260:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_image_source_valid = true;
+ 705              		.loc 1 260 5 is_stmt 1 view .LVU204
+ 706              	.LBB61:
+ 707              	.LBI61:
+ 218:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 708              		.loc 1 218 13 view .LVU205
+ 709              	.LBB62:
+ 220:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
+ 710              		.loc 1 220 5 view .LVU206
+ 220:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
+ 711              		.loc 1 220 30 is_stmt 0 discriminator 2 view .LVU207
+ 712 007a 944C     		ldr	r4, .L153+40
+ 220:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!QSPI_W25Qxx_IsMemoryMappedMode()) return false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 22
+
+
+ 713              		.loc 1 220 18 discriminator 2 view .LVU208
+ 714 007c 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 715 007e 002B     		cmp	r3, #0
+ 716 0080 00F0A080 		beq	.L63
+ 221:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 717              		.loc 1 221 5 is_stmt 1 view .LVU209
+ 221:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 718              		.loc 1 221 40 is_stmt 0 view .LVU210
+ 719 0084 FFF7FEFF 		bl	QSPI_W25Qxx_IsMemoryMappedMode
+ 720              	.LVL35:
+ 221:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 721              		.loc 1 221 5 discriminator 1 view .LVU211
+ 722 0088 0028     		cmp	r0, #0
+ 723 008a 00F09B80 		beq	.L63
+ 223:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memset(&info, 0, sizeof(info));
+ 724              		.loc 1 223 5 is_stmt 1 view .LVU212
+ 224:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!ST7789_Assets_Find(imageId, &info)) return false;
+ 725              		.loc 1 224 5 view .LVU213
+ 224:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!ST7789_Assets_Find(imageId, &info)) return false;
+ 726              		.loc 1 224 11 is_stmt 0 view .LVU214
+ 727 008e 0021     		movs	r1, #0
+ 728 0090 1022     		movs	r2, #16
+ 729 0092 07A8     		add	r0, sp, #28
+ 730 0094 FFF7FEFF 		bl	memset
+ 731              	.LVL36:
+ 225:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (info.type != ST7789_ASSET_TYPE_RGB565LE) return false;
+ 732              		.loc 1 225 5 is_stmt 1 view .LVU215
+ 225:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (info.type != ST7789_ASSET_TYPE_RGB565LE) return false;
+ 733              		.loc 1 225 28 is_stmt 0 view .LVU216
+ 734 0098 07A9     		add	r1, sp, #28
+ 735 009a 2046     		mov	r0, r4
+ 736 009c FFF7FEFF 		bl	ST7789_Assets_Find
+ 737              	.LVL37:
+ 225:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (info.type != ST7789_ASSET_TYPE_RGB565LE) return false;
+ 738              		.loc 1 225 5 discriminator 1 view .LVU217
+ 739 00a0 0028     		cmp	r0, #0
+ 740 00a2 00F08F80 		beq	.L63
+ 226:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (!info.data || info.width == 0u || info.height == 0u) return false;
+ 741              		.loc 1 226 5 is_stmt 1 view .LVU218
+ 742 00a6 9DF81C30 		ldrb	r3, [sp, #28]	@ zero_extendqisi2
+ 743 00aa 022B     		cmp	r3, #2
+ 744 00ac 40F08A80 		bne	.L63
+ 227:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 745              		.loc 1 227 5 view .LVU219
+ 227:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 746              		.loc 1 227 15 is_stmt 0 view .LVU220
+ 747 00b0 0898     		ldr	r0, [sp, #32]
+ 227:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 748              		.loc 1 227 5 view .LVU221
+ 749 00b2 0028     		cmp	r0, #0
+ 750 00b4 00F08680 		beq	.L63
+ 227:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 751              		.loc 1 227 28 discriminator 2 view .LVU222
+ 752 00b8 BDF82810 		ldrh	r1, [sp, #40]
+ 227:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 753              		.loc 1 227 20 discriminator 2 view .LVU223
+ 754 00bc 0029     		cmp	r1, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 23
+
+
+ 755 00be 00F08180 		beq	.L63
+ 227:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 756              		.loc 1 227 48 discriminator 4 view .LVU224
+ 757 00c2 BDF82A20 		ldrh	r2, [sp, #42]
+ 227:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 758              		.loc 1 227 40 discriminator 4 view .LVU225
+ 759 00c6 002A     		cmp	r2, #0
+ 760 00c8 7CD0     		beq	.L63
+ 229:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = (const uint8_t*)info.data;
+ 761              		.loc 1 229 5 is_stmt 1 view .LVU226
+ 229:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_pixels = (const uint8_t*)info.data;
+ 762              		.loc 1 229 18 is_stmt 0 view .LVU227
+ 763 00ca 0123     		movs	r3, #1
+ 764 00cc 784C     		ldr	r4, .L153+12
+ 765 00ce 2370     		strb	r3, [r4]
+ 230:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = info.width;
+ 766              		.loc 1 230 5 is_stmt 1 view .LVU228
+ 230:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = info.width;
+ 767              		.loc 1 230 20 is_stmt 0 view .LVU229
+ 768 00d0 794C     		ldr	r4, .L153+20
+ 769              	.LBE62:
+ 770              	.LBE61:
+ 261:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 771              		.loc 1 261 30 view .LVU230
+ 772 00d2 8BF80030 		strb	r3, [fp]
+ 773              	.LBB64:
+ 774              	.LBB63:
+ 230:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = info.width;
+ 775              		.loc 1 230 20 view .LVU231
+ 776 00d6 2060     		str	r0, [r4]
+ 231:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = info.height;
+ 777              		.loc 1 231 5 is_stmt 1 view .LVU232
+ 231:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = info.height;
+ 778              		.loc 1 231 15 is_stmt 0 view .LVU233
+ 779 00d8 7848     		ldr	r0, .L153+24
+ 780 00da 0180     		strh	r1, [r0]	@ movhi
+ 232:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 781              		.loc 1 232 5 is_stmt 1 view .LVU234
+ 232:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 782              		.loc 1 232 15 is_stmt 0 view .LVU235
+ 783 00dc 7849     		ldr	r1, .L153+28
+ 784 00de 0A80     		strh	r2, [r1]	@ movhi
+ 233:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 785              		.loc 1 233 5 is_stmt 1 view .LVU236
+ 234:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = (uint32_t)info.width * 2u * (uint32_t)info.height;
+ 786              		.loc 1 234 16 is_stmt 0 view .LVU237
+ 787 00e0 0021     		movs	r1, #0
+ 233:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 788              		.loc 1 233 24 view .LVU238
+ 789 00e2 784A     		ldr	r2, .L153+32
+ 790 00e4 1370     		strb	r3, [r2]
+ 234:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = (uint32_t)info.width * 2u * (uint32_t)info.height;
+ 791              		.loc 1 234 5 is_stmt 1 view .LVU239
+ 234:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = (uint32_t)info.width * 2u * (uint32_t)info.height;
+ 792              		.loc 1 234 16 is_stmt 0 view .LVU240
+ 793 00e6 784A     		ldr	r2, .L153+36
+ 794 00e8 1170     		strb	r1, [r2]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 24
+
+
+ 235:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return true;
+ 795              		.loc 1 235 5 is_stmt 1 view .LVU241
+ 236:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 796              		.loc 1 236 5 view .LVU242
+ 797              	.LVL38:
+ 236:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 798              		.loc 1 236 5 is_stmt 0 view .LVU243
+ 799              	.LBE63:
+ 800              	.LBE64:
+ 261:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 801              		.loc 1 261 9 is_stmt 1 view .LVU244
+ 802              	.LBE41:
+ 803              	.LBE40:
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         bool animated = g_image_source_valid && g_image_kind == STANDBY_IMAGE_UIMG && g_anim_frame_
+ 804              		.loc 1 395 9 view .LVU245
+ 805              	.L82:
+ 806              		.loc 1 395 111 is_stmt 0 discriminator 8 view .LVU246
+ 807 00ea 0024     		movs	r4, #0
+ 808              	.L83:
+ 809              	.LVL39:
+ 396:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 810              		.loc 1 396 9 is_stmt 1 view .LVU247
+ 811              		.loc 1 396 37 is_stmt 0 view .LVU248
+ 812 00ec FFF7FEFF 		bl	HAL_GetTick
+ 813              	.LVL40:
+ 397:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         bool needFrame = g_need_redraw;
+ 814              		.loc 1 397 14 view .LVU249
+ 815 00f0 774B     		ldr	r3, .L153+44
+ 396:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 816              		.loc 1 396 37 view .LVU250
+ 817 00f2 0646     		mov	r6, r0
+ 818              	.LVL41:
+ 819              		.loc 1 397 9 is_stmt 1 view .LVU251
+ 398:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!needFrame && animated && tick_reached(nowMs, g_anim_next_ms)) {
+ 820              		.loc 1 398 9 view .LVU252
+ 821              		.loc 1 398 36 is_stmt 0 view .LVU253
+ 822 00f4 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 823              		.loc 1 398 36 view .LVU254
+ 824 00f6 002B     		cmp	r3, #0
+ 825 00f8 40F07B81 		bne	.L102
+ 826              		.loc 1 398 24 discriminator 1 view .LVU255
+ 827 00fc 002C     		cmp	r4, #0
+ 828 00fe 54D0     		beq	.L57
+ 829              	.LVL42:
+ 830              	.LBB71:
+ 831              	.LBI71:
+  90:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 832              		.loc 1 90 13 is_stmt 1 view .LVU256
+ 833              	.LBB72:
+  92:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 834              		.loc 1 92 5 view .LVU257
+  92:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 835              		.loc 1 92 5 is_stmt 0 view .LVU258
+ 836              	.LBE72:
+ 837              	.LBE71:
+ 838              		.loc 1 398 51 discriminator 3 view .LVU259
+ 839 0100 744B     		ldr	r3, .L153+48
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 25
+
+
+ 840              	.LBB74:
+ 841              	.LBB73:
+  92:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 842              		.loc 1 92 28 view .LVU260
+ 843 0102 1B68     		ldr	r3, [r3]
+ 844 0104 C31A     		subs	r3, r0, r3
+ 845              	.LBE73:
+ 846              	.LBE74:
+ 847              		.loc 1 398 36 discriminator 1 view .LVU261
+ 848 0106 002B     		cmp	r3, #0
+ 849 0108 4FDB     		blt	.L57
+ 399:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             needFrame = true;
+ 850              		.loc 1 399 13 is_stmt 1 view .LVU262
+ 851              	.LVL43:
+ 400:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             g_anim_frame_index = (uint8_t)((g_anim_frame_index + 1u) % g_anim_frame_count);
+ 852              		.loc 1 400 13 view .LVU263
+ 853              		.loc 1 400 45 is_stmt 0 view .LVU264
+ 854 010a 734B     		ldr	r3, .L153+52
+ 855              		.loc 1 400 72 view .LVU265
+ 856 010c 6D4A     		ldr	r2, .L153+32
+ 857              		.loc 1 400 45 view .LVU266
+ 858 010e 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 859              		.loc 1 400 72 view .LVU267
+ 860 0110 1278     		ldrb	r2, [r2]	@ zero_extendqisi2
+ 861              		.loc 1 400 64 view .LVU268
+ 862 0112 0133     		adds	r3, r3, #1
+ 863              		.loc 1 400 70 view .LVU269
+ 864 0114 B3FBF2F1 		udiv	r1, r3, r2
+ 865 0118 02FB1133 		mls	r3, r2, r1, r3
+ 866              		.loc 1 400 32 view .LVU270
+ 867 011c DBB2     		uxtb	r3, r3
+ 401:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 402:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!needFrame) return;
+ 868              		.loc 1 402 9 is_stmt 1 view .LVU271
+ 403:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (g_need_redraw) {
+ 869              		.loc 1 403 9 view .LVU272
+ 870              	.LVL44:
+ 871              	.L84:
+ 400:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             g_anim_frame_index = (uint8_t)((g_anim_frame_index + 1u) % g_anim_frame_count);
+ 872              		.loc 1 400 32 is_stmt 0 view .LVU273
+ 873 011e 6E4F     		ldr	r7, .L153+52
+ 404:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             g_anim_frame_index = 0u;
+ 405:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 406:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_FillScreen(lcd, g_bg);
+ 874              		.loc 1 406 26 view .LVU274
+ 875 0120 2846     		mov	r0, r5
+ 876              	.LVL45:
+ 400:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 877              		.loc 1 400 32 view .LVU275
+ 878 0122 3B70     		strb	r3, [r7]
+ 879              		.loc 1 406 9 is_stmt 1 view .LVU276
+ 880              		.loc 1 406 26 is_stmt 0 view .LVU277
+ 881 0124 6D4B     		ldr	r3, .L153+56
+ 882 0126 1968     		ldr	r1, [r3]
+ 883 0128 FFF7FEFF 		bl	ST7789_FillScreen
+ 884              	.LVL46:
+ 407:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (g_image_source_valid) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 26
+
+
+ 885              		.loc 1 407 9 is_stmt 1 view .LVU278
+ 886 012c 9BF80030 		ldrb	r3, [fp]	@ zero_extendqisi2
+ 887 0130 73B3     		cbz	r3, .L85
+ 408:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             draw_image_frame(lcd, g_anim_frame_index);
+ 888              		.loc 1 408 13 view .LVU279
+ 889              	.LBB75:
+ 890              	.LBB76:
+ 269:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         x = (uint16_t)((ST7789_WIDTH - g_image_w) / 2u);
+ 891              		.loc 1 269 19 is_stmt 0 view .LVU280
+ 892 0132 624B     		ldr	r3, .L153+24
+ 893              	.LBE76:
+ 894              	.LBE75:
+ 895              		.loc 1 408 29 view .LVU281
+ 896 0134 3F78     		ldrb	r7, [r7]	@ zero_extendqisi2
+ 897              	.LVL47:
+ 898              	.LBB83:
+ 899              	.LBI75:
+ 265:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 900              		.loc 1 265 13 is_stmt 1 view .LVU282
+ 901              	.LBB81:
+ 267:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t y = 0u;
+ 902              		.loc 1 267 5 view .LVU283
+ 268:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_image_w < ST7789_WIDTH) {
+ 903              		.loc 1 268 5 view .LVU284
+ 269:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         x = (uint16_t)((ST7789_WIDTH - g_image_w) / 2u);
+ 904              		.loc 1 269 5 view .LVU285
+ 269:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         x = (uint16_t)((ST7789_WIDTH - g_image_w) / 2u);
+ 905              		.loc 1 269 19 is_stmt 0 view .LVU286
+ 906 0136 B3F80080 		ldrh	r8, [r3]
+ 272:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         y = (uint16_t)((ST7789_HEIGHT - g_image_h) / 2u);
+ 907              		.loc 1 272 19 view .LVU287
+ 908 013a 614B     		ldr	r3, .L153+28
+ 269:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         x = (uint16_t)((ST7789_WIDTH - g_image_w) / 2u);
+ 909              		.loc 1 269 5 view .LVU288
+ 910 013c B8F5A07F 		cmp	r8, #320
+ 270:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 911              		.loc 1 270 9 is_stmt 1 view .LVU289
+ 272:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         y = (uint16_t)((ST7789_HEIGHT - g_image_h) / 2u);
+ 912              		.loc 1 272 19 is_stmt 0 view .LVU290
+ 913 0140 B3F800B0 		ldrh	fp, [r3]
+ 270:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 914              		.loc 1 270 38 view .LVU291
+ 915 0144 34BF     		ite	cc
+ 916 0146 C8F5A079 		rsbcc	r9, r8, #320
+ 267:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint16_t y = 0u;
+ 917              		.loc 1 267 14 view .LVU292
+ 918 014a 4FF00009 		movcs	r9, #0
+ 276:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_image_pixels) return;
+ 919              		.loc 1 276 22 view .LVU293
+ 920 014e 584B     		ldr	r3, .L153+12
+ 270:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 921              		.loc 1 270 11 view .LVU294
+ 922 0150 38BF     		it	cc
+ 923 0152 C9F34F09 		ubfxcc	r9, r9, #1, #16
+ 924              	.LVL48:
+ 272:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         y = (uint16_t)((ST7789_HEIGHT - g_image_h) / 2u);
+ 925              		.loc 1 272 5 is_stmt 1 view .LVU295
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 27
+
+
+ 926 0156 BBF1AB0F 		cmp	fp, #171
+ 273:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 927              		.loc 1 273 9 view .LVU296
+ 276:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_image_pixels) return;
+ 928              		.loc 1 276 22 is_stmt 0 view .LVU297
+ 929 015a 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 273:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 930              		.loc 1 273 39 view .LVU298
+ 931 015c 96BF     		itet	ls
+ 932 015e CBF1AC0A 		rsbls	r10, fp, #172
+ 268:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (g_image_w < ST7789_WIDTH) {
+ 933              		.loc 1 268 14 view .LVU299
+ 934 0162 4FF0000A 		movhi	r10, #0
+ 273:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 935              		.loc 1 273 11 view .LVU300
+ 936 0166 CAF34F0A 		ubfxls	r10, r10, #1, #16
+ 937              	.LVL49:
+ 276:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_image_pixels) return;
+ 938              		.loc 1 276 5 is_stmt 1 view .LVU301
+ 939 016a 012B     		cmp	r3, #1
+ 940 016c 40F04381 		bne	.L88
+ 277:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, g_image_pixels, ST7789_BITMAP_RGB565_LE,
+ 941              		.loc 1 277 9 view .LVU302
+ 277:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, g_image_pixels, ST7789_BITMAP_RGB565_LE,
+ 942              		.loc 1 277 13 is_stmt 0 view .LVU303
+ 943 0170 514A     		ldr	r2, .L153+20
+ 944 0172 1268     		ldr	r2, [r2]
+ 277:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, g_image_pixels, ST7789_BITMAP_RGB565_LE,
+ 945              		.loc 1 277 9 view .LVU304
+ 946 0174 62B1     		cbz	r2, .L85
+ 278:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 947              		.loc 1 278 9 is_stmt 1 view .LVU305
+ 278:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 948              		.loc 1 278 26 is_stmt 0 view .LVU306
+ 949 0176 4FEA4801 		lsl	r1, r8, #1
+ 950 017a 0192     		str	r2, [sp, #4]
+ 951 017c CDE90231 		strd	r3, r1, [sp, #8]
+ 952              	.LVL50:
+ 953              	.L152:
+ 954              	.LBB77:
+ 955              	.LBB78:
+ 290:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 956              		.loc 1 290 26 view .LVU307
+ 957 0180 4346     		mov	r3, r8
+ 958 0182 5246     		mov	r2, r10
+ 959 0184 4946     		mov	r1, r9
+ 960 0186 2846     		mov	r0, r5
+ 961 0188 CDF800B0 		str	fp, [sp]
+ 962 018c FFF7FEFF 		bl	ST7789_DrawBitmap
+ 963              	.LVL51:
+ 964              	.L85:
+ 290:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 965              		.loc 1 290 26 view .LVU308
+ 966              	.LBE78:
+ 967              	.LBE77:
+ 968              	.LBE81:
+ 969              	.LBE83:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 28
+
+
+ 409:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 410:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (animated) {
+ 970              		.loc 1 410 9 is_stmt 1 view .LVU309
+ 971              	.LBB84:
+ 972 0190 44B1     		cbz	r4, .L93
+ 973              	.LBB85:
+ 411:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             uint32_t intervalMs = 1000u / (uint32_t)g_anim_fps;
+ 974              		.loc 1 411 13 view .LVU310
+ 975              	.LVL52:
+ 412:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             if (intervalMs == 0u) intervalMs = 1u;
+ 976              		.loc 1 412 13 view .LVU311
+ 413:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             g_anim_next_ms = nowMs + intervalMs;
+ 977              		.loc 1 413 13 view .LVU312
+ 411:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             uint32_t intervalMs = 1000u / (uint32_t)g_anim_fps;
+ 978              		.loc 1 411 43 is_stmt 0 view .LVU313
+ 979 0192 4D4B     		ldr	r3, .L153+36
+ 980              	.LVL53:
+ 411:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             uint32_t intervalMs = 1000u / (uint32_t)g_anim_fps;
+ 981              		.loc 1 411 43 view .LVU314
+ 982 0194 1A78     		ldrb	r2, [r3]	@ zero_extendqisi2
+ 411:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             uint32_t intervalMs = 1000u / (uint32_t)g_anim_fps;
+ 983              		.loc 1 411 22 view .LVU315
+ 984 0196 4FF47A73 		mov	r3, #1000
+ 985              	.LVL54:
+ 411:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             uint32_t intervalMs = 1000u / (uint32_t)g_anim_fps;
+ 986              		.loc 1 411 22 view .LVU316
+ 987 019a B3FBF2F3 		udiv	r3, r3, r2
+ 988              	.LVL55:
+ 989              		.loc 1 413 28 view .LVU317
+ 990 019e 4D4A     		ldr	r2, .L153+48
+ 991              		.loc 1 413 36 view .LVU318
+ 992 01a0 3344     		add	r3, r3, r6
+ 993              	.LVL56:
+ 994              		.loc 1 413 28 view .LVU319
+ 995 01a2 1360     		str	r3, [r2]
+ 996              	.LVL57:
+ 997              	.L93:
+ 998              		.loc 1 413 28 view .LVU320
+ 999              	.LBE85:
+ 1000              	.LBE84:
+ 1001              	.LBE39:
+ 1002              	.LBE38:
+ 414:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 415:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else if (g_display == 2u) {
+ 416:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_need_redraw) return;
+ 417:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         draw_button_layout(lcd, inputMask);
+ 418:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else {
+ 419:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_need_redraw) return;
+ 420:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_FillScreen(lcd, g_bg);
+ 421:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 422:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_need_redraw = false;
+ 1003              		.loc 1 422 5 is_stmt 1 view .LVU321
+ 1004              		.loc 1 422 19 is_stmt 0 view .LVU322
+ 1005 01a4 4A4B     		ldr	r3, .L153+44
+ 1006 01a6 0022     		movs	r2, #0
+ 1007 01a8 1A70     		strb	r2, [r3]
+ 1008              	.L57:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 29
+
+
+ 423:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1009              		.loc 1 423 1 view .LVU323
+ 1010 01aa 1DB0     		add	sp, sp, #116
+ 1011              	.LCFI6:
+ 1012              		.cfi_remember_state
+ 1013              		.cfi_def_cfa_offset 44
+ 1014              		@ sp needed
+ 1015 01ac BDEC028B 		vldm	sp!, {d8}
+ 1016              	.LCFI7:
+ 1017              		.cfi_restore 80
+ 1018              		.cfi_restore 81
+ 1019              		.cfi_def_cfa_offset 36
+ 1020 01b0 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 1021              	.LVL58:
+ 1022              	.L64:
+ 1023              	.LCFI8:
+ 1024              		.cfi_restore_state
+ 1025              	.LBB99:
+ 1026              	.LBB90:
+ 1027              	.LBB86:
+ 1028              	.LBB68:
+ 1029              	.LBB65:
+ 1030              	.LBB44:
+  98:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (r != QSPI_W25Qxx_OK) return false;
+ 1031              		.loc 1 98 5 is_stmt 1 view .LVU324
+  98:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (r != QSPI_W25Qxx_OK) return false;
+ 1032              		.loc 1 98 49 is_stmt 0 view .LVU325
+ 1033 01b4 FFF7FEFF 		bl	QSPI_W25Qxx_EnterMemoryMappedMode
+ 1034              	.LVL59:
+  99:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return QSPI_W25Qxx_IsMemoryMappedMode();
+ 1035              		.loc 1 99 5 is_stmt 1 view .LVU326
+ 1036 01b8 20B9     		cbnz	r0, .L63
+ 100:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1037              		.loc 1 100 5 view .LVU327
+ 100:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1038              		.loc 1 100 42 is_stmt 0 view .LVU328
+ 1039 01ba FFF7FEFF 		bl	QSPI_W25Qxx_IsMemoryMappedMode
+ 1040              	.LVL60:
+ 100:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1041              		.loc 1 100 42 view .LVU329
+ 1042              	.LBE44:
+ 1043              	.LBE65:
+ 252:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 1044              		.loc 1 252 5 discriminator 1 view .LVU330
+ 1045 01be 0028     		cmp	r0, #0
+ 1046 01c0 7FF451AF 		bne	.L68
+ 1047              	.LVL61:
+ 1048              	.L63:
+ 252:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 1049              		.loc 1 252 5 discriminator 1 view .LVU331
+ 1050              	.LBE68:
+ 1051              	.LBE86:
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1052              		.loc 1 395 9 is_stmt 1 view .LVU332
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1053              		.loc 1 395 111 is_stmt 0 view .LVU333
+ 1054 01c4 9BF80030 		ldrb	r3, [fp]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 30
+
+
+ 1055 01c8 002B     		cmp	r3, #0
+ 1056 01ca 8ED0     		beq	.L82
+ 1057 01cc 55E0     		b	.L80
+ 1058              	.LVL62:
+ 1059              	.L69:
+ 1060              	.LBB87:
+ 1061              	.LBB69:
+ 1062              	.LBB66:
+ 1063              	.LBB59:
+ 190:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t areaSize = 0u;
+ 1064              		.loc 1 190 5 is_stmt 1 view .LVU334
+ 191:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (strncmp(imageId, SYSTEM_IMAGE_ID, 16) == 0) {
+ 1065              		.loc 1 191 5 view .LVU335
+ 192:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         baseAddr = USER_IMAGE_RESOURCES_ADDR;
+ 1066              		.loc 1 192 5 view .LVU336
+ 192:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         baseAddr = USER_IMAGE_RESOURCES_ADDR;
+ 1067              		.loc 1 192 16 is_stmt 0 view .LVU337
+ 1068 01ce 4449     		ldr	r1, .L153+60
+ 1069 01d0 2046     		mov	r0, r4
+ 1070 01d2 FFF7FEFF 		bl	strcmp
+ 1071              	.LVL63:
+ 192:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         baseAddr = USER_IMAGE_RESOURCES_ADDR;
+ 1072              		.loc 1 192 5 discriminator 1 view .LVU338
+ 1073 01d6 0028     		cmp	r0, #0
+ 1074 01d8 5FD0     		beq	.L100
+ 195:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         baseAddr = USER_IMAGE_BASE_ADDR;
+ 1075              		.loc 1 195 12 is_stmt 1 view .LVU339
+ 195:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         baseAddr = USER_IMAGE_BASE_ADDR;
+ 1076              		.loc 1 195 23 is_stmt 0 view .LVU340
+ 1077 01da 4249     		ldr	r1, .L153+64
+ 1078 01dc 2046     		mov	r0, r4
+ 1079 01de FFF7FEFF 		bl	strcmp
+ 1080              	.LVL64:
+ 195:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         baseAddr = USER_IMAGE_BASE_ADDR;
+ 1081              		.loc 1 195 12 discriminator 1 view .LVU341
+ 1082 01e2 0028     		cmp	r0, #0
+ 1083 01e4 7FF449AF 		bne	.L73
+ 197:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else {
+ 1084              		.loc 1 197 18 view .LVU342
+ 1085 01e8 4FF43823 		mov	r3, #753664
+ 196:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         areaSize = USER_IMAGE_AREA_SIZE;
+ 1086              		.loc 1 196 18 view .LVU343
+ 1087 01ec 3E4C     		ldr	r4, .L153+68
+ 197:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else {
+ 1088              		.loc 1 197 18 view .LVU344
+ 1089 01ee 0493     		str	r3, [sp, #16]
+ 1090              	.L72:
+ 1091              	.LVL65:
+ 201:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1092              		.loc 1 201 5 is_stmt 1 view .LVU345
+ 203:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     StandbyUimgHeaderV1 v1 = {0};
+ 1093              		.loc 1 203 5 view .LVU346
+ 204:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memcpy(&v1, base, sizeof(v1));
+ 1094              		.loc 1 204 5 view .LVU347
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ 1095              		.loc 1 205 5 view .LVU348
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 31
+
+
+ 1096              		.loc 1 205 11 is_stmt 0 view .LVU349
+ 1097 01f0 E268     		ldr	r2, [r4, #12]
+ 206:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1098              		.loc 1 206 5 view .LVU350
+ 1099 01f2 2768     		ldr	r7, [r4]
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ 1100              		.loc 1 205 11 view .LVU351
+ 1101 01f4 0592     		str	r2, [sp, #20]
+ 206:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1102              		.loc 1 206 5 view .LVU352
+ 1103 01f6 3D4A     		ldr	r2, .L153+72
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ 1104              		.loc 1 205 11 view .LVU353
+ 1105 01f8 B4F80480 		ldrh	r8, [r4, #4]
+ 1106              	.LVL66:
+ 206:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1107              		.loc 1 206 5 view .LVU354
+ 1108 01fc 9742     		cmp	r7, r2
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ 1109              		.loc 1 205 11 view .LVU355
+ 1110 01fe A379     		ldrb	r3, [r4, #6]	@ zero_extendqisi2
+ 1111              	.LVL67:
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ 1112              		.loc 1 205 11 view .LVU356
+ 1113 0200 B4F808A0 		ldrh	r10, [r4, #8]
+ 1114              	.LVL68:
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ 1115              		.loc 1 205 11 view .LVU357
+ 1116 0204 B4F80A90 		ldrh	r9, [r4, #10]
+ 1117              	.LVL69:
+ 205:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.magic != UIMG_MAGIC || v1.valid != 1u) return false;
+ 1118              		.loc 1 205 11 view .LVU358
+ 1119 0208 2669     		ldr	r6, [r4, #16]
+ 1120              	.LVL70:
+ 206:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1121              		.loc 1 206 5 is_stmt 1 view .LVU359
+ 1122 020a 7FF436AF 		bne	.L73
+ 206:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1123              		.loc 1 206 32 is_stmt 0 discriminator 2 view .LVU360
+ 1124 020e 012B     		cmp	r3, #1
+ 1125 0210 7FF433AF 		bne	.L73
+ 208:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.version == 1u) {
+ 1126              		.loc 1 208 5 is_stmt 1 view .LVU361
+ 208:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.version == 1u) {
+ 1127              		.loc 1 208 11 is_stmt 0 view .LVU362
+ 1128 0214 274B     		ldr	r3, .L153+16
+ 1129 0216 2822     		movs	r2, #40
+ 1130 0218 0021     		movs	r1, #0
+ 1131 021a 1846     		mov	r0, r3
+ 1132 021c FFF7FEFF 		bl	memset
+ 1133              	.LVL71:
+ 209:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return parse_uimg_v1(&v1, areaSize);
+ 1134              		.loc 1 209 5 view .LVU363
+ 1135 0220 B8F1010F 		cmp	r8, #1
+ 208:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1.version == 1u) {
+ 1136              		.loc 1 208 11 view .LVU364
+ 1137 0224 0346     		mov	r3, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 32
+
+
+ 209:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return parse_uimg_v1(&v1, areaSize);
+ 1138              		.loc 1 209 5 is_stmt 1 view .LVU365
+ 1139 0226 67D1     		bne	.L74
+ 210:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1140              		.loc 1 210 9 view .LVU366
+ 1141              	.LVL72:
+ 1142              	.LBB47:
+ 1143              	.LBI47:
+ 119:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 1144              		.loc 1 119 13 view .LVU367
+ 1145              	.LBB48:
+ 121:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1->magic != UIMG_MAGIC || v1->valid != 1u) return false;
+ 1146              		.loc 1 121 5 view .LVU368
+ 122:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frameSize = (uint32_t)v1->width * (uint32_t)v1->height * 2u;
+ 1147              		.loc 1 122 5 view .LVU369
+ 123:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameSize == 0u) return false;
+ 1148              		.loc 1 123 5 view .LVU370
+ 123:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameSize == 0u) return false;
+ 1149              		.loc 1 123 46 is_stmt 0 view .LVU371
+ 1150 0228 09FB0AF2 		mul	r2, r9, r10
+ 1151              	.LVL73:
+ 124:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1->size != frameSize) return false;
+ 1152              		.loc 1 124 5 is_stmt 1 view .LVU372
+ 1153 022c 5200     		lsls	r2, r2, #1
+ 1154              	.LVL74:
+ 124:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1->size != frameSize) return false;
+ 1155              		.loc 1 124 5 is_stmt 0 view .LVU373
+ 1156 022e 3FF424AF 		beq	.L73
+ 125:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v1->offset < UIMG_HEADER_SIZE) return false;
+ 1157              		.loc 1 125 5 is_stmt 1 view .LVU374
+ 1158 0232 0599     		ldr	r1, [sp, #20]
+ 1159 0234 8A42     		cmp	r2, r1
+ 1160 0236 7FF420AF 		bne	.L73
+ 126:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if ((uint64_t)v1->offset + (uint64_t)frameSize > (uint64_t)maxSize) return false;
+ 1161              		.loc 1 126 5 view .LVU375
+ 1162 023a B6F5805F 		cmp	r6, #4096
+ 1163 023e FFF41CAF 		bcc	.L73
+ 127:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1164              		.loc 1 127 5 view .LVU376
+ 127:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1165              		.loc 1 127 9 is_stmt 0 view .LVU377
+ 1166 0242 0021     		movs	r1, #0
+ 127:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1167              		.loc 1 127 30 view .LVU378
+ 1168 0244 B218     		adds	r2, r6, r2
+ 1169              	.LVL75:
+ 127:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1170              		.loc 1 127 5 view .LVU379
+ 1171 0246 049C     		ldr	r4, [sp, #16]
+ 1172              	.LVL76:
+ 127:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1173              		.loc 1 127 30 view .LVU380
+ 1174 0248 41EB0100 		adc	r0, r1, r1
+ 127:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1175              		.loc 1 127 5 view .LVU381
+ 1176 024c 9442     		cmp	r4, r2
+ 1177 024e 71EB0000 		sbcs	r0, r1, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 33
+
+
+ 1178 0252 FFF412AF 		bcc	.L73
+ 129:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = v1->width;
+ 1179              		.loc 1 129 5 is_stmt 1 view .LVU382
+ 129:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = v1->width;
+ 1180              		.loc 1 129 18 is_stmt 0 view .LVU383
+ 1181 0256 0222     		movs	r2, #2
+ 1182 0258 1548     		ldr	r0, .L153+12
+ 135:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return true;
+ 1183              		.loc 1 135 29 view .LVU384
+ 1184 025a 1E60     		str	r6, [r3]
+ 129:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = v1->width;
+ 1185              		.loc 1 129 18 view .LVU385
+ 1186 025c 0270     		strb	r2, [r0]
+ 130:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = v1->height;
+ 1187              		.loc 1 130 5 is_stmt 1 view .LVU386
+ 130:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = v1->height;
+ 1188              		.loc 1 130 15 is_stmt 0 view .LVU387
+ 1189 025e 174A     		ldr	r2, .L153+24
+ 1190 0260 A2F800A0 		strh	r10, [r2]	@ movhi
+ 131:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 1191              		.loc 1 131 5 is_stmt 1 view .LVU388
+ 131:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = 1u;
+ 1192              		.loc 1 131 15 is_stmt 0 view .LVU389
+ 1193 0264 164A     		ldr	r2, .L153+28
+ 1194 0266 A2F80090 		strh	r9, [r2]	@ movhi
+ 132:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 1195              		.loc 1 132 5 is_stmt 1 view .LVU390
+ 132:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = 0u;
+ 1196              		.loc 1 132 24 is_stmt 0 view .LVU391
+ 1197 026a 164A     		ldr	r2, .L153+32
+ 1198 026c 82F80080 		strb	r8, [r2]
+ 133:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = frameSize;
+ 1199              		.loc 1 133 5 is_stmt 1 view .LVU392
+ 133:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = frameSize;
+ 1200              		.loc 1 133 16 is_stmt 0 view .LVU393
+ 1201 0270 154A     		ldr	r2, .L153+36
+ 1202 0272 1170     		strb	r1, [r2]
+ 134:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_offsets[0] = v1->offset;
+ 1203              		.loc 1 134 5 is_stmt 1 view .LVU394
+ 135:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return true;
+ 1204              		.loc 1 135 5 view .LVU395
+ 136:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1205              		.loc 1 136 5 view .LVU396
+ 1206              	.LVL77:
+ 1207              	.L75:
+ 136:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1208              		.loc 1 136 5 is_stmt 0 view .LVU397
+ 1209              	.LBE48:
+ 1210              	.LBE47:
+ 1211              	.LBE59:
+ 1212              	.LBE66:
+ 257:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 1213              		.loc 1 257 9 is_stmt 1 view .LVU398
+ 257:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         return;
+ 1214              		.loc 1 257 30 is_stmt 0 view .LVU399
+ 1215 0274 0123     		movs	r3, #1
+ 1216 0276 8BF80030 		strb	r3, [fp]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 34
+
+
+ 258:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1217              		.loc 1 258 9 is_stmt 1 view .LVU400
+ 1218              	.L80:
+ 1219              	.LBE69:
+ 1220              	.LBE87:
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1221              		.loc 1 395 9 view .LVU401
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1222              		.loc 1 395 62 is_stmt 0 discriminator 1 view .LVU402
+ 1223 027a 0D4B     		ldr	r3, .L153+12
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1224              		.loc 1 395 46 discriminator 1 view .LVU403
+ 1225 027c 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1226 027e 022B     		cmp	r3, #2
+ 1227 0280 7FF433AF 		bne	.L82
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1228              		.loc 1 395 106 discriminator 3 view .LVU404
+ 1229 0284 0F4B     		ldr	r3, .L153+32
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1230              		.loc 1 395 84 discriminator 3 view .LVU405
+ 1231 0286 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1232 0288 012B     		cmp	r3, #1
+ 1233 028a 7FF62EAF 		bls	.L82
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1234              		.loc 1 395 125 discriminator 5 view .LVU406
+ 1235 028e 0E4B     		ldr	r3, .L153+36
+ 395:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t nowMs = HAL_GetTick();
+ 1236              		.loc 1 395 111 discriminator 5 view .LVU407
+ 1237 0290 1C78     		ldrb	r4, [r3]	@ zero_extendqisi2
+ 1238 0292 003C     		subs	r4, r4, #0
+ 1239 0294 18BF     		it	ne
+ 1240 0296 0124     		movne	r4, #1
+ 1241 0298 28E7     		b	.L83
+ 1242              	.LVL78:
+ 1243              	.L100:
+ 1244              	.LBB88:
+ 1245              	.LBB70:
+ 1246              	.LBB67:
+ 1247              	.LBB60:
+ 194:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else if (strncmp(imageId, USER_IMAGE_ID, 16) == 0) {
+ 1248              		.loc 1 194 18 view .LVU408
+ 1249 029a 4FF45823 		mov	r3, #884736
+ 193:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         areaSize = SYSBG_RESERVED_SIZE;
+ 1250              		.loc 1 193 18 view .LVU409
+ 1251 029e 144C     		ldr	r4, .L153+76
+ 194:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else if (strncmp(imageId, USER_IMAGE_ID, 16) == 0) {
+ 1252              		.loc 1 194 18 view .LVU410
+ 1253 02a0 0493     		str	r3, [sp, #16]
+ 1254 02a2 A5E7     		b	.L72
+ 1255              	.L154:
+ 1256              		.align	2
+ 1257              	.L153:
+ 1258 02a4 00000000 		.word	_ZL8g_active
+ 1259 02a8 00000000 		.word	_ZL9g_display
+ 1260 02ac 00000000 		.word	_ZL20g_image_source_ready
+ 1261 02b0 00000000 		.word	_ZL12g_image_kind
+ 1262 02b4 00000000 		.word	_ZL20g_anim_frame_offsets
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 35
+
+
+ 1263 02b8 00000000 		.word	_ZL14g_image_pixels
+ 1264 02bc 00000000 		.word	_ZL9g_image_w
+ 1265 02c0 00000000 		.word	_ZL9g_image_h
+ 1266 02c4 00000000 		.word	_ZL18g_anim_frame_count
+ 1267 02c8 00000000 		.word	_ZL10g_anim_fps
+ 1268 02cc 00000000 		.word	_ZL13g_bg_image_id
+ 1269 02d0 00000000 		.word	_ZL13g_need_redraw
+ 1270 02d4 00000000 		.word	_ZL14g_anim_next_ms
+ 1271 02d8 00000000 		.word	_ZL18g_anim_frame_index
+ 1272 02dc 00000000 		.word	_ZL4g_bg
+ 1273 02e0 00000000 		.word	.LC1
+ 1274 02e4 0F000000 		.word	.LC2
+ 1275 02e8 00806C90 		.word	-1871937536
+ 1276 02ec 55494D47 		.word	1196247381
+ 1277 02f0 00005F90 		.word	-1872822272
+ 1278 02f4 00000000 		.word	_ZL20g_image_source_valid
+ 1279              	.LVL79:
+ 1280              	.L74:
+ 212:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     StandbyUimgHeaderV2 v2 = {0};
+ 1281              		.loc 1 212 5 is_stmt 1 view .LVU411
+ 213:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     memcpy(&v2, base, sizeof(v2));
+ 1282              		.loc 1 213 5 view .LVU412
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1283              		.loc 1 214 5 view .LVU413
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1284              		.loc 1 214 11 is_stmt 0 view .LVU414
+ 1285 02f8 2146     		mov	r1, r4
+ 1286 02fa 5422     		movs	r2, #84
+ 1287 02fc 07A8     		add	r0, sp, #28
+ 1288 02fe FFF7FEFF 		bl	memcpy
+ 1289              	.LVL80:
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1290              		.loc 1 214 11 view .LVU415
+ 1291 0302 A379     		ldrb	r3, [r4, #6]	@ zero_extendqisi2
+ 1292              	.LVL81:
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1293              		.loc 1 214 11 view .LVU416
+ 1294 0304 E679     		ldrb	r6, [r4, #7]	@ zero_extendqisi2
+ 1295              	.LVL82:
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1296              		.loc 1 214 11 view .LVU417
+ 1297 0306 B4F808A0 		ldrh	r10, [r4, #8]
+ 1298              	.LVL83:
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1299              		.loc 1 214 11 view .LVU418
+ 1300 030a B4F80A90 		ldrh	r9, [r4, #10]
+ 1301              	.LVL84:
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1302              		.loc 1 214 11 view .LVU419
+ 1303 030e 217B     		ldrb	r1, [r4, #12]	@ zero_extendqisi2
+ 1304              	.LVL85:
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1305              		.loc 1 214 11 view .LVU420
+ 1306 0310 94F80DC0 		ldrb	ip, [r4, #13]	@ zero_extendqisi2
+ 1307              	.LVL86:
+ 214:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return parse_uimg_v2(&v2, areaSize);
+ 1308              		.loc 1 214 11 view .LVU421
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 36
+
+
+ 1309 0314 A069     		ldr	r0, [r4, #24]
+ 1310 0316 D4E904E2 		ldrd	lr, r2, [r4, #16]
+ 1311              	.LVL87:
+ 215:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1312              		.loc 1 215 5 is_stmt 1 view .LVU422
+ 1313              	.LBB49:
+ 1314              	.LBI49:
+ 139:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 1315              		.loc 1 139 13 view .LVU423
+ 1316              	.LBB50:
+ 141:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v2->magic != UIMG_MAGIC || v2->valid != 1u) return false;
+ 1317              		.loc 1 141 5 view .LVU424
+ 142:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1318              		.loc 1 142 5 view .LVU425
+ 1319 031a 2468     		ldr	r4, [r4]
+ 1320              	.LVL88:
+ 142:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1321              		.loc 1 142 5 is_stmt 0 view .LVU426
+ 1322 031c BC42     		cmp	r4, r7
+ 1323 031e 7FF4ACAE 		bne	.L73
+ 142:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1324              		.loc 1 142 33 discriminator 2 view .LVU427
+ 1325 0322 012B     		cmp	r3, #1
+ 1326 0324 7FF4A9AE 		bne	.L73
+ 144:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameCount == 0u) frameCount = 1u;
+ 1327              		.loc 1 144 5 is_stmt 1 view .LVU428
+ 1328              	.LVL89:
+ 145:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameCount > 10u) frameCount = 10u;
+ 1329              		.loc 1 145 5 view .LVU429
+ 147:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (fps > 5u) fps = 5u;
+ 1330              		.loc 1 147 5 view .LVU430
+ 148:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frameSize = (uint32_t)v2->width * (uint32_t)v2->height * 2u;
+ 1331              		.loc 1 148 5 view .LVU431
+ 149:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameSize == 0u) return false;
+ 1332              		.loc 1 149 5 view .LVU432
+ 149:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (frameSize == 0u) return false;
+ 1333              		.loc 1 149 46 is_stmt 0 view .LVU433
+ 1334 0328 09FB0AF3 		mul	r3, r9, r10
+ 1335              	.LVL90:
+ 150:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v2->frame_size != frameSize) return false;
+ 1336              		.loc 1 150 5 is_stmt 1 view .LVU434
+ 1337 032c 5B00     		lsls	r3, r3, #1
+ 1338              	.LVL91:
+ 150:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v2->frame_size != frameSize) return false;
+ 1339              		.loc 1 150 5 is_stmt 0 view .LVU435
+ 1340 032e 3FF4A4AE 		beq	.L73
+ 151:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if (v2->frames_offset < UIMG_HEADER_SIZE) return false;
+ 1341              		.loc 1 151 5 is_stmt 1 view .LVU436
+ 1342 0332 7345     		cmp	r3, lr
+ 1343 0334 7FF4A1AE 		bne	.L73
+ 152:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     if ((uint64_t)v2->frames_offset + (uint64_t)frameSize > (uint64_t)maxSize) return false;
+ 1344              		.loc 1 152 5 view .LVU437
+ 1345 0338 B2F5805F 		cmp	r2, #4096
+ 1346 033c FFF49DAE 		bcc	.L73
+ 153:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1347              		.loc 1 153 5 view .LVU438
+ 153:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 37
+
+
+ 1348              		.loc 1 153 37 is_stmt 0 view .LVU439
+ 1349 0340 12EB030E 		adds	lr, r2, r3
+ 1350 0344 4FF00008 		mov	r8, #0
+ 1351              	.LVL92:
+ 153:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1352              		.loc 1 153 5 view .LVU440
+ 1353 0348 049C     		ldr	r4, [sp, #16]
+ 1354              	.LVL93:
+ 153:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1355              		.loc 1 153 37 view .LVU441
+ 1356 034a 48EB0807 		adc	r7, r8, r8
+ 1357              	.LVL94:
+ 153:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** 
+ 1358              		.loc 1 153 5 view .LVU442
+ 1359 034e 7445     		cmp	r4, lr
+ 1360 0350 78EB0707 		sbcs	r7, r8, r7
+ 1361 0354 FFF491AE 		bcc	.L73
+ 155:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t expected = frameSize * (uint32_t)frameCount;
+ 1362              		.loc 1 155 5 is_stmt 1 view .LVU443
+ 1363              	.LBB51:
+ 1364 0358 022E     		cmp	r6, #2
+ 1365 035a 3FD1     		bne	.L76
+ 1366 035c 0A29     		cmp	r1, #10
+ 1367 035e 28BF     		it	cs
+ 1368 0360 0A21     		movcs	r1, #10
+ 1369              	.LVL95:
+ 155:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t expected = frameSize * (uint32_t)frameCount;
+ 1370              		.loc 1 155 5 is_stmt 0 view .LVU444
+ 1371 0362 0129     		cmp	r1, #1
+ 1372 0364 38BF     		it	cc
+ 1373 0366 0121     		movcc	r1, #1
+ 1374 0368 0E46     		mov	r6, r1
+ 1375              	.LVL96:
+ 1376              	.LBB52:
+ 156:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != expected) return false;
+ 1377              		.loc 1 156 9 is_stmt 1 view .LVU445
+ 157:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else if (v2->format == UIMG_FORMAT_RGB565_SINGLE) {
+ 1378              		.loc 1 157 9 view .LVU446
+ 156:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != expected) return false;
+ 1379              		.loc 1 156 18 is_stmt 0 view .LVU447
+ 1380 036a 5943     		muls	r1, r3, r1
+ 1381              	.LVL97:
+ 157:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else if (v2->format == UIMG_FORMAT_RGB565_SINGLE) {
+ 1382              		.loc 1 157 9 view .LVU448
+ 1383 036c 8142     		cmp	r1, r0
+ 1384 036e 7FF484AE 		bne	.L73
+ 1385              	.LBE52:
+ 1386              	.LBE51:
+ 148:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frameSize = (uint32_t)v2->width * (uint32_t)v2->height * 2u;
+ 1387              		.loc 1 148 5 view .LVU449
+ 1388 0372 6746     		mov	r7, ip
+ 1389 0374 052F     		cmp	r7, #5
+ 1390 0376 28BF     		it	cs
+ 1391 0378 0527     		movcs	r7, #5
+ 1392 037a 0597     		str	r7, [sp, #20]
+ 1393              	.LVL98:
+ 1394              	.L77:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 38
+
+
+ 148:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     uint32_t frameSize = (uint32_t)v2->width * (uint32_t)v2->height * 2u;
+ 1395              		.loc 1 148 5 view .LVU450
+ 1396 037c 0DF1340E 		add	lr, sp, #52
+ 1397 0380 DFF89CC1 		ldr	ip, .L155+28
+ 1398              	.LVL99:
+ 1399              	.LBB53:
+ 166:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t off = v2->frame_offsets[i];
+ 1400              		.loc 1 166 18 view .LVU451
+ 1401 0384 0020     		movs	r0, #0
+ 1402              	.LVL100:
+ 1403              	.L79:
+ 1404              	.LBB54:
+ 167:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (off == 0u) {
+ 1405              		.loc 1 167 9 is_stmt 1 view .LVU452
+ 167:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (off == 0u) {
+ 1406              		.loc 1 167 18 is_stmt 0 view .LVU453
+ 1407 0386 5EF8041F 		ldr	r1, [lr, #4]!
+ 1408              	.LVL101:
+ 168:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             off = v2->frames_offset + (uint32_t)i * frameSize;
+ 1409              		.loc 1 168 9 is_stmt 1 view .LVU454
+ 1410 038a 81B3     		cbz	r1, .L101
+ 171:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if ((uint64_t)off + (uint64_t)frameSize > (uint64_t)maxSize) return false;
+ 1411              		.loc 1 171 9 view .LVU455
+ 1412 038c B1F5805F 		cmp	r1, #4096
+ 1413 0390 FFF473AE 		bcc	.L73
+ 1414              	.LVL102:
+ 1415              	.L78:
+ 172:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_anim_frame_offsets[i] = off;
+ 1416              		.loc 1 172 9 view .LVU456
+ 172:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_anim_frame_offsets[i] = off;
+ 1417              		.loc 1 172 27 is_stmt 0 view .LVU457
+ 1418 0394 CC18     		adds	r4, r1, r3
+ 1419 0396 2746     		mov	r7, r4
+ 1420 0398 4FF00004 		mov	r4, #0
+ 1421 039c 44F10008 		adc	r8, r4, #0
+ 172:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         g_anim_frame_offsets[i] = off;
+ 1422              		.loc 1 172 9 view .LVU458
+ 1423 03a0 049C     		ldr	r4, [sp, #16]
+ 1424 03a2 BC42     		cmp	r4, r7
+ 1425 03a4 4FF00004 		mov	r4, #0
+ 1426 03a8 74EB0808 		sbcs	r8, r4, r8
+ 1427 03ac FFF465AE 		bcc	.L73
+ 173:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1428              		.loc 1 173 9 is_stmt 1 view .LVU459
+ 1429              	.LBE54:
+ 166:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t off = v2->frame_offsets[i];
+ 1430              		.loc 1 166 5 is_stmt 0 discriminator 2 view .LVU460
+ 1431 03b0 0130     		adds	r0, r0, #1
+ 1432              	.LVL103:
+ 166:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t off = v2->frame_offsets[i];
+ 1433              		.loc 1 166 27 discriminator 1 view .LVU461
+ 1434 03b2 1A44     		add	r2, r2, r3
+ 1435              	.LBB55:
+ 173:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1436              		.loc 1 173 33 view .LVU462
+ 1437 03b4 4CF8041B 		str	r1, [ip], #4
+ 1438              	.LBE55:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 39
+
+
+ 166:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t off = v2->frame_offsets[i];
+ 1439              		.loc 1 166 5 is_stmt 1 discriminator 2 view .LVU463
+ 1440 03b8 C0B2     		uxtb	r0, r0
+ 1441              	.LVL104:
+ 166:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t off = v2->frame_offsets[i];
+ 1442              		.loc 1 166 27 discriminator 1 view .LVU464
+ 1443 03ba B042     		cmp	r0, r6
+ 1444 03bc E3D1     		bne	.L79
+ 1445              	.LBE53:
+ 176:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = v2->width;
+ 1446              		.loc 1 176 5 view .LVU465
+ 176:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = v2->width;
+ 1447              		.loc 1 176 18 is_stmt 0 view .LVU466
+ 1448 03be 514B     		ldr	r3, .L155
+ 1449              	.LVL105:
+ 176:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_w = v2->width;
+ 1450              		.loc 1 176 18 view .LVU467
+ 1451 03c0 0222     		movs	r2, #2
+ 1452 03c2 1A70     		strb	r2, [r3]
+ 177:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = v2->height;
+ 1453              		.loc 1 177 5 is_stmt 1 view .LVU468
+ 177:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = v2->height;
+ 1454              		.loc 1 177 15 is_stmt 0 view .LVU469
+ 1455 03c4 504B     		ldr	r3, .L155+4
+ 180:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = frameSize;
+ 1456              		.loc 1 180 16 view .LVU470
+ 1457 03c6 059A     		ldr	r2, [sp, #20]
+ 177:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_image_h = v2->height;
+ 1458              		.loc 1 177 15 view .LVU471
+ 1459 03c8 A3F800A0 		strh	r10, [r3]	@ movhi
+ 178:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = frameCount;
+ 1460              		.loc 1 178 5 is_stmt 1 view .LVU472
+ 178:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_count = frameCount;
+ 1461              		.loc 1 178 15 is_stmt 0 view .LVU473
+ 1462 03cc 4F4B     		ldr	r3, .L155+8
+ 1463 03ce A3F80090 		strh	r9, [r3]	@ movhi
+ 179:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = fps;
+ 1464              		.loc 1 179 5 is_stmt 1 view .LVU474
+ 179:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_fps = fps;
+ 1465              		.loc 1 179 24 is_stmt 0 view .LVU475
+ 1466 03d2 4F4B     		ldr	r3, .L155+12
+ 1467 03d4 1870     		strb	r0, [r3]
+ 180:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = frameSize;
+ 1468              		.loc 1 180 5 is_stmt 1 view .LVU476
+ 180:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     g_anim_frame_size = frameSize;
+ 1469              		.loc 1 180 16 is_stmt 0 view .LVU477
+ 1470 03d6 4F4B     		ldr	r3, .L155+16
+ 1471 03d8 1A70     		strb	r2, [r3]
+ 181:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     return true;
+ 1472              		.loc 1 181 5 is_stmt 1 view .LVU478
+ 182:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1473              		.loc 1 182 5 view .LVU479
+ 1474              	.LVL106:
+ 182:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** }
+ 1475              		.loc 1 182 5 is_stmt 0 view .LVU480
+ 1476 03da 4BE7     		b	.L75
+ 1477              	.LVL107:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 40
+
+
+ 1478              	.L76:
+ 1479              	.LBB57:
+ 158:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         frameCount = 1u;
+ 1480              		.loc 1 158 12 is_stmt 1 view .LVU481
+ 1481 03dc 012E     		cmp	r6, #1
+ 1482 03de 7FF44CAE 		bne	.L73
+ 159:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         fps = 0u;
+ 1483              		.loc 1 159 9 view .LVU482
+ 1484              	.LVL108:
+ 160:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != frameSize) return false;
+ 1485              		.loc 1 160 9 view .LVU483
+ 161:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else {
+ 1486              		.loc 1 161 9 view .LVU484
+ 1487 03e2 8342     		cmp	r3, r0
+ 1488 03e4 7FF449AE 		bne	.L73
+ 160:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != frameSize) return false;
+ 1489              		.loc 1 160 13 is_stmt 0 view .LVU485
+ 1490 03e8 0021     		movs	r1, #0
+ 1491              	.LVL109:
+ 160:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != frameSize) return false;
+ 1492              		.loc 1 160 13 view .LVU486
+ 1493 03ea 0591     		str	r1, [sp, #20]
+ 1494              	.LVL110:
+ 160:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != frameSize) return false;
+ 1495              		.loc 1 160 13 view .LVU487
+ 1496 03ec C6E7     		b	.L77
+ 1497              	.LVL111:
+ 1498              	.L101:
+ 160:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (v2->total_size != frameSize) return false;
+ 1499              		.loc 1 160 13 view .LVU488
+ 1500              	.LBE57:
+ 1501              	.LBB58:
+ 1502              	.LBB56:
+ 169:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1503              		.loc 1 169 17 view .LVU489
+ 1504 03ee 1146     		mov	r1, r2
+ 1505              	.LVL112:
+ 169:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1506              		.loc 1 169 17 view .LVU490
+ 1507 03f0 D0E7     		b	.L78
+ 1508              	.LVL113:
+ 1509              	.L102:
+ 169:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1510              		.loc 1 169 17 view .LVU491
+ 1511              	.LBE56:
+ 1512              	.LBE58:
+ 1513              	.LBE50:
+ 1514              	.LBE49:
+ 1515              	.LBE60:
+ 1516              	.LBE67:
+ 1517              	.LBE70:
+ 1518              	.LBE88:
+ 1519 03f2 0023     		movs	r3, #0
+ 1520 03f4 93E6     		b	.L84
+ 1521              	.LVL114:
+ 1522              	.L88:
+ 1523              	.LBB89:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 41
+
+
+ 1524              	.LBB82:
+ 281:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (frameIndex >= g_anim_frame_count) frameIndex = 0u;
+ 1525              		.loc 1 281 5 is_stmt 1 view .LVU492
+ 1526              	.LBB80:
+ 1527 03f6 022B     		cmp	r3, #2
+ 1528 03f8 7FF4CAAE 		bne	.L85
+ 1529              	.LBB79:
+ 282:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t addr = 0u;
+ 1530              		.loc 1 282 9 view .LVU493
+ 282:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t addr = 0u;
+ 1531              		.loc 1 282 24 is_stmt 0 view .LVU494
+ 1532 03fc 444B     		ldr	r3, .L155+12
+ 284:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             addr = USER_IMAGE_RESOURCES_ADDR + g_anim_frame_offsets[frameIndex];
+ 1533              		.loc 1 284 20 view .LVU495
+ 1534 03fe 4649     		ldr	r1, .L155+20
+ 282:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t addr = 0u;
+ 1535              		.loc 1 282 9 view .LVU496
+ 1536 0400 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 284:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             addr = USER_IMAGE_RESOURCES_ADDR + g_anim_frame_offsets[frameIndex];
+ 1537              		.loc 1 284 20 view .LVU497
+ 1538 0402 4648     		ldr	r0, .L155+24
+ 282:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         uint32_t addr = 0u;
+ 1539              		.loc 1 282 58 discriminator 1 view .LVU498
+ 1540 0404 BB42     		cmp	r3, r7
+ 1541 0406 98BF     		it	ls
+ 1542 0408 0027     		movls	r7, #0
+ 1543              	.LVL115:
+ 283:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (strncmp(g_bg_image_id, SYSTEM_IMAGE_ID, 16) == 0) {
+ 1544              		.loc 1 283 9 is_stmt 1 view .LVU499
+ 284:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             addr = USER_IMAGE_RESOURCES_ADDR + g_anim_frame_offsets[frameIndex];
+ 1545              		.loc 1 284 9 view .LVU500
+ 284:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             addr = USER_IMAGE_RESOURCES_ADDR + g_anim_frame_offsets[frameIndex];
+ 1546              		.loc 1 284 20 is_stmt 0 view .LVU501
+ 1547 040a FFF7FEFF 		bl	strcmp
+ 1548              	.LVL116:
+ 285:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1549              		.loc 1 285 79 view .LVU502
+ 1550 040e 444B     		ldr	r3, .L155+28
+ 1551 0410 53F82770 		ldr	r7, [r3, r7, lsl #2]
+ 1552              	.LVL117:
+ 285:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1553              		.loc 1 285 79 view .LVU503
+ 1554 0414 07F11047 		add	r7, r7, #-1879048192
+ 284:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             addr = USER_IMAGE_RESOURCES_ADDR + g_anim_frame_offsets[frameIndex];
+ 1555              		.loc 1 284 9 discriminator 1 view .LVU504
+ 1556 0418 40B9     		cbnz	r0, .L90
+ 285:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1557              		.loc 1 285 13 is_stmt 1 view .LVU505
+ 285:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1558              		.loc 1 285 18 is_stmt 0 view .LVU506
+ 1559 041a 07F5BE07 		add	r7, r7, #6225920
+ 1560              	.LVL118:
+ 1561              	.L91:
+ 289:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, pixels, ST7789_BITMAP_RGB565_LE, (uint32
+ 1562              		.loc 1 289 9 is_stmt 1 view .LVU507
+ 290:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1563              		.loc 1 290 9 view .LVU508
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 42
+
+
+ 290:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1564              		.loc 1 290 26 is_stmt 0 view .LVU509
+ 1565 041e 4FEA4803 		lsl	r3, r8, #1
+ 1566 0422 0393     		str	r3, [sp, #12]
+ 1567 0424 0123     		movs	r3, #1
+ 1568 0426 CDE90173 		strd	r7, r3, [sp, #4]
+ 1569 042a A9E6     		b	.L152
+ 1570              	.LVL119:
+ 1571              	.L90:
+ 287:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1572              		.loc 1 287 13 is_stmt 1 view .LVU510
+ 287:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1573              		.loc 1 287 18 is_stmt 0 view .LVU511
+ 1574 042c 07F5D907 		add	r7, r7, #7110656
+ 1575              	.LVL120:
+ 287:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1576              		.loc 1 287 18 view .LVU512
+ 1577 0430 F5E7     		b	.L91
+ 1578              	.LVL121:
+ 1579              	.L61:
+ 287:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1580              		.loc 1 287 18 view .LVU513
+ 1581              	.LBE79:
+ 1582              	.LBE80:
+ 1583              	.LBE82:
+ 1584              	.LBE89:
+ 1585              	.LBE90:
+ 415:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_need_redraw) return;
+ 1586              		.loc 1 415 12 is_stmt 1 view .LVU514
+ 416:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         draw_button_layout(lcd, inputMask);
+ 1587              		.loc 1 416 13 is_stmt 0 view .LVU515
+ 1588 0432 3C4A     		ldr	r2, .L155+32
+ 415:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_need_redraw) return;
+ 1589              		.loc 1 415 12 view .LVU516
+ 1590 0434 022B     		cmp	r3, #2
+ 416:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         draw_button_layout(lcd, inputMask);
+ 1591              		.loc 1 416 13 view .LVU517
+ 1592 0436 1278     		ldrb	r2, [r2]	@ zero_extendqisi2
+ 415:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (!g_need_redraw) return;
+ 1593              		.loc 1 415 12 view .LVU518
+ 1594 0438 5CD1     		bne	.L94
+ 416:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         draw_button_layout(lcd, inputMask);
+ 1595              		.loc 1 416 9 is_stmt 1 view .LVU519
+ 1596 043a 002A     		cmp	r2, #0
+ 1597 043c 3FF4B5AE 		beq	.L57
+ 417:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     } else {
+ 1598              		.loc 1 417 9 view .LVU520
+ 1599              	.LVL122:
+ 1600              	.LBB91:
+ 1601              	.LBI91:
+ 295:Cpp_Core/Src/screen_control/spi_screen_standby.cpp **** {
+ 1602              		.loc 1 295 13 view .LVU521
+ 1603              	.LBB92:
+ 297:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     ST7789_FillScreen(lcd, g_bg);
+ 1604              		.loc 1 297 5 view .LVU522
+ 298:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     for (uint32_t i = 0; i < (uint32_t)(NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+ 1605              		.loc 1 298 5 view .LVU523
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 43
+
+
+ 298:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     for (uint32_t i = 0; i < (uint32_t)(NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+ 1606              		.loc 1 298 22 is_stmt 0 view .LVU524
+ 1607 0440 394B     		ldr	r3, .L155+36
+ 1608              	.LBB93:
+ 1609              	.LBB94:
+ 303:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int y = (int)(cy + 0.5f);
+ 1610              		.loc 1 303 26 view .LVU525
+ 1611 0442 B6EE008A 		vmov.f32	s16, #5.0e-1
+ 1612 0446 394E     		ldr	r6, .L155+40
+ 1613              	.LBE94:
+ 299:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float cx = HITBOX_BUTTON_POS_LIST[i].x * scale;
+ 1614              		.loc 1 299 19 view .LVU526
+ 1615 0448 4FF00009 		mov	r9, #0
+ 1616              	.LBB95:
+ 302:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int x = (int)(cx + 0.5f);
+ 1617              		.loc 1 302 15 view .LVU527
+ 1618 044c DFED388A 		vldr.32	s17, .L155+44
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1619              		.loc 1 309 30 view .LVU528
+ 1620 0450 DFF8E0B0 		ldr	fp, .L155+48
+ 1621              	.LBE95:
+ 1622              	.LBE93:
+ 298:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     for (uint32_t i = 0; i < (uint32_t)(NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+ 1623              		.loc 1 298 22 view .LVU529
+ 1624 0454 1968     		ldr	r1, [r3]
+ 1625              	.LVL123:
+ 298:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     for (uint32_t i = 0; i < (uint32_t)(NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+ 1626              		.loc 1 298 22 view .LVU530
+ 1627 0456 FFF7FEFF 		bl	ST7789_FillScreen
+ 1628              	.LVL124:
+ 299:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float cx = HITBOX_BUTTON_POS_LIST[i].x * scale;
+ 1629              		.loc 1 299 5 is_stmt 1 view .LVU531
+ 1630              	.LBB98:
+ 299:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float cx = HITBOX_BUTTON_POS_LIST[i].x * scale;
+ 1631              		.loc 1 299 28 discriminator 1 view .LVU532
+ 1632              	.L97:
+ 1633              	.LBB96:
+ 300:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float cy = HITBOX_BUTTON_POS_LIST[i].y * scale;
+ 1634              		.loc 1 300 9 view .LVU533
+ 301:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float diameter = HITBOX_BUTTON_POS_LIST[i].r * scale;
+ 1635              		.loc 1 301 9 view .LVU534
+ 303:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int y = (int)(cy + 0.5f);
+ 1636              		.loc 1 303 26 is_stmt 0 view .LVU535
+ 1637 045a F0EE487A 		vmov.f32	s15, s16
+ 1638 045e 96ED006A 		vldr.32	s12, [r6]
+ 301:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float diameter = HITBOX_BUTTON_POS_LIST[i].r * scale;
+ 1639              		.loc 1 301 46 view .LVU536
+ 1640 0462 D6ED016A 		vldr.32	s13, [r6, #4]
+ 1641              	.LVL125:
+ 302:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int x = (int)(cx + 0.5f);
+ 1642              		.loc 1 302 9 is_stmt 1 view .LVU537
+ 307:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (pressed) {
+ 1643              		.loc 1 307 41 is_stmt 0 view .LVU538
+ 1644 0466 0123     		movs	r3, #1
+ 302:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int x = (int)(cx + 0.5f);
+ 1645              		.loc 1 302 15 view .LVU539
+ 1646 0468 96ED027A 		vldr.32	s14, [r6, #8]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 44
+
+
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1647              		.loc 1 309 30 view .LVU540
+ 1648 046c 2846     		mov	r0, r5
+ 303:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int y = (int)(cy + 0.5f);
+ 1649              		.loc 1 303 26 view .LVU541
+ 1650 046e E6EE287A 		vfma.f32	s15, s12, s17
+ 307:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (pressed) {
+ 1651              		.loc 1 307 41 view .LVU542
+ 1652 0472 03FA09F3 		lsl	r3, r3, r9
+ 302:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int x = (int)(cx + 0.5f);
+ 1653              		.loc 1 302 15 view .LVU543
+ 1654 0476 27EE287A 		vmul.f32	s14, s14, s17
+ 1655              	.LVL126:
+ 303:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int y = (int)(cy + 0.5f);
+ 1656              		.loc 1 303 9 is_stmt 1 view .LVU544
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1657              		.loc 1 309 30 is_stmt 0 view .LVU545
+ 1658 047a DBF80020 		ldr	r2, [fp]
+ 1659 047e 0092     		str	r2, [sp]
+ 1660              	.LVL127:
+ 303:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int y = (int)(cy + 0.5f);
+ 1661              		.loc 1 303 13 view .LVU546
+ 1662 0480 FDEEE77A 		vcvt.s32.f32	s15, s15
+ 1663 0484 17EE907A 		vmov	r7, s15	@ int
+ 1664              	.LVL128:
+ 304:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int r = (int)((diameter * 0.5f + 0.5f) * 9 / 10);
+ 1665              		.loc 1 304 9 is_stmt 1 view .LVU547
+ 304:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int r = (int)((diameter * 0.5f + 0.5f) * 9 / 10);
+ 1666              		.loc 1 304 26 is_stmt 0 view .LVU548
+ 1667 0488 F0EE487A 		vmov.f32	s15, s16
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1668              		.loc 1 309 30 view .LVU549
+ 1669 048c 3946     		mov	r1, r7
+ 304:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int r = (int)((diameter * 0.5f + 0.5f) * 9 / 10);
+ 1670              		.loc 1 304 26 view .LVU550
+ 1671 048e E6EEA87A 		vfma.f32	s15, s13, s17
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 1672              		.loc 1 305 52 view .LVU551
+ 1673 0492 F2EE046A 		vmov.f32	s13, #1.0e+1
+ 1674              	.LVL129:
+ 304:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         int r = (int)((diameter * 0.5f + 0.5f) * 9 / 10);
+ 1675              		.loc 1 304 13 view .LVU552
+ 1676 0496 FDEEE77A 		vcvt.s32.f32	s15, s15
+ 1677 049a 17EE908A 		vmov	r8, s15	@ int
+ 1678              	.LVL130:
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 1679              		.loc 1 305 9 is_stmt 1 view .LVU553
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 1680              		.loc 1 305 40 is_stmt 0 view .LVU554
+ 1681 049e F0EE487A 		vmov.f32	s15, s16
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1682              		.loc 1 309 30 view .LVU555
+ 1683 04a2 4246     		mov	r2, r8
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 1684              		.loc 1 305 40 view .LVU556
+ 1685 04a4 E7EE087A 		vfma.f32	s15, s14, s16
+ 1686              	.LVL131:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 45
+
+
+ 306:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         bool pressed = (inputMask & (1u << i)) != 0u;
+ 1687              		.loc 1 306 9 is_stmt 1 view .LVU557
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 1688              		.loc 1 305 48 is_stmt 0 view .LVU558
+ 1689 04a8 B2EE027A 		vmov.f32	s14, #9.0e+0
+ 1690              	.LVL132:
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 1691              		.loc 1 305 48 view .LVU559
+ 1692 04ac 67EE877A 		vmul.f32	s15, s15, s14
+ 1693              	.LVL133:
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 1694              		.loc 1 305 52 view .LVU560
+ 1695 04b0 87EEA67A 		vdiv.f32	s14, s15, s13
+ 305:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if(r < 2) r = 2;
+ 1696              		.loc 1 305 13 view .LVU561
+ 1697 04b4 FDEEC77A 		vcvt.s32.f32	s15, s14
+ 1698 04b8 17EE904A 		vmov	r4, s15	@ int
+ 306:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         bool pressed = (inputMask & (1u << i)) != 0u;
+ 1699              		.loc 1 306 9 view .LVU562
+ 1700 04bc 022C     		cmp	r4, #2
+ 1701 04be B8BF     		it	lt
+ 1702 04c0 0224     		movlt	r4, #2
+ 1703              	.LVL134:
+ 307:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         if (pressed) {
+ 1704              		.loc 1 307 9 is_stmt 1 view .LVU563
+ 308:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             ST7789_FillCircle(lcd, x, y, r, g_fg);
+ 1705              		.loc 1 308 9 view .LVU564
+ 1706 04c2 13EA0A0F 		tst	r3, r10
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1707              		.loc 1 309 30 is_stmt 0 view .LVU565
+ 1708 04c6 2346     		mov	r3, r4
+ 308:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             ST7789_FillCircle(lcd, x, y, r, g_fg);
+ 1709              		.loc 1 308 9 view .LVU566
+ 1710 04c8 08D0     		beq	.L95
+ 1711              	.LVL135:
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1712              		.loc 1 309 13 is_stmt 1 view .LVU567
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1713              		.loc 1 309 30 is_stmt 0 view .LVU568
+ 1714 04ca FFF7FEFF 		bl	ST7789_FillCircle
+ 1715              	.LVL136:
+ 1716              	.L96:
+ 309:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         } else {
+ 1717              		.loc 1 309 30 view .LVU569
+ 1718              	.LBE96:
+ 299:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float cx = HITBOX_BUTTON_POS_LIST[i].x * scale;
+ 1719              		.loc 1 299 5 is_stmt 1 discriminator 2 view .LVU570
+ 1720 04ce 09F10109 		add	r9, r9, #1
+ 1721              	.LVL137:
+ 299:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         float cx = HITBOX_BUTTON_POS_LIST[i].x * scale;
+ 1722              		.loc 1 299 28 discriminator 1 view .LVU571
+ 1723 04d2 0C36     		adds	r6, r6, #12
+ 1724 04d4 B9F1160F 		cmp	r9, #22
+ 1725 04d8 BFD1     		bne	.L97
+ 1726 04da 63E6     		b	.L93
+ 1727              	.LVL138:
+ 1728              	.L95:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 46
+
+
+ 1729              	.LBB97:
+ 311:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             ST7789_DrawCircle(lcd, x, y, r - 1, g_fg);
+ 1730              		.loc 1 311 13 view .LVU572
+ 311:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****             ST7789_DrawCircle(lcd, x, y, r - 1, g_fg);
+ 1731              		.loc 1 311 30 is_stmt 0 view .LVU573
+ 1732 04dc FFF7FEFF 		bl	ST7789_DrawCircle
+ 1733              	.LVL139:
+ 312:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1734              		.loc 1 312 13 is_stmt 1 view .LVU574
+ 312:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1735              		.loc 1 312 30 is_stmt 0 view .LVU575
+ 1736 04e0 DBF80030 		ldr	r3, [fp]
+ 1737 04e4 4246     		mov	r2, r8
+ 1738 04e6 3946     		mov	r1, r7
+ 1739 04e8 0093     		str	r3, [sp]
+ 1740 04ea 2846     		mov	r0, r5
+ 1741 04ec 631E     		subs	r3, r4, #1
+ 1742 04ee FFF7FEFF 		bl	ST7789_DrawCircle
+ 1743              	.LVL140:
+ 1744 04f2 ECE7     		b	.L96
+ 1745              	.LVL141:
+ 1746              	.L94:
+ 312:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         }
+ 1747              		.loc 1 312 30 view .LVU576
+ 1748              	.LBE97:
+ 1749              	.LBE98:
+ 1750              	.LBE92:
+ 1751              	.LBE91:
+ 419:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****         ST7789_FillScreen(lcd, g_bg);
+ 1752              		.loc 1 419 9 is_stmt 1 view .LVU577
+ 1753 04f4 002A     		cmp	r2, #0
+ 1754 04f6 3FF458AE 		beq	.L57
+ 420:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1755              		.loc 1 420 9 view .LVU578
+ 420:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1756              		.loc 1 420 26 is_stmt 0 view .LVU579
+ 1757 04fa 0B4B     		ldr	r3, .L155+36
+ 1758 04fc 1968     		ldr	r1, [r3]
+ 1759              	.LVL142:
+ 420:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1760              		.loc 1 420 26 view .LVU580
+ 1761 04fe FFF7FEFF 		bl	ST7789_FillScreen
+ 1762              	.LVL143:
+ 420:Cpp_Core/Src/screen_control/spi_screen_standby.cpp ****     }
+ 1763              		.loc 1 420 26 view .LVU581
+ 1764 0502 4FE6     		b	.L93
+ 1765              	.L156:
+ 1766              		.align	2
+ 1767              	.L155:
+ 1768 0504 00000000 		.word	_ZL12g_image_kind
+ 1769 0508 00000000 		.word	_ZL9g_image_w
+ 1770 050c 00000000 		.word	_ZL9g_image_h
+ 1771 0510 00000000 		.word	_ZL18g_anim_frame_count
+ 1772 0514 00000000 		.word	_ZL10g_anim_fps
+ 1773 0518 00000000 		.word	.LC1
+ 1774 051c 00000000 		.word	_ZL13g_bg_image_id
+ 1775 0520 00000000 		.word	_ZL20g_anim_frame_offsets
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 47
+
+
+ 1776 0524 00000000 		.word	_ZL13g_need_redraw
+ 1777 0528 00000000 		.word	_ZL4g_bg
+ 1778 052c 00000000 		.word	_ZL22HITBOX_BUTTON_POS_LIST
+ 1779 0530 390B843F 		.word	1065618233
+ 1780 0534 00000000 		.word	_ZL4g_fg
+ 1781              	.LBE99:
+ 1782              		.cfi_endproc
+ 1783              	.LFE1285:
+ 1785              		.section	.bss._ZL14g_anim_next_ms,"aw",%nobits
+ 1786              		.align	2
+ 1789              	_ZL14g_anim_next_ms:
+ 1790 0000 00000000 		.space	4
+ 1791              		.section	.bss._ZL18g_anim_frame_index,"aw",%nobits
+ 1794              	_ZL18g_anim_frame_index:
+ 1795 0000 00       		.space	1
+ 1796              		.section	.bss._ZL20g_anim_frame_offsets,"aw",%nobits
+ 1797              		.align	2
+ 1800              	_ZL20g_anim_frame_offsets:
+ 1801 0000 00000000 		.space	40
+ 1801      00000000 
+ 1801      00000000 
+ 1801      00000000 
+ 1801      00000000 
+ 1802              		.section	.bss._ZL10g_anim_fps,"aw",%nobits
+ 1805              	_ZL10g_anim_fps:
+ 1806 0000 00       		.space	1
+ 1807              		.section	.data._ZL18g_anim_frame_count,"aw"
+ 1810              	_ZL18g_anim_frame_count:
+ 1811 0000 01       		.byte	1
+ 1812              		.section	.bss._ZL9g_image_h,"aw",%nobits
+ 1813              		.align	1
+ 1816              	_ZL9g_image_h:
+ 1817 0000 0000     		.space	2
+ 1818              		.section	.bss._ZL9g_image_w,"aw",%nobits
+ 1819              		.align	1
+ 1822              	_ZL9g_image_w:
+ 1823 0000 0000     		.space	2
+ 1824              		.section	.bss._ZL14g_image_pixels,"aw",%nobits
+ 1825              		.align	2
+ 1828              	_ZL14g_image_pixels:
+ 1829 0000 00000000 		.space	4
+ 1830              		.section	.bss._ZL12g_image_kind,"aw",%nobits
+ 1833              	_ZL12g_image_kind:
+ 1834 0000 00       		.space	1
+ 1835              		.section	.bss._ZL20g_image_source_valid,"aw",%nobits
+ 1838              	_ZL20g_image_source_valid:
+ 1839 0000 00       		.space	1
+ 1840              		.section	.bss._ZL20g_image_source_ready,"aw",%nobits
+ 1843              	_ZL20g_image_source_ready:
+ 1844 0000 00       		.space	1
+ 1845              		.section	.bss._ZL17g_last_input_mask,"aw",%nobits
+ 1846              		.align	2
+ 1849              	_ZL17g_last_input_mask:
+ 1850 0000 00000000 		.space	4
+ 1851              		.section	.bss._ZL18g_last_activity_ms,"aw",%nobits
+ 1852              		.align	2
+ 1855              	_ZL18g_last_activity_ms:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 48
+
+
+ 1856 0000 00000000 		.space	4
+ 1857              		.section	.data._ZL13g_need_redraw,"aw"
+ 1860              	_ZL13g_need_redraw:
+ 1861 0000 01       		.byte	1
+ 1862              		.section	.bss._ZL8g_active,"aw",%nobits
+ 1865              	_ZL8g_active:
+ 1866 0000 00       		.space	1
+ 1867              		.section	.data._ZL4g_fg,"aw"
+ 1868              		.align	2
+ 1871              	_ZL4g_fg:
+ 1872 0000 FFFFFF00 		.word	16777215
+ 1873              		.section	.bss._ZL4g_bg,"aw",%nobits
+ 1874              		.align	2
+ 1877              	_ZL4g_bg:
+ 1878 0000 00000000 		.space	4
+ 1879              		.section	.bss._ZL13g_bg_image_id,"aw",%nobits
+ 1882              	_ZL13g_bg_image_id:
+ 1883 0000 00000000 		.space	32
+ 1883      00000000 
+ 1883      00000000 
+ 1883      00000000 
+ 1883      00000000 
+ 1884              		.section	.bss._ZL9g_display,"aw",%nobits
+ 1887              	_ZL9g_display:
+ 1888 0000 00       		.space	1
+ 1889              		.section	.rodata._ZL22HITBOX_BUTTON_POS_LIST,"a"
+ 1890              		.align	2
+ 1893              	_ZL22HITBOX_BUTTON_POS_LIST:
+ 1894 0000 3333FA42 		.word	1123693363
+ 1895 0004 3333CE42 		.word	1120809779
+ 1896 0008 0000D041 		.word	1104150528
+ 1897 000c 0A571343 		.word	1125340938
+ 1898 0010 3333F042 		.word	1123038003
+ 1899 0014 00000842 		.word	1107820544
+ 1900 0018 9A192F43 		.word	1127160218
+ 1901 001c 3333EE42 		.word	1122906931
+ 1902 0020 0000D041 		.word	1104150528
+ 1903 0024 CDCC4043 		.word	1128320205
+ 1904 0028 48E1CA42 		.word	1120592200
+ 1905 002c 0000D041 		.word	1104150528
+ 1906 0030 E1FA9242 		.word	1116928737
+ 1907 0034 3D0A7F42 		.word	1115621949
+ 1908 0038 0000D041 		.word	1104150528
+ 1909 003c 9A19C642 		.word	1120278938
+ 1910 0040 14AE6E42 		.word	1114549780
+ 1911 0044 0000D041 		.word	1104150528
+ 1912 0048 4861F442 		.word	1123311944
+ 1913 004c 3D0A7F42 		.word	1115621949
+ 1914 0050 0000D041 		.word	1104150528
+ 1915 0054 00800D43 		.word	1124958208
+ 1916 0058 14AE9A42 		.word	1117433364
+ 1917 005c 0000D041 		.word	1104150528
+ 1918 0060 A4300343 		.word	1124282532
+ 1919 0064 F6282842 		.word	1109928182
+ 1920 0068 0000D041 		.word	1104150528
+ 1921 006c 33732543 		.word	1126527795
+ 1922 0070 3333AE42 		.word	1118712627
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 49
+
+
+ 1923 0074 0000D041 		.word	1104150528
+ 1924 0078 B85E2343 		.word	1126391480
+ 1925 007c 33337B42 		.word	1115370291
+ 1926 0080 0000D041 		.word	1104150528
+ 1927 0084 3D4A2143 		.word	1126255165
+ 1928 0088 00001A42 		.word	1109000192
+ 1929 008c 0000D041 		.word	1104150528
+ 1930 0090 8F823943 		.word	1127842447
+ 1931 0094 9A199242 		.word	1116871066
+ 1932 0098 0000D041 		.word	1104150528
+ 1933 009c 146E3743 		.word	1127706132
+ 1934 00a0 00004342 		.word	1111687168
+ 1935 00a4 0000D041 		.word	1104150528
+ 1936 00a8 8F025143 		.word	1129382543
+ 1937 00ac 33338442 		.word	1115960115
+ 1938 00b0 0000D041 		.word	1104150528
+ 1939 00b4 14EE4E43 		.word	1129246228
+ 1940 00b8 33332742 		.word	1109865267
+ 1941 00bc 0000D041 		.word	1104150528
+ 1942 00c0 A4706943 		.word	1130983588
+ 1943 00c4 C3F58742 		.word	1116206531
+ 1944 00c8 0000D041 		.word	1104150528
+ 1945 00cc 295C6743 		.word	1130847273
+ 1946 00d0 8FC22E42 		.word	1110360719
+ 1947 00d4 0000D041 		.word	1104150528
+ 1948 00d8 E1FAA842 		.word	1118370529
+ 1949 00dc 0AD77741 		.word	1098372874
+ 1950 00e0 00003841 		.word	1094189056
+ 1951 00e4 C3F57942 		.word	1115289027
+ 1952 00e8 0AD77741 		.word	1098372874
+ 1953 00ec 00003841 		.word	1094189056
+ 1954 00f0 C3F52142 		.word	1109521859
+ 1955 00f4 0AD77741 		.word	1098372874
+ 1956 00f8 00003841 		.word	1094189056
+ 1957 00fc 0AD79341 		.word	1100207882
+ 1958 0100 0AD77741 		.word	1098372874
+ 1959 0104 00003841 		.word	1094189056
+ 1960              		.text
+ 1961              	.Letext0:
+ 1962              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1963              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1964              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1965              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1966              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 1967              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 1968              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 1969              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 1970              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 1971              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 1972              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1973              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 1974              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 1975              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 1976              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 1977              		.file 17 "Core/Inc/board_cfg.h"
+ 1978              		.file 18 "Drivers/SPI-ST7789/st7789.h"
+ 1979              		.file 19 "Drivers/QSPI-W25Q64/qspi-w25q64.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 50
+
+
+ 1980              		.file 20 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1981              		.file 21 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 51
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_standby.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:20     .text._ZL19reset_image_runtimev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:25     .text._ZL19reset_image_runtimev:00000000 _ZL19reset_image_runtimev
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:97     .text._ZL19reset_image_runtimev:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1843   .bss._ZL20g_image_source_ready:00000000 _ZL20g_image_source_ready
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1800   .bss._ZL20g_anim_frame_offsets:00000000 _ZL20g_anim_frame_offsets
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1838   .bss._ZL20g_image_source_valid:00000000 _ZL20g_image_source_valid
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1833   .bss._ZL12g_image_kind:00000000 _ZL12g_image_kind
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1828   .bss._ZL14g_image_pixels:00000000 _ZL14g_image_pixels
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1822   .bss._ZL9g_image_w:00000000 _ZL9g_image_w
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1816   .bss._ZL9g_image_h:00000000 _ZL9g_image_h
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1810   .data._ZL18g_anim_frame_count:00000000 _ZL18g_anim_frame_count
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1805   .bss._ZL10g_anim_fps:00000000 _ZL10g_anim_fps
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1794   .bss._ZL18g_anim_frame_index:00000000 _ZL18g_anim_frame_index
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1789   .bss._ZL14g_anim_next_ms:00000000 _ZL14g_anim_next_ms
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:112    .text._Z18ScreenStandby_Initmm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:118    .text._Z18ScreenStandby_Initmm:00000000 _Z18ScreenStandby_Initmm
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:152    .text._Z18ScreenStandby_Initmm:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1865   .bss._ZL8g_active:00000000 _ZL8g_active
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1860   .data._ZL13g_need_redraw:00000000 _ZL13g_need_redraw
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1855   .bss._ZL18g_last_activity_ms:00000000 _ZL18g_last_activity_ms
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1849   .bss._ZL17g_last_input_mask:00000000 _ZL17g_last_input_mask
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:163    .text._Z23ScreenStandby_ConfigurehPKcmm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:169    .text._Z23ScreenStandby_ConfigurehPKcmm:00000000 _Z23ScreenStandby_ConfigurehPKcmm
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:284    .text._Z23ScreenStandby_ConfigurehPKcmm:00000068 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1887   .bss._ZL9g_display:00000000 _ZL9g_display
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1882   .bss._ZL13g_bg_image_id:00000000 _ZL13g_bg_image_id
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1877   .bss._ZL4g_bg:00000000 _ZL4g_bg
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1871   .data._ZL4g_fg:00000000 _ZL4g_fg
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:294    .text._Z25ScreenStandby_NotifyInputmmbb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:300    .text._Z25ScreenStandby_NotifyInputmmbb:00000000 _Z25ScreenStandby_NotifyInputmmbb
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:404    .text._Z25ScreenStandby_NotifyInputmmbb:00000044 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:413    .text._Z18ScreenStandby_Tickm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:419    .text._Z18ScreenStandby_Tickm:00000000 _Z18ScreenStandby_Tickm
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:461    .text._Z18ScreenStandby_Tickm:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:469    .text._Z22ScreenStandby_IsActivev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:475    .text._Z22ScreenStandby_IsActivev:00000000 _Z22ScreenStandby_IsActivev
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:490    .text._Z22ScreenStandby_IsActivev:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:495    .text._Z24ScreenStandby_Deactivatev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:501    .text._Z24ScreenStandby_Deactivatev:00000000 _Z24ScreenStandby_Deactivatev
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:540    .text._Z24ScreenStandby_Deactivatev:0000001c $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:553    .text._Z20ScreenStandby_RenderP13ST7789_Handlem:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:559    .text._Z20ScreenStandby_RenderP13ST7789_Handlem:00000000 _Z20ScreenStandby_RenderP13ST7789_Handlem
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1258   .text._Z20ScreenStandby_RenderP13ST7789_Handlem:000002a4 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1285   .text._Z20ScreenStandby_RenderP13ST7789_Handlem:000002f8 $t
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1768   .text._Z20ScreenStandby_RenderP13ST7789_Handlem:00000504 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1893   .rodata._ZL22HITBOX_BUTTON_POS_LIST:00000000 _ZL22HITBOX_BUTTON_POS_LIST
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1786   .bss._ZL14g_anim_next_ms:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1795   .bss._ZL18g_anim_frame_index:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1797   .bss._ZL20g_anim_frame_offsets:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1806   .bss._ZL10g_anim_fps:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1813   .bss._ZL9g_image_h:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1819   .bss._ZL9g_image_w:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1825   .bss._ZL14g_image_pixels:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1834   .bss._ZL12g_image_kind:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1839   .bss._ZL20g_image_source_valid:00000000 $d
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s 			page 52
+
+
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1844   .bss._ZL20g_image_source_ready:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1846   .bss._ZL17g_last_input_mask:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1852   .bss._ZL18g_last_activity_ms:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1866   .bss._ZL8g_active:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1868   .data._ZL4g_fg:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1874   .bss._ZL4g_bg:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1883   .bss._ZL13g_bg_image_id:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1888   .bss._ZL9g_display:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccPfCGLd.s:1890   .rodata._ZL22HITBOX_BUTTON_POS_LIST:00000000 $d
+
+UNDEFINED SYMBOLS
+memset
+strncmp
+strncpy
+QSPI_W25Qxx_IsMemoryMappedMode
+ST7789_Assets_Find
+HAL_GetTick
+ST7789_FillScreen
+ST7789_DrawBitmap
+QSPI_W25Qxx_EnterMemoryMappedMode
+strcmp
+memcpy
+ST7789_FillCircle
+ST7789_DrawCircle

@@ -1,0 +1,160 @@
+import { useMonitorSource } from "./monitorSource";
+import { useDeviceBindings } from "./useDeviceBindings";
+import { Box, Text } from "@chakra-ui/react";
+import * as React from "react";
+
+import { buildLatencyTableSnapshot } from "./latencyTableModel";
+import type { LatencyTableSnapshot } from "./latencyTableTypes";
+import { readCardClearAfter, subscribeCardClear } from "./cardClear";
+import { scrollbarStyle } from "./scrollbarStyle";
+import { useMonitorStream } from "./useMonitorStream";
+
+const LATENCY_ROW_HEIGHT = 30;
+const LATENCY_ROW_OVERSCAN = 5;
+const RF_LATENCY_COLUMNS = ["Button", "ADC", "Logic", "SPI wait", "SPI", "TX", "RF≈", "RX", "USB wait", "USB", "Total≈"];
+const USB_LATENCY_COLUMNS = ["Button", "ADC", "Logic", "SPI wait", "SPI", "USB wait", "USB", "阶段合计"];
+
+function columnTitle(label: string, usb: boolean) {
+  if(label==="Button")return "↓ Press · ↑ Release. Only button state changes are shown, including incomplete measurements.";
+  if(label==="USB")return "USB 端点提交（ACK 前）→ IN 完成中断；不包含提交前等待或 Windows/游戏处理。";
+  if(label==="USB wait")return usb ? "CH585 接纳输入 → USB 端点提交（原 CH wait，包含提交前处理及排队）。" : "RX 报告准备好 → USB 端点提交（包含排队及端点装载）。旧版 RX 未拆分此阶段，需更新 RX 固件。";
+  return undefined;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function LatencyVirtualList({ rows, usb }: { rows: LatencyTableSnapshot["rows"]; usb: boolean }) {
+  const columns = usb ? USB_LATENCY_COLUMNS : RF_LATENCY_COLUMNS;
+  const stageCount = columns.length - 2;
+  const gridColumns = `minmax(62px, 1fr) repeat(${stageCount}, minmax(46px, 0.7fr)) minmax(120px, 1.6fr)`;
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = React.useState(0);
+  const [viewportHeight, setViewportHeight] = React.useState(0);
+
+  const syncViewport = React.useCallback(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    setViewportHeight(scroller.clientHeight);
+    setScrollTop(scroller.scrollTop);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+
+    syncViewport();
+
+    const resizeObserver = new ResizeObserver(syncViewport);
+    resizeObserver.observe(scroller);
+    return () => resizeObserver.disconnect();
+  }, [syncViewport]);
+
+  // Clearing or shortening the list can clamp the native scroll position.
+  React.useLayoutEffect(syncViewport, [rows.length, syncViewport]);
+
+  const totalHeight = rows.length * LATENCY_ROW_HEIGHT;
+  const maxScrollTop = Math.max(0, totalHeight - viewportHeight);
+  const effectiveScrollTop = clamp(scrollTop, 0, maxScrollTop);
+  const startIndex = Math.max(0, Math.floor(effectiveScrollTop / LATENCY_ROW_HEIGHT) - LATENCY_ROW_OVERSCAN);
+  const endIndex = Math.min(rows.length, Math.ceil((effectiveScrollTop + viewportHeight) / LATENCY_ROW_HEIGHT) + LATENCY_ROW_OVERSCAN);
+  const visibleRows = rows.slice(startIndex, endIndex);
+
+  return (
+    <Box flex="1" minH={0} display="flex" flexDirection="column">
+      <Box
+        display={rows.length === 0 ? "none" : "grid"}
+        gridTemplateColumns={gridColumns}
+        gap={2}
+        px={3}
+        h="26px"
+        flexShrink={0}
+        alignItems="center"
+        borderBottomWidth="1px"
+        borderColor="rgba(92,255,138,0.12)"
+        bg="rgba(92,255,138,0.045)"
+      >
+        {columns.map((label, index) => (
+          <Text key={index} fontSize="sm" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"} title={columnTitle(label,usb)}>
+            {label}
+          </Text>
+        ))}
+      </Box>
+      {/* Keep the observed scroller mounted even before the first event arrives. */}
+      <Box
+        ref={scrollRef}
+        flex="1"
+        minH={0}
+        overflowY="auto"
+        position="relative"
+        css={scrollbarStyle}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
+        {rows.length === 0 ? (
+          <Box px={3} py={4}>
+            <Text fontSize="sm" color="gray.400">
+              Waiting for a button press or release
+            </Text>
+          </Box>
+        ) : (
+          <Box h={`${totalHeight}px`} minH="100%" position="relative">
+            <Box position="absolute" top={`${startIndex * LATENCY_ROW_HEIGHT}px`} left={0} right={0}>
+              {visibleRows.map((row, offset) => {
+                const index = startIndex + offset;
+                return (
+                  <Box
+                    key={row.key}
+                    h={`${LATENCY_ROW_HEIGHT}px`}
+                    px={3}
+                    display="grid"
+                    gridTemplateColumns={gridColumns}
+                    gap={2}
+                    alignItems="center"
+                    borderBottomWidth="1px"
+                    borderColor="rgba(92,255,138,0.08)"
+                    bg={index % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(92,255,138,0.035)"}
+                  >
+                    <Text fontSize="sm" color="gray.100" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" title={`${row.buttonLabel} · ↓ Press · ↑ Release`}>
+                      {row.buttonLabel}
+                    </Text>
+                    {row.relativeTexts.slice(0, stageCount).map((value,i)=><Text key={i} fontSize="sm" color="gray.200" textAlign="right">{value}</Text>)}
+                    <Text fontSize="sm" color="green.200" fontWeight="semibold" textAlign="right" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" title={row.totalText}>{row.totalText}</Text>
+                  </Box>
+                );
+              })}
+            </Box>
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+export function LatencyTableContentView() {
+  const { devices, usb, buttonLatency: rfLatency } = useMonitorStream();
+  const [mode]=useMonitorSource(devices,false);
+  const binding=useDeviceBindings(mode,false);
+  const key=binding.state?.bindings.USB.telemetryId;
+  const buttonLatency=mode==="USB"?(key&&usb[key]?usb[key].latency:{items:[],status:null}):rfLatency;
+  const [clearAfterMs, setClearAfterMs] = React.useState(() => readCardClearAfter("latency"));
+  const rows = React.useMemo(
+    () => buttonLatency.items.filter((row) => row.timestampMs >= clearAfterMs),
+    [buttonLatency.items, clearAfterMs],
+  );
+  const status = buttonLatency.status && buttonLatency.status.timestampMs >= clearAfterMs
+    ? buttonLatency.status
+    : null;
+  const table = React.useMemo(
+    () => buildLatencyTableSnapshot(rows, status),
+    [rows, status],
+  );
+
+  React.useEffect(() => subscribeCardClear("latency", setClearAfterMs), []);
+
+  return (
+    <Box w="100%" h="100%" minW={0} minH={0} display="flex" flexDirection="column" overflow="hidden">
+      <LatencyVirtualList rows={table.rows} usb={mode==="USB"} />
+    </Box>
+  );
+}

@@ -1,0 +1,141 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccveFHTg.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"bdma.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Core/Src/bdma.c"
+  19              		.section	.text.MX_BDMA_Init,"ax",%progbits
+  20              		.align	1
+  21              		.global	MX_BDMA_Init
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	MX_BDMA_Init:
+  27              	.LFB335:
+   1:Core/Src/bdma.c **** /* USER CODE BEGIN Header */
+   2:Core/Src/bdma.c **** /**
+   3:Core/Src/bdma.c ****   ******************************************************************************
+   4:Core/Src/bdma.c ****   * @file    bdma.c
+   5:Core/Src/bdma.c ****   * @brief   This file provides code for the configuration
+   6:Core/Src/bdma.c ****   *          of all the requested memory to memory DMA transfers.
+   7:Core/Src/bdma.c ****   ******************************************************************************
+   8:Core/Src/bdma.c ****   * @attention
+   9:Core/Src/bdma.c ****   *
+  10:Core/Src/bdma.c ****   * Copyright (c) 2025 STMicroelectronics.
+  11:Core/Src/bdma.c ****   * All rights reserved.
+  12:Core/Src/bdma.c ****   *
+  13:Core/Src/bdma.c ****   * This software is licensed under terms that can be found in the LICENSE file
+  14:Core/Src/bdma.c ****   * in the root directory of this software component.
+  15:Core/Src/bdma.c ****   * If no LICENSE file comes with this software, it is provided AS-IS.
+  16:Core/Src/bdma.c ****   *
+  17:Core/Src/bdma.c ****   ******************************************************************************
+  18:Core/Src/bdma.c ****   */
+  19:Core/Src/bdma.c **** /* USER CODE END Header */
+  20:Core/Src/bdma.c **** 
+  21:Core/Src/bdma.c **** /* Includes ------------------------------------------------------------------*/
+  22:Core/Src/bdma.c **** #include "bdma.h"
+  23:Core/Src/bdma.c **** 
+  24:Core/Src/bdma.c **** /* USER CODE BEGIN 0 */
+  25:Core/Src/bdma.c **** 
+  26:Core/Src/bdma.c **** /* USER CODE END 0 */
+  27:Core/Src/bdma.c **** 
+  28:Core/Src/bdma.c **** /*----------------------------------------------------------------------------*/
+  29:Core/Src/bdma.c **** /* Configure DMA                                                              */
+  30:Core/Src/bdma.c **** /*----------------------------------------------------------------------------*/
+  31:Core/Src/bdma.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccveFHTg.s 			page 2
+
+
+  32:Core/Src/bdma.c **** /* USER CODE BEGIN 1 */
+  33:Core/Src/bdma.c **** 
+  34:Core/Src/bdma.c **** /* USER CODE END 1 */
+  35:Core/Src/bdma.c **** 
+  36:Core/Src/bdma.c **** /**
+  37:Core/Src/bdma.c ****   * Enable DMA controller clock
+  38:Core/Src/bdma.c ****   */
+  39:Core/Src/bdma.c **** void MX_BDMA_Init(void)
+  40:Core/Src/bdma.c **** {
+  28              		.loc 1 40 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 8
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  41:Core/Src/bdma.c **** 
+  42:Core/Src/bdma.c ****   /* DMA controller clock enable */
+  43:Core/Src/bdma.c ****   __HAL_RCC_BDMA_CLK_ENABLE();
+  33              		.loc 1 43 3 view .LVU1
+  34              	.LBB2:
+  35              		.loc 1 43 3 view .LVU2
+  36              		.loc 1 43 3 view .LVU3
+  37 0000 074B     		ldr	r3, .L2
+  38              	.LBE2:
+  40:Core/Src/bdma.c **** 
+  39              		.loc 1 40 1 is_stmt 0 view .LVU4
+  40 0002 82B0     		sub	sp, sp, #8
+  41              	.LCFI0:
+  42              		.cfi_def_cfa_offset 8
+  43              	.LBB3:
+  44              		.loc 1 43 3 view .LVU5
+  45 0004 D3F8E020 		ldr	r2, [r3, #224]
+  46 0008 42F40012 		orr	r2, r2, #2097152
+  47 000c C3F8E020 		str	r2, [r3, #224]
+  48              		.loc 1 43 3 is_stmt 1 view .LVU6
+  49 0010 D3F8E030 		ldr	r3, [r3, #224]
+  50 0014 03F40013 		and	r3, r3, #2097152
+  51 0018 0193     		str	r3, [sp, #4]
+  52              		.loc 1 43 3 view .LVU7
+  53 001a 019B     		ldr	r3, [sp, #4]
+  54              	.LBE3:
+  55              		.loc 1 43 3 view .LVU8
+  44:Core/Src/bdma.c **** 
+  45:Core/Src/bdma.c ****   /* DMA interrupt init */
+  46:Core/Src/bdma.c ****   /* BDMA_Channel0_IRQn interrupt configuration */
+  47:Core/Src/bdma.c ****   // HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, 0, 0);
+  48:Core/Src/bdma.c ****   // HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
+  49:Core/Src/bdma.c **** 
+  50:Core/Src/bdma.c **** }
+  56              		.loc 1 50 1 is_stmt 0 view .LVU9
+  57 001c 02B0     		add	sp, sp, #8
+  58              	.LCFI1:
+  59              		.cfi_def_cfa_offset 0
+  60              		@ sp needed
+  61 001e 7047     		bx	lr
+  62              	.L3:
+  63              		.align	2
+  64              	.L2:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccveFHTg.s 			page 3
+
+
+  65 0020 00440258 		.word	1476543488
+  66              		.cfi_endproc
+  67              	.LFE335:
+  69              		.text
+  70              	.Letext0:
+  71              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+  72              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+  73              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccveFHTg.s 			page 4
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 bdma.c
+C:\Users\nicx5\AppData\Local\Temp\ccveFHTg.s:20     .text.MX_BDMA_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccveFHTg.s:26     .text.MX_BDMA_Init:00000000 MX_BDMA_Init
+C:\Users\nicx5\AppData\Local\Temp\ccveFHTg.s:65     .text.MX_BDMA_Init:00000020 $d
+
+NO UNDEFINED SYMBOLS

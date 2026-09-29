@@ -4,6 +4,31 @@ const path = require('path');
 const fs = require('fs-extra');
 const crypto = require('crypto');
 
+const LATEST_HARDWARE_VERSION = '2.0.0';
+const STM32_OTA_COMPONENTS = Object.freeze([
+    'application',
+    'webresources',
+    'adc_mapping'
+]);
+
+function isValidHardwareVersion(hardwareVersion) {
+    if (typeof hardwareVersion !== 'string') {
+        return false;
+    }
+    const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(hardwareVersion);
+    return Boolean(match) && match.slice(1).every(part => Number(part) <= 255);
+}
+
+function applyStm32OtaMetadata(firmware) {
+    return {
+        ...firmware,
+        otaComponents: [...STM32_OTA_COMPONENTS],
+        otaScope: 'STM32_ONLY',
+        ch585Included: false,
+        ch585UpdatePolicy: 'MANUAL_INDEPENDENT_FLASH'
+    };
+}
+
 // 数据存储管理
 class FirmwareStorage {
     constructor(dataFile, uploadDir) {
@@ -215,21 +240,6 @@ class FirmwareStorage {
             };
         }
         
-        // 🔍 调试打印：哈希验证过程
-        console.log('🔧 设备ID哈希验证:');
-        console.log('  输入原始唯一ID:', deviceInfo.rawUniqueId);
-        console.log('  输入设备ID:', deviceInfo.deviceId);
-        
-        // 计算服务器端的设备ID哈希
-        const parts = deviceInfo.rawUniqueId.split('-');
-        const uid_word0 = parseInt(parts[0], 16);
-        const uid_word1 = parseInt(parts[1], 16);
-        const uid_word2 = parseInt(parts[2], 16);
-        const serverCalculatedDeviceId = this.calculateDeviceIdHash(uid_word0, uid_word1, uid_word2);
-        
-        console.log('  服务器计算的设备ID:', serverCalculatedDeviceId);
-        console.log('  验证结果:', serverCalculatedDeviceId === deviceInfo.deviceId.toUpperCase() ? '✅ 匹配' : '❌ 不匹配');
-        
         // 验证设备ID哈希
         if (!this.verifyDeviceIdHash(deviceInfo.rawUniqueId, deviceInfo.deviceId)) {
             return {
@@ -268,6 +278,148 @@ class FirmwareStorage {
         return this.deviceData.devices;
     }
 
+    // 注册使用制造证书的 V2 设备。私钥和证书正文永不写入服务器存储。
+    addV2Device(deviceInfo) {
+        const existingDevice = this.findDevice(deviceInfo.deviceId);
+        if (existingDevice) {
+            const matchesEnrollment =
+                existingDevice.authVersion === 2 &&
+                existingDevice.certificateFingerprint ===
+                    deviceInfo.certificateFingerprint &&
+                existingDevice.certificateSerial ===
+                    deviceInfo.certificateSerial;
+            /*
+             * Records created before product/PCB routing existed can be
+             * upgraded only while re-enrolling the exact same signed
+             * certificate. No caller-supplied value can overwrite an
+             * existing identity binding.
+             */
+            if (matchesEnrollment &&
+                existingDevice.productId === undefined &&
+                existingDevice.pcbRevision === undefined) {
+                existingDevice.productId = deviceInfo.productId;
+                existingDevice.pcbRevision = deviceInfo.pcbRevision;
+                if (!this.saveDeviceData()) {
+                    delete existingDevice.productId;
+                    delete existingDevice.pcbRevision;
+                    return {
+                        success: false,
+                        existed: true,
+                        conflict: false,
+                        device: existingDevice
+                    };
+                }
+            }
+            return {
+                success: matchesEnrollment,
+                existed: true,
+                conflict: !matchesEnrollment,
+                device: existingDevice
+            };
+        }
+        const certificateAlreadyUsed = this.deviceData.devices.find(device =>
+            device.authVersion === 2 &&
+            (device.certificateSerial === deviceInfo.certificateSerial ||
+             device.certificateFingerprint ===
+                deviceInfo.certificateFingerprint)
+        );
+        if (certificateAlreadyUsed) {
+            return {
+                success: false,
+                existed: false,
+                conflict: true,
+                device: certificateAlreadyUsed
+            };
+        }
+
+        const newDevice = {
+            deviceId: deviceInfo.deviceId.toUpperCase(),
+            deviceName: String(deviceInfo.deviceName).slice(0, 128),
+            productId: deviceInfo.productId,
+            pcbRevision: deviceInfo.pcbRevision,
+            hardwareVersion: deviceInfo.hardwareVersion,
+            authVersion: 2,
+            authLevel: deviceInfo.authLevel,
+            certificateSerial: deviceInfo.certificateSerial,
+            certificateFingerprint: deviceInfo.certificateFingerprint,
+            minSecurityVersion: deviceInfo.minSecurityVersion,
+            allowedFirmwareMeasurements: [
+                ...deviceInfo.allowedFirmwareMeasurements
+            ],
+            policyVersion: 1,
+            registeredBy: deviceInfo.registeredBy,
+            registerTime: new Date().toISOString(),
+            lastSeen: null,
+            status: 'active'
+        };
+        this.deviceData.devices.push(newDevice);
+        if (!this.saveDeviceData()) {
+            this.deviceData.devices.pop();
+            return {
+                success: false,
+                existed: false,
+                conflict: false,
+                device: null
+            };
+        }
+        return {
+            success: true,
+            existed: false,
+            conflict: false,
+            device: newDevice
+        };
+    }
+
+    updateV2DevicePolicy(deviceId, policy) {
+        const device = this.findDevice(deviceId);
+        if (!device || device.authVersion !== 2) {
+            return null;
+        }
+        const previous = {
+            minSecurityVersion: device.minSecurityVersion,
+            allowedFirmwareMeasurements: device.allowedFirmwareMeasurements,
+            policyVersion: device.policyVersion
+        };
+        device.minSecurityVersion = policy.minSecurityVersion;
+        device.allowedFirmwareMeasurements = [
+            ...policy.allowedFirmwareMeasurements
+        ];
+        device.policyVersion = (device.policyVersion || 1) + 1;
+        device.policyUpdatedAt = new Date().toISOString();
+        if (!this.saveDeviceData()) {
+            device.minSecurityVersion = previous.minSecurityVersion;
+            device.allowedFirmwareMeasurements =
+                previous.allowedFirmwareMeasurements;
+            device.policyVersion = previous.policyVersion;
+            return null;
+        }
+        return device;
+    }
+
+    revokeV2Device(deviceId, reason, revokedBy) {
+        const device = this.findDevice(deviceId);
+        if (!device || device.authVersion !== 2) {
+            return null;
+        }
+        const previous = {
+            status: device.status,
+            revokedAt: device.revokedAt,
+            revocationReason: device.revocationReason,
+            revokedBy: device.revokedBy
+        };
+        device.status = 'revoked';
+        device.revokedAt = new Date().toISOString();
+        device.revocationReason = typeof reason === 'string'
+            ? reason.slice(0, 256)
+            : 'administrative revocation';
+        device.revokedBy = revokedBy;
+        if (!this.saveDeviceData()) {
+            Object.assign(device, previous);
+            return null;
+        }
+        return device;
+    }
+
     // 获取所有固件
     getFirmwares() {
         return this.data.firmwares;
@@ -275,6 +427,18 @@ class FirmwareStorage {
 
     // 添加固件
     addFirmware(firmware) {
+        if (!isValidVersion(firmware.version) ||
+            !isValidHardwareVersion(firmware.hardwareVersion)) {
+            return false;
+        }
+        const duplicate = this.data.firmwares.some(existing =>
+            existing.version === firmware.version &&
+            existing.hardwareVersion === firmware.hardwareVersion
+        );
+        if (duplicate) {
+            return false;
+        }
+        Object.assign(firmware, applyStm32OtaMetadata(firmware));
         // 生成唯一ID
         firmware.id = this.generateId();
         firmware.createTime = new Date().toISOString();
@@ -288,11 +452,30 @@ class FirmwareStorage {
     updateFirmware(id, updates) {
         const index = this.data.firmwares.findIndex(f => f.id === id);
         if (index !== -1) {
-            this.data.firmwares[index] = {
+            /*
+             * Do not silently reclassify a historical V1 release as V2 when
+             * an operator only edits its notes or rollout state. New uploads
+             * receive the V2 metadata in addFirmware(); an explicit update
+             * may still change these fields when that is actually intended.
+             */
+            const candidate = {
                 ...this.data.firmwares[index],
-                ...updates,
-                updateTime: new Date().toISOString()
+                ...updates
             };
+            if (!isValidVersion(candidate.version) ||
+                !isValidHardwareVersion(candidate.hardwareVersion)) {
+                return false;
+            }
+            const duplicate = this.data.firmwares.some((existing, candidateIndex) =>
+                candidateIndex !== index &&
+                existing.version === candidate.version &&
+                existing.hardwareVersion === candidate.hardwareVersion
+            );
+            if (duplicate) {
+                return false;
+            }
+            candidate.updateTime = new Date().toISOString();
+            this.data.firmwares[index] = candidate;
             return this.saveData();
         }
         return false;
@@ -319,12 +502,14 @@ class FirmwareStorage {
     }
 
     // 清空指定版本及之前的所有版本固件
-    clearFirmwaresUpToVersion(targetVersion) {
+    clearFirmwaresUpToVersion(targetVersion, hardwareVersion) {
         const toDelete = [];
         const toKeep = [];
         
         this.data.firmwares.forEach(firmware => {
-            if (isValidVersion(firmware.version) && isValidVersion(targetVersion)) {
+            if (firmware.hardwareVersion !== hardwareVersion) {
+                toKeep.push(firmware);
+            } else if (isValidVersion(firmware.version) && isValidVersion(targetVersion)) {
                 if (compareVersions(firmware.version, targetVersion) <= 0) {
                     toDelete.push(firmware);
                 } else {
@@ -350,7 +535,8 @@ class FirmwareStorage {
             deletedFirmwares: toDelete.map(f => ({
                 id: f.id,
                 name: f.name,
-                version: f.version
+                version: f.version,
+                hardwareVersion: f.hardwareVersion
             }))
         };
     }
@@ -419,5 +605,7 @@ function isValidVersion(version) {
 module.exports = { 
     FirmwareStorage,
     compareVersions,
-    isValidVersion 
-}; 
+    isValidVersion,
+    isValidHardwareVersion,
+    LATEST_HARDWARE_VERSION
+};

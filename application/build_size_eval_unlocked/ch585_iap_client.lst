@@ -1,0 +1,3056 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ch585_iap_client.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/ch585_iap_client.cpp"
+  19              		.section	.rodata.AppStartupLog_Printf.str1.1,"aMS",%progbits,1
+  20              	.LC0:
+  21 0000 5B415050 		.ascii	"[APP][STARTUP][%s]%s \000"
+  21      5D5B5354 
+  21      41525455 
+  21      505D5B25 
+  21      735D2573 
+  22              	.LC1:
+  23 0016 0D00     		.ascii	"\015\000"
+  24              		.section	.text.AppStartupLog_Printf,"ax",%progbits
+  25              		.align	1
+  26              		.syntax unified
+  27              		.thumb
+  28              		.thumb_func
+  30              	AppStartupLog_Printf:
+  31              	.LVL0:
+  32              	.LFB1277:
+  33              		.file 2 "Core/Inc/board_cfg.h"
+   1:Core/Inc/board_cfg.h **** /*
+   2:Core/Inc/board_cfg.h ****  * The MIT License (MIT)
+   3:Core/Inc/board_cfg.h ****  *
+   4:Core/Inc/board_cfg.h ****  * Copyright (c) 2021, Ha Thach (tinyusb.org)
+   5:Core/Inc/board_cfg.h ****  *
+   6:Core/Inc/board_cfg.h ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   7:Core/Inc/board_cfg.h ****  * of this software and associated documentation files (the "Software"), to deal
+   8:Core/Inc/board_cfg.h ****  * in the Software without restriction, including without limitation the rights
+   9:Core/Inc/board_cfg.h ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  10:Core/Inc/board_cfg.h ****  * copies of the Software, and to permit persons to whom the Software is
+  11:Core/Inc/board_cfg.h ****  * furnished to do so, subject to the following conditions:
+  12:Core/Inc/board_cfg.h ****  *
+  13:Core/Inc/board_cfg.h ****  * The above copyright notice and this permission notice shall be included in
+  14:Core/Inc/board_cfg.h ****  * all copies or substantial portions of the Software.
+  15:Core/Inc/board_cfg.h ****  *
+  16:Core/Inc/board_cfg.h ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  17:Core/Inc/board_cfg.h ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  18:Core/Inc/board_cfg.h ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  19:Core/Inc/board_cfg.h ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  20:Core/Inc/board_cfg.h ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  21:Core/Inc/board_cfg.h ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 2
+
+
+  22:Core/Inc/board_cfg.h ****  * THE SOFTWARE.
+  23:Core/Inc/board_cfg.h ****  *
+  24:Core/Inc/board_cfg.h ****  * This file is part of the TinyUSB stack.
+  25:Core/Inc/board_cfg.h ****  */
+  26:Core/Inc/board_cfg.h **** 
+  27:Core/Inc/board_cfg.h **** #ifndef __BOARD_H__
+  28:Core/Inc/board_cfg.h **** #define __BOARD_H__
+  29:Core/Inc/board_cfg.h **** 
+  30:Core/Inc/board_cfg.h **** #include "stm32h750xx.h"
+  31:Core/Inc/board_cfg.h **** #include "stm32h7xx_hal.h"
+  32:Core/Inc/board_cfg.h **** #include <stdarg.h>
+  33:Core/Inc/board_cfg.h **** #include <stdbool.h>
+  34:Core/Inc/board_cfg.h **** #include <stdio.h>
+  35:Core/Inc/board_cfg.h **** 
+  36:Core/Inc/board_cfg.h **** #ifdef __cplusplus
+  37:Core/Inc/board_cfg.h ****  extern "C" {
+  38:Core/Inc/board_cfg.h **** #endif
+  39:Core/Inc/board_cfg.h **** 
+  40:Core/Inc/board_cfg.h **** 
+  41:Core/Inc/board_cfg.h **** #define SYSTEM_CLOCK_FREQ      480000000
+  42:Core/Inc/board_cfg.h **** 
+  43:Core/Inc/board_cfg.h **** #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
+  44:Core/Inc/board_cfg.h **** 
+  45:Core/Inc/board_cfg.h **** // STM32H7系列的唯一ID存储地址（96位，12字节）
+  46:Core/Inc/board_cfg.h **** #define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+  47:Core/Inc/board_cfg.h **** 
+  48:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_Msk
+  49:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+  50:Core/Inc/board_cfg.h **** #endif
+  51:Core/Inc/board_cfg.h **** 
+  52:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_RN
+  53:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+  54:Core/Inc/board_cfg.h **** #endif
+  55:Core/Inc/board_cfg.h **** 
+  56:Core/Inc/board_cfg.h **** /* Debug print configuration.
+  57:Core/Inc/board_cfg.h ****  * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+  58:Core/Inc/board_cfg.h ****  * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+  59:Core/Inc/board_cfg.h ****  */
+  60:Core/Inc/board_cfg.h **** #ifndef APPLICATION_SERIAL_PRINT
+  61:Core/Inc/board_cfg.h **** #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+  62:Core/Inc/board_cfg.h **** #endif
+  63:Core/Inc/board_cfg.h **** 
+  64:Core/Inc/board_cfg.h **** #ifndef APPLICATION_DEBUG_PRINT
+  65:Core/Inc/board_cfg.h **** #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+  66:Core/Inc/board_cfg.h **** #endif
+  67:Core/Inc/board_cfg.h **** 
+  68:Core/Inc/board_cfg.h **** #ifndef APP_LOG_VERBOSE
+  69:Core/Inc/board_cfg.h **** #define APP_LOG_VERBOSE 0
+  70:Core/Inc/board_cfg.h **** #endif
+  71:Core/Inc/board_cfg.h **** 
+  72:Core/Inc/board_cfg.h **** /* Concise production startup milestones, independent from verbose APP_DBG. */
+  73:Core/Inc/board_cfg.h **** #ifndef APPLICATION_STARTUP_LOG
+  74:Core/Inc/board_cfg.h **** #define APPLICATION_STARTUP_LOG 1
+  75:Core/Inc/board_cfg.h **** #endif
+  76:Core/Inc/board_cfg.h **** 
+  77:Core/Inc/board_cfg.h **** #if APPLICATION_STARTUP_LOG
+  78:Core/Inc/board_cfg.h **** static inline void AppStartupLog_Printf(const char *stage,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 3
+
+
+  79:Core/Inc/board_cfg.h ****                                         const char *level,
+  80:Core/Inc/board_cfg.h ****                                         const char *fmt, ...)
+  81:Core/Inc/board_cfg.h **** {
+  34              		.loc 2 81 1 view -0
+  35              		.cfi_startproc
+  36              		@ args = 4, pretend = 8, frame = 8
+  37              		@ frame_needed = 0, uses_anonymous_args = 1
+  82:Core/Inc/board_cfg.h ****     va_list args;
+  38              		.loc 2 82 5 view .LVU1
+  83:Core/Inc/board_cfg.h ****     printf("[APP][STARTUP][%s]%s ", stage, level);
+  39              		.loc 2 83 5 view .LVU2
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  40              		.loc 2 81 1 is_stmt 0 view .LVU3
+  41 0000 0CB4     		push	{r2, r3}
+  42              	.LCFI0:
+  43              		.cfi_def_cfa_offset 8
+  44              		.cfi_offset 2, -8
+  45              		.cfi_offset 3, -4
+  46 0002 37B5     		push	{r0, r1, r2, r4, r5, lr}
+  47              	.LCFI1:
+  48              		.cfi_def_cfa_offset 32
+  49              		.cfi_offset 4, -20
+  50              		.cfi_offset 5, -16
+  51              		.cfi_offset 14, -12
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  52              		.loc 2 81 1 view .LVU4
+  53 0004 06AC     		add	r4, sp, #24
+  54 0006 0A46     		mov	r2, r1
+  55              		.loc 2 83 11 view .LVU5
+  56 0008 0146     		mov	r1, r0
+  57              	.LVL1:
+  58              		.loc 2 83 11 view .LVU6
+  59 000a 0948     		ldr	r0, .L2
+  60              	.LVL2:
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  61              		.loc 2 81 1 view .LVU7
+  62 000c 54F8045B 		ldr	r5, [r4], #4
+  63              		.loc 2 83 11 view .LVU8
+  64 0010 FFF7FEFF 		bl	printf
+  65              	.LVL3:
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  66              		.loc 2 84 5 is_stmt 1 view .LVU9
+  85:Core/Inc/board_cfg.h ****     vprintf(fmt, args);
+  67              		.loc 2 85 12 is_stmt 0 view .LVU10
+  68 0014 2146     		mov	r1, r4
+  69 0016 2846     		mov	r0, r5
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  70              		.loc 2 84 5 view .LVU11
+  71 0018 0194     		str	r4, [sp, #4]
+  72              		.loc 2 85 5 is_stmt 1 view .LVU12
+  73              		.loc 2 85 12 is_stmt 0 view .LVU13
+  74 001a FFF7FEFF 		bl	vprintf
+  75              	.LVL4:
+  86:Core/Inc/board_cfg.h ****     va_end(args);
+  76              		.loc 2 86 5 is_stmt 1 view .LVU14
+  87:Core/Inc/board_cfg.h ****     printf("\r\n");
+  77              		.loc 2 87 5 view .LVU15
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 4
+
+
+  78              		.loc 2 87 11 is_stmt 0 view .LVU16
+  79 001e 0548     		ldr	r0, .L2+4
+  80 0020 FFF7FEFF 		bl	puts
+  81              	.LVL5:
+  88:Core/Inc/board_cfg.h **** }
+  82              		.loc 2 88 1 view .LVU17
+  83 0024 03B0     		add	sp, sp, #12
+  84              	.LCFI2:
+  85              		.cfi_def_cfa_offset 20
+  86              		@ sp needed
+  87 0026 BDE83040 		pop	{r4, r5, lr}
+  88              	.LCFI3:
+  89              		.cfi_restore 14
+  90              		.cfi_restore 5
+  91              		.cfi_restore 4
+  92              		.cfi_def_cfa_offset 8
+  93 002a 02B0     		add	sp, sp, #8
+  94              	.LCFI4:
+  95              		.cfi_restore 3
+  96              		.cfi_restore 2
+  97              		.cfi_def_cfa_offset 0
+  98 002c 7047     		bx	lr
+  99              	.L3:
+ 100 002e 00BF     		.align	2
+ 101              	.L2:
+ 102 0030 00000000 		.word	.LC0
+ 103 0034 16000000 		.word	.LC1
+ 104              		.cfi_endproc
+ 105              	.LFE1277:
+ 107              		.section	.text._ZN12_GLOBAL__N_1L11crc32UpdateEmPKhm.constprop.0,"ax",%progbits
+ 108              		.align	1
+ 109              		.syntax unified
+ 110              		.thumb
+ 111              		.thumb_func
+ 113              	_ZN12_GLOBAL__N_1L11crc32UpdateEmPKhm.constprop.0:
+ 114              	.LVL6:
+ 115              	.LFB1451:
+   1:Cpp_Core/Src/ch585_iap_client.cpp **** #include "ch585_iap_client.hpp"
+   2:Cpp_Core/Src/ch585_iap_client.cpp **** 
+   3:Cpp_Core/Src/ch585_iap_client.cpp **** #include <string.h>
+   4:Cpp_Core/Src/ch585_iap_client.cpp **** 
+   5:Cpp_Core/Src/ch585_iap_client.cpp **** #include "board_cfg.h"
+   6:Cpp_Core/Src/ch585_iap_client.cpp **** #include "board_power.hpp"
+   7:Cpp_Core/Src/ch585_iap_client.cpp **** #include "ch585_iap_protocol.h"
+   8:Cpp_Core/Src/ch585_iap_client.cpp **** #include "ch585_role_bootstrap.hpp"
+   9:Cpp_Core/Src/ch585_iap_client.cpp **** #include "stm32h7xx_hal.h"
+  10:Cpp_Core/Src/ch585_iap_client.cpp **** #include "system_logger.h"
+  11:Cpp_Core/Src/ch585_iap_client.cpp **** #include "usb_board_link.hpp"
+  12:Cpp_Core/Src/ch585_iap_client.cpp **** #include "usb_board_link_port.hpp"
+  13:Cpp_Core/Src/ch585_iap_client.cpp **** 
+  14:Cpp_Core/Src/ch585_iap_client.cpp **** namespace {
+  15:Cpp_Core/Src/ch585_iap_client.cpp **** 
+  16:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint32_t kCombinedIapBytes = CH585_IAP_APP_START;
+  17:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint32_t kProbeResponseTimeoutMs = 20u;
+  18:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint32_t kEraseResponseTimeoutMs = 10000u;
+  19:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint32_t kWriteResponseTimeoutMs = 100u;
+  20:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint32_t kPowerOnSettleMs = 20u;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 5
+
+
+  21:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint32_t kProbeWindowMs = 300u;
+  22:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint32_t kApplicationCapsWindowMs = 1000u;
+  23:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint32_t kApplicationCapsRetryMs = 10u;
+  24:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint8_t kBeginAttempts = 2u;
+  25:Cpp_Core/Src/ch585_iap_client.cpp **** static constexpr uint8_t kWriteAttempts = 2u;
+  26:Cpp_Core/Src/ch585_iap_client.cpp **** 
+  27:Cpp_Core/Src/ch585_iap_client.cpp **** static uint32_t crc32Update(uint32_t crc, const uint8_t* data, uint32_t length)
+ 116              		.loc 1 27 17 is_stmt 1 view -0
+ 117              		.cfi_startproc
+ 118              		@ args = 0, pretend = 0, frame = 0
+ 119              		@ frame_needed = 0, uses_anonymous_args = 0
+ 120              		.loc 1 27 17 is_stmt 0 view .LVU19
+ 121 0000 0346     		mov	r3, r0
+ 122              	.LVL7:
+  28:Cpp_Core/Src/ch585_iap_client.cpp **** {
+  29:Cpp_Core/Src/ch585_iap_client.cpp ****     while (length-- != 0u) {
+ 123              		.loc 1 29 5 is_stmt 1 view .LVU20
+ 124 0002 0144     		add	r1, r1, r0
+ 125              	.LVL8:
+ 126              	.LBB42:
+  30:Cpp_Core/Src/ch585_iap_client.cpp ****         crc ^= *data++;
+ 127              		.loc 1 30 13 is_stmt 0 view .LVU21
+ 128 0004 4FF0FF30 		mov	r0, #-1
+ 129              	.LVL9:
+ 130              		.loc 1 30 13 view .LVU22
+ 131              	.LBE42:
+  27:Cpp_Core/Src/ch585_iap_client.cpp **** {
+ 132              		.loc 1 27 17 view .LVU23
+ 133 0008 30B5     		push	{r4, r5, lr}
+ 134              	.LCFI5:
+ 135              		.cfi_def_cfa_offset 12
+ 136              		.cfi_offset 4, -12
+ 137              		.cfi_offset 5, -8
+ 138              		.cfi_offset 14, -4
+ 139              	.LBB46:
+ 140              	.LBB43:
+  31:Cpp_Core/Src/ch585_iap_client.cpp ****         for (uint32_t bit = 0u; bit < 8u; ++bit) {
+  32:Cpp_Core/Src/ch585_iap_client.cpp ****             crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+ 141              		.loc 1 32 45 view .LVU24
+ 142 000a 084D     		ldr	r5, .L9
+ 143              	.LVL10:
+ 144              	.L5:
+ 145              		.loc 1 32 45 view .LVU25
+ 146              	.LBE43:
+ 147              	.LBE46:
+  29:Cpp_Core/Src/ch585_iap_client.cpp ****         crc ^= *data++;
+ 148              		.loc 1 29 21 is_stmt 1 view .LVU26
+  29:Cpp_Core/Src/ch585_iap_client.cpp ****         crc ^= *data++;
+ 149              		.loc 1 29 21 is_stmt 0 view .LVU27
+ 150 000c 8B42     		cmp	r3, r1
+ 151 000e 00D1     		bne	.L7
+  33:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+  34:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+  35:Cpp_Core/Src/ch585_iap_client.cpp ****     return crc;
+ 152              		.loc 1 35 5 is_stmt 1 view .LVU28
+  36:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 153              		.loc 1 36 1 is_stmt 0 view .LVU29
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 6
+
+
+ 154 0010 30BD     		pop	{r4, r5, pc}
+ 155              	.L7:
+ 156              	.LBB47:
+  30:Cpp_Core/Src/ch585_iap_client.cpp ****         for (uint32_t bit = 0u; bit < 8u; ++bit) {
+ 157              		.loc 1 30 9 is_stmt 1 view .LVU30
+ 158              	.LVL11:
+  30:Cpp_Core/Src/ch585_iap_client.cpp ****         for (uint32_t bit = 0u; bit < 8u; ++bit) {
+ 159              		.loc 1 30 13 is_stmt 0 view .LVU31
+ 160 0012 13F8012B 		ldrb	r2, [r3], #1	@ zero_extendqisi2
+ 161              	.LVL12:
+  30:Cpp_Core/Src/ch585_iap_client.cpp ****         for (uint32_t bit = 0u; bit < 8u; ++bit) {
+ 162              		.loc 1 30 13 view .LVU32
+ 163 0016 5040     		eors	r0, r0, r2
+ 164              	.LVL13:
+  31:Cpp_Core/Src/ch585_iap_client.cpp ****             crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+ 165              		.loc 1 31 9 is_stmt 1 view .LVU33
+ 166              	.LBB44:
+  31:Cpp_Core/Src/ch585_iap_client.cpp ****             crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+ 167              		.loc 1 31 37 discriminator 1 view .LVU34
+ 168              	.LBE44:
+  30:Cpp_Core/Src/ch585_iap_client.cpp ****         for (uint32_t bit = 0u; bit < 8u; ++bit) {
+ 169              		.loc 1 30 13 is_stmt 0 view .LVU35
+ 170 0018 0822     		movs	r2, #8
+ 171              	.LVL14:
+ 172              	.L6:
+ 173              	.LBB45:
+  32:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 174              		.loc 1 32 13 is_stmt 1 view .LVU36
+  32:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 175              		.loc 1 32 51 is_stmt 0 view .LVU37
+ 176 001a 40F30004 		sbfx	r4, r0, #0, #1
+  31:Cpp_Core/Src/ch585_iap_client.cpp ****             crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+ 177              		.loc 1 31 37 discriminator 1 view .LVU38
+ 178 001e 013A     		subs	r2, r2, #1
+ 179              	.LVL15:
+  32:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 180              		.loc 1 32 45 view .LVU39
+ 181 0020 04EA0504 		and	r4, r4, r5
+  32:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 182              		.loc 1 32 17 view .LVU40
+ 183 0024 84EA5000 		eor	r0, r4, r0, lsr #1
+ 184              	.LVL16:
+  31:Cpp_Core/Src/ch585_iap_client.cpp ****             crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+ 185              		.loc 1 31 9 is_stmt 1 discriminator 3 view .LVU41
+  31:Cpp_Core/Src/ch585_iap_client.cpp ****             crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+ 186              		.loc 1 31 37 discriminator 1 view .LVU42
+ 187 0028 F7D1     		bne	.L6
+ 188 002a EFE7     		b	.L5
+ 189              	.L10:
+ 190              		.align	2
+ 191              	.L9:
+ 192 002c 2083B8ED 		.word	-306674912
+ 193              	.LBE45:
+ 194              	.LBE47:
+ 195              		.cfi_endproc
+ 196              	.LFE1451:
+ 198              		.section	.rodata._ZN14Ch585IapClient11enterLoaderEv.str1.1,"aMS",%progbits,1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 7
+
+
+ 199              	.LC2:
+ 200 0000 4D303100 		.ascii	"M01\000"
+ 201              	.LC3:
+ 202 0004 4D303145 		.ascii	"M01E\000"
+ 202      00
+ 203              	.LC4:
+ 204 0009 43483538 		.ascii	"CH585 IAP loader entry begin\000"
+ 204      35204941 
+ 204      50206C6F 
+ 204      61646572 
+ 204      20656E74 
+ 205              	.LC5:
+ 206 0026 00       		.ascii	"\000"
+ 207              	.LC6:
+ 208 0027 4D30304C 		.ascii	"M00L\000"
+ 208      00
+ 209              	.LC7:
+ 210 002c 43483538 		.ascii	"CH585 USB board link stopped\000"
+ 210      35205553 
+ 210      4220626F 
+ 210      61726420 
+ 210      6C696E6B 
+ 211              	.LC8:
+ 212 0049 43483538 		.ascii	"CH585 role bootstrap stopped\000"
+ 212      3520726F 
+ 212      6C652062 
+ 212      6F6F7473 
+ 212      74726170 
+ 213              	.LC9:
+ 214 0066 43483538 		.ascii	"CH585 IAP power cycle complete: settle=%lu ms spi=%"
+ 214      35204941 
+ 214      5020706F 
+ 214      77657220 
+ 214      6379636C 
+ 215 0099 7500     		.ascii	"u\000"
+ 216              		.section	.text._ZN14Ch585IapClient11enterLoaderEv,"ax",%progbits
+ 217              		.align	1
+ 218              		.global	_ZN14Ch585IapClient11enterLoaderEv
+ 219              		.syntax unified
+ 220              		.thumb
+ 221              		.thumb_func
+ 223              	_ZN14Ch585IapClient11enterLoaderEv:
+ 224              	.LVL17:
+ 225              	.LFB1332:
+  37:Cpp_Core/Src/ch585_iap_client.cpp **** 
+  38:Cpp_Core/Src/ch585_iap_client.cpp **** static uint8_t crc8Sum(const uint8_t* data, uint32_t length)
+  39:Cpp_Core/Src/ch585_iap_client.cpp **** {
+  40:Cpp_Core/Src/ch585_iap_client.cpp ****     uint8_t sum = 0u;
+  41:Cpp_Core/Src/ch585_iap_client.cpp ****     while (length-- != 0u) sum = static_cast<uint8_t>(sum + *data++);
+  42:Cpp_Core/Src/ch585_iap_client.cpp ****     return sum;
+  43:Cpp_Core/Src/ch585_iap_client.cpp **** }
+  44:Cpp_Core/Src/ch585_iap_client.cpp **** 
+  45:Cpp_Core/Src/ch585_iap_client.cpp **** } // namespace
+  46:Cpp_Core/Src/ch585_iap_client.cpp **** 
+  47:Cpp_Core/Src/ch585_iap_client.cpp **** bool Ch585IapClient::enterLoader()
+  48:Cpp_Core/Src/ch585_iap_client.cpp **** {
+ 226              		.loc 1 48 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 8
+
+
+ 227              		.cfi_startproc
+ 228              		@ args = 0, pretend = 0, frame = 0
+ 229              		@ frame_needed = 0, uses_anonymous_args = 0
+  49:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00L", "CH585 IAP loader entry begin");
+ 230              		.loc 1 49 5 view .LVU44
+  48:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00L", "CH585 IAP loader entry begin");
+ 231              		.loc 1 48 1 is_stmt 0 view .LVU45
+ 232 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 233              	.LCFI6:
+ 234              		.cfi_def_cfa_offset 24
+ 235              		.cfi_offset 4, -12
+ 236              		.cfi_offset 5, -8
+ 237              		.cfi_offset 14, -4
+ 238              		.loc 1 49 5 view .LVU46
+ 239 0002 1C4A     		ldr	r2, .L14
+ 240 0004 1C49     		ldr	r1, .L14+4
+ 241 0006 1D48     		ldr	r0, .L14+8
+ 242              	.LVL18:
+ 243              		.loc 1 49 5 view .LVU47
+ 244 0008 FFF7FEFF 		bl	AppStartupLog_Printf
+ 245              	.LVL19:
+  50:Cpp_Core/Src/ch585_iap_client.cpp ****     USB_BOARD_LINK.shutdown();
+ 246              		.loc 1 50 5 is_stmt 1 view .LVU48
+ 247              	.LBB48:
+ 248              	.LBI48:
+ 249              		.file 3 "Cpp_Core/Inc/usb_board_link.hpp"
+   1:Cpp_Core/Inc/usb_board_link.hpp **** #ifndef USB_BOARD_LINK_HPP
+   2:Cpp_Core/Inc/usb_board_link.hpp **** #define USB_BOARD_LINK_HPP
+   3:Cpp_Core/Inc/usb_board_link.hpp **** 
+   4:Cpp_Core/Inc/usb_board_link.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/usb_board_link.hpp **** 
+   6:Cpp_Core/Inc/usb_board_link.hpp **** #include "ch585_role_bootstrap.hpp"
+   7:Cpp_Core/Inc/usb_board_link.hpp **** #include "usb_board_link_protocol.h"
+   8:Cpp_Core/Inc/usb_board_link.hpp **** 
+   9:Cpp_Core/Inc/usb_board_link.hpp **** class UsbBoardLink
+  10:Cpp_Core/Inc/usb_board_link.hpp **** {
+  11:Cpp_Core/Inc/usb_board_link.hpp **** public:
+  12:Cpp_Core/Inc/usb_board_link.hpp ****     UsbBoardLink(UsbBoardLink const &) = delete;
+  13:Cpp_Core/Inc/usb_board_link.hpp ****     void operator=(UsbBoardLink const &) = delete;
+  14:Cpp_Core/Inc/usb_board_link.hpp **** 
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     static UsbBoardLink &getInstance()
+ 250              		.loc 3 15 26 view .LVU49
+  16:Cpp_Core/Inc/usb_board_link.hpp ****     {
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         static UsbBoardLink instance;
+ 251              		.loc 3 17 9 view .LVU50
+  18:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 252              		.loc 3 18 9 view .LVU51
+ 253              	.LBE48:
+ 254              		.loc 1 50 28 is_stmt 0 discriminator 1 view .LVU52
+ 255 000c 1C48     		ldr	r0, .L14+12
+ 256 000e FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 257              	.LVL20:
+  51:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00L", "CH585 USB board link stopped");
+ 258              		.loc 1 51 5 is_stmt 1 view .LVU53
+ 259 0012 1C4A     		ldr	r2, .L14+16
+ 260 0014 1849     		ldr	r1, .L14+4
+ 261 0016 1948     		ldr	r0, .L14+8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 9
+
+
+ 262 0018 FFF7FEFF 		bl	AppStartupLog_Printf
+ 263              	.LVL21:
+  52:Cpp_Core/Src/ch585_iap_client.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 264              		.loc 1 52 5 view .LVU54
+ 265              	.LBB49:
+ 266              	.LBI49:
+ 267              		.file 4 "Cpp_Core/Inc/ch585_role_bootstrap.hpp"
+   1:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #ifndef CH585_ROLE_BOOTSTRAP_HPP
+   2:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #define CH585_ROLE_BOOTSTRAP_HPP
+   3:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+   4:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+   6:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** enum class Ch585Role : uint8_t {
+   7:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     SafeIdle = 0x00,
+   8:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Rf = 0x01,
+   9:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Usb = 0x02,
+  10:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Maintenance = 0x03,
+  11:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** };
+  12:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  13:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** enum class Ch585BootstrapState : uint8_t {
+  14:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Off = 0,
+  15:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Booting = 1,
+  16:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Selecting = 2,
+  17:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Locked = 3,
+  18:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Failed = 4,
+  19:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** };
+  20:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  21:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** /* One invocation performs one UsbBoardLink SELECT_ROLE transaction. */
+  22:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** using Ch585RoleSelector = bool (*)(Ch585Role requestedRole);
+  23:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  24:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** class Ch585RoleBootstrap {
+  25:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** public:
+  26:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap(const Ch585RoleBootstrap&) = delete;
+  27:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap& operator=(const Ch585RoleBootstrap&) = delete;
+  28:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     static Ch585RoleBootstrap& getInstance()
+ 268              		.loc 4 29 32 view .LVU55
+  30:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         static Ch585RoleBootstrap instance;
+ 269              		.loc 4 31 9 view .LVU56
+  32:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 270              		.loc 4 32 9 view .LVU57
+ 271              	.LBE49:
+ 272              		.loc 1 52 34 is_stmt 0 discriminator 1 view .LVU58
+ 273 001c 1A48     		ldr	r0, .L14+20
+ 274 001e FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 275              	.LVL22:
+  53:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00L", "CH585 role bootstrap stopped");
+ 276              		.loc 1 53 5 is_stmt 1 view .LVU59
+ 277 0022 1A4A     		ldr	r2, .L14+24
+ 278 0024 1449     		ldr	r1, .L14+4
+ 279 0026 1548     		ldr	r0, .L14+8
+ 280 0028 FFF7FEFF 		bl	AppStartupLog_Printf
+ 281              	.LVL23:
+  54:Cpp_Core/Src/ch585_iap_client.cpp ****     USBBoardLinkPort_Shutdown();
+ 282              		.loc 1 54 5 view .LVU60
+  55:Cpp_Core/Src/ch585_iap_client.cpp ****     /* Keep the power-cycle explicit here: the IAP window starts at CH585
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 10
+
+
+  56:Cpp_Core/Src/ch585_iap_client.cpp ****      * power-on and is only 500 ms long. */
+  57:Cpp_Core/Src/ch585_iap_client.cpp ****     BOARD_POWER.setCh585Enabled(false);
+  58:Cpp_Core/Src/ch585_iap_client.cpp ****     HAL_Delay(CH585_POWER_OFF_MIN_MS);
+  59:Cpp_Core/Src/ch585_iap_client.cpp ****     BOARD_POWER.setCh585Enabled(true);
+  60:Cpp_Core/Src/ch585_iap_client.cpp ****     /* Do not clock the first byte on the CH585 power-up edge.  The 4 KiB IAP
+  61:Cpp_Core/Src/ch585_iap_client.cpp ****      * treats a non-IAP first byte as an explicit request to boot the app, so
+  62:Cpp_Core/Src/ch585_iap_client.cpp ****      * a partially powered SPI sample would close the whole 500 ms window. */
+  63:Cpp_Core/Src/ch585_iap_client.cpp ****     HAL_Delay(kPowerOnSettleMs);
+  64:Cpp_Core/Src/ch585_iap_client.cpp ****     const bool initialized = USBBoardLinkPort_InitIap();
+  65:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE(initialized ? "M01" : "M01E",
+ 283              		.loc 1 65 5 is_stmt 0 discriminator 8 view .LVU61
+ 284 002c 184D     		ldr	r5, .L14+28
+  54:Cpp_Core/Src/ch585_iap_client.cpp ****     USBBoardLinkPort_Shutdown();
+ 285              		.loc 1 54 30 view .LVU62
+ 286 002e FFF7FEFF 		bl	_Z25USBBoardLinkPort_Shutdownv
+ 287              	.LVL24:
+  57:Cpp_Core/Src/ch585_iap_client.cpp ****     HAL_Delay(CH585_POWER_OFF_MIN_MS);
+ 288              		.loc 1 57 5 is_stmt 1 view .LVU63
+ 289              	.LBB50:
+ 290              	.LBI50:
+ 291              		.file 5 "Cpp_Core/Inc/board_power.hpp"
+   1:Cpp_Core/Inc/board_power.hpp **** #ifndef BOARD_POWER_HPP
+   2:Cpp_Core/Inc/board_power.hpp **** #define BOARD_POWER_HPP
+   3:Cpp_Core/Inc/board_power.hpp **** 
+   4:Cpp_Core/Inc/board_power.hpp **** #include <stdbool.h>
+   5:Cpp_Core/Inc/board_power.hpp **** #include <stdint.h>
+   6:Cpp_Core/Inc/board_power.hpp **** 
+   7:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+   8:Cpp_Core/Inc/board_power.hpp **** extern "C" {
+   9:Cpp_Core/Inc/board_power.hpp **** #endif
+  10:Cpp_Core/Inc/board_power.hpp **** 
+  11:Cpp_Core/Inc/board_power.hpp **** /*
+  12:Cpp_Core/Inc/board_power.hpp ****  * Re-asserts PI4 without changing any other rail.  The bootloader leaves PI4
+  13:Cpp_Core/Inc/board_power.hpp ****  * high before jumping to the XIP application; this hook preserves that state
+  14:Cpp_Core/Inc/board_power.hpp ****  * as the application runtime is brought up.
+  15:Cpp_Core/Inc/board_power.hpp ****  */
+  16:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EarlyMainHold(void);
+  17:Cpp_Core/Inc/board_power.hpp **** 
+  18:Cpp_Core/Inc/board_power.hpp **** /* Configures all board power-control pins to their fail-safe defaults. */
+  19:Cpp_Core/Inc/board_power.hpp **** void BoardPower_Initialize(void);
+  20:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetChargeEnabled(bool enabled);
+  21:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetHallEnabled(bool enabled);
+  22:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EnableHallForAdc(void);
+  23:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetKeyLedEnabled(bool enabled);
+  24:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetAmbientLedEnabled(bool enabled);
+  25:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetLcdEnabled(bool enabled);
+  26:Cpp_Core/Inc/board_power.hpp **** 
+  27:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+  28:Cpp_Core/Inc/board_power.hpp **** }
+  29:Cpp_Core/Inc/board_power.hpp **** 
+  30:Cpp_Core/Inc/board_power.hpp **** class BoardPower {
+  31:Cpp_Core/Inc/board_power.hpp **** public:
+  32:Cpp_Core/Inc/board_power.hpp ****     BoardPower(const BoardPower&) = delete;
+  33:Cpp_Core/Inc/board_power.hpp ****     BoardPower& operator=(const BoardPower&) = delete;
+  34:Cpp_Core/Inc/board_power.hpp **** 
+  35:Cpp_Core/Inc/board_power.hpp ****     static BoardPower& getInstance()
+ 292              		.loc 5 35 24 view .LVU64
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 11
+
+
+  36:Cpp_Core/Inc/board_power.hpp ****     {
+  37:Cpp_Core/Inc/board_power.hpp ****         static BoardPower instance;
+ 293              		.loc 5 37 9 view .LVU65
+  38:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 294              		.loc 5 38 9 view .LVU66
+ 295              	.LBE50:
+  57:Cpp_Core/Src/ch585_iap_client.cpp ****     HAL_Delay(CH585_POWER_OFF_MIN_MS);
+ 296              		.loc 1 57 32 is_stmt 0 discriminator 1 view .LVU67
+ 297 0032 0021     		movs	r1, #0
+ 298 0034 1748     		ldr	r0, .L14+32
+ 299 0036 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 300              	.LVL25:
+  58:Cpp_Core/Src/ch585_iap_client.cpp ****     BOARD_POWER.setCh585Enabled(true);
+ 301              		.loc 1 58 5 is_stmt 1 view .LVU68
+  58:Cpp_Core/Src/ch585_iap_client.cpp ****     BOARD_POWER.setCh585Enabled(true);
+ 302              		.loc 1 58 14 is_stmt 0 view .LVU69
+ 303 003a 1420     		movs	r0, #20
+ 304 003c FFF7FEFF 		bl	HAL_Delay
+ 305              	.LVL26:
+  59:Cpp_Core/Src/ch585_iap_client.cpp ****     /* Do not clock the first byte on the CH585 power-up edge.  The 4 KiB IAP
+ 306              		.loc 1 59 5 is_stmt 1 view .LVU70
+ 307              	.LBB51:
+ 308              	.LBI51:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 309              		.loc 5 35 24 view .LVU71
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 310              		.loc 5 37 9 view .LVU72
+ 311              		.loc 5 38 9 view .LVU73
+ 312              	.LBE51:
+  59:Cpp_Core/Src/ch585_iap_client.cpp ****     /* Do not clock the first byte on the CH585 power-up edge.  The 4 KiB IAP
+ 313              		.loc 1 59 32 is_stmt 0 discriminator 1 view .LVU74
+ 314 0040 0121     		movs	r1, #1
+ 315 0042 1448     		ldr	r0, .L14+32
+ 316 0044 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 317              	.LVL27:
+  63:Cpp_Core/Src/ch585_iap_client.cpp ****     const bool initialized = USBBoardLinkPort_InitIap();
+ 318              		.loc 1 63 5 is_stmt 1 view .LVU75
+  63:Cpp_Core/Src/ch585_iap_client.cpp ****     const bool initialized = USBBoardLinkPort_InitIap();
+ 319              		.loc 1 63 14 is_stmt 0 view .LVU76
+ 320 0048 1420     		movs	r0, #20
+ 321 004a FFF7FEFF 		bl	HAL_Delay
+ 322              	.LVL28:
+  64:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE(initialized ? "M01" : "M01E",
+ 323              		.loc 1 64 5 is_stmt 1 view .LVU77
+  64:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE(initialized ? "M01" : "M01E",
+ 324              		.loc 1 64 54 is_stmt 0 view .LVU78
+ 325 004e FFF7FEFF 		bl	_Z24USBBoardLinkPort_InitIapv
+ 326              	.LVL29:
+ 327              		.loc 1 65 5 is_stmt 1 view .LVU79
+ 328              		.loc 1 65 5 is_stmt 0 discriminator 1 view .LVU80
+ 329 0052 041E     		subs	r4, r0, #0
+ 330              		.loc 1 65 5 discriminator 8 view .LVU81
+ 331 0054 104A     		ldr	r2, .L14+36
+ 332              		.loc 1 65 5 discriminator 1 view .LVU82
+ 333 0056 0CBF     		ite	eq
+ 334 0058 0023     		moveq	r3, #0
+ 335 005a 0123     		movne	r3, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 12
+
+
+ 336              		.loc 1 65 5 discriminator 8 view .LVU83
+ 337 005c 0F48     		ldr	r0, .L14+40
+ 338              	.LVL30:
+ 339              		.loc 1 65 5 discriminator 8 view .LVU84
+ 340 005e 08BF     		it	eq
+ 341 0060 2846     		moveq	r0, r5
+ 342 0062 0093     		str	r3, [sp]
+ 343 0064 1423     		movs	r3, #20
+ 344 0066 0449     		ldr	r1, .L14+4
+ 345 0068 FFF7FEFF 		bl	AppStartupLog_Printf
+ 346              	.LVL31:
+  66:Cpp_Core/Src/ch585_iap_client.cpp ****               "CH585 IAP power cycle complete: settle=%lu ms spi=%u",
+  67:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(kPowerOnSettleMs),
+  68:Cpp_Core/Src/ch585_iap_client.cpp ****               initialized ? 1u : 0u);
+  69:Cpp_Core/Src/ch585_iap_client.cpp ****     return initialized;
+ 347              		.loc 1 69 5 is_stmt 1 view .LVU85
+  70:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 348              		.loc 1 70 1 is_stmt 0 view .LVU86
+ 349 006c 2046     		mov	r0, r4
+ 350 006e 03B0     		add	sp, sp, #12
+ 351              	.LCFI7:
+ 352              		.cfi_def_cfa_offset 12
+ 353              		@ sp needed
+ 354 0070 30BD     		pop	{r4, r5, pc}
+ 355              	.LVL32:
+ 356              	.L15:
+ 357              		.loc 1 70 1 view .LVU87
+ 358 0072 00BF     		.align	2
+ 359              	.L14:
+ 360 0074 09000000 		.word	.LC4
+ 361 0078 26000000 		.word	.LC5
+ 362 007c 27000000 		.word	.LC6
+ 363 0080 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 364 0084 2C000000 		.word	.LC7
+ 365 0088 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 366 008c 49000000 		.word	.LC8
+ 367 0090 04000000 		.word	.LC3
+ 368 0094 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 369 0098 66000000 		.word	.LC9
+ 370 009c 00000000 		.word	.LC2
+ 371              		.cfi_endproc
+ 372              	.LFE1332:
+ 374              		.section	.rodata._ZN14Ch585IapClient8transactEhmmPKhtm.str1.1,"aMS",%progbits,1
+ 375              	.LC10:
+ 376 0000 43483538 		.ascii	"CH585 IAP link timeout: cmd=%u seq=%u offset=%lu ti"
+ 376      35204941 
+ 376      50206C69 
+ 376      6E6B2074 
+ 376      696D656F 
+ 377 0033 6D656F75 		.ascii	"meout=%lu\000"
+ 377      743D256C 
+ 377      7500
+ 378              	.LC11:
+ 379 003d 5B455252 		.ascii	"[ERROR]\000"
+ 379      4F525D00 
+ 380              	.LC12:
+ 381 0045 4D303200 		.ascii	"M02\000"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 13
+
+
+ 382              	.LC13:
+ 383 0049 43483538 		.ascii	"CH585 IAP response invalid: cmd=%u seq=%u magic=%04"
+ 383      35204941 
+ 383      50207265 
+ 383      73706F6E 
+ 383      73652069 
+ 384 007c 78207665 		.ascii	"x version=%u response_cmd=%u response_seq=%u\000"
+ 384      7273696F 
+ 384      6E3D2575 
+ 384      20726573 
+ 384      706F6E73 
+ 385              	.LC14:
+ 386 00a9 4D303300 		.ascii	"M03\000"
+ 387              	.LC15:
+ 388 00ad 43483538 		.ascii	"CH585 IAP device rejected command: cmd=%u seq=%u st"
+ 388      35204941 
+ 388      50206465 
+ 388      76696365 
+ 388      2072656A 
+ 389 00e0 61747573 		.ascii	"atus=%u offset=%lu\000"
+ 389      3D257520 
+ 389      6F666673 
+ 389      65743D25 
+ 389      6C7500
+ 390              	.LC16:
+ 391 00f3 4D303400 		.ascii	"M04\000"
+ 392              		.section	.text._ZN14Ch585IapClient8transactEhmmPKhtm,"ax",%progbits
+ 393              		.align	1
+ 394              		.global	_ZN14Ch585IapClient8transactEhmmPKhtm
+ 395              		.syntax unified
+ 396              		.thumb
+ 397              		.thumb_func
+ 399              	_ZN14Ch585IapClient8transactEhmmPKhtm:
+ 400              	.LVL33:
+ 401              	.LFB1333:
+  71:Cpp_Core/Src/ch585_iap_client.cpp **** 
+  72:Cpp_Core/Src/ch585_iap_client.cpp **** bool Ch585IapClient::transact(uint8_t command,
+  73:Cpp_Core/Src/ch585_iap_client.cpp ****                               uint32_t offset,
+  74:Cpp_Core/Src/ch585_iap_client.cpp ****                               uint32_t value,
+  75:Cpp_Core/Src/ch585_iap_client.cpp ****                               const uint8_t* payload,
+  76:Cpp_Core/Src/ch585_iap_client.cpp ****                               uint16_t payloadLength,
+  77:Cpp_Core/Src/ch585_iap_client.cpp ****                               uint32_t timeoutMs)
+  78:Cpp_Core/Src/ch585_iap_client.cpp **** {
+ 402              		.loc 1 78 1 is_stmt 1 view -0
+ 403              		.cfi_startproc
+ 404              		@ args = 12, pretend = 0, frame = 72
+ 405              		@ frame_needed = 0, uses_anonymous_args = 0
+  79:Cpp_Core/Src/ch585_iap_client.cpp ****     lastTransactionTimedOut = false;
+ 406              		.loc 1 79 5 view .LVU89
+  78:Cpp_Core/Src/ch585_iap_client.cpp ****     lastTransactionTimedOut = false;
+ 407              		.loc 1 78 1 is_stmt 0 view .LVU90
+ 408 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 409              	.LCFI8:
+ 410              		.cfi_def_cfa_offset 36
+ 411              		.cfi_offset 4, -36
+ 412              		.cfi_offset 5, -32
+ 413              		.cfi_offset 6, -28
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 14
+
+
+ 414              		.cfi_offset 7, -24
+ 415              		.cfi_offset 8, -20
+ 416              		.cfi_offset 9, -16
+ 417              		.cfi_offset 10, -12
+ 418              		.cfi_offset 11, -8
+ 419              		.cfi_offset 14, -4
+ 420              		.loc 1 79 29 view .LVU91
+ 421 0004 4FF0000B 		mov	fp, #0
+  78:Cpp_Core/Src/ch585_iap_client.cpp ****     lastTransactionTimedOut = false;
+ 422              		.loc 1 78 1 view .LVU92
+ 423 0008 99B0     		sub	sp, sp, #100
+ 424              	.LCFI9:
+ 425              		.cfi_def_cfa_offset 136
+  78:Cpp_Core/Src/ch585_iap_client.cpp ****     lastTransactionTimedOut = false;
+ 426              		.loc 1 78 1 view .LVU93
+ 427 000a 9A46     		mov	r10, r3
+  80:Cpp_Core/Src/ch585_iap_client.cpp ****     lastDeviceStatus = 0xFFu;
+ 428              		.loc 1 80 22 view .LVU94
+ 429 000c FF23     		movs	r3, #255
+ 430              	.LVL34:
+  78:Cpp_Core/Src/ch585_iap_client.cpp ****     lastTransactionTimedOut = false;
+ 431              		.loc 1 78 1 view .LVU95
+ 432 000e 0446     		mov	r4, r0
+ 433 0010 0D46     		mov	r5, r1
+ 434              		.loc 1 80 22 view .LVU96
+ 435 0012 C370     		strb	r3, [r0, #3]
+  78:Cpp_Core/Src/ch585_iap_client.cpp ****     lastTransactionTimedOut = false;
+ 436              		.loc 1 78 1 view .LVU97
+ 437 0014 1646     		mov	r6, r2
+  81:Cpp_Core/Src/ch585_iap_client.cpp ****     ch585_iap_packet_t packet = {};
+ 438              		.loc 1 81 24 view .LVU98
+ 439 0016 5946     		mov	r1, fp
+ 440              	.LVL35:
+  79:Cpp_Core/Src/ch585_iap_client.cpp ****     lastDeviceStatus = 0xFFu;
+ 441              		.loc 1 79 29 view .LVU99
+ 442 0018 80F80CB0 		strb	fp, [r0, #12]
+  80:Cpp_Core/Src/ch585_iap_client.cpp ****     lastDeviceStatus = 0xFFu;
+ 443              		.loc 1 80 5 is_stmt 1 view .LVU100
+ 444              		.loc 1 81 5 view .LVU101
+ 445              		.loc 1 81 24 is_stmt 0 view .LVU102
+ 446 001c 2E22     		movs	r2, #46
+ 447              	.LVL36:
+ 448              		.loc 1 81 24 view .LVU103
+ 449 001e 0DF13200 		add	r0, sp, #50
+ 450              	.LVL37:
+  78:Cpp_Core/Src/ch585_iap_client.cpp ****     lastTransactionTimedOut = false;
+ 451              		.loc 1 78 1 view .LVU104
+ 452 0022 BDF88C70 		ldrh	r7, [sp, #140]
+ 453 0026 DDF88890 		ldr	r9, [sp, #136]
+ 454 002a DDF89080 		ldr	r8, [sp, #144]
+ 455              		.loc 1 81 24 view .LVU105
+ 456 002e FFF7FEFF 		bl	memset
+ 457              	.LVL38:
+  82:Cpp_Core/Src/ch585_iap_client.cpp ****     ch585_iap_response_t response = {};
+ 458              		.loc 1 82 5 is_stmt 1 view .LVU106
+  83:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.magic = CH585_IAP_PROTOCOL_MAGIC;
+ 459              		.loc 1 83 18 is_stmt 0 view .LVU107
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 15
+
+
+ 460 0032 414B     		ldr	r3, .L31
+  84:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.version = CH585_IAP_PROTOCOL_VERSION;
+  85:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.command = command;
+  86:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.sequence = ++sequence;
+  87:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.offset = offset;
+  88:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.value = value;
+  89:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.payload_length = payloadLength;
+  90:Cpp_Core/Src/ch585_iap_client.cpp ****     if (payloadLength > CH585_IAP_DATA_SIZE ||
+ 461              		.loc 1 90 5 view .LVU108
+ 462 0034 282F     		cmp	r7, #40
+  86:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.offset = offset;
+ 463              		.loc 1 86 23 view .LVU109
+ 464 0036 2188     		ldrh	r1, [r4]
+  83:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.magic = CH585_IAP_PROTOCOL_MAGIC;
+ 465              		.loc 1 83 18 view .LVU110
+ 466 0038 0893     		str	r3, [sp, #32]
+  84:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.version = CH585_IAP_PROTOCOL_VERSION;
+ 467              		.loc 1 84 20 view .LVU111
+ 468 003a 4FF00103 		mov	r3, #1
+  85:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.sequence = ++sequence;
+ 469              		.loc 1 85 20 view .LVU112
+ 470 003e 8DF82550 		strb	r5, [sp, #37]
+  86:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.offset = offset;
+ 471              		.loc 1 86 23 view .LVU113
+ 472 0042 1944     		add	r1, r1, r3
+  84:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.version = CH585_IAP_PROTOCOL_VERSION;
+ 473              		.loc 1 84 20 view .LVU114
+ 474 0044 8DF82430 		strb	r3, [sp, #36]
+  89:Cpp_Core/Src/ch585_iap_client.cpp ****     if (payloadLength > CH585_IAP_DATA_SIZE ||
+ 475              		.loc 1 89 27 view .LVU115
+ 476 0048 ADF83070 		strh	r7, [sp, #48]	@ movhi
+  86:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.offset = offset;
+ 477              		.loc 1 86 23 view .LVU116
+ 478 004c 89B2     		uxth	r1, r1
+  82:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.magic = CH585_IAP_PROTOCOL_MAGIC;
+ 479              		.loc 1 82 26 view .LVU117
+ 480 004e CDE906BB 		strd	fp, fp, [sp, #24]
+  83:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.version = CH585_IAP_PROTOCOL_VERSION;
+ 481              		.loc 1 83 5 is_stmt 1 view .LVU118
+  84:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.command = command;
+ 482              		.loc 1 84 5 view .LVU119
+  85:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.sequence = ++sequence;
+ 483              		.loc 1 85 5 view .LVU120
+  86:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.offset = offset;
+ 484              		.loc 1 86 5 view .LVU121
+  86:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.offset = offset;
+ 485              		.loc 1 86 21 is_stmt 0 view .LVU122
+ 486 0052 2180     		strh	r1, [r4]	@ movhi
+ 487 0054 ADF82610 		strh	r1, [sp, #38]	@ movhi
+  87:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.value = value;
+ 488              		.loc 1 87 5 is_stmt 1 view .LVU123
+  88:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.payload_length = payloadLength;
+ 489              		.loc 1 88 18 is_stmt 0 view .LVU124
+ 490 0058 CDE90A6A 		strd	r6, r10, [sp, #40]
+  89:Cpp_Core/Src/ch585_iap_client.cpp ****     if (payloadLength > CH585_IAP_DATA_SIZE ||
+ 491              		.loc 1 89 5 is_stmt 1 view .LVU125
+ 492              		.loc 1 90 5 view .LVU126
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 16
+
+
+ 493 005c 03D8     		bhi	.L17
+ 494              		.loc 1 90 45 is_stmt 0 discriminator 1 view .LVU127
+ 495 005e 6FB1     		cbz	r7, .L18
+  91:Cpp_Core/Src/ch585_iap_client.cpp ****         (payloadLength != 0u && payload == nullptr)) {
+ 496              		.loc 1 91 30 view .LVU128
+ 497 0060 B9F1000F 		cmp	r9, #0
+ 498 0064 05D1     		bne	.L19
+ 499              	.L17:
+  92:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::ProtocolError;
+ 500              		.loc 1 92 9 is_stmt 1 view .LVU129
+ 501              		.loc 1 92 23 is_stmt 0 view .LVU130
+ 502 0066 0323     		movs	r3, #3
+ 503 0068 A373     		strb	r3, [r4, #14]
+  93:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 504              		.loc 1 93 9 is_stmt 1 view .LVU131
+ 505              	.LVL39:
+ 506              	.L20:
+ 507              		.loc 1 93 16 is_stmt 0 view .LVU132
+ 508 006a 0020     		movs	r0, #0
+ 509              	.L22:
+  94:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+  95:Cpp_Core/Src/ch585_iap_client.cpp ****     if (payloadLength != 0u) memcpy(packet.data, payload, payloadLength);
+  96:Cpp_Core/Src/ch585_iap_client.cpp ****     uint32_t crc = crc32Update(0xFFFFFFFFu,
+  97:Cpp_Core/Src/ch585_iap_client.cpp ****                                reinterpret_cast<const uint8_t*>(&packet),
+  98:Cpp_Core/Src/ch585_iap_client.cpp ****                                sizeof(packet) - sizeof(packet.packet_crc32));
+  99:Cpp_Core/Src/ch585_iap_client.cpp ****     packet.packet_crc32 = crc ^ 0xFFFFFFFFu;
+ 100:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 101:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!USBBoardLinkPort_RawTransact(
+ 102:Cpp_Core/Src/ch585_iap_client.cpp ****             reinterpret_cast<const uint8_t*>(&packet),
+ 103:Cpp_Core/Src/ch585_iap_client.cpp ****             sizeof(packet),
+ 104:Cpp_Core/Src/ch585_iap_client.cpp ****             reinterpret_cast<uint8_t*>(&response),
+ 105:Cpp_Core/Src/ch585_iap_client.cpp ****             sizeof(response),
+ 106:Cpp_Core/Src/ch585_iap_client.cpp ****             timeoutMs)) {
+ 107:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::LinkError;
+ 108:Cpp_Core/Src/ch585_iap_client.cpp ****         lastTransactionTimedOut = true;
+ 109:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M02",
+ 110:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP link timeout: cmd=%u seq=%u offset=%lu timeout=%lu",
+ 111:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(command),
+ 112:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(packet.sequence),
+ 113:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned long>(offset),
+ 114:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned long>(timeoutMs));
+ 115:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 116:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 117:Cpp_Core/Src/ch585_iap_client.cpp ****     if (response.magic != CH585_IAP_RESPONSE_MAGIC ||
+ 118:Cpp_Core/Src/ch585_iap_client.cpp ****         response.version != CH585_IAP_PROTOCOL_VERSION ||
+ 119:Cpp_Core/Src/ch585_iap_client.cpp ****         response.command != command || response.sequence != packet.sequence ||
+ 120:Cpp_Core/Src/ch585_iap_client.cpp ****         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
+ 121:Cpp_Core/Src/ch585_iap_client.cpp ****                 sizeof(response) - 1u) != response.crc8) {
+ 122:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::ProtocolError;
+ 123:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M03",
+ 124:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP response invalid: cmd=%u seq=%u magic=%04x version=%u response_c
+ 125:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(command),
+ 126:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(packet.sequence),
+ 127:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(response.magic),
+ 128:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(response.version),
+ 129:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(response.command),
+ 130:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(response.sequence));
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 17
+
+
+ 131:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 132:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 133:Cpp_Core/Src/ch585_iap_client.cpp ****     lastDeviceStatus = response.status;
+ 134:Cpp_Core/Src/ch585_iap_client.cpp ****     if (response.status != CH585_IAP_STATUS_OK) {
+ 135:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::DeviceError;
+ 136:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M04",
+ 137:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP device rejected command: cmd=%u seq=%u status=%u offset=%lu",
+ 138:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(command),
+ 139:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(packet.sequence),
+ 140:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(response.status),
+ 141:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned long>(offset));
+ 142:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 143:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 144:Cpp_Core/Src/ch585_iap_client.cpp ****     return true;
+ 145:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 510              		.loc 1 145 1 view .LVU133
+ 511 006c 19B0     		add	sp, sp, #100
+ 512              	.LCFI10:
+ 513              		.cfi_remember_state
+ 514              		.cfi_def_cfa_offset 36
+ 515              		@ sp needed
+ 516 006e BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 517              	.LVL40:
+ 518              	.L19:
+ 519              	.LCFI11:
+ 520              		.cfi_restore_state
+  95:Cpp_Core/Src/ch585_iap_client.cpp ****     uint32_t crc = crc32Update(0xFFFFFFFFu,
+ 521              		.loc 1 95 5 is_stmt 1 view .LVU134
+  95:Cpp_Core/Src/ch585_iap_client.cpp ****     uint32_t crc = crc32Update(0xFFFFFFFFu,
+ 522              		.loc 1 95 30 discriminator 1 view .LVU135
+  95:Cpp_Core/Src/ch585_iap_client.cpp ****     uint32_t crc = crc32Update(0xFFFFFFFFu,
+ 523              		.loc 1 95 36 is_stmt 0 discriminator 1 view .LVU136
+ 524 0072 3A46     		mov	r2, r7
+ 525 0074 4946     		mov	r1, r9
+ 526 0076 0DA8     		add	r0, sp, #52
+ 527 0078 FFF7FEFF 		bl	memcpy
+ 528              	.LVL41:
+ 529              	.L18:
+  96:Cpp_Core/Src/ch585_iap_client.cpp ****                                reinterpret_cast<const uint8_t*>(&packet),
+ 530              		.loc 1 96 5 is_stmt 1 view .LVU137
+  96:Cpp_Core/Src/ch585_iap_client.cpp ****                                reinterpret_cast<const uint8_t*>(&packet),
+ 531              		.loc 1 96 31 is_stmt 0 view .LVU138
+ 532 007c 3C21     		movs	r1, #60
+ 533 007e 08A8     		add	r0, sp, #32
+ 534 0080 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L11crc32UpdateEmPKhm.constprop.0
+ 535              	.LVL42:
+  99:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 536              		.loc 1 99 5 is_stmt 1 view .LVU139
+  99:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 537              		.loc 1 99 31 is_stmt 0 view .LVU140
+ 538 0084 C043     		mvns	r0, r0
+ 539              	.LVL43:
+ 101:Cpp_Core/Src/ch585_iap_client.cpp ****             reinterpret_cast<const uint8_t*>(&packet),
+ 540              		.loc 1 101 38 view .LVU141
+ 541 0086 0823     		movs	r3, #8
+ 542 0088 06AA     		add	r2, sp, #24
+  99:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 18
+
+
+ 543              		.loc 1 99 25 view .LVU142
+ 544 008a 1790     		str	r0, [sp, #92]
+ 101:Cpp_Core/Src/ch585_iap_client.cpp ****             reinterpret_cast<const uint8_t*>(&packet),
+ 545              		.loc 1 101 5 is_stmt 1 view .LVU143
+ 101:Cpp_Core/Src/ch585_iap_client.cpp ****             reinterpret_cast<const uint8_t*>(&packet),
+ 546              		.loc 1 101 38 is_stmt 0 view .LVU144
+ 547 008c 4021     		movs	r1, #64
+ 548 008e 08A8     		add	r0, sp, #32
+ 549              	.LVL44:
+ 101:Cpp_Core/Src/ch585_iap_client.cpp ****             reinterpret_cast<const uint8_t*>(&packet),
+ 550              		.loc 1 101 38 view .LVU145
+ 551 0090 CDF80080 		str	r8, [sp]
+ 552 0094 FFF7FEFF 		bl	_Z28USBBoardLinkPort_RawTransactPKhtPhtm
+ 553              	.LVL45:
+ 101:Cpp_Core/Src/ch585_iap_client.cpp ****             reinterpret_cast<const uint8_t*>(&packet),
+ 554              		.loc 1 101 38 view .LVU146
+ 555 0098 BDF82670 		ldrh	r7, [sp, #38]
+ 101:Cpp_Core/Src/ch585_iap_client.cpp ****             reinterpret_cast<const uint8_t*>(&packet),
+ 556              		.loc 1 101 5 discriminator 1 view .LVU147
+ 557 009c 68B9     		cbnz	r0, .L21
+ 107:Cpp_Core/Src/ch585_iap_client.cpp ****         lastTransactionTimedOut = true;
+ 558              		.loc 1 107 9 is_stmt 1 view .LVU148
+ 107:Cpp_Core/Src/ch585_iap_client.cpp ****         lastTransactionTimedOut = true;
+ 559              		.loc 1 107 23 is_stmt 0 view .LVU149
+ 560 009e 0223     		movs	r3, #2
+ 109:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP link timeout: cmd=%u seq=%u offset=%lu timeout=%lu",
+ 561              		.loc 1 109 9 view .LVU150
+ 562 00a0 264A     		ldr	r2, .L31+4
+ 563 00a2 2749     		ldr	r1, .L31+8
+ 107:Cpp_Core/Src/ch585_iap_client.cpp ****         lastTransactionTimedOut = true;
+ 564              		.loc 1 107 23 view .LVU151
+ 565 00a4 A373     		strb	r3, [r4, #14]
+ 108:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M02",
+ 566              		.loc 1 108 9 is_stmt 1 view .LVU152
+ 108:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M02",
+ 567              		.loc 1 108 33 is_stmt 0 view .LVU153
+ 568 00a6 0123     		movs	r3, #1
+ 109:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP link timeout: cmd=%u seq=%u offset=%lu timeout=%lu",
+ 569              		.loc 1 109 9 view .LVU154
+ 570 00a8 2648     		ldr	r0, .L31+12
+ 108:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M02",
+ 571              		.loc 1 108 33 view .LVU155
+ 572 00aa 2373     		strb	r3, [r4, #12]
+ 109:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP link timeout: cmd=%u seq=%u offset=%lu timeout=%lu",
+ 573              		.loc 1 109 9 is_stmt 1 view .LVU156
+ 574 00ac 2B46     		mov	r3, r5
+ 575 00ae 0097     		str	r7, [sp]
+ 576 00b0 CDE90168 		strd	r6, r8, [sp, #4]
+ 577              	.LVL46:
+ 578              	.L30:
+ 109:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP link timeout: cmd=%u seq=%u offset=%lu timeout=%lu",
+ 579              		.loc 1 109 9 is_stmt 0 view .LVU157
+ 580 00b4 FFF7FEFF 		bl	AppStartupLog_Printf
+ 581              	.LVL47:
+ 115:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 582              		.loc 1 115 9 is_stmt 1 view .LVU158
+ 115:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 19
+
+
+ 583              		.loc 1 115 16 is_stmt 0 view .LVU159
+ 584 00b8 D7E7     		b	.L20
+ 585              	.LVL48:
+ 586              	.L21:
+ 117:Cpp_Core/Src/ch585_iap_client.cpp ****         response.version != CH585_IAP_PROTOCOL_VERSION ||
+ 587              		.loc 1 117 5 is_stmt 1 view .LVU160
+ 117:Cpp_Core/Src/ch585_iap_client.cpp ****         response.version != CH585_IAP_PROTOCOL_VERSION ||
+ 588              		.loc 1 117 18 is_stmt 0 view .LVU161
+ 589 00ba BDF818E0 		ldrh	lr, [sp, #24]
+ 119:Cpp_Core/Src/ch585_iap_client.cpp ****         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
+ 590              		.loc 1 119 77 view .LVU162
+ 591 00be 4AF23C52 		movw	r2, #42300
+ 118:Cpp_Core/Src/ch585_iap_client.cpp ****         response.command != command || response.sequence != packet.sequence ||
+ 592              		.loc 1 118 18 view .LVU163
+ 593 00c2 9DF81A80 		ldrb	r8, [sp, #26]	@ zero_extendqisi2
+ 119:Cpp_Core/Src/ch585_iap_client.cpp ****         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
+ 594              		.loc 1 119 77 view .LVU164
+ 595 00c6 9645     		cmp	lr, r2
+ 119:Cpp_Core/Src/ch585_iap_client.cpp ****         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
+ 596              		.loc 1 119 18 view .LVU165
+ 597 00c8 9DF81B30 		ldrb	r3, [sp, #27]	@ zero_extendqisi2
+ 119:Cpp_Core/Src/ch585_iap_client.cpp ****         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
+ 598              		.loc 1 119 49 discriminator 2 view .LVU166
+ 599 00cc BDF81C90 		ldrh	r9, [sp, #28]
+ 119:Cpp_Core/Src/ch585_iap_client.cpp ****         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
+ 600              		.loc 1 119 77 view .LVU167
+ 601 00d0 23D1     		bne	.L23
+ 117:Cpp_Core/Src/ch585_iap_client.cpp ****         response.version != CH585_IAP_PROTOCOL_VERSION ||
+ 602              		.loc 1 117 52 view .LVU168
+ 603 00d2 B8F1010F 		cmp	r8, #1
+ 604 00d6 20D1     		bne	.L23
+ 118:Cpp_Core/Src/ch585_iap_client.cpp ****         response.command != command || response.sequence != packet.sequence ||
+ 605              		.loc 1 118 56 view .LVU169
+ 606 00d8 9D42     		cmp	r5, r3
+ 607 00da 1ED1     		bne	.L23
+ 119:Cpp_Core/Src/ch585_iap_client.cpp ****         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
+ 608              		.loc 1 119 37 discriminator 2 view .LVU170
+ 609 00dc B945     		cmp	r9, r7
+ 610 00de 1CD1     		bne	.L23
+ 611 00e0 4FF0070C 		mov	ip, #7
+ 612              	.LBB54:
+ 613              	.LBB55:
+  40:Cpp_Core/Src/ch585_iap_client.cpp ****     while (length-- != 0u) sum = static_cast<uint8_t>(sum + *data++);
+ 614              		.loc 1 40 13 view .LVU171
+ 615 00e4 0022     		movs	r2, #0
+ 616              	.LBE55:
+ 617              	.LBE54:
+ 618 00e6 06A9     		add	r1, sp, #24
+ 619              	.LVL49:
+ 620              	.L24:
+ 621              	.LBB57:
+ 622              	.LBB56:
+  41:Cpp_Core/Src/ch585_iap_client.cpp ****     return sum;
+ 623              		.loc 1 41 28 is_stmt 1 discriminator 2 view .LVU172
+  41:Cpp_Core/Src/ch585_iap_client.cpp ****     return sum;
+ 624              		.loc 1 41 32 is_stmt 0 discriminator 2 view .LVU173
+ 625 00e8 11F801AB 		ldrb	r10, [r1], #1	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 20
+
+
+ 626              	.LVL50:
+  41:Cpp_Core/Src/ch585_iap_client.cpp ****     return sum;
+ 627              		.loc 1 41 21 discriminator 1 view .LVU174
+ 628 00ec BCF1010C 		subs	ip, ip, #1
+ 629              	.LVL51:
+  41:Cpp_Core/Src/ch585_iap_client.cpp ****     return sum;
+ 630              		.loc 1 41 32 discriminator 2 view .LVU175
+ 631 00f0 5244     		add	r2, r2, r10
+ 632              	.LVL52:
+  41:Cpp_Core/Src/ch585_iap_client.cpp ****     return sum;
+ 633              		.loc 1 41 32 discriminator 2 view .LVU176
+ 634 00f2 D2B2     		uxtb	r2, r2
+ 635              	.LVL53:
+  41:Cpp_Core/Src/ch585_iap_client.cpp ****     return sum;
+ 636              		.loc 1 41 21 is_stmt 1 discriminator 1 view .LVU177
+  41:Cpp_Core/Src/ch585_iap_client.cpp ****     return sum;
+ 637              		.loc 1 41 21 is_stmt 0 discriminator 1 view .LVU178
+ 638 00f4 F8D1     		bne	.L24
+  42:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 639              		.loc 1 42 5 is_stmt 1 view .LVU179
+ 640              	.LVL54:
+  42:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 641              		.loc 1 42 5 is_stmt 0 view .LVU180
+ 642              	.LBE56:
+ 643              	.LBE57:
+ 119:Cpp_Core/Src/ch585_iap_client.cpp ****         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
+ 644              		.loc 1 119 77 discriminator 3 view .LVU181
+ 645 00f6 9DF81F10 		ldrb	r1, [sp, #31]	@ zero_extendqisi2
+ 646 00fa 9142     		cmp	r1, r2
+ 647 00fc 0DD1     		bne	.L23
+ 133:Cpp_Core/Src/ch585_iap_client.cpp ****     if (response.status != CH585_IAP_STATUS_OK) {
+ 648              		.loc 1 133 5 is_stmt 1 view .LVU182
+ 133:Cpp_Core/Src/ch585_iap_client.cpp ****     if (response.status != CH585_IAP_STATUS_OK) {
+ 649              		.loc 1 133 33 is_stmt 0 view .LVU183
+ 650 00fe 9DF81E20 		ldrb	r2, [sp, #30]	@ zero_extendqisi2
+ 133:Cpp_Core/Src/ch585_iap_client.cpp ****     if (response.status != CH585_IAP_STATUS_OK) {
+ 651              		.loc 1 133 22 view .LVU184
+ 652 0102 E270     		strb	r2, [r4, #3]
+ 134:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::DeviceError;
+ 653              		.loc 1 134 5 is_stmt 1 view .LVU185
+ 654 0104 002A     		cmp	r2, #0
+ 655 0106 B1D0     		beq	.L22
+ 135:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M04",
+ 656              		.loc 1 135 9 view .LVU186
+ 135:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M04",
+ 657              		.loc 1 135 23 is_stmt 0 view .LVU187
+ 658 0108 0421     		movs	r1, #4
+ 136:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP device rejected command: cmd=%u seq=%u status=%u offset=%lu",
+ 659              		.loc 1 136 9 view .LVU188
+ 660 010a 0F48     		ldr	r0, .L31+16
+ 135:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M04",
+ 661              		.loc 1 135 23 view .LVU189
+ 662 010c A173     		strb	r1, [r4, #14]
+ 136:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP device rejected command: cmd=%u seq=%u status=%u offset=%lu",
+ 663              		.loc 1 136 9 is_stmt 1 view .LVU190
+ 664 010e 0C49     		ldr	r1, .L31+8
+ 665 0110 0097     		str	r7, [sp]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 21
+
+
+ 666 0112 CDE90126 		strd	r2, r6, [sp, #4]
+ 667 0116 0D4A     		ldr	r2, .L31+20
+ 668 0118 CCE7     		b	.L30
+ 669              	.L23:
+ 122:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M03",
+ 670              		.loc 1 122 9 view .LVU191
+ 122:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M03",
+ 671              		.loc 1 122 23 is_stmt 0 view .LVU192
+ 672 011a 0322     		movs	r2, #3
+ 123:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP response invalid: cmd=%u seq=%u magic=%04x version=%u response_c
+ 673              		.loc 1 123 9 view .LVU193
+ 674 011c 0849     		ldr	r1, .L31+8
+ 675 011e 0C48     		ldr	r0, .L31+24
+ 122:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M03",
+ 676              		.loc 1 122 23 view .LVU194
+ 677 0120 A273     		strb	r2, [r4, #14]
+ 123:Cpp_Core/Src/ch585_iap_client.cpp ****                         "CH585 IAP response invalid: cmd=%u seq=%u magic=%04x version=%u response_c
+ 678              		.loc 1 123 9 is_stmt 1 view .LVU195
+ 679 0122 0C4A     		ldr	r2, .L31+28
+ 680 0124 0097     		str	r7, [sp]
+ 681 0126 CDE90339 		strd	r3, r9, [sp, #12]
+ 682 012a CDE901E8 		strd	lr, r8, [sp, #4]
+ 683 012e 2B46     		mov	r3, r5
+ 684 0130 FFF7FEFF 		bl	AppStartupLog_Printf
+ 685              	.LVL55:
+ 131:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 686              		.loc 1 131 9 view .LVU196
+ 131:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 687              		.loc 1 131 16 is_stmt 0 view .LVU197
+ 688 0134 99E7     		b	.L20
+ 689              	.L32:
+ 690 0136 00BF     		.align	2
+ 691              	.L31:
+ 692 0138 49415031 		.word	827343177
+ 693 013c 00000000 		.word	.LC10
+ 694 0140 3D000000 		.word	.LC11
+ 695 0144 45000000 		.word	.LC12
+ 696 0148 F3000000 		.word	.LC16
+ 697 014c AD000000 		.word	.LC15
+ 698 0150 A9000000 		.word	.LC14
+ 699 0154 49000000 		.word	.LC13
+ 700              		.cfi_endproc
+ 701              	.LFE1333:
+ 703              		.section	.rodata._ZN14Ch585IapClient5probeEv.str1.1,"aMS",%progbits,1
+ 704              	.LC17:
+ 705 0000 43483538 		.ascii	"CH585 SPI IAP probe accepted: seq=%u\000"
+ 705      35205350 
+ 705      49204941 
+ 705      50207072 
+ 705      6F626520 
+ 706              	.LC18:
+ 707 0025 4D303500 		.ascii	"M05\000"
+ 708              	.LC19:
+ 709 0029 43483538 		.ascii	"CH585 SPI IAP probe window expired\000"
+ 709      35205350 
+ 709      49204941 
+ 709      50207072 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 22
+
+
+ 709      6F626520 
+ 710              	.LC20:
+ 711 004c 4D303600 		.ascii	"M06\000"
+ 712              		.section	.text._ZN14Ch585IapClient5probeEv,"ax",%progbits
+ 713              		.align	1
+ 714              		.global	_ZN14Ch585IapClient5probeEv
+ 715              		.syntax unified
+ 716              		.thumb
+ 717              		.thumb_func
+ 719              	_ZN14Ch585IapClient5probeEv:
+ 720              	.LVL56:
+ 721              	.LFB1334:
+ 146:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 147:Cpp_Core/Src/ch585_iap_client.cpp **** bool Ch585IapClient::probe()
+ 148:Cpp_Core/Src/ch585_iap_client.cpp **** {
+ 722              		.loc 1 148 1 is_stmt 1 view -0
+ 723              		.cfi_startproc
+ 724              		@ args = 0, pretend = 0, frame = 0
+ 725              		@ frame_needed = 0, uses_anonymous_args = 0
+ 149:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Idle;
+ 726              		.loc 1 149 5 view .LVU199
+ 148:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Idle;
+ 727              		.loc 1 148 1 is_stmt 0 view .LVU200
+ 728 0000 2DE9FF41 		push	{r0, r1, r2, r3, r4, r5, r6, r7, r8, lr}
+ 729              	.LCFI12:
+ 730              		.cfi_def_cfa_offset 40
+ 731              		.cfi_offset 4, -24
+ 732              		.cfi_offset 5, -20
+ 733              		.cfi_offset 6, -16
+ 734              		.cfi_offset 7, -12
+ 735              		.cfi_offset 8, -8
+ 736              		.cfi_offset 14, -4
+ 737              		.loc 1 149 19 view .LVU201
+ 738 0004 0026     		movs	r6, #0
+ 150:Cpp_Core/Src/ch585_iap_client.cpp ****     currentProgress = 0u;
+ 151:Cpp_Core/Src/ch585_iap_client.cpp ****     lastDeviceStatus = 0u;
+ 152:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_PROBE;
+ 739              		.loc 1 152 18 view .LVU202
+ 740 0006 0225     		movs	r5, #2
+ 148:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Idle;
+ 741              		.loc 1 148 1 view .LVU203
+ 742 0008 0446     		mov	r4, r0
+ 149:Cpp_Core/Src/ch585_iap_client.cpp ****     currentProgress = 0u;
+ 743              		.loc 1 149 19 view .LVU204
+ 744 000a 8673     		strb	r6, [r0, #14]
+ 150:Cpp_Core/Src/ch585_iap_client.cpp ****     currentProgress = 0u;
+ 745              		.loc 1 150 5 is_stmt 1 view .LVU205
+ 151:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_PROBE;
+ 746              		.loc 1 151 5 view .LVU206
+ 747              		.loc 1 152 5 view .LVU207
+ 150:Cpp_Core/Src/ch585_iap_client.cpp ****     currentProgress = 0u;
+ 748              		.loc 1 150 21 is_stmt 0 view .LVU208
+ 749 000c 4680     		strh	r6, [r0, #2]	@ movhi
+ 750              		.loc 1 152 18 view .LVU209
+ 751 000e 0571     		strb	r5, [r0, #4]
+ 153:Cpp_Core/Src/ch585_iap_client.cpp ****     currentOffset = 0u;
+ 752              		.loc 1 153 5 is_stmt 1 view .LVU210
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 23
+
+
+ 753              		.loc 1 153 19 is_stmt 0 view .LVU211
+ 754 0010 8660     		str	r6, [r0, #8]
+ 154:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!enterLoader()) {
+ 755              		.loc 1 154 5 is_stmt 1 view .LVU212
+ 756              		.loc 1 154 21 is_stmt 0 view .LVU213
+ 757 0012 FFF7FEFF 		bl	_ZN14Ch585IapClient11enterLoaderEv
+ 758              	.LVL57:
+ 759              		.loc 1 154 5 discriminator 1 view .LVU214
+ 760 0016 10B9     		cbnz	r0, .L34
+ 155:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::LinkError;
+ 761              		.loc 1 155 9 is_stmt 1 view .LVU215
+ 762              		.loc 1 155 23 is_stmt 0 view .LVU216
+ 763 0018 A573     		strb	r5, [r4, #14]
+ 156:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 764              		.loc 1 156 9 is_stmt 1 view .LVU217
+ 765              	.L35:
+ 766              		.loc 1 156 16 is_stmt 0 view .LVU218
+ 767 001a 0025     		movs	r5, #0
+ 768 001c 17E0     		b	.L37
+ 769              	.L34:
+ 157:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 158:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 159:Cpp_Core/Src/ch585_iap_client.cpp ****     const uint32_t started = HAL_GetTick();
+ 770              		.loc 1 159 5 is_stmt 1 view .LVU219
+ 771              		.loc 1 159 41 is_stmt 0 view .LVU220
+ 772 001e FFF7FEFF 		bl	HAL_GetTick
+ 773              	.LVL58:
+ 160:Cpp_Core/Src/ch585_iap_client.cpp ****     do {
+ 161:Cpp_Core/Src/ch585_iap_client.cpp ****         if (transact(CH585_IAP_CMD_PROBE,
+ 774              		.loc 1 161 21 view .LVU221
+ 775 0022 4FF01408 		mov	r8, #20
+ 159:Cpp_Core/Src/ch585_iap_client.cpp ****     do {
+ 776              		.loc 1 159 41 view .LVU222
+ 777 0026 0746     		mov	r7, r0
+ 778              	.LVL59:
+ 779              	.L38:
+ 160:Cpp_Core/Src/ch585_iap_client.cpp ****     do {
+ 780              		.loc 1 160 5 is_stmt 1 view .LVU223
+ 781              		.loc 1 161 9 view .LVU224
+ 782              		.loc 1 161 21 is_stmt 0 view .LVU225
+ 783 0028 0023     		movs	r3, #0
+ 784 002a 0121     		movs	r1, #1
+ 785 002c 2046     		mov	r0, r4
+ 786 002e 0096     		str	r6, [sp]
+ 787 0030 1A46     		mov	r2, r3
+ 788 0032 CDE90168 		strd	r6, r8, [sp, #4]
+ 789 0036 FFF7FEFF 		bl	_ZN14Ch585IapClient8transactEhmmPKhtm
+ 790              	.LVL60:
+ 791              		.loc 1 161 9 discriminator 1 view .LVU226
+ 792 003a 0546     		mov	r5, r0
+ 793 003c 58B1     		cbz	r0, .L36
+ 162:Cpp_Core/Src/ch585_iap_client.cpp ****                      0u,
+ 163:Cpp_Core/Src/ch585_iap_client.cpp ****                      0u,
+ 164:Cpp_Core/Src/ch585_iap_client.cpp ****                      nullptr,
+ 165:Cpp_Core/Src/ch585_iap_client.cpp ****                      0u,
+ 166:Cpp_Core/Src/ch585_iap_client.cpp ****                      kProbeResponseTimeoutMs)) {
+ 167:Cpp_Core/Src/ch585_iap_client.cpp ****             currentStatus = Ch585IapClientStatus::Ready;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 24
+
+
+ 794              		.loc 1 167 13 is_stmt 1 view .LVU227
+ 795              		.loc 1 167 27 is_stmt 0 view .LVU228
+ 796 003e 0123     		movs	r3, #1
+ 168:Cpp_Core/Src/ch585_iap_client.cpp ****             APP_STAGE("M05", "CH585 SPI IAP probe accepted: seq=%u",
+ 797              		.loc 1 168 13 view .LVU229
+ 798 0040 0F4A     		ldr	r2, .L40
+ 799 0042 1049     		ldr	r1, .L40+4
+ 167:Cpp_Core/Src/ch585_iap_client.cpp ****             APP_STAGE("M05", "CH585 SPI IAP probe accepted: seq=%u",
+ 800              		.loc 1 167 27 view .LVU230
+ 801 0044 A373     		strb	r3, [r4, #14]
+ 802              		.loc 1 168 13 is_stmt 1 view .LVU231
+ 803 0046 1048     		ldr	r0, .L40+8
+ 804 0048 2388     		ldrh	r3, [r4]
+ 805 004a FFF7FEFF 		bl	AppStartupLog_Printf
+ 806              	.LVL61:
+ 169:Cpp_Core/Src/ch585_iap_client.cpp ****                       static_cast<unsigned int>(sequence));
+ 170:Cpp_Core/Src/ch585_iap_client.cpp ****             return true;
+ 807              		.loc 1 170 13 view .LVU232
+ 808              	.L37:
+ 171:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 172:Cpp_Core/Src/ch585_iap_client.cpp ****         USBBoardLinkPort_Shutdown();
+ 173:Cpp_Core/Src/ch585_iap_client.cpp ****         HAL_Delay(2u);
+ 174:Cpp_Core/Src/ch585_iap_client.cpp ****         (void)USBBoardLinkPort_InitIap();
+ 175:Cpp_Core/Src/ch585_iap_client.cpp ****     } while ((HAL_GetTick() - started) < kProbeWindowMs);
+ 176:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 177:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::LinkError;
+ 178:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE_ERROR("M06", "CH585 SPI IAP probe window expired");
+ 179:Cpp_Core/Src/ch585_iap_client.cpp ****     return false;
+ 180:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 809              		.loc 1 180 1 is_stmt 0 view .LVU233
+ 810 004e 2846     		mov	r0, r5
+ 811 0050 04B0     		add	sp, sp, #16
+ 812              	.LCFI13:
+ 813              		.cfi_remember_state
+ 814              		.cfi_def_cfa_offset 24
+ 815              		@ sp needed
+ 816 0052 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 817              	.LVL62:
+ 818              	.L36:
+ 819              	.LCFI14:
+ 820              		.cfi_restore_state
+ 172:Cpp_Core/Src/ch585_iap_client.cpp ****         HAL_Delay(2u);
+ 821              		.loc 1 172 9 is_stmt 1 view .LVU234
+ 172:Cpp_Core/Src/ch585_iap_client.cpp ****         HAL_Delay(2u);
+ 822              		.loc 1 172 34 is_stmt 0 view .LVU235
+ 823 0056 FFF7FEFF 		bl	_Z25USBBoardLinkPort_Shutdownv
+ 824              	.LVL63:
+ 173:Cpp_Core/Src/ch585_iap_client.cpp ****         (void)USBBoardLinkPort_InitIap();
+ 825              		.loc 1 173 9 is_stmt 1 view .LVU236
+ 173:Cpp_Core/Src/ch585_iap_client.cpp ****         (void)USBBoardLinkPort_InitIap();
+ 826              		.loc 1 173 18 is_stmt 0 view .LVU237
+ 827 005a 0220     		movs	r0, #2
+ 828 005c FFF7FEFF 		bl	HAL_Delay
+ 829              	.LVL64:
+ 174:Cpp_Core/Src/ch585_iap_client.cpp ****     } while ((HAL_GetTick() - started) < kProbeWindowMs);
+ 830              		.loc 1 174 9 is_stmt 1 view .LVU238
+ 174:Cpp_Core/Src/ch585_iap_client.cpp ****     } while ((HAL_GetTick() - started) < kProbeWindowMs);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 25
+
+
+ 831              		.loc 1 174 39 is_stmt 0 view .LVU239
+ 832 0060 FFF7FEFF 		bl	_Z24USBBoardLinkPort_InitIapv
+ 833              	.LVL65:
+ 175:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 834              		.loc 1 175 40 is_stmt 1 view .LVU240
+ 175:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 835              		.loc 1 175 26 is_stmt 0 view .LVU241
+ 836 0064 FFF7FEFF 		bl	HAL_GetTick
+ 837              	.LVL66:
+ 175:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 838              		.loc 1 175 29 discriminator 1 view .LVU242
+ 839 0068 C31B     		subs	r3, r0, r7
+ 175:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 840              		.loc 1 175 40 discriminator 1 view .LVU243
+ 841 006a B3F5967F 		cmp	r3, #300
+ 842 006e DBD3     		bcc	.L38
+ 177:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE_ERROR("M06", "CH585 SPI IAP probe window expired");
+ 843              		.loc 1 177 5 is_stmt 1 view .LVU244
+ 177:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE_ERROR("M06", "CH585 SPI IAP probe window expired");
+ 844              		.loc 1 177 19 is_stmt 0 view .LVU245
+ 845 0070 0223     		movs	r3, #2
+ 178:Cpp_Core/Src/ch585_iap_client.cpp ****     return false;
+ 846              		.loc 1 178 5 view .LVU246
+ 847 0072 064A     		ldr	r2, .L40+12
+ 848 0074 0649     		ldr	r1, .L40+16
+ 849 0076 0748     		ldr	r0, .L40+20
+ 177:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE_ERROR("M06", "CH585 SPI IAP probe window expired");
+ 850              		.loc 1 177 19 view .LVU247
+ 851 0078 A373     		strb	r3, [r4, #14]
+ 178:Cpp_Core/Src/ch585_iap_client.cpp ****     return false;
+ 852              		.loc 1 178 5 is_stmt 1 view .LVU248
+ 853 007a FFF7FEFF 		bl	AppStartupLog_Printf
+ 854              	.LVL67:
+ 179:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 855              		.loc 1 179 5 view .LVU249
+ 179:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 856              		.loc 1 179 12 is_stmt 0 view .LVU250
+ 857 007e CCE7     		b	.L35
+ 858              	.L41:
+ 859              		.align	2
+ 860              	.L40:
+ 861 0080 00000000 		.word	.LC17
+ 862 0084 26000000 		.word	.LC5
+ 863 0088 25000000 		.word	.LC18
+ 864 008c 29000000 		.word	.LC19
+ 865 0090 3D000000 		.word	.LC11
+ 866 0094 4C000000 		.word	.LC20
+ 867              		.cfi_endproc
+ 868              	.LFE1334:
+ 870              		.section	.rodata._ZN14Ch585IapClient20programCombinedImageEmm.str1.1,"aMS",%progbits,1
+ 871              	.LC21:
+ 872 0000 43483538 		.ascii	"CH585 combined image programming begin: mapped=%08l"
+ 872      3520636F 
+ 872      6D62696E 
+ 872      65642069 
+ 872      6D616765 
+ 873 0033 7820746F 		.ascii	"x total=%lu\000"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 26
+
+
+ 873      74616C3D 
+ 873      256C7500 
+ 874              	.LC22:
+ 875 003f 4D303000 		.ascii	"M00\000"
+ 876              	.LC23:
+ 877 0043 43483538 		.ascii	"CH585 application source CRC ready: size=%lu crc=%0"
+ 877      35206170 
+ 877      706C6963 
+ 877      6174696F 
+ 877      6E20736F 
+ 878 0076 386C7800 		.ascii	"8lx\000"
+ 879              	.LC24:
+ 880 007a 4D303043 		.ascii	"M00C\000"
+ 880      00
+ 881              	.LC25:
+ 882 007f 43483538 		.ascii	"CH585 starting IAP probe\000"
+ 882      35207374 
+ 882      61727469 
+ 882      6E672049 
+ 882      41502070 
+ 883              	.LC26:
+ 884 0098 4D303050 		.ascii	"M00P\000"
+ 884      00
+ 885              	.LC27:
+ 886 009d 43483538 		.ascii	"CH585 BEGIN response timeout; safe erase retry=%u\000"
+ 886      35204245 
+ 886      47494E20 
+ 886      72657370 
+ 886      6F6E7365 
+ 887              	.LC28:
+ 888 00cf 4D303752 		.ascii	"M07R\000"
+ 888      00
+ 889              	.LC29:
+ 890 00d4 43483538 		.ascii	"CH585 WRITE likely committed before timeout: offset"
+ 890      35205752 
+ 890      49544520 
+ 890      6C696B65 
+ 890      6C792063 
+ 891 0107 3D256C75 		.ascii	"=%lu\000"
+ 891      00
+ 892              	.LC30:
+ 893 010c 4D303852 		.ascii	"M08R\000"
+ 893      00
+ 894              	.LC31:
+ 895 0111 43483538 		.ascii	"CH585 WRITE timeout; retrying same offset=%lu\000"
+ 895      35205752 
+ 895      49544520 
+ 895      74696D65 
+ 895      6F75743B 
+ 896              	.LC32:
+ 897 013f 43483538 		.ascii	"CH585 SPI IAP write progress=%u offset=%lu\000"
+ 897      35205350 
+ 897      49204941 
+ 897      50207772 
+ 897      69746520 
+ 898              	.LC33:
+ 899 016a 4D303800 		.ascii	"M08\000"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 27
+
+
+ 900              	.LC34:
+ 901 016e 43483538 		.ascii	"CH585 END response lost; deferring result to app CA"
+ 901      3520454E 
+ 901      44207265 
+ 901      73706F6E 
+ 901      7365206C 
+ 902 01a1 505300   		.ascii	"PS\000"
+ 903              	.LC35:
+ 904 01a4 4D303900 		.ascii	"M09\000"
+ 905              	.LC36:
+ 906 01a8 43483538 		.ascii	"CH585 SPI IAP completed: app_size=%lu crc=%08lx\000"
+ 906      35205350 
+ 906      49204941 
+ 906      5020636F 
+ 906      6D706C65 
+ 907              	.LC37:
+ 908 01d8 4D313000 		.ascii	"M10\000"
+ 909              	.LC38:
+ 910 01dc 43483538 		.ascii	"CH585 SPI IAP erase accepted: app_size=%lu crc=%08l"
+ 910      35205350 
+ 910      49204941 
+ 910      50206572 
+ 910      61736520 
+ 911 020f 7800     		.ascii	"x\000"
+ 912              	.LC39:
+ 913 0211 4D303700 		.ascii	"M07\000"
+ 914              		.section	.text._ZN14Ch585IapClient20programCombinedImageEmm,"ax",%progbits
+ 915              		.align	1
+ 916              		.global	_ZN14Ch585IapClient20programCombinedImageEmm
+ 917              		.syntax unified
+ 918              		.thumb
+ 919              		.thumb_func
+ 921              	_ZN14Ch585IapClient20programCombinedImageEmm:
+ 922              	.LVL68:
+ 923              	.LFB1335:
+ 181:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 182:Cpp_Core/Src/ch585_iap_client.cpp **** bool Ch585IapClient::programCombinedImage(uint32_t mappedAddress,
+ 183:Cpp_Core/Src/ch585_iap_client.cpp ****                                           uint32_t totalSize)
+ 184:Cpp_Core/Src/ch585_iap_client.cpp **** {
+ 924              		.loc 1 184 1 is_stmt 1 view -0
+ 925              		.cfi_startproc
+ 926              		@ args = 0, pretend = 0, frame = 16
+ 927              		@ frame_needed = 0, uses_anonymous_args = 0
+ 185:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00", "CH585 combined image programming begin: mapped=%08lx total=%lu",
+ 928              		.loc 1 185 5 view .LVU252
+ 184:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00", "CH585 combined image programming begin: mapped=%08lx total=%lu",
+ 929              		.loc 1 184 1 is_stmt 0 view .LVU253
+ 930 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 931              	.LCFI15:
+ 932              		.cfi_def_cfa_offset 36
+ 933              		.cfi_offset 4, -36
+ 934              		.cfi_offset 5, -32
+ 935              		.cfi_offset 6, -28
+ 936              		.cfi_offset 7, -24
+ 937              		.cfi_offset 8, -20
+ 938              		.cfi_offset 9, -16
+ 939              		.cfi_offset 10, -12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 28
+
+
+ 940              		.cfi_offset 11, -8
+ 941              		.cfi_offset 14, -4
+ 942 0004 89B0     		sub	sp, sp, #36
+ 943              	.LCFI16:
+ 944              		.cfi_def_cfa_offset 72
+ 184:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00", "CH585 combined image programming begin: mapped=%08lx total=%lu",
+ 945              		.loc 1 184 1 view .LVU254
+ 946 0006 1546     		mov	r5, r2
+ 947 0008 0446     		mov	r4, r0
+ 948              		.loc 1 185 5 view .LVU255
+ 949 000a 0B46     		mov	r3, r1
+ 950 000c 0092     		str	r2, [sp]
+ 184:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00", "CH585 combined image programming begin: mapped=%08lx total=%lu",
+ 951              		.loc 1 184 1 view .LVU256
+ 952 000e 0F46     		mov	r7, r1
+ 953              		.loc 1 185 5 view .LVU257
+ 954 0010 724A     		ldr	r2, .L75
+ 955              	.LVL69:
+ 956              		.loc 1 185 5 view .LVU258
+ 957 0012 7349     		ldr	r1, .L75+4
+ 958              	.LVL70:
+ 959              		.loc 1 185 5 view .LVU259
+ 960 0014 7348     		ldr	r0, .L75+8
+ 961              	.LVL71:
+ 962              		.loc 1 185 5 view .LVU260
+ 963 0016 FFF7FEFF 		bl	AppStartupLog_Printf
+ 964              	.LVL72:
+ 186:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(mappedAddress),
+ 187:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(totalSize));
+ 188:Cpp_Core/Src/ch585_iap_client.cpp ****     endResponseConfirmed = false;
+ 965              		.loc 1 188 5 is_stmt 1 view .LVU261
+ 966              		.loc 1 188 26 is_stmt 0 view .LVU262
+ 967 001a 0023     		movs	r3, #0
+ 189:Cpp_Core/Src/ch585_iap_client.cpp ****     currentOffset = 0u;
+ 190:Cpp_Core/Src/ch585_iap_client.cpp ****     if (totalSize <= kCombinedIapBytes) {
+ 968              		.loc 1 190 5 view .LVU263
+ 969 001c B5F5805F 		cmp	r5, #4096
+ 188:Cpp_Core/Src/ch585_iap_client.cpp ****     currentOffset = 0u;
+ 970              		.loc 1 188 26 view .LVU264
+ 971 0020 6373     		strb	r3, [r4, #13]
+ 189:Cpp_Core/Src/ch585_iap_client.cpp ****     currentOffset = 0u;
+ 972              		.loc 1 189 5 is_stmt 1 view .LVU265
+ 189:Cpp_Core/Src/ch585_iap_client.cpp ****     currentOffset = 0u;
+ 973              		.loc 1 189 19 is_stmt 0 view .LVU266
+ 974 0022 A360     		str	r3, [r4, #8]
+ 975              		.loc 1 190 5 is_stmt 1 view .LVU267
+ 976 0024 07D8     		bhi	.L43
+ 977              	.LVL73:
+ 978              	.L45:
+ 191:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::InvalidImage;
+ 979              		.loc 1 191 9 view .LVU268
+ 980              		.loc 1 191 23 is_stmt 0 view .LVU269
+ 981 0026 0523     		movs	r3, #5
+ 982 0028 A373     		strb	r3, [r4, #14]
+ 192:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 983              		.loc 1 192 9 is_stmt 1 view .LVU270
+ 984              	.LVL74:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 29
+
+
+ 985              	.L44:
+ 986              		.loc 1 192 16 is_stmt 0 view .LVU271
+ 987 002a 0023     		movs	r3, #0
+ 988 002c 0593     		str	r3, [sp, #20]
+ 989              	.L74:
+ 193:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 194:Cpp_Core/Src/ch585_iap_client.cpp ****     const uint32_t appSize = totalSize - kCombinedIapBytes;
+ 195:Cpp_Core/Src/ch585_iap_client.cpp ****     if (appSize > CH585_IAP_APP_CAPACITY || (appSize & 3u) != 0u) {
+ 196:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::InvalidImage;
+ 197:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 198:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 199:Cpp_Core/Src/ch585_iap_client.cpp ****     const uint8_t* app = reinterpret_cast<const uint8_t*>(
+ 200:Cpp_Core/Src/ch585_iap_client.cpp ****         mappedAddress + kCombinedIapBytes);
+ 201:Cpp_Core/Src/ch585_iap_client.cpp ****     const uint32_t imageCrc =
+ 202:Cpp_Core/Src/ch585_iap_client.cpp ****         crc32Update(0xFFFFFFFFu, app, appSize) ^ 0xFFFFFFFFu;
+ 203:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00C", "CH585 application source CRC ready: size=%lu crc=%08lx",
+ 204:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 205:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(imageCrc));
+ 206:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 207:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00P", "CH585 starting IAP probe");
+ 208:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!probe()) return false;
+ 209:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 210:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_BEGIN;
+ 211:Cpp_Core/Src/ch585_iap_client.cpp ****     bool beginAccepted = false;
+ 212:Cpp_Core/Src/ch585_iap_client.cpp ****     for (uint8_t attempt = 0u; attempt < kBeginAttempts; ++attempt) {
+ 213:Cpp_Core/Src/ch585_iap_client.cpp ****         if (transact(CH585_IAP_CMD_BEGIN, appSize, imageCrc, nullptr, 0u,
+ 214:Cpp_Core/Src/ch585_iap_client.cpp ****                      kEraseResponseTimeoutMs)) {
+ 215:Cpp_Core/Src/ch585_iap_client.cpp ****             beginAccepted = true;
+ 216:Cpp_Core/Src/ch585_iap_client.cpp ****             break;
+ 217:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 218:Cpp_Core/Src/ch585_iap_client.cpp ****         if (!lastTransactionTimedOut) return false;
+ 219:Cpp_Core/Src/ch585_iap_client.cpp ****         (void)USBBoardLinkPort_RawDiscardPendingResponse(
+ 220:Cpp_Core/Src/ch585_iap_client.cpp ****             sizeof(ch585_iap_response_t), 20u);
+ 221:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE("M07R", "CH585 BEGIN response timeout; safe erase retry=%u",
+ 222:Cpp_Core/Src/ch585_iap_client.cpp ****                   static_cast<unsigned int>(attempt + 1u));
+ 223:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 224:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!beginAccepted) return false;
+ 225:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M07", "CH585 SPI IAP erase accepted: app_size=%lu crc=%08lx",
+ 226:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 227:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(imageCrc));
+ 228:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 229:Cpp_Core/Src/ch585_iap_client.cpp ****     uint32_t offset = 0u;
+ 230:Cpp_Core/Src/ch585_iap_client.cpp ****     uint8_t lastLoggedProgress = 0u;
+ 231:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_WRITE;
+ 232:Cpp_Core/Src/ch585_iap_client.cpp ****     while (offset < appSize) {
+ 233:Cpp_Core/Src/ch585_iap_client.cpp ****         currentOffset = offset;
+ 234:Cpp_Core/Src/ch585_iap_client.cpp ****         const uint16_t chunk = static_cast<uint16_t>(
+ 235:Cpp_Core/Src/ch585_iap_client.cpp ****             ((appSize - offset) > CH585_IAP_DATA_SIZE)
+ 236:Cpp_Core/Src/ch585_iap_client.cpp ****                 ? CH585_IAP_DATA_SIZE
+ 237:Cpp_Core/Src/ch585_iap_client.cpp ****                 : (appSize - offset));
+ 238:Cpp_Core/Src/ch585_iap_client.cpp ****         bool accepted = false;
+ 239:Cpp_Core/Src/ch585_iap_client.cpp ****         bool previousTimedOut = false;
+ 240:Cpp_Core/Src/ch585_iap_client.cpp ****         for (uint8_t attempt = 0u; attempt < kWriteAttempts; ++attempt) {
+ 241:Cpp_Core/Src/ch585_iap_client.cpp ****             if (transact(CH585_IAP_CMD_WRITE, offset, 0u, app + offset, chunk,
+ 242:Cpp_Core/Src/ch585_iap_client.cpp ****                          kWriteResponseTimeoutMs)) {
+ 243:Cpp_Core/Src/ch585_iap_client.cpp ****                 accepted = true;
+ 244:Cpp_Core/Src/ch585_iap_client.cpp ****                 break;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 30
+
+
+ 245:Cpp_Core/Src/ch585_iap_client.cpp ****             }
+ 246:Cpp_Core/Src/ch585_iap_client.cpp ****             if (previousTimedOut &&
+ 247:Cpp_Core/Src/ch585_iap_client.cpp ****                 lastDeviceStatus == CH585_IAP_STATUS_BAD_ADDRESS) {
+ 248:Cpp_Core/Src/ch585_iap_client.cpp ****                 /* The only tolerated ambiguity: the timed-out request may
+ 249:Cpp_Core/Src/ch585_iap_client.cpp ****                  * have committed and advanced the loader offset. END's full
+ 250:Cpp_Core/Src/ch585_iap_client.cpp ****                  * image CRC remains the authority. */
+ 251:Cpp_Core/Src/ch585_iap_client.cpp ****                 accepted = true;
+ 252:Cpp_Core/Src/ch585_iap_client.cpp ****                 APP_STAGE("M08R", "CH585 WRITE likely committed before timeout: offset=%lu",
+ 253:Cpp_Core/Src/ch585_iap_client.cpp ****                           static_cast<unsigned long>(offset));
+ 254:Cpp_Core/Src/ch585_iap_client.cpp ****                 break;
+ 255:Cpp_Core/Src/ch585_iap_client.cpp ****             }
+ 256:Cpp_Core/Src/ch585_iap_client.cpp ****             if (!lastTransactionTimedOut) return false;
+ 257:Cpp_Core/Src/ch585_iap_client.cpp ****             previousTimedOut = true;
+ 258:Cpp_Core/Src/ch585_iap_client.cpp ****             (void)USBBoardLinkPort_RawDiscardPendingResponse(
+ 259:Cpp_Core/Src/ch585_iap_client.cpp ****                 sizeof(ch585_iap_response_t), 10u);
+ 260:Cpp_Core/Src/ch585_iap_client.cpp ****             APP_STAGE("M08R", "CH585 WRITE timeout; retrying same offset=%lu",
+ 261:Cpp_Core/Src/ch585_iap_client.cpp ****                       static_cast<unsigned long>(offset));
+ 262:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 263:Cpp_Core/Src/ch585_iap_client.cpp ****         if (!accepted) return false;
+ 264:Cpp_Core/Src/ch585_iap_client.cpp ****         offset += chunk;
+ 265:Cpp_Core/Src/ch585_iap_client.cpp ****         currentOffset = offset;
+ 266:Cpp_Core/Src/ch585_iap_client.cpp ****         currentProgress = static_cast<uint8_t>((offset * 100u) / appSize);
+ 267:Cpp_Core/Src/ch585_iap_client.cpp ****         if (currentProgress >= static_cast<uint8_t>(lastLoggedProgress + 10u) ||
+ 268:Cpp_Core/Src/ch585_iap_client.cpp ****             currentProgress == 100u) {
+ 269:Cpp_Core/Src/ch585_iap_client.cpp ****             lastLoggedProgress = currentProgress;
+ 270:Cpp_Core/Src/ch585_iap_client.cpp ****             APP_STAGE("M08", "CH585 SPI IAP write progress=%u offset=%lu",
+ 271:Cpp_Core/Src/ch585_iap_client.cpp ****                       static_cast<unsigned int>(currentProgress),
+ 272:Cpp_Core/Src/ch585_iap_client.cpp ****                       static_cast<unsigned long>(offset));
+ 273:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 274:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 275:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 276:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_END;
+ 277:Cpp_Core/Src/ch585_iap_client.cpp ****     if (transact(CH585_IAP_CMD_END, appSize, imageCrc, nullptr, 0u,
+ 278:Cpp_Core/Src/ch585_iap_client.cpp ****                  kEraseResponseTimeoutMs)) {
+ 279:Cpp_Core/Src/ch585_iap_client.cpp ****         endResponseConfirmed = true;
+ 280:Cpp_Core/Src/ch585_iap_client.cpp ****     } else if (!lastTransactionTimedOut) {
+ 281:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 282:Cpp_Core/Src/ch585_iap_client.cpp ****     } else {
+ 283:Cpp_Core/Src/ch585_iap_client.cpp ****         /* END commits VALID metadata before replying.  A lost reply is only
+ 284:Cpp_Core/Src/ch585_iap_client.cpp ****          * accepted later if the real application passes role/CAPS checks. */
+ 285:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE("M09", "CH585 END response lost; deferring result to app CAPS");
+ 286:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 287:Cpp_Core/Src/ch585_iap_client.cpp ****     currentProgress = 100u;
+ 288:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Completed;
+ 289:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M10", "CH585 SPI IAP completed: app_size=%lu crc=%08lx",
+ 290:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 291:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(imageCrc));
+ 292:Cpp_Core/Src/ch585_iap_client.cpp ****     return true;
+ 293:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 990              		.loc 1 293 1 view .LVU272
+ 991 002e 0598     		ldr	r0, [sp, #20]
+ 992 0030 09B0     		add	sp, sp, #36
+ 993              	.LCFI17:
+ 994              		.cfi_remember_state
+ 995              		.cfi_def_cfa_offset 36
+ 996              		@ sp needed
+ 997 0032 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 31
+
+
+ 998              	.LVL75:
+ 999              	.L43:
+ 1000              	.LCFI18:
+ 1001              		.cfi_restore_state
+ 194:Cpp_Core/Src/ch585_iap_client.cpp ****     if (appSize > CH585_IAP_APP_CAPACITY || (appSize & 3u) != 0u) {
+ 1002              		.loc 1 194 5 is_stmt 1 view .LVU273
+ 194:Cpp_Core/Src/ch585_iap_client.cpp ****     if (appSize > CH585_IAP_APP_CAPACITY || (appSize & 3u) != 0u) {
+ 1003              		.loc 1 194 20 is_stmt 0 view .LVU274
+ 1004 0036 A5F58055 		sub	r5, r5, #4096
+ 1005              	.LVL76:
+ 195:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::InvalidImage;
+ 1006              		.loc 1 195 5 is_stmt 1 view .LVU275
+ 1007 003a B5F5DE2F 		cmp	r5, #454656
+ 1008 003e F2D8     		bhi	.L45
+ 195:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::InvalidImage;
+ 1009              		.loc 1 195 42 is_stmt 0 discriminator 1 view .LVU276
+ 1010 0040 15F00306 		ands	r6, r5, #3
+ 1011 0044 EFD1     		bne	.L45
+ 199:Cpp_Core/Src/ch585_iap_client.cpp ****         mappedAddress + kCombinedIapBytes);
+ 1012              		.loc 1 199 5 is_stmt 1 view .LVU277
+ 200:Cpp_Core/Src/ch585_iap_client.cpp ****     const uint32_t imageCrc =
+ 1013              		.loc 1 200 23 is_stmt 0 view .LVU278
+ 1014 0046 07F58053 		add	r3, r7, #4096
+ 202:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00C", "CH585 application source CRC ready: size=%lu crc=%08lx",
+ 1015              		.loc 1 202 20 view .LVU279
+ 1016 004a 2946     		mov	r1, r5
+ 1017 004c 1846     		mov	r0, r3
+ 200:Cpp_Core/Src/ch585_iap_client.cpp ****     const uint32_t imageCrc =
+ 1018              		.loc 1 200 23 view .LVU280
+ 1019 004e 0693     		str	r3, [sp, #24]
+ 1020              	.LVL77:
+ 201:Cpp_Core/Src/ch585_iap_client.cpp ****         crc32Update(0xFFFFFFFFu, app, appSize) ^ 0xFFFFFFFFu;
+ 1021              		.loc 1 201 5 is_stmt 1 view .LVU281
+ 202:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00C", "CH585 application source CRC ready: size=%lu crc=%08lx",
+ 1022              		.loc 1 202 20 is_stmt 0 view .LVU282
+ 1023 0050 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L11crc32UpdateEmPKhm.constprop.0
+ 1024              	.LVL78:
+ 202:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M00C", "CH585 application source CRC ready: size=%lu crc=%08lx",
+ 1025              		.loc 1 202 50 discriminator 1 view .LVU283
+ 1026 0054 6FEA000B 		mvn	fp, r0
+ 1027              	.LVL79:
+ 203:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 1028              		.loc 1 203 5 is_stmt 1 view .LVU284
+ 1029 0058 2B46     		mov	r3, r5
+ 1030 005a 634A     		ldr	r2, .L75+12
+ 1031 005c 6049     		ldr	r1, .L75+4
+ 1032 005e 6348     		ldr	r0, .L75+16
+ 1033 0060 CDF800B0 		str	fp, [sp]
+ 1034 0064 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1035              	.LVL80:
+ 207:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!probe()) return false;
+ 1036              		.loc 1 207 5 view .LVU285
+ 1037 0068 6148     		ldr	r0, .L75+20
+ 1038 006a 624A     		ldr	r2, .L75+24
+ 1039 006c 5C49     		ldr	r1, .L75+4
+ 1040 006e FFF7FEFF 		bl	AppStartupLog_Printf
+ 1041              	.LVL81:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 32
+
+
+ 208:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 1042              		.loc 1 208 5 view .LVU286
+ 208:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 1043              		.loc 1 208 15 is_stmt 0 view .LVU287
+ 1044 0072 2046     		mov	r0, r4
+ 1045 0074 FFF7FEFF 		bl	_ZN14Ch585IapClient5probeEv
+ 1046              	.LVL82:
+ 208:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 1047              		.loc 1 208 5 discriminator 1 view .LVU288
+ 1048 0078 0028     		cmp	r0, #0
+ 1049 007a D6D0     		beq	.L44
+ 210:Cpp_Core/Src/ch585_iap_client.cpp ****     bool beginAccepted = false;
+ 1050              		.loc 1 210 5 is_stmt 1 view .LVU289
+ 210:Cpp_Core/Src/ch585_iap_client.cpp ****     bool beginAccepted = false;
+ 1051              		.loc 1 210 18 is_stmt 0 view .LVU290
+ 1052 007c 0323     		movs	r3, #3
+ 1053 007e 4FF00108 		mov	r8, #1
+ 1054              	.LBB58:
+ 221:Cpp_Core/Src/ch585_iap_client.cpp ****                   static_cast<unsigned int>(attempt + 1u));
+ 1055              		.loc 1 221 9 view .LVU291
+ 1056 0082 DFF85CA1 		ldr	r10, .L75+4
+ 1057 0086 DFF8A091 		ldr	r9, .L75+76
+ 1058              	.LBE58:
+ 210:Cpp_Core/Src/ch585_iap_client.cpp ****     bool beginAccepted = false;
+ 1059              		.loc 1 210 18 view .LVU292
+ 1060 008a 2371     		strb	r3, [r4, #4]
+ 211:Cpp_Core/Src/ch585_iap_client.cpp ****     for (uint8_t attempt = 0u; attempt < kBeginAttempts; ++attempt) {
+ 1061              		.loc 1 211 5 is_stmt 1 view .LVU293
+ 1062              	.LVL83:
+ 212:Cpp_Core/Src/ch585_iap_client.cpp ****         if (transact(CH585_IAP_CMD_BEGIN, appSize, imageCrc, nullptr, 0u,
+ 1063              		.loc 1 212 5 view .LVU294
+ 1064              	.LBB59:
+ 212:Cpp_Core/Src/ch585_iap_client.cpp ****         if (transact(CH585_IAP_CMD_BEGIN, appSize, imageCrc, nullptr, 0u,
+ 1065              		.loc 1 212 40 discriminator 1 view .LVU295
+ 1066              	.L50:
+ 213:Cpp_Core/Src/ch585_iap_client.cpp ****                      kEraseResponseTimeoutMs)) {
+ 1067              		.loc 1 213 9 view .LVU296
+ 213:Cpp_Core/Src/ch585_iap_client.cpp ****                      kEraseResponseTimeoutMs)) {
+ 1068              		.loc 1 213 21 is_stmt 0 view .LVU297
+ 1069 008c 0027     		movs	r7, #0
+ 1070 008e 42F21073 		movw	r3, #10000
+ 1071 0092 2A46     		mov	r2, r5
+ 1072 0094 0221     		movs	r1, #2
+ 1073 0096 2046     		mov	r0, r4
+ 1074 0098 0097     		str	r7, [sp]
+ 1075 009a CDE90173 		strd	r7, r3, [sp, #4]
+ 1076 009e 5B46     		mov	r3, fp
+ 1077 00a0 FFF7FEFF 		bl	_ZN14Ch585IapClient8transactEhmmPKhtm
+ 1078              	.LVL84:
+ 213:Cpp_Core/Src/ch585_iap_client.cpp ****                      kEraseResponseTimeoutMs)) {
+ 1079              		.loc 1 213 9 discriminator 1 view .LVU298
+ 1080 00a4 0590     		str	r0, [sp, #20]
+ 1081 00a6 80BB     		cbnz	r0, .L48
+ 218:Cpp_Core/Src/ch585_iap_client.cpp ****         (void)USBBoardLinkPort_RawDiscardPendingResponse(
+ 1082              		.loc 1 218 9 is_stmt 1 view .LVU299
+ 1083 00a8 237B     		ldrb	r3, [r4, #12]	@ zero_extendqisi2
+ 1084 00aa 002B     		cmp	r3, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 33
+
+
+ 1085 00ac BDD0     		beq	.L44
+ 219:Cpp_Core/Src/ch585_iap_client.cpp ****             sizeof(ch585_iap_response_t), 20u);
+ 1086              		.loc 1 219 9 view .LVU300
+ 219:Cpp_Core/Src/ch585_iap_client.cpp ****             sizeof(ch585_iap_response_t), 20u);
+ 1087              		.loc 1 219 57 is_stmt 0 view .LVU301
+ 1088 00ae 1421     		movs	r1, #20
+ 1089 00b0 0820     		movs	r0, #8
+ 1090 00b2 FFF7FEFF 		bl	_Z42USBBoardLinkPort_RawDiscardPendingResponsetm
+ 1091              	.LVL85:
+ 221:Cpp_Core/Src/ch585_iap_client.cpp ****                   static_cast<unsigned int>(attempt + 1u));
+ 1092              		.loc 1 221 9 is_stmt 1 view .LVU302
+ 1093 00b6 4346     		mov	r3, r8
+ 1094 00b8 4F4A     		ldr	r2, .L75+28
+ 1095 00ba 5146     		mov	r1, r10
+ 1096 00bc 4846     		mov	r0, r9
+ 1097 00be FFF7FEFF 		bl	AppStartupLog_Printf
+ 1098              	.LVL86:
+ 212:Cpp_Core/Src/ch585_iap_client.cpp ****         if (transact(CH585_IAP_CMD_BEGIN, appSize, imageCrc, nullptr, 0u,
+ 1099              		.loc 1 212 5 discriminator 2 view .LVU303
+ 212:Cpp_Core/Src/ch585_iap_client.cpp ****         if (transact(CH585_IAP_CMD_BEGIN, appSize, imageCrc, nullptr, 0u,
+ 1100              		.loc 1 212 40 discriminator 1 view .LVU304
+ 1101 00c2 B8F1010F 		cmp	r8, #1
+ 1102 00c6 B0D1     		bne	.L44
+ 1103 00c8 4FF00208 		mov	r8, #2
+ 1104              	.LVL87:
+ 212:Cpp_Core/Src/ch585_iap_client.cpp ****         if (transact(CH585_IAP_CMD_BEGIN, appSize, imageCrc, nullptr, 0u,
+ 1105              		.loc 1 212 40 is_stmt 0 discriminator 1 view .LVU305
+ 1106 00cc DEE7     		b	.L50
+ 1107              	.LVL88:
+ 1108              	.L52:
+ 212:Cpp_Core/Src/ch585_iap_client.cpp ****         if (transact(CH585_IAP_CMD_BEGIN, appSize, imageCrc, nullptr, 0u,
+ 1109              		.loc 1 212 40 discriminator 1 view .LVU306
+ 1110              	.LBE59:
+ 1111              	.LBB60:
+ 1112              	.LBB61:
+ 256:Cpp_Core/Src/ch585_iap_client.cpp ****             previousTimedOut = true;
+ 1113              		.loc 1 256 13 is_stmt 1 view .LVU307
+ 256:Cpp_Core/Src/ch585_iap_client.cpp ****             previousTimedOut = true;
+ 1114              		.loc 1 256 18 is_stmt 0 view .LVU308
+ 1115 00ce 94F80C80 		ldrb	r8, [r4, #12]	@ zero_extendqisi2
+ 1116              	.LVL89:
+ 256:Cpp_Core/Src/ch585_iap_client.cpp ****             previousTimedOut = true;
+ 1117              		.loc 1 256 13 view .LVU309
+ 1118 00d2 B8F1000F 		cmp	r8, #0
+ 1119 00d6 A8D0     		beq	.L44
+ 257:Cpp_Core/Src/ch585_iap_client.cpp ****             (void)USBBoardLinkPort_RawDiscardPendingResponse(
+ 1120              		.loc 1 257 13 is_stmt 1 view .LVU310
+ 1121              	.LVL90:
+ 258:Cpp_Core/Src/ch585_iap_client.cpp ****                 sizeof(ch585_iap_response_t), 10u);
+ 1122              		.loc 1 258 13 view .LVU311
+ 258:Cpp_Core/Src/ch585_iap_client.cpp ****                 sizeof(ch585_iap_response_t), 10u);
+ 1123              		.loc 1 258 61 is_stmt 0 view .LVU312
+ 1124 00d8 0A21     		movs	r1, #10
+ 1125 00da 0820     		movs	r0, #8
+ 1126 00dc FFF7FEFF 		bl	_Z42USBBoardLinkPort_RawDiscardPendingResponsetm
+ 1127              	.LVL91:
+ 260:Cpp_Core/Src/ch585_iap_client.cpp ****                       static_cast<unsigned long>(offset));
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 34
+
+
+ 1128              		.loc 1 260 13 is_stmt 1 view .LVU313
+ 1129 00e0 3346     		mov	r3, r6
+ 1130 00e2 464A     		ldr	r2, .L75+32
+ 1131 00e4 3E49     		ldr	r1, .L75+4
+ 1132 00e6 4648     		ldr	r0, .L75+36
+ 1133 00e8 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1134              	.LVL92:
+ 240:Cpp_Core/Src/ch585_iap_client.cpp ****             if (transact(CH585_IAP_CMD_WRITE, offset, 0u, app + offset, chunk,
+ 1135              		.loc 1 240 9 discriminator 2 view .LVU314
+ 240:Cpp_Core/Src/ch585_iap_client.cpp ****             if (transact(CH585_IAP_CMD_WRITE, offset, 0u, app + offset, chunk,
+ 1136              		.loc 1 240 44 discriminator 1 view .LVU315
+ 1137 00ec B9F1010F 		cmp	r9, #1
+ 1138 00f0 9BD0     		beq	.L44
+ 240:Cpp_Core/Src/ch585_iap_client.cpp ****             if (transact(CH585_IAP_CMD_WRITE, offset, 0u, app + offset, chunk,
+ 1139              		.loc 1 240 44 is_stmt 0 discriminator 1 view .LVU316
+ 1140 00f2 4FF00109 		mov	r9, #1
+ 1141              	.LVL93:
+ 240:Cpp_Core/Src/ch585_iap_client.cpp ****             if (transact(CH585_IAP_CMD_WRITE, offset, 0u, app + offset, chunk,
+ 1142              		.loc 1 240 44 discriminator 1 view .LVU317
+ 1143 00f6 1EE0     		b	.L53
+ 1144              	.LVL94:
+ 1145              	.L57:
+ 240:Cpp_Core/Src/ch585_iap_client.cpp ****             if (transact(CH585_IAP_CMD_WRITE, offset, 0u, app + offset, chunk,
+ 1146              		.loc 1 240 44 discriminator 1 view .LVU318
+ 1147              	.LBE61:
+ 1148              	.LBE60:
+ 280:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 1149              		.loc 1 280 12 is_stmt 1 view .LVU319
+ 1150 00f8 237B     		ldrb	r3, [r4, #12]	@ zero_extendqisi2
+ 1151 00fa 002B     		cmp	r3, #0
+ 1152 00fc 95D0     		beq	.L44
+ 285:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 1153              		.loc 1 285 9 view .LVU320
+ 1154 00fe 414A     		ldr	r2, .L75+40
+ 1155 0100 3749     		ldr	r1, .L75+4
+ 1156 0102 4148     		ldr	r0, .L75+44
+ 1157 0104 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1158              	.LVL95:
+ 1159 0108 5AE0     		b	.L58
+ 1160              	.LVL96:
+ 1161              	.L48:
+ 224:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M07", "CH585 SPI IAP erase accepted: app_size=%lu crc=%08lx",
+ 1162              		.loc 1 224 5 view .LVU321
+ 225:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 1163              		.loc 1 225 5 view .LVU322
+ 1164 010a 2B46     		mov	r3, r5
+ 1165 010c 3F4A     		ldr	r2, .L75+48
+ 1166 010e 3449     		ldr	r1, .L75+4
+ 230:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_WRITE;
+ 1167              		.loc 1 230 13 is_stmt 0 view .LVU323
+ 1168 0110 BA46     		mov	r10, r7
+ 225:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 1169              		.loc 1 225 5 view .LVU324
+ 1170 0112 3F48     		ldr	r0, .L75+52
+ 1171 0114 CDF800B0 		str	fp, [sp]
+ 1172 0118 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1173              	.LVL97:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 35
+
+
+ 229:Cpp_Core/Src/ch585_iap_client.cpp ****     uint8_t lastLoggedProgress = 0u;
+ 1174              		.loc 1 229 5 is_stmt 1 view .LVU325
+ 230:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_WRITE;
+ 1175              		.loc 1 230 5 view .LVU326
+ 231:Cpp_Core/Src/ch585_iap_client.cpp ****     while (offset < appSize) {
+ 1176              		.loc 1 231 5 view .LVU327
+ 231:Cpp_Core/Src/ch585_iap_client.cpp ****     while (offset < appSize) {
+ 1177              		.loc 1 231 18 is_stmt 0 view .LVU328
+ 1178 011c 0423     		movs	r3, #4
+ 1179 011e 2371     		strb	r3, [r4, #4]
+ 232:Cpp_Core/Src/ch585_iap_client.cpp ****         currentOffset = offset;
+ 1180              		.loc 1 232 5 is_stmt 1 view .LVU329
+ 232:Cpp_Core/Src/ch585_iap_client.cpp ****         currentOffset = offset;
+ 1181              		.loc 1 232 19 view .LVU330
+ 1182              	.LVL98:
+ 1183              	.L56:
+ 1184              	.LBB63:
+ 233:Cpp_Core/Src/ch585_iap_client.cpp ****         const uint16_t chunk = static_cast<uint16_t>(
+ 1185              		.loc 1 233 9 view .LVU331
+ 235:Cpp_Core/Src/ch585_iap_client.cpp ****                 ? CH585_IAP_DATA_SIZE
+ 1186              		.loc 1 235 23 is_stmt 0 view .LVU332
+ 1187 0120 AF1B     		subs	r7, r5, r6
+ 234:Cpp_Core/Src/ch585_iap_client.cpp ****             ((appSize - offset) > CH585_IAP_DATA_SIZE)
+ 1188              		.loc 1 234 24 view .LVU333
+ 1189 0122 4FF00209 		mov	r9, #2
+ 239:Cpp_Core/Src/ch585_iap_client.cpp ****         for (uint8_t attempt = 0u; attempt < kWriteAttempts; ++attempt) {
+ 1190              		.loc 1 239 14 view .LVU334
+ 1191 0126 4FF00008 		mov	r8, #0
+ 233:Cpp_Core/Src/ch585_iap_client.cpp ****         const uint16_t chunk = static_cast<uint16_t>(
+ 1192              		.loc 1 233 23 view .LVU335
+ 1193 012a A660     		str	r6, [r4, #8]
+ 234:Cpp_Core/Src/ch585_iap_client.cpp ****             ((appSize - offset) > CH585_IAP_DATA_SIZE)
+ 1194              		.loc 1 234 9 is_stmt 1 view .LVU336
+ 236:Cpp_Core/Src/ch585_iap_client.cpp ****                 : (appSize - offset));
+ 1195              		.loc 1 236 17 is_stmt 0 view .LVU337
+ 1196 012c 282F     		cmp	r7, #40
+ 1197 012e 28BF     		it	cs
+ 1198 0130 2827     		movcs	r7, #40
+ 234:Cpp_Core/Src/ch585_iap_client.cpp ****             ((appSize - offset) > CH585_IAP_DATA_SIZE)
+ 1199              		.loc 1 234 24 view .LVU338
+ 1200 0132 BBB2     		uxth	r3, r7
+ 1201 0134 0793     		str	r3, [sp, #28]
+ 1202              	.LVL99:
+ 238:Cpp_Core/Src/ch585_iap_client.cpp ****         bool previousTimedOut = false;
+ 1203              		.loc 1 238 9 is_stmt 1 view .LVU339
+ 239:Cpp_Core/Src/ch585_iap_client.cpp ****         for (uint8_t attempt = 0u; attempt < kWriteAttempts; ++attempt) {
+ 1204              		.loc 1 239 9 view .LVU340
+ 240:Cpp_Core/Src/ch585_iap_client.cpp ****             if (transact(CH585_IAP_CMD_WRITE, offset, 0u, app + offset, chunk,
+ 1205              		.loc 1 240 9 view .LVU341
+ 1206              	.LBB62:
+ 240:Cpp_Core/Src/ch585_iap_client.cpp ****             if (transact(CH585_IAP_CMD_WRITE, offset, 0u, app + offset, chunk,
+ 1207              		.loc 1 240 44 discriminator 1 view .LVU342
+ 1208              	.L53:
+ 241:Cpp_Core/Src/ch585_iap_client.cpp ****                          kWriteResponseTimeoutMs)) {
+ 1209              		.loc 1 241 13 view .LVU343
+ 241:Cpp_Core/Src/ch585_iap_client.cpp ****                          kWriteResponseTimeoutMs)) {
+ 1210              		.loc 1 241 25 is_stmt 0 view .LVU344
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 36
+
+
+ 1211 0136 6423     		movs	r3, #100
+ 1212 0138 3246     		mov	r2, r6
+ 1213 013a 0321     		movs	r1, #3
+ 1214 013c 2046     		mov	r0, r4
+ 1215 013e 0293     		str	r3, [sp, #8]
+ 1216 0140 079B     		ldr	r3, [sp, #28]
+ 1217 0142 0193     		str	r3, [sp, #4]
+ 1218 0144 069B     		ldr	r3, [sp, #24]
+ 1219 0146 3344     		add	r3, r3, r6
+ 1220 0148 0093     		str	r3, [sp]
+ 1221 014a 0023     		movs	r3, #0
+ 1222 014c FFF7FEFF 		bl	_ZN14Ch585IapClient8transactEhmmPKhtm
+ 1223              	.LVL100:
+ 241:Cpp_Core/Src/ch585_iap_client.cpp ****                          kWriteResponseTimeoutMs)) {
+ 1224              		.loc 1 241 13 discriminator 1 view .LVU345
+ 1225 0150 58B9     		cbnz	r0, .L51
+ 246:Cpp_Core/Src/ch585_iap_client.cpp ****                 lastDeviceStatus == CH585_IAP_STATUS_BAD_ADDRESS) {
+ 1226              		.loc 1 246 13 is_stmt 1 view .LVU346
+ 1227 0152 B8F1000F 		cmp	r8, #0
+ 1228 0156 BAD0     		beq	.L52
+ 246:Cpp_Core/Src/ch585_iap_client.cpp ****                 lastDeviceStatus == CH585_IAP_STATUS_BAD_ADDRESS) {
+ 1229              		.loc 1 246 34 is_stmt 0 discriminator 1 view .LVU347
+ 1230 0158 E378     		ldrb	r3, [r4, #3]	@ zero_extendqisi2
+ 1231 015a 042B     		cmp	r3, #4
+ 1232 015c B7D1     		bne	.L52
+ 251:Cpp_Core/Src/ch585_iap_client.cpp ****                 APP_STAGE("M08R", "CH585 WRITE likely committed before timeout: offset=%lu",
+ 1233              		.loc 1 251 17 is_stmt 1 view .LVU348
+ 1234              	.LVL101:
+ 252:Cpp_Core/Src/ch585_iap_client.cpp ****                           static_cast<unsigned long>(offset));
+ 1235              		.loc 1 252 17 view .LVU349
+ 1236 015e 3346     		mov	r3, r6
+ 1237 0160 2C4A     		ldr	r2, .L75+56
+ 1238 0162 1F49     		ldr	r1, .L75+4
+ 1239 0164 2648     		ldr	r0, .L75+36
+ 1240 0166 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1241              	.LVL102:
+ 254:Cpp_Core/Src/ch585_iap_client.cpp ****             }
+ 1242              		.loc 1 254 17 view .LVU350
+ 254:Cpp_Core/Src/ch585_iap_client.cpp ****             }
+ 1243              		.loc 1 254 17 is_stmt 0 view .LVU351
+ 1244              	.LBE62:
+ 263:Cpp_Core/Src/ch585_iap_client.cpp ****         offset += chunk;
+ 1245              		.loc 1 263 9 is_stmt 1 view .LVU352
+ 1246              	.L51:
+ 264:Cpp_Core/Src/ch585_iap_client.cpp ****         currentOffset = offset;
+ 1247              		.loc 1 264 9 view .LVU353
+ 264:Cpp_Core/Src/ch585_iap_client.cpp ****         currentOffset = offset;
+ 1248              		.loc 1 264 16 is_stmt 0 view .LVU354
+ 1249 016a 3E44     		add	r6, r6, r7
+ 1250              	.LVL103:
+ 265:Cpp_Core/Src/ch585_iap_client.cpp ****         currentProgress = static_cast<uint8_t>((offset * 100u) / appSize);
+ 1251              		.loc 1 265 9 is_stmt 1 view .LVU355
+ 266:Cpp_Core/Src/ch585_iap_client.cpp ****         if (currentProgress >= static_cast<uint8_t>(lastLoggedProgress + 10u) ||
+ 1252              		.loc 1 266 56 is_stmt 0 view .LVU356
+ 1253 016c 6427     		movs	r7, #100
+ 267:Cpp_Core/Src/ch585_iap_client.cpp ****             currentProgress == 100u) {
+ 1254              		.loc 1 267 72 view .LVU357
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 37
+
+
+ 1255 016e 0AF10A03 		add	r3, r10, #10
+ 266:Cpp_Core/Src/ch585_iap_client.cpp ****         if (currentProgress >= static_cast<uint8_t>(lastLoggedProgress + 10u) ||
+ 1256              		.loc 1 266 56 view .LVU358
+ 1257 0172 7743     		muls	r7, r6, r7
+ 267:Cpp_Core/Src/ch585_iap_client.cpp ****             currentProgress == 100u) {
+ 1258              		.loc 1 267 9 view .LVU359
+ 1259 0174 DBB2     		uxtb	r3, r3
+ 265:Cpp_Core/Src/ch585_iap_client.cpp ****         currentProgress = static_cast<uint8_t>((offset * 100u) / appSize);
+ 1260              		.loc 1 265 23 view .LVU360
+ 1261 0176 A660     		str	r6, [r4, #8]
+ 266:Cpp_Core/Src/ch585_iap_client.cpp ****         if (currentProgress >= static_cast<uint8_t>(lastLoggedProgress + 10u) ||
+ 1262              		.loc 1 266 9 is_stmt 1 view .LVU361
+ 266:Cpp_Core/Src/ch585_iap_client.cpp ****         if (currentProgress >= static_cast<uint8_t>(lastLoggedProgress + 10u) ||
+ 1263              		.loc 1 266 64 is_stmt 0 view .LVU362
+ 1264 0178 B7FBF5F7 		udiv	r7, r7, r5
+ 266:Cpp_Core/Src/ch585_iap_client.cpp ****         if (currentProgress >= static_cast<uint8_t>(lastLoggedProgress + 10u) ||
+ 1265              		.loc 1 266 25 view .LVU363
+ 1266 017c FFB2     		uxtb	r7, r7
+ 267:Cpp_Core/Src/ch585_iap_client.cpp ****             currentProgress == 100u) {
+ 1267              		.loc 1 267 9 view .LVU364
+ 1268 017e 9F42     		cmp	r7, r3
+ 266:Cpp_Core/Src/ch585_iap_client.cpp ****         if (currentProgress >= static_cast<uint8_t>(lastLoggedProgress + 10u) ||
+ 1269              		.loc 1 266 25 view .LVU365
+ 1270 0180 A770     		strb	r7, [r4, #2]
+ 267:Cpp_Core/Src/ch585_iap_client.cpp ****             currentProgress == 100u) {
+ 1271              		.loc 1 267 9 is_stmt 1 view .LVU366
+ 1272 0182 01D2     		bcs	.L54
+ 267:Cpp_Core/Src/ch585_iap_client.cpp ****             currentProgress == 100u) {
+ 1273              		.loc 1 267 79 is_stmt 0 discriminator 1 view .LVU367
+ 1274 0184 642F     		cmp	r7, #100
+ 1275 0186 07D1     		bne	.L55
+ 1276              	.L54:
+ 269:Cpp_Core/Src/ch585_iap_client.cpp ****             APP_STAGE("M08", "CH585 SPI IAP write progress=%u offset=%lu",
+ 1277              		.loc 1 269 13 is_stmt 1 view .LVU368
+ 1278              	.LVL104:
+ 270:Cpp_Core/Src/ch585_iap_client.cpp ****                       static_cast<unsigned int>(currentProgress),
+ 1279              		.loc 1 270 13 view .LVU369
+ 269:Cpp_Core/Src/ch585_iap_client.cpp ****             APP_STAGE("M08", "CH585 SPI IAP write progress=%u offset=%lu",
+ 1280              		.loc 1 269 32 is_stmt 0 view .LVU370
+ 1281 0188 BA46     		mov	r10, r7
+ 270:Cpp_Core/Src/ch585_iap_client.cpp ****                       static_cast<unsigned int>(currentProgress),
+ 1282              		.loc 1 270 13 view .LVU371
+ 1283 018a 3B46     		mov	r3, r7
+ 1284 018c 224A     		ldr	r2, .L75+60
+ 1285 018e 1449     		ldr	r1, .L75+4
+ 1286 0190 2248     		ldr	r0, .L75+64
+ 1287 0192 0096     		str	r6, [sp]
+ 1288 0194 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1289              	.LVL105:
+ 1290              	.L55:
+ 270:Cpp_Core/Src/ch585_iap_client.cpp ****                       static_cast<unsigned int>(currentProgress),
+ 1291              		.loc 1 270 13 view .LVU372
+ 1292              	.LBE63:
+ 232:Cpp_Core/Src/ch585_iap_client.cpp ****         currentOffset = offset;
+ 1293              		.loc 1 232 19 is_stmt 1 view .LVU373
+ 1294 0198 B542     		cmp	r5, r6
+ 1295 019a C1D8     		bhi	.L56
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 38
+
+
+ 276:Cpp_Core/Src/ch585_iap_client.cpp ****     if (transact(CH585_IAP_CMD_END, appSize, imageCrc, nullptr, 0u,
+ 1296              		.loc 1 276 5 view .LVU374
+ 276:Cpp_Core/Src/ch585_iap_client.cpp ****     if (transact(CH585_IAP_CMD_END, appSize, imageCrc, nullptr, 0u,
+ 1297              		.loc 1 276 18 is_stmt 0 view .LVU375
+ 1298 019c 0523     		movs	r3, #5
+ 277:Cpp_Core/Src/ch585_iap_client.cpp ****                  kEraseResponseTimeoutMs)) {
+ 1299              		.loc 1 277 17 view .LVU376
+ 1300 019e 42F21072 		movw	r2, #10000
+ 1301 01a2 0421     		movs	r1, #4
+ 1302 01a4 2046     		mov	r0, r4
+ 276:Cpp_Core/Src/ch585_iap_client.cpp ****     if (transact(CH585_IAP_CMD_END, appSize, imageCrc, nullptr, 0u,
+ 1303              		.loc 1 276 18 view .LVU377
+ 1304 01a6 2371     		strb	r3, [r4, #4]
+ 277:Cpp_Core/Src/ch585_iap_client.cpp ****                  kEraseResponseTimeoutMs)) {
+ 1305              		.loc 1 277 5 is_stmt 1 view .LVU378
+ 277:Cpp_Core/Src/ch585_iap_client.cpp ****                  kEraseResponseTimeoutMs)) {
+ 1306              		.loc 1 277 17 is_stmt 0 view .LVU379
+ 1307 01a8 0023     		movs	r3, #0
+ 1308 01aa CDE90132 		strd	r3, r2, [sp, #4]
+ 1309 01ae 0093     		str	r3, [sp]
+ 1310 01b0 2A46     		mov	r2, r5
+ 1311 01b2 5B46     		mov	r3, fp
+ 1312 01b4 FFF7FEFF 		bl	_ZN14Ch585IapClient8transactEhmmPKhtm
+ 1313              	.LVL106:
+ 277:Cpp_Core/Src/ch585_iap_client.cpp ****                  kEraseResponseTimeoutMs)) {
+ 1314              		.loc 1 277 5 discriminator 1 view .LVU380
+ 1315 01b8 0028     		cmp	r0, #0
+ 1316 01ba 9DD0     		beq	.L57
+ 279:Cpp_Core/Src/ch585_iap_client.cpp ****     } else if (!lastTransactionTimedOut) {
+ 1317              		.loc 1 279 9 is_stmt 1 view .LVU381
+ 279:Cpp_Core/Src/ch585_iap_client.cpp ****     } else if (!lastTransactionTimedOut) {
+ 1318              		.loc 1 279 30 is_stmt 0 view .LVU382
+ 1319 01bc 0123     		movs	r3, #1
+ 1320 01be 6373     		strb	r3, [r4, #13]
+ 1321              	.L58:
+ 287:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Completed;
+ 1322              		.loc 1 287 5 is_stmt 1 view .LVU383
+ 287:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Completed;
+ 1323              		.loc 1 287 21 is_stmt 0 view .LVU384
+ 1324 01c0 6423     		movs	r3, #100
+ 289:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 1325              		.loc 1 289 5 view .LVU385
+ 1326 01c2 174A     		ldr	r2, .L75+68
+ 1327 01c4 0649     		ldr	r1, .L75+4
+ 287:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Completed;
+ 1328              		.loc 1 287 21 view .LVU386
+ 1329 01c6 A370     		strb	r3, [r4, #2]
+ 288:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M10", "CH585 SPI IAP completed: app_size=%lu crc=%08lx",
+ 1330              		.loc 1 288 5 is_stmt 1 view .LVU387
+ 288:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M10", "CH585 SPI IAP completed: app_size=%lu crc=%08lx",
+ 1331              		.loc 1 288 19 is_stmt 0 view .LVU388
+ 1332 01c8 0623     		movs	r3, #6
+ 289:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 1333              		.loc 1 289 5 view .LVU389
+ 1334 01ca 1648     		ldr	r0, .L75+72
+ 288:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M10", "CH585 SPI IAP completed: app_size=%lu crc=%08lx",
+ 1335              		.loc 1 288 19 view .LVU390
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 39
+
+
+ 1336 01cc A373     		strb	r3, [r4, #14]
+ 289:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(appSize),
+ 1337              		.loc 1 289 5 is_stmt 1 view .LVU391
+ 1338 01ce 2B46     		mov	r3, r5
+ 1339 01d0 CDF800B0 		str	fp, [sp]
+ 1340 01d4 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1341              	.LVL107:
+ 292:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 1342              		.loc 1 292 5 view .LVU392
+ 292:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 1343              		.loc 1 292 12 is_stmt 0 view .LVU393
+ 1344 01d8 29E7     		b	.L74
+ 1345              	.L76:
+ 1346 01da 00BF     		.align	2
+ 1347              	.L75:
+ 1348 01dc 00000000 		.word	.LC21
+ 1349 01e0 26000000 		.word	.LC5
+ 1350 01e4 3F000000 		.word	.LC22
+ 1351 01e8 43000000 		.word	.LC23
+ 1352 01ec 7A000000 		.word	.LC24
+ 1353 01f0 98000000 		.word	.LC26
+ 1354 01f4 7F000000 		.word	.LC25
+ 1355 01f8 9D000000 		.word	.LC27
+ 1356 01fc 11010000 		.word	.LC31
+ 1357 0200 0C010000 		.word	.LC30
+ 1358 0204 6E010000 		.word	.LC34
+ 1359 0208 A4010000 		.word	.LC35
+ 1360 020c DC010000 		.word	.LC38
+ 1361 0210 11020000 		.word	.LC39
+ 1362 0214 D4000000 		.word	.LC29
+ 1363 0218 3F010000 		.word	.LC32
+ 1364 021c 6A010000 		.word	.LC33
+ 1365 0220 A8010000 		.word	.LC36
+ 1366 0224 D8010000 		.word	.LC37
+ 1367 0228 CF000000 		.word	.LC28
+ 1368              		.cfi_endproc
+ 1369              	.LFE1335:
+ 1371              		.section	.rodata._ZN14Ch585IapClient19validateApplicationEv.str1.1,"aMS",%progbits,1
+ 1372              	.LC40:
+ 1373 0000 4D303956 		.ascii	"M09V\000"
+ 1373      00
+ 1374              	.LC41:
+ 1375 0005 4D303945 		.ascii	"M09E\000"
+ 1375      00
+ 1376              	.LC42:
+ 1377 000a 43483538 		.ascii	"CH585 application maintenance role selection failed"
+ 1377      35206170 
+ 1377      706C6963 
+ 1377      6174696F 
+ 1377      6E206D61 
+ 1378 003d 3A207374 		.ascii	": state=%u\000"
+ 1378      6174653D 
+ 1378      257500
+ 1379              	.LC43:
+ 1380 0048 4D303952 		.ascii	"M09R\000"
+ 1380      00
+ 1381              	.LC44:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 40
+
+
+ 1382 004d 43483538 		.ascii	"CH585 application maintenance role selected\000"
+ 1382      35206170 
+ 1382      706C6963 
+ 1382      6174696F 
+ 1382      6E206D61 
+ 1383              	.LC45:
+ 1384 0079 43483538 		.ascii	"CH585 application CAPS: valid=%u fw=%u.%u.%u roles="
+ 1384      35206170 
+ 1384      706C6963 
+ 1384      6174696F 
+ 1384      6E204341 
+ 1385 00ac 25303278 		.ascii	"%02x profiles=%04x features=%02x end_ack=%u\000"
+ 1385      2070726F 
+ 1385      66696C65 
+ 1385      733D2530 
+ 1385      34782066 
+ 1386              	.LC46:
+ 1387 00d8 43483538 		.ascii	"CH585 application GET_CAPS failed after role select"
+ 1387      35206170 
+ 1387      706C6963 
+ 1387      6174696F 
+ 1387      6E204745 
+ 1388 010b 696F6E3A 		.ascii	"ion: attempts=%lu window=%lu ms\000"
+ 1388      20617474 
+ 1388      656D7074 
+ 1388      733D256C 
+ 1388      75207769 
+ 1389              	.LC47:
+ 1390 012b 4D303943 		.ascii	"M09C\000"
+ 1390      00
+ 1391              	.LC48:
+ 1392 0130 43483538 		.ascii	"CH585 application GET_CAPS accepted: attempts=%lu e"
+ 1392      35206170 
+ 1392      706C6963 
+ 1392      6174696F 
+ 1392      6E204745 
+ 1393 0163 6C617073 		.ascii	"lapsed=%lu ms\000"
+ 1393      65643D25 
+ 1393      6C75206D 
+ 1393      7300
+ 1394              		.section	.text._ZN14Ch585IapClient19validateApplicationEv,"ax",%progbits
+ 1395              		.align	1
+ 1396              		.global	_ZN14Ch585IapClient19validateApplicationEv
+ 1397              		.syntax unified
+ 1398              		.thumb
+ 1399              		.thumb_func
+ 1401              	_ZN14Ch585IapClient19validateApplicationEv:
+ 1402              	.LVL108:
+ 1403              	.LFB1336:
+ 294:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 295:Cpp_Core/Src/ch585_iap_client.cpp **** bool Ch585IapClient::validateApplication()
+ 296:Cpp_Core/Src/ch585_iap_client.cpp **** {
+ 1404              		.loc 1 296 1 is_stmt 1 view -0
+ 1405              		.cfi_startproc
+ 1406              		@ args = 0, pretend = 0, frame = 0
+ 1407              		@ frame_needed = 0, uses_anonymous_args = 0
+ 297:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_VERIFY_APP;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 41
+
+
+ 1408              		.loc 1 297 5 view .LVU395
+ 1409              		.loc 1 297 18 is_stmt 0 view .LVU396
+ 1410 0000 0623     		movs	r3, #6
+ 296:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_VERIFY_APP;
+ 1411              		.loc 1 296 1 view .LVU397
+ 1412 0002 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 1413              	.LCFI19:
+ 1414              		.cfi_def_cfa_offset 24
+ 1415              		.cfi_offset 4, -24
+ 1416              		.cfi_offset 5, -20
+ 1417              		.cfi_offset 6, -16
+ 1418              		.cfi_offset 7, -12
+ 1419              		.cfi_offset 8, -8
+ 1420              		.cfi_offset 14, -4
+ 298:Cpp_Core/Src/ch585_iap_client.cpp ****     USB_BOARD_LINK.shutdown();
+ 299:Cpp_Core/Src/ch585_iap_client.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 1421              		.loc 1 299 34 discriminator 1 view .LVU398
+ 1422 0006 494C     		ldr	r4, .L94
+ 296:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_VERIFY_APP;
+ 1423              		.loc 1 296 1 view .LVU399
+ 1424 0008 88B0     		sub	sp, sp, #32
+ 1425              	.LCFI20:
+ 1426              		.cfi_def_cfa_offset 56
+ 296:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_VERIFY_APP;
+ 1427              		.loc 1 296 1 view .LVU400
+ 1428 000a 0646     		mov	r6, r0
+ 297:Cpp_Core/Src/ch585_iap_client.cpp ****     USB_BOARD_LINK.shutdown();
+ 1429              		.loc 1 297 18 view .LVU401
+ 1430 000c 0371     		strb	r3, [r0, #4]
+ 298:Cpp_Core/Src/ch585_iap_client.cpp ****     USB_BOARD_LINK.shutdown();
+ 1431              		.loc 1 298 5 is_stmt 1 view .LVU402
+ 1432              	.LBB64:
+ 1433              	.LBI64:
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     {
+ 1434              		.loc 3 15 26 view .LVU403
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 1435              		.loc 3 17 9 view .LVU404
+ 1436              		.loc 3 18 9 view .LVU405
+ 1437              	.LBE64:
+ 298:Cpp_Core/Src/ch585_iap_client.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 1438              		.loc 1 298 28 is_stmt 0 discriminator 1 view .LVU406
+ 1439 000e 4848     		ldr	r0, .L94+4
+ 1440              	.LVL109:
+ 298:Cpp_Core/Src/ch585_iap_client.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 1441              		.loc 1 298 28 discriminator 1 view .LVU407
+ 1442 0010 FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 1443              	.LVL110:
+ 1444              		.loc 1 299 5 is_stmt 1 view .LVU408
+ 1445              	.LBB65:
+ 1446              	.LBI65:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 1447              		.loc 4 29 32 view .LVU409
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 1448              		.loc 4 31 9 view .LVU410
+ 1449              		.loc 4 32 9 view .LVU411
+ 1450              	.LBE65:
+ 1451              		.loc 1 299 34 is_stmt 0 discriminator 1 view .LVU412
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 42
+
+
+ 1452 0014 2046     		mov	r0, r4
+ 1453 0016 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 1454              	.LVL111:
+ 300:Cpp_Core/Src/ch585_iap_client.cpp ****     USBBoardLinkPort_Shutdown();
+ 1455              		.loc 1 300 5 is_stmt 1 view .LVU413
+ 1456 001a 454D     		ldr	r5, .L94+4
+ 1457              		.loc 1 300 30 is_stmt 0 view .LVU414
+ 1458 001c FFF7FEFF 		bl	_Z25USBBoardLinkPort_Shutdownv
+ 1459              	.LVL112:
+ 301:Cpp_Core/Src/ch585_iap_client.cpp ****     CH585_ROLE_BOOTSTRAP.setSelector(UsbBoardLink_SelectRoleCallback);
+ 1460              		.loc 1 301 5 is_stmt 1 view .LVU415
+ 1461              	.LBB66:
+ 1462              	.LBI66:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 1463              		.loc 4 29 32 view .LVU416
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 1464              		.loc 4 31 9 view .LVU417
+ 1465              		.loc 4 32 9 view .LVU418
+ 1466              	.LBE66:
+ 1467              		.loc 1 301 37 is_stmt 0 discriminator 1 view .LVU419
+ 1468 0020 4449     		ldr	r1, .L94+8
+ 1469 0022 2046     		mov	r0, r4
+ 1470 0024 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE
+ 1471              	.LVL113:
+ 302:Cpp_Core/Src/ch585_iap_client.cpp **** 
+ 303:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Maintenance)) {
+ 1472              		.loc 1 303 5 is_stmt 1 view .LVU420
+ 1473              	.LBB67:
+ 1474              	.LBI67:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 1475              		.loc 4 29 32 view .LVU421
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 1476              		.loc 4 31 9 view .LVU422
+ 1477              		.loc 4 32 9 view .LVU423
+ 1478              	.LBE67:
+ 1479              		.loc 1 303 36 is_stmt 0 discriminator 1 view .LVU424
+ 1480 0028 0321     		movs	r1, #3
+ 1481 002a 2046     		mov	r0, r4
+ 1482 002c FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap5startE9Ch585Role
+ 1483              	.LVL114:
+ 1484              		.loc 1 303 5 discriminator 2 view .LVU425
+ 1485 0030 70B9     		cbnz	r0, .L78
+ 304:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::DeviceError;
+ 1486              		.loc 1 304 9 is_stmt 1 view .LVU426
+ 1487              		.loc 1 304 23 is_stmt 0 view .LVU427
+ 1488 0032 0423     		movs	r3, #4
+ 305:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M09R", "CH585 application maintenance role selection failed: state=%u",
+ 1489              		.loc 1 305 9 discriminator 2 view .LVU428
+ 1490 0034 404A     		ldr	r2, .L94+12
+ 1491 0036 4149     		ldr	r1, .L94+16
+ 1492 0038 4148     		ldr	r0, .L94+20
+ 304:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::DeviceError;
+ 1493              		.loc 1 304 23 view .LVU429
+ 1494 003a B373     		strb	r3, [r6, #14]
+ 1495              		.loc 1 305 9 is_stmt 1 view .LVU430
+ 1496              	.LVL115:
+ 1497              	.LBB68:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 43
+
+
+ 1498              	.LBI68:
+  33:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     }
+  34:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  35:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     void setSelector(Ch585RoleSelector selectorFn);
+  36:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     bool start(Ch585Role requestedRole);
+  37:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     void shutdown();
+  38:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  39:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585Role role() const { return activeRole; }
+  40:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585BootstrapState state() const { return bootstrapState; }
+ 1499              		.loc 4 40 25 view .LVU431
+ 1500              	.LBB69:
+ 1501              		.loc 4 40 41 view .LVU432
+ 1502              		.loc 4 40 41 is_stmt 0 view .LVU433
+ 1503              	.LBE69:
+ 1504              	.LBE68:
+ 1505              		.loc 1 305 9 discriminator 2 view .LVU434
+ 1506 003c 6379     		ldrb	r3, [r4, #5]	@ zero_extendqisi2
+ 1507 003e FFF7FEFF 		bl	AppStartupLog_Printf
+ 1508              	.LVL116:
+ 306:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned int>(CH585_ROLE_BOOTSTRAP.state()));
+ 307:Cpp_Core/Src/ch585_iap_client.cpp ****         CH585_ROLE_BOOTSTRAP.shutdown();
+ 1509              		.loc 1 307 9 is_stmt 1 view .LVU435
+ 1510              	.LBB70:
+ 1511              	.LBI70:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 1512              		.loc 4 29 32 view .LVU436
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 1513              		.loc 4 31 9 view .LVU437
+  32:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     }
+ 1514              		.loc 4 32 9 view .LVU438
+ 1515              	.LBE70:
+ 1516              		.loc 1 307 38 is_stmt 0 discriminator 1 view .LVU439
+ 1517 0042 2046     		mov	r0, r4
+ 1518 0044 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 1519              	.LVL117:
+ 308:Cpp_Core/Src/ch585_iap_client.cpp ****         USB_BOARD_LINK.shutdown();
+ 1520              		.loc 1 308 9 is_stmt 1 view .LVU440
+ 1521              	.LBB71:
+ 1522              	.LBI71:
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     {
+ 1523              		.loc 3 15 26 view .LVU441
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 1524              		.loc 3 17 9 view .LVU442
+ 1525              		.loc 3 18 9 view .LVU443
+ 1526              	.LBE71:
+ 1527              		.loc 1 308 32 is_stmt 0 discriminator 1 view .LVU444
+ 1528 0048 2846     		mov	r0, r5
+ 1529              	.L92:
+ 309:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 310:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 311:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M09R", "CH585 application maintenance role selected");
+ 312:Cpp_Core/Src/ch585_iap_client.cpp ****     /* ROLE_SELECTED is emitted immediately before CH585 tears down the
+ 313:Cpp_Core/Src/ch585_iap_client.cpp ****      * polling selector and initializes the DMA board-link plus USB host.
+ 314:Cpp_Core/Src/ch585_iap_client.cpp ****      * That acknowledgement is deliberately early, so a one-shot GET_CAPS
+ 315:Cpp_Core/Src/ch585_iap_client.cpp ****      * can land before usb_board_link_process() exists.  Retry within a fixed
+ 316:Cpp_Core/Src/ch585_iap_client.cpp ****      * boot window; transact() drains a late CAPS first and the operation is
+ 317:Cpp_Core/Src/ch585_iap_client.cpp ****      * read-only/idempotent. */
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 44
+
+
+ 318:Cpp_Core/Src/ch585_iap_client.cpp ****     bool capsReady = false;
+ 319:Cpp_Core/Src/ch585_iap_client.cpp ****     const uint32_t capsStarted = HAL_GetTick();
+ 320:Cpp_Core/Src/ch585_iap_client.cpp ****     uint32_t capsAttempts = 0u;
+ 321:Cpp_Core/Src/ch585_iap_client.cpp ****     do {
+ 322:Cpp_Core/Src/ch585_iap_client.cpp ****         ++capsAttempts;
+ 323:Cpp_Core/Src/ch585_iap_client.cpp ****         if (USB_BOARD_LINK.getCapabilities()) {
+ 324:Cpp_Core/Src/ch585_iap_client.cpp ****             capsReady = true;
+ 325:Cpp_Core/Src/ch585_iap_client.cpp ****             break;
+ 326:Cpp_Core/Src/ch585_iap_client.cpp ****         }
+ 327:Cpp_Core/Src/ch585_iap_client.cpp ****         HAL_Delay(kApplicationCapsRetryMs);
+ 328:Cpp_Core/Src/ch585_iap_client.cpp ****     } while ((HAL_GetTick() - capsStarted) < kApplicationCapsWindowMs);
+ 329:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!capsReady) {
+ 330:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::DeviceError;
+ 331:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M09C", "CH585 application GET_CAPS failed after role selection: attempts=%
+ 332:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned long>(capsAttempts),
+ 333:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned long>(kApplicationCapsWindowMs));
+ 334:Cpp_Core/Src/ch585_iap_client.cpp ****         CH585_ROLE_BOOTSTRAP.shutdown();
+ 335:Cpp_Core/Src/ch585_iap_client.cpp ****         USB_BOARD_LINK.shutdown();
+ 1530              		.loc 1 335 32 discriminator 1 view .LVU445
+ 1531 004a FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 1532              	.LVL118:
+ 336:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 1533              		.loc 1 336 9 is_stmt 1 view .LVU446
+ 1534              		.loc 1 336 16 is_stmt 0 view .LVU447
+ 1535 004e 45E0     		b	.L79
+ 1536              	.L78:
+ 311:Cpp_Core/Src/ch585_iap_client.cpp ****     /* ROLE_SELECTED is emitted immediately before CH585 tears down the
+ 1537              		.loc 1 311 5 is_stmt 1 view .LVU448
+ 1538 0050 3C4A     		ldr	r2, .L94+24
+ 320:Cpp_Core/Src/ch585_iap_client.cpp ****     do {
+ 1539              		.loc 1 320 14 is_stmt 0 view .LVU449
+ 1540 0052 0027     		movs	r7, #0
+ 311:Cpp_Core/Src/ch585_iap_client.cpp ****     /* ROLE_SELECTED is emitted immediately before CH585 tears down the
+ 1541              		.loc 1 311 5 view .LVU450
+ 1542 0054 3C49     		ldr	r1, .L94+28
+ 1543 0056 3A48     		ldr	r0, .L94+20
+ 1544 0058 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1545              	.LVL119:
+ 318:Cpp_Core/Src/ch585_iap_client.cpp ****     const uint32_t capsStarted = HAL_GetTick();
+ 1546              		.loc 1 318 5 is_stmt 1 view .LVU451
+ 319:Cpp_Core/Src/ch585_iap_client.cpp ****     uint32_t capsAttempts = 0u;
+ 1547              		.loc 1 319 5 view .LVU452
+ 319:Cpp_Core/Src/ch585_iap_client.cpp ****     uint32_t capsAttempts = 0u;
+ 1548              		.loc 1 319 45 is_stmt 0 view .LVU453
+ 1549 005c FFF7FEFF 		bl	HAL_GetTick
+ 1550              	.LVL120:
+ 1551 0060 8046     		mov	r8, r0
+ 1552              	.LVL121:
+ 320:Cpp_Core/Src/ch585_iap_client.cpp ****     do {
+ 1553              		.loc 1 320 5 is_stmt 1 view .LVU454
+ 1554              	.L81:
+ 321:Cpp_Core/Src/ch585_iap_client.cpp ****         ++capsAttempts;
+ 1555              		.loc 1 321 5 view .LVU455
+ 322:Cpp_Core/Src/ch585_iap_client.cpp ****         if (USB_BOARD_LINK.getCapabilities()) {
+ 1556              		.loc 1 322 9 view .LVU456
+ 323:Cpp_Core/Src/ch585_iap_client.cpp ****             capsReady = true;
+ 1557              		.loc 1 323 43 is_stmt 0 discriminator 1 view .LVU457
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 45
+
+
+ 1558 0062 2846     		mov	r0, r5
+ 322:Cpp_Core/Src/ch585_iap_client.cpp ****         if (USB_BOARD_LINK.getCapabilities()) {
+ 1559              		.loc 1 322 9 view .LVU458
+ 1560 0064 0137     		adds	r7, r7, #1
+ 1561              	.LVL122:
+ 323:Cpp_Core/Src/ch585_iap_client.cpp ****             capsReady = true;
+ 1562              		.loc 1 323 9 is_stmt 1 view .LVU459
+ 1563              	.LBB72:
+ 1564              	.LBI72:
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     {
+ 1565              		.loc 3 15 26 view .LVU460
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 1566              		.loc 3 17 9 view .LVU461
+ 1567              		.loc 3 18 9 view .LVU462
+ 1568              	.LBE72:
+ 323:Cpp_Core/Src/ch585_iap_client.cpp ****             capsReady = true;
+ 1569              		.loc 1 323 43 is_stmt 0 discriminator 1 view .LVU463
+ 1570 0066 FFF7FEFF 		bl	_ZN12UsbBoardLink15getCapabilitiesEv
+ 1571              	.LVL123:
+ 323:Cpp_Core/Src/ch585_iap_client.cpp ****             capsReady = true;
+ 1572              		.loc 1 323 9 discriminator 2 view .LVU464
+ 1573 006a 0446     		mov	r4, r0
+ 1574 006c 0028     		cmp	r0, #0
+ 1575 006e 42D1     		bne	.L80
+ 327:Cpp_Core/Src/ch585_iap_client.cpp ****     } while ((HAL_GetTick() - capsStarted) < kApplicationCapsWindowMs);
+ 1576              		.loc 1 327 9 is_stmt 1 view .LVU465
+ 327:Cpp_Core/Src/ch585_iap_client.cpp ****     } while ((HAL_GetTick() - capsStarted) < kApplicationCapsWindowMs);
+ 1577              		.loc 1 327 18 is_stmt 0 view .LVU466
+ 1578 0070 0A20     		movs	r0, #10
+ 1579 0072 FFF7FEFF 		bl	HAL_Delay
+ 1580              	.LVL124:
+ 328:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!capsReady) {
+ 1581              		.loc 1 328 44 is_stmt 1 view .LVU467
+ 328:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!capsReady) {
+ 1582              		.loc 1 328 26 is_stmt 0 view .LVU468
+ 1583 0076 FFF7FEFF 		bl	HAL_GetTick
+ 1584              	.LVL125:
+ 328:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!capsReady) {
+ 1585              		.loc 1 328 29 discriminator 1 view .LVU469
+ 1586 007a A0EB0800 		sub	r0, r0, r8
+ 328:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!capsReady) {
+ 1587              		.loc 1 328 44 discriminator 1 view .LVU470
+ 1588 007e B0F57A7F 		cmp	r0, #1000
+ 1589 0082 EED3     		bcc	.L81
+ 329:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::DeviceError;
+ 1590              		.loc 1 329 5 is_stmt 1 view .LVU471
+ 330:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M09C", "CH585 application GET_CAPS failed after role selection: attempts=%
+ 1591              		.loc 1 330 9 view .LVU472
+ 330:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M09C", "CH585 application GET_CAPS failed after role selection: attempts=%
+ 1592              		.loc 1 330 23 is_stmt 0 view .LVU473
+ 1593 0084 0423     		movs	r3, #4
+ 331:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned long>(capsAttempts),
+ 1594              		.loc 1 331 9 view .LVU474
+ 1595 0086 314A     		ldr	r2, .L94+32
+ 1596 0088 2C49     		ldr	r1, .L94+16
+ 330:Cpp_Core/Src/ch585_iap_client.cpp ****         APP_STAGE_ERROR("M09C", "CH585 application GET_CAPS failed after role selection: attempts=%
+ 1597              		.loc 1 330 23 view .LVU475
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 46
+
+
+ 1598 008a B373     		strb	r3, [r6, #14]
+ 331:Cpp_Core/Src/ch585_iap_client.cpp ****                         static_cast<unsigned long>(capsAttempts),
+ 1599              		.loc 1 331 9 is_stmt 1 view .LVU476
+ 1600 008c 4FF47A73 		mov	r3, #1000
+ 1601 0090 2F48     		ldr	r0, .L94+36
+ 1602 0092 0093     		str	r3, [sp]
+ 1603 0094 3B46     		mov	r3, r7
+ 1604 0096 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1605              	.LVL126:
+ 334:Cpp_Core/Src/ch585_iap_client.cpp ****         USB_BOARD_LINK.shutdown();
+ 1606              		.loc 1 334 9 view .LVU477
+ 1607              	.LBB73:
+ 1608              	.LBI73:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 1609              		.loc 4 29 32 view .LVU478
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 1610              		.loc 4 31 9 view .LVU479
+  32:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     }
+ 1611              		.loc 4 32 9 view .LVU480
+ 1612              	.LBE73:
+ 334:Cpp_Core/Src/ch585_iap_client.cpp ****         USB_BOARD_LINK.shutdown();
+ 1613              		.loc 1 334 38 is_stmt 0 discriminator 1 view .LVU481
+ 1614 009a 2448     		ldr	r0, .L94
+ 1615 009c FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 1616              	.LVL127:
+ 335:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 1617              		.loc 1 335 9 is_stmt 1 view .LVU482
+ 1618              	.LBB74:
+ 1619              	.LBI74:
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     {
+ 1620              		.loc 3 15 26 view .LVU483
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 1621              		.loc 3 17 9 view .LVU484
+ 1622              		.loc 3 18 9 view .LVU485
+ 1623              	.LBE74:
+ 335:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 1624              		.loc 1 335 32 is_stmt 0 discriminator 1 view .LVU486
+ 1625 00a0 2348     		ldr	r0, .L94+4
+ 1626 00a2 D2E7     		b	.L92
+ 1627              	.LVL128:
+ 1628              	.L87:
+ 335:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 1629              		.loc 1 335 32 discriminator 1 view .LVU487
+ 1630 00a4 2B48     		ldr	r0, .L94+40
+ 1631 00a6 1C46     		mov	r4, r3
+ 1632              	.L84:
+ 337:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 338:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE("M09C", "CH585 application GET_CAPS accepted: attempts=%lu elapsed=%lu ms",
+ 339:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(capsAttempts),
+ 340:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(HAL_GetTick() - capsStarted));
+ 341:Cpp_Core/Src/ch585_iap_client.cpp ****     const usb_board_caps_v1_t& caps = USB_BOARD_LINK.capabilities();
+ 342:Cpp_Core/Src/ch585_iap_client.cpp ****     const bool valid =
+ 343:Cpp_Core/Src/ch585_iap_client.cpp ****         (caps.role_flags & USB_BOARD_CAP_ROLE_MAINTENANCE) != 0u &&
+ 344:Cpp_Core/Src/ch585_iap_client.cpp ****         (caps.profile_flags & USB_BOARD_CAP_PROFILE_WEB_CONFIG) != 0u &&
+ 345:Cpp_Core/Src/ch585_iap_client.cpp ****         (caps.feature_flags & USB_BOARD_CAP_FEATURE_WEBHID_V1) != 0u;
+ 346:Cpp_Core/Src/ch585_iap_client.cpp ****     APP_STAGE(valid ? "M09V" : "M09E",
+ 1633              		.loc 1 346 5 discriminator 8 view .LVU488
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 47
+
+
+ 1634 00a8 717B     		ldrb	r1, [r6, #13]	@ zero_extendqisi2
+ 1635 00aa 0691     		str	r1, [sp, #24]
+ 1636 00ac E97A     		ldrb	r1, [r5, #11]	@ zero_extendqisi2
+ 1637 00ae 0591     		str	r1, [sp, #20]
+ 1638 00b0 A988     		ldrh	r1, [r5, #4]
+ 1639 00b2 CDE90321 		strd	r2, r1, [sp, #12]
+ 1640 00b6 AA7A     		ldrb	r2, [r5, #10]	@ zero_extendqisi2
+ 1641              		.loc 1 346 5 discriminator 12 view .LVU489
+ 1642 00b8 2349     		ldr	r1, .L94+28
+ 1643              		.loc 1 346 5 discriminator 8 view .LVU490
+ 1644 00ba 0292     		str	r2, [sp, #8]
+ 1645 00bc 6A7A     		ldrb	r2, [r5, #9]	@ zero_extendqisi2
+ 1646 00be 0192     		str	r2, [sp, #4]
+ 1647 00c0 2A7A     		ldrb	r2, [r5, #8]	@ zero_extendqisi2
+ 1648 00c2 0092     		str	r2, [sp]
+ 1649              		.loc 1 346 5 discriminator 12 view .LVU491
+ 1650 00c4 244A     		ldr	r2, .L94+44
+ 1651 00c6 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1652              	.LVL129:
+ 347:Cpp_Core/Src/ch585_iap_client.cpp ****               "CH585 application CAPS: valid=%u fw=%u.%u.%u roles=%02x profiles=%04x features=%02x 
+ 348:Cpp_Core/Src/ch585_iap_client.cpp ****               valid ? 1u : 0u,
+ 349:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned int>(caps.firmware_major),
+ 350:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned int>(caps.firmware_minor),
+ 351:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned int>(caps.firmware_patch),
+ 352:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned int>(caps.role_flags),
+ 353:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned int>(caps.profile_flags),
+ 354:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned int>(caps.feature_flags),
+ 355:Cpp_Core/Src/ch585_iap_client.cpp ****               endResponseConfirmed ? 1u : 0u);
+ 356:Cpp_Core/Src/ch585_iap_client.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 1653              		.loc 1 356 5 is_stmt 1 view .LVU492
+ 1654              	.LBB75:
+ 1655              	.LBI75:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 1656              		.loc 4 29 32 view .LVU493
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 1657              		.loc 4 31 9 view .LVU494
+  32:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     }
+ 1658              		.loc 4 32 9 view .LVU495
+ 1659              	.LBE75:
+ 1660              		.loc 1 356 34 is_stmt 0 discriminator 1 view .LVU496
+ 1661 00ca 1848     		ldr	r0, .L94
+ 1662 00cc FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 1663              	.LVL130:
+ 357:Cpp_Core/Src/ch585_iap_client.cpp ****     USB_BOARD_LINK.shutdown();
+ 1664              		.loc 1 357 5 is_stmt 1 view .LVU497
+ 1665              	.LBB76:
+ 1666              	.LBI76:
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     {
+ 1667              		.loc 3 15 26 view .LVU498
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 1668              		.loc 3 17 9 view .LVU499
+ 1669              		.loc 3 18 9 view .LVU500
+ 1670              	.LBE76:
+ 1671              		.loc 1 357 28 is_stmt 0 discriminator 1 view .LVU501
+ 1672 00d0 1748     		ldr	r0, .L94+4
+ 1673 00d2 FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 1674              	.LVL131:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 48
+
+
+ 358:Cpp_Core/Src/ch585_iap_client.cpp ****     if (!valid) {
+ 1675              		.loc 1 358 5 is_stmt 1 view .LVU502
+ 1676 00d6 4CB9     		cbnz	r4, .L85
+ 359:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::DeviceError;
+ 1677              		.loc 1 359 9 view .LVU503
+ 1678              		.loc 1 359 23 is_stmt 0 view .LVU504
+ 1679 00d8 0423     		movs	r3, #4
+ 1680 00da B373     		strb	r3, [r6, #14]
+ 360:Cpp_Core/Src/ch585_iap_client.cpp ****         return false;
+ 1681              		.loc 1 360 9 is_stmt 1 view .LVU505
+ 1682              	.LVL132:
+ 1683              	.L79:
+ 309:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 1684              		.loc 1 309 16 is_stmt 0 view .LVU506
+ 1685 00dc 0024     		movs	r4, #0
+ 1686              	.L91:
+ 361:Cpp_Core/Src/ch585_iap_client.cpp ****     }
+ 362:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStage = CH585_STAGING_STAGE_COMPLETE;
+ 363:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Completed;
+ 364:Cpp_Core/Src/ch585_iap_client.cpp ****     return true;
+ 365:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 1687              		.loc 1 365 1 view .LVU507
+ 1688 00de 2046     		mov	r0, r4
+ 1689 00e0 08B0     		add	sp, sp, #32
+ 1690              	.LCFI21:
+ 1691              		.cfi_remember_state
+ 1692              		.cfi_def_cfa_offset 24
+ 1693              		@ sp needed
+ 1694 00e2 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 1695              	.LVL133:
+ 1696              	.L88:
+ 1697              	.LCFI22:
+ 1698              		.cfi_restore_state
+ 1699              		.loc 1 365 1 view .LVU508
+ 1700 00e6 1D48     		ldr	r0, .L94+48
+ 346:Cpp_Core/Src/ch585_iap_client.cpp ****               "CH585 application CAPS: valid=%u fw=%u.%u.%u roles=%02x profiles=%04x features=%02x 
+ 1701              		.loc 1 346 5 discriminator 5 view .LVU509
+ 1702 00e8 0123     		movs	r3, #1
+ 1703 00ea DDE7     		b	.L84
+ 1704              	.L85:
+ 362:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Completed;
+ 1705              		.loc 1 362 5 is_stmt 1 view .LVU510
+ 362:Cpp_Core/Src/ch585_iap_client.cpp ****     currentStatus = Ch585IapClientStatus::Completed;
+ 1706              		.loc 1 362 18 is_stmt 0 view .LVU511
+ 1707 00ec 0723     		movs	r3, #7
+ 1708 00ee 3371     		strb	r3, [r6, #4]
+ 363:Cpp_Core/Src/ch585_iap_client.cpp ****     return true;
+ 1709              		.loc 1 363 5 is_stmt 1 view .LVU512
+ 363:Cpp_Core/Src/ch585_iap_client.cpp ****     return true;
+ 1710              		.loc 1 363 19 is_stmt 0 view .LVU513
+ 1711 00f0 0623     		movs	r3, #6
+ 1712 00f2 B373     		strb	r3, [r6, #14]
+ 364:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 1713              		.loc 1 364 5 is_stmt 1 view .LVU514
+ 364:Cpp_Core/Src/ch585_iap_client.cpp **** }
+ 1714              		.loc 1 364 12 is_stmt 0 view .LVU515
+ 1715 00f4 F3E7     		b	.L91
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 49
+
+
+ 1716              	.LVL134:
+ 1717              	.L80:
+ 329:Cpp_Core/Src/ch585_iap_client.cpp ****         currentStatus = Ch585IapClientStatus::DeviceError;
+ 1718              		.loc 1 329 5 is_stmt 1 view .LVU516
+ 338:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(capsAttempts),
+ 1719              		.loc 1 338 5 view .LVU517
+ 1720 00f6 FFF7FEFF 		bl	HAL_GetTick
+ 1721              	.LVL135:
+ 338:Cpp_Core/Src/ch585_iap_client.cpp ****               static_cast<unsigned long>(capsAttempts),
+ 1722              		.loc 1 338 5 is_stmt 0 discriminator 1 view .LVU518
+ 1723 00fa A0EB0800 		sub	r0, r0, r8
+ 1724 00fe 3B46     		mov	r3, r7
+ 1725 0100 174A     		ldr	r2, .L94+52
+ 1726 0102 0090     		str	r0, [sp]
+ 1727 0104 1049     		ldr	r1, .L94+28
+ 1728 0106 1248     		ldr	r0, .L94+36
+ 1729 0108 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1730              	.LVL136:
+ 341:Cpp_Core/Src/ch585_iap_client.cpp ****     const bool valid =
+ 1731              		.loc 1 341 5 is_stmt 1 view .LVU519
+ 342:Cpp_Core/Src/ch585_iap_client.cpp ****         (caps.role_flags & USB_BOARD_CAP_ROLE_MAINTENANCE) != 0u &&
+ 1732              		.loc 1 342 5 view .LVU520
+ 343:Cpp_Core/Src/ch585_iap_client.cpp ****         (caps.profile_flags & USB_BOARD_CAP_PROFILE_WEB_CONFIG) != 0u &&
+ 1733              		.loc 1 343 15 is_stmt 0 view .LVU521
+ 1734 010c EA78     		ldrb	r2, [r5, #3]	@ zero_extendqisi2
+ 344:Cpp_Core/Src/ch585_iap_client.cpp ****         (caps.feature_flags & USB_BOARD_CAP_FEATURE_WEBHID_V1) != 0u;
+ 1735              		.loc 1 344 71 view .LVU522
+ 1736 010e 12F00403 		ands	r3, r2, #4
+ 1737 0112 07D0     		beq	.L93
+ 343:Cpp_Core/Src/ch585_iap_client.cpp ****         (caps.profile_flags & USB_BOARD_CAP_PROFILE_WEB_CONFIG) != 0u &&
+ 1738              		.loc 1 343 66 view .LVU523
+ 1739 0114 AB88     		ldrh	r3, [r5, #4]
+ 1740 0116 13F02003 		ands	r3, r3, #32
+ 1741 011a C3D0     		beq	.L87
+ 344:Cpp_Core/Src/ch585_iap_client.cpp ****         (caps.feature_flags & USB_BOARD_CAP_FEATURE_WEBHID_V1) != 0u;
+ 1742              		.loc 1 344 71 discriminator 4 view .LVU524
+ 1743 011c EB7A     		ldrb	r3, [r5, #11]	@ zero_extendqisi2
+ 1744 011e 13F01003 		ands	r3, r3, #16
+ 1745 0122 E0D1     		bne	.L88
+ 1746              	.L93:
+ 1747 0124 0B48     		ldr	r0, .L94+40
+ 1748 0126 1C46     		mov	r4, r3
+ 1749 0128 BEE7     		b	.L84
+ 1750              	.L95:
+ 1751 012a 00BF     		.align	2
+ 1752              	.L94:
+ 1753 012c 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 1754 0130 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 1755 0134 00000000 		.word	_Z31UsbBoardLink_SelectRoleCallback9Ch585Role
+ 1756 0138 0A000000 		.word	.LC42
+ 1757 013c 3D000000 		.word	.LC11
+ 1758 0140 48000000 		.word	.LC43
+ 1759 0144 4D000000 		.word	.LC44
+ 1760 0148 26000000 		.word	.LC5
+ 1761 014c D8000000 		.word	.LC46
+ 1762 0150 2B010000 		.word	.LC47
+ 1763 0154 05000000 		.word	.LC41
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 50
+
+
+ 1764 0158 79000000 		.word	.LC45
+ 1765 015c 00000000 		.word	.LC40
+ 1766 0160 30010000 		.word	.LC48
+ 1767              		.cfi_endproc
+ 1768              	.LFE1336:
+ 1770              		.weak	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 1771              		.section	.bss._ZZN12UsbBoardLink11getInstanceEvE8instance,"awG",%nobits,_ZZN12UsbBoardLink11getIns
+ 1772              		.align	2
+ 1775              	_ZZN12UsbBoardLink11getInstanceEvE8instance:
+ 1776 0000 00000000 		.space	148
+ 1776      00000000 
+ 1776      00000000 
+ 1776      00000000 
+ 1776      00000000 
+ 1777              		.weak	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 1778              		.section	.bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance,"awG",%nobits,_ZZN18Ch585RoleBoots
+ 1779              		.align	2
+ 1782              	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:
+ 1783 0000 00000000 		.space	8
+ 1783      00000000 
+ 1784              		.weak	_ZZN10BoardPower11getInstanceEvE8instance
+ 1785              		.section	.data._ZZN10BoardPower11getInstanceEvE8instance,"awG",%progbits,_ZZN10BoardPower11getInst
+ 1788              	_ZZN10BoardPower11getInstanceEvE8instance:
+ 1789 0000 00       		.byte	0
+ 1790 0001 00       		.byte	0
+ 1791 0002 00       		.byte	0
+ 1792 0003 00       		.byte	0
+ 1793 0004 00       		.byte	0
+ 1794 0005 00       		.byte	0
+ 1795 0006 00       		.byte	0
+ 1796 0007 00       		.byte	0
+ 1797 0008 00       		.byte	0
+ 1798 0009 01       		.byte	1
+ 1799 000a 00       		.byte	0
+ 1800              		.text
+ 1801              	.Letext0:
+ 1802              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1803              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1804              		.file 8 "../common/ch585_staging.h"
+ 1805              		.file 9 "Cpp_Core/Inc/ch585_iap_client.hpp"
+ 1806              		.file 10 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1807              		.file 11 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1808              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 1809              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 1810              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 1811              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 1812              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 1813              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 1814              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1815              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 1816              		.file 20 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 1817              		.file 21 "../common/ch585_iap_protocol.h"
+ 1818              		.file 22 "../common/usb_board_link_protocol.h"
+ 1819              		.file 23 "Cpp_Core/Inc/usb_board_link_port.hpp"
+ 1820              		.file 24 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1821              		.file 25 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 1822              		.file 26 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 51
+
+
+ 1823              		.file 27 "<built-in>"
+ 1824              		.file 28 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s 			page 52
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ch585_iap_client.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:25     .text.AppStartupLog_Printf:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:30     .text.AppStartupLog_Printf:00000000 AppStartupLog_Printf
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:102    .text.AppStartupLog_Printf:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:108    .text._ZN12_GLOBAL__N_1L11crc32UpdateEmPKhm.constprop.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:113    .text._ZN12_GLOBAL__N_1L11crc32UpdateEmPKhm.constprop.0:00000000 _ZN12_GLOBAL__N_1L11crc32UpdateEmPKhm.constprop.0
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:192    .text._ZN12_GLOBAL__N_1L11crc32UpdateEmPKhm.constprop.0:0000002c $d
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:217    .text._ZN14Ch585IapClient11enterLoaderEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:223    .text._ZN14Ch585IapClient11enterLoaderEv:00000000 _ZN14Ch585IapClient11enterLoaderEv
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:360    .text._ZN14Ch585IapClient11enterLoaderEv:00000074 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1775   .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 _ZZN12UsbBoardLink11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1782   .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 _ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1788   .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 _ZZN10BoardPower11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:393    .text._ZN14Ch585IapClient8transactEhmmPKhtm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:399    .text._ZN14Ch585IapClient8transactEhmmPKhtm:00000000 _ZN14Ch585IapClient8transactEhmmPKhtm
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:692    .text._ZN14Ch585IapClient8transactEhmmPKhtm:00000138 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:713    .text._ZN14Ch585IapClient5probeEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:719    .text._ZN14Ch585IapClient5probeEv:00000000 _ZN14Ch585IapClient5probeEv
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:861    .text._ZN14Ch585IapClient5probeEv:00000080 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:915    .text._ZN14Ch585IapClient20programCombinedImageEmm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:921    .text._ZN14Ch585IapClient20programCombinedImageEmm:00000000 _ZN14Ch585IapClient20programCombinedImageEmm
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1348   .text._ZN14Ch585IapClient20programCombinedImageEmm:000001dc $d
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1395   .text._ZN14Ch585IapClient19validateApplicationEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1401   .text._ZN14Ch585IapClient19validateApplicationEv:00000000 _ZN14Ch585IapClient19validateApplicationEv
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1753   .text._ZN14Ch585IapClient19validateApplicationEv:0000012c $d
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1772   .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccLQIeKB.s:1779   .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+printf
+vprintf
+puts
+_ZN12UsbBoardLink8shutdownEv
+_ZN18Ch585RoleBootstrap8shutdownEv
+_Z25USBBoardLinkPort_Shutdownv
+_ZN10BoardPower15setCh585EnabledEb
+HAL_Delay
+_Z24USBBoardLinkPort_InitIapv
+memset
+memcpy
+_Z28USBBoardLinkPort_RawTransactPKhtPhtm
+HAL_GetTick
+_Z42USBBoardLinkPort_RawDiscardPendingResponsetm
+_ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE
+_ZN18Ch585RoleBootstrap5startE9Ch585Role
+_ZN12UsbBoardLink15getCapabilitiesEv
+_Z31UsbBoardLink_SelectRoleCallback9Ch585Role

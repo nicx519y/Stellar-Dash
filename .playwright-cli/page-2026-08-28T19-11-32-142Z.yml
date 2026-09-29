@@ -1,0 +1,97 @@
+- generic [active] [ref=e1]:
+  - status [ref=e109]:
+    - generic [ref=e114]:
+      - text: Static route
+      - button "Hide static indicator" [ref=e141] [cursor=pointer]
+  - alert [ref=e142]
+  - region "top Notifications alt+T"
+  - status "Connecting HBox device to WebConfig" [ref=e352]:
+    - generic [ref=e353]:
+      - img "HBox device" [ref=e357]
+      - img "WebConfig page" [ref=e386]
+  - generic [ref=e152]:
+    - generic [ref=e153]:
+      - generic [ref=e154]:
+        - tablist [ref=e190]:
+          - tab "Global Setting" [selected] [ref=e191] [cursor=pointer]
+          - separator [ref=e195]
+          - tab "Keys Setting" [ref=e196] [cursor=pointer]
+          - separator [ref=e200]
+          - tab "Buttons Performance" [ref=e201] [cursor=pointer]
+          - separator [ref=e208]
+          - tab "Lighting Setting" [ref=e209] [cursor=pointer]
+          - separator [ref=e213]
+          - tab "Firmware" [ref=e214] [cursor=pointer]
+          - separator [ref=e218]
+          - tab "View Logs" [ref=e219] [cursor=pointer]
+        - generic [ref=e226]:
+          - button "Finish Configuration" [ref=e227] [cursor=pointer]
+          - button "Export Config" [ref=e230] [cursor=pointer]
+          - button "Import Config" [ref=e234] [cursor=pointer]
+      - button "中文" [ref=e239] [cursor=pointer]
+    - generic [ref=e242]:
+      - generic [ref=e245]:
+        - heading "Platform" [level=3] [ref=e247]
+        - radiogroup [ref=e249]:
+          - generic [ref=e250]:
+            - generic [ref=e251]:
+              - radio "Windows PC" [checked] [ref=e252]
+              - generic [ref=e253]: Windows PC
+            - generic [ref=e258]:
+              - radio "PlayStation" [ref=e259]
+              - generic [ref=e260]: PlayStation
+            - generic [ref=e265]:
+              - radio "Xbox One|Series" [ref=e266]
+              - generic [ref=e267]: Xbox One|Series
+            - generic [ref=e272]:
+              - radio "Nintendo Switch" [ref=e273]
+              - generic [ref=e274]: Nintendo Switch
+      - generic [ref=e280]:
+        - generic [ref=e286]:
+          - button "Start Calibration" [ref=e287] [cursor=pointer]
+          - button "Reset Calibration" [ref=e290] [cursor=pointer]
+        - img "hitbox" [ref=e295]
+      - generic [ref=e302]:
+        - tablist [ref=e303]:
+          - tab "Basic" [selected] [ref=e304] [cursor=pointer]
+          - tab "Screen Control" [ref=e308] [cursor=pointer]
+          - tab "Hotkey" [ref=e313] [cursor=pointer]
+        - tabpanel "Basic" [ref=e316]:
+          - generic [ref=e317]:
+            - generic [ref=e319]:
+              - paragraph [ref=e320]: Configure the device's basic connection and power behavior here.
+              - list [ref=e321]:
+                - listitem [ref=e322]: Report Rate controls magnetic-switch ADC sampling as well as USB and 2.4G wireless reporting.
+                - listitem [ref=e323]: Higher rates shorten the input interval but increase system load.
+                - listitem [ref=e324]: Auto Sleep sets how long the device waits without input before entering sleep.
+            - generic [ref=e325]:
+              - separator [ref=e326]
+              - paragraph [ref=e327]: Connection
+              - separator [ref=e328]
+            - generic [ref=e329]:
+              - generic [ref=e330]:
+                - paragraph [ref=e331]: Report Rate
+                - paragraph [ref=e332]: 1K
+              - paragraph [ref=e333]: Affects the magnetic-switch ADC sampling rate and USB and wireless report rates.
+              - generic [ref=e335]:
+                - slider [ref=e337]
+                - generic: 1K
+                - generic: 2K
+                - generic: 4K
+                - generic: 8K
+            - generic [ref=e338]:
+              - separator [ref=e339]
+              - paragraph [ref=e340]: Power
+              - separator [ref=e341]
+            - generic [ref=e342]:
+              - generic [ref=e343]:
+                - paragraph [ref=e344]: Auto Sleep
+                - paragraph [ref=e345]: 5min
+              - paragraph [ref=e346]: The device enters sleep after remaining idle for the selected amount of time.
+              - generic [ref=e348]:
+                - slider [ref=e351]
+                - generic: 10s
+                - generic: 30s
+                - generic: 60s
+                - generic: 2min
+                - generic: 5min
