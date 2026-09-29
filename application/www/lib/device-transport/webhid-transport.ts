@@ -111,6 +111,10 @@ interface PendingLogicalRequest {
   traceRecordId: string | null;
   traceOutcomeRecorded: boolean;
   settled: boolean;
+  nativeWriteComplete: boolean;
+  responseReceived: boolean;
+  // Frames on this response channel since submission, not transaction attribution.
+  responseFramesObserved: number;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
 }
@@ -1022,6 +1026,7 @@ export class WebHidTransport implements DeviceTransport {
     pending: Map<number, PendingLogicalRequest>,
     traceFrameRecordId: string | null,
   ): boolean {
+    for (const request of pending.values()) request.responseFramesObserved += 1;
     this.rememberRxTraceFrame(frame.type, traceFrameRecordId);
     const complete = this.assembler(frame.type).push(frame);
     if (!complete) {
@@ -1075,6 +1080,7 @@ export class WebHidTransport implements DeviceTransport {
     ) {
       return false;
     }
+    request.responseReceived = true;
     request.settled = true;
     pending.delete(response.transactionId);
     if (response.errNo && response.errNo !== 0) {
@@ -1214,6 +1220,7 @@ export class WebHidTransport implements DeviceTransport {
     const generation = this.connectionGeneration;
     const device = this.device!;
     const deadline = this.operationDeadline(options.timeoutMs);
+    const startedAt = Date.now();
     const pending = this.createPendingRequest(
       collection,
       transactionId,
@@ -1241,6 +1248,7 @@ export class WebHidTransport implements DeviceTransport {
         if (!pending.record.settled) pending.record.phase = 'writing';
       },
     ).then(() => {
+      pending.record.nativeWriteComplete = true;
       if (!pending.record.settled) pending.record.phase = 'awaiting-response';
     });
 
@@ -1251,7 +1259,21 @@ export class WebHidTransport implements DeviceTransport {
     try {
       return await this.awaitWithDeadline(operation, deadline, options.signal, `命令 ${command}`);
     } catch (error) {
-      const normalized = asOperationError(error, `命令 ${command}`);
+      const original = asOperationError(error, `命令 ${command}`);
+      const diagnostic = {
+        command, transactionId, generation,
+        elapsedMs: Date.now() - startedAt,
+        nativeWriteComplete: pending.record.nativeWriteComplete,
+        responseReceived: pending.record.responseReceived,
+        responseFramesObserved: pending.record.responseFramesObserved,
+      };
+      const detail = original.code === 'timeout'
+        ? ` [txn=${transactionId}, elapsed=${diagnostic.elapsedMs}ms, writeComplete=${diagnostic.nativeWriteComplete}, responseReceived=${diagnostic.responseReceived}, rxFrames=${diagnostic.responseFramesObserved}]`
+        : '';
+      const normalized = original.code === 'timeout' ? new DeviceTransportError(original.code, original.message + detail, {
+        ...(original.cause && typeof original.cause === 'object' ? original.cause : {}),
+        ...diagnostic, original,
+      }) : original;
       this.rejectPendingRequest(collection, transactionId, normalized);
       if (!pending.record.traceOutcomeRecorded) {
         updateWebHidLogicalTrace(pending.record.traceRecordId, {
@@ -1488,6 +1510,9 @@ export class WebHidTransport implements DeviceTransport {
         traceRecordId: null,
         traceOutcomeRecorded: false,
         settled: false,
+        nativeWriteComplete: false,
+        responseReceived: false,
+        responseFramesObserved: 0,
         resolve,
         reject,
       };

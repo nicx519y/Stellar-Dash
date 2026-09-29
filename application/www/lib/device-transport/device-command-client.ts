@@ -1096,6 +1096,8 @@ export class DeviceCommandClient {
             : 'connection',
       message: error.message,
       transportCode: error.code,
+      command: error.cause && typeof error.cause === 'object' && 'command' in error.cause &&
+        typeof error.cause.command === 'string' ? error.cause.command : undefined,
       phase: this.lastDiagnosticPhase,
       timestamp: new Date(),
     };

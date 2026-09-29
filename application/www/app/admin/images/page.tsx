@@ -3,8 +3,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Center, Flex, HStack, Image, Input, SimpleGrid, Spinner, Text } from '@chakra-ui/react';
 import { LuGripVertical, LuTrash2, LuUpload } from 'react-icons/lu';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { galleryImageLimits } from '@/lib/gallery-image-limits';
+import { JPEG_FPS } from '../../../../../common/uimg-jpeg.cjs';
+import type { GalleryImageLimits } from '@/lib/gallery-image-limits';
 import { galleryErrorMessage } from '@/lib/gallery-error-message';
 import { useLanguage } from '@/contexts/language-context';
 import { useUserAuth } from '@/contexts/user-auth-context';
@@ -23,6 +23,14 @@ type DraftItem = {
   previewUrl: string;
 } & ({ kind: 'existing'; image: GalleryImage } | { kind: 'new'; file: File; processed: GalleryProcessedImage });
 type ItemDrag = { id: string; x: number; y: number; width: number; height: number; previewIndex: number; settling: boolean };
+
+// Match the current STM32 JPEG image area and frame limit. Admin pages have no
+// device session, so image preparation cannot query a connected device.
+const ADMIN_GALLERY_LIMITS: GalleryImageLimits = {
+  maxPayloadBytes: 0x17f000,
+  maxFrames: 180,
+  fps: JPEG_FPS,
+};
 
 async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, credentials: 'same-origin', cache: 'no-store', headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });
@@ -65,7 +73,6 @@ async function uploadOfficial(item: Extract<DraftItem, { kind: 'new' }>, sortOrd
 }
 
 export default function AdminImagesPage() {
-  const { getDeviceImageCatalog } = useGamepadConfig();
   const { currentLanguage } = useLanguage();
   const { session, loading: sessionLoading } = useUserAuth();
   const zh = currentLanguage === 'zh';
@@ -160,12 +167,11 @@ export default function AdminImagesPage() {
     setBusy('processing');
     setError('');
     try {
-      const limits = galleryImageLimits(await getDeviceImageCatalog());
       const staged: (DraftItem | undefined)[] = new Array(files.length);
       const failures: string[] = [];
       await mapWithConcurrency(files, 4, async (file, index) => {
         try {
-          const processed = await processGalleryImage(file, limits);
+          const processed = await processGalleryImage(file, ADMIN_GALLERY_LIMITS);
           const gif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
           const previewUrl = URL.createObjectURL(gif ? file : processed.preview);
           pendingPreviewUrls.current.add(previewUrl);

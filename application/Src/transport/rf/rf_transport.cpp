@@ -668,6 +668,12 @@ bool RFTransport::pollStatus() {
 }
 
 uint8_t RFTransport::serviceEvents(uint8_t drainLimit) {
+    if (RFBridgePort_HasReleaseFault()) {
+        if (state != RFTransportState::Error) ++status.errorCounter;
+        state = RFTransportState::Error;
+        status.connected = false;
+        return 0u;
+    }
     RFReliableEvent::poll();
     processCompletedReliableEvents();
 

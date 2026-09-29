@@ -1,0 +1,13 @@
+{
+  "frames": 120,
+  "fps": 12,
+  "buttons": 22,
+  "source_layout": "WebConfig and firmware match; actual opening positions verified",
+  "opening_hold_seconds": 2,
+  "light_rings": 22,
+  "bottom_perimeter_mm": 2.9999999608051886,
+  "faceplates": 10,
+  "animated_logo_parts": 19,
+  "joystick": false,
+  "final_lights": "off"
+}

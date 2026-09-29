@@ -30,6 +30,7 @@
 #include "system_sleep_manager.hpp"
 #include "system_stop.hpp"
 #include "rf_bridge_port_internal.h"
+#include "ch585_handshake.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -449,8 +450,7 @@ void EXTI9_5_IRQHandler(void)
 void EXTI15_10_IRQHandler(void)
 {
   if (__HAL_GPIO_EXTI_GET_IT(RF_BRIDGE_IRQ_PIN) != RESET) {
-    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
-    RFBridgePort_IRQ_IRQHandler();
+    Ch585Handshake_IRQHandler();
   }
   if (__HAL_GPIO_EXTI_GET_IT(MAX17048_ALERT_PIN) != RESET) {
     __HAL_GPIO_EXTI_CLEAR_IT(MAX17048_ALERT_PIN);

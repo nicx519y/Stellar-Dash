@@ -23,6 +23,28 @@ async function fixture(options = {}) {
   return { mock, calls, request, sync };
 }
 
+test('failed configuration read identifies resource and completed progress without retry', async () => {
+  const f = await fixture();
+  let completed = 0, total = 0, attempts = 0;
+  await assert.rejects(readDeviceConfigSnapshot(async (command, params) => {
+    if (command === 'get_profile_details') {
+      ++attempts;
+      throw new DeviceTransportError('timeout', 'read timed out', { transactionId: 42, nativeWriteComplete: true });
+    }
+    return f.request(command, params);
+  }, x => x, value => { completed = value.completed; total = value.total; }), error => {
+    assert.equal(error.code, 'timeout');
+    assert.match(error.cause.resource, /^profile:/);
+    assert.equal(error.cause.command, 'get_profile_details');
+    assert.equal(error.cause.completed, completed);
+    assert.equal(error.cause.total, total);
+    assert.equal(error.cause.transactionId, 42);
+    assert.equal(error.cause.nativeWriteComplete, true);
+    return true;
+  });
+  assert.equal(attempts, 1);
+});
+
 test('every connection reads all 36 modules even when device versions are unchanged', async () => {
   const f = await fixture();
   const first = await f.sync();

@@ -78,6 +78,28 @@ node server/scripts/create-firmware-bundle.js "path/to/release-source.json" "pat
 
 该工具只读取已有产物、签名、校验并生成文件；不会编译、联网、上传或访问硬件。输出已存在时拒绝覆盖。签名包总大小最多 12 MiB，平铺条目最多 6 个，每条解压后最多 4 MiB。
 
+### 在本地 admin 服务生成草稿
+
+当前仓库可使用一条命令自动完成无锁 A/B、TX 主机构建、发布身份注入、v2 签名打包和初版说明生成：
+
+```powershell
+python tools/local_firmware_draft.py
+```
+
+脚本只使用 `.hbox/webconfig-local` 的本地 PKI，构建时隔离状态目录并在结束后恢复 `common/release_build_identity.h`；不烧录设备。它默认使用版本 `1.0.0`，产物放在 `.hbox/firmware-drafts/XORA-1.0.0-<时间>/`。若 `.hbox/webconfig-local/firmware-manage-token.txt` 已保存从本地 admin 创建的 `firmware.manage` 令牌，它会把包导入 `http://localhost:3001` 草稿并写入说明；没有令牌时仅生成和校验本地文件，并明确报告未上传。不会向远端服务发送请求。重新运行会重新构建并创建新输出目录；已有包可直接在本地 admin 固件页导入。
+
+先使用本页“本地使用”中的 `local-serve --port 3001` 启动本地 admin 服务，登录本地管理员账号，在 `/admin/users/` 创建仅含 `firmware.manage` 范围的服务令牌，并把只显示一次的令牌保存到 `.hbox/webconfig-local/firmware-manage-token.txt`。也可在已登录的本地 admin 固件页手动导入一键命令生成的 ZIP，随后粘贴旁边的更新说明文件内容。默认本地状态目录使用 `.hbox/webconfig-local/pki/firmware-release-private.pem` 测试密钥，对应 `local-serve` 配置的验签公钥；不要拿其他诊断目录的密钥混用。
+
+底层 `create-firmware-draft.js` 默认使用 `http://localhost:3001`，并且只接受 `localhost`、`127.0.0.1` 或 `::1` 的本地 admin 服务地址；远端上传会在读取文件或发出请求前被拒绝。本地草稿只保存在本地服务的数据目录，不会同步到正式服务。
+
+当前为初版，`--initial-release` 自动生成简短的初版发布声明，无需填写更新点。以后发布时去掉该参数：命令自动查找早于目标版本、且可从当前提交到达的最新 `xora-v<版本>` 或 `v<版本>` 标签，以两次发布之间已提交的 STM32、TX 与共用固件源码变更生成简洁、面向用户的说明。如果上一版未打标签，可加 `--since <上一版提交或标签>`。固件源码有未提交改动、找不到上一版或没有可归纳的设备源码变化时，命令会停止，避免说明与提交不符；发布前应先核对生成文案。WebConfig 托管页面的改动不会写入固件更新说明。
+
+命令生成 `XORA-<版本>-release.zip`、`XORA-<版本>-release-notes.md` 和记录 Git 提交及分类依据的 `XORA-<版本>-release-notes-source.json`，本地重新验签后上传 ZIP，并把更新说明保存到 admin 草稿。私钥和服务令牌仅从本机文件读取，不会上传；服务令牌必须有 `firmware.manage` 范围。首次检查可加 `--dry-run` 并省略 `--server`、`--service-token-file`，只生成本地文件。
+
+成功导入后命令显示草稿 ID 和 `/admin/firmware/` 地址。管理员在该页面查看、修改用户可见更新说明，补充仅管理员可见的实际验收记录，再人工发布。一键命令会构建固件，但不会烧录或发布；底层 `create-firmware-draft.js` 只打包已有产物。上传超时或连接中断后，先按版本在后台检查草稿，再决定是否重试，以免重复导入。`tools/release.py upload` 仍对应旧 STM32 固件接口，不用于此 v2 整机草稿。
+
+初版正式发布并确认对应源码提交后，为该提交建立版本标签（例如 `git tag xora-v1.0.0 <发布提交>`）；下一版命令即可自动定位它。自动说明依据变更文件归纳体验主题，不代替管理员检查具体效果和措辞。
+
 ## 管理流程
 
 1. 选择发布 ZIP，观察上传进度；上传结束后显示服务器验签阶段。

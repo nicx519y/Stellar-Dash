@@ -5,9 +5,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { spawnSync } = require('node:child_process');
 const express = require('express');
 const { makeSignedPackage } = require('./fixtures/firmware-release-fixture');
 const { storedZip, createBundle } = require('../scripts/create-firmware-bundle');
+const { createFirmwareDraft, parseArguments, serverOrigin } = require('../scripts/create-firmware-draft');
+const { gitReleaseNotes, initialReleaseNotes } = require('../scripts/git-release-notes');
 const { FirmwareReleaseStore, initFirmwareReleaseRoutes, validateBundle } = require('../src/firmware-releases');
 const { AdminAccessService } = require('../src/admin-access');
 const { createDirectDeviceAccess } = require('../src/direct-device-access');
@@ -20,6 +23,22 @@ function setup(t) {
     const store = new FirmwareReleaseStore({ databasePath: path.join(root, 'releases.db'), assetRoot: path.join(root, 'assets'), publicKey: keys.publicKey });
     t.after(() => { store.close(); fs.rmSync(root, { recursive: true, force: true }); });
     return { root, keys, store };
+}
+function gitFixture(root) {
+    const repo = path.join(root, 'git'); fs.mkdirSync(repo);
+    const run = (...args) => {
+        const result = spawnSync('git', args, { cwd: repo, encoding: 'utf8', timeout: 10000 });
+        assert.equal(result.status, 0, result.stderr);
+        return result.stdout.trim();
+    };
+    run('init', '--quiet');
+    run('config', 'user.name', 'XORA Test');
+    run('config', 'user.email', 'xora@example.test');
+    const file = path.join(repo, 'application', 'Src', 'input', 'buttons.cpp');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, 'int buttons = 1;\n');
+    run('add', '.'); run('commit', '--quiet', '-m', 'Initial version');
+    return { repo, run, file };
 }
 function identity(component, buildId) {
     const result = Buffer.alloc(121);
@@ -217,4 +236,100 @@ test('HTTP flow: real admin gate, service-token limits, private drafts, publish,
     assert.equal((await call(`/api/firmware-releases/${id}/download`)).status, 404);
     adminEnabled = false; assert.equal((await call(base + '/releases')).status, 401);
     assert.deepEqual(fs.readdirSync(c.store.tempRoot), []);
+});
+
+test('draft command packages v2, writes concise notes and uploads an editable unpublished draft', { timeout: 20000 }, async t => {
+    const c = setup(t); const git = gitFixture(c.root); const fixture = bundle(c, () => {}, '3.4.5', true);
+    const input = path.join(c.root, 'input'); fs.mkdirSync(input);
+    for (const [name, data] of fixture.entries) fs.writeFileSync(path.join(input, name), data);
+    const source = path.join(input, 'release-source.json');
+    fs.writeFileSync(source, JSON.stringify(fixture.manifest));
+    const signingKey = path.join(c.root, 'signing-key.pem');
+    fs.writeFileSync(signingKey, c.keys.privateKey.export({ type: 'pkcs8', format: 'pem' }));
+    const serviceToken = `stsvc_${'c'.repeat(43)}`;
+    const serviceTokenFile = path.join(c.root, 'service-token.txt'); fs.writeFileSync(serviceTokenFile, serviceToken);
+    const adminAccess = new AdminAccessService({ store: {
+        findServiceTokenByHash: value => value === sha(serviceToken)
+            ? { id: 'draft-cli', name: 'Draft CLI', scopes: ['firmware.manage'], revokedAt: null, expiresAt: Date.now() + 60000 }
+            : null,
+        recordServiceTokenUse() {},
+    }, emailAuth: { readSessionToken() {}, resolveSession() { return null; }, requireOrigin() {} } });
+    const app = express(); app.use(express.json());
+    initFirmwareReleaseRoutes(app, { store: c.store, adminAccess, deviceAccess: createDirectDeviceAccess({}) });
+    app.use((error, _req, res, _next) => res.status(error.status || 500).json({ success: false, message: error.message }));
+    const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+    t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const result = await createFirmwareDraft({ source, signingKey, outDir: path.join(c.root, 'output'),
+        server: origin, serviceTokenFile, initialRelease: true, gitRepo: git.repo });
+    const draft = c.store.get(result.releaseId, true);
+    assert.equal(draft.status, 'draft');
+    assert.equal(draft.notes, initialReleaseNotes({ repoRoot: git.repo, version: '3.4.5' }).notes);
+    assert.equal(draft.acceptance, '');
+    assert.equal(draft.bundleSha256, result.bundleSha256);
+    assert.equal(c.store.list({}, true).total, 0);
+    assert.deepEqual(draft.audit.map(entry => entry.action), ['edit', 'import']);
+    assert.equal(fs.readFileSync(result.notesPath, 'utf8').trim(), draft.notes);
+    assert.equal(JSON.parse(fs.readFileSync(result.evidencePath, 'utf8')).kind, 'initial-release');
+    assert.equal(sha(fs.readFileSync(result.bundlePath)), draft.bundleSha256);
+    assert.equal(result.adminUrl, `${origin}/admin/firmware/`);
+    assert.throws(() => c.store.mutate(result.releaseId, draft.revision, 'publish', {}, actor), /evidence/);
+});
+
+test('draft command accepts only local admin servers and rejects contradictory Git selection', () => {
+    assert.throws(() => serverOrigin('http://firmware.st-dash.com'), /loopback/);
+    assert.throws(() => serverOrigin('https://firmware.st-dash.com'), /loopback/);
+    assert.throws(() => serverOrigin('http://localhost:3001/other'), /origin/);
+    assert.equal(serverOrigin('http://localhost:3001'), 'http://localhost:3001');
+    assert.equal(parseArguments(['--source', 'x', '--signing-key', 'y', '--out-dir', 'z',
+        '--service-token-file', 'token']).server, 'http://localhost:3001');
+    assert.throws(() => parseArguments(['--source', 'x', '--signing-key', 'y', '--out-dir', 'z', '--initial-release', '--since', 'v1', '--dry-run']), /cannot be used/);
+});
+
+test('draft command explains missing release source before creating output', async t => {
+    const c = setup(t);
+    const outDir = path.join(c.root, 'output');
+    await assert.rejects(createFirmwareDraft({ source: 'path/to/release-source.json',
+        signingKey: 'path/to/signing-key.pem', outDir, initialRelease: true, dryRun: true }),
+    /--source is an example path/);
+    assert.equal(fs.existsSync(outDir), false);
+    await assert.rejects(createFirmwareDraft({ source: 'path/to/release-source.json',
+        signingKey: 'path/to/signing-key.pem', outDir, server: 'https://firmware.st-dash.com',
+        serviceTokenFile: 'path/to/token.txt', initialRelease: true }), /loopback/);
+    assert.equal(fs.existsSync(outDir), false);
+});
+
+test('later version summarizes committed device changes since previous version tag', t => {
+    const c = setup(t); const git = gitFixture(c.root);
+    const baseline = git.run('rev-parse', 'HEAD');
+    git.run('tag', 'xora-v1.0.0');
+    fs.writeFileSync(git.file, 'int buttons = 2;\n');
+    fs.writeFileSync(path.join(git.repo, 'README.md'), 'Unrelated hosted change\n');
+    git.run('add', '.'); git.run('commit', '--quiet', '-m', 'Improve input behavior');
+    const generated = gitReleaseNotes({ repoRoot: git.repo, version: '1.1.0' });
+    assert.equal(generated.evidence.previousRef, 'xora-v1.0.0');
+    assert.deepEqual(generated.evidence.changedSourceFiles, ['application/Src/input/buttons.cpp']);
+    assert.match(generated.notes, /按键与输入相关体验持续打磨/);
+    assert.equal(gitReleaseNotes({ repoRoot: git.repo, version: '1.1.0', since: baseline }).evidence.previousCommit, baseline);
+    fs.writeFileSync(git.file, 'int buttons = 3;\n');
+    assert.throws(() => gitReleaseNotes({ repoRoot: git.repo, version: '1.2.0' }), /Commit device firmware/);
+});
+
+test('draft CLI dry run creates a verified bundle and notes without contacting admin', t => {
+    const c = setup(t); const git = gitFixture(c.root); const fixture = bundle(c, () => {}, '3.4.6', true);
+    const input = path.join(c.root, 'input'); fs.mkdirSync(input);
+    for (const [name, data] of fixture.entries) fs.writeFileSync(path.join(input, name), data);
+    const source = path.join(input, 'release-source.json');
+    fs.writeFileSync(source, JSON.stringify(fixture.manifest));
+    const signingKey = path.join(c.root, 'signing-key.pem');
+    fs.writeFileSync(signingKey, c.keys.privateKey.export({ type: 'pkcs8', format: 'pem' }));
+    const outDir = path.join(c.root, 'dry-run');
+    const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/create-firmware-draft.js'),
+        '--source', source, '--signing-key', signingKey, '--out-dir', outDir,
+        '--initial-release', '--git-repo', git.repo, '--dry-run'], { encoding: 'utf8', timeout: 20000 });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /nothing was uploaded/);
+    assert.ok(fs.existsSync(path.join(outDir, 'XORA-3.4.6-release.zip')));
+    assert.match(fs.readFileSync(path.join(outDir, 'XORA-3.4.6-release-notes.md'), 'utf8'), /初版发布/);
+    assert.equal(c.store.list().total, 0);
 });

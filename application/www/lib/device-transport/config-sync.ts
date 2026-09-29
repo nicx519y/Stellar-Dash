@@ -36,7 +36,16 @@ export async function readDeviceConfigSnapshot(
     progress({ completed, total: ordered.length, phase: ordered.length ? 'reading' : 'checking' });
     for (const key of ordered) {
       const spec = resourceRequest(key);
-      const response = await read(spec.command, spec.params);
+      let response;
+      try { response = await read(spec.command, spec.params); }
+      catch (error) {
+        if (!(error instanceof DeviceTransportError)) throw error;
+        throw new DeviceTransportError(error.code,
+          `${error.message} [resource=${key}, completed=${completed}/${ordered.length}, round=${round + 1}]`, {
+            ...(isRecord(error.cause) ? error.cause : {}),
+            command: spec.command, resource: key, completed, total: ordered.length, round: round + 1, original: error,
+          });
+      }
       const versions = response?.configVersions;
       const version = isRecord(versions) ? versions[key] : undefined;
       if (!isDigest(version)) throw new Error(`Missing configuration response version: ${key}`);

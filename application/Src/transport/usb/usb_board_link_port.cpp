@@ -1,5 +1,6 @@
 #include "usb_board_link_port.hpp"
 #include "usb_role_ready_wait.hpp"
+#include "ch585_handshake.h"
 
 #include <string.h>
 
@@ -57,7 +58,7 @@ static_assert(kOwnershipGuardFastUs + kInputFrameWireUs < 125u,
               "fast BoardLink input frame cannot fit an 8-kHz period");
 static SPI_HandleTypeDef s_hspi;
 static bool s_ready;
-static bool s_waitingEventRelease;
+static bool s_roleRequestSent;
 static bool s_fastApplication;
 static bool s_fastWebHid;
 static DMA_HandleTypeDef s_hsTxDma, s_hsRxDma;
@@ -157,20 +158,15 @@ static bool eventLineIsHigh()
 
 static bool refreshEventRelease()
 {
-    if (s_waitingEventRelease && eventLineIsHigh()) {
-        s_waitingEventRelease = false;
-    }
-    return !s_waitingEventRelease;
+    return Ch585Handshake_Ready(CH585_LINE_USB);
 }
 
 static bool waitEventHigh(uint32_t timeoutMs)
 {
     const uint32_t started = HAL_GetTick();
     do {
-        if (eventLineIsHigh()) {
-            s_waitingEventRelease = false;
-            return true;
-        }
+        if (refreshEventRelease()) return true;
+        if (Ch585Handshake_Faulted(CH585_LINE_USB)) return false;
     } while ((HAL_GetTick() - started) < timeoutMs);
     return false;
 }
@@ -206,6 +202,8 @@ static bool readFrame(uint8_t *response,
     }
     *responseLength = 0u;
 
+    Ch585ReadGuard read(CH585_LINE_USB);
+    if (!read) return false;
     chipSelect(false);
     while (rawLength < sizeof(raw)) {
         if (HAL_SPI_TransmitReceive(&s_hspi,
@@ -214,8 +212,7 @@ static bool readFrame(uint8_t *response,
                                     1u,
                                     kSpiTimeoutMs) != HAL_OK) {
             chipSelect(true);
-            s_waitingEventRelease = true;
-            (void)waitEventHigh(kEventReleaseTimeoutMs);
+            read.finish();
             WebConfig_RecordStartupFrame(raw, rawLength, 1u);
             return false;
         }
@@ -229,8 +226,7 @@ static bool readFrame(uint8_t *response,
                 memcpy(s_hsRead,raw+at,4u);
                 ok=hsDma(nullptr,s_hsRead+4u,static_cast<uint16_t>(blockSize-4u));
             }
-            chipSelect(true); s_waitingEventRelease=true;
-            (void)waitEventHigh(kEventReleaseTimeoutMs);
+            chipSelect(true); read.finish();
             if(!ok) { USBBoardLink_HsTransportFault(); return false; }
             USBBoardLink_HsAcceptBlock(s_hsRead,blockSize);
             /* Preserve the small control-event API while delivering large
@@ -263,7 +259,7 @@ static bool readFrame(uint8_t *response,
         }
     }
     chipSelect(true);
-    s_waitingEventRelease = true;
+    read.finish();
     (void)waitEventHigh(kEventReleaseTimeoutMs);
 
     if (!found || (rawLength < (uint8_t)(start + total)) ||
@@ -282,8 +278,7 @@ static bool readFrame(uint8_t *response,
 
 void USBBoardLinkPort_WaitApplicationReady()
 {
-    // Do not refresh release here: losing the ACK/pulse boundary is ambiguous.
-    (void)UsbRoleReady::wait(s_ready && !s_waitingEventRelease,
+    (void)UsbRoleReady::wait(s_ready && waitEventHigh(kEventReleaseTimeoutMs),
                              [] { return HAL_GetTick(); },
                              [] { return eventLineIsHigh(); },
                              [](uint32_t ms) { HAL_Delay(ms); });
@@ -365,7 +360,8 @@ bool USBBoardLinkPort_Init()
     if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
         return false;
     }
-    s_waitingEventRelease = false;
+    Ch585Handshake_Acquire(CH585_LINE_USB, kEventReleaseTimeoutMs);
+    s_roleRequestSent = false;
     s_fastApplication = false;
     s_ready = true;
     return true;
@@ -429,7 +425,6 @@ bool USBBoardLinkPort_EnableFastApplication()
         s_fastApplication = false;
         return false;
     }
-    s_waitingEventRelease = false;
     s_fastApplication = true;
     return true;
 }
@@ -458,7 +453,6 @@ bool USBBoardLinkPort_DisableFastApplication()
         s_fastApplication = false;
         return false;
     }
-    s_waitingEventRelease = false;
     s_fastApplication = false;
     return true;
 }
@@ -548,18 +542,20 @@ bool USBBoardLinkPort_InitApplication()
         s_ready = false;
         return false;
     }
-    s_waitingEventRelease = false;
     return true;
 }
 
 bool USBBoardLinkPort_TryShutdown()
 {
     if (!s_ready) {
+        s_roleRequestSent = false;
+        Ch585Handshake_Release(CH585_LINE_USB);
         return true;
     }
     chipSelect(true);
     if (HAL_SPI_DeInit(&s_hspi) != HAL_OK) return false;
-    s_waitingEventRelease = false;
+    s_roleRequestSent = false;
+    Ch585Handshake_Release(CH585_LINE_USB);
     s_fastApplication = false;
     s_ready = false;
     s_fastWebHid = false;
@@ -571,6 +567,9 @@ void USBBoardLinkPort_Shutdown() { (void)USBBoardLinkPort_TryShutdown(); }
 bool USBBoardLinkPort_SelectRfRoleOnce()
 {
     if (!USBBoardLinkPort_Init()) return false;
+    // A late boot-ready pulse can outlive the passive startup hint window.
+    // Until SELECT_ROLE was sent, a low line must never be clocked as an ACK.
+    if (!s_roleRequestSent && USBBoardLinkPort_HasEvent()) return false;
     const uint32_t started = HAL_GetTick();
     constexpr uint32_t budget = 20u;
     const uint8_t role = USB_BOARD_ROLE_RF;
@@ -588,6 +587,8 @@ bool USBBoardLinkPort_SelectRfRoleOnce()
         uint8_t raw[14] = {};
         uint8_t count = 0, start = 0, total = 0;
         bool valid = false;
+        Ch585ReadGuard read(CH585_LINE_USB);
+        if (!read) return false;
         chipSelect(false);
         while (count < sizeof(raw) && HAL_GetTick() - started < budget) {
             uint8_t fill = 0xffu;
@@ -613,7 +614,7 @@ bool USBBoardLinkPort_SelectRfRoleOnce()
             }
         }
         chipSelect(true);
-        s_waitingEventRelease = true;
+        read.finish();
         const uint32_t elapsed = HAL_GetTick() - started;
         if (elapsed < budget) {
             const uint32_t left = budget - elapsed;
@@ -684,6 +685,8 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
         ownershipGuardDelay();
     }
     chipSelect(true);
+    if (result == HAL_OK && frame[1] == USB_BOARD_CMD_SELECT_ROLE)
+        s_roleRequestSent = true;
     return result == HAL_OK;
 }
 
@@ -708,6 +711,18 @@ bool USBBoardLinkPort_Transact(const uint8_t *frame,
 bool USBBoardLinkPort_HasEvent()
 {
     return s_ready && refreshEventRelease() && !eventLineIsHigh();
+}
+
+bool USBBoardLinkPort_RoleRequestSent() { return s_ready && s_roleRequestSent; }
+
+bool USBBoardLinkPort_HasReleaseFault()
+{
+    return Ch585Handshake_Faulted(CH585_LINE_USB);
+}
+
+bool USBBoardLinkPort_WaitEventRelease(uint32_t timeoutMs)
+{
+    return s_ready && waitEventHigh(timeoutMs);
 }
 
 bool USBBoardLinkPort_ReadEvent(uint8_t *response,
@@ -756,6 +771,8 @@ bool USBBoardLinkPort_RawTransact(const uint8_t *request,
     if (responseLength > sizeof(fill)) {
         return false;
     }
+    Ch585ReadGuard read(CH585_LINE_USB);
+    if (!read) return false;
     chipSelect(false);
     result = HAL_SPI_TransmitReceive(&s_hspi,
                                      fill,
@@ -763,7 +780,9 @@ bool USBBoardLinkPort_RawTransact(const uint8_t *request,
                                      responseLength,
                                      timeoutMs);
     chipSelect(true);
-    s_waitingEventRelease = true;
+    read.finish();
+    // Preserve a received ACK even if the bus subsequently fails to release.
+    // The next command must consult HasReleaseFault before considering retry.
     (void)waitEventHigh(kEventReleaseTimeoutMs);
     return result == HAL_OK;
 }
@@ -772,7 +791,7 @@ bool USBBoardLinkPort_RawDiscardPendingResponse(uint16_t responseLength,
                                                 uint32_t timeoutMs)
 {
     if (responseLength == 0u || responseLength > 16u ||
-        !USBBoardLinkPort_Init()) {
+        !USBBoardLinkPort_Init() || !refreshEventRelease()) {
         return false;
     }
     if (eventLineIsHigh() && !waitEventLow(timeoutMs)) {
@@ -782,11 +801,13 @@ bool USBBoardLinkPort_RawDiscardPendingResponse(uint16_t responseLength,
     uint8_t fill[16];
     uint8_t discard[16];
     memset(fill, 0xFF, sizeof(fill));
+    Ch585ReadGuard read(CH585_LINE_USB);
+    if (!read) return false;
     chipSelect(false);
     const HAL_StatusTypeDef result = HAL_SPI_TransmitReceive(
         &s_hspi, fill, discard, responseLength, timeoutMs);
     chipSelect(true);
-    s_waitingEventRelease = true;
+    read.finish();
     (void)waitEventHigh(kEventReleaseTimeoutMs);
     return result == HAL_OK;
 }

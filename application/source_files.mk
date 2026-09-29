@@ -88,6 +88,7 @@ Src/system/board_security_confirmation.cpp \
 Src/firmware/ch585_firmware_update.cpp \
 Src/firmware/ch585_iap_client.cpp \
 Src/transport/ch585_role_bootstrap.cpp \
+Src/transport/ch585_handshake.cpp \
 Src/config/config.cpp \
 Src/webconfig/config_transport_sink.cpp \
 Src/transport/connection_manager.cpp \

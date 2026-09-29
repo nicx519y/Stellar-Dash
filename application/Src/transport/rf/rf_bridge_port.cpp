@@ -1,4 +1,5 @@
 #include "rf_bridge_port.hpp"
+#include "ch585_handshake.h"
 
 #include <string.h>
 
@@ -105,17 +106,7 @@ static void rf_cs_set(bool high) {
 static void rf_configure_irq_input(void) {
     rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
 
-    GPIO_InitTypeDef init = {};
-    init.Mode = GPIO_MODE_IT_FALLING;
-    init.Pull = GPIO_PULLUP;
-    init.Speed = GPIO_SPEED_FREQ_LOW;
-    init.Alternate = 0u;
-    init.Pin = RF_BRIDGE_IRQ_PIN;
-    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
-    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
-    SET_BIT(EXTI_D1->IMR1, RF_BRIDGE_IRQ_PIN);
-    HAL_NVIC_SetPriority(RF_BRIDGE_IRQ_EXTI_IRQn, RF_BRIDGE_IRQ_EXTI_IRQn_PRIO, 0u);
-    HAL_NVIC_EnableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
+    Ch585Handshake_Acquire(CH585_LINE_RF, RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS);
 }
 
 static void rf_mask_irq_line(void) {
@@ -124,10 +115,7 @@ static void rf_mask_irq_line(void) {
      * disabling the NVIC vector would also suppress the fuel-gauge alert.
      * GPIO_MODE_INPUT alone does not remove a previous EXTI configuration.
      */
-    CLEAR_BIT(EXTI_D1->IMR1, RF_BRIDGE_IRQ_PIN);
-    CLEAR_BIT(EXTI->RTSR1, RF_BRIDGE_IRQ_PIN);
-    CLEAR_BIT(EXTI->FTSR1, RF_BRIDGE_IRQ_PIN);
-    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+    Ch585Handshake_Release(CH585_LINE_RF);
 }
 
 static void rf_configure_miso_af(void) {
@@ -165,18 +153,6 @@ static bool rf_wait_irq_asserted(uint32_t timeoutMs) {
     }
     return HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
            RF_BRIDGE_IRQ_ASSERTED_STATE;
-}
-
-static bool rf_wait_irq_deasserted(uint32_t timeoutMs) {
-    const uint32_t start = HAL_GetTick();
-    while ((HAL_GetTick() - start) < timeoutMs) {
-        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
-            RF_BRIDGE_IRQ_DEASSERTED_STATE) {
-            return true;
-        }
-    }
-    return HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
-           RF_BRIDGE_IRQ_DEASSERTED_STATE;
 }
 
 static bool rf_is_valid_evt(uint8_t evt) {
@@ -281,6 +257,7 @@ static bool rf_dma_init_once() {
 }
 
 static bool rf_spi_dma_start_locked(const uint8_t* tx, uint16_t txLen) {
+    if (!Ch585Handshake_Ready(CH585_LINE_RF) || rf_has_pending_event_signal()) return false;
     if ((txLen == 0u) || (txLen > sizeof(s_dma_active_buf))) {
         return false;
     }
@@ -436,6 +413,8 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd, b
     const uint32_t readStartedCycles = MICROS_TIMER.cycles();
     memset(rx, 0, *rxLen);
     if (!runtimeRead && !s_peer_dma_reply) HAL_Delay(1u);
+    Ch585ReadGuard read(CH585_LINE_RF);
+    if (!read) { *rxLen = 0u; return false; }
     rf_cs_set(false);
 
     while (rawLen < sizeof(raw)) {
@@ -505,6 +484,7 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd, b
     }
     rf_cs_set(true);
 
+    read.finish();
     if (!foundStart || (rawLen < static_cast<uint16_t>(start + total))) {
         s_diag_rx_invalid++;
         *rxLen = 0u;
@@ -574,6 +554,7 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd, b
 }
 
 static bool rf_spi_transmit_polling(const uint8_t* tx, uint16_t txLen, uint32_t timeoutMs) {
+    if (!Ch585Handshake_Ready(CH585_LINE_RF) || rf_has_pending_event_signal()) return false;
     if ((tx == nullptr) || (txLen == 0u)) {
         return false;
     }
@@ -672,10 +653,11 @@ static bool rf_spi_init_once() {
 
 namespace {
 struct RecoveryRead {
-    bool active = false, release = false;
+    bool active = false;
     uint8_t raw[64] = {};
     uint16_t count = 0, start = 0, total = 0;
     uint32_t since = 0, nextByte = 0;
+    uint32_t ticket = 0;
 } recoveryRead;
 
 RFPortStep recoveryReadFailed(RFRecoveryReadError reason) {
@@ -700,12 +682,13 @@ RFPortStep recoveryReadFailed(RFRecoveryReadError reason) {
 
 bool RFBridgePort_RecoveryBegin() { return rf_spi_init_once(); }
 bool RFBridgePort_RecoveryIdle() {
-    return s_rf_spi_ready && !recoveryRead.active && !recoveryRead.release &&
+    return s_rf_spi_ready && !recoveryRead.active && Ch585Handshake_Ready(CH585_LINE_RF) &&
         !s_dma_busy && !s_dma_pending && !rf_has_pending_event_signal();
 }
 
 void RFBridgePort_CancelRecoveryIo() {
     if (s_rf_spi_ready) rf_cs_set(true);
+    if (recoveryRead.active) Ch585Handshake_EndRead(CH585_LINE_RF, recoveryRead.ticket);
     recoveryRead = {};
 }
 
@@ -734,10 +717,7 @@ bool RFBridgePort_TryShutdownForSleep() {
     gpio.Pin = RF_BRIDGE_IRQ_PIN;
     HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &gpio);
     __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
-    // EXTI9_5 is shared with the function keys: clear its NVIC latch only
-    // when no other unmasked line in the group is pending.
-    if ((EXTI->PR1 & EXTI_D1->IMR1 & 0x3e0u) == 0u)
-        HAL_NVIC_ClearPendingIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
+    // EXTI15_10 is shared with MAX17048. Never clear its group NVIC latch.
     HAL_NVIC_ClearPendingIRQ(DMA2_Stream5_IRQn);
     HAL_NVIC_ClearPendingIRQ(SPI4_IRQn);
     s_rf_spi_ready = s_rf_dma_ready = s_peer_dma_reply = false;
@@ -751,11 +731,7 @@ bool RFBridgePort_TryShutdownForSleep() {
 bool RFBridgePort_RecoverySend(const uint8_t* tx, uint16_t len) {
     if (!tx || !len || len > RF_BRIDGE_MIN_CONTROL_TX_BYTES ||
         recoveryRead.active || !rf_spi_init_once() || s_dma_busy || s_dma_pending) return false;
-    if (recoveryRead.release) {
-        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == RF_BRIDGE_IRQ_ASSERTED_STATE)
-            return false;
-        recoveryRead.release = false;
-    }
+    if (!Ch585Handshake_Ready(CH585_LINE_RF)) return false;
     if (rf_has_pending_event_signal()) return false;
     uint8_t frame[RF_BRIDGE_MIN_CONTROL_TX_BYTES];
     memset(frame, 0xff, sizeof(frame));
@@ -768,17 +744,15 @@ bool RFBridgePort_RecoverySend(const uint8_t* tx, uint16_t len) {
 
 RFPortStep RFBridgePort_RecoveryRead(uint8_t* rx, uint16_t* len, uint32_t now) {
     if (!rx || !len || !s_rf_spi_ready) return recoveryReadFailed(RFRecoveryReadError::InvalidState);
-    if (recoveryRead.release) {
-        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == RF_BRIDGE_IRQ_ASSERTED_STATE) {
-            if (now - recoveryRead.since >= RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS)
-                return recoveryReadFailed(RFRecoveryReadError::ReleaseTimeout);
-            return RFPortStep::Pending;
-        }
-        recoveryRead.release = false;
-    }
     if (!recoveryRead.active) {
+        if (Ch585Handshake_Faulted(CH585_LINE_RF))
+            return recoveryReadFailed(RFRecoveryReadError::ReleaseTimeout);
+        if (!Ch585Handshake_Ready(CH585_LINE_RF)) return RFPortStep::Pending;
         if (!rf_has_pending_event_signal() || s_dma_busy || s_dma_pending) return RFPortStep::Pending;
+        const uint32_t ticket = Ch585Handshake_BeginRead(CH585_LINE_RF);
+        if (!ticket) return RFPortStep::Pending;
         recoveryRead = {};
+        recoveryRead.ticket = ticket;
         recoveryRead.active = true;
         recoveryRead.since = now;
         recoveryRead.nextByte = now + (s_peer_dma_reply ? 0u : 1u);
@@ -810,7 +784,7 @@ RFPortStep RFBridgePort_RecoveryRead(uint8_t* rx, uint16_t* len, uint32_t now) {
         memcpy(rx, recoveryRead.raw + recoveryRead.start, recoveryRead.total);
         *len = recoveryRead.total;
         recoveryRead.active = false;
-        recoveryRead.release = true;
+        Ch585Handshake_EndRead(CH585_LINE_RF, recoveryRead.ticket);
         recoveryRead.since = now;
         if (rf_checksum8(rx, *len - 1u) != rx[*len - 1u])
             return recoveryReadFailed(RFRecoveryReadError::Checksum);
@@ -945,14 +919,16 @@ extern "C" void RFBridgePort_SPI_ErrorCallback(SPI_HandleTypeDef *hspi) {
 }
 
 bool RFBridgePort_IsReady(void) {
-    return s_rf_spi_ready;
+    return s_rf_spi_ready && !Ch585Handshake_Faulted(CH585_LINE_RF);
 }
+
+bool RFBridgePort_HasReleaseFault() { return Ch585Handshake_Faulted(CH585_LINE_RF); }
 
 bool RFBridgePort_HasPendingEvent(void) {
     if (!s_rf_spi_ready) {
         return false;
     }
-    return rf_has_pending_event_signal();
+    return Ch585Handshake_Ready(CH585_LINE_RF) && rf_has_pending_event_signal();
 }
 
 bool RFBridgePort_IsInputIdle(void) {
@@ -974,7 +950,7 @@ bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
         return false;
     }
 
-    if (!s_rf_spi_ready) {
+    if (!s_rf_spi_ready || !Ch585Handshake_Ready(CH585_LINE_RF)) {
         *rxLen = 0u;
         printf("[RF_PORT][READ_EVT] not_ready\r\n");
         return false;
@@ -994,7 +970,6 @@ bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
     rf_consume_irq_pending_marker();
     const bool ok = rf_read_event_frame(rx, rxLen, 0x00u, true);
     if (ok && (*rxLen > 0u)) {
-        (void)rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS);
         printf("[RF_PORT][READ_EVT] ok evt=0x%02X len=%u\r\n",
                (unsigned int)((*rxLen >= 2u) ? rx[1] : 0u),
                (unsigned int)*rxLen);
@@ -1028,6 +1003,7 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     }
 
     const uint8_t input_seq = (txLen >= 4u) ? tx[3] : 0u;
+    if (!Ch585Handshake_Ready(CH585_LINE_RF) || rf_has_pending_event_signal()) return false;
 
     bool tx_ok = false;
 #if RF_BRIDGE_INPUT_DMA_FASTPATH
@@ -1122,6 +1098,19 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
         return false;
     }
 
+    // Synchronous control callers may immediately follow an ACK. Let its
+    // release finish without burning the command retry budget or writing over
+    // the reply. Runtime event/input and recovery polls remain non-blocking.
+    const uint32_t readyStarted = HAL_GetTick();
+    while (!Ch585Handshake_Ready(CH585_LINE_RF)) {
+        if (Ch585Handshake_Faulted(CH585_LINE_RF) ||
+            HAL_GetTick() - readyStarted >= ackTimeoutMs) {
+            *rxLen = 0u;
+            return false;
+        }
+        HAL_Delay(1u);
+    }
+
     const uint8_t cmd = (txLen >= 2u) ? tx[1] : 0u;
     uint8_t controlTxBuf[RF_BRIDGE_MIN_CONTROL_TX_BYTES] = {0};
     const uint8_t* busTx = tx;
@@ -1129,12 +1118,8 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
 
     if (rf_has_pending_event_signal()) {
         if (!allowEventPreempt) {
-            rf_consume_irq_pending_marker();
-            if (!rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS)) {
-                *rxLen = 0u;
-                return false;
-            }
-            HAL_Delay(1u);
+            *rxLen = 0u;
+            return false;
         } else {
             if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
                 *rxLen = 0u;
@@ -1143,7 +1128,6 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
             const bool readOk = rf_read_event_frame(rx, rxLen, cmd);
             if (readOk && (*rxLen > 0u)) {
                 rf_consume_irq_pending_marker();
-                (void)rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS);
                 return true;
             }
             *rxLen = 0u;
@@ -1159,12 +1143,8 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
     }
 
     if (!allowEventPreempt && rf_has_pending_event_signal()) {
-        rf_consume_irq_pending_marker();
-        if (!rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS)) {
-            *rxLen = 0u;
-            return false;
-        }
-        HAL_Delay(1u);
+        *rxLen = 0u;
+        return false;
     }
 
     if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
@@ -1203,7 +1183,6 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
         return false;
     }
     rf_consume_irq_pending_marker();
-    (void)rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS);
     return true;
 }
 

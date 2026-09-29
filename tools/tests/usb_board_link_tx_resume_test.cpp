@@ -9,6 +9,10 @@
 #include "usb_board_link_port.hpp"
 #include "webhid_protocol.h"
 
+bool USBBoardLinkPort_HasReleaseFault() { return false; }
+bool USBBoardLinkPort_RoleRequestSent() { return true; }
+bool USBBoardLinkPort_WaitEventRelease(uint32_t) { return true; }
+
 namespace {
 
 struct QueuedEvent {

@@ -28,6 +28,13 @@ bool USBBoardLinkPort_Transact(const uint8_t *frame,
                                uint8_t *responseLength,
                                uint32_t timeoutMs);
 bool USBBoardLinkPort_HasEvent();
+// Boot-ready uses the same low line, but is not a framed SPI response.
+bool USBBoardLinkPort_RoleRequestSent();
+// Sticky until shutdown/reacquire; independent of a received ACK's validity.
+bool USBBoardLinkPort_HasReleaseFault();
+// Synchronous control boundary only. A release edge permits progress; a
+// latched fault never does. Runtime block/input polling stays non-blocking.
+bool USBBoardLinkPort_WaitEventRelease(uint32_t timeoutMs);
 bool USBBoardLinkPort_ReadEvent(uint8_t *response,
                                 uint8_t responseCapacity,
                                 uint8_t *responseLength);

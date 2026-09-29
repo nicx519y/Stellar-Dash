@@ -108,7 +108,8 @@ bool Ch585IapClient::transact(uint8_t command,
             sizeof(response),
             timeoutMs)) {
         currentStatus = Ch585IapClientStatus::LinkError;
-        lastTransactionTimedOut = true;
+        // Never replay flash commands after a latched release-handshake fault.
+        lastTransactionTimedOut = !USBBoardLinkPort_HasReleaseFault();
         APP_STAGE_ERROR("M02",
                         "CH585 IAP link timeout: cmd=%u seq=%u offset=%lu timeout=%lu",
                         static_cast<unsigned int>(command),

@@ -42,6 +42,7 @@ static whf_link_t s_hsLink;
 static uint8_t s_hsBlock[WHF_BLOCK_BYTES];
 static bool s_hsReady;
 static bool s_hsSessionInvalid;
+static bool s_releaseFaultReported;
 static uint32_t s_hsEpoch;
 /* Use the TX-advertised 15 MHz application data rate. Bootstrap/IAP retain
  * their separate slow clock and PREPARE/probe/COMMIT ownership checks. */
@@ -156,7 +157,21 @@ bool UsbBoardLink::transact(uint8_t command,
      * before clocking a retry so a late ROLE_SELECTED frame is never shifted
      * out underneath a second SELECT_ROLE request.
      */
-    while (USBBoardLinkPort_HasEvent()) {
+    // W_INT also carries a 100-ms boot-ready pulse. Before the first physical
+    // SELECT_ROLE write it cannot be a role response. Leave it untouched and
+    // let the bounded bootstrap retry observe its release before sending.
+    if (diagnoseRole && !USBBoardLinkPort_RoleRequestSent() && USBBoardLinkPort_HasEvent()) {
+        return false;
+    }
+    for (;;) {
+        // A high-speed response is delivered before the peer releases W_INT.
+        // In particular HS_COMMIT follows the probe immediately. Wait within
+        // this transaction's budget, then drain any newly asserted event;
+        // never mistake "still releasing" for an empty, writable bus.
+        const uint32_t elapsed = HAL_GetTick() - startedAt;
+        if (elapsed >= timeoutMs ||
+            !USBBoardLinkPort_WaitEventRelease(timeoutMs - elapsed)) return false;
+        if (!USBBoardLinkPort_HasEvent()) break;
         uint8_t pending[USB_BOARD_LINK_MAX_FRAME_BYTES] = {};
         uint8_t pendingLength = 0u;
         usb_board_link_frame_t decoded = {};
@@ -165,11 +180,11 @@ bool UsbBoardLink::transact(uint8_t command,
                                         sizeof(pending),
                                         &pendingLength)) {
             ++readFailures;
-            break;
+            return false;
         }
         if (!usb_board_link_decode(pending, pendingLength, &decoded)) {
             ++decodeFailures;
-            break;
+            return false;
         }
         lastObservedEvent = decoded.command;
         handleEvent(decoded.command, decoded.payload, decoded.length);
@@ -271,7 +286,7 @@ bool UsbBoardLink::drainEventsLocked(uint32_t timeoutMs)
         handleEvent(event.command, event.payload, event.length);
         ++count;
     }
-    return true;
+    return !USBBoardLinkPort_HasReleaseFault();
 }
 
 bool UsbBoardLink::sendLocked(uint8_t command,
@@ -298,6 +313,8 @@ bool UsbBoardLink::sendLocked(uint8_t command,
         if (!drainEventsLocked(kEventDrainTimeoutMs)) {
             return false;
         }
+        if (!USBBoardLinkPort_WaitEventRelease(kEventDrainTimeoutMs)) return false;
+        if (USBBoardLinkPort_HasEvent()) continue;
         if (USBBoardLinkPort_Send(frame, frameLength)) {
             return true;
         }
@@ -946,6 +963,7 @@ void UsbBoardLink::serviceWebConfigTransportReset()
     }
 
     s_hsReady = false;
+    if (USBBoardLinkPort_HasReleaseFault()) return;
     if (webConfigResetAttempts >= 3u) return;
     ++webConfigResetAttempts;
     if (sendControl(USB_BOARD_CONTROL_CLEAR_FAULT) && enableWebHidDataPlane()) {
@@ -1302,6 +1320,16 @@ void UsbBoardLink::process()
         }
         (void)drainEventsLocked(kEventDrainTimeoutMs);
     }
+    if (USBBoardLinkPort_HasReleaseFault()) {
+        if (!s_releaseFaultReported) {
+            s_releaseFaultReported = true;
+            usbState.last_fault = USB_BOARD_STATUS_INTERNAL_ERROR;
+            fastDataPlaneFault = USB_BOARD_STATUS_INTERNAL_ERROR;
+            fastDataPlaneFaultPending = fastApplication;
+            USBBoardLink_HsTransportFault();
+        }
+        return;
+    }
     serviceWebConfigTransportReset();
     if (s_hsReady) {
         const uint8_t *report;
@@ -1319,6 +1347,7 @@ void UsbBoardLink::process()
 
 void UsbBoardLink::shutdown()
 {
+    s_releaseFaultReported = false;
     usbMon=UsbSourceMonitor{};
     s_hsReady = false; whf_init(&s_hsLink, 0u);
     USBBoardLinkPort_Shutdown();

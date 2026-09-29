@@ -1,0 +1,235 @@
+{
+  "width": 787.0,
+  "height": 489.0,
+  "coordinate_scale": 2.55,
+  "board_width_mm": 310.2,
+  "ambient_thickness_mm": 3,
+  "buttons": [
+    {
+      "x": 125.1,
+      "y": 103.1,
+      "r": 26.0,
+      "id": 1,
+      "label": "1",
+      "display_x": 319.00499999999994,
+      "display_y": 262.905,
+      "display_radius": 26.0
+    },
+    {
+      "x": 147.34,
+      "y": 120.1,
+      "r": 34.0,
+      "id": 2,
+      "label": "2",
+      "display_x": 375.717,
+      "display_y": 306.25499999999994,
+      "display_radius": 34.0
+    },
+    {
+      "x": 175.1,
+      "y": 119.1,
+      "r": 26.0,
+      "id": 3,
+      "label": "3",
+      "display_x": 446.50499999999994,
+      "display_y": 303.705,
+      "display_radius": 26.0
+    },
+    {
+      "x": 192.8,
+      "y": 101.44,
+      "r": 26.0,
+      "id": 4,
+      "label": "4",
+      "display_x": 491.64,
+      "display_y": 258.67199999999997,
+      "display_radius": 26.0
+    },
+    {
+      "x": 73.49,
+      "y": 63.76,
+      "r": 26.0,
+      "id": 5,
+      "label": "5",
+      "display_x": 187.39949999999996,
+      "display_y": 162.588,
+      "display_radius": 26.0
+    },
+    {
+      "x": 99.05,
+      "y": 59.67,
+      "r": 26.0,
+      "id": 6,
+      "label": "6",
+      "display_x": 252.5775,
+      "display_y": 152.1585,
+      "display_radius": 26.0
+    },
+    {
+      "x": 122.19,
+      "y": 63.76,
+      "r": 26.0,
+      "id": 7,
+      "label": "7",
+      "display_x": 311.5845,
+      "display_y": 162.588,
+      "display_radius": 26.0
+    },
+    {
+      "x": 141.5,
+      "y": 77.34,
+      "r": 26.0,
+      "id": 8,
+      "label": "8",
+      "display_x": 360.825,
+      "display_y": 197.21699999999998,
+      "display_radius": 26.0
+    },
+    {
+      "x": 131.19,
+      "y": 42.04,
+      "r": 26.0,
+      "id": 9,
+      "label": "9",
+      "display_x": 334.5345,
+      "display_y": 107.20199999999998,
+      "display_radius": 26.0
+    },
+    {
+      "x": 165.45,
+      "y": 87.1,
+      "r": 26.0,
+      "id": 10,
+      "label": "10",
+      "display_x": 421.8974999999999,
+      "display_y": 222.10499999999996,
+      "display_radius": 26.0
+    },
+    {
+      "x": 163.37,
+      "y": 62.8,
+      "r": 26.0,
+      "id": 11,
+      "label": "11",
+      "display_x": 416.5935,
+      "display_y": 160.14,
+      "display_radius": 26.0
+    },
+    {
+      "x": 161.29,
+      "y": 38.5,
+      "r": 26.0,
+      "id": 12,
+      "label": "12",
+      "display_x": 411.2895,
+      "display_y": 98.175,
+      "display_radius": 26.0
+    },
+    {
+      "x": 185.51,
+      "y": 73.05,
+      "r": 26.0,
+      "id": 13,
+      "label": "13",
+      "display_x": 473.05049999999994,
+      "display_y": 186.27749999999997,
+      "display_radius": 26.0
+    },
+    {
+      "x": 183.43,
+      "y": 48.75,
+      "r": 26.0,
+      "id": 14,
+      "label": "14",
+      "display_x": 467.74649999999997,
+      "display_y": 124.31249999999999,
+      "display_radius": 26.0
+    },
+    {
+      "x": 209.01,
+      "y": 66.1,
+      "r": 26.0,
+      "id": 15,
+      "label": "15",
+      "display_x": 532.9754999999999,
+      "display_y": 168.55499999999998,
+      "display_radius": 26.0
+    },
+    {
+      "x": 206.93,
+      "y": 41.8,
+      "r": 26.0,
+      "id": 16,
+      "label": "16",
+      "display_x": 527.6715,
+      "display_y": 106.58999999999999,
+      "display_radius": 26.0
+    },
+    {
+      "x": 233.44,
+      "y": 67.98,
+      "r": 26.0,
+      "id": 17,
+      "label": "17",
+      "display_x": 595.2719999999999,
+      "display_y": 173.349,
+      "display_radius": 26.0
+    },
+    {
+      "x": 231.36,
+      "y": 43.69,
+      "r": 26.0,
+      "id": 18,
+      "label": "18",
+      "display_x": 589.968,
+      "display_y": 111.40949999999998,
+      "display_radius": 26.0
+    },
+    {
+      "x": 84.49,
+      "y": 15.49,
+      "r": 11.5,
+      "id": 19,
+      "label": "19",
+      "display_x": 215.44949999999997,
+      "display_y": 39.4995,
+      "display_radius": 11.5
+    },
+    {
+      "x": 62.49,
+      "y": 15.49,
+      "r": 11.5,
+      "id": 20,
+      "label": "20",
+      "display_x": 159.3495,
+      "display_y": 39.4995,
+      "display_radius": 11.5
+    },
+    {
+      "x": 40.49,
+      "y": 15.49,
+      "r": 11.5,
+      "id": 21,
+      "label": "21",
+      "display_x": 103.2495,
+      "display_y": 39.4995,
+      "display_radius": 11.5
+    },
+    {
+      "x": 18.48,
+      "y": 15.49,
+      "r": 11.5,
+      "id": 22,
+      "label": "Fn",
+      "display_x": 47.123999999999995,
+      "display_y": 39.4995,
+      "display_radius": 11.5
+    }
+  ],
+  "note": "WebConfig scales x/y by 2.55 and leaves r unscaled; use these actual display proportions.",
+  "sources": {
+    "application/www/lib/device-transport/mock-device-transport.ts": "6cd086bac89b8bf1677b9467cb912151108a699c579b912d6fb503b277906c1d",
+    "application/www/components/hitbox/hitbox-constants.ts": "de1ea565f080c63492b4d2f0f3f51e1e166278672ce4889030420bd6ec3bc6fb",
+    "application/Inc/system/board_cfg.h": "b5f4522e92e676bc217133265ed13f787b2fef5d16cd88f79adf3f9614106738"
+  }
+}

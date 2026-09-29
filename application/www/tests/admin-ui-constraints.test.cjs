@@ -8,6 +8,10 @@ const adminPage = fs.readFileSync(
     path.join(webRoot, 'app', 'admin', 'users', 'page.tsx'),
     'utf8'
 );
+const adminImagesPage = fs.readFileSync(
+    path.join(webRoot, 'app', 'admin', 'images', 'page.tsx'),
+    'utf8'
+);
 const rootLayout = fs.readFileSync(
     path.join(webRoot, 'app', 'layout.tsx'),
     'utf8'
@@ -41,6 +45,11 @@ test('administration route is mounted outside the HID provider', () => {
         rootLayout,
         /if \(isEmailVerification \|\| isAdministration \|\| isFirmwareCatalog\)\s*\{[\s\S]*?<UserAuthProvider>/
     );
+});
+
+test('official gallery admin page does not require a device provider', () => {
+    assert.doesNotMatch(adminImagesPage, /useGamepadConfig|GamepadConfigProvider/);
+    assert.match(adminImagesPage, /ADMIN_GALLERY_LIMITS/);
 });
 
 test('switch mapping catalog is visible to device users and admin actions live on equal-size cards', () => {

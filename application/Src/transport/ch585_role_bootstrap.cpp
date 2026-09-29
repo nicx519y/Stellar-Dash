@@ -16,10 +16,12 @@ void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
 
 void Ch585RoleBootstrap::shutdown()
 {
+    // A real peer power cycle starts a new handshake epoch. Keeping the USB
+    // port's sticky release fault would block every retry of the new peer.
+    USBBoardLinkPort_Shutdown();
     if (sleepResumeActive) {
         // A failed SELECT_ROLE may have configured the USB bootstrap SPI port.
         // Park it before the cold-restart retry removes CH585 power.
-        USBBoardLinkPort_Shutdown();
         GPIO_InitTypeDef gpio = {};
         gpio.Mode = GPIO_MODE_ANALOG;
         gpio.Pull = GPIO_NOPULL;

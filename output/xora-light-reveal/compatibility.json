@@ -1,0 +1,42 @@
+[
+  {
+    "file": "05-silver-diagonal.gif",
+    "decoder": "WebConfig gifuct-js",
+    "frames": 96,
+    "totalUs": 8000000,
+    "sampling": "all 96 source frames preserved at 12 FPS",
+    "estimatedJpegPayloadBytes": 232788,
+    "firmwareMaxPayloadBytes": 1568768,
+    "note": "JPEG size is local sharp estimate; browser encoding may differ. No device access."
+  },
+  {
+    "file": "06-blue-horizon.gif",
+    "decoder": "WebConfig gifuct-js",
+    "frames": 96,
+    "totalUs": 8000000,
+    "sampling": "all 96 source frames preserved at 12 FPS",
+    "estimatedJpegPayloadBytes": 283668,
+    "firmwareMaxPayloadBytes": 1568768,
+    "note": "JPEG size is local sharp estimate; browser encoding may differ. No device access."
+  },
+  {
+    "file": "07-aurora-ribbon.gif",
+    "decoder": "WebConfig gifuct-js",
+    "frames": 96,
+    "totalUs": 8000000,
+    "sampling": "all 96 source frames preserved at 12 FPS",
+    "estimatedJpegPayloadBytes": 247624,
+    "firmwareMaxPayloadBytes": 1568768,
+    "note": "JPEG size is local sharp estimate; browser encoding may differ. No device access."
+  },
+  {
+    "file": "08-gold-emergence.gif",
+    "decoder": "WebConfig gifuct-js",
+    "frames": 96,
+    "totalUs": 8000000,
+    "sampling": "all 96 source frames preserved at 12 FPS",
+    "estimatedJpegPayloadBytes": 312088,
+    "firmwareMaxPayloadBytes": 1568768,
+    "note": "JPEG size is local sharp estimate; browser encoding may differ. No device access."
+  }
+]

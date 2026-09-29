@@ -195,6 +195,7 @@ bool RFCommandTransaction::send(uint8_t cmd,
                                                      ack,
                                                      &ackLen,
                                                      RF_COMMAND_TRANSACTION_ACK_TIMEOUT_MS)) {
+            if (RFBridgePort_HasReleaseFault()) return false;
             RF_CMD_TXN_LOG("ACK_TIMEOUT cmd=0x%02X txn=%u attempt=%u",
                            (unsigned int)cmd,
                            (unsigned int)txn,

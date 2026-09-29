@@ -1,0 +1,150 @@
+"""Black anodised leverless XORA board, source-accurate controls, RGB diffuser."""
+import bpy,sys,math,re,time,json,colorsys
+from pathlib import Path
+from mathutils import Vector,Euler
+ROOT=Path(__file__).resolve().parent;sys.path.insert(0,str(ROOT))
+import base_scene as base
+from mechanics import clip,cylinder,emission
+from geometry import morph_plate,box
+NAME='15-xora-leverless-rgb'
+argv=sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
+MODE=argv[0] if argv else 'preview'
+L=json.loads((ROOT/'layout-source.json').read_text(encoding='utf-8'))
+W=8.;H=W*L['height']/L['width'];MM=W/L['board_width_mm'];LED=3*MM
+TILT=-math.radians(45);BOARD=Euler((TILT,0,0)).to_matrix();ORIGIN=Vector((0,.60,0))
+smooth=base.smooth
+def world(v):return ORIGIN+BOARD@Vector(v)
+def xy(item):return ((item['display_x']/L['width']-.5)*W,(.5-item['display_y']/L['height'])*H)
+def rounded(w,h,r):
+    out=[]
+    for cx,cy,a in [(w/2-r,h/2-r,0),(-w/2+r,h/2-r,90),(-w/2+r,-h/2+r,180),(w/2-r,-h/2+r,270)]:
+        out += [(cx+r*math.cos(math.radians(a+j*90/20)),cy+r*math.sin(math.radians(a+j*90/20))) for j in range(21)]
+    return out
+def animated_material(m):return m.node_tree.nodes['Principled BSDF']
+
+def build():
+    sc,_=base.scene(0);sc.frame_end=120;sc.cycles.samples=48
+    sc.unit_settings.system='METRIC';sc.unit_settings.scale_length=L['board_width_mm']/8000
+    bpy.data.objects['Dark reflection floor'].location.y=-1.53
+    for ob in list(bpy.data.objects):
+        if ob.name.startswith('XORA original') or ob.name in ['O machined ring','O arcade button','O circular machined detail']:
+            bpy.data.objects.remove(ob,do_unlink=True)
+    anodised=base.material('Black anodised aluminium satin',(.008,.010,.014),.72,.43)
+    p=animated_material(anodised);p.inputs['Coat Weight'].default_value=.12;p.inputs['Coat Roughness'].default_value=.35
+    for n in anodised.node_tree.nodes:
+        if n.type=='BUMP':n.inputs['Strength'].default_value=.065;n.inputs['Distance'].default_value=.007
+    shellmat=base.material('Black anodised lower shell',(.007,.009,.013),.66,.38)
+    caps=base.material('Black translucent keycaps',(.017,.022,.029),.18,.29)
+    socketmat=base.material('Black key sockets',(.004,.006,.008),.32,.37)
+    # The complete board retains exactly the WebConfig panel aspect ratio.
+    shell=box('XORA lower enclosure',(W,H,.35),world((0,0,-.04)),shellmat,.10);shell.rotation_euler=(TILT,0,0)
+    rim=box('Black aluminium panel underlay',(W-.06,H-.06,.045),world((0,0,.155)),anodised,.08);rim.rotation_euler=(TILT,0,0)
+    # A genuine 3 mm high annular diffuser forms the lowest perimeter layer.
+    ambientmat=emission('3mm perimeter RGB diffuser',(.015,.3,.75),2)
+    ambient=base.curve('3 mm full perimeter light guide',[rounded(W-.035,H-.035,.13),list(reversed(rounded(W-.20,H-.20,.09)))],ambientmat,depth=LED/2,bevel=0)
+    ambient.location=world((0,0,-.215-LED/2));ambient.rotation_euler=(TILT,0,0)
+    ambient['thickness_mm']=3.;ambient['model_thickness']=LED
+    backing=[(o,o.location.copy()) for o in [shell,rim,ambient]]
+    paths=re.findall(r'<path[^>]* d="([^"]+)"',base.SVG.read_text(encoding='utf-8'))
+    specs=[]
+    for j in range(4):specs.append(('X panel '+str(j),base.parse(paths[j])))
+    rp=base.parse(paths[4])
+    for j,(lo,hi) in enumerate([(.11,.70),(.70,1.48),(1.48,2.17)]):specs.append(('R panel '+str(j),clip(clip(rp,0,lo,True),0,hi,False)))
+    ap=base.parse(paths[5]);low=clip(ap,1,.66,False)
+    specs += [('A left panel',clip(low,0,3.5,False)),('A right panel',clip(low,0,3.5,True)),('A crown panel',clip(ap,1,.66,True))]
+    cols=[(-2,1),(-1,1),(-2,-1),(-1,-1),(0,1),(1,1),(0,-1),(1,-1),(2,-1),(2,1)]
+    cw=(W-.14)/5;ch=(H-.14)/2
+    rectangle=[(-cw/2+.004,-ch/2+.004),(cw/2-.004,-ch/2+.004),(cw/2-.004,ch/2-.004),(-cw/2+.004,ch/2-.004)]
+    panels=[]
+    for i,(name,poly) in enumerate(specs):
+        ob,key,target=morph_plate(name,poly,anodised,rectangle,depth=.023);ob.data.bevel_depth=.003
+        c,r=cols[i];start=world((c*cw,r*ch/2,.202));ob.location=start;ob.rotation_euler=(TILT,0,0)
+        panels.append((ob,key,target,start,2.6+i*.085))
+    buttons=[];leds=[];sockets=[];layout_report=[]
+    for item in L['buttons']:
+        ident=item['id'];x,y=xy(item);r=item['display_radius']/L['width']*W
+        start=world((x,y,.275))
+        if 11<=ident<=18:
+            i=ident-11;a=i*math.tau/8;b=(i+1)*math.tau/8
+            poly=[(-1.16+1.11*math.cos(a+(b-a)*j/24),1.11*math.sin(a+(b-a)*j/24)) for j in range(25)]
+            poly += [(-1.16+.91*math.cos(a+(b-a)*j/24),.91*math.sin(a+(b-a)*j/24)) for j in range(24,-1,-1)]
+            ob,key,target=morph_plate('Key '+item['label'],poly,caps,base.ring(0,0,r),depth=.035)
+            role='O ring';delay=2.45+i*.06
+        elif ident==2:
+            ob,key,target=morph_plate('Key 2',base.ring(-1.16,0,.77),caps,base.ring(0,0,r),depth=.055)
+            target.z=.06;role='O centre';delay=2.25
+        else:
+            ob=base.curve('Key '+item['label'],[base.ring(0,0,r)],caps,depth=.035,bevel=.01)
+            key=None;target=None;role='retract';delay=2.7
+        ob.location=start;ob.rotation_euler=(TILT,0,0);ob['button_id']=ident;ob['display_x']=item['display_x'];ob['display_y']=item['display_y'];ob['display_radius']=item['display_radius']
+        buttons.append((ob,key,target,start,delay,role))
+        socket=cylinder('Socket '+item['label'],r+.022,.024,socketmat,64);socket.location=world((x,y,.235));socket.rotation_euler=(TILT,0,0);sockets.append((socket,socket.location.copy()))
+        ledmat=emission('Key '+item['label']+' LED',(.02,.5,.9),2)
+        bpy.ops.mesh.primitive_torus_add(major_radius=r+.009,minor_radius=.012,major_segments=64,minor_segments=8)
+        led=bpy.context.object;led.name='Illuminated ring '+item['label'];led.data.materials.append(ledmat);led.location=start+BOARD@Vector((0,0,.019));led.rotation_euler=(TILT,0,0)
+        leds.append((led,ledmat,ob,role,start.copy(),ident))
+        layout_report.append(dict(id=ident,label=item['label'],x=x,y=y,radius=r))
+    (ROOT/'model-layout.json').write_text(json.dumps(dict(width=W,height=H,mm_per_unit=1/MM,led_layer_thickness=LED,buttons=layout_report),indent=2),encoding='utf-8')
+    # Under-light fills make the thin physical diffuser cast real coloured light.
+    spill=[]
+    for i,pos in enumerate([(-2.5,-H/2,-.30),(0,-H/2,-.30),(2.5,-H/2,-.30)]):
+        loc=world(pos);ob=base.light('Underglow spill '+str(i),loc,loc+Vector((0,-1,0)),(.04,.35,1),10,1,1,kind='POINT');ob.data.shadow_soft_size=.7;spill.append((ob,ob.location.copy()))
+    cam=sc.camera;lamps={n:bpy.data.objects[n] for n in ['Travelling softbox','Gradual frontal reveal','Back rim','Low grazing edge','Opposite rim']}
+    dust=[(o,o.location.copy()) for o in bpy.data.objects if o.name.startswith('Dust ')]
+    allobjects=[cam]+[o for o,_ in backing+sockets+spill]+[o for o,*_ in panels]+[o for o,*_ in buttons]+[o for o,*_ in leds]+list(lamps.values())
+    def pose(f,bake=False):
+        sc.frame_set(f+1);t=f/12;fade=smooth(t/.35)*(1-smooth((t-8.85)/.95));fold=smooth((t-3.0)/2.75)
+        for i,(ob,key,target,start,delay) in enumerate(panels):
+            u=smooth((t-delay)/2.55);ob.location=start.lerp(target,u)+Vector((0,.17*math.sin(math.pi*u),.65*math.sin(math.pi*u)))
+            ob.rotation_euler=(TILT*(1-u),(1 if i%2 else -1)*1.2*math.sin(math.pi*u),.09*math.sin(math.pi*u));key.value=smooth((u-.18)/.64)
+        for ob,key,target,start,delay,role in buttons:
+            if role!='retract':
+                u=smooth((t-delay)/2.65);ob.location=start.lerp(target,u)+Vector((0,.35*math.sin(math.pi*u),.30*math.sin(math.pi*u)))
+                ob.rotation_euler=(TILT*(1-u),.3*math.sin(math.pi*u),.5*math.sin(math.pi*u));key.value=smooth((u-.18)/.65)
+            else:
+                r=smooth((t-2.65)/1.5);ob.location=start-BOARD@Vector((0,0,.28*r))+Vector((0,-.5*fold,-1.8*fold));ob.scale=(max(.001,1-r),)*3
+        for ob,start in backing+sockets:
+            ob.location=start+Vector((0,-.50*fold,-1.8*fold));ob.rotation_euler=(TILT-.7*fold,0,0);ob.scale=(1-.92*fold,1-.985*fold,1-.98*fold)
+        for led,mat,button,role,start,ident in leds:
+            # A slow cyan / blue / violet wave travels across all 22 actual controls.
+            hue=.49+.24*(.5+.5*math.sin(t*1.3+ident*.35));col=colorsys.hsv_to_rgb(hue,.8,1)
+            bs=animated_material(mat);bs.inputs['Base Color'].default_value=(*col,1);bs.inputs['Emission Color'].default_value=(*col,1)
+            vanish=1-smooth((t-3.2)/1.25);bs.inputs['Emission Strength'].default_value=2.2*fade*vanish
+            led.location=button.location+button.rotation_euler.to_matrix()@Vector((0,0,.022));led.rotation_euler=button.rotation_euler;led.scale=(max(.001,vanish),)*3
+        warm=smooth((t-4.1)/1.55)
+        col=Vector((.008,.010,.014)).lerp(Vector((.34,.40,.48)),warm);p.inputs['Base Color'].default_value=(*col,1);p.inputs['Metallic'].default_value=.72+.16*warm;p.inputs['Roughness'].default_value=.43-.17*warm
+        cap=animated_material(caps);col=Vector((.017,.022,.029)).lerp(Vector((.34,.4,.48)),warm);cap.inputs['Base Color'].default_value=(*col,1);cap.inputs['Metallic'].default_value=.18+.70*warm
+        col=colorsys.hsv_to_rgb(.56+.12*math.sin(t*.85),.85,1);bs=animated_material(ambientmat);bs.inputs['Emission Color'].default_value=(*col,1);bs.inputs['Base Color'].default_value=(*col,1);bs.inputs['Emission Strength'].default_value=2.4*fade*(1-fold)
+        for ob,start in spill:ob.location=start+Vector((0,-.5*fold,-1.8*fold));ob.data.energy=8*fade*(1-fold);ob.data.color=col
+        c=smooth((t-2)/4.4);cam.location=Vector((1.2,4.5,16.1)).lerp(Vector((0,.8,16.8)),c);base.point(cam,(0,.4*(1-c),0));cam.data.dof.focus_distance=cam.location.length;cam.data.dof.aperture_fstop=8
+        x=-5+10*smooth((t-5.5)/2.5);keylamp=lamps['Travelling softbox'];keylamp.location=(x,4-2.2*c,5);base.point(keylamp,(x*.65,0,0));keylamp.data.energy=600*fade
+        lamps['Gradual frontal reveal'].data.energy=(350+180*c)*fade;lamps['Back rim'].data.energy=450*fade;lamps['Low grazing edge'].data.energy=180*fade;lamps['Opposite rim'].data.energy=180*fade
+        sc.world.node_tree.nodes['Background'].inputs[1].default_value=.055*fade
+        for i,(o,start) in enumerate(dust):o.location=start+Vector((.07*math.sin(t*.5+i),t*.018,0))
+        if bake:
+            for ob in allobjects:
+                for field in ['location','rotation_euler','scale']:ob.keyframe_insert(data_path=field,frame=f+1)
+            for ob,key,*_ in panels+buttons:
+                if key:key.keyframe_insert(data_path='value',frame=f+1)
+            for ob in list(lamps.values())+[ob for ob,_ in spill]:
+                ob.data.keyframe_insert(data_path='energy',frame=f+1);ob.data.keyframe_insert(data_path='color',frame=f+1)
+            for mat in [anodised,caps,ambientmat]+[mat for _,mat,*_ in leds]:
+                bs=animated_material(mat)
+                for name in ['Base Color','Metallic','Roughness','Emission Color','Emission Strength']:bs.inputs[name].keyframe_insert(data_path='default_value',frame=f+1)
+            sc.world.node_tree.nodes['Background'].inputs[1].keyframe_insert(data_path='default_value',frame=f+1);cam.data.dof.keyframe_insert(data_path='focus_distance',frame=f+1)
+            for ob,_ in dust:ob.keyframe_insert(data_path='location',frame=f+1)
+    for f in range(120):pose(f,True)
+    return sc,pose
+
+def main():
+    sc,pose=build();folder=ROOT/'frames'/NAME;folder.mkdir(parents=True,exist_ok=True)
+    frames=[12,24,40,52,68,88] if MODE=='preview' else range(120);start=time.monotonic()
+    for f in frames:
+        pose(f);sc.render.filepath=str(folder/f'{f:03}.png');bpy.ops.render.render(write_still=True);print('PROGRESS',f+1,'/120',round(time.monotonic()-start,1),'seconds',flush=True)
+    sc.frame_set(13);bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/(NAME+'.blend')))
+    if MODE=='preview':
+        # Orthographic top view independently exposes all source layout positions.
+        sc.camera.animation_data_clear();pose(12);cam=sc.camera;cam.animation_data_clear();centre=world((0,0,0));cam.location=centre+BOARD@Vector((0,0,14));base.point(cam,centre);cam.rotation_euler=(TILT,0,0);cam.data.type='ORTHO';cam.data.ortho_scale=8.4;cam.data.dof.use_dof=False
+        sc.render.resolution_x=787;sc.render.resolution_y=489;sc.render.filepath=str(ROOT/'layout-top-check.png');bpy.ops.render.render(write_still=True)
+    print('COMPLETE',MODE,round(time.monotonic()-start,1),'seconds',flush=True)
+main()

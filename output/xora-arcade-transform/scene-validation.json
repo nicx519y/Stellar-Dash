@@ -1,0 +1,10 @@
+{
+  "frames": 120,
+  "fps": 12,
+  "opening": "complete controller held through 2 seconds",
+  "faceplates": 10,
+  "buttons": 8,
+  "transformation": "same objects animate from controller surfaces to logo",
+  "joystick_ball": "ends at O centre",
+  "final_lights": "off"
+}

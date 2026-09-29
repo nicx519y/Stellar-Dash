@@ -22,6 +22,7 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen);
 bool RFBridgePort_PrepareWakeLineIdle(void);
 bool RFBridgePort_WakePulse(void);
 bool RFBridgePort_IsReady(void);
+bool RFBridgePort_HasReleaseFault();
 bool RFBridgePort_HasPendingEvent(void);
 bool RFBridgePort_IsInputIdle(void);
 bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen);
