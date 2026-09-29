@@ -15,7 +15,6 @@ import { galleryImageLimits } from '@/lib/gallery-image-limits';
 import { processGalleryImage } from '@/lib/gallery-image-processor';
 import {
   deleteMyGalleryImages,
-  fetchGalleryImageMatch,
   fetchMyGallery,
   fetchSystemGallery,
   GalleryImage,
@@ -26,6 +25,7 @@ import { sha256Hex } from '@/lib/uimg-v3';
 import { parseUimg, prepareUimgInstallation, UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES } from '@/lib/uimg-v4';
 import { galleryErrorMessage } from '@/lib/gallery-error-message';
 import { mapWithConcurrency } from '@/lib/map-with-concurrency';
+import { findInstalledGalleryImage, rememberInstalledSystemImage } from '@/lib/installed-system-image';
 import {
   clearDeviceImagePreview,
   loadDeviceImagePreview,
@@ -343,7 +343,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
           return;
         }
         try {
-          const image = await fetchGalleryImageMatch(authorizedFetch, {
+          const image = await findInstalledGalleryImage(authorizedFetch, fp, {
             width: catalog.user.width,
             height: catalog.user.height,
             frameCount: catalog.user.frameCount,
@@ -367,6 +367,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
             previewUrl,
             galleryImageId: image.id,
           });
+          rememberInstalledSystemImage(fp, image);
           setCurrentPreview(previewUrl);
           setCurrentGalleryId(image.id);
         } catch (error) {
@@ -434,7 +435,8 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   }, [currentFingerprint, currentGalleryId]);
 
   useEffect(() => {
-    if (currentGalleryId && !allImages.some(image => image.id === currentGalleryId)) setCurrentGalleryId(null);
+    // The gallery is lazy-loaded and paginated. Absence from the visible list
+    // does not invalidate the association resolved from the device catalog.
     if (!currentGalleryId && currentFingerprint) {
       const matches = allImages.filter(image => fingerprint({ width: image.width, height: image.height, size: image.payloadBytes, frameCount: image.frameCount, fps: image.fps, crc32: image.payloadCrc32 }) === currentFingerprint);
       if (matches.length === 1) setCurrentGalleryId(matches[0].id);
@@ -520,6 +522,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
       }
       const fp = fingerprint(catalog.user);
       saveDeviceImagePreview(previewIdentity, { fingerprint: fp, previewUrl: installedPreview, galleryImageId: image.id });
+      rememberInstalledSystemImage(fp, image);
       setCurrentGalleryId(image.id); setCurrentFingerprint(fp); setCurrentPreview(installedPreview);
       installedPreview = '';
       updateDeviceImageInstall(image.id, 100); onAvailabilityChange(true); onInstalled();
