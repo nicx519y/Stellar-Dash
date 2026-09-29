@@ -39,14 +39,14 @@ const emptyIdFill = 'repeating-linear-gradient(135deg, transparent 0px, transpar
 
 export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
   const { currentLanguage } = useLanguage(), t = copy[currentLanguage];
-  const { deviceConnected, isLoading, deferredConfigSaving, rfBindingBusy, rfBindingRequest, runRfBindingOperation } = useGamepadConfig();
+  const { deviceConnected, isLoading, deferredConfigSaving, deviceBackgroundReadsPaused, rfBindingBusy, rfBindingRequest, runRfBindingOperation } = useGamepadConfig();
   const [client, setClient] = useState<ReceiverClient | null>(null);
   const [states, setStates] = useState<{ rx: BindingState; tx: BindingState } | null>(null);
   const [connecting, setConnecting] = useState(false), [reading, setReading] = useState(false), [working, setWorking] = useState(false);
   const [error, setError] = useState(''), [multiple, setMultiple] = useState(false);
   const clientRef = useRef<ReceiverClient | null>(null), epoch = useRef(0), busy = useRef(false);
   const connected = useRef(deviceConnected); connected.current = deviceConnected;
-  const blocked = disabled || isLoading || deferredConfigSaving || rfBindingBusy || !deviceConnected;
+  const blocked = disabled || isLoading || deferredConfigSaving || deviceBackgroundReadsPaused || rfBindingBusy || !deviceConnected;
   const blockedRef = useRef(blocked); blockedRef.current = blocked;
   const attach = useCallback(async (device: ReceiverDevice) => {
     const turn = ++epoch.current;
@@ -88,9 +88,11 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
     if (!client || !connected.current || busy.current || blockedRef.current) return;
     const turn = epoch.current; busy.current = true; setReading(true);
     try {
-      const rx = await readBinding(client.request), tx = await readBinding(rfBindingRequest);
+      const rx = await readBinding(client.request);
+      if (blockedRef.current || turn !== epoch.current) return;
+      const tx = await readBinding(rfBindingRequest);
       if (turn === epoch.current) { setStates({ rx, tx }); setError(''); }
-    } catch (e) { if (turn === epoch.current) { setStates(null); setError((e as Error).message); } }
+    } catch (e) { if (turn === epoch.current && !blockedRef.current) { setStates(null); setError((e as Error).message); } }
     finally { busy.current = false; setReading(false); }
   }, [client, rfBindingRequest]);
   useEffect(() => {

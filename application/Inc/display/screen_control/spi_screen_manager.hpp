@@ -21,6 +21,7 @@ public:
     bool sleepResumeComplete() const;
     void previewBrightness(uint8_t brightness);
     void clearBrightnessPreview();
+    void showFirmwareRecovery();
 
     bool menuPrev();
     bool menuNext();

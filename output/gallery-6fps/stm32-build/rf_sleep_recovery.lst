@@ -1,0 +1,2229 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"rf_sleep_recovery.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/transport/rf/rf_sleep_recovery.cpp"
+  19              		.section	.text._ZZN15RfSleepRecovery12startAttemptEvENUl9Ch585RoleE_4_FUNES0_,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZZN15RfSleepRecovery12startAttemptEvENUl9Ch585RoleE_4_FUNES0_:
+  26              	.LFB1891:
+   1:Src/transport/rf/rf_sleep_recovery.cpp **** #include "rf_sleep_recovery.hpp"
+   2:Src/transport/rf/rf_sleep_recovery.cpp **** #include "rf_bridge_port.hpp"
+   3:Src/transport/rf/rf_sleep_recovery.cpp **** #include "usb_board_link_port.hpp"
+   4:Src/transport/rf/rf_sleep_recovery.cpp **** #include "usb_board_link.hpp"
+   5:Src/transport/rf/rf_sleep_recovery.cpp **** #include "ch585_role_bootstrap.hpp"
+   6:Src/transport/rf/rf_sleep_recovery.cpp **** #include "connection_manager.hpp"
+   7:Src/transport/rf/rf_sleep_recovery.cpp **** #include "sleep_diagnostics.hpp"
+   8:Src/transport/rf/rf_sleep_recovery.cpp **** #include "stm32h7xx_hal.h"
+   9:Src/transport/rf/rf_sleep_recovery.cpp **** 
+  10:Src/transport/rf/rf_sleep_recovery.cpp **** bool RfSleepRecovery::park() {
+  11:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.onRfPowerRemovedForSleep(); // block every regular producer/poller first
+  12:Src/transport/rf/rf_sleep_recovery.cpp ****     // A failed stop keeps the supply on. Retry cleanup later, never cut power
+  13:Src/transport/rf/rf_sleep_recovery.cpp ****     // with an unconfirmed SPI/DMA owner or a driven bootstrap port.
+  14:Src/transport/rf/rf_sleep_recovery.cpp ****     if (!USBBoardLinkPort_TryShutdown() || !RFBridgePort_TryShutdownForSleep()) return false;
+  15:Src/transport/rf/rf_sleep_recovery.cpp ****     USB_BOARD_LINK.shutdown();
+  16:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.resetRfSleepSession();
+  17:Src/transport/rf/rf_sleep_recovery.cpp ****     transport_.resetSession();
+  18:Src/transport/rf/rf_sleep_recovery.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+  19:Src/transport/rf/rf_sleep_recovery.cpp ****     SleepDiagnostics_Record(SleepStage::PortParked);
+  20:Src/transport/rf/rf_sleep_recovery.cpp ****     return true;
+  21:Src/transport/rf/rf_sleep_recovery.cpp **** }
+  22:Src/transport/rf/rf_sleep_recovery.cpp **** 
+  23:Src/transport/rf/rf_sleep_recovery.cpp **** bool RfSleepRecovery::suspend() {
+  24:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::Off;
+  25:Src/transport/rf/rf_sleep_recovery.cpp ****     return park();
+  26:Src/transport/rf/rf_sleep_recovery.cpp **** }
+  27:Src/transport/rf/rf_sleep_recovery.cpp **** 
+  28:Src/transport/rf/rf_sleep_recovery.cpp **** void RfSleepRecovery::begin(uint16_t rate) {
+  29:Src/transport/rf/rf_sleep_recovery.cpp ****     requested_ = rate ? rate : 1000u;
+  30:Src/transport/rf/rf_sleep_recovery.cpp ****     startAttempt();
+  31:Src/transport/rf/rf_sleep_recovery.cpp **** }
+  32:Src/transport/rf/rf_sleep_recovery.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 2
+
+
+  33:Src/transport/rf/rf_sleep_recovery.cpp **** void RfSleepRecovery::startAttempt() {
+  34:Src/transport/rf/rf_sleep_recovery.cpp ****     ++g_sleepDiagnostics.radioAttempts;
+  35:Src/transport/rf/rf_sleep_recovery.cpp ****     if (!park()) { fail(RfSleepError::PortStop, HAL_GetTick()); return; }
+  36:Src/transport/rf/rf_sleep_recovery.cpp ****     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+  37:Src/transport/rf/rf_sleep_recovery.cpp ****     rate_ = requested_;
+  38:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.setRfSleepRecoveryError(false);
+  39:Src/transport/rf/rf_sleep_recovery.cpp ****     CH585_ROLE_BOOTSTRAP.setSelector([](Ch585Role role) {
+  27              		.loc 1 39 38 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              	.LVL0:
+  32              	.LBB48:
+  33              	.LBI48:
+  34              		.loc 1 39 38 view .LVU1
+  35              	.LBB49:
+  40:Src/transport/rf/rf_sleep_recovery.cpp ****         return role == Ch585Role::Rf && USBBoardLinkPort_SelectRfRoleOnce();
+  36              		.loc 1 40 9 view .LVU2
+  37              		.loc 1 40 38 is_stmt 0 view .LVU3
+  38 0000 0128     		cmp	r0, #1
+  39 0002 01D0     		beq	.L8
+  40              		.loc 1 40 38 discriminator 4 view .LVU4
+  41 0004 0020     		movs	r0, #0
+  42              	.LVL1:
+  43              		.loc 1 40 38 discriminator 4 view .LVU5
+  44              	.LBE49:
+  45              	.LBE48:
+  41:Src/transport/rf/rf_sleep_recovery.cpp ****     });
+  46              		.loc 1 41 5 view .LVU6
+  47 0006 7047     		bx	lr
+  48              	.LVL2:
+  49              	.L8:
+  39:Src/transport/rf/rf_sleep_recovery.cpp ****         return role == Ch585Role::Rf && USBBoardLinkPort_SelectRfRoleOnce();
+  50              		.loc 1 39 38 view .LVU7
+  51 0008 08B5     		push	{r3, lr}
+  52              	.LCFI0:
+  53              		.cfi_def_cfa_offset 8
+  54              		.cfi_offset 3, -8
+  55              		.cfi_offset 14, -4
+  56              	.LBB51:
+  57              	.LBB50:
+  40:Src/transport/rf/rf_sleep_recovery.cpp ****         return role == Ch585Role::Rf && USBBoardLinkPort_SelectRfRoleOnce();
+  58              		.loc 1 40 74 discriminator 1 view .LVU8
+  59 000a FFF7FEFF 		bl	_Z33USBBoardLinkPort_SelectRfRoleOncev
+  60              	.LVL3:
+  40:Src/transport/rf/rf_sleep_recovery.cpp ****         return role == Ch585Role::Rf && USBBoardLinkPort_SelectRfRoleOnce();
+  61              		.loc 1 40 74 discriminator 1 view .LVU9
+  62              	.LBE50:
+  63              	.LBE51:
+  64              		.loc 1 41 5 view .LVU10
+  65 000e 08BD     		pop	{r3, pc}
+  66              		.cfi_endproc
+  67              	.LFE1891:
+  69              		.section	.text._ZN15RfSleepRecovery4parkEv,"ax",%progbits
+  70              		.align	1
+  71              		.global	_ZN15RfSleepRecovery4parkEv
+  72              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 3
+
+
+  73              		.thumb
+  74              		.thumb_func
+  76              	_ZN15RfSleepRecovery4parkEv:
+  77              	.LVL4:
+  78              	.LFB1886:
+  10:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.onRfPowerRemovedForSleep(); // block every regular producer/poller first
+  79              		.loc 1 10 30 is_stmt 1 view -0
+  80              		.cfi_startproc
+  81              		@ args = 0, pretend = 0, frame = 0
+  82              		@ frame_needed = 0, uses_anonymous_args = 0
+  10:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.onRfPowerRemovedForSleep(); // block every regular producer/poller first
+  83              		.loc 1 10 30 is_stmt 0 view .LVU12
+  84 0000 38B5     		push	{r3, r4, r5, lr}
+  85              	.LCFI1:
+  86              		.cfi_def_cfa_offset 16
+  87              		.cfi_offset 3, -16
+  88              		.cfi_offset 4, -12
+  89              		.cfi_offset 5, -8
+  90              		.cfi_offset 14, -4
+  91 0002 0446     		mov	r4, r0
+  11:Src/transport/rf/rf_sleep_recovery.cpp ****     // A failed stop keeps the supply on. Retry cleanup later, never cut power
+  92              		.loc 1 11 5 is_stmt 1 view .LVU13
+  93              	.LBB52:
+  94              	.LBI52:
+  95              		.file 2 "Inc/transport/connection_manager.hpp"
+   1:Inc/transport/connection_manager.hpp **** #ifndef CONNECTION_MANAGER_HPP
+   2:Inc/transport/connection_manager.hpp **** #define CONNECTION_MANAGER_HPP
+   3:Inc/transport/connection_manager.hpp **** 
+   4:Inc/transport/connection_manager.hpp **** #include <stdint.h>
+   5:Inc/transport/connection_manager.hpp **** 
+   6:Inc/transport/connection_manager.hpp **** #include "enums.hpp"
+   7:Inc/transport/connection_manager.hpp **** #include "gamepad/GamepadState.hpp"
+   8:Inc/transport/connection_manager.hpp **** #include "rf_link_state_policy.hpp"
+   9:Inc/transport/connection_manager.hpp **** #include "rf_transport.hpp"
+  10:Inc/transport/connection_manager.hpp **** 
+  11:Inc/transport/connection_manager.hpp **** enum class RfPairingState : uint8_t {
+  12:Inc/transport/connection_manager.hpp ****     Idle = 0,
+  13:Inc/transport/connection_manager.hpp ****     Starting = 1,
+  14:Inc/transport/connection_manager.hpp ****     PairModeOn = 2,
+  15:Inc/transport/connection_manager.hpp ****     TxError = 3,
+  16:Inc/transport/connection_manager.hpp ****     PairOk = 4,
+  17:Inc/transport/connection_manager.hpp ****     Timeout = 5,
+  18:Inc/transport/connection_manager.hpp **** };
+  19:Inc/transport/connection_manager.hpp **** 
+  20:Inc/transport/connection_manager.hpp **** enum class RfPowerReason : uint8_t {
+  21:Inc/transport/connection_manager.hpp ****     Boot = 0,
+  22:Inc/transport/connection_manager.hpp ****     UsbMode = 1,
+  23:Inc/transport/connection_manager.hpp ****     RfMode = 2,
+  24:Inc/transport/connection_manager.hpp ****     SystemSleep = 3,
+  25:Inc/transport/connection_manager.hpp ****     SystemWake = 4,
+  26:Inc/transport/connection_manager.hpp ****     Manual = 5,
+  27:Inc/transport/connection_manager.hpp **** };
+  28:Inc/transport/connection_manager.hpp **** 
+  29:Inc/transport/connection_manager.hpp **** enum class RfPowerState : uint8_t {
+  30:Inc/transport/connection_manager.hpp ****     Unknown = 0,
+  31:Inc/transport/connection_manager.hpp ****     Awake = 1,
+  32:Inc/transport/connection_manager.hpp ****     SleepPending = 2,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 4
+
+
+  33:Inc/transport/connection_manager.hpp ****     Sleeping = 3,
+  34:Inc/transport/connection_manager.hpp ****     WakePending = 4,
+  35:Inc/transport/connection_manager.hpp ****     Error = 5,
+  36:Inc/transport/connection_manager.hpp **** };
+  37:Inc/transport/connection_manager.hpp **** 
+  38:Inc/transport/connection_manager.hpp **** class ConnectionManager {
+  39:Inc/transport/connection_manager.hpp **** public:
+  40:Inc/transport/connection_manager.hpp ****     ConnectionManager(ConnectionManager const&) = delete;
+  41:Inc/transport/connection_manager.hpp ****     void operator=(ConnectionManager const&) = delete;
+  42:Inc/transport/connection_manager.hpp ****     static ConnectionManager& getInstance() {
+  96              		.loc 2 42 31 view .LVU14
+  43:Inc/transport/connection_manager.hpp ****         static ConnectionManager instance;
+  97              		.loc 2 43 9 view .LVU15
+  44:Inc/transport/connection_manager.hpp ****         return instance;
+  98              		.loc 2 44 9 view .LVU16
+  99              	.LBE52:
+  11:Src/transport/rf/rf_sleep_recovery.cpp ****     // A failed stop keeps the supply on. Retry cleanup later, never cut power
+ 100              		.loc 1 11 48 is_stmt 0 discriminator 1 view .LVU17
+ 101 0004 0F48     		ldr	r0, .L15
+ 102              	.LVL5:
+  11:Src/transport/rf/rf_sleep_recovery.cpp ****     // A failed stop keeps the supply on. Retry cleanup later, never cut power
+ 103              		.loc 1 11 48 discriminator 1 view .LVU18
+ 104 0006 FFF7FEFF 		bl	_ZN17ConnectionManager24onRfPowerRemovedForSleepEv
+ 105              	.LVL6:
+  14:Src/transport/rf/rf_sleep_recovery.cpp ****     USB_BOARD_LINK.shutdown();
+ 106              		.loc 1 14 5 is_stmt 1 view .LVU19
+  14:Src/transport/rf/rf_sleep_recovery.cpp ****     USB_BOARD_LINK.shutdown();
+ 107              		.loc 1 14 38 is_stmt 0 view .LVU20
+ 108 000a FFF7FEFF 		bl	_Z28USBBoardLinkPort_TryShutdownv
+ 109              	.LVL7:
+  14:Src/transport/rf/rf_sleep_recovery.cpp ****     USB_BOARD_LINK.shutdown();
+ 110              		.loc 1 14 41 discriminator 1 view .LVU21
+ 111 000e 10B9     		cbnz	r0, .L14
+ 112              	.L10:
+  14:Src/transport/rf/rf_sleep_recovery.cpp ****     USB_BOARD_LINK.shutdown();
+ 113              		.loc 1 14 81 is_stmt 1 discriminator 7 view .LVU22
+  14:Src/transport/rf/rf_sleep_recovery.cpp ****     USB_BOARD_LINK.shutdown();
+ 114              		.loc 1 14 88 is_stmt 0 discriminator 7 view .LVU23
+ 115 0010 0025     		movs	r5, #0
+ 116              	.L12:
+  21:Src/transport/rf/rf_sleep_recovery.cpp **** 
+ 117              		.loc 1 21 1 view .LVU24
+ 118 0012 2846     		mov	r0, r5
+ 119 0014 38BD     		pop	{r3, r4, r5, pc}
+ 120              	.LVL8:
+ 121              	.L14:
+  14:Src/transport/rf/rf_sleep_recovery.cpp ****     USB_BOARD_LINK.shutdown();
+ 122              		.loc 1 14 77 discriminator 2 view .LVU25
+ 123 0016 FFF7FEFF 		bl	_Z32RFBridgePort_TryShutdownForSleepv
+ 124              	.LVL9:
+  14:Src/transport/rf/rf_sleep_recovery.cpp ****     USB_BOARD_LINK.shutdown();
+ 125              		.loc 1 14 41 discriminator 1 view .LVU26
+ 126 001a 0546     		mov	r5, r0
+ 127 001c 0028     		cmp	r0, #0
+ 128 001e F7D0     		beq	.L10
+  15:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.resetRfSleepSession();
+ 129              		.loc 1 15 5 is_stmt 1 view .LVU27
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 5
+
+
+ 130              	.LBB53:
+ 131              	.LBI53:
+ 132              		.file 3 "Inc/transport/usb/usb_board_link.hpp"
+   1:Inc/transport/usb/usb_board_link.hpp **** #ifndef USB_BOARD_LINK_HPP
+   2:Inc/transport/usb/usb_board_link.hpp **** #define USB_BOARD_LINK_HPP
+   3:Inc/transport/usb/usb_board_link.hpp **** 
+   4:Inc/transport/usb/usb_board_link.hpp **** #include <stdint.h>
+   5:Inc/transport/usb/usb_board_link.hpp **** 
+   6:Inc/transport/usb/usb_board_link.hpp **** #include "ch585_role_bootstrap.hpp"
+   7:Inc/transport/usb/usb_board_link.hpp **** #include "usb_board_link_protocol.h"
+   8:Inc/transport/usb/usb_board_link.hpp **** #include "release_install_protocol.h"
+   9:Inc/transport/usb/usb_board_link.hpp **** 
+  10:Inc/transport/usb/usb_board_link.hpp **** class UsbBoardLink
+  11:Inc/transport/usb/usb_board_link.hpp **** {
+  12:Inc/transport/usb/usb_board_link.hpp **** public:
+  13:Inc/transport/usb/usb_board_link.hpp ****     UsbBoardLink(UsbBoardLink const &) = delete;
+  14:Inc/transport/usb/usb_board_link.hpp ****     void operator=(UsbBoardLink const &) = delete;
+  15:Inc/transport/usb/usb_board_link.hpp **** 
+  16:Inc/transport/usb/usb_board_link.hpp ****     static UsbBoardLink &getInstance()
+ 133              		.loc 3 16 26 view .LVU28
+  17:Inc/transport/usb/usb_board_link.hpp ****     {
+  18:Inc/transport/usb/usb_board_link.hpp ****         static UsbBoardLink instance;
+ 134              		.loc 3 18 9 view .LVU29
+  19:Inc/transport/usb/usb_board_link.hpp ****         return instance;
+ 135              		.loc 3 19 9 view .LVU30
+ 136              	.LBE53:
+  15:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.resetRfSleepSession();
+ 137              		.loc 1 15 28 is_stmt 0 discriminator 1 view .LVU31
+ 138 0020 0948     		ldr	r0, .L15+4
+ 139 0022 FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 140              	.LVL10:
+  16:Src/transport/rf/rf_sleep_recovery.cpp ****     transport_.resetSession();
+ 141              		.loc 1 16 5 is_stmt 1 view .LVU32
+ 142              	.LBB54:
+ 143              	.LBI54:
+  42:Inc/transport/connection_manager.hpp ****         static ConnectionManager instance;
+ 144              		.loc 2 42 31 view .LVU33
+  43:Inc/transport/connection_manager.hpp ****         return instance;
+ 145              		.loc 2 43 9 view .LVU34
+ 146              		.loc 2 44 9 view .LVU35
+ 147              	.LBE54:
+  16:Src/transport/rf/rf_sleep_recovery.cpp ****     transport_.resetSession();
+ 148              		.loc 1 16 43 is_stmt 0 discriminator 1 view .LVU36
+ 149 0026 0748     		ldr	r0, .L15
+ 150 0028 FFF7FEFF 		bl	_ZN17ConnectionManager19resetRfSleepSessionEv
+ 151              	.LVL11:
+  17:Src/transport/rf/rf_sleep_recovery.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 152              		.loc 1 17 5 is_stmt 1 view .LVU37
+  17:Src/transport/rf/rf_sleep_recovery.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 153              		.loc 1 17 28 is_stmt 0 view .LVU38
+ 154 002c 201D     		adds	r0, r4, #4
+ 155 002e FFF7FEFF 		bl	_ZN11RFTransport12resetSessionEv
+ 156              	.LVL12:
+  18:Src/transport/rf/rf_sleep_recovery.cpp ****     SleepDiagnostics_Record(SleepStage::PortParked);
+ 157              		.loc 1 18 5 is_stmt 1 view .LVU39
+ 158              	.LBB55:
+ 159              	.LBI55:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 6
+
+
+ 160              		.file 4 "Inc/transport/ch585_role_bootstrap.hpp"
+   1:Inc/transport/ch585_role_bootstrap.hpp **** #ifndef CH585_ROLE_BOOTSTRAP_HPP
+   2:Inc/transport/ch585_role_bootstrap.hpp **** #define CH585_ROLE_BOOTSTRAP_HPP
+   3:Inc/transport/ch585_role_bootstrap.hpp **** 
+   4:Inc/transport/ch585_role_bootstrap.hpp **** #include <stdint.h>
+   5:Inc/transport/ch585_role_bootstrap.hpp **** 
+   6:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585Role : uint8_t {
+   7:Inc/transport/ch585_role_bootstrap.hpp ****     SafeIdle = 0x00,
+   8:Inc/transport/ch585_role_bootstrap.hpp ****     Rf = 0x01,
+   9:Inc/transport/ch585_role_bootstrap.hpp ****     Usb = 0x02,
+  10:Inc/transport/ch585_role_bootstrap.hpp ****     Maintenance = 0x03,
+  11:Inc/transport/ch585_role_bootstrap.hpp **** };
+  12:Inc/transport/ch585_role_bootstrap.hpp **** 
+  13:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585BootstrapState : uint8_t {
+  14:Inc/transport/ch585_role_bootstrap.hpp ****     Off = 0,
+  15:Inc/transport/ch585_role_bootstrap.hpp ****     Booting = 1,
+  16:Inc/transport/ch585_role_bootstrap.hpp ****     Selecting = 2,
+  17:Inc/transport/ch585_role_bootstrap.hpp ****     Locked = 3,
+  18:Inc/transport/ch585_role_bootstrap.hpp ****     Failed = 4,
+  19:Inc/transport/ch585_role_bootstrap.hpp **** };
+  20:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585ResumeResult { Pending, Ready, Failed };
+  21:Inc/transport/ch585_role_bootstrap.hpp **** 
+  22:Inc/transport/ch585_role_bootstrap.hpp **** /* One invocation performs one UsbBoardLink SELECT_ROLE transaction. */
+  23:Inc/transport/ch585_role_bootstrap.hpp **** using Ch585RoleSelector = bool (*)(Ch585Role requestedRole);
+  24:Inc/transport/ch585_role_bootstrap.hpp **** 
+  25:Inc/transport/ch585_role_bootstrap.hpp **** class Ch585RoleBootstrap {
+  26:Inc/transport/ch585_role_bootstrap.hpp **** public:
+  27:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap(const Ch585RoleBootstrap&) = delete;
+  28:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap& operator=(const Ch585RoleBootstrap&) = delete;
+  29:Inc/transport/ch585_role_bootstrap.hpp **** 
+  30:Inc/transport/ch585_role_bootstrap.hpp ****     static Ch585RoleBootstrap& getInstance()
+ 161              		.loc 4 30 32 view .LVU40
+  31:Inc/transport/ch585_role_bootstrap.hpp ****     {
+  32:Inc/transport/ch585_role_bootstrap.hpp ****         static Ch585RoleBootstrap instance;
+ 162              		.loc 4 32 9 view .LVU41
+  33:Inc/transport/ch585_role_bootstrap.hpp ****         return instance;
+ 163              		.loc 4 33 9 view .LVU42
+ 164              	.LBE55:
+  18:Src/transport/rf/rf_sleep_recovery.cpp ****     SleepDiagnostics_Record(SleepStage::PortParked);
+ 165              		.loc 1 18 34 is_stmt 0 discriminator 1 view .LVU43
+ 166 0032 0648     		ldr	r0, .L15+8
+ 167 0034 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 168              	.LVL13:
+  19:Src/transport/rf/rf_sleep_recovery.cpp ****     return true;
+ 169              		.loc 1 19 5 is_stmt 1 view .LVU44
+  19:Src/transport/rf/rf_sleep_recovery.cpp ****     return true;
+ 170              		.loc 1 19 28 is_stmt 0 view .LVU45
+ 171 0038 0021     		movs	r1, #0
+ 172 003a 0220     		movs	r0, #2
+ 173 003c FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 174              	.LVL14:
+  20:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 175              		.loc 1 20 5 is_stmt 1 view .LVU46
+  20:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 176              		.loc 1 20 12 is_stmt 0 view .LVU47
+ 177 0040 E7E7     		b	.L12
+ 178              	.L16:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 7
+
+
+ 179 0042 00BF     		.align	2
+ 180              	.L15:
+ 181 0044 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 182 0048 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 183 004c 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 184              		.cfi_endproc
+ 185              	.LFE1886:
+ 187              		.section	.text._ZN15RfSleepRecovery7suspendEv,"ax",%progbits
+ 188              		.align	1
+ 189              		.global	_ZN15RfSleepRecovery7suspendEv
+ 190              		.syntax unified
+ 191              		.thumb
+ 192              		.thumb_func
+ 194              	_ZN15RfSleepRecovery7suspendEv:
+ 195              	.LVL15:
+ 196              	.LFB1887:
+  23:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::Off;
+ 197              		.loc 1 23 33 is_stmt 1 view -0
+ 198              		.cfi_startproc
+ 199              		@ args = 0, pretend = 0, frame = 0
+ 200              		@ frame_needed = 0, uses_anonymous_args = 0
+  23:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::Off;
+ 201              		.loc 1 23 33 is_stmt 0 view .LVU49
+ 202 0000 08B5     		push	{r3, lr}
+ 203              	.LCFI2:
+ 204              		.cfi_def_cfa_offset 8
+ 205              		.cfi_offset 3, -8
+ 206              		.cfi_offset 14, -4
+  24:Src/transport/rf/rf_sleep_recovery.cpp ****     return park();
+ 207              		.loc 1 24 5 is_stmt 1 view .LVU50
+  24:Src/transport/rf/rf_sleep_recovery.cpp ****     return park();
+ 208              		.loc 1 24 12 is_stmt 0 view .LVU51
+ 209 0002 0022     		movs	r2, #0
+ 210 0004 0260     		str	r2, [r0]
+  25:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 211              		.loc 1 25 5 is_stmt 1 view .LVU52
+  25:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 212              		.loc 1 25 16 is_stmt 0 view .LVU53
+ 213 0006 FFF7FEFF 		bl	_ZN15RfSleepRecovery4parkEv
+ 214              	.LVL16:
+  26:Src/transport/rf/rf_sleep_recovery.cpp **** 
+ 215              		.loc 1 26 1 view .LVU54
+ 216 000a 08BD     		pop	{r3, pc}
+ 217              		.cfi_endproc
+ 218              	.LFE1887:
+ 220              		.section	.text._ZN15RfSleepRecovery9configureEm,"ax",%progbits
+ 221              		.align	1
+ 222              		.global	_ZN15RfSleepRecovery9configureEm
+ 223              		.syntax unified
+ 224              		.thumb
+ 225              		.thumb_func
+ 227              	_ZN15RfSleepRecovery9configureEm:
+ 228              	.LVL17:
+ 229              	.LFB1893:
+  42:Src/transport/rf/rf_sleep_recovery.cpp ****     CH585_ROLE_BOOTSTRAP.beginRfSleepResume();
+  43:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::PowerWait;
+  44:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 8
+
+
+  45:Src/transport/rf/rf_sleep_recovery.cpp **** 
+  46:Src/transport/rf/rf_sleep_recovery.cpp **** void RfSleepRecovery::configure(uint32_t now) {
+ 230              		.loc 1 46 47 is_stmt 1 view -0
+ 231              		.cfi_startproc
+ 232              		@ args = 0, pretend = 0, frame = 0
+ 233              		@ frame_needed = 0, uses_anonymous_args = 0
+ 234              		.loc 1 46 47 is_stmt 0 view .LVU56
+ 235 0000 10B5     		push	{r4, lr}
+ 236              	.LCFI3:
+ 237              		.cfi_def_cfa_offset 8
+ 238              		.cfi_offset 4, -8
+ 239              		.cfi_offset 14, -4
+ 240 0002 0446     		mov	r4, r0
+  47:Src/transport/rf/rf_sleep_recovery.cpp ****     RFCommandTransaction::beginScheduled(window_, now);
+ 241              		.loc 1 47 5 is_stmt 1 view .LVU57
+ 242              		.loc 1 47 41 is_stmt 0 view .LVU58
+ 243 0004 3030     		adds	r0, r0, #48
+ 244              	.LVL18:
+ 245              		.loc 1 47 41 view .LVU59
+ 246 0006 FFF7FEFF 		bl	_ZN20RFCommandTransaction14beginScheduledER18RFScheduledCommandm
+ 247              	.LVL19:
+  48:Src/transport/rf/rf_sleep_recovery.cpp ****     requestSent_ = verified_ = neutralSent_ = false;
+ 248              		.loc 1 48 5 is_stmt 1 view .LVU60
+ 249              		.loc 1 48 45 is_stmt 0 view .LVU61
+ 250 000a 0021     		movs	r1, #0
+ 251 000c 84F84B10 		strb	r1, [r4, #75]
+ 252              		.loc 1 48 30 view .LVU62
+ 253 0010 84F84A10 		strb	r1, [r4, #74]
+ 254              		.loc 1 48 18 view .LVU63
+ 255 0014 84F84910 		strb	r1, [r4, #73]
+  49:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::ConfigureRate;
+ 256              		.loc 1 49 5 is_stmt 1 view .LVU64
+ 257              		.loc 1 49 12 is_stmt 0 view .LVU65
+ 258 0018 0423     		movs	r3, #4
+ 259 001a 2360     		str	r3, [r4]
+  50:Src/transport/rf/rf_sleep_recovery.cpp ****     SleepDiagnostics_Record(SleepStage::RadioConfigure);
+ 260              		.loc 1 50 5 is_stmt 1 view .LVU66
+ 261              		.loc 1 50 28 is_stmt 0 view .LVU67
+ 262 001c 0B20     		movs	r0, #11
+ 263 001e FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 264              	.LVL20:
+  51:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 265              		.loc 1 51 1 view .LVU68
+ 266 0022 10BD     		pop	{r4, pc}
+ 267              		.loc 1 51 1 view .LVU69
+ 268              		.cfi_endproc
+ 269              	.LFE1893:
+ 271              		.section	.text._ZN15RfSleepRecovery4failE12RfSleepErrorm,"ax",%progbits
+ 272              		.align	1
+ 273              		.global	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 274              		.syntax unified
+ 275              		.thumb
+ 276              		.thumb_func
+ 278              	_ZN15RfSleepRecovery4failE12RfSleepErrorm:
+ 279              	.LVL21:
+ 280              	.LFB1894:
+  52:Src/transport/rf/rf_sleep_recovery.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 9
+
+
+  53:Src/transport/rf/rf_sleep_recovery.cpp **** void RfSleepRecovery::fail(RfSleepError error, uint32_t now) {
+ 281              		.loc 1 53 62 is_stmt 1 view -0
+ 282              		.cfi_startproc
+ 283              		@ args = 0, pretend = 0, frame = 0
+ 284              		@ frame_needed = 0, uses_anonymous_args = 0
+ 285              		.loc 1 53 62 is_stmt 0 view .LVU71
+ 286 0000 70B5     		push	{r4, r5, r6, lr}
+ 287              	.LCFI4:
+ 288              		.cfi_def_cfa_offset 16
+ 289              		.cfi_offset 4, -16
+ 290              		.cfi_offset 5, -12
+ 291              		.cfi_offset 6, -8
+ 292              		.cfi_offset 14, -4
+ 293 0002 0446     		mov	r4, r0
+ 294 0004 0D46     		mov	r5, r1
+ 295 0006 1646     		mov	r6, r2
+  54:Src/transport/rf/rf_sleep_recovery.cpp ****     // Even if cleanup fails, ownership stays here and normal input cannot
+  55:Src/transport/rf/rf_sleep_recovery.cpp ****     // touch SPI. Local input/render/lighting remain entirely independent.
+  56:Src/transport/rf/rf_sleep_recovery.cpp ****     if (!park()) error = RfSleepError::PortStop;
+ 296              		.loc 1 56 5 is_stmt 1 view .LVU72
+ 297              		.loc 1 56 14 is_stmt 0 view .LVU73
+ 298 0008 FFF7FEFF 		bl	_ZN15RfSleepRecovery4parkEv
+ 299              	.LVL22:
+ 300              		.loc 1 56 5 discriminator 1 view .LVU74
+ 301 000c 00B9     		cbnz	r0, .L22
+ 302              		.loc 1 56 24 discriminator 1 view .LVU75
+ 303 000e 0125     		movs	r5, #1
+ 304              	.LVL23:
+ 305              	.L22:
+  57:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::RetryWait;
+ 306              		.loc 1 57 5 is_stmt 1 view .LVU76
+ 307              		.loc 1 57 12 is_stmt 0 view .LVU77
+ 308 0010 0723     		movs	r3, #7
+ 309 0012 2360     		str	r3, [r4]
+  58:Src/transport/rf/rf_sleep_recovery.cpp ****     since_ = now;
+ 310              		.loc 1 58 5 is_stmt 1 view .LVU78
+ 311              		.loc 1 58 12 is_stmt 0 view .LVU79
+ 312 0014 E663     		str	r6, [r4, #60]
+  59:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.setRfSleepRecoveryError(true);
+ 313              		.loc 1 59 5 is_stmt 1 view .LVU80
+ 314              	.LBB56:
+ 315              	.LBI56:
+  42:Inc/transport/connection_manager.hpp ****         static ConnectionManager instance;
+ 316              		.loc 2 42 31 view .LVU81
+  43:Inc/transport/connection_manager.hpp ****         return instance;
+ 317              		.loc 2 43 9 view .LVU82
+ 318              		.loc 2 44 9 view .LVU83
+ 319              	.LBE56:
+ 320              		.loc 1 59 47 is_stmt 0 discriminator 1 view .LVU84
+ 321 0016 0121     		movs	r1, #1
+ 322 0018 0348     		ldr	r0, .L25
+ 323 001a FFF7FEFF 		bl	_ZN17ConnectionManager23setRfSleepRecoveryErrorEb
+ 324              	.LVL24:
+  60:Src/transport/rf/rf_sleep_recovery.cpp ****     SleepDiagnostics_Record(SleepStage::RadioRetry, static_cast<uint32_t>(error));
+ 325              		.loc 1 60 5 is_stmt 1 view .LVU85
+ 326              		.loc 1 60 28 is_stmt 0 view .LVU86
+ 327 001e 2946     		mov	r1, r5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 10
+
+
+ 328 0020 0E20     		movs	r0, #14
+ 329 0022 FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 330              	.LVL25:
+  61:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 331              		.loc 1 61 1 view .LVU87
+ 332 0026 70BD     		pop	{r4, r5, r6, pc}
+ 333              	.LVL26:
+ 334              	.L26:
+ 335              		.loc 1 61 1 view .LVU88
+ 336              		.align	2
+ 337              	.L25:
+ 338 0028 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 339              		.cfi_endproc
+ 340              	.LFE1894:
+ 342              		.section	.text._ZN15RfSleepRecovery12startAttemptEv,"ax",%progbits
+ 343              		.align	1
+ 344              		.global	_ZN15RfSleepRecovery12startAttemptEv
+ 345              		.syntax unified
+ 346              		.thumb
+ 347              		.thumb_func
+ 349              	_ZN15RfSleepRecovery12startAttemptEv:
+ 350              	.LVL27:
+ 351              	.LFB1889:
+  33:Src/transport/rf/rf_sleep_recovery.cpp ****     ++g_sleepDiagnostics.radioAttempts;
+ 352              		.loc 1 33 38 is_stmt 1 view -0
+ 353              		.cfi_startproc
+ 354              		@ args = 0, pretend = 0, frame = 0
+ 355              		@ frame_needed = 0, uses_anonymous_args = 0
+  33:Src/transport/rf/rf_sleep_recovery.cpp ****     ++g_sleepDiagnostics.radioAttempts;
+ 356              		.loc 1 33 38 is_stmt 0 view .LVU90
+ 357 0000 38B5     		push	{r3, r4, r5, lr}
+ 358              	.LCFI5:
+ 359              		.cfi_def_cfa_offset 16
+ 360              		.cfi_offset 3, -16
+ 361              		.cfi_offset 4, -12
+ 362              		.cfi_offset 5, -8
+ 363              		.cfi_offset 14, -4
+ 364 0002 0446     		mov	r4, r0
+  34:Src/transport/rf/rf_sleep_recovery.cpp ****     if (!park()) { fail(RfSleepError::PortStop, HAL_GetTick()); return; }
+ 365              		.loc 1 34 5 is_stmt 1 view .LVU91
+  34:Src/transport/rf/rf_sleep_recovery.cpp ****     if (!park()) { fail(RfSleepError::PortStop, HAL_GetTick()); return; }
+ 366              		.loc 1 34 26 is_stmt 0 view .LVU92
+ 367 0004 134A     		ldr	r2, .L32
+ 368 0006 5369     		ldr	r3, [r2, #20]
+  34:Src/transport/rf/rf_sleep_recovery.cpp ****     if (!park()) { fail(RfSleepError::PortStop, HAL_GetTick()); return; }
+ 369              		.loc 1 34 5 view .LVU93
+ 370 0008 0133     		adds	r3, r3, #1
+ 371 000a 5361     		str	r3, [r2, #20]
+  35:Src/transport/rf/rf_sleep_recovery.cpp ****     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+ 372              		.loc 1 35 5 is_stmt 1 view .LVU94
+  35:Src/transport/rf/rf_sleep_recovery.cpp ****     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+ 373              		.loc 1 35 14 is_stmt 0 view .LVU95
+ 374 000c FFF7FEFF 		bl	_ZN15RfSleepRecovery4parkEv
+ 375              	.LVL28:
+  35:Src/transport/rf/rf_sleep_recovery.cpp ****     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+ 376              		.loc 1 35 5 discriminator 1 view .LVU96
+ 377 0010 C0B1     		cbz	r0, .L31
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 11
+
+
+  36:Src/transport/rf/rf_sleep_recovery.cpp ****     rate_ = requested_;
+ 378              		.loc 1 36 5 is_stmt 1 view .LVU97
+  36:Src/transport/rf/rf_sleep_recovery.cpp ****     rate_ = requested_;
+ 379              		.loc 1 36 57 is_stmt 0 view .LVU98
+ 380 0012 0021     		movs	r1, #0
+ 381 0014 84F84B10 		strb	r1, [r4, #75]
+  36:Src/transport/rf/rf_sleep_recovery.cpp ****     rate_ = requested_;
+ 382              		.loc 1 36 42 view .LVU99
+ 383 0018 84F84A10 		strb	r1, [r4, #74]
+  36:Src/transport/rf/rf_sleep_recovery.cpp ****     rate_ = requested_;
+ 384              		.loc 1 36 30 view .LVU100
+ 385 001c 84F84910 		strb	r1, [r4, #73]
+  36:Src/transport/rf/rf_sleep_recovery.cpp ****     rate_ = requested_;
+ 386              		.loc 1 36 15 view .LVU101
+ 387 0020 84F84810 		strb	r1, [r4, #72]
+  37:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.setRfSleepRecoveryError(false);
+ 388              		.loc 1 37 5 is_stmt 1 view .LVU102
+  37:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.setRfSleepRecoveryError(false);
+ 389              		.loc 1 37 13 is_stmt 0 view .LVU103
+ 390 0024 638F     		ldrh	r3, [r4, #58]
+  37:Src/transport/rf/rf_sleep_recovery.cpp ****     CONNECTION_MANAGER.setRfSleepRecoveryError(false);
+ 391              		.loc 1 37 11 view .LVU104
+ 392 0026 2387     		strh	r3, [r4, #56]	@ movhi
+  38:Src/transport/rf/rf_sleep_recovery.cpp ****     CH585_ROLE_BOOTSTRAP.setSelector([](Ch585Role role) {
+ 393              		.loc 1 38 5 is_stmt 1 view .LVU105
+ 394              	.LBB57:
+ 395              	.LBI57:
+  42:Inc/transport/connection_manager.hpp ****         static ConnectionManager instance;
+ 396              		.loc 2 42 31 view .LVU106
+  43:Inc/transport/connection_manager.hpp ****         return instance;
+ 397              		.loc 2 43 9 view .LVU107
+ 398              		.loc 2 44 9 view .LVU108
+ 399              	.LBE57:
+  38:Src/transport/rf/rf_sleep_recovery.cpp ****     CH585_ROLE_BOOTSTRAP.setSelector([](Ch585Role role) {
+ 400              		.loc 1 38 47 is_stmt 0 discriminator 1 view .LVU109
+ 401 0028 0B48     		ldr	r0, .L32+4
+ 402 002a FFF7FEFF 		bl	_ZN17ConnectionManager23setRfSleepRecoveryErrorEb
+ 403              	.LVL29:
+  39:Src/transport/rf/rf_sleep_recovery.cpp ****         return role == Ch585Role::Rf && USBBoardLinkPort_SelectRfRoleOnce();
+ 404              		.loc 1 39 5 is_stmt 1 view .LVU110
+ 405              	.LBB58:
+ 406              	.LBI58:
+  30:Inc/transport/ch585_role_bootstrap.hpp ****     {
+ 407              		.loc 4 30 32 view .LVU111
+  32:Inc/transport/ch585_role_bootstrap.hpp ****         return instance;
+ 408              		.loc 4 32 9 view .LVU112
+ 409              		.loc 4 33 9 view .LVU113
+ 410              	.LBE58:
+  39:Src/transport/rf/rf_sleep_recovery.cpp ****         return role == Ch585Role::Rf && USBBoardLinkPort_SelectRfRoleOnce();
+ 411              		.loc 1 39 37 is_stmt 0 discriminator 1 view .LVU114
+ 412 002e 0B4D     		ldr	r5, .L32+8
+ 413 0030 0B49     		ldr	r1, .L32+12
+ 414 0032 2846     		mov	r0, r5
+ 415 0034 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE
+ 416              	.LVL30:
+  42:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::PowerWait;
+ 417              		.loc 1 42 5 is_stmt 1 view .LVU115
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 12
+
+
+ 418              	.LBB59:
+ 419              	.LBI59:
+  30:Inc/transport/ch585_role_bootstrap.hpp ****     {
+ 420              		.loc 4 30 32 view .LVU116
+  32:Inc/transport/ch585_role_bootstrap.hpp ****         return instance;
+ 421              		.loc 4 32 9 view .LVU117
+ 422              		.loc 4 33 9 view .LVU118
+ 423              	.LBE59:
+  42:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::PowerWait;
+ 424              		.loc 1 42 44 is_stmt 0 discriminator 1 view .LVU119
+ 425 0038 2846     		mov	r0, r5
+ 426 003a FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap18beginRfSleepResumeEv
+ 427              	.LVL31:
+  43:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 428              		.loc 1 43 5 is_stmt 1 view .LVU120
+  43:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 429              		.loc 1 43 12 is_stmt 0 view .LVU121
+ 430 003e 0123     		movs	r3, #1
+ 431 0040 2360     		str	r3, [r4]
+ 432              	.L27:
+  44:Src/transport/rf/rf_sleep_recovery.cpp **** 
+ 433              		.loc 1 44 1 view .LVU122
+ 434 0042 38BD     		pop	{r3, r4, r5, pc}
+ 435              	.LVL32:
+ 436              	.L31:
+  35:Src/transport/rf/rf_sleep_recovery.cpp ****     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+ 437              		.loc 1 35 20 is_stmt 1 discriminator 1 view .LVU123
+  35:Src/transport/rf/rf_sleep_recovery.cpp ****     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+ 438              		.loc 1 35 24 is_stmt 0 discriminator 1 view .LVU124
+ 439 0044 FFF7FEFF 		bl	HAL_GetTick
+ 440              	.LVL33:
+ 441 0048 0246     		mov	r2, r0
+ 442 004a 0121     		movs	r1, #1
+ 443 004c 2046     		mov	r0, r4
+ 444 004e FFF7FEFF 		bl	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 445              	.LVL34:
+  35:Src/transport/rf/rf_sleep_recovery.cpp ****     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+ 446              		.loc 1 35 65 is_stmt 1 discriminator 2 view .LVU125
+  35:Src/transport/rf/rf_sleep_recovery.cpp ****     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+ 447              		.loc 1 35 65 is_stmt 0 view .LVU126
+ 448 0052 F6E7     		b	.L27
+ 449              	.L33:
+ 450              		.align	2
+ 451              	.L32:
+ 452 0054 00000000 		.word	g_sleepDiagnostics
+ 453 0058 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 454 005c 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 455 0060 00000000 		.word	_ZZN15RfSleepRecovery12startAttemptEvENUl9Ch585RoleE_4_FUNES0_
+ 456              		.cfi_endproc
+ 457              	.LFE1889:
+ 459              		.section	.text._ZN15RfSleepRecovery5beginEt,"ax",%progbits
+ 460              		.align	1
+ 461              		.global	_ZN15RfSleepRecovery5beginEt
+ 462              		.syntax unified
+ 463              		.thumb
+ 464              		.thumb_func
+ 466              	_ZN15RfSleepRecovery5beginEt:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 13
+
+
+ 467              	.LVL35:
+ 468              	.LFB1888:
+  28:Src/transport/rf/rf_sleep_recovery.cpp ****     requested_ = rate ? rate : 1000u;
+ 469              		.loc 1 28 44 is_stmt 1 view -0
+ 470              		.cfi_startproc
+ 471              		@ args = 0, pretend = 0, frame = 0
+ 472              		@ frame_needed = 0, uses_anonymous_args = 0
+  28:Src/transport/rf/rf_sleep_recovery.cpp ****     requested_ = rate ? rate : 1000u;
+ 473              		.loc 1 28 44 is_stmt 0 view .LVU128
+ 474 0000 08B5     		push	{r3, lr}
+ 475              	.LCFI6:
+ 476              		.cfi_def_cfa_offset 8
+ 477              		.cfi_offset 3, -8
+ 478              		.cfi_offset 14, -4
+  29:Src/transport/rf/rf_sleep_recovery.cpp ****     startAttempt();
+ 479              		.loc 1 29 5 is_stmt 1 view .LVU129
+  29:Src/transport/rf/rf_sleep_recovery.cpp ****     startAttempt();
+ 480              		.loc 1 29 16 is_stmt 0 view .LVU130
+ 481 0002 0B46     		mov	r3, r1
+ 482 0004 09B9     		cbnz	r1, .L35
+  29:Src/transport/rf/rf_sleep_recovery.cpp ****     startAttempt();
+ 483              		.loc 1 29 16 discriminator 2 view .LVU131
+ 484 0006 4FF47A73 		mov	r3, #1000
+ 485              	.L35:
+  29:Src/transport/rf/rf_sleep_recovery.cpp ****     startAttempt();
+ 486              		.loc 1 29 16 discriminator 4 view .LVU132
+ 487 000a 4387     		strh	r3, [r0, #58]	@ movhi
+  30:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 488              		.loc 1 30 5 is_stmt 1 view .LVU133
+  30:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 489              		.loc 1 30 17 is_stmt 0 view .LVU134
+ 490 000c FFF7FEFF 		bl	_ZN15RfSleepRecovery12startAttemptEv
+ 491              	.LVL36:
+  31:Src/transport/rf/rf_sleep_recovery.cpp **** 
+ 492              		.loc 1 31 1 view .LVU135
+ 493 0010 08BD     		pop	{r3, pc}
+ 494              		.cfi_endproc
+ 495              	.LFE1888:
+ 497              		.section	.text._ZN15RfSleepRecovery6cancelEv,"ax",%progbits
+ 498              		.align	1
+ 499              		.global	_ZN15RfSleepRecovery6cancelEv
+ 500              		.syntax unified
+ 501              		.thumb
+ 502              		.thumb_func
+ 504              	_ZN15RfSleepRecovery6cancelEv:
+ 505              	.LVL37:
+ 506              	.LFB1895:
+  62:Src/transport/rf/rf_sleep_recovery.cpp **** 
+  63:Src/transport/rf/rf_sleep_recovery.cpp **** void RfSleepRecovery::cancel() {
+ 507              		.loc 1 63 32 is_stmt 1 view -0
+ 508              		.cfi_startproc
+ 509              		@ args = 0, pretend = 0, frame = 0
+ 510              		@ frame_needed = 0, uses_anonymous_args = 0
+ 511              		.loc 1 63 32 is_stmt 0 view .LVU137
+ 512 0000 10B5     		push	{r4, lr}
+ 513              	.LCFI7:
+ 514              		.cfi_def_cfa_offset 8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 14
+
+
+ 515              		.cfi_offset 4, -8
+ 516              		.cfi_offset 14, -4
+ 517 0002 0446     		mov	r4, r0
+  64:Src/transport/rf/rf_sleep_recovery.cpp ****     RFBridgePort_CancelRecoveryIo();
+ 518              		.loc 1 64 5 is_stmt 1 view .LVU138
+ 519              		.loc 1 64 34 is_stmt 0 view .LVU139
+ 520 0004 FFF7FEFF 		bl	_Z29RFBridgePort_CancelRecoveryIov
+ 521              	.LVL38:
+  65:Src/transport/rf/rf_sleep_recovery.cpp ****     state_ = RfSleepState::Off; // the mode/reset owner performs regular teardown
+ 522              		.loc 1 65 5 is_stmt 1 view .LVU140
+ 523              		.loc 1 65 12 is_stmt 0 view .LVU141
+ 524 0008 0023     		movs	r3, #0
+ 525 000a 2360     		str	r3, [r4]
+  66:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 526              		.loc 1 66 1 view .LVU142
+ 527 000c 10BD     		pop	{r4, pc}
+ 528              		.loc 1 66 1 view .LVU143
+ 529              		.cfi_endproc
+ 530              	.LFE1895:
+ 532              		.section	.text._ZN15RfSleepRecovery7serviceEm,"ax",%progbits
+ 533              		.align	1
+ 534              		.global	_ZN15RfSleepRecovery7serviceEm
+ 535              		.syntax unified
+ 536              		.thumb
+ 537              		.thumb_func
+ 539              	_ZN15RfSleepRecovery7serviceEm:
+ 540              	.LVL39:
+ 541              	.LFB1896:
+  67:Src/transport/rf/rf_sleep_recovery.cpp **** 
+  68:Src/transport/rf/rf_sleep_recovery.cpp **** void RfSleepRecovery::service(uint32_t now) {
+ 542              		.loc 1 68 45 is_stmt 1 view -0
+ 543              		.cfi_startproc
+ 544              		@ args = 0, pretend = 0, frame = 88
+ 545              		@ frame_needed = 0, uses_anonymous_args = 0
+ 546              		.loc 1 68 45 is_stmt 0 view .LVU145
+ 547 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 548              	.LCFI8:
+ 549              		.cfi_def_cfa_offset 20
+ 550              		.cfi_offset 4, -20
+ 551              		.cfi_offset 5, -16
+ 552              		.cfi_offset 6, -12
+ 553              		.cfi_offset 7, -8
+ 554              		.cfi_offset 14, -4
+ 555 0002 99B0     		sub	sp, sp, #100
+ 556              	.LCFI9:
+ 557              		.cfi_def_cfa_offset 120
+ 558 0004 0446     		mov	r4, r0
+ 559 0006 0D46     		mov	r5, r1
+  69:Src/transport/rf/rf_sleep_recovery.cpp ****     if (state_ == RfSleepState::Off || state_ == RfSleepState::Ready) return;
+ 560              		.loc 1 69 5 is_stmt 1 view .LVU146
+ 561              		.loc 1 69 9 is_stmt 0 view .LVU147
+ 562 0008 0368     		ldr	r3, [r0]
+ 563 000a 082B     		cmp	r3, #8
+ 564 000c 5BD8     		bhi	.L41
+ 565 000e DFE803F0 		tbb	[pc, r3]
+ 566              	.L43:
+ 567 0012 0B       		.byte	(.L40-.L43)/2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 15
+
+
+ 568 0013 10       		.byte	(.L46-.L43)/2
+ 569 0014 10       		.byte	(.L46-.L43)/2
+ 570 0015 10       		.byte	(.L46-.L43)/2
+ 571 0016 5A       		.byte	(.L41-.L43)/2
+ 572 0017 5A       		.byte	(.L41-.L43)/2
+ 573 0018 0B       		.byte	(.L40-.L43)/2
+ 574 0019 05       		.byte	(.L44-.L43)/2
+ 575 001a 36       		.byte	(.L42-.L43)/2
+ 576 001b 00       		.p2align 1
+ 577              	.L44:
+  70:Src/transport/rf/rf_sleep_recovery.cpp ****     if (state_ == RfSleepState::RetryWait) {
+  71:Src/transport/rf/rf_sleep_recovery.cpp ****         if (now - since_ >= 10000u) startAttempt();
+ 578              		.loc 1 71 9 is_stmt 1 view .LVU148
+ 579              		.loc 1 71 19 is_stmt 0 view .LVU149
+ 580 001c C36B     		ldr	r3, [r0, #60]
+ 581              		.loc 1 71 17 view .LVU150
+ 582 001e CB1A     		subs	r3, r1, r3
+ 583              		.loc 1 71 9 view .LVU151
+ 584 0020 42F20F72 		movw	r2, #9999
+ 585 0024 9342     		cmp	r3, r2
+ 586 0026 01D8     		bhi	.L83
+ 587              	.LVL40:
+ 588              	.L40:
+  72:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+  73:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+  74:Src/transport/rf/rf_sleep_recovery.cpp ****     if (state_ == RfSleepState::PowerWait || state_ == RfSleepState::BootWait ||
+  75:Src/transport/rf/rf_sleep_recovery.cpp ****         state_ == RfSleepState::SelectRole) {
+  76:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto result = CH585_ROLE_BOOTSTRAP.serviceRfSleepResume();
+  77:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Failed) { fail(RfSleepError::Role, HAL_GetTick()); return;
+  78:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Pending) {
+  79:Src/transport/rf/rf_sleep_recovery.cpp ****             switch (CH585_ROLE_BOOTSTRAP.state()) {
+  80:Src/transport/rf/rf_sleep_recovery.cpp ****             case Ch585BootstrapState::Off: state_ = RfSleepState::PowerWait; break;
+  81:Src/transport/rf/rf_sleep_recovery.cpp ****             case Ch585BootstrapState::Booting: state_ = RfSleepState::BootWait; break;
+  82:Src/transport/rf/rf_sleep_recovery.cpp ****             default: state_ = RfSleepState::SelectRole; break;
+  83:Src/transport/rf/rf_sleep_recovery.cpp ****             }
+  84:Src/transport/rf/rf_sleep_recovery.cpp ****             return;
+  85:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+  86:Src/transport/rf/rf_sleep_recovery.cpp ****         // ROLE_SELECTED acknowledges the selector, not completion of RF_Init.
+  87:Src/transport/rf/rf_sleep_recovery.cpp ****         // Keep NSS high while the selector releases SPI and the RF port emits
+  88:Src/transport/rf/rf_sleep_recovery.cpp ****         // its separate 100-ms boot-ready pulse. No SPI clocks during that pulse.
+  89:Src/transport/rf/rf_sleep_recovery.cpp ****         state_ = RfSleepState::ApplicationWait;
+  90:Src/transport/rf/rf_sleep_recovery.cpp ****         since_ = HAL_GetTick();
+  91:Src/transport/rf/rf_sleep_recovery.cpp ****         SleepDiagnostics_Record(SleepStage::RadioApplicationWait);
+  92:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+  93:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+  94:Src/transport/rf/rf_sleep_recovery.cpp ****     if (state_ == RfSleepState::ApplicationWait) {
+  95:Src/transport/rf/rf_sleep_recovery.cpp ****         if (now - since_ < applicationSettleMs) return;
+  96:Src/transport/rf/rf_sleep_recovery.cpp ****         // Release the bootstrap handle before initializing RF SPI4/DMA.
+  97:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!USBBoardLinkPort_TryShutdown()) { fail(RfSleepError::PortStop, HAL_GetTick()); return;
+  98:Src/transport/rf/rf_sleep_recovery.cpp ****         USB_BOARD_LINK.shutdown();
+  99:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!RFBridgePort_RecoveryBegin()) { fail(RfSleepError::PortStart, HAL_GetTick()); return; 
+ 100:Src/transport/rf/rf_sleep_recovery.cpp ****         configure(HAL_GetTick());
+ 101:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 102:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 103:Src/transport/rf/rf_sleep_recovery.cpp **** 
+ 104:Src/transport/rf/rf_sleep_recovery.cpp ****     // Regular RF polling is paused while this owner holds SPI4. Advance only
+ 105:Src/transport/rf/rf_sleep_recovery.cpp ****     // the in-memory reliable-event queue; a zero drain limit performs no I/O.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 16
+
+
+ 106:Src/transport/rf/rf_sleep_recovery.cpp ****     transport_.serviceEvents(0u);
+ 107:Src/transport/rf/rf_sleep_recovery.cpp ****     uint8_t frame[64] = {};
+ 108:Src/transport/rf/rf_sleep_recovery.cpp ****     uint16_t length = sizeof(frame);
+ 109:Src/transport/rf/rf_sleep_recovery.cpp ****     const auto receive = RFBridgePort_RecoveryRead(frame, &length, now);
+ 110:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Error) { fail(RfSleepError::Receive, now); return; }
+ 111:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Complete) {
+ 112:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFrameEvent = length > 1u ? frame[1] : 0u;
+ 113:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u;
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!transport_.acceptRecoveryFrame(frame, length)) { fail(RfSleepError::FrameRejected, now
+ 115:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 116:Src/transport/rf/rf_sleep_recovery.cpp ****         if (state_ == RfSleepState::VerifyStatus && requestSent_ &&
+ 117:Src/transport/rf/rf_sleep_recovery.cpp ****             transport_.receivedStatusGeneration() != generation_) {
+ 118:Src/transport/rf/rf_sleep_recovery.cpp ****             requestSent_ = false;
+ 119:Src/transport/rf/rf_sleep_recovery.cpp ****             verified_ = status.lastEvent == 0x81u && status.lastCommandTag == 0x01u &&
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****                         status.lastResult == 0u && status.rateHz == rate_;
+ 121:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 122:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 123:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 124:Src/transport/rf/rf_sleep_recovery.cpp ****     if (state_ == RfSleepState::ConfigureRate) {
+ 125:Src/transport/rf/rf_sleep_recovery.cpp ****         const uint8_t args[] = {static_cast<uint8_t>(rate_), static_cast<uint8_t>(rate_ >> 8)};
+ 126:Src/transport/rf/rf_sleep_recovery.cpp ****         RFCommandTransaction::stepScheduled(window_, 0x05u, args, sizeof(args), now);
+ 127:Src/transport/rf/rf_sleep_recovery.cpp ****         if (now - window_.started < 100u) return;
+ 128:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!window_.sent) {
+ 129:Src/transport/rf/rf_sleep_recovery.cpp ****             if (!fallback_ && rate_ != 1000u) {
+ 130:Src/transport/rf/rf_sleep_recovery.cpp ****                 fallback_ = true;
+ 131:Src/transport/rf/rf_sleep_recovery.cpp ****                 rate_ = 1000u;
+ 132:Src/transport/rf/rf_sleep_recovery.cpp ****                 configure(now);
+ 133:Src/transport/rf/rf_sleep_recovery.cpp ****             } else fail(RfSleepError::RateSend, now);
+ 134:Src/transport/rf/rf_sleep_recovery.cpp ****             return;
+ 135:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 136:Src/transport/rf/rf_sleep_recovery.cpp ****         state_ = RfSleepState::VerifyStatus;
+ 137:Src/transport/rf/rf_sleep_recovery.cpp ****         since_ = now;
+ 138:Src/transport/rf/rf_sleep_recovery.cpp ****         lastPoll_ = now - 50u;
+ 139:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 140:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 141:Src/transport/rf/rf_sleep_recovery.cpp ****     if (verified_) {
+ 142:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!neutralSent_ && RFBridgePort_RecoveryIdle()) {
+ 143:Src/transport/rf/rf_sleep_recovery.cpp ****             const GamepadState neutral = {};
+ 144:Src/transport/rf/rf_sleep_recovery.cpp ****             neutralSent_ = transport_.sendInput(neutral, 0u);
+ 145:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 146:Src/transport/rf/rf_sleep_recovery.cpp ****         // Do not let the first latest-state packet overwrite queued neutral.
+ 147:Src/transport/rf/rf_sleep_recovery.cpp ****         if (neutralSent_ && RFBridgePort_IsInputIdle()) {
+ 148:Src/transport/rf/rf_sleep_recovery.cpp ****             CONNECTION_MANAGER.completeRfSleepRecovery(transport_, rate_);
+ 149:Src/transport/rf/rf_sleep_recovery.cpp ****             state_ = RfSleepState::Ready;
+ 150:Src/transport/rf/rf_sleep_recovery.cpp ****             SleepDiagnostics_Record(SleepStage::RadioReady);
+ 151:Src/transport/rf/rf_sleep_recovery.cpp ****             return;
+ 152:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****     } else if (!requestSent_ && RFBridgePort_RecoveryIdle() && now - lastPoll_ >= 50u) {
+ 154:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 155:Src/transport/rf/rf_sleep_recovery.cpp ****         const uint8_t request[] = {0xa5u, 0x01u, 0x00u, 0xa6u};
+ 156:Src/transport/rf/rf_sleep_recovery.cpp ****         generation_ = transport_.receivedStatusGeneration();
+ 157:Src/transport/rf/rf_sleep_recovery.cpp ****         if (RFBridgePort_RecoverySend(request, sizeof(request))) {
+ 158:Src/transport/rf/rf_sleep_recovery.cpp ****             requestSent_ = true;
+ 159:Src/transport/rf/rf_sleep_recovery.cpp ****             lastPoll_ = now;
+ 160:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 161:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 162:Src/transport/rf/rf_sleep_recovery.cpp ****     if (now - since_ >= 500u) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 17
+
+
+ 163:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!verified_ && !fallback_ && rate_ != 1000u) {
+ 164:Src/transport/rf/rf_sleep_recovery.cpp ****             fallback_ = true;
+ 165:Src/transport/rf/rf_sleep_recovery.cpp ****             rate_ = 1000u;
+ 166:Src/transport/rf/rf_sleep_recovery.cpp ****             // Abort a partial response before starting a new transaction window.
+ 167:Src/transport/rf/rf_sleep_recovery.cpp ****             RFBridgePort_CancelRecoveryIo();
+ 168:Src/transport/rf/rf_sleep_recovery.cpp ****             configure(now);
+ 169:Src/transport/rf/rf_sleep_recovery.cpp ****         } else fail(verified_ ? RfSleepError::Neutral : RfSleepError::StatusTimeout, now);
+ 170:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 171:Src/transport/rf/rf_sleep_recovery.cpp **** }
+ 589              		.loc 1 171 1 view .LVU152
+ 590 0028 19B0     		add	sp, sp, #100
+ 591              	.LCFI10:
+ 592              		.cfi_remember_state
+ 593              		.cfi_def_cfa_offset 20
+ 594              		@ sp needed
+ 595 002a F0BD     		pop	{r4, r5, r6, r7, pc}
+ 596              	.LVL41:
+ 597              	.L83:
+ 598              	.LCFI11:
+ 599              		.cfi_restore_state
+  71:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 600              		.loc 1 71 37 is_stmt 1 discriminator 1 view .LVU153
+  71:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 601              		.loc 1 71 49 is_stmt 0 discriminator 1 view .LVU154
+ 602 002c FFF7FEFF 		bl	_ZN15RfSleepRecovery12startAttemptEv
+ 603              	.LVL42:
+  72:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 604              		.loc 1 72 9 is_stmt 1 view .LVU155
+ 605 0030 FAE7     		b	.L40
+ 606              	.LVL43:
+ 607              	.L46:
+ 608              	.LBB60:
+  76:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Failed) { fail(RfSleepError::Role, HAL_GetTick()); return;
+ 609              		.loc 1 76 9 view .LVU156
+ 610              	.LBB61:
+ 611              	.LBI61:
+  30:Inc/transport/ch585_role_bootstrap.hpp ****     {
+ 612              		.loc 4 30 32 view .LVU157
+  32:Inc/transport/ch585_role_bootstrap.hpp ****         return instance;
+ 613              		.loc 4 32 9 view .LVU158
+ 614              		.loc 4 33 9 view .LVU159
+ 615              	.LBE61:
+  76:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Failed) { fail(RfSleepError::Role, HAL_GetTick()); return;
+ 616              		.loc 1 76 70 is_stmt 0 discriminator 1 view .LVU160
+ 617 0032 AF48     		ldr	r0, .L95
+ 618              	.LVL44:
+  76:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Failed) { fail(RfSleepError::Role, HAL_GetTick()); return;
+ 619              		.loc 1 76 70 discriminator 1 view .LVU161
+ 620 0034 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv
+ 621              	.LVL45:
+  77:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Pending) {
+ 622              		.loc 1 77 9 is_stmt 1 view .LVU162
+ 623 0038 0228     		cmp	r0, #2
+ 624 003a 08D0     		beq	.L84
+  78:Src/transport/rf/rf_sleep_recovery.cpp ****             switch (CH585_ROLE_BOOTSTRAP.state()) {
+ 625              		.loc 1 78 9 view .LVU163
+ 626 003c A8B9     		cbnz	r0, .L49
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 18
+
+
+  79:Src/transport/rf/rf_sleep_recovery.cpp ****             case Ch585BootstrapState::Off: state_ = RfSleepState::PowerWait; break;
+ 627              		.loc 1 79 13 view .LVU164
+ 628              	.LVL46:
+ 629              	.LBB62:
+ 630              	.LBI62:
+  34:Inc/transport/ch585_role_bootstrap.hpp ****     }
+  35:Inc/transport/ch585_role_bootstrap.hpp **** 
+  36:Inc/transport/ch585_role_bootstrap.hpp ****     void setSelector(Ch585RoleSelector selectorFn);
+  37:Inc/transport/ch585_role_bootstrap.hpp ****     /* Cold USB input startup only: power on without sending any SPI frame.
+  38:Inc/transport/ch585_role_bootstrap.hpp ****      * start(Usb) later consumes this preparation, with the same ready deadline. */
+  39:Inc/transport/ch585_role_bootstrap.hpp ****     bool prepareUsbStartup();
+  40:Inc/transport/ch585_role_bootstrap.hpp ****     bool hasPreparedUsbStartup() const { return usbStartupPrepared; }
+  41:Inc/transport/ch585_role_bootstrap.hpp ****     bool start(Ch585Role requestedRole);
+  42:Inc/transport/ch585_role_bootstrap.hpp ****     // Nonblocking RF cold restart after sleep. No traffic in the IAP window.
+  43:Inc/transport/ch585_role_bootstrap.hpp ****     void beginRfSleepResume();
+  44:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585ResumeResult serviceRfSleepResume();
+  45:Inc/transport/ch585_role_bootstrap.hpp ****     void shutdown();
+  46:Inc/transport/ch585_role_bootstrap.hpp **** 
+  47:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585Role role() const { return activeRole; }
+  48:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585BootstrapState state() const { return bootstrapState; }
+ 631              		.loc 4 48 25 view .LVU165
+ 632              	.LBB63:
+ 633              		.loc 4 48 41 view .LVU166
+ 634              		.loc 4 48 48 is_stmt 0 view .LVU167
+ 635 003e AC4B     		ldr	r3, .L95
+ 636 0040 9B7B     		ldrb	r3, [r3, #14]	@ zero_extendqisi2
+ 637              	.LVL47:
+ 638              		.loc 4 48 48 view .LVU168
+ 639              	.LBE63:
+ 640              	.LBE62:
+  79:Src/transport/rf/rf_sleep_recovery.cpp ****             case Ch585BootstrapState::Off: state_ = RfSleepState::PowerWait; break;
+ 641              		.loc 1 79 13 discriminator 2 view .LVU169
+ 642 0042 63B1     		cbz	r3, .L50
+ 643 0044 012B     		cmp	r3, #1
+ 644 0046 0DD0     		beq	.L51
+  82:Src/transport/rf/rf_sleep_recovery.cpp ****             }
+ 645              		.loc 1 82 13 is_stmt 1 view .LVU170
+  82:Src/transport/rf/rf_sleep_recovery.cpp ****             }
+ 646              		.loc 1 82 22 view .LVU171
+  82:Src/transport/rf/rf_sleep_recovery.cpp ****             }
+ 647              		.loc 1 82 29 is_stmt 0 view .LVU172
+ 648 0048 0323     		movs	r3, #3
+ 649 004a 2360     		str	r3, [r4]
+  82:Src/transport/rf/rf_sleep_recovery.cpp ****             }
+ 650              		.loc 1 82 57 is_stmt 1 view .LVU173
+  84:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 651              		.loc 1 84 13 view .LVU174
+ 652 004c ECE7     		b	.L40
+ 653              	.L84:
+  77:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Pending) {
+ 654              		.loc 1 77 52 discriminator 1 view .LVU175
+  77:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Pending) {
+ 655              		.loc 1 77 56 is_stmt 0 discriminator 1 view .LVU176
+ 656 004e FFF7FEFF 		bl	HAL_GetTick
+ 657              	.LVL48:
+  77:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Pending) {
+ 658              		.loc 1 77 56 discriminator 1 view .LVU177
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 19
+
+
+ 659 0052 0246     		mov	r2, r0
+ 660 0054 0221     		movs	r1, #2
+ 661 0056 2046     		mov	r0, r4
+ 662 0058 FFF7FEFF 		bl	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 663              	.LVL49:
+  77:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Pending) {
+ 664              		.loc 1 77 93 is_stmt 1 discriminator 2 view .LVU178
+  77:Src/transport/rf/rf_sleep_recovery.cpp ****         if (result == Ch585ResumeResult::Pending) {
+ 665              		.loc 1 77 93 is_stmt 0 view .LVU179
+ 666 005c E4E7     		b	.L40
+ 667              	.LVL50:
+ 668              	.L50:
+  80:Src/transport/rf/rf_sleep_recovery.cpp ****             case Ch585BootstrapState::Booting: state_ = RfSleepState::BootWait; break;
+ 669              		.loc 1 80 13 is_stmt 1 view .LVU180
+  80:Src/transport/rf/rf_sleep_recovery.cpp ****             case Ch585BootstrapState::Booting: state_ = RfSleepState::BootWait; break;
+ 670              		.loc 1 80 44 view .LVU181
+  80:Src/transport/rf/rf_sleep_recovery.cpp ****             case Ch585BootstrapState::Booting: state_ = RfSleepState::BootWait; break;
+ 671              		.loc 1 80 51 is_stmt 0 view .LVU182
+ 672 005e 0123     		movs	r3, #1
+ 673 0060 2360     		str	r3, [r4]
+  80:Src/transport/rf/rf_sleep_recovery.cpp ****             case Ch585BootstrapState::Booting: state_ = RfSleepState::BootWait; break;
+ 674              		.loc 1 80 78 is_stmt 1 view .LVU183
+ 675 0062 E1E7     		b	.L40
+ 676              	.L51:
+  81:Src/transport/rf/rf_sleep_recovery.cpp ****             default: state_ = RfSleepState::SelectRole; break;
+ 677              		.loc 1 81 13 view .LVU184
+  81:Src/transport/rf/rf_sleep_recovery.cpp ****             default: state_ = RfSleepState::SelectRole; break;
+ 678              		.loc 1 81 48 view .LVU185
+  81:Src/transport/rf/rf_sleep_recovery.cpp ****             default: state_ = RfSleepState::SelectRole; break;
+ 679              		.loc 1 81 55 is_stmt 0 view .LVU186
+ 680 0064 0223     		movs	r3, #2
+ 681 0066 2360     		str	r3, [r4]
+  81:Src/transport/rf/rf_sleep_recovery.cpp ****             default: state_ = RfSleepState::SelectRole; break;
+ 682              		.loc 1 81 81 is_stmt 1 view .LVU187
+ 683 0068 DEE7     		b	.L40
+ 684              	.L49:
+  89:Src/transport/rf/rf_sleep_recovery.cpp ****         since_ = HAL_GetTick();
+ 685              		.loc 1 89 9 view .LVU188
+  89:Src/transport/rf/rf_sleep_recovery.cpp ****         since_ = HAL_GetTick();
+ 686              		.loc 1 89 16 is_stmt 0 view .LVU189
+ 687 006a 0823     		movs	r3, #8
+ 688 006c 2360     		str	r3, [r4]
+  90:Src/transport/rf/rf_sleep_recovery.cpp ****         SleepDiagnostics_Record(SleepStage::RadioApplicationWait);
+ 689              		.loc 1 90 9 is_stmt 1 view .LVU190
+  90:Src/transport/rf/rf_sleep_recovery.cpp ****         SleepDiagnostics_Record(SleepStage::RadioApplicationWait);
+ 690              		.loc 1 90 29 is_stmt 0 view .LVU191
+ 691 006e FFF7FEFF 		bl	HAL_GetTick
+ 692              	.LVL51:
+  90:Src/transport/rf/rf_sleep_recovery.cpp ****         SleepDiagnostics_Record(SleepStage::RadioApplicationWait);
+ 693              		.loc 1 90 16 discriminator 1 view .LVU192
+ 694 0072 E063     		str	r0, [r4, #60]
+  91:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 695              		.loc 1 91 9 is_stmt 1 view .LVU193
+  91:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 696              		.loc 1 91 32 is_stmt 0 view .LVU194
+ 697 0074 0021     		movs	r1, #0
+ 698 0076 1020     		movs	r0, #16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 20
+
+
+ 699 0078 FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 700              	.LVL52:
+  92:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 701              		.loc 1 92 9 is_stmt 1 view .LVU195
+ 702 007c D4E7     		b	.L40
+ 703              	.LVL53:
+ 704              	.L42:
+  92:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 705              		.loc 1 92 9 is_stmt 0 view .LVU196
+ 706              	.LBE60:
+  95:Src/transport/rf/rf_sleep_recovery.cpp ****         // Release the bootstrap handle before initializing RF SPI4/DMA.
+ 707              		.loc 1 95 9 is_stmt 1 view .LVU197
+  95:Src/transport/rf/rf_sleep_recovery.cpp ****         // Release the bootstrap handle before initializing RF SPI4/DMA.
+ 708              		.loc 1 95 19 is_stmt 0 view .LVU198
+ 709 007e C36B     		ldr	r3, [r0, #60]
+  95:Src/transport/rf/rf_sleep_recovery.cpp ****         // Release the bootstrap handle before initializing RF SPI4/DMA.
+ 710              		.loc 1 95 17 view .LVU199
+ 711 0080 CB1A     		subs	r3, r1, r3
+  95:Src/transport/rf/rf_sleep_recovery.cpp ****         // Release the bootstrap handle before initializing RF SPI4/DMA.
+ 712              		.loc 1 95 9 view .LVU200
+ 713 0082 952B     		cmp	r3, #149
+ 714 0084 D0D9     		bls	.L40
+  97:Src/transport/rf/rf_sleep_recovery.cpp ****         USB_BOARD_LINK.shutdown();
+ 715              		.loc 1 97 9 is_stmt 1 view .LVU201
+  97:Src/transport/rf/rf_sleep_recovery.cpp ****         USB_BOARD_LINK.shutdown();
+ 716              		.loc 1 97 42 is_stmt 0 view .LVU202
+ 717 0086 FFF7FEFF 		bl	_Z28USBBoardLinkPort_TryShutdownv
+ 718              	.LVL54:
+  97:Src/transport/rf/rf_sleep_recovery.cpp ****         USB_BOARD_LINK.shutdown();
+ 719              		.loc 1 97 9 discriminator 1 view .LVU203
+ 720 008a 68B1     		cbz	r0, .L85
+  98:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!RFBridgePort_RecoveryBegin()) { fail(RfSleepError::PortStart, HAL_GetTick()); return; 
+ 721              		.loc 1 98 9 is_stmt 1 view .LVU204
+ 722              	.LBB64:
+ 723              	.LBI64:
+  16:Inc/transport/usb/usb_board_link.hpp ****     {
+ 724              		.loc 3 16 26 view .LVU205
+  18:Inc/transport/usb/usb_board_link.hpp ****         return instance;
+ 725              		.loc 3 18 9 view .LVU206
+ 726              		.loc 3 19 9 view .LVU207
+ 727              	.LBE64:
+  98:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!RFBridgePort_RecoveryBegin()) { fail(RfSleepError::PortStart, HAL_GetTick()); return; 
+ 728              		.loc 1 98 32 is_stmt 0 discriminator 1 view .LVU208
+ 729 008c 9948     		ldr	r0, .L95+4
+ 730 008e FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 731              	.LVL55:
+  99:Src/transport/rf/rf_sleep_recovery.cpp ****         configure(HAL_GetTick());
+ 732              		.loc 1 99 9 is_stmt 1 view .LVU209
+  99:Src/transport/rf/rf_sleep_recovery.cpp ****         configure(HAL_GetTick());
+ 733              		.loc 1 99 40 is_stmt 0 view .LVU210
+ 734 0092 FFF7FEFF 		bl	_Z26RFBridgePort_RecoveryBeginv
+ 735              	.LVL56:
+  99:Src/transport/rf/rf_sleep_recovery.cpp ****         configure(HAL_GetTick());
+ 736              		.loc 1 99 9 discriminator 1 view .LVU211
+ 737 0096 78B9     		cbnz	r0, .L55
+  99:Src/transport/rf/rf_sleep_recovery.cpp ****         configure(HAL_GetTick());
+ 738              		.loc 1 99 46 is_stmt 1 discriminator 1 view .LVU212
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 21
+
+
+  99:Src/transport/rf/rf_sleep_recovery.cpp ****         configure(HAL_GetTick());
+ 739              		.loc 1 99 50 is_stmt 0 discriminator 1 view .LVU213
+ 740 0098 FFF7FEFF 		bl	HAL_GetTick
+ 741              	.LVL57:
+ 742 009c 0246     		mov	r2, r0
+ 743 009e 0321     		movs	r1, #3
+ 744 00a0 2046     		mov	r0, r4
+ 745 00a2 FFF7FEFF 		bl	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 746              	.LVL58:
+  99:Src/transport/rf/rf_sleep_recovery.cpp ****         configure(HAL_GetTick());
+ 747              		.loc 1 99 92 is_stmt 1 discriminator 2 view .LVU214
+  99:Src/transport/rf/rf_sleep_recovery.cpp ****         configure(HAL_GetTick());
+ 748              		.loc 1 99 92 is_stmt 0 view .LVU215
+ 749 00a6 BFE7     		b	.L40
+ 750              	.L85:
+  97:Src/transport/rf/rf_sleep_recovery.cpp ****         USB_BOARD_LINK.shutdown();
+ 751              		.loc 1 97 48 is_stmt 1 discriminator 1 view .LVU216
+  97:Src/transport/rf/rf_sleep_recovery.cpp ****         USB_BOARD_LINK.shutdown();
+ 752              		.loc 1 97 52 is_stmt 0 discriminator 1 view .LVU217
+ 753 00a8 FFF7FEFF 		bl	HAL_GetTick
+ 754              	.LVL59:
+ 755 00ac 0246     		mov	r2, r0
+ 756 00ae 0121     		movs	r1, #1
+ 757 00b0 2046     		mov	r0, r4
+ 758 00b2 FFF7FEFF 		bl	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 759              	.LVL60:
+  97:Src/transport/rf/rf_sleep_recovery.cpp ****         USB_BOARD_LINK.shutdown();
+ 760              		.loc 1 97 93 is_stmt 1 discriminator 2 view .LVU218
+  97:Src/transport/rf/rf_sleep_recovery.cpp ****         USB_BOARD_LINK.shutdown();
+ 761              		.loc 1 97 93 is_stmt 0 view .LVU219
+ 762 00b6 B7E7     		b	.L40
+ 763              	.L55:
+ 100:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 764              		.loc 1 100 9 is_stmt 1 view .LVU220
+ 100:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 765              		.loc 1 100 18 is_stmt 0 view .LVU221
+ 766 00b8 FFF7FEFF 		bl	HAL_GetTick
+ 767              	.LVL61:
+ 768 00bc 0146     		mov	r1, r0
+ 100:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 769              		.loc 1 100 18 discriminator 1 view .LVU222
+ 770 00be 2046     		mov	r0, r4
+ 771 00c0 FFF7FEFF 		bl	_ZN15RfSleepRecovery9configureEm
+ 772              	.LVL62:
+ 101:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 773              		.loc 1 101 9 is_stmt 1 view .LVU223
+ 774 00c4 B0E7     		b	.L40
+ 775              	.LVL63:
+ 776              	.L41:
+ 106:Src/transport/rf/rf_sleep_recovery.cpp ****     uint8_t frame[64] = {};
+ 777              		.loc 1 106 5 view .LVU224
+ 106:Src/transport/rf/rf_sleep_recovery.cpp ****     uint8_t frame[64] = {};
+ 778              		.loc 1 106 29 is_stmt 0 view .LVU225
+ 779 00c6 071D     		adds	r7, r0, #4
+ 780 00c8 0021     		movs	r1, #0
+ 781              	.LVL64:
+ 106:Src/transport/rf/rf_sleep_recovery.cpp ****     uint8_t frame[64] = {};
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 22
+
+
+ 782              		.loc 1 106 29 view .LVU226
+ 783 00ca 3846     		mov	r0, r7
+ 784              	.LVL65:
+ 106:Src/transport/rf/rf_sleep_recovery.cpp ****     uint8_t frame[64] = {};
+ 785              		.loc 1 106 29 view .LVU227
+ 786 00cc FFF7FEFF 		bl	_ZN11RFTransport13serviceEventsEh
+ 787              	.LVL66:
+ 107:Src/transport/rf/rf_sleep_recovery.cpp ****     uint16_t length = sizeof(frame);
+ 788              		.loc 1 107 5 is_stmt 1 view .LVU228
+ 107:Src/transport/rf/rf_sleep_recovery.cpp ****     uint16_t length = sizeof(frame);
+ 789              		.loc 1 107 13 is_stmt 0 view .LVU229
+ 790 00d0 4026     		movs	r6, #64
+ 791 00d2 3246     		mov	r2, r6
+ 792 00d4 0021     		movs	r1, #0
+ 793 00d6 08A8     		add	r0, sp, #32
+ 794 00d8 FFF7FEFF 		bl	memset
+ 795              	.LVL67:
+ 108:Src/transport/rf/rf_sleep_recovery.cpp ****     const auto receive = RFBridgePort_RecoveryRead(frame, &length, now);
+ 796              		.loc 1 108 5 is_stmt 1 view .LVU230
+ 108:Src/transport/rf/rf_sleep_recovery.cpp ****     const auto receive = RFBridgePort_RecoveryRead(frame, &length, now);
+ 797              		.loc 1 108 14 is_stmt 0 view .LVU231
+ 798 00dc ADF81E60 		strh	r6, [sp, #30]	@ movhi
+ 109:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Error) { fail(RfSleepError::Receive, now); return; }
+ 799              		.loc 1 109 5 is_stmt 1 view .LVU232
+ 109:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Error) { fail(RfSleepError::Receive, now); return; }
+ 800              		.loc 1 109 51 is_stmt 0 view .LVU233
+ 801 00e0 2A46     		mov	r2, r5
+ 802 00e2 0DF11E01 		add	r1, sp, #30
+ 803 00e6 08A8     		add	r0, sp, #32
+ 804 00e8 FFF7FEFF 		bl	_Z25RFBridgePort_RecoveryReadPhPtm
+ 805              	.LVL68:
+ 110:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Complete) {
+ 806              		.loc 1 110 5 is_stmt 1 view .LVU234
+ 807 00ec 0228     		cmp	r0, #2
+ 808 00ee 2CD0     		beq	.L86
+ 111:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFrameEvent = length > 1u ? frame[1] : 0u;
+ 809              		.loc 1 111 5 view .LVU235
+ 810              	.LBB65:
+ 811 00f0 0128     		cmp	r0, #1
+ 812 00f2 30D0     		beq	.L87
+ 813              	.LVL69:
+ 814              	.L57:
+ 111:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFrameEvent = length > 1u ? frame[1] : 0u;
+ 815              		.loc 1 111 5 is_stmt 0 view .LVU236
+ 816              	.LBE65:
+ 124:Src/transport/rf/rf_sleep_recovery.cpp ****         const uint8_t args[] = {static_cast<uint8_t>(rate_), static_cast<uint8_t>(rate_ >> 8)};
+ 817              		.loc 1 124 5 is_stmt 1 view .LVU237
+ 818              	.LBB69:
+ 124:Src/transport/rf/rf_sleep_recovery.cpp ****         const uint8_t args[] = {static_cast<uint8_t>(rate_), static_cast<uint8_t>(rate_ >> 8)};
+ 819              		.loc 1 124 9 is_stmt 0 view .LVU238
+ 820 00f4 2368     		ldr	r3, [r4]
+ 124:Src/transport/rf/rf_sleep_recovery.cpp ****         const uint8_t args[] = {static_cast<uint8_t>(rate_), static_cast<uint8_t>(rate_ >> 8)};
+ 821              		.loc 1 124 5 view .LVU239
+ 822 00f6 042B     		cmp	r3, #4
+ 823 00f8 71D0     		beq	.L88
+ 824              	.LBE69:
+ 141:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!neutralSent_ && RFBridgePort_RecoveryIdle()) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 23
+
+
+ 825              		.loc 1 141 5 is_stmt 1 view .LVU240
+ 826              	.LBB71:
+ 141:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!neutralSent_ && RFBridgePort_RecoveryIdle()) {
+ 827              		.loc 1 141 9 is_stmt 0 view .LVU241
+ 828 00fa 94F84A30 		ldrb	r3, [r4, #74]	@ zero_extendqisi2
+ 141:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!neutralSent_ && RFBridgePort_RecoveryIdle()) {
+ 829              		.loc 1 141 5 view .LVU242
+ 830 00fe 002B     		cmp	r3, #0
+ 831 0100 00F0C880 		beq	.L67
+ 832              	.LBB72:
+ 142:Src/transport/rf/rf_sleep_recovery.cpp ****             const GamepadState neutral = {};
+ 833              		.loc 1 142 9 is_stmt 1 view .LVU243
+ 834              	.LBB73:
+ 142:Src/transport/rf/rf_sleep_recovery.cpp ****             const GamepadState neutral = {};
+ 835              		.loc 1 142 14 is_stmt 0 view .LVU244
+ 836 0104 94F84B30 		ldrb	r3, [r4, #75]	@ zero_extendqisi2
+ 142:Src/transport/rf/rf_sleep_recovery.cpp ****             const GamepadState neutral = {};
+ 837              		.loc 1 142 27 view .LVU245
+ 838 0108 002B     		cmp	r3, #0
+ 839 010a 00F09C80 		beq	.L89
+ 840              	.L68:
+ 841              	.LBE73:
+ 147:Src/transport/rf/rf_sleep_recovery.cpp ****             CONNECTION_MANAGER.completeRfSleepRecovery(transport_, rate_);
+ 842              		.loc 1 147 9 is_stmt 1 view .LVU246
+ 147:Src/transport/rf/rf_sleep_recovery.cpp ****             CONNECTION_MANAGER.completeRfSleepRecovery(transport_, rate_);
+ 843              		.loc 1 147 13 is_stmt 0 view .LVU247
+ 844 010e 94F84B30 		ldrb	r3, [r4, #75]	@ zero_extendqisi2
+ 147:Src/transport/rf/rf_sleep_recovery.cpp ****             CONNECTION_MANAGER.completeRfSleepRecovery(transport_, rate_);
+ 845              		.loc 1 147 26 view .LVU248
+ 846 0112 002B     		cmp	r3, #0
+ 847 0114 40F0AD80 		bne	.L90
+ 848              	.L69:
+ 147:Src/transport/rf/rf_sleep_recovery.cpp ****             CONNECTION_MANAGER.completeRfSleepRecovery(transport_, rate_);
+ 849              		.loc 1 147 26 view .LVU249
+ 850              	.LBE72:
+ 851              	.LBE71:
+ 162:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!verified_ && !fallback_ && rate_ != 1000u) {
+ 852              		.loc 1 162 5 is_stmt 1 view .LVU250
+ 162:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!verified_ && !fallback_ && rate_ != 1000u) {
+ 853              		.loc 1 162 15 is_stmt 0 view .LVU251
+ 854 0118 E36B     		ldr	r3, [r4, #60]
+ 162:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!verified_ && !fallback_ && rate_ != 1000u) {
+ 855              		.loc 1 162 13 view .LVU252
+ 856 011a EB1A     		subs	r3, r5, r3
+ 162:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!verified_ && !fallback_ && rate_ != 1000u) {
+ 857              		.loc 1 162 5 view .LVU253
+ 858 011c B3F5FA7F 		cmp	r3, #500
+ 859 0120 82D3     		bcc	.L40
+ 163:Src/transport/rf/rf_sleep_recovery.cpp ****             fallback_ = true;
+ 860              		.loc 1 163 9 is_stmt 1 view .LVU254
+ 163:Src/transport/rf/rf_sleep_recovery.cpp ****             fallback_ = true;
+ 861              		.loc 1 163 14 is_stmt 0 view .LVU255
+ 862 0122 94F84A30 		ldrb	r3, [r4, #74]	@ zero_extendqisi2
+ 163:Src/transport/rf/rf_sleep_recovery.cpp ****             fallback_ = true;
+ 863              		.loc 1 163 9 view .LVU256
+ 864 0126 3BB9     		cbnz	r3, .L72
+ 163:Src/transport/rf/rf_sleep_recovery.cpp ****             fallback_ = true;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 24
+
+
+ 865              		.loc 1 163 28 discriminator 1 view .LVU257
+ 866 0128 94F84820 		ldrb	r2, [r4, #72]	@ zero_extendqisi2
+ 163:Src/transport/rf/rf_sleep_recovery.cpp ****             fallback_ = true;
+ 867              		.loc 1 163 24 discriminator 1 view .LVU258
+ 868 012c 22B9     		cbnz	r2, .L72
+ 163:Src/transport/rf/rf_sleep_recovery.cpp ****             fallback_ = true;
+ 869              		.loc 1 163 41 discriminator 2 view .LVU259
+ 870 012e 228F     		ldrh	r2, [r4, #56]
+ 163:Src/transport/rf/rf_sleep_recovery.cpp ****             fallback_ = true;
+ 871              		.loc 1 163 38 discriminator 2 view .LVU260
+ 872 0130 B2F57A7F 		cmp	r2, #1000
+ 873 0134 40F0CD80 		bne	.L91
+ 874              	.L72:
+ 169:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 875              		.loc 1 169 16 is_stmt 1 view .LVU261
+ 169:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 876              		.loc 1 169 20 is_stmt 0 view .LVU262
+ 877 0138 002B     		cmp	r3, #0
+ 878 013a 00F0D780 		beq	.L79
+ 169:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 879              		.loc 1 169 20 discriminator 1 view .LVU263
+ 880 013e 0721     		movs	r1, #7
+ 881              	.L73:
+ 169:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 882              		.loc 1 169 20 discriminator 4 view .LVU264
+ 883 0140 2A46     		mov	r2, r5
+ 884 0142 2046     		mov	r0, r4
+ 885 0144 FFF7FEFF 		bl	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 886              	.LVL70:
+ 887 0148 6EE7     		b	.L40
+ 888              	.LVL71:
+ 889              	.L86:
+ 110:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Complete) {
+ 890              		.loc 1 110 41 is_stmt 1 discriminator 1 view .LVU265
+ 110:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Complete) {
+ 891              		.loc 1 110 45 is_stmt 0 discriminator 1 view .LVU266
+ 892 014a 2A46     		mov	r2, r5
+ 893 014c 0421     		movs	r1, #4
+ 894 014e 2046     		mov	r0, r4
+ 895              	.LVL72:
+ 110:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Complete) {
+ 896              		.loc 1 110 45 discriminator 1 view .LVU267
+ 897 0150 FFF7FEFF 		bl	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 898              	.LVL73:
+ 110:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Complete) {
+ 899              		.loc 1 110 75 is_stmt 1 discriminator 1 view .LVU268
+ 110:Src/transport/rf/rf_sleep_recovery.cpp ****     if (receive == RFPortStep::Complete) {
+ 900              		.loc 1 110 75 is_stmt 0 view .LVU269
+ 901 0154 68E7     		b	.L40
+ 902              	.LVL74:
+ 903              	.L87:
+ 904              	.LBB82:
+ 905              	.LBB66:
+ 112:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u;
+ 906              		.loc 1 112 9 is_stmt 1 view .LVU270
+ 112:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u;
+ 907              		.loc 1 112 57 is_stmt 0 view .LVU271
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 25
+
+
+ 908 0156 BDF81E20 		ldrh	r2, [sp, #30]
+ 112:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u;
+ 909              		.loc 1 112 62 view .LVU272
+ 910 015a 012A     		cmp	r2, #1
+ 911 015c 08D9     		bls	.L75
+ 112:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u;
+ 912              		.loc 1 112 71 discriminator 1 view .LVU273
+ 913 015e 9DF82110 		ldrb	r1, [sp, #33]	@ zero_extendqisi2
+ 914              	.L58:
+ 112:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u;
+ 915              		.loc 1 112 48 discriminator 4 view .LVU274
+ 916 0162 654B     		ldr	r3, .L95+8
+ 917 0164 D961     		str	r1, [r3, #28]
+ 113:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!transport_.acceptRecoveryFrame(frame, length)) { fail(RfSleepError::FrameRejected, now
+ 918              		.loc 1 113 9 is_stmt 1 view .LVU275
+ 113:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!transport_.acceptRecoveryFrame(frame, length)) { fail(RfSleepError::FrameRejected, now
+ 919              		.loc 1 113 69 is_stmt 0 view .LVU276
+ 920 0166 022A     		cmp	r2, #2
+ 921 0168 04D9     		bls	.L76
+ 113:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!transport_.acceptRecoveryFrame(frame, length)) { fail(RfSleepError::FrameRejected, now
+ 922              		.loc 1 113 78 discriminator 1 view .LVU277
+ 923 016a 9DF82210 		ldrb	r1, [sp, #34]	@ zero_extendqisi2
+ 924 016e 02E0     		b	.L59
+ 925              	.L75:
+ 112:Src/transport/rf/rf_sleep_recovery.cpp ****         g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u;
+ 926              		.loc 1 112 62 discriminator 2 view .LVU278
+ 927 0170 0021     		movs	r1, #0
+ 928 0172 F6E7     		b	.L58
+ 929              	.L76:
+ 113:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!transport_.acceptRecoveryFrame(frame, length)) { fail(RfSleepError::FrameRejected, now
+ 930              		.loc 1 113 69 discriminator 2 view .LVU279
+ 931 0174 0021     		movs	r1, #0
+ 932              	.L59:
+ 113:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!transport_.acceptRecoveryFrame(frame, length)) { fail(RfSleepError::FrameRejected, now
+ 933              		.loc 1 113 55 discriminator 4 view .LVU280
+ 934 0176 604B     		ldr	r3, .L95+8
+ 935 0178 1962     		str	r1, [r3, #32]
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 936              		.loc 1 114 9 is_stmt 1 view .LVU281
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 937              		.loc 1 114 44 is_stmt 0 view .LVU282
+ 938 017a 08A9     		add	r1, sp, #32
+ 939 017c 3846     		mov	r0, r7
+ 940              	.LVL75:
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 941              		.loc 1 114 44 view .LVU283
+ 942 017e FFF7FEFF 		bl	_ZN11RFTransport19acceptRecoveryFrameEPKht
+ 943              	.LVL76:
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 944              		.loc 1 114 9 discriminator 1 view .LVU284
+ 945 0182 E0B1     		cbz	r0, .L92
+ 115:Src/transport/rf/rf_sleep_recovery.cpp ****         if (state_ == RfSleepState::VerifyStatus && requestSent_ &&
+ 946              		.loc 1 115 9 is_stmt 1 view .LVU285
+ 947              	.LVL77:
+ 116:Src/transport/rf/rf_sleep_recovery.cpp ****             transport_.receivedStatusGeneration() != generation_) {
+ 948              		.loc 1 116 9 view .LVU286
+ 116:Src/transport/rf/rf_sleep_recovery.cpp ****             transport_.receivedStatusGeneration() != generation_) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 26
+
+
+ 949              		.loc 1 116 13 is_stmt 0 view .LVU287
+ 950 0184 2368     		ldr	r3, [r4]
+ 116:Src/transport/rf/rf_sleep_recovery.cpp ****             transport_.receivedStatusGeneration() != generation_) {
+ 951              		.loc 1 116 66 view .LVU288
+ 952 0186 052B     		cmp	r3, #5
+ 953 0188 B4D1     		bne	.L57
+ 116:Src/transport/rf/rf_sleep_recovery.cpp ****             transport_.receivedStatusGeneration() != generation_) {
+ 954              		.loc 1 116 53 discriminator 1 view .LVU289
+ 955 018a 94F84930 		ldrb	r3, [r4, #73]	@ zero_extendqisi2
+ 116:Src/transport/rf/rf_sleep_recovery.cpp ****             transport_.receivedStatusGeneration() != generation_) {
+ 956              		.loc 1 116 50 discriminator 1 view .LVU290
+ 957 018e 002B     		cmp	r3, #0
+ 958 0190 B0D0     		beq	.L57
+ 959              	.LVL78:
+ 960              	.LBB67:
+ 961              	.LBI67:
+ 962              		.file 5 "Inc/transport/rf/rf_transport.hpp"
+   1:Inc/transport/rf/rf_transport.hpp **** #ifndef RF_TRANSPORT_HPP
+   2:Inc/transport/rf/rf_transport.hpp **** #define RF_TRANSPORT_HPP
+   3:Inc/transport/rf/rf_transport.hpp **** 
+   4:Inc/transport/rf/rf_transport.hpp **** #include <stdint.h>
+   5:Inc/transport/rf/rf_transport.hpp **** #include <stddef.h>
+   6:Inc/transport/rf/rf_transport.hpp **** 
+   7:Inc/transport/rf/rf_transport.hpp **** #include "gamepad/GamepadState.hpp"
+   8:Inc/transport/rf/rf_transport.hpp **** 
+   9:Inc/transport/rf/rf_transport.hpp **** enum class RFTransportState : uint8_t {
+  10:Inc/transport/rf/rf_transport.hpp ****     Disconnected = 0,
+  11:Inc/transport/rf/rf_transport.hpp ****     Connected = 1,
+  12:Inc/transport/rf/rf_transport.hpp ****     Error = 2,
+  13:Inc/transport/rf/rf_transport.hpp **** };
+  14:Inc/transport/rf/rf_transport.hpp **** 
+  15:Inc/transport/rf/rf_transport.hpp **** enum class RFLinkState : uint8_t {
+  16:Inc/transport/rf/rf_transport.hpp ****     Idle = 0,
+  17:Inc/transport/rf/rf_transport.hpp ****     Pairing = 1,
+  18:Inc/transport/rf/rf_transport.hpp ****     PairOk = 2,
+  19:Inc/transport/rf/rf_transport.hpp ****     Connecting = 3,
+  20:Inc/transport/rf/rf_transport.hpp ****     Connected = 4,
+  21:Inc/transport/rf/rf_transport.hpp ****     Reconnecting = 5,
+  22:Inc/transport/rf/rf_transport.hpp ****     PairTimeout = 6,
+  23:Inc/transport/rf/rf_transport.hpp ****     PairFailed = 7,
+  24:Inc/transport/rf/rf_transport.hpp **** };
+  25:Inc/transport/rf/rf_transport.hpp **** 
+  26:Inc/transport/rf/rf_transport.hpp **** struct RFModuleStatus {
+  27:Inc/transport/rf/rf_transport.hpp ****     RFLinkState state = RFLinkState::Idle;
+  28:Inc/transport/rf/rf_transport.hpp ****     bool connected = false;
+  29:Inc/transport/rf/rf_transport.hpp ****     bool hasBond = false;
+  30:Inc/transport/rf/rf_transport.hpp ****     uint16_t rateHz = 1000;
+  31:Inc/transport/rf/rf_transport.hpp ****     uint8_t txPowerLevel = 0;
+  32:Inc/transport/rf/rf_transport.hpp ****     uint16_t rxOk = 0;
+  33:Inc/transport/rf/rf_transport.hpp ****     uint16_t rxFail = 0;
+  34:Inc/transport/rf/rf_transport.hpp ****     uint16_t txFail = 0;
+  35:Inc/transport/rf/rf_transport.hpp ****     uint32_t rejectCount = 0;
+  36:Inc/transport/rf/rf_transport.hpp ****     uint8_t lastEvent = 0;
+  37:Inc/transport/rf/rf_transport.hpp ****     uint8_t lastCommandTag = 0;
+  38:Inc/transport/rf/rf_transport.hpp ****     uint8_t lastTransactionId = 0;
+  39:Inc/transport/rf/rf_transport.hpp ****     uint8_t lastResult = 0;
+  40:Inc/transport/rf/rf_transport.hpp ****     uint8_t lastErrorCommand = 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 27
+
+
+  41:Inc/transport/rf/rf_transport.hpp ****     uint8_t lastErrorReason = 0;
+  42:Inc/transport/rf/rf_transport.hpp ****     uint32_t eventCounter = 0;
+  43:Inc/transport/rf/rf_transport.hpp ****     uint32_t errorCounter = 0;
+  44:Inc/transport/rf/rf_transport.hpp **** };
+  45:Inc/transport/rf/rf_transport.hpp **** 
+  46:Inc/transport/rf/rf_transport.hpp **** class RFTransport {
+  47:Inc/transport/rf/rf_transport.hpp **** public:
+  48:Inc/transport/rf/rf_transport.hpp ****     RFTransport() = default;
+  49:Inc/transport/rf/rf_transport.hpp ****     bool begin();
+  50:Inc/transport/rf/rf_transport.hpp ****     void resetSession();
+  51:Inc/transport/rf/rf_transport.hpp ****     bool acceptRecoveryFrame(const uint8_t* frame, uint16_t len);
+  52:Inc/transport/rf/rf_transport.hpp ****     uint32_t receivedStatusGeneration() const { return receivedStatusGeneration_; }
+ 963              		.loc 5 52 14 is_stmt 1 view .LVU291
+ 964              	.LBB68:
+ 965              		.loc 5 52 49 view .LVU292
+ 966              		.loc 5 52 56 is_stmt 0 view .LVU293
+ 967 0192 E26A     		ldr	r2, [r4, #44]
+ 968              	.LVL79:
+ 969              		.loc 5 52 56 view .LVU294
+ 970              	.LBE68:
+ 971              	.LBE67:
+ 117:Src/transport/rf/rf_sleep_recovery.cpp ****             requestSent_ = false;
+ 972              		.loc 1 117 54 discriminator 1 view .LVU295
+ 973 0194 216C     		ldr	r1, [r4, #64]
+ 116:Src/transport/rf/rf_sleep_recovery.cpp ****             transport_.receivedStatusGeneration() != generation_) {
+ 974              		.loc 1 116 66 discriminator 3 view .LVU296
+ 975 0196 9142     		cmp	r1, r2
+ 976 0198 ACD0     		beq	.L57
+ 118:Src/transport/rf/rf_sleep_recovery.cpp ****             verified_ = status.lastEvent == 0x81u && status.lastCommandTag == 0x01u &&
+ 977              		.loc 1 118 13 is_stmt 1 view .LVU297
+ 118:Src/transport/rf/rf_sleep_recovery.cpp ****             verified_ = status.lastEvent == 0x81u && status.lastCommandTag == 0x01u &&
+ 978              		.loc 1 118 26 is_stmt 0 view .LVU298
+ 979 019a 0022     		movs	r2, #0
+ 980 019c 84F84920 		strb	r2, [r4, #73]
+ 119:Src/transport/rf/rf_sleep_recovery.cpp ****                         status.lastResult == 0u && status.rateHz == rate_;
+ 981              		.loc 1 119 13 is_stmt 1 view .LVU299
+ 119:Src/transport/rf/rf_sleep_recovery.cpp ****                         status.lastResult == 0u && status.rateHz == rate_;
+ 982              		.loc 1 119 51 is_stmt 0 view .LVU300
+ 983 01a0 A18B     		ldrh	r1, [r4, #28]
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 984              		.loc 1 120 49 view .LVU301
+ 985 01a2 40F28112 		movw	r2, #385
+ 986 01a6 9142     		cmp	r1, r2
+ 987 01a8 0FD0     		beq	.L93
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 988              		.loc 1 120 49 discriminator 2 view .LVU302
+ 989 01aa 0023     		movs	r3, #0
+ 990              	.L61:
+ 119:Src/transport/rf/rf_sleep_recovery.cpp ****                         status.lastResult == 0u && status.rateHz == rate_;
+ 991              		.loc 1 119 23 view .LVU303
+ 992 01ac 84F84A30 		strb	r3, [r4, #74]
+ 121:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 993              		.loc 1 121 13 is_stmt 1 view .LVU304
+ 994 01b0 002B     		cmp	r3, #0
+ 995 01b2 9FD0     		beq	.L57
+ 121:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 996              		.loc 1 121 28 discriminator 1 view .LVU305
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 28
+
+
+ 121:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 997              		.loc 1 121 51 is_stmt 0 discriminator 1 view .LVU306
+ 998 01b4 0021     		movs	r1, #0
+ 999 01b6 0C20     		movs	r0, #12
+ 1000 01b8 FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 1001              	.LVL80:
+ 1002 01bc 9AE7     		b	.L57
+ 1003              	.LVL81:
+ 1004              	.L92:
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 1005              		.loc 1 114 63 is_stmt 1 discriminator 1 view .LVU307
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 1006              		.loc 1 114 67 is_stmt 0 discriminator 1 view .LVU308
+ 1007 01be 2A46     		mov	r2, r5
+ 1008 01c0 0821     		movs	r1, #8
+ 1009 01c2 2046     		mov	r0, r4
+ 1010 01c4 FFF7FEFF 		bl	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 1011              	.LVL82:
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 1012              		.loc 1 114 103 is_stmt 1 discriminator 1 view .LVU309
+ 114:Src/transport/rf/rf_sleep_recovery.cpp ****         const auto& status = transport_.getStatus();
+ 1013              		.loc 1 114 103 is_stmt 0 view .LVU310
+ 1014 01c8 2EE7     		b	.L40
+ 1015              	.LVL83:
+ 1016              	.L93:
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 1017              		.loc 1 120 32 discriminator 1 view .LVU311
+ 1018 01ca E27F     		ldrb	r2, [r4, #31]	@ zero_extendqisi2
+ 119:Src/transport/rf/rf_sleep_recovery.cpp ****                         status.lastResult == 0u && status.rateHz == rate_;
+ 1019              		.loc 1 119 85 view .LVU312
+ 1020 01cc 2AB9     		cbnz	r2, .L78
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 1021              		.loc 1 120 59 discriminator 4 view .LVU313
+ 1022 01ce A189     		ldrh	r1, [r4, #12]
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 1023              		.loc 1 120 69 discriminator 4 view .LVU314
+ 1024 01d0 228F     		ldrh	r2, [r4, #56]
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 1025              		.loc 1 120 49 discriminator 4 view .LVU315
+ 1026 01d2 9142     		cmp	r1, r2
+ 1027 01d4 EAD0     		beq	.L61
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 1028              		.loc 1 120 49 discriminator 2 view .LVU316
+ 1029 01d6 0023     		movs	r3, #0
+ 1030 01d8 E8E7     		b	.L61
+ 1031              	.L78:
+ 1032 01da 0023     		movs	r3, #0
+ 1033 01dc E6E7     		b	.L61
+ 1034              	.LVL84:
+ 1035              	.L88:
+ 120:Src/transport/rf/rf_sleep_recovery.cpp ****             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
+ 1036              		.loc 1 120 49 discriminator 2 view .LVU317
+ 1037              	.LBE66:
+ 1038              	.LBE82:
+ 1039              	.LBB83:
+ 1040              	.LBB70:
+ 125:Src/transport/rf/rf_sleep_recovery.cpp ****         RFCommandTransaction::stepScheduled(window_, 0x05u, args, sizeof(args), now);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 29
+
+
+ 1041              		.loc 1 125 9 is_stmt 1 view .LVU318
+ 125:Src/transport/rf/rf_sleep_recovery.cpp ****         RFCommandTransaction::stepScheduled(window_, 0x05u, args, sizeof(args), now);
+ 1042              		.loc 1 125 54 is_stmt 0 view .LVU319
+ 1043 01de 238F     		ldrh	r3, [r4, #56]
+ 125:Src/transport/rf/rf_sleep_recovery.cpp ****         RFCommandTransaction::stepScheduled(window_, 0x05u, args, sizeof(args), now);
+ 1044              		.loc 1 125 94 view .LVU320
+ 1045 01e0 8DF80830 		strb	r3, [sp, #8]
+ 125:Src/transport/rf/rf_sleep_recovery.cpp ****         RFCommandTransaction::stepScheduled(window_, 0x05u, args, sizeof(args), now);
+ 1046              		.loc 1 125 89 view .LVU321
+ 1047 01e4 1B0A     		lsrs	r3, r3, #8
+ 125:Src/transport/rf/rf_sleep_recovery.cpp ****         RFCommandTransaction::stepScheduled(window_, 0x05u, args, sizeof(args), now);
+ 1048              		.loc 1 125 94 view .LVU322
+ 1049 01e6 8DF80930 		strb	r3, [sp, #9]
+ 126:Src/transport/rf/rf_sleep_recovery.cpp ****         if (now - window_.started < 100u) return;
+ 1050              		.loc 1 126 9 is_stmt 1 view .LVU323
+ 126:Src/transport/rf/rf_sleep_recovery.cpp ****         if (now - window_.started < 100u) return;
+ 1051              		.loc 1 126 44 is_stmt 0 view .LVU324
+ 1052 01ea 0095     		str	r5, [sp]
+ 1053 01ec 0223     		movs	r3, #2
+ 1054 01ee 02AA     		add	r2, sp, #8
+ 1055 01f0 0521     		movs	r1, #5
+ 1056 01f2 04F13000 		add	r0, r4, #48
+ 1057 01f6 FFF7FEFF 		bl	_ZN20RFCommandTransaction13stepScheduledER18RFScheduledCommandhPKhhm
+ 1058              	.LVL85:
+ 127:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!window_.sent) {
+ 1059              		.loc 1 127 9 is_stmt 1 view .LVU325
+ 127:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!window_.sent) {
+ 1060              		.loc 1 127 27 is_stmt 0 view .LVU326
+ 1061 01fa 236B     		ldr	r3, [r4, #48]
+ 127:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!window_.sent) {
+ 1062              		.loc 1 127 17 view .LVU327
+ 1063 01fc EB1A     		subs	r3, r5, r3
+ 127:Src/transport/rf/rf_sleep_recovery.cpp ****         if (!window_.sent) {
+ 1064              		.loc 1 127 9 view .LVU328
+ 1065 01fe 632B     		cmp	r3, #99
+ 1066 0200 7FF612AF 		bls	.L40
+ 128:Src/transport/rf/rf_sleep_recovery.cpp ****             if (!fallback_ && rate_ != 1000u) {
+ 1067              		.loc 1 128 9 is_stmt 1 view .LVU329
+ 128:Src/transport/rf/rf_sleep_recovery.cpp ****             if (!fallback_ && rate_ != 1000u) {
+ 1068              		.loc 1 128 22 is_stmt 0 view .LVU330
+ 1069 0204 94F83630 		ldrb	r3, [r4, #54]	@ zero_extendqisi2
+ 128:Src/transport/rf/rf_sleep_recovery.cpp ****             if (!fallback_ && rate_ != 1000u) {
+ 1070              		.loc 1 128 9 view .LVU331
+ 1071 0208 BBB9     		cbnz	r3, .L64
+ 129:Src/transport/rf/rf_sleep_recovery.cpp ****                 fallback_ = true;
+ 1072              		.loc 1 129 13 is_stmt 1 view .LVU332
+ 129:Src/transport/rf/rf_sleep_recovery.cpp ****                 fallback_ = true;
+ 1073              		.loc 1 129 18 is_stmt 0 view .LVU333
+ 1074 020a 94F84830 		ldrb	r3, [r4, #72]	@ zero_extendqisi2
+ 129:Src/transport/rf/rf_sleep_recovery.cpp ****                 fallback_ = true;
+ 1075              		.loc 1 129 13 view .LVU334
+ 1076 020e 1BB9     		cbnz	r3, .L65
+ 129:Src/transport/rf/rf_sleep_recovery.cpp ****                 fallback_ = true;
+ 1077              		.loc 1 129 31 discriminator 1 view .LVU335
+ 1078 0210 238F     		ldrh	r3, [r4, #56]
+ 129:Src/transport/rf/rf_sleep_recovery.cpp ****                 fallback_ = true;
+ 1079              		.loc 1 129 28 discriminator 1 view .LVU336
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 30
+
+
+ 1080 0212 B3F57A7F 		cmp	r3, #1000
+ 1081 0216 05D1     		bne	.L94
+ 1082              	.L65:
+ 133:Src/transport/rf/rf_sleep_recovery.cpp ****             return;
+ 1083              		.loc 1 133 20 is_stmt 1 view .LVU337
+ 133:Src/transport/rf/rf_sleep_recovery.cpp ****             return;
+ 1084              		.loc 1 133 24 is_stmt 0 view .LVU338
+ 1085 0218 2A46     		mov	r2, r5
+ 1086 021a 0521     		movs	r1, #5
+ 1087 021c 2046     		mov	r0, r4
+ 1088 021e FFF7FEFF 		bl	_ZN15RfSleepRecovery4failE12RfSleepErrorm
+ 1089              	.LVL86:
+ 134:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1090              		.loc 1 134 13 is_stmt 1 view .LVU339
+ 1091 0222 01E7     		b	.L40
+ 1092              	.L94:
+ 130:Src/transport/rf/rf_sleep_recovery.cpp ****                 rate_ = 1000u;
+ 1093              		.loc 1 130 17 view .LVU340
+ 130:Src/transport/rf/rf_sleep_recovery.cpp ****                 rate_ = 1000u;
+ 1094              		.loc 1 130 27 is_stmt 0 view .LVU341
+ 1095 0224 0123     		movs	r3, #1
+ 1096 0226 84F84830 		strb	r3, [r4, #72]
+ 131:Src/transport/rf/rf_sleep_recovery.cpp ****                 configure(now);
+ 1097              		.loc 1 131 17 is_stmt 1 view .LVU342
+ 131:Src/transport/rf/rf_sleep_recovery.cpp ****                 configure(now);
+ 1098              		.loc 1 131 23 is_stmt 0 view .LVU343
+ 1099 022a 4FF47A73 		mov	r3, #1000
+ 1100 022e 2387     		strh	r3, [r4, #56]	@ movhi
+ 132:Src/transport/rf/rf_sleep_recovery.cpp ****             } else fail(RfSleepError::RateSend, now);
+ 1101              		.loc 1 132 17 is_stmt 1 view .LVU344
+ 132:Src/transport/rf/rf_sleep_recovery.cpp ****             } else fail(RfSleepError::RateSend, now);
+ 1102              		.loc 1 132 26 is_stmt 0 view .LVU345
+ 1103 0230 2946     		mov	r1, r5
+ 1104 0232 2046     		mov	r0, r4
+ 1105 0234 FFF7FEFF 		bl	_ZN15RfSleepRecovery9configureEm
+ 1106              	.LVL87:
+ 1107 0238 F6E6     		b	.L40
+ 1108              	.L64:
+ 136:Src/transport/rf/rf_sleep_recovery.cpp ****         since_ = now;
+ 1109              		.loc 1 136 9 is_stmt 1 view .LVU346
+ 136:Src/transport/rf/rf_sleep_recovery.cpp ****         since_ = now;
+ 1110              		.loc 1 136 16 is_stmt 0 view .LVU347
+ 1111 023a 0523     		movs	r3, #5
+ 1112 023c 2360     		str	r3, [r4]
+ 137:Src/transport/rf/rf_sleep_recovery.cpp ****         lastPoll_ = now - 50u;
+ 1113              		.loc 1 137 9 is_stmt 1 view .LVU348
+ 137:Src/transport/rf/rf_sleep_recovery.cpp ****         lastPoll_ = now - 50u;
+ 1114              		.loc 1 137 16 is_stmt 0 view .LVU349
+ 1115 023e E563     		str	r5, [r4, #60]
+ 138:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 1116              		.loc 1 138 9 is_stmt 1 view .LVU350
+ 138:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 1117              		.loc 1 138 25 is_stmt 0 view .LVU351
+ 1118 0240 323D     		subs	r5, r5, #50
+ 1119              	.LVL88:
+ 138:Src/transport/rf/rf_sleep_recovery.cpp ****         return;
+ 1120              		.loc 1 138 19 view .LVU352
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 31
+
+
+ 1121 0242 6564     		str	r5, [r4, #68]
+ 139:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 1122              		.loc 1 139 9 is_stmt 1 view .LVU353
+ 1123 0244 F0E6     		b	.L40
+ 1124              	.LVL89:
+ 1125              	.L89:
+ 139:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 1126              		.loc 1 139 9 is_stmt 0 view .LVU354
+ 1127              	.LBE70:
+ 1128              	.LBE83:
+ 1129              	.LBB84:
+ 1130              	.LBB77:
+ 1131              	.LBB75:
+ 142:Src/transport/rf/rf_sleep_recovery.cpp ****             const GamepadState neutral = {};
+ 1132              		.loc 1 142 55 discriminator 1 view .LVU355
+ 1133 0246 FFF7FEFF 		bl	_Z25RFBridgePort_RecoveryIdlev
+ 1134              	.LVL90:
+ 142:Src/transport/rf/rf_sleep_recovery.cpp ****             const GamepadState neutral = {};
+ 1135              		.loc 1 142 27 discriminator 1 view .LVU356
+ 1136 024a 0028     		cmp	r0, #0
+ 1137 024c 3FF45FAF 		beq	.L68
+ 1138              	.LBB74:
+ 143:Src/transport/rf/rf_sleep_recovery.cpp ****             neutralSent_ = transport_.sendInput(neutral, 0u);
+ 1139              		.loc 1 143 13 is_stmt 1 view .LVU357
+ 143:Src/transport/rf/rf_sleep_recovery.cpp ****             neutralSent_ = transport_.sendInput(neutral, 0u);
+ 1140              		.loc 1 143 32 is_stmt 0 view .LVU358
+ 1141 0250 02AE     		add	r6, sp, #8
+ 1142 0252 DFF8B0C0 		ldr	ip, .L95+20
+ 1143 0256 BCE80F00 		ldmia	ip!, {r0, r1, r2, r3}
+ 1144 025a 0FC6     		stmia	r6!, {r0, r1, r2, r3}
+ 1145 025c DCF80030 		ldr	r3, [ip]
+ 1146 0260 3360     		str	r3, [r6]
+ 144:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1147              		.loc 1 144 13 is_stmt 1 view .LVU359
+ 144:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1148              		.loc 1 144 48 is_stmt 0 view .LVU360
+ 1149 0262 0022     		movs	r2, #0
+ 1150 0264 02A9     		add	r1, sp, #8
+ 1151 0266 3846     		mov	r0, r7
+ 1152 0268 FFF7FEFF 		bl	_ZN11RFTransport9sendInputERK12GamepadStatem
+ 1153              	.LVL91:
+ 144:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1154              		.loc 1 144 26 discriminator 1 view .LVU361
+ 1155 026c 84F84B00 		strb	r0, [r4, #75]
+ 1156              	.LBE74:
+ 1157 0270 4DE7     		b	.L68
+ 1158              	.L90:
+ 144:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1159              		.loc 1 144 26 discriminator 1 view .LVU362
+ 1160              	.LBE75:
+ 147:Src/transport/rf/rf_sleep_recovery.cpp ****             CONNECTION_MANAGER.completeRfSleepRecovery(transport_, rate_);
+ 1161              		.loc 1 147 53 discriminator 1 view .LVU363
+ 1162 0272 FFF7FEFF 		bl	_Z24RFBridgePort_IsInputIdlev
+ 1163              	.LVL92:
+ 147:Src/transport/rf/rf_sleep_recovery.cpp ****             CONNECTION_MANAGER.completeRfSleepRecovery(transport_, rate_);
+ 1164              		.loc 1 147 26 discriminator 1 view .LVU364
+ 1165 0276 0028     		cmp	r0, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 32
+
+
+ 1166 0278 3FF44EAF 		beq	.L69
+ 148:Src/transport/rf/rf_sleep_recovery.cpp ****             state_ = RfSleepState::Ready;
+ 1167              		.loc 1 148 13 is_stmt 1 view .LVU365
+ 1168              	.LBB76:
+ 1169              	.LBI76:
+  42:Inc/transport/connection_manager.hpp ****         static ConnectionManager instance;
+ 1170              		.loc 2 42 31 view .LVU366
+  43:Inc/transport/connection_manager.hpp ****         return instance;
+ 1171              		.loc 2 43 9 view .LVU367
+ 1172              		.loc 2 44 9 view .LVU368
+ 1173              	.LBE76:
+ 148:Src/transport/rf/rf_sleep_recovery.cpp ****             state_ = RfSleepState::Ready;
+ 1174              		.loc 1 148 55 is_stmt 0 discriminator 1 view .LVU369
+ 1175 027c 228F     		ldrh	r2, [r4, #56]
+ 1176 027e 3946     		mov	r1, r7
+ 1177 0280 1E48     		ldr	r0, .L95+12
+ 1178 0282 FFF7FEFF 		bl	_ZN17ConnectionManager23completeRfSleepRecoveryERK11RFTransportt
+ 1179              	.LVL93:
+ 149:Src/transport/rf/rf_sleep_recovery.cpp ****             SleepDiagnostics_Record(SleepStage::RadioReady);
+ 1180              		.loc 1 149 13 is_stmt 1 view .LVU370
+ 149:Src/transport/rf/rf_sleep_recovery.cpp ****             SleepDiagnostics_Record(SleepStage::RadioReady);
+ 1181              		.loc 1 149 20 is_stmt 0 view .LVU371
+ 1182 0286 0623     		movs	r3, #6
+ 1183 0288 2360     		str	r3, [r4]
+ 150:Src/transport/rf/rf_sleep_recovery.cpp ****             return;
+ 1184              		.loc 1 150 13 is_stmt 1 view .LVU372
+ 150:Src/transport/rf/rf_sleep_recovery.cpp ****             return;
+ 1185              		.loc 1 150 36 is_stmt 0 view .LVU373
+ 1186 028a 0021     		movs	r1, #0
+ 1187 028c 0D20     		movs	r0, #13
+ 1188 028e FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 1189              	.LVL94:
+ 151:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1190              		.loc 1 151 13 is_stmt 1 view .LVU374
+ 1191 0292 C9E6     		b	.L40
+ 1192              	.L67:
+ 151:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1193              		.loc 1 151 13 is_stmt 0 view .LVU375
+ 1194              	.LBE77:
+ 1195              	.LBE84:
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 1196              		.loc 1 153 12 is_stmt 1 view .LVU376
+ 1197              	.LBB85:
+ 1198              	.LBB78:
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 1199              		.loc 1 153 17 is_stmt 0 view .LVU377
+ 1200 0294 94F84930 		ldrb	r3, [r4, #73]	@ zero_extendqisi2
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 1201              		.loc 1 153 61 view .LVU378
+ 1202 0298 002B     		cmp	r3, #0
+ 1203 029a 7FF43DAF 		bne	.L69
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 1204              		.loc 1 153 58 discriminator 1 view .LVU379
+ 1205 029e FFF7FEFF 		bl	_Z25RFBridgePort_RecoveryIdlev
+ 1206              	.LVL95:
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 1207              		.loc 1 153 30 discriminator 1 view .LVU380
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 33
+
+
+ 1208 02a2 0028     		cmp	r0, #0
+ 1209 02a4 3FF438AF 		beq	.L69
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 1210              		.loc 1 153 70 discriminator 3 view .LVU381
+ 1211 02a8 636C     		ldr	r3, [r4, #68]
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 1212              		.loc 1 153 68 discriminator 3 view .LVU382
+ 1213 02aa EB1A     		subs	r3, r5, r3
+ 153:Src/transport/rf/rf_sleep_recovery.cpp ****         // Existing GET_STATUS snapshot format; no synthesized RATE_APPLIED.
+ 1214              		.loc 1 153 61 discriminator 3 view .LVU383
+ 1215 02ac 312B     		cmp	r3, #49
+ 1216 02ae 7FF633AF 		bls	.L69
+ 1217              	.LBB79:
+ 155:Src/transport/rf/rf_sleep_recovery.cpp ****         generation_ = transport_.receivedStatusGeneration();
+ 1218              		.loc 1 155 9 is_stmt 1 view .LVU384
+ 155:Src/transport/rf/rf_sleep_recovery.cpp ****         generation_ = transport_.receivedStatusGeneration();
+ 1219              		.loc 1 155 23 is_stmt 0 view .LVU385
+ 1220 02b2 134B     		ldr	r3, .L95+16
+ 1221 02b4 0293     		str	r3, [sp, #8]
+ 156:Src/transport/rf/rf_sleep_recovery.cpp ****         if (RFBridgePort_RecoverySend(request, sizeof(request))) {
+ 1222              		.loc 1 156 9 is_stmt 1 view .LVU386
+ 1223              	.LVL96:
+ 1224              	.LBB80:
+ 1225              	.LBI80:
+ 1226              		.loc 5 52 14 view .LVU387
+ 1227              	.LBB81:
+ 1228              		.loc 5 52 49 view .LVU388
+ 1229              		.loc 5 52 56 is_stmt 0 view .LVU389
+ 1230 02b6 E36A     		ldr	r3, [r4, #44]
+ 1231              	.LVL97:
+ 1232              		.loc 5 52 56 view .LVU390
+ 1233              	.LBE81:
+ 1234              	.LBE80:
+ 156:Src/transport/rf/rf_sleep_recovery.cpp ****         if (RFBridgePort_RecoverySend(request, sizeof(request))) {
+ 1235              		.loc 1 156 21 discriminator 1 view .LVU391
+ 1236 02b8 2364     		str	r3, [r4, #64]
+ 157:Src/transport/rf/rf_sleep_recovery.cpp ****             requestSent_ = true;
+ 1237              		.loc 1 157 9 is_stmt 1 view .LVU392
+ 157:Src/transport/rf/rf_sleep_recovery.cpp ****             requestSent_ = true;
+ 1238              		.loc 1 157 38 is_stmt 0 view .LVU393
+ 1239 02ba 0421     		movs	r1, #4
+ 1240 02bc 02A8     		add	r0, sp, #8
+ 1241 02be FFF7FEFF 		bl	_Z25RFBridgePort_RecoverySendPKht
+ 1242              	.LVL98:
+ 157:Src/transport/rf/rf_sleep_recovery.cpp ****             requestSent_ = true;
+ 1243              		.loc 1 157 9 discriminator 1 view .LVU394
+ 1244 02c2 0028     		cmp	r0, #0
+ 1245 02c4 3FF428AF 		beq	.L69
+ 158:Src/transport/rf/rf_sleep_recovery.cpp ****             lastPoll_ = now;
+ 1246              		.loc 1 158 13 is_stmt 1 view .LVU395
+ 158:Src/transport/rf/rf_sleep_recovery.cpp ****             lastPoll_ = now;
+ 1247              		.loc 1 158 26 is_stmt 0 view .LVU396
+ 1248 02c8 0123     		movs	r3, #1
+ 1249 02ca 84F84930 		strb	r3, [r4, #73]
+ 159:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1250              		.loc 1 159 13 is_stmt 1 view .LVU397
+ 159:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 34
+
+
+ 1251              		.loc 1 159 23 is_stmt 0 view .LVU398
+ 1252 02ce 6564     		str	r5, [r4, #68]
+ 1253 02d0 22E7     		b	.L69
+ 1254              	.L91:
+ 159:Src/transport/rf/rf_sleep_recovery.cpp ****         }
+ 1255              		.loc 1 159 23 view .LVU399
+ 1256              	.LBE79:
+ 1257              	.LBE78:
+ 1258              	.LBE85:
+ 164:Src/transport/rf/rf_sleep_recovery.cpp ****             rate_ = 1000u;
+ 1259              		.loc 1 164 13 is_stmt 1 view .LVU400
+ 164:Src/transport/rf/rf_sleep_recovery.cpp ****             rate_ = 1000u;
+ 1260              		.loc 1 164 23 is_stmt 0 view .LVU401
+ 1261 02d2 0123     		movs	r3, #1
+ 1262 02d4 84F84830 		strb	r3, [r4, #72]
+ 165:Src/transport/rf/rf_sleep_recovery.cpp ****             // Abort a partial response before starting a new transaction window.
+ 1263              		.loc 1 165 13 is_stmt 1 view .LVU402
+ 165:Src/transport/rf/rf_sleep_recovery.cpp ****             // Abort a partial response before starting a new transaction window.
+ 1264              		.loc 1 165 19 is_stmt 0 view .LVU403
+ 1265 02d8 4FF47A73 		mov	r3, #1000
+ 1266 02dc 2387     		strh	r3, [r4, #56]	@ movhi
+ 167:Src/transport/rf/rf_sleep_recovery.cpp ****             configure(now);
+ 1267              		.loc 1 167 13 is_stmt 1 view .LVU404
+ 167:Src/transport/rf/rf_sleep_recovery.cpp ****             configure(now);
+ 1268              		.loc 1 167 42 is_stmt 0 view .LVU405
+ 1269 02de FFF7FEFF 		bl	_Z29RFBridgePort_CancelRecoveryIov
+ 1270              	.LVL99:
+ 168:Src/transport/rf/rf_sleep_recovery.cpp ****         } else fail(verified_ ? RfSleepError::Neutral : RfSleepError::StatusTimeout, now);
+ 1271              		.loc 1 168 13 is_stmt 1 view .LVU406
+ 168:Src/transport/rf/rf_sleep_recovery.cpp ****         } else fail(verified_ ? RfSleepError::Neutral : RfSleepError::StatusTimeout, now);
+ 1272              		.loc 1 168 22 is_stmt 0 view .LVU407
+ 1273 02e2 2946     		mov	r1, r5
+ 1274 02e4 2046     		mov	r0, r4
+ 1275 02e6 FFF7FEFF 		bl	_ZN15RfSleepRecovery9configureEm
+ 1276              	.LVL100:
+ 1277 02ea 9DE6     		b	.L40
+ 1278              	.L79:
+ 169:Src/transport/rf/rf_sleep_recovery.cpp ****     }
+ 1279              		.loc 1 169 20 discriminator 2 view .LVU408
+ 1280 02ec 0621     		movs	r1, #6
+ 1281 02ee 27E7     		b	.L73
+ 1282              	.L96:
+ 1283              		.align	2
+ 1284              	.L95:
+ 1285 02f0 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 1286 02f4 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 1287 02f8 00000000 		.word	g_sleepDiagnostics
+ 1288 02fc 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 1289 0300 A50100A6 		.word	-1509949019
+ 1290 0304 00000000 		.word	.LANCHOR0
+ 1291              		.cfi_endproc
+ 1292              	.LFE1896:
+ 1294              		.weak	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 1295              		.section	.data._ZZN17ConnectionManager11getInstanceEvE8instance,"awG",%progbits,_ZZN17ConnectionMa
+ 1296              		.align	2
+ 1299              	_ZZN17ConnectionManager11getInstanceEvE8instance:
+ 1300 0000 00       		.byte	0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 35
+
+
+ 1301 0001 00       		.byte	0
+ 1302 0002 E803     		.short	1000
+ 1303 0004 E803     		.short	1000
+ 1304 0006 00       		.byte	0
+ 1305 0007 01       		.byte	1
+ 1306 0008 00       		.byte	0
+ 1307 0009 00       		.byte	0
+ 1308 000a 00       		.byte	0
+ 1309 000b 00       		.space	1
+ 1310 000c 00000000 		.word	0
+ 1311 0010 00000000 		.word	0
+ 1312 0014 00000000 		.word	0
+ 1313 0018 00000000 		.word	0
+ 1314 001c 00000000 		.word	0
+ 1315 0020 00000000 		.word	0
+ 1316 0024 00000000 		.word	0
+ 1317 0028 00000000 		.word	0
+ 1318 002c 00000000 		.word	0
+ 1319 0030 00000000 		.word	0
+ 1320 0034 00       		.byte	0
+ 1321 0035 00       		.byte	0
+ 1322 0036 00       		.byte	0
+ 1323 0037 00       		.byte	0
+ 1324 0038 00       		.byte	0
+ 1325 0039 000000   		.space	3
+ 1326 003c 00000000 		.word	0
+ 1327 0040 00000000 		.word	0
+ 1328 0044 00       		.byte	0
+ 1329 0045 00       		.byte	0
+ 1330 0046 00       		.byte	0
+ 1331 0047 00       		.space	1
+ 1332 0048 00       		.byte	0
+ 1333 0049 000000   		.space	3
+ 1334 004c 00       		.byte	0
+ 1335 004d 00       		.byte	0
+ 1336 004e 00       		.byte	0
+ 1337 004f 00       		.space	1
+ 1338 0050 E803     		.short	1000
+ 1339 0052 00       		.byte	0
+ 1340 0053 00       		.space	1
+ 1341 0054 0000     		.short	0
+ 1342 0056 0000     		.short	0
+ 1343 0058 0000     		.short	0
+ 1344 005a 0000     		.space	2
+ 1345 005c 00000000 		.word	0
+ 1346 0060 00       		.byte	0
+ 1347 0061 00       		.byte	0
+ 1348 0062 00       		.byte	0
+ 1349 0063 00       		.byte	0
+ 1350 0064 00       		.byte	0
+ 1351 0065 00       		.byte	0
+ 1352 0066 0000     		.space	2
+ 1353 0068 00000000 		.word	0
+ 1354 006c 00000000 		.word	0
+ 1355 0070 00000000 		.word	0
+ 1356              		.weak	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 1357              		.section	.bss._ZZN12UsbBoardLink11getInstanceEvE8instance,"awG",%nobits,_ZZN12UsbBoardLink11getIns
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 36
+
+
+ 1358              		.align	2
+ 1361              	_ZZN12UsbBoardLink11getInstanceEvE8instance:
+ 1362 0000 00000000 		.space	64
+ 1362      00000000 
+ 1362      00000000 
+ 1362      00000000 
+ 1362      00000000 
+ 1363              		.weak	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 1364              		.section	.bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance,"awG",%nobits,_ZZN18Ch585RoleBoots
+ 1365              		.align	2
+ 1368              	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:
+ 1369 0000 00000000 		.space	20
+ 1369      00000000 
+ 1369      00000000 
+ 1369      00000000 
+ 1369      00000000 
+ 1370              		.section	.rodata
+ 1371              		.align	2
+ 1372              		.set	.LANCHOR0,. + 0
+ 1373              	.LC0:
+ 1374 0000 00       		.byte	0
+ 1375 0001 000000   		.space	3
+ 1376 0004 00000000 		.word	0
+ 1377 0008 0000     		.short	0
+ 1378 000a FF7F     		.short	32767
+ 1379 000c FF7F     		.short	32767
+ 1380 000e FF7F     		.short	32767
+ 1381 0010 FF7F     		.short	32767
+ 1382 0012 00       		.byte	0
+ 1383 0013 00       		.byte	0
+ 1384              		.text
+ 1385              	.Letext0:
+ 1386              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1387              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1388              		.file 8 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1389              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 1390              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 1391              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 1392              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 1393              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 1394              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 1395              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 1396              		.file 16 "Inc/input/gamepad/GamepadState.hpp"
+ 1397              		.file 17 "Inc/support/enums.hpp"
+ 1398              		.file 18 "Inc/transport/rf/rf_command_transaction.hpp"
+ 1399              		.file 19 "Inc/transport/rf/rf_sleep_recovery.hpp"
+ 1400              		.file 20 "Inc/transport/rf/rf_bridge_port.hpp"
+ 1401              		.file 21 "../common/usb_board_link_protocol.h"
+ 1402              		.file 22 "../common/release_install_protocol.h"
+ 1403              		.file 23 "Inc/transport/rf/rf_link_state_policy.hpp"
+ 1404              		.file 24 "Inc/power/sleep_diagnostics.hpp"
+ 1405              		.file 25 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1406              		.file 26 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 1407              		.file 27 "Inc/transport/usb/usb_board_link_port.hpp"
+ 1408              		.file 28 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 1409              		.file 29 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 37
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 rf_sleep_recovery.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:20     .text._ZZN15RfSleepRecovery12startAttemptEvENUl9Ch585RoleE_4_FUNES0_:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:25     .text._ZZN15RfSleepRecovery12startAttemptEvENUl9Ch585RoleE_4_FUNES0_:00000000 _ZZN15RfSleepRecovery12startAttemptEvENUl9Ch585RoleE_4_FUNES0_
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:70     .text._ZN15RfSleepRecovery4parkEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:76     .text._ZN15RfSleepRecovery4parkEv:00000000 _ZN15RfSleepRecovery4parkEv
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:181    .text._ZN15RfSleepRecovery4parkEv:00000044 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:1299   .data._ZZN17ConnectionManager11getInstanceEvE8instance:00000000 _ZZN17ConnectionManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:1361   .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 _ZZN12UsbBoardLink11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:1368   .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 _ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:188    .text._ZN15RfSleepRecovery7suspendEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:194    .text._ZN15RfSleepRecovery7suspendEv:00000000 _ZN15RfSleepRecovery7suspendEv
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:221    .text._ZN15RfSleepRecovery9configureEm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:227    .text._ZN15RfSleepRecovery9configureEm:00000000 _ZN15RfSleepRecovery9configureEm
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:272    .text._ZN15RfSleepRecovery4failE12RfSleepErrorm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:278    .text._ZN15RfSleepRecovery4failE12RfSleepErrorm:00000000 _ZN15RfSleepRecovery4failE12RfSleepErrorm
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:338    .text._ZN15RfSleepRecovery4failE12RfSleepErrorm:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:343    .text._ZN15RfSleepRecovery12startAttemptEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:349    .text._ZN15RfSleepRecovery12startAttemptEv:00000000 _ZN15RfSleepRecovery12startAttemptEv
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:452    .text._ZN15RfSleepRecovery12startAttemptEv:00000054 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:460    .text._ZN15RfSleepRecovery5beginEt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:466    .text._ZN15RfSleepRecovery5beginEt:00000000 _ZN15RfSleepRecovery5beginEt
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:498    .text._ZN15RfSleepRecovery6cancelEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:504    .text._ZN15RfSleepRecovery6cancelEv:00000000 _ZN15RfSleepRecovery6cancelEv
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:533    .text._ZN15RfSleepRecovery7serviceEm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:539    .text._ZN15RfSleepRecovery7serviceEm:00000000 _ZN15RfSleepRecovery7serviceEm
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:567    .text._ZN15RfSleepRecovery7serviceEm:00000012 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:1285   .text._ZN15RfSleepRecovery7serviceEm:000002f0 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:1296   .data._ZZN17ConnectionManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:1358   .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:1365   .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:1371   .rodata:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:576    .text._ZN15RfSleepRecovery7serviceEm:0000001b $d
+C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s:576    .text._ZN15RfSleepRecovery7serviceEm:0000001c $t
+
+UNDEFINED SYMBOLS
+_Z33USBBoardLinkPort_SelectRfRoleOncev
+_ZN17ConnectionManager24onRfPowerRemovedForSleepEv
+_Z28USBBoardLinkPort_TryShutdownv
+_Z32RFBridgePort_TryShutdownForSleepv
+_ZN12UsbBoardLink8shutdownEv
+_ZN17ConnectionManager19resetRfSleepSessionEv
+_ZN11RFTransport12resetSessionEv
+_ZN18Ch585RoleBootstrap8shutdownEv
+_Z23SleepDiagnostics_Record10SleepStagem
+_ZN20RFCommandTransaction14beginScheduledER18RFScheduledCommandm
+_ZN17ConnectionManager23setRfSleepRecoveryErrorEb
+_ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE
+_ZN18Ch585RoleBootstrap18beginRfSleepResumeEv
+HAL_GetTick
+g_sleepDiagnostics
+_Z29RFBridgePort_CancelRecoveryIov
+_ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv
+_Z26RFBridgePort_RecoveryBeginv
+_ZN11RFTransport13serviceEventsEh
+memset
+_Z25RFBridgePort_RecoveryReadPhPtm
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgwICff.s 			page 38
+
+
+_ZN11RFTransport19acceptRecoveryFrameEPKht
+_ZN20RFCommandTransaction13stepScheduledER18RFScheduledCommandhPKhhm
+_Z25RFBridgePort_RecoveryIdlev
+_ZN11RFTransport9sendInputERK12GamepadStatem
+_Z24RFBridgePort_IsInputIdlev
+_ZN17ConnectionManager23completeRfSleepRecoveryERK11RFTransportt
+_Z25RFBridgePort_RecoverySendPKht

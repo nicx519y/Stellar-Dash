@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { mockInstallPackage } from './firmware-install-mock';
 import type { FirmwareRelease, FirmwareReleaseManifest, FirmwareRuntime, ReleasePage, ReleaseQuery } from './firmware-types';
 
 const KEY = 'xora-preview-firmware-releases-v1';
@@ -18,7 +19,10 @@ function fixture(version: string, status: FirmwareRelease['status']): FirmwareRe
 function read(): FirmwareRelease[] {
   const value = sessionStorage.getItem(KEY);
   if (value) return JSON.parse(value);
-  const items = [fixture('2.1.0', 'draft'), fixture('2.0.0', 'published')]; write(items); return items;
+  const incompatible = fixture('2.2.0', 'published');
+  incompatible.manifest.install = { protocol: 1, order: 'tx-then-stm32', configRead: { min: 35, max: 35 }, configWrite: 35,
+    stm32Maintenance: { min: 1, max: 1 }, txMaintenance: { min: 1, max: 1 } };
+  const items = [fixture('2.1.0', 'draft'), incompatible, fixture('2.0.0', 'published'), fixture('1.9.0', 'published')]; write(items); return items;
 }
 function write(items: FirmwareRelease[]) { sessionStorage.setItem(KEY, JSON.stringify(items)); }
 function find(id: string) { const r = read().find(r => r.id === id); if (!r) throw new Error('Release not found'); return r; }
@@ -39,7 +43,7 @@ export const firmwareRuntime: FirmwareRuntime = {
   async detail(id) { return find(id); },
   async catalog(q) {
     const p = page(read().filter(r => r.status === 'published'), q);
-    return { ...p, items: p.items.map(r => ({ id: r.id, manifest: r.manifest, status: 'published', notes: r.notes, publishedAt: r.publishedAt })) };
+    return { ...p, items: await Promise.all(p.items.map(async r => (await mockInstallPackage(r)).release)) };
   },
   async legacy() { return []; },
   async importBundle(file, onProgress) {
@@ -49,7 +53,7 @@ export const firmwareRuntime: FirmwareRuntime = {
       const zip = await JSZip.loadAsync(file); const raw = await zip.file('release.json')?.async('string');
       if (!raw || !zip.file('release.sig')) throw new Error('release.json and release.sig are required');
       const manifest = JSON.parse(raw) as FirmwareReleaseManifest;
-      if (manifest.schemaVersion !== 1 || manifest.product !== 'XORA' || !Array.isArray(manifest.artifacts)) throw new Error('Invalid release manifest');
+      if (![1, 2].includes(manifest.schemaVersion) || manifest.product !== 'XORA' || !Array.isArray(manifest.artifacts)) throw new Error('Invalid release manifest');
       if (read().some(r => r.manifest.version === manifest.version && r.manifest.hardwareVersion === manifest.hardwareVersion)) throw new Error('Version already exists');
       const r = { ...fixture(manifest.version, 'draft'), id: crypto.randomUUID(), manifest };
       write([r, ...read()]); onProgress(100);

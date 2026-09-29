@@ -686,6 +686,6 @@ int main(int argc, char **argv)
     cJSON_Delete(pingResult.root);
     cJSON_Delete(document);
     std::cout << "real handler contracts passed: " << passed
-              << "/70; binary zero-copy, retired tombstone handler and ping passed separately\n";
-    return passed == 70u ? EXIT_SUCCESS : EXIT_FAILURE;
+              << "/77; binary zero-copy, retired tombstone handler and ping passed separately\n";
+    return passed == 77u ? EXIT_SUCCESS : EXIT_FAILURE;
 }

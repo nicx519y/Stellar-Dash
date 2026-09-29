@@ -122,8 +122,13 @@ class WebHidBinaryAckContractTests(unittest.TestCase):
         self.assertIn("response[76] != 3u", catalog)
         self.assertIn("response[77] != 0u", catalog)
         self.assertIn("loadLe16(&response[78]) != WEBHID_REPORT_PAYLOAD_BYTES", catalog)
-        self.assertIn("loadLe16(&response[80]) != 0x0003u", catalog)
+        self.assertIn(
+            "!HBoxUserImage::isSupportedImageTransferFlags(loadLe16(&response[80]))",
+            catalog,
+        )
         self.assertIn("response[6] > 1u || response[7] > 1u", catalog)
+        self.assertEqual(catalog.count("response[65] > HBoxUserImage::MAX_USER_FRAMES"), 2)
+        self.assertIn('#include "configs/user_image_format.hpp"', self.service)
         self.assertIn("response[66] > 10u", catalog)
         self.assertIn("response[7] == 1u && response[66] == 0u", catalog)
         self.assertNotIn("response[66] == 0u || response[67]", catalog)
@@ -174,8 +179,8 @@ class WebHidBinaryAckContractTests(unittest.TestCase):
         self.assertIn("QSPI_W25Qxx_ReadBuffer", reader)
         self.assertIn("length > W25Qxx_FlashSize", reader)
         self.assertIn("flashOffset > W25Qxx_FlashSize - length", reader)
-        self.assertIn("qspi_read_bytes(address, &out", index_reader)
-        self.assertIn("HBoxUserImage::validateStructure", index_reader)
+        self.assertIn("qspi_read_bytes(address, bytes, sizeof(bytes))", index_reader)
+        self.assertIn("HBoxUserImage::decodeHeader", index_reader)
         self.assertIn("payloadCrc == out.payload_crc32", index_reader)
         self.assertNotIn("QSPIXipGuard", index_reader)
         self.assertIn("qspi_read_bytes(", chunk_reader)

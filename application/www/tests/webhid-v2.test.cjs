@@ -26,3 +26,14 @@ test('V2 covers 16-bit lengths and rejects legacy size, padding and session gene
   const report=await codec.encode({type:SecureHidFrameType.IMAGE_DATA,flags:0,sequence:1,payload:new Uint8Array(1),secure:true});
   report[17]=1; await assert.rejects(codec.decode(report),/padding/);
 });
+
+test('latched SPI port faults are classified as bridge failures before session setup', async () => {
+  const view = await capability();
+  view.setUint8(9, 0);
+  view.setUint8(10, 0x1a);
+  assert.throws(() => parseWebHidCapability(view), (error) => {
+    assert.equal(error.code, 'bridge-not-ready');
+    assert.match(error.message, /状态码 10（26）/);
+    return true;
+  });
+});

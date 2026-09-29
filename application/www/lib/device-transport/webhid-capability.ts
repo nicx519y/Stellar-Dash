@@ -24,7 +24,7 @@ export function parseWebHidCapability(view: DataView): WebHidCapability {
       ? `SPI DMA/端口故障，状态码 ${fault & 0x0f}`
       : ['参数无效', 'SPI 协商未完成', '高速探测尚未提交', 'SPI 数据完整性或协议错误',
         'SPI 块 CRC 校验失败', 'SPI 块长度或版本错误', 'SPI 块序号、代次或窗口错误'][fault] ?? '未知错误';
-    throw new DeviceTransportError('protocol', `XORA 高速桥接未就绪：${reason}（${view.getUint8(10)}）`);
+    throw new DeviceTransportError('bridge-not-ready', `XORA 高速桥接未就绪：${reason}（${view.getUint8(10)}）`);
   }
   for (let i = 20; i < 32; ++i) {
     if (view.getUint8(i) !== 0) throw new DeviceTransportError('protocol', 'Invalid capability reserved bytes');

@@ -8,6 +8,7 @@
 #include "device_security_protocol.h"
 #include "configs/webconfig_btns_manager.hpp"
 #include "webhid_config_write_policy.hpp"
+#include "release_installer.hpp"
 
 namespace {
 
@@ -177,6 +178,8 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "ms_mapping_draft_get",
         "get_hitbox_layout",
         "get_firmware_metadata",
+        "get_firmware_inventory",
+        "get_release_install_status",
     };
     static const char *const configWrite[] = {
         "update_global_config",
@@ -231,6 +234,11 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "ms_mark_mapping_step",
     };
     static const char *const firmwareUpdate[] = {
+        "begin_release_install",
+        "prepare_release_install",
+        "activate_release_install",
+        "abort_release_install",
+        "retry_release_install",
         "create_firmware_upgrade_session",
         "upload_firmware_chunk",
         "complete_firmware_upgrade_session",
@@ -320,6 +328,10 @@ WebHidRpcResult WebHidRpcDispatcher::dispatch(
         static_cast<uint32_t>(transaction->valuedouble);
     const std::string command(commandItem->valuestring);
     const uint32_t scope = requiredScope(command);
+    if (RELEASE_INSTALLER.busy() && scope != HBOX_SCOPE_CONFIG_READ &&
+        command != "prepare_release_install" && command != "activate_release_install" &&
+        command != "abort_release_install" && command != "retry_release_install")
+        return localError(transactionId, 409, "Whole-device installation is exclusive");
     if (scope == UINT32_MAX) {
         return localError(transactionId, 404, "Unknown command");
     }

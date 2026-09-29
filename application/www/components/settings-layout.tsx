@@ -112,7 +112,9 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
             </HStack>
 
 
-            <Flex direction="column" flex={1} minHeight={0} inert={configEditingBlocked ? true : undefined}>
+            {/* Firmware owns its operation controls, including authorization,
+                cancellation before activation and recovery while config is locked. */}
+            <Flex direction="column" flex={1} minHeight={0} inert={configEditingBlocked && currentRoute !== 'firmware' ? true : undefined}>
                 <Center
                     flex={1}
                     minHeight={0}

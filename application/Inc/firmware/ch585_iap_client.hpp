@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "ch585_staging.h"
+#include "release_install_protocol.h"
 
 enum class Ch585IapClientStatus : uint8_t {
     Idle = 0,
@@ -28,7 +29,7 @@ public:
 
     bool probe();
     bool programCombinedImage(uint32_t mappedAddress, uint32_t totalSize);
-    bool validateApplication();
+    bool validateApplication(xora_release_identity_t* identity = nullptr);
     Ch585IapClientStatus status() const { return currentStatus; }
     uint8_t progress() const { return currentProgress; }
     uint8_t deviceStatus() const { return lastDeviceStatus; }

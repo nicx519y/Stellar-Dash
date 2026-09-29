@@ -16,6 +16,8 @@ const DEVICE_CONTROL_COMMANDS = new Set([
 ]);
 
 const FIRMWARE_UPDATE_COMMANDS = new Set([
+  'begin_release_install', 'prepare_release_install', 'activate_release_install',
+  'abort_release_install', 'retry_release_install',
   'create_firmware_upgrade_session',
   'upload_firmware_chunk',
   'complete_firmware_upgrade_session',

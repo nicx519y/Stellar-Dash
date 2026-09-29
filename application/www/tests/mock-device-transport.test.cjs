@@ -1,3 +1,5 @@
+// Match Next.js CommonJS default import interop in the Sucrase host harness.
+require('jszip').default = require('jszip');
 const { capability } = require('./webhid-v2-fixture.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -34,8 +36,11 @@ Module._resolveFilename = function resolveTestAlias(request, parent, isMain, opt
 };
 const { MockDeviceTransport } = require('../lib/device-transport/mock-device-transport.ts');
 const { DeviceCommandClient } = require('../lib/device-transport/device-command-client.ts');
+const { ImageTransferError } = require('../lib/device-transport/image-transfer-error.ts');
+const { galleryErrorMessage } = require('../lib/gallery-error-message.ts');
+const { GalleryApiError } = require('../lib/image-gallery.ts');
 const { crc32 } = require('../lib/crc32.ts');
-const { selectGifFrameIndices } = require('../lib/screen-control-image.ts');
+const { gifFrameTimelineUs, selectGifFrameIndices } = require('../lib/screen-control-image.ts');
 const {
   clearDeviceImagePreviewMemory,
   loadDeviceImagePreview,
@@ -1555,7 +1560,7 @@ test('typed image client covers upload, catalog, read and delete without publish
   });
   const catalog = await adapter.getImageCatalog();
   assert.equal(catalog.protocolVersion, 4);
-  assert.equal(catalog.maxUserFrames, 6);
+  assert.equal(catalog.maxUserFrames, 12);
   assert.equal(catalog.maxSystemFrames, 0);
   assert.equal(catalog.imageTransferVersion, 3);
   assert.equal(catalog.imageDataBytesPerReport, 996);
@@ -1595,6 +1600,26 @@ test('two consecutive image uploads release both the image lane and device queue
     Array.from(await adapter.readImage('user', second.byteLength)),
     Array.from(second),
   );
+  adapter.dispose();
+});
+
+test('twelve full RGB565 frames upload and report the committed catalog CRC', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+  const frameBytes = 320 * 172 * 2;
+  const pixels = new Uint8Array(frameBytes * 12);
+  for (let frame = 0; frame < 12; frame += 1) pixels.fill(frame + 1, frame * frameBytes, (frame + 1) * frameBytes);
+  assert.equal((await adapter.uploadImage({
+    width: 320, height: 172, data: pixels, frameCount: 12, fps: 6,
+  })).success, true);
+  const catalog = await adapter.getImageCatalog();
+  assert.equal(catalog.maxUserFrames, 12);
+  assert.equal(catalog.user.size, pixels.byteLength);
+  assert.equal(catalog.user.frameCount, 12);
+  assert.equal(catalog.user.fps, 6);
+  assert.equal(catalog.user.crc32, crc32(pixels));
   adapter.dispose();
 });
 
@@ -1669,6 +1694,35 @@ test('typed image catalog remains compatible with the legacy 64-byte response', 
   adapter.dispose();
 });
 
+test('gallery image errors use the selected language without losing their transport reason', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+  const request = transport.request.bind(transport);
+  transport.request = async (command, params, options) => {
+    if (command === 'binary.exchange' && Buffer.from(params.data, 'base64')[0] === 0x34) {
+      throw new DeviceTransportError('protocol', 'Original catalog failure');
+    }
+    return request(command, params, options);
+  };
+  await assert.rejects(adapter.getImageCatalog(), error => {
+    assert.ok(error instanceof ImageTransferError);
+    assert.equal(error.reason, 'catalog-request-failed');
+    assert.equal(error.cause.message, 'Original catalog failure');
+    assert.match(galleryErrorMessage(error, 'en'), /Could not read image information/);
+    assert.match(galleryErrorMessage(error, 'zh'), /无法读取设备图片信息/);
+    assert.doesNotMatch(galleryErrorMessage(error, 'en'), /[\u3400-\u9fff]/);
+    return true;
+  });
+  assert.match(galleryErrorMessage(new ImageTransferError('frame-limit', 'raw', 6), 'en'), /at most 6 image frames/);
+  assert.match(galleryErrorMessage(new ImageTransferError('frame-limit', 'raw', 6), 'zh'), /最多支持 6 帧/);
+  assert.equal(galleryErrorMessage(new Error('设备固件不支持'), 'en'), 'The operation failed. Please try again.');
+  assert.match(galleryErrorMessage(new GalleryApiError('GALLERY_LIMIT_REACHED', 409, 'Personal gallery is full'), 'zh'), /数量上限/);
+  assert.match(galleryErrorMessage(new GalleryApiError('GALLERY_LIMIT_REACHED', 409, 'Personal gallery is full'), 'en'), /image limit/);
+  adapter.dispose();
+});
+
 test('image upload progress reaches total only after the commit ACK', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
@@ -1694,7 +1748,7 @@ test('image upload progress reaches total only after the commit ACK', async () =
   adapter.dispose();
 });
 
-test('image client rejects a seventh frame and GIF sampling always spans the animation', async () => {
+test('image client rejects a thirteenth frame and GIF sampling always spans the animation', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
@@ -1703,33 +1757,69 @@ test('image client rejects a seventh frame and GIF sampling always spans the ani
     adapter.uploadImage({
       width: 1,
       height: 1,
-      data: new Uint8Array(14),
-      frameCount: 7,
+      data: new Uint8Array(26),
+      frameCount: 13,
       fps: 3,
     }),
     /supported range/,
   );
 
   assert.deepEqual(selectGifFrameIndices([0], 100_000, 3, 6), [0]);
-  const six = selectGifFrameIndices(
-    Array.from({ length: 6 }, (_, index) => index * 1_000_000),
-    6_000_000,
+  const twelve = selectGifFrameIndices(
+    Array.from({ length: 12 }, (_, index) => index * 1_000_000),
+    12_000_000,
     3,
-    6,
+    12,
   );
-  assert.equal(six.length, 6);
-  assert.equal(six.at(-1), 5);
-  for (const count of [7, 10]) {
+  assert.equal(twelve.length, 12);
+  assert.equal(twelve.at(-1), 3);
+  for (const count of [13, 20]) {
     const selected = selectGifFrameIndices(
       Array.from({ length: count }, (_, index) => index * 1_000_000),
       count * 1_000_000,
       3,
-      6,
+      12,
     );
-    assert.equal(selected.length, 6);
+    assert.equal(selected.length, 12);
     assert.equal(selected[0], 0);
-    assert.equal(selected.at(-1), count - 1);
+    assert.equal(selected.at(-1), 3);
   }
+  adapter.dispose();
+});
+
+test('GIF frame delays are milliseconds and preserve a one-second loop at three FPS', () => {
+  const { frameTimesUs, totalUs } = gifFrameTimelineUs(Array.from({ length: 25 }, () => ({ delay: 40 })));
+  assert.equal(totalUs, 1_000_000);
+  assert.equal(frameTimesUs[1], 40_000);
+  const selected = selectGifFrameIndices(frameTimesUs, totalUs, 3, 12);
+  assert.deepEqual(selected, [0, 8, 16]);
+  assert.equal(selected.length / 3, 1);
+  assert.deepEqual(gifFrameTimelineUs([{ delay: 0 }, {}]), {
+    frameTimesUs: [0, 100_000], totalUs: 200_000,
+  });
+});
+
+test('image client respects an older device catalog capped at six frames before BEGIN', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+  const request = transport.request.bind(transport);
+  let begins = 0;
+  transport.request = async (command, params, options) => {
+    if (command !== 'binary.exchange') return request(command, params, options);
+    const opcode = Buffer.from(params.data, 'base64')[0];
+    if (opcode === 0x30) begins += 1;
+    const response = await request(command, params, options);
+    if (opcode !== 0x34) return response;
+    const bytes = Buffer.from(response.data.data, 'base64');
+    bytes[65] = 6;
+    return { ...response, data: { ...response.data, data: bytes.toString('base64') } };
+  };
+  await assert.rejects(adapter.uploadImage({
+    width: 1, height: 1, data: new Uint8Array(14), frameCount: 7, fps: 3,
+  }), /最多支持 6 帧/);
+  assert.equal(begins, 0);
   adapter.dispose();
 });
 
@@ -1976,13 +2066,13 @@ test('versioned backup v3 restores profiles and user image without ADC data', as
   assert.equal(adapter.markReady(), true);
 
   await adapter.request('switch_default_profile', { profileId: 'profile-tournament' });
-  const pixels = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
+  const pixels = Uint8Array.from({ length: 2 * 2 * 2 * 12 }, (_, index) => index);
   assert.equal((await adapter.uploadImage({
     width: 2,
     height: 2,
     data: pixels,
-    frameCount: 1,
-    fps: 0,
+    frameCount: 12,
+    fps: 6,
   })).success, true);
 
   const backup = await adapter.exportConfig();
@@ -1991,6 +2081,8 @@ test('versioned backup v3 restores profiles and user image without ADC data', as
   assert.equal(backup.globalConfig.defaultProfileId, 'profile-tournament');
   assert.equal(Object.hasOwn(backup, 'adcConfig'), false);
   assert.equal(backup.userImage.size, pixels.length);
+  assert.equal(backup.userImage.frameCount, 12);
+  assert.equal(backup.userImage.fps, 6);
 
   await adapter.request('switch_default_profile', { profileId: 'profile-arcade' });
   await adapter.request('update_profile', { profileId: 'profile-arcade', profileDetails: { name: 'Changed' } });
@@ -2107,4 +2199,80 @@ test('auto sleep defaults off, persists, merges and rejects invalid switches ato
   await assert.rejects(client.importConfig(backup), /Invalid power/);
   assert.equal((await get()).power.autoSleepEnabled, false);
   second.dispose(); client.dispose();
+});
+
+
+test('whole-release Mock installs, reloads, reinstalls and recovers a TX failure without false success', async () => {
+  const { downloadRelease, installRelease } = require('../lib/device-transport/release-install-client.ts');
+  const previous = globalThis.sessionStorage;
+  globalThis.sessionStorage = new MemoryStorage();
+  const client = new DeviceCommandClient(new MockDeviceTransport({ storage: null }));
+  try {
+    await client.connect(); client.markReady();
+    for (const targetSlot of ['B', 'A']) {
+      const before = await client.request('get_firmware_inventory');
+      const pkg = await downloadRelease(client, 'preview-2.0.0', before);
+      const stages = [];
+      await installRelease(client, pkg, p => stages.push(p.stage));
+      const result = await client.request('get_release_install_status');
+      assert.equal(result.phase, 'completed'); assert.equal(result.currentSlot, targetSlot);
+      assert.equal(result.confirmedDigest, pkg.digest); assert.equal(result.installationState, 'installed');
+      assert.ok(stages.includes('prepared')); assert.ok(stages.includes('activating'));
+    }
+    sessionStorage.setItem('xora-mock-install-failure', 'tx');
+    const pkg = await downloadRelease(client, 'preview-2.0.0', await client.request('get_firmware_inventory'));
+    await installRelease(client, pkg, () => {});
+    let result = await client.request('get_release_install_status');
+    assert.equal(result.phase, 'failed'); assert.notEqual(result.installationState, 'installed');
+    assert.equal(result.canAbort, false); assert.equal(result.canRetry, true);
+    await assert.rejects(client.request('abort_release_install', { session_id: result.sessionId }));
+    sessionStorage.setItem('xora-mock-install-failure', '');
+    client.dispose();
+    const reloaded = new DeviceCommandClient(new MockDeviceTransport({ storage: null }));
+    try {
+      await reloaded.connect(); reloaded.markReady();
+      const pending = await reloaded.request('get_release_install_status');
+      assert.equal(pending.phase, 'failed'); assert.equal(pending.targetDigest, pkg.digest);
+      await reloaded.request('retry_release_install', { session_id: pending.sessionId });
+      result = await reloaded.request('get_release_install_status');
+      assert.equal(result.phase, 'completed'); assert.equal(result.confirmedDigest, pkg.digest);
+    } finally { reloaded.dispose(); }
+  } finally {
+    client.dispose();
+    if (previous === undefined) delete globalThis.sessionStorage; else globalThis.sessionStorage = previous;
+  }
+});
+
+
+test('GIF sampling defaults to six FPS across a one-second loop', () => {
+  const { frameTimesUs, totalUs } = gifFrameTimelineUs(Array.from({ length: 25 }, () => ({ delay: 40 })));
+  const selected = selectGifFrameIndices(frameTimesUs, totalUs);
+  assert.equal(selected.length, 6);
+  assert.equal(selected[0], 0);
+  assert.equal(selected.at(-1), 20);
+});
+
+test('six FPS support and image metadata are checked before destructive BEGIN', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  adapter.markReady();
+  const request = transport.request.bind(transport);
+  let begins = 0;
+  transport.request = async (command, params, options) => {
+    if (command !== 'binary.exchange') return request(command, params, options);
+    const opcode = Buffer.from(params.data, 'base64')[0];
+    if (opcode === 0x30) begins += 1;
+    const response = await request(command, params, options);
+    if (opcode !== 0x34) return response;
+    const bytes = Buffer.from(response.data.data, 'base64');
+    bytes.writeUInt16LE(3, 80); // Older firmware has no 6 FPS capability.
+    return { ...response, data: { ...response.data, data: bytes.toString('base64') } };
+  };
+  await assert.rejects(adapter.uploadImage({width:1,height:1,data:new Uint8Array(4),frameCount:2,fps:6}),
+    error => error.reason === 'animation-rate');
+  await assert.rejects(adapter.uploadImage({width:1,height:1,data:new Uint8Array(2),frameCount:2,fps:3}), /metadata/);
+  await assert.rejects(adapter.uploadImage({width:1,height:1,data:new Uint8Array(4),frameCount:2,fps:5}), /metadata/);
+  assert.equal(begins, 0);
+  adapter.dispose();
 });

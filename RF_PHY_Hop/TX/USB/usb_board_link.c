@@ -1,6 +1,12 @@
 #include "usb_board_link.h"
 
 #include <string.h>
+#include "release_build_identity.h"
+#include "release_install_protocol.h"
+static const xora_release_identity_t release_identity = {
+    XORA_RELEASE_IDENTITY_MAGIC, 2u, XORA_INSTALL_PROTOCOL,
+    XORA_MAINTENANCE_PROTOCOL, 0u, XORA_RELEASE_VERSION, XORA_RELEASE_BUILD_ID
+};
 
 #include "usb_auth.h"
 #include "usb_device.h"
@@ -206,9 +212,9 @@ static void handle_caps(void)
     caps.profile_flags = usb_profiles_capability_flags();
     caps.max_frame_bytes = USB_BOARD_LINK_MAX_FRAME_BYTES;
     caps.input_state_bytes = USB_BOARD_INPUT_V1_BYTES;
-    caps.firmware_major = 2u;
-    caps.firmware_minor = 2u;
-    caps.firmware_patch = 0u;
+    caps.firmware_major = XORA_RELEASE_VERSION_MAJOR;
+    caps.firmware_minor = XORA_RELEASE_VERSION_MINOR;
+    caps.firmware_patch = XORA_RELEASE_VERSION_PATCH;
     caps.feature_flags = USB_BOARD_CAP_FEATURE_TELEMETRY_HID |
                          USB_BOARD_CAP_FEATURE_CONTROL_V1 |
                          USB_BOARD_CAP_FEATURE_LOCAL_AUTH |
@@ -596,6 +602,15 @@ static void dispatch(const usb_board_link_frame_t *frame)
 
     switch(frame->command)
     {
+    case USB_BOARD_CMD_RELEASE_IDENTITY:
+        if (frame->length == 1u && frame->payload[0] < sizeof(release_identity)) {
+            uint8_t offset = frame->payload[0];
+            uint8_t count = sizeof(release_identity) - offset;
+            if (count > 40u) count = 40u;
+            (void)queue_event(USB_BOARD_EVT_RELEASE_IDENTITY,
+                             ((const uint8_t *)&release_identity) + offset, count);
+        } else queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
+        break;
     case USB_BOARD_CMD_GET_CAPS:
         if(frame->length == 0u)
         {

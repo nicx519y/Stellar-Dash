@@ -10,9 +10,15 @@ export interface FirmwareArtifact {
   bootSecurityMode: 'unlocked-development';
   requiresManualLifecycleProvisioning: false;
   imageFormat?: 'ch585-tx-combined' | 'ch585-rx-bin';
+  metadataSha256?: string;
+  applicationOffset?: number;
+  applicationSize?: number;
+  applicationSha256?: string;
 }
 export interface FirmwareReleaseManifest {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
+  buildId?: string;
+  install?: ReleaseInstallContract;
   product: 'XORA';
   deviceModel: string;
   hardwareVersion: string;
@@ -30,11 +36,22 @@ export interface FirmwareAuditEvent {
   after: unknown;
 }
 export interface PublicFirmwareRelease {
+  bundleSha256?: string;
+  installable?: boolean;
   id: string;
   manifest: FirmwareReleaseManifest;
   notes: string;
   publishedAt: string | null;
   status: 'published';
+}
+
+export interface ReleaseInstallContract {
+  protocol: 1;
+  order: 'tx-then-stm32';
+  configRead: { min: number; max: number };
+  configWrite: number;
+  stm32Maintenance: { min: number; max: number };
+  txMaintenance: { min: number; max: number };
 }
 export interface FirmwareRelease extends Omit<PublicFirmwareRelease, 'status'> {
   status: 'draft' | 'published' | 'withdrawn';

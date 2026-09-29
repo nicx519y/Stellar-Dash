@@ -60,6 +60,7 @@ const {
   WEBHID_MAX_FIRMWARE_PACKET_SIZE,
   WEBHID_MAX_LOGICAL_MESSAGE_SIZE,
   WEBHID_MAX_STREAM_SIZE,
+  WEBHID_MAX_IMAGE_PAYLOAD_SIZE,
   RecoverableBootstrapResponseTimeoutError,
   WebHidTransport,
 } = require('../lib/device-transport/webhid-transport.ts');
@@ -162,6 +163,27 @@ test('image payload uses a bounded four-report V2 pipeline without stream credit
   assert.equal(reports[1][2], SecureHidFrameFlags.SECURE);
   assert.equal(reports[4][2], SecureHidFrameFlags.SECURE | SecureHidFrameFlags.LAST);
   assert.deepEqual(progress, [[3984, 4000], [4000, 4000]]);
+  // Exercise the real transport, not only the Mock client: this used to reject
+  // every GIF above six full frames after BEGIN had erased the device image.
+  reports.length = 0;
+  progress.length = 0;
+  const twelveFrames = new Uint8Array(320 * 172 * 2 * 12);
+  for (let index = 0; index < twelveFrames.length; index += 1) twelveFrames[index] = index % 251;
+  assert.equal(WEBHID_MAX_IMAGE_PAYLOAD_SIZE, twelveFrames.length);
+  await transport.uploadImagePayload(twelveFrames, {
+    onProgress: (sent, total) => progress.push([sent, total]),
+  });
+  const delivered = Buffer.concat(reports.map(report => {
+    const size = new DataView(report.buffer).getUint16(4, true);
+    return Buffer.from(report.subarray(16, 16 + size));
+  }));
+  assert.deepEqual(delivered, Buffer.from(twelveFrames));
+  assert.equal(reports.at(-1)[2], SecureHidFrameFlags.SECURE | SecureHidFrameFlags.LAST);
+  assert.equal(maximumInFlight, 4);
+  assert.deepEqual(progress.at(-1), [twelveFrames.length, twelveFrames.length]);
+  const sentReports = reports.length;
+  await assert.rejects(transport.uploadImagePayload(new Uint8Array(twelveFrames.length + 1)), /must contain/);
+  assert.equal(reports.length, sentReports);
   await transport.close();
 });
 

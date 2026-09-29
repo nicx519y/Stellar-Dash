@@ -9,6 +9,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+bool firmware_release_verify_bytes(const uint8_t* bytes, uint32_t size,
+                                   const uint8_t signature[64]);
 
 /*
  * Canonical metadata is the packed FirmwareMetadata byte sequence with the

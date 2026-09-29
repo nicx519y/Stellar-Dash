@@ -6,34 +6,37 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('node:http');
+const crypto = require('node:crypto');
 const express = require('express');
 const {
     ImageGalleryStore,
     LocalGalleryStorage,
-    parseUimgV3,
+    parseUimg,
     crc32,
     initImageGalleryRoutes,
 } = require('../src/image-gallery');
 
-function makeUimg(frameCount = 1) {
+function makeUimg(frameCount = 1, version = 3, fps = version === 4 ? 6 : 3) {
     const frameSize = 320 * 172 * 2;
     const payload = Buffer.alloc(frameSize * frameCount, 0x5a);
     const result = Buffer.alloc(4096 + payload.length);
     result.writeUInt32LE(0x474d4955, 0);
-    result.writeUInt16LE(3, 4);
+    result.writeUInt16LE(version, 4);
     result.writeUInt8(1, 6);
     result.writeUInt8(frameCount === 1 ? 1 : 2, 7);
     result.writeUInt16LE(320, 8);
     result.writeUInt16LE(172, 10);
     result.writeUInt8(frameCount, 12);
-    result.writeUInt8(frameCount === 1 ? 0 : 3, 13);
+    result.writeUInt8(frameCount === 1 ? 0 : fps, 13);
     result.writeUInt32LE(frameSize, 16);
     result.writeUInt32LE(4096, 20);
     result.writeUInt32LE(payload.length, 24);
-    for (let index = 0; index < 10; index += 1) result.writeUInt32LE(index < frameCount ? 4096 + index * frameSize : 0, 28 + index * 4);
-    result.write('USER_IMAGE\0', 68, 'ascii');
-    result.writeUInt32LE(crc32(payload), 84);
-    result.writeUInt32LE(crc32(result.subarray(0, 88)), 88);
+    const indexedFrames = version === 4 ? 12 : 10;
+    const idOffset = 28 + indexedFrames * 4;
+    for (let index = 0; index < indexedFrames; index += 1) result.writeUInt32LE(index < frameCount ? 4096 + index * frameSize : 0, 28 + index * 4);
+    result.write('USER_IMAGE\0', idOffset, 'ascii');
+    result.writeUInt32LE(crc32(payload), idOffset + 16);
+    result.writeUInt32LE(crc32(result.subarray(0, idOffset + 20)), idOffset + 20);
     payload.copy(result, 4096);
     return result;
 }
@@ -60,17 +63,26 @@ function request(server, method, requestPath, headers = {}) {
     });
 }
 
-test('strict UIMG v3 validation accepts six frames and rejects tampering', () => {
-    const parsed = parseUimgV3(makeUimg(6));
+test('UIMG validation accepts old six-frame and new twelve-frame assets, and rejects tampering', () => {
+    const parsed = parseUimg(makeUimg(6));
     assert.equal(parsed.frameCount, 6);
     assert.equal(parsed.fps, 3);
+    const twelve = parseUimg(makeUimg(12, 4));
+    assert.equal(twelve.frameCount, 12);
+    assert.equal(twelve.fps, 6);
+    assert.equal(parseUimg(makeUimg(12, 4, 3)).fps, 3);
+    assert.throws(() => parseUimg(makeUimg(6, 3, 6)), /metadata/);
+    assert.throws(() => parseUimg(makeUimg(12, 4, 5)), /metadata/);
+    assert.equal(twelve.payloadBytes, 320 * 172 * 2 * 12);
     const tampered = makeUimg();
     tampered[tampered.length - 1] ^= 1;
-    assert.throws(() => parseUimgV3(tampered), /CRC32/);
+    assert.throws(() => parseUimg(tampered), /CRC32/);
     const paddedId = makeUimg();
     paddedId[83] = 1;
     paddedId.writeUInt32LE(crc32(paddedId.subarray(0, 88)), 88);
-    assert.throws(() => parseUimgV3(paddedId), /metadata/);
+    assert.throws(() => parseUimg(paddedId), /metadata/);
+    const thirteenth = makeUimg(13, 4);
+    assert.throws(() => parseUimg(thirteenth), /metadata|size/);
 });
 
 test('official gallery has no account image quota and paginates', t => {
@@ -183,4 +195,56 @@ test('gallery list routes separate device, account, and human-admin authorizatio
     assert.equal((await request(server, 'GET', '/api/gallery/mine', { Cookie: 'user=a' })).status, 200);
     assert.equal((await request(server, 'GET', '/api/admin/gallery/system', { Authorization: 'Bearer device' })).status, 401);
     assert.equal((await request(server, 'GET', '/api/admin/gallery/system', { Cookie: 'admin=1' })).status, 200);
+});
+
+
+test('6 FPS fingerprints match older assets without exposing private or unpublished images', t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xora-gallery-fps-'));
+    const store = new ImageGalleryStore({ databasePath: path.join(root, 'gallery.sqlite3') });
+    t.after(() => { store.close(); fs.rmSync(root, { recursive: true, force: true }); });
+    const metadata = { frameCount: 12, fps: 3, payloadBytes: 320 * 172 * 2 * 12 };
+    const privateImage = { ...imageInput('40000000-0000-4000-8000-000000000001'), ...metadata };
+    store.create(privateImage);
+    const fingerprint = { width: 320, height: 172, ...metadata, fps: 6, payloadCrc32: 1 };
+    assert.equal(store.findByFingerprint(fingerprint, 'user-a').id, privateImage.id);
+    assert.equal(store.findByFingerprint(fingerprint, 'user-b'), null);
+    assert.equal(store.findByFingerprint(fingerprint), null);
+    store.create({ ...imageInput('40000000-0000-4000-8000-000000000002', null), ...metadata, scope: 'system', ownerUid: null, published: false });
+    assert.equal(store.findByFingerprint(fingerprint), null);
+    store.create({ ...imageInput('40000000-0000-4000-8000-000000000003', null), ...metadata, scope: 'system', ownerUid: null, published: true });
+    assert.equal(store.findByFingerprint(fingerprint).scope, 'system');
+});
+
+test('repeated legacy frames match after timing conversion while retaining gallery permissions', t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xora-gallery-timing-'));
+    const store = new ImageGalleryStore({ databasePath: path.join(root, 'gallery.sqlite3') });
+    t.after(() => { store.close(); fs.rmSync(root, { recursive: true, force: true }); });
+    const frameSize = 320 * 172 * 2;
+    for (const count of [3, 12]) {
+        const bytes = makeUimg(count, 4, 3);
+        for (let frame = 0; frame < count; frame++) bytes.fill(frame, 4096 + frame * frameSize, 4096 + (frame + 1) * frameSize);
+        bytes.writeUInt32LE(crc32(bytes.subarray(4096)), 92);
+        bytes.writeUInt32LE(crc32(bytes.subarray(0, 96)), 96);
+        const id = `timing-${count}`;
+        const item = { ...imageInput(id), ...parseUimg(bytes), deviceSha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+        store.create(item);
+        const frameCount = Math.min(12, count * 2);
+        const expected = Buffer.alloc(frameSize * frameCount);
+        for (let frame = 0; frame < frameCount; frame++) expected.fill(Math.floor(frame / 2), frame * frameSize, (frame + 1) * frameSize);
+        const fingerprint = { width: 320, height: 172, fps: 6, frameCount, payloadBytes: expected.length, payloadCrc32: crc32(expected) };
+        let reads = 0;
+        const read = key => { reads++; assert.equal(key, item.deviceKey); return bytes; };
+        assert.equal(store.findByFingerprint(fingerprint, 'user-a', read).id, id);
+        assert.equal(reads, 1);
+        assert.equal(store.findByFingerprint(fingerprint, 'user-a', read).id, id);
+        assert.equal(reads, 1); // Cache the derived CRC, not image bytes.
+        assert.equal(store.findByFingerprint(fingerprint, 'user-b', read), null);
+        assert.equal(store.findByFingerprint(fingerprint, null, read), null);
+        assert.equal(reads, 1); // Private files are never read for other accounts.
+        assert.equal(store.findByFingerprint({ ...fingerprint, payloadCrc32: 123 }, 'user-a', read), null);
+        store.create({ ...item, id: `public-${count}`, scope: 'system', ownerUid: null, published: false });
+        assert.equal(store.findByFingerprint(fingerprint, null, read), null);
+        store.database.prepare('UPDATE gallery_images SET published=1 WHERE id=?').run(`public-${count}`);
+        assert.equal(store.findByFingerprint(fingerprint, null, read).scope, 'system');
+    }
 });

@@ -94,6 +94,7 @@ export type DeviceTransportErrorCode =
   | 'permission-required'
   | 'permission-denied'
   | 'device-busy'
+  | 'bridge-not-ready'
   | 'not-connected'
   | 'authentication-required'
   | 'authentication-failed'

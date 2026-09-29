@@ -13,6 +13,7 @@
 #include "stm32h7xx_hal.h"
 #include "system_logger.h"
 #include "main_runtime_control.hpp"
+#pragma GCC optimize("Os")
 
 namespace {
 
@@ -292,9 +293,14 @@ bool Ch585FirmwareUpdate::write(uint32_t offset,
                                 const uint8_t* data,
                                 uint32_t length)
 {
+    // A lost ACK may replay already committed bytes, never different bytes.
+    if (currentStatus == Ch585FirmwareUpdateStatus::Receiving && data && length &&
+        offset <= received && length <= received - offset && ensureMapped()) {
+        return memcmp(reinterpret_cast<const void*>(CH585_FIRMWARE_STAGING_DATA_ADDR + offset), data, length) == 0;
+    }
     if (currentStatus != Ch585FirmwareUpdateStatus::Receiving ||
         data == nullptr || length == 0u || offset != received ||
-        offset + length > imageSize ||
+        offset > imageSize || length > imageSize - offset ||
         !writeWithoutErase(CH585_FIRMWARE_STAGING_DATA_ADDR + offset,
                            data, length)) {
         currentStatus = Ch585FirmwareUpdateStatus::Failed;

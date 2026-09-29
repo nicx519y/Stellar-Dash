@@ -401,6 +401,23 @@ bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
     return true;
 }
 
+bool UsbBoardLink::getReleaseIdentity(xora_release_identity_t &identity)
+{
+    memset(&identity, 0, sizeof(identity));
+    for (uint8_t offset = 0; offset < sizeof(identity);) {
+        uint8_t count = sizeof(identity) - offset;
+        if (count > 40) count = 40;
+        uint8_t received = 0;
+        if (!transact(USB_BOARD_CMD_RELEASE_IDENTITY, &offset, 1,
+                      USB_BOARD_EVT_RELEASE_IDENTITY, reinterpret_cast<uint8_t*>(&identity) + offset,
+                      count, &received, kControlTimeoutMs) || received != count) return false;
+        offset += count;
+    }
+    return memcmp(identity.magic, XORA_RELEASE_IDENTITY_MAGIC, 8) == 0 &&
+           identity.component == 2 && identity.protocol == XORA_INSTALL_PROTOCOL &&
+           identity.version[31] == 0 && identity.build_id[64] == 0;
+}
+
 bool UsbBoardLink::getCapabilities()
 {
     uint8_t responseLength = 0u;

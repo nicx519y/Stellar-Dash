@@ -22,6 +22,30 @@ static bool constant_time_equal(const uint8_t* a,
     return difference == 0u;
 }
 
+bool firmware_release_verify_bytes(const uint8_t* bytes, uint32_t size,
+                                   const uint8_t signature[64])
+{
+    uint8_t digest[32];
+    mbedtls_ecp_group group;
+    mbedtls_ecp_point key;
+    mbedtls_mpi r, s;
+    int result = -1;
+    if (!bytes || !signature || !size || !firmware_release_key_is_provisioned() ||
+        sha256_calculate_raw(bytes, size, digest) != 1) return false;
+    mbedtls_ecp_group_init(&group); mbedtls_ecp_point_init(&key);
+    mbedtls_mpi_init(&r); mbedtls_mpi_init(&s);
+    if (mbedtls_ecp_group_load(&group, MBEDTLS_ECP_DP_SECP256R1) == 0 &&
+        mbedtls_ecp_point_read_binary(&group, &key, hbox_firmware_release_public_key,
+                                     sizeof(hbox_firmware_release_public_key)) == 0 &&
+        mbedtls_mpi_read_binary(&r, signature, 32) == 0 &&
+        mbedtls_mpi_read_binary(&s, signature + 32, 32) == 0)
+        result = mbedtls_ecdsa_verify(&group, digest, 32, &key, &r, &s);
+    mbedtls_mpi_free(&s); mbedtls_mpi_free(&r);
+    mbedtls_ecp_point_free(&key); mbedtls_ecp_group_free(&group);
+    memset(digest, 0, sizeof(digest));
+    return result == 0;
+}
+
 bool firmware_metadata_calculate_hash(const FirmwareMetadata* metadata,
                                       uint8_t hash[32])
 {

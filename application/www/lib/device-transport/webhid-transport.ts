@@ -43,6 +43,7 @@ import {
 } from './webhid-network-trace';
 import { parseWebHidCapability } from './webhid-capability';
 import { parseButtonStateBinaryData } from '../button-binary-parser';
+import { UIMG_MAX_PAYLOAD_BYTES } from '../uimg-v4';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -57,7 +58,7 @@ const RECOVERABLE_BOOTSTRAP_COMMANDS = new Set([
 // remain separately bounded by WEBHID_MAX_STREAM_SIZE.
 export const WEBHID_MAX_LOGICAL_MESSAGE_SIZE = 16 * 1024;
 export const WEBHID_MAX_STREAM_SIZE = 8 * 1024;
-export const WEBHID_MAX_IMAGE_PAYLOAD_SIZE = 320 * 172 * 2 * 6;
+export const WEBHID_MAX_IMAGE_PAYLOAD_SIZE = UIMG_MAX_PAYLOAD_BYTES;
 export const FIRMWARE_BINARY_HEADER_SIZE = 106;
 export const WEBHID_FIRMWARE_CHUNK_DATA_SIZE = 4096;
 export const WEBHID_MAX_FIRMWARE_PACKET_SIZE =

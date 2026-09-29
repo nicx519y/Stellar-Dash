@@ -5,6 +5,7 @@
 
 #include "ch585_role_bootstrap.hpp"
 #include "usb_board_link_protocol.h"
+#include "release_install_protocol.h"
 
 class UsbBoardLink
 {
@@ -20,6 +21,7 @@ public:
 
     bool selectRole(usb_board_role_t role, uint32_t timeoutMs);
     bool getCapabilities();
+    bool getReleaseIdentity(xora_release_identity_t &identity);
     bool setProfile(usb_board_profile_t profile);
     bool getUsbLinkState(usb_board_control_link_state_v1_t &state);
     bool enableFastInputDataPlane();

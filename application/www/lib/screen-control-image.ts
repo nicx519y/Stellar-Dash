@@ -1,5 +1,6 @@
 import { decompressFrames, parseGIF } from 'gifuct-js';
 import { calculateImageCoverRect } from './image-cover';
+import { UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES } from './uimg-v4';
 
 export type ProcessedRGB565Image = { width: number; height: number; data: Uint8Array; previewUrl: string };
 export type ProcessedRGB565Sequence = ProcessedRGB565Image & { frames: string[]; fps: number; frameCount: number };
@@ -142,39 +143,6 @@ export const processImageToRGB565 = async (file: File): Promise<ProcessedRGB565I
     return processSourceToRGB565(bitmap, bitmap.width, bitmap.height);
 };
 
-const selectFrames = (frameTimesUs: number[], totalUs: number, targetFps: number, maxFrames: number) => {
-    const selected: number[] = [];
-    const frameCount = frameTimesUs.length;
-    if (frameCount <= 0 || totalUs <= 0) return [0];
-
-    const targetCount = Math.min(
-        maxFrames,
-        frameCount,
-        Math.max(1, Math.round((totalUs / 1_000_000) * targetFps)),
-    );
-    const used = new Set<number>();
-    for (let n = 0; n < targetCount; n++) {
-        const targetTime = targetCount <= 1
-            ? 0
-            : Math.floor((n * Math.max(0, totalUs - 1)) / (targetCount - 1));
-        let best = -1;
-        let bestDiff = Number.POSITIVE_INFINITY;
-        for (let i = 0; i < frameCount; i++) {
-            if (used.has(i)) continue;
-            const diff = Math.abs(frameTimesUs[i] - targetTime);
-            if (diff < bestDiff) {
-                bestDiff = diff;
-                best = i;
-            }
-        }
-        if (best >= 0) {
-            used.add(best);
-            selected.push(best);
-        }
-    }
-    return selected.length > 0 ? selected : [0];
-};
-
 const blendPatchInto = (dstRgba: Uint8ClampedArray, dstWidth: number, patch: Uint8ClampedArray, patchWidth: number, patchHeight: number, left: number, top: number) => {
     const maxX = Math.min(dstWidth, left + patchWidth);
     const maxY = Math.min((dstRgba.length / 4) / dstWidth, top + patchHeight);
@@ -204,41 +172,47 @@ const blendPatchInto = (dstRgba: Uint8ClampedArray, dstWidth: number, patch: Uin
         }
     }
 };
-const ensureLastFrameIncluded = (selected: number[], frameCount: number, maxFrames: number) => {
-    const uniq = Array.from(new Set(selected.filter((i) => i >= 0 && i < frameCount)));
-    uniq.sort((a, b) => a - b);
-    if (frameCount <= 0) return [0];
-    const last = frameCount - 1;
-    if (uniq[uniq.length - 1] !== last) {
-        if (uniq.length >= maxFrames) {
-            uniq[uniq.length - 1] = last;
-        } else {
-            uniq.push(last);
-        }
-        uniq.sort((a, b) => a - b);
-    }
-    return uniq.length > 0 ? uniq : [0];
-};
-
+// Sample at playback timestamps, retaining repeated indices for held frames.
+// Capacity limits the captured duration; it must never compress the timeline.
 export const selectGifFrameIndices = (
     frameTimesUs: number[],
     totalUs: number,
-    targetFpsInput = 3,
-    maxFramesInput = 6,
+    targetFpsInput = UIMG_ANIMATION_FPS,
+    maxFramesInput = UIMG_MAX_FRAMES,
 ) => {
-    const targetFps = Math.max(1, Math.min(5, Math.floor(targetFpsInput)));
-    const maxFrames = Math.max(1, Math.min(6, Math.floor(maxFramesInput)));
-    return ensureLastFrameIncluded(
-        selectFrames(frameTimesUs, totalUs, targetFps, maxFrames),
-        frameTimesUs.length,
-        maxFrames,
-    );
+    const targetFps = Math.max(1, Math.min(UIMG_ANIMATION_FPS, Math.floor(targetFpsInput)));
+    const maxFrames = Math.max(1, Math.min(UIMG_MAX_FRAMES, Math.floor(maxFramesInput)));
+    if (frameTimesUs.length <= 1 || totalUs <= 0) return [0];
+    const count = Math.min(maxFrames, Math.max(1, Math.ceil(totalUs * targetFps / 1_000_000)));
+    const selected: number[] = [];
+    let source = 0;
+    for (let sample = 0; sample < count; sample++) {
+        const timestampUs = sample * 1_000_000 / targetFps;
+        while (source + 1 < frameTimesUs.length && frameTimesUs[source + 1] <= timestampUs) source++;
+        selected.push(source);
+    }
+    return selected;
+};
+
+// gifuct-js exposes decompressed frame delays in milliseconds, not GIF
+// centiseconds. Keep both the worker and canvas fallback on one time base.
+export const gifFrameTimelineUs = (frames: readonly { delay?: number }[]) => {
+    const frameTimesUs: number[] = [];
+    let totalUs = 0;
+    for (const frame of frames) {
+        frameTimesUs.push(totalUs);
+        const delayMs = typeof frame.delay === 'number' && Number.isFinite(frame.delay) && frame.delay > 0
+            ? frame.delay
+            : 100;
+        totalUs += delayMs * 1000;
+    }
+    return { frameTimesUs, totalUs };
 };
 
 
 export const processGifToRGB565Sequence = async (file: File, targetFpsInput: number, maxFramesInput: number): Promise<ProcessedRGB565Sequence> => {
-    const targetFps = Math.max(1, Math.min(5, Math.floor(targetFpsInput)));
-    const maxFrames = Math.max(1, Math.min(6, Math.floor(maxFramesInput)));
+    const targetFps = Math.max(1, Math.min(UIMG_ANIMATION_FPS, Math.floor(targetFpsInput)));
+    const maxFrames = Math.max(1, Math.min(UIMG_MAX_FRAMES, Math.floor(maxFramesInput)));
     const buf = await file.arrayBuffer();
 
     const gif = parseGIF(new Uint8Array(buf));
@@ -262,21 +236,13 @@ export const processGifToRGB565Sequence = async (file: File, targetFpsInput: num
 
     if (!inputWidth || !inputHeight || inputFrameCount <= 1) {
         const single = await processImageToRGB565(file);
-        return { ...single, frames: [single.previewUrl], fps: targetFps, frameCount: 1 };
+        return { ...single, frames: [single.previewUrl], fps: 0, frameCount: 1 };
     }
 
-    let totalUs = 0;
-    const frameTimesUs: number[] = [];
-    for (let i = 0; i < inputFrameCount; i++) {
-        frameTimesUs[i] = totalUs;
-        const frame = frames[i];
-        const delayCs = typeof frame?.delay === 'number' && frame.delay > 0 ? frame.delay : 10;
-        totalUs += delayCs * 10_000;
-    }
-    if (totalUs <= 0) totalUs = inputFrameCount * 200_000;
+    const { frameTimesUs, totalUs } = gifFrameTimelineUs(frames);
 
     const selected = selectGifFrameIndices(frameTimesUs, totalUs, targetFps, maxFrames);
-    const selectedSet = new Set<number>(selected);
+    let nextSample = 0;
 
     const srcCanvas = document.createElement('canvas');
     srcCanvas.width = inputWidth;
@@ -310,12 +276,15 @@ export const processGifToRGB565Sequence = async (file: File, targetFpsInput: num
             }
         }
 
-        if (selectedSet.has(i)) {
+        if (selected[nextSample] === i) {
             const imageData = new ImageData(new Uint8ClampedArray(canvasRgba), inputWidth, inputHeight);
             srcCtx.putImageData(imageData, 0, 0);
             const processed = processSourceToRGB565(srcCanvas, inputWidth, inputHeight);
-            framesData.push(processed.data);
-            previewUrls.push(processed.previewUrl);
+            while (selected[nextSample] === i) {
+                framesData.push(processed.data);
+                previewUrls.push(processed.previewUrl);
+                nextSample++;
+            }
         }
 
         if (disposalType === 2 && dims) {
@@ -341,7 +310,7 @@ export const processGifToRGB565Sequence = async (file: File, targetFpsInput: num
 
     if (framesData.length <= 0) {
         const single = await processImageToRGB565(file);
-        return { ...single, frames: [single.previewUrl], fps: targetFps, frameCount: 1 };
+        return { ...single, frames: [single.previewUrl], fps: 0, frameCount: 1 };
     }
 
     const frameSize = framesData[0]?.length ?? 320 * 172 * 2;

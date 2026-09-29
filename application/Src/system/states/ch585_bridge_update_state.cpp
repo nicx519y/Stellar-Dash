@@ -1,12 +1,16 @@
 #include "states/ch585_bridge_update_state.hpp"
 
 #include "ch585_firmware_update.hpp"
+#include "release_installer.hpp"
 #include "main_state_machine.hpp"
 #include "system_logger.h"
 
 bool Ch585BridgeUpdateState::enter()
 {
     resetRequested = false;
+    if (RELEASE_INSTALLER.bootPending()) {
+        return RELEASE_INSTALLER.runBoot();
+    }
     APP_STAGE("A07U", "entered isolated CH585 bridge update state; UI remains offline");
     const bool completed = CH585_FIRMWARE_UPDATE.performPendingUpdate();
     if (!CH585_FIRMWARE_UPDATE.wasClaimed()) {

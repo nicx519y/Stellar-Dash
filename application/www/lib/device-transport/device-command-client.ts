@@ -14,6 +14,7 @@ import {
   DeviceImageUploadRequest,
 } from './device-feature-types';
 import { DeviceSessionClient } from './device-session-client';
+import { ImageTransferError } from './image-transfer-error';
 import {
   DEFAULT_DEVICE_SCOPES,
   DeviceScope,
@@ -37,6 +38,7 @@ import {
 import { exportWebHidConfigSections } from './webhid-config-export';
 import { crc32 } from '../crc32';
 import { discardPersistentConfigCache } from './discard-config-cache';
+import { IMAGE_TRANSFER_FLAG_6_FPS, isSupportedImageFps, UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES, UIMG_MAX_PAYLOAD_BYTES } from '../uimg-v4';
 
 if (WEBHID_MAX_FIRMWARE_PACKET_SIZE > WEBHID_MAX_STREAM_SIZE) {
   throw new Error('WebHID firmware packet exceeds the device stream boundary');
@@ -488,7 +490,7 @@ export class DeviceCommandClient {
     } catch (error) {
       if (error instanceof DeviceTransportError &&
           (error.code === 'protocol' || error.code === 'unsupported')) {
-        throw fastImageTransferUpgradeError(error);
+        throw imageCatalogRequestError(error);
       }
       throw error;
     }
@@ -549,10 +551,16 @@ export class DeviceCommandClient {
     const width = checkedUnsignedInteger(request.width, 0xffff, 'Image width');
     const height = checkedUnsignedInteger(request.height, 0xffff, 'Image height');
     const total = checkedUnsignedInteger(request.data.byteLength, 0xffff_ffff, 'Image size');
-    const frameCount = checkedUnsignedInteger(request.frameCount, 6, 'Image frame count');
-    const fps = checkedUnsignedInteger(request.fps, 5, 'Image FPS');
+    const frameCount = checkedUnsignedInteger(request.frameCount, UIMG_MAX_FRAMES, 'Image frame count');
+    const fps = checkedUnsignedInteger(request.fps, UIMG_ANIMATION_FPS, 'Image FPS');
     if (frameCount < 1) {
       throw new DeviceTransportError('protocol', 'Image frame count must be at least one');
+    }
+    // Validate before BEGIN: it erases the previous device image.
+    if (width < 1 || width > 320 || height < 1 || height > 172 ||
+        total !== width * height * 2 * frameCount || total > UIMG_MAX_PAYLOAD_BYTES ||
+        !isSupportedImageFps(frameCount, fps)) {
+      throw new DeviceTransportError('protocol', 'Invalid image dimensions, size or animation metadata');
     }
     const catalog = await this.getImageCatalogWithinTransaction(generation, queueSignal);
     if (
@@ -561,10 +569,16 @@ export class DeviceCommandClient {
       catalog.imageDataBytesPerReport !== 996 ||
       (catalog.imageTransferFlags & 0x0003) !== 0x0003
     ) {
-      throw new DeviceTransportError(
-        'unsupported',
+      throw new ImageTransferError(
+        'fast-transfer-required',
         '设备固件不支持快速图片传输，请先升级设备固件',
       );
+    }
+    if (frameCount > catalog.maxUserFrames) {
+      throw new ImageTransferError('frame-limit', `设备固件最多支持 ${catalog.maxUserFrames} 帧图片，请先升级设备固件`, catalog.maxUserFrames);
+    }
+    if (fps === UIMG_ANIMATION_FPS && (catalog.imageTransferFlags & IMAGE_TRANSFER_FLAG_6_FPS) === 0) {
+      throw new ImageTransferError('animation-rate', 'Device firmware does not support 6 FPS images');
     }
     const cid = nextCorrelationId();
     const begin = new Uint8Array(22);
@@ -645,7 +659,7 @@ export class DeviceCommandClient {
     } catch (error) {
       if (error instanceof DeviceTransportError &&
           (error.code === 'protocol' || error.code === 'unsupported')) {
-        throw fastImageTransferUpgradeError(error);
+        throw imageCatalogRequestError(error);
       }
       throw error;
     }
@@ -859,8 +873,8 @@ export class DeviceCommandClient {
     const width = checkedUnsignedInteger(Number(image.width), 0xffff, 'Image width');
     const height = checkedUnsignedInteger(Number(image.height), 0xffff, 'Image height');
     const size = checkedUnsignedInteger(Number(image.size), 0xffff_ffff, 'Image size');
-    const frameCount = checkedUnsignedInteger(Number(image.frameCount), 10, 'Image frame count');
-    const fps = checkedUnsignedInteger(Number(image.fps), 5, 'Image FPS');
+    const frameCount = checkedUnsignedInteger(Number(image.frameCount), UIMG_MAX_FRAMES, 'Image frame count');
+    const fps = checkedUnsignedInteger(Number(image.fps), UIMG_ANIMATION_FPS, 'Image FPS');
     if (size !== data.byteLength || size === 0 || frameCount < 1) {
       throw new DeviceTransportError('protocol', 'User image backup length is invalid');
     }
@@ -1598,7 +1612,7 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
   const fastTransfer = view.byteLength === 82;
   if (extended && (
     view.getUint8(64) !== (fastTransfer ? 4 : 2) ||
-    view.getUint8(65) < 1 || view.getUint8(65) > 10 ||
+    view.getUint8(65) < 1 || view.getUint8(65) > UIMG_MAX_FRAMES ||
     view.getUint8(66) > 10 ||
     (view.getUint8(7) === 1 && view.getUint8(66) < 1) ||
     view.getUint8(67) !== 0
@@ -1642,10 +1656,11 @@ function parseImageCatalog(response: ArrayBuffer, expectedCid: number): DeviceIm
   };
 }
 
-function fastImageTransferUpgradeError(cause?: unknown): DeviceTransportError {
-  return new DeviceTransportError(
-    'unsupported',
-    '设备固件不支持图片连续传输 V2，请先升级设备固件',
+function imageCatalogRequestError(cause?: unknown): DeviceTransportError {
+  return new ImageTransferError(
+    'catalog-request-failed',
+    '设备图片目录请求失败',
+    undefined,
     cause,
   );
 }

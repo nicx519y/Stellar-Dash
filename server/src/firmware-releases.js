@@ -1,12 +1,13 @@
 'use strict';
 
-// The release catalog deliberately has no device commands or installation API.
+// Release downloads are immutable; installation and recovery belong to the device.
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 const multer = require('multer');
 const { readFlatZipEntries, validateUploadedOtaPackage } = require('./action');
+const { validateInstallContract, validateInstallArtifact } = require('./release-install-contract');
 
 const MAX_BUNDLE_BYTES = 12 * 1024 * 1024;
 const ZIP_LIMITS = { maxEntrySize: 4 * 1024 * 1024, maxTotalSize: MAX_BUNDLE_BYTES, maxEntries: 6 };
@@ -26,7 +27,7 @@ function text(value, max, field, required = true) {
     return value.trim();
 }
 function validateManifest(manifest) {
-    requireValue(manifest && manifest.schemaVersion === 1, 'Unsupported release schemaVersion');
+    requireValue(manifest && [1, 2].includes(manifest.schemaVersion), 'Unsupported release schemaVersion');
     requireValue(manifest.product === 'XORA' && manifest.deviceModel === 'STM32H750_HBOX', 'Unsupported product or deviceModel');
     requireValue(typeof manifest.version === 'string' && VERSION.test(manifest.version) && manifest.hardwareVersion === '2.0.0', 'Invalid version or unsupported hardware');
     requireValue(manifest.bootSecurityMode === 'unlocked-development' && manifest.requiresManualLifecycleProvisioning === false,
@@ -56,6 +57,7 @@ function validateManifest(manifest) {
     requireValue(keys.has('stm32-A') && keys.has('stm32-B') && keys.has('tx'), 'STM32 A/B and TX are required');
     const slots = manifest.artifacts.filter(a => a.component === 'stm32');
     requireValue(slots[0].version === slots[1].version && slots[0].buildId === slots[1].buildId, 'STM32 A/B must have the same version and buildId');
+    try { validateInstallContract(manifest); } catch (error) { requireValue(false, error.message); }
     return manifest;
 }
 
@@ -66,6 +68,7 @@ function validateBundle(file, publicKey, tempRoot) {
     requireValue(raw && raw.length <= 32768 && signature?.length === 64, 'release.json and raw P-256 release.sig are required');
     requireValue(publicKey && crypto.verify('sha256', raw, { key: publicKey, dsaEncoding: 'ieee-p1363' }, signature), 'Release signature is invalid or release public key is missing');
     const manifest = validateManifest(JSON.parse(raw.toString('utf8')));
+    requireValue(manifest.schemaVersion !== 2 || raw.length <= 8192, 'Installation manifest exceeds 8 KiB');
     requireValue(entries.size === manifest.artifacts.length + 2, 'Package contains undeclared files');
     const work = fs.mkdtempSync(path.join(tempRoot, 'validate-'));
     try {
@@ -78,7 +81,9 @@ function validateBundle(file, publicKey, tempRoot) {
                 const slot = validateUploadedOtaPackage(nested, a.slot, publicKey);
                 requireValue(slot.version === a.version && slot.hardware_version === a.hardwareVersion, `STM32 manifest mismatch: ${a.file}`);
                 requireValue(slot.bootSecurityMode !== 'secure-production' && slot.requiresManualLifecycleProvisioning !== true, 'STM32 package requires forbidden lifecycle provisioning');
+                if (manifest.schemaVersion === 2) validateInstallArtifact(a, data, () => readFlatZipEntries(nested), manifest.install.configWrite);
             }
+            if (manifest.schemaVersion === 2 && a.component === 'tx') validateInstallArtifact(a, data);
         }
     } finally { fs.rmSync(work, { recursive: true, force: true }); }
     return manifest;
@@ -121,6 +126,7 @@ class FirmwareReleaseStore {
         if (!row) throw new ReleaseError('RELEASE_NOT_FOUND', 'Release not found', 404);
         const result = {
             id: row.id, manifest: JSON.parse(row.manifest), status: row.status, revision: row.revision,
+            bundleSha256: row.bundle_hash, installable: JSON.parse(row.manifest).schemaVersion === 2,
             notes: row.notes, acceptance: row.acceptance, createdAt: row.created_at,
             publishedAt: row.published_at, reason: row.reason,
             checks: ['signature', 'artifact-digests', 'stm32-signed-packages', 'hardware', 'unlocked-development'],
@@ -143,7 +149,17 @@ class FirmwareReleaseStore {
         const r = this.get(id);
         if (r.status !== 'published') throw new ReleaseError('RELEASE_NOT_FOUND', 'Release not found', 404);
         // Never expose draft acceptance evidence, administrators or internal paths.
-        return { id: r.id, manifest: r.manifest, notes: r.notes, publishedAt: r.publishedAt, status: 'published' };
+        return { id: r.id, manifest: r.manifest, notes: r.notes, publishedAt: r.publishedAt, status: 'published', bundleSha256: r.bundleSha256, installable: r.installable };
+    }
+    download(id) {
+        const release = this.publicDetail(id);
+        if (!release.installable) throw new ReleaseError('CATALOG_ONLY', 'Repackage this release with an installation contract', 409);
+        const file = this.bundlePath(release.bundleSha256);
+        const bytes = fs.readFileSync(file);
+        requireValue(sha256(bytes) === release.bundleSha256, 'Stored bundle digest mismatch');
+        validateBundle(file, this.publicKey, this.tempRoot);
+        // Synchronous validation and read: a replacement cannot change streamed bytes.
+        return { release, bytes };
     }
     audit(id, actor, action, before, after) {
         this.db.prepare('INSERT INTO release_audit(release_id,actor,action,at,before_json,after_json) VALUES(?,?,?,?,?,?)')
@@ -245,6 +261,15 @@ function initFirmwareReleaseRoutes(app, { store, adminAccess, deviceAccess }) {
     app.delete(`${base}/releases/:id`, manage, wrap((req, res) => ok(res, store.mutate(req.params.id, req.body?.revision, 'delete', {}, req.authenticatedAdmin))));
     app.use('/api/firmware-releases', deviceAccess.requireSession(['config.read']), (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
     app.get('/api/firmware-releases', wrap((req, res) => ok(res, store.list(req.query, true))));
+    app.get('/api/firmware-releases/verification-key', wrap((_req, res) => {
+        const key = store.publicKey?.type === 'public' ? store.publicKey : crypto.createPublicKey(store.publicKey);
+        ok(res, key.export({ format: 'jwk' }));
+    }));
+    app.get('/api/firmware-releases/:id/download', wrap((req, res) => {
+        const { release, bytes } = store.download(req.params.id);
+        res.set('X-Content-SHA256', release.bundleSha256);
+        res.type('application/zip').attachment(`XORA-${release.manifest.version}.zip`).send(bytes);
+    }));
     app.get('/api/firmware-releases/:id', wrap((req, res) => ok(res, store.publicDetail(req.params.id))));
 }
 

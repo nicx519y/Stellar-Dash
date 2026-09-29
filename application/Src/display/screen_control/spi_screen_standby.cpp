@@ -29,7 +29,6 @@ static uint16_t g_image_h = 0;
 static uint8_t g_anim_frame_count = 1;
 static uint8_t g_anim_fps = 0;
 static uint32_t g_anim_frame_size = 0;
-static uint32_t g_anim_frame_offsets[10] = {0};
 static uint32_t g_image_base_addr = 0;
 static uint8_t g_anim_frame_index = 0;
 static uint32_t g_anim_next_ms = 0;
@@ -67,13 +66,12 @@ static void reset_image_runtime(void)
     g_anim_fps = 0u;
     g_anim_frame_size = 0u;
     g_image_base_addr = 0u;
-    memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
     g_anim_frame_index = 0u;
     g_anim_next_ms = 0u;
 }
 
 static bool validate_mapped_payload(uint32_t baseAddr,
-                                    const HBoxUserImage::HeaderV3& header)
+                                    const HBoxUserImage::HeaderV4& header)
 {
     const uint32_t payloadAddr = baseAddr + header.frames_offset;
     const uint32_t cacheStart = payloadAddr & ~31u;
@@ -97,7 +95,7 @@ static bool validate_mapped_payload(uint32_t baseAddr,
 }
 
 static void adopt_uimg_source(uint32_t baseAddr,
-                              const HBoxUserImage::HeaderV3& header)
+                              const HBoxUserImage::HeaderV4& header)
 {
     g_image_kind = STANDBY_IMAGE_UIMG;
     g_image_base_addr = baseAddr;
@@ -106,7 +104,6 @@ static void adopt_uimg_source(uint32_t baseAddr,
     g_anim_frame_count = header.frame_count;
     g_anim_fps = header.fps;
     g_anim_frame_size = header.frame_size;
-    memcpy(g_anim_frame_offsets, header.frame_offsets, sizeof(g_anim_frame_offsets));
 }
 
 static bool resolve_uimg_source(const char* imageId)
@@ -126,14 +123,14 @@ static bool resolve_uimg_source(const char* imageId)
     } else {
         return false;
     }
-    if (areaSize < sizeof(HBoxUserImage::HeaderV3)) return false;
+    if (areaSize < sizeof(HBoxUserImage::HeaderV4)) return false;
 
     const uint8_t* base = (const uint8_t*)(uintptr_t)baseAddr;
-    HBoxUserImage::HeaderV3 header = {0};
-    memcpy(&header, base, sizeof(header));
-    if (!HBoxUserImage::validateStructure(header, expectedId, areaSize, maxFrames) ||
+    HBoxUserImage::HeaderV4 header = {0};
+    if (!HBoxUserImage::decodeHeader(base, sizeof(header), expectedId,
+                                     areaSize, maxFrames, header) ||
         !validate_mapped_payload(baseAddr, header)) {
-        LOG_WARN("ScreenStandby", "Rejected invalid UIMG v3 asset: %s", imageId);
+        LOG_WARN("ScreenStandby", "Rejected invalid UIMG asset: %s", imageId);
         return false;
     }
     adopt_uimg_source(baseAddr, header);
@@ -152,7 +149,6 @@ static void ensure_image_source(void)
     g_anim_fps = 0u;
     g_anim_frame_size = 0u;
     g_image_base_addr = 0u;
-    memset(g_anim_frame_offsets, 0, sizeof(g_anim_frame_offsets));
     if (!ensure_qspi_mmap()) {
         return;
     }
@@ -177,7 +173,8 @@ static void draw_image_frame(ST7789_Handle* lcd, uint8_t frameIndex)
 
     if (g_image_kind == STANDBY_IMAGE_UIMG) {
         if (frameIndex >= g_anim_frame_count) frameIndex = 0u;
-        uint32_t addr = g_image_base_addr + g_anim_frame_offsets[frameIndex];
+        uint32_t addr = g_image_base_addr + HBoxUserImage::HEADER_SIZE +
+                        static_cast<uint32_t>(frameIndex) * g_anim_frame_size;
         const uint8_t* pixels = (const uint8_t*)(uintptr_t)addr;
         ST7789_DrawBitmap(lcd, x, y, g_image_w, g_image_h, pixels, ST7789_BITMAP_RGB565_LE, (uint32_t)g_image_w * 2u);
     }

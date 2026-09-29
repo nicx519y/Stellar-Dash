@@ -1,0 +1,726 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"storagemanager.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/config/storagemanager.cpp"
+  19              		.section	.text._ZN7Storage10initConfigEv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN7Storage10initConfigEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN7Storage10initConfigEv:
+  27              	.LVL0:
+  28              	.LFB2171:
+   1:Src/config/storagemanager.cpp **** #include "storagemanager.hpp"
+   2:Src/config/storagemanager.cpp **** #include "config.hpp"
+   3:Src/config/storagemanager.cpp **** #include "stm32h750xx.h"
+   4:Src/config/storagemanager.cpp **** #include <stdio.h>
+   5:Src/config/storagemanager.cpp **** #include <string.h>
+   6:Src/config/storagemanager.cpp **** #include "board_cfg.h"
+   7:Src/config/storagemanager.cpp **** 
+   8:Src/config/storagemanager.cpp **** static Storage::DefaultProfileChangedCallback g_defaultProfileChangedCbs[8] = {0};
+   9:Src/config/storagemanager.cpp **** static uint8_t g_defaultProfileChangedCbCount = 0;
+  10:Src/config/storagemanager.cpp **** 
+  11:Src/config/storagemanager.cpp **** void Storage::initConfig() {
+  29              		.loc 1 11 28 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		.loc 1 11 28 is_stmt 0 view .LVU1
+  34 0000 08B5     		push	{r3, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 8
+  37              		.cfi_offset 3, -8
+  38              		.cfi_offset 14, -4
+  12:Src/config/storagemanager.cpp **** 	APP_DBG("Storage::init begin.");
+  39              		.loc 1 12 2 is_stmt 1 view .LVU2
+  13:Src/config/storagemanager.cpp **** 	ConfigUtils::load(config);
+  40              		.loc 1 13 2 view .LVU3
+  41              		.loc 1 13 19 is_stmt 0 view .LVU4
+  42 0002 FFF7FEFF 		bl	load
+  43              	.LVL1:
+  14:Src/config/storagemanager.cpp **** 	// APP_DBG("Storage::initConfig - hotkeys: %d", config.hotkeys[0].virtualPin);
+  15:Src/config/storagemanager.cpp **** 	// ConfigUtils::reset(config);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 2
+
+
+  16:Src/config/storagemanager.cpp **** }
+  44              		.loc 1 16 1 view .LVU5
+  45 0006 08BD     		pop	{r3, pc}
+  46              		.cfi_endproc
+  47              	.LFE2171:
+  49              		.section	.text._ZN7Storage37registerDefaultProfileChangedCallbackEPFvvE,"ax",%progbits
+  50              		.align	1
+  51              		.global	_ZN7Storage37registerDefaultProfileChangedCallbackEPFvvE
+  52              		.syntax unified
+  53              		.thumb
+  54              		.thumb_func
+  56              	_ZN7Storage37registerDefaultProfileChangedCallbackEPFvvE:
+  57              	.LVL2:
+  58              	.LFB2172:
+  17:Src/config/storagemanager.cpp **** 
+  18:Src/config/storagemanager.cpp **** void Storage::registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb) {
+  59              		.loc 1 18 87 is_stmt 1 view -0
+  60              		.cfi_startproc
+  61              		@ args = 0, pretend = 0, frame = 0
+  62              		@ frame_needed = 0, uses_anonymous_args = 0
+  63              		@ link register save eliminated.
+  19:Src/config/storagemanager.cpp **** 	if (!cb) return;
+  64              		.loc 1 19 2 view .LVU7
+  65 0000 0846     		mov	r0, r1
+  66              	.LVL3:
+  67              		.loc 1 19 2 is_stmt 0 view .LVU8
+  68 0002 A1B1     		cbz	r1, .L3
+  69              	.LBB2:
+  20:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+  70              		.loc 1 20 15 view .LVU9
+  71 0004 0023     		movs	r3, #0
+  72              	.L5:
+  73              	.LVL4:
+  74              		.loc 1 20 24 is_stmt 1 discriminator 1 view .LVU10
+  75 0006 0A4A     		ldr	r2, .L8
+  76 0008 1278     		ldrb	r2, [r2]	@ zero_extendqisi2
+  77 000a 9A42     		cmp	r2, r3
+  78 000c 07D9     		bls	.L7
+  21:Src/config/storagemanager.cpp **** 		if (g_defaultProfileChangedCbs[i] == cb) return;
+  79              		.loc 1 21 3 view .LVU11
+  80              		.loc 1 21 35 is_stmt 0 view .LVU12
+  81 000e 094A     		ldr	r2, .L8+4
+  82 0010 52F82320 		ldr	r2, [r2, r3, lsl #2]
+  83              		.loc 1 21 3 view .LVU13
+  84 0014 8242     		cmp	r2, r0
+  85 0016 0AD0     		beq	.L3
+  20:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+  86              		.loc 1 20 2 is_stmt 1 discriminator 2 view .LVU14
+  87 0018 0133     		adds	r3, r3, #1
+  88              	.LVL5:
+  20:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+  89              		.loc 1 20 2 is_stmt 0 discriminator 2 view .LVU15
+  90 001a DBB2     		uxtb	r3, r3
+  91              	.LVL6:
+  20:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+  92              		.loc 1 20 2 discriminator 2 view .LVU16
+  93 001c F3E7     		b	.L5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 3
+
+
+  94              	.LVL7:
+  95              	.L7:
+  20:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+  96              		.loc 1 20 2 discriminator 2 view .LVU17
+  97              	.LBE2:
+  22:Src/config/storagemanager.cpp **** 	}
+  23:Src/config/storagemanager.cpp **** 	if (g_defaultProfileChangedCbCount < (uint8_t)(sizeof(g_defaultProfileChangedCbs) / sizeof(g_defau
+  98              		.loc 1 23 2 is_stmt 1 view .LVU18
+  99 001e 072A     		cmp	r2, #7
+ 100 0020 05D8     		bhi	.L3
+  24:Src/config/storagemanager.cpp **** 		g_defaultProfileChangedCbs[g_defaultProfileChangedCbCount++] = cb;
+ 101              		.loc 1 24 3 view .LVU19
+ 102              		.loc 1 24 60 is_stmt 0 view .LVU20
+ 103 0022 511C     		adds	r1, r2, #1
+ 104 0024 024B     		ldr	r3, .L8
+ 105              	.LVL8:
+ 106              		.loc 1 24 60 view .LVU21
+ 107 0026 1970     		strb	r1, [r3]
+ 108              		.loc 1 24 64 view .LVU22
+ 109 0028 024B     		ldr	r3, .L8+4
+ 110 002a 43F82200 		str	r0, [r3, r2, lsl #2]
+ 111              	.LVL9:
+ 112              	.L3:
+  25:Src/config/storagemanager.cpp **** 	}
+  26:Src/config/storagemanager.cpp **** }
+ 113              		.loc 1 26 1 view .LVU23
+ 114 002e 7047     		bx	lr
+ 115              	.L9:
+ 116              		.align	2
+ 117              	.L8:
+ 118 0030 00000000 		.word	_ZL30g_defaultProfileChangedCbCount
+ 119 0034 00000000 		.word	_ZL26g_defaultProfileChangedCbs
+ 120              		.cfi_endproc
+ 121              	.LFE2172:
+ 123              		.section	.text._ZN7Storage19setDefaultProfileIdEPKc,"ax",%progbits
+ 124              		.align	1
+ 125              		.global	_ZN7Storage19setDefaultProfileIdEPKc
+ 126              		.syntax unified
+ 127              		.thumb
+ 128              		.thumb_func
+ 130              	_ZN7Storage19setDefaultProfileIdEPKc:
+ 131              	.LVL10:
+ 132              	.LFB2173:
+  27:Src/config/storagemanager.cpp **** 
+  28:Src/config/storagemanager.cpp **** bool Storage::setDefaultProfileId(const char* id) {
+ 133              		.loc 1 28 51 is_stmt 1 view -0
+ 134              		.cfi_startproc
+ 135              		@ args = 0, pretend = 0, frame = 0
+ 136              		@ frame_needed = 0, uses_anonymous_args = 0
+  29:Src/config/storagemanager.cpp **** 	if (!id) return false;
+ 137              		.loc 1 29 2 view .LVU25
+ 138 0000 11B3     		cbz	r1, .L15
+  28:Src/config/storagemanager.cpp **** 	if (!id) return false;
+ 139              		.loc 1 28 51 is_stmt 0 view .LVU26
+ 140 0002 70B5     		push	{r4, r5, r6, lr}
+ 141              	.LCFI1:
+ 142              		.cfi_def_cfa_offset 16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 4
+
+
+ 143              		.cfi_offset 4, -16
+ 144              		.cfi_offset 5, -12
+ 145              		.cfi_offset 6, -8
+ 146              		.cfi_offset 14, -4
+ 147 0004 0546     		mov	r5, r0
+ 148 0006 0C46     		mov	r4, r1
+  30:Src/config/storagemanager.cpp **** 	if (strncmp(config.defaultProfileId, id, sizeof(config.defaultProfileId)) == 0) return false;
+ 149              		.loc 1 30 2 is_stmt 1 view .LVU27
+ 150              		.loc 1 30 21 is_stmt 0 view .LVU28
+ 151 0008 00F10B06 		add	r6, r0, #11
+ 152              		.loc 1 30 13 view .LVU29
+ 153 000c 1022     		movs	r2, #16
+ 154 000e 3046     		mov	r0, r6
+ 155              	.LVL11:
+ 156              		.loc 1 30 13 view .LVU30
+ 157 0010 FFF7FEFF 		bl	strncmp
+ 158              	.LVL12:
+ 159              		.loc 1 30 2 discriminator 1 view .LVU31
+ 160 0014 08B9     		cbnz	r0, .L21
+ 161              		.loc 1 30 89 discriminator 1 view .LVU32
+ 162 0016 0020     		movs	r0, #0
+ 163              	.LVL13:
+ 164              	.L11:
+  31:Src/config/storagemanager.cpp **** 	strncpy(config.defaultProfileId, id, sizeof(config.defaultProfileId) - 1);
+  32:Src/config/storagemanager.cpp **** 	config.defaultProfileId[sizeof(config.defaultProfileId) - 1] = '\0';
+  33:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+  34:Src/config/storagemanager.cpp **** 		if (g_defaultProfileChangedCbs[i]) g_defaultProfileChangedCbs[i]();
+  35:Src/config/storagemanager.cpp **** 	}
+  36:Src/config/storagemanager.cpp **** 	return true;
+  37:Src/config/storagemanager.cpp **** }
+ 165              		.loc 1 37 1 view .LVU33
+ 166 0018 70BD     		pop	{r4, r5, r6, pc}
+ 167              	.LVL14:
+ 168              	.L21:
+  31:Src/config/storagemanager.cpp **** 	strncpy(config.defaultProfileId, id, sizeof(config.defaultProfileId) - 1);
+ 169              		.loc 1 31 2 is_stmt 1 view .LVU34
+  31:Src/config/storagemanager.cpp **** 	strncpy(config.defaultProfileId, id, sizeof(config.defaultProfileId) - 1);
+ 170              		.loc 1 31 9 is_stmt 0 view .LVU35
+ 171 001a 0F22     		movs	r2, #15
+ 172 001c 2146     		mov	r1, r4
+ 173 001e 3046     		mov	r0, r6
+ 174 0020 FFF7FEFF 		bl	strncpy
+ 175              	.LVL15:
+  32:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+ 176              		.loc 1 32 2 is_stmt 1 view .LVU36
+  32:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+ 177              		.loc 1 32 63 is_stmt 0 view .LVU37
+ 178 0024 0024     		movs	r4, #0
+ 179              	.LVL16:
+  32:Src/config/storagemanager.cpp **** 	for (uint8_t i = 0; i < g_defaultProfileChangedCbCount; i++) {
+ 180              		.loc 1 32 63 view .LVU38
+ 181 0026 AC76     		strb	r4, [r5, #26]
+  33:Src/config/storagemanager.cpp **** 		if (g_defaultProfileChangedCbs[i]) g_defaultProfileChangedCbs[i]();
+ 182              		.loc 1 33 2 is_stmt 1 view .LVU39
+ 183              	.LVL17:
+ 184              	.LBB3:
+  33:Src/config/storagemanager.cpp **** 		if (g_defaultProfileChangedCbs[i]) g_defaultProfileChangedCbs[i]();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 5
+
+
+ 185              		.loc 1 33 2 is_stmt 0 view .LVU40
+ 186 0028 02E0     		b	.L12
+ 187              	.LVL18:
+ 188              	.L23:
+  34:Src/config/storagemanager.cpp **** 	}
+ 189              		.loc 1 34 38 is_stmt 1 discriminator 1 view .LVU41
+  34:Src/config/storagemanager.cpp **** 	}
+ 190              		.loc 1 34 67 is_stmt 0 discriminator 1 view .LVU42
+ 191 002a 9847     		blx	r3
+ 192              	.LVL19:
+ 193              	.L13:
+  33:Src/config/storagemanager.cpp **** 		if (g_defaultProfileChangedCbs[i]) g_defaultProfileChangedCbs[i]();
+ 194              		.loc 1 33 2 is_stmt 1 discriminator 2 view .LVU43
+ 195 002c 0134     		adds	r4, r4, #1
+ 196              	.LVL20:
+  33:Src/config/storagemanager.cpp **** 		if (g_defaultProfileChangedCbs[i]) g_defaultProfileChangedCbs[i]();
+ 197              		.loc 1 33 2 is_stmt 0 discriminator 2 view .LVU44
+ 198 002e E4B2     		uxtb	r4, r4
+ 199              	.LVL21:
+ 200              	.L12:
+  33:Src/config/storagemanager.cpp **** 		if (g_defaultProfileChangedCbs[i]) g_defaultProfileChangedCbs[i]();
+ 201              		.loc 1 33 24 is_stmt 1 discriminator 1 view .LVU45
+ 202 0030 064B     		ldr	r3, .L24
+ 203 0032 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 204 0034 A342     		cmp	r3, r4
+ 205 0036 05D9     		bls	.L22
+  34:Src/config/storagemanager.cpp **** 	}
+ 206              		.loc 1 34 3 view .LVU46
+  34:Src/config/storagemanager.cpp **** 	}
+ 207              		.loc 1 34 35 is_stmt 0 view .LVU47
+ 208 0038 054B     		ldr	r3, .L24+4
+ 209 003a 53F82430 		ldr	r3, [r3, r4, lsl #2]
+  34:Src/config/storagemanager.cpp **** 	}
+ 210              		.loc 1 34 3 view .LVU48
+ 211 003e 002B     		cmp	r3, #0
+ 212 0040 F3D1     		bne	.L23
+ 213 0042 F3E7     		b	.L13
+ 214              	.L22:
+ 215              	.LBE3:
+  36:Src/config/storagemanager.cpp **** }
+ 216              		.loc 1 36 9 view .LVU49
+ 217 0044 0120     		movs	r0, #1
+ 218              	.LBB4:
+ 219 0046 E7E7     		b	.L11
+ 220              	.LVL22:
+ 221              	.L15:
+ 222              	.LCFI2:
+ 223              		.cfi_def_cfa_offset 0
+ 224              		.cfi_restore 4
+ 225              		.cfi_restore 5
+ 226              		.cfi_restore 6
+ 227              		.cfi_restore 14
+  36:Src/config/storagemanager.cpp **** }
+ 228              		.loc 1 36 9 view .LVU50
+ 229              	.LBE4:
+  29:Src/config/storagemanager.cpp **** 	if (strncmp(config.defaultProfileId, id, sizeof(config.defaultProfileId)) == 0) return false;
+ 230              		.loc 1 29 18 discriminator 1 view .LVU51
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 6
+
+
+ 231 0048 0020     		movs	r0, #0
+ 232              	.LVL23:
+ 233              		.loc 1 37 1 view .LVU52
+ 234 004a 7047     		bx	lr
+ 235              	.L25:
+ 236              		.align	2
+ 237              	.L24:
+ 238 004c 00000000 		.word	_ZL30g_defaultProfileChangedCbCount
+ 239 0050 00000000 		.word	_ZL26g_defaultProfileChangedCbs
+ 240              		.cfi_endproc
+ 241              	.LFE2173:
+ 243              		.section	.text._ZN7Storage10saveConfigEv,"ax",%progbits
+ 244              		.align	1
+ 245              		.global	_ZN7Storage10saveConfigEv
+ 246              		.syntax unified
+ 247              		.thumb
+ 248              		.thumb_func
+ 250              	_ZN7Storage10saveConfigEv:
+ 251              	.LVL24:
+ 252              	.LFB2174:
+  38:Src/config/storagemanager.cpp **** 
+  39:Src/config/storagemanager.cpp **** bool Storage::saveConfig()
+  40:Src/config/storagemanager.cpp **** {
+ 253              		.loc 1 40 1 is_stmt 1 view -0
+ 254              		.cfi_startproc
+ 255              		@ args = 0, pretend = 0, frame = 0
+ 256              		@ frame_needed = 0, uses_anonymous_args = 0
+ 257              		.loc 1 40 1 is_stmt 0 view .LVU54
+ 258 0000 38B5     		push	{r3, r4, r5, lr}
+ 259              	.LCFI3:
+ 260              		.cfi_def_cfa_offset 16
+ 261              		.cfi_offset 3, -16
+ 262              		.cfi_offset 4, -12
+ 263              		.cfi_offset 5, -8
+ 264              		.cfi_offset 14, -4
+ 265 0002 0446     		mov	r4, r0
+  41:Src/config/storagemanager.cpp **** 	if (ConfigUtils::save(config)) return true;
+ 266              		.loc 1 41 2 is_stmt 1 view .LVU55
+ 267              		.loc 1 41 23 is_stmt 0 view .LVU56
+ 268 0004 FFF7FEFF 		bl	save
+ 269              	.LVL25:
+ 270              		.loc 1 41 2 discriminator 1 view .LVU57
+ 271 0008 0546     		mov	r5, r0
+ 272 000a 08B1     		cbz	r0, .L29
+ 273              	.L27:
+  42:Src/config/storagemanager.cpp **** 
+  43:Src/config/storagemanager.cpp **** 	/*
+  44:Src/config/storagemanager.cpp **** 	 * A journal write always targets the inactive bank and commits last, so a
+  45:Src/config/storagemanager.cpp **** 	 * failed save leaves the previous bank readable. Reload it in-place instead
+  46:Src/config/storagemanager.cpp **** 	 * of keeping a second ~36 KiB Config object resident in scarce MCU RAM.
+  47:Src/config/storagemanager.cpp **** 	 */
+  48:Src/config/storagemanager.cpp **** 	if (ConfigUtils::fromStorage(config)) {
+  49:Src/config/storagemanager.cpp **** 		APP_ERR("Storage::saveConfig failed; runtime config reloaded from the committed bank.");
+  50:Src/config/storagemanager.cpp **** 	} else {
+  51:Src/config/storagemanager.cpp **** 		APP_ERR("Storage::saveConfig failed; committed config reload also failed.");
+  52:Src/config/storagemanager.cpp **** 	}
+  53:Src/config/storagemanager.cpp **** 	return false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 7
+
+
+  54:Src/config/storagemanager.cpp **** }
+ 274              		.loc 1 54 1 view .LVU58
+ 275 000c 2846     		mov	r0, r5
+ 276 000e 38BD     		pop	{r3, r4, r5, pc}
+ 277              	.LVL26:
+ 278              	.L29:
+  48:Src/config/storagemanager.cpp **** 		APP_ERR("Storage::saveConfig failed; runtime config reloaded from the committed bank.");
+ 279              		.loc 1 48 2 is_stmt 1 view .LVU59
+  48:Src/config/storagemanager.cpp **** 		APP_ERR("Storage::saveConfig failed; runtime config reloaded from the committed bank.");
+ 280              		.loc 1 48 30 is_stmt 0 view .LVU60
+ 281 0010 2046     		mov	r0, r4
+ 282 0012 FFF7FEFF 		bl	fromStorage
+ 283              	.LVL27:
+  49:Src/config/storagemanager.cpp **** 	} else {
+ 284              		.loc 1 49 3 is_stmt 1 view .LVU61
+  51:Src/config/storagemanager.cpp **** 	}
+ 285              		.loc 1 51 3 view .LVU62
+  53:Src/config/storagemanager.cpp **** }
+ 286              		.loc 1 53 2 view .LVU63
+  53:Src/config/storagemanager.cpp **** }
+ 287              		.loc 1 53 9 is_stmt 0 view .LVU64
+ 288 0016 F9E7     		b	.L27
+ 289              		.cfi_endproc
+ 290              	.LFE2174:
+ 292              		.section	.text._ZN7Storage17getGamepadProfileEPc,"ax",%progbits
+ 293              		.align	1
+ 294              		.global	_ZN7Storage17getGamepadProfileEPc
+ 295              		.syntax unified
+ 296              		.thumb
+ 297              		.thumb_func
+ 299              	_ZN7Storage17getGamepadProfileEPc:
+ 300              	.LVL28:
+ 301              	.LFB2175:
+  55:Src/config/storagemanager.cpp **** 
+  56:Src/config/storagemanager.cpp **** /**
+  57:Src/config/storagemanager.cpp ****  * @brief 获取游戏手柄配置
+  58:Src/config/storagemanager.cpp ****  * 
+  59:Src/config/storagemanager.cpp ****  * @param id 游戏手柄ID
+  60:Src/config/storagemanager.cpp ****  * @return 游戏手柄配置
+  61:Src/config/storagemanager.cpp ****  */
+  62:Src/config/storagemanager.cpp **** GamepadProfile* Storage::getGamepadProfile(char* id) {
+ 302              		.loc 1 62 54 is_stmt 1 view -0
+ 303              		.cfi_startproc
+ 304              		@ args = 0, pretend = 0, frame = 0
+ 305              		@ frame_needed = 0, uses_anonymous_args = 0
+ 306              		.loc 1 62 54 is_stmt 0 view .LVU66
+ 307 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 308              	.LCFI4:
+ 309              		.cfi_def_cfa_offset 24
+ 310              		.cfi_offset 4, -24
+ 311              		.cfi_offset 5, -20
+ 312              		.cfi_offset 6, -16
+ 313              		.cfi_offset 7, -12
+ 314              		.cfi_offset 8, -8
+ 315              		.cfi_offset 14, -4
+ 316 0004 0E46     		mov	r6, r1
+  63:Src/config/storagemanager.cpp **** 	GamepadProfile* gamepadProfiles = config.profiles;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 8
+
+
+ 317              		.loc 1 63 2 is_stmt 1 view .LVU67
+ 318              		.loc 1 63 18 is_stmt 0 view .LVU68
+ 319 0006 00F11C08 		add	r8, r0, #28
+ 320              	.LVL29:
+  64:Src/config/storagemanager.cpp **** 	uint8_t numProfilesMax = config.numProfilesMax;
+ 321              		.loc 1 64 2 is_stmt 1 view .LVU69
+ 322              		.loc 1 64 10 is_stmt 0 view .LVU70
+ 323 000a C77E     		ldrb	r7, [r0, #27]	@ zero_extendqisi2
+ 324              	.LVL30:
+  65:Src/config/storagemanager.cpp **** 	for (size_t i = 0; i < numProfilesMax; i++) {
+ 325              		.loc 1 65 2 is_stmt 1 view .LVU71
+ 326              	.LBB5:
+ 327              		.loc 1 65 14 is_stmt 0 view .LVU72
+ 328 000c 0025     		movs	r5, #0
+ 329              		.loc 1 65 2 view .LVU73
+ 330 000e 00E0     		b	.L31
+ 331              	.LVL31:
+ 332              	.L36:
+ 333              		.loc 1 65 2 is_stmt 1 discriminator 2 view .LVU74
+ 334 0010 0135     		adds	r5, r5, #1
+ 335              	.LVL32:
+ 336              	.L31:
+ 337              		.loc 1 65 23 discriminator 1 view .LVU75
+ 338 0012 AF42     		cmp	r7, r5
+ 339 0014 0AD9     		bls	.L35
+  66:Src/config/storagemanager.cpp **** 		if (strcmp(gamepadProfiles[i].id, id) == 0) {
+ 340              		.loc 1 66 3 view .LVU76
+ 341              		.loc 1 66 31 is_stmt 0 view .LVU77
+ 342 0016 40F6DC04 		movw	r4, #2268
+ 343 001a 04FB0584 		mla	r4, r4, r5, r8
+ 344              		.loc 1 66 13 view .LVU78
+ 345 001e 3146     		mov	r1, r6
+ 346 0020 2046     		mov	r0, r4
+ 347 0022 FFF7FEFF 		bl	strcmp
+ 348              	.LVL33:
+ 349              		.loc 1 66 3 discriminator 1 view .LVU79
+ 350 0026 0028     		cmp	r0, #0
+ 351 0028 F2D1     		bne	.L36
+ 352 002a 00E0     		b	.L30
+ 353              	.L35:
+ 354              		.loc 1 66 3 discriminator 1 view .LVU80
+ 355              	.LBE5:
+  67:Src/config/storagemanager.cpp **** 			return &gamepadProfiles[i];
+  68:Src/config/storagemanager.cpp **** 		}
+  69:Src/config/storagemanager.cpp **** 	}
+  70:Src/config/storagemanager.cpp **** 	return nullptr;
+ 356              		.loc 1 70 9 view .LVU81
+ 357 002c 0024     		movs	r4, #0
+ 358              	.L30:
+  71:Src/config/storagemanager.cpp **** }
+ 359              		.loc 1 71 1 view .LVU82
+ 360 002e 2046     		mov	r0, r4
+ 361 0030 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 362              		.loc 1 71 1 view .LVU83
+ 363              		.cfi_endproc
+ 364              	.LFE2175:
+ 366              		.section	.text._ZN7Storage11setBootModeE8BootMode,"ax",%progbits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 9
+
+
+ 367              		.align	1
+ 368              		.global	_ZN7Storage11setBootModeE8BootMode
+ 369              		.syntax unified
+ 370              		.thumb
+ 371              		.thumb_func
+ 373              	_ZN7Storage11setBootModeE8BootMode:
+ 374              	.LVL34:
+ 375              	.LFB2176:
+  72:Src/config/storagemanager.cpp **** 
+  73:Src/config/storagemanager.cpp **** void Storage::setBootMode(BootMode bootMode) {
+ 376              		.loc 1 73 46 is_stmt 1 view -0
+ 377              		.cfi_startproc
+ 378              		@ args = 0, pretend = 0, frame = 0
+ 379              		@ frame_needed = 0, uses_anonymous_args = 0
+ 380              		@ link register save eliminated.
+  74:Src/config/storagemanager.cpp **** 	config.bootMode = bootMode;
+ 381              		.loc 1 74 2 view .LVU85
+ 382              		.loc 1 74 18 is_stmt 0 view .LVU86
+ 383 0000 0171     		strb	r1, [r0, #4]
+  75:Src/config/storagemanager.cpp **** }
+ 384              		.loc 1 75 1 view .LVU87
+ 385 0002 7047     		bx	lr
+ 386              		.cfi_endproc
+ 387              	.LFE2176:
+ 389              		.section	.text._ZN7Storage11resetConfigEv,"ax",%progbits
+ 390              		.align	1
+ 391              		.global	_ZN7Storage11resetConfigEv
+ 392              		.syntax unified
+ 393              		.thumb
+ 394              		.thumb_func
+ 396              	_ZN7Storage11resetConfigEv:
+ 397              	.LVL35:
+ 398              	.LFB2177:
+  76:Src/config/storagemanager.cpp **** 
+  77:Src/config/storagemanager.cpp **** bool Storage::resetConfig()
+  78:Src/config/storagemanager.cpp **** {
+ 399              		.loc 1 78 1 is_stmt 1 view -0
+ 400              		.cfi_startproc
+ 401              		@ args = 0, pretend = 0, frame = 0
+ 402              		@ frame_needed = 0, uses_anonymous_args = 0
+ 403              		.loc 1 78 1 is_stmt 0 view .LVU89
+ 404 0000 08B5     		push	{r3, lr}
+ 405              	.LCFI5:
+ 406              		.cfi_def_cfa_offset 8
+ 407              		.cfi_offset 3, -8
+ 408              		.cfi_offset 14, -4
+  79:Src/config/storagemanager.cpp **** 	APP_DBG("Storage::resettings begin.");
+ 409              		.loc 1 79 2 is_stmt 1 view .LVU90
+  80:Src/config/storagemanager.cpp **** 	return ConfigUtils::reset(config);
+ 410              		.loc 1 80 2 view .LVU91
+ 411              		.loc 1 80 27 is_stmt 0 view .LVU92
+ 412 0002 FFF7FEFF 		bl	reset
+ 413              	.LVL36:
+  81:Src/config/storagemanager.cpp **** 	// NVIC_SystemReset();				//reboot
+  82:Src/config/storagemanager.cpp **** }
+ 414              		.loc 1 82 1 view .LVU93
+ 415 0006 08BD     		pop	{r3, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 10
+
+
+ 416              		.cfi_endproc
+ 417              	.LFE2177:
+ 419              		.section	.text._ZN7Storage12setInputModeE9InputMode,"ax",%progbits
+ 420              		.align	1
+ 421              		.global	_ZN7Storage12setInputModeE9InputMode
+ 422              		.syntax unified
+ 423              		.thumb
+ 424              		.thumb_func
+ 426              	_ZN7Storage12setInputModeE9InputMode:
+ 427              	.LVL37:
+ 428              	.LFB2178:
+  83:Src/config/storagemanager.cpp **** 
+  84:Src/config/storagemanager.cpp **** void Storage::setInputMode(InputMode inputMode) {
+ 429              		.loc 1 84 49 is_stmt 1 view -0
+ 430              		.cfi_startproc
+ 431              		@ args = 0, pretend = 0, frame = 0
+ 432              		@ frame_needed = 0, uses_anonymous_args = 0
+ 433              		@ link register save eliminated.
+  85:Src/config/storagemanager.cpp **** 	config.inputMode = inputMode;
+ 434              		.loc 1 85 2 view .LVU95
+ 435              		.loc 1 85 19 is_stmt 0 view .LVU96
+ 436 0000 4171     		strb	r1, [r0, #5]
+  86:Src/config/storagemanager.cpp **** }
+ 437              		.loc 1 86 1 view .LVU97
+ 438 0002 7047     		bx	lr
+ 439              		.cfi_endproc
+ 440              	.LFE2178:
+ 442              		.section	.text._ZN7Storage17setConnectionModeE14ConnectionMode,"ax",%progbits
+ 443              		.align	1
+ 444              		.global	_ZN7Storage17setConnectionModeE14ConnectionMode
+ 445              		.syntax unified
+ 446              		.thumb
+ 447              		.thumb_func
+ 449              	_ZN7Storage17setConnectionModeE14ConnectionMode:
+ 450              	.LVL38:
+ 451              	.LFB2179:
+  87:Src/config/storagemanager.cpp **** 
+  88:Src/config/storagemanager.cpp **** void Storage::setConnectionMode(ConnectionMode mode) {
+ 452              		.loc 1 88 54 is_stmt 1 view -0
+ 453              		.cfi_startproc
+ 454              		@ args = 0, pretend = 0, frame = 0
+ 455              		@ frame_needed = 0, uses_anonymous_args = 0
+ 456              		@ link register save eliminated.
+  89:Src/config/storagemanager.cpp **** 	config.connectionMode = mode;
+ 457              		.loc 1 89 2 view .LVU99
+ 458              		.loc 1 89 24 is_stmt 0 view .LVU100
+ 459 0000 8171     		strb	r1, [r0, #6]
+  90:Src/config/storagemanager.cpp **** }
+ 460              		.loc 1 90 1 view .LVU101
+ 461 0002 7047     		bx	lr
+ 462              		.cfi_endproc
+ 463              	.LFE2179:
+ 465              		.section	.text._ZN7Storage21setWirelessReportRateE18WirelessReportRate,"ax",%progbits
+ 466              		.align	1
+ 467              		.global	_ZN7Storage21setWirelessReportRateE18WirelessReportRate
+ 468              		.syntax unified
+ 469              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 11
+
+
+ 470              		.thumb_func
+ 472              	_ZN7Storage21setWirelessReportRateE18WirelessReportRate:
+ 473              	.LVL39:
+ 474              	.LFB2180:
+  91:Src/config/storagemanager.cpp **** 
+  92:Src/config/storagemanager.cpp **** void Storage::setWirelessReportRate(WirelessReportRate rate) {
+ 475              		.loc 1 92 62 is_stmt 1 view -0
+ 476              		.cfi_startproc
+ 477              		@ args = 0, pretend = 0, frame = 0
+ 478              		@ frame_needed = 0, uses_anonymous_args = 0
+ 479              		@ link register save eliminated.
+  93:Src/config/storagemanager.cpp **** 	config.wirelessReportRate = rate;
+ 480              		.loc 1 93 2 view .LVU103
+ 481              		.loc 1 93 28 is_stmt 0 view .LVU104
+ 482 0000 0181     		strh	r1, [r0, #8]	@ movhi
+  94:Src/config/storagemanager.cpp **** }
+ 483              		.loc 1 94 1 view .LVU105
+ 484 0002 7047     		bx	lr
+ 485              		.cfi_endproc
+ 486              	.LFE2180:
+ 488              		.section	.text._ZN7Storage19setRfPowerStateHintEh,"ax",%progbits
+ 489              		.align	1
+ 490              		.global	_ZN7Storage19setRfPowerStateHintEh
+ 491              		.syntax unified
+ 492              		.thumb
+ 493              		.thumb_func
+ 495              	_ZN7Storage19setRfPowerStateHintEh:
+ 496              	.LVL40:
+ 497              	.LFB2181:
+  95:Src/config/storagemanager.cpp **** 
+  96:Src/config/storagemanager.cpp **** void Storage::setRfPowerStateHint(uint8_t hint) {
+ 498              		.loc 1 96 49 is_stmt 1 view -0
+ 499              		.cfi_startproc
+ 500              		@ args = 0, pretend = 0, frame = 0
+ 501              		@ frame_needed = 0, uses_anonymous_args = 0
+ 502              		@ link register save eliminated.
+  97:Src/config/storagemanager.cpp **** 	config.reservedConnection0 = hint;
+ 503              		.loc 1 97 2 view .LVU107
+ 504              		.loc 1 97 29 is_stmt 0 view .LVU108
+ 505 0000 8172     		strb	r1, [r0, #10]
+  98:Src/config/storagemanager.cpp **** }
+ 506              		.loc 1 98 1 view .LVU109
+ 507 0002 7047     		bx	lr
+ 508              		.cfi_endproc
+ 509              	.LFE2181:
+ 511              		.section	.bss._ZL30g_defaultProfileChangedCbCount,"aw",%nobits
+ 514              	_ZL30g_defaultProfileChangedCbCount:
+ 515 0000 00       		.space	1
+ 516              		.section	.bss._ZL26g_defaultProfileChangedCbs,"aw",%nobits
+ 517              		.align	2
+ 520              	_ZL26g_defaultProfileChangedCbs:
+ 521 0000 00000000 		.space	32
+ 521      00000000 
+ 521      00000000 
+ 521      00000000 
+ 521      00000000 
+ 522              		.text
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 12
+
+
+ 523              	.Letext0:
+ 524              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 525              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 526              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 527              		.file 5 "Inc/power/power_config.hpp"
+ 528              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 529              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 530              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 531              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 532              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 533              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 534              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 535              		.file 13 "Inc/support/enums.hpp"
+ 536              		.file 14 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 537              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 538              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 539              		.file 17 "Inc/system/board_cfg.h"
+ 540              		.file 18 "Inc/config/config.hpp"
+ 541              		.file 19 "Inc/config/storagemanager.hpp"
+ 542              		.file 20 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 543              		.file 21 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s 			page 13
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 storagemanager.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:20     .text._ZN7Storage10initConfigEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:26     .text._ZN7Storage10initConfigEv:00000000 _ZN7Storage10initConfigEv
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:50     .text._ZN7Storage37registerDefaultProfileChangedCallbackEPFvvE:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:56     .text._ZN7Storage37registerDefaultProfileChangedCallbackEPFvvE:00000000 _ZN7Storage37registerDefaultProfileChangedCallbackEPFvvE
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:118    .text._ZN7Storage37registerDefaultProfileChangedCallbackEPFvvE:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:514    .bss._ZL30g_defaultProfileChangedCbCount:00000000 _ZL30g_defaultProfileChangedCbCount
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:520    .bss._ZL26g_defaultProfileChangedCbs:00000000 _ZL26g_defaultProfileChangedCbs
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:124    .text._ZN7Storage19setDefaultProfileIdEPKc:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:130    .text._ZN7Storage19setDefaultProfileIdEPKc:00000000 _ZN7Storage19setDefaultProfileIdEPKc
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:238    .text._ZN7Storage19setDefaultProfileIdEPKc:0000004c $d
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:244    .text._ZN7Storage10saveConfigEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:250    .text._ZN7Storage10saveConfigEv:00000000 _ZN7Storage10saveConfigEv
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:293    .text._ZN7Storage17getGamepadProfileEPc:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:299    .text._ZN7Storage17getGamepadProfileEPc:00000000 _ZN7Storage17getGamepadProfileEPc
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:367    .text._ZN7Storage11setBootModeE8BootMode:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:373    .text._ZN7Storage11setBootModeE8BootMode:00000000 _ZN7Storage11setBootModeE8BootMode
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:390    .text._ZN7Storage11resetConfigEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:396    .text._ZN7Storage11resetConfigEv:00000000 _ZN7Storage11resetConfigEv
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:420    .text._ZN7Storage12setInputModeE9InputMode:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:426    .text._ZN7Storage12setInputModeE9InputMode:00000000 _ZN7Storage12setInputModeE9InputMode
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:443    .text._ZN7Storage17setConnectionModeE14ConnectionMode:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:449    .text._ZN7Storage17setConnectionModeE14ConnectionMode:00000000 _ZN7Storage17setConnectionModeE14ConnectionMode
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:466    .text._ZN7Storage21setWirelessReportRateE18WirelessReportRate:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:472    .text._ZN7Storage21setWirelessReportRateE18WirelessReportRate:00000000 _ZN7Storage21setWirelessReportRateE18WirelessReportRate
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:489    .text._ZN7Storage19setRfPowerStateHintEh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:495    .text._ZN7Storage19setRfPowerStateHintEh:00000000 _ZN7Storage19setRfPowerStateHintEh
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:515    .bss._ZL30g_defaultProfileChangedCbCount:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc436pyG.s:517    .bss._ZL26g_defaultProfileChangedCbs:00000000 $d
+
+UNDEFINED SYMBOLS
+load
+strncmp
+strncpy
+save
+fromStorage
+strcmp
+reset

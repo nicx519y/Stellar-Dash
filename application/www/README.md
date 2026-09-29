@@ -8,7 +8,7 @@ User and administrator sign-in remains on the server for account actions.
 The administrator firmware catalog is at `/admin/firmware/`; published releases
 can be browsed without a HID connection at `/firmware/releases/`. See the
 [upload and publishing guide](../../docs/firmware-release-catalog.md) for the
-signed bundle format and local setup. This catalog does not install firmware.
+signed bundle format and local setup. The device firmware page installs compatible v2 releases; see the [whole-device installer](../../docs/firmware-release-install.md).
 
 Configuration reconnects use device module fingerprints and an IndexedDB cache.
 The connection overlay stays blocking until validation and synchronization finish.
@@ -141,6 +141,27 @@ to `127.0.0.1:4000` by default; pass another port with
 Mock mode requires both `NEXT_PUBLIC_DEVICE_TRANSPORT=mock` and
 `NEXT_PUBLIC_OFFLINE_PREVIEW=true`; it is intended only for local QA and must
 not be deployed as the genuine-device V2 site.
+
+## Background image compatibility
+
+GIF conversion uses 6 FPS and at most 12 RGB565 frames (up to two seconds of
+device playback). Both the worker and canvas fallback use the same frame
+selection policy: sample the original timeline every 1/6 second, repeat held
+frames, and capture only the first two seconds when capacity is exceeded.
+Long clips are never compressed to fit; the final partial tick can extend a
+short clip by less than 1/6 second. Gallery cards display the original animated GIF; device
+playback uses the sampled frames. The WebHID payload limit is shared with UIMG
+v4 so twelve-frame images reach the transport intact.
+
+Image catalog transfer flag bit 2 advertises 6 FPS support. The client checks
+this before BEGIN, which erases the previous image. Existing UIMG v3/v4 files
+at 3 FPS remain readable; installation repeats each verified frame twice to
+preserve its timing at 6 FPS, capturing at most the first two seconds. Server
+fingerprint matching recognizes this conversion with the same publication and
+owner checks. Previously converted GIF assets already missing original frame
+delays must be regenerated from the source GIF to recover those delays. Existing installed images retain
+their stored rate until replaced. Deploy the server, WebConfig and matching
+STM32 firmware together; a WebConfig update alone does not update the device.
 
 ## Connection and account behavior
 

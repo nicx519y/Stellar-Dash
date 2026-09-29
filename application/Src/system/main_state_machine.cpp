@@ -6,6 +6,8 @@
 #include "board_mode.hpp"
 #include "board_power.hpp"
 #include "ch585_firmware_update.hpp"
+#include "release_installer.hpp"
+#include "config.hpp"
 #include "ch585_role_bootstrap.hpp"
 #include "connection_manager.hpp"
 #include "power_manager.hpp"
@@ -16,6 +18,7 @@
 #include "system_logger.h"
 #include "system_sleep_manager.hpp"
 #include "boot_profile.h"
+
 
 namespace {
 
@@ -56,7 +59,14 @@ void MainStateMachine::initializeInteractiveRuntime(bool overlapInputStartup)
     APP_STAGE("A11", "physical mode sampled: mode=%u stable=%u",
               static_cast<unsigned>(BOARD_MODE.current()),
               BOARD_MODE.isStable() ? 1u : 0u);
-    STORAGE_MANAGER.initConfig();
+    if (RELEASE_INSTALLER.protectConfiguration()) {
+        // Never let the normal default/migration path overwrite configuration
+        // while determining the result of an activated installation.
+        const bool readable = ConfigUtils::fromStorage(STORAGE_MANAGER.config);
+        RELEASE_INSTALLER.verifyStartup(readable);
+    } else {
+        STORAGE_MANAGER.initConfig();
+    }
     APP_STAGE("A12", "configuration loaded: boot mode=%u",
               static_cast<unsigned>(STORAGE_MANAGER.getBootMode()));
 
@@ -76,6 +86,7 @@ void MainStateMachine::initializeInteractiveRuntime(bool overlapInputStartup)
 
 MainRuntimeState MainStateMachine::resolveNormalStartupState() const
 {
+    if (RELEASE_INSTALLER.failed()) return MainRuntimeState::SafeRecovery;
     /* A valid READY is the only CH585 journal state that diverts startup.
      * Interrupted or failed transactions remain diagnostic records and must
      * never lock the controller out of its normal interactive runtime. */
@@ -186,7 +197,7 @@ void MainStateMachine::setup()
     /* READY is the only condition inspected before Logger/Storage/screen.
      * This keeps BridgeUpdate an isolated peer state instead of an early-boot
      * side path hidden outside the main state machine. */
-    if (CH585_FIRMWARE_UPDATE.hasReadyStagedImage()) {
+    if (RELEASE_INSTALLER.bootPending() || CH585_FIRMWARE_UPDATE.hasReadyStagedImage()) {
         (void)enterState(MainRuntimeState::Ch585BridgeUpdate);
     } else {
         initializeInteractiveRuntime(true);
@@ -196,6 +207,7 @@ void MainStateMachine::setup()
     /* Records dispatcher completion, not USB enumeration/RF link readiness. */
     BootProfile_AppComplete();
     while (true) {
+        if (interactiveRuntimeInitialized) RELEASE_INSTALLER.poll();
         if (state != nullptr) state->tick();
         serviceSharedRuntime();
         if (resetPending) {

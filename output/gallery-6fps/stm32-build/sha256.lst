@@ -1,0 +1,2604 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"sha256.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/sha256.c"
+  19              		.section	.text.mbedtls_sha256_init,"ax",%progbits
+  20              		.align	1
+  21              		.global	mbedtls_sha256_init
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	mbedtls_sha256_init:
+  27              	.LVL0:
+  28              	.LFB6:
+   1:Libs/mbedtls/library/sha256.c **** /*
+   2:Libs/mbedtls/library/sha256.c ****  *  FIPS-180-2 compliant SHA-256 implementation
+   3:Libs/mbedtls/library/sha256.c ****  *
+   4:Libs/mbedtls/library/sha256.c ****  *  Copyright The Mbed TLS Contributors
+   5:Libs/mbedtls/library/sha256.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   6:Libs/mbedtls/library/sha256.c ****  */
+   7:Libs/mbedtls/library/sha256.c **** /*
+   8:Libs/mbedtls/library/sha256.c ****  *  The SHA-256 Secure Hash Standard was published by NIST in 2002.
+   9:Libs/mbedtls/library/sha256.c ****  *
+  10:Libs/mbedtls/library/sha256.c ****  *  http://csrc.nist.gov/publications/fips/fips180-2/fips180-2.pdf
+  11:Libs/mbedtls/library/sha256.c ****  */
+  12:Libs/mbedtls/library/sha256.c **** 
+  13:Libs/mbedtls/library/sha256.c **** #include "common.h"
+  14:Libs/mbedtls/library/sha256.c **** 
+  15:Libs/mbedtls/library/sha256.c **** #if defined(MBEDTLS_SHA256_C)
+  16:Libs/mbedtls/library/sha256.c **** 
+  17:Libs/mbedtls/library/sha256.c **** #include "mbedtls/sha256.h"
+  18:Libs/mbedtls/library/sha256.c **** #include "mbedtls/platform_util.h"
+  19:Libs/mbedtls/library/sha256.c **** #include "mbedtls/error.h"
+  20:Libs/mbedtls/library/sha256.c **** 
+  21:Libs/mbedtls/library/sha256.c **** #include <string.h>
+  22:Libs/mbedtls/library/sha256.c **** 
+  23:Libs/mbedtls/library/sha256.c **** #include "mbedtls/platform.h"
+  24:Libs/mbedtls/library/sha256.c **** 
+  25:Libs/mbedtls/library/sha256.c **** #define SHA256_VALIDATE_RET(cond)                           \
+  26:Libs/mbedtls/library/sha256.c ****     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_SHA256_BAD_INPUT_DATA)
+  27:Libs/mbedtls/library/sha256.c **** #define SHA256_VALIDATE(cond)  MBEDTLS_INTERNAL_VALIDATE(cond)
+  28:Libs/mbedtls/library/sha256.c **** 
+  29:Libs/mbedtls/library/sha256.c **** #if !defined(MBEDTLS_SHA256_ALT)
+  30:Libs/mbedtls/library/sha256.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 2
+
+
+  31:Libs/mbedtls/library/sha256.c **** void mbedtls_sha256_init(mbedtls_sha256_context *ctx)
+  32:Libs/mbedtls/library/sha256.c **** {
+  29              		.loc 1 32 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		.loc 1 32 1 is_stmt 0 view .LVU1
+  34 0000 08B5     		push	{r3, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 8
+  37              		.cfi_offset 3, -8
+  38              		.cfi_offset 14, -4
+  33:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE(ctx != NULL);
+  39              		.loc 1 33 5 is_stmt 1 view .LVU2
+  40              		.loc 1 33 5 view .LVU3
+  41              		.loc 1 33 5 view .LVU4
+  34:Libs/mbedtls/library/sha256.c **** 
+  35:Libs/mbedtls/library/sha256.c ****     memset(ctx, 0, sizeof(mbedtls_sha256_context));
+  42              		.loc 1 35 5 view .LVU5
+  43 0002 6C22     		movs	r2, #108
+  44 0004 0021     		movs	r1, #0
+  45 0006 FFF7FEFF 		bl	memset
+  46              	.LVL1:
+  36:Libs/mbedtls/library/sha256.c **** }
+  47              		.loc 1 36 1 is_stmt 0 view .LVU6
+  48 000a 08BD     		pop	{r3, pc}
+  49              		.cfi_endproc
+  50              	.LFE6:
+  52              		.section	.text.mbedtls_sha256_free,"ax",%progbits
+  53              		.align	1
+  54              		.global	mbedtls_sha256_free
+  55              		.syntax unified
+  56              		.thumb
+  57              		.thumb_func
+  59              	mbedtls_sha256_free:
+  60              	.LVL2:
+  61              	.LFB7:
+  37:Libs/mbedtls/library/sha256.c **** 
+  38:Libs/mbedtls/library/sha256.c **** void mbedtls_sha256_free(mbedtls_sha256_context *ctx)
+  39:Libs/mbedtls/library/sha256.c **** {
+  62              		.loc 1 39 1 is_stmt 1 view -0
+  63              		.cfi_startproc
+  64              		@ args = 0, pretend = 0, frame = 0
+  65              		@ frame_needed = 0, uses_anonymous_args = 0
+  40:Libs/mbedtls/library/sha256.c ****     if (ctx == NULL) {
+  66              		.loc 1 40 5 view .LVU8
+  67              		.loc 1 40 8 is_stmt 0 view .LVU9
+  68 0000 20B1     		cbz	r0, .L6
+  39:Libs/mbedtls/library/sha256.c ****     if (ctx == NULL) {
+  69              		.loc 1 39 1 view .LVU10
+  70 0002 08B5     		push	{r3, lr}
+  71              	.LCFI1:
+  72              		.cfi_def_cfa_offset 8
+  73              		.cfi_offset 3, -8
+  74              		.cfi_offset 14, -4
+  41:Libs/mbedtls/library/sha256.c ****         return;
+  42:Libs/mbedtls/library/sha256.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 3
+
+
+  43:Libs/mbedtls/library/sha256.c **** 
+  44:Libs/mbedtls/library/sha256.c ****     mbedtls_platform_zeroize(ctx, sizeof(mbedtls_sha256_context));
+  75              		.loc 1 44 5 is_stmt 1 view .LVU11
+  76 0004 6C21     		movs	r1, #108
+  77 0006 FFF7FEFF 		bl	mbedtls_platform_zeroize
+  78              	.LVL3:
+  45:Libs/mbedtls/library/sha256.c **** }
+  79              		.loc 1 45 1 is_stmt 0 view .LVU12
+  80 000a 08BD     		pop	{r3, pc}
+  81              	.LVL4:
+  82              	.L6:
+  83              	.LCFI2:
+  84              		.cfi_def_cfa_offset 0
+  85              		.cfi_restore 3
+  86              		.cfi_restore 14
+  87              		.loc 1 45 1 view .LVU13
+  88 000c 7047     		bx	lr
+  89              		.cfi_endproc
+  90              	.LFE7:
+  92              		.section	.text.mbedtls_sha256_clone,"ax",%progbits
+  93              		.align	1
+  94              		.global	mbedtls_sha256_clone
+  95              		.syntax unified
+  96              		.thumb
+  97              		.thumb_func
+  99              	mbedtls_sha256_clone:
+ 100              	.LVL5:
+ 101              	.LFB8:
+  46:Libs/mbedtls/library/sha256.c **** 
+  47:Libs/mbedtls/library/sha256.c **** void mbedtls_sha256_clone(mbedtls_sha256_context *dst,
+  48:Libs/mbedtls/library/sha256.c ****                           const mbedtls_sha256_context *src)
+  49:Libs/mbedtls/library/sha256.c **** {
+ 102              		.loc 1 49 1 is_stmt 1 view -0
+ 103              		.cfi_startproc
+ 104              		@ args = 0, pretend = 0, frame = 0
+ 105              		@ frame_needed = 0, uses_anonymous_args = 0
+ 106              		.loc 1 49 1 is_stmt 0 view .LVU15
+ 107 0000 08B5     		push	{r3, lr}
+ 108              	.LCFI3:
+ 109              		.cfi_def_cfa_offset 8
+ 110              		.cfi_offset 3, -8
+ 111              		.cfi_offset 14, -4
+  50:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE(dst != NULL);
+ 112              		.loc 1 50 5 is_stmt 1 view .LVU16
+ 113              		.loc 1 50 5 view .LVU17
+ 114              		.loc 1 50 5 view .LVU18
+  51:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE(src != NULL);
+ 115              		.loc 1 51 5 view .LVU19
+ 116              		.loc 1 51 5 view .LVU20
+ 117              		.loc 1 51 5 view .LVU21
+  52:Libs/mbedtls/library/sha256.c **** 
+  53:Libs/mbedtls/library/sha256.c ****     *dst = *src;
+ 118              		.loc 1 53 5 view .LVU22
+ 119              		.loc 1 53 10 is_stmt 0 view .LVU23
+ 120 0002 6C22     		movs	r2, #108
+ 121 0004 FFF7FEFF 		bl	memcpy
+ 122              	.LVL6:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 4
+
+
+  54:Libs/mbedtls/library/sha256.c **** }
+ 123              		.loc 1 54 1 view .LVU24
+ 124 0008 08BD     		pop	{r3, pc}
+ 125              		.cfi_endproc
+ 126              	.LFE8:
+ 128              		.section	.text.mbedtls_sha256_starts_ret,"ax",%progbits
+ 129              		.align	1
+ 130              		.global	mbedtls_sha256_starts_ret
+ 131              		.syntax unified
+ 132              		.thumb
+ 133              		.thumb_func
+ 135              	mbedtls_sha256_starts_ret:
+ 136              	.LVL7:
+ 137              	.LFB9:
+  55:Libs/mbedtls/library/sha256.c **** 
+  56:Libs/mbedtls/library/sha256.c **** /*
+  57:Libs/mbedtls/library/sha256.c ****  * SHA-256 context setup
+  58:Libs/mbedtls/library/sha256.c ****  */
+  59:Libs/mbedtls/library/sha256.c **** int mbedtls_sha256_starts_ret(mbedtls_sha256_context *ctx, int is224)
+  60:Libs/mbedtls/library/sha256.c **** {
+ 138              		.loc 1 60 1 is_stmt 1 view -0
+ 139              		.cfi_startproc
+ 140              		@ args = 0, pretend = 0, frame = 0
+ 141              		@ frame_needed = 0, uses_anonymous_args = 0
+ 142              		@ link register save eliminated.
+  61:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET(ctx != NULL);
+ 143              		.loc 1 61 5 view .LVU26
+ 144              		.loc 1 61 5 view .LVU27
+ 145              		.loc 1 61 5 view .LVU28
+  62:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET(is224 == 0 || is224 == 1);
+ 146              		.loc 1 62 5 view .LVU29
+ 147              		.loc 1 62 5 view .LVU30
+ 148              		.loc 1 62 5 view .LVU31
+  63:Libs/mbedtls/library/sha256.c **** 
+  64:Libs/mbedtls/library/sha256.c ****     ctx->total[0] = 0;
+ 149              		.loc 1 64 5 view .LVU32
+ 150              		.loc 1 64 19 is_stmt 0 view .LVU33
+ 151 0000 0023     		movs	r3, #0
+ 152 0002 0360     		str	r3, [r0]
+  65:Libs/mbedtls/library/sha256.c ****     ctx->total[1] = 0;
+ 153              		.loc 1 65 5 is_stmt 1 view .LVU34
+ 154              		.loc 1 65 19 is_stmt 0 view .LVU35
+ 155 0004 4360     		str	r3, [r0, #4]
+  66:Libs/mbedtls/library/sha256.c **** 
+  67:Libs/mbedtls/library/sha256.c ****     if (is224 == 0) {
+ 156              		.loc 1 67 5 is_stmt 1 view .LVU36
+ 157              		.loc 1 67 8 is_stmt 0 view .LVU37
+ 158 0006 0B46     		mov	r3, r1
+ 159 0008 B9B9     		cbnz	r1, .L12
+  68:Libs/mbedtls/library/sha256.c ****         /* SHA-256 */
+  69:Libs/mbedtls/library/sha256.c ****         ctx->state[0] = 0x6A09E667;
+ 160              		.loc 1 69 9 is_stmt 1 view .LVU38
+ 161              		.loc 1 69 23 is_stmt 0 view .LVU39
+ 162 000a 194A     		ldr	r2, .L14
+ 163 000c 8260     		str	r2, [r0, #8]
+  70:Libs/mbedtls/library/sha256.c ****         ctx->state[1] = 0xBB67AE85;
+ 164              		.loc 1 70 9 is_stmt 1 view .LVU40
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 5
+
+
+ 165              		.loc 1 70 23 is_stmt 0 view .LVU41
+ 166 000e 194A     		ldr	r2, .L14+4
+ 167 0010 C260     		str	r2, [r0, #12]
+  71:Libs/mbedtls/library/sha256.c ****         ctx->state[2] = 0x3C6EF372;
+ 168              		.loc 1 71 9 is_stmt 1 view .LVU42
+ 169              		.loc 1 71 23 is_stmt 0 view .LVU43
+ 170 0012 194A     		ldr	r2, .L14+8
+ 171 0014 0261     		str	r2, [r0, #16]
+  72:Libs/mbedtls/library/sha256.c ****         ctx->state[3] = 0xA54FF53A;
+ 172              		.loc 1 72 9 is_stmt 1 view .LVU44
+ 173              		.loc 1 72 23 is_stmt 0 view .LVU45
+ 174 0016 194A     		ldr	r2, .L14+12
+ 175 0018 4261     		str	r2, [r0, #20]
+  73:Libs/mbedtls/library/sha256.c ****         ctx->state[4] = 0x510E527F;
+ 176              		.loc 1 73 9 is_stmt 1 view .LVU46
+ 177              		.loc 1 73 23 is_stmt 0 view .LVU47
+ 178 001a 194A     		ldr	r2, .L14+16
+ 179 001c 8261     		str	r2, [r0, #24]
+  74:Libs/mbedtls/library/sha256.c ****         ctx->state[5] = 0x9B05688C;
+ 180              		.loc 1 74 9 is_stmt 1 view .LVU48
+ 181              		.loc 1 74 23 is_stmt 0 view .LVU49
+ 182 001e 194A     		ldr	r2, .L14+20
+ 183 0020 C261     		str	r2, [r0, #28]
+  75:Libs/mbedtls/library/sha256.c ****         ctx->state[6] = 0x1F83D9AB;
+ 184              		.loc 1 75 9 is_stmt 1 view .LVU50
+ 185              		.loc 1 75 23 is_stmt 0 view .LVU51
+ 186 0022 194A     		ldr	r2, .L14+24
+ 187 0024 0262     		str	r2, [r0, #32]
+  76:Libs/mbedtls/library/sha256.c ****         ctx->state[7] = 0x5BE0CD19;
+ 188              		.loc 1 76 9 is_stmt 1 view .LVU52
+ 189              		.loc 1 76 23 is_stmt 0 view .LVU53
+ 190 0026 02F17452 		add	r2, r2, #1023410176
+ 191 002a A2F52302 		sub	r2, r2, #10682368
+ 192 002e A2F69242 		subw	r2, r2, #3218
+ 193 0032 4262     		str	r2, [r0, #36]
+ 194              	.L13:
+  77:Libs/mbedtls/library/sha256.c ****     } else {
+  78:Libs/mbedtls/library/sha256.c ****         /* SHA-224 */
+  79:Libs/mbedtls/library/sha256.c ****         ctx->state[0] = 0xC1059ED8;
+  80:Libs/mbedtls/library/sha256.c ****         ctx->state[1] = 0x367CD507;
+  81:Libs/mbedtls/library/sha256.c ****         ctx->state[2] = 0x3070DD17;
+  82:Libs/mbedtls/library/sha256.c ****         ctx->state[3] = 0xF70E5939;
+  83:Libs/mbedtls/library/sha256.c ****         ctx->state[4] = 0xFFC00B31;
+  84:Libs/mbedtls/library/sha256.c ****         ctx->state[5] = 0x68581511;
+  85:Libs/mbedtls/library/sha256.c ****         ctx->state[6] = 0x64F98FA7;
+  86:Libs/mbedtls/library/sha256.c ****         ctx->state[7] = 0xBEFA4FA4;
+  87:Libs/mbedtls/library/sha256.c ****     }
+  88:Libs/mbedtls/library/sha256.c **** 
+  89:Libs/mbedtls/library/sha256.c ****     ctx->is224 = is224;
+ 195              		.loc 1 89 5 is_stmt 1 view .LVU54
+ 196              		.loc 1 89 16 is_stmt 0 view .LVU55
+ 197 0034 8366     		str	r3, [r0, #104]
+  90:Libs/mbedtls/library/sha256.c **** 
+  91:Libs/mbedtls/library/sha256.c ****     return 0;
+ 198              		.loc 1 91 5 is_stmt 1 view .LVU56
+  92:Libs/mbedtls/library/sha256.c **** }
+ 199              		.loc 1 92 1 is_stmt 0 view .LVU57
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 6
+
+
+ 200 0036 0020     		movs	r0, #0
+ 201              	.LVL8:
+ 202              		.loc 1 92 1 view .LVU58
+ 203 0038 7047     		bx	lr
+ 204              	.LVL9:
+ 205              	.L12:
+  79:Libs/mbedtls/library/sha256.c ****         ctx->state[1] = 0x367CD507;
+ 206              		.loc 1 79 9 is_stmt 1 view .LVU59
+  79:Libs/mbedtls/library/sha256.c ****         ctx->state[1] = 0x367CD507;
+ 207              		.loc 1 79 23 is_stmt 0 view .LVU60
+ 208 003a 144A     		ldr	r2, .L14+28
+ 209 003c 8260     		str	r2, [r0, #8]
+  80:Libs/mbedtls/library/sha256.c ****         ctx->state[2] = 0x3070DD17;
+ 210              		.loc 1 80 9 is_stmt 1 view .LVU61
+  80:Libs/mbedtls/library/sha256.c ****         ctx->state[2] = 0x3070DD17;
+ 211              		.loc 1 80 23 is_stmt 0 view .LVU62
+ 212 003e 144A     		ldr	r2, .L14+32
+ 213 0040 C260     		str	r2, [r0, #12]
+  81:Libs/mbedtls/library/sha256.c ****         ctx->state[3] = 0xF70E5939;
+ 214              		.loc 1 81 9 is_stmt 1 view .LVU63
+  81:Libs/mbedtls/library/sha256.c ****         ctx->state[3] = 0xF70E5939;
+ 215              		.loc 1 81 23 is_stmt 0 view .LVU64
+ 216 0042 02F17942 		add	r2, r2, #-117440512
+ 217 0046 02F57402 		add	r2, r2, #15990784
+ 218 004a 02F50162 		add	r2, r2, #2064
+ 219 004e 0261     		str	r2, [r0, #16]
+  82:Libs/mbedtls/library/sha256.c ****         ctx->state[4] = 0xFFC00B31;
+ 220              		.loc 1 82 9 is_stmt 1 view .LVU65
+  82:Libs/mbedtls/library/sha256.c ****         ctx->state[4] = 0xFFC00B31;
+ 221              		.loc 1 82 23 is_stmt 0 view .LVU66
+ 222 0050 104A     		ldr	r2, .L14+36
+ 223 0052 4261     		str	r2, [r0, #20]
+  83:Libs/mbedtls/library/sha256.c ****         ctx->state[5] = 0x68581511;
+ 224              		.loc 1 83 9 is_stmt 1 view .LVU67
+  83:Libs/mbedtls/library/sha256.c ****         ctx->state[5] = 0x68581511;
+ 225              		.loc 1 83 23 is_stmt 0 view .LVU68
+ 226 0054 104A     		ldr	r2, .L14+40
+ 227 0056 8261     		str	r2, [r0, #24]
+  84:Libs/mbedtls/library/sha256.c ****         ctx->state[6] = 0x64F98FA7;
+ 228              		.loc 1 84 9 is_stmt 1 view .LVU69
+  84:Libs/mbedtls/library/sha256.c ****         ctx->state[6] = 0x64F98FA7;
+ 229              		.loc 1 84 23 is_stmt 0 view .LVU70
+ 230 0058 02F1D142 		add	r2, r2, #1753219072
+ 231 005c 02F5C012 		add	r2, r2, #1572864
+ 232 0060 02F51E62 		add	r2, r2, #2528
+ 233 0064 C261     		str	r2, [r0, #28]
+  85:Libs/mbedtls/library/sha256.c ****         ctx->state[7] = 0xBEFA4FA4;
+ 234              		.loc 1 85 9 is_stmt 1 view .LVU71
+  85:Libs/mbedtls/library/sha256.c ****         ctx->state[7] = 0xBEFA4FA4;
+ 235              		.loc 1 85 23 is_stmt 0 view .LVU72
+ 236 0066 0D4A     		ldr	r2, .L14+44
+ 237 0068 0262     		str	r2, [r0, #32]
+  86:Libs/mbedtls/library/sha256.c ****     }
+ 238              		.loc 1 86 9 is_stmt 1 view .LVU73
+  86:Libs/mbedtls/library/sha256.c ****     }
+ 239              		.loc 1 86 23 is_stmt 0 view .LVU74
+ 240 006a 0D4A     		ldr	r2, .L14+48
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 7
+
+
+ 241 006c 4262     		str	r2, [r0, #36]
+ 242 006e E1E7     		b	.L13
+ 243              	.L15:
+ 244              		.align	2
+ 245              	.L14:
+ 246 0070 67E6096A 		.word	1779033703
+ 247 0074 85AE67BB 		.word	-1150833019
+ 248 0078 72F36E3C 		.word	1013904242
+ 249 007c 3AF54FA5 		.word	-1521486534
+ 250 0080 7F520E51 		.word	1359893119
+ 251 0084 8C68059B 		.word	-1694144372
+ 252 0088 ABD9831F 		.word	528734635
+ 253 008c D89E05C1 		.word	-1056596264
+ 254 0090 07D57C36 		.word	914150663
+ 255 0094 39590EF7 		.word	-150054599
+ 256 0098 310BC0FF 		.word	-4191439
+ 257 009c A78FF964 		.word	1694076839
+ 258 00a0 A44FFABE 		.word	-1090891868
+ 259              		.cfi_endproc
+ 260              	.LFE9:
+ 262              		.section	.text.mbedtls_sha256_starts,"ax",%progbits
+ 263              		.align	1
+ 264              		.global	mbedtls_sha256_starts
+ 265              		.syntax unified
+ 266              		.thumb
+ 267              		.thumb_func
+ 269              	mbedtls_sha256_starts:
+ 270              	.LVL10:
+ 271              	.LFB10:
+  93:Libs/mbedtls/library/sha256.c **** 
+  94:Libs/mbedtls/library/sha256.c **** #if !defined(MBEDTLS_DEPRECATED_REMOVED)
+  95:Libs/mbedtls/library/sha256.c **** void mbedtls_sha256_starts(mbedtls_sha256_context *ctx,
+  96:Libs/mbedtls/library/sha256.c ****                            int is224)
+  97:Libs/mbedtls/library/sha256.c **** {
+ 272              		.loc 1 97 1 is_stmt 1 view -0
+ 273              		.cfi_startproc
+ 274              		@ args = 0, pretend = 0, frame = 0
+ 275              		@ frame_needed = 0, uses_anonymous_args = 0
+ 276              		.loc 1 97 1 is_stmt 0 view .LVU76
+ 277 0000 08B5     		push	{r3, lr}
+ 278              	.LCFI4:
+ 279              		.cfi_def_cfa_offset 8
+ 280              		.cfi_offset 3, -8
+ 281              		.cfi_offset 14, -4
+  98:Libs/mbedtls/library/sha256.c ****     mbedtls_sha256_starts_ret(ctx, is224);
+ 282              		.loc 1 98 5 is_stmt 1 view .LVU77
+ 283 0002 FFF7FEFF 		bl	mbedtls_sha256_starts_ret
+ 284              	.LVL11:
+  99:Libs/mbedtls/library/sha256.c **** }
+ 285              		.loc 1 99 1 is_stmt 0 view .LVU78
+ 286 0006 08BD     		pop	{r3, pc}
+ 287              		.cfi_endproc
+ 288              	.LFE10:
+ 290              		.section	.text.mbedtls_internal_sha256_process,"ax",%progbits
+ 291              		.align	1
+ 292              		.global	mbedtls_internal_sha256_process
+ 293              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 8
+
+
+ 294              		.thumb
+ 295              		.thumb_func
+ 297              	mbedtls_internal_sha256_process:
+ 298              	.LVL12:
+ 299              	.LFB11:
+ 100:Libs/mbedtls/library/sha256.c **** #endif
+ 101:Libs/mbedtls/library/sha256.c **** 
+ 102:Libs/mbedtls/library/sha256.c **** #if !defined(MBEDTLS_SHA256_PROCESS_ALT)
+ 103:Libs/mbedtls/library/sha256.c **** static const uint32_t K[] =
+ 104:Libs/mbedtls/library/sha256.c **** {
+ 105:Libs/mbedtls/library/sha256.c ****     0x428A2F98, 0x71374491, 0xB5C0FBCF, 0xE9B5DBA5,
+ 106:Libs/mbedtls/library/sha256.c ****     0x3956C25B, 0x59F111F1, 0x923F82A4, 0xAB1C5ED5,
+ 107:Libs/mbedtls/library/sha256.c ****     0xD807AA98, 0x12835B01, 0x243185BE, 0x550C7DC3,
+ 108:Libs/mbedtls/library/sha256.c ****     0x72BE5D74, 0x80DEB1FE, 0x9BDC06A7, 0xC19BF174,
+ 109:Libs/mbedtls/library/sha256.c ****     0xE49B69C1, 0xEFBE4786, 0x0FC19DC6, 0x240CA1CC,
+ 110:Libs/mbedtls/library/sha256.c ****     0x2DE92C6F, 0x4A7484AA, 0x5CB0A9DC, 0x76F988DA,
+ 111:Libs/mbedtls/library/sha256.c ****     0x983E5152, 0xA831C66D, 0xB00327C8, 0xBF597FC7,
+ 112:Libs/mbedtls/library/sha256.c ****     0xC6E00BF3, 0xD5A79147, 0x06CA6351, 0x14292967,
+ 113:Libs/mbedtls/library/sha256.c ****     0x27B70A85, 0x2E1B2138, 0x4D2C6DFC, 0x53380D13,
+ 114:Libs/mbedtls/library/sha256.c ****     0x650A7354, 0x766A0ABB, 0x81C2C92E, 0x92722C85,
+ 115:Libs/mbedtls/library/sha256.c ****     0xA2BFE8A1, 0xA81A664B, 0xC24B8B70, 0xC76C51A3,
+ 116:Libs/mbedtls/library/sha256.c ****     0xD192E819, 0xD6990624, 0xF40E3585, 0x106AA070,
+ 117:Libs/mbedtls/library/sha256.c ****     0x19A4C116, 0x1E376C08, 0x2748774C, 0x34B0BCB5,
+ 118:Libs/mbedtls/library/sha256.c ****     0x391C0CB3, 0x4ED8AA4A, 0x5B9CCA4F, 0x682E6FF3,
+ 119:Libs/mbedtls/library/sha256.c ****     0x748F82EE, 0x78A5636F, 0x84C87814, 0x8CC70208,
+ 120:Libs/mbedtls/library/sha256.c ****     0x90BEFFFA, 0xA4506CEB, 0xBEF9A3F7, 0xC67178F2,
+ 121:Libs/mbedtls/library/sha256.c **** };
+ 122:Libs/mbedtls/library/sha256.c **** 
+ 123:Libs/mbedtls/library/sha256.c **** #define  SHR(x, n) (((x) & 0xFFFFFFFF) >> (n))
+ 124:Libs/mbedtls/library/sha256.c **** #define ROTR(x, n) (SHR(x, n) | ((x) << (32 - (n))))
+ 125:Libs/mbedtls/library/sha256.c **** 
+ 126:Libs/mbedtls/library/sha256.c **** #define S0(x) (ROTR(x, 7) ^ ROTR(x, 18) ^  SHR(x, 3))
+ 127:Libs/mbedtls/library/sha256.c **** #define S1(x) (ROTR(x, 17) ^ ROTR(x, 19) ^  SHR(x, 10))
+ 128:Libs/mbedtls/library/sha256.c **** 
+ 129:Libs/mbedtls/library/sha256.c **** #define S2(x) (ROTR(x, 2) ^ ROTR(x, 13) ^ ROTR(x, 22))
+ 130:Libs/mbedtls/library/sha256.c **** #define S3(x) (ROTR(x, 6) ^ ROTR(x, 11) ^ ROTR(x, 25))
+ 131:Libs/mbedtls/library/sha256.c **** 
+ 132:Libs/mbedtls/library/sha256.c **** #define F0(x, y, z) (((x) & (y)) | ((z) & ((x) | (y))))
+ 133:Libs/mbedtls/library/sha256.c **** #define F1(x, y, z) ((z) ^ ((x) & ((y) ^ (z))))
+ 134:Libs/mbedtls/library/sha256.c **** 
+ 135:Libs/mbedtls/library/sha256.c **** #define R(t)                                                        \
+ 136:Libs/mbedtls/library/sha256.c ****     (                                                               \
+ 137:Libs/mbedtls/library/sha256.c ****         local.W[t] = S1(local.W[(t) -  2]) + local.W[(t) -  7] +    \
+ 138:Libs/mbedtls/library/sha256.c ****                      S0(local.W[(t) - 15]) + local.W[(t) - 16]      \
+ 139:Libs/mbedtls/library/sha256.c ****     )
+ 140:Libs/mbedtls/library/sha256.c **** 
+ 141:Libs/mbedtls/library/sha256.c **** #define P(a, b, c, d, e, f, g, h, x, K)                                      \
+ 142:Libs/mbedtls/library/sha256.c ****     do                                                              \
+ 143:Libs/mbedtls/library/sha256.c ****     {                                                               \
+ 144:Libs/mbedtls/library/sha256.c ****         local.temp1 = (h) + S3(e) + F1((e), (f), (g)) + (K) + (x);    \
+ 145:Libs/mbedtls/library/sha256.c ****         local.temp2 = S2(a) + F0((a), (b), (c));                      \
+ 146:Libs/mbedtls/library/sha256.c ****         (d) += local.temp1; (h) = local.temp1 + local.temp2;        \
+ 147:Libs/mbedtls/library/sha256.c ****     } while (0)
+ 148:Libs/mbedtls/library/sha256.c **** 
+ 149:Libs/mbedtls/library/sha256.c **** int mbedtls_internal_sha256_process(mbedtls_sha256_context *ctx,
+ 150:Libs/mbedtls/library/sha256.c ****                                     const unsigned char data[64])
+ 151:Libs/mbedtls/library/sha256.c **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 9
+
+
+ 300              		.loc 1 151 1 is_stmt 1 view -0
+ 301              		.cfi_startproc
+ 302              		@ args = 0, pretend = 0, frame = 336
+ 303              		@ frame_needed = 0, uses_anonymous_args = 0
+ 304              		.loc 1 151 1 is_stmt 0 view .LVU80
+ 305 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 306              	.LCFI5:
+ 307              		.cfi_def_cfa_offset 36
+ 308              		.cfi_offset 4, -36
+ 309              		.cfi_offset 5, -32
+ 310              		.cfi_offset 6, -28
+ 311              		.cfi_offset 7, -24
+ 312              		.cfi_offset 8, -20
+ 313              		.cfi_offset 9, -16
+ 314              		.cfi_offset 10, -12
+ 315              		.cfi_offset 11, -8
+ 316              		.cfi_offset 14, -4
+ 317 0004 D5B0     		sub	sp, sp, #340
+ 318              	.LCFI6:
+ 319              		.cfi_def_cfa_offset 376
+ 320 0006 0746     		mov	r7, r0
+ 152:Libs/mbedtls/library/sha256.c ****     struct {
+ 321              		.loc 1 152 5 is_stmt 1 view .LVU81
+ 153:Libs/mbedtls/library/sha256.c ****         uint32_t temp1, temp2, W[64];
+ 154:Libs/mbedtls/library/sha256.c ****         uint32_t A[8];
+ 155:Libs/mbedtls/library/sha256.c ****     } local;
+ 156:Libs/mbedtls/library/sha256.c **** 
+ 157:Libs/mbedtls/library/sha256.c ****     unsigned int i;
+ 322              		.loc 1 157 5 view .LVU82
+ 158:Libs/mbedtls/library/sha256.c **** 
+ 159:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET(ctx != NULL);
+ 323              		.loc 1 159 5 view .LVU83
+ 324              		.loc 1 159 5 view .LVU84
+ 325              		.loc 1 159 5 view .LVU85
+ 160:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET((const unsigned char *) data != NULL);
+ 326              		.loc 1 160 5 view .LVU86
+ 327              		.loc 1 160 5 view .LVU87
+ 328              		.loc 1 160 5 view .LVU88
+ 161:Libs/mbedtls/library/sha256.c **** 
+ 162:Libs/mbedtls/library/sha256.c ****     for (i = 0; i < 8; i++) {
+ 329              		.loc 1 162 5 view .LVU89
+ 330              	.LVL13:
+ 331              		.loc 1 162 12 is_stmt 0 view .LVU90
+ 332 0008 0023     		movs	r3, #0
+ 333              	.LVL14:
+ 334              	.L19:
+ 335              		.loc 1 162 19 is_stmt 1 discriminator 1 view .LVU91
+ 336 000a 072B     		cmp	r3, #7
+ 337 000c 09D8     		bhi	.L30
+ 163:Libs/mbedtls/library/sha256.c ****         local.A[i] = ctx->state[i];
+ 338              		.loc 1 163 9 view .LVU92
+ 339              		.loc 1 163 32 is_stmt 0 view .LVU93
+ 340 000e 9A1C     		adds	r2, r3, #2
+ 341 0010 57F82200 		ldr	r0, [r7, r2, lsl #2]
+ 342              		.loc 1 163 20 view .LVU94
+ 343 0014 03F14202 		add	r2, r3, #66
+ 344 0018 0AAC     		add	r4, sp, #40
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 10
+
+
+ 345 001a 44F82200 		str	r0, [r4, r2, lsl #2]
+ 162:Libs/mbedtls/library/sha256.c ****         local.A[i] = ctx->state[i];
+ 346              		.loc 1 162 25 is_stmt 1 discriminator 3 view .LVU95
+ 347 001e 0133     		adds	r3, r3, #1
+ 348              	.LVL15:
+ 162:Libs/mbedtls/library/sha256.c ****         local.A[i] = ctx->state[i];
+ 349              		.loc 1 162 25 is_stmt 0 discriminator 3 view .LVU96
+ 350 0020 F3E7     		b	.L19
+ 351              	.L30:
+ 164:Libs/mbedtls/library/sha256.c ****     }
+ 165:Libs/mbedtls/library/sha256.c **** 
+ 166:Libs/mbedtls/library/sha256.c **** #if defined(MBEDTLS_SHA256_SMALLER)
+ 167:Libs/mbedtls/library/sha256.c ****     for (i = 0; i < 64; i++) {
+ 168:Libs/mbedtls/library/sha256.c ****         if (i < 16) {
+ 169:Libs/mbedtls/library/sha256.c ****             local.W[i] = MBEDTLS_GET_UINT32_BE(data, 4 * i);
+ 170:Libs/mbedtls/library/sha256.c ****         } else {
+ 171:Libs/mbedtls/library/sha256.c ****             R(i);
+ 172:Libs/mbedtls/library/sha256.c ****         }
+ 173:Libs/mbedtls/library/sha256.c **** 
+ 174:Libs/mbedtls/library/sha256.c ****         P(local.A[0], local.A[1], local.A[2], local.A[3], local.A[4],
+ 175:Libs/mbedtls/library/sha256.c ****           local.A[5], local.A[6], local.A[7], local.W[i], K[i]);
+ 176:Libs/mbedtls/library/sha256.c **** 
+ 177:Libs/mbedtls/library/sha256.c ****         local.temp1 = local.A[7]; local.A[7] = local.A[6];
+ 178:Libs/mbedtls/library/sha256.c ****         local.A[6] = local.A[5]; local.A[5] = local.A[4];
+ 179:Libs/mbedtls/library/sha256.c ****         local.A[4] = local.A[3]; local.A[3] = local.A[2];
+ 180:Libs/mbedtls/library/sha256.c ****         local.A[2] = local.A[1]; local.A[1] = local.A[0];
+ 181:Libs/mbedtls/library/sha256.c ****         local.A[0] = local.temp1;
+ 182:Libs/mbedtls/library/sha256.c ****     }
+ 183:Libs/mbedtls/library/sha256.c **** #else /* MBEDTLS_SHA256_SMALLER */
+ 184:Libs/mbedtls/library/sha256.c ****     for (i = 0; i < 16; i++) {
+ 352              		.loc 1 184 12 view .LVU97
+ 353 0022 0022     		movs	r2, #0
+ 354 0024 11E0     		b	.L21
+ 355              	.LVL16:
+ 356              	.L22:
+ 185:Libs/mbedtls/library/sha256.c ****         local.W[i] = MBEDTLS_GET_UINT32_BE(data, 4 * i);
+ 357              		.loc 1 185 9 is_stmt 1 view .LVU98
+ 358              		.loc 1 185 22 is_stmt 0 view .LVU99
+ 359 0026 11F82240 		ldrb	r4, [r1, r2, lsl #2]	@ zero_extendqisi2
+ 360 002a 01EB8200 		add	r0, r1, r2, lsl #2
+ 361 002e 4378     		ldrb	r3, [r0, #1]	@ zero_extendqisi2
+ 362 0030 1B04     		lsls	r3, r3, #16
+ 363 0032 43EA0463 		orr	r3, r3, r4, lsl #24
+ 364 0036 8478     		ldrb	r4, [r0, #2]	@ zero_extendqisi2
+ 365 0038 43EA0423 		orr	r3, r3, r4, lsl #8
+ 366 003c C078     		ldrb	r0, [r0, #3]	@ zero_extendqisi2
+ 367 003e 0343     		orrs	r3, r3, r0
+ 368              		.loc 1 185 20 view .LVU100
+ 369 0040 901C     		adds	r0, r2, #2
+ 370 0042 0AAC     		add	r4, sp, #40
+ 371 0044 44F82030 		str	r3, [r4, r0, lsl #2]
+ 184:Libs/mbedtls/library/sha256.c ****         local.W[i] = MBEDTLS_GET_UINT32_BE(data, 4 * i);
+ 372              		.loc 1 184 26 is_stmt 1 discriminator 3 view .LVU101
+ 373 0048 0132     		adds	r2, r2, #1
+ 374              	.LVL17:
+ 375              	.L21:
+ 184:Libs/mbedtls/library/sha256.c ****         local.W[i] = MBEDTLS_GET_UINT32_BE(data, 4 * i);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 11
+
+
+ 376              		.loc 1 184 19 discriminator 1 view .LVU102
+ 377 004a 0F2A     		cmp	r2, #15
+ 378 004c EBD9     		bls	.L22
+ 186:Libs/mbedtls/library/sha256.c ****     }
+ 187:Libs/mbedtls/library/sha256.c **** 
+ 188:Libs/mbedtls/library/sha256.c ****     for (i = 0; i < 16; i += 8) {
+ 379              		.loc 1 188 12 is_stmt 0 view .LVU103
+ 380 004e 4FF0000C 		mov	ip, #0
+ 381 0052 0297     		str	r7, [sp, #8]
+ 382 0054 69E1     		b	.L23
+ 383              	.LVL18:
+ 384              	.L24:
+ 189:Libs/mbedtls/library/sha256.c ****         P(local.A[0], local.A[1], local.A[2], local.A[3], local.A[4],
+ 385              		.loc 1 189 9 is_stmt 1 view .LVU104
+ 386              		.loc 1 189 9 view .LVU105
+ 387 0056 539B     		ldr	r3, [sp, #332]
+ 388 0058 509D     		ldr	r5, [sp, #320]
+ 389 005a 4FEAF522 		ror	r2, r5, #11
+ 390 005e 82EAB512 		eor	r2, r2, r5, ror #6
+ 391 0062 82EA7562 		eor	r2, r2, r5, ror #25
+ 392 0066 9918     		adds	r1, r3, r2
+ 393 0068 529A     		ldr	r2, [sp, #328]
+ 394 006a 519B     		ldr	r3, [sp, #324]
+ 395 006c 5340     		eors	r3, r3, r2
+ 396 006e 2B40     		ands	r3, r3, r5
+ 397 0070 5340     		eors	r3, r3, r2
+ 398 0072 1944     		add	r1, r1, r3
+ 399 0074 DFF8C4E2 		ldr	lr, .L32
+ 400 0078 5EF82C30 		ldr	r3, [lr, ip, lsl #2]
+ 401 007c 1944     		add	r1, r1, r3
+ 402 007e 0CF1020A 		add	r10, ip, #2
+ 403 0082 0AAB     		add	r3, sp, #40
+ 404 0084 53F82A40 		ldr	r4, [r3, r10, lsl #2]
+ 405 0088 2144     		add	r1, r1, r4
+ 406 008a 0A91     		str	r1, [sp, #40]
+ 407              		.loc 1 189 9 view .LVU106
+ 408 008c 4C9C     		ldr	r4, [sp, #304]
+ 409 008e 4FEA7437 		ror	r7, r4, #13
+ 410 0092 87EAB407 		eor	r7, r7, r4, ror #2
+ 411 0096 87EAB457 		eor	r7, r7, r4, ror #22
+ 412 009a 4D9E     		ldr	r6, [sp, #308]
+ 413 009c 04EA0603 		and	r3, r4, r6
+ 414 00a0 4E98     		ldr	r0, [sp, #312]
+ 415 00a2 44EA0608 		orr	r8, r4, r6
+ 416 00a6 00EA0808 		and	r8, r0, r8
+ 417 00aa 43EA0803 		orr	r3, r3, r8
+ 418 00ae 1F44     		add	r7, r7, r3
+ 419 00b0 0B97     		str	r7, [sp, #44]
+ 420              		.loc 1 189 9 view .LVU107
+ 421 00b2 4F9B     		ldr	r3, [sp, #316]
+ 422 00b4 01EB0308 		add	r8, r1, r3
+ 423 00b8 CDF83C81 		str	r8, [sp, #316]
+ 424              		.loc 1 189 9 view .LVU108
+ 425 00bc 3944     		add	r1, r1, r7
+ 426 00be 5391     		str	r1, [sp, #332]
+ 427              		.loc 1 189 9 view .LVU109
+ 190:Libs/mbedtls/library/sha256.c ****           local.A[5], local.A[6], local.A[7], local.W[i+0], K[i+0]);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 12
+
+
+ 191:Libs/mbedtls/library/sha256.c ****         P(local.A[7], local.A[0], local.A[1], local.A[2], local.A[3],
+ 428              		.loc 1 191 9 view .LVU110
+ 429              		.loc 1 191 9 view .LVU111
+ 430 00c0 4FEAF823 		ror	r3, r8, #11
+ 431 00c4 83EAB813 		eor	r3, r3, r8, ror #6
+ 432 00c8 83EA7863 		eor	r3, r3, r8, ror #25
+ 433 00cc 1344     		add	r3, r3, r2
+ 434 00ce 519A     		ldr	r2, [sp, #324]
+ 435 00d0 6A40     		eors	r2, r2, r5
+ 436 00d2 08EA0202 		and	r2, r8, r2
+ 437 00d6 519F     		ldr	r7, [sp, #324]
+ 438 00d8 7A40     		eors	r2, r2, r7
+ 439 00da 1344     		add	r3, r3, r2
+ 440 00dc 0CF10102 		add	r2, ip, #1
+ 441 00e0 5EF82220 		ldr	r2, [lr, r2, lsl #2]
+ 442 00e4 1344     		add	r3, r3, r2
+ 443 00e6 0CF10309 		add	r9, ip, #3
+ 444 00ea 0AAA     		add	r2, sp, #40
+ 445 00ec 52F82920 		ldr	r2, [r2, r9, lsl #2]
+ 446 00f0 1344     		add	r3, r3, r2
+ 447 00f2 0A93     		str	r3, [sp, #40]
+ 448              		.loc 1 191 9 view .LVU112
+ 449 00f4 4FEA7137 		ror	r7, r1, #13
+ 450 00f8 87EAB107 		eor	r7, r7, r1, ror #2
+ 451 00fc 87EAB157 		eor	r7, r7, r1, ror #22
+ 452 0100 04EA0102 		and	r2, r4, r1
+ 453 0104 44EA010B 		orr	fp, r4, r1
+ 454 0108 06EA0B0B 		and	fp, r6, fp
+ 455 010c 42EA0B02 		orr	r2, r2, fp
+ 456 0110 3A44     		add	r2, r2, r7
+ 457 0112 0B92     		str	r2, [sp, #44]
+ 458              		.loc 1 191 9 view .LVU113
+ 459 0114 C718     		adds	r7, r0, r3
+ 460 0116 4E97     		str	r7, [sp, #312]
+ 461              		.loc 1 191 9 view .LVU114
+ 462 0118 1344     		add	r3, r3, r2
+ 463 011a 5293     		str	r3, [sp, #328]
+ 464              		.loc 1 191 9 view .LVU115
+ 192:Libs/mbedtls/library/sha256.c ****           local.A[4], local.A[5], local.A[6], local.W[i+1], K[i+1]);
+ 193:Libs/mbedtls/library/sha256.c ****         P(local.A[6], local.A[7], local.A[0], local.A[1], local.A[2],
+ 465              		.loc 1 193 9 view .LVU116
+ 466              		.loc 1 193 9 view .LVU117
+ 467 011c 4FEAF722 		ror	r2, r7, #11
+ 468 0120 82EAB712 		eor	r2, r2, r7, ror #6
+ 469 0124 82EA7762 		eor	r2, r2, r7, ror #25
+ 470 0128 5198     		ldr	r0, [sp, #324]
+ 471 012a 0244     		add	r2, r2, r0
+ 472 012c 85EA0800 		eor	r0, r5, r8
+ 473 0130 3840     		ands	r0, r0, r7
+ 474 0132 6840     		eors	r0, r0, r5
+ 475 0134 0244     		add	r2, r2, r0
+ 476 0136 5EF82A00 		ldr	r0, [lr, r10, lsl #2]
+ 477 013a 0244     		add	r2, r2, r0
+ 478 013c 0CF1040A 		add	r10, ip, #4
+ 479 0140 0AA8     		add	r0, sp, #40
+ 480 0142 50F82A00 		ldr	r0, [r0, r10, lsl #2]
+ 481 0146 0244     		add	r2, r2, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 13
+
+
+ 482 0148 0A92     		str	r2, [sp, #40]
+ 483              		.loc 1 193 9 view .LVU118
+ 484 014a 4FEA7330 		ror	r0, r3, #13
+ 485 014e 80EAB300 		eor	r0, r0, r3, ror #2
+ 486 0152 80EAB350 		eor	r0, r0, r3, ror #22
+ 487 0156 01EA030A 		and	r10, r1, r3
+ 488 015a 41EA030B 		orr	fp, r1, r3
+ 489 015e 04EA0B0B 		and	fp, r4, fp
+ 490 0162 4AEA0B0A 		orr	r10, r10, fp
+ 491 0166 5044     		add	r0, r0, r10
+ 492 0168 0B90     		str	r0, [sp, #44]
+ 493              		.loc 1 193 9 view .LVU119
+ 494 016a 1644     		add	r6, r6, r2
+ 495 016c 4D96     		str	r6, [sp, #308]
+ 496              		.loc 1 193 9 view .LVU120
+ 497 016e 0244     		add	r2, r2, r0
+ 498 0170 5192     		str	r2, [sp, #324]
+ 499              		.loc 1 193 9 view .LVU121
+ 194:Libs/mbedtls/library/sha256.c ****           local.A[3], local.A[4], local.A[5], local.W[i+2], K[i+2]);
+ 195:Libs/mbedtls/library/sha256.c ****         P(local.A[5], local.A[6], local.A[7], local.A[0], local.A[1],
+ 500              		.loc 1 195 9 view .LVU122
+ 501              		.loc 1 195 9 view .LVU123
+ 502 0172 4FEAF620 		ror	r0, r6, #11
+ 503 0176 80EAB610 		eor	r0, r0, r6, ror #6
+ 504 017a 80EA7660 		eor	r0, r0, r6, ror #25
+ 505 017e 2844     		add	r0, r0, r5
+ 506 0180 88EA0705 		eor	r5, r8, r7
+ 507 0184 3540     		ands	r5, r5, r6
+ 508 0186 88EA0505 		eor	r5, r8, r5
+ 509 018a 2844     		add	r0, r0, r5
+ 510 018c 5EF82950 		ldr	r5, [lr, r9, lsl #2]
+ 511 0190 2844     		add	r0, r0, r5
+ 512 0192 0CF10509 		add	r9, ip, #5
+ 513 0196 0AAD     		add	r5, sp, #40
+ 514 0198 55F82950 		ldr	r5, [r5, r9, lsl #2]
+ 515 019c 2844     		add	r0, r0, r5
+ 516 019e 0A90     		str	r0, [sp, #40]
+ 517              		.loc 1 195 9 view .LVU124
+ 518 01a0 4FEA7235 		ror	r5, r2, #13
+ 519 01a4 85EAB205 		eor	r5, r5, r2, ror #2
+ 520 01a8 85EAB255 		eor	r5, r5, r2, ror #22
+ 521 01ac 03EA020A 		and	r10, r3, r2
+ 522 01b0 43EA020B 		orr	fp, r3, r2
+ 523 01b4 01EA0B0B 		and	fp, r1, fp
+ 524 01b8 4AEA0B0A 		orr	r10, r10, fp
+ 525 01bc 5544     		add	r5, r5, r10
+ 526 01be 0B95     		str	r5, [sp, #44]
+ 527              		.loc 1 195 9 view .LVU125
+ 528 01c0 0444     		add	r4, r4, r0
+ 529 01c2 4C94     		str	r4, [sp, #304]
+ 530              		.loc 1 195 9 view .LVU126
+ 531 01c4 2844     		add	r0, r0, r5
+ 532 01c6 5090     		str	r0, [sp, #320]
+ 533              		.loc 1 195 9 view .LVU127
+ 196:Libs/mbedtls/library/sha256.c ****           local.A[2], local.A[3], local.A[4], local.W[i+3], K[i+3]);
+ 197:Libs/mbedtls/library/sha256.c ****         P(local.A[4], local.A[5], local.A[6], local.A[7], local.A[0],
+ 534              		.loc 1 197 9 view .LVU128
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 14
+
+
+ 535              		.loc 1 197 9 view .LVU129
+ 536 01c8 4FEAF42A 		ror	r10, r4, #11
+ 537 01cc 8AEAB41A 		eor	r10, r10, r4, ror #6
+ 538 01d0 8AEA746A 		eor	r10, r10, r4, ror #25
+ 539 01d4 C244     		add	r10, r10, r8
+ 540 01d6 87EA0605 		eor	r5, r7, r6
+ 541 01da 0194     		str	r4, [sp, #4]
+ 542 01dc 2540     		ands	r5, r5, r4
+ 543 01de 7D40     		eors	r5, r5, r7
+ 544 01e0 AA44     		add	r10, r10, r5
+ 545 01e2 0CF10405 		add	r5, ip, #4
+ 546 01e6 5EF82550 		ldr	r5, [lr, r5, lsl #2]
+ 547 01ea AA44     		add	r10, r10, r5
+ 548 01ec 0CF10608 		add	r8, ip, #6
+ 549 01f0 0AAC     		add	r4, sp, #40
+ 550 01f2 54F82850 		ldr	r5, [r4, r8, lsl #2]
+ 551 01f6 AA44     		add	r10, r10, r5
+ 552 01f8 CDF828A0 		str	r10, [sp, #40]
+ 553              		.loc 1 197 9 view .LVU130
+ 554 01fc 4FEA7035 		ror	r5, r0, #13
+ 555 0200 85EAB005 		eor	r5, r5, r0, ror #2
+ 556 0204 85EAB055 		eor	r5, r5, r0, ror #22
+ 557 0208 2C46     		mov	r4, r5
+ 558 020a 02EA0005 		and	r5, r2, r0
+ 559 020e 42EA000B 		orr	fp, r2, r0
+ 560 0212 03EA0B0B 		and	fp, r3, fp
+ 561 0216 45EA0B05 		orr	r5, r5, fp
+ 562 021a 2544     		add	r5, r5, r4
+ 563 021c 0B95     		str	r5, [sp, #44]
+ 564              		.loc 1 197 9 view .LVU131
+ 565 021e 5144     		add	r1, r1, r10
+ 566 0220 5391     		str	r1, [sp, #332]
+ 567              		.loc 1 197 9 view .LVU132
+ 568 0222 5544     		add	r5, r5, r10
+ 569 0224 4F95     		str	r5, [sp, #316]
+ 570              		.loc 1 197 9 view .LVU133
+ 198:Libs/mbedtls/library/sha256.c ****           local.A[1], local.A[2], local.A[3], local.W[i+4], K[i+4]);
+ 199:Libs/mbedtls/library/sha256.c ****         P(local.A[3], local.A[4], local.A[5], local.A[6], local.A[7],
+ 571              		.loc 1 199 9 view .LVU134
+ 572              		.loc 1 199 9 view .LVU135
+ 573 0226 4FEAF12A 		ror	r10, r1, #11
+ 574 022a 8AEAB11A 		eor	r10, r10, r1, ror #6
+ 575 022e 8AEA716A 		eor	r10, r10, r1, ror #25
+ 576 0232 BA44     		add	r10, r10, r7
+ 577 0234 019C     		ldr	r4, [sp, #4]
+ 578 0236 86EA0407 		eor	r7, r6, r4
+ 579 023a 0F40     		ands	r7, r7, r1
+ 580 023c 7740     		eors	r7, r7, r6
+ 581 023e BA44     		add	r10, r10, r7
+ 582 0240 5EF82970 		ldr	r7, [lr, r9, lsl #2]
+ 583 0244 BA44     		add	r10, r10, r7
+ 584 0246 0CF10709 		add	r9, ip, #7
+ 585 024a 0AAC     		add	r4, sp, #40
+ 586 024c 54F82970 		ldr	r7, [r4, r9, lsl #2]
+ 587 0250 BA44     		add	r10, r10, r7
+ 588 0252 CDF828A0 		str	r10, [sp, #40]
+ 589              		.loc 1 199 9 view .LVU136
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 15
+
+
+ 590 0256 4FEA7537 		ror	r7, r5, #13
+ 591 025a 87EAB507 		eor	r7, r7, r5, ror #2
+ 592 025e 87EAB554 		eor	r4, r7, r5, ror #22
+ 593 0262 00EA0507 		and	r7, r0, r5
+ 594 0266 40EA050B 		orr	fp, r0, r5
+ 595 026a 02EA0B0B 		and	fp, r2, fp
+ 596 026e 47EA0B07 		orr	r7, r7, fp
+ 597 0272 2744     		add	r7, r7, r4
+ 598 0274 0B97     		str	r7, [sp, #44]
+ 599              		.loc 1 199 9 view .LVU137
+ 600 0276 5344     		add	r3, r3, r10
+ 601 0278 5293     		str	r3, [sp, #328]
+ 602              		.loc 1 199 9 view .LVU138
+ 603 027a 5744     		add	r7, r7, r10
+ 604 027c 4E97     		str	r7, [sp, #312]
+ 605              		.loc 1 199 9 view .LVU139
+ 200:Libs/mbedtls/library/sha256.c ****           local.A[0], local.A[1], local.A[2], local.W[i+5], K[i+5]);
+ 201:Libs/mbedtls/library/sha256.c ****         P(local.A[2], local.A[3], local.A[4], local.A[5], local.A[6],
+ 606              		.loc 1 201 9 view .LVU140
+ 607              		.loc 1 201 9 view .LVU141
+ 608 027e 4FEAF32A 		ror	r10, r3, #11
+ 609 0282 8AEAB31A 		eor	r10, r10, r3, ror #6
+ 610 0286 8AEA736A 		eor	r10, r10, r3, ror #25
+ 611 028a 5644     		add	r6, r6, r10
+ 612 028c 019C     		ldr	r4, [sp, #4]
+ 613 028e 84EA010A 		eor	r10, r4, r1
+ 614 0292 03EA0A0A 		and	r10, r3, r10
+ 615 0296 84EA0A0A 		eor	r10, r4, r10
+ 616 029a 5644     		add	r6, r6, r10
+ 617 029c 5EF82880 		ldr	r8, [lr, r8, lsl #2]
+ 618 02a0 B044     		add	r8, r8, r6
+ 619 02a2 0CF1080A 		add	r10, ip, #8
+ 620 02a6 0AAC     		add	r4, sp, #40
+ 621 02a8 54F82A60 		ldr	r6, [r4, r10, lsl #2]
+ 622 02ac 4644     		add	r6, r6, r8
+ 623 02ae 0A96     		str	r6, [sp, #40]
+ 624              		.loc 1 201 9 view .LVU142
+ 625 02b0 4FEA7738 		ror	r8, r7, #13
+ 626 02b4 88EAB708 		eor	r8, r8, r7, ror #2
+ 627 02b8 88EAB754 		eor	r4, r8, r7, ror #22
+ 628 02bc 05EA0708 		and	r8, r5, r7
+ 629 02c0 45EA070B 		orr	fp, r5, r7
+ 630 02c4 00EA0B0B 		and	fp, r0, fp
+ 631 02c8 48EA0B08 		orr	r8, r8, fp
+ 632 02cc A044     		add	r8, r8, r4
+ 633 02ce CDF82C80 		str	r8, [sp, #44]
+ 634              		.loc 1 201 9 view .LVU143
+ 635 02d2 3244     		add	r2, r2, r6
+ 636 02d4 5192     		str	r2, [sp, #324]
+ 637              		.loc 1 201 9 view .LVU144
+ 638 02d6 4644     		add	r6, r6, r8
+ 639 02d8 4D96     		str	r6, [sp, #308]
+ 640              		.loc 1 201 9 view .LVU145
+ 202:Libs/mbedtls/library/sha256.c ****           local.A[7], local.A[0], local.A[1], local.W[i+6], K[i+6]);
+ 203:Libs/mbedtls/library/sha256.c ****         P(local.A[1], local.A[2], local.A[3], local.A[4], local.A[5],
+ 641              		.loc 1 203 9 view .LVU146
+ 642              		.loc 1 203 9 view .LVU147
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 16
+
+
+ 643 02da 4FEAF228 		ror	r8, r2, #11
+ 644 02de 88EAB218 		eor	r8, r8, r2, ror #6
+ 645 02e2 88EA7268 		eor	r8, r8, r2, ror #25
+ 646 02e6 019C     		ldr	r4, [sp, #4]
+ 647 02e8 4444     		add	r4, r4, r8
+ 648 02ea 4B40     		eors	r3, r3, r1
+ 649 02ec 1A40     		ands	r2, r2, r3
+ 650 02ee 5140     		eors	r1, r1, r2
+ 651 02f0 6318     		adds	r3, r4, r1
+ 652 02f2 5EF82920 		ldr	r2, [lr, r9, lsl #2]
+ 653 02f6 1344     		add	r3, r3, r2
+ 654 02f8 0CF1090C 		add	ip, ip, #9
+ 655              	.LVL19:
+ 656              		.loc 1 203 9 is_stmt 0 view .LVU148
+ 657 02fc 0AAA     		add	r2, sp, #40
+ 658 02fe 52F82C20 		ldr	r2, [r2, ip, lsl #2]
+ 659 0302 1344     		add	r3, r3, r2
+ 660 0304 0A93     		str	r3, [sp, #40]
+ 661              		.loc 1 203 9 is_stmt 1 view .LVU149
+ 662 0306 4FEA7632 		ror	r2, r6, #13
+ 663 030a 82EAB602 		eor	r2, r2, r6, ror #2
+ 664 030e 82EAB652 		eor	r2, r2, r6, ror #22
+ 665 0312 07EA0601 		and	r1, r7, r6
+ 666 0316 3743     		orrs	r7, r7, r6
+ 667 0318 3D40     		ands	r5, r5, r7
+ 668 031a 2943     		orrs	r1, r1, r5
+ 669 031c 0A44     		add	r2, r2, r1
+ 670 031e 0B92     		str	r2, [sp, #44]
+ 671              		.loc 1 203 9 view .LVU150
+ 672 0320 1844     		add	r0, r0, r3
+ 673 0322 5090     		str	r0, [sp, #320]
+ 674              		.loc 1 203 9 view .LVU151
+ 675 0324 1344     		add	r3, r3, r2
+ 676 0326 4C93     		str	r3, [sp, #304]
+ 677              		.loc 1 203 9 view .LVU152
+ 188:Libs/mbedtls/library/sha256.c ****         P(local.A[0], local.A[1], local.A[2], local.A[3], local.A[4],
+ 678              		.loc 1 188 27 discriminator 3 view .LVU153
+ 679 0328 D446     		mov	ip, r10
+ 680              	.LVL20:
+ 681              	.L23:
+ 188:Libs/mbedtls/library/sha256.c ****         P(local.A[0], local.A[1], local.A[2], local.A[3], local.A[4],
+ 682              		.loc 1 188 19 discriminator 1 view .LVU154
+ 683 032a BCF10F0F 		cmp	ip, #15
+ 684 032e 7FF692AE 		bls	.L24
+ 204:Libs/mbedtls/library/sha256.c ****           local.A[6], local.A[7], local.A[0], local.W[i+7], K[i+7]);
+ 205:Libs/mbedtls/library/sha256.c ****     }
+ 206:Libs/mbedtls/library/sha256.c **** 
+ 207:Libs/mbedtls/library/sha256.c ****     for (i = 16; i < 64; i += 8) {
+ 685              		.loc 1 207 12 is_stmt 0 view .LVU155
+ 686 0332 029F     		ldr	r7, [sp, #8]
+ 687 0334 4FF0100C 		mov	ip, #16
+ 688              	.LVL21:
+ 689              		.loc 1 207 12 view .LVU156
+ 690 0338 0997     		str	r7, [sp, #36]
+ 691 033a 84E2     		b	.L25
+ 692              	.L33:
+ 693              		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 17
+
+
+ 694              	.L32:
+ 695 033c 00000000 		.word	K
+ 696              	.LVL22:
+ 697              	.L26:
+ 208:Libs/mbedtls/library/sha256.c ****         P(local.A[0], local.A[1], local.A[2], local.A[3], local.A[4],
+ 698              		.loc 1 208 9 is_stmt 1 view .LVU157
+ 699              		.loc 1 208 9 view .LVU158
+ 700 0340 539B     		ldr	r3, [sp, #332]
+ 701 0342 509C     		ldr	r4, [sp, #320]
+ 702 0344 4FEAF422 		ror	r2, r4, #11
+ 703 0348 82EAB412 		eor	r2, r2, r4, ror #6
+ 704 034c 82EA7462 		eor	r2, r2, r4, ror #25
+ 705 0350 1344     		add	r3, r3, r2
+ 706 0352 529A     		ldr	r2, [sp, #328]
+ 707 0354 519D     		ldr	r5, [sp, #324]
+ 708 0356 82EA0501 		eor	r1, r2, r5
+ 709 035a 2140     		ands	r1, r1, r4
+ 710 035c 5140     		eors	r1, r1, r2
+ 711 035e 0B44     		add	r3, r3, r1
+ 712 0360 DF49     		ldr	r1, .L34
+ 713 0362 51F82C10 		ldr	r1, [r1, ip, lsl #2]
+ 714 0366 0B44     		add	r3, r3, r1
+ 715 0368 ACF10200 		sub	r0, ip, #2
+ 716 036c 0590     		str	r0, [sp, #20]
+ 717 036e 0AA9     		add	r1, sp, #40
+ 718 0370 51F82C00 		ldr	r0, [r1, ip, lsl #2]
+ 719 0374 4FEAF041 		ror	r1, r0, #19
+ 720 0378 81EA7041 		eor	r1, r1, r0, ror #17
+ 721 037c 81EA9021 		eor	r1, r1, r0, lsr #10
+ 722 0380 ACF10700 		sub	r0, ip, #7
+ 723 0384 0490     		str	r0, [sp, #16]
+ 724 0386 ACF10500 		sub	r0, ip, #5
+ 725 038a 0AAE     		add	r6, sp, #40
+ 726 038c 56F82000 		ldr	r0, [r6, r0, lsl #2]
+ 727 0390 0144     		add	r1, r1, r0
+ 728 0392 ACF10D07 		sub	r7, ip, #13
+ 729 0396 56F82760 		ldr	r6, [r6, r7, lsl #2]
+ 730 039a 4FEAB640 		ror	r0, r6, #18
+ 731 039e 80EAF610 		eor	r0, r0, r6, ror #7
+ 732 03a2 80EAD600 		eor	r0, r0, r6, lsr #3
+ 733 03a6 0144     		add	r1, r1, r0
+ 734 03a8 ACF10E00 		sub	r0, ip, #14
+ 735 03ac 0AAE     		add	r6, sp, #40
+ 736 03ae 56F82000 		ldr	r0, [r6, r0, lsl #2]
+ 737 03b2 0144     		add	r1, r1, r0
+ 738 03b4 0CF10206 		add	r6, ip, #2
+ 739 03b8 0396     		str	r6, [sp, #12]
+ 740 03ba 0AA8     		add	r0, sp, #40
+ 741 03bc 40F82610 		str	r1, [r0, r6, lsl #2]
+ 742 03c0 0B44     		add	r3, r3, r1
+ 743 03c2 0A93     		str	r3, [sp, #40]
+ 744              		.loc 1 208 9 view .LVU159
+ 745 03c4 4C98     		ldr	r0, [sp, #304]
+ 746 03c6 4FEA7031 		ror	r1, r0, #13
+ 747 03ca 81EAB001 		eor	r1, r1, r0, ror #2
+ 748 03ce 81EAB051 		eor	r1, r1, r0, ror #22
+ 749 03d2 DDF834A1 		ldr	r10, [sp, #308]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 18
+
+
+ 750 03d6 00EA0A06 		and	r6, r0, r10
+ 751 03da DDF83891 		ldr	r9, [sp, #312]
+ 752 03de 40EA0A0E 		orr	lr, r0, r10
+ 753 03e2 09EA0E0E 		and	lr, r9, lr
+ 754 03e6 46EA0E06 		orr	r6, r6, lr
+ 755 03ea 0E44     		add	r6, r6, r1
+ 756 03ec 0B96     		str	r6, [sp, #44]
+ 757              		.loc 1 208 9 view .LVU160
+ 758 03ee 4F99     		ldr	r1, [sp, #316]
+ 759 03f0 1944     		add	r1, r1, r3
+ 760 03f2 4F91     		str	r1, [sp, #316]
+ 761              		.loc 1 208 9 view .LVU161
+ 762 03f4 03EB060B 		add	fp, r3, r6
+ 763 03f8 CDF84CB1 		str	fp, [sp, #332]
+ 764              		.loc 1 208 9 view .LVU162
+ 209:Libs/mbedtls/library/sha256.c ****           local.A[5], local.A[6], local.A[7], R(i+0), K[i+0]);
+ 210:Libs/mbedtls/library/sha256.c ****         P(local.A[7], local.A[0], local.A[1], local.A[2], local.A[3],
+ 765              		.loc 1 210 9 view .LVU163
+ 766              		.loc 1 210 9 view .LVU164
+ 767 03fc 4FEAF123 		ror	r3, r1, #11
+ 768 0400 83EAB113 		eor	r3, r3, r1, ror #6
+ 769 0404 83EA7163 		eor	r3, r3, r1, ror #25
+ 770 0408 1344     		add	r3, r3, r2
+ 771 040a 84EA0502 		eor	r2, r4, r5
+ 772 040e 0A40     		ands	r2, r2, r1
+ 773 0410 6A40     		eors	r2, r2, r5
+ 774 0412 1344     		add	r3, r3, r2
+ 775 0414 0CF1010E 		add	lr, ip, #1
+ 776 0418 7646     		mov	r6, lr
+ 777 041a B14A     		ldr	r2, .L34
+ 778 041c 52F82E20 		ldr	r2, [r2, lr, lsl #2]
+ 779 0420 1344     		add	r3, r3, r2
+ 780 0422 0CF1FF3E 		add	lr, ip, #-1
+ 781 0426 CDF81CE0 		str	lr, [sp, #28]
+ 782 042a 0696     		str	r6, [sp, #24]
+ 783 042c 3246     		mov	r2, r6
+ 784 042e 0AAE     		add	r6, sp, #40
+ 785 0430 56F82220 		ldr	r2, [r6, r2, lsl #2]
+ 786 0434 4FEAF246 		ror	r6, r2, #19
+ 787 0438 86EA7246 		eor	r6, r6, r2, ror #17
+ 788 043c 86EA9226 		eor	r6, r6, r2, lsr #10
+ 789 0440 ACF1060E 		sub	lr, ip, #6
+ 790 0444 CDF820E0 		str	lr, [sp, #32]
+ 791 0448 ACF10402 		sub	r2, ip, #4
+ 792 044c 0DF1280E 		add	lr, sp, #40
+ 793 0450 5EF82220 		ldr	r2, [lr, r2, lsl #2]
+ 794 0454 1644     		add	r6, r6, r2
+ 795 0456 ACF10C08 		sub	r8, ip, #12
+ 796 045a 5EF828E0 		ldr	lr, [lr, r8, lsl #2]
+ 797 045e 4FEABE42 		ror	r2, lr, #18
+ 798 0462 82EAFE12 		eor	r2, r2, lr, ror #7
+ 799 0466 82EADE02 		eor	r2, r2, lr, lsr #3
+ 800 046a 3244     		add	r2, r2, r6
+ 801 046c 0AAE     		add	r6, sp, #40
+ 802 046e 56F82760 		ldr	r6, [r6, r7, lsl #2]
+ 803 0472 3244     		add	r2, r2, r6
+ 804 0474 0CF10307 		add	r7, ip, #3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 19
+
+
+ 805 0478 0AAE     		add	r6, sp, #40
+ 806 047a 46F82720 		str	r2, [r6, r7, lsl #2]
+ 807 047e 1344     		add	r3, r3, r2
+ 808 0480 0A93     		str	r3, [sp, #40]
+ 809              		.loc 1 210 9 view .LVU165
+ 810 0482 4FEA7B36 		ror	r6, fp, #13
+ 811 0486 86EABB06 		eor	r6, r6, fp, ror #2
+ 812 048a 86EABB56 		eor	r6, r6, fp, ror #22
+ 813 048e 00EA0B02 		and	r2, r0, fp
+ 814 0492 40EA0B0E 		orr	lr, r0, fp
+ 815 0496 0AEA0E0E 		and	lr, r10, lr
+ 816 049a 42EA0E02 		orr	r2, r2, lr
+ 817 049e 3244     		add	r2, r2, r6
+ 818 04a0 0B92     		str	r2, [sp, #44]
+ 819              		.loc 1 210 9 view .LVU166
+ 820 04a2 09EB0306 		add	r6, r9, r3
+ 821 04a6 4E96     		str	r6, [sp, #312]
+ 822              		.loc 1 210 9 view .LVU167
+ 823 04a8 9A18     		adds	r2, r3, r2
+ 824 04aa 0292     		str	r2, [sp, #8]
+ 825 04ac 5292     		str	r2, [sp, #328]
+ 826              		.loc 1 210 9 view .LVU168
+ 211:Libs/mbedtls/library/sha256.c ****           local.A[4], local.A[5], local.A[6], R(i+1), K[i+1]);
+ 212:Libs/mbedtls/library/sha256.c ****         P(local.A[6], local.A[7], local.A[0], local.A[1], local.A[2],
+ 827              		.loc 1 212 9 view .LVU169
+ 828              		.loc 1 212 9 view .LVU170
+ 829 04ae 4FEAF623 		ror	r3, r6, #11
+ 830 04b2 83EAB613 		eor	r3, r3, r6, ror #6
+ 831 04b6 83EA7663 		eor	r3, r3, r6, ror #25
+ 832 04ba 2B44     		add	r3, r3, r5
+ 833 04bc 84EA0102 		eor	r2, r4, r1
+ 834 04c0 0196     		str	r6, [sp, #4]
+ 835 04c2 3240     		ands	r2, r2, r6
+ 836 04c4 6240     		eors	r2, r2, r4
+ 837 04c6 1A44     		add	r2, r2, r3
+ 838 04c8 854B     		ldr	r3, .L34
+ 839 04ca 039E     		ldr	r6, [sp, #12]
+ 840 04cc 53F82630 		ldr	r3, [r3, r6, lsl #2]
+ 841 04d0 1A44     		add	r2, r2, r3
+ 842 04d2 0AAB     		add	r3, sp, #40
+ 843 04d4 53F82630 		ldr	r3, [r3, r6, lsl #2]
+ 844 04d8 4FEAF345 		ror	r5, r3, #19
+ 845 04dc 85EA7345 		eor	r5, r5, r3, ror #17
+ 846 04e0 85EA9325 		eor	r5, r5, r3, lsr #10
+ 847 04e4 ACF10303 		sub	r3, ip, #3
+ 848 04e8 0DF1280E 		add	lr, sp, #40
+ 849 04ec 5EF82330 		ldr	r3, [lr, r3, lsl #2]
+ 850 04f0 1D44     		add	r5, r5, r3
+ 851 04f2 ACF10B0E 		sub	lr, ip, #11
+ 852 04f6 0AAB     		add	r3, sp, #40
+ 853 04f8 53F82E90 		ldr	r9, [r3, lr, lsl #2]
+ 854 04fc 4FEAB943 		ror	r3, r9, #18
+ 855 0500 83EAF913 		eor	r3, r3, r9, ror #7
+ 856 0504 83EAD903 		eor	r3, r3, r9, lsr #3
+ 857 0508 1D44     		add	r5, r5, r3
+ 858 050a 0AAB     		add	r3, sp, #40
+ 859 050c 53F82830 		ldr	r3, [r3, r8, lsl #2]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 20
+
+
+ 860 0510 2B44     		add	r3, r3, r5
+ 861 0512 06F10209 		add	r9, r6, #2
+ 862 0516 0AAD     		add	r5, sp, #40
+ 863 0518 45F82930 		str	r3, [r5, r9, lsl #2]
+ 864 051c 1344     		add	r3, r3, r2
+ 865 051e 0A93     		str	r3, [sp, #40]
+ 866              		.loc 1 212 9 view .LVU171
+ 867 0520 029E     		ldr	r6, [sp, #8]
+ 868 0522 4FEA7635 		ror	r5, r6, #13
+ 869 0526 85EAB605 		eor	r5, r5, r6, ror #2
+ 870 052a 85EAB655 		eor	r5, r5, r6, ror #22
+ 871 052e 0BEA0602 		and	r2, fp, r6
+ 872 0532 4BEA0608 		orr	r8, fp, r6
+ 873 0536 00EA0808 		and	r8, r0, r8
+ 874 053a 42EA0802 		orr	r2, r2, r8
+ 875 053e 2A44     		add	r2, r2, r5
+ 876 0540 0B92     		str	r2, [sp, #44]
+ 877              		.loc 1 212 9 view .LVU172
+ 878 0542 0AEB0305 		add	r5, r10, r3
+ 879 0546 4D95     		str	r5, [sp, #308]
+ 880              		.loc 1 212 9 view .LVU173
+ 881 0548 1344     		add	r3, r3, r2
+ 882 054a 5193     		str	r3, [sp, #324]
+ 883              		.loc 1 212 9 view .LVU174
+ 213:Libs/mbedtls/library/sha256.c ****           local.A[3], local.A[4], local.A[5], R(i+2), K[i+2]);
+ 214:Libs/mbedtls/library/sha256.c ****         P(local.A[5], local.A[6], local.A[7], local.A[0], local.A[1],
+ 884              		.loc 1 214 9 view .LVU175
+ 885              		.loc 1 214 9 view .LVU176
+ 886 054c 4FEAF522 		ror	r2, r5, #11
+ 887 0550 82EAB512 		eor	r2, r2, r5, ror #6
+ 888 0554 82EA7562 		eor	r2, r2, r5, ror #25
+ 889 0558 2244     		add	r2, r2, r4
+ 890 055a 019C     		ldr	r4, [sp, #4]
+ 891 055c 4C40     		eors	r4, r4, r1
+ 892 055e 2C40     		ands	r4, r4, r5
+ 893 0560 4C40     		eors	r4, r4, r1
+ 894 0562 1444     		add	r4, r4, r2
+ 895 0564 5E4A     		ldr	r2, .L34
+ 896 0566 52F82720 		ldr	r2, [r2, r7, lsl #2]
+ 897 056a 1444     		add	r4, r4, r2
+ 898 056c 0AAA     		add	r2, sp, #40
+ 899 056e 52F82720 		ldr	r2, [r2, r7, lsl #2]
+ 900 0572 4FEAF247 		ror	r7, r2, #19
+ 901 0576 87EA7247 		eor	r7, r7, r2, ror #17
+ 902 057a 87EA9227 		eor	r7, r7, r2, lsr #10
+ 903 057e 059A     		ldr	r2, [sp, #20]
+ 904 0580 0DF12808 		add	r8, sp, #40
+ 905 0584 58F82220 		ldr	r2, [r8, r2, lsl #2]
+ 906 0588 1744     		add	r7, r7, r2
+ 907 058a ACF10A0A 		sub	r10, ip, #10
+ 908 058e 58F82A80 		ldr	r8, [r8, r10, lsl #2]
+ 909 0592 4FEAB842 		ror	r2, r8, #18
+ 910 0596 82EAF812 		eor	r2, r2, r8, ror #7
+ 911 059a 82EAD802 		eor	r2, r2, r8, lsr #3
+ 912 059e 1744     		add	r7, r7, r2
+ 913 05a0 0AAA     		add	r2, sp, #40
+ 914 05a2 52F82E20 		ldr	r2, [r2, lr, lsl #2]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 21
+
+
+ 915 05a6 3A44     		add	r2, r2, r7
+ 916 05a8 0CF1050E 		add	lr, ip, #5
+ 917 05ac 0AAF     		add	r7, sp, #40
+ 918 05ae 47F82E20 		str	r2, [r7, lr, lsl #2]
+ 919 05b2 2244     		add	r2, r2, r4
+ 920 05b4 0A92     		str	r2, [sp, #40]
+ 921              		.loc 1 214 9 view .LVU177
+ 922 05b6 4FEA7337 		ror	r7, r3, #13
+ 923 05ba 87EAB307 		eor	r7, r7, r3, ror #2
+ 924 05be 87EAB357 		eor	r7, r7, r3, ror #22
+ 925 05c2 06EA0304 		and	r4, r6, r3
+ 926 05c6 46EA0308 		orr	r8, r6, r3
+ 927 05ca 0BEA0808 		and	r8, fp, r8
+ 928 05ce 44EA0804 		orr	r4, r4, r8
+ 929 05d2 3C44     		add	r4, r4, r7
+ 930 05d4 0B94     		str	r4, [sp, #44]
+ 931              		.loc 1 214 9 view .LVU178
+ 932 05d6 1044     		add	r0, r0, r2
+ 933 05d8 4C90     		str	r0, [sp, #304]
+ 934              		.loc 1 214 9 view .LVU179
+ 935 05da 2244     		add	r2, r2, r4
+ 936 05dc 5092     		str	r2, [sp, #320]
+ 937              		.loc 1 214 9 view .LVU180
+ 215:Libs/mbedtls/library/sha256.c ****           local.A[2], local.A[3], local.A[4], R(i+3), K[i+3]);
+ 216:Libs/mbedtls/library/sha256.c ****         P(local.A[4], local.A[5], local.A[6], local.A[7], local.A[0],
+ 938              		.loc 1 216 9 view .LVU181
+ 939              		.loc 1 216 9 view .LVU182
+ 940 05de 4FEAF024 		ror	r4, r0, #11
+ 941 05e2 84EAB014 		eor	r4, r4, r0, ror #6
+ 942 05e6 84EA7064 		eor	r4, r4, r0, ror #25
+ 943 05ea 2144     		add	r1, r1, r4
+ 944 05ec 019F     		ldr	r7, [sp, #4]
+ 945 05ee 87EA0504 		eor	r4, r7, r5
+ 946 05f2 0440     		ands	r4, r4, r0
+ 947 05f4 7C40     		eors	r4, r4, r7
+ 948 05f6 0C44     		add	r4, r4, r1
+ 949 05f8 0CF10401 		add	r1, ip, #4
+ 950 05fc 384F     		ldr	r7, .L34
+ 951 05fe 57F82110 		ldr	r1, [r7, r1, lsl #2]
+ 952 0602 0C44     		add	r4, r4, r1
+ 953 0604 0AA9     		add	r1, sp, #40
+ 954 0606 51F82910 		ldr	r1, [r1, r9, lsl #2]
+ 955 060a 4FEAF147 		ror	r7, r1, #19
+ 956 060e 87EA7147 		eor	r7, r7, r1, ror #17
+ 957 0612 87EA9127 		eor	r7, r7, r1, lsr #10
+ 958 0616 0799     		ldr	r1, [sp, #28]
+ 959 0618 0DF12808 		add	r8, sp, #40
+ 960 061c 58F82110 		ldr	r1, [r8, r1, lsl #2]
+ 961 0620 0F44     		add	r7, r7, r1
+ 962 0622 ACF10909 		sub	r9, ip, #9
+ 963 0626 58F82980 		ldr	r8, [r8, r9, lsl #2]
+ 964 062a 4FEAB841 		ror	r1, r8, #18
+ 965 062e 81EAF811 		eor	r1, r1, r8, ror #7
+ 966 0632 81EAD801 		eor	r1, r1, r8, lsr #3
+ 967 0636 0F44     		add	r7, r7, r1
+ 968 0638 0AA9     		add	r1, sp, #40
+ 969 063a 51F82A10 		ldr	r1, [r1, r10, lsl #2]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 22
+
+
+ 970 063e 3944     		add	r1, r1, r7
+ 971 0640 0CF10608 		add	r8, ip, #6
+ 972 0644 0AAF     		add	r7, sp, #40
+ 973 0646 47F82810 		str	r1, [r7, r8, lsl #2]
+ 974 064a 2144     		add	r1, r1, r4
+ 975 064c 0A91     		str	r1, [sp, #40]
+ 976              		.loc 1 216 9 view .LVU183
+ 977 064e 4FEA7237 		ror	r7, r2, #13
+ 978 0652 87EAB207 		eor	r7, r7, r2, ror #2
+ 979 0656 87EAB257 		eor	r7, r7, r2, ror #22
+ 980 065a 03EA0204 		and	r4, r3, r2
+ 981 065e 43EA020A 		orr	r10, r3, r2
+ 982 0662 06EA0A0A 		and	r10, r6, r10
+ 983 0666 44EA0A04 		orr	r4, r4, r10
+ 984 066a 2744     		add	r7, r7, r4
+ 985 066c 0B97     		str	r7, [sp, #44]
+ 986              		.loc 1 216 9 view .LVU184
+ 987 066e 0BEB0104 		add	r4, fp, r1
+ 988 0672 5394     		str	r4, [sp, #332]
+ 989              		.loc 1 216 9 view .LVU185
+ 990 0674 3944     		add	r1, r1, r7
+ 991 0676 4F91     		str	r1, [sp, #316]
+ 992              		.loc 1 216 9 view .LVU186
+ 217:Libs/mbedtls/library/sha256.c ****           local.A[1], local.A[2], local.A[3], R(i+4), K[i+4]);
+ 218:Libs/mbedtls/library/sha256.c ****         P(local.A[3], local.A[4], local.A[5], local.A[6], local.A[7],
+ 993              		.loc 1 218 9 view .LVU187
+ 994              		.loc 1 218 9 view .LVU188
+ 995 0678 4FEAF427 		ror	r7, r4, #11
+ 996 067c 87EAB417 		eor	r7, r7, r4, ror #6
+ 997 0680 87EA7467 		eor	r7, r7, r4, ror #25
+ 998 0684 019E     		ldr	r6, [sp, #4]
+ 999 0686 3E44     		add	r6, r6, r7
+ 1000 0688 85EA0007 		eor	r7, r5, r0
+ 1001 068c 2740     		ands	r7, r7, r4
+ 1002 068e 6F40     		eors	r7, r7, r5
+ 1003 0690 3744     		add	r7, r7, r6
+ 1004 0692 134E     		ldr	r6, .L34
+ 1005 0694 56F82E60 		ldr	r6, [r6, lr, lsl #2]
+ 1006 0698 3744     		add	r7, r7, r6
+ 1007 069a 0AAE     		add	r6, sp, #40
+ 1008 069c 56F82E60 		ldr	r6, [r6, lr, lsl #2]
+ 1009 06a0 4FEAF64E 		ror	lr, r6, #19
+ 1010 06a4 8EEA764E 		eor	lr, lr, r6, ror #17
+ 1011 06a8 8EEA962E 		eor	lr, lr, r6, lsr #10
+ 1012 06ac 0AAE     		add	r6, sp, #40
+ 1013 06ae 56F82C60 		ldr	r6, [r6, ip, lsl #2]
+ 1014 06b2 B644     		add	lr, lr, r6
+ 1015 06b4 ACF1080A 		sub	r10, ip, #8
+ 1016 06b8 0AAE     		add	r6, sp, #40
+ 1017 06ba 56F82AB0 		ldr	fp, [r6, r10, lsl #2]
+ 1018 06be 4FEABB46 		ror	r6, fp, #18
+ 1019 06c2 86EAFB16 		eor	r6, r6, fp, ror #7
+ 1020 06c6 86EADB06 		eor	r6, r6, fp, lsr #3
+ 1021 06ca 7644     		add	r6, r6, lr
+ 1022 06cc 0DF1280E 		add	lr, sp, #40
+ 1023 06d0 5EF829E0 		ldr	lr, [lr, r9, lsl #2]
+ 1024 06d4 7644     		add	r6, r6, lr
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 23
+
+
+ 1025 06d6 0CF1070B 		add	fp, ip, #7
+ 1026 06da 0DF1280E 		add	lr, sp, #40
+ 1027 06de 01E0     		b	.L35
+ 1028              	.L36:
+ 1029              		.align	2
+ 1030              	.L34:
+ 1031 06e0 00000000 		.word	K
+ 1032              	.L35:
+ 1033 06e4 4EF82B60 		str	r6, [lr, fp, lsl #2]
+ 1034 06e8 3744     		add	r7, r7, r6
+ 1035 06ea 0A97     		str	r7, [sp, #40]
+ 1036              		.loc 1 218 9 view .LVU189
+ 1037 06ec 4FEA713E 		ror	lr, r1, #13
+ 1038 06f0 8EEAB10E 		eor	lr, lr, r1, ror #2
+ 1039 06f4 8EEAB15E 		eor	lr, lr, r1, ror #22
+ 1040 06f8 02EA0106 		and	r6, r2, r1
+ 1041 06fc 42EA0109 		orr	r9, r2, r1
+ 1042 0700 03EA0909 		and	r9, r3, r9
+ 1043 0704 46EA0906 		orr	r6, r6, r9
+ 1044 0708 06EB0E09 		add	r9, r6, lr
+ 1045 070c CDF82C90 		str	r9, [sp, #44]
+ 1046              		.loc 1 218 9 view .LVU190
+ 1047 0710 029E     		ldr	r6, [sp, #8]
+ 1048 0712 06EB070E 		add	lr, r6, r7
+ 1049 0716 CDF848E1 		str	lr, [sp, #328]
+ 1050              		.loc 1 218 9 view .LVU191
+ 1051 071a 09EB0706 		add	r6, r9, r7
+ 1052 071e 4E96     		str	r6, [sp, #312]
+ 1053              		.loc 1 218 9 view .LVU192
+ 219:Libs/mbedtls/library/sha256.c ****           local.A[0], local.A[1], local.A[2], R(i+5), K[i+5]);
+ 220:Libs/mbedtls/library/sha256.c ****         P(local.A[2], local.A[3], local.A[4], local.A[5], local.A[6],
+ 1054              		.loc 1 220 9 view .LVU193
+ 1055              		.loc 1 220 9 view .LVU194
+ 1056 0720 4FEAFE29 		ror	r9, lr, #11
+ 1057 0724 89EABE19 		eor	r9, r9, lr, ror #6
+ 1058 0728 89EA7E69 		eor	r9, r9, lr, ror #25
+ 1059 072c A944     		add	r9, r9, r5
+ 1060 072e 80EA0405 		eor	r5, r0, r4
+ 1061 0732 0EEA0505 		and	r5, lr, r5
+ 1062 0736 4540     		eors	r5, r5, r0
+ 1063 0738 09EB0507 		add	r7, r9, r5
+ 1064 073c 514D     		ldr	r5, .L37
+ 1065 073e 55F82850 		ldr	r5, [r5, r8, lsl #2]
+ 1066 0742 3D44     		add	r5, r5, r7
+ 1067 0744 0AAF     		add	r7, sp, #40
+ 1068 0746 57F82870 		ldr	r7, [r7, r8, lsl #2]
+ 1069 074a 4FEAF748 		ror	r8, r7, #19
+ 1070 074e 88EA7748 		eor	r8, r8, r7, ror #17
+ 1071 0752 88EA9728 		eor	r8, r8, r7, lsr #10
+ 1072 0756 069F     		ldr	r7, [sp, #24]
+ 1073 0758 0DF12809 		add	r9, sp, #40
+ 1074 075c 59F82770 		ldr	r7, [r9, r7, lsl #2]
+ 1075 0760 B844     		add	r8, r8, r7
+ 1076 0762 049F     		ldr	r7, [sp, #16]
+ 1077 0764 59F82790 		ldr	r9, [r9, r7, lsl #2]
+ 1078 0768 4FEAB947 		ror	r7, r9, #18
+ 1079 076c 87EAF917 		eor	r7, r7, r9, ror #7
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 24
+
+
+ 1080 0770 87EAD907 		eor	r7, r7, r9, lsr #3
+ 1081 0774 4744     		add	r7, r7, r8
+ 1082 0776 0DF12808 		add	r8, sp, #40
+ 1083 077a 58F82A80 		ldr	r8, [r8, r10, lsl #2]
+ 1084 077e 4744     		add	r7, r7, r8
+ 1085 0780 0CF10809 		add	r9, ip, #8
+ 1086 0784 0DF12808 		add	r8, sp, #40
+ 1087 0788 48F82970 		str	r7, [r8, r9, lsl #2]
+ 1088 078c 2F44     		add	r7, r7, r5
+ 1089 078e 0A97     		str	r7, [sp, #40]
+ 1090              		.loc 1 220 9 view .LVU195
+ 1091 0790 4FEA7638 		ror	r8, r6, #13
+ 1092 0794 88EAB608 		eor	r8, r8, r6, ror #2
+ 1093 0798 88EAB658 		eor	r8, r8, r6, ror #22
+ 1094 079c 01EA0605 		and	r5, r1, r6
+ 1095 07a0 41EA060A 		orr	r10, r1, r6
+ 1096 07a4 02EA0A0A 		and	r10, r2, r10
+ 1097 07a8 45EA0A05 		orr	r5, r5, r10
+ 1098 07ac 4544     		add	r5, r5, r8
+ 1099 07ae 0B95     		str	r5, [sp, #44]
+ 1100              		.loc 1 220 9 view .LVU196
+ 1101 07b0 3B44     		add	r3, r3, r7
+ 1102 07b2 5193     		str	r3, [sp, #324]
+ 1103              		.loc 1 220 9 view .LVU197
+ 1104 07b4 3D44     		add	r5, r5, r7
+ 1105 07b6 4D95     		str	r5, [sp, #308]
+ 1106              		.loc 1 220 9 view .LVU198
+ 221:Libs/mbedtls/library/sha256.c ****           local.A[7], local.A[0], local.A[1], R(i+6), K[i+6]);
+ 222:Libs/mbedtls/library/sha256.c ****         P(local.A[1], local.A[2], local.A[3], local.A[4], local.A[5],
+ 1107              		.loc 1 222 9 view .LVU199
+ 1108              		.loc 1 222 9 view .LVU200
+ 1109 07b8 4FEAF327 		ror	r7, r3, #11
+ 1110 07bc 87EAB317 		eor	r7, r7, r3, ror #6
+ 1111 07c0 87EA7367 		eor	r7, r7, r3, ror #25
+ 1112 07c4 0744     		add	r7, r7, r0
+ 1113 07c6 84EA0E0E 		eor	lr, r4, lr
+ 1114 07ca 03EA0E03 		and	r3, r3, lr
+ 1115 07ce 5C40     		eors	r4, r4, r3
+ 1116 07d0 2744     		add	r7, r7, r4
+ 1117 07d2 2C4B     		ldr	r3, .L37
+ 1118 07d4 53F82B30 		ldr	r3, [r3, fp, lsl #2]
+ 1119 07d8 1F44     		add	r7, r7, r3
+ 1120 07da 0AAB     		add	r3, sp, #40
+ 1121 07dc 53F82B00 		ldr	r0, [r3, fp, lsl #2]
+ 1122 07e0 4FEAF043 		ror	r3, r0, #19
+ 1123 07e4 83EA7043 		eor	r3, r3, r0, ror #17
+ 1124 07e8 83EA9023 		eor	r3, r3, r0, lsr #10
+ 1125 07ec 0398     		ldr	r0, [sp, #12]
+ 1126 07ee 0AAC     		add	r4, sp, #40
+ 1127 07f0 54F82000 		ldr	r0, [r4, r0, lsl #2]
+ 1128 07f4 0344     		add	r3, r3, r0
+ 1129 07f6 089C     		ldr	r4, [sp, #32]
+ 1130 07f8 0AA8     		add	r0, sp, #40
+ 1131 07fa 50F82440 		ldr	r4, [r0, r4, lsl #2]
+ 1132 07fe 4FEAB440 		ror	r0, r4, #18
+ 1133 0802 80EAF410 		eor	r0, r0, r4, ror #7
+ 1134 0806 80EAD400 		eor	r0, r0, r4, lsr #3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 25
+
+
+ 1135 080a 0344     		add	r3, r3, r0
+ 1136 080c 0498     		ldr	r0, [sp, #16]
+ 1137 080e 0AAC     		add	r4, sp, #40
+ 1138 0810 54F82000 		ldr	r0, [r4, r0, lsl #2]
+ 1139 0814 0344     		add	r3, r3, r0
+ 1140 0816 0CF1090C 		add	ip, ip, #9
+ 1141              	.LVL23:
+ 1142              		.loc 1 222 9 is_stmt 0 view .LVU201
+ 1143 081a 44F82C30 		str	r3, [r4, ip, lsl #2]
+ 1144 081e 3B44     		add	r3, r3, r7
+ 1145 0820 0A93     		str	r3, [sp, #40]
+ 1146              		.loc 1 222 9 is_stmt 1 view .LVU202
+ 1147 0822 4FEA7530 		ror	r0, r5, #13
+ 1148 0826 80EAB500 		eor	r0, r0, r5, ror #2
+ 1149 082a 80EAB550 		eor	r0, r0, r5, ror #22
+ 1150 082e 06EA0504 		and	r4, r6, r5
+ 1151 0832 2E43     		orrs	r6, r6, r5
+ 1152 0834 3140     		ands	r1, r1, r6
+ 1153 0836 2143     		orrs	r1, r1, r4
+ 1154 0838 0144     		add	r1, r1, r0
+ 1155 083a 0B91     		str	r1, [sp, #44]
+ 1156              		.loc 1 222 9 view .LVU203
+ 1157 083c 1A44     		add	r2, r2, r3
+ 1158 083e 5092     		str	r2, [sp, #320]
+ 1159              		.loc 1 222 9 view .LVU204
+ 1160 0840 0B44     		add	r3, r3, r1
+ 1161 0842 4C93     		str	r3, [sp, #304]
+ 1162              		.loc 1 222 9 view .LVU205
+ 207:Libs/mbedtls/library/sha256.c ****         P(local.A[0], local.A[1], local.A[2], local.A[3], local.A[4],
+ 1163              		.loc 1 207 28 discriminator 3 view .LVU206
+ 1164 0844 CC46     		mov	ip, r9
+ 1165              	.LVL24:
+ 1166              	.L25:
+ 207:Libs/mbedtls/library/sha256.c ****         P(local.A[0], local.A[1], local.A[2], local.A[3], local.A[4],
+ 1167              		.loc 1 207 20 discriminator 1 view .LVU207
+ 1168 0846 BCF13F0F 		cmp	ip, #63
+ 1169 084a 7FF679AD 		bls	.L26
+ 223:Libs/mbedtls/library/sha256.c ****           local.A[6], local.A[7], local.A[0], R(i+7), K[i+7]);
+ 224:Libs/mbedtls/library/sha256.c ****     }
+ 225:Libs/mbedtls/library/sha256.c **** #endif /* MBEDTLS_SHA256_SMALLER */
+ 226:Libs/mbedtls/library/sha256.c **** 
+ 227:Libs/mbedtls/library/sha256.c ****     for (i = 0; i < 8; i++) {
+ 1170              		.loc 1 227 12 is_stmt 0 view .LVU208
+ 1171 084e 099F     		ldr	r7, [sp, #36]
+ 1172 0850 0023     		movs	r3, #0
+ 1173              	.LVL25:
+ 1174              	.L27:
+ 1175              		.loc 1 227 19 is_stmt 1 discriminator 1 view .LVU209
+ 1176 0852 072B     		cmp	r3, #7
+ 1177 0854 0CD8     		bhi	.L31
+ 228:Libs/mbedtls/library/sha256.c ****         ctx->state[i] += local.A[i];
+ 1178              		.loc 1 228 9 view .LVU210
+ 1179              		.loc 1 228 19 is_stmt 0 view .LVU211
+ 1180 0856 991C     		adds	r1, r3, #2
+ 1181 0858 57F82120 		ldr	r2, [r7, r1, lsl #2]
+ 1182              		.loc 1 228 33 view .LVU212
+ 1183 085c 03F14200 		add	r0, r3, #66
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 26
+
+
+ 1184 0860 0AAC     		add	r4, sp, #40
+ 1185 0862 54F82000 		ldr	r0, [r4, r0, lsl #2]
+ 1186              		.loc 1 228 23 view .LVU213
+ 1187 0866 0244     		add	r2, r2, r0
+ 1188 0868 47F82120 		str	r2, [r7, r1, lsl #2]
+ 227:Libs/mbedtls/library/sha256.c ****         ctx->state[i] += local.A[i];
+ 1189              		.loc 1 227 25 is_stmt 1 discriminator 3 view .LVU214
+ 1190 086c 0133     		adds	r3, r3, #1
+ 1191              	.LVL26:
+ 227:Libs/mbedtls/library/sha256.c ****         ctx->state[i] += local.A[i];
+ 1192              		.loc 1 227 25 is_stmt 0 discriminator 3 view .LVU215
+ 1193 086e F0E7     		b	.L27
+ 1194              	.L31:
+ 229:Libs/mbedtls/library/sha256.c ****     }
+ 230:Libs/mbedtls/library/sha256.c **** 
+ 231:Libs/mbedtls/library/sha256.c ****     /* Zeroise buffers and variables to clear sensitive data from memory. */
+ 232:Libs/mbedtls/library/sha256.c ****     mbedtls_platform_zeroize(&local, sizeof(local));
+ 1195              		.loc 1 232 5 is_stmt 1 view .LVU216
+ 1196 0870 4FF49471 		mov	r1, #296
+ 1197 0874 0AA8     		add	r0, sp, #40
+ 1198 0876 FFF7FEFF 		bl	mbedtls_platform_zeroize
+ 1199              	.LVL27:
+ 233:Libs/mbedtls/library/sha256.c **** 
+ 234:Libs/mbedtls/library/sha256.c ****     return 0;
+ 1200              		.loc 1 234 5 view .LVU217
+ 235:Libs/mbedtls/library/sha256.c **** }
+ 1201              		.loc 1 235 1 is_stmt 0 view .LVU218
+ 1202 087a 0020     		movs	r0, #0
+ 1203 087c 55B0     		add	sp, sp, #340
+ 1204              	.LCFI7:
+ 1205              		.cfi_def_cfa_offset 36
+ 1206              		@ sp needed
+ 1207 087e BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 1208              	.L38:
+ 1209 0882 00BF     		.align	2
+ 1210              	.L37:
+ 1211 0884 00000000 		.word	K
+ 1212              		.cfi_endproc
+ 1213              	.LFE11:
+ 1215              		.section	.text.mbedtls_sha256_process,"ax",%progbits
+ 1216              		.align	1
+ 1217              		.global	mbedtls_sha256_process
+ 1218              		.syntax unified
+ 1219              		.thumb
+ 1220              		.thumb_func
+ 1222              	mbedtls_sha256_process:
+ 1223              	.LVL28:
+ 1224              	.LFB12:
+ 236:Libs/mbedtls/library/sha256.c **** 
+ 237:Libs/mbedtls/library/sha256.c **** #if !defined(MBEDTLS_DEPRECATED_REMOVED)
+ 238:Libs/mbedtls/library/sha256.c **** void mbedtls_sha256_process(mbedtls_sha256_context *ctx,
+ 239:Libs/mbedtls/library/sha256.c ****                             const unsigned char data[64])
+ 240:Libs/mbedtls/library/sha256.c **** {
+ 1225              		.loc 1 240 1 is_stmt 1 view -0
+ 1226              		.cfi_startproc
+ 1227              		@ args = 0, pretend = 0, frame = 0
+ 1228              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 27
+
+
+ 1229              		.loc 1 240 1 is_stmt 0 view .LVU220
+ 1230 0000 08B5     		push	{r3, lr}
+ 1231              	.LCFI8:
+ 1232              		.cfi_def_cfa_offset 8
+ 1233              		.cfi_offset 3, -8
+ 1234              		.cfi_offset 14, -4
+ 241:Libs/mbedtls/library/sha256.c ****     mbedtls_internal_sha256_process(ctx, data);
+ 1235              		.loc 1 241 5 is_stmt 1 view .LVU221
+ 1236 0002 FFF7FEFF 		bl	mbedtls_internal_sha256_process
+ 1237              	.LVL29:
+ 242:Libs/mbedtls/library/sha256.c **** }
+ 1238              		.loc 1 242 1 is_stmt 0 view .LVU222
+ 1239 0006 08BD     		pop	{r3, pc}
+ 1240              		.cfi_endproc
+ 1241              	.LFE12:
+ 1243              		.section	.text.mbedtls_sha256_update_ret,"ax",%progbits
+ 1244              		.align	1
+ 1245              		.global	mbedtls_sha256_update_ret
+ 1246              		.syntax unified
+ 1247              		.thumb
+ 1248              		.thumb_func
+ 1250              	mbedtls_sha256_update_ret:
+ 1251              	.LVL30:
+ 1252              	.LFB13:
+ 243:Libs/mbedtls/library/sha256.c **** #endif
+ 244:Libs/mbedtls/library/sha256.c **** #endif /* !MBEDTLS_SHA256_PROCESS_ALT */
+ 245:Libs/mbedtls/library/sha256.c **** 
+ 246:Libs/mbedtls/library/sha256.c **** /*
+ 247:Libs/mbedtls/library/sha256.c ****  * SHA-256 process buffer
+ 248:Libs/mbedtls/library/sha256.c ****  */
+ 249:Libs/mbedtls/library/sha256.c **** int mbedtls_sha256_update_ret(mbedtls_sha256_context *ctx,
+ 250:Libs/mbedtls/library/sha256.c ****                               const unsigned char *input,
+ 251:Libs/mbedtls/library/sha256.c ****                               size_t ilen)
+ 252:Libs/mbedtls/library/sha256.c **** {
+ 1253              		.loc 1 252 1 is_stmt 1 view -0
+ 1254              		.cfi_startproc
+ 1255              		@ args = 0, pretend = 0, frame = 0
+ 1256              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1257              		.loc 1 252 1 is_stmt 0 view .LVU224
+ 1258 0000 2DE9F843 		push	{r3, r4, r5, r6, r7, r8, r9, lr}
+ 1259              	.LCFI9:
+ 1260              		.cfi_def_cfa_offset 32
+ 1261              		.cfi_offset 3, -32
+ 1262              		.cfi_offset 4, -28
+ 1263              		.cfi_offset 5, -24
+ 1264              		.cfi_offset 6, -20
+ 1265              		.cfi_offset 7, -16
+ 1266              		.cfi_offset 8, -12
+ 1267              		.cfi_offset 9, -8
+ 1268              		.cfi_offset 14, -4
+ 253:Libs/mbedtls/library/sha256.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1269              		.loc 1 253 5 is_stmt 1 view .LVU225
+ 1270              	.LVL31:
+ 254:Libs/mbedtls/library/sha256.c ****     size_t fill;
+ 1271              		.loc 1 254 5 view .LVU226
+ 255:Libs/mbedtls/library/sha256.c ****     uint32_t left;
+ 1272              		.loc 1 255 5 view .LVU227
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 28
+
+
+ 256:Libs/mbedtls/library/sha256.c **** 
+ 257:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET(ctx != NULL);
+ 1273              		.loc 1 257 5 view .LVU228
+ 1274              		.loc 1 257 5 view .LVU229
+ 1275              		.loc 1 257 5 view .LVU230
+ 258:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET(ilen == 0 || input != NULL);
+ 1276              		.loc 1 258 5 view .LVU231
+ 1277              		.loc 1 258 5 view .LVU232
+ 1278              		.loc 1 258 5 view .LVU233
+ 259:Libs/mbedtls/library/sha256.c **** 
+ 260:Libs/mbedtls/library/sha256.c ****     if (ilen == 0) {
+ 1279              		.loc 1 260 5 view .LVU234
+ 1280              		.loc 1 260 8 is_stmt 0 view .LVU235
+ 1281 0004 002A     		cmp	r2, #0
+ 1282 0006 3FD0     		beq	.L47
+ 1283 0008 0646     		mov	r6, r0
+ 1284 000a 0D46     		mov	r5, r1
+ 1285 000c 1446     		mov	r4, r2
+ 261:Libs/mbedtls/library/sha256.c ****         return 0;
+ 262:Libs/mbedtls/library/sha256.c ****     }
+ 263:Libs/mbedtls/library/sha256.c **** 
+ 264:Libs/mbedtls/library/sha256.c ****     left = ctx->total[0] & 0x3F;
+ 1286              		.loc 1 264 5 is_stmt 1 view .LVU236
+ 1287              		.loc 1 264 22 is_stmt 0 view .LVU237
+ 1288 000e 0368     		ldr	r3, [r0]
+ 1289              		.loc 1 264 10 view .LVU238
+ 1290 0010 03F03F07 		and	r7, r3, #63
+ 1291              	.LVL32:
+ 265:Libs/mbedtls/library/sha256.c ****     fill = 64 - left;
+ 1292              		.loc 1 265 5 is_stmt 1 view .LVU239
+ 1293              		.loc 1 265 10 is_stmt 0 view .LVU240
+ 1294 0014 C7F14008 		rsb	r8, r7, #64
+ 1295              	.LVL33:
+ 266:Libs/mbedtls/library/sha256.c **** 
+ 267:Libs/mbedtls/library/sha256.c ****     ctx->total[0] += (uint32_t) ilen;
+ 1296              		.loc 1 267 5 is_stmt 1 view .LVU241
+ 1297              		.loc 1 267 19 is_stmt 0 view .LVU242
+ 1298 0018 1344     		add	r3, r3, r2
+ 1299 001a 0360     		str	r3, [r0]
+ 268:Libs/mbedtls/library/sha256.c ****     ctx->total[0] &= 0xFFFFFFFF;
+ 1300              		.loc 1 268 5 is_stmt 1 view .LVU243
+ 269:Libs/mbedtls/library/sha256.c **** 
+ 270:Libs/mbedtls/library/sha256.c ****     if (ctx->total[0] < (uint32_t) ilen) {
+ 1301              		.loc 1 270 5 view .LVU244
+ 1302              		.loc 1 270 8 is_stmt 0 view .LVU245
+ 1303 001c 9342     		cmp	r3, r2
+ 1304 001e 02D2     		bcs	.L43
+ 271:Libs/mbedtls/library/sha256.c ****         ctx->total[1]++;
+ 1305              		.loc 1 271 9 is_stmt 1 view .LVU246
+ 1306              		.loc 1 271 19 is_stmt 0 view .LVU247
+ 1307 0020 4368     		ldr	r3, [r0, #4]
+ 1308              		.loc 1 271 22 view .LVU248
+ 1309 0022 0133     		adds	r3, r3, #1
+ 1310 0024 4360     		str	r3, [r0, #4]
+ 1311              	.L43:
+ 272:Libs/mbedtls/library/sha256.c ****     }
+ 273:Libs/mbedtls/library/sha256.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 29
+
+
+ 274:Libs/mbedtls/library/sha256.c ****     if (left && ilen >= fill) {
+ 1312              		.loc 1 274 5 is_stmt 1 view .LVU249
+ 1313              		.loc 1 274 14 is_stmt 0 view .LVU250
+ 1314 0026 3B1E     		subs	r3, r7, #0
+ 1315 0028 18BF     		it	ne
+ 1316 002a 0123     		movne	r3, #1
+ 1317 002c 4445     		cmp	r4, r8
+ 1318 002e 38BF     		it	cc
+ 1319 0030 0023     		movcc	r3, #0
+ 1320              		.loc 1 274 8 view .LVU251
+ 1321 0032 53B9     		cbnz	r3, .L50
+ 1322              	.LVL34:
+ 1323              	.L45:
+ 275:Libs/mbedtls/library/sha256.c ****         memcpy((void *) (ctx->buffer + left), input, fill);
+ 276:Libs/mbedtls/library/sha256.c **** 
+ 277:Libs/mbedtls/library/sha256.c ****         if ((ret = mbedtls_internal_sha256_process(ctx, ctx->buffer)) != 0) {
+ 278:Libs/mbedtls/library/sha256.c ****             return ret;
+ 279:Libs/mbedtls/library/sha256.c ****         }
+ 280:Libs/mbedtls/library/sha256.c **** 
+ 281:Libs/mbedtls/library/sha256.c ****         input += fill;
+ 282:Libs/mbedtls/library/sha256.c ****         ilen  -= fill;
+ 283:Libs/mbedtls/library/sha256.c ****         left = 0;
+ 284:Libs/mbedtls/library/sha256.c ****     }
+ 285:Libs/mbedtls/library/sha256.c **** 
+ 286:Libs/mbedtls/library/sha256.c ****     while (ilen >= 64) {
+ 1324              		.loc 1 286 17 is_stmt 1 view .LVU252
+ 1325 0034 3F2C     		cmp	r4, #63
+ 1326 0036 1BD9     		bls	.L51
+ 287:Libs/mbedtls/library/sha256.c ****         if ((ret = mbedtls_internal_sha256_process(ctx, input)) != 0) {
+ 1327              		.loc 1 287 9 view .LVU253
+ 1328              		.loc 1 287 20 is_stmt 0 view .LVU254
+ 1329 0038 2946     		mov	r1, r5
+ 1330 003a 3046     		mov	r0, r6
+ 1331 003c FFF7FEFF 		bl	mbedtls_internal_sha256_process
+ 1332              	.LVL35:
+ 1333              		.loc 1 287 12 discriminator 1 view .LVU255
+ 1334 0040 0346     		mov	r3, r0
+ 1335 0042 10BB     		cbnz	r0, .L41
+ 288:Libs/mbedtls/library/sha256.c ****             return ret;
+ 289:Libs/mbedtls/library/sha256.c ****         }
+ 290:Libs/mbedtls/library/sha256.c **** 
+ 291:Libs/mbedtls/library/sha256.c ****         input += 64;
+ 1336              		.loc 1 291 9 is_stmt 1 view .LVU256
+ 1337              		.loc 1 291 15 is_stmt 0 view .LVU257
+ 1338 0044 4035     		adds	r5, r5, #64
+ 1339              	.LVL36:
+ 292:Libs/mbedtls/library/sha256.c ****         ilen  -= 64;
+ 1340              		.loc 1 292 9 is_stmt 1 view .LVU258
+ 1341              		.loc 1 292 15 is_stmt 0 view .LVU259
+ 1342 0046 403C     		subs	r4, r4, #64
+ 1343              	.LVL37:
+ 1344              		.loc 1 292 15 view .LVU260
+ 1345 0048 F4E7     		b	.L45
+ 1346              	.LVL38:
+ 1347              	.L50:
+ 275:Libs/mbedtls/library/sha256.c **** 
+ 1348              		.loc 1 275 9 is_stmt 1 view .LVU261
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 30
+
+
+ 275:Libs/mbedtls/library/sha256.c **** 
+ 1349              		.loc 1 275 26 is_stmt 0 view .LVU262
+ 1350 004a 06F12809 		add	r9, r6, #40
+ 275:Libs/mbedtls/library/sha256.c **** 
+ 1351              		.loc 1 275 9 view .LVU263
+ 1352 004e 4246     		mov	r2, r8
+ 1353              	.LVL39:
+ 275:Libs/mbedtls/library/sha256.c **** 
+ 1354              		.loc 1 275 9 view .LVU264
+ 1355 0050 2946     		mov	r1, r5
+ 1356              	.LVL40:
+ 275:Libs/mbedtls/library/sha256.c **** 
+ 1357              		.loc 1 275 9 view .LVU265
+ 1358 0052 09EB0700 		add	r0, r9, r7
+ 1359              	.LVL41:
+ 275:Libs/mbedtls/library/sha256.c **** 
+ 1360              		.loc 1 275 9 view .LVU266
+ 1361 0056 FFF7FEFF 		bl	memcpy
+ 1362              	.LVL42:
+ 277:Libs/mbedtls/library/sha256.c ****             return ret;
+ 1363              		.loc 1 277 9 is_stmt 1 view .LVU267
+ 277:Libs/mbedtls/library/sha256.c ****             return ret;
+ 1364              		.loc 1 277 20 is_stmt 0 view .LVU268
+ 1365 005a 4946     		mov	r1, r9
+ 1366 005c 3046     		mov	r0, r6
+ 1367 005e FFF7FEFF 		bl	mbedtls_internal_sha256_process
+ 1368              	.LVL43:
+ 277:Libs/mbedtls/library/sha256.c ****             return ret;
+ 1369              		.loc 1 277 12 discriminator 1 view .LVU269
+ 1370 0062 0346     		mov	r3, r0
+ 1371 0064 88B9     		cbnz	r0, .L41
+ 281:Libs/mbedtls/library/sha256.c ****         ilen  -= fill;
+ 1372              		.loc 1 281 9 is_stmt 1 view .LVU270
+ 281:Libs/mbedtls/library/sha256.c ****         ilen  -= fill;
+ 1373              		.loc 1 281 15 is_stmt 0 view .LVU271
+ 1374 0066 4544     		add	r5, r5, r8
+ 1375              	.LVL44:
+ 282:Libs/mbedtls/library/sha256.c ****         left = 0;
+ 1376              		.loc 1 282 9 is_stmt 1 view .LVU272
+ 282:Libs/mbedtls/library/sha256.c ****         left = 0;
+ 1377              		.loc 1 282 15 is_stmt 0 view .LVU273
+ 1378 0068 403F     		subs	r7, r7, #64
+ 1379              	.LVL45:
+ 282:Libs/mbedtls/library/sha256.c ****         left = 0;
+ 1380              		.loc 1 282 15 view .LVU274
+ 1381 006a 3C44     		add	r4, r4, r7
+ 1382              	.LVL46:
+ 283:Libs/mbedtls/library/sha256.c ****     }
+ 1383              		.loc 1 283 9 is_stmt 1 view .LVU275
+ 283:Libs/mbedtls/library/sha256.c ****     }
+ 1384              		.loc 1 283 14 is_stmt 0 view .LVU276
+ 1385 006c 0027     		movs	r7, #0
+ 1386 006e E1E7     		b	.L45
+ 1387              	.LVL47:
+ 1388              	.L51:
+ 293:Libs/mbedtls/library/sha256.c ****     }
+ 294:Libs/mbedtls/library/sha256.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 31
+
+
+ 295:Libs/mbedtls/library/sha256.c ****     if (ilen > 0) {
+ 1389              		.loc 1 295 5 is_stmt 1 view .LVU277
+ 1390              		.loc 1 295 8 is_stmt 0 view .LVU278
+ 1391 0070 0CB9     		cbnz	r4, .L52
+ 296:Libs/mbedtls/library/sha256.c ****         memcpy((void *) (ctx->buffer + left), input, ilen);
+ 297:Libs/mbedtls/library/sha256.c ****     }
+ 298:Libs/mbedtls/library/sha256.c **** 
+ 299:Libs/mbedtls/library/sha256.c ****     return 0;
+ 1392              		.loc 1 299 12 view .LVU279
+ 1393 0072 0023     		movs	r3, #0
+ 1394 0074 09E0     		b	.L41
+ 1395              	.L52:
+ 296:Libs/mbedtls/library/sha256.c ****         memcpy((void *) (ctx->buffer + left), input, ilen);
+ 1396              		.loc 1 296 9 is_stmt 1 view .LVU280
+ 296:Libs/mbedtls/library/sha256.c ****         memcpy((void *) (ctx->buffer + left), input, ilen);
+ 1397              		.loc 1 296 26 is_stmt 0 view .LVU281
+ 1398 0076 06F12800 		add	r0, r6, #40
+ 296:Libs/mbedtls/library/sha256.c ****         memcpy((void *) (ctx->buffer + left), input, ilen);
+ 1399              		.loc 1 296 9 view .LVU282
+ 1400 007a 2246     		mov	r2, r4
+ 1401 007c 2946     		mov	r1, r5
+ 1402 007e 3844     		add	r0, r0, r7
+ 1403 0080 FFF7FEFF 		bl	memcpy
+ 1404              	.LVL48:
+ 1405              		.loc 1 299 12 view .LVU283
+ 1406 0084 0023     		movs	r3, #0
+ 1407 0086 00E0     		b	.L41
+ 1408              	.LVL49:
+ 1409              	.L47:
+ 261:Libs/mbedtls/library/sha256.c ****     }
+ 1410              		.loc 1 261 16 view .LVU284
+ 1411 0088 0023     		movs	r3, #0
+ 1412              	.LVL50:
+ 1413              	.L41:
+ 300:Libs/mbedtls/library/sha256.c **** }
+ 1414              		.loc 1 300 1 view .LVU285
+ 1415 008a 1846     		mov	r0, r3
+ 1416 008c BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 1417              		.cfi_endproc
+ 1418              	.LFE13:
+ 1420              		.section	.text.mbedtls_sha256_update,"ax",%progbits
+ 1421              		.align	1
+ 1422              		.global	mbedtls_sha256_update
+ 1423              		.syntax unified
+ 1424              		.thumb
+ 1425              		.thumb_func
+ 1427              	mbedtls_sha256_update:
+ 1428              	.LVL51:
+ 1429              	.LFB14:
+ 301:Libs/mbedtls/library/sha256.c **** 
+ 302:Libs/mbedtls/library/sha256.c **** #if !defined(MBEDTLS_DEPRECATED_REMOVED)
+ 303:Libs/mbedtls/library/sha256.c **** void mbedtls_sha256_update(mbedtls_sha256_context *ctx,
+ 304:Libs/mbedtls/library/sha256.c ****                            const unsigned char *input,
+ 305:Libs/mbedtls/library/sha256.c ****                            size_t ilen)
+ 306:Libs/mbedtls/library/sha256.c **** {
+ 1430              		.loc 1 306 1 is_stmt 1 view -0
+ 1431              		.cfi_startproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 32
+
+
+ 1432              		@ args = 0, pretend = 0, frame = 0
+ 1433              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1434              		.loc 1 306 1 is_stmt 0 view .LVU287
+ 1435 0000 08B5     		push	{r3, lr}
+ 1436              	.LCFI10:
+ 1437              		.cfi_def_cfa_offset 8
+ 1438              		.cfi_offset 3, -8
+ 1439              		.cfi_offset 14, -4
+ 307:Libs/mbedtls/library/sha256.c ****     mbedtls_sha256_update_ret(ctx, input, ilen);
+ 1440              		.loc 1 307 5 is_stmt 1 view .LVU288
+ 1441 0002 FFF7FEFF 		bl	mbedtls_sha256_update_ret
+ 1442              	.LVL52:
+ 308:Libs/mbedtls/library/sha256.c **** }
+ 1443              		.loc 1 308 1 is_stmt 0 view .LVU289
+ 1444 0006 08BD     		pop	{r3, pc}
+ 1445              		.cfi_endproc
+ 1446              	.LFE14:
+ 1448              		.section	.text.mbedtls_sha256_finish_ret,"ax",%progbits
+ 1449              		.align	1
+ 1450              		.global	mbedtls_sha256_finish_ret
+ 1451              		.syntax unified
+ 1452              		.thumb
+ 1453              		.thumb_func
+ 1455              	mbedtls_sha256_finish_ret:
+ 1456              	.LVL53:
+ 1457              	.LFB15:
+ 309:Libs/mbedtls/library/sha256.c **** #endif
+ 310:Libs/mbedtls/library/sha256.c **** 
+ 311:Libs/mbedtls/library/sha256.c **** /*
+ 312:Libs/mbedtls/library/sha256.c ****  * SHA-256 final digest
+ 313:Libs/mbedtls/library/sha256.c ****  */
+ 314:Libs/mbedtls/library/sha256.c **** int mbedtls_sha256_finish_ret(mbedtls_sha256_context *ctx,
+ 315:Libs/mbedtls/library/sha256.c ****                               unsigned char output[32])
+ 316:Libs/mbedtls/library/sha256.c **** {
+ 1458              		.loc 1 316 1 is_stmt 1 view -0
+ 1459              		.cfi_startproc
+ 1460              		@ args = 0, pretend = 0, frame = 0
+ 1461              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1462              		.loc 1 316 1 is_stmt 0 view .LVU291
+ 1463 0000 70B5     		push	{r4, r5, r6, lr}
+ 1464              	.LCFI11:
+ 1465              		.cfi_def_cfa_offset 16
+ 1466              		.cfi_offset 4, -16
+ 1467              		.cfi_offset 5, -12
+ 1468              		.cfi_offset 6, -8
+ 1469              		.cfi_offset 14, -4
+ 1470 0002 0446     		mov	r4, r0
+ 1471 0004 0D46     		mov	r5, r1
+ 317:Libs/mbedtls/library/sha256.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1472              		.loc 1 317 5 is_stmt 1 view .LVU292
+ 1473              	.LVL54:
+ 318:Libs/mbedtls/library/sha256.c ****     uint32_t used;
+ 1474              		.loc 1 318 5 view .LVU293
+ 319:Libs/mbedtls/library/sha256.c ****     uint32_t high, low;
+ 1475              		.loc 1 319 5 view .LVU294
+ 320:Libs/mbedtls/library/sha256.c **** 
+ 321:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET(ctx != NULL);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 33
+
+
+ 1476              		.loc 1 321 5 view .LVU295
+ 1477              		.loc 1 321 5 view .LVU296
+ 1478              		.loc 1 321 5 view .LVU297
+ 322:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET((unsigned char *) output != NULL);
+ 1479              		.loc 1 322 5 view .LVU298
+ 1480              		.loc 1 322 5 view .LVU299
+ 1481              		.loc 1 322 5 view .LVU300
+ 323:Libs/mbedtls/library/sha256.c **** 
+ 324:Libs/mbedtls/library/sha256.c ****     /*
+ 325:Libs/mbedtls/library/sha256.c ****      * Add padding: 0x80 then 0x00 until 8 bytes remain for the length
+ 326:Libs/mbedtls/library/sha256.c ****      */
+ 327:Libs/mbedtls/library/sha256.c ****     used = ctx->total[0] & 0x3F;
+ 1482              		.loc 1 327 5 view .LVU301
+ 1483              		.loc 1 327 22 is_stmt 0 view .LVU302
+ 1484 0006 0368     		ldr	r3, [r0]
+ 1485              		.loc 1 327 10 view .LVU303
+ 1486 0008 03F03F03 		and	r3, r3, #63
+ 1487              	.LVL55:
+ 328:Libs/mbedtls/library/sha256.c **** 
+ 329:Libs/mbedtls/library/sha256.c ****     ctx->buffer[used++] = 0x80;
+ 1488              		.loc 1 329 5 is_stmt 1 view .LVU304
+ 1489              		.loc 1 329 21 is_stmt 0 view .LVU305
+ 1490 000c 03F1010C 		add	ip, r3, #1
+ 1491              	.LVL56:
+ 1492              		.loc 1 329 25 view .LVU306
+ 1493 0010 0344     		add	r3, r3, r0
+ 1494 0012 8022     		movs	r2, #128
+ 1495 0014 83F82820 		strb	r2, [r3, #40]
+ 330:Libs/mbedtls/library/sha256.c **** 
+ 331:Libs/mbedtls/library/sha256.c ****     if (used <= 56) {
+ 1496              		.loc 1 331 5 is_stmt 1 view .LVU307
+ 1497              		.loc 1 331 8 is_stmt 0 view .LVU308
+ 1498 0018 BCF1380F 		cmp	ip, #56
+ 1499 001c 7BD8     		bhi	.L56
+ 332:Libs/mbedtls/library/sha256.c ****         /* Enough room for padding + length in current block */
+ 333:Libs/mbedtls/library/sha256.c ****         memset(ctx->buffer + used, 0, 56 - used);
+ 1500              		.loc 1 333 9 is_stmt 1 view .LVU309
+ 1501              		.loc 1 333 16 is_stmt 0 view .LVU310
+ 1502 001e 2830     		adds	r0, r0, #40
+ 1503              	.LVL57:
+ 1504              		.loc 1 333 9 view .LVU311
+ 1505 0020 CCF13802 		rsb	r2, ip, #56
+ 1506 0024 0021     		movs	r1, #0
+ 1507              	.LVL58:
+ 1508              		.loc 1 333 9 view .LVU312
+ 1509 0026 6044     		add	r0, r0, ip
+ 1510 0028 FFF7FEFF 		bl	memset
+ 1511              	.LVL59:
+ 1512              	.L57:
+ 334:Libs/mbedtls/library/sha256.c ****     } else {
+ 335:Libs/mbedtls/library/sha256.c ****         /* We'll need an extra block */
+ 336:Libs/mbedtls/library/sha256.c ****         memset(ctx->buffer + used, 0, 64 - used);
+ 337:Libs/mbedtls/library/sha256.c **** 
+ 338:Libs/mbedtls/library/sha256.c ****         if ((ret = mbedtls_internal_sha256_process(ctx, ctx->buffer)) != 0) {
+ 339:Libs/mbedtls/library/sha256.c ****             return ret;
+ 340:Libs/mbedtls/library/sha256.c ****         }
+ 341:Libs/mbedtls/library/sha256.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 34
+
+
+ 342:Libs/mbedtls/library/sha256.c ****         memset(ctx->buffer, 0, 56);
+ 343:Libs/mbedtls/library/sha256.c ****     }
+ 344:Libs/mbedtls/library/sha256.c **** 
+ 345:Libs/mbedtls/library/sha256.c ****     /*
+ 346:Libs/mbedtls/library/sha256.c ****      * Add message length
+ 347:Libs/mbedtls/library/sha256.c ****      */
+ 348:Libs/mbedtls/library/sha256.c ****     high = (ctx->total[0] >> 29)
+ 1513              		.loc 1 348 5 is_stmt 1 view .LVU313
+ 1514              		.loc 1 348 23 is_stmt 0 view .LVU314
+ 1515 002c 2268     		ldr	r2, [r4]
+ 349:Libs/mbedtls/library/sha256.c ****            | (ctx->total[1] <<  3);
+ 1516              		.loc 1 349 25 view .LVU315
+ 1517 002e 6368     		ldr	r3, [r4, #4]
+ 1518              		.loc 1 349 29 view .LVU316
+ 1519 0030 DB00     		lsls	r3, r3, #3
+ 348:Libs/mbedtls/library/sha256.c ****            | (ctx->total[1] <<  3);
+ 1520              		.loc 1 348 10 view .LVU317
+ 1521 0032 43EA5270 		orr	r0, r3, r2, lsr #29
+ 1522              	.LVL60:
+ 350:Libs/mbedtls/library/sha256.c ****     low  = (ctx->total[0] <<  3);
+ 1523              		.loc 1 350 5 is_stmt 1 view .LVU318
+ 1524              		.loc 1 350 10 is_stmt 0 view .LVU319
+ 1525 0036 D100     		lsls	r1, r2, #3
+ 1526              	.LVL61:
+ 351:Libs/mbedtls/library/sha256.c **** 
+ 352:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(high, ctx->buffer, 56);
+ 1527              		.loc 1 352 5 is_stmt 1 view .LVU320
+ 1528 0038 1E0E     		lsrs	r6, r3, #24
+ 1529 003a 84F86060 		strb	r6, [r4, #96]
+ 1530              		.loc 1 352 5 view .LVU321
+ 1531 003e C3F30746 		ubfx	r6, r3, #16, #8
+ 1532 0042 84F86160 		strb	r6, [r4, #97]
+ 1533              		.loc 1 352 5 view .LVU322
+ 1534 0046 C3F30723 		ubfx	r3, r3, #8, #8
+ 1535 004a 84F86230 		strb	r3, [r4, #98]
+ 1536              		.loc 1 352 5 view .LVU323
+ 1537 004e 84F86300 		strb	r0, [r4, #99]
+ 1538              		.loc 1 352 49 view .LVU324
+ 353:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(low,  ctx->buffer, 60);
+ 1539              		.loc 1 353 5 view .LVU325
+ 1540 0052 C2F34753 		ubfx	r3, r2, #21, #8
+ 1541 0056 84F86430 		strb	r3, [r4, #100]
+ 1542              		.loc 1 353 5 view .LVU326
+ 1543 005a C2F34733 		ubfx	r3, r2, #13, #8
+ 1544 005e 84F86530 		strb	r3, [r4, #101]
+ 1545              		.loc 1 353 5 view .LVU327
+ 1546 0062 C2F34712 		ubfx	r2, r2, #5, #8
+ 1547 0066 84F86620 		strb	r2, [r4, #102]
+ 1548              		.loc 1 353 5 view .LVU328
+ 1549 006a 84F86710 		strb	r1, [r4, #103]
+ 1550              		.loc 1 353 49 view .LVU329
+ 354:Libs/mbedtls/library/sha256.c **** 
+ 355:Libs/mbedtls/library/sha256.c ****     if ((ret = mbedtls_internal_sha256_process(ctx, ctx->buffer)) != 0) {
+ 1551              		.loc 1 355 5 view .LVU330
+ 1552              		.loc 1 355 16 is_stmt 0 view .LVU331
+ 1553 006e 04F12801 		add	r1, r4, #40
+ 1554              	.LVL62:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 35
+
+
+ 1555              		.loc 1 355 16 view .LVU332
+ 1556 0072 2046     		mov	r0, r4
+ 1557              	.LVL63:
+ 1558              		.loc 1 355 16 view .LVU333
+ 1559 0074 FFF7FEFF 		bl	mbedtls_internal_sha256_process
+ 1560              	.LVL64:
+ 1561              		.loc 1 355 8 discriminator 1 view .LVU334
+ 1562 0078 0346     		mov	r3, r0
+ 1563 007a 0028     		cmp	r0, #0
+ 1564 007c 5AD1     		bne	.L55
+ 356:Libs/mbedtls/library/sha256.c ****         return ret;
+ 357:Libs/mbedtls/library/sha256.c ****     }
+ 358:Libs/mbedtls/library/sha256.c **** 
+ 359:Libs/mbedtls/library/sha256.c ****     /*
+ 360:Libs/mbedtls/library/sha256.c ****      * Output final state
+ 361:Libs/mbedtls/library/sha256.c ****      */
+ 362:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(ctx->state[0], output,  0);
+ 1565              		.loc 1 362 5 is_stmt 1 view .LVU335
+ 1566 007e E27A     		ldrb	r2, [r4, #11]	@ zero_extendqisi2
+ 1567 0080 2A70     		strb	r2, [r5]
+ 1568              		.loc 1 362 5 view .LVU336
+ 1569 0082 A27A     		ldrb	r2, [r4, #10]	@ zero_extendqisi2
+ 1570 0084 6A70     		strb	r2, [r5, #1]
+ 1571              		.loc 1 362 5 view .LVU337
+ 1572 0086 627A     		ldrb	r2, [r4, #9]	@ zero_extendqisi2
+ 1573 0088 AA70     		strb	r2, [r5, #2]
+ 1574              		.loc 1 362 5 view .LVU338
+ 1575 008a 227A     		ldrb	r2, [r4, #8]	@ zero_extendqisi2
+ 1576 008c EA70     		strb	r2, [r5, #3]
+ 1577              		.loc 1 362 53 view .LVU339
+ 363:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(ctx->state[1], output,  4);
+ 1578              		.loc 1 363 5 view .LVU340
+ 1579 008e E27B     		ldrb	r2, [r4, #15]	@ zero_extendqisi2
+ 1580 0090 2A71     		strb	r2, [r5, #4]
+ 1581              		.loc 1 363 5 view .LVU341
+ 1582 0092 A27B     		ldrb	r2, [r4, #14]	@ zero_extendqisi2
+ 1583 0094 6A71     		strb	r2, [r5, #5]
+ 1584              		.loc 1 363 5 view .LVU342
+ 1585 0096 627B     		ldrb	r2, [r4, #13]	@ zero_extendqisi2
+ 1586 0098 AA71     		strb	r2, [r5, #6]
+ 1587              		.loc 1 363 5 view .LVU343
+ 1588 009a 227B     		ldrb	r2, [r4, #12]	@ zero_extendqisi2
+ 1589 009c EA71     		strb	r2, [r5, #7]
+ 1590              		.loc 1 363 53 view .LVU344
+ 364:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(ctx->state[2], output,  8);
+ 1591              		.loc 1 364 5 view .LVU345
+ 1592 009e E27C     		ldrb	r2, [r4, #19]	@ zero_extendqisi2
+ 1593 00a0 2A72     		strb	r2, [r5, #8]
+ 1594              		.loc 1 364 5 view .LVU346
+ 1595 00a2 A27C     		ldrb	r2, [r4, #18]	@ zero_extendqisi2
+ 1596 00a4 6A72     		strb	r2, [r5, #9]
+ 1597              		.loc 1 364 5 view .LVU347
+ 1598 00a6 627C     		ldrb	r2, [r4, #17]	@ zero_extendqisi2
+ 1599 00a8 AA72     		strb	r2, [r5, #10]
+ 1600              		.loc 1 364 5 view .LVU348
+ 1601 00aa 227C     		ldrb	r2, [r4, #16]	@ zero_extendqisi2
+ 1602 00ac EA72     		strb	r2, [r5, #11]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 36
+
+
+ 1603              		.loc 1 364 53 view .LVU349
+ 365:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(ctx->state[3], output, 12);
+ 1604              		.loc 1 365 5 view .LVU350
+ 1605 00ae E27D     		ldrb	r2, [r4, #23]	@ zero_extendqisi2
+ 1606 00b0 2A73     		strb	r2, [r5, #12]
+ 1607              		.loc 1 365 5 view .LVU351
+ 1608 00b2 A27D     		ldrb	r2, [r4, #22]	@ zero_extendqisi2
+ 1609 00b4 6A73     		strb	r2, [r5, #13]
+ 1610              		.loc 1 365 5 view .LVU352
+ 1611 00b6 627D     		ldrb	r2, [r4, #21]	@ zero_extendqisi2
+ 1612 00b8 AA73     		strb	r2, [r5, #14]
+ 1613              		.loc 1 365 5 view .LVU353
+ 1614 00ba 227D     		ldrb	r2, [r4, #20]	@ zero_extendqisi2
+ 1615 00bc EA73     		strb	r2, [r5, #15]
+ 1616              		.loc 1 365 53 view .LVU354
+ 366:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(ctx->state[4], output, 16);
+ 1617              		.loc 1 366 5 view .LVU355
+ 1618 00be E27E     		ldrb	r2, [r4, #27]	@ zero_extendqisi2
+ 1619 00c0 2A74     		strb	r2, [r5, #16]
+ 1620              		.loc 1 366 5 view .LVU356
+ 1621 00c2 A27E     		ldrb	r2, [r4, #26]	@ zero_extendqisi2
+ 1622 00c4 6A74     		strb	r2, [r5, #17]
+ 1623              		.loc 1 366 5 view .LVU357
+ 1624 00c6 627E     		ldrb	r2, [r4, #25]	@ zero_extendqisi2
+ 1625 00c8 AA74     		strb	r2, [r5, #18]
+ 1626              		.loc 1 366 5 view .LVU358
+ 1627 00ca 227E     		ldrb	r2, [r4, #24]	@ zero_extendqisi2
+ 1628 00cc EA74     		strb	r2, [r5, #19]
+ 1629              		.loc 1 366 53 view .LVU359
+ 367:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(ctx->state[5], output, 20);
+ 1630              		.loc 1 367 5 view .LVU360
+ 1631 00ce E27F     		ldrb	r2, [r4, #31]	@ zero_extendqisi2
+ 1632 00d0 2A75     		strb	r2, [r5, #20]
+ 1633              		.loc 1 367 5 view .LVU361
+ 1634 00d2 A27F     		ldrb	r2, [r4, #30]	@ zero_extendqisi2
+ 1635 00d4 6A75     		strb	r2, [r5, #21]
+ 1636              		.loc 1 367 5 view .LVU362
+ 1637 00d6 627F     		ldrb	r2, [r4, #29]	@ zero_extendqisi2
+ 1638 00d8 AA75     		strb	r2, [r5, #22]
+ 1639              		.loc 1 367 5 view .LVU363
+ 1640 00da 227F     		ldrb	r2, [r4, #28]	@ zero_extendqisi2
+ 1641 00dc EA75     		strb	r2, [r5, #23]
+ 1642              		.loc 1 367 53 view .LVU364
+ 368:Libs/mbedtls/library/sha256.c ****     MBEDTLS_PUT_UINT32_BE(ctx->state[6], output, 24);
+ 1643              		.loc 1 368 5 view .LVU365
+ 1644 00de 94F82320 		ldrb	r2, [r4, #35]	@ zero_extendqisi2
+ 1645 00e2 2A76     		strb	r2, [r5, #24]
+ 1646              		.loc 1 368 5 view .LVU366
+ 1647 00e4 94F82220 		ldrb	r2, [r4, #34]	@ zero_extendqisi2
+ 1648 00e8 6A76     		strb	r2, [r5, #25]
+ 1649              		.loc 1 368 5 view .LVU367
+ 1650 00ea 94F82120 		ldrb	r2, [r4, #33]	@ zero_extendqisi2
+ 1651 00ee AA76     		strb	r2, [r5, #26]
+ 1652              		.loc 1 368 5 view .LVU368
+ 1653 00f0 94F82020 		ldrb	r2, [r4, #32]	@ zero_extendqisi2
+ 1654 00f4 EA76     		strb	r2, [r5, #27]
+ 1655              		.loc 1 368 53 view .LVU369
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 37
+
+
+ 369:Libs/mbedtls/library/sha256.c **** 
+ 370:Libs/mbedtls/library/sha256.c ****     if (ctx->is224 == 0) {
+ 1656              		.loc 1 370 5 view .LVU370
+ 1657              		.loc 1 370 12 is_stmt 0 view .LVU371
+ 1658 00f6 A26E     		ldr	r2, [r4, #104]
+ 1659              		.loc 1 370 8 view .LVU372
+ 1660 00f8 E2B9     		cbnz	r2, .L55
+ 371:Libs/mbedtls/library/sha256.c ****         MBEDTLS_PUT_UINT32_BE(ctx->state[7], output, 28);
+ 1661              		.loc 1 371 9 is_stmt 1 view .LVU373
+ 1662 00fa 94F82730 		ldrb	r3, [r4, #39]	@ zero_extendqisi2
+ 1663 00fe 2B77     		strb	r3, [r5, #28]
+ 1664              		.loc 1 371 9 view .LVU374
+ 1665 0100 94F82630 		ldrb	r3, [r4, #38]	@ zero_extendqisi2
+ 1666 0104 6B77     		strb	r3, [r5, #29]
+ 1667              		.loc 1 371 9 view .LVU375
+ 1668 0106 94F82530 		ldrb	r3, [r4, #37]	@ zero_extendqisi2
+ 1669 010a AB77     		strb	r3, [r5, #30]
+ 1670              		.loc 1 371 9 view .LVU376
+ 1671 010c 94F82430 		ldrb	r3, [r4, #36]	@ zero_extendqisi2
+ 1672 0110 EB77     		strb	r3, [r5, #31]
+ 372:Libs/mbedtls/library/sha256.c ****     }
+ 373:Libs/mbedtls/library/sha256.c **** 
+ 374:Libs/mbedtls/library/sha256.c ****     return 0;
+ 1673              		.loc 1 374 12 is_stmt 0 view .LVU377
+ 1674 0112 1346     		mov	r3, r2
+ 1675 0114 0EE0     		b	.L55
+ 1676              	.LVL65:
+ 1677              	.L56:
+ 336:Libs/mbedtls/library/sha256.c **** 
+ 1678              		.loc 1 336 9 is_stmt 1 view .LVU378
+ 336:Libs/mbedtls/library/sha256.c **** 
+ 1679              		.loc 1 336 16 is_stmt 0 view .LVU379
+ 1680 0116 00F12806 		add	r6, r0, #40
+ 336:Libs/mbedtls/library/sha256.c **** 
+ 1681              		.loc 1 336 9 view .LVU380
+ 1682 011a CCF14002 		rsb	r2, ip, #64
+ 1683 011e 0021     		movs	r1, #0
+ 1684              	.LVL66:
+ 336:Libs/mbedtls/library/sha256.c **** 
+ 1685              		.loc 1 336 9 view .LVU381
+ 1686 0120 06EB0C00 		add	r0, r6, ip
+ 1687              	.LVL67:
+ 336:Libs/mbedtls/library/sha256.c **** 
+ 1688              		.loc 1 336 9 view .LVU382
+ 1689 0124 FFF7FEFF 		bl	memset
+ 1690              	.LVL68:
+ 338:Libs/mbedtls/library/sha256.c ****             return ret;
+ 1691              		.loc 1 338 9 is_stmt 1 view .LVU383
+ 338:Libs/mbedtls/library/sha256.c ****             return ret;
+ 1692              		.loc 1 338 20 is_stmt 0 view .LVU384
+ 1693 0128 3146     		mov	r1, r6
+ 1694 012a 2046     		mov	r0, r4
+ 1695 012c FFF7FEFF 		bl	mbedtls_internal_sha256_process
+ 1696              	.LVL69:
+ 338:Libs/mbedtls/library/sha256.c ****             return ret;
+ 1697              		.loc 1 338 12 discriminator 1 view .LVU385
+ 1698 0130 0346     		mov	r3, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 38
+
+
+ 1699 0132 08B1     		cbz	r0, .L60
+ 1700              	.L55:
+ 375:Libs/mbedtls/library/sha256.c **** }
+ 1701              		.loc 1 375 1 view .LVU386
+ 1702 0134 1846     		mov	r0, r3
+ 1703              	.LVL70:
+ 1704              		.loc 1 375 1 view .LVU387
+ 1705 0136 70BD     		pop	{r4, r5, r6, pc}
+ 1706              	.LVL71:
+ 1707              	.L60:
+ 342:Libs/mbedtls/library/sha256.c ****     }
+ 1708              		.loc 1 342 9 is_stmt 1 view .LVU388
+ 1709 0138 3822     		movs	r2, #56
+ 1710 013a 0021     		movs	r1, #0
+ 1711 013c 3046     		mov	r0, r6
+ 1712              	.LVL72:
+ 342:Libs/mbedtls/library/sha256.c ****     }
+ 1713              		.loc 1 342 9 is_stmt 0 view .LVU389
+ 1714 013e FFF7FEFF 		bl	memset
+ 1715              	.LVL73:
+ 342:Libs/mbedtls/library/sha256.c ****     }
+ 1716              		.loc 1 342 9 view .LVU390
+ 1717 0142 73E7     		b	.L57
+ 1718              		.cfi_endproc
+ 1719              	.LFE15:
+ 1721              		.section	.text.mbedtls_sha256_finish,"ax",%progbits
+ 1722              		.align	1
+ 1723              		.global	mbedtls_sha256_finish
+ 1724              		.syntax unified
+ 1725              		.thumb
+ 1726              		.thumb_func
+ 1728              	mbedtls_sha256_finish:
+ 1729              	.LVL74:
+ 1730              	.LFB16:
+ 376:Libs/mbedtls/library/sha256.c **** 
+ 377:Libs/mbedtls/library/sha256.c **** #if !defined(MBEDTLS_DEPRECATED_REMOVED)
+ 378:Libs/mbedtls/library/sha256.c **** void mbedtls_sha256_finish(mbedtls_sha256_context *ctx,
+ 379:Libs/mbedtls/library/sha256.c ****                            unsigned char output[32])
+ 380:Libs/mbedtls/library/sha256.c **** {
+ 1731              		.loc 1 380 1 is_stmt 1 view -0
+ 1732              		.cfi_startproc
+ 1733              		@ args = 0, pretend = 0, frame = 0
+ 1734              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1735              		.loc 1 380 1 is_stmt 0 view .LVU392
+ 1736 0000 08B5     		push	{r3, lr}
+ 1737              	.LCFI12:
+ 1738              		.cfi_def_cfa_offset 8
+ 1739              		.cfi_offset 3, -8
+ 1740              		.cfi_offset 14, -4
+ 381:Libs/mbedtls/library/sha256.c ****     mbedtls_sha256_finish_ret(ctx, output);
+ 1741              		.loc 1 381 5 is_stmt 1 view .LVU393
+ 1742 0002 FFF7FEFF 		bl	mbedtls_sha256_finish_ret
+ 1743              	.LVL75:
+ 382:Libs/mbedtls/library/sha256.c **** }
+ 1744              		.loc 1 382 1 is_stmt 0 view .LVU394
+ 1745 0006 08BD     		pop	{r3, pc}
+ 1746              		.cfi_endproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 39
+
+
+ 1747              	.LFE16:
+ 1749              		.section	.text.mbedtls_sha256_ret,"ax",%progbits
+ 1750              		.align	1
+ 1751              		.global	mbedtls_sha256_ret
+ 1752              		.syntax unified
+ 1753              		.thumb
+ 1754              		.thumb_func
+ 1756              	mbedtls_sha256_ret:
+ 1757              	.LVL76:
+ 1758              	.LFB17:
+ 383:Libs/mbedtls/library/sha256.c **** #endif
+ 384:Libs/mbedtls/library/sha256.c **** 
+ 385:Libs/mbedtls/library/sha256.c **** #endif /* !MBEDTLS_SHA256_ALT */
+ 386:Libs/mbedtls/library/sha256.c **** 
+ 387:Libs/mbedtls/library/sha256.c **** /*
+ 388:Libs/mbedtls/library/sha256.c ****  * output = SHA-256( input buffer )
+ 389:Libs/mbedtls/library/sha256.c ****  */
+ 390:Libs/mbedtls/library/sha256.c **** int mbedtls_sha256_ret(const unsigned char *input,
+ 391:Libs/mbedtls/library/sha256.c ****                        size_t ilen,
+ 392:Libs/mbedtls/library/sha256.c ****                        unsigned char output[32],
+ 393:Libs/mbedtls/library/sha256.c ****                        int is224)
+ 394:Libs/mbedtls/library/sha256.c **** {
+ 1759              		.loc 1 394 1 is_stmt 1 view -0
+ 1760              		.cfi_startproc
+ 1761              		@ args = 0, pretend = 0, frame = 112
+ 1762              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1763              		.loc 1 394 1 is_stmt 0 view .LVU396
+ 1764 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 1765              	.LCFI13:
+ 1766              		.cfi_def_cfa_offset 20
+ 1767              		.cfi_offset 4, -20
+ 1768              		.cfi_offset 5, -16
+ 1769              		.cfi_offset 6, -12
+ 1770              		.cfi_offset 7, -8
+ 1771              		.cfi_offset 14, -4
+ 1772 0002 9DB0     		sub	sp, sp, #116
+ 1773              	.LCFI14:
+ 1774              		.cfi_def_cfa_offset 136
+ 1775 0004 0546     		mov	r5, r0
+ 1776 0006 0E46     		mov	r6, r1
+ 1777 0008 1746     		mov	r7, r2
+ 1778 000a 1C46     		mov	r4, r3
+ 395:Libs/mbedtls/library/sha256.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1779              		.loc 1 395 5 is_stmt 1 view .LVU397
+ 1780              	.LVL77:
+ 396:Libs/mbedtls/library/sha256.c ****     mbedtls_sha256_context ctx;
+ 1781              		.loc 1 396 5 view .LVU398
+ 397:Libs/mbedtls/library/sha256.c **** 
+ 398:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET(is224 == 0 || is224 == 1);
+ 1782              		.loc 1 398 5 view .LVU399
+ 1783              		.loc 1 398 5 view .LVU400
+ 1784              		.loc 1 398 5 view .LVU401
+ 399:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET(ilen == 0 || input != NULL);
+ 1785              		.loc 1 399 5 view .LVU402
+ 1786              		.loc 1 399 5 view .LVU403
+ 1787              		.loc 1 399 5 view .LVU404
+ 400:Libs/mbedtls/library/sha256.c ****     SHA256_VALIDATE_RET((unsigned char *) output != NULL);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 40
+
+
+ 1788              		.loc 1 400 5 view .LVU405
+ 1789              		.loc 1 400 5 view .LVU406
+ 1790              		.loc 1 400 5 view .LVU407
+ 401:Libs/mbedtls/library/sha256.c **** 
+ 402:Libs/mbedtls/library/sha256.c ****     mbedtls_sha256_init(&ctx);
+ 1791              		.loc 1 402 5 view .LVU408
+ 1792 000c 01A8     		add	r0, sp, #4
+ 1793              	.LVL78:
+ 1794              		.loc 1 402 5 is_stmt 0 view .LVU409
+ 1795 000e FFF7FEFF 		bl	mbedtls_sha256_init
+ 1796              	.LVL79:
+ 403:Libs/mbedtls/library/sha256.c **** 
+ 404:Libs/mbedtls/library/sha256.c ****     if ((ret = mbedtls_sha256_starts_ret(&ctx, is224)) != 0) {
+ 1797              		.loc 1 404 5 is_stmt 1 view .LVU410
+ 1798              		.loc 1 404 16 is_stmt 0 view .LVU411
+ 1799 0012 2146     		mov	r1, r4
+ 1800 0014 01A8     		add	r0, sp, #4
+ 1801 0016 FFF7FEFF 		bl	mbedtls_sha256_starts_ret
+ 1802              	.LVL80:
+ 1803              		.loc 1 404 8 discriminator 1 view .LVU412
+ 1804 001a 0446     		mov	r4, r0
+ 1805              	.LVL81:
+ 1806              		.loc 1 404 8 discriminator 1 view .LVU413
+ 1807 001c 28B1     		cbz	r0, .L66
+ 1808              	.L64:
+ 405:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 406:Libs/mbedtls/library/sha256.c ****     }
+ 407:Libs/mbedtls/library/sha256.c **** 
+ 408:Libs/mbedtls/library/sha256.c ****     if ((ret = mbedtls_sha256_update_ret(&ctx, input, ilen)) != 0) {
+ 409:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 410:Libs/mbedtls/library/sha256.c ****     }
+ 411:Libs/mbedtls/library/sha256.c **** 
+ 412:Libs/mbedtls/library/sha256.c ****     if ((ret = mbedtls_sha256_finish_ret(&ctx, output)) != 0) {
+ 413:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 414:Libs/mbedtls/library/sha256.c ****     }
+ 415:Libs/mbedtls/library/sha256.c **** 
+ 416:Libs/mbedtls/library/sha256.c **** exit:
+ 417:Libs/mbedtls/library/sha256.c ****     mbedtls_sha256_free(&ctx);
+ 1809              		.loc 1 417 5 is_stmt 1 view .LVU414
+ 1810 001e 01A8     		add	r0, sp, #4
+ 1811              	.LVL82:
+ 1812              		.loc 1 417 5 is_stmt 0 view .LVU415
+ 1813 0020 FFF7FEFF 		bl	mbedtls_sha256_free
+ 1814              	.LVL83:
+ 418:Libs/mbedtls/library/sha256.c **** 
+ 419:Libs/mbedtls/library/sha256.c ****     return ret;
+ 1815              		.loc 1 419 5 is_stmt 1 view .LVU416
+ 420:Libs/mbedtls/library/sha256.c **** }
+ 1816              		.loc 1 420 1 is_stmt 0 view .LVU417
+ 1817 0024 2046     		mov	r0, r4
+ 1818 0026 1DB0     		add	sp, sp, #116
+ 1819              	.LCFI15:
+ 1820              		.cfi_remember_state
+ 1821              		.cfi_def_cfa_offset 20
+ 1822              		@ sp needed
+ 1823 0028 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 1824              	.LVL84:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 41
+
+
+ 1825              	.L66:
+ 1826              	.LCFI16:
+ 1827              		.cfi_restore_state
+ 408:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 1828              		.loc 1 408 5 is_stmt 1 view .LVU418
+ 408:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 1829              		.loc 1 408 16 is_stmt 0 view .LVU419
+ 1830 002a 3246     		mov	r2, r6
+ 1831 002c 2946     		mov	r1, r5
+ 1832 002e 01A8     		add	r0, sp, #4
+ 1833              	.LVL85:
+ 408:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 1834              		.loc 1 408 16 view .LVU420
+ 1835 0030 FFF7FEFF 		bl	mbedtls_sha256_update_ret
+ 1836              	.LVL86:
+ 408:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 1837              		.loc 1 408 8 discriminator 1 view .LVU421
+ 1838 0034 0446     		mov	r4, r0
+ 1839 0036 0028     		cmp	r0, #0
+ 1840 0038 F1D1     		bne	.L64
+ 412:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 1841              		.loc 1 412 5 is_stmt 1 view .LVU422
+ 412:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 1842              		.loc 1 412 16 is_stmt 0 view .LVU423
+ 1843 003a 3946     		mov	r1, r7
+ 1844 003c 01A8     		add	r0, sp, #4
+ 1845              	.LVL87:
+ 412:Libs/mbedtls/library/sha256.c ****         goto exit;
+ 1846              		.loc 1 412 16 view .LVU424
+ 1847 003e FFF7FEFF 		bl	mbedtls_sha256_finish_ret
+ 1848              	.LVL88:
+ 1849 0042 0446     		mov	r4, r0
+ 1850              	.LVL89:
+ 413:Libs/mbedtls/library/sha256.c ****     }
+ 1851              		.loc 1 413 9 is_stmt 1 view .LVU425
+ 416:Libs/mbedtls/library/sha256.c ****     mbedtls_sha256_free(&ctx);
+ 1852              		.loc 1 416 1 is_stmt 0 view .LVU426
+ 1853 0044 EBE7     		b	.L64
+ 1854              		.cfi_endproc
+ 1855              	.LFE17:
+ 1857              		.section	.text.mbedtls_sha256,"ax",%progbits
+ 1858              		.align	1
+ 1859              		.global	mbedtls_sha256
+ 1860              		.syntax unified
+ 1861              		.thumb
+ 1862              		.thumb_func
+ 1864              	mbedtls_sha256:
+ 1865              	.LVL90:
+ 1866              	.LFB18:
+ 421:Libs/mbedtls/library/sha256.c **** 
+ 422:Libs/mbedtls/library/sha256.c **** #if !defined(MBEDTLS_DEPRECATED_REMOVED)
+ 423:Libs/mbedtls/library/sha256.c **** void mbedtls_sha256(const unsigned char *input,
+ 424:Libs/mbedtls/library/sha256.c ****                     size_t ilen,
+ 425:Libs/mbedtls/library/sha256.c ****                     unsigned char output[32],
+ 426:Libs/mbedtls/library/sha256.c ****                     int is224)
+ 427:Libs/mbedtls/library/sha256.c **** {
+ 1867              		.loc 1 427 1 is_stmt 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 42
+
+
+ 1868              		.cfi_startproc
+ 1869              		@ args = 0, pretend = 0, frame = 0
+ 1870              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1871              		.loc 1 427 1 is_stmt 0 view .LVU428
+ 1872 0000 08B5     		push	{r3, lr}
+ 1873              	.LCFI17:
+ 1874              		.cfi_def_cfa_offset 8
+ 1875              		.cfi_offset 3, -8
+ 1876              		.cfi_offset 14, -4
+ 428:Libs/mbedtls/library/sha256.c ****     mbedtls_sha256_ret(input, ilen, output, is224);
+ 1877              		.loc 1 428 5 is_stmt 1 view .LVU429
+ 1878 0002 FFF7FEFF 		bl	mbedtls_sha256_ret
+ 1879              	.LVL91:
+ 429:Libs/mbedtls/library/sha256.c **** }
+ 1880              		.loc 1 429 1 is_stmt 0 view .LVU430
+ 1881 0006 08BD     		pop	{r3, pc}
+ 1882              		.cfi_endproc
+ 1883              	.LFE18:
+ 1885              		.section	.rodata.K,"a"
+ 1886              		.align	2
+ 1889              	K:
+ 1890 0000 982F8A42 		.word	1116352408
+ 1891 0004 91443771 		.word	1899447441
+ 1892 0008 CFFBC0B5 		.word	-1245643825
+ 1893 000c A5DBB5E9 		.word	-373957723
+ 1894 0010 5BC25639 		.word	961987163
+ 1895 0014 F111F159 		.word	1508970993
+ 1896 0018 A4823F92 		.word	-1841331548
+ 1897 001c D55E1CAB 		.word	-1424204075
+ 1898 0020 98AA07D8 		.word	-670586216
+ 1899 0024 015B8312 		.word	310598401
+ 1900 0028 BE853124 		.word	607225278
+ 1901 002c C37D0C55 		.word	1426881987
+ 1902 0030 745DBE72 		.word	1925078388
+ 1903 0034 FEB1DE80 		.word	-2132889090
+ 1904 0038 A706DC9B 		.word	-1680079193
+ 1905 003c 74F19BC1 		.word	-1046744716
+ 1906 0040 C1699BE4 		.word	-459576895
+ 1907 0044 8647BEEF 		.word	-272742522
+ 1908 0048 C69DC10F 		.word	264347078
+ 1909 004c CCA10C24 		.word	604807628
+ 1910 0050 6F2CE92D 		.word	770255983
+ 1911 0054 AA84744A 		.word	1249150122
+ 1912 0058 DCA9B05C 		.word	1555081692
+ 1913 005c DA88F976 		.word	1996064986
+ 1914 0060 52513E98 		.word	-1740746414
+ 1915 0064 6DC631A8 		.word	-1473132947
+ 1916 0068 C82703B0 		.word	-1341970488
+ 1917 006c C77F59BF 		.word	-1084653625
+ 1918 0070 F30BE0C6 		.word	-958395405
+ 1919 0074 4791A7D5 		.word	-710438585
+ 1920 0078 5163CA06 		.word	113926993
+ 1921 007c 67292914 		.word	338241895
+ 1922 0080 850AB727 		.word	666307205
+ 1923 0084 38211B2E 		.word	773529912
+ 1924 0088 FC6D2C4D 		.word	1294757372
+ 1925 008c 130D3853 		.word	1396182291
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 43
+
+
+ 1926 0090 54730A65 		.word	1695183700
+ 1927 0094 BB0A6A76 		.word	1986661051
+ 1928 0098 2EC9C281 		.word	-2117940946
+ 1929 009c 852C7292 		.word	-1838011259
+ 1930 00a0 A1E8BFA2 		.word	-1564481375
+ 1931 00a4 4B661AA8 		.word	-1474664885
+ 1932 00a8 708B4BC2 		.word	-1035236496
+ 1933 00ac A3516CC7 		.word	-949202525
+ 1934 00b0 19E892D1 		.word	-778901479
+ 1935 00b4 240699D6 		.word	-694614492
+ 1936 00b8 85350EF4 		.word	-200395387
+ 1937 00bc 70A06A10 		.word	275423344
+ 1938 00c0 16C1A419 		.word	430227734
+ 1939 00c4 086C371E 		.word	506948616
+ 1940 00c8 4C774827 		.word	659060556
+ 1941 00cc B5BCB034 		.word	883997877
+ 1942 00d0 B30C1C39 		.word	958139571
+ 1943 00d4 4AAAD84E 		.word	1322822218
+ 1944 00d8 4FCA9C5B 		.word	1537002063
+ 1945 00dc F36F2E68 		.word	1747873779
+ 1946 00e0 EE828F74 		.word	1955562222
+ 1947 00e4 6F63A578 		.word	2024104815
+ 1948 00e8 1478C884 		.word	-2067236844
+ 1949 00ec 0802C78C 		.word	-1933114872
+ 1950 00f0 FAFFBE90 		.word	-1866530822
+ 1951 00f4 EB6C50A4 		.word	-1538233109
+ 1952 00f8 F7A3F9BE 		.word	-1090935817
+ 1953 00fc F27871C6 		.word	-965641998
+ 1954              		.text
+ 1955              	.Letext0:
+ 1956              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1957              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1958              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1959              		.file 5 "Libs/mbedtls/include/mbedtls/sha256.h"
+ 1960              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1961              		.file 7 "<built-in>"
+ 1962              		.file 8 "Libs/mbedtls/include/mbedtls/platform_util.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s 			page 44
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 sha256.c
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:20     .text.mbedtls_sha256_init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:26     .text.mbedtls_sha256_init:00000000 mbedtls_sha256_init
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:53     .text.mbedtls_sha256_free:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:59     .text.mbedtls_sha256_free:00000000 mbedtls_sha256_free
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:93     .text.mbedtls_sha256_clone:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:99     .text.mbedtls_sha256_clone:00000000 mbedtls_sha256_clone
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:129    .text.mbedtls_sha256_starts_ret:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:135    .text.mbedtls_sha256_starts_ret:00000000 mbedtls_sha256_starts_ret
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:246    .text.mbedtls_sha256_starts_ret:00000070 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:263    .text.mbedtls_sha256_starts:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:269    .text.mbedtls_sha256_starts:00000000 mbedtls_sha256_starts
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:291    .text.mbedtls_internal_sha256_process:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:297    .text.mbedtls_internal_sha256_process:00000000 mbedtls_internal_sha256_process
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:695    .text.mbedtls_internal_sha256_process:0000033c $d
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1889   .rodata.K:00000000 K
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:700    .text.mbedtls_internal_sha256_process:00000340 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1031   .text.mbedtls_internal_sha256_process:000006e0 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1033   .text.mbedtls_internal_sha256_process:000006e4 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1211   .text.mbedtls_internal_sha256_process:00000884 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1216   .text.mbedtls_sha256_process:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1222   .text.mbedtls_sha256_process:00000000 mbedtls_sha256_process
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1244   .text.mbedtls_sha256_update_ret:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1250   .text.mbedtls_sha256_update_ret:00000000 mbedtls_sha256_update_ret
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1421   .text.mbedtls_sha256_update:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1427   .text.mbedtls_sha256_update:00000000 mbedtls_sha256_update
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1449   .text.mbedtls_sha256_finish_ret:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1455   .text.mbedtls_sha256_finish_ret:00000000 mbedtls_sha256_finish_ret
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1722   .text.mbedtls_sha256_finish:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1728   .text.mbedtls_sha256_finish:00000000 mbedtls_sha256_finish
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1750   .text.mbedtls_sha256_ret:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1756   .text.mbedtls_sha256_ret:00000000 mbedtls_sha256_ret
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1858   .text.mbedtls_sha256:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1864   .text.mbedtls_sha256:00000000 mbedtls_sha256
+C:\Users\nicx5\AppData\Local\Temp\ccgGHJP0.s:1886   .rodata.K:00000000 $d
+
+UNDEFINED SYMBOLS
+memset
+mbedtls_platform_zeroize
+memcpy

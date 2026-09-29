@@ -30,12 +30,25 @@ export type GalleryImageFingerprint = {
   payloadCrc32: number;
 };
 
+// Existing gallery thumbnails are PNGs. Use the original GIF for animation,
+// including images uploaded before animated gallery previews were supported.
+export function galleryPreviewUrl(image: Pick<GalleryImage, 'sourceMime' | 'sourceUrl' | 'previewUrl'>): string {
+  return image.sourceMime.toLowerCase() === 'image/gif' ? image.sourceUrl : image.previewUrl;
+}
+
 type Envelope<T> = { success?: boolean; data?: T; error?: string; message?: string };
+
+export class GalleryApiError extends Error {
+  constructor(public readonly code: string, public readonly status: number, message: string) {
+    super(message);
+    this.name = 'GalleryApiError';
+  }
+}
 
 async function readEnvelope<T>(response: Response): Promise<T> {
   const body = await response.json() as Envelope<T>;
   if (!response.ok || body.success !== true || body.data === undefined) {
-    throw new Error(body.message || body.error || `HTTP ${response.status}`);
+    throw new GalleryApiError(body.error || 'GALLERY_REQUEST_FAILED', response.status, body.message || `HTTP ${response.status}`);
   }
   return body.data;
 }
@@ -100,7 +113,7 @@ export function uploadMyGalleryImage(
       try {
         const body = JSON.parse(request.responseText) as Envelope<GalleryImage>;
         if (request.status < 200 || request.status >= 300 || body.success !== true || !body.data) {
-          throw new Error(body.message || body.error || `HTTP ${request.status}`);
+          throw new GalleryApiError(body.error || 'GALLERY_REQUEST_FAILED', request.status, body.message || `HTTP ${request.status}`);
         }
         onProgress(100);
         resolve(body.data);

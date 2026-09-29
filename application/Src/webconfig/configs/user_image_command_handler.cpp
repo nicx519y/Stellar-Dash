@@ -183,8 +183,6 @@ static_assert(sizeof(BinaryUserImageCommitResponseV2) == 83u,
 
 static constexpr uint8_t IMAGE_TRANSFER_VERSION = 3u;
 static constexpr uint16_t IMAGE_DATA_BYTES_PER_REPORT = 996u;
-static constexpr uint16_t IMAGE_TRANSFER_FLAG_CONTINUOUS = 1u << 0;
-static constexpr uint16_t IMAGE_TRANSFER_FLAG_TERMINAL_ACK_ONLY = 1u << 1;
 static constexpr uint32_t IMAGE_UPLOAD_TIMEOUT_MS = 30000u;
 
 static struct {
@@ -310,6 +308,7 @@ static bool qspi_read_bytes(uint32_t address, void* destination, uint32_t length
 }
 
 using HBoxUserImage::HeaderV3;
+using HBoxUserImage::HeaderV4;
 
 static const uint32_t USER_IMAGE_FLASH_GUARD_SIZE = HBoxUserImage::STORAGE_GUARD_SIZE;
 static const uint32_t USER_IMAGE_BASE_ADDR = USER_IMAGE_RESOURCES_ADDR + USER_IMAGE_FLASH_GUARD_SIZE;
@@ -440,6 +439,17 @@ bool UserImageCommandHandler::isUploadActive() {
 
 static void invalidate_legacy_user_image_once() {
     if (g_legacy_image_checked) return;
+    // A 12-frame image spans the old header address. Never inspect or erase
+    // that address when the current slot already contains a valid image.
+    uint8_t currentBytes[sizeof(HeaderV4)] = {0};
+    HeaderV4 current = {0};
+    if (qspi_read_bytes(USER_IMAGE_BASE_ADDR, currentBytes, sizeof(currentBytes)) &&
+        HBoxUserImage::decodeHeader(currentBytes, sizeof(currentBytes),
+                                    HBoxUserImage::USER_ID, USER_IMAGE_AREA_SIZE,
+                                    HBoxUserImage::MAX_USER_FRAMES, current)) {
+        g_legacy_image_checked = true;
+        return;
+    }
     HeaderV3 legacy = {0};
     if (!qspi_read_bytes(LEGACY_USER_IMAGE_BASE_ADDR, &legacy, sizeof(legacy))) return;
     if (legacy.magic == HBoxUserImage::MAGIC && legacy.valid == 1u) {
@@ -456,7 +466,7 @@ static void invalidate_legacy_user_image_once() {
 static bool calculate_qspi_crc(uint32_t address, uint32_t length, uint32_t& result) {
     if (length == 0u) return false;
     CRC32 crc;
-    static uint8_t buffer[W25Qxx_PageSize];
+    uint8_t buffer[W25Qxx_PageSize];
     uint32_t offset = 0u;
     while (offset < length) {
         uint32_t chunk = length - offset;
@@ -473,11 +483,12 @@ static bool read_index_header_at(uint32_t address,
                                  uint32_t areaSize,
                                  const char* expectedId,
                                  uint8_t maxFrames,
-                                 HeaderV3& out,
+                                 HeaderV4& out,
                                  bool verifyPayload = true) {
-    memset(&out, 0, sizeof(out));
-    if (!qspi_read_bytes(address, &out, sizeof(out))) return false;
-    if (!HBoxUserImage::validateStructure(out, expectedId, areaSize, maxFrames)) {
+    uint8_t bytes[sizeof(HeaderV4)] = {0};
+    if (!qspi_read_bytes(address, bytes, sizeof(bytes)) ||
+        !HBoxUserImage::decodeHeader(bytes, sizeof(bytes), expectedId,
+                                     areaSize, maxFrames, out)) {
         return false;
     }
     if (!verifyPayload) return true;
@@ -489,7 +500,7 @@ static bool read_index_header_at(uint32_t address,
 }
 
 static bool read_index_header(uint8_t target,
-                              HeaderV3& out,
+                              HeaderV4& out,
                               bool verifyPayload = true) {
     if (target != 0u) return false;
     return read_index_header_at(USER_IMAGE_BASE_ADDR,
@@ -502,7 +513,7 @@ static bool read_index_header(uint8_t target,
 
 bool UserImageCommandHandler::isBackgroundImageAvailable(const char* imageId) {
     if (!imageId) return false;
-    HeaderV3 header = {0};
+    HeaderV4 header = {0};
     if (std::strcmp(imageId, HBoxUserImage::USER_ID) == 0) {
         return read_index_header(0u, header, true);
     }
@@ -522,7 +533,7 @@ static void send_get_bg_info_response(uint32_t cid, uint8_t requested_version) {
     resp.success = 1u;
     resp.cid = cid;
 
-    HeaderV3 userIdx = {0};
+    HeaderV4 userIdx = {0};
     if (read_index_header(0, userIdx)) {
         resp.user_valid = 1u;
         resp.user_width = userIdx.width;
@@ -541,8 +552,7 @@ static void send_get_bg_info_response(uint32_t cid, uint8_t requested_version) {
     response.image_transfer_version = IMAGE_TRANSFER_VERSION;
     response.image_data_bytes_per_report = IMAGE_DATA_BYTES_PER_REPORT;
     response.image_transfer_flags =
-        IMAGE_TRANSFER_FLAG_CONTINUOUS |
-        IMAGE_TRANSFER_FLAG_TERMINAL_ACK_ONLY;
+        HBoxUserImage::IMAGE_TRANSFER_SUPPORTED_FLAGS;
     const size_t response_size = requested_version >= 2u
         ? sizeof(response)
         : requested_version == 1u
@@ -573,6 +583,9 @@ static void send_read_chunk_response(const BinaryReadBgImageChunkHeader* req, co
         h.error_msg[n] = '\0';
     }
 
+    // The complete response is written before use. Keep this large, long-lived
+    // scratch buffer in the existing D2 response area instead of AXI RAM.
+    __attribute__((section(".DMA_Section.UserImageReadResponse"), aligned(32)))
     static uint8_t buffer[sizeof(BinaryReadBgImageChunkResponseHeader) + 4096];
     memcpy(buffer, &h, sizeof(h));
     if (!error_message && chunk && chunk_size > 0) {
@@ -635,11 +648,11 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
                 break;
             }
             if (frame_count == 0u || frame_count > HBoxUserImage::MAX_USER_FRAMES) {
-                send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "Too many frames (max 6)");
+                send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "Too many frames (max 12)");
                 break;
             }
             if ((frame_count == 1u && (image_type != 0u || fps != 0u)) ||
-                (frame_count > 1u && (image_type != 1u || fps != HBoxUserImage::ANIMATION_FPS))) {
+                (frame_count > 1u && (image_type != 1u || !HBoxUserImage::isSupportedAnimationFps(fps)))) {
                 send_user_image_binary_response(BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "Invalid animation metadata");
                 break;
             }
@@ -763,7 +776,7 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
                 break;
             }
 
-            HeaderV3 idx = {0};
+            HeaderV4 idx = {0};
             idx.magic = HBoxUserImage::MAGIC;
             idx.version = HBoxUserImage::VERSION;
             idx.valid = 1u;
@@ -803,7 +816,7 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
                 break;
             }
 
-            HeaderV3 persistedHeader = {0};
+            HeaderV4 persistedHeader = {0};
             if (!qspi_read_bytes(USER_IMAGE_BASE_ADDR, &persistedHeader, sizeof(persistedHeader)) ||
                 memcmp(&persistedHeader, &idx, sizeof(idx)) != 0 ||
                 !HBoxUserImage::validateStructure(
@@ -862,7 +875,7 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
             }
             const BinaryReadBgImageChunkHeader* h = reinterpret_cast<const BinaryReadBgImageChunkHeader*>(data);
 
-            HeaderV3 idx = {0};
+            HeaderV4 idx = {0};
             // The catalog path verifies the complete payload CRC before the
             // client starts reading.  Re-validating the whole image for each
             // 4 KiB chunk would turn a preview download into O(n^2) QSPI I/O;

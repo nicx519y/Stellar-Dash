@@ -3,6 +3,7 @@
 import { Provider } from "@/components/ui/provider"
 import StyledComponentsRegistry from '@/lib/registry'
 import { SettingsLayout } from '@/components/settings-layout'
+import { useRouterStore } from '@/components/router';
 import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-config-context'
 import { Flex, HStack } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
@@ -36,6 +37,7 @@ const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
 
 // 创建一个内部组件来使用 context
 function AppContent({ children }: { children: React.ReactNode }) {
+    const firmwarePage = useRouterStore(state => state.currentRoute === 'firmware');
     const {
         connectDevice,
         deviceError,
@@ -116,7 +118,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </Flex>
             <Toaster />
             <LoadingModal
-                isOpen={connectionPending}
+                isOpen={connectionPending && !firmwarePage}
                 variant="connection"
                 connectionState={connectionInProgress ? 'connecting' : 'waiting'}
                 connectionPhase={devicePhase}

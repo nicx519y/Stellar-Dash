@@ -13,6 +13,7 @@
 #include "config_transport_sink.hpp"
 #include "board_cfg.h"
 #include "qspi-w25q64.h"
+#include "image_ack_validator.hpp"
 
 namespace {
 
@@ -82,7 +83,7 @@ struct Begin {
     uint32_t total = 0u;
     uint8_t frameCount = 1u;
     uint8_t fps = 0u;
-    uint8_t transferVersion = 2u;
+    uint8_t transferVersion = 3u;
     uint8_t reserved = 0u;
     uint32_t payloadCrc32 = 0u;
 };
@@ -114,7 +115,7 @@ void stream(const std::vector<uint8_t> &payload, bool sendLast = true)
 {
     size_t offset = 0u;
     while (offset < payload.size()) {
-        const size_t length = std::min<size_t>(44u, payload.size() - offset);
+        const size_t length = std::min<size_t>(996u, payload.size() - offset);
         const bool last = sendLast && offset + length == payload.size();
         require(UserImageCommandHandler::consumeStreamData(
                     payload.data() + offset, length, last),
@@ -132,9 +133,9 @@ void mutate(uint8_t opcode, uint32_t cid)
         reinterpret_cast<const uint8_t *>(&request), sizeof(request));
 }
 
-HBoxUserImage::HeaderV3 storedUserHeader()
+HBoxUserImage::HeaderV4 storedUserHeader()
 {
-    HBoxUserImage::HeaderV3 header{};
+    HBoxUserImage::HeaderV4 header{};
     std::memcpy(&header, flash.data() + offsetOf(kUserBase), sizeof(header));
     return header;
 }
@@ -191,8 +192,8 @@ void testCompleteCommitAndHeaderLast()
             "COMMIT ACK must report the verified payload CRC");
 
     const auto header = storedUserHeader();
-    require(header.version == 3u && header.valid == 1u,
-            "COMMIT must publish a UIMG v3 header");
+    require(header.version == 4u && header.valid == 1u,
+            "COMMIT must publish a UIMG v4 header");
     require(header.payload_crc32 == CRC32::calculate(pixels.data(), pixels.size()),
             "payload CRC must describe QSPI bytes");
     require(header.header_crc32 == HBoxUserImage::calculateHeaderCrc(header),
@@ -202,11 +203,74 @@ void testCompleteCommitAndHeaderLast()
                 HBoxUserImage::MAX_USER_FRAMES),
             "committed header must pass the shared validator");
     require(writes.back().first == offsetOf(kUserBase) &&
-                writes.back().second == sizeof(HBoxUserImage::HeaderV3),
+                writes.back().second == sizeof(HBoxUserImage::HeaderV4),
             "the final QSPI program operation must publish the header");
     require(UserImageCommandHandler::isBackgroundImageAvailable(
                 HBoxUserImage::USER_ID),
             "strict directory validation must accept the committed image");
+}
+
+void testTwelveFrameGifCommit()
+{
+    resetFixture();
+    constexpr uint32_t frameSize = 320u * 172u * 2u;
+    std::vector<uint8_t> pixels(frameSize * 12u);
+    for (uint32_t frame = 0u; frame < 12u; ++frame) {
+        std::fill(pixels.begin() + frame * frameSize,
+                  pixels.begin() + (frame + 1u) * frameSize,
+                  static_cast<uint8_t>(frame + 1u));
+    }
+    const uint32_t cid = 0x55667788u;
+    CRC32 crc;
+    for (size_t offset = 0u; offset < pixels.size(); offset += 4096u) {
+        crc.update(pixels.data() + offset,
+                   static_cast<uint16_t>(std::min<size_t>(4096u, pixels.size() - offset)));
+    }
+    begin(cid, 320u, 172u, 12u, 6u,
+          crc.finalize());
+    require(replySucceeded(0xb0u), "twelve-frame GIF BEGIN must succeed");
+    stream(pixels);
+    mutate(0x32u, cid);
+    require(replySucceeded(0xb2u),
+            ("twelve-frame GIF COMMIT must succeed: " + replyError()).c_str());
+    const auto header = storedUserHeader();
+    require(header.frame_count == 12u && header.fps == 6u &&
+                header.format == HBoxUserImage::FORMAT_RGB565LE_SEQUENCE,
+            "committed GIF must retain twelve frames at 6 FPS");
+    for (uint32_t frame = 0u; frame < 12u; ++frame) {
+        require(header.frame_offsets[frame] ==
+                    HBoxUserImage::HEADER_SIZE + frame * frameSize,
+                "GIF frame offsets must identify each persisted frame");
+    }
+    require(UserImageCommandHandler::isBackgroundImageAvailable(
+                HBoxUserImage::USER_ID),
+            "twelve-frame GIF must be available after commit");
+}
+
+void testExistingV3ImageRemainsAvailable()
+{
+    resetFixture();
+    const std::vector<uint8_t> pixels{1, 2, 3, 4, 5, 6, 7, 8};
+    HBoxUserImage::HeaderV3 header{};
+    header.magic = HBoxUserImage::MAGIC;
+    header.version = HBoxUserImage::LEGACY_VERSION;
+    header.valid = 1u;
+    header.format = HBoxUserImage::FORMAT_RGB565LE_SINGLE;
+    header.width = 2u;
+    header.height = 2u;
+    header.frame_count = 1u;
+    header.frame_size = pixels.size();
+    header.frames_offset = HBoxUserImage::HEADER_SIZE;
+    header.total_size = pixels.size();
+    header.frame_offsets[0] = HBoxUserImage::HEADER_SIZE;
+    std::strncpy(header.id, HBoxUserImage::USER_ID, sizeof(header.id) - 1u);
+    header.payload_crc32 = CRC32::calculate(pixels.data(), pixels.size());
+    header.header_crc32 = HBoxUserImage::calculateHeaderCrc(header);
+    std::memcpy(flash.data() + offsetOf(kUserBase), &header, sizeof(header));
+    std::memcpy(flash.data() + offsetOf(kUserBase) + HBoxUserImage::HEADER_SIZE,
+                pixels.data(), pixels.size());
+    require(UserImageCommandHandler::isBackgroundImageAvailable(HBoxUserImage::USER_ID),
+            "existing UIMG v3 image must remain readable");
 }
 
 void testConsecutiveUploadsReleaseFirmwareSession()
@@ -287,15 +351,15 @@ void testHeaderCorruptionAndLegacyVersionsFailClosed()
 void testCapacityAndDeleteFailure()
 {
     resetFixture();
-    begin(10u, 320u, 172u, 6u, 3u);
-    require(replySucceeded(0xb0u), "six full user frames must fit");
-    begin(11u, 320u, 172u, 7u, 3u);
+    begin(10u, 320u, 172u, 12u, 6u);
+    require(replySucceeded(0xb0u), "twelve full user frames must fit");
+    begin(11u, 320u, 172u, 13u, 6u);
     require(!replySucceeded(0xb0u) &&
-                replyError().find("max 6") != std::string::npos,
-            "the seventh user frame must return a capacity error");
+                replyError().find("max 12") != std::string::npos,
+            "the thirteenth user frame must return a capacity error");
     begin(11u, 320u, 172u, 2u, 2u);
     require(!replySucceeded(0xb0u) && replyError() == "Invalid animation metadata",
-            "animated user images must use the canonical 3 FPS rate");
+            "animated user images must use the supported 3 or 6 FPS rates");
 
     resetFixture();
     const std::vector<uint8_t> pixels{1, 2, 3, 4, 5, 6, 7, 8};
@@ -345,6 +409,65 @@ void testPageStreamingTailAndWriteFailure()
             "first QSPI error must be retained until terminal COMMIT");
     require(storedUserHeader().magic == UINT32_MAX,
             "write failure must never publish a header");
+}
+
+void testCatalogThroughRpcValidator()
+{
+    resetFixture();
+    const std::vector<uint8_t> pixels(2u * 2u * 2u * 12u, 0x5au);
+    begin(40u, 2u, 2u, 12u, 6u,
+          CRC32::calculate(pixels.data(), pixels.size()));
+    stream(pixels);
+    mutate(0x32u, 40u);
+    require(replySucceeded(0xb2u), "catalog fixture must commit twelve frames at 6 FPS");
+
+    Mutation request;
+    request.command = 0x34u;
+    request.reserved = 2u;
+    request.cid = 0x12345678u;
+    UserImageCommandHandler::handleBinaryMessage(
+        reinterpret_cast<const uint8_t *>(&request), sizeof(request));
+    require(reply.size() == 82u && reply[1] == 1u &&
+                reply[6] == 1u && loadLe16(&reply[80]) == 7u,
+            "real catalog must advertise the stored image and 6 FPS capability");
+    const auto catalog = reply;
+    auto validate = [&]() {
+        cJSON *ack = cJSON_CreateObject();
+        const auto result = describeBinaryAck(
+            reinterpret_cast<const uint8_t *>(&request), sizeof(request),
+            reply.data(), reply.size(), false, false, ack);
+        if (result == BinaryAckStatus::Accepted) {
+            require(std::strcmp(cJSON_GetObjectItemCaseSensitive(ack, "kind")->valuestring,
+                                "image.info") == 0 &&
+                        cJSON_GetObjectItemCaseSensitive(ack, "cid")->valuedouble == request.cid,
+                    "catalog ACK must retain kind and request correlation");
+        }
+        cJSON_Delete(ack);
+        return result;
+    };
+    require(validate() == BinaryAckStatus::Accepted,
+            "RPC must accept the real 6 FPS catalog response");
+    reply[80] = 3u;
+    require(validate() == BinaryAckStatus::Accepted,
+            "RPC must accept legacy transfer capability flags");
+    for (const uint8_t flags : {0u, 1u, 2u, 4u, 5u, 6u, 11u, 15u}) {
+        reply = catalog;
+        reply[80] = flags;
+        require(validate() == BinaryAckStatus::ProtocolError,
+                "missing required or unknown transfer flags must fail closed");
+    }
+    for (const size_t offset : {0u, 2u, 64u, 65u, 66u, 67u, 76u, 77u, 78u, 81u}) {
+        reply = catalog;
+        reply[offset] ^= 0x80u;
+        require(validate() == BinaryAckStatus::ProtocolError,
+                "correlation, version, limits and reserved bytes remain strict");
+    }
+    reply = catalog;
+    reply.pop_back();
+    require(validate() == BinaryAckStatus::ProtocolError,
+            "truncated catalog must fail closed");
+    require(writes.size() == 2u,
+            "catalog reads and RPC validation must not write flash");
 }
 
 void testLastAndTimeoutValidation()
@@ -423,11 +546,14 @@ int main()
 {
     testLegacyHeaderMigrationPreservesGuardAndNewSlot();
     testCompleteCommitAndHeaderLast();
+    testTwelveFrameGifCommit();
+    testExistingV3ImageRemainsAvailable();
     testConsecutiveUploadsReleaseFirmwareSession();
     testInterruptedAndCorruptPayloadsStayInvalid();
     testHeaderCorruptionAndLegacyVersionsFailClosed();
     testCapacityAndDeleteFailure();
     testPageStreamingTailAndWriteFailure();
+    testCatalogThroughRpcValidator();
     testLastAndTimeoutValidation();
     std::puts("user image QSPI reliability tests passed");
     return 0;

@@ -1,5 +1,22 @@
 # XORA WebConfig 连接故障排查
 
+## 2026-09-28 重连时报端口 0x0A：待实机验证的修复
+
+本轮用户控制台截图为 `phase=discovering/opening`、`command=none`、高速桥接未就绪，fault=26（0x1A，端口状态 0x0A）。失败在只读 Feature 就绪检查，早于加密会话。TX 的端口 0x0A 来自 `tx_dma_finish()`：NSS 释放时没有 CNT_END，被判定为发送中断。
+
+源码存在可触发同一状态的仲裁路径：STM32 写入前拉低 NSS，在 ownership guard 后若发现 W_INT 已被 TX 占用，会不发 SPI 数据就释放 NSS；TX 主循环若在此期间记录了 `s_tx_nss_seen`，此前仍会把它当成半包中断，随后锁存高速链路故障。这是源码确认的缺陷，但截图没有保留首错瞬间的 SPI 标志/计数，不能断言现场唯一根因已闭环。
+
+本轮修改只针对 WebHID 模式：CNT_END 未置位、FST_BYTE 未置位且 TOTAL_CNT 保持原长度时，保留已排队事件、DMA/FIFO 和 W_INT，清除本次 NSS 观察标记并等待真正读取。TX IRQ 在此模式下保留 FST_BYTE，避免真实半包被误认为未开始；完整发送和真实中途终止的处理保持原有语义。普通 Application 输入未启用此分支。网页新增 `bridge-not-ready` 分类，中英文提示明确需要设备完全断电、重新进入 WebConfig；不再仅提示反复重连。
+
+验证记录：
+
+- `make -C RF_PHY_Hop/TX -j4` 成功，1.8 秒；FLASH 110604 字节，RAM 128452 字节。链接器报告 RWX LOAD 警告。产物含当前工作区既有 TX 改动，本轮未回退或覆盖它们。
+- 网页 V2 能力/帧测试与连接提示测试共 7 项通过；额外直连会话测试 1 项通过、1 项失败。失败测试仍使用 `HBox WebHID v1` HKDF 上下文，而实现使用 V2；在隔离导出的未修改 HEAD 基线上复现相同断言失败，未修改该测试或加密实现。
+- `npm run typecheck` 成功，9.8 秒；`npm run build:hosted` 及产物隔离检查成功，37.4 秒。构建有 React Hooks 警告。
+- 日志：`.hbox/webhid-hs/reconnect-{tx-build,web-tests,typecheck,hosted-build,direct-baseline}.log`。TX 打包镜像 SHA-256：`2d43de7e9806e39306ff8f17a655cfbdd3c5c57184a62f9a5f4a1841f18d7094`。
+
+遵守暂停要求，未执行 TX 自动回归、设备采样或烧录；未修改保护位或锁定状态。浏览器控制工具仍不可用，设备实际连接恢复尚未验收。刷入修复版及浏览器连接验收为剩余步骤，不能将上述编译结果视为修复已在设备生效。
+
 ## 已取得的实机证据
 
 - ST-LINK USB 接口在线。最小 HLA Cortex-M 配置可以读取 SRAM，不加载 Flash 驱动，不暂停处理器。此前 dapdirect 连接失败不能作为 ST-LINK 离线的证据。

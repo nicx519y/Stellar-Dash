@@ -7,6 +7,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
 const { validateBundle, validateManifest } = require('../src/firmware-releases');
+const { readFlatZipEntries } = require('../src/action');
 
 function crc32(data) {
     let c = 0xffffffff;
@@ -35,6 +36,15 @@ function createBundle(manifestPath, keyPath, outputPath) {
         if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(a.file)) throw new Error('Artifact files must be flat filenames next to the manifest');
         const data = fs.readFileSync(path.join(path.dirname(manifestPath), a.file));
         a.size = data.length; a.sha256 = crypto.createHash('sha256').update(data).digest('hex');
+        if (manifest.schemaVersion === 2 && a.component === 'stm32') {
+            const metadata = readFlatZipEntries(path.join(path.dirname(manifestPath), a.file)).get('metadata.bin');
+            if (!metadata) throw new Error('Missing signed metadata.bin');
+            a.metadataSha256 = crypto.createHash('sha256').update(metadata).digest('hex');
+        }
+        if (manifest.schemaVersion === 2 && a.component === 'tx') {
+            a.applicationOffset = 4096; a.applicationSize = data.length - 4096;
+            a.applicationSha256 = crypto.createHash('sha256').update(data.subarray(4096)).digest('hex');
+        }
         return [a.file, data];
     });
     validateManifest(manifest);

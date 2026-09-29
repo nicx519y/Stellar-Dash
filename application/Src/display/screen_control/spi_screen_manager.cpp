@@ -103,6 +103,11 @@ static bool ok_flash_active(void) {
     return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
 }
 
+void SPIScreenManager::showFirmwareRecovery() {
+    static const char* const lines[] = {"Firmware update needs recovery", "Release GPIO1 + FN", "Hold both for 2s to retry"};
+    ScreenTimedPopup_Show(&g_actionPopup,"XORA Firmware",lines,3,60000u,HAL_GetTick());
+}
+
 static bool tick_expired(uint32_t now, uint32_t due) {
     return (int32_t)(now - due) >= 0;
 }

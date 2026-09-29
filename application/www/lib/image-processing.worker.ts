@@ -1,5 +1,7 @@
 import { decompressFrames, parseGIF } from 'gifuct-js';
 import { calculateImageCoverRect } from './image-cover';
+import { gifFrameTimelineUs, selectGifFrameIndices } from './screen-control-image';
+import { UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES } from './uimg-v4';
 
 const WIDTH = 320;
 const HEIGHT = 172;
@@ -49,23 +51,6 @@ function blend(target: Uint8ClampedArray, targetWidth: number, patch: Uint8Clamp
   }
 }
 
-function selectedIndices(times: number[], total: number) {
-  const count = Math.min(6, times.length, Math.max(1, Math.round(total / 1000 * 3)));
-  const result: number[] = [];
-  for (let sample = 0; sample < count; sample += 1) {
-    const target = count === 1 ? 0 : sample * Math.max(0, total - 1) / (count - 1);
-    let best = 0;
-    for (let index = 1; index < times.length; index += 1) if (Math.abs(times[index] - target) < Math.abs(times[best] - target)) best = index;
-    if (!result.includes(best)) result.push(best);
-  }
-  const last = times.length - 1;
-  if (!result.includes(last)) {
-    if (result.length >= 6) result[result.length - 1] = last;
-    else result.push(last);
-  }
-  return result.sort((a, b) => a - b);
-}
-
 async function processFile(file: File) {
   if (file.type !== 'image/gif' && !file.name.toLowerCase().endsWith('.gif')) {
     const bitmap = await createImageBitmap(file);
@@ -75,12 +60,13 @@ async function processFile(file: File) {
   }
   const gif = parseGIF(new Uint8Array(await file.arrayBuffer()));
   const frames = decompressFrames(gif, true);
+  if (frames.length === 0) throw new Error('GIF has no image frames');
   const logical = (gif as unknown as { lsd?: { width?: number; height?: number } }).lsd;
   const sourceWidth = logical?.width || Math.max(...frames.map(frame => (frame.dims?.left || 0) + (frame.dims?.width || 0)));
   const sourceHeight = logical?.height || Math.max(...frames.map(frame => (frame.dims?.top || 0) + (frame.dims?.height || 0)));
-  const times: number[] = []; let total = 0;
-  frames.forEach(frame => { times.push(total); total += Math.max(1, frame.delay || 10) * 10; });
-  const selected = new Set(selectedIndices(times, total));
+  const { frameTimesUs, totalUs } = gifFrameTimelineUs(frames);
+  const selected = selectGifFrameIndices(frameTimesUs, totalUs, UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES);
+  let nextSample = 0;
   const rgba = new Uint8ClampedArray(sourceWidth * sourceHeight * 4);
   const sourceCanvas = new OffscreenCanvas(sourceWidth, sourceHeight);
   const sourceContext = sourceCanvas.getContext('2d')!;
@@ -90,10 +76,10 @@ async function processFile(file: File) {
     const dims = frame.dims || { left: 0, top: 0, width: sourceWidth, height: sourceHeight };
     const restore = frame.disposalType === 3 ? new Uint8ClampedArray(rgba) : null;
     blend(rgba, sourceWidth, frame.patch, dims.width, dims.height, dims.left, dims.top);
-    if (selected.has(index)) {
+    if (selected[nextSample] === index) {
       sourceContext.putImageData(new ImageData(new Uint8ClampedArray(rgba), sourceWidth, sourceHeight), 0, 0);
       const rendered = render(sourceCanvas, sourceWidth, sourceHeight);
-      outputs.push(rendered.data);
+      while (selected[nextSample] === index) { outputs.push(rendered.data); nextSample++; }
       preview ||= await rendered.canvas.convertToBlob({ type: 'image/png' });
     }
     if (frame.disposalType === 2) {
@@ -102,7 +88,7 @@ async function processFile(file: File) {
   }
   const payload = new Uint8Array(outputs.length * WIDTH * HEIGHT * 2);
   outputs.forEach((frame, index) => payload.set(frame, index * frame.byteLength));
-  return { payload: payload.buffer, preview, frameCount: outputs.length, fps: outputs.length > 1 ? 3 : 0 };
+  return { payload: payload.buffer, preview, frameCount: outputs.length, fps: outputs.length > 1 ? UIMG_ANIMATION_FPS : 0 };
 }
 
 self.onmessage = async (event: MessageEvent<{ file: File }>) => {

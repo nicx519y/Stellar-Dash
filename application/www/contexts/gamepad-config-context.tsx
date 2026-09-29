@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { LedPreviewCoordinator } from '@/lib/led-preview-coordinator';
+import { downloadRelease, installRelease, type FirmwareInventory, type PreparedRelease, type ReleaseProgress } from '@/lib/device-transport/release-install-client';
+import { saveReleaseConfigBackup } from '@/lib/device-transport/release-config-backup';
 import {
     GameProfile,
     KeyCombination,
@@ -150,7 +152,12 @@ interface GamepadConfigContextType {
     screenControl: ScreenControlConfig;
     dataIsReady: boolean;
     setUserRebooting: (rebooting: boolean) => void;
+    deviceBackgroundReadsPaused: boolean;
     firmwareUpdating: boolean;
+    getReleaseInventory: () => Promise<FirmwareInventory>;
+    downloadSelectedRelease: (id: string, inventory: FirmwareInventory) => Promise<PreparedRelease>;
+    installSelectedRelease: (release: PreparedRelease, progress: (p: ReleaseProgress) => void, confirm: () => Promise<void>) => Promise<void>;
+    releaseInstallAction: (action: 'abort' | 'retry' | 'activate', sessionId: string) => Promise<void>;
     setFirmwareUpdating: (updating: boolean) => void;
 
     previewScreenBrightness: (brightness: number) => Promise<void>;
@@ -507,7 +514,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [configSyncState, setConfigSyncState] = useState<ConfigSyncState>({ pendingCount: 0, saving: false, paused: true, error: null });
     const [configBoundaryBusy, setConfigBoundaryBusy] = useState(false);
     const boundaryCountRef = useRef(0);
-    const configEditingBlocked = !dataIsReady || !deviceConnected || configBoundaryBusy || configRecovery.length > 0;
+    const configEditingBlocked = !dataIsReady || !deviceConnected || configBoundaryBusy || firmwareUpdating || configRecovery.length > 0;
+    const deviceBackgroundReadsPaused = configBoundaryBusy || userRebooting;
     const autoFlushRef = useRef<() => Promise<void>>(async () => {});
     const deferredConfigRef = useRef<DeferredConfigCoordinator | null>(null);
     if (!deferredConfigRef.current) {
@@ -918,6 +926,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const connectDevice = useCallback(async (): Promise<void> => {
         if (deviceClient) {
             // 该入口由用户点击连接按钮触发，允许打开 WebHID chooser。
+            setUserRebooting(false);
             cancelPendingAutomaticConnects();
             initialAutoConnectClientRef.current = deviceClient;
             resetDeviceSessionState();
@@ -931,6 +940,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const reconnectDevice = useCallback(async (): Promise<void> => {
         if (deviceClient) {
             // 程序化重连只能使用浏览器已授权的设备，不能打开 chooser。
+            setUserRebooting(false);
             cancelPendingAutomaticConnects();
             initialAutoConnectClientRef.current = deviceClient;
             resetDeviceSessionState();
@@ -1013,6 +1023,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const rfBindingRequest = useCallback(async (op: number, args: BindingArgs = {}): Promise<BindingSnapshot> => {
         const client = deviceClientRef.current;
         if (!client || client.getState() !== DeviceTransportState.CONNECTED) throw new Error('BINDING_DISCONNECTED');
+        if (boundaryCountRef.current > 0 && !rfBindingBusyRef.current) throw new Error('BINDING_BUSY');
         const owner = rfBindingOwnerRef.current;
         if (owner && (owner.client !== client || owner.epoch !== rfBindingConnectionEpoch.current)) throw new Error('BINDING_DISCONNECTED');
         const commands = ['', 'get_rf_binding', 'get_rf_binding', 'prepare_rf_binding', 'commit_rf_binding', 'abort_rf_binding'];
@@ -1833,6 +1844,55 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } catch (err) {
             return Promise.reject(new Error("Failed to stop button monitoring"));
         }
+    };
+
+    const releaseActivityRef = useRef(false);
+    const getReleaseInventory = useCallback(async (): Promise<FirmwareInventory> => {
+        if (!deviceClient) throw new Error('Device is not connected');
+        const result = await deviceClient.request('get_firmware_inventory') as unknown as FirmwareInventory;
+        if (!result || typeof result.protocol !== 'number' || typeof result.phase !== 'string') throw new Error('Device needs the whole-device installation baseline');
+        const pending = !['idle', 'completed', 'aborted'].includes(result.phase) ||
+            (releaseActivityRef.current && boundaryCountRef.current > 0);
+        setFirmwareUpdating(pending);
+        if (pending || releaseActivityRef.current) longDeviceActivityRef.current = pending;
+        releaseActivityRef.current = pending;
+        updateSyncPause();
+        return result;
+    }, [deviceClient]);
+    const downloadSelectedRelease = async (id: string, inventory: FirmwareInventory) => {
+        if (!deviceClient) throw new Error('Device is not connected');
+        return downloadRelease(deviceClient, id, inventory);
+    };
+    const installSelectedRelease = async (release: PreparedRelease, progress: (p: ReleaseProgress) => void, confirm: () => Promise<void>) => {
+        if (!deviceClient) throw new Error('Device is not connected');
+        const client = deviceClient;
+        try { await queueConfigTransaction(async () => {
+            progress({ stage: 'backup' });
+            await saveReleaseConfigBackup(`${release.digest}-${Date.now()}`, await client.exportConfig());
+            releaseActivityRef.current = true;
+            longDeviceActivityRef.current = true; updateSyncPause(); setFirmwareUpdating(true);
+            try {
+                progress({ stage: 'awaiting-confirmation' });
+                await confirm();
+                await installRelease(client, release, progress);
+            }
+            catch (error) {
+                // A failed HTTP request or physical confirmation can precede BEGIN.
+                // Only device evidence may release the exclusive operation boundary.
+                try { await getReleaseInventory(); } catch { /* Leave uncertain operation blocked. */ }
+                throw error;
+            }
+        }, false, terminateWebConfigActivities); }
+        finally {
+            // The queue boundary must have ended before clearing the release lock,
+            // including when the confirmation view unmounts before BEGIN.
+            try { await getReleaseInventory(); } catch { /* Keep an uncertain device operation blocked. */ }
+        }
+    };
+    const releaseInstallAction = async (action: 'abort' | 'retry' | 'activate', sessionId: string) => {
+        if (!deviceClient) throw new Error('Device is not connected');
+        await deviceClient.request(`${action}_release_install`, { session_id: sessionId });
+        await getReleaseInventory();
     };
 
     const performDeferredConfigFlush = async (
@@ -2719,7 +2779,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             hotkeysConfig,
             dataIsReady,
             setUserRebooting,
+            deviceBackgroundReadsPaused,
             firmwareUpdating,
+            getReleaseInventory, downloadSelectedRelease, installSelectedRelease, releaseInstallAction,
             setFirmwareUpdating,
 
             previewScreenBrightness,

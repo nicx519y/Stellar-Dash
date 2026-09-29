@@ -18,6 +18,13 @@
     {"name":"ms_get_mapping","validParams":{"id":"mapping-default"},"validErrNo":0,"dataType":"object","requiredDataFields":["mapping"],"invalid":{"kind":"params","params":{},"errNo":1}},
     {"name":"get_adc_config_backup","validParams":{},"validErrNo":410,"dataType":"object","requiredDataFields":["errorMessage"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"get_hitbox_layout","validParams":{},"validErrNo":0,"dataType":"array","requiredDataFields":[],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"get_firmware_inventory","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["protocol","phase"],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"get_release_install_status","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["protocol","phase"],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"begin_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"prepare_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"activate_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"abort_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"retry_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"get_firmware_metadata","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["metadataValidated","currentSlot","targetSlot","version","buildDate","components"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"get_device_auth","validParams":{},"validErrNo":410,"dataType":"object","requiredDataFields":[],"invalid":{"kind":"scope","errNo":403}},
 

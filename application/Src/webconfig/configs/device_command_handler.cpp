@@ -148,6 +148,13 @@ void DeviceCommandDispatcher::initializeHandlers() {
     // 注册固件相关命令
     registerHandler("get_device_auth", &firmwareHandler);
     registerHandler("get_firmware_metadata", &firmwareHandler);
+    registerHandler("get_firmware_inventory", &firmwareHandler);
+    registerHandler("get_release_install_status", &firmwareHandler);
+    registerHandler("begin_release_install", &firmwareHandler);
+    registerHandler("prepare_release_install", &firmwareHandler);
+    registerHandler("activate_release_install", &firmwareHandler);
+    registerHandler("abort_release_install", &firmwareHandler);
+    registerHandler("retry_release_install", &firmwareHandler);
     registerHandler("create_firmware_upgrade_session", &firmwareHandler);
     registerHandler("upload_firmware_chunk", &firmwareHandler);
     registerHandler("complete_firmware_upgrade_session", &firmwareHandler);

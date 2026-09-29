@@ -146,6 +146,7 @@ Src/leds/led_animation.cpp \
 Src/leds/led_strip_controller.cpp \
 Src/leds/leds_manager.cpp \
 Src/firmware/firmware_manager.cpp \
+  Src/firmware/release_installer.cpp \
 Src/display/screen_control/spi_screen_detail_ambient_brightness.cpp \
 Src/display/screen_control/spi_screen_detail_ambient_effect.cpp \
 Src/display/screen_control/spi_screen_detail_buttons_performance.cpp \

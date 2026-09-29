@@ -21,20 +21,35 @@ function setup(t) {
     t.after(() => { store.close(); fs.rmSync(root, { recursive: true, force: true }); });
     return { root, keys, store };
 }
-function bundle(context, transform = () => {}, version = '2.0.0') {
+function identity(component, buildId) {
+    const result = Buffer.alloc(121);
+    result.write('XORAFW2\0', 0, 'ascii'); result.writeUInt32LE(component, 8);
+    result.writeUInt32LE(1, 12); result.writeUInt32LE(1, 16);
+    result.writeUInt32LE(component === 1 ? 34 : 0, 20);
+    result.write('1.2.3', 24); result.write(buildId, 56); return result;
+}
+function bundle(context, transform = () => {}, version = '2.0.0', v2 = false) {
     const artifacts = []; const entries = [];
     for (const slot of ['A', 'B']) {
-        const f = makeSignedPackage(slot, context.keys);
+        const f = makeSignedPackage(slot, context.keys, v2 ? { application: identity(1, 'test-build') } : {});
         const data = storedZip([['manifest.json', Buffer.from(JSON.stringify(f.manifest))], ['metadata.bin', f.metadata], ...f.files]);
         const file = `stm32-${slot}.zip`; entries.push([file, data]);
         artifacts.push({ component: 'stm32', slot, version: f.manifest.version, buildId: 'test-build', file, size: data.length, sha256: sha(data) });
+        if(v2) artifacts[artifacts.length - 1].metadataSha256 = sha(f.metadata);
     }
     const tx = Buffer.alloc(8192, 0x44); entries.push(['tx.bin', tx]);
+    if(v2) identity(2, 'tx-build').copy(tx,4096);
     artifacts.push({ component: 'tx', version: '1.2.3', buildId: 'tx-build', imageFormat: 'ch585-tx-combined', file: 'tx.bin', size: tx.length, sha256: sha(tx) });
     for (const a of artifacts) Object.assign(a, { hardwareVersion: '2.0.0', bootSecurityMode: 'unlocked-development', requiresManualLifecycleProvisioning: false });
     const manifest = { schemaVersion: 1, product: 'XORA', deviceModel: 'STM32H750_HBOX', hardwareVersion: '2.0.0', version,
         bootSecurityMode: 'unlocked-development', requiresManualLifecycleProvisioning: false,
         compatibility: { stm32Tx: '1.2.x', txRx: '1.2.x' }, artifacts };
+    if(v2) {
+        manifest.schemaVersion=2;manifest.buildId='release-build';
+        manifest.install={protocol:1,order:'tx-then-stm32',configRead:{min:34,max:34},configWrite:34,
+            stm32Maintenance:{min:1,max:1},txMaintenance:{min:1,max:1}};
+        Object.assign(artifacts[2],{applicationOffset:4096,applicationSize:4096,applicationSha256:sha(tx.subarray(4096))});
+    }
     transform(manifest, entries);
     const raw = Buffer.from(JSON.stringify(manifest));
     const signature = crypto.sign('sha256', raw, { key: context.keys.privateKey, dsaEncoding: 'ieee-p1363' });
@@ -65,6 +80,31 @@ test('signed complete package stays draft until manual publish; revision, withdr
     assert.equal(second.get(r.id, true).audit.length, 5); second.close();
     assert.equal(c.store.import(b.file, actor).status, 'failed');
     assert.equal(c.store.list().total, 1);
+});
+
+test('v2 binds executable identities and permits only published immutable downloads', t => {
+    const c=setup(t); const b=bundle(c,()=>{},'3.0.0',true);
+    const job=c.store.import(b.file,actor); assert.equal(job.status,'completed',job.error);
+    assert.throws(()=>c.store.download(job.releaseId),/not found/);
+    let r=c.store.mutate(job.releaseId,1,'edit',{notes:'v2',acceptance:'host fixtures'},actor);
+    r=c.store.mutate(r.id,r.revision,'publish',{},actor);
+    const downloaded=c.store.download(r.id);
+    assert.equal(downloaded.release.installable,true);assert.equal(sha(downloaded.bytes),downloaded.release.bundleSha256);
+    c.store.mutate(r.id,r.revision,'withdraw',{reason:'test'},actor);
+    assert.throws(()=>c.store.download(r.id),/not found/);
+});
+
+test('v2 rejects incompatible declaration, metadata replacement, wrong build identity and IAP ranges', t => {
+    const c=setup(t);
+    for(const change of [
+        m=>{m.install.order='stm32-then-tx';},
+        m=>{m.install.configRead={min:35,max:34};},
+        m=>{m.artifacts[0].metadataSha256='0'.repeat(64);},
+        m=>{m.artifacts[2].buildId='wrong-build';},
+        m=>{m.artifacts[2].applicationOffset=0;},
+        m=>{m.artifacts[2].applicationSha256='0'.repeat(64);},
+        m=>{m.install.configWrite=33;m.install.configRead.min=33;},
+    ]) assert.throws(()=>validateBundle(bundle(c,change,'3.0.0',true).file,c.keys.publicKey,c.root));
 });
 
 test('signed manifest rejects altered digests, hardware, slots, TX/RX type, protected builds and undeclared files', t => {
@@ -151,22 +191,30 @@ test('HTTP flow: real admin gate, service-token limits, private drafts, publish,
     assert.equal((await call(base + '/releases', { headers: { Cookie: 'user' } })).status, 403);
     assert.equal((await call(base + '/imports', { method: 'POST', headers: { Origin: 'https://evil.example' } })).status, 403);
     assert.equal((await call(base + '/imports', { method: 'POST' })).status, 400);
-    const form = new FormData(); form.append('bundle', new Blob([bundle(c).data]), 'release.zip');
+    const signed = bundle(c, () => {}, '3.0.0', true);
+    const form = new FormData(); form.append('bundle', new Blob([signed.data]), 'release.zip');
     const response = await call(base + '/imports', { method: 'POST', body: form, headers: { Authorization: `Bearer ${serviceToken}` } });
     assert.equal(response.status, 200); const job = (await response.json()).data; assert.equal(job.status, 'completed');
     const id = job.releaseId;
     const json = (data, headers = {}) => ({ method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json', ...headers } });
     assert.equal((await call(`${base}/releases/${id}`, { ...json({ revision: 1, version: '9.9.9' }), method: 'PATCH' })).status, 400);
     assert.equal((await call(`/api/firmware-releases/${id}`)).status, 404);
+    assert.equal((await call(`/api/firmware-releases/${id}/download`)).status, 404);
     let r = (await (await call(`${base}/releases/${id}`, { ...json({ revision: 1, notes: 'Visible', acceptance: 'Private evidence' }), method: 'PATCH' })).json()).data;
     assert.equal((await call(`${base}/releases/${id}/publish`, json({ revision: r.revision }, { Authorization: `Bearer ${serviceToken}` }))).status, 403);
     r = (await (await call(`${base}/releases/${id}/publish`, json({ revision: r.revision }))).json()).data;
     const catalog = await call('/api/firmware-releases', { headers: { Cookie: '' } }); assert.equal(catalog.status, 200);
     assert.equal(catalog.headers.get('cache-control'), 'no-store');
     const payload = await catalog.json(); assert.equal(payload.data.total, 1); assert.equal(payload.data.items[0].acceptance, undefined);
+    const download = await call(`/api/firmware-releases/${id}/download`, { headers: { Cookie: '' } });
+    assert.equal(download.status, 200); assert.equal(download.headers.get('x-content-sha256'), sha(signed.data));
+    assert.deepEqual(Buffer.from(await download.arrayBuffer()), signed.data);
+    const verification = await call('/api/firmware-releases/verification-key', { headers: { Cookie: '' } });
+    assert.equal((await verification.json()).data.crv, 'P-256');
     assert.equal((await call(`${base}/releases/${id}/withdraw`, json({ revision: r.revision, reason: 'Issue' }))).status, 200);
     assert.equal((await call(`/api/firmware-releases/${id}`)).status, 404);
     assert.equal((await call('/downloads/' + id + '.zip')).status, 404);
+    assert.equal((await call(`/api/firmware-releases/${id}/download`)).status, 404);
     adminEnabled = false; assert.equal((await call(base + '/releases')).status, 401);
     assert.deepEqual(fs.readdirSync(c.store.tempRoot), []);
 });

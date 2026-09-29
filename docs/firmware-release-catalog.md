@@ -1,6 +1,6 @@
 # XORA 固件上传与目录
 
-本次功能只覆盖管理员导入、校验、草稿、正式发布、撤回，以及 WebConfig 浏览版本和组件详情。没有设备写入、安装计划、自动更新、下载入口或升级统计。已有 STM32 升级接口和设备流程保持独立；新整机包不会进入旧升级目录。
+管理员导入、校验、草稿、发布与撤回沿用现有流程。WebConfig 固件页消费整机目录，通过 v2 发布包执行 STM32 + TX 安装；v1 包仍只供浏览。设备事务和验收边界见 [整机安装](firmware-release-install.md)。
 
 ## 本地使用
 
@@ -13,7 +13,7 @@ python tools/hbox.py web local-serve --port 3001
 
 - 管理页面：`http://localhost:3001/admin/firmware/`，也可从账户管理或官方图库进入。
 - 公开目录：`http://localhost:3001/firmware/releases/`，无需登录或 HID 连接。
-- WebConfig 原固件页也显示同一目录；旧升级按钮不消费新目录的数据。
+- WebConfig 固件页显示设备整机身份、相同目录和安装任务；产品页不再提供独立 STM32/TX 安装按钮。
 - 管理权限沿用邮箱管理员会话和 Origin 校验。本地账号预授权参见 [邮箱认证](../server/doc/EMAIL_AUTH.md)。
 
 `local-serve` 的固件产物前置检查仍存在，本功能没有修改冻结启动／烧录入口。网页更新后需重新构建静态网页；只运行 Next 开发服务不能替代账户与目录 API。
@@ -28,7 +28,14 @@ python tools/hbox.py web local-serve --port 3001
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "buildId": "replace-with-generated-build-id",
+  "install": {
+    "protocol": 1, "order": "tx-then-stm32",
+    "configRead": { "min": 34, "max": 34 }, "configWrite": 34,
+    "stm32Maintenance": { "min": 1, "max": 1 },
+    "txMaintenance": { "min": 1, "max": 1 }
+  },
   "product": "XORA",
   "deviceModel": "STM32H750_HBOX",
   "hardwareVersion": "2.0.0",
@@ -63,7 +70,7 @@ python tools/hbox.py web local-serve --port 3001
 }
 ```
 
-可选 RX 使用 `component: "rx"`、`imageFormat: "ch585-rx-bin"`，其他字段同 TX，不带 `slot`。当前仅接收硬件 `2.0.0`，与现有 STM32 内层包验证器保持一致。TX/RX 的身份、版本和构建模式由签名清单声明；服务端不能从无自描述头的 BIN 独立证明其源码或运行行为。兼容声明只展示，不计算设备升级路径。
+可选 RX 使用 `component: "rx"`、`imageFormat: "ch585-rx-bin"`，其他字段同 TX，不带 `slot`。当前仅接收硬件 `2.0.0`，与现有 STM32 内层包验证器保持一致。v2 的 STM32/TX 版本、构建身份、配置与维护协议须匹配可执行文件内的身份记录；打包器计算 metadata 和 TX Application 摘要。RX 仍只展示签名声明，不纳入主机安装成功条件。配置版本示例以当前 CONFIG_VERSION=34 为准，不能为了通过门禁虚填兼容范围。
 
 ```powershell
 node server/scripts/create-firmware-bundle.js "path/to/release-source.json" "path/to/signing-key.pem" "path/to/xora-release.zip"
@@ -98,12 +105,14 @@ node server/scripts/create-firmware-bundle.js "path/to/release-source.json" "pat
 | `GET /api/admin/firmware/legacy` | 只读列出历史 STM32 数据，不进行迁移或发布 |
 | `GET /api/firmware-releases` | 公开正式目录，可搜索和按硬件筛选 |
 | `GET /api/firmware-releases/:id` | 公开详情；草稿／撤回均返回 404 |
+| `GET /api/firmware-releases/:id/download` | 已发布 v2 ZIP，返回 X-Content-SHA256；下载时重新验签 |
+| `GET /api/firmware-releases/verification-key` | 发布验签公钥 JWK，与设备内置信任根对应 |
 
-所有响应使用 `{success: true, data: ...}`，禁止缓存。公开接口沿用当前直连设备访问上下文，不要求账户登录或设备证明；不公开内部验收记录或管理员标识。
+除 ZIP 下载外，响应使用 `{success: true, data: ...}`，禁止缓存。公开接口沿用当前直连设备访问上下文，不要求账户登录或设备证明；不公开内部验收记录或管理员标识。
 
 数据位于 `HBOX_SERVER_DATA_DIR/firmware_releases.sqlite3` 与 `firmware-release-assets/`。包按内容摘要保存，暂存区在其 `tmp/` 内；文件不会进入旧 `uploads`，没有静态下载地址。SQLite 事务原子提交状态与审计；文件先落盘再提交引用，失败遗留文件没有公开入口。备份时需要一致地备份数据库（含 WAL）和内容目录，勿直接复制运行中的单个 SQLite 文件。
 
-旧固件 JSON、上传脚本、API 与升级逻辑本次均不迁移；“历史 STM32 发布”只是只读展示。未来升级执行和旧接口退役另行设计。
+旧固件 JSON、上传脚本与 API 保留兼容；旧写入接口也受整机事务互斥约束。“历史 STM32 发布”只读展示。重新打包必须使用新的唯一版本记录。
 
 ## 验证与预览
 
@@ -112,4 +121,4 @@ cd server
 node --test tests/firmware-releases.test.js tests/ota-package-signature.test.js tests/admin-access.test.js
 ```
 
-前端在 `application/www` 运行 `npm run typecheck`、`npm run test:firmware-catalog`。`npm run dev:mock` 可预览草稿、发布、撤回与公开目录；使用现有 Mock 管理员账号。Mock 明确标记，不执行真实验签，也不访问服务端；数据在同一标签页的 sessionStorage 中共享。
+前端在 `application/www` 运行 `npm run typecheck`、`npm run test:firmware-catalog`。`npm run dev:mock` 可预览草稿、发布、撤回与公开目录；使用现有 Mock 管理员账号。Mock 使用浏览器临时密钥生成测试包，走浏览器签名/摘要验证和模拟事务，不访问真实设备或服务端。它不替代设备验签或断电验收；数据在同一标签页的 sessionStorage 中共享。

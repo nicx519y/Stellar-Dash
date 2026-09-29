@@ -1,0 +1,2855 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"rotary-encoder.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/input/drivers/rotary_encoder/rotary-encoder.c"
+  19              		.section	.text.rotenc_enter_critical,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	rotenc_enter_critical:
+  26              	.LFB340:
+   1:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #include "rotary-encoder.h"
+   2:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+   3:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #include "board_cfg.h"
+   4:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+   5:Src/input/drivers/rotary_encoder/rotary-encoder.c **** typedef struct {
+   6:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool initialized;
+   7:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile uint8_t lastAB;
+   8:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile int16_t deltaAcc;
+   9:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile int8_t stepAcc;
+  10:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile int8_t detentDeltaAcc;
+  11:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  12:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool btnDown;
+  13:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool btnPressed;
+  14:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool btnReleased;
+  15:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool btnClicked;
+  16:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool btnLongPressed;
+  17:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  18:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool btnRaw;
+  19:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool btnStable;
+  20:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile uint8_t btnDebounceSamples;
+  21:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile uint32_t btnDownStartMs;
+  22:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool btnLongFired;
+  23:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  24:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile bool bootIgnoreActive;
+  25:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile uint32_t bootIgnoreUntilMs;
+  26:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  27:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+  28:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     volatile uint8_t debugEvents;
+  29:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+  30:Src/input/drivers/rotary_encoder/rotary-encoder.c **** } RotEnc_State;
+  31:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  32:Src/input/drivers/rotary_encoder/rotary-encoder.c **** static RotEnc_State g_rotenc = {0};
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 2
+
+
+  33:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  34:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #ifndef ROTENC_BOOT_IGNORE_MS
+  35:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #define ROTENC_BOOT_IGNORE_MS 1000u
+  36:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+  37:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  38:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #ifndef ROTENC_BUTTON_DEBOUNCE_MS
+  39:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #define ROTENC_BUTTON_DEBOUNCE_MS 10u
+  40:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+  41:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  42:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_BUTTON_DEBOUNCE_MS == 0u || ROTENC_BUTTON_DEBOUNCE_MS > 255u
+  43:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #error ROTENC_BUTTON_DEBOUNCE_MS must be in the range 1..255
+  44:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+  45:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  46:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_STEPS_PER_DETENT <= 0 || ROTENC_STEPS_PER_DETENT > 127
+  47:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #error ROTENC_STEPS_PER_DETENT must be in the range 1..127
+  48:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+  49:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  50:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+  51:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #define ROTENC_DEBUG_BTN_DOWN 0x01u
+  52:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #define ROTENC_DEBUG_BTN_UP   0x02u
+  53:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #define ROTENC_DEBUG_BTN_LONG 0x04u
+  54:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+  55:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  56:Src/input/drivers/rotary_encoder/rotary-encoder.c **** /*
+  57:Src/input/drivers/rotary_encoder/rotary-encoder.c ****  * Index is (previous AB << 2) | current AB. A valid quadrature edge changes
+  58:Src/input/drivers/rotary_encoder/rotary-encoder.c ****  * exactly one bit; two-bit jumps are rejected instead of guessing a direction.
+  59:Src/input/drivers/rotary_encoder/rotary-encoder.c ****  * The sign matches the legacy decoder's 00->10->11->01->00 direction.
+  60:Src/input/drivers/rotary_encoder/rotary-encoder.c ****  */
+  61:Src/input/drivers/rotary_encoder/rotary-encoder.c **** static const int8_t kQuadratureTransition[16] = {
+  62:Src/input/drivers/rotary_encoder/rotary-encoder.c ****      0, -1,  1,  0,
+  63:Src/input/drivers/rotary_encoder/rotary-encoder.c ****      1,  0,  0, -1,
+  64:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     -1,  0,  0,  1,
+  65:Src/input/drivers/rotary_encoder/rotary-encoder.c ****      0,  1, -1,  0,
+  66:Src/input/drivers/rotary_encoder/rotary-encoder.c **** };
+  67:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  68:Src/input/drivers/rotary_encoder/rotary-encoder.c **** static uint8_t rotenc_read_ab(void)
+  69:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+  70:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint8_t a =
+  71:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (HAL_GPIO_ReadPin(ROTENC_A_PORT, ROTENC_A_PIN) == GPIO_PIN_SET) ? 1u : 0u;
+  72:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint8_t b =
+  73:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (HAL_GPIO_ReadPin(ROTENC_B_PORT, ROTENC_B_PIN) == GPIO_PIN_SET) ? 1u : 0u;
+  74:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return (uint8_t)((a << 1) | b);
+  75:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+  76:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  77:Src/input/drivers/rotary_encoder/rotary-encoder.c **** static bool rotenc_read_button_raw_down(void)
+  78:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+  79:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return HAL_GPIO_ReadPin(ROTENC_BTN_PORT, ROTENC_BTN_PIN) == GPIO_PIN_RESET;
+  80:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+  81:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  82:Src/input/drivers/rotary_encoder/rotary-encoder.c **** static uint32_t rotenc_enter_critical(void)
+  83:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+  27              		.loc 1 83 1 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              		@ link register save eliminated.
+  84:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t primask = __get_PRIMASK();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 3
+
+
+  32              		.loc 1 84 5 view .LVU1
+  33              	.LBB14:
+  34              	.LBI14:
+  35              		.file 2 "Drivers/CMSIS/Include/cmsis_gcc.h"
+   1:Drivers/CMSIS/Include/cmsis_gcc.h **** /**************************************************************************//**
+   2:Drivers/CMSIS/Include/cmsis_gcc.h ****  * @file     cmsis_gcc.h
+   3:Drivers/CMSIS/Include/cmsis_gcc.h ****  * @brief    CMSIS compiler GCC header file
+   4:Drivers/CMSIS/Include/cmsis_gcc.h ****  * @version  V5.2.0
+   5:Drivers/CMSIS/Include/cmsis_gcc.h ****  * @date     08. May 2019
+   6:Drivers/CMSIS/Include/cmsis_gcc.h ****  ******************************************************************************/
+   7:Drivers/CMSIS/Include/cmsis_gcc.h **** /*
+   8:Drivers/CMSIS/Include/cmsis_gcc.h ****  * Copyright (c) 2009-2019 Arm Limited. All rights reserved.
+   9:Drivers/CMSIS/Include/cmsis_gcc.h ****  *
+  10:Drivers/CMSIS/Include/cmsis_gcc.h ****  * SPDX-License-Identifier: Apache-2.0
+  11:Drivers/CMSIS/Include/cmsis_gcc.h ****  *
+  12:Drivers/CMSIS/Include/cmsis_gcc.h ****  * Licensed under the Apache License, Version 2.0 (the License); you may
+  13:Drivers/CMSIS/Include/cmsis_gcc.h ****  * not use this file except in compliance with the License.
+  14:Drivers/CMSIS/Include/cmsis_gcc.h ****  * You may obtain a copy of the License at
+  15:Drivers/CMSIS/Include/cmsis_gcc.h ****  *
+  16:Drivers/CMSIS/Include/cmsis_gcc.h ****  * www.apache.org/licenses/LICENSE-2.0
+  17:Drivers/CMSIS/Include/cmsis_gcc.h ****  *
+  18:Drivers/CMSIS/Include/cmsis_gcc.h ****  * Unless required by applicable law or agreed to in writing, software
+  19:Drivers/CMSIS/Include/cmsis_gcc.h ****  * distributed under the License is distributed on an AS IS BASIS, WITHOUT
+  20:Drivers/CMSIS/Include/cmsis_gcc.h ****  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  21:Drivers/CMSIS/Include/cmsis_gcc.h ****  * See the License for the specific language governing permissions and
+  22:Drivers/CMSIS/Include/cmsis_gcc.h ****  * limitations under the License.
+  23:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+  24:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+  25:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __CMSIS_GCC_H
+  26:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_H
+  27:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+  28:Drivers/CMSIS/Include/cmsis_gcc.h **** /* ignore some GCC warnings */
+  29:Drivers/CMSIS/Include/cmsis_gcc.h **** #pragma GCC diagnostic push
+  30:Drivers/CMSIS/Include/cmsis_gcc.h **** #pragma GCC diagnostic ignored "-Wsign-conversion"
+  31:Drivers/CMSIS/Include/cmsis_gcc.h **** #pragma GCC diagnostic ignored "-Wconversion"
+  32:Drivers/CMSIS/Include/cmsis_gcc.h **** #pragma GCC diagnostic ignored "-Wunused-parameter"
+  33:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+  34:Drivers/CMSIS/Include/cmsis_gcc.h **** /* Fallback for __has_builtin */
+  35:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __has_builtin
+  36:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __has_builtin(x) (0)
+  37:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  38:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+  39:Drivers/CMSIS/Include/cmsis_gcc.h **** /* CMSIS compiler specific defines */
+  40:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __ASM
+  41:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __ASM                                  __asm
+  42:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  43:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __INLINE
+  44:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __INLINE                               inline
+  45:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  46:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __STATIC_INLINE
+  47:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __STATIC_INLINE                        static inline
+  48:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  49:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __STATIC_FORCEINLINE                 
+  50:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __STATIC_FORCEINLINE                   __attribute__((always_inline)) static inline
+  51:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif                                           
+  52:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __NO_RETURN
+  53:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __NO_RETURN                            __attribute__((__noreturn__))
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 4
+
+
+  54:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  55:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __USED
+  56:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __USED                                 __attribute__((used))
+  57:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  58:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __WEAK
+  59:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __WEAK                                 __attribute__((weak))
+  60:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  61:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __PACKED
+  62:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __PACKED                               __attribute__((packed, aligned(1)))
+  63:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  64:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __PACKED_STRUCT
+  65:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __PACKED_STRUCT                        struct __attribute__((packed, aligned(1)))
+  66:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  67:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __PACKED_UNION
+  68:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __PACKED_UNION                         union __attribute__((packed, aligned(1)))
+  69:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  70:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT32        /* deprecated */
+  71:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+  72:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+  73:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+  74:Drivers/CMSIS/Include/cmsis_gcc.h ****   struct __attribute__((packed)) T_UINT32 { uint32_t v; };
+  75:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+  76:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT32(x)                  (((struct T_UINT32 *)(x))->v)
+  77:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  78:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT16_WRITE
+  79:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+  80:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+  81:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+  82:Drivers/CMSIS/Include/cmsis_gcc.h ****   __PACKED_STRUCT T_UINT16_WRITE { uint16_t v; };
+  83:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+  84:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT16_WRITE(addr, val)    (void)((((struct T_UINT16_WRITE *)(void *)(addr))-
+  85:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  86:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT16_READ
+  87:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+  88:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+  89:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+  90:Drivers/CMSIS/Include/cmsis_gcc.h ****   __PACKED_STRUCT T_UINT16_READ { uint16_t v; };
+  91:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+  92:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT16_READ(addr)          (((const struct T_UINT16_READ *)(const void *)(add
+  93:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  94:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT32_WRITE
+  95:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+  96:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+  97:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+  98:Drivers/CMSIS/Include/cmsis_gcc.h ****   __PACKED_STRUCT T_UINT32_WRITE { uint32_t v; };
+  99:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+ 100:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT32_WRITE(addr, val)    (void)((((struct T_UINT32_WRITE *)(void *)(addr))-
+ 101:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 102:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT32_READ
+ 103:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+ 104:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+ 105:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+ 106:Drivers/CMSIS/Include/cmsis_gcc.h ****   __PACKED_STRUCT T_UINT32_READ { uint32_t v; };
+ 107:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+ 108:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT32_READ(addr)          (((const struct T_UINT32_READ *)(const void *)(add
+ 109:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 110:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __ALIGNED
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 5
+
+
+ 111:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __ALIGNED(x)                           __attribute__((aligned(x)))
+ 112:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 113:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __RESTRICT
+ 114:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __RESTRICT                             __restrict
+ 115:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 116:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __COMPILER_BARRIER
+ 117:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __COMPILER_BARRIER()                   __ASM volatile("":::"memory")
+ 118:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 119:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 120:Drivers/CMSIS/Include/cmsis_gcc.h **** /* #########################  Startup and Lowlevel Init  ######################## */
+ 121:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 122:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __PROGRAM_START
+ 123:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 124:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 125:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Initializes data and bss sections
+ 126:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details This default implementations initialized all data and additional bss
+ 127:Drivers/CMSIS/Include/cmsis_gcc.h ****            sections relying on .copy.table and .zero.table specified properly
+ 128:Drivers/CMSIS/Include/cmsis_gcc.h ****            in the used linker script.
+ 129:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 130:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 131:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE __NO_RETURN void __cmsis_start(void)
+ 132:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 133:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern void _start(void) __NO_RETURN;
+ 134:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 135:Drivers/CMSIS/Include/cmsis_gcc.h ****   typedef struct {
+ 136:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t const* src;
+ 137:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t* dest;
+ 138:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t  wlen;
+ 139:Drivers/CMSIS/Include/cmsis_gcc.h ****   } __copy_table_t;
+ 140:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 141:Drivers/CMSIS/Include/cmsis_gcc.h ****   typedef struct {
+ 142:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t* dest;
+ 143:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t  wlen;
+ 144:Drivers/CMSIS/Include/cmsis_gcc.h ****   } __zero_table_t;
+ 145:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 146:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern const __copy_table_t __copy_table_start__;
+ 147:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern const __copy_table_t __copy_table_end__;
+ 148:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern const __zero_table_t __zero_table_start__;
+ 149:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern const __zero_table_t __zero_table_end__;
+ 150:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 151:Drivers/CMSIS/Include/cmsis_gcc.h ****   for (__copy_table_t const* pTable = &__copy_table_start__; pTable < &__copy_table_end__; ++pTable
+ 152:Drivers/CMSIS/Include/cmsis_gcc.h ****     for(uint32_t i=0u; i<pTable->wlen; ++i) {
+ 153:Drivers/CMSIS/Include/cmsis_gcc.h ****       pTable->dest[i] = pTable->src[i];
+ 154:Drivers/CMSIS/Include/cmsis_gcc.h ****     }
+ 155:Drivers/CMSIS/Include/cmsis_gcc.h ****   }
+ 156:Drivers/CMSIS/Include/cmsis_gcc.h ****  
+ 157:Drivers/CMSIS/Include/cmsis_gcc.h ****   for (__zero_table_t const* pTable = &__zero_table_start__; pTable < &__zero_table_end__; ++pTable
+ 158:Drivers/CMSIS/Include/cmsis_gcc.h ****     for(uint32_t i=0u; i<pTable->wlen; ++i) {
+ 159:Drivers/CMSIS/Include/cmsis_gcc.h ****       pTable->dest[i] = 0u;
+ 160:Drivers/CMSIS/Include/cmsis_gcc.h ****     }
+ 161:Drivers/CMSIS/Include/cmsis_gcc.h ****   }
+ 162:Drivers/CMSIS/Include/cmsis_gcc.h ****  
+ 163:Drivers/CMSIS/Include/cmsis_gcc.h ****   _start();
+ 164:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 165:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 166:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __PROGRAM_START           __cmsis_start
+ 167:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 6
+
+
+ 168:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 169:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __INITIAL_SP
+ 170:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __INITIAL_SP              __StackTop
+ 171:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 172:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 173:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __STACK_LIMIT
+ 174:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __STACK_LIMIT             __StackLimit
+ 175:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 176:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 177:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __VECTOR_TABLE
+ 178:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __VECTOR_TABLE            __Vectors
+ 179:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 180:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 181:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __VECTOR_TABLE_ATTRIBUTE
+ 182:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __VECTOR_TABLE_ATTRIBUTE  __attribute((used, section(".vectors")))
+ 183:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 184:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 185:Drivers/CMSIS/Include/cmsis_gcc.h **** /* ###########################  Core Function Access  ########################### */
+ 186:Drivers/CMSIS/Include/cmsis_gcc.h **** /** \ingroup  CMSIS_Core_FunctionInterface
+ 187:Drivers/CMSIS/Include/cmsis_gcc.h ****     \defgroup CMSIS_Core_RegAccFunctions CMSIS Core Register Access Functions
+ 188:Drivers/CMSIS/Include/cmsis_gcc.h ****   @{
+ 189:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 190:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 191:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 192:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Enable IRQ Interrupts
+ 193:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Enables IRQ interrupts by clearing the I-bit in the CPSR.
+ 194:Drivers/CMSIS/Include/cmsis_gcc.h ****            Can only be executed in Privileged modes.
+ 195:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 196:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __enable_irq(void)
+ 197:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 198:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("cpsie i" : : : "memory");
+ 199:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 200:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 201:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 202:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 203:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Disable IRQ Interrupts
+ 204:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Disables IRQ interrupts by setting the I-bit in the CPSR.
+ 205:Drivers/CMSIS/Include/cmsis_gcc.h ****            Can only be executed in Privileged modes.
+ 206:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 207:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __disable_irq(void)
+ 208:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 209:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("cpsid i" : : : "memory");
+ 210:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 211:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 212:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 213:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 214:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Control Register
+ 215:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the Control Register.
+ 216:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Control Register value
+ 217:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 218:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_CONTROL(void)
+ 219:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 220:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 221:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 222:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, control" : "=r" (result) );
+ 223:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 224:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 7
+
+
+ 225:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 226:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 227:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 228:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 229:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Control Register (non-secure)
+ 230:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the non-secure Control Register when in secure mode.
+ 231:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               non-secure Control Register value
+ 232:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 233:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_CONTROL_NS(void)
+ 234:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 235:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 236:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 237:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, control_ns" : "=r" (result) );
+ 238:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 239:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 240:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 241:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 242:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 243:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 244:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Control Register
+ 245:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Writes the given value to the Control Register.
+ 246:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    control  Control Register value to set
+ 247:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 248:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_CONTROL(uint32_t control)
+ 249:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 250:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR control, %0" : : "r" (control) : "memory");
+ 251:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 252:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 253:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 254:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 255:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 256:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Control Register (non-secure)
+ 257:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Writes the given value to the non-secure Control Register when in secure state.
+ 258:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    control  Control Register value to set
+ 259:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 260:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_CONTROL_NS(uint32_t control)
+ 261:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 262:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR control_ns, %0" : : "r" (control) : "memory");
+ 263:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 264:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 265:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 266:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 267:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 268:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get IPSR Register
+ 269:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the IPSR Register.
+ 270:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               IPSR Register value
+ 271:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 272:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_IPSR(void)
+ 273:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 274:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 275:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 276:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, ipsr" : "=r" (result) );
+ 277:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 278:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 279:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 280:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 281:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 8
+
+
+ 282:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get APSR Register
+ 283:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the APSR Register.
+ 284:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               APSR Register value
+ 285:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 286:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_APSR(void)
+ 287:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 288:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 289:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 290:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, apsr" : "=r" (result) );
+ 291:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 292:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 293:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 294:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 295:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 296:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get xPSR Register
+ 297:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the xPSR Register.
+ 298:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               xPSR Register value
+ 299:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 300:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_xPSR(void)
+ 301:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 302:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 303:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 304:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, xpsr" : "=r" (result) );
+ 305:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 306:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 307:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 308:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 309:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 310:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Process Stack Pointer
+ 311:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Process Stack Pointer (PSP).
+ 312:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               PSP Register value
+ 313:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 314:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_PSP(void)
+ 315:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 316:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 317:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 318:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, psp"  : "=r" (result) );
+ 319:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 320:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 321:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 322:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 323:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 324:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 325:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Process Stack Pointer (non-secure)
+ 326:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Process Stack Pointer (PSP) when in secure s
+ 327:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               PSP Register value
+ 328:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 329:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_PSP_NS(void)
+ 330:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 331:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 332:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 333:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, psp_ns"  : "=r" (result) );
+ 334:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 335:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 336:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 337:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 338:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 9
+
+
+ 339:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 340:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Process Stack Pointer
+ 341:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Process Stack Pointer (PSP).
+ 342:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfProcStack  Process Stack Pointer value to set
+ 343:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 344:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_PSP(uint32_t topOfProcStack)
+ 345:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 346:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR psp, %0" : : "r" (topOfProcStack) : );
+ 347:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 348:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 349:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 350:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 351:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 352:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Process Stack Pointer (non-secure)
+ 353:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Process Stack Pointer (PSP) when in secure sta
+ 354:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfProcStack  Process Stack Pointer value to set
+ 355:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 356:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_PSP_NS(uint32_t topOfProcStack)
+ 357:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 358:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR psp_ns, %0" : : "r" (topOfProcStack) : );
+ 359:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 360:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 361:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 362:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 363:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 364:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Main Stack Pointer
+ 365:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Main Stack Pointer (MSP).
+ 366:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               MSP Register value
+ 367:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 368:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_MSP(void)
+ 369:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 370:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 371:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 372:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, msp" : "=r" (result) );
+ 373:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 374:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 375:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 376:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 377:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 378:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 379:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Main Stack Pointer (non-secure)
+ 380:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Main Stack Pointer (MSP) when in secure stat
+ 381:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               MSP Register value
+ 382:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 383:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_MSP_NS(void)
+ 384:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 385:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 386:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 387:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, msp_ns" : "=r" (result) );
+ 388:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 389:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 390:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 391:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 392:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 393:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 394:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Main Stack Pointer
+ 395:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Main Stack Pointer (MSP).
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 10
+
+
+ 396:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfMainStack  Main Stack Pointer value to set
+ 397:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 398:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_MSP(uint32_t topOfMainStack)
+ 399:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 400:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR msp, %0" : : "r" (topOfMainStack) : );
+ 401:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 402:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 403:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 404:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 405:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 406:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Main Stack Pointer (non-secure)
+ 407:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Main Stack Pointer (MSP) when in secure state.
+ 408:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfMainStack  Main Stack Pointer value to set
+ 409:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 410:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_MSP_NS(uint32_t topOfMainStack)
+ 411:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 412:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR msp_ns, %0" : : "r" (topOfMainStack) : );
+ 413:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 414:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 415:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 416:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 417:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 418:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 419:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Stack Pointer (non-secure)
+ 420:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Stack Pointer (SP) when in secure state.
+ 421:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               SP Register value
+ 422:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 423:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_SP_NS(void)
+ 424:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 425:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 426:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 427:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, sp_ns" : "=r" (result) );
+ 428:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 429:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 430:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 431:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 432:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 433:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Stack Pointer (non-secure)
+ 434:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Stack Pointer (SP) when in secure state.
+ 435:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfStack  Stack Pointer value to set
+ 436:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 437:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_SP_NS(uint32_t topOfStack)
+ 438:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 439:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR sp_ns, %0" : : "r" (topOfStack) : );
+ 440:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 441:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 442:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 443:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 444:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 445:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Priority Mask
+ 446:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current state of the priority mask bit from the Priority Mask Register.
+ 447:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Priority Mask value
+ 448:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 449:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_PRIMASK(void)
+  36              		.loc 2 449 31 view .LVU2
+  37              	.LBB15:
+ 450:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 11
+
+
+ 451:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+  38              		.loc 2 451 3 view .LVU3
+ 452:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 453:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, primask" : "=r" (result) :: "memory");
+  39              		.loc 2 453 3 view .LVU4
+  40              		.syntax unified
+  41              	@ 453 "Drivers/CMSIS/Include/cmsis_gcc.h" 1
+  42 0000 EFF31080 		MRS r0, primask
+  43              	@ 0 "" 2
+  44              	.LVL0:
+ 454:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+  45              		.loc 2 454 3 view .LVU5
+  46              		.loc 2 454 3 is_stmt 0 view .LVU6
+  47              		.thumb
+  48              		.syntax unified
+  49              	.LBE15:
+  50              	.LBE14:
+  85:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     __disable_irq();
+  51              		.loc 1 85 5 is_stmt 1 view .LVU7
+  52              	.LBB16:
+  53              	.LBI16:
+ 207:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+  54              		.loc 2 207 27 view .LVU8
+  55              	.LBB17:
+ 209:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+  56              		.loc 2 209 3 view .LVU9
+  57              		.syntax unified
+  58              	@ 209 "Drivers/CMSIS/Include/cmsis_gcc.h" 1
+  59 0004 72B6     		cpsid i
+  60              	@ 0 "" 2
+  61              		.thumb
+  62              		.syntax unified
+  63              	.LBE17:
+  64              	.LBE16:
+  86:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return primask;
+  65              		.loc 1 86 5 view .LVU10
+  87:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+  66              		.loc 1 87 1 is_stmt 0 view .LVU11
+  67 0006 7047     		bx	lr
+  68              		.cfi_endproc
+  69              	.LFE340:
+  71              		.section	.text.rotenc_leave_critical,"ax",%progbits
+  72              		.align	1
+  73              		.syntax unified
+  74              		.thumb
+  75              		.thumb_func
+  77              	rotenc_leave_critical:
+  78              	.LVL1:
+  79              	.LFB341:
+  88:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  89:Src/input/drivers/rotary_encoder/rotary-encoder.c **** static void rotenc_leave_critical(uint32_t primask)
+  90:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+  80              		.loc 1 90 1 is_stmt 1 view -0
+  81              		.cfi_startproc
+  82              		@ args = 0, pretend = 0, frame = 0
+  83              		@ frame_needed = 0, uses_anonymous_args = 0
+  84              		@ link register save eliminated.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 12
+
+
+  91:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if (primask == 0u) {
+  85              		.loc 1 91 5 view .LVU13
+  86              		.loc 1 91 8 is_stmt 0 view .LVU14
+  87 0000 00B9     		cbnz	r0, .L2
+  92:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         __enable_irq();
+  88              		.loc 1 92 9 is_stmt 1 view .LVU15
+  89              	.LBB18:
+  90              	.LBI18:
+ 196:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+  91              		.loc 2 196 27 view .LVU16
+  92              	.LBB19:
+ 198:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+  93              		.loc 2 198 3 view .LVU17
+  94              		.syntax unified
+  95              	@ 198 "Drivers/CMSIS/Include/cmsis_gcc.h" 1
+  96 0002 62B6     		cpsie i
+  97              	@ 0 "" 2
+  98              		.thumb
+  99              		.syntax unified
+ 100              	.L2:
+ 101              	.LBE19:
+ 102              	.LBE18:
+  93:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+  94:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 103              		.loc 1 94 1 is_stmt 0 view .LVU18
+ 104 0004 7047     		bx	lr
+ 105              		.cfi_endproc
+ 106              	.LFE341:
+ 108              		.section	.text.rotenc_reset_ignored_state,"ax",%progbits
+ 109              		.align	1
+ 110              		.syntax unified
+ 111              		.thumb
+ 112              		.thumb_func
+ 114              	rotenc_reset_ignored_state:
+ 115              	.LVL2:
+ 116              	.LFB342:
+  95:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+  96:Src/input/drivers/rotary_encoder/rotary-encoder.c **** static void rotenc_reset_ignored_state(uint8_t ab, bool rawDown)
+  97:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 117              		.loc 1 97 1 is_stmt 1 view -0
+ 118              		.cfi_startproc
+ 119              		@ args = 0, pretend = 0, frame = 0
+ 120              		@ frame_needed = 0, uses_anonymous_args = 0
+ 121              		@ link register save eliminated.
+  98:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.lastAB = ab;
+ 122              		.loc 1 98 5 view .LVU20
+ 123              		.loc 1 98 21 is_stmt 0 view .LVU21
+ 124 0000 074B     		ldr	r3, .L5
+ 125 0002 5870     		strb	r0, [r3, #1]
+  99:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.deltaAcc = 0;
+ 126              		.loc 1 99 5 is_stmt 1 view .LVU22
+ 127              		.loc 1 99 23 is_stmt 0 view .LVU23
+ 128 0004 0022     		movs	r2, #0
+ 129 0006 5A80     		strh	r2, [r3, #2]	@ movhi
+ 100:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.stepAcc = 0;
+ 130              		.loc 1 100 5 is_stmt 1 view .LVU24
+ 131              		.loc 1 100 22 is_stmt 0 view .LVU25
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 13
+
+
+ 132 0008 1A71     		strb	r2, [r3, #4]
+ 101:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.detentDeltaAcc = 0;
+ 133              		.loc 1 101 5 is_stmt 1 view .LVU26
+ 134              		.loc 1 101 29 is_stmt 0 view .LVU27
+ 135 000a 5A71     		strb	r2, [r3, #5]
+ 102:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnDown = false;
+ 136              		.loc 1 102 5 is_stmt 1 view .LVU28
+ 137              		.loc 1 102 22 is_stmt 0 view .LVU29
+ 138 000c 9A71     		strb	r2, [r3, #6]
+ 103:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnPressed = false;
+ 139              		.loc 1 103 5 is_stmt 1 view .LVU30
+ 140              		.loc 1 103 25 is_stmt 0 view .LVU31
+ 141 000e DA71     		strb	r2, [r3, #7]
+ 104:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnReleased = false;
+ 142              		.loc 1 104 5 is_stmt 1 view .LVU32
+ 143              		.loc 1 104 26 is_stmt 0 view .LVU33
+ 144 0010 1A72     		strb	r2, [r3, #8]
+ 105:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnClicked = false;
+ 145              		.loc 1 105 5 is_stmt 1 view .LVU34
+ 146              		.loc 1 105 25 is_stmt 0 view .LVU35
+ 147 0012 5A72     		strb	r2, [r3, #9]
+ 106:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnLongPressed = false;
+ 148              		.loc 1 106 5 is_stmt 1 view .LVU36
+ 149              		.loc 1 106 29 is_stmt 0 view .LVU37
+ 150 0014 9A72     		strb	r2, [r3, #10]
+ 107:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnRaw = rawDown;
+ 151              		.loc 1 107 5 is_stmt 1 view .LVU38
+ 152              		.loc 1 107 21 is_stmt 0 view .LVU39
+ 153 0016 D972     		strb	r1, [r3, #11]
+ 108:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnStable = false;
+ 154              		.loc 1 108 5 is_stmt 1 view .LVU40
+ 155              		.loc 1 108 24 is_stmt 0 view .LVU41
+ 156 0018 1A73     		strb	r2, [r3, #12]
+ 109:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnDebounceSamples = 0u;
+ 157              		.loc 1 109 5 is_stmt 1 view .LVU42
+ 158              		.loc 1 109 33 is_stmt 0 view .LVU43
+ 159 001a 5A73     		strb	r2, [r3, #13]
+ 110:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnLongFired = false;
+ 160              		.loc 1 110 5 is_stmt 1 view .LVU44
+ 161              		.loc 1 110 27 is_stmt 0 view .LVU45
+ 162 001c 1A75     		strb	r2, [r3, #20]
+ 111:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 163              		.loc 1 111 1 view .LVU46
+ 164 001e 7047     		bx	lr
+ 165              	.L6:
+ 166              		.align	2
+ 167              	.L5:
+ 168 0020 00000000 		.word	g_rotenc
+ 169              		.cfi_endproc
+ 170              	.LFE342:
+ 172              		.section	.text.rotenc_read_ab,"ax",%progbits
+ 173              		.align	1
+ 174              		.syntax unified
+ 175              		.thumb
+ 176              		.thumb_func
+ 178              	rotenc_read_ab:
+ 179              	.LFB338:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 14
+
+
+  69:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint8_t a =
+ 180              		.loc 1 69 1 is_stmt 1 view -0
+ 181              		.cfi_startproc
+ 182              		@ args = 0, pretend = 0, frame = 0
+ 183              		@ frame_needed = 0, uses_anonymous_args = 0
+ 184 0000 10B5     		push	{r4, lr}
+ 185              	.LCFI0:
+ 186              		.cfi_def_cfa_offset 8
+ 187              		.cfi_offset 4, -8
+ 188              		.cfi_offset 14, -4
+  70:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (HAL_GPIO_ReadPin(ROTENC_A_PORT, ROTENC_A_PIN) == GPIO_PIN_SET) ? 1u : 0u;
+ 189              		.loc 1 70 5 view .LVU48
+  71:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint8_t b =
+ 190              		.loc 1 71 10 is_stmt 0 view .LVU49
+ 191 0002 4FF48071 		mov	r1, #256
+ 192 0006 0948     		ldr	r0, .L13
+ 193 0008 FFF7FEFF 		bl	HAL_GPIO_ReadPin
+ 194              	.LVL3:
+ 195 000c 0446     		mov	r4, r0
+  70:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (HAL_GPIO_ReadPin(ROTENC_A_PORT, ROTENC_A_PIN) == GPIO_PIN_SET) ? 1u : 0u;
+ 196              		.loc 1 70 19 view .LVU50
+ 197 000e 0128     		cmp	r0, #1
+ 198 0010 00D0     		beq	.L8
+  70:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (HAL_GPIO_ReadPin(ROTENC_A_PORT, ROTENC_A_PIN) == GPIO_PIN_SET) ? 1u : 0u;
+ 199              		.loc 1 70 19 discriminator 2 view .LVU51
+ 200 0012 0024     		movs	r4, #0
+ 201              	.L8:
+ 202              	.LVL4:
+  72:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (HAL_GPIO_ReadPin(ROTENC_B_PORT, ROTENC_B_PIN) == GPIO_PIN_SET) ? 1u : 0u;
+ 203              		.loc 1 72 5 is_stmt 1 view .LVU52
+  73:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return (uint8_t)((a << 1) | b);
+ 204              		.loc 1 73 10 is_stmt 0 view .LVU53
+ 205 0014 4FF40071 		mov	r1, #512
+ 206 0018 0448     		ldr	r0, .L13
+ 207 001a FFF7FEFF 		bl	HAL_GPIO_ReadPin
+ 208              	.LVL5:
+  72:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (HAL_GPIO_ReadPin(ROTENC_B_PORT, ROTENC_B_PIN) == GPIO_PIN_SET) ? 1u : 0u;
+ 209              		.loc 1 72 19 view .LVU54
+ 210 001e 0128     		cmp	r0, #1
+ 211 0020 00D0     		beq	.L9
+  72:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (HAL_GPIO_ReadPin(ROTENC_B_PORT, ROTENC_B_PIN) == GPIO_PIN_SET) ? 1u : 0u;
+ 212              		.loc 1 72 19 discriminator 2 view .LVU55
+ 213 0022 0020     		movs	r0, #0
+ 214              	.L9:
+ 215              	.LVL6:
+  74:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 216              		.loc 1 74 5 is_stmt 1 view .LVU56
+  74:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 217              		.loc 1 74 12 is_stmt 0 view .LVU57
+ 218 0024 40EA4400 		orr	r0, r0, r4, lsl #1
+ 219              	.LVL7:
+  75:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 220              		.loc 1 75 1 view .LVU58
+ 221 0028 C0B2     		uxtb	r0, r0
+ 222 002a 10BD     		pop	{r4, pc}
+ 223              	.LVL8:
+ 224              	.L14:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 15
+
+
+  75:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 225              		.loc 1 75 1 view .LVU59
+ 226              		.align	2
+ 227              	.L13:
+ 228 002c 001C0258 		.word	1476533248
+ 229              		.cfi_endproc
+ 230              	.LFE338:
+ 232              		.section	.text.rotenc_read_button_raw_down,"ax",%progbits
+ 233              		.align	1
+ 234              		.syntax unified
+ 235              		.thumb
+ 236              		.thumb_func
+ 238              	rotenc_read_button_raw_down:
+ 239              	.LFB339:
+  78:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return HAL_GPIO_ReadPin(ROTENC_BTN_PORT, ROTENC_BTN_PIN) == GPIO_PIN_RESET;
+ 240              		.loc 1 78 1 is_stmt 1 view -0
+ 241              		.cfi_startproc
+ 242              		@ args = 0, pretend = 0, frame = 0
+ 243              		@ frame_needed = 0, uses_anonymous_args = 0
+ 244 0000 08B5     		push	{r3, lr}
+ 245              	.LCFI1:
+ 246              		.cfi_def_cfa_offset 8
+ 247              		.cfi_offset 3, -8
+ 248              		.cfi_offset 14, -4
+  79:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 249              		.loc 1 79 5 view .LVU61
+  79:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 250              		.loc 1 79 12 is_stmt 0 view .LVU62
+ 251 0002 0121     		movs	r1, #1
+ 252 0004 0348     		ldr	r0, .L17
+ 253 0006 FFF7FEFF 		bl	HAL_GPIO_ReadPin
+ 254              	.LVL9:
+  80:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 255              		.loc 1 80 1 view .LVU63
+ 256 000a B0FA80F0 		clz	r0, r0
+ 257 000e 4009     		lsrs	r0, r0, #5
+ 258 0010 08BD     		pop	{r3, pc}
+ 259              	.L18:
+ 260 0012 00BF     		.align	2
+ 261              	.L17:
+ 262 0014 00000258 		.word	1476526080
+ 263              		.cfi_endproc
+ 264              	.LFE339:
+ 266              		.section	.text.RotEnc_Init,"ax",%progbits
+ 267              		.align	1
+ 268              		.global	RotEnc_Init
+ 269              		.syntax unified
+ 270              		.thumb
+ 271              		.thumb_func
+ 273              	RotEnc_Init:
+ 274              	.LFB343:
+ 112:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 113:Src/input/drivers/rotary_encoder/rotary-encoder.c **** void RotEnc_Init(void)
+ 114:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 275              		.loc 1 114 1 is_stmt 1 view -0
+ 276              		.cfi_startproc
+ 277              		@ args = 0, pretend = 0, frame = 32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 16
+
+
+ 278              		@ frame_needed = 0, uses_anonymous_args = 0
+ 279 0000 2DE9F043 		push	{r4, r5, r6, r7, r8, r9, lr}
+ 280              	.LCFI2:
+ 281              		.cfi_def_cfa_offset 28
+ 282              		.cfi_offset 4, -28
+ 283              		.cfi_offset 5, -24
+ 284              		.cfi_offset 6, -20
+ 285              		.cfi_offset 7, -16
+ 286              		.cfi_offset 8, -12
+ 287              		.cfi_offset 9, -8
+ 288              		.cfi_offset 14, -4
+ 289 0004 89B0     		sub	sp, sp, #36
+ 290              	.LCFI3:
+ 291              		.cfi_def_cfa_offset 64
+ 115:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     uint32_t primask = rotenc_enter_critical();
+ 292              		.loc 1 115 5 view .LVU65
+ 293              		.loc 1 115 24 is_stmt 0 view .LVU66
+ 294 0006 FFF7FEFF 		bl	rotenc_enter_critical
+ 295              	.LVL10:
+ 116:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.initialized = false;
+ 296              		.loc 1 116 5 is_stmt 1 view .LVU67
+ 297              		.loc 1 116 26 is_stmt 0 view .LVU68
+ 298 000a 2C4D     		ldr	r5, .L21
+ 299 000c 0024     		movs	r4, #0
+ 300 000e 2C70     		strb	r4, [r5]
+ 117:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     __DMB();
+ 301              		.loc 1 117 5 is_stmt 1 view .LVU69
+ 302              	.LBB20:
+ 303              	.LBI20:
+ 455:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 456:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 457:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 458:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 459:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 460:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Priority Mask (non-secure)
+ 461:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current state of the non-secure priority mask bit from the Priority Mask Reg
+ 462:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Priority Mask value
+ 463:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 464:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_PRIMASK_NS(void)
+ 465:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 466:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 467:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 468:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, primask_ns" : "=r" (result) :: "memory");
+ 469:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 470:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 471:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 472:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 473:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 474:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 475:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Priority Mask
+ 476:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Priority Mask Register.
+ 477:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    priMask  Priority Mask
+ 478:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 479:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_PRIMASK(uint32_t priMask)
+ 480:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 481:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR primask, %0" : : "r" (priMask) : "memory");
+ 482:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 17
+
+
+ 483:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 484:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 485:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 486:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 487:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Priority Mask (non-secure)
+ 488:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Priority Mask Register when in secure state.
+ 489:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    priMask  Priority Mask
+ 490:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 491:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_PRIMASK_NS(uint32_t priMask)
+ 492:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 493:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR primask_ns, %0" : : "r" (priMask) : "memory");
+ 494:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 495:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 496:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 497:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 498:Drivers/CMSIS/Include/cmsis_gcc.h **** #if ((defined (__ARM_ARCH_7M__      ) && (__ARM_ARCH_7M__      == 1)) || \
+ 499:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__ARM_ARCH_7EM__     ) && (__ARM_ARCH_7EM__     == 1)) || \
+ 500:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1))    )
+ 501:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 502:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Enable FIQ
+ 503:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Enables FIQ interrupts by clearing the F-bit in the CPSR.
+ 504:Drivers/CMSIS/Include/cmsis_gcc.h ****            Can only be executed in Privileged modes.
+ 505:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 506:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __enable_fault_irq(void)
+ 507:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 508:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("cpsie f" : : : "memory");
+ 509:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 510:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 511:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 512:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 513:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Disable FIQ
+ 514:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Disables FIQ interrupts by setting the F-bit in the CPSR.
+ 515:Drivers/CMSIS/Include/cmsis_gcc.h ****            Can only be executed in Privileged modes.
+ 516:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 517:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __disable_fault_irq(void)
+ 518:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 519:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("cpsid f" : : : "memory");
+ 520:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 521:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 522:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 523:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 524:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Base Priority
+ 525:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Base Priority register.
+ 526:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Base Priority register value
+ 527:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 528:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_BASEPRI(void)
+ 529:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 530:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 531:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 532:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, basepri" : "=r" (result) );
+ 533:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 534:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 535:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 536:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 537:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 538:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 539:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Base Priority (non-secure)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 18
+
+
+ 540:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Base Priority register when in secure state.
+ 541:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Base Priority register value
+ 542:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 543:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_BASEPRI_NS(void)
+ 544:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 545:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 546:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 547:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, basepri_ns" : "=r" (result) );
+ 548:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 549:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 550:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 551:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 552:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 553:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 554:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Base Priority
+ 555:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Base Priority register.
+ 556:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    basePri  Base Priority value to set
+ 557:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 558:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_BASEPRI(uint32_t basePri)
+ 559:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 560:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR basepri, %0" : : "r" (basePri) : "memory");
+ 561:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 562:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 563:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 564:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 565:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 566:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Base Priority (non-secure)
+ 567:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Base Priority register when in secure state.
+ 568:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    basePri  Base Priority value to set
+ 569:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 570:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_BASEPRI_NS(uint32_t basePri)
+ 571:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 572:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR basepri_ns, %0" : : "r" (basePri) : "memory");
+ 573:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 574:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 575:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 576:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 577:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 578:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Base Priority with condition
+ 579:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Base Priority register only if BASEPRI masking is disable
+ 580:Drivers/CMSIS/Include/cmsis_gcc.h ****            or the new value increases the BASEPRI priority level.
+ 581:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    basePri  Base Priority value to set
+ 582:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 583:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_BASEPRI_MAX(uint32_t basePri)
+ 584:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 585:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR basepri_max, %0" : : "r" (basePri) : "memory");
+ 586:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 587:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 588:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 589:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 590:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Fault Mask
+ 591:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Fault Mask register.
+ 592:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Fault Mask register value
+ 593:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 594:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_FAULTMASK(void)
+ 595:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 596:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 19
+
+
+ 597:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 598:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, faultmask" : "=r" (result) );
+ 599:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 600:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 601:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 602:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 603:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 604:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 605:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Fault Mask (non-secure)
+ 606:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Fault Mask register when in secure state.
+ 607:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Fault Mask register value
+ 608:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 609:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_FAULTMASK_NS(void)
+ 610:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 611:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 612:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 613:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, faultmask_ns" : "=r" (result) );
+ 614:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 615:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 616:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 617:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 618:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 619:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 620:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Fault Mask
+ 621:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Fault Mask register.
+ 622:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    faultMask  Fault Mask value to set
+ 623:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 624:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_FAULTMASK(uint32_t faultMask)
+ 625:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 626:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR faultmask, %0" : : "r" (faultMask) : "memory");
+ 627:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 628:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 629:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 630:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 631:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 632:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Fault Mask (non-secure)
+ 633:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Fault Mask register when in secure state.
+ 634:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    faultMask  Fault Mask value to set
+ 635:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 636:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_FAULTMASK_NS(uint32_t faultMask)
+ 637:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 638:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR faultmask_ns, %0" : : "r" (faultMask) : "memory");
+ 639:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 640:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 641:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 642:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif /* ((defined (__ARM_ARCH_7M__      ) && (__ARM_ARCH_7M__      == 1)) || \
+ 643:Drivers/CMSIS/Include/cmsis_gcc.h ****            (defined (__ARM_ARCH_7EM__     ) && (__ARM_ARCH_7EM__     == 1)) || \
+ 644:Drivers/CMSIS/Include/cmsis_gcc.h ****            (defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1))    ) */
+ 645:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 646:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 647:Drivers/CMSIS/Include/cmsis_gcc.h **** #if ((defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) || \
+ 648:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__ARM_ARCH_8M_BASE__ ) && (__ARM_ARCH_8M_BASE__ == 1))    )
+ 649:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 650:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 651:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Process Stack Pointer Limit
+ 652:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 653:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence zero is returned always in non-secure
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 20
+
+
+ 654:Drivers/CMSIS/Include/cmsis_gcc.h ****   mode.
+ 655:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 656:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Process Stack Pointer Limit (PSPLIM).
+ 657:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               PSPLIM Register value
+ 658:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 659:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_PSPLIM(void)
+ 660:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 661:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) && \
+ 662:Drivers/CMSIS/Include/cmsis_gcc.h ****     (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+ 663:Drivers/CMSIS/Include/cmsis_gcc.h ****     // without main extensions, the non-secure PSPLIM is RAZ/WI
+ 664:Drivers/CMSIS/Include/cmsis_gcc.h ****   return 0U;
+ 665:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 666:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 667:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, psplim"  : "=r" (result) );
+ 668:Drivers/CMSIS/Include/cmsis_gcc.h ****   return result;
+ 669:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 670:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 671:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 672:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE) && (__ARM_FEATURE_CMSE == 3))
+ 673:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 674:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Process Stack Pointer Limit (non-secure)
+ 675:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 676:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence zero is returned always.
+ 677:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 678:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Process Stack Pointer Limit (PSPLIM) when in
+ 679:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               PSPLIM Register value
+ 680:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 681:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_PSPLIM_NS(void)
+ 682:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 683:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)))
+ 684:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure PSPLIM is RAZ/WI
+ 685:Drivers/CMSIS/Include/cmsis_gcc.h ****   return 0U;
+ 686:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 687:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 688:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, psplim_ns"  : "=r" (result) );
+ 689:Drivers/CMSIS/Include/cmsis_gcc.h ****   return result;
+ 690:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 691:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 692:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 693:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 694:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 695:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 696:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Process Stack Pointer Limit
+ 697:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 698:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence the write is silently ignored in non-secure
+ 699:Drivers/CMSIS/Include/cmsis_gcc.h ****   mode.
+ 700:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 701:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Process Stack Pointer Limit (PSPLIM).
+ 702:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    ProcStackPtrLimit  Process Stack Pointer Limit value to set
+ 703:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 704:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_PSPLIM(uint32_t ProcStackPtrLimit)
+ 705:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 706:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) && \
+ 707:Drivers/CMSIS/Include/cmsis_gcc.h ****     (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+ 708:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure PSPLIM is RAZ/WI
+ 709:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)ProcStackPtrLimit;
+ 710:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 21
+
+
+ 711:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR psplim, %0" : : "r" (ProcStackPtrLimit));
+ 712:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 713:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 714:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 715:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 716:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE  ) && (__ARM_FEATURE_CMSE   == 3))
+ 717:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 718:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Process Stack Pointer (non-secure)
+ 719:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 720:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence the write is silently ignored.
+ 721:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 722:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Process Stack Pointer Limit (PSPLIM) when in s
+ 723:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    ProcStackPtrLimit  Process Stack Pointer Limit value to set
+ 724:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 725:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_PSPLIM_NS(uint32_t ProcStackPtrLimit)
+ 726:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 727:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)))
+ 728:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure PSPLIM is RAZ/WI
+ 729:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)ProcStackPtrLimit;
+ 730:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 731:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR psplim_ns, %0\n" : : "r" (ProcStackPtrLimit));
+ 732:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 733:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 734:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 735:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 736:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 737:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 738:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Main Stack Pointer Limit
+ 739:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 740:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence zero is returned always in non-secure
+ 741:Drivers/CMSIS/Include/cmsis_gcc.h ****   mode.
+ 742:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 743:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Main Stack Pointer Limit (MSPLIM).
+ 744:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               MSPLIM Register value
+ 745:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 746:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_MSPLIM(void)
+ 747:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 748:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) && \
+ 749:Drivers/CMSIS/Include/cmsis_gcc.h ****     (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+ 750:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure MSPLIM is RAZ/WI
+ 751:Drivers/CMSIS/Include/cmsis_gcc.h ****   return 0U;
+ 752:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 753:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 754:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, msplim" : "=r" (result) );
+ 755:Drivers/CMSIS/Include/cmsis_gcc.h ****   return result;
+ 756:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 757:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 758:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 759:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 760:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE  ) && (__ARM_FEATURE_CMSE   == 3))
+ 761:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 762:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Main Stack Pointer Limit (non-secure)
+ 763:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 764:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence zero is returned always.
+ 765:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 766:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Main Stack Pointer Limit(MSPLIM) when in sec
+ 767:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               MSPLIM Register value
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 22
+
+
+ 768:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 769:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_MSPLIM_NS(void)
+ 770:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 771:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)))
+ 772:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure MSPLIM is RAZ/WI
+ 773:Drivers/CMSIS/Include/cmsis_gcc.h ****   return 0U;
+ 774:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 775:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 776:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, msplim_ns" : "=r" (result) );
+ 777:Drivers/CMSIS/Include/cmsis_gcc.h ****   return result;
+ 778:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 779:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 780:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 781:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 782:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 783:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 784:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Main Stack Pointer Limit
+ 785:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 786:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence the write is silently ignored in non-secure
+ 787:Drivers/CMSIS/Include/cmsis_gcc.h ****   mode.
+ 788:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 789:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Main Stack Pointer Limit (MSPLIM).
+ 790:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    MainStackPtrLimit  Main Stack Pointer Limit value to set
+ 791:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 792:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_MSPLIM(uint32_t MainStackPtrLimit)
+ 793:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 794:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) && \
+ 795:Drivers/CMSIS/Include/cmsis_gcc.h ****     (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+ 796:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure MSPLIM is RAZ/WI
+ 797:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)MainStackPtrLimit;
+ 798:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 799:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR msplim, %0" : : "r" (MainStackPtrLimit));
+ 800:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 801:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 802:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 803:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 804:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE  ) && (__ARM_FEATURE_CMSE   == 3))
+ 805:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 806:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Main Stack Pointer Limit (non-secure)
+ 807:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 808:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence the write is silently ignored.
+ 809:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 810:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Main Stack Pointer Limit (MSPLIM) when in secu
+ 811:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    MainStackPtrLimit  Main Stack Pointer value to set
+ 812:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 813:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_MSPLIM_NS(uint32_t MainStackPtrLimit)
+ 814:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 815:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)))
+ 816:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure MSPLIM is RAZ/WI
+ 817:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)MainStackPtrLimit;
+ 818:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 819:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR msplim_ns, %0" : : "r" (MainStackPtrLimit));
+ 820:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 821:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 822:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 823:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 824:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif /* ((defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) || \
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 23
+
+
+ 825:Drivers/CMSIS/Include/cmsis_gcc.h ****            (defined (__ARM_ARCH_8M_BASE__ ) && (__ARM_ARCH_8M_BASE__ == 1))    ) */
+ 826:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 827:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 828:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 829:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get FPSCR
+ 830:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Floating Point Status/Control register.
+ 831:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Floating Point Status/Control register value
+ 832:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 833:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_FPSCR(void)
+ 834:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 835:Drivers/CMSIS/Include/cmsis_gcc.h **** #if ((defined (__FPU_PRESENT) && (__FPU_PRESENT == 1U)) && \
+ 836:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__FPU_USED   ) && (__FPU_USED    == 1U))     )
+ 837:Drivers/CMSIS/Include/cmsis_gcc.h **** #if __has_builtin(__builtin_arm_get_fpscr) 
+ 838:Drivers/CMSIS/Include/cmsis_gcc.h **** // Re-enable using built-in when GCC has been fixed
+ 839:Drivers/CMSIS/Include/cmsis_gcc.h **** // || (__GNUC__ > 7) || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2)
+ 840:Drivers/CMSIS/Include/cmsis_gcc.h ****   /* see https://gcc.gnu.org/ml/gcc-patches/2017-04/msg00443.html */
+ 841:Drivers/CMSIS/Include/cmsis_gcc.h ****   return __builtin_arm_get_fpscr();
+ 842:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 843:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 844:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 845:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("VMRS %0, fpscr" : "=r" (result) );
+ 846:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 847:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 848:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 849:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(0U);
+ 850:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 851:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 852:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 853:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 854:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 855:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set FPSCR
+ 856:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Floating Point Status/Control register.
+ 857:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    fpscr  Floating Point Status/Control value to set
+ 858:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 859:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_FPSCR(uint32_t fpscr)
+ 860:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 861:Drivers/CMSIS/Include/cmsis_gcc.h **** #if ((defined (__FPU_PRESENT) && (__FPU_PRESENT == 1U)) && \
+ 862:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__FPU_USED   ) && (__FPU_USED    == 1U))     )
+ 863:Drivers/CMSIS/Include/cmsis_gcc.h **** #if __has_builtin(__builtin_arm_set_fpscr)
+ 864:Drivers/CMSIS/Include/cmsis_gcc.h **** // Re-enable using built-in when GCC has been fixed
+ 865:Drivers/CMSIS/Include/cmsis_gcc.h **** // || (__GNUC__ > 7) || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2)
+ 866:Drivers/CMSIS/Include/cmsis_gcc.h ****   /* see https://gcc.gnu.org/ml/gcc-patches/2017-04/msg00443.html */
+ 867:Drivers/CMSIS/Include/cmsis_gcc.h ****   __builtin_arm_set_fpscr(fpscr);
+ 868:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 869:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("VMSR fpscr, %0" : : "r" (fpscr) : "vfpcc", "memory");
+ 870:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 871:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 872:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)fpscr;
+ 873:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 874:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 875:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 876:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 877:Drivers/CMSIS/Include/cmsis_gcc.h **** /*@} end of CMSIS_Core_RegAccFunctions */
+ 878:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 879:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 880:Drivers/CMSIS/Include/cmsis_gcc.h **** /* ##########################  Core Instruction Access  ######################### */
+ 881:Drivers/CMSIS/Include/cmsis_gcc.h **** /** \defgroup CMSIS_Core_InstructionInterface CMSIS Core Instruction Interface
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 24
+
+
+ 882:Drivers/CMSIS/Include/cmsis_gcc.h ****   Access to dedicated instructions
+ 883:Drivers/CMSIS/Include/cmsis_gcc.h ****   @{
+ 884:Drivers/CMSIS/Include/cmsis_gcc.h **** */
+ 885:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 886:Drivers/CMSIS/Include/cmsis_gcc.h **** /* Define macros for porting to both thumb1 and thumb2.
+ 887:Drivers/CMSIS/Include/cmsis_gcc.h ****  * For thumb1, use low register (r0-r7), specified by constraint "l"
+ 888:Drivers/CMSIS/Include/cmsis_gcc.h ****  * Otherwise, use general registers, specified by constraint "r" */
+ 889:Drivers/CMSIS/Include/cmsis_gcc.h **** #if defined (__thumb__) && !defined (__thumb2__)
+ 890:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_OUT_REG(r) "=l" (r)
+ 891:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_RW_REG(r) "+l" (r)
+ 892:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_USE_REG(r) "l" (r)
+ 893:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 894:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_OUT_REG(r) "=r" (r)
+ 895:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_RW_REG(r) "+r" (r)
+ 896:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_USE_REG(r) "r" (r)
+ 897:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 898:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 899:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 900:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   No Operation
+ 901:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details No Operation does nothing. This instruction can be used for code alignment purposes.
+ 902:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 903:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __NOP()                             __ASM volatile ("nop")
+ 904:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 905:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 906:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Wait For Interrupt
+ 907:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Wait For Interrupt is a hint instruction that suspends execution until one of a number o
+ 908:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 909:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __WFI()                             __ASM volatile ("wfi")
+ 910:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 911:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 912:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 913:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Wait For Event
+ 914:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Wait For Event is a hint instruction that permits the processor to enter
+ 915:Drivers/CMSIS/Include/cmsis_gcc.h ****            a low-power state until one of a number of events occurs.
+ 916:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 917:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __WFE()                             __ASM volatile ("wfe")
+ 918:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 919:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 920:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 921:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Send Event
+ 922:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Send Event is a hint instruction. It causes an event to be signaled to the CPU.
+ 923:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 924:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __SEV()                             __ASM volatile ("sev")
+ 925:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 926:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 927:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 928:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Instruction Synchronization Barrier
+ 929:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Instruction Synchronization Barrier flushes the pipeline in the processor,
+ 930:Drivers/CMSIS/Include/cmsis_gcc.h ****            so that all instructions following the ISB are fetched from cache or memory,
+ 931:Drivers/CMSIS/Include/cmsis_gcc.h ****            after the instruction has been completed.
+ 932:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 933:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __ISB(void)
+ 934:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 935:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("isb 0xF":::"memory");
+ 936:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 937:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 938:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 25
+
+
+ 939:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 940:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Data Synchronization Barrier
+ 941:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Acts as a special kind of Data Memory Barrier.
+ 942:Drivers/CMSIS/Include/cmsis_gcc.h ****            It completes when all explicit memory accesses before this instruction complete.
+ 943:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 944:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __DSB(void)
+ 945:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 946:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("dsb 0xF":::"memory");
+ 947:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 948:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 949:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 950:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 951:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Data Memory Barrier
+ 952:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Ensures the apparent order of the explicit memory operations before
+ 953:Drivers/CMSIS/Include/cmsis_gcc.h ****            and after the instruction, without ensuring their completion.
+ 954:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 955:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __DMB(void)
+ 304              		.loc 2 955 27 view .LVU70
+ 305              	.LBB21:
+ 956:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 957:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("dmb 0xF":::"memory");
+ 306              		.loc 2 957 3 view .LVU71
+ 307              		.syntax unified
+ 308              	@ 957 "Drivers/CMSIS/Include/cmsis_gcc.h" 1
+ 309 0010 BFF35F8F 		dmb 0xF
+ 310              	@ 0 "" 2
+ 311              		.thumb
+ 312              		.syntax unified
+ 313              	.LBE21:
+ 314              	.LBE20:
+ 118:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 315              		.loc 1 118 5 view .LVU72
+ 316 0014 FFF7FEFF 		bl	rotenc_leave_critical
+ 317              	.LVL11:
+ 119:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 120:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+ 318              		.loc 1 120 5 view .LVU73
+ 319              	.LBB22:
+ 320              		.loc 1 120 5 view .LVU74
+ 321              		.loc 1 120 5 view .LVU75
+ 322 0018 294B     		ldr	r3, .L21+4
+ 323 001a D3F8E020 		ldr	r2, [r3, #224]
+ 324 001e 42F08002 		orr	r2, r2, #128
+ 325 0022 C3F8E020 		str	r2, [r3, #224]
+ 326              		.loc 1 120 5 view .LVU76
+ 327 0026 D3F8E020 		ldr	r2, [r3, #224]
+ 328 002a 02F08002 		and	r2, r2, #128
+ 329 002e 0192     		str	r2, [sp, #4]
+ 330              		.loc 1 120 5 view .LVU77
+ 331 0030 019A     		ldr	r2, [sp, #4]
+ 332              	.LBE22:
+ 333              		.loc 1 120 5 view .LVU78
+ 121:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     __HAL_RCC_GPIOA_CLK_ENABLE();
+ 334              		.loc 1 121 5 view .LVU79
+ 335              	.LBB23:
+ 336              		.loc 1 121 5 view .LVU80
+ 337              		.loc 1 121 5 view .LVU81
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 26
+
+
+ 338 0032 D3F8E020 		ldr	r2, [r3, #224]
+ 339 0036 42F00102 		orr	r2, r2, #1
+ 340 003a C3F8E020 		str	r2, [r3, #224]
+ 341              		.loc 1 121 5 view .LVU82
+ 342 003e D3F8E030 		ldr	r3, [r3, #224]
+ 343 0042 03F00103 		and	r3, r3, #1
+ 344 0046 0293     		str	r3, [sp, #8]
+ 345              		.loc 1 121 5 view .LVU83
+ 346 0048 029B     		ldr	r3, [sp, #8]
+ 347              	.LBE23:
+ 348              		.loc 1 121 5 view .LVU84
+ 122:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 123:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     GPIO_InitTypeDef gpio = {0};
+ 349              		.loc 1 123 5 view .LVU85
+ 350              		.loc 1 123 22 is_stmt 0 view .LVU86
+ 351 004a 0394     		str	r4, [sp, #12]
+ 352 004c 0494     		str	r4, [sp, #16]
+ 353 004e 0594     		str	r4, [sp, #20]
+ 354 0050 0694     		str	r4, [sp, #24]
+ 355 0052 0794     		str	r4, [sp, #28]
+ 124:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     /*
+ 125:Src/input/drivers/rotary_encoder/rotary-encoder.c ****      * PH8 shares EXTI line 8 with PI8 charger interrupt on PCB V2. Keep both
+ 126:Src/input/drivers/rotary_encoder/rotary-encoder.c ****      * encoder phases as ordinary inputs; SysTick samples them every 1 ms so UI
+ 127:Src/input/drivers/rotary_encoder/rotary-encoder.c ****      * rendering, QSPI writes and report catch-up cannot hide complete detents.
+ 128:Src/input/drivers/rotary_encoder/rotary-encoder.c ****      */
+ 129:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     gpio.Mode = GPIO_MODE_INPUT;
+ 356              		.loc 1 129 5 is_stmt 1 view .LVU87
+ 130:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     gpio.Pull = GPIO_PULLUP;
+ 357              		.loc 1 130 5 view .LVU88
+ 358              		.loc 1 130 15 is_stmt 0 view .LVU89
+ 359 0054 0126     		movs	r6, #1
+ 360 0056 0596     		str	r6, [sp, #20]
+ 131:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     gpio.Speed = GPIO_SPEED_FREQ_LOW;
+ 361              		.loc 1 131 5 is_stmt 1 view .LVU90
+ 132:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 133:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     gpio.Pin = ROTENC_A_PIN;
+ 362              		.loc 1 133 5 view .LVU91
+ 363              		.loc 1 133 14 is_stmt 0 view .LVU92
+ 364 0058 4FF48073 		mov	r3, #256
+ 365 005c 0393     		str	r3, [sp, #12]
+ 134:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     HAL_GPIO_Init(ROTENC_A_PORT, &gpio);
+ 366              		.loc 1 134 5 is_stmt 1 view .LVU93
+ 367 005e 194C     		ldr	r4, .L21+8
+ 368 0060 03A9     		add	r1, sp, #12
+ 369 0062 2046     		mov	r0, r4
+ 370 0064 FFF7FEFF 		bl	HAL_GPIO_Init
+ 371              	.LVL12:
+ 135:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 136:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     gpio.Pin = ROTENC_B_PIN;
+ 372              		.loc 1 136 5 view .LVU94
+ 373              		.loc 1 136 14 is_stmt 0 view .LVU95
+ 374 0068 4FF40073 		mov	r3, #512
+ 375 006c 0393     		str	r3, [sp, #12]
+ 137:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     HAL_GPIO_Init(ROTENC_B_PORT, &gpio);
+ 376              		.loc 1 137 5 is_stmt 1 view .LVU96
+ 377 006e 03A9     		add	r1, sp, #12
+ 378 0070 2046     		mov	r0, r4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 27
+
+
+ 379 0072 FFF7FEFF 		bl	HAL_GPIO_Init
+ 380              	.LVL13:
+ 138:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 139:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     gpio.Pin = ROTENC_BTN_PIN;
+ 381              		.loc 1 139 5 view .LVU97
+ 382              		.loc 1 139 14 is_stmt 0 view .LVU98
+ 383 0076 0396     		str	r6, [sp, #12]
+ 140:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     HAL_GPIO_Init(ROTENC_BTN_PORT, &gpio);
+ 384              		.loc 1 140 5 is_stmt 1 view .LVU99
+ 385 0078 03A9     		add	r1, sp, #12
+ 386 007a 1348     		ldr	r0, .L21+12
+ 387 007c FFF7FEFF 		bl	HAL_GPIO_Init
+ 388              	.LVL14:
+ 141:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 142:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint8_t ab = rotenc_read_ab();
+ 389              		.loc 1 142 5 view .LVU100
+ 390              		.loc 1 142 24 is_stmt 0 view .LVU101
+ 391 0080 FFF7FEFF 		bl	rotenc_read_ab
+ 392              	.LVL15:
+ 393 0084 8046     		mov	r8, r0
+ 394              	.LVL16:
+ 143:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const bool rawDown = rotenc_read_button_raw_down();
+ 395              		.loc 1 143 5 is_stmt 1 view .LVU102
+ 396              		.loc 1 143 26 is_stmt 0 view .LVU103
+ 397 0086 FFF7FEFF 		bl	rotenc_read_button_raw_down
+ 398              	.LVL17:
+ 399 008a 8146     		mov	r9, r0
+ 400              	.LVL18:
+ 144:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t nowMs = HAL_GetTick();
+ 401              		.loc 1 144 5 is_stmt 1 view .LVU104
+ 402              		.loc 1 144 28 is_stmt 0 view .LVU105
+ 403 008c FFF7FEFF 		bl	HAL_GetTick
+ 404              	.LVL19:
+ 405 0090 0446     		mov	r4, r0
+ 406              	.LVL20:
+ 145:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     primask = rotenc_enter_critical();
+ 407              		.loc 1 145 5 is_stmt 1 view .LVU106
+ 408              		.loc 1 145 15 is_stmt 0 view .LVU107
+ 409 0092 FFF7FEFF 		bl	rotenc_enter_critical
+ 410              	.LVL21:
+ 411              		.loc 1 145 15 view .LVU108
+ 412 0096 0746     		mov	r7, r0
+ 413              	.LVL22:
+ 146:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 147:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_reset_ignored_state(ab, rawDown);
+ 414              		.loc 1 147 5 is_stmt 1 view .LVU109
+ 415 0098 4946     		mov	r1, r9
+ 416 009a 4046     		mov	r0, r8
+ 417              	.LVL23:
+ 418              		.loc 1 147 5 is_stmt 0 view .LVU110
+ 419 009c FFF7FEFF 		bl	rotenc_reset_ignored_state
+ 420              	.LVL24:
+ 148:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnDownStartMs = nowMs;
+ 421              		.loc 1 148 5 is_stmt 1 view .LVU111
+ 422              		.loc 1 148 29 is_stmt 0 view .LVU112
+ 423 00a0 2C61     		str	r4, [r5, #16]
+ 149:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.bootIgnoreActive = true;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 28
+
+
+ 424              		.loc 1 149 5 is_stmt 1 view .LVU113
+ 425              		.loc 1 149 31 is_stmt 0 view .LVU114
+ 426 00a2 6E75     		strb	r6, [r5, #21]
+ 150:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.bootIgnoreUntilMs = nowMs + (uint32_t)ROTENC_BOOT_IGNORE_MS;
+ 427              		.loc 1 150 5 is_stmt 1 view .LVU115
+ 428              		.loc 1 150 40 is_stmt 0 view .LVU116
+ 429 00a4 04F57A74 		add	r4, r4, #1000
+ 430              	.LVL25:
+ 431              		.loc 1 150 32 view .LVU117
+ 432 00a8 AC61     		str	r4, [r5, #24]
+ 151:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+ 152:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.debugEvents = 0u;
+ 153:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+ 154:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     __DMB();
+ 433              		.loc 1 154 5 is_stmt 1 view .LVU118
+ 434              	.LBB24:
+ 435              	.LBI24:
+ 955:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 436              		.loc 2 955 27 view .LVU119
+ 437              	.LBB25:
+ 438              		.loc 2 957 3 view .LVU120
+ 439              		.syntax unified
+ 440              	@ 957 "Drivers/CMSIS/Include/cmsis_gcc.h" 1
+ 441 00aa BFF35F8F 		dmb 0xF
+ 442              	@ 0 "" 2
+ 443              		.thumb
+ 444              		.syntax unified
+ 445              	.LBE25:
+ 446              	.LBE24:
+ 155:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.initialized = true;
+ 447              		.loc 1 155 5 view .LVU121
+ 448              		.loc 1 155 26 is_stmt 0 view .LVU122
+ 449 00ae 2E70     		strb	r6, [r5]
+ 156:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 157:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 450              		.loc 1 157 5 is_stmt 1 view .LVU123
+ 451 00b0 3846     		mov	r0, r7
+ 452 00b2 FFF7FEFF 		bl	rotenc_leave_critical
+ 453              	.LVL26:
+ 158:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 454              		.loc 1 158 1 is_stmt 0 view .LVU124
+ 455 00b6 09B0     		add	sp, sp, #36
+ 456              	.LCFI4:
+ 457              		.cfi_def_cfa_offset 28
+ 458              		@ sp needed
+ 459 00b8 BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+ 460              	.LVL27:
+ 461              	.L22:
+ 462              		.loc 1 158 1 view .LVU125
+ 463              		.align	2
+ 464              	.L21:
+ 465 00bc 00000000 		.word	g_rotenc
+ 466 00c0 00440258 		.word	1476543488
+ 467 00c4 001C0258 		.word	1476533248
+ 468 00c8 00000258 		.word	1476526080
+ 469              		.cfi_endproc
+ 470              	.LFE343:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 29
+
+
+ 472              		.section	.text.RotEnc_Tick1msFromISR,"ax",%progbits
+ 473              		.align	1
+ 474              		.global	RotEnc_Tick1msFromISR
+ 475              		.syntax unified
+ 476              		.thumb
+ 477              		.thumb_func
+ 479              	RotEnc_Tick1msFromISR:
+ 480              	.LFB344:
+ 159:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 160:Src/input/drivers/rotary_encoder/rotary-encoder.c **** void RotEnc_Tick1msFromISR(void)
+ 161:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 481              		.loc 1 161 1 is_stmt 1 view -0
+ 482              		.cfi_startproc
+ 483              		@ args = 0, pretend = 0, frame = 0
+ 484              		@ frame_needed = 0, uses_anonymous_args = 0
+ 162:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if (!g_rotenc.initialized) {
+ 485              		.loc 1 162 5 view .LVU127
+ 486              		.loc 1 162 18 is_stmt 0 view .LVU128
+ 487 0000 714B     		ldr	r3, .L53
+ 488 0002 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 489              		.loc 1 162 8 view .LVU129
+ 490 0004 03B9     		cbnz	r3, .L50
+ 491 0006 7047     		bx	lr
+ 492              	.L50:
+ 161:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if (!g_rotenc.initialized) {
+ 493              		.loc 1 161 1 view .LVU130
+ 494 0008 70B5     		push	{r4, r5, r6, lr}
+ 495              	.LCFI5:
+ 496              		.cfi_def_cfa_offset 16
+ 497              		.cfi_offset 4, -16
+ 498              		.cfi_offset 5, -12
+ 499              		.cfi_offset 6, -8
+ 500              		.cfi_offset 14, -4
+ 163:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         return;
+ 164:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 165:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 166:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t nowMs = HAL_GetTick();
+ 501              		.loc 1 166 5 is_stmt 1 view .LVU131
+ 502              		.loc 1 166 28 is_stmt 0 view .LVU132
+ 503 000a FFF7FEFF 		bl	HAL_GetTick
+ 504              	.LVL28:
+ 505 000e 0446     		mov	r4, r0
+ 506              	.LVL29:
+ 167:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint8_t ab = rotenc_read_ab();
+ 507              		.loc 1 167 5 is_stmt 1 view .LVU133
+ 508              		.loc 1 167 24 is_stmt 0 view .LVU134
+ 509 0010 FFF7FEFF 		bl	rotenc_read_ab
+ 510              	.LVL30:
+ 511              		.loc 1 167 24 view .LVU135
+ 512 0014 0546     		mov	r5, r0
+ 513              	.LVL31:
+ 168:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const bool rawDown = rotenc_read_button_raw_down();
+ 514              		.loc 1 168 5 is_stmt 1 view .LVU136
+ 515              		.loc 1 168 26 is_stmt 0 view .LVU137
+ 516 0016 FFF7FEFF 		bl	rotenc_read_button_raw_down
+ 517              	.LVL32:
+ 518 001a 0146     		mov	r1, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 30
+
+
+ 519              	.LVL33:
+ 169:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 170:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if (g_rotenc.bootIgnoreActive) {
+ 520              		.loc 1 170 5 is_stmt 1 view .LVU138
+ 521              		.loc 1 170 17 is_stmt 0 view .LVU139
+ 522 001c 6A4B     		ldr	r3, .L53
+ 523 001e 5B7D     		ldrb	r3, [r3, #21]	@ zero_extendqisi2
+ 524              		.loc 1 170 8 view .LVU140
+ 525 0020 B3B1     		cbz	r3, .L25
+ 171:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         if ((int32_t)(nowMs - g_rotenc.bootIgnoreUntilMs) < 0) {
+ 526              		.loc 1 171 9 is_stmt 1 view .LVU141
+ 527              		.loc 1 171 39 is_stmt 0 view .LVU142
+ 528 0022 694B     		ldr	r3, .L53
+ 529 0024 9B69     		ldr	r3, [r3, #24]
+ 530              		.loc 1 171 29 view .LVU143
+ 531 0026 E31A     		subs	r3, r4, r3
+ 532              		.loc 1 171 12 view .LVU144
+ 533 0028 002B     		cmp	r3, #0
+ 534 002a 30DB     		blt	.L51
+ 172:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             rotenc_reset_ignored_state(ab, rawDown);
+ 173:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDownStartMs = nowMs;
+ 174:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             return;
+ 175:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         }
+ 176:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 177:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.bootIgnoreActive = false;
+ 535              		.loc 1 177 9 is_stmt 1 view .LVU145
+ 536              		.loc 1 177 35 is_stmt 0 view .LVU146
+ 537 002c 664B     		ldr	r3, .L53
+ 538 002e 0022     		movs	r2, #0
+ 539 0030 5A75     		strb	r2, [r3, #21]
+ 178:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.lastAB = ab;
+ 540              		.loc 1 178 9 is_stmt 1 view .LVU147
+ 541              		.loc 1 178 25 is_stmt 0 view .LVU148
+ 542 0032 5D70     		strb	r5, [r3, #1]
+ 179:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.deltaAcc = 0;
+ 543              		.loc 1 179 9 is_stmt 1 view .LVU149
+ 544              		.loc 1 179 27 is_stmt 0 view .LVU150
+ 545 0034 5A80     		strh	r2, [r3, #2]	@ movhi
+ 180:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.stepAcc = 0;
+ 546              		.loc 1 180 9 is_stmt 1 view .LVU151
+ 547              		.loc 1 180 26 is_stmt 0 view .LVU152
+ 548 0036 1A71     		strb	r2, [r3, #4]
+ 181:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.detentDeltaAcc = 0;
+ 549              		.loc 1 181 9 is_stmt 1 view .LVU153
+ 550              		.loc 1 181 33 is_stmt 0 view .LVU154
+ 551 0038 5A71     		strb	r2, [r3, #5]
+ 182:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDown = rawDown;
+ 552              		.loc 1 182 9 is_stmt 1 view .LVU155
+ 553              		.loc 1 182 26 is_stmt 0 view .LVU156
+ 554 003a 9871     		strb	r0, [r3, #6]
+ 183:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnPressed = false;
+ 555              		.loc 1 183 9 is_stmt 1 view .LVU157
+ 556              		.loc 1 183 29 is_stmt 0 view .LVU158
+ 557 003c DA71     		strb	r2, [r3, #7]
+ 184:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnReleased = false;
+ 558              		.loc 1 184 9 is_stmt 1 view .LVU159
+ 559              		.loc 1 184 30 is_stmt 0 view .LVU160
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 31
+
+
+ 560 003e 1A72     		strb	r2, [r3, #8]
+ 185:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnClicked = false;
+ 561              		.loc 1 185 9 is_stmt 1 view .LVU161
+ 562              		.loc 1 185 29 is_stmt 0 view .LVU162
+ 563 0040 5A72     		strb	r2, [r3, #9]
+ 186:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnLongPressed = false;
+ 564              		.loc 1 186 9 is_stmt 1 view .LVU163
+ 565              		.loc 1 186 33 is_stmt 0 view .LVU164
+ 566 0042 9A72     		strb	r2, [r3, #10]
+ 187:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnRaw = rawDown;
+ 567              		.loc 1 187 9 is_stmt 1 view .LVU165
+ 568              		.loc 1 187 25 is_stmt 0 view .LVU166
+ 569 0044 D872     		strb	r0, [r3, #11]
+ 188:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnStable = rawDown;
+ 570              		.loc 1 188 9 is_stmt 1 view .LVU167
+ 571              		.loc 1 188 28 is_stmt 0 view .LVU168
+ 572 0046 1873     		strb	r0, [r3, #12]
+ 189:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDebounceSamples = ROTENC_BUTTON_DEBOUNCE_MS;
+ 573              		.loc 1 189 9 is_stmt 1 view .LVU169
+ 574              		.loc 1 189 37 is_stmt 0 view .LVU170
+ 575 0048 0A20     		movs	r0, #10
+ 576              	.LVL34:
+ 577              		.loc 1 189 37 view .LVU171
+ 578 004a 5873     		strb	r0, [r3, #13]
+ 579              	.LVL35:
+ 190:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDownStartMs = nowMs;
+ 580              		.loc 1 190 9 is_stmt 1 view .LVU172
+ 581              		.loc 1 190 33 is_stmt 0 view .LVU173
+ 582 004c 1C61     		str	r4, [r3, #16]
+ 191:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnLongFired = false;
+ 583              		.loc 1 191 9 is_stmt 1 view .LVU174
+ 584              		.loc 1 191 31 is_stmt 0 view .LVU175
+ 585 004e 1A75     		strb	r2, [r3, #20]
+ 586              	.L25:
+ 192:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 193:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 194:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if (ab != g_rotenc.lastAB) {
+ 587              		.loc 1 194 5 is_stmt 1 view .LVU176
+ 588              		.loc 1 194 23 is_stmt 0 view .LVU177
+ 589 0050 5D4B     		ldr	r3, .L53
+ 590 0052 5B78     		ldrb	r3, [r3, #1]	@ zero_extendqisi2
+ 591 0054 DBB2     		uxtb	r3, r3
+ 592              		.loc 1 194 8 view .LVU178
+ 593 0056 AB42     		cmp	r3, r5
+ 594 0058 61D0     		beq	.L27
+ 595              	.LBB26:
+ 195:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         const uint8_t changedBits = (uint8_t)(g_rotenc.lastAB ^ ab);
+ 596              		.loc 1 195 9 is_stmt 1 view .LVU179
+ 597              		.loc 1 195 55 is_stmt 0 view .LVU180
+ 598 005a 5B4A     		ldr	r2, .L53
+ 599 005c 5378     		ldrb	r3, [r2, #1]	@ zero_extendqisi2
+ 600              		.loc 1 195 23 view .LVU181
+ 601 005e 6B40     		eors	r3, r3, r5
+ 602 0060 DBB2     		uxtb	r3, r3
+ 603              	.LVL36:
+ 196:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         int8_t step = kQuadratureTransition[(g_rotenc.lastAB << 2) | ab];
+ 604              		.loc 1 196 9 is_stmt 1 view .LVU182
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 32
+
+
+ 605              		.loc 1 196 54 is_stmt 0 view .LVU183
+ 606 0062 5078     		ldrb	r0, [r2, #1]	@ zero_extendqisi2
+ 607              		.loc 1 196 68 view .LVU184
+ 608 0064 45EA8000 		orr	r0, r5, r0, lsl #2
+ 609              		.loc 1 196 16 view .LVU185
+ 610 0068 584E     		ldr	r6, .L53+4
+ 611 006a 3056     		ldrsb	r0, [r6, r0]
+ 612              	.LVL37:
+ 197:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.lastAB = ab;
+ 613              		.loc 1 197 9 is_stmt 1 view .LVU186
+ 614              		.loc 1 197 25 is_stmt 0 view .LVU187
+ 615 006c 5570     		strb	r5, [r2, #1]
+ 198:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         if (changedBits == 3u) {
+ 616              		.loc 1 198 9 is_stmt 1 view .LVU188
+ 617              		.loc 1 198 12 is_stmt 0 view .LVU189
+ 618 006e 032B     		cmp	r3, #3
+ 619 0070 13D0     		beq	.L52
+ 620              	.LVL38:
+ 621              	.L28:
+ 199:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.stepAcc = 0;
+ 200:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         }
+ 201:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         if (step != 0) {
+ 622              		.loc 1 201 9 is_stmt 1 view .LVU190
+ 623              		.loc 1 201 12 is_stmt 0 view .LVU191
+ 624 0072 0028     		cmp	r0, #0
+ 625 0074 53D0     		beq	.L27
+ 626              	.LBB27:
+ 202:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             step = (int8_t)(step * (int8_t)ROTENC_DIR);
+ 627              		.loc 1 202 13 is_stmt 1 view .LVU192
+ 203:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 204:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             int32_t nextDelta = (int32_t)g_rotenc.deltaAcc + step;
+ 628              		.loc 1 204 13 view .LVU193
+ 629              		.loc 1 204 50 is_stmt 0 view .LVU194
+ 630 0076 544B     		ldr	r3, .L53
+ 631 0078 5B88     		ldrh	r3, [r3, #2]
+ 632              		.loc 1 204 21 view .LVU195
+ 633 007a 00FA83F3 		sxtah	r3, r0, r3
+ 634              	.LVL39:
+ 205:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (nextDelta > 32767) nextDelta = 32767;
+ 635              		.loc 1 205 13 is_stmt 1 view .LVU196
+ 636              		.loc 1 205 16 is_stmt 0 view .LVU197
+ 637 007e B3F5004F 		cmp	r3, #32768
+ 638 0082 0EDA     		bge	.L42
+ 206:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (nextDelta < -32768) nextDelta = -32768;
+ 639              		.loc 1 206 13 is_stmt 1 view .LVU198
+ 640              		.loc 1 206 16 is_stmt 0 view .LVU199
+ 641 0084 13F5004F 		cmn	r3, #32768
+ 642 0088 0DDA     		bge	.L29
+ 643              		.loc 1 206 47 discriminator 1 view .LVU200
+ 644 008a 514B     		ldr	r3, .L53+8
+ 645              	.LVL40:
+ 646              		.loc 1 206 47 discriminator 1 view .LVU201
+ 647 008c 0BE0     		b	.L29
+ 648              	.LVL41:
+ 649              	.L51:
+ 650              		.loc 1 206 47 discriminator 1 view .LVU202
+ 651              	.LBE27:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 33
+
+
+ 652              	.LBE26:
+ 172:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDownStartMs = nowMs;
+ 653              		.loc 1 172 13 is_stmt 1 view .LVU203
+ 654 008e 2846     		mov	r0, r5
+ 655              	.LVL42:
+ 172:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDownStartMs = nowMs;
+ 656              		.loc 1 172 13 is_stmt 0 view .LVU204
+ 657 0090 FFF7FEFF 		bl	rotenc_reset_ignored_state
+ 658              	.LVL43:
+ 173:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             return;
+ 659              		.loc 1 173 13 is_stmt 1 view .LVU205
+ 173:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             return;
+ 660              		.loc 1 173 37 is_stmt 0 view .LVU206
+ 661 0094 4C4B     		ldr	r3, .L53
+ 662 0096 1C61     		str	r4, [r3, #16]
+ 174:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         }
+ 663              		.loc 1 174 13 is_stmt 1 view .LVU207
+ 664 0098 73E0     		b	.L23
+ 665              	.LVL44:
+ 666              	.L52:
+ 667              	.LBB29:
+ 199:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         }
+ 668              		.loc 1 199 13 view .LVU208
+ 199:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         }
+ 669              		.loc 1 199 30 is_stmt 0 view .LVU209
+ 670 009a 1346     		mov	r3, r2
+ 671              	.LVL45:
+ 199:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         }
+ 672              		.loc 1 199 30 view .LVU210
+ 673 009c 0022     		movs	r2, #0
+ 674 009e 1A71     		strb	r2, [r3, #4]
+ 675 00a0 E7E7     		b	.L28
+ 676              	.LVL46:
+ 677              	.L42:
+ 678              	.LBB28:
+ 205:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (nextDelta < -32768) nextDelta = -32768;
+ 679              		.loc 1 205 46 discriminator 1 view .LVU211
+ 680 00a2 47F6FF73 		movw	r3, #32767
+ 681              	.LVL47:
+ 682              	.L29:
+ 207:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.deltaAcc = (int16_t)nextDelta;
+ 683              		.loc 1 207 13 is_stmt 1 view .LVU212
+ 684              		.loc 1 207 33 is_stmt 0 view .LVU213
+ 685 00a6 1BB2     		sxth	r3, r3
+ 686              	.LVL48:
+ 687              		.loc 1 207 31 view .LVU214
+ 688 00a8 474A     		ldr	r2, .L53
+ 689 00aa 5380     		strh	r3, [r2, #2]	@ movhi
+ 208:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 209:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             int16_t nextStepAcc = (int16_t)g_rotenc.stepAcc + step;
+ 690              		.loc 1 209 13 is_stmt 1 view .LVU215
+ 691              		.loc 1 209 52 is_stmt 0 view .LVU216
+ 692 00ac 1379     		ldrb	r3, [r2, #4]	@ zero_extendqisi2
+ 693              		.loc 1 209 21 view .LVU217
+ 694 00ae 40FA83F3 		sxtab	r3, r0, r3
+ 695              	.LVL49:
+ 210:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (nextStepAcc > 127) nextStepAcc = 127;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 34
+
+
+ 696              		.loc 1 210 13 is_stmt 1 view .LVU218
+ 697              		.loc 1 210 16 is_stmt 0 view .LVU219
+ 698 00b2 7F2B     		cmp	r3, #127
+ 699 00b4 05DC     		bgt	.L44
+ 211:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (nextStepAcc < -127) nextStepAcc = -127;
+ 700              		.loc 1 211 13 is_stmt 1 view .LVU220
+ 701              		.loc 1 211 16 is_stmt 0 view .LVU221
+ 702 00b6 13F17F0F 		cmn	r3, #127
+ 703 00ba 03DA     		bge	.L30
+ 704              		.loc 1 211 49 discriminator 1 view .LVU222
+ 705 00bc 6FF07E03 		mvn	r3, #126
+ 706              	.LVL50:
+ 707              		.loc 1 211 49 discriminator 1 view .LVU223
+ 708 00c0 00E0     		b	.L30
+ 709              	.LVL51:
+ 710              	.L44:
+ 210:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (nextStepAcc > 127) nextStepAcc = 127;
+ 711              		.loc 1 210 48 discriminator 1 view .LVU224
+ 712 00c2 7F23     		movs	r3, #127
+ 713              	.LVL52:
+ 714              	.L30:
+ 212:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.stepAcc = (int8_t)nextStepAcc;
+ 715              		.loc 1 212 13 is_stmt 1 view .LVU225
+ 716              		.loc 1 212 32 is_stmt 0 view .LVU226
+ 717 00c4 5BB2     		sxtb	r3, r3
+ 718              	.LVL53:
+ 719              		.loc 1 212 30 view .LVU227
+ 720 00c6 404A     		ldr	r2, .L53
+ 721 00c8 1371     		strb	r3, [r2, #4]
+ 213:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 214:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             while (g_rotenc.stepAcc >= (int8_t)ROTENC_STEPS_PER_DETENT) {
+ 722              		.loc 1 214 13 is_stmt 1 view .LVU228
+ 723              	.L32:
+ 724              		.loc 1 214 37 view .LVU229
+ 725              		.loc 1 214 28 is_stmt 0 view .LVU230
+ 726 00ca 3F4B     		ldr	r3, .L53
+ 727 00cc 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 728 00ce 5BB2     		sxtb	r3, r3
+ 729              		.loc 1 214 37 view .LVU231
+ 730 00d0 012B     		cmp	r3, #1
+ 731 00d2 0EDD     		ble	.L35
+ 215:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 g_rotenc.stepAcc =
+ 732              		.loc 1 215 17 is_stmt 1 view .LVU232
+ 216:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                     (int8_t)(g_rotenc.stepAcc - (int8_t)ROTENC_STEPS_PER_DETENT);
+ 733              		.loc 1 216 38 is_stmt 0 view .LVU233
+ 734 00d4 3C4A     		ldr	r2, .L53
+ 735 00d6 1379     		ldrb	r3, [r2, #4]	@ zero_extendqisi2
+ 736              		.loc 1 216 47 view .LVU234
+ 737 00d8 023B     		subs	r3, r3, #2
+ 738              		.loc 1 216 21 view .LVU235
+ 739 00da 5BB2     		sxtb	r3, r3
+ 215:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 g_rotenc.stepAcc =
+ 740              		.loc 1 215 34 view .LVU236
+ 741 00dc 1371     		strb	r3, [r2, #4]
+ 217:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 if (g_rotenc.detentDeltaAcc < 127) {
+ 742              		.loc 1 217 17 is_stmt 1 view .LVU237
+ 743              		.loc 1 217 29 is_stmt 0 view .LVU238
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 35
+
+
+ 744 00de 5379     		ldrb	r3, [r2, #5]	@ zero_extendqisi2
+ 745 00e0 5BB2     		sxtb	r3, r3
+ 746              		.loc 1 217 20 view .LVU239
+ 747 00e2 7F2B     		cmp	r3, #127
+ 748 00e4 F1D0     		beq	.L32
+ 218:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                     g_rotenc.detentDeltaAcc++;
+ 749              		.loc 1 218 21 is_stmt 1 view .LVU240
+ 750              		.loc 1 218 29 is_stmt 0 view .LVU241
+ 751 00e6 5379     		ldrb	r3, [r2, #5]	@ zero_extendqisi2
+ 752 00e8 5BB2     		sxtb	r3, r3
+ 753              		.loc 1 218 44 view .LVU242
+ 754 00ea 0133     		adds	r3, r3, #1
+ 755 00ec 5BB2     		sxtb	r3, r3
+ 756 00ee 5371     		strb	r3, [r2, #5]
+ 757 00f0 EBE7     		b	.L32
+ 758              	.L35:
+ 219:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 }
+ 220:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             }
+ 221:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             while (g_rotenc.stepAcc <= -(int8_t)ROTENC_STEPS_PER_DETENT) {
+ 759              		.loc 1 221 37 is_stmt 1 view .LVU243
+ 760              		.loc 1 221 28 is_stmt 0 view .LVU244
+ 761 00f2 354B     		ldr	r3, .L53
+ 762 00f4 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 763 00f6 5BB2     		sxtb	r3, r3
+ 764              		.loc 1 221 37 view .LVU245
+ 765 00f8 B3F1FF3F 		cmp	r3, #-1
+ 766 00fc 0FDA     		bge	.L27
+ 222:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 g_rotenc.stepAcc =
+ 767              		.loc 1 222 17 is_stmt 1 view .LVU246
+ 223:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                     (int8_t)(g_rotenc.stepAcc + (int8_t)ROTENC_STEPS_PER_DETENT);
+ 768              		.loc 1 223 38 is_stmt 0 view .LVU247
+ 769 00fe 324A     		ldr	r2, .L53
+ 770 0100 1379     		ldrb	r3, [r2, #4]	@ zero_extendqisi2
+ 771              		.loc 1 223 47 view .LVU248
+ 772 0102 0233     		adds	r3, r3, #2
+ 773              		.loc 1 223 21 view .LVU249
+ 774 0104 5BB2     		sxtb	r3, r3
+ 222:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 g_rotenc.stepAcc =
+ 775              		.loc 1 222 34 view .LVU250
+ 776 0106 1371     		strb	r3, [r2, #4]
+ 224:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 if (g_rotenc.detentDeltaAcc > -127) {
+ 777              		.loc 1 224 17 is_stmt 1 view .LVU251
+ 778              		.loc 1 224 29 is_stmt 0 view .LVU252
+ 779 0108 5379     		ldrb	r3, [r2, #5]	@ zero_extendqisi2
+ 780 010a 5BB2     		sxtb	r3, r3
+ 781              		.loc 1 224 20 view .LVU253
+ 782 010c 13F17E0F 		cmn	r3, #126
+ 783 0110 EFDB     		blt	.L35
+ 225:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                     g_rotenc.detentDeltaAcc--;
+ 784              		.loc 1 225 21 is_stmt 1 view .LVU254
+ 785              		.loc 1 225 29 is_stmt 0 view .LVU255
+ 786 0112 5379     		ldrb	r3, [r2, #5]	@ zero_extendqisi2
+ 787 0114 5BB2     		sxtb	r3, r3
+ 788              		.loc 1 225 44 view .LVU256
+ 789 0116 013B     		subs	r3, r3, #1
+ 790 0118 5BB2     		sxtb	r3, r3
+ 791 011a 5371     		strb	r3, [r2, #5]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 36
+
+
+ 792 011c E9E7     		b	.L35
+ 793              	.LVL54:
+ 794              	.L27:
+ 795              		.loc 1 225 44 view .LVU257
+ 796              	.LBE28:
+ 797              	.LBE29:
+ 226:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 }
+ 227:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             }
+ 228:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         }
+ 229:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 230:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 231:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if (rawDown != g_rotenc.btnRaw) {
+ 798              		.loc 1 231 5 is_stmt 1 view .LVU258
+ 799              		.loc 1 231 28 is_stmt 0 view .LVU259
+ 800 011e 2A4B     		ldr	r3, .L53
+ 801 0120 DB7A     		ldrb	r3, [r3, #11]	@ zero_extendqisi2
+ 802 0122 DBB2     		uxtb	r3, r3
+ 803              		.loc 1 231 8 view .LVU260
+ 804 0124 8B42     		cmp	r3, r1
+ 805 0126 2DD0     		beq	.L37
+ 232:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnRaw = rawDown;
+ 806              		.loc 1 232 9 is_stmt 1 view .LVU261
+ 807              		.loc 1 232 25 is_stmt 0 view .LVU262
+ 808 0128 274B     		ldr	r3, .L53
+ 809 012a D972     		strb	r1, [r3, #11]
+ 233:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDebounceSamples = 1u;
+ 810              		.loc 1 233 9 is_stmt 1 view .LVU263
+ 811              		.loc 1 233 37 is_stmt 0 view .LVU264
+ 812 012c 0122     		movs	r2, #1
+ 813 012e 5A73     		strb	r2, [r3, #13]
+ 814              	.L38:
+ 234:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     } else if (g_rotenc.btnDebounceSamples < ROTENC_BUTTON_DEBOUNCE_MS) {
+ 235:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDebounceSamples++;
+ 236:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 237:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 238:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if (g_rotenc.btnRaw != g_rotenc.btnStable &&
+ 815              		.loc 1 238 5 is_stmt 1 view .LVU265
+ 816              		.loc 1 238 17 is_stmt 0 view .LVU266
+ 817 0130 254B     		ldr	r3, .L53
+ 818 0132 DA7A     		ldrb	r2, [r3, #11]	@ zero_extendqisi2
+ 819 0134 D2B2     		uxtb	r2, r2
+ 820              		.loc 1 238 36 view .LVU267
+ 821 0136 1B7B     		ldrb	r3, [r3, #12]	@ zero_extendqisi2
+ 822 0138 DBB2     		uxtb	r3, r3
+ 823              		.loc 1 238 8 view .LVU268
+ 824 013a 9A42     		cmp	r2, r3
+ 825 013c 11D0     		beq	.L39
+ 239:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDebounceSamples >= ROTENC_BUTTON_DEBOUNCE_MS) {
+ 826              		.loc 1 239 17 view .LVU269
+ 827 013e 224B     		ldr	r3, .L53
+ 828 0140 5B7B     		ldrb	r3, [r3, #13]	@ zero_extendqisi2
+ 829 0142 DBB2     		uxtb	r3, r3
+ 238:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDebounceSamples >= ROTENC_BUTTON_DEBOUNCE_MS) {
+ 830              		.loc 1 238 47 discriminator 1 view .LVU270
+ 831 0144 092B     		cmp	r3, #9
+ 832 0146 0CD9     		bls	.L39
+ 240:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnStable = g_rotenc.btnRaw;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 37
+
+
+ 833              		.loc 1 240 9 is_stmt 1 view .LVU271
+ 834              		.loc 1 240 38 is_stmt 0 view .LVU272
+ 835 0148 1F4B     		ldr	r3, .L53
+ 836 014a DA7A     		ldrb	r2, [r3, #11]	@ zero_extendqisi2
+ 837 014c D2B2     		uxtb	r2, r2
+ 838              		.loc 1 240 28 view .LVU273
+ 839 014e 1A73     		strb	r2, [r3, #12]
+ 241:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         if (g_rotenc.btnStable) {
+ 840              		.loc 1 241 9 is_stmt 1 view .LVU274
+ 841              		.loc 1 241 21 is_stmt 0 view .LVU275
+ 842 0150 1B7B     		ldrb	r3, [r3, #12]	@ zero_extendqisi2
+ 843              		.loc 1 241 12 view .LVU276
+ 844 0152 13B3     		cbz	r3, .L40
+ 242:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDown = true;
+ 845              		.loc 1 242 13 is_stmt 1 view .LVU277
+ 846              		.loc 1 242 30 is_stmt 0 view .LVU278
+ 847 0154 1C4B     		ldr	r3, .L53
+ 848 0156 0122     		movs	r2, #1
+ 849 0158 9A71     		strb	r2, [r3, #6]
+ 243:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnPressed = true;
+ 850              		.loc 1 243 13 is_stmt 1 view .LVU279
+ 851              		.loc 1 243 33 is_stmt 0 view .LVU280
+ 852 015a DA71     		strb	r2, [r3, #7]
+ 244:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDownStartMs = nowMs;
+ 853              		.loc 1 244 13 is_stmt 1 view .LVU281
+ 854              		.loc 1 244 37 is_stmt 0 view .LVU282
+ 855 015c 1C61     		str	r4, [r3, #16]
+ 245:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnLongFired = false;
+ 856              		.loc 1 245 13 is_stmt 1 view .LVU283
+ 857              		.loc 1 245 35 is_stmt 0 view .LVU284
+ 858 015e 0022     		movs	r2, #0
+ 859 0160 1A75     		strb	r2, [r3, #20]
+ 860              	.L39:
+ 246:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+ 247:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.debugEvents |= ROTENC_DEBUG_BTN_DOWN;
+ 248:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+ 249:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         } else if (g_rotenc.btnDown) {
+ 250:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             const uint32_t heldMs = nowMs - g_rotenc.btnDownStartMs;
+ 251:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDown = false;
+ 252:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnReleased = true;
+ 253:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (!g_rotenc.btnLongFired &&
+ 254:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 heldMs < (uint32_t)ROTENC_LONG_PRESS_MS) {
+ 255:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 g_rotenc.btnClicked = true;
+ 256:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             }
+ 257:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnLongFired = false;
+ 258:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+ 259:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.debugEvents |= ROTENC_DEBUG_BTN_UP;
+ 260:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+ 261:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         }
+ 262:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 263:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 264:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if (g_rotenc.btnDown && !g_rotenc.btnLongFired &&
+ 861              		.loc 1 264 5 is_stmt 1 view .LVU285
+ 862              		.loc 1 264 17 is_stmt 0 view .LVU286
+ 863 0162 194B     		ldr	r3, .L53
+ 864 0164 9B79     		ldrb	r3, [r3, #6]	@ zero_extendqisi2
+ 865              		.loc 1 264 8 view .LVU287
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 38
+
+
+ 866 0166 63B1     		cbz	r3, .L23
+ 867              		.loc 1 264 38 discriminator 1 view .LVU288
+ 868 0168 174B     		ldr	r3, .L53
+ 869 016a 1B7D     		ldrb	r3, [r3, #20]	@ zero_extendqisi2
+ 870              		.loc 1 264 26 discriminator 1 view .LVU289
+ 871 016c 4BB9     		cbnz	r3, .L23
+ 265:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (uint32_t)(nowMs - g_rotenc.btnDownStartMs) >=
+ 872              		.loc 1 265 36 view .LVU290
+ 873 016e 164B     		ldr	r3, .L53
+ 874 0170 1B69     		ldr	r3, [r3, #16]
+ 875              		.loc 1 265 26 view .LVU291
+ 876 0172 E41A     		subs	r4, r4, r3
+ 877              	.LVL55:
+ 264:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         (uint32_t)(nowMs - g_rotenc.btnDownStartMs) >=
+ 878              		.loc 1 264 52 discriminator 2 view .LVU292
+ 879 0174 B4F57A7F 		cmp	r4, #1000
+ 880 0178 03D3     		bcc	.L23
+ 266:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             (uint32_t)ROTENC_LONG_PRESS_MS) {
+ 267:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnLongPressed = true;
+ 881              		.loc 1 267 9 is_stmt 1 view .LVU293
+ 882              		.loc 1 267 33 is_stmt 0 view .LVU294
+ 883 017a 134B     		ldr	r3, .L53
+ 884 017c 0122     		movs	r2, #1
+ 885 017e 9A72     		strb	r2, [r3, #10]
+ 268:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnLongFired = true;
+ 886              		.loc 1 268 9 is_stmt 1 view .LVU295
+ 887              		.loc 1 268 31 is_stmt 0 view .LVU296
+ 888 0180 1A75     		strb	r2, [r3, #20]
+ 889              	.L23:
+ 269:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+ 270:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.debugEvents |= ROTENC_DEBUG_BTN_LONG;
+ 271:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+ 272:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 273:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 890              		.loc 1 273 1 view .LVU297
+ 891 0182 70BD     		pop	{r4, r5, r6, pc}
+ 892              	.LVL56:
+ 893              	.L37:
+ 234:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDebounceSamples++;
+ 894              		.loc 1 234 12 is_stmt 1 view .LVU298
+ 234:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDebounceSamples++;
+ 895              		.loc 1 234 24 is_stmt 0 view .LVU299
+ 896 0184 104B     		ldr	r3, .L53
+ 897 0186 5B7B     		ldrb	r3, [r3, #13]	@ zero_extendqisi2
+ 898 0188 DBB2     		uxtb	r3, r3
+ 234:Src/input/drivers/rotary_encoder/rotary-encoder.c ****         g_rotenc.btnDebounceSamples++;
+ 899              		.loc 1 234 15 view .LVU300
+ 900 018a 092B     		cmp	r3, #9
+ 901 018c D0D8     		bhi	.L38
+ 235:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 902              		.loc 1 235 9 is_stmt 1 view .LVU301
+ 235:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 903              		.loc 1 235 17 is_stmt 0 view .LVU302
+ 904 018e 0E4A     		ldr	r2, .L53
+ 905 0190 537B     		ldrb	r3, [r2, #13]	@ zero_extendqisi2
+ 235:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     }
+ 906              		.loc 1 235 36 view .LVU303
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 39
+
+
+ 907 0192 0133     		adds	r3, r3, #1
+ 908 0194 DBB2     		uxtb	r3, r3
+ 909 0196 5373     		strb	r3, [r2, #13]
+ 910 0198 CAE7     		b	.L38
+ 911              	.L40:
+ 249:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             const uint32_t heldMs = nowMs - g_rotenc.btnDownStartMs;
+ 912              		.loc 1 249 16 is_stmt 1 view .LVU304
+ 249:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             const uint32_t heldMs = nowMs - g_rotenc.btnDownStartMs;
+ 913              		.loc 1 249 28 is_stmt 0 view .LVU305
+ 914 019a 0B4B     		ldr	r3, .L53
+ 915 019c 9B79     		ldrb	r3, [r3, #6]	@ zero_extendqisi2
+ 249:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             const uint32_t heldMs = nowMs - g_rotenc.btnDownStartMs;
+ 916              		.loc 1 249 19 view .LVU306
+ 917 019e 002B     		cmp	r3, #0
+ 918 01a0 DFD0     		beq	.L39
+ 919              	.LBB30:
+ 250:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDown = false;
+ 920              		.loc 1 250 13 is_stmt 1 view .LVU307
+ 250:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDown = false;
+ 921              		.loc 1 250 53 is_stmt 0 view .LVU308
+ 922 01a2 094B     		ldr	r3, .L53
+ 923 01a4 1A69     		ldr	r2, [r3, #16]
+ 250:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnDown = false;
+ 924              		.loc 1 250 28 view .LVU309
+ 925 01a6 A21A     		subs	r2, r4, r2
+ 926              	.LVL57:
+ 251:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnReleased = true;
+ 927              		.loc 1 251 13 is_stmt 1 view .LVU310
+ 251:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             g_rotenc.btnReleased = true;
+ 928              		.loc 1 251 30 is_stmt 0 view .LVU311
+ 929 01a8 0021     		movs	r1, #0
+ 930 01aa 9971     		strb	r1, [r3, #6]
+ 252:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (!g_rotenc.btnLongFired &&
+ 931              		.loc 1 252 13 is_stmt 1 view .LVU312
+ 252:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             if (!g_rotenc.btnLongFired &&
+ 932              		.loc 1 252 34 is_stmt 0 view .LVU313
+ 933 01ac 0121     		movs	r1, #1
+ 934 01ae 1972     		strb	r1, [r3, #8]
+ 253:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 heldMs < (uint32_t)ROTENC_LONG_PRESS_MS) {
+ 935              		.loc 1 253 13 is_stmt 1 view .LVU314
+ 253:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 heldMs < (uint32_t)ROTENC_LONG_PRESS_MS) {
+ 936              		.loc 1 253 26 is_stmt 0 view .LVU315
+ 937 01b0 1B7D     		ldrb	r3, [r3, #20]	@ zero_extendqisi2
+ 253:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 heldMs < (uint32_t)ROTENC_LONG_PRESS_MS) {
+ 938              		.loc 1 253 16 view .LVU316
+ 939 01b2 23B9     		cbnz	r3, .L41
+ 253:Src/input/drivers/rotary_encoder/rotary-encoder.c ****                 heldMs < (uint32_t)ROTENC_LONG_PRESS_MS) {
+ 940              		.loc 1 253 40 discriminator 1 view .LVU317
+ 941 01b4 B2F57A7F 		cmp	r2, #1000
+ 942 01b8 01D2     		bcs	.L41
+ 255:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             }
+ 943              		.loc 1 255 17 is_stmt 1 view .LVU318
+ 255:Src/input/drivers/rotary_encoder/rotary-encoder.c ****             }
+ 944              		.loc 1 255 37 is_stmt 0 view .LVU319
+ 945 01ba 034B     		ldr	r3, .L53
+ 946 01bc 5972     		strb	r1, [r3, #9]
+ 947              	.L41:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 40
+
+
+ 257:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+ 948              		.loc 1 257 13 is_stmt 1 view .LVU320
+ 257:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+ 949              		.loc 1 257 35 is_stmt 0 view .LVU321
+ 950 01be 024B     		ldr	r3, .L53
+ 951 01c0 0022     		movs	r2, #0
+ 952              	.LVL58:
+ 257:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+ 953              		.loc 1 257 35 view .LVU322
+ 954 01c2 1A75     		strb	r2, [r3, #20]
+ 955 01c4 CDE7     		b	.L39
+ 956              	.L54:
+ 957 01c6 00BF     		.align	2
+ 958              	.L53:
+ 959 01c8 00000000 		.word	g_rotenc
+ 960 01cc 00000000 		.word	kQuadratureTransition
+ 961 01d0 0080FFFF 		.word	-32768
+ 962              	.LBE30:
+ 963              		.cfi_endproc
+ 964              	.LFE344:
+ 966              		.section	.text.RotEnc_Update,"ax",%progbits
+ 967              		.align	1
+ 968              		.global	RotEnc_Update
+ 969              		.syntax unified
+ 970              		.thumb
+ 971              		.thumb_func
+ 973              	RotEnc_Update:
+ 974              	.LFB345:
+ 274:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 275:Src/input/drivers/rotary_encoder/rotary-encoder.c **** void RotEnc_Update(void)
+ 276:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 975              		.loc 1 276 1 is_stmt 1 view -0
+ 976              		.cfi_startproc
+ 977              		@ args = 0, pretend = 0, frame = 0
+ 978              		@ frame_needed = 0, uses_anonymous_args = 0
+ 979              		@ link register save eliminated.
+ 277:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #if ROTENC_DEBUG_PRINT
+ 278:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t primask = rotenc_enter_critical();
+ 279:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint8_t events = g_rotenc.debugEvents;
+ 280:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.debugEvents = 0u;
+ 281:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 282:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 283:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if ((events & ROTENC_DEBUG_BTN_DOWN) != 0u) APP_DBG("ROT BTN down");
+ 284:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if ((events & ROTENC_DEBUG_BTN_UP) != 0u) APP_DBG("ROT BTN up");
+ 285:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     if ((events & ROTENC_DEBUG_BTN_LONG) != 0u) APP_DBG("ROT BTN long");
+ 286:Src/input/drivers/rotary_encoder/rotary-encoder.c **** #endif
+ 287:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 980              		.loc 1 287 1 view .LVU324
+ 981 0000 7047     		bx	lr
+ 982              		.cfi_endproc
+ 983              	.LFE345:
+ 985              		.section	.text.RotEnc_GetDelta,"ax",%progbits
+ 986              		.align	1
+ 987              		.global	RotEnc_GetDelta
+ 988              		.syntax unified
+ 989              		.thumb
+ 990              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 41
+
+
+ 992              	RotEnc_GetDelta:
+ 993              	.LFB346:
+ 288:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 289:Src/input/drivers/rotary_encoder/rotary-encoder.c **** int16_t RotEnc_GetDelta(void)
+ 290:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 994              		.loc 1 290 1 view -0
+ 995              		.cfi_startproc
+ 996              		@ args = 0, pretend = 0, frame = 0
+ 997              		@ frame_needed = 0, uses_anonymous_args = 0
+ 998 0000 10B5     		push	{r4, lr}
+ 999              	.LCFI6:
+ 1000              		.cfi_def_cfa_offset 8
+ 1001              		.cfi_offset 4, -8
+ 1002              		.cfi_offset 14, -4
+ 291:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t primask = rotenc_enter_critical();
+ 1003              		.loc 1 291 5 view .LVU326
+ 1004              		.loc 1 291 30 is_stmt 0 view .LVU327
+ 1005 0002 FFF7FEFF 		bl	rotenc_enter_critical
+ 1006              	.LVL59:
+ 292:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const int16_t value = g_rotenc.deltaAcc;
+ 1007              		.loc 1 292 5 is_stmt 1 view .LVU328
+ 1008              		.loc 1 292 19 is_stmt 0 view .LVU329
+ 1009 0006 044B     		ldr	r3, .L58
+ 1010 0008 5C88     		ldrh	r4, [r3, #2]
+ 1011 000a 24B2     		sxth	r4, r4
+ 1012              	.LVL60:
+ 293:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.deltaAcc = 0;
+ 1013              		.loc 1 293 5 is_stmt 1 view .LVU330
+ 1014              		.loc 1 293 23 is_stmt 0 view .LVU331
+ 1015 000c 0022     		movs	r2, #0
+ 1016 000e 5A80     		strh	r2, [r3, #2]	@ movhi
+ 294:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 1017              		.loc 1 294 5 is_stmt 1 view .LVU332
+ 1018 0010 FFF7FEFF 		bl	rotenc_leave_critical
+ 1019              	.LVL61:
+ 295:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return value;
+ 1020              		.loc 1 295 5 view .LVU333
+ 296:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 1021              		.loc 1 296 1 is_stmt 0 view .LVU334
+ 1022 0014 2046     		mov	r0, r4
+ 1023 0016 10BD     		pop	{r4, pc}
+ 1024              	.LVL62:
+ 1025              	.L59:
+ 1026              		.loc 1 296 1 view .LVU335
+ 1027              		.align	2
+ 1028              	.L58:
+ 1029 0018 00000000 		.word	g_rotenc
+ 1030              		.cfi_endproc
+ 1031              	.LFE346:
+ 1033              		.section	.text.RotEnc_GetDetentDelta,"ax",%progbits
+ 1034              		.align	1
+ 1035              		.global	RotEnc_GetDetentDelta
+ 1036              		.syntax unified
+ 1037              		.thumb
+ 1038              		.thumb_func
+ 1040              	RotEnc_GetDetentDelta:
+ 1041              	.LFB347:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 42
+
+
+ 297:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 298:Src/input/drivers/rotary_encoder/rotary-encoder.c **** int8_t RotEnc_GetDetentDelta(void)
+ 299:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 1042              		.loc 1 299 1 is_stmt 1 view -0
+ 1043              		.cfi_startproc
+ 1044              		@ args = 0, pretend = 0, frame = 0
+ 1045              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1046 0000 10B5     		push	{r4, lr}
+ 1047              	.LCFI7:
+ 1048              		.cfi_def_cfa_offset 8
+ 1049              		.cfi_offset 4, -8
+ 1050              		.cfi_offset 14, -4
+ 300:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t primask = rotenc_enter_critical();
+ 1051              		.loc 1 300 5 view .LVU337
+ 1052              		.loc 1 300 30 is_stmt 0 view .LVU338
+ 1053 0002 FFF7FEFF 		bl	rotenc_enter_critical
+ 1054              	.LVL63:
+ 301:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const int8_t value = g_rotenc.detentDeltaAcc;
+ 1055              		.loc 1 301 5 is_stmt 1 view .LVU339
+ 1056              		.loc 1 301 18 is_stmt 0 view .LVU340
+ 1057 0006 044B     		ldr	r3, .L62
+ 1058 0008 5C79     		ldrb	r4, [r3, #5]	@ zero_extendqisi2
+ 1059 000a 64B2     		sxtb	r4, r4
+ 1060              	.LVL64:
+ 302:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.detentDeltaAcc = 0;
+ 1061              		.loc 1 302 5 is_stmt 1 view .LVU341
+ 1062              		.loc 1 302 29 is_stmt 0 view .LVU342
+ 1063 000c 0022     		movs	r2, #0
+ 1064 000e 5A71     		strb	r2, [r3, #5]
+ 303:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 1065              		.loc 1 303 5 is_stmt 1 view .LVU343
+ 1066 0010 FFF7FEFF 		bl	rotenc_leave_critical
+ 1067              	.LVL65:
+ 304:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return value;
+ 1068              		.loc 1 304 5 view .LVU344
+ 305:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 1069              		.loc 1 305 1 is_stmt 0 view .LVU345
+ 1070 0014 2046     		mov	r0, r4
+ 1071 0016 10BD     		pop	{r4, pc}
+ 1072              	.LVL66:
+ 1073              	.L63:
+ 1074              		.loc 1 305 1 view .LVU346
+ 1075              		.align	2
+ 1076              	.L62:
+ 1077 0018 00000000 		.word	g_rotenc
+ 1078              		.cfi_endproc
+ 1079              	.LFE347:
+ 1081              		.section	.text.RotEnc_IsButtonDown,"ax",%progbits
+ 1082              		.align	1
+ 1083              		.global	RotEnc_IsButtonDown
+ 1084              		.syntax unified
+ 1085              		.thumb
+ 1086              		.thumb_func
+ 1088              	RotEnc_IsButtonDown:
+ 1089              	.LFB348:
+ 306:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 307:Src/input/drivers/rotary_encoder/rotary-encoder.c **** bool RotEnc_IsButtonDown(void)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 43
+
+
+ 308:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 1090              		.loc 1 308 1 is_stmt 1 view -0
+ 1091              		.cfi_startproc
+ 1092              		@ args = 0, pretend = 0, frame = 0
+ 1093              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1094              		@ link register save eliminated.
+ 309:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return g_rotenc.btnDown;
+ 1095              		.loc 1 309 5 view .LVU348
+ 1096              		.loc 1 309 20 is_stmt 0 view .LVU349
+ 1097 0000 014B     		ldr	r3, .L65
+ 1098 0002 9879     		ldrb	r0, [r3, #6]	@ zero_extendqisi2
+ 310:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 1099              		.loc 1 310 1 view .LVU350
+ 1100 0004 7047     		bx	lr
+ 1101              	.L66:
+ 1102 0006 00BF     		.align	2
+ 1103              	.L65:
+ 1104 0008 00000000 		.word	g_rotenc
+ 1105              		.cfi_endproc
+ 1106              	.LFE348:
+ 1108              		.section	.text.RotEnc_WasButtonPressed,"ax",%progbits
+ 1109              		.align	1
+ 1110              		.global	RotEnc_WasButtonPressed
+ 1111              		.syntax unified
+ 1112              		.thumb
+ 1113              		.thumb_func
+ 1115              	RotEnc_WasButtonPressed:
+ 1116              	.LFB349:
+ 311:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 312:Src/input/drivers/rotary_encoder/rotary-encoder.c **** bool RotEnc_WasButtonPressed(void)
+ 313:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 1117              		.loc 1 313 1 is_stmt 1 view -0
+ 1118              		.cfi_startproc
+ 1119              		@ args = 0, pretend = 0, frame = 0
+ 1120              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1121 0000 10B5     		push	{r4, lr}
+ 1122              	.LCFI8:
+ 1123              		.cfi_def_cfa_offset 8
+ 1124              		.cfi_offset 4, -8
+ 1125              		.cfi_offset 14, -4
+ 314:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t primask = rotenc_enter_critical();
+ 1126              		.loc 1 314 5 view .LVU352
+ 1127              		.loc 1 314 30 is_stmt 0 view .LVU353
+ 1128 0002 FFF7FEFF 		bl	rotenc_enter_critical
+ 1129              	.LVL67:
+ 315:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const bool value = g_rotenc.btnPressed;
+ 1130              		.loc 1 315 5 is_stmt 1 view .LVU354
+ 1131              		.loc 1 315 16 is_stmt 0 view .LVU355
+ 1132 0006 044B     		ldr	r3, .L69
+ 1133 0008 DC79     		ldrb	r4, [r3, #7]	@ zero_extendqisi2
+ 1134 000a E4B2     		uxtb	r4, r4
+ 1135              	.LVL68:
+ 316:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnPressed = false;
+ 1136              		.loc 1 316 5 is_stmt 1 view .LVU356
+ 1137              		.loc 1 316 25 is_stmt 0 view .LVU357
+ 1138 000c 0022     		movs	r2, #0
+ 1139 000e DA71     		strb	r2, [r3, #7]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 44
+
+
+ 317:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 1140              		.loc 1 317 5 is_stmt 1 view .LVU358
+ 1141 0010 FFF7FEFF 		bl	rotenc_leave_critical
+ 1142              	.LVL69:
+ 318:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return value;
+ 1143              		.loc 1 318 5 view .LVU359
+ 319:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 1144              		.loc 1 319 1 is_stmt 0 view .LVU360
+ 1145 0014 2046     		mov	r0, r4
+ 1146 0016 10BD     		pop	{r4, pc}
+ 1147              	.LVL70:
+ 1148              	.L70:
+ 1149              		.loc 1 319 1 view .LVU361
+ 1150              		.align	2
+ 1151              	.L69:
+ 1152 0018 00000000 		.word	g_rotenc
+ 1153              		.cfi_endproc
+ 1154              	.LFE349:
+ 1156              		.section	.text.RotEnc_WasButtonReleased,"ax",%progbits
+ 1157              		.align	1
+ 1158              		.global	RotEnc_WasButtonReleased
+ 1159              		.syntax unified
+ 1160              		.thumb
+ 1161              		.thumb_func
+ 1163              	RotEnc_WasButtonReleased:
+ 1164              	.LFB350:
+ 320:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 321:Src/input/drivers/rotary_encoder/rotary-encoder.c **** bool RotEnc_WasButtonReleased(void)
+ 322:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 1165              		.loc 1 322 1 is_stmt 1 view -0
+ 1166              		.cfi_startproc
+ 1167              		@ args = 0, pretend = 0, frame = 0
+ 1168              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1169 0000 10B5     		push	{r4, lr}
+ 1170              	.LCFI9:
+ 1171              		.cfi_def_cfa_offset 8
+ 1172              		.cfi_offset 4, -8
+ 1173              		.cfi_offset 14, -4
+ 323:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t primask = rotenc_enter_critical();
+ 1174              		.loc 1 323 5 view .LVU363
+ 1175              		.loc 1 323 30 is_stmt 0 view .LVU364
+ 1176 0002 FFF7FEFF 		bl	rotenc_enter_critical
+ 1177              	.LVL71:
+ 324:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const bool value = g_rotenc.btnReleased;
+ 1178              		.loc 1 324 5 is_stmt 1 view .LVU365
+ 1179              		.loc 1 324 16 is_stmt 0 view .LVU366
+ 1180 0006 044B     		ldr	r3, .L73
+ 1181 0008 1C7A     		ldrb	r4, [r3, #8]	@ zero_extendqisi2
+ 1182 000a E4B2     		uxtb	r4, r4
+ 1183              	.LVL72:
+ 325:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnReleased = false;
+ 1184              		.loc 1 325 5 is_stmt 1 view .LVU367
+ 1185              		.loc 1 325 26 is_stmt 0 view .LVU368
+ 1186 000c 0022     		movs	r2, #0
+ 1187 000e 1A72     		strb	r2, [r3, #8]
+ 326:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 1188              		.loc 1 326 5 is_stmt 1 view .LVU369
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 45
+
+
+ 1189 0010 FFF7FEFF 		bl	rotenc_leave_critical
+ 1190              	.LVL73:
+ 327:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return value;
+ 1191              		.loc 1 327 5 view .LVU370
+ 328:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 1192              		.loc 1 328 1 is_stmt 0 view .LVU371
+ 1193 0014 2046     		mov	r0, r4
+ 1194 0016 10BD     		pop	{r4, pc}
+ 1195              	.LVL74:
+ 1196              	.L74:
+ 1197              		.loc 1 328 1 view .LVU372
+ 1198              		.align	2
+ 1199              	.L73:
+ 1200 0018 00000000 		.word	g_rotenc
+ 1201              		.cfi_endproc
+ 1202              	.LFE350:
+ 1204              		.section	.text.RotEnc_WasButtonClicked,"ax",%progbits
+ 1205              		.align	1
+ 1206              		.global	RotEnc_WasButtonClicked
+ 1207              		.syntax unified
+ 1208              		.thumb
+ 1209              		.thumb_func
+ 1211              	RotEnc_WasButtonClicked:
+ 1212              	.LFB351:
+ 329:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 330:Src/input/drivers/rotary_encoder/rotary-encoder.c **** bool RotEnc_WasButtonClicked(void)
+ 331:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 1213              		.loc 1 331 1 is_stmt 1 view -0
+ 1214              		.cfi_startproc
+ 1215              		@ args = 0, pretend = 0, frame = 0
+ 1216              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1217 0000 10B5     		push	{r4, lr}
+ 1218              	.LCFI10:
+ 1219              		.cfi_def_cfa_offset 8
+ 1220              		.cfi_offset 4, -8
+ 1221              		.cfi_offset 14, -4
+ 332:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t primask = rotenc_enter_critical();
+ 1222              		.loc 1 332 5 view .LVU374
+ 1223              		.loc 1 332 30 is_stmt 0 view .LVU375
+ 1224 0002 FFF7FEFF 		bl	rotenc_enter_critical
+ 1225              	.LVL75:
+ 333:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const bool value = g_rotenc.btnClicked;
+ 1226              		.loc 1 333 5 is_stmt 1 view .LVU376
+ 1227              		.loc 1 333 16 is_stmt 0 view .LVU377
+ 1228 0006 044B     		ldr	r3, .L77
+ 1229 0008 5C7A     		ldrb	r4, [r3, #9]	@ zero_extendqisi2
+ 1230 000a E4B2     		uxtb	r4, r4
+ 1231              	.LVL76:
+ 334:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnClicked = false;
+ 1232              		.loc 1 334 5 is_stmt 1 view .LVU378
+ 1233              		.loc 1 334 25 is_stmt 0 view .LVU379
+ 1234 000c 0022     		movs	r2, #0
+ 1235 000e 5A72     		strb	r2, [r3, #9]
+ 335:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 1236              		.loc 1 335 5 is_stmt 1 view .LVU380
+ 1237 0010 FFF7FEFF 		bl	rotenc_leave_critical
+ 1238              	.LVL77:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 46
+
+
+ 336:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return value;
+ 1239              		.loc 1 336 5 view .LVU381
+ 337:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 1240              		.loc 1 337 1 is_stmt 0 view .LVU382
+ 1241 0014 2046     		mov	r0, r4
+ 1242 0016 10BD     		pop	{r4, pc}
+ 1243              	.LVL78:
+ 1244              	.L78:
+ 1245              		.loc 1 337 1 view .LVU383
+ 1246              		.align	2
+ 1247              	.L77:
+ 1248 0018 00000000 		.word	g_rotenc
+ 1249              		.cfi_endproc
+ 1250              	.LFE351:
+ 1252              		.section	.text.RotEnc_WasButtonLongPressed,"ax",%progbits
+ 1253              		.align	1
+ 1254              		.global	RotEnc_WasButtonLongPressed
+ 1255              		.syntax unified
+ 1256              		.thumb
+ 1257              		.thumb_func
+ 1259              	RotEnc_WasButtonLongPressed:
+ 1260              	.LFB352:
+ 338:Src/input/drivers/rotary_encoder/rotary-encoder.c **** 
+ 339:Src/input/drivers/rotary_encoder/rotary-encoder.c **** bool RotEnc_WasButtonLongPressed(void)
+ 340:Src/input/drivers/rotary_encoder/rotary-encoder.c **** {
+ 1261              		.loc 1 340 1 is_stmt 1 view -0
+ 1262              		.cfi_startproc
+ 1263              		@ args = 0, pretend = 0, frame = 0
+ 1264              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1265 0000 10B5     		push	{r4, lr}
+ 1266              	.LCFI11:
+ 1267              		.cfi_def_cfa_offset 8
+ 1268              		.cfi_offset 4, -8
+ 1269              		.cfi_offset 14, -4
+ 341:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const uint32_t primask = rotenc_enter_critical();
+ 1270              		.loc 1 341 5 view .LVU385
+ 1271              		.loc 1 341 30 is_stmt 0 view .LVU386
+ 1272 0002 FFF7FEFF 		bl	rotenc_enter_critical
+ 1273              	.LVL79:
+ 342:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     const bool value = g_rotenc.btnLongPressed;
+ 1274              		.loc 1 342 5 is_stmt 1 view .LVU387
+ 1275              		.loc 1 342 16 is_stmt 0 view .LVU388
+ 1276 0006 044B     		ldr	r3, .L81
+ 1277 0008 9C7A     		ldrb	r4, [r3, #10]	@ zero_extendqisi2
+ 1278 000a E4B2     		uxtb	r4, r4
+ 1279              	.LVL80:
+ 343:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     g_rotenc.btnLongPressed = false;
+ 1280              		.loc 1 343 5 is_stmt 1 view .LVU389
+ 1281              		.loc 1 343 29 is_stmt 0 view .LVU390
+ 1282 000c 0022     		movs	r2, #0
+ 1283 000e 9A72     		strb	r2, [r3, #10]
+ 344:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     rotenc_leave_critical(primask);
+ 1284              		.loc 1 344 5 is_stmt 1 view .LVU391
+ 1285 0010 FFF7FEFF 		bl	rotenc_leave_critical
+ 1286              	.LVL81:
+ 345:Src/input/drivers/rotary_encoder/rotary-encoder.c ****     return value;
+ 1287              		.loc 1 345 5 view .LVU392
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 47
+
+
+ 346:Src/input/drivers/rotary_encoder/rotary-encoder.c **** }
+ 1288              		.loc 1 346 1 is_stmt 0 view .LVU393
+ 1289 0014 2046     		mov	r0, r4
+ 1290 0016 10BD     		pop	{r4, pc}
+ 1291              	.LVL82:
+ 1292              	.L82:
+ 1293              		.loc 1 346 1 view .LVU394
+ 1294              		.align	2
+ 1295              	.L81:
+ 1296 0018 00000000 		.word	g_rotenc
+ 1297              		.cfi_endproc
+ 1298              	.LFE352:
+ 1300              		.section	.rodata.kQuadratureTransition,"a"
+ 1301              		.align	2
+ 1304              	kQuadratureTransition:
+ 1305 0000 00FF0100 		.ascii	"\000\377\001\000\001\000\000\377\377\000\000\001\000"
+ 1305      010000FF 
+ 1305      FF000001 
+ 1305      00
+ 1306 000d 01FF00   		.ascii	"\001\377\000"
+ 1307              		.section	.bss.g_rotenc,"aw",%nobits
+ 1308              		.align	2
+ 1311              	g_rotenc:
+ 1312 0000 00000000 		.space	28
+ 1312      00000000 
+ 1312      00000000 
+ 1312      00000000 
+ 1312      00000000 
+ 1313              		.text
+ 1314              	.Letext0:
+ 1315              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1316              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1317              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1318              		.file 6 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 1319              		.file 7 "Inc/system/board_cfg.h"
+ 1320              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s 			page 48
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 rotary-encoder.c
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:20     .text.rotenc_enter_critical:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:25     .text.rotenc_enter_critical:00000000 rotenc_enter_critical
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:72     .text.rotenc_leave_critical:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:77     .text.rotenc_leave_critical:00000000 rotenc_leave_critical
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:109    .text.rotenc_reset_ignored_state:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:114    .text.rotenc_reset_ignored_state:00000000 rotenc_reset_ignored_state
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:168    .text.rotenc_reset_ignored_state:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1311   .bss.g_rotenc:00000000 g_rotenc
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:173    .text.rotenc_read_ab:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:178    .text.rotenc_read_ab:00000000 rotenc_read_ab
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:228    .text.rotenc_read_ab:0000002c $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:233    .text.rotenc_read_button_raw_down:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:238    .text.rotenc_read_button_raw_down:00000000 rotenc_read_button_raw_down
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:262    .text.rotenc_read_button_raw_down:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:267    .text.RotEnc_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:273    .text.RotEnc_Init:00000000 RotEnc_Init
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:465    .text.RotEnc_Init:000000bc $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:473    .text.RotEnc_Tick1msFromISR:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:479    .text.RotEnc_Tick1msFromISR:00000000 RotEnc_Tick1msFromISR
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:959    .text.RotEnc_Tick1msFromISR:000001c8 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1304   .rodata.kQuadratureTransition:00000000 kQuadratureTransition
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:967    .text.RotEnc_Update:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:973    .text.RotEnc_Update:00000000 RotEnc_Update
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:986    .text.RotEnc_GetDelta:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:992    .text.RotEnc_GetDelta:00000000 RotEnc_GetDelta
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1029   .text.RotEnc_GetDelta:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1034   .text.RotEnc_GetDetentDelta:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1040   .text.RotEnc_GetDetentDelta:00000000 RotEnc_GetDetentDelta
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1077   .text.RotEnc_GetDetentDelta:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1082   .text.RotEnc_IsButtonDown:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1088   .text.RotEnc_IsButtonDown:00000000 RotEnc_IsButtonDown
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1104   .text.RotEnc_IsButtonDown:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1109   .text.RotEnc_WasButtonPressed:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1115   .text.RotEnc_WasButtonPressed:00000000 RotEnc_WasButtonPressed
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1152   .text.RotEnc_WasButtonPressed:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1157   .text.RotEnc_WasButtonReleased:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1163   .text.RotEnc_WasButtonReleased:00000000 RotEnc_WasButtonReleased
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1200   .text.RotEnc_WasButtonReleased:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1205   .text.RotEnc_WasButtonClicked:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1211   .text.RotEnc_WasButtonClicked:00000000 RotEnc_WasButtonClicked
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1248   .text.RotEnc_WasButtonClicked:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1253   .text.RotEnc_WasButtonLongPressed:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1259   .text.RotEnc_WasButtonLongPressed:00000000 RotEnc_WasButtonLongPressed
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1296   .text.RotEnc_WasButtonLongPressed:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1301   .rodata.kQuadratureTransition:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccCVvviI.s:1308   .bss.g_rotenc:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_GPIO_ReadPin
+HAL_GPIO_Init
+HAL_GetTick

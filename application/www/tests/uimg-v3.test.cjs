@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { buildUimgV3, parseUimgV3, UIMG_WIDTH, UIMG_HEIGHT } = require('../lib/uimg-v3.ts');
+const { buildUimgV4, parseUimg } = require('../lib/uimg-v4.ts');
 const {
   advanceHoldGesture,
   advanceHoldProgress,
@@ -86,6 +87,22 @@ test('UIMG v3 rejects a seventh frame and payload/header tampering', () => {
   const headerDamage = valid.slice();
   headerDamage[83] = 1;
   assert.throws(() => parseUimgV3(headerDamage), /metadata|header CRC/);
+});
+
+test('UIMG v4 round-trips twelve frames while retaining v3 read support', () => {
+  const payload = new Uint8Array(frameBytes * 12);
+  for (let frame = 0; frame < 12; frame += 1) payload.fill(frame + 1, frame * frameBytes, (frame + 1) * frameBytes);
+  const asset = buildUimgV4(payload, 12, 6);
+  assert.equal(new DataView(asset.buffer).getUint16(4, true), 4);
+  const parsed = parseUimg(asset);
+  assert.equal(parsed.frameCount, 12);
+  assert.equal(parsed.fps, 6);
+  assert.deepEqual(parsed.payload, payload);
+  assert.equal(parseUimg(buildUimgV3(new Uint8Array(frameBytes * 6), 6, 3)).frameCount, 6);
+  assert.throws(() => buildUimgV4(new Uint8Array(frameBytes * 13), 13, 3), /Invalid UIMG/);
+  const damaged = asset.slice();
+  damaged[28 + 11 * 4] ^= 1;
+  assert.throws(() => parseUimg(damaged), /frame offsets/);
 });
 
 test('hold progress waits 0.5 seconds, grows for 1.5 seconds, decays, and resumes', () => {
@@ -232,7 +249,7 @@ test('gallery persists and restores the last selected tab in local storage', () 
   assert.match(source, /localStorage\.getItem\(GALLERY_TAB_STORAGE_KEY\)/);
   assert.match(source, /stored === 'system' \|\| stored === 'mine'/);
   assert.match(source, /localStorage\.setItem\(GALLERY_TAB_STORAGE_KEY, value\)/);
-  assert.match(source, /<Tabs\.Root value=\{galleryTab\} onValueChange=\{details => rememberGalleryTab\(details\.value\)\}>/);
+  assert.match(source, /<Tabs\.Root value=\{galleryTab\} onValueChange=\{details => rememberGalleryTab\(details\.value\)\}[^>]*>/);
   assert.doesNotMatch(source, /<Tabs\.Root defaultValue="system">/);
 });
 
@@ -252,4 +269,18 @@ test('gallery tab toolbar keeps the hold hint on a stable baseline', () => {
   assert.match(toolbar, /<Box width="160px" height="28px" flexShrink="0">/);
   assert.match(source, /\{galleryToolbar\(false\)\}/);
   assert.match(source, /\{galleryToolbar\(session\.authenticated\)\}/);
+});
+
+
+test('UIMG v4 retains legacy 3 FPS reads and rejects unsupported animation rates', () => {
+  const payload = new Uint8Array(frameBytes * 2);
+  assert.equal(parseUimg(buildUimgV4(payload, 2, 3)).fps, 3);
+  for (const fps of [0, 2, 5, 7]) assert.throws(() => buildUimgV4(payload, 2, fps), /metadata/);
+});
+
+test('GIF gallery previews use the animated source, static images keep thumbnails', () => {
+  const { galleryPreviewUrl } = require('../lib/image-gallery.ts');
+  const image = { sourceUrl: '/source.gif', previewUrl: '/preview.png', sourceMime: 'image/gif' };
+  assert.equal(galleryPreviewUrl(image), '/source.gif');
+  assert.equal(galleryPreviewUrl({ ...image, sourceMime: 'image/png' }), '/preview.png');
 });

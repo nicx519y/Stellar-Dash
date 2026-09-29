@@ -1,3 +1,5 @@
+// Match Next.js CommonJS default import interop in the Sucrase host harness.
+require('jszip').default = require('jszip');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { firmwareRuntime: mock } = require('../lib/admin/firmware-mock.ts');

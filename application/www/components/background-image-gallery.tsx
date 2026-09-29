@@ -16,9 +16,12 @@ import {
   fetchMyGallery,
   fetchSystemGallery,
   GalleryImage,
+  galleryPreviewUrl,
   uploadMyGalleryImage,
 } from '@/lib/image-gallery';
-import { parseUimgV3, sha256Hex } from '@/lib/uimg-v3';
+import { sha256Hex } from '@/lib/uimg-v3';
+import { parseUimg, prepareUimgInstallation, UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES } from '@/lib/uimg-v4';
+import { galleryErrorMessage } from '@/lib/gallery-error-message';
 import { mapWithConcurrency } from '@/lib/map-with-concurrency';
 import {
   clearDeviceImagePreview,
@@ -58,33 +61,151 @@ type Props = {
   onBusyChange(busy: boolean): void;
 };
 
+function GalleryImageList({ children }: { children: React.ReactNode }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    const indicator = indicatorRef.current;
+    if (!viewport || !content || !indicator) return;
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const { clientHeight, scrollHeight, scrollTop } = viewport;
+      const overflow = scrollHeight - clientHeight;
+      indicator.style.opacity = clientHeight > 0 && overflow > 1 ? '1' : '0';
+      if (clientHeight <= 0 || overflow <= 1) return;
+      const height = Math.min(clientHeight, Math.max(24, clientHeight * clientHeight / scrollHeight));
+      const top = Math.min(1, Math.max(0, scrollTop / overflow)) * (clientHeight - height);
+      indicator.style.height = `${height}px`;
+      indicator.style.transform = `translateY(${top}px)`;
+    };
+    const scheduleUpdate = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const observer = new ResizeObserver(scheduleUpdate);
+    observer.observe(viewport);
+    observer.observe(content);
+    viewport.addEventListener('scroll', scheduleUpdate, { passive: true });
+    update();
+    return () => {
+      observer.disconnect();
+      viewport.removeEventListener('scroll', scheduleUpdate);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  return <Box position="relative" flex="1" minHeight="0" overflow="hidden">
+    <Box
+      ref={viewportRef}
+      height="100%"
+      overflowY="auto"
+      overscrollBehaviorY="contain"
+      tabIndex={0}
+      css={{ scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}
+    >
+      <Box ref={contentRef} pl="1" pr="3" py="1">{children}</Box>
+    </Box>
+    <Box
+      ref={indicatorRef}
+      aria-hidden="true"
+      position="absolute"
+      top="0"
+      right="0"
+      width="3px"
+      borderRadius="full"
+      bg="whiteAlpha.400"
+      opacity="0"
+      pointerEvents="none"
+    />
+  </Box>;
+}
+
 function fingerprint(value: { width: number; height: number; size: number; frameCount: number; fps: number; crc32?: number }) {
   return [value.width, value.height, value.size, value.frameCount, value.fps, value.crc32 ?? 'legacy'].join(':');
 }
 
 function AuthorizedPreview({ image, fetchAuthorized }: { image: GalleryImage; fetchAuthorized: PropsWithFetch }) {
-  const [url, setUrl] = useState(image.scope === 'user' ? image.previewUrl : '');
+  const previewUrl = galleryPreviewUrl(image);
+  const [url, setUrl] = useState('');
   useEffect(() => {
-    if (image.scope === 'user') { setUrl(image.previewUrl); return; }
+    if (image.scope === 'user') return;
+    setUrl('');
     let active = true;
     let objectUrl = '';
-    fetchAuthorized(image.previewUrl).then(async response => {
+    fetchAuthorized(previewUrl).then(async response => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      objectUrl = URL.createObjectURL(await response.blob());
-      if (active) setUrl(objectUrl);
+      const nextUrl = URL.createObjectURL(await response.blob());
+      if (active) { objectUrl = nextUrl; setUrl(nextUrl); }
+      else URL.revokeObjectURL(nextUrl);
     }).catch(() => { if (active) setUrl(''); });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [fetchAuthorized, image.previewUrl, image.scope]);
-  return url ? <Image src={url} alt={image.title} width="100%" height="100%" objectFit="contain" draggable={false} /> : <Spinner size="sm" />;
+  }, [fetchAuthorized, previewUrl, image.scope]);
+  const displayedUrl = image.scope === 'user' ? previewUrl : url;
+  return displayedUrl
+    ? <Image src={displayedUrl} alt={image.title} width="100%" height="100%" objectFit="contain" draggable={false} />
+    : <Flex width="100%" height="100%" align="center" justify="center"><Spinner size="sm" /></Flex>;
 }
 
 type PropsWithFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+type GalleryTileProps = {
+  image: GalleryImage;
+  selectable: boolean;
+  isCurrent: boolean;
+  isInstalling: boolean;
+  isSelected: boolean;
+  installActive: boolean;
+  progress: number;
+  fetchAuthorized: PropsWithFetch;
+  onBeginPress(id: string): void;
+  onEndPress(id: string, selectable: boolean, cancelled?: boolean): void;
+};
+
+// Keep the component type stable while the hold ring updates every frame.
+// Remounting a tile also remounts its authorized image preview and restarts GIFs.
+function GalleryTile({
+  image, selectable, isCurrent, isInstalling, isSelected, installActive, progress,
+  fetchAuthorized, onBeginPress, onEndPress,
+}: GalleryTileProps) {
+  return <Box position="relative" borderWidth="2px" borderColor={isCurrent ? 'green.400' : isSelected ? 'blue.400' : 'gray.700'} borderRadius="md" overflow="hidden" height="118px"
+    userSelect="none" touchAction="none" cursor={!isCurrent && ((selectable && !isInstalling) || !installActive) ? 'pointer' : 'default'}
+    aria-disabled={isCurrent || isInstalling}
+    onContextMenu={event => event.preventDefault()}
+    onPointerDown={event => { if (isCurrent || isInstalling) return; event.currentTarget.setPointerCapture(event.pointerId); onBeginPress(image.id); }}
+    onPointerUp={() => onEndPress(image.id, selectable)} onPointerCancel={() => onEndPress(image.id, selectable, true)}
+    onKeyDown={event => { if (!isCurrent && !isInstalling && (event.key === ' ' || event.key === 'Enter') && !event.repeat) onBeginPress(image.id); }}
+    onKeyUp={event => { if (event.key === ' ' || event.key === 'Enter') onEndPress(image.id, selectable); }} tabIndex={isCurrent || isInstalling ? -1 : 0}>
+    <AuthorizedPreview image={image} fetchAuthorized={fetchAuthorized} />
+    <Box position="absolute" insetX="0" bottom="0" bg="blackAlpha.700" px="2" py="1"><Text fontSize="xs" truncate>{image.title}</Text></Box>
+    {isSelected && <Flex position="absolute" left="2" top="2" bg="blue.500" borderRadius="full" p="1"><LuCheck /></Flex>}
+    {isCurrent && <Flex position="absolute" right="2" top="2" bg="green.500" borderRadius="full" p="1"><LuCheck /></Flex>}
+    {progress > 0 && !isCurrent && <Flex position="absolute" inset="0" align="center" justify="center" bg="blackAlpha.500">
+      <Box
+        width="54px"
+        height="54px"
+        borderRadius="full"
+        style={{
+          background: `conic-gradient(${isInstalling ? '#3b82f6' : '#22c55e'} ${progress * 360}deg, rgba(255,255,255,.2) 0)`,
+          WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0)',
+          mask: 'radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0)',
+        }}
+      />
+    </Flex>}
+  </Box>;
+}
 
 async function loadGallerySourcePreview(
   image: GalleryImage,
   fetchAuthorized: PropsWithFetch,
 ): Promise<string> {
-  const response = await fetchAuthorized(image.sourceUrl, { cache: 'force-cache' });
+  const response = image.scope === 'system'
+    ? await fetchAuthorized(image.sourceUrl, { cache: 'force-cache' })
+    : await fetch(image.sourceUrl, { cache: 'force-cache', credentials: 'same-origin' });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const source = await response.blob();
   const mime = (source.type || image.sourceMime).toLowerCase();
@@ -97,7 +218,7 @@ async function loadGallerySourcePreview(
 
 export function BackgroundImageGallery({ disabled, config, onInstalled, onAvailabilityChange, onBusyChange }: Props) {
   const {
-    deviceConnected, dataIsReady, deviceSession, getDeviceImageCatalog,
+    deviceConnected, dataIsReady, deviceSession, deviceBackgroundReadsPaused, getDeviceImageCatalog,
     uploadDeviceImage, stageDeferredScreenControl, fetchDeviceAuthorizedResource,
   } = useGamepadConfig();
   const { session } = useUserAuth();
@@ -135,6 +256,8 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   const fileInput = useRef<HTMLInputElement>(null);
   const syncInFlight = useRef<Promise<void> | null>(null);
   const syncEpoch = useRef(0);
+  const backgroundReadsPausedRef = useRef(deviceBackgroundReadsPaused);
+  backgroundReadsPausedRef.current = deviceBackgroundReadsPaused;
   const uploadPreviewUrls = useRef(new Set<string>());
   const holdLast = useRef(0);
   const pressGesture = useRef<{ id: string; startedAt: number; resumed: boolean } | null>(null);
@@ -173,12 +296,13 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   };
 
   const syncDevice = useCallback((silent = false): Promise<void> => {
+    if (backgroundReadsPausedRef.current) return Promise.resolve();
     // BEGIN intentionally invalidates the committed header. Never start a
     // background preview read while an installation owns the image resource.
     if (getDeviceImageInstallState()) return Promise.resolve();
     if (syncInFlight.current) return syncInFlight.current;
     const epoch = ++syncEpoch.current;
-    const isCurrent = () => syncEpoch.current === epoch && !getDeviceImageInstallState();
+    const isCurrent = () => syncEpoch.current === epoch && !backgroundReadsPausedRef.current && !getDeviceImageInstallState();
 
     const operation = (async () => {
       if (!deviceConnected || !dataIsReady) {
@@ -198,7 +322,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
           return;
         }
         const expected = catalog.user.width * catalog.user.height * 2 * catalog.user.frameCount;
-        if (expected !== catalog.user.size || catalog.user.frameCount < 1 || catalog.user.frameCount > 6) throw new Error('Invalid device image catalog');
+        if (expected !== catalog.user.size || catalog.user.frameCount < 1 || catalog.user.frameCount > UIMG_MAX_FRAMES) throw new Error('Invalid device image catalog');
         const fp = fingerprint(catalog.user);
         const cached = loadDeviceImagePreview(previewIdentity, fp);
         if (cached) {
@@ -250,20 +374,17 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
           if (!silent) {
             showToast({
               title: zh ? '服务器预览加载失败' : 'Failed to load server preview',
-              description: error instanceof Error ? error.message : String(error),
+              description: galleryErrorMessage(error, currentLanguage),
               type: 'error',
             });
           }
         }
       } catch (error) {
         if (!isCurrent()) return;
-        clearDeviceImagePreview(previewIdentity);
-        setCurrentPreview(''); setCurrentFingerprint(''); setCurrentGalleryId(null);
-        onAvailabilityChange(false);
-        const currentConfig = configRef.current;
-        if (currentConfig.standbyDisplay === 'backgroundImage') stageDeferredScreenControl({ ...currentConfig, standbyDisplay: 'none', backgroundImageId: '' });
+        // A failed read does not prove that the installed image disappeared.
+        // Keep the last confirmed selection until a catalog reply says otherwise.
         if (!silent) {
-          showToast({ title: zh ? '读取设备图片失败' : 'Failed to read device image', description: error instanceof Error ? error.message : String(error), type: 'error' });
+          showToast({ title: zh ? '读取设备图片失败' : 'Failed to read device image', description: galleryErrorMessage(error, currentLanguage), type: 'error' });
         }
       }
     })();
@@ -272,7 +393,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
     });
     syncInFlight.current = tracked;
     return tracked;
-  }, [authorizedFetch, dataIsReady, deviceConnected, deviceId, getDeviceImageCatalog, onAvailabilityChange, previewIdentity, stageDeferredScreenControl, zh]);
+  }, [authorizedFetch, currentLanguage, dataIsReady, deviceConnected, deviceId, getDeviceImageCatalog, onAvailabilityChange, previewIdentity, stageDeferredScreenControl, zh]);
 
   const loadSystem = useCallback(async (append = false) => {
     const result = await fetchSystemGallery(authorizedFetch, append ? systemCursor : null);
@@ -281,11 +402,18 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   }, [authorizedFetch, systemCursor]);
   const loadMine = useCallback(async () => { if (session.authenticated) setMine(await fetchMyGallery()); else setMine({ limit: 10, count: 0, items: [] }); }, [session.authenticated]);
 
-  useEffect(() => { void syncDevice(); }, [accountUid, syncDevice, deviceSession?.sessionId]);
+  useEffect(() => {
+    if (deviceBackgroundReadsPaused) {
+      ++syncEpoch.current;
+      syncInFlight.current = null;
+      return;
+    }
+    void syncDevice();
+  }, [accountUid, deviceBackgroundReadsPaused, syncDevice, deviceSession?.sessionId]);
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    Promise.all([loadSystem(false), loadMine()]).catch(error => showToast({ title: zh ? '图库加载失败' : 'Failed to load gallery', description: error instanceof Error ? error.message : String(error), type: 'error' })).finally(() => setLoading(false));
+    Promise.all([loadSystem(false), loadMine()]).catch(error => showToast({ title: zh ? '图库加载失败' : 'Failed to load gallery', description: galleryErrorMessage(error, currentLanguage), type: 'error' })).finally(() => setLoading(false));
   }, [open, session.authenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const allImages = useMemo(() => [...systemImages, ...mine.items], [mine.items, systemImages]);
@@ -356,12 +484,14 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
       const response = image.scope === 'system' ? await authorizedFetch(image.deviceAssetUrl) : await fetch(image.deviceAssetUrl, { credentials: 'same-origin' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const bytes = new Uint8Array(await response.arrayBuffer());
-      const parsed = parseUimgV3(bytes);
+      const parsed = parseUimg(bytes);
       const digest = await sha256Hex(bytes);
       if (digest !== image.deviceSha256 || parsed.payloadCrc32 !== image.payloadCrc32 || parsed.payloadBytes !== image.payloadBytes || parsed.frameCount !== image.frameCount || parsed.fps !== image.fps) throw new Error('Gallery image verification failed');
+      // Verify the stored asset before adapting legacy frame timing.
+      const installation = prepareUimgInstallation(parsed);
       await uploadDeviceImage({
-        width: parsed.width, height: parsed.height, data: parsed.payload,
-        frameCount: parsed.frameCount, fps: parsed.fps,
+        width: installation.width, height: installation.height, data: installation.payload,
+        frameCount: installation.frameCount, fps: installation.fps,
         // The client reports total only after COMMIT succeeds. Keep a small
         // visible remainder for the catalog read-back below, then finish both
         // progress indicators together after the device identity is verified.
@@ -371,10 +501,10 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
         ),
       });
       const catalog = await getDeviceImageCatalog();
-      if (!catalog.user.valid || catalog.user.crc32 !== parsed.payloadCrc32 ||
-          catalog.user.size !== parsed.payloadBytes || catalog.user.width !== parsed.width ||
-          catalog.user.height !== parsed.height || catalog.user.frameCount !== parsed.frameCount ||
-          catalog.user.fps !== parsed.fps) {
+      if (!catalog.user.valid || catalog.user.crc32 !== installation.payloadCrc32 ||
+          catalog.user.size !== installation.payloadBytes || catalog.user.width !== installation.width ||
+          catalog.user.height !== installation.height || catalog.user.frameCount !== installation.frameCount ||
+          catalog.user.fps !== installation.fps) {
         throw new Error('Device did not confirm the installed image');
       }
       const fp = fingerprint(catalog.user);
@@ -389,12 +519,12 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
       // intentionally silent so the original upload error remains visible.
       finishDeviceImageInstall(image.id);
       await syncDevice(true);
-      showToast({ title: zh ? '安装图片失败' : 'Failed to install image', description: error instanceof Error ? error.message : String(error), type: 'error' });
+      showToast({ title: zh ? '安装图片失败' : 'Failed to install image', description: galleryErrorMessage(error, currentLanguage), type: 'error' });
     } finally {
       if (installedPreview) URL.revokeObjectURL(installedPreview);
       finishDeviceImageInstall(image.id); setHold({ id: '', progress: 0, delayMs: 0, pressed: false }); installTriggered.current = false;
     }
-  }, [authorizedFetch, config, currentGalleryId, deviceConnected, getDeviceImageCatalog, installingId, onAvailabilityChange, onInstalled, previewIdentity, stageDeferredScreenControl, syncDevice, uploadDeviceImage, zh]);
+  }, [authorizedFetch, config, currentGalleryId, currentLanguage, deviceConnected, getDeviceImageCatalog, installingId, onAvailabilityChange, onInstalled, previewIdentity, stageDeferredScreenControl, syncDevice, uploadDeviceImage, zh]);
 
   useEffect(() => {
     if (!hold.id || installingId) return;
@@ -475,7 +605,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
       uploadPreviewUrls.current.delete(item.previewUrl);
       URL.revokeObjectURL(item.previewUrl);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = galleryErrorMessage(error, currentLanguage);
       setUpload(item.id, { status: 'error', error: message });
       showToast({ title: zh ? `上传失败：${item.file.name}` : `Upload failed: ${item.file.name}`, description: message, type: 'error' });
     }
@@ -502,42 +632,25 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
     });
     if (!ids.length) return;
     try { await deleteMyGalleryImages(ids); setSelected(new Set()); await loadMine(); }
-    catch (error) { showToast({ title: zh ? '删除图片失败' : 'Failed to delete images', description: error instanceof Error ? error.message : String(error), type: 'error' }); }
+    catch (error) { showToast({ title: zh ? '删除图片失败' : 'Failed to delete images', description: galleryErrorMessage(error, currentLanguage), type: 'error' }); }
   };
 
-  const Tile = ({ image, selectable }: { image: GalleryImage; selectable: boolean }) => {
+  const renderTile = (image: GalleryImage, selectable: boolean) => {
     const isCurrent = isInstalledGalleryImage(image);
     const isInstalling = installingId === image.id;
-    const progress = isInstalling
-      ? deviceImageInstallRingProgress(deviceProgress ?? 0)
-      : hold.id === image.id ? hold.progress : 0;
-    const isSelected = selectable && !isCurrent && !isInstalling && selected.has(image.id);
-    const canSelect = selectable && !isCurrent && !isInstalling;
-    return <Box position="relative" borderWidth="2px" borderColor={isCurrent ? 'green.400' : isSelected ? 'blue.400' : 'gray.700'} borderRadius="md" overflow="hidden" height="118px"
-      userSelect="none" touchAction="none" cursor={canSelect || (!isCurrent && !installingId) ? 'pointer' : 'default'}
-      aria-disabled={isCurrent || isInstalling}
-      onContextMenu={event => event.preventDefault()}
-      onPointerDown={event => { if (isCurrent || isInstalling) return; event.currentTarget.setPointerCapture(event.pointerId); beginPress(image.id); }}
-      onPointerUp={() => endPress(image.id, selectable)} onPointerCancel={() => endPress(image.id, selectable, true)}
-      onKeyDown={event => { if (!isCurrent && !isInstalling && (event.key === ' ' || event.key === 'Enter') && !event.repeat) beginPress(image.id); }}
-      onKeyUp={event => { if (event.key === ' ' || event.key === 'Enter') endPress(image.id, selectable); }} tabIndex={isCurrent || isInstalling ? -1 : 0}>
-      <AuthorizedPreview image={image} fetchAuthorized={authorizedFetch} />
-      <Box position="absolute" insetX="0" bottom="0" bg="blackAlpha.700" px="2" py="1"><Text fontSize="xs" truncate>{image.title}</Text></Box>
-      {isSelected && <Flex position="absolute" left="2" top="2" bg="blue.500" borderRadius="full" p="1"><LuCheck /></Flex>}
-      {isCurrent && <Flex position="absolute" right="2" top="2" bg="green.500" borderRadius="full" p="1"><LuCheck /></Flex>}
-      {progress > 0 && !isCurrent && <Flex position="absolute" inset="0" align="center" justify="center" bg="blackAlpha.500">
-        <Box
-          width="54px"
-          height="54px"
-          borderRadius="full"
-          style={{
-            background: `conic-gradient(${isInstalling ? '#3b82f6' : '#22c55e'} ${progress * 360}deg, rgba(255,255,255,.2) 0)`,
-            WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0)',
-            mask: 'radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0)',
-          }}
-        />
-      </Flex>}
-    </Box>;
+    return <GalleryTile
+      key={image.id}
+      image={image}
+      selectable={selectable}
+      isCurrent={isCurrent}
+      isInstalling={isInstalling}
+      isSelected={selectable && !isCurrent && !isInstalling && selected.has(image.id)}
+      installActive={installingId !== null}
+      progress={isInstalling ? deviceImageInstallRingProgress(deviceProgress ?? 0) : hold.id === image.id ? hold.progress : 0}
+      fetchAuthorized={authorizedFetch}
+      onBeginPress={beginPress}
+      onEndPress={endPress}
+    />;
   };
 
   const UploadTile = ({ upload }: { upload: UploadState }) => {
@@ -619,6 +732,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
     mb="3"
     height="28px"
     minHeight="28px"
+    flexShrink="0"
   >
     <Text fontSize="xs" lineHeight="20px" color="gray.500">{copy.hold}</Text>
     <Box width="160px" height="28px" flexShrink="0">
@@ -662,32 +776,37 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
         height="min(800px, calc(100vh - 64px))"
       >
         <Dialog.Header><Dialog.Title>{zh ? '背景图片图库' : 'Background Gallery'}</Dialog.Title></Dialog.Header>
-        <Dialog.Body flex="1" minHeight="0" overflowY="auto">
-          <Tabs.Root value={galleryTab} onValueChange={details => rememberGalleryTab(details.value)}>
-            <Tabs.List><Tabs.Trigger value="system">{copy.system}</Tabs.Trigger><Tabs.Trigger value="mine">{copy.mine}</Tabs.Trigger></Tabs.List>
-            <Tabs.Content value="system" pt="4">
+        <Dialog.Body display="flex" flex="1" minHeight="0" overflow="hidden">
+          <Tabs.Root value={galleryTab} onValueChange={details => rememberGalleryTab(details.value)} display="flex" flexDirection="column" flex="1" minWidth="0" minHeight="0">
+            <Tabs.List flexShrink="0"><Tabs.Trigger value="system">{copy.system}</Tabs.Trigger><Tabs.Trigger value="mine">{copy.mine}</Tabs.Trigger></Tabs.List>
+            <Tabs.Content value="system" pt="4" pb="0" display={galleryTab === 'system' ? 'flex' : 'none'} flexDirection="column" flex="1" minHeight="0" overflow="hidden">
               {galleryToolbar(false)}
-              {loading ? <Spinner /> : <Grid templateColumns="repeat(auto-fill,minmax(180px,1fr))" gap="3">{systemImages.map(image => <Tile key={image.id} image={image} selectable={false} />)}</Grid>}
-              {systemCursor && <Button mt="4" size="sm" onClick={() => void loadSystem(true)}>{copy.loadMore}</Button>}
+              <GalleryImageList>
+                {loading ? <Spinner /> : <Grid templateColumns="repeat(auto-fill,minmax(180px,1fr))" gap="3">{systemImages.map(image => renderTile(image, false))}</Grid>}
+                {systemCursor && <Button mt="4" size="sm" onClick={() => void loadSystem(true)}>{copy.loadMore}</Button>}
+              </GalleryImageList>
             </Tabs.Content>
-            <Tabs.Content value="mine" pt="4">
+            <Tabs.Content value="mine" pt="4" pb="0" display={galleryTab === 'mine' ? 'flex' : 'none'} flexDirection="column" flex="1" minHeight="0" overflow="hidden">
               {galleryToolbar(session.authenticated)}
-              {!session.authenticated ? <Text>{copy.signIn}</Text> : <>
-                <input ref={fileInput} hidden type="file" multiple accept="image/png,image/jpeg,image/gif" onChange={event => { const files = [...(event.target.files || [])]; event.target.value = ''; void addFiles(files); }} />
-                <Grid templateColumns="repeat(auto-fill,minmax(180px,1fr))" gap="3">
-                  <AddTile />
-                  {uploads.map(upload => <UploadTile key={upload.id} upload={upload} />)}
-                  {mine.items.map(image => <Tile key={image.id} image={image} selectable />)}
-                </Grid>
-              </>}
+              <GalleryImageList>
+                {!session.authenticated ? <Text>{copy.signIn}</Text> : <>
+                  <input ref={fileInput} hidden type="file" multiple accept="image/png,image/jpeg,image/gif" onChange={event => { const files = [...(event.target.files || [])]; event.target.value = ''; void addFiles(files); }} />
+                  <Grid templateColumns="repeat(auto-fill,minmax(180px,1fr))" gap="3">
+                    <AddTile />
+                    {uploads.map(upload => <UploadTile key={upload.id} upload={upload} />)}
+                    {mine.items.map(image => renderTile(image, true))}
+                  </Grid>
+                </>}
+              </GalleryImageList>
             </Tabs.Content>
           </Tabs.Root>
         </Dialog.Body>
         <Dialog.Footer flexShrink="0" display="block">
           <SettingDescription
             text={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP
-              .replace('{frames}', '6')
-              .replace('{seconds}', '2')}
+              .replace('{frames}', String(UIMG_MAX_FRAMES))
+              .replace('{fps}', String(UIMG_ANIMATION_FPS))
+              .replace('{seconds}', String(UIMG_MAX_FRAMES / UIMG_ANIMATION_FPS))}
             fontSize="xs"
           />
         </Dialog.Footer>

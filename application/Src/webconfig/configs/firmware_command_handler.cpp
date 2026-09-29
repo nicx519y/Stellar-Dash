@@ -8,6 +8,8 @@
 #include "qspi-w25q64.h"
 #include "config_transport_sink.hpp"
 #include "ch585_firmware_update.hpp"
+#include "release_installer.hpp"
+#pragma GCC optimize("Os")
 
 namespace {
 
@@ -106,6 +108,25 @@ bool parseUint32(const cJSON* item, uint32_t* output) {
  */
 DeviceCommandResponse FirmwareCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
+    if (command == "get_firmware_inventory" || command == "get_release_install_status")
+        return create_success_response(request.getCid(), command, RELEASE_INSTALLER.inventory());
+    if (command == "begin_release_install" || command == "prepare_release_install" ||
+        command == "activate_release_install" || command == "abort_release_install" || command == "retry_release_install") {
+        const cJSON* params=request.getParams();
+        const cJSON* id=params?cJSON_GetObjectItemCaseSensitive(params,"session_id"):nullptr;
+        const char* session=cJSON_IsString(id)?id->valuestring:nullptr;
+        uint32_t size=0; bool ok=false;
+        if(command=="begin_release_install")ok=parseUint32(cJSON_GetObjectItemCaseSensitive(params,"declaration_size"),&size) && RELEASE_INSTALLER.begin(session,size);
+        else if(command=="prepare_release_install")ok=RELEASE_INSTALLER.prepare(session);
+        else if(command=="activate_release_install")ok=RELEASE_INSTALLER.activate(session);
+        else if(command=="abort_release_install")ok=RELEASE_INSTALLER.abort(session);
+        else ok=RELEASE_INSTALLER.owns(session) && RELEASE_INSTALLER.retry();
+        if(!ok)return create_error_response(request.getCid(),command,409,RELEASE_INSTALLER.error());
+        cJSON* result=cJSON_CreateObject();cJSON_AddBoolToObject(result,"success",true);
+        return create_success_response(request.getCid(),command,result);
+    }
+    if (RELEASE_INSTALLER.busy() && command != "get_firmware_metadata" && command != "get_device_auth")
+        return create_error_response(request.getCid(),command,409,"Whole-device installation owns firmware writes");
     
     if (command == "get_device_auth") {
         return handleGetDeviceAuth(request);
@@ -615,7 +636,8 @@ DeviceCommandResponse FirmwareCommandHandler::handleUploadFirmwareChunk(const De
     APP_DBG("Begin ProcessFirmwareChunk: %s, %s, %d", sessionId, componentName, chunk.chunk_index);
     
     // 处理固件分片
-    bool success = manager->ProcessFirmwareChunk(sessionId, componentName, &chunk);
+    bool success = RELEASE_INSTALLER.busy() ? RELEASE_INSTALLER.upload(sessionId, componentName, chunk)
+        : manager->ProcessFirmwareChunk(sessionId, componentName, &chunk);
 
     // LOG_INFO("DeviceCommand", "upload_firmware_chunk: ProcessFirmwareChunk returned: %s", success ? "SUCCESS" : "FAILED");
 
@@ -742,7 +764,8 @@ bool FirmwareCommandHandler::handleBinaryFirmwareChunk(const uint8_t* data, size
     APP_DBG("Begin ProcessFirmwareChunk: %s, %s, %d", sessionId, componentName, chunk.chunk_index);
     
     // 处理固件分片
-    bool success = manager->ProcessFirmwareChunk(sessionId, componentName, &chunk);
+    bool success = RELEASE_INSTALLER.busy() ? RELEASE_INSTALLER.upload(sessionId, componentName, chunk)
+        : manager->ProcessFirmwareChunk(sessionId, componentName, &chunk);
     
     // 获取进度
     uint32_t progress = 0;

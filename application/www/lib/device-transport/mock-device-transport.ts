@@ -1,3 +1,8 @@
+import { firmwareRuntime as mockFirmwareCatalog } from '../admin/firmware-mock';
+import { mockInstallPackage, mockVerificationKey } from '../admin/firmware-install-mock';
+import type { FirmwareInventory } from './release-install-client';
+import type { FirmwareReleaseManifest } from '../admin/firmware-types';
+import { calculateSHA256 } from '../firmware-utils';
 import {
   AroundLedsEffectStyle,
   ConnectionMode,
@@ -26,6 +31,7 @@ import {
 } from '../../types/gamepad-config';
 import { switchMappingSha256 } from '../../types/adc';
 import { crc32 } from '../crc32';
+import { IMAGE_TRANSFER_FLAG_6_FPS, isSupportedImageFps, UIMG_MAX_FRAMES } from '../uimg-v4';
 import { contentChecksum, resourceBodies, resourceRequest, isRecord, VERSIONED_CONFIG_COMMANDS } from './config-modules';
 import { MockBindingStore, MockBindingState } from './mock-rf-binding';
 import type { ADCValuesMapping, StepInfo, SwitchMappingPayload } from '../../types/adc';
@@ -291,6 +297,21 @@ export class MockDeviceTransport implements DeviceTransport {
   private importReplaceProfiles = false;
   private importStrict = false;
   private firmwareSessions = new Set<string>();
+  private releaseDeclaration = new Uint8Array();
+  private releaseInventory(): FirmwareInventory {
+    const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('xora-mock-install') : null;
+    const inventory: FirmwareInventory = stored ? JSON.parse(stored) : {
+      protocol: 1, deviceModel: 'STM32H750_HBOX', hardwareVersion: '2.0.0', currentSlot: 'A', configVersion: 34,
+      securityVersion: 1, metadataConsistent: true, stm32: { version: '1.0.0', buildId: 'mock-initial', protocol: 1, maintenance: 1 },
+      tx: { version: '1.0.0', buildId: 'mock-initial', protocol: 1, maintenance: 1 }, installationState: 'unknown',
+      confirmedVersion: '', confirmedDigest: '', sessionId: '', phase: 'idle', targetVersion: '', targetDigest: '', error: '',
+      canAbort: false, canRetry: false, txReceived: 0,
+    };
+    return inventory;
+  }
+  private saveReleaseInventory(inventory: FirmwareInventory) {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('xora-mock-install', JSON.stringify(inventory));
+  }
   private readonly storage: MockStorage | null;
   private readonly storageKey: string;
   private readonly beforeRequest?: MockDeviceTransportOptions['beforeRequest'];
@@ -430,6 +451,16 @@ export class MockDeviceTransport implements DeviceTransport {
         ? input.href
         : input.url;
     const url = new URL(rawUrl, 'http://localhost');
+    if (url.pathname === '/api/firmware-releases/verification-key') return jsonResponse({ success: true, data: await mockVerificationKey() });
+    if (url.pathname.startsWith('/api/firmware-releases/')) {
+      const [, id, download] = /^\/api\/firmware-releases\/([^/]+)(?:\/(download))?$/.exec(url.pathname) || [];
+      if (!id) return jsonResponse({ success: false }, 404);
+      const source = await mockFirmwareCatalog.detail(decodeURIComponent(id));
+      if (source.status !== 'published') return jsonResponse({ success: false }, 404);
+      const pkg = await mockInstallPackage(source);
+      if (download) return new Response(pkg.bytes, { headers: { 'Content-Type': 'application/zip', 'X-Content-SHA256': pkg.release.bundleSha256! } });
+      return jsonResponse({ success: true, data: pkg.release });
+    }
     if (url.pathname === '/api/gallery/match' && (!init?.method || init.method === 'GET')) {
       return jsonResponse({ success: true, data: { item: null } });
     }
@@ -690,6 +721,41 @@ export class MockDeviceTransport implements DeviceTransport {
       );
     }
     switch (command) {
+      case 'get_firmware_inventory':
+      case 'get_release_install_status': return { ...this.releaseInventory() };
+      case 'begin_release_install': {
+        const i = this.releaseInventory();
+        if (!['idle', 'completed', 'aborted'].includes(i.phase)) throw new DeviceTransportError('protocol', 'Installation already pending');
+        this.releaseDeclaration = new Uint8Array(asNumber(params.declaration_size));
+        Object.assign(i, { phase: 'receiving', sessionId: asString(params.session_id), canAbort: true, installationState: 'incomplete' });
+        this.saveReleaseInventory(i); return { success: true };
+      }
+      case 'prepare_release_install': {
+        const i = this.releaseInventory();
+        if (i.phase !== 'receiving' || i.sessionId !== params.session_id) throw new DeviceTransportError('protocol', 'Invalid installation');
+        const raw = this.releaseDeclaration.slice(871);
+        const m = JSON.parse(new TextDecoder().decode(raw)) as FirmwareReleaseManifest;
+        i.targetVersion = m.version; i.targetDigest = await calculateSHA256(raw); i.phase = 'prepared';
+        this.saveReleaseInventory(i); return { success: true };
+      }
+      case 'activate_release_install':
+      case 'retry_release_install': {
+        const i = this.releaseInventory();
+        if (!['prepared', 'failed'].includes(i.phase) || i.sessionId !== params.session_id) throw new DeviceTransportError('protocol', 'Invalid installation');
+        const failed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('xora-mock-install-failure') === 'tx';
+        i.phase = failed ? 'failed' : 'completed'; i.canAbort = false; i.canRetry = failed;
+        i.error = failed ? 'MOCK: TX verification failed; local retry required' : '';
+        if (!failed) {
+          i.currentSlot = i.currentSlot === 'A' ? 'B' : 'A'; i.confirmedVersion = i.targetVersion; i.confirmedDigest = i.targetDigest;
+          i.installationState = 'installed';
+          i.stm32 = { version: i.targetVersion, buildId: `mock-${i.targetVersion}`, protocol: 1, maintenance: 1 }; i.tx = { ...i.stm32 };
+        }
+        this.saveReleaseInventory(i); return { success: true };
+      }
+      case 'abort_release_install': {
+        const i = this.releaseInventory(); if (!i.canAbort || i.sessionId !== params.session_id) throw new DeviceTransportError('protocol', 'Cannot cancel active installation');
+        i.phase = 'aborted'; i.canAbort = false; i.installationState = 'unknown'; this.saveReleaseInventory(i); return { success: true };
+      }
       case 'get_rf_binding':
         return this.rfBinding.request(params.pending ? 2 : 1);
       case 'prepare_rf_binding':
@@ -1211,12 +1277,12 @@ export class MockDeviceTransport implements DeviceTransport {
       const valid = total > 0
         && width > 0 && width <= 320
         && height > 0 && height <= 172
-        && frameCount >= 1 && frameCount <= 6
+        && frameCount >= 1 && frameCount <= UIMG_MAX_FRAMES
         && transferVersion === 3
         && reserved === 0
         && total === frameSize * frameCount
         && ((frameCount === 1 && format === 1 && fps === 0)
-          || (frameCount > 1 && format === 2 && fps >= 1 && fps <= 5));
+          || (frameCount > 1 && format === 2 && isSupportedImageFps(frameCount, fps)));
       if (valid) {
         this.imageTransfers.set(cid, {
           width,
@@ -1302,7 +1368,7 @@ export class MockDeviceTransport implements DeviceTransport {
       writeImageInfo(view, 7, this.images.system);
       if (extended || fast) {
         view.setUint8(64, fast ? 4 : 2);
-        view.setUint8(65, 6);
+        view.setUint8(65, UIMG_MAX_FRAMES);
         view.setUint8(66, 0);
         view.setUint8(67, 0);
         view.setUint32(68, this.images.user ? crc32(this.images.user.data) : 0, true);
@@ -1311,7 +1377,7 @@ export class MockDeviceTransport implements DeviceTransport {
       if (fast) {
         view.setUint8(76, 3);
         view.setUint16(78, 996, true);
-        view.setUint16(80, 0x0003, true);
+        view.setUint16(80, 0x0003 | IMAGE_TRANSFER_FLAG_6_FPS, true);
       }
       return response;
     }
@@ -1346,6 +1412,10 @@ export class MockDeviceTransport implements DeviceTransport {
     }
 
     if (command === 0x01 && bytes.byteLength >= 62) {
+      if (bytes.byteLength >= 106 && this.releaseDeclaration.length) {
+        const name = new TextDecoder().decode(bytes.slice(38, 38 + request.getUint16(36, true)));
+        if (name === 'declaration') this.releaseDeclaration.set(bytes.slice(106), request.getUint32(66, true));
+      }
       const response = new ArrayBuffer(75);
       const view = new DataView(response);
       const chunkIndex = request.getUint32(54, true);

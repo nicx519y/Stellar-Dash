@@ -1,5 +1,5 @@
 import { processGifToRGB565Sequence, processImageToRGB565 } from './screen-control-image';
-import { buildUimgV3 } from './uimg-v3';
+import { buildUimgV4, UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES } from './uimg-v4';
 
 export type GalleryProcessedImage = {
   preview: Blob;
@@ -24,15 +24,15 @@ function dataUrlBlob(value: string): Blob {
 
 async function fallback(file: File): Promise<GalleryProcessedImage> {
   const gif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
-  const sequence = gif ? await processGifToRGB565Sequence(file, 3, 6) : null;
+  const sequence = gif ? await processGifToRGB565Sequence(file, UIMG_ANIMATION_FPS, UIMG_MAX_FRAMES) : null;
   const processed = sequence || await processImageToRGB565(file);
   const frameCount = sequence?.frameCount || 1;
-  const fps = frameCount > 1 ? 3 : 0;
-  const deviceAsset = buildUimgV3(processed.data, frameCount, fps);
+  const fps = frameCount > 1 ? UIMG_ANIMATION_FPS : 0;
+  const deviceAsset = buildUimgV4(processed.data, frameCount, fps);
   return {
     preview: dataUrlBlob(processed.previewUrl), deviceAsset,
     width: processed.width, height: processed.height, frameCount, fps,
-    payloadCrc32: new DataView(deviceAsset.buffer, deviceAsset.byteOffset).getUint32(84, true),
+    payloadCrc32: new DataView(deviceAsset.buffer, deviceAsset.byteOffset).getUint32(92, true),
   };
 }
 
@@ -68,11 +68,11 @@ class GalleryImageWorkerPool {
         try {
           if (event.data?.error) throw new Error(event.data.error);
           const payload = new Uint8Array(event.data.payload as ArrayBuffer);
-          const deviceAsset = buildUimgV3(payload, event.data.frameCount, event.data.fps);
+          const deviceAsset = buildUimgV4(payload, event.data.frameCount, event.data.fps);
           task.resolve({
             preview: event.data.preview as Blob, deviceAsset,
             width: 320, height: 172, frameCount: event.data.frameCount, fps: event.data.fps,
-            payloadCrc32: new DataView(deviceAsset.buffer, deviceAsset.byteOffset).getUint32(84, true),
+            payloadCrc32: new DataView(deviceAsset.buffer, deviceAsset.byteOffset).getUint32(92, true),
           });
         } catch (error) { task.reject(error); }
         finish();

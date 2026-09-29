@@ -374,6 +374,19 @@ static void tx_dma_finish(void)
     const uint8_t complete =
         ((flags & RB_SPI_IF_CNT_END) != 0u) ? 1u : 0u;
 
+    /* A WebHID writer can lose W_INT arbitration after asserting NSS and
+     * release it without clocking a byte. That is not an aborted event read.
+     * Keep the queued event, preloaded DMA/FIFO and W_INT ownership intact so
+     * the master can read it next. FST_BYTE stays latched throughout TX (see
+     * the IRQ handler); a genuinely partial transfer must still fault below.
+     * DMA_END alone is only FIFO prefill, not evidence of master clocks. */
+    if(s_fast_webhid && !complete && !(flags & RB_SPI_IF_FST_BYTE) &&
+       R16_SPI0_TOTAL_CNT == s_tx_lengths[s_tx_tail])
+    {
+        s_tx_nss_seen = 0u;
+        return;
+    }
+
     R8_SPI0_CTRL_CFG &= (uint8_t)~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
     SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END);
     spi_fifo_clear();
@@ -705,7 +718,11 @@ void usb_board_link_port_spi_irq_handler(void)
         }
         else if(flags != 0u)
         {
-            R8_SPI0_INT_FLAG = flags;
+            /* Preserve proof of a started WebHID read until NSS release.
+             * Otherwise a later partial read could look like an unclocked
+             * ownership handoff after another IRQ acknowledged FST_BYTE. */
+            R8_SPI0_INT_FLAG = s_fast_webhid
+                ? (uint8_t)(flags & (uint8_t)~RB_SPI_IF_FST_BYTE) : flags;
         }
         return;
     }

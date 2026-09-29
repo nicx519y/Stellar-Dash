@@ -22,6 +22,14 @@ test('connection phases ignore previous progress until initialization begins', (
   }
 });
 
+test('bridge failures explain device recovery instead of repeatedly reconnecting', () => {
+  const error = { transportCode: 'bridge-not-ready', type: 'connection' };
+  assert.match(connectionErrorMessage(error, 'en'), /internal USB bridge/);
+  assert.match(connectionErrorMessage(error, 'en'), /power off/);
+  assert.doesNotMatch(connectionErrorMessage(error, 'en'), /unexpected response|[\u4e00-\u9fff]/);
+  assert.match(connectionErrorMessage(error, 'zh'), /完全断电/);
+});
+
 test('sync displays real counts and switches to preparation after the final read', () => {
   assert.equal(connectionPresentation(Phase.INITIALIZING, { completed: 0, total: 0 }).percent, 0);
   const midway = connectionPresentation(Phase.INITIALIZING, { completed: 7, total: 12 });

@@ -16,11 +16,13 @@
 #include "configs/webconfig_btns_manager.hpp"
 #include "configs/common_command_handler.hpp"
 #include "configs/firmware_command_handler.hpp"
+#include "configs/user_image_format.hpp"
 #include "configs/user_image_command_handler.hpp"
 #include "configs/webconfig_leds_manager.hpp"
 #include "device_security_crypto.h"
 #include "device_identity_store.h"
 #include "firmware/firmware_manager.hpp"
+#include "release_installer.hpp"
 #include "firmware_metadata.h"
 #include "hardware_rng.h"
 #include "manufacturer_ca_public_key.h"
@@ -719,7 +721,7 @@ BinaryAckStatus describeBinaryAck(
         }
         if (extendedRequested &&
             (response[64] != 2u ||
-             response[65] == 0u || response[65] > 10u ||
+             response[65] == 0u || response[65] > HBoxUserImage::MAX_USER_FRAMES ||
              response[66] > 10u ||
              (response[7] == 1u && response[66] == 0u) ||
              response[67] != 0u)) {
@@ -727,11 +729,11 @@ BinaryAckStatus describeBinaryAck(
         }
         if (fastRequested &&
             (response[64] != 4u ||
-             response[65] == 0u || response[65] > 10u ||
+             response[65] == 0u || response[65] > HBoxUserImage::MAX_USER_FRAMES ||
              response[66] != 0u || response[67] != 0u ||
              response[76] != 3u || response[77] != 0u ||
              loadLe16(&response[78]) != WEBHID_REPORT_PAYLOAD_BYTES ||
-             loadLe16(&response[80]) != 0x0003u)) {
+             !HBoxUserImage::isSupportedImageTransferFlags(loadLe16(&response[80])))) {
             return BinaryAckStatus::ProtocolError;
         }
         cJSON_AddStringToObject(ack, "kind", "image.info");
@@ -2551,13 +2553,27 @@ bool WebHidService::processSecureRpc(
     }
 
     const std::string command(commandItem->valuestring);
+    if (command == "begin_release_install" && (stream.active ||
+        UserImageCommandHandler::isUploadActive() || ADC_CALIBRATION_MANAGER.isCalibrationActive() ||
+        ADC_BTNS_MARKER.getStepInfo().is_marking || ADC_BTNS_MARKER.getStepInfo().is_sampling ||
+        WEBCONFIG_BTNS_MANAGER.isActive())) {
+        cJSON_Delete(root);
+        return sendRpcResult(transactionId,409,nullptr,"Stop active device operations before installation");
+    }
+    if ((command == "abort_release_install" || command == "retry_release_install") &&
+        !HBoxBoard_DangerousActionConfirmed()) {
+        cJSON_Delete(root);
+        return sendRpcResult(transactionId,423,nullptr,"Release, then hold GPIO1+FN for 2 seconds");
+    }
     diagnosticCommand = command == "push_leds_config" ? 1u :
         command == "update_profile" ? 2u : command == "session.end" ? 3u : 4u;
     diagnosticTransaction = transactionId;
     const bool createFirmware =
+        command == "begin_release_install" ||
         command == "create_firmware_upgrade_session" ||
         command == "ch585_update_begin";
     const bool completeFirmware =
+        command == "prepare_release_install" || command == "activate_release_install" ||
         command == "complete_firmware_upgrade_session" ||
         command == "ch585_update_complete";
     const bool uploadFirmware =
@@ -2608,8 +2624,8 @@ bool WebHidService::processSecureRpc(
                 abortFirmware || statusFirmware ||
                 cleanupFirmware) &&
                (firmwareSessionId == nullptr ||
-                !firmwareAuthorizationValid(
-                    firmwareSessionId))) {
+                (!firmwareAuthorizationValid(firmwareSessionId) &&
+                 !(command == "activate_release_install" && HBoxBoard_DangerousActionConfirmed())))) {
             cJSON_Delete(root);
             return sendRpcResult(
                 transactionId,
@@ -2699,7 +2715,7 @@ bool WebHidService::processSecureRpc(
      * Abort and cleanup are the only explicit terminal commands that revoke it
      * immediately.
      */
-    } else if ((abortFirmware || cleanupFirmware) &&
+    } else if ((abortFirmware || cleanupFirmware || command == "abort_release_install") &&
                explicitSuccess) {
         clearFirmwareAuthorization(false);
     }
@@ -2912,6 +2928,8 @@ bool WebHidService::handleBinaryExchange(
     }
     const uint32_t requiredScope =
         binaryOpcodeScope(opcode);
+    if (RELEASE_INSTALLER.busy() && requiredScope == HBOX_SCOPE_ASSET_WRITE)
+        return sendRpcResult(transactionId,409,nullptr,"Whole-device installation is exclusive");
     if (requiredScope == 0u ||
         !hasScope(requiredScope) ||
         (requiredScope == HBOX_SCOPE_FIRMWARE_UPDATE &&
@@ -3009,6 +3027,8 @@ bool WebHidService::handleStreamRpc(
                 ? streamTypeForName(streamItem->valuestring)
                 : 0u;
         const uint32_t required = streamScope(streamType);
+        if (RELEASE_INSTALLER.busy() && required == HBOX_SCOPE_ASSET_WRITE)
+            return sendRpcResult(transactionId,409,nullptr,"Whole-device installation is exclusive");
         const bool lengthValid = parseU32(lengthItem, expectedLength);
         if (lengthValid && expectedLength > kMaximumStreamBytes) {
             return sendRpcResult(
@@ -3328,7 +3348,7 @@ bool WebHidService::processImageData(
         flags & static_cast<uint8_t>(~WEBHID_REPORT_FLAG_ENCRYPTED));
     if (!sessionEstablished ||
         !hasScope(HBOX_SCOPE_ASSET_WRITE) ||
-        !UserImageCommandHandler::isUploadActive() ||
+        RELEASE_INSTALLER.busy() || !UserImageCommandHandler::isUploadActive() ||
         payload == nullptr || length == 0u ||
         length > WEBHID_REPORT_PAYLOAD_BYTES ||
         (imageFlags & static_cast<uint8_t>(

@@ -5,6 +5,12 @@ import type { FirmwareReleaseManifest } from '@/lib/admin/firmware-types';
 export function FirmwareReleaseDetails({ manifest, zh }: { manifest: FirmwareReleaseManifest; zh: boolean }) {
   return <Stack gap="4">
     <Text color="fg.muted">{zh ? '硬件版本' : 'Hardware'} {manifest.hardwareVersion} · {manifest.bootSecurityMode}</Text>
+    <Text fontWeight="semibold">{manifest.schemaVersion === 2 && manifest.install
+      ? (zh ? '可安装发布包 · 连接设备后检查兼容性' : 'Installable package · device compatibility check required')
+      : (zh ? '仅供浏览 · 需要重新打包、签名和验收' : 'Catalog only · requires repackaging, signing and acceptance')}</Text>
+    {manifest.install && <Text fontSize="sm">{zh ? '升级协议' : 'Installer protocol'}: {manifest.install.protocol} ·
+      {zh ? '配置读取范围' : 'Readable configuration'}: {manifest.install.configRead.min}–{manifest.install.configRead.max} ·
+      {zh ? '安装后配置版本' : 'Installed configuration'}: {manifest.install.configWrite}</Text>}
     <Box overflowX="auto"><Table.Root size="sm"><Table.Header><Table.Row>
       {[zh ? '组件' : 'Component', zh ? '版本 / 构建' : 'Version / Build', zh ? '大小' : 'Size', 'SHA-256'].map(t => <Table.ColumnHeader key={t}>{t}</Table.ColumnHeader>)}
     </Table.Row></Table.Header><Table.Body>{manifest.artifacts.map(a => <Table.Row key={`${a.component}-${a.slot || ''}`}>

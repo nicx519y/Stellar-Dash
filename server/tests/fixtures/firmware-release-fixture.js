@@ -32,12 +32,12 @@ function canonicalMetadata(metadata) {
     return canonical;
 }
 
-function makeSignedPackage(slot = "A", keys = null) {
+function makeSignedPackage(slot = "A", keys = null, options = {}) {
     const releaseKeys = keys || crypto.generateKeyPairSync('ec', {
         namedCurve: 'prime256v1'
     });
     const files = new Map([
-        ['application.bin', Buffer.from('application fixture')],
+        ['application.bin', options.application || Buffer.from('application fixture')],
         ['adc_mapping.bin', Buffer.from('adc mapping fixture')]
     ]);
     const manifest = {

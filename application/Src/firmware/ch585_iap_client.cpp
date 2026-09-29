@@ -1,5 +1,8 @@
 #include "ch585_iap_client.hpp"
 
+// The isolated updater shares scarce AXI SRAM with the main executable.
+#pragma GCC optimize("Os")
+
 #include <string.h>
 
 #include "board_cfg.h"
@@ -292,7 +295,7 @@ bool Ch585IapClient::programCombinedImage(uint32_t mappedAddress,
     return true;
 }
 
-bool Ch585IapClient::validateApplication()
+bool Ch585IapClient::validateApplication(xora_release_identity_t* identity)
 {
     currentStage = CH585_STAGING_STAGE_VERIFY_APP;
     USB_BOARD_LINK.shutdown();
@@ -342,7 +345,8 @@ bool Ch585IapClient::validateApplication()
     const bool valid =
         (caps.role_flags & USB_BOARD_CAP_ROLE_MAINTENANCE) != 0u &&
         (caps.profile_flags & USB_BOARD_CAP_PROFILE_WEB_CONFIG) != 0u &&
-        (caps.feature_flags & USB_BOARD_CAP_FEATURE_WEBHID_V1) != 0u;
+        (caps.feature_flags & USB_BOARD_CAP_FEATURE_WEBHID_V1) != 0u &&
+        (identity == nullptr || USB_BOARD_LINK.getReleaseIdentity(*identity));
     APP_STAGE(valid ? "M09V" : "M09E",
               "CH585 application CAPS: valid=%u fw=%u.%u.%u roles=%02x profiles=%04x features=%02x end_ack=%u",
               valid ? 1u : 0u,

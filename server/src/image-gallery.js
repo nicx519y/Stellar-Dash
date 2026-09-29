@@ -9,7 +9,7 @@ const multer = require('multer');
 const USER_GALLERY_LIMIT = 10;
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 const MAX_PREVIEW_BYTES = 2 * 1024 * 1024;
-const MAX_DEVICE_BYTES = 4096 + 320 * 172 * 2 * 6;
+const MAX_DEVICE_BYTES = 4096 + 320 * 172 * 2 * 12;
 const SOURCE_TYPES = new Map([
     ['image/png', '.png'],
     ['image/jpeg', '.jpg'],
@@ -65,12 +65,16 @@ function assertImageBytes(file, types, maximum, label) {
     return { data, mimeType, extension: types.get(mimeType) };
 }
 
-function parseUimgV3(buffer) {
+function parseUimg(buffer) {
     if (!Buffer.isBuffer(buffer) || buffer.length < 4096 || buffer.length > MAX_DEVICE_BYTES) {
         throw new ImageGalleryError('GALLERY_UIMG_INVALID', 'Device image has an invalid size.');
     }
     const magic = buffer.readUInt32LE(0);
     const version = buffer.readUInt16LE(4);
+    const indexedFrames = version === 3 ? 10 : version === 4 ? 12 : 0;
+    const idOffset = 28 + indexedFrames * 4;
+    const payloadCrcOffset = idOffset + 16;
+    const headerCrcOffset = payloadCrcOffset + 4;
     const valid = buffer.readUInt8(6);
     const format = buffer.readUInt8(7);
     const width = buffer.readUInt16LE(8);
@@ -83,25 +87,26 @@ function parseUimgV3(buffer) {
     const payloadBytes = buffer.readUInt32LE(24);
     const expectedId = Buffer.alloc(16);
     expectedId.write('USER_IMAGE', 'ascii');
-    const payloadCrc32 = buffer.readUInt32LE(84);
-    const headerCrc32 = buffer.readUInt32LE(88);
+    const payloadCrc32 = buffer.readUInt32LE(payloadCrcOffset);
+    const headerCrc32 = buffer.readUInt32LE(headerCrcOffset);
     const expectedFrameSize = width * height * 2;
     const sequence = frameCount > 1;
-    if (magic !== 0x474d4955 || version !== 3 || valid !== 1 || reserved !== 0 ||
-        !buffer.subarray(68, 84).equals(expectedId) || width !== 320 || height !== 172 ||
-        frameCount < 1 || frameCount > 6 ||
-        format !== (sequence ? 2 : 1) || (sequence ? fps !== 3 : fps !== 0) ||
+    if (magic !== 0x474d4955 || indexedFrames === 0 || valid !== 1 || reserved !== 0 ||
+        !buffer.subarray(idOffset, payloadCrcOffset).equals(expectedId) || width !== 320 || height !== 172 ||
+        frameCount < 1 || frameCount > (version === 3 ? 6 : 12) ||
+        format !== (sequence ? 2 : 1) ||
+        (sequence ? (fps !== 3 && (version !== 4 || fps !== 6)) : fps !== 0) ||
         frameSize !== expectedFrameSize || framesOffset !== 4096 ||
         payloadBytes !== expectedFrameSize * frameCount || buffer.length !== framesOffset + payloadBytes) {
         throw new ImageGalleryError('GALLERY_UIMG_INVALID', 'Device image metadata is invalid.');
     }
-    for (let index = 0; index < 10; index += 1) {
+    for (let index = 0; index < indexedFrames; index += 1) {
         const expected = index < frameCount ? 4096 + index * frameSize : 0;
         if (buffer.readUInt32LE(28 + index * 4) !== expected) {
             throw new ImageGalleryError('GALLERY_UIMG_INVALID', 'Device image frame offsets are invalid.');
         }
     }
-    if (crc32(buffer.subarray(0, 88)) !== headerCrc32 ||
+    if (crc32(buffer.subarray(0, headerCrcOffset)) !== headerCrc32 ||
         crc32(buffer.subarray(framesOffset)) !== payloadCrc32) {
         throw new ImageGalleryError('GALLERY_UIMG_INVALID', 'Device image CRC32 is invalid.');
     }
@@ -181,6 +186,7 @@ class ImageGalleryStore {
         this.database.pragma('journal_mode = WAL');
         this.database.pragma('foreign_keys = ON');
         this.database.pragma('busy_timeout = 5000');
+        this.legacyInstallationCache = new Map();
         this.migrate();
     }
 
@@ -286,7 +292,7 @@ class ImageGalleryStore {
         return row ? { ...this.decode(row), ownerUid: row.owner_uid, sourceKey: row.source_key, previewKey: row.preview_key, deviceKey: row.device_key } : null;
     }
 
-    findByFingerprint(fingerprint, ownerUid = null) {
+    findByFingerprint(fingerprint, ownerUid = null, readDeviceAsset = null) {
         const values = [
             fingerprint.width,
             fingerprint.height,
@@ -313,6 +319,45 @@ class ImageGalleryStore {
                 ORDER BY sort_order ASC, created_at DESC, id ASC
                 LIMIT 1
             `).get(...values);
+        // Keep identifying images installed by the earlier rate-only conversion.
+        if (!row && fingerprint.frameCount > 1 && fingerprint.fps === 6) {
+            const oldMatch = this.findByFingerprint({ ...fingerprint, fps: 3 }, ownerUid);
+            if (oldMatch) return oldMatch;
+            if (readDeviceAsset) {
+                // Filter permissions before accessing any legacy payload. Each
+                // source frame is held for two 6 FPS ticks, capped at 12 ticks.
+                const candidates = this.database.prepare(`
+                    SELECT * FROM gallery_images
+                    WHERE width=? AND height=? AND fps=3 AND frame_count>1
+                      AND MIN(frame_count*2,12)=?
+                      AND ((gallery_id='system' AND published=1) OR owner_uid=?)
+                    ORDER BY CASE WHEN owner_uid=? THEN 0 ELSE 1 END,
+                             sort_order ASC, created_at DESC, id ASC
+                `).all(fingerprint.width, fingerprint.height, fingerprint.frameCount, ownerUid, ownerUid);
+                for (const candidate of candidates) {
+                    let converted = this.legacyInstallationCache.get(candidate.device_sha256);
+                    if (!converted) {
+                        const bytes = readDeviceAsset(candidate.device_key);
+                        if (sha256(bytes) !== candidate.device_sha256) continue;
+                        const original = parseUimg(bytes);
+                        const frameSize = original.width * original.height * 2;
+                        const frameCount = Math.min(original.frameCount * 2, 12);
+                        const payload = Buffer.alloc(frameSize * frameCount);
+                        for (let frame = 0; frame < frameCount; frame++) {
+                            const offset = 4096 + Math.floor(frame / 2) * frameSize;
+                            bytes.copy(payload, frame * frameSize, offset, offset + frameSize);
+                        }
+                        converted = { payloadBytes: payload.length, payloadCrc32: crc32(payload) };
+                        if (this.legacyInstallationCache.size >= 64) {
+                            this.legacyInstallationCache.delete(this.legacyInstallationCache.keys().next().value);
+                        }
+                        this.legacyInstallationCache.set(candidate.device_sha256, converted);
+                    }
+                    if (converted.payloadBytes === fingerprint.payloadBytes &&
+                        converted.payloadCrc32 === fingerprint.payloadCrc32) return this.find(candidate.id);
+                }
+            }
+        }
         return row ? { ...this.decode(row), ownerUid: row.owner_uid, sourceKey: row.source_key, previewKey: row.preview_key, deviceKey: row.device_key } : null;
     }
 
@@ -397,8 +442,8 @@ function deviceFingerprint(query) {
     };
     if (!Object.values(result).every(Number.isInteger) ||
         result.width !== 320 || result.height !== 172 ||
-        result.frameCount < 1 || result.frameCount > 6 ||
-        result.fps !== (result.frameCount === 1 ? 0 : 3) ||
+        result.frameCount < 1 || result.frameCount > 12 ||
+        (result.frameCount === 1 ? result.fps !== 0 : (result.fps !== 3 && result.fps !== 6)) ||
         result.payloadBytes !== result.width * result.height * 2 * result.frameCount ||
         result.payloadCrc32 < 0 || result.payloadCrc32 > 0xffffffff) {
         throw new ImageGalleryError('GALLERY_FINGERPRINT_INVALID', 'Device image fingerprint is invalid.');
@@ -445,7 +490,7 @@ function readUpload(req) {
     const preview = assertImageBytes(req.files?.preview?.[0], PREVIEW_TYPES, MAX_PREVIEW_BYTES, 'preview');
     const device = req.files?.deviceAsset?.[0];
     if (!device || !Buffer.isBuffer(device.buffer)) throw new ImageGalleryError('GALLERY_FILE_REQUIRED', 'deviceAsset is required.');
-    const metadata = parseUimgV3(device.buffer);
+    const metadata = parseUimg(device.buffer);
     if ((manifest.width !== undefined && Number(manifest.width) !== metadata.width) ||
         (manifest.height !== undefined && Number(manifest.height) !== metadata.height) ||
         (manifest.frameCount !== undefined && Number(manifest.frameCount) !== metadata.frameCount) ||
@@ -505,6 +550,7 @@ function initImageGalleryRoutes(app, options) {
             const item = store.findByFingerprint(
                 deviceFingerprint(req.query),
                 account?.uid || null,
+                key => fs.readFileSync(storage.resolve(key)),
             );
             res.json({ success: true, data: { item: item ? publicItem(item) : null } });
         } catch (error) { next(error); }
@@ -581,7 +627,8 @@ module.exports = {
     ImageGalleryStore,
     LocalGalleryStorage,
     initImageGalleryRoutes,
-    parseUimgV3,
+    parseUimg,
+    parseUimgV3: parseUimg,
     crc32,
     USER_GALLERY_LIMIT,
 };

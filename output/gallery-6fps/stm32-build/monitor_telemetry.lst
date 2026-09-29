@@ -1,0 +1,2894 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"monitor_telemetry.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/diagnostics/monitor_telemetry.cpp"
+  19              		.section	.text._ZN12_GLOBAL__N_115remember_reportEmmmm,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZN12_GLOBAL__N_115remember_reportEmmmm:
+  26              	.LVL0:
+  27              	.LFB1291:
+   1:Src/diagnostics/monitor_telemetry.cpp **** #include "monitor_telemetry.hpp"
+   2:Src/diagnostics/monitor_telemetry.cpp **** 
+   3:Src/diagnostics/monitor_telemetry.cpp **** #include <string.h>
+   4:Src/diagnostics/monitor_telemetry.cpp **** 
+   5:Src/diagnostics/monitor_telemetry.cpp **** #include "board_cfg.h"
+   6:Src/diagnostics/monitor_telemetry.cpp **** #include "cycle_elapsed.hpp"
+   7:Src/diagnostics/monitor_telemetry.cpp **** #include "micro_timer.hpp"
+   8:Src/diagnostics/monitor_telemetry.cpp **** #include "power_manager.hpp"
+   9:Src/diagnostics/monitor_telemetry.cpp **** #include "stm32h7xx_hal.h"
+  10:Src/diagnostics/monitor_telemetry.cpp **** #include "system_logger.h"
+  11:Src/diagnostics/monitor_telemetry.cpp **** 
+  12:Src/diagnostics/monitor_telemetry.cpp **** namespace {
+  13:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint32_t SAMPLE_SLOT_COUNT = 128u;
+  14:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint32_t LOG_SAMPLE_INTERVAL = 200u;
+  15:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint8_t POWER_FLAG_VALID = 0x01u;
+  16:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint8_t POWER_FLAG_LOW_BATTERY = 0x02u;
+  17:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint8_t POWER_FLAG_FAST_CHARGING = 0x04u;
+  18:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint8_t POWER_FLAG_VBUS_PRESENT = 0x08u;
+  19:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint8_t POWER_FLAG_GAUGE_ONLINE = 0x10u;
+  20:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint8_t POWER_FLAG_CHARGER_ONLINE = 0x20u;
+  21:Src/diagnostics/monitor_telemetry.cpp **** constexpr uint32_t CYCLES_PER_US = SYSTEM_CLOCK_FREQ / 1000000u;
+  22:Src/diagnostics/monitor_telemetry.cpp **** 
+  23:Src/diagnostics/monitor_telemetry.cpp **** struct ReportTimestampSlot {
+  24:Src/diagnostics/monitor_telemetry.cpp ****     uint32_t seq;
+  25:Src/diagnostics/monitor_telemetry.cpp ****     uint32_t triggerCycles;
+  26:Src/diagnostics/monitor_telemetry.cpp ****     uint32_t completeCycles;
+  27:Src/diagnostics/monitor_telemetry.cpp ****     uint32_t reportReadyCycles;
+  28:Src/diagnostics/monitor_telemetry.cpp ****     bool valid;
+  29:Src/diagnostics/monitor_telemetry.cpp **** };
+  30:Src/diagnostics/monitor_telemetry.cpp **** 
+  31:Src/diagnostics/monitor_telemetry.cpp **** /*
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 2
+
+
+  32:Src/diagnostics/monitor_telemetry.cpp ****  * This high-rate diagnostic history is explicitly cleared by
+  33:Src/diagnostics/monitor_telemetry.cpp ****  * MonitorTelemetry_Init(), so it does not depend on startup .bss clearing.
+  34:Src/diagnostics/monitor_telemetry.cpp ****  * Keep it in the existing RAM_D2 buffer area instead of consuming AXI RAM,
+  35:Src/diagnostics/monitor_telemetry.cpp ****  * where the application also executes its text and read-only data.
+  36:Src/diagnostics/monitor_telemetry.cpp ****  */
+  37:Src/diagnostics/monitor_telemetry.cpp **** __attribute__((section(".DMA_Section"), aligned(32)))
+  38:Src/diagnostics/monitor_telemetry.cpp **** ReportTimestampSlot g_slots[SAMPLE_SLOT_COUNT];
+  39:Src/diagnostics/monitor_telemetry.cpp **** MonitorTelemetrySnapshot g_snapshot;
+  40:Src/diagnostics/monitor_telemetry.cpp **** uint32_t g_sequence = 0u;
+  41:Src/diagnostics/monitor_telemetry.cpp **** uint32_t g_pendingUsbSeq = 0u;
+  42:Src/diagnostics/monitor_telemetry.cpp **** bool g_hasPendingUsbSeq = false;
+  43:Src/diagnostics/monitor_telemetry.cpp **** uint8_t g_ch585Role = 0u;
+  44:Src/diagnostics/monitor_telemetry.cpp **** uint8_t g_ch585VersionMajor = 0u;
+  45:Src/diagnostics/monitor_telemetry.cpp **** uint8_t g_ch585VersionMinor = 0u;
+  46:Src/diagnostics/monitor_telemetry.cpp **** uint8_t g_ch585VersionPatch = 0u;
+  47:Src/diagnostics/monitor_telemetry.cpp **** 
+  48:Src/diagnostics/monitor_telemetry.cpp **** inline void update_avg(uint32_t& avg, uint32_t latest) {
+  49:Src/diagnostics/monitor_telemetry.cpp ****     if (avg == 0u) {
+  50:Src/diagnostics/monitor_telemetry.cpp ****         avg = latest;
+  51:Src/diagnostics/monitor_telemetry.cpp ****         return;
+  52:Src/diagnostics/monitor_telemetry.cpp ****     }
+  53:Src/diagnostics/monitor_telemetry.cpp ****     avg = (avg * 7u + latest) / 8u;
+  54:Src/diagnostics/monitor_telemetry.cpp **** }
+  55:Src/diagnostics/monitor_telemetry.cpp **** 
+  56:Src/diagnostics/monitor_telemetry.cpp **** void remember_report(uint32_t seq,
+  57:Src/diagnostics/monitor_telemetry.cpp ****                      uint32_t triggerCycles,
+  58:Src/diagnostics/monitor_telemetry.cpp ****                      uint32_t completeCycles,
+  59:Src/diagnostics/monitor_telemetry.cpp ****                      uint32_t reportReadyCycles) {
+  28              		.loc 1 59 50 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		.loc 1 59 50 is_stmt 0 view .LVU1
+  33 0000 30B5     		push	{r4, r5, lr}
+  34              	.LCFI0:
+  35              		.cfi_def_cfa_offset 12
+  36              		.cfi_offset 4, -12
+  37              		.cfi_offset 5, -8
+  38              		.cfi_offset 14, -4
+  60:Src/diagnostics/monitor_telemetry.cpp ****     const uint32_t idx = seq % SAMPLE_SLOT_COUNT;
+  39              		.loc 1 60 5 is_stmt 1 view .LVU2
+  40              		.loc 1 60 20 is_stmt 0 view .LVU3
+  41 0002 00F07F0C 		and	ip, r0, #127
+  42              	.LVL1:
+  61:Src/diagnostics/monitor_telemetry.cpp ****     g_slots[idx].seq = seq;
+  43              		.loc 1 61 5 is_stmt 1 view .LVU4
+  44              		.loc 1 61 22 is_stmt 0 view .LVU5
+  45 0006 084C     		ldr	r4, .L3
+  46 0008 0CEB8C05 		add	r5, ip, ip, lsl #2
+  47 000c 04EB850E 		add	lr, r4, r5, lsl #2
+  48 0010 44F82500 		str	r0, [r4, r5, lsl #2]
+  62:Src/diagnostics/monitor_telemetry.cpp ****     g_slots[idx].triggerCycles = triggerCycles;
+  49              		.loc 1 62 5 is_stmt 1 view .LVU6
+  50              		.loc 1 62 32 is_stmt 0 view .LVU7
+  51 0014 CEF80410 		str	r1, [lr, #4]
+  63:Src/diagnostics/monitor_telemetry.cpp ****     g_slots[idx].completeCycles = completeCycles;
+  52              		.loc 1 63 5 is_stmt 1 view .LVU8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 3
+
+
+  53              		.loc 1 63 33 is_stmt 0 view .LVU9
+  54 0018 CEF80820 		str	r2, [lr, #8]
+  64:Src/diagnostics/monitor_telemetry.cpp ****     g_slots[idx].reportReadyCycles = reportReadyCycles;
+  55              		.loc 1 64 5 is_stmt 1 view .LVU10
+  56              		.loc 1 64 36 is_stmt 0 view .LVU11
+  57 001c CEF80C30 		str	r3, [lr, #12]
+  65:Src/diagnostics/monitor_telemetry.cpp ****     g_slots[idx].valid = true;
+  58              		.loc 1 65 5 is_stmt 1 view .LVU12
+  59              		.loc 1 65 24 is_stmt 0 view .LVU13
+  60 0020 0123     		movs	r3, #1
+  61              	.LVL2:
+  62              		.loc 1 65 24 view .LVU14
+  63 0022 8EF81030 		strb	r3, [lr, #16]
+  66:Src/diagnostics/monitor_telemetry.cpp **** }
+  64              		.loc 1 66 1 view .LVU15
+  65 0026 30BD     		pop	{r4, r5, pc}
+  66              	.L4:
+  67              		.align	2
+  68              	.L3:
+  69 0028 00000000 		.word	_ZN12_GLOBAL__N_17g_slotsE
+  70              		.cfi_endproc
+  71              	.LFE1291:
+  73              		.section	.text._ZN12_GLOBAL__N_127query_report_trigger_cyclesEmPm,"ax",%progbits
+  74              		.align	1
+  75              		.syntax unified
+  76              		.thumb
+  77              		.thumb_func
+  79              	_ZN12_GLOBAL__N_127query_report_trigger_cyclesEmPm:
+  80              	.LVL3:
+  81              	.LFB1292:
+  67:Src/diagnostics/monitor_telemetry.cpp **** 
+  68:Src/diagnostics/monitor_telemetry.cpp **** bool query_report_trigger_cycles(uint32_t seq, uint32_t* outCycles) {
+  82              		.loc 1 68 69 is_stmt 1 view -0
+  83              		.cfi_startproc
+  84              		@ args = 0, pretend = 0, frame = 0
+  85              		@ frame_needed = 0, uses_anonymous_args = 0
+  86              		@ link register save eliminated.
+  69:Src/diagnostics/monitor_telemetry.cpp ****     if (outCycles == nullptr) {
+  87              		.loc 1 69 5 view .LVU17
+  88 0000 E1B1     		cbz	r1, .L7
+  89 0002 0246     		mov	r2, r0
+  90 0004 8C46     		mov	ip, r1
+  70:Src/diagnostics/monitor_telemetry.cpp ****         return false;
+  71:Src/diagnostics/monitor_telemetry.cpp ****     }
+  72:Src/diagnostics/monitor_telemetry.cpp **** 
+  73:Src/diagnostics/monitor_telemetry.cpp ****     const uint32_t idx = seq % SAMPLE_SLOT_COUNT;
+  91              		.loc 1 73 5 view .LVU18
+  92              		.loc 1 73 20 is_stmt 0 view .LVU19
+  93 0006 00F07F03 		and	r3, r0, #127
+  94              	.LVL4:
+  74:Src/diagnostics/monitor_telemetry.cpp ****     if (!g_slots[idx].valid || g_slots[idx].seq != seq) {
+  95              		.loc 1 74 5 is_stmt 1 view .LVU20
+  96              		.loc 1 74 23 is_stmt 0 view .LVU21
+  97 000a 03EB8300 		add	r0, r3, r3, lsl #2
+  98              	.LVL5:
+  99              		.loc 1 74 23 view .LVU22
+ 100 000e 0E49     		ldr	r1, .L13
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 4
+
+
+ 101              	.LVL6:
+ 102              		.loc 1 74 23 view .LVU23
+ 103 0010 01EB8001 		add	r1, r1, r0, lsl #2
+ 104 0014 087C     		ldrb	r0, [r1, #16]	@ zero_extendqisi2
+ 105              		.loc 1 74 5 view .LVU24
+ 106 0016 A8B1     		cbz	r0, .L10
+  68:Src/diagnostics/monitor_telemetry.cpp ****     if (outCycles == nullptr) {
+ 107              		.loc 1 68 69 view .LVU25
+ 108 0018 10B4     		push	{r4}
+ 109              	.LCFI1:
+ 110              		.cfi_def_cfa_offset 4
+ 111              		.cfi_offset 4, -4
+ 112              		.loc 1 74 45 discriminator 1 view .LVU26
+ 113 001a 03EB8301 		add	r1, r3, r3, lsl #2
+ 114 001e 0A4C     		ldr	r4, .L13
+ 115 0020 54F82110 		ldr	r1, [r4, r1, lsl #2]
+ 116              		.loc 1 74 29 discriminator 1 view .LVU27
+ 117 0024 9142     		cmp	r1, r2
+ 118 0026 0BD1     		bne	.L8
+  75:Src/diagnostics/monitor_telemetry.cpp ****         return false;
+  76:Src/diagnostics/monitor_telemetry.cpp ****     }
+  77:Src/diagnostics/monitor_telemetry.cpp **** 
+  78:Src/diagnostics/monitor_telemetry.cpp ****     *outCycles = g_slots[idx].triggerCycles;
+ 119              		.loc 1 78 5 is_stmt 1 view .LVU28
+ 120              		.loc 1 78 31 is_stmt 0 view .LVU29
+ 121 0028 03EB8303 		add	r3, r3, r3, lsl #2
+ 122              	.LVL7:
+ 123              		.loc 1 78 31 view .LVU30
+ 124 002c 04EB8303 		add	r3, r4, r3, lsl #2
+ 125 0030 5B68     		ldr	r3, [r3, #4]
+ 126              		.loc 1 78 16 view .LVU31
+ 127 0032 CCF80030 		str	r3, [ip]
+  79:Src/diagnostics/monitor_telemetry.cpp ****     return true;
+ 128              		.loc 1 79 5 is_stmt 1 view .LVU32
+ 129              	.L6:
+  80:Src/diagnostics/monitor_telemetry.cpp **** }
+ 130              		.loc 1 80 1 is_stmt 0 view .LVU33
+ 131 0036 5DF8044B 		ldr	r4, [sp], #4
+ 132              	.LCFI2:
+ 133              		.cfi_restore 4
+ 134              		.cfi_def_cfa_offset 0
+ 135 003a 7047     		bx	lr
+ 136              	.LVL8:
+ 137              	.L7:
+  70:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 138              		.loc 1 70 16 view .LVU34
+ 139 003c 0020     		movs	r0, #0
+ 140              	.LVL9:
+  70:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 141              		.loc 1 70 16 view .LVU35
+ 142 003e 7047     		bx	lr
+ 143              	.LVL10:
+ 144              	.L8:
+ 145              	.LCFI3:
+ 146              		.cfi_def_cfa_offset 4
+ 147              		.cfi_offset 4, -4
+  75:Src/diagnostics/monitor_telemetry.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 5
+
+
+ 148              		.loc 1 75 16 view .LVU36
+ 149 0040 0020     		movs	r0, #0
+ 150 0042 F8E7     		b	.L6
+ 151              	.L10:
+ 152              	.LCFI4:
+ 153              		.cfi_def_cfa_offset 0
+ 154              		.cfi_restore 4
+ 155              		.loc 1 80 1 view .LVU37
+ 156 0044 7047     		bx	lr
+ 157              	.L14:
+ 158 0046 00BF     		.align	2
+ 159              	.L13:
+ 160 0048 00000000 		.word	_ZN12_GLOBAL__N_17g_slotsE
+ 161              		.cfi_endproc
+ 162              	.LFE1292:
+ 164              		.section	.text._ZN11MicrosTimer11getInstanceEv,"axG",%progbits,_ZN11MicrosTimer11getInstanceEv,com
+ 165              		.align	1
+ 166              		.weak	_ZN11MicrosTimer11getInstanceEv
+ 167              		.syntax unified
+ 168              		.thumb
+ 169              		.thumb_func
+ 171              	_ZN11MicrosTimer11getInstanceEv:
+ 172              	.LFB1271:
+ 173              		.file 2 "Inc/support/micro_timer.hpp"
+   1:Inc/support/micro_timer.hpp **** #ifndef __MICROS_TIMER_HPP__
+   2:Inc/support/micro_timer.hpp **** #define __MICROS_TIMER_HPP__
+   3:Inc/support/micro_timer.hpp **** 
+   4:Inc/support/micro_timer.hpp **** #include <stdint.h>
+   5:Inc/support/micro_timer.hpp **** #include "tim.h"
+   6:Inc/support/micro_timer.hpp **** 
+   7:Inc/support/micro_timer.hpp **** class MicrosTimer {
+   8:Inc/support/micro_timer.hpp **** public:
+   9:Inc/support/micro_timer.hpp ****     // 禁止拷贝构造和赋值
+  10:Inc/support/micro_timer.hpp ****     MicrosTimer(const MicrosTimer&) = delete;
+  11:Inc/support/micro_timer.hpp ****     MicrosTimer& operator=(const MicrosTimer&) = delete;
+  12:Inc/support/micro_timer.hpp **** 
+  13:Inc/support/micro_timer.hpp ****     // 获取单例实例
+  14:Inc/support/micro_timer.hpp ****     static MicrosTimer& getInstance() {
+ 174              		.loc 2 14 25 is_stmt 1 view -0
+ 175              		.cfi_startproc
+ 176              		@ args = 0, pretend = 0, frame = 0
+ 177              		@ frame_needed = 0, uses_anonymous_args = 0
+ 178 0000 08B5     		push	{r3, lr}
+ 179              	.LCFI5:
+ 180              		.cfi_def_cfa_offset 8
+ 181              		.cfi_offset 3, -8
+ 182              		.cfi_offset 14, -4
+  15:Inc/support/micro_timer.hpp ****         static MicrosTimer instance;
+ 183              		.loc 2 15 9 view .LVU39
+ 184              		.loc 2 15 28 is_stmt 0 view .LVU40
+ 185 0002 0A4B     		ldr	r3, .L19
+ 186 0004 1B68     		ldr	r3, [r3]
+ 187 0006 BFF35B8F 		dmb	ish
+ 188              		.loc 2 15 28 discriminator 1 view .LVU41
+ 189 000a 13F0010F 		tst	r3, #1
+ 190 000e 01D0     		beq	.L18
+ 191              	.L16:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 6
+
+
+  16:Inc/support/micro_timer.hpp ****         return instance;
+ 192              		.loc 2 16 9 is_stmt 1 view .LVU42
+  17:Inc/support/micro_timer.hpp ****     }
+ 193              		.loc 2 17 5 is_stmt 0 view .LVU43
+ 194 0010 0748     		ldr	r0, .L19+4
+ 195 0012 08BD     		pop	{r3, pc}
+ 196              	.L18:
+  15:Inc/support/micro_timer.hpp ****         static MicrosTimer instance;
+ 197              		.loc 2 15 28 discriminator 1 view .LVU44
+ 198 0014 0548     		ldr	r0, .L19
+ 199 0016 FFF7FEFF 		bl	__cxa_guard_acquire
+ 200              	.LVL11:
+ 201 001a 0028     		cmp	r0, #0
+ 202 001c F8D0     		beq	.L16
+  15:Inc/support/micro_timer.hpp ****         static MicrosTimer instance;
+ 203              		.loc 2 15 28 discriminator 2 view .LVU45
+ 204 001e 0448     		ldr	r0, .L19+4
+ 205 0020 FFF7FEFF 		bl	_ZN11MicrosTimerC1Ev
+ 206              	.LVL12:
+  15:Inc/support/micro_timer.hpp ****         static MicrosTimer instance;
+ 207              		.loc 2 15 28 discriminator 1 view .LVU46
+ 208 0024 0148     		ldr	r0, .L19
+ 209 0026 FFF7FEFF 		bl	__cxa_guard_release
+ 210              	.LVL13:
+ 211 002a F1E7     		b	.L16
+ 212              	.L20:
+ 213              		.align	2
+ 214              	.L19:
+ 215 002c 00000000 		.word	_ZGVZN11MicrosTimer11getInstanceEvE8instance
+ 216 0030 00000000 		.word	_ZZN11MicrosTimer11getInstanceEvE8instance
+ 217              		.cfi_endproc
+ 218              	.LFE1271:
+ 220              		.section	.text._Z21MonitorTelemetry_Init14ConnectionModet,"ax",%progbits
+ 221              		.align	1
+ 222              		.global	_Z21MonitorTelemetry_Init14ConnectionModet
+ 223              		.syntax unified
+ 224              		.thumb
+ 225              		.thumb_func
+ 227              	_Z21MonitorTelemetry_Init14ConnectionModet:
+ 228              	.LVL14:
+ 229              	.LFB1293:
+  81:Src/diagnostics/monitor_telemetry.cpp **** }
+  82:Src/diagnostics/monitor_telemetry.cpp **** 
+  83:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_Init(ConnectionMode mode, uint16_t targetRateHz) {
+ 230              		.loc 1 83 72 is_stmt 1 view -0
+ 231              		.cfi_startproc
+ 232              		@ args = 0, pretend = 0, frame = 0
+ 233              		@ frame_needed = 0, uses_anonymous_args = 0
+ 234              		.loc 1 83 72 is_stmt 0 view .LVU48
+ 235 0000 70B5     		push	{r4, r5, r6, lr}
+ 236              	.LCFI6:
+ 237              		.cfi_def_cfa_offset 16
+ 238              		.cfi_offset 4, -16
+ 239              		.cfi_offset 5, -12
+ 240              		.cfi_offset 6, -8
+ 241              		.cfi_offset 14, -4
+ 242 0002 0646     		mov	r6, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 7
+
+
+ 243 0004 0D46     		mov	r5, r1
+  84:Src/diagnostics/monitor_telemetry.cpp ****     memset(g_slots, 0, sizeof(g_slots));
+ 244              		.loc 1 84 5 is_stmt 1 view .LVU49
+ 245              		.loc 1 84 11 is_stmt 0 view .LVU50
+ 246 0006 4FF42062 		mov	r2, #2560
+ 247 000a 0021     		movs	r1, #0
+ 248              	.LVL15:
+ 249              		.loc 1 84 11 view .LVU51
+ 250 000c 0C48     		ldr	r0, .L23
+ 251              	.LVL16:
+ 252              		.loc 1 84 11 view .LVU52
+ 253 000e FFF7FEFF 		bl	memset
+ 254              	.LVL17:
+  85:Src/diagnostics/monitor_telemetry.cpp ****     memset(&g_snapshot, 0, sizeof(g_snapshot));
+ 255              		.loc 1 85 5 is_stmt 1 view .LVU53
+ 256              		.loc 1 85 11 is_stmt 0 view .LVU54
+ 257 0012 0C4C     		ldr	r4, .L23+4
+ 258 0014 3C22     		movs	r2, #60
+ 259 0016 0021     		movs	r1, #0
+ 260 0018 2046     		mov	r0, r4
+ 261 001a FFF7FEFF 		bl	memset
+ 262              	.LVL18:
+  86:Src/diagnostics/monitor_telemetry.cpp ****     g_sequence = 0u;
+ 263              		.loc 1 86 5 is_stmt 1 view .LVU55
+ 264              		.loc 1 86 16 is_stmt 0 view .LVU56
+ 265 001e 0023     		movs	r3, #0
+ 266 0020 094A     		ldr	r2, .L23+8
+ 267 0022 1360     		str	r3, [r2]
+  87:Src/diagnostics/monitor_telemetry.cpp ****     g_pendingUsbSeq = 0u;
+ 268              		.loc 1 87 5 is_stmt 1 view .LVU57
+ 269              		.loc 1 87 21 is_stmt 0 view .LVU58
+ 270 0024 094A     		ldr	r2, .L23+12
+ 271 0026 1360     		str	r3, [r2]
+  88:Src/diagnostics/monitor_telemetry.cpp ****     g_hasPendingUsbSeq = false;
+ 272              		.loc 1 88 5 is_stmt 1 view .LVU59
+ 273              		.loc 1 88 24 is_stmt 0 view .LVU60
+ 274 0028 094A     		ldr	r2, .L23+16
+ 275 002a 1370     		strb	r3, [r2]
+  89:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.connectionMode = static_cast<uint8_t>(mode);
+ 276              		.loc 1 89 5 is_stmt 1 view .LVU61
+ 277              		.loc 1 89 31 is_stmt 0 view .LVU62
+ 278 002c 84F83660 		strb	r6, [r4, #54]
+  90:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.targetRateHz = targetRateHz;
+ 279              		.loc 1 90 5 is_stmt 1 view .LVU63
+ 280              		.loc 1 90 29 is_stmt 0 view .LVU64
+ 281 0030 A586     		strh	r5, [r4, #52]	@ movhi
+  91:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastUpdateUs = MICROS_TIMER.micros();
+ 282              		.loc 1 91 5 is_stmt 1 view .LVU65
+ 283              		.loc 1 91 31 is_stmt 0 view .LVU66
+ 284 0032 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 285              	.LVL19:
+ 286              		.loc 1 91 50 discriminator 1 view .LVU67
+ 287 0036 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 288              	.LVL20:
+ 289              		.loc 1 91 29 discriminator 2 view .LVU68
+ 290 003a 2060     		str	r0, [r4]
+  92:Src/diagnostics/monitor_telemetry.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 8
+
+
+  93:Src/diagnostics/monitor_telemetry.cpp ****     LOG_INFO("MON", "monitor telemetry init mode=%u targetRate=%u", g_snapshot.connectionMode, g_sn
+ 291              		.loc 1 93 5 is_stmt 1 view .LVU69
+  94:Src/diagnostics/monitor_telemetry.cpp **** }
+ 292              		.loc 1 94 1 is_stmt 0 view .LVU70
+ 293 003c 70BD     		pop	{r4, r5, r6, pc}
+ 294              	.LVL21:
+ 295              	.L24:
+ 296              		.loc 1 94 1 view .LVU71
+ 297 003e 00BF     		.align	2
+ 298              	.L23:
+ 299 0040 00000000 		.word	_ZN12_GLOBAL__N_17g_slotsE
+ 300 0044 00000000 		.word	_ZN12_GLOBAL__N_110g_snapshotE
+ 301 0048 00000000 		.word	_ZN12_GLOBAL__N_110g_sequenceE
+ 302 004c 00000000 		.word	_ZN12_GLOBAL__N_115g_pendingUsbSeqE
+ 303 0050 00000000 		.word	_ZN12_GLOBAL__N_118g_hasPendingUsbSeqE
+ 304              		.cfi_endproc
+ 305              	.LFE1293:
+ 307              		.section	.text._Z32MonitorTelemetry_SetTargetRateHzt,"ax",%progbits
+ 308              		.align	1
+ 309              		.global	_Z32MonitorTelemetry_SetTargetRateHzt
+ 310              		.syntax unified
+ 311              		.thumb
+ 312              		.thumb_func
+ 314              	_Z32MonitorTelemetry_SetTargetRateHzt:
+ 315              	.LVL22:
+ 316              	.LFB1294:
+  95:Src/diagnostics/monitor_telemetry.cpp **** 
+  96:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_SetTargetRateHz(uint16_t targetRateHz) {
+ 317              		.loc 1 96 62 is_stmt 1 view -0
+ 318              		.cfi_startproc
+ 319              		@ args = 0, pretend = 0, frame = 0
+ 320              		@ frame_needed = 0, uses_anonymous_args = 0
+ 321              		.loc 1 96 62 is_stmt 0 view .LVU73
+ 322 0000 10B5     		push	{r4, lr}
+ 323              	.LCFI7:
+ 324              		.cfi_def_cfa_offset 8
+ 325              		.cfi_offset 4, -8
+ 326              		.cfi_offset 14, -4
+  97:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.targetRateHz = targetRateHz;
+ 327              		.loc 1 97 5 is_stmt 1 view .LVU74
+ 328              		.loc 1 97 29 is_stmt 0 view .LVU75
+ 329 0002 044C     		ldr	r4, .L27
+ 330 0004 A086     		strh	r0, [r4, #52]	@ movhi
+  98:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastUpdateUs = MICROS_TIMER.micros();
+ 331              		.loc 1 98 5 is_stmt 1 view .LVU76
+ 332              		.loc 1 98 31 is_stmt 0 view .LVU77
+ 333 0006 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 334              	.LVL23:
+ 335              		.loc 1 98 50 discriminator 1 view .LVU78
+ 336 000a FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 337              	.LVL24:
+ 338              		.loc 1 98 29 discriminator 2 view .LVU79
+ 339 000e 2060     		str	r0, [r4]
+  99:Src/diagnostics/monitor_telemetry.cpp **** }
+ 340              		.loc 1 99 1 view .LVU80
+ 341 0010 10BD     		pop	{r4, pc}
+ 342              	.L28:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 9
+
+
+ 343 0012 00BF     		.align	2
+ 344              	.L27:
+ 345 0014 00000000 		.word	_ZN12_GLOBAL__N_110g_snapshotE
+ 346              		.cfi_endproc
+ 347              	.LFE1294:
+ 349              		.section	.text._Z29MonitorTelemetry_NextSequencev,"ax",%progbits
+ 350              		.align	1
+ 351              		.global	_Z29MonitorTelemetry_NextSequencev
+ 352              		.syntax unified
+ 353              		.thumb
+ 354              		.thumb_func
+ 356              	_Z29MonitorTelemetry_NextSequencev:
+ 357              	.LFB1295:
+ 100:Src/diagnostics/monitor_telemetry.cpp **** 
+ 101:Src/diagnostics/monitor_telemetry.cpp **** uint32_t MonitorTelemetry_NextSequence() {
+ 358              		.loc 1 101 42 is_stmt 1 view -0
+ 359              		.cfi_startproc
+ 360              		@ args = 0, pretend = 0, frame = 0
+ 361              		@ frame_needed = 0, uses_anonymous_args = 0
+ 362              		@ link register save eliminated.
+ 102:Src/diagnostics/monitor_telemetry.cpp ****     g_sequence++;
+ 363              		.loc 1 102 5 view .LVU82
+ 364              		.loc 1 102 15 is_stmt 0 view .LVU83
+ 365 0000 024B     		ldr	r3, .L30
+ 366 0002 1868     		ldr	r0, [r3]
+ 367 0004 0130     		adds	r0, r0, #1
+ 368 0006 1860     		str	r0, [r3]
+ 103:Src/diagnostics/monitor_telemetry.cpp ****     return g_sequence;
+ 369              		.loc 1 103 5 is_stmt 1 view .LVU84
+ 104:Src/diagnostics/monitor_telemetry.cpp **** }
+ 370              		.loc 1 104 1 is_stmt 0 view .LVU85
+ 371 0008 7047     		bx	lr
+ 372              	.L31:
+ 373 000a 00BF     		.align	2
+ 374              	.L30:
+ 375 000c 00000000 		.word	_ZN12_GLOBAL__N_110g_sequenceE
+ 376              		.cfi_endproc
+ 377              	.LFE1295:
+ 379              		.section	.text._Z30MonitorTelemetry_OnReportReadymmm,"ax",%progbits
+ 380              		.align	1
+ 381              		.global	_Z30MonitorTelemetry_OnReportReadymmm
+ 382              		.syntax unified
+ 383              		.thumb
+ 384              		.thumb_func
+ 386              	_Z30MonitorTelemetry_OnReportReadymmm:
+ 387              	.LVL25:
+ 388              	.LFB1296:
+ 105:Src/diagnostics/monitor_telemetry.cpp **** 
+ 106:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_OnReportReady(uint32_t seq,
+ 107:Src/diagnostics/monitor_telemetry.cpp ****                                     uint32_t triggerCycles,
+ 108:Src/diagnostics/monitor_telemetry.cpp ****                                     uint32_t completeCycles) {
+ 389              		.loc 1 108 62 is_stmt 1 view -0
+ 390              		.cfi_startproc
+ 391              		@ args = 0, pretend = 0, frame = 0
+ 392              		@ frame_needed = 0, uses_anonymous_args = 0
+ 393              		.loc 1 108 62 is_stmt 0 view .LVU87
+ 394 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 10
+
+
+ 395              	.LCFI8:
+ 396              		.cfi_def_cfa_offset 24
+ 397              		.cfi_offset 3, -24
+ 398              		.cfi_offset 4, -20
+ 399              		.cfi_offset 5, -16
+ 400              		.cfi_offset 6, -12
+ 401              		.cfi_offset 7, -8
+ 402              		.cfi_offset 14, -4
+ 403 0002 0646     		mov	r6, r0
+ 404 0004 0D46     		mov	r5, r1
+ 405 0006 1746     		mov	r7, r2
+ 109:Src/diagnostics/monitor_telemetry.cpp ****     const uint32_t readyCycles = MICROS_TIMER.cycles();
+ 406              		.loc 1 109 5 is_stmt 1 view .LVU88
+ 407              		.loc 1 109 34 is_stmt 0 view .LVU89
+ 408 0008 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 409              	.LVL26:
+ 410              		.loc 1 109 53 discriminator 1 view .LVU90
+ 411 000c FFF7FEFF 		bl	_ZNK11MicrosTimer6cyclesEv
+ 412              	.LVL27:
+ 413 0010 0446     		mov	r4, r0
+ 414              	.LVL28:
+ 110:Src/diagnostics/monitor_telemetry.cpp ****     remember_report(seq, triggerCycles, completeCycles, readyCycles);
+ 415              		.loc 1 110 5 is_stmt 1 view .LVU91
+ 416              		.loc 1 110 20 is_stmt 0 view .LVU92
+ 417 0012 0346     		mov	r3, r0
+ 418 0014 3A46     		mov	r2, r7
+ 419 0016 2946     		mov	r1, r5
+ 420 0018 3046     		mov	r0, r6
+ 421              	.LVL29:
+ 422              		.loc 1 110 20 view .LVU93
+ 423 001a FFF7FEFF 		bl	_ZN12_GLOBAL__N_115remember_reportEmmmm
+ 424              	.LVL30:
+ 111:Src/diagnostics/monitor_telemetry.cpp **** 
+ 112:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.totalReports++;
+ 425              		.loc 1 112 5 is_stmt 1 view .LVU94
+ 426              		.loc 1 112 16 is_stmt 0 view .LVU95
+ 427 001e 0A4E     		ldr	r6, .L34
+ 428              	.LVL31:
+ 429              		.loc 1 112 16 view .LVU96
+ 430 0020 7368     		ldr	r3, [r6, #4]
+ 431              		.loc 1 112 28 view .LVU97
+ 432 0022 0133     		adds	r3, r3, #1
+ 433 0024 7360     		str	r3, [r6, #4]
+ 113:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastUpdateUs = MICROS_TIMER.micros();
+ 434              		.loc 1 113 5 is_stmt 1 view .LVU98
+ 435              		.loc 1 113 31 is_stmt 0 view .LVU99
+ 436 0026 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 437              	.LVL32:
+ 438              		.loc 1 113 50 discriminator 1 view .LVU100
+ 439 002a FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 440              	.LVL33:
+ 441              		.loc 1 113 29 discriminator 2 view .LVU101
+ 442 002e 3060     		str	r0, [r6]
+ 114:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.latestAdcConversionUs =
+ 443              		.loc 1 114 5 is_stmt 1 view .LVU102
+ 444              	.LVL34:
+ 445              	.LBB74:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 11
+
+
+ 446              	.LBI74:
+ 447              		.file 3 "Inc/support/cycle_elapsed.hpp"
+   1:Inc/support/cycle_elapsed.hpp **** #ifndef CYCLE_ELAPSED_HPP
+   2:Inc/support/cycle_elapsed.hpp **** #define CYCLE_ELAPSED_HPP
+   3:Inc/support/cycle_elapsed.hpp **** 
+   4:Inc/support/cycle_elapsed.hpp **** #include <stdint.h>
+   5:Inc/support/cycle_elapsed.hpp **** 
+   6:Inc/support/cycle_elapsed.hpp **** constexpr uint32_t ElapsedCycles32(uint32_t startCycles, uint32_t endCycles)
+   7:Inc/support/cycle_elapsed.hpp **** {
+   8:Inc/support/cycle_elapsed.hpp ****     return static_cast<uint32_t>(endCycles - startCycles);
+   9:Inc/support/cycle_elapsed.hpp **** }
+  10:Inc/support/cycle_elapsed.hpp **** 
+  11:Inc/support/cycle_elapsed.hpp **** constexpr uint32_t CyclesToMicros32(uint32_t elapsedCycles,
+  12:Inc/support/cycle_elapsed.hpp ****                                     uint32_t cyclesPerMicrosecond)
+  13:Inc/support/cycle_elapsed.hpp **** {
+  14:Inc/support/cycle_elapsed.hpp ****     return cyclesPerMicrosecond == 0u
+  15:Inc/support/cycle_elapsed.hpp ****         ? 0u
+  16:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+  17:Inc/support/cycle_elapsed.hpp **** }
+  18:Inc/support/cycle_elapsed.hpp **** 
+  19:Inc/support/cycle_elapsed.hpp **** constexpr uint32_t ElapsedMicros32(uint32_t startCycles,
+ 448              		.loc 3 19 20 view .LVU103
+  20:Inc/support/cycle_elapsed.hpp ****                                    uint32_t endCycles,
+  21:Inc/support/cycle_elapsed.hpp ****                                    uint32_t cyclesPerMicrosecond)
+  22:Inc/support/cycle_elapsed.hpp **** {
+  23:Inc/support/cycle_elapsed.hpp ****     return CyclesToMicros32(ElapsedCycles32(startCycles, endCycles),
+ 449              		.loc 3 23 5 view .LVU104
+ 450              	.LBB75:
+ 451              	.LBI75:
+   6:Inc/support/cycle_elapsed.hpp **** {
+ 452              		.loc 3 6 20 view .LVU105
+ 453              	.LBB76:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 454              		.loc 3 8 5 view .LVU106
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 455              		.loc 3 8 57 is_stmt 0 view .LVU107
+ 456 0030 7D1B     		subs	r5, r7, r5
+ 457              	.LVL35:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 458              		.loc 3 8 57 view .LVU108
+ 459              	.LBE76:
+ 460              	.LBE75:
+ 461              	.LBB77:
+ 462              	.LBI77:
+  11:Inc/support/cycle_elapsed.hpp ****                                     uint32_t cyclesPerMicrosecond)
+ 463              		.loc 3 11 20 is_stmt 1 view .LVU109
+ 464              	.LBB78:
+  14:Inc/support/cycle_elapsed.hpp ****         ? 0u
+ 465              		.loc 3 14 5 view .LVU110
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 466              		.loc 3 15 9 is_stmt 0 discriminator 1 view .LVU111
+ 467 0032 064B     		ldr	r3, .L34+4
+ 468 0034 A3FB0525 		umull	r2, r5, r3, r5
+ 469              	.LVL36:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 470              		.loc 3 15 9 discriminator 1 view .LVU112
+ 471 0038 2D0A     		lsrs	r5, r5, #8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 12
+
+
+ 472              	.LVL37:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 473              		.loc 3 15 9 discriminator 1 view .LVU113
+ 474              	.LBE78:
+ 475              	.LBE77:
+ 476              	.LBE74:
+ 477              		.loc 1 114 38 view .LVU114
+ 478 003a B562     		str	r5, [r6, #40]
+ 115:Src/diagnostics/monitor_telemetry.cpp ****         ElapsedMicros32(triggerCycles, completeCycles, CYCLES_PER_US);
+ 116:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.latestInputProcessingUs =
+ 479              		.loc 1 116 5 is_stmt 1 view .LVU115
+ 480              	.LVL38:
+ 481              	.LBB79:
+ 482              	.LBI79:
+  19:Inc/support/cycle_elapsed.hpp ****                                    uint32_t endCycles,
+ 483              		.loc 3 19 20 view .LVU116
+ 484              		.loc 3 23 5 view .LVU117
+ 485              	.LBB80:
+ 486              	.LBI80:
+   6:Inc/support/cycle_elapsed.hpp **** {
+ 487              		.loc 3 6 20 view .LVU118
+ 488              	.LBB81:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 489              		.loc 3 8 5 view .LVU119
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 490              		.loc 3 8 57 is_stmt 0 view .LVU120
+ 491 003c E41B     		subs	r4, r4, r7
+ 492              	.LVL39:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 493              		.loc 3 8 57 view .LVU121
+ 494              	.LBE81:
+ 495              	.LBE80:
+ 496              	.LBB82:
+ 497              	.LBI82:
+  11:Inc/support/cycle_elapsed.hpp ****                                     uint32_t cyclesPerMicrosecond)
+ 498              		.loc 3 11 20 is_stmt 1 view .LVU122
+ 499              	.LBB83:
+  14:Inc/support/cycle_elapsed.hpp ****         ? 0u
+ 500              		.loc 3 14 5 view .LVU123
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 501              		.loc 3 15 9 is_stmt 0 discriminator 1 view .LVU124
+ 502 003e A3FB0434 		umull	r3, r4, r3, r4
+ 503              	.LVL40:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 504              		.loc 3 15 9 discriminator 1 view .LVU125
+ 505 0042 240A     		lsrs	r4, r4, #8
+ 506              	.LVL41:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 507              		.loc 3 15 9 discriminator 1 view .LVU126
+ 508              	.LBE83:
+ 509              	.LBE82:
+ 510              	.LBE79:
+ 511              		.loc 1 116 40 view .LVU127
+ 512 0044 F462     		str	r4, [r6, #44]
+ 117:Src/diagnostics/monitor_telemetry.cpp ****         ElapsedMicros32(completeCycles, readyCycles, CYCLES_PER_US);
+ 118:Src/diagnostics/monitor_telemetry.cpp **** 
+ 119:Src/diagnostics/monitor_telemetry.cpp ****     if ((g_snapshot.totalReports % LOG_SAMPLE_INTERVAL) == 0u) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 13
+
+
+ 513              		.loc 1 119 5 is_stmt 1 view .LVU128
+ 120:Src/diagnostics/monitor_telemetry.cpp ****         LOG_DEBUG("MON", "report sample seq=%lu total=%lu", seq, g_snapshot.totalReports);
+ 514              		.loc 1 120 9 view .LVU129
+ 121:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 122:Src/diagnostics/monitor_telemetry.cpp **** }
+ 515              		.loc 1 122 1 is_stmt 0 view .LVU130
+ 516 0046 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 517              	.LVL42:
+ 518              	.L35:
+ 519              		.loc 1 122 1 view .LVU131
+ 520              		.align	2
+ 521              	.L34:
+ 522 0048 00000000 		.word	_ZN12_GLOBAL__N_110g_snapshotE
+ 523 004c 89888888 		.word	-2004318071
+ 524              		.cfi_endproc
+ 525              	.LFE1296:
+ 527              		.section	.text._Z39MonitorTelemetry_GetReportTriggerCyclesmPm,"ax",%progbits
+ 528              		.align	1
+ 529              		.global	_Z39MonitorTelemetry_GetReportTriggerCyclesmPm
+ 530              		.syntax unified
+ 531              		.thumb
+ 532              		.thumb_func
+ 534              	_Z39MonitorTelemetry_GetReportTriggerCyclesmPm:
+ 535              	.LVL43:
+ 536              	.LFB1297:
+ 123:Src/diagnostics/monitor_telemetry.cpp **** 
+ 124:Src/diagnostics/monitor_telemetry.cpp **** bool MonitorTelemetry_GetReportTriggerCycles(uint32_t seq,
+ 125:Src/diagnostics/monitor_telemetry.cpp ****                                              uint32_t* outTriggerCycles) {
+ 537              		.loc 1 125 74 is_stmt 1 view -0
+ 538              		.cfi_startproc
+ 539              		@ args = 0, pretend = 0, frame = 0
+ 540              		@ frame_needed = 0, uses_anonymous_args = 0
+ 541              		.loc 1 125 74 is_stmt 0 view .LVU133
+ 542 0000 08B5     		push	{r3, lr}
+ 543              	.LCFI9:
+ 544              		.cfi_def_cfa_offset 8
+ 545              		.cfi_offset 3, -8
+ 546              		.cfi_offset 14, -4
+ 126:Src/diagnostics/monitor_telemetry.cpp ****     return query_report_trigger_cycles(seq, outTriggerCycles);
+ 547              		.loc 1 126 5 is_stmt 1 view .LVU134
+ 548              		.loc 1 126 39 is_stmt 0 view .LVU135
+ 549 0002 FFF7FEFF 		bl	_ZN12_GLOBAL__N_127query_report_trigger_cyclesEmPm
+ 550              	.LVL44:
+ 127:Src/diagnostics/monitor_telemetry.cpp **** }
+ 551              		.loc 1 127 1 view .LVU136
+ 552 0006 08BD     		pop	{r3, pc}
+ 553              		.cfi_endproc
+ 554              	.LFE1297:
+ 556              		.section	.text._Z33MonitorTelemetry_SetPendingUsbSeqm,"ax",%progbits
+ 557              		.align	1
+ 558              		.global	_Z33MonitorTelemetry_SetPendingUsbSeqm
+ 559              		.syntax unified
+ 560              		.thumb
+ 561              		.thumb_func
+ 563              	_Z33MonitorTelemetry_SetPendingUsbSeqm:
+ 564              	.LVL45:
+ 565              	.LFB1298:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 14
+
+
+ 128:Src/diagnostics/monitor_telemetry.cpp **** 
+ 129:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_SetPendingUsbSeq(uint32_t seq) {
+ 566              		.loc 1 129 54 is_stmt 1 view -0
+ 567              		.cfi_startproc
+ 568              		@ args = 0, pretend = 0, frame = 0
+ 569              		@ frame_needed = 0, uses_anonymous_args = 0
+ 570              		@ link register save eliminated.
+ 130:Src/diagnostics/monitor_telemetry.cpp ****     g_pendingUsbSeq = seq;
+ 571              		.loc 1 130 5 view .LVU138
+ 572              		.loc 1 130 21 is_stmt 0 view .LVU139
+ 573 0000 024B     		ldr	r3, .L39
+ 574 0002 1860     		str	r0, [r3]
+ 131:Src/diagnostics/monitor_telemetry.cpp ****     g_hasPendingUsbSeq = true;
+ 575              		.loc 1 131 5 is_stmt 1 view .LVU140
+ 576              		.loc 1 131 24 is_stmt 0 view .LVU141
+ 577 0004 024B     		ldr	r3, .L39+4
+ 578 0006 0122     		movs	r2, #1
+ 579 0008 1A70     		strb	r2, [r3]
+ 132:Src/diagnostics/monitor_telemetry.cpp **** }
+ 580              		.loc 1 132 1 view .LVU142
+ 581 000a 7047     		bx	lr
+ 582              	.L40:
+ 583              		.align	2
+ 584              	.L39:
+ 585 000c 00000000 		.word	_ZN12_GLOBAL__N_115g_pendingUsbSeqE
+ 586 0010 00000000 		.word	_ZN12_GLOBAL__N_118g_hasPendingUsbSeqE
+ 587              		.cfi_endproc
+ 588              	.LFE1298:
+ 590              		.section	.text._Z37MonitorTelemetry_OnUsbReportSubmittedt,"ax",%progbits
+ 591              		.align	1
+ 592              		.global	_Z37MonitorTelemetry_OnUsbReportSubmittedt
+ 593              		.syntax unified
+ 594              		.thumb
+ 595              		.thumb_func
+ 597              	_Z37MonitorTelemetry_OnUsbReportSubmittedt:
+ 598              	.LVL46:
+ 599              	.LFB1299:
+ 133:Src/diagnostics/monitor_telemetry.cpp **** 
+ 134:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_OnUsbReportSubmitted(uint16_t reportLen) {
+ 600              		.loc 1 134 64 is_stmt 1 view -0
+ 601              		.cfi_startproc
+ 602              		@ args = 0, pretend = 0, frame = 0
+ 603              		@ frame_needed = 0, uses_anonymous_args = 0
+ 604              		.loc 1 134 64 is_stmt 0 view .LVU144
+ 605 0000 70B5     		push	{r4, r5, r6, lr}
+ 606              	.LCFI10:
+ 607              		.cfi_def_cfa_offset 16
+ 608              		.cfi_offset 4, -16
+ 609              		.cfi_offset 5, -12
+ 610              		.cfi_offset 6, -8
+ 611              		.cfi_offset 14, -4
+ 612 0002 0446     		mov	r4, r0
+ 135:Src/diagnostics/monitor_telemetry.cpp ****     const uint32_t now_us = MICROS_TIMER.micros();
+ 613              		.loc 1 135 5 is_stmt 1 view .LVU145
+ 614              		.loc 1 135 29 is_stmt 0 view .LVU146
+ 615 0004 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 616              	.LVL47:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 15
+
+
+ 617              		.loc 1 135 48 discriminator 1 view .LVU147
+ 618 0008 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 619              	.LVL48:
+ 136:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.usbReportsCompleted++;
+ 620              		.loc 1 136 5 is_stmt 1 view .LVU148
+ 621              		.loc 1 136 16 is_stmt 0 view .LVU149
+ 622 000c 264B     		ldr	r3, .L48
+ 623 000e 9A68     		ldr	r2, [r3, #8]
+ 624              		.loc 1 136 35 view .LVU150
+ 625 0010 0132     		adds	r2, r2, #1
+ 626 0012 9A60     		str	r2, [r3, #8]
+ 137:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastUsbReportLen = reportLen;
+ 627              		.loc 1 137 5 is_stmt 1 view .LVU151
+ 628              		.loc 1 137 33 is_stmt 0 view .LVU152
+ 629 0014 1C87     		strh	r4, [r3, #56]	@ movhi
+ 138:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastUpdateUs = now_us;
+ 630              		.loc 1 138 5 is_stmt 1 view .LVU153
+ 631              		.loc 1 138 29 is_stmt 0 view .LVU154
+ 632 0016 1860     		str	r0, [r3]
+ 139:Src/diagnostics/monitor_telemetry.cpp **** 
+ 140:Src/diagnostics/monitor_telemetry.cpp ****     if (g_hasPendingUsbSeq) {
+ 633              		.loc 1 140 5 is_stmt 1 view .LVU155
+ 634              	.LBB84:
+ 635 0018 244B     		ldr	r3, .L48+4
+ 636 001a 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 637 001c 9BB1     		cbz	r3, .L41
+ 638              	.LBB85:
+ 141:Src/diagnostics/monitor_telemetry.cpp ****         const uint32_t idx = g_pendingUsbSeq % SAMPLE_SLOT_COUNT;
+ 639              		.loc 1 141 9 view .LVU156
+ 640              		.loc 1 141 46 is_stmt 0 view .LVU157
+ 641 001e 244B     		ldr	r3, .L48+8
+ 642 0020 1A68     		ldr	r2, [r3]
+ 643              		.loc 1 141 24 view .LVU158
+ 644 0022 02F07F04 		and	r4, r2, #127
+ 645              	.LVL49:
+ 142:Src/diagnostics/monitor_telemetry.cpp ****         if (g_slots[idx].valid && g_slots[idx].seq == g_pendingUsbSeq) {
+ 646              		.loc 1 142 9 is_stmt 1 view .LVU159
+ 647              	.LBB86:
+ 648              		.loc 1 142 26 is_stmt 0 view .LVU160
+ 649 0026 04EB8401 		add	r1, r4, r4, lsl #2
+ 650 002a 224B     		ldr	r3, .L48+12
+ 651 002c 03EB8103 		add	r3, r3, r1, lsl #2
+ 652 0030 1B7C     		ldrb	r3, [r3, #16]	@ zero_extendqisi2
+ 653              		.loc 1 142 9 view .LVU161
+ 654 0032 2BB1     		cbz	r3, .L43
+ 655              		.loc 1 142 48 discriminator 1 view .LVU162
+ 656 0034 0B46     		mov	r3, r1
+ 657 0036 1F49     		ldr	r1, .L48+12
+ 658 0038 51F82330 		ldr	r3, [r1, r3, lsl #2]
+ 659              		.loc 1 142 32 discriminator 1 view .LVU163
+ 660 003c 9A42     		cmp	r2, r3
+ 661 003e 03D0     		beq	.L46
+ 662              	.LVL50:
+ 663              	.L43:
+ 664              		.loc 1 142 32 discriminator 1 view .LVU164
+ 665              	.LBE86:
+ 143:Src/diagnostics/monitor_telemetry.cpp ****             const uint32_t nowCycles = MICROS_TIMER.cycles();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 16
+
+
+ 144:Src/diagnostics/monitor_telemetry.cpp ****             g_snapshot.latestAdcConversionUs = ElapsedMicros32(
+ 145:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].triggerCycles,
+ 146:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].completeCycles,
+ 147:Src/diagnostics/monitor_telemetry.cpp ****                 CYCLES_PER_US);
+ 148:Src/diagnostics/monitor_telemetry.cpp ****             g_snapshot.latestInputProcessingUs = ElapsedMicros32(
+ 149:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].completeCycles,
+ 150:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].reportReadyCycles,
+ 151:Src/diagnostics/monitor_telemetry.cpp ****                 CYCLES_PER_US);
+ 152:Src/diagnostics/monitor_telemetry.cpp ****             g_snapshot.latestReportSubmitUs = ElapsedMicros32(
+ 153:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].reportReadyCycles,
+ 154:Src/diagnostics/monitor_telemetry.cpp ****                 nowCycles,
+ 155:Src/diagnostics/monitor_telemetry.cpp ****                 CYCLES_PER_US);
+ 156:Src/diagnostics/monitor_telemetry.cpp ****             const uint32_t latency =
+ 157:Src/diagnostics/monitor_telemetry.cpp ****                 g_snapshot.latestAdcConversionUs +
+ 158:Src/diagnostics/monitor_telemetry.cpp ****                 g_snapshot.latestInputProcessingUs +
+ 159:Src/diagnostics/monitor_telemetry.cpp ****                 g_snapshot.latestReportSubmitUs;
+ 160:Src/diagnostics/monitor_telemetry.cpp ****             g_snapshot.latestSampleToCh585SubmitUs = latency;
+ 161:Src/diagnostics/monitor_telemetry.cpp ****             update_avg(g_snapshot.avgSampleToCh585SubmitUs, latency);
+ 162:Src/diagnostics/monitor_telemetry.cpp ****         }
+ 163:Src/diagnostics/monitor_telemetry.cpp ****         g_hasPendingUsbSeq = false;
+ 666              		.loc 1 163 9 is_stmt 1 view .LVU165
+ 667              		.loc 1 163 28 is_stmt 0 view .LVU166
+ 668 0040 1A4B     		ldr	r3, .L48+4
+ 669 0042 0022     		movs	r2, #0
+ 670 0044 1A70     		strb	r2, [r3]
+ 671              	.LVL51:
+ 672              	.L41:
+ 673              		.loc 1 163 28 view .LVU167
+ 674              	.LBE85:
+ 675              	.LBE84:
+ 164:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 165:Src/diagnostics/monitor_telemetry.cpp **** }
+ 676              		.loc 1 165 1 view .LVU168
+ 677 0046 70BD     		pop	{r4, r5, r6, pc}
+ 678              	.LVL52:
+ 679              	.L46:
+ 680              	.LBB107:
+ 681              	.LBB106:
+ 682              	.LBB105:
+ 683              	.LBB87:
+ 143:Src/diagnostics/monitor_telemetry.cpp ****             const uint32_t nowCycles = MICROS_TIMER.cycles();
+ 684              		.loc 1 143 13 is_stmt 1 view .LVU169
+ 143:Src/diagnostics/monitor_telemetry.cpp ****             const uint32_t nowCycles = MICROS_TIMER.cycles();
+ 685              		.loc 1 143 40 is_stmt 0 view .LVU170
+ 686 0048 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 687              	.LVL53:
+ 143:Src/diagnostics/monitor_telemetry.cpp ****             const uint32_t nowCycles = MICROS_TIMER.cycles();
+ 688              		.loc 1 143 59 discriminator 1 view .LVU171
+ 689 004c FFF7FEFF 		bl	_ZNK11MicrosTimer6cyclesEv
+ 690              	.LVL54:
+ 144:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].triggerCycles,
+ 691              		.loc 1 144 13 is_stmt 1 view .LVU172
+ 144:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].triggerCycles,
+ 692              		.loc 1 144 63 is_stmt 0 view .LVU173
+ 693 0050 184A     		ldr	r2, .L48+12
+ 694 0052 04EB8403 		add	r3, r4, r4, lsl #2
+ 695 0056 02EB8303 		add	r3, r2, r3, lsl #2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 17
+
+
+ 696 005a 5968     		ldr	r1, [r3, #4]
+ 697 005c 9B68     		ldr	r3, [r3, #8]
+ 698              	.LVL55:
+ 699              	.LBB88:
+ 700              	.LBI88:
+  19:Inc/support/cycle_elapsed.hpp ****                                    uint32_t endCycles,
+ 701              		.loc 3 19 20 is_stmt 1 view .LVU174
+ 702              		.loc 3 23 5 view .LVU175
+ 703              	.LBB89:
+ 704              	.LBI89:
+   6:Inc/support/cycle_elapsed.hpp **** {
+ 705              		.loc 3 6 20 view .LVU176
+ 706              	.LBB90:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 707              		.loc 3 8 5 view .LVU177
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 708              		.loc 3 8 57 is_stmt 0 view .LVU178
+ 709 005e 591A     		subs	r1, r3, r1
+ 710              	.LVL56:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 711              		.loc 3 8 57 view .LVU179
+ 712              	.LBE90:
+ 713              	.LBE89:
+ 714              	.LBB91:
+ 715              	.LBI91:
+  11:Inc/support/cycle_elapsed.hpp ****                                     uint32_t cyclesPerMicrosecond)
+ 716              		.loc 3 11 20 is_stmt 1 view .LVU180
+ 717              	.LBB92:
+  14:Inc/support/cycle_elapsed.hpp ****         ? 0u
+ 718              		.loc 3 14 5 view .LVU181
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 719              		.loc 3 15 9 is_stmt 0 discriminator 1 view .LVU182
+ 720 0060 154E     		ldr	r6, .L48+16
+ 721 0062 A6FB0151 		umull	r5, r1, r6, r1
+ 722              	.LVL57:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 723              		.loc 3 15 9 discriminator 1 view .LVU183
+ 724 0066 090A     		lsrs	r1, r1, #8
+ 725              	.LVL58:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 726              		.loc 3 15 9 discriminator 1 view .LVU184
+ 727              	.LBE92:
+ 728              	.LBE91:
+ 729              	.LBE88:
+ 144:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].triggerCycles,
+ 730              		.loc 1 144 46 discriminator 1 view .LVU185
+ 731 0068 0F4D     		ldr	r5, .L48
+ 732 006a A962     		str	r1, [r5, #40]
+ 148:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].completeCycles,
+ 733              		.loc 1 148 13 is_stmt 1 view .LVU186
+ 148:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].completeCycles,
+ 734              		.loc 1 148 65 is_stmt 0 view .LVU187
+ 735 006c 04EB8404 		add	r4, r4, r4, lsl #2
+ 736              	.LVL59:
+ 148:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].completeCycles,
+ 737              		.loc 1 148 65 view .LVU188
+ 738 0070 02EB8402 		add	r2, r2, r4, lsl #2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 18
+
+
+ 739 0074 D268     		ldr	r2, [r2, #12]
+ 740              	.LVL60:
+ 741              	.LBB93:
+ 742              	.LBI93:
+  19:Inc/support/cycle_elapsed.hpp ****                                    uint32_t endCycles,
+ 743              		.loc 3 19 20 is_stmt 1 view .LVU189
+ 744              		.loc 3 23 5 view .LVU190
+ 745              	.LBB94:
+ 746              	.LBI94:
+   6:Inc/support/cycle_elapsed.hpp **** {
+ 747              		.loc 3 6 20 view .LVU191
+ 748              	.LBB95:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 749              		.loc 3 8 5 view .LVU192
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 750              		.loc 3 8 57 is_stmt 0 view .LVU193
+ 751 0076 D31A     		subs	r3, r2, r3
+ 752              	.LVL61:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 753              		.loc 3 8 57 view .LVU194
+ 754              	.LBE95:
+ 755              	.LBE94:
+ 756              	.LBB96:
+ 757              	.LBI96:
+  11:Inc/support/cycle_elapsed.hpp ****                                     uint32_t cyclesPerMicrosecond)
+ 758              		.loc 3 11 20 is_stmt 1 view .LVU195
+ 759              	.LBB97:
+  14:Inc/support/cycle_elapsed.hpp ****         ? 0u
+ 760              		.loc 3 14 5 view .LVU196
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 761              		.loc 3 15 9 is_stmt 0 discriminator 1 view .LVU197
+ 762 0078 A6FB0343 		umull	r4, r3, r6, r3
+ 763              	.LVL62:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 764              		.loc 3 15 9 discriminator 1 view .LVU198
+ 765 007c 1B0A     		lsrs	r3, r3, #8
+ 766              	.LVL63:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 767              		.loc 3 15 9 discriminator 1 view .LVU199
+ 768              	.LBE97:
+ 769              	.LBE96:
+ 770              	.LBE93:
+ 148:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].completeCycles,
+ 771              		.loc 1 148 48 discriminator 1 view .LVU200
+ 772 007e EB62     		str	r3, [r5, #44]
+ 152:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].reportReadyCycles,
+ 773              		.loc 1 152 13 is_stmt 1 view .LVU201
+ 774              	.LVL64:
+ 775              	.LBB98:
+ 776              	.LBI98:
+  19:Inc/support/cycle_elapsed.hpp ****                                    uint32_t endCycles,
+ 777              		.loc 3 19 20 view .LVU202
+ 778              		.loc 3 23 5 view .LVU203
+ 779              	.LBB99:
+ 780              	.LBI99:
+   6:Inc/support/cycle_elapsed.hpp **** {
+ 781              		.loc 3 6 20 view .LVU204
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 19
+
+
+ 782              	.LBB100:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 783              		.loc 3 8 5 view .LVU205
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 784              		.loc 3 8 57 is_stmt 0 view .LVU206
+ 785 0080 821A     		subs	r2, r0, r2
+ 786              	.LVL65:
+   8:Inc/support/cycle_elapsed.hpp **** }
+ 787              		.loc 3 8 57 view .LVU207
+ 788              	.LBE100:
+ 789              	.LBE99:
+ 790              	.LBB101:
+ 791              	.LBI101:
+  11:Inc/support/cycle_elapsed.hpp ****                                     uint32_t cyclesPerMicrosecond)
+ 792              		.loc 3 11 20 is_stmt 1 view .LVU208
+ 793              	.LBB102:
+  14:Inc/support/cycle_elapsed.hpp ****         ? 0u
+ 794              		.loc 3 14 5 view .LVU209
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 795              		.loc 3 15 9 is_stmt 0 discriminator 1 view .LVU210
+ 796 0082 A6FB0262 		umull	r6, r2, r6, r2
+ 797              	.LVL66:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 798              		.loc 3 15 9 discriminator 1 view .LVU211
+ 799 0086 120A     		lsrs	r2, r2, #8
+ 800              	.LVL67:
+  15:Inc/support/cycle_elapsed.hpp ****         : elapsedCycles / cyclesPerMicrosecond;
+ 801              		.loc 3 15 9 discriminator 1 view .LVU212
+ 802              	.LBE102:
+ 803              	.LBE101:
+ 804              	.LBE98:
+ 152:Src/diagnostics/monitor_telemetry.cpp ****                 g_slots[idx].reportReadyCycles,
+ 805              		.loc 1 152 45 discriminator 1 view .LVU213
+ 806 0088 2A63     		str	r2, [r5, #48]
+ 156:Src/diagnostics/monitor_telemetry.cpp ****                 g_snapshot.latestAdcConversionUs +
+ 807              		.loc 1 156 13 is_stmt 1 view .LVU214
+ 157:Src/diagnostics/monitor_telemetry.cpp ****                 g_snapshot.latestInputProcessingUs +
+ 808              		.loc 1 157 50 is_stmt 0 view .LVU215
+ 809 008a 0B44     		add	r3, r3, r1
+ 156:Src/diagnostics/monitor_telemetry.cpp ****                 g_snapshot.latestAdcConversionUs +
+ 810              		.loc 1 156 28 view .LVU216
+ 811 008c 1344     		add	r3, r3, r2
+ 812              	.LVL68:
+ 160:Src/diagnostics/monitor_telemetry.cpp ****             update_avg(g_snapshot.avgSampleToCh585SubmitUs, latency);
+ 813              		.loc 1 160 13 is_stmt 1 view .LVU217
+ 160:Src/diagnostics/monitor_telemetry.cpp ****             update_avg(g_snapshot.avgSampleToCh585SubmitUs, latency);
+ 814              		.loc 1 160 52 is_stmt 0 view .LVU218
+ 815 008e AB61     		str	r3, [r5, #24]
+ 161:Src/diagnostics/monitor_telemetry.cpp ****         }
+ 816              		.loc 1 161 13 is_stmt 1 view .LVU219
+ 817              	.LVL69:
+ 818              	.LBB103:
+ 819              	.LBI103:
+  48:Src/diagnostics/monitor_telemetry.cpp ****     if (avg == 0u) {
+ 820              		.loc 1 48 13 view .LVU220
+ 821              	.LBB104:
+  49:Src/diagnostics/monitor_telemetry.cpp ****         avg = latest;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 20
+
+
+ 822              		.loc 1 49 5 view .LVU221
+  49:Src/diagnostics/monitor_telemetry.cpp ****         avg = latest;
+ 823              		.loc 1 49 9 is_stmt 0 view .LVU222
+ 824 0090 2A6A     		ldr	r2, [r5, #32]
+  49:Src/diagnostics/monitor_telemetry.cpp ****         avg = latest;
+ 825              		.loc 1 49 5 view .LVU223
+ 826 0092 32B1     		cbz	r2, .L47
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 827              		.loc 1 53 5 is_stmt 1 view .LVU224
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 828              		.loc 1 53 16 is_stmt 0 view .LVU225
+ 829 0094 C2EBC202 		rsb	r2, r2, r2, lsl #3
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 830              		.loc 1 53 21 view .LVU226
+ 831 0098 1344     		add	r3, r3, r2
+ 832              	.LVL70:
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 833              		.loc 1 53 31 view .LVU227
+ 834 009a DB08     		lsrs	r3, r3, #3
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 835              		.loc 1 53 9 view .LVU228
+ 836 009c 024A     		ldr	r2, .L48
+ 837 009e 1362     		str	r3, [r2, #32]
+ 838 00a0 CEE7     		b	.L43
+ 839              	.LVL71:
+ 840              	.L47:
+  50:Src/diagnostics/monitor_telemetry.cpp ****         return;
+ 841              		.loc 1 50 9 is_stmt 1 view .LVU229
+  50:Src/diagnostics/monitor_telemetry.cpp ****         return;
+ 842              		.loc 1 50 13 is_stmt 0 view .LVU230
+ 843 00a2 2B62     		str	r3, [r5, #32]
+  51:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 844              		.loc 1 51 9 is_stmt 1 view .LVU231
+ 845 00a4 CCE7     		b	.L43
+ 846              	.L49:
+ 847 00a6 00BF     		.align	2
+ 848              	.L48:
+ 849 00a8 00000000 		.word	_ZN12_GLOBAL__N_110g_snapshotE
+ 850 00ac 00000000 		.word	_ZN12_GLOBAL__N_118g_hasPendingUsbSeqE
+ 851 00b0 00000000 		.word	_ZN12_GLOBAL__N_115g_pendingUsbSeqE
+ 852 00b4 00000000 		.word	_ZN12_GLOBAL__N_17g_slotsE
+ 853 00b8 89888888 		.word	-2004318071
+ 854              	.LBE104:
+ 855              	.LBE103:
+ 856              	.LBE87:
+ 857              	.LBE105:
+ 858              	.LBE106:
+ 859              	.LBE107:
+ 860              		.cfi_endproc
+ 861              	.LFE1299:
+ 863              		.section	.text._Z29MonitorTelemetry_OnRfTransfermhhb,"ax",%progbits
+ 864              		.align	1
+ 865              		.global	_Z29MonitorTelemetry_OnRfTransfermhhb
+ 866              		.syntax unified
+ 867              		.thumb
+ 868              		.thumb_func
+ 870              	_Z29MonitorTelemetry_OnRfTransfermhhb:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 21
+
+
+ 871              	.LVL72:
+ 872              	.LFB1300:
+ 166:Src/diagnostics/monitor_telemetry.cpp **** 
+ 167:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_OnRfTransfer(uint32_t seq, uint8_t cmd, uint8_t payloadLen, bool ok) {
+ 873              		.loc 1 167 92 view -0
+ 874              		.cfi_startproc
+ 875              		@ args = 0, pretend = 0, frame = 8
+ 876              		@ frame_needed = 0, uses_anonymous_args = 0
+ 877              		.loc 1 167 92 is_stmt 0 view .LVU233
+ 878 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 879              	.LCFI11:
+ 880              		.cfi_def_cfa_offset 20
+ 881              		.cfi_offset 4, -20
+ 882              		.cfi_offset 5, -16
+ 883              		.cfi_offset 6, -12
+ 884              		.cfi_offset 7, -8
+ 885              		.cfi_offset 14, -4
+ 886 0002 83B0     		sub	sp, sp, #12
+ 887              	.LCFI12:
+ 888              		.cfi_def_cfa_offset 32
+ 889 0004 0446     		mov	r4, r0
+ 890 0006 0F46     		mov	r7, r1
+ 891 0008 1646     		mov	r6, r2
+ 892 000a 1D46     		mov	r5, r3
+ 168:Src/diagnostics/monitor_telemetry.cpp ****     const uint32_t now_us = MICROS_TIMER.micros();
+ 893              		.loc 1 168 5 is_stmt 1 view .LVU234
+ 894              		.loc 1 168 29 is_stmt 0 view .LVU235
+ 895 000c FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 896              	.LVL73:
+ 897              		.loc 1 168 48 discriminator 1 view .LVU236
+ 898 0010 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 899              	.LVL74:
+ 169:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastUpdateUs = now_us;
+ 900              		.loc 1 169 5 is_stmt 1 view .LVU237
+ 901              		.loc 1 169 29 is_stmt 0 view .LVU238
+ 902 0014 154B     		ldr	r3, .L58
+ 903 0016 1860     		str	r0, [r3]
+ 170:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastRfCmd = cmd;
+ 904              		.loc 1 170 5 is_stmt 1 view .LVU239
+ 905              		.loc 1 170 26 is_stmt 0 view .LVU240
+ 906 0018 83F83A70 		strb	r7, [r3, #58]
+ 171:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastRfPayloadLen = payloadLen;
+ 907              		.loc 1 171 5 is_stmt 1 view .LVU241
+ 908              		.loc 1 171 33 is_stmt 0 view .LVU242
+ 909 001c 83F83B60 		strb	r6, [r3, #59]
+ 172:Src/diagnostics/monitor_telemetry.cpp **** 
+ 173:Src/diagnostics/monitor_telemetry.cpp ****     if (ok) {
+ 910              		.loc 1 173 5 is_stmt 1 view .LVU243
+ 911 0020 65B1     		cbz	r5, .L51
+ 174:Src/diagnostics/monitor_telemetry.cpp ****         g_snapshot.rfTransferOk++;
+ 912              		.loc 1 174 9 view .LVU244
+ 913              		.loc 1 174 20 is_stmt 0 view .LVU245
+ 914 0022 1A46     		mov	r2, r3
+ 915 0024 DB68     		ldr	r3, [r3, #12]
+ 916              		.loc 1 174 32 view .LVU246
+ 917 0026 0133     		adds	r3, r3, #1
+ 918 0028 D360     		str	r3, [r2, #12]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 22
+
+
+ 919              	.L52:
+ 175:Src/diagnostics/monitor_telemetry.cpp ****     } else {
+ 176:Src/diagnostics/monitor_telemetry.cpp ****         g_snapshot.rfTransferFail++;
+ 177:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 178:Src/diagnostics/monitor_telemetry.cpp **** 
+ 179:Src/diagnostics/monitor_telemetry.cpp ****     uint32_t triggerCycles = 0u;
+ 920              		.loc 1 179 5 is_stmt 1 view .LVU247
+ 921              		.loc 1 179 14 is_stmt 0 view .LVU248
+ 922 002a 0023     		movs	r3, #0
+ 923 002c 0193     		str	r3, [sp, #4]
+ 180:Src/diagnostics/monitor_telemetry.cpp ****     if (query_report_trigger_cycles(seq, &triggerCycles)) {
+ 924              		.loc 1 180 5 is_stmt 1 view .LVU249
+ 925              	.LBB108:
+ 926              		.loc 1 180 36 is_stmt 0 view .LVU250
+ 927 002e 01A9     		add	r1, sp, #4
+ 928 0030 2046     		mov	r0, r4
+ 929              	.LVL75:
+ 930              		.loc 1 180 36 view .LVU251
+ 931 0032 FFF7FEFF 		bl	_ZN12_GLOBAL__N_127query_report_trigger_cyclesEmPm
+ 932              	.LVL76:
+ 933              		.loc 1 180 5 discriminator 1 view .LVU252
+ 934 0036 30B9     		cbnz	r0, .L56
+ 935              	.L50:
+ 936              	.LBE108:
+ 181:Src/diagnostics/monitor_telemetry.cpp ****         const uint32_t latency = MICROS_TIMER.elapsedMicros(triggerCycles);
+ 182:Src/diagnostics/monitor_telemetry.cpp ****         g_snapshot.latestSampleToRfSubmitUs = latency;
+ 183:Src/diagnostics/monitor_telemetry.cpp ****         update_avg(g_snapshot.avgSampleToRfSubmitUs, latency);
+ 184:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 185:Src/diagnostics/monitor_telemetry.cpp **** 
+ 186:Src/diagnostics/monitor_telemetry.cpp ****     if (!ok) {
+ 187:Src/diagnostics/monitor_telemetry.cpp ****         LOG_WARN("MON", "rf transfer failed seq=%lu cmd=%u payloadLen=%u", seq, cmd, payloadLen);
+ 188:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 189:Src/diagnostics/monitor_telemetry.cpp **** }
+ 937              		.loc 1 189 1 view .LVU253
+ 938 0038 03B0     		add	sp, sp, #12
+ 939              	.LCFI13:
+ 940              		.cfi_remember_state
+ 941              		.cfi_def_cfa_offset 20
+ 942              		@ sp needed
+ 943 003a F0BD     		pop	{r4, r5, r6, r7, pc}
+ 944              	.LVL77:
+ 945              	.L51:
+ 946              	.LCFI14:
+ 947              		.cfi_restore_state
+ 176:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 948              		.loc 1 176 9 is_stmt 1 view .LVU254
+ 176:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 949              		.loc 1 176 20 is_stmt 0 view .LVU255
+ 950 003c 0B4A     		ldr	r2, .L58
+ 951 003e 1369     		ldr	r3, [r2, #16]
+ 176:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 952              		.loc 1 176 34 view .LVU256
+ 953 0040 0133     		adds	r3, r3, #1
+ 954 0042 1361     		str	r3, [r2, #16]
+ 955 0044 F1E7     		b	.L52
+ 956              	.LVL78:
+ 957              	.L56:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 23
+
+
+ 958              	.LBB115:
+ 959              	.LBB109:
+ 181:Src/diagnostics/monitor_telemetry.cpp ****         const uint32_t latency = MICROS_TIMER.elapsedMicros(triggerCycles);
+ 960              		.loc 1 181 9 is_stmt 1 view .LVU257
+ 181:Src/diagnostics/monitor_telemetry.cpp ****         const uint32_t latency = MICROS_TIMER.elapsedMicros(triggerCycles);
+ 961              		.loc 1 181 34 is_stmt 0 view .LVU258
+ 962 0046 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 963              	.LVL79:
+ 181:Src/diagnostics/monitor_telemetry.cpp ****         const uint32_t latency = MICROS_TIMER.elapsedMicros(triggerCycles);
+ 964              		.loc 1 181 60 discriminator 1 view .LVU259
+ 965 004a 0199     		ldr	r1, [sp, #4]
+ 966 004c FFF7FEFF 		bl	_ZNK11MicrosTimer13elapsedMicrosEm
+ 967              	.LVL80:
+ 182:Src/diagnostics/monitor_telemetry.cpp ****         update_avg(g_snapshot.avgSampleToRfSubmitUs, latency);
+ 968              		.loc 1 182 9 is_stmt 1 view .LVU260
+ 182:Src/diagnostics/monitor_telemetry.cpp ****         update_avg(g_snapshot.avgSampleToRfSubmitUs, latency);
+ 969              		.loc 1 182 45 is_stmt 0 view .LVU261
+ 970 0050 064B     		ldr	r3, .L58
+ 971 0052 D861     		str	r0, [r3, #28]
+ 183:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 972              		.loc 1 183 9 is_stmt 1 view .LVU262
+ 973              	.LVL81:
+ 974              	.LBB110:
+ 975              	.LBI110:
+  48:Src/diagnostics/monitor_telemetry.cpp ****     if (avg == 0u) {
+ 976              		.loc 1 48 13 view .LVU263
+ 977              	.LBB111:
+  49:Src/diagnostics/monitor_telemetry.cpp ****         avg = latest;
+ 978              		.loc 1 49 5 view .LVU264
+  49:Src/diagnostics/monitor_telemetry.cpp ****         avg = latest;
+ 979              		.loc 1 49 9 is_stmt 0 view .LVU265
+ 980 0054 5B6A     		ldr	r3, [r3, #36]
+  49:Src/diagnostics/monitor_telemetry.cpp ****         avg = latest;
+ 981              		.loc 1 49 5 view .LVU266
+ 982 0056 33B1     		cbz	r3, .L57
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 983              		.loc 1 53 5 is_stmt 1 view .LVU267
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 984              		.loc 1 53 16 is_stmt 0 view .LVU268
+ 985 0058 C3EBC303 		rsb	r3, r3, r3, lsl #3
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 986              		.loc 1 53 21 view .LVU269
+ 987 005c 1844     		add	r0, r0, r3
+ 988              	.LVL82:
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 989              		.loc 1 53 31 view .LVU270
+ 990 005e C008     		lsrs	r0, r0, #3
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 991              		.loc 1 53 9 view .LVU271
+ 992 0060 024B     		ldr	r3, .L58
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 993              		.loc 1 53 9 view .LVU272
+ 994 0062 5862     		str	r0, [r3, #36]
+ 995              	.LVL83:
+  53:Src/diagnostics/monitor_telemetry.cpp **** }
+ 996              		.loc 1 53 9 view .LVU273
+ 997              	.LBE111:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 24
+
+
+ 998              	.LBE110:
+ 999              	.LBE109:
+ 1000              	.LBE115:
+ 186:Src/diagnostics/monitor_telemetry.cpp ****         LOG_WARN("MON", "rf transfer failed seq=%lu cmd=%u payloadLen=%u", seq, cmd, payloadLen);
+ 1001              		.loc 1 186 5 is_stmt 1 view .LVU274
+ 187:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 1002              		.loc 1 187 9 view .LVU275
+ 1003              		.loc 1 189 1 is_stmt 0 view .LVU276
+ 1004 0064 E8E7     		b	.L50
+ 1005              	.LVL84:
+ 1006              	.L57:
+ 1007              	.LBB116:
+ 1008              	.LBB114:
+ 1009              	.LBB113:
+ 1010              	.LBB112:
+  50:Src/diagnostics/monitor_telemetry.cpp ****         return;
+ 1011              		.loc 1 50 9 is_stmt 1 view .LVU277
+  50:Src/diagnostics/monitor_telemetry.cpp ****         return;
+ 1012              		.loc 1 50 13 is_stmt 0 view .LVU278
+ 1013 0066 014B     		ldr	r3, .L58
+ 1014 0068 5862     		str	r0, [r3, #36]
+  51:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 1015              		.loc 1 51 9 is_stmt 1 view .LVU279
+ 1016 006a E5E7     		b	.L50
+ 1017              	.L59:
+ 1018              		.align	2
+ 1019              	.L58:
+ 1020 006c 00000000 		.word	_ZN12_GLOBAL__N_110g_snapshotE
+ 1021              	.LBE112:
+ 1022              	.LBE113:
+ 1023              	.LBE114:
+ 1024              	.LBE116:
+ 1025              		.cfi_endproc
+ 1026              	.LFE1300:
+ 1028              		.section	.text._Z35MonitorTelemetry_OnLinkStateChanged14ConnectionModeh,"ax",%progbits
+ 1029              		.align	1
+ 1030              		.global	_Z35MonitorTelemetry_OnLinkStateChanged14ConnectionModeh
+ 1031              		.syntax unified
+ 1032              		.thumb
+ 1033              		.thumb_func
+ 1035              	_Z35MonitorTelemetry_OnLinkStateChanged14ConnectionModeh:
+ 1036              	.LVL85:
+ 1037              	.LFB1301:
+ 190:Src/diagnostics/monitor_telemetry.cpp **** 
+ 191:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_OnLinkStateChanged(ConnectionMode mode, uint8_t linkState) {
+ 1038              		.loc 1 191 82 view -0
+ 1039              		.cfi_startproc
+ 1040              		@ args = 0, pretend = 0, frame = 0
+ 1041              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1042              		.loc 1 191 82 is_stmt 0 view .LVU281
+ 1043 0000 10B5     		push	{r4, lr}
+ 1044              	.LCFI15:
+ 1045              		.cfi_def_cfa_offset 8
+ 1046              		.cfi_offset 4, -8
+ 1047              		.cfi_offset 14, -4
+ 192:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.connectionMode = static_cast<uint8_t>(mode);
+ 1048              		.loc 1 192 5 is_stmt 1 view .LVU282
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 25
+
+
+ 1049              		.loc 1 192 31 is_stmt 0 view .LVU283
+ 1050 0002 054C     		ldr	r4, .L62
+ 1051 0004 84F83600 		strb	r0, [r4, #54]
+ 193:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.linkState = linkState;
+ 1052              		.loc 1 193 5 is_stmt 1 view .LVU284
+ 1053              		.loc 1 193 26 is_stmt 0 view .LVU285
+ 1054 0008 84F83710 		strb	r1, [r4, #55]
+ 194:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastUpdateUs = MICROS_TIMER.micros();
+ 1055              		.loc 1 194 5 is_stmt 1 view .LVU286
+ 1056              		.loc 1 194 31 is_stmt 0 view .LVU287
+ 1057 000c FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 1058              	.LVL86:
+ 1059              		.loc 1 194 50 discriminator 1 view .LVU288
+ 1060 0010 FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 1061              	.LVL87:
+ 1062              		.loc 1 194 29 discriminator 2 view .LVU289
+ 1063 0014 2060     		str	r0, [r4]
+ 195:Src/diagnostics/monitor_telemetry.cpp ****     LOG_INFO("MON", "link state changed mode=%u state=%u", g_snapshot.connectionMode, g_snapshot.li
+ 1064              		.loc 1 195 5 is_stmt 1 view .LVU290
+ 196:Src/diagnostics/monitor_telemetry.cpp **** }
+ 1065              		.loc 1 196 1 is_stmt 0 view .LVU291
+ 1066 0016 10BD     		pop	{r4, pc}
+ 1067              	.L63:
+ 1068              		.align	2
+ 1069              	.L62:
+ 1070 0018 00000000 		.word	_ZN12_GLOBAL__N_110g_snapshotE
+ 1071              		.cfi_endproc
+ 1072              	.LFE1301:
+ 1074              		.section	.text._Z24MonitorTelemetry_OnErrorPKcmS0_,"ax",%progbits
+ 1075              		.align	1
+ 1076              		.global	_Z24MonitorTelemetry_OnErrorPKcmS0_
+ 1077              		.syntax unified
+ 1078              		.thumb
+ 1079              		.thumb_func
+ 1081              	_Z24MonitorTelemetry_OnErrorPKcmS0_:
+ 1082              	.LVL88:
+ 1083              	.LFB1302:
+ 197:Src/diagnostics/monitor_telemetry.cpp **** 
+ 198:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_OnError(const char* source, uint32_t code, const char* message) {
+ 1084              		.loc 1 198 87 is_stmt 1 view -0
+ 1085              		.cfi_startproc
+ 1086              		@ args = 0, pretend = 0, frame = 0
+ 1087              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1088              		.loc 1 198 87 is_stmt 0 view .LVU293
+ 1089 0000 10B5     		push	{r4, lr}
+ 1090              	.LCFI16:
+ 1091              		.cfi_def_cfa_offset 8
+ 1092              		.cfi_offset 4, -8
+ 1093              		.cfi_offset 14, -4
+ 199:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.errorCount++;
+ 1094              		.loc 1 199 5 is_stmt 1 view .LVU294
+ 1095              		.loc 1 199 16 is_stmt 0 view .LVU295
+ 1096 0002 054C     		ldr	r4, .L66
+ 1097 0004 6369     		ldr	r3, [r4, #20]
+ 1098              		.loc 1 199 26 view .LVU296
+ 1099 0006 0133     		adds	r3, r3, #1
+ 1100 0008 6361     		str	r3, [r4, #20]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 26
+
+
+ 200:Src/diagnostics/monitor_telemetry.cpp ****     g_snapshot.lastUpdateUs = MICROS_TIMER.micros();
+ 1101              		.loc 1 200 5 is_stmt 1 view .LVU297
+ 1102              		.loc 1 200 31 is_stmt 0 view .LVU298
+ 1103 000a FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 1104              	.LVL89:
+ 1105              		.loc 1 200 50 discriminator 1 view .LVU299
+ 1106 000e FFF7FEFF 		bl	_ZN11MicrosTimer6microsEv
+ 1107              	.LVL90:
+ 1108              		.loc 1 200 29 discriminator 2 view .LVU300
+ 1109 0012 2060     		str	r0, [r4]
+ 201:Src/diagnostics/monitor_telemetry.cpp ****     LOG_ERROR("MON", "err source=%s code=%lu msg=%s", source ? source : "unknown", code, message ? 
+ 1110              		.loc 1 201 5 is_stmt 1 view .LVU301
+ 202:Src/diagnostics/monitor_telemetry.cpp **** }
+ 1111              		.loc 1 202 1 is_stmt 0 view .LVU302
+ 1112 0014 10BD     		pop	{r4, pc}
+ 1113              	.L67:
+ 1114 0016 00BF     		.align	2
+ 1115              	.L66:
+ 1116 0018 00000000 		.word	_ZN12_GLOBAL__N_110g_snapshotE
+ 1117              		.cfi_endproc
+ 1118              	.LFE1302:
+ 1120              		.section	.text._Z31MonitorTelemetry_SetCh585Statushhhh,"ax",%progbits
+ 1121              		.align	1
+ 1122              		.global	_Z31MonitorTelemetry_SetCh585Statushhhh
+ 1123              		.syntax unified
+ 1124              		.thumb
+ 1125              		.thumb_func
+ 1127              	_Z31MonitorTelemetry_SetCh585Statushhhh:
+ 1128              	.LVL91:
+ 1129              	.LFB1303:
+ 203:Src/diagnostics/monitor_telemetry.cpp **** 
+ 204:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_SetCh585Status(uint8_t role, uint8_t versionMajor, uint8_t versionMinor, uint
+ 1130              		.loc 1 204 118 is_stmt 1 view -0
+ 1131              		.cfi_startproc
+ 1132              		@ args = 0, pretend = 0, frame = 0
+ 1133              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1134              		@ link register save eliminated.
+ 1135              		.loc 1 204 118 is_stmt 0 view .LVU304
+ 1136 0000 10B4     		push	{r4}
+ 1137              	.LCFI17:
+ 1138              		.cfi_def_cfa_offset 4
+ 1139              		.cfi_offset 4, -4
+ 205:Src/diagnostics/monitor_telemetry.cpp ****     g_ch585Role = role;
+ 1140              		.loc 1 205 5 is_stmt 1 view .LVU305
+ 1141              		.loc 1 205 17 is_stmt 0 view .LVU306
+ 1142 0002 054C     		ldr	r4, .L70
+ 1143 0004 2070     		strb	r0, [r4]
+ 206:Src/diagnostics/monitor_telemetry.cpp ****     g_ch585VersionMajor = versionMajor;
+ 1144              		.loc 1 206 5 is_stmt 1 view .LVU307
+ 1145              		.loc 1 206 25 is_stmt 0 view .LVU308
+ 1146 0006 0548     		ldr	r0, .L70+4
+ 1147              	.LVL92:
+ 1148              		.loc 1 206 25 view .LVU309
+ 1149 0008 0170     		strb	r1, [r0]
+ 207:Src/diagnostics/monitor_telemetry.cpp ****     g_ch585VersionMinor = versionMinor;
+ 1150              		.loc 1 207 5 is_stmt 1 view .LVU310
+ 1151              		.loc 1 207 25 is_stmt 0 view .LVU311
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 27
+
+
+ 1152 000a 0549     		ldr	r1, .L70+8
+ 1153              	.LVL93:
+ 1154              		.loc 1 207 25 view .LVU312
+ 1155 000c 0A70     		strb	r2, [r1]
+ 208:Src/diagnostics/monitor_telemetry.cpp ****     g_ch585VersionPatch = versionPatch;
+ 1156              		.loc 1 208 5 is_stmt 1 view .LVU313
+ 1157              		.loc 1 208 25 is_stmt 0 view .LVU314
+ 1158 000e 054A     		ldr	r2, .L70+12
+ 1159              	.LVL94:
+ 1160              		.loc 1 208 25 view .LVU315
+ 1161 0010 1370     		strb	r3, [r2]
+ 209:Src/diagnostics/monitor_telemetry.cpp **** }
+ 1162              		.loc 1 209 1 view .LVU316
+ 1163 0012 5DF8044B 		ldr	r4, [sp], #4
+ 1164              	.LCFI18:
+ 1165              		.cfi_restore 4
+ 1166              		.cfi_def_cfa_offset 0
+ 1167              		.loc 1 209 1 view .LVU317
+ 1168 0016 7047     		bx	lr
+ 1169              	.L71:
+ 1170              		.align	2
+ 1171              	.L70:
+ 1172 0018 00000000 		.word	_ZN12_GLOBAL__N_111g_ch585RoleE
+ 1173 001c 00000000 		.word	_ZN12_GLOBAL__N_119g_ch585VersionMajorE
+ 1174 0020 00000000 		.word	_ZN12_GLOBAL__N_119g_ch585VersionMinorE
+ 1175 0024 00000000 		.word	_ZN12_GLOBAL__N_119g_ch585VersionPatchE
+ 1176              		.cfi_endproc
+ 1177              	.LFE1303:
+ 1179              		.section	.text._Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot,"ax",%progbits
+ 1180              		.align	1
+ 1181              		.global	_Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot
+ 1182              		.syntax unified
+ 1183              		.thumb
+ 1184              		.thumb_func
+ 1186              	_Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot:
+ 1187              	.LVL95:
+ 1188              	.LFB1304:
+ 210:Src/diagnostics/monitor_telemetry.cpp **** 
+ 211:Src/diagnostics/monitor_telemetry.cpp **** void MonitorTelemetry_GetSnapshot(MonitorTelemetrySnapshot* out) {
+ 1189              		.loc 1 211 66 is_stmt 1 view -0
+ 1190              		.cfi_startproc
+ 1191              		@ args = 0, pretend = 0, frame = 0
+ 1192              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1193              		@ link register save eliminated.
+ 212:Src/diagnostics/monitor_telemetry.cpp ****     if (out == nullptr) {
+ 1194              		.loc 1 212 5 view .LVU319
+ 1195 0000 90B1     		cbz	r0, .L75
+ 211:Src/diagnostics/monitor_telemetry.cpp ****     if (out == nullptr) {
+ 1196              		.loc 1 211 66 is_stmt 0 view .LVU320
+ 1197 0002 10B4     		push	{r4}
+ 1198              	.LCFI19:
+ 1199              		.cfi_def_cfa_offset 4
+ 1200              		.cfi_offset 4, -4
+ 1201 0004 8446     		mov	ip, r0
+ 213:Src/diagnostics/monitor_telemetry.cpp ****         return;
+ 214:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 215:Src/diagnostics/monitor_telemetry.cpp ****     *out = g_snapshot;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 28
+
+
+ 1202              		.loc 1 215 5 is_stmt 1 view .LVU321
+ 1203              		.loc 1 215 10 is_stmt 0 view .LVU322
+ 1204 0006 094C     		ldr	r4, .L78
+ 1205 0008 0FCC     		ldmia	r4!, {r0, r1, r2, r3}
+ 1206              	.LVL96:
+ 1207              		.loc 1 215 10 view .LVU323
+ 1208 000a ACE80F00 		stmia	ip!, {r0, r1, r2, r3}
+ 1209              	.LVL97:
+ 1210              		.loc 1 215 10 view .LVU324
+ 1211 000e 0FCC     		ldmia	r4!, {r0, r1, r2, r3}
+ 1212 0010 ACE80F00 		stmia	ip!, {r0, r1, r2, r3}
+ 1213              	.LVL98:
+ 1214              		.loc 1 215 10 view .LVU325
+ 1215 0014 0FCC     		ldmia	r4!, {r0, r1, r2, r3}
+ 1216 0016 ACE80F00 		stmia	ip!, {r0, r1, r2, r3}
+ 1217              	.LVL99:
+ 1218              		.loc 1 215 10 view .LVU326
+ 1219 001a 94E80700 		ldm	r4, {r0, r1, r2}
+ 1220 001e 8CE80700 		stm	ip, {r0, r1, r2}
+ 216:Src/diagnostics/monitor_telemetry.cpp **** }
+ 1221              		.loc 1 216 1 view .LVU327
+ 1222 0022 5DF8044B 		ldr	r4, [sp], #4
+ 1223              	.LCFI20:
+ 1224              		.cfi_restore 4
+ 1225              		.cfi_def_cfa_offset 0
+ 1226 0026 7047     		bx	lr
+ 1227              	.LVL100:
+ 1228              	.L75:
+ 1229              		.loc 1 216 1 view .LVU328
+ 1230 0028 7047     		bx	lr
+ 1231              	.L79:
+ 1232 002a 00BF     		.align	2
+ 1233              	.L78:
+ 1234 002c 00000000 		.word	_ZN12_GLOBAL__N_110g_snapshotE
+ 1235              		.cfi_endproc
+ 1236              	.LFE1304:
+ 1238              		.section	.text._Z28MonitorTelemetry_FillFrameV1P23MonitorTelemetryFrameV1,"ax",%progbits
+ 1239              		.align	1
+ 1240              		.global	_Z28MonitorTelemetry_FillFrameV1P23MonitorTelemetryFrameV1
+ 1241              		.syntax unified
+ 1242              		.thumb
+ 1243              		.thumb_func
+ 1245              	_Z28MonitorTelemetry_FillFrameV1P23MonitorTelemetryFrameV1:
+ 1246              	.LVL101:
+ 1247              	.LFB1305:
+ 217:Src/diagnostics/monitor_telemetry.cpp **** 
+ 218:Src/diagnostics/monitor_telemetry.cpp **** bool MonitorTelemetry_FillFrameV1(MonitorTelemetryFrameV1* out) {
+ 1248              		.loc 1 218 65 is_stmt 1 view -0
+ 1249              		.cfi_startproc
+ 1250              		@ args = 0, pretend = 0, frame = 64
+ 1251              		@ frame_needed = 0, uses_anonymous_args = 0
+ 219:Src/diagnostics/monitor_telemetry.cpp ****     if (out == nullptr) {
+ 1252              		.loc 1 219 5 view .LVU330
+ 1253 0000 30B3     		cbz	r0, .L82
+ 218:Src/diagnostics/monitor_telemetry.cpp ****     if (out == nullptr) {
+ 1254              		.loc 1 218 65 is_stmt 0 view .LVU331
+ 1255 0002 10B5     		push	{r4, lr}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 29
+
+
+ 1256              	.LCFI21:
+ 1257              		.cfi_def_cfa_offset 8
+ 1258              		.cfi_offset 4, -8
+ 1259              		.cfi_offset 14, -4
+ 1260 0004 90B0     		sub	sp, sp, #64
+ 1261              	.LCFI22:
+ 1262              		.cfi_def_cfa_offset 72
+ 1263 0006 0446     		mov	r4, r0
+ 220:Src/diagnostics/monitor_telemetry.cpp ****         return false;
+ 221:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 222:Src/diagnostics/monitor_telemetry.cpp **** 
+ 223:Src/diagnostics/monitor_telemetry.cpp ****     MonitorTelemetrySnapshot snapshot = {};
+ 1264              		.loc 1 223 5 is_stmt 1 view .LVU332
+ 1265              		.loc 1 223 30 is_stmt 0 view .LVU333
+ 1266 0008 3C22     		movs	r2, #60
+ 1267 000a 0021     		movs	r1, #0
+ 1268 000c 01A8     		add	r0, sp, #4
+ 1269              	.LVL102:
+ 1270              		.loc 1 223 30 view .LVU334
+ 1271 000e FFF7FEFF 		bl	memset
+ 1272              	.LVL103:
+ 224:Src/diagnostics/monitor_telemetry.cpp ****     MonitorTelemetry_GetSnapshot(&snapshot);
+ 1273              		.loc 1 224 5 is_stmt 1 view .LVU335
+ 1274              		.loc 1 224 33 is_stmt 0 view .LVU336
+ 1275 0012 01A8     		add	r0, sp, #4
+ 1276 0014 FFF7FEFF 		bl	_Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot
+ 1277              	.LVL104:
+ 225:Src/diagnostics/monitor_telemetry.cpp **** 
+ 226:Src/diagnostics/monitor_telemetry.cpp ****     out->magic = 0x4D4F4E31u;
+ 1278              		.loc 1 226 5 is_stmt 1 view .LVU337
+ 1279              		.loc 1 226 16 is_stmt 0 view .LVU338
+ 1280 0018 0E4B     		ldr	r3, .L87
+ 1281 001a 2360     		str	r3, [r4]
+ 227:Src/diagnostics/monitor_telemetry.cpp ****     out->seq = snapshot.totalReports;
+ 1282              		.loc 1 227 5 is_stmt 1 view .LVU339
+ 1283              		.loc 1 227 25 is_stmt 0 view .LVU340
+ 1284 001c 029B     		ldr	r3, [sp, #8]
+ 1285              		.loc 1 227 14 view .LVU341
+ 1286 001e 6360     		str	r3, [r4, #4]
+ 228:Src/diagnostics/monitor_telemetry.cpp ****     out->totalReports = snapshot.totalReports;
+ 1287              		.loc 1 228 5 is_stmt 1 view .LVU342
+ 1288              		.loc 1 228 23 is_stmt 0 view .LVU343
+ 1289 0020 A360     		str	r3, [r4, #8]
+ 229:Src/diagnostics/monitor_telemetry.cpp ****     out->usbReportsCompleted = snapshot.usbReportsCompleted;
+ 1290              		.loc 1 229 5 is_stmt 1 view .LVU344
+ 1291              		.loc 1 229 41 is_stmt 0 view .LVU345
+ 1292 0022 039B     		ldr	r3, [sp, #12]
+ 1293              		.loc 1 229 30 view .LVU346
+ 1294 0024 E360     		str	r3, [r4, #12]
+ 230:Src/diagnostics/monitor_telemetry.cpp ****     out->targetRateHz = snapshot.targetRateHz;
+ 1295              		.loc 1 230 5 is_stmt 1 view .LVU347
+ 1296              		.loc 1 230 34 is_stmt 0 view .LVU348
+ 1297 0026 BDF83830 		ldrh	r3, [sp, #56]
+ 1298              		.loc 1 230 23 view .LVU349
+ 1299 002a 2382     		strh	r3, [r4, #16]	@ movhi
+ 231:Src/diagnostics/monitor_telemetry.cpp ****     out->lastUsbReportLen = snapshot.lastUsbReportLen;
+ 1300              		.loc 1 231 5 is_stmt 1 view .LVU350
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 30
+
+
+ 1301              		.loc 1 231 38 is_stmt 0 view .LVU351
+ 1302 002c BDF83C30 		ldrh	r3, [sp, #60]
+ 1303              		.loc 1 231 27 view .LVU352
+ 1304 0030 6382     		strh	r3, [r4, #18]	@ movhi
+ 232:Src/diagnostics/monitor_telemetry.cpp ****     out->latestSampleToCh585SubmitUs = (uint16_t)(
+ 1305              		.loc 1 232 5 is_stmt 1 view .LVU353
+ 233:Src/diagnostics/monitor_telemetry.cpp ****         snapshot.latestSampleToCh585SubmitUs & 0xFFFFu);
+ 1306              		.loc 1 233 18 is_stmt 0 view .LVU354
+ 1307 0032 079B     		ldr	r3, [sp, #28]
+ 232:Src/diagnostics/monitor_telemetry.cpp ****     out->latestSampleToCh585SubmitUs = (uint16_t)(
+ 1308              		.loc 1 232 38 view .LVU355
+ 1309 0034 A382     		strh	r3, [r4, #20]	@ movhi
+ 234:Src/diagnostics/monitor_telemetry.cpp ****     out->avgSampleToCh585SubmitUs = (uint16_t)(
+ 1310              		.loc 1 234 5 is_stmt 1 view .LVU356
+ 235:Src/diagnostics/monitor_telemetry.cpp ****         snapshot.avgSampleToCh585SubmitUs & 0xFFFFu);
+ 1311              		.loc 1 235 18 is_stmt 0 view .LVU357
+ 1312 0036 099B     		ldr	r3, [sp, #36]
+ 234:Src/diagnostics/monitor_telemetry.cpp ****     out->avgSampleToCh585SubmitUs = (uint16_t)(
+ 1313              		.loc 1 234 35 view .LVU358
+ 1314 0038 E382     		strh	r3, [r4, #22]	@ movhi
+ 236:Src/diagnostics/monitor_telemetry.cpp ****     out->latestSampleToRfSubmitUs = (uint16_t)(
+ 1315              		.loc 1 236 5 is_stmt 1 view .LVU359
+ 237:Src/diagnostics/monitor_telemetry.cpp ****         snapshot.latestSampleToRfSubmitUs & 0xFFFFu);
+ 1316              		.loc 1 237 18 is_stmt 0 view .LVU360
+ 1317 003a 089B     		ldr	r3, [sp, #32]
+ 236:Src/diagnostics/monitor_telemetry.cpp ****     out->latestSampleToRfSubmitUs = (uint16_t)(
+ 1318              		.loc 1 236 35 view .LVU361
+ 1319 003c 2383     		strh	r3, [r4, #24]	@ movhi
+ 238:Src/diagnostics/monitor_telemetry.cpp ****     out->avgSampleToRfSubmitUs = (uint16_t)(
+ 1320              		.loc 1 238 5 is_stmt 1 view .LVU362
+ 239:Src/diagnostics/monitor_telemetry.cpp ****         snapshot.avgSampleToRfSubmitUs & 0xFFFFu);
+ 1321              		.loc 1 239 18 is_stmt 0 view .LVU363
+ 1322 003e 0A9B     		ldr	r3, [sp, #40]
+ 238:Src/diagnostics/monitor_telemetry.cpp ****     out->avgSampleToRfSubmitUs = (uint16_t)(
+ 1323              		.loc 1 238 32 view .LVU364
+ 1324 0040 6383     		strh	r3, [r4, #26]	@ movhi
+ 240:Src/diagnostics/monitor_telemetry.cpp ****     out->rfTransferOkLow16 = (uint16_t)(snapshot.rfTransferOk & 0xFFFFu);
+ 1325              		.loc 1 240 5 is_stmt 1 view .LVU365
+ 1326              		.loc 1 240 50 is_stmt 0 view .LVU366
+ 1327 0042 049B     		ldr	r3, [sp, #16]
+ 1328              		.loc 1 240 28 view .LVU367
+ 1329 0044 A383     		strh	r3, [r4, #28]	@ movhi
+ 241:Src/diagnostics/monitor_telemetry.cpp ****     out->rfTransferFailLow16 = (uint16_t)(snapshot.rfTransferFail & 0xFFFFu);
+ 1330              		.loc 1 241 5 is_stmt 1 view .LVU368
+ 1331              		.loc 1 241 52 is_stmt 0 view .LVU369
+ 1332 0046 059B     		ldr	r3, [sp, #20]
+ 1333              		.loc 1 241 30 view .LVU370
+ 1334 0048 E383     		strh	r3, [r4, #30]	@ movhi
+ 242:Src/diagnostics/monitor_telemetry.cpp ****     return true;
+ 1335              		.loc 1 242 5 is_stmt 1 view .LVU371
+ 1336              		.loc 1 242 12 is_stmt 0 view .LVU372
+ 1337 004a 0120     		movs	r0, #1
+ 243:Src/diagnostics/monitor_telemetry.cpp **** }
+ 1338              		.loc 1 243 1 view .LVU373
+ 1339 004c 10B0     		add	sp, sp, #64
+ 1340              	.LCFI23:
+ 1341              		.cfi_def_cfa_offset 8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 31
+
+
+ 1342              		@ sp needed
+ 1343 004e 10BD     		pop	{r4, pc}
+ 1344              	.LVL105:
+ 1345              	.L82:
+ 1346              	.LCFI24:
+ 1347              		.cfi_def_cfa_offset 0
+ 1348              		.cfi_restore 4
+ 1349              		.cfi_restore 14
+ 220:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 1350              		.loc 1 220 16 view .LVU374
+ 1351 0050 0020     		movs	r0, #0
+ 1352              	.LVL106:
+ 1353              		.loc 1 243 1 view .LVU375
+ 1354 0052 7047     		bx	lr
+ 1355              	.L88:
+ 1356              		.align	2
+ 1357              	.L87:
+ 1358 0054 314E4F4D 		.word	1297042993
+ 1359              		.cfi_endproc
+ 1360              	.LFE1305:
+ 1362              		.section	.text._Z33MonitorTelemetry_FillPowerFrameV1P19MonitorPowerFrameV1,"ax",%progbits
+ 1363              		.align	1
+ 1364              		.global	_Z33MonitorTelemetry_FillPowerFrameV1P19MonitorPowerFrameV1
+ 1365              		.syntax unified
+ 1366              		.thumb
+ 1367              		.thumb_func
+ 1369              	_Z33MonitorTelemetry_FillPowerFrameV1P19MonitorPowerFrameV1:
+ 1370              	.LVL107:
+ 1371              	.LFB1306:
+ 244:Src/diagnostics/monitor_telemetry.cpp **** 
+ 245:Src/diagnostics/monitor_telemetry.cpp **** bool MonitorTelemetry_FillPowerFrameV1(MonitorPowerFrameV1* out) {
+ 1372              		.loc 1 245 66 is_stmt 1 view -0
+ 1373              		.cfi_startproc
+ 1374              		@ args = 0, pretend = 0, frame = 72
+ 1375              		@ frame_needed = 0, uses_anonymous_args = 0
+ 246:Src/diagnostics/monitor_telemetry.cpp ****     if (out == nullptr) {
+ 1376              		.loc 1 246 5 view .LVU377
+ 1377 0000 0028     		cmp	r0, #0
+ 1378 0002 69D0     		beq	.L95
+ 245:Src/diagnostics/monitor_telemetry.cpp ****     if (out == nullptr) {
+ 1379              		.loc 1 245 66 is_stmt 0 view .LVU378
+ 1380 0004 70B5     		push	{r4, r5, r6, lr}
+ 1381              	.LCFI25:
+ 1382              		.cfi_def_cfa_offset 16
+ 1383              		.cfi_offset 4, -16
+ 1384              		.cfi_offset 5, -12
+ 1385              		.cfi_offset 6, -8
+ 1386              		.cfi_offset 14, -4
+ 1387 0006 2DED028B 		vpush.64	{d8}
+ 1388              	.LCFI26:
+ 1389              		.cfi_def_cfa_offset 24
+ 1390              		.cfi_offset 80, -24
+ 1391              		.cfi_offset 81, -20
+ 1392 000a 92B0     		sub	sp, sp, #72
+ 1393              	.LCFI27:
+ 1394              		.cfi_def_cfa_offset 96
+ 1395 000c 0446     		mov	r4, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 32
+
+
+ 247:Src/diagnostics/monitor_telemetry.cpp ****         return false;
+ 248:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 249:Src/diagnostics/monitor_telemetry.cpp **** 
+ 250:Src/diagnostics/monitor_telemetry.cpp ****     MonitorTelemetrySnapshot snapshot = {};
+ 1396              		.loc 1 250 5 is_stmt 1 view .LVU379
+ 1397              		.loc 1 250 30 is_stmt 0 view .LVU380
+ 1398 000e 3C22     		movs	r2, #60
+ 1399 0010 0021     		movs	r1, #0
+ 1400 0012 03A8     		add	r0, sp, #12
+ 1401              	.LVL108:
+ 1402              		.loc 1 250 30 view .LVU381
+ 1403 0014 FFF7FEFF 		bl	memset
+ 1404              	.LVL109:
+ 251:Src/diagnostics/monitor_telemetry.cpp ****     MonitorTelemetry_GetSnapshot(&snapshot);
+ 1405              		.loc 1 251 5 is_stmt 1 view .LVU382
+ 1406              		.loc 1 251 33 is_stmt 0 view .LVU383
+ 1407 0018 03A8     		add	r0, sp, #12
+ 1408 001a FFF7FEFF 		bl	_Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot
+ 1409              	.LVL110:
+ 252:Src/diagnostics/monitor_telemetry.cpp **** 
+ 253:Src/diagnostics/monitor_telemetry.cpp ****     const PowerBatteryVoltages voltages = POWER_MANAGER.getVoltages();
+ 1410              		.loc 1 253 5 is_stmt 1 view .LVU384
+ 1411              	.LBB117:
+ 1412              	.LBI117:
+ 1413              		.file 4 "Inc/power/power_manager.hpp"
+   1:Inc/power/power_manager.hpp **** #ifndef POWER_MANAGER_HPP
+   2:Inc/power/power_manager.hpp **** #define POWER_MANAGER_HPP
+   3:Inc/power/power_manager.hpp **** 
+   4:Inc/power/power_manager.hpp **** #include <stdint.h>
+   5:Inc/power/power_manager.hpp **** 
+   6:Inc/power/power_manager.hpp **** extern "C" {
+   7:Inc/power/power_manager.hpp **** #include "bq25895.h"
+   8:Inc/power/power_manager.hpp **** #include "max17048.h"
+   9:Inc/power/power_manager.hpp **** }
+  10:Inc/power/power_manager.hpp **** 
+  11:Inc/power/power_manager.hpp **** enum class PowerChargeState : uint8_t {
+  12:Inc/power/power_manager.hpp ****     Discharging = 0,
+  13:Inc/power/power_manager.hpp ****     Charging = 1,
+  14:Inc/power/power_manager.hpp ****     Full = 2,
+  15:Inc/power/power_manager.hpp ****     Fault = 3,
+  16:Inc/power/power_manager.hpp ****     Unknown = 4,
+  17:Inc/power/power_manager.hpp **** };
+  18:Inc/power/power_manager.hpp **** 
+  19:Inc/power/power_manager.hpp **** /*
+  20:Inc/power/power_manager.hpp ****  * Kept for source and wire compatibility with the frozen RF path.  The latest
+  21:Inc/power/power_manager.hpp ****  * PCB is a single 1S2P pack, so H1 is always selected and H2 is always zero.
+  22:Inc/power/power_manager.hpp ****  */
+  23:Inc/power/power_manager.hpp **** enum class PowerBatteryId : uint8_t {
+  24:Inc/power/power_manager.hpp ****     H1 = 0,
+  25:Inc/power/power_manager.hpp ****     H2 = 1,
+  26:Inc/power/power_manager.hpp **** };
+  27:Inc/power/power_manager.hpp **** 
+  28:Inc/power/power_manager.hpp **** struct PowerBatteryVoltages {
+  29:Inc/power/power_manager.hpp ****     uint32_t h1_mv;
+  30:Inc/power/power_manager.hpp ****     uint32_t h2_mv;
+  31:Inc/power/power_manager.hpp ****     uint32_t bat_mv;
+  32:Inc/power/power_manager.hpp **** };
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 33
+
+
+  33:Inc/power/power_manager.hpp **** 
+  34:Inc/power/power_manager.hpp **** enum PowerFaultBits : uint16_t {
+  35:Inc/power/power_manager.hpp ****     POWER_FAULT_BQ_RAW_MASK = 0x00FFu,
+  36:Inc/power/power_manager.hpp ****     POWER_FAULT_CHARGER_OFFLINE = 1u << 8,
+  37:Inc/power/power_manager.hpp ****     POWER_FAULT_GAUGE_OFFLINE = 1u << 9,
+  38:Inc/power/power_manager.hpp ****     POWER_FAULT_PROFILE_INVALID = 1u << 10,
+  39:Inc/power/power_manager.hpp ****     POWER_FAULT_VBUS_OUT_OF_RANGE = 1u << 11,
+  40:Inc/power/power_manager.hpp **** };
+  41:Inc/power/power_manager.hpp **** 
+  42:Inc/power/power_manager.hpp **** struct PowerSnapshot {
+  43:Inc/power/power_manager.hpp ****     static constexpr uint16_t lowBatteryMv = 3450u;
+  44:Inc/power/power_manager.hpp ****     uint16_t cell_mv = 0;
+  45:Inc/power/power_manager.hpp ****     uint16_t soc_permille = 0;
+  46:Inc/power/power_manager.hpp ****     uint16_t vbus_mv = 0;
+  47:Inc/power/power_manager.hpp ****     uint16_t charge_current_ma = 0;
+  48:Inc/power/power_manager.hpp ****     uint16_t input_current_limit_ma = 0;
+  49:Inc/power/power_manager.hpp ****     uint16_t fault_bits = POWER_FAULT_CHARGER_OFFLINE | POWER_FAULT_GAUGE_OFFLINE;
+  50:Inc/power/power_manager.hpp ****     PowerChargeState charge_state = PowerChargeState::Unknown;
+  51:Inc/power/power_manager.hpp ****     bool vbus_present = false;
+  52:Inc/power/power_manager.hpp ****     bool fast_charge = false;
+  53:Inc/power/power_manager.hpp ****     bool gauge_online = false;
+  54:Inc/power/power_manager.hpp ****     bool charger_online = false;
+  55:Inc/power/power_manager.hpp ****     bool input_current_regulation = false;
+  56:Inc/power/power_manager.hpp ****     bool input_voltage_regulation = false;
+  57:Inc/power/power_manager.hpp ****     bool valid = false;
+  58:Inc/power/power_manager.hpp **** 
+  59:Inc/power/power_manager.hpp ****     // Battery-only healthy standby can defer telemetry. Unknown, low battery,
+  60:Inc/power/power_manager.hpp ****     // external power and faults retain the normal one-second maintenance rate.
+  61:Inc/power/power_manager.hpp ****     uint32_t sleepMaintenanceIntervalMs() const {
+  62:Inc/power/power_manager.hpp ****         return valid && gauge_online && charger_online && fault_bits == 0u &&
+  63:Inc/power/power_manager.hpp ****                !vbus_present && vbus_mv < 3900u && cell_mv > lowBatteryMv &&
+  64:Inc/power/power_manager.hpp ****                charge_state == PowerChargeState::Discharging ? 5000u : 1000u;
+  65:Inc/power/power_manager.hpp ****     }
+  66:Inc/power/power_manager.hpp **** };
+  67:Inc/power/power_manager.hpp **** 
+  68:Inc/power/power_manager.hpp **** class PowerManager {
+  69:Inc/power/power_manager.hpp **** public:
+  70:Inc/power/power_manager.hpp ****     PowerManager(PowerManager const&) = delete;
+  71:Inc/power/power_manager.hpp ****     void operator=(PowerManager const&) = delete;
+  72:Inc/power/power_manager.hpp ****     static PowerManager& getInstance() {
+ 1414              		.loc 4 72 26 view .LVU385
+  73:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ 1415              		.loc 4 73 9 view .LVU386
+  74:Inc/power/power_manager.hpp ****         return instance;
+ 1416              		.loc 4 74 9 view .LVU387
+ 1417              	.LBE117:
+ 1418              		.loc 1 253 68 is_stmt 0 discriminator 1 view .LVU388
+ 1419 001e 2F4D     		ldr	r5, .L103
+ 1420 0020 2946     		mov	r1, r5
+ 1421 0022 6846     		mov	r0, sp
+ 1422 0024 FFF7FEFF 		bl	_ZNK12PowerManager11getVoltagesEv
+ 1423              	.LVL111:
+ 254:Src/diagnostics/monitor_telemetry.cpp ****     const float soc = POWER_MANAGER.getTotalSocPercent();
+ 1424              		.loc 1 254 5 is_stmt 1 view .LVU389
+ 1425              	.LBB118:
+ 1426              	.LBI118:
+  72:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 34
+
+
+ 1427              		.loc 4 72 26 view .LVU390
+  73:Inc/power/power_manager.hpp ****         return instance;
+ 1428              		.loc 4 73 9 view .LVU391
+ 1429              		.loc 4 74 9 view .LVU392
+ 1430              	.LBE118:
+ 1431              		.loc 1 254 55 is_stmt 0 discriminator 1 view .LVU393
+ 1432 0028 2846     		mov	r0, r5
+ 1433 002a FFF7FEFF 		bl	_ZNK12PowerManager18getTotalSocPercentEv
+ 1434              	.LVL112:
+ 1435 002e B0EE408A 		vmov.f32	s16, s0
+ 1436              	.LVL113:
+ 255:Src/diagnostics/monitor_telemetry.cpp ****     const bool valid = POWER_MANAGER.isVoltageValid();
+ 1437              		.loc 1 255 5 is_stmt 1 view .LVU394
+ 1438              	.LBB119:
+ 1439              	.LBI119:
+  72:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ 1440              		.loc 4 72 26 view .LVU395
+  73:Inc/power/power_manager.hpp ****         return instance;
+ 1441              		.loc 4 73 9 view .LVU396
+ 1442              		.loc 4 74 9 view .LVU397
+ 1443              	.LBE119:
+ 1444              		.loc 1 255 52 is_stmt 0 discriminator 1 view .LVU398
+ 1445 0032 2846     		mov	r0, r5
+ 1446 0034 FFF7FEFF 		bl	_ZNK12PowerManager14isVoltageValidEv
+ 1447              	.LVL114:
+ 256:Src/diagnostics/monitor_telemetry.cpp ****     uint8_t flags = 0u;
+ 1448              		.loc 1 256 5 is_stmt 1 view .LVU399
+ 257:Src/diagnostics/monitor_telemetry.cpp ****     if (valid) {
+ 1449              		.loc 1 257 5 view .LVU400
+ 1450 0038 0028     		cmp	r0, #0
+ 1451 003a 33D1     		bne	.L96
+ 256:Src/diagnostics/monitor_telemetry.cpp ****     uint8_t flags = 0u;
+ 1452              		.loc 1 256 13 is_stmt 0 view .LVU401
+ 1453 003c 0025     		movs	r5, #0
+ 1454              	.L91:
+ 1455              	.LVL115:
+ 258:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_VALID;
+ 259:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 260:Src/diagnostics/monitor_telemetry.cpp ****     if (POWER_MANAGER.isLowBattery()) {
+ 1456              		.loc 1 260 5 is_stmt 1 view .LVU402
+ 1457              	.LBB120:
+ 1458              	.LBI120:
+  72:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ 1459              		.loc 4 72 26 view .LVU403
+  73:Inc/power/power_manager.hpp ****         return instance;
+ 1460              		.loc 4 73 9 view .LVU404
+ 1461              		.loc 4 74 9 view .LVU405
+ 1462              	.LBE120:
+ 1463              		.loc 1 260 35 is_stmt 0 discriminator 1 view .LVU406
+ 1464 003e 2748     		ldr	r0, .L103
+ 1465              	.LVL116:
+ 1466              		.loc 1 260 35 discriminator 1 view .LVU407
+ 1467 0040 FFF7FEFF 		bl	_ZNK12PowerManager12isLowBatteryEv
+ 1468              	.LVL117:
+ 1469              		.loc 1 260 5 discriminator 2 view .LVU408
+ 1470 0044 08B1     		cbz	r0, .L92
+ 261:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_LOW_BATTERY;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 35
+
+
+ 1471              		.loc 1 261 9 is_stmt 1 view .LVU409
+ 1472              		.loc 1 261 15 is_stmt 0 view .LVU410
+ 1473 0046 45F00205 		orr	r5, r5, #2
+ 1474              	.LVL118:
+ 1475              	.L92:
+ 262:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 263:Src/diagnostics/monitor_telemetry.cpp ****     if (POWER_MANAGER.isFastCharging()) {
+ 1476              		.loc 1 263 5 is_stmt 1 view .LVU411
+ 1477              	.LBB121:
+ 1478              	.LBI121:
+  72:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ 1479              		.loc 4 72 26 view .LVU412
+  73:Inc/power/power_manager.hpp ****         return instance;
+ 1480              		.loc 4 73 9 view .LVU413
+ 1481              		.loc 4 74 9 view .LVU414
+ 1482              	.LBE121:
+ 1483              		.loc 1 263 37 is_stmt 0 discriminator 1 view .LVU415
+ 1484 004a 2448     		ldr	r0, .L103
+ 1485 004c FFF7FEFF 		bl	_ZNK12PowerManager14isFastChargingEv
+ 1486              	.LVL119:
+ 1487              		.loc 1 263 5 discriminator 2 view .LVU416
+ 1488 0050 08B1     		cbz	r0, .L93
+ 264:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_FAST_CHARGING;
+ 1489              		.loc 1 264 9 is_stmt 1 view .LVU417
+ 1490              		.loc 1 264 15 is_stmt 0 view .LVU418
+ 1491 0052 45F00405 		orr	r5, r5, #4
+ 1492              	.LVL120:
+ 1493              	.L93:
+ 265:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 266:Src/diagnostics/monitor_telemetry.cpp **** 
+ 267:Src/diagnostics/monitor_telemetry.cpp ****     out->magic = 0x4D4F4E50u;
+ 1494              		.loc 1 267 5 is_stmt 1 view .LVU419
+ 1495              		.loc 1 267 16 is_stmt 0 view .LVU420
+ 1496 0056 224B     		ldr	r3, .L103+4
+ 1497 0058 2360     		str	r3, [r4]
+ 268:Src/diagnostics/monitor_telemetry.cpp ****     out->seq = snapshot.totalReports;
+ 1498              		.loc 1 268 5 is_stmt 1 view .LVU421
+ 1499              		.loc 1 268 25 is_stmt 0 view .LVU422
+ 1500 005a 049B     		ldr	r3, [sp, #16]
+ 1501              		.loc 1 268 14 view .LVU423
+ 1502 005c 6360     		str	r3, [r4, #4]
+ 269:Src/diagnostics/monitor_telemetry.cpp ****     out->timestampMs = HAL_GetTick();
+ 1503              		.loc 1 269 5 is_stmt 1 view .LVU424
+ 1504              		.loc 1 269 35 is_stmt 0 view .LVU425
+ 1505 005e FFF7FEFF 		bl	HAL_GetTick
+ 1506              	.LVL121:
+ 1507              		.loc 1 269 22 discriminator 1 view .LVU426
+ 1508 0062 A060     		str	r0, [r4, #8]
+ 270:Src/diagnostics/monitor_telemetry.cpp ****     out->h1Mv = (uint16_t)(voltages.h1_mv & 0xFFFFu);
+ 1509              		.loc 1 270 5 is_stmt 1 view .LVU427
+ 1510              		.loc 1 270 37 is_stmt 0 view .LVU428
+ 1511 0064 009B     		ldr	r3, [sp]
+ 1512              		.loc 1 270 15 view .LVU429
+ 1513 0066 A381     		strh	r3, [r4, #12]	@ movhi
+ 271:Src/diagnostics/monitor_telemetry.cpp ****     out->h2Mv = (uint16_t)(voltages.h2_mv & 0xFFFFu);
+ 1514              		.loc 1 271 5 is_stmt 1 view .LVU430
+ 1515              		.loc 1 271 37 is_stmt 0 view .LVU431
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 36
+
+
+ 1516 0068 019B     		ldr	r3, [sp, #4]
+ 1517              		.loc 1 271 15 view .LVU432
+ 1518 006a E381     		strh	r3, [r4, #14]	@ movhi
+ 272:Src/diagnostics/monitor_telemetry.cpp ****     out->batMv = (uint16_t)(voltages.bat_mv & 0xFFFFu);
+ 1519              		.loc 1 272 5 is_stmt 1 view .LVU433
+ 1520              		.loc 1 272 38 is_stmt 0 view .LVU434
+ 1521 006c 029B     		ldr	r3, [sp, #8]
+ 1522              		.loc 1 272 16 view .LVU435
+ 1523 006e 2382     		strh	r3, [r4, #16]	@ movhi
+ 273:Src/diagnostics/monitor_telemetry.cpp ****     out->socPermille = (uint16_t)((soc <= 0.0f) ? 0u : ((soc >= 100.0f) ? 1000u : (uint16_t)(soc * 
+ 1524              		.loc 1 273 5 is_stmt 1 view .LVU436
+ 1525              		.loc 1 273 22 is_stmt 0 view .LVU437
+ 1526 0070 B5EEC08A 		vcmpe.f32	s16, #0
+ 1527 0074 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 1528 0078 16D9     		bls	.L97
+ 1529              		.loc 1 273 22 discriminator 2 view .LVU438
+ 1530 007a DFED1A7A 		vldr.32	s15, .L103+8
+ 1531 007e B4EEE78A 		vcmpe.f32	s16, s15
+ 1532 0082 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 1533 0086 24DA     		bge	.L98
+ 1534              		.loc 1 273 98 discriminator 5 view .LVU439
+ 1535 0088 F2EE047A 		vmov.f32	s15, #1.0e+1
+ 1536 008c 28EE278A 		vmul.f32	s16, s16, s15
+ 1537              	.LVL122:
+ 1538              		.loc 1 273 106 discriminator 5 view .LVU440
+ 1539 0090 F6EE007A 		vmov.f32	s15, #5.0e-1
+ 1540 0094 38EE278A 		vadd.f32	s16, s16, s15
+ 1541              		.loc 1 273 22 discriminator 5 view .LVU441
+ 1542 0098 BCEEC88A 		vcvt.u32.f32	s16, s16
+ 1543 009c 18EE103A 		vmov	r3, s16	@ int
+ 1544 00a0 9BB2     		uxth	r3, r3
+ 1545 00a2 02E0     		b	.L94
+ 1546              	.LVL123:
+ 1547              	.L96:
+ 258:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 1548              		.loc 1 258 15 view .LVU442
+ 1549 00a4 0125     		movs	r5, #1
+ 1550 00a6 CAE7     		b	.L91
+ 1551              	.LVL124:
+ 1552              	.L97:
+ 1553              		.loc 1 273 22 discriminator 1 view .LVU443
+ 1554 00a8 0023     		movs	r3, #0
+ 1555              	.LVL125:
+ 1556              	.L94:
+ 1557              		.loc 1 273 22 discriminator 8 view .LVU444
+ 1558 00aa 6382     		strh	r3, [r4, #18]	@ movhi
+ 274:Src/diagnostics/monitor_telemetry.cpp ****     out->activeBattery = static_cast<uint8_t>(POWER_MANAGER.getActiveDischargeBattery());
+ 1559              		.loc 1 274 5 is_stmt 1 view .LVU445
+ 1560              	.LBB122:
+ 1561              	.LBI122:
+  72:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ 1562              		.loc 4 72 26 view .LVU446
+  73:Inc/power/power_manager.hpp ****         return instance;
+ 1563              		.loc 4 73 9 view .LVU447
+ 1564              		.loc 4 74 9 view .LVU448
+ 1565              	.LBE122:
+ 1566              		.loc 1 274 86 is_stmt 0 discriminator 1 view .LVU449
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 37
+
+
+ 1567 00ac 0B4E     		ldr	r6, .L103
+ 1568 00ae 3046     		mov	r0, r6
+ 1569 00b0 FFF7FEFF 		bl	_ZNK12PowerManager25getActiveDischargeBatteryEv
+ 1570              	.LVL126:
+ 1571              		.loc 1 274 24 discriminator 2 view .LVU450
+ 1572 00b4 2075     		strb	r0, [r4, #20]
+ 275:Src/diagnostics/monitor_telemetry.cpp ****     out->chargeState = static_cast<uint8_t>(POWER_MANAGER.getChargeState());
+ 1573              		.loc 1 275 5 is_stmt 1 view .LVU451
+ 1574              	.LBB123:
+ 1575              	.LBI123:
+  72:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ 1576              		.loc 4 72 26 view .LVU452
+  73:Inc/power/power_manager.hpp ****         return instance;
+ 1577              		.loc 4 73 9 view .LVU453
+ 1578              		.loc 4 74 9 view .LVU454
+ 1579              	.LBE123:
+ 1580              		.loc 1 275 73 is_stmt 0 discriminator 1 view .LVU455
+ 1581 00b6 3046     		mov	r0, r6
+ 1582 00b8 FFF7FEFF 		bl	_ZNK12PowerManager14getChargeStateEv
+ 1583              	.LVL127:
+ 1584              		.loc 1 275 22 discriminator 2 view .LVU456
+ 1585 00bc 6075     		strb	r0, [r4, #21]
+ 276:Src/diagnostics/monitor_telemetry.cpp ****     out->flags = flags;
+ 1586              		.loc 1 276 5 is_stmt 1 view .LVU457
+ 1587              		.loc 1 276 16 is_stmt 0 view .LVU458
+ 1588 00be A575     		strb	r5, [r4, #22]
+ 277:Src/diagnostics/monitor_telemetry.cpp ****     out->reserved0 = 0u;
+ 1589              		.loc 1 277 5 is_stmt 1 view .LVU459
+ 1590              		.loc 1 277 20 is_stmt 0 view .LVU460
+ 1591 00c0 0023     		movs	r3, #0
+ 1592 00c2 E375     		strb	r3, [r4, #23]
+ 278:Src/diagnostics/monitor_telemetry.cpp ****     out->reserved1 = 0u;
+ 1593              		.loc 1 278 5 is_stmt 1 view .LVU461
+ 1594              		.loc 1 278 20 is_stmt 0 view .LVU462
+ 1595 00c4 A361     		str	r3, [r4, #24]
+ 279:Src/diagnostics/monitor_telemetry.cpp ****     out->reserved2 = 0u;
+ 1596              		.loc 1 279 5 is_stmt 1 view .LVU463
+ 1597              		.loc 1 279 20 is_stmt 0 view .LVU464
+ 1598 00c6 E361     		str	r3, [r4, #28]
+ 280:Src/diagnostics/monitor_telemetry.cpp ****     return true;
+ 1599              		.loc 1 280 5 is_stmt 1 view .LVU465
+ 1600              		.loc 1 280 12 is_stmt 0 view .LVU466
+ 1601 00c8 0120     		movs	r0, #1
+ 281:Src/diagnostics/monitor_telemetry.cpp **** }
+ 1602              		.loc 1 281 1 view .LVU467
+ 1603 00ca 12B0     		add	sp, sp, #72
+ 1604              	.LCFI28:
+ 1605              		.cfi_remember_state
+ 1606              		.cfi_def_cfa_offset 24
+ 1607              		@ sp needed
+ 1608 00cc BDEC028B 		vldm	sp!, {d8}
+ 1609              	.LCFI29:
+ 1610              		.cfi_restore 80
+ 1611              		.cfi_restore 81
+ 1612              		.cfi_def_cfa_offset 16
+ 1613 00d0 70BD     		pop	{r4, r5, r6, pc}
+ 1614              	.LVL128:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 38
+
+
+ 1615              	.L98:
+ 1616              	.LCFI30:
+ 1617              		.cfi_restore_state
+ 273:Src/diagnostics/monitor_telemetry.cpp ****     out->activeBattery = static_cast<uint8_t>(POWER_MANAGER.getActiveDischargeBattery());
+ 1618              		.loc 1 273 22 discriminator 4 view .LVU468
+ 1619 00d2 4FF47A73 		mov	r3, #1000
+ 1620 00d6 E8E7     		b	.L94
+ 1621              	.LVL129:
+ 1622              	.L95:
+ 1623              	.LCFI31:
+ 1624              		.cfi_def_cfa_offset 0
+ 1625              		.cfi_restore 4
+ 1626              		.cfi_restore 5
+ 1627              		.cfi_restore 6
+ 1628              		.cfi_restore 14
+ 1629              		.cfi_restore 80
+ 1630              		.cfi_restore 81
+ 247:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 1631              		.loc 1 247 16 view .LVU469
+ 1632 00d8 0020     		movs	r0, #0
+ 1633              	.LVL130:
+ 1634              		.loc 1 281 1 view .LVU470
+ 1635 00da 7047     		bx	lr
+ 1636              	.L104:
+ 1637              		.align	2
+ 1638              	.L103:
+ 1639 00dc 00000000 		.word	_ZZN12PowerManager11getInstanceEvE8instance
+ 1640 00e0 504E4F4D 		.word	1297043024
+ 1641 00e4 0000C842 		.word	1120403456
+ 1642              		.cfi_endproc
+ 1643              	.LFE1306:
+ 1645              		.section	.text._Z33MonitorTelemetry_FillPowerFrameV2P19MonitorPowerFrameV2,"ax",%progbits
+ 1646              		.align	1
+ 1647              		.global	_Z33MonitorTelemetry_FillPowerFrameV2P19MonitorPowerFrameV2
+ 1648              		.syntax unified
+ 1649              		.thumb
+ 1650              		.thumb_func
+ 1652              	_Z33MonitorTelemetry_FillPowerFrameV2P19MonitorPowerFrameV2:
+ 1653              	.LVL131:
+ 1654              	.LFB1307:
+ 282:Src/diagnostics/monitor_telemetry.cpp **** 
+ 283:Src/diagnostics/monitor_telemetry.cpp **** bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out) {
+ 1655              		.loc 1 283 66 is_stmt 1 view -0
+ 1656              		.cfi_startproc
+ 1657              		@ args = 0, pretend = 0, frame = 80
+ 1658              		@ frame_needed = 0, uses_anonymous_args = 0
+ 284:Src/diagnostics/monitor_telemetry.cpp ****     if (out == nullptr) {
+ 1659              		.loc 1 284 5 view .LVU472
+ 1660 0000 0028     		cmp	r0, #0
+ 1661 0002 5AD0     		beq	.L113
+ 283:Src/diagnostics/monitor_telemetry.cpp ****     if (out == nullptr) {
+ 1662              		.loc 1 283 66 is_stmt 0 view .LVU473
+ 1663 0004 30B5     		push	{r4, r5, lr}
+ 1664              	.LCFI32:
+ 1665              		.cfi_def_cfa_offset 12
+ 1666              		.cfi_offset 4, -12
+ 1667              		.cfi_offset 5, -8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 39
+
+
+ 1668              		.cfi_offset 14, -4
+ 1669 0006 95B0     		sub	sp, sp, #84
+ 1670              	.LCFI33:
+ 1671              		.cfi_def_cfa_offset 96
+ 1672 0008 0446     		mov	r4, r0
+ 285:Src/diagnostics/monitor_telemetry.cpp ****         return false;
+ 286:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 287:Src/diagnostics/monitor_telemetry.cpp **** 
+ 288:Src/diagnostics/monitor_telemetry.cpp ****     MonitorTelemetrySnapshot snapshot = {};
+ 1673              		.loc 1 288 5 is_stmt 1 view .LVU474
+ 1674              		.loc 1 288 30 is_stmt 0 view .LVU475
+ 1675 000a 3C22     		movs	r2, #60
+ 1676 000c 0021     		movs	r1, #0
+ 1677 000e 05A8     		add	r0, sp, #20
+ 1678              	.LVL132:
+ 1679              		.loc 1 288 30 view .LVU476
+ 1680 0010 FFF7FEFF 		bl	memset
+ 1681              	.LVL133:
+ 289:Src/diagnostics/monitor_telemetry.cpp ****     MonitorTelemetry_GetSnapshot(&snapshot);
+ 1682              		.loc 1 289 5 is_stmt 1 view .LVU477
+ 1683              		.loc 1 289 33 is_stmt 0 view .LVU478
+ 1684 0014 05A8     		add	r0, sp, #20
+ 1685 0016 FFF7FEFF 		bl	_Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot
+ 1686              	.LVL134:
+ 290:Src/diagnostics/monitor_telemetry.cpp ****     const PowerSnapshot power = POWER_MANAGER.getSnapshot();
+ 1687              		.loc 1 290 5 is_stmt 1 view .LVU479
+ 1688              	.LBB124:
+ 1689              	.LBI124:
+  72:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ 1690              		.loc 4 72 26 view .LVU480
+  73:Inc/power/power_manager.hpp ****         return instance;
+ 1691              		.loc 4 73 9 view .LVU481
+ 1692              		.loc 4 74 9 view .LVU482
+ 1693              	.LBE124:
+ 1694              		.loc 1 290 58 is_stmt 0 discriminator 1 view .LVU483
+ 1695 001a 2949     		ldr	r1, .L119
+ 1696 001c 6846     		mov	r0, sp
+ 1697 001e FFF7FEFF 		bl	_ZNK12PowerManager11getSnapshotEv
+ 1698              	.LVL135:
+ 291:Src/diagnostics/monitor_telemetry.cpp **** 
+ 292:Src/diagnostics/monitor_telemetry.cpp ****     uint8_t flags = 0u;
+ 1699              		.loc 1 292 5 is_stmt 1 view .LVU484
+ 293:Src/diagnostics/monitor_telemetry.cpp ****     if (power.valid) {
+ 1700              		.loc 1 293 5 view .LVU485
+ 1701              		.loc 1 293 15 is_stmt 0 view .LVU486
+ 1702 0022 9DF81330 		ldrb	r3, [sp, #19]	@ zero_extendqisi2
+ 1703              		.loc 1 293 5 view .LVU487
+ 1704 0026 002B     		cmp	r3, #0
+ 1705 0028 45D1     		bne	.L114
+ 292:Src/diagnostics/monitor_telemetry.cpp ****     if (power.valid) {
+ 1706              		.loc 1 292 13 view .LVU488
+ 1707 002a 0025     		movs	r5, #0
+ 1708              	.L107:
+ 1709              	.LVL136:
+ 294:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_VALID;
+ 295:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 296:Src/diagnostics/monitor_telemetry.cpp ****     if (POWER_MANAGER.isLowBattery()) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 40
+
+
+ 1710              		.loc 1 296 5 is_stmt 1 view .LVU489
+ 1711              	.LBB125:
+ 1712              	.LBI125:
+  72:Inc/power/power_manager.hpp ****         static PowerManager instance;
+ 1713              		.loc 4 72 26 view .LVU490
+  73:Inc/power/power_manager.hpp ****         return instance;
+ 1714              		.loc 4 73 9 view .LVU491
+ 1715              		.loc 4 74 9 view .LVU492
+ 1716              	.LBE125:
+ 1717              		.loc 1 296 35 is_stmt 0 discriminator 1 view .LVU493
+ 1718 002c 2448     		ldr	r0, .L119
+ 1719 002e FFF7FEFF 		bl	_ZNK12PowerManager12isLowBatteryEv
+ 1720              	.LVL137:
+ 1721              		.loc 1 296 5 discriminator 2 view .LVU494
+ 1722 0032 08B1     		cbz	r0, .L108
+ 297:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_LOW_BATTERY;
+ 1723              		.loc 1 297 9 is_stmt 1 view .LVU495
+ 1724              		.loc 1 297 15 is_stmt 0 view .LVU496
+ 1725 0034 45F00205 		orr	r5, r5, #2
+ 1726              	.LVL138:
+ 1727              	.L108:
+ 298:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 299:Src/diagnostics/monitor_telemetry.cpp ****     if (power.fast_charge) {
+ 1728              		.loc 1 299 5 is_stmt 1 view .LVU497
+ 1729              		.loc 1 299 15 is_stmt 0 view .LVU498
+ 1730 0038 9DF80E30 		ldrb	r3, [sp, #14]	@ zero_extendqisi2
+ 1731              		.loc 1 299 5 view .LVU499
+ 1732 003c 0BB1     		cbz	r3, .L109
+ 300:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_FAST_CHARGING;
+ 1733              		.loc 1 300 9 is_stmt 1 view .LVU500
+ 1734              		.loc 1 300 15 is_stmt 0 view .LVU501
+ 1735 003e 45F00405 		orr	r5, r5, #4
+ 1736              	.LVL139:
+ 1737              	.L109:
+ 301:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 302:Src/diagnostics/monitor_telemetry.cpp ****     if (power.vbus_present) {
+ 1738              		.loc 1 302 5 is_stmt 1 view .LVU502
+ 1739              		.loc 1 302 15 is_stmt 0 view .LVU503
+ 1740 0042 9DF80D30 		ldrb	r3, [sp, #13]	@ zero_extendqisi2
+ 1741              		.loc 1 302 5 view .LVU504
+ 1742 0046 0BB1     		cbz	r3, .L110
+ 303:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_VBUS_PRESENT;
+ 1743              		.loc 1 303 9 is_stmt 1 view .LVU505
+ 1744              		.loc 1 303 15 is_stmt 0 view .LVU506
+ 1745 0048 45F00805 		orr	r5, r5, #8
+ 1746              	.LVL140:
+ 1747              	.L110:
+ 304:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 305:Src/diagnostics/monitor_telemetry.cpp ****     if (power.gauge_online) {
+ 1748              		.loc 1 305 5 is_stmt 1 view .LVU507
+ 1749              		.loc 1 305 15 is_stmt 0 view .LVU508
+ 1750 004c 9DF80F30 		ldrb	r3, [sp, #15]	@ zero_extendqisi2
+ 1751              		.loc 1 305 5 view .LVU509
+ 1752 0050 0BB1     		cbz	r3, .L111
+ 306:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_GAUGE_ONLINE;
+ 1753              		.loc 1 306 9 is_stmt 1 view .LVU510
+ 1754              		.loc 1 306 15 is_stmt 0 view .LVU511
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 41
+
+
+ 1755 0052 45F01005 		orr	r5, r5, #16
+ 1756              	.LVL141:
+ 1757              	.L111:
+ 307:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 308:Src/diagnostics/monitor_telemetry.cpp ****     if (power.charger_online) {
+ 1758              		.loc 1 308 5 is_stmt 1 view .LVU512
+ 1759              		.loc 1 308 15 is_stmt 0 view .LVU513
+ 1760 0056 9DF81030 		ldrb	r3, [sp, #16]	@ zero_extendqisi2
+ 1761              		.loc 1 308 5 view .LVU514
+ 1762 005a 0BB1     		cbz	r3, .L112
+ 309:Src/diagnostics/monitor_telemetry.cpp ****         flags |= POWER_FLAG_CHARGER_ONLINE;
+ 1763              		.loc 1 309 9 is_stmt 1 view .LVU515
+ 1764              		.loc 1 309 15 is_stmt 0 view .LVU516
+ 1765 005c 45F02005 		orr	r5, r5, #32
+ 1766              	.LVL142:
+ 1767              	.L112:
+ 310:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 311:Src/diagnostics/monitor_telemetry.cpp **** 
+ 312:Src/diagnostics/monitor_telemetry.cpp ****     out->magic = 0x3257504Du;
+ 1768              		.loc 1 312 5 is_stmt 1 view .LVU517
+ 1769              		.loc 1 312 16 is_stmt 0 view .LVU518
+ 1770 0060 184B     		ldr	r3, .L119+4
+ 1771 0062 2360     		str	r3, [r4]
+ 313:Src/diagnostics/monitor_telemetry.cpp ****     out->seq = snapshot.totalReports;
+ 1772              		.loc 1 313 5 is_stmt 1 view .LVU519
+ 1773              		.loc 1 313 25 is_stmt 0 view .LVU520
+ 1774 0064 069B     		ldr	r3, [sp, #24]
+ 1775              		.loc 1 313 14 view .LVU521
+ 1776 0066 6360     		str	r3, [r4, #4]
+ 314:Src/diagnostics/monitor_telemetry.cpp ****     out->timestampMs = HAL_GetTick();
+ 1777              		.loc 1 314 5 is_stmt 1 view .LVU522
+ 1778              		.loc 1 314 35 is_stmt 0 view .LVU523
+ 1779 0068 FFF7FEFF 		bl	HAL_GetTick
+ 1780              	.LVL143:
+ 1781              		.loc 1 314 22 discriminator 1 view .LVU524
+ 1782 006c A060     		str	r0, [r4, #8]
+ 315:Src/diagnostics/monitor_telemetry.cpp ****     out->cellMv = power.cell_mv;
+ 1783              		.loc 1 315 5 is_stmt 1 view .LVU525
+ 1784              		.loc 1 315 25 is_stmt 0 view .LVU526
+ 1785 006e BDF80030 		ldrh	r3, [sp]
+ 1786              		.loc 1 315 17 view .LVU527
+ 1787 0072 A381     		strh	r3, [r4, #12]	@ movhi
+ 316:Src/diagnostics/monitor_telemetry.cpp ****     out->socPermille = power.soc_permille;
+ 1788              		.loc 1 316 5 is_stmt 1 view .LVU528
+ 1789              		.loc 1 316 30 is_stmt 0 view .LVU529
+ 1790 0074 BDF80230 		ldrh	r3, [sp, #2]
+ 1791              		.loc 1 316 22 view .LVU530
+ 1792 0078 E381     		strh	r3, [r4, #14]	@ movhi
+ 317:Src/diagnostics/monitor_telemetry.cpp ****     out->vbusMv = power.vbus_mv;
+ 1793              		.loc 1 317 5 is_stmt 1 view .LVU531
+ 1794              		.loc 1 317 25 is_stmt 0 view .LVU532
+ 1795 007a BDF80430 		ldrh	r3, [sp, #4]
+ 1796              		.loc 1 317 17 view .LVU533
+ 1797 007e 2382     		strh	r3, [r4, #16]	@ movhi
+ 318:Src/diagnostics/monitor_telemetry.cpp ****     out->chargeCurrentMa = power.charge_current_ma;
+ 1798              		.loc 1 318 5 is_stmt 1 view .LVU534
+ 1799              		.loc 1 318 34 is_stmt 0 view .LVU535
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 42
+
+
+ 1800 0080 BDF80630 		ldrh	r3, [sp, #6]
+ 1801              		.loc 1 318 26 view .LVU536
+ 1802 0084 6382     		strh	r3, [r4, #18]	@ movhi
+ 319:Src/diagnostics/monitor_telemetry.cpp ****     out->faultBits = power.fault_bits;
+ 1803              		.loc 1 319 5 is_stmt 1 view .LVU537
+ 1804              		.loc 1 319 28 is_stmt 0 view .LVU538
+ 1805 0086 BDF80A30 		ldrh	r3, [sp, #10]
+ 1806              		.loc 1 319 20 view .LVU539
+ 1807 008a A382     		strh	r3, [r4, #20]	@ movhi
+ 320:Src/diagnostics/monitor_telemetry.cpp ****     out->chargeState = static_cast<uint8_t>(power.charge_state);
+ 1808              		.loc 1 320 5 is_stmt 1 view .LVU540
+ 1809              		.loc 1 320 51 is_stmt 0 view .LVU541
+ 1810 008c 9DF80C30 		ldrb	r3, [sp, #12]	@ zero_extendqisi2
+ 1811              		.loc 1 320 22 view .LVU542
+ 1812 0090 A375     		strb	r3, [r4, #22]
+ 321:Src/diagnostics/monitor_telemetry.cpp ****     out->ch585Role = g_ch585Role;
+ 1813              		.loc 1 321 5 is_stmt 1 view .LVU543
+ 1814              		.loc 1 321 20 is_stmt 0 view .LVU544
+ 1815 0092 0D4B     		ldr	r3, .L119+8
+ 1816 0094 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1817 0096 E375     		strb	r3, [r4, #23]
+ 322:Src/diagnostics/monitor_telemetry.cpp ****     out->ch585VersionMajor = g_ch585VersionMajor;
+ 1818              		.loc 1 322 5 is_stmt 1 view .LVU545
+ 1819              		.loc 1 322 28 is_stmt 0 view .LVU546
+ 1820 0098 0C4B     		ldr	r3, .L119+12
+ 1821 009a 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1822 009c 2376     		strb	r3, [r4, #24]
+ 323:Src/diagnostics/monitor_telemetry.cpp ****     out->ch585VersionMinor = g_ch585VersionMinor;
+ 1823              		.loc 1 323 5 is_stmt 1 view .LVU547
+ 1824              		.loc 1 323 28 is_stmt 0 view .LVU548
+ 1825 009e 0C4B     		ldr	r3, .L119+16
+ 1826 00a0 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1827 00a2 6376     		strb	r3, [r4, #25]
+ 324:Src/diagnostics/monitor_telemetry.cpp ****     out->ch585VersionPatch = g_ch585VersionPatch;
+ 1828              		.loc 1 324 5 is_stmt 1 view .LVU549
+ 1829              		.loc 1 324 28 is_stmt 0 view .LVU550
+ 1830 00a4 0B4B     		ldr	r3, .L119+20
+ 1831 00a6 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1832 00a8 A376     		strb	r3, [r4, #26]
+ 325:Src/diagnostics/monitor_telemetry.cpp ****     out->flags = flags;
+ 1833              		.loc 1 325 5 is_stmt 1 view .LVU551
+ 1834              		.loc 1 325 16 is_stmt 0 view .LVU552
+ 1835 00aa E576     		strb	r5, [r4, #27]
+ 326:Src/diagnostics/monitor_telemetry.cpp ****     out->reserved = 0u;
+ 1836              		.loc 1 326 5 is_stmt 1 view .LVU553
+ 1837              		.loc 1 326 19 is_stmt 0 view .LVU554
+ 1838 00ac 0023     		movs	r3, #0
+ 1839 00ae E361     		str	r3, [r4, #28]
+ 327:Src/diagnostics/monitor_telemetry.cpp ****     return true;
+ 1840              		.loc 1 327 5 is_stmt 1 view .LVU555
+ 1841              		.loc 1 327 12 is_stmt 0 view .LVU556
+ 1842 00b0 0120     		movs	r0, #1
+ 328:Src/diagnostics/monitor_telemetry.cpp **** }
+ 1843              		.loc 1 328 1 view .LVU557
+ 1844 00b2 15B0     		add	sp, sp, #84
+ 1845              	.LCFI34:
+ 1846              		.cfi_remember_state
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 43
+
+
+ 1847              		.cfi_def_cfa_offset 12
+ 1848              		@ sp needed
+ 1849 00b4 30BD     		pop	{r4, r5, pc}
+ 1850              	.LVL144:
+ 1851              	.L114:
+ 1852              	.LCFI35:
+ 1853              		.cfi_restore_state
+ 294:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 1854              		.loc 1 294 15 view .LVU558
+ 1855 00b6 0125     		movs	r5, #1
+ 1856 00b8 B8E7     		b	.L107
+ 1857              	.LVL145:
+ 1858              	.L113:
+ 1859              	.LCFI36:
+ 1860              		.cfi_def_cfa_offset 0
+ 1861              		.cfi_restore 4
+ 1862              		.cfi_restore 5
+ 1863              		.cfi_restore 14
+ 285:Src/diagnostics/monitor_telemetry.cpp ****     }
+ 1864              		.loc 1 285 16 view .LVU559
+ 1865 00ba 0020     		movs	r0, #0
+ 1866              	.LVL146:
+ 1867              		.loc 1 328 1 view .LVU560
+ 1868 00bc 7047     		bx	lr
+ 1869              	.L120:
+ 1870 00be 00BF     		.align	2
+ 1871              	.L119:
+ 1872 00c0 00000000 		.word	_ZZN12PowerManager11getInstanceEvE8instance
+ 1873 00c4 4D505732 		.word	844582989
+ 1874 00c8 00000000 		.word	_ZN12_GLOBAL__N_111g_ch585RoleE
+ 1875 00cc 00000000 		.word	_ZN12_GLOBAL__N_119g_ch585VersionMajorE
+ 1876 00d0 00000000 		.word	_ZN12_GLOBAL__N_119g_ch585VersionMinorE
+ 1877 00d4 00000000 		.word	_ZN12_GLOBAL__N_119g_ch585VersionPatchE
+ 1878              		.cfi_endproc
+ 1879              	.LFE1307:
+ 1881              		.section	.text._Z32MonitorTelemetry_GetReportStagesmPmS_S_,"ax",%progbits
+ 1882              		.align	1
+ 1883              		.global	_Z32MonitorTelemetry_GetReportStagesmPmS_S_
+ 1884              		.syntax unified
+ 1885              		.thumb
+ 1886              		.thumb_func
+ 1888              	_Z32MonitorTelemetry_GetReportStagesmPmS_S_:
+ 1889              	.LVL147:
+ 1890              	.LFB1308:
+ 329:Src/diagnostics/monitor_telemetry.cpp **** 
+ 330:Src/diagnostics/monitor_telemetry.cpp **** bool MonitorTelemetry_GetReportStages(uint32_t seq, uint32_t* trigger, uint32_t* complete, uint32_t
+ 1891              		.loc 1 330 109 is_stmt 1 view -0
+ 1892              		.cfi_startproc
+ 1893              		@ args = 0, pretend = 0, frame = 0
+ 1894              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1895              		.loc 1 330 109 is_stmt 0 view .LVU562
+ 1896 0000 30B5     		push	{r4, r5, lr}
+ 1897              	.LCFI37:
+ 1898              		.cfi_def_cfa_offset 12
+ 1899              		.cfi_offset 4, -12
+ 1900              		.cfi_offset 5, -8
+ 1901              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 44
+
+
+ 1902 0002 8646     		mov	lr, r0
+ 331:Src/diagnostics/monitor_telemetry.cpp ****     const auto& slot = g_slots[seq % SAMPLE_SLOT_COUNT];
+ 1903              		.loc 1 331 5 is_stmt 1 view .LVU563
+ 1904              		.loc 1 331 36 is_stmt 0 view .LVU564
+ 1905 0004 00F07F0C 		and	ip, r0, #127
+ 1906              	.LVL148:
+ 332:Src/diagnostics/monitor_telemetry.cpp ****     if(!slot.valid || slot.seq != seq) return false;
+ 1907              		.loc 1 332 5 is_stmt 1 view .LVU565
+ 1908              		.loc 1 332 14 is_stmt 0 view .LVU566
+ 1909 0008 0CEB8C04 		add	r4, ip, ip, lsl #2
+ 1910 000c 0C48     		ldr	r0, .L125
+ 1911              	.LVL149:
+ 1912              		.loc 1 332 14 view .LVU567
+ 1913 000e 00EB8400 		add	r0, r0, r4, lsl #2
+ 1914 0012 007C     		ldrb	r0, [r0, #16]	@ zero_extendqisi2
+ 1915              		.loc 1 332 5 view .LVU568
+ 1916 0014 98B1     		cbz	r0, .L122
+ 1917              		.loc 1 332 28 discriminator 2 view .LVU569
+ 1918 0016 0A4D     		ldr	r5, .L125
+ 1919 0018 55F82440 		ldr	r4, [r5, r4, lsl #2]
+ 1920              		.loc 1 332 20 discriminator 2 view .LVU570
+ 1921 001c 7445     		cmp	r4, lr
+ 1922 001e 0DD1     		bne	.L123
+ 333:Src/diagnostics/monitor_telemetry.cpp ****     *trigger=slot.triggerCycles; *complete=slot.completeCycles; *ready=slot.reportReadyCycles;
+ 1923              		.loc 1 333 5 is_stmt 1 view .LVU571
+ 1924              		.loc 1 333 19 is_stmt 0 view .LVU572
+ 1925 0020 0CEB8C0E 		add	lr, ip, ip, lsl #2
+ 1926              	.LVL150:
+ 1927              		.loc 1 333 19 view .LVU573
+ 1928 0024 05EB8E0E 		add	lr, r5, lr, lsl #2
+ 1929 0028 DEF80450 		ldr	r5, [lr, #4]
+ 1930              		.loc 1 333 13 view .LVU574
+ 1931 002c 0D60     		str	r5, [r1]
+ 1932              		.loc 1 333 34 is_stmt 1 view .LVU575
+ 1933              		.loc 1 333 49 is_stmt 0 view .LVU576
+ 1934 002e DEF80810 		ldr	r1, [lr, #8]
+ 1935              	.LVL151:
+ 1936              		.loc 1 333 43 view .LVU577
+ 1937 0032 1160     		str	r1, [r2]
+ 1938              		.loc 1 333 65 is_stmt 1 view .LVU578
+ 1939              		.loc 1 333 77 is_stmt 0 view .LVU579
+ 1940 0034 DEF80C20 		ldr	r2, [lr, #12]
+ 1941              	.LVL152:
+ 1942              		.loc 1 333 71 view .LVU580
+ 1943 0038 1A60     		str	r2, [r3]
+ 334:Src/diagnostics/monitor_telemetry.cpp ****     return true;
+ 1944              		.loc 1 334 5 is_stmt 1 view .LVU581
+ 1945              		.loc 1 334 12 is_stmt 0 view .LVU582
+ 1946 003a 00E0     		b	.L122
+ 1947              	.LVL153:
+ 1948              	.L123:
+ 332:Src/diagnostics/monitor_telemetry.cpp ****     if(!slot.valid || slot.seq != seq) return false;
+ 1949              		.loc 1 332 47 discriminator 3 view .LVU583
+ 1950 003c 0020     		movs	r0, #0
+ 1951              	.LVL154:
+ 1952              	.L122:
+ 335:Src/diagnostics/monitor_telemetry.cpp **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 45
+
+
+ 1953              		.loc 1 335 1 view .LVU584
+ 1954 003e 30BD     		pop	{r4, r5, pc}
+ 1955              	.L126:
+ 1956              		.align	2
+ 1957              	.L125:
+ 1958 0040 00000000 		.word	_ZN12_GLOBAL__N_17g_slotsE
+ 1959              		.cfi_endproc
+ 1960              	.LFE1308:
+ 1962              		.section	.bss._ZN12_GLOBAL__N_119g_ch585VersionPatchE,"aw",%nobits
+ 1965              	_ZN12_GLOBAL__N_119g_ch585VersionPatchE:
+ 1966 0000 00       		.space	1
+ 1967              		.section	.bss._ZN12_GLOBAL__N_119g_ch585VersionMinorE,"aw",%nobits
+ 1970              	_ZN12_GLOBAL__N_119g_ch585VersionMinorE:
+ 1971 0000 00       		.space	1
+ 1972              		.section	.bss._ZN12_GLOBAL__N_119g_ch585VersionMajorE,"aw",%nobits
+ 1975              	_ZN12_GLOBAL__N_119g_ch585VersionMajorE:
+ 1976 0000 00       		.space	1
+ 1977              		.section	.bss._ZN12_GLOBAL__N_111g_ch585RoleE,"aw",%nobits
+ 1980              	_ZN12_GLOBAL__N_111g_ch585RoleE:
+ 1981 0000 00       		.space	1
+ 1982              		.section	.bss._ZN12_GLOBAL__N_118g_hasPendingUsbSeqE,"aw",%nobits
+ 1985              	_ZN12_GLOBAL__N_118g_hasPendingUsbSeqE:
+ 1986 0000 00       		.space	1
+ 1987              		.section	.bss._ZN12_GLOBAL__N_115g_pendingUsbSeqE,"aw",%nobits
+ 1988              		.align	2
+ 1991              	_ZN12_GLOBAL__N_115g_pendingUsbSeqE:
+ 1992 0000 00000000 		.space	4
+ 1993              		.section	.bss._ZN12_GLOBAL__N_110g_sequenceE,"aw",%nobits
+ 1994              		.align	2
+ 1997              	_ZN12_GLOBAL__N_110g_sequenceE:
+ 1998 0000 00000000 		.space	4
+ 1999              		.section	.bss._ZN12_GLOBAL__N_110g_snapshotE,"aw",%nobits
+ 2000              		.align	2
+ 2003              	_ZN12_GLOBAL__N_110g_snapshotE:
+ 2004 0000 00000000 		.space	60
+ 2004      00000000 
+ 2004      00000000 
+ 2004      00000000 
+ 2004      00000000 
+ 2005              		.section	.DMA_Section,"aw"
+ 2006              		.align	5
+ 2009              	_ZN12_GLOBAL__N_17g_slotsE:
+ 2010 0000 00000000 		.space	2560
+ 2010      00000000 
+ 2010      00000000 
+ 2010      00000000 
+ 2010      00000000 
+ 2011              		.weak	_ZZN12PowerManager11getInstanceEvE8instance
+ 2012              		.section	.data._ZZN12PowerManager11getInstanceEvE8instance,"awG",%progbits,_ZZN12PowerManager11get
+ 2013              		.align	2
+ 2016              	_ZZN12PowerManager11getInstanceEvE8instance:
+ 2017 0000 00000000 		.space	8
+ 2017      00000000 
+ 2018 0008 00000000 		.space	8
+ 2018      00000000 
+ 2019 0010 0000     		.short	0
+ 2020 0012 0000     		.short	0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 46
+
+
+ 2021 0014 0000     		.short	0
+ 2022 0016 0000     		.short	0
+ 2023 0018 0000     		.short	0
+ 2024 001a 0003     		.short	768
+ 2025 001c 04       		.byte	4
+ 2026 001d 00       		.byte	0
+ 2027 001e 00       		.byte	0
+ 2028 001f 00       		.byte	0
+ 2029 0020 00       		.byte	0
+ 2030 0021 00       		.byte	0
+ 2031 0022 00       		.byte	0
+ 2032 0023 00       		.byte	0
+ 2033 0024 00       		.byte	0
+ 2034 0025 00000000 		.space	10
+ 2034      00000000 
+ 2034      0000
+ 2035 002f 00       		.space	1
+ 2036 0030 00000000 		.space	12
+ 2036      00000000 
+ 2036      00000000 
+ 2037 003c 00000000 		.space	18
+ 2037      00000000 
+ 2037      00000000 
+ 2037      00000000 
+ 2037      0000
+ 2038 004e 00000000 		.space	8
+ 2038      00000000 
+ 2039 0056 0000     		.space	2
+ 2040 0058 00000000 		.word	0
+ 2041 005c 00000000 		.word	0
+ 2042 0060 00000000 		.word	0
+ 2043 0064 00000000 		.word	0
+ 2044 0068 00       		.byte	0
+ 2045 0069 00       		.byte	0
+ 2046 006a 00       		.byte	0
+ 2047 006b 00       		.byte	0
+ 2048 006c 00       		.byte	0
+ 2049 006d 00       		.byte	0
+ 2050 006e 0000     		.space	2
+ 2051 0070 00000000 		.word	0
+ 2052 0074 00000000 		.word	0
+ 2053 0078 00000000 		.word	0
+ 2054 007c 00000000 		.word	0
+ 2055 0080 00       		.byte	0
+ 2056 0081 00       		.byte	0
+ 2057 0082 00       		.byte	0
+ 2058 0083 00       		.space	1
+ 2059              		.weak	_ZGVZN11MicrosTimer11getInstanceEvE8instance
+ 2060              		.section	.bss._ZGVZN11MicrosTimer11getInstanceEvE8instance,"awG",%nobits,_ZGVZN11MicrosTimer11getI
+ 2061              		.align	2
+ 2064              	_ZGVZN11MicrosTimer11getInstanceEvE8instance:
+ 2065 0000 00000000 		.space	4
+ 2066              		.weak	_ZZN11MicrosTimer11getInstanceEvE8instance
+ 2067              		.section	.bss._ZZN11MicrosTimer11getInstanceEvE8instance,"awG",%nobits,_ZZN11MicrosTimer11getInsta
+ 2068              		.align	2
+ 2071              	_ZZN11MicrosTimer11getInstanceEvE8instance:
+ 2072 0000 00000000 		.space	4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 47
+
+
+ 2073              		.text
+ 2074              	.Letext0:
+ 2075              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 2076              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 2077              		.file 7 "Inc/support/enums.hpp"
+ 2078              		.file 8 "Inc/diagnostics/monitor_telemetry.hpp"
+ 2079              		.file 9 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 2080              		.file 10 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 2081              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 2082              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 2083              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 2084              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 2085              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 2086              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 2087              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 2088              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 2089              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 2090              		.file 20 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 2091              		.file 21 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c.h"
+ 2092              		.file 22 "Inc/system/board_cfg.h"
+ 2093              		.file 23 "Inc/power/drivers/bq25895/bq25895.h"
+ 2094              		.file 24 "Inc/power/drivers/max17048/max17048.h"
+ 2095              		.file 25 "../common/system_logger.h"
+ 2096              		.file 26 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 2097              		.file 27 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 48
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 monitor_telemetry.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:20     .text._ZN12_GLOBAL__N_115remember_reportEmmmm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:25     .text._ZN12_GLOBAL__N_115remember_reportEmmmm:00000000 _ZN12_GLOBAL__N_115remember_reportEmmmm
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:69     .text._ZN12_GLOBAL__N_115remember_reportEmmmm:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2009   .DMA_Section:00000000 _ZN12_GLOBAL__N_17g_slotsE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:74     .text._ZN12_GLOBAL__N_127query_report_trigger_cyclesEmPm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:79     .text._ZN12_GLOBAL__N_127query_report_trigger_cyclesEmPm:00000000 _ZN12_GLOBAL__N_127query_report_trigger_cyclesEmPm
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:160    .text._ZN12_GLOBAL__N_127query_report_trigger_cyclesEmPm:00000048 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:165    .text._ZN11MicrosTimer11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:171    .text._ZN11MicrosTimer11getInstanceEv:00000000 _ZN11MicrosTimer11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:215    .text._ZN11MicrosTimer11getInstanceEv:0000002c $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2064   .bss._ZGVZN11MicrosTimer11getInstanceEvE8instance:00000000 _ZGVZN11MicrosTimer11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2071   .bss._ZZN11MicrosTimer11getInstanceEvE8instance:00000000 _ZZN11MicrosTimer11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:221    .text._Z21MonitorTelemetry_Init14ConnectionModet:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:227    .text._Z21MonitorTelemetry_Init14ConnectionModet:00000000 _Z21MonitorTelemetry_Init14ConnectionModet
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:299    .text._Z21MonitorTelemetry_Init14ConnectionModet:00000040 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2003   .bss._ZN12_GLOBAL__N_110g_snapshotE:00000000 _ZN12_GLOBAL__N_110g_snapshotE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1997   .bss._ZN12_GLOBAL__N_110g_sequenceE:00000000 _ZN12_GLOBAL__N_110g_sequenceE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1991   .bss._ZN12_GLOBAL__N_115g_pendingUsbSeqE:00000000 _ZN12_GLOBAL__N_115g_pendingUsbSeqE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1985   .bss._ZN12_GLOBAL__N_118g_hasPendingUsbSeqE:00000000 _ZN12_GLOBAL__N_118g_hasPendingUsbSeqE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:308    .text._Z32MonitorTelemetry_SetTargetRateHzt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:314    .text._Z32MonitorTelemetry_SetTargetRateHzt:00000000 _Z32MonitorTelemetry_SetTargetRateHzt
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:345    .text._Z32MonitorTelemetry_SetTargetRateHzt:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:350    .text._Z29MonitorTelemetry_NextSequencev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:356    .text._Z29MonitorTelemetry_NextSequencev:00000000 _Z29MonitorTelemetry_NextSequencev
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:375    .text._Z29MonitorTelemetry_NextSequencev:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:380    .text._Z30MonitorTelemetry_OnReportReadymmm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:386    .text._Z30MonitorTelemetry_OnReportReadymmm:00000000 _Z30MonitorTelemetry_OnReportReadymmm
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:522    .text._Z30MonitorTelemetry_OnReportReadymmm:00000048 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:528    .text._Z39MonitorTelemetry_GetReportTriggerCyclesmPm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:534    .text._Z39MonitorTelemetry_GetReportTriggerCyclesmPm:00000000 _Z39MonitorTelemetry_GetReportTriggerCyclesmPm
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:557    .text._Z33MonitorTelemetry_SetPendingUsbSeqm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:563    .text._Z33MonitorTelemetry_SetPendingUsbSeqm:00000000 _Z33MonitorTelemetry_SetPendingUsbSeqm
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:585    .text._Z33MonitorTelemetry_SetPendingUsbSeqm:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:591    .text._Z37MonitorTelemetry_OnUsbReportSubmittedt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:597    .text._Z37MonitorTelemetry_OnUsbReportSubmittedt:00000000 _Z37MonitorTelemetry_OnUsbReportSubmittedt
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:849    .text._Z37MonitorTelemetry_OnUsbReportSubmittedt:000000a8 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:864    .text._Z29MonitorTelemetry_OnRfTransfermhhb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:870    .text._Z29MonitorTelemetry_OnRfTransfermhhb:00000000 _Z29MonitorTelemetry_OnRfTransfermhhb
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1020   .text._Z29MonitorTelemetry_OnRfTransfermhhb:0000006c $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1029   .text._Z35MonitorTelemetry_OnLinkStateChanged14ConnectionModeh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1035   .text._Z35MonitorTelemetry_OnLinkStateChanged14ConnectionModeh:00000000 _Z35MonitorTelemetry_OnLinkStateChanged14ConnectionModeh
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1070   .text._Z35MonitorTelemetry_OnLinkStateChanged14ConnectionModeh:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1075   .text._Z24MonitorTelemetry_OnErrorPKcmS0_:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1081   .text._Z24MonitorTelemetry_OnErrorPKcmS0_:00000000 _Z24MonitorTelemetry_OnErrorPKcmS0_
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1116   .text._Z24MonitorTelemetry_OnErrorPKcmS0_:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1121   .text._Z31MonitorTelemetry_SetCh585Statushhhh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1127   .text._Z31MonitorTelemetry_SetCh585Statushhhh:00000000 _Z31MonitorTelemetry_SetCh585Statushhhh
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1172   .text._Z31MonitorTelemetry_SetCh585Statushhhh:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1980   .bss._ZN12_GLOBAL__N_111g_ch585RoleE:00000000 _ZN12_GLOBAL__N_111g_ch585RoleE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1975   .bss._ZN12_GLOBAL__N_119g_ch585VersionMajorE:00000000 _ZN12_GLOBAL__N_119g_ch585VersionMajorE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1970   .bss._ZN12_GLOBAL__N_119g_ch585VersionMinorE:00000000 _ZN12_GLOBAL__N_119g_ch585VersionMinorE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1965   .bss._ZN12_GLOBAL__N_119g_ch585VersionPatchE:00000000 _ZN12_GLOBAL__N_119g_ch585VersionPatchE
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1180   .text._Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1186   .text._Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot:00000000 _Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1234   .text._Z28MonitorTelemetry_GetSnapshotP24MonitorTelemetrySnapshot:0000002c $d
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s 			page 49
+
+
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1239   .text._Z28MonitorTelemetry_FillFrameV1P23MonitorTelemetryFrameV1:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1245   .text._Z28MonitorTelemetry_FillFrameV1P23MonitorTelemetryFrameV1:00000000 _Z28MonitorTelemetry_FillFrameV1P23MonitorTelemetryFrameV1
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1358   .text._Z28MonitorTelemetry_FillFrameV1P23MonitorTelemetryFrameV1:00000054 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1363   .text._Z33MonitorTelemetry_FillPowerFrameV1P19MonitorPowerFrameV1:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1369   .text._Z33MonitorTelemetry_FillPowerFrameV1P19MonitorPowerFrameV1:00000000 _Z33MonitorTelemetry_FillPowerFrameV1P19MonitorPowerFrameV1
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1639   .text._Z33MonitorTelemetry_FillPowerFrameV1P19MonitorPowerFrameV1:000000dc $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2016   .data._ZZN12PowerManager11getInstanceEvE8instance:00000000 _ZZN12PowerManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1646   .text._Z33MonitorTelemetry_FillPowerFrameV2P19MonitorPowerFrameV2:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1652   .text._Z33MonitorTelemetry_FillPowerFrameV2P19MonitorPowerFrameV2:00000000 _Z33MonitorTelemetry_FillPowerFrameV2P19MonitorPowerFrameV2
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1872   .text._Z33MonitorTelemetry_FillPowerFrameV2P19MonitorPowerFrameV2:000000c0 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1882   .text._Z32MonitorTelemetry_GetReportStagesmPmS_S_:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1888   .text._Z32MonitorTelemetry_GetReportStagesmPmS_S_:00000000 _Z32MonitorTelemetry_GetReportStagesmPmS_S_
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1958   .text._Z32MonitorTelemetry_GetReportStagesmPmS_S_:00000040 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1966   .bss._ZN12_GLOBAL__N_119g_ch585VersionPatchE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1971   .bss._ZN12_GLOBAL__N_119g_ch585VersionMinorE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1976   .bss._ZN12_GLOBAL__N_119g_ch585VersionMajorE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1981   .bss._ZN12_GLOBAL__N_111g_ch585RoleE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1986   .bss._ZN12_GLOBAL__N_118g_hasPendingUsbSeqE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1988   .bss._ZN12_GLOBAL__N_115g_pendingUsbSeqE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:1994   .bss._ZN12_GLOBAL__N_110g_sequenceE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2000   .bss._ZN12_GLOBAL__N_110g_snapshotE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2006   .DMA_Section:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2013   .data._ZZN12PowerManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2061   .bss._ZGVZN11MicrosTimer11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc23aWwA.s:2068   .bss._ZZN11MicrosTimer11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+__cxa_guard_acquire
+_ZN11MicrosTimerC1Ev
+__cxa_guard_release
+memset
+_ZN11MicrosTimer6microsEv
+_ZNK11MicrosTimer6cyclesEv
+_ZNK11MicrosTimer13elapsedMicrosEm
+_ZNK12PowerManager11getVoltagesEv
+_ZNK12PowerManager18getTotalSocPercentEv
+_ZNK12PowerManager14isVoltageValidEv
+_ZNK12PowerManager12isLowBatteryEv
+_ZNK12PowerManager14isFastChargingEv
+HAL_GetTick
+_ZNK12PowerManager25getActiveDischargeBatteryEv
+_ZNK12PowerManager14getChargeStateEv
+_ZNK12PowerManager11getSnapshotEv

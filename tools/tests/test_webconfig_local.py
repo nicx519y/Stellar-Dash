@@ -433,7 +433,7 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
             board_cfg,
             r"USER_IMAGE_RESOURCES_SIZE\s+0x00190000",
         )
-        self.assertRegex(image_format, r"MAX_USER_FRAMES\s*=\s*6u")
+        self.assertRegex(image_format, r"MAX_USER_FRAMES\s*=\s*12u")
         self.assertRegex(image_format, r"STORAGE_GUARD_SIZE\s*=\s*0x00010000u")
         self.assertNotIn("SYSTEM_DEFAULT", image_format)
         self.assertEqual(webconfig_local.SYSTEM_BACKGROUND_MAX_FRAMES, 8)
