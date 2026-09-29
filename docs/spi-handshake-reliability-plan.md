@@ -205,3 +205,17 @@
 这些证据确认了源码路径与现场状态的一致性；修复后的真实 USB 连接和完整配置同步仍需刷入后验收。此轮只修改 STM32 Application，无须因此更新 CH585 TX/RX 或 Bootloader。
 
 完整可刷产物随后通过 `python tools/hbox.py web local-build --unlocked-development --slot A --skip-web` 生成（约 38 秒）。已核对 A 槽、无锁模式、不要求生命周期置备及全部产物大小/SHA-256。构建子进程退出 0；外层临时日志 runner 在回显尾部时遇到 GBK 编码错误，未影响构建，已直接检查完成日志与产物。没有实际烧录，未修改任何保护位或锁定状态。
+
+## 12. Finish Configuration 前置查询超时与 CH585 NSS 竞态
+
+2026-09-29 用户报告点击 Finish Configuration 后卡住并自动断开。截图中的本次超时命令为 `get_calibration_status`，事务 489，15008 ms，`writeComplete=true, responseReceived=false, rxFrames=0`。该命令属于 `terminateWebConfigActivities` 的前置清理，发生在最终 `exit_webconfig` 之前。不能把浏览器写出成功解释为 STM32 已执行命令，也不能用较早的 `finish-config-success` 或 permission-required 日志判定本次正常退出。
+
+只读 USB Feature Report 显示 `bridgeReady=0, fault=26, epoch=1`，端口附加信息全零。CH585 将端口错误编码为 `0x10 | status`，因此 26 对应 `USB_BOARD_STATUS_INTERNAL_ERROR`（10）：当前源代码中由 `tx_dma_finish` 在事件未完成时产生。只读 RAM 记录保存在 `.hbox/webhid-finish-20260929/`：启动高速初始化已到 `0x46`，没有新的 CRC/会话首错；释放错误仍是第一次启动的历史记录。读取的握手函数代码与本地 ELF 相同。普通缓存变量只作辅助证据，不用其零值单独排除所有故障。
+
+发现与故障一致、可由生产函数复现的竞态：`usb_board_link_port_process` 先采样 NSS 高；STM32 随后开始读取，CH585 再观察到 FST_BYTE，于是使用过期 NSS 样本调用 `tx_dma_finish`。该函数原来不再次检查 NSS，会清除仍在传输的 DMA/FIFO 并报告错误 10。USB 中断可以扩大这两个观察之间的窗口。现有现场记录没有保存该次片选波形，不能声称已证明这就是唯一触发源。
+
+修复在真正结束 DMA 前重新检查 NSS，低电平时保留 DMA/FIFO、队列和 W_INT 所有权，等待实际释放。CNT_END、零时钟让出和真实半帧失败的原有边界保留。真实半帧故障新增首错详情：cause 7，原始 flags/FIFO/armed 状态，以及两个诊断字中的期望长度和剩余计数；不记录配置载荷。
+
+验证：`python -m unittest tools.tests.test_webhid_nss_retirement` 抽取生产 poller 和 finish，修复前复现过期采样导致的错误，修复后覆盖在途读取、CNT_END 但 NSS 仍低、正常完成、真实截断、零时钟让出以及共享普通 USB 输入端口，约 0.6 秒通过。`make -C RF_PHY_Hop/TX -j8` 增量构建约 2 秒通过，保留已有 RWX 链接警告。未执行 RF 运行时回归或采样。
+
+本轮只需经 `python tools/hbox.py flash tx` 更新 CH585 TX Application；不得使用包含 IAP 的合并镜像覆盖 4KB IAP。未实际烧录，未修改任何保护位或锁定状态，Finish Configuration 实机复测仍未完成。

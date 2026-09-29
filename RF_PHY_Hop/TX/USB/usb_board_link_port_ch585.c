@@ -374,6 +374,16 @@ static void tx_dma_finish(void)
     const uint8_t complete =
         ((flags & RB_SPI_IF_CNT_END) != 0u) ? 1u : 0u;
 
+    /* The poller's NSS sample can precede the master's first clock (or a
+     * USB interrupt). FST_BYTE observed afterwards belongs to an in-flight
+     * read, not necessarily an NSS release. Recheck at the retirement point
+     * before touching DMA/FIFO; CNT_END alone also cannot release ownership. */
+    if(nss_is_high() == 0u)
+    {
+        s_tx_nss_seen = 1u;
+        return;
+    }
+
     /* A WebHID writer can lose W_INT arbitration after asserting NSS and
      * release it without clocking a byte. That is not an aborted event read.
      * Keep the queued event, preloaded DMA/FIFO and W_INT ownership intact so
@@ -387,6 +397,14 @@ static void tx_dma_finish(void)
         return;
     }
 
+    if(!complete && s_fast_webhid)
+    {
+        /* Preserve the first truncated-read evidence before clearing the
+         * FIFO/counter. Feature report detail carries expected/remaining. */
+        usb_webhid_fast_port_detail(7u | ((uint32_t)flags << 8u) |
+            ((uint32_t)R8_SPI0_FIFO_COUNT << 16u) | ((uint32_t)s_tx_armed << 24u),
+            s_tx_lengths[s_tx_tail], R16_SPI0_TOTAL_CNT);
+    }
     R8_SPI0_CTRL_CFG &= (uint8_t)~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
     SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END);
     spi_fifo_clear();
