@@ -17,7 +17,7 @@ struct ScreenMenuMeta {
     const char* label;
 };
 
-// Always available locally; not part of the persisted configurable feature array.
+// Retained for restoring/exiting an existing maintenance state; hidden from the menu.
 constexpr uint8_t SCREEN_MENU_TX_ISP = 12u;
 
 const ScreenMenuMeta* ScreenMain_FindMenuMeta(uint8_t id);

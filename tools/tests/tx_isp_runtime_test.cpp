@@ -129,16 +129,17 @@ int main() {
     assert(machine.requestTransition(MainRuntimeState::Ch585BridgeUpdate));
     assert(!MainRuntime_RequestTxIsp(true));
 
-    // New local menu does not change persisted array size, user order or USB gating.
+    // Maintenance entry is hidden; normal menu order and USB gating stay intact.
     ScreenControlConfig config; for(int i=0;i<12;++i)config.featuresOrder[i]=i;
     uint8_t ids[16]={}; BOARD_MODE.allowed=true;
-    assert(ScreenMain_RebuildMenuIds(config,ids,16)==13 && ids[12]==SCREEN_MENU_TX_ISP);
+    assert(ScreenMain_RebuildMenuIds(config,ids,16)==12);
+    for(unsigned i=0;i<12;++i) assert(ids[i]==i && ids[i]!=SCREEN_MENU_TX_ISP);
     BOARD_MODE.allowed=false; config.featuresMask=1u<<1;
-    assert(ScreenMain_RebuildMenuIds(config,ids,16)==2 && ids[0]==1 && ids[1]==SCREEN_MENU_TX_ISP);
+    assert(ScreenMain_RebuildMenuIds(config,ids,16)==1 && ids[0]==1);
     config.featuresMask=0;
     const auto count=ScreenMain_RebuildMenuIds(config,ids,16);
-    assert(count==12 && ids[count-1]==SCREEN_MENU_TX_ISP);
-    for(unsigned i=0;i<count;++i) assert(ids[i]!=9);
+    assert(count==11);
+    for(unsigned i=0;i<count;++i) assert(ids[i]!=9 && ids[i]!=SCREEN_MENU_TX_ISP);
     uint8_t bounded[2]={0,0xA5};
     assert(ScreenMain_RebuildMenuIds(config,bounded,1)==1 && bounded[1]==0xA5);
     assert(ScreenMain_RebuildMenuIds(config,nullptr,16)==0);

@@ -79,15 +79,18 @@ CH585 经 PB22 启动 ROM ISP 后，不响应 Application 的角色选择。正�
 会重新切换 TX 电源并重试角色握手，失败后关闭 TX 电源，因此 ISP USB 会断开。
 PB22 持续接地只能保证再次上电仍进入 ISP，不能阻止主控最终关闭电源。
 
-#### 屏幕 TX ISP 状态（推荐）
+#### 屏幕 TX ISP 状态（入口已隐藏）
 
-支持本功能的主控固件在屏幕菜单末尾提供 `TX ISP`，不依赖 WebConfig 菜单开关。
+当前主控固件已隐藏普通屏幕菜单中的 `TX ISP` 维护入口。已有持久化维护状态
+仍可在重启后恢复并通过屏幕确认退出，避免设备无法退出维护。
 这是与 Input（USB/RF）、WebConfig、Calibration、BridgeUpdate、SafeRecovery 并列
 的运行状态，与 WebConfig 一样使用 `Config.bootMode` 保存启动模式：进入时设为
 `BOOT_MODE_TX_ISP` 并提交现有配置日志，断电或重启后直接恢复。只需更新 STM32 Application；TX
 Application 与 IAP 不必为这个入口更新。
 
-1. 设备正常启动，在屏幕选择 `TX ISP`，先将 TX PB22 接地，再按 `Start`。
+以下描述维护状态的既有行为；当前版本不提供菜单进入入口。
+
+1. 旧固件的进入方式是在屏幕选择 `TX ISP`，先将 TX PB22 接地，再按 `Start`。
 2. 先通过现有双银行配置日志保存维护状态与返回状态，再退出原输入/网页状态，关闭 USB Host 电源，停用 SPI4 及对应 DMA，停角色
    握手，将 SPI 引脚置为模拟输入、NSS 保持无效，TX 断电至少 20 毫秒后重新上电。
    屏幕显示 `TX power held on. SPI paused.`。再让 WCHISPStudio 搜索 CH585。

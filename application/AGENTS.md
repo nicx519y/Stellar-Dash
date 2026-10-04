@@ -13,7 +13,7 @@
 - 普通保存与校准、导入、升级的互斥边界以 [webhid_config_write_policy.hpp](Inc/webconfig/webhid_config_write_policy.hpp) 为准。QSPI 等待期间的反馈不得递归分发 RPC 或访问其他 QSPI 数据，见 [保存反馈说明](../docs/webconfig-live-autosave-feedback.md)。
 - Profile 存储下标、容量和迁移规则见 [固定槽位说明](../docs/fixed-profile-slots.md)；不要将 UI 顺序或显示编号当作 Profile ID。
 - 双槽/资源地址取自 [firmware_metadata.h](../common/firmware_metadata.h)，升级逻辑见 [firmware_manager.cpp](Src/firmware/firmware_manager.cpp)。不要复制旧地址表或改变冻结烧录流程。
-- 屏幕 `TX ISP` 为独立运行状态，保持 TX 供电并停 SPI/角色握手；与 WebConfig 一样，通过 `Config.bootMode` 和现有配置日志持久化，进入前提交 `BOOT_MODE_TX_ISP` 与返回模式，重启后直接恢复，只有屏幕确认退出且成功保存才恢复原运行状态。启动屏幕也按该 bootMode 路由，不能等运行状态 enter 后才识别。保存失败不得切断 TX 或宣称退出；不自动超时退出、不执行烧录或保护操作，不恢复已移除的 manual-ISP 位。入口与实机验收见 [TX IAP 维护](../docs/tx-iap-maintenance.md)。
+- 普通屏幕菜单中的 `TX ISP` 维护入口已隐藏；已有持久化维护状态继续恢复并允许确认退出。屏幕 `TX ISP` 为独立运行状态，保持 TX 供电并停 SPI/角色握手；与 WebConfig 一样，通过 `Config.bootMode` 和现有配置日志持久化，进入前提交 `BOOT_MODE_TX_ISP` 与返回模式，重启后直接恢复，只有屏幕确认退出且成功保存才恢复原运行状态。启动屏幕也按该 bootMode 路由，不能等运行状态 enter 后才识别。保存失败不得切断 TX 或宣称退出；不自动超时退出、不执行烧录或保护操作，不恢复已移除的 manual-ISP 位。状态与实机验收见 [TX IAP 维护](../docs/tx-iap-maintenance.md)。
 
 ## 构建与检查
 

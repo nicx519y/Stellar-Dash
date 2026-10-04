@@ -71,7 +71,6 @@ uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds
             if (count < outCap) outIds[count++] = kMenuMeta[i].id;
         }
     }
-    if (count < outCap) outIds[count++] = SCREEN_MENU_TX_ISP;
     return count;
 }
 
