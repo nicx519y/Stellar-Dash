@@ -81,9 +81,9 @@ function validateBundle(file, publicKey, tempRoot) {
                 const slot = validateUploadedOtaPackage(nested, a.slot, publicKey);
                 requireValue(slot.version === a.version && slot.hardware_version === a.hardwareVersion, `STM32 manifest mismatch: ${a.file}`);
                 requireValue(slot.bootSecurityMode !== 'secure-production' && slot.requiresManualLifecycleProvisioning !== true, 'STM32 package requires forbidden lifecycle provisioning');
-                if (manifest.schemaVersion === 2) validateInstallArtifact(a, data, () => readFlatZipEntries(nested), manifest.install.configWrite);
+                if (manifest.schemaVersion === 2) validateInstallArtifact(a, data, () => readFlatZipEntries(nested), manifest.install.configWrite, manifest.install.protocol);
             }
-            if (manifest.schemaVersion === 2 && a.component === 'tx') validateInstallArtifact(a, data);
+            if (manifest.schemaVersion === 2 && a.component === 'tx') validateInstallArtifact(a, data, undefined, undefined, manifest.install.protocol);
         }
     } finally { fs.rmSync(work, { recursive: true, force: true }); }
     return manifest;
@@ -174,6 +174,13 @@ class FirmwareReleaseStore {
             const destination = this.bundlePath(hash);
             if (!fs.existsSync(destination)) fs.copyFileSync(file, destination, fs.constants.COPYFILE_EXCL);
             this.db.transaction(() => {
+                const reserved = this.db.prepare(`SELECT 1 FROM release_audit WHERE action='delete'
+                    AND json_extract(before_json, '$.publishedAt') IS NOT NULL
+                    AND json_extract(before_json, '$.manifest.deviceModel')=?
+                    AND json_extract(before_json, '$.manifest.hardwareVersion')=?
+                    AND json_extract(before_json, '$.manifest.version')=? LIMIT 1`)
+                    .get(manifest.deviceModel, manifest.hardwareVersion, manifest.version);
+                requireValue(!reserved, 'This model/hardware/version was previously published; use a new version.');
                 this.db.prepare(`INSERT INTO releases(id,version,hardware,model,manifest,bundle_hash,status,created_at) VALUES(?,?,?,?,?,?,'draft',?)`)
                     .run(id, manifest.version, manifest.hardwareVersion, manifest.deviceModel, JSON.stringify(manifest), hash, now);
                 this.audit(id, actor, 'import', null, { status: 'draft', manifest });
@@ -200,10 +207,12 @@ class FirmwareReleaseStore {
             if (action === 'edit') {
                 requireValue(status === 'draft', 'Only drafts can be edited');
                 notes = text(input.notes, 10000, 'notes', false);
-                acceptance = text(input.acceptance, 4000, 'acceptance', false);
+                if (Object.prototype.hasOwnProperty.call(input, 'acceptance')) {
+                    acceptance = text(input.acceptance, 4000, 'acceptance', false);
+                }
             } else if (action === 'publish') {
                 requireValue(['draft', 'withdrawn'].includes(status), 'Release is already published');
-                requireValue(notes.trim() && acceptance.trim(), 'Release notes and acceptance evidence are required');
+                requireValue(notes.trim(), 'Release notes are required');
                 const row = this.db.prepare('SELECT bundle_hash FROM releases WHERE id=?').get(id);
                 const bundle = this.bundlePath(row.bundle_hash);
                 requireValue(sha256(fs.readFileSync(bundle)) === row.bundle_hash, 'Stored package is corrupted');
@@ -214,7 +223,6 @@ class FirmwareReleaseStore {
                 requireValue(status === 'published', 'Only published releases can be withdrawn');
                 reason = text(input.reason, 1000, 'reason'); status = 'withdrawn';
             } else if (action === 'delete') {
-                requireValue(status === 'draft', 'Only drafts can be deleted');
                 this.audit(id, actor, action, old, null);
                 this.db.prepare('DELETE FROM releases WHERE id=?').run(id);
                 return null; // Content blobs are retained; never delete files referenced by another release.
@@ -253,12 +261,17 @@ function initFirmwareReleaseRoutes(app, { store, adminAccess, deviceAccess }) {
         });
     });
     app.patch(`${base}/releases/:id`, manage, wrap((req, res) => {
-        requireValue(req.body && Object.keys(req.body).every(k => ['revision', 'notes', 'acceptance'].includes(k)), 'Only notes and acceptance may be edited');
+        requireValue(req.body && Object.keys(req.body).every(k => ['revision', 'notes', 'acceptance'].includes(k)), 'Only notes and optional legacy acceptance may be edited');
         ok(res, store.mutate(req.params.id, req.body.revision, 'edit', req.body, req.authenticatedAdmin));
     }));
     for (const action of ['publish', 'withdraw']) app.post(`${base}/releases/:id/${action}`, human,
         wrap((req, res) => ok(res, store.mutate(req.params.id, req.body?.revision, action, req.body || {}, req.authenticatedAdmin))));
-    app.delete(`${base}/releases/:id`, manage, wrap((req, res) => ok(res, store.mutate(req.params.id, req.body?.revision, 'delete', {}, req.authenticatedAdmin))));
+    app.delete(`${base}/releases/:id`, manage, (req, res, next) => {
+        try {
+            if (store.get(req.params.id).status !== 'draft') return human(req, res, next);
+            next();
+        } catch (error) { next(error); }
+    }, wrap((req, res) => ok(res, store.mutate(req.params.id, req.body?.revision, 'delete', {}, req.authenticatedAdmin))));
     app.use('/api/firmware-releases', deviceAccess.requireSession(['config.read']), (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
     app.get('/api/firmware-releases', wrap((req, res) => ok(res, store.list(req.query, true))));
     app.get('/api/firmware-releases/verification-key', wrap((_req, res) => {

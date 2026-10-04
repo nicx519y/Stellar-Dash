@@ -29,6 +29,7 @@ public:
 
     bool probe();
     bool programCombinedImage(uint32_t mappedAddress, uint32_t totalSize);
+    bool programApplicationImage(uint32_t mappedAddress, uint32_t size);
     bool validateApplication(xora_release_identity_t* identity = nullptr);
     Ch585IapClientStatus status() const { return currentStatus; }
     uint8_t progress() const { return currentProgress; }

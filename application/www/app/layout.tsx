@@ -3,7 +3,6 @@
 import { Provider } from "@/components/ui/provider"
 import StyledComponentsRegistry from '@/lib/registry'
 import { SettingsLayout } from '@/components/settings-layout'
-import { useRouterStore } from '@/components/router';
 import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-config-context'
 import { Flex, HStack } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
@@ -23,6 +22,7 @@ import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-netw
 import { usePathname } from 'next/navigation';
 import { UserAuthControl } from '@/components/user-auth-control';
 import { ConfigDraftRecovery } from '@/components/config-sync-status';
+import { WebConfigOverlayProvider } from '@/components/ui/exclusive-dialog';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { connectionErrorMessage } from '@/lib/connection-presentation';
 
@@ -37,7 +37,6 @@ const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
 
 // 创建一个内部组件来使用 context
 function AppContent({ children }: { children: React.ReactNode }) {
-    const firmwarePage = useRouterStore(state => state.currentRoute === 'firmware');
     const {
         connectDevice,
         deviceError,
@@ -118,7 +117,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </Flex>
             <Toaster />
             <LoadingModal
-                isOpen={connectionPending && !firmwarePage}
+                isOpen={connectionPending}
                 variant="connection"
                 connectionState={connectionInProgress ? 'connecting' : 'waiting'}
                 connectionPhase={devicePhase}
@@ -186,9 +185,9 @@ function RouteAwareContent({ children }: { children: React.ReactNode }) {
         <GamepadConfigProvider>
             <LanguageProvider>
                 <UserAuthProvider>
-                    <AppContent>
+                    <WebConfigOverlayProvider><AppContent>
                         {children}
-                    </AppContent>
+                    </AppContent></WebConfigOverlayProvider>
                 </UserAuthProvider>
             </LanguageProvider>
         </GamepadConfigProvider>

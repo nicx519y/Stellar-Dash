@@ -1,5 +1,7 @@
 'use client';
 
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import { create } from 'zustand';
 import { Button } from "@/components/ui/button"
 import { Field } from "@/components/ui/field"
@@ -77,7 +79,7 @@ export function DialogForm() {
 
     return (
         <Portal>
-            <Dialog.Root open={isOpen} onOpenChange={handleClose}>
+            <ExclusiveDialog priority={OVERLAY_PRIORITY.editor} open={isOpen} onOpenChange={handleClose}>
                 <Dialog.Positioner>
                     <Dialog.Content>
                         <form onSubmit={handleSubmit}>
@@ -141,7 +143,7 @@ export function DialogForm() {
                         </form>
                     </Dialog.Content>
                 </Dialog.Positioner>
-            </Dialog.Root>
+            </ExclusiveDialog>
         </Portal>
     );
 }

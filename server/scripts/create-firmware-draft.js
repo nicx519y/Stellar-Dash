@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createBundle } = require('./create-firmware-bundle');
-const { gitReleaseNotes, initialReleaseNotes } = require('./git-release-notes');
+const { gitReleaseNotes, initialReleaseNotes, localReleaseNotes } = require('./git-release-notes');
 
 const TOKEN_PATTERN = /^stsvc_[A-Za-z0-9_-]{43}$/;
 const VERSION_PATTERN = /^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})$/;
@@ -29,7 +29,8 @@ function usage() {
         'For later versions, omit --initial-release to compare with the latest version tag,',
         'or pass --since <previous release Git ref>. Device sources must be committed.',
         'Add --dry-run to create and validate local files without uploading.',
-        'Uploads remain drafts. Acceptance evidence and publishing are done in admin.',
+        'Uploads remain drafts. Review notes and publish manually in admin.',
+        'Local packaging supports --allow-worktree --local-history <prior package directory>; Git evidence records source hashes.',
     ].join('\n');
 }
 
@@ -39,11 +40,12 @@ function parseArguments(argv) {
         ['--source', 'source'], ['--signing-key', 'signingKey'],
         ['--out-dir', 'outDir'], ['--server', 'server'],
         ['--service-token-file', 'serviceTokenFile'],
-        ['--since', 'since'], ['--git-repo', 'gitRepo'],
+        ['--since', 'since'], ['--git-repo', 'gitRepo'], ['--local-history', 'localHistory'],
     ]);
     for (let index = 0; index < argv.length; index += 1) {
         const argument = argv[index];
         if (argument === '--help') return { help: true };
+        if (argument === '--allow-worktree') { options.allowWorktree = true; continue; }
         if (argument === '--dry-run') {
             if (options.dryRun) throw new Error('--dry-run was provided twice');
             options.dryRun = true;
@@ -132,7 +134,10 @@ async function createFirmwareDraft(options) {
     }
     if (options.initialRelease && options.since) throw new Error('--initial-release cannot be used with --since');
     const repoRoot = path.resolve(options.gitRepo || path.join(__dirname, '../..'));
-    const generated = options.initialRelease
+    const generated = options.allowWorktree
+        ? localReleaseNotes({repoRoot, version:manifest.version, since:options.since,
+            historyRoot:path.resolve(options.localHistory || path.join(repoRoot, ".hbox/firmware-drafts")), initialRelease:options.initialRelease})
+        : options.initialRelease
         ? initialReleaseNotes({ repoRoot, version: manifest.version })
         : gitReleaseNotes({ repoRoot, version: manifest.version, since: options.since });
     const { notes, evidence } = generated;
@@ -178,7 +183,7 @@ async function createFirmwareDraft(options) {
         const saved = await requestJson(detailUrl, token, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ revision: draft.revision, notes, acceptance: '' }),
+            body: JSON.stringify({ revision: draft.revision, notes }),
         });
         if (saved.status !== 'draft' || saved.notes !== notes || saved.bundleSha256 !== bundleSha256) {
             throw new Error('The server did not confirm the update notes on the draft');
@@ -197,10 +202,12 @@ if (require.main === module) {
         console.log(`XORA ${result.version}: signed package ${result.bundlePath}`);
         console.log(`Release notes: ${result.notesPath}`);
         console.log(`Git source: ${result.evidencePath}`);
+        const evidence = JSON.parse(fs.readFileSync(result.evidencePath, "utf8"));
+        if (evidence.baselineVersion) console.log(`Notes baseline: XORA ${evidence.baselineVersion} (latest local package with Git evidence)`);
         console.log(`Bundle SHA-256: ${result.bundleSha256}`);
         if (result.releaseId) {
             console.log(`Admin draft: ${result.releaseId}`);
-            console.log(`Preview, edit, record acceptance and publish: ${result.adminUrl}`);
+            console.log(`Preview, edit release notes and publish: ${result.adminUrl}`);
         } else console.log('Dry run complete; nothing was uploaded.');
     })().catch(error => { console.error(`Release draft failed: ${error.message}`); process.exitCode = 1; });
 }

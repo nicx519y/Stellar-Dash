@@ -1,0 +1,1069 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"report_scheduler.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/input/report_scheduler.cpp"
+  19              		.section	.text._ZN12_GLOBAL__N_1L10clamp_rateEt,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZN12_GLOBAL__N_1L10clamp_rateEt:
+  26              	.LVL0:
+  27              	.LFB3938:
+   1:Src/input/report_scheduler.cpp **** #include "report_scheduler.hpp"
+   2:Src/input/report_scheduler.cpp **** 
+   3:Src/input/report_scheduler.cpp **** extern "C" {
+   4:Src/input/report_scheduler.cpp **** #include "tim.h"
+   5:Src/input/report_scheduler.cpp **** }
+   6:Src/input/report_scheduler.cpp **** 
+   7:Src/input/report_scheduler.cpp **** #include "board_cfg.h"
+   8:Src/input/report_scheduler.cpp **** #include "adc_btns/adc_manager.hpp"
+   9:Src/input/report_scheduler.cpp **** #include "micro_timer.hpp"
+  10:Src/input/report_scheduler.cpp **** #include "system_logger.h"
+  11:Src/input/report_scheduler.cpp **** 
+  12:Src/input/report_scheduler.cpp **** namespace {
+  13:Src/input/report_scheduler.cpp **** static uint16_t clamp_rate(uint16_t rateHz) {
+  28              		.loc 1 13 45 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  14:Src/input/report_scheduler.cpp ****     switch (rateHz) {
+  33              		.loc 1 14 5 view .LVU1
+  34 0000 B0F57A6F 		cmp	r0, #4000
+  35 0004 0FD0     		beq	.L2
+  36 0006 09D8     		bhi	.L3
+  37 0008 B0F57A7F 		cmp	r0, #1000
+  38 000c 0BD0     		beq	.L2
+  39 000e B0F5FA6F 		cmp	r0, #2000
+  40 0012 02D0     		beq	.L8
+  15:Src/input/report_scheduler.cpp ****         case 1000:
+  16:Src/input/report_scheduler.cpp ****         case 2000:
+  17:Src/input/report_scheduler.cpp ****         case 4000:
+  18:Src/input/report_scheduler.cpp ****         case 8000:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 2
+
+
+  19:Src/input/report_scheduler.cpp ****             return rateHz;
+  20:Src/input/report_scheduler.cpp ****         default:
+  21:Src/input/report_scheduler.cpp ****             return 1000;
+  41              		.loc 1 21 20 is_stmt 0 view .LVU2
+  42 0014 4FF47A70 		mov	r0, #1000
+  43              	.LVL1:
+  44              		.loc 1 21 20 view .LVU3
+  45 0018 7047     		bx	lr
+  46              	.LVL2:
+  47              	.L8:
+  48              		.loc 1 21 20 view .LVU4
+  49 001a 7047     		bx	lr
+  50              	.L3:
+  14:Src/input/report_scheduler.cpp ****     switch (rateHz) {
+  51              		.loc 1 14 5 view .LVU5
+  52 001c B0F5FA5F 		cmp	r0, #8000
+  53 0020 02D0     		beq	.L9
+  54              		.loc 1 21 20 view .LVU6
+  55 0022 4FF47A70 		mov	r0, #1000
+  56              	.LVL3:
+  57              	.L2:
+  22:Src/input/report_scheduler.cpp ****     }
+  23:Src/input/report_scheduler.cpp **** }
+  58              		.loc 1 23 1 view .LVU7
+  59 0026 7047     		bx	lr
+  60              	.LVL4:
+  61              	.L9:
+  62              		.loc 1 23 1 view .LVU8
+  63 0028 7047     		bx	lr
+  64              		.cfi_endproc
+  65              	.LFE3938:
+  67              		.section	.text._ZN12_GLOBAL__N_1L17get_tim2_clock_hzEv,"ax",%progbits
+  68              		.align	1
+  69              		.syntax unified
+  70              		.thumb
+  71              		.thumb_func
+  73              	_ZN12_GLOBAL__N_1L17get_tim2_clock_hzEv:
+  74              	.LFB3939:
+  24:Src/input/report_scheduler.cpp **** 
+  25:Src/input/report_scheduler.cpp **** static uint32_t get_tim2_clock_hz() {
+  75              		.loc 1 25 37 is_stmt 1 view -0
+  76              		.cfi_startproc
+  77              		@ args = 0, pretend = 0, frame = 0
+  78              		@ frame_needed = 0, uses_anonymous_args = 0
+  79 0000 08B5     		push	{r3, lr}
+  80              	.LCFI0:
+  81              		.cfi_def_cfa_offset 8
+  82              		.cfi_offset 3, -8
+  83              		.cfi_offset 14, -4
+  26:Src/input/report_scheduler.cpp ****     uint32_t pclk = HAL_RCC_GetPCLK1Freq();
+  84              		.loc 1 26 5 view .LVU10
+  85              		.loc 1 26 41 is_stmt 0 view .LVU11
+  86 0002 FFF7FEFF 		bl	HAL_RCC_GetPCLK1Freq
+  87              	.LVL5:
+  27:Src/input/report_scheduler.cpp ****     const uint32_t ppre = (RCC->D2CFGR & RCC_D2CFGR_D2PPRE1);
+  88              		.loc 1 27 5 is_stmt 1 view .LVU12
+  89              		.loc 1 27 33 is_stmt 0 view .LVU13
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 3
+
+
+  90 0006 044B     		ldr	r3, .L14
+  91 0008 DB69     		ldr	r3, [r3, #28]
+  92              	.LVL6:
+  28:Src/input/report_scheduler.cpp ****     if (ppre != RCC_HCLK_DIV1) {
+  93              		.loc 1 28 5 is_stmt 1 view .LVU14
+  94 000a 13F0700F 		tst	r3, #112
+  95 000e 00D1     		bne	.L13
+  96              	.LVL7:
+  97              	.L10:
+  29:Src/input/report_scheduler.cpp ****         return pclk * 2u;
+  30:Src/input/report_scheduler.cpp ****     }
+  31:Src/input/report_scheduler.cpp ****     return pclk;
+  32:Src/input/report_scheduler.cpp **** }
+  98              		.loc 1 32 1 is_stmt 0 view .LVU15
+  99 0010 08BD     		pop	{r3, pc}
+ 100              	.LVL8:
+ 101              	.L13:
+  29:Src/input/report_scheduler.cpp ****         return pclk * 2u;
+ 102              		.loc 1 29 9 is_stmt 1 view .LVU16
+  29:Src/input/report_scheduler.cpp ****         return pclk * 2u;
+ 103              		.loc 1 29 23 is_stmt 0 view .LVU17
+ 104 0012 4000     		lsls	r0, r0, #1
+ 105              	.LVL9:
+  29:Src/input/report_scheduler.cpp ****         return pclk * 2u;
+ 106              		.loc 1 29 23 view .LVU18
+ 107 0014 FCE7     		b	.L10
+ 108              	.L15:
+ 109 0016 00BF     		.align	2
+ 110              	.L14:
+ 111 0018 00440258 		.word	1476543488
+ 112              		.cfi_endproc
+ 113              	.LFE3939:
+ 115              		.section	.text._ZN10ADCManager11getInstanceEv,"axG",%progbits,_ZN10ADCManager11getInstanceEv,comda
+ 116              		.align	1
+ 117              		.weak	_ZN10ADCManager11getInstanceEv
+ 118              		.syntax unified
+ 119              		.thumb
+ 120              		.thumb_func
+ 122              	_ZN10ADCManager11getInstanceEv:
+ 123              	.LFB3920:
+ 124              		.file 2 "Inc/input/adc_btns/adc_manager.hpp"
+   1:Inc/input/adc_btns/adc_manager.hpp **** #ifndef __ADC_VALUES_MAPPING_HPP__
+   2:Inc/input/adc_btns/adc_manager.hpp **** #define __ADC_VALUES_MAPPING_HPP__
+   3:Inc/input/adc_btns/adc_manager.hpp **** 
+   4:Inc/input/adc_btns/adc_manager.hpp **** #include "qspi-w25q64.h"
+   5:Inc/input/adc_btns/adc_manager.hpp **** #include <stdio.h>
+   6:Inc/input/adc_btns/adc_manager.hpp **** #include <stdint.h>
+   7:Inc/input/adc_btns/adc_manager.hpp **** #include <string.h>
+   8:Inc/input/adc_btns/adc_manager.hpp **** #include <vector>
+   9:Inc/input/adc_btns/adc_manager.hpp **** #include <string>
+  10:Inc/input/adc_btns/adc_manager.hpp **** #include <array>
+  11:Inc/input/adc_btns/adc_manager.hpp **** #include "stm32h7xx.h"
+  12:Inc/input/adc_btns/adc_manager.hpp **** #include "stm32h750xx.h"
+  13:Inc/input/adc_btns/adc_manager.hpp **** #include "adc_btns_error.hpp"
+  14:Inc/input/adc_btns/adc_manager.hpp **** #include "cJSON.h"
+  15:Inc/input/adc_btns/adc_manager.hpp **** #include "adc.h"
+  16:Inc/input/adc_btns/adc_manager.hpp **** #include "message_center.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 4
+
+
+  17:Inc/input/adc_btns/adc_manager.hpp **** #include <algorithm>  // 为 std::sort
+  18:Inc/input/adc_btns/adc_manager.hpp **** #include "board_cfg.h"
+  19:Inc/input/adc_btns/adc_manager.hpp **** #include "adc_btns/adc_sample_assembler.hpp"
+  20:Inc/input/adc_btns/adc_manager.hpp **** 
+  21:Inc/input/adc_btns/adc_manager.hpp **** struct ADCCommonCalibrationPair {
+  22:Inc/input/adc_btns/adc_manager.hpp ****     uint16_t topValue;
+  23:Inc/input/adc_btns/adc_manager.hpp ****     uint16_t bottomValue;
+  24:Inc/input/adc_btns/adc_manager.hpp **** };
+  25:Inc/input/adc_btns/adc_manager.hpp **** 
+  26:Inc/input/adc_btns/adc_manager.hpp **** struct ADCCommonConfig {
+  27:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t version;
+  28:Inc/input/adc_btns/adc_manager.hpp ****     char defaultMappingId[16];
+  29:Inc/input/adc_btns/adc_manager.hpp ****     char calibratedMappingId[16];
+  30:Inc/input/adc_btns/adc_manager.hpp ****     ADCCommonCalibrationPair manualCalibrationValues[NUM_ADC_BUTTONS];
+  31:Inc/input/adc_btns/adc_manager.hpp ****     ADCCommonCalibrationPair autoCalibrationValues[NUM_ADC_BUTTONS];
+  32:Inc/input/adc_btns/adc_manager.hpp **** };
+  33:Inc/input/adc_btns/adc_manager.hpp **** 
+  34:Inc/input/adc_btns/adc_manager.hpp **** struct ADCValuesMapping {
+  35:Inc/input/adc_btns/adc_manager.hpp ****     char id[16];                                            // 映射ID
+  36:Inc/input/adc_btns/adc_manager.hpp ****     char name[16];                                          // 映射名称
+  37:Inc/input/adc_btns/adc_manager.hpp ****     size_t length;                                          // 映射长度
+  38:Inc/input/adc_btns/adc_manager.hpp ****     float_t step;                                           // 步长
+  39:Inc/input/adc_btns/adc_manager.hpp ****     uint16_t samplingNoise;                                 // 噪声阈值
+  40:Inc/input/adc_btns/adc_manager.hpp ****     uint16_t samplingFrequency;                             // 采样频率
+  41:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t originalValues[MAX_ADC_VALUES_LENGTH];         // 采集原始值
+  42:Inc/input/adc_btns/adc_manager.hpp ****     
+  43:Inc/input/adc_btns/adc_manager.hpp ****     // 自动校准值：每个按键的初始值(完全按下)和末尾值(完全释放)
+  44:Inc/input/adc_btns/adc_manager.hpp ****     struct {
+  45:Inc/input/adc_btns/adc_manager.hpp ****         uint16_t topValue;      // 完全按下时的值(初始值)
+  46:Inc/input/adc_btns/adc_manager.hpp ****         uint16_t bottomValue;   // 完全释放时的值(末尾值)
+  47:Inc/input/adc_btns/adc_manager.hpp ****     } autoCalibrationValues[NUM_ADC_BUTTONS];
+  48:Inc/input/adc_btns/adc_manager.hpp ****     
+  49:Inc/input/adc_btns/adc_manager.hpp ****     // 手动校准值：每个按键的初始值(完全按下)和末尾值(完全释放)
+  50:Inc/input/adc_btns/adc_manager.hpp ****     struct {
+  51:Inc/input/adc_btns/adc_manager.hpp ****         uint16_t topValue;      // 完全按下时的值(初始值)
+  52:Inc/input/adc_btns/adc_manager.hpp ****         uint16_t bottomValue;   // 完全释放时的值(末尾值)
+  53:Inc/input/adc_btns/adc_manager.hpp ****     } manualCalibrationValues[NUM_ADC_BUTTONS];
+  54:Inc/input/adc_btns/adc_manager.hpp **** };
+  55:Inc/input/adc_btns/adc_manager.hpp **** 
+  56:Inc/input/adc_btns/adc_manager.hpp **** struct ADCValuesMappingStore {
+  57:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t version;
+  58:Inc/input/adc_btns/adc_manager.hpp ****     uint8_t num;
+  59:Inc/input/adc_btns/adc_manager.hpp ****     char defaultId[16];
+  60:Inc/input/adc_btns/adc_manager.hpp ****     ADCValuesMapping mapping[NUM_ADC_VALUES_MAPPING];
+  61:Inc/input/adc_btns/adc_manager.hpp **** };
+  62:Inc/input/adc_btns/adc_manager.hpp **** 
+  63:Inc/input/adc_btns/adc_manager.hpp **** // 采样统计相关成员，每个ADC一个
+  64:Inc/input/adc_btns/adc_manager.hpp **** struct ADCBufferInfo {
+  65:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t* buffer;
+  66:Inc/input/adc_btns/adc_manager.hpp ****     const uint8_t* indexMap;
+  67:Inc/input/adc_btns/adc_manager.hpp ****     uint8_t count;
+  68:Inc/input/adc_btns/adc_manager.hpp **** };
+  69:Inc/input/adc_btns/adc_manager.hpp **** 
+  70:Inc/input/adc_btns/adc_manager.hpp **** // 每个通道的统计信息
+  71:Inc/input/adc_btns/adc_manager.hpp **** struct ADCChannelStats {
+  72:Inc/input/adc_btns/adc_manager.hpp ****     uint8_t adcIndex;
+  73:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t samplingFreq;  // 采样频率
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 5
+
+
+  74:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t averageValue;  // 采样均值
+  75:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t count;         // 采样次数
+  76:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t startTime;     // 开始时间
+  77:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t endTime;       // 结束时间
+  78:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t noiseValue;    // 噪声值
+  79:Inc/input/adc_btns/adc_manager.hpp ****     std::vector<uint32_t> values;
+  80:Inc/input/adc_btns/adc_manager.hpp ****     std::vector<uint32_t> diffValues;
+  81:Inc/input/adc_btns/adc_manager.hpp **** };
+  82:Inc/input/adc_btns/adc_manager.hpp **** 
+  83:Inc/input/adc_btns/adc_manager.hpp **** struct ADCButtonValueInfo {
+  84:Inc/input/adc_btns/adc_manager.hpp ****     uint8_t virtualPin;
+  85:Inc/input/adc_btns/adc_manager.hpp ****     uint32_t* valuePtr;
+  86:Inc/input/adc_btns/adc_manager.hpp **** };
+  87:Inc/input/adc_btns/adc_manager.hpp **** 
+  88:Inc/input/adc_btns/adc_manager.hpp **** struct ADCIndexInfo {
+  89:Inc/input/adc_btns/adc_manager.hpp ****     int8_t ADCIndex;
+  90:Inc/input/adc_btns/adc_manager.hpp ****     int8_t indexInDMA;
+  91:Inc/input/adc_btns/adc_manager.hpp **** };
+  92:Inc/input/adc_btns/adc_manager.hpp **** 
+  93:Inc/input/adc_btns/adc_manager.hpp **** struct AdcSampleFrame : BasicAdcSampleFrame<NUM_ADC_BUTTONS> {};
+  94:Inc/input/adc_btns/adc_manager.hpp **** 
+  95:Inc/input/adc_btns/adc_manager.hpp **** class ADCManager {
+  96:Inc/input/adc_btns/adc_manager.hpp ****     public:
+  97:Inc/input/adc_btns/adc_manager.hpp ****         bool isSamplingHardwareStopped() const;
+  98:Inc/input/adc_btns/adc_manager.hpp ****         ADCManager(ADCManager const&) = delete;
+  99:Inc/input/adc_btns/adc_manager.hpp ****         void operator=(ADCManager const&) = delete;
+ 100:Inc/input/adc_btns/adc_manager.hpp ****         static ADCManager& getInstance() {
+ 125              		.loc 2 100 28 is_stmt 1 view -0
+ 126              		.cfi_startproc
+ 127              		@ args = 0, pretend = 0, frame = 0
+ 128              		@ frame_needed = 0, uses_anonymous_args = 0
+ 101:Inc/input/adc_btns/adc_manager.hpp ****             static ADCManager instance;
+ 129              		.loc 2 101 13 view .LVU20
+ 130              		.loc 2 101 31 is_stmt 0 view .LVU21
+ 131 0000 0E4B     		ldr	r3, .L24
+ 132 0002 1B68     		ldr	r3, [r3]
+ 133 0004 BFF35B8F 		dmb	ish
+ 134              		.loc 2 101 31 discriminator 1 view .LVU22
+ 135 0008 13F0010F 		tst	r3, #1
+ 136 000c 01D0     		beq	.L22
+ 102:Inc/input/adc_btns/adc_manager.hpp ****             return instance;
+ 137              		.loc 2 102 13 is_stmt 1 view .LVU23
+ 103:Inc/input/adc_btns/adc_manager.hpp ****         }
+ 138              		.loc 2 103 9 is_stmt 0 view .LVU24
+ 139 000e 0C48     		ldr	r0, .L24+4
+ 140 0010 7047     		bx	lr
+ 141              	.L22:
+ 100:Inc/input/adc_btns/adc_manager.hpp ****             static ADCManager instance;
+ 142              		.loc 2 100 28 view .LVU25
+ 143 0012 10B5     		push	{r4, lr}
+ 144              	.LCFI1:
+ 145              		.cfi_def_cfa_offset 8
+ 146              		.cfi_offset 4, -8
+ 147              		.cfi_offset 14, -4
+ 101:Inc/input/adc_btns/adc_manager.hpp ****             return instance;
+ 148              		.loc 2 101 31 discriminator 1 view .LVU26
+ 149 0014 0948     		ldr	r0, .L24
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 6
+
+
+ 150 0016 FFF7FEFF 		bl	__cxa_guard_acquire
+ 151              	.LVL10:
+ 152 001a 08B9     		cbnz	r0, .L23
+ 153              	.L17:
+ 102:Inc/input/adc_btns/adc_manager.hpp ****         }
+ 154              		.loc 2 102 13 is_stmt 1 view .LVU27
+ 155              		.loc 2 103 9 is_stmt 0 view .LVU28
+ 156 001c 0848     		ldr	r0, .L24+4
+ 157 001e 10BD     		pop	{r4, pc}
+ 158              	.L23:
+ 101:Inc/input/adc_btns/adc_manager.hpp ****             return instance;
+ 159              		.loc 2 101 31 discriminator 2 view .LVU29
+ 160 0020 074C     		ldr	r4, .L24+4
+ 161 0022 2046     		mov	r0, r4
+ 162 0024 FFF7FEFF 		bl	_ZN10ADCManagerC1Ev
+ 163              	.LVL11:
+ 101:Inc/input/adc_btns/adc_manager.hpp ****             return instance;
+ 164              		.loc 2 101 31 discriminator 1 view .LVU30
+ 165 0028 064A     		ldr	r2, .L24+8
+ 166 002a 0749     		ldr	r1, .L24+12
+ 167 002c 2046     		mov	r0, r4
+ 168 002e FFF7FEFF 		bl	__aeabi_atexit
+ 169              	.LVL12:
+ 101:Inc/input/adc_btns/adc_manager.hpp ****             return instance;
+ 170              		.loc 2 101 31 discriminator 2 view .LVU31
+ 171 0032 0248     		ldr	r0, .L24
+ 172 0034 FFF7FEFF 		bl	__cxa_guard_release
+ 173              	.LVL13:
+ 174 0038 F0E7     		b	.L17
+ 175              	.L25:
+ 176 003a 00BF     		.align	2
+ 177              	.L24:
+ 178 003c 00000000 		.word	_ZGVZN10ADCManager11getInstanceEvE8instance
+ 179 0040 00000000 		.word	_ZZN10ADCManager11getInstanceEvE8instance
+ 180 0044 00000000 		.word	__dso_handle
+ 181 0048 00000000 		.word	_ZN10ADCManagerD1Ev
+ 182              		.cfi_endproc
+ 183              	.LFE3920:
+ 185              		.section	.text._ZN11MicrosTimer11getInstanceEv,"axG",%progbits,_ZN11MicrosTimer11getInstanceEv,com
+ 186              		.align	1
+ 187              		.weak	_ZN11MicrosTimer11getInstanceEv
+ 188              		.syntax unified
+ 189              		.thumb
+ 190              		.thumb_func
+ 192              	_ZN11MicrosTimer11getInstanceEv:
+ 193              	.LFB3924:
+ 194              		.file 3 "Inc/support/micro_timer.hpp"
+   1:Inc/support/micro_timer.hpp **** #ifndef __MICROS_TIMER_HPP__
+   2:Inc/support/micro_timer.hpp **** #define __MICROS_TIMER_HPP__
+   3:Inc/support/micro_timer.hpp **** 
+   4:Inc/support/micro_timer.hpp **** #include <stdint.h>
+   5:Inc/support/micro_timer.hpp **** #include "tim.h"
+   6:Inc/support/micro_timer.hpp **** 
+   7:Inc/support/micro_timer.hpp **** class MicrosTimer {
+   8:Inc/support/micro_timer.hpp **** public:
+   9:Inc/support/micro_timer.hpp ****     // 禁止拷贝构造和赋值
+  10:Inc/support/micro_timer.hpp ****     MicrosTimer(const MicrosTimer&) = delete;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 7
+
+
+  11:Inc/support/micro_timer.hpp ****     MicrosTimer& operator=(const MicrosTimer&) = delete;
+  12:Inc/support/micro_timer.hpp **** 
+  13:Inc/support/micro_timer.hpp ****     // 获取单例实例
+  14:Inc/support/micro_timer.hpp ****     static MicrosTimer& getInstance() {
+ 195              		.loc 3 14 25 is_stmt 1 view -0
+ 196              		.cfi_startproc
+ 197              		@ args = 0, pretend = 0, frame = 0
+ 198              		@ frame_needed = 0, uses_anonymous_args = 0
+ 199 0000 08B5     		push	{r3, lr}
+ 200              	.LCFI2:
+ 201              		.cfi_def_cfa_offset 8
+ 202              		.cfi_offset 3, -8
+ 203              		.cfi_offset 14, -4
+  15:Inc/support/micro_timer.hpp ****         static MicrosTimer instance;
+ 204              		.loc 3 15 9 view .LVU33
+ 205              		.loc 3 15 28 is_stmt 0 view .LVU34
+ 206 0002 0A4B     		ldr	r3, .L30
+ 207 0004 1B68     		ldr	r3, [r3]
+ 208 0006 BFF35B8F 		dmb	ish
+ 209              		.loc 3 15 28 discriminator 1 view .LVU35
+ 210 000a 13F0010F 		tst	r3, #1
+ 211 000e 01D0     		beq	.L29
+ 212              	.L27:
+  16:Inc/support/micro_timer.hpp ****         return instance;
+ 213              		.loc 3 16 9 is_stmt 1 view .LVU36
+  17:Inc/support/micro_timer.hpp ****     }
+ 214              		.loc 3 17 5 is_stmt 0 view .LVU37
+ 215 0010 0748     		ldr	r0, .L30+4
+ 216 0012 08BD     		pop	{r3, pc}
+ 217              	.L29:
+  15:Inc/support/micro_timer.hpp ****         static MicrosTimer instance;
+ 218              		.loc 3 15 28 discriminator 1 view .LVU38
+ 219 0014 0548     		ldr	r0, .L30
+ 220 0016 FFF7FEFF 		bl	__cxa_guard_acquire
+ 221              	.LVL14:
+ 222 001a 0028     		cmp	r0, #0
+ 223 001c F8D0     		beq	.L27
+  15:Inc/support/micro_timer.hpp ****         static MicrosTimer instance;
+ 224              		.loc 3 15 28 discriminator 2 view .LVU39
+ 225 001e 0448     		ldr	r0, .L30+4
+ 226 0020 FFF7FEFF 		bl	_ZN11MicrosTimerC1Ev
+ 227              	.LVL15:
+  15:Inc/support/micro_timer.hpp ****         static MicrosTimer instance;
+ 228              		.loc 3 15 28 discriminator 1 view .LVU40
+ 229 0024 0148     		ldr	r0, .L30
+ 230 0026 FFF7FEFF 		bl	__cxa_guard_release
+ 231              	.LVL16:
+ 232 002a F1E7     		b	.L27
+ 233              	.L31:
+ 234              		.align	2
+ 235              	.L30:
+ 236 002c 00000000 		.word	_ZGVZN11MicrosTimer11getInstanceEvE8instance
+ 237 0030 00000000 		.word	_ZZN11MicrosTimer11getInstanceEvE8instance
+ 238              		.cfi_endproc
+ 239              	.LFE3924:
+ 241              		.section	.text._ZN15ReportScheduler7setRateEt,"ax",%progbits
+ 242              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 8
+
+
+ 243              		.global	_ZN15ReportScheduler7setRateEt
+ 244              		.syntax unified
+ 245              		.thumb
+ 246              		.thumb_func
+ 248              	_ZN15ReportScheduler7setRateEt:
+ 249              	.LVL17:
+ 250              	.LFB3940:
+  33:Src/input/report_scheduler.cpp **** }
+  34:Src/input/report_scheduler.cpp **** 
+  35:Src/input/report_scheduler.cpp **** bool ReportScheduler::setRate(uint16_t rateHz) {
+ 251              		.loc 1 35 48 is_stmt 1 view -0
+ 252              		.cfi_startproc
+ 253              		@ args = 0, pretend = 0, frame = 0
+ 254              		@ frame_needed = 0, uses_anonymous_args = 0
+ 255              		.loc 1 35 48 is_stmt 0 view .LVU42
+ 256 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 257              	.LCFI3:
+ 258              		.cfi_def_cfa_offset 24
+ 259              		.cfi_offset 3, -24
+ 260              		.cfi_offset 4, -20
+ 261              		.cfi_offset 5, -16
+ 262              		.cfi_offset 6, -12
+ 263              		.cfi_offset 7, -8
+ 264              		.cfi_offset 14, -4
+ 265 0002 0546     		mov	r5, r0
+  36:Src/input/report_scheduler.cpp ****     runningRateHz = clamp_rate(rateHz);
+ 266              		.loc 1 36 5 is_stmt 1 view .LVU43
+ 267              		.loc 1 36 31 is_stmt 0 view .LVU44
+ 268 0004 0846     		mov	r0, r1
+ 269              	.LVL18:
+ 270              		.loc 1 36 31 view .LVU45
+ 271 0006 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L10clamp_rateEt
+ 272              	.LVL19:
+ 273              		.loc 1 36 19 discriminator 1 view .LVU46
+ 274 000a 2880     		strh	r0, [r5]	@ movhi
+  37:Src/input/report_scheduler.cpp **** 
+  38:Src/input/report_scheduler.cpp ****     const uint32_t timClkHz = get_tim2_clock_hz();
+ 275              		.loc 1 38 5 is_stmt 1 view .LVU47
+ 276              		.loc 1 38 48 is_stmt 0 view .LVU48
+ 277 000c FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L17get_tim2_clock_hzEv
+ 278              	.LVL20:
+  39:Src/input/report_scheduler.cpp ****     const uint32_t counterHz = 1000000u;
+ 279              		.loc 1 39 5 is_stmt 1 view .LVU49
+  40:Src/input/report_scheduler.cpp ****     uint32_t prescaler = (timClkHz / counterHz);
+ 280              		.loc 1 40 5 view .LVU50
+ 281              		.loc 1 40 14 is_stmt 0 view .LVU51
+ 282 0010 1E4B     		ldr	r3, .L39
+ 283 0012 A3FB0023 		umull	r2, r3, r3, r0
+ 284 0016 9B0C     		lsrs	r3, r3, #18
+ 285              	.LVL21:
+  41:Src/input/report_scheduler.cpp ****     if (prescaler == 0u) prescaler = 1u;
+ 286              		.loc 1 41 5 is_stmt 1 view .LVU52
+ 287 0018 1D4A     		ldr	r2, .L39+4
+ 288 001a 9042     		cmp	r0, r2
+ 289 001c 00D8     		bhi	.L33
+ 290              		.loc 1 41 36 is_stmt 0 discriminator 1 view .LVU53
+ 291 001e 0123     		movs	r3, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 9
+
+
+ 292              	.LVL22:
+ 293              	.L33:
+  42:Src/input/report_scheduler.cpp ****     prescaler -= 1u;
+ 294              		.loc 1 42 5 is_stmt 1 view .LVU54
+ 295              		.loc 1 42 15 is_stmt 0 view .LVU55
+ 296 0020 5C1E     		subs	r4, r3, #1
+ 297              	.LVL23:
+  43:Src/input/report_scheduler.cpp **** 
+  44:Src/input/report_scheduler.cpp ****     uint32_t period = (counterHz / runningRateHz);
+ 298              		.loc 1 44 5 is_stmt 1 view .LVU56
+ 299              		.loc 1 44 36 is_stmt 0 view .LVU57
+ 300 0022 2A88     		ldrh	r2, [r5]
+ 301              		.loc 1 44 14 view .LVU58
+ 302 0024 1B4B     		ldr	r3, .L39+8
+ 303 0026 B3FBF2F3 		udiv	r3, r3, r2
+ 304              	.LVL24:
+  45:Src/input/report_scheduler.cpp ****     if (period == 0u) period = 1u;
+ 305              		.loc 1 45 5 is_stmt 1 view .LVU59
+  46:Src/input/report_scheduler.cpp ****     period -= 1u;
+ 306              		.loc 1 46 5 view .LVU60
+ 307              		.loc 1 46 12 is_stmt 0 view .LVU61
+ 308 002a 5E1E     		subs	r6, r3, #1
+ 309              	.LVL25:
+  47:Src/input/report_scheduler.cpp **** 
+  48:Src/input/report_scheduler.cpp ****     __HAL_TIM_DISABLE_IT(&htim2, TIM_IT_UPDATE);
+ 310              		.loc 1 48 5 is_stmt 1 view .LVU62
+ 311 002c 1A48     		ldr	r0, .L39+12
+ 312              	.LVL26:
+ 313              		.loc 1 48 5 is_stmt 0 view .LVU63
+ 314 002e 0268     		ldr	r2, [r0]
+ 315 0030 D368     		ldr	r3, [r2, #12]
+ 316 0032 23F00103 		bic	r3, r3, #1
+ 317 0036 D360     		str	r3, [r2, #12]
+  49:Src/input/report_scheduler.cpp ****     if (HAL_TIM_Base_Stop_IT(&htim2) != HAL_OK) {
+ 318              		.loc 1 49 5 is_stmt 1 view .LVU64
+ 319              		.loc 1 49 29 is_stmt 0 view .LVU65
+ 320 0038 FFF7FEFF 		bl	HAL_TIM_Base_Stop_IT
+ 321              	.LVL27:
+ 322              		.loc 1 49 5 discriminator 1 view .LVU66
+ 323 003c F0B9     		cbnz	r0, .L38
+  50:Src/input/report_scheduler.cpp ****         started = false;
+  51:Src/input/report_scheduler.cpp ****         ADC_MANAGER.forceStopAllSampling();
+  52:Src/input/report_scheduler.cpp ****         APP_STAGE_ERROR("I04S", "TIM2 stop failed before rate change");
+  53:Src/input/report_scheduler.cpp ****         return false;
+  54:Src/input/report_scheduler.cpp ****     }
+  55:Src/input/report_scheduler.cpp ****     started = false;
+ 324              		.loc 1 55 5 is_stmt 1 view .LVU67
+ 325              		.loc 1 55 13 is_stmt 0 view .LVU68
+ 326 003e 0023     		movs	r3, #0
+ 327 0040 2B73     		strb	r3, [r5, #12]
+  56:Src/input/report_scheduler.cpp ****     if (!ADC_MANAGER.rearmInputSampling(runningRateHz)) {
+ 328              		.loc 1 56 5 is_stmt 1 view .LVU69
+ 329              		.loc 1 56 10 is_stmt 0 view .LVU70
+ 330 0042 FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 331              	.LVL28:
+ 332              		.loc 1 56 40 discriminator 1 view .LVU71
+ 333 0046 2988     		ldrh	r1, [r5]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 10
+
+
+ 334 0048 FFF7FEFF 		bl	_ZN10ADCManager18rearmInputSamplingEt
+ 335              	.LVL29:
+ 336              		.loc 1 56 5 discriminator 2 view .LVU72
+ 337 004c 0746     		mov	r7, r0
+ 338 004e D8B1     		cbz	r0, .L35
+  57:Src/input/report_scheduler.cpp ****         APP_STAGE_ERROR("I04A", "ADC DMA rearm failed before TIM2 start");
+  58:Src/input/report_scheduler.cpp ****         return false;
+  59:Src/input/report_scheduler.cpp ****     }
+  60:Src/input/report_scheduler.cpp ****     __HAL_TIM_SET_PRESCALER(&htim2, prescaler);
+ 339              		.loc 1 60 5 is_stmt 1 view .LVU73
+ 340 0050 1148     		ldr	r0, .L39+12
+ 341 0052 0368     		ldr	r3, [r0]
+ 342 0054 9C62     		str	r4, [r3, #40]
+  61:Src/input/report_scheduler.cpp ****     __HAL_TIM_SET_AUTORELOAD(&htim2, period);
+ 343              		.loc 1 61 5 view .LVU74
+ 344              		.loc 1 61 5 view .LVU75
+ 345 0056 DE62     		str	r6, [r3, #44]
+ 346              		.loc 1 61 5 view .LVU76
+ 347 0058 C660     		str	r6, [r0, #12]
+ 348              		.loc 1 61 5 view .LVU77
+  62:Src/input/report_scheduler.cpp ****     __HAL_TIM_SET_COUNTER(&htim2, 0u);
+ 349              		.loc 1 62 5 view .LVU78
+ 350 005a 0022     		movs	r2, #0
+ 351 005c 5A62     		str	r2, [r3, #36]
+  63:Src/input/report_scheduler.cpp ****     __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+ 352              		.loc 1 63 5 view .LVU79
+ 353 005e 6FF00102 		mvn	r2, #1
+ 354 0062 1A61     		str	r2, [r3, #16]
+  64:Src/input/report_scheduler.cpp ****     started = true;
+ 355              		.loc 1 64 5 view .LVU80
+ 356              		.loc 1 64 13 is_stmt 0 view .LVU81
+ 357 0064 0123     		movs	r3, #1
+ 358 0066 2B73     		strb	r3, [r5, #12]
+  65:Src/input/report_scheduler.cpp ****     if (HAL_TIM_Base_Start_IT(&htim2) != HAL_OK) {
+ 359              		.loc 1 65 5 is_stmt 1 view .LVU82
+ 360              		.loc 1 65 30 is_stmt 0 view .LVU83
+ 361 0068 FFF7FEFF 		bl	HAL_TIM_Base_Start_IT
+ 362              	.LVL30:
+ 363              		.loc 1 65 5 discriminator 1 view .LVU84
+ 364 006c 60B1     		cbz	r0, .L35
+  66:Src/input/report_scheduler.cpp ****         started = false;
+ 365              		.loc 1 66 9 is_stmt 1 view .LVU85
+ 366              		.loc 1 66 17 is_stmt 0 view .LVU86
+ 367 006e 0027     		movs	r7, #0
+ 368 0070 2F73     		strb	r7, [r5, #12]
+  67:Src/input/report_scheduler.cpp ****         ADC_MANAGER.forceStopAllSampling();
+ 369              		.loc 1 67 9 is_stmt 1 view .LVU87
+ 370 0072 FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 371              	.LVL31:
+ 372              		.loc 1 67 41 is_stmt 0 discriminator 1 view .LVU88
+ 373 0076 FFF7FEFF 		bl	_ZN10ADCManager20forceStopAllSamplingEv
+ 374              	.LVL32:
+  68:Src/input/report_scheduler.cpp ****         APP_STAGE_ERROR("I04T", "TIM2 report/ADC clock start failed: rate=%u",
+ 375              		.loc 1 68 9 is_stmt 1 view .LVU89
+  69:Src/input/report_scheduler.cpp ****                         static_cast<unsigned>(runningRateHz));
+  70:Src/input/report_scheduler.cpp ****         return false;
+ 376              		.loc 1 70 9 view .LVU90
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 11
+
+
+ 377              		.loc 1 70 16 is_stmt 0 view .LVU91
+ 378 007a 05E0     		b	.L35
+ 379              	.L38:
+  50:Src/input/report_scheduler.cpp ****         ADC_MANAGER.forceStopAllSampling();
+ 380              		.loc 1 50 9 is_stmt 1 view .LVU92
+  50:Src/input/report_scheduler.cpp ****         ADC_MANAGER.forceStopAllSampling();
+ 381              		.loc 1 50 17 is_stmt 0 view .LVU93
+ 382 007c 0027     		movs	r7, #0
+ 383 007e 2F73     		strb	r7, [r5, #12]
+  51:Src/input/report_scheduler.cpp ****         APP_STAGE_ERROR("I04S", "TIM2 stop failed before rate change");
+ 384              		.loc 1 51 9 is_stmt 1 view .LVU94
+ 385 0080 FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 386              	.LVL33:
+  51:Src/input/report_scheduler.cpp ****         APP_STAGE_ERROR("I04S", "TIM2 stop failed before rate change");
+ 387              		.loc 1 51 41 is_stmt 0 discriminator 1 view .LVU95
+ 388 0084 FFF7FEFF 		bl	_ZN10ADCManager20forceStopAllSamplingEv
+ 389              	.LVL34:
+  52:Src/input/report_scheduler.cpp ****         return false;
+ 390              		.loc 1 52 9 is_stmt 1 view .LVU96
+  53:Src/input/report_scheduler.cpp ****     }
+ 391              		.loc 1 53 9 view .LVU97
+ 392              	.L35:
+  71:Src/input/report_scheduler.cpp ****     }
+  72:Src/input/report_scheduler.cpp ****     return true;
+  73:Src/input/report_scheduler.cpp **** }
+ 393              		.loc 1 73 1 is_stmt 0 view .LVU98
+ 394 0088 3846     		mov	r0, r7
+ 395 008a F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 396              	.LVL35:
+ 397              	.L40:
+ 398              		.loc 1 73 1 view .LVU99
+ 399              		.align	2
+ 400              	.L39:
+ 401 008c 83DE1B43 		.word	1125899907
+ 402 0090 3F420F00 		.word	999999
+ 403 0094 40420F00 		.word	1000000
+ 404 0098 00000000 		.word	htim2
+ 405              		.cfi_endproc
+ 406              	.LFE3940:
+ 408              		.section	.text._ZN15ReportScheduler5startEt,"ax",%progbits
+ 409              		.align	1
+ 410              		.global	_ZN15ReportScheduler5startEt
+ 411              		.syntax unified
+ 412              		.thumb
+ 413              		.thumb_func
+ 415              	_ZN15ReportScheduler5startEt:
+ 416              	.LVL36:
+ 417              	.LFB3941:
+  74:Src/input/report_scheduler.cpp **** 
+  75:Src/input/report_scheduler.cpp **** bool ReportScheduler::start(uint16_t rateHz) {
+ 418              		.loc 1 75 46 is_stmt 1 view -0
+ 419              		.cfi_startproc
+ 420              		@ args = 0, pretend = 0, frame = 0
+ 421              		@ frame_needed = 0, uses_anonymous_args = 0
+ 422              		.loc 1 75 46 is_stmt 0 view .LVU101
+ 423 0000 38B5     		push	{r3, r4, r5, lr}
+ 424              	.LCFI4:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 12
+
+
+ 425              		.cfi_def_cfa_offset 16
+ 426              		.cfi_offset 3, -16
+ 427              		.cfi_offset 4, -12
+ 428              		.cfi_offset 5, -8
+ 429              		.cfi_offset 14, -4
+ 430 0002 0446     		mov	r4, r0
+ 431 0004 0D46     		mov	r5, r1
+  76:Src/input/report_scheduler.cpp ****     irqTicksWin = 0;
+ 432              		.loc 1 76 5 is_stmt 1 view .LVU102
+ 433              		.loc 1 76 17 is_stmt 0 view .LVU103
+ 434 0006 0023     		movs	r3, #0
+ 435 0008 4360     		str	r3, [r0, #4]
+  77:Src/input/report_scheduler.cpp ****     statLastMs = HAL_GetTick();
+ 436              		.loc 1 77 5 is_stmt 1 view .LVU104
+ 437              		.loc 1 77 29 is_stmt 0 view .LVU105
+ 438 000a FFF7FEFF 		bl	HAL_GetTick
+ 439              	.LVL37:
+ 440              		.loc 1 77 16 discriminator 1 view .LVU106
+ 441 000e A060     		str	r0, [r4, #8]
+  78:Src/input/report_scheduler.cpp ****     return setRate(rateHz);
+ 442              		.loc 1 78 5 is_stmt 1 view .LVU107
+ 443              		.loc 1 78 19 is_stmt 0 view .LVU108
+ 444 0010 2946     		mov	r1, r5
+ 445 0012 2046     		mov	r0, r4
+ 446 0014 FFF7FEFF 		bl	_ZN15ReportScheduler7setRateEt
+ 447              	.LVL38:
+  79:Src/input/report_scheduler.cpp **** }
+ 448              		.loc 1 79 1 view .LVU109
+ 449 0018 38BD     		pop	{r3, r4, r5, pc}
+ 450              		.loc 1 79 1 view .LVU110
+ 451              		.cfi_endproc
+ 452              	.LFE3941:
+ 454              		.section	.text._ZN15ReportScheduler4stopEv,"ax",%progbits
+ 455              		.align	1
+ 456              		.global	_ZN15ReportScheduler4stopEv
+ 457              		.syntax unified
+ 458              		.thumb
+ 459              		.thumb_func
+ 461              	_ZN15ReportScheduler4stopEv:
+ 462              	.LVL39:
+ 463              	.LFB3942:
+  80:Src/input/report_scheduler.cpp **** 
+  81:Src/input/report_scheduler.cpp **** void ReportScheduler::stop() {
+ 464              		.loc 1 81 30 is_stmt 1 view -0
+ 465              		.cfi_startproc
+ 466              		@ args = 0, pretend = 0, frame = 0
+ 467              		@ frame_needed = 0, uses_anonymous_args = 0
+ 468              		.loc 1 81 30 is_stmt 0 view .LVU112
+ 469 0000 10B5     		push	{r4, lr}
+ 470              	.LCFI5:
+ 471              		.cfi_def_cfa_offset 8
+ 472              		.cfi_offset 4, -8
+ 473              		.cfi_offset 14, -4
+ 474 0002 0446     		mov	r4, r0
+  82:Src/input/report_scheduler.cpp ****     __HAL_TIM_DISABLE_IT(&htim2, TIM_IT_UPDATE);
+ 475              		.loc 1 82 5 is_stmt 1 view .LVU113
+ 476 0004 0748     		ldr	r0, .L45
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 13
+
+
+ 477              	.LVL40:
+ 478              		.loc 1 82 5 is_stmt 0 view .LVU114
+ 479 0006 0268     		ldr	r2, [r0]
+ 480 0008 D368     		ldr	r3, [r2, #12]
+ 481 000a 23F00103 		bic	r3, r3, #1
+ 482 000e D360     		str	r3, [r2, #12]
+  83:Src/input/report_scheduler.cpp ****     HAL_TIM_Base_Stop_IT(&htim2);
+ 483              		.loc 1 83 5 is_stmt 1 view .LVU115
+ 484              		.loc 1 83 25 is_stmt 0 view .LVU116
+ 485 0010 FFF7FEFF 		bl	HAL_TIM_Base_Stop_IT
+ 486              	.LVL41:
+  84:Src/input/report_scheduler.cpp ****     irqTicksWin = 0;
+ 487              		.loc 1 84 5 is_stmt 1 view .LVU117
+ 488              		.loc 1 84 17 is_stmt 0 view .LVU118
+ 489 0014 0023     		movs	r3, #0
+ 490 0016 6360     		str	r3, [r4, #4]
+  85:Src/input/report_scheduler.cpp ****     started = false;
+ 491              		.loc 1 85 5 is_stmt 1 view .LVU119
+ 492              		.loc 1 85 13 is_stmt 0 view .LVU120
+ 493 0018 2373     		strb	r3, [r4, #12]
+  86:Src/input/report_scheduler.cpp ****     ADC_MANAGER.resetInputSamples();
+ 494              		.loc 1 86 5 is_stmt 1 view .LVU121
+ 495 001a FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 496              	.LVL42:
+ 497              		.loc 1 86 34 is_stmt 0 discriminator 1 view .LVU122
+ 498 001e FFF7FEFF 		bl	_ZN10ADCManager17resetInputSamplesEv
+ 499              	.LVL43:
+  87:Src/input/report_scheduler.cpp **** }
+ 500              		.loc 1 87 1 view .LVU123
+ 501 0022 10BD     		pop	{r4, pc}
+ 502              	.LVL44:
+ 503              	.L46:
+ 504              		.loc 1 87 1 view .LVU124
+ 505              		.align	2
+ 506              	.L45:
+ 507 0024 00000000 		.word	htim2
+ 508              		.cfi_endproc
+ 509              	.LFE3942:
+ 511              		.section	.text._ZN15ReportScheduler10onTimerIrqEv,"ax",%progbits
+ 512              		.align	1
+ 513              		.global	_ZN15ReportScheduler10onTimerIrqEv
+ 514              		.syntax unified
+ 515              		.thumb
+ 516              		.thumb_func
+ 518              	_ZN15ReportScheduler10onTimerIrqEv:
+ 519              	.LVL45:
+ 520              	.LFB3943:
+  88:Src/input/report_scheduler.cpp **** 
+  89:Src/input/report_scheduler.cpp **** void ReportScheduler::onTimerIrq() {
+ 521              		.loc 1 89 36 is_stmt 1 view -0
+ 522              		.cfi_startproc
+ 523              		@ args = 0, pretend = 0, frame = 0
+ 524              		@ frame_needed = 0, uses_anonymous_args = 0
+  90:Src/input/report_scheduler.cpp ****     if (!started) return;
+ 525              		.loc 1 90 5 view .LVU126
+ 526              		.loc 1 90 10 is_stmt 0 view .LVU127
+ 527 0000 037B     		ldrb	r3, [r0, #12]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 14
+
+
+ 528              		.loc 1 90 5 view .LVU128
+ 529 0002 03B9     		cbnz	r3, .L53
+ 530 0004 7047     		bx	lr
+ 531              	.L53:
+  89:Src/input/report_scheduler.cpp ****     if (!started) return;
+ 532              		.loc 1 89 36 view .LVU129
+ 533 0006 10B5     		push	{r4, lr}
+ 534              	.LCFI6:
+ 535              		.cfi_def_cfa_offset 8
+ 536              		.cfi_offset 4, -8
+ 537              		.cfi_offset 14, -4
+  91:Src/input/report_scheduler.cpp ****     irqTicksWin++;
+ 538              		.loc 1 91 5 is_stmt 1 view .LVU130
+ 539 0008 4368     		ldr	r3, [r0, #4]
+ 540              		.loc 1 91 16 is_stmt 0 view .LVU131
+ 541 000a 0133     		adds	r3, r3, #1
+ 542 000c 4360     		str	r3, [r0, #4]
+  92:Src/input/report_scheduler.cpp ****     ADC_MANAGER.notifyTimerTrigger(MICROS_TIMER.cycles());
+ 543              		.loc 1 92 5 is_stmt 1 view .LVU132
+ 544 000e FFF7FEFF 		bl	_ZN10ADCManager11getInstanceEv
+ 545              	.LVL46:
+ 546              		.loc 1 92 5 is_stmt 0 view .LVU133
+ 547 0012 0446     		mov	r4, r0
+ 548              		.loc 1 92 36 discriminator 1 view .LVU134
+ 549 0014 FFF7FEFF 		bl	_ZN11MicrosTimer11getInstanceEv
+ 550              	.LVL47:
+ 551              		.loc 1 92 35 discriminator 2 view .LVU135
+ 552 0018 FFF7FEFF 		bl	_ZNK11MicrosTimer6cyclesEv
+ 553              	.LVL48:
+ 554 001c 0146     		mov	r1, r0
+ 555              		.loc 1 92 35 discriminator 3 view .LVU136
+ 556 001e 2046     		mov	r0, r4
+ 557 0020 FFF7FEFF 		bl	_ZN10ADCManager18notifyTimerTriggerEm
+ 558              	.LVL49:
+  93:Src/input/report_scheduler.cpp **** }
+ 559              		.loc 1 93 1 view .LVU137
+ 560 0024 10BD     		pop	{r4, pc}
+ 561              		.cfi_endproc
+ 562              	.LFE3943:
+ 564              		.section	.text.HAL_TIM_PeriodElapsedCallback,"ax",%progbits
+ 565              		.align	1
+ 566              		.global	HAL_TIM_PeriodElapsedCallback
+ 567              		.syntax unified
+ 568              		.thumb
+ 569              		.thumb_func
+ 571              	HAL_TIM_PeriodElapsedCallback:
+ 572              	.LVL50:
+ 573              	.LFB3944:
+  94:Src/input/report_scheduler.cpp **** 
+  95:Src/input/report_scheduler.cpp **** extern "C" void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+ 574              		.loc 1 95 72 is_stmt 1 view -0
+ 575              		.cfi_startproc
+ 576              		@ args = 0, pretend = 0, frame = 0
+ 577              		@ frame_needed = 0, uses_anonymous_args = 0
+  96:Src/input/report_scheduler.cpp ****     if (htim && htim->Instance == BOARD_TIM2_INSTANCE) {
+ 578              		.loc 1 96 5 view .LVU139
+ 579 0000 48B1     		cbz	r0, .L57
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 15
+
+
+  95:Src/input/report_scheduler.cpp ****     if (htim && htim->Instance == BOARD_TIM2_INSTANCE) {
+ 580              		.loc 1 95 72 is_stmt 0 view .LVU140
+ 581 0002 08B5     		push	{r3, lr}
+ 582              	.LCFI7:
+ 583              		.cfi_def_cfa_offset 8
+ 584              		.cfi_offset 3, -8
+ 585              		.cfi_offset 14, -4
+ 586              		.loc 1 96 23 discriminator 1 view .LVU141
+ 587 0004 0368     		ldr	r3, [r0]
+ 588              		.loc 1 96 14 discriminator 1 view .LVU142
+ 589 0006 B3F1804F 		cmp	r3, #1073741824
+ 590 000a 00D0     		beq	.L60
+ 591              	.LVL51:
+ 592              	.L54:
+  97:Src/input/report_scheduler.cpp ****         REPORT_SCHEDULER.onTimerIrq();
+  98:Src/input/report_scheduler.cpp ****     }
+  99:Src/input/report_scheduler.cpp **** }
+ 593              		.loc 1 99 1 view .LVU143
+ 594 000c 08BD     		pop	{r3, pc}
+ 595              	.LVL52:
+ 596              	.L60:
+  97:Src/input/report_scheduler.cpp ****         REPORT_SCHEDULER.onTimerIrq();
+ 597              		.loc 1 97 9 is_stmt 1 view .LVU144
+ 598              	.LBB4:
+ 599              	.LBI4:
+ 600              		.file 4 "Inc/input/report_scheduler.hpp"
+   1:Inc/input/report_scheduler.hpp **** #ifndef REPORT_SCHEDULER_HPP
+   2:Inc/input/report_scheduler.hpp **** #define REPORT_SCHEDULER_HPP
+   3:Inc/input/report_scheduler.hpp **** 
+   4:Inc/input/report_scheduler.hpp **** #include <stdint.h>
+   5:Inc/input/report_scheduler.hpp **** 
+   6:Inc/input/report_scheduler.hpp **** class ReportScheduler {
+   7:Inc/input/report_scheduler.hpp **** public:
+   8:Inc/input/report_scheduler.hpp ****     ReportScheduler(ReportScheduler const&) = delete;
+   9:Inc/input/report_scheduler.hpp ****     void operator=(ReportScheduler const&) = delete;
+  10:Inc/input/report_scheduler.hpp **** 
+  11:Inc/input/report_scheduler.hpp ****     static ReportScheduler& getInstance() {
+ 601              		.loc 4 11 29 view .LVU145
+  12:Inc/input/report_scheduler.hpp ****         static ReportScheduler instance;
+ 602              		.loc 4 12 9 view .LVU146
+  13:Inc/input/report_scheduler.hpp ****         return instance;
+ 603              		.loc 4 13 9 view .LVU147
+ 604              	.LBE4:
+  97:Src/input/report_scheduler.cpp ****     }
+ 605              		.loc 1 97 36 is_stmt 0 discriminator 1 view .LVU148
+ 606 000e 0248     		ldr	r0, .L61
+ 607              	.LVL53:
+  97:Src/input/report_scheduler.cpp ****     }
+ 608              		.loc 1 97 36 discriminator 1 view .LVU149
+ 609 0010 FFF7FEFF 		bl	_ZN15ReportScheduler10onTimerIrqEv
+ 610              	.LVL54:
+ 611              		.loc 1 99 1 view .LVU150
+ 612 0014 FAE7     		b	.L54
+ 613              	.LVL55:
+ 614              	.L57:
+ 615              	.LCFI8:
+ 616              		.cfi_def_cfa_offset 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 16
+
+
+ 617              		.cfi_restore 3
+ 618              		.cfi_restore 14
+ 619              		.loc 1 99 1 view .LVU151
+ 620 0016 7047     		bx	lr
+ 621              	.L62:
+ 622              		.align	2
+ 623              	.L61:
+ 624 0018 00000000 		.word	_ZZN15ReportScheduler11getInstanceEvE8instance
+ 625              		.cfi_endproc
+ 626              	.LFE3944:
+ 628              		.weak	_ZGVZN11MicrosTimer11getInstanceEvE8instance
+ 629              		.section	.bss._ZGVZN11MicrosTimer11getInstanceEvE8instance,"awG",%nobits,_ZGVZN11MicrosTimer11getI
+ 630              		.align	2
+ 633              	_ZGVZN11MicrosTimer11getInstanceEvE8instance:
+ 634 0000 00000000 		.space	4
+ 635              		.weak	_ZZN11MicrosTimer11getInstanceEvE8instance
+ 636              		.section	.bss._ZZN11MicrosTimer11getInstanceEvE8instance,"awG",%nobits,_ZZN11MicrosTimer11getInsta
+ 637              		.align	2
+ 640              	_ZZN11MicrosTimer11getInstanceEvE8instance:
+ 641 0000 00000000 		.space	4
+ 642              		.weak	_ZGVZN10ADCManager11getInstanceEvE8instance
+ 643              		.section	.bss._ZGVZN10ADCManager11getInstanceEvE8instance,"awG",%nobits,_ZGVZN10ADCManager11getIns
+ 644              		.align	2
+ 647              	_ZGVZN10ADCManager11getInstanceEvE8instance:
+ 648 0000 00000000 		.space	4
+ 649              		.weak	_ZZN10ADCManager11getInstanceEvE8instance
+ 650              		.section	.bss._ZZN10ADCManager11getInstanceEvE8instance,"awG",%nobits,_ZZN10ADCManager11getInstanc
+ 651              		.align	2
+ 654              	_ZZN10ADCManager11getInstanceEvE8instance:
+ 655 0000 00000000 		.space	3464
+ 655      00000000 
+ 655      00000000 
+ 655      00000000 
+ 655      00000000 
+ 656              		.weak	_ZZN15ReportScheduler11getInstanceEvE8instance
+ 657              		.section	.data._ZZN15ReportScheduler11getInstanceEvE8instance,"awG",%progbits,_ZZN15ReportSchedule
+ 658              		.align	2
+ 661              	_ZZN15ReportScheduler11getInstanceEvE8instance:
+ 662 0000 E803     		.short	1000
+ 663 0002 0000     		.space	2
+ 664 0004 00000000 		.word	0
+ 665 0008 00000000 		.word	0
+ 666 000c 00       		.byte	0
+ 667 000d 000000   		.space	3
+ 668              		.text
+ 669              	.Letext0:
+ 670              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 671              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 672              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdint.h"
+ 673              		.file 8 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 674              		.file 9 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h7xx.h"
+ 675              		.file 10 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 676              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/basic_string.h"
+ 677              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 678              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 679              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 680              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 17
+
+
+ 681              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 682              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/new_allocator.h"
+ 683              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/allocator.h"
+ 684              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 685              		.file 20 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cwchar"
+ 686              		.file 21 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/char_traits.h"
+ 687              		.file 22 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/clocale"
+ 688              		.file 23 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/string_view"
+ 689              		.file 24 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdlib"
+ 690              		.file 25 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdio"
+ 691              		.file 26 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/alloc_traits.h"
+ 692              		.file 27 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/initializer_list"
+ 693              		.file 28 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/charconv.h"
+ 694              		.file 29 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/algorithmfwd.h"
+ 695              		.file 30 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/functional"
+ 696              		.file 31 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdint"
+ 697              		.file 32 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/stl_vector.h"
+ 698              		.file 33 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/vector.tcc"
+ 699              		.file 34 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/array"
+ 700              		.file 35 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/stringfwd.h"
+ 701              		.file 36 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/stl_iterator_base_
+ 702              		.file 37 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 703              		.file 38 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/ext/alloc_traits.h"
+ 704              		.file 39 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/stl_iterator.h"
+ 705              		.file 40 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_types.h"
+ 706              		.file 41 "<built-in>"
+ 707              		.file 42 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/reent.h"
+ 708              		.file 43 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/lock.h"
+ 709              		.file 44 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 710              		.file 45 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdlib.h"
+ 711              		.file 46 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 712              		.file 47 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 713              		.file 48 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 714              		.file 49 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_adc.h"
+ 715              		.file 50 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 716              		.file 51 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 717              		.file 52 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 718              		.file 53 "Inc/system/board_cfg.h"
+ 719              		.file 54 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/wchar.h"
+ 720              		.file 55 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/locale.h"
+ 721              		.file 56 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/pstl/execution_defs.h"
+ 722              		.file 57 "Inc/input/adc_btns/adc_sample_assembler.hpp"
+ 723              		.file 58 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 724              		.file 59 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc.h"
+ 725              		.file 60 "Core/Inc/tim.h"
+ 726              		.file 61 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 727              		.file 62 "Inc/support/enums.hpp"
+ 728              		.file 63 "Inc/input/adc_btns/adc_btns_error.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s 			page 18
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 report_scheduler.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:20     .text._ZN12_GLOBAL__N_1L10clamp_rateEt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:25     .text._ZN12_GLOBAL__N_1L10clamp_rateEt:00000000 _ZN12_GLOBAL__N_1L10clamp_rateEt
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:68     .text._ZN12_GLOBAL__N_1L17get_tim2_clock_hzEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:73     .text._ZN12_GLOBAL__N_1L17get_tim2_clock_hzEv:00000000 _ZN12_GLOBAL__N_1L17get_tim2_clock_hzEv
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:111    .text._ZN12_GLOBAL__N_1L17get_tim2_clock_hzEv:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:116    .text._ZN10ADCManager11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:122    .text._ZN10ADCManager11getInstanceEv:00000000 _ZN10ADCManager11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:178    .text._ZN10ADCManager11getInstanceEv:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:647    .bss._ZGVZN10ADCManager11getInstanceEvE8instance:00000000 _ZGVZN10ADCManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:654    .bss._ZZN10ADCManager11getInstanceEvE8instance:00000000 _ZZN10ADCManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:186    .text._ZN11MicrosTimer11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:192    .text._ZN11MicrosTimer11getInstanceEv:00000000 _ZN11MicrosTimer11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:236    .text._ZN11MicrosTimer11getInstanceEv:0000002c $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:633    .bss._ZGVZN11MicrosTimer11getInstanceEvE8instance:00000000 _ZGVZN11MicrosTimer11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:640    .bss._ZZN11MicrosTimer11getInstanceEvE8instance:00000000 _ZZN11MicrosTimer11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:242    .text._ZN15ReportScheduler7setRateEt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:248    .text._ZN15ReportScheduler7setRateEt:00000000 _ZN15ReportScheduler7setRateEt
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:401    .text._ZN15ReportScheduler7setRateEt:0000008c $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:409    .text._ZN15ReportScheduler5startEt:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:415    .text._ZN15ReportScheduler5startEt:00000000 _ZN15ReportScheduler5startEt
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:455    .text._ZN15ReportScheduler4stopEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:461    .text._ZN15ReportScheduler4stopEv:00000000 _ZN15ReportScheduler4stopEv
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:507    .text._ZN15ReportScheduler4stopEv:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:512    .text._ZN15ReportScheduler10onTimerIrqEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:518    .text._ZN15ReportScheduler10onTimerIrqEv:00000000 _ZN15ReportScheduler10onTimerIrqEv
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:565    .text.HAL_TIM_PeriodElapsedCallback:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:571    .text.HAL_TIM_PeriodElapsedCallback:00000000 HAL_TIM_PeriodElapsedCallback
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:624    .text.HAL_TIM_PeriodElapsedCallback:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:661    .data._ZZN15ReportScheduler11getInstanceEvE8instance:00000000 _ZZN15ReportScheduler11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:630    .bss._ZGVZN11MicrosTimer11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:637    .bss._ZZN11MicrosTimer11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:644    .bss._ZGVZN10ADCManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:651    .bss._ZZN10ADCManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnWzQEf.s:658    .data._ZZN15ReportScheduler11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_RCC_GetPCLK1Freq
+__cxa_guard_acquire
+_ZN10ADCManagerC1Ev
+__aeabi_atexit
+__cxa_guard_release
+__dso_handle
+_ZN10ADCManagerD1Ev
+_ZN11MicrosTimerC1Ev
+HAL_TIM_Base_Stop_IT
+_ZN10ADCManager18rearmInputSamplingEt
+HAL_TIM_Base_Start_IT
+_ZN10ADCManager20forceStopAllSamplingEv
+htim2
+HAL_GetTick
+_ZN10ADCManager17resetInputSamplesEv
+_ZNK11MicrosTimer6cyclesEv
+_ZN10ADCManager18notifyTimerTriggerEm

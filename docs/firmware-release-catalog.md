@@ -1,6 +1,6 @@
 # XORA 固件上传与目录
 
-管理员导入、校验、草稿、发布与撤回沿用现有流程。WebConfig 固件页消费整机目录，通过 v2 发布包执行 STM32 + TX 安装；v1 包仍只供浏览。设备事务和验收边界见 [整机安装](firmware-release-install.md)。
+管理员导入、校验、草稿、发布与撤回沿用现有流程。WebConfig 固件页消费整机目录，通过协议 2 的 v2 发布包执行主控 + TX 安装；旧协议包仍只供浏览。设备事务和验收边界见 [整机安装](firmware-release-install.md)。
 
 ## 本地使用
 
@@ -31,10 +31,10 @@ python tools/hbox.py web local-serve --port 3001
   "schemaVersion": 2,
   "buildId": "replace-with-generated-build-id",
   "install": {
-    "protocol": 1, "order": "tx-then-stm32",
+    "protocol": 2, "order": "tx-then-stm32",
     "configRead": { "min": 34, "max": 34 }, "configWrite": 34,
-    "stm32Maintenance": { "min": 1, "max": 1 },
-    "txMaintenance": { "min": 1, "max": 1 }
+    "stm32Maintenance": { "min": 2, "max": 2 },
+    "txMaintenance": { "min": 2, "max": 2 }
   },
   "product": "XORA",
   "deviceModel": "STM32H750_HBOX",
@@ -86,31 +86,31 @@ node server/scripts/create-firmware-bundle.js "path/to/release-source.json" "pat
 python tools/local_firmware_draft.py
 ```
 
-脚本只使用 `.hbox/webconfig-local` 的本地 PKI，构建时隔离状态目录并在结束后恢复 `common/release_build_identity.h`；不烧录设备。它默认使用版本 `1.0.0`，产物放在 `.hbox/firmware-drafts/XORA-1.0.0-<时间>/`。若 `.hbox/webconfig-local/firmware-manage-token.txt` 已保存从本地 admin 创建的 `firmware.manage` 令牌，它会把包导入 `http://localhost:3001` 草稿并写入说明；没有令牌时仅生成和校验本地文件，并明确报告未上传。不会向远端服务发送请求。重新运行会重新构建并创建新输出目录；已有包可直接在本地 admin 固件页导入。
+脚本只使用 `.hbox/webconfig-local` 的本地 PKI，构建时隔离状态目录并在结束后恢复 `common/release_build_identity.h`；不烧录设备。它默认使用版本 `1.0.0`，当前协议 2 测试版使用 `python tools/local_firmware_draft.py --version 1.0.2`，不覆盖已发布 1.0.1。产物放在 `.hbox/firmware-drafts/XORA-<版本>-<时间>/package/`。若 `.hbox/webconfig-local/firmware-manage-token.txt` 已保存从本地 admin 创建的 `firmware.manage` 令牌，它会把包导入 `http://localhost:3001` 草稿并写入说明；没有令牌时仍生成并校验签名包、Markdown 和 Git 依据文件，明确报告未上传。加 `--no-upload` 可在令牌存在时也只生成本地文件。不会向远端服务发送请求。重新运行会重新构建并创建新输出目录；已有包可直接在本地 admin 固件页导入，同版本已有草稿时直接使用该草稿。
 
-先使用本页“本地使用”中的 `local-serve --port 3001` 启动本地 admin 服务，登录本地管理员账号，在 `/admin/users/` 创建仅含 `firmware.manage` 范围的服务令牌，并把只显示一次的令牌保存到 `.hbox/webconfig-local/firmware-manage-token.txt`。也可在已登录的本地 admin 固件页手动导入一键命令生成的 ZIP，随后粘贴旁边的更新说明文件内容。默认本地状态目录使用 `.hbox/webconfig-local/pki/firmware-release-private.pem` 测试密钥，对应 `local-serve` 配置的验签公钥；不要拿其他诊断目录的密钥混用。
+先使用本页“本地使用”中的 `local-serve --port 3001` 启动本地 admin 服务，登录本地管理员账号，在 `/admin/service-tokens/` 创建含 `firmware.manage` 范围的服务令牌。生成弹窗分别提供“复制 Windows 脚本”和“复制 macOS 脚本”；在仓库根目录的 Windows PowerShell 或 macOS 终端（zsh/bash）中粘贴执行一次，以后打包无需指定令牌文件。Windows 脚本调用 `python`，macOS 脚本调用 `python3`；两者均通过 `local_firmware_draft.py --save-token` 从标准输入接收令牌，原子替换 `.hbox/webconfig-local/firmware-manage-token.txt`，不保留旧令牌副本，也不撤销后台旧令牌；此设置操作不构建、不上传、不烧录。令牌与脚本只在创建弹窗中提供，关闭后不可再次取回。手动保存其他文件时仍可用 `--token-file <路径>` 临时指定。也可在已登录的本地 admin 固件页手动导入一键命令生成的 ZIP，再在草稿详情页导入旁边的 `.md` 更新说明。默认本地状态目录使用 `.hbox/webconfig-local/pki/firmware-release-private.pem` 测试密钥，对应 `local-serve` 配置的验签公钥；不要拿其他诊断目录的密钥混用。
 
 底层 `create-firmware-draft.js` 默认使用 `http://localhost:3001`，并且只接受 `localhost`、`127.0.0.1` 或 `::1` 的本地 admin 服务地址；远端上传会在读取文件或发出请求前被拒绝。本地草稿只保存在本地服务的数据目录，不会同步到正式服务。
 
-当前为初版，`--initial-release` 自动生成简短的初版发布声明，无需填写更新点。以后发布时去掉该参数：命令自动查找早于目标版本、且可从当前提交到达的最新 `xora-v<版本>` 或 `v<版本>` 标签，以两次发布之间已提交的 STM32、TX 与共用固件源码变更生成简洁、面向用户的说明。如果上一版未打标签，可加 `--since <上一版提交或标签>`。固件源码有未提交改动、找不到上一版或没有可归纳的设备源码变化时，命令会停止，避免说明与提交不符；发布前应先核对生成文案。WebConfig 托管页面的改动不会写入固件更新说明。
+本地一键命令的默认版本 `1.0.0` 生成简短的初版发布声明；后续版本自动查找本地较低版本包中的 Git 依据文件，比较上次实际源码快照与当前 Git 工作区，包括未提交及新加入的固件源码。新依据文件记录每个源码文件的摘要；历史文件只有提交信息时，比较该提交与当前工作区，并输出实际使用的基线版本。缺少本地记录时才查找可达的 `xora-v<版本>` 或 `v<版本>` 标签，也可加 `--since <上一版提交或标签>`。无设备源码变化时生成简短的常规维护说明，不虚构具体更新。WebConfig 托管页面的改动不会写入固件更新说明；发布前仍须核对文案。
 
-命令生成 `XORA-<版本>-release.zip`、`XORA-<版本>-release-notes.md` 和记录 Git 提交及分类依据的 `XORA-<版本>-release-notes-source.json`，本地重新验签后上传 ZIP，并把更新说明保存到 admin 草稿。私钥和服务令牌仅从本机文件读取，不会上传；服务令牌必须有 `firmware.manage` 范围。首次检查可加 `--dry-run` 并省略 `--server`、`--service-token-file`，只生成本地文件。
+本地一键命令始终生成并校验 `XORA-<版本>-release.zip`，同时生成 `XORA-<版本>-release-notes.md` 和记录 Git 提交、源码快照及分类依据的 `XORA-<版本>-release-notes-source.json`。有本地服务令牌且未指定 `--no-upload` 时，重新验签后上传 ZIP，并把更新说明保存到 admin 草稿。私钥和服务令牌仅从本机文件读取，不会上传；服务令牌必须有 `firmware.manage` 范围。底层打包上传命令首次检查可加 `--dry-run` 并省略 `--server`、`--service-token-file`，只生成本地文件。直接使用底层命令时仍默认要求已提交源码；一键本地命令明确启用工作区和本地历史比较。
 
-成功导入后命令显示草稿 ID 和 `/admin/firmware/` 地址。管理员在该页面查看、修改用户可见更新说明，补充仅管理员可见的实际验收记录，再人工发布。一键命令会构建固件，但不会烧录或发布；底层 `create-firmware-draft.js` 只打包已有产物。上传超时或连接中断后，先按版本在后台检查草稿，再决定是否重试，以免重复导入。`tools/release.py upload` 仍对应旧 STM32 固件接口，不用于此 v2 整机草稿。
+成功导入后命令显示草稿 ID 和 `/admin/firmware/` 地址。管理员从列表进入草稿详情，查看或修改用户可见更新说明；文字编辑会自动保存，点击“导入 .md”或将 `.md` 拖入更新说明输入框都会替换现有说明并立即保存。说明保存且非空后可由管理员人工发布。一键命令会构建固件，但不会烧录或发布；底层 `create-firmware-draft.js` 只打包已有产物。上传超时或连接中断后，先按版本在后台检查草稿，再决定是否重试，以免重复导入。`tools/release.py upload` 仍对应旧 STM32 固件接口，不用于此 v2 整机草稿。
 
-初版正式发布并确认对应源码提交后，为该提交建立版本标签（例如 `git tag xora-v1.0.0 <发布提交>`）；下一版命令即可自动定位它。自动说明依据变更文件归纳体验主题，不代替管理员检查具体效果和措辞。
+正式发布并确认对应源码提交后，可为该提交建立版本标签（例如 `git tag xora-v1.0.0 <发布提交>`），供缺少本地包记录的环境定位基线。自动说明依据变更文件归纳体验主题，不代替管理员检查具体效果和措辞。
 
 ## 管理流程
 
 1. 选择发布 ZIP，观察上传进度；上传结束后显示服务器验签阶段。
 2. 服务端验证签名、声明文件集合、摘要、硬件、STM32 内层签名及槽布局和无锁模式声明。错误显示在页面；失败不会生成可发布版本。
-3. 成功生成草稿。填写用户可见更新说明、内部验收记录并保存。
+3. 成功生成草稿。在详情页填写或导入 `.md` 更新说明，等待右上角显示“已保存”。保存失败时保留文字并可重试。
 4. 人工管理员确认发布。服务端重新读取并验证存储包，提交发布状态与审计记录后，公开目录立即可查。
 5. 撤回必须填写原因。新目录请求不再返回该版本，已打开页面需刷新；不撤销已经获取的内容。恢复发布同样重新验签。
 
-发布后所有内容被冻结，包括更新说明和验收记录；首期仅草稿可编辑。替换镜像需要新版本。重复的型号／硬件／整机版本被拒绝。草稿可以删除，审计日志和内容存储保留，不做在线物理清理。
+发布后更新说明和发布包被冻结；仅草稿可编辑。替换镜像需要新版本。重复的型号／硬件／整机版本被拒绝。管理列表和详情页均提供“删除固件”，草稿、已发布和已撤回版本都可在确认后删除；删除后管理列表、公开详情和下载入口不再提供该版本，已下载或安装的固件不受影响。审计日志和内容存储保留，不做在线物理清理；曾发布版本删除后仍不可重新导入同型号／硬件／整机版本，未发布草稿可重新导入。历史验收记录仍保存在现有数据库字段中，但不再是发布门槛，也不在详情页编辑。
 
-操作使用 `revision` 防止并发覆盖，冲突后点击“重新加载详情”。服务令牌 `firmware.manage` 可以导入、查阅、编辑、删除草稿；发布、撤回、恢复发布均要求人工管理员登录。
+操作使用 `revision` 防止并发覆盖；自动保存冲突时保留本地文字、显示失败，不覆盖他处修改。服务令牌 `firmware.manage` 可以导入、查阅、编辑、删除草稿；发布、撤回、恢复发布及删除已发布／已撤回版本均要求人工管理员登录。
 
 ## 接口与存储
 
@@ -120,10 +120,10 @@ python tools/local_firmware_draft.py
 | `GET /api/admin/firmware/imports/:id` | 导入状态与错误；不包含内部路径 |
 | `GET /api/admin/firmware/releases` | 列表，支持 `query/status/hardware/offset/limit` |
 | `GET /api/admin/firmware/releases/:id` | 管理详情及最近 100 条审计记录 |
-| `PATCH /api/admin/firmware/releases/:id` | `{revision, notes, acceptance}`，仅草稿 |
+| `PATCH /api/admin/firmware/releases/:id` | `{revision, notes}`，仅草稿；旧请求可选传 `acceptance` 以兼容历史客户端 |
 | `POST /api/admin/firmware/releases/:id/publish` | `{revision}`；发布或恢复 |
 | `POST /api/admin/firmware/releases/:id/withdraw` | `{revision, reason}` |
-| `DELETE /api/admin/firmware/releases/:id` | `{revision}`，仅草稿 |
+| `DELETE /api/admin/firmware/releases/:id` | `{revision}`，支持全部状态；已发布／已撤回版本要求人工管理员会话 |
 | `GET /api/admin/firmware/legacy` | 只读列出历史 STM32 数据，不进行迁移或发布 |
 | `GET /api/firmware-releases` | 公开正式目录，可搜索和按硬件筛选 |
 | `GET /api/firmware-releases/:id` | 公开详情；草稿／撤回均返回 404 |

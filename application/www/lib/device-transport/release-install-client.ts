@@ -1,23 +1,38 @@
 import JSZip from 'jszip';
+import { saveInstallTask, forgetInstallTask } from './release-install-task';
+import { accumulateInstallProgress } from './release-install-progress';
 import { calculateSHA256 } from '../firmware-utils';
 import type { PublicFirmwareRelease, FirmwareReleaseManifest } from '../admin/firmware-types';
 import type { DeviceCommandClient } from './device-command-client';
+import { DeviceTransportError } from './types';
 
 export interface FirmwareInventory {
   protocol: number; deviceModel: string; hardwareVersion: string; currentSlot: 'A' | 'B';
   configVersion: number; securityVersion: number; metadataConsistent: boolean;
   stm32: { version: string; buildId: string; maintenance: number; protocol: number };
   tx?: { version: string; buildId: string; maintenance: number; protocol: number };
-  installationState: 'unknown' | 'installed' | 'mixed' | 'incomplete';
+  installationState: 'unknown' | 'installed' | 'mixed' | 'incomplete' | 'restored';
   confirmedVersion: string; confirmedDigest: string; sessionId: string;
   phase: string; targetVersion: string; targetDigest: string; error: string;
+  backupReceived?: number; backupTotal?: number; backupReady?: boolean;
+  recoveryResult?: 'none' | 'restoring' | 'restored' | 'failed';
+  installError?: string; recoveryError?: string; errorCode?: string; restoreAttempts?: number;
   canAbort: boolean; canRetry: boolean; txReceived: number;
 }
-export interface ReleaseProgress { stage: string; component?: string; received?: number; total?: number }
+export interface ReleaseProgress {
+  stage: string; component?: string; received?: number; total?: number;
+  stageReceived?: number; stageTotal?: number; overallPercent?: number; stepIndex?: number;
+  sessionId?: string; digest?: string; activatedAt?: number;
+}
 export interface PreparedRelease {
   release: PublicFirmwareRelease; digest: string; declaration: Uint8Array;
   targetSlot: 'A' | 'B'; securityVersion: number;
   components: Array<{ name: string; address: number; data: Uint8Array }>;
+}
+export function isLegacyPhysicalConfirmationRejection(error: unknown): boolean {
+  if (!(error instanceof DeviceTransportError) || error.code !== 'protocol') return false;
+  const response = error.cause as { command?: unknown; errNo?: unknown } | undefined;
+  return response?.command === 'begin_release_install' && response.errNo === 423;
 }
 const inRange = (value: number, range: { min: number; max: number }) =>
   Number.isInteger(value) && Number.isInteger(range.min) && Number.isInteger(range.max) && value >= range.min && value <= range.max;
@@ -26,12 +41,12 @@ export function releaseBlockReason(release: PublicFirmwareRelease, inventory: Fi
   const m = release.manifest, c = m.install;
   if (m.schemaVersion !== 2 || !c || release.installable !== true) return 'catalog-only';
   if (!inventory) return 'connect-device';
-  if (inventory.protocol !== 1 || inventory.stm32.protocol !== 1 || inventory.tx?.protocol !== 1) return 'baseline-required';
+  if (inventory.protocol !== 2 || inventory.stm32.protocol !== 2 || inventory.tx?.protocol !== 2) return 'baseline-required';
   if (!inventory.metadataConsistent) return 'metadata-mismatch';
-  if (!['idle', 'completed', 'aborted'].includes(inventory.phase)) return 'installation-pending';
+  if (!['idle', 'completed', 'aborted', 'restored'].includes(inventory.phase)) return 'installation-pending';
   if (m.deviceModel !== inventory.deviceModel || m.hardwareVersion !== inventory.hardwareVersion) return 'hardware-mismatch';
   if (m.bootSecurityMode !== 'unlocked-development' || m.requiresManualLifecycleProvisioning !== false) return 'forbidden-build';
-  if (c.protocol !== 1 || c.order !== 'tx-then-stm32') return 'unsupported-protocol';
+  if (c.protocol !== 2 || c.order !== 'tx-then-stm32') return 'unsupported-protocol';
   if (!inRange(inventory.configVersion, c.configRead) || c.configWrite !== inventory.configVersion) return 'configuration-incompatible';
   if (!inRange(inventory.stm32.maintenance, c.stm32Maintenance) || !inRange(inventory.tx.maintenance, c.txMaintenance)) return 'maintenance-incompatible';
   return null;
@@ -69,12 +84,26 @@ const fixed = (bytes: Uint8Array, start: number, length: number) => {
   return new TextDecoder('utf-8', { fatal: true }).decode(field.slice(0, end));
 };
 
-export async function downloadRelease(client: DeviceCommandClient, id: string, inventory: FirmwareInventory): Promise<PreparedRelease> {
+export async function downloadRelease(client: DeviceCommandClient, id: string, inventory: FirmwareInventory, progress: (p: ReleaseProgress) => void = () => {}): Promise<PreparedRelease> {
   const release = await api<PublicFirmwareRelease>(client, `/api/firmware-releases/${encodeURIComponent(id)}`);
   const reason = releaseBlockReason(release, inventory); if (reason) throw new Error(reason);
   const response = await client.authorizedFetch(`/api/firmware-releases/${encodeURIComponent(id)}/download`, { cache: 'no-store' }, ['config.read']);
   if (!response.ok) throw new Error('Release download rejected');
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  const total = Number(response.headers.get('Content-Length')) || undefined;
+  if (total && total > 12 * 1024 * 1024) throw new Error('Package exceeds 12 MiB');
+  const chunks: Uint8Array[] = []; let received = 0;
+  if (response.body) {
+    const reader = response.body.getReader();
+    try { while (true) {
+      const chunk = await reader.read(); if (chunk.done) break;
+      received += chunk.value.length;
+      if (received > 12 * 1024 * 1024) { await reader.cancel(); throw new Error('Package exceeds 12 MiB'); }
+      chunks.push(chunk.value); progress({ stage: 'downloading', received, total });
+    } } finally { reader.releaseLock(); }
+  } else { chunks.push(new Uint8Array(await response.arrayBuffer())); received = chunks[0].length; }
+  const bytes = new Uint8Array(received); let position = 0;
+  for (const chunk of chunks) { bytes.set(chunk, position); position += chunk.length; }
+  progress({ stage: 'extracting', received: 0, total: 1 });
   if (await calculateSHA256(bytes) !== release.bundleSha256 || response.headers.get('X-Content-SHA256') !== release.bundleSha256) throw new Error('Bundle digest mismatch');
   const zip = await unzip(bytes, 6);
   const raw = await read(zip, 'release.json'), signature = await read(zip, 'release.sig');
@@ -114,7 +143,10 @@ export async function downloadRelease(client: DeviceCommandClient, id: string, i
     const address = view.getUint32(off + 96, true), size = view.getUint32(off + 100, true), layout = layouts[name];
     if (!layout || seen.has(name) || address !== layout[0] || size > layout[1]) throw new Error('Invalid component layout');
     seen.add(name);
-    if (name === 'webresources' && !metadata[off + 169] && !size && metadata[747] === 1) continue;
+    if (name === 'webresources') {
+      if (!metadata[off + 169] && !size && metadata[747] === 1) continue;
+      throw new Error('TX backup requires unused hosted webresources');
+    }
     const data = await read(inner, file);
     if (!metadata[off + 169] || !size || data.length !== size || await calculateSHA256(data) !== fixed(metadata, off + 104, 65)) throw new Error('Component digest mismatch');
     components.push({ name, address, data });
@@ -124,6 +156,7 @@ export async function downloadRelease(client: DeviceCommandClient, id: string, i
   components.push({ name: 'tx', address: 0x90790000, data: txBytes });
   const declaration = new Uint8Array(signature.length + metadata.length + raw.length);
   declaration.set(signature); declaration.set(metadata, 64); declaration.set(raw, 64 + 807);
+  progress({ stage: 'extracting', received: 1, total: 1 });
   return { release, digest: await calculateSHA256(raw), declaration, targetSlot, securityVersion, components };
 }
 
@@ -137,6 +170,9 @@ export async function installRelease(client: DeviceCommandClient, pkg: PreparedR
   const sessionId = `rel-${crypto.randomUUID().replaceAll('-', '').slice(0, 27)}`;
   const begin = await client.request('begin_release_install', { session_id: sessionId, declaration_size: pkg.declaration.length });
   if (!begin?.success) throw new Error('Installation rejected');
+  progress({ stage: 'declaring', sessionId });
+  const controllerTotal = pkg.components.filter(c => c.name !== 'tx').reduce((sum, c) => sum + c.data.length, 0);
+  let controllerReceived = 0;
   for (const component of [{ name: 'declaration', address: 0, data: pkg.declaration }, ...pkg.components]) {
     const totalChunks = Math.ceil(component.data.length / 4096);
     for (let offset = 0, index = 0; offset < component.data.length; offset += 4096, index++) {
@@ -144,15 +180,45 @@ export async function installRelease(client: DeviceCommandClient, pkg: PreparedR
       const ack = await client.uploadFirmwareChunk({ sessionId, componentName: component.name, chunkIndex: index, totalChunks,
         chunkOffset: offset, targetAddress: component.address + offset, checksumSha256: await calculateSHA256(data), data });
       if (!ack.success) throw new Error(ack.error || 'Chunk rejected');
-      progress({ stage: 'receiving', component: component.name, received: offset + data.length, total: component.data.length });
+      const controller = component.name !== 'declaration' && component.name !== 'tx';
+      if (controller) controllerReceived += data.length;
+      progress({ stage: component.name === 'declaration' ? 'declaring' : component.name === 'tx' ? 'staging-tx' : 'staging-controller', component: component.name, received: offset + data.length, total: component.data.length,
+        ...(controller ? { stageReceived: controllerReceived, stageTotal: controllerTotal } : {}) });
+    }
+    if (component.name === 'declaration') {
+      const started = await client.request('backup_release_tx', { session_id: sessionId });
+      if (!started?.success) throw new Error('TX backup rejected');
+      const deadline = Date.now() + 600_000;
+      while (true) {
+        const status = await client.request('get_release_install_status', {}) as unknown as FirmwareInventory;
+        if (status.sessionId !== sessionId || status.targetDigest !== pkg.digest) throw new Error('TX backup transaction mismatch');
+        progress({ stage: 'backing-up-tx', received: status.backupReceived, total: status.backupTotal, sessionId });
+        if (status.phase === 'receiving' && status.backupReady) break;
+        if (status.phase !== 'backing-up-tx') throw new Error(status.error || 'TX backup failed');
+        if (Date.now() >= deadline) throw new Error('TX backup timed out; new TX has not been written');
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
   }
   const prepared = await client.request('prepare_release_install', { session_id: sessionId });
   if (!prepared?.success) throw new Error('Device did not confirm prepared images');
   progress({ stage: 'prepared' });
   // Do not abort on an uncertain activation response: the device may already be writing TX.
-  progress({ stage: 'activating' });
-  const activated = await client.request('activate_release_install', { session_id: sessionId });
-  if (!activated?.success) throw new Error('Activation result is uncertain; query device status');
-  progress({ stage: 'waiting-device' });
+  const activatedAt = Date.now();
+  // Storage failure blocks activation; refreshing the page must never lose the transaction.
+  saveInstallTask({ protocol: 2, sessionId, digest: pkg.digest, version: pkg.release.manifest.version,
+    activatedAt, release: pkg.release, result: 'waiting', progress: accumulateInstallProgress(null, { stage: 'activating' }) });
+  progress({ stage: 'activating', sessionId, digest: pkg.digest, activatedAt });
+  try {
+    const activated = await client.request('activate_release_install', { session_id: sessionId });
+    if (!activated?.success) { forgetInstallTask(sessionId); throw new Error('Activation rejected'); }
+  } catch (error) {
+    const response = error instanceof DeviceTransportError ? error.cause as { errNo?: number } : undefined;
+    if (error instanceof DeviceTransportError && error.code === 'protocol' && response?.errNo) {
+      forgetInstallTask(sessionId); throw error;
+    }
+    if (error instanceof Error && error.message === 'Activation rejected') throw error;
+    // An absent ACK does not prove rejection. Observe this persisted transaction only.
+  }
+  progress({ stage: 'waiting-device', sessionId, digest: pkg.digest, activatedAt });
 }

@@ -1,13 +1,14 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Box, Button, Heading, HStack, Stack, Text } from '@chakra-ui/react';
+import { Badge, Box, Button, Flex, Heading, HStack, Stack, Text } from '@chakra-ui/react';
 import { useLanguage } from '@/contexts/language-context';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { FirmwareReleaseCatalog } from './firmware-release-catalog';
-import { FirmwareReleaseDetails } from './firmware-release-details';
-import { releaseBlockReason, type FirmwareInventory, type PreparedRelease, type ReleaseProgress } from '@/lib/device-transport/release-install-client';
+import { FirmwareInstallDialog } from './firmware-install-dialog';
+import { accumulateInstallProgress } from '@/lib/device-transport/release-install-progress';
+import { isLegacyPhysicalConfirmationRejection, releaseBlockReason, type FirmwareInventory, type PreparedRelease, type ReleaseProgress } from '@/lib/device-transport/release-install-client';
 import type { PublicFirmwareRelease } from '@/lib/admin/firmware-types';
-import { scheduleAuthorizedReconnect } from '@/lib/device-transport/authorized-reconnect';
+import { createInstallMonitor, readInstallTask, readResumableInstallTask, forgetInstallTask, saveInstallTask, type InstallTask } from '@/lib/device-transport/release-install-task';
 import type { DeviceImageCatalog } from '@/lib/device-transport/device-feature-types';
 import { DeviceTransportError } from '@/lib/device-transport/types';
 import { galleryErrorMessage } from '@/lib/gallery-error-message';
@@ -22,16 +23,19 @@ const reasons: Record<string, [string, string]> = {
   'forbidden-build': ['不是无锁开发产物', 'Not an unlocked development build'],
   'unsupported-protocol': ['不支持此升级协议', 'Unsupported installation protocol'],
   'configuration-incompatible': ['配置格式不兼容，安装会被阻止', 'Configuration format is incompatible'],
-  'maintenance-incompatible': ['STM32 / TX 维护协议不兼容', 'STM32 / TX maintenance protocol mismatch'],
+  'maintenance-incompatible': ['主控 / TX 维护协议不兼容', 'Controller / TX maintenance protocol mismatch'],
 };
 const phases: Record<string, [string, string]> = {
-  'awaiting-confirmation': ['备份已保存，请在设备上授权后继续', 'Backup saved; authorize on the device to continue'],
-  downloading: ['下载并验证发布包', 'Downloading and verifying release'], backup: ['备份配置', 'Backing up configuration'],
+  downloading: ['下载发布包', 'Downloading release'], extracting: ['解压与校验', 'Extracting and verifying'],
+  'backing-up-tx': ['备份当前 TX', 'Backing up current TX'], 'staging-controller': ['写入主控备用槽', 'Writing inactive controller slot'], 'staging-tx': ['暂存新 TX', 'Staging new TX'],
+  'tx-restoring': ['TX 更新失败，正在恢复原版本', 'TX update failed; restoring previous version'], 'rollback-verifying': ['核验恢复后的原版本', 'Verifying restored firmware'],
+  restored: ['升级失败，已恢复原版本', 'Update failed; previous version restored'], 'restore-failed': ['TX 恢复失败：需要维护恢复', 'TX recovery failed: maintenance recovery required'],
+  timeout: ['TX 升级失败（连接超时）', 'TX update failed (connection timeout)'], backup: ['备份配置', 'Backing up configuration'],
   declaring: ['验证签名安装声明', 'Verifying signed declaration'], receiving: ['暂存组件', 'Staging components'],
   prepared: ['组件已验证，可开始安装', 'Components verified; ready to install'], activating: ['提交安装事务', 'Activating installation'],
   activated: ['设备已接管安装', 'Device owns the installation'], 'tx-writing': ['设备正在更新 TX', 'Device is updating TX'],
-  'tx-verified': ['TX 已验证', 'TX verified'], committing: ['提交 STM32 固件', 'Committing STM32 firmware'],
-  verifying: ['核验启动后的整机版本', 'Verifying installed components'], 'waiting-device': ['等待设备返回', 'Waiting for device'],
+  'tx-verified': ['TX 已验证', 'TX verified'], committing: ['切换主控固件', 'Switching controller firmware'],
+  verifying: ['核验启动后的整机版本', 'Verifying installed components'], 'waiting-device': ['设备暂时断开，正在更新 TX', 'Device temporarily disconnected; updating TX'],
   completed: ['设备安装事务已完成', 'Device installation transaction completed'], failed: ['安装需要恢复', 'Installation needs recovery'],
   aborted: ['安装已取消', 'Installation cancelled'], idle: ['空闲', 'Idle'], uncertain: ['结果待确认，请重连读取设备状态', 'Result uncertain; reconnect to read device status'],
 };
@@ -56,11 +60,17 @@ function inventoryReadError(error: unknown, zh: boolean): string {
 export function FirmwareContent() {
   const { currentLanguage } = useLanguage(); const zh = currentLanguage === 'zh';
   const { dataIsReady, deviceConnected, firmwareInfo, getReleaseInventory, getDeviceImageCatalog, downloadSelectedRelease,
-    installSelectedRelease, releaseInstallAction, reconnectDevice, connectDevice, firmwareUpdating, setFinishConfigDisabled } = useGamepadConfig();
+    installSelectedRelease, releaseInstallAction, reconnectDevice, connectDevice, firmwareUpdating, setFirmwareUpdating, setFinishConfigDisabled } = useGamepadConfig();
   const [inventory, setInventory] = useState<FirmwareInventory | null>(null);
   const [candidate, setCandidate] = useState<PreparedRelease | null>(null);
-  const [progress, setProgress] = useState<ReleaseProgress | null>(null);
+  const [selectedRelease, setSelectedRelease] = useState<PublicFirmwareRelease | null>(null);
+  const [dialogView, setDialogView] = useState<'confirm' | 'progress'>('confirm');
+  const [progress, setProgressState] = useState<ReleaseProgress | null>(null);
+  const setProgress = useCallback((next: ReleaseProgress | null) => {
+    setProgressState(previous => next ? accumulateInstallProgress(previous, next) : null);
+  }, []);
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [, setLegacyFirmwareGate] = useState(false);
   const [inventoryError, setInventoryError] = useState('');
   const [imageCatalog, setImageCatalog] = useState<DeviceImageCatalog | null>(null);
   const [imageCatalogError, setImageCatalogError] = useState('');
@@ -68,11 +78,60 @@ export function FirmwareContent() {
   const [lastManualRead, setLastManualRead] = useState<Date | null>(null);
   const inventoryRequest = useRef<Promise<FirmwareInventory> | null>(null);
   const [expectedDigest, setExpectedDigest] = useState<string | null>(null);
-  const reconnectStarted = useRef(0);
-  const confirmation = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null);
-  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
-  useEffect(() => () => confirmation.current?.reject(new Error('Installation confirmation cancelled')), []);
+  const [task, setTask] = useState<InstallTask | null>(null);
+  const taskRef = useRef<InstallTask | null>(null);
+  const monitorRef = useRef<ReturnType<typeof createInstallMonitor> | null>(null);
+  const observationRef = useRef({ dataIsReady, deviceConnected, reconnectDevice, getReleaseInventory });
+  observationRef.current = { dataIsReady, deviceConnected, reconnectDevice, getReleaseInventory };
+  taskRef.current = task;
+  useEffect(() => {
+    const saved = readResumableInstallTask();
+    if (saved) { if (['waiting', 'timeout'].includes(saved.result)) setFirmwareUpdating(true); setTask(saved); setSelectedRelease(saved.release); setDialogView('progress'); setExpectedDigest(saved.digest);
+      setProgress(saved.progress || { stage: saved.result === 'waiting' ? 'waiting-device' : saved.result, overallPercent: 80, stepIndex: 6 }); }
+  }, [setFirmwareUpdating, setProgress]);
+  useEffect(() => {
+    if (!task) return;
+    const monitor = createInstallMonitor({ task,
+      connected: () => observationRef.current.deviceConnected,
+      reconnect: () => observationRef.current.reconnectDevice(),
+      waitReady: async () => {
+        // Opening a HID handle completes before configuration initialization.
+        // Wait in memory; do not open another connection or issue status requests.
+        const until = Date.now() + 30_000;
+        while (!observationRef.current.dataIsReady) {
+          if (!observationRef.current.deviceConnected || Date.now() >= until)
+            throw new Error('Connection initialization incomplete');
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      },
+      query: () => observationRef.current.getReleaseInventory(),
+      changed: (next, status) => {
+        setTask(next);
+        if (next.result === 'completed') {
+          try { forgetInstallTask(next.sessionId); } catch { /* A later mount ignores completed records. */ }
+        } else {
+          try { saveInstallTask(next); } catch { setError(zh ? '任务记录保存失败，请保持此页面打开。' : 'Task persistence failed; keep this page open.'); }
+        }
+        if (status) { setInventory(status); setInventoryError(''); }
+        setProgress(next.progress || { stage: next.result === 'waiting' ? (status?.phase || 'waiting-device') : next.result });
+      },
+    });
+    monitorRef.current = monitor; monitor.start();
+    return () => { monitor.stop(); if (monitorRef.current === monitor) monitorRef.current = null; };
+    // The monitor owns its current task. Render changes must not restart requests or deadlines.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.sessionId]);
+  const manualReconnect = () => {
+    // A live connection only needs a status read. Resetting that connection
+    // interrupts initialization and may never emit a new connected event.
+    void monitorRef.current?.manual(
+      observationRef.current.deviceConnected ? undefined : connectDevice,
+    ).catch(e => setError(String(e)));
+  };
+  const selectionPending = useRef(false);
+  const installPending = useRef(false);
   const refresh = useCallback(async (manual = false) => {
+    if (taskRef.current && monitorRef.current) { await monitorRef.current.manual(); return; }
     if (!dataIsReady || !deviceConnected) {
       if (manual) setInventoryError(zh
         ? '设备尚未完成连接和配置读取，请先检查连接状态。'
@@ -83,7 +142,8 @@ export function FirmwareContent() {
     const request = inventoryRequest.current ?? getReleaseInventory();
     inventoryRequest.current = request;
     try { const next = await request; setInventory(next); setInventoryError('');
-      if (!busy && !['idle', 'aborted'].includes(next.phase)) setProgress({ stage: next.phase });
+      if (!busy && !selectionPending.current && !installPending.current && !taskRef.current)
+        setProgress(['idle', 'aborted', 'completed'].includes(next.phase) ? null : { stage: next.phase });
     } catch (e) { setInventoryError(inventoryReadError(e, zh)); }
     finally { if (inventoryRequest.current === request) inventoryRequest.current = null; }
     if (manual) {
@@ -91,39 +151,54 @@ export function FirmwareContent() {
       catch (e) { setImageCatalogError(galleryErrorMessage(e, zh ? 'zh' : 'en')); }
       finally { setLastManualRead(new Date()); setReadingInventory(false); }
     }
-  }, [dataIsReady, deviceConnected, getReleaseInventory, getDeviceImageCatalog, busy, zh]);
+  }, [dataIsReady, deviceConnected, getReleaseInventory, getDeviceImageCatalog, busy, zh, setProgress]);
+  useEffect(() => { if (!task) void refresh(); }, [refresh, task]);
   useEffect(() => {
-    void refresh();
-    if (!firmwareUpdating) return;
-    const timer = setInterval(() => void refresh(), 5000);
-    return () => clearInterval(timer);
-  }, [refresh, firmwareUpdating]);
-  useEffect(() => {
-    setFinishConfigDisabled(busy || firmwareUpdating);
+    setFinishConfigDisabled(busy || firmwareUpdating || task?.result === 'waiting');
     return () => setFinishConfigDisabled(false);
-  }, [busy, firmwareUpdating, setFinishConfigDisabled]);
-  useEffect(() => {
-    if (deviceConnected) { reconnectStarted.current = 0; return; }
-    if (!firmwareUpdating) { setInventory(null); return; }
-    if (!reconnectStarted.current) reconnectStarted.current = Date.now();
-    setProgress({ stage: 'waiting-device' });
-    const stop = scheduleAuthorizedReconnect(reconnectDevice, () => setProgress({ stage: 'uncertain' }));
-    const timer = setTimeout(() => { stop(); setProgress({ stage: 'uncertain' }); }, 90000);
-    return () => { stop(); clearTimeout(timer); };
-  }, [deviceConnected, firmwareUpdating, reconnectDevice]);
-  const select = async (release: PublicFirmwareRelease) => {
-    if (!inventory) return; setBusy(true); setError(''); setCandidate(null); setProgress({ stage: 'downloading' });
-    try { setCandidate(await downloadSelectedRelease(release.id, inventory)); setProgress(null); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); setProgress(null); }
-    finally { setBusy(false); }
+  }, [busy, firmwareUpdating, task?.result, setFinishConfigDisabled]);
+  const select = (release: PublicFirmwareRelease) => {
+    if (!inventory || releaseBlockReason(release, inventory) || selectionPending.current || installPending.current || busy) return;
+    setTask(null); setSelectedRelease(release); setDialogView('confirm'); setCandidate(null); setError(''); setProgress(null); setLegacyFirmwareGate(false);
   };
-  const install = async () => {
-    if (!candidate) return; setBusy(true); setError(''); setExpectedDigest(candidate.digest);
-    try { await installSelectedRelease(candidate, setProgress, () => new Promise<void>((resolve, reject) => {
-      confirmation.current = { resolve, reject }; setAwaitingConfirmation(true);
-    })); setCandidate(null); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); setProgress({ stage: 'uncertain' }); }
-    finally { confirmation.current = null; setAwaitingConfirmation(false); setBusy(false); void refresh(); }
+  const install = async (prepared: PreparedRelease) => {
+    if (installPending.current) return;
+    installPending.current = true;
+    setBusy(true); setError(''); setLegacyFirmwareGate(false); setExpectedDigest(prepared.digest);
+    let activatedSession: string | undefined;
+    try { await installSelectedRelease(prepared, next => {
+      setProgress(next);
+      if (next.stage === 'activating' || next.stage === 'waiting-device') { activatedSession = next.sessionId; const saved = readInstallTask(); if (saved) setTask(saved); }
+    }); setCandidate(null); }
+    catch (e) {
+      if (isLegacyPhysicalConfirmationRejection(e)) {
+        setError(zh
+          ? '设备升级协议基线不支持 TX 读回备份，请先通过既有维护入口更新主控和 TX。'
+          : 'This baseline does not support TX readback backups. Update the controller and TX through the existing maintenance path first.');
+        setLegacyFirmwareGate(true);
+        setProgress(null); setExpectedDigest(null);
+      } else {
+        setError(e instanceof Error ? e.message : String(e)); setProgress({ stage: 'failed' });
+        const saved = readInstallTask(); setTask(saved?.sessionId === activatedSession ? saved : null); setCandidate(null);
+      }
+    }
+    finally { installPending.current = false; setBusy(false); void refresh(); }
+  };
+  const startInstallation = async () => {
+    if (!selectedRelease || !inventory || selectionPending.current || installPending.current) return;
+    setDialogView('progress'); setError('');
+    if (candidate) { void install(candidate); return; }
+    selectionPending.current = true;
+    setBusy(true); setProgress({ stage: 'downloading' });
+    try {
+      const prepared = await downloadSelectedRelease(selectedRelease.id, inventory, setProgress);
+      setCandidate(prepared);
+      selectionPending.current = false;
+      await install(prepared);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setProgress({ stage: 'failed' }); setBusy(false);
+    } finally { selectionPending.current = false; }
   };
   const recover = async (action: 'abort' | 'retry' | 'activate') => {
     if (!inventory) return; setBusy(true); setError('');
@@ -137,59 +212,69 @@ export function FirmwareContent() {
   const stm32Version = inventory?.stm32.version && inventory.stm32.version !== '0.0.0'
     ? inventory.stm32.version : firmwareInfo?.firmware.version || inventory?.stm32.version || '—';
   const currentSlot = inventory?.currentSlot || firmwareInfo?.firmware.currentSlot || '—';
-  return <Stack p="18px" gap="6" w="full" maxW="1100px" mx="auto">
-    <Box borderWidth="1px" borderRadius="xl" p="5"><Stack gap="3">
-      <HStack justify="space-between"><Heading size="lg">{zh ? '本机固件' : 'Installed firmware'}</Heading>
-        <Badge colorPalette={verified ? 'green' : 'orange'}>{verified ? (zh ? '已核验' : 'Verified') : (inventory?.installationState === 'mixed' ? (zh ? '混合版本' : 'Mixed components') : (zh ? '未确认整机版本' : 'Release unconfirmed'))}</Badge></HStack>
-      <Text>{zh ? '整机包：' : 'Release: '}{verified ? inventory.confirmedVersion : (zh ? '未知或未完成' : 'Unknown or incomplete')}</Text>
-      <Text>STM32: {stm32Version} · TX: {inventory?.tx?.version || '—'} · {zh ? '运行槽' : 'Running slot'}: {currentSlot}</Text>
-      {firmwareInfo?.firmware.buildDate && <Text fontSize="sm" color="fg.muted">{zh ? 'STM32 元数据构建时间：' : 'STM32 metadata build date: '}{firmwareInfo.firmware.buildDate}</Text>}
-      {inventory && <Text fontSize="sm" color="fg.muted">STM32 build: {inventory.stm32.buildId || '—'} · TX build: {inventory.tx?.buildId || '—'}</Text>}
-      {inventory && !inventory.tx && <Text fontSize="sm" color="orange.500">{zh ? '未读到 TX 固件身份，请检查 STM32 与 TX 的板间通信。' : 'TX firmware identity was unavailable. Check the STM32–TX board link.'}</Text>}
-      {(inventory?.stm32.buildId === 'unidentified' || inventory?.tx?.buildId === 'unidentified') && <Text fontSize="sm" color="fg.muted">{zh ? '开发构建的 0.0.0 / unidentified 是发布身份占位值，不能据此判断固件新旧；STM32 显示版本优先采用固件元数据。' : 'Development builds use 0.0.0 / unidentified as release identity placeholders; these do not indicate firmware age. The displayed STM32 version prefers firmware metadata.'}</Text>}
-      {imageCatalog && <Text fontSize="sm">{zh ? '图片能力：' : 'Image capability: '}{zh ? `最多 ${imageCatalog.maxUserFrames} 帧，传输版本 ${imageCatalog.imageTransferVersion}` : `up to ${imageCatalog.maxUserFrames} frames, transfer version ${imageCatalog.imageTransferVersion}`}</Text>}
-      {imageCatalogError && <Text fontSize="sm" color="red.500">{zh ? '图片能力读取失败：' : 'Image capability read failed: '}{imageCatalogError}</Text>}
-      {inventory?.confirmedVersion && !verified && <Text>{zh ? '上次确认版本：' : 'Last confirmed release: '}{inventory.confirmedVersion}</Text>}
-      <Button alignSelf="start" variant="surface" disabled={busy} loading={readingInventory} onClick={() => void refresh(true)}>{zh ? '读取设备状态' : 'Read device status'}</Button>
-      {lastManualRead && <Text fontSize="sm" color="fg.muted" aria-live="polite">{zh ? '上次检测：' : 'Last check: '}{lastManualRead.toLocaleTimeString(zh ? 'zh-CN' : 'en-US')}</Text>}
-      {!deviceConnected && <Button alignSelf="start" onClick={() => void connectDevice().catch(e => setError(String(e)))}>{zh ? '连接设备' : 'Connect device'}</Button>}
-      {deviceConnected && !dataIsReady && <Text>{zh ? '正在读取设备配置…' : 'Reading device configuration…'}</Text>}
+  return <Stack pt="24px" px={{ base: '16px', md: '24px' }} pb="32px" gap="5" w="full" maxW="1120px" mx="auto" minW={0} fontSize="14px">
+    <Flex justify="space-between" align={{ base: 'start', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="3">
+      <Box><Heading as="h1" fontSize="24px">{zh ? '固件更新' : 'Firmware updates'}</Heading>
+        <Text fontSize="14px" color="fg.muted" mt="1">{zh ? '查看当前固件，选择适合设备的版本。' : 'Review the installed firmware and choose a compatible release.'}</Text></Box>
+      <Button h="36px" fontSize="14px" variant="surface" disabled={busy} loading={readingInventory}
+        onClick={() => void refresh(true)}>{zh ? '刷新设备状态' : 'Refresh device status'}</Button>
+    </Flex>
+    <Box borderWidth="1px" borderRadius="xl" px={{ base: '4', md: '5' }} py="4"><Stack gap="3">
+      <HStack justify="space-between" align="start" wrap="wrap" gap="2">
+        <Stack gap="1"><Heading as="h2" fontSize="18px">{zh ? '当前固件' : 'Installed firmware'}</Heading>
+          <Text fontSize="16px" fontWeight="semibold">{verified ? `XORA ${inventory.confirmedVersion}` : (zh ? '整机版本未确认' : 'Whole-device release unconfirmed')}</Text></Stack>
+        <Badge colorPalette={verified ? 'green' : 'orange'}>{verified ? (zh ? '已核验' : 'Verified') : (inventory?.installationState === 'mixed' ? (zh ? '混合版本' : 'Mixed components') : (zh ? '未确认' : 'Unconfirmed'))}</Badge>
+      </HStack>
+      <HStack gap="5" wrap="wrap"><Text>{zh ? '主控' : 'Controller'} <Text as="span" fontWeight="semibold">{stm32Version}</Text></Text>
+        <Text>TX <Text as="span" fontWeight="semibold">{inventory?.tx?.version || '—'}</Text></Text></HStack>
+      {!verified && <Text fontSize="12px" color="fg.muted">{zh ? '当前组件尚未核验为完整整机版本。' : 'The installed components have not been verified as a complete release.'}</Text>}
+      {inventory && !inventory.tx && <Text fontSize="12px" color="orange.500">{zh ? '未读到 TX 固件身份，请检查板间通信。' : 'TX firmware identity was unavailable. Check the board link.'}</Text>}
+      {deviceConnected && !dataIsReady && <Text fontSize="12px">{zh ? '正在读取设备配置…' : 'Reading device configuration…'}</Text>}
+      <Box as="details" fontSize="12px" color="fg.muted" pt="2" borderTopWidth="1px">
+        <Box as="summary" cursor="pointer" fontWeight="semibold">{zh ? '设备详情' : 'Device details'}</Box>
+        <Stack mt="3" gap="2" overflowWrap="anywhere">
+          <Text>{zh ? '运行槽' : 'Running slot'}: {currentSlot}</Text>
+          {firmwareInfo?.firmware.buildDate && <Text>{zh ? '主控元数据构建时间' : 'Controller metadata build date'}: {firmwareInfo.firmware.buildDate}</Text>}
+          {inventory && <Text>{zh ? '主控构建' : 'Controller build'}: {inventory.stm32.buildId || '—'} · TX build: {inventory.tx?.buildId || '—'}</Text>}
+          {(inventory?.stm32.buildId === 'unidentified' || inventory?.tx?.buildId === 'unidentified') && <Text>{zh ? '开发构建的 0.0.0 / unidentified 只是发布身份占位值；STM32 显示版本优先采用固件元数据。' : 'Development builds use 0.0.0 / unidentified as release identity placeholders. The STM32 version shown above prefers firmware metadata.'}</Text>}
+          {inventory?.confirmedVersion && !verified && <Text>{zh ? '上次确认版本' : 'Last confirmed release'}: {inventory.confirmedVersion}</Text>}
+          {imageCatalog && <Text>{zh ? '图片能力' : 'Image capability'}: {zh ? `最多 ${imageCatalog.maxUserFrames} 帧，传输版本 ${imageCatalog.imageTransferVersion}` : `up to ${imageCatalog.maxUserFrames} frames, transfer version ${imageCatalog.imageTransferVersion}`}</Text>}
+          {imageCatalogError && <Text color="red.500">{zh ? '图片能力读取失败' : 'Image capability read failed'}: {imageCatalogError}</Text>}
+          {lastManualRead && <Text aria-live="polite">{zh ? '上次检测' : 'Last check'}: {lastManualRead.toLocaleTimeString(zh ? 'zh-CN' : 'en-US')}</Text>}
+        </Stack>
+      </Box>
     </Stack></Box>
     {inventoryError && <Text role="alert" color="red.500" overflowWrap="anywhere">{zh ? '设备状态读取失败：' : 'Device status read failed: '}{inventoryError}</Text>}
-    {error && <Text role="alert" color="red.500" overflowWrap="anywhere">{error}</Text>}
-    {progress && <Box aria-live="polite" borderWidth="1px" borderRadius="xl" p="5"><Stack gap="3">
-      <Heading size="md">{translate(phases, progress.stage)}</Heading>
+    {error && !selectedRelease && <Text role="alert" color="red.500" overflowWrap="anywhere">{error}</Text>}
+    {progress && !selectedRelease && <Box aria-live="polite" borderWidth="1px" borderRadius="xl" p="5"><Stack gap="3">
+      <Heading as="h2" fontSize="18px">{translate(phases, progress.stage)}</Heading>
       {progress.component && <Text>{progress.component}: {progress.received} / {progress.total} bytes</Text>}
       {inventory?.targetVersion && <Text>{zh ? '目标版本：' : 'Target: '}{inventory.targetVersion}</Text>}
       {inventory?.error && <Text color="red.500">{inventory.error}</Text>}
-      {inventory?.canRetry && <Text>{zh ? 'TX 无法连接时，在设备上释放后按住 GPIO1 + FN 两秒重试。' : 'If TX cannot connect, release then hold GPIO1 + FN on the device for two seconds to retry.'}</Text>}
+
       <HStack wrap="wrap">
-        {inventory?.canAbort && <Button disabled={busy} onClick={() => void recover('abort')}>{zh ? '取消未激活安装' : 'Cancel staged installation'}</Button>}
-        {inventory?.phase === 'prepared' && <Button disabled={busy} onClick={() => void recover('activate')}>{zh ? '继续安装' : 'Continue installation'}</Button>}
-        {inventory?.canRetry && <Button disabled={busy} onClick={() => void recover('retry')}>{zh ? '重试目标版本' : 'Retry target release'}</Button>}
-        {!deviceConnected && <Button onClick={() => void reconnectDevice()}>{zh ? '重新连接' : 'Reconnect'}</Button>}
+        {inventory?.canAbort && <Button h="36px" fontSize="14px" disabled={busy} onClick={() => void recover('abort')}>{zh ? '取消未激活安装' : 'Cancel staged installation'}</Button>}
+        {task && <Button h="36px" fontSize="14px" onClick={manualReconnect}>{zh ? '重新连接设备' : 'Reconnect device'}</Button>}
       </HStack>
-      {(inventory?.canAbort || inventory?.canRetry || inventory?.phase === 'prepared') && <Text fontSize="sm">{zh ? '操作前，在设备上释放后按住 GPIO1 + FN 两秒授权。' : 'Before the action, release then hold GPIO1 + FN for two seconds to authorize it.'}</Text>}
     </Stack></Box>}
-    {candidate && <Box borderWidth="2px" borderColor="blue.500" borderRadius="xl" p="5"><Stack gap="3">
-      <Heading size="md">{zh ? '确认安装 XORA ' : 'Install XORA '}{candidate.release.manifest.version}</Heading>
-      <Text>{zh ? '保留配置、校准和配对。仅安装 STM32 + TX；RX 单独更新。TX 更新期间会断连，请保持供电。' : 'Preserves configuration, calibration and pairing. Installs STM32 + TX; RX updates are separate. Keep power connected while TX disconnects.'}</Text>
-      <FirmwareReleaseDetails manifest={candidate.release.manifest} zh={zh} />
-      <Text>{awaitingConfirmation
-        ? (zh ? '备份已保存。在设备上释放后按住 GPIO1 + FN 两秒，然后点击授权完成。' : 'Backup saved. Release then hold GPIO1 + FN for two seconds, then continue.')
-        : (zh ? '先保存并备份配置，完成后再进行设备授权。' : 'Save and back up configuration first, then authorize on the device.')}</Text>
-      <HStack>{awaitingConfirmation
-        ? <Button onClick={() => { setAwaitingConfirmation(false); confirmation.current?.resolve(); }}>{zh ? '授权完成，继续安装' : 'Authorized, continue installation'}</Button>
-        : <Button loading={busy} onClick={() => void install()}>{zh ? '准备安装' : 'Prepare installation'}</Button>}
-        <Button disabled={busy && !awaitingConfirmation} variant="surface" onClick={() => {
-          confirmation.current?.reject(new Error(zh ? '安装已取消' : 'Installation cancelled')); setCandidate(null);
-        }}>{zh ? '返回列表' : 'Back to list'}</Button></HStack>
-    </Stack></Box>}
-    <FirmwareReleaseCatalog renderAction={release => {
+    <FirmwareReleaseCatalog getReleaseAction={release => {
       const reason = releaseBlockReason(release, inventory);
       const same = verified && inventory.confirmedVersion === release.manifest.version;
       const downgrade = verified && release.manifest.version.localeCompare(inventory.confirmedVersion, undefined, { numeric: true }) < 0;
-      return <Stack align="start"><Button disabled={busy || Boolean(reason)} onClick={() => void select(release)}>{same ? (zh ? '重新安装' : 'Reinstall') : downgrade ? (zh ? '降级安装' : 'Downgrade') : (zh ? '安装此版本' : 'Install release')}</Button>{reason && <Text fontSize="sm" color="fg.muted">{translate(reasons, reason)}</Text>}</Stack>;
+      return { label: same ? (zh ? '重新安装' : 'Reinstall') : downgrade ? (zh ? '降级安装' : 'Downgrade') : (zh ? '安装此版本' : 'Install release'),
+        disabled: busy || task?.result === 'waiting' || Boolean(reason), reason: reason ? translate(reasons, reason) : undefined,
+        onClick: () => select(release) };
     }} />
+    <FirmwareInstallDialog release={selectedRelease} zh={zh} view={dialogView} progress={progress} deviceConnected={deviceConnected}
+      activatedAt={task?.activatedAt || progress?.activatedAt}
+      error={error || (task?.result === 'restore-failed' ? `${task.error || ''} (${inventory?.errorCode || 'TX_RESTORE_FAILED'})` : '')} busy={busy || task?.result === 'waiting'} retryable={false} onReconnect={manualReconnect} canReconnect={Boolean(task)}
+      progressLabel={translate(phases, progress?.stage || 'downloading')}
+      onClose={() => { if (!busy && task?.result !== 'waiting') {
+        setSelectedRelease(null); setCandidate(null); setError('');
+        if (!task || task.result === 'completed') { setTask(null); setProgress(null); setExpectedDigest(null); }
+        setLegacyFirmwareGate(false);
+      } }}
+      onConfirm={() => void startInstallation()} onRetry={() => void startInstallation()}
+      />
   </Stack>;
 }

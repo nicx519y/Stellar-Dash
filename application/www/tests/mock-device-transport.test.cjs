@@ -2202,11 +2202,15 @@ test('auto sleep defaults off, persists, merges and rejects invalid switches ato
 });
 
 
-test('whole-release Mock installs, reloads, reinstalls and recovers a TX failure without false success', async () => {
+test('whole-release Mock stages with backup, reinstalls and reports automatic recovery after reload', async () => {
   const { downloadRelease, installRelease } = require('../lib/device-transport/release-install-client.ts');
-  const previous = globalThis.sessionStorage;
-  globalThis.sessionStorage = new MemoryStorage();
+  const previous = globalThis.sessionStorage, previousLocal = globalThis.localStorage;
+  globalThis.sessionStorage = new MemoryStorage(); globalThis.localStorage = new MemoryStorage();
   const client = new DeviceCommandClient(new MockDeviceTransport({ storage: null }));
+  const finish = async adapter => {
+    const i=JSON.parse(sessionStorage.getItem('xora-mock-install'));i.offlineStarted=Date.now()-7000;
+    sessionStorage.setItem('xora-mock-install',JSON.stringify(i));return adapter.request('get_release_install_status');
+  };
   try {
     await client.connect(); client.markReady();
     for (const targetSlot of ['B', 'A']) {
@@ -2214,32 +2218,36 @@ test('whole-release Mock installs, reloads, reinstalls and recovers a TX failure
       const pkg = await downloadRelease(client, 'preview-2.0.0', before);
       const stages = [];
       await installRelease(client, pkg, p => stages.push(p.stage));
-      const result = await client.request('get_release_install_status');
+      const result = await finish(client);
       assert.equal(result.phase, 'completed'); assert.equal(result.currentSlot, targetSlot);
       assert.equal(result.confirmedDigest, pkg.digest); assert.equal(result.installationState, 'installed');
-      assert.ok(stages.includes('prepared')); assert.ok(stages.includes('activating'));
+      for(const phase of ['backing-up-tx','staging-controller','staging-tx','prepared','activating','waiting-device'])assert.ok(stages.includes(phase),phase);
     }
+    const original=await client.request('get_firmware_inventory');
     sessionStorage.setItem('xora-mock-install-failure', 'tx');
-    const pkg = await downloadRelease(client, 'preview-2.0.0', await client.request('get_firmware_inventory'));
-    await installRelease(client, pkg, () => {});
-    let result = await client.request('get_release_install_status');
-    assert.equal(result.phase, 'failed'); assert.notEqual(result.installationState, 'installed');
-    assert.equal(result.canAbort, false); assert.equal(result.canRetry, true);
-    await assert.rejects(client.request('abort_release_install', { session_id: result.sessionId }));
-    sessionStorage.setItem('xora-mock-install-failure', '');
-    client.dispose();
+    const pkg = await downloadRelease(client, 'preview-2.0.0', original);
+    await installRelease(client, pkg, () => {});client.dispose();
     const reloaded = new DeviceCommandClient(new MockDeviceTransport({ storage: null }));
     try {
       await reloaded.connect(); reloaded.markReady();
-      const pending = await reloaded.request('get_release_install_status');
-      assert.equal(pending.phase, 'failed'); assert.equal(pending.targetDigest, pkg.digest);
-      await reloaded.request('retry_release_install', { session_id: pending.sessionId });
-      result = await reloaded.request('get_release_install_status');
-      assert.equal(result.phase, 'completed'); assert.equal(result.confirmedDigest, pkg.digest);
+      const recovering = JSON.parse(sessionStorage.getItem('xora-mock-install'));
+      recovering.offlineStarted = Date.now() - 5000;
+      sessionStorage.setItem('xora-mock-install', JSON.stringify(recovering));
+      assert.equal((await reloaded.request('get_release_install_status')).phase, 'rollback-verifying');
+      let result=await finish(reloaded);
+      assert.equal(result.phase,'restored');assert.equal(result.recoveryResult,'restored');
+      assert.equal(result.currentSlot,original.currentSlot);assert.deepEqual(result.stm32,original.stm32);assert.deepEqual(result.tx,original.tx);
+      assert.equal(result.restoreAttempts,1);assert.equal(result.canAbort,false);assert.equal(result.canRetry,false);
+      await assert.rejects(reloaded.request('retry_release_install',{session_id:result.sessionId}));
+      sessionStorage.setItem('xora-mock-install-failure','restore');
+      const next=await downloadRelease(reloaded,'preview-2.0.0',result);await installRelease(reloaded,next,()=>{});
+      result=await finish(reloaded);assert.equal(result.phase,'restore-failed');assert.equal(result.restoreAttempts,2);
+      assert.equal(result.errorCode,'TX_RESTORE_FAILED');assert.equal(result.currentSlot,original.currentSlot);
     } finally { reloaded.dispose(); }
   } finally {
     client.dispose();
     if (previous === undefined) delete globalThis.sessionStorage; else globalThis.sessionStorage = previous;
+    if (previousLocal === undefined) delete globalThis.localStorage; else globalThis.localStorage = previousLocal;
   }
 });
 

@@ -21,6 +21,7 @@
     {"name":"get_firmware_inventory","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["protocol","phase"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"get_release_install_status","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["protocol","phase"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"begin_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"backup_release_tx","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"prepare_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"activate_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"abort_release_install","validParams":{"session_id":"contract-release","declaration_size":1000},"validErrNo":0,"dataType":"object","requiredDataFields":["success"],"invalid":{"kind":"scope","errNo":403}},

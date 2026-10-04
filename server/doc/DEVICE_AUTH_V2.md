@@ -220,16 +220,19 @@ reauthorization. On the normal path EP2 remains NAK until both the CH585
 BoardLink channel reset and STM32 WebHID session reset have completed; only
 then is ACK restored inside the same IRQ-masked critical section.
 
-Firmware update and reboot additionally require
-`HBoxBoard_DangerousActionConfirmed()`. The board implementation reads raw
+Legacy firmware-update RPCs and reboot still require
+`HBoxBoard_DangerousActionConfirmed()`. The whole-device release installer uses
+the encrypted WebHID `firmware.update` scope and a session-bound, signed
+installation transaction without a physical button step. The board
+confirmation implementation reads raw
 active-low PC6 (`GPIO1`) and PC9 (`FN`) only while the physical switch is in
 USB and the CH585 is locked in maintenance role. Both inputs must first remain
 released for 50 ms and then be held together for two seconds; the resulting
 authorization expires after ten seconds and is consumed once. A role change,
 switch change, timeout, or consumption clears it. Logical mappings, macros,
-USB reports, and RF packets cannot assert this gesture. OTA remains an
-engineering gate until the debounce, hold, disconnect, and accidental-press
-cases pass on production hardware.
+USB reports, and RF packets cannot assert this gesture. Existing devices with
+the previous release installer still require its physical confirmation until
+their controller firmware is updated.
 
 Legacy V1 authentication remains available only for already shipped hardware.
 It is explicitly not accepted by V2 routes or `/downloads/*`. A successful

@@ -24,6 +24,80 @@ def function(source, signature):
 
 
 class UsbHandshakeTest(unittest.TestCase):
+    def test_iap_startup_verification_reboots_without_reflashing(self):
+        implementation = (ROOT / 'application/Src/firmware/ch585_iap_client.cpp').read_text(encoding='utf-8')
+        source = r'''
+#include <cassert>
+#include <cstring>
+#include <initializer_list>
+#define private public
+#include "ch585_iap_client.hpp"
+#undef private
+template<typename... Args> void testLog(Args...) {}
+#define APP_STAGE(...) testLog(__VA_ARGS__)
+#define APP_STAGE_ERROR(...) testLog(__VA_ARGS__)
+constexpr uint32_t kApplicationCapsWindowMs=1000,kApplicationCapsRetryMs=10;
+constexpr unsigned USB_BOARD_CAP_ROLE_MAINTENANCE=1,USB_BOARD_CAP_PROFILE_WEB_CONFIG=2,USB_BOARD_CAP_FEATURE_WEBHID_V1=4;
+uint32_t ticks=0;int boots=0,mode=0,capsCalls=0,identityCalls=0;bool fault=false;
+uint32_t HAL_GetTick(){return ticks;}
+void HAL_Delay(uint32_t ms){ticks+=ms;}
+bool USBBoardLinkPort_HasReleaseFault(){return fault;}
+void USBBoardLinkPort_Shutdown(){}
+enum class Ch585Role { Maintenance };
+constexpr int UsbBoardLink_SelectRoleCallback=0;
+struct Bootstrap {
+    void shutdown(){fault=false;}
+    void setSelector(int){}
+    bool start(Ch585Role){++boots;return mode!=5;}
+    int state(){return 0;}
+} bootstrap;
+#define CH585_ROLE_BOOTSTRAP bootstrap
+struct usb_board_caps_v1_t {
+    unsigned role_flags=1,profile_flags=2,feature_flags=4;
+    unsigned firmware_major=1,firmware_minor=0,firmware_patch=0;
+};
+struct Link {
+    usb_board_caps_v1_t caps;
+    void shutdown(){}
+    bool getCapabilities(){
+        ++capsCalls;ticks+=20;
+        if(mode==1 && boots==1){fault=true;return false;}
+        return mode!=3;
+    }
+    const usb_board_caps_v1_t& capabilities(){return caps;}
+    bool getReleaseIdentity(xora_release_identity_t& id){
+        ++identityCalls;memset(&id,0,sizeof(id));id.component=2;
+        return mode!=4 && !(mode==2 && boots==1);
+    }
+} link;
+#define USB_BOARD_LINK link
+'''
+        source += function(implementation, 'bool Ch585IapClient::validateApplication(')
+        source += r'''
+int main(){
+    auto& client=Ch585IapClient::getInstance();
+    for(int scenario:{0,1,2,3,4,5}){
+        mode=scenario;boots=capsCalls=identityCalls=0;ticks=0;fault=false;
+        client.currentStatus=Ch585IapClientStatus::Idle;
+        xora_release_identity_t identity={};
+        bool ok=client.validateApplication(&identity);
+        assert(ok==(mode<3));assert(boots==(mode==0?1:2));
+        assert(ticks<=2200);
+        if(mode==1)assert(capsCalls==2); // Sticky epoch is reset, not queried repeatedly.
+        if(ok)assert(client.stage()==CH585_STAGING_STAGE_COMPLETE && identity.component==2);
+        else assert(client.stage()==CH585_STAGING_STAGE_VERIFY_APP && client.status()==Ch585IapClientStatus::DeviceError);
+    }
+}
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            (path / 'test.cpp').write_text(source, encoding='utf-8')
+            print('Compile/run bounded IAP startup verification (mock port; no flash)', flush=True)
+            subprocess.run([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                            f'-I{ROOT / "application/Inc/firmware"}', f'-I{ROOT / "common"}',
+                            str(path / 'test.cpp'), '-o', str(path / 'test.exe')], check=True, timeout=60)
+            subprocess.run([str(path / 'test.exe')], check=True, timeout=10)
+
     def test_iap_ack_and_release_fault_are_independent(self):
         implementation = (ROOT / 'application/Src/firmware/ch585_iap_client.cpp').read_text(encoding='utf-8')
         source = r'''

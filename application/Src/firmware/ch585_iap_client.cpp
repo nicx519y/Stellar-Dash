@@ -195,13 +195,20 @@ bool Ch585IapClient::programCombinedImage(uint32_t mappedAddress,
         currentStatus = Ch585IapClientStatus::InvalidImage;
         return false;
     }
-    const uint32_t appSize = totalSize - kCombinedIapBytes;
-    if (appSize > CH585_IAP_APP_CAPACITY || (appSize & 3u) != 0u) {
+    return programApplicationImage(mappedAddress+kCombinedIapBytes,totalSize-kCombinedIapBytes);
+}
+
+bool Ch585IapClient::programApplicationImage(uint32_t mappedAddress,uint32_t appSize)
+{
+    endResponseConfirmed=false;
+    currentOffset=0;
+    if (mappedAddress < 0x90000000u || mappedAddress >= 0x90800000u ||
+        appSize > 0x90800000u-mappedAddress || !appSize || appSize > CH585_IAP_APP_CAPACITY || (appSize & 3u) != 0u) {
         currentStatus = Ch585IapClientStatus::InvalidImage;
         return false;
     }
     const uint8_t* app = reinterpret_cast<const uint8_t*>(
-        mappedAddress + kCombinedIapBytes);
+        mappedAddress);
     const uint32_t imageCrc =
         crc32Update(0xFFFFFFFFu, app, appSize) ^ 0xFFFFFFFFu;
     APP_STAGE("M00C", "CH585 application source CRC ready: size=%lu crc=%08lx",
@@ -299,6 +306,11 @@ bool Ch585IapClient::programCombinedImage(uint32_t mappedAddress,
 bool Ch585IapClient::validateApplication(xora_release_identity_t* identity)
 {
     currentStage = CH585_STAGING_STAGE_VERIFY_APP;
+    // A completed flash/END is not a failed write when the first Application
+    // handshake loses ownership. A latched release fault cannot recover by
+    // issuing CAPS in the same epoch. Try one fresh, read-only boot instead;
+    // never call BEGIN/WRITE/END or spend the install/restore write budget here.
+    for (uint8_t boot = 0; boot < 2; ++boot) {
     USB_BOARD_LINK.shutdown();
     CH585_ROLE_BOOTSTRAP.shutdown();
     USBBoardLinkPort_Shutdown();
@@ -310,7 +322,7 @@ bool Ch585IapClient::validateApplication(xora_release_identity_t* identity)
                         static_cast<unsigned int>(CH585_ROLE_BOOTSTRAP.state()));
         CH585_ROLE_BOOTSTRAP.shutdown();
         USB_BOARD_LINK.shutdown();
-        return false;
+        continue;
     }
     APP_STAGE("M09R", "CH585 application maintenance role selected");
     /* ROLE_SELECTED is emitted immediately before CH585 tears down the
@@ -328,6 +340,7 @@ bool Ch585IapClient::validateApplication(xora_release_identity_t* identity)
             capsReady = true;
             break;
         }
+        if (USBBoardLinkPort_HasReleaseFault()) break;
         HAL_Delay(kApplicationCapsRetryMs);
     } while ((HAL_GetTick() - capsStarted) < kApplicationCapsWindowMs);
     if (!capsReady) {
@@ -337,7 +350,7 @@ bool Ch585IapClient::validateApplication(xora_release_identity_t* identity)
                         static_cast<unsigned long>(kApplicationCapsWindowMs));
         CH585_ROLE_BOOTSTRAP.shutdown();
         USB_BOARD_LINK.shutdown();
-        return false;
+        continue;
     }
     APP_STAGE("M09C", "CH585 application GET_CAPS accepted: attempts=%lu elapsed=%lu ms",
               static_cast<unsigned long>(capsAttempts),
@@ -362,9 +375,11 @@ bool Ch585IapClient::validateApplication(xora_release_identity_t* identity)
     USB_BOARD_LINK.shutdown();
     if (!valid) {
         currentStatus = Ch585IapClientStatus::DeviceError;
-        return false;
+        continue;
     }
     currentStage = CH585_STAGING_STAGE_COMPLETE;
     currentStatus = Ch585IapClientStatus::Completed;
     return true;
+    }
+    return false;
 }

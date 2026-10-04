@@ -46,7 +46,7 @@ export interface PublicFirmwareRelease {
 }
 
 export interface ReleaseInstallContract {
-  protocol: 1;
+  protocol: 1 | 2;
   order: 'tx-then-stm32';
   configRead: { min: number; max: number };
   configWrite: number;
@@ -63,14 +63,14 @@ export interface FirmwareRelease extends Omit<PublicFirmwareRelease, 'status'> {
   audit?: FirmwareAuditEvent[];
 }
 export interface ReleasePage<T> { items: T[]; total: number; limit: number; offset: number }
-export interface ReleaseQuery { query?: string; status?: string; hardware?: string; offset?: number }
+export interface ReleaseQuery { query?: string; status?: string; hardware?: string; offset?: number; limit?: number }
 export interface ReleaseImport { id: string; status: 'validating' | 'completed' | 'failed'; releaseId: string | null; error: string | null }
 export interface LegacyFirmware { id: string; version: string; hardwareVersion: string; notes: string; scope: 'STM32_ONLY' }
 export interface FirmwareRuntime {
   list(query?: ReleaseQuery): Promise<ReleasePage<FirmwareRelease>>;
   detail(id: string): Promise<FirmwareRelease>;
   importBundle(file: File, onProgress: (percent: number) => void): Promise<ReleaseImport>;
-  edit(id: string, revision: number, notes: string, acceptance: string): Promise<FirmwareRelease>;
+  edit(id: string, revision: number, notes: string, acceptance?: string): Promise<FirmwareRelease>;
   publish(id: string, revision: number): Promise<FirmwareRelease>;
   withdraw(id: string, revision: number, reason: string): Promise<FirmwareRelease>;
   remove(id: string, revision: number): Promise<void>;

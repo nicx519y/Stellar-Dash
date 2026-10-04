@@ -26,6 +26,7 @@ import os
 import re
 import secrets
 import shutil
+import socket
 import struct
 import subprocess
 import sys
@@ -1061,7 +1062,20 @@ def build_local_artifacts(
 
 
 def _health_url(port: int) -> str:
-    return f"http://localhost:{port}/health"
+    return f"http://127.0.0.1:{port}/health"
+
+
+def _assert_local_port_available(port: int) -> None:
+    if not 1 <= port <= 65535:
+        raise LocalWebConfigError(f"invalid local server port: {port}")
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError as exc:
+            raise LocalWebConfigError(
+                f"local server port {port} is already in use on 127.0.0.1; "
+                "stop the existing server or choose another port"
+            ) from exc
 
 
 def _wait_for_server(process: subprocess.Popen[Any], port: int) -> None:
@@ -1162,6 +1176,7 @@ def serve_local_webconfig(
     port: int,
     bypass_device_auth: bool,
 ) -> int:
+    _assert_local_port_available(port)
     _load_manifest(state_dir)
     # Refuse before spawning the server if any handoff artifact is missing or
     # no longer matches its signed metadata/manifest.  Enrollment must never

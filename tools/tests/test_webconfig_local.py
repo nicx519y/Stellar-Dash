@@ -1,5 +1,6 @@
 import io
 import json
+import socket
 import struct
 import tempfile
 import unittest
@@ -208,6 +209,21 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
         strict_args = parser.parse_args(["serve", "--require-device-auth"])
         self.assertFalse(strict_args.bypass_device_auth)
 
+    def test_local_serve_rejects_an_occupied_port_before_health_check(self) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            port = listener.getsockname()[1]
+            with self.assertRaisesRegex(
+                webconfig_local.LocalWebConfigError,
+                f"port {port} is already in use",
+            ):
+                webconfig_local._assert_local_port_available(port)
+        self.assertEqual(
+            webconfig_local._health_url(port),
+            f"http://127.0.0.1:{port}/health",
+        )
+
     def test_local_serve_uses_an_unlogged_ephemeral_scoped_token(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hbox-local-serve-") as root:
             project_root = Path(root)
@@ -231,6 +247,8 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
                 webconfig_local.subprocess, "Popen", return_value=process
             ) as popen, mock.patch.object(
                 webconfig_local, "_wait_for_server"
+            ), mock.patch.object(
+                webconfig_local, "_assert_local_port_available"
             ), mock.patch.object(
                 webconfig_local, "_enroll_local_device"
             ) as enroll, redirect_stdout(io.StringIO()) as output:

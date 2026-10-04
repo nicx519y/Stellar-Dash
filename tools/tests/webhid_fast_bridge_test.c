@@ -8,6 +8,14 @@ static uint8_t wire[WHF_BLOCK_BYTES], report[WEBHID_REPORT_BYTES];
 static uint16_t wire_size;
 static bool port_ready=true, usb_ready=true;
 static unsigned delivered;
+static unsigned image_reads;
+static bool image_read_ok=true;
+bool usb_management_control_read_tx_image(uint32_t offset,uint8_t *bytes,uint16_t length) {
+    assert(txb_range(offset,length));
+    ++image_reads;if(!image_read_ok) return false;
+    for(unsigned i=0;i<length;++i) bytes[i]=(uint8_t)(offset+i);
+    return true;
+}
 bool usb_board_link_port_set_fast_webhid(bool enabled) { (void)enabled; return port_ready; }
 bool usb_board_link_port_queue_block(const uint8_t *data, uint16_t size) {
     if(wire_size) return false;
@@ -65,6 +73,29 @@ int main(void) {
     assert(usb_webhid_fast_submit(report)); usb_webhid_fast_process();
     assert(whf_accept(&master,wire,wire_size)); wire_size=0;
     assert(memcmp(whf_peek(&master),report,sizeof(report))==0); whf_release(&master);
+    /* SPI-only reads share DMA framing, and never enter either USB direction.
+     * Port backpressure must retain one reply without rereading Flash. */
+    for(unsigned scenario=0;scenario<3;++scenario) {
+        uint8_t request_report[WEBHID_REPORT_BYTES];
+        uint16_t length=scenario==0?XORA_TX_BULK_READ_BYTES:123u;
+        uint32_t offset=scenario==0?0u:XORA_TX_BACKUP_APP_BYTES-length;
+        assert(txb_request(request_report,100u+scenario,offset,length));
+        assert(!usb_webhid_fast_submit(request_report));
+        assert(whf_enqueue(&master,request_report));
+        n=whf_prepare(&master,block);whf_commit(&master,block);feed(block,n);
+        image_read_ok=scenario!=2;
+        usb_webhid_fast_process();unsigned reads=image_reads;
+        usb_webhid_fast_process();assert(image_reads==reads); /* full port queue */
+        assert(whf_accept(&master,wire,wire_size));wire_size=0;
+        const uint8_t *reply=whf_peek(&master);
+        assert(txb_matches(reply,100u+scenario,offset,length));
+        assert(!usb_webhid_fast_submit(reply));
+        assert(reply[3]==(image_read_ok?USB_BOARD_STATUS_OK:USB_BOARD_STATUS_INTERNAL_ERROR));
+        if(image_read_ok) for(unsigned i=0;i<length;++i) assert(reply[XORA_TX_BULK_HEADER_BYTES+i]==(uint8_t)(offset+i));
+        assert(delivered==1);whf_release(&master);
+    }
+    assert(!txb_range(0,0) && !txb_range(0,XORA_TX_BULK_READ_BYTES+1) &&
+        !txb_range(XORA_TX_BACKUP_APP_BYTES-1,2) && !txb_range(UINT32_MAX,1));
     n=whf_prepare(&master,block); whf_commit(&master,block); block[28]^=1;
     feed(block,n); assert(!usb_webhid_fast_ready());
     usb_webhid_fast_capability(&cap,2); assert(cap.fault==4); /* CRC failure. */

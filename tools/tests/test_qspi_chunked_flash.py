@@ -1,6 +1,7 @@
 import io
 import subprocess
 import tempfile
+import tkinter
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -25,6 +26,70 @@ class QspiWholeImageFlashTests(unittest.TestCase):
         tool.application_dir = application_dir
         tool.config = {"openocd_path": "openocd"}
         return tool, source, config
+
+    def test_ports_are_configured_before_init_in_normal_and_reset_recovery_sessions(self) -> None:
+        for recovery in (False, True):
+            with self.subTest(recovery=recovery), tempfile.TemporaryDirectory(prefix="hbox-qspi-port-order-") as root:
+                tool, source, _config = self._fixture(root)
+                invocations = []
+                errors = []
+                completed = []
+
+                def execute_command(command, _cwd, **_kwargs):
+                    invocations.append(list(command))
+                    if recovery and len(invocations) == 1:
+                        return False  # The normal connection failed before writing.
+                    tcl = tkinter.Tcl()
+                    tcl.eval("""
+                        set initialized 0
+                        set writes 0
+                        set verifies 0
+                        proc configure_port {name value} {
+                            if {$::initialized} {error "$name must be configured before init"}
+                            if {$value ne "disabled"} {error "unexpected server port"}
+                        }
+                        proc gdb_port {value} {configure_port gdb_port $value}
+                        proc tcl_port {value} {configure_port tcl_port $value}
+                        proc telnet_port {value} {configure_port telnet_port $value}
+                        proc init {} {set ::initialized 1}
+                        proc reset_config {args} {}
+                        proc target {op} {return fixture.cpu}
+                        proc fixture.cpu {op args} {}
+                        proc adapter {args} {}
+                        proc sleep {args} {}
+                        proc halt {args} {}
+                        proc reset {args} {}
+                        proc shutdown {} {}
+                        proc flash {op args} {
+                            if {!$::initialized} {error "flash attempted before init"}
+                            if {$op eq "write_image"} {incr ::writes}
+                            if {$op eq "verify_bank"} {incr ::verifies}
+                        }
+                    """)
+                    try:
+                        index = 1
+                        while index < len(command):
+                            option = command[index]
+                            if option in ("-c", "-f"):
+                                value = command[index + 1]
+                                tcl.eval(value if option == "-c" else Path(value).read_text(encoding="utf-8"))
+                                index += 2
+                            else:
+                                index += 1
+                    except tkinter.TclError as exc:
+                        errors.append(str(exc))
+                        return False
+                    completed.append((tcl.eval("set writes"), tcl.eval("set verifies")))
+                    return True
+
+                tool.run_command = mock.Mock(side_effect=execute_command)
+                self.assertTrue(tool._flash_qspi_file_in_chunks(
+                    source, 0x90000000, "fixture", reset_after=False,
+                    connect_under_reset_fallback=recovery,
+                ), errors)
+                self.assertEqual(len(invocations), 2 if recovery else 1)
+                self.assertEqual(errors, [])
+                self.assertEqual(completed, [("1", "1")])
 
     def test_short_image_uses_one_whole_image_session(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hbox-qspi-whole-") as root:

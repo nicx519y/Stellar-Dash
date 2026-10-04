@@ -143,7 +143,7 @@ int main(){
  reset();UsbBoardLink d;d.caps=a.caps;d.selectedRole=USB_BOARD_ROLE_MAINTENANCE;assert(!d.enableFastInputDataPlane());assert(!attempts&&!switches);
 }
 """
-  headers={n:(ROOT/'common'/n).read_text(encoding='utf-8') for n in ['usb_board_link_protocol.h','usb_board_link_codec.h','webhid_fast_link.h','webhid_protocol.h']}
+  headers={n:(ROOT/'common'/n).read_text(encoding='utf-8') for n in ['usb_board_link_protocol.h','usb_board_link_codec.h','webhid_fast_link.h','webhid_protocol.h','tx_image_bulk.h','release_install_protocol.h']}
   feedback.LiveConfigFeedbackTests.native(self,code,headers)
 
  def test_ram_crc_matches_wire_reference(self):

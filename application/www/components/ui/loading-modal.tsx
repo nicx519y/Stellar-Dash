@@ -14,6 +14,8 @@ import { DeviceConnectionPhase } from "@/lib/device-transport/device-command-typ
 import { CONNECTION_TEXT, connectionPresentation } from "@/lib/connection-presentation";
 import * as React from "react";
 import type { ConfigSyncProgress } from '@/lib/device-transport/config-sync';
+import { useOverlayVisibility } from './exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 
 type LoadingVariant = "connection" | "operation";
 type ConnectionState = "waiting" | "connecting";
@@ -252,6 +254,7 @@ export function LoadingModal({
   noDeviceMessage,
 }: LoadingModalProps) {
   const { t, currentLanguage } = useLanguage();
+  const visible = useOverlayVisibility(isOpen, variant === 'connection' ? OVERLAY_PRIORITY.connection : OVERLAY_PRIORITY.operation);
   if (!isOpen) return null;
 
   const isDeviceStatus = variant === "connection";
@@ -262,7 +265,7 @@ export function LoadingModal({
         position="fixed"
         inset={0}
         zIndex={9999}
-        display="flex"
+        display={visible ? 'flex' : 'none'}
         flexDirection="column"
         alignItems="center"
         justifyContent="flex-start"

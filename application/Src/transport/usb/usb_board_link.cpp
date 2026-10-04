@@ -39,11 +39,22 @@ uint32_t usbMonitorNow() {
 }
 
 static whf_link_t s_hsLink;
-static uint8_t s_hsBlock[WHF_BLOCK_BYTES];
+// CPU formatting buffer; port DMA uses its separate cache-managed copy. Each
+// transmitted byte is initialized by whf_prepare, so NOLOAD D2 is safe here.
+__attribute__((section(".DMA_Section"), aligned(32))) static uint8_t s_hsBlock[WHF_BLOCK_BYTES];
 static bool s_hsReady;
 static bool s_hsSessionInvalid;
 static bool s_releaseFaultReported;
 static uint32_t s_hsEpoch;
+static bool s_txBulkCapable;
+static uint32_t s_txBulkSequence;
+struct TxBulkRead {
+    uint32_t id=0, offset=0;
+    uint16_t length=0;
+    uint8_t *bytes=nullptr;
+    bool active=false, done=false, success=false;
+};
+static TxBulkRead s_txBulkRead;
 /* Use the TX-advertised 15 MHz application data rate. Bootstrap/IAP retain
  * their separate slow clock and PREPARE/probe/COMMIT ownership checks. */
 static constexpr uint32_t kWebHidSpiHz = 15000000u;
@@ -66,6 +77,25 @@ static uint8_t s_networkRxTransaction;
 static uint8_t s_networkRxExpectedFragment;
 static bool s_networkRxActive;
 static usb_board_link_webconfig_rx_callback_t s_webConfigRxCallback = nullptr;
+
+// SPI backup replies never enter the browser RPC receiver. CRC, epoch,
+// sequence and credit are already checked by the enclosing DMA link.
+static void receiveFastReports()
+{
+    const uint8_t *report;
+    while((report=whf_peek(&s_hsLink))!=nullptr) {
+        if(txb_reserved(report)) {
+            if(s_txBulkRead.active && !s_txBulkRead.done && txb_u32(report+8)==s_txBulkRead.id) {
+                s_txBulkRead.success=txb_matches(report,s_txBulkRead.id,s_txBulkRead.offset,s_txBulkRead.length) &&
+                    report[3]==USB_BOARD_STATUS_OK;
+                if(s_txBulkRead.success)
+                    memcpy(s_txBulkRead.bytes,report+XORA_TX_BULK_HEADER_BYTES,s_txBulkRead.length);
+                s_txBulkRead.done=true;
+            }
+        } else if(!s_webConfigRxCallback || !s_webConfigRxCallback(report)) break;
+        whf_release(&s_hsLink);
+    }
+}
 
 static bool supportedRole(usb_board_role_t role)
 {
@@ -924,6 +954,64 @@ bool UsbBoardLink::sendControl(usb_board_control_opcode_t opcode,
     return true;
 }
 
+bool UsbBoardLink::getTxImageInfo()
+{
+    uint32_t info[3]={};uint8_t size=0;
+    s_txBulkCapable=false;
+    if(!(sendControl(USB_BOARD_CONTROL_TX_IMAGE_INFO,nullptr,0,
+        reinterpret_cast<uint8_t*>(info),sizeof(info),&size) && size==sizeof(info) &&
+        info[0]==2u && info[1]==0x1000u && info[2]==XORA_TX_BACKUP_APP_BYTES)) return false;
+    if(!s_hsReady) return true;
+    uint8_t bulk[12]={},status=USB_BOARD_STATUS_NOT_READY;
+    if(!sendControl(USB_BOARD_CONTROL_TX_IMAGE_BULK_INFO,nullptr,0,bulk,sizeof(bulk),&size,&status))
+        return status==USB_BOARD_STATUS_UNSUPPORTED; // Old TX only; no timeout/corruption downgrade.
+    if(size!=sizeof(bulk) || txb_u32(bulk)!=XORA_TX_BULK_MAGIC ||
+       txb_u32(bulk+4)!=XORA_TX_BULK_VERSION || txb_u32(bulk+8)!=XORA_TX_BULK_READ_BYTES) return false;
+    s_txBulkCapable=true;return true;
+}
+
+uint16_t UsbBoardLink::txImageReadBytes() const
+{
+    return s_txBulkCapable ? XORA_TX_BULK_READ_BYTES : XORA_TX_READ_BYTES;
+}
+
+bool UsbBoardLink::readTxImage(uint32_t offset,uint8_t* bytes,uint16_t length)
+{
+    if(s_txBulkCapable) {
+        if(!bytes || !txb_range(offset,length) || !s_hsReady || s_txBulkRead.active ||
+           selectedRole!=USB_BOARD_ROLE_MAINTENANCE || selectedProfile!=USB_BOARD_PROFILE_WEB_CONFIG ||
+           s_txBulkSequence==UINT32_MAX) return false;
+        LinkTransactionGuard transaction(transactionActive);
+        if(!transaction) return false;
+        uint8_t request[WEBHID_REPORT_BYTES];
+        const uint32_t id=++s_txBulkSequence;
+        if(!txb_request(request,id,offset,length)) return false;
+        s_txBulkRead={id,offset,length,bytes,true,false,false};
+        const uint32_t start=HAL_GetTick();
+        bool queued=false;
+        // Pump transport only, never RPC dispatch/QSPI users. Return to the
+        // main loop after each chunk so status queries remain serviceable.
+        while(s_hsReady && !s_txBulkRead.done && !USBBoardLinkPort_HasReleaseFault() && HAL_GetTick()-start<100u) {
+            (void)drainEventsLocked(kEventDrainTimeoutMs);
+            receiveFastReports();
+            if(!s_hsReady || s_txBulkRead.done) break;
+            if(!queued) queued=whf_enqueue(&s_hsLink,request);
+            const uint16_t size=whf_prepare(&s_hsLink,s_hsBlock);
+            if(size && USBBoardLinkPort_SendWebHidBlock(s_hsBlock,size)) whf_commit(&s_hsLink,s_hsBlock);
+        }
+        const bool ok=queued && s_txBulkRead.done && s_txBulkRead.success &&
+            s_hsReady && !USBBoardLinkPort_HasReleaseFault();
+        s_txBulkRead={};
+        return ok;
+    }
+    if(!bytes || !xora_tx_read_range_valid(offset,length))return false;
+    uint8_t request[6],response[6+XORA_TX_READ_BYTES],size=0;
+    memcpy(request,&offset,4);memcpy(request+4,&length,2);
+    if(!sendControl(USB_BOARD_CONTROL_TX_IMAGE_READ,request,sizeof(request),response,sizeof(response),&size) ||
+       size!=6+length || memcmp(request,response,6))return false;
+    memcpy(bytes,response+6,length);return true;
+}
+
 uint8_t UsbBoardLink::creditFor(usb_board_channel_t channel) const
 {
     const uint8_t index = static_cast<uint8_t>(channel);
@@ -1332,9 +1420,7 @@ void UsbBoardLink::process()
     }
     serviceWebConfigTransportReset();
     if (s_hsReady) {
-        const uint8_t *report;
-        while (s_webConfigRxCallback != nullptr && (report = whf_peek(&s_hsLink)) != nullptr &&
-               s_webConfigRxCallback(report)) whf_release(&s_hsLink);
+        receiveFastReports();
         const uint16_t size = whf_prepare(&s_hsLink, s_hsBlock);
         LinkTransactionGuard transaction(transactionActive);
         if (transaction && size && USBBoardLinkPort_SendWebHidBlock(s_hsBlock, size))
@@ -1350,6 +1436,7 @@ void UsbBoardLink::shutdown()
     s_releaseFaultReported = false;
     usbMon=UsbSourceMonitor{};
     s_hsReady = false; whf_init(&s_hsLink, 0u);
+    s_txBulkCapable=false;s_txBulkRead={};
     USBBoardLinkPort_Shutdown();
     selectedRole = USB_BOARD_ROLE_NONE;
     selectedProfile = USB_BOARD_PROFILE_NONE;

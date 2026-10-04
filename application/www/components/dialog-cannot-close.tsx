@@ -1,8 +1,10 @@
 'use client';
 
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import { create } from 'zustand';
 import { Alert } from "@/components/ui/alert"
-import { Dialog, Text, Portal, Box, Button, HStack, Spinner } from '@chakra-ui/react';
+import { Dialog, Text, Portal, Button, HStack, Spinner } from '@chakra-ui/react';
 
 interface DialogConfig {
     id: string;
@@ -42,35 +44,15 @@ export function DialogCannotClose() {
 
                     <Portal key={dialog.id} >
 
-                        <Box
-                            position="fixed"
-                            zIndex={9999}
-                            top={0}
-                            left={0}
-                            right={0}
-                            bottom={0}
-                            display="flex"
-                            alignItems="center"
-                            justifyContent="center"
-                        >
-                            <Box
-                                position="absolute"
-                                top={0}
-                                left={0}
-                                right={0}
-                                bottom={0}
-                                bg="blackAlpha.100"
-                                backdropFilter="blur(4px)"
-                            />
-
-                            <Dialog.Root
+                        <ExclusiveDialog priority={OVERLAY_PRIORITY.operation}
                                 open={dialog.isOpen}
                                 modal
                                 size={dialog.size ?? 'md'}
                                 onPointerDownOutside={e => e.preventDefault()}
                                 onEscapeKeyDown={e => e.preventDefault()}
                             >
-                                <Dialog.Positioner>
+                                <Dialog.Backdrop bg="blackAlpha.100" backdropFilter="blur(4px)" zIndex={9999} />
+                                <Dialog.Positioner zIndex={9999}>
                                     <Dialog.Content>
                                         <Dialog.Header>
                                             {dialog.title && (
@@ -104,9 +86,7 @@ export function DialogCannotClose() {
                                         )}
                                     </Dialog.Content>
                                 </Dialog.Positioner>
-                            </Dialog.Root>
-
-                        </Box>
+                            </ExclusiveDialog>
 
 
                     </Portal>

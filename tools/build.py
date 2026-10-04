@@ -596,9 +596,6 @@ class BuildTool:
                 temporary_dir = Path(temporary)
                 encoded = self._openocd_tcl_braced_path(source_file)
                 commands = [
-                    "gdb_port disabled",
-                    "tcl_port disabled",
-                    "telnet_port disabled",
                     "init",
                     "reset init",
                     *(
@@ -625,6 +622,11 @@ class BuildTool:
                 command = [
                     self.config.get("openocd_path", "openocd"),
                     "-d0",
+                    # The NRST fallback initializes before sourcing the write
+                    # script. Server ports must stay in the pre-init prefix.
+                    "-c", "gdb_port disabled",
+                    "-c", "tcl_port disabled",
+                    "-c", "telnet_port disabled",
                     "-f",
                     str(openocd_cfg),
                 ]

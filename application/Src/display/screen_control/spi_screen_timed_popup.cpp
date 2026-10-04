@@ -9,6 +9,7 @@ static bool tick_reached(uint32_t nowMs, uint32_t targetMs) {
 void ScreenTimedPopup_Reset(ScreenTimedPopup* popup) {
     if (!popup) return;
     popup->visible = false;
+    popup->persistent = false;
     popup->closeAtMs = 0u;
     popup->title = "";
     popup->lines = nullptr;
@@ -18,6 +19,7 @@ void ScreenTimedPopup_Reset(ScreenTimedPopup* popup) {
 void ScreenTimedPopup_Show(ScreenTimedPopup* popup, const char* title, const char* const* lines, uint8_t lineCount, uint32_t durationMs, uint32_t nowMs) {
     if (!popup) return;
     popup->visible = true;
+    popup->persistent = durationMs == 0;
     popup->closeAtMs = nowMs + durationMs;
     popup->title = title ? title : "";
     popup->lines = lines;
@@ -27,12 +29,14 @@ void ScreenTimedPopup_Show(ScreenTimedPopup* popup, const char* title, const cha
 void ScreenTimedPopup_Close(ScreenTimedPopup* popup) {
     if (!popup) return;
     popup->visible = false;
+    popup->persistent = false;
 }
 
 void ScreenTimedPopup_Update(ScreenTimedPopup* popup, uint32_t nowMs) {
-    if (!popup || !popup->visible) return;
+    if (!popup || !popup->visible || popup->persistent) return;
     if (tick_reached(nowMs, popup->closeAtMs)) {
         popup->visible = false;
+    popup->persistent = false;
     }
 }
 
@@ -66,7 +70,8 @@ void ScreenTimedPopup_Render(const ScreenTimedPopup* popup, ST7789_Handle* lcd, 
     uint16_t y = (uint16_t)(startY + titleH + titleGap);
     for (uint8_t i = 0; i < popup->lineCount; i++) {
         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
-        ScreenUI_DrawStringCenteredInBox(lcd, listX, y, listW, lineH, line, mutedText, style.bg, textScale);
+        const uint8_t rowScale = popup->persistent && i + 1u == popup->lineCount ? 1u : textScale;
+        ScreenUI_DrawStringCenteredInBox(lcd, listX, y, listW, lineH, line, mutedText, style.bg, rowScale);
         y = (uint16_t)(y + lineH + lineGap);
     }
 }

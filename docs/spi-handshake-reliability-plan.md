@@ -219,3 +219,17 @@
 验证：`python -m unittest tools.tests.test_webhid_nss_retirement` 抽取生产 poller 和 finish，修复前复现过期采样导致的错误，修复后覆盖在途读取、CNT_END 但 NSS 仍低、正常完成、真实截断、零时钟让出以及共享普通 USB 输入端口，约 0.6 秒通过。`make -C RF_PHY_Hop/TX -j8` 增量构建约 2 秒通过，保留已有 RWX 链接警告。未执行 RF 运行时回归或采样。
 
 本轮只需经 `python tools/hbox.py flash tx` 更新 CH585 TX Application；不得使用包含 IAP 的合并镜像覆盖 4KB IAP。未实际烧录，未修改任何保护位或锁定状态，Finish Configuration 实机复测仍未完成。
+
+## 13. 后续重连失败：STM32 DMA 完成处理遗漏
+
+更新 TX 后再次出现桥未就绪。只读 Feature Report 为 `fault=26, detail=0x01088207, expected=32, remaining=28`：新增的 cause 7 已生效，CH585 在真实片选释放时记录到一帧只读了 4 字节头部。高速初始化阶段为 `0x46`，已经正常完成；此故障不能再归因为启动 COMMIT 未执行。
+
+现场数据保存在 `.hbox/webhid-reconnect-latest-20260929/` 和 `.hbox/webhid-reconnect-dma-20260929/`。STM32 接收缓冲保留有效的 `5b 02 20 00` 帧头；SPI handle 为 READY、ErrorCode 为 `HAL_SPI_ERROR_DMA`（16），最近 Tx/Rx 大小都是 28。RX DMA 为 READY/unlocked，TX DMA 为 BUSY/locked。这与两端记录的“头部成功、正文 DMA 无法启动”一致。没有停核、复位或写入 Flash；普通 RAM 有缓存限制，但此处多个状态与 USB 对端独立诊断相互吻合。
+
+`hsDma` 每轮依次处理 TX DMA、RX DMA、SPI 完成。TX 完成可以发生在本轮 TX handler 检查之后；RX handler 随后开启 EOT，SPI handler 将 SPI 状态置 READY。旧循环只检查 SPI READY，因而退出时可能留下未处理的 TX 完成标志和 BUSY/locked handle。下一次 `HAL_DMA_Start_IT` 拒绝启动，即使上一帧已在物理线上完成。HAL 源码的锁释放、RX 完成回调和 EOT 处理均与此路径一致。
+
+修复：退出循环必须同时满足 SPI READY、TX DMA READY、RX DMA READY，仍使用正常 HAL handler 完成解锁，保留原有 10 ms 超时与错误返回，不手工改状态、不重复发送。CH585 NSS 复核仍是必要的独立边界，但此前单独修复它并未覆盖这条 STM32 路径。
+
+`tools.tests.test_webhid_dma_retirement` 抽取生产 `hsDma` 并模拟 HAL 完成顺序：修复前复现 SPI READY/TX BUSY 和下一帧正文启动失败；修复后 1000 次短/长块及两种完成顺序、DMA 错误、全部 DMA 卡住及仅 TX 收尾卡住均按预期通过（约 0.6 秒）。这些是主机模拟次数，不是实机压力测试。没有运行 RF 自动回归或采样。本轮仅修改 STM32 Application，实际烧录与完整连接/Finish Configuration 验收仍待进行。
+
+随后通过官方 `web local-build --unlocked-development --slot A --skip-web` 生成完整固件包（约 38 秒，退出码 0），核对 A 槽、无锁 manifest、空生命周期要求以及全部文件大小/SHA-256，通过。未实际烧录，未修改任何保护位或锁定状态。

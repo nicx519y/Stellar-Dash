@@ -158,7 +158,7 @@ class WebHidScopeMatrixTests(unittest.TestCase):
             r"[\s\S]+?default:\s*return 0u;\s*\}",
         )
 
-    def test_firmware_session_control_is_physically_confirmed_and_bound(
+    def test_release_install_uses_session_binding_without_a_button_gate(
         self,
     ) -> None:
         service = (
@@ -178,13 +178,21 @@ class WebHidScopeMatrixTests(unittest.TestCase):
             r"abortFirmware \|\| statusFirmware \|\|\s*"
             r"cleanupFirmware\)\s*&&\s*"
             r"\(firmwareSessionId == nullptr \|\|\s*"
-            r"!firmwareAuthorizationValid\(\s*firmwareSessionId\)",
+            r"\(!firmwareAuthorizationValid\(\s*firmwareSessionId\)",
         )
         self.assertRegex(
             service,
             r"if \(createFirmware\) \{\s*"
-            r"if \(!HBoxBoard_DangerousActionConfirmed\(\)",
+            r"if \(\(!beginReleaseInstall && !HBoxBoard_DangerousActionConfirmed\(\)\)",
         )
+        self.assertIn('const bool beginReleaseInstall = command == "begin_release_install";', service)
+        self.assertIn('command != "activate_release_install"', service)
+        self.assertNotRegex(
+            service,
+            r"abort_release_install\" \|\| command == \"retry_release_install\"\) &&\s*"
+            r"!HBoxBoard_DangerousActionConfirmed",
+        )
+        self.assertIn('RELEASE_INSTALLER.owns(session)', firmware_handler)
 
         cleanup = re.search(
             r"DeviceCommandResponse "

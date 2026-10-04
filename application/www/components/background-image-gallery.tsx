@@ -1,5 +1,7 @@
 'use client';
 
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import { JPEG_FORMAT, JPEG_MAX_FRAMES } from '../../../common/uimg-jpeg.cjs';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -783,7 +785,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
         {installingId && <Flex position="absolute" inset="0" bg="blackAlpha.700" align="center" justify="center" direction="column"><Spinner /><Text fontSize="xs" mt="2">{copy.uploading} {deviceProgress ?? 0}%</Text></Flex>}
       </ScreenPreviewFrame>
     </VStack>
-    <Dialog.Root open={open} onOpenChange={details => setOpen(details.open)} size="xl">
+    <ExclusiveDialog priority={OVERLAY_PRIORITY.editor} open={open} onOpenChange={details => setOpen(details.open)} size="xl">
       <Dialog.Backdrop backdropFilter="blur(4px)" />
       <Dialog.Positioner><Dialog.Content
         width="min(1080px, calc(100vw - 64px))"
@@ -825,6 +827,6 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
         </Dialog.Footer>
         <Dialog.CloseTrigger />
       </Dialog.Content></Dialog.Positioner>
-    </Dialog.Root>
+    </ExclusiveDialog>
   </>;
 }

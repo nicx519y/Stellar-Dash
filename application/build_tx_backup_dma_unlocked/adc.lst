@@ -1,0 +1,2817 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"adc.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/input/drivers/adc/adc.c"
+  19              		.section	.text.enable_gpio_clock,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	enable_gpio_clock:
+  26              	.LVL0:
+  27              	.LFB340:
+   1:Src/input/drivers/adc/adc.c **** /* USER CODE BEGIN Header */
+   2:Src/input/drivers/adc/adc.c **** /**
+   3:Src/input/drivers/adc/adc.c ****  ******************************************************************************
+   4:Src/input/drivers/adc/adc.c ****  * @file    adc.c
+   5:Src/input/drivers/adc/adc.c ****  * @brief   This file provides code for the configuration
+   6:Src/input/drivers/adc/adc.c ****  *          of the ADC instances.
+   7:Src/input/drivers/adc/adc.c ****  ******************************************************************************
+   8:Src/input/drivers/adc/adc.c ****  * @attention
+   9:Src/input/drivers/adc/adc.c ****  *
+  10:Src/input/drivers/adc/adc.c ****  * Copyright (c) 2024 STMicroelectronics.
+  11:Src/input/drivers/adc/adc.c ****  * All rights reserved.
+  12:Src/input/drivers/adc/adc.c ****  *
+  13:Src/input/drivers/adc/adc.c ****  * This software is licensed under terms that can be found in the LICENSE file
+  14:Src/input/drivers/adc/adc.c ****  * in the root directory of this software component.
+  15:Src/input/drivers/adc/adc.c ****  * If no LICENSE file comes with this software, it is provided AS-IS.
+  16:Src/input/drivers/adc/adc.c ****  *
+  17:Src/input/drivers/adc/adc.c ****  ******************************************************************************
+  18:Src/input/drivers/adc/adc.c ****  */
+  19:Src/input/drivers/adc/adc.c **** /* USER CODE END Header */
+  20:Src/input/drivers/adc/adc.c **** /* Includes ------------------------------------------------------------------*/
+  21:Src/input/drivers/adc/adc.c **** 
+  22:Src/input/drivers/adc/adc.c **** #include "adc.h"
+  23:Src/input/drivers/adc/adc.c **** #include "adc_sampling_policy.h"
+  24:Src/input/drivers/adc/adc.c **** #include "board_cfg.h"
+  25:Src/input/drivers/adc/adc.c **** 
+  26:Src/input/drivers/adc/adc.c **** /* USER CODE BEGIN 0 */
+  27:Src/input/drivers/adc/adc.c **** 
+  28:Src/input/drivers/adc/adc.c **** static void enable_gpio_clock(GPIO_TypeDef* port)
+  29:Src/input/drivers/adc/adc.c **** {
+  28              		.loc 1 29 1 view -0
+  29              		.cfi_startproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 2
+
+
+  30              		@ args = 0, pretend = 0, frame = 40
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  33              		.loc 1 29 1 is_stmt 0 view .LVU1
+  34 0000 8AB0     		sub	sp, sp, #40
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 40
+  30:Src/input/drivers/adc/adc.c ****     if (port == GPIOA) { __HAL_RCC_GPIOA_CLK_ENABLE(); }
+  37              		.loc 1 30 5 is_stmt 1 view .LVU2
+  38              		.loc 1 30 8 is_stmt 0 view .LVU3
+  39 0002 514B     		ldr	r3, .L20
+  40 0004 9842     		cmp	r0, r3
+  41 0006 26D0     		beq	.L12
+  31:Src/input/drivers/adc/adc.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+  42              		.loc 1 31 10 is_stmt 1 view .LVU4
+  43              		.loc 1 31 13 is_stmt 0 view .LVU5
+  44 0008 504B     		ldr	r3, .L20+4
+  45 000a 9842     		cmp	r0, r3
+  46 000c 33D0     		beq	.L13
+  32:Src/input/drivers/adc/adc.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+  47              		.loc 1 32 10 is_stmt 1 view .LVU6
+  48              		.loc 1 32 13 is_stmt 0 view .LVU7
+  49 000e 504B     		ldr	r3, .L20+8
+  50 0010 9842     		cmp	r0, r3
+  51 0012 3FD0     		beq	.L14
+  33:Src/input/drivers/adc/adc.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+  52              		.loc 1 33 10 is_stmt 1 view .LVU8
+  53              		.loc 1 33 13 is_stmt 0 view .LVU9
+  54 0014 4F4B     		ldr	r3, .L20+12
+  55 0016 9842     		cmp	r0, r3
+  56 0018 4BD0     		beq	.L15
+  34:Src/input/drivers/adc/adc.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+  57              		.loc 1 34 10 is_stmt 1 view .LVU10
+  58              		.loc 1 34 13 is_stmt 0 view .LVU11
+  59 001a 4F4B     		ldr	r3, .L20+16
+  60 001c 9842     		cmp	r0, r3
+  61 001e 57D0     		beq	.L16
+  35:Src/input/drivers/adc/adc.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+  62              		.loc 1 35 10 is_stmt 1 view .LVU12
+  63              		.loc 1 35 13 is_stmt 0 view .LVU13
+  64 0020 4E4B     		ldr	r3, .L20+20
+  65 0022 9842     		cmp	r0, r3
+  66 0024 63D0     		beq	.L17
+  36:Src/input/drivers/adc/adc.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+  67              		.loc 1 36 10 is_stmt 1 view .LVU14
+  68              		.loc 1 36 13 is_stmt 0 view .LVU15
+  69 0026 4E4B     		ldr	r3, .L20+24
+  70 0028 9842     		cmp	r0, r3
+  71 002a 6FD0     		beq	.L18
+  37:Src/input/drivers/adc/adc.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+  72              		.loc 1 37 10 is_stmt 1 view .LVU16
+  73              		.loc 1 37 13 is_stmt 0 view .LVU17
+  74 002c 4D4B     		ldr	r3, .L20+28
+  75 002e 9842     		cmp	r0, r3
+  76 0030 7BD0     		beq	.L19
+  38:Src/input/drivers/adc/adc.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+  77              		.loc 1 38 10 is_stmt 1 view .LVU18
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 3
+
+
+  78              		.loc 1 38 13 is_stmt 0 view .LVU19
+  79 0032 4D4B     		ldr	r3, .L20+32
+  80 0034 9842     		cmp	r0, r3
+  81 0036 1CD1     		bne	.L1
+  82              		.loc 1 38 31 is_stmt 1 discriminator 1 view .LVU20
+  83              	.LBB13:
+  84              		.loc 1 38 31 discriminator 1 view .LVU21
+  85              		.loc 1 38 31 discriminator 1 view .LVU22
+  86 0038 03F51053 		add	r3, r3, #9216
+  87 003c D3F8E020 		ldr	r2, [r3, #224]
+  88 0040 42F48072 		orr	r2, r2, #256
+  89 0044 C3F8E020 		str	r2, [r3, #224]
+  90              		.loc 1 38 31 discriminator 1 view .LVU23
+  91 0048 D3F8E030 		ldr	r3, [r3, #224]
+  92 004c 03F48073 		and	r3, r3, #256
+  93 0050 0993     		str	r3, [sp, #36]
+  94              		.loc 1 38 31 discriminator 1 view .LVU24
+  95 0052 099B     		ldr	r3, [sp, #36]
+  96              	.LBE13:
+  97              		.loc 1 38 31 discriminator 3 view .LVU25
+  39:Src/input/drivers/adc/adc.c **** }
+  98              		.loc 1 39 1 is_stmt 0 view .LVU26
+  99 0054 0DE0     		b	.L1
+ 100              	.L12:
+  30:Src/input/drivers/adc/adc.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 101              		.loc 1 30 26 is_stmt 1 discriminator 1 view .LVU27
+ 102              	.LBB14:
+  30:Src/input/drivers/adc/adc.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 103              		.loc 1 30 26 discriminator 1 view .LVU28
+  30:Src/input/drivers/adc/adc.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 104              		.loc 1 30 26 discriminator 1 view .LVU29
+ 105 0056 03F58843 		add	r3, r3, #17408
+ 106 005a D3F8E020 		ldr	r2, [r3, #224]
+ 107 005e 42F00102 		orr	r2, r2, #1
+ 108 0062 C3F8E020 		str	r2, [r3, #224]
+  30:Src/input/drivers/adc/adc.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 109              		.loc 1 30 26 discriminator 1 view .LVU30
+ 110 0066 D3F8E030 		ldr	r3, [r3, #224]
+ 111 006a 03F00103 		and	r3, r3, #1
+ 112 006e 0193     		str	r3, [sp, #4]
+  30:Src/input/drivers/adc/adc.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 113              		.loc 1 30 26 discriminator 1 view .LVU31
+ 114 0070 019B     		ldr	r3, [sp, #4]
+ 115              	.LBE14:
+  30:Src/input/drivers/adc/adc.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 116              		.loc 1 30 26 discriminator 1 view .LVU32
+ 117              	.L1:
+ 118              		.loc 1 39 1 is_stmt 0 view .LVU33
+ 119 0072 0AB0     		add	sp, sp, #40
+ 120              	.LCFI1:
+ 121              		.cfi_remember_state
+ 122              		.cfi_def_cfa_offset 0
+ 123              		@ sp needed
+ 124 0074 7047     		bx	lr
+ 125              	.L13:
+ 126              	.LCFI2:
+ 127              		.cfi_restore_state
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 4
+
+
+  31:Src/input/drivers/adc/adc.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 128              		.loc 1 31 31 is_stmt 1 discriminator 1 view .LVU34
+ 129              	.LBB15:
+  31:Src/input/drivers/adc/adc.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 130              		.loc 1 31 31 discriminator 1 view .LVU35
+  31:Src/input/drivers/adc/adc.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 131              		.loc 1 31 31 discriminator 1 view .LVU36
+ 132 0076 03F58043 		add	r3, r3, #16384
+ 133 007a D3F8E020 		ldr	r2, [r3, #224]
+ 134 007e 42F00202 		orr	r2, r2, #2
+ 135 0082 C3F8E020 		str	r2, [r3, #224]
+  31:Src/input/drivers/adc/adc.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 136              		.loc 1 31 31 discriminator 1 view .LVU37
+ 137 0086 D3F8E030 		ldr	r3, [r3, #224]
+ 138 008a 03F00203 		and	r3, r3, #2
+ 139 008e 0293     		str	r3, [sp, #8]
+  31:Src/input/drivers/adc/adc.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 140              		.loc 1 31 31 discriminator 1 view .LVU38
+ 141 0090 029B     		ldr	r3, [sp, #8]
+ 142              	.LBE15:
+  31:Src/input/drivers/adc/adc.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 143              		.loc 1 31 31 discriminator 1 view .LVU39
+ 144 0092 EEE7     		b	.L1
+ 145              	.L14:
+  32:Src/input/drivers/adc/adc.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 146              		.loc 1 32 31 discriminator 1 view .LVU40
+ 147              	.LBB16:
+  32:Src/input/drivers/adc/adc.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 148              		.loc 1 32 31 discriminator 1 view .LVU41
+  32:Src/input/drivers/adc/adc.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 149              		.loc 1 32 31 discriminator 1 view .LVU42
+ 150 0094 03F57053 		add	r3, r3, #15360
+ 151 0098 D3F8E020 		ldr	r2, [r3, #224]
+ 152 009c 42F00402 		orr	r2, r2, #4
+ 153 00a0 C3F8E020 		str	r2, [r3, #224]
+  32:Src/input/drivers/adc/adc.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 154              		.loc 1 32 31 discriminator 1 view .LVU43
+ 155 00a4 D3F8E030 		ldr	r3, [r3, #224]
+ 156 00a8 03F00403 		and	r3, r3, #4
+ 157 00ac 0393     		str	r3, [sp, #12]
+  32:Src/input/drivers/adc/adc.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 158              		.loc 1 32 31 discriminator 1 view .LVU44
+ 159 00ae 039B     		ldr	r3, [sp, #12]
+ 160              	.LBE16:
+  32:Src/input/drivers/adc/adc.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 161              		.loc 1 32 31 discriminator 1 view .LVU45
+ 162 00b0 DFE7     		b	.L1
+ 163              	.L15:
+  33:Src/input/drivers/adc/adc.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 164              		.loc 1 33 31 discriminator 1 view .LVU46
+ 165              	.LBB17:
+  33:Src/input/drivers/adc/adc.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 166              		.loc 1 33 31 discriminator 1 view .LVU47
+  33:Src/input/drivers/adc/adc.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 167              		.loc 1 33 31 discriminator 1 view .LVU48
+ 168 00b2 03F56053 		add	r3, r3, #14336
+ 169 00b6 D3F8E020 		ldr	r2, [r3, #224]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 5
+
+
+ 170 00ba 42F00802 		orr	r2, r2, #8
+ 171 00be C3F8E020 		str	r2, [r3, #224]
+  33:Src/input/drivers/adc/adc.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 172              		.loc 1 33 31 discriminator 1 view .LVU49
+ 173 00c2 D3F8E030 		ldr	r3, [r3, #224]
+ 174 00c6 03F00803 		and	r3, r3, #8
+ 175 00ca 0493     		str	r3, [sp, #16]
+  33:Src/input/drivers/adc/adc.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 176              		.loc 1 33 31 discriminator 1 view .LVU50
+ 177 00cc 049B     		ldr	r3, [sp, #16]
+ 178              	.LBE17:
+  33:Src/input/drivers/adc/adc.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 179              		.loc 1 33 31 discriminator 1 view .LVU51
+ 180 00ce D0E7     		b	.L1
+ 181              	.L16:
+  34:Src/input/drivers/adc/adc.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 182              		.loc 1 34 31 discriminator 1 view .LVU52
+ 183              	.LBB18:
+  34:Src/input/drivers/adc/adc.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 184              		.loc 1 34 31 discriminator 1 view .LVU53
+  34:Src/input/drivers/adc/adc.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 185              		.loc 1 34 31 discriminator 1 view .LVU54
+ 186 00d0 03F55053 		add	r3, r3, #13312
+ 187 00d4 D3F8E020 		ldr	r2, [r3, #224]
+ 188 00d8 42F01002 		orr	r2, r2, #16
+ 189 00dc C3F8E020 		str	r2, [r3, #224]
+  34:Src/input/drivers/adc/adc.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 190              		.loc 1 34 31 discriminator 1 view .LVU55
+ 191 00e0 D3F8E030 		ldr	r3, [r3, #224]
+ 192 00e4 03F01003 		and	r3, r3, #16
+ 193 00e8 0593     		str	r3, [sp, #20]
+  34:Src/input/drivers/adc/adc.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 194              		.loc 1 34 31 discriminator 1 view .LVU56
+ 195 00ea 059B     		ldr	r3, [sp, #20]
+ 196              	.LBE18:
+  34:Src/input/drivers/adc/adc.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 197              		.loc 1 34 31 discriminator 1 view .LVU57
+ 198 00ec C1E7     		b	.L1
+ 199              	.L17:
+  35:Src/input/drivers/adc/adc.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 200              		.loc 1 35 31 discriminator 1 view .LVU58
+ 201              	.LBB19:
+  35:Src/input/drivers/adc/adc.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 202              		.loc 1 35 31 discriminator 1 view .LVU59
+  35:Src/input/drivers/adc/adc.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 203              		.loc 1 35 31 discriminator 1 view .LVU60
+ 204 00ee 03F54053 		add	r3, r3, #12288
+ 205 00f2 D3F8E020 		ldr	r2, [r3, #224]
+ 206 00f6 42F02002 		orr	r2, r2, #32
+ 207 00fa C3F8E020 		str	r2, [r3, #224]
+  35:Src/input/drivers/adc/adc.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 208              		.loc 1 35 31 discriminator 1 view .LVU61
+ 209 00fe D3F8E030 		ldr	r3, [r3, #224]
+ 210 0102 03F02003 		and	r3, r3, #32
+ 211 0106 0693     		str	r3, [sp, #24]
+  35:Src/input/drivers/adc/adc.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 212              		.loc 1 35 31 discriminator 1 view .LVU62
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 6
+
+
+ 213 0108 069B     		ldr	r3, [sp, #24]
+ 214              	.LBE19:
+  35:Src/input/drivers/adc/adc.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 215              		.loc 1 35 31 discriminator 1 view .LVU63
+ 216 010a B2E7     		b	.L1
+ 217              	.L18:
+  36:Src/input/drivers/adc/adc.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 218              		.loc 1 36 31 discriminator 1 view .LVU64
+ 219              	.LBB20:
+  36:Src/input/drivers/adc/adc.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 220              		.loc 1 36 31 discriminator 1 view .LVU65
+  36:Src/input/drivers/adc/adc.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 221              		.loc 1 36 31 discriminator 1 view .LVU66
+ 222 010c 03F53053 		add	r3, r3, #11264
+ 223 0110 D3F8E020 		ldr	r2, [r3, #224]
+ 224 0114 42F04002 		orr	r2, r2, #64
+ 225 0118 C3F8E020 		str	r2, [r3, #224]
+  36:Src/input/drivers/adc/adc.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 226              		.loc 1 36 31 discriminator 1 view .LVU67
+ 227 011c D3F8E030 		ldr	r3, [r3, #224]
+ 228 0120 03F04003 		and	r3, r3, #64
+ 229 0124 0793     		str	r3, [sp, #28]
+  36:Src/input/drivers/adc/adc.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 230              		.loc 1 36 31 discriminator 1 view .LVU68
+ 231 0126 079B     		ldr	r3, [sp, #28]
+ 232              	.LBE20:
+  36:Src/input/drivers/adc/adc.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 233              		.loc 1 36 31 discriminator 1 view .LVU69
+ 234 0128 A3E7     		b	.L1
+ 235              	.L19:
+  37:Src/input/drivers/adc/adc.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 236              		.loc 1 37 31 discriminator 1 view .LVU70
+ 237              	.LBB21:
+  37:Src/input/drivers/adc/adc.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 238              		.loc 1 37 31 discriminator 1 view .LVU71
+  37:Src/input/drivers/adc/adc.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 239              		.loc 1 37 31 discriminator 1 view .LVU72
+ 240 012a 03F52053 		add	r3, r3, #10240
+ 241 012e D3F8E020 		ldr	r2, [r3, #224]
+ 242 0132 42F08002 		orr	r2, r2, #128
+ 243 0136 C3F8E020 		str	r2, [r3, #224]
+  37:Src/input/drivers/adc/adc.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 244              		.loc 1 37 31 discriminator 1 view .LVU73
+ 245 013a D3F8E030 		ldr	r3, [r3, #224]
+ 246 013e 03F08003 		and	r3, r3, #128
+ 247 0142 0893     		str	r3, [sp, #32]
+  37:Src/input/drivers/adc/adc.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 248              		.loc 1 37 31 discriminator 1 view .LVU74
+ 249 0144 089B     		ldr	r3, [sp, #32]
+ 250              	.LBE21:
+  37:Src/input/drivers/adc/adc.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 251              		.loc 1 37 31 discriminator 1 view .LVU75
+ 252 0146 94E7     		b	.L1
+ 253              	.L21:
+ 254              		.align	2
+ 255              	.L20:
+ 256 0148 00000258 		.word	1476526080
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 7
+
+
+ 257 014c 00040258 		.word	1476527104
+ 258 0150 00080258 		.word	1476528128
+ 259 0154 000C0258 		.word	1476529152
+ 260 0158 00100258 		.word	1476530176
+ 261 015c 00140258 		.word	1476531200
+ 262 0160 00180258 		.word	1476532224
+ 263 0164 001C0258 		.word	1476533248
+ 264 0168 00200258 		.word	1476534272
+ 265              		.cfi_endproc
+ 266              	.LFE340:
+ 268              		.section	.text.configure_adc_common,"ax",%progbits
+ 269              		.align	1
+ 270              		.syntax unified
+ 271              		.thumb
+ 272              		.thumb_func
+ 274              	configure_adc_common:
+ 275              	.LVL1:
+ 276              	.LFB341:
+  40:Src/input/drivers/adc/adc.c **** 
+  41:Src/input/drivers/adc/adc.c **** /* USER CODE END 0 */
+  42:Src/input/drivers/adc/adc.c **** 
+  43:Src/input/drivers/adc/adc.c **** ADC_HandleTypeDef hadc1;
+  44:Src/input/drivers/adc/adc.c **** ADC_HandleTypeDef hadc2;
+  45:Src/input/drivers/adc/adc.c **** ADC_HandleTypeDef hadc3;
+  46:Src/input/drivers/adc/adc.c **** DMA_HandleTypeDef hdma_adc1;
+  47:Src/input/drivers/adc/adc.c **** DMA_HandleTypeDef hdma_adc2;
+  48:Src/input/drivers/adc/adc.c **** DMA_HandleTypeDef hdma_adc3;
+  49:Src/input/drivers/adc/adc.c **** 
+  50:Src/input/drivers/adc/adc.c **** static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversion)
+  51:Src/input/drivers/adc/adc.c **** {
+ 277              		.loc 1 51 1 view -0
+ 278              		.cfi_startproc
+ 279              		@ args = 0, pretend = 0, frame = 0
+ 280              		@ frame_needed = 0, uses_anonymous_args = 0
+ 281              		@ link register save eliminated.
+ 282              		.loc 1 51 1 is_stmt 0 view .LVU77
+ 283 0000 10B4     		push	{r4}
+ 284              	.LCFI3:
+ 285              		.cfi_def_cfa_offset 4
+ 286              		.cfi_offset 4, -4
+  52:Src/input/drivers/adc/adc.c ****     hadc->Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+ 287              		.loc 1 52 5 is_stmt 1 view .LVU78
+ 288              		.loc 1 52 31 is_stmt 0 view .LVU79
+ 289 0002 0023     		movs	r3, #0
+ 290 0004 4360     		str	r3, [r0, #4]
+  53:Src/input/drivers/adc/adc.c ****     hadc->Init.Resolution = ADC_RESOLUTION_16B;
+ 291              		.loc 1 53 5 is_stmt 1 view .LVU80
+ 292              		.loc 1 53 27 is_stmt 0 view .LVU81
+ 293 0006 8360     		str	r3, [r0, #8]
+  54:Src/input/drivers/adc/adc.c ****     hadc->Init.ScanConvMode = ADC_SCAN_ENABLE;
+ 294              		.loc 1 54 5 is_stmt 1 view .LVU82
+ 295              		.loc 1 54 29 is_stmt 0 view .LVU83
+ 296 0008 0122     		movs	r2, #1
+ 297 000a C260     		str	r2, [r0, #12]
+  55:Src/input/drivers/adc/adc.c ****     hadc->Init.EOCSelection = ADC_EOC_SEQ_CONV;
+ 298              		.loc 1 55 5 is_stmt 1 view .LVU84
+ 299              		.loc 1 55 29 is_stmt 0 view .LVU85
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 8
+
+
+ 300 000c 0824     		movs	r4, #8
+ 301 000e 0461     		str	r4, [r0, #16]
+  56:Src/input/drivers/adc/adc.c ****     hadc->Init.LowPowerAutoWait = DISABLE;
+ 302              		.loc 1 56 5 is_stmt 1 view .LVU86
+ 303              		.loc 1 56 33 is_stmt 0 view .LVU87
+ 304 0010 0375     		strb	r3, [r0, #20]
+  57:Src/input/drivers/adc/adc.c **** 
+  58:Src/input/drivers/adc/adc.c ****     /* One complete channel sequence is started by every TIM2 update event. */
+  59:Src/input/drivers/adc/adc.c ****     hadc->Init.ContinuousConvMode = DISABLE;
+ 305              		.loc 1 59 5 is_stmt 1 view .LVU88
+ 306              		.loc 1 59 35 is_stmt 0 view .LVU89
+ 307 0012 4375     		strb	r3, [r0, #21]
+  60:Src/input/drivers/adc/adc.c ****     hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_CIRCULAR;
+ 308              		.loc 1 60 5 is_stmt 1 view .LVU90
+ 309              		.loc 1 60 41 is_stmt 0 view .LVU91
+ 310 0014 0324     		movs	r4, #3
+ 311 0016 C462     		str	r4, [r0, #44]
+  61:Src/input/drivers/adc/adc.c ****     hadc->Init.Oversampling.Ratio = BOARD_ADC_OVERSAMPLE_RATIO;
+ 312              		.loc 1 61 5 is_stmt 1 view .LVU92
+ 313              		.loc 1 61 35 is_stmt 0 view .LVU93
+ 314 0018 1024     		movs	r4, #16
+ 315 001a C463     		str	r4, [r0, #60]
+  62:Src/input/drivers/adc/adc.c ****     hadc->Init.Oversampling.RightBitShift = BOARD_ADC_OVERSAMPLE_RIGHT_SHIFT;
+ 316              		.loc 1 62 5 is_stmt 1 view .LVU94
+ 317              		.loc 1 62 43 is_stmt 0 view .LVU95
+ 318 001c 8024     		movs	r4, #128
+ 319 001e 0464     		str	r4, [r0, #64]
+  63:Src/input/drivers/adc/adc.c **** 
+  64:Src/input/drivers/adc/adc.c ****     hadc->Init.NbrOfConversion = nbrOfConversion;
+ 320              		.loc 1 64 5 is_stmt 1 view .LVU96
+ 321              		.loc 1 64 32 is_stmt 0 view .LVU97
+ 322 0020 8161     		str	r1, [r0, #24]
+  65:Src/input/drivers/adc/adc.c ****     hadc->Init.DiscontinuousConvMode = DISABLE;
+ 323              		.loc 1 65 5 is_stmt 1 view .LVU98
+ 324              		.loc 1 65 38 is_stmt 0 view .LVU99
+ 325 0022 0377     		strb	r3, [r0, #28]
+  66:Src/input/drivers/adc/adc.c ****     hadc->Init.ExternalTrigConv = ADC_EXTERNALTRIG_T2_TRGO;
+ 326              		.loc 1 66 5 is_stmt 1 view .LVU100
+ 327              		.loc 1 66 33 is_stmt 0 view .LVU101
+ 328 0024 4FF4AC61 		mov	r1, #1376
+ 329              	.LVL2:
+ 330              		.loc 1 66 33 view .LVU102
+ 331 0028 4162     		str	r1, [r0, #36]
+  67:Src/input/drivers/adc/adc.c ****     hadc->Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+ 332              		.loc 1 67 5 is_stmt 1 view .LVU103
+ 333              		.loc 1 67 37 is_stmt 0 view .LVU104
+ 334 002a 4FF48061 		mov	r1, #1024
+ 335 002e 8162     		str	r1, [r0, #40]
+  68:Src/input/drivers/adc/adc.c ****     hadc->Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+ 336              		.loc 1 68 5 is_stmt 1 view .LVU105
+ 337              		.loc 1 68 24 is_stmt 0 view .LVU106
+ 338 0030 4FF48051 		mov	r1, #4096
+ 339 0034 0163     		str	r1, [r0, #48]
+  69:Src/input/drivers/adc/adc.c ****     hadc->Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
+ 340              		.loc 1 69 5 is_stmt 1 view .LVU107
+ 341              		.loc 1 69 29 is_stmt 0 view .LVU108
+ 342 0036 4363     		str	r3, [r0, #52]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 9
+
+
+  70:Src/input/drivers/adc/adc.c ****     hadc->Init.OversamplingMode = ENABLE;
+ 343              		.loc 1 70 5 is_stmt 1 view .LVU109
+ 344              		.loc 1 70 33 is_stmt 0 view .LVU110
+ 345 0038 80F83820 		strb	r2, [r0, #56]
+  71:Src/input/drivers/adc/adc.c ****     hadc->Init.Oversampling.TriggeredMode = ADC_TRIGGEREDMODE_SINGLE_TRIGGER;
+ 346              		.loc 1 71 5 is_stmt 1 view .LVU111
+ 347              		.loc 1 71 43 is_stmt 0 view .LVU112
+ 348 003c 4364     		str	r3, [r0, #68]
+  72:Src/input/drivers/adc/adc.c ****     hadc->Init.Oversampling.OversamplingStopReset = ADC_REGOVERSAMPLING_CONTINUED_MODE;
+ 349              		.loc 1 72 5 is_stmt 1 view .LVU113
+ 350              		.loc 1 72 51 is_stmt 0 view .LVU114
+ 351 003e 8264     		str	r2, [r0, #72]
+  73:Src/input/drivers/adc/adc.c **** }
+ 352              		.loc 1 73 1 view .LVU115
+ 353 0040 5DF8044B 		ldr	r4, [sp], #4
+ 354              	.LCFI4:
+ 355              		.cfi_restore 4
+ 356              		.cfi_def_cfa_offset 0
+ 357 0044 7047     		bx	lr
+ 358              		.cfi_endproc
+ 359              	.LFE341:
+ 361              		.section	.text.configure_dma_common,"ax",%progbits
+ 362              		.align	1
+ 363              		.syntax unified
+ 364              		.thumb
+ 365              		.thumb_func
+ 367              	configure_dma_common:
+ 368              	.LVL3:
+ 369              	.LFB342:
+  74:Src/input/drivers/adc/adc.c **** 
+  75:Src/input/drivers/adc/adc.c **** static void configure_dma_common(DMA_HandleTypeDef* hdma, uint32_t request)
+  76:Src/input/drivers/adc/adc.c **** {
+ 370              		.loc 1 76 1 is_stmt 1 view -0
+ 371              		.cfi_startproc
+ 372              		@ args = 0, pretend = 0, frame = 0
+ 373              		@ frame_needed = 0, uses_anonymous_args = 0
+ 374              		@ link register save eliminated.
+  77:Src/input/drivers/adc/adc.c ****     hdma->Init.Request = request;
+ 375              		.loc 1 77 5 view .LVU117
+ 376              		.loc 1 77 24 is_stmt 0 view .LVU118
+ 377 0000 4160     		str	r1, [r0, #4]
+  78:Src/input/drivers/adc/adc.c ****     hdma->Init.Direction = DMA_PERIPH_TO_MEMORY;
+ 378              		.loc 1 78 5 is_stmt 1 view .LVU119
+ 379              		.loc 1 78 26 is_stmt 0 view .LVU120
+ 380 0002 0023     		movs	r3, #0
+ 381 0004 8360     		str	r3, [r0, #8]
+  79:Src/input/drivers/adc/adc.c ****     hdma->Init.PeriphInc = DMA_PINC_DISABLE;
+ 382              		.loc 1 79 5 is_stmt 1 view .LVU121
+ 383              		.loc 1 79 26 is_stmt 0 view .LVU122
+ 384 0006 C360     		str	r3, [r0, #12]
+  80:Src/input/drivers/adc/adc.c ****     hdma->Init.MemInc = DMA_MINC_ENABLE;
+ 385              		.loc 1 80 5 is_stmt 1 view .LVU123
+ 386              		.loc 1 80 23 is_stmt 0 view .LVU124
+ 387 0008 4FF48062 		mov	r2, #1024
+ 388 000c 0261     		str	r2, [r0, #16]
+  81:Src/input/drivers/adc/adc.c ****     hdma->Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+ 389              		.loc 1 81 5 is_stmt 1 view .LVU125
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 10
+
+
+ 390              		.loc 1 81 36 is_stmt 0 view .LVU126
+ 391 000e 4FF48052 		mov	r2, #4096
+ 392 0012 4261     		str	r2, [r0, #20]
+  82:Src/input/drivers/adc/adc.c ****     hdma->Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+ 393              		.loc 1 82 5 is_stmt 1 view .LVU127
+ 394              		.loc 1 82 33 is_stmt 0 view .LVU128
+ 395 0014 4FF48042 		mov	r2, #16384
+ 396 0018 8261     		str	r2, [r0, #24]
+  83:Src/input/drivers/adc/adc.c ****     
+  84:Src/input/drivers/adc/adc.c ****     hdma->Init.Mode = DMA_CIRCULAR;
+ 397              		.loc 1 84 5 is_stmt 1 view .LVU129
+ 398              		.loc 1 84 21 is_stmt 0 view .LVU130
+ 399 001a 4FF48072 		mov	r2, #256
+ 400 001e C261     		str	r2, [r0, #28]
+  85:Src/input/drivers/adc/adc.c **** 
+  86:Src/input/drivers/adc/adc.c ****     hdma->Init.Priority = DMA_PRIORITY_VERY_HIGH;
+ 401              		.loc 1 86 5 is_stmt 1 view .LVU131
+ 402              		.loc 1 86 25 is_stmt 0 view .LVU132
+ 403 0020 4FF44032 		mov	r2, #196608
+ 404 0024 0262     		str	r2, [r0, #32]
+  87:Src/input/drivers/adc/adc.c ****     hdma->Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+ 405              		.loc 1 87 5 is_stmt 1 view .LVU133
+ 406              		.loc 1 87 25 is_stmt 0 view .LVU134
+ 407 0026 4362     		str	r3, [r0, #36]
+  88:Src/input/drivers/adc/adc.c **** }
+ 408              		.loc 1 88 1 view .LVU135
+ 409 0028 7047     		bx	lr
+ 410              		.cfi_endproc
+ 411              	.LFE342:
+ 413              		.section	.text.ADC_ConfigureInputOversampling,"ax",%progbits
+ 414              		.align	1
+ 415              		.global	ADC_ConfigureInputOversampling
+ 416              		.syntax unified
+ 417              		.thumb
+ 418              		.thumb_func
+ 420              	ADC_ConfigureInputOversampling:
+ 421              	.LVL4:
+ 422              	.LFB343:
+  89:Src/input/drivers/adc/adc.c **** 
+  90:Src/input/drivers/adc/adc.c **** HAL_StatusTypeDef ADC_ConfigureInputOversampling(uint16_t rateHz)
+  91:Src/input/drivers/adc/adc.c **** {
+ 423              		.loc 1 91 1 is_stmt 1 view -0
+ 424              		.cfi_startproc
+ 425              		@ args = 0, pretend = 0, frame = 16
+ 426              		@ frame_needed = 0, uses_anonymous_args = 0
+ 427              		.loc 1 91 1 is_stmt 0 view .LVU137
+ 428 0000 70B5     		push	{r4, r5, r6, lr}
+ 429              	.LCFI5:
+ 430              		.cfi_def_cfa_offset 16
+ 431              		.cfi_offset 4, -16
+ 432              		.cfi_offset 5, -12
+ 433              		.cfi_offset 6, -8
+ 434              		.cfi_offset 14, -4
+ 435 0002 84B0     		sub	sp, sp, #16
+ 436              	.LCFI6:
+ 437              		.cfi_def_cfa_offset 32
+ 438 0004 0446     		mov	r4, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 11
+
+
+  92:Src/input/drivers/adc/adc.c ****     ADC_HandleTypeDef* const channels[] = {&hadc1, &hadc2, &hadc3};
+ 439              		.loc 1 92 5 is_stmt 1 view .LVU138
+ 440              		.loc 1 92 30 is_stmt 0 view .LVU139
+ 441 0006 1C4B     		ldr	r3, .L41
+ 442 0008 93E80700 		ldm	r3, {r0, r1, r2}
+ 443              	.LVL5:
+ 444              		.loc 1 92 30 view .LVU140
+ 445 000c 04AB     		add	r3, sp, #16
+ 446 000e 03E90700 		stmdb	r3, {r0, r1, r2}
+  93:Src/input/drivers/adc/adc.c ****     const uint32_t ratio = ADC_InputOversamplingRatio(rateHz);
+ 447              		.loc 1 93 5 is_stmt 1 view .LVU141
+ 448              	.LVL6:
+ 449              	.LBB22:
+ 450              	.LBI22:
+ 451              		.file 2 "Inc/input/drivers/adc/adc_sampling_policy.h"
+   1:Inc/input/drivers/adc/adc_sampling_policy.h **** #ifndef ADC_SAMPLING_POLICY_H
+   2:Inc/input/drivers/adc/adc_sampling_policy.h **** #define ADC_SAMPLING_POLICY_H
+   3:Inc/input/drivers/adc/adc_sampling_policy.h **** 
+   4:Inc/input/drivers/adc/adc_sampling_policy.h **** #include <stdint.h>
+   5:Inc/input/drivers/adc/adc_sampling_policy.h **** 
+   6:Inc/input/drivers/adc/adc_sampling_policy.h **** /* H750 Rev.V divides the 45 MHz kernel clock by two. Six channels at
+   7:Inc/input/drivers/adc/adc_sampling_policy.h ****  * 32.5 sampling + 8.5 conversion cycles take ~175 us with 16x averaging,
+   8:Inc/input/drivers/adc/adc_sampling_policy.h ****  * so the 125-us (8 kHz) period needs 8x averaging (~88 us before IRQ work).
+   9:Inc/input/drivers/adc/adc_sampling_policy.h ****  * Shift by log2(ratio) to retain the calibrated ADC value scale. */
+  10:Inc/input/drivers/adc/adc_sampling_policy.h **** static inline uint8_t ADC_InputOversamplingShift(uint16_t rateHz)
+  11:Inc/input/drivers/adc/adc_sampling_policy.h **** {
+  12:Inc/input/drivers/adc/adc_sampling_policy.h ****     return rateHz == 8000u ? 3u : 4u;
+  13:Inc/input/drivers/adc/adc_sampling_policy.h **** }
+  14:Inc/input/drivers/adc/adc_sampling_policy.h **** 
+  15:Inc/input/drivers/adc/adc_sampling_policy.h **** static inline uint32_t ADC_InputOversamplingRatio(uint16_t rateHz)
+ 452              		.loc 2 15 24 view .LVU142
+ 453              	.LBB23:
+  16:Inc/input/drivers/adc/adc_sampling_policy.h **** {
+  17:Inc/input/drivers/adc/adc_sampling_policy.h ****     return 1u << ADC_InputOversamplingShift(rateHz);
+ 454              		.loc 2 17 5 view .LVU143
+ 455              	.LBB24:
+ 456              	.LBI24:
+  10:Inc/input/drivers/adc/adc_sampling_policy.h **** {
+ 457              		.loc 2 10 23 view .LVU144
+ 458              	.LBB25:
+  12:Inc/input/drivers/adc/adc_sampling_policy.h **** }
+ 459              		.loc 2 12 5 view .LVU145
+  12:Inc/input/drivers/adc/adc_sampling_policy.h **** }
+ 460              		.loc 2 12 33 is_stmt 0 view .LVU146
+ 461 0012 B4F5FA5F 		cmp	r4, #8000
+ 462 0016 13D0     		beq	.L37
+  12:Inc/input/drivers/adc/adc_sampling_policy.h **** }
+ 463              		.loc 2 12 33 discriminator 2 view .LVU147
+ 464 0018 0425     		movs	r5, #4
+ 465              	.L26:
+ 466              	.LVL7:
+  12:Inc/input/drivers/adc/adc_sampling_policy.h **** }
+ 467              		.loc 2 12 33 discriminator 2 view .LVU148
+ 468              	.LBE25:
+ 469              	.LBE24:
+ 470              		.loc 2 17 15 discriminator 1 view .LVU149
+ 471 001a 0126     		movs	r6, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 12
+
+
+ 472 001c AE40     		lsls	r6, r6, r5
+ 473              	.LVL8:
+ 474              		.loc 2 17 15 discriminator 1 view .LVU150
+ 475              	.LBE23:
+ 476              	.LBE22:
+  94:Src/input/drivers/adc/adc.c ****     const uint32_t shift = (uint32_t)ADC_InputOversamplingShift(rateHz)
+ 477              		.loc 1 94 5 is_stmt 1 view .LVU151
+ 478              		.loc 1 94 20 is_stmt 0 discriminator 1 view .LVU152
+ 479 001e 6D01     		lsls	r5, r5, #5
+ 480              	.LVL9:
+  95:Src/input/drivers/adc/adc.c ****                           << ADC_CFGR2_OVSS_Pos;
+  96:Src/input/drivers/adc/adc.c **** 
+  97:Src/input/drivers/adc/adc.c ****     /* TIM2 and all three ADC/DMA channels must be stopped by the caller.
+  98:Src/input/drivers/adc/adc.c ****      * Check every ADC before changing any of them. */
+  99:Src/input/drivers/adc/adc.c ****     for (uint32_t i = 0u; i < 3u; ++i) {
+ 481              		.loc 1 99 5 is_stmt 1 view .LVU153
+ 482              	.LBB29:
+ 483              		.loc 1 99 10 view .LVU154
+ 484              		.loc 1 99 19 is_stmt 0 view .LVU155
+ 485 0020 0023     		movs	r3, #0
+ 486              	.LVL10:
+ 487              	.L27:
+ 488              		.loc 1 99 29 is_stmt 1 discriminator 1 view .LVU156
+ 489 0022 022B     		cmp	r3, #2
+ 490 0024 0ED8     		bhi	.L38
+ 100:Src/input/drivers/adc/adc.c ****         if (channels[i]->Instance == NULL ||
+ 491              		.loc 1 100 9 view .LVU157
+ 492              		.loc 1 100 21 is_stmt 0 view .LVU158
+ 493 0026 04AA     		add	r2, sp, #16
+ 494 0028 02EB8302 		add	r2, r2, r3, lsl #2
+ 495 002c 52F80C2C 		ldr	r2, [r2, #-12]
+ 496              		.loc 1 100 24 view .LVU159
+ 497 0030 1268     		ldr	r2, [r2]
+ 498              		.loc 1 100 12 view .LVU160
+ 499 0032 E2B1     		cbz	r2, .L33
+ 101:Src/input/drivers/adc/adc.c ****             (channels[i]->Instance->CR & (ADC_CR_ADEN | ADC_CR_ADSTART |
+ 500              		.loc 1 101 35 view .LVU161
+ 501 0034 9268     		ldr	r2, [r2, #8]
+ 100:Src/input/drivers/adc/adc.c ****         if (channels[i]->Instance == NULL ||
+ 502              		.loc 1 100 43 discriminator 1 view .LVU162
+ 503 0036 12F00D0F 		tst	r2, #13
+ 504 003a 1AD1     		bne	.L34
+  99:Src/input/drivers/adc/adc.c ****         if (channels[i]->Instance == NULL ||
+ 505              		.loc 1 99 35 is_stmt 1 discriminator 2 view .LVU163
+ 506 003c 0133     		adds	r3, r3, #1
+ 507              	.LVL11:
+  99:Src/input/drivers/adc/adc.c ****         if (channels[i]->Instance == NULL ||
+ 508              		.loc 1 99 35 is_stmt 0 discriminator 2 view .LVU164
+ 509 003e F0E7     		b	.L27
+ 510              	.LVL12:
+ 511              	.L37:
+  99:Src/input/drivers/adc/adc.c ****         if (channels[i]->Instance == NULL ||
+ 512              		.loc 1 99 35 discriminator 2 view .LVU165
+ 513              	.LBE29:
+ 514              	.LBB30:
+ 515              	.LBB28:
+ 516              	.LBB27:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 13
+
+
+ 517              	.LBB26:
+  12:Inc/input/drivers/adc/adc_sampling_policy.h **** }
+ 518              		.loc 2 12 33 discriminator 1 view .LVU166
+ 519 0040 0325     		movs	r5, #3
+ 520 0042 EAE7     		b	.L26
+ 521              	.LVL13:
+ 522              	.L38:
+  12:Inc/input/drivers/adc/adc_sampling_policy.h **** }
+ 523              		.loc 2 12 33 discriminator 1 view .LVU167
+ 524              	.LBE26:
+ 525              	.LBE27:
+ 526              	.LBE28:
+ 527              	.LBE30:
+ 528              	.LBB31:
+ 102:Src/input/drivers/adc/adc.c ****                                          ADC_CR_JADSTART)) != 0u) {
+ 103:Src/input/drivers/adc/adc.c ****             return HAL_ERROR;
+ 104:Src/input/drivers/adc/adc.c ****         }
+ 105:Src/input/drivers/adc/adc.c ****     }
+ 106:Src/input/drivers/adc/adc.c ****     for (uint32_t i = 0u; i < 3u; ++i) {
+ 529              		.loc 1 106 19 view .LVU168
+ 530 0044 0024     		movs	r4, #0
+ 531              	.LVL14:
+ 532              		.loc 1 106 19 view .LVU169
+ 533 0046 00E0     		b	.L30
+ 534              	.LVL15:
+ 535              	.L40:
+ 536              		.loc 1 106 35 is_stmt 1 discriminator 2 view .LVU170
+ 537 0048 0134     		adds	r4, r4, #1
+ 538              	.LVL16:
+ 539              	.L30:
+ 540              		.loc 1 106 29 discriminator 1 view .LVU171
+ 541 004a 022C     		cmp	r4, #2
+ 542 004c 0CD8     		bhi	.L39
+ 543              	.LBB32:
+ 107:Src/input/drivers/adc/adc.c ****         ADC_HandleTypeDef* const hadc = channels[i];
+ 544              		.loc 1 107 9 view .LVU172
+ 545              		.loc 1 107 34 is_stmt 0 view .LVU173
+ 546 004e 04AB     		add	r3, sp, #16
+ 547 0050 03EB8403 		add	r3, r3, r4, lsl #2
+ 548 0054 53F80C0C 		ldr	r0, [r3, #-12]
+ 549              	.LVL17:
+ 108:Src/input/drivers/adc/adc.c ****         hadc->Init.Oversampling.Ratio = ratio;
+ 550              		.loc 1 108 9 is_stmt 1 view .LVU174
+ 551              		.loc 1 108 39 is_stmt 0 view .LVU175
+ 552 0058 C663     		str	r6, [r0, #60]
+ 109:Src/input/drivers/adc/adc.c ****         hadc->Init.Oversampling.RightBitShift = shift;
+ 553              		.loc 1 109 9 is_stmt 1 view .LVU176
+ 554              		.loc 1 109 47 is_stmt 0 view .LVU177
+ 555 005a 0564     		str	r5, [r0, #64]
+ 110:Src/input/drivers/adc/adc.c ****         if (HAL_ADC_Init(hadc) != HAL_OK) {
+ 556              		.loc 1 110 9 is_stmt 1 view .LVU178
+ 557              		.loc 1 110 13 is_stmt 0 view .LVU179
+ 558 005c FFF7FEFF 		bl	HAL_ADC_Init
+ 559              	.LVL18:
+ 560              		.loc 1 110 12 discriminator 1 view .LVU180
+ 561 0060 0028     		cmp	r0, #0
+ 562 0062 F1D0     		beq	.L40
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 14
+
+
+ 111:Src/input/drivers/adc/adc.c ****             return HAL_ERROR;
+ 563              		.loc 1 111 20 view .LVU181
+ 564 0064 0120     		movs	r0, #1
+ 565 0066 00E0     		b	.L28
+ 566              	.LVL19:
+ 567              	.L39:
+ 568              		.loc 1 111 20 view .LVU182
+ 569              	.LBE32:
+ 570              	.LBE31:
+ 112:Src/input/drivers/adc/adc.c ****         }
+ 113:Src/input/drivers/adc/adc.c ****     }
+ 114:Src/input/drivers/adc/adc.c ****     return HAL_OK;
+ 571              		.loc 1 114 12 view .LVU183
+ 572 0068 0020     		movs	r0, #0
+ 573              	.LVL20:
+ 574              	.L28:
+ 115:Src/input/drivers/adc/adc.c **** }
+ 575              		.loc 1 115 1 view .LVU184
+ 576 006a 04B0     		add	sp, sp, #16
+ 577              	.LCFI7:
+ 578              		.cfi_remember_state
+ 579              		.cfi_def_cfa_offset 16
+ 580              		@ sp needed
+ 581 006c 70BD     		pop	{r4, r5, r6, pc}
+ 582              	.LVL21:
+ 583              	.L33:
+ 584              	.LCFI8:
+ 585              		.cfi_restore_state
+ 586              	.LBB33:
+ 103:Src/input/drivers/adc/adc.c ****         }
+ 587              		.loc 1 103 20 view .LVU185
+ 588 006e 0120     		movs	r0, #1
+ 589 0070 FBE7     		b	.L28
+ 590              	.L34:
+ 591 0072 0120     		movs	r0, #1
+ 592 0074 F9E7     		b	.L28
+ 593              	.L42:
+ 594 0076 00BF     		.align	2
+ 595              	.L41:
+ 596 0078 00000000 		.word	.LANCHOR0
+ 597              	.LBE33:
+ 598              		.cfi_endproc
+ 599              	.LFE343:
+ 601              		.section	.text.MX_ADC1_Init,"ax",%progbits
+ 602              		.align	1
+ 603              		.global	MX_ADC1_Init
+ 604              		.syntax unified
+ 605              		.thumb
+ 606              		.thumb_func
+ 608              	MX_ADC1_Init:
+ 609              	.LFB344:
+ 116:Src/input/drivers/adc/adc.c **** 
+ 117:Src/input/drivers/adc/adc.c **** /* ADC1 init function */
+ 118:Src/input/drivers/adc/adc.c **** void MX_ADC1_Init(void)
+ 119:Src/input/drivers/adc/adc.c **** {
+ 610              		.loc 1 119 1 is_stmt 1 view -0
+ 611              		.cfi_startproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 15
+
+
+ 612              		@ args = 0, pretend = 0, frame = 40
+ 613              		@ frame_needed = 0, uses_anonymous_args = 0
+ 614 0000 10B5     		push	{r4, lr}
+ 615              	.LCFI9:
+ 616              		.cfi_def_cfa_offset 8
+ 617              		.cfi_offset 4, -8
+ 618              		.cfi_offset 14, -4
+ 619 0002 8AB0     		sub	sp, sp, #40
+ 620              	.LCFI10:
+ 621              		.cfi_def_cfa_offset 48
+ 120:Src/input/drivers/adc/adc.c ****     /* USER CODE BEGIN ADC1_Init 0 */
+ 121:Src/input/drivers/adc/adc.c ****     /* USER CODE END ADC1_Init 0 */
+ 122:Src/input/drivers/adc/adc.c **** 
+ 123:Src/input/drivers/adc/adc.c ****     ADC_MultiModeTypeDef multimode = {0};
+ 622              		.loc 1 123 5 view .LVU187
+ 623              		.loc 1 123 26 is_stmt 0 view .LVU188
+ 624 0004 0023     		movs	r3, #0
+ 625 0006 0793     		str	r3, [sp, #28]
+ 626 0008 0893     		str	r3, [sp, #32]
+ 627 000a 0993     		str	r3, [sp, #36]
+ 124:Src/input/drivers/adc/adc.c ****     ADC_ChannelConfTypeDef sConfig = {0};
+ 628              		.loc 1 124 5 is_stmt 1 view .LVU189
+ 629              		.loc 1 124 28 is_stmt 0 view .LVU190
+ 630 000c 0093     		str	r3, [sp]
+ 631 000e 0193     		str	r3, [sp, #4]
+ 632 0010 0293     		str	r3, [sp, #8]
+ 633 0012 0393     		str	r3, [sp, #12]
+ 634 0014 0493     		str	r3, [sp, #16]
+ 635 0016 0593     		str	r3, [sp, #20]
+ 636 0018 0693     		str	r3, [sp, #24]
+ 125:Src/input/drivers/adc/adc.c **** 
+ 126:Src/input/drivers/adc/adc.c ****     /* USER CODE BEGIN ADC1_Init 1 */
+ 127:Src/input/drivers/adc/adc.c ****     /* USER CODE END ADC1_Init 1 */
+ 128:Src/input/drivers/adc/adc.c **** 
+ 129:Src/input/drivers/adc/adc.c ****     /** Common config */
+ 130:Src/input/drivers/adc/adc.c ****     hadc1.Instance = ADC1;
+ 637              		.loc 1 130 5 is_stmt 1 view .LVU191
+ 638              		.loc 1 130 20 is_stmt 0 view .LVU192
+ 639 001a 1F4C     		ldr	r4, .L53
+ 640 001c 1F4B     		ldr	r3, .L53+4
+ 641 001e 2360     		str	r3, [r4]
+ 131:Src/input/drivers/adc/adc.c ****     configure_adc_common(&hadc1, (uint32_t)ADC1_PIN_MAP_SIZE);
+ 642              		.loc 1 131 5 is_stmt 1 view .LVU193
+ 643 0020 0621     		movs	r1, #6
+ 644 0022 2046     		mov	r0, r4
+ 645 0024 FFF7FEFF 		bl	configure_adc_common
+ 646              	.LVL22:
+ 132:Src/input/drivers/adc/adc.c **** 
+ 133:Src/input/drivers/adc/adc.c ****     if (HAL_ADC_Init(&hadc1) != HAL_OK)
+ 647              		.loc 1 133 5 view .LVU194
+ 648              		.loc 1 133 9 is_stmt 0 view .LVU195
+ 649 0028 2046     		mov	r0, r4
+ 650 002a FFF7FEFF 		bl	HAL_ADC_Init
+ 651              	.LVL23:
+ 652              		.loc 1 133 8 discriminator 1 view .LVU196
+ 653 002e 88B9     		cbnz	r0, .L50
+ 654              	.L44:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 16
+
+
+ 134:Src/input/drivers/adc/adc.c ****     {
+ 135:Src/input/drivers/adc/adc.c ****         Error_Handler();
+ 136:Src/input/drivers/adc/adc.c ****     }
+ 137:Src/input/drivers/adc/adc.c **** 
+ 138:Src/input/drivers/adc/adc.c ****     /** Configure the ADC multi-mode
+ 139:Src/input/drivers/adc/adc.c ****      */
+ 140:Src/input/drivers/adc/adc.c ****     multimode.Mode = ADC_MODE_INDEPENDENT;
+ 655              		.loc 1 140 5 is_stmt 1 view .LVU197
+ 656              		.loc 1 140 20 is_stmt 0 view .LVU198
+ 657 0030 0023     		movs	r3, #0
+ 658 0032 0793     		str	r3, [sp, #28]
+ 141:Src/input/drivers/adc/adc.c ****     if (HAL_ADCEx_MultiModeConfigChannel(&hadc1, &multimode) != HAL_OK)
+ 659              		.loc 1 141 5 is_stmt 1 view .LVU199
+ 660              		.loc 1 141 9 is_stmt 0 view .LVU200
+ 661 0034 07A9     		add	r1, sp, #28
+ 662 0036 1848     		ldr	r0, .L53
+ 663 0038 FFF7FEFF 		bl	HAL_ADCEx_MultiModeConfigChannel
+ 664              	.LVL24:
+ 665              		.loc 1 141 8 discriminator 1 view .LVU201
+ 666 003c 68B9     		cbnz	r0, .L51
+ 667              	.L45:
+ 142:Src/input/drivers/adc/adc.c ****     {
+ 143:Src/input/drivers/adc/adc.c ****         Error_Handler();
+ 144:Src/input/drivers/adc/adc.c ****     }
+ 145:Src/input/drivers/adc/adc.c **** 
+ 146:Src/input/drivers/adc/adc.c ****     sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
+ 668              		.loc 1 146 5 is_stmt 1 view .LVU202
+ 669              		.loc 1 146 26 is_stmt 0 view .LVU203
+ 670 003e 0423     		movs	r3, #4
+ 671 0040 0293     		str	r3, [sp, #8]
+ 147:Src/input/drivers/adc/adc.c ****     sConfig.SingleDiff = ADC_SINGLE_ENDED;
+ 672              		.loc 1 147 5 is_stmt 1 view .LVU204
+ 673              		.loc 1 147 24 is_stmt 0 view .LVU205
+ 674 0042 40F2FF72 		movw	r2, #2047
+ 675 0046 0392     		str	r2, [sp, #12]
+ 148:Src/input/drivers/adc/adc.c ****     sConfig.OffsetNumber = ADC_OFFSET_NONE;
+ 676              		.loc 1 148 5 is_stmt 1 view .LVU206
+ 677              		.loc 1 148 26 is_stmt 0 view .LVU207
+ 678 0048 0493     		str	r3, [sp, #16]
+ 149:Src/input/drivers/adc/adc.c ****     sConfig.Offset = 0;
+ 679              		.loc 1 149 5 is_stmt 1 view .LVU208
+ 680              		.loc 1 149 20 is_stmt 0 view .LVU209
+ 681 004a 0024     		movs	r4, #0
+ 682 004c 0594     		str	r4, [sp, #20]
+ 150:Src/input/drivers/adc/adc.c ****     sConfig.OffsetSignedSaturation = DISABLE;
+ 683              		.loc 1 150 5 is_stmt 1 view .LVU210
+ 684              		.loc 1 150 36 is_stmt 0 view .LVU211
+ 685 004e 8DF81940 		strb	r4, [sp, #25]
+ 151:Src/input/drivers/adc/adc.c ****     for (uint32_t i = 0; i < (uint32_t)ADC1_PIN_MAP_SIZE; i++) {
+ 686              		.loc 1 151 5 is_stmt 1 view .LVU212
+ 687              	.LBB34:
+ 688              		.loc 1 151 10 view .LVU213
+ 689              	.LVL25:
+ 690              		.loc 1 151 5 is_stmt 0 view .LVU214
+ 691 0052 06E0     		b	.L46
+ 692              	.LVL26:
+ 693              	.L50:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 17
+
+
+ 694              		.loc 1 151 5 view .LVU215
+ 695              	.LBE34:
+ 135:Src/input/drivers/adc/adc.c ****     }
+ 696              		.loc 1 135 9 is_stmt 1 view .LVU216
+ 697 0054 FFF7FEFF 		bl	Error_Handler
+ 698              	.LVL27:
+ 699 0058 EAE7     		b	.L44
+ 700              	.L51:
+ 143:Src/input/drivers/adc/adc.c ****     }
+ 701              		.loc 1 143 9 view .LVU217
+ 702 005a FFF7FEFF 		bl	Error_Handler
+ 703              	.LVL28:
+ 704 005e EEE7     		b	.L45
+ 705              	.LVL29:
+ 706              	.L47:
+ 707              	.LBB35:
+ 708              		.loc 1 151 60 discriminator 2 view .LVU218
+ 709 0060 0134     		adds	r4, r4, #1
+ 710              	.LVL30:
+ 711              	.L46:
+ 712              		.loc 1 151 28 discriminator 1 view .LVU219
+ 713 0062 052C     		cmp	r4, #5
+ 714 0064 11D8     		bhi	.L52
+ 152:Src/input/drivers/adc/adc.c ****         sConfig.Channel = ADC1_PIN_MAP[i].channel;
+ 715              		.loc 1 152 9 view .LVU220
+ 716              		.loc 1 152 42 is_stmt 0 view .LVU221
+ 717 0066 04EB8402 		add	r2, r4, r4, lsl #2
+ 718 006a 0D4B     		ldr	r3, .L53+8
+ 719 006c 03EB8203 		add	r3, r3, r2, lsl #2
+ 720 0070 9A68     		ldr	r2, [r3, #8]
+ 721              		.loc 1 152 25 view .LVU222
+ 722 0072 0092     		str	r2, [sp]
+ 153:Src/input/drivers/adc/adc.c ****         sConfig.Rank = ADC1_PIN_MAP[i].rank;
+ 723              		.loc 1 153 9 is_stmt 1 view .LVU223
+ 724              		.loc 1 153 39 is_stmt 0 view .LVU224
+ 725 0074 DB68     		ldr	r3, [r3, #12]
+ 726              		.loc 1 153 22 view .LVU225
+ 727 0076 0193     		str	r3, [sp, #4]
+ 154:Src/input/drivers/adc/adc.c ****         if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
+ 728              		.loc 1 154 9 is_stmt 1 view .LVU226
+ 729              		.loc 1 154 13 is_stmt 0 view .LVU227
+ 730 0078 6946     		mov	r1, sp
+ 731 007a 0748     		ldr	r0, .L53
+ 732 007c FFF7FEFF 		bl	HAL_ADC_ConfigChannel
+ 733              	.LVL31:
+ 734              		.loc 1 154 12 discriminator 1 view .LVU228
+ 735 0080 0028     		cmp	r0, #0
+ 736 0082 EDD0     		beq	.L47
+ 155:Src/input/drivers/adc/adc.c ****             Error_Handler();
+ 737              		.loc 1 155 13 is_stmt 1 view .LVU229
+ 738 0084 FFF7FEFF 		bl	Error_Handler
+ 739              	.LVL32:
+ 740 0088 EAE7     		b	.L47
+ 741              	.L52:
+ 742              	.LBE35:
+ 156:Src/input/drivers/adc/adc.c ****         }
+ 157:Src/input/drivers/adc/adc.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 18
+
+
+ 158:Src/input/drivers/adc/adc.c **** 
+ 159:Src/input/drivers/adc/adc.c **** 
+ 160:Src/input/drivers/adc/adc.c ****     /* USER CODE BEGIN ADC1_Init 2 */
+ 161:Src/input/drivers/adc/adc.c **** 
+ 162:Src/input/drivers/adc/adc.c ****     if(!__HAL_RCC_ADC12_IS_CLK_ENABLED()) {
+ 743              		.loc 1 162 5 view .LVU230
+ 744              		.loc 1 162 9 is_stmt 0 view .LVU231
+ 745 008a 064B     		ldr	r3, .L53+12
+ 746 008c D3F8D820 		ldr	r2, [r3, #216]
+ 163:Src/input/drivers/adc/adc.c ****         APP_ERR("ADC12 Clock not enabled!");
+ 747              		.loc 1 163 9 is_stmt 1 view .LVU232
+ 164:Src/input/drivers/adc/adc.c ****     }
+ 165:Src/input/drivers/adc/adc.c **** 
+ 166:Src/input/drivers/adc/adc.c ****     // 检查 DMA 时钟
+ 167:Src/input/drivers/adc/adc.c ****     if(!__HAL_RCC_DMA1_IS_CLK_ENABLED()) {
+ 748              		.loc 1 167 5 view .LVU233
+ 749              		.loc 1 167 9 is_stmt 0 view .LVU234
+ 750 0090 D3F8D830 		ldr	r3, [r3, #216]
+ 168:Src/input/drivers/adc/adc.c ****         APP_ERR("DMA1 Clock not enabled!");
+ 751              		.loc 1 168 9 is_stmt 1 view .LVU235
+ 169:Src/input/drivers/adc/adc.c ****     }
+ 170:Src/input/drivers/adc/adc.c **** 
+ 171:Src/input/drivers/adc/adc.c ****     /* USER CODE END ADC1_Init 2 */
+ 172:Src/input/drivers/adc/adc.c **** }
+ 752              		.loc 1 172 1 is_stmt 0 view .LVU236
+ 753 0094 0AB0     		add	sp, sp, #40
+ 754              	.LCFI11:
+ 755              		.cfi_def_cfa_offset 8
+ 756              		@ sp needed
+ 757 0096 10BD     		pop	{r4, pc}
+ 758              	.LVL33:
+ 759              	.L54:
+ 760              		.loc 1 172 1 view .LVU237
+ 761              		.align	2
+ 762              	.L53:
+ 763 0098 00000000 		.word	hadc1
+ 764 009c 00200240 		.word	1073881088
+ 765 00a0 00000000 		.word	ADC1_PIN_MAP
+ 766 00a4 00440258 		.word	1476543488
+ 767              		.cfi_endproc
+ 768              	.LFE344:
+ 770              		.section	.text.MX_ADC2_Init,"ax",%progbits
+ 771              		.align	1
+ 772              		.global	MX_ADC2_Init
+ 773              		.syntax unified
+ 774              		.thumb
+ 775              		.thumb_func
+ 777              	MX_ADC2_Init:
+ 778              	.LFB345:
+ 173:Src/input/drivers/adc/adc.c **** /* ADC2 init function */
+ 174:Src/input/drivers/adc/adc.c **** void MX_ADC2_Init(void)
+ 175:Src/input/drivers/adc/adc.c **** {
+ 779              		.loc 1 175 1 is_stmt 1 view -0
+ 780              		.cfi_startproc
+ 781              		@ args = 0, pretend = 0, frame = 32
+ 782              		@ frame_needed = 0, uses_anonymous_args = 0
+ 783 0000 10B5     		push	{r4, lr}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 19
+
+
+ 784              	.LCFI12:
+ 785              		.cfi_def_cfa_offset 8
+ 786              		.cfi_offset 4, -8
+ 787              		.cfi_offset 14, -4
+ 788 0002 88B0     		sub	sp, sp, #32
+ 789              	.LCFI13:
+ 790              		.cfi_def_cfa_offset 40
+ 176:Src/input/drivers/adc/adc.c ****     /* USER CODE BEGIN ADC2_Init 0 */
+ 177:Src/input/drivers/adc/adc.c ****     /* USER CODE END ADC2_Init 0 */
+ 178:Src/input/drivers/adc/adc.c **** 
+ 179:Src/input/drivers/adc/adc.c ****     ADC_ChannelConfTypeDef sConfig = {0};
+ 791              		.loc 1 179 5 view .LVU239
+ 792              		.loc 1 179 28 is_stmt 0 view .LVU240
+ 793 0004 0023     		movs	r3, #0
+ 794 0006 0193     		str	r3, [sp, #4]
+ 795 0008 0293     		str	r3, [sp, #8]
+ 796 000a 0393     		str	r3, [sp, #12]
+ 797 000c 0493     		str	r3, [sp, #16]
+ 798 000e 0593     		str	r3, [sp, #20]
+ 799 0010 0693     		str	r3, [sp, #24]
+ 800 0012 0793     		str	r3, [sp, #28]
+ 180:Src/input/drivers/adc/adc.c **** 
+ 181:Src/input/drivers/adc/adc.c ****     /* USER CODE BEGIN ADC2_Init 1 */
+ 182:Src/input/drivers/adc/adc.c ****     /* USER CODE END ADC2_Init 1 */
+ 183:Src/input/drivers/adc/adc.c **** 
+ 184:Src/input/drivers/adc/adc.c ****     /** Common config */
+ 185:Src/input/drivers/adc/adc.c ****     hadc2.Instance = ADC2;
+ 801              		.loc 1 185 5 is_stmt 1 view .LVU241
+ 802              		.loc 1 185 20 is_stmt 0 view .LVU242
+ 803 0014 1A4C     		ldr	r4, .L63
+ 804 0016 1B4B     		ldr	r3, .L63+4
+ 805 0018 2360     		str	r3, [r4]
+ 186:Src/input/drivers/adc/adc.c ****     configure_adc_common(&hadc2, (uint32_t)ADC2_PIN_MAP_SIZE);
+ 806              		.loc 1 186 5 is_stmt 1 view .LVU243
+ 807 001a 0621     		movs	r1, #6
+ 808 001c 2046     		mov	r0, r4
+ 809 001e FFF7FEFF 		bl	configure_adc_common
+ 810              	.LVL34:
+ 187:Src/input/drivers/adc/adc.c **** 
+ 188:Src/input/drivers/adc/adc.c ****     if (HAL_ADC_Init(&hadc2) != HAL_OK)
+ 811              		.loc 1 188 5 view .LVU244
+ 812              		.loc 1 188 9 is_stmt 0 view .LVU245
+ 813 0022 2046     		mov	r0, r4
+ 814 0024 FFF7FEFF 		bl	HAL_ADC_Init
+ 815              	.LVL35:
+ 816              		.loc 1 188 8 discriminator 1 view .LVU246
+ 817 0028 50B9     		cbnz	r0, .L61
+ 818              	.L56:
+ 189:Src/input/drivers/adc/adc.c ****     {
+ 190:Src/input/drivers/adc/adc.c ****         Error_Handler();
+ 191:Src/input/drivers/adc/adc.c ****     }
+ 192:Src/input/drivers/adc/adc.c **** 
+ 193:Src/input/drivers/adc/adc.c ****     sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
+ 819              		.loc 1 193 5 is_stmt 1 view .LVU247
+ 820              		.loc 1 193 26 is_stmt 0 view .LVU248
+ 821 002a 0423     		movs	r3, #4
+ 822 002c 0393     		str	r3, [sp, #12]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 20
+
+
+ 194:Src/input/drivers/adc/adc.c ****     sConfig.SingleDiff = ADC_SINGLE_ENDED;
+ 823              		.loc 1 194 5 is_stmt 1 view .LVU249
+ 824              		.loc 1 194 24 is_stmt 0 view .LVU250
+ 825 002e 40F2FF72 		movw	r2, #2047
+ 826 0032 0492     		str	r2, [sp, #16]
+ 195:Src/input/drivers/adc/adc.c ****     sConfig.OffsetNumber = ADC_OFFSET_NONE;
+ 827              		.loc 1 195 5 is_stmt 1 view .LVU251
+ 828              		.loc 1 195 26 is_stmt 0 view .LVU252
+ 829 0034 0593     		str	r3, [sp, #20]
+ 196:Src/input/drivers/adc/adc.c ****     sConfig.Offset = 0;
+ 830              		.loc 1 196 5 is_stmt 1 view .LVU253
+ 831              		.loc 1 196 20 is_stmt 0 view .LVU254
+ 832 0036 0024     		movs	r4, #0
+ 833 0038 0694     		str	r4, [sp, #24]
+ 197:Src/input/drivers/adc/adc.c ****     sConfig.OffsetSignedSaturation = DISABLE;
+ 834              		.loc 1 197 5 is_stmt 1 view .LVU255
+ 835              		.loc 1 197 36 is_stmt 0 view .LVU256
+ 836 003a 8DF81D40 		strb	r4, [sp, #29]
+ 198:Src/input/drivers/adc/adc.c ****     for (uint32_t i = 0; i < (uint32_t)ADC2_PIN_MAP_SIZE; i++) {
+ 837              		.loc 1 198 5 is_stmt 1 view .LVU257
+ 838              	.LBB36:
+ 839              		.loc 1 198 10 view .LVU258
+ 840              	.LVL36:
+ 841              		.loc 1 198 5 is_stmt 0 view .LVU259
+ 842 003e 03E0     		b	.L57
+ 843              	.LVL37:
+ 844              	.L61:
+ 845              		.loc 1 198 5 view .LVU260
+ 846              	.LBE36:
+ 190:Src/input/drivers/adc/adc.c ****     }
+ 847              		.loc 1 190 9 is_stmt 1 view .LVU261
+ 848 0040 FFF7FEFF 		bl	Error_Handler
+ 849              	.LVL38:
+ 850 0044 F1E7     		b	.L56
+ 851              	.LVL39:
+ 852              	.L58:
+ 853              	.LBB37:
+ 854              		.loc 1 198 60 discriminator 2 view .LVU262
+ 855 0046 0134     		adds	r4, r4, #1
+ 856              	.LVL40:
+ 857              	.L57:
+ 858              		.loc 1 198 28 discriminator 1 view .LVU263
+ 859 0048 052C     		cmp	r4, #5
+ 860 004a 11D8     		bhi	.L62
+ 199:Src/input/drivers/adc/adc.c ****         sConfig.Channel = ADC2_PIN_MAP[i].channel;
+ 861              		.loc 1 199 9 view .LVU264
+ 862              		.loc 1 199 42 is_stmt 0 view .LVU265
+ 863 004c 04EB8402 		add	r2, r4, r4, lsl #2
+ 864 0050 0D4B     		ldr	r3, .L63+8
+ 865 0052 03EB8203 		add	r3, r3, r2, lsl #2
+ 866 0056 9A68     		ldr	r2, [r3, #8]
+ 867              		.loc 1 199 25 view .LVU266
+ 868 0058 0192     		str	r2, [sp, #4]
+ 200:Src/input/drivers/adc/adc.c ****         sConfig.Rank = ADC2_PIN_MAP[i].rank;
+ 869              		.loc 1 200 9 is_stmt 1 view .LVU267
+ 870              		.loc 1 200 39 is_stmt 0 view .LVU268
+ 871 005a DB68     		ldr	r3, [r3, #12]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 21
+
+
+ 872              		.loc 1 200 22 view .LVU269
+ 873 005c 0293     		str	r3, [sp, #8]
+ 201:Src/input/drivers/adc/adc.c ****         if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK) {
+ 874              		.loc 1 201 9 is_stmt 1 view .LVU270
+ 875              		.loc 1 201 13 is_stmt 0 view .LVU271
+ 876 005e 01A9     		add	r1, sp, #4
+ 877 0060 0748     		ldr	r0, .L63
+ 878 0062 FFF7FEFF 		bl	HAL_ADC_ConfigChannel
+ 879              	.LVL41:
+ 880              		.loc 1 201 12 discriminator 1 view .LVU272
+ 881 0066 0028     		cmp	r0, #0
+ 882 0068 EDD0     		beq	.L58
+ 202:Src/input/drivers/adc/adc.c ****             Error_Handler();
+ 883              		.loc 1 202 13 is_stmt 1 view .LVU273
+ 884 006a FFF7FEFF 		bl	Error_Handler
+ 885              	.LVL42:
+ 886 006e EAE7     		b	.L58
+ 887              	.L62:
+ 888              	.LBE37:
+ 203:Src/input/drivers/adc/adc.c ****         }
+ 204:Src/input/drivers/adc/adc.c ****     }
+ 205:Src/input/drivers/adc/adc.c **** 
+ 206:Src/input/drivers/adc/adc.c ****     /* USER CODE BEGIN ADC2_Init 2 */
+ 207:Src/input/drivers/adc/adc.c **** 
+ 208:Src/input/drivers/adc/adc.c ****     if(!__HAL_RCC_ADC12_IS_CLK_ENABLED()) {
+ 889              		.loc 1 208 5 view .LVU274
+ 890              		.loc 1 208 9 is_stmt 0 view .LVU275
+ 891 0070 064B     		ldr	r3, .L63+12
+ 892 0072 D3F8D820 		ldr	r2, [r3, #216]
+ 209:Src/input/drivers/adc/adc.c ****         APP_ERR("ADC12 Clock not enabled for ADC2!");
+ 893              		.loc 1 209 9 is_stmt 1 view .LVU276
+ 210:Src/input/drivers/adc/adc.c ****     }
+ 211:Src/input/drivers/adc/adc.c ****     
+ 212:Src/input/drivers/adc/adc.c ****     // 检查 ADC2 状态
+ 213:Src/input/drivers/adc/adc.c ****     APP_DBG("ADC2 State after init: 0x%x", HAL_ADC_GetState(&hadc2));
+ 894              		.loc 1 213 5 view .LVU277
+ 214:Src/input/drivers/adc/adc.c **** 
+ 215:Src/input/drivers/adc/adc.c ****     // 检查 DMA 时钟
+ 216:Src/input/drivers/adc/adc.c ****     if(!__HAL_RCC_DMA1_IS_CLK_ENABLED()) {
+ 895              		.loc 1 216 5 view .LVU278
+ 896              		.loc 1 216 9 is_stmt 0 view .LVU279
+ 897 0076 D3F8D830 		ldr	r3, [r3, #216]
+ 217:Src/input/drivers/adc/adc.c ****         APP_ERR("DMA1 Clock not enabled for ADC2!");
+ 898              		.loc 1 217 9 is_stmt 1 view .LVU280
+ 218:Src/input/drivers/adc/adc.c ****     }
+ 219:Src/input/drivers/adc/adc.c **** 
+ 220:Src/input/drivers/adc/adc.c ****     /* USER CODE END ADC2_Init 2 */
+ 221:Src/input/drivers/adc/adc.c **** }
+ 899              		.loc 1 221 1 is_stmt 0 view .LVU281
+ 900 007a 08B0     		add	sp, sp, #32
+ 901              	.LCFI14:
+ 902              		.cfi_def_cfa_offset 8
+ 903              		@ sp needed
+ 904 007c 10BD     		pop	{r4, pc}
+ 905              	.LVL43:
+ 906              	.L64:
+ 907              		.loc 1 221 1 view .LVU282
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 22
+
+
+ 908 007e 00BF     		.align	2
+ 909              	.L63:
+ 910 0080 00000000 		.word	hadc2
+ 911 0084 00210240 		.word	1073881344
+ 912 0088 00000000 		.word	ADC2_PIN_MAP
+ 913 008c 00440258 		.word	1476543488
+ 914              		.cfi_endproc
+ 915              	.LFE345:
+ 917              		.section	.text.MX_ADC3_Init,"ax",%progbits
+ 918              		.align	1
+ 919              		.global	MX_ADC3_Init
+ 920              		.syntax unified
+ 921              		.thumb
+ 922              		.thumb_func
+ 924              	MX_ADC3_Init:
+ 925              	.LFB346:
+ 222:Src/input/drivers/adc/adc.c **** 
+ 223:Src/input/drivers/adc/adc.c **** void MX_ADC3_Init(void)
+ 224:Src/input/drivers/adc/adc.c **** {   
+ 926              		.loc 1 224 1 is_stmt 1 view -0
+ 927              		.cfi_startproc
+ 928              		@ args = 0, pretend = 0, frame = 32
+ 929              		@ frame_needed = 0, uses_anonymous_args = 0
+ 930 0000 10B5     		push	{r4, lr}
+ 931              	.LCFI15:
+ 932              		.cfi_def_cfa_offset 8
+ 933              		.cfi_offset 4, -8
+ 934              		.cfi_offset 14, -4
+ 935 0002 88B0     		sub	sp, sp, #32
+ 936              	.LCFI16:
+ 937              		.cfi_def_cfa_offset 40
+ 225:Src/input/drivers/adc/adc.c ****     /* USER CODE BEGIN ADC3_Init 0 */
+ 226:Src/input/drivers/adc/adc.c ****     /* USER CODE END ADC3_Init 0 */
+ 227:Src/input/drivers/adc/adc.c **** 
+ 228:Src/input/drivers/adc/adc.c ****     ADC_ChannelConfTypeDef sConfig = {0};
+ 938              		.loc 1 228 5 view .LVU284
+ 939              		.loc 1 228 28 is_stmt 0 view .LVU285
+ 940 0004 0023     		movs	r3, #0
+ 941 0006 0193     		str	r3, [sp, #4]
+ 942 0008 0293     		str	r3, [sp, #8]
+ 943 000a 0393     		str	r3, [sp, #12]
+ 944 000c 0493     		str	r3, [sp, #16]
+ 945 000e 0593     		str	r3, [sp, #20]
+ 946 0010 0693     		str	r3, [sp, #24]
+ 947 0012 0793     		str	r3, [sp, #28]
+ 229:Src/input/drivers/adc/adc.c **** 
+ 230:Src/input/drivers/adc/adc.c ****     hadc3.Instance = ADC3;
+ 948              		.loc 1 230 5 is_stmt 1 view .LVU286
+ 949              		.loc 1 230 20 is_stmt 0 view .LVU287
+ 950 0014 1E4C     		ldr	r4, .L73
+ 951 0016 1F4B     		ldr	r3, .L73+4
+ 952 0018 2360     		str	r3, [r4]
+ 231:Src/input/drivers/adc/adc.c ****     configure_adc_common(&hadc3, (uint32_t)ADC3_PIN_MAP_SIZE);
+ 953              		.loc 1 231 5 is_stmt 1 view .LVU288
+ 954 001a 0621     		movs	r1, #6
+ 955 001c 2046     		mov	r0, r4
+ 956 001e FFF7FEFF 		bl	configure_adc_common
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 23
+
+
+ 957              	.LVL44:
+ 232:Src/input/drivers/adc/adc.c **** 
+ 233:Src/input/drivers/adc/adc.c ****     if (HAL_ADC_Init(&hadc3) != HAL_OK)
+ 958              		.loc 1 233 5 view .LVU289
+ 959              		.loc 1 233 9 is_stmt 0 view .LVU290
+ 960 0022 2046     		mov	r0, r4
+ 961 0024 FFF7FEFF 		bl	HAL_ADC_Init
+ 962              	.LVL45:
+ 963              		.loc 1 233 8 discriminator 1 view .LVU291
+ 964 0028 50B9     		cbnz	r0, .L71
+ 965              	.L66:
+ 234:Src/input/drivers/adc/adc.c ****     {
+ 235:Src/input/drivers/adc/adc.c ****         Error_Handler();
+ 236:Src/input/drivers/adc/adc.c ****     }
+ 237:Src/input/drivers/adc/adc.c **** 
+ 238:Src/input/drivers/adc/adc.c ****     sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
+ 966              		.loc 1 238 5 is_stmt 1 view .LVU292
+ 967              		.loc 1 238 26 is_stmt 0 view .LVU293
+ 968 002a 0423     		movs	r3, #4
+ 969 002c 0393     		str	r3, [sp, #12]
+ 239:Src/input/drivers/adc/adc.c ****     sConfig.SingleDiff = ADC_SINGLE_ENDED;
+ 970              		.loc 1 239 5 is_stmt 1 view .LVU294
+ 971              		.loc 1 239 24 is_stmt 0 view .LVU295
+ 972 002e 40F2FF72 		movw	r2, #2047
+ 973 0032 0492     		str	r2, [sp, #16]
+ 240:Src/input/drivers/adc/adc.c ****     sConfig.OffsetNumber = ADC_OFFSET_NONE;
+ 974              		.loc 1 240 5 is_stmt 1 view .LVU296
+ 975              		.loc 1 240 26 is_stmt 0 view .LVU297
+ 976 0034 0593     		str	r3, [sp, #20]
+ 241:Src/input/drivers/adc/adc.c ****     sConfig.Offset = 0;
+ 977              		.loc 1 241 5 is_stmt 1 view .LVU298
+ 978              		.loc 1 241 20 is_stmt 0 view .LVU299
+ 979 0036 0024     		movs	r4, #0
+ 980 0038 0694     		str	r4, [sp, #24]
+ 242:Src/input/drivers/adc/adc.c ****     sConfig.OffsetSignedSaturation = DISABLE;
+ 981              		.loc 1 242 5 is_stmt 1 view .LVU300
+ 982              		.loc 1 242 36 is_stmt 0 view .LVU301
+ 983 003a 8DF81D40 		strb	r4, [sp, #29]
+ 243:Src/input/drivers/adc/adc.c ****     for (uint32_t i = 0; i < (uint32_t)ADC3_PIN_MAP_SIZE; i++) {
+ 984              		.loc 1 243 5 is_stmt 1 view .LVU302
+ 985              	.LBB38:
+ 986              		.loc 1 243 10 view .LVU303
+ 987              	.LVL46:
+ 988              		.loc 1 243 5 is_stmt 0 view .LVU304
+ 989 003e 03E0     		b	.L67
+ 990              	.LVL47:
+ 991              	.L71:
+ 992              		.loc 1 243 5 view .LVU305
+ 993              	.LBE38:
+ 235:Src/input/drivers/adc/adc.c ****     }
+ 994              		.loc 1 235 9 is_stmt 1 view .LVU306
+ 995 0040 FFF7FEFF 		bl	Error_Handler
+ 996              	.LVL48:
+ 997 0044 F1E7     		b	.L66
+ 998              	.LVL49:
+ 999              	.L68:
+ 1000              	.LBB39:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 24
+
+
+ 1001              		.loc 1 243 60 discriminator 2 view .LVU307
+ 1002 0046 0134     		adds	r4, r4, #1
+ 1003              	.LVL50:
+ 1004              	.L67:
+ 1005              		.loc 1 243 28 discriminator 1 view .LVU308
+ 1006 0048 052C     		cmp	r4, #5
+ 1007 004a 11D8     		bhi	.L72
+ 244:Src/input/drivers/adc/adc.c ****         sConfig.Channel = ADC3_PIN_MAP[i].channel;
+ 1008              		.loc 1 244 9 view .LVU309
+ 1009              		.loc 1 244 42 is_stmt 0 view .LVU310
+ 1010 004c 04EB8402 		add	r2, r4, r4, lsl #2
+ 1011 0050 114B     		ldr	r3, .L73+8
+ 1012 0052 03EB8203 		add	r3, r3, r2, lsl #2
+ 1013 0056 9A68     		ldr	r2, [r3, #8]
+ 1014              		.loc 1 244 25 view .LVU311
+ 1015 0058 0192     		str	r2, [sp, #4]
+ 245:Src/input/drivers/adc/adc.c ****         sConfig.Rank = ADC3_PIN_MAP[i].rank;
+ 1016              		.loc 1 245 9 is_stmt 1 view .LVU312
+ 1017              		.loc 1 245 39 is_stmt 0 view .LVU313
+ 1018 005a DB68     		ldr	r3, [r3, #12]
+ 1019              		.loc 1 245 22 view .LVU314
+ 1020 005c 0293     		str	r3, [sp, #8]
+ 246:Src/input/drivers/adc/adc.c ****         if (HAL_ADC_ConfigChannel(&hadc3, &sConfig) != HAL_OK) {
+ 1021              		.loc 1 246 9 is_stmt 1 view .LVU315
+ 1022              		.loc 1 246 13 is_stmt 0 view .LVU316
+ 1023 005e 01A9     		add	r1, sp, #4
+ 1024 0060 0B48     		ldr	r0, .L73
+ 1025 0062 FFF7FEFF 		bl	HAL_ADC_ConfigChannel
+ 1026              	.LVL51:
+ 1027              		.loc 1 246 12 discriminator 1 view .LVU317
+ 1028 0066 0028     		cmp	r0, #0
+ 1029 0068 EDD0     		beq	.L68
+ 247:Src/input/drivers/adc/adc.c ****             Error_Handler();
+ 1030              		.loc 1 247 13 is_stmt 1 view .LVU318
+ 1031 006a FFF7FEFF 		bl	Error_Handler
+ 1032              	.LVL52:
+ 1033 006e EAE7     		b	.L68
+ 1034              	.L72:
+ 1035              	.LBE39:
+ 248:Src/input/drivers/adc/adc.c ****         }
+ 249:Src/input/drivers/adc/adc.c ****     }
+ 250:Src/input/drivers/adc/adc.c **** 
+ 251:Src/input/drivers/adc/adc.c ****     // 检查 ADC3 时钟
+ 252:Src/input/drivers/adc/adc.c ****     if(!__HAL_RCC_ADC3_IS_CLK_ENABLED()) {
+ 1036              		.loc 1 252 5 view .LVU319
+ 1037              		.loc 1 252 9 is_stmt 0 view .LVU320
+ 1038 0070 0A4B     		ldr	r3, .L73+12
+ 1039 0072 D3F8E020 		ldr	r2, [r3, #224]
+ 253:Src/input/drivers/adc/adc.c ****         APP_ERR("ADC3 Clock not enabled!");
+ 1040              		.loc 1 253 9 is_stmt 1 view .LVU321
+ 254:Src/input/drivers/adc/adc.c ****     }
+ 255:Src/input/drivers/adc/adc.c ****     
+ 256:Src/input/drivers/adc/adc.c ****     if(!__HAL_RCC_BDMA_IS_CLK_ENABLED()) {
+ 1041              		.loc 1 256 5 view .LVU322
+ 1042              		.loc 1 256 9 is_stmt 0 view .LVU323
+ 1043 0076 D3F8E030 		ldr	r3, [r3, #224]
+ 257:Src/input/drivers/adc/adc.c ****         APP_ERR("BDMA Clock not enabled!");
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 25
+
+
+ 1044              		.loc 1 257 9 is_stmt 1 view .LVU324
+ 258:Src/input/drivers/adc/adc.c ****     }
+ 259:Src/input/drivers/adc/adc.c ****     
+ 260:Src/input/drivers/adc/adc.c ****     /* USER CODE BEGIN ADC3_Init 1 */
+ 261:Src/input/drivers/adc/adc.c ****     // ADC3 BDMA 中断配置
+ 262:Src/input/drivers/adc/adc.c ****     HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
+ 1045              		.loc 1 262 5 view .LVU325
+ 1046 007a 0022     		movs	r2, #0
+ 1047 007c 0121     		movs	r1, #1
+ 1048 007e 8120     		movs	r0, #129
+ 1049 0080 FFF7FEFF 		bl	HAL_NVIC_SetPriority
+ 1050              	.LVL53:
+ 263:Src/input/drivers/adc/adc.c ****     HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
+ 1051              		.loc 1 263 5 view .LVU326
+ 1052 0084 8120     		movs	r0, #129
+ 1053 0086 FFF7FEFF 		bl	HAL_NVIC_EnableIRQ
+ 1054              	.LVL54:
+ 264:Src/input/drivers/adc/adc.c ****     /* USER CODE END ADC3_Init 1 */
+ 265:Src/input/drivers/adc/adc.c **** }
+ 1055              		.loc 1 265 1 is_stmt 0 view .LVU327
+ 1056 008a 08B0     		add	sp, sp, #32
+ 1057              	.LCFI17:
+ 1058              		.cfi_def_cfa_offset 8
+ 1059              		@ sp needed
+ 1060 008c 10BD     		pop	{r4, pc}
+ 1061              	.LVL55:
+ 1062              	.L74:
+ 1063              		.loc 1 265 1 view .LVU328
+ 1064 008e 00BF     		.align	2
+ 1065              	.L73:
+ 1066 0090 00000000 		.word	hadc3
+ 1067 0094 00600258 		.word	1476550656
+ 1068 0098 00000000 		.word	ADC3_PIN_MAP
+ 1069 009c 00440258 		.word	1476543488
+ 1070              		.cfi_endproc
+ 1071              	.LFE346:
+ 1073              		.section	.text.HAL_ADC_MspInit,"ax",%progbits
+ 1074              		.align	1
+ 1075              		.global	HAL_ADC_MspInit
+ 1076              		.syntax unified
+ 1077              		.thumb
+ 1078              		.thumb_func
+ 1080              	HAL_ADC_MspInit:
+ 1081              	.LVL56:
+ 1082              	.LFB347:
+ 266:Src/input/drivers/adc/adc.c **** 
+ 267:Src/input/drivers/adc/adc.c **** static uint32_t HAL_RCC_ADC12_CLK_ENABLED = 0;
+ 268:Src/input/drivers/adc/adc.c **** 
+ 269:Src/input/drivers/adc/adc.c **** void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
+ 270:Src/input/drivers/adc/adc.c **** {
+ 1083              		.loc 1 270 1 is_stmt 1 view -0
+ 1084              		.cfi_startproc
+ 1085              		@ args = 0, pretend = 0, frame = 32
+ 1086              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1087              		.loc 1 270 1 is_stmt 0 view .LVU330
+ 1088 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 1089              	.LCFI18:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 26
+
+
+ 1090              		.cfi_def_cfa_offset 20
+ 1091              		.cfi_offset 4, -20
+ 1092              		.cfi_offset 5, -16
+ 1093              		.cfi_offset 6, -12
+ 1094              		.cfi_offset 7, -8
+ 1095              		.cfi_offset 14, -4
+ 1096 0002 89B0     		sub	sp, sp, #36
+ 1097              	.LCFI19:
+ 1098              		.cfi_def_cfa_offset 56
+ 1099 0004 0646     		mov	r6, r0
+ 271:Src/input/drivers/adc/adc.c ****     /*
+ 272:Src/input/drivers/adc/adc.c ****      * PLL3 is board-owned and configured once in board.c from the 25 MHz HSE.
+ 273:Src/input/drivers/adc/adc.c ****      * A peripheral driver must never retune it while another ADC is active.
+ 274:Src/input/drivers/adc/adc.c ****      */
+ 275:Src/input/drivers/adc/adc.c ****     if (HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_ADC) !=
+ 1100              		.loc 1 275 5 is_stmt 1 view .LVU331
+ 1101              		.loc 1 275 9 is_stmt 0 view .LVU332
+ 1102 0006 4FF40020 		mov	r0, #524288
+ 1103              	.LVL57:
+ 1104              		.loc 1 275 9 view .LVU333
+ 1105 000a 0021     		movs	r1, #0
+ 1106 000c FFF7FEFF 		bl	HAL_RCCEx_GetPeriphCLKFreq
+ 1107              	.LVL58:
+ 1108              		.loc 1 275 8 discriminator 1 view .LVU334
+ 1109 0010 704B     		ldr	r3, .L102
+ 1110 0012 9842     		cmp	r0, r3
+ 1111 0014 12D1     		bne	.L92
+ 1112              	.L76:
+ 276:Src/input/drivers/adc/adc.c ****         BOARD_ADC_KERNEL_CLOCK_HZ) {
+ 277:Src/input/drivers/adc/adc.c ****         Error_Handler();
+ 278:Src/input/drivers/adc/adc.c ****     }
+ 279:Src/input/drivers/adc/adc.c **** 
+ 280:Src/input/drivers/adc/adc.c **** 
+ 281:Src/input/drivers/adc/adc.c ****     GPIO_InitTypeDef GPIO_InitStruct = {0};
+ 1113              		.loc 1 281 5 is_stmt 1 view .LVU335
+ 1114              		.loc 1 281 22 is_stmt 0 view .LVU336
+ 1115 0016 0023     		movs	r3, #0
+ 1116 0018 0393     		str	r3, [sp, #12]
+ 1117 001a 0493     		str	r3, [sp, #16]
+ 1118 001c 0593     		str	r3, [sp, #20]
+ 1119 001e 0693     		str	r3, [sp, #24]
+ 1120 0020 0793     		str	r3, [sp, #28]
+ 282:Src/input/drivers/adc/adc.c ****     if (adcHandle->Instance == ADC1)
+ 1121              		.loc 1 282 5 is_stmt 1 view .LVU337
+ 1122              		.loc 1 282 18 is_stmt 0 view .LVU338
+ 1123 0022 3368     		ldr	r3, [r6]
+ 1124              		.loc 1 282 8 view .LVU339
+ 1125 0024 6C4A     		ldr	r2, .L102+4
+ 1126 0026 9342     		cmp	r3, r2
+ 1127 0028 0BD0     		beq	.L93
+ 283:Src/input/drivers/adc/adc.c ****     {
+ 284:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC1_MspInit 0 */
+ 285:Src/input/drivers/adc/adc.c **** 
+ 286:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC1_MspInit 0 */
+ 287:Src/input/drivers/adc/adc.c ****         /* ADC1 clock enable */
+ 288:Src/input/drivers/adc/adc.c ****         HAL_RCC_ADC12_CLK_ENABLED++;
+ 289:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 1)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 27
+
+
+ 290:Src/input/drivers/adc/adc.c ****         {
+ 291:Src/input/drivers/adc/adc.c ****             __HAL_RCC_ADC12_CLK_ENABLE();
+ 292:Src/input/drivers/adc/adc.c ****         }
+ 293:Src/input/drivers/adc/adc.c **** 
+ 294:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+ 295:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 296:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC1_PIN_MAP_SIZE; i++) {
+ 297:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC1_PIN_MAP[i].port);
+ 298:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC1_PIN_MAP[i].pin;
+ 299:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC1_PIN_MAP[i].port, &GPIO_InitStruct);
+ 300:Src/input/drivers/adc/adc.c ****         }
+ 301:Src/input/drivers/adc/adc.c **** 
+ 302:Src/input/drivers/adc/adc.c ****         /* ADC1 DMA Init */
+ 303:Src/input/drivers/adc/adc.c ****         /* ADC1 Init */
+ 304:Src/input/drivers/adc/adc.c ****         hdma_adc1.Instance = DMA1_Stream0;
+ 305:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc1, DMA_REQUEST_ADC1);
+ 306:Src/input/drivers/adc/adc.c ****         if (HAL_DMA_Init(&hdma_adc1) != HAL_OK)
+ 307:Src/input/drivers/adc/adc.c ****         {
+ 308:Src/input/drivers/adc/adc.c ****             Error_Handler();
+ 309:Src/input/drivers/adc/adc.c ****         }
+ 310:Src/input/drivers/adc/adc.c **** 
+ 311:Src/input/drivers/adc/adc.c ****         __HAL_LINKDMA(adcHandle, DMA_Handle, hdma_adc1);
+ 312:Src/input/drivers/adc/adc.c **** 
+ 313:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC1_MspInit 1 */
+ 314:Src/input/drivers/adc/adc.c ****         // ADC1 DMA 中断配置
+ 315:Src/input/drivers/adc/adc.c ****         HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
+ 316:Src/input/drivers/adc/adc.c ****         HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+ 317:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC1_MspInit 1 */
+ 318:Src/input/drivers/adc/adc.c ****     }
+ 319:Src/input/drivers/adc/adc.c ****     else if (adcHandle->Instance == ADC2)
+ 1128              		.loc 1 319 10 is_stmt 1 view .LVU340
+ 1129              		.loc 1 319 13 is_stmt 0 view .LVU341
+ 1130 002a 6C4A     		ldr	r2, .L102+8
+ 1131 002c 9342     		cmp	r3, r2
+ 1132 002e 4DD0     		beq	.L94
+ 320:Src/input/drivers/adc/adc.c ****     {
+ 321:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC2_MspInit 0 */
+ 322:Src/input/drivers/adc/adc.c **** 
+ 323:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC2_MspInit 0 */
+ 324:Src/input/drivers/adc/adc.c ****         /* ADC2 clock enable */
+ 325:Src/input/drivers/adc/adc.c ****         HAL_RCC_ADC12_CLK_ENABLED++;
+ 326:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 1)
+ 327:Src/input/drivers/adc/adc.c ****         {
+ 328:Src/input/drivers/adc/adc.c ****             __HAL_RCC_ADC12_CLK_ENABLE();
+ 329:Src/input/drivers/adc/adc.c ****         }
+ 330:Src/input/drivers/adc/adc.c **** 
+ 331:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+ 332:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 333:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC2_PIN_MAP_SIZE; i++) {
+ 334:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC2_PIN_MAP[i].port);
+ 335:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC2_PIN_MAP[i].pin;
+ 336:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC2_PIN_MAP[i].port, &GPIO_InitStruct);
+ 337:Src/input/drivers/adc/adc.c ****         }
+ 338:Src/input/drivers/adc/adc.c **** 
+ 339:Src/input/drivers/adc/adc.c ****         /* ADC2 DMA Init */
+ 340:Src/input/drivers/adc/adc.c ****         /* ADC2 Init */
+ 341:Src/input/drivers/adc/adc.c ****         APP_DBG("Configuring ADC2 DMA...");
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 28
+
+
+ 342:Src/input/drivers/adc/adc.c ****         
+ 343:Src/input/drivers/adc/adc.c ****         hdma_adc2.Instance = DMA1_Stream1;
+ 344:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc2, DMA_REQUEST_ADC2);
+ 345:Src/input/drivers/adc/adc.c ****         if (HAL_DMA_Init(&hdma_adc2) != HAL_OK)
+ 346:Src/input/drivers/adc/adc.c ****         {
+ 347:Src/input/drivers/adc/adc.c ****             APP_ERR("ADC2 DMA Init failed!");
+ 348:Src/input/drivers/adc/adc.c ****             Error_Handler();
+ 349:Src/input/drivers/adc/adc.c ****         }
+ 350:Src/input/drivers/adc/adc.c **** 
+ 351:Src/input/drivers/adc/adc.c ****         __HAL_LINKDMA(adcHandle, DMA_Handle, hdma_adc2);
+ 352:Src/input/drivers/adc/adc.c ****         
+ 353:Src/input/drivers/adc/adc.c ****         // 确保中断被正确配置
+ 354:Src/input/drivers/adc/adc.c ****         HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
+ 355:Src/input/drivers/adc/adc.c ****         HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+ 356:Src/input/drivers/adc/adc.c ****         
+ 357:Src/input/drivers/adc/adc.c ****         // // 启用 ADC 中断
+ 358:Src/input/drivers/adc/adc.c ****         // HAL_NVIC_SetPriority(ADC_IRQn, 0, 0);
+ 359:Src/input/drivers/adc/adc.c ****         // HAL_NVIC_EnableIRQ(ADC_IRQn);
+ 360:Src/input/drivers/adc/adc.c ****         
+ 361:Src/input/drivers/adc/adc.c ****         APP_DBG("ADC2 DMA configured successfully");
+ 362:Src/input/drivers/adc/adc.c ****     } 
+ 363:Src/input/drivers/adc/adc.c ****     else if (adcHandle->Instance == ADC3)
+ 1133              		.loc 1 363 10 is_stmt 1 view .LVU342
+ 1134              		.loc 1 363 13 is_stmt 0 view .LVU343
+ 1135 0030 6B4A     		ldr	r2, .L102+12
+ 1136 0032 9342     		cmp	r3, r2
+ 1137 0034 00F08F80 		beq	.L95
+ 1138              	.L75:
+ 364:Src/input/drivers/adc/adc.c ****     {
+ 365:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC3_MspInit 0 */
+ 366:Src/input/drivers/adc/adc.c **** 
+ 367:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC3_MspInit 0 */
+ 368:Src/input/drivers/adc/adc.c ****         /* ADC3 clock enable */
+ 369:Src/input/drivers/adc/adc.c ****         __HAL_RCC_ADC3_CLK_ENABLE();
+ 370:Src/input/drivers/adc/adc.c **** 
+ 371:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+ 372:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 373:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC3_PIN_MAP_SIZE; i++) {
+ 374:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC3_PIN_MAP[i].port);
+ 375:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC3_PIN_MAP[i].pin;
+ 376:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC3_PIN_MAP[i].port, &GPIO_InitStruct);
+ 377:Src/input/drivers/adc/adc.c ****         }
+ 378:Src/input/drivers/adc/adc.c **** 
+ 379:Src/input/drivers/adc/adc.c ****         /* ADC3 DMA Init */
+ 380:Src/input/drivers/adc/adc.c ****         /* ADC3 Init */
+ 381:Src/input/drivers/adc/adc.c ****         hdma_adc3.Instance = BDMA_Channel0;
+ 382:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc3, BDMA_REQUEST_ADC3);
+ 383:Src/input/drivers/adc/adc.c ****         if (HAL_DMA_Init(&hdma_adc3) != HAL_OK)
+ 384:Src/input/drivers/adc/adc.c ****         {
+ 385:Src/input/drivers/adc/adc.c ****             Error_Handler();
+ 386:Src/input/drivers/adc/adc.c ****         }
+ 387:Src/input/drivers/adc/adc.c **** 
+ 388:Src/input/drivers/adc/adc.c ****         __HAL_LINKDMA(adcHandle, DMA_Handle, hdma_adc3);
+ 389:Src/input/drivers/adc/adc.c **** 
+ 390:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC3_MspInit 1 */
+ 391:Src/input/drivers/adc/adc.c ****         // ADC3 BDMA 中断配置
+ 392:Src/input/drivers/adc/adc.c ****         HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 29
+
+
+ 393:Src/input/drivers/adc/adc.c ****         HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
+ 394:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC3_MspInit 1 */
+ 395:Src/input/drivers/adc/adc.c ****     }
+ 396:Src/input/drivers/adc/adc.c **** }
+ 1139              		.loc 1 396 1 view .LVU344
+ 1140 0038 09B0     		add	sp, sp, #36
+ 1141              	.LCFI20:
+ 1142              		.cfi_remember_state
+ 1143              		.cfi_def_cfa_offset 20
+ 1144              		@ sp needed
+ 1145 003a F0BD     		pop	{r4, r5, r6, r7, pc}
+ 1146              	.LVL59:
+ 1147              	.L92:
+ 1148              	.LCFI21:
+ 1149              		.cfi_restore_state
+ 277:Src/input/drivers/adc/adc.c ****     }
+ 1150              		.loc 1 277 9 is_stmt 1 view .LVU345
+ 1151 003c FFF7FEFF 		bl	Error_Handler
+ 1152              	.LVL60:
+ 1153 0040 E9E7     		b	.L76
+ 1154              	.L93:
+ 288:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 1)
+ 1155              		.loc 1 288 9 view .LVU346
+ 288:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 1)
+ 1156              		.loc 1 288 34 is_stmt 0 view .LVU347
+ 1157 0042 684A     		ldr	r2, .L102+16
+ 1158 0044 1368     		ldr	r3, [r2]
+ 1159 0046 0133     		adds	r3, r3, #1
+ 1160 0048 1360     		str	r3, [r2]
+ 289:Src/input/drivers/adc/adc.c ****         {
+ 1161              		.loc 1 289 9 is_stmt 1 view .LVU348
+ 289:Src/input/drivers/adc/adc.c ****         {
+ 1162              		.loc 1 289 12 is_stmt 0 view .LVU349
+ 1163 004a 012B     		cmp	r3, #1
+ 1164 004c 03D0     		beq	.L96
+ 1165              	.L78:
+ 291:Src/input/drivers/adc/adc.c ****         }
+ 1166              		.loc 1 291 13 is_stmt 1 discriminator 1 view .LVU350
+ 294:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 1167              		.loc 1 294 9 view .LVU351
+ 294:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 1168              		.loc 1 294 30 is_stmt 0 view .LVU352
+ 1169 004e 0323     		movs	r3, #3
+ 1170 0050 0493     		str	r3, [sp, #16]
+ 295:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC1_PIN_MAP_SIZE; i++) {
+ 1171              		.loc 1 295 9 is_stmt 1 view .LVU353
+ 296:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC1_PIN_MAP[i].port);
+ 1172              		.loc 1 296 9 view .LVU354
+ 1173              	.LBB40:
+ 296:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC1_PIN_MAP[i].port);
+ 1174              		.loc 1 296 14 view .LVU355
+ 1175              	.LVL61:
+ 296:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC1_PIN_MAP[i].port);
+ 1176              		.loc 1 296 23 is_stmt 0 view .LVU356
+ 1177 0052 0024     		movs	r4, #0
+ 296:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC1_PIN_MAP[i].port);
+ 1178              		.loc 1 296 9 view .LVU357
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 30
+
+
+ 1179 0054 1EE0     		b	.L79
+ 1180              	.LVL62:
+ 1181              	.L96:
+ 296:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC1_PIN_MAP[i].port);
+ 1182              		.loc 1 296 9 view .LVU358
+ 1183              	.LBE40:
+ 291:Src/input/drivers/adc/adc.c ****         }
+ 1184              		.loc 1 291 13 is_stmt 1 view .LVU359
+ 1185              	.LBB41:
+ 291:Src/input/drivers/adc/adc.c ****         }
+ 1186              		.loc 1 291 13 view .LVU360
+ 291:Src/input/drivers/adc/adc.c ****         }
+ 1187              		.loc 1 291 13 view .LVU361
+ 1188 0056 644B     		ldr	r3, .L102+20
+ 1189 0058 D3F8D820 		ldr	r2, [r3, #216]
+ 1190 005c 42F02002 		orr	r2, r2, #32
+ 1191 0060 C3F8D820 		str	r2, [r3, #216]
+ 291:Src/input/drivers/adc/adc.c ****         }
+ 1192              		.loc 1 291 13 view .LVU362
+ 1193 0064 D3F8D830 		ldr	r3, [r3, #216]
+ 1194 0068 03F02003 		and	r3, r3, #32
+ 1195 006c 0093     		str	r3, [sp]
+ 291:Src/input/drivers/adc/adc.c ****         }
+ 1196              		.loc 1 291 13 view .LVU363
+ 1197 006e 009B     		ldr	r3, [sp]
+ 1198 0070 EDE7     		b	.L78
+ 1199              	.LVL63:
+ 1200              	.L80:
+ 291:Src/input/drivers/adc/adc.c ****         }
+ 1201              		.loc 1 291 13 is_stmt 0 view .LVU364
+ 1202              	.LBE41:
+ 1203              	.LBB42:
+ 297:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC1_PIN_MAP[i].pin;
+ 1204              		.loc 1 297 13 is_stmt 1 view .LVU365
+ 297:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC1_PIN_MAP[i].pin;
+ 1205              		.loc 1 297 46 is_stmt 0 view .LVU366
+ 1206 0072 5E4B     		ldr	r3, .L102+24
+ 1207 0074 04EB8402 		add	r2, r4, r4, lsl #2
+ 1208 0078 03EB8207 		add	r7, r3, r2, lsl #2
+ 1209 007c 53F82250 		ldr	r5, [r3, r2, lsl #2]
+ 297:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC1_PIN_MAP[i].pin;
+ 1210              		.loc 1 297 13 view .LVU367
+ 1211 0080 2846     		mov	r0, r5
+ 1212 0082 FFF7FEFF 		bl	enable_gpio_clock
+ 1213              	.LVL64:
+ 298:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC1_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1214              		.loc 1 298 13 is_stmt 1 view .LVU368
+ 298:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC1_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1215              		.loc 1 298 50 is_stmt 0 view .LVU369
+ 1216 0086 BB88     		ldrh	r3, [r7, #4]
+ 298:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC1_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1217              		.loc 1 298 33 view .LVU370
+ 1218 0088 0393     		str	r3, [sp, #12]
+ 299:Src/input/drivers/adc/adc.c ****         }
+ 1219              		.loc 1 299 13 is_stmt 1 view .LVU371
+ 1220 008a 03A9     		add	r1, sp, #12
+ 1221 008c 2846     		mov	r0, r5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 31
+
+
+ 1222 008e FFF7FEFF 		bl	HAL_GPIO_Init
+ 1223              	.LVL65:
+ 296:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC1_PIN_MAP[i].port);
+ 1224              		.loc 1 296 64 discriminator 3 view .LVU372
+ 1225 0092 0134     		adds	r4, r4, #1
+ 1226              	.LVL66:
+ 1227              	.L79:
+ 296:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC1_PIN_MAP[i].port);
+ 1228              		.loc 1 296 32 discriminator 1 view .LVU373
+ 1229 0094 052C     		cmp	r4, #5
+ 1230 0096 ECD9     		bls	.L80
+ 1231              	.LBE42:
+ 304:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc1, DMA_REQUEST_ADC1);
+ 1232              		.loc 1 304 9 view .LVU374
+ 304:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc1, DMA_REQUEST_ADC1);
+ 1233              		.loc 1 304 28 is_stmt 0 view .LVU375
+ 1234 0098 554C     		ldr	r4, .L102+28
+ 1235              	.LVL67:
+ 304:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc1, DMA_REQUEST_ADC1);
+ 1236              		.loc 1 304 28 view .LVU376
+ 1237 009a 564B     		ldr	r3, .L102+32
+ 1238 009c 2360     		str	r3, [r4]
+ 305:Src/input/drivers/adc/adc.c ****         if (HAL_DMA_Init(&hdma_adc1) != HAL_OK)
+ 1239              		.loc 1 305 9 is_stmt 1 view .LVU377
+ 1240 009e 0921     		movs	r1, #9
+ 1241 00a0 2046     		mov	r0, r4
+ 1242 00a2 FFF7FEFF 		bl	configure_dma_common
+ 1243              	.LVL68:
+ 306:Src/input/drivers/adc/adc.c ****         {
+ 1244              		.loc 1 306 9 view .LVU378
+ 306:Src/input/drivers/adc/adc.c ****         {
+ 1245              		.loc 1 306 13 is_stmt 0 view .LVU379
+ 1246 00a6 2046     		mov	r0, r4
+ 1247 00a8 FFF7FEFF 		bl	HAL_DMA_Init
+ 1248              	.LVL69:
+ 306:Src/input/drivers/adc/adc.c ****         {
+ 1249              		.loc 1 306 12 discriminator 1 view .LVU380
+ 1250 00ac 58B9     		cbnz	r0, .L97
+ 1251              	.L81:
+ 311:Src/input/drivers/adc/adc.c **** 
+ 1252              		.loc 1 311 9 is_stmt 1 view .LVU381
+ 311:Src/input/drivers/adc/adc.c **** 
+ 1253              		.loc 1 311 9 view .LVU382
+ 1254 00ae 504B     		ldr	r3, .L102+28
+ 1255 00b0 F364     		str	r3, [r6, #76]
+ 311:Src/input/drivers/adc/adc.c **** 
+ 1256              		.loc 1 311 9 view .LVU383
+ 1257 00b2 9E63     		str	r6, [r3, #56]
+ 311:Src/input/drivers/adc/adc.c **** 
+ 1258              		.loc 1 311 9 view .LVU384
+ 315:Src/input/drivers/adc/adc.c ****         HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+ 1259              		.loc 1 315 9 view .LVU385
+ 1260 00b4 0022     		movs	r2, #0
+ 1261 00b6 0121     		movs	r1, #1
+ 1262 00b8 0B20     		movs	r0, #11
+ 1263 00ba FFF7FEFF 		bl	HAL_NVIC_SetPriority
+ 1264              	.LVL70:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 32
+
+
+ 316:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC1_MspInit 1 */
+ 1265              		.loc 1 316 9 view .LVU386
+ 1266 00be 0B20     		movs	r0, #11
+ 1267 00c0 FFF7FEFF 		bl	HAL_NVIC_EnableIRQ
+ 1268              	.LVL71:
+ 1269 00c4 B8E7     		b	.L75
+ 1270              	.L97:
+ 308:Src/input/drivers/adc/adc.c ****         }
+ 1271              		.loc 1 308 13 view .LVU387
+ 1272 00c6 FFF7FEFF 		bl	Error_Handler
+ 1273              	.LVL72:
+ 1274 00ca F0E7     		b	.L81
+ 1275              	.LVL73:
+ 1276              	.L94:
+ 325:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 1)
+ 1277              		.loc 1 325 9 view .LVU388
+ 325:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 1)
+ 1278              		.loc 1 325 34 is_stmt 0 view .LVU389
+ 1279 00cc 454A     		ldr	r2, .L102+16
+ 1280 00ce 1368     		ldr	r3, [r2]
+ 1281 00d0 0133     		adds	r3, r3, #1
+ 1282 00d2 1360     		str	r3, [r2]
+ 326:Src/input/drivers/adc/adc.c ****         {
+ 1283              		.loc 1 326 9 is_stmt 1 view .LVU390
+ 326:Src/input/drivers/adc/adc.c ****         {
+ 1284              		.loc 1 326 12 is_stmt 0 view .LVU391
+ 1285 00d4 012B     		cmp	r3, #1
+ 1286 00d6 03D0     		beq	.L98
+ 1287              	.L84:
+ 328:Src/input/drivers/adc/adc.c ****         }
+ 1288              		.loc 1 328 13 is_stmt 1 discriminator 1 view .LVU392
+ 331:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 1289              		.loc 1 331 9 view .LVU393
+ 331:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 1290              		.loc 1 331 30 is_stmt 0 view .LVU394
+ 1291 00d8 0323     		movs	r3, #3
+ 1292 00da 0493     		str	r3, [sp, #16]
+ 332:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC2_PIN_MAP_SIZE; i++) {
+ 1293              		.loc 1 332 9 is_stmt 1 view .LVU395
+ 333:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC2_PIN_MAP[i].port);
+ 1294              		.loc 1 333 9 view .LVU396
+ 1295              	.LBB43:
+ 333:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC2_PIN_MAP[i].port);
+ 1296              		.loc 1 333 14 view .LVU397
+ 1297              	.LVL74:
+ 333:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC2_PIN_MAP[i].port);
+ 1298              		.loc 1 333 23 is_stmt 0 view .LVU398
+ 1299 00dc 0024     		movs	r4, #0
+ 333:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC2_PIN_MAP[i].port);
+ 1300              		.loc 1 333 9 view .LVU399
+ 1301 00de 1EE0     		b	.L85
+ 1302              	.LVL75:
+ 1303              	.L98:
+ 333:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC2_PIN_MAP[i].port);
+ 1304              		.loc 1 333 9 view .LVU400
+ 1305              	.LBE43:
+ 328:Src/input/drivers/adc/adc.c ****         }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 33
+
+
+ 1306              		.loc 1 328 13 is_stmt 1 view .LVU401
+ 1307              	.LBB44:
+ 328:Src/input/drivers/adc/adc.c ****         }
+ 1308              		.loc 1 328 13 view .LVU402
+ 328:Src/input/drivers/adc/adc.c ****         }
+ 1309              		.loc 1 328 13 view .LVU403
+ 1310 00e0 414B     		ldr	r3, .L102+20
+ 1311 00e2 D3F8D820 		ldr	r2, [r3, #216]
+ 1312 00e6 42F02002 		orr	r2, r2, #32
+ 1313 00ea C3F8D820 		str	r2, [r3, #216]
+ 328:Src/input/drivers/adc/adc.c ****         }
+ 1314              		.loc 1 328 13 view .LVU404
+ 1315 00ee D3F8D830 		ldr	r3, [r3, #216]
+ 1316 00f2 03F02003 		and	r3, r3, #32
+ 1317 00f6 0193     		str	r3, [sp, #4]
+ 328:Src/input/drivers/adc/adc.c ****         }
+ 1318              		.loc 1 328 13 view .LVU405
+ 1319 00f8 019B     		ldr	r3, [sp, #4]
+ 1320 00fa EDE7     		b	.L84
+ 1321              	.LVL76:
+ 1322              	.L86:
+ 328:Src/input/drivers/adc/adc.c ****         }
+ 1323              		.loc 1 328 13 is_stmt 0 view .LVU406
+ 1324              	.LBE44:
+ 1325              	.LBB45:
+ 334:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC2_PIN_MAP[i].pin;
+ 1326              		.loc 1 334 13 is_stmt 1 view .LVU407
+ 334:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC2_PIN_MAP[i].pin;
+ 1327              		.loc 1 334 46 is_stmt 0 view .LVU408
+ 1328 00fc 3E4B     		ldr	r3, .L102+36
+ 1329 00fe 04EB8402 		add	r2, r4, r4, lsl #2
+ 1330 0102 03EB8207 		add	r7, r3, r2, lsl #2
+ 1331 0106 53F82250 		ldr	r5, [r3, r2, lsl #2]
+ 334:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC2_PIN_MAP[i].pin;
+ 1332              		.loc 1 334 13 view .LVU409
+ 1333 010a 2846     		mov	r0, r5
+ 1334 010c FFF7FEFF 		bl	enable_gpio_clock
+ 1335              	.LVL77:
+ 335:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC2_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1336              		.loc 1 335 13 is_stmt 1 view .LVU410
+ 335:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC2_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1337              		.loc 1 335 50 is_stmt 0 view .LVU411
+ 1338 0110 BB88     		ldrh	r3, [r7, #4]
+ 335:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC2_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1339              		.loc 1 335 33 view .LVU412
+ 1340 0112 0393     		str	r3, [sp, #12]
+ 336:Src/input/drivers/adc/adc.c ****         }
+ 1341              		.loc 1 336 13 is_stmt 1 view .LVU413
+ 1342 0114 03A9     		add	r1, sp, #12
+ 1343 0116 2846     		mov	r0, r5
+ 1344 0118 FFF7FEFF 		bl	HAL_GPIO_Init
+ 1345              	.LVL78:
+ 333:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC2_PIN_MAP[i].port);
+ 1346              		.loc 1 333 64 discriminator 3 view .LVU414
+ 1347 011c 0134     		adds	r4, r4, #1
+ 1348              	.LVL79:
+ 1349              	.L85:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 34
+
+
+ 333:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC2_PIN_MAP[i].port);
+ 1350              		.loc 1 333 32 discriminator 1 view .LVU415
+ 1351 011e 052C     		cmp	r4, #5
+ 1352 0120 ECD9     		bls	.L86
+ 1353              	.LBE45:
+ 341:Src/input/drivers/adc/adc.c ****         
+ 1354              		.loc 1 341 9 view .LVU416
+ 343:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc2, DMA_REQUEST_ADC2);
+ 1355              		.loc 1 343 9 view .LVU417
+ 343:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc2, DMA_REQUEST_ADC2);
+ 1356              		.loc 1 343 28 is_stmt 0 view .LVU418
+ 1357 0122 364C     		ldr	r4, .L102+40
+ 1358              	.LVL80:
+ 343:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc2, DMA_REQUEST_ADC2);
+ 1359              		.loc 1 343 28 view .LVU419
+ 1360 0124 364B     		ldr	r3, .L102+44
+ 1361 0126 2360     		str	r3, [r4]
+ 344:Src/input/drivers/adc/adc.c ****         if (HAL_DMA_Init(&hdma_adc2) != HAL_OK)
+ 1362              		.loc 1 344 9 is_stmt 1 view .LVU420
+ 1363 0128 0A21     		movs	r1, #10
+ 1364 012a 2046     		mov	r0, r4
+ 1365 012c FFF7FEFF 		bl	configure_dma_common
+ 1366              	.LVL81:
+ 345:Src/input/drivers/adc/adc.c ****         {
+ 1367              		.loc 1 345 9 view .LVU421
+ 345:Src/input/drivers/adc/adc.c ****         {
+ 1368              		.loc 1 345 13 is_stmt 0 view .LVU422
+ 1369 0130 2046     		mov	r0, r4
+ 1370 0132 FFF7FEFF 		bl	HAL_DMA_Init
+ 1371              	.LVL82:
+ 345:Src/input/drivers/adc/adc.c ****         {
+ 1372              		.loc 1 345 12 discriminator 1 view .LVU423
+ 1373 0136 58B9     		cbnz	r0, .L99
+ 1374              	.L87:
+ 351:Src/input/drivers/adc/adc.c ****         
+ 1375              		.loc 1 351 9 is_stmt 1 view .LVU424
+ 351:Src/input/drivers/adc/adc.c ****         
+ 1376              		.loc 1 351 9 view .LVU425
+ 1377 0138 304B     		ldr	r3, .L102+40
+ 1378 013a F364     		str	r3, [r6, #76]
+ 351:Src/input/drivers/adc/adc.c ****         
+ 1379              		.loc 1 351 9 view .LVU426
+ 1380 013c 9E63     		str	r6, [r3, #56]
+ 351:Src/input/drivers/adc/adc.c ****         
+ 1381              		.loc 1 351 9 view .LVU427
+ 354:Src/input/drivers/adc/adc.c ****         HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+ 1382              		.loc 1 354 9 view .LVU428
+ 1383 013e 0022     		movs	r2, #0
+ 1384 0140 0121     		movs	r1, #1
+ 1385 0142 0C20     		movs	r0, #12
+ 1386 0144 FFF7FEFF 		bl	HAL_NVIC_SetPriority
+ 1387              	.LVL83:
+ 355:Src/input/drivers/adc/adc.c ****         
+ 1388              		.loc 1 355 9 view .LVU429
+ 1389 0148 0C20     		movs	r0, #12
+ 1390 014a FFF7FEFF 		bl	HAL_NVIC_EnableIRQ
+ 1391              	.LVL84:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 35
+
+
+ 361:Src/input/drivers/adc/adc.c ****     } 
+ 1392              		.loc 1 361 9 view .LVU430
+ 1393 014e 73E7     		b	.L75
+ 1394              	.L99:
+ 347:Src/input/drivers/adc/adc.c ****             Error_Handler();
+ 1395              		.loc 1 347 13 view .LVU431
+ 348:Src/input/drivers/adc/adc.c ****         }
+ 1396              		.loc 1 348 13 view .LVU432
+ 1397 0150 FFF7FEFF 		bl	Error_Handler
+ 1398              	.LVL85:
+ 1399 0154 F0E7     		b	.L87
+ 1400              	.LVL86:
+ 1401              	.L95:
+ 369:Src/input/drivers/adc/adc.c **** 
+ 1402              		.loc 1 369 9 view .LVU433
+ 1403              	.LBB46:
+ 369:Src/input/drivers/adc/adc.c **** 
+ 1404              		.loc 1 369 9 view .LVU434
+ 369:Src/input/drivers/adc/adc.c **** 
+ 1405              		.loc 1 369 9 view .LVU435
+ 1406 0156 244B     		ldr	r3, .L102+20
+ 1407 0158 D3F8E020 		ldr	r2, [r3, #224]
+ 1408 015c 42F08072 		orr	r2, r2, #16777216
+ 1409 0160 C3F8E020 		str	r2, [r3, #224]
+ 369:Src/input/drivers/adc/adc.c **** 
+ 1410              		.loc 1 369 9 view .LVU436
+ 1411 0164 D3F8E030 		ldr	r3, [r3, #224]
+ 1412 0168 03F08073 		and	r3, r3, #16777216
+ 1413 016c 0293     		str	r3, [sp, #8]
+ 369:Src/input/drivers/adc/adc.c **** 
+ 1414              		.loc 1 369 9 view .LVU437
+ 1415 016e 029B     		ldr	r3, [sp, #8]
+ 1416              	.LBE46:
+ 369:Src/input/drivers/adc/adc.c **** 
+ 1417              		.loc 1 369 9 view .LVU438
+ 371:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 1418              		.loc 1 371 9 view .LVU439
+ 371:Src/input/drivers/adc/adc.c ****         GPIO_InitStruct.Pull = GPIO_NOPULL;
+ 1419              		.loc 1 371 30 is_stmt 0 view .LVU440
+ 1420 0170 0323     		movs	r3, #3
+ 1421 0172 0493     		str	r3, [sp, #16]
+ 372:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC3_PIN_MAP_SIZE; i++) {
+ 1422              		.loc 1 372 9 is_stmt 1 view .LVU441
+ 373:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC3_PIN_MAP[i].port);
+ 1423              		.loc 1 373 9 view .LVU442
+ 1424              	.LBB47:
+ 373:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC3_PIN_MAP[i].port);
+ 1425              		.loc 1 373 14 view .LVU443
+ 1426              	.LVL87:
+ 373:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC3_PIN_MAP[i].port);
+ 1427              		.loc 1 373 23 is_stmt 0 view .LVU444
+ 1428 0174 0024     		movs	r4, #0
+ 1429              	.LVL88:
+ 1430              	.L88:
+ 373:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC3_PIN_MAP[i].port);
+ 1431              		.loc 1 373 32 is_stmt 1 discriminator 1 view .LVU445
+ 1432 0176 052C     		cmp	r4, #5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 36
+
+
+ 1433 0178 11D8     		bhi	.L100
+ 374:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC3_PIN_MAP[i].pin;
+ 1434              		.loc 1 374 13 view .LVU446
+ 374:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC3_PIN_MAP[i].pin;
+ 1435              		.loc 1 374 46 is_stmt 0 view .LVU447
+ 1436 017a 224B     		ldr	r3, .L102+48
+ 1437 017c 04EB8402 		add	r2, r4, r4, lsl #2
+ 1438 0180 03EB8207 		add	r7, r3, r2, lsl #2
+ 1439 0184 53F82250 		ldr	r5, [r3, r2, lsl #2]
+ 374:Src/input/drivers/adc/adc.c ****             GPIO_InitStruct.Pin = ADC3_PIN_MAP[i].pin;
+ 1440              		.loc 1 374 13 view .LVU448
+ 1441 0188 2846     		mov	r0, r5
+ 1442 018a FFF7FEFF 		bl	enable_gpio_clock
+ 1443              	.LVL89:
+ 375:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC3_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1444              		.loc 1 375 13 is_stmt 1 view .LVU449
+ 375:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC3_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1445              		.loc 1 375 50 is_stmt 0 view .LVU450
+ 1446 018e BB88     		ldrh	r3, [r7, #4]
+ 375:Src/input/drivers/adc/adc.c ****             HAL_GPIO_Init(ADC3_PIN_MAP[i].port, &GPIO_InitStruct);
+ 1447              		.loc 1 375 33 view .LVU451
+ 1448 0190 0393     		str	r3, [sp, #12]
+ 376:Src/input/drivers/adc/adc.c ****         }
+ 1449              		.loc 1 376 13 is_stmt 1 view .LVU452
+ 1450 0192 03A9     		add	r1, sp, #12
+ 1451 0194 2846     		mov	r0, r5
+ 1452 0196 FFF7FEFF 		bl	HAL_GPIO_Init
+ 1453              	.LVL90:
+ 373:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC3_PIN_MAP[i].port);
+ 1454              		.loc 1 373 64 discriminator 3 view .LVU453
+ 1455 019a 0134     		adds	r4, r4, #1
+ 1456              	.LVL91:
+ 373:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC3_PIN_MAP[i].port);
+ 1457              		.loc 1 373 64 is_stmt 0 discriminator 3 view .LVU454
+ 1458 019c EBE7     		b	.L88
+ 1459              	.L100:
+ 373:Src/input/drivers/adc/adc.c ****             enable_gpio_clock(ADC3_PIN_MAP[i].port);
+ 1460              		.loc 1 373 64 discriminator 3 view .LVU455
+ 1461              	.LBE47:
+ 381:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc3, BDMA_REQUEST_ADC3);
+ 1462              		.loc 1 381 9 is_stmt 1 view .LVU456
+ 381:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc3, BDMA_REQUEST_ADC3);
+ 1463              		.loc 1 381 28 is_stmt 0 view .LVU457
+ 1464 019e 1A4C     		ldr	r4, .L102+52
+ 1465              	.LVL92:
+ 381:Src/input/drivers/adc/adc.c ****         configure_dma_common(&hdma_adc3, BDMA_REQUEST_ADC3);
+ 1466              		.loc 1 381 28 view .LVU458
+ 1467 01a0 1A4B     		ldr	r3, .L102+56
+ 1468 01a2 2360     		str	r3, [r4]
+ 382:Src/input/drivers/adc/adc.c ****         if (HAL_DMA_Init(&hdma_adc3) != HAL_OK)
+ 1469              		.loc 1 382 9 is_stmt 1 view .LVU459
+ 1470 01a4 1121     		movs	r1, #17
+ 1471 01a6 2046     		mov	r0, r4
+ 1472 01a8 FFF7FEFF 		bl	configure_dma_common
+ 1473              	.LVL93:
+ 383:Src/input/drivers/adc/adc.c ****         {
+ 1474              		.loc 1 383 9 view .LVU460
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 37
+
+
+ 383:Src/input/drivers/adc/adc.c ****         {
+ 1475              		.loc 1 383 13 is_stmt 0 view .LVU461
+ 1476 01ac 2046     		mov	r0, r4
+ 1477 01ae FFF7FEFF 		bl	HAL_DMA_Init
+ 1478              	.LVL94:
+ 383:Src/input/drivers/adc/adc.c ****         {
+ 1479              		.loc 1 383 12 discriminator 1 view .LVU462
+ 1480 01b2 58B9     		cbnz	r0, .L101
+ 1481              	.L90:
+ 388:Src/input/drivers/adc/adc.c **** 
+ 1482              		.loc 1 388 9 is_stmt 1 view .LVU463
+ 388:Src/input/drivers/adc/adc.c **** 
+ 1483              		.loc 1 388 9 view .LVU464
+ 1484 01b4 144B     		ldr	r3, .L102+52
+ 1485 01b6 F364     		str	r3, [r6, #76]
+ 388:Src/input/drivers/adc/adc.c **** 
+ 1486              		.loc 1 388 9 view .LVU465
+ 1487 01b8 9E63     		str	r6, [r3, #56]
+ 388:Src/input/drivers/adc/adc.c **** 
+ 1488              		.loc 1 388 9 view .LVU466
+ 392:Src/input/drivers/adc/adc.c ****         HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
+ 1489              		.loc 1 392 9 view .LVU467
+ 1490 01ba 0022     		movs	r2, #0
+ 1491 01bc 0121     		movs	r1, #1
+ 1492 01be 8120     		movs	r0, #129
+ 1493 01c0 FFF7FEFF 		bl	HAL_NVIC_SetPriority
+ 1494              	.LVL95:
+ 393:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC3_MspInit 1 */
+ 1495              		.loc 1 393 9 view .LVU468
+ 1496 01c4 8120     		movs	r0, #129
+ 1497 01c6 FFF7FEFF 		bl	HAL_NVIC_EnableIRQ
+ 1498              	.LVL96:
+ 1499              		.loc 1 396 1 is_stmt 0 view .LVU469
+ 1500 01ca 35E7     		b	.L75
+ 1501              	.L101:
+ 385:Src/input/drivers/adc/adc.c ****         }
+ 1502              		.loc 1 385 13 is_stmt 1 view .LVU470
+ 1503 01cc FFF7FEFF 		bl	Error_Handler
+ 1504              	.LVL97:
+ 1505 01d0 F0E7     		b	.L90
+ 1506              	.L103:
+ 1507 01d2 00BF     		.align	2
+ 1508              	.L102:
+ 1509 01d4 40A5AE02 		.word	45000000
+ 1510 01d8 00200240 		.word	1073881088
+ 1511 01dc 00210240 		.word	1073881344
+ 1512 01e0 00600258 		.word	1476550656
+ 1513 01e4 00000000 		.word	HAL_RCC_ADC12_CLK_ENABLED
+ 1514 01e8 00440258 		.word	1476543488
+ 1515 01ec 00000000 		.word	ADC1_PIN_MAP
+ 1516 01f0 00000000 		.word	hdma_adc1
+ 1517 01f4 10000240 		.word	1073872912
+ 1518 01f8 00000000 		.word	ADC2_PIN_MAP
+ 1519 01fc 00000000 		.word	hdma_adc2
+ 1520 0200 28000240 		.word	1073872936
+ 1521 0204 00000000 		.word	ADC3_PIN_MAP
+ 1522 0208 00000000 		.word	hdma_adc3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 38
+
+
+ 1523 020c 08540258 		.word	1476547592
+ 1524              		.cfi_endproc
+ 1525              	.LFE347:
+ 1527              		.section	.text.HAL_ADC_MspDeInit,"ax",%progbits
+ 1528              		.align	1
+ 1529              		.global	HAL_ADC_MspDeInit
+ 1530              		.syntax unified
+ 1531              		.thumb
+ 1532              		.thumb_func
+ 1534              	HAL_ADC_MspDeInit:
+ 1535              	.LVL98:
+ 1536              	.LFB348:
+ 397:Src/input/drivers/adc/adc.c **** 
+ 398:Src/input/drivers/adc/adc.c **** void HAL_ADC_MspDeInit(ADC_HandleTypeDef *adcHandle)
+ 399:Src/input/drivers/adc/adc.c **** {
+ 1537              		.loc 1 399 1 view -0
+ 1538              		.cfi_startproc
+ 1539              		@ args = 0, pretend = 0, frame = 0
+ 1540              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1541              		.loc 1 399 1 is_stmt 0 view .LVU472
+ 1542 0000 38B5     		push	{r3, r4, r5, lr}
+ 1543              	.LCFI22:
+ 1544              		.cfi_def_cfa_offset 16
+ 1545              		.cfi_offset 3, -16
+ 1546              		.cfi_offset 4, -12
+ 1547              		.cfi_offset 5, -8
+ 1548              		.cfi_offset 14, -4
+ 1549 0002 0546     		mov	r5, r0
+ 400:Src/input/drivers/adc/adc.c ****     if (adcHandle->Instance == ADC1)
+ 1550              		.loc 1 400 5 is_stmt 1 view .LVU473
+ 1551              		.loc 1 400 18 is_stmt 0 view .LVU474
+ 1552 0004 0368     		ldr	r3, [r0]
+ 1553              		.loc 1 400 8 view .LVU475
+ 1554 0006 314A     		ldr	r2, .L120
+ 1555 0008 9342     		cmp	r3, r2
+ 1556 000a 06D0     		beq	.L117
+ 401:Src/input/drivers/adc/adc.c ****     {
+ 402:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC1_MspDeInit 0 */
+ 403:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC1_MspDeInit 0 */
+ 404:Src/input/drivers/adc/adc.c ****         /* Peripheral clock disable */
+ 405:Src/input/drivers/adc/adc.c ****         HAL_RCC_ADC12_CLK_ENABLED--;
+ 406:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 0)
+ 407:Src/input/drivers/adc/adc.c ****         {
+ 408:Src/input/drivers/adc/adc.c ****             __HAL_RCC_ADC12_CLK_DISABLE();
+ 409:Src/input/drivers/adc/adc.c ****         }
+ 410:Src/input/drivers/adc/adc.c **** 
+ 411:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC1_PIN_MAP_SIZE; i++) {
+ 412:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC1_PIN_MAP[i].port, ADC1_PIN_MAP[i].pin);
+ 413:Src/input/drivers/adc/adc.c ****         }
+ 414:Src/input/drivers/adc/adc.c **** 
+ 415:Src/input/drivers/adc/adc.c ****         /* ADC1 DMA DeInit */
+ 416:Src/input/drivers/adc/adc.c ****         HAL_DMA_DeInit(adcHandle->DMA_Handle);
+ 417:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC1_MspDeInit 1 */
+ 418:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC1_MspDeInit 1 */
+ 419:Src/input/drivers/adc/adc.c ****     }
+ 420:Src/input/drivers/adc/adc.c ****     else if (adcHandle->Instance == ADC2)
+ 1557              		.loc 1 420 10 is_stmt 1 view .LVU476
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 39
+
+
+ 1558              		.loc 1 420 13 is_stmt 0 view .LVU477
+ 1559 000c 304A     		ldr	r2, .L120+4
+ 1560 000e 9342     		cmp	r3, r2
+ 1561 0010 22D0     		beq	.L118
+ 421:Src/input/drivers/adc/adc.c ****     {
+ 422:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC2_MspDeInit 0 */
+ 423:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC2_MspDeInit 0 */
+ 424:Src/input/drivers/adc/adc.c ****         /* Peripheral clock disable */
+ 425:Src/input/drivers/adc/adc.c ****         HAL_RCC_ADC12_CLK_ENABLED--;
+ 426:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 0)
+ 427:Src/input/drivers/adc/adc.c ****         {
+ 428:Src/input/drivers/adc/adc.c ****             __HAL_RCC_ADC12_CLK_DISABLE();
+ 429:Src/input/drivers/adc/adc.c ****         }
+ 430:Src/input/drivers/adc/adc.c **** 
+ 431:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC2_PIN_MAP_SIZE; i++) {
+ 432:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC2_PIN_MAP[i].port, ADC2_PIN_MAP[i].pin);
+ 433:Src/input/drivers/adc/adc.c ****         }
+ 434:Src/input/drivers/adc/adc.c **** 
+ 435:Src/input/drivers/adc/adc.c ****         /* ADC2 DMA DeInit */
+ 436:Src/input/drivers/adc/adc.c ****         HAL_DMA_DeInit(adcHandle->DMA_Handle);
+ 437:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC2_MspDeInit 1 */
+ 438:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC2_MspDeInit 1 */
+ 439:Src/input/drivers/adc/adc.c ****     } 
+ 440:Src/input/drivers/adc/adc.c ****     else if (adcHandle->Instance == ADC3)
+ 1562              		.loc 1 440 10 is_stmt 1 view .LVU478
+ 1563              		.loc 1 440 13 is_stmt 0 view .LVU479
+ 1564 0012 304A     		ldr	r2, .L120+8
+ 1565 0014 9342     		cmp	r3, r2
+ 1566 0016 3ED0     		beq	.L119
+ 1567              	.LVL99:
+ 1568              	.L104:
+ 441:Src/input/drivers/adc/adc.c ****     {
+ 442:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC3_MspDeInit 0 */
+ 443:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC3_MspDeInit 0 */
+ 444:Src/input/drivers/adc/adc.c ****         /* Peripheral clock disable */
+ 445:Src/input/drivers/adc/adc.c ****         __HAL_RCC_ADC3_CLK_DISABLE();
+ 446:Src/input/drivers/adc/adc.c **** 
+ 447:Src/input/drivers/adc/adc.c ****         for (uint32_t i = 0; i < (uint32_t)ADC3_PIN_MAP_SIZE; i++) {
+ 448:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC3_PIN_MAP[i].port, ADC3_PIN_MAP[i].pin);
+ 449:Src/input/drivers/adc/adc.c ****         }
+ 450:Src/input/drivers/adc/adc.c **** 
+ 451:Src/input/drivers/adc/adc.c ****         /* ADC3 DMA DeInit */
+ 452:Src/input/drivers/adc/adc.c ****         HAL_DMA_DeInit(adcHandle->DMA_Handle);
+ 453:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC3_MspDeInit 1 */
+ 454:Src/input/drivers/adc/adc.c ****         /* USER CODE END ADC3_MspDeInit 1 */
+ 455:Src/input/drivers/adc/adc.c ****     }
+ 456:Src/input/drivers/adc/adc.c **** }
+ 1569              		.loc 1 456 1 view .LVU480
+ 1570 0018 38BD     		pop	{r3, r4, r5, pc}
+ 1571              	.LVL100:
+ 1572              	.L117:
+ 405:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 0)
+ 1573              		.loc 1 405 9 is_stmt 1 view .LVU481
+ 405:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 0)
+ 1574              		.loc 1 405 34 is_stmt 0 view .LVU482
+ 1575 001a 2F4A     		ldr	r2, .L120+12
+ 1576 001c 1368     		ldr	r3, [r2]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 40
+
+
+ 1577 001e 013B     		subs	r3, r3, #1
+ 1578 0020 1360     		str	r3, [r2]
+ 406:Src/input/drivers/adc/adc.c ****         {
+ 1579              		.loc 1 406 9 is_stmt 1 view .LVU483
+ 406:Src/input/drivers/adc/adc.c ****         {
+ 1580              		.loc 1 406 12 is_stmt 0 view .LVU484
+ 1581 0022 33B9     		cbnz	r3, .L106
+ 408:Src/input/drivers/adc/adc.c ****         }
+ 1582              		.loc 1 408 13 is_stmt 1 view .LVU485
+ 1583 0024 2D4A     		ldr	r2, .L120+16
+ 1584 0026 D2F8D830 		ldr	r3, [r2, #216]
+ 1585 002a 23F02003 		bic	r3, r3, #32
+ 1586 002e C2F8D830 		str	r3, [r2, #216]
+ 1587              	.L106:
+ 399:Src/input/drivers/adc/adc.c ****     if (adcHandle->Instance == ADC1)
+ 1588              		.loc 1 399 1 is_stmt 0 view .LVU486
+ 1589 0032 0024     		movs	r4, #0
+ 1590 0034 0AE0     		b	.L107
+ 1591              	.LVL101:
+ 1592              	.L108:
+ 1593              	.LBB48:
+ 412:Src/input/drivers/adc/adc.c ****         }
+ 1594              		.loc 1 412 13 is_stmt 1 view .LVU487
+ 412:Src/input/drivers/adc/adc.c ****         }
+ 1595              		.loc 1 412 44 is_stmt 0 view .LVU488
+ 1596 0036 2A4B     		ldr	r3, .L120+20
+ 1597 0038 04EB8402 		add	r2, r4, r4, lsl #2
+ 1598 003c 03EB8201 		add	r1, r3, r2, lsl #2
+ 412:Src/input/drivers/adc/adc.c ****         }
+ 1599              		.loc 1 412 13 view .LVU489
+ 1600 0040 8988     		ldrh	r1, [r1, #4]
+ 1601 0042 53F82200 		ldr	r0, [r3, r2, lsl #2]
+ 1602 0046 FFF7FEFF 		bl	HAL_GPIO_DeInit
+ 1603              	.LVL102:
+ 411:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC1_PIN_MAP[i].port, ADC1_PIN_MAP[i].pin);
+ 1604              		.loc 1 411 64 is_stmt 1 discriminator 3 view .LVU490
+ 1605 004a 0134     		adds	r4, r4, #1
+ 1606              	.LVL103:
+ 1607              	.L107:
+ 411:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC1_PIN_MAP[i].port, ADC1_PIN_MAP[i].pin);
+ 1608              		.loc 1 411 32 discriminator 1 view .LVU491
+ 1609 004c 052C     		cmp	r4, #5
+ 1610 004e F2D9     		bls	.L108
+ 1611              	.LBE48:
+ 416:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC1_MspDeInit 1 */
+ 1612              		.loc 1 416 9 view .LVU492
+ 1613 0050 E86C     		ldr	r0, [r5, #76]
+ 1614 0052 FFF7FEFF 		bl	HAL_DMA_DeInit
+ 1615              	.LVL104:
+ 1616 0056 DFE7     		b	.L104
+ 1617              	.LVL105:
+ 1618              	.L118:
+ 425:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 0)
+ 1619              		.loc 1 425 9 view .LVU493
+ 425:Src/input/drivers/adc/adc.c ****         if (HAL_RCC_ADC12_CLK_ENABLED == 0)
+ 1620              		.loc 1 425 34 is_stmt 0 view .LVU494
+ 1621 0058 1F4A     		ldr	r2, .L120+12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 41
+
+
+ 1622 005a 1368     		ldr	r3, [r2]
+ 1623 005c 013B     		subs	r3, r3, #1
+ 1624 005e 1360     		str	r3, [r2]
+ 426:Src/input/drivers/adc/adc.c ****         {
+ 1625              		.loc 1 426 9 is_stmt 1 view .LVU495
+ 426:Src/input/drivers/adc/adc.c ****         {
+ 1626              		.loc 1 426 12 is_stmt 0 view .LVU496
+ 1627 0060 33B9     		cbnz	r3, .L111
+ 428:Src/input/drivers/adc/adc.c ****         }
+ 1628              		.loc 1 428 13 is_stmt 1 view .LVU497
+ 1629 0062 1E4A     		ldr	r2, .L120+16
+ 1630 0064 D2F8D830 		ldr	r3, [r2, #216]
+ 1631 0068 23F02003 		bic	r3, r3, #32
+ 1632 006c C2F8D830 		str	r3, [r2, #216]
+ 1633              	.L111:
+ 399:Src/input/drivers/adc/adc.c ****     if (adcHandle->Instance == ADC1)
+ 1634              		.loc 1 399 1 is_stmt 0 view .LVU498
+ 1635 0070 0024     		movs	r4, #0
+ 1636 0072 0AE0     		b	.L112
+ 1637              	.LVL106:
+ 1638              	.L113:
+ 1639              	.LBB49:
+ 432:Src/input/drivers/adc/adc.c ****         }
+ 1640              		.loc 1 432 13 is_stmt 1 view .LVU499
+ 432:Src/input/drivers/adc/adc.c ****         }
+ 1641              		.loc 1 432 44 is_stmt 0 view .LVU500
+ 1642 0074 1B4B     		ldr	r3, .L120+24
+ 1643 0076 04EB8402 		add	r2, r4, r4, lsl #2
+ 1644 007a 03EB8201 		add	r1, r3, r2, lsl #2
+ 432:Src/input/drivers/adc/adc.c ****         }
+ 1645              		.loc 1 432 13 view .LVU501
+ 1646 007e 8988     		ldrh	r1, [r1, #4]
+ 1647 0080 53F82200 		ldr	r0, [r3, r2, lsl #2]
+ 1648 0084 FFF7FEFF 		bl	HAL_GPIO_DeInit
+ 1649              	.LVL107:
+ 431:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC2_PIN_MAP[i].port, ADC2_PIN_MAP[i].pin);
+ 1650              		.loc 1 431 64 is_stmt 1 discriminator 3 view .LVU502
+ 1651 0088 0134     		adds	r4, r4, #1
+ 1652              	.LVL108:
+ 1653              	.L112:
+ 431:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC2_PIN_MAP[i].port, ADC2_PIN_MAP[i].pin);
+ 1654              		.loc 1 431 32 discriminator 1 view .LVU503
+ 1655 008a 052C     		cmp	r4, #5
+ 1656 008c F2D9     		bls	.L113
+ 1657              	.LBE49:
+ 436:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC2_MspDeInit 1 */
+ 1658              		.loc 1 436 9 view .LVU504
+ 1659 008e E86C     		ldr	r0, [r5, #76]
+ 1660 0090 FFF7FEFF 		bl	HAL_DMA_DeInit
+ 1661              	.LVL109:
+ 1662 0094 C0E7     		b	.L104
+ 1663              	.LVL110:
+ 1664              	.L119:
+ 445:Src/input/drivers/adc/adc.c **** 
+ 1665              		.loc 1 445 9 view .LVU505
+ 1666 0096 A2F5E052 		sub	r2, r2, #7168
+ 1667 009a D2F8E030 		ldr	r3, [r2, #224]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 42
+
+
+ 1668 009e 23F08073 		bic	r3, r3, #16777216
+ 1669 00a2 C2F8E030 		str	r3, [r2, #224]
+ 447:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC3_PIN_MAP[i].port, ADC3_PIN_MAP[i].pin);
+ 1670              		.loc 1 447 9 view .LVU506
+ 1671              	.LBB50:
+ 447:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC3_PIN_MAP[i].port, ADC3_PIN_MAP[i].pin);
+ 1672              		.loc 1 447 14 view .LVU507
+ 1673              	.LVL111:
+ 447:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC3_PIN_MAP[i].port, ADC3_PIN_MAP[i].pin);
+ 1674              		.loc 1 447 23 is_stmt 0 view .LVU508
+ 1675 00a6 0024     		movs	r4, #0
+ 447:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC3_PIN_MAP[i].port, ADC3_PIN_MAP[i].pin);
+ 1676              		.loc 1 447 9 view .LVU509
+ 1677 00a8 0AE0     		b	.L114
+ 1678              	.LVL112:
+ 1679              	.L115:
+ 448:Src/input/drivers/adc/adc.c ****         }
+ 1680              		.loc 1 448 13 is_stmt 1 view .LVU510
+ 448:Src/input/drivers/adc/adc.c ****         }
+ 1681              		.loc 1 448 44 is_stmt 0 view .LVU511
+ 1682 00aa 0F4B     		ldr	r3, .L120+28
+ 1683 00ac 04EB8402 		add	r2, r4, r4, lsl #2
+ 1684 00b0 03EB8201 		add	r1, r3, r2, lsl #2
+ 448:Src/input/drivers/adc/adc.c ****         }
+ 1685              		.loc 1 448 13 view .LVU512
+ 1686 00b4 8988     		ldrh	r1, [r1, #4]
+ 1687 00b6 53F82200 		ldr	r0, [r3, r2, lsl #2]
+ 1688 00ba FFF7FEFF 		bl	HAL_GPIO_DeInit
+ 1689              	.LVL113:
+ 447:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC3_PIN_MAP[i].port, ADC3_PIN_MAP[i].pin);
+ 1690              		.loc 1 447 64 is_stmt 1 discriminator 3 view .LVU513
+ 1691 00be 0134     		adds	r4, r4, #1
+ 1692              	.LVL114:
+ 1693              	.L114:
+ 447:Src/input/drivers/adc/adc.c ****             HAL_GPIO_DeInit(ADC3_PIN_MAP[i].port, ADC3_PIN_MAP[i].pin);
+ 1694              		.loc 1 447 32 discriminator 1 view .LVU514
+ 1695 00c0 052C     		cmp	r4, #5
+ 1696 00c2 F2D9     		bls	.L115
+ 1697              	.LBE50:
+ 452:Src/input/drivers/adc/adc.c ****         /* USER CODE BEGIN ADC3_MspDeInit 1 */
+ 1698              		.loc 1 452 9 view .LVU515
+ 1699 00c4 E86C     		ldr	r0, [r5, #76]
+ 1700 00c6 FFF7FEFF 		bl	HAL_DMA_DeInit
+ 1701              	.LVL115:
+ 1702              		.loc 1 456 1 is_stmt 0 view .LVU516
+ 1703 00ca A5E7     		b	.L104
+ 1704              	.L121:
+ 1705              		.align	2
+ 1706              	.L120:
+ 1707 00cc 00200240 		.word	1073881088
+ 1708 00d0 00210240 		.word	1073881344
+ 1709 00d4 00600258 		.word	1476550656
+ 1710 00d8 00000000 		.word	HAL_RCC_ADC12_CLK_ENABLED
+ 1711 00dc 00440258 		.word	1476543488
+ 1712 00e0 00000000 		.word	ADC1_PIN_MAP
+ 1713 00e4 00000000 		.word	ADC2_PIN_MAP
+ 1714 00e8 00000000 		.word	ADC3_PIN_MAP
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 43
+
+
+ 1715              		.cfi_endproc
+ 1716              	.LFE348:
+ 1718              		.section	.bss.HAL_RCC_ADC12_CLK_ENABLED,"aw",%nobits
+ 1719              		.align	2
+ 1722              	HAL_RCC_ADC12_CLK_ENABLED:
+ 1723 0000 00000000 		.space	4
+ 1724              		.global	hdma_adc3
+ 1725              		.section	.bss.hdma_adc3,"aw",%nobits
+ 1726              		.align	2
+ 1729              	hdma_adc3:
+ 1730 0000 00000000 		.space	120
+ 1730      00000000 
+ 1730      00000000 
+ 1730      00000000 
+ 1730      00000000 
+ 1731              		.global	hdma_adc2
+ 1732              		.section	.bss.hdma_adc2,"aw",%nobits
+ 1733              		.align	2
+ 1736              	hdma_adc2:
+ 1737 0000 00000000 		.space	120
+ 1737      00000000 
+ 1737      00000000 
+ 1737      00000000 
+ 1737      00000000 
+ 1738              		.global	hdma_adc1
+ 1739              		.section	.bss.hdma_adc1,"aw",%nobits
+ 1740              		.align	2
+ 1743              	hdma_adc1:
+ 1744 0000 00000000 		.space	120
+ 1744      00000000 
+ 1744      00000000 
+ 1744      00000000 
+ 1744      00000000 
+ 1745              		.global	hadc3
+ 1746              		.section	.bss.hadc3,"aw",%nobits
+ 1747              		.align	2
+ 1750              	hadc3:
+ 1751 0000 00000000 		.space	100
+ 1751      00000000 
+ 1751      00000000 
+ 1751      00000000 
+ 1751      00000000 
+ 1752              		.global	hadc2
+ 1753              		.section	.bss.hadc2,"aw",%nobits
+ 1754              		.align	2
+ 1757              	hadc2:
+ 1758 0000 00000000 		.space	100
+ 1758      00000000 
+ 1758      00000000 
+ 1758      00000000 
+ 1758      00000000 
+ 1759              		.global	hadc1
+ 1760              		.section	.bss.hadc1,"aw",%nobits
+ 1761              		.align	2
+ 1764              	hadc1:
+ 1765 0000 00000000 		.space	100
+ 1765      00000000 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 44
+
+
+ 1765      00000000 
+ 1765      00000000 
+ 1765      00000000 
+ 1766              		.section	.rodata.ADC3_PIN_MAP,"a"
+ 1767              		.align	2
+ 1770              	ADC3_PIN_MAP:
+ 1771 0000 00140258 		.word	1476531200
+ 1772 0004 2000     		.short	32
+ 1773 0006 0000     		.space	2
+ 1774 0008 1000C010 		.word	281018384
+ 1775 000c 06000000 		.word	6
+ 1776 0010 10       		.byte	16
+ 1777 0011 000000   		.space	3
+ 1778 0014 00140258 		.word	1476531200
+ 1779 0018 1000     		.short	16
+ 1780 001a 0000     		.space	2
+ 1781 001c 0002B025 		.word	632291840
+ 1782 0020 0C000000 		.word	12
+ 1783 0024 0F       		.byte	15
+ 1784 0025 000000   		.space	3
+ 1785 0028 001C0258 		.word	1476533248
+ 1786 002c 0400     		.short	4
+ 1787 002e 0000     		.space	2
+ 1788 0030 00209036 		.word	915415040
+ 1789 0034 12000000 		.word	18
+ 1790 0038 0D       		.byte	13
+ 1791 0039 000000   		.space	3
+ 1792 003c 001C0258 		.word	1476533248
+ 1793 0040 0800     		.short	8
+ 1794 0042 0000     		.space	2
+ 1795 0044 0040C03A 		.word	985677824
+ 1796 0048 18000000 		.word	24
+ 1797 004c 0A       		.byte	10
+ 1798 004d 000000   		.space	3
+ 1799 0050 001C0258 		.word	1476533248
+ 1800 0054 1000     		.short	16
+ 1801 0056 0000     		.space	2
+ 1802 0058 0080F03E 		.word	1055948800
+ 1803 005c 00010000 		.word	256
+ 1804 0060 0B       		.byte	11
+ 1805 0061 000000   		.space	3
+ 1806 0064 001C0258 		.word	1476533248
+ 1807 0068 2000     		.short	32
+ 1808 006a 0000     		.space	2
+ 1809 006c 00002143 		.word	1126236160
+ 1810 0070 06010000 		.word	262
+ 1811 0074 11       		.byte	17
+ 1812 0075 000000   		.space	3
+ 1813              		.section	.rodata.ADC2_PIN_MAP,"a"
+ 1814              		.align	2
+ 1817              	ADC2_PIN_MAP:
+ 1818 0000 00140258 		.word	1476531200
+ 1819 0004 0020     		.short	8192
+ 1820 0006 0000     		.space	2
+ 1821 0008 04006008 		.word	140509188
+ 1822 000c 06000000 		.word	6
+ 1823 0010 01       		.byte	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 45
+
+
+ 1824 0011 000000   		.space	3
+ 1825 0014 00140258 		.word	1476531200
+ 1826 0018 0040     		.short	16384
+ 1827 001a 0000     		.space	2
+ 1828 001c 40002019 		.word	421527616
+ 1829 0020 0C000000 		.word	12
+ 1830 0024 03       		.byte	3
+ 1831 0025 000000   		.space	3
+ 1832 0028 00080258 		.word	1476528128
+ 1833 002c 0200     		.short	2
+ 1834 002e 0000     		.space	2
+ 1835 0030 0008302E 		.word	774899712
+ 1836 0034 12000000 		.word	18
+ 1837 0038 0E       		.byte	14
+ 1838 0039 000000   		.space	3
+ 1839 003c 00080258 		.word	1476528128
+ 1840 0040 0400     		.short	4
+ 1841 0042 0000     		.space	2
+ 1842 0044 00106032 		.word	845156352
+ 1843 0048 18000000 		.word	24
+ 1844 004c 0C       		.byte	12
+ 1845 004d 000000   		.space	3
+ 1846 0050 00080258 		.word	1476528128
+ 1847 0054 0800     		.short	8
+ 1848 0056 0000     		.space	2
+ 1849 0058 00209036 		.word	915415040
+ 1850 005c 00010000 		.word	256
+ 1851 0060 08       		.byte	8
+ 1852 0061 000000   		.space	3
+ 1853 0064 00000258 		.word	1476526080
+ 1854 0068 0400     		.short	4
+ 1855 006a 0000     		.space	2
+ 1856 006c 0040C03A 		.word	985677824
+ 1857 0070 06010000 		.word	262
+ 1858 0074 09       		.byte	9
+ 1859 0075 000000   		.space	3
+ 1860              		.section	.rodata.ADC1_PIN_MAP,"a"
+ 1861              		.align	2
+ 1864              	ADC1_PIN_MAP:
+ 1865 0000 00140258 		.word	1476531200
+ 1866 0004 0008     		.short	2048
+ 1867 0006 0000     		.space	2
+ 1868 0008 04006008 		.word	140509188
+ 1869 000c 06000000 		.word	6
+ 1870 0010 02       		.byte	2
+ 1871 0011 000000   		.space	3
+ 1872 0014 00000258 		.word	1476526080
+ 1873 0018 4000     		.short	64
+ 1874 001a 0000     		.space	2
+ 1875 001c 0800900C 		.word	210763784
+ 1876 0020 0C000000 		.word	12
+ 1877 0024 07       		.byte	7
+ 1878 0025 000000   		.space	3
+ 1879 0028 00080258 		.word	1476528128
+ 1880 002c 1000     		.short	16
+ 1881 002e 0000     		.space	2
+ 1882 0030 1000C010 		.word	281018384
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 46
+
+
+ 1883 0034 12000000 		.word	18
+ 1884 0038 04       		.byte	4
+ 1885 0039 000000   		.space	3
+ 1886 003c 00140258 		.word	1476531200
+ 1887 0040 0010     		.short	4096
+ 1888 0042 0000     		.space	2
+ 1889 0044 40002019 		.word	421527616
+ 1890 0048 18000000 		.word	24
+ 1891 004c 00       		.byte	0
+ 1892 004d 000000   		.space	3
+ 1893 0050 00000258 		.word	1476526080
+ 1894 0054 8000     		.short	128
+ 1895 0056 0000     		.space	2
+ 1896 0058 8000501D 		.word	491782272
+ 1897 005c 00010000 		.word	256
+ 1898 0060 05       		.byte	5
+ 1899 0061 000000   		.space	3
+ 1900 0064 00080258 		.word	1476528128
+ 1901 0068 2000     		.short	32
+ 1902 006a 0000     		.space	2
+ 1903 006c 00018021 		.word	562036992
+ 1904 0070 06010000 		.word	262
+ 1905 0074 06       		.byte	6
+ 1906 0075 000000   		.space	3
+ 1907              		.section	.rodata
+ 1908              		.align	2
+ 1909              		.set	.LANCHOR0,. + 0
+ 1910              	.LC0:
+ 1911 0000 00000000 		.word	hadc1
+ 1912 0004 00000000 		.word	hadc2
+ 1913 0008 00000000 		.word	hadc3
+ 1914              		.text
+ 1915              	.Letext0:
+ 1916              		.file 3 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1917              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1918              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1919              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h7xx.h"
+ 1920              		.file 7 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 1921              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 1922              		.file 9 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 1923              		.file 10 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_adc.h"
+ 1924              		.file 11 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_adc_ex.h"
+ 1925              		.file 12 "Inc/input/drivers/adc/adc.h"
+ 1926              		.file 13 "Inc/system/board_cfg.h"
+ 1927              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc_ex.h"
+ 1928              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_cortex.h"
+ 1929              		.file 16 "Core/Inc/main.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 47
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 adc.c
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:20     .text.enable_gpio_clock:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:25     .text.enable_gpio_clock:00000000 enable_gpio_clock
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:256    .text.enable_gpio_clock:00000148 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:269    .text.configure_adc_common:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:274    .text.configure_adc_common:00000000 configure_adc_common
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:362    .text.configure_dma_common:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:367    .text.configure_dma_common:00000000 configure_dma_common
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:414    .text.ADC_ConfigureInputOversampling:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:420    .text.ADC_ConfigureInputOversampling:00000000 ADC_ConfigureInputOversampling
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:596    .text.ADC_ConfigureInputOversampling:00000078 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:602    .text.MX_ADC1_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:608    .text.MX_ADC1_Init:00000000 MX_ADC1_Init
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:763    .text.MX_ADC1_Init:00000098 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1764   .bss.hadc1:00000000 hadc1
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1864   .rodata.ADC1_PIN_MAP:00000000 ADC1_PIN_MAP
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:771    .text.MX_ADC2_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:777    .text.MX_ADC2_Init:00000000 MX_ADC2_Init
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:910    .text.MX_ADC2_Init:00000080 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1757   .bss.hadc2:00000000 hadc2
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1817   .rodata.ADC2_PIN_MAP:00000000 ADC2_PIN_MAP
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:918    .text.MX_ADC3_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:924    .text.MX_ADC3_Init:00000000 MX_ADC3_Init
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1066   .text.MX_ADC3_Init:00000090 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1750   .bss.hadc3:00000000 hadc3
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1770   .rodata.ADC3_PIN_MAP:00000000 ADC3_PIN_MAP
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1074   .text.HAL_ADC_MspInit:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1080   .text.HAL_ADC_MspInit:00000000 HAL_ADC_MspInit
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1509   .text.HAL_ADC_MspInit:000001d4 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1722   .bss.HAL_RCC_ADC12_CLK_ENABLED:00000000 HAL_RCC_ADC12_CLK_ENABLED
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1743   .bss.hdma_adc1:00000000 hdma_adc1
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1736   .bss.hdma_adc2:00000000 hdma_adc2
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1729   .bss.hdma_adc3:00000000 hdma_adc3
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1528   .text.HAL_ADC_MspDeInit:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1534   .text.HAL_ADC_MspDeInit:00000000 HAL_ADC_MspDeInit
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1707   .text.HAL_ADC_MspDeInit:000000cc $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1719   .bss.HAL_RCC_ADC12_CLK_ENABLED:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1726   .bss.hdma_adc3:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1733   .bss.hdma_adc2:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1740   .bss.hdma_adc1:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1747   .bss.hadc3:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1754   .bss.hadc2:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1761   .bss.hadc1:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1767   .rodata.ADC3_PIN_MAP:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1814   .rodata.ADC2_PIN_MAP:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1861   .rodata.ADC1_PIN_MAP:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s:1908   .rodata:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_ADC_Init
+HAL_ADCEx_MultiModeConfigChannel
+Error_Handler
+HAL_ADC_ConfigChannel
+HAL_NVIC_SetPriority
+HAL_NVIC_EnableIRQ
+HAL_RCCEx_GetPeriphCLKFreq
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgYc2hx.s 			page 48
+
+
+HAL_GPIO_Init
+HAL_DMA_Init
+HAL_GPIO_DeInit
+HAL_DMA_DeInit

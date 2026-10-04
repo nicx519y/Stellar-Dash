@@ -1,3 +1,5 @@
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import {
     Badge,
     Box,
@@ -1356,7 +1358,7 @@ export function SwitchMarkingContent() {
             </Box>
 
             <Portal>
-                <Dialog.Root
+                <ExclusiveDialog priority={OVERLAY_PRIORITY.editor}
                     open={editor !== null}
                     onOpenChange={details => {
                         if (!details.open) closeEditor();
@@ -1620,9 +1622,9 @@ export function SwitchMarkingContent() {
                             </Dialog.Footer>
                         </Dialog.Content>
                     </Dialog.Positioner>
-                </Dialog.Root>
+                </ExclusiveDialog>
 
-                <Dialog.Root
+                <ExclusiveDialog priority={OVERLAY_PRIORITY.editor}
                     open={curveEditor !== null}
                     onOpenChange={details => {
                         if (!details.open) closeCurveEditor();
@@ -1787,7 +1789,7 @@ export function SwitchMarkingContent() {
                             </Dialog.Footer>
                         </Dialog.Content>
                     </Dialog.Positioner>
-                </Dialog.Root>
+                </ExclusiveDialog>
             </Portal>
         </Flex>
     );

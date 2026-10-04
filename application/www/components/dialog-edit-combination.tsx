@@ -1,5 +1,7 @@
 'use client';
 
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import { create } from 'zustand';
 import { Dialog, Text, Portal, Box, Button, Select, VStack, createListCollection, Center } from '@chakra-ui/react';
 import { useMemo, useState, useEffect, useCallback } from 'react';
@@ -35,35 +37,15 @@ export function DialogEditCombination() {
 
                 return (
                     <Portal key={dialog.id}>
-                        <Box
-                            position="fixed"
-                            zIndex={9998}
-                            top={0}
-                            left={0}
-                            right={0}
-                            bottom={0}
-                            display="flex"
-                            alignItems="center"
-                            justifyContent="center"
-                        >
-                            <Box
-                                position="absolute"
-                                top={0}
-                                left={0}
-                                right={0}
-                                bottom={0}
-                                bg="blackAlpha.100"
-                                backdropFilter="blur(4px)"
-                            />
-
-                            <Dialog.Root
+                        <ExclusiveDialog priority={OVERLAY_PRIORITY.editor}
                                 open={dialog.isOpen}
                                 modal
                                 size="md"
                                 onPointerDownOutside={e => e.preventDefault()}
                                 onEscapeKeyDown={e => e.preventDefault()}
                             >
-                                <Dialog.Positioner>
+                                <Dialog.Backdrop bg="blackAlpha.100" backdropFilter="blur(4px)" zIndex={9998} />
+                                <Dialog.Positioner zIndex={9998}>
                                     <Dialog.Content>
                                         <Dialog.Header>
                                             <Dialog.Title fontSize="sm" opacity={0.75} >{t?.COMBINATION_DIALOG_TITLE} [ COM{dialog.combinationIndex + 1} ]</Dialog.Title>
@@ -76,8 +58,7 @@ export function DialogEditCombination() {
                                         </Dialog.Footer>
                                     </Dialog.Content>
                                 </Dialog.Positioner>
-                            </Dialog.Root>
-                        </Box>
+                            </ExclusiveDialog>
                     </Portal>
                 );
             })}

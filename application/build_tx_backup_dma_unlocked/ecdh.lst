@@ -1,0 +1,3017 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ecdh.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/ecdh.c"
+  19              		.section	.text.mbedtls_ecdh_grp_id,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	mbedtls_ecdh_grp_id:
+  26              	.LVL0:
+  27              	.LFB4:
+   1:Libs/mbedtls/library/ecdh.c **** /*
+   2:Libs/mbedtls/library/ecdh.c ****  *  Elliptic curve Diffie-Hellman
+   3:Libs/mbedtls/library/ecdh.c ****  *
+   4:Libs/mbedtls/library/ecdh.c ****  *  Copyright The Mbed TLS Contributors
+   5:Libs/mbedtls/library/ecdh.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   6:Libs/mbedtls/library/ecdh.c ****  */
+   7:Libs/mbedtls/library/ecdh.c **** 
+   8:Libs/mbedtls/library/ecdh.c **** /*
+   9:Libs/mbedtls/library/ecdh.c ****  * References:
+  10:Libs/mbedtls/library/ecdh.c ****  *
+  11:Libs/mbedtls/library/ecdh.c ****  * SEC1 https://www.secg.org/sec1-v2.pdf
+  12:Libs/mbedtls/library/ecdh.c ****  * RFC 4492
+  13:Libs/mbedtls/library/ecdh.c ****  */
+  14:Libs/mbedtls/library/ecdh.c **** 
+  15:Libs/mbedtls/library/ecdh.c **** #include "common.h"
+  16:Libs/mbedtls/library/ecdh.c **** 
+  17:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_C)
+  18:Libs/mbedtls/library/ecdh.c **** 
+  19:Libs/mbedtls/library/ecdh.c **** #include "mbedtls/ecdh.h"
+  20:Libs/mbedtls/library/ecdh.c **** #include "mbedtls/platform_util.h"
+  21:Libs/mbedtls/library/ecdh.c **** #include "mbedtls/error.h"
+  22:Libs/mbedtls/library/ecdh.c **** 
+  23:Libs/mbedtls/library/ecdh.c **** #include <string.h>
+  24:Libs/mbedtls/library/ecdh.c **** 
+  25:Libs/mbedtls/library/ecdh.c **** /* Parameter validation macros based on platform_util.h */
+  26:Libs/mbedtls/library/ecdh.c **** #define ECDH_VALIDATE_RET(cond)    \
+  27:Libs/mbedtls/library/ecdh.c ****     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_ECP_BAD_INPUT_DATA)
+  28:Libs/mbedtls/library/ecdh.c **** #define ECDH_VALIDATE(cond)        \
+  29:Libs/mbedtls/library/ecdh.c ****     MBEDTLS_INTERNAL_VALIDATE(cond)
+  30:Libs/mbedtls/library/ecdh.c **** 
+  31:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 2
+
+
+  32:Libs/mbedtls/library/ecdh.c **** typedef mbedtls_ecdh_context mbedtls_ecdh_context_mbed;
+  33:Libs/mbedtls/library/ecdh.c **** #endif
+  34:Libs/mbedtls/library/ecdh.c **** 
+  35:Libs/mbedtls/library/ecdh.c **** static mbedtls_ecp_group_id mbedtls_ecdh_grp_id(
+  36:Libs/mbedtls/library/ecdh.c ****     const mbedtls_ecdh_context *ctx)
+  37:Libs/mbedtls/library/ecdh.c **** {
+  28              		.loc 1 37 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  38:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+  39:Libs/mbedtls/library/ecdh.c ****     return ctx->grp.id;
+  40:Libs/mbedtls/library/ecdh.c **** #else
+  41:Libs/mbedtls/library/ecdh.c ****     return ctx->grp_id;
+  33              		.loc 1 41 5 view .LVU1
+  42:Libs/mbedtls/library/ecdh.c **** #endif
+  43:Libs/mbedtls/library/ecdh.c **** }
+  34              		.loc 1 43 1 is_stmt 0 view .LVU2
+  35 0000 4078     		ldrb	r0, [r0, #1]	@ zero_extendqisi2
+  36              	.LVL1:
+  37              		.loc 1 43 1 view .LVU3
+  38 0002 7047     		bx	lr
+  39              		.cfi_endproc
+  40              	.LFE4:
+  42              		.section	.text.ecdh_gen_public_restartable,"ax",%progbits
+  43              		.align	1
+  44              		.syntax unified
+  45              		.thumb
+  46              		.thumb_func
+  48              	ecdh_gen_public_restartable:
+  49              	.LVL2:
+  50              	.LFB6:
+  44:Libs/mbedtls/library/ecdh.c **** 
+  45:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_can_do(mbedtls_ecp_group_id gid)
+  46:Libs/mbedtls/library/ecdh.c **** {
+  47:Libs/mbedtls/library/ecdh.c ****     /* At this time, all groups support ECDH. */
+  48:Libs/mbedtls/library/ecdh.c ****     (void) gid;
+  49:Libs/mbedtls/library/ecdh.c ****     return 1;
+  50:Libs/mbedtls/library/ecdh.c **** }
+  51:Libs/mbedtls/library/ecdh.c **** 
+  52:Libs/mbedtls/library/ecdh.c **** #if !defined(MBEDTLS_ECDH_GEN_PUBLIC_ALT)
+  53:Libs/mbedtls/library/ecdh.c **** /*
+  54:Libs/mbedtls/library/ecdh.c ****  * Generate public key (restartable version)
+  55:Libs/mbedtls/library/ecdh.c ****  *
+  56:Libs/mbedtls/library/ecdh.c ****  * Note: this internal function relies on its caller preserving the value of
+  57:Libs/mbedtls/library/ecdh.c ****  * the output parameter 'd' across continuation calls. This would not be
+  58:Libs/mbedtls/library/ecdh.c ****  * acceptable for a public function but is OK here as we control call sites.
+  59:Libs/mbedtls/library/ecdh.c ****  */
+  60:Libs/mbedtls/library/ecdh.c **** static int ecdh_gen_public_restartable(mbedtls_ecp_group *grp,
+  61:Libs/mbedtls/library/ecdh.c ****                                        mbedtls_mpi *d, mbedtls_ecp_point *Q,
+  62:Libs/mbedtls/library/ecdh.c ****                                        int (*f_rng)(void *, unsigned char *, size_t),
+  63:Libs/mbedtls/library/ecdh.c ****                                        void *p_rng,
+  64:Libs/mbedtls/library/ecdh.c ****                                        mbedtls_ecp_restart_ctx *rs_ctx)
+  65:Libs/mbedtls/library/ecdh.c **** {
+  51              		.loc 1 65 1 is_stmt 1 view -0
+  52              		.cfi_startproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 3
+
+
+  53              		@ args = 8, pretend = 0, frame = 0
+  54              		@ frame_needed = 0, uses_anonymous_args = 0
+  55              		.loc 1 65 1 is_stmt 0 view .LVU5
+  56 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+  57              	.LCFI0:
+  58              		.cfi_def_cfa_offset 24
+  59              		.cfi_offset 4, -24
+  60              		.cfi_offset 5, -20
+  61              		.cfi_offset 6, -16
+  62              		.cfi_offset 7, -12
+  63              		.cfi_offset 8, -8
+  64              		.cfi_offset 14, -4
+  65 0004 84B0     		sub	sp, sp, #16
+  66              	.LCFI1:
+  67              		.cfi_def_cfa_offset 40
+  68 0006 0546     		mov	r5, r0
+  69 0008 0F46     		mov	r7, r1
+  70 000a 9046     		mov	r8, r2
+  71 000c 1C46     		mov	r4, r3
+  72 000e 0A9E     		ldr	r6, [sp, #40]
+  66:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+  73              		.loc 1 66 5 is_stmt 1 view .LVU6
+  74              	.LVL3:
+  67:Libs/mbedtls/library/ecdh.c **** 
+  68:Libs/mbedtls/library/ecdh.c ****     int restarting = 0;
+  75              		.loc 1 68 5 view .LVU7
+  69:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+  70:Libs/mbedtls/library/ecdh.c ****     restarting = (rs_ctx != NULL && rs_ctx->rsm != NULL);
+  71:Libs/mbedtls/library/ecdh.c **** #endif
+  72:Libs/mbedtls/library/ecdh.c ****     /* If multiplication is in progress, we already generated a privkey */
+  73:Libs/mbedtls/library/ecdh.c ****     if (!restarting) {
+  76              		.loc 1 73 5 view .LVU8
+  74:Libs/mbedtls/library/ecdh.c ****         MBEDTLS_MPI_CHK(mbedtls_ecp_gen_privkey(grp, d, f_rng, p_rng));
+  77              		.loc 1 74 9 view .LVU9
+  78              		.loc 1 74 9 view .LVU10
+  79 0010 3346     		mov	r3, r6
+  80              	.LVL4:
+  81              		.loc 1 74 9 is_stmt 0 view .LVU11
+  82 0012 2246     		mov	r2, r4
+  83              	.LVL5:
+  84              		.loc 1 74 9 view .LVU12
+  85 0014 FFF7FEFF 		bl	mbedtls_ecp_gen_privkey
+  86              	.LVL6:
+  87              		.loc 1 74 9 discriminator 1 view .LVU13
+  88 0018 10B1     		cbz	r0, .L5
+  89              	.LVL7:
+  90              	.L2:
+  75:Libs/mbedtls/library/ecdh.c ****     }
+  76:Libs/mbedtls/library/ecdh.c **** 
+  77:Libs/mbedtls/library/ecdh.c ****     MBEDTLS_MPI_CHK(mbedtls_ecp_mul_restartable(grp, Q, d, &grp->G,
+  78:Libs/mbedtls/library/ecdh.c ****                                                 f_rng, p_rng, rs_ctx));
+  79:Libs/mbedtls/library/ecdh.c **** 
+  80:Libs/mbedtls/library/ecdh.c **** cleanup:
+  81:Libs/mbedtls/library/ecdh.c ****     return ret;
+  82:Libs/mbedtls/library/ecdh.c **** }
+  91              		.loc 1 82 1 view .LVU14
+  92 001a 04B0     		add	sp, sp, #16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 4
+
+
+  93              	.LCFI2:
+  94              		.cfi_remember_state
+  95              		.cfi_def_cfa_offset 24
+  96              		@ sp needed
+  97 001c BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+  98              	.LVL8:
+  99              	.L5:
+ 100              	.LCFI3:
+ 101              		.cfi_restore_state
+  74:Libs/mbedtls/library/ecdh.c ****         MBEDTLS_MPI_CHK(mbedtls_ecp_gen_privkey(grp, d, f_rng, p_rng));
+ 102              		.loc 1 74 9 is_stmt 1 discriminator 2 view .LVU15
+  77:Libs/mbedtls/library/ecdh.c ****                                                 f_rng, p_rng, rs_ctx));
+ 103              		.loc 1 77 5 view .LVU16
+  77:Libs/mbedtls/library/ecdh.c ****                                                 f_rng, p_rng, rs_ctx));
+ 104              		.loc 1 77 5 view .LVU17
+ 105 0020 0B9B     		ldr	r3, [sp, #44]
+ 106 0022 0293     		str	r3, [sp, #8]
+ 107 0024 0196     		str	r6, [sp, #4]
+ 108 0026 0094     		str	r4, [sp]
+ 109 0028 05F12803 		add	r3, r5, #40
+ 110 002c 3A46     		mov	r2, r7
+ 111 002e 4146     		mov	r1, r8
+ 112 0030 2846     		mov	r0, r5
+ 113 0032 FFF7FEFF 		bl	mbedtls_ecp_mul_restartable
+ 114              	.LVL9:
+  77:Libs/mbedtls/library/ecdh.c ****                                                 f_rng, p_rng, rs_ctx));
+ 115              		.loc 1 77 5 discriminator 1 view .LVU18
+ 116              	.L3:
+  77:Libs/mbedtls/library/ecdh.c ****                                                 f_rng, p_rng, rs_ctx));
+ 117              		.loc 1 77 5 discriminator 3 view .LVU19
+  81:Libs/mbedtls/library/ecdh.c **** }
+ 118              		.loc 1 81 5 view .LVU20
+  81:Libs/mbedtls/library/ecdh.c **** }
+ 119              		.loc 1 81 12 is_stmt 0 view .LVU21
+ 120 0036 F0E7     		b	.L2
+ 121              		.cfi_endproc
+ 122              	.LFE6:
+ 124              		.section	.text.ecdh_compute_shared_restartable,"ax",%progbits
+ 125              		.align	1
+ 126              		.syntax unified
+ 127              		.thumb
+ 128              		.thumb_func
+ 130              	ecdh_compute_shared_restartable:
+ 131              	.LVL10:
+ 132              	.LFB8:
+  83:Libs/mbedtls/library/ecdh.c **** 
+  84:Libs/mbedtls/library/ecdh.c **** /*
+  85:Libs/mbedtls/library/ecdh.c ****  * Generate public key
+  86:Libs/mbedtls/library/ecdh.c ****  */
+  87:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_gen_public(mbedtls_ecp_group *grp, mbedtls_mpi *d, mbedtls_ecp_point *Q,
+  88:Libs/mbedtls/library/ecdh.c ****                             int (*f_rng)(void *, unsigned char *, size_t),
+  89:Libs/mbedtls/library/ecdh.c ****                             void *p_rng)
+  90:Libs/mbedtls/library/ecdh.c **** {
+  91:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(grp != NULL);
+  92:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(d != NULL);
+  93:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(Q != NULL);
+  94:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 5
+
+
+  95:Libs/mbedtls/library/ecdh.c ****     return ecdh_gen_public_restartable(grp, d, Q, f_rng, p_rng, NULL);
+  96:Libs/mbedtls/library/ecdh.c **** }
+  97:Libs/mbedtls/library/ecdh.c **** #endif /* !MBEDTLS_ECDH_GEN_PUBLIC_ALT */
+  98:Libs/mbedtls/library/ecdh.c **** 
+  99:Libs/mbedtls/library/ecdh.c **** #if !defined(MBEDTLS_ECDH_COMPUTE_SHARED_ALT)
+ 100:Libs/mbedtls/library/ecdh.c **** /*
+ 101:Libs/mbedtls/library/ecdh.c ****  * Compute shared secret (SEC1 3.3.1)
+ 102:Libs/mbedtls/library/ecdh.c ****  */
+ 103:Libs/mbedtls/library/ecdh.c **** static int ecdh_compute_shared_restartable(mbedtls_ecp_group *grp,
+ 104:Libs/mbedtls/library/ecdh.c ****                                            mbedtls_mpi *z,
+ 105:Libs/mbedtls/library/ecdh.c ****                                            const mbedtls_ecp_point *Q, const mbedtls_mpi *d,
+ 106:Libs/mbedtls/library/ecdh.c ****                                            int (*f_rng)(void *, unsigned char *, size_t),
+ 107:Libs/mbedtls/library/ecdh.c ****                                            void *p_rng,
+ 108:Libs/mbedtls/library/ecdh.c ****                                            mbedtls_ecp_restart_ctx *rs_ctx)
+ 109:Libs/mbedtls/library/ecdh.c **** {
+ 133              		.loc 1 109 1 is_stmt 1 view -0
+ 134              		.cfi_startproc
+ 135              		@ args = 12, pretend = 0, frame = 40
+ 136              		@ frame_needed = 0, uses_anonymous_args = 0
+ 137              		.loc 1 109 1 is_stmt 0 view .LVU23
+ 138 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 139              	.LCFI4:
+ 140              		.cfi_def_cfa_offset 20
+ 141              		.cfi_offset 4, -20
+ 142              		.cfi_offset 5, -16
+ 143              		.cfi_offset 6, -12
+ 144              		.cfi_offset 7, -8
+ 145              		.cfi_offset 14, -4
+ 146 0002 8FB0     		sub	sp, sp, #60
+ 147              	.LCFI5:
+ 148              		.cfi_def_cfa_offset 80
+ 149 0004 0446     		mov	r4, r0
+ 150 0006 0F46     		mov	r7, r1
+ 151 0008 1646     		mov	r6, r2
+ 152 000a 1D46     		mov	r5, r3
+ 110:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 153              		.loc 1 110 5 is_stmt 1 view .LVU24
+ 154              	.LVL11:
+ 111:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point P;
+ 155              		.loc 1 111 5 view .LVU25
+ 112:Libs/mbedtls/library/ecdh.c **** 
+ 113:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_init(&P);
+ 156              		.loc 1 113 5 view .LVU26
+ 157 000c 05A8     		add	r0, sp, #20
+ 158              	.LVL12:
+ 159              		.loc 1 113 5 is_stmt 0 view .LVU27
+ 160 000e FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 161              	.LVL13:
+ 114:Libs/mbedtls/library/ecdh.c **** 
+ 115:Libs/mbedtls/library/ecdh.c ****     MBEDTLS_MPI_CHK(mbedtls_ecp_mul_restartable(grp, &P, d, Q,
+ 162              		.loc 1 115 5 is_stmt 1 view .LVU28
+ 163              		.loc 1 115 5 view .LVU29
+ 164 0012 169B     		ldr	r3, [sp, #88]
+ 165 0014 0293     		str	r3, [sp, #8]
+ 166 0016 159B     		ldr	r3, [sp, #84]
+ 167 0018 0193     		str	r3, [sp, #4]
+ 168 001a 149B     		ldr	r3, [sp, #80]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 6
+
+
+ 169 001c 0093     		str	r3, [sp]
+ 170 001e 3346     		mov	r3, r6
+ 171 0020 2A46     		mov	r2, r5
+ 172 0022 05A9     		add	r1, sp, #20
+ 173 0024 2046     		mov	r0, r4
+ 174 0026 FFF7FEFF 		bl	mbedtls_ecp_mul_restartable
+ 175              	.LVL14:
+ 176              		.loc 1 115 5 is_stmt 0 discriminator 1 view .LVU30
+ 177 002a 0446     		mov	r4, r0
+ 178              	.LVL15:
+ 179              		.loc 1 115 5 discriminator 1 view .LVU31
+ 180 002c 28B1     		cbz	r0, .L10
+ 181              	.LVL16:
+ 182              	.L7:
+ 116:Libs/mbedtls/library/ecdh.c ****                                                 f_rng, p_rng, rs_ctx));
+ 117:Libs/mbedtls/library/ecdh.c **** 
+ 118:Libs/mbedtls/library/ecdh.c ****     if (mbedtls_ecp_is_zero(&P)) {
+ 119:Libs/mbedtls/library/ecdh.c ****         ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 120:Libs/mbedtls/library/ecdh.c ****         goto cleanup;
+ 121:Libs/mbedtls/library/ecdh.c ****     }
+ 122:Libs/mbedtls/library/ecdh.c **** 
+ 123:Libs/mbedtls/library/ecdh.c ****     MBEDTLS_MPI_CHK(mbedtls_mpi_copy(z, &P.X));
+ 183              		.loc 1 123 5 is_stmt 1 discriminator 3 view .LVU32
+ 124:Libs/mbedtls/library/ecdh.c **** 
+ 125:Libs/mbedtls/library/ecdh.c **** cleanup:
+ 126:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_free(&P);
+ 184              		.loc 1 126 5 view .LVU33
+ 185 002e 05A8     		add	r0, sp, #20
+ 186 0030 FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 187              	.LVL17:
+ 127:Libs/mbedtls/library/ecdh.c **** 
+ 128:Libs/mbedtls/library/ecdh.c ****     return ret;
+ 188              		.loc 1 128 5 view .LVU34
+ 129:Libs/mbedtls/library/ecdh.c **** }
+ 189              		.loc 1 129 1 is_stmt 0 view .LVU35
+ 190 0034 2046     		mov	r0, r4
+ 191 0036 0FB0     		add	sp, sp, #60
+ 192              	.LCFI6:
+ 193              		.cfi_remember_state
+ 194              		.cfi_def_cfa_offset 20
+ 195              		@ sp needed
+ 196 0038 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 197              	.LVL18:
+ 198              	.L10:
+ 199              	.LCFI7:
+ 200              		.cfi_restore_state
+ 115:Libs/mbedtls/library/ecdh.c ****                                                 f_rng, p_rng, rs_ctx));
+ 201              		.loc 1 115 5 is_stmt 1 discriminator 2 view .LVU36
+ 118:Libs/mbedtls/library/ecdh.c ****         ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 202              		.loc 1 118 5 view .LVU37
+ 118:Libs/mbedtls/library/ecdh.c ****         ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 203              		.loc 1 118 9 is_stmt 0 view .LVU38
+ 204 003a 05A8     		add	r0, sp, #20
+ 205              	.LVL19:
+ 118:Libs/mbedtls/library/ecdh.c ****         ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 206              		.loc 1 118 9 view .LVU39
+ 207 003c FFF7FEFF 		bl	mbedtls_ecp_is_zero
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 7
+
+
+ 208              	.LVL20:
+ 118:Libs/mbedtls/library/ecdh.c ****         ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 209              		.loc 1 118 8 discriminator 1 view .LVU40
+ 210 0040 28B9     		cbnz	r0, .L8
+ 123:Libs/mbedtls/library/ecdh.c **** 
+ 211              		.loc 1 123 5 is_stmt 1 view .LVU41
+ 123:Libs/mbedtls/library/ecdh.c **** 
+ 212              		.loc 1 123 5 view .LVU42
+ 213 0042 05A9     		add	r1, sp, #20
+ 214 0044 3846     		mov	r0, r7
+ 215 0046 FFF7FEFF 		bl	mbedtls_mpi_copy
+ 216              	.LVL21:
+ 217 004a 0446     		mov	r4, r0
+ 218              	.LVL22:
+ 123:Libs/mbedtls/library/ecdh.c **** 
+ 219              		.loc 1 123 5 discriminator 1 view .LVU43
+ 125:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_free(&P);
+ 220              		.loc 1 125 1 is_stmt 0 view .LVU44
+ 221 004c EFE7     		b	.L7
+ 222              	.LVL23:
+ 223              	.L8:
+ 119:Libs/mbedtls/library/ecdh.c ****         goto cleanup;
+ 224              		.loc 1 119 13 view .LVU45
+ 225 004e 014C     		ldr	r4, .L11
+ 226              	.LVL24:
+ 119:Libs/mbedtls/library/ecdh.c ****         goto cleanup;
+ 227              		.loc 1 119 13 view .LVU46
+ 228 0050 EDE7     		b	.L7
+ 229              	.L12:
+ 230 0052 00BF     		.align	2
+ 231              	.L11:
+ 232 0054 80B0FFFF 		.word	-20352
+ 233              		.cfi_endproc
+ 234              	.LFE8:
+ 236              		.section	.text.ecdh_init_internal,"ax",%progbits
+ 237              		.align	1
+ 238              		.syntax unified
+ 239              		.thumb
+ 240              		.thumb_func
+ 242              	ecdh_init_internal:
+ 243              	.LVL25:
+ 244              	.LFB10:
+ 130:Libs/mbedtls/library/ecdh.c **** 
+ 131:Libs/mbedtls/library/ecdh.c **** /*
+ 132:Libs/mbedtls/library/ecdh.c ****  * Compute shared secret (SEC1 3.3.1)
+ 133:Libs/mbedtls/library/ecdh.c ****  */
+ 134:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_compute_shared(mbedtls_ecp_group *grp, mbedtls_mpi *z,
+ 135:Libs/mbedtls/library/ecdh.c ****                                 const mbedtls_ecp_point *Q, const mbedtls_mpi *d,
+ 136:Libs/mbedtls/library/ecdh.c ****                                 int (*f_rng)(void *, unsigned char *, size_t),
+ 137:Libs/mbedtls/library/ecdh.c ****                                 void *p_rng)
+ 138:Libs/mbedtls/library/ecdh.c **** {
+ 139:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(grp != NULL);
+ 140:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(Q != NULL);
+ 141:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(d != NULL);
+ 142:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(z != NULL);
+ 143:Libs/mbedtls/library/ecdh.c ****     return ecdh_compute_shared_restartable(grp, z, Q, d,
+ 144:Libs/mbedtls/library/ecdh.c ****                                            f_rng, p_rng, NULL);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 8
+
+
+ 145:Libs/mbedtls/library/ecdh.c **** }
+ 146:Libs/mbedtls/library/ecdh.c **** #endif /* !MBEDTLS_ECDH_COMPUTE_SHARED_ALT */
+ 147:Libs/mbedtls/library/ecdh.c **** 
+ 148:Libs/mbedtls/library/ecdh.c **** static void ecdh_init_internal(mbedtls_ecdh_context_mbed *ctx)
+ 149:Libs/mbedtls/library/ecdh.c **** {
+ 245              		.loc 1 149 1 is_stmt 1 view -0
+ 246              		.cfi_startproc
+ 247              		@ args = 0, pretend = 0, frame = 0
+ 248              		@ frame_needed = 0, uses_anonymous_args = 0
+ 249              		.loc 1 149 1 is_stmt 0 view .LVU48
+ 250 0000 10B5     		push	{r4, lr}
+ 251              	.LCFI8:
+ 252              		.cfi_def_cfa_offset 8
+ 253              		.cfi_offset 4, -8
+ 254              		.cfi_offset 14, -4
+ 255 0002 0446     		mov	r4, r0
+ 150:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_group_init(&ctx->grp);
+ 256              		.loc 1 150 5 is_stmt 1 view .LVU49
+ 257 0004 FFF7FEFF 		bl	mbedtls_ecp_group_init
+ 258              	.LVL26:
+ 151:Libs/mbedtls/library/ecdh.c ****     mbedtls_mpi_init(&ctx->d);
+ 259              		.loc 1 151 5 view .LVU50
+ 260 0008 04F17C00 		add	r0, r4, #124
+ 261 000c FFF7FEFF 		bl	mbedtls_mpi_init
+ 262              	.LVL27:
+ 152:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_init(&ctx->Q);
+ 263              		.loc 1 152 5 view .LVU51
+ 264 0010 04F18800 		add	r0, r4, #136
+ 265 0014 FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 266              	.LVL28:
+ 153:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_init(&ctx->Qp);
+ 267              		.loc 1 153 5 view .LVU52
+ 268 0018 04F1AC00 		add	r0, r4, #172
+ 269 001c FFF7FEFF 		bl	mbedtls_ecp_point_init
+ 270              	.LVL29:
+ 154:Libs/mbedtls/library/ecdh.c ****     mbedtls_mpi_init(&ctx->z);
+ 271              		.loc 1 154 5 view .LVU53
+ 272 0020 04F1D000 		add	r0, r4, #208
+ 273 0024 FFF7FEFF 		bl	mbedtls_mpi_init
+ 274              	.LVL30:
+ 155:Libs/mbedtls/library/ecdh.c **** 
+ 156:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 157:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_restart_init(&ctx->rs);
+ 158:Libs/mbedtls/library/ecdh.c **** #endif
+ 159:Libs/mbedtls/library/ecdh.c **** }
+ 275              		.loc 1 159 1 is_stmt 0 view .LVU54
+ 276 0028 10BD     		pop	{r4, pc}
+ 277              		.loc 1 159 1 view .LVU55
+ 278              		.cfi_endproc
+ 279              	.LFE10:
+ 281              		.section	.text.ecdh_setup_internal,"ax",%progbits
+ 282              		.align	1
+ 283              		.syntax unified
+ 284              		.thumb
+ 285              		.thumb_func
+ 287              	ecdh_setup_internal:
+ 288              	.LVL31:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 9
+
+
+ 289              	.LFB12:
+ 160:Libs/mbedtls/library/ecdh.c **** 
+ 161:Libs/mbedtls/library/ecdh.c **** /*
+ 162:Libs/mbedtls/library/ecdh.c ****  * Initialize context
+ 163:Libs/mbedtls/library/ecdh.c ****  */
+ 164:Libs/mbedtls/library/ecdh.c **** void mbedtls_ecdh_init(mbedtls_ecdh_context *ctx)
+ 165:Libs/mbedtls/library/ecdh.c **** {
+ 166:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE(ctx != NULL);
+ 167:Libs/mbedtls/library/ecdh.c **** 
+ 168:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 169:Libs/mbedtls/library/ecdh.c ****     ecdh_init_internal(ctx);
+ 170:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_init(&ctx->Vi);
+ 171:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_init(&ctx->Vf);
+ 172:Libs/mbedtls/library/ecdh.c ****     mbedtls_mpi_init(&ctx->_d);
+ 173:Libs/mbedtls/library/ecdh.c **** #else
+ 174:Libs/mbedtls/library/ecdh.c ****     memset(ctx, 0, sizeof(mbedtls_ecdh_context));
+ 175:Libs/mbedtls/library/ecdh.c **** 
+ 176:Libs/mbedtls/library/ecdh.c ****     ctx->var = MBEDTLS_ECDH_VARIANT_NONE;
+ 177:Libs/mbedtls/library/ecdh.c **** #endif
+ 178:Libs/mbedtls/library/ecdh.c ****     ctx->point_format = MBEDTLS_ECP_PF_UNCOMPRESSED;
+ 179:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 180:Libs/mbedtls/library/ecdh.c ****     ctx->restart_enabled = 0;
+ 181:Libs/mbedtls/library/ecdh.c **** #endif
+ 182:Libs/mbedtls/library/ecdh.c **** }
+ 183:Libs/mbedtls/library/ecdh.c **** 
+ 184:Libs/mbedtls/library/ecdh.c **** static int ecdh_setup_internal(mbedtls_ecdh_context_mbed *ctx,
+ 185:Libs/mbedtls/library/ecdh.c ****                                mbedtls_ecp_group_id grp_id)
+ 186:Libs/mbedtls/library/ecdh.c **** {
+ 290              		.loc 1 186 1 is_stmt 1 view -0
+ 291              		.cfi_startproc
+ 292              		@ args = 0, pretend = 0, frame = 0
+ 293              		@ frame_needed = 0, uses_anonymous_args = 0
+ 294              		.loc 1 186 1 is_stmt 0 view .LVU57
+ 295 0000 08B5     		push	{r3, lr}
+ 296              	.LCFI9:
+ 297              		.cfi_def_cfa_offset 8
+ 298              		.cfi_offset 3, -8
+ 299              		.cfi_offset 14, -4
+ 187:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 300              		.loc 1 187 5 is_stmt 1 view .LVU58
+ 301              	.LVL32:
+ 188:Libs/mbedtls/library/ecdh.c **** 
+ 189:Libs/mbedtls/library/ecdh.c ****     ret = mbedtls_ecp_group_load(&ctx->grp, grp_id);
+ 302              		.loc 1 189 5 view .LVU59
+ 303              		.loc 1 189 11 is_stmt 0 view .LVU60
+ 304 0002 FFF7FEFF 		bl	mbedtls_ecp_group_load
+ 305              	.LVL33:
+ 190:Libs/mbedtls/library/ecdh.c ****     if (ret != 0) {
+ 306              		.loc 1 190 5 is_stmt 1 view .LVU61
+ 307              		.loc 1 190 8 is_stmt 0 view .LVU62
+ 308 0006 00B9     		cbnz	r0, .L19
+ 309              	.L15:
+ 191:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+ 192:Libs/mbedtls/library/ecdh.c ****     }
+ 193:Libs/mbedtls/library/ecdh.c **** 
+ 194:Libs/mbedtls/library/ecdh.c ****     return 0;
+ 195:Libs/mbedtls/library/ecdh.c **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 10
+
+
+ 310              		.loc 1 195 1 view .LVU63
+ 311 0008 08BD     		pop	{r3, pc}
+ 312              	.L19:
+ 191:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+ 313              		.loc 1 191 16 view .LVU64
+ 314 000a 0148     		ldr	r0, .L20
+ 315 000c FCE7     		b	.L15
+ 316              	.L21:
+ 317 000e 00BF     		.align	2
+ 318              	.L20:
+ 319 0010 80B1FFFF 		.word	-20096
+ 320              		.cfi_endproc
+ 321              	.LFE12:
+ 323              		.section	.text.ecdh_free_internal,"ax",%progbits
+ 324              		.align	1
+ 325              		.syntax unified
+ 326              		.thumb
+ 327              		.thumb_func
+ 329              	ecdh_free_internal:
+ 330              	.LVL34:
+ 331              	.LFB14:
+ 196:Libs/mbedtls/library/ecdh.c **** 
+ 197:Libs/mbedtls/library/ecdh.c **** /*
+ 198:Libs/mbedtls/library/ecdh.c ****  * Setup context
+ 199:Libs/mbedtls/library/ecdh.c ****  */
+ 200:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_setup(mbedtls_ecdh_context *ctx, mbedtls_ecp_group_id grp_id)
+ 201:Libs/mbedtls/library/ecdh.c **** {
+ 202:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 203:Libs/mbedtls/library/ecdh.c **** 
+ 204:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 205:Libs/mbedtls/library/ecdh.c ****     return ecdh_setup_internal(ctx, grp_id);
+ 206:Libs/mbedtls/library/ecdh.c **** #else
+ 207:Libs/mbedtls/library/ecdh.c ****     switch (grp_id) {
+ 208:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 209:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECP_DP_CURVE25519:
+ 210:Libs/mbedtls/library/ecdh.c ****             ctx->point_format = MBEDTLS_ECP_PF_COMPRESSED;
+ 211:Libs/mbedtls/library/ecdh.c ****             ctx->var = MBEDTLS_ECDH_VARIANT_EVEREST;
+ 212:Libs/mbedtls/library/ecdh.c ****             ctx->grp_id = grp_id;
+ 213:Libs/mbedtls/library/ecdh.c ****             return mbedtls_everest_setup(&ctx->ctx.everest_ecdh, grp_id);
+ 214:Libs/mbedtls/library/ecdh.c **** #endif
+ 215:Libs/mbedtls/library/ecdh.c ****         default:
+ 216:Libs/mbedtls/library/ecdh.c ****             ctx->point_format = MBEDTLS_ECP_PF_UNCOMPRESSED;
+ 217:Libs/mbedtls/library/ecdh.c ****             ctx->var = MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0;
+ 218:Libs/mbedtls/library/ecdh.c ****             ctx->grp_id = grp_id;
+ 219:Libs/mbedtls/library/ecdh.c ****             ecdh_init_internal(&ctx->ctx.mbed_ecdh);
+ 220:Libs/mbedtls/library/ecdh.c ****             return ecdh_setup_internal(&ctx->ctx.mbed_ecdh, grp_id);
+ 221:Libs/mbedtls/library/ecdh.c ****     }
+ 222:Libs/mbedtls/library/ecdh.c **** #endif
+ 223:Libs/mbedtls/library/ecdh.c **** }
+ 224:Libs/mbedtls/library/ecdh.c **** 
+ 225:Libs/mbedtls/library/ecdh.c **** static void ecdh_free_internal(mbedtls_ecdh_context_mbed *ctx)
+ 226:Libs/mbedtls/library/ecdh.c **** {
+ 332              		.loc 1 226 1 is_stmt 1 view -0
+ 333              		.cfi_startproc
+ 334              		@ args = 0, pretend = 0, frame = 0
+ 335              		@ frame_needed = 0, uses_anonymous_args = 0
+ 336              		.loc 1 226 1 is_stmt 0 view .LVU66
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 11
+
+
+ 337 0000 10B5     		push	{r4, lr}
+ 338              	.LCFI10:
+ 339              		.cfi_def_cfa_offset 8
+ 340              		.cfi_offset 4, -8
+ 341              		.cfi_offset 14, -4
+ 342 0002 0446     		mov	r4, r0
+ 227:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_group_free(&ctx->grp);
+ 343              		.loc 1 227 5 is_stmt 1 view .LVU67
+ 344 0004 FFF7FEFF 		bl	mbedtls_ecp_group_free
+ 345              	.LVL35:
+ 228:Libs/mbedtls/library/ecdh.c ****     mbedtls_mpi_free(&ctx->d);
+ 346              		.loc 1 228 5 view .LVU68
+ 347 0008 04F17C00 		add	r0, r4, #124
+ 348 000c FFF7FEFF 		bl	mbedtls_mpi_free
+ 349              	.LVL36:
+ 229:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_free(&ctx->Q);
+ 350              		.loc 1 229 5 view .LVU69
+ 351 0010 04F18800 		add	r0, r4, #136
+ 352 0014 FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 353              	.LVL37:
+ 230:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_free(&ctx->Qp);
+ 354              		.loc 1 230 5 view .LVU70
+ 355 0018 04F1AC00 		add	r0, r4, #172
+ 356 001c FFF7FEFF 		bl	mbedtls_ecp_point_free
+ 357              	.LVL38:
+ 231:Libs/mbedtls/library/ecdh.c ****     mbedtls_mpi_free(&ctx->z);
+ 358              		.loc 1 231 5 view .LVU71
+ 359 0020 04F1D000 		add	r0, r4, #208
+ 360 0024 FFF7FEFF 		bl	mbedtls_mpi_free
+ 361              	.LVL39:
+ 232:Libs/mbedtls/library/ecdh.c **** 
+ 233:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 234:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_restart_free(&ctx->rs);
+ 235:Libs/mbedtls/library/ecdh.c **** #endif
+ 236:Libs/mbedtls/library/ecdh.c **** }
+ 362              		.loc 1 236 1 is_stmt 0 view .LVU72
+ 363 0028 10BD     		pop	{r4, pc}
+ 364              		.loc 1 236 1 view .LVU73
+ 365              		.cfi_endproc
+ 366              	.LFE14:
+ 368              		.section	.text.ecdh_read_params_internal,"ax",%progbits
+ 369              		.align	1
+ 370              		.syntax unified
+ 371              		.thumb
+ 372              		.thumb_func
+ 374              	ecdh_read_params_internal:
+ 375              	.LVL40:
+ 376              	.LFB18:
+ 237:Libs/mbedtls/library/ecdh.c **** 
+ 238:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 239:Libs/mbedtls/library/ecdh.c **** /*
+ 240:Libs/mbedtls/library/ecdh.c ****  * Enable restartable operations for context
+ 241:Libs/mbedtls/library/ecdh.c ****  */
+ 242:Libs/mbedtls/library/ecdh.c **** void mbedtls_ecdh_enable_restart(mbedtls_ecdh_context *ctx)
+ 243:Libs/mbedtls/library/ecdh.c **** {
+ 244:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE(ctx != NULL);
+ 245:Libs/mbedtls/library/ecdh.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 12
+
+
+ 246:Libs/mbedtls/library/ecdh.c ****     ctx->restart_enabled = 1;
+ 247:Libs/mbedtls/library/ecdh.c **** }
+ 248:Libs/mbedtls/library/ecdh.c **** #endif
+ 249:Libs/mbedtls/library/ecdh.c **** 
+ 250:Libs/mbedtls/library/ecdh.c **** /*
+ 251:Libs/mbedtls/library/ecdh.c ****  * Free context
+ 252:Libs/mbedtls/library/ecdh.c ****  */
+ 253:Libs/mbedtls/library/ecdh.c **** void mbedtls_ecdh_free(mbedtls_ecdh_context *ctx)
+ 254:Libs/mbedtls/library/ecdh.c **** {
+ 255:Libs/mbedtls/library/ecdh.c ****     if (ctx == NULL) {
+ 256:Libs/mbedtls/library/ecdh.c ****         return;
+ 257:Libs/mbedtls/library/ecdh.c ****     }
+ 258:Libs/mbedtls/library/ecdh.c **** 
+ 259:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 260:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_free(&ctx->Vi);
+ 261:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_point_free(&ctx->Vf);
+ 262:Libs/mbedtls/library/ecdh.c ****     mbedtls_mpi_free(&ctx->_d);
+ 263:Libs/mbedtls/library/ecdh.c ****     ecdh_free_internal(ctx);
+ 264:Libs/mbedtls/library/ecdh.c **** #else
+ 265:Libs/mbedtls/library/ecdh.c ****     switch (ctx->var) {
+ 266:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 267:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_EVEREST:
+ 268:Libs/mbedtls/library/ecdh.c ****             mbedtls_everest_free(&ctx->ctx.everest_ecdh);
+ 269:Libs/mbedtls/library/ecdh.c ****             break;
+ 270:Libs/mbedtls/library/ecdh.c **** #endif
+ 271:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0:
+ 272:Libs/mbedtls/library/ecdh.c ****             ecdh_free_internal(&ctx->ctx.mbed_ecdh);
+ 273:Libs/mbedtls/library/ecdh.c ****             break;
+ 274:Libs/mbedtls/library/ecdh.c ****         default:
+ 275:Libs/mbedtls/library/ecdh.c ****             break;
+ 276:Libs/mbedtls/library/ecdh.c ****     }
+ 277:Libs/mbedtls/library/ecdh.c **** 
+ 278:Libs/mbedtls/library/ecdh.c ****     ctx->point_format = MBEDTLS_ECP_PF_UNCOMPRESSED;
+ 279:Libs/mbedtls/library/ecdh.c ****     ctx->var = MBEDTLS_ECDH_VARIANT_NONE;
+ 280:Libs/mbedtls/library/ecdh.c ****     ctx->grp_id = MBEDTLS_ECP_DP_NONE;
+ 281:Libs/mbedtls/library/ecdh.c **** #endif
+ 282:Libs/mbedtls/library/ecdh.c **** }
+ 283:Libs/mbedtls/library/ecdh.c **** 
+ 284:Libs/mbedtls/library/ecdh.c **** static int ecdh_make_params_internal(mbedtls_ecdh_context_mbed *ctx,
+ 285:Libs/mbedtls/library/ecdh.c ****                                      size_t *olen, int point_format,
+ 286:Libs/mbedtls/library/ecdh.c ****                                      unsigned char *buf, size_t blen,
+ 287:Libs/mbedtls/library/ecdh.c ****                                      int (*f_rng)(void *,
+ 288:Libs/mbedtls/library/ecdh.c ****                                                   unsigned char *,
+ 289:Libs/mbedtls/library/ecdh.c ****                                                   size_t),
+ 290:Libs/mbedtls/library/ecdh.c ****                                      void *p_rng,
+ 291:Libs/mbedtls/library/ecdh.c ****                                      int restart_enabled)
+ 292:Libs/mbedtls/library/ecdh.c **** {
+ 293:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 294:Libs/mbedtls/library/ecdh.c ****     size_t grp_len, pt_len;
+ 295:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 296:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_restart_ctx *rs_ctx = NULL;
+ 297:Libs/mbedtls/library/ecdh.c **** #endif
+ 298:Libs/mbedtls/library/ecdh.c **** 
+ 299:Libs/mbedtls/library/ecdh.c ****     if (ctx->grp.pbits == 0) {
+ 300:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 301:Libs/mbedtls/library/ecdh.c ****     }
+ 302:Libs/mbedtls/library/ecdh.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 13
+
+
+ 303:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 304:Libs/mbedtls/library/ecdh.c ****     if (restart_enabled) {
+ 305:Libs/mbedtls/library/ecdh.c ****         rs_ctx = &ctx->rs;
+ 306:Libs/mbedtls/library/ecdh.c ****     }
+ 307:Libs/mbedtls/library/ecdh.c **** #else
+ 308:Libs/mbedtls/library/ecdh.c ****     (void) restart_enabled;
+ 309:Libs/mbedtls/library/ecdh.c **** #endif
+ 310:Libs/mbedtls/library/ecdh.c **** 
+ 311:Libs/mbedtls/library/ecdh.c **** 
+ 312:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 313:Libs/mbedtls/library/ecdh.c ****     if ((ret = ecdh_gen_public_restartable(&ctx->grp, &ctx->d, &ctx->Q,
+ 314:Libs/mbedtls/library/ecdh.c ****                                            f_rng, p_rng, rs_ctx)) != 0) {
+ 315:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 316:Libs/mbedtls/library/ecdh.c ****     }
+ 317:Libs/mbedtls/library/ecdh.c **** #else
+ 318:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecdh_gen_public(&ctx->grp, &ctx->d, &ctx->Q,
+ 319:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 320:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 321:Libs/mbedtls/library/ecdh.c ****     }
+ 322:Libs/mbedtls/library/ecdh.c **** #endif /* MBEDTLS_ECP_RESTARTABLE */
+ 323:Libs/mbedtls/library/ecdh.c **** 
+ 324:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecp_tls_write_group(&ctx->grp, &grp_len, buf,
+ 325:Libs/mbedtls/library/ecdh.c ****                                            blen)) != 0) {
+ 326:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 327:Libs/mbedtls/library/ecdh.c ****     }
+ 328:Libs/mbedtls/library/ecdh.c **** 
+ 329:Libs/mbedtls/library/ecdh.c ****     buf += grp_len;
+ 330:Libs/mbedtls/library/ecdh.c ****     blen -= grp_len;
+ 331:Libs/mbedtls/library/ecdh.c **** 
+ 332:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecp_tls_write_point(&ctx->grp, &ctx->Q, point_format,
+ 333:Libs/mbedtls/library/ecdh.c ****                                            &pt_len, buf, blen)) != 0) {
+ 334:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 335:Libs/mbedtls/library/ecdh.c ****     }
+ 336:Libs/mbedtls/library/ecdh.c **** 
+ 337:Libs/mbedtls/library/ecdh.c ****     *olen = grp_len + pt_len;
+ 338:Libs/mbedtls/library/ecdh.c ****     return 0;
+ 339:Libs/mbedtls/library/ecdh.c **** }
+ 340:Libs/mbedtls/library/ecdh.c **** 
+ 341:Libs/mbedtls/library/ecdh.c **** /*
+ 342:Libs/mbedtls/library/ecdh.c ****  * Setup and write the ServerKeyExchange parameters (RFC 4492)
+ 343:Libs/mbedtls/library/ecdh.c ****  *      struct {
+ 344:Libs/mbedtls/library/ecdh.c ****  *          ECParameters    curve_params;
+ 345:Libs/mbedtls/library/ecdh.c ****  *          ECPoint         public;
+ 346:Libs/mbedtls/library/ecdh.c ****  *      } ServerECDHParams;
+ 347:Libs/mbedtls/library/ecdh.c ****  */
+ 348:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_make_params(mbedtls_ecdh_context *ctx, size_t *olen,
+ 349:Libs/mbedtls/library/ecdh.c ****                              unsigned char *buf, size_t blen,
+ 350:Libs/mbedtls/library/ecdh.c ****                              int (*f_rng)(void *, unsigned char *, size_t),
+ 351:Libs/mbedtls/library/ecdh.c ****                              void *p_rng)
+ 352:Libs/mbedtls/library/ecdh.c **** {
+ 353:Libs/mbedtls/library/ecdh.c ****     int restart_enabled = 0;
+ 354:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 355:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 356:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 357:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 358:Libs/mbedtls/library/ecdh.c **** 
+ 359:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 14
+
+
+ 360:Libs/mbedtls/library/ecdh.c ****     restart_enabled = ctx->restart_enabled;
+ 361:Libs/mbedtls/library/ecdh.c **** #else
+ 362:Libs/mbedtls/library/ecdh.c ****     (void) restart_enabled;
+ 363:Libs/mbedtls/library/ecdh.c **** #endif
+ 364:Libs/mbedtls/library/ecdh.c **** 
+ 365:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 366:Libs/mbedtls/library/ecdh.c ****     return ecdh_make_params_internal(ctx, olen, ctx->point_format, buf, blen,
+ 367:Libs/mbedtls/library/ecdh.c ****                                      f_rng, p_rng, restart_enabled);
+ 368:Libs/mbedtls/library/ecdh.c **** #else
+ 369:Libs/mbedtls/library/ecdh.c ****     switch (ctx->var) {
+ 370:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 371:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_EVEREST:
+ 372:Libs/mbedtls/library/ecdh.c ****             return mbedtls_everest_make_params(&ctx->ctx.everest_ecdh, olen,
+ 373:Libs/mbedtls/library/ecdh.c ****                                                buf, blen, f_rng, p_rng);
+ 374:Libs/mbedtls/library/ecdh.c **** #endif
+ 375:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0:
+ 376:Libs/mbedtls/library/ecdh.c ****             return ecdh_make_params_internal(&ctx->ctx.mbed_ecdh, olen,
+ 377:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 378:Libs/mbedtls/library/ecdh.c ****                                              f_rng, p_rng,
+ 379:Libs/mbedtls/library/ecdh.c ****                                              restart_enabled);
+ 380:Libs/mbedtls/library/ecdh.c ****         default:
+ 381:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 382:Libs/mbedtls/library/ecdh.c ****     }
+ 383:Libs/mbedtls/library/ecdh.c **** #endif
+ 384:Libs/mbedtls/library/ecdh.c **** }
+ 385:Libs/mbedtls/library/ecdh.c **** 
+ 386:Libs/mbedtls/library/ecdh.c **** static int ecdh_read_params_internal(mbedtls_ecdh_context_mbed *ctx,
+ 387:Libs/mbedtls/library/ecdh.c ****                                      const unsigned char **buf,
+ 388:Libs/mbedtls/library/ecdh.c ****                                      const unsigned char *end)
+ 389:Libs/mbedtls/library/ecdh.c **** {
+ 377              		.loc 1 389 1 is_stmt 1 view -0
+ 378              		.cfi_startproc
+ 379              		@ args = 0, pretend = 0, frame = 0
+ 380              		@ frame_needed = 0, uses_anonymous_args = 0
+ 381              		.loc 1 389 1 is_stmt 0 view .LVU75
+ 382 0000 08B5     		push	{r3, lr}
+ 383              	.LCFI11:
+ 384              		.cfi_def_cfa_offset 8
+ 385              		.cfi_offset 3, -8
+ 386              		.cfi_offset 14, -4
+ 390:Libs/mbedtls/library/ecdh.c ****     return mbedtls_ecp_tls_read_point(&ctx->grp, &ctx->Qp, buf,
+ 387              		.loc 1 390 5 is_stmt 1 view .LVU76
+ 391:Libs/mbedtls/library/ecdh.c ****                                       end - *buf);
+ 388              		.loc 1 391 45 is_stmt 0 view .LVU77
+ 389 0002 0B68     		ldr	r3, [r1]
+ 390:Libs/mbedtls/library/ecdh.c ****     return mbedtls_ecp_tls_read_point(&ctx->grp, &ctx->Qp, buf,
+ 390              		.loc 1 390 12 view .LVU78
+ 391 0004 D31A     		subs	r3, r2, r3
+ 392 0006 0A46     		mov	r2, r1
+ 393              	.LVL41:
+ 390:Libs/mbedtls/library/ecdh.c ****     return mbedtls_ecp_tls_read_point(&ctx->grp, &ctx->Qp, buf,
+ 394              		.loc 1 390 12 view .LVU79
+ 395 0008 00F1AC01 		add	r1, r0, #172
+ 396              	.LVL42:
+ 390:Libs/mbedtls/library/ecdh.c ****     return mbedtls_ecp_tls_read_point(&ctx->grp, &ctx->Qp, buf,
+ 397              		.loc 1 390 12 view .LVU80
+ 398 000c FFF7FEFF 		bl	mbedtls_ecp_tls_read_point
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 15
+
+
+ 399              	.LVL43:
+ 392:Libs/mbedtls/library/ecdh.c **** }
+ 400              		.loc 1 392 1 view .LVU81
+ 401 0010 08BD     		pop	{r3, pc}
+ 402              		.cfi_endproc
+ 403              	.LFE18:
+ 405              		.section	.text.ecdh_read_public_internal,"ax",%progbits
+ 406              		.align	1
+ 407              		.syntax unified
+ 408              		.thumb
+ 409              		.thumb_func
+ 411              	ecdh_read_public_internal:
+ 412              	.LVL44:
+ 413              	.LFB24:
+ 393:Libs/mbedtls/library/ecdh.c **** 
+ 394:Libs/mbedtls/library/ecdh.c **** /*
+ 395:Libs/mbedtls/library/ecdh.c ****  * Read the ServerKeyExchange parameters (RFC 4492)
+ 396:Libs/mbedtls/library/ecdh.c ****  *      struct {
+ 397:Libs/mbedtls/library/ecdh.c ****  *          ECParameters    curve_params;
+ 398:Libs/mbedtls/library/ecdh.c ****  *          ECPoint         public;
+ 399:Libs/mbedtls/library/ecdh.c ****  *      } ServerECDHParams;
+ 400:Libs/mbedtls/library/ecdh.c ****  */
+ 401:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_read_params(mbedtls_ecdh_context *ctx,
+ 402:Libs/mbedtls/library/ecdh.c ****                              const unsigned char **buf,
+ 403:Libs/mbedtls/library/ecdh.c ****                              const unsigned char *end)
+ 404:Libs/mbedtls/library/ecdh.c **** {
+ 405:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 406:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_group_id grp_id;
+ 407:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 408:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 409:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(*buf != NULL);
+ 410:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(end != NULL);
+ 411:Libs/mbedtls/library/ecdh.c **** 
+ 412:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecp_tls_read_group_id(&grp_id, buf, end - *buf))
+ 413:Libs/mbedtls/library/ecdh.c ****         != 0) {
+ 414:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 415:Libs/mbedtls/library/ecdh.c ****     }
+ 416:Libs/mbedtls/library/ecdh.c **** 
+ 417:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecdh_setup(ctx, grp_id)) != 0) {
+ 418:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 419:Libs/mbedtls/library/ecdh.c ****     }
+ 420:Libs/mbedtls/library/ecdh.c **** 
+ 421:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 422:Libs/mbedtls/library/ecdh.c ****     return ecdh_read_params_internal(ctx, buf, end);
+ 423:Libs/mbedtls/library/ecdh.c **** #else
+ 424:Libs/mbedtls/library/ecdh.c ****     switch (ctx->var) {
+ 425:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 426:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_EVEREST:
+ 427:Libs/mbedtls/library/ecdh.c ****             return mbedtls_everest_read_params(&ctx->ctx.everest_ecdh,
+ 428:Libs/mbedtls/library/ecdh.c ****                                                buf, end);
+ 429:Libs/mbedtls/library/ecdh.c **** #endif
+ 430:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0:
+ 431:Libs/mbedtls/library/ecdh.c ****             return ecdh_read_params_internal(&ctx->ctx.mbed_ecdh,
+ 432:Libs/mbedtls/library/ecdh.c ****                                              buf, end);
+ 433:Libs/mbedtls/library/ecdh.c ****         default:
+ 434:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 435:Libs/mbedtls/library/ecdh.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 16
+
+
+ 436:Libs/mbedtls/library/ecdh.c **** #endif
+ 437:Libs/mbedtls/library/ecdh.c **** }
+ 438:Libs/mbedtls/library/ecdh.c **** 
+ 439:Libs/mbedtls/library/ecdh.c **** static int ecdh_get_params_internal(mbedtls_ecdh_context_mbed *ctx,
+ 440:Libs/mbedtls/library/ecdh.c ****                                     const mbedtls_ecp_keypair *key,
+ 441:Libs/mbedtls/library/ecdh.c ****                                     mbedtls_ecdh_side side)
+ 442:Libs/mbedtls/library/ecdh.c **** {
+ 443:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 444:Libs/mbedtls/library/ecdh.c **** 
+ 445:Libs/mbedtls/library/ecdh.c ****     /* If it's not our key, just import the public part as Qp */
+ 446:Libs/mbedtls/library/ecdh.c ****     if (side == MBEDTLS_ECDH_THEIRS) {
+ 447:Libs/mbedtls/library/ecdh.c ****         return mbedtls_ecp_copy(&ctx->Qp, &key->Q);
+ 448:Libs/mbedtls/library/ecdh.c ****     }
+ 449:Libs/mbedtls/library/ecdh.c **** 
+ 450:Libs/mbedtls/library/ecdh.c ****     /* Our key: import public (as Q) and private parts */
+ 451:Libs/mbedtls/library/ecdh.c ****     if (side != MBEDTLS_ECDH_OURS) {
+ 452:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 453:Libs/mbedtls/library/ecdh.c ****     }
+ 454:Libs/mbedtls/library/ecdh.c **** 
+ 455:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecp_copy(&ctx->Q, &key->Q)) != 0 ||
+ 456:Libs/mbedtls/library/ecdh.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0) {
+ 457:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 458:Libs/mbedtls/library/ecdh.c ****     }
+ 459:Libs/mbedtls/library/ecdh.c **** 
+ 460:Libs/mbedtls/library/ecdh.c ****     return 0;
+ 461:Libs/mbedtls/library/ecdh.c **** }
+ 462:Libs/mbedtls/library/ecdh.c **** 
+ 463:Libs/mbedtls/library/ecdh.c **** /*
+ 464:Libs/mbedtls/library/ecdh.c ****  * Get parameters from a keypair
+ 465:Libs/mbedtls/library/ecdh.c ****  */
+ 466:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_get_params(mbedtls_ecdh_context *ctx,
+ 467:Libs/mbedtls/library/ecdh.c ****                             const mbedtls_ecp_keypair *key,
+ 468:Libs/mbedtls/library/ecdh.c ****                             mbedtls_ecdh_side side)
+ 469:Libs/mbedtls/library/ecdh.c **** {
+ 470:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 471:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 472:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(key != NULL);
+ 473:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(side == MBEDTLS_ECDH_OURS ||
+ 474:Libs/mbedtls/library/ecdh.c ****                       side == MBEDTLS_ECDH_THEIRS);
+ 475:Libs/mbedtls/library/ecdh.c **** 
+ 476:Libs/mbedtls/library/ecdh.c ****     if (mbedtls_ecdh_grp_id(ctx) == MBEDTLS_ECP_DP_NONE) {
+ 477:Libs/mbedtls/library/ecdh.c ****         /* This is the first call to get_params(). Set up the context
+ 478:Libs/mbedtls/library/ecdh.c ****          * for use with the group. */
+ 479:Libs/mbedtls/library/ecdh.c ****         if ((ret = mbedtls_ecdh_setup(ctx, key->grp.id)) != 0) {
+ 480:Libs/mbedtls/library/ecdh.c ****             return ret;
+ 481:Libs/mbedtls/library/ecdh.c ****         }
+ 482:Libs/mbedtls/library/ecdh.c ****     } else {
+ 483:Libs/mbedtls/library/ecdh.c ****         /* This is not the first call to get_params(). Check that the
+ 484:Libs/mbedtls/library/ecdh.c ****          * current key's group is the same as the context's, which was set
+ 485:Libs/mbedtls/library/ecdh.c ****          * from the first key's group. */
+ 486:Libs/mbedtls/library/ecdh.c ****         if (mbedtls_ecdh_grp_id(ctx) != key->grp.id) {
+ 487:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 488:Libs/mbedtls/library/ecdh.c ****         }
+ 489:Libs/mbedtls/library/ecdh.c ****     }
+ 490:Libs/mbedtls/library/ecdh.c **** 
+ 491:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 492:Libs/mbedtls/library/ecdh.c ****     return ecdh_get_params_internal(ctx, key, side);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 17
+
+
+ 493:Libs/mbedtls/library/ecdh.c **** #else
+ 494:Libs/mbedtls/library/ecdh.c ****     switch (ctx->var) {
+ 495:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 496:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_EVEREST:
+ 497:Libs/mbedtls/library/ecdh.c ****         {
+ 498:Libs/mbedtls/library/ecdh.c ****             mbedtls_everest_ecdh_side s = side == MBEDTLS_ECDH_OURS ?
+ 499:Libs/mbedtls/library/ecdh.c ****                                           MBEDTLS_EVEREST_ECDH_OURS :
+ 500:Libs/mbedtls/library/ecdh.c ****                                           MBEDTLS_EVEREST_ECDH_THEIRS;
+ 501:Libs/mbedtls/library/ecdh.c ****             return mbedtls_everest_get_params(&ctx->ctx.everest_ecdh,
+ 502:Libs/mbedtls/library/ecdh.c ****                                               key, s);
+ 503:Libs/mbedtls/library/ecdh.c ****         }
+ 504:Libs/mbedtls/library/ecdh.c **** #endif
+ 505:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0:
+ 506:Libs/mbedtls/library/ecdh.c ****             return ecdh_get_params_internal(&ctx->ctx.mbed_ecdh,
+ 507:Libs/mbedtls/library/ecdh.c ****                                             key, side);
+ 508:Libs/mbedtls/library/ecdh.c ****         default:
+ 509:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 510:Libs/mbedtls/library/ecdh.c ****     }
+ 511:Libs/mbedtls/library/ecdh.c **** #endif
+ 512:Libs/mbedtls/library/ecdh.c **** }
+ 513:Libs/mbedtls/library/ecdh.c **** 
+ 514:Libs/mbedtls/library/ecdh.c **** static int ecdh_make_public_internal(mbedtls_ecdh_context_mbed *ctx,
+ 515:Libs/mbedtls/library/ecdh.c ****                                      size_t *olen, int point_format,
+ 516:Libs/mbedtls/library/ecdh.c ****                                      unsigned char *buf, size_t blen,
+ 517:Libs/mbedtls/library/ecdh.c ****                                      int (*f_rng)(void *,
+ 518:Libs/mbedtls/library/ecdh.c ****                                                   unsigned char *,
+ 519:Libs/mbedtls/library/ecdh.c ****                                                   size_t),
+ 520:Libs/mbedtls/library/ecdh.c ****                                      void *p_rng,
+ 521:Libs/mbedtls/library/ecdh.c ****                                      int restart_enabled)
+ 522:Libs/mbedtls/library/ecdh.c **** {
+ 523:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 524:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 525:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_restart_ctx *rs_ctx = NULL;
+ 526:Libs/mbedtls/library/ecdh.c **** #endif
+ 527:Libs/mbedtls/library/ecdh.c **** 
+ 528:Libs/mbedtls/library/ecdh.c ****     if (ctx->grp.pbits == 0) {
+ 529:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 530:Libs/mbedtls/library/ecdh.c ****     }
+ 531:Libs/mbedtls/library/ecdh.c **** 
+ 532:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 533:Libs/mbedtls/library/ecdh.c ****     if (restart_enabled) {
+ 534:Libs/mbedtls/library/ecdh.c ****         rs_ctx = &ctx->rs;
+ 535:Libs/mbedtls/library/ecdh.c ****     }
+ 536:Libs/mbedtls/library/ecdh.c **** #else
+ 537:Libs/mbedtls/library/ecdh.c ****     (void) restart_enabled;
+ 538:Libs/mbedtls/library/ecdh.c **** #endif
+ 539:Libs/mbedtls/library/ecdh.c **** 
+ 540:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 541:Libs/mbedtls/library/ecdh.c ****     if ((ret = ecdh_gen_public_restartable(&ctx->grp, &ctx->d, &ctx->Q,
+ 542:Libs/mbedtls/library/ecdh.c ****                                            f_rng, p_rng, rs_ctx)) != 0) {
+ 543:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 544:Libs/mbedtls/library/ecdh.c ****     }
+ 545:Libs/mbedtls/library/ecdh.c **** #else
+ 546:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecdh_gen_public(&ctx->grp, &ctx->d, &ctx->Q,
+ 547:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 548:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 549:Libs/mbedtls/library/ecdh.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 18
+
+
+ 550:Libs/mbedtls/library/ecdh.c **** #endif /* MBEDTLS_ECP_RESTARTABLE */
+ 551:Libs/mbedtls/library/ecdh.c **** 
+ 552:Libs/mbedtls/library/ecdh.c ****     return mbedtls_ecp_tls_write_point(&ctx->grp, &ctx->Q, point_format, olen,
+ 553:Libs/mbedtls/library/ecdh.c ****                                        buf, blen);
+ 554:Libs/mbedtls/library/ecdh.c **** }
+ 555:Libs/mbedtls/library/ecdh.c **** 
+ 556:Libs/mbedtls/library/ecdh.c **** /*
+ 557:Libs/mbedtls/library/ecdh.c ****  * Setup and export the client public value
+ 558:Libs/mbedtls/library/ecdh.c ****  */
+ 559:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_make_public(mbedtls_ecdh_context *ctx, size_t *olen,
+ 560:Libs/mbedtls/library/ecdh.c ****                              unsigned char *buf, size_t blen,
+ 561:Libs/mbedtls/library/ecdh.c ****                              int (*f_rng)(void *, unsigned char *, size_t),
+ 562:Libs/mbedtls/library/ecdh.c ****                              void *p_rng)
+ 563:Libs/mbedtls/library/ecdh.c **** {
+ 564:Libs/mbedtls/library/ecdh.c ****     int restart_enabled = 0;
+ 565:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 566:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 567:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 568:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 569:Libs/mbedtls/library/ecdh.c **** 
+ 570:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 571:Libs/mbedtls/library/ecdh.c ****     restart_enabled = ctx->restart_enabled;
+ 572:Libs/mbedtls/library/ecdh.c **** #endif
+ 573:Libs/mbedtls/library/ecdh.c **** 
+ 574:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 575:Libs/mbedtls/library/ecdh.c ****     return ecdh_make_public_internal(ctx, olen, ctx->point_format, buf, blen,
+ 576:Libs/mbedtls/library/ecdh.c ****                                      f_rng, p_rng, restart_enabled);
+ 577:Libs/mbedtls/library/ecdh.c **** #else
+ 578:Libs/mbedtls/library/ecdh.c ****     switch (ctx->var) {
+ 579:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 580:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_EVEREST:
+ 581:Libs/mbedtls/library/ecdh.c ****             return mbedtls_everest_make_public(&ctx->ctx.everest_ecdh, olen,
+ 582:Libs/mbedtls/library/ecdh.c ****                                                buf, blen, f_rng, p_rng);
+ 583:Libs/mbedtls/library/ecdh.c **** #endif
+ 584:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0:
+ 585:Libs/mbedtls/library/ecdh.c ****             return ecdh_make_public_internal(&ctx->ctx.mbed_ecdh, olen,
+ 586:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 587:Libs/mbedtls/library/ecdh.c ****                                              f_rng, p_rng,
+ 588:Libs/mbedtls/library/ecdh.c ****                                              restart_enabled);
+ 589:Libs/mbedtls/library/ecdh.c ****         default:
+ 590:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 591:Libs/mbedtls/library/ecdh.c ****     }
+ 592:Libs/mbedtls/library/ecdh.c **** #endif
+ 593:Libs/mbedtls/library/ecdh.c **** }
+ 594:Libs/mbedtls/library/ecdh.c **** 
+ 595:Libs/mbedtls/library/ecdh.c **** static int ecdh_read_public_internal(mbedtls_ecdh_context_mbed *ctx,
+ 596:Libs/mbedtls/library/ecdh.c ****                                      const unsigned char *buf, size_t blen)
+ 597:Libs/mbedtls/library/ecdh.c **** {
+ 414              		.loc 1 597 1 is_stmt 1 view -0
+ 415              		.cfi_startproc
+ 416              		@ args = 0, pretend = 0, frame = 8
+ 417              		@ frame_needed = 0, uses_anonymous_args = 0
+ 418              		.loc 1 597 1 is_stmt 0 view .LVU83
+ 419 0000 30B5     		push	{r4, r5, lr}
+ 420              	.LCFI12:
+ 421              		.cfi_def_cfa_offset 12
+ 422              		.cfi_offset 4, -12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 19
+
+
+ 423              		.cfi_offset 5, -8
+ 424              		.cfi_offset 14, -4
+ 425 0002 83B0     		sub	sp, sp, #12
+ 426              	.LCFI13:
+ 427              		.cfi_def_cfa_offset 24
+ 428 0004 0D46     		mov	r5, r1
+ 429 0006 1446     		mov	r4, r2
+ 598:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 430              		.loc 1 598 5 is_stmt 1 view .LVU84
+ 431              	.LVL45:
+ 599:Libs/mbedtls/library/ecdh.c ****     const unsigned char *p = buf;
+ 432              		.loc 1 599 5 view .LVU85
+ 433              		.loc 1 599 26 is_stmt 0 view .LVU86
+ 434 0008 0191     		str	r1, [sp, #4]
+ 600:Libs/mbedtls/library/ecdh.c **** 
+ 601:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecp_tls_read_point(&ctx->grp, &ctx->Qp, &p,
+ 435              		.loc 1 601 5 is_stmt 1 view .LVU87
+ 436              		.loc 1 601 16 is_stmt 0 view .LVU88
+ 437 000a 1346     		mov	r3, r2
+ 438 000c 01AA     		add	r2, sp, #4
+ 439              	.LVL46:
+ 440              		.loc 1 601 16 view .LVU89
+ 441 000e 00F1AC01 		add	r1, r0, #172
+ 442              	.LVL47:
+ 443              		.loc 1 601 16 view .LVU90
+ 444 0012 FFF7FEFF 		bl	mbedtls_ecp_tls_read_point
+ 445              	.LVL48:
+ 446              		.loc 1 601 8 discriminator 1 view .LVU91
+ 447 0016 18B9     		cbnz	r0, .L26
+ 602:Libs/mbedtls/library/ecdh.c ****                                           blen)) != 0) {
+ 603:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 604:Libs/mbedtls/library/ecdh.c ****     }
+ 605:Libs/mbedtls/library/ecdh.c **** 
+ 606:Libs/mbedtls/library/ecdh.c ****     if ((size_t) (p - buf) != blen) {
+ 448              		.loc 1 606 5 is_stmt 1 view .LVU92
+ 449              		.loc 1 606 21 is_stmt 0 view .LVU93
+ 450 0018 019B     		ldr	r3, [sp, #4]
+ 451 001a 5B1B     		subs	r3, r3, r5
+ 452              		.loc 1 606 8 view .LVU94
+ 453 001c A342     		cmp	r3, r4
+ 454 001e 01D1     		bne	.L30
+ 455              	.L26:
+ 607:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 608:Libs/mbedtls/library/ecdh.c ****     }
+ 609:Libs/mbedtls/library/ecdh.c **** 
+ 610:Libs/mbedtls/library/ecdh.c ****     return 0;
+ 611:Libs/mbedtls/library/ecdh.c **** }
+ 456              		.loc 1 611 1 view .LVU95
+ 457 0020 03B0     		add	sp, sp, #12
+ 458              	.LCFI14:
+ 459              		.cfi_remember_state
+ 460              		.cfi_def_cfa_offset 12
+ 461              		@ sp needed
+ 462 0022 30BD     		pop	{r4, r5, pc}
+ 463              	.LVL49:
+ 464              	.L30:
+ 465              	.LCFI15:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 20
+
+
+ 466              		.cfi_restore_state
+ 607:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 467              		.loc 1 607 16 view .LVU96
+ 468 0024 0048     		ldr	r0, .L31
+ 469 0026 FBE7     		b	.L26
+ 470              	.L32:
+ 471              		.align	2
+ 472              	.L31:
+ 473 0028 80B0FFFF 		.word	-20352
+ 474              		.cfi_endproc
+ 475              	.LFE24:
+ 477              		.section	.text.ecdh_get_params_internal,"ax",%progbits
+ 478              		.align	1
+ 479              		.syntax unified
+ 480              		.thumb
+ 481              		.thumb_func
+ 483              	ecdh_get_params_internal:
+ 484              	.LVL50:
+ 485              	.LFB20:
+ 442:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 486              		.loc 1 442 1 is_stmt 1 view -0
+ 487              		.cfi_startproc
+ 488              		@ args = 0, pretend = 0, frame = 0
+ 489              		@ frame_needed = 0, uses_anonymous_args = 0
+ 442:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 490              		.loc 1 442 1 is_stmt 0 view .LVU98
+ 491 0000 38B5     		push	{r3, r4, r5, lr}
+ 492              	.LCFI16:
+ 493              		.cfi_def_cfa_offset 16
+ 494              		.cfi_offset 3, -16
+ 495              		.cfi_offset 4, -12
+ 496              		.cfi_offset 5, -8
+ 497              		.cfi_offset 14, -4
+ 498 0002 0446     		mov	r4, r0
+ 499 0004 0D46     		mov	r5, r1
+ 443:Libs/mbedtls/library/ecdh.c **** 
+ 500              		.loc 1 443 5 is_stmt 1 view .LVU99
+ 501              	.LVL51:
+ 446:Libs/mbedtls/library/ecdh.c ****         return mbedtls_ecp_copy(&ctx->Qp, &key->Q);
+ 502              		.loc 1 446 5 view .LVU100
+ 446:Libs/mbedtls/library/ecdh.c ****         return mbedtls_ecp_copy(&ctx->Qp, &key->Q);
+ 503              		.loc 1 446 8 is_stmt 0 view .LVU101
+ 504 0006 012A     		cmp	r2, #1
+ 505 0008 06D0     		beq	.L39
+ 451:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 506              		.loc 1 451 5 is_stmt 1 view .LVU102
+ 451:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 507              		.loc 1 451 8 is_stmt 0 view .LVU103
+ 508 000a 8AB9     		cbnz	r2, .L37
+ 455:Libs/mbedtls/library/ecdh.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0) {
+ 509              		.loc 1 455 5 is_stmt 1 view .LVU104
+ 455:Libs/mbedtls/library/ecdh.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0) {
+ 510              		.loc 1 455 16 is_stmt 0 view .LVU105
+ 511 000c 8831     		adds	r1, r1, #136
+ 512              	.LVL52:
+ 455:Libs/mbedtls/library/ecdh.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0) {
+ 513              		.loc 1 455 16 view .LVU106
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 21
+
+
+ 514 000e 8830     		adds	r0, r0, #136
+ 515              	.LVL53:
+ 455:Libs/mbedtls/library/ecdh.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0) {
+ 516              		.loc 1 455 16 view .LVU107
+ 517 0010 FFF7FEFF 		bl	mbedtls_ecp_copy
+ 518              	.LVL54:
+ 455:Libs/mbedtls/library/ecdh.c ****         (ret = mbedtls_mpi_copy(&ctx->d, &key->d)) != 0) {
+ 519              		.loc 1 455 8 discriminator 1 view .LVU108
+ 520 0014 28B1     		cbz	r0, .L40
+ 521              	.LVL55:
+ 522              	.L33:
+ 461:Libs/mbedtls/library/ecdh.c **** 
+ 523              		.loc 1 461 1 view .LVU109
+ 524 0016 38BD     		pop	{r3, r4, r5, pc}
+ 525              	.LVL56:
+ 526              	.L39:
+ 447:Libs/mbedtls/library/ecdh.c ****     }
+ 527              		.loc 1 447 9 is_stmt 1 view .LVU110
+ 447:Libs/mbedtls/library/ecdh.c ****     }
+ 528              		.loc 1 447 16 is_stmt 0 view .LVU111
+ 529 0018 8831     		adds	r1, r1, #136
+ 530              	.LVL57:
+ 447:Libs/mbedtls/library/ecdh.c ****     }
+ 531              		.loc 1 447 16 view .LVU112
+ 532 001a AC30     		adds	r0, r0, #172
+ 533              	.LVL58:
+ 447:Libs/mbedtls/library/ecdh.c ****     }
+ 534              		.loc 1 447 16 view .LVU113
+ 535 001c FFF7FEFF 		bl	mbedtls_ecp_copy
+ 536              	.LVL59:
+ 447:Libs/mbedtls/library/ecdh.c ****     }
+ 537              		.loc 1 447 16 view .LVU114
+ 538 0020 F9E7     		b	.L33
+ 539              	.LVL60:
+ 540              	.L40:
+ 456:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 541              		.loc 1 456 16 view .LVU115
+ 542 0022 05F17C01 		add	r1, r5, #124
+ 543 0026 04F17C00 		add	r0, r4, #124
+ 544              	.LVL61:
+ 456:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 545              		.loc 1 456 16 view .LVU116
+ 546 002a FFF7FEFF 		bl	mbedtls_mpi_copy
+ 547              	.LVL62:
+ 456:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 548              		.loc 1 456 16 view .LVU117
+ 549 002e F2E7     		b	.L33
+ 550              	.LVL63:
+ 551              	.L37:
+ 452:Libs/mbedtls/library/ecdh.c ****     }
+ 552              		.loc 1 452 16 view .LVU118
+ 553 0030 0048     		ldr	r0, .L41
+ 554              	.LVL64:
+ 452:Libs/mbedtls/library/ecdh.c ****     }
+ 555              		.loc 1 452 16 view .LVU119
+ 556 0032 F0E7     		b	.L33
+ 557              	.L42:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 22
+
+
+ 558              		.align	2
+ 559              	.L41:
+ 560 0034 80B0FFFF 		.word	-20352
+ 561              		.cfi_endproc
+ 562              	.LFE20:
+ 564              		.section	.text.mbedtls_ecdh_can_do,"ax",%progbits
+ 565              		.align	1
+ 566              		.global	mbedtls_ecdh_can_do
+ 567              		.syntax unified
+ 568              		.thumb
+ 569              		.thumb_func
+ 571              	mbedtls_ecdh_can_do:
+ 572              	.LVL65:
+ 573              	.LFB5:
+  46:Libs/mbedtls/library/ecdh.c ****     /* At this time, all groups support ECDH. */
+ 574              		.loc 1 46 1 is_stmt 1 view -0
+ 575              		.cfi_startproc
+ 576              		@ args = 0, pretend = 0, frame = 0
+ 577              		@ frame_needed = 0, uses_anonymous_args = 0
+ 578              		@ link register save eliminated.
+  48:Libs/mbedtls/library/ecdh.c ****     return 1;
+ 579              		.loc 1 48 5 view .LVU121
+  49:Libs/mbedtls/library/ecdh.c **** }
+ 580              		.loc 1 49 5 view .LVU122
+  50:Libs/mbedtls/library/ecdh.c **** 
+ 581              		.loc 1 50 1 is_stmt 0 view .LVU123
+ 582 0000 0120     		movs	r0, #1
+ 583              	.LVL66:
+  50:Libs/mbedtls/library/ecdh.c **** 
+ 584              		.loc 1 50 1 view .LVU124
+ 585 0002 7047     		bx	lr
+ 586              		.cfi_endproc
+ 587              	.LFE5:
+ 589              		.section	.text.mbedtls_ecdh_gen_public,"ax",%progbits
+ 590              		.align	1
+ 591              		.global	mbedtls_ecdh_gen_public
+ 592              		.syntax unified
+ 593              		.thumb
+ 594              		.thumb_func
+ 596              	mbedtls_ecdh_gen_public:
+ 597              	.LVL67:
+ 598              	.LFB7:
+  90:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(grp != NULL);
+ 599              		.loc 1 90 1 is_stmt 1 view -0
+ 600              		.cfi_startproc
+ 601              		@ args = 4, pretend = 0, frame = 0
+ 602              		@ frame_needed = 0, uses_anonymous_args = 0
+  90:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(grp != NULL);
+ 603              		.loc 1 90 1 is_stmt 0 view .LVU126
+ 604 0000 10B5     		push	{r4, lr}
+ 605              	.LCFI17:
+ 606              		.cfi_def_cfa_offset 8
+ 607              		.cfi_offset 4, -8
+ 608              		.cfi_offset 14, -4
+ 609 0002 82B0     		sub	sp, sp, #8
+ 610              	.LCFI18:
+ 611              		.cfi_def_cfa_offset 16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 23
+
+
+  91:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(d != NULL);
+ 612              		.loc 1 91 5 is_stmt 1 view .LVU127
+  91:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(d != NULL);
+ 613              		.loc 1 91 5 view .LVU128
+  91:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(d != NULL);
+ 614              		.loc 1 91 5 view .LVU129
+  92:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(Q != NULL);
+ 615              		.loc 1 92 5 view .LVU130
+  92:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(Q != NULL);
+ 616              		.loc 1 92 5 view .LVU131
+  92:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(Q != NULL);
+ 617              		.loc 1 92 5 view .LVU132
+  93:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 618              		.loc 1 93 5 view .LVU133
+  93:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 619              		.loc 1 93 5 view .LVU134
+  93:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 620              		.loc 1 93 5 view .LVU135
+  94:Libs/mbedtls/library/ecdh.c ****     return ecdh_gen_public_restartable(grp, d, Q, f_rng, p_rng, NULL);
+ 621              		.loc 1 94 5 view .LVU136
+  94:Libs/mbedtls/library/ecdh.c ****     return ecdh_gen_public_restartable(grp, d, Q, f_rng, p_rng, NULL);
+ 622              		.loc 1 94 5 view .LVU137
+  94:Libs/mbedtls/library/ecdh.c ****     return ecdh_gen_public_restartable(grp, d, Q, f_rng, p_rng, NULL);
+ 623              		.loc 1 94 5 view .LVU138
+  95:Libs/mbedtls/library/ecdh.c **** }
+ 624              		.loc 1 95 5 view .LVU139
+  95:Libs/mbedtls/library/ecdh.c **** }
+ 625              		.loc 1 95 12 is_stmt 0 view .LVU140
+ 626 0004 0024     		movs	r4, #0
+ 627 0006 0194     		str	r4, [sp, #4]
+ 628 0008 049C     		ldr	r4, [sp, #16]
+ 629 000a 0094     		str	r4, [sp]
+ 630 000c FFF7FEFF 		bl	ecdh_gen_public_restartable
+ 631              	.LVL68:
+  96:Libs/mbedtls/library/ecdh.c **** #endif /* !MBEDTLS_ECDH_GEN_PUBLIC_ALT */
+ 632              		.loc 1 96 1 view .LVU141
+ 633 0010 02B0     		add	sp, sp, #8
+ 634              	.LCFI19:
+ 635              		.cfi_def_cfa_offset 8
+ 636              		@ sp needed
+ 637 0012 10BD     		pop	{r4, pc}
+  96:Libs/mbedtls/library/ecdh.c **** #endif /* !MBEDTLS_ECDH_GEN_PUBLIC_ALT */
+ 638              		.loc 1 96 1 view .LVU142
+ 639              		.cfi_endproc
+ 640              	.LFE7:
+ 642              		.section	.text.ecdh_make_params_internal,"ax",%progbits
+ 643              		.align	1
+ 644              		.syntax unified
+ 645              		.thumb
+ 646              		.thumb_func
+ 648              	ecdh_make_params_internal:
+ 649              	.LVL69:
+ 650              	.LFB16:
+ 292:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 651              		.loc 1 292 1 is_stmt 1 view -0
+ 652              		.cfi_startproc
+ 653              		@ args = 16, pretend = 0, frame = 8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 24
+
+
+ 654              		@ frame_needed = 0, uses_anonymous_args = 0
+ 292:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 655              		.loc 1 292 1 is_stmt 0 view .LVU144
+ 656 0000 2DE9F043 		push	{r4, r5, r6, r7, r8, r9, lr}
+ 657              	.LCFI20:
+ 658              		.cfi_def_cfa_offset 28
+ 659              		.cfi_offset 4, -28
+ 660              		.cfi_offset 5, -24
+ 661              		.cfi_offset 6, -20
+ 662              		.cfi_offset 7, -16
+ 663              		.cfi_offset 8, -12
+ 664              		.cfi_offset 9, -8
+ 665              		.cfi_offset 14, -4
+ 666 0004 85B0     		sub	sp, sp, #20
+ 667              	.LCFI21:
+ 668              		.cfi_def_cfa_offset 48
+ 669 0006 0F46     		mov	r7, r1
+ 293:Libs/mbedtls/library/ecdh.c ****     size_t grp_len, pt_len;
+ 670              		.loc 1 293 5 is_stmt 1 view .LVU145
+ 671              	.LVL70:
+ 294:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 672              		.loc 1 294 5 view .LVU146
+ 299:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 673              		.loc 1 299 5 view .LVU147
+ 299:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 674              		.loc 1 299 17 is_stmt 0 view .LVU148
+ 675 0008 816D     		ldr	r1, [r0, #88]
+ 676              	.LVL71:
+ 299:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 677              		.loc 1 299 8 view .LVU149
+ 678 000a 61B3     		cbz	r1, .L48
+ 679 000c 0446     		mov	r4, r0
+ 680 000e 1646     		mov	r6, r2
+ 681 0010 9946     		mov	r9, r3
+ 308:Libs/mbedtls/library/ecdh.c **** #endif
+ 682              		.loc 1 308 5 is_stmt 1 view .LVU150
+ 318:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 683              		.loc 1 318 5 view .LVU151
+ 318:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 684              		.loc 1 318 16 is_stmt 0 view .LVU152
+ 685 0012 00F18808 		add	r8, r0, #136
+ 686 0016 0E9B     		ldr	r3, [sp, #56]
+ 687              	.LVL72:
+ 318:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 688              		.loc 1 318 16 view .LVU153
+ 689 0018 0093     		str	r3, [sp]
+ 690 001a 0D9B     		ldr	r3, [sp, #52]
+ 691 001c 4246     		mov	r2, r8
+ 692              	.LVL73:
+ 318:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 693              		.loc 1 318 16 view .LVU154
+ 694 001e 00F17C01 		add	r1, r0, #124
+ 695 0022 FFF7FEFF 		bl	mbedtls_ecdh_gen_public
+ 696              	.LVL74:
+ 318:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 697              		.loc 1 318 8 discriminator 1 view .LVU155
+ 698 0026 10B1     		cbz	r0, .L50
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 25
+
+
+ 699              	.LVL75:
+ 700              	.L46:
+ 339:Libs/mbedtls/library/ecdh.c **** 
+ 701              		.loc 1 339 1 view .LVU156
+ 702 0028 05B0     		add	sp, sp, #20
+ 703              	.LCFI22:
+ 704              		.cfi_remember_state
+ 705              		.cfi_def_cfa_offset 28
+ 706              		@ sp needed
+ 707 002a BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+ 708              	.LVL76:
+ 709              	.L50:
+ 710              	.LCFI23:
+ 711              		.cfi_restore_state
+ 324:Libs/mbedtls/library/ecdh.c ****                                            blen)) != 0) {
+ 712              		.loc 1 324 5 is_stmt 1 view .LVU157
+ 324:Libs/mbedtls/library/ecdh.c ****                                            blen)) != 0) {
+ 713              		.loc 1 324 16 is_stmt 0 view .LVU158
+ 714 002e 0C9B     		ldr	r3, [sp, #48]
+ 715 0030 4A46     		mov	r2, r9
+ 716 0032 03A9     		add	r1, sp, #12
+ 717 0034 2046     		mov	r0, r4
+ 718              	.LVL77:
+ 324:Libs/mbedtls/library/ecdh.c ****                                            blen)) != 0) {
+ 719              		.loc 1 324 16 view .LVU159
+ 720 0036 FFF7FEFF 		bl	mbedtls_ecp_tls_write_group
+ 721              	.LVL78:
+ 324:Libs/mbedtls/library/ecdh.c ****                                            blen)) != 0) {
+ 722              		.loc 1 324 8 discriminator 1 view .LVU160
+ 723 003a 0028     		cmp	r0, #0
+ 724 003c F4D1     		bne	.L46
+ 329:Libs/mbedtls/library/ecdh.c ****     blen -= grp_len;
+ 725              		.loc 1 329 5 is_stmt 1 view .LVU161
+ 329:Libs/mbedtls/library/ecdh.c ****     blen -= grp_len;
+ 726              		.loc 1 329 9 is_stmt 0 view .LVU162
+ 727 003e 039A     		ldr	r2, [sp, #12]
+ 728 0040 09EB0203 		add	r3, r9, r2
+ 729              	.LVL79:
+ 330:Libs/mbedtls/library/ecdh.c **** 
+ 730              		.loc 1 330 5 is_stmt 1 view .LVU163
+ 330:Libs/mbedtls/library/ecdh.c **** 
+ 731              		.loc 1 330 10 is_stmt 0 view .LVU164
+ 732 0044 0C99     		ldr	r1, [sp, #48]
+ 733 0046 8A1A     		subs	r2, r1, r2
+ 734              	.LVL80:
+ 332:Libs/mbedtls/library/ecdh.c ****                                            &pt_len, buf, blen)) != 0) {
+ 735              		.loc 1 332 5 is_stmt 1 view .LVU165
+ 332:Libs/mbedtls/library/ecdh.c ****                                            &pt_len, buf, blen)) != 0) {
+ 736              		.loc 1 332 16 is_stmt 0 view .LVU166
+ 737 0048 0192     		str	r2, [sp, #4]
+ 738 004a 0093     		str	r3, [sp]
+ 739 004c 02AB     		add	r3, sp, #8
+ 740              	.LVL81:
+ 332:Libs/mbedtls/library/ecdh.c ****                                            &pt_len, buf, blen)) != 0) {
+ 741              		.loc 1 332 16 view .LVU167
+ 742 004e 3246     		mov	r2, r6
+ 743              	.LVL82:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 26
+
+
+ 332:Libs/mbedtls/library/ecdh.c ****                                            &pt_len, buf, blen)) != 0) {
+ 744              		.loc 1 332 16 view .LVU168
+ 745 0050 4146     		mov	r1, r8
+ 746 0052 2046     		mov	r0, r4
+ 747              	.LVL83:
+ 332:Libs/mbedtls/library/ecdh.c ****                                            &pt_len, buf, blen)) != 0) {
+ 748              		.loc 1 332 16 view .LVU169
+ 749 0054 FFF7FEFF 		bl	mbedtls_ecp_tls_write_point
+ 750              	.LVL84:
+ 332:Libs/mbedtls/library/ecdh.c ****                                            &pt_len, buf, blen)) != 0) {
+ 751              		.loc 1 332 8 discriminator 1 view .LVU170
+ 752 0058 0028     		cmp	r0, #0
+ 753 005a E5D1     		bne	.L46
+ 337:Libs/mbedtls/library/ecdh.c ****     return 0;
+ 754              		.loc 1 337 5 is_stmt 1 view .LVU171
+ 337:Libs/mbedtls/library/ecdh.c ****     return 0;
+ 755              		.loc 1 337 21 is_stmt 0 view .LVU172
+ 756 005c 039B     		ldr	r3, [sp, #12]
+ 757 005e 029A     		ldr	r2, [sp, #8]
+ 758 0060 1344     		add	r3, r3, r2
+ 337:Libs/mbedtls/library/ecdh.c ****     return 0;
+ 759              		.loc 1 337 11 view .LVU173
+ 760 0062 3B60     		str	r3, [r7]
+ 338:Libs/mbedtls/library/ecdh.c **** }
+ 761              		.loc 1 338 5 is_stmt 1 view .LVU174
+ 338:Libs/mbedtls/library/ecdh.c **** }
+ 762              		.loc 1 338 12 is_stmt 0 view .LVU175
+ 763 0064 E0E7     		b	.L46
+ 764              	.LVL85:
+ 765              	.L48:
+ 300:Libs/mbedtls/library/ecdh.c ****     }
+ 766              		.loc 1 300 16 view .LVU176
+ 767 0066 0148     		ldr	r0, .L51
+ 768              	.LVL86:
+ 300:Libs/mbedtls/library/ecdh.c ****     }
+ 769              		.loc 1 300 16 view .LVU177
+ 770 0068 DEE7     		b	.L46
+ 771              	.L52:
+ 772 006a 00BF     		.align	2
+ 773              	.L51:
+ 774 006c 80B0FFFF 		.word	-20352
+ 775              		.cfi_endproc
+ 776              	.LFE16:
+ 778              		.section	.text.ecdh_make_public_internal,"ax",%progbits
+ 779              		.align	1
+ 780              		.syntax unified
+ 781              		.thumb
+ 782              		.thumb_func
+ 784              	ecdh_make_public_internal:
+ 785              	.LVL87:
+ 786              	.LFB22:
+ 522:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 787              		.loc 1 522 1 is_stmt 1 view -0
+ 788              		.cfi_startproc
+ 789              		@ args = 16, pretend = 0, frame = 0
+ 790              		@ frame_needed = 0, uses_anonymous_args = 0
+ 522:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 27
+
+
+ 791              		.loc 1 522 1 is_stmt 0 view .LVU179
+ 792 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 793              	.LCFI24:
+ 794              		.cfi_def_cfa_offset 24
+ 795              		.cfi_offset 4, -24
+ 796              		.cfi_offset 5, -20
+ 797              		.cfi_offset 6, -16
+ 798              		.cfi_offset 7, -12
+ 799              		.cfi_offset 8, -8
+ 800              		.cfi_offset 14, -4
+ 801 0004 82B0     		sub	sp, sp, #8
+ 802              	.LCFI25:
+ 803              		.cfi_def_cfa_offset 32
+ 804 0006 1546     		mov	r5, r2
+ 523:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 805              		.loc 1 523 5 is_stmt 1 view .LVU180
+ 806              	.LVL88:
+ 528:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 807              		.loc 1 528 5 view .LVU181
+ 528:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 808              		.loc 1 528 17 is_stmt 0 view .LVU182
+ 809 0008 826D     		ldr	r2, [r0, #88]
+ 810              	.LVL89:
+ 528:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 811              		.loc 1 528 8 view .LVU183
+ 812 000a DAB1     		cbz	r2, .L55
+ 813 000c 0446     		mov	r4, r0
+ 814 000e 0E46     		mov	r6, r1
+ 815 0010 9846     		mov	r8, r3
+ 537:Libs/mbedtls/library/ecdh.c **** #endif
+ 816              		.loc 1 537 5 is_stmt 1 view .LVU184
+ 546:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 817              		.loc 1 546 5 view .LVU185
+ 546:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 818              		.loc 1 546 16 is_stmt 0 view .LVU186
+ 819 0012 00F18807 		add	r7, r0, #136
+ 820 0016 0A9B     		ldr	r3, [sp, #40]
+ 821              	.LVL90:
+ 546:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 822              		.loc 1 546 16 view .LVU187
+ 823 0018 0093     		str	r3, [sp]
+ 824 001a 099B     		ldr	r3, [sp, #36]
+ 825 001c 3A46     		mov	r2, r7
+ 826 001e 00F17C01 		add	r1, r0, #124
+ 827              	.LVL91:
+ 546:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 828              		.loc 1 546 16 view .LVU188
+ 829 0022 FFF7FEFF 		bl	mbedtls_ecdh_gen_public
+ 830              	.LVL92:
+ 546:Libs/mbedtls/library/ecdh.c ****                                        f_rng, p_rng)) != 0) {
+ 831              		.loc 1 546 8 discriminator 1 view .LVU189
+ 832 0026 10B1     		cbz	r0, .L57
+ 833              	.LVL93:
+ 834              	.L53:
+ 554:Libs/mbedtls/library/ecdh.c **** 
+ 835              		.loc 1 554 1 view .LVU190
+ 836 0028 02B0     		add	sp, sp, #8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 28
+
+
+ 837              	.LCFI26:
+ 838              		.cfi_remember_state
+ 839              		.cfi_def_cfa_offset 24
+ 840              		@ sp needed
+ 841 002a BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 842              	.LVL94:
+ 843              	.L57:
+ 844              	.LCFI27:
+ 845              		.cfi_restore_state
+ 552:Libs/mbedtls/library/ecdh.c ****                                        buf, blen);
+ 846              		.loc 1 552 5 is_stmt 1 view .LVU191
+ 552:Libs/mbedtls/library/ecdh.c ****                                        buf, blen);
+ 847              		.loc 1 552 12 is_stmt 0 view .LVU192
+ 848 002e 089B     		ldr	r3, [sp, #32]
+ 849 0030 0193     		str	r3, [sp, #4]
+ 850 0032 CDF80080 		str	r8, [sp]
+ 851 0036 3346     		mov	r3, r6
+ 852 0038 2A46     		mov	r2, r5
+ 853 003a 3946     		mov	r1, r7
+ 854 003c 2046     		mov	r0, r4
+ 855              	.LVL95:
+ 552:Libs/mbedtls/library/ecdh.c ****                                        buf, blen);
+ 856              		.loc 1 552 12 view .LVU193
+ 857 003e FFF7FEFF 		bl	mbedtls_ecp_tls_write_point
+ 858              	.LVL96:
+ 859 0042 F1E7     		b	.L53
+ 860              	.LVL97:
+ 861              	.L55:
+ 529:Libs/mbedtls/library/ecdh.c ****     }
+ 862              		.loc 1 529 16 view .LVU194
+ 863 0044 0048     		ldr	r0, .L58
+ 864              	.LVL98:
+ 529:Libs/mbedtls/library/ecdh.c ****     }
+ 865              		.loc 1 529 16 view .LVU195
+ 866 0046 EFE7     		b	.L53
+ 867              	.L59:
+ 868              		.align	2
+ 869              	.L58:
+ 870 0048 80B0FFFF 		.word	-20352
+ 871              		.cfi_endproc
+ 872              	.LFE22:
+ 874              		.section	.text.mbedtls_ecdh_compute_shared,"ax",%progbits
+ 875              		.align	1
+ 876              		.global	mbedtls_ecdh_compute_shared
+ 877              		.syntax unified
+ 878              		.thumb
+ 879              		.thumb_func
+ 881              	mbedtls_ecdh_compute_shared:
+ 882              	.LVL99:
+ 883              	.LFB9:
+ 138:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(grp != NULL);
+ 884              		.loc 1 138 1 is_stmt 1 view -0
+ 885              		.cfi_startproc
+ 886              		@ args = 8, pretend = 0, frame = 0
+ 887              		@ frame_needed = 0, uses_anonymous_args = 0
+ 138:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(grp != NULL);
+ 888              		.loc 1 138 1 is_stmt 0 view .LVU197
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 29
+
+
+ 889 0000 10B5     		push	{r4, lr}
+ 890              	.LCFI28:
+ 891              		.cfi_def_cfa_offset 8
+ 892              		.cfi_offset 4, -8
+ 893              		.cfi_offset 14, -4
+ 894 0002 84B0     		sub	sp, sp, #16
+ 895              	.LCFI29:
+ 896              		.cfi_def_cfa_offset 24
+ 139:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(Q != NULL);
+ 897              		.loc 1 139 5 is_stmt 1 view .LVU198
+ 139:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(Q != NULL);
+ 898              		.loc 1 139 5 view .LVU199
+ 139:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(Q != NULL);
+ 899              		.loc 1 139 5 view .LVU200
+ 140:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(d != NULL);
+ 900              		.loc 1 140 5 view .LVU201
+ 140:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(d != NULL);
+ 901              		.loc 1 140 5 view .LVU202
+ 140:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(d != NULL);
+ 902              		.loc 1 140 5 view .LVU203
+ 141:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(z != NULL);
+ 903              		.loc 1 141 5 view .LVU204
+ 141:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(z != NULL);
+ 904              		.loc 1 141 5 view .LVU205
+ 141:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(z != NULL);
+ 905              		.loc 1 141 5 view .LVU206
+ 142:Libs/mbedtls/library/ecdh.c ****     return ecdh_compute_shared_restartable(grp, z, Q, d,
+ 906              		.loc 1 142 5 view .LVU207
+ 142:Libs/mbedtls/library/ecdh.c ****     return ecdh_compute_shared_restartable(grp, z, Q, d,
+ 907              		.loc 1 142 5 view .LVU208
+ 142:Libs/mbedtls/library/ecdh.c ****     return ecdh_compute_shared_restartable(grp, z, Q, d,
+ 908              		.loc 1 142 5 view .LVU209
+ 143:Libs/mbedtls/library/ecdh.c ****                                            f_rng, p_rng, NULL);
+ 909              		.loc 1 143 5 view .LVU210
+ 143:Libs/mbedtls/library/ecdh.c ****                                            f_rng, p_rng, NULL);
+ 910              		.loc 1 143 12 is_stmt 0 view .LVU211
+ 911 0004 0024     		movs	r4, #0
+ 912 0006 0294     		str	r4, [sp, #8]
+ 913 0008 079C     		ldr	r4, [sp, #28]
+ 914 000a 0194     		str	r4, [sp, #4]
+ 915 000c 069C     		ldr	r4, [sp, #24]
+ 916 000e 0094     		str	r4, [sp]
+ 917 0010 FFF7FEFF 		bl	ecdh_compute_shared_restartable
+ 918              	.LVL100:
+ 145:Libs/mbedtls/library/ecdh.c **** #endif /* !MBEDTLS_ECDH_COMPUTE_SHARED_ALT */
+ 919              		.loc 1 145 1 view .LVU212
+ 920 0014 04B0     		add	sp, sp, #16
+ 921              	.LCFI30:
+ 922              		.cfi_def_cfa_offset 8
+ 923              		@ sp needed
+ 924 0016 10BD     		pop	{r4, pc}
+ 145:Libs/mbedtls/library/ecdh.c **** #endif /* !MBEDTLS_ECDH_COMPUTE_SHARED_ALT */
+ 925              		.loc 1 145 1 view .LVU213
+ 926              		.cfi_endproc
+ 927              	.LFE9:
+ 929              		.section	.text.ecdh_calc_secret_internal,"ax",%progbits
+ 930              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 30
+
+
+ 931              		.syntax unified
+ 932              		.thumb
+ 933              		.thumb_func
+ 935              	ecdh_calc_secret_internal:
+ 936              	.LVL101:
+ 937              	.LFB26:
+ 612:Libs/mbedtls/library/ecdh.c **** 
+ 613:Libs/mbedtls/library/ecdh.c **** /*
+ 614:Libs/mbedtls/library/ecdh.c ****  * Parse and import the client's public value
+ 615:Libs/mbedtls/library/ecdh.c ****  */
+ 616:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_read_public(mbedtls_ecdh_context *ctx,
+ 617:Libs/mbedtls/library/ecdh.c ****                              const unsigned char *buf, size_t blen)
+ 618:Libs/mbedtls/library/ecdh.c **** {
+ 619:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 620:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 621:Libs/mbedtls/library/ecdh.c **** 
+ 622:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 623:Libs/mbedtls/library/ecdh.c ****     return ecdh_read_public_internal(ctx, buf, blen);
+ 624:Libs/mbedtls/library/ecdh.c **** #else
+ 625:Libs/mbedtls/library/ecdh.c ****     switch (ctx->var) {
+ 626:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 627:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_EVEREST:
+ 628:Libs/mbedtls/library/ecdh.c ****             return mbedtls_everest_read_public(&ctx->ctx.everest_ecdh,
+ 629:Libs/mbedtls/library/ecdh.c ****                                                buf, blen);
+ 630:Libs/mbedtls/library/ecdh.c **** #endif
+ 631:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0:
+ 632:Libs/mbedtls/library/ecdh.c ****             return ecdh_read_public_internal(&ctx->ctx.mbed_ecdh,
+ 633:Libs/mbedtls/library/ecdh.c ****                                              buf, blen);
+ 634:Libs/mbedtls/library/ecdh.c ****         default:
+ 635:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 636:Libs/mbedtls/library/ecdh.c ****     }
+ 637:Libs/mbedtls/library/ecdh.c **** #endif
+ 638:Libs/mbedtls/library/ecdh.c **** }
+ 639:Libs/mbedtls/library/ecdh.c **** 
+ 640:Libs/mbedtls/library/ecdh.c **** static int ecdh_calc_secret_internal(mbedtls_ecdh_context_mbed *ctx,
+ 641:Libs/mbedtls/library/ecdh.c ****                                      size_t *olen, unsigned char *buf,
+ 642:Libs/mbedtls/library/ecdh.c ****                                      size_t blen,
+ 643:Libs/mbedtls/library/ecdh.c ****                                      int (*f_rng)(void *,
+ 644:Libs/mbedtls/library/ecdh.c ****                                                   unsigned char *,
+ 645:Libs/mbedtls/library/ecdh.c ****                                                   size_t),
+ 646:Libs/mbedtls/library/ecdh.c ****                                      void *p_rng,
+ 647:Libs/mbedtls/library/ecdh.c ****                                      int restart_enabled)
+ 648:Libs/mbedtls/library/ecdh.c **** {
+ 938              		.loc 1 648 1 is_stmt 1 view -0
+ 939              		.cfi_startproc
+ 940              		@ args = 12, pretend = 0, frame = 0
+ 941              		@ frame_needed = 0, uses_anonymous_args = 0
+ 649:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 942              		.loc 1 649 5 view .LVU215
+ 650:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 651:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_restart_ctx *rs_ctx = NULL;
+ 652:Libs/mbedtls/library/ecdh.c **** #endif
+ 653:Libs/mbedtls/library/ecdh.c **** 
+ 654:Libs/mbedtls/library/ecdh.c ****     if (ctx == NULL || ctx->grp.pbits == 0) {
+ 943              		.loc 1 654 5 view .LVU216
+ 944              		.loc 1 654 8 is_stmt 0 view .LVU217
+ 945 0000 0028     		cmp	r0, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 31
+
+
+ 946 0002 37D0     		beq	.L65
+ 648:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 947              		.loc 1 648 1 view .LVU218
+ 948 0004 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 949              	.LCFI31:
+ 950              		.cfi_def_cfa_offset 24
+ 951              		.cfi_offset 4, -24
+ 952              		.cfi_offset 5, -20
+ 953              		.cfi_offset 6, -16
+ 954              		.cfi_offset 7, -12
+ 955              		.cfi_offset 8, -8
+ 956              		.cfi_offset 14, -4
+ 957 0008 82B0     		sub	sp, sp, #8
+ 958              	.LCFI32:
+ 959              		.cfi_def_cfa_offset 32
+ 960 000a 0D46     		mov	r5, r1
+ 961 000c 1646     		mov	r6, r2
+ 962 000e 9846     		mov	r8, r3
+ 963 0010 0446     		mov	r4, r0
+ 964              		.loc 1 654 32 discriminator 1 view .LVU219
+ 965 0012 836D     		ldr	r3, [r0, #88]
+ 966              	.LVL102:
+ 967              		.loc 1 654 21 discriminator 1 view .LVU220
+ 968 0014 83B3     		cbz	r3, .L66
+ 655:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 656:Libs/mbedtls/library/ecdh.c ****     }
+ 657:Libs/mbedtls/library/ecdh.c **** 
+ 658:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 659:Libs/mbedtls/library/ecdh.c ****     if (restart_enabled) {
+ 660:Libs/mbedtls/library/ecdh.c ****         rs_ctx = &ctx->rs;
+ 661:Libs/mbedtls/library/ecdh.c ****     }
+ 662:Libs/mbedtls/library/ecdh.c **** #else
+ 663:Libs/mbedtls/library/ecdh.c ****     (void) restart_enabled;
+ 969              		.loc 1 663 5 is_stmt 1 view .LVU221
+ 664:Libs/mbedtls/library/ecdh.c **** #endif
+ 665:Libs/mbedtls/library/ecdh.c **** 
+ 666:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 667:Libs/mbedtls/library/ecdh.c ****     if ((ret = ecdh_compute_shared_restartable(&ctx->grp, &ctx->z, &ctx->Qp,
+ 668:Libs/mbedtls/library/ecdh.c ****                                                &ctx->d, f_rng, p_rng,
+ 669:Libs/mbedtls/library/ecdh.c ****                                                rs_ctx)) != 0) {
+ 670:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 671:Libs/mbedtls/library/ecdh.c ****     }
+ 672:Libs/mbedtls/library/ecdh.c **** #else
+ 673:Libs/mbedtls/library/ecdh.c ****     if ((ret = mbedtls_ecdh_compute_shared(&ctx->grp, &ctx->z, &ctx->Qp,
+ 970              		.loc 1 673 5 view .LVU222
+ 971              		.loc 1 673 16 is_stmt 0 view .LVU223
+ 972 0016 00F1D007 		add	r7, r0, #208
+ 973 001a 099B     		ldr	r3, [sp, #36]
+ 974 001c 0193     		str	r3, [sp, #4]
+ 975 001e 089B     		ldr	r3, [sp, #32]
+ 976 0020 0093     		str	r3, [sp]
+ 977 0022 00F17C03 		add	r3, r0, #124
+ 978 0026 00F1AC02 		add	r2, r0, #172
+ 979              	.LVL103:
+ 980              		.loc 1 673 16 view .LVU224
+ 981 002a 3946     		mov	r1, r7
+ 982              	.LVL104:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 32
+
+
+ 983              		.loc 1 673 16 view .LVU225
+ 984 002c FFF7FEFF 		bl	mbedtls_ecdh_compute_shared
+ 985              	.LVL105:
+ 986              		.loc 1 673 8 discriminator 1 view .LVU226
+ 987 0030 10B1     		cbz	r0, .L72
+ 988              	.LVL106:
+ 989              	.L62:
+ 674:Libs/mbedtls/library/ecdh.c ****                                            &ctx->d, f_rng, p_rng)) != 0) {
+ 675:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 676:Libs/mbedtls/library/ecdh.c ****     }
+ 677:Libs/mbedtls/library/ecdh.c **** #endif /* MBEDTLS_ECP_RESTARTABLE */
+ 678:Libs/mbedtls/library/ecdh.c **** 
+ 679:Libs/mbedtls/library/ecdh.c ****     if (mbedtls_mpi_size(&ctx->z) > blen) {
+ 680:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 681:Libs/mbedtls/library/ecdh.c ****     }
+ 682:Libs/mbedtls/library/ecdh.c **** 
+ 683:Libs/mbedtls/library/ecdh.c ****     *olen = ctx->grp.pbits / 8 + ((ctx->grp.pbits % 8) != 0);
+ 684:Libs/mbedtls/library/ecdh.c **** 
+ 685:Libs/mbedtls/library/ecdh.c ****     if (mbedtls_ecp_get_type(&ctx->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
+ 686:Libs/mbedtls/library/ecdh.c ****         return mbedtls_mpi_write_binary_le(&ctx->z, buf, *olen);
+ 687:Libs/mbedtls/library/ecdh.c ****     }
+ 688:Libs/mbedtls/library/ecdh.c **** 
+ 689:Libs/mbedtls/library/ecdh.c ****     return mbedtls_mpi_write_binary(&ctx->z, buf, *olen);
+ 690:Libs/mbedtls/library/ecdh.c **** }
+ 990              		.loc 1 690 1 view .LVU227
+ 991 0032 02B0     		add	sp, sp, #8
+ 992              	.LCFI33:
+ 993              		.cfi_remember_state
+ 994              		.cfi_def_cfa_offset 24
+ 995              		@ sp needed
+ 996 0034 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 997              	.LVL107:
+ 998              	.L72:
+ 999              	.LCFI34:
+ 1000              		.cfi_restore_state
+ 679:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1001              		.loc 1 679 5 is_stmt 1 view .LVU228
+ 679:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1002              		.loc 1 679 9 is_stmt 0 view .LVU229
+ 1003 0038 3846     		mov	r0, r7
+ 1004              	.LVL108:
+ 679:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1005              		.loc 1 679 9 view .LVU230
+ 1006 003a FFF7FEFF 		bl	mbedtls_mpi_size
+ 1007              	.LVL109:
+ 679:Libs/mbedtls/library/ecdh.c ****         return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1008              		.loc 1 679 8 discriminator 1 view .LVU231
+ 1009 003e 4045     		cmp	r0, r8
+ 1010 0040 1CD8     		bhi	.L67
+ 683:Libs/mbedtls/library/ecdh.c **** 
+ 1011              		.loc 1 683 5 is_stmt 1 view .LVU232
+ 683:Libs/mbedtls/library/ecdh.c **** 
+ 1012              		.loc 1 683 21 is_stmt 0 view .LVU233
+ 1013 0042 A26D     		ldr	r2, [r4, #88]
+ 683:Libs/mbedtls/library/ecdh.c **** 
+ 1014              		.loc 1 683 56 view .LVU234
+ 1015 0044 12F00703 		ands	r3, r2, #7
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 33
+
+
+ 1016 0048 18BF     		it	ne
+ 1017 004a 0123     		movne	r3, #1
+ 683:Libs/mbedtls/library/ecdh.c **** 
+ 1018              		.loc 1 683 32 view .LVU235
+ 1019 004c 03EBD203 		add	r3, r3, r2, lsr #3
+ 683:Libs/mbedtls/library/ecdh.c **** 
+ 1020              		.loc 1 683 11 view .LVU236
+ 1021 0050 2B60     		str	r3, [r5]
+ 685:Libs/mbedtls/library/ecdh.c ****         return mbedtls_mpi_write_binary_le(&ctx->z, buf, *olen);
+ 1022              		.loc 1 685 5 is_stmt 1 view .LVU237
+ 685:Libs/mbedtls/library/ecdh.c ****         return mbedtls_mpi_write_binary_le(&ctx->z, buf, *olen);
+ 1023              		.loc 1 685 9 is_stmt 0 view .LVU238
+ 1024 0052 2046     		mov	r0, r4
+ 1025 0054 FFF7FEFF 		bl	mbedtls_ecp_get_type
+ 1026              	.LVL110:
+ 685:Libs/mbedtls/library/ecdh.c ****         return mbedtls_mpi_write_binary_le(&ctx->z, buf, *olen);
+ 1027              		.loc 1 685 8 discriminator 1 view .LVU239
+ 1028 0058 0228     		cmp	r0, #2
+ 1029 005a 05D0     		beq	.L73
+ 689:Libs/mbedtls/library/ecdh.c **** }
+ 1030              		.loc 1 689 5 is_stmt 1 view .LVU240
+ 689:Libs/mbedtls/library/ecdh.c **** }
+ 1031              		.loc 1 689 12 is_stmt 0 view .LVU241
+ 1032 005c 2A68     		ldr	r2, [r5]
+ 1033 005e 3146     		mov	r1, r6
+ 1034 0060 3846     		mov	r0, r7
+ 1035 0062 FFF7FEFF 		bl	mbedtls_mpi_write_binary
+ 1036              	.LVL111:
+ 1037 0066 E4E7     		b	.L62
+ 1038              	.L73:
+ 686:Libs/mbedtls/library/ecdh.c ****     }
+ 1039              		.loc 1 686 9 is_stmt 1 view .LVU242
+ 686:Libs/mbedtls/library/ecdh.c ****     }
+ 1040              		.loc 1 686 16 is_stmt 0 view .LVU243
+ 1041 0068 2A68     		ldr	r2, [r5]
+ 1042 006a 3146     		mov	r1, r6
+ 1043 006c 3846     		mov	r0, r7
+ 1044 006e FFF7FEFF 		bl	mbedtls_mpi_write_binary_le
+ 1045              	.LVL112:
+ 1046 0072 DEE7     		b	.L62
+ 1047              	.LVL113:
+ 1048              	.L65:
+ 1049              	.LCFI35:
+ 1050              		.cfi_def_cfa_offset 0
+ 1051              		.cfi_restore 4
+ 1052              		.cfi_restore 5
+ 1053              		.cfi_restore 6
+ 1054              		.cfi_restore 7
+ 1055              		.cfi_restore 8
+ 1056              		.cfi_restore 14
+ 655:Libs/mbedtls/library/ecdh.c ****     }
+ 1057              		.loc 1 655 16 view .LVU244
+ 1058 0074 0248     		ldr	r0, .L74
+ 1059              	.LVL114:
+ 1060              		.loc 1 690 1 view .LVU245
+ 1061 0076 7047     		bx	lr
+ 1062              	.LVL115:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 34
+
+
+ 1063              	.L66:
+ 1064              	.LCFI36:
+ 1065              		.cfi_def_cfa_offset 32
+ 1066              		.cfi_offset 4, -24
+ 1067              		.cfi_offset 5, -20
+ 1068              		.cfi_offset 6, -16
+ 1069              		.cfi_offset 7, -12
+ 1070              		.cfi_offset 8, -8
+ 1071              		.cfi_offset 14, -4
+ 655:Libs/mbedtls/library/ecdh.c ****     }
+ 1072              		.loc 1 655 16 view .LVU246
+ 1073 0078 0148     		ldr	r0, .L74
+ 1074              	.LVL116:
+ 655:Libs/mbedtls/library/ecdh.c ****     }
+ 1075              		.loc 1 655 16 view .LVU247
+ 1076 007a DAE7     		b	.L62
+ 1077              	.LVL117:
+ 1078              	.L67:
+ 680:Libs/mbedtls/library/ecdh.c ****     }
+ 1079              		.loc 1 680 16 view .LVU248
+ 1080 007c 0048     		ldr	r0, .L74
+ 1081 007e D8E7     		b	.L62
+ 1082              	.L75:
+ 1083              		.align	2
+ 1084              	.L74:
+ 1085 0080 80B0FFFF 		.word	-20352
+ 1086              		.cfi_endproc
+ 1087              	.LFE26:
+ 1089              		.section	.text.mbedtls_ecdh_init,"ax",%progbits
+ 1090              		.align	1
+ 1091              		.global	mbedtls_ecdh_init
+ 1092              		.syntax unified
+ 1093              		.thumb
+ 1094              		.thumb_func
+ 1096              	mbedtls_ecdh_init:
+ 1097              	.LVL118:
+ 1098              	.LFB11:
+ 165:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE(ctx != NULL);
+ 1099              		.loc 1 165 1 is_stmt 1 view -0
+ 1100              		.cfi_startproc
+ 1101              		@ args = 0, pretend = 0, frame = 0
+ 1102              		@ frame_needed = 0, uses_anonymous_args = 0
+ 165:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE(ctx != NULL);
+ 1103              		.loc 1 165 1 is_stmt 0 view .LVU250
+ 1104 0000 08B5     		push	{r3, lr}
+ 1105              	.LCFI37:
+ 1106              		.cfi_def_cfa_offset 8
+ 1107              		.cfi_offset 3, -8
+ 1108              		.cfi_offset 14, -4
+ 166:Libs/mbedtls/library/ecdh.c **** 
+ 1109              		.loc 1 166 5 is_stmt 1 view .LVU251
+ 166:Libs/mbedtls/library/ecdh.c **** 
+ 1110              		.loc 1 166 5 view .LVU252
+ 166:Libs/mbedtls/library/ecdh.c **** 
+ 1111              		.loc 1 166 5 view .LVU253
+ 174:Libs/mbedtls/library/ecdh.c **** 
+ 1112              		.loc 1 174 5 view .LVU254
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 35
+
+
+ 1113 0002 E022     		movs	r2, #224
+ 1114 0004 0021     		movs	r1, #0
+ 1115 0006 FFF7FEFF 		bl	memset
+ 1116              	.LVL119:
+ 176:Libs/mbedtls/library/ecdh.c **** #endif
+ 1117              		.loc 1 176 5 view .LVU255
+ 178:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 1118              		.loc 1 178 5 view .LVU256
+ 182:Libs/mbedtls/library/ecdh.c **** 
+ 1119              		.loc 1 182 1 is_stmt 0 view .LVU257
+ 1120 000a 08BD     		pop	{r3, pc}
+ 1121              		.cfi_endproc
+ 1122              	.LFE11:
+ 1124              		.section	.text.mbedtls_ecdh_setup,"ax",%progbits
+ 1125              		.align	1
+ 1126              		.global	mbedtls_ecdh_setup
+ 1127              		.syntax unified
+ 1128              		.thumb
+ 1129              		.thumb_func
+ 1131              	mbedtls_ecdh_setup:
+ 1132              	.LVL120:
+ 1133              	.LFB13:
+ 201:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1134              		.loc 1 201 1 is_stmt 1 view -0
+ 1135              		.cfi_startproc
+ 1136              		@ args = 0, pretend = 0, frame = 0
+ 1137              		@ frame_needed = 0, uses_anonymous_args = 0
+ 201:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1138              		.loc 1 201 1 is_stmt 0 view .LVU259
+ 1139 0000 38B5     		push	{r3, r4, r5, lr}
+ 1140              	.LCFI38:
+ 1141              		.cfi_def_cfa_offset 16
+ 1142              		.cfi_offset 3, -16
+ 1143              		.cfi_offset 4, -12
+ 1144              		.cfi_offset 5, -8
+ 1145              		.cfi_offset 14, -4
+ 1146 0002 0D46     		mov	r5, r1
+ 202:Libs/mbedtls/library/ecdh.c **** 
+ 1147              		.loc 1 202 5 is_stmt 1 view .LVU260
+ 202:Libs/mbedtls/library/ecdh.c **** 
+ 1148              		.loc 1 202 5 view .LVU261
+ 202:Libs/mbedtls/library/ecdh.c **** 
+ 1149              		.loc 1 202 5 view .LVU262
+ 207:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1150              		.loc 1 207 5 view .LVU263
+ 216:Libs/mbedtls/library/ecdh.c ****             ctx->var = MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0;
+ 1151              		.loc 1 216 13 view .LVU264
+ 216:Libs/mbedtls/library/ecdh.c ****             ctx->var = MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0;
+ 1152              		.loc 1 216 31 is_stmt 0 view .LVU265
+ 1153 0004 0023     		movs	r3, #0
+ 1154 0006 0370     		strb	r3, [r0]
+ 217:Libs/mbedtls/library/ecdh.c ****             ctx->grp_id = grp_id;
+ 1155              		.loc 1 217 13 is_stmt 1 view .LVU266
+ 217:Libs/mbedtls/library/ecdh.c ****             ctx->grp_id = grp_id;
+ 1156              		.loc 1 217 22 is_stmt 0 view .LVU267
+ 1157 0008 0123     		movs	r3, #1
+ 1158 000a 8370     		strb	r3, [r0, #2]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 36
+
+
+ 218:Libs/mbedtls/library/ecdh.c ****             ecdh_init_internal(&ctx->ctx.mbed_ecdh);
+ 1159              		.loc 1 218 13 is_stmt 1 view .LVU268
+ 218:Libs/mbedtls/library/ecdh.c ****             ecdh_init_internal(&ctx->ctx.mbed_ecdh);
+ 1160              		.loc 1 218 25 is_stmt 0 view .LVU269
+ 1161 000c 4170     		strb	r1, [r0, #1]
+ 219:Libs/mbedtls/library/ecdh.c ****             return ecdh_setup_internal(&ctx->ctx.mbed_ecdh, grp_id);
+ 1162              		.loc 1 219 13 is_stmt 1 view .LVU270
+ 1163 000e 041D     		adds	r4, r0, #4
+ 1164 0010 2046     		mov	r0, r4
+ 1165              	.LVL121:
+ 219:Libs/mbedtls/library/ecdh.c ****             return ecdh_setup_internal(&ctx->ctx.mbed_ecdh, grp_id);
+ 1166              		.loc 1 219 13 is_stmt 0 view .LVU271
+ 1167 0012 FFF7FEFF 		bl	ecdh_init_internal
+ 1168              	.LVL122:
+ 220:Libs/mbedtls/library/ecdh.c ****     }
+ 1169              		.loc 1 220 13 is_stmt 1 view .LVU272
+ 220:Libs/mbedtls/library/ecdh.c ****     }
+ 1170              		.loc 1 220 20 is_stmt 0 view .LVU273
+ 1171 0016 2946     		mov	r1, r5
+ 1172 0018 2046     		mov	r0, r4
+ 1173 001a FFF7FEFF 		bl	ecdh_setup_internal
+ 1174              	.LVL123:
+ 223:Libs/mbedtls/library/ecdh.c **** 
+ 1175              		.loc 1 223 1 view .LVU274
+ 1176 001e 38BD     		pop	{r3, r4, r5, pc}
+ 223:Libs/mbedtls/library/ecdh.c **** 
+ 1177              		.loc 1 223 1 view .LVU275
+ 1178              		.cfi_endproc
+ 1179              	.LFE13:
+ 1181              		.section	.text.mbedtls_ecdh_free,"ax",%progbits
+ 1182              		.align	1
+ 1183              		.global	mbedtls_ecdh_free
+ 1184              		.syntax unified
+ 1185              		.thumb
+ 1186              		.thumb_func
+ 1188              	mbedtls_ecdh_free:
+ 1189              	.LVL124:
+ 1190              	.LFB15:
+ 254:Libs/mbedtls/library/ecdh.c ****     if (ctx == NULL) {
+ 1191              		.loc 1 254 1 is_stmt 1 view -0
+ 1192              		.cfi_startproc
+ 1193              		@ args = 0, pretend = 0, frame = 0
+ 1194              		@ frame_needed = 0, uses_anonymous_args = 0
+ 255:Libs/mbedtls/library/ecdh.c ****         return;
+ 1195              		.loc 1 255 5 view .LVU277
+ 255:Libs/mbedtls/library/ecdh.c ****         return;
+ 1196              		.loc 1 255 8 is_stmt 0 view .LVU278
+ 1197 0000 68B1     		cbz	r0, .L84
+ 254:Libs/mbedtls/library/ecdh.c ****     if (ctx == NULL) {
+ 1198              		.loc 1 254 1 view .LVU279
+ 1199 0002 10B5     		push	{r4, lr}
+ 1200              	.LCFI39:
+ 1201              		.cfi_def_cfa_offset 8
+ 1202              		.cfi_offset 4, -8
+ 1203              		.cfi_offset 14, -4
+ 1204 0004 0446     		mov	r4, r0
+ 265:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 37
+
+
+ 1205              		.loc 1 265 5 is_stmt 1 view .LVU280
+ 265:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1206              		.loc 1 265 16 is_stmt 0 view .LVU281
+ 1207 0006 8378     		ldrb	r3, [r0, #2]	@ zero_extendqisi2
+ 265:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1208              		.loc 1 265 5 view .LVU282
+ 1209 0008 012B     		cmp	r3, #1
+ 1210 000a 04D0     		beq	.L87
+ 1211              	.LVL125:
+ 1212              	.L82:
+ 278:Libs/mbedtls/library/ecdh.c ****     ctx->var = MBEDTLS_ECDH_VARIANT_NONE;
+ 1213              		.loc 1 278 5 is_stmt 1 view .LVU283
+ 278:Libs/mbedtls/library/ecdh.c ****     ctx->var = MBEDTLS_ECDH_VARIANT_NONE;
+ 1214              		.loc 1 278 23 is_stmt 0 view .LVU284
+ 1215 000c 0023     		movs	r3, #0
+ 1216 000e 2370     		strb	r3, [r4]
+ 279:Libs/mbedtls/library/ecdh.c ****     ctx->grp_id = MBEDTLS_ECP_DP_NONE;
+ 1217              		.loc 1 279 5 is_stmt 1 view .LVU285
+ 279:Libs/mbedtls/library/ecdh.c ****     ctx->grp_id = MBEDTLS_ECP_DP_NONE;
+ 1218              		.loc 1 279 14 is_stmt 0 view .LVU286
+ 1219 0010 A370     		strb	r3, [r4, #2]
+ 280:Libs/mbedtls/library/ecdh.c **** #endif
+ 1220              		.loc 1 280 5 is_stmt 1 view .LVU287
+ 280:Libs/mbedtls/library/ecdh.c **** #endif
+ 1221              		.loc 1 280 17 is_stmt 0 view .LVU288
+ 1222 0012 6370     		strb	r3, [r4, #1]
+ 282:Libs/mbedtls/library/ecdh.c **** 
+ 1223              		.loc 1 282 1 view .LVU289
+ 1224 0014 10BD     		pop	{r4, pc}
+ 1225              	.LVL126:
+ 1226              	.L87:
+ 272:Libs/mbedtls/library/ecdh.c ****             break;
+ 1227              		.loc 1 272 13 is_stmt 1 view .LVU290
+ 1228 0016 0430     		adds	r0, r0, #4
+ 1229              	.LVL127:
+ 272:Libs/mbedtls/library/ecdh.c ****             break;
+ 1230              		.loc 1 272 13 is_stmt 0 view .LVU291
+ 1231 0018 FFF7FEFF 		bl	ecdh_free_internal
+ 1232              	.LVL128:
+ 273:Libs/mbedtls/library/ecdh.c ****         default:
+ 1233              		.loc 1 273 13 is_stmt 1 view .LVU292
+ 1234 001c F6E7     		b	.L82
+ 1235              	.LVL129:
+ 1236              	.L84:
+ 1237              	.LCFI40:
+ 1238              		.cfi_def_cfa_offset 0
+ 1239              		.cfi_restore 4
+ 1240              		.cfi_restore 14
+ 273:Libs/mbedtls/library/ecdh.c ****         default:
+ 1241              		.loc 1 273 13 is_stmt 0 view .LVU293
+ 1242 001e 7047     		bx	lr
+ 1243              		.cfi_endproc
+ 1244              	.LFE15:
+ 1246              		.section	.text.mbedtls_ecdh_make_params,"ax",%progbits
+ 1247              		.align	1
+ 1248              		.global	mbedtls_ecdh_make_params
+ 1249              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 38
+
+
+ 1250              		.thumb
+ 1251              		.thumb_func
+ 1253              	mbedtls_ecdh_make_params:
+ 1254              	.LVL130:
+ 1255              	.LFB17:
+ 352:Libs/mbedtls/library/ecdh.c ****     int restart_enabled = 0;
+ 1256              		.loc 1 352 1 is_stmt 1 view -0
+ 1257              		.cfi_startproc
+ 1258              		@ args = 8, pretend = 0, frame = 0
+ 1259              		@ frame_needed = 0, uses_anonymous_args = 0
+ 353:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1260              		.loc 1 353 5 view .LVU295
+ 354:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 1261              		.loc 1 354 5 view .LVU296
+ 354:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 1262              		.loc 1 354 5 view .LVU297
+ 354:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 1263              		.loc 1 354 5 view .LVU298
+ 355:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1264              		.loc 1 355 5 view .LVU299
+ 355:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1265              		.loc 1 355 5 view .LVU300
+ 355:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1266              		.loc 1 355 5 view .LVU301
+ 356:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 1267              		.loc 1 356 5 view .LVU302
+ 356:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 1268              		.loc 1 356 5 view .LVU303
+ 356:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 1269              		.loc 1 356 5 view .LVU304
+ 357:Libs/mbedtls/library/ecdh.c **** 
+ 1270              		.loc 1 357 5 view .LVU305
+ 357:Libs/mbedtls/library/ecdh.c **** 
+ 1271              		.loc 1 357 5 view .LVU306
+ 357:Libs/mbedtls/library/ecdh.c **** 
+ 1272              		.loc 1 357 5 view .LVU307
+ 362:Libs/mbedtls/library/ecdh.c **** #endif
+ 1273              		.loc 1 362 5 view .LVU308
+ 369:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1274              		.loc 1 369 5 view .LVU309
+ 369:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1275              		.loc 1 369 16 is_stmt 0 view .LVU310
+ 1276 0000 90F802C0 		ldrb	ip, [r0, #2]	@ zero_extendqisi2
+ 369:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1277              		.loc 1 369 5 view .LVU311
+ 1278 0004 BCF1010F 		cmp	ip, #1
+ 1279 0008 0FD1     		bne	.L90
+ 352:Libs/mbedtls/library/ecdh.c ****     int restart_enabled = 0;
+ 1280              		.loc 1 352 1 view .LVU312
+ 1281 000a 10B5     		push	{r4, lr}
+ 1282              	.LCFI41:
+ 1283              		.cfi_def_cfa_offset 8
+ 1284              		.cfi_offset 4, -8
+ 1285              		.cfi_offset 14, -4
+ 1286 000c 84B0     		sub	sp, sp, #16
+ 1287              	.LCFI42:
+ 1288              		.cfi_def_cfa_offset 24
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 39
+
+
+ 376:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 1289              		.loc 1 376 13 is_stmt 1 view .LVU313
+ 376:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 1290              		.loc 1 376 20 is_stmt 0 view .LVU314
+ 1291 000e 0024     		movs	r4, #0
+ 1292 0010 0394     		str	r4, [sp, #12]
+ 1293 0012 079C     		ldr	r4, [sp, #28]
+ 1294 0014 0294     		str	r4, [sp, #8]
+ 1295 0016 069C     		ldr	r4, [sp, #24]
+ 1296 0018 0194     		str	r4, [sp, #4]
+ 1297 001a 0093     		str	r3, [sp]
+ 1298 001c 1346     		mov	r3, r2
+ 1299              	.LVL131:
+ 376:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 1300              		.loc 1 376 20 view .LVU315
+ 1301 001e 10F8042B 		ldrb	r2, [r0], #4	@ zero_extendqisi2
+ 1302              	.LVL132:
+ 376:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 1303              		.loc 1 376 20 view .LVU316
+ 1304 0022 FFF7FEFF 		bl	ecdh_make_params_internal
+ 1305              	.LVL133:
+ 384:Libs/mbedtls/library/ecdh.c **** 
+ 1306              		.loc 1 384 1 view .LVU317
+ 1307 0026 04B0     		add	sp, sp, #16
+ 1308              	.LCFI43:
+ 1309              		.cfi_def_cfa_offset 8
+ 1310              		@ sp needed
+ 1311 0028 10BD     		pop	{r4, pc}
+ 1312              	.LVL134:
+ 1313              	.L90:
+ 1314              	.LCFI44:
+ 1315              		.cfi_def_cfa_offset 0
+ 1316              		.cfi_restore 4
+ 1317              		.cfi_restore 14
+ 381:Libs/mbedtls/library/ecdh.c ****     }
+ 1318              		.loc 1 381 20 view .LVU318
+ 1319 002a 0148     		ldr	r0, .L95
+ 1320              	.LVL135:
+ 384:Libs/mbedtls/library/ecdh.c **** 
+ 1321              		.loc 1 384 1 view .LVU319
+ 1322 002c 7047     		bx	lr
+ 1323              	.L96:
+ 1324 002e 00BF     		.align	2
+ 1325              	.L95:
+ 1326 0030 80B0FFFF 		.word	-20352
+ 1327              		.cfi_endproc
+ 1328              	.LFE17:
+ 1330              		.section	.text.mbedtls_ecdh_read_params,"ax",%progbits
+ 1331              		.align	1
+ 1332              		.global	mbedtls_ecdh_read_params
+ 1333              		.syntax unified
+ 1334              		.thumb
+ 1335              		.thumb_func
+ 1337              	mbedtls_ecdh_read_params:
+ 1338              	.LVL136:
+ 1339              	.LFB19:
+ 404:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 40
+
+
+ 1340              		.loc 1 404 1 is_stmt 1 view -0
+ 1341              		.cfi_startproc
+ 1342              		@ args = 0, pretend = 0, frame = 8
+ 1343              		@ frame_needed = 0, uses_anonymous_args = 0
+ 404:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1344              		.loc 1 404 1 is_stmt 0 view .LVU321
+ 1345 0000 70B5     		push	{r4, r5, r6, lr}
+ 1346              	.LCFI45:
+ 1347              		.cfi_def_cfa_offset 16
+ 1348              		.cfi_offset 4, -16
+ 1349              		.cfi_offset 5, -12
+ 1350              		.cfi_offset 6, -8
+ 1351              		.cfi_offset 14, -4
+ 1352 0002 82B0     		sub	sp, sp, #8
+ 1353              	.LCFI46:
+ 1354              		.cfi_def_cfa_offset 24
+ 1355 0004 0646     		mov	r6, r0
+ 1356 0006 0C46     		mov	r4, r1
+ 1357 0008 1546     		mov	r5, r2
+ 405:Libs/mbedtls/library/ecdh.c ****     mbedtls_ecp_group_id grp_id;
+ 1358              		.loc 1 405 5 is_stmt 1 view .LVU322
+ 1359              	.LVL137:
+ 406:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1360              		.loc 1 406 5 view .LVU323
+ 407:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1361              		.loc 1 407 5 view .LVU324
+ 407:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1362              		.loc 1 407 5 view .LVU325
+ 407:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1363              		.loc 1 407 5 view .LVU326
+ 408:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(*buf != NULL);
+ 1364              		.loc 1 408 5 view .LVU327
+ 408:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(*buf != NULL);
+ 1365              		.loc 1 408 5 view .LVU328
+ 408:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(*buf != NULL);
+ 1366              		.loc 1 408 5 view .LVU329
+ 409:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(end != NULL);
+ 1367              		.loc 1 409 5 view .LVU330
+ 409:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(end != NULL);
+ 1368              		.loc 1 409 5 view .LVU331
+ 409:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(end != NULL);
+ 1369              		.loc 1 409 5 view .LVU332
+ 410:Libs/mbedtls/library/ecdh.c **** 
+ 1370              		.loc 1 410 5 view .LVU333
+ 410:Libs/mbedtls/library/ecdh.c **** 
+ 1371              		.loc 1 410 5 view .LVU334
+ 410:Libs/mbedtls/library/ecdh.c **** 
+ 1372              		.loc 1 410 5 view .LVU335
+ 412:Libs/mbedtls/library/ecdh.c ****         != 0) {
+ 1373              		.loc 1 412 5 view .LVU336
+ 412:Libs/mbedtls/library/ecdh.c ****         != 0) {
+ 1374              		.loc 1 412 66 is_stmt 0 view .LVU337
+ 1375 000a 0A68     		ldr	r2, [r1]
+ 1376              	.LVL138:
+ 412:Libs/mbedtls/library/ecdh.c ****         != 0) {
+ 1377              		.loc 1 412 16 view .LVU338
+ 1378 000c AA1A     		subs	r2, r5, r2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 41
+
+
+ 1379 000e 0DF10700 		add	r0, sp, #7
+ 1380              	.LVL139:
+ 412:Libs/mbedtls/library/ecdh.c ****         != 0) {
+ 1381              		.loc 1 412 16 view .LVU339
+ 1382 0012 FFF7FEFF 		bl	mbedtls_ecp_tls_read_group_id
+ 1383              	.LVL140:
+ 412:Libs/mbedtls/library/ecdh.c ****         != 0) {
+ 1384              		.loc 1 412 8 discriminator 1 view .LVU340
+ 1385 0016 0346     		mov	r3, r0
+ 1386 0018 10B1     		cbz	r0, .L101
+ 1387              	.LVL141:
+ 1388              	.L97:
+ 437:Libs/mbedtls/library/ecdh.c **** 
+ 1389              		.loc 1 437 1 view .LVU341
+ 1390 001a 1846     		mov	r0, r3
+ 1391 001c 02B0     		add	sp, sp, #8
+ 1392              	.LCFI47:
+ 1393              		.cfi_remember_state
+ 1394              		.cfi_def_cfa_offset 16
+ 1395              		@ sp needed
+ 1396 001e 70BD     		pop	{r4, r5, r6, pc}
+ 1397              	.LVL142:
+ 1398              	.L101:
+ 1399              	.LCFI48:
+ 1400              		.cfi_restore_state
+ 417:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 1401              		.loc 1 417 5 is_stmt 1 view .LVU342
+ 417:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 1402              		.loc 1 417 16 is_stmt 0 view .LVU343
+ 1403 0020 9DF80710 		ldrb	r1, [sp, #7]	@ zero_extendqisi2
+ 1404 0024 3046     		mov	r0, r6
+ 1405              	.LVL143:
+ 417:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 1406              		.loc 1 417 16 view .LVU344
+ 1407 0026 FFF7FEFF 		bl	mbedtls_ecdh_setup
+ 1408              	.LVL144:
+ 417:Libs/mbedtls/library/ecdh.c ****         return ret;
+ 1409              		.loc 1 417 8 discriminator 1 view .LVU345
+ 1410 002a 0346     		mov	r3, r0
+ 1411 002c 0028     		cmp	r0, #0
+ 1412 002e F4D1     		bne	.L97
+ 424:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1413              		.loc 1 424 5 is_stmt 1 view .LVU346
+ 424:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1414              		.loc 1 424 16 is_stmt 0 view .LVU347
+ 1415 0030 B378     		ldrb	r3, [r6, #2]	@ zero_extendqisi2
+ 424:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1416              		.loc 1 424 5 view .LVU348
+ 1417 0032 012B     		cmp	r3, #1
+ 1418 0034 06D1     		bne	.L99
+ 431:Libs/mbedtls/library/ecdh.c ****                                              buf, end);
+ 1419              		.loc 1 431 13 is_stmt 1 view .LVU349
+ 431:Libs/mbedtls/library/ecdh.c ****                                              buf, end);
+ 1420              		.loc 1 431 20 is_stmt 0 view .LVU350
+ 1421 0036 2A46     		mov	r2, r5
+ 1422 0038 2146     		mov	r1, r4
+ 1423 003a 301D     		adds	r0, r6, #4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 42
+
+
+ 1424              	.LVL145:
+ 431:Libs/mbedtls/library/ecdh.c ****                                              buf, end);
+ 1425              		.loc 1 431 20 view .LVU351
+ 1426 003c FFF7FEFF 		bl	ecdh_read_params_internal
+ 1427              	.LVL146:
+ 1428 0040 0346     		mov	r3, r0
+ 1429 0042 EAE7     		b	.L97
+ 1430              	.LVL147:
+ 1431              	.L99:
+ 434:Libs/mbedtls/library/ecdh.c ****     }
+ 1432              		.loc 1 434 20 view .LVU352
+ 1433 0044 004B     		ldr	r3, .L102
+ 1434 0046 E8E7     		b	.L97
+ 1435              	.L103:
+ 1436              		.align	2
+ 1437              	.L102:
+ 1438 0048 80B0FFFF 		.word	-20352
+ 1439              		.cfi_endproc
+ 1440              	.LFE19:
+ 1442              		.section	.text.mbedtls_ecdh_get_params,"ax",%progbits
+ 1443              		.align	1
+ 1444              		.global	mbedtls_ecdh_get_params
+ 1445              		.syntax unified
+ 1446              		.thumb
+ 1447              		.thumb_func
+ 1449              	mbedtls_ecdh_get_params:
+ 1450              	.LVL148:
+ 1451              	.LFB21:
+ 469:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1452              		.loc 1 469 1 is_stmt 1 view -0
+ 1453              		.cfi_startproc
+ 1454              		@ args = 0, pretend = 0, frame = 0
+ 1455              		@ frame_needed = 0, uses_anonymous_args = 0
+ 469:Libs/mbedtls/library/ecdh.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 1456              		.loc 1 469 1 is_stmt 0 view .LVU354
+ 1457 0000 70B5     		push	{r4, r5, r6, lr}
+ 1458              	.LCFI49:
+ 1459              		.cfi_def_cfa_offset 16
+ 1460              		.cfi_offset 4, -16
+ 1461              		.cfi_offset 5, -12
+ 1462              		.cfi_offset 6, -8
+ 1463              		.cfi_offset 14, -4
+ 1464 0002 0446     		mov	r4, r0
+ 1465 0004 0D46     		mov	r5, r1
+ 1466 0006 1646     		mov	r6, r2
+ 470:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1467              		.loc 1 470 5 is_stmt 1 view .LVU355
+ 1468              	.LVL149:
+ 471:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(key != NULL);
+ 1469              		.loc 1 471 5 view .LVU356
+ 471:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(key != NULL);
+ 1470              		.loc 1 471 5 view .LVU357
+ 471:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(key != NULL);
+ 1471              		.loc 1 471 5 view .LVU358
+ 472:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(side == MBEDTLS_ECDH_OURS ||
+ 1472              		.loc 1 472 5 view .LVU359
+ 472:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(side == MBEDTLS_ECDH_OURS ||
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 43
+
+
+ 1473              		.loc 1 472 5 view .LVU360
+ 472:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(side == MBEDTLS_ECDH_OURS ||
+ 1474              		.loc 1 472 5 view .LVU361
+ 473:Libs/mbedtls/library/ecdh.c ****                       side == MBEDTLS_ECDH_THEIRS);
+ 1475              		.loc 1 473 5 view .LVU362
+ 473:Libs/mbedtls/library/ecdh.c ****                       side == MBEDTLS_ECDH_THEIRS);
+ 1476              		.loc 1 473 5 view .LVU363
+ 473:Libs/mbedtls/library/ecdh.c ****                       side == MBEDTLS_ECDH_THEIRS);
+ 1477              		.loc 1 473 5 view .LVU364
+ 476:Libs/mbedtls/library/ecdh.c ****         /* This is the first call to get_params(). Set up the context
+ 1478              		.loc 1 476 5 view .LVU365
+ 476:Libs/mbedtls/library/ecdh.c ****         /* This is the first call to get_params(). Set up the context
+ 1479              		.loc 1 476 9 is_stmt 0 view .LVU366
+ 1480 0008 FFF7FEFF 		bl	mbedtls_ecdh_grp_id
+ 1481              	.LVL150:
+ 476:Libs/mbedtls/library/ecdh.c ****         /* This is the first call to get_params(). Set up the context
+ 1482              		.loc 1 476 8 discriminator 1 view .LVU367
+ 1483 000c 58B1     		cbz	r0, .L111
+ 486:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1484              		.loc 1 486 9 is_stmt 1 view .LVU368
+ 486:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1485              		.loc 1 486 49 is_stmt 0 discriminator 1 view .LVU369
+ 1486 000e 2A78     		ldrb	r2, [r5]	@ zero_extendqisi2
+ 486:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 1487              		.loc 1 486 12 discriminator 1 view .LVU370
+ 1488 0010 9042     		cmp	r0, r2
+ 1489 0012 0FD1     		bne	.L108
+ 1490              	.LVL151:
+ 1491              	.L107:
+ 494:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1492              		.loc 1 494 5 is_stmt 1 view .LVU371
+ 494:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1493              		.loc 1 494 16 is_stmt 0 view .LVU372
+ 1494 0014 A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ 494:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1495              		.loc 1 494 5 view .LVU373
+ 1496 0016 012B     		cmp	r3, #1
+ 1497 0018 0ED1     		bne	.L109
+ 506:Libs/mbedtls/library/ecdh.c ****                                             key, side);
+ 1498              		.loc 1 506 13 is_stmt 1 view .LVU374
+ 506:Libs/mbedtls/library/ecdh.c ****                                             key, side);
+ 1499              		.loc 1 506 20 is_stmt 0 view .LVU375
+ 1500 001a 3246     		mov	r2, r6
+ 1501 001c 2946     		mov	r1, r5
+ 1502 001e 201D     		adds	r0, r4, #4
+ 1503 0020 FFF7FEFF 		bl	ecdh_get_params_internal
+ 1504              	.LVL152:
+ 1505              	.L104:
+ 512:Libs/mbedtls/library/ecdh.c **** 
+ 1506              		.loc 1 512 1 view .LVU376
+ 1507 0024 70BD     		pop	{r4, r5, r6, pc}
+ 1508              	.LVL153:
+ 1509              	.L111:
+ 479:Libs/mbedtls/library/ecdh.c ****             return ret;
+ 1510              		.loc 1 479 9 is_stmt 1 view .LVU377
+ 479:Libs/mbedtls/library/ecdh.c ****             return ret;
+ 1511              		.loc 1 479 20 is_stmt 0 view .LVU378
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 44
+
+
+ 1512 0026 2978     		ldrb	r1, [r5]	@ zero_extendqisi2
+ 1513 0028 2046     		mov	r0, r4
+ 1514 002a FFF7FEFF 		bl	mbedtls_ecdh_setup
+ 1515              	.LVL154:
+ 479:Libs/mbedtls/library/ecdh.c ****             return ret;
+ 1516              		.loc 1 479 12 discriminator 1 view .LVU379
+ 1517 002e 0028     		cmp	r0, #0
+ 1518 0030 F0D0     		beq	.L107
+ 1519 0032 F7E7     		b	.L104
+ 1520              	.LVL155:
+ 1521              	.L108:
+ 487:Libs/mbedtls/library/ecdh.c ****         }
+ 1522              		.loc 1 487 20 view .LVU380
+ 1523 0034 0148     		ldr	r0, .L112
+ 1524 0036 F5E7     		b	.L104
+ 1525              	.LVL156:
+ 1526              	.L109:
+ 509:Libs/mbedtls/library/ecdh.c ****     }
+ 1527              		.loc 1 509 20 view .LVU381
+ 1528 0038 0048     		ldr	r0, .L112
+ 1529 003a F3E7     		b	.L104
+ 1530              	.L113:
+ 1531              		.align	2
+ 1532              	.L112:
+ 1533 003c 80B0FFFF 		.word	-20352
+ 1534              		.cfi_endproc
+ 1535              	.LFE21:
+ 1537              		.section	.text.mbedtls_ecdh_make_public,"ax",%progbits
+ 1538              		.align	1
+ 1539              		.global	mbedtls_ecdh_make_public
+ 1540              		.syntax unified
+ 1541              		.thumb
+ 1542              		.thumb_func
+ 1544              	mbedtls_ecdh_make_public:
+ 1545              	.LVL157:
+ 1546              	.LFB23:
+ 563:Libs/mbedtls/library/ecdh.c ****     int restart_enabled = 0;
+ 1547              		.loc 1 563 1 is_stmt 1 view -0
+ 1548              		.cfi_startproc
+ 1549              		@ args = 8, pretend = 0, frame = 0
+ 1550              		@ frame_needed = 0, uses_anonymous_args = 0
+ 564:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1551              		.loc 1 564 5 view .LVU383
+ 565:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 1552              		.loc 1 565 5 view .LVU384
+ 565:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 1553              		.loc 1 565 5 view .LVU385
+ 565:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 1554              		.loc 1 565 5 view .LVU386
+ 566:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1555              		.loc 1 566 5 view .LVU387
+ 566:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1556              		.loc 1 566 5 view .LVU388
+ 566:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1557              		.loc 1 566 5 view .LVU389
+ 567:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 1558              		.loc 1 567 5 view .LVU390
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 45
+
+
+ 567:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 1559              		.loc 1 567 5 view .LVU391
+ 567:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(f_rng != NULL);
+ 1560              		.loc 1 567 5 view .LVU392
+ 568:Libs/mbedtls/library/ecdh.c **** 
+ 1561              		.loc 1 568 5 view .LVU393
+ 568:Libs/mbedtls/library/ecdh.c **** 
+ 1562              		.loc 1 568 5 view .LVU394
+ 568:Libs/mbedtls/library/ecdh.c **** 
+ 1563              		.loc 1 568 5 view .LVU395
+ 578:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1564              		.loc 1 578 5 view .LVU396
+ 578:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1565              		.loc 1 578 16 is_stmt 0 view .LVU397
+ 1566 0000 90F802C0 		ldrb	ip, [r0, #2]	@ zero_extendqisi2
+ 578:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1567              		.loc 1 578 5 view .LVU398
+ 1568 0004 BCF1010F 		cmp	ip, #1
+ 1569 0008 0FD1     		bne	.L116
+ 563:Libs/mbedtls/library/ecdh.c ****     int restart_enabled = 0;
+ 1570              		.loc 1 563 1 view .LVU399
+ 1571 000a 10B5     		push	{r4, lr}
+ 1572              	.LCFI50:
+ 1573              		.cfi_def_cfa_offset 8
+ 1574              		.cfi_offset 4, -8
+ 1575              		.cfi_offset 14, -4
+ 1576 000c 84B0     		sub	sp, sp, #16
+ 1577              	.LCFI51:
+ 1578              		.cfi_def_cfa_offset 24
+ 585:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 1579              		.loc 1 585 13 is_stmt 1 view .LVU400
+ 585:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 1580              		.loc 1 585 20 is_stmt 0 view .LVU401
+ 1581 000e 0024     		movs	r4, #0
+ 1582 0010 0394     		str	r4, [sp, #12]
+ 1583 0012 079C     		ldr	r4, [sp, #28]
+ 1584 0014 0294     		str	r4, [sp, #8]
+ 1585 0016 069C     		ldr	r4, [sp, #24]
+ 1586 0018 0194     		str	r4, [sp, #4]
+ 1587 001a 0093     		str	r3, [sp]
+ 1588 001c 1346     		mov	r3, r2
+ 1589              	.LVL158:
+ 585:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 1590              		.loc 1 585 20 view .LVU402
+ 1591 001e 10F8042B 		ldrb	r2, [r0], #4	@ zero_extendqisi2
+ 1592              	.LVL159:
+ 585:Libs/mbedtls/library/ecdh.c ****                                              ctx->point_format, buf, blen,
+ 1593              		.loc 1 585 20 view .LVU403
+ 1594 0022 FFF7FEFF 		bl	ecdh_make_public_internal
+ 1595              	.LVL160:
+ 593:Libs/mbedtls/library/ecdh.c **** 
+ 1596              		.loc 1 593 1 view .LVU404
+ 1597 0026 04B0     		add	sp, sp, #16
+ 1598              	.LCFI52:
+ 1599              		.cfi_def_cfa_offset 8
+ 1600              		@ sp needed
+ 1601 0028 10BD     		pop	{r4, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 46
+
+
+ 1602              	.LVL161:
+ 1603              	.L116:
+ 1604              	.LCFI53:
+ 1605              		.cfi_def_cfa_offset 0
+ 1606              		.cfi_restore 4
+ 1607              		.cfi_restore 14
+ 590:Libs/mbedtls/library/ecdh.c ****     }
+ 1608              		.loc 1 590 20 view .LVU405
+ 1609 002a 0148     		ldr	r0, .L121
+ 1610              	.LVL162:
+ 593:Libs/mbedtls/library/ecdh.c **** 
+ 1611              		.loc 1 593 1 view .LVU406
+ 1612 002c 7047     		bx	lr
+ 1613              	.L122:
+ 1614 002e 00BF     		.align	2
+ 1615              	.L121:
+ 1616 0030 80B0FFFF 		.word	-20352
+ 1617              		.cfi_endproc
+ 1618              	.LFE23:
+ 1620              		.section	.text.mbedtls_ecdh_read_public,"ax",%progbits
+ 1621              		.align	1
+ 1622              		.global	mbedtls_ecdh_read_public
+ 1623              		.syntax unified
+ 1624              		.thumb
+ 1625              		.thumb_func
+ 1627              	mbedtls_ecdh_read_public:
+ 1628              	.LVL163:
+ 1629              	.LFB25:
+ 618:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1630              		.loc 1 618 1 is_stmt 1 view -0
+ 1631              		.cfi_startproc
+ 1632              		@ args = 0, pretend = 0, frame = 0
+ 1633              		@ frame_needed = 0, uses_anonymous_args = 0
+ 618:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1634              		.loc 1 618 1 is_stmt 0 view .LVU408
+ 1635 0000 08B5     		push	{r3, lr}
+ 1636              	.LCFI54:
+ 1637              		.cfi_def_cfa_offset 8
+ 1638              		.cfi_offset 3, -8
+ 1639              		.cfi_offset 14, -4
+ 619:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1640              		.loc 1 619 5 is_stmt 1 view .LVU409
+ 619:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1641              		.loc 1 619 5 view .LVU410
+ 619:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1642              		.loc 1 619 5 view .LVU411
+ 620:Libs/mbedtls/library/ecdh.c **** 
+ 1643              		.loc 1 620 5 view .LVU412
+ 620:Libs/mbedtls/library/ecdh.c **** 
+ 1644              		.loc 1 620 5 view .LVU413
+ 620:Libs/mbedtls/library/ecdh.c **** 
+ 1645              		.loc 1 620 5 view .LVU414
+ 625:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1646              		.loc 1 625 5 view .LVU415
+ 625:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1647              		.loc 1 625 16 is_stmt 0 view .LVU416
+ 1648 0002 8378     		ldrb	r3, [r0, #2]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 47
+
+
+ 625:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 1649              		.loc 1 625 5 view .LVU417
+ 1650 0004 012B     		cmp	r3, #1
+ 1651 0006 03D1     		bne	.L125
+ 632:Libs/mbedtls/library/ecdh.c ****                                              buf, blen);
+ 1652              		.loc 1 632 13 is_stmt 1 view .LVU418
+ 632:Libs/mbedtls/library/ecdh.c ****                                              buf, blen);
+ 1653              		.loc 1 632 20 is_stmt 0 view .LVU419
+ 1654 0008 0430     		adds	r0, r0, #4
+ 1655              	.LVL164:
+ 632:Libs/mbedtls/library/ecdh.c ****                                              buf, blen);
+ 1656              		.loc 1 632 20 view .LVU420
+ 1657 000a FFF7FEFF 		bl	ecdh_read_public_internal
+ 1658              	.LVL165:
+ 1659              	.L123:
+ 638:Libs/mbedtls/library/ecdh.c **** 
+ 1660              		.loc 1 638 1 view .LVU421
+ 1661 000e 08BD     		pop	{r3, pc}
+ 1662              	.LVL166:
+ 1663              	.L125:
+ 635:Libs/mbedtls/library/ecdh.c ****     }
+ 1664              		.loc 1 635 20 view .LVU422
+ 1665 0010 0048     		ldr	r0, .L127
+ 1666              	.LVL167:
+ 635:Libs/mbedtls/library/ecdh.c ****     }
+ 1667              		.loc 1 635 20 view .LVU423
+ 1668 0012 FCE7     		b	.L123
+ 1669              	.L128:
+ 1670              		.align	2
+ 1671              	.L127:
+ 1672 0014 80B0FFFF 		.word	-20352
+ 1673              		.cfi_endproc
+ 1674              	.LFE25:
+ 1676              		.section	.text.mbedtls_ecdh_calc_secret,"ax",%progbits
+ 1677              		.align	1
+ 1678              		.global	mbedtls_ecdh_calc_secret
+ 1679              		.syntax unified
+ 1680              		.thumb
+ 1681              		.thumb_func
+ 1683              	mbedtls_ecdh_calc_secret:
+ 1684              	.LVL168:
+ 1685              	.LFB27:
+ 691:Libs/mbedtls/library/ecdh.c **** 
+ 692:Libs/mbedtls/library/ecdh.c **** /*
+ 693:Libs/mbedtls/library/ecdh.c ****  * Derive and export the shared secret
+ 694:Libs/mbedtls/library/ecdh.c ****  */
+ 695:Libs/mbedtls/library/ecdh.c **** int mbedtls_ecdh_calc_secret(mbedtls_ecdh_context *ctx, size_t *olen,
+ 696:Libs/mbedtls/library/ecdh.c ****                              unsigned char *buf, size_t blen,
+ 697:Libs/mbedtls/library/ecdh.c ****                              int (*f_rng)(void *, unsigned char *, size_t),
+ 698:Libs/mbedtls/library/ecdh.c ****                              void *p_rng)
+ 699:Libs/mbedtls/library/ecdh.c **** {
+ 1686              		.loc 1 699 1 is_stmt 1 view -0
+ 1687              		.cfi_startproc
+ 1688              		@ args = 8, pretend = 0, frame = 0
+ 1689              		@ frame_needed = 0, uses_anonymous_args = 0
+ 700:Libs/mbedtls/library/ecdh.c ****     int restart_enabled = 0;
+ 1690              		.loc 1 700 5 view .LVU425
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 48
+
+
+ 701:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(ctx != NULL);
+ 1691              		.loc 1 701 5 view .LVU426
+ 1692              		.loc 1 701 5 view .LVU427
+ 1693              		.loc 1 701 5 view .LVU428
+ 702:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(olen != NULL);
+ 1694              		.loc 1 702 5 view .LVU429
+ 1695              		.loc 1 702 5 view .LVU430
+ 1696              		.loc 1 702 5 view .LVU431
+ 703:Libs/mbedtls/library/ecdh.c ****     ECDH_VALIDATE_RET(buf != NULL);
+ 1697              		.loc 1 703 5 view .LVU432
+ 1698              		.loc 1 703 5 view .LVU433
+ 1699              		.loc 1 703 5 view .LVU434
+ 704:Libs/mbedtls/library/ecdh.c **** 
+ 705:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECP_RESTARTABLE)
+ 706:Libs/mbedtls/library/ecdh.c ****     restart_enabled = ctx->restart_enabled;
+ 707:Libs/mbedtls/library/ecdh.c **** #endif
+ 708:Libs/mbedtls/library/ecdh.c **** 
+ 709:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+ 710:Libs/mbedtls/library/ecdh.c ****     return ecdh_calc_secret_internal(ctx, olen, buf, blen, f_rng, p_rng,
+ 711:Libs/mbedtls/library/ecdh.c ****                                      restart_enabled);
+ 712:Libs/mbedtls/library/ecdh.c **** #else
+ 713:Libs/mbedtls/library/ecdh.c ****     switch (ctx->var) {
+ 1700              		.loc 1 713 5 view .LVU435
+ 1701              		.loc 1 713 16 is_stmt 0 view .LVU436
+ 1702 0000 90F802C0 		ldrb	ip, [r0, #2]	@ zero_extendqisi2
+ 1703              		.loc 1 713 5 view .LVU437
+ 1704 0004 BCF1010F 		cmp	ip, #1
+ 1705 0008 0CD1     		bne	.L131
+ 699:Libs/mbedtls/library/ecdh.c ****     int restart_enabled = 0;
+ 1706              		.loc 1 699 1 view .LVU438
+ 1707 000a 10B5     		push	{r4, lr}
+ 1708              	.LCFI55:
+ 1709              		.cfi_def_cfa_offset 8
+ 1710              		.cfi_offset 4, -8
+ 1711              		.cfi_offset 14, -4
+ 1712 000c 84B0     		sub	sp, sp, #16
+ 1713              	.LCFI56:
+ 1714              		.cfi_def_cfa_offset 24
+ 714:Libs/mbedtls/library/ecdh.c **** #if defined(MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED)
+ 715:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_EVEREST:
+ 716:Libs/mbedtls/library/ecdh.c ****             return mbedtls_everest_calc_secret(&ctx->ctx.everest_ecdh, olen,
+ 717:Libs/mbedtls/library/ecdh.c ****                                                buf, blen, f_rng, p_rng);
+ 718:Libs/mbedtls/library/ecdh.c **** #endif
+ 719:Libs/mbedtls/library/ecdh.c ****         case MBEDTLS_ECDH_VARIANT_MBEDTLS_2_0:
+ 720:Libs/mbedtls/library/ecdh.c ****             return ecdh_calc_secret_internal(&ctx->ctx.mbed_ecdh, olen, buf,
+ 1715              		.loc 1 720 13 is_stmt 1 view .LVU439
+ 1716              		.loc 1 720 20 is_stmt 0 view .LVU440
+ 1717 000e 0024     		movs	r4, #0
+ 1718 0010 0294     		str	r4, [sp, #8]
+ 1719 0012 079C     		ldr	r4, [sp, #28]
+ 1720 0014 0194     		str	r4, [sp, #4]
+ 1721 0016 069C     		ldr	r4, [sp, #24]
+ 1722 0018 0094     		str	r4, [sp]
+ 1723 001a 0430     		adds	r0, r0, #4
+ 1724              	.LVL169:
+ 1725              		.loc 1 720 20 view .LVU441
+ 1726 001c FFF7FEFF 		bl	ecdh_calc_secret_internal
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 49
+
+
+ 1727              	.LVL170:
+ 721:Libs/mbedtls/library/ecdh.c ****                                              blen, f_rng, p_rng,
+ 722:Libs/mbedtls/library/ecdh.c ****                                              restart_enabled);
+ 723:Libs/mbedtls/library/ecdh.c ****         default:
+ 724:Libs/mbedtls/library/ecdh.c ****             return MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+ 725:Libs/mbedtls/library/ecdh.c ****     }
+ 726:Libs/mbedtls/library/ecdh.c **** #endif
+ 727:Libs/mbedtls/library/ecdh.c **** }
+ 1728              		.loc 1 727 1 view .LVU442
+ 1729 0020 04B0     		add	sp, sp, #16
+ 1730              	.LCFI57:
+ 1731              		.cfi_def_cfa_offset 8
+ 1732              		@ sp needed
+ 1733 0022 10BD     		pop	{r4, pc}
+ 1734              	.LVL171:
+ 1735              	.L131:
+ 1736              	.LCFI58:
+ 1737              		.cfi_def_cfa_offset 0
+ 1738              		.cfi_restore 4
+ 1739              		.cfi_restore 14
+ 724:Libs/mbedtls/library/ecdh.c ****     }
+ 1740              		.loc 1 724 20 view .LVU443
+ 1741 0024 0048     		ldr	r0, .L136
+ 1742              	.LVL172:
+ 1743              		.loc 1 727 1 view .LVU444
+ 1744 0026 7047     		bx	lr
+ 1745              	.L137:
+ 1746              		.align	2
+ 1747              	.L136:
+ 1748 0028 80B0FFFF 		.word	-20352
+ 1749              		.cfi_endproc
+ 1750              	.LFE27:
+ 1752              		.text
+ 1753              	.Letext0:
+ 1754              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1755              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1756              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1757              		.file 5 "Libs/mbedtls/include/mbedtls/bignum.h"
+ 1758              		.file 6 "Libs/mbedtls/include/mbedtls/ecp.h"
+ 1759              		.file 7 "Libs/mbedtls/include/mbedtls/ecdh.h"
+ 1760              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1761              		.file 9 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 50
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ecdh.c
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:20     .text.mbedtls_ecdh_grp_id:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:25     .text.mbedtls_ecdh_grp_id:00000000 mbedtls_ecdh_grp_id
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:43     .text.ecdh_gen_public_restartable:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:48     .text.ecdh_gen_public_restartable:00000000 ecdh_gen_public_restartable
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:125    .text.ecdh_compute_shared_restartable:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:130    .text.ecdh_compute_shared_restartable:00000000 ecdh_compute_shared_restartable
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:232    .text.ecdh_compute_shared_restartable:00000054 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:237    .text.ecdh_init_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:242    .text.ecdh_init_internal:00000000 ecdh_init_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:282    .text.ecdh_setup_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:287    .text.ecdh_setup_internal:00000000 ecdh_setup_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:319    .text.ecdh_setup_internal:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:324    .text.ecdh_free_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:329    .text.ecdh_free_internal:00000000 ecdh_free_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:369    .text.ecdh_read_params_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:374    .text.ecdh_read_params_internal:00000000 ecdh_read_params_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:406    .text.ecdh_read_public_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:411    .text.ecdh_read_public_internal:00000000 ecdh_read_public_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:473    .text.ecdh_read_public_internal:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:478    .text.ecdh_get_params_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:483    .text.ecdh_get_params_internal:00000000 ecdh_get_params_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:560    .text.ecdh_get_params_internal:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:565    .text.mbedtls_ecdh_can_do:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:571    .text.mbedtls_ecdh_can_do:00000000 mbedtls_ecdh_can_do
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:590    .text.mbedtls_ecdh_gen_public:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:596    .text.mbedtls_ecdh_gen_public:00000000 mbedtls_ecdh_gen_public
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:643    .text.ecdh_make_params_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:648    .text.ecdh_make_params_internal:00000000 ecdh_make_params_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:774    .text.ecdh_make_params_internal:0000006c $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:779    .text.ecdh_make_public_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:784    .text.ecdh_make_public_internal:00000000 ecdh_make_public_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:870    .text.ecdh_make_public_internal:00000048 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:875    .text.mbedtls_ecdh_compute_shared:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:881    .text.mbedtls_ecdh_compute_shared:00000000 mbedtls_ecdh_compute_shared
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:930    .text.ecdh_calc_secret_internal:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:935    .text.ecdh_calc_secret_internal:00000000 ecdh_calc_secret_internal
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1085   .text.ecdh_calc_secret_internal:00000080 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1090   .text.mbedtls_ecdh_init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1096   .text.mbedtls_ecdh_init:00000000 mbedtls_ecdh_init
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1125   .text.mbedtls_ecdh_setup:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1131   .text.mbedtls_ecdh_setup:00000000 mbedtls_ecdh_setup
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1182   .text.mbedtls_ecdh_free:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1188   .text.mbedtls_ecdh_free:00000000 mbedtls_ecdh_free
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1247   .text.mbedtls_ecdh_make_params:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1253   .text.mbedtls_ecdh_make_params:00000000 mbedtls_ecdh_make_params
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1326   .text.mbedtls_ecdh_make_params:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1331   .text.mbedtls_ecdh_read_params:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1337   .text.mbedtls_ecdh_read_params:00000000 mbedtls_ecdh_read_params
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1438   .text.mbedtls_ecdh_read_params:00000048 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1443   .text.mbedtls_ecdh_get_params:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1449   .text.mbedtls_ecdh_get_params:00000000 mbedtls_ecdh_get_params
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1533   .text.mbedtls_ecdh_get_params:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1538   .text.mbedtls_ecdh_make_public:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1544   .text.mbedtls_ecdh_make_public:00000000 mbedtls_ecdh_make_public
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1616   .text.mbedtls_ecdh_make_public:00000030 $d
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s 			page 51
+
+
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1621   .text.mbedtls_ecdh_read_public:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1627   .text.mbedtls_ecdh_read_public:00000000 mbedtls_ecdh_read_public
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1672   .text.mbedtls_ecdh_read_public:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1677   .text.mbedtls_ecdh_calc_secret:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1683   .text.mbedtls_ecdh_calc_secret:00000000 mbedtls_ecdh_calc_secret
+C:\Users\nicx5\AppData\Local\Temp\cc6O32Mf.s:1748   .text.mbedtls_ecdh_calc_secret:00000028 $d
+
+UNDEFINED SYMBOLS
+mbedtls_ecp_gen_privkey
+mbedtls_ecp_mul_restartable
+mbedtls_ecp_point_init
+mbedtls_ecp_point_free
+mbedtls_ecp_is_zero
+mbedtls_mpi_copy
+mbedtls_ecp_group_init
+mbedtls_mpi_init
+mbedtls_ecp_group_load
+mbedtls_ecp_group_free
+mbedtls_mpi_free
+mbedtls_ecp_tls_read_point
+mbedtls_ecp_copy
+mbedtls_ecp_tls_write_group
+mbedtls_ecp_tls_write_point
+mbedtls_mpi_size
+mbedtls_ecp_get_type
+mbedtls_mpi_write_binary
+mbedtls_mpi_write_binary_le
+memset
+mbedtls_ecp_tls_read_group_id

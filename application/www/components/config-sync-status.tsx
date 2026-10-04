@@ -4,6 +4,8 @@ import { Box, Button, HStack, Spinner, Text, VStack } from '@chakra-ui/react';
 import { LuCheck, LuCircleAlert, LuClock, LuPause } from 'react-icons/lu';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { useLanguage } from '@/contexts/language-context';
+import { useOverlayVisibility } from './ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 
 export function useConfigSyncStatus() {
     const { currentLanguage } = useLanguage();
@@ -54,8 +56,9 @@ export function ConfigDraftRecovery() {
     const { currentLanguage } = useLanguage();
     const zh = currentLanguage === 'zh';
     const { configRecovery, resolveConfigRecovery } = useGamepadConfig();
+    const visible = useOverlayVisibility(configRecovery.length > 0, OVERLAY_PRIORITY.recovery);
     if (!configRecovery.length) return null;
-    return <Box position="fixed" inset={0} bg="blackAlpha.700" zIndex={9500} display="grid" placeItems="center">
+    return <Box position="fixed" inset={0} bg="blackAlpha.700" zIndex={9500} display={visible ? 'grid' : 'none'} placeItems="center">
         <VStack role="dialog" aria-modal="true" aria-labelledby="draft-recovery-title" align="stretch" gap={4} p={6} borderRadius="lg" bg="bg.panel" maxWidth="640px" maxHeight="80vh" overflow="auto">
             <Text id="draft-recovery-title" fontWeight="bold">{zh ? '发现此设备尚未保存的修改' : 'Unsaved changes for this device'}</Text>
             <Text fontSize="sm">{zh ? '设备配置已重新读取。恢复会保留你的修改，其他字段采用设备当前值。' : 'The device has been read again. Restore your edits while keeping other current device values.'}</Text>

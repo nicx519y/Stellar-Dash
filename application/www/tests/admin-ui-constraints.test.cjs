@@ -29,6 +29,22 @@ const gamepadConfigContext = fs.readFileSync(
     'utf8'
 );
 
+test('administration pages do not open browser-native dialogs', () => {
+    const files = [];
+    const collect = directory => {
+        for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+            const file = path.join(directory, entry.name);
+            if (entry.isDirectory()) collect(file);
+            else if (/\.tsx?$/.test(entry.name)) files.push(file);
+        }
+    };
+    collect(path.join(webRoot, 'app', 'admin'));
+    collect(path.join(webRoot, 'components', 'admin'));
+    for (const file of files) {
+        assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /\b(?:window\.|globalThis\.)?(?:confirm|alert|prompt)\s*\(/, file);
+    }
+});
+
 test('administration page uses Chakra components without custom styling systems', () => {
     assert.match(adminPage, /from '@chakra-ui\/react'/);
     assert.doesNotMatch(adminPage, /className\s*=/);

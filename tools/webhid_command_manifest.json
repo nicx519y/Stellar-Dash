@@ -7,9 +7,9 @@
     {"name": "benchmark.stop", "scope": "config.read", "buildGuard": "HBOX_SECURE_BOOT_REQUIRED == 0", "writesFlash": false}
   ],
   "legacyCommandCount": 68,
-  "commandCount": 78,
+  "commandCount": 79,
   "migrationStatusCounts": {
-    "direct": 75,
+    "direct": 76,
     "equivalent": 1,
     "retired": 2
   },
@@ -105,6 +105,7 @@
       "scope": "firmware.update",
       "commands": [
         {"name": "begin_release_install", "migration": "direct", "consumers": ["release-install"], "test": "stubbed-dangerous"},
+        {"name": "backup_release_tx", "migration": "direct", "consumers": ["release-install"], "test": "stubbed-dangerous"},
         {"name": "prepare_release_install", "migration": "direct", "consumers": ["release-install"], "test": "stubbed-dangerous"},
         {"name": "activate_release_install", "migration": "direct", "consumers": ["release-install"], "test": "stubbed-dangerous"},
         {"name": "abort_release_install", "migration": "direct", "consumers": ["release-install"], "test": "stubbed-dangerous"},

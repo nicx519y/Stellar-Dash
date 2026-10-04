@@ -1,6 +1,7 @@
 #include "usb_webhid_fast.h"
 #include "usb_device.h"
 #include "usb_webhid_memory.h"
+#include "usb_management_control.h"
 #define WHF_COPY usb_webhid_copy
 #define WHF_CRC_CODE static USB_WEBHID_RAM
 #include "webhid_fast_link.h"
@@ -108,6 +109,8 @@ uint16_t usb_webhid_fast_feed_block(const uint8_t *data, uint16_t size) {
     return used;
 }
 bool usb_webhid_fast_submit(const uint8_t *report) {
+    /* USB cannot request a flash read or inject an SPI backup response. */
+    if(!report || txb_reserved(report)) return false;
     bool ok=usb_webhid_fast_ready() && whf_enqueue(&link,report);
     uint32_t pending=link.tx_produced-link.tx_acked;
     if(pending>queue_peak) queue_peak=pending;
@@ -119,7 +122,17 @@ void usb_webhid_fast_process(void) {
     uint16_t size;
     if(!link.epoch || link.failed || received) return;
     if(active) {
-        while((report=whf_peek(&link))!=0 && usb_device_submit_webhid_report(report,WEBHID_REPORT_BYTES)) {
+        while((report=whf_peek(&link))!=0) {
+            if(txb_reserved(report)) {
+                if(!txb_valid(report,XORA_TX_BULK_REQUEST)) { record_fault(7u); break; }
+                /* Leave the request queued under backpressure: never lose or
+                 * repeat a response, and never overwrite a partial RX block. */
+                if(link.tx_produced-link.tx_acked>=WHF_CAPACITY) break;
+                txb_reply(output,report,USB_BOARD_STATUS_OK);
+                if(!usb_management_control_read_tx_image(txb_u32(report+12),output+XORA_TX_BULK_HEADER_BYTES,txb_u16(report+16)))
+                    output[3]=USB_BOARD_STATUS_INTERNAL_ERROR;
+                if(!whf_enqueue(&link,output)) break;
+            } else if(!usb_device_submit_webhid_report(report,WEBHID_REPORT_BYTES)) break;
             whf_release(&link);
         }
     }

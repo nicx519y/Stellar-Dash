@@ -1,16 +1,13 @@
 'use client';
 
 import {
-  Badge,
   Box,
   Center,
-  Dialog,
   Flex,
   Heading,
   HStack,
   Input,
   NativeSelect,
-  Portal,
   Spinner,
   Stack,
   Table,
@@ -18,19 +15,13 @@ import {
 } from '@chakra-ui/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  LuCheck,
-  LuClipboard,
-  LuKeyRound,
   LuRefreshCw,
   LuSearch,
-  LuTrash2,
   LuUsers,
 } from 'react-icons/lu';
 import { adminRuntime } from '@hbox/admin-runtime';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { CloseButton } from '@/components/ui/close-button';
-import { Field } from '@/components/ui/field';
 import { toaster } from '@/components/ui/toaster';
 import { AdminCard, AdminPageHeader } from '@/components/admin/admin-surface';
 import { useLanguage } from '@/contexts/language-context';
@@ -38,8 +29,6 @@ import { useUserAuth } from '@/contexts/user-auth-context';
 import type {
   AdminUser,
   AdminUserPage,
-  ServiceTokenMetadata,
-  ServiceTokenScope,
 } from '@/lib/admin/types';
 import { AdminApiError } from '@/lib/admin/types';
 import type { AccountRole } from '@/lib/user-auth/types';
@@ -48,7 +37,7 @@ const PAGE_SIZE = 20;
 
 const COPY = {
   en: {
-    subtitle: 'Manage account roles and scoped service tokens.',
+    subtitle: 'Manage account roles.',
     signInRequired: 'Sign in with an administrator account to continue.',
     permissionRequired: 'This account does not have administrator permission.',
     users: 'Users',
@@ -69,34 +58,12 @@ const COPY = {
     next: 'Next',
     showing: (from: number, to: number, total: number) =>
       `Showing ${from}-${to} of ${total}`,
-    tokens: 'Service tokens',
-    tokensDescription: 'Use scoped tokens for release and device automation. Secrets are shown only once.',
-    tokenName: 'Token name',
-    tokenNamePlaceholder: 'Release automation',
-    expires: 'Expires in days',
-    scopes: 'Scopes',
-    createToken: 'Create token',
-    tokenCreated: 'Service token created',
-    tokenSecretWarning: 'Copy this secret now. It cannot be viewed again after this dialog closes.',
-    copy: 'Copy',
-    copied: 'Copied',
-    close: 'Close',
-    expiry: 'Expiry',
-    status: 'Status',
-    actions: 'Actions',
-    active: 'Active',
-    expired: 'Expired',
-    revoked: 'Revoked',
-    revoke: 'Revoke',
-    noTokens: 'No service tokens have been created.',
     requestFailed: 'The administrator request failed.',
     lastAdmin: 'The final active administrator cannot be downgraded.',
     roleUpdated: 'User role updated.',
-    tokenRevoked: 'Service token revoked.',
-    selectScope: 'Select at least one scope.',
   },
   zh: {
-    subtitle: '管理账号角色与限定权限的服务令牌。',
+    subtitle: '管理账号角色。',
     signInRequired: '请先使用管理员账号登录。',
     permissionRequired: '当前账号没有管理员权限。',
     users: '用户',
@@ -117,57 +84,22 @@ const COPY = {
     next: '下一页',
     showing: (from: number, to: number, total: number) =>
       `显示 ${from}-${to}，共 ${total} 项`,
-    tokens: '服务令牌',
-    tokensDescription: '为发版和设备自动化创建限定范围的令牌。令牌密钥只显示一次。',
-    tokenName: '令牌名称',
-    tokenNamePlaceholder: '发版自动化',
-    expires: '有效天数',
-    scopes: '权限范围',
-    createToken: '创建令牌',
-    tokenCreated: '服务令牌已创建',
-    tokenSecretWarning: '请立即复制密钥。关闭此对话框后无法再次查看。',
-    copy: '复制',
-    copied: '已复制',
-    close: '关闭',
-    expiry: '到期时间',
-    status: '状态',
-    actions: '操作',
-    active: '有效',
-    expired: '已过期',
-    revoked: '已撤销',
-    revoke: '撤销',
-    noTokens: '尚未创建服务令牌。',
     requestFailed: '管理员请求失败。',
     lastAdmin: '不能降级最后一个有效管理员。',
     roleUpdated: '用户角色已更新。',
-    tokenRevoked: '服务令牌已撤销。',
-    selectScope: '请至少选择一个权限范围。',
   },
 };
-
-function serviceTokenStatus(token: ServiceTokenMetadata) {
-  if (token.revokedAt !== null) return 'revoked';
-  if (token.expiresAt <= Date.now()) return 'expired';
-  return 'active';
-}
 
 export default function AdminUsersPage() {
   const { currentLanguage } = useLanguage();
   const { session, loading: sessionLoading, refreshSession } = useUserAuth();
   const copy = COPY[currentLanguage];
   const [usersPage, setUsersPage] = useState<AdminUserPage | null>(null);
-  const [tokens, setTokens] = useState<ServiceTokenMetadata[]>([]);
   const [draftQuery, setDraftQuery] = useState('');
   const [query, setQuery] = useState('');
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [changingUserUid, setChangingUserUid] = useState<string | null>(null);
-  const [revokingTokenId, setRevokingTokenId] = useState<string | null>(null);
-  const [tokenName, setTokenName] = useState('');
-  const [expiresInDays, setExpiresInDays] = useState('90');
-  const [scopes, setScopes] = useState<ServiceTokenScope[]>(['device.manage']);
-  const [creatingToken, setCreatingToken] = useState(false);
-  const [createdSecret, setCreatedSecret] = useState('');
 
   const isAdmin = session.authenticated && session.user?.role === 'admin';
 
@@ -185,12 +117,7 @@ export default function AdminUsersPage() {
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const [nextUsers, nextTokens] = await Promise.all([
-        adminRuntime.listUsers({ query, limit: PAGE_SIZE, offset }),
-        adminRuntime.listServiceTokens(),
-      ]);
-      setUsersPage(nextUsers);
-      setTokens(nextTokens);
+      setUsersPage(await adminRuntime.listUsers({ query, limit: PAGE_SIZE, offset }));
     } catch (error) {
       showError(error);
     } finally {
@@ -234,49 +161,6 @@ export default function AdminUsersPage() {
       showError(error);
     } finally {
       setChangingUserUid(null);
-    }
-  };
-
-  const toggleScope = (scope: ServiceTokenScope) => {
-    setScopes(current => current.includes(scope)
-      ? current.filter(item => item !== scope)
-      : [...current, scope]);
-  };
-
-  const createToken = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (scopes.length === 0) {
-      toaster.error({ title: copy.selectScope });
-      return;
-    }
-    setCreatingToken(true);
-    try {
-      const created = await adminRuntime.createServiceToken({
-        name: tokenName,
-        scopes,
-        expiresInDays: Number(expiresInDays),
-      });
-      setCreatedSecret(created.secret);
-      setTokenName('');
-      setExpiresInDays('90');
-      setTokens(await adminRuntime.listServiceTokens());
-    } catch (error) {
-      showError(error);
-    } finally {
-      setCreatingToken(false);
-    }
-  };
-
-  const revokeToken = async (id: string) => {
-    setRevokingTokenId(id);
-    try {
-      await adminRuntime.revokeServiceToken(id);
-      setTokens(await adminRuntime.listServiceTokens());
-      toaster.success({ title: copy.tokenRevoked });
-    } catch (error) {
-      showError(error);
-    } finally {
-      setRevokingTokenId(null);
     }
   };
 
@@ -399,175 +283,8 @@ export default function AdminUsersPage() {
               </Flex>
             </Stack>
           </AdminCard>
-
-          <AdminCard>
-            <Stack gap={5}>
-              <Stack gap={1}>
-                <HStack>
-                  <LuKeyRound />
-                  <Heading size="lg">{copy.tokens}</Heading>
-                </HStack>
-                <Text color="fg.muted">{copy.tokensDescription}</Text>
-              </Stack>
-              <Box as="form" onSubmit={createToken}>
-                <Stack gap={4}>
-                  <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
-                    <Field label={copy.tokenName} required flex="1">
-                      <Input
-                        value={tokenName}
-                        onChange={event => setTokenName(event.target.value)}
-                        placeholder={copy.tokenNamePlaceholder}
-                        minLength={1}
-                        maxLength={80}
-                        required
-                      />
-                    </Field>
-                    <Field label={copy.expires} required width={{ base: 'full', md: '180px' }}>
-                      <Input
-                        type="number"
-                        value={expiresInDays}
-                        onChange={event => setExpiresInDays(event.target.value)}
-                        min={1}
-                        max={365}
-                        required
-                      />
-                    </Field>
-                  </Flex>
-                  <Field label={copy.scopes} required>
-                    <HStack flexWrap="wrap">
-                      {(['device.manage', 'firmware.manage'] as ServiceTokenScope[]).map(scope => {
-                        const selected = scopes.includes(scope);
-                        return (
-                          <Button
-                            key={scope}
-                            type="button"
-                            variant={selected ? 'solid' : 'surface'}
-                            colorPalette={selected ? 'green' : 'gray'}
-                            onClick={() => toggleScope(scope)}
-                            aria-pressed={selected}
-                          >
-                            {selected && <LuCheck />}
-                            {scope}
-                          </Button>
-                        );
-                      })}
-                    </HStack>
-                  </Field>
-                  <Button
-                    type="submit"
-                    colorPalette="green"
-                    loading={creatingToken}
-                    alignSelf="flex-start"
-                  >
-                    <LuKeyRound />
-                    {copy.createToken}
-                  </Button>
-                </Stack>
-              </Box>
-              <Box overflowX="auto">
-                <Table.Root size="sm" minWidth="720px" interactive>
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.ColumnHeader>{copy.tokenName}</Table.ColumnHeader>
-                      <Table.ColumnHeader>{copy.scopes}</Table.ColumnHeader>
-                      <Table.ColumnHeader>{copy.expiry}</Table.ColumnHeader>
-                      <Table.ColumnHeader>{copy.status}</Table.ColumnHeader>
-                      <Table.ColumnHeader>{copy.actions}</Table.ColumnHeader>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {tokens.map(token => {
-                      const status = serviceTokenStatus(token);
-                      return (
-                        <Table.Row key={token.id}>
-                          <Table.Cell>{token.name}</Table.Cell>
-                          <Table.Cell>
-                            <HStack flexWrap="wrap">
-                              {token.scopes.map(scope => (
-                                <Badge key={scope} variant="surface" colorPalette="purple">
-                                  {scope}
-                                </Badge>
-                              ))}
-                            </HStack>
-                          </Table.Cell>
-                          <Table.Cell>{formatDate(token.expiresAt)}</Table.Cell>
-                          <Table.Cell>
-                            <Badge
-                              colorPalette={status === 'active'
-                                ? 'green'
-                                : status === 'expired' ? 'orange' : 'red'}
-                            >
-                              {copy[status]}
-                            </Badge>
-                          </Table.Cell>
-                          <Table.Cell>
-                            <Button
-                              size="sm"
-                              variant="surface"
-                              colorPalette="red"
-                              disabled={status !== 'active'}
-                              loading={revokingTokenId === token.id}
-                              onClick={() => void revokeToken(token.id)}
-                            >
-                              <LuTrash2 />
-                              {copy.revoke}
-                            </Button>
-                          </Table.Cell>
-                        </Table.Row>
-                      );
-                    })}
-                  </Table.Body>
-                </Table.Root>
-              </Box>
-              {tokens.length === 0 && (
-                <Text color="fg.muted" textAlign="center">{copy.noTokens}</Text>
-              )}
-            </Stack>
-          </AdminCard>
         </Stack>
       )}
-
-      <Portal>
-        <Dialog.Root
-          open={createdSecret.length > 0}
-          onOpenChange={details => {
-            if (!details.open) setCreatedSecret('');
-          }}
-        >
-          <Dialog.Backdrop backdropFilter="blur(4px)" />
-          <Dialog.Positioner alignItems="flex-start" pt={16}>
-            <Dialog.Content width="min(92vw, 620px)">
-              <Dialog.Header>
-                <Dialog.Title>{copy.tokenCreated}</Dialog.Title>
-              </Dialog.Header>
-              <Dialog.Body>
-                <Stack gap={4}>
-                  <Alert colorPalette="orange" title={copy.tokenSecretWarning} />
-                  <Input value={createdSecret} readOnly fontFamily="mono" />
-                  <Button
-                    colorPalette="green"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(createdSecret);
-                      toaster.success({ title: copy.copied });
-                    }}
-                  >
-                    <LuClipboard />
-                    {copy.copy}
-                  </Button>
-                </Stack>
-              </Dialog.Body>
-              <Dialog.Footer>
-                <Button variant="surface" onClick={() => setCreatedSecret('')}>
-                  {copy.close}
-                </Button>
-              </Dialog.Footer>
-              <Dialog.CloseTrigger asChild>
-                <CloseButton size="sm" />
-              </Dialog.CloseTrigger>
-            </Dialog.Content>
-          </Dialog.Positioner>
-        </Dialog.Root>
-      </Portal>
     </>
   );
 }

@@ -235,6 +235,7 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
     };
     static const char *const firmwareUpdate[] = {
         "begin_release_install",
+        "backup_release_tx",
         "prepare_release_install",
         "activate_release_install",
         "abort_release_install",
@@ -329,7 +330,7 @@ WebHidRpcResult WebHidRpcDispatcher::dispatch(
     const std::string command(commandItem->valuestring);
     const uint32_t scope = requiredScope(command);
     if (RELEASE_INSTALLER.busy() && scope != HBOX_SCOPE_CONFIG_READ &&
-        command != "prepare_release_install" && command != "activate_release_install" &&
+        command != "backup_release_tx" && command != "prepare_release_install" && command != "activate_release_install" &&
         command != "abort_release_install" && command != "retry_release_install")
         return localError(transactionId, 409, "Whole-device installation is exclusive");
     if (scope == UINT32_MAX) {

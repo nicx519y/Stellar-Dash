@@ -4,7 +4,8 @@ import { closeDialog as closeFinishDialog, openDialog as openFinishDialog, updat
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { configuredTransportMode } from "@/lib/device-transport";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { toaster } from "@/components/ui/toaster";
 import { useConfigSyncStatus } from "@/components/config-sync-status";
 
 
@@ -19,7 +20,6 @@ export function FinishConfigButton(
         setUserRebooting,
         flushDeferredConfig,
         terminateWebConfigActivities,
-        deviceConnected,
         setError,
     } = useGamepadConfig();
     const [closing, setClosing] = useState(false);
@@ -39,11 +39,6 @@ export function FinishConfigButton(
         observer.observe(measure);
         return () => observer.disconnect();
     }, [label]);
-
-    useEffect(() => {
-        if (!deviceConnected) return;
-        closeFinishDialog('finish-config-success');
-    }, [deviceConnected]);
 
     return (
         <Button
@@ -105,26 +100,9 @@ export function FinishConfigButton(
                         );
                         closeFinishDialog(savingDialogId);
 
-                        if (configuredTransportMode() === 'mock') {
-                            const dialogId = openFinishDialog({
-                                id: 'finish-config-success',
-                                title: t.DIALOG_FINISH_SUCCESS_TITLE,
-                                status: "success",
-                                message: t.DIALOG_FINISH_SUCCESS_MESSAGE,
-                                buttons: [{
-                                    text: t.BUTTON_CONFIRM,
-                                    colorPalette: "green",
-                                    onClick: () => closeFinishDialog(dialogId),
-                                }],
-                            });
-                            return;
-                        }
-
-                        openFinishDialog({
-                            id: 'finish-config-success',
+                        toaster.success({
                             title: t.DIALOG_FINISH_SUCCESS_TITLE,
-                            status: "warning",
-                            message: t.DIALOG_FINISH_SUCCESS_MESSAGE,
+                            description: t.DIALOG_FINISH_SUCCESS_MESSAGE,
                         });
                     } catch (error) {
                         closeFinishDialog(savingDialogId);

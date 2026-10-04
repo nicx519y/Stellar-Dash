@@ -5,11 +5,20 @@
 #include "usb_auth.h"
 #include "usb_webhid_fast.h"
 #include "rf_binding_protocol.h"
+#include "ch585_iap_protocol.h"
+#include "release_install_protocol.h"
+#include "tx_image_bulk.h"
 
 static uint8_t s_connected;
 static uint8_t s_last_fault;
 static usb_board_role_t s_binding_role;
 void usb_management_control_set_role(usb_board_role_t role){s_binding_role=role;}
+bool usb_management_control_read_tx_image(uint32_t offset,uint8_t *bytes,uint16_t length)
+{
+    if(s_binding_role!=USB_BOARD_ROLE_MAINTENANCE || !bytes || !txb_range(offset,length)) return false;
+    memcpy(bytes,(const void*)(uintptr_t)(CH585_IAP_APP_START+offset),length);
+    return true;
+}
 __attribute__((weak)) void usb_management_control_hw_rf_binding(const uint8_t *request,uint8_t *response)
 {
     rfb_response_init(response,request,RFB_UNSUPPORTED);rfb_response_finish(response);
@@ -82,6 +91,39 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
     {
         switch((usb_board_control_opcode_t)request.header.opcode)
         {
+        case USB_BOARD_CONTROL_TX_IMAGE_BULK_INFO:
+            if(s_binding_role!=USB_BOARD_ROLE_MAINTENANCE) status=USB_BOARD_STATUS_BAD_ROLE;
+            else if(request.header.data_length!=0u) status=USB_BOARD_STATUS_BAD_LENGTH;
+            else if(!usb_webhid_fast_ready()) status=USB_BOARD_STATUS_NOT_READY;
+            else {
+                txb_put32(response.data,XORA_TX_BULK_MAGIC);
+                txb_put32(response.data+4,XORA_TX_BULK_VERSION);
+                txb_put32(response.data+8,XORA_TX_BULK_READ_BYTES);
+                response.header.data_length=12u;
+            }
+            break;
+        case USB_BOARD_CONTROL_TX_IMAGE_INFO:
+            if(s_binding_role != USB_BOARD_ROLE_MAINTENANCE) status=USB_BOARD_STATUS_BAD_ROLE;
+            else if(request.header.data_length != 0u) status=USB_BOARD_STATUS_BAD_LENGTH;
+            else {
+                const uint32_t info[3]={2u,CH585_IAP_APP_START,CH585_IAP_APP_CAPACITY};
+                memcpy(response.data,info,sizeof(info));response.header.data_length=sizeof(info);
+            }
+            break;
+        case USB_BOARD_CONTROL_TX_IMAGE_READ:
+            if(s_binding_role != USB_BOARD_ROLE_MAINTENANCE) status=USB_BOARD_STATUS_BAD_ROLE;
+            else if(request.header.data_length != 6u) status=USB_BOARD_STATUS_BAD_LENGTH;
+            else {
+                uint32_t offset;uint16_t length;
+                memcpy(&offset,request.data,4);memcpy(&length,request.data+4,2);
+                if(!xora_tx_read_range_valid(offset,length)) status=USB_BOARD_STATUS_BAD_LENGTH;
+                else {
+                    memcpy(response.data,request.data,6);
+                    memcpy(response.data+6,(const void*)(uintptr_t)(CH585_IAP_APP_START+offset),length);
+                    response.header.data_length=(uint8_t)(6u+length);
+                }
+            }
+            break;
         case USB_BOARD_CONTROL_RF_BINDING:
             if(s_binding_role!=USB_BOARD_ROLE_MAINTENANCE)status=USB_BOARD_STATUS_BAD_ROLE;
             else if(request.header.data_length!=RFB_REQUEST_SIZE)status=USB_BOARD_STATUS_BAD_LENGTH;

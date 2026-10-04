@@ -11,6 +11,7 @@ extern "C" {
 
 struct ScreenTimedPopup {
     bool visible;
+    bool persistent;
     uint32_t closeAtMs;
     const char* title;
     const char* const* lines;

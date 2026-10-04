@@ -33,3 +33,25 @@ python -m unittest tools.tests.test_frozen_flash_contract -v
 修改前冻结契约仅 `tools/hbox.py` 已有哈希差异；修改后新增 `tools/build.py`
 与 `tools/webconfig_flash.py` 两项待验收差异。不得通过更新哈希消除失败；待
 完整实机验收后再按项目规则更新契约。
+
+## QSPI 回退脚本初始化顺序修复（2026-10-04）
+
+本次作为独立烧录流程修复处理。NRST 回退在加载整文件烧录脚本前已执行
+`init`，而该脚本再次设置 `gdb_port disabled`，OpenOCD 因配置命令只能在
+初始化前执行而停止。现在将 GDB/Tcl/Telnet 端口配置移到公共命令前缀；正常
+路径和回退路径都在初始化前配置，烧录脚本不再重复设置端口。
+
+新增回归实际在 Tcl 模拟器中执行生成的命令与脚本，拒绝初始化后的端口配置。
+修改前回退场景复现同类错误，修改后正常及回退场景通过。上方五个主机测试模块
+合计 57 项通过，覆盖复位失败清理、目标绑定、写入范围、回读、事务恢复及
+metadata 最后提交；这些测试不启动 OpenOCD，也不访问设备。
+
+修改前已核实冻结哈希存在四项差异：`RF_PHY_Hop/TX/Makefile`、`tools/build.py`、
+`tools/hbox.py`、`tools/webconfig_flash.py`。本次不更新冻结哈希；修复后的
+`tools/build.py` 仍须实机验收。日志中的 DBGMCU `examine-end` 读取失败是否
+仍会出现，尚未通过设备复测确认，不能据主机测试宣称已恢复烧录。
+
+中断事务仍保留在 `.hbox/webconfig-local/flash-transactions/`。现有产物、签名和
+事务摘要一致时，`python tools/hbox.py flash app A`（明确选用 B 槽时改为 B）
+会经过目标及状态验证自动读取该事务的本地恢复令牌。恢复同一事务时不加
+`--build`，不清理事务目录或重新生成产物；命令会实际写设备，不作为主机验证。

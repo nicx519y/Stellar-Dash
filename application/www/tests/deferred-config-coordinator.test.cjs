@@ -98,10 +98,9 @@ test('navigation does not flush configuration; finish remains a durable boundary
   assert.match(finish, /await exitWebConfig\(\)/);
   assert.match(finish, /terminateWebConfigActivities/);
   assert.match(finish, /updateFinishDialogMessage\(savingDialogId, t\.DIALOG_CONFIG_EXITING_MESSAGE\)/);
-  assert.match(
-    finish,
-    /useEffect\(\(\) => \{\s*if \(!deviceConnected\) return;\s*closeFinishDialog\('finish-config-success'\);\s*\}, \[deviceConnected\]\);/,
-  );
+  // Exiting leaves one connection card; success must not open another modal.
+  assert.match(finish, /toaster\.success\(\{\s*title: t\.DIALOG_FINISH_SUCCESS_TITLE/);
+  assert.doesNotMatch(finish, /id: 'finish-config-success'/);
   assert.doesNotMatch(finish, /await rebootSystem\(\)/);
 
   const context = fs.readFileSync(

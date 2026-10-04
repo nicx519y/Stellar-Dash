@@ -79,7 +79,13 @@ static bool hsDma(const uint8_t *tx, uint8_t *rx, uint16_t size)
     const uint32_t start=HAL_GetTick();
     /* Dedicated streams are polled here; handlers execute HAL completion
      * bookkeeping without taking over the RF-owned SPI4 interrupt vector. */
-    while(HAL_SPI_GetState(&s_hspi)!=HAL_SPI_STATE_READY) {
+    /* RX completion can enable SPI EOT after the TX handler has already
+     * polled this iteration. EOT makes SPI READY while TX's completion flag
+     * is still pending, leaving that DMA handle BUSY/locked. Retire both
+     * streams before allowing the next header/body transaction to start. */
+    while(HAL_SPI_GetState(&s_hspi)!=HAL_SPI_STATE_READY ||
+          HAL_DMA_GetState(&s_hsTxDma)!=HAL_DMA_STATE_READY ||
+          HAL_DMA_GetState(&s_hsRxDma)!=HAL_DMA_STATE_READY) {
         HAL_DMA_IRQHandler(&s_hsTxDma); HAL_DMA_IRQHandler(&s_hsRxDma);
         HAL_SPI_IRQHandler(&s_hspi);
         if(HAL_GetTick()-start>=10u) { (void)HAL_SPI_Abort(&s_hspi); return false; }

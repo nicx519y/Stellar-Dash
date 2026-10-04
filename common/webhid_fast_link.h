@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "webhid_protocol.h"
+#include "tx_image_bulk.h"
 
 #ifndef WHF_COPY
 #define WHF_COPY memcpy
@@ -65,7 +66,7 @@ static inline void whf_init(whf_link_t *s, uint32_t epoch) {
 }
 static inline bool whf_is_control(const uint8_t *report) {
     return report[1]==WEBHID_REPORT_BOOTSTRAP_REQUEST || report[1]==WEBHID_REPORT_BOOTSTRAP_RESPONSE ||
-        report[1]==WEBHID_REPORT_SECURE_REQUEST || report[1]==WEBHID_REPORT_SECURE_RESPONSE || report[1]==0x7Fu;
+        report[1]==WEBHID_REPORT_SECURE_REQUEST || report[1]==WEBHID_REPORT_SECURE_RESPONSE || report[1]==0x7Fu || txb_reserved(report);
 }
 static inline bool whf_enqueue(whf_link_t *s, const uint8_t *report) {
     if(s->epoch==0u || s->failed || !report || s->tx_produced>=WHF_COUNTER_LIMIT ||

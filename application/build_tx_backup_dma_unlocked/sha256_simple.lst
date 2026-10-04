@@ -1,0 +1,1259 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"sha256_simple.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/sha256_simple/sha256_simple.c"
+  19              		.section	.text.sha256_transform,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	sha256_transform:
+  26              	.LVL0:
+  27              	.LFB0:
+   1:Libs/sha256_simple/sha256_simple.c **** #include "sha256_simple.h"
+   2:Libs/sha256_simple/sha256_simple.c **** #include <string.h>
+   3:Libs/sha256_simple/sha256_simple.c **** 
+   4:Libs/sha256_simple/sha256_simple.c **** // SHA256 常量
+   5:Libs/sha256_simple/sha256_simple.c **** static const uint32_t K[64] = {
+   6:Libs/sha256_simple/sha256_simple.c ****     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+   7:Libs/sha256_simple/sha256_simple.c ****     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+   8:Libs/sha256_simple/sha256_simple.c ****     0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+   9:Libs/sha256_simple/sha256_simple.c ****     0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  10:Libs/sha256_simple/sha256_simple.c ****     0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  11:Libs/sha256_simple/sha256_simple.c ****     0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  12:Libs/sha256_simple/sha256_simple.c ****     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  13:Libs/sha256_simple/sha256_simple.c ****     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  14:Libs/sha256_simple/sha256_simple.c **** };
+  15:Libs/sha256_simple/sha256_simple.c **** 
+  16:Libs/sha256_simple/sha256_simple.c **** // 辅助宏
+  17:Libs/sha256_simple/sha256_simple.c **** #define ROTR(x, n) (((x) >> (n)) | ((x) << (32 - (n))))
+  18:Libs/sha256_simple/sha256_simple.c **** #define CH(x, y, z) (((x) & (y)) ^ (~(x) & (z)))
+  19:Libs/sha256_simple/sha256_simple.c **** #define MAJ(x, y, z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
+  20:Libs/sha256_simple/sha256_simple.c **** #define EP0(x) (ROTR(x, 2) ^ ROTR(x, 13) ^ ROTR(x, 22))
+  21:Libs/sha256_simple/sha256_simple.c **** #define EP1(x) (ROTR(x, 6) ^ ROTR(x, 11) ^ ROTR(x, 25))
+  22:Libs/sha256_simple/sha256_simple.c **** #define SIG0(x) (ROTR(x, 7) ^ ROTR(x, 18) ^ ((x) >> 3))
+  23:Libs/sha256_simple/sha256_simple.c **** #define SIG1(x) (ROTR(x, 17) ^ ROTR(x, 19) ^ ((x) >> 10))
+  24:Libs/sha256_simple/sha256_simple.c **** 
+  25:Libs/sha256_simple/sha256_simple.c **** static void sha256_transform(sha256_simple_ctx_t *ctx,
+  26:Libs/sha256_simple/sha256_simple.c ****                              const uint8_t data[64]) {
+  28              		.loc 1 26 54 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 288
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		.loc 1 26 54 is_stmt 0 view .LVU1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 2
+
+
+  33 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+  34              	.LCFI0:
+  35              		.cfi_def_cfa_offset 36
+  36              		.cfi_offset 4, -36
+  37              		.cfi_offset 5, -32
+  38              		.cfi_offset 6, -28
+  39              		.cfi_offset 7, -24
+  40              		.cfi_offset 8, -20
+  41              		.cfi_offset 9, -16
+  42              		.cfi_offset 10, -12
+  43              		.cfi_offset 11, -8
+  44              		.cfi_offset 14, -4
+  45 0004 C9B0     		sub	sp, sp, #292
+  46              	.LCFI1:
+  47              		.cfi_def_cfa_offset 328
+  48 0006 8146     		mov	r9, r0
+  27:Libs/sha256_simple/sha256_simple.c ****     uint32_t a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
+  49              		.loc 1 27 5 is_stmt 1 view .LVU2
+  28:Libs/sha256_simple/sha256_simple.c **** 
+  29:Libs/sha256_simple/sha256_simple.c ****     for (i = 0, j = 0; i < 16; ++i, j += 4) {
+  50              		.loc 1 29 5 view .LVU3
+  51              	.LVL1:
+  52              		.loc 1 29 19 is_stmt 0 view .LVU4
+  53 0008 0020     		movs	r0, #0
+  54              	.LVL2:
+  55              		.loc 1 29 12 view .LVU5
+  56 000a 0246     		mov	r2, r0
+  57              		.loc 1 29 5 view .LVU6
+  58 000c 0FE0     		b	.L2
+  59              	.LVL3:
+  60              	.L3:
+  30:Libs/sha256_simple/sha256_simple.c ****         /* Cast before shifting: uint8_t promotes to signed int, and high-bit
+  31:Libs/sha256_simple/sha256_simple.c ****          * bytes shifted by 24 would otherwise overflow that signed type. */
+  32:Libs/sha256_simple/sha256_simple.c ****         m[i] = ((uint32_t)data[j] << 24) |
+  61              		.loc 1 32 9 is_stmt 1 view .LVU7
+  62              		.loc 1 32 31 is_stmt 0 view .LVU8
+  63 000e 0D5C     		ldrb	r5, [r1, r0]	@ zero_extendqisi2
+  33:Libs/sha256_simple/sha256_simple.c ****                ((uint32_t)data[j + 1] << 16) |
+  64              		.loc 1 33 31 view .LVU9
+  65 0010 0C18     		adds	r4, r1, r0
+  66 0012 6378     		ldrb	r3, [r4, #1]	@ zero_extendqisi2
+  67              		.loc 1 33 39 view .LVU10
+  68 0014 1B04     		lsls	r3, r3, #16
+  32:Libs/sha256_simple/sha256_simple.c ****                ((uint32_t)data[j + 1] << 16) |
+  69              		.loc 1 32 42 view .LVU11
+  70 0016 43EA0563 		orr	r3, r3, r5, lsl #24
+  34:Libs/sha256_simple/sha256_simple.c ****                ((uint32_t)data[j + 2] << 8) | (uint32_t)data[j + 3];
+  71              		.loc 1 34 31 view .LVU12
+  72 001a A578     		ldrb	r5, [r4, #2]	@ zero_extendqisi2
+  33:Libs/sha256_simple/sha256_simple.c ****                ((uint32_t)data[j + 1] << 16) |
+  73              		.loc 1 33 46 view .LVU13
+  74 001c 43EA0523 		orr	r3, r3, r5, lsl #8
+  75              		.loc 1 34 61 view .LVU14
+  76 0020 E478     		ldrb	r4, [r4, #3]	@ zero_extendqisi2
+  77              		.loc 1 34 45 view .LVU15
+  78 0022 2343     		orrs	r3, r3, r4
+  32:Libs/sha256_simple/sha256_simple.c ****                ((uint32_t)data[j + 1] << 16) |
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 3
+
+
+  79              		.loc 1 32 14 view .LVU16
+  80 0024 08AC     		add	r4, sp, #32
+  81 0026 44F82230 		str	r3, [r4, r2, lsl #2]
+  29:Libs/sha256_simple/sha256_simple.c ****         /* Cast before shifting: uint8_t promotes to signed int, and high-bit
+  82              		.loc 1 29 35 is_stmt 1 discriminator 3 view .LVU17
+  29:Libs/sha256_simple/sha256_simple.c ****         /* Cast before shifting: uint8_t promotes to signed int, and high-bit
+  83              		.loc 1 29 32 is_stmt 0 discriminator 3 view .LVU18
+  84 002a 0132     		adds	r2, r2, #1
+  85              	.LVL4:
+  29:Libs/sha256_simple/sha256_simple.c ****         /* Cast before shifting: uint8_t promotes to signed int, and high-bit
+  86              		.loc 1 29 39 discriminator 3 view .LVU19
+  87 002c 0430     		adds	r0, r0, #4
+  88              	.LVL5:
+  89              	.L2:
+  29:Libs/sha256_simple/sha256_simple.c ****         /* Cast before shifting: uint8_t promotes to signed int, and high-bit
+  90              		.loc 1 29 26 is_stmt 1 discriminator 1 view .LVU20
+  91 002e 0F2A     		cmp	r2, #15
+  92 0030 EDD9     		bls	.L3
+  93 0032 22E0     		b	.L4
+  94              	.LVL6:
+  95              	.L5:
+  35:Libs/sha256_simple/sha256_simple.c ****     }
+  36:Libs/sha256_simple/sha256_simple.c ****     for (; i < 64; ++i) {
+  37:Libs/sha256_simple/sha256_simple.c ****         m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
+  96              		.loc 1 37 9 view .LVU21
+  97              		.loc 1 37 16 is_stmt 0 view .LVU22
+  98 0034 931E     		subs	r3, r2, #2
+  99 0036 08A9     		add	r1, sp, #32
+ 100 0038 51F82310 		ldr	r1, [r1, r3, lsl #2]
+ 101 003c 4FEAF143 		ror	r3, r1, #19
+ 102 0040 83EA7143 		eor	r3, r3, r1, ror #17
+ 103 0044 83EA9123 		eor	r3, r3, r1, lsr #10
+ 104              		.loc 1 37 37 view .LVU23
+ 105 0048 D11F     		subs	r1, r2, #7
+ 106              		.loc 1 37 34 view .LVU24
+ 107 004a 08A8     		add	r0, sp, #32
+ 108 004c 50F82110 		ldr	r1, [r0, r1, lsl #2]
+ 109              		.loc 1 37 31 view .LVU25
+ 110 0050 0B44     		add	r3, r3, r1
+ 111              		.loc 1 37 44 view .LVU26
+ 112 0052 A2F10F01 		sub	r1, r2, #15
+ 113 0056 50F82100 		ldr	r0, [r0, r1, lsl #2]
+ 114 005a 4FEAB041 		ror	r1, r0, #18
+ 115 005e 81EAF011 		eor	r1, r1, r0, ror #7
+ 116 0062 81EAD001 		eor	r1, r1, r0, lsr #3
+ 117              		.loc 1 37 42 view .LVU27
+ 118 0066 0B44     		add	r3, r3, r1
+ 119              		.loc 1 37 66 view .LVU28
+ 120 0068 A2F11001 		sub	r1, r2, #16
+ 121              		.loc 1 37 63 view .LVU29
+ 122 006c 08A8     		add	r0, sp, #32
+ 123 006e 50F82110 		ldr	r1, [r0, r1, lsl #2]
+ 124              		.loc 1 37 60 view .LVU30
+ 125 0072 0B44     		add	r3, r3, r1
+ 126              		.loc 1 37 14 view .LVU31
+ 127 0074 40F82230 		str	r3, [r0, r2, lsl #2]
+  36:Libs/sha256_simple/sha256_simple.c ****         m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 4
+
+
+ 128              		.loc 1 36 20 is_stmt 1 discriminator 2 view .LVU32
+ 129 0078 0132     		adds	r2, r2, #1
+ 130              	.LVL7:
+ 131              	.L4:
+  36:Libs/sha256_simple/sha256_simple.c ****         m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
+ 132              		.loc 1 36 14 discriminator 1 view .LVU33
+ 133 007a 3F2A     		cmp	r2, #63
+ 134 007c DAD9     		bls	.L5
+  38:Libs/sha256_simple/sha256_simple.c ****     }
+  39:Libs/sha256_simple/sha256_simple.c **** 
+  40:Libs/sha256_simple/sha256_simple.c ****     a = ctx->state[0]; b = ctx->state[1]; c = ctx->state[2]; d = ctx->state[3];
+ 135              		.loc 1 40 5 view .LVU34
+ 136              		.loc 1 40 7 is_stmt 0 view .LVU35
+ 137 007e D9F800A0 		ldr	r10, [r9]
+ 138              	.LVL8:
+ 139              		.loc 1 40 24 is_stmt 1 view .LVU36
+ 140              		.loc 1 40 26 is_stmt 0 view .LVU37
+ 141 0082 D9F804B0 		ldr	fp, [r9, #4]
+ 142              	.LVL9:
+ 143              		.loc 1 40 43 is_stmt 1 view .LVU38
+ 144              		.loc 1 40 45 is_stmt 0 view .LVU39
+ 145 0086 D9F80810 		ldr	r1, [r9, #8]
+ 146              	.LVL10:
+ 147              		.loc 1 40 62 is_stmt 1 view .LVU40
+ 148              		.loc 1 40 64 is_stmt 0 view .LVU41
+ 149 008a D9F80C30 		ldr	r3, [r9, #12]
+ 150              	.LVL11:
+  41:Libs/sha256_simple/sha256_simple.c ****     e = ctx->state[4]; f = ctx->state[5]; g = ctx->state[6]; h = ctx->state[7];
+ 151              		.loc 1 41 5 is_stmt 1 view .LVU42
+ 152              		.loc 1 41 7 is_stmt 0 view .LVU43
+ 153 008e D9F81020 		ldr	r2, [r9, #16]
+ 154              	.LVL12:
+ 155              		.loc 1 41 7 view .LVU44
+ 156 0092 0192     		str	r2, [sp, #4]
+ 157              	.LVL13:
+ 158              		.loc 1 41 24 is_stmt 1 view .LVU45
+ 159              		.loc 1 41 26 is_stmt 0 view .LVU46
+ 160 0094 D9F81470 		ldr	r7, [r9, #20]
+ 161 0098 0297     		str	r7, [sp, #8]
+ 162              	.LVL14:
+ 163              		.loc 1 41 43 is_stmt 1 view .LVU47
+ 164              		.loc 1 41 45 is_stmt 0 view .LVU48
+ 165 009a D9F81860 		ldr	r6, [r9, #24]
+ 166 009e 0396     		str	r6, [sp, #12]
+ 167              	.LVL15:
+ 168              		.loc 1 41 62 is_stmt 1 view .LVU49
+ 169              		.loc 1 41 64 is_stmt 0 view .LVU50
+ 170 00a0 D9F81C00 		ldr	r0, [r9, #28]
+ 171 00a4 0490     		str	r0, [sp, #16]
+ 172              	.LVL16:
+  42:Libs/sha256_simple/sha256_simple.c **** 
+  43:Libs/sha256_simple/sha256_simple.c ****     for (i = 0; i < 64; ++i) {
+ 173              		.loc 1 43 5 is_stmt 1 view .LVU51
+  41:Libs/sha256_simple/sha256_simple.c ****     e = ctx->state[4]; f = ctx->state[5]; g = ctx->state[6]; h = ctx->state[7];
+ 174              		.loc 1 41 64 is_stmt 0 view .LVU52
+ 175 00a6 8646     		mov	lr, r0
+  40:Libs/sha256_simple/sha256_simple.c ****     e = ctx->state[4]; f = ctx->state[5]; g = ctx->state[6]; h = ctx->state[7];
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 5
+
+
+ 176              		.loc 1 40 64 view .LVU53
+ 177 00a8 9846     		mov	r8, r3
+  40:Libs/sha256_simple/sha256_simple.c ****     e = ctx->state[4]; f = ctx->state[5]; g = ctx->state[6]; h = ctx->state[7];
+ 178              		.loc 1 40 45 view .LVU54
+ 179 00aa 0C46     		mov	r4, r1
+  40:Libs/sha256_simple/sha256_simple.c ****     e = ctx->state[4]; f = ctx->state[5]; g = ctx->state[6]; h = ctx->state[7];
+ 180              		.loc 1 40 26 view .LVU55
+ 181 00ac 5D46     		mov	r5, fp
+  40:Libs/sha256_simple/sha256_simple.c ****     e = ctx->state[4]; f = ctx->state[5]; g = ctx->state[6]; h = ctx->state[7];
+ 182              		.loc 1 40 7 view .LVU56
+ 183 00ae D446     		mov	ip, r10
+ 184              		.loc 1 43 12 view .LVU57
+ 185 00b0 0020     		movs	r0, #0
+ 186              	.LVL17:
+ 187              		.loc 1 43 12 view .LVU58
+ 188 00b2 CDF814A0 		str	r10, [sp, #20]
+ 189 00b6 CDF818B0 		str	fp, [sp, #24]
+ 190 00ba 0791     		str	r1, [sp, #28]
+ 191              		.loc 1 43 5 view .LVU59
+ 192 00bc 30E0     		b	.L6
+ 193              	.LVL18:
+ 194              	.L7:
+  44:Libs/sha256_simple/sha256_simple.c ****         t1 = h + EP1(e) + CH(e, f, g) + K[i] + m[i];
+ 195              		.loc 1 44 9 is_stmt 1 view .LVU60
+ 196              		.loc 1 44 18 is_stmt 0 view .LVU61
+ 197 00be 4FEAF221 		ror	r1, r2, #11
+ 198 00c2 81EAB211 		eor	r1, r1, r2, ror #6
+ 199 00c6 81EA7261 		eor	r1, r1, r2, ror #25
+ 200              		.loc 1 44 16 view .LVU62
+ 201 00ca 7144     		add	r1, r1, lr
+ 202              		.loc 1 44 27 view .LVU63
+ 203 00cc 02EA070E 		and	lr, r2, r7
+ 204              	.LVL19:
+ 205              		.loc 1 44 27 view .LVU64
+ 206 00d0 26EA020A 		bic	r10, r6, r2
+ 207 00d4 8EEA0A0E 		eor	lr, lr, r10
+ 208              		.loc 1 44 25 view .LVU65
+ 209 00d8 8E44     		add	lr, lr, r1
+ 210              		.loc 1 44 42 view .LVU66
+ 211 00da 2549     		ldr	r1, .L9
+ 212 00dc 51F82010 		ldr	r1, [r1, r0, lsl #2]
+ 213              		.loc 1 44 39 view .LVU67
+ 214 00e0 0EEB010A 		add	r10, lr, r1
+ 215              		.loc 1 44 49 view .LVU68
+ 216 00e4 08A9     		add	r1, sp, #32
+ 217 00e6 51F82010 		ldr	r1, [r1, r0, lsl #2]
+ 218              		.loc 1 44 12 view .LVU69
+ 219 00ea 8A44     		add	r10, r10, r1
+ 220              	.LVL20:
+  45:Libs/sha256_simple/sha256_simple.c ****         t2 = EP0(a) + MAJ(a, b, c);
+ 221              		.loc 1 45 9 is_stmt 1 view .LVU70
+ 222              		.loc 1 45 14 is_stmt 0 view .LVU71
+ 223 00ec 4FEA7C3E 		ror	lr, ip, #13
+ 224 00f0 8EEABC0E 		eor	lr, lr, ip, ror #2
+ 225 00f4 8EEABC5E 		eor	lr, lr, ip, ror #22
+ 226              		.loc 1 45 23 view .LVU72
+ 227 00f8 85EA0401 		eor	r1, r5, r4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 6
+
+
+ 228 00fc 01EA0C01 		and	r1, r1, ip
+ 229 0100 05EA040B 		and	fp, r5, r4
+ 230 0104 81EA0B01 		eor	r1, r1, fp
+ 231              		.loc 1 45 12 view .LVU73
+ 232 0108 7144     		add	r1, r1, lr
+ 233              	.LVL21:
+  46:Libs/sha256_simple/sha256_simple.c ****         h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+ 234              		.loc 1 46 9 is_stmt 1 view .LVU74
+ 235              		.loc 1 46 16 view .LVU75
+ 236              		.loc 1 46 23 view .LVU76
+ 237              		.loc 1 46 30 view .LVU77
+ 238              		.loc 1 46 42 view .LVU78
+ 239              		.loc 1 46 49 view .LVU79
+ 240              		.loc 1 46 56 view .LVU80
+ 241              		.loc 1 46 63 view .LVU81
+  43:Libs/sha256_simple/sha256_simple.c ****         t1 = h + EP1(e) + CH(e, f, g) + K[i] + m[i];
+ 242              		.loc 1 43 25 discriminator 3 view .LVU82
+ 243 010a 0130     		adds	r0, r0, #1
+ 244              	.LVL22:
+ 245              		.loc 1 46 11 is_stmt 0 view .LVU83
+ 246 010c B646     		mov	lr, r6
+ 247              		.loc 1 46 18 view .LVU84
+ 248 010e 3E46     		mov	r6, r7
+ 249              	.LVL23:
+ 250              		.loc 1 46 25 view .LVU85
+ 251 0110 1746     		mov	r7, r2
+ 252              	.LVL24:
+ 253              		.loc 1 46 32 view .LVU86
+ 254 0112 08EB0A02 		add	r2, r8, r10
+ 255              	.LVL25:
+ 256              		.loc 1 46 44 view .LVU87
+ 257 0116 A046     		mov	r8, r4
+ 258              		.loc 1 46 51 view .LVU88
+ 259 0118 2C46     		mov	r4, r5
+ 260              	.LVL26:
+ 261              		.loc 1 46 58 view .LVU89
+ 262 011a 6546     		mov	r5, ip
+ 263              	.LVL27:
+ 264              		.loc 1 46 65 view .LVU90
+ 265 011c 0AEB010C 		add	ip, r10, r1
+ 266              	.LVL28:
+ 267              	.L6:
+  43:Libs/sha256_simple/sha256_simple.c ****         t1 = h + EP1(e) + CH(e, f, g) + K[i] + m[i];
+ 268              		.loc 1 43 19 is_stmt 1 discriminator 1 view .LVU91
+ 269 0120 3F28     		cmp	r0, #63
+ 270 0122 CCD9     		bls	.L7
+  47:Libs/sha256_simple/sha256_simple.c ****     }
+  48:Libs/sha256_simple/sha256_simple.c **** 
+  49:Libs/sha256_simple/sha256_simple.c ****     ctx->state[0] += a; ctx->state[1] += b; ctx->state[2] += c; ctx->state[3] += d;
+ 271              		.loc 1 49 19 is_stmt 0 view .LVU92
+ 272 0124 DDF814A0 		ldr	r10, [sp, #20]
+ 273 0128 DDF818B0 		ldr	fp, [sp, #24]
+ 274 012c 0799     		ldr	r1, [sp, #28]
+ 275              		.loc 1 49 5 is_stmt 1 view .LVU93
+ 276              		.loc 1 49 19 is_stmt 0 view .LVU94
+ 277 012e 0CEB0A00 		add	r0, ip, r10
+ 278              	.LVL29:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 7
+
+
+ 279              		.loc 1 49 19 view .LVU95
+ 280 0132 C9F80000 		str	r0, [r9]
+ 281              		.loc 1 49 25 is_stmt 1 view .LVU96
+ 282              		.loc 1 49 39 is_stmt 0 view .LVU97
+ 283 0136 5D44     		add	r5, r5, fp
+ 284              	.LVL30:
+ 285              		.loc 1 49 39 view .LVU98
+ 286 0138 C9F80450 		str	r5, [r9, #4]
+ 287              		.loc 1 49 45 is_stmt 1 view .LVU99
+ 288              		.loc 1 49 59 is_stmt 0 view .LVU100
+ 289 013c 0C44     		add	r4, r4, r1
+ 290              	.LVL31:
+ 291              		.loc 1 49 59 view .LVU101
+ 292 013e C9F80840 		str	r4, [r9, #8]
+ 293              		.loc 1 49 65 is_stmt 1 view .LVU102
+ 294              		.loc 1 49 79 is_stmt 0 view .LVU103
+ 295 0142 4344     		add	r3, r3, r8
+ 296 0144 C9F80C30 		str	r3, [r9, #12]
+  50:Libs/sha256_simple/sha256_simple.c ****     ctx->state[4] += e; ctx->state[5] += f; ctx->state[6] += g; ctx->state[7] += h;
+ 297              		.loc 1 50 5 is_stmt 1 view .LVU104
+ 298              		.loc 1 50 19 is_stmt 0 view .LVU105
+ 299 0148 019B     		ldr	r3, [sp, #4]
+ 300 014a 1A44     		add	r2, r2, r3
+ 301              	.LVL32:
+ 302              		.loc 1 50 19 view .LVU106
+ 303 014c C9F81020 		str	r2, [r9, #16]
+ 304              		.loc 1 50 25 is_stmt 1 view .LVU107
+ 305              		.loc 1 50 39 is_stmt 0 view .LVU108
+ 306 0150 029B     		ldr	r3, [sp, #8]
+ 307 0152 1F44     		add	r7, r7, r3
+ 308              	.LVL33:
+ 309              		.loc 1 50 39 view .LVU109
+ 310 0154 C9F81470 		str	r7, [r9, #20]
+ 311              		.loc 1 50 45 is_stmt 1 view .LVU110
+ 312              		.loc 1 50 59 is_stmt 0 view .LVU111
+ 313 0158 039B     		ldr	r3, [sp, #12]
+ 314 015a 1E44     		add	r6, r6, r3
+ 315              	.LVL34:
+ 316              		.loc 1 50 59 view .LVU112
+ 317 015c C9F81860 		str	r6, [r9, #24]
+ 318              		.loc 1 50 65 is_stmt 1 view .LVU113
+ 319              		.loc 1 50 79 is_stmt 0 view .LVU114
+ 320 0160 049B     		ldr	r3, [sp, #16]
+ 321 0162 7344     		add	r3, r3, lr
+ 322 0164 C9F81C30 		str	r3, [r9, #28]
+  51:Libs/sha256_simple/sha256_simple.c **** }
+ 323              		.loc 1 51 1 view .LVU115
+ 324 0168 49B0     		add	sp, sp, #292
+ 325              	.LCFI2:
+ 326              		.cfi_def_cfa_offset 36
+ 327              		@ sp needed
+ 328 016a BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 329              	.LVL35:
+ 330              	.L10:
+ 331              		.loc 1 51 1 view .LVU116
+ 332 016e 00BF     		.align	2
+ 333              	.L9:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 8
+
+
+ 334 0170 00000000 		.word	K
+ 335              		.cfi_endproc
+ 336              	.LFE0:
+ 338              		.section	.text.sha256_simple_init,"ax",%progbits
+ 339              		.align	1
+ 340              		.global	sha256_simple_init
+ 341              		.syntax unified
+ 342              		.thumb
+ 343              		.thumb_func
+ 345              	sha256_simple_init:
+ 346              	.LVL36:
+ 347              	.LFB1:
+  52:Libs/sha256_simple/sha256_simple.c **** 
+  53:Libs/sha256_simple/sha256_simple.c **** void sha256_simple_init(sha256_simple_ctx_t *ctx) {
+ 348              		.loc 1 53 51 is_stmt 1 view -0
+ 349              		.cfi_startproc
+ 350              		@ args = 0, pretend = 0, frame = 0
+ 351              		@ frame_needed = 0, uses_anonymous_args = 0
+ 352              		@ link register save eliminated.
+  54:Libs/sha256_simple/sha256_simple.c ****     if (!ctx) {
+ 353              		.loc 1 54 5 view .LVU118
+ 354              		.loc 1 54 8 is_stmt 0 view .LVU119
+ 355 0000 0346     		mov	r3, r0
+ 356 0002 C0B1     		cbz	r0, .L11
+  55:Libs/sha256_simple/sha256_simple.c ****         return;
+  56:Libs/sha256_simple/sha256_simple.c ****     }
+  57:Libs/sha256_simple/sha256_simple.c ****     ctx->count = 0;
+ 357              		.loc 1 57 5 is_stmt 1 view .LVU120
+ 358              		.loc 1 57 16 is_stmt 0 view .LVU121
+ 359 0004 0020     		movs	r0, #0
+ 360              	.LVL37:
+ 361              		.loc 1 57 16 view .LVU122
+ 362 0006 0021     		movs	r1, #0
+ 363 0008 C3E90801 		strd	r0, [r3, #32]
+  58:Libs/sha256_simple/sha256_simple.c ****     ctx->state[0] = 0x6a09e667; ctx->state[1] = 0xbb67ae85; ctx->state[2] = 0x3c6ef372; ctx->state[
+ 364              		.loc 1 58 5 is_stmt 1 view .LVU123
+ 365              		.loc 1 58 19 is_stmt 0 view .LVU124
+ 366 000c 0A4A     		ldr	r2, .L13
+ 367 000e 1A60     		str	r2, [r3]
+ 368              		.loc 1 58 33 is_stmt 1 view .LVU125
+ 369              		.loc 1 58 47 is_stmt 0 view .LVU126
+ 370 0010 0A4A     		ldr	r2, .L13+4
+ 371 0012 5A60     		str	r2, [r3, #4]
+ 372              		.loc 1 58 61 is_stmt 1 view .LVU127
+ 373              		.loc 1 58 75 is_stmt 0 view .LVU128
+ 374 0014 0A4A     		ldr	r2, .L13+8
+ 375 0016 9A60     		str	r2, [r3, #8]
+ 376              		.loc 1 58 89 is_stmt 1 view .LVU129
+ 377              		.loc 1 58 103 is_stmt 0 view .LVU130
+ 378 0018 0A4A     		ldr	r2, .L13+12
+ 379 001a DA60     		str	r2, [r3, #12]
+  59:Libs/sha256_simple/sha256_simple.c ****     ctx->state[4] = 0x510e527f; ctx->state[5] = 0x9b05688c; ctx->state[6] = 0x1f83d9ab; ctx->state[
+ 380              		.loc 1 59 5 is_stmt 1 view .LVU131
+ 381              		.loc 1 59 19 is_stmt 0 view .LVU132
+ 382 001c 0A4A     		ldr	r2, .L13+16
+ 383 001e 1A61     		str	r2, [r3, #16]
+ 384              		.loc 1 59 33 is_stmt 1 view .LVU133
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 9
+
+
+ 385              		.loc 1 59 47 is_stmt 0 view .LVU134
+ 386 0020 0A4A     		ldr	r2, .L13+20
+ 387 0022 5A61     		str	r2, [r3, #20]
+ 388              		.loc 1 59 61 is_stmt 1 view .LVU135
+ 389              		.loc 1 59 75 is_stmt 0 view .LVU136
+ 390 0024 0A4A     		ldr	r2, .L13+24
+ 391 0026 9A61     		str	r2, [r3, #24]
+ 392              		.loc 1 59 89 is_stmt 1 view .LVU137
+ 393              		.loc 1 59 103 is_stmt 0 view .LVU138
+ 394 0028 02F17452 		add	r2, r2, #1023410176
+ 395 002c A2F52302 		sub	r2, r2, #10682368
+ 396 0030 A2F69242 		subw	r2, r2, #3218
+ 397 0034 DA61     		str	r2, [r3, #28]
+ 398              	.L11:
+  60:Libs/sha256_simple/sha256_simple.c **** }
+ 399              		.loc 1 60 1 view .LVU139
+ 400 0036 7047     		bx	lr
+ 401              	.L14:
+ 402              		.align	2
+ 403              	.L13:
+ 404 0038 67E6096A 		.word	1779033703
+ 405 003c 85AE67BB 		.word	-1150833019
+ 406 0040 72F36E3C 		.word	1013904242
+ 407 0044 3AF54FA5 		.word	-1521486534
+ 408 0048 7F520E51 		.word	1359893119
+ 409 004c 8C68059B 		.word	-1694144372
+ 410 0050 ABD9831F 		.word	528734635
+ 411              		.cfi_endproc
+ 412              	.LFE1:
+ 414              		.section	.text.sha256_simple_update,"ax",%progbits
+ 415              		.align	1
+ 416              		.global	sha256_simple_update
+ 417              		.syntax unified
+ 418              		.thumb
+ 419              		.thumb_func
+ 421              	sha256_simple_update:
+ 422              	.LVL38:
+ 423              	.LFB2:
+  61:Libs/sha256_simple/sha256_simple.c **** 
+  62:Libs/sha256_simple/sha256_simple.c **** void sha256_simple_update(sha256_simple_ctx_t *ctx,
+  63:Libs/sha256_simple/sha256_simple.c ****                           const uint8_t *data,
+  64:Libs/sha256_simple/sha256_simple.c ****                           size_t len) {
+ 424              		.loc 1 64 39 is_stmt 1 view -0
+ 425              		.cfi_startproc
+ 426              		@ args = 0, pretend = 0, frame = 0
+ 427              		@ frame_needed = 0, uses_anonymous_args = 0
+  65:Libs/sha256_simple/sha256_simple.c ****     size_t i;
+ 428              		.loc 1 65 5 view .LVU141
+  66:Libs/sha256_simple/sha256_simple.c ****     if (!ctx || (!data && len != 0u)) {
+ 429              		.loc 1 66 5 view .LVU142
+ 430              		.loc 1 66 8 is_stmt 0 view .LVU143
+ 431 0000 30B3     		cbz	r0, .L21
+  64:Libs/sha256_simple/sha256_simple.c ****     size_t i;
+ 432              		.loc 1 64 39 view .LVU144
+ 433 0002 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 434              	.LCFI3:
+ 435              		.cfi_def_cfa_offset 24
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 10
+
+
+ 436              		.cfi_offset 3, -24
+ 437              		.cfi_offset 4, -20
+ 438              		.cfi_offset 5, -16
+ 439              		.cfi_offset 6, -12
+ 440              		.cfi_offset 7, -8
+ 441              		.cfi_offset 14, -4
+ 442 0004 0F46     		mov	r7, r1
+ 443 0006 1646     		mov	r6, r2
+ 444 0008 0446     		mov	r4, r0
+ 445              		.loc 1 66 24 discriminator 1 view .LVU145
+ 446 000a B1FA81F3 		clz	r3, r1
+ 447 000e 5B09     		lsrs	r3, r3, #5
+ 448 0010 002A     		cmp	r2, #0
+ 449 0012 08BF     		it	eq
+ 450 0014 0023     		moveq	r3, #0
+ 451              		.loc 1 66 14 discriminator 1 view .LVU146
+ 452 0016 D3B9     		cbnz	r3, .L15
+  67:Libs/sha256_simple/sha256_simple.c ****         return;
+  68:Libs/sha256_simple/sha256_simple.c ****     }
+  69:Libs/sha256_simple/sha256_simple.c ****     for (i = 0; i < len; ++i) {
+ 453              		.loc 1 69 12 view .LVU147
+ 454 0018 0025     		movs	r5, #0
+ 455 001a 00E0     		b	.L17
+ 456              	.LVL39:
+ 457              	.L18:
+ 458              		.loc 1 69 26 is_stmt 1 discriminator 2 view .LVU148
+ 459 001c 0135     		adds	r5, r5, #1
+ 460              	.LVL40:
+ 461              	.L17:
+ 462              		.loc 1 69 19 discriminator 1 view .LVU149
+ 463 001e B542     		cmp	r5, r6
+ 464 0020 15D2     		bcs	.L15
+  70:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[ctx->count % 64] = data[i];
+ 465              		.loc 1 70 9 view .LVU150
+ 466              		.loc 1 70 24 is_stmt 0 view .LVU151
+ 467 0022 236A     		ldr	r3, [r4, #32]
+ 468 0024 606A     		ldr	r0, [r4, #36]
+ 469              		.loc 1 70 32 view .LVU152
+ 470 0026 03F03F02 		and	r2, r3, #63
+ 471              		.loc 1 70 44 view .LVU153
+ 472 002a 795D     		ldrb	r1, [r7, r5]	@ zero_extendqisi2
+ 473              		.loc 1 70 38 view .LVU154
+ 474 002c 2244     		add	r2, r2, r4
+ 475 002e 82F82810 		strb	r1, [r2, #40]
+  71:Libs/sha256_simple/sha256_simple.c ****         ctx->count++;
+ 476              		.loc 1 71 9 is_stmt 1 view .LVU155
+ 477              		.loc 1 71 19 is_stmt 0 view .LVU156
+ 478 0032 0133     		adds	r3, r3, #1
+ 479 0034 40F10000 		adc	r0, r0, #0
+ 480 0038 2362     		str	r3, [r4, #32]
+ 481 003a 6062     		str	r0, [r4, #36]
+  72:Libs/sha256_simple/sha256_simple.c ****         if (ctx->count % 64 == 0) {
+ 482              		.loc 1 72 9 is_stmt 1 view .LVU157
+ 483              		.loc 1 72 12 is_stmt 0 view .LVU158
+ 484 003c 13F03F0F 		tst	r3, #63
+ 485 0040 ECD1     		bne	.L18
+  73:Libs/sha256_simple/sha256_simple.c ****             sha256_transform(ctx, ctx->buffer);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 11
+
+
+ 486              		.loc 1 73 13 is_stmt 1 view .LVU159
+ 487 0042 04F12801 		add	r1, r4, #40
+ 488 0046 2046     		mov	r0, r4
+ 489 0048 FFF7FEFF 		bl	sha256_transform
+ 490              	.LVL41:
+ 491 004c E6E7     		b	.L18
+ 492              	.LVL42:
+ 493              	.L15:
+  74:Libs/sha256_simple/sha256_simple.c ****         }
+  75:Libs/sha256_simple/sha256_simple.c ****     }
+  76:Libs/sha256_simple/sha256_simple.c **** }
+ 494              		.loc 1 76 1 is_stmt 0 view .LVU160
+ 495 004e F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 496              	.LVL43:
+ 497              	.L21:
+ 498              	.LCFI4:
+ 499              		.cfi_def_cfa_offset 0
+ 500              		.cfi_restore 3
+ 501              		.cfi_restore 4
+ 502              		.cfi_restore 5
+ 503              		.cfi_restore 6
+ 504              		.cfi_restore 7
+ 505              		.cfi_restore 14
+ 506              		.loc 1 76 1 view .LVU161
+ 507 0050 7047     		bx	lr
+ 508              		.cfi_endproc
+ 509              	.LFE2:
+ 511              		.section	.text.sha256_simple_final,"ax",%progbits
+ 512              		.align	1
+ 513              		.global	sha256_simple_final
+ 514              		.syntax unified
+ 515              		.thumb
+ 516              		.thumb_func
+ 518              	sha256_simple_final:
+ 519              	.LVL44:
+ 520              	.LFB3:
+  77:Libs/sha256_simple/sha256_simple.c **** 
+  78:Libs/sha256_simple/sha256_simple.c **** void sha256_simple_final(sha256_simple_ctx_t *ctx, uint8_t hash[32]) {
+ 521              		.loc 1 78 70 is_stmt 1 view -0
+ 522              		.cfi_startproc
+ 523              		@ args = 0, pretend = 0, frame = 0
+ 524              		@ frame_needed = 0, uses_anonymous_args = 0
+  79:Libs/sha256_simple/sha256_simple.c ****     uint32_t i;
+ 525              		.loc 1 79 5 view .LVU163
+  80:Libs/sha256_simple/sha256_simple.c ****     if (!ctx || !hash) {
+ 526              		.loc 1 80 5 view .LVU164
+ 527              		.loc 1 80 8 is_stmt 0 view .LVU165
+ 528 0000 0029     		cmp	r1, #0
+ 529 0002 18BF     		it	ne
+ 530 0004 0028     		cmpne	r0, #0
+ 531 0006 78D0     		beq	.L36
+  78:Libs/sha256_simple/sha256_simple.c ****     uint32_t i;
+ 532              		.loc 1 78 70 view .LVU166
+ 533 0008 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 534              	.LCFI5:
+ 535              		.cfi_def_cfa_offset 24
+ 536              		.cfi_offset 3, -24
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 12
+
+
+ 537              		.cfi_offset 4, -20
+ 538              		.cfi_offset 5, -16
+ 539              		.cfi_offset 6, -12
+ 540              		.cfi_offset 7, -8
+ 541              		.cfi_offset 14, -4
+ 542 000a 0446     		mov	r4, r0
+ 543 000c 0D46     		mov	r5, r1
+  81:Libs/sha256_simple/sha256_simple.c ****         return;
+  82:Libs/sha256_simple/sha256_simple.c ****     }
+  83:Libs/sha256_simple/sha256_simple.c ****     uint64_t bit_len = ctx->count * 8;
+ 544              		.loc 1 83 5 is_stmt 1 view .LVU167
+ 545              		.loc 1 83 27 is_stmt 0 view .LVU168
+ 546 000e 036A     		ldr	r3, [r0, #32]
+ 547 0010 426A     		ldr	r2, [r0, #36]
+ 548              		.loc 1 83 14 view .LVU169
+ 549 0012 D600     		lsls	r6, r2, #3
+ 550 0014 46EA5376 		orr	r6, r6, r3, lsr #29
+ 551 0018 DF00     		lsls	r7, r3, #3
+ 552              	.LVL45:
+  84:Libs/sha256_simple/sha256_simple.c **** 
+  85:Libs/sha256_simple/sha256_simple.c ****     ctx->buffer[ctx->count % 64] = 0x80;
+ 553              		.loc 1 85 5 is_stmt 1 view .LVU170
+ 554              		.loc 1 85 28 is_stmt 0 view .LVU171
+ 555 001a 03F03F01 		and	r1, r3, #63
+ 556              	.LVL46:
+ 557              		.loc 1 85 34 view .LVU172
+ 558 001e 0144     		add	r1, r1, r0
+ 559 0020 8020     		movs	r0, #128
+ 560              	.LVL47:
+ 561              		.loc 1 85 34 view .LVU173
+ 562 0022 81F82800 		strb	r0, [r1, #40]
+  86:Libs/sha256_simple/sha256_simple.c ****     ctx->count++;
+ 563              		.loc 1 86 5 is_stmt 1 view .LVU174
+ 564              		.loc 1 86 15 is_stmt 0 view .LVU175
+ 565 0026 0133     		adds	r3, r3, #1
+ 566 0028 42F10002 		adc	r2, r2, #0
+ 567 002c 2362     		str	r3, [r4, #32]
+ 568 002e 6262     		str	r2, [r4, #36]
+  87:Libs/sha256_simple/sha256_simple.c **** 
+  88:Libs/sha256_simple/sha256_simple.c ****     /* A 63-byte tail becomes a full block after the 0x80 byte. Process it
+  89:Libs/sha256_simple/sha256_simple.c ****      * before starting the extra block containing the length field. */
+  90:Libs/sha256_simple/sha256_simple.c ****     if (ctx->count % 64 == 0 || ctx->count % 64 > 56) {
+ 569              		.loc 1 90 5 is_stmt 1 view .LVU176
+ 570              		.loc 1 90 20 is_stmt 0 view .LVU177
+ 571 0030 03F03F03 		and	r3, r3, #63
+ 572              		.loc 1 90 30 view .LVU178
+ 573 0034 013B     		subs	r3, r3, #1
+ 574 0036 62EB0202 		sbc	r2, r2, r2
+ 575              		.loc 1 90 8 view .LVU179
+ 576 003a 382B     		cmp	r3, #56
+ 577 003c 72F10002 		sbcs	r2, r2, #0
+ 578 0040 1DD3     		bcc	.L29
+ 579              	.L26:
+  91:Libs/sha256_simple/sha256_simple.c ****         while (ctx->count % 64 != 0) {
+ 580              		.loc 1 91 32 is_stmt 1 view .LVU180
+ 581              		.loc 1 91 19 is_stmt 0 view .LVU181
+ 582 0042 236A     		ldr	r3, [r4, #32]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 13
+
+
+ 583 0044 616A     		ldr	r1, [r4, #36]
+ 584              		.loc 1 91 32 view .LVU182
+ 585 0046 13F03F02 		ands	r2, r3, #63
+ 586 004a 09D0     		beq	.L39
+  92:Libs/sha256_simple/sha256_simple.c ****             ctx->buffer[ctx->count % 64] = 0x00;
+ 587              		.loc 1 92 13 is_stmt 1 view .LVU183
+ 588              		.loc 1 92 42 is_stmt 0 view .LVU184
+ 589 004c 2244     		add	r2, r2, r4
+ 590 004e 0020     		movs	r0, #0
+ 591 0050 82F82800 		strb	r0, [r2, #40]
+  93:Libs/sha256_simple/sha256_simple.c ****             ctx->count++;
+ 592              		.loc 1 93 13 is_stmt 1 view .LVU185
+ 593              		.loc 1 93 23 is_stmt 0 view .LVU186
+ 594 0054 0133     		adds	r3, r3, #1
+ 595 0056 41F10001 		adc	r1, r1, #0
+ 596 005a 2362     		str	r3, [r4, #32]
+ 597 005c 6162     		str	r1, [r4, #36]
+ 598 005e F0E7     		b	.L26
+ 599              	.L39:
+  94:Libs/sha256_simple/sha256_simple.c ****         }
+  95:Libs/sha256_simple/sha256_simple.c ****         sha256_transform(ctx, ctx->buffer);
+ 600              		.loc 1 95 9 is_stmt 1 view .LVU187
+ 601 0060 04F12801 		add	r1, r4, #40
+ 602 0064 2046     		mov	r0, r4
+ 603 0066 FFF7FEFF 		bl	sha256_transform
+ 604              	.LVL48:
+ 605 006a 08E0     		b	.L29
+ 606              	.L30:
+  96:Libs/sha256_simple/sha256_simple.c ****     }
+  97:Libs/sha256_simple/sha256_simple.c **** 
+  98:Libs/sha256_simple/sha256_simple.c ****     while (ctx->count % 64 < 56) {
+  99:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[ctx->count % 64] = 0x00;
+ 607              		.loc 1 99 9 view .LVU188
+ 608              		.loc 1 99 38 is_stmt 0 view .LVU189
+ 609 006c 2244     		add	r2, r2, r4
+ 610 006e 0020     		movs	r0, #0
+ 611 0070 82F82800 		strb	r0, [r2, #40]
+ 100:Libs/sha256_simple/sha256_simple.c ****         ctx->count++;
+ 612              		.loc 1 100 9 is_stmt 1 view .LVU190
+ 613              		.loc 1 100 19 is_stmt 0 view .LVU191
+ 614 0074 0133     		adds	r3, r3, #1
+ 615 0076 41F10001 		adc	r1, r1, #0
+ 616 007a 2362     		str	r3, [r4, #32]
+ 617 007c 6162     		str	r1, [r4, #36]
+ 618              	.L29:
+  98:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[ctx->count % 64] = 0x00;
+ 619              		.loc 1 98 28 is_stmt 1 view .LVU192
+  98:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[ctx->count % 64] = 0x00;
+ 620              		.loc 1 98 15 is_stmt 0 view .LVU193
+ 621 007e 236A     		ldr	r3, [r4, #32]
+ 622 0080 616A     		ldr	r1, [r4, #36]
+  98:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[ctx->count % 64] = 0x00;
+ 623              		.loc 1 98 23 view .LVU194
+ 624 0082 03F03F02 		and	r2, r3, #63
+  98:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[ctx->count % 64] = 0x00;
+ 625              		.loc 1 98 28 view .LVU195
+ 626 0086 372A     		cmp	r2, #55
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 14
+
+
+ 627 0088 F0D9     		bls	.L30
+ 101:Libs/sha256_simple/sha256_simple.c ****     }
+ 102:Libs/sha256_simple/sha256_simple.c **** 
+ 103:Libs/sha256_simple/sha256_simple.c ****     for (i = 0; i < 8; ++i) {
+ 628              		.loc 1 103 12 view .LVU196
+ 629 008a 0022     		movs	r2, #0
+ 630 008c 14E0     		b	.L31
+ 631              	.LVL49:
+ 632              	.L32:
+ 104:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[56 + i] = (bit_len >> (56 - i * 8)) & 0xff;
+ 633              		.loc 1 104 9 is_stmt 1 view .LVU197
+ 634              		.loc 1 104 47 is_stmt 0 view .LVU198
+ 635 008e C2F10703 		rsb	r3, r2, #7
+ 636 0092 DB00     		lsls	r3, r3, #3
+ 637              		.loc 1 104 40 view .LVU199
+ 638 0094 C3F12000 		rsb	r0, r3, #32
+ 639 0098 A3F12001 		sub	r1, r3, #32
+ 640 009c 27FA03F3 		lsr	r3, r7, r3
+ 641 00a0 06FA00F0 		lsl	r0, r6, r0
+ 642 00a4 0343     		orrs	r3, r3, r0
+ 643 00a6 26FA01F1 		lsr	r1, r6, r1
+ 644 00aa 0B43     		orrs	r3, r3, r1
+ 645              		.loc 1 104 24 view .LVU200
+ 646 00ac 02F13801 		add	r1, r2, #56
+ 647              		.loc 1 104 29 view .LVU201
+ 648 00b0 2144     		add	r1, r1, r4
+ 649 00b2 81F82830 		strb	r3, [r1, #40]
+ 103:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[56 + i] = (bit_len >> (56 - i * 8)) & 0xff;
+ 650              		.loc 1 103 24 is_stmt 1 discriminator 3 view .LVU202
+ 651 00b6 0132     		adds	r2, r2, #1
+ 652              	.LVL50:
+ 653              	.L31:
+ 103:Libs/sha256_simple/sha256_simple.c ****         ctx->buffer[56 + i] = (bit_len >> (56 - i * 8)) & 0xff;
+ 654              		.loc 1 103 19 discriminator 1 view .LVU203
+ 655 00b8 072A     		cmp	r2, #7
+ 656 00ba E8D9     		bls	.L32
+ 105:Libs/sha256_simple/sha256_simple.c ****     }
+ 106:Libs/sha256_simple/sha256_simple.c ****     sha256_transform(ctx, ctx->buffer);
+ 657              		.loc 1 106 5 view .LVU204
+ 658 00bc 04F12801 		add	r1, r4, #40
+ 659 00c0 2046     		mov	r0, r4
+ 660 00c2 FFF7FEFF 		bl	sha256_transform
+ 661              	.LVL51:
+ 107:Libs/sha256_simple/sha256_simple.c **** 
+ 108:Libs/sha256_simple/sha256_simple.c ****     for (i = 0; i < 8; ++i) {
+ 662              		.loc 1 108 5 view .LVU205
+ 663              		.loc 1 108 12 is_stmt 0 view .LVU206
+ 664 00c6 0023     		movs	r3, #0
+ 665              		.loc 1 108 5 view .LVU207
+ 666 00c8 14E0     		b	.L33
+ 667              	.LVL52:
+ 668              	.L34:
+ 109:Libs/sha256_simple/sha256_simple.c ****         hash[i * 4] = (ctx->state[i] >> 24) & 0xff;
+ 669              		.loc 1 109 9 is_stmt 1 view .LVU208
+ 670              		.loc 1 109 34 is_stmt 0 view .LVU209
+ 671 00ca 54F82320 		ldr	r2, [r4, r3, lsl #2]
+ 672              		.loc 1 109 38 view .LVU210
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 15
+
+
+ 673 00ce 110E     		lsrs	r1, r2, #24
+ 674              		.loc 1 109 16 view .LVU211
+ 675 00d0 9A00     		lsls	r2, r3, #2
+ 676              		.loc 1 109 21 view .LVU212
+ 677 00d2 05F82310 		strb	r1, [r5, r3, lsl #2]
+ 110:Libs/sha256_simple/sha256_simple.c ****         hash[i * 4 + 1] = (ctx->state[i] >> 16) & 0xff;
+ 678              		.loc 1 110 9 is_stmt 1 view .LVU213
+ 679              		.loc 1 110 38 is_stmt 0 view .LVU214
+ 680 00d6 54F82310 		ldr	r1, [r4, r3, lsl #2]
+ 681              		.loc 1 110 42 view .LVU215
+ 682 00da 090C     		lsrs	r1, r1, #16
+ 683              		.loc 1 110 13 view .LVU216
+ 684 00dc 501C     		adds	r0, r2, #1
+ 685              		.loc 1 110 25 view .LVU217
+ 686 00de 2954     		strb	r1, [r5, r0]
+ 111:Libs/sha256_simple/sha256_simple.c ****         hash[i * 4 + 2] = (ctx->state[i] >> 8) & 0xff;
+ 687              		.loc 1 111 9 is_stmt 1 view .LVU218
+ 688              		.loc 1 111 38 is_stmt 0 view .LVU219
+ 689 00e0 54F82310 		ldr	r1, [r4, r3, lsl #2]
+ 690              		.loc 1 111 42 view .LVU220
+ 691 00e4 090A     		lsrs	r1, r1, #8
+ 692              		.loc 1 111 13 view .LVU221
+ 693 00e6 901C     		adds	r0, r2, #2
+ 694              		.loc 1 111 25 view .LVU222
+ 695 00e8 2954     		strb	r1, [r5, r0]
+ 112:Libs/sha256_simple/sha256_simple.c ****         hash[i * 4 + 3] = ctx->state[i] & 0xff;
+ 696              		.loc 1 112 9 is_stmt 1 view .LVU223
+ 697              		.loc 1 112 37 is_stmt 0 view .LVU224
+ 698 00ea 54F82310 		ldr	r1, [r4, r3, lsl #2]
+ 699              		.loc 1 112 13 view .LVU225
+ 700 00ee 0332     		adds	r2, r2, #3
+ 701              		.loc 1 112 25 view .LVU226
+ 702 00f0 A954     		strb	r1, [r5, r2]
+ 108:Libs/sha256_simple/sha256_simple.c ****         hash[i * 4] = (ctx->state[i] >> 24) & 0xff;
+ 703              		.loc 1 108 24 is_stmt 1 discriminator 3 view .LVU227
+ 704 00f2 0133     		adds	r3, r3, #1
+ 705              	.LVL53:
+ 706              	.L33:
+ 108:Libs/sha256_simple/sha256_simple.c ****         hash[i * 4] = (ctx->state[i] >> 24) & 0xff;
+ 707              		.loc 1 108 19 discriminator 1 view .LVU228
+ 708 00f4 072B     		cmp	r3, #7
+ 709 00f6 E8D9     		bls	.L34
+ 113:Libs/sha256_simple/sha256_simple.c ****     }
+ 114:Libs/sha256_simple/sha256_simple.c **** }
+ 710              		.loc 1 114 1 is_stmt 0 view .LVU229
+ 711 00f8 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 712              	.LVL54:
+ 713              	.L36:
+ 714              	.LCFI6:
+ 715              		.cfi_def_cfa_offset 0
+ 716              		.cfi_restore 3
+ 717              		.cfi_restore 4
+ 718              		.cfi_restore 5
+ 719              		.cfi_restore 6
+ 720              		.cfi_restore 7
+ 721              		.cfi_restore 14
+ 722              		.loc 1 114 1 view .LVU230
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 16
+
+
+ 723 00fa 7047     		bx	lr
+ 724              		.cfi_endproc
+ 725              	.LFE3:
+ 727              		.section	.text.sha256_calculate_raw,"ax",%progbits
+ 728              		.align	1
+ 729              		.global	sha256_calculate_raw
+ 730              		.syntax unified
+ 731              		.thumb
+ 732              		.thumb_func
+ 734              	sha256_calculate_raw:
+ 735              	.LVL55:
+ 736              	.LFB4:
+ 115:Libs/sha256_simple/sha256_simple.c **** 
+ 116:Libs/sha256_simple/sha256_simple.c **** int sha256_calculate_raw(const uint8_t* data, size_t len, uint8_t hash[32]) {
+ 737              		.loc 1 116 77 is_stmt 1 view -0
+ 738              		.cfi_startproc
+ 739              		@ args = 0, pretend = 0, frame = 104
+ 740              		@ frame_needed = 0, uses_anonymous_args = 0
+ 741              		.loc 1 116 77 is_stmt 0 view .LVU232
+ 742 0000 70B5     		push	{r4, r5, r6, lr}
+ 743              	.LCFI7:
+ 744              		.cfi_def_cfa_offset 16
+ 745              		.cfi_offset 4, -16
+ 746              		.cfi_offset 5, -12
+ 747              		.cfi_offset 6, -8
+ 748              		.cfi_offset 14, -4
+ 749 0002 9AB0     		sub	sp, sp, #104
+ 750              	.LCFI8:
+ 751              		.cfi_def_cfa_offset 120
+ 117:Libs/sha256_simple/sha256_simple.c ****     sha256_simple_ctx_t ctx;
+ 752              		.loc 1 117 5 is_stmt 1 view .LVU233
+ 118:Libs/sha256_simple/sha256_simple.c **** 
+ 119:Libs/sha256_simple/sha256_simple.c ****     if ((!data && len != 0u) || !hash) {
+ 753              		.loc 1 119 5 view .LVU234
+ 754              		.loc 1 119 10 is_stmt 0 view .LVU235
+ 755 0004 0546     		mov	r5, r0
+ 756              		.loc 1 119 16 view .LVU236
+ 757 0006 B0FA80F0 		clz	r0, r0
+ 758              	.LVL56:
+ 759              		.loc 1 119 16 view .LVU237
+ 760 000a 4009     		lsrs	r0, r0, #5
+ 761 000c 0029     		cmp	r1, #0
+ 762 000e 08BF     		it	eq
+ 763 0010 0020     		moveq	r0, #0
+ 764              		.loc 1 119 8 view .LVU238
+ 765 0012 88B9     		cbnz	r0, .L42
+ 766 0014 1446     		mov	r4, r2
+ 767 0016 0E46     		mov	r6, r1
+ 768              		.loc 1 119 30 discriminator 1 view .LVU239
+ 769 0018 82B1     		cbz	r2, .L43
+ 120:Libs/sha256_simple/sha256_simple.c ****         return 0;
+ 121:Libs/sha256_simple/sha256_simple.c ****     }
+ 122:Libs/sha256_simple/sha256_simple.c **** 
+ 123:Libs/sha256_simple/sha256_simple.c ****     sha256_simple_init(&ctx);
+ 770              		.loc 1 123 5 is_stmt 1 view .LVU240
+ 771 001a 6846     		mov	r0, sp
+ 772 001c FFF7FEFF 		bl	sha256_simple_init
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 17
+
+
+ 773              	.LVL57:
+ 124:Libs/sha256_simple/sha256_simple.c ****     sha256_simple_update(&ctx, data, len);
+ 774              		.loc 1 124 5 view .LVU241
+ 775 0020 3246     		mov	r2, r6
+ 776 0022 2946     		mov	r1, r5
+ 777 0024 6846     		mov	r0, sp
+ 778 0026 FFF7FEFF 		bl	sha256_simple_update
+ 779              	.LVL58:
+ 125:Libs/sha256_simple/sha256_simple.c ****     sha256_simple_final(&ctx, hash);
+ 780              		.loc 1 125 5 view .LVU242
+ 781 002a 2146     		mov	r1, r4
+ 782 002c 6846     		mov	r0, sp
+ 783 002e FFF7FEFF 		bl	sha256_simple_final
+ 784              	.LVL59:
+ 126:Libs/sha256_simple/sha256_simple.c ****     return 1;
+ 785              		.loc 1 126 5 view .LVU243
+ 786              		.loc 1 126 12 is_stmt 0 view .LVU244
+ 787 0032 0120     		movs	r0, #1
+ 788              	.LVL60:
+ 789              	.L40:
+ 127:Libs/sha256_simple/sha256_simple.c **** }
+ 790              		.loc 1 127 1 view .LVU245
+ 791 0034 1AB0     		add	sp, sp, #104
+ 792              	.LCFI9:
+ 793              		.cfi_remember_state
+ 794              		.cfi_def_cfa_offset 16
+ 795              		@ sp needed
+ 796 0036 70BD     		pop	{r4, r5, r6, pc}
+ 797              	.LVL61:
+ 798              	.L42:
+ 799              	.LCFI10:
+ 800              		.cfi_restore_state
+ 120:Libs/sha256_simple/sha256_simple.c ****     }
+ 801              		.loc 1 120 16 view .LVU246
+ 802 0038 0020     		movs	r0, #0
+ 803 003a FBE7     		b	.L40
+ 804              	.L43:
+ 120:Libs/sha256_simple/sha256_simple.c ****     }
+ 805              		.loc 1 120 16 view .LVU247
+ 806 003c 0020     		movs	r0, #0
+ 807 003e F9E7     		b	.L40
+ 808              		.cfi_endproc
+ 809              	.LFE4:
+ 811              		.section	.rodata.sha256_calculate.str1.4,"aMS",%progbits,1
+ 812              		.align	2
+ 813              	.LC0:
+ 814 0000 30313233 		.ascii	"0123456789abcdef\000"
+ 814      34353637 
+ 814      38396162 
+ 814      63646566 
+ 814      00
+ 815              		.section	.text.sha256_calculate,"ax",%progbits
+ 816              		.align	1
+ 817              		.global	sha256_calculate
+ 818              		.syntax unified
+ 819              		.thumb
+ 820              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 18
+
+
+ 822              	sha256_calculate:
+ 823              	.LVL62:
+ 824              	.LFB5:
+ 128:Libs/sha256_simple/sha256_simple.c **** 
+ 129:Libs/sha256_simple/sha256_simple.c **** int sha256_calculate(const uint8_t* data, size_t len, char* hex_output) {
+ 825              		.loc 1 129 73 is_stmt 1 view -0
+ 826              		.cfi_startproc
+ 827              		@ args = 0, pretend = 0, frame = 32
+ 828              		@ frame_needed = 0, uses_anonymous_args = 0
+ 130:Libs/sha256_simple/sha256_simple.c ****     uint8_t hash[32];
+ 829              		.loc 1 130 5 view .LVU249
+ 131:Libs/sha256_simple/sha256_simple.c ****     int i;
+ 830              		.loc 1 131 5 view .LVU250
+ 132:Libs/sha256_simple/sha256_simple.c **** 
+ 133:Libs/sha256_simple/sha256_simple.c ****     if (!hex_output || !sha256_calculate_raw(data, len, hash)) {
+ 831              		.loc 1 133 5 view .LVU251
+ 832              		.loc 1 133 8 is_stmt 0 view .LVU252
+ 833 0000 2AB3     		cbz	r2, .L52
+ 129:Libs/sha256_simple/sha256_simple.c ****     uint8_t hash[32];
+ 834              		.loc 1 129 73 view .LVU253
+ 835 0002 10B5     		push	{r4, lr}
+ 836              	.LCFI11:
+ 837              		.cfi_def_cfa_offset 8
+ 838              		.cfi_offset 4, -8
+ 839              		.cfi_offset 14, -4
+ 840 0004 88B0     		sub	sp, sp, #32
+ 841              	.LCFI12:
+ 842              		.cfi_def_cfa_offset 40
+ 843 0006 1446     		mov	r4, r2
+ 844              		.loc 1 133 25 discriminator 1 view .LVU254
+ 845 0008 6A46     		mov	r2, sp
+ 846              	.LVL63:
+ 847              		.loc 1 133 25 discriminator 1 view .LVU255
+ 848 000a FFF7FEFF 		bl	sha256_calculate_raw
+ 849              	.LVL64:
+ 850              		.loc 1 133 21 discriminator 1 view .LVU256
+ 851 000e 08B1     		cbz	r0, .L55
+ 134:Libs/sha256_simple/sha256_simple.c ****         return 0;
+ 135:Libs/sha256_simple/sha256_simple.c ****     }
+ 136:Libs/sha256_simple/sha256_simple.c ****     
+ 137:Libs/sha256_simple/sha256_simple.c ****     for (i = 0; i < 32; i++) {
+ 852              		.loc 1 137 12 view .LVU257
+ 853 0010 0023     		movs	r3, #0
+ 854 0012 14E0     		b	.L47
+ 855              	.L55:
+ 134:Libs/sha256_simple/sha256_simple.c ****         return 0;
+ 856              		.loc 1 134 9 is_stmt 1 view .LVU258
+ 134:Libs/sha256_simple/sha256_simple.c ****         return 0;
+ 857              		.loc 1 134 16 is_stmt 0 view .LVU259
+ 858 0014 0020     		movs	r0, #0
+ 859 0016 18E0     		b	.L45
+ 860              	.LVL65:
+ 861              	.L49:
+ 138:Libs/sha256_simple/sha256_simple.c ****         hex_output[i * 2] = "0123456789abcdef"[hash[i] >> 4];
+ 862              		.loc 1 138 9 is_stmt 1 view .LVU260
+ 863              		.loc 1 138 52 is_stmt 0 view .LVU261
+ 864 0018 03F12002 		add	r2, r3, #32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 19
+
+
+ 865 001c 6A44     		add	r2, sp, r2
+ 866 001e 12F8202C 		ldrb	r2, [r2, #-32]	@ zero_extendqisi2
+ 867              		.loc 1 138 56 view .LVU262
+ 868 0022 4FEA121C 		lsr	ip, r2, #4
+ 869              		.loc 1 138 22 view .LVU263
+ 870 0026 5900     		lsls	r1, r3, #1
+ 871              		.loc 1 138 47 view .LVU264
+ 872 0028 0A48     		ldr	r0, .L56
+ 873 002a 10F80CC0 		ldrb	ip, [r0, ip]	@ zero_extendqisi2
+ 874              		.loc 1 138 27 view .LVU265
+ 875 002e 04F813C0 		strb	ip, [r4, r3, lsl #1]
+ 139:Libs/sha256_simple/sha256_simple.c ****         hex_output[i * 2 + 1] = "0123456789abcdef"[hash[i] & 0x0f];
+ 876              		.loc 1 139 9 is_stmt 1 view .LVU266
+ 877              		.loc 1 139 60 is_stmt 0 view .LVU267
+ 878 0032 02F00F02 		and	r2, r2, #15
+ 879              		.loc 1 139 19 view .LVU268
+ 880 0036 0131     		adds	r1, r1, #1
+ 881              		.loc 1 139 51 view .LVU269
+ 882 0038 825C     		ldrb	r2, [r0, r2]	@ zero_extendqisi2
+ 883              		.loc 1 139 31 view .LVU270
+ 884 003a 6254     		strb	r2, [r4, r1]
+ 137:Libs/sha256_simple/sha256_simple.c ****         hex_output[i * 2] = "0123456789abcdef"[hash[i] >> 4];
+ 885              		.loc 1 137 26 is_stmt 1 discriminator 3 view .LVU271
+ 886 003c 0133     		adds	r3, r3, #1
+ 887              	.LVL66:
+ 888              	.L47:
+ 137:Libs/sha256_simple/sha256_simple.c ****         hex_output[i * 2] = "0123456789abcdef"[hash[i] >> 4];
+ 889              		.loc 1 137 19 discriminator 1 view .LVU272
+ 890 003e 1F2B     		cmp	r3, #31
+ 891 0040 EADD     		ble	.L49
+ 140:Libs/sha256_simple/sha256_simple.c ****     }
+ 141:Libs/sha256_simple/sha256_simple.c ****     hex_output[64] = '\0';
+ 892              		.loc 1 141 5 view .LVU273
+ 893              		.loc 1 141 20 is_stmt 0 view .LVU274
+ 894 0042 0023     		movs	r3, #0
+ 895              	.LVL67:
+ 896              		.loc 1 141 20 view .LVU275
+ 897 0044 84F84030 		strb	r3, [r4, #64]
+ 142:Libs/sha256_simple/sha256_simple.c ****     
+ 143:Libs/sha256_simple/sha256_simple.c ****     return 1;
+ 898              		.loc 1 143 5 is_stmt 1 view .LVU276
+ 899              		.loc 1 143 12 is_stmt 0 view .LVU277
+ 900 0048 0120     		movs	r0, #1
+ 901              	.LVL68:
+ 902              	.L45:
+ 144:Libs/sha256_simple/sha256_simple.c **** }
+ 903              		.loc 1 144 1 view .LVU278
+ 904 004a 08B0     		add	sp, sp, #32
+ 905              	.LCFI13:
+ 906              		.cfi_def_cfa_offset 8
+ 907              		@ sp needed
+ 908 004c 10BD     		pop	{r4, pc}
+ 909              	.LVL69:
+ 910              	.L52:
+ 911              	.LCFI14:
+ 912              		.cfi_def_cfa_offset 0
+ 913              		.cfi_restore 4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 20
+
+
+ 914              		.cfi_restore 14
+ 134:Libs/sha256_simple/sha256_simple.c ****     }
+ 915              		.loc 1 134 9 is_stmt 1 view .LVU279
+ 134:Libs/sha256_simple/sha256_simple.c ****     }
+ 916              		.loc 1 134 16 is_stmt 0 view .LVU280
+ 917 004e 0020     		movs	r0, #0
+ 918              	.LVL70:
+ 919              		.loc 1 144 1 view .LVU281
+ 920 0050 7047     		bx	lr
+ 921              	.L57:
+ 922 0052 00BF     		.align	2
+ 923              	.L56:
+ 924 0054 00000000 		.word	.LC0
+ 925              		.cfi_endproc
+ 926              	.LFE5:
+ 928              		.section	.rodata.K,"a"
+ 929              		.align	2
+ 932              	K:
+ 933 0000 982F8A42 		.word	1116352408
+ 934 0004 91443771 		.word	1899447441
+ 935 0008 CFFBC0B5 		.word	-1245643825
+ 936 000c A5DBB5E9 		.word	-373957723
+ 937 0010 5BC25639 		.word	961987163
+ 938 0014 F111F159 		.word	1508970993
+ 939 0018 A4823F92 		.word	-1841331548
+ 940 001c D55E1CAB 		.word	-1424204075
+ 941 0020 98AA07D8 		.word	-670586216
+ 942 0024 015B8312 		.word	310598401
+ 943 0028 BE853124 		.word	607225278
+ 944 002c C37D0C55 		.word	1426881987
+ 945 0030 745DBE72 		.word	1925078388
+ 946 0034 FEB1DE80 		.word	-2132889090
+ 947 0038 A706DC9B 		.word	-1680079193
+ 948 003c 74F19BC1 		.word	-1046744716
+ 949 0040 C1699BE4 		.word	-459576895
+ 950 0044 8647BEEF 		.word	-272742522
+ 951 0048 C69DC10F 		.word	264347078
+ 952 004c CCA10C24 		.word	604807628
+ 953 0050 6F2CE92D 		.word	770255983
+ 954 0054 AA84744A 		.word	1249150122
+ 955 0058 DCA9B05C 		.word	1555081692
+ 956 005c DA88F976 		.word	1996064986
+ 957 0060 52513E98 		.word	-1740746414
+ 958 0064 6DC631A8 		.word	-1473132947
+ 959 0068 C82703B0 		.word	-1341970488
+ 960 006c C77F59BF 		.word	-1084653625
+ 961 0070 F30BE0C6 		.word	-958395405
+ 962 0074 4791A7D5 		.word	-710438585
+ 963 0078 5163CA06 		.word	113926993
+ 964 007c 67292914 		.word	338241895
+ 965 0080 850AB727 		.word	666307205
+ 966 0084 38211B2E 		.word	773529912
+ 967 0088 FC6D2C4D 		.word	1294757372
+ 968 008c 130D3853 		.word	1396182291
+ 969 0090 54730A65 		.word	1695183700
+ 970 0094 BB0A6A76 		.word	1986661051
+ 971 0098 2EC9C281 		.word	-2117940946
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 21
+
+
+ 972 009c 852C7292 		.word	-1838011259
+ 973 00a0 A1E8BFA2 		.word	-1564481375
+ 974 00a4 4B661AA8 		.word	-1474664885
+ 975 00a8 708B4BC2 		.word	-1035236496
+ 976 00ac A3516CC7 		.word	-949202525
+ 977 00b0 19E892D1 		.word	-778901479
+ 978 00b4 240699D6 		.word	-694614492
+ 979 00b8 85350EF4 		.word	-200395387
+ 980 00bc 70A06A10 		.word	275423344
+ 981 00c0 16C1A419 		.word	430227734
+ 982 00c4 086C371E 		.word	506948616
+ 983 00c8 4C774827 		.word	659060556
+ 984 00cc B5BCB034 		.word	883997877
+ 985 00d0 B30C1C39 		.word	958139571
+ 986 00d4 4AAAD84E 		.word	1322822218
+ 987 00d8 4FCA9C5B 		.word	1537002063
+ 988 00dc F36F2E68 		.word	1747873779
+ 989 00e0 EE828F74 		.word	1955562222
+ 990 00e4 6F63A578 		.word	2024104815
+ 991 00e8 1478C884 		.word	-2067236844
+ 992 00ec 0802C78C 		.word	-1933114872
+ 993 00f0 FAFFBE90 		.word	-1866530822
+ 994 00f4 EB6C50A4 		.word	-1538233109
+ 995 00f8 F7A3F9BE 		.word	-1090935817
+ 996 00fc F27871C6 		.word	-965641998
+ 997              		.text
+ 998              	.Letext0:
+ 999              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1000              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1001              		.file 4 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1002              		.file 5 "Libs/sha256_simple/sha256_simple.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s 			page 22
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 sha256_simple.c
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:20     .text.sha256_transform:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:25     .text.sha256_transform:00000000 sha256_transform
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:334    .text.sha256_transform:00000170 $d
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:932    .rodata.K:00000000 K
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:339    .text.sha256_simple_init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:345    .text.sha256_simple_init:00000000 sha256_simple_init
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:404    .text.sha256_simple_init:00000038 $d
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:415    .text.sha256_simple_update:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:421    .text.sha256_simple_update:00000000 sha256_simple_update
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:512    .text.sha256_simple_final:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:518    .text.sha256_simple_final:00000000 sha256_simple_final
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:728    .text.sha256_calculate_raw:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:734    .text.sha256_calculate_raw:00000000 sha256_calculate_raw
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:812    .rodata.sha256_calculate.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:816    .text.sha256_calculate:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:822    .text.sha256_calculate:00000000 sha256_calculate
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:924    .text.sha256_calculate:00000054 $d
+C:\Users\nicx5\AppData\Local\Temp\ccWiWCVM.s:929    .rodata.K:00000000 $d
+
+NO UNDEFINED SYMBOLS

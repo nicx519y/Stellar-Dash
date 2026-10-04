@@ -22,6 +22,9 @@ public:
     bool selectRole(usb_board_role_t role, uint32_t timeoutMs);
     bool getCapabilities();
     bool getReleaseIdentity(xora_release_identity_t &identity);
+    bool getTxImageInfo();
+    uint16_t txImageReadBytes() const;
+    bool readTxImage(uint32_t offset, uint8_t* bytes, uint16_t length);
     bool setProfile(usb_board_profile_t profile);
     bool getUsbLinkState(usb_board_control_link_state_v1_t &state);
     bool enableFastInputDataPlane();

@@ -1,5 +1,7 @@
 'use client';
 
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import { Box, Button, Dialog, HStack, Portal, Text, VStack, Separator, Table, CloseButton, Input } from "@chakra-ui/react";
 import { BsRecordCircle, BsStopCircle  } from "react-icons/bs";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -320,35 +322,15 @@ export function MacroField(props: {
 
             {open && (
                 <Portal>
-                    <Box
-                        position="fixed"
-                        zIndex={9998}
-                        top={0}
-                        left={0}
-                        right={0}
-                        bottom={0}
-                        display="flex"
-                        alignItems="center"
-                        justifyContent="center"
-                    >
-                        <Box
-                            position="absolute"
-                            top={0}
-                            left={0}
-                            right={0}
-                            bottom={0}
-                            bg="blackAlpha.100"
-                            backdropFilter="blur(4px)"
-                        />
-                        <Dialog.Root
+                    <ExclusiveDialog priority={OVERLAY_PRIORITY.editor}
                             open={open}
                             modal
                             size="lg"
                             onPointerDownOutside={(e) => e.preventDefault()}
                             onEscapeKeyDown={(e) => e.preventDefault()}
                         >
-                            <Dialog.Positioner>
-                                <Dialog.Backdrop onClick={handleClose} />
+                            <Dialog.Backdrop bg="blackAlpha.100" backdropFilter="blur(4px)" zIndex={9998} />
+                                <Dialog.Positioner zIndex={9998}>
                                 <Dialog.Content>
                                     <Dialog.Header>
                                         <Dialog.Title fontSize="sm" opacity={0.75}>
@@ -459,8 +441,7 @@ export function MacroField(props: {
                                     </Dialog.CloseTrigger>
                                 </Dialog.Content>
                             </Dialog.Positioner>
-                        </Dialog.Root>
-                    </Box>
+                        </ExclusiveDialog>
                 </Portal>
             )}
         </>

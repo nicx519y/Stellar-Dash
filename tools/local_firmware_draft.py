@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Build a signed, unlocked XORA v2 bundle and import it into local admin only."""
+"""Build a signed, unlocked XORA v2 bundle; import a draft when a local token exists."""
 
 import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -37,6 +38,27 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def save_local_token(secret, state_dir):
+    """Atomically replace the local firmware token, without retaining a backup."""
+    secret = secret.strip()
+    if not re.fullmatch(r"stsvc_[A-Za-z0-9_-]{43}", secret):
+        raise RuntimeError("Invalid service token; copy the local save script from the token creation dialog again")
+    state_dir.mkdir(parents=True, exist_ok=True)
+    token_file = state_dir / "firmware-manage-token.txt"
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=state_dir,
+                                         prefix="firmware-token-", suffix=".tmp", delete=False) as output:
+            temporary = Path(output.name)
+            output.write(secret)
+            output.write("\n")
+        os.replace(temporary, token_file)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    return token_file
+
+
 def run_stage(name, command, log_file, timeout=600):
     print(f"[{name}] start; log: {log_file}", flush=True)
     started = time.monotonic()
@@ -67,7 +89,7 @@ def release_identity(data, component):
     matches = []
     offset = data.find(magic)
     while offset >= 0:
-        if offset + 121 <= len(data) and struct.unpack_from("<III", data, offset + 8) == (component, 1, 1):
+        if offset + 121 <= len(data) and struct.unpack_from("<III", data, offset + 8) == (component, 2, 2):
             version = data[offset + 24:offset + 56].split(b"\0", 1)[0].decode("ascii")
             build_id = data[offset + 56:offset + 121].split(b"\0", 1)[0].decode("ascii")
             config = struct.unpack_from("<I", data, offset + 20)[0]
@@ -123,11 +145,49 @@ def make_stm32_package(slot, app, adc, version, key, public, trust_hash, dest):
     return identity
 
 
-def main():
+def final_stage_command(source_path, key, work, version, token_file, since=None, *, no_upload=False):
+    package = work / "package"
+    command = [
+        "node", str(ROOT / "server" / "scripts" / "create-firmware-draft.js"),
+        "--source", str(source_path), "--signing-key", str(key),
+        "--out-dir", str(package), "--allow-worktree",
+        "--local-history", str(ROOT / ".hbox" / "firmware-drafts"),
+    ]
+    offline = no_upload or not token_file.is_file()
+    if offline:
+        command += ["--dry-run"]
+    else:
+        command += ["--service-token-file", str(token_file)]
+    if since:
+        command += ["--since", since]
+    elif version == "1.0.0":
+        command += ["--initial-release"]
+    return "bundle-and-notes" if offline else "bundle-and-draft", command
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", default="1.0.0")
-    parser.add_argument("--token-file", type=Path, default=STATE / "firmware-manage-token.txt")
-    args = parser.parse_args()
+    token_options = parser.add_mutually_exclusive_group()
+    token_options.add_argument("--token-file", type=Path, default=STATE / "firmware-manage-token.txt", help="override the local token file for this run")
+    token_options.add_argument("--save-token", action="store_true", help="replace the local firmware token from stdin and exit without building or uploading")
+    parser.add_argument("--since", help="previous release Git commit or tag for later versions")
+    parser.add_argument("--no-upload", action="store_true", help="build package and notes without contacting admin")
+    args = parser.parse_args(argv)
+    if args.save_token:
+        if args.version != "1.0.0" or args.since is not None or args.no_upload:
+            parser.error("--save-token is a standalone setup command; do not combine it with build options")
+        save_local_token(sys.stdin.read(256), STATE)
+        print("Local firmware token saved. Previous local token replaced; future packages will use the new token automatically.")
+        print("No package was built or uploaded. Server tokens were not revoked.")
+        return 0
+    token_file = args.token_file.expanduser().resolve()
+    if args.no_upload:
+        print("Upload disabled by --no-upload.", flush=True)
+    elif token_file.is_file():
+        print(f"Draft import will use token file: {token_file}", flush=True)
+    else:
+        print(f"Token file not found: {token_file}; packaging only. Copy the local save script from the token creation dialog to enable draft import.", flush=True)
     if not all((STATE / item).is_file() for item in (
         "manifest.json", "pki/firmware-release-private.pem", "pki/firmware-release-public.pem",
         "public/hbox-local-trust.h", "device/device-certificate.bin")):
@@ -188,29 +248,23 @@ def main():
         "requiresManualLifecycleProvisioning": False,
         "compatibility": {"stm32Tx": f"STM32/TX {args.version}; local acceptance pending",
                           "txRx": "RX compatibility requires local acceptance"},
-        "install": {"protocol": 1, "order": "tx-then-stm32",
+        "install": {"protocol": 2, "order": "tx-then-stm32",
                     "configRead": {"min": 34, "max": 34}, "configWrite": 34,
-                    "stm32Maintenance": {"min": 1, "max": 1},
-                    "txMaintenance": {"min": 1, "max": 1}},
+                    "stm32Maintenance": {"min": 2, "max": 2},
+                    "txMaintenance": {"min": 2, "max": 2}},
         "artifacts": artifacts,
     }
     source_path = source / "release-source.json"
     source_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    token_file = args.token_file.expanduser().resolve()
-    command = ["node", str(ROOT / "server" / "scripts" / "create-firmware-draft.js"),
-               "--source", str(source_path), "--signing-key", str(key),
-               "--out-dir", str(work / "package"), "--initial-release"]
-    if token_file.is_file():
-        command += ["--service-token-file", str(token_file)]
-    else:
-        command += ["--dry-run"]
-        print(f"No local firmware.manage token file at {token_file}; packaging only.", flush=True)
-    run_stage("bundle-and-draft", command, work / "bundle-and-draft.log", 180)
+    stage, command = final_stage_command(source_path, key, work, args.version, token_file, args.since, no_upload=args.no_upload)
+    if stage == "bundle-and-notes":
+        print("Creating the package and release notes locally; nothing will be uploaded.", flush=True)
+    run_stage(stage, command, work / f"{stage}.log", 180)
     print(f"Release workspace: {work}")
-    print((work / "bundle-and-draft.log").read_text(encoding="utf-8"))
-    if not token_file.is_file():
-        print("Local draft was not uploaded: create a firmware.manage token in local admin and save it to the path above.")
-        return 2
+    print((work / f"{stage}.log").read_text(encoding="utf-8"))
+    if stage == "bundle-and-notes":
+        print(f"Signed package: {work / 'package' / f'XORA-{args.version}-release.zip'}")
+        print("Package and Markdown notes are ready. Nothing was uploaded; drag the ZIP and .md into local admin, or provide a local firmware.manage token for draft import.")
     return 0
 
 

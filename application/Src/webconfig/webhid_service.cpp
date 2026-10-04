@@ -2563,11 +2563,6 @@ bool WebHidService::processSecureRpc(
         cJSON_Delete(root);
         return sendRpcResult(transactionId,409,nullptr,"Stop active device operations before installation");
     }
-    if ((command == "abort_release_install" || command == "retry_release_install") &&
-        !HBoxBoard_DangerousActionConfirmed()) {
-        cJSON_Delete(root);
-        return sendRpcResult(transactionId,423,nullptr,"Release, then hold GPIO1+FN for 2 seconds");
-    }
     diagnosticCommand = command == "push_leds_config" ? 1u :
         command == "update_profile" ? 2u : command == "session.end" ? 3u : 4u;
     diagnosticTransaction = transactionId;
@@ -2575,8 +2570,9 @@ bool WebHidService::processSecureRpc(
         command == "begin_release_install" ||
         command == "create_firmware_upgrade_session" ||
         command == "ch585_update_begin";
+    const bool beginReleaseInstall = command == "begin_release_install";
     const bool completeFirmware =
-        command == "prepare_release_install" || command == "activate_release_install" ||
+        command == "backup_release_tx" || command == "prepare_release_install" || command == "activate_release_install" ||
         command == "complete_firmware_upgrade_session" ||
         command == "ch585_update_complete";
     const bool uploadFirmware =
@@ -2610,7 +2606,7 @@ bool WebHidService::processSecureRpc(
         }
     }
     if (createFirmware) {
-        if (!HBoxBoard_DangerousActionConfirmed() ||
+        if ((!beginReleaseInstall && !HBoxBoard_DangerousActionConfirmed()) ||
             firmwareSessionId == nullptr ||
             firmwareSessionId[0] == '\0' ||
             strlen(firmwareSessionId) >
@@ -2619,16 +2615,18 @@ bool WebHidService::processSecureRpc(
             cJSON_Delete(root);
             return sendRpcResult(
                 transactionId,
-                423,
+                beginReleaseInstall ? 409 : 423,
                 nullptr,
-                "Release, then hold GPIO1+FN for 2 seconds");
+                beginReleaseInstall
+                    ? "Firmware installation session is invalid or already active"
+                    : "Release, then hold GPIO1+FN for 2 seconds");
         }
     } else if ((completeFirmware || uploadFirmware ||
                 abortFirmware || statusFirmware ||
                 cleanupFirmware) &&
                (firmwareSessionId == nullptr ||
                 (!firmwareAuthorizationValid(firmwareSessionId) &&
-                 !(command == "activate_release_install" && HBoxBoard_DangerousActionConfirmed())))) {
+                 command != "activate_release_install"))) {
             cJSON_Delete(root);
             return sendRpcResult(
                 transactionId,

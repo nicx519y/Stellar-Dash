@@ -9,8 +9,8 @@ import { galleryErrorMessage } from '@/lib/gallery-error-message';
 import { useLanguage } from '@/contexts/language-context';
 import { useUserAuth } from '@/contexts/user-auth-context';
 import { AdminCard, AdminPageHeader } from '@/components/admin/admin-surface';
+import { AdminConfirmDialog } from '@/components/admin/admin-confirm-dialog';
 import { Alert } from '@/components/ui/alert';
-import { PopoverBody, PopoverContent, PopoverFooter, PopoverHeader, PopoverRoot, PopoverTrigger } from '@/components/ui/popover';
 import { processGalleryImage, type GalleryProcessedImage } from '@/lib/gallery-image-processor';
 import { galleryDraftChanged, moveGalleryItemToIndex, nearestGallerySlot, planGalleryPublish } from '@/lib/admin/gallery-draft';
 import type { GalleryImage } from '@/lib/image-gallery';
@@ -130,6 +130,7 @@ export default function AdminImagesPage() {
     : items, [items, dragId, dragPreviewIndex]);
   const validNames = items.every(item => item.title.trim().length > 0 && item.title.trim().length <= 120);
   const controlsBusy = loading || busy !== null;
+  const itemToDelete = items.find(item => item.id === confirmDeleteId) ?? null;
 
   useLayoutEffect(() => {
     const previous = beforeItemRects.current;
@@ -378,26 +379,11 @@ export default function AdminImagesPage() {
             <Box position="relative" width="100%" aspectRatio={320 / 172} bg="gray.900" visibility={itemDrag?.id === item.id ? 'hidden' : 'visible'}>
               <Image src={item.previewUrl} alt={item.title} width="100%" height="100%" objectFit="cover" display="block" draggable={false} />
               <Box position="absolute" top="2" left="2" zIndex="1" p="1" borderRadius="md" bg="blackAlpha.700" color="white" opacity="0.7" pointerEvents="none" aria-hidden="true"><LuGripVertical /></Box>
-              <PopoverRoot open={confirmDeleteId === item.id} onOpenChange={details => setConfirmDeleteId(details.open ? item.id : null)}>
-                <PopoverTrigger asChild>
-                  <Button position="absolute" top="2" right="2" zIndex="1" size="sm" minW="32px" width="32px" height="32px" p="0"
-                    bg="blackAlpha.800" color="white" _hover={{ bg: 'red.700' }}
-                    opacity={{ base: 1, md: confirmDeleteId === item.id ? 1 : 0 }} _groupHover={{ opacity: 1 }} _focusVisible={{ opacity: 1 }}
-                    disabled={controlsBusy || itemDrag !== null} aria-label={zh ? `删除 ${item.title}` : `Delete ${item.title}`}>
-                    <LuTrash2 />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent width="min(90vw, 300px)">
-                  <PopoverHeader fontWeight="semibold">{zh ? '确认删除图片？' : 'Delete this image?'}</PopoverHeader>
-                  <PopoverBody><Text fontSize="sm">{zh ? `确定从列表中移除“${item.title}”吗？` : `Remove “${item.title}” from the list?`}</Text>
-                    {item.kind === 'existing' && <Text fontSize="xs" color="fg.muted" mt="2">{zh ? '点击“发布”后才会从服务器删除。' : 'It will be deleted from the server when you publish.'}</Text>}
-                  </PopoverBody>
-                  <PopoverFooter justifyContent="flex-end" gap="2">
-                    <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)}>{zh ? '取消' : 'Cancel'}</Button>
-                    <Button size="sm" colorPalette="red" onClick={() => removeItem(item)}>{zh ? '删除' : 'Delete'}</Button>
-                  </PopoverFooter>
-                </PopoverContent>
-              </PopoverRoot>
+              <Button position="absolute" top="2" right="2" zIndex="1" size="sm" minW="32px" width="32px" height="32px" p="0"
+                bg="blackAlpha.800" color="white" _hover={{ bg: 'red.700' }}
+                opacity={{ base: 1, md: confirmDeleteId === item.id ? 1 : 0 }} _groupHover={{ opacity: 1 }} _focusVisible={{ opacity: 1 }}
+                disabled={controlsBusy || itemDrag !== null} aria-label={zh ? `删除 ${item.title}` : `Delete ${item.title}`}
+                onClick={() => setConfirmDeleteId(item.id)}><LuTrash2 /></Button>
             </Box>
             <Box p="3" visibility={itemDrag?.id === item.id ? 'hidden' : 'visible'}>
               <Input value={item.title} maxLength={120} disabled={controlsBusy}
@@ -420,5 +406,11 @@ export default function AdminImagesPage() {
         </Box>}
       </Box>
     </>}
+    <AdminConfirmDialog open={isAdmin && itemToDelete !== null} onClose={() => setConfirmDeleteId(null)}
+      onConfirm={() => { if (itemToDelete) removeItem(itemToDelete); }}
+      title={zh ? '确认删除图片？' : 'Delete this image?'}
+      description={<><Text>{zh ? `确定从列表中移除“${itemToDelete?.title ?? ''}”吗？` : `Remove “${itemToDelete?.title ?? ''}” from the list?`}</Text>
+        {itemToDelete?.kind === 'existing' && <Text fontSize="sm" color="fg.muted" mt="2">{zh ? '点击“发布”后才会从服务器删除。' : 'It will be deleted from the server when you publish.'}</Text>}</>}
+      cancelLabel={zh ? '取消' : 'Cancel'} confirmLabel={zh ? '删除' : 'Delete'} confirmColorPalette="red" />
   </>;
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import {
   Box,
   Dialog,
@@ -312,7 +314,7 @@ export function UserAuthControl() {
         </MenuContent>
       </MenuRoot>
       <Portal>
-        <Dialog.Root
+        <ExclusiveDialog priority={OVERLAY_PRIORITY.account}
           open={avatarOpen}
           onOpenChange={details => {
             if (!avatarSaving) setAvatarOpen(details.open);
@@ -396,7 +398,7 @@ export function UserAuthControl() {
               </Dialog.CloseTrigger>
             </Dialog.Content>
           </Dialog.Positioner>
-        </Dialog.Root>
+        </ExclusiveDialog>
       </Portal>
       </>
     );
@@ -415,7 +417,7 @@ export function UserAuthControl() {
         {t.AUTH_SIGN_IN}
       </Button>
       <Portal>
-        <Dialog.Root
+        <ExclusiveDialog priority={OVERLAY_PRIORITY.account}
           open={open}
           onOpenChange={details => {
             setOpen(details.open);
@@ -545,7 +547,7 @@ export function UserAuthControl() {
               </Dialog.CloseTrigger>
             </Dialog.Content>
           </Dialog.Positioner>
-        </Dialog.Root>
+        </ExclusiveDialog>
       </Portal>
     </>
   );

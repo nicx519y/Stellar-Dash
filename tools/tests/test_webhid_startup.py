@@ -24,7 +24,7 @@ struct LinkTransactionGuard { bool &f; bool acquired; LinkTransactionGuard(bool 
 
 class WebHidStartupTests(unittest.TestCase):
     def native(self, source):
-        headers={n:(ROOT/'common'/n).read_text(encoding='utf-8') for n in ['usb_board_link_protocol.h','usb_board_link_codec.h','webhid_fast_link.h','webhid_protocol.h']}
+        headers={n:(ROOT/'common'/n).read_text(encoding='utf-8') for n in ['usb_board_link_protocol.h','usb_board_link_codec.h','webhid_fast_link.h','webhid_protocol.h','tx_image_bulk.h','release_install_protocol.h']}
         feedback.LiveConfigFeedbackTests.native(self,source,headers)
 
     def test_control_response_correlation_before_and_after_send(self):
@@ -33,6 +33,10 @@ static std::deque<usb_board_link_frame_t> events;
 static unsigned sends; static bool reply=true;
 void queue(uint8_t op,uint8_t tx){usb_board_link_frame_t f={};f.command=USB_BOARD_EVT_USB_CONTROL;f.length=4;f.payload[0]=op;f.payload[1]=tx;events.push_back(f);}
 bool USBBoardLinkPort_HasEvent(){return !events.empty();}
+// This correlation fixture has immediate physical release; delayed release is
+// covered by test_webhid_probe_commit_release against the same production code.
+bool USBBoardLinkPort_RoleRequestSent(){return true;}
+bool USBBoardLinkPort_WaitEventRelease(uint32_t){return true;}
 bool USBBoardLinkPort_ReadEvent(uint8_t *p,uint8_t cap,uint8_t *len){auto f=events.front();events.pop_front();return usb_board_link_encode(f.command,f.payload,f.length,p,cap,len);}
 bool USBBoardLinkPort_Send(const uint8_t *p,uint8_t len){
  ++sends;usb_board_link_frame_t f={};assert(usb_board_link_decode(p,len,&f));

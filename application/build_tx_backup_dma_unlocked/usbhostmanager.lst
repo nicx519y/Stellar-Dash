@@ -1,0 +1,365 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"usbhostmanager.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/transport/usb/legacy/usbhostmanager.cpp"
+  19              		.section	.text._ZN14USBHostManager5startEv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN14USBHostManager5startEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN14USBHostManager5startEv:
+  27              	.LVL0:
+  28              	.LFB949:
+   1:Src/transport/usb/legacy/usbhostmanager.cpp **** #include "usbhostmanager.hpp"
+   2:Src/transport/usb/legacy/usbhostmanager.cpp **** 
+   3:Src/transport/usb/legacy/usbhostmanager.cpp **** #include "usbdriver.hpp"
+   4:Src/transport/usb/legacy/usbhostmanager.cpp **** 
+   5:Src/transport/usb/legacy/usbhostmanager.cpp **** void USBHostManager::start()
+   6:Src/transport/usb/legacy/usbhostmanager.cpp **** {
+  29              		.loc 1 6 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+   7:Src/transport/usb/legacy/usbhostmanager.cpp ****     /* CH585 host initialization is part of USB role bootstrap. */
+   8:Src/transport/usb/legacy/usbhostmanager.cpp **** }
+  34              		.loc 1 8 1 is_stmt 0 view .LVU1
+  35 0000 7047     		bx	lr
+  36              		.cfi_endproc
+  37              	.LFE949:
+  39              		.section	.text._ZN14USBHostManager8shutdownEv,"ax",%progbits
+  40              		.align	1
+  41              		.global	_ZN14USBHostManager8shutdownEv
+  42              		.syntax unified
+  43              		.thumb
+  44              		.thumb_func
+  46              	_ZN14USBHostManager8shutdownEv:
+  47              	.LVL1:
+  48              	.LFB950:
+   9:Src/transport/usb/legacy/usbhostmanager.cpp **** 
+  10:Src/transport/usb/legacy/usbhostmanager.cpp **** void USBHostManager::shutdown()
+  11:Src/transport/usb/legacy/usbhostmanager.cpp **** {
+  49              		.loc 1 11 1 is_stmt 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s 			page 2
+
+
+  50              		.cfi_startproc
+  51              		@ args = 0, pretend = 0, frame = 0
+  52              		@ frame_needed = 0, uses_anonymous_args = 0
+  53              		.loc 1 11 1 is_stmt 0 view .LVU3
+  54 0000 08B5     		push	{r3, lr}
+  55              	.LCFI0:
+  56              		.cfi_def_cfa_offset 8
+  57              		.cfi_offset 3, -8
+  58              		.cfi_offset 14, -4
+  12:Src/transport/usb/legacy/usbhostmanager.cpp ****     USB_DRIVER.shutdown();
+  59              		.loc 1 12 5 is_stmt 1 view .LVU4
+  60              	.LBB10:
+  61              	.LBI10:
+  62              		.file 2 "Inc/transport/usb/usbdriver.hpp"
+   1:Inc/transport/usb/usbdriver.hpp **** #ifndef USB_DRIVER_HPP
+   2:Inc/transport/usb/usbdriver.hpp **** #define USB_DRIVER_HPP
+   3:Inc/transport/usb/usbdriver.hpp **** 
+   4:Inc/transport/usb/usbdriver.hpp **** #include <stdint.h>
+   5:Inc/transport/usb/usbdriver.hpp **** 
+   6:Inc/transport/usb/usbdriver.hpp **** #include "enums.hpp"
+   7:Inc/transport/usb/usbdriver.hpp **** #include "gamepad/GamepadState.hpp"
+   8:Inc/transport/usb/usbdriver.hpp **** #include "usb_board_link_protocol.h"
+   9:Inc/transport/usb/usbdriver.hpp **** #include "usb_report_rate_policy.hpp"
+  10:Inc/transport/usb/usbdriver.hpp **** 
+  11:Inc/transport/usb/usbdriver.hpp **** bool get_usb_mounted(void);
+  12:Inc/transport/usb/usbdriver.hpp **** bool get_usb_suspended(void);
+  13:Inc/transport/usb/usbdriver.hpp **** 
+  14:Inc/transport/usb/usbdriver.hpp **** class USBDriver
+  15:Inc/transport/usb/usbdriver.hpp **** {
+  16:Inc/transport/usb/usbdriver.hpp **** public:
+  17:Inc/transport/usb/usbdriver.hpp ****     USBDriver(const USBDriver &) = delete;
+  18:Inc/transport/usb/usbdriver.hpp ****     USBDriver &operator=(const USBDriver &) = delete;
+  19:Inc/transport/usb/usbdriver.hpp **** 
+  20:Inc/transport/usb/usbdriver.hpp ****     static USBDriver &getInstance()
+  63              		.loc 2 20 23 view .LVU5
+  21:Inc/transport/usb/usbdriver.hpp ****     {
+  22:Inc/transport/usb/usbdriver.hpp ****         static USBDriver instance;
+  64              		.loc 2 22 9 view .LVU6
+  23:Inc/transport/usb/usbdriver.hpp ****         return instance;
+  65              		.loc 2 23 9 view .LVU7
+  66              	.LBE10:
+  67              		.loc 1 12 24 is_stmt 0 discriminator 1 view .LVU8
+  68 0002 0248     		ldr	r0, .L4
+  69              	.LVL2:
+  70              		.loc 1 12 24 discriminator 1 view .LVU9
+  71 0004 FFF7FEFF 		bl	_ZN9USBDriver8shutdownEv
+  72              	.LVL3:
+  13:Src/transport/usb/legacy/usbhostmanager.cpp **** }
+  73              		.loc 1 13 1 view .LVU10
+  74 0008 08BD     		pop	{r3, pc}
+  75              	.L5:
+  76 000a 00BF     		.align	2
+  77              	.L4:
+  78 000c 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+  79              		.cfi_endproc
+  80              	.LFE950:
+  82              		.section	.text._ZN14USBHostManager7processEv,"ax",%progbits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s 			page 3
+
+
+  83              		.align	1
+  84              		.global	_ZN14USBHostManager7processEv
+  85              		.syntax unified
+  86              		.thumb
+  87              		.thumb_func
+  89              	_ZN14USBHostManager7processEv:
+  90              	.LVL4:
+  91              	.LFB951:
+  14:Src/transport/usb/legacy/usbhostmanager.cpp **** 
+  15:Src/transport/usb/legacy/usbhostmanager.cpp **** void USBHostManager::process()
+  16:Src/transport/usb/legacy/usbhostmanager.cpp **** {
+  92              		.loc 1 16 1 is_stmt 1 view -0
+  93              		.cfi_startproc
+  94              		@ args = 0, pretend = 0, frame = 0
+  95              		@ frame_needed = 0, uses_anonymous_args = 0
+  96              		.loc 1 16 1 is_stmt 0 view .LVU12
+  97 0000 08B5     		push	{r3, lr}
+  98              	.LCFI1:
+  99              		.cfi_def_cfa_offset 8
+ 100              		.cfi_offset 3, -8
+ 101              		.cfi_offset 14, -4
+  17:Src/transport/usb/legacy/usbhostmanager.cpp ****     USB_DRIVER.process();
+ 102              		.loc 1 17 5 is_stmt 1 view .LVU13
+ 103              	.LBB11:
+ 104              	.LBI11:
+  20:Inc/transport/usb/usbdriver.hpp ****     {
+ 105              		.loc 2 20 23 view .LVU14
+  22:Inc/transport/usb/usbdriver.hpp ****         return instance;
+ 106              		.loc 2 22 9 view .LVU15
+ 107              		.loc 2 23 9 view .LVU16
+ 108              	.LBE11:
+ 109              		.loc 1 17 23 is_stmt 0 discriminator 1 view .LVU17
+ 110 0002 0248     		ldr	r0, .L8
+ 111              	.LVL5:
+ 112              		.loc 1 17 23 discriminator 1 view .LVU18
+ 113 0004 FFF7FEFF 		bl	_ZN9USBDriver7processEv
+ 114              	.LVL6:
+  18:Src/transport/usb/legacy/usbhostmanager.cpp **** }
+ 115              		.loc 1 18 1 view .LVU19
+ 116 0008 08BD     		pop	{r3, pc}
+ 117              	.L9:
+ 118 000a 00BF     		.align	2
+ 119              	.L8:
+ 120 000c 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 121              		.cfi_endproc
+ 122              	.LFE951:
+ 124              		.section	.text._ZN14USBHostManager12pushListenerEP11USBListener,"ax",%progbits
+ 125              		.align	1
+ 126              		.global	_ZN14USBHostManager12pushListenerEP11USBListener
+ 127              		.syntax unified
+ 128              		.thumb
+ 129              		.thumb_func
+ 131              	_ZN14USBHostManager12pushListenerEP11USBListener:
+ 132              	.LVL7:
+ 133              	.LFB952:
+  19:Src/transport/usb/legacy/usbhostmanager.cpp **** 
+  20:Src/transport/usb/legacy/usbhostmanager.cpp **** void USBHostManager::pushListener(USBListener *listener)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s 			page 4
+
+
+  21:Src/transport/usb/legacy/usbhostmanager.cpp **** {
+ 134              		.loc 1 21 1 is_stmt 1 view -0
+ 135              		.cfi_startproc
+ 136              		@ args = 0, pretend = 0, frame = 0
+ 137              		@ frame_needed = 0, uses_anonymous_args = 0
+ 138              		@ link register save eliminated.
+  22:Src/transport/usb/legacy/usbhostmanager.cpp ****     /*
+  23:Src/transport/usb/legacy/usbhostmanager.cpp ****      * Authentication listeners formerly received STM32 TinyUSB callbacks.
+  24:Src/transport/usb/legacy/usbhostmanager.cpp ****      * Authentication is now executed locally by CH585; retained as a no-op so
+  25:Src/transport/usb/legacy/usbhostmanager.cpp ****      * upper-level legacy callers can be migrated without ABI breakage.
+  26:Src/transport/usb/legacy/usbhostmanager.cpp ****      */
+  27:Src/transport/usb/legacy/usbhostmanager.cpp ****     (void)listener;
+ 139              		.loc 1 27 5 view .LVU21
+  28:Src/transport/usb/legacy/usbhostmanager.cpp **** }
+ 140              		.loc 1 28 1 is_stmt 0 view .LVU22
+ 141 0000 7047     		bx	lr
+ 142              		.cfi_endproc
+ 143              	.LFE952:
+ 145              		.section	.text._ZNK14USBHostManager7isReadyEv,"ax",%progbits
+ 146              		.align	1
+ 147              		.global	_ZNK14USBHostManager7isReadyEv
+ 148              		.syntax unified
+ 149              		.thumb
+ 150              		.thumb_func
+ 152              	_ZNK14USBHostManager7isReadyEv:
+ 153              	.LVL8:
+ 154              	.LFB953:
+  29:Src/transport/usb/legacy/usbhostmanager.cpp **** 
+  30:Src/transport/usb/legacy/usbhostmanager.cpp **** bool USBHostManager::isReady() const
+  31:Src/transport/usb/legacy/usbhostmanager.cpp **** {
+ 155              		.loc 1 31 1 is_stmt 1 view -0
+ 156              		.cfi_startproc
+ 157              		@ args = 0, pretend = 0, frame = 0
+ 158              		@ frame_needed = 0, uses_anonymous_args = 0
+ 159              		.loc 1 31 1 is_stmt 0 view .LVU24
+ 160 0000 08B5     		push	{r3, lr}
+ 161              	.LCFI2:
+ 162              		.cfi_def_cfa_offset 8
+ 163              		.cfi_offset 3, -8
+ 164              		.cfi_offset 14, -4
+  32:Src/transport/usb/legacy/usbhostmanager.cpp ****     return USB_DRIVER.isHostReady();
+ 165              		.loc 1 32 5 is_stmt 1 view .LVU25
+ 166              	.LBB12:
+ 167              	.LBI12:
+  20:Inc/transport/usb/usbdriver.hpp ****     {
+ 168              		.loc 2 20 23 view .LVU26
+  22:Inc/transport/usb/usbdriver.hpp ****         return instance;
+ 169              		.loc 2 22 9 view .LVU27
+ 170              		.loc 2 23 9 view .LVU28
+ 171              	.LBE12:
+ 172              		.loc 1 32 34 is_stmt 0 discriminator 1 view .LVU29
+ 173 0002 0248     		ldr	r0, .L13
+ 174              	.LVL9:
+ 175              		.loc 1 32 34 discriminator 1 view .LVU30
+ 176 0004 FFF7FEFF 		bl	_ZNK9USBDriver11isHostReadyEv
+ 177              	.LVL10:
+  33:Src/transport/usb/legacy/usbhostmanager.cpp **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s 			page 5
+
+
+ 178              		.loc 1 33 1 view .LVU31
+ 179 0008 08BD     		pop	{r3, pc}
+ 180              	.L14:
+ 181 000a 00BF     		.align	2
+ 182              	.L13:
+ 183 000c 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 184              		.cfi_endproc
+ 185              	.LFE953:
+ 187              		.section	.text._ZNK14USBHostManager10isAttachedEv,"ax",%progbits
+ 188              		.align	1
+ 189              		.global	_ZNK14USBHostManager10isAttachedEv
+ 190              		.syntax unified
+ 191              		.thumb
+ 192              		.thumb_func
+ 194              	_ZNK14USBHostManager10isAttachedEv:
+ 195              	.LVL11:
+ 196              	.LFB954:
+  34:Src/transport/usb/legacy/usbhostmanager.cpp **** 
+  35:Src/transport/usb/legacy/usbhostmanager.cpp **** bool USBHostManager::isAttached() const
+  36:Src/transport/usb/legacy/usbhostmanager.cpp **** {
+ 197              		.loc 1 36 1 is_stmt 1 view -0
+ 198              		.cfi_startproc
+ 199              		@ args = 0, pretend = 0, frame = 0
+ 200              		@ frame_needed = 0, uses_anonymous_args = 0
+ 201              		.loc 1 36 1 is_stmt 0 view .LVU33
+ 202 0000 08B5     		push	{r3, lr}
+ 203              	.LCFI3:
+ 204              		.cfi_def_cfa_offset 8
+ 205              		.cfi_offset 3, -8
+ 206              		.cfi_offset 14, -4
+  37:Src/transport/usb/legacy/usbhostmanager.cpp ****     return USB_DRIVER.isHostAttached();
+ 207              		.loc 1 37 5 is_stmt 1 view .LVU34
+ 208              	.LBB13:
+ 209              	.LBI13:
+  20:Inc/transport/usb/usbdriver.hpp ****     {
+ 210              		.loc 2 20 23 view .LVU35
+  22:Inc/transport/usb/usbdriver.hpp ****         return instance;
+ 211              		.loc 2 22 9 view .LVU36
+ 212              		.loc 2 23 9 view .LVU37
+ 213              	.LBE13:
+ 214              		.loc 1 37 37 is_stmt 0 discriminator 1 view .LVU38
+ 215 0002 0248     		ldr	r0, .L17
+ 216              	.LVL12:
+ 217              		.loc 1 37 37 discriminator 1 view .LVU39
+ 218 0004 FFF7FEFF 		bl	_ZNK9USBDriver14isHostAttachedEv
+ 219              	.LVL13:
+  38:Src/transport/usb/legacy/usbhostmanager.cpp **** }
+ 220              		.loc 1 38 1 view .LVU40
+ 221 0008 08BD     		pop	{r3, pc}
+ 222              	.L18:
+ 223 000a 00BF     		.align	2
+ 224              	.L17:
+ 225 000c 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 226              		.cfi_endproc
+ 227              	.LFE954:
+ 229              		.weak	_ZZN9USBDriver11getInstanceEvE8instance
+ 230              		.section	.data._ZZN9USBDriver11getInstanceEvE8instance,"awG",%progbits,_ZZN9USBDriver11getInstance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s 			page 6
+
+
+ 231              		.align	2
+ 234              	_ZZN9USBDriver11getInstanceEvE8instance:
+ 235 0000 00       		.byte	0
+ 236 0001 00       		.byte	0
+ 237 0002 0000     		.space	2
+ 238 0004 00000000 		.word	0
+ 239 0008 00       		.byte	0
+ 240 0009 00       		.byte	0
+ 241 000a 00       		.byte	0
+ 242 000b 00       		.byte	0
+ 243 000c E803     		.short	1000
+ 244 000e 01       		.byte	1
+ 245 000f 00       		.byte	0
+ 246 0010 00       		.byte	0
+ 247 0011 000000   		.space	3
+ 248              		.text
+ 249              	.Letext0:
+ 250              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstdint"
+ 251              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 252              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 253              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 254              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e-
+ 255              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 256              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 257              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 258              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdint.h"
+ 259              		.file 12 "Inc/transport/usb/legacy/usbhostmanager.hpp"
+ 260              		.file 13 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 261              		.file 14 "Inc/input/gamepad/GamepadState.hpp"
+ 262              		.file 15 "../common/usb_board_link_protocol.h"
+ 263              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 264              		.file 17 "Inc/support/enums.hpp"
+ 265              		.file 18 "Inc/transport/usb/usb_report_rate_policy.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s 			page 7
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 usbhostmanager.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:20     .text._ZN14USBHostManager5startEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:26     .text._ZN14USBHostManager5startEv:00000000 _ZN14USBHostManager5startEv
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:40     .text._ZN14USBHostManager8shutdownEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:46     .text._ZN14USBHostManager8shutdownEv:00000000 _ZN14USBHostManager8shutdownEv
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:78     .text._ZN14USBHostManager8shutdownEv:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:234    .data._ZZN9USBDriver11getInstanceEvE8instance:00000000 _ZZN9USBDriver11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:83     .text._ZN14USBHostManager7processEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:89     .text._ZN14USBHostManager7processEv:00000000 _ZN14USBHostManager7processEv
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:120    .text._ZN14USBHostManager7processEv:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:125    .text._ZN14USBHostManager12pushListenerEP11USBListener:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:131    .text._ZN14USBHostManager12pushListenerEP11USBListener:00000000 _ZN14USBHostManager12pushListenerEP11USBListener
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:146    .text._ZNK14USBHostManager7isReadyEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:152    .text._ZNK14USBHostManager7isReadyEv:00000000 _ZNK14USBHostManager7isReadyEv
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:183    .text._ZNK14USBHostManager7isReadyEv:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:188    .text._ZNK14USBHostManager10isAttachedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:194    .text._ZNK14USBHostManager10isAttachedEv:00000000 _ZNK14USBHostManager10isAttachedEv
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:225    .text._ZNK14USBHostManager10isAttachedEv:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\ccyc7JgB.s:231    .data._ZZN9USBDriver11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+_ZN9USBDriver8shutdownEv
+_ZN9USBDriver7processEv
+_ZNK9USBDriver11isHostReadyEv
+_ZNK9USBDriver14isHostAttachedEv

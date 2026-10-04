@@ -1,3 +1,4 @@
+#include "release_installer.hpp"
 #include "screen_control/jpeg_player.hpp"
 #include "screen_control/lcd_wake_frame.hpp"
 #include "screen_control/spi_screen_manager.hpp"
@@ -105,8 +106,14 @@ static bool ok_flash_active(void) {
 }
 
 void SPIScreenManager::showFirmwareRecovery() {
-    static const char* const lines[] = {"Firmware update needs recovery", "Release GPIO1 + FN", "Hold both for 2s to retry"};
-    ScreenTimedPopup_Show(&g_actionPopup,"XORA Firmware",lines,3,60000u,HAL_GetTick());
+    static const char* lines[4];
+    const char* code=RELEASE_INSTALLER.recoveryErrorCode();
+    if(!code[0])code="JOURNAL_FAILED";
+    lines[0]="TX update failed";
+    lines[1]=(!strcmp(code,"TX_BACKUP_INVALID") || !strcmp(code,"LEGACY_NO_BACKUP"))?"No recovery image":"Recovery failed";
+    lines[2]="Maintenance required";
+    lines[3]=code;
+    ScreenTimedPopup_Show(&g_actionPopup,"XORA Firmware",lines,4,0,HAL_GetTick());
 }
 
 static bool tick_expired(uint32_t now, uint32_t due) {
@@ -524,7 +531,7 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
 
     ScreenTimedPopup_Update(&g_actionPopup, nowMs);
     if (ScreenTimedPopup_IsVisible(&g_actionPopup)) {
-        if (clicked || longPressed) {
+        if (!g_actionPopup.persistent && (clicked || longPressed)) {
             ScreenTimedPopup_Close(&g_actionPopup);
         }
         return;

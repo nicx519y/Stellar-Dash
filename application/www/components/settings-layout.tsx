@@ -118,6 +118,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                 <Center
                     flex={1}
                     minHeight={0}
+                    alignItems={currentRoute === 'firmware' ? 'flex-start' : 'center'}
                     overflow={currentRoute === 'switch-marking' ? 'hidden' : undefined}
                 >
                     {children}

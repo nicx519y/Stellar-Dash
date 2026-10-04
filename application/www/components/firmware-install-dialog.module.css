@@ -1,0 +1,14 @@
+.gradientStop {
+  animation: firmware-gradient-flow 16s linear infinite;
+}
+
+@keyframes firmware-gradient-flow {
+  0%, 100% { stop-color: #83e5b0; }
+  25% { stop-color: #b6f0b0; }
+  50% { stop-color: #b4a0f5; }
+  75% { stop-color: #9366e8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gradientStop { animation: none; }
+}

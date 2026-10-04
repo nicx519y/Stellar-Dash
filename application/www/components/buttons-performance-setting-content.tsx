@@ -1,5 +1,7 @@
 "use client";
 
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import {
     Text,
     Button,
@@ -440,7 +442,7 @@ export function ButtonsPerformanceSettingContent({
             
             {/* Portal Dialog for Table View */}
             <Portal>
-                <Dialog.Root open={isTableDialogOpen} onOpenChange={(details) => setIsTableDialogOpen(details.open)}>
+                <ExclusiveDialog priority={OVERLAY_PRIORITY.editor} open={isTableDialogOpen} onOpenChange={(details) => setIsTableDialogOpen(details.open)}>
                     <Dialog.Positioner>
                         <Dialog.Content maxWidth="650px">
                             <Dialog.Header>
@@ -473,7 +475,7 @@ export function ButtonsPerformanceSettingContent({
                             <Dialog.CloseTrigger />
                         </Dialog.Content>
                     </Dialog.Positioner>
-                </Dialog.Root>
+                </ExclusiveDialog>
             </Portal>
         </>
     );

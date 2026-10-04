@@ -303,14 +303,46 @@ export class MockDeviceTransport implements DeviceTransport {
   private releaseDeclaration = new Uint8Array();
   private releaseInventory(): FirmwareInventory {
     const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('xora-mock-install') : null;
-    const inventory: FirmwareInventory = stored ? JSON.parse(stored) : {
-      protocol: 1, deviceModel: 'STM32H750_HBOX', hardwareVersion: '2.0.0', currentSlot: 'A', configVersion: 34,
-      securityVersion: 1, metadataConsistent: true, stm32: { version: '1.0.0', buildId: 'mock-initial', protocol: 1, maintenance: 1 },
-      tx: { version: '1.0.0', buildId: 'mock-initial', protocol: 1, maintenance: 1 }, installationState: 'unknown',
+    const inventory: FirmwareInventory & { backupStarted?: number; offlineStarted?: number } = stored ? JSON.parse(stored) : {
+      protocol: 2, deviceModel: 'STM32H750_HBOX', hardwareVersion: '2.0.0', currentSlot: 'A', configVersion: 34,
+      securityVersion: 1, metadataConsistent: true, stm32: { version: '1.0.0', buildId: 'mock-initial', protocol: 2, maintenance: 2 },
+      tx: { version: '1.0.0', buildId: 'mock-initial', protocol: 2, maintenance: 2 }, installationState: 'unknown',
       confirmedVersion: '', confirmedDigest: '', sessionId: '', phase: 'idle', targetVersion: '', targetDigest: '', error: '',
-      canAbort: false, canRetry: false, txReceived: 0,
+      canAbort: false, canRetry: false, txReceived: 0, backupReceived: 0, backupTotal: 0x6f000 * 2, backupReady: false,
+      recoveryResult: 'none', restoreAttempts: 0,
     };
-    return inventory;
+    const fault = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('xora-mock-install-failure') : null;
+    if (inventory.phase === 'backing-up-tx' && inventory.backupStarted) {
+      inventory.backupReceived = Math.min(inventory.backupTotal!, Math.floor((Date.now() - inventory.backupStarted) / 1000 * inventory.backupTotal!));
+      if (inventory.backupReceived >= inventory.backupTotal!) {
+        inventory.phase = fault === 'backup' ? 'failed' : 'receiving';
+        inventory.backupReady = fault !== 'backup'; inventory.error = fault === 'backup' ? 'TX backup digest mismatch' : '';
+      }
+    }
+    if (inventory.offlineStarted && !['completed', 'restored', 'restore-failed'].includes(inventory.phase)) {
+      const elapsed = Date.now() - inventory.offlineStarted;
+      const recovering = fault === 'tx' || fault === 'restore' || fault === 'missing-backup';
+      inventory.phase = fault === 'timeout' || elapsed < 2000 ? 'tx-writing' : recovering
+        ? (elapsed < 4000 ? 'tx-restoring' : 'rollback-verifying')
+        : elapsed < 4000 ? 'committing' : 'verifying';
+      if (elapsed >= 6000 && fault !== 'timeout') {
+        if (fault === 'tx' || fault === 'restore' || fault === 'missing-backup') {
+          inventory.phase = fault === 'tx' ? 'restored' : 'restore-failed';
+          inventory.recoveryResult = fault === 'tx' ? 'restored' : 'failed'; inventory.installationState = fault === 'tx' ? 'restored' : 'incomplete';
+          inventory.installError = 'TX startup verification failed'; inventory.error = inventory.installError;
+          inventory.recoveryError = fault === 'missing-backup' ? 'No valid recovery image' : fault === 'restore' ? 'TX recovery failed' : '';
+          inventory.errorCode = fault === 'tx' ? 'TX_INSTALL_FAILED_RESTORED' : fault === 'missing-backup' ? 'TX_BACKUP_INVALID' : 'TX_RESTORE_FAILED';
+          inventory.restoreAttempts = fault === 'tx' ? 1 : fault === 'restore' ? 2 : 0;
+        } else {
+          inventory.phase = 'completed'; inventory.currentSlot = inventory.currentSlot === 'A' ? 'B' : 'A';
+          inventory.confirmedVersion = inventory.targetVersion; inventory.confirmedDigest = inventory.targetDigest;
+          inventory.installationState = 'installed';
+          inventory.stm32 = { version: inventory.targetVersion, buildId: `mock-${inventory.targetVersion}`, protocol: 2, maintenance: 2 };
+          inventory.tx = { ...inventory.stm32 };
+        }
+      }
+    }
+    this.saveReleaseInventory(inventory); return inventory;
   }
   private saveReleaseInventory(inventory: FirmwareInventory) {
     if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('xora-mock-install', JSON.stringify(inventory));
@@ -729,34 +761,45 @@ export class MockDeviceTransport implements DeviceTransport {
     }
     switch (command) {
       case 'get_firmware_inventory':
-      case 'get_release_install_status': return { ...this.releaseInventory() };
-      case 'begin_release_install': {
+      case 'get_release_install_status': {
         const i = this.releaseInventory();
-        if (!['idle', 'completed', 'aborted'].includes(i.phase)) throw new DeviceTransportError('protocol', 'Installation already pending');
+        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('xora-mock-install-failure') === 'timeout' && ['tx-writing', 'committing', 'verifying'].includes(i.phase))
+          throw new DeviceTransportError('timeout', 'TX is offline');
+        return { ...i };
+      }
+      case 'begin_release_install': {
+        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('xora-mock-legacy-confirmation-reject') === '1') {
+          throw new DeviceTransportError('protocol', 'Legacy firmware does not support TX backup installation', {
+            command, errNo: 423,
+          });
+        }
+        const i = this.releaseInventory();
+        if (!['idle', 'completed', 'aborted', 'restored'].includes(i.phase)) throw new DeviceTransportError('protocol', 'Installation already pending');
         this.releaseDeclaration = new Uint8Array(asNumber(params.declaration_size));
-        Object.assign(i, { phase: 'receiving', sessionId: asString(params.session_id), canAbort: true, installationState: 'incomplete' });
+        Object.assign(i, { phase: 'declaring', backupReady: false, offlineStarted: undefined, backupStarted: undefined, error: '', recoveryResult: 'none', sessionId: asString(params.session_id), canAbort: true, installationState: 'incomplete' });
+        this.saveReleaseInventory(i); return { success: true };
+      }
+      case 'backup_release_tx': {
+        const i = this.releaseInventory();
+        if (i.sessionId !== params.session_id) throw new DeviceTransportError('protocol', 'Invalid backup');
+        if (i.phase === 'backing-up-tx' || (['receiving', 'prepared'].includes(i.phase) && i.backupReady)) return {success:true};
+        if (i.phase !== 'declaring') throw new DeviceTransportError('protocol', 'Invalid backup');
+        const raw = this.releaseDeclaration.slice(871);
+        const m = JSON.parse(new TextDecoder().decode(raw)) as FirmwareReleaseManifest;
+        if (m.install?.protocol !== 2) throw new DeviceTransportError('protocol', 'Protocol 2 required');
+        Object.assign(i, { targetVersion: m.version, targetDigest: await calculateSHA256(raw), phase: 'backing-up-tx', backupStarted: Date.now() });
         this.saveReleaseInventory(i); return { success: true };
       }
       case 'prepare_release_install': {
         const i = this.releaseInventory();
-        if (i.phase !== 'receiving' || i.sessionId !== params.session_id) throw new DeviceTransportError('protocol', 'Invalid installation');
-        const raw = this.releaseDeclaration.slice(871);
-        const m = JSON.parse(new TextDecoder().decode(raw)) as FirmwareReleaseManifest;
-        i.targetVersion = m.version; i.targetDigest = await calculateSHA256(raw); i.phase = 'prepared';
-        this.saveReleaseInventory(i); return { success: true };
+        if (i.phase !== 'receiving' || !i.backupReady || i.sessionId !== params.session_id) throw new DeviceTransportError('protocol', 'Valid TX backup required');
+        i.phase = 'prepared'; this.saveReleaseInventory(i); return { success: true };
       }
-      case 'activate_release_install':
-      case 'retry_release_install': {
+      case 'retry_release_install': throw new DeviceTransportError('protocol', 'Automatic recovery only; maintenance is required');
+      case 'activate_release_install': {
         const i = this.releaseInventory();
-        if (!['prepared', 'failed'].includes(i.phase) || i.sessionId !== params.session_id) throw new DeviceTransportError('protocol', 'Invalid installation');
-        const failed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('xora-mock-install-failure') === 'tx';
-        i.phase = failed ? 'failed' : 'completed'; i.canAbort = false; i.canRetry = failed;
-        i.error = failed ? 'MOCK: TX verification failed; local retry required' : '';
-        if (!failed) {
-          i.currentSlot = i.currentSlot === 'A' ? 'B' : 'A'; i.confirmedVersion = i.targetVersion; i.confirmedDigest = i.targetDigest;
-          i.installationState = 'installed';
-          i.stm32 = { version: i.targetVersion, buildId: `mock-${i.targetVersion}`, protocol: 1, maintenance: 1 }; i.tx = { ...i.stm32 };
-        }
+        if (i.phase !== 'prepared' || !i.backupReady || i.sessionId !== params.session_id) throw new DeviceTransportError('protocol', 'Invalid installation');
+        Object.assign(i, { phase: 'activated', offlineStarted: Date.now(), canAbort: false, canRetry: false });
         this.saveReleaseInventory(i); return { success: true };
       }
       case 'abort_release_install': {

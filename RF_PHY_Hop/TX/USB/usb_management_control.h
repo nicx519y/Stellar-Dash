@@ -12,6 +12,7 @@ extern "C" {
 
 void usb_management_control_init(void);
 void usb_management_control_set_role(usb_board_role_t role);
+bool usb_management_control_read_tx_image(uint32_t offset,uint8_t *bytes,uint16_t length);
 void usb_management_control_hw_rf_binding(const uint8_t *request,uint8_t *response);
 
 /*

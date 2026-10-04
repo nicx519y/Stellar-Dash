@@ -13,6 +13,7 @@ public:
     bool begin(const char* session, uint32_t declarationSize);
     bool upload(const char* session, const char* component, const ChunkData& chunk);
     bool prepare(const char* session);
+    bool backup(const char* session);
     bool activate(const char* session);
     bool abort(const char* session);
     bool retry();
@@ -22,6 +23,7 @@ public:
     void poll();
     cJSON* inventory();
     const char* error() const;
+    const char* recoveryErrorCode();
 private:
     ReleaseInstaller() = default;
 };

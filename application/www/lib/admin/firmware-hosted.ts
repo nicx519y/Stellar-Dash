@@ -14,7 +14,7 @@ const mutate = <T>(id: string, method: string, body: object, suffix = '') => req
 export const firmwareRuntime: FirmwareRuntime = {
   list: query => request(`${root}/releases?${queryString(query)}`),
   detail: id => request(`${root}/releases/${encodeURIComponent(id)}`),
-  edit: (id, revision, notes, acceptance) => mutate(id, 'PATCH', { revision, notes, acceptance }),
+  edit: (id, revision, notes, acceptance) => mutate(id, 'PATCH', { revision, notes, ...(acceptance === undefined ? {} : { acceptance }) }),
   publish: (id, revision) => mutate(id, 'POST', { revision }, '/publish'),
   withdraw: (id, revision, reason) => mutate(id, 'POST', { revision, reason }, '/withdraw'),
   remove: (id, revision) => mutate(id, 'DELETE', { revision }),

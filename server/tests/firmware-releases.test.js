@@ -10,7 +10,7 @@ const express = require('express');
 const { makeSignedPackage } = require('./fixtures/firmware-release-fixture');
 const { storedZip, createBundle } = require('../scripts/create-firmware-bundle');
 const { createFirmwareDraft, parseArguments, serverOrigin } = require('../scripts/create-firmware-draft');
-const { gitReleaseNotes, initialReleaseNotes } = require('../scripts/git-release-notes');
+const { gitReleaseNotes, initialReleaseNotes, localReleaseNotes } = require('../scripts/git-release-notes');
 const { FirmwareReleaseStore, initFirmwareReleaseRoutes, validateBundle } = require('../src/firmware-releases');
 const { AdminAccessService } = require('../src/admin-access');
 const { createDirectDeviceAccess } = require('../src/direct-device-access');
@@ -40,24 +40,24 @@ function gitFixture(root) {
     run('add', '.'); run('commit', '--quiet', '-m', 'Initial version');
     return { repo, run, file };
 }
-function identity(component, buildId) {
+function identity(component, buildId, protocol = 1) {
     const result = Buffer.alloc(121);
     result.write('XORAFW2\0', 0, 'ascii'); result.writeUInt32LE(component, 8);
-    result.writeUInt32LE(1, 12); result.writeUInt32LE(1, 16);
+    result.writeUInt32LE(protocol, 12); result.writeUInt32LE(protocol, 16);
     result.writeUInt32LE(component === 1 ? 34 : 0, 20);
     result.write('1.2.3', 24); result.write(buildId, 56); return result;
 }
-function bundle(context, transform = () => {}, version = '2.0.0', v2 = false) {
+function bundle(context, transform = () => {}, version = '2.0.0', v2 = false, protocol = 1) {
     const artifacts = []; const entries = [];
     for (const slot of ['A', 'B']) {
-        const f = makeSignedPackage(slot, context.keys, v2 ? { application: identity(1, 'test-build') } : {});
+        const f = makeSignedPackage(slot, context.keys, v2 ? { application: identity(1, 'test-build', protocol) } : {});
         const data = storedZip([['manifest.json', Buffer.from(JSON.stringify(f.manifest))], ['metadata.bin', f.metadata], ...f.files]);
         const file = `stm32-${slot}.zip`; entries.push([file, data]);
         artifacts.push({ component: 'stm32', slot, version: f.manifest.version, buildId: 'test-build', file, size: data.length, sha256: sha(data) });
         if(v2) artifacts[artifacts.length - 1].metadataSha256 = sha(f.metadata);
     }
     const tx = Buffer.alloc(8192, 0x44); entries.push(['tx.bin', tx]);
-    if(v2) identity(2, 'tx-build').copy(tx,4096);
+    if(v2) identity(2, 'tx-build', protocol).copy(tx,4096);
     artifacts.push({ component: 'tx', version: '1.2.3', buildId: 'tx-build', imageFormat: 'ch585-tx-combined', file: 'tx.bin', size: tx.length, sha256: sha(tx) });
     for (const a of artifacts) Object.assign(a, { hardwareVersion: '2.0.0', bootSecurityMode: 'unlocked-development', requiresManualLifecycleProvisioning: false });
     const manifest = { schemaVersion: 1, product: 'XORA', deviceModel: 'STM32H750_HBOX', hardwareVersion: '2.0.0', version,
@@ -65,8 +65,8 @@ function bundle(context, transform = () => {}, version = '2.0.0', v2 = false) {
         compatibility: { stm32Tx: '1.2.x', txRx: '1.2.x' }, artifacts };
     if(v2) {
         manifest.schemaVersion=2;manifest.buildId='release-build';
-        manifest.install={protocol:1,order:'tx-then-stm32',configRead:{min:34,max:34},configWrite:34,
-            stm32Maintenance:{min:1,max:1},txMaintenance:{min:1,max:1}};
+        manifest.install={protocol,order:'tx-then-stm32',configRead:{min:34,max:34},configWrite:34,
+            stm32Maintenance:{min:protocol,max:protocol},txMaintenance:{min:protocol,max:protocol}};
         Object.assign(artifacts[2],{applicationOffset:4096,applicationSize:4096,applicationSha256:sha(tx.subarray(4096))});
     }
     transform(manifest, entries);
@@ -82,14 +82,14 @@ test('signed complete package stays draft until manual publish; revision, withdr
     const job = c.store.import(b.file, actor); assert.equal(job.status, 'completed');
     let r = c.store.get(job.releaseId); assert.equal(r.status, 'draft');
     assert.equal(c.store.list({}, true).total, 0); assert.throws(() => c.store.publicDetail(r.id), /not found/);
-    assert.throws(() => c.store.mutate(r.id, 1, 'publish', {}, actor), /evidence/);
-    r = c.store.mutate(r.id, 1, 'edit', { notes: 'Release notes', acceptance: 'Test evidence' }, actor);
+    assert.throws(() => c.store.mutate(r.id, 1, 'publish', {}, actor), /Release notes/);
+    r = c.store.mutate(r.id, 1, 'edit', { notes: 'Release notes' }, actor);
+    assert.equal(r.acceptance, '');
     assert.throws(() => c.store.mutate(r.id, 1, 'publish', {}, actor), /changed/);
     r = c.store.mutate(r.id, r.revision, 'publish', {}, actor);
     assert.equal(c.store.list({}, true).total, 1);
     assert.equal(c.store.publicDetail(r.id).acceptance, undefined);
     assert.throws(() => c.store.mutate(r.id, r.revision, 'edit', { notes: 'overwrite', acceptance: 'x' }, actor), /drafts/);
-    assert.throws(() => c.store.mutate(r.id, r.revision, 'delete', {}, actor), /drafts/);
     assert.throws(() => c.store.mutate(r.id, r.revision, 'withdraw', { reason: '' }, actor), /reason/);
     r = c.store.mutate(r.id, r.revision, 'withdraw', { reason: 'Regression' }, actor);
     assert.equal(c.store.list({}, true).total, 0);
@@ -99,6 +99,43 @@ test('signed complete package stays draft until manual publish; revision, withdr
     assert.equal(second.get(r.id, true).audit.length, 5); second.close();
     assert.equal(c.store.import(b.file, actor).status, 'failed');
     assert.equal(c.store.list().total, 1);
+});
+
+for (const status of ['draft', 'published', 'withdrawn']) test(`delete ${status} release retains audit and content, rejects stale revisions and closes downloads`, t => {
+    const c = setup(t); const b = bundle(c, () => {}, '3.0.0', true);
+    const job = c.store.import(b.file, actor);
+    let r = c.store.mutate(job.releaseId, 1, 'edit', { notes: 'Deletion test' }, actor);
+    if (status !== 'draft') r = c.store.mutate(r.id, r.revision, 'publish', {}, actor);
+    if (status === 'withdrawn') r = c.store.mutate(r.id, r.revision, 'withdraw', { reason: 'Issue' }, actor);
+    assert.throws(() => c.store.mutate(r.id, r.revision - 1, 'delete', {}, actor), /changed/);
+    assert.equal(c.store.get(r.id).status, status);
+    c.store.mutate(r.id, r.revision, 'delete', {}, actor);
+    assert.equal(c.store.list().total, 0); assert.equal(c.store.list({}, true).total, 0);
+    assert.throws(() => c.store.get(r.id), /not found/);
+    assert.throws(() => c.store.publicDetail(r.id), /not found/);
+    assert.throws(() => c.store.download(r.id), /not found/);
+    assert.deepEqual(fs.readFileSync(c.store.bundlePath(sha(b.data))), b.data);
+    const audit = c.store.db.prepare("SELECT * FROM release_audit WHERE release_id=? AND action='delete'").all(r.id);
+    assert.equal(audit.length, 1); assert.equal(JSON.parse(audit[0].before_json).status, status);
+    assert.deepEqual(JSON.parse(audit[0].actor), actor); assert.equal(JSON.parse(audit[0].after_json), null);
+    const reopened = new FirmwareReleaseStore({ databasePath: path.join(c.root, 'releases.db'), assetRoot: c.store.assetRoot, publicKey: c.keys.publicKey });
+    try {
+        const retry = reopened.import(b.file, actor);
+        assert.equal(retry.status, status === 'draft' ? 'completed' : 'failed');
+        if (status !== 'draft') {
+            assert.match(retry.error, /previously published/);
+            assert.equal(reopened.import(bundle(c, () => {}, '3.0.1', true).file, actor).status, 'completed');
+        }
+    } finally { reopened.close(); }
+});
+
+test('notes-only edits preserve historical acceptance and reject empty notes at publish', t => {
+    const c = setup(t); const job = c.store.import(bundle(c).file, actor);
+    let r = c.store.mutate(job.releaseId, 1, 'edit', { notes: '', acceptance: 'Historical evidence' }, actor);
+    assert.throws(() => c.store.mutate(r.id, r.revision, 'publish', {}, actor), /Release notes/);
+    r = c.store.mutate(r.id, r.revision, 'edit', { notes: 'Ready for release' }, actor);
+    assert.equal(r.acceptance, 'Historical evidence');
+    assert.equal(c.store.mutate(r.id, r.revision, 'publish', {}, actor).status, 'published');
 });
 
 test('v2 binds executable identities and permits only published immutable downloads', t => {
@@ -216,12 +253,19 @@ test('HTTP flow: real admin gate, service-token limits, private drafts, publish,
     assert.equal(response.status, 200); const job = (await response.json()).data; assert.equal(job.status, 'completed');
     const id = job.releaseId;
     const json = (data, headers = {}) => ({ method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json', ...headers } });
+    const remove = (revision, headers = {}) => call(`${base}/releases/${id}`, { ...json({ revision }, headers), method: 'DELETE' });
+    assert.equal((await remove(1, { Cookie: '' })).status, 401);
+    assert.equal((await remove(1, { Cookie: 'user' })).status, 403);
+    assert.equal((await remove(1, { Origin: 'https://evil.example' })).status, 403);
     assert.equal((await call(`${base}/releases/${id}`, { ...json({ revision: 1, version: '9.9.9' }), method: 'PATCH' })).status, 400);
     assert.equal((await call(`/api/firmware-releases/${id}`)).status, 404);
     assert.equal((await call(`/api/firmware-releases/${id}/download`)).status, 404);
-    let r = (await (await call(`${base}/releases/${id}`, { ...json({ revision: 1, notes: 'Visible', acceptance: 'Private evidence' }), method: 'PATCH' })).json()).data;
+    let r = (await (await call(`${base}/releases/${id}`, { ...json({ revision: 1, notes: 'Visible' }), method: 'PATCH' })).json()).data;
+    assert.equal(r.acceptance, '');
     assert.equal((await call(`${base}/releases/${id}/publish`, json({ revision: r.revision }, { Authorization: `Bearer ${serviceToken}` }))).status, 403);
     r = (await (await call(`${base}/releases/${id}/publish`, json({ revision: r.revision }))).json()).data;
+    assert.equal((await remove(r.revision, { Authorization: `Bearer ${serviceToken}` })).status, 403);
+    assert.equal((await remove(r.revision - 1)).status, 409);
     const catalog = await call('/api/firmware-releases', { headers: { Cookie: '' } }); assert.equal(catalog.status, 200);
     assert.equal(catalog.headers.get('cache-control'), 'no-store');
     const payload = await catalog.json(); assert.equal(payload.data.total, 1); assert.equal(payload.data.items[0].acceptance, undefined);
@@ -234,12 +278,19 @@ test('HTTP flow: real admin gate, service-token limits, private drafts, publish,
     assert.equal((await call(`/api/firmware-releases/${id}`)).status, 404);
     assert.equal((await call('/downloads/' + id + '.zip')).status, 404);
     assert.equal((await call(`/api/firmware-releases/${id}/download`)).status, 404);
+    const withdrawn = c.store.get(id);
+    assert.equal((await remove(withdrawn.revision, { Authorization: `Bearer ${serviceToken}` })).status, 403);
+    assert.equal((await remove(withdrawn.revision)).status, 200);
+    assert.equal((await call(`${base}/releases/${id}`)).status, 404);
+    assert.equal((await call(`/api/firmware-releases/${id}/download`)).status, 404);
+    const draftJob = c.store.import(bundle(c, () => {}, '3.0.1').file, actor);
+    assert.equal((await call(`${base}/releases/${draftJob.releaseId}`, { ...json({ revision: 1 }, { Authorization: `Bearer ${serviceToken}` }), method: 'DELETE' })).status, 200);
     adminEnabled = false; assert.equal((await call(base + '/releases')).status, 401);
     assert.deepEqual(fs.readdirSync(c.store.tempRoot), []);
 });
 
 test('draft command packages v2, writes concise notes and uploads an editable unpublished draft', { timeout: 20000 }, async t => {
-    const c = setup(t); const git = gitFixture(c.root); const fixture = bundle(c, () => {}, '3.4.5', true);
+    const c = setup(t); const git = gitFixture(c.root); const fixture = bundle(c, () => {}, '3.4.5', true, 2);
     const input = path.join(c.root, 'input'); fs.mkdirSync(input);
     for (const [name, data] of fixture.entries) fs.writeFileSync(path.join(input, name), data);
     const source = path.join(input, 'release-source.json');
@@ -264,6 +315,7 @@ test('draft command packages v2, writes concise notes and uploads an editable un
         server: origin, serviceTokenFile, initialRelease: true, gitRepo: git.repo });
     const draft = c.store.get(result.releaseId, true);
     assert.equal(draft.status, 'draft');
+    assert.equal(draft.manifest.install.protocol, 2);
     assert.equal(draft.notes, initialReleaseNotes({ repoRoot: git.repo, version: '3.4.5' }).notes);
     assert.equal(draft.acceptance, '');
     assert.equal(draft.bundleSha256, result.bundleSha256);
@@ -273,7 +325,7 @@ test('draft command packages v2, writes concise notes and uploads an editable un
     assert.equal(JSON.parse(fs.readFileSync(result.evidencePath, 'utf8')).kind, 'initial-release');
     assert.equal(sha(fs.readFileSync(result.bundlePath)), draft.bundleSha256);
     assert.equal(result.adminUrl, `${origin}/admin/firmware/`);
-    assert.throws(() => c.store.mutate(result.releaseId, draft.revision, 'publish', {}, actor), /evidence/);
+    assert.ok(draft.notes.trim());
 });
 
 test('draft command accepts only local admin servers and rejects contradictory Git selection', () => {
@@ -332,4 +384,47 @@ test('draft CLI dry run creates a verified bundle and notes without contacting a
     assert.ok(fs.existsSync(path.join(outDir, 'XORA-3.4.6-release.zip')));
     assert.match(fs.readFileSync(path.join(outDir, 'XORA-3.4.6-release-notes.md'), 'utf8'), /初版发布/);
     assert.equal(c.store.list().total, 0);
+});
+
+test('protocol 2 verifies readback-capable executable identities and unused hosted resources', t => {
+    const c=setup(t);const b=bundle(c,()=>{},'4.0.0',true,2);
+    assert.equal(c.store.import(b.file,actor).status,'completed');
+    assert.throws(()=>validateBundle(bundle(c,m=>{m.install.protocol=1;m.install.stm32Maintenance=m.install.txMaintenance={min:1,max:1};},'4.0.1',true,2).file,c.keys.publicKey,c.root),/identity/);
+    assert.throws(()=>validateBundle(bundle(c,m=>{m.install.txMaintenance={min:1,max:1};},'4.0.2',true,2).file,c.keys.publicKey,c.root),/maintenance/);
+});
+
+test('protocol 2 rejects a metadata resource reservation that is not explicitly unused', () => {
+    const {validateInstallArtifact}=require('../src/release-install-contract');
+    for(const [size,active,optional] of [[1,1,1],[0,0,0],[0,1,1]]) {
+        const metadata=Buffer.alloc(807);metadata.write('webresources',303);metadata.writeUInt32LE(size,403);metadata[472]=active;metadata[747]=optional;
+        const artifact={component:'stm32',metadataSha256:sha(metadata)};
+        assert.throws(()=>validateInstallArtifact(artifact,Buffer.alloc(0),()=>new Map([['metadata.bin',metadata]]),34,2),/unused hosted webresources/);
+    }
+});
+
+
+test('local package notes compare actual Git working-tree snapshots without manual input',t=>{
+ const c=setup(t);const g=gitFixture(c.root);const history=path.join(c.root,'history');
+ fs.mkdirSync(history);fs.writeFileSync(g.file,'int buttons = 2;\n');
+ const first=localReleaseNotes({repoRoot:g.repo,version:'1.0.0',historyRoot:history,initialRelease:true});
+ assert.equal(first.evidence.dirty,true);assert.match(first.evidence.sourceHashes['application/Src/input/buttons.cpp'],/^[a-f0-9]{64}$/);
+ const folder=path.join(history,'XORA-1.0.0-20260101-010101','package');fs.mkdirSync(folder,{recursive:true});
+ fs.writeFileSync(path.join(folder,'XORA-1.0.0-release.zip'),'local package');
+ fs.writeFileSync(path.join(folder,'XORA-1.0.0-release-notes-source.json'),JSON.stringify(first.evidence));
+ // The source was already dirty in the prior release; unchanged input must not
+ // be described again. A new file is included in the comparison automatically.
+ const display=path.join(g.repo,'application/Src/display/screen.cpp');fs.mkdirSync(path.dirname(display),{recursive:true});
+ fs.writeFileSync(display,'int display = 1;\n');
+ const next=localReleaseNotes({repoRoot:g.repo,version:'1.0.1',historyRoot:history});
+ assert.equal(next.evidence.kind,'local-source-diff');assert.equal(next.evidence.baselineVersion,'1.0.0');
+ assert.deepEqual(next.evidence.changedSourceFiles,['application/Src/display/screen.cpp']);
+ assert.match(next.notes,/屏幕显示与视觉反馈/);assert.doesNotMatch(next.notes,/按键与输入/);
+ fs.unlinkSync(display);
+ const same=localReleaseNotes({repoRoot:g.repo,version:'1.0.1',historyRoot:history});
+ assert.deepEqual(same.evidence.changedSourceFiles,[]);assert.match(same.notes,/升级流程测试/);
+ // Legacy local evidence has a Git commit only: retain the explicit fallback.
+ fs.writeFileSync(path.join(folder,'XORA-1.0.0-release-notes-source.json'),JSON.stringify({currentCommit:g.run('rev-parse','HEAD')}));
+ const legacy=localReleaseNotes({repoRoot:g.repo,version:'1.0.1',historyRoot:history});
+ assert.equal(legacy.evidence.kind,'git-worktree');assert.equal(legacy.evidence.baselineVersion,'1.0.0');
+ assert.deepEqual(legacy.evidence.changedSourceFiles,['application/Src/input/buttons.cpp']);
 });

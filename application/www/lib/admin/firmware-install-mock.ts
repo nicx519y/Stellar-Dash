@@ -18,8 +18,8 @@ export function mockInstallPackage(source: FirmwareRelease): Promise<{ release: 
 async function build(source: FirmwareRelease) {
   const manifest = structuredClone(source.manifest);
   manifest.schemaVersion = 2; manifest.buildId = `mock-${manifest.version}`;
-  manifest.install ??= { protocol: 1, order: 'tx-then-stm32', configRead: { min: 34, max: 34 }, configWrite: 34,
-    stm32Maintenance: { min: 1, max: 1 }, txMaintenance: { min: 1, max: 1 } };
+  manifest.install ??= { protocol: 2, order: 'tx-then-stm32', configRead: { min: 34, max: 34 }, configWrite: 34,
+    stm32Maintenance: { min: 2, max: 2 }, txMaintenance: { min: 2, max: 2 } };
   const files: Record<string, Uint8Array> = {};
   for (const artifact of manifest.artifacts) {
     artifact.version = manifest.version; artifact.buildId = manifest.buildId;

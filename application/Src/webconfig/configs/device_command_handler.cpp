@@ -151,6 +151,7 @@ void DeviceCommandDispatcher::initializeHandlers() {
     registerHandler("get_firmware_inventory", &firmwareHandler);
     registerHandler("get_release_install_status", &firmwareHandler);
     registerHandler("begin_release_install", &firmwareHandler);
+    registerHandler("backup_release_tx", &firmwareHandler);
     registerHandler("prepare_release_install", &firmwareHandler);
     registerHandler("activate_release_install", &firmwareHandler);
     registerHandler("abort_release_install", &firmwareHandler);

@@ -1,5 +1,7 @@
 'use client';
 
+import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
+import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import { create } from 'zustand';
 import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -40,7 +42,7 @@ export function DialogConfirm() {
 
     return (
         <Portal>
-            <Dialog.Root 
+            <ExclusiveDialog priority={OVERLAY_PRIORITY.confirmation}
                 open={isOpen} 
                 onOpenChange={(e) => !e.open && handleCancel()}
                 closeOnInteractOutside={closable ?? true}
@@ -82,7 +84,7 @@ export function DialogConfirm() {
                         </Dialog.Footer>
                     </Dialog.Content>
                 </Dialog.Positioner>
-            </Dialog.Root>
+            </ExclusiveDialog>
         </Portal>
     );
 }

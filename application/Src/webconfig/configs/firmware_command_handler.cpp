@@ -110,13 +110,14 @@ DeviceCommandResponse FirmwareCommandHandler::handle(const DeviceCommandRequest&
     const std::string& command = request.getCommand();
     if (command == "get_firmware_inventory" || command == "get_release_install_status")
         return create_success_response(request.getCid(), command, RELEASE_INSTALLER.inventory());
-    if (command == "begin_release_install" || command == "prepare_release_install" ||
+    if (command == "begin_release_install" || command == "backup_release_tx" || command == "prepare_release_install" ||
         command == "activate_release_install" || command == "abort_release_install" || command == "retry_release_install") {
         const cJSON* params=request.getParams();
         const cJSON* id=params?cJSON_GetObjectItemCaseSensitive(params,"session_id"):nullptr;
         const char* session=cJSON_IsString(id)?id->valuestring:nullptr;
         uint32_t size=0; bool ok=false;
         if(command=="begin_release_install")ok=parseUint32(cJSON_GetObjectItemCaseSensitive(params,"declaration_size"),&size) && RELEASE_INSTALLER.begin(session,size);
+        else if(command=="backup_release_tx")ok=RELEASE_INSTALLER.backup(session);
         else if(command=="prepare_release_install")ok=RELEASE_INSTALLER.prepare(session);
         else if(command=="activate_release_install")ok=RELEASE_INSTALLER.activate(session);
         else if(command=="abort_release_install")ok=RELEASE_INSTALLER.abort(session);
