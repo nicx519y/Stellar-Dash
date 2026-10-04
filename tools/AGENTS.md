@@ -10,8 +10,9 @@
 - [冻结契约](frozen_flash_contract.json) 中的文件不能夹带修改，不能为通过测试直接更新哈希。若任务确需改变它们，作为独立烧录流程变更处理并重新验收。
 - 完整 STM32 开发构建使用 `python tools/hbox.py web local-build --unlocked-development`；不要绕到默认 production 的旧构建示例。工具涉及产物模式时保持 manifest 检查，不能以命令成功代替镜像检查。
 - [webconfig_flash.py](webconfig_flash.py) 中的目标绑定、地址/大小校验、回读及提交顺序必须保留。`--execute` / `--simple-execute` 是实际硬件操作，不用于“测试一下命令”。
-- TX 普通更新仍走 `python tools/hbox.py flash tx`。IAP 安装、身份置备、保护状态转换与普通 Application 更新不可混为一谈；根目录禁止的操作直接拒绝。
+- TX 普通更新仍走 `python tools/hbox.py flash tx`。TX IAP 独立维护更新已获用户于 2026-10-04 解除对应区域写入禁令，范围和门禁按根目录规则。独立入口为 [ch585_iap_maintenance.py](ch585_iap_maintenance.py)，默认只离线核对产物，`--inspect` 备份并检查目标，`--execute` 经 WCH-Link 在 RAM 执行限定 4 KiB 的擦写及回读；空白新 TX 须显式传 `--initialize-new-tx`，电脑与 RAM 程序双重检查空白，不能用于绕过已运行设备身份检查。需匹配已核对的无锁 manifest，主机检查通过但实机安装/启动尚待验收，见 [维护说明](../docs/tx-iap-maintenance.md)。不能把普通 TX 命令当作 IAP 更新命令；保护位、配置字和锁定状态禁令继续有效。
 - [release.py](release.py) 包含构建、刷写、上传、删除等不同子命令；不能把发版或服务端写操作作为编译检查的附带步骤。
+- ROM ISP 维护连接会被主控的 TX 电源重试打断时，可用 `python tools/ch585_isp_hold.py --execute` 经 STM32 ST-LINK 暂停主控、停 SPI 输出并保持 TX 供电；默认不操作设备。只改变运行时寄存器，维护后正常断电重上电恢复；必须在 ISP 写入前执行，不能打断正在进行的下载。该入口不授权 ISP 工具的配置、保护或整片擦除操作，实机保持连接尚待验收。
 - 密钥、令牌、设备身份与本地数据库不写进日志或测试 fixtures；修改认证/签名工具时使用测试材料，保留生产与本地环境边界。
 
 ## 验证与诊断

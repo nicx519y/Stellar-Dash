@@ -1,5 +1,6 @@
 import type { PublicFirmwareRelease } from '../admin/firmware-types';
-import type { FirmwareInventory, ReleaseProgress } from './release-install-client';
+import type { FirmwareInventory, ReleaseProgress, TxIapTransferMode } from './release-install-client';
+import { normalizeTxIapMode } from './release-install-transfer';
 import { accumulateInstallProgress } from './release-install-progress';
 
 export const INSTALL_TASK_KEY = 'xora-release-install-v2';
@@ -8,6 +9,7 @@ export type InstallResult = 'waiting' | 'timeout' | 'completed' | 'restored' | '
 export interface InstallTask {
   protocol: 2; sessionId: string; digest: string; version: string; activatedAt: number;
   release: PublicFirmwareRelease; result: InstallResult; error?: string; progress?: ReleaseProgress;
+  txInstallMode?: TxIapTransferMode; txRecoveryMode?: TxIapTransferMode;
 }
 export function readInstallTask(storage: Pick<Storage, 'getItem'> = localStorage): InstallTask | null {
   try {
@@ -37,6 +39,7 @@ export function matchesInstallTask(t: InstallTask, i: FirmwareInventory): boolea
 }
 export function reconcileInstallTask(t: InstallTask, i: FirmwareInventory): InstallTask | null {
   if (!matchesInstallTask(t, i)) return null;
+  t = { ...t, txInstallMode: normalizeTxIapMode(i.txInstallMode), txRecoveryMode: normalizeTxIapMode(i.txRecoveryMode) };
   const previous = t.progress || { stage: 'waiting-device', overallPercent: 80, stepIndex: 6 };
   if (i.phase === 'completed' && i.installationState === 'installed' && i.confirmedDigest === t.digest && i.confirmedVersion === t.version)
     t = { ...t, result: 'completed', error: '' };

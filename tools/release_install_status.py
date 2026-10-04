@@ -35,6 +35,8 @@ class Snapshot(ctypes.LittleEndianStructure):
         ('backupSha', ctypes.c_char * 65), ('installError', ctypes.c_char * 96),
         ('recoveryError', ctypes.c_char * 96), ('errorCode', ctypes.c_char * 40),
         ('crc2', ctypes.c_uint32), ('commit2', ctypes.c_uint32),
+        ('txInstallMode', ctypes.c_uint32), ('txRecoveryMode', ctypes.c_uint32),
+        ('crc3', ctypes.c_uint32), ('commit3', ctypes.c_uint32),
     ]
 
 
@@ -46,9 +48,14 @@ def parse_journals(data: bytes) -> dict:
         raw = data[index * BANK_BYTES:(index + 1) * BANK_BYTES]
         state = Snapshot.from_buffer_copy(raw[:ctypes.sizeof(Snapshot)])
         legacy = state.magic == 0x32524F58
+        no_extension = all(getattr(state, name) == 0xffffffff for name in ('txInstallMode', 'txRecoveryMode', 'crc3', 'commit3'))
+        extension = not legacy and not no_extension
         crc_name, commit_name = ('crc', 'commit') if legacy else ('crc2', 'commit2')
         crc_offset = getattr(Snapshot, crc_name).offset
         if state.magic not in (0x32524F58, 0x33524F58) or not state.generation:
+            continue
+        if extension and (state.txInstallMode > 2 or state.txRecoveryMode > 2 or
+                          state.commit3 != 0x54494D43 or state.crc3 != zlib.crc32(raw[:Snapshot.crc3.offset])):
             continue
         if state.phase > (10 if legacy else 16) or state.manifestSize > 8192:
             continue
@@ -64,6 +71,9 @@ def parse_journals(data: bytes) -> dict:
         decode = lambda name: bytes(getattr(state, name)).decode('utf-8', errors='replace')
         result = dict(bank=index, generation=state.generation, phase=PHASES[state.phase],
                       installAttempts=state.attempts, error=decode('error'), legacy=legacy)
+        modes = ('unknown', 'small-packet', 'dma')
+        result.update(txInstallMode=modes[state.txInstallMode] if extension else 'unknown',
+                      txRecoveryMode=modes[state.txRecoveryMode] if extension else 'unknown')
         if legacy:
             result.update(errorCode='LEGACY_NO_BACKUP' if state.phase >= 3 and state.phase <= 9 else '',
                           restoreAttempts=0, backupReady=False)

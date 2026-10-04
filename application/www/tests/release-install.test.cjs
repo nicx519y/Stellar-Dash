@@ -118,6 +118,8 @@ test('offline presentation estimates advance with time, never confirm completion
     assert.ok(next >= displayed && next < 100); displayed = next;
   }
   assert.ok(displayed > 95); assert.deepEqual(p, original);
+  assert.equal(displayedInstallPercent(p, 1000, 31000), 91);
+  assert.equal(displayedInstallPercent(p, 1000, 61000), 95);
   assert.equal(displayedInstallPercent(p, 1000, 31000), displayedInstallPercent(p, 1000, 31000, 0)); // Refresh derives from activation time.
   assert.equal(displayedInstallPercent(p, undefined, 31000), 80);
   assert.equal(displayedInstallPercent(p, 40000, 31000), 80); // Clock moved backwards.

@@ -15,11 +15,14 @@ import { FinishConfigButton } from './finish-config-button';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { BuildVariantBadge } from '@hbox/build-variant-badge';
 import { UserAuthControl } from '@/components/user-auth-control';
+import { useUserAuth } from '@/contexts/user-auth-context';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { t } = useLanguage();
     const { currentRoute, setRoute } = useRouterStore();
+    const { session, loading: authLoading } = useUserAuth();
+    const isAdmin = !authLoading && session.authenticated && session.user?.role === 'admin';
 
     const { finishConfigDisabled, configEditingBlocked, dataIsReady } = useGamepadConfig();
     const tabs = [
@@ -27,7 +30,9 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
         { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
-        { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
+        ...(isAdmin ? [
+            { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
+        ] : []),
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
         // { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },
     ];

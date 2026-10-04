@@ -187,6 +187,7 @@ static uint8_t compute_backlight_percent(uint32_t nowMs) {
 }
 
 static const char* get_connection_mode_label(void) {
+    if (MainRuntime_IsTxIspActive()) return "ISP";
     if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB) {
         if (CONNECTION_MANAGER.getLinkState() == ConnectionLinkState::Connected) return "USB";
         return "USB?";
@@ -244,6 +245,7 @@ static bool screen_style_is_light(void) {
 }
 
 static const char* get_connection_mode_icon_name(void) {
+    if (MainRuntime_IsTxIspActive()) return nullptr;
     if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB) {
         return screen_style_is_light() ? "USB_light" : "USB_dark";
     }
@@ -371,8 +373,18 @@ static void enter_detail(uint8_t menuId) {
     g_detailIndex = ScreenDetail_InitIndex(menuId);
 }
 
+void SPIScreenManager::showTxIsp() {
+    ScreenTimedPopup_Reset(&g_actionPopup);
+    enter_detail(SCREEN_MENU_TX_ISP);
+    g_menu_full_refresh_pending = true;
+}
+
 static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
     if (!outMenuId) return false;
+    if (mode == BootMode::BOOT_MODE_TX_ISP || MainRuntime_IsTxIspActive()) {
+        *outMenuId = SCREEN_MENU_TX_ISP;
+        return true;
+    }
     if (mode == BootMode::BOOT_MODE_WEB_CONFIG) {
         if (!BOARD_MODE.isWebConfigAllowed()) return false;
         *outMenuId = 9u;
@@ -876,6 +888,8 @@ void SPIScreenManager::renderBars() {
     const uint32_t okBg = ok_flash_active() ? g_cfgOkBg : barBg;
     if (g_inDetail && g_detailMenuId == 9) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailWebConfig_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    } else if (g_inDetail && g_detailMenuId == SCREEN_MENU_TX_ISP) {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailTxIsp_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     } else if (g_inDetail && g_detailMenuId == 10) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "Quit", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     } else if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {

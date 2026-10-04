@@ -5,6 +5,24 @@ const task=()=>({protocol:2,sessionId:'rel-test',digest:'a'.repeat(64),version:'
   release:{manifest:{version:'2.0.0'}},result:'waiting'});
 const status=(phase='completed')=>({protocol:2,sessionId:'rel-test',targetDigest:'a'.repeat(64),targetVersion:'2.0.0',
   phase,installationState:'installed',confirmedDigest:'a'.repeat(64),confirmedVersion:'2.0.0'});
+test('actual IAP modes reconcile only a matched transaction, survive refresh and late recovery',()=>{
+ const values=new Map();const storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)};
+ const pending=reconcileInstallTask(task(),{...status('tx-writing'),txInstallMode:'small-packet'});
+ assert.equal(pending.txInstallMode,'small-packet');assert.equal(pending.txRecoveryMode,'unknown');
+ saveInstallTask(pending,storage);assert.equal(readInstallTask(storage).txInstallMode,'small-packet');
+ const recovered=reconcileInstallTask({...readInstallTask(storage),result:'timeout'},
+   {...status('restored'),recoveryResult:'restored',txInstallMode:'small-packet',txRecoveryMode:'dma'});
+ assert.equal(recovered.result,'restored');assert.equal(recovered.txInstallMode,'small-packet');assert.equal(recovered.txRecoveryMode,'dma');
+ assert.equal(reconcileInstallTask(pending,{...status(),sessionId:'other',txInstallMode:'dma'}),null);
+ for(const mode of [undefined,'bogus',3]) {
+  const old=reconcileInstallTask(pending,{...status(),txInstallMode:mode,txRecoveryMode:mode});
+  assert.equal(old.txInstallMode,'unknown');assert.equal(old.txRecoveryMode,'unknown');
+ }
+ const {txIapModeLabel}=require('../lib/device-transport/release-install-transfer.ts');
+ assert.equal(txIapModeLabel('dma',true),'大包 DMA · 1000 字节/包');
+ assert.equal(txIapModeLabel('small-packet',false),'Small packets · 40 bytes/packet');
+ assert.equal(txIapModeLabel(undefined,false),'Unknown');
+});
 function clock(){let time=1000,sequence=0;const pending=new Map();return {now:()=>time,
  schedule:(fn,delay)=>{pending.set(++sequence,{fn,at:time+delay});return sequence;},cancel:id=>pending.delete(id),
  async advance(n){const end=time+n;for(let guard=0;guard<1000;guard++){

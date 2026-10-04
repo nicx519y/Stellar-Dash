@@ -137,6 +137,7 @@ Src/system/states/calibration_state.cpp \
 Src/system/states/ch585_bridge_update_state.cpp \
 Src/system/states/input_state.cpp \
 Src/system/states/safe_recovery_state.cpp \
+Src/system/states/tx_isp_state.cpp \
 Src/system/states/webconfig_state.cpp \
 Src/input/adc_btns/adc_btns_marker.cpp \
 Src/input/adc_btns/adc_btns_worker.cpp \
@@ -164,6 +165,7 @@ Src/display/screen_control/spi_screen_detail_screen_brightness.cpp \
 Src/display/screen_control/spi_screen_detail_socd.cpp \
 Src/display/screen_control/spi_screen_detail_tournament_mode.cpp \
 Src/display/screen_control/spi_screen_detail_web_config.cpp \
+Src/display/screen_control/spi_screen_detail_tx_isp.cpp \
 Src/display/screen_control/spi_screen_main_list.cpp \
 Src/display/screen_control/spi_screen_manager.cpp \
 Src/display/screen_control/jpeg_player.cpp \

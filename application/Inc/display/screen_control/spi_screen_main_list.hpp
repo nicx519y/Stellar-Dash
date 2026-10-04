@@ -17,6 +17,9 @@ struct ScreenMenuMeta {
     const char* label;
 };
 
+// Always available locally; not part of the persisted configurable feature array.
+constexpr uint8_t SCREEN_MENU_TX_ISP = 12u;
+
 const ScreenMenuMeta* ScreenMain_FindMenuMeta(uint8_t id);
 const char* ScreenMain_InputModeAbbrev(InputMode mode);
 uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds, uint8_t outCap);

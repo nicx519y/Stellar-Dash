@@ -40,6 +40,8 @@ struct Snapshot {
     xora_release_identity_t oldStm;
     char backupSha[65], installError[96], recoveryError[96], errorCode[40];
     uint32_t crc2, commit2;
+    // Keep a valid v2 prefix for older target controllers, with a CRC-bound extension.
+    uint32_t txInstallMode, txRecoveryMode, crc3, commit3;
 };
 struct BackupHeader {
     uint32_t magic, size, sourceSlot, targetSlot;
@@ -86,11 +88,23 @@ bool hash(const void* bytes, uint32_t size, char out[65]) {
     return sha256_calculate(static_cast<const uint8_t*>(bytes), size, out) == 1;
 }
 bool flashHash(uint32_t address, uint32_t size, const char* expected) {
+    if(address<EXTERNAL_FLASH_BASE || address-EXTERNAL_FLASH_BASE>W25Qxx_FlashSize ||
+       size>W25Qxx_FlashSize-(address-EXTERNAL_FLASH_BASE))return false;
     uint8_t bytes[512], digest[32]; char encoded[65]; sha256_simple_ctx_t ctx;
+    // Hash the full image through indirect reads, but switch QSPI mode only
+    // once. The per-chunk XIP wrapper resets Flash and waits 5 ms each time.
+    const bool mapped=QSPI_W25Qxx_IsMemoryMappedMode();
+    if(mapped && QSPI_W25Qxx_ExitMemoryMappedMode()!=QSPI_W25Qxx_OK){
+        (void)QSPI_W25Qxx_EnterMemoryMappedMode();return false;
+    }
+    bool ok=true;
     sha256_simple_init(&ctx);
     while (size) { uint32_t n = size < sizeof(bytes) ? size : sizeof(bytes);
-        if (!read(address, bytes, n)) return false;
+        if(QSPI_W25Qxx_ReadBuffer(bytes,address-EXTERNAL_FLASH_BASE,n)!=QSPI_W25Qxx_OK){ok=false;break;}
         sha256_simple_update(&ctx, bytes, n); address += n; size -= n; }
+    // Restore the caller's mapping on every path; failure cannot pass verification.
+    if(mapped && QSPI_W25Qxx_EnterMemoryMappedMode()!=QSPI_W25Qxx_OK)ok=false;
+    if(!ok)return false;
     sha256_simple_final(&ctx, digest);
     for (unsigned i=0;i<32;i++) snprintf(encoded+i*2,3,"%02x",digest[i]);
     return strcmp(expected, encoded) == 0;
@@ -98,8 +112,13 @@ bool flashHash(uint32_t address, uint32_t size, const char* expected) {
 bool valid(const Snapshot& s) {
     const bool old=s.magic==0x32524f58u && s.commit==0x54494d43u && s.phase<=Aborted &&
         s.crc==crc32(&s,offsetof(Snapshot,crc));
-    const bool current=s.magic==0x33524f58u && s.commit2==0x54494d43u && s.phase<=RollbackVerifying &&
-        s.crc2==crc32(&s,offsetof(Snapshot,crc2)) && s.backupSha[64]==0 &&
+    const bool v2=s.magic==0x33524f58u && s.commit2==0x54494d43u &&
+        s.crc2==crc32(&s,offsetof(Snapshot,crc2));
+    const bool noExtension=s.txInstallMode==0xffffffffu && s.txRecoveryMode==0xffffffffu &&
+        s.crc3==0xffffffffu && s.commit3==0xffffffffu;
+    const bool extension=s.commit3==0x54494d43u &&
+        s.crc3==crc32(&s,offsetof(Snapshot,crc3)) && s.txInstallMode<=2 && s.txRecoveryMode<=2;
+    const bool current=v2 && (noExtension || extension) && s.phase<=RollbackVerifying && s.backupSha[64]==0 &&
         s.installError[95]==0 && s.recoveryError[95]==0 && s.errorCode[39]==0;
     return (old || current) && s.generation && s.manifestSize <= XORA_RELEASE_MANIFEST_MAX &&
         s.manifest[s.manifestSize] == 0 && s.session[32] == 0 && s.error[95] == 0 &&
@@ -125,30 +144,38 @@ void load() {
     legacyJournal=best && state.magic==0x32524f58u;
     if(legacyJournal)memset(reinterpret_cast<uint8_t*>(&state)+offsetof(Snapshot,restoreAttempts),0,
         sizeof(state)-offsetof(Snapshot,restoreAttempts));
+    else if(best && state.commit3==0xffffffffu)
+        memset(reinterpret_cast<uint8_t*>(&state)+offsetof(Snapshot,txInstallMode),0,
+            sizeof(state)-offsetof(Snapshot,txInstallMode));
     snprintf(lastError,sizeof(lastError),"%s",storageFault?"Installation journal is unreadable":state.error);
 }
 bool persist(Phase phase) {
     if (storageFault || state.generation == 0xffffffffu) return fail("Installation journal unavailable");
     state.magic=0x33524f58u; ++state.generation; state.phase=phase;legacyJournal=false;
     snprintf(state.error,sizeof(state.error),"%s",(phase==Failed || phase==RestoreFailed || phase==Restored)?lastError:"");
-    state.commit=0xffffffffu;state.crc2=crc32(&state,offsetof(Snapshot,crc2)); state.commit2=0xffffffffu;
+    state.commit=0xffffffffu;state.crc2=crc32(&state,offsetof(Snapshot,crc2));
+    // crc3 binds the complete committed prefix, including its final marker.
+    state.commit2=0x54494d43u;state.crc3=crc32(&state,offsetof(Snapshot,crc3));
+    state.commit2=state.commit3=0xffffffffu;
     const uint32_t dest = bank == XORA_RELEASE_BANK_A ? XORA_RELEASE_BANK_B : XORA_RELEASE_BANK_A;
     if (QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) return fail("Cannot suspend QSPI");
     bool ok = true;
     for (uint32_t off=0; ok && off<XORA_RELEASE_BANK_SIZE; off+=4096)
         ok=QSPI_W25Qxx_SectorErase(dest-EXTERNAL_FLASH_BASE+off)==QSPI_W25Qxx_OK;
-    for (uint32_t off=0; ok && off<offsetof(Snapshot,commit2);) {
-        uint32_t n=offsetof(Snapshot,commit2)-off; if(n>256) n=256;
+    for (uint32_t off=0; ok && off<offsetof(Snapshot,commit3);) {
+        uint32_t n=offsetof(Snapshot,commit3)-off; if(n>256) n=256;
         ok=QSPI_W25Qxx_WritePage(reinterpret_cast<uint8_t*>(&state)+off,dest-EXTERNAL_FLASH_BASE+off,n)==QSPI_W25Qxx_OK;
         off+=n;
     }
     uint8_t check[256];
-    for(uint32_t off=0;ok && off<offsetof(Snapshot,commit2);) {
-        uint32_t n=offsetof(Snapshot,commit2)-off; if(n>sizeof(check))n=sizeof(check);
+    for(uint32_t off=0;ok && off<offsetof(Snapshot,commit3);) {
+        uint32_t n=offsetof(Snapshot,commit3)-off; if(n>sizeof(check))n=sizeof(check);
         ok=QSPI_W25Qxx_ReadBuffer(check,dest-EXTERNAL_FLASH_BASE+off,n)==QSPI_W25Qxx_OK &&
             memcmp(check,reinterpret_cast<uint8_t*>(&state)+off,n)==0; off+=n;
     }
     uint32_t marker=0x54494d43u;
+    if(ok) ok=QSPI_W25Qxx_WritePage(reinterpret_cast<uint8_t*>(&marker),dest-EXTERNAL_FLASH_BASE+offsetof(Snapshot,commit3),4)==QSPI_W25Qxx_OK;
+    // Publish the legacy prefix last, only when the extension is committed.
     if(ok) ok=QSPI_W25Qxx_WritePage(reinterpret_cast<uint8_t*>(&marker),dest-EXTERNAL_FLASH_BASE+offsetof(Snapshot,commit2),4)==QSPI_W25Qxx_OK;
     bool mapped=QSPI_W25Qxx_EnterMemoryMappedMode()==QSPI_W25Qxx_OK;
     SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t*>(dest),XORA_RELEASE_BANK_SIZE);
@@ -156,11 +183,12 @@ bool persist(Phase phase) {
     if(!ok || !mapped) { loaded=false; load(); return fail("Installation journal commit uncertain"); }
     SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t*>(dest),XORA_RELEASE_BANK_SIZE);
     __DSB(); __ISB();
-    uint32_t committed=0;
-    if(!read(dest+offsetof(Snapshot,commit2),&committed,4) || committed!=marker) {
+    uint32_t committed=0,extensionCommitted=0;
+    if(!read(dest+offsetof(Snapshot,commit2),&committed,4) || committed!=marker ||
+       !read(dest+offsetof(Snapshot,commit3),&extensionCommitted,4) || extensionCommitted!=marker) {
         loaded=false; load(); return fail("Installation journal readback failed");
     }
-    state.commit2=marker; bank=dest; return true;
+    state.commit2=state.commit3=marker; bank=dest; return true;
 }
 const cJSON* item(const cJSON* o,const char* key) {return cJSON_GetObjectItemCaseSensitive(o,key);}
 const char* str(const cJSON* o,const char* key) {const auto* v=item(o,key);return cJSON_IsString(v)?v->valuestring:"";}
@@ -289,6 +317,15 @@ void txFailureDetail(char* out,uint32_t size){
         static_cast<unsigned>(CH585_IAP_CLIENT.status()),CH585_IAP_CLIENT.deviceStatus(),
         static_cast<unsigned long>(CH585_IAP_CLIENT.offset()));
 }
+bool recordInstallMode(Ch585IapTransferMode mode){
+    state.txInstallMode=static_cast<uint32_t>(mode);return persist(TxWriting);
+}
+bool recordRecoveryMode(Ch585IapTransferMode mode){
+    state.txRecoveryMode=static_cast<uint32_t>(mode);return persist(Restoring);
+}
+const char* transferModeName(uint32_t mode){
+    return mode==2 ? "dma" : mode==1 ? "small-packet" : "unknown";
+}
 bool oldTxValid(){
     xora_release_identity_t tx={};return CH585_IAP_CLIENT.validateApplication(&tx) &&
         !memcmp(&tx,&state.oldTx,sizeof(tx));
@@ -302,9 +339,9 @@ bool recover(const char* reason){
     // the old runtime before spending another persisted write attempt.
     bool restored=state.restoreAttempts>0 && oldTxValid();
     while(state.restoreAttempts<2 && !restored){
-        ++state.restoreAttempts;
+        ++state.restoreAttempts;state.txRecoveryMode=0;
         if(!persist(Restoring))return restoreFailure("JOURNAL_FAILED","Cannot record TX recovery attempt");
-        restored=CH585_IAP_CLIENT.programApplicationImage(state.backupAddress,state.backupSize) && oldTxValid();
+        restored=CH585_IAP_CLIENT.programApplicationImage(state.backupAddress,state.backupSize,recordRecoveryMode) && oldTxValid();
     }
     if(!restored){txFailureDetail(state.recoveryError,sizeof(state.recoveryError));
         return restoreFailure("TX_RESTORE_FAILED",state.recoveryError);}
@@ -376,6 +413,7 @@ bool ReleaseInstaller::begin(const char* session,uint32_t size) {
     snprintf(state.session,sizeof(state.session),"%s",session);
     state.source=*metadata; state.configVersion=STORAGE_MANAGER.config.version;
     state.attempts=0;state.restoreAttempts=0;state.backupReady=0;state.backupSize=0;state.backupAddress=0;
+    state.txInstallMode=state.txRecoveryMode=0;
     state.oldStm=self;memset(&state.oldTx,0,sizeof(state.oldTx));state.backupSha[0]=state.installError[0]=state.recoveryError[0]=state.errorCode[0]=0;
     declarationSize=size; declarationReceived=0; declaring=true;
     memset(received,0,sizeof(received));
@@ -458,7 +496,7 @@ bool ReleaseInstaller::runBoot() {
     if(state.phase<=TxWriting) {
         if(state.attempts)return recover("TX installation was interrupted");
         ++state.attempts;if(!persist(TxWriting))return false;
-        if(!CH585_IAP_CLIENT.programCombinedImage(CH585_FIRMWARE_STAGING_DATA_ADDR,txSize) || !verifyTx()){
+        if(!CH585_IAP_CLIENT.programCombinedImage(CH585_FIRMWARE_STAGING_DATA_ADDR,txSize,recordInstallMode) || !verifyTx()){
             txFailureDetail(state.installError,sizeof(state.installError));return recover(state.installError);}
         if(!persist(TxVerified))return false;
     }
@@ -548,6 +586,8 @@ cJSON* ReleaseInstaller::inventory() {
     cJSON_AddStringToObject(out,"recoveryError",state.recoveryError);
     cJSON_AddStringToObject(out,"errorCode",recoveryErrorCode());
     cJSON_AddNumberToObject(out,"restoreAttempts",state.restoreAttempts);
+    cJSON_AddStringToObject(out,"txInstallMode",transferModeName(storageFault?0:state.txInstallMode));
+    cJSON_AddStringToObject(out,"txRecoveryMode",transferModeName(storageFault?0:state.txRecoveryMode));
     cJSON_AddNumberToObject(out,"backupReceived",backupSecondPass?state.backupSize+backupOffset:backupOffset);
     cJSON_AddNumberToObject(out,"backupTotal",XORA_TX_BACKUP_APP_BYTES*2);
     cJSON_AddBoolToObject(out,"backupReady",state.backupReady);

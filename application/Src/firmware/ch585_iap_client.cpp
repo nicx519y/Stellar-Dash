@@ -81,16 +81,19 @@ bool Ch585IapClient::transact(uint8_t command,
 {
     lastTransactionTimedOut = false;
     lastDeviceStatus = 0xFFu;
-    ch585_iap_packet_t packet = {};
+    // Header/data offsets are shared; only the CRC position and wire size vary.
+    ch585_iap_dma_packet_t packet = {};
+    const uint16_t wireSize = dmaIap ? CH585_IAP_DMA_PACKET_SIZE : CH585_IAP_PACKET_SIZE;
+    const uint16_t capacity = dmaIap ? CH585_IAP_DMA_DATA_SIZE : CH585_IAP_DATA_SIZE;
     ch585_iap_response_t response = {};
     packet.magic = CH585_IAP_PROTOCOL_MAGIC;
-    packet.version = CH585_IAP_PROTOCOL_VERSION;
+    packet.version = dmaIap ? CH585_IAP_DMA_VERSION : CH585_IAP_PROTOCOL_VERSION;
     packet.command = command;
     packet.sequence = ++sequence;
     packet.offset = offset;
     packet.value = value;
     packet.payload_length = payloadLength;
-    if (payloadLength > CH585_IAP_DATA_SIZE ||
+    if (payloadLength > capacity ||
         (payloadLength != 0u && payload == nullptr)) {
         currentStatus = Ch585IapClientStatus::ProtocolError;
         return false;
@@ -98,12 +101,13 @@ bool Ch585IapClient::transact(uint8_t command,
     if (payloadLength != 0u) memcpy(packet.data, payload, payloadLength);
     uint32_t crc = crc32Update(0xFFFFFFFFu,
                                reinterpret_cast<const uint8_t*>(&packet),
-                               sizeof(packet) - sizeof(packet.packet_crc32));
-    packet.packet_crc32 = crc ^ 0xFFFFFFFFu;
+                               wireSize - sizeof(uint32_t));
+    crc ^= 0xFFFFFFFFu;
+    memcpy(reinterpret_cast<uint8_t*>(&packet) + wireSize - sizeof(crc), &crc, sizeof(crc));
 
     if (!USBBoardLinkPort_RawTransact(
             reinterpret_cast<const uint8_t*>(&packet),
-            sizeof(packet),
+            wireSize,
             reinterpret_cast<uint8_t*>(&response),
             sizeof(response),
             timeoutMs)) {
@@ -119,7 +123,7 @@ bool Ch585IapClient::transact(uint8_t command,
         return false;
     }
     if (response.magic != CH585_IAP_RESPONSE_MAGIC ||
-        response.version != CH585_IAP_PROTOCOL_VERSION ||
+        response.version != packet.version ||
         response.command != command || response.sequence != packet.sequence ||
         crc8Sum(reinterpret_cast<const uint8_t*>(&response),
                 sizeof(response) - 1u) != response.crc8) {
@@ -150,6 +154,8 @@ bool Ch585IapClient::transact(uint8_t command,
 
 bool Ch585IapClient::probe()
 {
+    currentTransferMode = Ch585IapTransferMode::Unknown;
+    dmaIap = false;
     currentStatus = Ch585IapClientStatus::Idle;
     currentProgress = 0u;
     lastDeviceStatus = 0u;
@@ -184,8 +190,9 @@ bool Ch585IapClient::probe()
 }
 
 bool Ch585IapClient::programCombinedImage(uint32_t mappedAddress,
-                                          uint32_t totalSize)
+                                          uint32_t totalSize, TransferCheckpoint checkpoint)
 {
+    currentTransferMode = Ch585IapTransferMode::Unknown;
     APP_STAGE("M00", "CH585 combined image programming begin: mapped=%08lx total=%lu",
               static_cast<unsigned long>(mappedAddress),
               static_cast<unsigned long>(totalSize));
@@ -195,11 +202,12 @@ bool Ch585IapClient::programCombinedImage(uint32_t mappedAddress,
         currentStatus = Ch585IapClientStatus::InvalidImage;
         return false;
     }
-    return programApplicationImage(mappedAddress+kCombinedIapBytes,totalSize-kCombinedIapBytes);
+    return programApplicationImage(mappedAddress+kCombinedIapBytes,totalSize-kCombinedIapBytes,checkpoint);
 }
 
-bool Ch585IapClient::programApplicationImage(uint32_t mappedAddress,uint32_t appSize)
+bool Ch585IapClient::programApplicationImage(uint32_t mappedAddress,uint32_t appSize,TransferCheckpoint checkpoint)
 {
+    currentTransferMode = Ch585IapTransferMode::Unknown;
     endResponseConfirmed=false;
     currentOffset=0;
     if (mappedAddress < 0x90000000u || mappedAddress >= 0x90800000u ||
@@ -217,6 +225,28 @@ bool Ch585IapClient::programApplicationImage(uint32_t mappedAddress,uint32_t app
 
     APP_STAGE("M00P", "CH585 starting IAP probe");
     if (!probe()) return false;
+
+    // Unsupported is the only safe downgrade. A lost/malformed negotiation
+    // ACK leaves the peer's framing unknown, so abort before erasing anything.
+    if (transact(CH585_IAP_CMD_DMA, CH585_IAP_DMA_PACKET_SIZE,
+                 CH585_IAP_DMA_CONTRACT, nullptr, 0u, kWriteResponseTimeoutMs)) {
+        if (!USBBoardLinkPort_EnableIapDma()) {
+            currentStatus = Ch585IapClientStatus::LinkError;
+            return false;
+        }
+        dmaIap = true;
+        APP_STAGE("M05D", "CH585 IAP DMA negotiated: payload=%u clock=7500000",
+                  static_cast<unsigned int>(CH585_IAP_DMA_DATA_SIZE));
+    } else if (lastDeviceStatus != CH585_IAP_STATUS_BAD_COMMAND) {
+        return false;
+    }
+
+    currentTransferMode = dmaIap ? Ch585IapTransferMode::Dma : Ch585IapTransferMode::SmallPacket;
+    // Persist the actual negotiation before BEGIN can erase TX Application.
+    if (checkpoint && !checkpoint(currentTransferMode)) {
+        currentStatus = Ch585IapClientStatus::CheckpointError;
+        return false;
+    }
 
     currentStage = CH585_STAGING_STAGE_BEGIN;
     bool beginAccepted = false;
@@ -240,11 +270,12 @@ bool Ch585IapClient::programApplicationImage(uint32_t mappedAddress,uint32_t app
     uint32_t offset = 0u;
     uint8_t lastLoggedProgress = 0u;
     currentStage = CH585_STAGING_STAGE_WRITE;
+    const uint16_t capacity = dmaIap ? CH585_IAP_DMA_DATA_SIZE : CH585_IAP_DATA_SIZE;
     while (offset < appSize) {
         currentOffset = offset;
         const uint16_t chunk = static_cast<uint16_t>(
-            ((appSize - offset) > CH585_IAP_DATA_SIZE)
-                ? CH585_IAP_DATA_SIZE
+            ((appSize - offset) > capacity)
+                ? capacity
                 : (appSize - offset));
         bool accepted = false;
         bool previousTimedOut = false;
@@ -254,7 +285,7 @@ bool Ch585IapClient::programApplicationImage(uint32_t mappedAddress,uint32_t app
                 accepted = true;
                 break;
             }
-            if (previousTimedOut &&
+            if (!dmaIap && previousTimedOut &&
                 lastDeviceStatus == CH585_IAP_STATUS_BAD_ADDRESS) {
                 /* The only tolerated ambiguity: the timed-out request may
                  * have committed and advanced the loader offset. END's full

@@ -19,7 +19,10 @@ static const ScreenMenuMeta kMenuMeta[] = {
     {10, SCREEN_FEATURE_CALIBRATION_MODE_SWITCH, "Calibration Mode"},
 };
 
+static const ScreenMenuMeta kTxIspMenu = {SCREEN_MENU_TX_ISP, 0u, "TX ISP"};
+
 const ScreenMenuMeta* ScreenMain_FindMenuMeta(uint8_t id) {
+    if (id == SCREEN_MENU_TX_ISP) return &kTxIspMenu;
     for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
         if (kMenuMeta[i].id == id) return &kMenuMeta[i];
     }
@@ -68,6 +71,7 @@ uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds
             if (count < outCap) outIds[count++] = kMenuMeta[i].id;
         }
     }
+    if (count < outCap) outIds[count++] = SCREEN_MENU_TX_ISP;
     return count;
 }
 

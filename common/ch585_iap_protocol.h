@@ -11,6 +11,11 @@ extern "C" {
 #define CH585_IAP_PROTOCOL_VERSION     1u
 #define CH585_IAP_PACKET_SIZE          64u
 #define CH585_IAP_DATA_SIZE            40u
+/* Opt-in extension: negotiation itself uses the unchanged v1 packet/ACK. */
+#define CH585_IAP_DMA_VERSION          2u
+#define CH585_IAP_DMA_PACKET_SIZE      1024u
+#define CH585_IAP_DMA_DATA_SIZE        1000u
+#define CH585_IAP_DMA_CONTRACT         0x32414D44u /* "DMA2" */
 #define CH585_IAP_RESPONSE_MAGIC       0xA53Cu
 #define CH585_IAP_APP_START            0x00001000u
 #define CH585_IAP_FLASH_END            0x00070000u
@@ -24,7 +29,8 @@ typedef enum {
     CH585_IAP_CMD_WRITE = 3,
     CH585_IAP_CMD_END = 4,
     CH585_IAP_CMD_ABORT = 5,
-    CH585_IAP_CMD_BOOT_APP = 6
+    CH585_IAP_CMD_BOOT_APP = 6,
+    CH585_IAP_CMD_DMA = 7
 } ch585_iap_command_t;
 
 typedef enum {
@@ -65,6 +71,19 @@ typedef struct CH585_IAP_PACKED {
 } ch585_iap_packet_t;
 
 typedef struct CH585_IAP_PACKED {
+    uint32_t magic;
+    uint8_t version;
+    uint8_t command;
+    uint16_t sequence;
+    uint32_t offset;
+    uint32_t value;
+    uint16_t payload_length;
+    uint16_t reserved;
+    uint8_t data[CH585_IAP_DMA_DATA_SIZE];
+    uint32_t packet_crc32;
+} ch585_iap_dma_packet_t;
+
+typedef struct CH585_IAP_PACKED {
     uint16_t magic;
     uint8_t version;
     uint8_t command;
@@ -83,11 +102,15 @@ typedef struct CH585_IAP_PACKED {
 } ch585_iap_metadata_t;
 
 #ifdef __cplusplus
+static_assert(sizeof(ch585_iap_dma_packet_t) == CH585_IAP_DMA_PACKET_SIZE,
+              "CH585 DMA IAP packet layout changed");
 static_assert(sizeof(ch585_iap_packet_t) == CH585_IAP_PACKET_SIZE,
               "CH585 IAP packet layout changed");
 static_assert(sizeof(ch585_iap_response_t) == 8u,
               "CH585 IAP response must fit the SPI FIFO");
 #else
+_Static_assert(sizeof(ch585_iap_dma_packet_t) == CH585_IAP_DMA_PACKET_SIZE,
+               "CH585 DMA IAP packet layout changed");
 _Static_assert(sizeof(ch585_iap_packet_t) == CH585_IAP_PACKET_SIZE,
                "CH585 IAP packet layout changed");
 _Static_assert(sizeof(ch585_iap_response_t) == 8u,

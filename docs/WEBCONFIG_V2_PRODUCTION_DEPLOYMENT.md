@@ -1,5 +1,10 @@
 # WebConfig V2 生产部署与发布门禁
 
+当前 XORA WebConfig 使用 WebHID 直连加密会话；WebConfig 和 admin 的
+同源站点部署以 [当前部署方案](webconfig-admin-deployment.md) 为准。
+本文描述设备证明子系统，其 KMS/Redis 要求不是当前直连页面上线的前置条件。
+网页部署不包含设备制造、保护位配置或锁定，硬件操作继续遵守仓库安全规则。
+
 WebConfig V2 是同源 HTTPS 页面 + WebHID + 在线设备证明架构。当前仓库已提供
 协议、浏览器客户端、服务端验证器、内部 Flash 身份格式和 fail-closed 公钥
 fallback。开发模式仍可使用单进程内存 store 和本地 PEM signer；当

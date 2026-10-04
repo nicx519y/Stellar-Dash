@@ -163,14 +163,14 @@ OBJS := $(LOCAL_OBJS) $(HAL_OBJS) $(LIB_OBJS) $(DRV_OBJS) $(APP_STARTUP_OBJ) \
 RF_MAIN_OBJ := $(OUT_DIR)/$(APP_DIR)/RF_main.o
 RF_FREEZE_CHECK := ../../tools/check_rf_frozen.py
 IAP_MAIN_OBJ := $(OUT_DIR)/IAP/iap_main.o
-IAP_BOARD_OBJ := $(OUT_DIR)/$(BOARD_DIR)/board_latest_ch585.o
+IAP_BOARD_OBJ := $(OUT_DIR)/IAP/BOARD/board_latest_ch585.o
 IAP_ELF := $(OUT_DIR)/$(PROJECT)_iap.elf
 IAP_PADDED_BIN := $(OUT_DIR)/$(PROJECT)_iap_padded.bin
 APP_BIN := $(OUT_DIR)/$(PROJECT)_app.bin
 IAP_DRIVER_OBJS := \
-	$(OUT_DIR)/SDK/DRIVER/CH58x_gpio.o \
-	$(OUT_DIR)/SDK/DRIVER/CH58x_spi0.o \
-	$(OUT_DIR)/SDK/DRIVER/CH58x_sys.o
+	$(OUT_DIR)/IAP/SDK/CH58x_gpio.o \
+	$(OUT_DIR)/IAP/SDK/CH58x_spi0.o \
+	$(OUT_DIR)/IAP/SDK/CH58x_sys.o
 IAP_OBJS := $(IAP_MAIN_OBJ) $(IAP_BOARD_OBJ) $(IAP_DRIVER_OBJS) $(IAP_STARTUP_OBJ)
 
 DEPFLAGS = -MMD -MF $(@:.o=.d)
@@ -204,8 +204,8 @@ $(OUT_DIR)/$(PROJECT).elf: $(OBJS) $(LINKER_SCRIPT)
 $(APP_BIN): $(OUT_DIR)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $< $@
 
-$(IAP_ELF): $(IAP_OBJS) $(IAP_LINKER_SCRIPT)
-	$(CC) $(IAP_OBJS) $(ARCH_FLAGS) -T$(IAP_LINKER_SCRIPT) -nostartfiles \
+$(IAP_ELF): $(IAP_OBJS) $(IAP_LINKER_SCRIPT) Makefile
+	$(CC) $(IAP_OBJS) $(ARCH_FLAGS) -flto -T$(IAP_LINKER_SCRIPT) -nostartfiles \
 		--specs=nano.specs --specs=nosys.specs -Wl,--gc-sections \
 		-Wl,--print-memory-usage -Wl,-Map,$(OUT_DIR)/$(PROJECT)_iap.map \
 		-L$(LIB_DIR) -L$(DRIVER_DIR) -lISP585 -o $@
@@ -223,6 +223,17 @@ $(OUT_DIR)/$(PROJECT).lst: $(OUT_DIR)/$(PROJECT).elf
 	$(OBJDUMP) --source --all-headers --demangle --line-numbers --wide $< > $@
 
 $(OUT_DIR)/%.o: %.c
+	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# DMA IAP must fit the unchanged official 4 KiB layout. Isolate LTO objects
+# from the Application/RF SDK objects; no clock, pin or flash-layout changes.
+$(IAP_MAIN_OBJ) $(IAP_BOARD_OBJ) $(IAP_DRIVER_OBJS): CFLAGS += -flto
+$(IAP_MAIN_OBJ) $(IAP_BOARD_OBJ) $(IAP_DRIVER_OBJS): Makefile
+$(IAP_BOARD_OBJ): $(BOARD_DIR)/board_latest_ch585.c
+	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+$(OUT_DIR)/IAP/SDK/%.o: $(DRIVER_DIR)/%.c
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
@@ -274,3 +285,4 @@ print-vars:
 	@echo "SRCS=$(SRCS)"
 
 -include $(OBJS:.o=.d)
+-include $(IAP_OBJS:.o=.d)

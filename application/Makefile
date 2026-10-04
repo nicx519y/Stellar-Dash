@@ -250,7 +250,7 @@ $(BUILD_DIR)/%.o: %.s Makefile source_files.mk | $(BUILD_DIR)
 $(BUILD_DIR)/%.o: %.S Makefile source_files.mk | $(BUILD_DIR)
 	$(AS) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile source_files.mk
+$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile source_files.mk $(LDSCRIPT)
 	$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
 	$(SZ) $@
 

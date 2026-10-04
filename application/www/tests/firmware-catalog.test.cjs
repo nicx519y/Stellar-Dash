@@ -40,9 +40,24 @@ test('mock follows the draft / published / withdrawn catalog lifecycle with revi
   const visible = (await mock.catalog()).items.find(r => r.id === draft.id);
   assert.equal(visible.notes, 'Public notes'); assert.equal(visible.acceptance, undefined);
   await assert.rejects(mock.remove(published.id, edited.revision), /changed/);
-  const withdrawn = await mock.withdraw(published.id, published.revision, 'Issue');
+  const withdrawn = await mock.withdraw(published.id, published.revision);
+  assert.equal(withdrawn.reason, '');
   assert.ok(!(await mock.catalog()).items.some(r => r.id === draft.id));
   assert.equal((await mock.publish(withdrawn.id, withdrawn.revision)).status, 'published');
+});
+
+test('mock withdrawal accepts empty reasons and preserves legacy reasons and state guards', async () => {
+  const values = new Map();
+  global.sessionStorage = { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) };
+  let release = (await mock.list({ status: 'published' })).items[0];
+  for (const reason of ['', '   ', ' Legacy reason ']) {
+    const withdrawn = await mock.withdraw(release.id, release.revision, reason);
+    assert.equal(withdrawn.status, 'withdrawn'); assert.equal(withdrawn.reason, reason.trim());
+    await assert.rejects(mock.withdraw(withdrawn.id, withdrawn.revision), /Only published/);
+    release = await mock.publish(withdrawn.id, withdrawn.revision);
+  }
+  await assert.rejects(mock.withdraw(release.id, release.revision - 1), /changed/);
+  await assert.rejects(mock.withdraw(release.id, release.revision, 'x'.repeat(1001)), /reason/);
 });
 
 test('mock deletes every release state and retains a deletion audit', async () => {

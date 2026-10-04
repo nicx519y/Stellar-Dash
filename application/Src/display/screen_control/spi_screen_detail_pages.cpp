@@ -18,6 +18,7 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
             return SCREEN_DETAIL_SLIDER;
         case 9:
         case 10:
+        case SCREEN_MENU_TX_ISP:
             return SCREEN_DETAIL_INFO;
         default:
             return SCREEN_DETAIL_NONE;
@@ -37,6 +38,7 @@ uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
         case 8: return ScreenDetailScreenBrightness_InitIndex();
         case 9: return ScreenDetailWebConfig_InitIndex();
         case 10: return ScreenDetailCalibration_InitIndex();
+        case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_InitIndex();
         case 3: return ScreenDetailTournament_InitIndex();
         default: return 0;
     }
@@ -73,6 +75,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
         case 9: return ScreenDetailWebConfig_OnConfirm(index);
         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
+        case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
         case 3: return ScreenDetailTournament_OnConfirm(index);
         default: return false;
     }
@@ -81,6 +84,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
 bool ScreenDetail_OnBack(uint8_t menuId) {
     switch (menuId) {
         case 9: return ScreenDetailWebConfig_OnBack();
+        case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnBack();
         case 3: return ScreenDetailTournament_OnBack();
         case 11: return !ScreenDetailButtonsPerformance_OnBack();
         default: return true;
@@ -100,6 +104,7 @@ void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, cons
         case 8: ScreenDetailScreenBrightness_Render(lcd, index, style); break;
         case 9: ScreenDetailWebConfig_Render(lcd, index, style); break;
         case 10: ScreenDetailCalibration_Render(lcd, index, style); break;
+        case SCREEN_MENU_TX_ISP: ScreenDetailTxIsp_Render(lcd, index, style); break;
         case 3: ScreenDetailTournament_Render(lcd, index, style); break;
         default: break;
     }

@@ -16,6 +16,8 @@ static bool s_reset_requested;
 static uint32_t s_image_size;
 static uint32_t s_image_crc32;
 static uint32_t s_next_offset;
+static bool s_dma_mode;
+static ch585_iap_dma_packet_t s_packet __attribute__((aligned(4)));
 
 static uint32_t crc32_update(uint32_t crc, const uint8_t *data, uint32_t length)
 {
@@ -74,13 +76,21 @@ static bool update_was_interrupted(void)
 
 static void spi_receive_start(void)
 {
-    rfm_board_latest_ch585_prepare_spi_pins();
     SPI0_SlaveInit();
     R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) &
                                  (uint8_t)~RB_SPI_SLV_CMD_MOD);
     R8_SPI0_CTRL_CFG &= (uint8_t)~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
     R8_SPI0_INT_FLAG = 0xFFu;
     while(R8_SPI0_FIFO_COUNT != 0u) (void)R8_SPI0_FIFO;
+    if(s_dma_mode)
+    {
+        R32_SPI0_DMA_BEG = (uint32_t)(uintptr_t)&s_packet;
+        R32_SPI0_DMA_END = (uint32_t)(uintptr_t)&s_packet + sizeof(s_packet);
+        R32_SPI0_DMA_NOW = R32_SPI0_DMA_BEG;
+        R16_SPI0_TOTAL_CNT = sizeof(s_packet);
+        __asm volatile("fence iorw, iorw" ::: "memory");
+        R8_SPI0_CTRL_CFG |= RB_SPI_DMA_ENABLE;
+    }
 }
 
 static bool wait_nss_high(uint32_t timeout_us)
@@ -94,7 +104,7 @@ static bool wait_nss_high(uint32_t timeout_us)
     return true;
 }
 
-static bool send_response(const ch585_iap_packet_t *packet, uint8_t status)
+static bool send_response(const ch585_iap_dma_packet_t *packet, uint8_t status)
 {
     ch585_iap_response_t response;
     const uint8_t *bytes = (const uint8_t *)&response;
@@ -104,7 +114,7 @@ static bool send_response(const ch585_iap_packet_t *packet, uint8_t status)
 
     memset(&response, 0, sizeof(response));
     response.magic = CH585_IAP_RESPONSE_MAGIC;
-    response.version = CH585_IAP_PROTOCOL_VERSION;
+    response.version = packet->version;
     response.command = packet->command;
     response.sequence = packet->sequence;
     response.status = status;
@@ -125,27 +135,39 @@ static bool send_response(const ch585_iap_packet_t *packet, uint8_t status)
         else if(saw_low) break;
         DelayUs(IAP_POLL_STEP_US);
     }
-    rfm_board_latest_ch585_set_w_int(false);
     spi_receive_start();
+    /* Ready/release is published only after the next RX DMA is armed. */
+    rfm_board_latest_ch585_set_w_int(false);
     return saw_low;
 }
 
-static bool packet_valid(const ch585_iap_packet_t *packet)
+static bool packet_valid(const ch585_iap_dma_packet_t *packet)
 {
     uint32_t crc;
+    uint32_t expected;
+    const uint16_t size = s_dma_mode ? CH585_IAP_DMA_PACKET_SIZE : CH585_IAP_PACKET_SIZE;
     if(packet->magic != CH585_IAP_PROTOCOL_MAGIC ||
-       packet->version != CH585_IAP_PROTOCOL_VERSION ||
-       packet->payload_length > CH585_IAP_DATA_SIZE)
+       packet->version != (s_dma_mode ? CH585_IAP_DMA_VERSION : CH585_IAP_PROTOCOL_VERSION) ||
+       packet->reserved != 0u ||
+       packet->payload_length > (s_dma_mode ? CH585_IAP_DMA_DATA_SIZE : CH585_IAP_DATA_SIZE))
     {
         return false;
     }
     crc = crc32_update(0xFFFFFFFFu,
                        (const uint8_t *)packet,
-                       CH585_IAP_PACKET_SIZE - sizeof(packet->packet_crc32));
-    return (crc ^ 0xFFFFFFFFu) == packet->packet_crc32;
+                       size - sizeof(uint32_t));
+    memcpy(&expected, (const uint8_t *)packet + size - sizeof(expected), sizeof(expected));
+    return (crc ^ 0xFFFFFFFFu) == expected;
 }
 
-static uint8_t handle_packet(const ch585_iap_packet_t *packet)
+static bool dma_packet_complete(void)
+{
+    return R32_SPI0_DMA_NOW == R32_SPI0_DMA_END &&
+        (R8_SPI0_INT_FLAG & RB_SPI_IF_CNT_END) != 0u &&
+        (R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) == 0u && R8_SPI0_FIFO_COUNT == 0u;
+}
+
+static uint8_t handle_packet(const ch585_iap_dma_packet_t *packet)
 {
     uint32_t address;
     uint32_t crc;
@@ -155,8 +177,17 @@ static uint8_t handle_packet(const ch585_iap_packet_t *packet)
     case CH585_IAP_CMD_PROBE:
         return CH585_IAP_STATUS_OK;
 
+    case CH585_IAP_CMD_DMA:
+        if(s_dma_mode || packet->offset != CH585_IAP_DMA_PACKET_SIZE ||
+           packet->value != CH585_IAP_DMA_CONTRACT || packet->payload_length != 0u ||
+           s_image_size != 0u)
+            return CH585_IAP_STATUS_BAD_STATE;
+        s_dma_mode = true;
+        return CH585_IAP_STATUS_OK;
+
     case CH585_IAP_CMD_BEGIN:
-        if(packet->offset == 0u || packet->offset > CH585_IAP_APP_CAPACITY)
+        if(packet->payload_length != 0u || packet->offset == 0u ||
+           (packet->offset & 3u) != 0u || packet->offset > CH585_IAP_APP_CAPACITY)
             return CH585_IAP_STATUS_BAD_ADDRESS;
         if(!metadata_write(CH585_IAP_IMAGE_STATE_UPDATING,
                            packet->offset,
@@ -172,12 +203,19 @@ static uint8_t handle_packet(const ch585_iap_packet_t *packet)
 
     case CH585_IAP_CMD_WRITE:
         if(!s_update_active) return CH585_IAP_STATUS_BAD_STATE;
-        if(packet->offset != s_next_offset ||
-           packet->payload_length == 0u ||
+        if(packet->payload_length == 0u ||
            (packet->payload_length & 3u) != 0u ||
-           packet->offset + packet->payload_length > s_image_size)
+           (packet->offset & 3u) != 0u || packet->offset > s_image_size ||
+           packet->payload_length > s_image_size - packet->offset)
             return CH585_IAP_STATUS_BAD_ADDRESS;
         address = CH585_IAP_APP_START + packet->offset;
+        /* A lost ACK can replay the last committed block, but never change it.
+         * Return success only after comparing the actual programmed bytes. */
+        if(s_dma_mode && packet->offset + packet->payload_length == s_next_offset)
+            return FLASH_ROM_VERIFY(address, (uint32_t *)(uintptr_t)packet->data,
+                                    packet->payload_length) == 0u
+                ? CH585_IAP_STATUS_OK : CH585_IAP_STATUS_VERIFY_FAILED;
+        if(packet->offset != s_next_offset) return CH585_IAP_STATUS_BAD_ADDRESS;
         if(FLASH_ROM_WRITE(address,
                            (uint32_t *)(uintptr_t)packet->data,
                            packet->payload_length) != 0u)
@@ -190,7 +228,7 @@ static uint8_t handle_packet(const ch585_iap_packet_t *packet)
         return CH585_IAP_STATUS_OK;
 
     case CH585_IAP_CMD_END:
-        if(!s_update_active || s_next_offset != s_image_size)
+        if(packet->payload_length != 0u || !s_update_active || s_next_offset != s_image_size)
             return CH585_IAP_STATUS_BAD_STATE;
         crc = crc32_update(0xFFFFFFFFu,
                            (const uint8_t *)(uintptr_t)CH585_IAP_APP_START,
@@ -223,19 +261,33 @@ static void jump_to_app(void)
 
 int main(void)
 {
-    ch585_iap_packet_t packet __attribute__((aligned(4)));
-    uint8_t *raw = (uint8_t *)&packet;
+    ch585_iap_dma_packet_t *packet = &s_packet;
+    uint8_t *raw = (uint8_t *)packet;
     uint16_t received = 0u;
     uint32_t idle_us = 0u;
     const bool interrupted = update_was_interrupted();
 
     SetSysClock(SYSCLK_FREQ);
     s_update_active = interrupted;
+    rfm_board_latest_ch585_prepare_spi_pins();
     spi_receive_start();
 
     for(;;)
     {
-        while(R8_SPI0_FIFO_COUNT != 0u)
+        if(s_dma_mode && R32_SPI0_DMA_NOW != R32_SPI0_DMA_BEG)
+        {
+            idle_us = 0u;
+            if(rfm_board_latest_ch585_nss_high())
+            {
+                R8_SPI0_CTRL_CFG &= (uint8_t)~RB_SPI_DMA_ENABLE;
+                __asm volatile("fence iorw, iorw" ::: "memory");
+                const bool complete = dma_packet_complete();
+                const uint8_t status = complete && packet_valid(packet)
+                    ? handle_packet(packet) : CH585_IAP_STATUS_BAD_PACKET;
+                (void)send_response(packet, status);
+            }
+        }
+        while(!s_dma_mode && R8_SPI0_FIFO_COUNT != 0u)
         {
             uint8_t byte = R8_SPI0_FIFO;
             idle_us = 0u;
@@ -244,23 +296,26 @@ int main(void)
                 if(!interrupted) jump_to_app();
                 continue;
             }
-            if(received < sizeof(packet)) raw[received++] = byte;
-            if(received == sizeof(packet))
+            if(received < CH585_IAP_PACKET_SIZE) raw[received++] = byte;
+            if(received == CH585_IAP_PACKET_SIZE)
             {
-                uint8_t status = packet_valid(&packet)
-                    ? handle_packet(&packet)
+                uint8_t status = packet_valid(packet)
+                    ? handle_packet(packet)
                     : CH585_IAP_STATUS_BAD_PACKET;
-                (void)send_response(&packet, status);
+                (void)send_response(packet, status);
                 received = 0u;
-                if(s_reset_requested)
-                {
-                    DelayMs(2);
-                    SYS_ResetExecute();
-                }
             }
         }
 
-        if((R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u)
+        if(s_reset_requested)
+        {
+            DelayMs(2);
+            SYS_ResetExecute();
+        }
+
+        // In DMA mode retain overflow until NSS rises and reject the whole
+        // frame. Re-arming mid-frame could mistake its tail for a new request.
+        if(!s_dma_mode && (R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u)
         {
             R8_SPI0_INT_FLAG = RB_SPI_IF_FIFO_OV;
             received = 0u;

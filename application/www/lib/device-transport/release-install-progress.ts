@@ -33,14 +33,14 @@ export function installUsesEstimate(progress: ReleaseProgress | null, activatedA
 }
 
 // Until device telemetry is available, ease through the final installation
-// segment (about two minutes). Leave headroom for verified completion and the
+// segment (about one minute). Leave headroom for verified completion and the
 // independent 180s timeout. Failure/recovery freezes the last displayed value.
 export function displayedInstallPercent(progress: ReleaseProgress | null, activatedAt: number | undefined,
   now: number, previous = 0): number {
   const measured = accumulateInstallProgress(null, progress || { stage: 'downloading' }).overallPercent!;
   if (progress?.stage === 'completed') return 100;
   const elapsed = activatedAt && Number.isFinite(now) ? Math.max(0, now - activatedAt) : 0;
-  const estimate = installUsesEstimate(progress, activatedAt) ? 80 + 18 * (1 - Math.exp(-elapsed / 55_000)) : 0;
+  const estimate = installUsesEstimate(progress, activatedAt) ? 80 + 18 * (1 - Math.exp(-elapsed / 27_500)) : 0;
   return Math.min(99, Math.floor(Math.max(measured, estimate, Number.isFinite(previous) ? previous : 0)));
 }
 

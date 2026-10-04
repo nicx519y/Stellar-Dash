@@ -15,6 +15,7 @@
 #include "states/calibration_state.hpp"
 #include "states/ch585_bridge_update_state.hpp"
 #include "states/safe_recovery_state.hpp"
+#include "states/tx_isp_state.hpp"
 #include "system_logger.h"
 #include "system_sleep_manager.hpp"
 #include "boot_profile.h"
@@ -22,14 +23,24 @@
 
 namespace {
 
-static_assert(static_cast<unsigned>(MainRuntimeState::SafeRecovery) + 1u == 5u,
-              "The STM32 top-level runtime must contain exactly five states");
+static_assert(static_cast<unsigned>(MainRuntimeState::TxIsp) + 1u == 6u,
+              "The STM32 top-level runtime must contain exactly six states");
 
 static bool isValidBootMode(BootMode mode)
 {
     return mode == BootMode::BOOT_MODE_INPUT ||
            mode == BootMode::BOOT_MODE_WEB_CONFIG ||
-           mode == BootMode::BOOT_MODE_CALIBRATION;
+           mode == BootMode::BOOT_MODE_CALIBRATION ||
+           mode == BootMode::BOOT_MODE_TX_ISP;
+}
+
+static bool ispEntryBlocked()
+{
+    const auto status = CH585_FIRMWARE_UPDATE.status();
+    return RELEASE_INSTALLER.busy() || CH585_FIRMWARE_UPDATE.isPending() ||
+           status == Ch585FirmwareUpdateStatus::Receiving ||
+           status == Ch585FirmwareUpdateStatus::Scheduled ||
+           status == Ch585FirmwareUpdateStatus::Programming;
 }
 
 } // namespace
@@ -43,6 +54,7 @@ BaseState* MainStateMachine::stateFor(MainRuntimeState selected) const
         case MainRuntimeState::Ch585BridgeUpdate:
             return &CH585_BRIDGE_UPDATE_STATE;
         case MainRuntimeState::SafeRecovery: return &SAFE_RECOVERY_STATE;
+        case MainRuntimeState::TxIsp: return &TX_ISP_STATE;
     }
     return &SAFE_RECOVERY_STATE;
 }
@@ -95,6 +107,11 @@ MainRuntimeState MainStateMachine::resolveNormalStartupState() const
     }
 
     BootMode bootMode = STORAGE_MANAGER.getBootMode();
+    // Like WebConfig, ISP is selected by the persisted bootMode. Resolve it
+    // before test overrides and before normal TX pre-start/handshake.
+    if (bootMode == BootMode::BOOT_MODE_TX_ISP) {
+        return MainRuntimeState::TxIsp;
+    }
 #if WEBCONFIG_TEST_FORCE_BOOT
     bootMode = BootMode::BOOT_MODE_WEB_CONFIG;
     APP_STAGE("A12", "temporary WebConfig bring-up override active");
@@ -112,6 +129,12 @@ MainRuntimeState MainStateMachine::resolveNormalStartupState() const
 
 bool MainStateMachine::enterState(MainRuntimeState selected)
 {
+    if (selected == MainRuntimeState::TxIsp) {
+        const uint16_t returnMode = STORAGE_MANAGER.config.screenControl.txIspReturnBootMode;
+        ispReturnState = returnMode == BootMode::BOOT_MODE_WEB_CONFIG
+            ? MainRuntimeState::WebConfig : (returnMode == BootMode::BOOT_MODE_INPUT
+            ? MainRuntimeState::Input : MainRuntimeState::SafeRecovery);
+    }
     // Gate every entry path, including persisted boot mode and test overrides,
     // before WebConfig can initialize its USB/maintenance runtime.
     if (selected == MainRuntimeState::WebConfig &&
@@ -125,7 +148,8 @@ bool MainStateMachine::enterState(MainRuntimeState selected)
     }
     /* v4 identifies the effective mode after the physical WebConfig gate.
      * The span includes any SafeRecovery fallback performed by this call. */
-    BP_APP_SCOPE(BP_APP_STATE_INPUT + static_cast<unsigned>(selected));
+    BP_APP_SCOPE(selected == MainRuntimeState::TxIsp ? BP_APP_STATE_ENTER :
+                 BP_APP_STATE_INPUT + static_cast<unsigned>(selected));
     BaseState* next = stateFor(selected);
     if (state != nullptr) state->exit();
     state = next;
@@ -154,8 +178,82 @@ bool MainStateMachine::requestTransition(MainRuntimeState next)
 
 void MainStateMachine::requestReset()
 {
+    // ISP writes belong to the external tool. No timed/system reset may interrupt them.
+    if (currentState == MainRuntimeState::TxIsp) return;
     INPUT_STATE.cancelSleepRecovery();
     resetPending = true;
+}
+
+bool MainStateMachine::requestTxIsp(bool enabled)
+{
+    ispTransitionFailed = false;
+    if (resetPending || transitionPending) return false;
+    if (enabled) {
+        if (currentState == MainRuntimeState::TxIsp) return true;
+        if ((currentState != MainRuntimeState::Input &&
+             currentState != MainRuntimeState::WebConfig &&
+             currentState != MainRuntimeState::SafeRecovery) ||
+            ispEntryBlocked()) return false;
+        ispReturnState = currentState;
+        pendingState = MainRuntimeState::TxIsp;
+    } else {
+        if (currentState != MainRuntimeState::TxIsp) return false;
+        pendingState = ispReturnState;
+    }
+    transitionPending = true;
+    return true;
+}
+
+void MainStateMachine::servicePendingTransition()
+{
+    if (!transitionPending) return;
+    transitionPending = false;
+    // Recheck ownership before stopping the old state or cycling the TX supply.
+    if (pendingState == MainRuntimeState::TxIsp && ispEntryBlocked()) {
+        ispTransitionFailed = true;
+        return;
+    }
+    // Commit after the LCD frame. A failed journal save must not cycle TX power
+    // or leave ISP; Input sampling must be stopped during QSPI indirect access.
+    const bool entering = pendingState == MainRuntimeState::TxIsp;
+    const BootMode previousBootMode = STORAGE_MANAGER.getBootMode();
+    const uint16_t previousReturnMode = STORAGE_MANAGER.config.screenControl.txIspReturnBootMode;
+    const bool inputWasRunning = currentState == MainRuntimeState::Input &&
+        INPUT_STATE.suspendInputPipelineForStorage();
+    if (entering) {
+        STORAGE_MANAGER.config.screenControl.txIspReturnBootMode =
+            ispReturnState == MainRuntimeState::WebConfig ? static_cast<uint16_t>(BootMode::BOOT_MODE_WEB_CONFIG) :
+            ispReturnState == MainRuntimeState::Input ? static_cast<uint16_t>(BootMode::BOOT_MODE_INPUT) : 0u;
+        STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_TX_ISP);
+    } else {
+        STORAGE_MANAGER.setBootMode(static_cast<BootMode>(previousReturnMode));
+        STORAGE_MANAGER.config.screenControl.txIspReturnBootMode = 0u;
+    }
+    if (!STORAGE_MANAGER.saveConfig()) {
+        STORAGE_MANAGER.setBootMode(previousBootMode);
+        STORAGE_MANAGER.config.screenControl.txIspReturnBootMode = previousReturnMode;
+        ispTransitionFailed = true;
+        if (!INPUT_STATE.resumeInputPipelineAfterStorage(inputWasRunning))
+            (void)requestTransition(MainRuntimeState::SafeRecovery);
+        return;
+    }
+    (void)requestTransition(pendingState);
+    ispTransitionFailed = currentState != pendingState;
+}
+
+extern "C" bool MainRuntime_RequestTxIsp(bool enabled)
+{
+    return MAIN_STATE_MACHINE.requestTxIsp(enabled);
+}
+
+extern "C" bool MainRuntime_IsTxIspActive(void)
+{
+    return MAIN_STATE_MACHINE.current() == MainRuntimeState::TxIsp;
+}
+
+extern "C" bool MainRuntime_TxIspTransitionFailed(void)
+{
+    return MAIN_STATE_MACHINE.txIspTransitionFailed();
 }
 
 extern "C" void MainRuntime_RequestReset(void)
@@ -207,9 +305,11 @@ void MainStateMachine::setup()
     /* Records dispatcher completion, not USB enumeration/RF link readiness. */
     BootProfile_AppComplete();
     while (true) {
-        if (interactiveRuntimeInitialized) RELEASE_INSTALLER.poll();
+        if (interactiveRuntimeInitialized && currentState != MainRuntimeState::TxIsp)
+            RELEASE_INSTALLER.poll();
         if (state != nullptr) state->tick();
         serviceSharedRuntime();
+        servicePendingTransition();
         if (resetPending) {
             resetPending = false;
             APP_STAGE("A15", "executing requested runtime reset");

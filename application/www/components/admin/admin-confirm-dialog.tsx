@@ -3,13 +3,14 @@
 import type { ReactNode } from 'react';
 import { Button, Dialog, Portal } from '@chakra-ui/react';
 
-export function AdminConfirmDialog({ open, title, description, cancelLabel, confirmLabel, confirmColorPalette, onClose, onConfirm }: {
+export function AdminConfirmDialog({ open, title, description, cancelLabel, confirmLabel, confirmColorPalette, confirmDisabled = false, onClose, onConfirm }: {
   open: boolean;
   title: string;
   description: ReactNode;
   cancelLabel: string;
   confirmLabel: string;
   confirmColorPalette: 'green' | 'orange' | 'red';
+  confirmDisabled?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -21,7 +22,7 @@ export function AdminConfirmDialog({ open, title, description, cancelLabel, conf
         <Dialog.Body>{description}</Dialog.Body>
         <Dialog.Footer>
           <Button variant="surface" onClick={onClose}>{cancelLabel}</Button>
-          <Button colorPalette={confirmColorPalette} onClick={onConfirm}>{confirmLabel}</Button>
+          <Button colorPalette={confirmColorPalette} disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel}</Button>
         </Dialog.Footer>
       </Dialog.Content>
     </Dialog.Positioner>

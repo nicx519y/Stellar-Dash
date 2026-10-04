@@ -72,7 +72,7 @@ export interface FirmwareRuntime {
   importBundle(file: File, onProgress: (percent: number) => void): Promise<ReleaseImport>;
   edit(id: string, revision: number, notes: string, acceptance?: string): Promise<FirmwareRelease>;
   publish(id: string, revision: number): Promise<FirmwareRelease>;
-  withdraw(id: string, revision: number, reason: string): Promise<FirmwareRelease>;
+  withdraw(id: string, revision: number, reason?: string): Promise<FirmwareRelease>;
   remove(id: string, revision: number): Promise<void>;
   legacy(): Promise<LegacyFirmware[]>;
   catalog(query?: ReleaseQuery): Promise<ReleasePage<PublicFirmwareRelease>>;

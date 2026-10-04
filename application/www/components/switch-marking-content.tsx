@@ -56,6 +56,7 @@ import { showToast } from "./ui/toaster";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useUserAuth } from "@/contexts/user-auth-context";
+import { AdminAccessGuard } from '@/components/admin-access-guard';
 import {
     SWITCH_MARKING_LENGTH_MAX,
     SWITCH_MARKING_LENGTH_MIN,
@@ -173,6 +174,10 @@ const downloadPulse = keyframes`
 `;
 
 export function SwitchMarkingContent() {
+    return <AdminAccessGuard><AdminSwitchMarkingContent /></AdminAccessGuard>;
+}
+
+function AdminSwitchMarkingContent() {
     const { colorMode } = useColorMode();
     const { t } = useLanguage();
     const { session } = useUserAuth();

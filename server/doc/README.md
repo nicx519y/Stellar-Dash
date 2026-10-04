@@ -94,15 +94,15 @@ V2 密钥配置、wire API、部署门禁和吊销策略见
 
 ### 生产部署
 
-使用提供的PowerShell部署脚本：
-
-```powershell
-# 进入tools目录
-cd server/tools
-
-# 一键部署到生产环境
-.\deploy-simple.ps1
-```
+当前 WebConfig 和 admin 同源部署请使用
+[XORA 服务端部署方案](../../docs/webconfig-admin-deployment.md)。
+新入口为 `python server/tools/deploy_xora.py`（从仓库根目录执行），提供
+`package`、`setup`、`check`、`deploy` 和 `rollback`；配置示例为
+[`deploy-xora.example.json`](../tools/deploy-xora.example.json)。
+现有 `tools/deploy*.ps1` 和本页后续旧环境示例未包含当前完整静态产物、
+共享图片解析文件及必需生产配置，不作为本次上线入口；公网直接开放 3000
+也不符合当前 loopback 监听策略。旧 V2 设备证明部署要求须与当前 WebHID
+直连产品路径区分。
 
 ## 访问方式
 

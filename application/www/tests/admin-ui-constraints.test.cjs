@@ -2,6 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
+const React = require('react');
+const { renderToStaticMarkup } = require('react-dom/server');
+const { transform } = require('sucrase');
 
 const webRoot = path.resolve(__dirname, '..');
 const adminPage = fs.readFileSync(
@@ -28,6 +32,60 @@ const gamepadConfigContext = fs.readFileSync(
     path.join(webRoot, 'contexts', 'gamepad-config-context.tsx'),
     'utf8'
 );
+
+test('admin access guard mounts page content only after authenticated administrator access is known', () => {
+    let auth = { loading: true, session: { authenticated: false } };
+    let mounts = 0;
+    const exports = {};
+    const source = fs.readFileSync(path.join(webRoot, 'components', 'admin-access-guard.tsx'), 'utf8');
+    const code = transform(source, {
+        transforms: ['typescript', 'jsx', 'imports'],
+        jsxRuntime: 'automatic',
+    }).code;
+    vm.runInNewContext(code, {
+        exports,
+        require(id) {
+            if (id === '@/contexts/user-auth-context') return { useUserAuth: () => auth };
+            if (id === '@/contexts/language-context') {
+                return { useLanguage: () => ({ t: { AUTH_ADMIN_ACCESS_REQUIRED: 'Administrator access required' } }) };
+            }
+            if (id === '@chakra-ui/react') {
+                return {
+                    Center: ({ children }) => React.createElement('div', null, children),
+                    Spinner: () => React.createElement('span', null, 'Loading session'),
+                    Text: ({ children, role }) => React.createElement('p', { role }, children),
+                };
+            }
+            return require(id);
+        },
+    });
+    function ProtectedContent() {
+        mounts++;
+        return React.createElement('div', null, 'Protected marking content');
+    }
+    const render = () => renderToStaticMarkup(React.createElement(
+        exports.AdminAccessGuard, null, React.createElement(ProtectedContent),
+    ));
+    assert.match(render(), /Loading session/);
+    auth = { loading: true, session: { authenticated: true, user: { role: 'admin' } } };
+    assert.match(render(), /Loading session/);
+    for (const session of [
+        { authenticated: false },
+        { authenticated: false, user: { role: 'admin' } },
+        { authenticated: true },
+        { authenticated: true, user: { role: 'user' } },
+    ]) {
+        auth = { loading: false, session };
+        assert.match(render(), /role="alert".*Administrator access required/);
+    }
+    assert.equal(mounts, 0, 'blocked sessions must not mount content or run its data effects');
+    auth = { loading: false, session: { authenticated: true, user: { role: 'admin' } } };
+    assert.match(render(), /Protected marking content/);
+    assert.equal(mounts, 1);
+    auth = { loading: false, session: { authenticated: false } };
+    assert.doesNotMatch(render(), /Protected marking content/);
+    assert.equal(mounts, 1, 'signing out must immediately block page content');
+});
 
 test('administration pages do not open browser-native dialogs', () => {
     const files = [];
@@ -68,12 +126,14 @@ test('official gallery admin page does not require a device provider', () => {
     assert.match(adminImagesPage, /ADMIN_GALLERY_LIMITS/);
 });
 
-test('switch mapping catalog is visible to device users and admin actions live on equal-size cards', () => {
+test('switch mapping page requires administrator access and admin actions live on equal-size cards', () => {
     assert.match(
         settingsLayout,
         /\{ id: 'switch-marking' as Route, label: t\.SETTINGS_TAB_SWITCH_MARKING/
     );
-    assert.doesNotMatch(settingsLayout, /isAdmin \? \[[\s\S]*switch-marking/);
+    assert.match(settingsLayout, /isAdmin \? \[\s*\{ id: 'switch-marking'/);
+    assert.match(settingsLayout, /!authLoading && session\.authenticated && session\.user\?\.role === 'admin'/);
+    assert.match(switchMarking, /export function SwitchMarkingContent\(\)\s*\{\s*return <AdminAccessGuard><AdminSwitchMarkingContent \/><\/AdminAccessGuard>;/);
     assert.match(switchMarking, /const \{ session \} = useUserAuth\(\)/);
     assert.doesNotMatch(switchMarking, /映射实验室|RAM 草稿/);
     assert.match(switchMarking, /installSwitchMapping/);

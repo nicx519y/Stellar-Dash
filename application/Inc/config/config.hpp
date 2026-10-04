@@ -150,7 +150,10 @@ typedef struct
     uint8_t reservedStyle[7];        // 保留旧颜色字段占位，用于兼容迁移
     char backgroundImageId[32];      // 背景图片ID；当前仅允许已验证的 USER_IMAGE
     uint16_t currentPageId;          // 当前页面ID
-    uint16_t reserved1;              // 保留字节（对齐）
+    union {
+        uint16_t reserved1;          // 旧布局兼容
+        uint16_t txIspReturnBootMode; // TX ISP 退出后的启动模式；0 为 SafeRecovery
+    };
     uint32_t featuresMask;           // 功能开关位图（SCREEN_FEATURE_*）
     uint8_t featuresOrder[SCREEN_FEATURE_COUNT];
     /* Persistent service flags; retains the former reserved2 byte layout. */

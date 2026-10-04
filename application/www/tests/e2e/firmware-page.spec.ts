@@ -63,6 +63,8 @@ test('confirmation starts installation without a physical authorization step', a
   await expect.poll(async () => page.evaluate(() =>
     JSON.parse(sessionStorage.getItem('xora-mock-install') || '{}').phase)).toBe('completed');
   await expect(dialog.getByRole('status')).toHaveText('Update complete');
+  await expect(dialog.getByTestId('tx-install-mode')).toHaveCount(0);
+  await expect(dialog.getByTestId('tx-recovery-mode')).toHaveCount(0);
   await expect(dialog.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
   await expect(dialog.getByTestId('install-step-timeline')).toHaveAttribute('data-step', '2');
   expect(await dialog.getByTestId('install-step-timeline').locator(':scope > div > div').evaluateAll(nodes =>
@@ -73,7 +75,9 @@ test('confirmation starts installation without a physical authorization step', a
   expect((await ring.boundingBox())!.width).toBe(240);
   await expect(ring.locator('circle').last()).toHaveAttribute('stroke-width', '5');
   await expect(ring.locator('circle').last()).toHaveAttribute('stroke', /^url\(#install-gradient-/);
-  expect((await dialog.boundingBox())!.height).toBeLessThanOrEqual(490);
+  expect((await dialog.boundingBox())!.height).toBeLessThanOrEqual(page.viewportSize()!.height - 24);
+  expect(await dialog.evaluate(node => [...node.querySelectorAll('*')].every(child =>
+    child.scrollHeight <= child.clientHeight + 1 || !['auto', 'scroll'].includes(getComputedStyle(child).overflowY)))).toBe(true);
   const steps = await page.evaluate(() => (window as typeof window & { installDisplaySteps: number[] }).installDisplaySteps);
   expect(new Set(steps)).toEqual(new Set([0, 1, 2]));
   expect(steps).toEqual([...steps].sort((a, b) => a - b));

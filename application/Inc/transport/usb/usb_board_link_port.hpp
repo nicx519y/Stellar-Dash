@@ -5,6 +5,8 @@
 
 bool USBBoardLinkPort_Init();
 bool USBBoardLinkPort_InitIap();
+// Only after an explicit v1 DMA negotiation ACK; never inferred from timeout.
+bool USBBoardLinkPort_EnableIapDma();
 bool USBBoardLinkPort_InitApplication();
 void USBBoardLinkPort_WaitApplicationReady();
 bool USBBoardLinkPort_EnableFastApplication();

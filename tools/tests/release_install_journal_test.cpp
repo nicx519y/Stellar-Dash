@@ -5,15 +5,20 @@
 #include "../../application/Src/firmware/release_installer.cpp"
 
 // The read-only host decoder must agree with this production journal layout.
-static_assert(sizeof(Snapshot)==10696 && offsetof(Snapshot,crc)==10124 &&
-    offsetof(Snapshot,crc2)==10688 && offsetof(Snapshot,commit2)==10692);
+static_assert(sizeof(Snapshot)==10712 && offsetof(Snapshot,crc)==10124 &&
+    offsetof(Snapshot,crc2)==10688 && offsetof(Snapshot,commit2)==10692 &&
+    offsetof(Snapshot,crc3)==10704 && offsetof(Snapshot,commit3)==10708);
 
 static std::vector<uint8_t> flash(0x800000,0xff);
 static int budget=-1;
 static bool readFailure=false;
+static bool qspiMapped=true, exitFailure=false, enterFailure=false;
+static unsigned modeExits=0,modeEnters=0,rawReads=0;
+static int readsBeforeFailure=-1;
 static bool signaturesValid=false, txHealthy=true, programOk=true, metadataOk=true;
 static unsigned programmed=0, verified=0, metadataWrites=0, resets=0, restoredWrites=0;
 static bool restoreOk=true,backupReadOk=true,changedTx=false,changedIdentity=false,oldImage=false;
+static Ch585IapTransferMode installMode=Ch585IapTransferMode::Dma, recoveryMode=Ch585IapTransferMode::Dma;
 static std::vector<uint8_t> txImage(XORA_TX_BACKUP_APP_BYTES,0x5a);
 static xora_release_identity_t oldIdentity(){auto id=self;id.component=2;strcpy(id.version,"old-tx");strcpy(id.build_id,"old-tx-build");return id;}
 static FirmwareSlot runningSlot=FIRMWARE_SLOT_A;
@@ -48,8 +53,9 @@ bool Ch585FirmwareUpdate::write(uint32_t,const uint8_t*,uint32_t){return false;}
 bool Ch585IapClient::validateApplication(xora_release_identity_t* id){
     verified++;if(oldImage){*id=oldIdentity();return restoreOk;}if(!txHealthy)return false;*id=self;id->component=2;strcpy(id->version,"1.0.0");strcpy(id->build_id,"tx-build");return true;
 }
-bool Ch585IapClient::programCombinedImage(uint32_t at,uint32_t n){assert(at==CH585_FIRMWARE_STAGING_DATA_ADDR && n==8192);programmed++;oldImage=false;return programOk;}
-bool Ch585IapClient::programApplicationImage(uint32_t at,uint32_t n){
+bool Ch585IapClient::programCombinedImage(uint32_t at,uint32_t n,TransferCheckpoint checkpoint){assert(at==CH585_FIRMWARE_STAGING_DATA_ADDR && n==8192);if(checkpoint && !checkpoint(installMode))return false;programmed++;oldImage=false;return programOk;}
+bool Ch585IapClient::programApplicationImage(uint32_t at,uint32_t n,TransferCheckpoint checkpoint){
+    if(checkpoint && !checkpoint(recoveryMode))return false;
     assert(at==state.backupAddress && n==XORA_TX_BACKUP_APP_BYTES);restoredWrites++;oldImage=true;return restoreOk;
 }
 int8_t QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(uint8_t* p,uint32_t at,uint32_t n){
@@ -58,11 +64,13 @@ int8_t QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(uint8_t* p,uint32_t at,uint32_t n){
 }
 static bool step(){return budget<0 || budget-- > 0;}
 int8_t QSPI_W25Qxx_ReadBuffer(uint8_t* p,uint32_t at,uint32_t n){
-    if(readFailure || at+n>flash.size())return -1;memcpy(p,flash.data()+at,n);return 0;
+    ++rawReads;
+    if(readFailure || (readsBeforeFailure>=0 && readsBeforeFailure--==0) || at>flash.size() || n>flash.size()-at)return -1;memcpy(p,flash.data()+at,n);return 0;
 }
 int8_t QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(uint8_t* p,uint32_t at,uint32_t n){return QSPI_W25Qxx_ReadBuffer(p,at,n);}
-int8_t QSPI_W25Qxx_ExitMemoryMappedMode(){return 0;}
-int8_t QSPI_W25Qxx_EnterMemoryMappedMode(){return 0;}
+bool QSPI_W25Qxx_IsMemoryMappedMode(){return qspiMapped;}
+int8_t QSPI_W25Qxx_ExitMemoryMappedMode(){++modeExits;qspiMapped=false;return exitFailure?-1:0;}
+int8_t QSPI_W25Qxx_EnterMemoryMappedMode(){++modeEnters;if(enterFailure)return -1;qspiMapped=true;return 0;}
 int8_t QSPI_W25Qxx_SectorErase(uint32_t at){if(!step())return -1;assert(at%4096==0);memset(flash.data()+at,0xff,4096);return 0;}
 int8_t QSPI_W25Qxx_WritePage(uint8_t* p,uint32_t at,uint16_t n){
     assert(n && n<=256 && (at%256)+n<=256);
@@ -71,6 +79,7 @@ int8_t QSPI_W25Qxx_WritePage(uint8_t* p,uint32_t at,uint16_t n){
 }
 static void fixture(FirmwareSlot target){
     backupReads=0;
+    installMode=recoveryMode=Ch585IapTransferMode::Dma;
     flash.assign(flash.size(),0xff);memset(&state,0,sizeof(state));loaded=false;storageFault=false;declaring=false;legacyJournal=false;backupActive=false;bank=0;budget=-1;load();
     signaturesValid=txHealthy=programOk=metadataOk=true;programmed=verified=metadataWrites=resets=restoredWrites=0;restoreOk=backupReadOk=true;changedTx=changedIdentity=oldImage=false;
     state.configVersion=34;strcpy(state.session,"test-release");state.target.target_slot=target;strcpy(state.target.firmware_version,self.version);
@@ -98,6 +107,21 @@ static void fixture(FirmwareSlot target){
     assert(state.phase==Receiving && backupValid());assert(persist(Prepared));
 }
 int main(){
+    // Full 444 KiB verification keeps all 888 reads but only one QSPI reset,
+    // rather than 888 resets / 4440 ms of fixed delay. No extra RAM buffer.
+    char imageDigest[65];hash(flash.data(),XORA_TX_BACKUP_APP_BYTES,imageDigest);
+    assert(flashHash(EXTERNAL_FLASH_BASE,XORA_TX_BACKUP_APP_BYTES,imageDigest));
+    assert(qspiMapped && modeExits==1 && modeEnters==1 && rawReads==888);
+    auto exits=modeExits,enters=modeEnters;
+    qspiMapped=false;assert(flashHash(EXTERNAL_FLASH_BASE,XORA_TX_BACKUP_APP_BYTES,imageDigest));
+    assert(!qspiMapped && modeExits==exits && modeEnters==enters);qspiMapped=true;
+    readsBeforeFailure=2;assert(!flashHash(EXTERNAL_FLASH_BASE,XORA_TX_BACKUP_APP_BYTES,imageDigest));
+    assert(qspiMapped);readsBeforeFailure=-1;
+    flash[512]^=1;assert(!flashHash(EXTERNAL_FLASH_BASE,XORA_TX_BACKUP_APP_BYTES,imageDigest));assert(qspiMapped);flash[512]^=1;
+    exits=modeExits;assert(!flashHash(EXTERNAL_FLASH_BASE-1,512,imageDigest));
+    assert(!flashHash(EXTERNAL_FLASH_BASE+W25Qxx_FlashSize-1,2,imageDigest));assert(modeExits==exits);
+    exitFailure=true;assert(!flashHash(EXTERNAL_FLASH_BASE,512,imageDigest));assert(qspiMapped);exitFailure=false;
+    enterFailure=true;assert(!flashHash(EXTERNAL_FLASH_BASE,XORA_TX_BACKUP_APP_BYTES,imageDigest));assert(!qspiMapped);enterFailure=false;qspiMapped=true;
     const auto blank=flash;
     for(uint16_t chunk:{uint16_t(XORA_TX_READ_BYTES),uint16_t(XORA_TX_BULK_READ_BYTES)}) {
         backupChunk=chunk;fixture(FIRMWARE_SLOT_B);
@@ -144,19 +168,25 @@ int main(){
         assert(RELEASE_INSTALLER.runBoot());assert(state.phase==Verifying && programmed==1 && metadataWrites==1 && resets==1);
         runningSlot=target;RELEASE_INSTALLER.verifyStartup(true);
         assert(state.phase==Completed && !strcmp(state.confirmedVersion,"3.0.0"));
+        loaded=false;load();assert(state.txInstallMode==2 && state.txRecoveryMode==0);
+        // An old controller accepts this complete prefix, including its final marker.
+        assert(state.magic==0x33524f58u && state.commit2==0x54494d43u && state.crc2==crc32(&state,offsetof(Snapshot,crc2)));
+        cJSON* out=RELEASE_INSTALLER.inventory();assert(!strcmp(cJSON_GetObjectItem(out,"txInstallMode")->valuestring,"dma"));cJSON_Delete(out);
     }
     // One new-image attempt, then rollback to the exact old TX and controller.
-    fixture(FIRMWARE_SLOT_B);programOk=false;assert(RELEASE_INSTALLER.activate(state.session));
+    fixture(FIRMWARE_SLOT_B);programOk=false;installMode=Ch585IapTransferMode::SmallPacket;assert(RELEASE_INSTALLER.activate(state.session));
     assert(RELEASE_INSTALLER.runBoot());assert(state.phase==RollbackVerifying && programmed==1 && restoredWrites==1);
     RELEASE_INSTALLER.verifyStartup(true);assert(state.phase==Restored && !RELEASE_INSTALLER.busy());
     assert(runningSlot==FIRMWARE_SLOT_A && !memcmp(flash.data()+METADATA_ADDR-EXTERNAL_FLASH_BASE,&state.source,sizeof(state.source)));
     assert(!RELEASE_INSTALLER.retry());
+    loaded=false;load();assert(state.txInstallMode==1 && state.txRecoveryMode==2);
     fixture(FIRMWARE_SLOT_B);txHealthy=false;assert(RELEASE_INSTALLER.activate(state.session));
     assert(RELEASE_INSTALLER.runBoot());assert(state.phase==RollbackVerifying && programmed==1 && restoredWrites==1);
     RELEASE_INSTALLER.verifyStartup(true);assert(state.phase==Restored);
     fixture(FIRMWARE_SLOT_B);programOk=restoreOk=false;assert(RELEASE_INSTALLER.activate(state.session));
     assert(!RELEASE_INSTALLER.runBoot());assert(state.phase==RestoreFailed && state.restoreAttempts==2 && restoredWrites==2);
     assert(strstr(state.installError,"stage=") && strstr(state.recoveryError,"offset="));
+    assert(state.txInstallMode==2 && state.txRecoveryMode==2);
     loaded=false;load();assert(state.restoreAttempts==2 && !RELEASE_INSTALLER.bootPending());assert(!RELEASE_INSTALLER.runBoot());
     assert(strstr(state.installError,"stage=") && strstr(state.recoveryError,"offset="));
     // Interrupted recovery cannot reset its persisted attempt counter.
@@ -208,6 +238,19 @@ int main(){
     runningSlot=FIRMWARE_SLOT_B;RELEASE_INSTALLER.verifyStartup(false);assert(state.phase==RollbackVerifying);
     assert(!memcmp(flash.data()+METADATA_ADDR-EXTERNAL_FLASH_BASE,&state.source,sizeof(state.source)));
     runningSlot=FIRMWARE_SLOT_A;RELEASE_INSTALLER.verifyStartup(true);assert(state.phase==Restored);
+    // A v2 record retains its backup and starts with unknown transfer modes.
+    fixture(FIRMWARE_SLOT_B);state.magic=0x33524f58u;state.commit2=0x54494d43u;state.crc2=crc32(&state,offsetof(Snapshot,crc2));
+    memset(flash.data()+XORA_RELEASE_BANK_A-EXTERNAL_FLASH_BASE,0xff,XORA_RELEASE_BANK_SIZE);
+    memset(flash.data()+XORA_RELEASE_BANK_B-EXTERNAL_FLASH_BASE,0xff,XORA_RELEASE_BANK_SIZE);
+    memcpy(flash.data()+XORA_RELEASE_BANK_A-EXTERNAL_FLASH_BASE,&state,offsetof(Snapshot,txInstallMode));loaded=false;load();
+    assert(!storageFault && state.backupReady && state.txInstallMode==0 && state.txRecoveryMode==0 && backupValid());
+    assert(persist(Activated));const auto modeBase=flash;
+    // A mode checkpoint must commit before BEGIN; a torn checkpoint cannot claim it.
+    for(int stop=0;stop<70;stop++){
+        flash=modeBase;budget=-1;loaded=false;storageFault=false;load();budget=stop;
+        const bool ok=recordInstallMode(Ch585IapTransferMode::Dma);budget=-1;loaded=false;load();
+        assert(!storageFault && state.txRecoveryMode==0 && state.txInstallMode==(ok?2u:0u));
+    }
     // Legacy failed transactions are decoded and reported, never silently erased or retried.
     fixture(FIRMWARE_SLOT_B);state.magic=0x32524f58u;state.phase=Failed;state.commit=0x54494d43u;state.crc=crc32(&state,offsetof(Snapshot,crc));
     memset(flash.data()+XORA_RELEASE_BANK_A-EXTERNAL_FLASH_BASE,0xff,XORA_RELEASE_BANK_SIZE);

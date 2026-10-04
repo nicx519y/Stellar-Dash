@@ -5,6 +5,9 @@ CH585 Maintenance HID collection through WebHID. The browser and STM32 open
 an encrypted direct session without a device certificate or server permit.
 User and administrator sign-in remains on the server for account actions.
 
+WebConfig 和 admin 的当前同源上线方案、配置清单、部署与回滚步骤见
+[XORA 服务端部署](../../docs/webconfig-admin-deployment.md)。
+
 The administrator firmware catalog is at `/admin/firmware/`; published releases
 can be browsed without a HID connection at `/firmware/releases/`. See the
 [upload and publishing guide](../../docs/firmware-release-catalog.md) for the

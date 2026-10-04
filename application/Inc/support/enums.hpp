@@ -15,6 +15,7 @@ enum BootMode
     BOOT_MODE_WEB_CONFIG                = 1,
     BOOT_MODE_INPUT                     = 2,
     BOOT_MODE_CALIBRATION               = 3,
+    BOOT_MODE_TX_ISP                    = 4,
 };
 
 enum ConfigType

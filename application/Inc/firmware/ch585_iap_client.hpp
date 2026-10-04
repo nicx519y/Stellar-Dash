@@ -13,8 +13,11 @@ enum class Ch585IapClientStatus : uint8_t {
     ProtocolError,
     DeviceError,
     InvalidImage,
-    Completed
+    Completed,
+    CheckpointError
 };
+
+enum class Ch585IapTransferMode : uint32_t { Unknown = 0, SmallPacket = 1, Dma = 2 };
 
 class Ch585IapClient {
 public:
@@ -28,8 +31,10 @@ public:
     }
 
     bool probe();
-    bool programCombinedImage(uint32_t mappedAddress, uint32_t totalSize);
-    bool programApplicationImage(uint32_t mappedAddress, uint32_t size);
+    using TransferCheckpoint = bool (*)(Ch585IapTransferMode);
+    bool programCombinedImage(uint32_t mappedAddress, uint32_t totalSize, TransferCheckpoint checkpoint = nullptr);
+    bool programApplicationImage(uint32_t mappedAddress, uint32_t size, TransferCheckpoint checkpoint = nullptr);
+    Ch585IapTransferMode transferMode() const { return currentTransferMode; }
     bool validateApplication(xora_release_identity_t* identity = nullptr);
     Ch585IapClientStatus status() const { return currentStatus; }
     uint8_t progress() const { return currentProgress; }
@@ -54,6 +59,8 @@ private:
     uint32_t currentOffset = 0u;
     bool lastTransactionTimedOut = false;
     bool endResponseConfirmed = false;
+    bool dmaIap = false;
+    Ch585IapTransferMode currentTransferMode = Ch585IapTransferMode::Unknown;
     Ch585IapClientStatus currentStatus = Ch585IapClientStatus::Idle;
 };
 

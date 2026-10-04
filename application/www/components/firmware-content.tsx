@@ -1,10 +1,11 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Box, Button, Flex, Heading, HStack, Stack, Text } from '@chakra-ui/react';
+import { Badge, Box, Button, Flex, Heading, HStack, Skeleton, Stack, Text } from '@chakra-ui/react';
 import { useLanguage } from '@/contexts/language-context';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { FirmwareReleaseCatalog } from './firmware-release-catalog';
 import { FirmwareInstallDialog } from './firmware-install-dialog';
+import { normalizeTxIapMode, txIapModeLabel } from '@/lib/device-transport/release-install-transfer';
 import { accumulateInstallProgress } from '@/lib/device-transport/release-install-progress';
 import { isLegacyPhysicalConfirmationRejection, releaseBlockReason, type FirmwareInventory, type PreparedRelease, type ReleaseProgress } from '@/lib/device-transport/release-install-client';
 import type { PublicFirmwareRelease } from '@/lib/admin/firmware-types';
@@ -212,6 +213,10 @@ export function FirmwareContent() {
   const stm32Version = inventory?.stm32.version && inventory.stm32.version !== '0.0.0'
     ? inventory.stm32.version : firmwareInfo?.firmware.version || inventory?.stm32.version || '—';
   const currentSlot = inventory?.currentSlot || firmwareInfo?.firmware.currentSlot || '—';
+  // Metadata arrives before whole-device inventory. Reveal the card only when
+  // both reads have settled; a missing TX identity is a result, not a pending read.
+  const inventoryLoading = readingInventory || (deviceConnected &&
+    (!dataIsReady || (!inventory && !inventoryError)));
   return <Stack pt="24px" px={{ base: '16px', md: '24px' }} pb="32px" gap="5" w="full" maxW="1120px" mx="auto" minW={0} fontSize="14px">
     <Flex justify="space-between" align={{ base: 'start', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="3">
       <Box><Heading as="h1" fontSize="24px">{zh ? '固件更新' : 'Firmware updates'}</Heading>
@@ -219,9 +224,23 @@ export function FirmwareContent() {
       <Button h="36px" fontSize="14px" variant="surface" disabled={busy} loading={readingInventory}
         onClick={() => void refresh(true)}>{zh ? '刷新设备状态' : 'Refresh device status'}</Button>
     </Flex>
-    <Box borderWidth="1px" borderRadius="xl" px={{ base: '4', md: '5' }} py="4"><Stack gap="3">
+    <Box data-testid="installed-firmware-card" aria-busy={inventoryLoading}
+      borderWidth="1px" borderRadius="xl" px={{ base: '4', md: '5' }} py="4" minH="158px">
+      {inventoryLoading ? <Stack gap="3" role="status" aria-label={zh ? '正在读取当前固件' : 'Loading installed firmware'}>
+        <HStack justify="space-between" align="start" gap="2" aria-hidden="true">
+          <Stack gap="1" flex="1" minW={0}>
+            <Skeleton h="24px" w="180px" maxW="full" />
+            <Skeleton h="1lh" w="140px" maxW="full" />
+          </Stack>
+          <Skeleton h="20px" w="60px" />
+        </HStack>
+        <HStack gap="5" aria-hidden="true">
+          <Skeleton h="1lh" w="110px" /><Skeleton h="1lh" w="90px" />
+        </HStack>
+        <Box pt="2" borderTopWidth="1px" aria-hidden="true"><Skeleton h="1lh" w="100px" /></Box>
+      </Stack> : inventory ? <Stack gap="3">
       <HStack justify="space-between" align="start" wrap="wrap" gap="2">
-        <Stack gap="1"><Heading as="h2" fontSize="18px">{zh ? '当前固件' : 'Installed firmware'}</Heading>
+        <Stack gap="1"><Heading as="h2" fontSize="18px" lineHeight="24px">{zh ? '当前固件' : 'Installed firmware'}</Heading>
           <Text fontSize="16px" fontWeight="semibold">{verified ? `XORA ${inventory.confirmedVersion}` : (zh ? '整机版本未确认' : 'Whole-device release unconfirmed')}</Text></Stack>
         <Badge colorPalette={verified ? 'green' : 'orange'}>{verified ? (zh ? '已核验' : 'Verified') : (inventory?.installationState === 'mixed' ? (zh ? '混合版本' : 'Mixed components') : (zh ? '未确认' : 'Unconfirmed'))}</Badge>
       </HStack>
@@ -229,13 +248,17 @@ export function FirmwareContent() {
         <Text>TX <Text as="span" fontWeight="semibold">{inventory?.tx?.version || '—'}</Text></Text></HStack>
       {!verified && <Text fontSize="12px" color="fg.muted">{zh ? '当前组件尚未核验为完整整机版本。' : 'The installed components have not been verified as a complete release.'}</Text>}
       {inventory && !inventory.tx && <Text fontSize="12px" color="orange.500">{zh ? '未读到 TX 固件身份，请检查板间通信。' : 'TX firmware identity was unavailable. Check the board link.'}</Text>}
-      {deviceConnected && !dataIsReady && <Text fontSize="12px">{zh ? '正在读取设备配置…' : 'Reading device configuration…'}</Text>}
       <Box as="details" fontSize="12px" color="fg.muted" pt="2" borderTopWidth="1px">
         <Box as="summary" cursor="pointer" fontWeight="semibold">{zh ? '设备详情' : 'Device details'}</Box>
         <Stack mt="3" gap="2" overflowWrap="anywhere">
           <Text>{zh ? '运行槽' : 'Running slot'}: {currentSlot}</Text>
           {firmwareInfo?.firmware.buildDate && <Text>{zh ? '主控元数据构建时间' : 'Controller metadata build date'}: {firmwareInfo.firmware.buildDate}</Text>}
-          {inventory && <Text>{zh ? '主控构建' : 'Controller build'}: {inventory.stm32.buildId || '—'} · TX build: {inventory.tx?.buildId || '—'}</Text>}
+          {inventory && <>
+            <Text>{zh ? '主控构建' : 'Controller build'}: {inventory.stm32.buildId || '—'}</Text>
+            <Text>{zh ? 'TX 构建' : 'TX build'}: {inventory.tx?.buildId || '—'}</Text>
+          </>}
+          {inventory?.sessionId && <Text>{zh ? '上次 TX 安装：' : 'Last TX installation: '}{txIapModeLabel(inventory.txInstallMode, zh)}</Text>}
+          {inventory && (normalizeTxIapMode(inventory.txRecoveryMode) !== 'unknown' || inventory.recoveryResult === 'restored' || inventory.recoveryResult === 'failed') && <Text>{zh ? '上次 TX 恢复：' : 'Last TX recovery: '}{txIapModeLabel(inventory.txRecoveryMode, zh)}</Text>}
           {(inventory?.stm32.buildId === 'unidentified' || inventory?.tx?.buildId === 'unidentified') && <Text>{zh ? '开发构建的 0.0.0 / unidentified 只是发布身份占位值；STM32 显示版本优先采用固件元数据。' : 'Development builds use 0.0.0 / unidentified as release identity placeholders. The STM32 version shown above prefers firmware metadata.'}</Text>}
           {inventory?.confirmedVersion && !verified && <Text>{zh ? '上次确认版本' : 'Last confirmed release'}: {inventory.confirmedVersion}</Text>}
           {imageCatalog && <Text>{zh ? '图片能力' : 'Image capability'}: {zh ? `最多 ${imageCatalog.maxUserFrames} 帧，传输版本 ${imageCatalog.imageTransferVersion}` : `up to ${imageCatalog.maxUserFrames} frames, transfer version ${imageCatalog.imageTransferVersion}`}</Text>}
@@ -243,7 +266,12 @@ export function FirmwareContent() {
           {lastManualRead && <Text aria-live="polite">{zh ? '上次检测' : 'Last check'}: {lastManualRead.toLocaleTimeString(zh ? 'zh-CN' : 'en-US')}</Text>}
         </Stack>
       </Box>
-    </Stack></Box>
+    </Stack> : <Stack gap="3">
+      <Heading as="h2" fontSize="18px" lineHeight="24px">{zh ? '当前固件' : 'Installed firmware'}</Heading>
+      <Text color="fg.muted">{inventoryError
+        ? (zh ? '当前固件信息读取失败，请刷新设备状态重试。' : 'Installed firmware could not be read. Refresh device status to try again.')
+        : (zh ? '连接设备后查看当前固件。' : 'Connect the device to view installed firmware.')}</Text>
+    </Stack>}</Box>
     {inventoryError && <Text role="alert" color="red.500" overflowWrap="anywhere">{zh ? '设备状态读取失败：' : 'Device status read failed: '}{inventoryError}</Text>}
     {error && !selectedRelease && <Text role="alert" color="red.500" overflowWrap="anywhere">{error}</Text>}
     {progress && !selectedRelease && <Box aria-live="polite" borderWidth="1px" borderRadius="xl" p="5"><Stack gap="3">
@@ -267,6 +295,7 @@ export function FirmwareContent() {
     }} />
     <FirmwareInstallDialog release={selectedRelease} zh={zh} view={dialogView} progress={progress} deviceConnected={deviceConnected}
       activatedAt={task?.activatedAt || progress?.activatedAt}
+      txRecoveryMode={task?.txRecoveryMode}
       error={error || (task?.result === 'restore-failed' ? `${task.error || ''} (${inventory?.errorCode || 'TX_RESTORE_FAILED'})` : '')} busy={busy || task?.result === 'waiting'} retryable={false} onReconnect={manualReconnect} canReconnect={Boolean(task)}
       progressLabel={translate(phases, progress?.stage || 'downloading')}
       onClose={() => { if (!busy && task?.result !== 'waiting') {

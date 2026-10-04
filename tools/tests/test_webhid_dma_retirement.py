@@ -30,7 +30,7 @@ struct Spi {int state=HAL_SPI_STATE_READY;unsigned error=0;};
 Dma s_hsTxDma,s_hsRxDma;Spi s_hspi;
 struct {uint32_t CYCCNT=0;} dwt;
 #define DWT (&dwt)
-bool s_fastWebHid=true,lateTx=true,stuck=false,stuckTx=false,dmaError=false;
+bool s_fastWebHid=true,s_fastIap=false,lateTx=true,stuck=false,stuckTx=false,dmaError=false;
 unsigned starts=0,aborts=0;uint32_t tick=0;
 uint8_t s_hsTx[4096],s_hsRx[4096];
 void SCB_CleanDCache_by_Addr(uint32_t*,int32_t) {}
@@ -85,6 +85,9 @@ int main() {
         assert(!s_hsTxDma.locked && !s_hsRxDma.locked);
     }
     // Faults remain errors, not successful completions or silent retries.
+    s_fastWebHid=false;s_fastIap=true;
+    assert(hsDma(nullptr,rx,1024)); // The offline IAP uses the same safe DMA retirement.
+    s_fastIap=false;assert(!hsDma(nullptr,rx,1024));s_fastWebHid=true;
     dmaError=true;assert(!hsDma(nullptr,rx,28));dmaError=false;
     stuck=true;unsigned before=starts;uint32_t began=tick;
     assert(!hsDma(nullptr,rx,28) && tick-began==10 && aborts==1 && starts==before+1);

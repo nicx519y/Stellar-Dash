@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Badge, Box, Button, Center, Flex, Heading, HStack, Input, Spinner, Stack, Text, Textarea } from '@chakra-ui/react';
+import { Badge, Box, Button, Center, Flex, Heading, HStack, Spinner, Stack, Text, Textarea } from '@chakra-ui/react';
 import { LuArrowLeft, LuCircleCheck, LuTrash2, LuUpload } from 'react-icons/lu';
 import { adminRuntime } from '@hbox/admin-runtime';
 import { AdminCard, AdminPageHeader } from '@/components/admin/admin-surface';
@@ -28,7 +28,6 @@ export default function AdminFirmwareDetailPage() {
   const [release, setRelease] = useState<FirmwareRelease | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(''); const [error, setError] = useState('');
-  const [reason, setReason] = useState('');
   const [pendingAction, setPendingAction] = useState<ReleaseAction | null>(null);
   const transitioning = useRef(false);
   const [draggingNotes, setDraggingNotes] = useState(false);
@@ -40,7 +39,7 @@ export default function AdminFirmwareDetailPage() {
 
   function show(value: FirmwareRelease) {
     editor.current?.dispose();
-    setRelease(value); setReason(''); setDraggingNotes(false); setPendingAction(null);
+    setRelease(value); setDraggingNotes(false); setPendingAction(null);
     editor.current = value.status === 'draft' ? new NotesEditor<FirmwareRelease>({
       notes: value.notes, revision: value.revision,
       save: (revision, notes) => api.edit(value.id, revision, notes, value.acceptance ?? ''),
@@ -129,12 +128,13 @@ export default function AdminFirmwareDetailPage() {
   function requestTransition(action: ReleaseAction) {
     if (!release || busy) return;
     if (action === 'publish' && (editor.current?.hasPendingChanges || saveState.status !== 'saved' || !release.notes.trim())) return;
-    if (action === 'withdraw' && !reason.trim()) return;
+    if (action === 'withdraw' && release.status !== 'published') return;
     setPendingAction(action);
   }
   async function confirmTransition() {
     const action = pendingAction;
     if (!action || !release || busy || transitioning.current || !isAdmin) return;
+    if (action === 'withdraw' && release.status !== 'published') return;
     if (action === 'publish' && (editor.current?.hasPendingChanges || saveState.status !== 'saved' || !release.notes.trim())) {
       setPendingAction(null);
       return;
@@ -148,7 +148,7 @@ export default function AdminFirmwareDetailPage() {
         editor.current?.dispose(); editor.current = null;
         router.replace('/admin/firmware/');
       } else {
-        show(await (action === 'publish' ? api.publish(release.id, release.revision) : api.withdraw(release.id, release.revision, reason)));
+        show(await (action === 'publish' ? api.publish(release.id, release.revision) : api.withdraw(release.id, release.revision)));
       }
     });
     transitioning.current = false;
@@ -180,7 +180,7 @@ export default function AdminFirmwareDetailPage() {
               </>}
               <Button size="sm" variant="outline" colorPalette="red" loading={busy === 'delete'} disabled={!!busy || saveState.status === 'saving' || saveState.status === 'unsaved'} onClick={() => requestTransition('delete')}><LuTrash2 />{zh ? '删除固件' : 'Delete firmware'}</Button>
               {release.status !== 'published' && <Button size="sm" colorPalette="green" disabled={!!busy || saveState.status !== 'saved' || !release.notes.trim()} onClick={() => requestTransition('publish')}>{release.status === 'withdrawn' ? (zh ? '重新校验并恢复发布' : 'Revalidate & restore') : (zh ? '发布正式版' : 'Publish release')}</Button>}
-              {release.status === 'published' && <Button size="sm" colorPalette="orange" disabled={!!busy || !reason.trim()} onClick={() => requestTransition('withdraw')}>{zh ? '撤回发布' : 'Withdraw'}</Button>}
+              {release.status === 'published' && <Button size="sm" colorPalette="orange" disabled={!!busy} onClick={() => requestTransition('withdraw')}>{zh ? '撤回发布' : 'Withdraw'}</Button>}
             </HStack>
           </Flex>
           <FirmwareReleaseDetails manifest={release.manifest} zh={zh} />
@@ -199,7 +199,6 @@ export default function AdminFirmwareDetailPage() {
             {draggingNotes && <Flex position="absolute" inset="0" pointerEvents="none" align="center" justify="center" borderRadius="md" borderWidth="2px" borderStyle="dashed" borderColor="green.500" bg="green.subtle" color="green.fg" fontWeight="medium">{zh ? '松开以导入 .md 并替换更新说明' : 'Drop .md to replace release notes'}</Flex>}
           </Box></Box>
           {release.reason && <Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">{zh ? '撤回原因：' : 'Withdrawal reason: '}{release.reason}</Text>}
-          {release.status === 'published' && <label><Text fontWeight="medium" mb={3}>{zh ? '撤回原因' : 'Withdrawal reason'}</Text><Input maxW="720px" maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} /></label>}
           <Stack gap={4} pt={6} borderTopWidth="1px" borderColor="app.border">
             <Heading as="h2" fontSize="md" fontWeight="medium" color="fg.muted" lineHeight="1.4">{zh ? '操作记录' : 'Audit trail'}</Heading>
             <Stack gap={3}>{release.audit?.map((event, index) => <Flex key={index} direction={{ base: 'column', md: 'row' }} align={{ base: 'flex-start', md: 'center' }} gap={{ base: 1.5, md: 3 }} fontSize="xs" color="fg.muted">
@@ -217,10 +216,12 @@ export default function AdminFirmwareDetailPage() {
         ? (zh ? `发布 XORA ${release?.manifest.version}？兼容声明和组件将公开显示，产物不能替换。` : `Publish XORA ${release?.manifest.version}? Component details become public and binaries cannot be replaced.`)
         : pendingAction === 'withdraw'
           ? (zh ? '撤回后用户将无法浏览此版本。不会撤销已获取的文件。' : 'Withdraw this release from the public catalog? Previously obtained files cannot be revoked.')
-          : (zh ? `删除 XORA ${release?.manifest.version}？删除后将从管理列表和公开目录移除，无法再下载。此操作不可恢复；审计记录和包文件仍会保留，已下载或安装的固件不受影响。` : `Delete XORA ${release?.manifest.version}? It will be removed from the admin list and public catalog and will no longer be downloadable. This cannot be undone. Audit records and package files are retained; existing downloads and installations are unaffected.`)}</Text>}
+          : (zh ? `删除 XORA ${release?.manifest.version}？删除后将从管理列表和公开目录移除，无法再下载。此操作不可恢复；审计记录和包文件仍会保留，已下载或安装的固件不受影响。` : `Delete XORA ${release?.manifest.version}? It will be removed from the admin list and public catalog and will no longer be downloadable. This cannot be undone. Audit records and package files are retained; existing downloads and installations are unaffected.`)}</Text>
+      }
       cancelLabel={zh ? '取消' : 'Cancel'}
       confirmLabel={pendingAction === 'publish' ? (zh ? '确认发布' : 'Publish release')
         : pendingAction === 'withdraw' ? (zh ? '确认撤回' : 'Withdraw release') : (zh ? '确认删除' : 'Delete firmware')}
+      confirmDisabled={!!busy}
       confirmColorPalette={pendingAction === 'publish' ? 'green' : pendingAction === 'withdraw' ? 'orange' : 'red'} />
   </>;
 }

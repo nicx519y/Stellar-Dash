@@ -90,8 +90,10 @@ test('signed complete package stays draft until manual publish; revision, withdr
     assert.equal(c.store.list({}, true).total, 1);
     assert.equal(c.store.publicDetail(r.id).acceptance, undefined);
     assert.throws(() => c.store.mutate(r.id, r.revision, 'edit', { notes: 'overwrite', acceptance: 'x' }, actor), /drafts/);
-    assert.throws(() => c.store.mutate(r.id, r.revision, 'withdraw', { reason: '' }, actor), /reason/);
+    assert.throws(() => c.store.mutate(r.id, r.revision, 'withdraw', { reason: 123 }, actor), /reason/);
+    assert.throws(() => c.store.mutate(r.id, r.revision, 'withdraw', { reason: 'x'.repeat(1001) }, actor), /reason/);
     r = c.store.mutate(r.id, r.revision, 'withdraw', { reason: 'Regression' }, actor);
+    assert.equal(r.reason, 'Regression');
     assert.equal(c.store.list({}, true).total, 0);
     r = c.store.mutate(r.id, r.revision, 'publish', {}, actor);
     assert.equal(r.audit.length, 5); assert.equal(r.status, 'published');
@@ -99,6 +101,21 @@ test('signed complete package stays draft until manual publish; revision, withdr
     assert.equal(second.get(r.id, true).audit.length, 5); second.close();
     assert.equal(c.store.import(b.file, actor).status, 'failed');
     assert.equal(c.store.list().total, 1);
+});
+
+for (const reason of [undefined, '', '   ']) test(`withdrawal accepts optional reason ${JSON.stringify(reason)}`, t => {
+    const c = setup(t); const job = c.store.import(bundle(c).file, actor);
+    let r = c.store.get(job.releaseId);
+    assert.throws(() => c.store.mutate(r.id, r.revision, 'withdraw', {}, actor), /Only published/);
+    r = c.store.mutate(r.id, r.revision, 'edit', { notes: 'Public notes' }, actor);
+    r = c.store.mutate(r.id, r.revision, 'publish', {}, actor);
+    assert.throws(() => c.store.mutate(r.id, r.revision - 1, 'withdraw', {}, actor), /changed/);
+    const withdrawn = c.store.mutate(r.id, r.revision, 'withdraw', reason === undefined ? {} : { reason }, actor);
+    assert.equal(withdrawn.status, 'withdrawn'); assert.equal(withdrawn.reason, '');
+    assert.equal(withdrawn.revision, r.revision + 1);
+    assert.equal(withdrawn.audit[0].action, 'withdraw');
+    assert.equal(c.store.list({}, true).total, 0);
+    assert.throws(() => c.store.publicDetail(r.id), /not found/);
 });
 
 for (const status of ['draft', 'published', 'withdrawn']) test(`delete ${status} release retains audit and content, rejects stale revisions and closes downloads`, t => {
@@ -274,11 +291,12 @@ test('HTTP flow: real admin gate, service-token limits, private drafts, publish,
     assert.deepEqual(Buffer.from(await download.arrayBuffer()), signed.data);
     const verification = await call('/api/firmware-releases/verification-key', { headers: { Cookie: '' } });
     assert.equal((await verification.json()).data.crv, 'P-256');
-    assert.equal((await call(`${base}/releases/${id}/withdraw`, json({ revision: r.revision, reason: 'Issue' }))).status, 200);
+    assert.equal((await call(`${base}/releases/${id}/withdraw`, json({ revision: r.revision }))).status, 200);
     assert.equal((await call(`/api/firmware-releases/${id}`)).status, 404);
     assert.equal((await call('/downloads/' + id + '.zip')).status, 404);
     assert.equal((await call(`/api/firmware-releases/${id}/download`)).status, 404);
     const withdrawn = c.store.get(id);
+    assert.equal(withdrawn.reason, '');
     assert.equal((await remove(withdrawn.revision, { Authorization: `Bearer ${serviceToken}` })).status, 403);
     assert.equal((await remove(withdrawn.revision)).status, 200);
     assert.equal((await call(`${base}/releases/${id}`)).status, 404);

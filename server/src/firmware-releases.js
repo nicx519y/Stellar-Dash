@@ -221,7 +221,7 @@ class FirmwareReleaseStore {
                 status = 'published'; published = new Date().toISOString(); reason = '';
             } else if (action === 'withdraw') {
                 requireValue(status === 'published', 'Only published releases can be withdrawn');
-                reason = text(input.reason, 1000, 'reason'); status = 'withdrawn';
+                reason = text(input.reason === undefined ? '' : input.reason, 1000, 'reason', false); status = 'withdrawn';
             } else if (action === 'delete') {
                 this.audit(id, actor, action, old, null);
                 this.db.prepare('DELETE FROM releases WHERE id=?').run(id);

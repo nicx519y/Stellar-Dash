@@ -101,6 +101,12 @@ SECTIONS
     *stm32h7xx_hal_dma2d.o(.text .text.* .rodata .rodata.*)
     *jpeg_player.o(.text .text.* .rodata .rodata.*)
     *user_image_command_handler.o(.text .text.* .rodata .rodata.*)
+    /* Local mode dispatch/ISP UI is CPU-only. Keep it in spare ITCM so the
+       signed hosted build retains AXI RAM for its existing data and buffers.
+       Startup already copies this whole span before calling constructors. */
+    *main_state_machine.o(.text .text.* .rodata .rodata.*)
+    *tx_isp_state.o(.text .text.* .rodata .rodata.*)
+    *spi_screen_detail_tx_isp.o(.text .text.* .rodata .rodata.*)
     . = ALIGN(4);
     _evector = .;           /* 添加向量表结束标记 */
   } >ITCMRAM AT>FLASH

@@ -12,6 +12,7 @@ enum class MainRuntimeState : uint8_t {
     Calibration,
     Ch585BridgeUpdate,
     SafeRecovery,
+    TxIsp,
 };
 
 class MainStateMachine {
@@ -25,7 +26,11 @@ class MainStateMachine {
         void setup();
         bool requestTransition(MainRuntimeState next);
         void requestReset();
+        // Screen requests are applied after the current LCD frame, never reentrantly.
+        bool requestTxIsp(bool enabled);
+        void servicePendingTransition();
         MainRuntimeState current() const { return currentState; }
+        bool txIspTransitionFailed() const { return ispTransitionFailed; }
 
     private:
         MainStateMachine() = default;
@@ -39,6 +44,10 @@ class MainStateMachine {
         MainRuntimeState currentState = MainRuntimeState::SafeRecovery;
         bool interactiveRuntimeInitialized = false;
         bool resetPending = false;
+        bool transitionPending = false;
+        bool ispTransitionFailed = false;
+        MainRuntimeState pendingState = MainRuntimeState::Input;
+        MainRuntimeState ispReturnState = MainRuntimeState::Input;
 
 };
 

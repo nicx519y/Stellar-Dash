@@ -310,6 +310,7 @@ export class MockDeviceTransport implements DeviceTransport {
       confirmedVersion: '', confirmedDigest: '', sessionId: '', phase: 'idle', targetVersion: '', targetDigest: '', error: '',
       canAbort: false, canRetry: false, txReceived: 0, backupReceived: 0, backupTotal: 0x6f000 * 2, backupReady: false,
       recoveryResult: 'none', restoreAttempts: 0,
+      txInstallMode: 'unknown', txRecoveryMode: 'unknown',
     };
     const fault = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('xora-mock-install-failure') : null;
     if (inventory.phase === 'backing-up-tx' && inventory.backupStarted) {
@@ -322,6 +323,9 @@ export class MockDeviceTransport implements DeviceTransport {
     if (inventory.offlineStarted && !['completed', 'restored', 'restore-failed'].includes(inventory.phase)) {
       const elapsed = Date.now() - inventory.offlineStarted;
       const recovering = fault === 'tx' || fault === 'restore' || fault === 'missing-backup';
+      inventory.txInstallMode = sessionStorage.getItem('xora-mock-iap-mode') === 'small-packet' ? 'small-packet' : 'dma';
+      inventory.txRecoveryMode = recovering && fault !== 'missing-backup' && elapsed >= 2000
+        ? inventory.txInstallMode : 'unknown';
       inventory.phase = fault === 'timeout' || elapsed < 2000 ? 'tx-writing' : recovering
         ? (elapsed < 4000 ? 'tx-restoring' : 'rollback-verifying')
         : elapsed < 4000 ? 'committing' : 'verifying';
@@ -776,7 +780,7 @@ export class MockDeviceTransport implements DeviceTransport {
         const i = this.releaseInventory();
         if (!['idle', 'completed', 'aborted', 'restored'].includes(i.phase)) throw new DeviceTransportError('protocol', 'Installation already pending');
         this.releaseDeclaration = new Uint8Array(asNumber(params.declaration_size));
-        Object.assign(i, { phase: 'declaring', backupReady: false, offlineStarted: undefined, backupStarted: undefined, error: '', recoveryResult: 'none', sessionId: asString(params.session_id), canAbort: true, installationState: 'incomplete' });
+        Object.assign(i, { phase: 'declaring', backupReady: false, offlineStarted: undefined, backupStarted: undefined, error: '', recoveryResult: 'none', txInstallMode: 'unknown', txRecoveryMode: 'unknown', sessionId: asString(params.session_id), canAbort: true, installationState: 'incomplete' });
         this.saveReleaseInventory(i); return { success: true };
       }
       case 'backup_release_tx': {

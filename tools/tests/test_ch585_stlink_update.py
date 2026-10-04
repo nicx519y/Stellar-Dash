@@ -415,13 +415,13 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertIn("CH585_STAGING_STATE_READY", body)
         self.assertNotIn("acknowledgeManualRecovery", updater)
 
-    def test_five_peer_states_and_ready_only_diversion_are_explicit(self) -> None:
+    def test_six_peer_states_and_ready_only_diversion_are_explicit(self) -> None:
         header = (
             ROOT / 'application/Inc/system/main_state_machine.hpp'
         ).read_text(encoding="utf-8")
         for state in (
             "Input", "WebConfig", "Calibration", "Ch585BridgeUpdate",
-            "SafeRecovery",
+            "SafeRecovery", "TxIsp",
         ):
             self.assertIn(state, header)
         self.assertNotIn("Ch585UsbIsp", header)
@@ -434,7 +434,14 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertLess(ready, boot_mode)
         self.assertNotIn("hasFailed()", source[resolver:boot_mode])
         self.assertNotIn("isManualIspActive", source)
-        self.assertIn("exactly five states", source)
+        self.assertIn("exactly six states", source)
+        # Persisted bootMode restores ISP, like WebConfig; READY still owns
+        # activated installations. Retired service-flag latches stay unsupported.
+        isp = source.index("if (bootMode == BootMode::BOOT_MODE_TX_ISP)", boot_mode)
+        self.assertLess(ready, isp)
+        overrides = source.index("#if WEBCONFIG_TEST_FORCE_BOOT", isp)
+        self.assertLess(isp, overrides)
+        self.assertIn("return MainRuntimeState::TxIsp", source[isp:overrides])
 
     def test_daily_staging_uses_runtime_attach_without_reset_or_nrst(self) -> None:
         source = (ROOT / "tools" / "ch585_stlink_update.py").read_text(

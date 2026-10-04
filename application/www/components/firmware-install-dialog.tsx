@@ -4,7 +4,8 @@ import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import { useEffect, useId, useState } from 'react';
 import { Box, Button, Dialog, Flex, HStack, Portal, Stack, Text } from '@chakra-ui/react';
 import type { PublicFirmwareRelease } from '@/lib/admin/firmware-types';
-import type { ReleaseProgress } from '@/lib/device-transport/release-install-client';
+import type { ReleaseProgress, TxIapTransferMode } from '@/lib/device-transport/release-install-client';
+import { normalizeTxIapMode, txIapModeLabel } from '@/lib/device-transport/release-install-transfer';
 import { displayedInstallPercent, installUsesEstimate, INSTALL_DISPLAY_STEPS, installDisplayStep } from '@/lib/device-transport/release-install-progress';
 import styles from './firmware-install-dialog.module.css';
 
@@ -15,7 +16,7 @@ function ProgressRing({ progress, percent, label, zh }: {
 }) {
   const gradientId = `install-gradient-${useId().replace(/:/g, '')}`;
   const step = installDisplayStep(progress);
-  return <Box position="relative" w="240px" maxW="full" aspectRatio="1" flexShrink={0}
+  return <Box position="relative" w="clamp(160px, calc(100dvh - 420px), 240px)" maxW="full" aspectRatio="1" flexShrink={0}
     css={{ '@media (prefers-reduced-motion: reduce)': { '& circle': { transition: 'none' } } }}>
     <svg width="100%" height="100%" viewBox="0 0 240 240" role="progressbar"
       aria-label={zh ? '安装总进度' : 'Overall installation progress'} aria-valuemin={0}
@@ -58,7 +59,7 @@ function ProgressRing({ progress, percent, label, zh }: {
 }
 
 export function FirmwareInstallDialog({ release, zh, view, progress, error, busy, retryable,
-  progressLabel, onClose, onConfirm, onRetry, onReconnect, canReconnect, deviceConnected, activatedAt }: {
+  progressLabel, onClose, onConfirm, onRetry, onReconnect, canReconnect, deviceConnected, activatedAt, txRecoveryMode }: {
   release: PublicFirmwareRelease | null;
   zh: boolean;
   view: 'confirm' | 'progress';
@@ -71,6 +72,7 @@ export function FirmwareInstallDialog({ release, zh, view, progress, error, busy
   canReconnect: boolean;
   deviceConnected: boolean;
   activatedAt?: number;
+  txRecoveryMode?: TxIapTransferMode;
   onClose: () => void;
   onConfirm: () => void;
   onRetry: () => void;
@@ -99,17 +101,18 @@ export function FirmwareInstallDialog({ release, zh, view, progress, error, busy
   return <Portal><ExclusiveDialog priority={ownsConnection ? OVERLAY_PRIORITY.operation : OVERLAY_PRIORITY.editor} open={Boolean(release)} closeOnEscape={!locked} closeOnInteractOutside={!locked}
     onOpenChange={details => { if (!details.open && !locked) onClose(); }}>
     <Dialog.Backdrop backdropFilter="blur(4px)" />
-    <Dialog.Positioner px="12px">
-      <Dialog.Content w="min(420px, calc(100vw - 24px))"
-        h={view === 'confirm' ? '320px' : 'min(490px, calc(100dvh - 24px))'}
-        maxH="calc(100dvh - 24px)" overflow="hidden"
+    <Dialog.Positioner p="12px" pt="var(--install-dialog-top)" alignItems="flex-start"
+      css={{ '--install-dialog-top': '12px', '@media (min-height: 760px)': { '--install-dialog-top': 'clamp(24px, 8dvh, 120px)' } }}>
+      <Dialog.Content w="min(420px, calc(100vw - 24px))" my="0"
+        h="auto"
+        maxH="calc(100dvh - var(--install-dialog-top) - 12px)" overflow="hidden"
         transition="width 340ms cubic-bezier(.22,1,.36,1) 140ms, height 340ms cubic-bezier(.22,1,.36,1) 140ms"
         _motionReduce={{ transition: 'none' }}>
         <Dialog.Header flexShrink={0} borderBottomWidth="1px" py="4">
           <Dialog.Title fontSize="18px">{release ? `${zh ? '安装' : 'Install'} XORA ${release.manifest.version}` : ''}</Dialog.Title>
         </Dialog.Header>
         <Dialog.Body p="0" flex="1" minH="0" position="relative">
-          <Flex position="absolute" inset="0" direction="column" p="6" aria-hidden={view !== 'confirm'} inert={view !== 'confirm'}
+          <Flex display={view === 'confirm' ? 'flex' : 'none'} direction="column" p="6" gap="6" aria-hidden={view !== 'confirm'} inert={view !== 'confirm'}
             opacity={view === 'confirm' ? 1 : 0} pointerEvents={view === 'confirm' ? 'auto' : 'none'}
             transition={view === 'confirm' ? 'opacity 180ms ease 150ms' : 'opacity 140ms ease'}
             _motionReduce={{ transition: 'none' }}>
@@ -122,31 +125,34 @@ export function FirmwareInstallDialog({ release, zh, view, progress, error, busy
               <Button h="36px" fontSize="14px" colorPalette="green" onClick={onConfirm}>{zh ? '确认安装' : 'Confirm installation'}</Button>
             </HStack>
           </Flex>
-          <Flex position="absolute" inset="0" direction="column" align="center" px="6" py="5" overflowY="auto"
+          <Flex display={view === 'progress' ? 'flex' : 'none'} direction="column" align="center" justify="center" px="6" py="4"
+            css={{ '@media (min-height: 760px)': { minHeight: '490px' } }}
             aria-hidden={view !== 'progress'} inert={view !== 'progress'} opacity={view === 'progress' ? 1 : 0}
             pointerEvents={view === 'progress' ? 'auto' : 'none'}
             transition={view === 'progress' ? 'opacity 180ms ease 100ms' : 'opacity 120ms ease'}
             _motionReduce={{ transition: 'none' }}>
             <ProgressRing progress={progress} percent={percent} label={statusLabel} zh={zh} />
-            <Stack w="full" maxW="320px" gap="2" mt="4" align="center" textAlign="center">
+            <Stack w="full" maxW="320px" gap="1.5" mt="22px" align="center" textAlign="center">
             <Text fontSize="16px" lineHeight="1.5" fontWeight="semibold" role="status" aria-live="polite">
               {exceptional ? statusLabel : (zh ? '请保持供电，勿断电或关机' : 'Keep the device powered on')}
             </Text>
-            {!deviceConnected && !busy && <Text role="alert" fontSize="13px" lineHeight="1.7" color="orange.300">
+            {!deviceConnected && !busy && <Text role="alert" fontSize="13px" lineHeight="1.6" color="orange.300">
               {zh ? '设备连接已断开。本次升级结果已保留；请检查供电、USB 连接及 WebConfig 模式后重新连接。'
                 : 'Device disconnected. The installation result is retained. Check power, USB and WebConfig mode, then reconnect.'}
             </Text>}
-            {error && <Text role="alert" fontSize="13px" color="red.400" lineHeight="1.7" overflowWrap="anywhere">{error}</Text>}
-            {!error && <Text fontSize="13px" color="fg.muted" lineHeight="1.8">
+            {error && <Text role="alert" fontSize="13px" color="red.400" lineHeight="1.6" overflowWrap="anywhere">{error}</Text>}
+            {!error && <Text fontSize="13px" color="fg.muted" lineHeight="1.6">
               {busy
                 ? (zh ? '请勿拔掉 USB 或关闭设备。连接会暂时中断，完成后将自动重新连接。' : 'Do not unplug USB or turn off the device. It will reconnect automatically after the update.')
                 : progress?.stage === 'completed'
                   ? (zh ? '升级完成，可以关闭此窗口。' : 'Update complete. You can close this window.')
                   : (zh ? '请检查设备状态后继续。' : 'Check the device status before continuing.')}
             </Text>}
+            {(normalizeTxIapMode(txRecoveryMode) !== 'unknown' || ['restored', 'restore-failed'].includes(progress?.stage || '')) && <Text data-testid="tx-recovery-mode" fontSize="12px" color="fg.muted">
+              {zh ? 'TX 恢复：' : 'TX recovery: '}{txIapModeLabel(txRecoveryMode, zh)}
+            </Text>}
             </Stack>
-            <Box flex="1" minH={busy ? '0' : '4'} />
-            <HStack w="full" justify="center" gap="2" flexShrink={0} wrap="wrap">
+            <HStack w="full" justify="center" gap="2" mt={busy ? '0' : '4'} flexShrink={0} wrap="wrap">
               {canReconnect && !busy && (!deviceConnected || progress?.stage !== 'completed') && <Button h="36px" fontSize="14px" variant="surface" onClick={onReconnect}>{zh ? '重新连接设备' : 'Reconnect device'}</Button>}
               {!busy && <Button h="36px" fontSize="14px" variant="surface" onClick={onClose}>{zh ? '关闭' : 'Close'}</Button>}
               {error && !busy ? <>

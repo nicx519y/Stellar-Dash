@@ -6,7 +6,10 @@ import type { PublicFirmwareRelease, FirmwareReleaseManifest } from '../admin/fi
 import type { DeviceCommandClient } from './device-command-client';
 import { DeviceTransportError } from './types';
 
+export type TxIapTransferMode = 'unknown' | 'small-packet' | 'dma';
 export interface FirmwareInventory {
+  txInstallMode?: TxIapTransferMode;
+  txRecoveryMode?: TxIapTransferMode;
   protocol: number; deviceModel: string; hardwareVersion: string; currentSlot: 'A' | 'B';
   configVersion: number; securityVersion: number; metadataConsistent: boolean;
   stm32: { version: string; buildId: string; maintenance: number; protocol: number };

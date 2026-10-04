@@ -2221,9 +2221,11 @@ test('whole-release Mock stages with backup, reinstalls and reports automatic re
       const result = await finish(client);
       assert.equal(result.phase, 'completed'); assert.equal(result.currentSlot, targetSlot);
       assert.equal(result.confirmedDigest, pkg.digest); assert.equal(result.installationState, 'installed');
+      assert.equal(result.txInstallMode,'dma');assert.equal(result.txRecoveryMode,'unknown');
       for(const phase of ['backing-up-tx','staging-controller','staging-tx','prepared','activating','waiting-device'])assert.ok(stages.includes(phase),phase);
     }
     const original=await client.request('get_firmware_inventory');
+    sessionStorage.setItem('xora-mock-iap-mode','small-packet');
     sessionStorage.setItem('xora-mock-install-failure', 'tx');
     const pkg = await downloadRelease(client, 'preview-2.0.0', original);
     await installRelease(client, pkg, () => {});client.dispose();
@@ -2238,11 +2240,13 @@ test('whole-release Mock stages with backup, reinstalls and reports automatic re
       assert.equal(result.phase,'restored');assert.equal(result.recoveryResult,'restored');
       assert.equal(result.currentSlot,original.currentSlot);assert.deepEqual(result.stm32,original.stm32);assert.deepEqual(result.tx,original.tx);
       assert.equal(result.restoreAttempts,1);assert.equal(result.canAbort,false);assert.equal(result.canRetry,false);
+      assert.equal(result.txInstallMode,'small-packet');assert.equal(result.txRecoveryMode,'small-packet');
       await assert.rejects(reloaded.request('retry_release_install',{session_id:result.sessionId}));
       sessionStorage.setItem('xora-mock-install-failure','restore');
       const next=await downloadRelease(reloaded,'preview-2.0.0',result);await installRelease(reloaded,next,()=>{});
       result=await finish(reloaded);assert.equal(result.phase,'restore-failed');assert.equal(result.restoreAttempts,2);
       assert.equal(result.errorCode,'TX_RESTORE_FAILED');assert.equal(result.currentSlot,original.currentSlot);
+      assert.equal(result.txInstallMode,'small-packet');assert.equal(result.txRecoveryMode,'small-packet');
     } finally { reloaded.dispose(); }
   } finally {
     client.dispose();

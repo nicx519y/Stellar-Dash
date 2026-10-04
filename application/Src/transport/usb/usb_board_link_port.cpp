@@ -8,6 +8,7 @@
 #include "rf_bridge_port.hpp"
 #include "stm32h7xx_hal.h"
 #include "usb_board_link_protocol.h"
+#include "ch585_iap_protocol.h"
 #include "usb_board_link_codec.h"
 #include "webhid_fast_link.h"
 #include "webhid_benchmark.h"
@@ -61,6 +62,7 @@ static bool s_ready;
 static bool s_roleRequestSent;
 static bool s_fastApplication;
 static bool s_fastWebHid;
+static bool s_fastIap;
 static DMA_HandleTypeDef s_hsTxDma, s_hsRxDma;
 __attribute__((section(".DMA_Section"), aligned(32))) static uint8_t s_hsTx[4096];
 __attribute__((section(".DMA_Section"), aligned(32))) static uint8_t s_hsRx[4096];
@@ -69,7 +71,7 @@ static uint8_t s_hsRead[WHF_BLOCK_BYTES];
 static bool hsDma(const uint8_t *tx, uint8_t *rx, uint16_t size)
 {
     const uint32_t cyclesStarted=DWT->CYCCNT;
-    if(!s_fastWebHid || size==0u || size>sizeof(s_hsTx)) return false;
+    if((!s_fastWebHid && !s_fastIap) || size==0u || size>sizeof(s_hsTx)) return false;
     if(tx) memcpy(s_hsTx,tx,size); else memset(s_hsTx,0xFF,size);
     const int32_t cacheSize=static_cast<int32_t>((size+31u)&~31u);
     SCB_CleanDCache_by_Addr(reinterpret_cast<uint32_t *>(s_hsTx),cacheSize);
@@ -385,6 +387,7 @@ bool USBBoardLinkPort_InitIap()
      */
     s_fastApplication = false;
     s_fastWebHid = false;
+    s_fastIap = false;
     if (s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
         return true;
     }
@@ -438,6 +441,7 @@ bool USBBoardLinkPort_EnableFastApplication()
 bool USBBoardLinkPort_DisableFastApplication()
 {
     s_fastWebHid = false;
+    s_fastIap = false;
     if (!USBBoardLinkPort_Init()) {
         return false;
     }
@@ -470,6 +474,7 @@ bool USBBoardLinkPort_EnableWebHid(uint32_t spiHz)
        (spiHz!=15000000u && spiHz!=7500000u) ||
        !refreshEventRelease() || !eventLineIsHigh()) return false;
     s_fastWebHid=false;
+    s_fastIap=false;
     chipSelect(true);
     if(HAL_SPI_DeInit(&s_hspi)!=HAL_OK) return false;
     s_hspi.Init.BaudRatePrescaler=spiHz==15000000u ? SPI_BAUDRATEPRESCALER_8 : SPI_BAUDRATEPRESCALER_16;
@@ -494,6 +499,16 @@ bool USBBoardLinkPort_EnableWebHid(uint32_t spiHz)
     __HAL_LINKDMA(&s_hspi,hdmatx,s_hsTxDma);
     __HAL_LINKDMA(&s_hspi,hdmarx,s_hsRxDma);
     s_fastWebHid=true;
+    return true;
+}
+
+bool USBBoardLinkPort_EnableIapDma()
+{
+    // Reuse the dedicated SPI4 DMA streams/cache-safe D2 buffers. Keep the
+    // application WebHID mode separate so raw IAP data is never framed as HID.
+    if (!USBBoardLinkPort_EnableWebHid(7500000u)) return false;
+    s_fastWebHid = false;
+    s_fastIap = true;
     return true;
 }
 
@@ -534,6 +549,7 @@ bool USBBoardLinkPort_InitApplication()
      */
     s_fastApplication = false;
     s_fastWebHid = false;
+    s_fastIap = false;
     if (s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
         return true;
     }
@@ -554,6 +570,7 @@ bool USBBoardLinkPort_InitApplication()
 bool USBBoardLinkPort_TryShutdown()
 {
     if (!s_ready) {
+        s_fastIap = false;
         s_roleRequestSent = false;
         Ch585Handshake_Release(CH585_LINE_USB);
         return true;
@@ -565,6 +582,7 @@ bool USBBoardLinkPort_TryShutdown()
     s_fastApplication = false;
     s_ready = false;
     s_fastWebHid = false;
+    s_fastIap = false;
     return true;
 }
 
@@ -749,7 +767,7 @@ bool USBBoardLinkPort_RawTransact(const uint8_t *request,
 {
     if (request == nullptr || requestLength == 0u ||
         response == nullptr || responseLength == 0u ||
-        requestLength > USB_BOARD_LINK_MAX_FRAME_BYTES ||
+        requestLength > (s_fastIap ? CH585_IAP_DMA_PACKET_SIZE : USB_BOARD_LINK_MAX_FRAME_BYTES) ||
         !USBBoardLinkPort_Init() ||
         !refreshEventRelease() || !eventLineIsHigh()) {
         return false;
@@ -761,7 +779,9 @@ bool USBBoardLinkPort_RawTransact(const uint8_t *request,
         chipSelect(true);
         return false;
     }
-    HAL_StatusTypeDef result = HAL_SPI_Transmit(
+    HAL_StatusTypeDef result = s_fastIap
+        ? (hsDma(request, nullptr, requestLength) ? HAL_OK : HAL_ERROR)
+        : HAL_SPI_Transmit(
         &s_hspi,
         const_cast<uint8_t *>(request),
         requestLength,

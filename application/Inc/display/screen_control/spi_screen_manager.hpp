@@ -22,6 +22,7 @@ public:
     void previewBrightness(uint8_t brightness);
     void clearBrightnessPreview();
     void showFirmwareRecovery();
+    void showTxIsp();
 
     bool menuPrev();
     bool menuNext();

@@ -13,7 +13,7 @@
 
 - 默认只允许普通、无锁开发构建和刷写：`unlocked-development` / `HBOX_SECURE_BOOT_REQUIRED=0`。
 - 禁止读取、修改或触发 STM32 Option Bytes、RDP、WRP、PCROP、SECURITY、SCAR、安全区域、读保护、写保护、代码/数据保护及锁定或不可逆生命周期转换；禁止 `read-unprotect`、隐含 unlock、Option Byte reload 和 mass erase。
-- 禁止操作 CH58x 芯片配置字及代码、读、下载保护。CH585 更新仅通过既有 4KB IAP 写入 `0x1000` 以上 Application；不得覆盖 `0x0000–0x0FFF` IAP。
+- 禁止操作 CH58x 芯片配置字及代码、读、下载保护。CH585 普通更新仍通过既有 4KB IAP 写入 `0x1000` 以上 Application。用户于 2026-10-04 明确解除仅 CH585 TX `0x0000–0x0FFF` IAP 区域的写入禁令，允许独立的 IAP 维护更新；须限定目标、区域和镜像，完成回读校验与启动验收，不得擦写相邻 Application、绑定数据或芯片配置字，不得操作任何保护位或锁定状态。该授权不扩大 WebConfig 或日常 TX 更新的写入范围，不适用于 RX IAP；实际写入使用独立维护入口。
 - 普通写入必须限定目标、地址和镜像，校验目标与回读，提交型 metadata/header 最后写入。若工具要求保护位操作，直接拒绝该路径，不以追加确认方式继续。
 - 烧录前检查 manifest：拒绝 `bootSecurityMode=secure-production`、`requiresManualLifecycleProvisioning=true`，以及要求 RDP1 / SECURITY / SCAR provisioning 的产物；重新构建无锁开发产物。
 - 连接或启动失败时，只使用普通复位、断电重上电、降低 SWD 频率、串口日志和无锁重刷等可恢复手段。

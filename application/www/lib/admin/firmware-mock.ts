@@ -71,7 +71,12 @@ export const firmwareRuntime: FirmwareRuntime = {
     return change(id, revision, 'publish', r => { if (r.status === 'published' || !r.notes.trim()) throw new Error('Release notes are required'); r.status = 'published'; r.publishedAt = new Date().toISOString(); r.reason = ''; });
   },
   async withdraw(id, revision, reason) {
-    return change(id, revision, 'withdraw', r => { if (r.status !== 'published' || !reason.trim()) throw new Error('Withdrawal reason is required'); r.status = 'withdrawn'; r.reason = reason; });
+    return change(id, revision, 'withdraw', r => {
+      if (r.status !== 'published') throw new Error('Only published releases can be withdrawn');
+      const value = reason === undefined ? '' : reason;
+      if (typeof value !== 'string' || value.length > 1000) throw new Error('reason is invalid');
+      r.status = 'withdrawn'; r.reason = value.trim();
+    });
   },
   async remove(id, revision) {
     const r = find(id); if (r.revision !== revision) throw new Error('Release changed; refresh before retrying.');
