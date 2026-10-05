@@ -1,183 +1,45 @@
-# RF_PHY_Hop（CH585）实现方案与编译方法
+# XORA CH585 TX / RX 开发入口
 
-2026-09-19 v2：实机反复断流复查发现 SDK 时钟重入，RF/SPI 已改用独立单调时钟。详见 ../docs/RF_CLOCK_REENTRY_20260919.md；v2 实机验收仍待完成。
+核对日期：2026-10-05。本目录包含 CH585 TX 与 RX 两个目标；底层 SDK 由外部 WCH EVT 提供。源码导航与行为约束见 [共同规则](AGENTS.md)、[TX 规则](TX/AGENTS.md)、[RX 规则](RX/AGENTS.md)。
 
-2026-09-19 链路修复、快速建链参数和 RHD1 诊断以
-[当前实现与验证说明](../docs/RF_LINK_STABILITY_20260919.md) 为准。
+## 当前行为与边界
 
-本目录是基于 WCH CH585 的 RF PHY 跳频示例工程（TX/RX 两套产物）。仓库内只保留了应用层源码与适配后的 Makefile，底层 SDK（HAL/LIB/SRC/驱动/链接脚本等）从本机安装的 WCH EVT 工程树引用。
+- 产品固定配对实验开关 `RFH_TEST_FIXED_BOND_ENABLE` 默认为 **0**；设备从持久化绑定记录加载工作地址。定义以 [rf_hop_protocol.h](Common/include/rf_hop_protocol.h) 为准，不能恢复为默认固定 bond。
+- USB 网页配对只保存绑定，不自动启用 TX RF 或改变物理模式；旧屏幕 Pair 2.4G 和 RX 长按配对入口已移除。见 [网页绑定](../docs/WEBCONFIG_RX_BINDING_20260923.md) 和 [入口移除](../docs/LEGACY_PAIR_ENTRY_REMOVAL_20260923.md)。
+- 自动 RF 回归、设备采样和自行恢复自动跳频仍暂停；源码检查与编译可继续。暂停范围与解除条件见 [共同规则](AGENTS.md#仍有效的用户约束)。
+- 8K 配置及编译成功不代表持续吞吐、延迟或事件完整性已经实机验收。
 
-当前调试构建默认启用共享配置 `RFH_TEST_FIXED_BOND_ENABLE=1`。TX/RX 上电直接使用
-固定配对地址 `0x6D35B8C9`、发现频道 `16/39`，不需要按键配对，也不读写已有 Flash
-配对记录；正常无线建链和 ACK 仍执行。正式配对测试需将两端都以
-`EXTRA_DEFINES=-DRFH_TEST_FIXED_BOND_ENABLE=0` 强制重编译（`make -B`）。
-仅修改命令行宏不会使已有 `.o` 自动过期，禁止混用两种模式的产物。
+## 构建
 
-## 1. 实现方案（结构与职责）
+在仓库根目录执行：
 
-### 1.1 目标与工作方式
+```powershell
+# 只编译 TX
+make -C RF_PHY_Hop/TX
 
-- 目标：构建两套固件
-  - TX：跳频发射端（RF_HOP_MODE=1）
-  - RX：跳频接收端（RF_HOP_MODE=2，包含 USB 复合设备相关代码）
-- 主循环：按 WCH 示例的结构运行（RF 处理 + TMOS 调度），见：
-  - TX：[RF_main.c](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop/TX/APP/RF_main.c)
-  - RX：[RF_main.c](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop/RX/APP/RF_main.c)
-
-### 1.2 目录结构
-
-- [RF_PHY_Hop/](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop)
-  - [Makefile](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop/Makefile)：顶层入口，转发到 TX/RX
-  - [TX/](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop/TX)
-    - APP：发射端应用源码（RF_main.c / RF_PHY.c）
-    - Makefile：发射端构建脚本（引用本机 EVT SDK）
-    - build_tx：输出目录（elf/hex/bin/lst/map）
-  - [RX/](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop/RX)
-    - APP：接收端应用源码（含 USB 相关源文件）
-    - Makefile：接收端构建脚本（引用本机 EVT SDK）
-    - build_rx：输出目录（elf/hex/bin/lst/map）
-
-### 1.3 依赖来源（WCH EVT）
-
-本工程不会在仓库内复制 WCH SDK，而是从 `SDK_ROOT` 指向的 EVT 目录中读取：
-
-- BLE 相关（头文件/库/调度汇编）：
-  - `$(SDK_ROOT)/BLE/HAL`
-  - `$(SDK_ROOT)/BLE/LIB`
-  - `$(SDK_ROOT)/BLE/RF_PHY_Hop/Profile`（如存在则自动加入 include）
-- CH585 通用底层（驱动/启动/链接脚本）：
-  - `$(SDK_ROOT)/SRC`（StdPeriphDriver / RVMSIS / Startup / Ld）
-
-## 2. 编译方法
-
-### 2.1 前置条件
-
-- 已安装 WCH EVT（本机路径）：
-  - `E:/Works/CH585EVT/EVT/EXAM`
-- RISC-V 工具链可用（示例为 WCH 工具链前缀）：
-  - `riscv32-wch-elf-gcc`
-  - `riscv32-wch-elf-objcopy`
-  - `riscv32-wch-elf-objdump`
-  - `riscv32-wch-elf-size`
-- make（Windows 下可用 GnuWin32 的 make）
-
-### 2.2 一键编译（推荐）
-
-在仓库根目录或任意位置执行均可，关键是 `-C` 指向本目录：
-
-```bash
-"D:/Program Files (x86)/GnuWin32/bin/make" -C e:/Works/STM32/HBox_Git/RF_PHY_Hop both
+# 只编译 RX；不访问设备
+python tools/hbox.py build rx
 ```
 
-分别只编译 TX / RX：
+按实际修改选择目标，不默认重建两端。共同协议变更须核对 STM32、TX、RX 与 monitor 的消费者。
 
-```bash
-"D:/Program Files (x86)/GnuWin32/bin/make" -C e:/Works/STM32/HBox_Git/RF_PHY_Hop tx
-"D:/Program Files (x86)/GnuWin32/bin/make" -C e:/Works/STM32/HBox_Git/RF_PHY_Hop rx
-```
+[TX Makefile](TX/Makefile) 与 [RX Makefile](RX/Makefile) 使用 `PREFIX`、`TOOLCHAIN_BIN`、`SDK_ROOT` 配置工具链和 EVT 路径。默认工具链前缀为 `riscv32-wch-elf-`；当前 Makefile 使用 Windows shell 配方，不宣称可直接在 Linux shell 下构建。
 
-清理：
+SDK 缺失时先核对 `SDK_ROOT` 对应的 BLE HAL/LIB、SRC 驱动及启动/链接脚本。公共 [CONFIG.h](Common/include/CONFIG.h) / [HAL.h](Common/include/HAL.h) 还承担 BLE SNV 禁用边界，不能为修复 include 而绕过包装头。宏、SDK 或构建模式变更后重编译受影响目标，避免混用旧对象。
 
-```bash
-"D:/Program Files (x86)/GnuWin32/bin/make" -C e:/Works/STM32/HBox_Git/RF_PHY_Hop clean
-```
+## 产物与更新
 
-### 2.3 变量说明（可从命令行覆盖）
+| 目标 | 产物与用途 |
+|---|---|
+| TX | `TX/build_tx/RF_PHY_Hop_TX.elf` 是 Application；同名前缀的 BIN/HEX 是 IAP + Application 合并镜像。独立 IAP 为 `RF_PHY_Hop_TX_iap.elf` / `RF_PHY_Hop_TX_iap_padded.bin` |
+| RX | `RX/build_rx/RF_PHY_Hop_RX.{elf,hex,bin}`；链接布局独立于 TX，不套用 TX 的起始地址或镜像 |
 
-顶层 [Makefile](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop/Makefile) 支持：
+TX 日常更新使用 `python tools/hbox.py flash tx`，需要重建时加 `--build`；它通过主控/ST-LINK、QSPI staging 和 SPI IAP 更新 Application，不覆盖前 4 KiB IAP。状态查询使用 `python tools/hbox.py web local-ch585-status`。这些命令会访问设备，实际写入须按 [根规则](../AGENTS.md) 核对目标和产物。
 
-- `SDK_ROOT`：WCH EVT 的 `EXAM` 根目录（默认已配置为 `E:/Works/CH585EVT/EVT/EXAM`）
-- `PREFIX`：工具链前缀（默认 `riscv32-wch-elf-`）
-- `TOOLCHAIN_BIN`：工具链 bin 目录（为空则依赖 PATH）
+TX IAP 独立维护见 [维护文档](../docs/tx-iap-maintenance.md)。它不是日常更新入口，不接收合并 BIN；目标、区域、manifest、回读和启动验收门禁继续生效。TX 的 IAP 维护授权不适用于 RX，任何保护位或锁定操作仍禁止。
 
-示例：工具链不在 PATH 时指定 bin 目录：
+## 设计与实验记录
 
-```bash
-"D:/Program Files (x86)/GnuWin32/bin/make" -C e:/Works/STM32/HBox_Git/RF_PHY_Hop both ^
-  TOOLCHAIN_BIN="C:/WCH/RISC-V Embedded GCC/bin"
-```
+[design.md](design.md)、[implementation_plan.md](implementation_plan.md)、[pairing_design.md](pairing_design.md) 保留早期方案，包含已变更的包格式、时序、入口与待办；不作为现行实现清单。当前入口读对应 AGENTS，具体格式读源码。日期实验记录从 [文档导航](../docs/README.md) 按问题查阅。
 
-示例：覆盖 SDK 路径（不建议随便改，见“常见问题”）：
-
-```bash
-"D:/Program Files (x86)/GnuWin32/bin/make" -C e:/Works/STM32/HBox_Git/RF_PHY_Hop both ^
-  SDK_ROOT=E:/Works/CH585EVT/EVT/EXAM
-```
-
-### 2.4 产物位置
-
-- TX：
-  - `RF_PHY_Hop/TX/build_tx/RF_PHY_Hop_TX.elf`
-  - `RF_PHY_Hop/TX/build_tx/RF_PHY_Hop_TX.bin`
-  - `RF_PHY_Hop/TX/build_tx/RF_PHY_Hop_TX.hex`
-  - `RF_PHY_Hop/TX/build_tx/RF_PHY_Hop_TX.lst`
-  - `RF_PHY_Hop/TX/build_tx/RF_PHY_Hop_TX.map`
-- RX：
-  - `RF_PHY_Hop/RX/build_rx/RF_PHY_Hop_RX.elf`
-  - `RF_PHY_Hop/RX/build_rx/RF_PHY_Hop_RX.bin`
-  - `RF_PHY_Hop/RX/build_rx/RF_PHY_Hop_RX.hex`
-  - `RF_PHY_Hop/RX/build_rx/RF_PHY_Hop_RX.lst`
-  - `RF_PHY_Hop/RX/build_rx/RF_PHY_Hop_RX.map`
-
-## 3. 常见问题
-
-### 3.1 报 `CONFIG.h: No such file or directory`
-
-原因：仓库内没有携带 WCH 的 `HAL/include`，必须通过 `SDK_ROOT` 引用 EVT 的 `BLE/HAL/include/CONFIG.h`。
-
-处理：确认 `SDK_ROOT` 指向你的 EVT `EXAM` 根目录，并且目录存在：
-
-- `$(SDK_ROOT)/BLE/HAL/include/CONFIG.h`
-
-### 3.2 报 “多个目标匹配（multiple target patterns）”
-
-原因：Windows 的 `E:/...` 这种“带盘符冒号”的路径如果直接展开到 Makefile 规则里，GnuWin32 make 可能会把它当成 `target: prerequisites` 的第二个冒号，导致解析出错。
-
-处理：本工程的 TX/RX Makefile 已通过路径归一化与相对化规避该问题；如果你把 EVT 放到了非 `E:/Works/...` 的位置，需要同步调整：
-
-- [TX/Makefile](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop/TX/Makefile) 中的 `SDK_ROOT_MAKE` 规则
-- [RX/Makefile](file:///e:/Works/STM32/HBox_Git/RF_PHY_Hop/RX/Makefile) 中的 `SDK_ROOT_MAKE` 规则
-
-### 3.3 编译变慢/输出目录里出现很长的相对路径
-
-原因：为了避免 `E:/` 冒号解析问题，外部 SDK 源文件会以相对路径形式参与构建，导致对象文件路径较长。
-
-处理：这是当前 Makefile 的权衡结果（保证 Windows 下可编译为优先）。如果需要更干净的输出结构，可以进一步改为“外部 SDK 单独编译成库，再链接本工程”，但这会改变工程形态。
-
-## 4. 8K 上报率的实现关键方案
-
-这里的“8K”通常指 8000Hz，即 125us 周期一次上报/一次采样。实现上必须把“调度/传输/缓存”三件事拆开看，否则很容易在 TMOS 1ms tick、USB 端点间隔、RF 空口时隙上卡死。
-
-### 4.1 调度：不要用 TMOS 1ms tick 直接跑 8K
-
-- TMOS 的 `TMOS_SystemProcess()` 不是为 125us 级别的周期任务设计的（典型 tick 为 1ms）。
-- 8K 的周期触发建议用硬件定时器（例如 Timer0/1/2 之一）生成 125us 节拍，在 ISR 里只做“置位 + 计数”，把重活放到主循环里跑。
-- 推荐结构：
-  - Timer ISR：`tick_8k++` / `flag_8k = 1`
-  - 主循环：while(flag_8k){flag_8k--; 采样->入队->触发发送}
-
-### 4.2 RF 侧：优先保证空口能承载 8K 的包节奏
-
-- 先算吞吐：8K × payload_size（例如 15B）会快速把 RF 发送频率推到极限；如果每次上报都发一包，真正瓶颈通常是“每包开销 + 发射/切换/确认流程”，不是纯 payload 字节数。
-- 关键策略：
-  - 允许“聚合”：例如每个 RF 包携带 2/4 个采样（等效 4K/2K 发包），RX 再解包恢复到 8K 时间轴。
-  - 做“无阻塞发送”：不要在 125us 周期里同步等待 RF 发送完成；用队列缓冲，把 RF 驱动状态机放在主循环或较低频任务里推进。
-  - 做“丢包策略”：队列满时丢旧/丢新要明确（建议丢旧，保最新，降低体感延迟）。
-
-### 4.3 USB 侧：8K 必须是 HS 微帧语义（FS 天花板是 1K）
-
-- USB Full Speed 的中断端点 `bInterval` 单位是毫秒，理论上最多 1K（1ms 一次）。
-- 8K 对应 USB High Speed 的 125us microframe：
-  - HS 中断端点 `bInterval=1` 表示每 1 个 microframe（125us）调度一次。
-  - 如果 RX 固件要把 8K 真正“上报到 PC”，必须用 USB2/HS 端点并把描述符的 interval 配成 microframe 级别。
-- 兼容性提醒：
-  - 若走 XInput，实际轮询/系统路径未必按 8K 工作（取决于主机驱动栈/接口类型）；想验证 8K，建议准备一个“可控的 HID/自定义端点”通道做测量。
-
-### 4.4 缓冲：跨域速率不一致时用环形队列解耦
-
-8K 系统里最常见的是“内部 8K 采样/无线传输”与“外部接口（USB/上位机）”的速率或调度粒度不一致，因此需要队列在边界解耦：
-
-- 采样队列：采样侧永远按 125us 入队
-- 传输队列：RF/USB 侧按自身可用时隙出队
-- 时间戳：若需要严格对齐/测抖动，可在样本里附带递增序号或 16-bit tick（代价小，定位问题快）
-
+本次替换前的 README 已在 [历史归档](../docs/agent-history/README.md) 保留原始快照。

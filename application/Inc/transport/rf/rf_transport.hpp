@@ -50,6 +50,10 @@ public:
     void resetSession();
     bool acceptRecoveryFrame(const uint8_t* frame, uint16_t len);
     uint32_t receivedStatusGeneration() const { return receivedStatusGeneration_; }
+    bool receivedStatusMatchesRate(uint16_t rate) const {
+        return receivedStatusGeneration_ != 0u && receivedStatusResult_ == 0u &&
+               receivedStatusRateHz_ == rate;
+    }
     bool startPair();
     bool stopPair();
     bool unbind();
@@ -77,6 +81,8 @@ private:
     RFTransportState state = RFTransportState::Disconnected;
     RFModuleStatus status = {};
     uint32_t receivedStatusGeneration_ = 0u;
+    uint16_t receivedStatusRateHz_ = 0u;
+    uint8_t receivedStatusResult_ = 0u;
 };
 
 #endif

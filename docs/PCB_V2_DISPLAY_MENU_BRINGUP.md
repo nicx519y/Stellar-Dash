@@ -1,7 +1,9 @@
 # PCB V2 启动、屏幕与菜单 Bring-up 架构
 
+> 2026-08-07 实验快照：下文“当前实机状态”、临时禁用项和待完成项只描述当时产物，不能推断当前固件仍存在这些问题。当前源码见 [架构](architecture.md)，操作入口见 [根规则](../AGENTS.md)。历史 Standby 与安全生命周期内容不解除现行禁令。（本次标注日期：2026-10-05。）
+
 本文记录 2026-08-07 在新 PCB 上完成并经实机确认的 STM32 启动、屏幕点亮和旋钮菜单
-链路，以及当前为板级调试启用的临时构建策略。本文是当前硬件 bring-up 的事实基线，
+链路，以及当时为板级调试启用的临时构建策略。本文保留该次硬件 bring-up 的事实基线，
 不替代 [WebConfig V2 生产部署](./WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md) 或
 [本地 WebConfig 实机调试](./WEBCONFIG_LOCAL_HARDWARE_DEBUG.md) 文档。
 

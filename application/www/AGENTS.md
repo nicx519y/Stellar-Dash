@@ -2,6 +2,8 @@
 
 继承 [仓库规则](../../AGENTS.md) 与 [application 规则](../AGENTS.md)。本目录是 Next.js/React WebConfig；启动和部署细节按需查阅 [README](README.md)。
 
+WebConfig 与 admin 的双域名上线、Hosted 打包、更新和回滚统一按 [服务端部署指南](../../docs/webconfig-admin-deployment.md) 执行。
+
 ## 产品边界
 
 - 网页产品名统一使用 **XORA**，包括中英文提示、连接浮层、帮助文案、页面标题和无障碍标签；命名与兼容性边界遵守[根目录产品命名规则](../../AGENTS.md#产品命名)。

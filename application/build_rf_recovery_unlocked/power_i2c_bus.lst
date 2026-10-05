@@ -1,0 +1,2102 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"power_i2c_bus.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/power/drivers/power_i2c_bus/power_i2c_bus.c"
+  19              		.section	.text.enable_gpio_clock,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	enable_gpio_clock:
+  26              	.LVL0:
+  27              	.LFB338:
+   1:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** #include "power_i2c_bus.h"
+   2:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+   3:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** #include <string.h>
+   4:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+   5:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** #include "board_cfg.h"
+   6:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** #include "stm32h7xx_hal_i2c_ex.h"
+   7:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** #include "stm32h7xx_hal_rcc_ex.h"
+   8:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+   9:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** /*
+  10:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****  * Cube timing for a 120 MHz I2C123 kernel clock, Standard-mode (100 kHz),
+  11:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****  * analog filter enabled and digital filter disabled.
+  12:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****  *
+  13:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****  * I2C1 is sourced from D2PCLK1 below.  The board clock configuration keeps
+  14:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****  * D2PCLK1 at 120 MHz for both the boot and application clock plans.
+  15:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****  */
+  16:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** #define POWER_I2C_TIMING_120MHZ_100KHZ 0x307075B1u
+  17:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  18:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static I2C_HandleTypeDef g_power_i2c;
+  19:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static bool g_power_i2c_initialized;
+  20:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static bool g_async_active;
+  21:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static uint8_t g_async_phase, g_async_bytes[2];
+  22:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static uint16_t g_async_written;
+  23:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static uint32_t g_async_started;
+  24:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static PowerI2C_Register g_async_register;
+  25:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  26:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static void enable_gpio_clock(GPIO_TypeDef* port)
+  27:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+  28              		.loc 1 27 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 48
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 2
+
+
+  32              		@ link register save eliminated.
+  33              		.loc 1 27 1 is_stmt 0 view .LVU1
+  34 0000 8CB0     		sub	sp, sp, #48
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 48
+  28:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (port == GPIOA) { __HAL_RCC_GPIOA_CLK_ENABLE(); }
+  37              		.loc 1 28 5 is_stmt 1 view .LVU2
+  38              		.loc 1 28 8 is_stmt 0 view .LVU3
+  39 0002 654B     		ldr	r3, .L24
+  40 0004 9842     		cmp	r0, r3
+  41 0006 2FD0     		beq	.L14
+  29:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+  42              		.loc 1 29 10 is_stmt 1 view .LVU4
+  43              		.loc 1 29 13 is_stmt 0 view .LVU5
+  44 0008 644B     		ldr	r3, .L24+4
+  45 000a 9842     		cmp	r0, r3
+  46 000c 3CD0     		beq	.L15
+  30:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+  47              		.loc 1 30 10 is_stmt 1 view .LVU6
+  48              		.loc 1 30 13 is_stmt 0 view .LVU7
+  49 000e 644B     		ldr	r3, .L24+8
+  50 0010 9842     		cmp	r0, r3
+  51 0012 48D0     		beq	.L16
+  31:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+  52              		.loc 1 31 10 is_stmt 1 view .LVU8
+  53              		.loc 1 31 13 is_stmt 0 view .LVU9
+  54 0014 634B     		ldr	r3, .L24+12
+  55 0016 9842     		cmp	r0, r3
+  56 0018 54D0     		beq	.L17
+  32:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+  57              		.loc 1 32 10 is_stmt 1 view .LVU10
+  58              		.loc 1 32 13 is_stmt 0 view .LVU11
+  59 001a 634B     		ldr	r3, .L24+16
+  60 001c 9842     		cmp	r0, r3
+  61 001e 60D0     		beq	.L18
+  33:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+  62              		.loc 1 33 10 is_stmt 1 view .LVU12
+  63              		.loc 1 33 13 is_stmt 0 view .LVU13
+  64 0020 624B     		ldr	r3, .L24+20
+  65 0022 9842     		cmp	r0, r3
+  66 0024 6CD0     		beq	.L19
+  34:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+  67              		.loc 1 34 10 is_stmt 1 view .LVU14
+  68              		.loc 1 34 13 is_stmt 0 view .LVU15
+  69 0026 624B     		ldr	r3, .L24+24
+  70 0028 9842     		cmp	r0, r3
+  71 002a 78D0     		beq	.L20
+  35:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+  72              		.loc 1 35 10 is_stmt 1 view .LVU16
+  73              		.loc 1 35 13 is_stmt 0 view .LVU17
+  74 002c 614B     		ldr	r3, .L24+28
+  75 002e 9842     		cmp	r0, r3
+  76 0030 00F08480 		beq	.L21
+  36:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+  77              		.loc 1 36 10 is_stmt 1 view .LVU18
+  78              		.loc 1 36 13 is_stmt 0 view .LVU19
+  79 0034 604B     		ldr	r3, .L24+32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 3
+
+
+  80 0036 9842     		cmp	r0, r3
+  81 0038 00F08F80 		beq	.L22
+  37:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOJ) { __HAL_RCC_GPIOJ_CLK_ENABLE(); }
+  82              		.loc 1 37 10 is_stmt 1 view .LVU20
+  83              		.loc 1 37 13 is_stmt 0 view .LVU21
+  84 003c 5F4B     		ldr	r3, .L24+36
+  85 003e 9842     		cmp	r0, r3
+  86 0040 00F09A80 		beq	.L23
+  38:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
+  87              		.loc 1 38 10 is_stmt 1 view .LVU22
+  88              		.loc 1 38 13 is_stmt 0 view .LVU23
+  89 0044 5E4B     		ldr	r3, .L24+40
+  90 0046 9842     		cmp	r0, r3
+  91 0048 1CD1     		bne	.L1
+  92              		.loc 1 38 31 is_stmt 1 discriminator 1 view .LVU24
+  93              	.LBB2:
+  94              		.loc 1 38 31 discriminator 1 view .LVU25
+  95              		.loc 1 38 31 discriminator 1 view .LVU26
+  96 004a 03F5E053 		add	r3, r3, #7168
+  97 004e D3F8E020 		ldr	r2, [r3, #224]
+  98 0052 42F48062 		orr	r2, r2, #1024
+  99 0056 C3F8E020 		str	r2, [r3, #224]
+ 100              		.loc 1 38 31 discriminator 1 view .LVU27
+ 101 005a D3F8E030 		ldr	r3, [r3, #224]
+ 102 005e 03F48063 		and	r3, r3, #1024
+ 103 0062 0B93     		str	r3, [sp, #44]
+ 104              		.loc 1 38 31 discriminator 1 view .LVU28
+ 105 0064 0B9B     		ldr	r3, [sp, #44]
+ 106              	.LBE2:
+ 107              		.loc 1 38 31 discriminator 3 view .LVU29
+  39:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 108              		.loc 1 39 1 is_stmt 0 view .LVU30
+ 109 0066 0DE0     		b	.L1
+ 110              	.L14:
+  28:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 111              		.loc 1 28 26 is_stmt 1 discriminator 1 view .LVU31
+ 112              	.LBB3:
+  28:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 113              		.loc 1 28 26 discriminator 1 view .LVU32
+  28:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 114              		.loc 1 28 26 discriminator 1 view .LVU33
+ 115 0068 03F58843 		add	r3, r3, #17408
+ 116 006c D3F8E020 		ldr	r2, [r3, #224]
+ 117 0070 42F00102 		orr	r2, r2, #1
+ 118 0074 C3F8E020 		str	r2, [r3, #224]
+  28:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 119              		.loc 1 28 26 discriminator 1 view .LVU34
+ 120 0078 D3F8E030 		ldr	r3, [r3, #224]
+ 121 007c 03F00103 		and	r3, r3, #1
+ 122 0080 0193     		str	r3, [sp, #4]
+  28:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 123              		.loc 1 28 26 discriminator 1 view .LVU35
+ 124 0082 019B     		ldr	r3, [sp, #4]
+ 125              	.LBE3:
+  28:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+ 126              		.loc 1 28 26 discriminator 1 view .LVU36
+ 127              	.L1:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 4
+
+
+ 128              		.loc 1 39 1 is_stmt 0 view .LVU37
+ 129 0084 0CB0     		add	sp, sp, #48
+ 130              	.LCFI1:
+ 131              		.cfi_remember_state
+ 132              		.cfi_def_cfa_offset 0
+ 133              		@ sp needed
+ 134 0086 7047     		bx	lr
+ 135              	.L15:
+ 136              	.LCFI2:
+ 137              		.cfi_restore_state
+  29:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 138              		.loc 1 29 31 is_stmt 1 discriminator 1 view .LVU38
+ 139              	.LBB4:
+  29:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 140              		.loc 1 29 31 discriminator 1 view .LVU39
+  29:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 141              		.loc 1 29 31 discriminator 1 view .LVU40
+ 142 0088 03F58043 		add	r3, r3, #16384
+ 143 008c D3F8E020 		ldr	r2, [r3, #224]
+ 144 0090 42F00202 		orr	r2, r2, #2
+ 145 0094 C3F8E020 		str	r2, [r3, #224]
+  29:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 146              		.loc 1 29 31 discriminator 1 view .LVU41
+ 147 0098 D3F8E030 		ldr	r3, [r3, #224]
+ 148 009c 03F00203 		and	r3, r3, #2
+ 149 00a0 0293     		str	r3, [sp, #8]
+  29:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 150              		.loc 1 29 31 discriminator 1 view .LVU42
+ 151 00a2 029B     		ldr	r3, [sp, #8]
+ 152              	.LBE4:
+  29:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+ 153              		.loc 1 29 31 discriminator 1 view .LVU43
+ 154 00a4 EEE7     		b	.L1
+ 155              	.L16:
+  30:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 156              		.loc 1 30 31 discriminator 1 view .LVU44
+ 157              	.LBB5:
+  30:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 158              		.loc 1 30 31 discriminator 1 view .LVU45
+  30:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 159              		.loc 1 30 31 discriminator 1 view .LVU46
+ 160 00a6 03F57053 		add	r3, r3, #15360
+ 161 00aa D3F8E020 		ldr	r2, [r3, #224]
+ 162 00ae 42F00402 		orr	r2, r2, #4
+ 163 00b2 C3F8E020 		str	r2, [r3, #224]
+  30:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 164              		.loc 1 30 31 discriminator 1 view .LVU47
+ 165 00b6 D3F8E030 		ldr	r3, [r3, #224]
+ 166 00ba 03F00403 		and	r3, r3, #4
+ 167 00be 0393     		str	r3, [sp, #12]
+  30:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 168              		.loc 1 30 31 discriminator 1 view .LVU48
+ 169 00c0 039B     		ldr	r3, [sp, #12]
+ 170              	.LBE5:
+  30:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+ 171              		.loc 1 30 31 discriminator 1 view .LVU49
+ 172 00c2 DFE7     		b	.L1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 5
+
+
+ 173              	.L17:
+  31:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 174              		.loc 1 31 31 discriminator 1 view .LVU50
+ 175              	.LBB6:
+  31:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 176              		.loc 1 31 31 discriminator 1 view .LVU51
+  31:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 177              		.loc 1 31 31 discriminator 1 view .LVU52
+ 178 00c4 03F56053 		add	r3, r3, #14336
+ 179 00c8 D3F8E020 		ldr	r2, [r3, #224]
+ 180 00cc 42F00802 		orr	r2, r2, #8
+ 181 00d0 C3F8E020 		str	r2, [r3, #224]
+  31:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 182              		.loc 1 31 31 discriminator 1 view .LVU53
+ 183 00d4 D3F8E030 		ldr	r3, [r3, #224]
+ 184 00d8 03F00803 		and	r3, r3, #8
+ 185 00dc 0493     		str	r3, [sp, #16]
+  31:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 186              		.loc 1 31 31 discriminator 1 view .LVU54
+ 187 00de 049B     		ldr	r3, [sp, #16]
+ 188              	.LBE6:
+  31:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+ 189              		.loc 1 31 31 discriminator 1 view .LVU55
+ 190 00e0 D0E7     		b	.L1
+ 191              	.L18:
+  32:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 192              		.loc 1 32 31 discriminator 1 view .LVU56
+ 193              	.LBB7:
+  32:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 194              		.loc 1 32 31 discriminator 1 view .LVU57
+  32:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 195              		.loc 1 32 31 discriminator 1 view .LVU58
+ 196 00e2 03F55053 		add	r3, r3, #13312
+ 197 00e6 D3F8E020 		ldr	r2, [r3, #224]
+ 198 00ea 42F01002 		orr	r2, r2, #16
+ 199 00ee C3F8E020 		str	r2, [r3, #224]
+  32:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 200              		.loc 1 32 31 discriminator 1 view .LVU59
+ 201 00f2 D3F8E030 		ldr	r3, [r3, #224]
+ 202 00f6 03F01003 		and	r3, r3, #16
+ 203 00fa 0593     		str	r3, [sp, #20]
+  32:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 204              		.loc 1 32 31 discriminator 1 view .LVU60
+ 205 00fc 059B     		ldr	r3, [sp, #20]
+ 206              	.LBE7:
+  32:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+ 207              		.loc 1 32 31 discriminator 1 view .LVU61
+ 208 00fe C1E7     		b	.L1
+ 209              	.L19:
+  33:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 210              		.loc 1 33 31 discriminator 1 view .LVU62
+ 211              	.LBB8:
+  33:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 212              		.loc 1 33 31 discriminator 1 view .LVU63
+  33:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 213              		.loc 1 33 31 discriminator 1 view .LVU64
+ 214 0100 03F54053 		add	r3, r3, #12288
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 6
+
+
+ 215 0104 D3F8E020 		ldr	r2, [r3, #224]
+ 216 0108 42F02002 		orr	r2, r2, #32
+ 217 010c C3F8E020 		str	r2, [r3, #224]
+  33:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 218              		.loc 1 33 31 discriminator 1 view .LVU65
+ 219 0110 D3F8E030 		ldr	r3, [r3, #224]
+ 220 0114 03F02003 		and	r3, r3, #32
+ 221 0118 0693     		str	r3, [sp, #24]
+  33:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 222              		.loc 1 33 31 discriminator 1 view .LVU66
+ 223 011a 069B     		ldr	r3, [sp, #24]
+ 224              	.LBE8:
+  33:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+ 225              		.loc 1 33 31 discriminator 1 view .LVU67
+ 226 011c B2E7     		b	.L1
+ 227              	.L20:
+  34:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 228              		.loc 1 34 31 discriminator 1 view .LVU68
+ 229              	.LBB9:
+  34:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 230              		.loc 1 34 31 discriminator 1 view .LVU69
+  34:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 231              		.loc 1 34 31 discriminator 1 view .LVU70
+ 232 011e 03F53053 		add	r3, r3, #11264
+ 233 0122 D3F8E020 		ldr	r2, [r3, #224]
+ 234 0126 42F04002 		orr	r2, r2, #64
+ 235 012a C3F8E020 		str	r2, [r3, #224]
+  34:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 236              		.loc 1 34 31 discriminator 1 view .LVU71
+ 237 012e D3F8E030 		ldr	r3, [r3, #224]
+ 238 0132 03F04003 		and	r3, r3, #64
+ 239 0136 0793     		str	r3, [sp, #28]
+  34:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 240              		.loc 1 34 31 discriminator 1 view .LVU72
+ 241 0138 079B     		ldr	r3, [sp, #28]
+ 242              	.LBE9:
+  34:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+ 243              		.loc 1 34 31 discriminator 1 view .LVU73
+ 244 013a A3E7     		b	.L1
+ 245              	.L21:
+  35:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 246              		.loc 1 35 31 discriminator 1 view .LVU74
+ 247              	.LBB10:
+  35:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 248              		.loc 1 35 31 discriminator 1 view .LVU75
+  35:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 249              		.loc 1 35 31 discriminator 1 view .LVU76
+ 250 013c 03F52053 		add	r3, r3, #10240
+ 251 0140 D3F8E020 		ldr	r2, [r3, #224]
+ 252 0144 42F08002 		orr	r2, r2, #128
+ 253 0148 C3F8E020 		str	r2, [r3, #224]
+  35:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 254              		.loc 1 35 31 discriminator 1 view .LVU77
+ 255 014c D3F8E030 		ldr	r3, [r3, #224]
+ 256 0150 03F08003 		and	r3, r3, #128
+ 257 0154 0893     		str	r3, [sp, #32]
+  35:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 7
+
+
+ 258              		.loc 1 35 31 discriminator 1 view .LVU78
+ 259 0156 089B     		ldr	r3, [sp, #32]
+ 260              	.LBE10:
+  35:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+ 261              		.loc 1 35 31 discriminator 1 view .LVU79
+ 262 0158 94E7     		b	.L1
+ 263              	.L22:
+  36:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOJ) { __HAL_RCC_GPIOJ_CLK_ENABLE(); }
+ 264              		.loc 1 36 31 discriminator 1 view .LVU80
+ 265              	.LBB11:
+  36:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOJ) { __HAL_RCC_GPIOJ_CLK_ENABLE(); }
+ 266              		.loc 1 36 31 discriminator 1 view .LVU81
+  36:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOJ) { __HAL_RCC_GPIOJ_CLK_ENABLE(); }
+ 267              		.loc 1 36 31 discriminator 1 view .LVU82
+ 268 015a 03F51053 		add	r3, r3, #9216
+ 269 015e D3F8E020 		ldr	r2, [r3, #224]
+ 270 0162 42F48072 		orr	r2, r2, #256
+ 271 0166 C3F8E020 		str	r2, [r3, #224]
+  36:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOJ) { __HAL_RCC_GPIOJ_CLK_ENABLE(); }
+ 272              		.loc 1 36 31 discriminator 1 view .LVU83
+ 273 016a D3F8E030 		ldr	r3, [r3, #224]
+ 274 016e 03F48073 		and	r3, r3, #256
+ 275 0172 0993     		str	r3, [sp, #36]
+  36:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOJ) { __HAL_RCC_GPIOJ_CLK_ENABLE(); }
+ 276              		.loc 1 36 31 discriminator 1 view .LVU84
+ 277 0174 099B     		ldr	r3, [sp, #36]
+ 278              	.LBE11:
+  36:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOJ) { __HAL_RCC_GPIOJ_CLK_ENABLE(); }
+ 279              		.loc 1 36 31 discriminator 1 view .LVU85
+ 280 0176 85E7     		b	.L1
+ 281              	.L23:
+  37:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
+ 282              		.loc 1 37 31 discriminator 1 view .LVU86
+ 283              	.LBB12:
+  37:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
+ 284              		.loc 1 37 31 discriminator 1 view .LVU87
+  37:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
+ 285              		.loc 1 37 31 discriminator 1 view .LVU88
+ 286 0178 03F50053 		add	r3, r3, #8192
+ 287 017c D3F8E020 		ldr	r2, [r3, #224]
+ 288 0180 42F40072 		orr	r2, r2, #512
+ 289 0184 C3F8E020 		str	r2, [r3, #224]
+  37:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
+ 290              		.loc 1 37 31 discriminator 1 view .LVU89
+ 291 0188 D3F8E030 		ldr	r3, [r3, #224]
+ 292 018c 03F40073 		and	r3, r3, #512
+ 293 0190 0A93     		str	r3, [sp, #40]
+  37:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
+ 294              		.loc 1 37 31 discriminator 1 view .LVU90
+ 295 0192 0A9B     		ldr	r3, [sp, #40]
+ 296              	.LBE12:
+  37:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
+ 297              		.loc 1 37 31 discriminator 1 view .LVU91
+ 298 0194 76E7     		b	.L1
+ 299              	.L25:
+ 300 0196 00BF     		.align	2
+ 301              	.L24:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 8
+
+
+ 302 0198 00000258 		.word	1476526080
+ 303 019c 00040258 		.word	1476527104
+ 304 01a0 00080258 		.word	1476528128
+ 305 01a4 000C0258 		.word	1476529152
+ 306 01a8 00100258 		.word	1476530176
+ 307 01ac 00140258 		.word	1476531200
+ 308 01b0 00180258 		.word	1476532224
+ 309 01b4 001C0258 		.word	1476533248
+ 310 01b8 00200258 		.word	1476534272
+ 311 01bc 00240258 		.word	1476535296
+ 312 01c0 00280258 		.word	1476536320
+ 313              		.cfi_endproc
+ 314              	.LFE338:
+ 316              		.section	.text.PowerI2C_GetHandle,"ax",%progbits
+ 317              		.align	1
+ 318              		.global	PowerI2C_GetHandle
+ 319              		.syntax unified
+ 320              		.thumb
+ 321              		.thumb_func
+ 323              	PowerI2C_GetHandle:
+ 324              	.LFB339:
+  40:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  41:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** I2C_HandleTypeDef* PowerI2C_GetHandle(void)
+  42:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+ 325              		.loc 1 42 1 view -0
+ 326              		.cfi_startproc
+ 327              		@ args = 0, pretend = 0, frame = 0
+ 328              		@ frame_needed = 0, uses_anonymous_args = 0
+ 329              		@ link register save eliminated.
+  43:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return &g_power_i2c;
+ 330              		.loc 1 43 5 view .LVU93
+  44:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 331              		.loc 1 44 1 is_stmt 0 view .LVU94
+ 332 0000 0048     		ldr	r0, .L27
+ 333 0002 7047     		bx	lr
+ 334              	.L28:
+ 335              		.align	2
+ 336              	.L27:
+ 337 0004 00000000 		.word	g_power_i2c
+ 338              		.cfi_endproc
+ 339              	.LFE339:
+ 341              		.section	.text.HAL_I2C_MspInit,"ax",%progbits
+ 342              		.align	1
+ 343              		.global	HAL_I2C_MspInit
+ 344              		.syntax unified
+ 345              		.thumb
+ 346              		.thumb_func
+ 348              	HAL_I2C_MspInit:
+ 349              	.LVL1:
+ 350              	.LFB340:
+  45:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  46:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
+  47:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+ 351              		.loc 1 47 1 is_stmt 1 view -0
+ 352              		.cfi_startproc
+ 353              		@ args = 0, pretend = 0, frame = 24
+ 354              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 9
+
+
+  48:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (hi2c == NULL || hi2c->Instance != POWER_I2C_INSTANCE) {
+ 355              		.loc 1 48 5 view .LVU96
+ 356              		.loc 1 48 8 is_stmt 0 view .LVU97
+ 357 0000 18B1     		cbz	r0, .L34
+ 358              		.loc 1 48 29 discriminator 1 view .LVU98
+ 359 0002 0268     		ldr	r2, [r0]
+ 360              		.loc 1 48 22 discriminator 1 view .LVU99
+ 361 0004 1A4B     		ldr	r3, .L38
+ 362 0006 9A42     		cmp	r2, r3
+ 363 0008 00D0     		beq	.L37
+ 364              	.L34:
+ 365 000a 7047     		bx	lr
+ 366              	.L37:
+  47:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (hi2c == NULL || hi2c->Instance != POWER_I2C_INSTANCE) {
+ 367              		.loc 1 47 1 view .LVU100
+ 368 000c 10B5     		push	{r4, lr}
+ 369              	.LCFI3:
+ 370              		.cfi_def_cfa_offset 8
+ 371              		.cfi_offset 4, -8
+ 372              		.cfi_offset 14, -4
+ 373 000e 86B0     		sub	sp, sp, #24
+ 374              	.LCFI4:
+ 375              		.cfi_def_cfa_offset 32
+  49:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return;
+  50:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+  51:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  52:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     enable_gpio_clock(POWER_I2C_SCL_PORT);
+ 376              		.loc 1 52 5 is_stmt 1 view .LVU101
+ 377 0010 184C     		ldr	r4, .L38+4
+ 378 0012 2046     		mov	r0, r4
+ 379              	.LVL2:
+ 380              		.loc 1 52 5 is_stmt 0 view .LVU102
+ 381 0014 FFF7FEFF 		bl	enable_gpio_clock
+ 382              	.LVL3:
+  53:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     enable_gpio_clock(POWER_I2C_SDA_PORT);
+ 383              		.loc 1 53 5 is_stmt 1 view .LVU103
+ 384 0018 2046     		mov	r0, r4
+ 385 001a FFF7FEFF 		bl	enable_gpio_clock
+ 386              	.LVL4:
+  54:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     __HAL_RCC_I2C1_CLK_ENABLE();
+ 387              		.loc 1 54 5 view .LVU104
+ 388              	.LBB13:
+ 389              		.loc 1 54 5 view .LVU105
+ 390              		.loc 1 54 5 view .LVU106
+ 391 001e 164B     		ldr	r3, .L38+8
+ 392 0020 D3F8E820 		ldr	r2, [r3, #232]
+ 393 0024 42F40012 		orr	r2, r2, #2097152
+ 394 0028 C3F8E820 		str	r2, [r3, #232]
+ 395              		.loc 1 54 5 view .LVU107
+ 396 002c D3F8E830 		ldr	r3, [r3, #232]
+ 397 0030 03F40013 		and	r3, r3, #2097152
+ 398 0034 0093     		str	r3, [sp]
+ 399              		.loc 1 54 5 view .LVU108
+ 400 0036 009B     		ldr	r3, [sp]
+ 401              	.LBE13:
+ 402              		.loc 1 54 5 view .LVU109
+  55:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 10
+
+
+  56:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     GPIO_InitTypeDef gpio = {0};
+ 403              		.loc 1 56 5 view .LVU110
+ 404              		.loc 1 56 22 is_stmt 0 view .LVU111
+ 405 0038 0023     		movs	r3, #0
+ 406 003a 0193     		str	r3, [sp, #4]
+ 407 003c 0293     		str	r3, [sp, #8]
+ 408 003e 0393     		str	r3, [sp, #12]
+ 409 0040 0493     		str	r3, [sp, #16]
+ 410 0042 0593     		str	r3, [sp, #20]
+  57:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     gpio.Mode = GPIO_MODE_AF_OD;
+ 411              		.loc 1 57 5 is_stmt 1 view .LVU112
+ 412              		.loc 1 57 15 is_stmt 0 view .LVU113
+ 413 0044 1223     		movs	r3, #18
+ 414 0046 0293     		str	r3, [sp, #8]
+  58:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     gpio.Pull = GPIO_NOPULL;
+ 415              		.loc 1 58 5 is_stmt 1 view .LVU114
+  59:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+ 416              		.loc 1 59 5 view .LVU115
+ 417              		.loc 1 59 16 is_stmt 0 view .LVU116
+ 418 0048 0223     		movs	r3, #2
+ 419 004a 0493     		str	r3, [sp, #16]
+  60:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     gpio.Alternate = POWER_I2C_GPIO_AF;
+ 420              		.loc 1 60 5 is_stmt 1 view .LVU117
+ 421              		.loc 1 60 20 is_stmt 0 view .LVU118
+ 422 004c 0423     		movs	r3, #4
+ 423 004e 0593     		str	r3, [sp, #20]
+  61:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     gpio.Pin = POWER_I2C_SCL_PIN;
+ 424              		.loc 1 61 5 is_stmt 1 view .LVU119
+ 425              		.loc 1 61 14 is_stmt 0 view .LVU120
+ 426 0050 4FF48073 		mov	r3, #256
+ 427 0054 0193     		str	r3, [sp, #4]
+  62:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_GPIO_Init(POWER_I2C_SCL_PORT, &gpio);
+ 428              		.loc 1 62 5 is_stmt 1 view .LVU121
+ 429 0056 01A9     		add	r1, sp, #4
+ 430 0058 2046     		mov	r0, r4
+ 431 005a FFF7FEFF 		bl	HAL_GPIO_Init
+ 432              	.LVL5:
+  63:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     gpio.Pin = POWER_I2C_SDA_PIN;
+ 433              		.loc 1 63 5 view .LVU122
+ 434              		.loc 1 63 14 is_stmt 0 view .LVU123
+ 435 005e 4FF40073 		mov	r3, #512
+ 436 0062 0193     		str	r3, [sp, #4]
+  64:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_GPIO_Init(POWER_I2C_SDA_PORT, &gpio);
+ 437              		.loc 1 64 5 is_stmt 1 view .LVU124
+ 438 0064 01A9     		add	r1, sp, #4
+ 439 0066 2046     		mov	r0, r4
+ 440 0068 FFF7FEFF 		bl	HAL_GPIO_Init
+ 441              	.LVL6:
+  65:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 442              		.loc 1 65 1 is_stmt 0 view .LVU125
+ 443 006c 06B0     		add	sp, sp, #24
+ 444              	.LCFI5:
+ 445              		.cfi_def_cfa_offset 8
+ 446              		@ sp needed
+ 447 006e 10BD     		pop	{r4, pc}
+ 448              	.L39:
+ 449              		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 11
+
+
+ 450              	.L38:
+ 451 0070 00540040 		.word	1073763328
+ 452 0074 00040258 		.word	1476527104
+ 453 0078 00440258 		.word	1476543488
+ 454              		.cfi_endproc
+ 455              	.LFE340:
+ 457              		.section	.text.HAL_I2C_MspDeInit,"ax",%progbits
+ 458              		.align	1
+ 459              		.global	HAL_I2C_MspDeInit
+ 460              		.syntax unified
+ 461              		.thumb
+ 462              		.thumb_func
+ 464              	HAL_I2C_MspDeInit:
+ 465              	.LVL7:
+ 466              	.LFB341:
+  66:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  67:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** void HAL_I2C_MspDeInit(I2C_HandleTypeDef* hi2c)
+  68:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+ 467              		.loc 1 68 1 is_stmt 1 view -0
+ 468              		.cfi_startproc
+ 469              		@ args = 0, pretend = 0, frame = 0
+ 470              		@ frame_needed = 0, uses_anonymous_args = 0
+  69:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (hi2c == NULL || hi2c->Instance != POWER_I2C_INSTANCE) {
+ 471              		.loc 1 69 5 view .LVU127
+ 472              		.loc 1 69 8 is_stmt 0 view .LVU128
+ 473 0000 18B1     		cbz	r0, .L43
+ 474              		.loc 1 69 29 discriminator 1 view .LVU129
+ 475 0002 0268     		ldr	r2, [r0]
+ 476              		.loc 1 69 22 discriminator 1 view .LVU130
+ 477 0004 0B4B     		ldr	r3, .L47
+ 478 0006 9A42     		cmp	r2, r3
+ 479 0008 00D0     		beq	.L46
+ 480              	.L43:
+ 481 000a 7047     		bx	lr
+ 482              	.L46:
+  68:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (hi2c == NULL || hi2c->Instance != POWER_I2C_INSTANCE) {
+ 483              		.loc 1 68 1 view .LVU131
+ 484 000c 10B5     		push	{r4, lr}
+ 485              	.LCFI6:
+ 486              		.cfi_def_cfa_offset 8
+ 487              		.cfi_offset 4, -8
+ 488              		.cfi_offset 14, -4
+  70:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return;
+  71:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+  72:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  73:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     __HAL_RCC_I2C1_CLK_DISABLE();
+ 489              		.loc 1 73 5 is_stmt 1 view .LVU132
+ 490 000e 0A4A     		ldr	r2, .L47+4
+ 491 0010 D2F8E830 		ldr	r3, [r2, #232]
+ 492 0014 23F40013 		bic	r3, r3, #2097152
+ 493 0018 C2F8E830 		str	r3, [r2, #232]
+  74:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_GPIO_DeInit(POWER_I2C_SCL_PORT, POWER_I2C_SCL_PIN);
+ 494              		.loc 1 74 5 view .LVU133
+ 495 001c 074C     		ldr	r4, .L47+8
+ 496 001e 4FF48071 		mov	r1, #256
+ 497 0022 2046     		mov	r0, r4
+ 498              	.LVL8:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 12
+
+
+ 499              		.loc 1 74 5 is_stmt 0 view .LVU134
+ 500 0024 FFF7FEFF 		bl	HAL_GPIO_DeInit
+ 501              	.LVL9:
+  75:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_GPIO_DeInit(POWER_I2C_SDA_PORT, POWER_I2C_SDA_PIN);
+ 502              		.loc 1 75 5 is_stmt 1 view .LVU135
+ 503 0028 4FF40071 		mov	r1, #512
+ 504 002c 2046     		mov	r0, r4
+ 505 002e FFF7FEFF 		bl	HAL_GPIO_DeInit
+ 506              	.LVL10:
+  76:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 507              		.loc 1 76 1 is_stmt 0 view .LVU136
+ 508 0032 10BD     		pop	{r4, pc}
+ 509              	.L48:
+ 510              		.align	2
+ 511              	.L47:
+ 512 0034 00540040 		.word	1073763328
+ 513 0038 00440258 		.word	1476543488
+ 514 003c 00040258 		.word	1476527104
+ 515              		.cfi_endproc
+ 516              	.LFE341:
+ 518              		.section	.text.PowerI2C_Init,"ax",%progbits
+ 519              		.align	1
+ 520              		.global	PowerI2C_Init
+ 521              		.syntax unified
+ 522              		.thumb
+ 523              		.thumb_func
+ 525              	PowerI2C_Init:
+ 526              	.LFB342:
+  77:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  78:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** bool PowerI2C_Init(void)
+  79:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+ 527              		.loc 1 79 1 is_stmt 1 view -0
+ 528              		.cfi_startproc
+ 529              		@ args = 0, pretend = 0, frame = 192
+ 530              		@ frame_needed = 0, uses_anonymous_args = 0
+ 531 0000 30B5     		push	{r4, r5, lr}
+ 532              	.LCFI7:
+ 533              		.cfi_def_cfa_offset 12
+ 534              		.cfi_offset 4, -12
+ 535              		.cfi_offset 5, -8
+ 536              		.cfi_offset 14, -4
+ 537 0002 B1B0     		sub	sp, sp, #196
+ 538              	.LCFI8:
+ 539              		.cfi_def_cfa_offset 208
+  80:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (g_power_i2c_initialized) {
+ 540              		.loc 1 80 5 view .LVU138
+ 541              		.loc 1 80 9 is_stmt 0 view .LVU139
+ 542 0004 2A4B     		ldr	r3, .L57
+ 543 0006 1C78     		ldrb	r4, [r3]	@ zero_extendqisi2
+ 544              		.loc 1 80 8 view .LVU140
+ 545 0008 14B1     		cbz	r4, .L54
+ 546              	.L50:
+  81:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return true;
+  82:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+  83:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  84:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     RCC_PeriphCLKInitTypeDef peripheral_clock = {0};
+  85:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     peripheral_clock.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 13
+
+
+  86:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     peripheral_clock.I2c123ClockSelection = RCC_I2C123CLKSOURCE_D2PCLK1;
+  87:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (HAL_RCCEx_PeriphCLKConfig(&peripheral_clock) != HAL_OK) {
+  88:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+  89:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+  90:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+  91:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     memset(&g_power_i2c, 0, sizeof(g_power_i2c));
+  92:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Instance = POWER_I2C_INSTANCE;
+  93:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.Timing = POWER_I2C_TIMING_120MHZ_100KHZ;
+  94:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.OwnAddress1 = 0;
+  95:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  96:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  97:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.OwnAddress2 = 0;
+  98:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  99:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+ 100:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+ 101:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 102:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (HAL_I2C_Init(&g_power_i2c) != HAL_OK) {
+ 103:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 104:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 105:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (HAL_I2CEx_ConfigAnalogFilter(&g_power_i2c, I2C_ANALOGFILTER_ENABLE) != HAL_OK) {
+ 106:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         HAL_I2C_DeInit(&g_power_i2c);
+ 107:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 108:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 109:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (HAL_I2CEx_ConfigDigitalFilter(&g_power_i2c, 0u) != HAL_OK) {
+ 110:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         HAL_I2C_DeInit(&g_power_i2c);
+ 111:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 112:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 113:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 114:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_SetPriority(I2C1_EV_IRQn, 7u, 0u);
+ 115:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_SetPriority(I2C1_ER_IRQn, 7u, 0u);
+ 116:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_ClearPendingIRQ(I2C1_EV_IRQn);
+ 117:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_ClearPendingIRQ(I2C1_ER_IRQn);
+ 118:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_EnableIRQ(I2C1_EV_IRQn);
+ 119:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_EnableIRQ(I2C1_ER_IRQn);
+ 120:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c_initialized = true;
+ 121:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return true;
+ 122:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 547              		.loc 1 122 1 view .LVU141
+ 548 000a 2046     		mov	r0, r4
+ 549 000c 31B0     		add	sp, sp, #196
+ 550              	.LCFI9:
+ 551              		.cfi_remember_state
+ 552              		.cfi_def_cfa_offset 12
+ 553              		@ sp needed
+ 554 000e 30BD     		pop	{r4, r5, pc}
+ 555              	.L54:
+ 556              	.LCFI10:
+ 557              		.cfi_restore_state
+  84:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     peripheral_clock.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
+ 558              		.loc 1 84 5 is_stmt 1 view .LVU142
+  84:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     peripheral_clock.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
+ 559              		.loc 1 84 30 is_stmt 0 view .LVU143
+ 560 0010 C022     		movs	r2, #192
+ 561 0012 0021     		movs	r1, #0
+ 562 0014 6846     		mov	r0, sp
+ 563 0016 FFF7FEFF 		bl	memset
+ 564              	.LVL11:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 14
+
+
+  85:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     peripheral_clock.I2c123ClockSelection = RCC_I2C123CLKSOURCE_D2PCLK1;
+ 565              		.loc 1 85 5 is_stmt 1 view .LVU144
+  85:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     peripheral_clock.I2c123ClockSelection = RCC_I2C123CLKSOURCE_D2PCLK1;
+ 566              		.loc 1 85 43 is_stmt 0 view .LVU145
+ 567 001a 0822     		movs	r2, #8
+ 568 001c 0023     		movs	r3, #0
+ 569 001e CDE90023 		strd	r2, [sp]
+  86:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (HAL_RCCEx_PeriphCLKConfig(&peripheral_clock) != HAL_OK) {
+ 570              		.loc 1 86 5 is_stmt 1 view .LVU146
+  87:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 571              		.loc 1 87 5 view .LVU147
+  87:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 572              		.loc 1 87 9 is_stmt 0 view .LVU148
+ 573 0022 6846     		mov	r0, sp
+ 574 0024 FFF7FEFF 		bl	HAL_RCCEx_PeriphCLKConfig
+ 575              	.LVL12:
+  87:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 576              		.loc 1 87 8 discriminator 1 view .LVU149
+ 577 0028 0028     		cmp	r0, #0
+ 578 002a EED1     		bne	.L50
+  91:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Instance = POWER_I2C_INSTANCE;
+ 579              		.loc 1 91 5 is_stmt 1 view .LVU150
+ 580 002c 214D     		ldr	r5, .L57+4
+ 581 002e 5422     		movs	r2, #84
+ 582 0030 0021     		movs	r1, #0
+ 583 0032 2846     		mov	r0, r5
+ 584 0034 FFF7FEFF 		bl	memset
+ 585              	.LVL13:
+  92:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.Timing = POWER_I2C_TIMING_120MHZ_100KHZ;
+ 586              		.loc 1 92 5 view .LVU151
+  92:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.Timing = POWER_I2C_TIMING_120MHZ_100KHZ;
+ 587              		.loc 1 92 26 is_stmt 0 view .LVU152
+ 588 0038 1F4B     		ldr	r3, .L57+8
+ 589 003a 2B60     		str	r3, [r5]
+  93:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.OwnAddress1 = 0;
+ 590              		.loc 1 93 5 is_stmt 1 view .LVU153
+  93:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.OwnAddress1 = 0;
+ 591              		.loc 1 93 29 is_stmt 0 view .LVU154
+ 592 003c A3F17863 		sub	r3, r3, #260046848
+ 593 0040 A3F57D23 		sub	r3, r3, #1036288
+ 594 0044 A3F64F63 		subw	r3, r3, #3663
+ 595 0048 6B60     		str	r3, [r5, #4]
+  94:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+ 596              		.loc 1 94 5 is_stmt 1 view .LVU155
+  95:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+ 597              		.loc 1 95 5 view .LVU156
+  95:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+ 598              		.loc 1 95 37 is_stmt 0 view .LVU157
+ 599 004a 0123     		movs	r3, #1
+ 600 004c EB60     		str	r3, [r5, #12]
+  96:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.OwnAddress2 = 0;
+ 601              		.loc 1 96 5 is_stmt 1 view .LVU158
+  97:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+ 602              		.loc 1 97 5 view .LVU159
+  98:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+ 603              		.loc 1 98 5 view .LVU160
+  99:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 15
+
+
+ 604              		.loc 1 99 5 view .LVU161
+ 100:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 605              		.loc 1 100 5 view .LVU162
+ 102:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 606              		.loc 1 102 5 view .LVU163
+ 102:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 607              		.loc 1 102 9 is_stmt 0 view .LVU164
+ 608 004e 2846     		mov	r0, r5
+ 609 0050 FFF7FEFF 		bl	HAL_I2C_Init
+ 610              	.LVL14:
+ 102:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 611              		.loc 1 102 8 discriminator 1 view .LVU165
+ 612 0054 0028     		cmp	r0, #0
+ 613 0056 D8D1     		bne	.L50
+ 105:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         HAL_I2C_DeInit(&g_power_i2c);
+ 614              		.loc 1 105 5 is_stmt 1 view .LVU166
+ 105:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         HAL_I2C_DeInit(&g_power_i2c);
+ 615              		.loc 1 105 9 is_stmt 0 view .LVU167
+ 616 0058 0021     		movs	r1, #0
+ 617 005a 2846     		mov	r0, r5
+ 618 005c FFF7FEFF 		bl	HAL_I2CEx_ConfigAnalogFilter
+ 619              	.LVL15:
+ 105:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         HAL_I2C_DeInit(&g_power_i2c);
+ 620              		.loc 1 105 8 discriminator 1 view .LVU168
+ 621 0060 F0B9     		cbnz	r0, .L55
+ 109:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         HAL_I2C_DeInit(&g_power_i2c);
+ 622              		.loc 1 109 5 is_stmt 1 view .LVU169
+ 109:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         HAL_I2C_DeInit(&g_power_i2c);
+ 623              		.loc 1 109 9 is_stmt 0 view .LVU170
+ 624 0062 0021     		movs	r1, #0
+ 625 0064 1348     		ldr	r0, .L57+4
+ 626 0066 FFF7FEFF 		bl	HAL_I2CEx_ConfigDigitalFilter
+ 627              	.LVL16:
+ 109:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         HAL_I2C_DeInit(&g_power_i2c);
+ 628              		.loc 1 109 8 discriminator 1 view .LVU171
+ 629 006a E8B9     		cbnz	r0, .L56
+ 114:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_SetPriority(I2C1_ER_IRQn, 7u, 0u);
+ 630              		.loc 1 114 5 is_stmt 1 view .LVU172
+ 631 006c 0022     		movs	r2, #0
+ 632 006e 0721     		movs	r1, #7
+ 633 0070 1F20     		movs	r0, #31
+ 634 0072 FFF7FEFF 		bl	HAL_NVIC_SetPriority
+ 635              	.LVL17:
+ 115:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_ClearPendingIRQ(I2C1_EV_IRQn);
+ 636              		.loc 1 115 5 view .LVU173
+ 637 0076 0022     		movs	r2, #0
+ 638 0078 0721     		movs	r1, #7
+ 639 007a 2020     		movs	r0, #32
+ 640 007c FFF7FEFF 		bl	HAL_NVIC_SetPriority
+ 641              	.LVL18:
+ 116:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_ClearPendingIRQ(I2C1_ER_IRQn);
+ 642              		.loc 1 116 5 view .LVU174
+ 643 0080 1F20     		movs	r0, #31
+ 644 0082 FFF7FEFF 		bl	HAL_NVIC_ClearPendingIRQ
+ 645              	.LVL19:
+ 117:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_EnableIRQ(I2C1_EV_IRQn);
+ 646              		.loc 1 117 5 view .LVU175
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 16
+
+
+ 647 0086 2020     		movs	r0, #32
+ 648 0088 FFF7FEFF 		bl	HAL_NVIC_ClearPendingIRQ
+ 649              	.LVL20:
+ 118:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_EnableIRQ(I2C1_ER_IRQn);
+ 650              		.loc 1 118 5 view .LVU176
+ 651 008c 1F20     		movs	r0, #31
+ 652 008e FFF7FEFF 		bl	HAL_NVIC_EnableIRQ
+ 653              	.LVL21:
+ 119:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c_initialized = true;
+ 654              		.loc 1 119 5 view .LVU177
+ 655 0092 2020     		movs	r0, #32
+ 656 0094 FFF7FEFF 		bl	HAL_NVIC_EnableIRQ
+ 657              	.LVL22:
+ 120:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return true;
+ 658              		.loc 1 120 5 view .LVU178
+ 120:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return true;
+ 659              		.loc 1 120 29 is_stmt 0 view .LVU179
+ 660 0098 0124     		movs	r4, #1
+ 661 009a 054B     		ldr	r3, .L57
+ 662 009c 1C70     		strb	r4, [r3]
+ 121:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 663              		.loc 1 121 5 is_stmt 1 view .LVU180
+ 121:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 664              		.loc 1 121 12 is_stmt 0 view .LVU181
+ 665 009e B4E7     		b	.L50
+ 666              	.L55:
+ 106:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 667              		.loc 1 106 9 is_stmt 1 view .LVU182
+ 668 00a0 2846     		mov	r0, r5
+ 669 00a2 FFF7FEFF 		bl	HAL_I2C_DeInit
+ 670              	.LVL23:
+ 107:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 671              		.loc 1 107 9 view .LVU183
+ 107:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 672              		.loc 1 107 16 is_stmt 0 view .LVU184
+ 673 00a6 B0E7     		b	.L50
+ 674              	.L56:
+ 110:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return false;
+ 675              		.loc 1 110 9 is_stmt 1 view .LVU185
+ 676 00a8 0248     		ldr	r0, .L57+4
+ 677 00aa FFF7FEFF 		bl	HAL_I2C_DeInit
+ 678              	.LVL24:
+ 111:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 679              		.loc 1 111 9 view .LVU186
+ 111:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 680              		.loc 1 111 16 is_stmt 0 view .LVU187
+ 681 00ae ACE7     		b	.L50
+ 682              	.L58:
+ 683              		.align	2
+ 684              	.L57:
+ 685 00b0 00000000 		.word	g_power_i2c_initialized
+ 686 00b4 00000000 		.word	g_power_i2c
+ 687 00b8 00540040 		.word	1073763328
+ 688              		.cfi_endproc
+ 689              	.LFE342:
+ 691              		.section	.text.PowerI2C_DeInit,"ax",%progbits
+ 692              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 17
+
+
+ 693              		.global	PowerI2C_DeInit
+ 694              		.syntax unified
+ 695              		.thumb
+ 696              		.thumb_func
+ 698              	PowerI2C_DeInit:
+ 699              	.LFB343:
+ 123:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 124:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** void PowerI2C_DeInit(void)
+ 125:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+ 700              		.loc 1 125 1 is_stmt 1 view -0
+ 701              		.cfi_startproc
+ 702              		@ args = 0, pretend = 0, frame = 0
+ 703              		@ frame_needed = 0, uses_anonymous_args = 0
+ 704 0000 38B5     		push	{r3, r4, r5, lr}
+ 705              	.LCFI11:
+ 706              		.cfi_def_cfa_offset 16
+ 707              		.cfi_offset 3, -16
+ 708              		.cfi_offset 4, -12
+ 709              		.cfi_offset 5, -8
+ 710              		.cfi_offset 14, -4
+ 126:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (!g_power_i2c_initialized) {
+ 711              		.loc 1 126 5 view .LVU189
+ 712              		.loc 1 126 9 is_stmt 0 view .LVU190
+ 713 0002 164B     		ldr	r3, .L63
+ 714 0004 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 715              		.loc 1 126 8 view .LVU191
+ 716 0006 03B9     		cbnz	r3, .L62
+ 717              	.L59:
+ 127:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return;
+ 128:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 129:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_DisableIRQ(I2C1_EV_IRQn);
+ 130:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_DisableIRQ(I2C1_ER_IRQn);
+ 131:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_async_active = false;
+ 132:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     (void)HAL_I2C_DeInit(&g_power_i2c);
+ 133:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     __HAL_RCC_I2C1_FORCE_RESET();
+ 134:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     __HAL_RCC_I2C1_RELEASE_RESET();
+ 135:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_ClearPendingIRQ(I2C1_EV_IRQn);
+ 136:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_ClearPendingIRQ(I2C1_ER_IRQn);
+ 137:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     memset(&g_power_i2c, 0, sizeof(g_power_i2c));
+ 138:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c_initialized = false;
+ 139:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 718              		.loc 1 139 1 view .LVU192
+ 719 0008 38BD     		pop	{r3, r4, r5, pc}
+ 720              	.L62:
+ 129:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_DisableIRQ(I2C1_ER_IRQn);
+ 721              		.loc 1 129 5 is_stmt 1 view .LVU193
+ 722 000a 1F20     		movs	r0, #31
+ 723 000c FFF7FEFF 		bl	HAL_NVIC_DisableIRQ
+ 724              	.LVL25:
+ 130:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_async_active = false;
+ 725              		.loc 1 130 5 view .LVU194
+ 726 0010 2020     		movs	r0, #32
+ 727 0012 FFF7FEFF 		bl	HAL_NVIC_DisableIRQ
+ 728              	.LVL26:
+ 131:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     (void)HAL_I2C_DeInit(&g_power_i2c);
+ 729              		.loc 1 131 5 view .LVU195
+ 131:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     (void)HAL_I2C_DeInit(&g_power_i2c);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 18
+
+
+ 730              		.loc 1 131 20 is_stmt 0 view .LVU196
+ 731 0016 0024     		movs	r4, #0
+ 732 0018 114B     		ldr	r3, .L63+4
+ 733 001a 1C70     		strb	r4, [r3]
+ 132:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     __HAL_RCC_I2C1_FORCE_RESET();
+ 734              		.loc 1 132 5 is_stmt 1 view .LVU197
+ 132:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     __HAL_RCC_I2C1_FORCE_RESET();
+ 735              		.loc 1 132 11 is_stmt 0 view .LVU198
+ 736 001c 114D     		ldr	r5, .L63+8
+ 737 001e 2846     		mov	r0, r5
+ 738 0020 FFF7FEFF 		bl	HAL_I2C_DeInit
+ 739              	.LVL27:
+ 133:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     __HAL_RCC_I2C1_RELEASE_RESET();
+ 740              		.loc 1 133 5 is_stmt 1 view .LVU199
+ 741 0024 104B     		ldr	r3, .L63+12
+ 742 0026 D3F89020 		ldr	r2, [r3, #144]
+ 743 002a 42F40012 		orr	r2, r2, #2097152
+ 744 002e C3F89020 		str	r2, [r3, #144]
+ 134:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_ClearPendingIRQ(I2C1_EV_IRQn);
+ 745              		.loc 1 134 5 view .LVU200
+ 746 0032 D3F89020 		ldr	r2, [r3, #144]
+ 747 0036 22F40012 		bic	r2, r2, #2097152
+ 748 003a C3F89020 		str	r2, [r3, #144]
+ 135:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     HAL_NVIC_ClearPendingIRQ(I2C1_ER_IRQn);
+ 749              		.loc 1 135 5 view .LVU201
+ 750 003e 1F20     		movs	r0, #31
+ 751 0040 FFF7FEFF 		bl	HAL_NVIC_ClearPendingIRQ
+ 752              	.LVL28:
+ 136:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     memset(&g_power_i2c, 0, sizeof(g_power_i2c));
+ 753              		.loc 1 136 5 view .LVU202
+ 754 0044 2020     		movs	r0, #32
+ 755 0046 FFF7FEFF 		bl	HAL_NVIC_ClearPendingIRQ
+ 756              	.LVL29:
+ 137:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_power_i2c_initialized = false;
+ 757              		.loc 1 137 5 view .LVU203
+ 758 004a 5422     		movs	r2, #84
+ 759 004c 2146     		mov	r1, r4
+ 760 004e 2846     		mov	r0, r5
+ 761 0050 FFF7FEFF 		bl	memset
+ 762              	.LVL30:
+ 138:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 763              		.loc 1 138 5 view .LVU204
+ 138:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 764              		.loc 1 138 29 is_stmt 0 view .LVU205
+ 765 0054 014B     		ldr	r3, .L63
+ 766 0056 1C70     		strb	r4, [r3]
+ 767 0058 D6E7     		b	.L59
+ 768              	.L64:
+ 769 005a 00BF     		.align	2
+ 770              	.L63:
+ 771 005c 00000000 		.word	g_power_i2c_initialized
+ 772 0060 00000000 		.word	g_async_active
+ 773 0064 00000000 		.word	g_power_i2c
+ 774 0068 00440258 		.word	1476543488
+ 775              		.cfi_endproc
+ 776              	.LFE343:
+ 778              		.section	.text.async_failed,"ax",%progbits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 19
+
+
+ 779              		.align	1
+ 780              		.syntax unified
+ 781              		.thumb
+ 782              		.thumb_func
+ 784              	async_failed:
+ 785              	.LFB347:
+ 140:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 141:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** void I2C1_EV_IRQHandler(void) { HAL_I2C_EV_IRQHandler(&g_power_i2c); }
+ 142:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** void I2C1_ER_IRQHandler(void) { HAL_I2C_ER_IRQHandler(&g_power_i2c); }
+ 143:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 144:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** bool PowerI2C_AsyncBusy(void) { return g_async_active; }
+ 145:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 146:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static PowerI2C_Result async_failed(void)
+ 147:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+ 786              		.loc 1 147 1 is_stmt 1 view -0
+ 787              		.cfi_startproc
+ 788              		@ args = 0, pretend = 0, frame = 0
+ 789              		@ frame_needed = 0, uses_anonymous_args = 0
+ 790 0000 08B5     		push	{r3, lr}
+ 791              	.LCFI12:
+ 792              		.cfi_def_cfa_offset 8
+ 793              		.cfi_offset 3, -8
+ 794              		.cfi_offset 14, -4
+ 148:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     /* Disable/flush IRQ ownership before reusing the persistent buffer. No
+ 149:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****      * polling abort, bus-clear pulses or blocking retry on an unhealthy bus. */
+ 150:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     PowerI2C_DeInit();
+ 795              		.loc 1 150 5 view .LVU207
+ 796 0002 FFF7FEFF 		bl	PowerI2C_DeInit
+ 797              	.LVL31:
+ 151:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     (void)PowerI2C_Init();
+ 798              		.loc 1 151 5 view .LVU208
+ 799              		.loc 1 151 11 is_stmt 0 view .LVU209
+ 800 0006 FFF7FEFF 		bl	PowerI2C_Init
+ 801              	.LVL32:
+ 152:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return POWER_I2C_FAILED;
+ 802              		.loc 1 152 5 is_stmt 1 view .LVU210
+ 153:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 803              		.loc 1 153 1 is_stmt 0 view .LVU211
+ 804 000a 0220     		movs	r0, #2
+ 805 000c 08BD     		pop	{r3, pc}
+ 806              		.cfi_endproc
+ 807              	.LFE347:
+ 809              		.section	.text.async_start,"ax",%progbits
+ 810              		.align	1
+ 811              		.syntax unified
+ 812              		.thumb
+ 813              		.thumb_func
+ 815              	async_start:
+ 816              	.LVL33:
+ 817              	.LFB348:
+ 154:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 155:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** static PowerI2C_Result async_start(bool write)
+ 156:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+ 818              		.loc 1 156 1 is_stmt 1 view -0
+ 819              		.cfi_startproc
+ 820              		@ args = 0, pretend = 0, frame = 0
+ 821              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 20
+
+
+ 822              		.loc 1 156 1 is_stmt 0 view .LVU213
+ 823 0000 10B5     		push	{r4, lr}
+ 824              	.LCFI13:
+ 825              		.cfi_def_cfa_offset 8
+ 826              		.cfi_offset 4, -8
+ 827              		.cfi_offset 14, -4
+ 828 0002 82B0     		sub	sp, sp, #8
+ 829              	.LCFI14:
+ 830              		.cfi_def_cfa_offset 16
+ 831 0004 0446     		mov	r4, r0
+ 157:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_async_started = HAL_GetTick();
+ 832              		.loc 1 157 5 is_stmt 1 view .LVU214
+ 833              		.loc 1 157 23 is_stmt 0 view .LVU215
+ 834 0006 FFF7FEFF 		bl	HAL_GetTick
+ 835              	.LVL34:
+ 836              		.loc 1 157 21 discriminator 1 view .LVU216
+ 837 000a 114B     		ldr	r3, .L73
+ 838 000c 1860     		str	r0, [r3]
+ 158:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     const HAL_StatusTypeDef result = write
+ 839              		.loc 1 158 5 is_stmt 1 view .LVU217
+ 159:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ? HAL_I2C_Mem_Write_IT(&g_power_i2c, g_async_register.address << 1,
+ 160:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****               g_async_register.reg, I2C_MEMADD_SIZE_8BIT,
+ 161:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****               g_async_bytes, g_async_register.bytes)
+ 162:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         : HAL_I2C_Mem_Read_IT(&g_power_i2c, g_async_register.address << 1,
+ 840              		.loc 1 162 9 is_stmt 0 view .LVU218
+ 841 000e 74B1     		cbz	r4, .L68
+ 159:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ? HAL_I2C_Mem_Write_IT(&g_power_i2c, g_async_register.address << 1,
+ 842              		.loc 1 159 62 view .LVU219
+ 843 0010 104A     		ldr	r2, .L73+4
+ 844 0012 1178     		ldrb	r1, [r2]	@ zero_extendqisi2
+ 161:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         : HAL_I2C_Mem_Read_IT(&g_power_i2c, g_async_register.address << 1,
+ 845              		.loc 1 161 46 view .LVU220
+ 846 0014 9378     		ldrb	r3, [r2, #2]	@ zero_extendqisi2
+ 159:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ? HAL_I2C_Mem_Write_IT(&g_power_i2c, g_async_register.address << 1,
+ 847              		.loc 1 159 11 view .LVU221
+ 848 0016 0193     		str	r3, [sp, #4]
+ 849 0018 0F4B     		ldr	r3, .L73+8
+ 850 001a 0093     		str	r3, [sp]
+ 851 001c 0123     		movs	r3, #1
+ 852 001e 5278     		ldrb	r2, [r2, #1]	@ zero_extendqisi2
+ 853 0020 9940     		lsls	r1, r1, r3
+ 854 0022 0E48     		ldr	r0, .L73+12
+ 855 0024 FFF7FEFF 		bl	HAL_I2C_Mem_Write_IT
+ 856              	.LVL35:
+ 857              	.L69:
+ 163:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****               g_async_register.reg, I2C_MEMADD_SIZE_8BIT,
+ 164:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****               g_async_bytes, g_async_register.bytes);
+ 165:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return result == HAL_OK ? POWER_I2C_PENDING : async_failed();
+ 858              		.loc 1 165 5 is_stmt 1 view .LVU222
+ 859              		.loc 1 165 49 is_stmt 0 view .LVU223
+ 860 0028 70B9     		cbnz	r0, .L72
+ 861              	.LVL36:
+ 862              	.L70:
+ 166:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 863              		.loc 1 166 1 view .LVU224
+ 864 002a 02B0     		add	sp, sp, #8
+ 865              	.LCFI15:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 21
+
+
+ 866              		.cfi_remember_state
+ 867              		.cfi_def_cfa_offset 8
+ 868              		@ sp needed
+ 869 002c 10BD     		pop	{r4, pc}
+ 870              	.LVL37:
+ 871              	.L68:
+ 872              	.LCFI16:
+ 873              		.cfi_restore_state
+ 162:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****               g_async_register.reg, I2C_MEMADD_SIZE_8BIT,
+ 874              		.loc 1 162 61 discriminator 1 view .LVU225
+ 875 002e 094A     		ldr	r2, .L73+4
+ 876 0030 1178     		ldrb	r1, [r2]	@ zero_extendqisi2
+ 164:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return result == HAL_OK ? POWER_I2C_PENDING : async_failed();
+ 877              		.loc 1 164 46 view .LVU226
+ 878 0032 9378     		ldrb	r3, [r2, #2]	@ zero_extendqisi2
+ 162:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****               g_async_register.reg, I2C_MEMADD_SIZE_8BIT,
+ 879              		.loc 1 162 11 discriminator 1 view .LVU227
+ 880 0034 0193     		str	r3, [sp, #4]
+ 881 0036 084B     		ldr	r3, .L73+8
+ 882 0038 0093     		str	r3, [sp]
+ 883 003a 0123     		movs	r3, #1
+ 884 003c 5278     		ldrb	r2, [r2, #1]	@ zero_extendqisi2
+ 885 003e 9940     		lsls	r1, r1, r3
+ 886 0040 0648     		ldr	r0, .L73+12
+ 887 0042 FFF7FEFF 		bl	HAL_I2C_Mem_Read_IT
+ 888              	.LVL38:
+ 889 0046 EFE7     		b	.L69
+ 890              	.LVL39:
+ 891              	.L72:
+ 165:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 892              		.loc 1 165 51 discriminator 1 view .LVU228
+ 893 0048 FFF7FEFF 		bl	async_failed
+ 894              	.LVL40:
+ 165:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 895              		.loc 1 165 51 discriminator 1 view .LVU229
+ 896 004c EDE7     		b	.L70
+ 897              	.L74:
+ 898 004e 00BF     		.align	2
+ 899              	.L73:
+ 900 0050 00000000 		.word	g_async_started
+ 901 0054 00000000 		.word	g_async_register
+ 902 0058 00000000 		.word	g_async_bytes
+ 903 005c 00000000 		.word	g_power_i2c
+ 904              		.cfi_endproc
+ 905              	.LFE348:
+ 907              		.section	.text.I2C1_EV_IRQHandler,"ax",%progbits
+ 908              		.align	1
+ 909              		.global	I2C1_EV_IRQHandler
+ 910              		.syntax unified
+ 911              		.thumb
+ 912              		.thumb_func
+ 914              	I2C1_EV_IRQHandler:
+ 915              	.LFB344:
+ 141:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** void I2C1_ER_IRQHandler(void) { HAL_I2C_ER_IRQHandler(&g_power_i2c); }
+ 916              		.loc 1 141 31 is_stmt 1 view -0
+ 917              		.cfi_startproc
+ 918              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 22
+
+
+ 919              		@ frame_needed = 0, uses_anonymous_args = 0
+ 920 0000 08B5     		push	{r3, lr}
+ 921              	.LCFI17:
+ 922              		.cfi_def_cfa_offset 8
+ 923              		.cfi_offset 3, -8
+ 924              		.cfi_offset 14, -4
+ 141:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** void I2C1_ER_IRQHandler(void) { HAL_I2C_ER_IRQHandler(&g_power_i2c); }
+ 925              		.loc 1 141 33 view .LVU231
+ 926 0002 0248     		ldr	r0, .L77
+ 927 0004 FFF7FEFF 		bl	HAL_I2C_EV_IRQHandler
+ 928              	.LVL41:
+ 141:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** void I2C1_ER_IRQHandler(void) { HAL_I2C_ER_IRQHandler(&g_power_i2c); }
+ 929              		.loc 1 141 70 is_stmt 0 view .LVU232
+ 930 0008 08BD     		pop	{r3, pc}
+ 931              	.L78:
+ 932 000a 00BF     		.align	2
+ 933              	.L77:
+ 934 000c 00000000 		.word	g_power_i2c
+ 935              		.cfi_endproc
+ 936              	.LFE344:
+ 938              		.section	.text.I2C1_ER_IRQHandler,"ax",%progbits
+ 939              		.align	1
+ 940              		.global	I2C1_ER_IRQHandler
+ 941              		.syntax unified
+ 942              		.thumb
+ 943              		.thumb_func
+ 945              	I2C1_ER_IRQHandler:
+ 946              	.LFB345:
+ 142:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 947              		.loc 1 142 31 is_stmt 1 view -0
+ 948              		.cfi_startproc
+ 949              		@ args = 0, pretend = 0, frame = 0
+ 950              		@ frame_needed = 0, uses_anonymous_args = 0
+ 951 0000 08B5     		push	{r3, lr}
+ 952              	.LCFI18:
+ 953              		.cfi_def_cfa_offset 8
+ 954              		.cfi_offset 3, -8
+ 955              		.cfi_offset 14, -4
+ 142:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 956              		.loc 1 142 33 view .LVU234
+ 957 0002 0248     		ldr	r0, .L81
+ 958 0004 FFF7FEFF 		bl	HAL_I2C_ER_IRQHandler
+ 959              	.LVL42:
+ 142:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 960              		.loc 1 142 70 is_stmt 0 view .LVU235
+ 961 0008 08BD     		pop	{r3, pc}
+ 962              	.L82:
+ 963 000a 00BF     		.align	2
+ 964              	.L81:
+ 965 000c 00000000 		.word	g_power_i2c
+ 966              		.cfi_endproc
+ 967              	.LFE345:
+ 969              		.section	.text.PowerI2C_AsyncBusy,"ax",%progbits
+ 970              		.align	1
+ 971              		.global	PowerI2C_AsyncBusy
+ 972              		.syntax unified
+ 973              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 23
+
+
+ 974              		.thumb_func
+ 976              	PowerI2C_AsyncBusy:
+ 977              	.LFB346:
+ 144:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 978              		.loc 1 144 31 is_stmt 1 view -0
+ 979              		.cfi_startproc
+ 980              		@ args = 0, pretend = 0, frame = 0
+ 981              		@ frame_needed = 0, uses_anonymous_args = 0
+ 982              		@ link register save eliminated.
+ 144:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 983              		.loc 1 144 33 view .LVU237
+ 144:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 984              		.loc 1 144 56 is_stmt 0 view .LVU238
+ 985 0000 014B     		ldr	r3, .L84
+ 986 0002 1878     		ldrb	r0, [r3]	@ zero_extendqisi2
+ 987 0004 7047     		bx	lr
+ 988              	.L85:
+ 989 0006 00BF     		.align	2
+ 990              	.L84:
+ 991 0008 00000000 		.word	g_async_active
+ 992              		.cfi_endproc
+ 993              	.LFE346:
+ 995              		.section	.text.PowerI2C_StepRegister,"ax",%progbits
+ 996              		.align	1
+ 997              		.global	PowerI2C_StepRegister
+ 998              		.syntax unified
+ 999              		.thumb
+ 1000              		.thumb_func
+ 1002              	PowerI2C_StepRegister:
+ 1003              	.LVL43:
+ 1004              	.LFB349:
+ 167:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** 
+ 168:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** PowerI2C_Result PowerI2C_StepRegister(const PowerI2C_Register* op, uint16_t* value)
+ 169:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** {
+ 1005              		.loc 1 169 1 is_stmt 1 view -0
+ 1006              		.cfi_startproc
+ 1007              		@ args = 0, pretend = 0, frame = 0
+ 1008              		@ frame_needed = 0, uses_anonymous_args = 0
+ 170:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (op == NULL || value == NULL || (op->bytes != 1u && op->bytes != 2u)) {
+ 1009              		.loc 1 170 5 view .LVU240
+ 1010              		.loc 1 170 8 is_stmt 0 view .LVU241
+ 1011 0000 0029     		cmp	r1, #0
+ 1012 0002 18BF     		it	ne
+ 1013 0004 0028     		cmpne	r0, #0
+ 1014 0006 00F0B380 		beq	.L106
+ 169:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (op == NULL || value == NULL || (op->bytes != 1u && op->bytes != 2u)) {
+ 1015              		.loc 1 169 1 view .LVU242
+ 1016 000a 70B5     		push	{r4, r5, r6, lr}
+ 1017              	.LCFI19:
+ 1018              		.cfi_def_cfa_offset 16
+ 1019              		.cfi_offset 4, -16
+ 1020              		.cfi_offset 5, -12
+ 1021              		.cfi_offset 6, -8
+ 1022              		.cfi_offset 14, -4
+ 1023 000c 0446     		mov	r4, r0
+ 1024 000e 0D46     		mov	r5, r1
+ 1025              		.loc 1 170 43 discriminator 1 view .LVU243
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 24
+
+
+ 1026 0010 8378     		ldrb	r3, [r0, #2]	@ zero_extendqisi2
+ 1027              		.loc 1 170 57 discriminator 1 view .LVU244
+ 1028 0012 013B     		subs	r3, r3, #1
+ 1029 0014 DBB2     		uxtb	r3, r3
+ 1030              		.loc 1 170 37 discriminator 1 view .LVU245
+ 1031 0016 012B     		cmp	r3, #1
+ 1032 0018 00F2AC80 		bhi	.L107
+ 171:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_FAILED;
+ 172:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 173:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (!g_async_active) {
+ 1033              		.loc 1 173 5 is_stmt 1 view .LVU246
+ 1034              		.loc 1 173 9 is_stmt 0 view .LVU247
+ 1035 001c 564B     		ldr	r3, .L125
+ 1036 001e 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1037              		.loc 1 173 8 view .LVU248
+ 1038 0020 9BB9     		cbnz	r3, .L88
+ 174:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (!g_power_i2c_initialized) { return POWER_I2C_FAILED; }
+ 1039              		.loc 1 174 9 is_stmt 1 view .LVU249
+ 1040              		.loc 1 174 13 is_stmt 0 view .LVU250
+ 1041 0022 564B     		ldr	r3, .L125+4
+ 1042 0024 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1043              		.loc 1 174 12 view .LVU251
+ 1044 0026 0BB9     		cbnz	r3, .L115
+ 1045              		.loc 1 174 48 discriminator 1 view .LVU252
+ 1046 0028 0220     		movs	r0, #2
+ 1047              	.LVL44:
+ 1048              		.loc 1 174 48 discriminator 1 view .LVU253
+ 1049 002a 29E0     		b	.L87
+ 1050              	.LVL45:
+ 1051              	.L115:
+ 175:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_register = *op;
+ 1052              		.loc 1 175 9 is_stmt 1 view .LVU254
+ 1053              		.loc 1 175 26 is_stmt 0 view .LVU255
+ 1054 002c 544B     		ldr	r3, .L125+8
+ 1055 002e 0068     		ldr	r0, [r0]	@ unaligned
+ 1056              	.LVL46:
+ 1057              		.loc 1 175 26 view .LVU256
+ 1058 0030 6168     		ldr	r1, [r4, #4]	@ unaligned
+ 1059              	.LVL47:
+ 1060              		.loc 1 175 26 view .LVU257
+ 1061 0032 03C3     		stmia	r3!, {r0, r1}
+ 1062 0034 2289     		ldrh	r2, [r4, #8]	@ unaligned
+ 1063 0036 1A80     		strh	r2, [r3]	@ unaligned
+ 176:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_phase = 0u;
+ 1064              		.loc 1 176 9 is_stmt 1 view .LVU258
+ 1065              		.loc 1 176 23 is_stmt 0 view .LVU259
+ 1066 0038 0020     		movs	r0, #0
+ 1067 003a 524B     		ldr	r3, .L125+12
+ 1068 003c 1870     		strb	r0, [r3]
+ 177:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = true;
+ 1069              		.loc 1 177 9 is_stmt 1 view .LVU260
+ 1070              		.loc 1 177 24 is_stmt 0 view .LVU261
+ 1071 003e 4E4B     		ldr	r3, .L125
+ 1072 0040 0122     		movs	r2, #1
+ 1073 0042 1A70     		strb	r2, [r3]
+ 178:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return async_start(false);
+ 1074              		.loc 1 178 9 is_stmt 1 view .LVU262
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 25
+
+
+ 1075              		.loc 1 178 16 is_stmt 0 view .LVU263
+ 1076 0044 FFF7FEFF 		bl	async_start
+ 1077              	.LVL48:
+ 1078 0048 1AE0     		b	.L87
+ 1079              	.LVL49:
+ 1080              	.L88:
+ 179:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 180:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     /* A caller may not replace an in-flight register operation. */
+ 181:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (op->address != g_async_register.address || op->reg != g_async_register.reg ||
+ 1081              		.loc 1 181 5 is_stmt 1 view .LVU264
+ 1082              		.loc 1 181 49 is_stmt 0 view .LVU265
+ 1083 004a 0288     		ldrh	r2, [r0]
+ 1084 004c 4C4B     		ldr	r3, .L125+8
+ 1085 004e 1B88     		ldrh	r3, [r3]
+ 1086              		.loc 1 181 8 view .LVU266
+ 1087 0050 9A42     		cmp	r2, r3
+ 1088 0052 13D1     		bne	.L89
+ 182:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         op->bytes != g_async_register.bytes || op->kind != g_async_register.kind ||
+ 1089              		.loc 1 182 45 view .LVU267
+ 1090 0054 4288     		ldrh	r2, [r0, #2]
+ 1091 0056 4A4B     		ldr	r3, .L125+8
+ 1092 0058 5B88     		ldrh	r3, [r3, #2]
+ 1093 005a 9A42     		cmp	r2, r3
+ 1094 005c 0ED1     		bne	.L89
+ 183:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         op->value != g_async_register.value || op->mask != g_async_register.mask ||
+ 1095              		.loc 1 183 11 view .LVU268
+ 1096 005e 8288     		ldrh	r2, [r0, #4]
+ 1097              		.loc 1 183 38 view .LVU269
+ 1098 0060 474B     		ldr	r3, .L125+8
+ 1099 0062 9B88     		ldrh	r3, [r3, #4]
+ 182:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         op->bytes != g_async_register.bytes || op->kind != g_async_register.kind ||
+ 1100              		.loc 1 182 82 discriminator 1 view .LVU270
+ 1101 0064 9A42     		cmp	r2, r3
+ 1102 0066 09D1     		bne	.L89
+ 1103              		.loc 1 183 50 view .LVU271
+ 1104 0068 C288     		ldrh	r2, [r0, #6]
+ 1105              		.loc 1 183 76 view .LVU272
+ 1106 006a 454B     		ldr	r3, .L125+8
+ 1107 006c DB88     		ldrh	r3, [r3, #6]
+ 1108              		.loc 1 183 45 view .LVU273
+ 1109 006e 9A42     		cmp	r2, r3
+ 1110 0070 04D1     		bne	.L89
+ 184:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         op->verify_mask != g_async_register.verify_mask) {
+ 1111              		.loc 1 184 11 view .LVU274
+ 1112 0072 0289     		ldrh	r2, [r0, #8]
+ 1113              		.loc 1 184 44 view .LVU275
+ 1114 0074 424B     		ldr	r3, .L125+8
+ 1115 0076 1B89     		ldrh	r3, [r3, #8]
+ 183:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         op->value != g_async_register.value || op->mask != g_async_register.mask ||
+ 1116              		.loc 1 183 82 discriminator 1 view .LVU276
+ 1117 0078 9A42     		cmp	r2, r3
+ 1118 007a 02D0     		beq	.L90
+ 1119              	.L89:
+ 185:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return async_failed();
+ 1120              		.loc 1 185 9 is_stmt 1 view .LVU277
+ 1121              		.loc 1 185 16 is_stmt 0 view .LVU278
+ 1122 007c FFF7FEFF 		bl	async_failed
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 26
+
+
+ 1123              	.LVL50:
+ 1124              	.L87:
+ 186:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 187:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (HAL_I2C_GetState(&g_power_i2c) != HAL_I2C_STATE_READY) {
+ 188:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if ((uint32_t)(HAL_GetTick() - g_async_started) >= 20u) { return async_failed(); }
+ 189:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_PENDING;
+ 190:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 191:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (HAL_I2C_GetError(&g_power_i2c) != HAL_I2C_ERROR_NONE) { return async_failed(); }
+ 192:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     const uint16_t got = op->bytes == 1u ? g_async_bytes[0] :
+ 193:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ((uint16_t)g_async_bytes[0] << 8) | g_async_bytes[1];
+ 194:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (g_async_phase == 1u) {
+ 195:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (op->verify_mask != 0u) {
+ 196:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 2u;
+ 197:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(false);
+ 198:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 199:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         *value = g_async_written;
+ 200:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = false;
+ 201:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_DONE;
+ 202:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 203:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (g_async_phase == 2u || op->kind == POWER_I2C_VERIFY) {
+ 204:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         const uint16_t mask = g_async_phase == 2u ? op->verify_mask : op->mask;
+ 205:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = false;
+ 206:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         *value = got;
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return (got & mask) == (op->value & mask) ? POWER_I2C_DONE : POWER_I2C_FAILED;
+ 208:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 209:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (op->kind == POWER_I2C_UPDATE) {
+ 210:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_written = (got & (uint16_t)~op->mask) | (op->value & op->mask);
+ 211:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (g_async_written != got) {
+ 212:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             if (op->bytes == 1u) { g_async_bytes[0] = (uint8_t)g_async_written; }
+ 213:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             else {
+ 214:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****                 g_async_bytes[0] = (uint8_t)(g_async_written >> 8);
+ 215:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****                 g_async_bytes[1] = (uint8_t)g_async_written;
+ 216:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             }
+ 217:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 1u;
+ 218:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(true);
+ 219:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 220:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         /* Preserve readback verification even when the register was correct. */
+ 221:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (op->verify_mask != 0u) {
+ 222:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 2u;
+ 223:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(false);
+ 224:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 225:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 226:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     *value = got;
+ 227:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_async_active = false;
+ 228:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return POWER_I2C_DONE;
+ 229:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 1125              		.loc 1 229 1 view .LVU279
+ 1126 0080 70BD     		pop	{r4, r5, r6, pc}
+ 1127              	.LVL51:
+ 1128              	.L90:
+ 187:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if ((uint32_t)(HAL_GetTick() - g_async_started) >= 20u) { return async_failed(); }
+ 1129              		.loc 1 187 5 is_stmt 1 view .LVU280
+ 187:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if ((uint32_t)(HAL_GetTick() - g_async_started) >= 20u) { return async_failed(); }
+ 1130              		.loc 1 187 9 is_stmt 0 view .LVU281
+ 1131 0082 4148     		ldr	r0, .L125+16
+ 1132              	.LVL52:
+ 187:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if ((uint32_t)(HAL_GetTick() - g_async_started) >= 20u) { return async_failed(); }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 27
+
+
+ 1133              		.loc 1 187 9 view .LVU282
+ 1134 0084 FFF7FEFF 		bl	HAL_I2C_GetState
+ 1135              	.LVL53:
+ 187:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if ((uint32_t)(HAL_GetTick() - g_async_started) >= 20u) { return async_failed(); }
+ 1136              		.loc 1 187 8 discriminator 1 view .LVU283
+ 1137 0088 2028     		cmp	r0, #32
+ 1138 008a 0BD0     		beq	.L91
+ 188:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_PENDING;
+ 1139              		.loc 1 188 9 is_stmt 1 view .LVU284
+ 188:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_PENDING;
+ 1140              		.loc 1 188 24 is_stmt 0 view .LVU285
+ 1141 008c FFF7FEFF 		bl	HAL_GetTick
+ 1142              	.LVL54:
+ 188:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_PENDING;
+ 1143              		.loc 1 188 38 discriminator 1 view .LVU286
+ 1144 0090 3E4B     		ldr	r3, .L125+20
+ 1145 0092 1B68     		ldr	r3, [r3]
+ 1146 0094 C31A     		subs	r3, r0, r3
+ 188:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_PENDING;
+ 1147              		.loc 1 188 12 discriminator 1 view .LVU287
+ 1148 0096 132B     		cmp	r3, #19
+ 1149 0098 01D8     		bhi	.L116
+ 189:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1150              		.loc 1 189 16 view .LVU288
+ 1151 009a 0020     		movs	r0, #0
+ 1152 009c F0E7     		b	.L87
+ 1153              	.L116:
+ 188:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_PENDING;
+ 1154              		.loc 1 188 67 is_stmt 1 discriminator 1 view .LVU289
+ 188:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_PENDING;
+ 1155              		.loc 1 188 74 is_stmt 0 discriminator 1 view .LVU290
+ 1156 009e FFF7FEFF 		bl	async_failed
+ 1157              	.LVL55:
+ 188:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_PENDING;
+ 1158              		.loc 1 188 74 view .LVU291
+ 1159 00a2 EDE7     		b	.L87
+ 1160              	.L91:
+ 191:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     const uint16_t got = op->bytes == 1u ? g_async_bytes[0] :
+ 1161              		.loc 1 191 5 is_stmt 1 view .LVU292
+ 191:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     const uint16_t got = op->bytes == 1u ? g_async_bytes[0] :
+ 1162              		.loc 1 191 9 is_stmt 0 view .LVU293
+ 1163 00a4 3848     		ldr	r0, .L125+16
+ 1164 00a6 FFF7FEFF 		bl	HAL_I2C_GetError
+ 1165              	.LVL56:
+ 191:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     const uint16_t got = op->bytes == 1u ? g_async_bytes[0] :
+ 1166              		.loc 1 191 8 discriminator 1 view .LVU294
+ 1167 00aa C0B9     		cbnz	r0, .L117
+ 192:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ((uint16_t)g_async_bytes[0] << 8) | g_async_bytes[1];
+ 1168              		.loc 1 192 5 is_stmt 1 view .LVU295
+ 192:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ((uint16_t)g_async_bytes[0] << 8) | g_async_bytes[1];
+ 1169              		.loc 1 192 28 is_stmt 0 view .LVU296
+ 1170 00ac A178     		ldrb	r1, [r4, #2]	@ zero_extendqisi2
+ 192:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ((uint16_t)g_async_bytes[0] << 8) | g_async_bytes[1];
+ 1171              		.loc 1 192 20 view .LVU297
+ 1172 00ae 0129     		cmp	r1, #1
+ 1173 00b0 18D0     		beq	.L118
+ 193:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (g_async_phase == 1u) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 28
+
+
+ 1174              		.loc 1 193 33 view .LVU298
+ 1175 00b2 374B     		ldr	r3, .L125+24
+ 1176 00b4 1A78     		ldrb	r2, [r3]	@ zero_extendqisi2
+ 193:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     if (g_async_phase == 1u) {
+ 1177              		.loc 1 193 58 view .LVU299
+ 1178 00b6 5B78     		ldrb	r3, [r3, #1]	@ zero_extendqisi2
+ 192:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ((uint16_t)g_async_bytes[0] << 8) | g_async_bytes[1];
+ 1179              		.loc 1 192 20 discriminator 2 view .LVU300
+ 1180 00b8 43EA0223 		orr	r3, r3, r2, lsl #8
+ 1181              	.L94:
+ 1182              	.LVL57:
+ 194:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (op->verify_mask != 0u) {
+ 1183              		.loc 1 194 5 is_stmt 1 view .LVU301
+ 194:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (op->verify_mask != 0u) {
+ 1184              		.loc 1 194 23 is_stmt 0 view .LVU302
+ 1185 00bc 314A     		ldr	r2, .L125+12
+ 1186 00be 1078     		ldrb	r0, [r2]	@ zero_extendqisi2
+ 194:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (op->verify_mask != 0u) {
+ 1187              		.loc 1 194 8 view .LVU303
+ 1188 00c0 0128     		cmp	r0, #1
+ 1189 00c2 12D0     		beq	.L119
+ 203:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         const uint16_t mask = g_async_phase == 2u ? op->verify_mask : op->mask;
+ 1190              		.loc 1 203 5 is_stmt 1 view .LVU304
+ 203:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         const uint16_t mask = g_async_phase == 2u ? op->verify_mask : op->mask;
+ 1191              		.loc 1 203 8 is_stmt 0 view .LVU305
+ 1192 00c4 0228     		cmp	r0, #2
+ 1193 00c6 20D0     		beq	.L97
+ 203:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         const uint16_t mask = g_async_phase == 2u ? op->verify_mask : op->mask;
+ 1194              		.loc 1 203 34 discriminator 1 view .LVU306
+ 1195 00c8 E278     		ldrb	r2, [r4, #3]	@ zero_extendqisi2
+ 203:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         const uint16_t mask = g_async_phase == 2u ? op->verify_mask : op->mask;
+ 1196              		.loc 1 203 29 discriminator 1 view .LVU307
+ 1197 00ca 022A     		cmp	r2, #2
+ 1198 00cc 1DD0     		beq	.L97
+ 209:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_written = (got & (uint16_t)~op->mask) | (op->value & op->mask);
+ 1199              		.loc 1 209 5 is_stmt 1 view .LVU308
+ 209:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_written = (got & (uint16_t)~op->mask) | (op->value & op->mask);
+ 1200              		.loc 1 209 8 is_stmt 0 view .LVU309
+ 1201 00ce 012A     		cmp	r2, #1
+ 1202 00d0 2CD0     		beq	.L120
+ 1203              	.L102:
+ 226:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_async_active = false;
+ 1204              		.loc 1 226 5 is_stmt 1 view .LVU310
+ 226:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     g_async_active = false;
+ 1205              		.loc 1 226 12 is_stmt 0 view .LVU311
+ 1206 00d2 2B80     		strh	r3, [r5]	@ movhi
+ 227:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return POWER_I2C_DONE;
+ 1207              		.loc 1 227 5 is_stmt 1 view .LVU312
+ 227:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return POWER_I2C_DONE;
+ 1208              		.loc 1 227 20 is_stmt 0 view .LVU313
+ 1209 00d4 284B     		ldr	r3, .L125
+ 1210              	.LVL58:
+ 227:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     return POWER_I2C_DONE;
+ 1211              		.loc 1 227 20 view .LVU314
+ 1212 00d6 0022     		movs	r2, #0
+ 1213 00d8 1A70     		strb	r2, [r3]
+ 228:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 29
+
+
+ 1214              		.loc 1 228 5 is_stmt 1 view .LVU315
+ 228:Src/power/drivers/power_i2c_bus/power_i2c_bus.c **** }
+ 1215              		.loc 1 228 12 is_stmt 0 view .LVU316
+ 1216 00da 0120     		movs	r0, #1
+ 1217 00dc D0E7     		b	.L87
+ 1218              	.LVL59:
+ 1219              	.L117:
+ 191:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     const uint16_t got = op->bytes == 1u ? g_async_bytes[0] :
+ 1220              		.loc 1 191 65 is_stmt 1 discriminator 1 view .LVU317
+ 191:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     const uint16_t got = op->bytes == 1u ? g_async_bytes[0] :
+ 1221              		.loc 1 191 72 is_stmt 0 discriminator 1 view .LVU318
+ 1222 00de FFF7FEFF 		bl	async_failed
+ 1223              	.LVL60:
+ 191:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     const uint16_t got = op->bytes == 1u ? g_async_bytes[0] :
+ 1224              		.loc 1 191 72 view .LVU319
+ 1225 00e2 CDE7     		b	.L87
+ 1226              	.L118:
+ 192:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         ((uint16_t)g_async_bytes[0] << 8) | g_async_bytes[1];
+ 1227              		.loc 1 192 57 discriminator 1 view .LVU320
+ 1228 00e4 2A4B     		ldr	r3, .L125+24
+ 1229 00e6 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 1230 00e8 E8E7     		b	.L94
+ 1231              	.LVL61:
+ 1232              	.L119:
+ 195:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 2u;
+ 1233              		.loc 1 195 9 is_stmt 1 view .LVU321
+ 195:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 2u;
+ 1234              		.loc 1 195 15 is_stmt 0 view .LVU322
+ 1235 00ea 2389     		ldrh	r3, [r4, #8]
+ 1236              	.LVL62:
+ 195:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 2u;
+ 1237              		.loc 1 195 12 view .LVU323
+ 1238 00ec 33B9     		cbnz	r3, .L121
+ 199:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = false;
+ 1239              		.loc 1 199 9 is_stmt 1 view .LVU324
+ 199:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = false;
+ 1240              		.loc 1 199 16 is_stmt 0 view .LVU325
+ 1241 00ee 294B     		ldr	r3, .L125+28
+ 1242 00f0 1B88     		ldrh	r3, [r3]
+ 1243 00f2 2B80     		strh	r3, [r5]	@ movhi
+ 200:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_DONE;
+ 1244              		.loc 1 200 9 is_stmt 1 view .LVU326
+ 200:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return POWER_I2C_DONE;
+ 1245              		.loc 1 200 24 is_stmt 0 view .LVU327
+ 1246 00f4 204B     		ldr	r3, .L125
+ 1247 00f6 0022     		movs	r2, #0
+ 1248 00f8 1A70     		strb	r2, [r3]
+ 201:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1249              		.loc 1 201 9 is_stmt 1 view .LVU328
+ 201:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1250              		.loc 1 201 16 is_stmt 0 view .LVU329
+ 1251 00fa C1E7     		b	.L87
+ 1252              	.L121:
+ 196:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(false);
+ 1253              		.loc 1 196 13 is_stmt 1 view .LVU330
+ 196:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(false);
+ 1254              		.loc 1 196 27 is_stmt 0 view .LVU331
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 30
+
+
+ 1255 00fc 1346     		mov	r3, r2
+ 1256 00fe 0222     		movs	r2, #2
+ 1257 0100 1A70     		strb	r2, [r3]
+ 197:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 1258              		.loc 1 197 13 is_stmt 1 view .LVU332
+ 197:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 1259              		.loc 1 197 20 is_stmt 0 view .LVU333
+ 1260 0102 0020     		movs	r0, #0
+ 1261 0104 FFF7FEFF 		bl	async_start
+ 1262              	.LVL63:
+ 1263 0108 BAE7     		b	.L87
+ 1264              	.LVL64:
+ 1265              	.L97:
+ 1266              	.LBB14:
+ 204:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = false;
+ 1267              		.loc 1 204 9 is_stmt 1 view .LVU334
+ 204:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = false;
+ 1268              		.loc 1 204 24 is_stmt 0 view .LVU335
+ 1269 010a 0228     		cmp	r0, #2
+ 1270 010c 0AD0     		beq	.L122
+ 204:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = false;
+ 1271              		.loc 1 204 24 discriminator 2 view .LVU336
+ 1272 010e E188     		ldrh	r1, [r4, #6]
+ 1273              	.L100:
+ 1274              	.LVL65:
+ 205:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         *value = got;
+ 1275              		.loc 1 205 9 is_stmt 1 view .LVU337
+ 205:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         *value = got;
+ 1276              		.loc 1 205 24 is_stmt 0 view .LVU338
+ 1277 0110 194A     		ldr	r2, .L125
+ 1278 0112 0020     		movs	r0, #0
+ 1279 0114 1070     		strb	r0, [r2]
+ 206:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return (got & mask) == (op->value & mask) ? POWER_I2C_DONE : POWER_I2C_FAILED;
+ 1280              		.loc 1 206 9 is_stmt 1 view .LVU339
+ 206:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         return (got & mask) == (op->value & mask) ? POWER_I2C_DONE : POWER_I2C_FAILED;
+ 1281              		.loc 1 206 16 is_stmt 0 view .LVU340
+ 1282 0116 2B80     		strh	r3, [r5]	@ movhi
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1283              		.loc 1 207 9 is_stmt 1 view .LVU341
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1284              		.loc 1 207 35 is_stmt 0 view .LVU342
+ 1285 0118 A288     		ldrh	r2, [r4, #4]
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1286              		.loc 1 207 29 view .LVU343
+ 1287 011a 5340     		eors	r3, r3, r2
+ 1288              	.LVL66:
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1289              		.loc 1 207 68 view .LVU344
+ 1290 011c 1942     		tst	r1, r3
+ 1291 011e 03D1     		bne	.L110
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1292              		.loc 1 207 68 discriminator 1 view .LVU345
+ 1293 0120 0120     		movs	r0, #1
+ 1294 0122 ADE7     		b	.L87
+ 1295              	.LVL67:
+ 1296              	.L122:
+ 204:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         g_async_active = false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 31
+
+
+ 1297              		.loc 1 204 24 discriminator 1 view .LVU346
+ 1298 0124 2189     		ldrh	r1, [r4, #8]
+ 1299 0126 F3E7     		b	.L100
+ 1300              	.LVL68:
+ 1301              	.L110:
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1302              		.loc 1 207 68 discriminator 2 view .LVU347
+ 1303 0128 0220     		movs	r0, #2
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1304              		.loc 1 207 68 view .LVU348
+ 1305 012a A9E7     		b	.L87
+ 1306              	.LVL69:
+ 1307              	.L120:
+ 207:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1308              		.loc 1 207 68 view .LVU349
+ 1309              	.LBE14:
+ 210:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (g_async_written != got) {
+ 1310              		.loc 1 210 9 is_stmt 1 view .LVU350
+ 210:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (g_async_written != got) {
+ 1311              		.loc 1 210 60 is_stmt 0 view .LVU351
+ 1312 012c A288     		ldrh	r2, [r4, #4]
+ 210:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (g_async_written != got) {
+ 1313              		.loc 1 210 47 view .LVU352
+ 1314 012e E088     		ldrh	r0, [r4, #6]
+ 210:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         if (g_async_written != got) {
+ 1315              		.loc 1 210 25 view .LVU353
+ 1316 0130 5A40     		eors	r2, r2, r3
+ 1317 0132 1040     		ands	r0, r0, r2
+ 1318 0134 80EA0302 		eor	r2, r0, r3
+ 1319 0138 164E     		ldr	r6, .L125+28
+ 1320 013a 3280     		strh	r2, [r6]	@ movhi
+ 211:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             if (op->bytes == 1u) { g_async_bytes[0] = (uint8_t)g_async_written; }
+ 1321              		.loc 1 211 9 is_stmt 1 view .LVU354
+ 211:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             if (op->bytes == 1u) { g_async_bytes[0] = (uint8_t)g_async_written; }
+ 1322              		.loc 1 211 12 is_stmt 0 view .LVU355
+ 1323 013c 48B9     		cbnz	r0, .L123
+ 221:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 2u;
+ 1324              		.loc 1 221 9 is_stmt 1 view .LVU356
+ 221:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 2u;
+ 1325              		.loc 1 221 15 is_stmt 0 view .LVU357
+ 1326 013e 2289     		ldrh	r2, [r4, #8]
+ 221:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             g_async_phase = 2u;
+ 1327              		.loc 1 221 12 view .LVU358
+ 1328 0140 002A     		cmp	r2, #0
+ 1329 0142 C6D0     		beq	.L102
+ 222:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(false);
+ 1330              		.loc 1 222 13 is_stmt 1 view .LVU359
+ 222:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(false);
+ 1331              		.loc 1 222 27 is_stmt 0 view .LVU360
+ 1332 0144 0F4B     		ldr	r3, .L125+12
+ 1333              	.LVL70:
+ 222:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(false);
+ 1334              		.loc 1 222 27 view .LVU361
+ 1335 0146 0222     		movs	r2, #2
+ 1336 0148 1A70     		strb	r2, [r3]
+ 223:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 1337              		.loc 1 223 13 is_stmt 1 view .LVU362
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 32
+
+
+ 223:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 1338              		.loc 1 223 20 is_stmt 0 view .LVU363
+ 1339 014a 0020     		movs	r0, #0
+ 1340 014c FFF7FEFF 		bl	async_start
+ 1341              	.LVL71:
+ 1342 0150 96E7     		b	.L87
+ 1343              	.LVL72:
+ 1344              	.L123:
+ 212:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             else {
+ 1345              		.loc 1 212 13 is_stmt 1 view .LVU364
+ 212:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             else {
+ 1346              		.loc 1 212 16 is_stmt 0 view .LVU365
+ 1347 0152 0129     		cmp	r1, #1
+ 1348 0154 09D0     		beq	.L124
+ 214:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****                 g_async_bytes[1] = (uint8_t)g_async_written;
+ 1349              		.loc 1 214 17 is_stmt 1 view .LVU366
+ 214:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****                 g_async_bytes[1] = (uint8_t)g_async_written;
+ 1350              		.loc 1 214 36 is_stmt 0 view .LVU367
+ 1351 0156 110A     		lsrs	r1, r2, #8
+ 214:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****                 g_async_bytes[1] = (uint8_t)g_async_written;
+ 1352              		.loc 1 214 34 view .LVU368
+ 1353 0158 0D4B     		ldr	r3, .L125+24
+ 1354              	.LVL73:
+ 214:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****                 g_async_bytes[1] = (uint8_t)g_async_written;
+ 1355              		.loc 1 214 34 view .LVU369
+ 1356 015a 1970     		strb	r1, [r3]
+ 215:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             }
+ 1357              		.loc 1 215 17 is_stmt 1 view .LVU370
+ 215:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             }
+ 1358              		.loc 1 215 34 is_stmt 0 view .LVU371
+ 1359 015c 5A70     		strb	r2, [r3, #1]
+ 1360              	.L105:
+ 217:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(true);
+ 1361              		.loc 1 217 13 is_stmt 1 view .LVU372
+ 217:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             return async_start(true);
+ 1362              		.loc 1 217 27 is_stmt 0 view .LVU373
+ 1363 015e 0120     		movs	r0, #1
+ 1364 0160 084B     		ldr	r3, .L125+12
+ 1365 0162 1870     		strb	r0, [r3]
+ 218:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 1366              		.loc 1 218 13 is_stmt 1 view .LVU374
+ 218:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****         }
+ 1367              		.loc 1 218 20 is_stmt 0 view .LVU375
+ 1368 0164 FFF7FEFF 		bl	async_start
+ 1369              	.LVL74:
+ 1370 0168 8AE7     		b	.L87
+ 1371              	.LVL75:
+ 1372              	.L124:
+ 212:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             else {
+ 1373              		.loc 1 212 36 is_stmt 1 discriminator 1 view .LVU376
+ 212:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             else {
+ 1374              		.loc 1 212 53 is_stmt 0 discriminator 1 view .LVU377
+ 1375 016a 094B     		ldr	r3, .L125+24
+ 1376              	.LVL76:
+ 212:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****             else {
+ 1377              		.loc 1 212 53 discriminator 1 view .LVU378
+ 1378 016c 1A70     		strb	r2, [r3]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 33
+
+
+ 1379 016e F6E7     		b	.L105
+ 1380              	.LVL77:
+ 1381              	.L106:
+ 1382              	.LCFI20:
+ 1383              		.cfi_def_cfa_offset 0
+ 1384              		.cfi_restore 4
+ 1385              		.cfi_restore 5
+ 1386              		.cfi_restore 6
+ 1387              		.cfi_restore 14
+ 171:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1388              		.loc 1 171 16 view .LVU379
+ 1389 0170 0220     		movs	r0, #2
+ 1390              	.LVL78:
+ 1391              		.loc 1 229 1 view .LVU380
+ 1392 0172 7047     		bx	lr
+ 1393              	.LVL79:
+ 1394              	.L107:
+ 1395              	.LCFI21:
+ 1396              		.cfi_def_cfa_offset 16
+ 1397              		.cfi_offset 4, -16
+ 1398              		.cfi_offset 5, -12
+ 1399              		.cfi_offset 6, -8
+ 1400              		.cfi_offset 14, -4
+ 171:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1401              		.loc 1 171 16 view .LVU381
+ 1402 0174 0220     		movs	r0, #2
+ 1403              	.LVL80:
+ 171:Src/power/drivers/power_i2c_bus/power_i2c_bus.c ****     }
+ 1404              		.loc 1 171 16 view .LVU382
+ 1405 0176 83E7     		b	.L87
+ 1406              	.L126:
+ 1407              		.align	2
+ 1408              	.L125:
+ 1409 0178 00000000 		.word	g_async_active
+ 1410 017c 00000000 		.word	g_power_i2c_initialized
+ 1411 0180 00000000 		.word	g_async_register
+ 1412 0184 00000000 		.word	g_async_phase
+ 1413 0188 00000000 		.word	g_power_i2c
+ 1414 018c 00000000 		.word	g_async_started
+ 1415 0190 00000000 		.word	g_async_bytes
+ 1416 0194 00000000 		.word	g_async_written
+ 1417              		.cfi_endproc
+ 1418              	.LFE349:
+ 1420              		.section	.bss.g_async_register,"aw",%nobits
+ 1421              		.align	2
+ 1424              	g_async_register:
+ 1425 0000 00000000 		.space	10
+ 1425      00000000 
+ 1425      0000
+ 1426              		.section	.bss.g_async_started,"aw",%nobits
+ 1427              		.align	2
+ 1430              	g_async_started:
+ 1431 0000 00000000 		.space	4
+ 1432              		.section	.bss.g_async_written,"aw",%nobits
+ 1433              		.align	1
+ 1436              	g_async_written:
+ 1437 0000 0000     		.space	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 34
+
+
+ 1438              		.section	.bss.g_async_bytes,"aw",%nobits
+ 1439              		.align	2
+ 1442              	g_async_bytes:
+ 1443 0000 0000     		.space	2
+ 1444              		.section	.bss.g_async_phase,"aw",%nobits
+ 1447              	g_async_phase:
+ 1448 0000 00       		.space	1
+ 1449              		.section	.bss.g_async_active,"aw",%nobits
+ 1452              	g_async_active:
+ 1453 0000 00       		.space	1
+ 1454              		.section	.bss.g_power_i2c_initialized,"aw",%nobits
+ 1457              	g_power_i2c_initialized:
+ 1458 0000 00       		.space	1
+ 1459              		.section	.bss.g_power_i2c,"aw",%nobits
+ 1460              		.align	2
+ 1463              	g_power_i2c:
+ 1464 0000 00000000 		.space	84
+ 1464      00000000 
+ 1464      00000000 
+ 1464      00000000 
+ 1464      00000000 
+ 1465              		.text
+ 1466              	.Letext0:
+ 1467              		.file 2 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1468              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1469              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1470              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1471              		.file 6 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 1472              		.file 7 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc_ex.h"
+ 1473              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 1474              		.file 9 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 1475              		.file 10 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c.h"
+ 1476              		.file 11 "Inc/power/drivers/power_i2c_bus/power_i2c_bus.h"
+ 1477              		.file 12 "Inc/system/board_cfg.h"
+ 1478              		.file 13 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_cortex.h"
+ 1479              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c_ex.h"
+ 1480              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 1481              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 1482              		.file 17 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 35
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 power_i2c_bus.c
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:20     .text.enable_gpio_clock:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:25     .text.enable_gpio_clock:00000000 enable_gpio_clock
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:302    .text.enable_gpio_clock:00000198 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:317    .text.PowerI2C_GetHandle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:323    .text.PowerI2C_GetHandle:00000000 PowerI2C_GetHandle
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:337    .text.PowerI2C_GetHandle:00000004 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1463   .bss.g_power_i2c:00000000 g_power_i2c
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:342    .text.HAL_I2C_MspInit:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:348    .text.HAL_I2C_MspInit:00000000 HAL_I2C_MspInit
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:451    .text.HAL_I2C_MspInit:00000070 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:458    .text.HAL_I2C_MspDeInit:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:464    .text.HAL_I2C_MspDeInit:00000000 HAL_I2C_MspDeInit
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:512    .text.HAL_I2C_MspDeInit:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:519    .text.PowerI2C_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:525    .text.PowerI2C_Init:00000000 PowerI2C_Init
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:685    .text.PowerI2C_Init:000000b0 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1457   .bss.g_power_i2c_initialized:00000000 g_power_i2c_initialized
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:692    .text.PowerI2C_DeInit:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:698    .text.PowerI2C_DeInit:00000000 PowerI2C_DeInit
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:771    .text.PowerI2C_DeInit:0000005c $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1452   .bss.g_async_active:00000000 g_async_active
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:779    .text.async_failed:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:784    .text.async_failed:00000000 async_failed
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:810    .text.async_start:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:815    .text.async_start:00000000 async_start
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:900    .text.async_start:00000050 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1430   .bss.g_async_started:00000000 g_async_started
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1424   .bss.g_async_register:00000000 g_async_register
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1442   .bss.g_async_bytes:00000000 g_async_bytes
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:908    .text.I2C1_EV_IRQHandler:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:914    .text.I2C1_EV_IRQHandler:00000000 I2C1_EV_IRQHandler
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:934    .text.I2C1_EV_IRQHandler:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:939    .text.I2C1_ER_IRQHandler:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:945    .text.I2C1_ER_IRQHandler:00000000 I2C1_ER_IRQHandler
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:965    .text.I2C1_ER_IRQHandler:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:970    .text.PowerI2C_AsyncBusy:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:976    .text.PowerI2C_AsyncBusy:00000000 PowerI2C_AsyncBusy
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:991    .text.PowerI2C_AsyncBusy:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:996    .text.PowerI2C_StepRegister:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1002   .text.PowerI2C_StepRegister:00000000 PowerI2C_StepRegister
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1409   .text.PowerI2C_StepRegister:00000178 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1447   .bss.g_async_phase:00000000 g_async_phase
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1436   .bss.g_async_written:00000000 g_async_written
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1421   .bss.g_async_register:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1427   .bss.g_async_started:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1433   .bss.g_async_written:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1439   .bss.g_async_bytes:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1448   .bss.g_async_phase:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1453   .bss.g_async_active:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1458   .bss.g_power_i2c_initialized:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s:1460   .bss.g_power_i2c:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_GPIO_Init
+HAL_GPIO_DeInit
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccHPCRgI.s 			page 36
+
+
+memset
+HAL_RCCEx_PeriphCLKConfig
+HAL_I2C_Init
+HAL_I2CEx_ConfigAnalogFilter
+HAL_I2CEx_ConfigDigitalFilter
+HAL_NVIC_SetPriority
+HAL_NVIC_ClearPendingIRQ
+HAL_NVIC_EnableIRQ
+HAL_I2C_DeInit
+HAL_NVIC_DisableIRQ
+HAL_GetTick
+HAL_I2C_Mem_Write_IT
+HAL_I2C_Mem_Read_IT
+HAL_I2C_EV_IRQHandler
+HAL_I2C_ER_IRQHandler
+HAL_I2C_GetState
+HAL_I2C_GetError

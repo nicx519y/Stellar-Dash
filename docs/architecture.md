@@ -1,6 +1,6 @@
 # XORA 当前架构与实现入口
 
-核对日期：2026-09-24。本文描述当前工作区代码，包括正在开发的配置交互；不证明对应镜像已烧录或功能已实机验收。执行约束见 [根 AGENTS](../AGENTS.md)，具体协议字段和地址以链接的源文件为准。
+基础架构整理日期：2026-09-24；WebConfig 会话、TX/RX 布局与部署入口于 2026-10-05 再核对。本文描述源码职责，不证明对应镜像已烧录或功能已实机验收。执行约束见 [根 AGENTS](../AGENTS.md)，具体协议字段和地址以链接的源文件为准。
 
 ## 系统组成与数据路径
 
@@ -8,10 +8,10 @@
 
 - 输入路径：TIM2 TRGO → ADC 通道序列 + circular DMA → STM32 输入处理 → USB 或 SPI → CH585 TX → RF → CH585 RX → USB XInput。
 - 配置路径：服务器托管 WebConfig → 浏览器 WebHID → CH585 TX Maintenance HID / SPI 桥 → STM32 WebHID service / RPC → 配置与资源存储。
-- 配对路径：WebConfig 同时访问 HBox 维护接口和 RX vendor HID，持久化双方绑定；网页保存绑定不启动 TX RF，也不改变物理模式。
+- 配对路径：WebConfig 同时访问 XORA 维护接口和 RX vendor HID，持久化双方绑定；网页保存绑定不启动 TX RF，也不改变物理模式。
 - 诊断路径：RX HID telemetry → connect-monitor HID worker → 主进程/存储 worker → renderer 增量更新。
 
-网页及服务器通过 attestation / server-signed permit 建立受限会话；本地 loopback 实验室信任策略与生产路径有明确区别，见 [WebConfig README](../application/www/README.md)。软件会话认证不等于允许设置硬件保护位。
+当前 Hosted WebConfig 通过 `session.open-direct` 与 STM32 建立加密 WebHID 会话，不要求设备证书、attestation 或服务端 permit；用户账号与管理员权限继续独立生效。设备证明子系统保留为独立软件路径，不能把它的制造/KMS/Redis 要求当作当前网页上线前置条件。开发来源检查见 [WebConfig README](../application/www/README.md)，双域名部署见 [部署指南](webconfig-admin-deployment.md)。
 
 ## 按任务定位
 
@@ -36,7 +36,7 @@
 - A/B application、兼容 WebResources 和 ADC Mapping 区域继续存在。在线升级写入非当前槽，完成校验后提交 metadata；物理槽布局保留不表示设备仍运行内置网页。
 - 用户图片区当前从 `0x905F0000` 开始，大小 `0x190000`，结束于 `0x90780000`（不含）；旧 `0x210000` 大小已无效。
 - `0x90780000–0x90800000` 为 512KB CH585 staging，其中首个 64KB sector 是状态 journal，payload 从 `0x90790000` 开始；数据写入/校验完成后才提交 READY。协议见 [ch585_staging.h](../common/ch585_staging.h)。
-- CH585 Code Flash 前 4KB 是已有 IAP；Application 从 `0x1000` 起。普通 TX 更新使用现有 ST-LINK → STM32 QSPI → SPI IAP 路径。
+- CH585 TX Code Flash 前 4KB 是已有 IAP；TX Application 从 `0x1000` 起。普通 TX 更新使用现有 ST-LINK → STM32 QSPI → SPI IAP 路径。RX 使用独立 SDK 链接布局，不套用 TX 的起始地址或维护授权；入口见 [TX 规则](../RF_PHY_Hop/TX/AGENTS.md)、[RX 规则](../RF_PHY_Hop/RX/AGENTS.md)。
 - CH585 绑定 Data Flash 双 bank 与 Code Flash/IAP 是不同区域。BLE SNV 必须关闭以避免覆盖绑定 bank B，见 [SNV 冲突说明](RF_BINDING_SNV_CONFLICT_20260923.md)。
 
 这里列出的数值仅用于解释已发现的旧文档错误；写入前仍必须读取权威布局和 artifact manifest，不以此文档代替工具校验。

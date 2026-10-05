@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react';
 import { Box, Flex, HStack, Text, Stack, Button, Image, Separator } from '@chakra-ui/react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LuArrowLeft, LuImages, LuKeyRound, LuPackage, LuUsers } from 'react-icons/lu';
 import { LanguageSwitcher } from '@/components/language-switcher';
@@ -54,7 +53,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </Flex>
       </Box>
       <HStack gap="2" minH="40px" flexShrink={0} justify="flex-end" order={{ base: 2, lg: 3 }}>
-        <Button asChild variant="ghost" size="sm" flexShrink={0} color="fg.muted"><Link href="/"><LuArrowLeft />{zh ? '返回 WebConfig' : 'Back to WebConfig'}</Link></Button>
+        <Button asChild variant="ghost" size="sm" flexShrink={0} color="fg.muted"><a href="/global/"><LuArrowLeft />{zh ? '返回 WebConfig' : 'Back to WebConfig'}</a></Button>
         <UserAuthControl /><LanguageSwitcher />
       </HStack>
       </Flex>

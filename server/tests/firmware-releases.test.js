@@ -307,7 +307,8 @@ test('HTTP flow: real admin gate, service-token limits, private drafts, publish,
     assert.deepEqual(fs.readdirSync(c.store.tempRoot), []);
 });
 
-test('draft command packages v2, writes concise notes and uploads an editable unpublished draft', { timeout: 20000 }, async t => {
+for (const remote of [false, true]) {
+test(`draft command packages v2 and uploads an unpublished draft via ${remote ? 'default remote HTTPS' : 'local HTTP'}`, { timeout: 20000 }, async t => {
     const c = setup(t); const git = gitFixture(c.root); const fixture = bundle(c, () => {}, '3.4.5', true, 2);
     const input = path.join(c.root, 'input'); fs.mkdirSync(input);
     for (const [name, data] of fixture.entries) fs.writeFileSync(path.join(input, name), data);
@@ -328,9 +329,21 @@ test('draft command packages v2, writes concise notes and uploads an editable un
     app.use((error, _req, res, _next) => res.status(error.status || 500).json({ success: false, message: error.message }));
     const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
     t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
-    const origin = `http://127.0.0.1:${server.address().port}`;
+    const localOrigin = `http://127.0.0.1:${server.address().port}`;
+    const origin = remote ? 'https://manager.st-dash.com' : localOrigin;
+    const requests = [];
+    if (remote) {
+        const originalFetch = globalThis.fetch;
+        t.mock.method(globalThis, 'fetch', (url, init) => {
+            assert.equal(new URL(url).origin, origin);
+            assert.equal(init.headers.Authorization, `Bearer ${serviceToken}`);
+            assert.equal(init.redirect, 'manual');
+            requests.push([init.method || 'GET', new URL(url).pathname]);
+            return originalFetch(`${localOrigin}${new URL(url).pathname}`, init);
+        });
+    }
     const result = await createFirmwareDraft({ source, signingKey, outDir: path.join(c.root, 'output'),
-        server: origin, serviceTokenFile, initialRelease: true, gitRepo: git.repo });
+        ...(remote ? {} : { server: origin }), serviceTokenFile, initialRelease: true, gitRepo: git.repo });
     const draft = c.store.get(result.releaseId, true);
     assert.equal(draft.status, 'draft');
     assert.equal(draft.manifest.install.protocol, 2);
@@ -343,16 +356,32 @@ test('draft command packages v2, writes concise notes and uploads an editable un
     assert.equal(JSON.parse(fs.readFileSync(result.evidencePath, 'utf8')).kind, 'initial-release');
     assert.equal(sha(fs.readFileSync(result.bundlePath)), draft.bundleSha256);
     assert.equal(result.adminUrl, `${origin}/admin/firmware/`);
+    if (remote) assert.deepEqual(requests, [
+        ['POST', '/api/admin/firmware/imports'],
+        ['GET', `/api/admin/firmware/releases/${result.releaseId}`],
+        ['PATCH', `/api/admin/firmware/releases/${result.releaseId}`],
+    ]);
     assert.ok(draft.notes.trim());
 });
+}
 
-test('draft command accepts only local admin servers and rejects contradictory Git selection', () => {
-    assert.throws(() => serverOrigin('http://firmware.st-dash.com'), /loopback/);
-    assert.throws(() => serverOrigin('https://firmware.st-dash.com'), /loopback/);
+test('draft command defaults to remote HTTPS admin, retains local services and rejects unsafe origins', () => {
+    assert.throws(() => serverOrigin('http://manager.st-dash.com'), /HTTPS/);
+    assert.equal(serverOrigin('https://manager.st-dash.com'), 'https://manager.st-dash.com');
+    assert.equal(serverOrigin('https://other-admin.example'), 'https://other-admin.example');
+    for (const invalid of ['https://user:secret@manager.st-dash.com', 'https://manager.st-dash.com/api',
+        'https://manager.st-dash.com?token=test', 'https://manager.st-dash.com#fragment']) {
+        assert.throws(() => serverOrigin(invalid), /origin/);
+    }
+    assert.throws(() => serverOrigin('ftp://manager.st-dash.com'), /HTTP or HTTPS/);
     assert.throws(() => serverOrigin('http://localhost:3001/other'), /origin/);
     assert.equal(serverOrigin('http://localhost:3001'), 'http://localhost:3001');
+    assert.equal(serverOrigin('http://127.0.0.1:3001'), 'http://127.0.0.1:3001');
+    assert.equal(serverOrigin('http://[::1]:3001'), 'http://[::1]:3001');
     assert.equal(parseArguments(['--source', 'x', '--signing-key', 'y', '--out-dir', 'z',
-        '--service-token-file', 'token']).server, 'http://localhost:3001');
+        '--service-token-file', 'token']).server, 'https://manager.st-dash.com');
+    assert.equal(parseArguments(['--source', 'x', '--signing-key', 'y', '--out-dir', 'z',
+        '--service-token-file', 'token', '--server', 'http://localhost:3001']).server, 'http://localhost:3001');
     assert.throws(() => parseArguments(['--source', 'x', '--signing-key', 'y', '--out-dir', 'z', '--initial-release', '--since', 'v1', '--dry-run']), /cannot be used/);
 });
 
@@ -364,8 +393,8 @@ test('draft command explains missing release source before creating output', asy
     /--source is an example path/);
     assert.equal(fs.existsSync(outDir), false);
     await assert.rejects(createFirmwareDraft({ source: 'path/to/release-source.json',
-        signingKey: 'path/to/signing-key.pem', outDir, server: 'https://firmware.st-dash.com',
-        serviceTokenFile: 'path/to/token.txt', initialRelease: true }), /loopback/);
+        signingKey: 'path/to/signing-key.pem', outDir, server: 'http://manager.st-dash.com',
+        serviceTokenFile: 'path/to/token.txt', initialRelease: true }), /HTTPS/);
     assert.equal(fs.existsSync(outDir), false);
 });
 

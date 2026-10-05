@@ -1,0 +1,1473 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"utils.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/support/utils.c"
+  19              		.section	.text.RGBToHex,"ax",%progbits
+  20              		.align	1
+  21              		.global	RGBToHex
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	RGBToHex:
+  27              	.LVL0:
+  28              	.LFB338:
+   1:Src/support/utils.c **** #include "utils.h"
+   2:Src/support/utils.c **** #include <stdio.h>
+   3:Src/support/utils.c **** #include <math.h>
+   4:Src/support/utils.c **** #include "board_cfg.h"
+   5:Src/support/utils.c **** 
+   6:Src/support/utils.c **** uint32_t RGBToHex(uint8_t red, uint8_t green, uint8_t blue)
+   7:Src/support/utils.c **** {
+  29              		.loc 1 7 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+   8:Src/support/utils.c ****   return ((green & 0xff) << 16 | (red & 0xff) << 8 | (blue & 0xff));
+  34              		.loc 1 8 3 view .LVU1
+  35              		.loc 1 8 47 is_stmt 0 view .LVU2
+  36 0000 0002     		lsls	r0, r0, #8
+  37              	.LVL1:
+  38              		.loc 1 8 32 view .LVU3
+  39 0002 40EA0140 		orr	r0, r0, r1, lsl #16
+   9:Src/support/utils.c **** }
+  40              		.loc 1 9 1 view .LVU4
+  41 0006 1043     		orrs	r0, r0, r2
+  42 0008 7047     		bx	lr
+  43              		.cfi_endproc
+  44              	.LFE338:
+  46              		.section	.text.hexToRGB,"ax",%progbits
+  47              		.align	1
+  48              		.global	hexToRGB
+  49              		.syntax unified
+  50              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 2
+
+
+  51              		.thumb_func
+  53              	hexToRGB:
+  54              	.LVL2:
+  55              	.LFB339:
+  10:Src/support/utils.c **** 
+  11:Src/support/utils.c **** struct RGBColor hexToRGB(uint32_t color)
+  12:Src/support/utils.c **** {
+  56              		.loc 1 12 1 is_stmt 1 view -0
+  57              		.cfi_startproc
+  58              		@ args = 0, pretend = 0, frame = 8
+  59              		@ frame_needed = 0, uses_anonymous_args = 0
+  60              		@ link register save eliminated.
+  61              		.loc 1 12 1 is_stmt 0 view .LVU6
+  62 0000 82B0     		sub	sp, sp, #8
+  63              	.LCFI0:
+  64              		.cfi_def_cfa_offset 8
+  13:Src/support/utils.c ****     struct RGBColor c = {
+  65              		.loc 1 13 5 is_stmt 1 view .LVU7
+  14:Src/support/utils.c ****         .r = (uint8_t) (color >> 16 & 0xff),
+  66              		.loc 1 14 14 is_stmt 0 view .LVU8
+  67 0002 C0F30743 		ubfx	r3, r0, #16, #8
+  13:Src/support/utils.c ****     struct RGBColor c = {
+  68              		.loc 1 13 21 view .LVU9
+  69 0006 8DF80030 		strb	r3, [sp]
+  15:Src/support/utils.c ****         .g = (uint8_t) (color >> 8 & 0xff),
+  70              		.loc 1 15 14 view .LVU10
+  71 000a C0F30723 		ubfx	r3, r0, #8, #8
+  13:Src/support/utils.c ****     struct RGBColor c = {
+  72              		.loc 1 13 21 view .LVU11
+  73 000e 8DF80130 		strb	r3, [sp, #1]
+  74 0012 8DF80200 		strb	r0, [sp, #2]
+  16:Src/support/utils.c ****         .b = (uint8_t) (color & 0xff),
+  17:Src/support/utils.c ****     };
+  18:Src/support/utils.c ****     return c;
+  75              		.loc 1 18 5 is_stmt 1 view .LVU12
+  76              		.loc 1 18 12 is_stmt 0 view .LVU13
+  77 0016 009B     		ldr	r3, [sp]
+  78 0018 ADF80430 		strh	r3, [sp, #4]	@ movhi
+  79 001c 1B0C     		lsrs	r3, r3, #16
+  80 001e 8DF80630 		strb	r3, [sp, #6]
+  81 0022 0020     		movs	r0, #0
+  82              	.LVL3:
+  83              		.loc 1 18 12 view .LVU14
+  84 0024 9DF80430 		ldrb	r3, [sp, #4]	@ zero_extendqisi2
+  85 0028 63F30700 		bfi	r0, r3, #0, #8
+  86 002c 9DF80530 		ldrb	r3, [sp, #5]	@ zero_extendqisi2
+  87 0030 63F30F20 		bfi	r0, r3, #8, #8
+  88 0034 9DF80630 		ldrb	r3, [sp, #6]	@ zero_extendqisi2
+  89 0038 63F31740 		bfi	r0, r3, #16, #8
+  19:Src/support/utils.c **** }
+  90              		.loc 1 19 1 view .LVU15
+  91 003c 02B0     		add	sp, sp, #8
+  92              	.LCFI1:
+  93              		.cfi_def_cfa_offset 0
+  94              		@ sp needed
+  95 003e 7047     		bx	lr
+  96              		.cfi_endproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 3
+
+
+  97              	.LFE339:
+  99              		.section	.text.equations,"ax",%progbits
+ 100              		.align	1
+ 101              		.global	equations
+ 102              		.syntax unified
+ 103              		.thumb
+ 104              		.thumb_func
+ 106              	equations:
+ 107              	.LVL4:
+ 108              	.LFB340:
+  20:Src/support/utils.c **** 
+  21:Src/support/utils.c **** 
+  22:Src/support/utils.c **** // 定义常量
+  23:Src/support/utils.c **** #ifndef M_PI
+  24:Src/support/utils.c **** #define M_PI		3.14159265358979323846
+  25:Src/support/utils.c **** #endif
+  26:Src/support/utils.c **** 
+  27:Src/support/utils.c **** #define MU_0 (4 * M_PI * 1e-7) // 真空磁导率
+  28:Src/support/utils.c **** 
+  29:Src/support/utils.c **** // 定义方程组
+  30:Src/support/utils.c **** void equations(float_t vars[], float_t B1, float_t B2, float_t L, float_t R, float_t d, float_t eqs
+ 109              		.loc 1 30 104 is_stmt 1 view -0
+ 110              		.cfi_startproc
+ 111              		@ args = 0, pretend = 0, frame = 0
+ 112              		@ frame_needed = 0, uses_anonymous_args = 0
+ 113              		.loc 1 30 104 is_stmt 0 view .LVU17
+ 114 0000 10B5     		push	{r4, lr}
+ 115              	.LCFI2:
+ 116              		.cfi_def_cfa_offset 8
+ 117              		.cfi_offset 4, -8
+ 118              		.cfi_offset 14, -4
+ 119 0002 2DED0C8B 		vpush.64	{d8, d9, d10, d11, d12, d13}
+ 120              	.LCFI3:
+ 121              		.cfi_def_cfa_offset 56
+ 122              		.cfi_offset 80, -56
+ 123              		.cfi_offset 81, -52
+ 124              		.cfi_offset 82, -48
+ 125              		.cfi_offset 83, -44
+ 126              		.cfi_offset 84, -40
+ 127              		.cfi_offset 85, -36
+ 128              		.cfi_offset 86, -32
+ 129              		.cfi_offset 87, -28
+ 130              		.cfi_offset 88, -24
+ 131              		.cfi_offset 89, -20
+ 132              		.cfi_offset 90, -16
+ 133              		.cfi_offset 91, -12
+ 134 0006 B0EE409A 		vmov.f32	s18, s0
+ 135 000a F0EE608A 		vmov.f32	s17, s1
+ 136 000e B0EE42DA 		vmov.f32	s26, s4
+ 137 0012 0C46     		mov	r4, r1
+  31:Src/support/utils.c ****     float_t M = vars[0];
+ 138              		.loc 1 31 5 is_stmt 1 view .LVU18
+ 139              		.loc 1 31 13 is_stmt 0 view .LVU19
+ 140 0014 90ED00CA 		vldr.32	s24, [r0]
+ 141              	.LVL5:
+  32:Src/support/utils.c ****     float_t z1 = vars[1];
+ 142              		.loc 1 32 5 is_stmt 1 view .LVU20
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 4
+
+
+ 143              		.loc 1 32 13 is_stmt 0 view .LVU21
+ 144 0018 90ED01AA 		vldr.32	s20, [r0, #4]
+ 145              	.LVL6:
+  33:Src/support/utils.c **** 
+  34:Src/support/utils.c ****     float_t term1_1 = (L / 2 + z1) / sqrt(R * R + (L / 2 + z1) * (L / 2 + z1));
+ 146              		.loc 1 34 5 is_stmt 1 view .LVU22
+ 147              		.loc 1 34 26 is_stmt 0 view .LVU23
+ 148 001c F6EE007A 		vmov.f32	s15, #5.0e-1
+ 149 0020 21EE278A 		vmul.f32	s16, s2, s15
+ 150              		.loc 1 34 30 view .LVU24
+ 151 0024 78EE0A7A 		vadd.f32	s15, s16, s20
+ 152 0028 B7EEE7BA 		vcvt.f64.f32	d11, s15
+ 153              		.loc 1 34 45 view .LVU25
+ 154 002c 61EEA19A 		vmul.f32	s19, s3, s3
+ 155              		.loc 1 34 64 view .LVU26
+ 156 0030 67EEA77A 		vmul.f32	s15, s15, s15
+ 157              		.loc 1 34 49 view .LVU27
+ 158 0034 39EEA70A 		vadd.f32	s0, s19, s15
+ 159              	.LVL7:
+ 160              		.loc 1 34 38 view .LVU28
+ 161 0038 B7EEC00A 		vcvt.f64.f32	d0, s0
+ 162 003c FFF7FEFF 		bl	sqrt
+ 163              	.LVL8:
+ 164              		.loc 1 34 36 discriminator 1 view .LVU29
+ 165 0040 8BEE007B 		vdiv.f64	d7, d11, d0
+ 166              		.loc 1 34 13 discriminator 1 view .LVU30
+ 167 0044 F7EEC7AB 		vcvt.f32.f64	s21, d7
+ 168              	.LVL9:
+  35:Src/support/utils.c ****     float_t term1_2 = (L / 2 - z1) / sqrt(R * R + (L / 2 - z1) * (L / 2 - z1));
+ 169              		.loc 1 35 5 is_stmt 1 view .LVU31
+ 170              		.loc 1 35 30 is_stmt 0 view .LVU32
+ 171 0048 38EE4A0A 		vsub.f32	s0, s16, s20
+ 172 004c B7EEC0BA 		vcvt.f64.f32	d11, s0
+ 173              		.loc 1 35 64 view .LVU33
+ 174 0050 20EE000A 		vmul.f32	s0, s0, s0
+ 175              		.loc 1 35 49 view .LVU34
+ 176 0054 39EE800A 		vadd.f32	s0, s19, s0
+ 177              		.loc 1 35 38 view .LVU35
+ 178 0058 B7EEC00A 		vcvt.f64.f32	d0, s0
+ 179 005c FFF7FEFF 		bl	sqrt
+ 180              	.LVL10:
+ 181              		.loc 1 35 36 discriminator 1 view .LVU36
+ 182 0060 8BEE007B 		vdiv.f64	d7, d11, d0
+ 183              		.loc 1 35 13 discriminator 1 view .LVU37
+ 184 0064 F7EEC7CB 		vcvt.f32.f64	s25, d7
+ 185              	.LVL11:
+  36:Src/support/utils.c ****     float_t term2_1 = (L / 2 + (z1 + d)) / sqrt(R * R + (L / 2 + (z1 + d)) * (L / 2 + (z1 + d)));
+ 186              		.loc 1 36 5 is_stmt 1 view .LVU38
+ 187              		.loc 1 36 36 is_stmt 0 view .LVU39
+ 188 0068 3AEE0DDA 		vadd.f32	s26, s20, s26
+ 189              	.LVL12:
+ 190              		.loc 1 36 30 view .LVU40
+ 191 006c 38EE0D0A 		vadd.f32	s0, s16, s26
+ 192 0070 B7EEC0BA 		vcvt.f64.f32	d11, s0
+ 193              		.loc 1 36 76 view .LVU41
+ 194 0074 20EE000A 		vmul.f32	s0, s0, s0
+ 195              		.loc 1 36 55 view .LVU42
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 5
+
+
+ 196 0078 39EE800A 		vadd.f32	s0, s19, s0
+ 197              		.loc 1 36 44 view .LVU43
+ 198 007c B7EEC00A 		vcvt.f64.f32	d0, s0
+ 199 0080 FFF7FEFF 		bl	sqrt
+ 200              	.LVL13:
+ 201              		.loc 1 36 42 discriminator 1 view .LVU44
+ 202 0084 8BEE007B 		vdiv.f64	d7, d11, d0
+ 203              		.loc 1 36 13 discriminator 1 view .LVU45
+ 204 0088 B7EEC7AB 		vcvt.f32.f64	s20, d7
+ 205              	.LVL14:
+  37:Src/support/utils.c ****     float_t term2_2 = (L / 2 - (z1 + d)) / sqrt(R * R + (L / 2 - (z1 + d)) * (L / 2 - (z1 + d)));
+ 206              		.loc 1 37 5 is_stmt 1 view .LVU46
+ 207              		.loc 1 37 30 is_stmt 0 view .LVU47
+ 208 008c 38EE4D8A 		vsub.f32	s16, s16, s26
+ 209 0090 B7EEC8BA 		vcvt.f64.f32	d11, s16
+ 210              		.loc 1 37 76 view .LVU48
+ 211 0094 28EE088A 		vmul.f32	s16, s16, s16
+ 212              		.loc 1 37 55 view .LVU49
+ 213 0098 39EE880A 		vadd.f32	s0, s19, s16
+ 214              		.loc 1 37 44 view .LVU50
+ 215 009c B7EEC00A 		vcvt.f64.f32	d0, s0
+ 216 00a0 FFF7FEFF 		bl	sqrt
+ 217              	.LVL15:
+ 218              		.loc 1 37 42 discriminator 1 view .LVU51
+ 219 00a4 8BEE007B 		vdiv.f64	d7, d11, d0
+ 220              		.loc 1 37 13 discriminator 1 view .LVU52
+ 221 00a8 F7EEC75B 		vcvt.f32.f64	s11, d7
+ 222              	.LVL16:
+  38:Src/support/utils.c **** 
+  39:Src/support/utils.c ****     eqs[0] = B1 - (MU_0 / 2) * M * (term1_1 - term1_2);
+ 223              		.loc 1 39 5 is_stmt 1 view .LVU53
+ 224              		.loc 1 39 30 is_stmt 0 view .LVU54
+ 225 00ac B7EECC6A 		vcvt.f64.f32	d6, s24
+ 226 00b0 9FED0F7B 		vldr.64	d7, .L6
+ 227 00b4 26EE076B 		vmul.f64	d6, d6, d7
+ 228              		.loc 1 39 45 view .LVU55
+ 229 00b8 7AEEECAA 		vsub.f32	s21, s21, s25
+ 230              	.LVL17:
+ 231              		.loc 1 39 45 view .LVU56
+ 232 00bc B7EEEA7A 		vcvt.f64.f32	d7, s21
+ 233              		.loc 1 39 17 view .LVU57
+ 234 00c0 B7EEC90A 		vcvt.f64.f32	d0, s18
+ 235 00c4 06EE470B 		vmls.f64	d0, d6, d7
+ 236 00c8 B7EEC00B 		vcvt.f32.f64	s0, d0
+ 237              		.loc 1 39 12 view .LVU58
+ 238 00cc 84ED000A 		vstr.32	s0, [r4]
+  40:Src/support/utils.c ****     eqs[1] = B2 - (MU_0 / 2) * M * (term2_1 - term2_2);
+ 239              		.loc 1 40 5 is_stmt 1 view .LVU59
+ 240              		.loc 1 40 45 is_stmt 0 view .LVU60
+ 241 00d0 3AEE65AA 		vsub.f32	s20, s20, s11
+ 242              	.LVL18:
+ 243              		.loc 1 40 45 view .LVU61
+ 244 00d4 B7EECAAA 		vcvt.f64.f32	d10, s20
+ 245              		.loc 1 40 17 view .LVU62
+ 246 00d8 B7EEE87A 		vcvt.f64.f32	d7, s17
+ 247 00dc 06EE4A7B 		vmls.f64	d7, d6, d10
+ 248 00e0 B7EEC77B 		vcvt.f32.f64	s14, d7
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 6
+
+
+ 249              		.loc 1 40 12 view .LVU63
+ 250 00e4 84ED017A 		vstr.32	s14, [r4, #4]
+  41:Src/support/utils.c **** }
+ 251              		.loc 1 41 1 view .LVU64
+ 252 00e8 BDEC0C8B 		vldm	sp!, {d8-d13}
+ 253              	.LCFI4:
+ 254              		.cfi_restore 90
+ 255              		.cfi_restore 91
+ 256              		.cfi_restore 88
+ 257              		.cfi_restore 89
+ 258              		.cfi_restore 86
+ 259              		.cfi_restore 87
+ 260              		.cfi_restore 84
+ 261              		.cfi_restore 85
+ 262              		.cfi_restore 82
+ 263              		.cfi_restore 83
+ 264              		.cfi_restore 80
+ 265              		.cfi_restore 81
+ 266              		.cfi_def_cfa_offset 8
+ 267              	.LVL19:
+ 268              		.loc 1 41 1 view .LVU65
+ 269 00ec 10BD     		pop	{r4, pc}
+ 270              	.LVL20:
+ 271              	.L7:
+ 272              		.loc 1 41 1 view .LVU66
+ 273 00ee 00BF     		.align	3
+ 274              	.L6:
+ 275 00f0 CBF6990F 		.word	261748427
+ 276 00f4 3715A53E 		.word	1051006263
+ 277              		.cfi_endproc
+ 278              	.LFE340:
+ 280              		.section	.text.newton_raphson,"ax",%progbits
+ 281              		.align	1
+ 282              		.global	newton_raphson
+ 283              		.syntax unified
+ 284              		.thumb
+ 285              		.thumb_func
+ 287              	newton_raphson:
+ 288              	.LVL21:
+ 289              	.LFB341:
+  42:Src/support/utils.c **** 
+  43:Src/support/utils.c **** /**
+  44:Src/support/utils.c ****  * 牛顿-拉夫森法求解方程组，求解磁化强度
+  45:Src/support/utils.c ****  * 通过迭代法求解方程组，直到误差小于1e-6
+  46:Src/support/utils.c ****  * 
+  47:Src/support/utils.c ****  * @param vars 用于存储猜测的磁化强度范围
+  48:Src/support/utils.c ****  * @param B1 第一个点的磁场强度
+  49:Src/support/utils.c ****  * @param B2 第二个点的磁场强度
+  50:Src/support/utils.c ****  * @param L 磁芯长度
+  51:Src/support/utils.c ****  * @param R 磁芯半径
+  52:Src/support/utils.c ****  * @param d 两个测试点之间的距离
+  53:Src/support/utils.c ****  */
+  54:Src/support/utils.c **** void newton_raphson(float_t vars[], float_t B1, float_t B2, float_t L, float_t R, float_t d) {
+ 290              		.loc 1 54 94 is_stmt 1 view -0
+ 291              		.cfi_startproc
+ 292              		@ args = 0, pretend = 0, frame = 48
+ 293              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 7
+
+
+ 294              		.loc 1 54 94 is_stmt 0 view .LVU68
+ 295 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 296              	.LCFI5:
+ 297              		.cfi_def_cfa_offset 20
+ 298              		.cfi_offset 4, -20
+ 299              		.cfi_offset 5, -16
+ 300              		.cfi_offset 6, -12
+ 301              		.cfi_offset 7, -8
+ 302              		.cfi_offset 14, -4
+ 303 0002 2DED068B 		vpush.64	{d8, d9, d10}
+ 304              	.LCFI6:
+ 305              		.cfi_def_cfa_offset 44
+ 306              		.cfi_offset 80, -44
+ 307              		.cfi_offset 81, -40
+ 308              		.cfi_offset 82, -36
+ 309              		.cfi_offset 83, -32
+ 310              		.cfi_offset 84, -28
+ 311              		.cfi_offset 85, -24
+ 312 0006 8DB0     		sub	sp, sp, #52
+ 313              	.LCFI7:
+ 314              		.cfi_def_cfa_offset 96
+ 315 0008 0546     		mov	r5, r0
+ 316 000a F0EE40AA 		vmov.f32	s21, s0
+ 317 000e B0EE60AA 		vmov.f32	s20, s1
+ 318 0012 F0EE419A 		vmov.f32	s19, s2
+ 319 0016 B0EE619A 		vmov.f32	s18, s3
+ 320 001a F0EE428A 		vmov.f32	s17, s4
+  55:Src/support/utils.c ****     float_t tol = 1e-6; // 误差容限
+ 321              		.loc 1 55 5 is_stmt 1 view .LVU69
+ 322              	.LVL22:
+  56:Src/support/utils.c ****     int max_iter = 100; // 最大迭代次数
+ 323              		.loc 1 56 5 view .LVU70
+  57:Src/support/utils.c ****     float_t eqs[2];
+ 324              		.loc 1 57 5 view .LVU71
+  58:Src/support/utils.c ****     float_t J[2][2]; // 雅可比矩阵
+ 325              		.loc 1 58 5 view .LVU72
+  59:Src/support/utils.c ****     float_t delta[2];
+ 326              		.loc 1 59 5 view .LVU73
+  60:Src/support/utils.c ****     int iter;
+ 327              		.loc 1 60 5 view .LVU74
+  61:Src/support/utils.c **** 
+  62:Src/support/utils.c ****     for (iter = 0; iter < max_iter; iter++) {
+ 328              		.loc 1 62 5 view .LVU75
+ 329              		.loc 1 62 15 is_stmt 0 view .LVU76
+ 330 001e 0027     		movs	r7, #0
+ 331              		.loc 1 62 5 view .LVU77
+ 332 0020 83E0     		b	.L9
+ 333              	.LVL23:
+ 334              	.L11:
+ 335              	.LBB2:
+ 336              	.LBB3:
+ 337              	.LBB4:
+ 338              	.LBB5:
+  63:Src/support/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+  64:Src/support/utils.c **** 
+  65:Src/support/utils.c ****         // 计算雅可比矩阵
+  66:Src/support/utils.c ****         float_t h = 1e-6; // 微小增量
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 8
+
+
+  67:Src/support/utils.c ****         float_t vars_temp[2];
+  68:Src/support/utils.c **** 
+  69:Src/support/utils.c ****         for (int i = 0; i < 2; i++) {
+  70:Src/support/utils.c ****             for (int j = 0; j < 2; j++) {
+  71:Src/support/utils.c ****                 vars_temp[j] = vars[j];
+ 339              		.loc 1 71 17 is_stmt 1 view .LVU78
+ 340              		.loc 1 71 36 is_stmt 0 view .LVU79
+ 341 0022 05EB8302 		add	r2, r5, r3, lsl #2
+ 342 0026 1168     		ldr	r1, [r2]	@ float
+ 343              		.loc 1 71 30 view .LVU80
+ 344 0028 0CAA     		add	r2, sp, #48
+ 345 002a 02EB8302 		add	r2, r2, r3, lsl #2
+ 346 002e 42F8301C 		str	r1, [r2, #-48]	@ float
+  70:Src/support/utils.c ****                 vars_temp[j] = vars[j];
+ 347              		.loc 1 70 37 is_stmt 1 discriminator 3 view .LVU81
+ 348 0032 0133     		adds	r3, r3, #1
+ 349              	.LVL24:
+ 350              	.L12:
+  70:Src/support/utils.c ****                 vars_temp[j] = vars[j];
+ 351              		.loc 1 70 31 discriminator 1 view .LVU82
+ 352 0034 012B     		cmp	r3, #1
+ 353 0036 F4DD     		ble	.L11
+ 354              	.LBE5:
+  72:Src/support/utils.c ****             }
+  73:Src/support/utils.c ****             vars_temp[i] += h;
+ 355              		.loc 1 73 13 view .LVU83
+ 356              		.loc 1 73 22 is_stmt 0 view .LVU84
+ 357 0038 0CAB     		add	r3, sp, #48
+ 358              	.LVL25:
+ 359              		.loc 1 73 22 view .LVU85
+ 360 003a 03EB8406 		add	r6, r3, r4, lsl #2
+ 361 003e 56ED0C7A 		vldr.32	s15, [r6, #-48]
+ 362              		.loc 1 73 26 view .LVU86
+ 363 0042 9FED458A 		vldr.32	s16, .L22
+ 364 0046 77EE887A 		vadd.f32	s15, s15, s16
+ 365 004a 46ED0C7A 		vstr.32	s15, [r6, #-48]
+  74:Src/support/utils.c ****             float_t eqs_temp[2];
+ 366              		.loc 1 74 13 is_stmt 1 view .LVU87
+  75:Src/support/utils.c ****             equations(vars_temp, B1, B2, L, R, d, eqs_temp);
+ 367              		.loc 1 75 13 view .LVU88
+ 368 004e 02A9     		add	r1, sp, #8
+ 369 0050 B0EE682A 		vmov.f32	s4, s17
+ 370 0054 F0EE491A 		vmov.f32	s3, s18
+ 371 0058 B0EE691A 		vmov.f32	s2, s19
+ 372 005c F0EE4A0A 		vmov.f32	s1, s20
+ 373 0060 B0EE6A0A 		vmov.f32	s0, s21
+ 374 0064 6846     		mov	r0, sp
+ 375 0066 FFF7FEFF 		bl	equations
+ 376              	.LVL26:
+  76:Src/support/utils.c ****             J[0][i] = (eqs_temp[0] - eqs[0]) / h;
+ 377              		.loc 1 76 13 view .LVU89
+ 378              		.loc 1 76 36 is_stmt 0 view .LVU90
+ 379 006a DDED027A 		vldr.32	s15, [sp, #8]
+ 380 006e 9DED0A7A 		vldr.32	s14, [sp, #40]
+ 381 0072 77EEC77A 		vsub.f32	s15, s15, s14
+ 382              		.loc 1 76 46 view .LVU91
+ 383 0076 87EE887A 		vdiv.f32	s14, s15, s16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 9
+
+
+ 384              		.loc 1 76 21 view .LVU92
+ 385 007a 06ED067A 		vstr.32	s14, [r6, #-24]
+  77:Src/support/utils.c ****             J[1][i] = (eqs_temp[1] - eqs[1]) / h;
+ 386              		.loc 1 77 13 is_stmt 1 view .LVU93
+ 387              		.loc 1 77 36 is_stmt 0 view .LVU94
+ 388 007e DDED037A 		vldr.32	s15, [sp, #12]
+ 389 0082 9DED0B7A 		vldr.32	s14, [sp, #44]
+ 390 0086 77EEC77A 		vsub.f32	s15, s15, s14
+ 391              		.loc 1 77 46 view .LVU95
+ 392 008a 87EE887A 		vdiv.f32	s14, s15, s16
+ 393              		.loc 1 77 21 view .LVU96
+ 394 008e A31C     		adds	r3, r4, #2
+ 395 0090 0CAA     		add	r2, sp, #48
+ 396 0092 02EB8303 		add	r3, r2, r3, lsl #2
+ 397 0096 03ED067A 		vstr.32	s14, [r3, #-24]
+ 398              	.LBE4:
+  69:Src/support/utils.c ****             for (int j = 0; j < 2; j++) {
+ 399              		.loc 1 69 33 is_stmt 1 discriminator 2 view .LVU97
+ 400 009a 0134     		adds	r4, r4, #1
+ 401              	.LVL27:
+ 402              	.L10:
+  69:Src/support/utils.c ****             for (int j = 0; j < 2; j++) {
+ 403              		.loc 1 69 27 discriminator 1 view .LVU98
+ 404 009c 012C     		cmp	r4, #1
+ 405 009e 01DC     		bgt	.L21
+ 406              	.LBB7:
+ 407              	.LBB6:
+  70:Src/support/utils.c ****                 vars_temp[j] = vars[j];
+ 408              		.loc 1 70 22 is_stmt 0 view .LVU99
+ 409 00a0 0023     		movs	r3, #0
+ 410 00a2 C7E7     		b	.L12
+ 411              	.L21:
+ 412              	.LBE6:
+ 413              	.LBE7:
+ 414              	.LBE3:
+  78:Src/support/utils.c ****         }
+  79:Src/support/utils.c **** 
+  80:Src/support/utils.c ****         // 计算 delta = J^(-1) * eqs
+  81:Src/support/utils.c ****         float_t det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
+ 415              		.loc 1 81 9 is_stmt 1 view .LVU100
+ 416              		.loc 1 81 27 is_stmt 0 view .LVU101
+ 417 00a4 DDED065A 		vldr.32	s11, [sp, #24]
+ 418              		.loc 1 81 37 view .LVU102
+ 419 00a8 9DED097A 		vldr.32	s14, [sp, #36]
+ 420              		.loc 1 81 31 view .LVU103
+ 421 00ac 25EE876A 		vmul.f32	s12, s11, s14
+ 422              		.loc 1 81 47 view .LVU104
+ 423 00b0 DDED076A 		vldr.32	s13, [sp, #28]
+ 424              		.loc 1 81 57 view .LVU105
+ 425 00b4 DDED087A 		vldr.32	s15, [sp, #32]
+ 426              		.loc 1 81 51 view .LVU106
+ 427 00b8 26EEA75A 		vmul.f32	s10, s13, s15
+ 428              		.loc 1 81 17 view .LVU107
+ 429 00bc 36EE456A 		vsub.f32	s12, s12, s10
+ 430              	.LVL28:
+  82:Src/support/utils.c ****         delta[0] = (J[1][1] * eqs[0] - J[0][1] * eqs[1]) / det;
+ 431              		.loc 1 82 9 is_stmt 1 view .LVU108
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 10
+
+
+ 432              		.loc 1 82 34 is_stmt 0 view .LVU109
+ 433 00c0 DDED0A4A 		vldr.32	s9, [sp, #40]
+ 434              		.loc 1 82 29 view .LVU110
+ 435 00c4 27EE247A 		vmul.f32	s14, s14, s9
+ 436              		.loc 1 82 53 view .LVU111
+ 437 00c8 9DED0B5A 		vldr.32	s10, [sp, #44]
+ 438              		.loc 1 82 48 view .LVU112
+ 439 00cc 66EE856A 		vmul.f32	s13, s13, s10
+ 440              		.loc 1 82 38 view .LVU113
+ 441 00d0 37EE667A 		vsub.f32	s14, s14, s13
+ 442              		.loc 1 82 58 view .LVU114
+ 443 00d4 C7EE066A 		vdiv.f32	s13, s14, s12
+ 444              		.loc 1 82 18 view .LVU115
+ 445 00d8 CDED046A 		vstr.32	s13, [sp, #16]
+  83:Src/support/utils.c ****         delta[1] = (-J[1][0] * eqs[0] + J[0][0] * eqs[1]) / det;
+ 446              		.loc 1 83 9 is_stmt 1 view .LVU116
+ 447              		.loc 1 83 30 is_stmt 0 view .LVU117
+ 448 00dc 67EEE47A 		vnmul.f32	s15, s15, s9
+ 449              		.loc 1 83 49 view .LVU118
+ 450 00e0 65EE855A 		vmul.f32	s11, s11, s10
+ 451              		.loc 1 83 39 view .LVU119
+ 452 00e4 77EEA57A 		vadd.f32	s15, s15, s11
+ 453              		.loc 1 83 59 view .LVU120
+ 454 00e8 87EE867A 		vdiv.f32	s14, s15, s12
+ 455              		.loc 1 83 18 view .LVU121
+ 456 00ec 8DED057A 		vstr.32	s14, [sp, #20]
+  84:Src/support/utils.c **** 
+  85:Src/support/utils.c ****         // 更新变量
+  86:Src/support/utils.c ****         vars[0] -= delta[0];
+ 457              		.loc 1 86 9 is_stmt 1 view .LVU122
+ 458              		.loc 1 86 13 is_stmt 0 view .LVU123
+ 459 00f0 D5ED007A 		vldr.32	s15, [r5]
+ 460              		.loc 1 86 17 view .LVU124
+ 461 00f4 77EEE67A 		vsub.f32	s15, s15, s13
+ 462 00f8 C5ED007A 		vstr.32	s15, [r5]
+  87:Src/support/utils.c ****         vars[1] -= delta[1];
+ 463              		.loc 1 87 9 is_stmt 1 view .LVU125
+ 464              		.loc 1 87 13 is_stmt 0 view .LVU126
+ 465 00fc D5ED017A 		vldr.32	s15, [r5, #4]
+ 466              		.loc 1 87 17 view .LVU127
+ 467 0100 77EEC77A 		vsub.f32	s15, s15, s14
+ 468 0104 C5ED017A 		vstr.32	s15, [r5, #4]
+  88:Src/support/utils.c **** 
+  89:Src/support/utils.c ****         // 检查收敛
+  90:Src/support/utils.c ****         if (fabs(delta[0]) < tol && fabs(delta[1]) < tol) {
+ 469              		.loc 1 90 9 is_stmt 1 view .LVU128
+ 470              		.loc 1 90 13 is_stmt 0 view .LVU129
+ 471 0108 F0EEE66A 		vabs.f32	s13, s13
+ 472              		.loc 1 90 12 view .LVU130
+ 473 010c DFED127A 		vldr.32	s15, .L22
+ 474 0110 F4EEE76A 		vcmpe.f32	s13, s15
+ 475 0114 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 476 0118 06D5     		bpl	.L13
+ 477              		.loc 1 90 37 discriminator 1 view .LVU131
+ 478 011a B0EEC77A 		vabs.f32	s14, s14
+ 479              		.loc 1 90 34 discriminator 1 view .LVU132
+ 480 011e B4EEE77A 		vcmpe.f32	s14, s15
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 11
+
+
+ 481 0122 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 482 0126 12D4     		bmi	.L8
+ 483              	.L13:
+ 484              	.LBE2:
+  62:Src/support/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+ 485              		.loc 1 62 41 is_stmt 1 discriminator 2 view .LVU133
+ 486 0128 0137     		adds	r7, r7, #1
+ 487              	.LVL29:
+ 488              	.L9:
+  62:Src/support/utils.c ****         equations(vars, B1, B2, L, R, d, eqs);
+ 489              		.loc 1 62 25 discriminator 1 view .LVU134
+ 490 012a 632F     		cmp	r7, #99
+ 491 012c 0FDC     		bgt	.L8
+ 492              	.LBB9:
+  63:Src/support/utils.c **** 
+ 493              		.loc 1 63 9 view .LVU135
+ 494 012e 0AA9     		add	r1, sp, #40
+ 495 0130 B0EE682A 		vmov.f32	s4, s17
+ 496 0134 F0EE491A 		vmov.f32	s3, s18
+ 497 0138 B0EE691A 		vmov.f32	s2, s19
+ 498 013c F0EE4A0A 		vmov.f32	s1, s20
+ 499 0140 B0EE6A0A 		vmov.f32	s0, s21
+ 500 0144 2846     		mov	r0, r5
+ 501 0146 FFF7FEFF 		bl	equations
+ 502              	.LVL30:
+  66:Src/support/utils.c ****         float_t vars_temp[2];
+ 503              		.loc 1 66 9 view .LVU136
+  67:Src/support/utils.c **** 
+ 504              		.loc 1 67 9 view .LVU137
+  69:Src/support/utils.c ****             for (int j = 0; j < 2; j++) {
+ 505              		.loc 1 69 9 view .LVU138
+ 506              	.LBB8:
+  69:Src/support/utils.c ****             for (int j = 0; j < 2; j++) {
+ 507              		.loc 1 69 14 view .LVU139
+  69:Src/support/utils.c ****             for (int j = 0; j < 2; j++) {
+ 508              		.loc 1 69 18 is_stmt 0 view .LVU140
+ 509 014a 0024     		movs	r4, #0
+  69:Src/support/utils.c ****             for (int j = 0; j < 2; j++) {
+ 510              		.loc 1 69 9 view .LVU141
+ 511 014c A6E7     		b	.L10
+ 512              	.LVL31:
+ 513              	.L8:
+  69:Src/support/utils.c ****             for (int j = 0; j < 2; j++) {
+ 514              		.loc 1 69 9 view .LVU142
+ 515              	.LBE8:
+ 516              	.LBE9:
+  91:Src/support/utils.c ****             break;
+  92:Src/support/utils.c ****         }
+  93:Src/support/utils.c ****     }
+  94:Src/support/utils.c **** }
+ 517              		.loc 1 94 1 view .LVU143
+ 518 014e 0DB0     		add	sp, sp, #52
+ 519              	.LCFI8:
+ 520              		.cfi_def_cfa_offset 44
+ 521              		@ sp needed
+ 522 0150 BDEC068B 		vldm	sp!, {d8-d10}
+ 523              	.LCFI9:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 12
+
+
+ 524              		.cfi_restore 84
+ 525              		.cfi_restore 85
+ 526              		.cfi_restore 82
+ 527              		.cfi_restore 83
+ 528              		.cfi_restore 80
+ 529              		.cfi_restore 81
+ 530              		.cfi_def_cfa_offset 20
+ 531              	.LVL32:
+ 532              		.loc 1 94 1 view .LVU144
+ 533 0154 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 534              	.LVL33:
+ 535              	.L23:
+ 536              		.loc 1 94 1 view .LVU145
+ 537 0156 00BF     		.align	2
+ 538              	.L22:
+ 539 0158 BD378635 		.word	897988541
+ 540              		.cfi_endproc
+ 541              	.LFE341:
+ 543              		.section	.text.calculate_axial_magnetic_field,"ax",%progbits
+ 544              		.align	1
+ 545              		.global	calculate_axial_magnetic_field
+ 546              		.syntax unified
+ 547              		.thumb
+ 548              		.thumb_func
+ 550              	calculate_axial_magnetic_field:
+ 551              	.LVL34:
+ 552              	.LFB342:
+  95:Src/support/utils.c **** 
+  96:Src/support/utils.c **** // 计算轴线上磁场强度的函数
+  97:Src/support/utils.c **** float_t calculate_axial_magnetic_field(float_t L, float_t R, float_t M, float_t z) {
+ 553              		.loc 1 97 84 is_stmt 1 view -0
+ 554              		.cfi_startproc
+ 555              		@ args = 0, pretend = 0, frame = 0
+ 556              		@ frame_needed = 0, uses_anonymous_args = 0
+ 557              		.loc 1 97 84 is_stmt 0 view .LVU147
+ 558 0000 08B5     		push	{r3, lr}
+ 559              	.LCFI10:
+ 560              		.cfi_def_cfa_offset 8
+ 561              		.cfi_offset 3, -8
+ 562              		.cfi_offset 14, -4
+ 563 0002 2DED088B 		vpush.64	{d8, d9, d10, d11}
+ 564              	.LCFI11:
+ 565              		.cfi_def_cfa_offset 40
+ 566              		.cfi_offset 80, -40
+ 567              		.cfi_offset 81, -36
+ 568              		.cfi_offset 82, -32
+ 569              		.cfi_offset 83, -28
+ 570              		.cfi_offset 84, -24
+ 571              		.cfi_offset 85, -20
+ 572              		.cfi_offset 86, -16
+ 573              		.cfi_offset 87, -12
+ 574 0006 F0EE418A 		vmov.f32	s17, s2
+ 575 000a B0EE61AA 		vmov.f32	s20, s3
+  98:Src/support/utils.c ****     float_t term1 = (L / 2 + z) / sqrt(R * R + (L / 2 + z) * (L / 2 + z));
+ 576              		.loc 1 98 5 is_stmt 1 view .LVU148
+ 577              		.loc 1 98 24 is_stmt 0 view .LVU149
+ 578 000e F6EE007A 		vmov.f32	s15, #5.0e-1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 13
+
+
+ 579 0012 20EE278A 		vmul.f32	s16, s0, s15
+ 580              		.loc 1 98 28 view .LVU150
+ 581 0016 78EE217A 		vadd.f32	s15, s16, s3
+ 582 001a B7EEE7BA 		vcvt.f64.f32	d11, s15
+ 583              		.loc 1 98 42 view .LVU151
+ 584 001e 20EEA09A 		vmul.f32	s18, s1, s1
+ 585              		.loc 1 98 60 view .LVU152
+ 586 0022 67EEA77A 		vmul.f32	s15, s15, s15
+ 587              		.loc 1 98 46 view .LVU153
+ 588 0026 39EE270A 		vadd.f32	s0, s18, s15
+ 589              	.LVL35:
+ 590              		.loc 1 98 35 view .LVU154
+ 591 002a B7EEC00A 		vcvt.f64.f32	d0, s0
+ 592 002e FFF7FEFF 		bl	sqrt
+ 593              	.LVL36:
+ 594              		.loc 1 98 33 discriminator 1 view .LVU155
+ 595 0032 8BEE007B 		vdiv.f64	d7, d11, d0
+ 596              		.loc 1 98 13 discriminator 1 view .LVU156
+ 597 0036 F7EEC79B 		vcvt.f32.f64	s19, d7
+ 598              	.LVL37:
+  99:Src/support/utils.c ****     float_t term2 = (L / 2 - z) / sqrt(R * R + (L / 2 - z) * (L / 2 - z));
+ 599              		.loc 1 99 5 is_stmt 1 view .LVU157
+ 600              		.loc 1 99 28 is_stmt 0 view .LVU158
+ 601 003a 78EE4A1A 		vsub.f32	s3, s16, s20
+ 602 003e B7EEE1AA 		vcvt.f64.f32	d10, s3
+ 603              	.LVL38:
+ 604              		.loc 1 99 60 view .LVU159
+ 605 0042 61EEA11A 		vmul.f32	s3, s3, s3
+ 606              		.loc 1 99 46 view .LVU160
+ 607 0046 39EE210A 		vadd.f32	s0, s18, s3
+ 608              		.loc 1 99 35 view .LVU161
+ 609 004a B7EEC00A 		vcvt.f64.f32	d0, s0
+ 610 004e FFF7FEFF 		bl	sqrt
+ 611              	.LVL39:
+ 612              		.loc 1 99 33 discriminator 1 view .LVU162
+ 613 0052 8AEE007B 		vdiv.f64	d7, d10, d0
+ 614              		.loc 1 99 13 discriminator 1 view .LVU163
+ 615 0056 B7EEC77B 		vcvt.f32.f64	s14, d7
+ 616              	.LVL40:
+ 100:Src/support/utils.c ****     float_t B_z = (MU_0 / 2) * M * (term1 - term2);
+ 617              		.loc 1 100 5 is_stmt 1 view .LVU164
+ 618              		.loc 1 100 30 is_stmt 0 view .LVU165
+ 619 005a B7EEE80A 		vcvt.f64.f32	d0, s17
+ 620 005e 9FED086B 		vldr.64	d6, .L26
+ 621 0062 20EE060B 		vmul.f64	d0, d0, d6
+ 622              		.loc 1 100 43 view .LVU166
+ 623 0066 39EEC77A 		vsub.f32	s14, s19, s14
+ 624              	.LVL41:
+ 625              		.loc 1 100 43 view .LVU167
+ 626 006a B7EEC77A 		vcvt.f64.f32	d7, s14
+ 627              		.loc 1 100 34 view .LVU168
+ 628 006e 20EE070B 		vmul.f64	d0, d0, d7
+ 629              	.LVL42:
+ 101:Src/support/utils.c ****     return B_z;
+ 630              		.loc 1 101 5 is_stmt 1 view .LVU169
+ 102:Src/support/utils.c **** }
+ 631              		.loc 1 102 1 is_stmt 0 view .LVU170
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 14
+
+
+ 632 0072 B7EEC00B 		vcvt.f32.f64	s0, d0
+ 633              	.LVL43:
+ 634              		.loc 1 102 1 view .LVU171
+ 635 0076 BDEC088B 		vldm	sp!, {d8-d11}
+ 636              	.LCFI12:
+ 637              		.cfi_restore 86
+ 638              		.cfi_restore 87
+ 639              		.cfi_restore 84
+ 640              		.cfi_restore 85
+ 641              		.cfi_restore 82
+ 642              		.cfi_restore 83
+ 643              		.cfi_restore 80
+ 644              		.cfi_restore 81
+ 645              		.cfi_def_cfa_offset 8
+ 646              		.loc 1 102 1 view .LVU172
+ 647 007a 08BD     		pop	{r3, pc}
+ 648              	.L27:
+ 649 007c AFF30080 		.align	3
+ 650              	.L26:
+ 651 0080 CBF6990F 		.word	261748427
+ 652 0084 3715A53E 		.word	1051006263
+ 653              		.cfi_endproc
+ 654              	.LFE342:
+ 656              		.section	.text.find_distance_for_axial_field,"ax",%progbits
+ 657              		.align	1
+ 658              		.global	find_distance_for_axial_field
+ 659              		.syntax unified
+ 660              		.thumb
+ 661              		.thumb_func
+ 663              	find_distance_for_axial_field:
+ 664              	.LVL44:
+ 665              	.LFB343:
+ 103:Src/support/utils.c **** 
+ 104:Src/support/utils.c **** #define TOLERANCE 10 // 误差容忍度
+ 105:Src/support/utils.c **** 
+ 106:Src/support/utils.c **** // 使用二分法反向求解轴线上距离
+ 107:Src/support/utils.c **** float_t find_distance_for_axial_field(float_t L, float_t R, float_t M, float_t B_target) {
+ 666              		.loc 1 107 90 is_stmt 1 view -0
+ 667              		.cfi_startproc
+ 668              		@ args = 0, pretend = 0, frame = 0
+ 669              		@ frame_needed = 0, uses_anonymous_args = 0
+ 670              		@ link register save eliminated.
+ 108:Src/support/utils.c ****     float_t low = 0.0;
+ 671              		.loc 1 108 5 view .LVU174
+ 109:Src/support/utils.c ****     float_t high = 10.0; // 假设一个较大的初始上限
+ 672              		.loc 1 109 5 view .LVU175
+ 110:Src/support/utils.c ****     float_t mid;
+ 673              		.loc 1 110 5 view .LVU176
+ 111:Src/support/utils.c **** 
+ 112:Src/support/utils.c ****     while (high - low > TOLERANCE) {
+ 674              		.loc 1 112 5 view .LVU177
+ 675              		.loc 1 112 23 view .LVU178
+ 113:Src/support/utils.c ****         mid = (low + high) / 2.0;
+ 114:Src/support/utils.c ****         float_t B_mid = calculate_axial_magnetic_field(L, R, M, mid);
+ 115:Src/support/utils.c **** 
+ 116:Src/support/utils.c ****         if (B_mid > B_target) {
+ 117:Src/support/utils.c ****             low = mid;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 15
+
+
+ 118:Src/support/utils.c ****         } else {
+ 119:Src/support/utils.c ****             high = mid;
+ 120:Src/support/utils.c ****         }
+ 121:Src/support/utils.c ****     }
+ 122:Src/support/utils.c **** 
+ 123:Src/support/utils.c ****     return (low + high) / 2.0;
+ 676              		.loc 1 123 5 view .LVU179
+ 124:Src/support/utils.c **** }
+ 677              		.loc 1 124 1 is_stmt 0 view .LVU180
+ 678 0000 B1EE040A 		vmov.f32	s0, #5.0e+0
+ 679              	.LVL45:
+ 680              		.loc 1 124 1 view .LVU181
+ 681 0004 7047     		bx	lr
+ 682              		.cfi_endproc
+ 683              	.LFE343:
+ 685              		.section	.text.abort,"ax",%progbits
+ 686              		.align	1
+ 687              		.weak	abort
+ 688              		.syntax unified
+ 689              		.thumb
+ 690              		.thumb_func
+ 692              	abort:
+ 693              	.LFB345:
+ 125:Src/support/utils.c **** 
+ 126:Src/support/utils.c **** /******************************** hack 解决 未定义的符号__aeabi_assert 报错 begin *******
+ 127:Src/support/utils.c **** 
+ 128:Src/support/utils.c **** __attribute__((weak, noreturn))
+ 129:Src/support/utils.c **** void __aeabi_assert(const char *expr, const char *file, int line)
+ 130:Src/support/utils.c **** {
+ 131:Src/support/utils.c ****     char str[12], *p;
+ 132:Src/support/utils.c **** 
+ 133:Src/support/utils.c ****     fputs("*** assertion failed: ", stderr);
+ 134:Src/support/utils.c ****     fputs(expr, stderr);
+ 135:Src/support/utils.c ****     fputs(", file ", stderr);
+ 136:Src/support/utils.c ****     fputs(file, stderr);
+ 137:Src/support/utils.c ****     fputs(", line ", stderr);
+ 138:Src/support/utils.c **** 
+ 139:Src/support/utils.c ****     p = str + sizeof(str);
+ 140:Src/support/utils.c ****     *--p = '\0';
+ 141:Src/support/utils.c ****     *--p = '\n';
+ 142:Src/support/utils.c ****     while (line > 0)
+ 143:Src/support/utils.c ****     {
+ 144:Src/support/utils.c ****         *--p = '0' + (line % 10);
+ 145:Src/support/utils.c ****         line /= 10;
+ 146:Src/support/utils.c ****     }
+ 147:Src/support/utils.c ****     fputs(p, stderr);
+ 148:Src/support/utils.c **** 
+ 149:Src/support/utils.c ****     abort();
+ 150:Src/support/utils.c **** }
+ 151:Src/support/utils.c **** 
+ 152:Src/support/utils.c **** __attribute__((weak))
+ 153:Src/support/utils.c **** void abort(void)
+ 154:Src/support/utils.c **** {
+ 694              		.loc 1 154 1 is_stmt 1 view -0
+ 695              		.cfi_startproc
+ 696              		@ Volatile: function does not return.
+ 697              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 16
+
+
+ 698              		@ frame_needed = 0, uses_anonymous_args = 0
+ 699              		@ link register save eliminated.
+ 700              	.L30:
+ 155:Src/support/utils.c ****     for (;;)
+ 701              		.loc 1 155 5 view .LVU183
+ 702              		.loc 1 155 5 view .LVU184
+ 703 0000 FEE7     		b	.L30
+ 704              		.cfi_endproc
+ 705              	.LFE345:
+ 707              		.section	.rodata.__aeabi_assert.str1.4,"aMS",%progbits,1
+ 708              		.align	2
+ 709              	.LC0:
+ 710 0000 2A2A2A20 		.ascii	"*** assertion failed: \000"
+ 710      61737365 
+ 710      7274696F 
+ 710      6E206661 
+ 710      696C6564 
+ 711 0017 00       		.align	2
+ 712              	.LC1:
+ 713 0018 2C206669 		.ascii	", file \000"
+ 713      6C652000 
+ 714              		.align	2
+ 715              	.LC2:
+ 716 0020 2C206C69 		.ascii	", line \000"
+ 716      6E652000 
+ 717              		.section	.text.__aeabi_assert,"ax",%progbits
+ 718              		.align	1
+ 719              		.weak	__aeabi_assert
+ 720              		.syntax unified
+ 721              		.thumb
+ 722              		.thumb_func
+ 724              	__aeabi_assert:
+ 725              	.LVL46:
+ 726              	.LFB344:
+ 130:Src/support/utils.c ****     char str[12], *p;
+ 727              		.loc 1 130 1 view -0
+ 728              		.cfi_startproc
+ 729              		@ Volatile: function does not return.
+ 730              		@ args = 0, pretend = 0, frame = 16
+ 731              		@ frame_needed = 0, uses_anonymous_args = 0
+ 130:Src/support/utils.c ****     char str[12], *p;
+ 732              		.loc 1 130 1 is_stmt 0 view .LVU186
+ 733 0000 80B5     		push	{r7, lr}
+ 734              	.LCFI13:
+ 735              		.cfi_def_cfa_offset 8
+ 736              		.cfi_offset 7, -8
+ 737              		.cfi_offset 14, -4
+ 738 0002 84B0     		sub	sp, sp, #16
+ 739              	.LCFI14:
+ 740              		.cfi_def_cfa_offset 24
+ 741 0004 0746     		mov	r7, r0
+ 742 0006 0E46     		mov	r6, r1
+ 743 0008 1446     		mov	r4, r2
+ 131:Src/support/utils.c **** 
+ 744              		.loc 1 131 5 is_stmt 1 view .LVU187
+ 133:Src/support/utils.c ****     fputs(expr, stderr);
+ 745              		.loc 1 133 5 view .LVU188
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 17
+
+
+ 133:Src/support/utils.c ****     fputs(expr, stderr);
+ 746              		.loc 1 133 37 is_stmt 0 view .LVU189
+ 747 000a 204D     		ldr	r5, .L35
+ 748 000c 2B68     		ldr	r3, [r5]
+ 133:Src/support/utils.c ****     fputs(expr, stderr);
+ 749              		.loc 1 133 5 view .LVU190
+ 750 000e DB68     		ldr	r3, [r3, #12]
+ 751 0010 1622     		movs	r2, #22
+ 752              	.LVL47:
+ 133:Src/support/utils.c ****     fputs(expr, stderr);
+ 753              		.loc 1 133 5 view .LVU191
+ 754 0012 0121     		movs	r1, #1
+ 755              	.LVL48:
+ 133:Src/support/utils.c ****     fputs(expr, stderr);
+ 756              		.loc 1 133 5 view .LVU192
+ 757 0014 1E48     		ldr	r0, .L35+4
+ 758              	.LVL49:
+ 133:Src/support/utils.c ****     fputs(expr, stderr);
+ 759              		.loc 1 133 5 view .LVU193
+ 760 0016 FFF7FEFF 		bl	fwrite
+ 761              	.LVL50:
+ 134:Src/support/utils.c ****     fputs(", file ", stderr);
+ 762              		.loc 1 134 5 is_stmt 1 view .LVU194
+ 134:Src/support/utils.c ****     fputs(", file ", stderr);
+ 763              		.loc 1 134 17 is_stmt 0 view .LVU195
+ 764 001a 2B68     		ldr	r3, [r5]
+ 134:Src/support/utils.c ****     fputs(", file ", stderr);
+ 765              		.loc 1 134 5 view .LVU196
+ 766 001c D968     		ldr	r1, [r3, #12]
+ 767 001e 3846     		mov	r0, r7
+ 768 0020 FFF7FEFF 		bl	fputs
+ 769              	.LVL51:
+ 135:Src/support/utils.c ****     fputs(file, stderr);
+ 770              		.loc 1 135 5 is_stmt 1 view .LVU197
+ 135:Src/support/utils.c ****     fputs(file, stderr);
+ 771              		.loc 1 135 22 is_stmt 0 view .LVU198
+ 772 0024 2B68     		ldr	r3, [r5]
+ 135:Src/support/utils.c ****     fputs(file, stderr);
+ 773              		.loc 1 135 5 view .LVU199
+ 774 0026 DB68     		ldr	r3, [r3, #12]
+ 775 0028 0722     		movs	r2, #7
+ 776 002a 0121     		movs	r1, #1
+ 777 002c 1948     		ldr	r0, .L35+8
+ 778 002e FFF7FEFF 		bl	fwrite
+ 779              	.LVL52:
+ 136:Src/support/utils.c ****     fputs(", line ", stderr);
+ 780              		.loc 1 136 5 is_stmt 1 view .LVU200
+ 136:Src/support/utils.c ****     fputs(", line ", stderr);
+ 781              		.loc 1 136 17 is_stmt 0 view .LVU201
+ 782 0032 2B68     		ldr	r3, [r5]
+ 136:Src/support/utils.c ****     fputs(", line ", stderr);
+ 783              		.loc 1 136 5 view .LVU202
+ 784 0034 D968     		ldr	r1, [r3, #12]
+ 785 0036 3046     		mov	r0, r6
+ 786 0038 FFF7FEFF 		bl	fputs
+ 787              	.LVL53:
+ 137:Src/support/utils.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 18
+
+
+ 788              		.loc 1 137 5 is_stmt 1 view .LVU203
+ 137:Src/support/utils.c **** 
+ 789              		.loc 1 137 22 is_stmt 0 view .LVU204
+ 790 003c 2B68     		ldr	r3, [r5]
+ 137:Src/support/utils.c **** 
+ 791              		.loc 1 137 5 view .LVU205
+ 792 003e DB68     		ldr	r3, [r3, #12]
+ 793 0040 0722     		movs	r2, #7
+ 794 0042 0121     		movs	r1, #1
+ 795 0044 1448     		ldr	r0, .L35+12
+ 796 0046 FFF7FEFF 		bl	fwrite
+ 797              	.LVL54:
+ 139:Src/support/utils.c ****     *--p = '\0';
+ 798              		.loc 1 139 5 is_stmt 1 view .LVU206
+ 140:Src/support/utils.c ****     *--p = '\n';
+ 799              		.loc 1 140 5 view .LVU207
+ 140:Src/support/utils.c ****     *--p = '\n';
+ 800              		.loc 1 140 10 is_stmt 0 view .LVU208
+ 801 004a 0023     		movs	r3, #0
+ 802 004c 8DF80F30 		strb	r3, [sp, #15]
+ 141:Src/support/utils.c ****     while (line > 0)
+ 803              		.loc 1 141 5 is_stmt 1 view .LVU209
+ 804              	.LVL55:
+ 141:Src/support/utils.c ****     while (line > 0)
+ 805              		.loc 1 141 10 is_stmt 0 view .LVU210
+ 806 0050 0A23     		movs	r3, #10
+ 807 0052 8DF80E30 		strb	r3, [sp, #14]
+ 142:Src/support/utils.c ****     {
+ 808              		.loc 1 142 5 is_stmt 1 view .LVU211
+ 141:Src/support/utils.c ****     while (line > 0)
+ 809              		.loc 1 141 10 is_stmt 0 view .LVU212
+ 810 0056 0DF10E00 		add	r0, sp, #14
+ 811              	.LVL56:
+ 142:Src/support/utils.c ****     {
+ 812              		.loc 1 142 11 view .LVU213
+ 813 005a 0EE0     		b	.L32
+ 814              	.L33:
+ 144:Src/support/utils.c ****         line /= 10;
+ 815              		.loc 1 144 9 is_stmt 1 view .LVU214
+ 144:Src/support/utils.c ****         line /= 10;
+ 816              		.loc 1 144 28 is_stmt 0 view .LVU215
+ 817 005c 0F4A     		ldr	r2, .L35+16
+ 818 005e 82FB0432 		smull	r3, r2, r2, r4
+ 819 0062 E317     		asrs	r3, r4, #31
+ 820 0064 C3EBA203 		rsb	r3, r3, r2, asr #2
+ 821 0068 1A46     		mov	r2, r3
+ 822 006a 03EB8303 		add	r3, r3, r3, lsl #2
+ 823 006e A4EB4303 		sub	r3, r4, r3, lsl #1
+ 824              	.LVL57:
+ 144:Src/support/utils.c ****         line /= 10;
+ 825              		.loc 1 144 20 view .LVU216
+ 826 0072 3033     		adds	r3, r3, #48
+ 144:Src/support/utils.c ****         line /= 10;
+ 827              		.loc 1 144 14 view .LVU217
+ 828 0074 00F8013D 		strb	r3, [r0, #-1]!
+ 829              	.LVL58:
+ 145:Src/support/utils.c ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 19
+
+
+ 830              		.loc 1 145 9 is_stmt 1 view .LVU218
+ 145:Src/support/utils.c ****     }
+ 831              		.loc 1 145 14 is_stmt 0 view .LVU219
+ 832 0078 1446     		mov	r4, r2
+ 833              	.LVL59:
+ 834              	.L32:
+ 142:Src/support/utils.c ****     {
+ 835              		.loc 1 142 17 is_stmt 1 view .LVU220
+ 836 007a 002C     		cmp	r4, #0
+ 837 007c EEDC     		bgt	.L33
+ 147:Src/support/utils.c **** 
+ 838              		.loc 1 147 5 view .LVU221
+ 147:Src/support/utils.c **** 
+ 839              		.loc 1 147 14 is_stmt 0 view .LVU222
+ 840 007e 034B     		ldr	r3, .L35
+ 841 0080 1B68     		ldr	r3, [r3]
+ 147:Src/support/utils.c **** 
+ 842              		.loc 1 147 5 view .LVU223
+ 843 0082 D968     		ldr	r1, [r3, #12]
+ 844 0084 FFF7FEFF 		bl	fputs
+ 845              	.LVL60:
+ 149:Src/support/utils.c **** }
+ 846              		.loc 1 149 5 is_stmt 1 view .LVU224
+ 847 0088 FFF7FEFF 		bl	abort
+ 848              	.LVL61:
+ 849              	.L36:
+ 850              		.align	2
+ 851              	.L35:
+ 852 008c 00000000 		.word	_impure_ptr
+ 853 0090 00000000 		.word	.LC0
+ 854 0094 18000000 		.word	.LC1
+ 855 0098 20000000 		.word	.LC2
+ 856 009c 67666666 		.word	1717986919
+ 857              		.cfi_endproc
+ 858              	.LFE344:
+ 860              		.section	.text.ram_alloc,"ax",%progbits
+ 861              		.align	1
+ 862              		.global	ram_alloc
+ 863              		.syntax unified
+ 864              		.thumb
+ 865              		.thumb_func
+ 867              	ram_alloc:
+ 868              	.LVL62:
+ 869              	.LFB346:
+ 156:Src/support/utils.c ****         ;
+ 157:Src/support/utils.c **** }
+ 158:Src/support/utils.c **** /******************************** hack 解决 未定义的符号__aeabi_assert 报错 end *********
+ 159:Src/support/utils.c **** 
+ 160:Src/support/utils.c **** /******************************** RAM内存动态分配 begin *************************************
+ 161:Src/support/utils.c **** // 定义RAM区域的起始地址和大小（根据链接器脚本中的定义）
+ 162:Src/support/utils.c **** #define RAM_START_ADDR      0x24000000
+ 163:Src/support/utils.c **** #define RAM_SIZE           (512 * 1024)  // 512KB
+ 164:Src/support/utils.c **** #define RAM_ALIGNMENT      32
+ 165:Src/support/utils.c **** 
+ 166:Src/support/utils.c **** // 用于跟踪RAM分配的简单分配器
+ 167:Src/support/utils.c **** static uint32_t current_ram_addr = RAM_START_ADDR;
+ 168:Src/support/utils.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 20
+
+
+ 169:Src/support/utils.c **** // 简单的内存分配函数，返回对齐的地址
+ 170:Src/support/utils.c **** void* ram_alloc(size_t size) {
+ 870              		.loc 1 170 30 view -0
+ 871              		.cfi_startproc
+ 872              		@ args = 0, pretend = 0, frame = 0
+ 873              		@ frame_needed = 0, uses_anonymous_args = 0
+ 874              		@ link register save eliminated.
+ 171:Src/support/utils.c **** 	// 确保大小是32字节对齐的
+ 172:Src/support/utils.c **** 	size = (size + RAM_ALIGNMENT - 1) & ~(RAM_ALIGNMENT - 1);
+ 875              		.loc 1 172 2 view .LVU226
+ 876              		.loc 1 172 31 is_stmt 0 view .LVU227
+ 877 0000 00F11F03 		add	r3, r0, #31
+ 878              		.loc 1 172 7 view .LVU228
+ 879 0004 23F01F03 		bic	r3, r3, #31
+ 880              	.LVL63:
+ 173:Src/support/utils.c **** 	
+ 174:Src/support/utils.c **** 	// 检查是否有足够的空间
+ 175:Src/support/utils.c **** 	if (current_ram_addr + size > RAM_START_ADDR + RAM_SIZE) {
+ 881              		.loc 1 175 2 is_stmt 1 view .LVU229
+ 882              		.loc 1 175 23 is_stmt 0 view .LVU230
+ 883 0008 054A     		ldr	r2, .L40
+ 884 000a 1068     		ldr	r0, [r2]
+ 885 000c 0344     		add	r3, r3, r0
+ 886              	.LVL64:
+ 887              		.loc 1 175 5 view .LVU231
+ 888 000e 054A     		ldr	r2, .L40+4
+ 889 0010 9342     		cmp	r3, r2
+ 890 0012 02D8     		bhi	.L39
+ 176:Src/support/utils.c **** 		return NULL;
+ 177:Src/support/utils.c **** 	}
+ 178:Src/support/utils.c **** 	
+ 179:Src/support/utils.c **** 	// 保存当前地址
+ 180:Src/support/utils.c **** 	void* allocated_addr = (void*)current_ram_addr;
+ 891              		.loc 1 180 2 is_stmt 1 view .LVU232
+ 892              	.LVL65:
+ 181:Src/support/utils.c **** 	
+ 182:Src/support/utils.c **** 	// 更新下一个可用地址
+ 183:Src/support/utils.c **** 	current_ram_addr += size;
+ 893              		.loc 1 183 2 view .LVU233
+ 894              		.loc 1 183 19 is_stmt 0 view .LVU234
+ 895 0014 024A     		ldr	r2, .L40
+ 896 0016 1360     		str	r3, [r2]
+ 184:Src/support/utils.c **** 	
+ 185:Src/support/utils.c **** 	return allocated_addr;
+ 897              		.loc 1 185 2 is_stmt 1 view .LVU235
+ 898              		.loc 1 185 9 is_stmt 0 view .LVU236
+ 899 0018 7047     		bx	lr
+ 900              	.LVL66:
+ 901              	.L39:
+ 176:Src/support/utils.c **** 	}
+ 902              		.loc 1 176 10 view .LVU237
+ 903 001a 0020     		movs	r0, #0
+ 186:Src/support/utils.c **** }
+ 904              		.loc 1 186 1 view .LVU238
+ 905 001c 7047     		bx	lr
+ 906              	.L41:
+ 907 001e 00BF     		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 21
+
+
+ 908              	.L40:
+ 909 0020 00000000 		.word	current_ram_addr
+ 910 0024 00000824 		.word	604504064
+ 911              		.cfi_endproc
+ 912              	.LFE346:
+ 914              		.section	.text.read_uint32_be,"ax",%progbits
+ 915              		.align	1
+ 916              		.global	read_uint32_be
+ 917              		.syntax unified
+ 918              		.thumb
+ 919              		.thumb_func
+ 921              	read_uint32_be:
+ 922              	.LVL67:
+ 923              	.LFB347:
+ 187:Src/support/utils.c **** /******************************** RAM内存动态分配 end ***************************************
+ 188:Src/support/utils.c **** 
+ 189:Src/support/utils.c **** // 大端读取函数定义
+ 190:Src/support/utils.c **** uint32_t read_uint32_be(const uint8_t* data) {
+ 924              		.loc 1 190 46 is_stmt 1 view -0
+ 925              		.cfi_startproc
+ 926              		@ args = 0, pretend = 0, frame = 0
+ 927              		@ frame_needed = 0, uses_anonymous_args = 0
+ 928              		@ link register save eliminated.
+ 191:Src/support/utils.c ****     return ((uint32_t)data[0] << 24) | 
+ 929              		.loc 1 191 5 view .LVU240
+ 930              		.loc 1 191 27 is_stmt 0 view .LVU241
+ 931 0000 0278     		ldrb	r2, [r0]	@ zero_extendqisi2
+ 192:Src/support/utils.c ****            ((uint32_t)data[1] << 16) | 
+ 932              		.loc 1 192 27 view .LVU242
+ 933 0002 4378     		ldrb	r3, [r0, #1]	@ zero_extendqisi2
+ 934              		.loc 1 192 31 view .LVU243
+ 935 0004 1B04     		lsls	r3, r3, #16
+ 191:Src/support/utils.c ****     return ((uint32_t)data[0] << 24) | 
+ 936              		.loc 1 191 38 view .LVU244
+ 937 0006 43EA0263 		orr	r3, r3, r2, lsl #24
+ 193:Src/support/utils.c ****            ((uint32_t)data[2] << 8) | 
+ 938              		.loc 1 193 27 view .LVU245
+ 939 000a 8278     		ldrb	r2, [r0, #2]	@ zero_extendqisi2
+ 192:Src/support/utils.c ****            ((uint32_t)data[1] << 16) | 
+ 940              		.loc 1 192 38 view .LVU246
+ 941 000c 43EA0223 		orr	r3, r3, r2, lsl #8
+ 194:Src/support/utils.c ****            (uint32_t)data[3];
+ 942              		.loc 1 194 26 view .LVU247
+ 943 0010 C078     		ldrb	r0, [r0, #3]	@ zero_extendqisi2
+ 944              	.LVL68:
+ 195:Src/support/utils.c **** }
+ 945              		.loc 1 195 1 view .LVU248
+ 946 0012 1843     		orrs	r0, r0, r3
+ 947 0014 7047     		bx	lr
+ 948              		.cfi_endproc
+ 949              	.LFE347:
+ 951              		.section	.text.read_uint32_le,"ax",%progbits
+ 952              		.align	1
+ 953              		.global	read_uint32_le
+ 954              		.syntax unified
+ 955              		.thumb
+ 956              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 22
+
+
+ 958              	read_uint32_le:
+ 959              	.LVL69:
+ 960              	.LFB348:
+ 196:Src/support/utils.c **** 
+ 197:Src/support/utils.c **** // 小端读取函数定义
+ 198:Src/support/utils.c **** uint32_t read_uint32_le(const uint8_t* data) {
+ 961              		.loc 1 198 46 is_stmt 1 view -0
+ 962              		.cfi_startproc
+ 963              		@ args = 0, pretend = 0, frame = 0
+ 964              		@ frame_needed = 0, uses_anonymous_args = 0
+ 965              		@ link register save eliminated.
+ 199:Src/support/utils.c ****     return ((uint32_t)data[3] << 24) | 
+ 966              		.loc 1 199 5 view .LVU250
+ 967              		.loc 1 199 27 is_stmt 0 view .LVU251
+ 968 0000 C278     		ldrb	r2, [r0, #3]	@ zero_extendqisi2
+ 200:Src/support/utils.c ****            ((uint32_t)data[2] << 16) | 
+ 969              		.loc 1 200 27 view .LVU252
+ 970 0002 8378     		ldrb	r3, [r0, #2]	@ zero_extendqisi2
+ 971              		.loc 1 200 31 view .LVU253
+ 972 0004 1B04     		lsls	r3, r3, #16
+ 199:Src/support/utils.c ****     return ((uint32_t)data[3] << 24) | 
+ 973              		.loc 1 199 38 view .LVU254
+ 974 0006 43EA0263 		orr	r3, r3, r2, lsl #24
+ 201:Src/support/utils.c ****            ((uint32_t)data[1] << 8) | 
+ 975              		.loc 1 201 27 view .LVU255
+ 976 000a 4278     		ldrb	r2, [r0, #1]	@ zero_extendqisi2
+ 200:Src/support/utils.c ****            ((uint32_t)data[2] << 16) | 
+ 977              		.loc 1 200 38 view .LVU256
+ 978 000c 43EA0223 		orr	r3, r3, r2, lsl #8
+ 202:Src/support/utils.c ****            (uint32_t)data[0];
+ 979              		.loc 1 202 26 view .LVU257
+ 980 0010 0078     		ldrb	r0, [r0]	@ zero_extendqisi2
+ 981              	.LVL70:
+ 203:Src/support/utils.c **** }
+ 982              		.loc 1 203 1 view .LVU258
+ 983 0012 1843     		orrs	r0, r0, r3
+ 984 0014 7047     		bx	lr
+ 985              		.cfi_endproc
+ 986              	.LFE348:
+ 988              		.section	.rodata.printBinary.str1.4,"aMS",%progbits,1
+ 989              		.align	2
+ 990              	.LC3:
+ 991 0000 25733062 		.ascii	"%s0b\000"
+ 991      00
+ 992 0005 000000   		.align	2
+ 993              	.LC4:
+ 994 0008 256400   		.ascii	"%d\000"
+ 995              		.section	.text.printBinary,"ax",%progbits
+ 996              		.align	1
+ 997              		.global	printBinary
+ 998              		.syntax unified
+ 999              		.thumb
+ 1000              		.thumb_func
+ 1002              	printBinary:
+ 1003              	.LVL71:
+ 1004              	.LFB349:
+ 204:Src/support/utils.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 23
+
+
+ 205:Src/support/utils.c **** // 将32位整数转换为二进制字符串
+ 206:Src/support/utils.c **** void printBinary(const char* prefix, uint32_t value) {
+ 1005              		.loc 1 206 54 is_stmt 1 view -0
+ 1006              		.cfi_startproc
+ 1007              		@ args = 0, pretend = 0, frame = 0
+ 1008              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1009              		.loc 1 206 54 is_stmt 0 view .LVU260
+ 1010 0000 38B5     		push	{r3, r4, r5, lr}
+ 1011              	.LCFI15:
+ 1012              		.cfi_def_cfa_offset 16
+ 1013              		.cfi_offset 3, -16
+ 1014              		.cfi_offset 4, -12
+ 1015              		.cfi_offset 5, -8
+ 1016              		.cfi_offset 14, -4
+ 1017 0002 0D46     		mov	r5, r1
+ 207:Src/support/utils.c ****     printf("%s0b", prefix);
+ 1018              		.loc 1 207 5 is_stmt 1 view .LVU261
+ 1019 0004 0146     		mov	r1, r0
+ 1020              	.LVL72:
+ 1021              		.loc 1 207 5 is_stmt 0 view .LVU262
+ 1022 0006 0D48     		ldr	r0, .L50
+ 1023              	.LVL73:
+ 1024              		.loc 1 207 5 view .LVU263
+ 1025 0008 FFF7FEFF 		bl	printf
+ 1026              	.LVL74:
+ 208:Src/support/utils.c ****     for (int i = 31; i >= 0; i--) {
+ 1027              		.loc 1 208 5 is_stmt 1 view .LVU264
+ 1028              	.LBB10:
+ 1029              		.loc 1 208 10 view .LVU265
+ 1030              		.loc 1 208 14 is_stmt 0 view .LVU266
+ 1031 000c 1F24     		movs	r4, #31
+ 1032              		.loc 1 208 5 view .LVU267
+ 1033 000e 00E0     		b	.L45
+ 1034              	.LVL75:
+ 1035              	.L46:
+ 1036              		.loc 1 208 31 is_stmt 1 discriminator 2 view .LVU268
+ 1037 0010 013C     		subs	r4, r4, #1
+ 1038              	.LVL76:
+ 1039              	.L45:
+ 1040              		.loc 1 208 24 discriminator 1 view .LVU269
+ 1041 0012 002C     		cmp	r4, #0
+ 1042 0014 0DDB     		blt	.L49
+ 209:Src/support/utils.c ****         printf("%d", (int)((value >> i) & 1));
+ 1043              		.loc 1 209 9 view .LVU270
+ 1044              		.loc 1 209 35 is_stmt 0 view .LVU271
+ 1045 0016 25FA04F1 		lsr	r1, r5, r4
+ 1046              		.loc 1 209 9 view .LVU272
+ 1047 001a 01F00101 		and	r1, r1, #1
+ 1048 001e 0848     		ldr	r0, .L50+4
+ 1049 0020 FFF7FEFF 		bl	printf
+ 1050              	.LVL77:
+ 210:Src/support/utils.c ****         if (i % 8 == 0) printf(" ");  // 每8位添加一个空格
+ 1051              		.loc 1 210 9 is_stmt 1 view .LVU273
+ 1052              		.loc 1 210 12 is_stmt 0 view .LVU274
+ 1053 0024 14F0070F 		tst	r4, #7
+ 1054 0028 F2D1     		bne	.L46
+ 1055              		.loc 1 210 25 is_stmt 1 discriminator 1 view .LVU275
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 24
+
+
+ 1056 002a 2020     		movs	r0, #32
+ 1057 002c FFF7FEFF 		bl	putchar
+ 1058              	.LVL78:
+ 1059 0030 EEE7     		b	.L46
+ 1060              	.L49:
+ 1061              		.loc 1 210 25 is_stmt 0 discriminator 1 view .LVU276
+ 1062              	.LBE10:
+ 211:Src/support/utils.c ****     }
+ 212:Src/support/utils.c ****     printf("\n");
+ 1063              		.loc 1 212 5 is_stmt 1 view .LVU277
+ 1064 0032 0A20     		movs	r0, #10
+ 1065 0034 FFF7FEFF 		bl	putchar
+ 1066              	.LVL79:
+ 213:Src/support/utils.c **** }
+ 1067              		.loc 1 213 1 is_stmt 0 view .LVU278
+ 1068 0038 38BD     		pop	{r3, r4, r5, pc}
+ 1069              	.LVL80:
+ 1070              	.L51:
+ 1071              		.loc 1 213 1 view .LVU279
+ 1072 003a 00BF     		.align	2
+ 1073              	.L50:
+ 1074 003c 00000000 		.word	.LC3
+ 1075 0040 08000000 		.word	.LC4
+ 1076              		.cfi_endproc
+ 1077              	.LFE349:
+ 1079              		.section	.data.current_ram_addr,"aw"
+ 1080              		.align	2
+ 1083              	current_ram_addr:
+ 1084 0000 00000024 		.word	603979776
+ 1085              		.text
+ 1086              	.Letext0:
+ 1087              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1088              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1089              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1090              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1091              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_types.h"
+ 1092              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/reent.h"
+ 1093              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/lock.h"
+ 1094              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1095              		.file 10 "Inc/support/utils.h"
+ 1096              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 1097              		.file 12 "Inc/system/board_cfg.h"
+ 1098              		.file 13 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s 			page 25
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 utils.c
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:20     .text.RGBToHex:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:26     .text.RGBToHex:00000000 RGBToHex
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:47     .text.hexToRGB:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:53     .text.hexToRGB:00000000 hexToRGB
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:100    .text.equations:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:106    .text.equations:00000000 equations
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:275    .text.equations:000000f0 $d
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:281    .text.newton_raphson:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:287    .text.newton_raphson:00000000 newton_raphson
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:539    .text.newton_raphson:00000158 $d
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:544    .text.calculate_axial_magnetic_field:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:550    .text.calculate_axial_magnetic_field:00000000 calculate_axial_magnetic_field
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:651    .text.calculate_axial_magnetic_field:00000080 $d
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:657    .text.find_distance_for_axial_field:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:663    .text.find_distance_for_axial_field:00000000 find_distance_for_axial_field
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:686    .text.abort:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:692    .text.abort:00000000 abort
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:708    .rodata.__aeabi_assert.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:718    .text.__aeabi_assert:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:724    .text.__aeabi_assert:00000000 __aeabi_assert
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:852    .text.__aeabi_assert:0000008c $d
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:861    .text.ram_alloc:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:867    .text.ram_alloc:00000000 ram_alloc
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:909    .text.ram_alloc:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:1083   .data.current_ram_addr:00000000 current_ram_addr
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:915    .text.read_uint32_be:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:921    .text.read_uint32_be:00000000 read_uint32_be
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:952    .text.read_uint32_le:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:958    .text.read_uint32_le:00000000 read_uint32_le
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:989    .rodata.printBinary.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:996    .text.printBinary:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:1002   .text.printBinary:00000000 printBinary
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:1074   .text.printBinary:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccfBNecd.s:1080   .data.current_ram_addr:00000000 $d
+
+UNDEFINED SYMBOLS
+sqrt
+fwrite
+fputs
+_impure_ptr
+printf
+putchar

@@ -1,8 +1,8 @@
-# STM32 HBox 固件服务器
+# XORA 服务端
 
 ## 项目简介
 
-STM32 HBox 固件服务器是一个专为STM32 HBox设备设计的固件管理和分发系统。该系统提供固件上传、版本管理、设备注册、OTA更新等功能，支持多种游戏手柄协议。
+XORA 服务端提供 Hosted WebConfig、管理员后台、邮箱账号，以及固件和图片资源的管理与分发。设备通信与手柄协议由固件实现，服务器不替代设备侧验证。
 
 ## 功能特性
 
@@ -11,8 +11,7 @@ STM32 HBox 固件服务器是一个专为STM32 HBox设备设计的固件管理�
 - 🔄 **OTA更新**: 支持设备在线固件更新
 - 🧲 **轴体映射库**: 按产品、PCB、硬件版本发布不可变 ADC 曲线版本
 - 🎮 **多协议支持**: PS4、PS Classic、Switch、Xbox One、XInput等
-- 🔐 **安全认证**: V2 制造证书、Boot Attestation、短期 scoped permit；
-  旧设备 ID 哈希仅作为 legacy weak 兼容
+- 🔐 **访问控制**: 邮箱会话、管理员角色与 scoped 服务令牌；WebConfig 使用设备加密直连。V2 设备证明与旧 legacy weak 兼容属于独立子系统
 - ✉️ **邮箱账号**: 独立 UUID 用户、邮箱验证、Argon2id 密码与 7 天会话
 - 📊 **状态监控**: 实时服务状态和日志监控
 - 🌐 **Web界面**: 现代化的Web管理界面
@@ -39,13 +38,11 @@ server/
 │   ├── switch_mappings.sqlite3 # 轴体映射目录及不可变版本
 │   └── user_accounts.sqlite3 # 邮箱账号、角色与服务令牌
 ├── tools/                  # 部署和管理工具
-│   ├── deploy.ps1         # 主部署脚本
-│   ├── deploy-simple.ps1  # 简化部署脚本
+│   ├── deploy_xora.py     # 当前 WebConfig / admin 部署入口
+│   ├── deploy-xora.example.json # 新部署配置示例
 │   ├── service-manager.ps1 # 服务管理脚本
-│   └── deploy-config.json # 部署配置
+│   └── deploy-config.json # 旧服务配置，当前部署不使用
 ├── uploads/               # 固件文件存储
-├── start.js              # 服务启动脚本
-├── stop.js               # 服务停止脚本
 └── package.json          # 项目依赖配置
 ```
 
@@ -53,8 +50,8 @@ server/
 
 ### 环境要求
 
-- **Node.js**: 18.17 或更高版本
-- **PM2**: 用于进程管理
+- **Node.js**: `package.json` 声明最低 18.17；当前服务器已验证的独立运行时为 22.23.3，原生依赖必须在目标平台/Node 版本下安装
+- **进程管理**: 当前 WebConfig / admin 使用 systemd `xora-server`；原固件服务继续由 PM2 管理
 - **操作系统**: Linux (推荐 Ubuntu/Debian)
 
 V2 密钥配置、wire API、部署门禁和吊销策略见
@@ -88,145 +85,69 @@ V2 密钥配置、wire API、部署门禁和吊销策略见
 4. **启动服务**
    ```bash
    npm start
-   # 或者使用 PM2
-   pm2 start ecosystem.config.js
    ```
 
 ### 生产部署
 
-当前 WebConfig 和 admin 同源部署请使用
+当前 WebConfig（config.st-dash.com）和 admin（manager.st-dash.com）部署请使用
 [XORA 服务端部署方案](../../docs/webconfig-admin-deployment.md)。
 新入口为 `python server/tools/deploy_xora.py`（从仓库根目录执行），提供
 `package`、`setup`、`check`、`deploy` 和 `rollback`；配置示例为
 [`deploy-xora.example.json`](../tools/deploy-xora.example.json)。
-现有 `tools/deploy*.ps1` 和本页后续旧环境示例未包含当前完整静态产物、
-共享图片解析文件及必需生产配置，不作为本次上线入口；公网直接开放 3000
-也不符合当前 loopback 监听策略。旧 V2 设备证明部署要求须与当前 WebHID
-直连产品路径区分。
+现有 `tools/deploy*.ps1` 属于旧服务入口，不作为当前 WebConfig / admin 上线流程。
+当前部署包含完整静态产物、共享图片解析文件和必需生产配置，应用仅监听 loopback。
+旧 V2 设备证明部署要求须与当前 WebHID 直连产品路径区分。
 
-## 访问方式
+## 当前生产访问与配置
 
-本服务支持两种访问方式：
+| 入口 | 地址 / 配置 |
+| --- | --- |
+| WebConfig | `https://config.st-dash.com` |
+| 管理后台 | `https://manager.st-dash.com` |
+| 邮件发信域名 | `auth.st-dash.com`，Resend 已验证 |
+| 本机部署配置 | `.hbox/deploy/config.json`，被 Git 忽略 |
+| 服务进程 | `xora-server.service`，专用 `xora` 账户 |
+| 应用监听 | `127.0.0.1:3001`，通过 Nginx 提供 HTTPS |
+| Node.js | `/opt/xora/runtime/node/bin/node` |
+| 服务环境 | `/etc/xora/server.env`，由 systemd 加载 |
+| 当前代码 | `/opt/xora/current` 指向保留的 release 目录 |
+| 业务数据 | `/var/lib/xora/data`、`uploads`、`gallery-assets` |
+| 更新备份 | `/var/backups/xora`，版本切换前停服务备份 |
 
-### 1. 直接端口访问
-- **地址**: http://182.92.72.220:3000
-- **用途**: 内部测试、开发调试
-- **特点**: 无需域名解析，直接访问
+2026-10-05 已完成双域名上线与 Resend DNS 验证，用户确认首个管理员注册和登录可用。
+配置文件、密钥文件及实际运维路径按 [部署指南](../../docs/webconfig-admin-deployment.md)
+管理；新服务沿用独立数据目录，原 `firmware.st-dash.com` 的 PM2 服务继续保留。
 
-### 2. 域名HTTPS访问
-- **地址**: https://firmware.st-dash.com
-- **用途**: 生产环境、外部访问
-- **特点**: 安全HTTPS连接，专业域名
+## 部署与运维入口
 
-### 健康检查
-- 直接访问: http://182.92.72.220:3000/health
-- 域名访问: https://firmware.st-dash.com/health
+从仓库根目录运行 `python server/tools/deploy_xora.py`。首次部署依次配置 SSH、
+运行时、`setup`、公钥和发信密钥、DNS/TLS、`check`、`package`、`deploy` 与管理员
+初始化，详见 [完整部署步骤](../../docs/webconfig-admin-deployment.md)。
 
-### 部署命令
-```bash
-# 双访问模式部署
-./deploy-simple.ps1
-```
+已有服务器更新时，复用 `.hbox/deploy/config.json`，逐步执行 `check`、`package`，
+再把本次输出的精确 `PACKAGE=` 路径传给 `deploy --package`。回滚使用
+`rollback --release <保留版本> --database-compatible`，须先核对数据库兼容性；
+代码回滚保留当前业务数据，不还原旧数据库。
 
-## 部署配置
-
-### 环境配置
-
-编辑 `tools/deploy-config.json` 文件：
-
-```json
-{
-  "environments": {
-    "prod": {
-      "host": "182.92.72.220",
-      "user": "root", 
-      "path": "/opt/hbox-server",
-      "ssh_key": "E:\\Works\\Ali-cloude\\182.92.72.220\\PC1125.pem",
-      "port": 3000,
-      "domain": "firmware.st-dash.com",
-      "ssl_enabled": true,
-      "access_methods": {
-        "direct_port": "http://182.92.72.220:3000",
-        "domain_https": "https://firmware.st-dash.com"
-      },
-      "description": "生产环境"
-    }
-  },
-  "default_env": "prod",
-  "health_check_urls": {
-    "direct": "http://182.92.72.220:3000/health",
-    "domain": "https://firmware.st-dash.com/health"
-  }
-}
-```
-
-### 环境变量
-
-创建 `.env` 文件：
-
-```env
-NODE_ENV=production
-PORT=3000
-UPLOAD_DIR=./uploads
-MAX_FILE_SIZE=50MB
-JWT_SECRET=your_jwt_secret_here
-LOG_LEVEL=info
-```
-
-## 管理工具
-
-### 部署脚本
-
-- **`deploy-simple.ps1`**: 一键部署到生产环境
-- **`deploy.ps1`**: 完整部署脚本，支持多环境
-- **`service-manager.ps1`**: 服务管理工具
-
-### 服务管理
-
-```powershell
-# 查看服务状态
-.\service-manager.ps1 status
-
-# 重启服务
-.\service-manager.ps1 restart
-
-# 查看日志
-.\service-manager.ps1 logs
-
-# 健康检查
-.\service-manager.ps1 health
-```
-
-### 连接测试
-
-```powershell
-# 测试服务器连接
-.\test-connection.ps1
-```
+`tools/deploy*.ps1`、`deploy-config.json` 与 PM2 管理脚本属于旧服务入口，
+当前 WebConfig / admin 使用新的 Python 脚本与 systemd 流程。
 
 ## 监控和日志
 
-### PM2 管理
+在服务器执行只读检查：
 
 ```bash
-# 查看进程状态
-pm2 list
-
-# 查看日志
-pm2 logs hbox-firmware-server
-
-# 重启服务
-pm2 restart hbox-firmware-server
-
-# 停止服务
-pm2 stop hbox-firmware-server
+sudo systemctl status xora-server --no-pager
+sudo journalctl -u xora-server -n 100 --no-pager
+readlink -f /opt/xora/current
+curl --fail --silent --show-error --max-time 10 https://config.st-dash.com/health
+curl --fail --silent --show-error --max-time 10 https://manager.st-dash.com/health
 ```
 
-### 日志文件
-
-- `logs/out.log`: 标准输出日志
-- `logs/err.log`: 错误日志
-- `logs/combined.log`: 合并日志
+双域名登录 Cookie 分别保存。邮箱验证链接固定进入 config，完成注册后回 manager
+单独登录；详情见 [EMAIL_AUTH.md](EMAIL_AUTH.md)。服务日志、DNS/TLS、邮件与
+版本切换的排障见 [部署指南](../../docs/webconfig-admin-deployment.md)。
+原 `firmware.st-dash.com` 的日志仍由其 PM2 进程管理，不用它判断 `xora-server` 状态。
 
 ## 安全考虑
 
@@ -237,8 +158,8 @@ challenge 和由在线 KMS/HSM 签发的短期 scoped permit。`deviceId` 由设
 SHA-256 的前 128 bit 派生，它本身不是秘密，也不能单独作为认证凭据。
 
 当前仓库的本地 PEM signer、JSON 设备库和进程内 challenge/token store 只适合
-单进程开发。生产必须使用不可导出的 KMS key、共享 Redis 原子消费和事务型设备
-策略/吊销数据库；依赖不可用时保持 fail-closed。
+单进程开发。独立部署 V2 设备证明时必须使用不可导出的 KMS key、共享 Redis 原子消费和事务型设备
+策略/吊销数据库；该子系统依赖不可用时保持 fail-closed。这些要求不是当前直连站点的上线前置条件。
 
 ### V1 legacy weak
 
@@ -250,11 +171,11 @@ SHA-256 的前 128 bit 派生，它本身不是秘密，也不能单独作为认
 
 - 文件类型验证
 - 文件大小限制
-- 病毒扫描（可选）
+- 固件签名、目标与版本门禁以 `src/firmware.js` 为准；本仓库未提供通用病毒扫描集成
 
 ### 访问控制
 
-- JWT令牌认证
+- 邮箱 Cookie 会话、管理员角色与 scoped 服务令牌（非 JWT），实现见 `src/email-auth.js` / `src/admin-access.js`
 - 请求频率限制
 - CORS配置
 
@@ -277,13 +198,9 @@ SHA-256 的前 128 bit 派生，它本身不是秘密，也不能单独作为认
    - 验证文件格式
    - 确认存储权限
 
-### 调试模式
+### 调试与诊断
 
-```bash
-# 启用调试日志
-export DEBUG=*
-npm start
-```
+本地启动使用 `npm start`，环境与持久化目录按 [服务端规则](../AGENTS.md) 核对。生产日志使用上文 systemd / journal 入口；不将通用 `DEBUG=*` 当作本服务已实现的日志开关。
 
 ## 开发指南
 
@@ -297,7 +214,7 @@ npm start
 ### 添加新功能
 
 1. 在 `src/` 目录创建新模块
-2. 在 `server.js` 中注册路由
+2. 在 `src/server.js` 中注册路由
 3. 更新API文档
 4. 添加单元测试
 
@@ -307,17 +224,11 @@ npm start
 # 运行测试
 npm test
 
-# 代码检查
-npm run lint
+# 单文件语法检查；不替代行为测试
+node --check src/server.js
 ```
 
-## 版本历史
-
-### v1.0.0 (2024-01-01)
-- 初始版本发布
-- 基础固件管理功能
-- 设备注册和认证
-- Web管理界面
+`package.json` 未定义 `lint` 脚本。测试按受影响路由和模块选择，环境及外部依赖要求见 [服务端规则](../AGENTS.md)。
 
 ## 贡献指南
 
@@ -328,13 +239,7 @@ npm run lint
 
 ## 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
-
-## 联系方式
-
-- 项目维护者: [维护者姓名]
-- 邮箱: [邮箱地址]
-- 项目地址: [GitHub地址]
+`package.json` 声明 `license: MIT`，但当前仓库未提供服务端或仓库级许可证正文；发布前需由维护者补齐相应文件，不能将第三方库许可证当作项目许可证。
 
 ---
 

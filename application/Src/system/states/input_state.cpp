@@ -62,6 +62,8 @@ static void enterBoardSafeState()
 
 static void teardownCh585Runtime()
 {
+    CONNECTION_MANAGER.cancelRfRuntimeRecovery();
+    RF_SLEEP_RECOVERY.cancel();
     USB_DRIVER.shutdown();
     USB_BOARD_LINK.shutdown();
     CH585_ROLE_BOOTSTRAP.shutdown();
@@ -116,9 +118,11 @@ void InputState::startInputPipeline()
     const uint16_t reportRateHz = activeBoardMode == BoardMode::Usb
         ? USB_DRIVER.effectiveReportRateHz(inputMode,
                                            requestedReportRateHz)
-        : CONNECTION_MANAGER.getAppliedReportRateHz();
+        : (CONNECTION_MANAGER.isReportRateConfirmed()
+            ? CONNECTION_MANAGER.getAppliedReportRateHz() : 1000u);
     if (activeBoardMode == BoardMode::Rf &&
-        !CONNECTION_MANAGER.isReportRateConfirmed()) {
+        !CONNECTION_MANAGER.isReportRateConfirmed() &&
+        !CONNECTION_MANAGER.isRfRuntimeRecovering()) {
 #if HAS_LED == 1
         LEDS_MANAGER.deinit();
 #endif
@@ -355,7 +359,8 @@ bool InputState::applyPhysicalMode(BoardMode mode,
         CONNECTION_MANAGER.setup(CONNECTION_MODE_RF24G,
                                  wirelessRate,
                                  inputMode);
-        if (!CONNECTION_MANAGER.isReportRateConfirmed()) {
+        if (!CONNECTION_MANAGER.isReportRateConfirmed() &&
+            !CONNECTION_MANAGER.isRfRuntimeRecovering()) {
             APP_STAGE_ERROR("I03",
                             "CH585 RF role started but no report rate was confirmed");
             teardownCh585Runtime();
@@ -454,7 +459,9 @@ void InputState::tick()
 
     /*
      * USB uses the post-probe effective rate. RF uses only the rate confirmed
-     * by RATE_APPLIED (including an explicit 1-kHz fallback).
+     * by a physical GET_STATUS (including an explicit 1-kHz fallback).
+     * While RF recovers, retain the local sample clock; transmission is gated
+     * by ConnectionManager until the new rate and neutral frame are verified.
      */
     if (inputPipelineRunning) {
         if (!ADC_MANAGER.isDmaSamplingActive() ||
@@ -471,7 +478,9 @@ void InputState::tick()
         const uint16_t desiredReportRateHz = activeBoardMode == BoardMode::Usb
             ? USB_DRIVER.effectiveReportRateHz(
                   STORAGE_MANAGER.getInputMode(), requestedReportRateHz)
-            : (rfSleepPoweredOff ? sleepReportRateHz : CONNECTION_MANAGER.getAppliedReportRateHz());
+            : (rfSleepPoweredOff ? sleepReportRateHz
+                : (CONNECTION_MANAGER.isReportRateConfirmed()
+                    ? CONNECTION_MANAGER.getAppliedReportRateHz() : REPORT_SCHEDULER.getRate()));
         if (REPORT_SCHEDULER.getRate() != desiredReportRateHz) {
             if (!REPORT_SCHEDULER.setRate(desiredReportRateHz)) {
                 APP_STAGE_ERROR("I07", "TIM2 report/ADC rate change failed");
@@ -660,12 +669,14 @@ bool InputState::suspendSleepTransport()
     if (activeBoardMode != BoardMode::Rf || !sleepPaused || !RFBridgePort_IsInputIdle()) return false;
     rfSleepPoweredOff = true; // transport unavailable, including a failed park
     rfSleepRestartStarted = rfSleepCancelled = false;
+    CONNECTION_MANAGER.cancelRfRuntimeRecovery();
     return RF_SLEEP_RECOVERY.suspend();
 }
 
 void InputState::cancelSleepRecovery()
 {
     rfSleepCancelled = true;
+    CONNECTION_MANAGER.cancelRfRuntimeRecovery();
     RF_SLEEP_RECOVERY.cancel();
 }
 

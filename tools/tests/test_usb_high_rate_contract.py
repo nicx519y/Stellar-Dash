@@ -274,12 +274,14 @@ class UsbHighRateContractTests(unittest.TestCase):
             strings,
         )
 
-    def test_rf_rate_requires_matching_rate_applied(self) -> None:
+    def test_rf_rate_requires_fresh_matching_physical_status(self) -> None:
         manager = (
             ROOT / 'application/Src/transport/connection_manager.cpp'
         ).read_text(encoding="utf-8")
         self.assertIn("confirmRfReportRate", manager)
-        self.assertIn("RfRateAppliedMatches", manager)
+        self.assertIn("rfTransport.receivedStatusGeneration() != generation", manager)
+        self.assertIn("rfTransport.receivedStatusMatchesRate(rateHz)", manager)
+        self.assertIn("rfTransport.pollStatus()", manager)
         self.assertIn("applyAndConfirm(1000u)", manager)
         self.assertIn("appliedReportRateHz = 0u", manager)
 

@@ -65,7 +65,9 @@ def main():
         run_checked([str(event_exe)])
         for scenario in ('success', 'offline', 'fallback', 'retry', 'fresh-status',
                          'unsafe-park', 'cancel', 'old-session', 'cycles',
-                         'handoff', 'cancel-handoff', 'handoff-wrap'):
+                         'handoff', 'cancel-handoff', 'handoff-wrap',
+                         'cold-handoff', 'late-ready', 'stuck-ready',
+                         'bounded-failure', 'bounded-recovery'):
             print(scenario, flush=True)
             run_checked([str(executable), scenario])
 

@@ -4,6 +4,8 @@
 
 Current USB protocol, measurement boundaries and acceptance steps: [USB XInput monitoring](../docs/usb-connect-monitor.md).
 
+Current source ownership, worker boundaries and commands: [AGENTS.md](AGENTS.md) and [architecture](ARCHITECTURE.md). Automatic regression, device sampling and restoring automatic RF hopping remain paused; test examples below are references, not instructions to run them now.
+
 ## 1. Scope
 
 Observed paths:
@@ -27,8 +29,8 @@ Non-goals:
 
 Priority order:
 
-1. `application HID telemetry` for wired mode
-2. `dongle HID telemetry` for wireless mode
+1. CH585 TX USB XInput telemetry for wired mode
+2. CH585 RX HID telemetry for wireless mode
 3. Dongle text telemetry for development and debugging
 4. PC-side XInput observation for future cross-checking
 
@@ -100,8 +102,8 @@ Dependencies:
 
 ## 7. Current Status
 
-- Application `MON1` telemetry is available.
-- Dongle `DMN1` telemetry framing is available.
+- USB `UMS1`/`UME1` and RF statistics/relative-latency parsing are available; formats and measurement limits follow the producer and matching parser.
+- `MON1` and `DMN1` remain legacy parsers, not the current primary measurement protocols.
 - PC-side HID collection and parsing are available.
 - Renderer dashboards, logs, and Markdown export are available.
 

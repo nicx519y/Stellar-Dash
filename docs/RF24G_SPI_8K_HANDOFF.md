@@ -1,5 +1,7 @@
 # RF24G SPI 8K Bring-up Handoff
 
+> Historical prototype record: the 2026-05-16 measurements, 19-byte SPI frames and removed source paths below belong to that prototype. Current CH585 input uses a 10-byte payload; use the [current RF rules and source map](../RF_PHY_Hop/AGENTS.md) for changes or acceptance.（本次标注日期：2026-10-05。）
+
 Date: 2026-05-16
 
 ## Goal

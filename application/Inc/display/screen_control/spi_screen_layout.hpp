@@ -7,6 +7,8 @@
 #define SPI_SCREEN_RIGHT_BAR_W 40u
 #define SPI_SCREEN_Y_OFFSET 34u
 #define SPI_SCREEN_STATUS_BAR_TEXT_SCALE 2u
+// Scale 3 selects the compact 9x12 font cell (status text uses 12x16).
+#define SPI_SCREEN_PROFILE_TEXT_SCALE 3u
 #define SPI_SCREEN_MENU_TEXT_SCALE 2u
 #define SPI_SCREEN_MENU_ITEM_H 34u
 #define SPI_SCREEN_OK_FLASH_MS 200u

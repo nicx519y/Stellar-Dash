@@ -78,7 +78,7 @@ node server/scripts/create-firmware-bundle.js "path/to/release-source.json" "pat
 
 该工具只读取已有产物、签名、校验并生成文件；不会编译、联网、上传或访问硬件。输出已存在时拒绝覆盖。签名包总大小最多 12 MiB，平铺条目最多 6 个，每条解压后最多 4 MiB。
 
-### 在本地 admin 服务生成草稿
+### 构建并上传远程 admin 草稿
 
 当前仓库可使用一条命令自动完成无锁 A/B、TX 主机构建、发布身份注入、v2 签名打包和初版说明生成：
 
@@ -86,15 +86,15 @@ node server/scripts/create-firmware-bundle.js "path/to/release-source.json" "pat
 python tools/local_firmware_draft.py
 ```
 
-脚本只使用 `.hbox/webconfig-local` 的本地 PKI，构建时隔离状态目录并在结束后恢复 `common/release_build_identity.h`；不烧录设备。它默认使用版本 `1.0.0`，当前协议 2 测试版使用 `python tools/local_firmware_draft.py --version 1.0.2`，不覆盖已发布 1.0.1。产物放在 `.hbox/firmware-drafts/XORA-<版本>-<时间>/package/`。若 `.hbox/webconfig-local/firmware-manage-token.txt` 已保存从本地 admin 创建的 `firmware.manage` 令牌，它会把包导入 `http://localhost:3001` 草稿并写入说明；没有令牌时仍生成并校验签名包、Markdown 和 Git 依据文件，明确报告未上传。加 `--no-upload` 可在令牌存在时也只生成本地文件。不会向远端服务发送请求。重新运行会重新构建并创建新输出目录；已有包可直接在本地 admin 固件页导入，同版本已有草稿时直接使用该草稿。
+脚本只使用 `.hbox/webconfig-local` 的本地 PKI，构建时隔离状态目录并在结束后恢复 `common/release_build_identity.h`；不烧录设备。它默认使用版本 `1.0.0`，当前协议 2 测试版使用 `python tools/local_firmware_draft.py --version 1.0.2`，不覆盖已发布 1.0.1。产物放在 `.hbox/firmware-drafts/XORA-<版本>-<时间>/package/`。若 `.hbox/webconfig-local/firmware-manage-token.txt` 已保存目标后台签发的 `firmware.manage` 令牌，它会默认把包导入 `https://manager.st-dash.com` 草稿并写入说明；没有令牌时仍生成并校验签名包、Markdown 和 Git 依据文件，明确报告未上传。加 `--no-upload` 可在令牌存在时也只生成本地文件；加 `--server http://localhost:3001` 可改为本地 admin。重新运行会重新构建并创建新输出目录；已有包可直接在目标 admin 固件页导入，同版本已有草稿时直接使用该草稿。
 
-先使用本页“本地使用”中的 `local-serve --port 3001` 启动本地 admin 服务，登录本地管理员账号，在 `/admin/service-tokens/` 创建含 `firmware.manage` 范围的服务令牌。生成弹窗分别提供“复制 Windows 脚本”和“复制 macOS 脚本”；在仓库根目录的 Windows PowerShell 或 macOS 终端（zsh/bash）中粘贴执行一次，以后打包无需指定令牌文件。Windows 脚本调用 `python`，macOS 脚本调用 `python3`；两者均通过 `local_firmware_draft.py --save-token` 从标准输入接收令牌，原子替换 `.hbox/webconfig-local/firmware-manage-token.txt`，不保留旧令牌副本，也不撤销后台旧令牌；此设置操作不构建、不上传、不烧录。令牌与脚本只在创建弹窗中提供，关闭后不可再次取回。手动保存其他文件时仍可用 `--token-file <路径>` 临时指定。也可在已登录的本地 admin 固件页手动导入一键命令生成的 ZIP，再在草稿详情页导入旁边的 `.md` 更新说明。默认本地状态目录使用 `.hbox/webconfig-local/pki/firmware-release-private.pem` 测试密钥，对应 `local-serve` 配置的验签公钥；不要拿其他诊断目录的密钥混用。
+登录目标后台（默认 `https://manager.st-dash.com`），在 `/admin/service-tokens/` 创建含 `firmware.manage` 范围的服务令牌。本地 admin 创建的令牌不能用于远程后台。生成弹窗分别提供“复制 Windows 脚本”和“复制 macOS 脚本”；在仓库根目录的 Windows PowerShell 或 macOS 终端（zsh/bash）中粘贴执行一次，以后打包无需指定令牌文件。Windows 脚本调用 `python`，macOS 脚本调用 `python3`；两者均通过 `local_firmware_draft.py --save-token` 从标准输入接收令牌，原子替换 `.hbox/webconfig-local/firmware-manage-token.txt`，不保留旧令牌副本，也不撤销后台旧令牌；此设置操作不构建、不上传、不烧录。令牌与脚本只在创建弹窗中提供，关闭后不可再次取回。手动保存其他文件时仍可用 `--token-file <路径>` 临时指定。也可在已登录的目标 admin 固件页手动导入一键命令生成的 ZIP，再在草稿详情页导入旁边的 `.md` 更新说明。默认本地状态目录使用 `.hbox/webconfig-local/pki/firmware-release-private.pem` 测试密钥，对应 `local-serve` 配置的验签公钥；远程服务使用独立的正式公钥，不能接受测试密钥签发的包。上传地址切换不改变构建 PKI 或设备信任根；正式密钥记录与配置见 [部署指南](webconfig-admin-deployment.md)。
 
-底层 `create-firmware-draft.js` 默认使用 `http://localhost:3001`，并且只接受 `localhost`、`127.0.0.1` 或 `::1` 的本地 admin 服务地址；远端上传会在读取文件或发出请求前被拒绝。本地草稿只保存在本地服务的数据目录，不会同步到正式服务。
+底层 `create-firmware-draft.js` 同样默认使用 `https://manager.st-dash.com`，可用 `--server <后台 origin>` 覆盖。远程后台要求 HTTPS；`localhost`、`127.0.0.1` 或 `::1` 的本地服务也允许 HTTP。地址不允许携带用户名、密码、路径、查询参数或片段；请求不自动跟随重定向。本地草稿只保存在本地服务的数据目录，不会同步到正式服务。
 
 本地一键命令的默认版本 `1.0.0` 生成简短的初版发布声明；后续版本自动查找本地较低版本包中的 Git 依据文件，比较上次实际源码快照与当前 Git 工作区，包括未提交及新加入的固件源码。新依据文件记录每个源码文件的摘要；历史文件只有提交信息时，比较该提交与当前工作区，并输出实际使用的基线版本。缺少本地记录时才查找可达的 `xora-v<版本>` 或 `v<版本>` 标签，也可加 `--since <上一版提交或标签>`。无设备源码变化时生成简短的常规维护说明，不虚构具体更新。WebConfig 托管页面的改动不会写入固件更新说明；发布前仍须核对文案。
 
-本地一键命令始终生成并校验 `XORA-<版本>-release.zip`，同时生成 `XORA-<版本>-release-notes.md` 和记录 Git 提交、源码快照及分类依据的 `XORA-<版本>-release-notes-source.json`。有本地服务令牌且未指定 `--no-upload` 时，重新验签后上传 ZIP，并把更新说明保存到 admin 草稿。私钥和服务令牌仅从本机文件读取，不会上传；服务令牌必须有 `firmware.manage` 范围。底层打包上传命令首次检查可加 `--dry-run` 并省略 `--server`、`--service-token-file`，只生成本地文件。直接使用底层命令时仍默认要求已提交源码；一键本地命令明确启用工作区和本地历史比较。
+本地一键命令始终生成并校验 `XORA-<版本>-release.zip`，同时生成 `XORA-<版本>-release-notes.md` 和记录 Git 提交、源码快照及分类依据的 `XORA-<版本>-release-notes-source.json`。有目标后台的服务令牌且未指定 `--no-upload` 时，重新验签后上传 ZIP，并把更新说明保存到 admin 草稿。私钥仅在本机使用；服务令牌从本机文件读取，通过请求的 Bearer 认证头发送到目标后台，不写入发布包，必须有 `firmware.manage` 范围。底层打包上传命令首次检查可加 `--dry-run` 并省略 `--server`、`--service-token-file`，只生成本地文件。直接使用底层命令时仍默认要求已提交源码；一键本地命令明确启用工作区和本地历史比较。
 
 成功导入后命令显示草稿 ID 和 `/admin/firmware/` 地址。管理员从列表进入草稿详情，查看或修改用户可见更新说明；文字编辑会自动保存，点击“导入 .md”或将 `.md` 拖入更新说明输入框都会替换现有说明并立即保存。说明保存且非空后可由管理员人工发布。一键命令会构建固件，但不会烧录或发布；底层 `create-firmware-draft.js` 只打包已有产物。上传超时或连接中断后，先按版本在后台检查草稿，再决定是否重试，以免重复导入。`tools/release.py upload` 仍对应旧 STM32 固件接口，不用于此 v2 整机草稿。
 

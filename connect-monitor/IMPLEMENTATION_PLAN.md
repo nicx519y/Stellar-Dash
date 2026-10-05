@@ -1,5 +1,7 @@
 # connect-monitor Implementation Plan
 
+> Historical implementation plan: the old dongle weak-driver, synchronous persistence and XInput-observation TODOs below are not a current completion checklist. Current entry points are in [AGENTS.md](AGENTS.md), [architecture](ARCHITECTURE.md) and [device binding](docs/device-binding.md). Automatic regression and device sampling remain paused.（本次标注日期：2026-10-05。）
+
 ## 1. PC / Electron Client
 
 - `connect-monitor/package.json`

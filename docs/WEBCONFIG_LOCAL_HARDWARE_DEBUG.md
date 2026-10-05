@@ -4,6 +4,7 @@
 > 当前 bootloader 重刷使用 `python tools/hbox.py flash bootloader`，会清空同一
 > 128 KiB 扇区中的设备身份和最低安全版本；WebConfig 通过加密直连会话工作，
 > 用户登录流程保持原样。STM32 Application 日常烧录入口见仓库根目录 `AGENTS.md`。
+> 本文命令、端口与制造步骤按旧安全方案理解，不用于当前开发板；保护位读取/操作和锁定均受 [根规则](../AGENTS.md#硬件安全红线) 禁止。当前本地开发见 [Web README](../application/www/README.md)，部署见 [部署指南](webconfig-admin-deployment.md)。
 
 本文给出与生产 V2 **相同设备侧安全协议**的本地实机调试流程：签名启动
 metadata、制造证书、boot attestation、服务端 permit 和加密 WebHID RPC 都不会
@@ -220,13 +221,11 @@ python tools/hbox.py web local-flash-stm32 --openocd $openocd --execute `
 旧 v1 状态；`.creating-*` 是尚未发布且从未开始硬件写入的孤儿目录，不参与恢复或
 活动事务冲突判断。
 
-随后仍须使用独立 CH585 编程器烧录 `ch585-maintenance.bin`，并按批准的制造工序
-设置、读回复核 RDP Level 1、Secure/SECURITY 和覆盖完整 128 KiB 内部用户 Flash
-的 SCAR，最后完整断电重启。详见
-[DEVICE_IDENTITY_PROVISIONING.md](./DEVICE_IDENTITY_PROVISIONING.md)。这些生命周期
-步骤可能使调试口受限或芯片不可恢复，因此本地工具有意不自动执行；没有完整
-备份和明确批准时，不应尝试 option-byte 操作。若只完成镜像写入而未完成生命周期
-门禁，正式 bootloader 会 fail-closed；不要通过关闭门禁来“临时调通”。
+旧方案另行设计了 CH585 首次安装与 STM32 安全生命周期工序，详见
+[设备身份设计](DEVICE_IDENTITY_PROVISIONING.md)。这不是当前开发板的后续步骤：
+不得读取或设置 RDP、SECURITY、SCAR、Option Bytes，不以备份或普通烧录确认绕过
+根目录禁令。当前开发板重新构建无锁产物；TX Application 和独立 TX IAP 维护分别
+使用各自已指定入口，不能将旧 `ch585-maintenance.bin` 当作独立 IAP 镜像。
 
 ## 启动本地同源页面与认证 API
 

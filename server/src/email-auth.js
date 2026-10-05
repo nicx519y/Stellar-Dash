@@ -307,8 +307,7 @@ class EmailAuthService {
     }
 
     requireOrigin(origin) {
-        if (!origin || !this.allowedOrigins.has(origin) ||
-            (this.publicOrigin && origin !== this.publicOrigin)) {
+        if (!origin || !this.allowedOrigins.has(origin)) {
             throw new EmailAuthError(
                 'ORIGIN_NOT_ALLOWED',
                 'The request origin is not allowed.',
@@ -617,10 +616,21 @@ function createEmailAuthFromEnvironment(options) {
     if (!options.allowedOrigins.includes(publicOrigin)) {
         throw new Error('USER_AUTH_PUBLIC_ORIGIN must be present in WEB_CONFIG_ORIGINS');
     }
+    // Account origins are an explicit subset of the WebConfig allowlist.
+    // Keep the existing single-origin default; sharing a backend does not
+    // share host-only cookies or permit arbitrary sibling subdomains.
+    const configuredOrigins = String(environment.USER_AUTH_ALLOWED_ORIGINS || '').trim();
+    const authOrigins = configuredOrigins
+        ? [...new Set(configuredOrigins.split(',').map(origin => exactPublicOrigin(origin.trim())))]
+        : [publicOrigin];
+    if (!authOrigins.includes(publicOrigin) ||
+        authOrigins.some(origin => !options.allowedOrigins.includes(origin))) {
+        throw new Error('USER_AUTH_ALLOWED_ORIGINS must include the public origin and be a subset of WEB_CONFIG_ORIGINS');
+    }
     const localPreview = environment.USER_AUTH_LOCAL_PREVIEW === '1';
     if (localPreview) {
         if (environment.NODE_ENV === 'production' ||
-            !isLoopbackOrigin(publicOrigin)) {
+            !isLoopbackOrigin(publicOrigin) || authOrigins.some(origin => !isLoopbackOrigin(origin))) {
             throw new Error(
                 'USER_AUTH_LOCAL_PREVIEW is restricted to loopback development'
             );
@@ -628,7 +638,7 @@ function createEmailAuthFromEnvironment(options) {
         return new EmailAuthService({
             store: options.store,
             enabled: true,
-            allowedOrigins: options.allowedOrigins,
+            allowedOrigins: authOrigins,
             publicOrigin,
             mailer: new LocalPreviewMailer(),
             exposeVerificationToken: true,
@@ -652,7 +662,7 @@ function createEmailAuthFromEnvironment(options) {
     return new EmailAuthService({
         store: options.store,
         enabled: true,
-        allowedOrigins: options.allowedOrigins,
+        allowedOrigins: authOrigins,
         publicOrigin,
         mailer: new ResendMailer({ apiKey, from, publicOrigin }),
     });

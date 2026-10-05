@@ -1,0 +1,837 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"hkdf.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/mbedtls/library/hkdf.c"
+  19              		.section	.text.mbedtls_hkdf_extract,"ax",%progbits
+  20              		.align	1
+  21              		.global	mbedtls_hkdf_extract
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	mbedtls_hkdf_extract:
+  27              	.LVL0:
+  28              	.LFB4:
+   1:Libs/mbedtls/library/hkdf.c **** /*
+   2:Libs/mbedtls/library/hkdf.c ****  *  HKDF implementation -- RFC 5869
+   3:Libs/mbedtls/library/hkdf.c ****  *
+   4:Libs/mbedtls/library/hkdf.c ****  *  Copyright The Mbed TLS Contributors
+   5:Libs/mbedtls/library/hkdf.c ****  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+   6:Libs/mbedtls/library/hkdf.c ****  */
+   7:Libs/mbedtls/library/hkdf.c **** #include "common.h"
+   8:Libs/mbedtls/library/hkdf.c **** 
+   9:Libs/mbedtls/library/hkdf.c **** #if defined(MBEDTLS_HKDF_C)
+  10:Libs/mbedtls/library/hkdf.c **** 
+  11:Libs/mbedtls/library/hkdf.c **** #include <string.h>
+  12:Libs/mbedtls/library/hkdf.c **** #include "mbedtls/hkdf.h"
+  13:Libs/mbedtls/library/hkdf.c **** #include "mbedtls/platform_util.h"
+  14:Libs/mbedtls/library/hkdf.c **** #include "mbedtls/error.h"
+  15:Libs/mbedtls/library/hkdf.c **** 
+  16:Libs/mbedtls/library/hkdf.c **** int mbedtls_hkdf(const mbedtls_md_info_t *md, const unsigned char *salt,
+  17:Libs/mbedtls/library/hkdf.c ****                  size_t salt_len, const unsigned char *ikm, size_t ikm_len,
+  18:Libs/mbedtls/library/hkdf.c ****                  const unsigned char *info, size_t info_len,
+  19:Libs/mbedtls/library/hkdf.c ****                  unsigned char *okm, size_t okm_len)
+  20:Libs/mbedtls/library/hkdf.c **** {
+  21:Libs/mbedtls/library/hkdf.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+  22:Libs/mbedtls/library/hkdf.c ****     unsigned char prk[MBEDTLS_MD_MAX_SIZE];
+  23:Libs/mbedtls/library/hkdf.c **** 
+  24:Libs/mbedtls/library/hkdf.c ****     ret = mbedtls_hkdf_extract(md, salt, salt_len, ikm, ikm_len, prk);
+  25:Libs/mbedtls/library/hkdf.c **** 
+  26:Libs/mbedtls/library/hkdf.c ****     if (ret == 0) {
+  27:Libs/mbedtls/library/hkdf.c ****         ret = mbedtls_hkdf_expand(md, prk, mbedtls_md_get_size(md),
+  28:Libs/mbedtls/library/hkdf.c ****                                   info, info_len, okm, okm_len);
+  29:Libs/mbedtls/library/hkdf.c ****     }
+  30:Libs/mbedtls/library/hkdf.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 2
+
+
+  31:Libs/mbedtls/library/hkdf.c ****     mbedtls_platform_zeroize(prk, sizeof(prk));
+  32:Libs/mbedtls/library/hkdf.c **** 
+  33:Libs/mbedtls/library/hkdf.c ****     return ret;
+  34:Libs/mbedtls/library/hkdf.c **** }
+  35:Libs/mbedtls/library/hkdf.c **** 
+  36:Libs/mbedtls/library/hkdf.c **** int mbedtls_hkdf_extract(const mbedtls_md_info_t *md,
+  37:Libs/mbedtls/library/hkdf.c ****                          const unsigned char *salt, size_t salt_len,
+  38:Libs/mbedtls/library/hkdf.c ****                          const unsigned char *ikm, size_t ikm_len,
+  39:Libs/mbedtls/library/hkdf.c ****                          unsigned char *prk)
+  40:Libs/mbedtls/library/hkdf.c **** {
+  29              		.loc 1 40 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 8, pretend = 0, frame = 32
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		.loc 1 40 1 is_stmt 0 view .LVU1
+  34 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 20
+  37              		.cfi_offset 4, -20
+  38              		.cfi_offset 5, -16
+  39              		.cfi_offset 6, -12
+  40              		.cfi_offset 7, -8
+  41              		.cfi_offset 14, -4
+  42 0002 8BB0     		sub	sp, sp, #44
+  43              	.LCFI1:
+  44              		.cfi_def_cfa_offset 64
+  45 0004 0646     		mov	r6, r0
+  46 0006 0C46     		mov	r4, r1
+  47 0008 1546     		mov	r5, r2
+  48 000a 1F46     		mov	r7, r3
+  41:Libs/mbedtls/library/hkdf.c ****     unsigned char null_salt[MBEDTLS_MD_MAX_SIZE] = { '\0' };
+  49              		.loc 1 41 5 is_stmt 1 view .LVU2
+  50              		.loc 1 41 19 is_stmt 0 view .LVU3
+  51 000c 2022     		movs	r2, #32
+  52              	.LVL1:
+  53              		.loc 1 41 19 view .LVU4
+  54 000e 0021     		movs	r1, #0
+  55              	.LVL2:
+  56              		.loc 1 41 19 view .LVU5
+  57 0010 02A8     		add	r0, sp, #8
+  58              	.LVL3:
+  59              		.loc 1 41 19 view .LVU6
+  60 0012 FFF7FEFF 		bl	memset
+  61              	.LVL4:
+  42:Libs/mbedtls/library/hkdf.c **** 
+  43:Libs/mbedtls/library/hkdf.c ****     if (salt == NULL) {
+  62              		.loc 1 43 5 is_stmt 1 view .LVU7
+  63              		.loc 1 43 8 is_stmt 0 view .LVU8
+  64 0016 5CB1     		cbz	r4, .L7
+  65              	.LVL5:
+  66              	.L2:
+  44:Libs/mbedtls/library/hkdf.c ****         size_t hash_len;
+  45:Libs/mbedtls/library/hkdf.c **** 
+  46:Libs/mbedtls/library/hkdf.c ****         if (salt_len != 0) {
+  47:Libs/mbedtls/library/hkdf.c ****             return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+  48:Libs/mbedtls/library/hkdf.c ****         }
+  49:Libs/mbedtls/library/hkdf.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 3
+
+
+  50:Libs/mbedtls/library/hkdf.c ****         hash_len = mbedtls_md_get_size(md);
+  51:Libs/mbedtls/library/hkdf.c **** 
+  52:Libs/mbedtls/library/hkdf.c ****         if (hash_len == 0) {
+  53:Libs/mbedtls/library/hkdf.c ****             return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+  54:Libs/mbedtls/library/hkdf.c ****         }
+  55:Libs/mbedtls/library/hkdf.c **** 
+  56:Libs/mbedtls/library/hkdf.c ****         salt = null_salt;
+  57:Libs/mbedtls/library/hkdf.c ****         salt_len = hash_len;
+  58:Libs/mbedtls/library/hkdf.c ****     }
+  59:Libs/mbedtls/library/hkdf.c **** 
+  60:Libs/mbedtls/library/hkdf.c ****     return mbedtls_md_hmac(md, salt, salt_len, ikm, ikm_len, prk);
+  67              		.loc 1 60 5 is_stmt 1 view .LVU9
+  68              		.loc 1 60 12 is_stmt 0 view .LVU10
+  69 0018 119B     		ldr	r3, [sp, #68]
+  70 001a 0193     		str	r3, [sp, #4]
+  71 001c 109B     		ldr	r3, [sp, #64]
+  72 001e 0093     		str	r3, [sp]
+  73 0020 3B46     		mov	r3, r7
+  74 0022 2A46     		mov	r2, r5
+  75 0024 2146     		mov	r1, r4
+  76 0026 3046     		mov	r0, r6
+  77 0028 FFF7FEFF 		bl	mbedtls_md_hmac
+  78              	.LVL6:
+  79              	.L1:
+  61:Libs/mbedtls/library/hkdf.c **** }
+  80              		.loc 1 61 1 view .LVU11
+  81 002c 0BB0     		add	sp, sp, #44
+  82              	.LCFI2:
+  83              		.cfi_remember_state
+  84              		.cfi_def_cfa_offset 20
+  85              		@ sp needed
+  86 002e F0BD     		pop	{r4, r5, r6, r7, pc}
+  87              	.LVL7:
+  88              	.L7:
+  89              	.LCFI3:
+  90              		.cfi_restore_state
+  91              	.LBB2:
+  44:Libs/mbedtls/library/hkdf.c ****         size_t hash_len;
+  92              		.loc 1 44 9 is_stmt 1 view .LVU12
+  46:Libs/mbedtls/library/hkdf.c ****             return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+  93              		.loc 1 46 9 view .LVU13
+  46:Libs/mbedtls/library/hkdf.c ****             return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+  94              		.loc 1 46 12 is_stmt 0 view .LVU14
+  95 0030 35B9     		cbnz	r5, .L4
+  50:Libs/mbedtls/library/hkdf.c **** 
+  96              		.loc 1 50 9 is_stmt 1 view .LVU15
+  50:Libs/mbedtls/library/hkdf.c **** 
+  97              		.loc 1 50 20 is_stmt 0 view .LVU16
+  98 0032 3046     		mov	r0, r6
+  99 0034 FFF7FEFF 		bl	mbedtls_md_get_size
+ 100              	.LVL8:
+  50:Libs/mbedtls/library/hkdf.c **** 
+ 101              		.loc 1 50 18 discriminator 1 view .LVU17
+ 102 0038 0546     		mov	r5, r0
+ 103              	.LVL9:
+  52:Libs/mbedtls/library/hkdf.c ****             return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+ 104              		.loc 1 52 9 is_stmt 1 view .LVU18
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 4
+
+
+  52:Libs/mbedtls/library/hkdf.c ****             return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+ 105              		.loc 1 52 12 is_stmt 0 view .LVU19
+ 106 003a 18B1     		cbz	r0, .L5
+  56:Libs/mbedtls/library/hkdf.c ****         salt_len = hash_len;
+ 107              		.loc 1 56 14 view .LVU20
+ 108 003c 02AC     		add	r4, sp, #8
+ 109              	.LVL10:
+  56:Libs/mbedtls/library/hkdf.c ****         salt_len = hash_len;
+ 110              		.loc 1 56 14 view .LVU21
+ 111 003e EBE7     		b	.L2
+ 112              	.LVL11:
+ 113              	.L4:
+  47:Libs/mbedtls/library/hkdf.c ****         }
+ 114              		.loc 1 47 20 view .LVU22
+ 115 0040 0148     		ldr	r0, .L8
+ 116 0042 F3E7     		b	.L1
+ 117              	.LVL12:
+ 118              	.L5:
+  53:Libs/mbedtls/library/hkdf.c ****         }
+ 119              		.loc 1 53 20 view .LVU23
+ 120 0044 0048     		ldr	r0, .L8
+ 121              	.LVL13:
+  53:Libs/mbedtls/library/hkdf.c ****         }
+ 122              		.loc 1 53 20 view .LVU24
+ 123 0046 F1E7     		b	.L1
+ 124              	.L9:
+ 125              		.align	2
+ 126              	.L8:
+ 127 0048 80A0FFFF 		.word	-24448
+ 128              	.LBE2:
+ 129              		.cfi_endproc
+ 130              	.LFE4:
+ 132              		.section	.rodata.mbedtls_hkdf_expand.str1.4,"aMS",%progbits,1
+ 133              		.align	2
+ 134              	.LC0:
+ 135 0000 00       		.ascii	"\000"
+ 136              		.section	.text.mbedtls_hkdf_expand,"ax",%progbits
+ 137              		.align	1
+ 138              		.global	mbedtls_hkdf_expand
+ 139              		.syntax unified
+ 140              		.thumb
+ 141              		.thumb_func
+ 143              	mbedtls_hkdf_expand:
+ 144              	.LVL14:
+ 145              	.LFB5:
+  62:Libs/mbedtls/library/hkdf.c **** 
+  63:Libs/mbedtls/library/hkdf.c **** int mbedtls_hkdf_expand(const mbedtls_md_info_t *md, const unsigned char *prk,
+  64:Libs/mbedtls/library/hkdf.c ****                         size_t prk_len, const unsigned char *info,
+  65:Libs/mbedtls/library/hkdf.c ****                         size_t info_len, unsigned char *okm, size_t okm_len)
+  66:Libs/mbedtls/library/hkdf.c **** {
+ 146              		.loc 1 66 1 is_stmt 1 view -0
+ 147              		.cfi_startproc
+ 148              		@ args = 12, pretend = 0, frame = 56
+ 149              		@ frame_needed = 0, uses_anonymous_args = 0
+ 150              		.loc 1 66 1 is_stmt 0 view .LVU26
+ 151 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 152              	.LCFI4:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 5
+
+
+ 153              		.cfi_def_cfa_offset 36
+ 154              		.cfi_offset 4, -36
+ 155              		.cfi_offset 5, -32
+ 156              		.cfi_offset 6, -28
+ 157              		.cfi_offset 7, -24
+ 158              		.cfi_offset 8, -20
+ 159              		.cfi_offset 9, -16
+ 160              		.cfi_offset 10, -12
+ 161              		.cfi_offset 11, -8
+ 162              		.cfi_offset 14, -4
+ 163 0004 8FB0     		sub	sp, sp, #60
+ 164              	.LCFI5:
+ 165              		.cfi_def_cfa_offset 96
+ 166 0006 9946     		mov	r9, r3
+  67:Libs/mbedtls/library/hkdf.c ****     size_t hash_len;
+ 167              		.loc 1 67 5 is_stmt 1 view .LVU27
+  68:Libs/mbedtls/library/hkdf.c ****     size_t where = 0;
+ 168              		.loc 1 68 5 view .LVU28
+ 169              	.LVL15:
+  69:Libs/mbedtls/library/hkdf.c ****     size_t n;
+ 170              		.loc 1 69 5 view .LVU29
+  70:Libs/mbedtls/library/hkdf.c ****     size_t t_len = 0;
+ 171              		.loc 1 70 5 view .LVU30
+  71:Libs/mbedtls/library/hkdf.c ****     size_t i;
+ 172              		.loc 1 71 5 view .LVU31
+  72:Libs/mbedtls/library/hkdf.c ****     int ret = 0;
+ 173              		.loc 1 72 5 view .LVU32
+  73:Libs/mbedtls/library/hkdf.c ****     mbedtls_md_context_t ctx;
+ 174              		.loc 1 73 5 view .LVU33
+  74:Libs/mbedtls/library/hkdf.c ****     unsigned char t[MBEDTLS_MD_MAX_SIZE];
+ 175              		.loc 1 74 5 view .LVU34
+  75:Libs/mbedtls/library/hkdf.c **** 
+  76:Libs/mbedtls/library/hkdf.c ****     if (okm == NULL) {
+ 176              		.loc 1 76 5 view .LVU35
+ 177              		.loc 1 76 8 is_stmt 0 view .LVU36
+ 178 0008 199B     		ldr	r3, [sp, #100]
+ 179              	.LVL16:
+ 180              		.loc 1 76 8 view .LVU37
+ 181 000a 002B     		cmp	r3, #0
+ 182 000c 73D0     		beq	.L19
+ 183 000e 0446     		mov	r4, r0
+ 184 0010 8B46     		mov	fp, r1
+ 185 0012 9246     		mov	r10, r2
+  77:Libs/mbedtls/library/hkdf.c ****         return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+  78:Libs/mbedtls/library/hkdf.c ****     }
+  79:Libs/mbedtls/library/hkdf.c **** 
+  80:Libs/mbedtls/library/hkdf.c ****     hash_len = mbedtls_md_get_size(md);
+ 186              		.loc 1 80 5 is_stmt 1 view .LVU38
+ 187              		.loc 1 80 16 is_stmt 0 view .LVU39
+ 188 0014 FFF7FEFF 		bl	mbedtls_md_get_size
+ 189              	.LVL17:
+ 190              		.loc 1 80 16 view .LVU40
+ 191 0018 0646     		mov	r6, r0
+ 192              	.LVL18:
+  81:Libs/mbedtls/library/hkdf.c **** 
+  82:Libs/mbedtls/library/hkdf.c ****     if (prk_len < hash_len || hash_len == 0) {
+ 193              		.loc 1 82 5 is_stmt 1 view .LVU41
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 6
+
+
+ 194              		.loc 1 82 8 is_stmt 0 view .LVU42
+ 195 001a 431E     		subs	r3, r0, #1
+ 196 001c 5345     		cmp	r3, r10
+ 197 001e 6DD2     		bcs	.L20
+  83:Libs/mbedtls/library/hkdf.c ****         return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+  84:Libs/mbedtls/library/hkdf.c ****     }
+  85:Libs/mbedtls/library/hkdf.c **** 
+  86:Libs/mbedtls/library/hkdf.c ****     if (info == NULL) {
+ 198              		.loc 1 86 5 is_stmt 1 view .LVU43
+ 199              		.loc 1 86 8 is_stmt 0 view .LVU44
+ 200 0020 B9F1000F 		cmp	r9, #0
+ 201 0024 1FD0     		beq	.L25
+ 202              	.LVL19:
+ 203              	.L12:
+  87:Libs/mbedtls/library/hkdf.c ****         info = (const unsigned char *) "";
+  88:Libs/mbedtls/library/hkdf.c ****         info_len = 0;
+  89:Libs/mbedtls/library/hkdf.c ****     }
+  90:Libs/mbedtls/library/hkdf.c **** 
+  91:Libs/mbedtls/library/hkdf.c ****     n = okm_len / hash_len;
+ 204              		.loc 1 91 5 is_stmt 1 view .LVU45
+ 205              		.loc 1 91 7 is_stmt 0 view .LVU46
+ 206 0026 1A9B     		ldr	r3, [sp, #104]
+ 207 0028 B3FBF6F8 		udiv	r8, r3, r6
+ 208              	.LVL20:
+  92:Libs/mbedtls/library/hkdf.c **** 
+  93:Libs/mbedtls/library/hkdf.c ****     if (okm_len % hash_len != 0) {
+ 209              		.loc 1 93 5 is_stmt 1 view .LVU47
+ 210              		.loc 1 93 17 is_stmt 0 view .LVU48
+ 211 002c 06FB1833 		mls	r3, r6, r8, r3
+ 212              		.loc 1 93 8 view .LVU49
+ 213 0030 0BB1     		cbz	r3, .L13
+  94:Libs/mbedtls/library/hkdf.c ****         n++;
+ 214              		.loc 1 94 9 is_stmt 1 view .LVU50
+ 215              		.loc 1 94 10 is_stmt 0 view .LVU51
+ 216 0032 08F10108 		add	r8, r8, #1
+ 217              	.LVL21:
+ 218              	.L13:
+  95:Libs/mbedtls/library/hkdf.c ****     }
+  96:Libs/mbedtls/library/hkdf.c **** 
+  97:Libs/mbedtls/library/hkdf.c ****     /*
+  98:Libs/mbedtls/library/hkdf.c ****      * Per RFC 5869 Section 2.3, okm_len must not exceed
+  99:Libs/mbedtls/library/hkdf.c ****      * 255 times the hash length
+ 100:Libs/mbedtls/library/hkdf.c ****      */
+ 101:Libs/mbedtls/library/hkdf.c ****     if (n > 255) {
+ 219              		.loc 1 101 5 is_stmt 1 view .LVU52
+ 220              		.loc 1 101 8 is_stmt 0 view .LVU53
+ 221 0036 B8F1FF0F 		cmp	r8, #255
+ 222 003a 62D8     		bhi	.L22
+ 102:Libs/mbedtls/library/hkdf.c ****         return MBEDTLS_ERR_HKDF_BAD_INPUT_DATA;
+ 103:Libs/mbedtls/library/hkdf.c ****     }
+ 104:Libs/mbedtls/library/hkdf.c **** 
+ 105:Libs/mbedtls/library/hkdf.c ****     mbedtls_md_init(&ctx);
+ 223              		.loc 1 105 5 is_stmt 1 view .LVU54
+ 224 003c 0BA8     		add	r0, sp, #44
+ 225              	.LVL22:
+ 226              		.loc 1 105 5 is_stmt 0 view .LVU55
+ 227 003e FFF7FEFF 		bl	mbedtls_md_init
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 7
+
+
+ 228              	.LVL23:
+ 106:Libs/mbedtls/library/hkdf.c **** 
+ 107:Libs/mbedtls/library/hkdf.c ****     if ((ret = mbedtls_md_setup(&ctx, md, 1)) != 0) {
+ 229              		.loc 1 107 5 is_stmt 1 view .LVU56
+ 230              		.loc 1 107 16 is_stmt 0 view .LVU57
+ 231 0042 0122     		movs	r2, #1
+ 232 0044 2146     		mov	r1, r4
+ 233 0046 0BA8     		add	r0, sp, #44
+ 234 0048 FFF7FEFF 		bl	mbedtls_md_setup
+ 235              	.LVL24:
+ 236              		.loc 1 107 8 discriminator 1 view .LVU58
+ 237 004c 0190     		str	r0, [sp, #4]
+ 238 004e 78B1     		cbz	r0, .L26
+ 239              	.LVL25:
+ 240              	.L14:
+ 108:Libs/mbedtls/library/hkdf.c ****         goto exit;
+ 109:Libs/mbedtls/library/hkdf.c ****     }
+ 110:Libs/mbedtls/library/hkdf.c **** 
+ 111:Libs/mbedtls/library/hkdf.c ****     memset(t, 0, hash_len);
+ 112:Libs/mbedtls/library/hkdf.c **** 
+ 113:Libs/mbedtls/library/hkdf.c ****     /*
+ 114:Libs/mbedtls/library/hkdf.c ****      * Compute T = T(1) | T(2) | T(3) | ... | T(N)
+ 115:Libs/mbedtls/library/hkdf.c ****      * Where T(N) is defined in RFC 5869 Section 2.3
+ 116:Libs/mbedtls/library/hkdf.c ****      */
+ 117:Libs/mbedtls/library/hkdf.c ****     for (i = 1; i <= n; i++) {
+ 118:Libs/mbedtls/library/hkdf.c ****         size_t num_to_copy;
+ 119:Libs/mbedtls/library/hkdf.c ****         unsigned char c = i & 0xff;
+ 120:Libs/mbedtls/library/hkdf.c **** 
+ 121:Libs/mbedtls/library/hkdf.c ****         ret = mbedtls_md_hmac_starts(&ctx, prk, prk_len);
+ 122:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 123:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 124:Libs/mbedtls/library/hkdf.c ****         }
+ 125:Libs/mbedtls/library/hkdf.c **** 
+ 126:Libs/mbedtls/library/hkdf.c ****         ret = mbedtls_md_hmac_update(&ctx, t, t_len);
+ 127:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 128:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 129:Libs/mbedtls/library/hkdf.c ****         }
+ 130:Libs/mbedtls/library/hkdf.c **** 
+ 131:Libs/mbedtls/library/hkdf.c ****         ret = mbedtls_md_hmac_update(&ctx, info, info_len);
+ 132:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 133:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 134:Libs/mbedtls/library/hkdf.c ****         }
+ 135:Libs/mbedtls/library/hkdf.c **** 
+ 136:Libs/mbedtls/library/hkdf.c ****         /* The constant concatenated to the end of each T(n) is a single octet.
+ 137:Libs/mbedtls/library/hkdf.c ****          * */
+ 138:Libs/mbedtls/library/hkdf.c ****         ret = mbedtls_md_hmac_update(&ctx, &c, 1);
+ 139:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 140:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 141:Libs/mbedtls/library/hkdf.c ****         }
+ 142:Libs/mbedtls/library/hkdf.c **** 
+ 143:Libs/mbedtls/library/hkdf.c ****         ret = mbedtls_md_hmac_finish(&ctx, t);
+ 144:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 145:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 146:Libs/mbedtls/library/hkdf.c ****         }
+ 147:Libs/mbedtls/library/hkdf.c **** 
+ 148:Libs/mbedtls/library/hkdf.c ****         num_to_copy = i != n ? hash_len : okm_len - where;
+ 149:Libs/mbedtls/library/hkdf.c ****         memcpy(okm + where, t, num_to_copy);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 8
+
+
+ 150:Libs/mbedtls/library/hkdf.c ****         where += hash_len;
+ 151:Libs/mbedtls/library/hkdf.c ****         t_len = hash_len;
+ 152:Libs/mbedtls/library/hkdf.c ****     }
+ 153:Libs/mbedtls/library/hkdf.c **** 
+ 154:Libs/mbedtls/library/hkdf.c **** exit:
+ 155:Libs/mbedtls/library/hkdf.c ****     mbedtls_md_free(&ctx);
+ 241              		.loc 1 155 5 is_stmt 1 view .LVU59
+ 242 0050 0BA8     		add	r0, sp, #44
+ 243 0052 FFF7FEFF 		bl	mbedtls_md_free
+ 244              	.LVL26:
+ 156:Libs/mbedtls/library/hkdf.c ****     mbedtls_platform_zeroize(t, sizeof(t));
+ 245              		.loc 1 156 5 view .LVU60
+ 246 0056 2021     		movs	r1, #32
+ 247 0058 03A8     		add	r0, sp, #12
+ 248 005a FFF7FEFF 		bl	mbedtls_platform_zeroize
+ 249              	.LVL27:
+ 157:Libs/mbedtls/library/hkdf.c **** 
+ 158:Libs/mbedtls/library/hkdf.c ****     return ret;
+ 250              		.loc 1 158 5 view .LVU61
+ 251              	.L10:
+ 159:Libs/mbedtls/library/hkdf.c **** }
+ 252              		.loc 1 159 1 is_stmt 0 view .LVU62
+ 253 005e 0198     		ldr	r0, [sp, #4]
+ 254 0060 0FB0     		add	sp, sp, #60
+ 255              	.LCFI6:
+ 256              		.cfi_remember_state
+ 257              		.cfi_def_cfa_offset 36
+ 258              		@ sp needed
+ 259 0062 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 260              	.LVL28:
+ 261              	.L25:
+ 262              	.LCFI7:
+ 263              		.cfi_restore_state
+  88:Libs/mbedtls/library/hkdf.c ****     }
+ 264              		.loc 1 88 18 view .LVU63
+ 265 0066 0023     		movs	r3, #0
+ 266 0068 1893     		str	r3, [sp, #96]
+ 267              	.LVL29:
+  87:Libs/mbedtls/library/hkdf.c ****         info_len = 0;
+ 268              		.loc 1 87 14 view .LVU64
+ 269 006a DFF8A090 		ldr	r9, .L28+4
+ 270              	.LVL30:
+  87:Libs/mbedtls/library/hkdf.c ****         info_len = 0;
+ 271              		.loc 1 87 14 view .LVU65
+ 272 006e DAE7     		b	.L12
+ 273              	.LVL31:
+ 274              	.L26:
+ 111:Libs/mbedtls/library/hkdf.c **** 
+ 275              		.loc 1 111 5 is_stmt 1 view .LVU66
+ 276 0070 3246     		mov	r2, r6
+ 277 0072 0021     		movs	r1, #0
+ 278 0074 03A8     		add	r0, sp, #12
+ 279              	.LVL32:
+ 111:Libs/mbedtls/library/hkdf.c **** 
+ 280              		.loc 1 111 5 is_stmt 0 view .LVU67
+ 281 0076 FFF7FEFF 		bl	memset
+ 282              	.LVL33:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 9
+
+
+ 117:Libs/mbedtls/library/hkdf.c ****         size_t num_to_copy;
+ 283              		.loc 1 117 5 is_stmt 1 view .LVU68
+ 117:Libs/mbedtls/library/hkdf.c ****         size_t num_to_copy;
+ 284              		.loc 1 117 12 is_stmt 0 view .LVU69
+ 285 007a 0125     		movs	r5, #1
+  70:Libs/mbedtls/library/hkdf.c ****     size_t i;
+ 286              		.loc 1 70 12 view .LVU70
+ 287 007c 0024     		movs	r4, #0
+ 288              	.LVL34:
+  68:Libs/mbedtls/library/hkdf.c ****     size_t n;
+ 289              		.loc 1 68 12 view .LVU71
+ 290 007e 2746     		mov	r7, r4
+ 117:Libs/mbedtls/library/hkdf.c ****         size_t num_to_copy;
+ 291              		.loc 1 117 5 view .LVU72
+ 292 0080 09E0     		b	.L15
+ 293              	.LVL35:
+ 294              	.L27:
+ 295              	.LBB3:
+ 148:Libs/mbedtls/library/hkdf.c ****         memcpy(okm + where, t, num_to_copy);
+ 296              		.loc 1 148 41 discriminator 1 view .LVU73
+ 297 0082 1A9B     		ldr	r3, [sp, #104]
+ 298 0084 DA1B     		subs	r2, r3, r7
+ 299              	.L17:
+ 300              	.LVL36:
+ 149:Libs/mbedtls/library/hkdf.c ****         where += hash_len;
+ 301              		.loc 1 149 9 is_stmt 1 view .LVU74
+ 302 0086 03A9     		add	r1, sp, #12
+ 303 0088 199B     		ldr	r3, [sp, #100]
+ 304 008a D819     		adds	r0, r3, r7
+ 305              	.LVL37:
+ 149:Libs/mbedtls/library/hkdf.c ****         where += hash_len;
+ 306              		.loc 1 149 9 is_stmt 0 view .LVU75
+ 307 008c FFF7FEFF 		bl	memcpy
+ 308              	.LVL38:
+ 150:Libs/mbedtls/library/hkdf.c ****         t_len = hash_len;
+ 309              		.loc 1 150 9 is_stmt 1 view .LVU76
+ 150:Libs/mbedtls/library/hkdf.c ****         t_len = hash_len;
+ 310              		.loc 1 150 15 is_stmt 0 view .LVU77
+ 311 0090 3744     		add	r7, r7, r6
+ 312              	.LVL39:
+ 151:Libs/mbedtls/library/hkdf.c ****     }
+ 313              		.loc 1 151 9 is_stmt 1 view .LVU78
+ 151:Libs/mbedtls/library/hkdf.c ****     }
+ 314              		.loc 1 151 9 is_stmt 0 view .LVU79
+ 315              	.LBE3:
+ 117:Libs/mbedtls/library/hkdf.c ****         size_t num_to_copy;
+ 316              		.loc 1 117 26 is_stmt 1 discriminator 2 view .LVU80
+ 317 0092 0135     		adds	r5, r5, #1
+ 318              	.LVL40:
+ 319              	.LBB4:
+ 151:Libs/mbedtls/library/hkdf.c ****     }
+ 320              		.loc 1 151 15 is_stmt 0 view .LVU81
+ 321 0094 3446     		mov	r4, r6
+ 322              	.LVL41:
+ 323              	.L15:
+ 151:Libs/mbedtls/library/hkdf.c ****     }
+ 324              		.loc 1 151 15 view .LVU82
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 10
+
+
+ 325              	.LBE4:
+ 117:Libs/mbedtls/library/hkdf.c ****         size_t num_to_copy;
+ 326              		.loc 1 117 19 is_stmt 1 discriminator 1 view .LVU83
+ 327 0096 A845     		cmp	r8, r5
+ 328 0098 DAD3     		bcc	.L14
+ 329              	.LBB5:
+ 118:Libs/mbedtls/library/hkdf.c ****         unsigned char c = i & 0xff;
+ 330              		.loc 1 118 9 view .LVU84
+ 119:Libs/mbedtls/library/hkdf.c **** 
+ 331              		.loc 1 119 9 view .LVU85
+ 119:Libs/mbedtls/library/hkdf.c **** 
+ 332              		.loc 1 119 23 is_stmt 0 view .LVU86
+ 333 009a 8DF80B50 		strb	r5, [sp, #11]
+ 121:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 334              		.loc 1 121 9 is_stmt 1 view .LVU87
+ 121:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 335              		.loc 1 121 15 is_stmt 0 view .LVU88
+ 336 009e 5246     		mov	r2, r10
+ 337 00a0 5946     		mov	r1, fp
+ 338 00a2 0BA8     		add	r0, sp, #44
+ 339 00a4 FFF7FEFF 		bl	mbedtls_md_hmac_starts
+ 340              	.LVL42:
+ 122:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 341              		.loc 1 122 9 is_stmt 1 view .LVU89
+ 122:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 342              		.loc 1 122 12 is_stmt 0 view .LVU90
+ 343 00a8 0190     		str	r0, [sp, #4]
+ 344 00aa 0028     		cmp	r0, #0
+ 345 00ac D0D1     		bne	.L14
+ 126:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 346              		.loc 1 126 9 is_stmt 1 view .LVU91
+ 126:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 347              		.loc 1 126 15 is_stmt 0 view .LVU92
+ 348 00ae 2246     		mov	r2, r4
+ 349 00b0 03A9     		add	r1, sp, #12
+ 350 00b2 0BA8     		add	r0, sp, #44
+ 351              	.LVL43:
+ 126:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 352              		.loc 1 126 15 view .LVU93
+ 353 00b4 FFF7FEFF 		bl	mbedtls_md_hmac_update
+ 354              	.LVL44:
+ 127:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 355              		.loc 1 127 9 is_stmt 1 view .LVU94
+ 127:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 356              		.loc 1 127 12 is_stmt 0 view .LVU95
+ 357 00b8 0190     		str	r0, [sp, #4]
+ 358 00ba 0028     		cmp	r0, #0
+ 359 00bc C8D1     		bne	.L14
+ 131:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 360              		.loc 1 131 9 is_stmt 1 view .LVU96
+ 131:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 361              		.loc 1 131 15 is_stmt 0 view .LVU97
+ 362 00be 189A     		ldr	r2, [sp, #96]
+ 363 00c0 4946     		mov	r1, r9
+ 364 00c2 0BA8     		add	r0, sp, #44
+ 365              	.LVL45:
+ 131:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 11
+
+
+ 366              		.loc 1 131 15 view .LVU98
+ 367 00c4 FFF7FEFF 		bl	mbedtls_md_hmac_update
+ 368              	.LVL46:
+ 132:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 369              		.loc 1 132 9 is_stmt 1 view .LVU99
+ 132:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 370              		.loc 1 132 12 is_stmt 0 view .LVU100
+ 371 00c8 0190     		str	r0, [sp, #4]
+ 372 00ca 0028     		cmp	r0, #0
+ 373 00cc C0D1     		bne	.L14
+ 138:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 374              		.loc 1 138 9 is_stmt 1 view .LVU101
+ 138:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 375              		.loc 1 138 15 is_stmt 0 view .LVU102
+ 376 00ce 0122     		movs	r2, #1
+ 377 00d0 0DF10B01 		add	r1, sp, #11
+ 378 00d4 0BA8     		add	r0, sp, #44
+ 379              	.LVL47:
+ 138:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 380              		.loc 1 138 15 view .LVU103
+ 381 00d6 FFF7FEFF 		bl	mbedtls_md_hmac_update
+ 382              	.LVL48:
+ 139:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 383              		.loc 1 139 9 is_stmt 1 view .LVU104
+ 139:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 384              		.loc 1 139 12 is_stmt 0 view .LVU105
+ 385 00da 0190     		str	r0, [sp, #4]
+ 386 00dc 0028     		cmp	r0, #0
+ 387 00de B7D1     		bne	.L14
+ 143:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 388              		.loc 1 143 9 is_stmt 1 view .LVU106
+ 143:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 389              		.loc 1 143 15 is_stmt 0 view .LVU107
+ 390 00e0 03A9     		add	r1, sp, #12
+ 391 00e2 0BA8     		add	r0, sp, #44
+ 392              	.LVL49:
+ 143:Libs/mbedtls/library/hkdf.c ****         if (ret != 0) {
+ 393              		.loc 1 143 15 view .LVU108
+ 394 00e4 FFF7FEFF 		bl	mbedtls_md_hmac_finish
+ 395              	.LVL50:
+ 144:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 396              		.loc 1 144 9 is_stmt 1 view .LVU109
+ 144:Libs/mbedtls/library/hkdf.c ****             goto exit;
+ 397              		.loc 1 144 12 is_stmt 0 view .LVU110
+ 398 00e8 0190     		str	r0, [sp, #4]
+ 399 00ea 0028     		cmp	r0, #0
+ 400 00ec B0D1     		bne	.L14
+ 148:Libs/mbedtls/library/hkdf.c ****         memcpy(okm + where, t, num_to_copy);
+ 401              		.loc 1 148 9 is_stmt 1 view .LVU111
+ 148:Libs/mbedtls/library/hkdf.c ****         memcpy(okm + where, t, num_to_copy);
+ 402              		.loc 1 148 41 is_stmt 0 view .LVU112
+ 403 00ee A845     		cmp	r8, r5
+ 404 00f0 C7D0     		beq	.L27
+ 148:Libs/mbedtls/library/hkdf.c ****         memcpy(okm + where, t, num_to_copy);
+ 405              		.loc 1 148 41 discriminator 2 view .LVU113
+ 406 00f2 3246     		mov	r2, r6
+ 407 00f4 C7E7     		b	.L17
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 12
+
+
+ 408              	.LVL51:
+ 409              	.L19:
+ 148:Libs/mbedtls/library/hkdf.c ****         memcpy(okm + where, t, num_to_copy);
+ 410              		.loc 1 148 41 discriminator 2 view .LVU114
+ 411              	.LBE5:
+  77:Libs/mbedtls/library/hkdf.c ****     }
+ 412              		.loc 1 77 16 view .LVU115
+ 413 00f6 044B     		ldr	r3, .L28
+ 414 00f8 0193     		str	r3, [sp, #4]
+ 415 00fa B0E7     		b	.L10
+ 416              	.LVL52:
+ 417              	.L20:
+  83:Libs/mbedtls/library/hkdf.c ****     }
+ 418              		.loc 1 83 16 view .LVU116
+ 419 00fc 024B     		ldr	r3, .L28
+ 420 00fe 0193     		str	r3, [sp, #4]
+ 421 0100 ADE7     		b	.L10
+ 422              	.LVL53:
+ 423              	.L22:
+ 102:Libs/mbedtls/library/hkdf.c ****     }
+ 424              		.loc 1 102 16 view .LVU117
+ 425 0102 014B     		ldr	r3, .L28
+ 426 0104 0193     		str	r3, [sp, #4]
+ 427 0106 AAE7     		b	.L10
+ 428              	.L29:
+ 429              		.align	2
+ 430              	.L28:
+ 431 0108 80A0FFFF 		.word	-24448
+ 432 010c 00000000 		.word	.LC0
+ 433              		.cfi_endproc
+ 434              	.LFE5:
+ 436              		.section	.text.mbedtls_hkdf,"ax",%progbits
+ 437              		.align	1
+ 438              		.global	mbedtls_hkdf
+ 439              		.syntax unified
+ 440              		.thumb
+ 441              		.thumb_func
+ 443              	mbedtls_hkdf:
+ 444              	.LVL54:
+ 445              	.LFB3:
+  20:Libs/mbedtls/library/hkdf.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 446              		.loc 1 20 1 is_stmt 1 view -0
+ 447              		.cfi_startproc
+ 448              		@ args = 20, pretend = 0, frame = 32
+ 449              		@ frame_needed = 0, uses_anonymous_args = 0
+  20:Libs/mbedtls/library/hkdf.c ****     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+ 450              		.loc 1 20 1 is_stmt 0 view .LVU119
+ 451 0000 30B5     		push	{r4, r5, lr}
+ 452              	.LCFI8:
+ 453              		.cfi_def_cfa_offset 12
+ 454              		.cfi_offset 4, -12
+ 455              		.cfi_offset 5, -8
+ 456              		.cfi_offset 14, -4
+ 457 0002 8DB0     		sub	sp, sp, #52
+ 458              	.LCFI9:
+ 459              		.cfi_def_cfa_offset 64
+ 460 0004 0546     		mov	r5, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 13
+
+
+  21:Libs/mbedtls/library/hkdf.c ****     unsigned char prk[MBEDTLS_MD_MAX_SIZE];
+ 461              		.loc 1 21 5 is_stmt 1 view .LVU120
+ 462              	.LVL55:
+  22:Libs/mbedtls/library/hkdf.c **** 
+ 463              		.loc 1 22 5 view .LVU121
+  24:Libs/mbedtls/library/hkdf.c **** 
+ 464              		.loc 1 24 5 view .LVU122
+  24:Libs/mbedtls/library/hkdf.c **** 
+ 465              		.loc 1 24 11 is_stmt 0 view .LVU123
+ 466 0006 04AC     		add	r4, sp, #16
+ 467 0008 0194     		str	r4, [sp, #4]
+ 468 000a 109C     		ldr	r4, [sp, #64]
+ 469 000c 0094     		str	r4, [sp]
+ 470 000e FFF7FEFF 		bl	mbedtls_hkdf_extract
+ 471              	.LVL56:
+  26:Libs/mbedtls/library/hkdf.c ****         ret = mbedtls_hkdf_expand(md, prk, mbedtls_md_get_size(md),
+ 472              		.loc 1 26 5 is_stmt 1 view .LVU124
+  26:Libs/mbedtls/library/hkdf.c ****         ret = mbedtls_hkdf_expand(md, prk, mbedtls_md_get_size(md),
+ 473              		.loc 1 26 8 is_stmt 0 view .LVU125
+ 474 0012 0446     		mov	r4, r0
+ 475 0014 30B1     		cbz	r0, .L33
+ 476              	.L31:
+  31:Libs/mbedtls/library/hkdf.c **** 
+ 477              		.loc 1 31 5 is_stmt 1 view .LVU126
+ 478 0016 2021     		movs	r1, #32
+ 479 0018 04A8     		add	r0, sp, #16
+ 480              	.LVL57:
+  31:Libs/mbedtls/library/hkdf.c **** 
+ 481              		.loc 1 31 5 is_stmt 0 view .LVU127
+ 482 001a FFF7FEFF 		bl	mbedtls_platform_zeroize
+ 483              	.LVL58:
+  33:Libs/mbedtls/library/hkdf.c **** }
+ 484              		.loc 1 33 5 is_stmt 1 view .LVU128
+  34:Libs/mbedtls/library/hkdf.c **** 
+ 485              		.loc 1 34 1 is_stmt 0 view .LVU129
+ 486 001e 2046     		mov	r0, r4
+ 487 0020 0DB0     		add	sp, sp, #52
+ 488              	.LCFI10:
+ 489              		.cfi_remember_state
+ 490              		.cfi_def_cfa_offset 12
+ 491              		@ sp needed
+ 492 0022 30BD     		pop	{r4, r5, pc}
+ 493              	.LVL59:
+ 494              	.L33:
+ 495              	.LCFI11:
+ 496              		.cfi_restore_state
+  27:Libs/mbedtls/library/hkdf.c ****                                   info, info_len, okm, okm_len);
+ 497              		.loc 1 27 9 is_stmt 1 view .LVU130
+  27:Libs/mbedtls/library/hkdf.c ****                                   info, info_len, okm, okm_len);
+ 498              		.loc 1 27 44 is_stmt 0 view .LVU131
+ 499 0024 2846     		mov	r0, r5
+ 500              	.LVL60:
+  27:Libs/mbedtls/library/hkdf.c ****                                   info, info_len, okm, okm_len);
+ 501              		.loc 1 27 44 view .LVU132
+ 502 0026 FFF7FEFF 		bl	mbedtls_md_get_size
+ 503              	.LVL61:
+ 504 002a 0246     		mov	r2, r0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 14
+
+
+  27:Libs/mbedtls/library/hkdf.c ****                                   info, info_len, okm, okm_len);
+ 505              		.loc 1 27 15 discriminator 1 view .LVU133
+ 506 002c 149B     		ldr	r3, [sp, #80]
+ 507 002e 0293     		str	r3, [sp, #8]
+ 508 0030 139B     		ldr	r3, [sp, #76]
+ 509 0032 0193     		str	r3, [sp, #4]
+ 510 0034 129B     		ldr	r3, [sp, #72]
+ 511 0036 0093     		str	r3, [sp]
+ 512 0038 119B     		ldr	r3, [sp, #68]
+ 513 003a 04A9     		add	r1, sp, #16
+ 514 003c 2846     		mov	r0, r5
+ 515 003e FFF7FEFF 		bl	mbedtls_hkdf_expand
+ 516              	.LVL62:
+ 517 0042 0446     		mov	r4, r0
+ 518              	.LVL63:
+  27:Libs/mbedtls/library/hkdf.c ****                                   info, info_len, okm, okm_len);
+ 519              		.loc 1 27 15 discriminator 1 view .LVU134
+ 520 0044 E7E7     		b	.L31
+ 521              		.cfi_endproc
+ 522              	.LFE3:
+ 524              		.text
+ 525              	.Letext0:
+ 526              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 527              		.file 3 "Libs/mbedtls/include/mbedtls/md.h"
+ 528              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 529              		.file 5 "Libs/mbedtls/include/mbedtls/platform_util.h"
+ 530              		.file 6 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s 			page 15
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 hkdf.c
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:20     .text.mbedtls_hkdf_extract:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:26     .text.mbedtls_hkdf_extract:00000000 mbedtls_hkdf_extract
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:127    .text.mbedtls_hkdf_extract:00000048 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:133    .rodata.mbedtls_hkdf_expand.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:137    .text.mbedtls_hkdf_expand:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:143    .text.mbedtls_hkdf_expand:00000000 mbedtls_hkdf_expand
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:431    .text.mbedtls_hkdf_expand:00000108 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:437    .text.mbedtls_hkdf:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6MlQpK.s:443    .text.mbedtls_hkdf:00000000 mbedtls_hkdf
+
+UNDEFINED SYMBOLS
+memset
+mbedtls_md_hmac
+mbedtls_md_get_size
+mbedtls_md_init
+mbedtls_md_setup
+mbedtls_md_free
+mbedtls_platform_zeroize
+memcpy
+mbedtls_md_hmac_starts
+mbedtls_md_hmac_update
+mbedtls_md_hmac_finish

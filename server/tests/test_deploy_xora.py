@@ -123,6 +123,40 @@ class DeploymentTests(unittest.TestCase):
                 deploy.build_package(repo, self.root / 'packages')
         self.assertFalse((self.root / 'packages').exists())
 
+    def test_split_domains_keep_both_api_origins_and_separate_entry_routes(self):
+        config = deploy.validate_config({**CONFIG, 'admin_domain': 'manager.example.com'})
+        env = deploy.environment(config)
+        self.assertEqual(env['USER_AUTH_PUBLIC_ORIGIN'], 'https://config.example.com')
+        self.assertEqual(env['USER_AUTH_ALLOWED_ORIGINS'], 'https://config.example.com,https://manager.example.com')
+        self.assertEqual(env['WEB_CONFIG_ORIGINS'], env['USER_AUTH_ALLOWED_ORIGINS'])
+        nginx = deploy.templates(config)['nginx.conf']
+        self.assertEqual(nginx.count('proxy_pass http://127.0.0.1:3000;'), 2)
+        self.assertIn('/live/config.example.com/fullchain.pem', nginx)
+        self.assertIn('/live/manager.example.com/fullchain.pem', nginx)
+        self.assertIn('return 302 https://manager.example.com$request_uri;', nginx)
+        self.assertIn('return 302 https://config.example.com$request_uri;', nginx)
+        self.assertIn('return 302 https://manager.example.com/admin/users/;', nginx)
+
+    def test_public_probe_checks_both_domains_and_redirects(self):
+        config = deploy.validate_config({**CONFIG, 'admin_domain': 'manager.example.com'})
+        def redirect(base, path, expected, **kwargs):
+            self.assertEqual(expected, 302)
+            self.assertFalse(kwargs['follow_redirects'])
+            locations = {('https://config.example.com', '/admin/users/'): 'https://manager.example.com/admin/users/',
+                         ('https://manager.example.com', '/'): 'https://manager.example.com/admin/users/',
+                         ('https://manager.example.com', '/global/'): 'https://config.example.com/global/'}
+            return b'', {'Location': locations[(base, path)]}
+        with patch.object(deploy, 'probe') as probe, patch.object(deploy, 'response', side_effect=redirect):
+            deploy.probe_sites(config, 'release')
+            self.assertEqual([call.args[0] for call in probe.call_args_list],
+                             ['https://config.example.com', 'https://manager.example.com'])
+            self.assertTrue(all(not p.startswith('admin/') for p in probe.call_args_list[0].args[2]))
+            self.assertTrue(all(p.startswith(('admin/', 'auth/')) for p in probe.call_args_list[1].args[2]))
+
+    def test_old_single_domain_config_remains_supported(self):
+        self.assertEqual(self.config['admin_domain'], self.config['domain'])
+        self.assertEqual(deploy.templates(self.config)['nginx.conf'].count('listen 443 ssl;'), 1)
+
     def activation(self, failure):
         old = self.root / 'old'
         new = self.root / 'new'
@@ -138,7 +172,7 @@ class DeploymentTests(unittest.TestCase):
              patch.object(deploy.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)), \
              patch.object(deploy, 'switch_to') as switch, \
              patch.object(deploy, 'wait_ready', side_effect=RuntimeError('startup failed') if failure == 'startup' else None), \
-             patch.object(deploy, 'probe', side_effect=RuntimeError('TLS failed') if failure == 'public' else None):
+             patch.object(deploy, 'probe_sites', side_effect=RuntimeError('TLS failed') if failure == 'public' else None):
             if failure:
                 with self.assertRaises(RuntimeError):
                     deploy.activate(self.config, new)

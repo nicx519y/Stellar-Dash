@@ -12,6 +12,8 @@ inline bool autoReply = true, wrongRate = false, receiverOnline = true, owner = 
 inline uint16_t wireRate = 1000, publishedRate = 0;
 inline uint32_t queryCount = 0;
 inline uint32_t applicationReadyAt = 0, portBegins = 0, portReads = 0;
+inline bool bootSignalReleased = true;
+inline bool RFBridgePort_BootSignalReleased() { return bootSignalReleased; }
 inline void assertApplicationReady() {
     assert(static_cast<int32_t>(testNow - applicationReadyAt) >= 0);
 }

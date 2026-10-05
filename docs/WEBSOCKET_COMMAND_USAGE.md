@@ -1,5 +1,7 @@
 # WebSocket 命令处理器使用指南
 
+> 旧设备内 HTTP/WebSocket 方案参考：当前产品使用 Hosted/WebHID 加密直连，命令定义和调试入口见 [Web README](../application/www/README.md)、[WebHID 协议](../common/webhid_protocol.h)；不按本教程恢复旧运行时。（本次标注日期：2026-10-05。）
+
 ## get_global_config 命令
 
 ### HTTP 接口迁移
@@ -129,4 +131,4 @@ application/
 1. 在`websocket_commands.hpp`中声明新的处理函数
 2. 在`websocket_commands.cpp`中实现处理逻辑  
 3. 在`webconfig.cpp`的`websocket_command_handlers`映射表中注册
-4. 更新文档说明使用方法 
+4. 更新文档说明使用方法

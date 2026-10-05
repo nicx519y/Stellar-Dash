@@ -1,0 +1,1269 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"rf_boot_ready.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/transport/rf/rf_boot_ready.cpp"
+  19              		.section	.text._ZN12_GLOBAL__N_1L15enableGpioClockEP12GPIO_TypeDef,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZN12_GLOBAL__N_1L15enableGpioClockEP12GPIO_TypeDef:
+  26              	.LVL0:
+  27              	.LFB1268:
+   1:Src/transport/rf/rf_boot_ready.cpp **** #include "rf_boot_ready.hpp"
+   2:Src/transport/rf/rf_boot_ready.cpp **** 
+   3:Src/transport/rf/rf_boot_ready.cpp **** #include <stdio.h>
+   4:Src/transport/rf/rf_boot_ready.cpp **** 
+   5:Src/transport/rf/rf_boot_ready.cpp **** #include "board_cfg.h"
+   6:Src/transport/rf/rf_boot_ready.cpp **** #include "stm32h7xx_hal.h"
+   7:Src/transport/rf/rf_boot_ready.cpp **** 
+   8:Src/transport/rf/rf_boot_ready.cpp **** #if !APP_LOG_VERBOSE
+   9:Src/transport/rf/rf_boot_ready.cpp **** #define printf(...) ((void)0)
+  10:Src/transport/rf/rf_boot_ready.cpp **** #endif
+  11:Src/transport/rf/rf_boot_ready.cpp **** 
+  12:Src/transport/rf/rf_boot_ready.cpp **** namespace {
+  13:Src/transport/rf/rf_boot_ready.cpp **** 
+  14:Src/transport/rf/rf_boot_ready.cpp **** #ifndef RF_BOOT_READY_STABLE_MS
+  15:Src/transport/rf/rf_boot_ready.cpp **** #define RF_BOOT_READY_STABLE_MS 2u
+  16:Src/transport/rf/rf_boot_ready.cpp **** #endif
+  17:Src/transport/rf/rf_boot_ready.cpp **** 
+  18:Src/transport/rf/rf_boot_ready.cpp **** #ifndef RF_BOOT_READY_SETTLE_MS
+  19:Src/transport/rf/rf_boot_ready.cpp **** #define RF_BOOT_READY_SETTLE_MS 10u
+  20:Src/transport/rf/rf_boot_ready.cpp **** #endif
+  21:Src/transport/rf/rf_boot_ready.cpp **** 
+  22:Src/transport/rf/rf_boot_ready.cpp **** #ifndef RF_BOOT_READY_DEASSERT_TIMEOUT_MS
+  23:Src/transport/rf/rf_boot_ready.cpp **** #define RF_BOOT_READY_DEASSERT_TIMEOUT_MS 250u
+  24:Src/transport/rf/rf_boot_ready.cpp **** #endif
+  25:Src/transport/rf/rf_boot_ready.cpp **** 
+  26:Src/transport/rf/rf_boot_ready.cpp **** static bool s_readySeen = false;
+  27:Src/transport/rf/rf_boot_ready.cpp **** 
+  28:Src/transport/rf/rf_boot_ready.cpp **** static void enableGpioClock(GPIO_TypeDef* port) {
+  28              		.loc 1 28 49 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 48
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 2
+
+
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  33              		.loc 1 28 49 is_stmt 0 view .LVU1
+  34 0000 8CB0     		sub	sp, sp, #48
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 48
+  29:Src/transport/rf/rf_boot_ready.cpp ****     if (port == GPIOA) __HAL_RCC_GPIOA_CLK_ENABLE();
+  37              		.loc 1 29 5 is_stmt 1 view .LVU2
+  38              	.LBB2:
+  39 0002 654B     		ldr	r3, .L24
+  40 0004 9842     		cmp	r0, r3
+  41 0006 2FD0     		beq	.L14
+  42              	.LBE2:
+  30:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+  43              		.loc 1 30 10 view .LVU3
+  44              	.LBB169:
+  45              	.LBB3:
+  46 0008 644B     		ldr	r3, .L24+4
+  47 000a 9842     		cmp	r0, r3
+  48 000c 3CD0     		beq	.L15
+  49              	.LBE3:
+  50              	.LBE169:
+  31:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+  51              		.loc 1 31 10 view .LVU4
+  52              	.LBB170:
+  53              	.LBB140:
+  54              	.LBB4:
+  55 000e 644B     		ldr	r3, .L24+8
+  56 0010 9842     		cmp	r0, r3
+  57 0012 48D0     		beq	.L16
+  58              	.LBE4:
+  59              	.LBE140:
+  60              	.LBE170:
+  32:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+  61              		.loc 1 32 10 view .LVU5
+  62              	.LBB171:
+  63              	.LBB141:
+  64              	.LBB114:
+  65              	.LBB5:
+  66 0014 634B     		ldr	r3, .L24+12
+  67 0016 9842     		cmp	r0, r3
+  68 0018 54D0     		beq	.L17
+  69              	.LBE5:
+  70              	.LBE114:
+  71              	.LBE141:
+  72              	.LBE171:
+  33:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+  73              		.loc 1 33 10 view .LVU6
+  74              	.LBB172:
+  75              	.LBB142:
+  76              	.LBB115:
+  77              	.LBB91:
+  78              	.LBB6:
+  79 001a 634B     		ldr	r3, .L24+16
+  80 001c 9842     		cmp	r0, r3
+  81 001e 60D0     		beq	.L18
+  82              	.LBE6:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 3
+
+
+  83              	.LBE91:
+  84              	.LBE115:
+  85              	.LBE142:
+  86              	.LBE172:
+  34:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+  87              		.loc 1 34 10 view .LVU7
+  88              	.LBB173:
+  89              	.LBB143:
+  90              	.LBB116:
+  91              	.LBB92:
+  92              	.LBB71:
+  93              	.LBB7:
+  94 0020 624B     		ldr	r3, .L24+20
+  95 0022 9842     		cmp	r0, r3
+  96 0024 6CD0     		beq	.L19
+  97              	.LBE7:
+  98              	.LBE71:
+  99              	.LBE92:
+ 100              	.LBE116:
+ 101              	.LBE143:
+ 102              	.LBE173:
+  35:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+ 103              		.loc 1 35 10 view .LVU8
+ 104              	.LBB174:
+ 105              	.LBB144:
+ 106              	.LBB117:
+ 107              	.LBB93:
+ 108              	.LBB72:
+ 109              	.LBB54:
+ 110              	.LBB8:
+ 111 0026 624B     		ldr	r3, .L24+24
+ 112 0028 9842     		cmp	r0, r3
+ 113 002a 78D0     		beq	.L20
+ 114              	.LBE8:
+ 115              	.LBE54:
+ 116              	.LBE72:
+ 117              	.LBE93:
+ 118              	.LBE117:
+ 119              	.LBE144:
+ 120              	.LBE174:
+  36:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+ 121              		.loc 1 36 10 view .LVU9
+ 122              	.LBB175:
+ 123              	.LBB145:
+ 124              	.LBB118:
+ 125              	.LBB94:
+ 126              	.LBB73:
+ 127              	.LBB55:
+ 128              	.LBB40:
+ 129              	.LBB9:
+ 130 002c 614B     		ldr	r3, .L24+28
+ 131 002e 9842     		cmp	r0, r3
+ 132 0030 00F08480 		beq	.L21
+ 133              	.LBE9:
+ 134              	.LBE40:
+ 135              	.LBE55:
+ 136              	.LBE73:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 4
+
+
+ 137              	.LBE94:
+ 138              	.LBE118:
+ 139              	.LBE145:
+ 140              	.LBE175:
+  37:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
+ 141              		.loc 1 37 10 view .LVU10
+ 142              	.LBB176:
+ 143              	.LBB146:
+ 144              	.LBB119:
+ 145              	.LBB95:
+ 146              	.LBB74:
+ 147              	.LBB56:
+ 148              	.LBB41:
+ 149              	.LBB29:
+ 150              	.LBB10:
+ 151 0034 604B     		ldr	r3, .L24+32
+ 152 0036 9842     		cmp	r0, r3
+ 153 0038 00F08F80 		beq	.L22
+ 154              	.LBE10:
+ 155              	.LBE29:
+ 156              	.LBE41:
+ 157              	.LBE56:
+ 158              	.LBE74:
+ 159              	.LBE95:
+ 160              	.LBE119:
+ 161              	.LBE146:
+ 162              	.LBE176:
+  38:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
+ 163              		.loc 1 38 10 view .LVU11
+ 164              	.LBB177:
+ 165              	.LBB147:
+ 166              	.LBB120:
+ 167              	.LBB96:
+ 168              	.LBB75:
+ 169              	.LBB57:
+ 170              	.LBB42:
+ 171              	.LBB30:
+ 172              	.LBB21:
+ 173              	.LBB11:
+ 174 003c 5F4B     		ldr	r3, .L24+36
+ 175 003e 9842     		cmp	r0, r3
+ 176 0040 00F09A80 		beq	.L23
+ 177              	.LBE11:
+ 178              	.LBE21:
+ 179              	.LBE30:
+ 180              	.LBE42:
+ 181              	.LBE57:
+ 182              	.LBE75:
+ 183              	.LBE96:
+ 184              	.LBE120:
+ 185              	.LBE147:
+ 186              	.LBE177:
+  39:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+ 187              		.loc 1 39 10 view .LVU12
+ 188              	.LBB178:
+ 189              	.LBB148:
+ 190              	.LBB121:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 5
+
+
+ 191              	.LBB97:
+ 192              	.LBB76:
+ 193              	.LBB58:
+ 194              	.LBB43:
+ 195              	.LBB31:
+ 196              	.LBB22:
+ 197              	.LBB16:
+ 198              	.LBB12:
+ 199 0044 5E4B     		ldr	r3, .L24+40
+ 200 0046 9842     		cmp	r0, r3
+ 201 0048 1CD1     		bne	.L1
+ 202              	.LBE12:
+ 203              	.LBE16:
+ 204              	.LBE22:
+ 205              	.LBE31:
+ 206              	.LBE43:
+ 207              	.LBE58:
+ 208              	.LBE76:
+ 209              	.LBE97:
+ 210              	.LBE121:
+ 211              	.LBE148:
+ 212              	.LBE178:
+ 213              		.loc 1 39 29 discriminator 1 view .LVU13
+ 214              	.LBB179:
+ 215              	.LBB149:
+ 216              	.LBB122:
+ 217              	.LBB98:
+ 218              	.LBB77:
+ 219              	.LBB59:
+ 220              	.LBB44:
+ 221              	.LBB32:
+ 222              	.LBB23:
+ 223              	.LBB17:
+ 224              	.LBB14:
+ 225              	.LBB13:
+ 226              		.loc 1 39 29 discriminator 1 view .LVU14
+ 227              		.loc 1 39 29 discriminator 1 view .LVU15
+ 228 004a 03F5E053 		add	r3, r3, #7168
+ 229 004e D3F8E020 		ldr	r2, [r3, #224]
+ 230 0052 42F48062 		orr	r2, r2, #1024
+ 231 0056 C3F8E020 		str	r2, [r3, #224]
+ 232              		.loc 1 39 29 discriminator 1 view .LVU16
+ 233 005a D3F8E030 		ldr	r3, [r3, #224]
+ 234 005e 03F48063 		and	r3, r3, #1024
+ 235 0062 0B93     		str	r3, [sp, #44]
+ 236              		.loc 1 39 29 discriminator 1 view .LVU17
+ 237 0064 0B9B     		ldr	r3, [sp, #44]
+ 238              	.LBE13:
+ 239              	.LBE14:
+ 240              	.LBE17:
+ 241              	.LBE23:
+ 242              	.LBE32:
+ 243              	.LBE44:
+ 244              	.LBE59:
+ 245              	.LBE77:
+ 246              	.LBE98:
+ 247              	.LBE122:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 6
+
+
+ 248              	.LBE149:
+ 249              	.LBE179:
+ 250              		.loc 1 39 29 discriminator 1 view .LVU18
+  40:Src/transport/rf/rf_boot_ready.cpp **** }
+ 251              		.loc 1 40 1 is_stmt 0 view .LVU19
+ 252 0066 0DE0     		b	.L1
+ 253              	.L14:
+  29:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+ 254              		.loc 1 29 24 is_stmt 1 discriminator 1 view .LVU20
+ 255              	.LBB180:
+ 256              	.LBB150:
+  29:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+ 257              		.loc 1 29 24 discriminator 1 view .LVU21
+  29:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+ 258              		.loc 1 29 24 discriminator 1 view .LVU22
+ 259 0068 03F58843 		add	r3, r3, #17408
+ 260 006c D3F8E020 		ldr	r2, [r3, #224]
+ 261 0070 42F00102 		orr	r2, r2, #1
+ 262 0074 C3F8E020 		str	r2, [r3, #224]
+  29:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+ 263              		.loc 1 29 24 discriminator 1 view .LVU23
+ 264 0078 D3F8E030 		ldr	r3, [r3, #224]
+ 265 007c 03F00103 		and	r3, r3, #1
+ 266 0080 0193     		str	r3, [sp, #4]
+  29:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+ 267              		.loc 1 29 24 discriminator 1 view .LVU24
+ 268 0082 019B     		ldr	r3, [sp, #4]
+ 269              	.LBE150:
+ 270              	.LBE180:
+  29:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+ 271              		.loc 1 29 24 discriminator 1 view .LVU25
+ 272              	.L1:
+ 273              		.loc 1 40 1 is_stmt 0 view .LVU26
+ 274 0084 0CB0     		add	sp, sp, #48
+ 275              	.LCFI1:
+ 276              		.cfi_remember_state
+ 277              		.cfi_def_cfa_offset 0
+ 278              		@ sp needed
+ 279 0086 7047     		bx	lr
+ 280              	.L15:
+ 281              	.LCFI2:
+ 282              		.cfi_restore_state
+  30:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+ 283              		.loc 1 30 29 is_stmt 1 discriminator 1 view .LVU27
+ 284              	.LBB181:
+ 285              	.LBB151:
+ 286              	.LBB123:
+  30:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+ 287              		.loc 1 30 29 discriminator 1 view .LVU28
+  30:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+ 288              		.loc 1 30 29 discriminator 1 view .LVU29
+ 289 0088 03F58043 		add	r3, r3, #16384
+ 290 008c D3F8E020 		ldr	r2, [r3, #224]
+ 291 0090 42F00202 		orr	r2, r2, #2
+ 292 0094 C3F8E020 		str	r2, [r3, #224]
+  30:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+ 293              		.loc 1 30 29 discriminator 1 view .LVU30
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 7
+
+
+ 294 0098 D3F8E030 		ldr	r3, [r3, #224]
+ 295 009c 03F00203 		and	r3, r3, #2
+ 296 00a0 0293     		str	r3, [sp, #8]
+  30:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+ 297              		.loc 1 30 29 discriminator 1 view .LVU31
+ 298 00a2 029B     		ldr	r3, [sp, #8]
+ 299              	.LBE123:
+ 300              	.LBE151:
+ 301              	.LBE181:
+  30:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+ 302              		.loc 1 30 29 discriminator 1 view .LVU32
+ 303              	.LBB182:
+ 304              	.LBB152:
+ 305 00a4 EEE7     		b	.L1
+ 306              	.L16:
+ 307              	.LBE152:
+ 308              	.LBE182:
+  31:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+ 309              		.loc 1 31 29 discriminator 1 view .LVU33
+ 310              	.LBB183:
+ 311              	.LBB153:
+ 312              	.LBB124:
+ 313              	.LBB99:
+  31:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+ 314              		.loc 1 31 29 discriminator 1 view .LVU34
+  31:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+ 315              		.loc 1 31 29 discriminator 1 view .LVU35
+ 316 00a6 03F57053 		add	r3, r3, #15360
+ 317 00aa D3F8E020 		ldr	r2, [r3, #224]
+ 318 00ae 42F00402 		orr	r2, r2, #4
+ 319 00b2 C3F8E020 		str	r2, [r3, #224]
+  31:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+ 320              		.loc 1 31 29 discriminator 1 view .LVU36
+ 321 00b6 D3F8E030 		ldr	r3, [r3, #224]
+ 322 00ba 03F00403 		and	r3, r3, #4
+ 323 00be 0393     		str	r3, [sp, #12]
+  31:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+ 324              		.loc 1 31 29 discriminator 1 view .LVU37
+ 325 00c0 039B     		ldr	r3, [sp, #12]
+ 326              	.LBE99:
+ 327              	.LBE124:
+ 328              	.LBE153:
+ 329              	.LBE183:
+  31:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+ 330              		.loc 1 31 29 discriminator 1 view .LVU38
+ 331              	.LBB184:
+ 332              	.LBB154:
+ 333              	.LBB125:
+ 334 00c2 DFE7     		b	.L1
+ 335              	.L17:
+ 336              	.LBE125:
+ 337              	.LBE154:
+ 338              	.LBE184:
+  32:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+ 339              		.loc 1 32 29 discriminator 1 view .LVU39
+ 340              	.LBB185:
+ 341              	.LBB155:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 8
+
+
+ 342              	.LBB126:
+ 343              	.LBB100:
+ 344              	.LBB78:
+  32:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+ 345              		.loc 1 32 29 discriminator 1 view .LVU40
+  32:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+ 346              		.loc 1 32 29 discriminator 1 view .LVU41
+ 347 00c4 03F56053 		add	r3, r3, #14336
+ 348 00c8 D3F8E020 		ldr	r2, [r3, #224]
+ 349 00cc 42F00802 		orr	r2, r2, #8
+ 350 00d0 C3F8E020 		str	r2, [r3, #224]
+  32:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+ 351              		.loc 1 32 29 discriminator 1 view .LVU42
+ 352 00d4 D3F8E030 		ldr	r3, [r3, #224]
+ 353 00d8 03F00803 		and	r3, r3, #8
+ 354 00dc 0493     		str	r3, [sp, #16]
+  32:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+ 355              		.loc 1 32 29 discriminator 1 view .LVU43
+ 356 00de 049B     		ldr	r3, [sp, #16]
+ 357              	.LBE78:
+ 358              	.LBE100:
+ 359              	.LBE126:
+ 360              	.LBE155:
+ 361              	.LBE185:
+  32:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+ 362              		.loc 1 32 29 discriminator 1 view .LVU44
+ 363              	.LBB186:
+ 364              	.LBB156:
+ 365              	.LBB127:
+ 366              	.LBB101:
+ 367 00e0 D0E7     		b	.L1
+ 368              	.L18:
+ 369              	.LBE101:
+ 370              	.LBE127:
+ 371              	.LBE156:
+ 372              	.LBE186:
+  33:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+ 373              		.loc 1 33 29 discriminator 1 view .LVU45
+ 374              	.LBB187:
+ 375              	.LBB157:
+ 376              	.LBB128:
+ 377              	.LBB102:
+ 378              	.LBB79:
+ 379              	.LBB60:
+  33:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+ 380              		.loc 1 33 29 discriminator 1 view .LVU46
+  33:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+ 381              		.loc 1 33 29 discriminator 1 view .LVU47
+ 382 00e2 03F55053 		add	r3, r3, #13312
+ 383 00e6 D3F8E020 		ldr	r2, [r3, #224]
+ 384 00ea 42F01002 		orr	r2, r2, #16
+ 385 00ee C3F8E020 		str	r2, [r3, #224]
+  33:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+ 386              		.loc 1 33 29 discriminator 1 view .LVU48
+ 387 00f2 D3F8E030 		ldr	r3, [r3, #224]
+ 388 00f6 03F01003 		and	r3, r3, #16
+ 389 00fa 0593     		str	r3, [sp, #20]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 9
+
+
+  33:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+ 390              		.loc 1 33 29 discriminator 1 view .LVU49
+ 391 00fc 059B     		ldr	r3, [sp, #20]
+ 392              	.LBE60:
+ 393              	.LBE79:
+ 394              	.LBE102:
+ 395              	.LBE128:
+ 396              	.LBE157:
+ 397              	.LBE187:
+  33:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+ 398              		.loc 1 33 29 discriminator 1 view .LVU50
+ 399              	.LBB188:
+ 400              	.LBB158:
+ 401              	.LBB129:
+ 402              	.LBB103:
+ 403              	.LBB80:
+ 404 00fe C1E7     		b	.L1
+ 405              	.L19:
+ 406              	.LBE80:
+ 407              	.LBE103:
+ 408              	.LBE129:
+ 409              	.LBE158:
+ 410              	.LBE188:
+  34:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+ 411              		.loc 1 34 29 discriminator 1 view .LVU51
+ 412              	.LBB189:
+ 413              	.LBB159:
+ 414              	.LBB130:
+ 415              	.LBB104:
+ 416              	.LBB81:
+ 417              	.LBB61:
+ 418              	.LBB45:
+  34:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+ 419              		.loc 1 34 29 discriminator 1 view .LVU52
+  34:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+ 420              		.loc 1 34 29 discriminator 1 view .LVU53
+ 421 0100 03F54053 		add	r3, r3, #12288
+ 422 0104 D3F8E020 		ldr	r2, [r3, #224]
+ 423 0108 42F02002 		orr	r2, r2, #32
+ 424 010c C3F8E020 		str	r2, [r3, #224]
+  34:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+ 425              		.loc 1 34 29 discriminator 1 view .LVU54
+ 426 0110 D3F8E030 		ldr	r3, [r3, #224]
+ 427 0114 03F02003 		and	r3, r3, #32
+ 428 0118 0693     		str	r3, [sp, #24]
+  34:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+ 429              		.loc 1 34 29 discriminator 1 view .LVU55
+ 430 011a 069B     		ldr	r3, [sp, #24]
+ 431              	.LBE45:
+ 432              	.LBE61:
+ 433              	.LBE81:
+ 434              	.LBE104:
+ 435              	.LBE130:
+ 436              	.LBE159:
+ 437              	.LBE189:
+  34:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+ 438              		.loc 1 34 29 discriminator 1 view .LVU56
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 10
+
+
+ 439              	.LBB190:
+ 440              	.LBB160:
+ 441              	.LBB131:
+ 442              	.LBB105:
+ 443              	.LBB82:
+ 444              	.LBB62:
+ 445 011c B2E7     		b	.L1
+ 446              	.L20:
+ 447              	.LBE62:
+ 448              	.LBE82:
+ 449              	.LBE105:
+ 450              	.LBE131:
+ 451              	.LBE160:
+ 452              	.LBE190:
+  35:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+ 453              		.loc 1 35 29 discriminator 1 view .LVU57
+ 454              	.LBB191:
+ 455              	.LBB161:
+ 456              	.LBB132:
+ 457              	.LBB106:
+ 458              	.LBB83:
+ 459              	.LBB63:
+ 460              	.LBB46:
+ 461              	.LBB33:
+  35:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+ 462              		.loc 1 35 29 discriminator 1 view .LVU58
+  35:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+ 463              		.loc 1 35 29 discriminator 1 view .LVU59
+ 464 011e 03F53053 		add	r3, r3, #11264
+ 465 0122 D3F8E020 		ldr	r2, [r3, #224]
+ 466 0126 42F04002 		orr	r2, r2, #64
+ 467 012a C3F8E020 		str	r2, [r3, #224]
+  35:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+ 468              		.loc 1 35 29 discriminator 1 view .LVU60
+ 469 012e D3F8E030 		ldr	r3, [r3, #224]
+ 470 0132 03F04003 		and	r3, r3, #64
+ 471 0136 0793     		str	r3, [sp, #28]
+  35:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+ 472              		.loc 1 35 29 discriminator 1 view .LVU61
+ 473 0138 079B     		ldr	r3, [sp, #28]
+ 474              	.LBE33:
+ 475              	.LBE46:
+ 476              	.LBE63:
+ 477              	.LBE83:
+ 478              	.LBE106:
+ 479              	.LBE132:
+ 480              	.LBE161:
+ 481              	.LBE191:
+  35:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+ 482              		.loc 1 35 29 discriminator 1 view .LVU62
+ 483              	.LBB192:
+ 484              	.LBB162:
+ 485              	.LBB133:
+ 486              	.LBB107:
+ 487              	.LBB84:
+ 488              	.LBB64:
+ 489              	.LBB47:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 11
+
+
+ 490 013a A3E7     		b	.L1
+ 491              	.L21:
+ 492              	.LBE47:
+ 493              	.LBE64:
+ 494              	.LBE84:
+ 495              	.LBE107:
+ 496              	.LBE133:
+ 497              	.LBE162:
+ 498              	.LBE192:
+  36:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
+ 499              		.loc 1 36 29 discriminator 1 view .LVU63
+ 500              	.LBB193:
+ 501              	.LBB163:
+ 502              	.LBB134:
+ 503              	.LBB108:
+ 504              	.LBB85:
+ 505              	.LBB65:
+ 506              	.LBB48:
+ 507              	.LBB34:
+ 508              	.LBB24:
+  36:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
+ 509              		.loc 1 36 29 discriminator 1 view .LVU64
+  36:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
+ 510              		.loc 1 36 29 discriminator 1 view .LVU65
+ 511 013c 03F52053 		add	r3, r3, #10240
+ 512 0140 D3F8E020 		ldr	r2, [r3, #224]
+ 513 0144 42F08002 		orr	r2, r2, #128
+ 514 0148 C3F8E020 		str	r2, [r3, #224]
+  36:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
+ 515              		.loc 1 36 29 discriminator 1 view .LVU66
+ 516 014c D3F8E030 		ldr	r3, [r3, #224]
+ 517 0150 03F08003 		and	r3, r3, #128
+ 518 0154 0893     		str	r3, [sp, #32]
+  36:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
+ 519              		.loc 1 36 29 discriminator 1 view .LVU67
+ 520 0156 089B     		ldr	r3, [sp, #32]
+ 521              	.LBE24:
+ 522              	.LBE34:
+ 523              	.LBE48:
+ 524              	.LBE65:
+ 525              	.LBE85:
+ 526              	.LBE108:
+ 527              	.LBE134:
+ 528              	.LBE163:
+ 529              	.LBE193:
+  36:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
+ 530              		.loc 1 36 29 discriminator 1 view .LVU68
+ 531              	.LBB194:
+ 532              	.LBB164:
+ 533              	.LBB135:
+ 534              	.LBB109:
+ 535              	.LBB86:
+ 536              	.LBB66:
+ 537              	.LBB49:
+ 538              	.LBB35:
+ 539 0158 94E7     		b	.L1
+ 540              	.L22:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 12
+
+
+ 541              	.LBE35:
+ 542              	.LBE49:
+ 543              	.LBE66:
+ 544              	.LBE86:
+ 545              	.LBE109:
+ 546              	.LBE135:
+ 547              	.LBE164:
+ 548              	.LBE194:
+  37:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
+ 549              		.loc 1 37 29 discriminator 1 view .LVU69
+ 550              	.LBB195:
+ 551              	.LBB165:
+ 552              	.LBB136:
+ 553              	.LBB110:
+ 554              	.LBB87:
+ 555              	.LBB67:
+ 556              	.LBB50:
+ 557              	.LBB36:
+ 558              	.LBB25:
+ 559              	.LBB18:
+  37:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
+ 560              		.loc 1 37 29 discriminator 1 view .LVU70
+  37:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
+ 561              		.loc 1 37 29 discriminator 1 view .LVU71
+ 562 015a 03F51053 		add	r3, r3, #9216
+ 563 015e D3F8E020 		ldr	r2, [r3, #224]
+ 564 0162 42F48072 		orr	r2, r2, #256
+ 565 0166 C3F8E020 		str	r2, [r3, #224]
+  37:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
+ 566              		.loc 1 37 29 discriminator 1 view .LVU72
+ 567 016a D3F8E030 		ldr	r3, [r3, #224]
+ 568 016e 03F48073 		and	r3, r3, #256
+ 569 0172 0993     		str	r3, [sp, #36]
+  37:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
+ 570              		.loc 1 37 29 discriminator 1 view .LVU73
+ 571 0174 099B     		ldr	r3, [sp, #36]
+ 572              	.LBE18:
+ 573              	.LBE25:
+ 574              	.LBE36:
+ 575              	.LBE50:
+ 576              	.LBE67:
+ 577              	.LBE87:
+ 578              	.LBE110:
+ 579              	.LBE136:
+ 580              	.LBE165:
+ 581              	.LBE195:
+  37:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
+ 582              		.loc 1 37 29 discriminator 1 view .LVU74
+ 583              	.LBB196:
+ 584              	.LBB166:
+ 585              	.LBB137:
+ 586              	.LBB111:
+ 587              	.LBB88:
+ 588              	.LBB68:
+ 589              	.LBB51:
+ 590              	.LBB37:
+ 591              	.LBB26:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 13
+
+
+ 592 0176 85E7     		b	.L1
+ 593              	.L23:
+ 594              	.LBE26:
+ 595              	.LBE37:
+ 596              	.LBE51:
+ 597              	.LBE68:
+ 598              	.LBE88:
+ 599              	.LBE111:
+ 600              	.LBE137:
+ 601              	.LBE166:
+ 602              	.LBE196:
+  38:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+ 603              		.loc 1 38 29 discriminator 1 view .LVU75
+ 604              	.LBB197:
+ 605              	.LBB167:
+ 606              	.LBB138:
+ 607              	.LBB112:
+ 608              	.LBB89:
+ 609              	.LBB69:
+ 610              	.LBB52:
+ 611              	.LBB38:
+ 612              	.LBB27:
+ 613              	.LBB19:
+ 614              	.LBB15:
+  38:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+ 615              		.loc 1 38 29 discriminator 1 view .LVU76
+  38:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+ 616              		.loc 1 38 29 discriminator 1 view .LVU77
+ 617 0178 03F50053 		add	r3, r3, #8192
+ 618 017c D3F8E020 		ldr	r2, [r3, #224]
+ 619 0180 42F40072 		orr	r2, r2, #512
+ 620 0184 C3F8E020 		str	r2, [r3, #224]
+  38:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+ 621              		.loc 1 38 29 discriminator 1 view .LVU78
+ 622 0188 D3F8E030 		ldr	r3, [r3, #224]
+ 623 018c 03F40073 		and	r3, r3, #512
+ 624 0190 0A93     		str	r3, [sp, #40]
+  38:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+ 625              		.loc 1 38 29 discriminator 1 view .LVU79
+ 626 0192 0A9B     		ldr	r3, [sp, #40]
+ 627              	.LBE15:
+ 628              	.LBE19:
+ 629              	.LBE27:
+ 630              	.LBE38:
+ 631              	.LBE52:
+ 632              	.LBE69:
+ 633              	.LBE89:
+ 634              	.LBE112:
+ 635              	.LBE138:
+ 636              	.LBE167:
+ 637              	.LBE197:
+  38:Src/transport/rf/rf_boot_ready.cpp ****     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+ 638              		.loc 1 38 29 discriminator 1 view .LVU80
+ 639              	.LBB198:
+ 640              	.LBB168:
+ 641              	.LBB139:
+ 642              	.LBB113:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 14
+
+
+ 643              	.LBB90:
+ 644              	.LBB70:
+ 645              	.LBB53:
+ 646              	.LBB39:
+ 647              	.LBB28:
+ 648              	.LBB20:
+ 649 0194 76E7     		b	.L1
+ 650              	.L25:
+ 651 0196 00BF     		.align	2
+ 652              	.L24:
+ 653 0198 00000258 		.word	1476526080
+ 654 019c 00040258 		.word	1476527104
+ 655 01a0 00080258 		.word	1476528128
+ 656 01a4 000C0258 		.word	1476529152
+ 657 01a8 00100258 		.word	1476530176
+ 658 01ac 00140258 		.word	1476531200
+ 659 01b0 00180258 		.word	1476532224
+ 660 01b4 001C0258 		.word	1476533248
+ 661 01b8 00200258 		.word	1476534272
+ 662 01bc 00240258 		.word	1476535296
+ 663 01c0 00280258 		.word	1476536320
+ 664              	.LBE20:
+ 665              	.LBE28:
+ 666              	.LBE39:
+ 667              	.LBE53:
+ 668              	.LBE70:
+ 669              	.LBE90:
+ 670              	.LBE113:
+ 671              	.LBE139:
+ 672              	.LBE168:
+ 673              	.LBE198:
+ 674              		.cfi_endproc
+ 675              	.LFE1268:
+ 677              		.section	.text._ZN12_GLOBAL__N_1L25configureReadyInputPullupEv,"ax",%progbits
+ 678              		.align	1
+ 679              		.syntax unified
+ 680              		.thumb
+ 681              		.thumb_func
+ 683              	_ZN12_GLOBAL__N_1L25configureReadyInputPullupEv:
+ 684              	.LFB1269:
+  41:Src/transport/rf/rf_boot_ready.cpp **** 
+  42:Src/transport/rf/rf_boot_ready.cpp **** static void configureReadyInputPullup() {
+ 685              		.loc 1 42 41 view -0
+ 686              		.cfi_startproc
+ 687              		@ args = 0, pretend = 0, frame = 24
+ 688              		@ frame_needed = 0, uses_anonymous_args = 0
+ 689 0000 10B5     		push	{r4, lr}
+ 690              	.LCFI3:
+ 691              		.cfi_def_cfa_offset 8
+ 692              		.cfi_offset 4, -8
+ 693              		.cfi_offset 14, -4
+ 694 0002 86B0     		sub	sp, sp, #24
+ 695              	.LCFI4:
+ 696              		.cfi_def_cfa_offset 32
+  43:Src/transport/rf/rf_boot_ready.cpp ****     enableGpioClock(RF_BRIDGE_IRQ_GPIO_PORT);
+ 697              		.loc 1 43 5 view .LVU82
+ 698              		.loc 1 43 20 is_stmt 0 view .LVU83
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 15
+
+
+ 699 0004 0A4C     		ldr	r4, .L28
+ 700 0006 2046     		mov	r0, r4
+ 701 0008 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L15enableGpioClockEP12GPIO_TypeDef
+ 702              	.LVL1:
+  44:Src/transport/rf/rf_boot_ready.cpp **** 
+  45:Src/transport/rf/rf_boot_ready.cpp ****     GPIO_InitTypeDef init = {};
+ 703              		.loc 1 45 5 is_stmt 1 view .LVU84
+ 704              		.loc 1 45 22 is_stmt 0 view .LVU85
+ 705 000c 0023     		movs	r3, #0
+ 706 000e 0193     		str	r3, [sp, #4]
+ 707 0010 0293     		str	r3, [sp, #8]
+ 708 0012 0393     		str	r3, [sp, #12]
+ 709 0014 0493     		str	r3, [sp, #16]
+ 710 0016 0593     		str	r3, [sp, #20]
+  46:Src/transport/rf/rf_boot_ready.cpp ****     init.Mode = GPIO_MODE_INPUT;
+ 711              		.loc 1 46 5 is_stmt 1 view .LVU86
+  47:Src/transport/rf/rf_boot_ready.cpp ****     init.Pull = GPIO_PULLUP;
+ 712              		.loc 1 47 5 view .LVU87
+ 713              		.loc 1 47 15 is_stmt 0 view .LVU88
+ 714 0018 0123     		movs	r3, #1
+ 715 001a 0393     		str	r3, [sp, #12]
+  48:Src/transport/rf/rf_boot_ready.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+ 716              		.loc 1 48 5 is_stmt 1 view .LVU89
+  49:Src/transport/rf/rf_boot_ready.cpp ****     init.Alternate = 0u;
+ 717              		.loc 1 49 5 view .LVU90
+  50:Src/transport/rf/rf_boot_ready.cpp ****     init.Pin = RF_BRIDGE_IRQ_PIN;
+ 718              		.loc 1 50 5 view .LVU91
+ 719              		.loc 1 50 14 is_stmt 0 view .LVU92
+ 720 001c 4FF48063 		mov	r3, #1024
+ 721 0020 0193     		str	r3, [sp, #4]
+  51:Src/transport/rf/rf_boot_ready.cpp ****     HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
+ 722              		.loc 1 51 5 is_stmt 1 view .LVU93
+ 723              		.loc 1 51 18 is_stmt 0 view .LVU94
+ 724 0022 01A9     		add	r1, sp, #4
+ 725 0024 2046     		mov	r0, r4
+ 726 0026 FFF7FEFF 		bl	HAL_GPIO_Init
+ 727              	.LVL2:
+  52:Src/transport/rf/rf_boot_ready.cpp **** }
+ 728              		.loc 1 52 1 view .LVU95
+ 729 002a 06B0     		add	sp, sp, #24
+ 730              	.LCFI5:
+ 731              		.cfi_def_cfa_offset 8
+ 732              		@ sp needed
+ 733 002c 10BD     		pop	{r4, pc}
+ 734              	.L29:
+ 735 002e 00BF     		.align	2
+ 736              	.L28:
+ 737 0030 00100258 		.word	1476530176
+ 738              		.cfi_endproc
+ 739              	.LFE1269:
+ 741              		.section	.text._ZN11RFBootReady5resetEv,"ax",%progbits
+ 742              		.align	1
+ 743              		.global	_ZN11RFBootReady5resetEv
+ 744              		.syntax unified
+ 745              		.thumb
+ 746              		.thumb_func
+ 748              	_ZN11RFBootReady5resetEv:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 16
+
+
+ 749              	.LFB1270:
+  53:Src/transport/rf/rf_boot_ready.cpp **** 
+  54:Src/transport/rf/rf_boot_ready.cpp **** }
+  55:Src/transport/rf/rf_boot_ready.cpp **** 
+  56:Src/transport/rf/rf_boot_ready.cpp **** namespace RFBootReady {
+  57:Src/transport/rf/rf_boot_ready.cpp **** 
+  58:Src/transport/rf/rf_boot_ready.cpp **** void reset() {
+ 750              		.loc 1 58 14 is_stmt 1 view -0
+ 751              		.cfi_startproc
+ 752              		@ args = 0, pretend = 0, frame = 0
+ 753              		@ frame_needed = 0, uses_anonymous_args = 0
+ 754              		@ link register save eliminated.
+  59:Src/transport/rf/rf_boot_ready.cpp ****     s_readySeen = false;
+ 755              		.loc 1 59 5 view .LVU97
+ 756              		.loc 1 59 17 is_stmt 0 view .LVU98
+ 757 0000 014B     		ldr	r3, .L31
+ 758 0002 0022     		movs	r2, #0
+ 759 0004 1A70     		strb	r2, [r3]
+  60:Src/transport/rf/rf_boot_ready.cpp **** }
+ 760              		.loc 1 60 1 view .LVU99
+ 761 0006 7047     		bx	lr
+ 762              	.L32:
+ 763              		.align	2
+ 764              	.L31:
+ 765 0008 00000000 		.word	_ZN12_GLOBAL__N_1L11s_readySeenE
+ 766              		.cfi_endproc
+ 767              	.LFE1270:
+ 769              		.section	.text._ZN11RFBootReady18waitForModuleReadyEm,"ax",%progbits
+ 770              		.align	1
+ 771              		.global	_ZN11RFBootReady18waitForModuleReadyEm
+ 772              		.syntax unified
+ 773              		.thumb
+ 774              		.thumb_func
+ 776              	_ZN11RFBootReady18waitForModuleReadyEm:
+ 777              	.LVL3:
+ 778              	.LFB1271:
+  61:Src/transport/rf/rf_boot_ready.cpp **** 
+  62:Src/transport/rf/rf_boot_ready.cpp **** bool waitForModuleReady(uint32_t timeoutMs) {
+ 779              		.loc 1 62 45 is_stmt 1 view -0
+ 780              		.cfi_startproc
+ 781              		@ args = 0, pretend = 0, frame = 0
+ 782              		@ frame_needed = 0, uses_anonymous_args = 0
+ 783              		.loc 1 62 45 is_stmt 0 view .LVU101
+ 784 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 785              	.LCFI6:
+ 786              		.cfi_def_cfa_offset 24
+ 787              		.cfi_offset 3, -24
+ 788              		.cfi_offset 4, -20
+ 789              		.cfi_offset 5, -16
+ 790              		.cfi_offset 6, -12
+ 791              		.cfi_offset 7, -8
+ 792              		.cfi_offset 14, -4
+  63:Src/transport/rf/rf_boot_ready.cpp ****     if (s_readySeen) {
+ 793              		.loc 1 63 5 is_stmt 1 view .LVU102
+ 794 0002 214B     		ldr	r3, .L47
+ 795 0004 1F78     		ldrb	r7, [r3]	@ zero_extendqisi2
+ 796 0006 0FB1     		cbz	r7, .L44
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 17
+
+
+ 797              	.LVL4:
+ 798              	.L34:
+  64:Src/transport/rf/rf_boot_ready.cpp ****         return true;
+  65:Src/transport/rf/rf_boot_ready.cpp ****     }
+  66:Src/transport/rf/rf_boot_ready.cpp **** 
+  67:Src/transport/rf/rf_boot_ready.cpp ****     configureReadyInputPullup();
+  68:Src/transport/rf/rf_boot_ready.cpp **** 
+  69:Src/transport/rf/rf_boot_ready.cpp ****     const uint32_t start = HAL_GetTick();
+  70:Src/transport/rf/rf_boot_ready.cpp ****     uint32_t assertedSince = 0u;
+  71:Src/transport/rf/rf_boot_ready.cpp **** 
+  72:Src/transport/rf/rf_boot_ready.cpp ****     while ((HAL_GetTick() - start) <= timeoutMs) {
+  73:Src/transport/rf/rf_boot_ready.cpp ****         if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+  74:Src/transport/rf/rf_boot_ready.cpp ****             RF_BRIDGE_IRQ_ASSERTED_STATE) {
+  75:Src/transport/rf/rf_boot_ready.cpp ****             if (assertedSince == 0u) {
+  76:Src/transport/rf/rf_boot_ready.cpp ****                 assertedSince = HAL_GetTick();
+  77:Src/transport/rf/rf_boot_ready.cpp ****             }
+  78:Src/transport/rf/rf_boot_ready.cpp ****             if ((HAL_GetTick() - assertedSince) >= RF_BOOT_READY_STABLE_MS) {
+  79:Src/transport/rf/rf_boot_ready.cpp ****                 printf("[RF_BOOT][READY] W_INT asserted after %u ms\r\n",
+  80:Src/transport/rf/rf_boot_ready.cpp ****                        (unsigned int)(HAL_GetTick() - start));
+  81:Src/transport/rf/rf_boot_ready.cpp ****                 const uint32_t deassertStart = HAL_GetTick();
+  82:Src/transport/rf/rf_boot_ready.cpp ****                 while ((HAL_GetTick() - deassertStart) <
+  83:Src/transport/rf/rf_boot_ready.cpp ****                        RF_BOOT_READY_DEASSERT_TIMEOUT_MS) {
+  84:Src/transport/rf/rf_boot_ready.cpp ****                     if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT,
+  85:Src/transport/rf/rf_boot_ready.cpp ****                                          RF_BRIDGE_IRQ_PIN) ==
+  86:Src/transport/rf/rf_boot_ready.cpp ****                         RF_BRIDGE_IRQ_DEASSERTED_STATE) {
+  87:Src/transport/rf/rf_boot_ready.cpp ****                         HAL_Delay(RF_BOOT_READY_SETTLE_MS);
+  88:Src/transport/rf/rf_boot_ready.cpp ****                         s_readySeen = true;
+  89:Src/transport/rf/rf_boot_ready.cpp ****                         return true;
+  90:Src/transport/rf/rf_boot_ready.cpp ****                     }
+  91:Src/transport/rf/rf_boot_ready.cpp ****                     HAL_Delay(1u);
+  92:Src/transport/rf/rf_boot_ready.cpp ****                 }
+  93:Src/transport/rf/rf_boot_ready.cpp ****                 printf("[RF_BOOT][READY_TIMEOUT] W_INT did not deassert\r\n");
+  94:Src/transport/rf/rf_boot_ready.cpp ****                 return false;
+  95:Src/transport/rf/rf_boot_ready.cpp ****             }
+  96:Src/transport/rf/rf_boot_ready.cpp ****         } else {
+  97:Src/transport/rf/rf_boot_ready.cpp ****             assertedSince = 0u;
+  98:Src/transport/rf/rf_boot_ready.cpp ****         }
+  99:Src/transport/rf/rf_boot_ready.cpp ****         HAL_Delay(1u);
+ 100:Src/transport/rf/rf_boot_ready.cpp ****     }
+ 101:Src/transport/rf/rf_boot_ready.cpp **** 
+ 102:Src/transport/rf/rf_boot_ready.cpp ****     printf("[RF_BOOT][READY_TIMEOUT] timeout=%u ms pin=%u\r\n",
+ 103:Src/transport/rf/rf_boot_ready.cpp ****            (unsigned int)timeoutMs,
+ 104:Src/transport/rf/rf_boot_ready.cpp ****            (unsigned int)HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN));
+ 105:Src/transport/rf/rf_boot_ready.cpp ****     return false;
+ 106:Src/transport/rf/rf_boot_ready.cpp **** }
+ 799              		.loc 1 106 1 is_stmt 0 view .LVU103
+ 800 0008 3846     		mov	r0, r7
+ 801 000a F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 802              	.LVL5:
+ 803              	.L44:
+ 804              		.loc 1 106 1 view .LVU104
+ 805 000c 0546     		mov	r5, r0
+  67:Src/transport/rf/rf_boot_ready.cpp **** 
+ 806              		.loc 1 67 5 is_stmt 1 view .LVU105
+  67:Src/transport/rf/rf_boot_ready.cpp **** 
+ 807              		.loc 1 67 30 is_stmt 0 view .LVU106
+ 808 000e FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L25configureReadyInputPullupEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 18
+
+
+ 809              	.LVL6:
+  69:Src/transport/rf/rf_boot_ready.cpp ****     uint32_t assertedSince = 0u;
+ 810              		.loc 1 69 5 is_stmt 1 view .LVU107
+  69:Src/transport/rf/rf_boot_ready.cpp ****     uint32_t assertedSince = 0u;
+ 811              		.loc 1 69 39 is_stmt 0 view .LVU108
+ 812 0012 FFF7FEFF 		bl	HAL_GetTick
+ 813              	.LVL7:
+ 814 0016 0646     		mov	r6, r0
+ 815              	.LVL8:
+  70:Src/transport/rf/rf_boot_ready.cpp **** 
+ 816              		.loc 1 70 5 is_stmt 1 view .LVU109
+  72:Src/transport/rf/rf_boot_ready.cpp ****         if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+ 817              		.loc 1 72 5 view .LVU110
+  70:Src/transport/rf/rf_boot_ready.cpp **** 
+ 818              		.loc 1 70 14 is_stmt 0 view .LVU111
+ 819 0018 0024     		movs	r4, #0
+  72:Src/transport/rf/rf_boot_ready.cpp ****         if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+ 820              		.loc 1 72 5 view .LVU112
+ 821 001a 07E0     		b	.L35
+ 822              	.LVL9:
+ 823              	.L37:
+ 824              	.LBB199:
+ 825              	.LBB200:
+ 826              	.LBB201:
+  78:Src/transport/rf/rf_boot_ready.cpp ****                 printf("[RF_BOOT][READY] W_INT asserted after %u ms\r\n",
+ 827              		.loc 1 78 13 is_stmt 1 view .LVU113
+ 828              	.LBB202:
+  78:Src/transport/rf/rf_boot_ready.cpp ****                 printf("[RF_BOOT][READY] W_INT asserted after %u ms\r\n",
+ 829              		.loc 1 78 29 is_stmt 0 view .LVU114
+ 830 001c FFF7FEFF 		bl	HAL_GetTick
+ 831              	.LVL10:
+  78:Src/transport/rf/rf_boot_ready.cpp ****                 printf("[RF_BOOT][READY] W_INT asserted after %u ms\r\n",
+ 832              		.loc 1 78 32 discriminator 1 view .LVU115
+ 833 0020 031B     		subs	r3, r0, r4
+  78:Src/transport/rf/rf_boot_ready.cpp ****                 printf("[RF_BOOT][READY] W_INT asserted after %u ms\r\n",
+ 834              		.loc 1 78 13 discriminator 1 view .LVU116
+ 835 0022 012B     		cmp	r3, #1
+ 836 0024 13D8     		bhi	.L45
+ 837              	.LVL11:
+ 838              	.L36:
+  78:Src/transport/rf/rf_boot_ready.cpp ****                 printf("[RF_BOOT][READY] W_INT asserted after %u ms\r\n",
+ 839              		.loc 1 78 13 discriminator 1 view .LVU117
+ 840              	.LBE202:
+ 841              	.LBE201:
+ 842              	.LBE200:
+  99:Src/transport/rf/rf_boot_ready.cpp ****     }
+ 843              		.loc 1 99 9 is_stmt 1 view .LVU118
+  99:Src/transport/rf/rf_boot_ready.cpp ****     }
+ 844              		.loc 1 99 18 is_stmt 0 view .LVU119
+ 845 0026 0120     		movs	r0, #1
+ 846 0028 FFF7FEFF 		bl	HAL_Delay
+ 847              	.LVL12:
+ 848              	.L35:
+  99:Src/transport/rf/rf_boot_ready.cpp ****     }
+ 849              		.loc 1 99 18 view .LVU120
+ 850              	.LBE199:
+  72:Src/transport/rf/rf_boot_ready.cpp ****         if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 19
+
+
+ 851              		.loc 1 72 36 is_stmt 1 view .LVU121
+  72:Src/transport/rf/rf_boot_ready.cpp ****         if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+ 852              		.loc 1 72 24 is_stmt 0 view .LVU122
+ 853 002c FFF7FEFF 		bl	HAL_GetTick
+ 854              	.LVL13:
+  72:Src/transport/rf/rf_boot_ready.cpp ****         if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+ 855              		.loc 1 72 27 discriminator 1 view .LVU123
+ 856 0030 831B     		subs	r3, r0, r6
+  72:Src/transport/rf/rf_boot_ready.cpp ****         if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+ 857              		.loc 1 72 36 discriminator 1 view .LVU124
+ 858 0032 AB42     		cmp	r3, r5
+ 859 0034 E8D8     		bhi	.L34
+ 860              	.LBB207:
+  73:Src/transport/rf/rf_boot_ready.cpp ****             RF_BRIDGE_IRQ_ASSERTED_STATE) {
+ 861              		.loc 1 73 9 is_stmt 1 view .LVU125
+ 862              	.LBB206:
+  73:Src/transport/rf/rf_boot_ready.cpp ****             RF_BRIDGE_IRQ_ASSERTED_STATE) {
+ 863              		.loc 1 73 29 is_stmt 0 view .LVU126
+ 864 0036 4FF48061 		mov	r1, #1024
+ 865 003a 1448     		ldr	r0, .L47+4
+ 866 003c FFF7FEFF 		bl	HAL_GPIO_ReadPin
+ 867              	.LVL14:
+  73:Src/transport/rf/rf_boot_ready.cpp ****             RF_BRIDGE_IRQ_ASSERTED_STATE) {
+ 868              		.loc 1 73 9 discriminator 1 view .LVU127
+ 869 0040 F8B9     		cbnz	r0, .L42
+ 870              	.LBB205:
+  75:Src/transport/rf/rf_boot_ready.cpp ****                 assertedSince = HAL_GetTick();
+ 871              		.loc 1 75 13 is_stmt 1 view .LVU128
+ 872 0042 002C     		cmp	r4, #0
+ 873 0044 EAD1     		bne	.L37
+  76:Src/transport/rf/rf_boot_ready.cpp ****             }
+ 874              		.loc 1 76 17 view .LVU129
+  76:Src/transport/rf/rf_boot_ready.cpp ****             }
+ 875              		.loc 1 76 44 is_stmt 0 view .LVU130
+ 876 0046 FFF7FEFF 		bl	HAL_GetTick
+ 877              	.LVL15:
+ 878 004a 0446     		mov	r4, r0
+ 879              	.LVL16:
+  76:Src/transport/rf/rf_boot_ready.cpp ****             }
+ 880              		.loc 1 76 44 view .LVU131
+ 881 004c E6E7     		b	.L37
+ 882              	.LVL17:
+ 883              	.L45:
+ 884              	.LBB204:
+ 885              	.LBB203:
+  79:Src/transport/rf/rf_boot_ready.cpp ****                        (unsigned int)(HAL_GetTick() - start));
+ 886              		.loc 1 79 17 is_stmt 1 view .LVU132
+  81:Src/transport/rf/rf_boot_ready.cpp ****                 while ((HAL_GetTick() - deassertStart) <
+ 887              		.loc 1 81 17 view .LVU133
+  81:Src/transport/rf/rf_boot_ready.cpp ****                 while ((HAL_GetTick() - deassertStart) <
+ 888              		.loc 1 81 59 is_stmt 0 view .LVU134
+ 889 004e FFF7FEFF 		bl	HAL_GetTick
+ 890              	.LVL18:
+ 891 0052 0446     		mov	r4, r0
+ 892              	.LVL19:
+  82:Src/transport/rf/rf_boot_ready.cpp ****                        RF_BOOT_READY_DEASSERT_TIMEOUT_MS) {
+ 893              		.loc 1 82 17 is_stmt 1 view .LVU135
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 20
+
+
+ 894              	.L38:
+  82:Src/transport/rf/rf_boot_ready.cpp ****                        RF_BOOT_READY_DEASSERT_TIMEOUT_MS) {
+ 895              		.loc 1 82 56 view .LVU136
+  82:Src/transport/rf/rf_boot_ready.cpp ****                        RF_BOOT_READY_DEASSERT_TIMEOUT_MS) {
+ 896              		.loc 1 82 36 is_stmt 0 view .LVU137
+ 897 0054 FFF7FEFF 		bl	HAL_GetTick
+ 898              	.LVL20:
+  82:Src/transport/rf/rf_boot_ready.cpp ****                        RF_BOOT_READY_DEASSERT_TIMEOUT_MS) {
+ 899              		.loc 1 82 39 discriminator 1 view .LVU138
+ 900 0058 001B     		subs	r0, r0, r4
+  82:Src/transport/rf/rf_boot_ready.cpp ****                        RF_BOOT_READY_DEASSERT_TIMEOUT_MS) {
+ 901              		.loc 1 82 56 discriminator 1 view .LVU139
+ 902 005a F928     		cmp	r0, #249
+ 903 005c D4D8     		bhi	.L34
+  84:Src/transport/rf/rf_boot_ready.cpp ****                                          RF_BRIDGE_IRQ_PIN) ==
+ 904              		.loc 1 84 21 is_stmt 1 view .LVU140
+  84:Src/transport/rf/rf_boot_ready.cpp ****                                          RF_BRIDGE_IRQ_PIN) ==
+ 905              		.loc 1 84 41 is_stmt 0 view .LVU141
+ 906 005e 4FF48061 		mov	r1, #1024
+ 907 0062 0A48     		ldr	r0, .L47+4
+ 908 0064 FFF7FEFF 		bl	HAL_GPIO_ReadPin
+ 909              	.LVL21:
+  84:Src/transport/rf/rf_boot_ready.cpp ****                                          RF_BRIDGE_IRQ_PIN) ==
+ 910              		.loc 1 84 21 view .LVU142
+ 911 0068 0128     		cmp	r0, #1
+ 912 006a 03D0     		beq	.L46
+  91:Src/transport/rf/rf_boot_ready.cpp ****                 }
+ 913              		.loc 1 91 21 is_stmt 1 view .LVU143
+  91:Src/transport/rf/rf_boot_ready.cpp ****                 }
+ 914              		.loc 1 91 30 is_stmt 0 view .LVU144
+ 915 006c 0120     		movs	r0, #1
+ 916 006e FFF7FEFF 		bl	HAL_Delay
+ 917              	.LVL22:
+ 918 0072 EFE7     		b	.L38
+ 919              	.L46:
+  87:Src/transport/rf/rf_boot_ready.cpp ****                         s_readySeen = true;
+ 920              		.loc 1 87 25 is_stmt 1 view .LVU145
+  87:Src/transport/rf/rf_boot_ready.cpp ****                         s_readySeen = true;
+ 921              		.loc 1 87 34 is_stmt 0 view .LVU146
+ 922 0074 0A20     		movs	r0, #10
+ 923 0076 FFF7FEFF 		bl	HAL_Delay
+ 924              	.LVL23:
+  88:Src/transport/rf/rf_boot_ready.cpp ****                         return true;
+ 925              		.loc 1 88 25 is_stmt 1 view .LVU147
+  88:Src/transport/rf/rf_boot_ready.cpp ****                         return true;
+ 926              		.loc 1 88 37 is_stmt 0 view .LVU148
+ 927 007a 0127     		movs	r7, #1
+ 928 007c 024B     		ldr	r3, .L47
+ 929 007e 1F70     		strb	r7, [r3]
+  89:Src/transport/rf/rf_boot_ready.cpp ****                     }
+ 930              		.loc 1 89 25 is_stmt 1 view .LVU149
+  89:Src/transport/rf/rf_boot_ready.cpp ****                     }
+ 931              		.loc 1 89 32 is_stmt 0 view .LVU150
+ 932 0080 C2E7     		b	.L34
+ 933              	.LVL24:
+ 934              	.L42:
+  89:Src/transport/rf/rf_boot_ready.cpp ****                     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 21
+
+
+ 935              		.loc 1 89 32 view .LVU151
+ 936              	.LBE203:
+ 937              	.LBE204:
+ 938              	.LBE205:
+  97:Src/transport/rf/rf_boot_ready.cpp ****         }
+ 939              		.loc 1 97 27 view .LVU152
+ 940 0082 0024     		movs	r4, #0
+ 941              	.LVL25:
+  97:Src/transport/rf/rf_boot_ready.cpp ****         }
+ 942              		.loc 1 97 27 view .LVU153
+ 943 0084 CFE7     		b	.L36
+ 944              	.L48:
+ 945 0086 00BF     		.align	2
+ 946              	.L47:
+ 947 0088 00000000 		.word	_ZN12_GLOBAL__N_1L11s_readySeenE
+ 948 008c 00100258 		.word	1476530176
+ 949              	.LBE206:
+ 950              	.LBE207:
+ 951              		.cfi_endproc
+ 952              	.LFE1271:
+ 954              		.section	.bss._ZN12_GLOBAL__N_1L11s_readySeenE,"aw",%nobits
+ 957              	_ZN12_GLOBAL__N_1L11s_readySeenE:
+ 958 0000 00       		.space	1
+ 959              		.text
+ 960              	.Letext0:
+ 961              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 962              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 963              		.file 4 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 964              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 965              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 966              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 967              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 968              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e-
+ 969              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 970              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 971              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 972              		.file 13 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 973              		.file 14 "Inc/system/board_cfg.h"
+ 974              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 975              		.file 16 "Inc/transport/rf/rf_boot_ready.hpp"
+ 976              		.file 17 "Inc/support/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s 			page 22
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 rf_boot_ready.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:20     .text._ZN12_GLOBAL__N_1L15enableGpioClockEP12GPIO_TypeDef:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:25     .text._ZN12_GLOBAL__N_1L15enableGpioClockEP12GPIO_TypeDef:00000000 _ZN12_GLOBAL__N_1L15enableGpioClockEP12GPIO_TypeDef
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:653    .text._ZN12_GLOBAL__N_1L15enableGpioClockEP12GPIO_TypeDef:00000198 $d
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:678    .text._ZN12_GLOBAL__N_1L25configureReadyInputPullupEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:683    .text._ZN12_GLOBAL__N_1L25configureReadyInputPullupEv:00000000 _ZN12_GLOBAL__N_1L25configureReadyInputPullupEv
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:737    .text._ZN12_GLOBAL__N_1L25configureReadyInputPullupEv:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:742    .text._ZN11RFBootReady5resetEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:748    .text._ZN11RFBootReady5resetEv:00000000 _ZN11RFBootReady5resetEv
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:765    .text._ZN11RFBootReady5resetEv:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:957    .bss._ZN12_GLOBAL__N_1L11s_readySeenE:00000000 _ZN12_GLOBAL__N_1L11s_readySeenE
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:770    .text._ZN11RFBootReady18waitForModuleReadyEm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:776    .text._ZN11RFBootReady18waitForModuleReadyEm:00000000 _ZN11RFBootReady18waitForModuleReadyEm
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:947    .text._ZN11RFBootReady18waitForModuleReadyEm:00000088 $d
+C:\Users\nicx5\AppData\Local\Temp\ccF3iYUa.s:958    .bss._ZN12_GLOBAL__N_1L11s_readySeenE:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_GPIO_Init
+HAL_GetTick
+HAL_Delay
+HAL_GPIO_ReadPin

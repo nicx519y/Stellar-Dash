@@ -1,4 +1,4 @@
-# HBox UMDF2 virtual gamepad backend (phase 2)
+# XORA UMDF2 virtual gamepad backend (phase 2)
 
 本目录固定正式驱动与用户态客户端之间的 ABI；它不是可分发的已签名驱动包。
 公开发布还必须完成独立的 WDK 工程、Xbox 360/xinputhid 虚拟设备实现、INF、

@@ -25,12 +25,29 @@ bool RfSleepRecovery::suspend() {
     return park();
 }
 
-void RfSleepRecovery::begin(uint16_t rate) {
+void RfSleepRecovery::begin(uint16_t rate, uint8_t maxAttempts) {
     requested_ = rate ? rate : 1000u;
+    attempts_ = 0u;
+    maxAttempts_ = maxAttempts;
     startAttempt();
 }
 
+void RfSleepRecovery::beginAfterRole(uint16_t rate, uint8_t maxAttempts) {
+    // The cold-boot selector has already succeeded. Adopt that powered peer
+    // without another reset, but do not confuse ROLE_SELECTED with RF ready.
+    requested_ = rate_ = rate ? rate : 1000u;
+    attempts_ = 1u;
+    maxAttempts_ = maxAttempts;
+    CONNECTION_MANAGER.onRfPowerRemovedForSleep();
+    CONNECTION_MANAGER.resetRfSleepSession();
+    transport_.resetSession();
+    fallback_ = requestSent_ = verified_ = neutralSent_ = false;
+    state_ = RfSleepState::ApplicationWait;
+    since_ = HAL_GetTick();
+}
+
 void RfSleepRecovery::startAttempt() {
+    if (attempts_ < 255u) ++attempts_;
     ++g_sleepDiagnostics.radioAttempts;
     if (!park()) { fail(RfSleepError::PortStop, HAL_GetTick()); return; }
     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
@@ -54,7 +71,8 @@ void RfSleepRecovery::fail(RfSleepError error, uint32_t now) {
     // Even if cleanup fails, ownership stays here and normal input cannot
     // touch SPI. Local input/render/lighting remain entirely independent.
     if (!park()) error = RfSleepError::PortStop;
-    state_ = RfSleepState::RetryWait;
+    state_ = maxAttempts_ && attempts_ >= maxAttempts_
+        ? RfSleepState::Failed : RfSleepState::RetryWait;
     since_ = now;
     CONNECTION_MANAGER.setRfSleepRecoveryError(true);
     SleepDiagnostics_Record(SleepStage::RadioRetry, static_cast<uint32_t>(error));
@@ -66,7 +84,8 @@ void RfSleepRecovery::cancel() {
 }
 
 void RfSleepRecovery::service(uint32_t now) {
-    if (state_ == RfSleepState::Off || state_ == RfSleepState::Ready) return;
+    if (state_ == RfSleepState::Off || state_ == RfSleepState::Ready ||
+        state_ == RfSleepState::Failed) return;
     if (state_ == RfSleepState::RetryWait) {
         if (now - since_ >= 10000u) startAttempt();
         return;
@@ -93,6 +112,12 @@ void RfSleepRecovery::service(uint32_t now) {
     }
     if (state_ == RfSleepState::ApplicationWait) {
         if (now - since_ < applicationSettleMs) return;
+        // A late boot pulse must not be read as a reply and latch an 80-ms
+        // runtime release fault. Do not require observing its one-shot edge.
+        if (!RFBridgePort_BootSignalReleased()) {
+            if (now - since_ >= 500u) fail(RfSleepError::PortStart, now);
+            return;
+        }
         // Release the bootstrap handle before initializing RF SPI4/DMA.
         if (!USBBoardLinkPort_TryShutdown()) { fail(RfSleepError::PortStop, HAL_GetTick()); return; }
         USB_BOARD_LINK.shutdown();

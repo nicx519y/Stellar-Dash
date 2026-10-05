@@ -1,5 +1,7 @@
 # WebConfig V2 生产部署与发布门禁
 
+> 设备证明子系统的专项设计参考：包含尚未交付的生产 adapter 与制造工序，不是当前双域名站点的运行配置。保护位访问和锁定继续受 [根规则](../AGENTS.md#硬件安全红线) 禁止，文中流程不构成执行授权。（本次标注日期：2026-10-05。）
+
 当前 XORA WebConfig 使用 WebHID 直连加密会话；WebConfig 和 admin 的
 同源站点部署以 [当前部署方案](webconfig-admin-deployment.md) 为准。
 本文描述设备证明子系统，其 KMS/Redis 要求不是当前直连页面上线的前置条件。

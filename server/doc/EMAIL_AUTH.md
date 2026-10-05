@@ -1,7 +1,6 @@
 # WebConfig 邮箱账号部署
 
-邮箱账号与设备身份相互独立：用户可以在未连接设备时注册和登录；设备仍通过
-WebHID V2 证明自动映射到 `accounts.sqlite3`。邮箱用户保存在
+邮箱账号与设备身份相互独立：用户可以在未连接设备时注册和登录；设备通过 WebHID 直连加密会话通信。邮箱用户保存在
 `HBOX_SERVER_DATA_DIR/user_accounts.sqlite3`，内部主键为 UUIDv4。后续如需让用户
 管理设备，应新增显式的 `user_devices(user_uid, device_identity)` 绑定流程，不要按
 邮箱、昵称或设备名称自动合并。
@@ -12,31 +11,40 @@ WebHID V2 证明自动映射到 `accounts.sqlite3`。邮箱用户保存在
 
 ## st-dash.com 发信配置
 
-建议在 Resend 中添加并验证 `auth.st-dash.com`，然后按 Resend 给出的值在域名 DNS
-中配置 SPF 和 DKIM，并配置 DMARC。默认发件地址为：
+在 Resend 中添加并验证 `auth.st-dash.com`，按控制台给出的实际记录配置 DNS；
+DMARC 属可选策略。阿里云字段填写、当前已验证的 TXT/CNAME 记录和首次管理员
+流程统一见 [服务端部署指南](../../docs/webconfig-admin-deployment.md)。2026-10-05
+用户已确认线上首个管理员注册和登录可用。线上显式配置的发件地址为：
 
 ```text
-ST-Dash <no-reply@auth.st-dash.com>
+XORA <no-reply@auth.st-dash.com>
 ```
 
-验证邮件中的链接必须指向 WebConfig 实际部署 origin。当前仓库的生产站点如果仍是
-`https://firmware.st-dash.com`，配置如下；如果 WebConfig 已迁移到根域名，则把两项
-origin 同时改成 `https://st-dash.com`。
+WebConfig 当前域名为 `https://config.st-dash.com`，管理后台为
+`https://manager.st-dash.com`。两站的 `/api/auth/*` 分别通过自己的域名回源，
+不是跨域 Cookie API。验证邮件固定指向 config；配置如下：
 
 ```text
 USER_AUTH_ENABLED=1
-USER_AUTH_PUBLIC_ORIGIN=https://firmware.st-dash.com
-USER_AUTH_EMAIL_FROM=ST-Dash <no-reply@auth.st-dash.com>
-WEB_CONFIG_ORIGINS=https://firmware.st-dash.com
+USER_AUTH_PUBLIC_ORIGIN=https://config.st-dash.com
+USER_AUTH_ALLOWED_ORIGINS=https://config.st-dash.com,https://manager.st-dash.com
+USER_AUTH_EMAIL_FROM=XORA <no-reply@auth.st-dash.com>
+WEB_CONFIG_ORIGINS=https://config.st-dash.com,https://manager.st-dash.com
 RESEND_API_KEY_FILE=/run/secrets/st-dash-resend-api-key
 ```
+
+省略 `USER_AUTH_ALLOWED_ORIGINS` 时只允许 `USER_AUTH_PUBLIC_ORIGIN`，保留单域名默认行为。
+配置多个来源时必须包含 public origin，并且全部属于 `WEB_CONFIG_ORIGINS` 的精确白名单。
+账户与权限共享，登录 Cookie 不含 Domain，两个域名分别登录。manager 注册的邮箱
+仍在 config 完成邮件验证，再回 manager 登录。[部署脚本](../../docs/webconfig-admin-deployment.md)
+使用 `/etc/xora/secrets/resend-api-key`，文件格式要求与下例一致。
 
 `/run/secrets/st-dash-resend-api-key` 只包含 Resend API Key，不要带引号或额外字段。
 生产环境强制使用绝对路径的 `RESEND_API_KEY_FILE`，拒绝从
 `RESEND_API_KEY` 环境变量读取密钥；非生产环境可临时使用内联变量。
 
-开启功能前应先在 Resend 控制台完成域名验证并发送测试邮件。API Key、验证链接、
-原始会话令牌和密码不得写入日志。
+新部署须在 Resend 控制台完成域名验证，再由已授权的收件人通过正常注册流程验证
+真实邮件送达。API Key、验证链接、原始会话令牌和密码不得写入日志。
 
 ## 接口与流程
 

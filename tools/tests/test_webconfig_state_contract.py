@@ -378,7 +378,7 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertNotIn("continue;", source[wait:select])
         self.assertIn("ROLE_SELECTED remains the authoritative commit", source)
 
-    def test_rf_runtime_does_not_wait_for_ready_again_after_role_commit(self) -> None:
+    def test_rf_runtime_adopts_role_then_waits_for_rf_application(self) -> None:
         source = (
             ROOT / 'application/Src/transport/connection_manager.cpp'
         ).read_text(encoding="utf-8")
@@ -389,9 +389,15 @@ class WebConfigStateContractTests(unittest.TestCase):
             "bool ConnectionManager::restoreRfRuntime", start
         )
         cold_boot = source[start:end]
+        # The selector's optional ready pulse must not be awaited a second
+        # time. RF has a separate application handoff handled asynchronously.
         self.assertNotIn("RFBootReady::waitForModuleReady", cold_boot)
-        self.assertIn("ROLE_SELECTED response is the authoritative", cold_boot)
-        self.assertIn("return restoreRfRuntime(wirelessRate);", cold_boot)
+        self.assertIn("rfRuntimeRecoveryActive = true", cold_boot)
+        self.assertIn("RF_SLEEP_RECOVERY.beginAfterRole", cold_boot)
+        self.assertNotIn("return restoreRfRuntime(wirelessRate);", cold_boot)
+        recovery = (ROOT / 'application/Src/transport/rf/rf_sleep_recovery.cpp').read_text(encoding='utf-8')
+        self.assertIn("now - since_ < applicationSettleMs", recovery)
+        self.assertIn("RFBridgePort_BootSignalReleased()", recovery)
 
     def test_stlink_internal_flash_configs_use_openocd_khz_units(self) -> None:
         configs = (

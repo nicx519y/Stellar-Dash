@@ -31,8 +31,9 @@ bool RFBridgePort_DmaReplyCapable();
 // DWT capture when the most recent validated event header was received.
 uint32_t RFBridgePort_EventReceivedCycles();
 void RFBridgePort_Shutdown(void);
-// Sleep-only checked shutdown. On failure keep the peer powered and retry.
+// Checked sleep/runtime recovery shutdown. On failure keep the peer powered.
 bool RFBridgePort_TryShutdownForSleep();
+bool RFBridgePort_BootSignalReleased();
 bool RFBridgePort_RecoveryBegin();
 bool RFBridgePort_RecoveryIdle();
 enum class RFPortStep { Pending, Complete, Error };

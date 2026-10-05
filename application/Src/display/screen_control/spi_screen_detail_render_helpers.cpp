@@ -57,8 +57,9 @@ void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* 
     }
 }
 
-void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t value, const ScreenUiStyle& style) {
-    if (!lcd) return;
+void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t value, const ScreenUiStyle& style, uint8_t maxValue, const char* valueLabel) {
+    if (!lcd || maxValue == 0u) return;
+    if (value > maxValue) value = maxValue;
 
     const uint16_t w = ST7789_WIDTH;
     const uint16_t h = ST7789_HEIGHT;
@@ -72,7 +73,7 @@ void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t va
     const uint16_t barH = (uint16_t)(14u * 2u);
     const uint16_t barX = (uint16_t)(listX + 10u);
     const uint16_t barY = (uint16_t)(h / 2u - barH / 2u);
-    const uint16_t fillW = (uint16_t)((barW * (uint16_t)value) / 100u);
+    const uint16_t fillW = (uint16_t)((barW * (uint16_t)value) / maxValue);
 
     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
     ST7789_DrawString(lcd, barX, (uint16_t)(barY - titleH - 10u), title, style.text, style.bg, titleScale);
@@ -82,7 +83,7 @@ void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t va
 
     char val[8];
     snprintf(val, sizeof(val), "%u%%", (unsigned)value);
-    ScreenUI_DrawStringCenteredInBox(lcd, listX, (uint16_t)(barY + barH + 8u), listW, valueH, val, style.text, style.bg, valueScale);
+    ScreenUI_DrawStringCenteredInBox(lcd, listX, (uint16_t)(barY + barH + 8u), listW, valueH, valueLabel ? valueLabel : val, style.text, style.bg, valueScale);
 }
 
 void ScreenDetailRender_Info(ST7789_Handle* lcd, const char* title, const char* text, const ScreenUiStyle& style) {

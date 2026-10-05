@@ -35,7 +35,7 @@
 | [bootloader](bootloader/AGENTS.md) | STM32H750 启动、QSPI 双槽校验与跳转 |
 | [application](application/AGENTS.md) | STM32 C/C++17 固件；输入采样、USB/RF、配置存储、屏幕和升级 |
 | [application/www](application/www/AGENTS.md) | 服务器托管 Next.js WebConfig，WebHID 产品通道及独立 Mock 预览 |
-| [RF_PHY_Hop](RF_PHY_Hop/AGENTS.md) | CH585 TX/RX；TX SPI/USB 维护桥，RX XInput 与 HID telemetry |
+| [RF_PHY_Hop](RF_PHY_Hop/AGENTS.md) | CH585 共同规则；[TX](RF_PHY_Hop/TX/AGENTS.md) SPI/USB 维护桥，[RX](RF_PHY_Hop/RX/AGENTS.md) XInput 与 HID telemetry |
 | [connect-monitor](connect-monitor/AGENTS.md) | Electron/React RF 诊断客户端 |
 | [server](server/AGENTS.md) | 托管网页、账户/设备认证、固件与资源服务 |
 | [common](common/AGENTS.md) / [tools](tools/AGENTS.md) | 跨端协议与布局定义、构建/烧录入口和主机测试 |
@@ -54,6 +54,7 @@
 | STM32 bootloader 无锁开发重刷 | `python tools/hbox.py build bootloader` 后 `python tools/hbox.py flash bootloader`；或 `python tools/hbox.py flash bootloader --build`（整扇区写入和回读；不修改保护位） |
 | CH585 TX / RX 仅编译 | `make -C RF_PHY_Hop/TX` / `python tools/hbox.py build rx` |
 | WebConfig 产品构建 | `python tools/hbox.py web build` |
+| WebConfig / admin 服务端部署 | `python server/tools/deploy_xora.py`；首次上线、日常更新、回滚和运维见 [部署指南](docs/webconfig-admin-deployment.md) |
 | 本地集成服务 | `python tools/hbox.py web local-serve --port 3001`，实验室认证边界见 [Web README](application/www/README.md) |
 | WebConfig 检查 | `application/www/`：`npm run typecheck`、按改动选择测试；产品构建 `npm run build:hosted` |
 | server 检查 | `server/`：`npm test`，先检查所选测试的环境与外部依赖 |

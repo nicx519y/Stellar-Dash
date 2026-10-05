@@ -1,0 +1,471 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"hardware_rng.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "../common/hardware_rng.c"
+  19              		.section	.text.HBoxHardwareRng_Init,"ax",%progbits
+  20              		.align	1
+  21              		.global	HBoxHardwareRng_Init
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	HBoxHardwareRng_Init:
+  27              	.LFB335:
+   1:../common/hardware_rng.c **** #include "hardware_rng.h"
+   2:../common/hardware_rng.c **** 
+   3:../common/hardware_rng.c **** #include <string.h>
+   4:../common/hardware_rng.c **** 
+   5:../common/hardware_rng.c **** #include "stm32h7xx_hal.h"
+   6:../common/hardware_rng.c **** 
+   7:../common/hardware_rng.c **** #define HBOX_RNG_READY_SPINS 1000000u
+   8:../common/hardware_rng.c **** 
+   9:../common/hardware_rng.c **** int HBoxHardwareRng_Init(void)
+  10:../common/hardware_rng.c **** {
+  28              		.loc 1 10 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  11:../common/hardware_rng.c ****     uint32_t spins = HBOX_RNG_READY_SPINS;
+  33              		.loc 1 11 5 view .LVU1
+  34              	.LVL0:
+  12:../common/hardware_rng.c **** 
+  13:../common/hardware_rng.c ****     SET_BIT(RCC->CR, RCC_CR_HSI48ON);
+  35              		.loc 1 13 5 view .LVU2
+  36 0000 144A     		ldr	r2, .L7
+  37 0002 1368     		ldr	r3, [r2]
+  38 0004 43F48053 		orr	r3, r3, #4096
+  39 0008 1360     		str	r3, [r2]
+  14:../common/hardware_rng.c ****     while ((READ_BIT(RCC->CR, RCC_CR_HSI48RDY) == 0u) &&
+  40              		.loc 1 14 5 view .LVU3
+  11:../common/hardware_rng.c ****     uint32_t spins = HBOX_RNG_READY_SPINS;
+  41              		.loc 1 11 14 is_stmt 0 view .LVU4
+  42 000a 134B     		ldr	r3, .L7+4
+  43              		.loc 1 14 11 view .LVU5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 2
+
+
+  44 000c 00E0     		b	.L3
+  45              	.LVL1:
+  46              	.L5:
+  15:../common/hardware_rng.c ****            (spins-- != 0u)) {
+  47              		.loc 1 15 18 view .LVU6
+  48 000e 1346     		mov	r3, r2
+  49              	.LVL2:
+  50              	.L3:
+  16:../common/hardware_rng.c ****     }
+  51              		.loc 1 16 5 is_stmt 1 view .LVU7
+  14:../common/hardware_rng.c ****     while ((READ_BIT(RCC->CR, RCC_CR_HSI48RDY) == 0u) &&
+  52              		.loc 1 14 55 discriminator 2 view .LVU8
+  14:../common/hardware_rng.c ****     while ((READ_BIT(RCC->CR, RCC_CR_HSI48RDY) == 0u) &&
+  53              		.loc 1 14 13 is_stmt 0 discriminator 2 view .LVU9
+  54 0010 104A     		ldr	r2, .L7
+  55 0012 1268     		ldr	r2, [r2]
+  14:../common/hardware_rng.c ****     while ((READ_BIT(RCC->CR, RCC_CR_HSI48RDY) == 0u) &&
+  56              		.loc 1 14 55 discriminator 2 view .LVU10
+  57 0014 12F4005F 		tst	r2, #8192
+  58 0018 02D1     		bne	.L2
+  15:../common/hardware_rng.c ****            (spins-- != 0u)) {
+  59              		.loc 1 15 18 view .LVU11
+  60 001a 5A1E     		subs	r2, r3, #1
+  61              	.LVL3:
+  14:../common/hardware_rng.c ****     while ((READ_BIT(RCC->CR, RCC_CR_HSI48RDY) == 0u) &&
+  62              		.loc 1 14 55 discriminator 1 view .LVU12
+  63 001c 002B     		cmp	r3, #0
+  64 001e F6D1     		bne	.L5
+  65              	.LVL4:
+  66              	.L2:
+  17:../common/hardware_rng.c ****     if (READ_BIT(RCC->CR, RCC_CR_HSI48RDY) == 0u) {
+  67              		.loc 1 17 5 is_stmt 1 view .LVU13
+  68              		.loc 1 17 9 is_stmt 0 view .LVU14
+  69 0020 0C4B     		ldr	r3, .L7
+  70 0022 1B68     		ldr	r3, [r3]
+  71              		.loc 1 17 8 view .LVU15
+  72 0024 13F4005F 		tst	r3, #8192
+  73 0028 11D0     		beq	.L6
+  18:../common/hardware_rng.c ****         return 0;
+  19:../common/hardware_rng.c ****     }
+  20:../common/hardware_rng.c **** 
+  21:../common/hardware_rng.c ****     /*
+  22:../common/hardware_rng.c ****      * RNGSEL=0 selects HSI48 on STM32H750.  Keep the write explicit so a
+  23:../common/hardware_rng.c ****      * previous boot stage cannot leave the RNG driven above its limit.
+  24:../common/hardware_rng.c ****      */
+  25:../common/hardware_rng.c ****     CLEAR_BIT(RCC->D2CCIP2R, RCC_D2CCIP2R_RNGSEL);
+  74              		.loc 1 25 5 is_stmt 1 view .LVU16
+  75 002a 0A4B     		ldr	r3, .L7
+  76 002c 5A6D     		ldr	r2, [r3, #84]
+  77 002e 22F44072 		bic	r2, r2, #768
+  78 0032 5A65     		str	r2, [r3, #84]
+  26:../common/hardware_rng.c ****     SET_BIT(RCC->AHB2ENR, RCC_AHB2ENR_RNGEN);
+  79              		.loc 1 26 5 view .LVU17
+  80 0034 D3F8DC20 		ldr	r2, [r3, #220]
+  81 0038 42F04002 		orr	r2, r2, #64
+  82 003c C3F8DC20 		str	r2, [r3, #220]
+  27:../common/hardware_rng.c ****     (void)READ_BIT(RCC->AHB2ENR, RCC_AHB2ENR_RNGEN);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 3
+
+
+  83              		.loc 1 27 5 view .LVU18
+  84              		.loc 1 27 11 is_stmt 0 view .LVU19
+  85 0040 D3F8DC30 		ldr	r3, [r3, #220]
+  28:../common/hardware_rng.c ****     RNG->CR = RNG_CR_RNGEN;
+  86              		.loc 1 28 5 is_stmt 1 view .LVU20
+  87              		.loc 1 28 13 is_stmt 0 view .LVU21
+  88 0044 054B     		ldr	r3, .L7+8
+  89 0046 0422     		movs	r2, #4
+  90 0048 1A60     		str	r2, [r3]
+  29:../common/hardware_rng.c ****     return 1;
+  91              		.loc 1 29 5 is_stmt 1 view .LVU22
+  92              		.loc 1 29 12 is_stmt 0 view .LVU23
+  93 004a 0120     		movs	r0, #1
+  94 004c 7047     		bx	lr
+  95              	.L6:
+  18:../common/hardware_rng.c ****     }
+  96              		.loc 1 18 16 view .LVU24
+  97 004e 0020     		movs	r0, #0
+  30:../common/hardware_rng.c **** }
+  98              		.loc 1 30 1 view .LVU25
+  99 0050 7047     		bx	lr
+ 100              	.L8:
+ 101 0052 00BF     		.align	2
+ 102              	.L7:
+ 103 0054 00440258 		.word	1476543488
+ 104 0058 40420F00 		.word	1000000
+ 105 005c 00180248 		.word	1208096768
+ 106              		.cfi_endproc
+ 107              	.LFE335:
+ 109              		.section	.text.HBoxHardwareRng_Fill,"ax",%progbits
+ 110              		.align	1
+ 111              		.global	HBoxHardwareRng_Fill
+ 112              		.syntax unified
+ 113              		.thumb
+ 114              		.thumb_func
+ 116              	HBoxHardwareRng_Fill:
+ 117              	.LVL5:
+ 118              	.LFB336:
+  31:../common/hardware_rng.c **** 
+  32:../common/hardware_rng.c **** int HBoxHardwareRng_Fill(void *context,
+  33:../common/hardware_rng.c ****                          unsigned char *output,
+  34:../common/hardware_rng.c ****                          size_t length)
+  35:../common/hardware_rng.c **** {
+ 119              		.loc 1 35 1 is_stmt 1 view -0
+ 120              		.cfi_startproc
+ 121              		@ args = 0, pretend = 0, frame = 8
+ 122              		@ frame_needed = 0, uses_anonymous_args = 0
+ 123              		.loc 1 35 1 is_stmt 0 view .LVU27
+ 124 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 125              	.LCFI0:
+ 126              		.cfi_def_cfa_offset 20
+ 127              		.cfi_offset 4, -20
+ 128              		.cfi_offset 5, -16
+ 129              		.cfi_offset 6, -12
+ 130              		.cfi_offset 7, -8
+ 131              		.cfi_offset 14, -4
+ 132 0002 83B0     		sub	sp, sp, #12
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 4
+
+
+ 133              	.LCFI1:
+ 134              		.cfi_def_cfa_offset 32
+  36:../common/hardware_rng.c ****     size_t offset = 0u;
+ 135              		.loc 1 36 5 is_stmt 1 view .LVU28
+ 136              	.LVL6:
+  37:../common/hardware_rng.c ****     (void)context;
+ 137              		.loc 1 37 5 view .LVU29
+  38:../common/hardware_rng.c **** 
+  39:../common/hardware_rng.c ****     if ((output == NULL && length != 0u) ||
+ 138              		.loc 1 39 5 view .LVU30
+ 139              		.loc 1 39 17 is_stmt 0 view .LVU31
+ 140 0004 0E46     		mov	r6, r1
+ 141              		.loc 1 39 25 view .LVU32
+ 142 0006 B1FA81F1 		clz	r1, r1
+ 143              	.LVL7:
+ 144              		.loc 1 39 25 view .LVU33
+ 145 000a 4909     		lsrs	r1, r1, #5
+ 146 000c 002A     		cmp	r2, #0
+ 147 000e 08BF     		it	eq
+ 148 0010 0021     		moveq	r1, #0
+ 149              		.loc 1 39 8 view .LVU34
+ 150 0012 0029     		cmp	r1, #0
+ 151 0014 40D1     		bne	.L18
+ 152 0016 1546     		mov	r5, r2
+  40:../common/hardware_rng.c ****         (READ_BIT(RNG->CR, RNG_CR_RNGEN) == 0u)) {
+ 153              		.loc 1 40 10 view .LVU35
+ 154 0018 224B     		ldr	r3, .L23
+ 155 001a 1B68     		ldr	r3, [r3]
+  39:../common/hardware_rng.c ****         (READ_BIT(RNG->CR, RNG_CR_RNGEN) == 0u)) {
+ 156              		.loc 1 39 42 discriminator 1 view .LVU36
+ 157 001c 13F0040F 		tst	r3, #4
+ 158 0020 3DD0     		beq	.L19
+  36:../common/hardware_rng.c ****     (void)context;
+ 159              		.loc 1 36 12 view .LVU37
+ 160 0022 0024     		movs	r4, #0
+ 161 0024 29E0     		b	.L11
+ 162              	.LVL8:
+ 163              	.L12:
+  35:../common/hardware_rng.c ****     size_t offset = 0u;
+ 164              		.loc 1 35 1 view .LVU38
+ 165 0026 1346     		mov	r3, r2
+ 166              	.LVL9:
+ 167              	.L17:
+ 168              	.LBB2:
+  41:../common/hardware_rng.c ****         return -1;
+  42:../common/hardware_rng.c ****     }
+  43:../common/hardware_rng.c ****     while (offset < length) {
+  44:../common/hardware_rng.c ****         uint32_t spins = HBOX_RNG_READY_SPINS;
+  45:../common/hardware_rng.c ****         uint32_t value;
+  46:../common/hardware_rng.c ****         size_t copy_length;
+  47:../common/hardware_rng.c **** 
+  48:../common/hardware_rng.c ****         while ((READ_BIT(RNG->SR, RNG_SR_DRDY) == 0u) &&
+ 169              		.loc 1 48 55 is_stmt 1 view .LVU39
+ 170              		.loc 1 48 17 is_stmt 0 view .LVU40
+ 171 0028 1E4A     		ldr	r2, .L23
+ 172 002a 5268     		ldr	r2, [r2, #4]
+ 173              		.loc 1 48 55 view .LVU41
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 5
+
+
+ 174 002c 12F0010F 		tst	r2, #1
+ 175 0030 0CD1     		bne	.L13
+  49:../common/hardware_rng.c ****                (spins-- != 0u)) {
+ 176              		.loc 1 49 22 view .LVU42
+ 177 0032 5A1E     		subs	r2, r3, #1
+ 178              	.LVL10:
+  48:../common/hardware_rng.c ****                (spins-- != 0u)) {
+ 179              		.loc 1 48 55 discriminator 1 view .LVU43
+ 180 0034 53B1     		cbz	r3, .L13
+  50:../common/hardware_rng.c ****             if (READ_BIT(RNG->SR, RNG_SR_SECS | RNG_SR_CECS) != 0u) {
+ 181              		.loc 1 50 13 is_stmt 1 view .LVU44
+ 182              		.loc 1 50 17 is_stmt 0 view .LVU45
+ 183 0036 1B4B     		ldr	r3, .L23
+ 184 0038 5B68     		ldr	r3, [r3, #4]
+ 185              		.loc 1 50 16 view .LVU46
+ 186 003a 13F0060F 		tst	r3, #6
+ 187 003e F2D0     		beq	.L12
+  51:../common/hardware_rng.c ****                 RNG->CR = 0u;
+ 188              		.loc 1 51 17 is_stmt 1 view .LVU47
+ 189              		.loc 1 51 25 is_stmt 0 view .LVU48
+ 190 0040 184B     		ldr	r3, .L23
+ 191 0042 0021     		movs	r1, #0
+ 192 0044 1960     		str	r1, [r3]
+  52:../common/hardware_rng.c ****                 RNG->CR = RNG_CR_RNGEN;
+ 193              		.loc 1 52 17 is_stmt 1 view .LVU49
+ 194              		.loc 1 52 25 is_stmt 0 view .LVU50
+ 195 0046 0421     		movs	r1, #4
+ 196 0048 1960     		str	r1, [r3]
+ 197 004a ECE7     		b	.L12
+ 198              	.LVL11:
+ 199              	.L13:
+  53:../common/hardware_rng.c ****             }
+  54:../common/hardware_rng.c ****         }
+  55:../common/hardware_rng.c ****         if (READ_BIT(RNG->SR, RNG_SR_DRDY) == 0u ||
+ 200              		.loc 1 55 9 is_stmt 1 view .LVU51
+ 201              		.loc 1 55 13 is_stmt 0 view .LVU52
+ 202 004c 154B     		ldr	r3, .L23
+ 203 004e 5B68     		ldr	r3, [r3, #4]
+ 204              		.loc 1 55 12 view .LVU53
+ 205 0050 13F0010F 		tst	r3, #1
+ 206 0054 15D0     		beq	.L15
+  56:../common/hardware_rng.c ****             READ_BIT(RNG->SR, RNG_SR_SECS | RNG_SR_CECS) != 0u) {
+ 207              		.loc 1 56 13 view .LVU54
+ 208 0056 134B     		ldr	r3, .L23
+ 209 0058 5B68     		ldr	r3, [r3, #4]
+  55:../common/hardware_rng.c ****             READ_BIT(RNG->SR, RNG_SR_SECS | RNG_SR_CECS) != 0u) {
+ 210              		.loc 1 55 50 discriminator 1 view .LVU55
+ 211 005a 13F0060F 		tst	r3, #6
+ 212 005e 10D1     		bne	.L15
+  57:../common/hardware_rng.c ****             memset(output, 0, length);
+  58:../common/hardware_rng.c ****             return -1;
+  59:../common/hardware_rng.c ****         }
+  60:../common/hardware_rng.c ****         value = RNG->DR;
+ 213              		.loc 1 60 9 is_stmt 1 view .LVU56
+ 214              		.loc 1 60 20 is_stmt 0 view .LVU57
+ 215 0060 104B     		ldr	r3, .L23
+ 216 0062 9B68     		ldr	r3, [r3, #8]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 6
+
+
+ 217              		.loc 1 60 15 view .LVU58
+ 218 0064 0193     		str	r3, [sp, #4]
+  61:../common/hardware_rng.c ****         copy_length = (length - offset > sizeof(value))
+ 219              		.loc 1 61 9 is_stmt 1 view .LVU59
+ 220              		.loc 1 61 31 is_stmt 0 view .LVU60
+ 221 0066 2F1B     		subs	r7, r5, r4
+ 222              		.loc 1 61 21 view .LVU61
+ 223 0068 042F     		cmp	r7, #4
+ 224 006a 28BF     		it	cs
+ 225 006c 0427     		movcs	r7, #4
+ 226              	.LVL12:
+  62:../common/hardware_rng.c ****                           ? sizeof(value)
+  63:../common/hardware_rng.c ****                           : (length - offset);
+  64:../common/hardware_rng.c ****         memcpy(&output[offset], &value, copy_length);
+ 227              		.loc 1 64 9 is_stmt 1 view .LVU62
+ 228 006e 3A46     		mov	r2, r7
+ 229 0070 01A9     		add	r1, sp, #4
+ 230 0072 3019     		adds	r0, r6, r4
+ 231 0074 FFF7FEFF 		bl	memcpy
+ 232              	.LVL13:
+  65:../common/hardware_rng.c ****         offset += copy_length;
+ 233              		.loc 1 65 9 view .LVU63
+ 234              		.loc 1 65 16 is_stmt 0 view .LVU64
+ 235 0078 3C44     		add	r4, r4, r7
+ 236              	.LVL14:
+ 237              	.L11:
+ 238              		.loc 1 65 16 view .LVU65
+ 239              	.LBE2:
+  43:../common/hardware_rng.c ****         uint32_t spins = HBOX_RNG_READY_SPINS;
+ 240              		.loc 1 43 19 is_stmt 1 view .LVU66
+ 241 007a AC42     		cmp	r4, r5
+ 242 007c 0AD2     		bcs	.L22
+ 243              	.LBB3:
+  44:../common/hardware_rng.c ****         uint32_t value;
+ 244              		.loc 1 44 18 is_stmt 0 view .LVU67
+ 245 007e 0A4B     		ldr	r3, .L23+4
+ 246 0080 D2E7     		b	.L17
+ 247              	.L15:
+  57:../common/hardware_rng.c ****             return -1;
+ 248              		.loc 1 57 13 is_stmt 1 view .LVU68
+ 249 0082 2A46     		mov	r2, r5
+ 250 0084 0021     		movs	r1, #0
+ 251 0086 3046     		mov	r0, r6
+ 252 0088 FFF7FEFF 		bl	memset
+ 253              	.LVL15:
+  58:../common/hardware_rng.c ****         }
+ 254              		.loc 1 58 13 view .LVU69
+  58:../common/hardware_rng.c ****         }
+ 255              		.loc 1 58 20 is_stmt 0 view .LVU70
+ 256 008c 4FF0FF30 		mov	r0, #-1
+ 257              	.LVL16:
+ 258              	.L9:
+  58:../common/hardware_rng.c ****         }
+ 259              		.loc 1 58 20 view .LVU71
+ 260              	.LBE3:
+  66:../common/hardware_rng.c ****     }
+  67:../common/hardware_rng.c ****     return 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 7
+
+
+  68:../common/hardware_rng.c **** }
+ 261              		.loc 1 68 1 view .LVU72
+ 262 0090 03B0     		add	sp, sp, #12
+ 263              	.LCFI2:
+ 264              		.cfi_remember_state
+ 265              		.cfi_def_cfa_offset 20
+ 266              		@ sp needed
+ 267 0092 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 268              	.LVL17:
+ 269              	.L22:
+ 270              	.LCFI3:
+ 271              		.cfi_restore_state
+  67:../common/hardware_rng.c **** }
+ 272              		.loc 1 67 12 view .LVU73
+ 273 0094 0020     		movs	r0, #0
+ 274 0096 FBE7     		b	.L9
+ 275              	.LVL18:
+ 276              	.L18:
+  41:../common/hardware_rng.c ****     }
+ 277              		.loc 1 41 16 view .LVU74
+ 278 0098 4FF0FF30 		mov	r0, #-1
+ 279              	.LVL19:
+  41:../common/hardware_rng.c ****     }
+ 280              		.loc 1 41 16 view .LVU75
+ 281 009c F8E7     		b	.L9
+ 282              	.LVL20:
+ 283              	.L19:
+  41:../common/hardware_rng.c ****     }
+ 284              		.loc 1 41 16 view .LVU76
+ 285 009e 4FF0FF30 		mov	r0, #-1
+ 286              	.LVL21:
+  41:../common/hardware_rng.c ****     }
+ 287              		.loc 1 41 16 view .LVU77
+ 288 00a2 F5E7     		b	.L9
+ 289              	.L24:
+ 290              		.align	2
+ 291              	.L23:
+ 292 00a4 00180248 		.word	1208096768
+ 293 00a8 40420F00 		.word	1000000
+ 294              		.cfi_endproc
+ 295              	.LFE336:
+ 297              		.section	.text.HBoxHardwareRng_Shutdown,"ax",%progbits
+ 298              		.align	1
+ 299              		.global	HBoxHardwareRng_Shutdown
+ 300              		.syntax unified
+ 301              		.thumb
+ 302              		.thumb_func
+ 304              	HBoxHardwareRng_Shutdown:
+ 305              	.LFB337:
+  69:../common/hardware_rng.c **** 
+  70:../common/hardware_rng.c **** void HBoxHardwareRng_Shutdown(void)
+  71:../common/hardware_rng.c **** {
+ 306              		.loc 1 71 1 is_stmt 1 view -0
+ 307              		.cfi_startproc
+ 308              		@ args = 0, pretend = 0, frame = 0
+ 309              		@ frame_needed = 0, uses_anonymous_args = 0
+ 310              		@ link register save eliminated.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 8
+
+
+  72:../common/hardware_rng.c ****     RNG->CR = 0u;
+ 311              		.loc 1 72 5 view .LVU79
+ 312              		.loc 1 72 13 is_stmt 0 view .LVU80
+ 313 0000 054B     		ldr	r3, .L26
+ 314 0002 0022     		movs	r2, #0
+ 315 0004 1A60     		str	r2, [r3]
+  73:../common/hardware_rng.c ****     CLEAR_BIT(RCC->AHB2ENR, RCC_AHB2ENR_RNGEN);
+ 316              		.loc 1 73 5 is_stmt 1 view .LVU81
+ 317 0006 054A     		ldr	r2, .L26+4
+ 318 0008 D2F8DC30 		ldr	r3, [r2, #220]
+ 319 000c 23F04003 		bic	r3, r3, #64
+ 320 0010 C2F8DC30 		str	r3, [r2, #220]
+  74:../common/hardware_rng.c **** }
+ 321              		.loc 1 74 1 is_stmt 0 view .LVU82
+ 322 0014 7047     		bx	lr
+ 323              	.L27:
+ 324 0016 00BF     		.align	2
+ 325              	.L26:
+ 326 0018 00180248 		.word	1208096768
+ 327 001c 00440258 		.word	1476543488
+ 328              		.cfi_endproc
+ 329              	.LFE337:
+ 331              		.text
+ 332              	.Letext0:
+ 333              		.file 2 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 334              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 335              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 336              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 337              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 338              		.file 7 "<built-in>"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s 			page 9
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 hardware_rng.c
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:20     .text.HBoxHardwareRng_Init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:26     .text.HBoxHardwareRng_Init:00000000 HBoxHardwareRng_Init
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:103    .text.HBoxHardwareRng_Init:00000054 $d
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:110    .text.HBoxHardwareRng_Fill:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:116    .text.HBoxHardwareRng_Fill:00000000 HBoxHardwareRng_Fill
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:292    .text.HBoxHardwareRng_Fill:000000a4 $d
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:298    .text.HBoxHardwareRng_Shutdown:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:304    .text.HBoxHardwareRng_Shutdown:00000000 HBoxHardwareRng_Shutdown
+C:\Users\nicx5\AppData\Local\Temp\ccTc1Uih.s:326    .text.HBoxHardwareRng_Shutdown:00000018 $d
+
+UNDEFINED SYMBOLS
+memcpy
+memset

@@ -1,0 +1,282 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"CRC32.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Libs/CRC32/src/CRC32.cpp"
+  19              		.section	.text._ZN5CRC325resetEv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN5CRC325resetEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN5CRC325resetEv:
+  27              	.LVL0:
+  28              	.LFB6:
+   1:Libs/CRC32/src/CRC32.cpp **** //
+   2:Libs/CRC32/src/CRC32.cpp **** // Copyright (c) 2013 Christopher Baker <https://christopherbaker.net>
+   3:Libs/CRC32/src/CRC32.cpp **** //
+   4:Libs/CRC32/src/CRC32.cpp **** // SPDX-License-Identifier:	MIT
+   5:Libs/CRC32/src/CRC32.cpp **** //
+   6:Libs/CRC32/src/CRC32.cpp **** 
+   7:Libs/CRC32/src/CRC32.cpp **** #include "CRC32.hpp"
+   8:Libs/CRC32/src/CRC32.cpp **** 
+   9:Libs/CRC32/src/CRC32.cpp **** static const uint32_t crc32_table[] = {
+  10:Libs/CRC32/src/CRC32.cpp **** 	0x00000000, 0x1db71064, 0x3b6e20c8, 0x26d930ac,
+  11:Libs/CRC32/src/CRC32.cpp **** 	0x76dc4190, 0x6b6b51f4, 0x4db26158, 0x5005713c,
+  12:Libs/CRC32/src/CRC32.cpp **** 	0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c,
+  13:Libs/CRC32/src/CRC32.cpp **** 	0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c
+  14:Libs/CRC32/src/CRC32.cpp **** };
+  15:Libs/CRC32/src/CRC32.cpp **** 
+  16:Libs/CRC32/src/CRC32.cpp **** CRC32::CRC32() {
+  17:Libs/CRC32/src/CRC32.cpp **** 	reset();
+  18:Libs/CRC32/src/CRC32.cpp **** }
+  19:Libs/CRC32/src/CRC32.cpp **** 
+  20:Libs/CRC32/src/CRC32.cpp **** void CRC32::reset() {
+  29              		.loc 1 20 21 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+  21:Libs/CRC32/src/CRC32.cpp **** 	_state = ~0L;
+  34              		.loc 1 21 2 view .LVU1
+  35              		.loc 1 21 9 is_stmt 0 view .LVU2
+  36 0000 4FF0FF33 		mov	r3, #-1
+  37 0004 0360     		str	r3, [r0]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s 			page 2
+
+
+  22:Libs/CRC32/src/CRC32.cpp **** }
+  38              		.loc 1 22 1 view .LVU3
+  39 0006 7047     		bx	lr
+  40              		.cfi_endproc
+  41              	.LFE6:
+  43              		.section	.text._ZN5CRC32C2Ev,"ax",%progbits
+  44              		.align	1
+  45              		.global	_ZN5CRC32C2Ev
+  46              		.syntax unified
+  47              		.thumb
+  48              		.thumb_func
+  50              	_ZN5CRC32C2Ev:
+  51              	.LVL1:
+  52              	.LFB4:
+  16:Libs/CRC32/src/CRC32.cpp **** 	reset();
+  53              		.loc 1 16 1 is_stmt 1 view -0
+  54              		.cfi_startproc
+  55              		@ args = 0, pretend = 0, frame = 0
+  56              		@ frame_needed = 0, uses_anonymous_args = 0
+  16:Libs/CRC32/src/CRC32.cpp **** 	reset();
+  57              		.loc 1 16 1 is_stmt 0 view .LVU5
+  58 0000 10B5     		push	{r4, lr}
+  59              	.LCFI0:
+  60              		.cfi_def_cfa_offset 8
+  61              		.cfi_offset 4, -8
+  62              		.cfi_offset 14, -4
+  63 0002 0446     		mov	r4, r0
+  64              	.LBB2:
+  16:Libs/CRC32/src/CRC32.cpp **** 	reset();
+  65              		.loc 1 16 14 view .LVU6
+  66 0004 4FF0FF33 		mov	r3, #-1
+  67 0008 0360     		str	r3, [r0]
+  17:Libs/CRC32/src/CRC32.cpp **** }
+  68              		.loc 1 17 2 is_stmt 1 view .LVU7
+  17:Libs/CRC32/src/CRC32.cpp **** }
+  69              		.loc 1 17 7 is_stmt 0 view .LVU8
+  70 000a FFF7FEFF 		bl	_ZN5CRC325resetEv
+  71              	.LVL2:
+  17:Libs/CRC32/src/CRC32.cpp **** }
+  72              		.loc 1 17 7 view .LVU9
+  73              	.LBE2:
+  18:Libs/CRC32/src/CRC32.cpp **** 
+  74              		.loc 1 18 1 view .LVU10
+  75 000e 2046     		mov	r0, r4
+  76 0010 10BD     		pop	{r4, pc}
+  18:Libs/CRC32/src/CRC32.cpp **** 
+  77              		.loc 1 18 1 view .LVU11
+  78              		.cfi_endproc
+  79              	.LFE4:
+  81              		.global	_ZN5CRC32C1Ev
+  82              		.thumb_set _ZN5CRC32C1Ev,_ZN5CRC32C2Ev
+  83              		.section	.text._ZN5CRC326updateERKh,"ax",%progbits
+  84              		.align	1
+  85              		.global	_ZN5CRC326updateERKh
+  86              		.syntax unified
+  87              		.thumb
+  88              		.thumb_func
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s 			page 3
+
+
+  90              	_ZN5CRC326updateERKh:
+  91              	.LVL3:
+  92              	.LFB7:
+  23:Libs/CRC32/src/CRC32.cpp **** 
+  24:Libs/CRC32/src/CRC32.cpp **** void CRC32::update(const uint8_t &data) {
+  93              		.loc 1 24 41 is_stmt 1 view -0
+  94              		.cfi_startproc
+  95              		@ args = 0, pretend = 0, frame = 0
+  96              		@ frame_needed = 0, uses_anonymous_args = 0
+  97              		@ link register save eliminated.
+  98              		.loc 1 24 41 is_stmt 0 view .LVU13
+  99 0000 10B4     		push	{r4}
+ 100              	.LCFI1:
+ 101              		.cfi_def_cfa_offset 4
+ 102              		.cfi_offset 4, -4
+  25:Libs/CRC32/src/CRC32.cpp **** 	// via http://forum.arduino.cc/index.php?topic=91179.0
+  26:Libs/CRC32/src/CRC32.cpp **** 	uint8_t tbl_idx = 0;
+ 103              		.loc 1 26 2 is_stmt 1 view .LVU14
+ 104              	.LVL4:
+  27:Libs/CRC32/src/CRC32.cpp **** 
+  28:Libs/CRC32/src/CRC32.cpp **** 	tbl_idx = _state ^ (data >> (0 * 4));
+ 105              		.loc 1 28 2 view .LVU15
+ 106              		.loc 1 28 12 is_stmt 0 view .LVU16
+ 107 0002 0268     		ldr	r2, [r0]
+ 108              		.loc 1 28 19 view .LVU17
+ 109 0004 D3B2     		uxtb	r3, r2
+ 110              		.loc 1 28 22 view .LVU18
+ 111 0006 0C78     		ldrb	r4, [r1]	@ zero_extendqisi2
+ 112              		.loc 1 28 10 view .LVU19
+ 113 0008 6340     		eors	r3, r3, r4
+ 114              	.LVL5:
+  29:Libs/CRC32/src/CRC32.cpp **** 	_state = *(uint32_t *)(crc32_table + (tbl_idx & 0x0f)) ^ (_state >> 4);
+ 115              		.loc 1 29 2 is_stmt 1 view .LVU20
+ 116              		.loc 1 29 48 is_stmt 0 view .LVU21
+ 117 000a 03F00F03 		and	r3, r3, #15
+ 118              	.LVL6:
+ 119              		.loc 1 29 12 view .LVU22
+ 120 000e 0A4C     		ldr	r4, .L6
+ 121              	.LVL7:
+ 122              		.loc 1 29 11 view .LVU23
+ 123 0010 54F82330 		ldr	r3, [r4, r3, lsl #2]
+ 124              		.loc 1 29 57 view .LVU24
+ 125 0014 83EA1213 		eor	r3, r3, r2, lsr #4
+ 126              		.loc 1 29 9 view .LVU25
+ 127 0018 0360     		str	r3, [r0]
+ 128              	.LVL8:
+  30:Libs/CRC32/src/CRC32.cpp **** 	tbl_idx = _state ^ (data >> (1 * 4));
+ 129              		.loc 1 30 2 is_stmt 1 view .LVU26
+ 130              		.loc 1 30 19 is_stmt 0 view .LVU27
+ 131 001a DAB2     		uxtb	r2, r3
+ 132              		.loc 1 30 22 view .LVU28
+ 133 001c 0978     		ldrb	r1, [r1]	@ zero_extendqisi2
+ 134              	.LVL9:
+ 135              		.loc 1 30 10 view .LVU29
+ 136 001e 82EA1112 		eor	r2, r2, r1, lsr #4
+ 137              	.LVL10:
+  31:Libs/CRC32/src/CRC32.cpp **** 	_state = *(uint32_t *)(crc32_table + (tbl_idx & 0x0f)) ^ (_state >> 4);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s 			page 4
+
+
+ 138              		.loc 1 31 2 is_stmt 1 view .LVU30
+ 139              		.loc 1 31 48 is_stmt 0 view .LVU31
+ 140 0022 02F00F02 		and	r2, r2, #15
+ 141              	.LVL11:
+ 142              		.loc 1 31 11 view .LVU32
+ 143 0026 54F82220 		ldr	r2, [r4, r2, lsl #2]
+ 144              		.loc 1 31 57 view .LVU33
+ 145 002a 82EA1313 		eor	r3, r2, r3, lsr #4
+ 146              	.LVL12:
+ 147              		.loc 1 31 9 view .LVU34
+ 148 002e 0360     		str	r3, [r0]
+ 149              	.LVL13:
+  32:Libs/CRC32/src/CRC32.cpp **** }
+ 150              		.loc 1 32 1 view .LVU35
+ 151 0030 5DF8044B 		ldr	r4, [sp], #4
+ 152              	.LCFI2:
+ 153              		.cfi_restore 4
+ 154              		.cfi_def_cfa_offset 0
+ 155 0034 7047     		bx	lr
+ 156              	.L7:
+ 157 0036 00BF     		.align	2
+ 158              	.L6:
+ 159 0038 00000000 		.word	_ZL11crc32_table
+ 160              		.cfi_endproc
+ 161              	.LFE7:
+ 163              		.section	.text._ZNK5CRC328finalizeEv,"ax",%progbits
+ 164              		.align	1
+ 165              		.global	_ZNK5CRC328finalizeEv
+ 166              		.syntax unified
+ 167              		.thumb
+ 168              		.thumb_func
+ 170              	_ZNK5CRC328finalizeEv:
+ 171              	.LVL14:
+ 172              	.LFB8:
+  33:Libs/CRC32/src/CRC32.cpp **** 
+  34:Libs/CRC32/src/CRC32.cpp **** uint32_t CRC32::finalize() const
+  35:Libs/CRC32/src/CRC32.cpp **** {
+ 173              		.loc 1 35 1 is_stmt 1 view -0
+ 174              		.cfi_startproc
+ 175              		@ args = 0, pretend = 0, frame = 0
+ 176              		@ frame_needed = 0, uses_anonymous_args = 0
+ 177              		@ link register save eliminated.
+  36:Libs/CRC32/src/CRC32.cpp **** 	return ~_state;
+ 178              		.loc 1 36 2 view .LVU37
+ 179              		.loc 1 36 10 is_stmt 0 view .LVU38
+ 180 0000 0068     		ldr	r0, [r0]
+ 181              	.LVL15:
+  37:Libs/CRC32/src/CRC32.cpp **** }
+ 182              		.loc 1 37 1 view .LVU39
+ 183 0002 C043     		mvns	r0, r0
+ 184 0004 7047     		bx	lr
+ 185              		.cfi_endproc
+ 186              	.LFE8:
+ 188              		.section	.rodata._ZL11crc32_table,"a"
+ 189              		.align	2
+ 192              	_ZL11crc32_table:
+ 193 0000 00000000 		.word	0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s 			page 5
+
+
+ 194 0004 6410B71D 		.word	498536548
+ 195 0008 C8206E3B 		.word	997073096
+ 196 000c AC30D926 		.word	651767980
+ 197 0010 9041DC76 		.word	1994146192
+ 198 0014 F4516B6B 		.word	1802195444
+ 199 0018 5861B24D 		.word	1303535960
+ 200 001c 3C710550 		.word	1342533948
+ 201 0020 2083B8ED 		.word	-306674912
+ 202 0024 44930FF0 		.word	-267414716
+ 203 0028 E8A3D6D6 		.word	-690576408
+ 204 002c 8CB361CB 		.word	-882789492
+ 205 0030 B0C2649B 		.word	-1687895376
+ 206 0034 D4D2D386 		.word	-2032938284
+ 207 0038 78E20AA0 		.word	-1609899400
+ 208 003c 1CF2BDBD 		.word	-1111625188
+ 209              		.text
+ 210              	.Letext0:
+ 211              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 212              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 213              		.file 4 "Libs/CRC32/src/CRC32.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s 			page 6
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 CRC32.cpp
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:20     .text._ZN5CRC325resetEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:26     .text._ZN5CRC325resetEv:00000000 _ZN5CRC325resetEv
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:44     .text._ZN5CRC32C2Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:50     .text._ZN5CRC32C2Ev:00000000 _ZN5CRC32C2Ev
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:50     .text._ZN5CRC32C2Ev:00000000 _ZN5CRC32C1Ev
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:84     .text._ZN5CRC326updateERKh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:90     .text._ZN5CRC326updateERKh:00000000 _ZN5CRC326updateERKh
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:159    .text._ZN5CRC326updateERKh:00000038 $d
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:192    .rodata._ZL11crc32_table:00000000 _ZL11crc32_table
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:164    .text._ZNK5CRC328finalizeEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:170    .text._ZNK5CRC328finalizeEv:00000000 _ZNK5CRC328finalizeEv
+C:\Users\nicx5\AppData\Local\Temp\cczpsTL8.s:189    .rodata._ZL11crc32_table:00000000 $d
+
+NO UNDEFINED SYMBOLS

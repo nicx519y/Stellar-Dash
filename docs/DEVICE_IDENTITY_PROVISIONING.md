@@ -1,4 +1,6 @@
-# HBox V2 设备身份制造与密钥注入
+# XORA V2 设备身份设计与制造参考
+
+> 专项安全设计参考（2026-10-05 标注）。当前无锁开发板及 Hosted WebConfig 不执行本文件的制造生命周期流程；所有保护位读取、配置与锁定操作受 [根规则](../AGENTS.md#硬件安全红线) 禁止。协议中的 `HBOX` 产品族值与加密上下文保留兼容。
 
 本文保留 V2 安全构建的生产身份流程。当前无锁开发烧录与 WebConfig 直连不依赖
 设备身份、最低安全版本或生产信任根；安全构建仍按本文件校验这些记录。
@@ -18,7 +20,7 @@
 固定 64B `r || s`，所有多字节整数均为 little-endian。
 
 证书 TBS 的 `product_id_le`（offset 129，4B）是制造商分配的产品族标识；
-当前 HBox 的线性字节固定为 ASCII `HBOX`，即 little-endian
+当前 XORA 的兼容协议字节固定为 ASCII `HBOX`，即 little-endian
 `0x584F4248`。`hardware_version_le` 是 PCB revision，按
 `MAJOR.MINOR.PATCH` 编码为 `major << 16 | minor << 8 | patch`。两者都位于
 制造 CA 的签名范围内，不能从 STM32 `DEV_ID`、`REV_ID`、USB VID/PID 或浏览器

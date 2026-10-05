@@ -12,6 +12,7 @@
 | 设备认证 | [device-auth-v2.js](src/device-auth-v2.js)、[device-auth.js](src/device-auth.js)、[device-account-store.js](src/device-account-store.js) |
 | 固件与下载权限 | [firmware.js](src/firmware.js)、[download-access.js](src/download-access.js) |
 | 持久化路径 | [server-paths.js](src/server-paths.js) |
+| WebConfig / admin 部署与运维 | [部署指南](../docs/webconfig-admin-deployment.md)、[deploy_xora.py](tools/deploy_xora.py)；现有服务器使用本机 `.hbox/deploy/config.json` |
 
 ## 行为与数据边界
 

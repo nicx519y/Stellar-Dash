@@ -3,7 +3,8 @@
   "user": "root",
   "ssh_port": 22,
   "ssh_key": "",
-  "domain": "firmware.st-dash.com",
+  "domain": "config.st-dash.com",
+  "admin_domain": "manager.st-dash.com",
   "port": 3000,
   "node": "/usr/bin/node",
   "email_from": "XORA <no-reply@auth.st-dash.com>"

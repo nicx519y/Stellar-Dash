@@ -1,0 +1,1036 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_profiles.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/display/screen_control/spi_screen_detail_profiles.cpp"
+  19              		.section	.text._ZN7Storage11getInstanceEv,"axG",%progbits,_ZN7Storage11getInstanceEv,comdat
+  20              		.align	1
+  21              		.weak	_ZN7Storage11getInstanceEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN7Storage11getInstanceEv:
+  27              	.LFB2157:
+  28              		.file 2 "Inc/config/storagemanager.hpp"
+   1:Inc/config/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Inc/config/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Inc/config/storagemanager.hpp **** 
+   4:Inc/config/storagemanager.hpp **** #include "config.hpp"
+   5:Inc/config/storagemanager.hpp **** 
+   6:Inc/config/storagemanager.hpp **** // Forward declarations
+   7:Inc/config/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Inc/config/storagemanager.hpp **** class ADCValuesMarker;
+   9:Inc/config/storagemanager.hpp **** 
+  10:Inc/config/storagemanager.hpp **** class Storage {
+  11:Inc/config/storagemanager.hpp **** public:
+  12:Inc/config/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Inc/config/storagemanager.hpp **** 
+  14:Inc/config/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Inc/config/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Inc/config/storagemanager.hpp **** 	
+  17:Inc/config/storagemanager.hpp **** 	static Storage& getInstance() {
+  29              		.loc 2 17 18 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33 0000 08B5     		push	{r3, lr}
+  34              	.LCFI0:
+  35              		.cfi_def_cfa_offset 8
+  36              		.cfi_offset 3, -8
+  37              		.cfi_offset 14, -4
+  18:Inc/config/storagemanager.hpp **** 		static Storage instance;
+  38              		.loc 2 18 3 view .LVU1
+  39              		.loc 2 18 18 is_stmt 0 view .LVU2
+  40 0002 094B     		ldr	r3, .L5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 2
+
+
+  41 0004 1B68     		ldr	r3, [r3]
+  42 0006 BFF35B8F 		dmb	ish
+  43              		.loc 2 18 18 discriminator 1 view .LVU3
+  44 000a 13F0010F 		tst	r3, #1
+  45 000e 01D0     		beq	.L4
+  46              	.L2:
+  19:Inc/config/storagemanager.hpp **** 		return instance;
+  47              		.loc 2 19 3 is_stmt 1 view .LVU4
+  20:Inc/config/storagemanager.hpp **** 	}
+  48              		.loc 2 20 2 is_stmt 0 view .LVU5
+  49 0010 0648     		ldr	r0, .L5+4
+  50 0012 08BD     		pop	{r3, pc}
+  51              	.L4:
+  18:Inc/config/storagemanager.hpp **** 		static Storage instance;
+  52              		.loc 2 18 18 discriminator 1 view .LVU6
+  53 0014 0448     		ldr	r0, .L5
+  54 0016 FFF7FEFF 		bl	__cxa_guard_acquire
+  55              	.LVL0:
+  56 001a 0028     		cmp	r0, #0
+  57 001c F8D0     		beq	.L2
+  58              	.LVL1:
+  59              	.LBB4:
+  60              	.LBI4:
+  21:Inc/config/storagemanager.hpp **** 
+  22:Inc/config/storagemanager.hpp **** 	Config config;
+  23:Inc/config/storagemanager.hpp **** 	
+  24:Inc/config/storagemanager.hpp **** 	void initConfig();
+  25:Inc/config/storagemanager.hpp **** 	bool saveConfig();
+  26:Inc/config/storagemanager.hpp **** 	bool resetConfig();
+  27:Inc/config/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Inc/config/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Inc/config/storagemanager.hpp **** 		return config.inputMode;
+  30:Inc/config/storagemanager.hpp **** 	}
+  31:Inc/config/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+  32:Inc/config/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Inc/config/storagemanager.hpp **** 		return config.connectionMode;
+  34:Inc/config/storagemanager.hpp **** 	}
+  35:Inc/config/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Inc/config/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Inc/config/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Inc/config/storagemanager.hpp **** 	}
+  39:Inc/config/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Inc/config/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Inc/config/storagemanager.hpp **** 	}
+  42:Inc/config/storagemanager.hpp **** 	bool getAutoSleepEnabled() const { return config.power.autoSleepEnabled == 1u; }
+  43:Inc/config/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  44:Inc/config/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  45:Inc/config/storagemanager.hpp **** 	}
+  46:Inc/config/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  47:Inc/config/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  48:Inc/config/storagemanager.hpp **** 		return config.reservedConnection0;
+  49:Inc/config/storagemanager.hpp **** 	}
+  50:Inc/config/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  51:Inc/config/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  52:Inc/config/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  53:Inc/config/storagemanager.hpp **** 	}
+  54:Inc/config/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 3
+
+
+  55:Inc/config/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  56:Inc/config/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+  57:Inc/config/storagemanager.hpp **** 		return config.hotkeys;
+  58:Inc/config/storagemanager.hpp **** 	}
+  59:Inc/config/storagemanager.hpp **** 
+  60:Inc/config/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  61:Inc/config/storagemanager.hpp **** 	BootMode getBootMode() {
+  62:Inc/config/storagemanager.hpp **** 		return config.bootMode;
+  63:Inc/config/storagemanager.hpp **** 	}
+  64:Inc/config/storagemanager.hpp **** 
+  65:Inc/config/storagemanager.hpp **** private:
+  66:Inc/config/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+  61              		.loc 2 66 2 is_stmt 1 view .LVU7
+  62              		.loc 2 66 2 is_stmt 0 view .LVU8
+  63              	.LBE4:
+  18:Inc/config/storagemanager.hpp **** 		return instance;
+  64              		.loc 2 18 18 discriminator 1 view .LVU9
+  65 001e 0248     		ldr	r0, .L5
+  66 0020 FFF7FEFF 		bl	__cxa_guard_release
+  67              	.LVL2:
+  68 0024 F4E7     		b	.L2
+  69              	.L6:
+  70 0026 00BF     		.align	2
+  71              	.L5:
+  72 0028 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+  73 002c 00000000 		.word	_ZZN7Storage11getInstanceEvE8instance
+  74              		.cfi_endproc
+  75              	.LFE2157:
+  77              		.section	.text._ZL25build_enabled_profile_mapv,"ax",%progbits
+  78              		.align	1
+  79              		.syntax unified
+  80              		.thumb
+  81              		.thumb_func
+  83              	_ZL25build_enabled_profile_mapv:
+  84              	.LFB2171:
+   1:Src/display/screen_control/spi_screen_detail_profiles.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+   3:Src/display/screen_control/spi_screen_detail_profiles.cpp **** #include <stdio.h>
+   4:Src/display/screen_control/spi_screen_detail_profiles.cpp **** #include <string.h>
+   5:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+   6:Src/display/screen_control/spi_screen_detail_profiles.cpp **** #include "storagemanager.hpp"
+   7:Src/display/screen_control/spi_screen_detail_profiles.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   8:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+   9:Src/display/screen_control/spi_screen_detail_profiles.cpp **** static const uint8_t kMaxProfileLabels = 16;
+  10:Src/display/screen_control/spi_screen_detail_profiles.cpp **** static char g_profileLabels[kMaxProfileLabels][32];
+  11:Src/display/screen_control/spi_screen_detail_profiles.cpp **** static const char* g_profilePtrs[kMaxProfileLabels];
+  12:Src/display/screen_control/spi_screen_detail_profiles.cpp **** static uint8_t g_enabledProfileIdx[kMaxProfileLabels];
+  13:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+  14:Src/display/screen_control/spi_screen_detail_profiles.cpp **** static uint8_t build_enabled_profile_map(void) {
+  85              		.loc 1 14 48 is_stmt 1 view -0
+  86              		.cfi_startproc
+  87              		@ args = 0, pretend = 0, frame = 0
+  88              		@ frame_needed = 0, uses_anonymous_args = 0
+  89 0000 70B5     		push	{r4, r5, r6, lr}
+  90              	.LCFI1:
+  91              		.cfi_def_cfa_offset 16
+  92              		.cfi_offset 4, -16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 4
+
+
+  93              		.cfi_offset 5, -12
+  94              		.cfi_offset 6, -8
+  95              		.cfi_offset 14, -4
+  15:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t out = 0;
+  96              		.loc 1 15 5 view .LVU11
+  97              	.LVL3:
+  16:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t cnt = STORAGE_MANAGER.config.numProfilesMax;
+  98              		.loc 1 16 5 view .LVU12
+  99              		.loc 1 16 19 is_stmt 0 view .LVU13
+ 100 0002 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 101              	.LVL4:
+ 102              		.loc 1 16 42 discriminator 1 view .LVU14
+ 103 0006 C67E     		ldrb	r6, [r0, #27]	@ zero_extendqisi2
+ 104              	.LVL5:
+  17:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (cnt > NUM_PROFILES) cnt = NUM_PROFILES;
+ 105              		.loc 1 17 5 is_stmt 1 view .LVU15
+ 106 0008 102E     		cmp	r6, #16
+ 107 000a 00D9     		bls	.L8
+ 108              		.loc 1 17 33 is_stmt 0 discriminator 1 view .LVU16
+ 109 000c 1026     		movs	r6, #16
+ 110              	.LVL6:
+ 111              	.L8:
+  18:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     for (uint8_t i = 0; i < cnt; i++) {
+ 112              		.loc 1 18 5 is_stmt 1 view .LVU17
+ 113              	.LBB5:
+ 114              		.loc 1 18 18 is_stmt 0 view .LVU18
+ 115 000e 0024     		movs	r4, #0
+ 116              	.LBE5:
+  15:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t cnt = STORAGE_MANAGER.config.numProfilesMax;
+ 117              		.loc 1 15 13 view .LVU19
+ 118 0010 2546     		mov	r5, r4
+ 119              	.LBB6:
+ 120              		.loc 1 18 5 view .LVU20
+ 121 0012 05E0     		b	.L9
+ 122              	.LVL7:
+ 123              	.L15:
+  19:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+  20:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (out >= kMaxProfileLabels) break;
+  21:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         g_enabledProfileIdx[out++] = i;
+ 124              		.loc 1 21 9 is_stmt 1 view .LVU21
+ 125              		.loc 1 21 32 is_stmt 0 view .LVU22
+ 126 0014 6B1C     		adds	r3, r5, #1
+ 127              	.LVL8:
+ 128              		.loc 1 21 36 view .LVU23
+ 129 0016 0A4A     		ldr	r2, .L16
+ 130 0018 5455     		strb	r4, [r2, r5]
+ 131              		.loc 1 21 32 view .LVU24
+ 132 001a DDB2     		uxtb	r5, r3
+ 133              	.LVL9:
+ 134              	.L10:
+  18:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+ 135              		.loc 1 18 5 is_stmt 1 discriminator 2 view .LVU25
+ 136 001c 0134     		adds	r4, r4, #1
+ 137              	.LVL10:
+  18:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+ 138              		.loc 1 18 5 is_stmt 0 discriminator 2 view .LVU26
+ 139 001e E4B2     		uxtb	r4, r4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 5
+
+
+ 140              	.LVL11:
+ 141              	.L9:
+  18:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+ 142              		.loc 1 18 27 is_stmt 1 discriminator 1 view .LVU27
+ 143 0020 A642     		cmp	r6, r4
+ 144 0022 0BD9     		bls	.L11
+  19:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+ 145              		.loc 1 19 9 view .LVU28
+  19:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+ 146              		.loc 1 19 14 is_stmt 0 view .LVU29
+ 147 0024 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 148              	.LVL12:
+  19:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+ 149              		.loc 1 19 49 discriminator 1 view .LVU30
+ 150 0028 40F6DC03 		movw	r3, #2268
+ 151 002c 03FB0400 		mla	r0, r3, r4, r0
+ 152 0030 90F84430 		ldrb	r3, [r0, #68]	@ zero_extendqisi2
+  19:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+ 153              		.loc 1 19 9 discriminator 1 view .LVU31
+ 154 0034 002B     		cmp	r3, #0
+ 155 0036 F1D0     		beq	.L10
+  20:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         g_enabledProfileIdx[out++] = i;
+ 156              		.loc 1 20 9 is_stmt 1 view .LVU32
+ 157 0038 0F2D     		cmp	r5, #15
+ 158 003a EBD9     		bls	.L15
+ 159              	.L11:
+ 160              	.LBE6:
+  22:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     }
+  23:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     return out;
+ 161              		.loc 1 23 5 view .LVU33
+  24:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 162              		.loc 1 24 1 is_stmt 0 view .LVU34
+ 163 003c 2846     		mov	r0, r5
+ 164 003e 70BD     		pop	{r4, r5, r6, pc}
+ 165              	.LVL13:
+ 166              	.L17:
+ 167              		.loc 1 24 1 view .LVU35
+ 168              		.align	2
+ 169              	.L16:
+ 170 0040 00000000 		.word	_ZL19g_enabledProfileIdx
+ 171              		.cfi_endproc
+ 172              	.LFE2171:
+ 174              		.section	.rodata._ZL22rebuild_profile_labelsh.str1.4,"aMS",%progbits,1
+ 175              		.align	2
+ 176              	.LC0:
+ 177 0000 00       		.ascii	"\000"
+ 178 0001 000000   		.align	2
+ 179              	.LC1:
+ 180 0004 50253032 		.ascii	"P%02u-%.15s\000"
+ 180      752D252E 
+ 180      31357300 
+ 181              		.section	.text._ZL22rebuild_profile_labelsh,"ax",%progbits
+ 182              		.align	1
+ 183              		.syntax unified
+ 184              		.thumb
+ 185              		.thumb_func
+ 187              	_ZL22rebuild_profile_labelsh:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 6
+
+
+ 188              	.LVL14:
+ 189              	.LFB2172:
+  25:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+  26:Src/display/screen_control/spi_screen_detail_profiles.cpp **** static void rebuild_profile_labels(uint8_t enabledCount) {
+ 190              		.loc 1 26 58 is_stmt 1 view -0
+ 191              		.cfi_startproc
+ 192              		@ args = 0, pretend = 0, frame = 0
+ 193              		@ frame_needed = 0, uses_anonymous_args = 0
+ 194              		.loc 1 26 58 is_stmt 0 view .LVU37
+ 195 0000 2DE9F047 		push	{r4, r5, r6, r7, r8, r9, r10, lr}
+ 196              	.LCFI2:
+ 197              		.cfi_def_cfa_offset 32
+ 198              		.cfi_offset 4, -32
+ 199              		.cfi_offset 5, -28
+ 200              		.cfi_offset 6, -24
+ 201              		.cfi_offset 7, -20
+ 202              		.cfi_offset 8, -16
+ 203              		.cfi_offset 9, -12
+ 204              		.cfi_offset 10, -8
+ 205              		.cfi_offset 14, -4
+ 206 0004 82B0     		sub	sp, sp, #8
+ 207              	.LCFI3:
+ 208              		.cfi_def_cfa_offset 40
+ 209 0006 8146     		mov	r9, r0
+  27:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     for (uint8_t i = 0; i < enabledCount; i++) {
+ 210              		.loc 1 27 5 is_stmt 1 view .LVU38
+ 211              	.LVL15:
+ 212              	.LBB7:
+ 213              		.loc 1 27 18 is_stmt 0 view .LVU39
+ 214 0008 0024     		movs	r4, #0
+ 215              		.loc 1 27 5 view .LVU40
+ 216 000a 14E0     		b	.L19
+ 217              	.LVL16:
+ 218              	.L23:
+ 219              	.LBB8:
+  28:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         uint8_t pi = g_enabledProfileIdx[i];
+  29:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* n = STORAGE_MANAGER.config.profiles[pi].name;
+  30:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* id = STORAGE_MANAGER.config.profiles[pi].id;
+  31:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         g_profileLabels[i][0] = '\0';
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* shown = (n && n[0] != '\0') ? n : ((id && id[0] != '\0') ? id : "");
+ 220              		.loc 1 32 78 discriminator 8 view .LVU41
+ 221 000c 1F4E     		ldr	r6, .L27
+ 222              	.LVL17:
+ 223              		.loc 1 32 78 discriminator 8 view .LVU42
+ 224 000e 00E0     		b	.L21
+ 225              	.LVL18:
+ 226              	.L24:
+ 227              		.loc 1 32 78 discriminator 7 view .LVU43
+ 228 0010 2E46     		mov	r6, r5
+ 229              	.LVL19:
+ 230              	.L21:
+  33:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 231              		.loc 1 33 9 is_stmt 1 view .LVU44
+  34:Src/display/screen_control/spi_screen_detail_profiles.cpp ****             g_profileLabels[i],
+ 232              		.loc 1 34 30 is_stmt 0 view .LVU45
+ 233 0012 1F4D     		ldr	r5, .L27+4
+ 234              	.LVL20:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 7
+
+
+ 235              		.loc 1 34 30 view .LVU46
+ 236 0014 05EB4715 		add	r5, r5, r7, lsl #5
+  33:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 237              		.loc 1 33 17 view .LVU47
+ 238 0018 0096     		str	r6, [sp]
+ 239 001a 08F10103 		add	r3, r8, #1
+ 240 001e 1D4A     		ldr	r2, .L27+8
+ 241 0020 2021     		movs	r1, #32
+ 242 0022 2846     		mov	r0, r5
+ 243              	.LVL21:
+  33:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 244              		.loc 1 33 17 view .LVU48
+ 245 0024 FFF7FEFF 		bl	snprintf
+ 246              	.LVL22:
+  35:Src/display/screen_control/spi_screen_detail_profiles.cpp ****             sizeof(g_profileLabels[i]),
+  36:Src/display/screen_control/spi_screen_detail_profiles.cpp ****             "P%02u-%.15s",
+  37:Src/display/screen_control/spi_screen_detail_profiles.cpp ****             (unsigned)(pi + 1u),
+  38:Src/display/screen_control/spi_screen_detail_profiles.cpp ****             shown
+  39:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         );
+  40:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         g_profileLabels[i][sizeof(g_profileLabels[i]) - 1] = '\0';
+ 247              		.loc 1 40 9 is_stmt 1 view .LVU49
+ 248              		.loc 1 40 60 is_stmt 0 view .LVU50
+ 249 0028 0023     		movs	r3, #0
+ 250 002a EB77     		strb	r3, [r5, #31]
+  41:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         g_profilePtrs[i] = g_profileLabels[i];
+ 251              		.loc 1 41 9 is_stmt 1 view .LVU51
+ 252              		.loc 1 41 26 is_stmt 0 view .LVU52
+ 253 002c 1A4B     		ldr	r3, .L27+12
+ 254 002e 43F82750 		str	r5, [r3, r7, lsl #2]
+ 255              	.LBE8:
+  27:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         uint8_t pi = g_enabledProfileIdx[i];
+ 256              		.loc 1 27 5 is_stmt 1 discriminator 2 view .LVU53
+ 257 0032 0134     		adds	r4, r4, #1
+ 258              	.LVL23:
+  27:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         uint8_t pi = g_enabledProfileIdx[i];
+ 259              		.loc 1 27 5 is_stmt 0 discriminator 2 view .LVU54
+ 260 0034 E4B2     		uxtb	r4, r4
+ 261              	.LVL24:
+ 262              	.L19:
+  27:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         uint8_t pi = g_enabledProfileIdx[i];
+ 263              		.loc 1 27 27 is_stmt 1 discriminator 1 view .LVU55
+ 264 0036 4C45     		cmp	r4, r9
+ 265 0038 24D2     		bcs	.L26
+ 266              	.LBB9:
+  28:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* n = STORAGE_MANAGER.config.profiles[pi].name;
+ 267              		.loc 1 28 9 view .LVU56
+  28:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* n = STORAGE_MANAGER.config.profiles[pi].name;
+ 268              		.loc 1 28 42 is_stmt 0 view .LVU57
+ 269 003a 2746     		mov	r7, r4
+  28:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* n = STORAGE_MANAGER.config.profiles[pi].name;
+ 270              		.loc 1 28 17 view .LVU58
+ 271 003c 174B     		ldr	r3, .L27+16
+ 272 003e 13F80480 		ldrb	r8, [r3, r4]	@ zero_extendqisi2
+ 273              	.LVL25:
+  29:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* id = STORAGE_MANAGER.config.profiles[pi].id;
+ 274              		.loc 1 29 9 is_stmt 1 view .LVU59
+  29:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* id = STORAGE_MANAGER.config.profiles[pi].id;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 8
+
+
+ 275              		.loc 1 29 25 is_stmt 0 view .LVU60
+ 276 0042 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 277              	.LVL26:
+  29:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* id = STORAGE_MANAGER.config.profiles[pi].id;
+ 278              		.loc 1 29 61 discriminator 1 view .LVU61
+ 279 0046 40F6DC05 		movw	r5, #2268
+ 280 004a 05FB08F5 		mul	r5, r5, r8
+ 281 004e 05F12803 		add	r3, r5, #40
+ 282 0052 00EB030A 		add	r10, r0, r3
+ 283 0056 0AF10406 		add	r6, r10, #4
+ 284              	.LVL27:
+  30:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         g_profileLabels[i][0] = '\0';
+ 285              		.loc 1 30 9 is_stmt 1 view .LVU62
+  30:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         g_profileLabels[i][0] = '\0';
+ 286              		.loc 1 30 26 is_stmt 0 view .LVU63
+ 287 005a FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 288              	.LVL28:
+  30:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         g_profileLabels[i][0] = '\0';
+ 289              		.loc 1 30 62 discriminator 1 view .LVU64
+ 290 005e 1835     		adds	r5, r5, #24
+ 291 0060 2844     		add	r0, r0, r5
+ 292 0062 051D     		adds	r5, r0, #4
+ 293              	.LVL29:
+  31:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* shown = (n && n[0] != '\0') ? n : ((id && id[0] != '\0') ? id : "");
+ 294              		.loc 1 31 9 is_stmt 1 view .LVU65
+  31:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         const char* shown = (n && n[0] != '\0') ? n : ((id && id[0] != '\0') ? id : "");
+ 295              		.loc 1 31 31 is_stmt 0 view .LVU66
+ 296 0064 6301     		lsls	r3, r4, #5
+ 297 0066 0A4A     		ldr	r2, .L27+4
+ 298 0068 0021     		movs	r1, #0
+ 299 006a D154     		strb	r1, [r2, r3]
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 300              		.loc 1 32 9 is_stmt 1 view .LVU67
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 301              		.loc 1 32 49 is_stmt 0 view .LVU68
+ 302 006c 1EB1     		cbz	r6, .L20
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 303              		.loc 1 32 38 discriminator 2 view .LVU69
+ 304 006e 9AF80430 		ldrb	r3, [r10, #4]	@ zero_extendqisi2
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 305              		.loc 1 32 32 discriminator 2 view .LVU70
+ 306 0072 002B     		cmp	r3, #0
+ 307 0074 CDD1     		bne	.L21
+ 308              	.L20:
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 309              		.loc 1 32 78 discriminator 3 view .LVU71
+ 310 0076 002D     		cmp	r5, #0
+ 311 0078 C8D0     		beq	.L23
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 312              		.loc 1 32 67 discriminator 5 view .LVU72
+ 313 007a 0379     		ldrb	r3, [r0, #4]	@ zero_extendqisi2
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 314              		.loc 1 32 60 discriminator 5 view .LVU73
+ 315 007c 002B     		cmp	r3, #0
+ 316 007e C7D1     		bne	.L24
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 317              		.loc 1 32 78 discriminator 8 view .LVU74
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 9
+
+
+ 318 0080 024E     		ldr	r6, .L27
+ 319              	.LVL30:
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 320              		.loc 1 32 78 discriminator 8 view .LVU75
+ 321 0082 C6E7     		b	.L21
+ 322              	.LVL31:
+ 323              	.L26:
+  32:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         snprintf(
+ 324              		.loc 1 32 78 discriminator 8 view .LVU76
+ 325              	.LBE9:
+ 326              	.LBE7:
+  42:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     }
+  43:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 327              		.loc 1 43 1 view .LVU77
+ 328 0084 02B0     		add	sp, sp, #8
+ 329              	.LCFI4:
+ 330              		.cfi_def_cfa_offset 32
+ 331              		@ sp needed
+ 332 0086 BDE8F087 		pop	{r4, r5, r6, r7, r8, r9, r10, pc}
+ 333              	.LVL32:
+ 334              	.L28:
+ 335              		.loc 1 43 1 view .LVU78
+ 336 008a 00BF     		.align	2
+ 337              	.L27:
+ 338 008c 00000000 		.word	.LC0
+ 339 0090 00000000 		.word	_ZL15g_profileLabels
+ 340 0094 04000000 		.word	.LC1
+ 341 0098 00000000 		.word	_ZL13g_profilePtrs
+ 342 009c 00000000 		.word	_ZL19g_enabledProfileIdx
+ 343              		.cfi_endproc
+ 344              	.LFE2172:
+ 346              		.section	.text._Z30ScreenDetailProfiles_InitIndexv,"ax",%progbits
+ 347              		.align	1
+ 348              		.global	_Z30ScreenDetailProfiles_InitIndexv
+ 349              		.syntax unified
+ 350              		.thumb
+ 351              		.thumb_func
+ 353              	_Z30ScreenDetailProfiles_InitIndexv:
+ 354              	.LFB2173:
+  44:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+  45:Src/display/screen_control/spi_screen_detail_profiles.cpp **** uint8_t ScreenDetailProfiles_InitIndex(void) {
+ 355              		.loc 1 45 46 is_stmt 1 view -0
+ 356              		.cfi_startproc
+ 357              		@ args = 0, pretend = 0, frame = 0
+ 358              		@ frame_needed = 0, uses_anonymous_args = 0
+ 359 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 360              	.LCFI5:
+ 361              		.cfi_def_cfa_offset 24
+ 362              		.cfi_offset 3, -24
+ 363              		.cfi_offset 4, -20
+ 364              		.cfi_offset 5, -16
+ 365              		.cfi_offset 6, -12
+ 366              		.cfi_offset 7, -8
+ 367              		.cfi_offset 14, -4
+  46:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     const char* current = STORAGE_MANAGER.config.defaultProfileId;
+ 368              		.loc 1 46 5 view .LVU80
+ 369              		.loc 1 46 27 is_stmt 0 view .LVU81
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 10
+
+
+ 370 0002 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 371              	.LVL33:
+ 372              		.loc 1 46 50 discriminator 1 view .LVU82
+ 373 0006 00F10B07 		add	r7, r0, #11
+ 374              	.LVL34:
+  47:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t count = build_enabled_profile_map();
+ 375              		.loc 1 47 5 is_stmt 1 view .LVU83
+ 376              		.loc 1 47 46 is_stmt 0 view .LVU84
+ 377 000a FFF7FEFF 		bl	_ZL25build_enabled_profile_mapv
+ 378              	.LVL35:
+ 379 000e 0646     		mov	r6, r0
+ 380              	.LVL36:
+  48:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     for (uint8_t i = 0; i < count; i++) {
+ 381              		.loc 1 48 5 is_stmt 1 view .LVU85
+ 382              	.LBB10:
+ 383              		.loc 1 48 18 is_stmt 0 view .LVU86
+ 384 0010 0024     		movs	r4, #0
+ 385              		.loc 1 48 5 view .LVU87
+ 386 0012 01E0     		b	.L30
+ 387              	.LVL37:
+ 388              	.L35:
+ 389              		.loc 1 48 5 is_stmt 1 discriminator 2 view .LVU88
+ 390 0014 0134     		adds	r4, r4, #1
+ 391              	.LVL38:
+ 392              		.loc 1 48 5 is_stmt 0 discriminator 2 view .LVU89
+ 393 0016 E4B2     		uxtb	r4, r4
+ 394              	.LVL39:
+ 395              	.L30:
+ 396              		.loc 1 48 27 is_stmt 1 discriminator 1 view .LVU90
+ 397 0018 B442     		cmp	r4, r6
+ 398 001a 10D2     		bcs	.L34
+ 399              	.LBB11:
+  49:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         uint8_t pi = g_enabledProfileIdx[i];
+ 400              		.loc 1 49 9 view .LVU91
+ 401              		.loc 1 49 17 is_stmt 0 view .LVU92
+ 402 001c 094B     		ldr	r3, .L36
+ 403 001e 1D5D     		ldrb	r5, [r3, r4]	@ zero_extendqisi2
+ 404              	.LVL40:
+  50:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         if (strcmp(STORAGE_MANAGER.config.profiles[pi].id, current) == 0) return i;
+ 405              		.loc 1 50 9 is_stmt 1 view .LVU93
+ 406              		.loc 1 50 20 is_stmt 0 view .LVU94
+ 407 0020 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 408              	.LVL41:
+ 409              		.loc 1 50 56 discriminator 1 view .LVU95
+ 410 0024 40F6DC03 		movw	r3, #2268
+ 411 0028 03FB05F5 		mul	r5, r3, r5
+ 412              	.LVL42:
+ 413              		.loc 1 50 56 discriminator 1 view .LVU96
+ 414 002c 1835     		adds	r5, r5, #24
+ 415 002e 2844     		add	r0, r0, r5
+ 416              		.loc 1 50 19 discriminator 1 view .LVU97
+ 417 0030 3946     		mov	r1, r7
+ 418 0032 0430     		adds	r0, r0, #4
+ 419 0034 FFF7FEFF 		bl	strcmp
+ 420              	.LVL43:
+ 421              		.loc 1 50 9 discriminator 2 view .LVU98
+ 422 0038 0028     		cmp	r0, #0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 11
+
+
+ 423 003a EBD1     		bne	.L35
+ 424 003c 00E0     		b	.L31
+ 425              	.LVL44:
+ 426              	.L34:
+ 427              		.loc 1 50 9 discriminator 2 view .LVU99
+ 428              	.LBE11:
+ 429              	.LBE10:
+  51:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     }
+  52:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     return 0;
+ 430              		.loc 1 52 12 view .LVU100
+ 431 003e 0024     		movs	r4, #0
+ 432              	.LVL45:
+ 433              	.L31:
+  53:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 434              		.loc 1 53 1 view .LVU101
+ 435 0040 2046     		mov	r0, r4
+ 436 0042 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 437              	.LVL46:
+ 438              	.L37:
+ 439              		.loc 1 53 1 view .LVU102
+ 440              		.align	2
+ 441              	.L36:
+ 442 0044 00000000 		.word	_ZL19g_enabledProfileIdx
+ 443              		.cfi_endproc
+ 444              	.LFE2173:
+ 446              		.section	.text._Z27ScreenDetailProfiles_RotatePha,"ax",%progbits
+ 447              		.align	1
+ 448              		.global	_Z27ScreenDetailProfiles_RotatePha
+ 449              		.syntax unified
+ 450              		.thumb
+ 451              		.thumb_func
+ 453              	_Z27ScreenDetailProfiles_RotatePha:
+ 454              	.LVL47:
+ 455              	.LFB2174:
+  54:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+  55:Src/display/screen_control/spi_screen_detail_profiles.cpp **** void ScreenDetailProfiles_Rotate(uint8_t* ioIndex, int8_t det) {
+ 456              		.loc 1 55 64 is_stmt 1 view -0
+ 457              		.cfi_startproc
+ 458              		@ args = 0, pretend = 0, frame = 0
+ 459              		@ frame_needed = 0, uses_anonymous_args = 0
+  56:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (!ioIndex) return;
+ 460              		.loc 1 56 5 view .LVU104
+ 461 0000 98B1     		cbz	r0, .L45
+  55:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (!ioIndex) return;
+ 462              		.loc 1 55 64 is_stmt 0 view .LVU105
+ 463 0002 38B5     		push	{r3, r4, r5, lr}
+ 464              	.LCFI6:
+ 465              		.cfi_def_cfa_offset 16
+ 466              		.cfi_offset 3, -16
+ 467              		.cfi_offset 4, -12
+ 468              		.cfi_offset 5, -8
+ 469              		.cfi_offset 14, -4
+ 470 0004 0C46     		mov	r4, r1
+ 471 0006 0546     		mov	r5, r0
+  57:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t count = build_enabled_profile_map();
+ 472              		.loc 1 57 5 is_stmt 1 view .LVU106
+ 473              		.loc 1 57 46 is_stmt 0 view .LVU107
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 12
+
+
+ 474 0008 FFF7FEFF 		bl	_ZL25build_enabled_profile_mapv
+ 475              	.LVL48:
+  58:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (count == 0) {
+ 476              		.loc 1 58 5 is_stmt 1 view .LVU108
+ 477 000c 0246     		mov	r2, r0
+ 478 000e 38B1     		cbz	r0, .L48
+  59:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         *ioIndex = 0;
+  60:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         return;
+  61:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     }
+  62:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     int32_t idx = (int32_t)(*ioIndex) + det;
+ 479              		.loc 1 62 5 view .LVU109
+ 480              		.loc 1 62 29 is_stmt 0 view .LVU110
+ 481 0010 2B78     		ldrb	r3, [r5]	@ zero_extendqisi2
+ 482              	.LVL49:
+  63:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (idx < 0) idx = 0;
+ 483              		.loc 1 63 5 is_stmt 1 view .LVU111
+ 484 0012 1B19     		adds	r3, r3, r4
+ 485              	.LVL50:
+ 486              		.loc 1 63 5 is_stmt 0 view .LVU112
+ 487 0014 07D4     		bmi	.L49
+ 488              	.LVL51:
+ 489              	.L41:
+  64:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (idx >= count) idx = count - 1;
+ 490              		.loc 1 64 5 is_stmt 1 view .LVU113
+ 491 0016 9A42     		cmp	r2, r3
+ 492 0018 00DC     		bgt	.L42
+ 493              		.loc 1 64 23 discriminator 1 view .LVU114
+ 494              		.loc 1 64 27 is_stmt 0 discriminator 1 view .LVU115
+ 495 001a 531E     		subs	r3, r2, #1
+ 496              	.LVL52:
+ 497              	.L42:
+  65:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     *ioIndex = (uint8_t)idx;
+ 498              		.loc 1 65 5 is_stmt 1 view .LVU116
+ 499              		.loc 1 65 14 is_stmt 0 view .LVU117
+ 500 001c 2B70     		strb	r3, [r5]
+ 501              	.LVL53:
+ 502              	.L38:
+  66:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 503              		.loc 1 66 1 view .LVU118
+ 504 001e 38BD     		pop	{r3, r4, r5, pc}
+ 505              	.LVL54:
+ 506              	.L48:
+  59:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         return;
+ 507              		.loc 1 59 9 is_stmt 1 view .LVU119
+  59:Src/display/screen_control/spi_screen_detail_profiles.cpp ****         return;
+ 508              		.loc 1 59 18 is_stmt 0 view .LVU120
+ 509 0020 0023     		movs	r3, #0
+ 510 0022 2B70     		strb	r3, [r5]
+  60:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     }
+ 511              		.loc 1 60 9 is_stmt 1 view .LVU121
+ 512 0024 FBE7     		b	.L38
+ 513              	.LVL55:
+ 514              	.L49:
+  63:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (idx >= count) idx = count - 1;
+ 515              		.loc 1 63 22 is_stmt 0 discriminator 1 view .LVU122
+ 516 0026 0023     		movs	r3, #0
+ 517              	.LVL56:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 13
+
+
+  63:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (idx >= count) idx = count - 1;
+ 518              		.loc 1 63 22 discriminator 1 view .LVU123
+ 519 0028 F5E7     		b	.L41
+ 520              	.LVL57:
+ 521              	.L45:
+ 522              	.LCFI7:
+ 523              		.cfi_def_cfa_offset 0
+ 524              		.cfi_restore 3
+ 525              		.cfi_restore 4
+ 526              		.cfi_restore 5
+ 527              		.cfi_restore 14
+  63:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (idx >= count) idx = count - 1;
+ 528              		.loc 1 63 22 discriminator 1 view .LVU124
+ 529 002a 7047     		bx	lr
+ 530              		.cfi_endproc
+ 531              	.LFE2174:
+ 533              		.section	.rodata._Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.4,"aMS",%p
+ 534              		.align	2
+ 535              	.LC2:
+ 536 0000 50726F66 		.ascii	"Profiles\000"
+ 536      696C6573 
+ 536      00
+ 537              		.section	.text._Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+ 538              		.align	1
+ 539              		.global	_Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 540              		.syntax unified
+ 541              		.thumb
+ 542              		.thumb_func
+ 544              	_Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+ 545              	.LVL58:
+ 546              	.LFB2175:
+  67:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+  68:Src/display/screen_control/spi_screen_detail_profiles.cpp **** void ScreenDetailProfiles_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
+ 547              		.loc 1 68 97 is_stmt 1 view -0
+ 548              		.cfi_startproc
+ 549              		@ args = 0, pretend = 0, frame = 0
+ 550              		@ frame_needed = 0, uses_anonymous_args = 0
+ 551              		.loc 1 68 97 is_stmt 0 view .LVU126
+ 552 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 553              	.LCFI8:
+ 554              		.cfi_def_cfa_offset 24
+ 555              		.cfi_offset 4, -24
+ 556              		.cfi_offset 5, -20
+ 557              		.cfi_offset 6, -16
+ 558              		.cfi_offset 7, -12
+ 559              		.cfi_offset 8, -8
+ 560              		.cfi_offset 14, -4
+ 561 0004 8AB0     		sub	sp, sp, #40
+ 562              	.LCFI9:
+ 563              		.cfi_def_cfa_offset 64
+ 564 0006 0546     		mov	r5, r0
+ 565 0008 0F46     		mov	r7, r1
+ 566 000a 9046     		mov	r8, r2
+  69:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t count = build_enabled_profile_map();
+ 567              		.loc 1 69 5 is_stmt 1 view .LVU127
+ 568              		.loc 1 69 46 is_stmt 0 view .LVU128
+ 569 000c FFF7FEFF 		bl	_ZL25build_enabled_profile_mapv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 14
+
+
+ 570              	.LVL59:
+ 571              		.loc 1 69 46 view .LVU129
+ 572 0010 0646     		mov	r6, r0
+ 573              	.LVL60:
+  70:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     rebuild_profile_labels(count);
+ 574              		.loc 1 70 5 is_stmt 1 view .LVU130
+ 575              		.loc 1 70 27 is_stmt 0 view .LVU131
+ 576 0012 FFF7FEFF 		bl	_ZL22rebuild_profile_labelsh
+ 577              	.LVL61:
+  71:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t selected = ScreenDetailProfiles_InitIndex();
+ 578              		.loc 1 71 5 is_stmt 1 view .LVU132
+ 579              		.loc 1 71 54 is_stmt 0 view .LVU133
+ 580 0016 FFF7FEFF 		bl	_Z30ScreenDetailProfiles_InitIndexv
+ 581              	.LVL62:
+  72:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     ScreenDetailRender_List(lcd, "Profiles", g_profilePtrs, count, index, selected, style);
+ 582              		.loc 1 72 5 is_stmt 1 view .LVU134
+ 583              		.loc 1 72 28 is_stmt 0 view .LVU135
+ 584 001a 0024     		movs	r4, #0
+ 585 001c 0894     		str	r4, [sp, #32]
+ 586 001e 0794     		str	r4, [sp, #28]
+ 587 0020 0694     		str	r4, [sp, #24]
+ 588 0022 0594     		str	r4, [sp, #20]
+ 589 0024 0494     		str	r4, [sp, #16]
+ 590 0026 1C23     		movs	r3, #28
+ 591 0028 0393     		str	r3, [sp, #12]
+ 592 002a CDF80880 		str	r8, [sp, #8]
+ 593 002e 0190     		str	r0, [sp, #4]
+ 594 0030 0097     		str	r7, [sp]
+ 595 0032 3346     		mov	r3, r6
+ 596 0034 034A     		ldr	r2, .L52
+ 597 0036 0449     		ldr	r1, .L52+4
+ 598 0038 2846     		mov	r0, r5
+ 599              	.LVL63:
+ 600              		.loc 1 72 28 view .LVU136
+ 601 003a FFF7FEFF 		bl	_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+ 602              	.LVL64:
+  73:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 603              		.loc 1 73 1 view .LVU137
+ 604 003e 0AB0     		add	sp, sp, #40
+ 605              	.LCFI10:
+ 606              		.cfi_def_cfa_offset 24
+ 607              		@ sp needed
+ 608 0040 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 609              	.LVL65:
+ 610              	.L53:
+ 611              		.loc 1 73 1 view .LVU138
+ 612              		.align	2
+ 613              	.L52:
+ 614 0044 00000000 		.word	_ZL13g_profilePtrs
+ 615 0048 00000000 		.word	.LC2
+ 616              		.cfi_endproc
+ 617              	.LFE2175:
+ 619              		.section	.text._Z30ScreenDetailProfiles_OnConfirmh,"ax",%progbits
+ 620              		.align	1
+ 621              		.global	_Z30ScreenDetailProfiles_OnConfirmh
+ 622              		.syntax unified
+ 623              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 15
+
+
+ 624              		.thumb_func
+ 626              	_Z30ScreenDetailProfiles_OnConfirmh:
+ 627              	.LVL66:
+ 628              	.LFB2176:
+  74:Src/display/screen_control/spi_screen_detail_profiles.cpp **** 
+  75:Src/display/screen_control/spi_screen_detail_profiles.cpp **** void ScreenDetailProfiles_OnConfirm(uint8_t index) {
+ 629              		.loc 1 75 52 is_stmt 1 view -0
+ 630              		.cfi_startproc
+ 631              		@ args = 0, pretend = 0, frame = 0
+ 632              		@ frame_needed = 0, uses_anonymous_args = 0
+ 633              		.loc 1 75 52 is_stmt 0 view .LVU140
+ 634 0000 38B5     		push	{r3, r4, r5, lr}
+ 635              	.LCFI11:
+ 636              		.cfi_def_cfa_offset 16
+ 637              		.cfi_offset 3, -16
+ 638              		.cfi_offset 4, -12
+ 639              		.cfi_offset 5, -8
+ 640              		.cfi_offset 14, -4
+ 641 0002 0446     		mov	r4, r0
+  76:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t count = build_enabled_profile_map();
+ 642              		.loc 1 76 5 is_stmt 1 view .LVU141
+ 643              		.loc 1 76 46 is_stmt 0 view .LVU142
+ 644 0004 FFF7FEFF 		bl	_ZL25build_enabled_profile_mapv
+ 645              	.LVL67:
+  77:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     if (index >= count) return;
+ 646              		.loc 1 77 5 is_stmt 1 view .LVU143
+ 647 0008 A042     		cmp	r0, r4
+ 648 000a 00D8     		bhi	.L57
+ 649              	.LVL68:
+ 650              	.L54:
+  78:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t pi = g_enabledProfileIdx[index];
+  79:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     STORAGE_MANAGER.setDefaultProfileId(STORAGE_MANAGER.config.profiles[pi].id);
+  80:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 651              		.loc 1 80 1 is_stmt 0 view .LVU144
+ 652 000c 38BD     		pop	{r3, r4, r5, pc}
+ 653              	.LVL69:
+ 654              	.L57:
+  78:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t pi = g_enabledProfileIdx[index];
+ 655              		.loc 1 78 5 is_stmt 1 view .LVU145
+  78:Src/display/screen_control/spi_screen_detail_profiles.cpp ****     uint8_t pi = g_enabledProfileIdx[index];
+ 656              		.loc 1 78 13 is_stmt 0 view .LVU146
+ 657 000e 094B     		ldr	r3, .L58
+ 658 0010 1C5D     		ldrb	r4, [r3, r4]	@ zero_extendqisi2
+ 659              	.LVL70:
+  79:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 660              		.loc 1 79 5 is_stmt 1 view .LVU147
+ 661 0012 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 662              	.LVL71:
+  79:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 663              		.loc 1 79 5 is_stmt 0 view .LVU148
+ 664 0016 0546     		mov	r5, r0
+  79:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 665              		.loc 1 79 41 discriminator 1 view .LVU149
+ 666 0018 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 667              	.LVL72:
+  79:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 668              		.loc 1 79 77 discriminator 2 view .LVU150
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 16
+
+
+ 669 001c 40F6DC03 		movw	r3, #2268
+ 670 0020 03FB04F4 		mul	r4, r3, r4
+ 671              	.LVL73:
+  79:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 672              		.loc 1 79 77 discriminator 2 view .LVU151
+ 673 0024 1834     		adds	r4, r4, #24
+ 674 0026 0119     		adds	r1, r0, r4
+  79:Src/display/screen_control/spi_screen_detail_profiles.cpp **** }
+ 675              		.loc 1 79 40 discriminator 2 view .LVU152
+ 676 0028 0431     		adds	r1, r1, #4
+ 677 002a 2846     		mov	r0, r5
+ 678 002c FFF7FEFF 		bl	_ZN7Storage19setDefaultProfileIdEPKc
+ 679              	.LVL74:
+ 680 0030 ECE7     		b	.L54
+ 681              	.L59:
+ 682 0032 00BF     		.align	2
+ 683              	.L58:
+ 684 0034 00000000 		.word	_ZL19g_enabledProfileIdx
+ 685              		.cfi_endproc
+ 686              	.LFE2176:
+ 688              		.section	.bss._ZL19g_enabledProfileIdx,"aw",%nobits
+ 689              		.align	2
+ 692              	_ZL19g_enabledProfileIdx:
+ 693 0000 00000000 		.space	16
+ 693      00000000 
+ 693      00000000 
+ 693      00000000 
+ 694              		.section	.bss._ZL13g_profilePtrs,"aw",%nobits
+ 695              		.align	2
+ 698              	_ZL13g_profilePtrs:
+ 699 0000 00000000 		.space	64
+ 699      00000000 
+ 699      00000000 
+ 699      00000000 
+ 699      00000000 
+ 700              		.section	.bss._ZL15g_profileLabels,"aw",%nobits
+ 701              		.align	2
+ 704              	_ZL15g_profileLabels:
+ 705 0000 00000000 		.space	512
+ 705      00000000 
+ 705      00000000 
+ 705      00000000 
+ 705      00000000 
+ 706              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 707              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 708              		.align	2
+ 711              	_ZGVZN7Storage11getInstanceEvE8instance:
+ 712 0000 00000000 		.space	4
+ 713              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 714              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 715              		.align	2
+ 718              	_ZZN7Storage11getInstanceEvE8instance:
+ 719 0000 00000000 		.space	36484
+ 719      00000000 
+ 719      00000000 
+ 719      00000000 
+ 719      00000000 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 17
+
+
+ 720              		.text
+ 721              	.Letext0:
+ 722              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 723              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 724              		.file 5 "Inc/display/screen_control/spi_screen_layout.hpp"
+ 725              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 726              		.file 7 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 727              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 728              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 729              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 730              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 731              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 732              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 733              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 734              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 735              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 736              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 737              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 738              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 739              		.file 20 "Inc/system/board_cfg.h"
+ 740              		.file 21 "Inc/support/enums.hpp"
+ 741              		.file 22 "Inc/display/drivers/st7789/st7789.h"
+ 742              		.file 23 "Inc/power/power_config.hpp"
+ 743              		.file 24 "Inc/config/config.hpp"
+ 744              		.file 25 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 745              		.file 26 "Inc/display/screen_control/spi_screen_detail_render_helpers.hpp"
+ 746              		.file 27 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/string.h"
+ 747              		.file 28 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s 			page 18
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_profiles.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:20     .text._ZN7Storage11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:26     .text._ZN7Storage11getInstanceEv:00000000 _ZN7Storage11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:72     .text._ZN7Storage11getInstanceEv:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:711    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:718    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:78     .text._ZL25build_enabled_profile_mapv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:83     .text._ZL25build_enabled_profile_mapv:00000000 _ZL25build_enabled_profile_mapv
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:170    .text._ZL25build_enabled_profile_mapv:00000040 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:692    .bss._ZL19g_enabledProfileIdx:00000000 _ZL19g_enabledProfileIdx
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:175    .rodata._ZL22rebuild_profile_labelsh.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:182    .text._ZL22rebuild_profile_labelsh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:187    .text._ZL22rebuild_profile_labelsh:00000000 _ZL22rebuild_profile_labelsh
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:338    .text._ZL22rebuild_profile_labelsh:0000008c $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:704    .bss._ZL15g_profileLabels:00000000 _ZL15g_profileLabels
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:698    .bss._ZL13g_profilePtrs:00000000 _ZL13g_profilePtrs
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:347    .text._Z30ScreenDetailProfiles_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:353    .text._Z30ScreenDetailProfiles_InitIndexv:00000000 _Z30ScreenDetailProfiles_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:442    .text._Z30ScreenDetailProfiles_InitIndexv:00000044 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:447    .text._Z27ScreenDetailProfiles_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:453    .text._Z27ScreenDetailProfiles_RotatePha:00000000 _Z27ScreenDetailProfiles_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:534    .rodata._Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:538    .text._Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:544    .text._Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:614    .text._Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000044 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:620    .text._Z30ScreenDetailProfiles_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:626    .text._Z30ScreenDetailProfiles_OnConfirmh:00000000 _Z30ScreenDetailProfiles_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:684    .text._Z30ScreenDetailProfiles_OnConfirmh:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:689    .bss._ZL19g_enabledProfileIdx:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:695    .bss._ZL13g_profilePtrs:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:701    .bss._ZL15g_profileLabels:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:708    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccJL9RXH.s:715    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+__cxa_guard_acquire
+__cxa_guard_release
+snprintf
+strcmp
+_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+_ZN7Storage19setDefaultProfileIdEPKc

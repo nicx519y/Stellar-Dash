@@ -848,10 +848,11 @@ void SPIScreenManager::renderBars() {
     const uint16_t botH = (uint16_t)(h - botY);
 
     const uint8_t tokenScale = SPI_SCREEN_STATUS_BAR_TEXT_SCALE;
-    const uint16_t tokenH = ScreenUI_CharCellH(tokenScale);
+    const uint8_t profileScale = SPI_SCREEN_PROFILE_TEXT_SCALE;
+    const uint16_t profileH = ScreenUI_CharCellH(profileScale);
     const uint16_t statusIconH = 32u;
     const uint16_t battBodyH = 14u;
-    const uint16_t leftTopY = (areaH > tokenH) ? (uint16_t)(topY + (areaH - tokenH) / 2u) : topY;
+    const uint16_t leftTopY = (areaH > profileH) ? (uint16_t)(topY + (areaH - profileH) / 2u) : topY;
     const uint16_t battY = (botH > battBodyH) ? (uint16_t)(botY + (botH - battBodyH) / 2u) : botY;
     const uint16_t inputY = (h > statusIconH) ? (uint16_t)((h - statusIconH) / 2u) : 0u;
     const uint16_t inputCenterY = (uint16_t)(inputY + statusIconH / 2u);
@@ -871,9 +872,9 @@ void SPIScreenManager::renderBars() {
         }
     }
 
-    char token[6] = "P?";
-    if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%u", (unsigned)(currentProfileIdx + 1u));
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, leftTopY, leftW, tokenH, token, textColor, barBg, tokenScale);
+    char token[6] = "P??";
+    if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%02u", (unsigned)(currentProfileIdx + 1u));
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, leftTopY, leftW, profileH, token, textColor, barBg, profileScale);
     if (!render_centered_asset_icon(&g_lcd, 0, inputY, leftW, statusIconH, get_input_mode_icon_name(inputMode))) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, inputY, leftW, statusIconH, mode, textColor, barBg, tokenScale);
     }

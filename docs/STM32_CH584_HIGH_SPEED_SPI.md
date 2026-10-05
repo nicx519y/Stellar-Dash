@@ -1,5 +1,7 @@
 # STM32 -> CH584 High-Speed SPI Implementation
 
+> 2026-05-16 原型记录：当前 TX/RX 为 CH585，SPI 输入 payload 为 10B；下文旧 CH584、15B payload、DMA 方案及吞吐结果按当时版本理解，不能当作现行协议或实机验收。当前入口见 [RF 规则](../RF_PHY_Hop/AGENTS.md)。（本次标注日期：2026-10-05。）
+
 Date: 2026-05-16
 
 ## 目标

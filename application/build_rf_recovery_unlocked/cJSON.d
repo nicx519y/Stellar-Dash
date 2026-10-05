@@ -1,0 +1,2 @@
+build_rf_recovery_unlocked/cJSON.o: Libs/cJSON/cJSON.c Libs/cJSON/cJSON.h
+Libs/cJSON/cJSON.h:

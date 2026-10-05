@@ -1,5 +1,7 @@
 # WebSocket服务器崩溃问题分析与解决方案
 
+> 历史问题分析：本文件针对旧 lwIP/设备内 WebSocket 实现，不能作为当前 Hosted/WebHID 的故障结论或待修复清单。当前入口见 [架构](architecture.md) 与 [Web README](../application/www/README.md)。（本次标注日期：2026-10-05。）
+
 ## 问题描述
 
 当前端频繁发起WebSocket连接请求时，设备端会在几次连接后出现卡死崩溃现象。
@@ -276,4 +278,4 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
 3. **内存使用**: 限制缓冲区大小可能影响大消息处理
 4. **测试覆盖**: 需要全面测试各种异常情况
 
-通过这些修复，WebSocket服务器应该能够稳定处理频繁的连接请求，不再出现卡死崩溃的问题。 
+通过这些修复，WebSocket服务器应该能够稳定处理频繁的连接请求，不再出现卡死崩溃的问题。

@@ -1,0 +1,1581 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ch585_role_bootstrap.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/transport/ch585_role_bootstrap.cpp"
+  19              		.section	.text._ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE,"ax",%progbits
+  20              		.align	1
+  21              		.global	_ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE:
+  27              	.LVL0:
+  28              	.LFB1303:
+   1:Src/transport/ch585_role_bootstrap.cpp **** #include "boot_profile.h"
+   2:Src/transport/ch585_role_bootstrap.cpp **** #include "ch585_role_bootstrap.hpp"
+   3:Src/transport/ch585_role_bootstrap.cpp **** 
+   4:Src/transport/ch585_role_bootstrap.cpp **** #include "board_cfg.h"
+   5:Src/transport/ch585_role_bootstrap.cpp **** #include "board_power.hpp"
+   6:Src/transport/ch585_role_bootstrap.cpp **** #include "rf_boot_ready.hpp"
+   7:Src/transport/ch585_role_bootstrap.cpp **** #include "stm32h7xx_hal.h"
+   8:Src/transport/ch585_role_bootstrap.cpp **** #include "system_logger.h"
+   9:Src/transport/ch585_role_bootstrap.cpp **** #include "usb_board_link_port.hpp"
+  10:Src/transport/ch585_role_bootstrap.cpp **** #include "sleep_diagnostics.hpp"
+  11:Src/transport/ch585_role_bootstrap.cpp **** 
+  12:Src/transport/ch585_role_bootstrap.cpp **** void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
+  13:Src/transport/ch585_role_bootstrap.cpp **** {
+  29              		.loc 1 13 1 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+  14:Src/transport/ch585_role_bootstrap.cpp ****     selector = selectorFn;
+  34              		.loc 1 14 5 view .LVU1
+  35              		.loc 1 14 14 is_stmt 0 view .LVU2
+  36 0000 0160     		str	r1, [r0]
+  15:Src/transport/ch585_role_bootstrap.cpp **** }
+  37              		.loc 1 15 1 view .LVU3
+  38 0002 7047     		bx	lr
+  39              		.cfi_endproc
+  40              	.LFE1303:
+  42              		.section	.text._ZN18Ch585RoleBootstrap8shutdownEv,"ax",%progbits
+  43              		.align	1
+  44              		.global	_ZN18Ch585RoleBootstrap8shutdownEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 2
+
+
+  45              		.syntax unified
+  46              		.thumb
+  47              		.thumb_func
+  49              	_ZN18Ch585RoleBootstrap8shutdownEv:
+  50              	.LVL1:
+  51              	.LFB1304:
+  16:Src/transport/ch585_role_bootstrap.cpp **** 
+  17:Src/transport/ch585_role_bootstrap.cpp **** void Ch585RoleBootstrap::shutdown()
+  18:Src/transport/ch585_role_bootstrap.cpp **** {
+  52              		.loc 1 18 1 is_stmt 1 view -0
+  53              		.cfi_startproc
+  54              		@ args = 0, pretend = 0, frame = 24
+  55              		@ frame_needed = 0, uses_anonymous_args = 0
+  56              		.loc 1 18 1 is_stmt 0 view .LVU5
+  57 0000 70B5     		push	{r4, r5, r6, lr}
+  58              	.LCFI0:
+  59              		.cfi_def_cfa_offset 16
+  60              		.cfi_offset 4, -16
+  61              		.cfi_offset 5, -12
+  62              		.cfi_offset 6, -8
+  63              		.cfi_offset 14, -4
+  64 0002 86B0     		sub	sp, sp, #24
+  65              	.LCFI1:
+  66              		.cfi_def_cfa_offset 40
+  67 0004 0446     		mov	r4, r0
+  19:Src/transport/ch585_role_bootstrap.cpp ****     // A real peer power cycle starts a new handshake epoch. Keeping the USB
+  20:Src/transport/ch585_role_bootstrap.cpp ****     // port's sticky release fault would block every retry of the new peer.
+  21:Src/transport/ch585_role_bootstrap.cpp ****     USBBoardLinkPort_Shutdown();
+  68              		.loc 1 21 5 is_stmt 1 view .LVU6
+  69              		.loc 1 21 30 is_stmt 0 view .LVU7
+  70 0006 FFF7FEFF 		bl	_Z25USBBoardLinkPort_Shutdownv
+  71              	.LVL2:
+  22:Src/transport/ch585_role_bootstrap.cpp ****     if (sleepResumeActive) {
+  72              		.loc 1 22 5 is_stmt 1 view .LVU8
+  73              	.LBB32:
+  74              		.loc 1 22 9 is_stmt 0 view .LVU9
+  75 000a 237B     		ldrb	r3, [r4, #12]	@ zero_extendqisi2
+  76              		.loc 1 22 5 view .LVU10
+  77 000c 8BB9     		cbnz	r3, .L5
+  78              	.L3:
+  79              	.LBE32:
+  23:Src/transport/ch585_role_bootstrap.cpp ****         // A failed SELECT_ROLE may have configured the USB bootstrap SPI port.
+  24:Src/transport/ch585_role_bootstrap.cpp ****         // Park it before the cold-restart retry removes CH585 power.
+  25:Src/transport/ch585_role_bootstrap.cpp ****         GPIO_InitTypeDef gpio = {};
+  26:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Mode = GPIO_MODE_ANALOG;
+  27:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Pull = GPIO_NOPULL;
+  28:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Pin = CH585_SPI_NSS_PIN | CH585_SPI_SCK_PIN | CH585_SPI_MOSI_PIN | CH585_SPI_MISO_PIN;
+  29:Src/transport/ch585_role_bootstrap.cpp ****         HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &gpio);
+  30:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Pin = CH585_IRQ_PIN;
+  31:Src/transport/ch585_role_bootstrap.cpp ****         HAL_GPIO_Init(CH585_IRQ_GPIO_PORT, &gpio);
+  32:Src/transport/ch585_role_bootstrap.cpp ****     }
+  33:Src/transport/ch585_role_bootstrap.cpp ****     sleepResumeActive = false;
+  80              		.loc 1 33 5 is_stmt 1 view .LVU11
+  81              		.loc 1 33 23 is_stmt 0 view .LVU12
+  82 000e 0025     		movs	r5, #0
+  83 0010 2573     		strb	r5, [r4, #12]
+  34:Src/transport/ch585_role_bootstrap.cpp ****     usbStartupPrepared = false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 3
+
+
+  84              		.loc 1 34 5 is_stmt 1 view .LVU13
+  85              		.loc 1 34 24 is_stmt 0 view .LVU14
+  86 0012 E573     		strb	r5, [r4, #15]
+  35:Src/transport/ch585_role_bootstrap.cpp ****     (void)BOARD_POWER.setUsbHostEnabled(false);
+  87              		.loc 1 35 5 is_stmt 1 view .LVU15
+  88              	.LBB34:
+  89              	.LBI34:
+  90              		.file 2 "Inc/power/board_power.hpp"
+   1:Inc/power/board_power.hpp **** #ifndef BOARD_POWER_HPP
+   2:Inc/power/board_power.hpp **** #define BOARD_POWER_HPP
+   3:Inc/power/board_power.hpp **** 
+   4:Inc/power/board_power.hpp **** #include <stdbool.h>
+   5:Inc/power/board_power.hpp **** #include <stdint.h>
+   6:Inc/power/board_power.hpp **** 
+   7:Inc/power/board_power.hpp **** #ifdef __cplusplus
+   8:Inc/power/board_power.hpp **** extern "C" {
+   9:Inc/power/board_power.hpp **** #endif
+  10:Inc/power/board_power.hpp **** 
+  11:Inc/power/board_power.hpp **** /*
+  12:Inc/power/board_power.hpp ****  * Re-asserts PI4 without changing any other rail.  The bootloader leaves PI4
+  13:Inc/power/board_power.hpp ****  * high before jumping to the XIP application; this hook preserves that state
+  14:Inc/power/board_power.hpp ****  * as the application runtime is brought up.
+  15:Inc/power/board_power.hpp ****  */
+  16:Inc/power/board_power.hpp **** void BoardPower_EarlyMainHold(void);
+  17:Inc/power/board_power.hpp **** 
+  18:Inc/power/board_power.hpp **** /* Configures all board power-control pins to their fail-safe defaults. */
+  19:Inc/power/board_power.hpp **** void BoardPower_Initialize(void);
+  20:Inc/power/board_power.hpp **** void BoardPower_SetChargeEnabled(bool enabled);
+  21:Inc/power/board_power.hpp **** void BoardPower_SetHallEnabled(bool enabled);
+  22:Inc/power/board_power.hpp **** void BoardPower_EnableHallForAdc(void);
+  23:Inc/power/board_power.hpp **** void BoardPower_SetKeyLedEnabled(bool enabled);
+  24:Inc/power/board_power.hpp **** void BoardPower_SetAmbientLedEnabled(bool enabled);
+  25:Inc/power/board_power.hpp **** void BoardPower_SetLcdEnabled(bool enabled);
+  26:Inc/power/board_power.hpp **** 
+  27:Inc/power/board_power.hpp **** #ifdef __cplusplus
+  28:Inc/power/board_power.hpp **** }
+  29:Inc/power/board_power.hpp **** 
+  30:Inc/power/board_power.hpp **** class BoardPower {
+  31:Inc/power/board_power.hpp **** public:
+  32:Inc/power/board_power.hpp ****     BoardPower(const BoardPower&) = delete;
+  33:Inc/power/board_power.hpp ****     BoardPower& operator=(const BoardPower&) = delete;
+  34:Inc/power/board_power.hpp **** 
+  35:Inc/power/board_power.hpp ****     static BoardPower& getInstance()
+  91              		.loc 2 35 24 view .LVU16
+  36:Inc/power/board_power.hpp ****     {
+  37:Inc/power/board_power.hpp ****         static BoardPower instance;
+  92              		.loc 2 37 9 view .LVU17
+  38:Inc/power/board_power.hpp ****         return instance;
+  93              		.loc 2 38 9 view .LVU18
+  94              	.LBE34:
+  95              		.loc 1 35 40 is_stmt 0 discriminator 1 view .LVU19
+  96 0014 134E     		ldr	r6, .L6
+  97 0016 2946     		mov	r1, r5
+  98 0018 3046     		mov	r0, r6
+  99 001a FFF7FEFF 		bl	_ZN10BoardPower17setUsbHostEnabledEb
+ 100              	.LVL3:
+  36:Src/transport/ch585_role_bootstrap.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 4
+
+
+ 101              		.loc 1 36 5 is_stmt 1 view .LVU20
+ 102              	.LBB35:
+ 103              	.LBI35:
+  35:Inc/power/board_power.hpp ****     {
+ 104              		.loc 2 35 24 view .LVU21
+  37:Inc/power/board_power.hpp ****         return instance;
+ 105              		.loc 2 37 9 view .LVU22
+ 106              		.loc 2 38 9 view .LVU23
+ 107              	.LBE35:
+ 108              		.loc 1 36 32 is_stmt 0 discriminator 1 view .LVU24
+ 109 001e 2946     		mov	r1, r5
+ 110 0020 3046     		mov	r0, r6
+ 111 0022 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 112              	.LVL4:
+  37:Src/transport/ch585_role_bootstrap.cpp ****     RFBootReady::reset();
+ 113              		.loc 1 37 5 is_stmt 1 view .LVU25
+ 114              		.loc 1 37 23 is_stmt 0 view .LVU26
+ 115 0026 FFF7FEFF 		bl	_ZN11RFBootReady5resetEv
+ 116              	.LVL5:
+  38:Src/transport/ch585_role_bootstrap.cpp ****     activeRole = Ch585Role::SafeIdle;
+ 117              		.loc 1 38 5 is_stmt 1 view .LVU27
+ 118              		.loc 1 38 16 is_stmt 0 view .LVU28
+ 119 002a 6573     		strb	r5, [r4, #13]
+  39:Src/transport/ch585_role_bootstrap.cpp ****     bootstrapState = Ch585BootstrapState::Off;
+ 120              		.loc 1 39 5 is_stmt 1 view .LVU29
+ 121              		.loc 1 39 20 is_stmt 0 view .LVU30
+ 122 002c A573     		strb	r5, [r4, #14]
+  40:Src/transport/ch585_role_bootstrap.cpp **** }
+ 123              		.loc 1 40 1 view .LVU31
+ 124 002e 06B0     		add	sp, sp, #24
+ 125              	.LCFI2:
+ 126              		.cfi_remember_state
+ 127              		.cfi_def_cfa_offset 16
+ 128              		@ sp needed
+ 129 0030 70BD     		pop	{r4, r5, r6, pc}
+ 130              	.LVL6:
+ 131              	.L5:
+ 132              	.LCFI3:
+ 133              		.cfi_restore_state
+ 134              	.LBB36:
+ 135              	.LBB33:
+  25:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Mode = GPIO_MODE_ANALOG;
+ 136              		.loc 1 25 9 is_stmt 1 view .LVU32
+  25:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Mode = GPIO_MODE_ANALOG;
+ 137              		.loc 1 25 26 is_stmt 0 view .LVU33
+ 138 0032 0023     		movs	r3, #0
+ 139 0034 0193     		str	r3, [sp, #4]
+ 140 0036 0293     		str	r3, [sp, #8]
+ 141 0038 0393     		str	r3, [sp, #12]
+ 142 003a 0493     		str	r3, [sp, #16]
+ 143 003c 0593     		str	r3, [sp, #20]
+  26:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Pull = GPIO_NOPULL;
+ 144              		.loc 1 26 9 is_stmt 1 view .LVU34
+  26:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Pull = GPIO_NOPULL;
+ 145              		.loc 1 26 19 is_stmt 0 view .LVU35
+ 146 003e 0323     		movs	r3, #3
+ 147 0040 0293     		str	r3, [sp, #8]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 5
+
+
+  27:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Pin = CH585_SPI_NSS_PIN | CH585_SPI_SCK_PIN | CH585_SPI_MOSI_PIN | CH585_SPI_MISO_PIN;
+ 148              		.loc 1 27 9 is_stmt 1 view .LVU36
+  28:Src/transport/ch585_role_bootstrap.cpp ****         HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &gpio);
+ 149              		.loc 1 28 9 view .LVU37
+  28:Src/transport/ch585_role_bootstrap.cpp ****         HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &gpio);
+ 150              		.loc 1 28 18 is_stmt 0 view .LVU38
+ 151 0042 45F62003 		movw	r3, #22560
+ 152 0046 0193     		str	r3, [sp, #4]
+  29:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Pin = CH585_IRQ_PIN;
+ 153              		.loc 1 29 9 is_stmt 1 view .LVU39
+  29:Src/transport/ch585_role_bootstrap.cpp ****         gpio.Pin = CH585_IRQ_PIN;
+ 154              		.loc 1 29 22 is_stmt 0 view .LVU40
+ 155 0048 074D     		ldr	r5, .L6+4
+ 156 004a 01A9     		add	r1, sp, #4
+ 157 004c 2846     		mov	r0, r5
+ 158 004e FFF7FEFF 		bl	HAL_GPIO_Init
+ 159              	.LVL7:
+  30:Src/transport/ch585_role_bootstrap.cpp ****         HAL_GPIO_Init(CH585_IRQ_GPIO_PORT, &gpio);
+ 160              		.loc 1 30 9 is_stmt 1 view .LVU41
+  30:Src/transport/ch585_role_bootstrap.cpp ****         HAL_GPIO_Init(CH585_IRQ_GPIO_PORT, &gpio);
+ 161              		.loc 1 30 18 is_stmt 0 view .LVU42
+ 162 0052 4FF48063 		mov	r3, #1024
+ 163 0056 0193     		str	r3, [sp, #4]
+  31:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 164              		.loc 1 31 9 is_stmt 1 view .LVU43
+  31:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 165              		.loc 1 31 22 is_stmt 0 view .LVU44
+ 166 0058 01A9     		add	r1, sp, #4
+ 167 005a 2846     		mov	r0, r5
+ 168 005c FFF7FEFF 		bl	HAL_GPIO_Init
+ 169              	.LVL8:
+ 170              	.LBE33:
+ 171 0060 D5E7     		b	.L3
+ 172              	.L7:
+ 173 0062 00BF     		.align	2
+ 174              	.L6:
+ 175 0064 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 176 0068 00100258 		.word	1476530176
+ 177              	.LBE36:
+ 178              		.cfi_endproc
+ 179              	.LFE1304:
+ 181              		.section	.text._ZN18Ch585RoleBootstrap18beginRfSleepResumeEv,"ax",%progbits
+ 182              		.align	1
+ 183              		.global	_ZN18Ch585RoleBootstrap18beginRfSleepResumeEv
+ 184              		.syntax unified
+ 185              		.thumb
+ 186              		.thumb_func
+ 188              	_ZN18Ch585RoleBootstrap18beginRfSleepResumeEv:
+ 189              	.LVL9:
+ 190              	.LFB1305:
+  41:Src/transport/ch585_role_bootstrap.cpp **** 
+  42:Src/transport/ch585_role_bootstrap.cpp **** void Ch585RoleBootstrap::beginRfSleepResume()
+  43:Src/transport/ch585_role_bootstrap.cpp **** {
+ 191              		.loc 1 43 1 is_stmt 1 view -0
+ 192              		.cfi_startproc
+ 193              		@ args = 0, pretend = 0, frame = 0
+ 194              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 6
+
+
+ 195              		.loc 1 43 1 is_stmt 0 view .LVU46
+ 196 0000 10B5     		push	{r4, lr}
+ 197              	.LCFI4:
+ 198              		.cfi_def_cfa_offset 8
+ 199              		.cfi_offset 4, -8
+ 200              		.cfi_offset 14, -4
+ 201 0002 0446     		mov	r4, r0
+  44:Src/transport/ch585_role_bootstrap.cpp ****     shutdown();
+ 202              		.loc 1 44 5 is_stmt 1 view .LVU47
+ 203              		.loc 1 44 13 is_stmt 0 view .LVU48
+ 204 0004 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 205              	.LVL10:
+  45:Src/transport/ch585_role_bootstrap.cpp ****     sleepResumeSince = HAL_GetTick();
+ 206              		.loc 1 45 5 is_stmt 1 view .LVU49
+ 207              		.loc 1 45 35 is_stmt 0 view .LVU50
+ 208 0008 FFF7FEFF 		bl	HAL_GetTick
+ 209              	.LVL11:
+ 210              		.loc 1 45 22 discriminator 1 view .LVU51
+ 211 000c 6060     		str	r0, [r4, #4]
+  46:Src/transport/ch585_role_bootstrap.cpp ****     sleepResumeActive = true;
+ 212              		.loc 1 46 5 is_stmt 1 view .LVU52
+ 213              		.loc 1 46 23 is_stmt 0 view .LVU53
+ 214 000e 0123     		movs	r3, #1
+ 215 0010 2373     		strb	r3, [r4, #12]
+  47:Src/transport/ch585_role_bootstrap.cpp ****     SleepDiagnostics_Record(SleepStage::RadioPowerWait);
+ 216              		.loc 1 47 5 is_stmt 1 view .LVU54
+ 217              		.loc 1 47 28 is_stmt 0 view .LVU55
+ 218 0012 0021     		movs	r1, #0
+ 219 0014 0720     		movs	r0, #7
+ 220 0016 FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 221              	.LVL12:
+  48:Src/transport/ch585_role_bootstrap.cpp **** }
+ 222              		.loc 1 48 1 view .LVU56
+ 223 001a 10BD     		pop	{r4, pc}
+ 224              		.loc 1 48 1 view .LVU57
+ 225              		.cfi_endproc
+ 226              	.LFE1305:
+ 228              		.section	.text._ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv,"ax",%progbits
+ 229              		.align	1
+ 230              		.global	_ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv
+ 231              		.syntax unified
+ 232              		.thumb
+ 233              		.thumb_func
+ 235              	_ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv:
+ 236              	.LVL13:
+ 237              	.LFB1306:
+  49:Src/transport/ch585_role_bootstrap.cpp **** 
+  50:Src/transport/ch585_role_bootstrap.cpp **** Ch585ResumeResult Ch585RoleBootstrap::serviceRfSleepResume()
+  51:Src/transport/ch585_role_bootstrap.cpp **** {
+ 238              		.loc 1 51 1 is_stmt 1 view -0
+ 239              		.cfi_startproc
+ 240              		@ args = 0, pretend = 0, frame = 0
+ 241              		@ frame_needed = 0, uses_anonymous_args = 0
+ 242              		.loc 1 51 1 is_stmt 0 view .LVU59
+ 243 0000 38B5     		push	{r3, r4, r5, lr}
+ 244              	.LCFI5:
+ 245              		.cfi_def_cfa_offset 16
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 7
+
+
+ 246              		.cfi_offset 3, -16
+ 247              		.cfi_offset 4, -12
+ 248              		.cfi_offset 5, -8
+ 249              		.cfi_offset 14, -4
+  52:Src/transport/ch585_role_bootstrap.cpp ****     if (!sleepResumeActive || selector == nullptr) return Ch585ResumeResult::Failed;
+ 250              		.loc 1 52 5 is_stmt 1 view .LVU60
+ 251              		.loc 1 52 10 is_stmt 0 view .LVU61
+ 252 0002 037B     		ldrb	r3, [r0, #12]	@ zero_extendqisi2
+ 253              		.loc 1 52 5 view .LVU62
+ 254 0004 002B     		cmp	r3, #0
+ 255 0006 5FD0     		beq	.L16
+ 256 0008 0446     		mov	r4, r0
+ 257              		.loc 1 52 31 discriminator 2 view .LVU63
+ 258 000a 0368     		ldr	r3, [r0]
+ 259              		.loc 1 52 28 discriminator 2 view .LVU64
+ 260 000c 002B     		cmp	r3, #0
+ 261 000e 5DD0     		beq	.L17
+  53:Src/transport/ch585_role_bootstrap.cpp ****     const uint32_t now = HAL_GetTick();
+ 262              		.loc 1 53 5 is_stmt 1 view .LVU65
+ 263              		.loc 1 53 37 is_stmt 0 view .LVU66
+ 264 0010 FFF7FEFF 		bl	HAL_GetTick
+ 265              	.LVL14:
+ 266              		.loc 1 53 37 view .LVU67
+ 267 0014 0546     		mov	r5, r0
+ 268              	.LVL15:
+  54:Src/transport/ch585_role_bootstrap.cpp ****     if (bootstrapState == Ch585BootstrapState::Off) {
+ 269              		.loc 1 54 5 is_stmt 1 view .LVU68
+ 270              		.loc 1 54 9 is_stmt 0 view .LVU69
+ 271 0016 A37B     		ldrb	r3, [r4, #14]	@ zero_extendqisi2
+ 272              		.loc 1 54 5 view .LVU70
+ 273 0018 93B9     		cbnz	r3, .L12
+  55:Src/transport/ch585_role_bootstrap.cpp ****         if (now - sleepResumeSince < CH585_POWER_OFF_MIN_MS) return Ch585ResumeResult::Pending;
+ 274              		.loc 1 55 9 is_stmt 1 view .LVU71
+ 275              		.loc 1 55 19 is_stmt 0 view .LVU72
+ 276 001a 6368     		ldr	r3, [r4, #4]
+ 277              		.loc 1 55 17 view .LVU73
+ 278 001c C31A     		subs	r3, r0, r3
+ 279              		.loc 1 55 9 view .LVU74
+ 280 001e 132B     		cmp	r3, #19
+ 281 0020 01D8     		bhi	.L24
+ 282              		.loc 1 55 88 discriminator 1 view .LVU75
+ 283 0022 0020     		movs	r0, #0
+ 284              	.LVL16:
+ 285              		.loc 1 55 88 discriminator 1 view .LVU76
+ 286 0024 51E0     		b	.L10
+ 287              	.LVL17:
+ 288              	.L24:
+  56:Src/transport/ch585_role_bootstrap.cpp ****         BOARD_POWER.setCh585Enabled(true);
+ 289              		.loc 1 56 9 is_stmt 1 view .LVU77
+ 290              	.LBB37:
+ 291              	.LBI37:
+  35:Inc/power/board_power.hpp ****     {
+ 292              		.loc 2 35 24 view .LVU78
+  37:Inc/power/board_power.hpp ****         return instance;
+ 293              		.loc 2 37 9 view .LVU79
+ 294              		.loc 2 38 9 view .LVU80
+ 295              	.LBE37:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 8
+
+
+ 296              		.loc 1 56 36 is_stmt 0 discriminator 1 view .LVU81
+ 297 0026 0121     		movs	r1, #1
+ 298 0028 2A48     		ldr	r0, .L31
+ 299              	.LVL18:
+ 300              		.loc 1 56 36 discriminator 1 view .LVU82
+ 301 002a FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 302              	.LVL19:
+  57:Src/transport/ch585_role_bootstrap.cpp ****         SleepDiagnostics_Record(SleepStage::RadioPowerOn);
+ 303              		.loc 1 57 9 is_stmt 1 view .LVU83
+ 304              		.loc 1 57 32 is_stmt 0 view .LVU84
+ 305 002e 0021     		movs	r1, #0
+ 306 0030 0820     		movs	r0, #8
+ 307 0032 FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 308              	.LVL20:
+  58:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Booting;
+ 309              		.loc 1 58 9 is_stmt 1 view .LVU85
+ 310              		.loc 1 58 24 is_stmt 0 view .LVU86
+ 311 0036 0123     		movs	r3, #1
+ 312 0038 A373     		strb	r3, [r4, #14]
+  59:Src/transport/ch585_role_bootstrap.cpp ****         sleepResumeSince = now;
+ 313              		.loc 1 59 9 is_stmt 1 view .LVU87
+ 314              		.loc 1 59 26 is_stmt 0 view .LVU88
+ 315 003a 6560     		str	r5, [r4, #4]
+  60:Src/transport/ch585_role_bootstrap.cpp ****         return Ch585ResumeResult::Pending;
+ 316              		.loc 1 60 9 is_stmt 1 view .LVU89
+ 317              		.loc 1 60 35 is_stmt 0 view .LVU90
+ 318 003c 0020     		movs	r0, #0
+ 319 003e 44E0     		b	.L10
+ 320              	.LVL21:
+ 321              	.L12:
+  61:Src/transport/ch585_role_bootstrap.cpp ****     }
+  62:Src/transport/ch585_role_bootstrap.cpp ****     if (bootstrapState == Ch585BootstrapState::Booting) {
+ 322              		.loc 1 62 5 is_stmt 1 view .LVU91
+ 323 0040 012B     		cmp	r3, #1
+ 324 0042 04D0     		beq	.L25
+ 325              	.LVL22:
+ 326              	.L13:
+  63:Src/transport/ch585_role_bootstrap.cpp ****         // Keep the bus idle for the complete existing handoff budget. Unlike
+  64:Src/transport/ch585_role_bootstrap.cpp ****         // start(), this path does not block UI rendering while CH585 boots.
+  65:Src/transport/ch585_role_bootstrap.cpp ****         if (now - sleepResumeSince < CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS) return
+  66:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Selecting;
+  67:Src/transport/ch585_role_bootstrap.cpp ****         SleepDiagnostics_Record(SleepStage::RadioSelectRole);
+  68:Src/transport/ch585_role_bootstrap.cpp ****         sleepResumeSince = now;
+  69:Src/transport/ch585_role_bootstrap.cpp ****         sleepSelectLast = now - CH585_ROLE_SELECT_RETRY_MS;
+  70:Src/transport/ch585_role_bootstrap.cpp ****     }
+  71:Src/transport/ch585_role_bootstrap.cpp ****     if (bootstrapState == Ch585BootstrapState::Selecting) {
+ 327              		.loc 1 71 5 view .LVU92
+ 328              		.loc 1 71 9 is_stmt 0 view .LVU93
+ 329 0044 A37B     		ldrb	r3, [r4, #14]	@ zero_extendqisi2
+ 330              		.loc 1 71 5 view .LVU94
+ 331 0046 022B     		cmp	r3, #2
+ 332 0048 12D0     		beq	.L26
+  72:Src/transport/ch585_role_bootstrap.cpp ****         if (now - sleepResumeSince >= CH585_ROLE_SELECT_TIMEOUT_MS) {
+  73:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+  74:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Failed;
+  75:Src/transport/ch585_role_bootstrap.cpp ****         }
+  76:Src/transport/ch585_role_bootstrap.cpp ****         if (now - sleepSelectLast < CH585_ROLE_SELECT_RETRY_MS) return Ch585ResumeResult::Pending;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 9
+
+
+  77:Src/transport/ch585_role_bootstrap.cpp ****         if (selector(Ch585Role::Rf)) {
+  78:Src/transport/ch585_role_bootstrap.cpp ****             activeRole = Ch585Role::Rf;
+  79:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Locked;
+  80:Src/transport/ch585_role_bootstrap.cpp ****             sleepResumeActive = false;
+  81:Src/transport/ch585_role_bootstrap.cpp ****             SleepDiagnostics_Record(SleepStage::RadioRoleReady);
+  82:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Ready;
+  83:Src/transport/ch585_role_bootstrap.cpp ****         }
+  84:Src/transport/ch585_role_bootstrap.cpp ****         // Space attempts from the end of the bounded transaction, not its
+  85:Src/transport/ch585_role_bootstrap.cpp ****         // start (a 20-ms timeout must still be followed by a 5-ms quiet gap).
+  86:Src/transport/ch585_role_bootstrap.cpp ****         sleepSelectLast = HAL_GetTick();
+  87:Src/transport/ch585_role_bootstrap.cpp ****         if (HAL_GetTick() - sleepResumeSince >= CH585_ROLE_SELECT_TIMEOUT_MS) {
+  88:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+  89:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Failed;
+  90:Src/transport/ch585_role_bootstrap.cpp ****         }
+  91:Src/transport/ch585_role_bootstrap.cpp ****         return Ch585ResumeResult::Pending;
+  92:Src/transport/ch585_role_bootstrap.cpp ****     }
+  93:Src/transport/ch585_role_bootstrap.cpp ****     return Ch585ResumeResult::Failed;
+ 333              		.loc 1 93 31 view .LVU95
+ 334 004a 0220     		movs	r0, #2
+ 335 004c 3DE0     		b	.L10
+ 336              	.LVL23:
+ 337              	.L25:
+  65:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Selecting;
+ 338              		.loc 1 65 9 is_stmt 1 view .LVU96
+  65:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Selecting;
+ 339              		.loc 1 65 19 is_stmt 0 view .LVU97
+ 340 004e 6368     		ldr	r3, [r4, #4]
+  65:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Selecting;
+ 341              		.loc 1 65 17 view .LVU98
+ 342 0050 C31A     		subs	r3, r0, r3
+  65:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Selecting;
+ 343              		.loc 1 65 9 view .LVU99
+ 344 0052 B3F5347F 		cmp	r3, #720
+ 345 0056 01D2     		bcs	.L27
+  65:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Selecting;
+ 346              		.loc 1 65 120 discriminator 1 view .LVU100
+ 347 0058 0020     		movs	r0, #0
+ 348              	.LVL24:
+  65:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Selecting;
+ 349              		.loc 1 65 120 discriminator 1 view .LVU101
+ 350 005a 36E0     		b	.L10
+ 351              	.LVL25:
+ 352              	.L27:
+  66:Src/transport/ch585_role_bootstrap.cpp ****         SleepDiagnostics_Record(SleepStage::RadioSelectRole);
+ 353              		.loc 1 66 9 is_stmt 1 view .LVU102
+  66:Src/transport/ch585_role_bootstrap.cpp ****         SleepDiagnostics_Record(SleepStage::RadioSelectRole);
+ 354              		.loc 1 66 24 is_stmt 0 view .LVU103
+ 355 005c 0223     		movs	r3, #2
+ 356 005e A373     		strb	r3, [r4, #14]
+  67:Src/transport/ch585_role_bootstrap.cpp ****         sleepResumeSince = now;
+ 357              		.loc 1 67 9 is_stmt 1 view .LVU104
+  67:Src/transport/ch585_role_bootstrap.cpp ****         sleepResumeSince = now;
+ 358              		.loc 1 67 32 is_stmt 0 view .LVU105
+ 359 0060 0021     		movs	r1, #0
+ 360 0062 0920     		movs	r0, #9
+ 361              	.LVL26:
+  67:Src/transport/ch585_role_bootstrap.cpp ****         sleepResumeSince = now;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 10
+
+
+ 362              		.loc 1 67 32 view .LVU106
+ 363 0064 FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 364              	.LVL27:
+  68:Src/transport/ch585_role_bootstrap.cpp ****         sleepSelectLast = now - CH585_ROLE_SELECT_RETRY_MS;
+ 365              		.loc 1 68 9 is_stmt 1 view .LVU107
+  68:Src/transport/ch585_role_bootstrap.cpp ****         sleepSelectLast = now - CH585_ROLE_SELECT_RETRY_MS;
+ 366              		.loc 1 68 26 is_stmt 0 view .LVU108
+ 367 0068 6560     		str	r5, [r4, #4]
+  69:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 368              		.loc 1 69 9 is_stmt 1 view .LVU109
+  69:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 369              		.loc 1 69 31 is_stmt 0 view .LVU110
+ 370 006a 6B1F     		subs	r3, r5, #5
+  69:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 371              		.loc 1 69 25 view .LVU111
+ 372 006c A360     		str	r3, [r4, #8]
+ 373 006e E9E7     		b	.L13
+ 374              	.L26:
+  72:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 375              		.loc 1 72 9 is_stmt 1 view .LVU112
+  72:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 376              		.loc 1 72 19 is_stmt 0 view .LVU113
+ 377 0070 6368     		ldr	r3, [r4, #4]
+  72:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 378              		.loc 1 72 17 view .LVU114
+ 379 0072 EB1A     		subs	r3, r5, r3
+  72:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 380              		.loc 1 72 9 view .LVU115
+ 381 0074 B3F5966F 		cmp	r3, #1200
+ 382 0078 13D2     		bcs	.L28
+  76:Src/transport/ch585_role_bootstrap.cpp ****         if (selector(Ch585Role::Rf)) {
+ 383              		.loc 1 76 9 is_stmt 1 view .LVU116
+  76:Src/transport/ch585_role_bootstrap.cpp ****         if (selector(Ch585Role::Rf)) {
+ 384              		.loc 1 76 19 is_stmt 0 view .LVU117
+ 385 007a A368     		ldr	r3, [r4, #8]
+  76:Src/transport/ch585_role_bootstrap.cpp ****         if (selector(Ch585Role::Rf)) {
+ 386              		.loc 1 76 17 view .LVU118
+ 387 007c ED1A     		subs	r5, r5, r3
+ 388              	.LVL28:
+  76:Src/transport/ch585_role_bootstrap.cpp ****         if (selector(Ch585Role::Rf)) {
+ 389              		.loc 1 76 9 view .LVU119
+ 390 007e 042D     		cmp	r5, #4
+ 391 0080 26D9     		bls	.L21
+  77:Src/transport/ch585_role_bootstrap.cpp ****             activeRole = Ch585Role::Rf;
+ 392              		.loc 1 77 9 is_stmt 1 view .LVU120
+  77:Src/transport/ch585_role_bootstrap.cpp ****             activeRole = Ch585Role::Rf;
+ 393              		.loc 1 77 13 is_stmt 0 view .LVU121
+ 394 0082 2368     		ldr	r3, [r4]
+  77:Src/transport/ch585_role_bootstrap.cpp ****             activeRole = Ch585Role::Rf;
+ 395              		.loc 1 77 21 view .LVU122
+ 396 0084 0120     		movs	r0, #1
+ 397 0086 9847     		blx	r3
+ 398              	.LVL29:
+  77:Src/transport/ch585_role_bootstrap.cpp ****             activeRole = Ch585Role::Rf;
+ 399              		.loc 1 77 9 discriminator 1 view .LVU123
+ 400 0088 78B9     		cbnz	r0, .L29
+  86:Src/transport/ch585_role_bootstrap.cpp ****         if (HAL_GetTick() - sleepResumeSince >= CH585_ROLE_SELECT_TIMEOUT_MS) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 11
+
+
+ 401              		.loc 1 86 9 is_stmt 1 view .LVU124
+  86:Src/transport/ch585_role_bootstrap.cpp ****         if (HAL_GetTick() - sleepResumeSince >= CH585_ROLE_SELECT_TIMEOUT_MS) {
+ 402              		.loc 1 86 38 is_stmt 0 view .LVU125
+ 403 008a FFF7FEFF 		bl	HAL_GetTick
+ 404              	.LVL30:
+  86:Src/transport/ch585_role_bootstrap.cpp ****         if (HAL_GetTick() - sleepResumeSince >= CH585_ROLE_SELECT_TIMEOUT_MS) {
+ 405              		.loc 1 86 25 discriminator 1 view .LVU126
+ 406 008e A060     		str	r0, [r4, #8]
+  87:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 407              		.loc 1 87 9 is_stmt 1 view .LVU127
+  87:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 408              		.loc 1 87 24 is_stmt 0 view .LVU128
+ 409 0090 FFF7FEFF 		bl	HAL_GetTick
+ 410              	.LVL31:
+  87:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 411              		.loc 1 87 29 discriminator 1 view .LVU129
+ 412 0094 6368     		ldr	r3, [r4, #4]
+  87:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 413              		.loc 1 87 27 discriminator 1 view .LVU130
+ 414 0096 C01A     		subs	r0, r0, r3
+  87:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Failed;
+ 415              		.loc 1 87 9 discriminator 1 view .LVU131
+ 416 0098 B0F5966F 		cmp	r0, #1200
+ 417 009c 10D2     		bcs	.L30
+  91:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 418              		.loc 1 91 35 view .LVU132
+ 419 009e 0020     		movs	r0, #0
+ 420 00a0 13E0     		b	.L10
+ 421              	.LVL32:
+ 422              	.L28:
+  73:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Failed;
+ 423              		.loc 1 73 13 is_stmt 1 view .LVU133
+  73:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Failed;
+ 424              		.loc 1 73 28 is_stmt 0 view .LVU134
+ 425 00a2 0423     		movs	r3, #4
+ 426 00a4 A373     		strb	r3, [r4, #14]
+  74:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 427              		.loc 1 74 13 is_stmt 1 view .LVU135
+  74:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 428              		.loc 1 74 39 is_stmt 0 view .LVU136
+ 429 00a6 0220     		movs	r0, #2
+ 430 00a8 0FE0     		b	.L10
+ 431              	.LVL33:
+ 432              	.L29:
+  78:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Locked;
+ 433              		.loc 1 78 13 is_stmt 1 view .LVU137
+  78:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Locked;
+ 434              		.loc 1 78 24 is_stmt 0 view .LVU138
+ 435 00aa 0125     		movs	r5, #1
+ 436 00ac 6573     		strb	r5, [r4, #13]
+  79:Src/transport/ch585_role_bootstrap.cpp ****             sleepResumeActive = false;
+ 437              		.loc 1 79 13 is_stmt 1 view .LVU139
+  79:Src/transport/ch585_role_bootstrap.cpp ****             sleepResumeActive = false;
+ 438              		.loc 1 79 28 is_stmt 0 view .LVU140
+ 439 00ae 0323     		movs	r3, #3
+ 440 00b0 A373     		strb	r3, [r4, #14]
+  80:Src/transport/ch585_role_bootstrap.cpp ****             SleepDiagnostics_Record(SleepStage::RadioRoleReady);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 12
+
+
+ 441              		.loc 1 80 13 is_stmt 1 view .LVU141
+  80:Src/transport/ch585_role_bootstrap.cpp ****             SleepDiagnostics_Record(SleepStage::RadioRoleReady);
+ 442              		.loc 1 80 31 is_stmt 0 view .LVU142
+ 443 00b2 0021     		movs	r1, #0
+ 444 00b4 2173     		strb	r1, [r4, #12]
+  81:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Ready;
+ 445              		.loc 1 81 13 is_stmt 1 view .LVU143
+  81:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Ready;
+ 446              		.loc 1 81 36 is_stmt 0 view .LVU144
+ 447 00b6 0A20     		movs	r0, #10
+ 448 00b8 FFF7FEFF 		bl	_Z23SleepDiagnostics_Record10SleepStagem
+ 449              	.LVL34:
+  82:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 450              		.loc 1 82 13 is_stmt 1 view .LVU145
+  82:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 451              		.loc 1 82 39 is_stmt 0 view .LVU146
+ 452 00bc 2846     		mov	r0, r5
+ 453 00be 04E0     		b	.L10
+ 454              	.L30:
+  88:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Failed;
+ 455              		.loc 1 88 13 is_stmt 1 view .LVU147
+  88:Src/transport/ch585_role_bootstrap.cpp ****             return Ch585ResumeResult::Failed;
+ 456              		.loc 1 88 28 is_stmt 0 view .LVU148
+ 457 00c0 0423     		movs	r3, #4
+ 458 00c2 A373     		strb	r3, [r4, #14]
+  89:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 459              		.loc 1 89 13 is_stmt 1 view .LVU149
+  89:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 460              		.loc 1 89 39 is_stmt 0 view .LVU150
+ 461 00c4 0220     		movs	r0, #2
+ 462 00c6 00E0     		b	.L10
+ 463              	.LVL35:
+ 464              	.L16:
+  52:Src/transport/ch585_role_bootstrap.cpp ****     const uint32_t now = HAL_GetTick();
+ 465              		.loc 1 52 78 discriminator 3 view .LVU151
+ 466 00c8 0220     		movs	r0, #2
+ 467              	.LVL36:
+ 468              	.L10:
+  94:Src/transport/ch585_role_bootstrap.cpp **** }
+ 469              		.loc 1 94 1 view .LVU152
+ 470 00ca 38BD     		pop	{r3, r4, r5, pc}
+ 471              	.LVL37:
+ 472              	.L17:
+  52:Src/transport/ch585_role_bootstrap.cpp ****     const uint32_t now = HAL_GetTick();
+ 473              		.loc 1 52 78 discriminator 3 view .LVU153
+ 474 00cc 0220     		movs	r0, #2
+ 475              	.LVL38:
+  52:Src/transport/ch585_role_bootstrap.cpp ****     const uint32_t now = HAL_GetTick();
+ 476              		.loc 1 52 78 discriminator 3 view .LVU154
+ 477 00ce FCE7     		b	.L10
+ 478              	.LVL39:
+ 479              	.L21:
+  76:Src/transport/ch585_role_bootstrap.cpp ****         if (selector(Ch585Role::Rf)) {
+ 480              		.loc 1 76 91 discriminator 1 view .LVU155
+ 481 00d0 0020     		movs	r0, #0
+ 482 00d2 FAE7     		b	.L10
+ 483              	.L32:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 13
+
+
+ 484              		.align	2
+ 485              	.L31:
+ 486 00d4 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 487              		.cfi_endproc
+ 488              	.LFE1306:
+ 490              		.section	.text._ZN18Ch585RoleBootstrap17prepareUsbStartupEv,"ax",%progbits
+ 491              		.align	1
+ 492              		.global	_ZN18Ch585RoleBootstrap17prepareUsbStartupEv
+ 493              		.syntax unified
+ 494              		.thumb
+ 495              		.thumb_func
+ 497              	_ZN18Ch585RoleBootstrap17prepareUsbStartupEv:
+ 498              	.LVL40:
+ 499              	.LFB1307:
+  95:Src/transport/ch585_role_bootstrap.cpp **** 
+  96:Src/transport/ch585_role_bootstrap.cpp **** bool Ch585RoleBootstrap::prepareUsbStartup()
+  97:Src/transport/ch585_role_bootstrap.cpp **** {
+ 500              		.loc 1 97 1 is_stmt 1 view -0
+ 501              		.cfi_startproc
+ 502              		@ args = 0, pretend = 0, frame = 0
+ 503              		@ frame_needed = 0, uses_anonymous_args = 0
+ 504              		.loc 1 97 1 is_stmt 0 view .LVU157
+ 505 0000 70B5     		push	{r4, r5, r6, lr}
+ 506              	.LCFI6:
+ 507              		.cfi_def_cfa_offset 16
+ 508              		.cfi_offset 4, -16
+ 509              		.cfi_offset 5, -12
+ 510              		.cfi_offset 6, -8
+ 511              		.cfi_offset 14, -4
+  98:Src/transport/ch585_role_bootstrap.cpp ****     // Only the initial Off state may be prepared. Never disturb an active role.
+  99:Src/transport/ch585_role_bootstrap.cpp ****     if (usbStartupPrepared) return true;
+ 512              		.loc 1 99 5 is_stmt 1 view .LVU158
+ 513              		.loc 1 99 9 is_stmt 0 view .LVU159
+ 514 0002 C57B     		ldrb	r5, [r0, #15]	@ zero_extendqisi2
+ 515              		.loc 1 99 5 view .LVU160
+ 516 0004 EDB9     		cbnz	r5, .L34
+ 517 0006 0446     		mov	r4, r0
+ 100:Src/transport/ch585_role_bootstrap.cpp ****     if (bootstrapState != Ch585BootstrapState::Off ||
+ 518              		.loc 1 100 5 is_stmt 1 view .LVU161
+ 519              		.loc 1 100 9 is_stmt 0 view .LVU162
+ 520 0008 837B     		ldrb	r3, [r0, #14]	@ zero_extendqisi2
+ 101:Src/transport/ch585_role_bootstrap.cpp ****         !BOARD_POWER.isInitialized() || BOARD_POWER.isCh585Enabled()) return false;
+ 521              		.loc 1 101 38 view .LVU163
+ 522 000a D3B9     		cbnz	r3, .L34
+ 523              	.LVL41:
+ 524              	.LBB38:
+ 525              	.LBI38:
+  39:Inc/power/board_power.hpp ****     }
+  40:Inc/power/board_power.hpp **** 
+  41:Inc/power/board_power.hpp ****     void setup();
+  42:Inc/power/board_power.hpp ****     void assertMainPowerHold();
+  43:Inc/power/board_power.hpp ****     void enterSafeState();
+  44:Inc/power/board_power.hpp ****     void enterRecoveryUiState();
+  45:Inc/power/board_power.hpp ****     void prepareForStandby();
+  46:Inc/power/board_power.hpp ****     void releaseSafeState();
+  47:Inc/power/board_power.hpp **** 
+  48:Inc/power/board_power.hpp ****     void setChargeEnabled(bool enabled);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 14
+
+
+  49:Inc/power/board_power.hpp ****     void setHallEnabled(bool enabled);
+  50:Inc/power/board_power.hpp ****     void setKeyLedEnabled(bool enabled);
+  51:Inc/power/board_power.hpp ****     void setAmbientLedEnabled(bool enabled);
+  52:Inc/power/board_power.hpp ****     void setLcdEnabled(bool enabled);
+  53:Inc/power/board_power.hpp ****     void setCh585Enabled(bool enabled);
+  54:Inc/power/board_power.hpp ****     bool setUsbHostEnabled(bool enabled);
+  55:Inc/power/board_power.hpp **** 
+  56:Inc/power/board_power.hpp ****     bool isInitialized() const { return initialized; }
+ 526              		.loc 2 56 10 is_stmt 1 view .LVU164
+ 527              	.LBB39:
+ 528              		.loc 2 56 34 view .LVU165
+ 529              		.loc 2 56 41 is_stmt 0 view .LVU166
+ 530 000c 0E4B     		ldr	r3, .L37
+ 531 000e 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 532              	.LVL42:
+ 533              		.loc 2 56 41 view .LVU167
+ 534              	.LBE39:
+ 535              	.LBE38:
+ 100:Src/transport/ch585_role_bootstrap.cpp ****         !BOARD_POWER.isInitialized() || BOARD_POWER.isCh585Enabled()) return false;
+ 536              		.loc 1 100 52 view .LVU168
+ 537 0010 B3B1     		cbz	r3, .L35
+ 538              	.LVL43:
+ 539              	.LBB40:
+ 540              	.LBI40:
+  57:Inc/power/board_power.hpp ****     bool isChargeEnabled() const { return chargeEnabled; }
+  58:Inc/power/board_power.hpp ****     bool isHallEnabled() const { return hallEnabled; }
+  59:Inc/power/board_power.hpp ****     bool isKeyLedEnabled() const { return keyLedEnabled; }
+  60:Inc/power/board_power.hpp ****     bool isAmbientLedEnabled() const { return ambientLedEnabled; }
+  61:Inc/power/board_power.hpp ****     bool isLcdEnabled() const { return lcdEnabled; }
+  62:Inc/power/board_power.hpp ****     bool isCh585Enabled() const { return ch585Enabled; }
+ 541              		.loc 2 62 10 is_stmt 1 view .LVU169
+ 542              	.LBB41:
+ 543              		.loc 2 62 35 view .LVU170
+ 544              		.loc 2 62 42 is_stmt 0 view .LVU171
+ 545 0012 0D4B     		ldr	r3, .L37
+ 546 0014 DB79     		ldrb	r3, [r3, #7]	@ zero_extendqisi2
+ 547              	.LVL44:
+ 548              		.loc 2 62 42 view .LVU172
+ 549              	.LBE41:
+ 550              	.LBE40:
+ 551              		.loc 1 101 38 discriminator 2 view .LVU173
+ 552 0016 A3B9     		cbnz	r3, .L34
+ 102:Src/transport/ch585_role_bootstrap.cpp **** 
+ 103:Src/transport/ch585_role_bootstrap.cpp ****     shutdown();
+ 553              		.loc 1 103 5 is_stmt 1 view .LVU174
+ 554              		.loc 1 103 13 is_stmt 0 view .LVU175
+ 555 0018 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 556              	.LVL45:
+ 104:Src/transport/ch585_role_bootstrap.cpp ****     HAL_Delay(CH585_POWER_OFF_MIN_MS);
+ 557              		.loc 1 104 5 is_stmt 1 view .LVU176
+ 558              		.loc 1 104 14 is_stmt 0 view .LVU177
+ 559 001c 1420     		movs	r0, #20
+ 560 001e FFF7FEFF 		bl	HAL_Delay
+ 561              	.LVL46:
+ 105:Src/transport/ch585_role_bootstrap.cpp ****     // Set NSS inactive while CH585 is still off. No SELECT_ROLE/CAPS traffic.
+ 106:Src/transport/ch585_role_bootstrap.cpp ****     if (!USBBoardLinkPort_Init()) return false;
+ 562              		.loc 1 106 5 is_stmt 1 view .LVU178
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 15
+
+
+ 563              		.loc 1 106 31 is_stmt 0 view .LVU179
+ 564 0022 FFF7FEFF 		bl	_Z21USBBoardLinkPort_Initv
+ 565              	.LVL47:
+ 566              		.loc 1 106 5 discriminator 1 view .LVU180
+ 567 0026 0546     		mov	r5, r0
+ 568 0028 58B1     		cbz	r0, .L34
+ 107:Src/transport/ch585_role_bootstrap.cpp ****     bootstrapState = Ch585BootstrapState::Booting;
+ 569              		.loc 1 107 5 is_stmt 1 view .LVU181
+ 570              		.loc 1 107 20 is_stmt 0 view .LVU182
+ 571 002a 0126     		movs	r6, #1
+ 572 002c A673     		strb	r6, [r4, #14]
+ 108:Src/transport/ch585_role_bootstrap.cpp ****     BOARD_POWER.setCh585Enabled(true);
+ 573              		.loc 1 108 5 is_stmt 1 view .LVU183
+ 574              	.LBB42:
+ 575              	.LBI42:
+  35:Inc/power/board_power.hpp ****     {
+ 576              		.loc 2 35 24 view .LVU184
+  37:Inc/power/board_power.hpp ****         return instance;
+ 577              		.loc 2 37 9 view .LVU185
+  38:Inc/power/board_power.hpp ****     }
+ 578              		.loc 2 38 9 view .LVU186
+ 579              	.LBE42:
+ 580              		.loc 1 108 32 is_stmt 0 discriminator 1 view .LVU187
+ 581 002e 3146     		mov	r1, r6
+ 582 0030 0548     		ldr	r0, .L37
+ 583 0032 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 584              	.LVL48:
+ 109:Src/transport/ch585_role_bootstrap.cpp ****     usbPowerOnAtMs = HAL_GetTick();
+ 585              		.loc 1 109 5 is_stmt 1 view .LVU188
+ 586              		.loc 1 109 33 is_stmt 0 view .LVU189
+ 587 0036 FFF7FEFF 		bl	HAL_GetTick
+ 588              	.LVL49:
+ 589              		.loc 1 109 20 discriminator 1 view .LVU190
+ 590 003a 2061     		str	r0, [r4, #16]
+ 110:Src/transport/ch585_role_bootstrap.cpp ****     usbStartupPrepared = true;
+ 591              		.loc 1 110 5 is_stmt 1 view .LVU191
+ 592              		.loc 1 110 24 is_stmt 0 view .LVU192
+ 593 003c E673     		strb	r6, [r4, #15]
+ 111:Src/transport/ch585_role_bootstrap.cpp ****     return true;
+ 594              		.loc 1 111 5 is_stmt 1 view .LVU193
+ 595              		.loc 1 111 12 is_stmt 0 view .LVU194
+ 596 003e 00E0     		b	.L34
+ 597              	.LVL50:
+ 598              	.L35:
+ 101:Src/transport/ch585_role_bootstrap.cpp **** 
+ 599              		.loc 1 101 78 view .LVU195
+ 600 0040 1D46     		mov	r5, r3
+ 601              	.LVL51:
+ 602              	.L34:
+ 112:Src/transport/ch585_role_bootstrap.cpp **** }
+ 603              		.loc 1 112 1 view .LVU196
+ 604 0042 2846     		mov	r0, r5
+ 605 0044 70BD     		pop	{r4, r5, r6, pc}
+ 606              	.L38:
+ 607 0046 00BF     		.align	2
+ 608              	.L37:
+ 609 0048 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 16
+
+
+ 610              		.cfi_endproc
+ 611              	.LFE1307:
+ 613              		.section	.text._ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role,"ax",%progbits
+ 614              		.align	1
+ 615              		.global	_ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role
+ 616              		.syntax unified
+ 617              		.thumb
+ 618              		.thumb_func
+ 620              	_ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role:
+ 621              	.LVL52:
+ 622              	.LFB1308:
+ 113:Src/transport/ch585_role_bootstrap.cpp **** 
+ 114:Src/transport/ch585_role_bootstrap.cpp **** bool Ch585RoleBootstrap::selectOnce(Ch585Role requestedRole)
+ 115:Src/transport/ch585_role_bootstrap.cpp **** {
+ 623              		.loc 1 115 1 is_stmt 1 view -0
+ 624              		.cfi_startproc
+ 625              		@ args = 0, pretend = 0, frame = 0
+ 626              		@ frame_needed = 0, uses_anonymous_args = 0
+ 627              		.loc 1 115 1 is_stmt 0 view .LVU198
+ 628 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 629              	.LCFI7:
+ 630              		.cfi_def_cfa_offset 24
+ 631              		.cfi_offset 3, -24
+ 632              		.cfi_offset 4, -20
+ 633              		.cfi_offset 5, -16
+ 634              		.cfi_offset 6, -12
+ 635              		.cfi_offset 7, -8
+ 636              		.cfi_offset 14, -4
+ 637 0002 0446     		mov	r4, r0
+ 638 0004 0D46     		mov	r5, r1
+ 116:Src/transport/ch585_role_bootstrap.cpp ****     const uint32_t startMs = HAL_GetTick();
+ 639              		.loc 1 116 5 is_stmt 1 view .LVU199
+ 640              		.loc 1 116 41 is_stmt 0 view .LVU200
+ 641 0006 FFF7FEFF 		bl	HAL_GetTick
+ 642              	.LVL53:
+ 643              		.loc 1 116 41 view .LVU201
+ 644 000a 0646     		mov	r6, r0
+ 645              	.LVL54:
+ 117:Src/transport/ch585_role_bootstrap.cpp ****     bootstrapState = Ch585BootstrapState::Selecting;
+ 646              		.loc 1 117 5 is_stmt 1 view .LVU202
+ 647              		.loc 1 117 20 is_stmt 0 view .LVU203
+ 648 000c 0223     		movs	r3, #2
+ 649 000e A373     		strb	r3, [r4, #14]
+ 650              	.LVL55:
+ 651              	.L42:
+ 118:Src/transport/ch585_role_bootstrap.cpp **** 
+ 119:Src/transport/ch585_role_bootstrap.cpp ****     do {
+ 652              		.loc 1 119 5 is_stmt 1 view .LVU204
+ 120:Src/transport/ch585_role_bootstrap.cpp ****         if (selector(requestedRole)) {
+ 653              		.loc 1 120 9 view .LVU205
+ 654              		.loc 1 120 13 is_stmt 0 view .LVU206
+ 655 0010 2368     		ldr	r3, [r4]
+ 656              		.loc 1 120 21 view .LVU207
+ 657 0012 2846     		mov	r0, r5
+ 658 0014 9847     		blx	r3
+ 659              	.LVL56:
+ 660              		.loc 1 120 9 discriminator 1 view .LVU208
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 17
+
+
+ 661 0016 0746     		mov	r7, r0
+ 662 0018 48B9     		cbnz	r0, .L44
+ 121:Src/transport/ch585_role_bootstrap.cpp ****             activeRole = requestedRole;
+ 122:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Locked;
+ 123:Src/transport/ch585_role_bootstrap.cpp ****             return true;
+ 124:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 125:Src/transport/ch585_role_bootstrap.cpp ****         HAL_Delay(CH585_ROLE_SELECT_RETRY_MS);
+ 663              		.loc 1 125 9 is_stmt 1 view .LVU209
+ 664              		.loc 1 125 18 is_stmt 0 view .LVU210
+ 665 001a 0520     		movs	r0, #5
+ 666 001c FFF7FEFF 		bl	HAL_Delay
+ 667              	.LVL57:
+ 126:Src/transport/ch585_role_bootstrap.cpp ****     } while ((uint32_t)(HAL_GetTick() - startMs) < CH585_ROLE_SELECT_TIMEOUT_MS);
+ 668              		.loc 1 126 50 is_stmt 1 view .LVU211
+ 669              		.loc 1 126 36 is_stmt 0 view .LVU212
+ 670 0020 FFF7FEFF 		bl	HAL_GetTick
+ 671              	.LVL58:
+ 672              		.loc 1 126 39 discriminator 1 view .LVU213
+ 673 0024 801B     		subs	r0, r0, r6
+ 674              		.loc 1 126 50 discriminator 1 view .LVU214
+ 675 0026 B0F5966F 		cmp	r0, #1200
+ 676 002a F1D3     		bcc	.L42
+ 677 002c 02E0     		b	.L41
+ 678              	.L44:
+ 121:Src/transport/ch585_role_bootstrap.cpp ****             activeRole = requestedRole;
+ 679              		.loc 1 121 13 is_stmt 1 view .LVU215
+ 121:Src/transport/ch585_role_bootstrap.cpp ****             activeRole = requestedRole;
+ 680              		.loc 1 121 24 is_stmt 0 view .LVU216
+ 681 002e 6573     		strb	r5, [r4, #13]
+ 122:Src/transport/ch585_role_bootstrap.cpp ****             return true;
+ 682              		.loc 1 122 13 is_stmt 1 view .LVU217
+ 122:Src/transport/ch585_role_bootstrap.cpp ****             return true;
+ 683              		.loc 1 122 28 is_stmt 0 view .LVU218
+ 684 0030 0323     		movs	r3, #3
+ 685 0032 A373     		strb	r3, [r4, #14]
+ 123:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 686              		.loc 1 123 13 is_stmt 1 view .LVU219
+ 687              	.L41:
+ 127:Src/transport/ch585_role_bootstrap.cpp **** 
+ 128:Src/transport/ch585_role_bootstrap.cpp ****     return false;
+ 129:Src/transport/ch585_role_bootstrap.cpp **** }
+ 688              		.loc 1 129 1 is_stmt 0 view .LVU220
+ 689 0034 3846     		mov	r0, r7
+ 690 0036 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 691              		.loc 1 129 1 view .LVU221
+ 692              		.cfi_endproc
+ 693              	.LFE1308:
+ 695              		.section	.text._ZN18Ch585RoleBootstrap5startE9Ch585Role,"ax",%progbits
+ 696              		.align	1
+ 697              		.global	_ZN18Ch585RoleBootstrap5startE9Ch585Role
+ 698              		.syntax unified
+ 699              		.thumb
+ 700              		.thumb_func
+ 702              	_ZN18Ch585RoleBootstrap5startE9Ch585Role:
+ 703              	.LVL59:
+ 704              	.LFB1309:
+ 130:Src/transport/ch585_role_bootstrap.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 18
+
+
+ 131:Src/transport/ch585_role_bootstrap.cpp **** bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
+ 132:Src/transport/ch585_role_bootstrap.cpp **** {
+ 705              		.loc 1 132 1 is_stmt 1 view -0
+ 706              		.cfi_startproc
+ 707              		@ args = 0, pretend = 0, frame = 0
+ 708              		@ frame_needed = 0, uses_anonymous_args = 0
+ 709              		.loc 1 132 1 is_stmt 0 view .LVU223
+ 710 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 711              	.LCFI8:
+ 712              		.cfi_def_cfa_offset 24
+ 713              		.cfi_offset 3, -24
+ 714              		.cfi_offset 4, -20
+ 715              		.cfi_offset 5, -16
+ 716              		.cfi_offset 6, -12
+ 717              		.cfi_offset 7, -8
+ 718              		.cfi_offset 14, -4
+ 719 0002 0446     		mov	r4, r0
+ 133:Src/transport/ch585_role_bootstrap.cpp ****     BP_APP_SCOPE(BP_APP_CH585_START);
+ 720              		.loc 1 133 5 is_stmt 1 view .LVU224
+ 134:Src/transport/ch585_role_bootstrap.cpp ****     if (requestedRole == Ch585Role::SafeIdle || selector == nullptr) {
+ 721              		.loc 1 134 5 view .LVU225
+ 722 0004 69B1     		cbz	r1, .L46
+ 723 0006 0F46     		mov	r7, r1
+ 724              		.loc 1 134 49 is_stmt 0 discriminator 1 view .LVU226
+ 725 0008 0368     		ldr	r3, [r0]
+ 726              		.loc 1 134 46 discriminator 1 view .LVU227
+ 727 000a 53B1     		cbz	r3, .L46
+ 135:Src/transport/ch585_role_bootstrap.cpp ****         shutdown();
+ 136:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Failed;
+ 137:Src/transport/ch585_role_bootstrap.cpp ****         return false;
+ 138:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 139:Src/transport/ch585_role_bootstrap.cpp **** 
+ 140:Src/transport/ch585_role_bootstrap.cpp ****     if (isLocked() && activeRole == requestedRole) {
+ 728              		.loc 1 140 5 is_stmt 1 view .LVU228
+ 729              	.LVL60:
+ 730              	.LBB43:
+ 731              	.LBI43:
+ 732              		.file 3 "Inc/transport/ch585_role_bootstrap.hpp"
+   1:Inc/transport/ch585_role_bootstrap.hpp **** #ifndef CH585_ROLE_BOOTSTRAP_HPP
+   2:Inc/transport/ch585_role_bootstrap.hpp **** #define CH585_ROLE_BOOTSTRAP_HPP
+   3:Inc/transport/ch585_role_bootstrap.hpp **** 
+   4:Inc/transport/ch585_role_bootstrap.hpp **** #include <stdint.h>
+   5:Inc/transport/ch585_role_bootstrap.hpp **** 
+   6:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585Role : uint8_t {
+   7:Inc/transport/ch585_role_bootstrap.hpp ****     SafeIdle = 0x00,
+   8:Inc/transport/ch585_role_bootstrap.hpp ****     Rf = 0x01,
+   9:Inc/transport/ch585_role_bootstrap.hpp ****     Usb = 0x02,
+  10:Inc/transport/ch585_role_bootstrap.hpp ****     Maintenance = 0x03,
+  11:Inc/transport/ch585_role_bootstrap.hpp **** };
+  12:Inc/transport/ch585_role_bootstrap.hpp **** 
+  13:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585BootstrapState : uint8_t {
+  14:Inc/transport/ch585_role_bootstrap.hpp ****     Off = 0,
+  15:Inc/transport/ch585_role_bootstrap.hpp ****     Booting = 1,
+  16:Inc/transport/ch585_role_bootstrap.hpp ****     Selecting = 2,
+  17:Inc/transport/ch585_role_bootstrap.hpp ****     Locked = 3,
+  18:Inc/transport/ch585_role_bootstrap.hpp ****     Failed = 4,
+  19:Inc/transport/ch585_role_bootstrap.hpp **** };
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 19
+
+
+  20:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585ResumeResult { Pending, Ready, Failed };
+  21:Inc/transport/ch585_role_bootstrap.hpp **** 
+  22:Inc/transport/ch585_role_bootstrap.hpp **** /* One invocation performs one UsbBoardLink SELECT_ROLE transaction. */
+  23:Inc/transport/ch585_role_bootstrap.hpp **** using Ch585RoleSelector = bool (*)(Ch585Role requestedRole);
+  24:Inc/transport/ch585_role_bootstrap.hpp **** 
+  25:Inc/transport/ch585_role_bootstrap.hpp **** class Ch585RoleBootstrap {
+  26:Inc/transport/ch585_role_bootstrap.hpp **** public:
+  27:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap(const Ch585RoleBootstrap&) = delete;
+  28:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap& operator=(const Ch585RoleBootstrap&) = delete;
+  29:Inc/transport/ch585_role_bootstrap.hpp **** 
+  30:Inc/transport/ch585_role_bootstrap.hpp ****     static Ch585RoleBootstrap& getInstance()
+  31:Inc/transport/ch585_role_bootstrap.hpp ****     {
+  32:Inc/transport/ch585_role_bootstrap.hpp ****         static Ch585RoleBootstrap instance;
+  33:Inc/transport/ch585_role_bootstrap.hpp ****         return instance;
+  34:Inc/transport/ch585_role_bootstrap.hpp ****     }
+  35:Inc/transport/ch585_role_bootstrap.hpp **** 
+  36:Inc/transport/ch585_role_bootstrap.hpp ****     void setSelector(Ch585RoleSelector selectorFn);
+  37:Inc/transport/ch585_role_bootstrap.hpp ****     /* Cold USB input startup only: power on without sending any SPI frame.
+  38:Inc/transport/ch585_role_bootstrap.hpp ****      * start(Usb) later consumes this preparation, with the same ready deadline. */
+  39:Inc/transport/ch585_role_bootstrap.hpp ****     bool prepareUsbStartup();
+  40:Inc/transport/ch585_role_bootstrap.hpp ****     bool hasPreparedUsbStartup() const { return usbStartupPrepared; }
+  41:Inc/transport/ch585_role_bootstrap.hpp ****     bool start(Ch585Role requestedRole);
+  42:Inc/transport/ch585_role_bootstrap.hpp ****     // Nonblocking RF cold restart after sleep. No traffic in the IAP window.
+  43:Inc/transport/ch585_role_bootstrap.hpp ****     void beginRfSleepResume();
+  44:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585ResumeResult serviceRfSleepResume();
+  45:Inc/transport/ch585_role_bootstrap.hpp ****     void shutdown();
+  46:Inc/transport/ch585_role_bootstrap.hpp **** 
+  47:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585Role role() const { return activeRole; }
+  48:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585BootstrapState state() const { return bootstrapState; }
+  49:Inc/transport/ch585_role_bootstrap.hpp ****     bool isLocked() const { return bootstrapState == Ch585BootstrapState::Locked; }
+ 733              		.loc 3 49 10 view .LVU229
+ 734              	.LBB44:
+ 735              		.loc 3 49 29 view .LVU230
+ 736              		.loc 3 49 36 is_stmt 0 view .LVU231
+ 737 000c 837B     		ldrb	r3, [r0, #14]	@ zero_extendqisi2
+ 738              	.LVL61:
+ 739              		.loc 3 49 36 view .LVU232
+ 740              	.LBE44:
+ 741              	.LBE43:
+ 742              		.loc 1 140 20 discriminator 1 view .LVU233
+ 743 000e 032B     		cmp	r3, #3
+ 744 0010 0ED0     		beq	.L62
+ 745              	.L49:
+ 141:Src/transport/ch585_role_bootstrap.cpp ****         return true;
+ 142:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 143:Src/transport/ch585_role_bootstrap.cpp **** 
+ 144:Src/transport/ch585_role_bootstrap.cpp ****     /* An unusually slow UI/power probe may outlive the CH585 selector window.
+ 145:Src/transport/ch585_role_bootstrap.cpp ****      * Reuse only within the original power-settle + ready-hint budget;
+ 146:Src/transport/ch585_role_bootstrap.cpp ****      * otherwise take the unchanged cold-start path, including its retry. */
+ 147:Src/transport/ch585_role_bootstrap.cpp ****     bool reusePrepared = usbStartupPrepared && requestedRole == Ch585Role::Usb &&
+ 746              		.loc 1 147 5 is_stmt 1 view .LVU234
+ 747              		.loc 1 147 26 is_stmt 0 view .LVU235
+ 748 0012 E67B     		ldrb	r6, [r4, #15]	@ zero_extendqisi2
+ 148:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState == Ch585BootstrapState::Booting && BOARD_POWER.isCh585Enabled() &&
+ 749              		.loc 1 148 88 view .LVU236
+ 750 0014 16B1     		cbz	r6, .L50
+ 147:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState == Ch585BootstrapState::Booting && BOARD_POWER.isCh585Enabled() &&
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 20
+
+
+ 751              		.loc 1 147 45 view .LVU237
+ 752 0016 022F     		cmp	r7, #2
+ 753 0018 0FD0     		beq	.L63
+ 754              		.loc 1 148 88 discriminator 5 view .LVU238
+ 755 001a 0026     		movs	r6, #0
+ 756              	.LVL62:
+ 757              	.L50:
+ 149:Src/transport/ch585_role_bootstrap.cpp ****         (uint32_t)(HAL_GetTick() - usbPowerOnAtMs) <
+ 150:Src/transport/ch585_role_bootstrap.cpp ****             CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 151:Src/transport/ch585_role_bootstrap.cpp ****     usbStartupPrepared = false; // one-shot, including all failure paths
+ 758              		.loc 1 151 5 is_stmt 1 view .LVU239
+ 759              		.loc 1 151 24 is_stmt 0 view .LVU240
+ 760 001c 0025     		movs	r5, #0
+ 761 001e E573     		strb	r5, [r4, #15]
+ 152:Src/transport/ch585_role_bootstrap.cpp **** 
+ 153:Src/transport/ch585_role_bootstrap.cpp ****     /* Initial attempt plus exactly one power-cycle retry. */
+ 154:Src/transport/ch585_role_bootstrap.cpp ****     for (uint8_t attempt = 0u; attempt < 2u; ++attempt) {
+ 762              		.loc 1 154 5 is_stmt 1 view .LVU241
+ 763              	.LVL63:
+ 764              	.LBB45:
+ 765              		.loc 1 154 5 is_stmt 0 view .LVU242
+ 766 0020 3BE0     		b	.L51
+ 767              	.LVL64:
+ 768              	.L46:
+ 769              		.loc 1 154 5 view .LVU243
+ 770              	.LBE45:
+ 135:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Failed;
+ 771              		.loc 1 135 9 is_stmt 1 view .LVU244
+ 135:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Failed;
+ 772              		.loc 1 135 17 is_stmt 0 view .LVU245
+ 773 0022 2046     		mov	r0, r4
+ 774              	.LVL65:
+ 135:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState = Ch585BootstrapState::Failed;
+ 775              		.loc 1 135 17 view .LVU246
+ 776 0024 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 777              	.LVL66:
+ 136:Src/transport/ch585_role_bootstrap.cpp ****         return false;
+ 778              		.loc 1 136 9 is_stmt 1 view .LVU247
+ 136:Src/transport/ch585_role_bootstrap.cpp ****         return false;
+ 779              		.loc 1 136 24 is_stmt 0 view .LVU248
+ 780 0028 0423     		movs	r3, #4
+ 781 002a A373     		strb	r3, [r4, #14]
+ 137:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 782              		.loc 1 137 9 is_stmt 1 view .LVU249
+ 137:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 783              		.loc 1 137 16 is_stmt 0 view .LVU250
+ 784 002c 0026     		movs	r6, #0
+ 785 002e 51E0     		b	.L48
+ 786              	.LVL67:
+ 787              	.L62:
+ 140:Src/transport/ch585_role_bootstrap.cpp ****         return true;
+ 788              		.loc 1 140 23 discriminator 1 view .LVU251
+ 789 0030 427B     		ldrb	r2, [r0, #13]	@ zero_extendqisi2
+ 140:Src/transport/ch585_role_bootstrap.cpp ****         return true;
+ 790              		.loc 1 140 20 discriminator 1 view .LVU252
+ 791 0032 8A42     		cmp	r2, r1
+ 792 0034 EDD1     		bne	.L49
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 21
+
+
+ 141:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 793              		.loc 1 141 16 view .LVU253
+ 794 0036 0126     		movs	r6, #1
+ 795 0038 4CE0     		b	.L48
+ 796              	.L63:
+ 147:Src/transport/ch585_role_bootstrap.cpp ****         bootstrapState == Ch585BootstrapState::Booting && BOARD_POWER.isCh585Enabled() &&
+ 797              		.loc 1 147 80 discriminator 1 view .LVU254
+ 798 003a 012B     		cmp	r3, #1
+ 799 003c 01D0     		beq	.L64
+ 148:Src/transport/ch585_role_bootstrap.cpp ****         (uint32_t)(HAL_GetTick() - usbPowerOnAtMs) <
+ 800              		.loc 1 148 88 discriminator 5 view .LVU255
+ 801 003e 0026     		movs	r6, #0
+ 802 0040 ECE7     		b	.L50
+ 803              	.L64:
+ 804              	.LVL68:
+ 805              	.LBB53:
+ 806              	.LBI53:
+ 807              		.loc 2 62 10 is_stmt 1 view .LVU256
+ 808              	.LBB54:
+ 809              		.loc 2 62 35 view .LVU257
+ 810              		.loc 2 62 42 is_stmt 0 view .LVU258
+ 811 0042 254B     		ldr	r3, .L67
+ 812 0044 DE79     		ldrb	r6, [r3, #7]	@ zero_extendqisi2
+ 813              	.LVL69:
+ 814              		.loc 2 62 42 view .LVU259
+ 815              	.LBE54:
+ 816              	.LBE53:
+ 148:Src/transport/ch585_role_bootstrap.cpp ****         (uint32_t)(HAL_GetTick() - usbPowerOnAtMs) <
+ 817              		.loc 1 148 56 discriminator 2 view .LVU260
+ 818 0046 002E     		cmp	r6, #0
+ 819 0048 E8D0     		beq	.L50
+ 149:Src/transport/ch585_role_bootstrap.cpp ****             CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 820              		.loc 1 149 31 view .LVU261
+ 821 004a FFF7FEFF 		bl	HAL_GetTick
+ 822              	.LVL70:
+ 149:Src/transport/ch585_role_bootstrap.cpp ****             CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 823              		.loc 1 149 36 discriminator 1 view .LVU262
+ 824 004e 2369     		ldr	r3, [r4, #16]
+ 149:Src/transport/ch585_role_bootstrap.cpp ****             CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 825              		.loc 1 149 34 discriminator 1 view .LVU263
+ 826 0050 C31A     		subs	r3, r0, r3
+ 148:Src/transport/ch585_role_bootstrap.cpp ****         (uint32_t)(HAL_GetTick() - usbPowerOnAtMs) <
+ 827              		.loc 1 148 88 discriminator 2 view .LVU264
+ 828 0052 B3F5347F 		cmp	r3, #720
+ 829 0056 E1D3     		bcc	.L50
+ 148:Src/transport/ch585_role_bootstrap.cpp ****         (uint32_t)(HAL_GetTick() - usbPowerOnAtMs) <
+ 830              		.loc 1 148 88 discriminator 5 view .LVU265
+ 831 0058 0026     		movs	r6, #0
+ 832 005a DFE7     		b	.L50
+ 833              	.LVL71:
+ 834              	.L66:
+ 835              	.LBB55:
+ 836              	.LBB46:
+ 837              	.LBB47:
+ 838              	.LBB48:
+ 155:Src/transport/ch585_role_bootstrap.cpp ****         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+ 156:Src/transport/ch585_role_bootstrap.cpp ****                   static_cast<unsigned int>(attempt + 1u),
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 22
+
+
+ 157:Src/transport/ch585_role_bootstrap.cpp ****                   static_cast<unsigned int>(requestedRole));
+ 158:Src/transport/ch585_role_bootstrap.cpp ****         uint32_t readyTimeoutMs = CH585_READY_HINT_TIMEOUT_MS;
+ 159:Src/transport/ch585_role_bootstrap.cpp ****         if (reusePrepared) {
+ 160:Src/transport/ch585_role_bootstrap.cpp ****             uint32_t elapsed = HAL_GetTick() - usbPowerOnAtMs;
+ 161:Src/transport/ch585_role_bootstrap.cpp ****             if (elapsed < CH585_POWER_ON_SETTLE_MS) {
+ 162:Src/transport/ch585_role_bootstrap.cpp ****                 HAL_Delay(CH585_POWER_ON_SETTLE_MS - elapsed);
+ 839              		.loc 1 162 17 is_stmt 1 view .LVU266
+ 840              		.loc 1 162 26 is_stmt 0 view .LVU267
+ 841 005c 181A     		subs	r0, r3, r0
+ 842 005e 1430     		adds	r0, r0, #20
+ 843 0060 FFF7FEFF 		bl	HAL_Delay
+ 844              	.LVL72:
+ 845              		.loc 1 162 26 view .LVU268
+ 846 0064 23E0     		b	.L53
+ 847              	.LVL73:
+ 848              	.L52:
+ 849              		.loc 1 162 26 view .LVU269
+ 850              	.LBE48:
+ 163:Src/transport/ch585_role_bootstrap.cpp ****             }
+ 164:Src/transport/ch585_role_bootstrap.cpp ****             elapsed = HAL_GetTick() - usbPowerOnAtMs;
+ 165:Src/transport/ch585_role_bootstrap.cpp ****             const uint32_t deadline = CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 166:Src/transport/ch585_role_bootstrap.cpp ****             readyTimeoutMs = elapsed < deadline ? deadline - elapsed : 0u;
+ 167:Src/transport/ch585_role_bootstrap.cpp ****             reusePrepared = false;
+ 168:Src/transport/ch585_role_bootstrap.cpp ****         } else {
+ 169:Src/transport/ch585_role_bootstrap.cpp ****             shutdown();
+ 851              		.loc 1 169 13 is_stmt 1 view .LVU270
+ 852              		.loc 1 169 21 is_stmt 0 view .LVU271
+ 853 0066 2046     		mov	r0, r4
+ 854 0068 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 855              	.LVL74:
+ 170:Src/transport/ch585_role_bootstrap.cpp ****             HAL_Delay(CH585_POWER_OFF_MIN_MS);
+ 856              		.loc 1 170 13 is_stmt 1 view .LVU272
+ 857              		.loc 1 170 22 is_stmt 0 view .LVU273
+ 858 006c 1420     		movs	r0, #20
+ 859 006e FFF7FEFF 		bl	HAL_Delay
+ 860              	.LVL75:
+ 171:Src/transport/ch585_role_bootstrap.cpp ****             bootstrapState = Ch585BootstrapState::Booting;
+ 861              		.loc 1 171 13 is_stmt 1 view .LVU274
+ 862              		.loc 1 171 28 is_stmt 0 view .LVU275
+ 863 0072 0121     		movs	r1, #1
+ 864 0074 A173     		strb	r1, [r4, #14]
+ 172:Src/transport/ch585_role_bootstrap.cpp ****             BOARD_POWER.setCh585Enabled(true);
+ 865              		.loc 1 172 13 is_stmt 1 view .LVU276
+ 866              	.LBB49:
+ 867              	.LBI49:
+  35:Inc/power/board_power.hpp ****     {
+ 868              		.loc 2 35 24 view .LVU277
+  37:Inc/power/board_power.hpp ****         return instance;
+ 869              		.loc 2 37 9 view .LVU278
+  38:Inc/power/board_power.hpp ****     }
+ 870              		.loc 2 38 9 view .LVU279
+ 871              	.LBE49:
+ 872              		.loc 1 172 40 is_stmt 0 discriminator 1 view .LVU280
+ 873 0076 1848     		ldr	r0, .L67
+ 874 0078 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 875              	.LVL76:
+ 173:Src/transport/ch585_role_bootstrap.cpp ****             /* Do not clock SELECT_ROLE on the power-up edge. The original
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 23
+
+
+ 174:Src/transport/ch585_role_bootstrap.cpp ****              * cold start and power-cycle retry retain their full settle. */
+ 175:Src/transport/ch585_role_bootstrap.cpp ****             HAL_Delay(CH585_POWER_ON_SETTLE_MS);
+ 876              		.loc 1 175 13 is_stmt 1 view .LVU281
+ 877              		.loc 1 175 22 is_stmt 0 view .LVU282
+ 878 007c 1420     		movs	r0, #20
+ 879 007e FFF7FEFF 		bl	HAL_Delay
+ 880              	.LVL77:
+ 881              	.LBE47:
+ 158:Src/transport/ch585_role_bootstrap.cpp ****         if (reusePrepared) {
+ 882              		.loc 1 158 18 view .LVU283
+ 883 0082 4FF42F70 		mov	r0, #700
+ 884              	.L54:
+ 885              	.LVL78:
+ 176:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 177:Src/transport/ch585_role_bootstrap.cpp **** 
+ 178:Src/transport/ch585_role_bootstrap.cpp ****         /* Keep SPI completely idle while the persistent IAP observes its
+ 179:Src/transport/ch585_role_bootstrap.cpp ****          * 500-ms boot window.  Jumping from inside an active NSS transaction
+ 180:Src/transport/ch585_role_bootstrap.cpp ****          * leaves SPI0 in an ambiguous hand-off state; the loader's idle boot
+ 181:Src/transport/ch585_role_bootstrap.cpp ****          * path reaches the application with a clean bus instead. */
+ 182:Src/transport/ch585_role_bootstrap.cpp ****         APP_STAGE("R02", "CH585 waiting for idle IAP-to-application handoff");
+ 886              		.loc 1 182 9 is_stmt 1 view .LVU284
+ 183:Src/transport/ch585_role_bootstrap.cpp ****         const bool readyObserved =
+ 887              		.loc 1 183 9 view .LVU285
+ 184:Src/transport/ch585_role_bootstrap.cpp ****             BP_APP_CALL(BP_APP_CH585_READY,
+ 888              		.loc 1 184 13 is_stmt 0 view .LVU286
+ 889 0086 FFF7FEFF 		bl	_ZN11RFBootReady18waitForModuleReadyEm
+ 890              	.LVL79:
+ 185:Src/transport/ch585_role_bootstrap.cpp ****                 RFBootReady::waitForModuleReady(readyTimeoutMs));
+ 186:Src/transport/ch585_role_bootstrap.cpp ****         if (!readyObserved) {
+ 891              		.loc 1 186 9 is_stmt 1 view .LVU287
+ 187:Src/transport/ch585_role_bootstrap.cpp ****             /*
+ 188:Src/transport/ch585_role_bootstrap.cpp ****              * PA5 is shared with the steady-state event signal and its short
+ 189:Src/transport/ch585_role_bootstrap.cpp ****              * boot pulse is only a timing hint. Some power cycles do not
+ 190:Src/transport/ch585_role_bootstrap.cpp ****              * expose that pulse to STM32 even though the CH585 polling role
+ 191:Src/transport/ch585_role_bootstrap.cpp ****              * selector is already alive. Continue with the bounded protocol
+ 192:Src/transport/ch585_role_bootstrap.cpp ****              * transaction; ROLE_SELECTED remains the authoritative commit.
+ 193:Src/transport/ch585_role_bootstrap.cpp ****              */
+ 194:Src/transport/ch585_role_bootstrap.cpp ****             APP_STAGE("R02B",
+ 892              		.loc 1 194 13 view .LVU288
+ 195:Src/transport/ch585_role_bootstrap.cpp ****                       "CH585 ready pulse not observed; probing role selector");
+ 196:Src/transport/ch585_role_bootstrap.cpp ****         } else {
+ 197:Src/transport/ch585_role_bootstrap.cpp ****             APP_STAGE("R02A", "CH585 application-ready pulse observed");
+ 893              		.loc 1 197 13 view .LVU289
+ 198:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 199:Src/transport/ch585_role_bootstrap.cpp **** 
+ 200:Src/transport/ch585_role_bootstrap.cpp ****         if (BP_APP_CALL(BP_APP_CH585_SELECT, selectOnce(requestedRole))) {
+ 894              		.loc 1 200 9 view .LVU290
+ 895              		.loc 1 200 13 is_stmt 0 view .LVU291
+ 896 008a 3946     		mov	r1, r7
+ 897 008c 2046     		mov	r0, r4
+ 898 008e FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role
+ 899              	.LVL80:
+ 900              		.loc 1 200 9 discriminator 1 view .LVU292
+ 901 0092 0646     		mov	r6, r0
+ 902 0094 F0B9     		cbnz	r0, .L48
+ 201:Src/transport/ch585_role_bootstrap.cpp ****             APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",
+ 202:Src/transport/ch585_role_bootstrap.cpp ****                       static_cast<unsigned int>(attempt + 1u),
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 24
+
+
+ 203:Src/transport/ch585_role_bootstrap.cpp ****                       static_cast<unsigned int>(requestedRole));
+ 204:Src/transport/ch585_role_bootstrap.cpp ****             return true;
+ 205:Src/transport/ch585_role_bootstrap.cpp ****         }
+ 206:Src/transport/ch585_role_bootstrap.cpp ****         APP_STAGE_ERROR("R03E", "CH585 role select window expired: attempt=%u state=%u",
+ 903              		.loc 1 206 9 is_stmt 1 view .LVU293
+ 904              	.LBE46:
+ 154:Src/transport/ch585_role_bootstrap.cpp ****         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+ 905              		.loc 1 154 5 discriminator 2 view .LVU294
+ 906 0096 0135     		adds	r5, r5, #1
+ 907              	.LVL81:
+ 154:Src/transport/ch585_role_bootstrap.cpp ****         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+ 908              		.loc 1 154 5 is_stmt 0 discriminator 2 view .LVU295
+ 909 0098 EDB2     		uxtb	r5, r5
+ 910              	.LVL82:
+ 911              	.L51:
+ 154:Src/transport/ch585_role_bootstrap.cpp ****         APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+ 912              		.loc 1 154 40 is_stmt 1 discriminator 1 view .LVU296
+ 913 009a 012D     		cmp	r5, #1
+ 914 009c 14D8     		bhi	.L65
+ 915              	.LBB52:
+ 155:Src/transport/ch585_role_bootstrap.cpp ****                   static_cast<unsigned int>(attempt + 1u),
+ 916              		.loc 1 155 9 view .LVU297
+ 158:Src/transport/ch585_role_bootstrap.cpp ****         if (reusePrepared) {
+ 917              		.loc 1 158 9 view .LVU298
+ 918              	.LVL83:
+ 159:Src/transport/ch585_role_bootstrap.cpp ****             uint32_t elapsed = HAL_GetTick() - usbPowerOnAtMs;
+ 919              		.loc 1 159 9 view .LVU299
+ 920              	.LBB51:
+ 921 009e 002E     		cmp	r6, #0
+ 922 00a0 E1D0     		beq	.L52
+ 923              	.LBB50:
+ 160:Src/transport/ch585_role_bootstrap.cpp ****             if (elapsed < CH585_POWER_ON_SETTLE_MS) {
+ 924              		.loc 1 160 13 view .LVU300
+ 160:Src/transport/ch585_role_bootstrap.cpp ****             if (elapsed < CH585_POWER_ON_SETTLE_MS) {
+ 925              		.loc 1 160 43 is_stmt 0 view .LVU301
+ 926 00a2 FFF7FEFF 		bl	HAL_GetTick
+ 927              	.LVL84:
+ 160:Src/transport/ch585_role_bootstrap.cpp ****             if (elapsed < CH585_POWER_ON_SETTLE_MS) {
+ 928              		.loc 1 160 48 discriminator 1 view .LVU302
+ 929 00a6 2369     		ldr	r3, [r4, #16]
+ 930 00a8 C21A     		subs	r2, r0, r3
+ 931              	.LVL85:
+ 161:Src/transport/ch585_role_bootstrap.cpp ****                 HAL_Delay(CH585_POWER_ON_SETTLE_MS - elapsed);
+ 932              		.loc 1 161 13 is_stmt 1 view .LVU303
+ 933 00aa 132A     		cmp	r2, #19
+ 934 00ac D6D9     		bls	.L66
+ 935              	.LVL86:
+ 936              	.L53:
+ 164:Src/transport/ch585_role_bootstrap.cpp ****             const uint32_t deadline = CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 937              		.loc 1 164 13 view .LVU304
+ 164:Src/transport/ch585_role_bootstrap.cpp ****             const uint32_t deadline = CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 938              		.loc 1 164 34 is_stmt 0 view .LVU305
+ 939 00ae FFF7FEFF 		bl	HAL_GetTick
+ 940              	.LVL87:
+ 164:Src/transport/ch585_role_bootstrap.cpp ****             const uint32_t deadline = CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 941              		.loc 1 164 39 discriminator 1 view .LVU306
+ 942 00b2 2369     		ldr	r3, [r4, #16]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 25
+
+
+ 164:Src/transport/ch585_role_bootstrap.cpp ****             const uint32_t deadline = CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS;
+ 943              		.loc 1 164 21 discriminator 1 view .LVU307
+ 944 00b4 C21A     		subs	r2, r0, r3
+ 945              	.LVL88:
+ 165:Src/transport/ch585_role_bootstrap.cpp ****             readyTimeoutMs = elapsed < deadline ? deadline - elapsed : 0u;
+ 946              		.loc 1 165 13 is_stmt 1 view .LVU308
+ 166:Src/transport/ch585_role_bootstrap.cpp ****             reusePrepared = false;
+ 947              		.loc 1 166 13 view .LVU309
+ 166:Src/transport/ch585_role_bootstrap.cpp ****             reusePrepared = false;
+ 948              		.loc 1 166 49 is_stmt 0 view .LVU310
+ 949 00b6 B2F5347F 		cmp	r2, #720
+ 950 00ba 03D2     		bcs	.L60
+ 166:Src/transport/ch585_role_bootstrap.cpp ****             reusePrepared = false;
+ 951              		.loc 1 166 49 discriminator 1 view .LVU311
+ 952 00bc 181A     		subs	r0, r3, r0
+ 953 00be 00F53470 		add	r0, r0, #720
+ 954 00c2 E0E7     		b	.L54
+ 955              	.L60:
+ 166:Src/transport/ch585_role_bootstrap.cpp ****             reusePrepared = false;
+ 956              		.loc 1 166 49 discriminator 2 view .LVU312
+ 957 00c4 0020     		movs	r0, #0
+ 958 00c6 DEE7     		b	.L54
+ 959              	.LVL89:
+ 960              	.L65:
+ 166:Src/transport/ch585_role_bootstrap.cpp ****             reusePrepared = false;
+ 961              		.loc 1 166 49 discriminator 2 view .LVU313
+ 962              	.LBE50:
+ 963              	.LBE51:
+ 964              	.LBE52:
+ 965              	.LBE55:
+ 207:Src/transport/ch585_role_bootstrap.cpp ****                         static_cast<unsigned int>(attempt + 1u),
+ 208:Src/transport/ch585_role_bootstrap.cpp ****                         static_cast<unsigned int>(bootstrapState));
+ 209:Src/transport/ch585_role_bootstrap.cpp ****     }
+ 210:Src/transport/ch585_role_bootstrap.cpp **** 
+ 211:Src/transport/ch585_role_bootstrap.cpp ****     shutdown();
+ 966              		.loc 1 211 5 is_stmt 1 view .LVU314
+ 967              		.loc 1 211 13 is_stmt 0 view .LVU315
+ 968 00c8 2046     		mov	r0, r4
+ 969 00ca FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 970              	.LVL90:
+ 212:Src/transport/ch585_role_bootstrap.cpp ****     bootstrapState = Ch585BootstrapState::Failed;
+ 971              		.loc 1 212 5 is_stmt 1 view .LVU316
+ 972              		.loc 1 212 20 is_stmt 0 view .LVU317
+ 973 00ce 0423     		movs	r3, #4
+ 974 00d0 A373     		strb	r3, [r4, #14]
+ 213:Src/transport/ch585_role_bootstrap.cpp ****     return false;
+ 975              		.loc 1 213 5 is_stmt 1 view .LVU318
+ 976              		.loc 1 213 12 is_stmt 0 view .LVU319
+ 977 00d2 0026     		movs	r6, #0
+ 978              	.LVL91:
+ 979              	.L48:
+ 214:Src/transport/ch585_role_bootstrap.cpp **** }
+ 980              		.loc 1 214 1 view .LVU320
+ 981 00d4 3046     		mov	r0, r6
+ 982 00d6 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 983              	.LVL92:
+ 984              	.L68:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 26
+
+
+ 985              		.loc 1 214 1 view .LVU321
+ 986              		.align	2
+ 987              	.L67:
+ 988 00d8 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 989              		.cfi_endproc
+ 990              	.LFE1309:
+ 992              		.weak	_ZZN10BoardPower11getInstanceEvE8instance
+ 993              		.section	.data._ZZN10BoardPower11getInstanceEvE8instance,"awG",%progbits,_ZZN10BoardPower11getInst
+ 994              		.align	2
+ 997              	_ZZN10BoardPower11getInstanceEvE8instance:
+ 998 0000 00       		.byte	0
+ 999 0001 00       		.byte	0
+ 1000 0002 00       		.byte	0
+ 1001 0003 00       		.byte	0
+ 1002 0004 00       		.byte	0
+ 1003 0005 00       		.byte	0
+ 1004 0006 00       		.byte	0
+ 1005 0007 00       		.byte	0
+ 1006 0008 00       		.byte	0
+ 1007 0009 01       		.byte	1
+ 1008 000a 00       		.byte	0
+ 1009              		.text
+ 1010              	.Letext0:
+ 1011              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1012              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1013              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1014              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 1015              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 1016              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 1017              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 1018              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 1019              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 1020              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1021              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 1022              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 1023              		.file 16 "Inc/system/board_cfg.h"
+ 1024              		.file 17 "Inc/power/sleep_diagnostics.hpp"
+ 1025              		.file 18 "Inc/transport/rf/rf_boot_ready.hpp"
+ 1026              		.file 19 "Inc/transport/usb/usb_board_link_port.hpp"
+ 1027              		.file 20 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 1028              		.file 21 "Inc/support/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s 			page 27
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ch585_role_bootstrap.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:20     .text._ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:26     .text._ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE:00000000 _ZN18Ch585RoleBootstrap11setSelectorEPFb9Ch585RoleE
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:43     .text._ZN18Ch585RoleBootstrap8shutdownEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:49     .text._ZN18Ch585RoleBootstrap8shutdownEv:00000000 _ZN18Ch585RoleBootstrap8shutdownEv
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:175    .text._ZN18Ch585RoleBootstrap8shutdownEv:00000064 $d
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:997    .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 _ZZN10BoardPower11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:182    .text._ZN18Ch585RoleBootstrap18beginRfSleepResumeEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:188    .text._ZN18Ch585RoleBootstrap18beginRfSleepResumeEv:00000000 _ZN18Ch585RoleBootstrap18beginRfSleepResumeEv
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:229    .text._ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:235    .text._ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv:00000000 _ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:486    .text._ZN18Ch585RoleBootstrap20serviceRfSleepResumeEv:000000d4 $d
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:491    .text._ZN18Ch585RoleBootstrap17prepareUsbStartupEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:497    .text._ZN18Ch585RoleBootstrap17prepareUsbStartupEv:00000000 _ZN18Ch585RoleBootstrap17prepareUsbStartupEv
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:609    .text._ZN18Ch585RoleBootstrap17prepareUsbStartupEv:00000048 $d
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:614    .text._ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:620    .text._ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role:00000000 _ZN18Ch585RoleBootstrap10selectOnceE9Ch585Role
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:696    .text._ZN18Ch585RoleBootstrap5startE9Ch585Role:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:702    .text._ZN18Ch585RoleBootstrap5startE9Ch585Role:00000000 _ZN18Ch585RoleBootstrap5startE9Ch585Role
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:988    .text._ZN18Ch585RoleBootstrap5startE9Ch585Role:000000d8 $d
+C:\Users\nicx5\AppData\Local\Temp\cc5lK0cn.s:994    .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+_Z25USBBoardLinkPort_Shutdownv
+_ZN10BoardPower17setUsbHostEnabledEb
+_ZN10BoardPower15setCh585EnabledEb
+_ZN11RFBootReady5resetEv
+HAL_GPIO_Init
+HAL_GetTick
+_Z23SleepDiagnostics_Record10SleepStagem
+HAL_Delay
+_Z21USBBoardLinkPort_Initv
+_ZN11RFBootReady18waitForModuleReadyEm

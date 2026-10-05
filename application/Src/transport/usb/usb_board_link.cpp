@@ -30,12 +30,44 @@ struct UsbSourceMonitor {
     uint32_t session=0, query=0, queryAt=0, lastQueryMs=0, lastReplyMs=0;
     uint32_t previous=0, event=0, trigger=0, complete=0, ready=0, sampleUs=0, drops=0;
     uint8_t enabled=0, baseline=0, sampleValid=0, clockPending=0, head=0, count=0;
+    uint8_t queryPending=0, probeAttempts=0, supported=0, unsupported=0;
     uint8_t clockFrame[24]={}, edges[8][40]={};
 };
 // CPU-only diagnostic state in the existing NOLOAD D2 area; initialized on role selection.
 __attribute__((section(".DMA_Section"), aligned(32))) UsbSourceMonitor usbMon;
 uint32_t usbMonitorNow() {
     return usbMon.clock.observe(DWT->CYCCNT,HAL_GetTick(),SystemCoreClock/1000000u);
+}
+
+// Probe the existing read-only protocol instead of interpreting a product
+// release number as a capability. Unsupported diagnostics must not fault input.
+bool consumeUsbMonitorEvent(uint8_t command,const uint8_t *payload,uint8_t length) {
+    if(command==USB_BOARD_EVT_FAULT && length==2u && usbMon.queryPending &&
+       payload[0]==USB_BOARD_STATUS_UNSUPPORTED && payload[1]==UM_BOARD_COMMAND) {
+        usbMon.unsupported=1u;usbMon.queryPending=0u;
+        usbMon.enabled=usbMon.baseline=usbMon.sampleValid=usbMon.clockPending=0u;
+        usbMon.head=usbMon.count=0u;
+        return true;
+    }
+    if(command!=UM_BOARD_EVENT)return false;
+    if(length!=20u || !usbMon.queryPending || payload[0]!=UM_BOARD_QUERY ||
+       payload[1]!=UM_VERSION || um_u32(payload+8)!=usbMon.query ||
+       !um_u32(payload+4) || (payload[2]&~(UM_ENABLE|UM_LATENCY)) ||
+       ((payload[2]&UM_LATENCY) && !(payload[2]&UM_ENABLE)))return true;
+    const uint32_t now=usbMonitorNow(), peer=um_u32(payload+4);
+    if(now-usbMon.queryAt>500000u)return true;
+    usbMon.queryPending=0u;usbMon.supported=1u;
+    if(peer!=usbMon.session || ((payload[2]^usbMon.enabled)&UM_LATENCY)) {
+        usbMon.baseline=usbMon.sampleValid=0u;usbMon.head=usbMon.count=0u;
+    }
+    usbMon.session=peer;usbMon.enabled=payload[2];usbMon.lastReplyMs=HAL_GetTick();
+    uint8_t *p=usbMon.clockFrame;memset(p,0,24);
+    p[0]=UM_BOARD_CLOCK;p[1]=UM_VERSION;um_put32(p+4,peer);um_put32(p+8,usbMon.query);
+    // CH585-minus-STM32 interval, no symmetry assumption. Queue time widens it.
+    um_put32(p+12,um_u32(payload+16)-now-4u);
+    um_put32(p+16,um_u32(payload+12)-usbMon.queryAt+4u);
+    um_put32(p+20,um_u32(payload+12));usbMon.clockPending=1u;
+    return true;
 }
 
 static whf_link_t s_hsLink;
@@ -1243,22 +1275,7 @@ void UsbBoardLink::handleEvent(uint8_t command,
                                const uint8_t *payload,
                                uint8_t length)
 {
-    if(command==UM_BOARD_EVENT && length==20u && payload[0]==UM_BOARD_QUERY &&
-       payload[1]==UM_VERSION && um_u32(payload+8)==usbMon.query) {
-        const uint32_t now=usbMonitorNow(), peer=um_u32(payload+4);
-        if(now-usbMon.queryAt>500000u)return;
-        if(peer!=usbMon.session || ((payload[2]^usbMon.enabled)&UM_LATENCY)) {
-            usbMon.baseline=0;usbMon.head=usbMon.count=0;
-        }
-        usbMon.session=peer;usbMon.enabled=payload[2];usbMon.lastReplyMs=HAL_GetTick();
-        uint8_t *p=usbMon.clockFrame;memset(p,0,24);
-        p[0]=UM_BOARD_CLOCK;p[1]=UM_VERSION;um_put32(p+4,peer);um_put32(p+8,usbMon.query);
-        // CH585-minus-STM32 interval, no symmetry assumption. Queue time widens it.
-        um_put32(p+12,um_u32(payload+16)-now-4u);
-        um_put32(p+16,um_u32(payload+12)-usbMon.queryAt+4u);
-        um_put32(p+20,um_u32(payload+12));usbMon.clockPending=1u;
-        return;
-    }
+    if(consumeUsbMonitorEvent(command,payload,length))return;
     if ((command == USB_BOARD_EVT_USB_STATE) &&
         (length == sizeof(usbState))) {
         usb_board_usb_state_v1_t updated = {};
@@ -1575,8 +1592,8 @@ bool UsbBoardLink::tryMonitorSend(const uint8_t *payload,uint8_t length) {
 void UsbBoardLink::pumpMonitor() {
     if(!capsValid || selectedRole!=USB_BOARD_ROLE_USB || selectedProfile!=USB_BOARD_PROFILE_XINPUT ||
        !isDeviceMounted() || isDeviceSuspended()) { usbMon.enabled=usbMon.baseline=0u;return; }
-    // 2.2 is the first USB-side monitor-capable firmware. Old firmware gets no new commands.
-    if(caps.firmware_major<2u || (caps.firmware_major==2u && caps.firmware_minor<2u))return;
+    const uint8_t required=USB_BOARD_CAP_FEATURE_TELEMETRY_HID|USB_BOARD_CAP_FEATURE_CONTROL_V1;
+    if((caps.feature_flags&required)!=required || usbMon.unsupported)return;
     const uint32_t now=HAL_GetTick();
     if(now-usbMon.lastReplyMs>3000u)usbMon.enabled=usbMon.baseline=0u;
     if(usbMon.count) {
@@ -1593,8 +1610,18 @@ void UsbBoardLink::pumpMonitor() {
         return;
     }
     if(now-usbMon.lastQueryMs>=1000u) {
+        usbMon.queryPending=0u;
+        // Legacy peers may ignore unknown commands. Bound discovery to three
+        // successful writes per role session; a new role selection resets it.
+        if(!usbMon.supported && usbMon.probeAttempts>=3u) {
+            usbMon.unsupported=1u;
+            return;
+        }
         uint8_t p[16]={UM_BOARD_QUERY,UM_VERSION};um_put32(p+8,++usbMon.query);um_put32(p+12,usbMon.drops);
         usbMon.queryAt=usbMonitorNow();
-        if(tryMonitorSend(p,sizeof(p)))usbMon.lastQueryMs=now;
+        if(tryMonitorSend(p,sizeof(p))) {
+            usbMon.lastQueryMs=now;usbMon.queryPending=1u;
+            if(!usbMon.supported)++usbMon.probeAttempts;
+        }
     }
 }

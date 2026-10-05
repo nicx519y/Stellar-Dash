@@ -1,5 +1,7 @@
 # RF PHY Hop 配对模式技术方案
 
+> 历史配对方案：旧屏幕 `Pair 2.4G`、RX PB22 长按配对和下文对应的“当前落地”说明已失效。现行产品采用 [USB WebConfig 绑定](../docs/WEBCONFIG_RX_BINDING_20260923.md)，旧入口已按 [移除说明](../docs/LEGACY_PAIR_ENTRY_REMOVAL_20260923.md) 删除；不能因保留命令号或历史状态机恢复这些入口。（本次标注日期：2026-10-05。）
+
 > 目标：给 `RF_PHY_Hop` 的 TX/RX 增加独立配对模式，用于生成、交换、持久化 TX/RX 的专属 `accessAddress`，并通过 STM32 屏幕完成 TX 侧入口与配对结果反馈。
 
 ## 0. 当前落地说明

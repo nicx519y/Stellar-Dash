@@ -159,6 +159,8 @@ void RFTransport::resetSession() {
     state = RFTransportState::Disconnected;
     status = {};
     receivedStatusGeneration_ = 0u;
+    receivedStatusRateHz_ = 0u;
+    receivedStatusResult_ = 0u;
     RFReliableEvent::resetSession();
     g_pendingTimeSyncEcho = {};
     g_relative = {};
@@ -295,8 +297,11 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len, bool* appl
     status.eventCounter++;
     // Only a physically received, checksum-validated GET_STATUS reply counts.
     // Synthetic SET_RATE completion and asynchronous events cannot satisfy it.
-    if (evt == EVT_STATUS && statusOk && status.lastCommandTag == CMD_GET_STATUS)
+    if (evt == EVT_STATUS && statusOk && status.lastCommandTag == CMD_GET_STATUS) {
         ++receivedStatusGeneration_;
+        receivedStatusRateHz_ = status.rateHz;
+        receivedStatusResult_ = status.lastResult;
+    }
     if (applied != nullptr) {
         *applied = true;
     }
@@ -469,6 +474,7 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
         ((cmd == CMD_SET_RATE) && (len == 2u) && (payload != nullptr)) ?
         static_cast<uint16_t>(payload[0] | (payload[1] << 8)) :
         0u;
+    (void)logRateHz;
 
     RFCommandTransactionResult txnResult = {};
     RF_SPI_LOG("[RF_SPI][TX_CMD] cmd=0x%02X payload_len=%u rate=%u",
@@ -484,14 +490,8 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
         status.lastTransactionId = txnResult.txn;
         status.lastResult = 0u;
         status.lastErrorReason = 0u;
-        if ((cmd == CMD_SET_RATE) && (payload != nullptr) && (len == 2u)) {
-            // sendScheduled() returns only after the redundant transmission
-            // window has completed.  The CH585 scheduled-command path applies
-            // SET_RATE at that boundary and intentionally has no reply frame.
-            status.rateHz = logRateHz;
-            status.lastEvent = EVT_RATE_APPLIED;
-            status.eventCounter++;
-        }
+        // DMA completion proves only local transmission. The caller must
+        // obtain a fresh GET_STATUS before publishing an applied SET_RATE.
         state = RFTransportState::Connected;
         return true;
     }

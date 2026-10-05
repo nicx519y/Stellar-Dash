@@ -1,5 +1,7 @@
 # RF Freeze Baseline
 
+> Historical RF baseline: this July snapshot and its optional audit manifests are retained for explicit comparison; they are not the current implementation or the accepted flashing contract. Follow the [current RF rules](../RF_PHY_Hop/AGENTS.md) and [root flashing rules](../AGENTS.md#已验收烧录流程). Automatic RF regression, sampling and hopping experiments remain paused.（本次标注日期：2026-10-05。）
+
 Baseline date: 2026-07-23
 
 This baseline protects the existing STM32 -> CH585 TX SPI protocol and the
@@ -45,7 +47,7 @@ latest-PCB hardware rerun.
 - Hop table order: `10, 16, 22, 24, 28, 34, 39`.
 - Discovery channels: `16, 39`.
 
-The representative 8K/ACK measurements preserved in `RF_PHY_Hop/AGENTS.md`
+The representative 8K/ACK measurements preserved in [the archived RF instructions](agent-history/rf-phy-hop-agents-20260924.txt)
 remain the comparison baseline:
 
 ```text

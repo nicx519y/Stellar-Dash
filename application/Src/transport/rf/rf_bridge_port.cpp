@@ -681,6 +681,10 @@ RFPortStep recoveryReadFailed(RFRecoveryReadError reason) {
 }
 
 bool RFBridgePort_RecoveryBegin() { return rf_spi_init_once(); }
+bool RFBridgePort_BootSignalReleased() {
+    return HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+           RF_BRIDGE_IRQ_DEASSERTED_STATE;
+}
 bool RFBridgePort_RecoveryIdle() {
     return s_rf_spi_ready && !recoveryRead.active && Ch585Handshake_Ready(CH585_LINE_RF) &&
         !s_dma_busy && !s_dma_pending && !rf_has_pending_event_signal();

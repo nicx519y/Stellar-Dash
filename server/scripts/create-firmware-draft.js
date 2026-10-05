@@ -11,6 +11,7 @@ const { gitReleaseNotes, initialReleaseNotes, localReleaseNotes } = require('./g
 
 const TOKEN_PATTERN = /^stsvc_[A-Za-z0-9_-]{43}$/;
 const VERSION_PATTERN = /^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})$/;
+const DEFAULT_ADMIN_SERVER = 'https://manager.st-dash.com';
 
 function usage() {
     return [
@@ -23,8 +24,8 @@ function usage() {
         '    --initial-release',
         '',
         'Values in angle brackets are required existing local files/directories, not literal paths.',
-        'The default admin service is http://localhost:3001; use --server for another loopback port.',
-        'Remote uploads are disabled.',
+        `The default admin service is ${DEFAULT_ADMIN_SERVER}; use --server to override it.`,
+        'Remote uploads require HTTPS; local loopback services also support HTTP.',
         'The source manifest and signed STM32 A/B and TX artifacts must be prepared first.',
         'For later versions, omit --initial-release to compare with the latest version tag,',
         'or pass --since <previous release Git ref>. Device sources must be committed.',
@@ -69,9 +70,9 @@ function parseArguments(argv) {
     for (const name of ['source', 'signingKey', 'outDir']) {
         if (!options[name]) throw new Error(`Missing --${name === 'signingKey' ? 'signing-key' : name === 'outDir' ? 'out-dir' : name}`);
     }
-    if (!options.server) options.server = 'http://localhost:3001';
+    if (!options.server) options.server = DEFAULT_ADMIN_SERVER;
     if (!options.dryRun && !options.serviceTokenFile) {
-        throw new Error('Uploading to local admin requires --service-token-file');
+        throw new Error('Uploading to admin requires --service-token-file issued by the target server');
     }
     if (options.initialRelease && options.since) throw new Error('--initial-release cannot be used with --since');
     return options;
@@ -80,8 +81,8 @@ function parseArguments(argv) {
 function serverOrigin(input) {
     const url = new URL(input);
     const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    if (!loopback) throw new Error('--server must be a local loopback admin service (for example http://localhost:3001); remote uploads are disabled');
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error('--server must use HTTP or HTTPS');
+    if (!loopback && url.protocol !== 'https:') throw new Error('--server must use HTTPS for remote admin services');
     if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
         throw new Error('--server must be an origin without credentials, path, query or fragment');
     }
@@ -125,7 +126,7 @@ async function requestJson(url, token, init = {}, timeoutMs = 15000) {
 }
 
 async function createFirmwareDraft(options) {
-    const origin = options.dryRun ? null : serverOrigin(options.server || 'http://localhost:3001');
+    const origin = options.dryRun ? null : serverOrigin(options.server || DEFAULT_ADMIN_SERVER);
     const source = requireExistingFile(options.source, '--source', 'v2 release-source.json');
     const signingKey = requireExistingFile(options.signingKey, '--signing-key', 'matching release private key');
     const manifest = JSON.parse(fs.readFileSync(source, 'utf8'));

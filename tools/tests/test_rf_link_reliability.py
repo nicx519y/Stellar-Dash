@@ -88,7 +88,7 @@ class RfBondJournalTests(unittest.TestCase):
         self.assertIn("rfPairingState = RfPairingState::Timeout", source)
         self.assertEqual(source.count("void ConnectionManager::serviceRfPairingTimeout()"), 1)
 
-    def test_stm32_set_rate_uses_scheduled_completion_contract(self):
+    def test_stm32_set_rate_sends_scheduled_without_synthetic_confirmation(self):
         source = (
             ROOT / 'application/Src/transport/rf/rf_transport.cpp'
         ).read_text(encoding="utf-8")
@@ -101,9 +101,10 @@ class RfBondJournalTests(unittest.TestCase):
 
         self.assertIn("cmd == CMD_SET_RATE", scheduled_commands)
         self.assertIn("RFCommandTransaction::sendScheduled", transfer_command)
-        self.assertIn("status.rateHz = logRateHz", transfer_command)
-        self.assertIn("status.lastEvent = EVT_RATE_APPLIED", transfer_command)
-        self.assertIn("status.eventCounter++", transfer_command)
+        self.assertNotIn("status.rateHz = logRateHz", transfer_command)
+        self.assertNotIn("status.lastEvent = EVT_RATE_APPLIED", transfer_command)
+        self.assertNotIn("status.eventCounter++", transfer_command)
+        self.assertIn("receivedStatusRateHz_ = status.rateHz", source)
 
     def test_connect_monitor_preserves_pairing_and_reconnecting(self):
         source = (

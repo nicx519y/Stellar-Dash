@@ -1,0 +1,1014 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_socd.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/display/screen_control/spi_screen_detail_socd.cpp"
+  19              		.section	.rodata._ZL29show_socd_competition_warningv.str1.4,"aMS",%progbits,1
+  20              		.align	2
+  21              	.LC0:
+  22 0000 534F4344 		.ascii	"SOCD Locked\000"
+  22      204C6F63 
+  22      6B656400 
+  23              		.section	.text._ZL29show_socd_competition_warningv,"ax",%progbits
+  24              		.align	1
+  25              		.syntax unified
+  26              		.thumb
+  27              		.thumb_func
+  29              	_ZL29show_socd_competition_warningv:
+  30              	.LFB2174:
+   1:Src/display/screen_control/spi_screen_detail_socd.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+   3:Src/display/screen_control/spi_screen_detail_socd.cpp **** #include "storagemanager.hpp"
+   4:Src/display/screen_control/spi_screen_detail_socd.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   5:Src/display/screen_control/spi_screen_detail_socd.cpp **** #include "screen_control/spi_screen_timed_popup.hpp"
+   6:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+   7:Src/display/screen_control/spi_screen_detail_socd.cpp **** extern "C" uint32_t HAL_GetTick(void);
+   8:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+   9:Src/display/screen_control/spi_screen_detail_socd.cpp **** static const char* kSocdLabels[] = {
+  10:Src/display/screen_control/spi_screen_detail_socd.cpp ****     "Neutral",
+  11:Src/display/screen_control/spi_screen_detail_socd.cpp ****     "Up Priority",
+  12:Src/display/screen_control/spi_screen_detail_socd.cpp ****     "Second Input",
+  13:Src/display/screen_control/spi_screen_detail_socd.cpp ****     "First Input",
+  14:Src/display/screen_control/spi_screen_detail_socd.cpp ****     "Bypass",
+  15:Src/display/screen_control/spi_screen_detail_socd.cpp **** };
+  16:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  17:Src/display/screen_control/spi_screen_detail_socd.cpp **** static const uint32_t kSocdWarnAutoCloseMs = 5000u;
+  18:Src/display/screen_control/spi_screen_detail_socd.cpp **** static const char* kSocdWarnLines[] = {
+  19:Src/display/screen_control/spi_screen_detail_socd.cpp ****     "Competition",
+  20:Src/display/screen_control/spi_screen_detail_socd.cpp ****     "SOCD must be Neutral"
+  21:Src/display/screen_control/spi_screen_detail_socd.cpp **** };
+  22:Src/display/screen_control/spi_screen_detail_socd.cpp **** static ScreenTimedPopup g_socdWarnPopup = {};
+  23:Src/display/screen_control/spi_screen_detail_socd.cpp **** static bool g_socd_should_exit_after_confirm = true;
+  24:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  25:Src/display/screen_control/spi_screen_detail_socd.cpp **** static GamepadProfile* default_profile(void) {
+  26:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return STORAGE_MANAGER.getDefaultGamepadProfile();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 2
+
+
+  27:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+  28:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  29:Src/display/screen_control/spi_screen_detail_socd.cpp **** static uint8_t current_socd_index(void) {
+  30:Src/display/screen_control/spi_screen_detail_socd.cpp ****     GamepadProfile* p = default_profile();
+  31:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (!p) return 0;
+  32:Src/display/screen_control/spi_screen_detail_socd.cpp ****     uint8_t v = (uint8_t)p->keysConfig.socdMode;
+  33:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (v >= (uint8_t)NUM_SOCD_MODES) v = 0;
+  34:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return v;
+  35:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+  36:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  37:Src/display/screen_control/spi_screen_detail_socd.cpp **** static bool is_competition_profile_active(void) {
+  38:Src/display/screen_control/spi_screen_detail_socd.cpp ****     GamepadProfile* p = default_profile();
+  39:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return p ? p->isCompetitionProfile : false;
+  40:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+  41:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  42:Src/display/screen_control/spi_screen_detail_socd.cpp **** static void show_socd_competition_warning(void) {
+  31              		.loc 1 42 49 view -0
+  32              		.cfi_startproc
+  33              		@ args = 0, pretend = 0, frame = 0
+  34              		@ frame_needed = 0, uses_anonymous_args = 0
+  35 0000 00B5     		push	{lr}
+  36              	.LCFI0:
+  37              		.cfi_def_cfa_offset 4
+  38              		.cfi_offset 14, -4
+  39 0002 83B0     		sub	sp, sp, #12
+  40              	.LCFI1:
+  41              		.cfi_def_cfa_offset 16
+  43:Src/display/screen_control/spi_screen_detail_socd.cpp ****     ScreenTimedPopup_Show(
+  42              		.loc 1 43 5 view .LVU1
+  43              		.loc 1 43 26 is_stmt 0 view .LVU2
+  44 0004 FFF7FEFF 		bl	HAL_GetTick
+  45              	.LVL0:
+  46              		.loc 1 43 26 discriminator 1 view .LVU3
+  47 0008 0190     		str	r0, [sp, #4]
+  48 000a 41F28833 		movw	r3, #5000
+  49 000e 0093     		str	r3, [sp]
+  50 0010 0223     		movs	r3, #2
+  51 0012 044A     		ldr	r2, .L3
+  52 0014 0449     		ldr	r1, .L3+4
+  53 0016 0548     		ldr	r0, .L3+8
+  54 0018 FFF7FEFF 		bl	_Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm
+  55              	.LVL1:
+  44:Src/display/screen_control/spi_screen_detail_socd.cpp ****         &g_socdWarnPopup,
+  45:Src/display/screen_control/spi_screen_detail_socd.cpp ****         "SOCD Locked",
+  46:Src/display/screen_control/spi_screen_detail_socd.cpp ****         kSocdWarnLines,
+  47:Src/display/screen_control/spi_screen_detail_socd.cpp ****         (uint8_t)(sizeof(kSocdWarnLines) / sizeof(kSocdWarnLines[0])),
+  48:Src/display/screen_control/spi_screen_detail_socd.cpp ****         kSocdWarnAutoCloseMs,
+  49:Src/display/screen_control/spi_screen_detail_socd.cpp ****         HAL_GetTick());
+  50:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+  56              		.loc 1 50 1 view .LVU4
+  57 001c 03B0     		add	sp, sp, #12
+  58              	.LCFI2:
+  59              		.cfi_def_cfa_offset 4
+  60              		@ sp needed
+  61 001e 5DF804FB 		ldr	pc, [sp], #4
+  62              	.L4:
+  63 0022 00BF     		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 3
+
+
+  64              	.L3:
+  65 0024 00000000 		.word	_ZL14kSocdWarnLines
+  66 0028 00000000 		.word	.LC0
+  67 002c 00000000 		.word	_ZL15g_socdWarnPopup
+  68              		.cfi_endproc
+  69              	.LFE2174:
+  71              		.section	.text._ZN7Storage11getInstanceEv,"axG",%progbits,_ZN7Storage11getInstanceEv,comdat
+  72              		.align	1
+  73              		.weak	_ZN7Storage11getInstanceEv
+  74              		.syntax unified
+  75              		.thumb
+  76              		.thumb_func
+  78              	_ZN7Storage11getInstanceEv:
+  79              	.LFB2157:
+  80              		.file 2 "Inc/config/storagemanager.hpp"
+   1:Inc/config/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Inc/config/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Inc/config/storagemanager.hpp **** 
+   4:Inc/config/storagemanager.hpp **** #include "config.hpp"
+   5:Inc/config/storagemanager.hpp **** 
+   6:Inc/config/storagemanager.hpp **** // Forward declarations
+   7:Inc/config/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Inc/config/storagemanager.hpp **** class ADCValuesMarker;
+   9:Inc/config/storagemanager.hpp **** 
+  10:Inc/config/storagemanager.hpp **** class Storage {
+  11:Inc/config/storagemanager.hpp **** public:
+  12:Inc/config/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Inc/config/storagemanager.hpp **** 
+  14:Inc/config/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Inc/config/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Inc/config/storagemanager.hpp **** 	
+  17:Inc/config/storagemanager.hpp **** 	static Storage& getInstance() {
+  81              		.loc 2 17 18 is_stmt 1 view -0
+  82              		.cfi_startproc
+  83              		@ args = 0, pretend = 0, frame = 0
+  84              		@ frame_needed = 0, uses_anonymous_args = 0
+  85 0000 08B5     		push	{r3, lr}
+  86              	.LCFI3:
+  87              		.cfi_def_cfa_offset 8
+  88              		.cfi_offset 3, -8
+  89              		.cfi_offset 14, -4
+  18:Inc/config/storagemanager.hpp **** 		static Storage instance;
+  90              		.loc 2 18 3 view .LVU6
+  91              		.loc 2 18 18 is_stmt 0 view .LVU7
+  92 0002 094B     		ldr	r3, .L9
+  93 0004 1B68     		ldr	r3, [r3]
+  94 0006 BFF35B8F 		dmb	ish
+  95              		.loc 2 18 18 discriminator 1 view .LVU8
+  96 000a 13F0010F 		tst	r3, #1
+  97 000e 01D0     		beq	.L8
+  98              	.L6:
+  19:Inc/config/storagemanager.hpp **** 		return instance;
+  99              		.loc 2 19 3 is_stmt 1 view .LVU9
+  20:Inc/config/storagemanager.hpp **** 	}
+ 100              		.loc 2 20 2 is_stmt 0 view .LVU10
+ 101 0010 0648     		ldr	r0, .L9+4
+ 102 0012 08BD     		pop	{r3, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 4
+
+
+ 103              	.L8:
+  18:Inc/config/storagemanager.hpp **** 		static Storage instance;
+ 104              		.loc 2 18 18 discriminator 1 view .LVU11
+ 105 0014 0448     		ldr	r0, .L9
+ 106 0016 FFF7FEFF 		bl	__cxa_guard_acquire
+ 107              	.LVL2:
+ 108 001a 0028     		cmp	r0, #0
+ 109 001c F8D0     		beq	.L6
+ 110              	.LVL3:
+ 111              	.LBB6:
+ 112              	.LBI6:
+  21:Inc/config/storagemanager.hpp **** 
+  22:Inc/config/storagemanager.hpp **** 	Config config;
+  23:Inc/config/storagemanager.hpp **** 	
+  24:Inc/config/storagemanager.hpp **** 	void initConfig();
+  25:Inc/config/storagemanager.hpp **** 	bool saveConfig();
+  26:Inc/config/storagemanager.hpp **** 	bool resetConfig();
+  27:Inc/config/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Inc/config/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Inc/config/storagemanager.hpp **** 		return config.inputMode;
+  30:Inc/config/storagemanager.hpp **** 	}
+  31:Inc/config/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+  32:Inc/config/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Inc/config/storagemanager.hpp **** 		return config.connectionMode;
+  34:Inc/config/storagemanager.hpp **** 	}
+  35:Inc/config/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Inc/config/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Inc/config/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Inc/config/storagemanager.hpp **** 	}
+  39:Inc/config/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Inc/config/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Inc/config/storagemanager.hpp **** 	}
+  42:Inc/config/storagemanager.hpp **** 	bool getAutoSleepEnabled() const { return config.power.autoSleepEnabled == 1u; }
+  43:Inc/config/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  44:Inc/config/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  45:Inc/config/storagemanager.hpp **** 	}
+  46:Inc/config/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  47:Inc/config/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  48:Inc/config/storagemanager.hpp **** 		return config.reservedConnection0;
+  49:Inc/config/storagemanager.hpp **** 	}
+  50:Inc/config/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  51:Inc/config/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  52:Inc/config/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  53:Inc/config/storagemanager.hpp **** 	}
+  54:Inc/config/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+  55:Inc/config/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  56:Inc/config/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+  57:Inc/config/storagemanager.hpp **** 		return config.hotkeys;
+  58:Inc/config/storagemanager.hpp **** 	}
+  59:Inc/config/storagemanager.hpp **** 
+  60:Inc/config/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  61:Inc/config/storagemanager.hpp **** 	BootMode getBootMode() {
+  62:Inc/config/storagemanager.hpp **** 		return config.bootMode;
+  63:Inc/config/storagemanager.hpp **** 	}
+  64:Inc/config/storagemanager.hpp **** 
+  65:Inc/config/storagemanager.hpp **** private:
+  66:Inc/config/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 5
+
+
+ 113              		.loc 2 66 2 is_stmt 1 view .LVU12
+ 114              		.loc 2 66 2 is_stmt 0 view .LVU13
+ 115              	.LBE6:
+  18:Inc/config/storagemanager.hpp **** 		return instance;
+ 116              		.loc 2 18 18 discriminator 1 view .LVU14
+ 117 001e 0248     		ldr	r0, .L9
+ 118 0020 FFF7FEFF 		bl	__cxa_guard_release
+ 119              	.LVL4:
+ 120 0024 F4E7     		b	.L6
+ 121              	.L10:
+ 122 0026 00BF     		.align	2
+ 123              	.L9:
+ 124 0028 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+ 125 002c 00000000 		.word	_ZZN7Storage11getInstanceEvE8instance
+ 126              		.cfi_endproc
+ 127              	.LFE2157:
+ 129              		.section	.text._ZL15default_profilev,"ax",%progbits
+ 130              		.align	1
+ 131              		.syntax unified
+ 132              		.thumb
+ 133              		.thumb_func
+ 135              	_ZL15default_profilev:
+ 136              	.LFB2171:
+  25:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return STORAGE_MANAGER.getDefaultGamepadProfile();
+ 137              		.loc 1 25 46 is_stmt 1 view -0
+ 138              		.cfi_startproc
+ 139              		@ args = 0, pretend = 0, frame = 0
+ 140              		@ frame_needed = 0, uses_anonymous_args = 0
+ 141 0000 08B5     		push	{r3, lr}
+ 142              	.LCFI4:
+ 143              		.cfi_def_cfa_offset 8
+ 144              		.cfi_offset 3, -8
+ 145              		.cfi_offset 14, -4
+  26:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 146              		.loc 1 26 5 view .LVU16
+  26:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 147              		.loc 1 26 12 is_stmt 0 view .LVU17
+ 148 0002 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 149              	.LVL5:
+ 150              	.LBB7:
+ 151              	.LBI7:
+  51:Inc/config/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+ 152              		.loc 2 51 18 is_stmt 1 view .LVU18
+ 153              	.LBB8:
+  52:Inc/config/storagemanager.hpp **** 	}
+ 154              		.loc 2 52 3 view .LVU19
+  52:Inc/config/storagemanager.hpp **** 	}
+ 155              		.loc 2 52 27 is_stmt 0 view .LVU20
+ 156 0006 00F10B01 		add	r1, r0, #11
+ 157 000a FFF7FEFF 		bl	_ZN7Storage17getGamepadProfileEPc
+ 158              	.LVL6:
+  52:Inc/config/storagemanager.hpp **** 	}
+ 159              		.loc 2 52 27 view .LVU21
+ 160              	.LBE8:
+ 161              	.LBE7:
+  27:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+ 162              		.loc 1 27 1 view .LVU22
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 6
+
+
+ 163 000e 08BD     		pop	{r3, pc}
+ 164              		.cfi_endproc
+ 165              	.LFE2171:
+ 167              		.section	.text._ZL18current_socd_indexv,"ax",%progbits
+ 168              		.align	1
+ 169              		.syntax unified
+ 170              		.thumb
+ 171              		.thumb_func
+ 173              	_ZL18current_socd_indexv:
+ 174              	.LFB2172:
+  29:Src/display/screen_control/spi_screen_detail_socd.cpp ****     GamepadProfile* p = default_profile();
+ 175              		.loc 1 29 41 is_stmt 1 view -0
+ 176              		.cfi_startproc
+ 177              		@ args = 0, pretend = 0, frame = 0
+ 178              		@ frame_needed = 0, uses_anonymous_args = 0
+ 179 0000 08B5     		push	{r3, lr}
+ 180              	.LCFI5:
+ 181              		.cfi_def_cfa_offset 8
+ 182              		.cfi_offset 3, -8
+ 183              		.cfi_offset 14, -4
+  30:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (!p) return 0;
+ 184              		.loc 1 30 5 view .LVU24
+  30:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (!p) return 0;
+ 185              		.loc 1 30 40 is_stmt 0 view .LVU25
+ 186 0002 FFF7FEFF 		bl	_ZL15default_profilev
+ 187              	.LVL7:
+  31:Src/display/screen_control/spi_screen_detail_socd.cpp ****     uint8_t v = (uint8_t)p->keysConfig.socdMode;
+ 188              		.loc 1 31 5 is_stmt 1 view .LVU26
+ 189 0006 20B1     		cbz	r0, .L15
+  32:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (v >= (uint8_t)NUM_SOCD_MODES) v = 0;
+ 190              		.loc 1 32 5 view .LVU27
+  32:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (v >= (uint8_t)NUM_SOCD_MODES) v = 0;
+ 191              		.loc 1 32 13 is_stmt 0 view .LVU28
+ 192 0008 90F82C00 		ldrb	r0, [r0, #44]	@ zero_extendqisi2
+ 193              	.LVL8:
+  33:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return v;
+ 194              		.loc 1 33 5 is_stmt 1 view .LVU29
+ 195 000c 0428     		cmp	r0, #4
+ 196 000e 02D8     		bhi	.L16
+ 197              	.LVL9:
+ 198              	.L14:
+  35:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+ 199              		.loc 1 35 1 is_stmt 0 view .LVU30
+ 200 0010 08BD     		pop	{r3, pc}
+ 201              	.LVL10:
+ 202              	.L15:
+  31:Src/display/screen_control/spi_screen_detail_socd.cpp ****     uint8_t v = (uint8_t)p->keysConfig.socdMode;
+ 203              		.loc 1 31 20 discriminator 1 view .LVU31
+ 204 0012 0020     		movs	r0, #0
+ 205              	.LVL11:
+  31:Src/display/screen_control/spi_screen_detail_socd.cpp ****     uint8_t v = (uint8_t)p->keysConfig.socdMode;
+ 206              		.loc 1 31 20 discriminator 1 view .LVU32
+ 207 0014 FCE7     		b	.L14
+ 208              	.LVL12:
+ 209              	.L16:
+  33:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return v;
+ 210              		.loc 1 33 41 discriminator 1 view .LVU33
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 7
+
+
+ 211 0016 0020     		movs	r0, #0
+ 212              	.LVL13:
+  33:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return v;
+ 213              		.loc 1 33 41 discriminator 1 view .LVU34
+ 214 0018 FAE7     		b	.L14
+ 215              		.cfi_endproc
+ 216              	.LFE2172:
+ 218              		.section	.text._ZL29is_competition_profile_activev,"ax",%progbits
+ 219              		.align	1
+ 220              		.syntax unified
+ 221              		.thumb
+ 222              		.thumb_func
+ 224              	_ZL29is_competition_profile_activev:
+ 225              	.LFB2173:
+  37:Src/display/screen_control/spi_screen_detail_socd.cpp ****     GamepadProfile* p = default_profile();
+ 226              		.loc 1 37 49 is_stmt 1 view -0
+ 227              		.cfi_startproc
+ 228              		@ args = 0, pretend = 0, frame = 0
+ 229              		@ frame_needed = 0, uses_anonymous_args = 0
+ 230 0000 08B5     		push	{r3, lr}
+ 231              	.LCFI6:
+ 232              		.cfi_def_cfa_offset 8
+ 233              		.cfi_offset 3, -8
+ 234              		.cfi_offset 14, -4
+  38:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return p ? p->isCompetitionProfile : false;
+ 235              		.loc 1 38 5 view .LVU36
+  38:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return p ? p->isCompetitionProfile : false;
+ 236              		.loc 1 38 40 is_stmt 0 view .LVU37
+ 237 0002 FFF7FEFF 		bl	_ZL15default_profilev
+ 238              	.LVL14:
+  39:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 239              		.loc 1 39 5 is_stmt 1 view .LVU38
+  39:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 240              		.loc 1 39 14 is_stmt 0 view .LVU39
+ 241 0006 10B1     		cbz	r0, .L20
+  39:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 242              		.loc 1 39 19 discriminator 1 view .LVU40
+ 243 0008 90F82900 		ldrb	r0, [r0, #41]	@ zero_extendqisi2
+ 244              	.LVL15:
+ 245              	.L19:
+  40:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+ 246              		.loc 1 40 1 view .LVU41
+ 247 000c 08BD     		pop	{r3, pc}
+ 248              	.LVL16:
+ 249              	.L20:
+  39:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 250              		.loc 1 39 14 discriminator 4 view .LVU42
+ 251 000e 0020     		movs	r0, #0
+ 252              	.LVL17:
+  39:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 253              		.loc 1 39 14 discriminator 4 view .LVU43
+ 254 0010 FCE7     		b	.L19
+ 255              		.cfi_endproc
+ 256              	.LFE2173:
+ 258              		.section	.text._Z26ScreenDetailSocd_InitIndexv,"ax",%progbits
+ 259              		.align	1
+ 260              		.global	_Z26ScreenDetailSocd_InitIndexv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 8
+
+
+ 261              		.syntax unified
+ 262              		.thumb
+ 263              		.thumb_func
+ 265              	_Z26ScreenDetailSocd_InitIndexv:
+ 266              	.LFB2175:
+  51:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  52:Src/display/screen_control/spi_screen_detail_socd.cpp **** uint8_t ScreenDetailSocd_InitIndex(void) {
+ 267              		.loc 1 52 42 is_stmt 1 view -0
+ 268              		.cfi_startproc
+ 269              		@ args = 0, pretend = 0, frame = 0
+ 270              		@ frame_needed = 0, uses_anonymous_args = 0
+ 271 0000 08B5     		push	{r3, lr}
+ 272              	.LCFI7:
+ 273              		.cfi_def_cfa_offset 8
+ 274              		.cfi_offset 3, -8
+ 275              		.cfi_offset 14, -4
+  53:Src/display/screen_control/spi_screen_detail_socd.cpp ****     ScreenTimedPopup_Reset(&g_socdWarnPopup);
+ 276              		.loc 1 53 5 view .LVU45
+ 277              		.loc 1 53 27 is_stmt 0 view .LVU46
+ 278 0002 0448     		ldr	r0, .L24
+ 279 0004 FFF7FEFF 		bl	_Z22ScreenTimedPopup_ResetP16ScreenTimedPopup
+ 280              	.LVL18:
+  54:Src/display/screen_control/spi_screen_detail_socd.cpp ****     g_socd_should_exit_after_confirm = true;
+ 281              		.loc 1 54 5 is_stmt 1 view .LVU47
+ 282              		.loc 1 54 38 is_stmt 0 view .LVU48
+ 283 0008 034B     		ldr	r3, .L24+4
+ 284 000a 0122     		movs	r2, #1
+ 285 000c 1A70     		strb	r2, [r3]
+  55:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return current_socd_index();
+ 286              		.loc 1 55 5 is_stmt 1 view .LVU49
+ 287              		.loc 1 55 30 is_stmt 0 view .LVU50
+ 288 000e FFF7FEFF 		bl	_ZL18current_socd_indexv
+ 289              	.LVL19:
+  56:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 290              		.loc 1 56 1 view .LVU51
+ 291 0012 08BD     		pop	{r3, pc}
+ 292              	.L25:
+ 293              		.align	2
+ 294              	.L24:
+ 295 0014 00000000 		.word	_ZL15g_socdWarnPopup
+ 296 0018 00000000 		.word	_ZL32g_socd_should_exit_after_confirm
+ 297              		.cfi_endproc
+ 298              	.LFE2175:
+ 300              		.section	.text._Z23ScreenDetailSocd_RotatePha,"ax",%progbits
+ 301              		.align	1
+ 302              		.global	_Z23ScreenDetailSocd_RotatePha
+ 303              		.syntax unified
+ 304              		.thumb
+ 305              		.thumb_func
+ 307              	_Z23ScreenDetailSocd_RotatePha:
+ 308              	.LVL20:
+ 309              	.LFB2176:
+  57:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  58:Src/display/screen_control/spi_screen_detail_socd.cpp **** void ScreenDetailSocd_Rotate(uint8_t* ioIndex, int8_t det) {
+ 310              		.loc 1 58 60 is_stmt 1 view -0
+ 311              		.cfi_startproc
+ 312              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 9
+
+
+ 313              		@ frame_needed = 0, uses_anonymous_args = 0
+  59:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (!ioIndex) return;
+ 314              		.loc 1 59 5 view .LVU53
+ 315 0000 80B1     		cbz	r0, .L32
+  58:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (!ioIndex) return;
+ 316              		.loc 1 58 60 is_stmt 0 view .LVU54
+ 317 0002 38B5     		push	{r3, r4, r5, lr}
+ 318              	.LCFI8:
+ 319              		.cfi_def_cfa_offset 16
+ 320              		.cfi_offset 3, -16
+ 321              		.cfi_offset 4, -12
+ 322              		.cfi_offset 5, -8
+ 323              		.cfi_offset 14, -4
+ 324 0004 0C46     		mov	r4, r1
+ 325 0006 0546     		mov	r5, r0
+  60:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (ScreenTimedPopup_IsVisible(&g_socdWarnPopup)) return;
+ 326              		.loc 1 60 5 is_stmt 1 view .LVU55
+ 327              		.loc 1 60 35 is_stmt 0 view .LVU56
+ 328 0008 0748     		ldr	r0, .L35
+ 329              	.LVL21:
+ 330              		.loc 1 60 35 view .LVU57
+ 331 000a FFF7FEFF 		bl	_Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup
+ 332              	.LVL22:
+ 333              		.loc 1 60 5 discriminator 1 view .LVU58
+ 334 000e 40B9     		cbnz	r0, .L26
+  61:Src/display/screen_control/spi_screen_detail_socd.cpp ****     int32_t idx = (int32_t)(*ioIndex) + det;
+ 335              		.loc 1 61 5 is_stmt 1 view .LVU59
+ 336              		.loc 1 61 29 is_stmt 0 view .LVU60
+ 337 0010 2B78     		ldrb	r3, [r5]	@ zero_extendqisi2
+ 338              	.LVL23:
+  62:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (idx < 0) idx = 0;
+ 339              		.loc 1 62 5 is_stmt 1 view .LVU61
+ 340 0012 1B19     		adds	r3, r3, r4
+ 341              	.LVL24:
+ 342              		.loc 1 62 5 is_stmt 0 view .LVU62
+ 343 0014 03D4     		bmi	.L29
+  63:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (idx >= (int32_t)NUM_SOCD_MODES) idx = (int32_t)NUM_SOCD_MODES - 1;
+ 344              		.loc 1 63 5 is_stmt 1 view .LVU63
+ 345 0016 042B     		cmp	r3, #4
+ 346 0018 02DD     		ble	.L28
+ 347              		.loc 1 63 45 is_stmt 0 discriminator 1 view .LVU64
+ 348 001a 0423     		movs	r3, #4
+ 349              	.LVL25:
+ 350              		.loc 1 63 45 discriminator 1 view .LVU65
+ 351 001c 00E0     		b	.L28
+ 352              	.LVL26:
+ 353              	.L29:
+  62:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (idx < 0) idx = 0;
+ 354              		.loc 1 62 22 discriminator 1 view .LVU66
+ 355 001e 0023     		movs	r3, #0
+ 356              	.LVL27:
+ 357              	.L28:
+  64:Src/display/screen_control/spi_screen_detail_socd.cpp ****     *ioIndex = (uint8_t)idx;
+ 358              		.loc 1 64 5 is_stmt 1 view .LVU67
+ 359              		.loc 1 64 14 is_stmt 0 view .LVU68
+ 360 0020 2B70     		strb	r3, [r5]
+ 361              	.LVL28:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 10
+
+
+ 362              	.L26:
+  65:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 363              		.loc 1 65 1 view .LVU69
+ 364 0022 38BD     		pop	{r3, r4, r5, pc}
+ 365              	.LVL29:
+ 366              	.L32:
+ 367              	.LCFI9:
+ 368              		.cfi_def_cfa_offset 0
+ 369              		.cfi_restore 3
+ 370              		.cfi_restore 4
+ 371              		.cfi_restore 5
+ 372              		.cfi_restore 14
+ 373              		.loc 1 65 1 view .LVU70
+ 374 0024 7047     		bx	lr
+ 375              	.L36:
+ 376 0026 00BF     		.align	2
+ 377              	.L35:
+ 378 0028 00000000 		.word	_ZL15g_socdWarnPopup
+ 379              		.cfi_endproc
+ 380              	.LFE2176:
+ 382              		.section	.rodata._Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.4,"aMS",%progb
+ 383              		.align	2
+ 384              	.LC1:
+ 385 0000 534F4344 		.ascii	"SOCD\000"
+ 385      00
+ 386              		.section	.text._Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+ 387              		.align	1
+ 388              		.global	_Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 389              		.syntax unified
+ 390              		.thumb
+ 391              		.thumb_func
+ 393              	_Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+ 394              	.LVL30:
+ 395              	.LFB2177:
+  66:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  67:Src/display/screen_control/spi_screen_detail_socd.cpp **** void ScreenDetailSocd_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
+ 396              		.loc 1 67 93 is_stmt 1 view -0
+ 397              		.cfi_startproc
+ 398              		@ args = 0, pretend = 0, frame = 0
+ 399              		@ frame_needed = 0, uses_anonymous_args = 0
+ 400              		.loc 1 67 93 is_stmt 0 view .LVU72
+ 401 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 402              	.LCFI10:
+ 403              		.cfi_def_cfa_offset 20
+ 404              		.cfi_offset 4, -20
+ 405              		.cfi_offset 5, -16
+ 406              		.cfi_offset 6, -12
+ 407              		.cfi_offset 7, -8
+ 408              		.cfi_offset 14, -4
+ 409 0002 8BB0     		sub	sp, sp, #44
+ 410              	.LCFI11:
+ 411              		.cfi_def_cfa_offset 64
+ 412 0004 0446     		mov	r4, r0
+ 413 0006 0F46     		mov	r7, r1
+ 414 0008 1546     		mov	r5, r2
+  68:Src/display/screen_control/spi_screen_detail_socd.cpp ****     ScreenTimedPopup_Update(&g_socdWarnPopup, HAL_GetTick());
+ 415              		.loc 1 68 5 is_stmt 1 view .LVU73
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 11
+
+
+ 416              		.loc 1 68 28 is_stmt 0 view .LVU74
+ 417 000a FFF7FEFF 		bl	HAL_GetTick
+ 418              	.LVL31:
+ 419              		.loc 1 68 28 discriminator 1 view .LVU75
+ 420 000e 124E     		ldr	r6, .L42
+ 421 0010 0146     		mov	r1, r0
+ 422 0012 3046     		mov	r0, r6
+ 423 0014 FFF7FEFF 		bl	_Z23ScreenTimedPopup_UpdateP16ScreenTimedPopupm
+ 424              	.LVL32:
+  69:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (ScreenTimedPopup_IsVisible(&g_socdWarnPopup)) {
+ 425              		.loc 1 69 5 is_stmt 1 view .LVU76
+ 426              		.loc 1 69 35 is_stmt 0 view .LVU77
+ 427 0018 3046     		mov	r0, r6
+ 428 001a FFF7FEFF 		bl	_Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup
+ 429              	.LVL33:
+ 430              		.loc 1 69 5 discriminator 1 view .LVU78
+ 431 001e A0B9     		cbnz	r0, .L41
+  70:Src/display/screen_control/spi_screen_detail_socd.cpp ****         ScreenTimedPopup_Render(&g_socdWarnPopup, lcd, style);
+  71:Src/display/screen_control/spi_screen_detail_socd.cpp ****         return;
+  72:Src/display/screen_control/spi_screen_detail_socd.cpp ****     }
+  73:Src/display/screen_control/spi_screen_detail_socd.cpp ****     uint8_t selected = current_socd_index();
+ 432              		.loc 1 73 5 is_stmt 1 view .LVU79
+ 433              		.loc 1 73 42 is_stmt 0 view .LVU80
+ 434 0020 FFF7FEFF 		bl	_ZL18current_socd_indexv
+ 435              	.LVL34:
+  74:Src/display/screen_control/spi_screen_detail_socd.cpp ****     ScreenDetailRender_List(lcd, "SOCD", kSocdLabels, (uint8_t)(sizeof(kSocdLabels) / sizeof(kSocdL
+ 436              		.loc 1 74 5 is_stmt 1 view .LVU81
+ 437              		.loc 1 74 28 is_stmt 0 view .LVU82
+ 438 0024 0023     		movs	r3, #0
+ 439 0026 0893     		str	r3, [sp, #32]
+ 440 0028 0793     		str	r3, [sp, #28]
+ 441 002a 0693     		str	r3, [sp, #24]
+ 442 002c 0593     		str	r3, [sp, #20]
+ 443 002e 0493     		str	r3, [sp, #16]
+ 444 0030 1C23     		movs	r3, #28
+ 445 0032 0393     		str	r3, [sp, #12]
+ 446 0034 0295     		str	r5, [sp, #8]
+ 447 0036 0190     		str	r0, [sp, #4]
+ 448 0038 0097     		str	r7, [sp]
+ 449 003a 0523     		movs	r3, #5
+ 450 003c 074A     		ldr	r2, .L42+4
+ 451 003e 0849     		ldr	r1, .L42+8
+ 452 0040 2046     		mov	r0, r4
+ 453              	.LVL35:
+ 454              		.loc 1 74 28 view .LVU83
+ 455 0042 FFF7FEFF 		bl	_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+ 456              	.LVL36:
+ 457              	.L37:
+  75:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 458              		.loc 1 75 1 view .LVU84
+ 459 0046 0BB0     		add	sp, sp, #44
+ 460              	.LCFI12:
+ 461              		.cfi_remember_state
+ 462              		.cfi_def_cfa_offset 20
+ 463              		@ sp needed
+ 464 0048 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 465              	.LVL37:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 12
+
+
+ 466              	.L41:
+ 467              	.LCFI13:
+ 468              		.cfi_restore_state
+  70:Src/display/screen_control/spi_screen_detail_socd.cpp ****         ScreenTimedPopup_Render(&g_socdWarnPopup, lcd, style);
+ 469              		.loc 1 70 9 is_stmt 1 view .LVU85
+  70:Src/display/screen_control/spi_screen_detail_socd.cpp ****         ScreenTimedPopup_Render(&g_socdWarnPopup, lcd, style);
+ 470              		.loc 1 70 32 is_stmt 0 view .LVU86
+ 471 004a 2A46     		mov	r2, r5
+ 472 004c 2146     		mov	r1, r4
+ 473 004e 3046     		mov	r0, r6
+ 474 0050 FFF7FEFF 		bl	_Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle
+ 475              	.LVL38:
+  71:Src/display/screen_control/spi_screen_detail_socd.cpp ****     }
+ 476              		.loc 1 71 9 is_stmt 1 view .LVU87
+ 477 0054 F7E7     		b	.L37
+ 478              	.L43:
+ 479 0056 00BF     		.align	2
+ 480              	.L42:
+ 481 0058 00000000 		.word	_ZL15g_socdWarnPopup
+ 482 005c 00000000 		.word	_ZL11kSocdLabels
+ 483 0060 00000000 		.word	.LC1
+ 484              		.cfi_endproc
+ 485              	.LFE2177:
+ 487              		.section	.text._Z26ScreenDetailSocd_OnConfirmh,"ax",%progbits
+ 488              		.align	1
+ 489              		.global	_Z26ScreenDetailSocd_OnConfirmh
+ 490              		.syntax unified
+ 491              		.thumb
+ 492              		.thumb_func
+ 494              	_Z26ScreenDetailSocd_OnConfirmh:
+ 495              	.LVL39:
+ 496              	.LFB2178:
+  76:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  77:Src/display/screen_control/spi_screen_detail_socd.cpp **** void ScreenDetailSocd_OnConfirm(uint8_t index) {
+ 497              		.loc 1 77 48 view -0
+ 498              		.cfi_startproc
+ 499              		@ args = 0, pretend = 0, frame = 0
+ 500              		@ frame_needed = 0, uses_anonymous_args = 0
+ 501              		.loc 1 77 48 is_stmt 0 view .LVU89
+ 502 0000 10B5     		push	{r4, lr}
+ 503              	.LCFI14:
+ 504              		.cfi_def_cfa_offset 8
+ 505              		.cfi_offset 4, -8
+ 506              		.cfi_offset 14, -4
+ 507 0002 0446     		mov	r4, r0
+  78:Src/display/screen_control/spi_screen_detail_socd.cpp ****     g_socd_should_exit_after_confirm = true;
+ 508              		.loc 1 78 5 is_stmt 1 view .LVU90
+ 509              		.loc 1 78 38 is_stmt 0 view .LVU91
+ 510 0004 124B     		ldr	r3, .L51
+ 511 0006 0122     		movs	r2, #1
+ 512 0008 1A70     		strb	r2, [r3]
+  79:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (ScreenTimedPopup_IsVisible(&g_socdWarnPopup)) {
+ 513              		.loc 1 79 5 is_stmt 1 view .LVU92
+ 514              		.loc 1 79 35 is_stmt 0 view .LVU93
+ 515 000a 1248     		ldr	r0, .L51+4
+ 516              	.LVL40:
+ 517              		.loc 1 79 35 view .LVU94
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 13
+
+
+ 518 000c FFF7FEFF 		bl	_Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup
+ 519              	.LVL41:
+ 520              		.loc 1 79 5 discriminator 1 view .LVU95
+ 521 0010 80B9     		cbnz	r0, .L49
+  80:Src/display/screen_control/spi_screen_detail_socd.cpp ****         ScreenTimedPopup_Close(&g_socdWarnPopup);
+  81:Src/display/screen_control/spi_screen_detail_socd.cpp ****         g_socd_should_exit_after_confirm = false;
+  82:Src/display/screen_control/spi_screen_detail_socd.cpp ****         return;
+  83:Src/display/screen_control/spi_screen_detail_socd.cpp ****     }
+  84:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (is_competition_profile_active() && index != (uint8_t)SOCDMode::SOCD_MODE_NEUTRAL) {
+ 522              		.loc 1 84 5 is_stmt 1 view .LVU96
+ 523              		.loc 1 84 38 is_stmt 0 view .LVU97
+ 524 0012 FFF7FEFF 		bl	_ZL29is_competition_profile_activev
+ 525              	.LVL42:
+ 526              		.loc 1 84 41 discriminator 1 view .LVU98
+ 527 0016 00B1     		cbz	r0, .L47
+ 528 0018 9CB9     		cbnz	r4, .L50
+ 529              	.L47:
+  85:Src/display/screen_control/spi_screen_detail_socd.cpp ****         show_socd_competition_warning();
+  86:Src/display/screen_control/spi_screen_detail_socd.cpp ****         g_socd_should_exit_after_confirm = false;
+  87:Src/display/screen_control/spi_screen_detail_socd.cpp ****         return;
+  88:Src/display/screen_control/spi_screen_detail_socd.cpp ****     }
+  89:Src/display/screen_control/spi_screen_detail_socd.cpp ****     GamepadProfile* p = default_profile();
+ 530              		.loc 1 89 5 is_stmt 1 view .LVU99
+ 531              		.loc 1 89 40 is_stmt 0 view .LVU100
+ 532 001a FFF7FEFF 		bl	_ZL15default_profilev
+ 533              	.LVL43:
+  90:Src/display/screen_control/spi_screen_detail_socd.cpp ****     if (p && index < (uint8_t)NUM_SOCD_MODES) p->keysConfig.socdMode = (SOCDMode)index;
+ 534              		.loc 1 90 5 is_stmt 1 view .LVU101
+ 535              		.loc 1 90 9 is_stmt 0 view .LVU102
+ 536 001e 0346     		mov	r3, r0
+ 537              		.loc 1 90 11 view .LVU103
+ 538 0020 0038     		subs	r0, r0, #0
+ 539              	.LVL44:
+ 540              		.loc 1 90 11 view .LVU104
+ 541 0022 18BF     		it	ne
+ 542 0024 0120     		movne	r0, #1
+ 543 0026 042C     		cmp	r4, #4
+ 544 0028 88BF     		it	hi
+ 545 002a 0020     		movhi	r0, #0
+ 546              		.loc 1 90 5 view .LVU105
+ 547 002c 40B1     		cbz	r0, .L44
+ 548              		.loc 1 90 47 is_stmt 1 discriminator 1 view .LVU106
+ 549              		.loc 1 90 70 is_stmt 0 discriminator 1 view .LVU107
+ 550 002e 83F82C40 		strb	r4, [r3, #44]
+ 551 0032 05E0     		b	.L44
+ 552              	.LVL45:
+ 553              	.L49:
+  80:Src/display/screen_control/spi_screen_detail_socd.cpp ****         ScreenTimedPopup_Close(&g_socdWarnPopup);
+ 554              		.loc 1 80 9 is_stmt 1 view .LVU108
+  80:Src/display/screen_control/spi_screen_detail_socd.cpp ****         ScreenTimedPopup_Close(&g_socdWarnPopup);
+ 555              		.loc 1 80 31 is_stmt 0 view .LVU109
+ 556 0034 0748     		ldr	r0, .L51+4
+ 557 0036 FFF7FEFF 		bl	_Z22ScreenTimedPopup_CloseP16ScreenTimedPopup
+ 558              	.LVL46:
+  81:Src/display/screen_control/spi_screen_detail_socd.cpp ****         return;
+ 559              		.loc 1 81 9 is_stmt 1 view .LVU110
+  81:Src/display/screen_control/spi_screen_detail_socd.cpp ****         return;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 14
+
+
+ 560              		.loc 1 81 42 is_stmt 0 view .LVU111
+ 561 003a 054B     		ldr	r3, .L51
+ 562 003c 0022     		movs	r2, #0
+ 563 003e 1A70     		strb	r2, [r3]
+  82:Src/display/screen_control/spi_screen_detail_socd.cpp ****     }
+ 564              		.loc 1 82 9 is_stmt 1 view .LVU112
+ 565              	.L44:
+  91:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 566              		.loc 1 91 1 is_stmt 0 view .LVU113
+ 567 0040 10BD     		pop	{r4, pc}
+ 568              	.LVL47:
+ 569              	.L50:
+  85:Src/display/screen_control/spi_screen_detail_socd.cpp ****         g_socd_should_exit_after_confirm = false;
+ 570              		.loc 1 85 9 is_stmt 1 view .LVU114
+  85:Src/display/screen_control/spi_screen_detail_socd.cpp ****         g_socd_should_exit_after_confirm = false;
+ 571              		.loc 1 85 38 is_stmt 0 view .LVU115
+ 572 0042 FFF7FEFF 		bl	_ZL29show_socd_competition_warningv
+ 573              	.LVL48:
+  86:Src/display/screen_control/spi_screen_detail_socd.cpp ****         return;
+ 574              		.loc 1 86 9 is_stmt 1 view .LVU116
+  86:Src/display/screen_control/spi_screen_detail_socd.cpp ****         return;
+ 575              		.loc 1 86 42 is_stmt 0 view .LVU117
+ 576 0046 024B     		ldr	r3, .L51
+ 577 0048 0022     		movs	r2, #0
+ 578 004a 1A70     		strb	r2, [r3]
+  87:Src/display/screen_control/spi_screen_detail_socd.cpp ****     }
+ 579              		.loc 1 87 9 is_stmt 1 view .LVU118
+ 580 004c F8E7     		b	.L44
+ 581              	.L52:
+ 582 004e 00BF     		.align	2
+ 583              	.L51:
+ 584 0050 00000000 		.word	_ZL32g_socd_should_exit_after_confirm
+ 585 0054 00000000 		.word	_ZL15g_socdWarnPopup
+ 586              		.cfi_endproc
+ 587              	.LFE2178:
+ 589              		.section	.text._Z39ScreenDetailSocd_ShouldExitAfterConfirmv,"ax",%progbits
+ 590              		.align	1
+ 591              		.global	_Z39ScreenDetailSocd_ShouldExitAfterConfirmv
+ 592              		.syntax unified
+ 593              		.thumb
+ 594              		.thumb_func
+ 596              	_Z39ScreenDetailSocd_ShouldExitAfterConfirmv:
+ 597              	.LFB2179:
+  92:Src/display/screen_control/spi_screen_detail_socd.cpp **** 
+  93:Src/display/screen_control/spi_screen_detail_socd.cpp **** bool ScreenDetailSocd_ShouldExitAfterConfirm(void) {
+ 598              		.loc 1 93 52 view -0
+ 599              		.cfi_startproc
+ 600              		@ args = 0, pretend = 0, frame = 0
+ 601              		@ frame_needed = 0, uses_anonymous_args = 0
+ 602              		@ link register save eliminated.
+  94:Src/display/screen_control/spi_screen_detail_socd.cpp ****     return g_socd_should_exit_after_confirm;
+ 603              		.loc 1 94 5 view .LVU120
+  95:Src/display/screen_control/spi_screen_detail_socd.cpp **** }
+ 604              		.loc 1 95 1 is_stmt 0 view .LVU121
+ 605 0000 014B     		ldr	r3, .L54
+ 606 0002 1878     		ldrb	r0, [r3]	@ zero_extendqisi2
+ 607 0004 7047     		bx	lr
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 15
+
+
+ 608              	.L55:
+ 609 0006 00BF     		.align	2
+ 610              	.L54:
+ 611 0008 00000000 		.word	_ZL32g_socd_should_exit_after_confirm
+ 612              		.cfi_endproc
+ 613              	.LFE2179:
+ 615              		.section	.data._ZL32g_socd_should_exit_after_confirm,"aw"
+ 618              	_ZL32g_socd_should_exit_after_confirm:
+ 619 0000 01       		.byte	1
+ 620              		.section	.bss._ZL15g_socdWarnPopup,"aw",%nobits
+ 621              		.align	2
+ 624              	_ZL15g_socdWarnPopup:
+ 625 0000 00000000 		.space	20
+ 625      00000000 
+ 625      00000000 
+ 625      00000000 
+ 625      00000000 
+ 626              		.section	.rodata.str1.4,"aMS",%progbits,1
+ 627              		.align	2
+ 628              	.LC2:
+ 629 0000 436F6D70 		.ascii	"Competition\000"
+ 629      65746974 
+ 629      696F6E00 
+ 630              		.align	2
+ 631              	.LC3:
+ 632 000c 534F4344 		.ascii	"SOCD must be Neutral\000"
+ 632      206D7573 
+ 632      74206265 
+ 632      204E6575 
+ 632      7472616C 
+ 633              		.section	.data._ZL14kSocdWarnLines,"aw"
+ 634              		.align	2
+ 637              	_ZL14kSocdWarnLines:
+ 638 0000 00000000 		.word	.LC2
+ 639 0004 0C000000 		.word	.LC3
+ 640              		.section	.rodata.str1.4
+ 641 0021 000000   		.align	2
+ 642              	.LC4:
+ 643 0024 4E657574 		.ascii	"Neutral\000"
+ 643      72616C00 
+ 644              		.align	2
+ 645              	.LC5:
+ 646 002c 55702050 		.ascii	"Up Priority\000"
+ 646      72696F72 
+ 646      69747900 
+ 647              		.align	2
+ 648              	.LC6:
+ 649 0038 5365636F 		.ascii	"Second Input\000"
+ 649      6E642049 
+ 649      6E707574 
+ 649      00
+ 650 0045 000000   		.align	2
+ 651              	.LC7:
+ 652 0048 46697273 		.ascii	"First Input\000"
+ 652      7420496E 
+ 652      70757400 
+ 653              		.align	2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 16
+
+
+ 654              	.LC8:
+ 655 0054 42797061 		.ascii	"Bypass\000"
+ 655      737300
+ 656              		.section	.data._ZL11kSocdLabels,"aw"
+ 657              		.align	2
+ 660              	_ZL11kSocdLabels:
+ 661 0000 24000000 		.word	.LC4
+ 662 0004 2C000000 		.word	.LC5
+ 663 0008 38000000 		.word	.LC6
+ 664 000c 48000000 		.word	.LC7
+ 665 0010 54000000 		.word	.LC8
+ 666              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 667              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 668              		.align	2
+ 671              	_ZGVZN7Storage11getInstanceEvE8instance:
+ 672 0000 00000000 		.space	4
+ 673              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 674              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 675              		.align	2
+ 678              	_ZZN7Storage11getInstanceEvE8instance:
+ 679 0000 00000000 		.space	36484
+ 679      00000000 
+ 679      00000000 
+ 679      00000000 
+ 679      00000000 
+ 680              		.text
+ 681              	.Letext0:
+ 682              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 683              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 684              		.file 5 "Inc/display/screen_control/spi_screen_layout.hpp"
+ 685              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 686              		.file 7 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 687              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 688              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 689              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 690              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 691              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 692              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 693              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 694              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 695              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 696              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 697              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 698              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 699              		.file 20 "Inc/system/board_cfg.h"
+ 700              		.file 21 "Inc/support/enums.hpp"
+ 701              		.file 22 "Inc/display/drivers/st7789/st7789.h"
+ 702              		.file 23 "Inc/power/power_config.hpp"
+ 703              		.file 24 "Inc/config/config.hpp"
+ 704              		.file 25 "Inc/display/screen_control/spi_screen_timed_popup.hpp"
+ 705              		.file 26 "Inc/display/screen_control/spi_screen_detail_render_helpers.hpp"
+ 706              		.file 27 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s 			page 17
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_socd.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:20     .rodata._ZL29show_socd_competition_warningv.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:24     .text._ZL29show_socd_competition_warningv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:29     .text._ZL29show_socd_competition_warningv:00000000 _ZL29show_socd_competition_warningv
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:65     .text._ZL29show_socd_competition_warningv:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:637    .data._ZL14kSocdWarnLines:00000000 _ZL14kSocdWarnLines
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:624    .bss._ZL15g_socdWarnPopup:00000000 _ZL15g_socdWarnPopup
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:72     .text._ZN7Storage11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:78     .text._ZN7Storage11getInstanceEv:00000000 _ZN7Storage11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:124    .text._ZN7Storage11getInstanceEv:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:671    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:678    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:130    .text._ZL15default_profilev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:135    .text._ZL15default_profilev:00000000 _ZL15default_profilev
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:168    .text._ZL18current_socd_indexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:173    .text._ZL18current_socd_indexv:00000000 _ZL18current_socd_indexv
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:219    .text._ZL29is_competition_profile_activev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:224    .text._ZL29is_competition_profile_activev:00000000 _ZL29is_competition_profile_activev
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:259    .text._Z26ScreenDetailSocd_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:265    .text._Z26ScreenDetailSocd_InitIndexv:00000000 _Z26ScreenDetailSocd_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:295    .text._Z26ScreenDetailSocd_InitIndexv:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:618    .data._ZL32g_socd_should_exit_after_confirm:00000000 _ZL32g_socd_should_exit_after_confirm
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:301    .text._Z23ScreenDetailSocd_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:307    .text._Z23ScreenDetailSocd_RotatePha:00000000 _Z23ScreenDetailSocd_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:378    .text._Z23ScreenDetailSocd_RotatePha:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:383    .rodata._Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:387    .text._Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:393    .text._Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:481    .text._Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000058 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:660    .data._ZL11kSocdLabels:00000000 _ZL11kSocdLabels
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:488    .text._Z26ScreenDetailSocd_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:494    .text._Z26ScreenDetailSocd_OnConfirmh:00000000 _Z26ScreenDetailSocd_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:584    .text._Z26ScreenDetailSocd_OnConfirmh:00000050 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:590    .text._Z39ScreenDetailSocd_ShouldExitAfterConfirmv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:596    .text._Z39ScreenDetailSocd_ShouldExitAfterConfirmv:00000000 _Z39ScreenDetailSocd_ShouldExitAfterConfirmv
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:611    .text._Z39ScreenDetailSocd_ShouldExitAfterConfirmv:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:621    .bss._ZL15g_socdWarnPopup:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:627    .rodata.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:634    .data._ZL14kSocdWarnLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:657    .data._ZL11kSocdLabels:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:668    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccgi5WpI.s:675    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+HAL_GetTick
+_Z21ScreenTimedPopup_ShowP16ScreenTimedPopupPKcPKS2_hmm
+__cxa_guard_acquire
+__cxa_guard_release
+_ZN7Storage17getGamepadProfileEPc
+_Z22ScreenTimedPopup_ResetP16ScreenTimedPopup
+_Z26ScreenTimedPopup_IsVisiblePK16ScreenTimedPopup
+_Z23ScreenTimedPopup_UpdateP16ScreenTimedPopupm
+_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+_Z23ScreenTimedPopup_RenderPK16ScreenTimedPopupP13ST7789_HandleRK13ScreenUiStyle
+_Z22ScreenTimedPopup_CloseP16ScreenTimedPopup

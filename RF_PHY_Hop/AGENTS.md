@@ -13,6 +13,7 @@
 
 | 范围 | 入口 |
 |---|---|
+| TX / RX 模块协作规则 | [TX/AGENTS.md](TX/AGENTS.md)、[RX/AGENTS.md](RX/AGENTS.md)；修改对应模块前读取 |
 | TX RF 状态机 | [TX/APP/RF_PHY.c](TX/APP/RF_PHY.c) |
 | TX SPI 桥、DMA/ready、输入接纳 | [rfm_spi_bridge.c](TX/APP/rfm_spi_bridge.c)、[rfm_spi_port_ch585.c](TX/APP/rfm_spi_port_ch585.c)、[rfm_input_stream.c](TX/APP/rfm_input_stream.c) |
 | RX RF / USB 输入流水线 | [RX/APP/RF_PHY.c](RX/APP/RF_PHY.c)、[rx_pipeline_impl.inc](RX/APP/rx_pipeline_impl.inc)、[RF_USB_Composite.c](RX/APP/RF_USB_Composite.c) |

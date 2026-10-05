@@ -1,0 +1,766 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"tx_isp_state.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/system/states/tx_isp_state.cpp"
+  19              		.section	.text._ZN10TxIspStateD2Ev,"axG",%progbits,_ZN10TxIspStateD5Ev,comdat
+  20              		.align	1
+  21              		.weak	_ZN10TxIspStateD2Ev
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN10TxIspStateD2Ev:
+  27              	.LVL0:
+  28              	.LFB12:
+  29              		.file 2 "Inc/system/states/tx_isp_state.hpp"
+   1:Inc/system/states/tx_isp_state.hpp **** #pragma once
+   2:Inc/system/states/tx_isp_state.hpp **** #include "base_state.hpp"
+   3:Inc/system/states/tx_isp_state.hpp **** 
+   4:Inc/system/states/tx_isp_state.hpp **** // ROM ISP is owned by the external download tool, not the SPI updater.
+   5:Inc/system/states/tx_isp_state.hpp **** class TxIspState final : public BaseState {
+  30              		.loc 2 5 7 view -0
+  31              		.cfi_startproc
+  32              		@ args = 0, pretend = 0, frame = 0
+  33              		@ frame_needed = 0, uses_anonymous_args = 0
+  34              		@ link register save eliminated.
+  35              	.LBB27:
+  36              		.loc 2 5 7 is_stmt 0 view .LVU1
+  37 0000 024A     		ldr	r2, .L2
+  38 0002 0260     		str	r2, [r0]
+  39              	.LVL1:
+  40              	.LBB28:
+  41              	.LBI28:
+  42              		.file 3 "Inc/system/states/base_state.hpp"
+   1:Inc/system/states/base_state.hpp **** #ifndef __BASE_STATE_H__
+   2:Inc/system/states/base_state.hpp **** #define __BASE_STATE_H__
+   3:Inc/system/states/base_state.hpp **** 
+   4:Inc/system/states/base_state.hpp **** class BaseState {
+   5:Inc/system/states/base_state.hpp ****     public:
+   6:Inc/system/states/base_state.hpp ****         virtual ~BaseState() = default;
+  43              		.loc 3 6 17 is_stmt 1 view .LVU2
+  44              	.LBB29:
+  45 0004 024A     		ldr	r2, .L2+4
+  46 0006 0260     		str	r2, [r0]
+  47              	.LVL2:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 2
+
+
+  48              		.loc 3 6 17 is_stmt 0 view .LVU3
+  49              	.LBE29:
+  50              	.LBE28:
+  51              	.LBE27:
+  52              		.loc 2 5 7 view .LVU4
+  53 0008 7047     		bx	lr
+  54              	.L3:
+  55 000a 00BF     		.align	2
+  56              	.L2:
+  57 000c 08000000 		.word	_ZTV10TxIspState+8
+  58 0010 08000000 		.word	_ZTV9BaseState+8
+  59              		.cfi_endproc
+  60              	.LFE12:
+  62              		.weak	_ZN10TxIspStateD1Ev
+  63              		.thumb_set _ZN10TxIspStateD1Ev,_ZN10TxIspStateD2Ev
+  64              		.section	.text._ZN10TxIspState4tickEv,"ax",%progbits
+  65              		.align	1
+  66              		.global	_ZN10TxIspState4tickEv
+  67              		.syntax unified
+  68              		.thumb
+  69              		.thumb_func
+  71              	_ZN10TxIspState4tickEv:
+  72              	.LVL3:
+  73              	.LFB1344:
+   1:Src/system/states/tx_isp_state.cpp **** #include "states/tx_isp_state.hpp"
+   2:Src/system/states/tx_isp_state.cpp **** #include "board_cfg.h"
+   3:Src/system/states/tx_isp_state.cpp **** #include "board_power.hpp"
+   4:Src/system/states/tx_isp_state.cpp **** #include "ch585_role_bootstrap.hpp"
+   5:Src/system/states/tx_isp_state.cpp **** #include "usb_board_link.hpp"
+   6:Src/system/states/tx_isp_state.cpp **** #include "usb_board_link_port.hpp"
+   7:Src/system/states/tx_isp_state.cpp **** #include "rf_bridge_port.hpp"
+   8:Src/system/states/tx_isp_state.cpp **** #include "system_sleep_manager.hpp"
+   9:Src/system/states/tx_isp_state.cpp **** #include "screen_control/spi_screen_manager.hpp"
+  10:Src/system/states/tx_isp_state.cpp **** #include "system_logger.h"
+  11:Src/system/states/tx_isp_state.cpp **** #include "stm32h7xx_hal.h"
+  12:Src/system/states/tx_isp_state.cpp **** 
+  13:Src/system/states/tx_isp_state.cpp **** bool TxIspState::enter()
+  14:Src/system/states/tx_isp_state.cpp **** {
+  15:Src/system/states/tx_isp_state.cpp ****     // The dispatcher has already stopped the previous input/WebConfig owner.
+  16:Src/system/states/tx_isp_state.cpp ****     SystemSleep_CancelForModeChange();
+  17:Src/system/states/tx_isp_state.cpp ****     USB_BOARD_LINK.shutdown();
+  18:Src/system/states/tx_isp_state.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+  19:Src/system/states/tx_isp_state.cpp ****     RFBridgePort_Shutdown();
+  20:Src/system/states/tx_isp_state.cpp ****     BOARD_POWER.enterRecoveryUiState();
+  21:Src/system/states/tx_isp_state.cpp ****     if (!USBBoardLinkPort_TryShutdown()) return false;
+  22:Src/system/states/tx_isp_state.cpp **** 
+  23:Src/system/states/tx_isp_state.cpp ****     __HAL_RCC_GPIOE_CLK_ENABLE();
+  24:Src/system/states/tx_isp_state.cpp ****     GPIO_InitTypeDef pins = {};
+  25:Src/system/states/tx_isp_state.cpp ****     pins.Pin = CH585_SPI_SCK_PIN | CH585_SPI_MOSI_PIN | CH585_SPI_MISO_PIN;
+  26:Src/system/states/tx_isp_state.cpp ****     pins.Mode = GPIO_MODE_ANALOG;
+  27:Src/system/states/tx_isp_state.cpp ****     pins.Pull = GPIO_NOPULL;
+  28:Src/system/states/tx_isp_state.cpp ****     HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &pins);
+  29:Src/system/states/tx_isp_state.cpp ****     // Drive NSS inactive before changing its mode; no ROM ISP SPI commands.
+  30:Src/system/states/tx_isp_state.cpp ****     HAL_GPIO_WritePin(CH585_SPI_GPIO_PORT, CH585_SPI_NSS_PIN, GPIO_PIN_SET);
+  31:Src/system/states/tx_isp_state.cpp ****     pins.Pin = CH585_SPI_NSS_PIN;
+  32:Src/system/states/tx_isp_state.cpp ****     pins.Mode = GPIO_MODE_OUTPUT_PP;
+  33:Src/system/states/tx_isp_state.cpp ****     pins.Speed = GPIO_SPEED_FREQ_LOW;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 3
+
+
+  34:Src/system/states/tx_isp_state.cpp ****     HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &pins);
+  35:Src/system/states/tx_isp_state.cpp **** 
+  36:Src/system/states/tx_isp_state.cpp ****     // PB22 must already be grounded when the user confirms Start on the screen.
+  37:Src/system/states/tx_isp_state.cpp ****     HAL_Delay(CH585_POWER_OFF_MIN_MS);
+  38:Src/system/states/tx_isp_state.cpp ****     BOARD_POWER.setCh585Enabled(true);
+  39:Src/system/states/tx_isp_state.cpp ****     SPIScreenManager::getInstance().showTxIsp();
+  40:Src/system/states/tx_isp_state.cpp ****     APP_STAGE("ISP1", "TX ROM ISP supply held on; SPI parked; manual exit only");
+  41:Src/system/states/tx_isp_state.cpp ****     return true;
+  42:Src/system/states/tx_isp_state.cpp **** }
+  43:Src/system/states/tx_isp_state.cpp **** 
+  44:Src/system/states/tx_isp_state.cpp **** void TxIspState::tick()
+  45:Src/system/states/tx_isp_state.cpp **** {
+  74              		.loc 1 45 1 is_stmt 1 view -0
+  75              		.cfi_startproc
+  76              		@ args = 0, pretend = 0, frame = 0
+  77              		@ frame_needed = 0, uses_anonymous_args = 0
+  78              		@ link register save eliminated.
+  46:Src/system/states/tx_isp_state.cpp ****     // No SPI polling, role selection, power retry, reset or automatic exit.
+  47:Src/system/states/tx_isp_state.cpp ****     // The common runtime continues to service only local screen and power telemetry.
+  48:Src/system/states/tx_isp_state.cpp **** }
+  79              		.loc 1 48 1 is_stmt 0 view .LVU6
+  80 0000 7047     		bx	lr
+  81              		.cfi_endproc
+  82              	.LFE1344:
+  84              		.section	.text._ZN10TxIspState4exitEv,"ax",%progbits
+  85              		.align	1
+  86              		.global	_ZN10TxIspState4exitEv
+  87              		.syntax unified
+  88              		.thumb
+  89              		.thumb_func
+  91              	_ZN10TxIspState4exitEv:
+  92              	.LVL4:
+  93              	.LFB1345:
+  49:Src/system/states/tx_isp_state.cpp **** 
+  50:Src/system/states/tx_isp_state.cpp **** void TxIspState::exit()
+  51:Src/system/states/tx_isp_state.cpp **** {
+  94              		.loc 1 51 1 is_stmt 1 view -0
+  95              		.cfi_startproc
+  96              		@ args = 0, pretend = 0, frame = 0
+  97              		@ frame_needed = 0, uses_anonymous_args = 0
+  98              		.loc 1 51 1 is_stmt 0 view .LVU8
+  99 0000 08B5     		push	{r3, lr}
+ 100              	.LCFI0:
+ 101              		.cfi_def_cfa_offset 8
+ 102              		.cfi_offset 3, -8
+ 103              		.cfi_offset 14, -4
+  52:Src/system/states/tx_isp_state.cpp ****     // Only a confirmed screen exit reaches this point. Remove PB22 first.
+  53:Src/system/states/tx_isp_state.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 104              		.loc 1 53 5 is_stmt 1 view .LVU9
+ 105              	.LBB30:
+ 106              	.LBI30:
+ 107              		.file 4 "Inc/power/board_power.hpp"
+   1:Inc/power/board_power.hpp **** #ifndef BOARD_POWER_HPP
+   2:Inc/power/board_power.hpp **** #define BOARD_POWER_HPP
+   3:Inc/power/board_power.hpp **** 
+   4:Inc/power/board_power.hpp **** #include <stdbool.h>
+   5:Inc/power/board_power.hpp **** #include <stdint.h>
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 4
+
+
+   6:Inc/power/board_power.hpp **** 
+   7:Inc/power/board_power.hpp **** #ifdef __cplusplus
+   8:Inc/power/board_power.hpp **** extern "C" {
+   9:Inc/power/board_power.hpp **** #endif
+  10:Inc/power/board_power.hpp **** 
+  11:Inc/power/board_power.hpp **** /*
+  12:Inc/power/board_power.hpp ****  * Re-asserts PI4 without changing any other rail.  The bootloader leaves PI4
+  13:Inc/power/board_power.hpp ****  * high before jumping to the XIP application; this hook preserves that state
+  14:Inc/power/board_power.hpp ****  * as the application runtime is brought up.
+  15:Inc/power/board_power.hpp ****  */
+  16:Inc/power/board_power.hpp **** void BoardPower_EarlyMainHold(void);
+  17:Inc/power/board_power.hpp **** 
+  18:Inc/power/board_power.hpp **** /* Configures all board power-control pins to their fail-safe defaults. */
+  19:Inc/power/board_power.hpp **** void BoardPower_Initialize(void);
+  20:Inc/power/board_power.hpp **** void BoardPower_SetChargeEnabled(bool enabled);
+  21:Inc/power/board_power.hpp **** void BoardPower_SetHallEnabled(bool enabled);
+  22:Inc/power/board_power.hpp **** void BoardPower_EnableHallForAdc(void);
+  23:Inc/power/board_power.hpp **** void BoardPower_SetKeyLedEnabled(bool enabled);
+  24:Inc/power/board_power.hpp **** void BoardPower_SetAmbientLedEnabled(bool enabled);
+  25:Inc/power/board_power.hpp **** void BoardPower_SetLcdEnabled(bool enabled);
+  26:Inc/power/board_power.hpp **** 
+  27:Inc/power/board_power.hpp **** #ifdef __cplusplus
+  28:Inc/power/board_power.hpp **** }
+  29:Inc/power/board_power.hpp **** 
+  30:Inc/power/board_power.hpp **** class BoardPower {
+  31:Inc/power/board_power.hpp **** public:
+  32:Inc/power/board_power.hpp ****     BoardPower(const BoardPower&) = delete;
+  33:Inc/power/board_power.hpp ****     BoardPower& operator=(const BoardPower&) = delete;
+  34:Inc/power/board_power.hpp **** 
+  35:Inc/power/board_power.hpp ****     static BoardPower& getInstance()
+ 108              		.loc 4 35 24 view .LVU10
+  36:Inc/power/board_power.hpp ****     {
+  37:Inc/power/board_power.hpp ****         static BoardPower instance;
+ 109              		.loc 4 37 9 view .LVU11
+  38:Inc/power/board_power.hpp ****         return instance;
+ 110              		.loc 4 38 9 view .LVU12
+ 111              	.LBE30:
+ 112              		.loc 1 53 32 is_stmt 0 discriminator 1 view .LVU13
+ 113 0002 0021     		movs	r1, #0
+ 114 0004 0148     		ldr	r0, .L7
+ 115              	.LVL5:
+ 116              		.loc 1 53 32 discriminator 1 view .LVU14
+ 117 0006 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 118              	.LVL6:
+  54:Src/system/states/tx_isp_state.cpp ****     APP_STAGE("ISP2", "TX ROM ISP state exited; normal runtime will select its role");
+ 119              		.loc 1 54 5 is_stmt 1 view .LVU15
+  55:Src/system/states/tx_isp_state.cpp **** }
+ 120              		.loc 1 55 1 is_stmt 0 view .LVU16
+ 121 000a 08BD     		pop	{r3, pc}
+ 122              	.L8:
+ 123              		.align	2
+ 124              	.L7:
+ 125 000c 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 126              		.cfi_endproc
+ 127              	.LFE1345:
+ 129              		.section	.text._ZN10TxIspState5enterEv,"ax",%progbits
+ 130              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 5
+
+
+ 131              		.global	_ZN10TxIspState5enterEv
+ 132              		.syntax unified
+ 133              		.thumb
+ 134              		.thumb_func
+ 136              	_ZN10TxIspState5enterEv:
+ 137              	.LVL7:
+ 138              	.LFB1343:
+  14:Src/system/states/tx_isp_state.cpp ****     // The dispatcher has already stopped the previous input/WebConfig owner.
+ 139              		.loc 1 14 1 is_stmt 1 view -0
+ 140              		.cfi_startproc
+ 141              		@ args = 0, pretend = 0, frame = 24
+ 142              		@ frame_needed = 0, uses_anonymous_args = 0
+  14:Src/system/states/tx_isp_state.cpp ****     // The dispatcher has already stopped the previous input/WebConfig owner.
+ 143              		.loc 1 14 1 is_stmt 0 view .LVU18
+ 144 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 145              	.LCFI1:
+ 146              		.cfi_def_cfa_offset 20
+ 147              		.cfi_offset 4, -20
+ 148              		.cfi_offset 5, -16
+ 149              		.cfi_offset 6, -12
+ 150              		.cfi_offset 7, -8
+ 151              		.cfi_offset 14, -4
+ 152 0002 87B0     		sub	sp, sp, #28
+ 153              	.LCFI2:
+ 154              		.cfi_def_cfa_offset 48
+  16:Src/system/states/tx_isp_state.cpp ****     USB_BOARD_LINK.shutdown();
+ 155              		.loc 1 16 5 is_stmt 1 view .LVU19
+  16:Src/system/states/tx_isp_state.cpp ****     USB_BOARD_LINK.shutdown();
+ 156              		.loc 1 16 36 is_stmt 0 view .LVU20
+ 157 0004 FFF7FEFF 		bl	SystemSleep_CancelForModeChange
+ 158              	.LVL8:
+  17:Src/system/states/tx_isp_state.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 159              		.loc 1 17 5 is_stmt 1 view .LVU21
+ 160              	.LBB31:
+ 161              	.LBI31:
+ 162              		.file 5 "Inc/transport/usb/usb_board_link.hpp"
+   1:Inc/transport/usb/usb_board_link.hpp **** #ifndef USB_BOARD_LINK_HPP
+   2:Inc/transport/usb/usb_board_link.hpp **** #define USB_BOARD_LINK_HPP
+   3:Inc/transport/usb/usb_board_link.hpp **** 
+   4:Inc/transport/usb/usb_board_link.hpp **** #include <stdint.h>
+   5:Inc/transport/usb/usb_board_link.hpp **** 
+   6:Inc/transport/usb/usb_board_link.hpp **** #include "ch585_role_bootstrap.hpp"
+   7:Inc/transport/usb/usb_board_link.hpp **** #include "usb_board_link_protocol.h"
+   8:Inc/transport/usb/usb_board_link.hpp **** #include "release_install_protocol.h"
+   9:Inc/transport/usb/usb_board_link.hpp **** 
+  10:Inc/transport/usb/usb_board_link.hpp **** class UsbBoardLink
+  11:Inc/transport/usb/usb_board_link.hpp **** {
+  12:Inc/transport/usb/usb_board_link.hpp **** public:
+  13:Inc/transport/usb/usb_board_link.hpp ****     UsbBoardLink(UsbBoardLink const &) = delete;
+  14:Inc/transport/usb/usb_board_link.hpp ****     void operator=(UsbBoardLink const &) = delete;
+  15:Inc/transport/usb/usb_board_link.hpp **** 
+  16:Inc/transport/usb/usb_board_link.hpp ****     static UsbBoardLink &getInstance()
+ 163              		.loc 5 16 26 view .LVU22
+  17:Inc/transport/usb/usb_board_link.hpp ****     {
+  18:Inc/transport/usb/usb_board_link.hpp ****         static UsbBoardLink instance;
+ 164              		.loc 5 18 9 view .LVU23
+  19:Inc/transport/usb/usb_board_link.hpp ****         return instance;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 6
+
+
+ 165              		.loc 5 19 9 view .LVU24
+ 166              	.LBE31:
+  17:Src/system/states/tx_isp_state.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 167              		.loc 1 17 28 is_stmt 0 discriminator 1 view .LVU25
+ 168 0008 2448     		ldr	r0, .L13
+ 169 000a FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 170              	.LVL9:
+  18:Src/system/states/tx_isp_state.cpp ****     RFBridgePort_Shutdown();
+ 171              		.loc 1 18 5 is_stmt 1 view .LVU26
+ 172              	.LBB32:
+ 173              	.LBI32:
+ 174              		.file 6 "Inc/transport/ch585_role_bootstrap.hpp"
+   1:Inc/transport/ch585_role_bootstrap.hpp **** #ifndef CH585_ROLE_BOOTSTRAP_HPP
+   2:Inc/transport/ch585_role_bootstrap.hpp **** #define CH585_ROLE_BOOTSTRAP_HPP
+   3:Inc/transport/ch585_role_bootstrap.hpp **** 
+   4:Inc/transport/ch585_role_bootstrap.hpp **** #include <stdint.h>
+   5:Inc/transport/ch585_role_bootstrap.hpp **** 
+   6:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585Role : uint8_t {
+   7:Inc/transport/ch585_role_bootstrap.hpp ****     SafeIdle = 0x00,
+   8:Inc/transport/ch585_role_bootstrap.hpp ****     Rf = 0x01,
+   9:Inc/transport/ch585_role_bootstrap.hpp ****     Usb = 0x02,
+  10:Inc/transport/ch585_role_bootstrap.hpp ****     Maintenance = 0x03,
+  11:Inc/transport/ch585_role_bootstrap.hpp **** };
+  12:Inc/transport/ch585_role_bootstrap.hpp **** 
+  13:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585BootstrapState : uint8_t {
+  14:Inc/transport/ch585_role_bootstrap.hpp ****     Off = 0,
+  15:Inc/transport/ch585_role_bootstrap.hpp ****     Booting = 1,
+  16:Inc/transport/ch585_role_bootstrap.hpp ****     Selecting = 2,
+  17:Inc/transport/ch585_role_bootstrap.hpp ****     Locked = 3,
+  18:Inc/transport/ch585_role_bootstrap.hpp ****     Failed = 4,
+  19:Inc/transport/ch585_role_bootstrap.hpp **** };
+  20:Inc/transport/ch585_role_bootstrap.hpp **** enum class Ch585ResumeResult { Pending, Ready, Failed };
+  21:Inc/transport/ch585_role_bootstrap.hpp **** 
+  22:Inc/transport/ch585_role_bootstrap.hpp **** /* One invocation performs one UsbBoardLink SELECT_ROLE transaction. */
+  23:Inc/transport/ch585_role_bootstrap.hpp **** using Ch585RoleSelector = bool (*)(Ch585Role requestedRole);
+  24:Inc/transport/ch585_role_bootstrap.hpp **** 
+  25:Inc/transport/ch585_role_bootstrap.hpp **** class Ch585RoleBootstrap {
+  26:Inc/transport/ch585_role_bootstrap.hpp **** public:
+  27:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap(const Ch585RoleBootstrap&) = delete;
+  28:Inc/transport/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap& operator=(const Ch585RoleBootstrap&) = delete;
+  29:Inc/transport/ch585_role_bootstrap.hpp **** 
+  30:Inc/transport/ch585_role_bootstrap.hpp ****     static Ch585RoleBootstrap& getInstance()
+ 175              		.loc 6 30 32 view .LVU27
+  31:Inc/transport/ch585_role_bootstrap.hpp ****     {
+  32:Inc/transport/ch585_role_bootstrap.hpp ****         static Ch585RoleBootstrap instance;
+ 176              		.loc 6 32 9 view .LVU28
+  33:Inc/transport/ch585_role_bootstrap.hpp ****         return instance;
+ 177              		.loc 6 33 9 view .LVU29
+ 178              	.LBE32:
+  18:Src/system/states/tx_isp_state.cpp ****     RFBridgePort_Shutdown();
+ 179              		.loc 1 18 34 is_stmt 0 discriminator 1 view .LVU30
+ 180 000e 2448     		ldr	r0, .L13+4
+ 181 0010 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 182              	.LVL10:
+  19:Src/system/states/tx_isp_state.cpp ****     BOARD_POWER.enterRecoveryUiState();
+ 183              		.loc 1 19 5 is_stmt 1 view .LVU31
+  19:Src/system/states/tx_isp_state.cpp ****     BOARD_POWER.enterRecoveryUiState();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 7
+
+
+ 184              		.loc 1 19 26 is_stmt 0 view .LVU32
+ 185 0014 FFF7FEFF 		bl	_Z21RFBridgePort_Shutdownv
+ 186              	.LVL11:
+  20:Src/system/states/tx_isp_state.cpp ****     if (!USBBoardLinkPort_TryShutdown()) return false;
+ 187              		.loc 1 20 5 is_stmt 1 view .LVU33
+ 188              	.LBB33:
+ 189              	.LBI33:
+  35:Inc/power/board_power.hpp ****     {
+ 190              		.loc 4 35 24 view .LVU34
+  37:Inc/power/board_power.hpp ****         return instance;
+ 191              		.loc 4 37 9 view .LVU35
+ 192              		.loc 4 38 9 view .LVU36
+ 193              	.LBE33:
+  20:Src/system/states/tx_isp_state.cpp ****     if (!USBBoardLinkPort_TryShutdown()) return false;
+ 194              		.loc 1 20 37 is_stmt 0 discriminator 1 view .LVU37
+ 195 0018 2248     		ldr	r0, .L13+8
+ 196 001a FFF7FEFF 		bl	_ZN10BoardPower20enterRecoveryUiStateEv
+ 197              	.LVL12:
+  21:Src/system/states/tx_isp_state.cpp **** 
+ 198              		.loc 1 21 5 is_stmt 1 view .LVU38
+  21:Src/system/states/tx_isp_state.cpp **** 
+ 199              		.loc 1 21 38 is_stmt 0 view .LVU39
+ 200 001e FFF7FEFF 		bl	_Z28USBBoardLinkPort_TryShutdownv
+ 201              	.LVL13:
+  21:Src/system/states/tx_isp_state.cpp **** 
+ 202              		.loc 1 21 5 discriminator 1 view .LVU40
+ 203 0022 0546     		mov	r5, r0
+ 204 0024 10B9     		cbnz	r0, .L12
+ 205              	.L10:
+  42:Src/system/states/tx_isp_state.cpp **** 
+ 206              		.loc 1 42 1 view .LVU41
+ 207 0026 2846     		mov	r0, r5
+ 208 0028 07B0     		add	sp, sp, #28
+ 209              	.LCFI3:
+ 210              		.cfi_remember_state
+ 211              		.cfi_def_cfa_offset 20
+ 212              		@ sp needed
+ 213 002a F0BD     		pop	{r4, r5, r6, r7, pc}
+ 214              	.L12:
+ 215              	.LCFI4:
+ 216              		.cfi_restore_state
+  23:Src/system/states/tx_isp_state.cpp ****     GPIO_InitTypeDef pins = {};
+ 217              		.loc 1 23 5 is_stmt 1 view .LVU42
+ 218              	.LBB34:
+  23:Src/system/states/tx_isp_state.cpp ****     GPIO_InitTypeDef pins = {};
+ 219              		.loc 1 23 5 view .LVU43
+  23:Src/system/states/tx_isp_state.cpp ****     GPIO_InitTypeDef pins = {};
+ 220              		.loc 1 23 5 view .LVU44
+ 221 002c 1E4B     		ldr	r3, .L13+12
+ 222 002e D3F8E020 		ldr	r2, [r3, #224]
+ 223 0032 42F01002 		orr	r2, r2, #16
+ 224 0036 C3F8E020 		str	r2, [r3, #224]
+  23:Src/system/states/tx_isp_state.cpp ****     GPIO_InitTypeDef pins = {};
+ 225              		.loc 1 23 5 view .LVU45
+ 226 003a D3F8E030 		ldr	r3, [r3, #224]
+ 227 003e 03F01003 		and	r3, r3, #16
+ 228 0042 0093     		str	r3, [sp]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 8
+
+
+  23:Src/system/states/tx_isp_state.cpp ****     GPIO_InitTypeDef pins = {};
+ 229              		.loc 1 23 5 view .LVU46
+ 230 0044 009B     		ldr	r3, [sp]
+ 231              	.LBE34:
+  23:Src/system/states/tx_isp_state.cpp ****     GPIO_InitTypeDef pins = {};
+ 232              		.loc 1 23 5 view .LVU47
+  24:Src/system/states/tx_isp_state.cpp ****     pins.Pin = CH585_SPI_SCK_PIN | CH585_SPI_MOSI_PIN | CH585_SPI_MISO_PIN;
+ 233              		.loc 1 24 5 view .LVU48
+  24:Src/system/states/tx_isp_state.cpp ****     pins.Pin = CH585_SPI_SCK_PIN | CH585_SPI_MOSI_PIN | CH585_SPI_MISO_PIN;
+ 234              		.loc 1 24 22 is_stmt 0 view .LVU49
+ 235 0046 0024     		movs	r4, #0
+ 236 0048 0194     		str	r4, [sp, #4]
+ 237 004a 0294     		str	r4, [sp, #8]
+ 238 004c 0394     		str	r4, [sp, #12]
+ 239 004e 0494     		str	r4, [sp, #16]
+ 240 0050 0594     		str	r4, [sp, #20]
+  25:Src/system/states/tx_isp_state.cpp ****     pins.Mode = GPIO_MODE_ANALOG;
+ 241              		.loc 1 25 5 is_stmt 1 view .LVU50
+  25:Src/system/states/tx_isp_state.cpp ****     pins.Mode = GPIO_MODE_ANALOG;
+ 242              		.loc 1 25 14 is_stmt 0 view .LVU51
+ 243 0052 45F22003 		movw	r3, #20512
+ 244 0056 0193     		str	r3, [sp, #4]
+  26:Src/system/states/tx_isp_state.cpp ****     pins.Pull = GPIO_NOPULL;
+ 245              		.loc 1 26 5 is_stmt 1 view .LVU52
+  26:Src/system/states/tx_isp_state.cpp ****     pins.Pull = GPIO_NOPULL;
+ 246              		.loc 1 26 15 is_stmt 0 view .LVU53
+ 247 0058 0323     		movs	r3, #3
+ 248 005a 0293     		str	r3, [sp, #8]
+  27:Src/system/states/tx_isp_state.cpp ****     HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &pins);
+ 249              		.loc 1 27 5 is_stmt 1 view .LVU54
+  28:Src/system/states/tx_isp_state.cpp ****     // Drive NSS inactive before changing its mode; no ROM ISP SPI commands.
+ 250              		.loc 1 28 5 view .LVU55
+  28:Src/system/states/tx_isp_state.cpp ****     // Drive NSS inactive before changing its mode; no ROM ISP SPI commands.
+ 251              		.loc 1 28 18 is_stmt 0 view .LVU56
+ 252 005c 134E     		ldr	r6, .L13+16
+ 253 005e 01A9     		add	r1, sp, #4
+ 254 0060 3046     		mov	r0, r6
+ 255 0062 FFF7FEFF 		bl	HAL_GPIO_Init
+ 256              	.LVL14:
+  30:Src/system/states/tx_isp_state.cpp ****     pins.Pin = CH585_SPI_NSS_PIN;
+ 257              		.loc 1 30 5 is_stmt 1 view .LVU57
+  30:Src/system/states/tx_isp_state.cpp ****     pins.Pin = CH585_SPI_NSS_PIN;
+ 258              		.loc 1 30 22 is_stmt 0 view .LVU58
+ 259 0066 0122     		movs	r2, #1
+ 260 0068 4FF40061 		mov	r1, #2048
+ 261 006c 3046     		mov	r0, r6
+ 262 006e FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 263              	.LVL15:
+  31:Src/system/states/tx_isp_state.cpp ****     pins.Mode = GPIO_MODE_OUTPUT_PP;
+ 264              		.loc 1 31 5 is_stmt 1 view .LVU59
+  31:Src/system/states/tx_isp_state.cpp ****     pins.Mode = GPIO_MODE_OUTPUT_PP;
+ 265              		.loc 1 31 14 is_stmt 0 view .LVU60
+ 266 0072 4FF40063 		mov	r3, #2048
+ 267 0076 0193     		str	r3, [sp, #4]
+  32:Src/system/states/tx_isp_state.cpp ****     pins.Speed = GPIO_SPEED_FREQ_LOW;
+ 268              		.loc 1 32 5 is_stmt 1 view .LVU61
+  32:Src/system/states/tx_isp_state.cpp ****     pins.Speed = GPIO_SPEED_FREQ_LOW;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 9
+
+
+ 269              		.loc 1 32 15 is_stmt 0 view .LVU62
+ 270 0078 0127     		movs	r7, #1
+ 271 007a 0297     		str	r7, [sp, #8]
+  33:Src/system/states/tx_isp_state.cpp ****     HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &pins);
+ 272              		.loc 1 33 5 is_stmt 1 view .LVU63
+  33:Src/system/states/tx_isp_state.cpp ****     HAL_GPIO_Init(CH585_SPI_GPIO_PORT, &pins);
+ 273              		.loc 1 33 16 is_stmt 0 view .LVU64
+ 274 007c 0494     		str	r4, [sp, #16]
+  34:Src/system/states/tx_isp_state.cpp **** 
+ 275              		.loc 1 34 5 is_stmt 1 view .LVU65
+  34:Src/system/states/tx_isp_state.cpp **** 
+ 276              		.loc 1 34 18 is_stmt 0 view .LVU66
+ 277 007e 01A9     		add	r1, sp, #4
+ 278 0080 3046     		mov	r0, r6
+ 279 0082 FFF7FEFF 		bl	HAL_GPIO_Init
+ 280              	.LVL16:
+  37:Src/system/states/tx_isp_state.cpp ****     BOARD_POWER.setCh585Enabled(true);
+ 281              		.loc 1 37 5 is_stmt 1 view .LVU67
+  37:Src/system/states/tx_isp_state.cpp ****     BOARD_POWER.setCh585Enabled(true);
+ 282              		.loc 1 37 14 is_stmt 0 view .LVU68
+ 283 0086 1420     		movs	r0, #20
+ 284 0088 FFF7FEFF 		bl	HAL_Delay
+ 285              	.LVL17:
+  38:Src/system/states/tx_isp_state.cpp ****     SPIScreenManager::getInstance().showTxIsp();
+ 286              		.loc 1 38 5 is_stmt 1 view .LVU69
+ 287              	.LBB35:
+ 288              	.LBI35:
+  35:Inc/power/board_power.hpp ****     {
+ 289              		.loc 4 35 24 view .LVU70
+  37:Inc/power/board_power.hpp ****         return instance;
+ 290              		.loc 4 37 9 view .LVU71
+ 291              		.loc 4 38 9 view .LVU72
+ 292              	.LBE35:
+  38:Src/system/states/tx_isp_state.cpp ****     SPIScreenManager::getInstance().showTxIsp();
+ 293              		.loc 1 38 32 is_stmt 0 discriminator 1 view .LVU73
+ 294 008c 3946     		mov	r1, r7
+ 295 008e 0548     		ldr	r0, .L13+8
+ 296 0090 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 297              	.LVL18:
+  39:Src/system/states/tx_isp_state.cpp ****     APP_STAGE("ISP1", "TX ROM ISP supply held on; SPI parked; manual exit only");
+ 298              		.loc 1 39 5 is_stmt 1 view .LVU74
+ 299              	.LBB36:
+ 300              	.LBI36:
+ 301              		.file 7 "Inc/display/screen_control/spi_screen_manager.hpp"
+   1:Inc/display/screen_control/spi_screen_manager.hpp **** #ifndef SPI_SCREEN_MANAGER_HPP
+   2:Inc/display/screen_control/spi_screen_manager.hpp **** #define SPI_SCREEN_MANAGER_HPP
+   3:Inc/display/screen_control/spi_screen_manager.hpp **** 
+   4:Inc/display/screen_control/spi_screen_manager.hpp **** #include <stdint.h>
+   5:Inc/display/screen_control/spi_screen_manager.hpp **** 
+   6:Inc/display/screen_control/spi_screen_manager.hpp **** class SPIScreenManager {
+   7:Inc/display/screen_control/spi_screen_manager.hpp **** public:
+   8:Inc/display/screen_control/spi_screen_manager.hpp ****     SPIScreenManager(SPIScreenManager const&) = delete;
+   9:Inc/display/screen_control/spi_screen_manager.hpp ****     void operator=(SPIScreenManager const&) = delete;
+  10:Inc/display/screen_control/spi_screen_manager.hpp ****     static SPIScreenManager& getInstance() {
+ 302              		.loc 7 10 30 view .LVU75
+  11:Inc/display/screen_control/spi_screen_manager.hpp ****         static SPIScreenManager instance;
+ 303              		.loc 7 11 9 view .LVU76
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 10
+
+
+  12:Inc/display/screen_control/spi_screen_manager.hpp ****         return instance;
+ 304              		.loc 7 12 9 view .LVU77
+ 305              	.LBE36:
+  39:Src/system/states/tx_isp_state.cpp ****     APP_STAGE("ISP1", "TX ROM ISP supply held on; SPI parked; manual exit only");
+ 306              		.loc 1 39 46 is_stmt 0 discriminator 1 view .LVU78
+ 307 0094 0648     		ldr	r0, .L13+20
+ 308 0096 FFF7FEFF 		bl	_ZN16SPIScreenManager9showTxIspEv
+ 309              	.LVL19:
+  40:Src/system/states/tx_isp_state.cpp ****     return true;
+ 310              		.loc 1 40 5 is_stmt 1 view .LVU79
+  41:Src/system/states/tx_isp_state.cpp **** }
+ 311              		.loc 1 41 5 view .LVU80
+  41:Src/system/states/tx_isp_state.cpp **** }
+ 312              		.loc 1 41 12 is_stmt 0 view .LVU81
+ 313 009a C4E7     		b	.L10
+ 314              	.L14:
+ 315              		.align	2
+ 316              	.L13:
+ 317 009c 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 318 00a0 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 319 00a4 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 320 00a8 00440258 		.word	1476543488
+ 321 00ac 00100258 		.word	1476530176
+ 322 00b0 00000000 		.word	_ZZN16SPIScreenManager11getInstanceEvE8instance
+ 323              		.cfi_endproc
+ 324              	.LFE1343:
+ 326              		.section	.text._ZN10TxIspStateD0Ev,"axG",%progbits,_ZN10TxIspStateD5Ev,comdat
+ 327              		.align	1
+ 328              		.weak	_ZN10TxIspStateD0Ev
+ 329              		.syntax unified
+ 330              		.thumb
+ 331              		.thumb_func
+ 333              	_ZN10TxIspStateD0Ev:
+ 334              	.LVL20:
+ 335              	.LFB14:
+ 336              		.loc 2 5 7 is_stmt 1 view -0
+ 337              		.cfi_startproc
+ 338              		@ args = 0, pretend = 0, frame = 0
+ 339              		@ frame_needed = 0, uses_anonymous_args = 0
+ 340              		.loc 2 5 7 is_stmt 0 view .LVU83
+ 341 0000 10B5     		push	{r4, lr}
+ 342              	.LCFI5:
+ 343              		.cfi_def_cfa_offset 8
+ 344              		.cfi_offset 4, -8
+ 345              		.cfi_offset 14, -4
+ 346 0002 0446     		mov	r4, r0
+ 347              	.LVL21:
+ 348              	.LBB37:
+ 349              	.LBI37:
+ 350              		.loc 2 5 7 is_stmt 1 view .LVU84
+ 351              	.LBB38:
+ 352 0004 044B     		ldr	r3, .L17
+ 353 0006 0360     		str	r3, [r0]
+ 354              	.LVL22:
+ 355              	.LBB39:
+ 356              	.LBI39:
+ 357              		.loc 3 6 17 view .LVU85
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 11
+
+
+ 358              	.LBB40:
+ 359 0008 044B     		ldr	r3, .L17+4
+ 360 000a 0360     		str	r3, [r0]
+ 361              	.LVL23:
+ 362              		.loc 3 6 17 is_stmt 0 view .LVU86
+ 363              	.LBE40:
+ 364              	.LBE39:
+ 365              	.LBE38:
+ 366              	.LBE37:
+ 367              		.loc 2 5 7 discriminator 1 view .LVU87
+ 368 000c 0421     		movs	r1, #4
+ 369 000e FFF7FEFF 		bl	_ZdlPvj
+ 370              	.LVL24:
+ 371              		.loc 2 5 7 view .LVU88
+ 372 0012 2046     		mov	r0, r4
+ 373 0014 10BD     		pop	{r4, pc}
+ 374              	.LVL25:
+ 375              	.L18:
+ 376              		.loc 2 5 7 view .LVU89
+ 377 0016 00BF     		.align	2
+ 378              	.L17:
+ 379 0018 08000000 		.word	_ZTV10TxIspState+8
+ 380 001c 08000000 		.word	_ZTV9BaseState+8
+ 381              		.cfi_endproc
+ 382              	.LFE14:
+ 384              		.weak	_ZTV9BaseState
+ 385              		.section	.rodata._ZTV9BaseState,"aG",%progbits,_ZTV9BaseState,comdat
+ 386              		.align	2
+ 389              	_ZTV9BaseState:
+ 390 0000 00000000 		.word	0
+ 391 0004 00000000 		.word	0
+ 392 0008 00000000 		.word	0
+ 393 000c 00000000 		.word	0
+ 394 0010 00000000 		.word	__cxa_pure_virtual
+ 395 0014 00000000 		.word	__cxa_pure_virtual
+ 396 0018 00000000 		.word	__cxa_pure_virtual
+ 397              		.global	_ZTV10TxIspState
+ 398              		.section	.rodata._ZTV10TxIspState,"a"
+ 399              		.align	2
+ 402              	_ZTV10TxIspState:
+ 403 0000 00000000 		.word	0
+ 404 0004 00000000 		.word	0
+ 405 0008 00000000 		.word	_ZN10TxIspStateD1Ev
+ 406 000c 00000000 		.word	_ZN10TxIspStateD0Ev
+ 407 0010 00000000 		.word	_ZN10TxIspState5enterEv
+ 408 0014 00000000 		.word	_ZN10TxIspState4tickEv
+ 409 0018 00000000 		.word	_ZN10TxIspState4exitEv
+ 410              		.weak	_ZZN16SPIScreenManager11getInstanceEvE8instance
+ 411              		.section	.bss._ZZN16SPIScreenManager11getInstanceEvE8instance,"awG",%nobits,_ZZN16SPIScreenManager
+ 412              		.align	2
+ 415              	_ZZN16SPIScreenManager11getInstanceEvE8instance:
+ 416 0000 00000000 		.space	52
+ 416      00000000 
+ 416      00000000 
+ 416      00000000 
+ 416      00000000 
+ 417              		.weak	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 12
+
+
+ 418              		.section	.bss._ZZN12UsbBoardLink11getInstanceEvE8instance,"awG",%nobits,_ZZN12UsbBoardLink11getIns
+ 419              		.align	2
+ 422              	_ZZN12UsbBoardLink11getInstanceEvE8instance:
+ 423 0000 00000000 		.space	64
+ 423      00000000 
+ 423      00000000 
+ 423      00000000 
+ 423      00000000 
+ 424              		.weak	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 425              		.section	.bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance,"awG",%nobits,_ZZN18Ch585RoleBoots
+ 426              		.align	2
+ 429              	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:
+ 430 0000 00000000 		.space	20
+ 430      00000000 
+ 430      00000000 
+ 430      00000000 
+ 430      00000000 
+ 431              		.weak	_ZZN10BoardPower11getInstanceEvE8instance
+ 432              		.section	.data._ZZN10BoardPower11getInstanceEvE8instance,"awG",%progbits,_ZZN10BoardPower11getInst
+ 433              		.align	2
+ 436              	_ZZN10BoardPower11getInstanceEvE8instance:
+ 437 0000 00       		.byte	0
+ 438 0001 00       		.byte	0
+ 439 0002 00       		.byte	0
+ 440 0003 00       		.byte	0
+ 441 0004 00       		.byte	0
+ 442 0005 00       		.byte	0
+ 443 0006 00       		.byte	0
+ 444 0007 00       		.byte	0
+ 445 0008 00       		.byte	0
+ 446 0009 01       		.byte	1
+ 447 000a 00       		.byte	0
+ 448              		.weak	__cxa_pure_virtual
+ 449              		.text
+ 450              	.Letext0:
+ 451              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 452              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 453              		.file 10 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 454              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 455              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 456              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 457              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 458              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 459              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 460              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 461              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 462              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 463              		.file 20 "Inc/system/board_cfg.h"
+ 464              		.file 21 "../common/usb_board_link_protocol.h"
+ 465              		.file 22 "../common/release_install_protocol.h"
+ 466              		.file 23 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 467              		.file 24 "Inc/transport/usb/usb_board_link_port.hpp"
+ 468              		.file 25 "Inc/support/enums.hpp"
+ 469              		.file 26 "Inc/transport/rf/rf_bridge_port.hpp"
+ 470              		.file 27 "Inc/power/system_sleep_manager.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s 			page 13
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 tx_isp_state.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:20     .text._ZN10TxIspStateD2Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:26     .text._ZN10TxIspStateD2Ev:00000000 _ZN10TxIspStateD2Ev
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:57     .text._ZN10TxIspStateD2Ev:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:402    .rodata._ZTV10TxIspState:00000000 _ZTV10TxIspState
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:389    .rodata._ZTV9BaseState:00000000 _ZTV9BaseState
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:26     .text._ZN10TxIspStateD2Ev:00000000 _ZN10TxIspStateD1Ev
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:65     .text._ZN10TxIspState4tickEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:71     .text._ZN10TxIspState4tickEv:00000000 _ZN10TxIspState4tickEv
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:85     .text._ZN10TxIspState4exitEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:91     .text._ZN10TxIspState4exitEv:00000000 _ZN10TxIspState4exitEv
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:125    .text._ZN10TxIspState4exitEv:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:436    .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 _ZZN10BoardPower11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:130    .text._ZN10TxIspState5enterEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:136    .text._ZN10TxIspState5enterEv:00000000 _ZN10TxIspState5enterEv
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:317    .text._ZN10TxIspState5enterEv:0000009c $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:422    .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 _ZZN12UsbBoardLink11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:429    .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 _ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:415    .bss._ZZN16SPIScreenManager11getInstanceEvE8instance:00000000 _ZZN16SPIScreenManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:327    .text._ZN10TxIspStateD0Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:333    .text._ZN10TxIspStateD0Ev:00000000 _ZN10TxIspStateD0Ev
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:379    .text._ZN10TxIspStateD0Ev:00000018 $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:386    .rodata._ZTV9BaseState:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:399    .rodata._ZTV10TxIspState:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:412    .bss._ZZN16SPIScreenManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:419    .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:426    .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc7UpNUr.s:433    .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 $d
+                           .group:00000000 _ZN10TxIspStateD5Ev
+
+UNDEFINED SYMBOLS
+_ZN10BoardPower15setCh585EnabledEb
+SystemSleep_CancelForModeChange
+_ZN12UsbBoardLink8shutdownEv
+_ZN18Ch585RoleBootstrap8shutdownEv
+_Z21RFBridgePort_Shutdownv
+_ZN10BoardPower20enterRecoveryUiStateEv
+_Z28USBBoardLinkPort_TryShutdownv
+HAL_GPIO_Init
+HAL_GPIO_WritePin
+HAL_Delay
+_ZN16SPIScreenManager9showTxIspEv
+_ZdlPvj
+__cxa_pure_virtual

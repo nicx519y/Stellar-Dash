@@ -13,6 +13,15 @@ from tools.local_firmware_draft import final_stage_command, release_identity, sa
 
 
 class LocalFirmwareDraftCommandTests(unittest.TestCase):
+    def test_default_remote_server_and_explicit_local_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory); token = work / "token"; token.touch()
+            args = (work / "source", work / "key", work, "1.0.2", token)
+            _, command = final_stage_command(*args)
+            self.assertEqual(command[command.index("--server") + 1], "https://manager.st-dash.com")
+            _, command = final_stage_command(*args, server="http://localhost:3001")
+            self.assertEqual(command[command.index("--server") + 1], "http://localhost:3001")
+
     def test_local_token_save_replaces_old_token_without_backups(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "state"

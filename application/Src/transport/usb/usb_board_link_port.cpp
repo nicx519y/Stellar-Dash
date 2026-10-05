@@ -17,6 +17,10 @@
 extern "C" webhid_benchmark_snapshot_t g_webhid_benchmark;
 #endif
 
+// RF recovery's first unsuccessful physical role reply, retained across power
+// cycles. Header: magic, count, time, bytes, decoded, HAL result; then raw[14].
+alignas(32) volatile uint32_t g_rfRoleReplyDiagnostic[16] = {};
+
 #ifndef CH585_SPI_INSTANCE
 #define CH585_SPI_INSTANCE RF_BRIDGE_SPI_INSTANCE
 #define CH585_SPI_GPIO_PORT RF_BRIDGE_SPI_GPIO_PORT
@@ -611,6 +615,7 @@ bool USBBoardLinkPort_SelectRfRoleOnce()
         uint8_t raw[14] = {};
         uint8_t count = 0, start = 0, total = 0;
         bool valid = false;
+        HAL_StatusTypeDef ioResult = HAL_OK;
         Ch585ReadGuard read(CH585_LINE_USB);
         if (!read) return false;
         chipSelect(false);
@@ -619,8 +624,9 @@ bool USBBoardLinkPort_SelectRfRoleOnce()
             const uint32_t used = HAL_GetTick() - started;
             if (used >= budget) break;
             const uint32_t remaining = budget - used;
-            if (HAL_SPI_TransmitReceive(&s_hspi, &fill, &raw[count], 1u,
-                                       remaining < kSpiTimeoutMs ? remaining : kSpiTimeoutMs) != HAL_OK) break;
+            ioResult = HAL_SPI_TransmitReceive(&s_hspi, &fill, &raw[count], 1u,
+                                       remaining < kSpiTimeoutMs ? remaining : kSpiTimeoutMs);
+            if (ioResult != HAL_OK) break;
             ++count;
             if (!total && count >= 3u) {
                 const uint8_t at = count - 3u;
@@ -639,6 +645,20 @@ bool USBBoardLinkPort_SelectRfRoleOnce()
         }
         chipSelect(true);
         read.finish();
+        if (!valid) {
+            ++g_rfRoleReplyDiagnostic[1];
+            if (g_rfRoleReplyDiagnostic[0] == 0u) {
+                g_rfRoleReplyDiagnostic[0] = 0x52465232u;
+                g_rfRoleReplyDiagnostic[2] = HAL_GetTick();
+                g_rfRoleReplyDiagnostic[3] = count;
+                g_rfRoleReplyDiagnostic[4] = total;
+                g_rfRoleReplyDiagnostic[5] = ioResult;
+                for (uint8_t i = 0; i < sizeof(raw); ++i)
+                    reinterpret_cast<volatile uint8_t*>(&g_rfRoleReplyDiagnostic[6])[i] = raw[i];
+            }
+            SCB_CleanDCache_by_Addr((uint32_t*)g_rfRoleReplyDiagnostic, sizeof(g_rfRoleReplyDiagnostic));
+            __DSB();
+        }
         const uint32_t elapsed = HAL_GetTick() - started;
         if (elapsed < budget) {
             const uint32_t left = budget - elapsed;

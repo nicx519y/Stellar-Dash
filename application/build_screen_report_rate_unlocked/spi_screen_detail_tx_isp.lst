@@ -1,0 +1,713 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_tx_isp.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/display/screen_control/spi_screen_detail_tx_isp.cpp"
+  19              		.section	.text._Z27ScreenDetailTxIsp_InitIndexv,"ax",%progbits
+  20              		.align	1
+  21              		.global	_Z27ScreenDetailTxIsp_InitIndexv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_Z27ScreenDetailTxIsp_InitIndexv:
+  27              	.LFB1268:
+   1:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   3:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** #include "main_runtime_control.hpp"
+   4:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** 
+   5:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** namespace {
+   6:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** bool confirmExit = false;
+   7:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** bool entryRejected = false;
+   8:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** }
+   9:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** 
+  10:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** uint8_t ScreenDetailTxIsp_InitIndex()
+  11:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** {
+  28              		.loc 1 11 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+  12:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     confirmExit = entryRejected = false;
+  33              		.loc 1 12 5 view .LVU1
+  34              		.loc 1 12 33 is_stmt 0 view .LVU2
+  35 0000 0020     		movs	r0, #0
+  36 0002 024B     		ldr	r3, .L2
+  37 0004 1870     		strb	r0, [r3]
+  38              		.loc 1 12 17 view .LVU3
+  39 0006 024B     		ldr	r3, .L2+4
+  40 0008 1870     		strb	r0, [r3]
+  13:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return 0u;
+  41              		.loc 1 13 5 is_stmt 1 view .LVU4
+  14:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** }
+  42              		.loc 1 14 1 is_stmt 0 view .LVU5
+  43 000a 7047     		bx	lr
+  44              	.L3:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 2
+
+
+  45              		.align	2
+  46              	.L2:
+  47 000c 00000000 		.word	_ZN12_GLOBAL__N_113entryRejectedE
+  48 0010 00000000 		.word	_ZN12_GLOBAL__N_111confirmExitE
+  49              		.cfi_endproc
+  50              	.LFE1268:
+  52              		.section	.rodata._Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.4,"aMS",%prog
+  53              		.align	2
+  54              	.LC0:
+  55 0000 54582049 		.ascii	"TX ISP\000"
+  55      535000
+  56              		.section	.text._Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+  57              		.align	1
+  58              		.global	_Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle
+  59              		.syntax unified
+  60              		.thumb
+  61              		.thumb_func
+  63              	_Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+  64              	.LVL0:
+  65              	.LFB1269:
+  15:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** 
+  16:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** void ScreenDetailTxIsp_Render(ST7789_Handle* lcd, uint8_t, const ScreenUiStyle& style)
+  17:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** {
+  66              		.loc 1 17 1 is_stmt 1 view -0
+  67              		.cfi_startproc
+  68              		@ args = 0, pretend = 0, frame = 0
+  69              		@ frame_needed = 0, uses_anonymous_args = 0
+  70              		.loc 1 17 1 is_stmt 0 view .LVU7
+  71 0000 30B5     		push	{r4, r5, lr}
+  72              	.LCFI0:
+  73              		.cfi_def_cfa_offset 12
+  74              		.cfi_offset 4, -12
+  75              		.cfi_offset 5, -8
+  76              		.cfi_offset 14, -4
+  77 0002 83B0     		sub	sp, sp, #12
+  78              	.LCFI1:
+  79              		.cfi_def_cfa_offset 24
+  80 0004 0446     		mov	r4, r0
+  81 0006 1546     		mov	r5, r2
+  18:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     static const char* const entry[] = {
+  82              		.loc 1 18 5 is_stmt 1 view .LVU8
+  19:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Connect TX PB22 to GND first.",
+  20:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Press Start to restart TX in ISP.",
+  21:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "USB/RF/WebConfig will pause.",
+  22:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Use WCHISPStudio after entry."
+  23:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     };
+  24:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     static const char* const active[] = {
+  83              		.loc 1 24 5 view .LVU9
+  25:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "TX power held on. SPI paused.",
+  26:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Use WCHISPStudio to download.",
+  27:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Keep power on during download.",
+  28:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Press Finish after it completes."
+  29:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     };
+  30:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     static const char* const leaving[] = {
+  84              		.loc 1 30 5 view .LVU10
+  31:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Ensure the download has ended.",
+  32:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Remove PB22 from GND first.",
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 3
+
+
+  33:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Press Exit to return to prior mode.",
+  34:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Hold Back to keep ISP active."
+  35:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     };
+  36:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     static const char* const blocked[] = {
+  85              		.loc 1 36 5 view .LVU11
+  37:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Firmware update owns the device.",
+  38:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "ISP was not started.",
+  39:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Finish the update before retrying.",
+  40:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Hold Back to return."
+  41:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     };
+  42:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     static const char* const failed[] = {
+  86              		.loc 1 42 5 view .LVU12
+  43:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Mode change failed. Try again.",
+  44:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Current mode has been kept.",
+  45:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Check storage, then retry.",
+  46:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         "Confirm again to retry."
+  47:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     };
+  48:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     const char* const* lines = MainRuntime_TxIspTransitionFailed() ? failed : !MainRuntime_IsTxIspA
+  87              		.loc 1 48 5 view .LVU13
+  88              		.loc 1 48 65 is_stmt 0 view .LVU14
+  89 0008 FFF7FEFF 		bl	MainRuntime_TxIspTransitionFailed
+  90              	.LVL1:
+  49:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         ? (entryRejected ? blocked : entry) : (confirmExit ? leaving : active);
+  91              		.loc 1 49 78 view .LVU15
+  92 000c 40B1     		cbz	r0, .L11
+  93              		.loc 1 49 78 discriminator 1 view .LVU16
+  94 000e 0D4A     		ldr	r2, .L12
+  95              	.L5:
+  96              	.LVL2:
+  50:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     ScreenDetailRender_TitleLines(lcd, "TX ISP", lines, 4u, style);
+  97              		.loc 1 50 5 is_stmt 1 view .LVU17
+  98              		.loc 1 50 34 is_stmt 0 view .LVU18
+  99 0010 0095     		str	r5, [sp]
+ 100 0012 0423     		movs	r3, #4
+ 101 0014 0C49     		ldr	r1, .L12+4
+ 102 0016 2046     		mov	r0, r4
+ 103 0018 FFF7FEFF 		bl	_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+ 104              	.LVL3:
+  51:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** }
+ 105              		.loc 1 51 1 view .LVU19
+ 106 001c 03B0     		add	sp, sp, #12
+ 107              	.LCFI2:
+ 108              		.cfi_remember_state
+ 109              		.cfi_def_cfa_offset 12
+ 110              		@ sp needed
+ 111 001e 30BD     		pop	{r4, r5, pc}
+ 112              	.LVL4:
+ 113              	.L11:
+ 114              	.LCFI3:
+ 115              		.cfi_restore_state
+  48:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         ? (entryRejected ? blocked : entry) : (confirmExit ? leaving : active);
+ 116              		.loc 1 48 105 view .LVU20
+ 117 0020 FFF7FEFF 		bl	MainRuntime_IsTxIspActive
+ 118              	.LVL5:
+  49:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     ScreenDetailRender_TitleLines(lcd, "TX ISP", lines, 4u, style);
+ 119              		.loc 1 49 78 discriminator 2 view .LVU21
+ 120 0024 20B9     		cbnz	r0, .L6
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 4
+
+
+  49:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     ScreenDetailRender_TitleLines(lcd, "TX ISP", lines, 4u, style);
+ 121              		.loc 1 49 78 discriminator 4 view .LVU22
+ 122 0026 094B     		ldr	r3, .L12+8
+ 123 0028 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 124 002a 33B1     		cbz	r3, .L8
+  49:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     ScreenDetailRender_TitleLines(lcd, "TX ISP", lines, 4u, style);
+ 125              		.loc 1 49 78 discriminator 6 view .LVU23
+ 126 002c 084A     		ldr	r2, .L12+12
+ 127 002e EFE7     		b	.L5
+ 128              	.L6:
+  49:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     ScreenDetailRender_TitleLines(lcd, "TX ISP", lines, 4u, style);
+ 129              		.loc 1 49 78 discriminator 5 view .LVU24
+ 130 0030 084B     		ldr	r3, .L12+16
+ 131 0032 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 132 0034 1BB1     		cbz	r3, .L9
+  49:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     ScreenDetailRender_TitleLines(lcd, "TX ISP", lines, 4u, style);
+ 133              		.loc 1 49 78 discriminator 11 view .LVU25
+ 134 0036 084A     		ldr	r2, .L12+20
+ 135 0038 EAE7     		b	.L5
+ 136              	.L8:
+  49:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     ScreenDetailRender_TitleLines(lcd, "TX ISP", lines, 4u, style);
+ 137              		.loc 1 49 78 discriminator 7 view .LVU26
+ 138 003a 084A     		ldr	r2, .L12+24
+ 139 003c E8E7     		b	.L5
+ 140              	.L9:
+  49:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     ScreenDetailRender_TitleLines(lcd, "TX ISP", lines, 4u, style);
+ 141              		.loc 1 49 78 discriminator 12 view .LVU27
+ 142 003e 084A     		ldr	r2, .L12+28
+ 143 0040 E6E7     		b	.L5
+ 144              	.L13:
+ 145 0042 00BF     		.align	2
+ 146              	.L12:
+ 147 0044 00000000 		.word	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6failed
+ 148 0048 00000000 		.word	.LC0
+ 149 004c 00000000 		.word	_ZN12_GLOBAL__N_113entryRejectedE
+ 150 0050 00000000 		.word	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7blocked
+ 151 0054 00000000 		.word	_ZN12_GLOBAL__N_111confirmExitE
+ 152 0058 00000000 		.word	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7leaving
+ 153 005c 00000000 		.word	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE5entry
+ 154 0060 00000000 		.word	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6active
+ 155              		.cfi_endproc
+ 156              	.LFE1269:
+ 158              		.section	.text._Z27ScreenDetailTxIsp_OnConfirmh,"ax",%progbits
+ 159              		.align	1
+ 160              		.global	_Z27ScreenDetailTxIsp_OnConfirmh
+ 161              		.syntax unified
+ 162              		.thumb
+ 163              		.thumb_func
+ 165              	_Z27ScreenDetailTxIsp_OnConfirmh:
+ 166              	.LFB1270:
+  52:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** 
+  53:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** bool ScreenDetailTxIsp_OnConfirm(uint8_t)
+  54:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** {
+ 167              		.loc 1 54 1 is_stmt 1 view -0
+ 168              		.cfi_startproc
+ 169              		@ args = 0, pretend = 0, frame = 0
+ 170              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 5
+
+
+ 171 0000 10B5     		push	{r4, lr}
+ 172              	.LCFI4:
+ 173              		.cfi_def_cfa_offset 8
+ 174              		.cfi_offset 4, -8
+ 175              		.cfi_offset 14, -4
+  55:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     if (!MainRuntime_IsTxIspActive()) {
+ 176              		.loc 1 55 5 view .LVU29
+ 177              		.loc 1 55 35 is_stmt 0 view .LVU30
+ 178 0002 FFF7FEFF 		bl	MainRuntime_IsTxIspActive
+ 179              	.LVL6:
+ 180              		.loc 1 55 5 discriminator 1 view .LVU31
+ 181 0006 30B1     		cbz	r0, .L19
+  56:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         entryRejected = !MainRuntime_RequestTxIsp(true);
+  57:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         return false;
+  58:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     }
+  59:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     if (!confirmExit) { confirmExit = true; return false; }
+ 182              		.loc 1 59 5 is_stmt 1 view .LVU32
+ 183              		.loc 1 59 9 is_stmt 0 view .LVU33
+ 184 0008 0A4B     		ldr	r3, .L20
+ 185 000a 1C78     		ldrb	r4, [r3]	@ zero_extendqisi2
+ 186              		.loc 1 59 5 view .LVU34
+ 187 000c 64B9     		cbnz	r4, .L17
+ 188              		.loc 1 59 25 is_stmt 1 discriminator 1 view .LVU35
+ 189              		.loc 1 59 37 is_stmt 0 discriminator 1 view .LVU36
+ 190 000e 0122     		movs	r2, #1
+ 191 0010 1A70     		strb	r2, [r3]
+ 192              		.loc 1 59 45 is_stmt 1 discriminator 1 view .LVU37
+ 193              	.L16:
+  60:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return MainRuntime_RequestTxIsp(false);
+  61:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** }
+ 194              		.loc 1 61 1 is_stmt 0 view .LVU38
+ 195 0012 2046     		mov	r0, r4
+ 196 0014 10BD     		pop	{r4, pc}
+ 197              	.L19:
+ 198 0016 0446     		mov	r4, r0
+  56:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         entryRejected = !MainRuntime_RequestTxIsp(true);
+ 199              		.loc 1 56 9 is_stmt 1 view .LVU39
+  56:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         entryRejected = !MainRuntime_RequestTxIsp(true);
+ 200              		.loc 1 56 50 is_stmt 0 view .LVU40
+ 201 0018 0120     		movs	r0, #1
+ 202 001a FFF7FEFF 		bl	MainRuntime_RequestTxIsp
+ 203              	.LVL7:
+  56:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         entryRejected = !MainRuntime_RequestTxIsp(true);
+ 204              		.loc 1 56 25 discriminator 1 view .LVU41
+ 205 001e 80F00100 		eor	r0, r0, #1
+  56:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****         entryRejected = !MainRuntime_RequestTxIsp(true);
+ 206              		.loc 1 56 23 discriminator 1 view .LVU42
+ 207 0022 054B     		ldr	r3, .L20+4
+ 208 0024 1870     		strb	r0, [r3]
+  57:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     }
+ 209              		.loc 1 57 9 is_stmt 1 view .LVU43
+  57:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     }
+ 210              		.loc 1 57 16 is_stmt 0 view .LVU44
+ 211 0026 F4E7     		b	.L16
+ 212              	.L17:
+  60:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return MainRuntime_RequestTxIsp(false);
+ 213              		.loc 1 60 5 is_stmt 1 view .LVU45
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 6
+
+
+  60:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return MainRuntime_RequestTxIsp(false);
+ 214              		.loc 1 60 36 is_stmt 0 view .LVU46
+ 215 0028 0020     		movs	r0, #0
+ 216 002a FFF7FEFF 		bl	MainRuntime_RequestTxIsp
+ 217              	.LVL8:
+ 218 002e 0446     		mov	r4, r0
+  60:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return MainRuntime_RequestTxIsp(false);
+ 219              		.loc 1 60 42 view .LVU47
+ 220 0030 EFE7     		b	.L16
+ 221              	.L21:
+ 222 0032 00BF     		.align	2
+ 223              	.L20:
+ 224 0034 00000000 		.word	_ZN12_GLOBAL__N_111confirmExitE
+ 225 0038 00000000 		.word	_ZN12_GLOBAL__N_113entryRejectedE
+ 226              		.cfi_endproc
+ 227              	.LFE1270:
+ 229              		.section	.text._Z24ScreenDetailTxIsp_OnBackv,"ax",%progbits
+ 230              		.align	1
+ 231              		.global	_Z24ScreenDetailTxIsp_OnBackv
+ 232              		.syntax unified
+ 233              		.thumb
+ 234              		.thumb_func
+ 236              	_Z24ScreenDetailTxIsp_OnBackv:
+ 237              	.LFB1271:
+  62:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** 
+  63:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** bool ScreenDetailTxIsp_OnBack()
+  64:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** {
+ 238              		.loc 1 64 1 is_stmt 1 view -0
+ 239              		.cfi_startproc
+ 240              		@ args = 0, pretend = 0, frame = 0
+ 241              		@ frame_needed = 0, uses_anonymous_args = 0
+ 242 0000 08B5     		push	{r3, lr}
+ 243              	.LCFI5:
+ 244              		.cfi_def_cfa_offset 8
+ 245              		.cfi_offset 3, -8
+ 246              		.cfi_offset 14, -4
+  65:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     if (!MainRuntime_IsTxIspActive()) return true;
+ 247              		.loc 1 65 5 view .LVU49
+ 248              		.loc 1 65 35 is_stmt 0 view .LVU50
+ 249 0002 FFF7FEFF 		bl	MainRuntime_IsTxIspActive
+ 250              	.LVL9:
+ 251              		.loc 1 65 5 discriminator 1 view .LVU51
+ 252 0006 30B1     		cbz	r0, .L24
+  66:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     // Back never cuts power: it opens/cancels the explicit Exit confirmation.
+  67:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     confirmExit = !confirmExit;
+ 253              		.loc 1 67 5 is_stmt 1 view .LVU52
+ 254              		.loc 1 67 19 is_stmt 0 view .LVU53
+ 255 0008 044A     		ldr	r2, .L26
+ 256 000a 1378     		ldrb	r3, [r2]	@ zero_extendqisi2
+ 257 000c 83F00103 		eor	r3, r3, #1
+ 258              		.loc 1 67 17 view .LVU54
+ 259 0010 1370     		strb	r3, [r2]
+  68:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return false;
+ 260              		.loc 1 68 5 is_stmt 1 view .LVU55
+ 261              		.loc 1 68 12 is_stmt 0 view .LVU56
+ 262 0012 0020     		movs	r0, #0
+ 263              	.L23:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 7
+
+
+  69:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** }
+ 264              		.loc 1 69 1 view .LVU57
+ 265 0014 08BD     		pop	{r3, pc}
+ 266              	.L24:
+  65:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     // Back never cuts power: it opens/cancels the explicit Exit confirmation.
+ 267              		.loc 1 65 46 discriminator 1 view .LVU58
+ 268 0016 0120     		movs	r0, #1
+ 269 0018 FCE7     		b	.L23
+ 270              	.L27:
+ 271 001a 00BF     		.align	2
+ 272              	.L26:
+ 273 001c 00000000 		.word	_ZN12_GLOBAL__N_111confirmExitE
+ 274              		.cfi_endproc
+ 275              	.LFE1271:
+ 277              		.section	.rodata._Z30ScreenDetailTxIsp_ConfirmLabelv.str1.4,"aMS",%progbits,1
+ 278              		.align	2
+ 279              	.LC1:
+ 280 0000 46696E69 		.ascii	"Finish\000"
+ 280      736800
+ 281 0007 00       		.align	2
+ 282              	.LC2:
+ 283 0008 53746172 		.ascii	"Start\000"
+ 283      7400
+ 284 000e 0000     		.align	2
+ 285              	.LC3:
+ 286 0010 45786974 		.ascii	"Exit\000"
+ 286      00
+ 287              		.section	.text._Z30ScreenDetailTxIsp_ConfirmLabelv,"ax",%progbits
+ 288              		.align	1
+ 289              		.global	_Z30ScreenDetailTxIsp_ConfirmLabelv
+ 290              		.syntax unified
+ 291              		.thumb
+ 292              		.thumb_func
+ 294              	_Z30ScreenDetailTxIsp_ConfirmLabelv:
+ 295              	.LFB1272:
+  70:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** 
+  71:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** const char* ScreenDetailTxIsp_ConfirmLabel()
+  72:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** {
+ 296              		.loc 1 72 1 is_stmt 1 view -0
+ 297              		.cfi_startproc
+ 298              		@ args = 0, pretend = 0, frame = 0
+ 299              		@ frame_needed = 0, uses_anonymous_args = 0
+ 300 0000 08B5     		push	{r3, lr}
+ 301              	.LCFI6:
+ 302              		.cfi_def_cfa_offset 8
+ 303              		.cfi_offset 3, -8
+ 304              		.cfi_offset 14, -4
+  73:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return !MainRuntime_IsTxIspActive() ? "Start" : (confirmExit ? "Exit" : "Finish");
+ 305              		.loc 1 73 5 view .LVU60
+ 306              		.loc 1 73 38 is_stmt 0 view .LVU61
+ 307 0002 FFF7FEFF 		bl	MainRuntime_IsTxIspActive
+ 308              	.LVL10:
+ 309              		.loc 1 73 41 discriminator 1 view .LVU62
+ 310 0006 20B1     		cbz	r0, .L30
+ 311              		.loc 1 73 66 discriminator 1 view .LVU63
+ 312 0008 044B     		ldr	r3, .L33
+ 313 000a 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 8
+
+
+ 314 000c 1BB1     		cbz	r3, .L31
+ 315              		.loc 1 73 66 discriminator 3 view .LVU64
+ 316 000e 0448     		ldr	r0, .L33+4
+ 317 0010 00E0     		b	.L28
+ 318              	.L30:
+ 319              		.loc 1 73 41 discriminator 2 view .LVU65
+ 320 0012 0448     		ldr	r0, .L33+8
+ 321              	.L28:
+  74:Src/display/screen_control/spi_screen_detail_tx_isp.cpp **** }
+ 322              		.loc 1 74 1 view .LVU66
+ 323 0014 08BD     		pop	{r3, pc}
+ 324              	.L31:
+  73:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return !MainRuntime_IsTxIspActive() ? "Start" : (confirmExit ? "Exit" : "Finish");
+ 325              		.loc 1 73 66 discriminator 4 view .LVU67
+ 326 0016 0448     		ldr	r0, .L33+12
+  73:Src/display/screen_control/spi_screen_detail_tx_isp.cpp ****     return !MainRuntime_IsTxIspActive() ? "Start" : (confirmExit ? "Exit" : "Finish");
+ 327              		.loc 1 73 85 view .LVU68
+ 328 0018 FCE7     		b	.L28
+ 329              	.L34:
+ 330 001a 00BF     		.align	2
+ 331              	.L33:
+ 332 001c 00000000 		.word	_ZN12_GLOBAL__N_111confirmExitE
+ 333 0020 10000000 		.word	.LC3
+ 334 0024 08000000 		.word	.LC2
+ 335 0028 00000000 		.word	.LC1
+ 336              		.cfi_endproc
+ 337              	.LFE1272:
+ 339              		.section	.rodata.str1.4,"aMS",%progbits,1
+ 340              		.align	2
+ 341              	.LC4:
+ 342 0000 4D6F6465 		.ascii	"Mode change failed. Try again.\000"
+ 342      20636861 
+ 342      6E676520 
+ 342      6661696C 
+ 342      65642E20 
+ 343 001f 00       		.align	2
+ 344              	.LC5:
+ 345 0020 43757272 		.ascii	"Current mode has been kept.\000"
+ 345      656E7420 
+ 345      6D6F6465 
+ 345      20686173 
+ 345      20626565 
+ 346              		.align	2
+ 347              	.LC6:
+ 348 003c 43686563 		.ascii	"Check storage, then retry.\000"
+ 348      6B207374 
+ 348      6F726167 
+ 348      652C2074 
+ 348      68656E20 
+ 349 0057 00       		.align	2
+ 350              	.LC7:
+ 351 0058 436F6E66 		.ascii	"Confirm again to retry.\000"
+ 351      69726D20 
+ 351      61676169 
+ 351      6E20746F 
+ 351      20726574 
+ 352              		.section	.rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6failed,"a"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 9
+
+
+ 353              		.align	2
+ 356              	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6failed:
+ 357 0000 00000000 		.word	.LC4
+ 358 0004 20000000 		.word	.LC5
+ 359 0008 3C000000 		.word	.LC6
+ 360 000c 58000000 		.word	.LC7
+ 361              		.section	.rodata.str1.4
+ 362              		.align	2
+ 363              	.LC8:
+ 364 0070 4669726D 		.ascii	"Firmware update owns the device.\000"
+ 364      77617265 
+ 364      20757064 
+ 364      61746520 
+ 364      6F776E73 
+ 365 0091 000000   		.align	2
+ 366              	.LC9:
+ 367 0094 49535020 		.ascii	"ISP was not started.\000"
+ 367      77617320 
+ 367      6E6F7420 
+ 367      73746172 
+ 367      7465642E 
+ 368 00a9 000000   		.align	2
+ 369              	.LC10:
+ 370 00ac 46696E69 		.ascii	"Finish the update before retrying.\000"
+ 370      73682074 
+ 370      68652075 
+ 370      70646174 
+ 370      65206265 
+ 371 00cf 00       		.align	2
+ 372              	.LC11:
+ 373 00d0 486F6C64 		.ascii	"Hold Back to return.\000"
+ 373      20426163 
+ 373      6B20746F 
+ 373      20726574 
+ 373      75726E2E 
+ 374              		.section	.rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7blocked,"a"
+ 375              		.align	2
+ 378              	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7blocked:
+ 379 0000 70000000 		.word	.LC8
+ 380 0004 94000000 		.word	.LC9
+ 381 0008 AC000000 		.word	.LC10
+ 382 000c D0000000 		.word	.LC11
+ 383              		.section	.rodata.str1.4
+ 384 00e5 000000   		.align	2
+ 385              	.LC12:
+ 386 00e8 456E7375 		.ascii	"Ensure the download has ended.\000"
+ 386      72652074 
+ 386      68652064 
+ 386      6F776E6C 
+ 386      6F616420 
+ 387 0107 00       		.align	2
+ 388              	.LC13:
+ 389 0108 52656D6F 		.ascii	"Remove PB22 from GND first.\000"
+ 389      76652050 
+ 389      42323220 
+ 389      66726F6D 
+ 389      20474E44 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 10
+
+
+ 390              		.align	2
+ 391              	.LC14:
+ 392 0124 50726573 		.ascii	"Press Exit to return to prior mode.\000"
+ 392      73204578 
+ 392      69742074 
+ 392      6F207265 
+ 392      7475726E 
+ 393              		.align	2
+ 394              	.LC15:
+ 395 0148 486F6C64 		.ascii	"Hold Back to keep ISP active.\000"
+ 395      20426163 
+ 395      6B20746F 
+ 395      206B6565 
+ 395      70204953 
+ 396              		.section	.rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7leaving,"a"
+ 397              		.align	2
+ 400              	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7leaving:
+ 401 0000 E8000000 		.word	.LC12
+ 402 0004 08010000 		.word	.LC13
+ 403 0008 24010000 		.word	.LC14
+ 404 000c 48010000 		.word	.LC15
+ 405              		.section	.rodata.str1.4
+ 406 0166 0000     		.align	2
+ 407              	.LC16:
+ 408 0168 54582070 		.ascii	"TX power held on. SPI paused.\000"
+ 408      6F776572 
+ 408      2068656C 
+ 408      64206F6E 
+ 408      2E205350 
+ 409 0186 0000     		.align	2
+ 410              	.LC17:
+ 411 0188 55736520 		.ascii	"Use WCHISPStudio to download.\000"
+ 411      57434849 
+ 411      53505374 
+ 411      7564696F 
+ 411      20746F20 
+ 412 01a6 0000     		.align	2
+ 413              	.LC18:
+ 414 01a8 4B656570 		.ascii	"Keep power on during download.\000"
+ 414      20706F77 
+ 414      6572206F 
+ 414      6E206475 
+ 414      72696E67 
+ 415 01c7 00       		.align	2
+ 416              	.LC19:
+ 417 01c8 50726573 		.ascii	"Press Finish after it completes.\000"
+ 417      73204669 
+ 417      6E697368 
+ 417      20616674 
+ 417      65722069 
+ 418              		.section	.rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6active,"a"
+ 419              		.align	2
+ 422              	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6active:
+ 423 0000 68010000 		.word	.LC16
+ 424 0004 88010000 		.word	.LC17
+ 425 0008 A8010000 		.word	.LC18
+ 426 000c C8010000 		.word	.LC19
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 11
+
+
+ 427              		.section	.rodata.str1.4
+ 428 01e9 000000   		.align	2
+ 429              	.LC20:
+ 430 01ec 436F6E6E 		.ascii	"Connect TX PB22 to GND first.\000"
+ 430      65637420 
+ 430      54582050 
+ 430      42323220 
+ 430      746F2047 
+ 431 020a 0000     		.align	2
+ 432              	.LC21:
+ 433 020c 50726573 		.ascii	"Press Start to restart TX in ISP.\000"
+ 433      73205374 
+ 433      61727420 
+ 433      746F2072 
+ 433      65737461 
+ 434 022e 0000     		.align	2
+ 435              	.LC22:
+ 436 0230 5553422F 		.ascii	"USB/RF/WebConfig will pause.\000"
+ 436      52462F57 
+ 436      6562436F 
+ 436      6E666967 
+ 436      2077696C 
+ 437 024d 000000   		.align	2
+ 438              	.LC23:
+ 439 0250 55736520 		.ascii	"Use WCHISPStudio after entry.\000"
+ 439      57434849 
+ 439      53505374 
+ 439      7564696F 
+ 439      20616674 
+ 440              		.section	.rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE5entry,"a"
+ 441              		.align	2
+ 444              	_ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE5entry:
+ 445 0000 EC010000 		.word	.LC20
+ 446 0004 0C020000 		.word	.LC21
+ 447 0008 30020000 		.word	.LC22
+ 448 000c 50020000 		.word	.LC23
+ 449              		.section	.bss._ZN12_GLOBAL__N_113entryRejectedE,"aw",%nobits
+ 452              	_ZN12_GLOBAL__N_113entryRejectedE:
+ 453 0000 00       		.space	1
+ 454              		.section	.bss._ZN12_GLOBAL__N_111confirmExitE,"aw",%nobits
+ 457              	_ZN12_GLOBAL__N_111confirmExitE:
+ 458 0000 00       		.space	1
+ 459              		.text
+ 460              	.Letext0:
+ 461              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 462              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 463              		.file 4 "Inc/display/screen_control/spi_screen_layout.hpp"
+ 464              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 465              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 466              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 467              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 468              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 469              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 470              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 471              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 472              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 473              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 12
+
+
+ 474              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 475              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 476              		.file 17 "Inc/system/board_cfg.h"
+ 477              		.file 18 "Inc/display/drivers/st7789/st7789.h"
+ 478              		.file 19 "Inc/system/main_runtime_control.hpp"
+ 479              		.file 20 "Inc/display/screen_control/spi_screen_detail_render_helpers.hpp"
+ 480              		.file 21 "Inc/support/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s 			page 13
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_tx_isp.cpp
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:20     .text._Z27ScreenDetailTxIsp_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:26     .text._Z27ScreenDetailTxIsp_InitIndexv:00000000 _Z27ScreenDetailTxIsp_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:47     .text._Z27ScreenDetailTxIsp_InitIndexv:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:452    .bss._ZN12_GLOBAL__N_113entryRejectedE:00000000 _ZN12_GLOBAL__N_113entryRejectedE
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:457    .bss._ZN12_GLOBAL__N_111confirmExitE:00000000 _ZN12_GLOBAL__N_111confirmExitE
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:53     .rodata._Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:57     .text._Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:63     .text._Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:147    .text._Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000044 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:356    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6failed:00000000 _ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6failed
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:378    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7blocked:00000000 _ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7blocked
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:400    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7leaving:00000000 _ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7leaving
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:444    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE5entry:00000000 _ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE5entry
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:422    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6active:00000000 _ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6active
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:159    .text._Z27ScreenDetailTxIsp_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:165    .text._Z27ScreenDetailTxIsp_OnConfirmh:00000000 _Z27ScreenDetailTxIsp_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:224    .text._Z27ScreenDetailTxIsp_OnConfirmh:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:230    .text._Z24ScreenDetailTxIsp_OnBackv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:236    .text._Z24ScreenDetailTxIsp_OnBackv:00000000 _Z24ScreenDetailTxIsp_OnBackv
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:273    .text._Z24ScreenDetailTxIsp_OnBackv:0000001c $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:278    .rodata._Z30ScreenDetailTxIsp_ConfirmLabelv.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:288    .text._Z30ScreenDetailTxIsp_ConfirmLabelv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:294    .text._Z30ScreenDetailTxIsp_ConfirmLabelv:00000000 _Z30ScreenDetailTxIsp_ConfirmLabelv
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:332    .text._Z30ScreenDetailTxIsp_ConfirmLabelv:0000001c $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:340    .rodata.str1.4:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:353    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6failed:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:375    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7blocked:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:397    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE7leaving:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:419    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE6active:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:441    .rodata._ZZ24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyleE5entry:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:453    .bss._ZN12_GLOBAL__N_113entryRejectedE:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cca3MqHH.s:458    .bss._ZN12_GLOBAL__N_111confirmExitE:00000000 $d
+
+UNDEFINED SYMBOLS
+MainRuntime_TxIspTransitionFailed
+_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+MainRuntime_IsTxIspActive
+MainRuntime_RequestTxIsp

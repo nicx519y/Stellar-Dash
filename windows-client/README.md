@@ -1,6 +1,6 @@
-# HBox Windows Client
+# XORA Windows Client
 
-Windows 10/11 x64 的 HBox 高轮询率输入客户端。设备保持原生 XInput 作为
+Windows 10/11 x64 的 XORA 高轮询率输入客户端。设备保持原生 XInput 作为
 1 kHz 兼容路径；当设备配置为 2/4/8 kHz 且高性能模式开启时，客户端通过
 32 字节租约协议申请接管，接收 WinUSB 64 字节流，并更新一个虚拟 Xbox 360
 控制器。
@@ -58,8 +58,8 @@ cmake -S . -B build -DHBOX_INTERNAL_VIGEM_MVP=OFF -DHBOX_PUBLIC_RELEASE=ON
 ```
 
 若公开构建仍启用 ViGEm，CMake 会直接失败。正式构建通过设备接口
-`{E54BDA55-57B6-4E32-A58B-48424F585631}` 访问已安装的 HBox UMDF2 驱动；
-驱动负责 `CREATE / UPDATE_STATE / REMOVE`，不实现震动回传。
+`{E54BDA55-57B6-4E32-A58B-48424F585631}` 访问已安装的 XORA UMDF2 驱动；
+驱动负责 `CREATE / UPDATE_STATE / REMOVE`，不实现震动回传。接口 GUID、`hbox-umdf2`、设置目录等旧技术标识保留兼容，不随产品名更改。
 
 ## 运行与自启
 

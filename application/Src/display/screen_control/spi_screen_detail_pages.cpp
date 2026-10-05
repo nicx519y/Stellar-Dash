@@ -7,11 +7,11 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
         case 0:
         case 1:
         case 2:
-        case 3:
         case 11:
         case 5:
         case 7:
             return SCREEN_DETAIL_LIST;
+        case 3:
         case 4:
         case 6:
         case 8:

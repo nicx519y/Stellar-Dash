@@ -1,0 +1,1441 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 1
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_pages.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Src/display/screen_control/spi_screen_detail_pages.cpp"
+  19              		.section	.text._Z17ScreenDetail_Kindh,"ax",%progbits
+  20              		.align	1
+  21              		.global	_Z17ScreenDetail_Kindh
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_Z17ScreenDetail_Kindh:
+  27              	.LVL0:
+  28              	.LFB2157:
+   1:Src/display/screen_control/spi_screen_detail_pages.cpp **** #include "screen_control/spi_screen_detail_pages.hpp"
+   2:Src/display/screen_control/spi_screen_detail_pages.cpp **** 
+   3:Src/display/screen_control/spi_screen_detail_pages.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   4:Src/display/screen_control/spi_screen_detail_pages.cpp **** 
+   5:Src/display/screen_control/spi_screen_detail_pages.cpp **** ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
+  29              		.loc 1 5 52 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  33              		@ link register save eliminated.
+   6:Src/display/screen_control/spi_screen_detail_pages.cpp ****     switch (menuId) {
+  34              		.loc 1 6 5 view .LVU1
+  35 0000 0C28     		cmp	r0, #12
+  36 0002 0DD8     		bhi	.L3
+  37 0004 0123     		movs	r3, #1
+  38 0006 8340     		lsls	r3, r3, r0
+  39 0008 40F6A702 		movw	r2, #2215
+  40 000c 1342     		tst	r3, r2
+  41 000e 09D1     		bne	.L4
+  42 0010 13F4AC7F 		tst	r3, #344
+  43 0014 08D1     		bne	.L5
+  44 0016 13F4B05F 		tst	r3, #5632
+  45 001a 07D0     		beq	.L6
+   7:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0:
+   8:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1:
+   9:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 2:
+  10:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11:
+  11:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5:
+  12:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7:
+  13:Src/display/screen_control/spi_screen_detail_pages.cpp ****             return SCREEN_DETAIL_LIST;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 2
+
+
+  14:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3:
+  15:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4:
+  16:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6:
+  17:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8:
+  18:Src/display/screen_control/spi_screen_detail_pages.cpp ****             return SCREEN_DETAIL_SLIDER;
+  19:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9:
+  20:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10:
+  21:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP:
+  22:Src/display/screen_control/spi_screen_detail_pages.cpp ****             return SCREEN_DETAIL_INFO;
+  46              		.loc 1 22 20 is_stmt 0 view .LVU2
+  47 001c 0320     		movs	r0, #3
+  48              	.LVL1:
+  49              		.loc 1 22 20 view .LVU3
+  50 001e 7047     		bx	lr
+  51              	.LVL2:
+  52              	.L3:
+  23:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default:
+  24:Src/display/screen_control/spi_screen_detail_pages.cpp ****             return SCREEN_DETAIL_NONE;
+  53              		.loc 1 24 20 view .LVU4
+  54 0020 0020     		movs	r0, #0
+  55              	.LVL3:
+  56              		.loc 1 24 20 view .LVU5
+  57 0022 7047     		bx	lr
+  58              	.LVL4:
+  59              	.L4:
+   6:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0:
+  60              		.loc 1 6 5 view .LVU6
+  61 0024 0120     		movs	r0, #1
+  62              	.LVL5:
+   6:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0:
+  63              		.loc 1 6 5 view .LVU7
+  64 0026 7047     		bx	lr
+  65              	.LVL6:
+  66              	.L5:
+  18:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9:
+  67              		.loc 1 18 20 view .LVU8
+  68 0028 0220     		movs	r0, #2
+  69              	.LVL7:
+  18:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9:
+  70              		.loc 1 18 20 view .LVU9
+  71 002a 7047     		bx	lr
+  72              	.LVL8:
+  73              	.L6:
+  74              		.loc 1 24 20 view .LVU10
+  75 002c 0020     		movs	r0, #0
+  76              	.LVL9:
+  25:Src/display/screen_control/spi_screen_detail_pages.cpp ****     }
+  26:Src/display/screen_control/spi_screen_detail_pages.cpp **** }
+  77              		.loc 1 26 1 view .LVU11
+  78 002e 7047     		bx	lr
+  79              		.cfi_endproc
+  80              	.LFE2157:
+  82              		.section	.text._Z22ScreenDetail_InitIndexh,"ax",%progbits
+  83              		.align	1
+  84              		.global	_Z22ScreenDetail_InitIndexh
+  85              		.syntax unified
+  86              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 3
+
+
+  87              		.thumb_func
+  89              	_Z22ScreenDetail_InitIndexh:
+  90              	.LVL10:
+  91              	.LFB2158:
+  27:Src/display/screen_control/spi_screen_detail_pages.cpp **** 
+  28:Src/display/screen_control/spi_screen_detail_pages.cpp **** uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
+  92              		.loc 1 28 48 is_stmt 1 view -0
+  93              		.cfi_startproc
+  94              		@ args = 0, pretend = 0, frame = 0
+  95              		@ frame_needed = 0, uses_anonymous_args = 0
+  96              		.loc 1 28 48 is_stmt 0 view .LVU13
+  97 0000 08B5     		push	{r3, lr}
+  98              	.LCFI0:
+  99              		.cfi_def_cfa_offset 8
+ 100              		.cfi_offset 3, -8
+ 101              		.cfi_offset 14, -4
+  29:Src/display/screen_control/spi_screen_detail_pages.cpp ****     switch (menuId) {
+ 102              		.loc 1 29 5 is_stmt 1 view .LVU14
+ 103 0002 0C28     		cmp	r0, #12
+ 104 0004 2FD8     		bhi	.L23
+ 105 0006 DFE800F0 		tbb	[pc, r0]
+ 106              	.L10:
+ 107 000a 07       		.byte	(.L22-.L10)/2
+ 108 000b 0A       		.byte	(.L21-.L10)/2
+ 109 000c 0D       		.byte	(.L20-.L10)/2
+ 110 000d 2B       		.byte	(.L19-.L10)/2
+ 111 000e 19       		.byte	(.L18-.L10)/2
+ 112 000f 13       		.byte	(.L17-.L10)/2
+ 113 0010 1C       		.byte	(.L16-.L10)/2
+ 114 0011 16       		.byte	(.L15-.L10)/2
+ 115 0012 1F       		.byte	(.L14-.L10)/2
+ 116 0013 22       		.byte	(.L13-.L10)/2
+ 117 0014 25       		.byte	(.L12-.L10)/2
+ 118 0015 10       		.byte	(.L11-.L10)/2
+ 119 0016 28       		.byte	(.L9-.L10)/2
+ 120 0017 00       		.p2align 1
+ 121              	.L22:
+  30:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0: return ScreenDetailInputMode_InitIndex();
+ 122              		.loc 1 30 9 view .LVU15
+ 123              		.loc 1 30 17 view .LVU16
+ 124              		.loc 1 30 55 is_stmt 0 view .LVU17
+ 125 0018 FFF7FEFF 		bl	_Z31ScreenDetailInputMode_InitIndexv
+ 126              	.LVL11:
+ 127              	.L8:
+  31:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: return ScreenDetailProfiles_InitIndex();
+  32:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 2: return ScreenDetailSocd_InitIndex();
+  33:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_InitIndex();
+  34:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: return ScreenDetailLightEffect_InitIndex();
+  35:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: return ScreenDetailAmbientEffect_InitIndex();
+  36:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: return ScreenDetailLightBrightness_InitIndex();
+  37:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: return ScreenDetailAmbientBrightness_InitIndex();
+  38:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: return ScreenDetailScreenBrightness_InitIndex();
+  39:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_InitIndex();
+  40:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: return ScreenDetailCalibration_InitIndex();
+  41:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_InitIndex();
+  42:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_InitIndex();
+  43:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 4
+
+
+  44:Src/display/screen_control/spi_screen_detail_pages.cpp ****     }
+  45:Src/display/screen_control/spi_screen_detail_pages.cpp **** }
+ 128              		.loc 1 45 1 view .LVU18
+ 129 001c 08BD     		pop	{r3, pc}
+ 130              	.LVL12:
+ 131              	.L21:
+  31:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: return ScreenDetailProfiles_InitIndex();
+ 132              		.loc 1 31 9 is_stmt 1 view .LVU19
+  31:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: return ScreenDetailProfiles_InitIndex();
+ 133              		.loc 1 31 17 view .LVU20
+  31:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: return ScreenDetailProfiles_InitIndex();
+ 134              		.loc 1 31 54 is_stmt 0 view .LVU21
+ 135 001e FFF7FEFF 		bl	_Z30ScreenDetailProfiles_InitIndexv
+ 136              	.LVL13:
+  31:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: return ScreenDetailProfiles_InitIndex();
+ 137              		.loc 1 31 55 view .LVU22
+ 138 0022 FBE7     		b	.L8
+ 139              	.LVL14:
+ 140              	.L20:
+  32:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_InitIndex();
+ 141              		.loc 1 32 9 is_stmt 1 view .LVU23
+  32:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_InitIndex();
+ 142              		.loc 1 32 17 view .LVU24
+  32:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_InitIndex();
+ 143              		.loc 1 32 50 is_stmt 0 view .LVU25
+ 144 0024 FFF7FEFF 		bl	_Z26ScreenDetailSocd_InitIndexv
+ 145              	.LVL15:
+  32:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_InitIndex();
+ 146              		.loc 1 32 51 view .LVU26
+ 147 0028 F8E7     		b	.L8
+ 148              	.LVL16:
+ 149              	.L11:
+  33:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: return ScreenDetailLightEffect_InitIndex();
+ 150              		.loc 1 33 9 is_stmt 1 view .LVU27
+  33:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: return ScreenDetailLightEffect_InitIndex();
+ 151              		.loc 1 33 18 view .LVU28
+  33:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: return ScreenDetailLightEffect_InitIndex();
+ 152              		.loc 1 33 65 is_stmt 0 view .LVU29
+ 153 002a FFF7FEFF 		bl	_Z40ScreenDetailButtonsPerformance_InitIndexv
+ 154              	.LVL17:
+  33:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: return ScreenDetailLightEffect_InitIndex();
+ 155              		.loc 1 33 66 view .LVU30
+ 156 002e F5E7     		b	.L8
+ 157              	.LVL18:
+ 158              	.L17:
+  34:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: return ScreenDetailAmbientEffect_InitIndex();
+ 159              		.loc 1 34 9 is_stmt 1 view .LVU31
+  34:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: return ScreenDetailAmbientEffect_InitIndex();
+ 160              		.loc 1 34 17 view .LVU32
+  34:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: return ScreenDetailAmbientEffect_InitIndex();
+ 161              		.loc 1 34 57 is_stmt 0 view .LVU33
+ 162 0030 FFF7FEFF 		bl	_Z33ScreenDetailLightEffect_InitIndexv
+ 163              	.LVL19:
+  34:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: return ScreenDetailAmbientEffect_InitIndex();
+ 164              		.loc 1 34 58 view .LVU34
+ 165 0034 F2E7     		b	.L8
+ 166              	.LVL20:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 5
+
+
+ 167              	.L15:
+  35:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: return ScreenDetailLightBrightness_InitIndex();
+ 168              		.loc 1 35 9 is_stmt 1 view .LVU35
+  35:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: return ScreenDetailLightBrightness_InitIndex();
+ 169              		.loc 1 35 17 view .LVU36
+  35:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: return ScreenDetailLightBrightness_InitIndex();
+ 170              		.loc 1 35 59 is_stmt 0 view .LVU37
+ 171 0036 FFF7FEFF 		bl	_Z35ScreenDetailAmbientEffect_InitIndexv
+ 172              	.LVL21:
+  35:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: return ScreenDetailLightBrightness_InitIndex();
+ 173              		.loc 1 35 60 view .LVU38
+ 174 003a EFE7     		b	.L8
+ 175              	.LVL22:
+ 176              	.L18:
+  36:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: return ScreenDetailAmbientBrightness_InitIndex();
+ 177              		.loc 1 36 9 is_stmt 1 view .LVU39
+  36:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: return ScreenDetailAmbientBrightness_InitIndex();
+ 178              		.loc 1 36 17 view .LVU40
+  36:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: return ScreenDetailAmbientBrightness_InitIndex();
+ 179              		.loc 1 36 61 is_stmt 0 view .LVU41
+ 180 003c FFF7FEFF 		bl	_Z37ScreenDetailLightBrightness_InitIndexv
+ 181              	.LVL23:
+  36:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: return ScreenDetailAmbientBrightness_InitIndex();
+ 182              		.loc 1 36 62 view .LVU42
+ 183 0040 ECE7     		b	.L8
+ 184              	.LVL24:
+ 185              	.L16:
+  37:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: return ScreenDetailScreenBrightness_InitIndex();
+ 186              		.loc 1 37 9 is_stmt 1 view .LVU43
+  37:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: return ScreenDetailScreenBrightness_InitIndex();
+ 187              		.loc 1 37 17 view .LVU44
+  37:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: return ScreenDetailScreenBrightness_InitIndex();
+ 188              		.loc 1 37 63 is_stmt 0 view .LVU45
+ 189 0042 FFF7FEFF 		bl	_Z39ScreenDetailAmbientBrightness_InitIndexv
+ 190              	.LVL25:
+  37:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: return ScreenDetailScreenBrightness_InitIndex();
+ 191              		.loc 1 37 64 view .LVU46
+ 192 0046 E9E7     		b	.L8
+ 193              	.LVL26:
+ 194              	.L14:
+  38:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_InitIndex();
+ 195              		.loc 1 38 9 is_stmt 1 view .LVU47
+  38:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_InitIndex();
+ 196              		.loc 1 38 17 view .LVU48
+  38:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_InitIndex();
+ 197              		.loc 1 38 62 is_stmt 0 view .LVU49
+ 198 0048 FFF7FEFF 		bl	_Z38ScreenDetailScreenBrightness_InitIndexv
+ 199              	.LVL27:
+  38:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_InitIndex();
+ 200              		.loc 1 38 63 view .LVU50
+ 201 004c E6E7     		b	.L8
+ 202              	.LVL28:
+ 203              	.L13:
+  39:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: return ScreenDetailCalibration_InitIndex();
+ 204              		.loc 1 39 9 is_stmt 1 view .LVU51
+  39:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: return ScreenDetailCalibration_InitIndex();
+ 205              		.loc 1 39 17 view .LVU52
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 6
+
+
+  39:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: return ScreenDetailCalibration_InitIndex();
+ 206              		.loc 1 39 55 is_stmt 0 view .LVU53
+ 207 004e FFF7FEFF 		bl	_Z31ScreenDetailWebConfig_InitIndexv
+ 208              	.LVL29:
+  39:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: return ScreenDetailCalibration_InitIndex();
+ 209              		.loc 1 39 56 view .LVU54
+ 210 0052 E3E7     		b	.L8
+ 211              	.LVL30:
+ 212              	.L12:
+  40:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_InitIndex();
+ 213              		.loc 1 40 9 is_stmt 1 view .LVU55
+  40:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_InitIndex();
+ 214              		.loc 1 40 18 view .LVU56
+  40:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_InitIndex();
+ 215              		.loc 1 40 58 is_stmt 0 view .LVU57
+ 216 0054 FFF7FEFF 		bl	_Z33ScreenDetailCalibration_InitIndexv
+ 217              	.LVL31:
+  40:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_InitIndex();
+ 218              		.loc 1 40 59 view .LVU58
+ 219 0058 E0E7     		b	.L8
+ 220              	.LVL32:
+ 221              	.L9:
+  41:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_InitIndex();
+ 222              		.loc 1 41 9 is_stmt 1 view .LVU59
+  41:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_InitIndex();
+ 223              		.loc 1 41 34 view .LVU60
+  41:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_InitIndex();
+ 224              		.loc 1 41 68 is_stmt 0 view .LVU61
+ 225 005a FFF7FEFF 		bl	_Z27ScreenDetailTxIsp_InitIndexv
+ 226              	.LVL33:
+  41:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_InitIndex();
+ 227              		.loc 1 41 69 view .LVU62
+ 228 005e DDE7     		b	.L8
+ 229              	.LVL34:
+ 230              	.L19:
+  42:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return 0;
+ 231              		.loc 1 42 9 is_stmt 1 view .LVU63
+  42:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return 0;
+ 232              		.loc 1 42 17 view .LVU64
+  42:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return 0;
+ 233              		.loc 1 42 56 is_stmt 0 view .LVU65
+ 234 0060 FFF7FEFF 		bl	_Z32ScreenDetailTournament_InitIndexv
+ 235              	.LVL35:
+  42:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return 0;
+ 236              		.loc 1 42 57 view .LVU66
+ 237 0064 DAE7     		b	.L8
+ 238              	.LVL36:
+ 239              	.L23:
+  29:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0: return ScreenDetailInputMode_InitIndex();
+ 240              		.loc 1 29 5 view .LVU67
+ 241 0066 0020     		movs	r0, #0
+ 242              	.LVL37:
+  29:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0: return ScreenDetailInputMode_InitIndex();
+ 243              		.loc 1 29 5 view .LVU68
+ 244 0068 D8E7     		b	.L8
+ 245              		.cfi_endproc
+ 246              	.LFE2158:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 7
+
+
+ 248              		.section	.text._Z21ScreenDetail_OnRotatehPha,"ax",%progbits
+ 249              		.align	1
+ 250              		.global	_Z21ScreenDetail_OnRotatehPha
+ 251              		.syntax unified
+ 252              		.thumb
+ 253              		.thumb_func
+ 255              	_Z21ScreenDetail_OnRotatehPha:
+ 256              	.LVL38:
+ 257              	.LFB2159:
+  46:Src/display/screen_control/spi_screen_detail_pages.cpp **** 
+  47:Src/display/screen_control/spi_screen_detail_pages.cpp **** void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
+ 258              		.loc 1 47 74 is_stmt 1 view -0
+ 259              		.cfi_startproc
+ 260              		@ args = 0, pretend = 0, frame = 0
+ 261              		@ frame_needed = 0, uses_anonymous_args = 0
+ 262              		.loc 1 47 74 is_stmt 0 view .LVU70
+ 263 0000 08B5     		push	{r3, lr}
+ 264              	.LCFI1:
+ 265              		.cfi_def_cfa_offset 8
+ 266              		.cfi_offset 3, -8
+ 267              		.cfi_offset 14, -4
+ 268 0002 0346     		mov	r3, r0
+ 269 0004 0846     		mov	r0, r1
+ 270              	.LVL39:
+ 271              		.loc 1 47 74 view .LVU71
+ 272 0006 1146     		mov	r1, r2
+ 273              	.LVL40:
+  48:Src/display/screen_control/spi_screen_detail_pages.cpp ****     switch (menuId) {
+ 274              		.loc 1 48 5 is_stmt 1 view .LVU72
+ 275 0008 0B2B     		cmp	r3, #11
+ 276 000a 09D8     		bhi	.L25
+ 277 000c DFE803F0 		tbb	[pc, r3]
+ 278              	.LVL41:
+ 279              	.L28:
+ 280 0010 06       		.byte	(.L39-.L28)/2
+ 281 0011 09       		.byte	(.L38-.L28)/2
+ 282 0012 0C       		.byte	(.L37-.L28)/2
+ 283 0013 27       		.byte	(.L36-.L28)/2
+ 284 0014 18       		.byte	(.L35-.L28)/2
+ 285 0015 12       		.byte	(.L34-.L28)/2
+ 286 0016 1B       		.byte	(.L33-.L28)/2
+ 287 0017 15       		.byte	(.L32-.L28)/2
+ 288 0018 1E       		.byte	(.L31-.L28)/2
+ 289 0019 21       		.byte	(.L30-.L28)/2
+ 290 001a 24       		.byte	(.L29-.L28)/2
+ 291 001b 0F       		.byte	(.L27-.L28)/2
+ 292              		.p2align 1
+ 293              	.L39:
+  49:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0: ScreenDetailInputMode_Rotate(ioIndex, det); break;
+ 294              		.loc 1 49 9 view .LVU73
+ 295              		.loc 1 49 17 view .LVU74
+ 296              		.loc 1 49 45 is_stmt 0 view .LVU75
+ 297 001c FFF7FEFF 		bl	_Z28ScreenDetailInputMode_RotatePha
+ 298              	.LVL42:
+ 299              		.loc 1 49 61 is_stmt 1 discriminator 1 view .LVU76
+ 300              	.L25:
+  50:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 8
+
+
+  51:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 2: ScreenDetailSocd_Rotate(ioIndex, det); break;
+  52:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Rotate(ioIndex, det); break;
+  53:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Rotate(ioIndex, det); break;
+  54:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Rotate(ioIndex, det); break;
+  55:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Rotate(ioIndex, det); break;
+  56:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Rotate(ioIndex, det); break;
+  57:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Rotate(ioIndex, det); break;
+  58:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Rotate(ioIndex, det); break;
+  59:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Rotate(ioIndex, det); break;
+  60:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Rotate(ioIndex, det); break;
+  61:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+  62:Src/display/screen_control/spi_screen_detail_pages.cpp ****     }
+  63:Src/display/screen_control/spi_screen_detail_pages.cpp **** }
+ 301              		.loc 1 63 1 is_stmt 0 view .LVU77
+ 302 0020 08BD     		pop	{r3, pc}
+ 303              	.LVL43:
+ 304              	.L38:
+  50:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
+ 305              		.loc 1 50 9 is_stmt 1 view .LVU78
+  50:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
+ 306              		.loc 1 50 17 view .LVU79
+  50:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
+ 307              		.loc 1 50 44 is_stmt 0 view .LVU80
+ 308 0022 FFF7FEFF 		bl	_Z27ScreenDetailProfiles_RotatePha
+ 309              	.LVL44:
+  50:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
+ 310              		.loc 1 50 60 is_stmt 1 discriminator 1 view .LVU81
+  50:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
+ 311              		.loc 1 50 60 is_stmt 0 view .LVU82
+ 312 0026 FBE7     		b	.L25
+ 313              	.LVL45:
+ 314              	.L37:
+  51:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Rotate(ioIndex, det); break;
+ 315              		.loc 1 51 9 is_stmt 1 view .LVU83
+  51:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Rotate(ioIndex, det); break;
+ 316              		.loc 1 51 17 view .LVU84
+  51:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Rotate(ioIndex, det); break;
+ 317              		.loc 1 51 40 is_stmt 0 view .LVU85
+ 318 0028 FFF7FEFF 		bl	_Z23ScreenDetailSocd_RotatePha
+ 319              	.LVL46:
+  51:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Rotate(ioIndex, det); break;
+ 320              		.loc 1 51 56 is_stmt 1 discriminator 1 view .LVU86
+  51:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Rotate(ioIndex, det); break;
+ 321              		.loc 1 51 56 is_stmt 0 view .LVU87
+ 322 002c F8E7     		b	.L25
+ 323              	.LVL47:
+ 324              	.L27:
+  52:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Rotate(ioIndex, det); break;
+ 325              		.loc 1 52 9 is_stmt 1 view .LVU88
+  52:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Rotate(ioIndex, det); break;
+ 326              		.loc 1 52 18 view .LVU89
+  52:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Rotate(ioIndex, det); break;
+ 327              		.loc 1 52 55 is_stmt 0 view .LVU90
+ 328 002e FFF7FEFF 		bl	_Z37ScreenDetailButtonsPerformance_RotatePha
+ 329              	.LVL48:
+  52:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Rotate(ioIndex, det); break;
+ 330              		.loc 1 52 71 is_stmt 1 discriminator 1 view .LVU91
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 9
+
+
+  52:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Rotate(ioIndex, det); break;
+ 331              		.loc 1 52 71 is_stmt 0 view .LVU92
+ 332 0032 F5E7     		b	.L25
+ 333              	.LVL49:
+ 334              	.L34:
+  53:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Rotate(ioIndex, det); break;
+ 335              		.loc 1 53 9 is_stmt 1 view .LVU93
+  53:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Rotate(ioIndex, det); break;
+ 336              		.loc 1 53 17 view .LVU94
+  53:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Rotate(ioIndex, det); break;
+ 337              		.loc 1 53 47 is_stmt 0 view .LVU95
+ 338 0034 FFF7FEFF 		bl	_Z30ScreenDetailLightEffect_RotatePha
+ 339              	.LVL50:
+  53:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Rotate(ioIndex, det); break;
+ 340              		.loc 1 53 63 is_stmt 1 discriminator 1 view .LVU96
+  53:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Rotate(ioIndex, det); break;
+ 341              		.loc 1 53 63 is_stmt 0 view .LVU97
+ 342 0038 F2E7     		b	.L25
+ 343              	.LVL51:
+ 344              	.L32:
+  54:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Rotate(ioIndex, det); break;
+ 345              		.loc 1 54 9 is_stmt 1 view .LVU98
+  54:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Rotate(ioIndex, det); break;
+ 346              		.loc 1 54 17 view .LVU99
+  54:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Rotate(ioIndex, det); break;
+ 347              		.loc 1 54 49 is_stmt 0 view .LVU100
+ 348 003a FFF7FEFF 		bl	_Z32ScreenDetailAmbientEffect_RotatePha
+ 349              	.LVL52:
+  54:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Rotate(ioIndex, det); break;
+ 350              		.loc 1 54 65 is_stmt 1 discriminator 1 view .LVU101
+  54:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Rotate(ioIndex, det); break;
+ 351              		.loc 1 54 65 is_stmt 0 view .LVU102
+ 352 003e EFE7     		b	.L25
+ 353              	.LVL53:
+ 354              	.L35:
+  55:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Rotate(ioIndex, det); break;
+ 355              		.loc 1 55 9 is_stmt 1 view .LVU103
+  55:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Rotate(ioIndex, det); break;
+ 356              		.loc 1 55 17 view .LVU104
+  55:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Rotate(ioIndex, det); break;
+ 357              		.loc 1 55 51 is_stmt 0 view .LVU105
+ 358 0040 FFF7FEFF 		bl	_Z34ScreenDetailLightBrightness_RotatePha
+ 359              	.LVL54:
+  55:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Rotate(ioIndex, det); break;
+ 360              		.loc 1 55 67 is_stmt 1 discriminator 1 view .LVU106
+  55:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Rotate(ioIndex, det); break;
+ 361              		.loc 1 55 67 is_stmt 0 view .LVU107
+ 362 0044 ECE7     		b	.L25
+ 363              	.LVL55:
+ 364              	.L33:
+  56:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Rotate(ioIndex, det); break;
+ 365              		.loc 1 56 9 is_stmt 1 view .LVU108
+  56:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Rotate(ioIndex, det); break;
+ 366              		.loc 1 56 17 view .LVU109
+  56:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Rotate(ioIndex, det); break;
+ 367              		.loc 1 56 53 is_stmt 0 view .LVU110
+ 368 0046 FFF7FEFF 		bl	_Z36ScreenDetailAmbientBrightness_RotatePha
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 10
+
+
+ 369              	.LVL56:
+  56:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Rotate(ioIndex, det); break;
+ 370              		.loc 1 56 69 is_stmt 1 discriminator 1 view .LVU111
+  56:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Rotate(ioIndex, det); break;
+ 371              		.loc 1 56 69 is_stmt 0 view .LVU112
+ 372 004a E9E7     		b	.L25
+ 373              	.LVL57:
+ 374              	.L31:
+  57:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Rotate(ioIndex, det); break;
+ 375              		.loc 1 57 9 is_stmt 1 view .LVU113
+  57:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Rotate(ioIndex, det); break;
+ 376              		.loc 1 57 17 view .LVU114
+  57:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Rotate(ioIndex, det); break;
+ 377              		.loc 1 57 52 is_stmt 0 view .LVU115
+ 378 004c FFF7FEFF 		bl	_Z35ScreenDetailScreenBrightness_RotatePha
+ 379              	.LVL58:
+  57:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Rotate(ioIndex, det); break;
+ 380              		.loc 1 57 68 is_stmt 1 discriminator 1 view .LVU116
+  57:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Rotate(ioIndex, det); break;
+ 381              		.loc 1 57 68 is_stmt 0 view .LVU117
+ 382 0050 E6E7     		b	.L25
+ 383              	.LVL59:
+ 384              	.L30:
+  58:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Rotate(ioIndex, det); break;
+ 385              		.loc 1 58 9 is_stmt 1 view .LVU118
+  58:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Rotate(ioIndex, det); break;
+ 386              		.loc 1 58 17 view .LVU119
+  58:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Rotate(ioIndex, det); break;
+ 387              		.loc 1 58 45 is_stmt 0 view .LVU120
+ 388 0052 FFF7FEFF 		bl	_Z28ScreenDetailWebConfig_RotatePha
+ 389              	.LVL60:
+  58:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Rotate(ioIndex, det); break;
+ 390              		.loc 1 58 61 is_stmt 1 discriminator 1 view .LVU121
+  58:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Rotate(ioIndex, det); break;
+ 391              		.loc 1 58 61 is_stmt 0 view .LVU122
+ 392 0056 E3E7     		b	.L25
+ 393              	.LVL61:
+ 394              	.L29:
+  59:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Rotate(ioIndex, det); break;
+ 395              		.loc 1 59 9 is_stmt 1 view .LVU123
+  59:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Rotate(ioIndex, det); break;
+ 396              		.loc 1 59 18 view .LVU124
+  59:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Rotate(ioIndex, det); break;
+ 397              		.loc 1 59 48 is_stmt 0 view .LVU125
+ 398 0058 FFF7FEFF 		bl	_Z30ScreenDetailCalibration_RotatePha
+ 399              	.LVL62:
+  59:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Rotate(ioIndex, det); break;
+ 400              		.loc 1 59 64 is_stmt 1 discriminator 1 view .LVU126
+  59:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Rotate(ioIndex, det); break;
+ 401              		.loc 1 59 64 is_stmt 0 view .LVU127
+ 402 005c E0E7     		b	.L25
+ 403              	.LVL63:
+ 404              	.L36:
+  60:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 405              		.loc 1 60 9 is_stmt 1 view .LVU128
+  60:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 406              		.loc 1 60 17 view .LVU129
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 11
+
+
+  60:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 407              		.loc 1 60 46 is_stmt 0 view .LVU130
+ 408 005e FFF7FEFF 		bl	_Z29ScreenDetailTournament_RotatePha
+ 409              	.LVL64:
+  60:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 410              		.loc 1 60 62 is_stmt 1 discriminator 1 view .LVU131
+ 411              		.loc 1 63 1 is_stmt 0 view .LVU132
+ 412 0062 DDE7     		b	.L25
+ 413              		.cfi_endproc
+ 414              	.LFE2159:
+ 416              		.section	.text._Z22ScreenDetail_OnConfirmhh,"ax",%progbits
+ 417              		.align	1
+ 418              		.global	_Z22ScreenDetail_OnConfirmhh
+ 419              		.syntax unified
+ 420              		.thumb
+ 421              		.thumb_func
+ 423              	_Z22ScreenDetail_OnConfirmhh:
+ 424              	.LVL65:
+ 425              	.LFB2160:
+  64:Src/display/screen_control/spi_screen_detail_pages.cpp **** 
+  65:Src/display/screen_control/spi_screen_detail_pages.cpp **** bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
+ 426              		.loc 1 65 60 is_stmt 1 view -0
+ 427              		.cfi_startproc
+ 428              		@ args = 0, pretend = 0, frame = 0
+ 429              		@ frame_needed = 0, uses_anonymous_args = 0
+ 430              		.loc 1 65 60 is_stmt 0 view .LVU134
+ 431 0000 08B5     		push	{r3, lr}
+ 432              	.LCFI2:
+ 433              		.cfi_def_cfa_offset 8
+ 434              		.cfi_offset 3, -8
+ 435              		.cfi_offset 14, -4
+  66:Src/display/screen_control/spi_screen_detail_pages.cpp ****     switch (menuId) {
+ 436              		.loc 1 66 5 is_stmt 1 view .LVU135
+ 437 0002 0C28     		cmp	r0, #12
+ 438 0004 46D8     		bhi	.L58
+ 439 0006 DFE800F0 		tbb	[pc, r0]
+ 440              	.L45:
+ 441 000a 07       		.byte	(.L57-.L45)/2
+ 442 000b 0C       		.byte	(.L56-.L45)/2
+ 443 000c 11       		.byte	(.L55-.L45)/2
+ 444 000d 41       		.byte	(.L54-.L45)/2
+ 445 000e 25       		.byte	(.L53-.L45)/2
+ 446 000f 1B       		.byte	(.L52-.L45)/2
+ 447 0010 2A       		.byte	(.L51-.L45)/2
+ 448 0011 20       		.byte	(.L50-.L45)/2
+ 449 0012 2F       		.byte	(.L49-.L45)/2
+ 450 0013 34       		.byte	(.L48-.L45)/2
+ 451 0014 38       		.byte	(.L47-.L45)/2
+ 452 0015 17       		.byte	(.L46-.L45)/2
+ 453 0016 3D       		.byte	(.L44-.L45)/2
+ 454 0017 00       		.p2align 1
+ 455              	.L57:
+  67:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0: ScreenDetailInputMode_OnConfirm(index); return true;
+ 456              		.loc 1 67 9 view .LVU136
+ 457              		.loc 1 67 17 view .LVU137
+ 458              		.loc 1 67 48 is_stmt 0 view .LVU138
+ 459 0018 0846     		mov	r0, r1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 12
+
+
+ 460              	.LVL66:
+ 461              		.loc 1 67 48 view .LVU139
+ 462 001a FFF7FEFF 		bl	_Z31ScreenDetailInputMode_OnConfirmh
+ 463              	.LVL67:
+ 464              		.loc 1 67 57 is_stmt 1 discriminator 1 view .LVU140
+ 465              		.loc 1 67 64 is_stmt 0 discriminator 1 view .LVU141
+ 466 001e 0120     		movs	r0, #1
+ 467              	.L43:
+  68:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
+  69:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 2: ScreenDetailSocd_OnConfirm(index); return ScreenDetailSocd_ShouldExitAfterConfirm()
+  70:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
+  71:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
+  72:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
+  73:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+  74:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+  75:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+  76:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnConfirm(index);
+  77:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
+  78:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
+  79:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_OnConfirm(index);
+  80:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return false;
+  81:Src/display/screen_control/spi_screen_detail_pages.cpp ****     }
+  82:Src/display/screen_control/spi_screen_detail_pages.cpp **** }
+ 468              		.loc 1 82 1 view .LVU142
+ 469 0020 08BD     		pop	{r3, pc}
+ 470              	.LVL68:
+ 471              	.L56:
+  68:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
+ 472              		.loc 1 68 9 is_stmt 1 view .LVU143
+  68:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
+ 473              		.loc 1 68 17 view .LVU144
+  68:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
+ 474              		.loc 1 68 47 is_stmt 0 view .LVU145
+ 475 0022 0846     		mov	r0, r1
+ 476              	.LVL69:
+  68:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
+ 477              		.loc 1 68 47 view .LVU146
+ 478 0024 FFF7FEFF 		bl	_Z30ScreenDetailProfiles_OnConfirmh
+ 479              	.LVL70:
+  68:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
+ 480              		.loc 1 68 56 is_stmt 1 discriminator 1 view .LVU147
+  68:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
+ 481              		.loc 1 68 63 is_stmt 0 discriminator 1 view .LVU148
+ 482 0028 0120     		movs	r0, #1
+  68:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
+ 483              		.loc 1 68 63 view .LVU149
+ 484 002a F9E7     		b	.L43
+ 485              	.LVL71:
+ 486              	.L55:
+  69:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
+ 487              		.loc 1 69 9 is_stmt 1 view .LVU150
+  69:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
+ 488              		.loc 1 69 17 view .LVU151
+  69:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
+ 489              		.loc 1 69 43 is_stmt 0 view .LVU152
+ 490 002c 0846     		mov	r0, r1
+ 491              	.LVL72:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 13
+
+
+  69:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
+ 492              		.loc 1 69 43 view .LVU153
+ 493 002e FFF7FEFF 		bl	_Z26ScreenDetailSocd_OnConfirmh
+ 494              	.LVL73:
+  69:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
+ 495              		.loc 1 69 52 is_stmt 1 discriminator 1 view .LVU154
+  69:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
+ 496              		.loc 1 69 98 is_stmt 0 discriminator 1 view .LVU155
+ 497 0032 FFF7FEFF 		bl	_Z39ScreenDetailSocd_ShouldExitAfterConfirmv
+ 498              	.LVL74:
+  69:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
+ 499              		.loc 1 69 99 view .LVU156
+ 500 0036 F3E7     		b	.L43
+ 501              	.LVL75:
+ 502              	.L46:
+  70:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
+ 503              		.loc 1 70 9 is_stmt 1 view .LVU157
+  70:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
+ 504              		.loc 1 70 18 view .LVU158
+  70:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
+ 505              		.loc 1 70 65 is_stmt 0 view .LVU159
+ 506 0038 0846     		mov	r0, r1
+ 507              	.LVL76:
+  70:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
+ 508              		.loc 1 70 65 view .LVU160
+ 509 003a FFF7FEFF 		bl	_Z40ScreenDetailButtonsPerformance_OnConfirmh
+ 510              	.LVL77:
+  70:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
+ 511              		.loc 1 70 71 view .LVU161
+ 512 003e EFE7     		b	.L43
+ 513              	.LVL78:
+ 514              	.L52:
+  71:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
+ 515              		.loc 1 71 9 is_stmt 1 view .LVU162
+  71:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
+ 516              		.loc 1 71 17 view .LVU163
+  71:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
+ 517              		.loc 1 71 50 is_stmt 0 view .LVU164
+ 518 0040 0846     		mov	r0, r1
+ 519              	.LVL79:
+  71:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
+ 520              		.loc 1 71 50 view .LVU165
+ 521 0042 FFF7FEFF 		bl	_Z33ScreenDetailLightEffect_OnConfirmh
+ 522              	.LVL80:
+  71:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
+ 523              		.loc 1 71 59 is_stmt 1 discriminator 1 view .LVU166
+  71:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
+ 524              		.loc 1 71 66 is_stmt 0 discriminator 1 view .LVU167
+ 525 0046 0120     		movs	r0, #1
+  71:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
+ 526              		.loc 1 71 66 view .LVU168
+ 527 0048 EAE7     		b	.L43
+ 528              	.LVL81:
+ 529              	.L50:
+  72:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+ 530              		.loc 1 72 9 is_stmt 1 view .LVU169
+  72:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 14
+
+
+ 531              		.loc 1 72 17 view .LVU170
+  72:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+ 532              		.loc 1 72 52 is_stmt 0 view .LVU171
+ 533 004a 0846     		mov	r0, r1
+ 534              	.LVL82:
+  72:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+ 535              		.loc 1 72 52 view .LVU172
+ 536 004c FFF7FEFF 		bl	_Z35ScreenDetailAmbientEffect_OnConfirmh
+ 537              	.LVL83:
+  72:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+ 538              		.loc 1 72 61 is_stmt 1 discriminator 1 view .LVU173
+  72:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+ 539              		.loc 1 72 68 is_stmt 0 discriminator 1 view .LVU174
+ 540 0050 0120     		movs	r0, #1
+  72:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+ 541              		.loc 1 72 68 view .LVU175
+ 542 0052 E5E7     		b	.L43
+ 543              	.LVL84:
+ 544              	.L53:
+  73:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+ 545              		.loc 1 73 9 is_stmt 1 view .LVU176
+  73:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+ 546              		.loc 1 73 17 view .LVU177
+  73:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+ 547              		.loc 1 73 54 is_stmt 0 view .LVU178
+ 548 0054 0846     		mov	r0, r1
+ 549              	.LVL85:
+  73:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+ 550              		.loc 1 73 54 view .LVU179
+ 551 0056 FFF7FEFF 		bl	_Z37ScreenDetailLightBrightness_OnConfirmh
+ 552              	.LVL86:
+  73:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+ 553              		.loc 1 73 63 is_stmt 1 discriminator 1 view .LVU180
+  73:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+ 554              		.loc 1 73 70 is_stmt 0 discriminator 1 view .LVU181
+ 555 005a 0020     		movs	r0, #0
+  73:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+ 556              		.loc 1 73 70 view .LVU182
+ 557 005c E0E7     		b	.L43
+ 558              	.LVL87:
+ 559              	.L51:
+  74:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+ 560              		.loc 1 74 9 is_stmt 1 view .LVU183
+  74:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+ 561              		.loc 1 74 17 view .LVU184
+  74:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+ 562              		.loc 1 74 56 is_stmt 0 view .LVU185
+ 563 005e 0846     		mov	r0, r1
+ 564              	.LVL88:
+  74:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+ 565              		.loc 1 74 56 view .LVU186
+ 566 0060 FFF7FEFF 		bl	_Z39ScreenDetailAmbientBrightness_OnConfirmh
+ 567              	.LVL89:
+  74:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+ 568              		.loc 1 74 65 is_stmt 1 discriminator 1 view .LVU187
+  74:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+ 569              		.loc 1 74 72 is_stmt 0 discriminator 1 view .LVU188
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 15
+
+
+ 570 0064 0020     		movs	r0, #0
+  74:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+ 571              		.loc 1 74 72 view .LVU189
+ 572 0066 DBE7     		b	.L43
+ 573              	.LVL90:
+ 574              	.L49:
+  75:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnConfirm(index);
+ 575              		.loc 1 75 9 is_stmt 1 view .LVU190
+  75:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnConfirm(index);
+ 576              		.loc 1 75 17 view .LVU191
+  75:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnConfirm(index);
+ 577              		.loc 1 75 55 is_stmt 0 view .LVU192
+ 578 0068 0846     		mov	r0, r1
+ 579              	.LVL91:
+  75:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnConfirm(index);
+ 580              		.loc 1 75 55 view .LVU193
+ 581 006a FFF7FEFF 		bl	_Z38ScreenDetailScreenBrightness_OnConfirmh
+ 582              	.LVL92:
+  75:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnConfirm(index);
+ 583              		.loc 1 75 64 is_stmt 1 discriminator 1 view .LVU194
+  75:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnConfirm(index);
+ 584              		.loc 1 75 71 is_stmt 0 discriminator 1 view .LVU195
+ 585 006e 0020     		movs	r0, #0
+  75:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnConfirm(index);
+ 586              		.loc 1 75 71 view .LVU196
+ 587 0070 D6E7     		b	.L43
+ 588              	.LVL93:
+ 589              	.L48:
+  76:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
+ 590              		.loc 1 76 9 is_stmt 1 view .LVU197
+  76:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
+ 591              		.loc 1 76 17 view .LVU198
+  76:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
+ 592              		.loc 1 76 55 is_stmt 0 view .LVU199
+ 593 0072 0846     		mov	r0, r1
+ 594              	.LVL94:
+  76:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
+ 595              		.loc 1 76 55 view .LVU200
+ 596 0074 FFF7FEFF 		bl	_Z31ScreenDetailWebConfig_OnConfirmh
+ 597              	.LVL95:
+  76:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
+ 598              		.loc 1 76 61 view .LVU201
+ 599 0078 D2E7     		b	.L43
+ 600              	.LVL96:
+ 601              	.L47:
+  77:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
+ 602              		.loc 1 77 9 is_stmt 1 view .LVU202
+  77:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
+ 603              		.loc 1 77 18 view .LVU203
+  77:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
+ 604              		.loc 1 77 51 is_stmt 0 view .LVU204
+ 605 007a 0846     		mov	r0, r1
+ 606              	.LVL97:
+  77:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
+ 607              		.loc 1 77 51 view .LVU205
+ 608 007c FFF7FEFF 		bl	_Z33ScreenDetailCalibration_OnConfirmh
+ 609              	.LVL98:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 16
+
+
+  77:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
+ 610              		.loc 1 77 60 is_stmt 1 discriminator 1 view .LVU206
+  77:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
+ 611              		.loc 1 77 67 is_stmt 0 discriminator 1 view .LVU207
+ 612 0080 0120     		movs	r0, #1
+  77:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);
+ 613              		.loc 1 77 67 view .LVU208
+ 614 0082 CDE7     		b	.L43
+ 615              	.LVL99:
+ 616              	.L44:
+  78:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_OnConfirm(index);
+ 617              		.loc 1 78 9 is_stmt 1 view .LVU209
+  78:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_OnConfirm(index);
+ 618              		.loc 1 78 34 view .LVU210
+  78:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_OnConfirm(index);
+ 619              		.loc 1 78 68 is_stmt 0 view .LVU211
+ 620 0084 0846     		mov	r0, r1
+ 621              	.LVL100:
+  78:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_OnConfirm(index);
+ 622              		.loc 1 78 68 view .LVU212
+ 623 0086 FFF7FEFF 		bl	_Z27ScreenDetailTxIsp_OnConfirmh
+ 624              	.LVL101:
+  78:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_OnConfirm(index);
+ 625              		.loc 1 78 74 view .LVU213
+ 626 008a C9E7     		b	.L43
+ 627              	.LVL102:
+ 628              	.L54:
+  79:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return false;
+ 629              		.loc 1 79 9 is_stmt 1 view .LVU214
+  79:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return false;
+ 630              		.loc 1 79 17 view .LVU215
+  79:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return false;
+ 631              		.loc 1 79 56 is_stmt 0 view .LVU216
+ 632 008c 0846     		mov	r0, r1
+ 633              	.LVL103:
+  79:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return false;
+ 634              		.loc 1 79 56 view .LVU217
+ 635 008e FFF7FEFF 		bl	_Z32ScreenDetailTournament_OnConfirmh
+ 636              	.LVL104:
+  79:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return false;
+ 637              		.loc 1 79 62 view .LVU218
+ 638 0092 C5E7     		b	.L43
+ 639              	.LVL105:
+ 640              	.L58:
+  66:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0: ScreenDetailInputMode_OnConfirm(index); return true;
+ 641              		.loc 1 66 5 view .LVU219
+ 642 0094 0020     		movs	r0, #0
+ 643              	.LVL106:
+  66:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0: ScreenDetailInputMode_OnConfirm(index); return true;
+ 644              		.loc 1 66 5 view .LVU220
+ 645 0096 C3E7     		b	.L43
+ 646              		.cfi_endproc
+ 647              	.LFE2160:
+ 649              		.section	.text._Z19ScreenDetail_OnBackh,"ax",%progbits
+ 650              		.align	1
+ 651              		.global	_Z19ScreenDetail_OnBackh
+ 652              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 17
+
+
+ 653              		.thumb
+ 654              		.thumb_func
+ 656              	_Z19ScreenDetail_OnBackh:
+ 657              	.LVL107:
+ 658              	.LFB2161:
+  83:Src/display/screen_control/spi_screen_detail_pages.cpp **** 
+  84:Src/display/screen_control/spi_screen_detail_pages.cpp **** bool ScreenDetail_OnBack(uint8_t menuId) {
+ 659              		.loc 1 84 42 is_stmt 1 view -0
+ 660              		.cfi_startproc
+ 661              		@ args = 0, pretend = 0, frame = 0
+ 662              		@ frame_needed = 0, uses_anonymous_args = 0
+ 663              		.loc 1 84 42 is_stmt 0 view .LVU222
+ 664 0000 08B5     		push	{r3, lr}
+ 665              	.LCFI3:
+ 666              		.cfi_def_cfa_offset 8
+ 667              		.cfi_offset 3, -8
+ 668              		.cfi_offset 14, -4
+  85:Src/display/screen_control/spi_screen_detail_pages.cpp ****     switch (menuId) {
+ 669              		.loc 1 85 5 is_stmt 1 view .LVU223
+ 670 0002 0338     		subs	r0, r0, #3
+ 671              	.LVL108:
+ 672              		.loc 1 85 5 is_stmt 0 view .LVU224
+ 673 0004 0928     		cmp	r0, #9
+ 674 0006 15D8     		bhi	.L67
+ 675 0008 DFE800F0 		tbb	[pc, r0]
+ 676              	.L63:
+ 677 000c 0B       		.byte	(.L66-.L63)/2
+ 678 000d 14       		.byte	(.L67-.L63)/2
+ 679 000e 14       		.byte	(.L67-.L63)/2
+ 680 000f 14       		.byte	(.L67-.L63)/2
+ 681 0010 14       		.byte	(.L67-.L63)/2
+ 682 0011 14       		.byte	(.L67-.L63)/2
+ 683 0012 05       		.byte	(.L65-.L63)/2
+ 684 0013 14       		.byte	(.L67-.L63)/2
+ 685 0014 0E       		.byte	(.L64-.L63)/2
+ 686 0015 08       		.byte	(.L62-.L63)/2
+ 687              		.p2align 1
+ 688              	.L65:
+  86:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnBack();
+ 689              		.loc 1 86 9 is_stmt 1 view .LVU225
+ 690              		.loc 1 86 17 view .LVU226
+ 691              		.loc 1 86 52 is_stmt 0 view .LVU227
+ 692 0016 FFF7FEFF 		bl	_Z28ScreenDetailWebConfig_OnBackv
+ 693              	.LVL109:
+ 694              		.loc 1 86 53 view .LVU228
+ 695 001a 0CE0     		b	.L61
+ 696              	.L62:
+  87:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnBack();
+ 697              		.loc 1 87 9 is_stmt 1 view .LVU229
+ 698              		.loc 1 87 34 view .LVU230
+ 699              		.loc 1 87 65 is_stmt 0 view .LVU231
+ 700 001c FFF7FEFF 		bl	_Z24ScreenDetailTxIsp_OnBackv
+ 701              	.LVL110:
+ 702              		.loc 1 87 66 view .LVU232
+ 703 0020 09E0     		b	.L61
+ 704              	.L66:
+  88:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: return ScreenDetailTournament_OnBack();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 18
+
+
+ 705              		.loc 1 88 9 is_stmt 1 view .LVU233
+ 706              		.loc 1 88 17 view .LVU234
+ 707              		.loc 1 88 53 is_stmt 0 view .LVU235
+ 708 0022 FFF7FEFF 		bl	_Z29ScreenDetailTournament_OnBackv
+ 709              	.LVL111:
+ 710              		.loc 1 88 54 view .LVU236
+ 711 0026 06E0     		b	.L61
+ 712              	.L64:
+  89:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: return !ScreenDetailButtonsPerformance_OnBack();
+ 713              		.loc 1 89 9 is_stmt 1 view .LVU237
+ 714              		.loc 1 89 18 view .LVU238
+ 715              		.loc 1 89 63 is_stmt 0 view .LVU239
+ 716 0028 FFF7FEFF 		bl	_Z37ScreenDetailButtonsPerformance_OnBackv
+ 717              	.LVL112:
+ 718              		.loc 1 89 64 discriminator 1 view .LVU240
+ 719 002c 80F00100 		eor	r0, r0, #1
+ 720 0030 C0B2     		uxtb	r0, r0
+ 721              		.loc 1 89 64 view .LVU241
+ 722 0032 00E0     		b	.L61
+ 723              	.L67:
+  85:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: return ScreenDetailWebConfig_OnBack();
+ 724              		.loc 1 85 5 view .LVU242
+ 725 0034 0120     		movs	r0, #1
+ 726              	.L61:
+  90:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: return true;
+  91:Src/display/screen_control/spi_screen_detail_pages.cpp ****     }
+  92:Src/display/screen_control/spi_screen_detail_pages.cpp **** }
+ 727              		.loc 1 92 1 view .LVU243
+ 728 0036 08BD     		pop	{r3, pc}
+ 729              		.cfi_endproc
+ 730              	.LFE2161:
+ 732              		.section	.text._Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle,"ax",%progbits
+ 733              		.align	1
+ 734              		.global	_Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle
+ 735              		.syntax unified
+ 736              		.thumb
+ 737              		.thumb_func
+ 739              	_Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle:
+ 740              	.LVL113:
+ 741              	.LFB2162:
+  93:Src/display/screen_control/spi_screen_detail_pages.cpp **** 
+  94:Src/display/screen_control/spi_screen_detail_pages.cpp **** void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, const ScreenUiStyle& st
+ 742              		.loc 1 94 105 is_stmt 1 view -0
+ 743              		.cfi_startproc
+ 744              		@ args = 0, pretend = 0, frame = 0
+ 745              		@ frame_needed = 0, uses_anonymous_args = 0
+ 746              		.loc 1 94 105 is_stmt 0 view .LVU245
+ 747 0000 08B5     		push	{r3, lr}
+ 748              	.LCFI4:
+ 749              		.cfi_def_cfa_offset 8
+ 750              		.cfi_offset 3, -8
+ 751              		.cfi_offset 14, -4
+ 752 0002 8C46     		mov	ip, r1
+ 753 0004 1146     		mov	r1, r2
+ 754              	.LVL114:
+ 755              		.loc 1 94 105 view .LVU246
+ 756 0006 1A46     		mov	r2, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 19
+
+
+ 757              	.LVL115:
+  95:Src/display/screen_control/spi_screen_detail_pages.cpp ****     switch (menuId) {
+ 758              		.loc 1 95 5 is_stmt 1 view .LVU247
+ 759 0008 BCF10C0F 		cmp	ip, #12
+ 760 000c 0AD8     		bhi	.L69
+ 761 000e DFE80CF0 		tbb	[pc, ip]
+ 762              	.LVL116:
+ 763              	.L72:
+ 764 0012 07       		.byte	(.L84-.L72)/2
+ 765 0013 0A       		.byte	(.L83-.L72)/2
+ 766 0014 0D       		.byte	(.L82-.L72)/2
+ 767 0015 2B       		.byte	(.L81-.L72)/2
+ 768 0016 19       		.byte	(.L80-.L72)/2
+ 769 0017 13       		.byte	(.L79-.L72)/2
+ 770 0018 1C       		.byte	(.L78-.L72)/2
+ 771 0019 16       		.byte	(.L77-.L72)/2
+ 772 001a 1F       		.byte	(.L76-.L72)/2
+ 773 001b 22       		.byte	(.L75-.L72)/2
+ 774 001c 25       		.byte	(.L74-.L72)/2
+ 775 001d 10       		.byte	(.L73-.L72)/2
+ 776 001e 28       		.byte	(.L71-.L72)/2
+ 777 001f 00       		.p2align 1
+ 778              	.L84:
+  96:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 0: ScreenDetailInputMode_Render(lcd, index, style); break;
+ 779              		.loc 1 96 9 view .LVU248
+ 780              		.loc 1 96 17 view .LVU249
+ 781              		.loc 1 96 45 is_stmt 0 view .LVU250
+ 782 0020 FFF7FEFF 		bl	_Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 783              	.LVL117:
+ 784              		.loc 1 96 66 is_stmt 1 discriminator 1 view .LVU251
+ 785              	.L69:
+  97:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;
+  98:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 2: ScreenDetailSocd_Render(lcd, index, style); break;
+  99:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Render(lcd, index, style); break;
+ 100:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Render(lcd, index, style); break;
+ 101:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Render(lcd, index, style); break;
+ 102:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Render(lcd, index, style); break;
+ 103:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Render(lcd, index, style); break;
+ 104:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Render(lcd, index, style); break;
+ 105:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Render(lcd, index, style); break;
+ 106:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Render(lcd, index, style); break;
+ 107:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: ScreenDetailTxIsp_Render(lcd, index, style); break;
+ 108:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Render(lcd, index, style); break;
+ 109:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 110:Src/display/screen_control/spi_screen_detail_pages.cpp ****     }
+ 111:Src/display/screen_control/spi_screen_detail_pages.cpp **** }
+ 786              		.loc 1 111 1 is_stmt 0 view .LVU252
+ 787 0024 08BD     		pop	{r3, pc}
+ 788              	.LVL118:
+ 789              	.L83:
+  97:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;
+ 790              		.loc 1 97 9 is_stmt 1 view .LVU253
+  97:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;
+ 791              		.loc 1 97 17 view .LVU254
+  97:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;
+ 792              		.loc 1 97 44 is_stmt 0 view .LVU255
+ 793 0026 FFF7FEFF 		bl	_Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 20
+
+
+ 794              	.LVL119:
+  97:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;
+ 795              		.loc 1 97 65 is_stmt 1 discriminator 1 view .LVU256
+  97:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;
+ 796              		.loc 1 97 65 is_stmt 0 view .LVU257
+ 797 002a FBE7     		b	.L69
+ 798              	.LVL120:
+ 799              	.L82:
+  98:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Render(lcd, index, style); break;
+ 800              		.loc 1 98 9 is_stmt 1 view .LVU258
+  98:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Render(lcd, index, style); break;
+ 801              		.loc 1 98 17 view .LVU259
+  98:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Render(lcd, index, style); break;
+ 802              		.loc 1 98 40 is_stmt 0 view .LVU260
+ 803 002c FFF7FEFF 		bl	_Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 804              	.LVL121:
+  98:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Render(lcd, index, style); break;
+ 805              		.loc 1 98 61 is_stmt 1 discriminator 1 view .LVU261
+  98:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 11: ScreenDetailButtonsPerformance_Render(lcd, index, style); break;
+ 806              		.loc 1 98 61 is_stmt 0 view .LVU262
+ 807 0030 F8E7     		b	.L69
+ 808              	.LVL122:
+ 809              	.L73:
+  99:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Render(lcd, index, style); break;
+ 810              		.loc 1 99 9 is_stmt 1 view .LVU263
+  99:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Render(lcd, index, style); break;
+ 811              		.loc 1 99 18 view .LVU264
+  99:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Render(lcd, index, style); break;
+ 812              		.loc 1 99 55 is_stmt 0 view .LVU265
+ 813 0032 FFF7FEFF 		bl	_Z37ScreenDetailButtonsPerformance_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 814              	.LVL123:
+  99:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Render(lcd, index, style); break;
+ 815              		.loc 1 99 76 is_stmt 1 discriminator 1 view .LVU266
+  99:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 5: ScreenDetailLightEffect_Render(lcd, index, style); break;
+ 816              		.loc 1 99 76 is_stmt 0 view .LVU267
+ 817 0036 F5E7     		b	.L69
+ 818              	.LVL124:
+ 819              	.L79:
+ 100:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Render(lcd, index, style); break;
+ 820              		.loc 1 100 9 is_stmt 1 view .LVU268
+ 100:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Render(lcd, index, style); break;
+ 821              		.loc 1 100 17 view .LVU269
+ 100:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Render(lcd, index, style); break;
+ 822              		.loc 1 100 47 is_stmt 0 view .LVU270
+ 823 0038 FFF7FEFF 		bl	_Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 824              	.LVL125:
+ 100:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Render(lcd, index, style); break;
+ 825              		.loc 1 100 68 is_stmt 1 discriminator 1 view .LVU271
+ 100:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 7: ScreenDetailAmbientEffect_Render(lcd, index, style); break;
+ 826              		.loc 1 100 68 is_stmt 0 view .LVU272
+ 827 003c F2E7     		b	.L69
+ 828              	.LVL126:
+ 829              	.L77:
+ 101:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Render(lcd, index, style); break;
+ 830              		.loc 1 101 9 is_stmt 1 view .LVU273
+ 101:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Render(lcd, index, style); break;
+ 831              		.loc 1 101 17 view .LVU274
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 21
+
+
+ 101:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Render(lcd, index, style); break;
+ 832              		.loc 1 101 49 is_stmt 0 view .LVU275
+ 833 003e FFF7FEFF 		bl	_Z32ScreenDetailAmbientEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 834              	.LVL127:
+ 101:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Render(lcd, index, style); break;
+ 835              		.loc 1 101 70 is_stmt 1 discriminator 1 view .LVU276
+ 101:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 4: ScreenDetailLightBrightness_Render(lcd, index, style); break;
+ 836              		.loc 1 101 70 is_stmt 0 view .LVU277
+ 837 0042 EFE7     		b	.L69
+ 838              	.LVL128:
+ 839              	.L80:
+ 102:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Render(lcd, index, style); break;
+ 840              		.loc 1 102 9 is_stmt 1 view .LVU278
+ 102:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Render(lcd, index, style); break;
+ 841              		.loc 1 102 17 view .LVU279
+ 102:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Render(lcd, index, style); break;
+ 842              		.loc 1 102 51 is_stmt 0 view .LVU280
+ 843 0044 FFF7FEFF 		bl	_Z34ScreenDetailLightBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 844              	.LVL129:
+ 102:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Render(lcd, index, style); break;
+ 845              		.loc 1 102 72 is_stmt 1 discriminator 1 view .LVU281
+ 102:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 6: ScreenDetailAmbientBrightness_Render(lcd, index, style); break;
+ 846              		.loc 1 102 72 is_stmt 0 view .LVU282
+ 847 0048 ECE7     		b	.L69
+ 848              	.LVL130:
+ 849              	.L78:
+ 103:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Render(lcd, index, style); break;
+ 850              		.loc 1 103 9 is_stmt 1 view .LVU283
+ 103:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Render(lcd, index, style); break;
+ 851              		.loc 1 103 17 view .LVU284
+ 103:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Render(lcd, index, style); break;
+ 852              		.loc 1 103 53 is_stmt 0 view .LVU285
+ 853 004a FFF7FEFF 		bl	_Z36ScreenDetailAmbientBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 854              	.LVL131:
+ 103:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Render(lcd, index, style); break;
+ 855              		.loc 1 103 74 is_stmt 1 discriminator 1 view .LVU286
+ 103:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 8: ScreenDetailScreenBrightness_Render(lcd, index, style); break;
+ 856              		.loc 1 103 74 is_stmt 0 view .LVU287
+ 857 004e E9E7     		b	.L69
+ 858              	.LVL132:
+ 859              	.L76:
+ 104:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Render(lcd, index, style); break;
+ 860              		.loc 1 104 9 is_stmt 1 view .LVU288
+ 104:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Render(lcd, index, style); break;
+ 861              		.loc 1 104 17 view .LVU289
+ 104:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Render(lcd, index, style); break;
+ 862              		.loc 1 104 52 is_stmt 0 view .LVU290
+ 863 0050 FFF7FEFF 		bl	_Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 864              	.LVL133:
+ 104:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Render(lcd, index, style); break;
+ 865              		.loc 1 104 73 is_stmt 1 discriminator 1 view .LVU291
+ 104:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 9: ScreenDetailWebConfig_Render(lcd, index, style); break;
+ 866              		.loc 1 104 73 is_stmt 0 view .LVU292
+ 867 0054 E6E7     		b	.L69
+ 868              	.LVL134:
+ 869              	.L75:
+ 105:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Render(lcd, index, style); break;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 22
+
+
+ 870              		.loc 1 105 9 is_stmt 1 view .LVU293
+ 105:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Render(lcd, index, style); break;
+ 871              		.loc 1 105 17 view .LVU294
+ 105:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Render(lcd, index, style); break;
+ 872              		.loc 1 105 45 is_stmt 0 view .LVU295
+ 873 0056 FFF7FEFF 		bl	_Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 874              	.LVL135:
+ 105:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Render(lcd, index, style); break;
+ 875              		.loc 1 105 66 is_stmt 1 discriminator 1 view .LVU296
+ 105:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 10: ScreenDetailCalibration_Render(lcd, index, style); break;
+ 876              		.loc 1 105 66 is_stmt 0 view .LVU297
+ 877 005a E3E7     		b	.L69
+ 878              	.LVL136:
+ 879              	.L74:
+ 106:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: ScreenDetailTxIsp_Render(lcd, index, style); break;
+ 880              		.loc 1 106 9 is_stmt 1 view .LVU298
+ 106:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: ScreenDetailTxIsp_Render(lcd, index, style); break;
+ 881              		.loc 1 106 18 view .LVU299
+ 106:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: ScreenDetailTxIsp_Render(lcd, index, style); break;
+ 882              		.loc 1 106 48 is_stmt 0 view .LVU300
+ 883 005c FFF7FEFF 		bl	_Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 884              	.LVL137:
+ 106:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: ScreenDetailTxIsp_Render(lcd, index, style); break;
+ 885              		.loc 1 106 69 is_stmt 1 discriminator 1 view .LVU301
+ 106:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case SCREEN_MENU_TX_ISP: ScreenDetailTxIsp_Render(lcd, index, style); break;
+ 886              		.loc 1 106 69 is_stmt 0 view .LVU302
+ 887 0060 E0E7     		b	.L69
+ 888              	.LVL138:
+ 889              	.L71:
+ 107:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Render(lcd, index, style); break;
+ 890              		.loc 1 107 9 is_stmt 1 view .LVU303
+ 107:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Render(lcd, index, style); break;
+ 891              		.loc 1 107 34 view .LVU304
+ 107:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Render(lcd, index, style); break;
+ 892              		.loc 1 107 58 is_stmt 0 view .LVU305
+ 893 0062 FFF7FEFF 		bl	_Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 894              	.LVL139:
+ 107:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Render(lcd, index, style); break;
+ 895              		.loc 1 107 79 is_stmt 1 discriminator 1 view .LVU306
+ 107:Src/display/screen_control/spi_screen_detail_pages.cpp ****         case 3: ScreenDetailTournament_Render(lcd, index, style); break;
+ 896              		.loc 1 107 79 is_stmt 0 view .LVU307
+ 897 0066 DDE7     		b	.L69
+ 898              	.LVL140:
+ 899              	.L81:
+ 108:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 900              		.loc 1 108 9 is_stmt 1 view .LVU308
+ 108:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 901              		.loc 1 108 17 view .LVU309
+ 108:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 902              		.loc 1 108 46 is_stmt 0 view .LVU310
+ 903 0068 FFF7FEFF 		bl	_Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 904              	.LVL141:
+ 108:Src/display/screen_control/spi_screen_detail_pages.cpp ****         default: break;
+ 905              		.loc 1 108 67 is_stmt 1 discriminator 1 view .LVU311
+ 906              		.loc 1 111 1 is_stmt 0 view .LVU312
+ 907 006c DAE7     		b	.L69
+ 908              		.cfi_endproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 23
+
+
+ 909              	.LFE2162:
+ 911              		.text
+ 912              	.Letext0:
+ 913              		.file 2 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 914              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 915              		.file 4 "Inc/display/screen_control/spi_screen_layout.hpp"
+ 916              		.file 5 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 917              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 918              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 919              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 920              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 921              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 922              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 923              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 924              		.file 13 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 925              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 926              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 927              		.file 16 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 928              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 929              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 930              		.file 19 "Inc/system/board_cfg.h"
+ 931              		.file 20 "Inc/display/drivers/st7789/st7789.h"
+ 932              		.file 21 "Inc/support/enums.hpp"
+ 933              		.file 22 "Inc/display/screen_control/spi_screen_detail_pages.hpp"
+ 934              		.file 23 "Inc/display/screen_control/spi_screen_detail_entries.hpp"
+ 935              		.file 24 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 936              		.file 25 "Inc/display/screen_control/spi_screen_main_list.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 24
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_pages.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:20     .text._Z17ScreenDetail_Kindh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:26     .text._Z17ScreenDetail_Kindh:00000000 _Z17ScreenDetail_Kindh
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:83     .text._Z22ScreenDetail_InitIndexh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:89     .text._Z22ScreenDetail_InitIndexh:00000000 _Z22ScreenDetail_InitIndexh
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:107    .text._Z22ScreenDetail_InitIndexh:0000000a $d
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:249    .text._Z21ScreenDetail_OnRotatehPha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:255    .text._Z21ScreenDetail_OnRotatehPha:00000000 _Z21ScreenDetail_OnRotatehPha
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:280    .text._Z21ScreenDetail_OnRotatehPha:00000010 $d
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:292    .text._Z21ScreenDetail_OnRotatehPha:0000001c $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:417    .text._Z22ScreenDetail_OnConfirmhh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:423    .text._Z22ScreenDetail_OnConfirmhh:00000000 _Z22ScreenDetail_OnConfirmhh
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:441    .text._Z22ScreenDetail_OnConfirmhh:0000000a $d
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:650    .text._Z19ScreenDetail_OnBackh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:656    .text._Z19ScreenDetail_OnBackh:00000000 _Z19ScreenDetail_OnBackh
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:677    .text._Z19ScreenDetail_OnBackh:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:687    .text._Z19ScreenDetail_OnBackh:00000016 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:733    .text._Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:739    .text._Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle:00000000 _Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:764    .text._Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle:00000012 $d
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:120    .text._Z22ScreenDetail_InitIndexh:00000017 $d
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:120    .text._Z22ScreenDetail_InitIndexh:00000018 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:454    .text._Z22ScreenDetail_OnConfirmhh:00000017 $d
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:454    .text._Z22ScreenDetail_OnConfirmhh:00000018 $t
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:777    .text._Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle:0000001f $d
+C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s:777    .text._Z19ScreenDetail_RenderP13ST7789_HandlehhRK13ScreenUiStyle:00000020 $t
+
+UNDEFINED SYMBOLS
+_Z31ScreenDetailInputMode_InitIndexv
+_Z30ScreenDetailProfiles_InitIndexv
+_Z26ScreenDetailSocd_InitIndexv
+_Z40ScreenDetailButtonsPerformance_InitIndexv
+_Z33ScreenDetailLightEffect_InitIndexv
+_Z35ScreenDetailAmbientEffect_InitIndexv
+_Z37ScreenDetailLightBrightness_InitIndexv
+_Z39ScreenDetailAmbientBrightness_InitIndexv
+_Z38ScreenDetailScreenBrightness_InitIndexv
+_Z31ScreenDetailWebConfig_InitIndexv
+_Z33ScreenDetailCalibration_InitIndexv
+_Z27ScreenDetailTxIsp_InitIndexv
+_Z32ScreenDetailTournament_InitIndexv
+_Z28ScreenDetailInputMode_RotatePha
+_Z27ScreenDetailProfiles_RotatePha
+_Z23ScreenDetailSocd_RotatePha
+_Z37ScreenDetailButtonsPerformance_RotatePha
+_Z30ScreenDetailLightEffect_RotatePha
+_Z32ScreenDetailAmbientEffect_RotatePha
+_Z34ScreenDetailLightBrightness_RotatePha
+_Z36ScreenDetailAmbientBrightness_RotatePha
+_Z35ScreenDetailScreenBrightness_RotatePha
+_Z28ScreenDetailWebConfig_RotatePha
+_Z30ScreenDetailCalibration_RotatePha
+_Z29ScreenDetailTournament_RotatePha
+_Z31ScreenDetailInputMode_OnConfirmh
+_Z30ScreenDetailProfiles_OnConfirmh
+_Z26ScreenDetailSocd_OnConfirmh
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc3Fj1Mt.s 			page 25
+
+
+_Z39ScreenDetailSocd_ShouldExitAfterConfirmv
+_Z40ScreenDetailButtonsPerformance_OnConfirmh
+_Z33ScreenDetailLightEffect_OnConfirmh
+_Z35ScreenDetailAmbientEffect_OnConfirmh
+_Z37ScreenDetailLightBrightness_OnConfirmh
+_Z39ScreenDetailAmbientBrightness_OnConfirmh
+_Z38ScreenDetailScreenBrightness_OnConfirmh
+_Z31ScreenDetailWebConfig_OnConfirmh
+_Z33ScreenDetailCalibration_OnConfirmh
+_Z27ScreenDetailTxIsp_OnConfirmh
+_Z32ScreenDetailTournament_OnConfirmh
+_Z28ScreenDetailWebConfig_OnBackv
+_Z24ScreenDetailTxIsp_OnBackv
+_Z29ScreenDetailTournament_OnBackv
+_Z37ScreenDetailButtonsPerformance_OnBackv
+_Z28ScreenDetailInputMode_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z27ScreenDetailProfiles_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z23ScreenDetailSocd_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z37ScreenDetailButtonsPerformance_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z30ScreenDetailLightEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z32ScreenDetailAmbientEffect_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z34ScreenDetailLightBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z36ScreenDetailAmbientBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z24ScreenDetailTxIsp_RenderP13ST7789_HandlehRK13ScreenUiStyle
+_Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle

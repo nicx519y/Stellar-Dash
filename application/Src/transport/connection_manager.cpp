@@ -7,7 +7,7 @@
 #include "input_runtime_policy.hpp"
 #include "monitor_telemetry.hpp"
 #include "rf_bridge_port.hpp"
-#include "rf_rate_confirmation_policy.hpp"
+#include "rf_sleep_recovery.hpp"
 #include "storagemanager.hpp"
 #include "usbdriver.hpp"
 #include "system_logger.h"
@@ -19,6 +19,10 @@
 #if !APP_LOG_VERBOSE
 #define printf(...) ((void)0)
 #endif
+
+// First recovery cause survives port/session cleanup. Subsequent incidents
+// increment count only; cache-cleaned so a non-halting SWD read sees evidence.
+alignas(32) volatile uint32_t g_rfRuntimeRecoveryDiagnostic[16] = {};
 
 namespace {
 static uint16_t clampRfReportRateHz(uint16_t rateHz) {
@@ -44,11 +48,11 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 
 static constexpr uint32_t kRfSleepRetryMs = 500u;
 static constexpr uint32_t kRfStatusPollMs = 500u;
+static constexpr uint32_t kRfStatusReplyTimeoutMs = 20u;
 static constexpr uint32_t kRfPostSleepSettleMs = 150u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
 static constexpr uint8_t kRfCmdSleep = 0x08u;
-static constexpr uint8_t kRfCmdSetRate = 0x05u;
 static constexpr uint8_t kRfEvtWakeupComplete = 0x88u;
 static constexpr uint8_t kRfEvtError = 0x85u;
 static constexpr uint8_t kRfEvtMonitorConfig = 0x86u;
@@ -57,7 +61,8 @@ static constexpr uint32_t kRfPostSleepWakeDetectMs = 150u;
 static constexpr uint8_t kRfPowerHintUnknown = 0u;
 static constexpr uint8_t kRfPowerHintAwake = 1u;
 static constexpr uint8_t kRfPowerHintSleeping = 2u;
-static constexpr uint32_t kRfRateAppliedTimeoutMs = 200u;
+static constexpr uint32_t kRfRateAppliedTimeoutMs = 500u;
+static constexpr uint8_t kRfRuntimeRecoveryAttempts = 3u;
 static constexpr uint32_t kRfPairingFallbackTimeoutMs = 65000u;
 
 static bool rfPhysicalRoleIsActive() {
@@ -169,38 +174,21 @@ bool ConnectionManager::confirmRfReportRate(uint16_t targetRateHz) {
     reportRateConfirmed = false;
 
     const auto applyAndConfirm = [this](uint16_t rateHz) {
-        const uint32_t previousEventCounter =
-            rfTransport.getStatus().eventCounter;
-        if (!rfTransport.setRate(rateHz)) {
-            return false;
-        }
-        const uint8_t transaction =
-            rfTransport.getStatus().lastTransactionId;
+        if (!rfTransport.setRate(rateHz)) return false;
+        // Capture after the entire send window: old replies cannot confirm
+        // this application of SET_RATE. DMA-capable polling is asynchronous.
+        const uint32_t generation = rfTransport.receivedStatusGeneration();
         const uint32_t startedAt = HAL_GetTick();
+        uint32_t lastQuery = startedAt - 50u;
         do {
             (void)rfTransport.serviceEvents(8u);
-            const RFModuleStatus& status = rfTransport.getStatus();
-            if (status.eventCounter == previousEventCounter) {
-                HAL_Delay(1u);
-                continue;
-            }
-            if (status.lastCommandTag != kRfCmdSetRate ||
-                status.lastTransactionId != transaction) {
-                HAL_Delay(1u);
-                continue;
-            }
-            if (status.lastEvent == kRfEvtError ||
-                status.lastResult != 0u) {
-                return false;
-            }
-            if (RfRateAppliedMatches(rateHz,
-                                     transaction,
-                                     status.lastEvent,
-                                     status.lastCommandTag,
-                                     status.lastTransactionId,
-                                     status.lastResult,
-                                     status.rateHz)) {
-                return true;
+            if (RFBridgePort_HasReleaseFault()) return false;
+            if (rfTransport.receivedStatusGeneration() != generation &&
+                rfTransport.receivedStatusMatchesRate(rateHz)) return true;
+            const uint32_t now = HAL_GetTick();
+            if (now - lastQuery >= 50u && !RFBridgePort_HasPendingEvent()) {
+                lastQuery = now;
+                (void)rfTransport.pollStatus();
             }
             HAL_Delay(1u);
         } while ((HAL_GetTick() - startedAt) < kRfRateAppliedTimeoutMs);
@@ -211,13 +199,13 @@ bool ConnectionManager::confirmRfReportRate(uint16_t targetRateHz) {
         appliedReportRateHz = targetRateHz;
         rateApplyPending = false;
         reportRateConfirmed = true;
-        printf("[RF_RATE] RATE_APPLIED confirmed requested=%u applied=%u\r\n",
+        printf("[RF_RATE] GET_STATUS confirmed requested=%u applied=%u\r\n",
                (unsigned int)targetRateHz,
                (unsigned int)appliedReportRateHz);
         return true;
     }
 
-    printf("[RF_RATE] RATE_APPLIED failed requested=%u fallback=1000\r\n",
+    printf("[RF_RATE] GET_STATUS confirmation failed requested=%u fallback=1000\r\n",
            (unsigned int)targetRateHz);
     if ((targetRateHz != 1000u) && applyAndConfirm(1000u)) {
         appliedReportRateHz = 1000u;
@@ -227,7 +215,7 @@ bool ConnectionManager::confirmRfReportRate(uint16_t targetRateHz) {
             "CONNECTION_MANAGER",
             1015u,
             "requested RF rate was not confirmed; applied 1 kHz fallback");
-        printf("[RF_RATE] fallback RATE_APPLIED confirmed requested=%u applied=1000\r\n",
+        printf("[RF_RATE] fallback GET_STATUS confirmed requested=%u applied=1000\r\n",
                (unsigned int)targetRateHz);
         return true;
     }
@@ -372,26 +360,98 @@ void ConnectionManager::serviceRfEvents() {
 void ConnectionManager::serviceRfStatusPoll()
 {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G ||
-        !rfPhysicalRoleIsActive() ||
-        rfPairingActive ||
-        rfPowerStateBlocksSpi() ||
-        RFBridgePort_HasPendingEvent()) {
-        return;
-    }
+        !rfPhysicalRoleIsActive() || rfPairingActive || rfPowerStateBlocksSpi()) return;
 
     const uint32_t now = HAL_GetTick();
-    if ((now - lastRfStatusPollMs) < kRfStatusPollMs) {
-        return;
+    const uint32_t generation = rfTransport.receivedStatusGeneration();
+    if (generation != lastRfStatusGeneration) {
+        lastRfStatusGeneration = generation;
+        rfStatusPollPending = false;
+        rfStatusPollFailures = 0u;
+        if (reportRateConfirmed && !rfTransport.receivedStatusMatchesRate(appliedReportRateHz)) {
+            // A reset TX can answer GET_STATUS with rate=0 while RX is absent.
+            // Revoke the old confirmation; never keep streaming on that rate.
+            reportRateConfirmed = false;
+            appliedReportRateHz = 0u;
+            setLinkState(ConnectionLinkState::Error);
+            return;
+        }
+        updateRfLinkStateFromStatus();
     }
+    if (rfStatusPollPending) {
+        if (now - lastRfStatusPollMs < kRfStatusReplyTimeoutMs) return;
+        rfStatusPollPending = false;
+        if (rfStatusPollFailures < 3u) ++rfStatusPollFailures;
+    }
+    if (now - lastRfStatusPollMs < kRfStatusPollMs) return;
+    // A pending input DMA or event is arbitration, not a failed status query.
+    if (rfStatusPollFailures >= 3u || !RFBridgePort_RecoveryIdle()) return;
     lastRfStatusPollMs = now;
-
-    if (!rfTransport.pollStatus()) {
+    if (rfTransport.pollStatus()) {
+        // Reserve the bus until the reply or a short deadline. Otherwise an
+        // 8-kHz input can clock out a reply while TX changes SPI direction.
+        // serviceRfEvents remains enabled; only normal input is gated.
+        rfStatusPollPending = true;
+    } else {
+        // W_INT can assert between the idle check and sending. Let its event
+        // drain instead of counting that normal ownership handoff as failure.
+        if (!RFBridgePort_RecoveryIdle()) return;
+        if (rfStatusPollFailures < 3u) ++rfStatusPollFailures;
         setLinkState(ConnectionLinkState::Error);
-        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1017u,
-                                 "rf GET_STATUS failed");
-        return;
     }
-    updateRfLinkStateFromStatus();
+}
+
+void ConnectionManager::recordRfRecoveryStart()
+{
+    ++g_rfRuntimeRecoveryDiagnostic[1];
+    if (g_rfRuntimeRecoveryDiagnostic[0] == 0u) {
+        g_rfRuntimeRecoveryDiagnostic[0] = 0x52465231u;
+        g_rfRuntimeRecoveryDiagnostic[2] = RFBridgePort_HasReleaseFault() ? 1u
+            : (!reportRateConfirmed ? 2u : 3u);
+        g_rfRuntimeRecoveryDiagnostic[3] = HAL_GetTick();
+        g_rfRuntimeRecoveryDiagnostic[4] = requestedReportRateHz;
+        g_rfRuntimeRecoveryDiagnostic[5] = appliedReportRateHz;
+        g_rfRuntimeRecoveryDiagnostic[6] = rfTransport.getStatus().rateHz;
+        g_rfRuntimeRecoveryDiagnostic[7] = rfTransport.receivedStatusGeneration();
+        g_rfRuntimeRecoveryDiagnostic[8] = rfStatusPollFailures;
+        g_rfRuntimeRecoveryDiagnostic[9] = lastRfStatusPollMs;
+        g_rfRuntimeRecoveryDiagnostic[10] = rfSendTotal;
+        g_rfRuntimeRecoveryDiagnostic[11] = rfTransport.getStatus().lastEvent;
+        g_rfRuntimeRecoveryDiagnostic[12] = rfTransport.getStatus().lastCommandTag;
+        g_rfRuntimeRecoveryDiagnostic[13] = rfTransport.getStatus().lastResult;
+        g_rfRuntimeRecoveryDiagnostic[14] = rfTransport.getStatus().errorCounter;
+        g_rfRuntimeRecoveryDiagnostic[15] = RFBridgePort_BootSignalReleased() ? 1u : 0u;
+    }
+    SCB_CleanDCache_by_Addr((uint32_t*)g_rfRuntimeRecoveryDiagnostic,
+                          sizeof(g_rfRuntimeRecoveryDiagnostic));
+    __DSB();
+}
+
+bool ConnectionManager::serviceRfRuntimeRecovery()
+{
+    // During power cycling the role is deliberately unlocked, so test the
+    // physical mode before (not the role-lock guard used by normal traffic).
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G ||
+        !BOARD_MODE.isStable() || BOARD_MODE.current() != BoardMode::Rf) return false;
+    if (rfRuntimeRecoveryActive) {
+        RF_SLEEP_RECOVERY.service(HAL_GetTick());
+        if (RF_SLEEP_RECOVERY.state() == RfSleepState::Ready) rfRuntimeRecoveryActive = false;
+        return true; // Failed stays parked; only an explicit mode change retries.
+    }
+    if (rfSleepRecoveryOwned || rfPairingActive || rfPowerState != RfPowerState::Awake ||
+        !rfPhysicalRoleIsActive()) return false;
+    if (!RFBridgePort_HasReleaseFault() && reportRateConfirmed && rfStatusPollFailures < 3u)
+        return false;
+    recordRfRecoveryStart();
+    rfRuntimeRecoveryActive = true;
+    MonitorTelemetry_OnError("CONNECTION_MANAGER", 1019u, "RF control link recovery started");
+    RF_SLEEP_RECOVERY.begin(requestedReportRateHz, kRfRuntimeRecoveryAttempts);
+    return true;
+}
+
+void ConnectionManager::cancelRfRuntimeRecovery()
+{
+    rfRuntimeRecoveryActive = false;
 }
 
 void ConnectionManager::serviceRfPairingTimeout()
@@ -429,6 +489,10 @@ void ConnectionManager::setup(ConnectionMode connMode,
                               InputMode inputMode, bool coldSleepResume) {
     BP_APP_SCOPE(BP_APP_CONNECTION_SETUP);
     rfSleepRecoveryOwned = false;
+    rfRuntimeRecoveryActive = false;
+    rfStatusPollPending = false;
+    rfStatusPollFailures = 0u;
+    lastRfStatusGeneration = rfTransport.receivedStatusGeneration();
     mode = connMode;
     inputMode = effectiveInputModeForConnection(mode, inputMode);
     appliedReportRateHz = mode == ConnectionMode::CONNECTION_MODE_USB
@@ -485,23 +549,9 @@ void ConnectionManager::setup(ConnectionMode connMode,
     lastRfBeginRetryMs = HAL_GetTick();
     return;
 #endif
-    bool rateOk = false;
-    if ((rfPowerState == RfPowerState::Sleeping) && rfPowerStateIsBootHint()) {
-        printf("[RF_PWR][SETUP_WAKE_FROM_HINT] mode=%u rate=%u\r\n",
-               (unsigned int)mode,
-               (unsigned int)requestedReportRateHz);
-        rateOk = wakeRfFromSleep(RfPowerReason::SystemWake) &&
-                 restoreRfRuntime(wirelessRate);
-    } else {
-        if (coldSleepResume) {
-            // A power-cycled peer needs ordinary role/rate setup, not a wake
-            // pulse based on historical hints. No persistent sleep writes.
-            setRfPowerState(RfPowerState::Awake, false);
-            rateOk = restoreRfRuntime(wirelessRate);
-        } else {
-            rateOk = initializeRfPowerForMode(mode, wirelessRate);
-        }
-    }
+    // setup follows a new physical role selection, even when an old persisted
+    // power hint says Sleeping. That new peer needs the RF application handoff.
+    const bool rateOk = initializeRfPowerForMode(mode, wirelessRate);
     rateApplyPending = false;
     printf("[RF_RATE] setup setRate result=%u requested=%u applied=%u\r\n",
             (unsigned int)rateOk,
@@ -510,14 +560,11 @@ void ConnectionManager::setup(ConnectionMode connMode,
     if (!rateOk) {
         setLinkState(ConnectionLinkState::Error);
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1003u, "rf setRate failed");
-    } else {
+    } else if (!rfRuntimeRecoveryActive) {
         updateRfLinkStateFromStatus();
     }
-    /*
-     * SPI bring-up path: stream INPUT_DATA as a one-way fast path.
-     * Status readback depends on the CH584 IRQ response line and must not
-     * gate the input cadence while the board link is being validated.
-     */
+    // Local input keeps running; onReportReady gates wireless output until
+    // the asynchronous handoff has confirmed the TX rate.
     lastRfBeginRetryMs = HAL_GetTick();
 }
 
@@ -857,22 +904,12 @@ bool ConnectionManager::enterRfModeAfterColdBoot(ConnectionMode connMode, Wirele
         ? getRfReportRateHz(wirelessRate)
         : 1000u;
 
-    /*
-     * Ch585RoleBootstrap already consumed the optional application-ready
-     * pulse before SELECT_ROLE.  That pulse may be too short to observe on
-     * this PCB, so a successful ROLE_SELECTED response is the authoritative
-     * cold-boot commit.  Waiting for the one-shot pulse again here can only
-     * time out after a valid role handoff and would incorrectly force the
-     * whole input runtime back into its safe state.
-     */
-
-    setRfPowerState(RfPowerState::Awake, true);
-    rfEventServiceEnabled = true;
-    printf("[RF_BOOT][COMMAND_READY] mode=%u rate=%u\r\n",
-           (unsigned int)connMode,
-           (unsigned int)requestedReportRateHz);
-
-    return restoreRfRuntime(wirelessRate);
+    // ROLE_SELECTED acknowledges only the selector. The asynchronous owner
+    // waits for RF application ready, configures rate and reads a fresh status.
+    (void)connMode;
+    rfRuntimeRecoveryActive = true;
+    RF_SLEEP_RECOVERY.beginAfterRole(requestedReportRateHz, kRfRuntimeRecoveryAttempts);
+    return true;
 }
 
 bool ConnectionManager::restoreRfRuntime(WirelessReportRate wirelessRate) {
@@ -997,6 +1034,9 @@ void ConnectionManager::completeRfSleepRecovery(const RFTransport& transport, ui
     reportRateConfirmed = true;
     rateApplyPending = false;
     lastRfStatusPollMs = HAL_GetTick();
+    lastRfStatusGeneration = rfTransport.receivedStatusGeneration();
+    rfStatusPollPending = false;
+    rfStatusPollFailures = 0u;
     setRfPowerState(RfPowerState::Awake, false);
     rfSleepRecoveryOwned = false;
     rfEventServiceEnabled = true;
@@ -1019,6 +1059,7 @@ bool ConnectionManager::wakeRfModule() {
 }
 
 void ConnectionManager::loop() {
+    if (serviceRfRuntimeRecovery()) return;
     if (rfSleepRecoveryOwned) return;
     if (mode == ConnectionMode::CONNECTION_MODE_RF24G &&
         !rfPhysicalRoleIsActive()) {
@@ -1043,13 +1084,13 @@ void ConnectionManager::loop() {
         return;
     }
 
-    // RF24G 8K data streaming is intentionally independent from status readback.
+    // RX connectivity alone does not trigger a TX control-link restart.
 }
 
 bool ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return false;
     if (!rfPhysicalRoleIsActive()) return false;
-    if (rfPowerStateBlocksSpi()) return false;
+    if (rfPowerStateBlocksSpi() || !reportRateConfirmed || rfStatusPollPending) return false;
 
     if (rfPairingActive || RFBridgePort_HasPendingEvent()) {
         serviceRfEvents();

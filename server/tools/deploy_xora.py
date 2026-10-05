@@ -92,11 +92,13 @@ def run(args, *, cwd=None, timeout=120, capture=False, data=None, env=None):
 def validate_config(config):
     defaults = dict(ssh_port=22, ssh_key='', port=3000, node='/usr/bin/node')
     defaults.update(config)
-    need(set(defaults) == {'host', 'user', 'ssh_port', 'ssh_key', 'domain', 'port', 'node', 'email_from'},
+    defaults.setdefault('admin_domain', defaults.get('domain'))
+    need(set(defaults) == {'host', 'user', 'ssh_port', 'ssh_key', 'domain', 'admin_domain', 'port', 'node', 'email_from'},
          'Config must contain host, user, domain, email_from and only documented fields')
-    for name in ('host', 'domain'):
+    for name in ('host', 'domain', 'admin_domain'):
         need(isinstance(defaults[name], str) and re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?', defaults[name]), f'Invalid {name}')
     need('.' in defaults['domain'], 'Use a public DNS domain')
+    need('.' in defaults['admin_domain'], 'Use a public admin DNS domain')
     need(re.fullmatch(r'[a-z_][a-z0-9_-]*', defaults['user']), 'Invalid SSH user')
     for name in ('port', 'ssh_port'):
         need(type(defaults[name]) is int and 1 <= defaults[name] <= 65535, f'Invalid {name}')
@@ -109,13 +111,15 @@ def validate_config(config):
 
 def environment(config):
     origin = 'https://' + config['domain']
+    origins = ','.join(dict.fromkeys([origin, 'https://' + config['admin_domain']]))
     return dict(NODE_ENV='production', PORT=str(config['port']), LISTEN_HOST='127.0.0.1',
                 TRUST_PROXY_HOPS='1', DOMAIN_NAME=config['domain'], SERVER_URL=origin, DOMAIN_URL=origin,
-                WEB_CONFIG_ORIGINS=origin, WEB_CONFIG_STATIC_DIR=str(ROOT / 'current/webconfig'),
+                WEB_CONFIG_ORIGINS=origins, WEB_CONFIG_STATIC_DIR=str(ROOT / 'current/webconfig'),
                 WEB_CONFIG_REQUIRE_STATIC='1', HBOX_SERVER_DATA_DIR=str(STATE / 'data'),
                 HBOX_SERVER_UPLOAD_DIR=str(STATE / 'uploads'), HBOX_GALLERY_ASSET_DIR=str(STATE / 'gallery-assets'),
                 FIRMWARE_RELEASE_PUBLIC_KEY_FILE=str(ETC / 'keys/firmware-release-public.pem'),
-                USER_AUTH_ENABLED='1', USER_AUTH_PUBLIC_ORIGIN=origin, USER_AUTH_EMAIL_FROM=config['email_from'],
+                USER_AUTH_ENABLED='1', USER_AUTH_PUBLIC_ORIGIN=origin, USER_AUTH_ALLOWED_ORIGINS=origins,
+                USER_AUTH_EMAIL_FROM=config['email_from'],
                 RESEND_API_KEY_FILE=str(ETC / 'secrets/resend-api-key'))
 
 
@@ -146,9 +150,24 @@ ReadWritePaths={STATE}
 [Install]
 WantedBy=multi-user.target
 '''
-    domain = config['domain']
-    nginx = f'''# Generated XORA configuration. Install only after TLS certificates exist.
-server {{
+    nginx = '# Generated XORA configuration. Install only after both TLS certificates exist.\n'
+    for domain in dict.fromkeys((config['domain'], config['admin_domain'])):
+        redirects = ''
+        if config['domain'] != config['admin_domain']:
+            if domain == config['domain']:
+                redirects = f'''    location ~ ^/admin(?:/|$) {{
+        return 302 https://{config['admin_domain']}$request_uri;
+    }}
+'''
+            else:
+                redirects = f'''    location = / {{
+        return 302 https://{config['admin_domain']}/admin/users/;
+    }}
+    location ~ ^/(?:global|keys|lighting|buttons-performance|switch-marking|firmware|view-logs|webhid-trace|webhid-benchmark)(?:/|$) {{
+        return 302 https://{config['domain']}$request_uri;
+    }}
+'''
+        nginx += f'''server {{
     listen 80;
     server_name {domain};
     return 301 https://{domain}$request_uri;
@@ -160,6 +179,7 @@ server {{
     ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     client_max_body_size 64m;
+{redirects}
     location / {{
         proxy_pass http://127.0.0.1:{config['port']};
         proxy_http_version 1.1;
@@ -379,10 +399,16 @@ def remote_check(config):
     return env
 
 
-def response(base, path, expected=200):
+def response(base, path, expected=200, *, follow_redirects=True):
     request = urllib.request.Request(base + path, headers={'Cache-Control': 'no-cache'})
     try:
-        result = urllib.request.urlopen(request, timeout=5)
+        if follow_redirects:
+            result = urllib.request.urlopen(request, timeout=5)
+        else:
+            class NoRedirect(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, headers, newurl):
+                    return None
+            result = urllib.request.build_opener(NoRedirect).open(request, timeout=5)
     except urllib.error.HTTPError as error:
         result = error
     with result:
@@ -390,7 +416,7 @@ def response(base, path, expected=200):
         return result.read(), result.headers
 
 
-def probe(base, release):
+def probe(base, release, pages=PAGES):
     marker, _ = response(base, '/deployment.json?release=' + release)
     need(json.loads(marker) == {'release': release}, 'Unexpected deployed release (proxy/cache/old service)')
     health, _ = response(base, '/health')
@@ -398,12 +424,27 @@ def probe(base, release):
     session, _ = response(base, '/api/auth/session')
     need(json.loads(session).get('registrationEnabled') is True, 'Email authentication disabled')
     response(base, '/api/admin/profile', 401)
-    for page in PAGES:
+    for page in pages:
         url = '/' if page == 'index.html' else '/' + page.removesuffix('index.html')
         html, headers = response(base, url)
         need('text/html' in headers.get('Content-Type', '') and html, f'Missing HTML: {url}')
         need('sha256-' in headers.get('Content-Security-Policy', ''), f'Missing CSP hashes: {url}')
         need('hid=(self)' in headers.get('Permissions-Policy', ''), f'Missing WebHID policy: {url}')
+
+
+def probe_sites(config, release):
+    config_origin = 'https://' + config['domain']
+    admin_origin = 'https://' + config['admin_domain']
+    if config_origin == admin_origin:
+        probe(config_origin, release)
+        return
+    probe(config_origin, release, tuple(p for p in PAGES if not p.startswith('admin/')))
+    probe(admin_origin, release, tuple(p for p in PAGES if p.startswith(('admin/', 'auth/'))))
+    for base, path, expected in ((config_origin, '/admin/users/', admin_origin + '/admin/users/'),
+                                 (admin_origin, '/', admin_origin + '/admin/users/'),
+                                 (admin_origin, '/global/', config_origin + '/global/')):
+        _, headers = response(base, path, 302, follow_redirects=False)
+        need(headers.get('Location') == expected, f'Unexpected domain redirect: {base}{path}')
 
 
 def wait_ready(base, release, process=None):
@@ -492,7 +533,7 @@ def activate(config, target):
     run(['systemctl', 'enable', SERVICE])
     # Public failure leaves a locally healthy service running for proxy diagnosis.
     try:
-        probe('https://' + config['domain'], target.name)
+        probe_sites(config, target.name)
     except Exception:
         print(f'Local service is healthy and RUNNING at {target}. Public HTTPS validation failed; check DNS/TLS/Nginx. No rollback performed.', flush=True)
         raise

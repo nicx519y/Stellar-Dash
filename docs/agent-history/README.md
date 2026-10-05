@@ -11,6 +11,17 @@
 
 [快照清单](snapshots-20260924.json) 记录来源、字节数和 SHA-256；本目录的 `.gitattributes` 禁用快照换行转换，以保持哈希可复核。当前规则见 [根 AGENTS](../../AGENTS.md) 及其模块导航；当前实现入口见 [架构说明](../architecture.md)。
 
+## 2026-10-05 文档入口快照
+
+文档巡检将现行入口改为按任务导航；替换前的完整内容保留为原始字节快照，防止丢失旧布局、命令和说明。这些快照不是现行操作手册；内部相对路径按原文件所在目录理解。
+
+| 来源 | 原始快照 |
+|---|---|
+| docs/README.md | [旧工具链说明](docs-readme-20261005.txt) |
+| RF_PHY_Hop/README.md | [旧 RF 编译与实现说明](rf-readme-20261005.txt) |
+
+字节数与 SHA-256 见 [文档快照清单](documentation-snapshots-20261005.json)；此次发现、修正与未覆盖项见 [审核记录](../documentation-audit-20261005.md)。
+
 ## 本次整理原则
 
 依据 OpenAI 官方关于 [精简和更新 AGENTS](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra) 与 [分层加载](https://learn.chatgpt.com/docs/agent-configuration/agents-md) 的建议，保留必要约束、按任务提供资料入口，移出重复历史，不为不同模型维护两套业务事实。

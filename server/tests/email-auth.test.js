@@ -345,6 +345,67 @@ test('production email auth requires an exact deployed origin and file-backed Re
     assert.equal(configured.cookieName, '__Host-st-dash-user');
 });
 
+test('split WebConfig and manager origins are explicitly allowed with host-only cookies', async t => {
+    const value = fixture();
+    t.after(() => {
+        value.store.close();
+        fs.removeSync(value.root);
+    });
+    const configOrigin = 'https://config.st-dash.com';
+    const managerOrigin = 'https://manager.st-dash.com';
+    const deviceOnlyOrigin = 'https://device.st-dash.com';
+    const secretFile = path.join(value.root, 'resend-key');
+    fs.writeFileSync(secretFile, 're_test_only');
+    const environment = {
+        NODE_ENV: 'production', USER_AUTH_ENABLED: '1',
+        USER_AUTH_PUBLIC_ORIGIN: configOrigin, RESEND_API_KEY_FILE: secretFile,
+    };
+    const options = {
+        store: value.store,
+        allowedOrigins: [configOrigin, managerOrigin, deviceOnlyOrigin],
+        environment,
+    };
+    const defaultService = createEmailAuthFromEnvironment(options);
+    assert.doesNotThrow(() => defaultService.requireOrigin(configOrigin));
+    assert.throws(() => defaultService.requireOrigin(managerOrigin), /not allowed/);
+    const service = createEmailAuthFromEnvironment({
+        ...options,
+        environment: { ...environment, USER_AUTH_ALLOWED_ORIGINS: `${configOrigin},${managerOrigin}` },
+    });
+    const app = express();
+    app.use(express.json());
+    initEmailAuthRoutes(app, service);
+    const server = await new Promise(resolve => {
+        const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
+    });
+    t.after(() => new Promise(resolve => server.close(resolve)));
+    for (const origin of [configOrigin, managerOrigin]) {
+        const result = await request(server, 'POST', '/api/auth/captcha', {
+            headers: { Origin: origin }, body: { action: 'login' },
+        });
+        assert.equal(result.status, 201, origin);
+    }
+    for (const origin of [deviceOnlyOrigin, 'https://manager.st-dash.com.evil.test', 'null']) {
+        const result = await request(server, 'POST', '/api/auth/captcha', {
+            headers: { Origin: origin }, body: { action: 'login' },
+        });
+        assert.equal(result.status, 403, origin);
+    }
+    let cookie;
+    service.setSessionCookie({ setHeader: (_name, value) => { cookie = value; } }, 'test-token');
+    assert.match(cookie, /^__Host-st-dash-user=/);
+    assert.match(cookie, /HttpOnly/);
+    assert.match(cookie, /Secure/);
+    assert.doesNotMatch(cookie, /Domain=/i);
+    assert.equal(service.publicOrigin, configOrigin);
+    for (const authOrigins of [managerOrigin, `${configOrigin},https://evil.test`, `${configOrigin}/`, '*']) {
+        assert.throws(() => createEmailAuthFromEnvironment({
+            ...options,
+            environment: { ...environment, USER_AUTH_ALLOWED_ORIGINS: authOrigins },
+        }));
+    }
+});
+
 test('loopback development can preview verification without a mail provider', async t => {
     const value = fixture();
     t.after(() => {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a signed, unlocked XORA v2 bundle; import a draft when a local token exists."""
+"""Build a signed, unlocked XORA v2 bundle; upload a draft to the XORA admin service."""
 
 import argparse
 import hashlib
@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / ".hbox" / "webconfig-local"
 HEADER = ROOT / "common" / "release_build_identity.h"
+DEFAULT_ADMIN_SERVER = "https://manager.st-dash.com"
 sys.path.insert(0, str(ROOT / "tools"))
 from firmware_signing import export_uncompressed_public_key  # noqa: E402
 from release import (  # noqa: E402
@@ -145,13 +146,15 @@ def make_stm32_package(slot, app, adc, version, key, public, trust_hash, dest):
     return identity
 
 
-def final_stage_command(source_path, key, work, version, token_file, since=None, *, no_upload=False):
+def final_stage_command(source_path, key, work, version, token_file, since=None, *, no_upload=False,
+                        server=DEFAULT_ADMIN_SERVER):
     package = work / "package"
     command = [
         "node", str(ROOT / "server" / "scripts" / "create-firmware-draft.js"),
         "--source", str(source_path), "--signing-key", str(key),
         "--out-dir", str(package), "--allow-worktree",
         "--local-history", str(ROOT / ".hbox" / "firmware-drafts"),
+        "--server", server,
     ]
     offline = no_upload or not token_file.is_file()
     if offline:
@@ -168,6 +171,8 @@ def final_stage_command(source_path, key, work, version, token_file, since=None,
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", default="1.0.0")
+    parser.add_argument("--server", default=DEFAULT_ADMIN_SERVER,
+                        help="admin service origin (default: %(default)s); remote servers require HTTPS")
     token_options = parser.add_mutually_exclusive_group()
     token_options.add_argument("--token-file", type=Path, default=STATE / "firmware-manage-token.txt", help="override the local token file for this run")
     token_options.add_argument("--save-token", action="store_true", help="replace the local firmware token from stdin and exit without building or uploading")
@@ -175,7 +180,7 @@ def main(argv=None):
     parser.add_argument("--no-upload", action="store_true", help="build package and notes without contacting admin")
     args = parser.parse_args(argv)
     if args.save_token:
-        if args.version != "1.0.0" or args.since is not None or args.no_upload:
+        if args.version != "1.0.0" or args.since is not None or args.no_upload or args.server != DEFAULT_ADMIN_SERVER:
             parser.error("--save-token is a standalone setup command; do not combine it with build options")
         save_local_token(sys.stdin.read(256), STATE)
         print("Local firmware token saved. Previous local token replaced; future packages will use the new token automatically.")
@@ -185,6 +190,7 @@ def main(argv=None):
     if args.no_upload:
         print("Upload disabled by --no-upload.", flush=True)
     elif token_file.is_file():
+        print(f"Draft import server: {args.server}", flush=True)
         print(f"Draft import will use token file: {token_file}", flush=True)
     else:
         print(f"Token file not found: {token_file}; packaging only. Copy the local save script from the token creation dialog to enable draft import.", flush=True)
@@ -256,7 +262,8 @@ def main(argv=None):
     }
     source_path = source / "release-source.json"
     source_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    stage, command = final_stage_command(source_path, key, work, args.version, token_file, args.since, no_upload=args.no_upload)
+    stage, command = final_stage_command(source_path, key, work, args.version, token_file, args.since,
+                                         no_upload=args.no_upload, server=args.server)
     if stage == "bundle-and-notes":
         print("Creating the package and release notes locally; nothing will be uploaded.", flush=True)
     run_stage(stage, command, work / f"{stage}.log", 180)
@@ -264,7 +271,7 @@ def main(argv=None):
     print((work / f"{stage}.log").read_text(encoding="utf-8"))
     if stage == "bundle-and-notes":
         print(f"Signed package: {work / 'package' / f'XORA-{args.version}-release.zip'}")
-        print("Package and Markdown notes are ready. Nothing was uploaded; drag the ZIP and .md into local admin, or provide a local firmware.manage token for draft import.")
+        print(f"Package and Markdown notes are ready. Nothing was uploaded; import the ZIP and .md in {args.server}/admin/firmware/, or provide a firmware.manage token issued by that server.")
     return 0
 
 

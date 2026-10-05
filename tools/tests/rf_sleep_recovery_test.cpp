@@ -13,6 +13,46 @@ static void step(unsigned ms) {
 int main(int argc, char** argv) {
     assert(argc == 2);
     const char* scenario = argv[1];
+    if (!std::strcmp(scenario, "cold-handoff") || !std::strcmp(scenario, "late-ready") ||
+        !std::strcmp(scenario, "stuck-ready")) {
+        // Adopt an already selected role without cycling power. No read clocks
+        // may occur while the separate RF boot pulse is still asserted.
+        applicationReadyAt = testNow + 100u;
+        bootSignalReleased = !std::strcmp(scenario, "cold-handoff");
+        RF_SLEEP_RECOVERY.beginAfterRole(8000, 3u);
+        step(149); assert(!portBegins && !portReads && !published);
+        step(51);
+        if (!bootSignalReleased) {
+            assert(!portBegins && !portReads && !queryCount);
+            if (!std::strcmp(scenario, "stuck-ready")) {
+                step(300);
+                assert(RF_SLEEP_RECOVERY.state() == RfSleepState::RetryWait);
+                assert(!published && !powerOns);
+                return 0;
+            }
+            bootSignalReleased = true;
+        }
+        step(300); assert(published && publishedRate == 8000);
+        assert(!powerOns && !powerOffs);
+        return 0;
+    }
+    if (!std::strcmp(scenario, "bounded-failure") || !std::strcmp(scenario, "bounded-recovery")) {
+        roleOk = false;
+        RF_SLEEP_RECOVERY.begin(8000, 3u);
+        step(800);
+        assert(RF_SLEEP_RECOVERY.state() == RfSleepState::RetryWait && owner);
+        if (!std::strcmp(scenario, "bounded-recovery")) {
+            roleOk = true;
+            step(12000); assert(published && !owner && powerOns == 2u);
+        } else {
+            step(30000);
+            assert(RF_SLEEP_RECOVERY.state() == RfSleepState::Failed);
+            assert(powerOns == 3u && !published && owner);
+            const auto attempts = g_sleepDiagnostics.radioAttempts;
+            step(60000); assert(g_sleepDiagnostics.radioAttempts == attempts);
+        }
+        return 0;
+    }
     assert(RF_SLEEP_RECOVERY.suspend());
     // No radio power until the input/display owner explicitly starts recovery.
     step(1100);

@@ -1,0 +1,18 @@
+{
+  "purpose": "Pre-audit documentation entry-point snapshots; reference only",
+  "date": "2026-10-05",
+  "snapshots": [
+    {
+      "bytes": 35880,
+      "snapshot": "docs/agent-history/docs-readme-20261005.txt",
+      "sha256": "a87452c9330d31433a4cd202e63b3a978097baa01a25211af568085d0e8d94f4",
+      "source": "docs/README.md"
+    },
+    {
+      "bytes": 9057,
+      "snapshot": "docs/agent-history/rf-readme-20261005.txt",
+      "sha256": "4d92c57b4a81d56ad557cea634d59d5a1fe881eb2150f4ddf2b8b945aec9e284",
+      "source": "RF_PHY_Hop/README.md"
+    }
+  ]
+}

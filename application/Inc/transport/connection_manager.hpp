@@ -63,6 +63,8 @@ public:
     void resetRfSleepSession();
     void setRfSleepRecoveryError(bool error);
     void completeRfSleepRecovery(const RFTransport& transport, uint16_t rate);
+    void cancelRfRuntimeRecovery();
+    bool isRfRuntimeRecovering() const { return rfRuntimeRecoveryActive; }
     bool wakeRfModule();
 
     ConnectionMode getMode() const { return mode; }
@@ -84,6 +86,8 @@ private:
     ConnectionManager() = default;
     void serviceRfEvents();
     void serviceRfStatusPoll();
+    bool serviceRfRuntimeRecovery();
+    void recordRfRecoveryStart();
     void serviceRfPairingTimeout();
     void updatePairingStateFromStatus();
     void updateRfLinkStateFromStatus();
@@ -121,6 +125,10 @@ private:
     uint32_t rfLastSeq = 0;
     bool rfEventServiceEnabled = false;
     bool rfSleepRecoveryOwned = false;
+    bool rfRuntimeRecoveryActive = false;
+    bool rfStatusPollPending = false;
+    uint8_t rfStatusPollFailures = 0u;
+    uint32_t lastRfStatusGeneration = 0u;
     bool rfPairingActive = false;
     bool rfPairSucceeded = false;
     RfPairingState rfPairingState = RfPairingState::Idle;
