@@ -33,7 +33,7 @@ const char* ScreenMain_InputModeAbbrev(InputMode mode) {
         case InputMode::INPUT_MODE_PS5:
             return "PS";
         case InputMode::INPUT_MODE_XBOX:
-            return "Xbox";
+            return "XB";
         case InputMode::INPUT_MODE_SWITCH:
             return "NS";
         case InputMode::INPUT_MODE_XINPUT:

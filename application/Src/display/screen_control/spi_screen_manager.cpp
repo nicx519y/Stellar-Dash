@@ -254,22 +254,6 @@ static const char* get_connection_mode_icon_name(void) {
     return screen_style_is_light() ? "wireless_light" : "wireless_dark";
 }
 
-static const char* get_input_mode_icon_name(InputMode mode) {
-    const bool light = screen_style_is_light();
-    switch (mode) {
-        case InputMode::INPUT_MODE_PS4:
-        case InputMode::INPUT_MODE_PS5:
-            return light ? "playstation_light" : "playstation_dark";
-        case InputMode::INPUT_MODE_XBOX:
-            return light ? "xbox_light" : "xbox_dark";
-        case InputMode::INPUT_MODE_SWITCH:
-            return light ? "NS_light" : "NS_dark";
-        case InputMode::INPUT_MODE_XINPUT:
-        default:
-            return light ? "PC_light" : "PC_dark";
-    }
-}
-
 static bool ensure_assets_mmap(void) {
     if (QSPI_W25Qxx_IsMemoryMappedMode()) return true;
     return QSPI_W25Qxx_EnterMemoryMappedMode() == QSPI_W25Qxx_OK && QSPI_W25Qxx_IsMemoryMappedMode();
@@ -896,9 +880,7 @@ void SPIScreenManager::renderBars() {
     char token[6] = "P??";
     if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%02u", (unsigned)(currentProfileIdx + 1u));
     ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, leftTopY, leftW, profileH, token, textColor, barBg, profileScale);
-    if (!render_centered_asset_icon(&g_lcd, 0, inputY, leftW, statusIconH, get_input_mode_icon_name(inputMode))) {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, inputY, leftW, statusIconH, mode, textColor, barBg, tokenScale);
-    }
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, inputY, leftW, statusIconH, mode, textColor, barBg, tokenScale);
     if (!render_centered_asset_icon(&g_lcd, 0, connY, leftW, statusIconH, get_connection_mode_icon_name())) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, connY, leftW, statusIconH, get_connection_mode_label(), textColor, barBg, tokenScale);
     }
