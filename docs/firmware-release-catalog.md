@@ -32,7 +32,7 @@ python tools/hbox.py web local-serve --port 3001
   "buildId": "replace-with-generated-build-id",
   "install": {
     "protocol": 2, "order": "tx-then-stm32",
-    "configRead": { "min": 34, "max": 34 }, "configWrite": 34,
+    "configRead": { "min": 35, "max": 35 }, "configWrite": 35,
     "stm32Maintenance": { "min": 2, "max": 2 },
     "txMaintenance": { "min": 2, "max": 2 }
   },
@@ -70,7 +70,7 @@ python tools/hbox.py web local-serve --port 3001
 }
 ```
 
-可选 RX 使用 `component: "rx"`、`imageFormat: "ch585-rx-bin"`，其他字段同 TX，不带 `slot`。当前仅接收硬件 `2.0.0`，与现有 STM32 内层包验证器保持一致。v2 的 STM32/TX 版本、构建身份、配置与维护协议须匹配可执行文件内的身份记录；打包器计算 metadata 和 TX Application 摘要。RX 仍只展示签名声明，不纳入主机安装成功条件。配置版本示例以当前 CONFIG_VERSION=34 为准，不能为了通过门禁虚填兼容范围。
+可选 RX 使用 `component: "rx"`、`imageFormat: "ch585-rx-bin"`，其他字段同 TX，不带 `slot`。当前仅接收硬件 `2.0.0`，与现有 STM32 内层包验证器保持一致。v2 的 STM32/TX 版本、构建身份、配置与维护协议须匹配可执行文件内的身份记录；打包器计算 metadata 和 TX Application 摘要。RX 仍只展示签名声明，不纳入主机安装成功条件。一键打包从 `application/Inc/system/board_cfg.h` 读取 `CONFIG_VERSION`，生成相同格式的读取范围与写入版本；不能为了通过门禁虚填兼容范围。
 
 ```powershell
 node server/scripts/create-firmware-bundle.js "path/to/release-source.json" "path/to/signing-key.pem" "path/to/xora-release.zip"
@@ -86,9 +86,13 @@ node server/scripts/create-firmware-bundle.js "path/to/release-source.json" "pat
 python tools/local_firmware_draft.py
 ```
 
-脚本只使用 `.hbox/webconfig-local` 的本地 PKI，构建时隔离状态目录并在结束后恢复 `common/release_build_identity.h`；不烧录设备。它默认使用版本 `1.0.0`，当前协议 2 测试版使用 `python tools/local_firmware_draft.py --version 1.0.2`，不覆盖已发布 1.0.1。产物放在 `.hbox/firmware-drafts/XORA-<版本>-<时间>/package/`。若 `.hbox/webconfig-local/firmware-manage-token.txt` 已保存目标后台签发的 `firmware.manage` 令牌，它会默认把包导入 `https://manager.st-dash.com` 草稿并写入说明；没有令牌时仍生成并校验签名包、Markdown 和 Git 依据文件，明确报告未上传。加 `--no-upload` 可在令牌存在时也只生成本地文件；加 `--server http://localhost:3001` 可改为本地 admin。重新运行会重新构建并创建新输出目录；已有包可直接在目标 admin 固件页导入，同版本已有草稿时直接使用该草稿。
+脚本复用 `.hbox/webconfig-local` 的开发状态，构建时隔离状态目录并在结束后恢复 `common/release_build_identity.h`；不烧录设备。远程服务器默认使用 `.hbox/deploy/server-readiness.json` 中与目标域名对应的 `private_key_local_path` 正式签名密钥；loopback 服务器使用本地 PKI。也可用 `--signing-key <私钥路径>` 显式指定。上传模式在构建前读取目标后台的公开验签公钥，拒绝不匹配的私钥或无法核对的服务器，避免构建后才发现签名不匹配。未配置远程签名密钥时拒绝回退到开发密钥。
 
-登录目标后台（默认 `https://manager.st-dash.com`），在 `/admin/service-tokens/` 创建含 `firmware.manage` 范围的服务令牌。本地 admin 创建的令牌不能用于远程后台。生成弹窗分别提供“复制 Windows 脚本”和“复制 macOS 脚本”；在仓库根目录的 Windows PowerShell 或 macOS 终端（zsh/bash）中粘贴执行一次，以后打包无需指定令牌文件。Windows 脚本调用 `python`，macOS 脚本调用 `python3`；两者均通过 `local_firmware_draft.py --save-token` 从标准输入接收令牌，原子替换 `.hbox/webconfig-local/firmware-manage-token.txt`，不保留旧令牌副本，也不撤销后台旧令牌；此设置操作不构建、不上传、不烧录。令牌与脚本只在创建弹窗中提供，关闭后不可再次取回。手动保存其他文件时仍可用 `--token-file <路径>` 临时指定。也可在已登录的目标 admin 固件页手动导入一键命令生成的 ZIP，再在草稿详情页导入旁边的 `.md` 更新说明。默认本地状态目录使用 `.hbox/webconfig-local/pki/firmware-release-private.pem` 测试密钥，对应 `local-serve` 配置的验签公钥；远程服务使用独立的正式公钥，不能接受测试密钥签发的包。上传地址切换不改变构建 PKI 或设备信任根；正式密钥记录与配置见 [部署指南](webconfig-admin-deployment.md)。
+选定的密钥同时用于外层发布包、STM32 内层 metadata 和隔离构建中的固件验签公钥；原开发 PKI、制造商与授权公钥保持不变。原设备若仍信任开发公钥，不能仅凭后台导入成功就认定可安装正式密钥签发的包；设备信任根迁移需独立处理与验收，本命令不执行设备迁移或刷写。
+
+它默认使用版本 `1.0.0`，当前协议 2 测试版使用 `python tools/local_firmware_draft.py --version 1.0.2`，不覆盖已发布 1.0.1。产物放在 `.hbox/firmware-drafts/XORA-<版本>-<时间>/package/`。若 `.hbox/webconfig-local/firmware-manage-token.txt` 已保存目标后台签发的 `firmware.manage` 令牌，它会默认把包导入 `https://manager.st-dash.com` 草稿并写入说明；没有令牌时仍生成并校验签名包、Markdown 和 Git 依据文件，明确报告未上传。加 `--no-upload` 可在令牌存在时也只生成本地文件，不执行服务器公钥及版本预检；加 `--server http://localhost:3001` 可改为本地 admin。上传模式先查询同型号、硬件和版本的已有记录；存在时在构建前停止，显示记录状态、ID 和后台地址。同版本已有草稿时直接在后台查看与编辑说明；上传另一构建需显式指定未使用的 `--version`，不自动递增版本、复用旧二进制或覆盖已有包。版本预检仅为提前反馈，并发导入及曾发布后删除的版本仍由服务端最终门禁保护。最终打包或上传失败时，外层命令直接显示该阶段的具体错误并保留日志。
+
+登录目标后台（默认 `https://manager.st-dash.com`），在 `/admin/service-tokens/` 创建含 `firmware.manage` 范围的服务令牌。本地 admin 创建的令牌不能用于远程后台。生成弹窗分别提供“复制 Windows 脚本”和“复制 macOS 脚本”；在仓库根目录的 Windows PowerShell 或 macOS 终端（zsh/bash）中粘贴执行一次，以后打包无需指定令牌文件。Windows 脚本调用 `python`，macOS 脚本调用 `python3`；两者均通过 `local_firmware_draft.py --save-token` 从标准输入接收令牌，原子替换 `.hbox/webconfig-local/firmware-manage-token.txt`，不保留旧令牌副本，也不撤销后台旧令牌；此设置操作不构建、不上传、不烧录。令牌与脚本只在创建弹窗中提供，关闭后不可再次取回。手动保存其他文件时仍可用 `--token-file <路径>` 临时指定。也可在已登录的目标 admin 固件页手动导入一键命令生成的 ZIP，再在草稿详情页导入旁边的 `.md` 更新说明。本地测试密钥对应 `local-serve` 配置的验签公钥；远程服务使用独立的正式公钥，不能接受测试密钥签发的包。正式密钥记录与配置见 [部署指南](webconfig-admin-deployment.md)。
 
 底层 `create-firmware-draft.js` 同样默认使用 `https://manager.st-dash.com`，可用 `--server <后台 origin>` 覆盖。远程后台要求 HTTPS；`localhost`、`127.0.0.1` 或 `::1` 的本地服务也允许 HTTP。地址不允许携带用户名、密码、路径、查询参数或片段；请求不自动跟随重定向。本地草稿只保存在本地服务的数据目录，不会同步到正式服务。
 

@@ -875,6 +875,7 @@ def build_local_artifacts(
     slot: str = "A",
     unlocked_development: bool = False,
     skip_power_device_probes: bool = False,
+    signing_key: Path | None = None,
 ) -> dict[str, Any]:
     if skip_power_device_probes:
         raise LocalWebConfigError(
@@ -971,7 +972,7 @@ def build_local_artifacts(
         slot=slot,
         build_date=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         components=metadata_components,
-        signing_key=paths["firmware_private"],
+        signing_key=signing_key or paths["firmware_private"],
         security_version=FIRMWARE_SECURITY_VERSION,
         webresources_optional=True,
     )
@@ -1344,6 +1345,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build.add_argument("--jobs", type=int, default=max(2, min(8, os.cpu_count() or 2)))
     build.add_argument("--skip-web", action="store_true")
+    build.add_argument("--signing-key", type=Path,
+                       help="metadata signing key; must match the state's trust header and public key")
     build.add_argument(
         "--unlocked-development",
         action="store_true",
@@ -1420,6 +1423,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 slot=args.slot,
                 unlocked_development=args.unlocked_development,
                 skip_power_device_probes=args.skip_power_device_probes,
+                signing_key=args.signing_key,
             )
             return 0
         if args.command == "serve":

@@ -40,6 +40,8 @@ WebConfig 重连并匹配事务 ID、目标摘要和版本后，记录实际安�
 
 ## 基线与发布包
 
+- 日常主控烧录 `python tools/hbox.py flash app A --build`（B 槽改为 B）使用与 `https://manager.st-dash.com` 匹配的正式签名密钥，保持 `unlocked-development`。构建前核对公开验签公钥，密钥缺失、不匹配或服务器不可达时停止，不回退到开发密钥。产物与公钥位于独立的 `.hbox/webconfig-formal/`，正式私钥仍留在部署配置指定的外部路径；本地实验室 PKI 不被替换。不带 `--build` 时只使用该目录已验证且匹配所选槽位和线上公钥的产物。
+- 仅准备上述产物、不访问硬件：`python tools/formal_application_build.py --slot A`。该入口复用完整构建契约，会编译 bootloader、主控和 TX，但主控烧录仍沿原 `webconfig_flash.py --simple-execute` 事务执行；未改变写入范围、目标检查、回读和 metadata 最后提交。迁移前必须处理旧状态目录中的未完成烧录事务。此次分发变更及冻结契约原有差异仍待实机烧录、启动和线上升级验收，不更新冻结哈希。
 - 主控、TX 和目标发布包必须支持安装及维护协议 2。旧协议发布包保留目录浏览，不能在新版网页安装。
 - 首次迁移通过既有维护入口更新主控/TX Application；不更新 bootloader 或 IAP 来建立基线。本实现不自动烧录或发布，也不替换已发布 1.0.1。
 - 使用 `python tools/prepare_release_identity.py --version <组件版本>` 生成构建身份，再编译两个主控槽和 TX，随后使用本地固件草稿命令打包。不能在两槽构建之间重新生成身份头。

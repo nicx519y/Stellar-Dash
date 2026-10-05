@@ -39,15 +39,15 @@ class BootProfileCliTests(unittest.TestCase):
                 ]), 0)
                 self.assertEqual(child.call_count, 2)
                 build, flash = child.call_args_list
-                self.assertEqual(Path(build.args[0][1]).name, "webconfig_local.py")
+                self.assertEqual(Path(build.args[0][1]).name, "formal_application_build.py")
                 self.assertEqual(build.args[0][2:], [
-                    "build", "--slot", slot, "--skip-web", "--jobs", "4",
-                    "--unlocked-development",
+                    "--slot", slot, "--jobs", "4",
                 ])
                 self.assertEqual(build.kwargs["env"]["HBOX_BOOT_PROFILE"], "1")
-                validate.assert_called_once_with(slot)
+                state = hbox._project_root() / ".hbox" / "webconfig-formal"
+                validate.assert_called_once_with(slot, state_dir=state)
                 self.assertEqual(Path(flash.args[0][1]).name, "webconfig_flash.py")
-                self.assertEqual(flash.args[0][2:], ["--simple-execute"])
+                self.assertEqual(flash.args[0][2:], ["--state-dir", str(state), "--simple-execute"])
                 self.assertNotIn("env", flash.kwargs)
 
     def test_profile_build_failure_never_starts_application_flash(self):

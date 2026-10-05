@@ -211,6 +211,61 @@ async function createTransport(options = { storage: null }) {
   return transport;
 }
 
+test('new devices use the factory hotkeys shown on the latest PCB', async () => {
+  const transport = await createTransport();
+  const result = await transport.request('get_hotkeys_config');
+  assert.deepEqual(result.data.hotkeysConfig, [
+    { key: 20, action: 'WebConfigMode', isHold: true, isLocked: true },
+    { key: 19, action: 'CalibrationMode', isHold: true, isLocked: true },
+    { key: 13, action: 'LedsEffectStyleNext', isHold: false, isLocked: false },
+    { key: 12, action: 'LedsEffectStylePrev', isHold: false, isLocked: false },
+    { key: 10, action: 'LedsBrightnessUp', isHold: false, isLocked: false },
+    { key: 9, action: 'LedsBrightnessDown', isHold: false, isLocked: false },
+    { key: 17, action: 'AmbientLightEffectStyleNext', isHold: false, isLocked: false },
+    { key: 16, action: 'AmbientLightEffectStylePrev', isHold: false, isLocked: false },
+    { key: 15, action: 'AmbientLightBrightnessUp', isHold: false, isLocked: false },
+    { key: 14, action: 'AmbientLightBrightnessDown', isHold: false, isLocked: false },
+    { key: 11, action: 'LedsEnableSwitch', isHold: true, isLocked: false },
+  ]);
+  await transport.close();
+});
+
+test('factory profiles use the latest PCB key mapping in every slot and preserve custom bindings', async () => {
+  const storage = new MemoryStorage();
+  const expected = {
+    DPAD_UP: [1, 8], DPAD_LEFT: [5], DPAD_RIGHT: [7], DPAD_DOWN: [6],
+    B4: [13], B3: [10], B2: [12], B1: [9],
+    L3: [0], R3: [2], L2: [16], R2: [14], L1: [17], R1: [15],
+    S1: [19], S2: [18], A1: [20], A2: [],
+  };
+  const first = await createTransport({ storage });
+  const list = (await first.request('get_profile_list')).data.profileList;
+  assert.equal(list.items.length, 16);
+  const checkDefaults = async (transport) => {
+    for (const { id } of list.items) {
+      const profile = (await transport.request('get_profile_details', { profileId: id })).data.profileDetails;
+      assert.equal(profile.isCompetitionProfile, false);
+      assert.deepEqual(profile.keysConfig.keyMapping, expected, id);
+      assert.deepEqual(profile.keysConfig.keyCombinations, []);
+      const macros = await transport.request('get_profile_macros', { pid: id });
+      assert.deepEqual(macros.data.m, [null, null, null, null, null]);
+    }
+  };
+  await checkDefaults(first);
+  await first.close();
+  const reopened = await createTransport({ storage });
+  await checkDefaults(reopened);
+  await reopened.request('update_profile', {
+    profileId: list.items[7].id,
+    profileDetails: { keysConfig: { keyMapping: { ...expected, B1: [3] } } },
+  });
+  await reopened.close();
+  const custom = await createTransport({ storage });
+  const profile = (await custom.request('get_profile_details', { profileId: list.items[7].id })).data.profileDetails;
+  assert.deepEqual(profile.keysConfig.keyMapping, { ...expected, B1: [3] });
+  await custom.close();
+});
+
 test('adapter connect failure reports once and always settles disconnected', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   transport.connect = async () => {
@@ -1060,6 +1115,11 @@ test('supports fixed profile selection and rename, hotkeys, screen settings and 
 
 test('uses {k,s} profile macro slots and Base64 for the single-macro API', async () => {
   const transport = await createTransport();
+  // Seed the macro used by this API test; factory profiles have no macros.
+  await transport.request('update_profile_macros', {
+    pid: 'profile-arcade',
+    m: [{ k: [18, 19], s: [[0, 1 << 10, 0], [80, 0, 0]] }, null, null, null, null],
+  });
   const initial = await transport.request('get_profile_macros', { pid: 'profile-arcade' });
   assert.equal(initial.data.m.length, 5);
   assert.deepEqual(initial.data.m[0].k, [18, 19]);

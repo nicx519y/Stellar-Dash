@@ -2,6 +2,7 @@
 """Build a signed, unlocked XORA v2 bundle; upload a draft to the XORA admin service."""
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -12,6 +13,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
+import urllib.request
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,6 +40,136 @@ from release import (  # noqa: E402
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def read_config_version(header=ROOT / "application" / "Inc" / "system" / "board_cfg.h"):
+    """Use the firmware's declared format; reject missing or nonliteral definitions."""
+    values = re.findall(
+        r"^[ \t]*#define[ \t]+CONFIG_VERSION[ \t]+(?:\(uint32_t\)[ \t]*)?"
+        r"(0[xX][0-9a-fA-F]+|[0-9]+)[uUlL]*[ \t]*(?://[^\n]*)?$",
+        header.read_text(encoding="utf-8"), re.MULTILINE,
+    )
+    if len(values) != 1:
+        raise RuntimeError(f"Expected one literal CONFIG_VERSION in {header}")
+    value = int(values[0], 16 if values[0].lower().startswith("0x") else 10)
+    if not 0 < value <= 0xffffffff:
+        raise RuntimeError(f"CONFIG_VERSION must be a positive uint32 in {header}")
+    return value
+
+
+def make_install_contract(config_version):
+    # The installer preserves the exact format; migration needs separate acceptance.
+    return {"protocol": 2, "order": "tx-then-stm32",
+            "configRead": {"min": config_version, "max": config_version},
+            "configWrite": config_version,
+            "stm32Maintenance": {"min": 2, "max": 2},
+            "txMaintenance": {"min": 2, "max": 2}}
+
+
+def resolve_release_key(server, explicit=None, *, state=STATE,
+                        readiness=ROOT / ".hbox" / "deploy" / "server-readiness.json"):
+    origin = urllib.parse.urlsplit(server)
+    loopback = origin.hostname in ("localhost", "127.0.0.1", "::1")
+    if (origin.scheme not in ("http", "https") or (not loopback and origin.scheme != "https") or
+            origin.username or origin.password or origin.path not in ("", "/") or origin.query or origin.fragment):
+        raise RuntimeError("Draft server must be an HTTPS origin (HTTP is allowed for loopback)")
+    if explicit is not None:
+        key = explicit.expanduser().resolve()
+    elif loopback:
+        key = state / "pki" / "firmware-release-private.pem"
+    else:
+        deployment = json.loads(readiness.read_text(encoding="utf-8")) if readiness.is_file() else {}
+        path = deployment.get("private_key_local_path")
+        if origin.hostname not in deployment.get("domains", []) or not isinstance(path, str) or not path:
+            raise RuntimeError("No release signing key configured for this remote server; use --signing-key "
+                               "with the private key matching its release verification key")
+        key = Path(path).expanduser().resolve()
+    if not key.is_file():
+        raise RuntimeError(f"Release signing key file not found: {key}")
+    return key
+
+
+def verify_server_release_key(server, public):
+    """Public, read-only preflight. Never send a token or private key."""
+    url = server.rstrip("/") + "/api/firmware-releases/verification-key"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as response:
+            result = json.loads(response.read(16385))
+        jwk = result["data"]
+        if result.get("success") is not True or jwk.get("kty") != "EC" or jwk.get("crv") != "P-256":
+            raise ValueError("Expected a P-256 verification key")
+        coordinates = [base64.urlsafe_b64decode(jwk[name] + "=" * (-len(jwk[name]) % 4)) for name in ("x", "y")]
+        if any(len(value) != 32 for value in coordinates):
+            raise ValueError("Invalid verification key coordinates")
+        remote = b"\x04" + b"".join(coordinates)
+    except Exception as exc:
+        raise RuntimeError(f"Cannot verify the draft server's release key before building: {exc}") from exc
+    if remote != public:
+        raise RuntimeError("Release signing key does not match the draft server's verification key; "
+                           "select the matching --signing-key. No build or upload was started")
+    print("Draft server release verification key matches the selected signing key.", flush=True)
+
+
+def verify_draft_version_available(server, token_file, version):
+    """Reject existing versions before compiling; the server keeps the final guard."""
+    token = token_file.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"stsvc_[A-Za-z0-9_-]{43}", token):
+        raise RuntimeError("Invalid firmware.manage service token file; no build or upload was started")
+    offset = 0
+    deadline = time.monotonic() + 30
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("Draft version preflight timed out; no build or upload was started")
+        query = urllib.parse.urlencode({"query": version, "limit": 100, "offset": offset})
+        request = urllib.request.Request(server.rstrip("/") + "/api/admin/firmware/releases?" + query,
+                                         headers={"Authorization": "Bearer " + token})
+        try:
+            with urllib.request.urlopen(request, timeout=min(15, remaining)) as response:
+                result = json.loads(response.read(4 * 1024 * 1024 + 1))
+            data = result["data"]
+            items, total = data["items"], data["total"]
+            if (result.get("success") is not True or not isinstance(items, list) or
+                    type(total) is not int or total < 0 or len(items) > 100 or
+                    (not items and offset < total)):
+                raise ValueError("Invalid release catalog response")
+        except Exception as exc:
+            raise RuntimeError(f"Cannot check the draft version before building: {exc}") from exc
+        for release in items:
+            manifest = release.get("manifest", {})
+            if (manifest.get("version") == version and manifest.get("deviceModel") == "STM32H750_HBOX" and
+                    manifest.get("hardwareVersion") == "2.0.0"):
+                raise RuntimeError(f"XORA {version} already exists on {server} "
+                                   f"(status={release.get('status')}, id={release.get('id')}). "
+                                   f"Review it at {server.rstrip('/')}/admin/firmware/; "
+                                   "use a new --version for another build. No build or upload was started")
+        offset += len(items)
+        if offset >= total:
+            break
+    print(f"Draft version preflight: XORA {version} is available.", flush=True)
+
+
+def prepare_release_signing_state(isolated, key, public, *, copy_private_key=True):
+    """Change only the release signer in the disposable build state."""
+    header = isolated / "public" / "hbox-local-trust.h"
+    original = header.read_text(encoding="utf-8")
+    pattern = r"(static const uint8_t hbox_firmware_release_public_key\[65\]\s*=\s*\{)[^}]*(\};)"
+    if len(re.findall(pattern, original)) != 1 or not re.search(
+            r"#define\s+HBOX_FIRMWARE_RELEASE_PUBLIC_KEY_PROVISIONED\s+1u\b", original):
+        raise RuntimeError("Build trust header has no unique provisioned release public key")
+    replacement = "\n    " + ", ".join(f"0x{value:02x}" for value in public) + "\n"
+    header.write_text(re.sub(pattern, lambda match: match[1] + replacement + match[2], original), encoding="utf-8")
+    if copy_private_key:
+        shutil.copy2(key, isolated / "pki" / "firmware-release-private.pem")
+    subprocess.run(["openssl", "pkey", "-in", str(key), "-pubout", "-out",
+                    str(isolated / "pki" / "firmware-release-public.pem")],
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+    trust_hash = digest(header.read_bytes())
+    manifest_path = isolated / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["trustHeaderSha256"] = trust_hash
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return trust_hash
 
 
 def save_local_token(secret, state_dir):
@@ -82,6 +215,11 @@ def run_stage(name, command, log_file, timeout=600):
             raise RuntimeError(f"{name} timed out after {timeout}s; see {log_file}") from exc
     print(f"[{name}] exit={code} elapsed={time.monotonic() - started:.1f}s", flush=True)
     if code:
+        if name.startswith("bundle-and-"):
+            for line in reversed(log_file.read_text(encoding="utf-8", errors="replace").splitlines()):
+                if line.startswith("Release draft failed: "):
+                    raise RuntimeError(f"{name} failed: {line.removeprefix('Release draft failed: ')[:2000]}; "
+                                       f"see {log_file}")
         raise RuntimeError(f"{name} failed; see {log_file}")
 
 
@@ -101,11 +239,12 @@ def release_identity(data, component):
     return matches[0]
 
 
-def make_stm32_package(slot, app, adc, version, key, public, trust_hash, dest):
+def make_stm32_package(slot, app, adc, version, key, public, trust_hash, dest, *, config_version):
     app_data, adc_data = app.read_bytes(), adc.read_bytes()
     identity = release_identity(app_data, 1)
-    if identity[0] != version or identity[2] != 34:
-        raise RuntimeError(f"STM32 {slot} release identity/config does not match {version}/34")
+    if identity[0] != version or identity[2] != config_version:
+        raise RuntimeError(f"STM32 {slot} release identity/config does not match {version}/{config_version}; "
+                           f"executable declares {identity[0]}/{identity[2]}")
     app_address = 0x90000000 if slot == "A" else 0x902B0000
     web_address = 0x90100000 if slot == "A" else 0x903B0000
     adc_address = 0x90280000 if slot == "A" else 0x90530000
@@ -173,6 +312,8 @@ def main(argv=None):
     parser.add_argument("--version", default="1.0.0")
     parser.add_argument("--server", default=DEFAULT_ADMIN_SERVER,
                         help="admin service origin (default: %(default)s); remote servers require HTTPS")
+    parser.add_argument("--signing-key", type=Path,
+                        help="release private key matching the target server; defaults to deployment config for remote, local PKI for loopback")
     token_options = parser.add_mutually_exclusive_group()
     token_options.add_argument("--token-file", type=Path, default=STATE / "firmware-manage-token.txt", help="override the local token file for this run")
     token_options.add_argument("--save-token", action="store_true", help="replace the local firmware token from stdin and exit without building or uploading")
@@ -180,13 +321,16 @@ def main(argv=None):
     parser.add_argument("--no-upload", action="store_true", help="build package and notes without contacting admin")
     args = parser.parse_args(argv)
     if args.save_token:
-        if args.version != "1.0.0" or args.since is not None or args.no_upload or args.server != DEFAULT_ADMIN_SERVER:
+        if (args.version != "1.0.0" or args.since is not None or args.no_upload or
+                args.server != DEFAULT_ADMIN_SERVER or args.signing_key is not None):
             parser.error("--save-token is a standalone setup command; do not combine it with build options")
         save_local_token(sys.stdin.read(256), STATE)
         print("Local firmware token saved. Previous local token replaced; future packages will use the new token automatically.")
         print("No package was built or uploaded. Server tokens were not revoked.")
         return 0
     token_file = args.token_file.expanduser().resolve()
+    config_version = read_config_version()
+    print(f"Firmware configuration version: {config_version}", flush=True)
     if args.no_upload:
         print("Upload disabled by --no-upload.", flush=True)
     elif token_file.is_file():
@@ -198,9 +342,12 @@ def main(argv=None):
         "manifest.json", "pki/firmware-release-private.pem", "pki/firmware-release-public.pem",
         "public/hbox-local-trust.h", "device/device-certificate.bin")):
         raise RuntimeError("Local WebConfig state/PKI is incomplete")
-    key = STATE / "pki" / "firmware-release-private.pem"
+    key = resolve_release_key(args.server, args.signing_key)
     public = export_uncompressed_public_key(key)
-    trust_hash = digest((STATE / "public" / "hbox-local-trust.h").read_bytes())
+    print(f"Release signing key: {key}", flush=True)
+    if not args.no_upload and token_file.is_file():
+        verify_server_release_key(args.server, public)
+        verify_draft_version_available(args.server, token_file, args.version)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     work = ROOT / ".hbox" / "firmware-drafts" / f"XORA-{args.version}-{timestamp}"
     work.mkdir(parents=True, exist_ok=False)
@@ -215,6 +362,7 @@ def main(argv=None):
             for directory in ("pki", "public", "device"):
                 shutil.copytree(STATE / directory, isolated / directory)
             shutil.copy2(STATE / "manifest.json", isolated / "manifest.json")
+            trust_hash = prepare_release_signing_state(isolated, key, public)
             for slot in ("A", "B"):
                 run_stage(f"build-{slot}", [sys.executable, str(ROOT / "tools" / "webconfig_local.py"),
                            "--state-dir", str(isolated), "build", "--unlocked-development",
@@ -231,7 +379,8 @@ def main(argv=None):
     for slot in ("A", "B"):
         identities.append(make_stm32_package(slot, source / f"application-{slot}.bin",
                                              source / f"adc-{slot}.bin", args.version,
-                                             key, public, trust_hash, source / f"stm32-{slot}.zip"))
+                                             key, public, trust_hash, source / f"stm32-{slot}.zip",
+                                             config_version=config_version))
     tx = (source / "RF_PHY_Hop_TX.bin").read_bytes()
     if len(tx) <= 4096 or len(tx) % 4 or len(tx) > 0x70000:
         raise RuntimeError("TX combined image boundary is invalid")
@@ -254,10 +403,7 @@ def main(argv=None):
         "requiresManualLifecycleProvisioning": False,
         "compatibility": {"stm32Tx": f"STM32/TX {args.version}; local acceptance pending",
                           "txRx": "RX compatibility requires local acceptance"},
-        "install": {"protocol": 2, "order": "tx-then-stm32",
-                    "configRead": {"min": 34, "max": 34}, "configWrite": 34,
-                    "stm32Maintenance": {"min": 2, "max": 2},
-                    "txMaintenance": {"min": 2, "max": 2}},
+        "install": make_install_contract(config_version),
         "artifacts": artifacts,
     }
     source_path = source / "release-source.json"

@@ -21,7 +21,7 @@ HBox 工具统一入口（tools/hbox.py）
 2) flash
   - bootloader（烧录现有无锁开发产物；--build 先构建）
   - bootloader-dev（仅限未置备开发板）
-  - app A|B（默认只烧录现有安全完整槽；--build 先构建签名）
+  - app A|B（默认只烧录现有正式签名无锁完整槽；--build 先构建签名）
   - code A|B（低层纯代码烧录，不更新metadata）
   - appAll A|B
   - assets
@@ -177,17 +177,13 @@ def _local_webconfig_state_is_initialized() -> bool:
 
 def _local_artifacts_are_unlocked_development(
     expected_slot: str | None = None,
+    *, state_dir: Path | None = None,
 ) -> bool:
-    manifest_path = (
-        _project_root()
-        / ".hbox"
-        / "webconfig-local"
-        / "artifacts"
-        / "artifact-manifest.json"
-    )
+    state_dir = state_dir or _project_root() / ".hbox" / "webconfig-local"
+    manifest_path = state_dir / "artifacts" / "artifact-manifest.json"
     if not manifest_path.is_file():
         print(f"错误: 未找到本地固件 manifest: {manifest_path}")
-        print("请先执行 web local-build；开发板构建必须为 unlocked-development。")
+        print("请先构建相应槽位产物；开发板构建必须为 unlocked-development。")
         return False
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -223,40 +219,31 @@ def _local_artifacts_are_unlocked_development(
 def _run_secure_application_flash(
     slot: str, build: bool = False, *, boot_profile: bool = False,
 ) -> int:
-    """Flash an existing slot artifact, optionally rebuilding it first."""
+    """Flash formally signed unlocked artifacts after the server-key preflight."""
 
     normalized_slot = slot.upper()
+    state_dir = _project_root() / ".hbox" / "webconfig-formal"
     if build:
-        if not _local_webconfig_state_is_initialized():
-            print("首次安全烧录：正在创建本机调试用设备身份和签名密钥...")
-            rc = _run_python_tool("webconfig_local.py", ["init"])
-            if rc != 0:
-                return rc
-
-        print(f"正在构建并签名 Application 槽 {normalized_slot}...")
+        print(f"正在使用线上正式签名密钥构建无锁 Application 槽 {normalized_slot}...")
         rc = _run_python_tool(
-            "webconfig_local.py",
-            [
-                "build",
-                "--slot",
-                normalized_slot,
-                "--skip-web",
-                "--jobs",
-                "4",
-                "--unlocked-development",
-            ],
+            "formal_application_build.py",
+            ["--slot", normalized_slot, "--jobs", "4"],
             **({"boot_profile": True} if boot_profile else {}),
         )
         if rc != 0:
             return rc
     else:
-        print(f"使用现有 Application 槽 {normalized_slot} 产物（不重新编译）...")
+        print(f"核对现有正式签名 Application 槽 {normalized_slot} 产物与线上公钥...")
+        rc = _run_python_tool("formal_application_build.py",
+                              ["--slot", normalized_slot, "--verify-only"])
+        if rc != 0:
+            return rc
 
-    if not _local_artifacts_are_unlocked_development(normalized_slot):
+    if not _local_artifacts_are_unlocked_development(normalized_slot, state_dir=state_dir):
         return 2
 
     print("开始无锁开发烧录：槽内容先写入，签名 metadata 最后提交...")
-    rc = _run_python_tool("webconfig_flash.py", ["--simple-execute"])
+    rc = _run_python_tool("webconfig_flash.py", ["--state-dir", str(state_dir), "--simple-execute"])
     if rc == 0:
         print(f"Application 槽 {normalized_slot} 已烧录并提交签名 metadata。")
         print("flash code 仅用于明确需要的低层纯代码写入。")

@@ -708,8 +708,8 @@ static const Position HITBOX_LED_POS_LIST[NUM_LED] = {
 #include "enums.hpp"
 
 // Default hotkey configuration
-// The default hotkey configuration is used when the user has not configured any hotkey.
-// The default hotkey configuration is also used when the user has configured a hotkey, but the hotkey is not available on the current gamepad.
+// Loaded and persisted on first boot with blank configuration storage, or on reset.
+// Existing saved hotkeys are preserved. UI KEY-n labels use virtualPin n - 1.
 
 typedef struct {
     bool isLocked;
@@ -721,15 +721,15 @@ typedef struct {
 static const DefaultHotkeyConfig DEFAULT_HOTKEY_LIST[NUM_GAMEPAD_HOTKEYS] = {
     { true,  GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG,           true,  20 }, // 0
     { true,  GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION,         true,  19 }, // 1
-    { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT,          false, 15 }, // 2
-    { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV,          false, 16 }, // 3
-    { false, GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP,             false, 14 }, // 4
-    { false, GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN,           false, 13 }, // 5
-    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT, false, 11 }, // 6
-    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV, false, 12 }, // 7
-    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP,    false, 10 }, // 8
-    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN,  false, 9  }, // 9
-    { false, GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH,             true,  2  }, // 10
+    { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT,          false, 13 }, // Fn + KEY-14
+    { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV,          false, 12 }, // Fn + KEY-13
+    { false, GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP,             false, 10 }, // Fn + KEY-11
+    { false, GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN,           false, 9  }, // Fn + KEY-10
+    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT, false, 17 }, // Fn + KEY-18
+    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV, false, 16 }, // Fn + KEY-17
+    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP,    false, 15 }, // Fn + KEY-16
+    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN,  false, 14 }, // Fn + KEY-15
+    { false, GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH,             true,  11 }, // Fn + KEY-12
 };
 #endif
 

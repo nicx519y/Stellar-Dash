@@ -68,10 +68,12 @@ class HboxV2BuildContractTests(unittest.TestCase):
             result = hbox.main(["flash", "app", "B"])
 
         self.assertEqual(result, 0)
-        validate_artifact.assert_called_once_with("B")
-        run_python.assert_called_once_with(
-            "webconfig_flash.py", ["--simple-execute"]
-        )
+        state = hbox._project_root() / ".hbox" / "webconfig-formal"
+        validate_artifact.assert_called_once_with("B", state_dir=state)
+        self.assertEqual(run_python.call_args_list, [
+            mock.call("formal_application_build.py", ["--slot", "B", "--verify-only"]),
+            mock.call("webconfig_flash.py", ["--state-dir", str(state), "--simple-execute"]),
+        ])
 
     def test_app_flash_build_flag_builds_signs_and_commits_metadata(self) -> None:
         with mock.patch.object(
@@ -84,27 +86,19 @@ class HboxV2BuildContractTests(unittest.TestCase):
             result = hbox.main(["flash", "app", "B", "--build"])
 
         self.assertEqual(result, 0)
-        validate_artifact.assert_called_once_with("B")
+        state = hbox._project_root() / ".hbox" / "webconfig-formal"
+        validate_artifact.assert_called_once_with("B", state_dir=state)
         self.assertEqual(
             run_python.call_args_list,
             [
                 mock.call(
-                    "webconfig_local.py",
-                    [
-                        "build",
-                        "--slot",
-                        "B",
-                        "--skip-web",
-                        "--jobs",
-                        "4",
-                        "--unlocked-development",
-                    ],
+                    "formal_application_build.py", ["--slot", "B", "--jobs", "4"],
                 ),
-                mock.call("webconfig_flash.py", ["--simple-execute"]),
+                mock.call("webconfig_flash.py", ["--state-dir", str(state), "--simple-execute"]),
             ],
         )
 
-    def test_first_app_flash_with_build_initializes_local_identity(self) -> None:
+    def test_first_app_flash_delegates_initialization_after_formal_key_preflight(self) -> None:
         with mock.patch.object(
             hbox, "_run_python_tool", return_value=0
         ) as run_python, mock.patch.object(
@@ -118,20 +112,11 @@ class HboxV2BuildContractTests(unittest.TestCase):
         self.assertEqual(
             run_python.call_args_list,
             [
-                mock.call("webconfig_local.py", ["init"]),
                 mock.call(
-                    "webconfig_local.py",
-                    [
-                        "build",
-                        "--slot",
-                        "A",
-                        "--skip-web",
-                        "--jobs",
-                        "4",
-                        "--unlocked-development",
-                    ],
+                    "formal_application_build.py", ["--slot", "A", "--jobs", "4"],
                 ),
-                mock.call("webconfig_flash.py", ["--simple-execute"]),
+                mock.call("webconfig_flash.py", ["--state-dir",
+                    str(hbox._project_root() / ".hbox" / "webconfig-formal"), "--simple-execute"]),
             ],
         )
 

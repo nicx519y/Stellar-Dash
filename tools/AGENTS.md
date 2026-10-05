@@ -9,6 +9,7 @@
 - `hbox.py` 的上述分发变更，以及 2026-09-25 `build.py` / `webconfig_flash.py` 的 NRST 回退修复，待完整实机烧录/启动验收；冻结契约保留 2026-08-30 的旧 SHA-256，当前这三项会报告待验收差异。NRST 修复的范围与验证见 [恢复连接记录](../docs/stm32-reset-recovery.md)。完成验收后再更新契约版本、日期和哈希。
 - [冻结契约](frozen_flash_contract.json) 中的文件不能夹带修改，不能为通过测试直接更新哈希。若任务确需改变它们，作为独立烧录流程变更处理并重新验收。
 - 完整 STM32 开发构建使用 `python tools/hbox.py web local-build --unlocked-development`；不要绕到默认 production 的旧构建示例。工具涉及产物模式时保持 manifest 检查，不能以命令成功代替镜像检查。
+- `flash app A/B --build` 使用 [formal_application_build.py](formal_application_build.py) 构建与线上公钥匹配的正式签名无锁产物，输出 `.hbox/webconfig-formal/`；不带 `--build` 也会核对线上公钥。正式密钥缺失或核对失败时停止，不回退开发密钥。实验室 `web local-build` 的 PKI 保持独立；命令、迁移边界及待实机验收项见 [升级说明](../docs/firmware-release-install.md#基线与发布包)。
 - [webconfig_flash.py](webconfig_flash.py) 中的目标绑定、地址/大小校验、回读及提交顺序必须保留。`--execute` / `--simple-execute` 是实际硬件操作，不用于“测试一下命令”。
 - TX 普通更新仍走 `python tools/hbox.py flash tx`。TX IAP 独立维护更新已获用户于 2026-10-04 解除对应区域写入禁令，范围和门禁按根目录规则。独立入口为 [ch585_iap_maintenance.py](ch585_iap_maintenance.py)，默认只离线核对产物，`--inspect` 备份并检查目标，`--execute` 经 WCH-Link 在 RAM 执行限定 4 KiB 的擦写及回读；空白新 TX 须显式传 `--initialize-new-tx`，电脑与 RAM 程序双重检查空白，不能用于绕过已运行设备身份检查。需匹配已核对的无锁 manifest，主机检查通过但实机安装/启动尚待验收，见 [维护说明](../docs/tx-iap-maintenance.md)。不能把普通 TX 命令当作 IAP 更新命令；保护位、配置字和锁定状态禁令继续有效。
 - [release.py](release.py) 包含构建、刷写、上传、删除等不同子命令；不能把发版或服务端写操作作为编译检查的附带步骤。

@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import shutil
 import tempfile
 import unittest
@@ -22,15 +23,21 @@ class ConfigBootModePersistenceTests(unittest.TestCase):
 #define MAX_KEY_COMBINATION 10
 #define NUM_LED_AROUND 40
 #define FN_BUTTON_VIRTUAL_PIN (1u<<21)
-#define CONFIG_VERSION 0x22u
 #define CONFIG_ADDR 0x90590000u
 #define LOG_STORAGE_ADDR 0x90580000u
 #define HBOX_AUTO_SLEEP_ENABLED 0
 #define APP_DBG(...) ((void)0)
 #define APP_ERR(...) ((void)0)
-struct DefaultHotkeyConfig { bool isLocked; GamepadHotkey action; bool isHold; int32_t virtualPin; };
-static const DefaultHotkeyConfig DEFAULT_HOTKEY_LIST[11]={};
 ''',encoding='utf-8')
+            # Exercise the production defaults rather than a zero-filled fixture.
+            board = (ROOT / 'application/Inc/system/board_cfg.h').read_text(encoding='utf-8')
+            defaults_end = board.index('\n};', board.index('static const DefaultHotkeyConfig DEFAULT_HOTKEY_LIST')) + 3
+            defaults_start = board.rfind('typedef struct {', 0, defaults_end)
+            version = re.search(r'^#define CONFIG_VERSION\s+\(uint32_t\)(0x[0-9A-Fa-f]+)', board, re.MULTILINE)
+            self.assertIsNotNone(version)
+            with (temp / 'board_cfg.h').open('a', encoding='utf-8') as header:
+                header.write(f'#define CONFIG_VERSION {version.group(1)}u\n')
+                header.write(board[defaults_start:defaults_end] + '\n')
             (temp/'configs/device_command_handler.hpp').write_text('''#pragma once
 #include "config.hpp"
 #include <cstdlib>
@@ -54,7 +61,9 @@ int8_t QSPI_W25Qxx_WritePage(uint8_t*,uint32_t,uint16_t);
             self.assertIsNotNone(compiler)
             exe=temp/'config-boot.exe'
             run_native([compiler,'-std=c++17','-ffunction-sections','-fdata-sections','-Wl,--gc-sections',
-                        '-I'+str(temp),'-I'+str(ROOT/'application/Libs/cJSON'),*application_include_flags(),
+                        '-I'+str(temp),'-I'+str(ROOT/'application/Libs/cJSON'),
+                        '-I'+str(ROOT/'common'),'-I'+str(ROOT/'application/Libs/sha256_simple'),
+                        *application_include_flags(),
                         str(ROOT/'application/Src/config/config.cpp'),
                         str(ROOT/'application/Src/config/storagemanager.cpp'),
                         str(ROOT/'application/Libs/cJSON/cJSON.c'),

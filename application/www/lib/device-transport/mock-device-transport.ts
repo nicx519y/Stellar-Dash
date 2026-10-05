@@ -258,15 +258,15 @@ export class MockDeviceTransport implements DeviceTransport {
   private hotkeys: Hotkey[] = [
     { key: 20, action: HotkeyAction.WebConfigMode, isHold: true, isLocked: true },
     { key: 19, action: HotkeyAction.CalibrationMode, isHold: true, isLocked: true },
-    { key: 15, action: HotkeyAction.LedsEffectStyleNext, isHold: false, isLocked: false },
-    { key: 16, action: HotkeyAction.LedsEffectStylePrev, isHold: false, isLocked: false },
-    { key: 14, action: HotkeyAction.LedsBrightnessUp, isHold: false, isLocked: false },
-    { key: 13, action: HotkeyAction.LedsBrightnessDown, isHold: false, isLocked: false },
-    { key: 11, action: HotkeyAction.AmbientLightEffectStyleNext, isHold: false, isLocked: false },
-    { key: 12, action: HotkeyAction.AmbientLightEffectStylePrev, isHold: false, isLocked: false },
-    { key: 10, action: HotkeyAction.AmbientLightBrightnessUp, isHold: false, isLocked: false },
-    { key: 9, action: HotkeyAction.AmbientLightBrightnessDown, isHold: false, isLocked: false },
-    { key: 2, action: HotkeyAction.LedsEnableSwitch, isHold: true, isLocked: false },
+    { key: 13, action: HotkeyAction.LedsEffectStyleNext, isHold: false, isLocked: false },
+    { key: 12, action: HotkeyAction.LedsEffectStylePrev, isHold: false, isLocked: false },
+    { key: 10, action: HotkeyAction.LedsBrightnessUp, isHold: false, isLocked: false },
+    { key: 9, action: HotkeyAction.LedsBrightnessDown, isHold: false, isLocked: false },
+    { key: 17, action: HotkeyAction.AmbientLightEffectStyleNext, isHold: false, isLocked: false },
+    { key: 16, action: HotkeyAction.AmbientLightEffectStylePrev, isHold: false, isLocked: false },
+    { key: 15, action: HotkeyAction.AmbientLightBrightnessUp, isHold: false, isLocked: false },
+    { key: 14, action: HotkeyAction.AmbientLightBrightnessDown, isHold: false, isLocked: false },
+    { key: 11, action: HotkeyAction.LedsEnableSwitch, isHold: true, isLocked: false },
   ];
   private mappings = [clone(DEFAULT_MAPPING)];
   private defaultMappingId = DEFAULT_MAPPING.id;
@@ -1911,7 +1911,6 @@ function fixedMockProfiles(profiles: GameProfile[]): GameProfile[] {
 }
 
 function makeProfile(id: string, name: string, isCompetitionProfile: boolean): GameProfile {
-  const buttons = Object.values(GameControllerButton);
   return {
     id,
     name,
@@ -1923,11 +1922,29 @@ function makeProfile(id: string, name: string, isCompetitionProfile: boolean): G
       invertYAxis: false,
       fourWayMode: false,
       keysEnableTag: Array.from({ length: 22 }, () => true),
-      keyMapping: Object.fromEntries(buttons.map((button, index) => [button, [index]])),
+      // UI KEY-n labels use zero-based virtual pin indices, as in the firmware.
+      keyMapping: {
+        [GameControllerButton.DPAD_UP]: [1, 8],
+        [GameControllerButton.DPAD_LEFT]: [5],
+        [GameControllerButton.DPAD_RIGHT]: [7],
+        [GameControllerButton.DPAD_DOWN]: [6],
+        [GameControllerButton.B4]: [13],
+        [GameControllerButton.B3]: [10],
+        [GameControllerButton.B2]: [12],
+        [GameControllerButton.B1]: [9],
+        [GameControllerButton.L3]: [0],
+        [GameControllerButton.R3]: [2],
+        [GameControllerButton.L2]: [16],
+        [GameControllerButton.R2]: [14],
+        [GameControllerButton.L1]: [17],
+        [GameControllerButton.R1]: [15],
+        [GameControllerButton.S1]: [19],
+        [GameControllerButton.S2]: [18],
+        [GameControllerButton.A1]: [20],
+        [GameControllerButton.A2]: [],
+      },
       keyCombinations: [],
-      macros: [
-        { index: 0, triggerKeys: [18, 19], steps: [{ timeMs: 0, buttonMask: 1 << 10, dynamicMask: 0 }, { timeMs: 80, buttonMask: 0, dynamicMask: 0 }] },
-      ],
+      macros: [],
     },
     triggerConfigs: {
       isAllBtnsConfiguring: false,
