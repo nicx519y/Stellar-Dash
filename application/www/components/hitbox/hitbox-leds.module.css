@@ -1,0 +1,9 @@
+.key {
+  outline: none;
+}
+
+/* Keyboard focus follows the round key instead of the SVG bounding box. */
+.key:focus-visible {
+  stroke: yellowgreen;
+  stroke-width: 2px;
+}

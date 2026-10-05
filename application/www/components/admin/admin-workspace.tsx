@@ -10,6 +10,7 @@ const Accounts = dynamic(() => import('@/app/admin/users/page'), { loading: Admi
 const ServiceTokens = dynamic(() => import('@/app/admin/service-tokens/page'), { loading: AdminLoading });
 const Firmware = dynamic(() => import('@/app/admin/firmware/page'), { loading: AdminLoading });
 const FirmwareDetail = dynamic(() => import('@/components/admin/firmware-detail-page'), { loading: AdminLoading });
+const Resources = dynamic(() => import('@/app/admin/resources/page'), { loading: AdminLoading });
 const Images = dynamic(() => import('@/app/admin/images/page'), { loading: AdminLoading });
 
 export function AdminWorkspace() {
@@ -25,6 +26,7 @@ export function AdminWorkspace() {
   const Content = pathname === '/admin/firmware/detail' ? FirmwareDetail
     : pathname === '/admin/firmware' ? Firmware
     : pathname === '/admin/service-tokens' ? ServiceTokens
+    : pathname === '/admin/resources' ? Resources
     : pathname === '/admin/images' ? Images : Accounts;
   return <AdminShell><Suspense fallback={<AdminLoading />}><Content /></Suspense></AdminShell>;
 }

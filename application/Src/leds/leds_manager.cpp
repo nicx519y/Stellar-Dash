@@ -4,6 +4,7 @@
 #include "board_power.hpp"
 #include "brightness_curve.hpp"
 #include "leds/led_config_safety.hpp"
+#include "leds/lighting_resources.hpp"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -12,6 +13,32 @@
 #ifndef LEDS_ANIMATION_CYCLE
 #define LEDS_ANIMATION_CYCLE 10000  // 10秒周期
 #endif
+
+static XoraResource::Engine resourceEngines[2];
+static XoraResource::Point resourcePoints[NUM_LED];
+static void loadResourceEngines(const LEDProfile& options, bool reset) {
+    GamepadProfile* profile = STORAGE_MANAGER.getDefaultGamepadProfile();
+    for (unsigned a=0; a<2; ++a) {
+        auto ref = LightingResources::reference(profile, a);
+        unsigned style = a ? unsigned(options.aroundLedEffect) : unsigned(options.ledEffect);
+        unsigned saved = a ? unsigned(profile->ledsConfigs.aroundLedEffect) : unsigned(profile->ledsConfigs.ledEffect);
+        if (style != saved || !ref.id[0]) { ref = {}; strncpy(ref.id, XoraResource::legacyId(a,style),15); ref.revision=1; }
+        const auto& loaded = resourceEngines[a].resource().ref;
+        if (reset || memcmp(&ref,&loaded,sizeof(ref))) {
+            XoraResource::Light light = {};
+            if (!LightingResources::resolve(ref, light)) { ref={};strncpy(ref.id,XoraResource::legacyId(a,0),15);ref.revision=1;LightingResources::resolve(ref,light); }
+            resourceEngines[a].load(light,HAL_GetTick());
+        }
+    }
+    for (unsigned i=0;i<NUM_LED;i++) resourcePoints[i]={HITBOX_LED_POS_LIST[i].x,HITBOX_LED_POS_LIST[i].y};
+}
+static void cycleResource(bool ambient,int delta) {
+    XoraResource::Ref refs[32]; const char* names[32];
+    unsigned count=LightingResources::list(ambient,refs,names,32); if(!count)return;
+    auto* profile=STORAGE_MANAGER.getDefaultGamepadProfile();auto current=LightingResources::reference(profile,ambient);unsigned at=0;
+    for(unsigned i=0;i<count;i++)if(!memcmp(&refs[i],&current,sizeof(current)))at=i;
+    LightingResources::select(profile,ambient,refs[(int(at)+int(count)+delta)%count]);
+}
 
 static uint8_t brightnessPercentToDrive8(uint8_t brightnessPercent,
                                          uint8_t maxDrivePercent)
@@ -75,6 +102,10 @@ LEDsManager::LEDsManager()
     STORAGE_MANAGER.registerDefaultProfileChangedCallback(on_default_profile_changed_leds);
 };
 
+XoraResource::Ref LEDsManager::currentResource(bool ambient) {
+    loadResourceEngines(*opts,false);return resourceEngines[ambient?1:0].resource().ref;
+}
+
 void LEDsManager::setup()
 {
     if (BOARD_POWER.isSafeLatched()) {
@@ -107,6 +138,7 @@ void LEDsManager::setup()
               (unsigned)FPS_OF_LED_ANIMATION);
 
     updateColorsFromConfig();
+    loadResourceEngines(*opts, true);
 
     // 在上电灯条之前先准备好完整颜色，但保持黑帧/零亮度。
     animationStartTime = HAL_GetTick();
@@ -205,81 +237,19 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     }
     lastLoopTime = HAL_GetTick();
 
-    // 处理按钮按下事件（用于涟漪效果）
-    processButtonPress(virtualPinMask);
-
-    // 更新涟漪状态
-    updateRipples();
-    
-    // 获取动画进度
-    float progress = getAnimationProgress();
-    
-    // 获取当前动画算法
-    LedAnimationAlgorithm algorithm = getLedAnimation(opts->ledEffect);
-    
-    // 准备全局动画参数
-    LedAnimationParams params;
-    params.colorEnabled = true;
-    params.frontColor = frontColor;
-    params.backColor1 = backgroundColor1;
-    params.backColor2 = backgroundColor2;
-    params.defaultBackColor = defaultBackColor;
-    params.effectStyle = opts->ledEffect;
-    params.animationSpeed = opts->ledAnimationSpeed;
-    params.progress = progress;
-    
-    // 设置涟漪参数
-    params.global.rippleCount = rippleCount;
-    uint32_t now = HAL_GetTick();
-    for (uint8_t i = 0; i < rippleCount && i < 5; i++) {
-        params.global.rippleCenters[i] = ripples[i].centerIndex;
-        uint32_t elapsed = now - ripples[i].startTime;
-        // 涟漪持续时间根据动画速度调整（与 TypeScript 版本保持一致）
-        const uint32_t rippleDuration =
-            LedConfigSafety::rippleDurationMs(opts->ledAnimationSpeed);
-        params.global.rippleProgress[i] = (float)elapsed / rippleDuration;
-        if (params.global.rippleProgress[i] > 1.0f) {
-            params.global.rippleProgress[i] = 1.0f;
-        }
-    }
-    
-    // 设置环绕灯同步模式参数
-    params.global.aroundLedSyncMode = aroundLedSyncActive;
-
-    // 环绕灯处理
-    if (!aroundLedActive) {
-        // 模式1：环绕灯关闭 - 设置为黑色，亮度为0
-        for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-            WS2812B_SetLEDColor(0, 0, 0, i);
-        }
-        setAmbientLightBrightness(0);
-    } else if (aroundLedSyncActive) {
-        // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
-
-        // 在同步模式下，动画算法需要处理所有LED（主LED + 环绕LED）
-        // 为每个环绕LED计算颜色并设置（索引从按钮LED数量开始）
-        for (uint8_t i = 0; i < NUM_LED_AROUND; i++) {
-            params.index = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i; // 环绕LED在全局数组中的索引
-            params.pressed = false; // 环绕LED没有按钮状态
-
-            RGBColor color = algorithm(params);
-            WS2812B_SetLEDColor(color.r, color.g, color.b, (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i);
-        }
-        setAmbientLightBrightness(opts->aroundLedBrightness);
-    } else {
-        // 模式3：环绕灯独立模式 - 使用环绕灯独立配置
-        processAroundLedAnimation();
-    }
-    
-    if (opts->ledEnabled) {
-        // 为每个主LED（按钮LED）计算颜色并设置
-        for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
-            params.index = i;
-            params.pressed = (virtualPinMask & (1 << i)) != 0;
-            
-            RGBColor color = algorithm(params);
-            WS2812B_SetLEDColor(color.r, color.g, color.b, i);
-        }
+    const uint32_t now = HAL_GetTick();
+    virtualPinMask &= enabledKeysMask;
+    lastButtonState = virtualPinMask;
+    loadResourceEngines(*opts, false);
+    XoraResource::Color colors[NUM_LED] = {};
+    const uint32_t keys[3] = {opts->ledColor1,opts->ledColor2,opts->ledColor3};
+    const uint32_t ambient[3] = {opts->aroundLedColor1,opts->aroundLedColor2,opts->aroundLedColor3};
+    const unsigned keyCount = NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS;
+    if (opts->ledEnabled) resourceEngines[0].render(now,virtualPinMask,resourcePoints,NUM_LED,keyCount,aroundLedSyncActive,false,opts->ledAnimationSpeed,keys,colors);
+    if (aroundLedActive && !aroundLedSyncActive) resourceEngines[1].render(now,virtualPinMask,resourcePoints,NUM_LED,keyCount,false,opts->aroundLedTriggerByButton,opts->aroundLedAnimationSpeed,ambient,colors);
+    for (unsigned i=0;i<NUM_LED;i++) {
+        if(i<keyCount&&!(enabledKeysMask&(1u<<i)))colors[i]={};
+        WS2812B_SetLEDColor(colors[i].r,colors[i].g,colors[i].b,i);
     }
 
     const LedStripController& keyStrip = LedStripController::keys();
@@ -449,29 +419,9 @@ void LEDsManager::deinit()
     WS2812B_Stop();
 }
 
-void LEDsManager::effectStyleNext() {
-    opts->ledEffect = static_cast<LEDEffect>((opts->ledEffect + 1) % LEDEffect::NUM_EFFECTS);
-    
-    // 只有在使用默认配置时才保存到存储
-    if (!usingTemporaryConfig) {
-        STORAGE_MANAGER.saveConfig();
-    }
-    
-    deinit();
-    setup();
-}
+void LEDsManager::effectStyleNext() { cycleResource(false,1); }
 
-void LEDsManager::effectStylePrev() {
-    opts->ledEffect = static_cast<LEDEffect>((opts->ledEffect - 1 + LEDEffect::NUM_EFFECTS) % LEDEffect::NUM_EFFECTS);
-    
-    // 只有在使用默认配置时才保存到存储
-    if (!usingTemporaryConfig) {
-        STORAGE_MANAGER.saveConfig();
-    }
-    
-    deinit();
-    setup();
-}   
+void LEDsManager::effectStylePrev() { cycleResource(false,-1); }
 
 void LEDsManager::brightnessUp() {
     if(opts->ledBrightness == 100) {
@@ -822,39 +772,19 @@ void LEDsManager::updateAroundLedColors()
     }
     
     // 独立模式下更新环绕灯
-    processAroundLedAnimation();
+    loop(lastButtonState);
 }
 
 
 /**
  * @brief 切换到下一个环绕灯效果
  */
-void LEDsManager::ambientLightEffectStyleNext() {
-    opts->aroundLedEffect = static_cast<AroundLEDEffect>((opts->aroundLedEffect + 1) % AroundLEDEffect::NUM_AROUND_LED_EFFECTS);
-    
-    // 只有在使用默认配置时才保存到存储
-    if (!usingTemporaryConfig) {
-        STORAGE_MANAGER.saveConfig();
-    }
-    
-    deinit();
-    setup();
-}
+void LEDsManager::ambientLightEffectStyleNext() { cycleResource(true,1); }
 
 /**
  * @brief 切换到上一个环绕灯效果
  */
-void LEDsManager::ambientLightEffectStylePrev() {
-    opts->aroundLedEffect = static_cast<AroundLEDEffect>((opts->aroundLedEffect - 1 + AroundLEDEffect::NUM_AROUND_LED_EFFECTS) % AroundLEDEffect::NUM_AROUND_LED_EFFECTS);
-    
-    // 只有在使用默认配置时才保存到存储
-    if (!usingTemporaryConfig) {
-        STORAGE_MANAGER.saveConfig();
-    }
-    
-    deinit();
-    setup();
-}
+void LEDsManager::ambientLightEffectStylePrev() { cycleResource(true,-1); }
 
 /**
  * @brief 增加环绕灯亮度

@@ -344,6 +344,8 @@ export function GlobalSettingContent() {
                             value={mainTab}
                             onValueChange={(details) => setMainTab(details.value as 'basic' | 'hotkeys' | 'screen')}
                             colorPalette="green"
+                            width="100%"
+                            minW={0}
                         >
                             <Tabs.List>
                                 <Tabs.Trigger value="basic" fontSize="16px" fontWeight="extrabold">

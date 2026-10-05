@@ -1,12 +1,11 @@
 "use client";
 
+import type { ResourceSource } from '@/lib/resources';
+import { LightingResourceLibrary, LightingResourceProvider } from './lighting-resource-library';
 import {
     Stack,
     VStack,
     Fieldset,
-    RadioCardLabel,
-    SimpleGrid,
-    Icon,
     HStack,
     parseColor,
     Text,
@@ -17,10 +16,6 @@ import {
     Separator,
 } from "@chakra-ui/react";
 
-import {
-    RadioCardItem,
-    RadioCardRoot,
-} from "@/components/ui/radio-card";
 
 import { ColorPicker, Slider } from "@chakra-ui/react";
 
@@ -32,8 +27,7 @@ import {
     AroundLedsEffectStyle,
     GameProfile,
 } from "@/types/gamepad-config";
-import { LuSunDim, LuActivity, LuCheck, LuSparkles, LuWaves, LuTarget, LuCloudSunRain, LuAudioLines } from "react-icons/lu";
-import { TbMeteorFilled } from "react-icons/tb";
+import { LuCheck } from "react-icons/lu";
 import HitboxLeds from "@/components/hitbox/hitbox-leds";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
@@ -54,7 +48,13 @@ import {
 } from "@/components/setting-main-content-layout";
 
 export function LEDsSettingContent() {
-    const { t } = useLanguage();
+    return <LightingResourceProvider><LightingSettingsBody/></LightingResourceProvider>;
+}
+
+function LightingSettingsBody() {
+    const { t,currentLanguage } = useLanguage();
+    const [keyResource,setKeyResource] = useState<ResourceSource | null>(null);
+    const [ambientResource,setAmbientResource] = useState<ResourceSource | null>(null);
 
     const { defaultProfile, stageDeferredProfileDetails, pushLedsConfig, clearLedsPreview, deviceConnected, dataIsReady } = useGamepadConfig();
     const { colorMode } = useColorMode();
@@ -198,80 +198,13 @@ export function LEDsSettingContent() {
         }
     }, [ledsWriteReady]);
 
-    const colorPickerDisabled = (index: number) => {
-        return (index == 2 && !(effectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;
+    const colorPickerDisabled = (_index: number) => {
+        return !ledEnabled;
     }
 
-    const aroundColorPickerDisabled = (index: number) => {
-        return (index == 2 && !(aroundLedEffectStyleLabelMap.get(aroundLedEffectStyle)?.hasBackColor2 ?? false)) || !aroundLedConfigIsEnabled;
+    const aroundColorPickerDisabled = (_index: number) => {
+        return !aroundLedConfigIsEnabled;
     }
-
-    const iconMap: Record<string, JSX.Element> = {
-        'static': <LuSunDim />,
-        'breathing': <LuActivity />,
-        'star': <LuSparkles />,
-        'flowing': <LuWaves />,
-        'ripple': <LuTarget />,
-        'transform': <LuCloudSunRain />,
-        'quake': <LuAudioLines />,
-        'meteor': <TbMeteorFilled />,
-    };
-
-    const effectStyleLabelMap = new Map<LedsEffectStyle, { label: string, icon: string, hasBackColor2: boolean }>([
-        [LedsEffectStyle.STATIC, {
-            label: t.SETTINGS_LEDS_STATIC_LABEL,
-            icon: "static",
-            hasBackColor2: false
-        }],
-        [LedsEffectStyle.BREATHING, {
-            label: t.SETTINGS_LEDS_BREATHING_LABEL,
-            icon: "breathing",
-            hasBackColor2: true
-        }],
-        [LedsEffectStyle.STAR, {
-            label: t.SETTINGS_LEDS_STAR_LABEL,
-            icon: "star",
-            hasBackColor2: true
-        }],
-        [LedsEffectStyle.FLOWING, {
-            label: t.SETTINGS_LEDS_FLOWING_LABEL,
-            icon: "flowing",
-            hasBackColor2: true
-        }],
-        [LedsEffectStyle.RIPPLE, {
-            label: t.SETTINGS_LEDS_RIPPLE_LABEL,
-            icon: "ripple",
-            hasBackColor2: true
-        }],
-        [LedsEffectStyle.TRANSFORM, {
-            label: t.SETTINGS_LEDS_TRANSFORM_LABEL,
-            icon: "transform",
-            hasBackColor2: true
-        }],
-    ]);
-
-    const aroundLedEffectStyleLabelMap = new Map<AroundLedsEffectStyle, { label: string, icon: string, hasBackColor2: boolean }>([
-        [AroundLedsEffectStyle.STATIC, {
-            label: t.SETTINGS_LEDS_STATIC_LABEL,
-            icon: "static",
-            hasBackColor2: false
-        }],
-        [AroundLedsEffectStyle.BREATHING, {
-            label: t.SETTINGS_LEDS_BREATHING_LABEL,
-            icon: "breathing",
-            hasBackColor2: true
-        }],
-        [AroundLedsEffectStyle.QUAKE, {
-            label: t.SETTINGS_LEDS_QUAKE_LABEL,
-            icon: "quake",
-            hasBackColor2: true
-        }],
-        [AroundLedsEffectStyle.METEOR, {
-            label: t.SETTINGS_LEDS_METEOR_LABEL,
-            icon: "meteor",
-            hasBackColor2: true
-        }],
-    ]);
 
     const colorLabels = [
         t.SETTINGS_LEDS_FRONT_COLOR,
@@ -281,7 +214,8 @@ export function LEDsSettingContent() {
 
     const aroundColorLabels = [
         t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR1,
-        t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2
+        t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2,
+        currentLanguage==='zh'?'氛围灯颜色 3':'Ambient Lighting Color 3'
     ];
 
     const currentLedsConfig = () => ({
@@ -395,7 +329,8 @@ export function LEDsSettingContent() {
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {
         return (
-            <HitboxLeds
+            <HitboxLeds resource={keyResource} ambientResource={ambientResource}
+                isButtonMonitoringEnabled
                 hasText={false}
                 ledsConfig={{
                     ledEnabled: ledEnabled,
@@ -428,7 +363,7 @@ export function LEDsSettingContent() {
     };
 
     return (
-        <SettingContentLayout >
+        <SettingContentLayout>
             <SideContent>
                 <ProfileSelect />
             </SideContent>
@@ -447,6 +382,10 @@ export function LEDsSettingContent() {
                         <Fieldset.Root disabled={!ledsWriteReady}>
                             <Stack direction={"column"}>
                                 <Fieldset.Content>
+                                    <HStack>
+                                        <Text flexShrink="0" fontSize={"sm"} fontWeight={"bold"}>{t.SETTINGS_LEDS_BUTTON_LIGHT_TITLE}</Text>
+                                        <Separator my={8} flex="1" />
+                                    </HStack>
                                     <VStack gap={8} alignItems={"flex-start"}>
                                         {/* LED Effect Style */}
 
@@ -464,45 +403,11 @@ export function LEDsSettingContent() {
                                             <Switch.Label>{t.SETTINGS_LEDS_ENABLE_LABEL}</Switch.Label>
                                         </Switch.Root>
                                         {/* LED Effect Style */}
-                                        <RadioCardRoot
-                                            align="center"
-                                            justify="center"
-                                            colorPalette={ledEnabled ? "green" : "gray"}
-                                            size={"sm"}
-                                            variant={ colorMode === "dark" ? "subtle" : "solid"}
-                                            value={ledsEffectStyle?.toString() ?? LedsEffectStyle.STATIC.toString()}
-                                            onValueChange={(detail) => {
-                                                const newEffectStyle = parseInt(detail.value ?? "0") as LedsEffectStyle;
-                                                setLedsEffectStyle(newEffectStyle);
-                                                requestLedsCommit();
-                                            }}
-                                            disabled={!ledEnabled}
-                                        >
-                                            <RadioCardLabel>{t.SETTINGS_LEDS_EFFECT_STYLE_CHOICE}</RadioCardLabel>
-                                            <SimpleGrid columns={6} gap={1} >
-                                                {Array.from(effectStyleLabelMap.entries()).map(([style], index) => (
-                                                    // <Tooltip key={index} content={effectStyleLabelMap.get(style)?.description ?? ""} >
-                                                    <RadioCardItem
-                                                        w="120px"
-                                                        fontSize={"xs"}
-                                                        indicator={false}
-                                                        key={index}
-                                                        icon={
-                                                            <Icon fontSize={"2xl"} >
-                                                                {iconMap[effectStyleLabelMap.get(style)?.icon ?? ""]}
-                                                            </Icon>
-                                                        }
-                                                        value={style?.toString() ?? ""}
-                                                        label={effectStyleLabelMap.get(style)?.label ?? ""}
-                                                        disabled={!ledEnabled}
-                                                    />
-                                                    // </Tooltip>
-                                                ))}
-                                            </SimpleGrid>
-                                        </RadioCardRoot>
+                                        <LightingResourceLibrary selectionDisabled={!ledEnabled} type="key-lighting" onSource={setKeyResource}/>
+
 
                                         {/* LED Colors */}
-                                        <HStack gap={4} alignItems={"flex-start"}>
+                                        <HStack gap={4} alignItems={"flex-start"} wrap="wrap" width="100%">
                                             {Array.from({ length: 3 }).map((_, index) => (
                                                 <ColorPicker.Root key={index} size="xs"
                                                     value={
@@ -619,7 +524,7 @@ export function LEDsSettingContent() {
                                                 max={5}
                                                 step={1}
                                                 colorPalette={"green"}
-                                                disabled={!ledEnabled || ledsEffectStyle == LedsEffectStyle.STATIC}
+                                                disabled={!ledEnabled}
                                                 value={[ledAnimationSpeed]}
                                                 onValueChange={(e) => {
                                                     setLedAnimationSpeed(e.value[0]);
@@ -665,7 +570,7 @@ export function LEDsSettingContent() {
                                     </HStack>
                                     <VStack gap={8} alignItems={"flex-start"}>
                                         {/* Ambient Light */}
-                                        <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%">
+                                        <Grid templateColumns={{base:"1fr",md:"repeat(3, 1fr)"}} gap={10} w="100%">
                                             {/* 是否开启氛围灯 */}
                                             <Switch.Root colorPalette={"green"}
                                                 checked={aroundLedEnabled}
@@ -697,7 +602,7 @@ export function LEDsSettingContent() {
                                             </Switch.Root>
                                             {/* 氛围灯是否触发按钮 */}
                                             <Switch.Root colorPalette={"green"}
-                                                disabled={!buttonAndAmbientLedEnabled}
+                                                disabled={!aroundLedConfigIsEnabled}
                                                 checked={aroundLedTriggerByButton}
                                                 onCheckedChange={(details) => {
                                                     setAroundLedTriggerByButton(details.checked);
@@ -711,47 +616,18 @@ export function LEDsSettingContent() {
                                                 <Switch.Label>{t.SETTINGS_AMBIENT_LIGHT_TRIGGER_BY_BUTTON_LABEL}</Switch.Label>
                                             </Switch.Root>
                                         </Grid>
-                                        <HStack gap={10} alignItems={"flex-start"}>
+                                        <HStack gap={4} alignItems={"flex-start"} wrap="wrap" width="100%">
                                             {/* 氛围灯效果 */}
-                                            <RadioCardRoot
-                                                align="center"
-                                                justify="center"
-                                                colorPalette={aroundLedConfigIsEnabled ? "green" : "gray"}
-                                                size={"sm"}
-                                                variant={ colorMode === "dark" ? "subtle" : "solid"}
-                                                value={aroundLedEffectStyle?.toString() ?? AroundLedsEffectStyle.STATIC.toString()}
-                                                onValueChange={(detail) => {
-                                                    const newAroundLedEffectStyle = parseInt(detail.value ?? "0") as AroundLedsEffectStyle;
-                                                    setAroundLedEffectStyle(newAroundLedEffectStyle);
-                                                    requestLedsCommit();
-                                                }}
-                                                disabled={!aroundLedConfigIsEnabled}
-                                            >
-                                                <RadioCardLabel>{t.SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL}</RadioCardLabel>
-                                                <SimpleGrid columns={6} gap={1}>
-                                                    {Array.from(aroundLedEffectStyleLabelMap.entries()).map(([style], index) => (
-                                                        <RadioCardItem
-                                                            w="120px"
-                                                            fontSize={"xs"}
-                                                            indicator={false}
-                                                            key={index}
-                                                            icon={<Icon fontSize={"2xl"}>{iconMap[aroundLedEffectStyleLabelMap.get(style)?.icon ?? ""]}</Icon>}
-                                                            value={style.toString()}
-                                                            label={aroundLedEffectStyleLabelMap.get(style)?.label ?? ""}
-                                                            disabled={!aroundLedConfigIsEnabled}
-                                                        />
-                                                    ))}
-                                                </SimpleGrid>
-                                            </RadioCardRoot>
+                                            <LightingResourceLibrary selectionDisabled={!aroundLedConfigIsEnabled} type="ambient-lighting" onSource={setAmbientResource}/>
+
                                         </HStack>
-                                        <HStack gap={10} alignItems={"flex-start"}>
+                                        <HStack gap={4} alignItems={"flex-start"} wrap="wrap" width="100%">
                                             {/* 氛围灯颜色 */}
-                                            {Array.from({ length: 2 }).map((_, index) => (
+                                            {Array.from({ length: 3 }).map((_, index) => (
                                                 <ColorPicker.Root key={index} size="xs"
                                                     value={
                                                         index === 0 ? aroundLedColor1 :
-                                                            index === 1 ? aroundLedColor2 :
-                                                                parseColor(aroundLedColor1.toString('hex'))}
+                                                            index === 1 ? aroundLedColor2 : aroundLedColor3}
 
                                                     onValueChange={(e) => {
                                                         handleAroundLedColorChange(index, e.value);
@@ -859,7 +735,7 @@ export function LEDsSettingContent() {
                                                 max={5}
                                                 step={1}
                                                 colorPalette={"green"}
-                                                disabled={!aroundLedConfigIsEnabled || aroundLedEffectStyle == AroundLedsEffectStyle.STATIC}
+                                                disabled={!aroundLedConfigIsEnabled}
                                                 value={[aroundLedAnimationSpeed]}
                                                 onValueChange={(e) => {
                                                     setAroundLedAnimationSpeed(e.value[0]);

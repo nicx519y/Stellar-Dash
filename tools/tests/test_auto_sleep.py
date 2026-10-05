@@ -38,7 +38,8 @@ class AutoSleepTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='hbox-screen-wake-') as folder:
             temp = Path(folder)
             stubs = {
-                'stm32h7xx_hal.h': 'typedef struct {} TIM_HandleTypeDef;',
+                'stm32h7xx_hal.h': '#include <cmath>\n#include <cstdint>\ntypedef struct {} TIM_HandleTypeDef;',
+                'stm32h750xx.h': '',
                 'stm32h7xx.h': '''#include <stdint.h>
 inline void SCB_InvalidateDCache_by_Addr(uint32_t*, int32_t) {}
 inline void __DSB() {}
@@ -54,6 +55,9 @@ inline int QSPI_W25Qxx_EnterMemoryMappedMode() { return -1; }''',
 #define BOARD_WIDTH 320u
 #define NUM_ADC_BUTTONS 1u
 #define NUM_GPIO_BUTTONS 1u
+#define NUM_PROFILES 8u
+#define NUM_GAMEPAD_HOTKEYS 11u
+#define MAX_KEY_COMBINATION 16u
 static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
             }
             for name, body in stubs.items():
@@ -65,6 +69,8 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                          *application_include_flags(),
                          '-I', str(ROOT / 'application/Inc/display/drivers/st7789'),
                          '-I', str(ROOT / 'application/Libs/CRC32/src'),
+                         '-I', str(ROOT / 'common'),
+                         '-I', str(ROOT / 'application/Libs/cJSON'),
                          str(ROOT / 'application/Libs/CRC32/src/CRC32.cpp'),
                          str(ROOT / 'application/Src/display/screen_control/spi_screen_standby.cpp'),
                          str(ROOT / 'tools/tests/screen_sleep_wake_test.cpp'), '-o', str(exe)])

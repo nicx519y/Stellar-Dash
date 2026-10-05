@@ -18,6 +18,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     { href: '/admin/users/', label: zh ? '账户管理' : 'Accounts', icon: LuUsers },
     { href: '/admin/service-tokens/', label: zh ? '服务令牌' : 'Service tokens', icon: LuKeyRound },
     { href: '/admin/firmware/', label: zh ? '固件管理' : 'Firmware', icon: LuPackage },
+    { href: '/admin/resources/', label: zh ? '资源管理' : 'Resources', icon: LuPackage },
     { href: '/admin/images/', label: zh ? '官方图库' : 'Official gallery', icon: LuImages },
   ];
 
@@ -41,7 +42,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                   color={active ? 'fg' : 'fg.muted'} bg={active ? 'bg.muted' : 'transparent'}
                   h="40px" flexShrink={0} borderRadius="md"
                   _hover={{ color: 'fg', bg: 'bg.muted' }}
-                  justifyContent="center" flex={{ base: '1', md: 'initial' }}
+                  justifyContent="center" flex="0 0 auto"
                   gap="2" minW="0" whiteSpace="nowrap" fontSize={{ base: 'xs', md: 'sm' }} px={{ base: 2, md: 4 }}>
                   <a href={href} aria-current={active ? 'page' : undefined} onClick={event => {
                     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;

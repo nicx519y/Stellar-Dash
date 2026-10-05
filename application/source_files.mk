@@ -147,6 +147,8 @@ Src/input/adc_btns/ring_buffer_sliding_window.cpp \
 Src/input/gpio_btns/gpio_btns_worker.cpp \
 Src/leds/gradient_color.cpp \
 Src/leds/led_animation.cpp \
+Src/leds/lighting_resources.cpp \
+Src/webconfig/configs/resource_command_handler.cpp \
 Src/leds/led_strip_controller.cpp \
 Src/leds/leds_manager.cpp \
 Src/firmware/firmware_manager.cpp \

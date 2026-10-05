@@ -1,4 +1,5 @@
-import { DEFAULT_SCREEN_CONTROL_CONFIG, normalizeScreenStandbyTimeout, type GameProfile, type GameProfileList, type MacroConfig, type GlobalConfig, type ScreenControlConfig, type Hotkey } from '../../types/gamepad-config';
+import { normalizeScreenControl } from '../screen-control-config';
+import { type GameProfile, type GameProfileList, type MacroConfig, type GlobalConfig, type ScreenControlConfig, type Hotkey } from '../../types/gamepad-config';
 import { compactMacrosToLegacy } from './webhid-config-export';
 import { profileSlots } from '../profile-slots';
 import type { ConfigResources } from '../session-config-store';
@@ -39,13 +40,7 @@ export async function readConfigSnapshot(
   resources.global = global;
   const screen = (await read('get_screen_control_config'))?.screenControl;
   if (!screen || typeof screen !== 'object' || !['light', 'dark'].includes(screen.screenStyle)) throw new Error('Invalid screen configuration');
-  resources['screen-control'] = {
-    ...DEFAULT_SCREEN_CONTROL_CONFIG, ...screen,
-    standbyTimeoutSeconds: normalizeScreenStandbyTimeout(screen.standbyTimeoutSeconds),
-    features: { ...DEFAULT_SCREEN_CONTROL_CONFIG.features, ...screen.features },
-    featuresOrder: [...new Set([...(Array.isArray(screen.featuresOrder) ? screen.featuresOrder : []), ...DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder])]
-      .filter(key => key in DEFAULT_SCREEN_CONTROL_CONFIG.features),
-  };
+  resources['screen-control'] = normalizeScreenControl(screen, true);
   const hotkeys = (await read('get_hotkeys_config'))?.hotkeysConfig;
   if (!Array.isArray(hotkeys)) throw new Error('Invalid hotkeys configuration');
   resources.hotkeys = hotkeys;
@@ -71,6 +66,7 @@ export function compactMacros(macros: MacroConfig[]): unknown[] {
 export async function writeConfigResource(request: ConfigRequester, key: string, value: unknown, convert: (value: GameProfile) => GameProfile): Promise<unknown> {
   let remote: unknown;
   if (key === 'global') remote = (await request('update_global_config', { globalConfig: value }))?.globalConfig;
+  else if (key === 'screen-control' && (value as ScreenControlConfig).standbySupported === false) throw new Error('Update device firmware to change screen settings');
   else if (key === 'screen-control') remote = (await request('update_screen_control_config', { screenControl: value }))?.screenControl;
   else if (key === 'hotkeys') remote = (await request('update_hotkeys_config', { hotkeysConfig: value }))?.hotkeysConfig;
   else if (key.startsWith('profile:')) {

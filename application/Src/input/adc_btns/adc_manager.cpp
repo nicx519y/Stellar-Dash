@@ -10,6 +10,7 @@
 #include "micro_timer.hpp"
 #include "CRC32.hpp"
 #include "sha256_simple.h"
+#include "firmware_metadata.h"
 #include <cstddef>
 #include <cctype>
 
@@ -30,6 +31,10 @@ struct SharedMappingRecord {
 
 static_assert(sizeof(SharedMappingRecord) <= 4096u,
               "shared ADC mapping record must fit one QSPI sector");
+static_assert(sizeof(ADCCommonConfig) <= SHARED_MAPPING_BANK_OFFSETS[0],
+              "ADC calibration must remain in the first common sector");
+static_assert(SHARED_MAPPING_BANK_OFFSETS[1] + 4096u <= LIGHTING_RESOURCE_BANK_A_OFFSET,
+              "Shared ADC mapping must not overlap the lighting library");
 
 static bool isTerminatedString(const char* value, size_t capacity)
 {

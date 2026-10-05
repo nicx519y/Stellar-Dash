@@ -1,3 +1,4 @@
+#include "screen_control_json.hpp"
 #include "power_config_json.hpp"
 #include "config.hpp"
 #include "qspi-w25q64.h"
@@ -11,6 +12,7 @@
 #include "board_cfg.h"
 #include "leds/led_config_safety.hpp"
 #include "fixed_profile_slots.hpp"
+#include "leds/lighting_resources.hpp"
 #include <map>
 #include <string>
 #include "configs/device_command_handler.hpp" // For ProfileCommandHandler
@@ -18,6 +20,8 @@
 #include <algorithm>
 
 #define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
+#define CONFIG_VERSION_RESOURCE_MIGRATE_FROM 0x000022u
+#define CONFIG_LEGACY_SIZE offsetof(Config, lightResources)
 #define CONFIG_VERSION_AUTO_SLEEP_MIGRATE_FROM 0x000021u
 #define CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM 0x00001Bu
 #define CONFIG_VERSION_POWER_MIGRATE_FROM 0x00001Cu
@@ -244,7 +248,8 @@ static void sanitize_screen_style(ScreenControlConfig& sc) {
     if (sc.screenStyle != SCREEN_STYLE_LIGHT) {
         sc.screenStyle = SCREEN_STYLE_DARK;
     }
-    memset(sc.reservedStyle, 0, sizeof(sc.reservedStyle));
+    // Screen-local schema and switch share the former color reservation.
+    ScreenConfig::normalize(sc);
 }
 
 static void sanitize_screen_standby_timeout(ScreenControlConfig& sc) {
@@ -252,29 +257,7 @@ static void sanitize_screen_standby_timeout(ScreenControlConfig& sc) {
 }
 
 static void sanitize_screen_recovery_entry(ScreenControlConfig& sc) {
-    static const uint8_t requiredOrder[SCREEN_FEATURE_COUNT] = {
-        3, 0, 1, 2, 11, 4, 5, 6, 7, 8, 9, 10
-    };
-    uint8_t normalized[SCREEN_FEATURE_COUNT] = {0};
-    bool seen[SCREEN_FEATURE_COUNT] = {false};
-    uint8_t count = 0u;
-
-    sc.featuresMask |= SCREEN_FEATURE_WEB_CONFIG_ENTRY;
-    for (uint8_t i = 0u; i < SCREEN_FEATURE_COUNT; ++i) {
-        const uint8_t id = sc.featuresOrder[i];
-        if (id < SCREEN_FEATURE_COUNT && !seen[id]) {
-            normalized[count++] = id;
-            seen[id] = true;
-        }
-    }
-    for (uint8_t i = 0u; i < SCREEN_FEATURE_COUNT; ++i) {
-        const uint8_t id = requiredOrder[i];
-        if (!seen[id]) {
-            normalized[count++] = id;
-            seen[id] = true;
-        }
-    }
-    memcpy(sc.featuresOrder, normalized, sizeof(sc.featuresOrder));
+    ScreenConfig::normalize(sc);
 }
 
 static void sanitize_screen_service_flags(ScreenControlConfig& sc) {
@@ -332,23 +315,6 @@ static bool sanitize_led_profiles(Config& config) {
         changed = sanitize_led_profile(config.profiles[i].ledsConfigs) || changed;
     }
     return changed;
-}
-
-static void parse_screen_style_json(ScreenControlConfig& sc, cJSON* screenControl) {
-    if (!screenControl) return;
-    cJSON* item = cJSON_GetObjectItem(screenControl, "screenStyle");
-    if (item && cJSON_IsString(item)) {
-        sc.screenStyle = getScreenStyleFromString(item->valuestring);
-        sanitize_screen_style(sc);
-        return;
-    }
-
-    cJSON* bg = cJSON_GetObjectItem(screenControl, "backgroundColor");
-    cJSON* fg = cJSON_GetObjectItem(screenControl, "textColor");
-    if (bg && fg && cJSON_IsNumber(bg) && cJSON_IsNumber(fg)) {
-        sc.screenStyle = infer_screen_style_from_colors((uint32_t)bg->valuedouble, (uint32_t)fg->valuedouble);
-        sanitize_screen_style(sc);
-    }
 }
 
 const char* getGamepadHotkeyString(GamepadHotkey action) {
@@ -415,56 +381,38 @@ static void sanitize_competition_profiles(Config& config) {
 }
 
 cJSON* buildScreenControlConfigJSON(Config& config) {
-    cJSON* screenControlJSON = cJSON_CreateObject();
-    cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
-    const char* standbyDisplayStr2 = "none";
-    switch (config.screenControl.standbyDisplay) {
-        case 1: standbyDisplayStr2 = "backgroundImage"; break;
-        case 2: standbyDisplayStr2 = "buttonLayout"; break;
-        default: standbyDisplayStr2 = "none"; break;
-    }
-    cJSON_AddStringToObject(screenControlJSON, "standbyDisplay", standbyDisplayStr2);
-    cJSON_AddNumberToObject(screenControlJSON, "standbyTimeoutSeconds",
-                            normalizeScreenStandbyTimeoutSeconds(config.screenControl.standbyTimeoutSeconds));
-    cJSON_AddStringToObject(screenControlJSON, "screenStyle", getScreenStyleString(config.screenControl.screenStyle));
-    cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
-    cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
-    cJSON* featuresJSON = cJSON_CreateObject();
-    struct { uint8_t id; const char* key; uint32_t bit; } map[] = {
-        {0, "inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
-        {1, "profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
-        {2, "socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
-        {3, "connectionModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
-        {11, "buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
-        {4, "ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
-        {5, "ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
-        {6, "ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
-        {7, "ambientEffectSwitch", SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH},
-        {8, "screenBrightnessAdjust", SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST},
-        {9, "webConfigEntry", SCREEN_FEATURE_WEB_CONFIG_ENTRY},
-        {10, "calibrationModeSwitch", SCREEN_FEATURE_CALIBRATION_MODE_SWITCH},
-    };
-    for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
-        cJSON_AddBoolToObject(featuresJSON, map[i].key, (config.screenControl.featuresMask & map[i].bit) != 0);
-    }
-    cJSON_AddItemToObject(screenControlJSON, "features", featuresJSON);
+    return ScreenConfig::toJson(config.screenControl);
+}
 
-    cJSON* featuresOrderJSON = cJSON_CreateArray();
-    for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
-        uint8_t id = config.screenControl.featuresOrder[i];
-        const char* key = nullptr;
-        for (size_t j = 0; j < sizeof(map) / sizeof(map[0]); j++) {
-            if (map[j].id == id) {
-                key = map[j].key;
-                break;
-            }
-        }
-        if (key) {
-            cJSON_AddItemToArray(featuresOrderJSON, cJSON_CreateString(key));
-        }
+static cJSON* resource_refs_json(const XoraResource::ProfileRefs& refs) {
+    cJSON* object=cJSON_CreateObject();
+    for(unsigned a=0;a<2;a++) { const auto& ref=a?refs.ambient:refs.keys;
+        auto* item=cJSON_AddObjectToObject(object,a?"ambient":"keys");
+        cJSON_AddStringToObject(item,"resourceId",ref.id);
+        cJSON_AddNumberToObject(item,"revision",ref.revision);
     }
-    cJSON_AddItemToObject(screenControlJSON, "featuresOrder", featuresOrderJSON);
-    return screenControlJSON;
+    return object;
+}
+static bool parse_resource_refs(cJSON* object,XoraResource::ProfileRefs& refs) {
+    if(!cJSON_IsObject(object))return false;
+    for(unsigned a=0;a<2;a++) {
+        auto* item=cJSON_GetObjectItem(object,a?"ambient":"keys");
+        auto* id=cJSON_GetObjectItem(item,"resourceId");auto* rev=cJSON_GetObjectItem(item,"revision");
+        if(!cJSON_IsString(id)||!id->valuestring||strlen(id->valuestring)>15||!id->valuestring[0]||
+           !cJSON_IsNumber(rev)||rev->valuedouble<1||rev->valuedouble>4294967295.||floor(rev->valuedouble)!=rev->valuedouble)return false;
+        auto& ref=a?refs.ambient:refs.keys;ref={};strncpy(ref.id,id->valuestring,15);ref.revision=uint32_t(rev->valuedouble);
+        XoraResource::Light light;if(!LightingResources::resolve(ref,light)||light.kind!=(a?3:2))return false;
+    }
+    return true;
+}
+
+bool importProfileResources(Config& config,unsigned index,cJSON* profile) {
+    if(index>=NUM_PROFILES)return false;
+    auto* refs=cJSON_GetObjectItem(profile,"lightingResources");
+    XoraResource::ProfileRefs imported={};
+    if(refs&&!parse_resource_refs(refs,imported))return false;
+    config.lightResources[index]=imported;
+    LightingResources::migrate(config);return true;
 }
 
 cJSON* toJSON(Config& config) {
@@ -491,6 +439,8 @@ cJSON* toJSON(Config& config) {
         if (config.profiles[i].enabled) {
             cJSON* profileJSON = ProfileCommandHandler::buildProfileJSON(&config.profiles[i]);
             if (profileJSON) {
+                cJSON_DeleteItemFromObject(profileJSON,"lightingResources");
+                cJSON_AddItemToObject(profileJSON,"lightingResources",resource_refs_json(config.lightResources[i]));
                 cJSON_AddItemToArray(profilesJSON, profileJSON);
             }
         }
@@ -604,7 +554,12 @@ bool fromJSON(Config& config, cJSON* json) {
                  bool profileFound = false;
                  for (int i=0; i < NUM_PROFILES; i++) {
                      if (strncmp(config.profiles[i].id, idItem->valuestring, sizeof(config.profiles[i].id)) == 0) {
+                         auto* refs=cJSON_GetObjectItem(profileItem,"lightingResources");
+                         XoraResource::ProfileRefs imported={};
+                         if(refs&&!parse_resource_refs(refs,imported))return false;
                          ProfileCommandHandler::parseProfileJSON(profileItem, &config.profiles[i]);
+                         config.lightResources[i]=imported;
+                         LightingResources::migrate(config);
                          config.profiles[i].enabled = true;
                          profileFound = true;
                          break;
@@ -629,107 +584,7 @@ bool fromJSON(Config& config, cJSON* json) {
 
     cJSON* screenControl = cJSON_GetObjectItem(json, "screenControl");
     if (screenControl && cJSON_IsObject(screenControl)) {
-        cJSON* item;
-        if ((item = cJSON_GetObjectItem(screenControl, "brightness")) && cJSON_IsNumber(item)) {
-            int v = item->valueint;
-            if (v < 0) v = 0;
-            if (v > 100) v = 100;
-            config.screenControl.brightness = (uint8_t)v;
-        }
-        if ((item = cJSON_GetObjectItem(screenControl, "standbyDisplay")) && cJSON_IsString(item)) {
-            if (strcmp(item->valuestring, "backgroundImage") == 0) config.screenControl.standbyDisplay = 1;
-            else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
-            else config.screenControl.standbyDisplay = 0;
-        }
-        if ((item = cJSON_GetObjectItem(screenControl, "standbyTimeoutSeconds")) && cJSON_IsNumber(item)) {
-            config.screenControl.standbyTimeoutSeconds =
-                normalizeScreenStandbyTimeoutSeconds((uint16_t)item->valueint);
-        }
-        parse_screen_style_json(config.screenControl, screenControl);
-        if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
-            strncpy(config.screenControl.backgroundImageId, item->valuestring, sizeof(config.screenControl.backgroundImageId) - 1);
-            config.screenControl.backgroundImageId[sizeof(config.screenControl.backgroundImageId) - 1] = '\0';
-        }
-        if ((item = cJSON_GetObjectItem(screenControl, "currentPageId")) && cJSON_IsNumber(item)) {
-            int v = item->valueint;
-            if (v < 0) v = 0;
-            if (v > 65535) v = 65535;
-            config.screenControl.currentPageId = (uint16_t)v;
-        }
-
-        cJSON* features = cJSON_GetObjectItem(screenControl, "features");
-        if (features && cJSON_IsObject(features)) {
-            struct { const char* key; uint32_t bit; } map[] = {
-                {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
-                {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
-                {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
-                {"connectionModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
-                {"buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
-                {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
-                {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
-                {"ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
-                {"ambientEffectSwitch", SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH},
-                {"screenBrightnessAdjust", SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST},
-                {"webConfigEntry", SCREEN_FEATURE_WEB_CONFIG_ENTRY},
-                {"calibrationModeSwitch", SCREEN_FEATURE_CALIBRATION_MODE_SWITCH},
-            };
-            for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
-                cJSON* b = cJSON_GetObjectItem(features, map[i].key);
-                if (b && cJSON_IsBool(b)) {
-                    if (cJSON_IsTrue(b)) config.screenControl.featuresMask |= map[i].bit;
-                    else config.screenControl.featuresMask &= ~map[i].bit;
-                }
-            }
-        }
-
-        cJSON* featuresOrder = cJSON_GetObjectItem(screenControl, "featuresOrder");
-        struct { const char* key; uint8_t id; } orderMap[] = {
-            {"connectionModeSwitch", 3},
-            {"inputModeSwitch", 0},
-            {"profilesSwitch", 1},
-            {"socdModeSwitch", 2},
-            {"buttonsPerformanceQuickSet", 11},
-            {"ledBrightnessAdjust", 4},
-            {"ledEffectSwitch", 5},
-            {"ambientBrightnessAdjust", 6},
-            {"ambientEffectSwitch", 7},
-            {"screenBrightnessAdjust", 8},
-            {"webConfigEntry", 9},
-            {"calibrationModeSwitch", 10},
-        };
-        if (featuresOrder && cJSON_IsArray(featuresOrder)) {
-            bool used[SCREEN_FEATURE_COUNT] = {false};
-            uint32_t pos = 0;
-            cJSON* it;
-            cJSON_ArrayForEach(it, featuresOrder) {
-                if (!cJSON_IsString(it)) continue;
-                for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
-                    if (strcmp(it->valuestring, orderMap[j].key) == 0) {
-                        uint8_t id = orderMap[j].id;
-                        if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
-                            config.screenControl.featuresOrder[pos++] = id;
-                            used[id] = true;
-                        }
-                        break;
-                    }
-                }
-            }
-            for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
-                uint8_t id = orderMap[j].id;
-                if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
-                    config.screenControl.featuresOrder[pos++] = id;
-                    used[id] = true;
-                }
-            }
-            while (pos < SCREEN_FEATURE_COUNT) {
-                config.screenControl.featuresOrder[pos] = (uint8_t)pos;
-                pos++;
-            }
-        } else {
-            for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
-                config.screenControl.featuresOrder[i] = orderMap[i].id;
-            }
-        }
+        if (ScreenConfig::applyJson(config.screenControl, screenControl, true)) return false;
     }
 
     return true;
@@ -841,6 +696,7 @@ bool ConfigUtils::load(Config& config)
      * ripple renderer and faults immediately after the screen turns LEDs on.
      * Normalize persisted data before any runtime subsystem can observe it.
      */
+    const bool repairedScreenConfig = fjResult && config.screenControl.reservedStyle[0] != ScreenConfig::kSchema;
     const bool repairedLedConfig = fjResult && sanitize_led_profiles(config);
     const bool repairedProfileSlots = fjResult && normalizeFixedProfileSlots(config,
         [&config](GamepadProfile& profile, const char* id) {
@@ -861,6 +717,8 @@ bool ConfigUtils::load(Config& config)
          config.version == CONFIG_VERSION_POWER_MIGRATE_FROM ||
          config.version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM)) {
         cloneFirstProfileSettings(config);
+        for (unsigned i = 1; i < NUM_PROFILES; ++i)
+            config.lightResources[i] = config.lightResources[0];
     }
     if (fjResult &&
         (config.version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
@@ -881,13 +739,14 @@ bool ConfigUtils::load(Config& config)
         sanitize_hardware_layout(config.hardware);
         uint32_t ver = config.version;
         APP_DBG("Config Version: %d.%d.%d", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
-        if (repairedLedConfig || repairedProfileSlots) {
+        if (repairedLedConfig || repairedProfileSlots || repairedScreenConfig) {
             APP_DBG("ConfigUtils::load - normalized stored configuration");
             return save(config);
         }
         return true;
     } else if (fjResult == true &&
-               (config.version == CONFIG_VERSION_AUTO_SLEEP_MIGRATE_FROM ||
+               (config.version == CONFIG_VERSION_RESOURCE_MIGRATE_FROM ||
+                config.version == CONFIG_VERSION_AUTO_SLEEP_MIGRATE_FROM ||
                 config.version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
                 config.version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
                 config.version == CONFIG_VERSION_PROFILE_CLONE_MIGRATE_FROM)) {
@@ -903,6 +762,7 @@ bool ConfigUtils::load(Config& config)
     } else if (fjResult == true && config.version == CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM) {
         uint32_t oldBg = read_legacy_screen_bg(config.screenControl);
         uint32_t oldFg = read_legacy_screen_fg(config.screenControl);
+        config.screenControl.reservedStyle[0] = 0; // Old RGB bytes are never a schema marker.
         config.screenControl.screenStyle = infer_screen_style_from_colors(oldBg, oldFg);
         sanitize_screen_style(config.screenControl);
         sanitize_screen_standby_timeout(config.screenControl);
@@ -1191,6 +1051,7 @@ static ConfigPayloadResult compare_config_payload(
 
 static bool is_supported_legacy_config_version(uint32_t version) {
     return version == CONFIG_VERSION ||
+           version == CONFIG_VERSION_RESOURCE_MIGRATE_FROM ||
            version == CONFIG_VERSION_AUTO_SLEEP_MIGRATE_FROM ||
            version == CONFIG_VERSION_PROFILE_RENAME_MIGRATE_FROM ||
            version == CONFIG_VERSION_PROFILE_REFRESH_MIGRATE_FROM ||
@@ -1217,7 +1078,8 @@ static ConfigBankState inspect_config_bank(uint32_t bankAddress) {
         state.header.formatVersion != CONFIG_JOURNAL_VERSION ||
         state.header.headerSize != sizeof(ConfigJournalHeader) ||
         state.header.generation == 0u ||
-        state.header.payloadLength != sizeof(Config) ||
+        (state.header.payloadLength != sizeof(Config) &&
+         state.header.payloadLength != CONFIG_LEGACY_SIZE) ||
         state.header.payloadLength >
             (CONFIG_BANK_SIZE - sizeof(ConfigJournalHeader)) ||
         state.header.commit != CONFIG_JOURNAL_COMMIT) {
@@ -1328,6 +1190,7 @@ static bool write_config_bank(uint32_t bankAddress,
 
 bool ConfigUtils::save(Config& config)
 {
+    LightingResources::migrate(config);
     APP_DBG("ConfigUtils::save begin");
     sanitize_led_profiles(config);
     sanitize_competition_profiles(config);
@@ -1352,7 +1215,7 @@ bool ConfigUtils::save(Config& config)
 
     const ConfigBankState* active =
         select_newest_config_bank(bankA, bankB);
-    if (active != nullptr) {
+    if (active != nullptr && active->header.payloadLength == sizeof(Config)) {
         const ConfigPayloadResult unchanged =
             compare_config_payload(active->address, config);
         if (unchanged == ConfigPayloadResult::IO_ERROR) {
@@ -1450,13 +1313,15 @@ bool ConfigUtils::fromStorage(Config& config)
     const ConfigBankState* active =
         select_newest_config_bank(bankA, bankB);
     if (active != nullptr) {
+        memset(&config, 0, sizeof(config));
         if (QSPI_W25Qxx_ReadBuffer(
                 reinterpret_cast<uint8_t*>(&config),
                 active->address + sizeof(ConfigJournalHeader),
-                sizeof(config)) != QSPI_W25Qxx_OK) {
+                active->header.payloadLength) != QSPI_W25Qxx_OK) {
             APP_ERR("ConfigUtils::fromStorage - journal payload read failure.");
             return false;
         }
+        LightingResources::migrate(config);
         APP_DBG("ConfigUtils::fromStorage - loaded journal generation %lu.",
                 (unsigned long)active->header.generation);
         return guard.restore();
@@ -1482,14 +1347,16 @@ bool ConfigUtils::fromStorage(Config& config)
         return false;
     }
 
+    memset(&config, 0, sizeof(config));
     if (QSPI_W25Qxx_ReadBuffer(
             reinterpret_cast<uint8_t*>(&config),
             CONFIG_BANK_A_ADDR,
-            sizeof(config)) != QSPI_W25Qxx_OK) {
+            firstWord == CONFIG_VERSION ? sizeof(config) : CONFIG_LEGACY_SIZE) != QSPI_W25Qxx_OK) {
         APP_ERR("ConfigUtils::fromStorage - legacy payload read failure.");
         return false;
     }
 
+    LightingResources::migrate(config);
     APP_DBG("ConfigUtils::fromStorage - loaded legacy raw Config.");
     return guard.restore();
 }

@@ -9,6 +9,7 @@
 #include "stm32h7xx_hal.h"
 #include "board_cfg.h"
 #include "cJSON.h"
+#include "xora_light_engine.hpp"
 
 #ifdef __cplusplus
 extern "C" {
@@ -133,6 +134,8 @@ typedef struct
 #define SCREEN_FEATURE_WEB_CONFIG_ENTRY           (1u << 9)
 #define SCREEN_FEATURE_CALIBRATION_MODE_SWITCH    (1u << 10)
 #define SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET (1u << 11)
+#define SCREEN_FEATURE_LED_SETTING                (1u << 13)
+#define SCREEN_FEATURE_POWER                      (1u << 14)
 #define SCREEN_FEATURE_COUNT                      12u
 
 typedef enum
@@ -144,7 +147,7 @@ typedef enum
 typedef struct
 {
     uint8_t brightness;              // 屏幕亮度（0-100）
-    uint8_t standbyDisplay;          // 待机显示：0 None, 1 BackgroundImage, 2 ButtonLayout
+    uint8_t standbyDisplay;          // 待机显示：0 ScreenOff, 1 BackgroundImage, 2 ButtonLayout
     uint16_t standbyTimeoutSeconds;  // 占用原 reserved0[2]，保持持久化布局
     uint8_t screenStyle;             // 屏幕风格：0 Dark, 1 Light
     uint8_t reservedStyle[7];        // 保留旧颜色字段占位，用于兼容迁移
@@ -207,6 +210,7 @@ typedef struct
     HardwareLayoutConfig hardware;
     ScreenControlConfig screenControl;
     PowerConfig power;
+    XoraResource::ProfileRefs lightResources[NUM_PROFILES];
 } Config;
 
 namespace ConfigUtils {
@@ -219,6 +223,7 @@ namespace ConfigUtils {
     // JSON serialization/deserialization
     cJSON* toJSON(Config& config);
     bool fromJSON(Config& config, cJSON* json);
+    bool importProfileResources(Config& config,unsigned index,cJSON* profile);
     cJSON* buildHotkeysConfigJSON(Config& config);
     cJSON* buildScreenControlConfigJSON(Config& config);
 

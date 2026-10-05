@@ -151,16 +151,14 @@ export interface ScreenControlFeatures {
     socdModeSwitch: boolean;
     connectionModeSwitch: boolean;
     buttonsPerformanceQuickSet: boolean;
-    ledBrightnessAdjust: boolean;
-    ledEffectSwitch: boolean;
-    ambientBrightnessAdjust: boolean;
-    ambientEffectSwitch: boolean;
+    ledSetting: boolean;
+    power: boolean;
     screenBrightnessAdjust: boolean;
     webConfigEntry: boolean;
     calibrationModeSwitch: boolean;
 }
 
-export type StandbyDisplay = 'none' | 'backgroundImage' | 'buttonLayout';
+export type StandbyDisplay = 'screenOff' | 'backgroundImage' | 'buttonLayout';
 export type ScreenStyle = 'dark' | 'light';
 export type ScreenControlFeatureKey = keyof ScreenControlFeatures;
 
@@ -173,6 +171,8 @@ export function withRequiredWebConfigEntry(
 export interface ScreenControlConfig {
     brightness: number;
     standbyDisplay: StandbyDisplay;
+    standbyEnabled: boolean;
+    readonly standbySupported?: boolean;
     standbyTimeoutSeconds: number;
     screenStyle: ScreenStyle;
     backgroundImageId: string;
@@ -188,7 +188,8 @@ export function normalizeScreenStandbyTimeout(seconds: unknown): number {
 
 export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
     brightness: 100,
-    standbyDisplay: 'none',
+    standbyDisplay: 'screenOff',
+    standbyEnabled: false,
     standbyTimeoutSeconds: 10,
     screenStyle: 'dark',
     backgroundImageId: "",
@@ -199,10 +200,8 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         socdModeSwitch: true,
         connectionModeSwitch: true,
         buttonsPerformanceQuickSet: true,
-        ledBrightnessAdjust: true,
-        ledEffectSwitch: true,
-        ambientBrightnessAdjust: true,
-        ambientEffectSwitch: true,
+        ledSetting: true,
+        power: true,
         screenBrightnessAdjust: true,
         webConfigEntry: true,
         calibrationModeSwitch: true,
@@ -213,11 +212,9 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         'profilesSwitch',
         'socdModeSwitch',
         'buttonsPerformanceQuickSet',
-        'ledBrightnessAdjust',
-        'ledEffectSwitch',
-        'ambientBrightnessAdjust',
-        'ambientEffectSwitch',
+        'ledSetting',
         'screenBrightnessAdjust',
+        'power',
         'webConfigEntry',
         'calibrationModeSwitch',
     ],
@@ -483,6 +480,7 @@ export interface KeysConfig {
 }
 
 export interface GameProfile {
+    lightingResources?: { keys: { resourceId: string; revision: number }; ambient: { resourceId: string; revision: number } };
     id: string;
     /** Read-only index in the firmware's fixed profile array; absent on legacy firmware. */
     readonly slotIndex?: number;
@@ -839,6 +837,9 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_HELPER_TEXT: "Customize the screen control features, such as brightness, contrast, and color.",
     SETTINGS_SCREEN_CONTROL_FEATURES: "Features Display",
     SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "Brightness",
+    SETTINGS_SCREEN_CONTROL_DARK_MODE: "Dark screen mode",
+    SETTINGS_SCREEN_CONTROL_LIGHT_MODE: "Light screen mode",
+    SETTINGS_SCREEN_CONTROL_STYLE_LABEL: "Screen Style",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL: "Background Color",
     SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL: "Text Color",
     SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Platform Switch",
@@ -872,8 +873,12 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "System Preset",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "User Image",
     SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL: "Standby Display",
-    SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL: "Enter standby display after",
-    SETTINGS_SCREEN_CONTROL_STANDBY_NONE: "None",
+    SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL: "Standby after",
+    SETTINGS_SCREEN_CONTROL_STANDBY_NONE: "Screen Off",
+    SETTINGS_SCREEN_CONTROL_STANDBY_ENABLED: "Screen Standby",
+    SETTINGS_SCREEN_CONTROL_FEATURE_LED_SETTING: "LED Setting",
+    SETTINGS_SCREEN_CONTROL_FEATURE_POWER: "Power",
+    SETTINGS_SCREEN_CONTROL_UPDATE_REQUIRED: "Update device firmware to change screen settings.",
     SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE: "Background Image",
     SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT: "Button Layout",
     SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL: "First Screen",
@@ -1103,6 +1108,7 @@ export const UI_TEXT = {
     SETTINGS_LEDS_BACK_COLOR1: "Back Color 1",
     SETTINGS_LEDS_BACK_COLOR2: "Back Color 2",
 
+    SETTINGS_LEDS_BUTTON_LIGHT_TITLE: "Button Lighting Settings",
     SETTINGS_LEDS_AMBIENT_LIGHT_TITLE: "Ambient Lighting Settings",
     SETTINGS_LEDS_AMBIENT_LIGHT_COLORS_LABEL: "Ambient Lighting Colors",
     SETTINGS_LEDS_AMBIENT_LIGHT_COLOR1: "Ambient Lighting Color 1",
@@ -1385,6 +1391,9 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_HELPER_TEXT: "可以在这里自定义屏控功能、效果样式、颜色和亮度。",
     SETTINGS_SCREEN_CONTROL_FEATURES: "屏控功能显示",
     SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "屏幕亮度",
+    SETTINGS_SCREEN_CONTROL_DARK_MODE: "深色屏幕模式",
+    SETTINGS_SCREEN_CONTROL_LIGHT_MODE: "浅色屏幕模式",
+    SETTINGS_SCREEN_CONTROL_STYLE_LABEL: "屏幕风格",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL: "背景颜色",
     SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL: "文字颜色",
     SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Platform 切换",
@@ -1418,8 +1427,12 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "系统预设",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "用户图片",
     SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL: "待机显示",
-    SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL: "进入待机显示时间",
-    SETTINGS_SCREEN_CONTROL_STANDBY_NONE: "无",
+    SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL: "待机时间",
+    SETTINGS_SCREEN_CONTROL_STANDBY_NONE: "熄屏",
+    SETTINGS_SCREEN_CONTROL_STANDBY_ENABLED: "屏幕待机",
+    SETTINGS_SCREEN_CONTROL_FEATURE_LED_SETTING: "灯光设置",
+    SETTINGS_SCREEN_CONTROL_FEATURE_POWER: "电源",
+    SETTINGS_SCREEN_CONTROL_UPDATE_REQUIRED: "请更新设备固件后再修改屏幕设置。",
     SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE: "背景图片",
     SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT: "按键布局",
     SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL: "首屏显示",
@@ -1651,6 +1664,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_BACK_COLOR1: "背景颜色1",
     SETTINGS_LEDS_BACK_COLOR2: "背景颜色2",
 
+    SETTINGS_LEDS_BUTTON_LIGHT_TITLE: "按键灯光设置",
     SETTINGS_LEDS_AMBIENT_LIGHT_TITLE: "氛围灯设置",
     SETTINGS_LEDS_AMBIENT_LIGHT_COLORS_LABEL: "氛围灯颜色",
     SETTINGS_LEDS_AMBIENT_LIGHT_COLOR1: "氛围灯颜色1",

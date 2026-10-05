@@ -191,7 +191,7 @@ test('routes require device read plus administrator cookie for draft publication
     assert.equal(detail.json.data.revision.sha256, mappingSha256(detail.json.data.revision.mapping));
 });
 
-test('administrator creates, publishes, and updates a normal zero-filled mapping', async t => {
+test('administrator records incomplete curves privately until explicit valid publication', async t => {
     const { server } = fixture(t);
     await new Promise(resolve => server.once('listening', resolve));
     const headers = { Authorization: 'Bearer device-read', Cookie: 'admin=1' };
@@ -210,10 +210,7 @@ test('administrator creates, publishes, and updates a normal zero-filled mapping
         }
     );
     assert.equal(created.status, 201);
-    assert.equal(
-        created.json.data.publishedRevisionId,
-        created.json.data.revision.revisionId
-    );
+    assert.equal(created.json.data.publishedRevisionId, null);
     assert.equal(created.json.data.revision.mapping.length, 12);
     assert.equal(created.json.data.revision.mapping.step, Math.fround(0.2));
     assert.deepEqual(created.json.data.revision.mapping.originalValues, Array(12).fill(0));
@@ -221,8 +218,7 @@ test('administrator creates, publishes, and updates a normal zero-filled mapping
     const publicList = await request(server, 'GET', '/api/switch-mappings', {
         headers: { Authorization: 'Bearer device-read' },
     });
-    assert.equal(publicList.json.data.items.length, 1);
-    assert.equal(publicList.json.data.items[0].displayName, 'Blank Axis');
+    assert.equal(publicList.json.data.items.length, 0);
 
     const adminList = await request(
         server,
@@ -232,7 +228,7 @@ test('administrator creates, publishes, and updates a normal zero-filled mapping
     );
     assert.equal(adminList.status, 200);
     assert.equal(adminList.json.data.items[0].displayName, 'Blank Axis');
-    assert.equal(adminList.json.data.items[0].isDraft, false);
+    assert.equal(adminList.json.data.items[0].isDraft, true);
 
     const detail = await request(
         server,
@@ -240,7 +236,7 @@ test('administrator creates, publishes, and updates a normal zero-filled mapping
         `/api/switch-mappings/${created.json.data.catalogId}`,
         { headers: { Authorization: 'Bearer device-read' } }
     );
-    assert.deepEqual(detail.json.data.revision.mapping.originalValues, Array(12).fill(0));
+    assert.equal(detail.status,404);
 
     const recordedMapping = {
         ...created.json.data.revision.mapping,
@@ -268,7 +264,7 @@ test('administrator creates, publishes, and updates a normal zero-filled mapping
     );
 });
 
-test('server startup promotes a legacy hidden mapping to the normal catalog', t => {
+test('server restart preserves private calibration drafts', t => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hbox-switch-migration-'));
     const databasePath = path.join(root, 'switch_mappings.sqlite3');
     const oldStore = new SwitchMappingStore({
@@ -301,8 +297,9 @@ test('server startup promotes a legacy hidden mapping to the normal catalog', t 
         fs.removeSync(root);
     });
     const migrated = migratedStore.published(hidden.catalogId, COMPATIBILITY);
-    assert.equal(migrated.publishedRevisionId, hidden.revision.revisionId);
-    assert.deepEqual(migrated.revision.mapping.originalValues, [0, 0, 0, 0]);
+    assert.equal(migrated,null);
+    assert.deepEqual(migratedStore.getAdminCatalog(hidden.catalogId,hidden.revision.revisionId).revision.mapping.originalValues,[0,0,0,0]);
+    assert.throws(()=>migratedStore.publish(hidden.catalogId,hidden.revision.revisionId),/calibration/);
 });
 
 test('mapping validation rejects invalid samples and cross-hardware revisions', t => {
@@ -502,4 +499,104 @@ test('administrator can upload an image and physically delete a published mappin
     assert.deepEqual(after.json.data.items, []);
     assert.equal(store.catalog(draft.catalogId), null);
     assert.equal(store.revision(draft.revision.revisionId), null);
+});
+
+
+function defaultSeed() {
+    const crypto = require('node:crypto');
+    const curve = { id: 'default-axis', ...mapping('Default axis') };
+    const image = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0,0,0,0]);
+    return {
+        schemaVersion: 1, catalogId: 'default-catalog', displayName: 'Default switch',
+        description: 'Factory mapping', compatibility: COMPATIBILITY,
+        revision: 1, published: true, mapping: curve, sha256: mappingSha256(curve),
+        cover: { mimeType: 'image/png', dataBase64: image.toString('base64'),
+            sha256: crypto.createHash('sha256').update(image).digest('hex') },
+    };
+}
+
+test('default deployment imports the exact IDs, published curve and cover once', t => {
+    const { store } = fixture(t), seed = defaultSeed();
+    assert.equal(store.seedDefaultMapping(seed).created, true);
+    assert.equal(store.catalog(seed.catalogId).display_name, seed.displayName);
+    assert.equal(store.catalog(seed.catalogId).published_revision_id, seed.mapping.id);
+    assert.equal(store.revision(seed.mapping.id).sha256, seed.sha256);
+    assert.equal(store.revision(seed.mapping.id).revision, 1);
+    assert.equal(store.adminImage(seed.catalogId, COMPATIBILITY).data.toString('base64'), seed.cover.dataBase64);
+    assert.equal(store.listPublished(COMPATIBILITY)[0].revisionId, seed.mapping.id);
+    assert.equal(store.seedDefaultMapping(seed).reason, 'already-migrated');
+    assert.equal(store.listAdminCompatible(COMPATIBILITY).length, 1);
+});
+
+test('default migration preserves existing admin metadata, cover and publication', t => {
+    const { store } = fixture(t), seed = defaultSeed();
+    store.seedDefaultMapping(seed);
+    store.database.prepare('DELETE FROM switch_mapping_bootstrap').run();
+    store.database.prepare('UPDATE switch_mapping_catalogs SET display_name=?, image_data=?, published_revision_id=NULL WHERE catalog_id=?')
+        .run('Admin rename', Buffer.from('admin image'), seed.catalogId);
+    assert.equal(store.seedDefaultMapping(seed).created, false);
+    assert.equal(store.catalog(seed.catalogId).display_name, 'Admin rename');
+    assert.equal(store.catalog(seed.catalogId).image_data.toString(), 'admin image');
+    assert.equal(store.catalog(seed.catalogId).published_revision_id, null);
+});
+
+test('default migration never resurrects a deleted catalog on restart', t => {
+    const { store } = fixture(t), seed = defaultSeed();
+    store.seedDefaultMapping(seed);
+    store.deleteCatalog(seed.catalogId);
+    assert.equal(store.seedDefaultMapping(seed).reason, 'already-migrated');
+    assert.equal(store.catalog(seed.catalogId), null);
+    assert.equal(store.revision(seed.mapping.id), null);
+});
+
+test('default migration rejects corrupt curve and cover before inserting data', t => {
+    const { store } = fixture(t);
+    for (const field of ['sha256', 'cover']) {
+        const seed = defaultSeed();
+        if (field === 'sha256') seed.sha256 = '0'.repeat(64);
+        else seed.cover.sha256 = '0'.repeat(64);
+        assert.throws(() => store.seedDefaultMapping(seed), /digest mismatch/);
+        assert.equal(store.catalog(seed.catalogId), null);
+        assert.equal(store.revision(seed.mapping.id), null);
+    }
+});
+
+test('default migration rejects revision identity conflicts without partial catalog insertion', t => {
+    const { store } = fixture(t), seed = defaultSeed();
+    store.createDraft({ metadata: {displayName:'Other switch',description:''}, compatibility:COMPATIBILITY,
+        mapping:mapping(), actor:'test', resourceIdentity:{id:seed.mapping.id,revision:1} });
+    assert.throws(() => store.seedDefaultMapping(seed), /identity conflicts/);
+    assert.equal(store.catalog(seed.catalogId), null);
+    assert.equal(store.database.prepare('SELECT COUNT(*) AS n FROM switch_mapping_bootstrap').get().n, 0);
+});
+
+test('default migration retains draft status instead of publishing automatically', t => {
+    const { store } = fixture(t), seed = defaultSeed();
+    seed.published = false;
+    store.seedDefaultMapping(seed);
+    assert.equal(store.catalog(seed.catalogId).published_revision_id, null);
+    assert.equal(store.revision(seed.mapping.id).published_at, null);
+    assert.equal(store.listPublished(COMPATIBILITY).length, 0);
+});
+
+
+test('default migration rolls back the catalog and revision if the final marker cannot commit', t => {
+    const { store } = fixture(t), seed = defaultSeed();
+    store.database.exec(`CREATE TABLE switch_mapping_bootstrap (revision_id TEXT PRIMARY KEY,catalog_id TEXT NOT NULL,seeded_at TEXT NOT NULL);
+        CREATE TRIGGER fail_bootstrap BEFORE INSERT ON switch_mapping_bootstrap BEGIN SELECT RAISE(ABORT, 'simulated commit failure'); END;`);
+    assert.throws(() => store.seedDefaultMapping(seed), /simulated commit failure/);
+    assert.equal(store.catalog(seed.catalogId), null);
+    assert.equal(store.revision(seed.mapping.id), null);
+});
+
+test('packaged product default includes a valid compatible curve and exact cover', t => {
+    const { store } = fixture(t);
+    const seed = fs.readJsonSync(path.join(__dirname, '../../resources/default-switch-mapping.json'));
+    store.seedDefaultMapping(seed);
+    assert.equal(store.listPublished(seed.compatibility)[0].revisionId, seed.mapping.id);
+    assert.equal(store.catalog(seed.catalogId).display_name, seed.displayName);
+    assert.equal(store.adminImage(seed.catalogId, seed.compatibility).data.toString('base64'), seed.cover.dataBase64);
+    const reopened = new SwitchMappingStore({databasePath:store.database.name});
+    try { assert.equal(reopened.seedDefaultMapping(seed).reason, 'already-migrated'); }
+    finally { reopened.close(); }
 });

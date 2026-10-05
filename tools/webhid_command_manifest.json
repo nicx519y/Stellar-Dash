@@ -7,9 +7,9 @@
     {"name": "benchmark.stop", "scope": "config.read", "buildGuard": "HBOX_SECURE_BOOT_REQUIRED == 0", "writesFlash": false}
   ],
   "legacyCommandCount": 68,
-  "commandCount": 79,
+  "commandCount": 92,
   "migrationStatusCounts": {
-    "direct": 76,
+    "direct": 89,
     "equivalent": 1,
     "retired": 2
   },
@@ -42,7 +42,11 @@
         {"name": "get_release_install_status", "migration": "direct", "consumers": ["release-install"], "test": "contract"},
         {"name": "get_firmware_metadata", "migration": "direct", "consumers": ["startup", "firmware"], "test": "contract"},
         {"name": "get_device_auth", "migration": "retired", "consumers": ["security-tombstone-410"], "test": "contract"},
-        {"name": "ping", "migration": "direct", "consumers": ["diagnostics"], "test": "contract"}
+        {"name": "ping", "migration": "direct", "consumers": ["diagnostics"], "test": "contract"},
+        {"name": "resources_list", "migration": "direct", "consumers": ["resource-library"], "test": "contract"},
+        {"name": "resources_status", "migration": "direct", "consumers": ["resource-library"], "test": "contract"},
+        {"name": "resources_get", "migration": "direct", "consumers": ["resource-library"], "test": "contract"},
+        {"name": "get_rf_binding", "migration": "direct", "consumers": ["usb-pairing"], "test": "contract"}
       ]
     },
     {
@@ -73,7 +77,13 @@
         {"name": "ms_install_mapping", "migration": "direct", "consumers": ["mapping-catalog"], "test": "stubbed-dangerous"},
         {"name": "ms_clear_installed_mapping", "migration": "direct", "consumers": ["mapping-catalog"], "test": "stubbed-dangerous"},
         {"name": "ms_mapping_draft_begin", "migration": "direct", "consumers": ["mapping-laboratory"], "test": "stubbed-dangerous"},
-        {"name": "ms_mark_mapping_sync", "migration": "direct", "consumers": ["mapping-calibration"], "test": "contract"}
+        {"name": "ms_mark_mapping_sync", "migration": "direct", "consumers": ["mapping-calibration"], "test": "contract"},
+        {"name": "resources_begin", "migration": "direct", "consumers": ["resource-library"], "test": "contract"},
+        {"name": "resources_chunk", "migration": "direct", "consumers": ["resource-library"], "test": "contract"},
+        {"name": "resources_commit", "migration": "direct", "consumers": ["resource-library"], "test": "contract"},
+        {"name": "resources_abort", "migration": "direct", "consumers": ["resource-library"], "test": "contract"},
+        {"name": "resources_apply", "migration": "direct", "consumers": ["resource-library"], "test": "contract"},
+        {"name": "resources_remove", "migration": "direct", "consumers": ["resource-library"], "test": "contract"}
       ]
     },
     {
@@ -98,7 +108,10 @@
         {"name": "check_is_manual_calibration_completed", "migration": "direct", "consumers": ["manual-calibration"], "test": "contract"},
         {"name": "ms_mark_mapping_start", "migration": "direct", "consumers": ["mapping-calibration"], "test": "stubbed-dangerous"},
         {"name": "ms_mark_mapping_stop", "migration": "direct", "consumers": ["mapping-calibration"], "test": "stubbed-dangerous"},
-        {"name": "ms_mark_mapping_step", "migration": "direct", "consumers": ["mapping-calibration"], "test": "stubbed-dangerous"}
+        {"name": "ms_mark_mapping_step", "migration": "direct", "consumers": ["mapping-calibration"], "test": "stubbed-dangerous"},
+        {"name": "prepare_rf_binding", "migration": "direct", "consumers": ["usb-pairing"], "test": "contract"},
+        {"name": "commit_rf_binding", "migration": "direct", "consumers": ["usb-pairing"], "test": "contract"},
+        {"name": "abort_rf_binding", "migration": "direct", "consumers": ["usb-pairing"], "test": "contract"}
       ]
     },
     {

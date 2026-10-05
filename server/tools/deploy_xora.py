@@ -37,7 +37,7 @@ RELEASE_RE = r'[0-9]{8}-[0-9]{6}-[a-f0-9]{8}'
 PAGES = ('index.html', 'global/index.html', 'keys/index.html', 'lighting/index.html',
          'buttons-performance/index.html', 'switch-marking/index.html',
          'firmware/index.html', 'view-logs/index.html', 'auth/verify/index.html',
-         'admin/users/index.html', 'admin/firmware/index.html',
+         'admin/users/index.html', 'admin/firmware/index.html', 'admin/resources/index.html',
          'admin/images/index.html', 'admin/service-tokens/index.html',
          'admin/firmware/detail/index.html', 'firmware/releases/index.html')
 MOCK_MARKERS = (b'HBOX-V2-MOCK-0001', b'mock-session', b'MOCK DEVICE',
@@ -204,8 +204,9 @@ def safe_name(name):
          and not any(p in ('.', '..') or p.startswith('.') for p in parts), f'Unsafe bundle path: {name}')
     need(not any(p in ('node_modules', 'data', 'uploads', 'gallery-assets') for p in parts)
          and not name.endswith(('.pem', '.key', '.sqlite3', '.db')), f'Private/runtime file in bundle: {name}')
-    need(name == 'manifest.json' or name == 'common/uimg-jpeg.cjs' or name in ('server/package.json', 'server/package-lock.json')
-         or name.startswith(('server/src/', 'server/scripts/', 'webconfig/')), f'Unexpected bundle path: {name}')
+    need(name == 'manifest.json' or name in ('common/uimg-jpeg.cjs', 'common/xora-resource-codec.cjs') or name in ('server/package.json', 'server/package-lock.json')
+         or name == 'resources/default-switch-mapping.json'
+         or name.startswith(('server/src/', 'server/scripts/', 'webconfig/', 'resources/xora/')), f'Unexpected bundle path: {name}')
 
 
 def verify_export(root):
@@ -236,7 +237,7 @@ def build_package(repo, output, skip_build=False):
     output.mkdir(parents=True, exist_ok=True)
     stage = output / release
     stage.mkdir()
-    sources = ('server/src', 'server/scripts', 'server/package.json', 'server/package-lock.json', 'common/uimg-jpeg.cjs')
+    sources = ('server/src', 'server/scripts', 'server/package.json', 'server/package-lock.json', 'common/uimg-jpeg.cjs', 'common/xora-resource-codec.cjs', 'resources/xora', 'resources/default-switch-mapping.json')
     for item in sources + ('application/www/build',):
         source = repo / item
         need(source.exists(), f'Missing source: {item}')
@@ -281,7 +282,8 @@ def inspect_bundle(archive, destination=None):
         need(manifest.get('schema') == 1 and re.fullmatch(RELEASE_RE, manifest.get('release', '')), 'Invalid deployment manifest')
         need(isinstance(manifest.get('files'), dict) and set(manifest['files']) == set(names) - {'manifest.json'}, 'Manifest file set mismatch')
         required = {'server/src/server.js', 'server/package.json', 'server/package-lock.json', 'server/scripts/account-role.js',
-                    'common/uimg-jpeg.cjs', 'webconfig/deployment.json'} | {'webconfig/' + page for page in PAGES}
+                    'common/uimg-jpeg.cjs', 'common/xora-resource-codec.cjs', 'resources/xora/key-static.xora-resource.json',
+                    'resources/default-switch-mapping.json', 'webconfig/deployment.json'} | {'webconfig/' + page for page in PAGES}
         need(required <= set(names), 'Incomplete deployment bundle')
         for member in members:
             data = tar.extractfile(member).read()

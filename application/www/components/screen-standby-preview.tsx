@@ -49,9 +49,11 @@ export function ScreenPreviewFrame({ selected, children, screenStyle, onClick, l
     aria-label={label}
     aria-hidden={onClick ? undefined : true}
     width={`${DEVICE_SCREEN_WIDTH * (2 / 3) / displayPixelRatio}px`}
-    height={`${DEVICE_SCREEN_HEIGHT * (2 / 3) / displayPixelRatio}px`}
+    maxWidth="100%"
+    height="auto"
+    aspectRatio={DEVICE_SCREEN_WIDTH / DEVICE_SCREEN_HEIGHT}
     flexShrink="0"
-    boxSizing="content-box"
+    boxSizing="border-box"
     borderWidth="2px"
     borderColor="gray.600"
     padding="2px"
@@ -73,7 +75,7 @@ export function ScreenPreviewFrame({ selected, children, screenStyle, onClick, l
 }
 
 export function ScreenStandbyPreview({ mode, selected, screenStyle }: {
-  mode: 'none' | 'buttonLayout';
+  mode: 'screenOff' | 'buttonLayout';
   selected: boolean;
   screenStyle: ScreenStyle;
 }) {
@@ -81,7 +83,7 @@ export function ScreenStandbyPreview({ mode, selected, screenStyle }: {
 
   return <ScreenPreviewFrame selected={selected} screenStyle={screenStyle}>
     <svg viewBox={`0 0 ${DEVICE_SCREEN_WIDTH} ${DEVICE_SCREEN_HEIGHT}`} width="100%" height="100%" display="block" aria-hidden="true">
-      {mode === 'none' ? <path d="M 180 60 L 140 112" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /> : (
+      {mode === 'screenOff' ? <rect width={DEVICE_SCREEN_WIDTH} height={DEVICE_SCREEN_HEIGHT} fill="black" /> : (
         BUTTON_POSITIONS.map(([x, y, diameter], index) => {
           // Same rounding and 90% radius as draw_button_layout in spi_screen_standby.cpp.
           const radius = Math.max(2, Math.trunc((diameter * scale * 0.5 + 0.5) * 9 / 10));

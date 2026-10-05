@@ -21,6 +21,7 @@ class LEDsManager {
             return instance;
         }
 
+        XoraResource::Ref currentResource(bool ambient);
         void setup();
         void loop(uint32_t virtualPinMask);
         void deinit();

@@ -1,485 +1,56 @@
 'use client';
 
-import { useEffect, useState, useRef, useMemo } from "react";
-import { LEDS_ANIMATION_CYCLE, LedsEffectStyle, LedsEffectStyleConfig } from "@/types/gamepad-config";
-import { Box } from '@chakra-ui/react';
-import styled from "styled-components";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import { useColorMode } from "../ui/color-mode";
-import { GamePadColor } from "@/types/gamepad-color";
-import { ledAnimations } from "./hitbox-animation";
+import { useEffect, useMemo } from 'react';
+import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { useHitboxButtonMonitor } from '@/hooks/use-hitbox-button-monitor';
 import { shouldStartButtonMonitoring } from '@/lib/button-monitor-lifecycle';
-import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
-
-const StyledSvg = styled.svg<{
-    $scale?: number;
-}>`
-  width: ${HITBOX_WIDTH + HITBOX_PADDING * 2 + 2}px;
-  height: ${HITBOX_HEIGHT + HITBOX_PADDING * 2 + 2}px;
-  padding: ${HITBOX_PADDING}px;
-  position: relative;
-  transform: scale(${props => props.$scale || 1});
-  transform-origin: center;
-`;
-
-const StyledCircle = styled.circle<{
-    $opacity?: number;
-    $interactive?: boolean;
-    $highlight?: boolean;
-    $fillNone?: boolean;
-    $pressed?: boolean;
-}>`
-  stroke: 'gray';
-  stroke-width: 1px;
-  cursor: ${props => props.$interactive ? 'pointer' : 'default'};
-  pointer-events: ${props => props.$interactive ? 'auto' : 'none'};
-  opacity: ${props => props.$opacity};
-  stroke: ${props => props.$highlight ? 'yellowgreen' : 'gray'};
-  stroke-width: ${props => props.$highlight ? '2px' : '1px'};
-  filter: ${props => props.$highlight ? 'drop-shadow(0 0 2px rgba(154, 205, 50, 0.8))' : 'none'};
-  fill: ${props => props.$fillNone ? 'none' : ''};
-
-  &:hover {
-    stroke-width: ${props => props.$interactive ? '2px' : '1px'};
-    stroke: ${props => props.$interactive ? '#ccc' : 'gray'};
-    filter: ${props => props.$interactive ? 'drop-shadow(0 0 10px rgba(204, 204, 204, 0.8))' : 'none'};
-  }
-
-  &:active {
-    stroke-width: ${props => props.$interactive ? '2px' : '1px'};
-    stroke: ${props => props.$interactive ? 'yellowgreen' : 'gray'};
-    filter: ${props => props.$interactive ? 'drop-shadow(0 0 15px rgba(154, 205, 50, 0.9))' : 'none'};
-  }
-
-  /* 硬件按下状态样式 */
-  ${props => props.$pressed && `
-    stroke: yellowgreen;
-    stroke-width: 2px;
-    filter: drop-shadow(0 0 15px rgba(154, 205, 50, 0.9));
-  `}
-`;
-
-const StyledFrame = styled.rect`
-  fill: none;
-  stroke: gray;
-  stroke-width: 1px;
-  filter: drop-shadow(0 0 5px rgba(204, 204, 204, 0.8));
-`;
-
-const StyledText = styled.text`
-  text-align: center;
-  font-family: "Helvetica", cursive;
-  font-size: .9rem;
-  cursor: default;
-  pointer-events: none;
-`;
-
-const btnFrameRadiusDistance = 3;
+import { factoryLightSource, type PreviewOptions } from '@/lib/hitbox-lighting-preview';
+import type { ResourceSource } from '@/lib/resources';
+import type { LedsEffectStyleConfig } from '@/types/gamepad-config';
+import { HITBOX_WIDTH, HITBOX_LAYOUT_SCALE } from './hitbox-constants';
+import { calculateHitboxScale } from '../setting-content-layout';
+import { HitboxLightingCanvas } from './hitbox-lighting-canvas';
 
 interface HitboxLedsProps {
-    onClick?: (id: number) => void;
-    hasText?: boolean;
-    ledsConfig?: LedsEffectStyleConfig;
-    interactiveIds?: number[];
-    highlightIds?: number[];
-    disabledKeys?: number[];
-    isButtonMonitoringEnabled?: boolean;
-    className?: string;
-    containerWidth?: number; // 外部容器宽度
+  resource?: ResourceSource | null;
+  ambientResource?: ResourceSource | null;
+  onClick?: (id: number) => void;
+  hasText?: boolean;
+  ledsConfig?: LedsEffectStyleConfig;
+  interactiveIds?: number[];
+  highlightIds?: number[];
+  disabledKeys?: number[];
+  isButtonMonitoringEnabled?: boolean;
+  className?: string;
+  containerWidth?: number;
 }
 
-/**
- * HitboxLeds - 专用于LED设置页面的Hitbox组件
- * 支持LED动画预览功能
- */
 export default function HitboxLeds(props: HitboxLedsProps) {
-    const hasText = props.hasText ?? true;
-    const { colorMode } = useColorMode();
-    const {
-        contextJsReady,
-        setContextJsReady,
-        deviceConnected,
-        dataIsReady,
-        hitboxLayout,
-    } = useGamepadConfig();
-
-    const layout = useMemo(() => {
-        const rawLayout = hitboxLayout ?? [];
-        return rawLayout.map(item => ({
-            ...item,
-            x: item.x * HITBOX_LAYOUT_SCALE,
-            y: item.y * HITBOX_LAYOUT_SCALE
-        }));
-    }, [hitboxLayout]);
-    const len = layout.length;
-    const shouldMonitorButtons = shouldStartButtonMonitoring({
-        enabled: props.isButtonMonitoringEnabled ?? false,
-        deviceConnected,
-        dataIsReady,
-        contextJsReady,
-        layoutLength: len,
-    });
-
-    // 硬件按键状态管理
-    const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
-    const hardwareButtonStates = useHitboxButtonMonitor({
-        buttonCount: len,
-        interactiveIds: props.interactiveIds ?? [],
-        disabledIds: props.disabledKeys ?? [],
-        enabled: shouldMonitorButtons,
-        onButtonChange: props.onClick,
-        logPrefix: 'hitbox-leds',
-    });
-
-    // 当 layout 长度变化时，重置状态数组
-    useEffect(() => {
-        setPressedButtonStates(Array(len).fill(-1));
-        pressedButtonListRef.current = Array(len).fill(-1);
-        prevPressedButtonListRef.current = Array(len).fill(-1);
-    }, [len]);
-
-    // 计算缩放比例
-    const calculateScale = (): number => {
-        if (!props.containerWidth) return 1;
-        
-        
-        const margin = 80; // 左右边距
-        const availableWidth = props.containerWidth - (margin * 2);
-        
-        if (availableWidth <= 0) return 0.1; // 最小缩放比例
-        
-        const scale = availableWidth / HITBOX_WIDTH;
-        return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
-    };
-
-    const scale = calculateScale();
-
-    const disabledKeysRef = useRef(props.disabledKeys ?? []);
-    const interactiveIdsRef = useRef(props.interactiveIds ?? []);
-
-    const frontColorRef = useRef(props.ledsConfig?.ledColors?.[0]?.clone() ?? GamePadColor.fromString("#ffffff"));
-    const backColor1Ref = useRef(props.ledsConfig?.ledColors?.[1]?.clone() ?? GamePadColor.fromString("#000000"));
-    const backColor2Ref = useRef(props.ledsConfig?.ledColors?.[2]?.clone() ?? GamePadColor.fromString("#000000"));
-    const defaultBackColorRef = useRef(colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000"));
-    const brightnessRef = useRef(props.ledsConfig?.brightness ?? 100);
-    const animationSpeedRef = useRef(props.ledsConfig?.animationSpeed ?? 1);
-    const colorEnabledRef = useRef(props.ledsConfig?.ledEnabled ?? false);
-    const effectStyleRef = useRef(props.ledsConfig?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
-    const pressedButtonListRef = useRef(Array(len).fill(-1));
-    const prevPressedButtonListRef = useRef(Array(len).fill(-1));
-
-    const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
-    const colorListRef = useRef<GamePadColor[]>(Array(len));
-    const textRefs = useRef<(SVGTextElement | null)[]>([]);
-    const layoutRef = useRef(layout);
-    const animationFrameRef = useRef<number>();
-    const timerRef = useRef<number>(0);
-
-    // The animation loop can start before the asynchronously loaded layout is
-    // available. Keep the latest layout in a ref so an already-running RAF
-    // callback does not remain bound to the initial empty render.
-    layoutRef.current = layout;
-
-    // ripple 列表
-    const ripplesRef = useRef<{ centerIndex: number, startTime: number }[]>([]);
-
-    const handleClick = (event: React.MouseEvent<SVGElement>) => {
-        const target = event.target as SVGElement;
-        if (!target.id || !target.id.startsWith("btn-")) return;
-        const id = Number(target.id.replace("btn-", ""));
-        if (id === Number.NaN || !interactiveIdsRef.current.includes(id)) return;
-        // 禁用的按键不能点击
-        if (disabledKeysRef.current.includes(id)) return;
-        
-        if (event.type === "mousedown") {
-            props.onClick?.(id);
-            pressedButtonListRef.current[id] = 1;
-            setPressedButtonStates(prev => {
-                const newStates = [...prev];
-                newStates[id] = 1;
-                return newStates;
-            });
-        } else if (event.type === "mouseup") {
-            props.onClick?.(-1);
-            pressedButtonListRef.current[id] = -1;
-            setPressedButtonStates(prev => {
-                const newStates = [...prev];
-                newStates[id] = -1;
-                return newStates;
-            });
-        }
-    };
-
-    const handleLeave = (event: React.MouseEvent<SVGElement>) => {
-        const target = event.target as SVGElement;
-        if (!target.id || !target.id.startsWith("btn-")) return;
-        const id = Number(target.id.replace("btn-", ""));
-        if (id === Number.NaN || !(interactiveIdsRef.current.includes(id) ?? false)) return;
-        if (event.type === "mouseleave") {
-            pressedButtonListRef.current[id] = -1;
-            setPressedButtonStates(prev => {
-                const newStates = [...prev];
-                newStates[id] = -1;
-                return newStates;
-            });
-        }
-    }
-
-    /**
-     * 初始化显示状态
-     */
-    useEffect(() => {
-        setContextJsReady(true);
-        for (let i = 0; i < len; i++) {
-            colorListRef.current[i] = backColor1Ref.current.clone();
-        }
-    }, [setContextJsReady, len]);
-
-    useEffect(() => {
-        defaultBackColorRef.current = colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000");
-    }, [colorMode]);
-
-    useEffect(() => {
-        if (props.ledsConfig?.ledColors?.[0]) {
-            frontColorRef.current.setValue(props.ledsConfig.ledColors[0]);
-        }
-    }, [props.ledsConfig?.ledColors?.[0]]);
-
-    useEffect(() => {
-        if (props.ledsConfig?.ledColors?.[1]) {
-            backColor1Ref.current.setValue(props.ledsConfig.ledColors[1]);
-        }
-    }, [props.ledsConfig?.ledColors?.[1]]);
-
-    useEffect(() => {
-        if (props.ledsConfig?.ledColors?.[2]) {
-            backColor2Ref.current.setValue(props.ledsConfig.ledColors[2]);
-        }
-    }, [props.ledsConfig?.ledColors?.[2]]);
-
-    useEffect(() => {
-        brightnessRef.current = props.ledsConfig?.brightness ?? 100;
-    }, [props.ledsConfig?.brightness]);
-
-    useEffect(() => {
-        animationSpeedRef.current = props.ledsConfig?.animationSpeed ?? 1;
-    }, [props.ledsConfig?.animationSpeed]);
-
-    useEffect(() => {
-        effectStyleRef.current = props.ledsConfig?.ledsEffectStyle ?? LedsEffectStyle.STATIC;
-    }, [props.ledsConfig?.ledsEffectStyle]);
-
-    useEffect(() => {
-        colorEnabledRef.current = props.ledsConfig?.ledEnabled ?? true;
-    }, [props.ledsConfig?.ledEnabled]);
-
-    useEffect(() => {
-        disabledKeysRef.current = props.disabledKeys ?? [];
-    }, [props.disabledKeys]);
-
-    useEffect(() => {
-        interactiveIdsRef.current = props.interactiveIds ?? [];
-    }, [props.interactiveIds]);
-
-    useEffect(() => {
-        if (props.ledsConfig?.ledEnabled) {
-            startAnimation();
-        } else {
-            stopAnimation();
-            clearButtonsColor();
-        }
-        // 清理函数
-        return () => {
-            stopAnimation();
-            timerRef.current = 0;
-        };
-    }, [props.ledsConfig?.ledEnabled]);
-
-    // 判断按键是否可交互（既要在交互列表中，又不能在禁用列表中）
-    const isButtonInteractive = (buttonId: number): boolean => {
-        return (interactiveIdsRef.current.includes(buttonId) ?? false) && !isButtonDisabled(buttonId);
-    };
-
-    // 判断按键是否被禁用
-    const isButtonDisabled = (buttonId: number): boolean => {
-        return disabledKeysRef.current.includes(buttonId);
-    };
-
-    // 判断按键是否处于按下状态（鼠标或硬件按键）
-    const isButtonPressed = (index: number): boolean => {
-        return (hardwareButtonStates[index] === 1 || pressedButtonStates[index] === 1) || false;
-    };
-
-    // leds 颜色动画
-    const animate = () => {
-        const now = new Date().getTime();
-        const deltaTime = now - timerRef.current;
-        const currentLayout = layoutRef.current;
-        const currentLength = currentLayout.length;
-        
-        // 使用与C++端一致的动画进度计算方式
-        // C++端: progress = (elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier; progress = fmod(progress, 1.0f);
-        const speedMultiplier = animationSpeedRef.current;
-        let progress = (deltaTime % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier;
-        progress = progress % 1; // 确保进度值在 0.0-1.0 范围内循环
-
-        const algorithm = ledAnimations[effectStyleRef.current];
-
-        let global: {
-            ripples?: Array<{ centerIndex: number, progress: number }>;
-            [key: string]: unknown;
-        } = {};
-
-        if (effectStyleRef.current === LedsEffectStyle.RIPPLE) {
-            pressedButtonListRef.current.forEach((v, idx) => {
-                if (v === 1 && prevPressedButtonListRef.current[idx] !== 1) {
-                    ripplesRef.current.push({ centerIndex: idx, startTime: now });
-                }
-            });
-            const rippleDuration = 3000 / animationSpeedRef.current; // ms
-            ripplesRef.current = ripplesRef.current.filter(r => (now - r.startTime) < rippleDuration);
-            const ripples = ripplesRef.current.map(r => ({
-                centerIndex: r.centerIndex,
-                progress: Math.min(1, (now - r.startTime) / rippleDuration)
-            }));
-            global = { ripples };
-        }
-
-        for (let i = 0; i < currentLength; i++) {
-            // The layout is loaded asynchronously on a direct route refresh.
-            // Animation can begin one frame before the length-dependent effect
-            // initializes this slot, so make the frame loop self-healing.
-            const currentColor = colorListRef.current[i]
-                ?? backColor1Ref.current.clone();
-            colorListRef.current[i] = currentColor;
-
-            // 禁用的按键LED不亮，使用默认背景色
-            if (isButtonDisabled(i)) {
-                currentColor.setValue(defaultBackColorRef.current);
-                continue;
-            }
-
-            const color = algorithm({
-                index: i,
-                progress,
-                pressed: pressedButtonListRef.current[i] === 1,
-                colorEnabled: colorEnabledRef.current,
-                frontColor: frontColorRef.current,
-                backColor1: backColor1Ref.current,
-                backColor2: backColor2Ref.current,
-                defaultBackColor: defaultBackColorRef.current,
-                effectStyle: effectStyleRef.current,
-                brightness: brightnessRef.current,
-                global,
-                layout: currentLayout,
-            });
-
-            currentColor.setValue(color);
-        }
-
-        // 更新按钮颜色
-        circleRefs.current.forEach((circle, index) => {
-            if (circle) {
-                const color = colorListRef.current[index] ?? defaultBackColorRef.current;
-                circle.setAttribute('fill', color.toString('css'));
-            }
-        });
-
-        prevPressedButtonListRef.current = pressedButtonListRef.current.slice();
-
-        animationFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    const startAnimation = () => {
-        if (!animationFrameRef.current) {
-            animationFrameRef.current = requestAnimationFrame(animate);
-            timerRef.current = new Date().getTime();
-        }
-    };
-
-    const stopAnimation = () => {
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = undefined;
-        }
-    };
-
-    const clearButtonsColor = () => {
-        circleRefs.current.forEach((circle, index) => {
-            if (circle) {
-                // 禁用的按键始终使用默认背景色
-                const color = isButtonDisabled(index) ? defaultBackColorRef.current : defaultBackColorRef.current;
-                circle.setAttribute('fill', color.toString('css'));
-            }
-        });
-    }
-
-    return (
-        <Box display={contextJsReady ? "block" : "none"} className={props.className}>
-            <StyledSvg 
-                xmlns="http://www.w3.org/2000/svg"
-                onMouseDown={handleClick}
-                onMouseUp={handleClick}
-                $scale={scale}
-            >
-                <title>XORA</title>
-                <StyledFrame x="0.36" y="0.36" width={HITBOX_WIDTH} height={HITBOX_HEIGHT} rx="10" />
-
-                {/* 渲染按钮外框 */}
-                {layout.map((item, index) => {
-                    const radius = item.r + btnFrameRadiusDistance;
-                    return (
-                        <StyledCircle
-                            id={`btn-frame-${index}`}
-                            key={`frame-${index}`}
-                            cx={item.x}
-                            cy={item.y}
-                            r={radius}
-                            $interactive={false}
-                            $highlight={false}
-                            $fillNone={true}
-                        />
-                    )
-                })}
-
-                {/* 渲染按钮 */}
-                {layout.map((item, index) => (
-                    <StyledCircle
-                        ref={(el: SVGCircleElement | null) => {
-                            circleRefs.current[index] = el;
-                        }}
-                        id={`btn-${index}`}
-                        key={index}
-                        cx={item.x}
-                        cy={item.y}
-                        r={item.r}
-                        $opacity={1}
-                        $interactive={isButtonInteractive(index)}
-                        $highlight={props.highlightIds?.includes(index) ?? false}
-                        $pressed={isButtonPressed(index)}
-                        fill={colorMode === 'light' ? 'white' : 'black'}
-                        onMouseLeave={handleLeave}
-                    />
-                ))}
-
-                {/* 渲染按钮文字 */}
-                {hasText && layout.map((item, index) => (
-                    <StyledText
-                        ref={(el: SVGTextElement | null) => {
-                            textRefs.current[index] = el;
-                        }}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        key={index}
-                        x={item.x}
-                        y={index < len - 4 ? item.y : item.y + 30}
-                        fill={colorMode === 'light' ? 'black' : 'white'}
-                    >
-                        {index !== len - 1 ? index + 1 : "Fn"}
-                    </StyledText>
-                ))}
-            </StyledSvg>
-        </Box>
-    );
+  const { contextJsReady, setContextJsReady, deviceConnected, dataIsReady, hitboxLayout } = useGamepadConfig();
+  // Match the fixed drawing box, centered transform and margin used by HitboxKeys/Base.
+  const scale = calculateHitboxScale(props.containerWidth ?? 0, HITBOX_WIDTH);
+  const layout = useMemo(() => (hitboxLayout ?? []).map(item => ({...item, x:item.x * HITBOX_LAYOUT_SCALE, y:item.y * HITBOX_LAYOUT_SCALE})), [hitboxLayout]);
+  const hardware = useHitboxButtonMonitor({
+    buttonCount: layout.length, interactiveIds: props.interactiveIds ?? [], disabledIds: props.disabledKeys ?? [],
+    enabled: shouldStartButtonMonitoring({ enabled: props.isButtonMonitoringEnabled ?? false, deviceConnected, dataIsReady, contextJsReady, layoutLength: layout.length }),
+    onButtonChange: props.onClick, logPrefix: 'hitbox-leds',
+  });
+  const hardwareMask = hardware.reduce((mask, value, i) => mask | (value === 1 ? 1 << i : 0), 0);
+  const config = props.ledsConfig;
+  const keys = props.resource ?? factoryLightSource(false, config?.ledsEffectStyle);
+  const ambient = props.ambientResource ?? factoryLightSource(true, config?.aroundLedEffectStyle);
+  const toColors = (colors: LedsEffectStyleConfig['ledColors'], fallback: number[]) => colors?.map(color => parseInt(color.toString('hex').slice(1),16)) ?? fallback;
+  const options: PreviewOptions = {
+    keyEnabled: config?.ledEnabled ?? false, ambientEnabled: config?.aroundLedEnabled ?? false,
+    sync: config?.aroundLedSyncToMainLed ?? false, oneShot: config?.aroundLedTriggerByButton ?? false,
+    keyColors: toColors(config?.ledColors, [0xffffff,0,0]), ambientColors: toColors(config?.aroundLedColors,[0xffffff,0,0]),
+    keySpeed: config?.animationSpeed ?? 1, ambientSpeed: config?.aroundLedAnimationSpeed ?? 1,
+    keyBrightness: config?.brightness ?? 100, ambientBrightness: config?.aroundLedBrightness ?? 100,
+    disabledKeys: props.disabledKeys ?? [],
+  };
+  useEffect(() => { setContextJsReady(true); }, [setContextJsReady]);
+  return <HitboxLightingCanvas keys={keys} ambient={ambient} options={options} layout={layout}
+    hardwareMask={hardwareMask} interactiveIds={props.interactiveIds} highlightIds={props.highlightIds}
+    onPress={props.onClick} hasText={props.hasText ?? true} className={props.className}
+    scale={scale} visible={contextJsReady} resetToken={deviceConnected}/>;
 }

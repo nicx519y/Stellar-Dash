@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "engineVersion": 1,
+  "resourceId": "key-flow",
+  "revision": 1,
+  "type": "key-lighting",
+  "name": "Flowing",
+  "description": "XORA factory lighting resource",
+  "compatibility": {
+    "hardwareVersion": "2.0.0"
+  },
+  "payload": {
+    "clock": "key-cycle",
+    "colors": [
+      65280,
+      255,
+      16711680
+    ],
+    "layers": [
+      {
+        "signal": "scan",
+        "blend": "replace",
+        "mask": 0,
+        "from": 1,
+        "to": 2,
+        "params": [
+          1,
+          140,
+          1.6,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "signal": "pressed",
+        "blend": "replace",
+        "mask": 1,
+        "from": 0,
+        "to": 0,
+        "params": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  }
+}

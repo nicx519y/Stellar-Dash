@@ -2,7 +2,30 @@
 
 #include "screen_control/spi_screen_detail_entries.hpp"
 
+#include "screen_control/spi_screen_detail_render_helpers.hpp"
+#include "screen_control_config.hpp"
+#include "storagemanager.hpp"
+#include "board_cfg.h"
+#include <cstdio>
+
+namespace {
+constexpr uint8_t kScreenTimer = 15, kSleepTimer = 16;
+constexpr uint16_t kTimes[] = {10, 30, 60, 120, 300};
+constexpr const char* kTimeLabels[] = {"10s", "30s", "1min", "2min", "5min"};
+uint8_t groupSelection = 0, childPage = 255, childIndex = 0;
+bool isGroup(uint8_t id) { return id == ScreenConfig::kLed || id == ScreenConfig::kPower; }
+bool isTimer(uint8_t id) { return id == kScreenTimer || id == kSleepTimer; }
+uint8_t groupCount(uint8_t id) { return id == ScreenConfig::kLed ? 4 : 2; }
+uint8_t groupChild(uint8_t id, uint8_t index) { return id == ScreenConfig::kLed ? uint8_t(4 + index) : uint8_t(kScreenTimer + index); }
+bool timerSupported(uint8_t id) { return id == kScreenTimer || HBOX_AUTO_SLEEP_ENABLED != 0; }
+bool timerEnabled(uint8_t id) {
+    return id == kScreenTimer ? ScreenConfig::enabled(STORAGE_MANAGER.config.screenControl) : STORAGE_MANAGER.config.power.autoSleepEnabled == 1;
+}
+}
+
 ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
+    if (isGroup(menuId)) return childPage == 255 ? SCREEN_DETAIL_LIST : ScreenDetail_Kind(childPage);
+    if (isTimer(menuId)) return SCREEN_DETAIL_SLIDER;
     switch (menuId) {
         case 0:
         case 1:
@@ -26,6 +49,12 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
 }
 
 uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
+    if (isGroup(menuId)) { groupSelection = 0; childPage = 255; return 0; }
+    if (isTimer(menuId)) {
+        const uint32_t seconds = menuId == kScreenTimer ? STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds : STORAGE_MANAGER.config.power.autoStandbyMs / 1000u;
+        for (uint8_t i = 0; i < 5; ++i) if (seconds == kTimes[i]) return i;
+        return menuId == kScreenTimer ? 0 : 4;
+    }
     switch (menuId) {
         case 0: return ScreenDetailInputMode_InitIndex();
         case 1: return ScreenDetailProfiles_InitIndex();
@@ -45,6 +74,22 @@ uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
 }
 
 void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
+    if (!ioIndex) return;
+    if (isGroup(menuId)) {
+        if (childPage != 255) ScreenDetail_OnRotate(childPage, &childIndex, det);
+        else { const int count = groupCount(menuId); groupSelection = uint8_t((int(groupSelection) + det % count + count) % count); *ioIndex = groupSelection; }
+        return;
+    }
+    if (isTimer(menuId)) {
+        if (!timerSupported(menuId)) return;
+        int next = int(*ioIndex) + det; next = next < 0 ? 0 : next > 4 ? 4 : next;
+        if (*ioIndex == next) return;
+        *ioIndex = uint8_t(next);
+        if (menuId == kScreenTimer) STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds = kTimes[next];
+        else STORAGE_MANAGER.config.power.autoStandbyMs = uint32_t(kTimes[next]) * 1000u;
+        ScreenUI_RequestDeferredSave(2000u);
+        return;
+    }
     switch (menuId) {
         case 0: ScreenDetailInputMode_Rotate(ioIndex, det); break;
         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
@@ -63,6 +108,18 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
 }
 
 bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
+    if (isGroup(menuId)) {
+        if (childPage == 255) { childPage = groupChild(menuId, groupSelection); childIndex = ScreenDetail_InitIndex(childPage); }
+        else if (ScreenDetail_OnConfirm(childPage, childIndex)) childPage = 255;
+        return false;
+    }
+    if (isTimer(menuId)) {
+        if (!timerSupported(menuId)) return false;
+        if (menuId == kScreenTimer) ScreenConfig::setEnabled(STORAGE_MANAGER.config.screenControl, !timerEnabled(menuId));
+        else STORAGE_MANAGER.config.power.autoSleepEnabled = timerEnabled(menuId) ? 0u : 1u;
+        ScreenUI_RequestDeferredSave(2000u);
+        return false;
+    }
     switch (menuId) {
         case 0: ScreenDetailInputMode_OnConfirm(index); return true;
         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
@@ -82,6 +139,11 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
 }
 
 bool ScreenDetail_OnBack(uint8_t menuId) {
+    if (isGroup(menuId)) {
+        if (childPage == 255) return true;
+        if (ScreenDetail_OnBack(childPage)) childPage = 255;
+        return false;
+    }
     switch (menuId) {
         case 9: return ScreenDetailWebConfig_OnBack();
         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnBack();
@@ -92,6 +154,22 @@ bool ScreenDetail_OnBack(uint8_t menuId) {
 }
 
 void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, const ScreenUiStyle& style) {
+    if (isGroup(menuId)) {
+        if (childPage != 255) { ScreenDetail_Render(lcd, childPage, childIndex, style); return; }
+        static const char* ledLabels[] = {"LED Brightness", "LED Effect", "Ambient Brightness", "Ambient Effect"};
+        static const char* powerLabels[] = {"Screen Standby", "Auto Sleep"};
+        ScreenDetailRender_List(lcd, menuId == ScreenConfig::kLed ? "LED Setting" : "Power",
+            menuId == ScreenConfig::kLed ? ledLabels : powerLabels, groupCount(menuId), groupSelection, groupSelection, style);
+        return;
+    }
+    if (isTimer(menuId)) {
+        char label[24];
+        // Read current values so WebConfig changes do not leave stale labels.
+        index = ScreenDetail_InitIndex(menuId); childIndex = index;
+        snprintf(label, sizeof(label), "%s %s", kTimeLabels[index], !timerSupported(menuId) ? "Unavailable" : timerEnabled(menuId) ? "ON" : "OFF");
+        ScreenDetailRender_Slider(lcd, menuId == kScreenTimer ? "Screen Standby" : "Auto Sleep", index, style, 4, label);
+        return;
+    }
     switch (menuId) {
         case 0: ScreenDetailInputMode_Render(lcd, index, style); break;
         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;

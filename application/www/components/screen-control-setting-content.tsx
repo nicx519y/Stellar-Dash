@@ -1,5 +1,6 @@
 'use client';
 
+import { normalizeScreenControl, SCREEN_FEATURE_IDS } from '@/lib/screen-control-config';
 import React, { useEffect, useMemo, useState } from 'react';
 import { VStack, HStack, Table, Box, Text, RadioCard, RadioGroup } from '@chakra-ui/react';
 import { Slider } from '@/components/ui/slider';
@@ -7,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { DEFAULT_SCREEN_CONTROL_CONFIG, SCREEN_STANDBY_TIMEOUT_OPTIONS, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, ScreenStyle, StandbyDisplay, normalizeScreenStandbyTimeout, withRequiredWebConfigEntry } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
-import { LuGripVertical } from "react-icons/lu";
+import { LuGripVertical, LuMoon, LuSun } from "react-icons/lu";
 import { TitleLabel } from './ui/title-label';
 import { SettingDescription } from './ui/setting-description';
 import { showToast } from './ui/toaster';
@@ -15,23 +16,44 @@ import { BackgroundImageGallery } from './background-image-gallery';
 import { ScreenStandbyPreview } from './screen-standby-preview';
 
 const USER_BG_ID = 'USER_IMAGE';
-const STANDBY_TIMEOUT_LABELS = ['10s', '30s', '60s', '2min', '5min'] as const;
+const STANDBY_TIMEOUT_LABELS = ['10s', '30s', '1min', '2min', '5min'] as const;
 
 
 type ScreenControlSettingContentProps = {
     disabled?: boolean;
 };
 
+const normalizeFeaturesOrder = (order: ScreenControlFeatureKey[] | undefined): ScreenControlFeatureKey[] => {
+    const fallback = DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder;
+    if (!order || !Array.isArray(order)) return fallback;
+    const seen = new Set<ScreenControlFeatureKey>();
+    const next: ScreenControlFeatureKey[] = [];
+    for (const k of order) {
+        if (!fallback.includes(k)) continue;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        next.push(k);
+    }
+    for (const k of fallback) {
+        if (!seen.has(k)) next.push(k);
+    }
+    return next;
+};
+
 export function ScreenControlSettingContent(props: ScreenControlSettingContentProps) {
-    const { disabled = false } = props;
+    const externallyDisabled = props.disabled ?? false;
     const {
         screenControl,
         stageDeferredScreenControl,
         previewScreenBrightness,
     } = useGamepadConfig();
+    const disabled = externallyDisabled || screenControl.standbySupported === false;
+    const [standbyEnabled, setStandbyEnabled] = useState(screenControl.standbyEnabled);
     const [brightness, setBrightness] = useState<number>(screenControl.brightness ?? 100);
-    const [standbyDisplay, setStandbyDisplay] = useState<StandbyDisplay>(screenControl.standbyDisplay ?? 'none');
+    const [standbyDisplay, setStandbyDisplay] = useState<StandbyDisplay>(screenControl.standbyDisplay ?? 'screenOff');
     const [standbyTimeoutSeconds, setStandbyTimeoutSeconds] = useState<number>(normalizeScreenStandbyTimeout(screenControl.standbyTimeoutSeconds));
+    const standbyTimeoutDraftRef = React.useRef(standbyTimeoutSeconds);
+    standbyTimeoutDraftRef.current = standbyTimeoutSeconds;
     const [screenStyle, setScreenStyle] = useState<ScreenStyle>(screenControl.screenStyle ?? 'dark');
     const [backgroundImageId, setBackgroundImageId] = useState<string>(screenControl.backgroundImageId ?? '');
     const [currentPageId, setCurrentPageId] = useState<string>(String(screenControl.currentPageId ?? 0));
@@ -47,33 +69,25 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const [galleryDeviceBusy, setGalleryDeviceBusy] = useState(false);
     const imageOperationBusy = galleryDeviceBusy;
 
-    const normalizeFeaturesOrder = (order: ScreenControlFeatureKey[] | undefined): ScreenControlFeatureKey[] => {
-        const fallback = DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder;
-        if (!order || !Array.isArray(order)) return fallback;
-        const seen = new Set<ScreenControlFeatureKey>();
-        const next: ScreenControlFeatureKey[] = [];
-        for (const k of order) {
-            if (!fallback.includes(k)) continue;
-            if (seen.has(k)) continue;
-            seen.add(k);
-            next.push(k);
-        }
-        for (const k of fallback) {
-            if (!seen.has(k)) next.push(k);
-        }
-        return next;
-    };
+    // Value snapshots keep equivalent device reads from resetting an in-flight draft.
+    const featuresSnapshot = JSON.stringify(screenControl.features ?? DEFAULT_SCREEN_CONTROL_CONFIG.features);
+    const featuresOrderSnapshot = JSON.stringify(screenControl.featuresOrder ?? DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder);
 
     useEffect(() => {
+        setStandbyEnabled(screenControl.standbyEnabled);
         setBrightness(screenControl.brightness ?? 100);
-        setStandbyDisplay(screenControl.standbyDisplay ?? 'none');
+        setStandbyDisplay(screenControl.standbyDisplay ?? 'screenOff');
         setStandbyTimeoutSeconds(normalizeScreenStandbyTimeout(screenControl.standbyTimeoutSeconds));
         setScreenStyle(screenControl.screenStyle ?? 'dark');
         setBackgroundImageId(screenControl.backgroundImageId ?? '');
         setCurrentPageId(String(screenControl.currentPageId ?? 0));
-        setFeatures(withRequiredWebConfigEntry(screenControl.features));
-        setFeaturesOrder(normalizeFeaturesOrder(screenControl.featuresOrder));
-    }, [screenControl]);
+        setFeatures(withRequiredWebConfigEntry(JSON.parse(featuresSnapshot) as ScreenControlFeatures));
+        setFeaturesOrder(normalizeFeaturesOrder(JSON.parse(featuresOrderSnapshot) as ScreenControlFeatureKey[]));
+    // Live reads may return a fresh object while the slider is being dragged.
+    // Only replace the local draft when actual configuration values change.
+    }, [screenControl.brightness, screenControl.standbyEnabled, screenControl.standbyDisplay,
+        screenControl.standbyTimeoutSeconds, screenControl.screenStyle, screenControl.backgroundImageId,
+        screenControl.currentPageId, featuresSnapshot, featuresOrderSnapshot]);
 
     const nextConfig: ScreenControlConfig = useMemo(() => {
         const b = Math.max(0, Math.min(100, brightness | 0));
@@ -81,6 +95,8 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         return {
             brightness: b,
             standbyDisplay,
+            standbyEnabled,
+            standbySupported: screenControl.standbySupported,
             standbyTimeoutSeconds,
             screenStyle,
             backgroundImageId,
@@ -88,11 +104,12 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             features,
             featuresOrder,
         };
-    }, [brightness, standbyDisplay, standbyTimeoutSeconds, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
+    }, [brightness, standbyEnabled, screenControl.standbySupported, standbyDisplay, standbyTimeoutSeconds, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
 
     const commitUiChange = async (next: ScreenControlConfig) => {
         try {
-            stageDeferredScreenControl(next);
+            if (disabled) return;
+            stageDeferredScreenControl(normalizeScreenControl(next));
         } catch {
             // The global sync status retains failed drafts and offers retry.
         }
@@ -107,10 +124,11 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const handleGalleryAvailabilityChange = React.useCallback((available: boolean) => {
         setDeviceImageAvailable(available);
         if (!available) {
-            setStandbyDisplay(current => current === 'backgroundImage' ? 'none' : current);
+            if (standbyDisplay === 'backgroundImage') setStandbyEnabled(false);
+            setStandbyDisplay(current => current === 'backgroundImage' ? 'screenOff' : current);
             setBackgroundImageId('');
         }
-    }, []);
+    }, [standbyDisplay]);
 
     const dragFeatureKeyRef = React.useRef<ScreenControlFeatureKey | null>(null);
 
@@ -120,10 +138,8 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         socdModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH,
         connectionModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH,
         buttonsPerformanceQuickSet: t.SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET,
-        ledBrightnessAdjust: t.SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST,
-        ledEffectSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_LED_EFFECT_SWITCH,
-        ambientBrightnessAdjust: t.SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_BRIGHTNESS_ADJUST,
-        ambientEffectSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_EFFECT_SWITCH,
+        ledSetting: t.SETTINGS_SCREEN_CONTROL_FEATURE_LED_SETTING,
+        power: t.SETTINGS_SCREEN_CONTROL_FEATURE_POWER,
         screenBrightnessAdjust: t.SETTINGS_SCREEN_CONTROL_FEATURE_SCREEN_BRIGHTNESS_ADJUST,
         webConfigEntry: t.SETTINGS_SCREEN_CONTROL_FEATURE_WEB_CONFIG_ENTRY,
         calibrationModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH,
@@ -131,20 +147,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
     const orderedFeatureItems = featuresOrder.map((key) => ({ key, label: featureLabelMap[key] }));
 
-    const featureKeyToId: Record<ScreenControlFeatureKey, number> = {
-        inputModeSwitch: 0,
-        profilesSwitch: 1,
-        socdModeSwitch: 2,
-        connectionModeSwitch: 3,
-        buttonsPerformanceQuickSet: 11,
-        ledBrightnessAdjust: 4,
-        ledEffectSwitch: 5,
-        ambientBrightnessAdjust: 6,
-        ambientEffectSwitch: 7,
-        screenBrightnessAdjust: 8,
-        webConfigEntry: 9,
-        calibrationModeSwitch: 10,
-    };
+    const featureKeyToId = SCREEN_FEATURE_IDS;
     const idToFeatureKey = (id: number): ScreenControlFeatureKey | null => {
         const entries = Object.entries(featureKeyToId) as [ScreenControlFeatureKey, number][];
         for (const [k, v] of entries) if (v === id) return k;
@@ -175,14 +178,39 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             
             
             
+            {screenControl.standbySupported === false && <Text role="alert" color="fg.warning">{t.SETTINGS_SCREEN_CONTROL_UPDATE_REQUIRED}</Text>}
             <VStack align="stretch" gap={4} >
 
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_BASIC} />
 
+                <Switch
+                    alignSelf="start"
+                    size="lg"
+                    colorPalette="green"
+                    checked={screenStyle === 'light'}
+                    disabled={disabled}
+                    title={screenStyle === 'light' ? t.SETTINGS_SCREEN_CONTROL_LIGHT_MODE : t.SETTINGS_SCREEN_CONTROL_DARK_MODE}
+                    thumbLabel={{
+                        on: <LuSun size={14} color="#b45309" aria-hidden="true" />,
+                        off: <LuMoon size={14} color="#334155" aria-hidden="true" />,
+                    }}
+                    trackLabel={{
+                        on: <LuMoon size={14} color="#cbd5e1" aria-hidden="true" />,
+                        off: <LuSun size={14} color="#fbbf24" aria-hidden="true" />,
+                    }}
+                    onCheckedChange={(event: { checked: boolean }) => {
+                        const style: ScreenStyle = event.checked ? 'light' : 'dark';
+                        setScreenStyle(style);
+                        void commitUiChange({ ...nextConfig, screenStyle: style });
+                    }}
+                >
+                    {t.SETTINGS_SCREEN_CONTROL_STYLE_LABEL}
+                </Switch>
 
                 <Slider
                     size="sm"
-                    width="50%"
+                    width="100%"
+                    maxW="100%"
                     min={0}
                     max={100}
                     step={10}
@@ -204,41 +232,53 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     }}
                 />
 
-                <RadioCard.Root
-                    size="sm"
-                    value={screenStyle}
-                    variant="subtle"
-                    onValueChange={async (d) => {
-                        const v = (d as { value: ScreenStyle }).value;
-                        if (!v || v === screenStyle) return;
-                        setScreenStyle(v);
-                        await commitUiChange({ ...nextConfig, screenStyle: v });
-                    }}
-                >
-                    <HStack>
-                        {[
-                            { value: 'dark', label: 'Dark' },
-                            { value: 'light', label: 'Light' },
-                        ].map(opt => (
-                            <RadioCard.Item w="180px" key={opt.value} value={opt.value as ScreenStyle} disabled={disabled}>
-                                <RadioCard.ItemHiddenInput />
-                                <RadioCard.ItemControl>
-                                    <RadioCard.ItemText>{opt.label}</RadioCard.ItemText>
-                                </RadioCard.ItemControl>
-                            </RadioCard.Item>
-                        ))}
-                    </HStack>
-                </RadioCard.Root>
-
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL} />
                 <VStack align="start" gap={3}>
+                    <VStack width="100%" align="start" gap={4} mb={4}>
+                        <Switch checked={standbyEnabled} disabled={disabled}
+                            onCheckedChange={(event: { checked: boolean }) => {
+                                setStandbyEnabled(event.checked);
+                                void commitUiChange({ ...nextConfig, standbyEnabled: event.checked });
+                            }}>
+                            {t.SETTINGS_SCREEN_CONTROL_STANDBY_ENABLED}
+                        </Switch>
+                    <Slider
+                        size="sm"
+                        width="100%"
+                        maxW="100%"
+                        minW={0}
+                        px={{ base: 3, md: 0 }}
+                        mt={0}
+                        min={0}
+                        max={SCREEN_STANDBY_TIMEOUT_OPTIONS.length - 1}
+                        step={1}
+                        colorPalette="green"
+                        disabled={disabled || !standbyEnabled}
+                        value={[Math.max(0, SCREEN_STANDBY_TIMEOUT_OPTIONS.indexOf(standbyTimeoutSeconds as typeof SCREEN_STANDBY_TIMEOUT_OPTIONS[number]))]}
+                        label={t.SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL}
+                        marks={STANDBY_TIMEOUT_LABELS.map((label, value) => ({ value, label }))}
+                        onValueChange={(details: { value: number[] }) => {
+                            const seconds = SCREEN_STANDBY_TIMEOUT_OPTIONS[details.value[0]];
+                            if (seconds !== undefined) {
+                                standbyTimeoutDraftRef.current = seconds;
+                                setStandbyTimeoutSeconds(seconds);
+                            }
+                        }}
+                        onValueChangeEnd={() => {
+                            // Controlled Chakra sliders can end a keyboard step before
+                            // React publishes its new value. Commit the latest draft.
+                            const seconds = standbyTimeoutDraftRef.current;
+                            void commitUiChange({ ...nextConfig, standbyTimeoutSeconds: seconds });
+                        }}
+                    />
+                    </VStack>
                     <RadioCard.Root
                         size={"sm"}
                         width="100%"
                         value={standbyDisplay}
                         variant={"subtle"}
                         onValueChange={async (d) => {
-                            const v = (d as { value: 'none'|'backgroundImage'|'buttonLayout' }).value;
+                            const v = (d as { value: 'screenOff'|'backgroundImage'|'buttonLayout' }).value;
                             const update: Partial<ScreenControlConfig> = { standbyDisplay: v };
                             if (v === 'backgroundImage') {
                                 if (!deviceImageAvailable) {
@@ -254,11 +294,11 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     >
                         <HStack width="100%">
                             {[
-                                { value: 'none', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_NONE },
+                                { value: 'screenOff', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_NONE },
                                 { value: 'backgroundImage', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE },
                                 { value: 'buttonLayout', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT },
                             ].map(opt => (
-                                <RadioCard.Item flex={1} minW={0} key={opt.value} value={opt.value as 'none'|'backgroundImage'|'buttonLayout'} disabled={disabled || imageOperationBusy}>
+                                <RadioCard.Item flex={1} minW={0} key={opt.value} value={opt.value as 'screenOff'|'backgroundImage'|'buttonLayout'} disabled={disabled || imageOperationBusy}>
                                     <RadioCard.ItemHiddenInput />
                                     <RadioCard.ItemControl>
                                         <RadioCard.ItemText>{opt.label}</RadioCard.ItemText>
@@ -269,7 +309,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     </RadioCard.Root>
                     <HStack align="start" width="100%">
                         <VStack flex={1} minW={0}>
-                            <ScreenStandbyPreview mode="none" selected={standbyDisplay === 'none'} screenStyle={screenStyle} />
+                            <ScreenStandbyPreview mode="screenOff" selected={standbyDisplay === 'screenOff'} screenStyle={screenStyle} />
                         </VStack>
                         <VStack flex={1} minW={0}>
                             <BackgroundImageGallery
@@ -284,30 +324,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                             <ScreenStandbyPreview mode="buttonLayout" selected={standbyDisplay === 'buttonLayout'} screenStyle={screenStyle} />
                         </VStack>
                     </HStack>
-                    <Slider
-                        size="sm"
-                        width="680px"
-                        mt="18px"
-                        min={0}
-                        max={SCREEN_STANDBY_TIMEOUT_OPTIONS.length - 1}
-                        step={1}
-                        colorPalette="green"
-                        disabled={disabled || standbyDisplay === 'none'}
-                        value={[Math.max(0, SCREEN_STANDBY_TIMEOUT_OPTIONS.indexOf(standbyTimeoutSeconds as typeof SCREEN_STANDBY_TIMEOUT_OPTIONS[number]))]}
-                        label={t.SETTINGS_SCREEN_CONTROL_STANDBY_TIMEOUT_LABEL}
-                        marks={STANDBY_TIMEOUT_LABELS.map((label, value) => ({ value, label }))}
-                        onValueChange={(details: { value: number[] }) => {
-                            const seconds = SCREEN_STANDBY_TIMEOUT_OPTIONS[details.value[0]];
-                            if (seconds !== undefined) setStandbyTimeoutSeconds(seconds);
-                        }}
-                        onValueChangeEnd={(details: { value: number[] }) => {
-                            const seconds = SCREEN_STANDBY_TIMEOUT_OPTIONS[details.value[0]];
-                            if (seconds !== undefined) {
-                                setStandbyTimeoutSeconds(seconds);
-                                void commitUiChange({ ...nextConfig, standbyTimeoutSeconds: seconds });
-                            }
-                        }}
-                    />
+
                 </VStack>
 
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_FEATURES} mt="20px" />
@@ -401,7 +418,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 </Table.Cell>
                                 <Table.Cell py={1} fontSize="11px">
                                     <HStack gap={2}>
-                                        <RadioGroup.Item value={item.key} >
+                                        <RadioGroup.Item value={item.key} disabled={disabled || !features[item.key]} >
                                             <RadioGroup.ItemHiddenInput />
                                             <RadioGroup.ItemIndicator />
                                             {firstFeatureKey === item.key && <RadioGroup.ItemText fontSize="11px" color="gray.400" >{t.SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL}</RadioGroup.ItemText>}

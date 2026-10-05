@@ -18,3 +18,5 @@ declare module '@hbox/user-auth-runtime' {
 declare module '@hbox/admin-runtime' {
   export const adminRuntime: import('@/lib/admin/types').AdminRuntime;
 }
+
+declare module '@hbox/resource-api' { export function resourceFetch(input:RequestInfo|URL,init?:RequestInit):Promise<Response>; }

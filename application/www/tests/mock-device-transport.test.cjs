@@ -1035,7 +1035,7 @@ test('supports fixed profile selection and rename, hotkeys, screen settings and 
   });
   const screen = await transport.request('get_screen_control_config');
   assert.equal(screen.data.screenControl.brightness, 33);
-  assert.equal(screen.data.screenControl.currentPageId, 7);
+  assert.equal(screen.data.screenControl.currentPageId, 13);
   assert.equal(screen.data.screenControl.standbyTimeoutSeconds, 120);
   await assert.rejects(
     transport.request('update_screen_control_config', { screenControl: { standbyTimeoutSeconds: 15 } }),
@@ -2359,4 +2359,39 @@ test('12 FPS installation uses each device capacity and fails before BEGIN witho
       assert.equal(begins,before);
     } finally {client.dispose();}
   }
+});
+
+
+test('screen standby switch and grouped menus persist through Mock save, reload and import', async () => {
+  const storage = new MemoryStorage();
+  const client = new DeviceCommandClient(new MockDeviceTransport({ storage }));
+  await client.connect(); client.markReady();
+  const get = async () => (await client.request('get_screen_control_config')).screenControl;
+  const update = screenControl => client.request('update_screen_control_config', { screenControl });
+  const initial = await get();
+  assert.equal(initial.standbyEnabled, false);
+  assert.equal(initial.standbyDisplay, 'screenOff');
+  await update({ standbyEnabled: true, standbyDisplay: 'screenOff', standbyTimeoutSeconds: 300,
+    currentPageId: 14, featuresOrder: ['power', 'ledSetting'] });
+  const value = await get();
+  assert.equal(value.currentPageId, 14);
+  assert.equal(value.featuresOrder.length, 10);
+  assert.equal(value.features.ledBrightnessAdjust, undefined);
+  for (const invalid of [1, 'false', null]) {
+    await assert.rejects(update({ standbyEnabled: invalid }), /Invalid standbyEnabled/);
+    assert.deepEqual(await get(), value);
+  }
+  const second = new DeviceCommandClient(new MockDeviceTransport({ storage }));
+  await second.connect(); second.markReady();
+  assert.deepEqual((await second.request('get_screen_control_config')).screenControl, { ...value, standbySupported: true });
+  const backup = await client.exportConfig();
+  await update({ standbyEnabled: false, standbyDisplay: 'buttonLayout' });
+  await client.importConfig(backup);
+  assert.equal((await get()).standbyEnabled, true);
+  assert.equal((await get()).standbyDisplay, 'screenOff');
+  backup.screenControl.standbyDisplay = 'none'; delete backup.screenControl.standbyEnabled;
+  await client.importConfig(backup);
+  assert.equal((await get()).standbyEnabled, false);
+  assert.equal((await get()).standbyTimeoutSeconds, 300);
+  second.dispose(); client.dispose();
 });

@@ -180,8 +180,10 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "get_firmware_metadata",
         "get_firmware_inventory",
         "get_release_install_status",
+        "resources_list", "resources_status", "resources_get",
     };
     static const char *const configWrite[] = {
+        "resources_begin", "resources_chunk", "resources_commit", "resources_abort", "resources_apply", "resources_remove",
         "update_global_config",
         "update_hotkeys_config",
         "update_screen_control_config",

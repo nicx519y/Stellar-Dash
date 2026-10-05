@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "engineVersion": 1,
+  "resourceId": "7c9dbd1c",
+  "revision": 1,
+  "type": "switch-mapping",
+  "name": "none",
+  "description": "Extracted from the existing offline factory curve; calibration data excluded.",
+  "compatibility": {
+    "hardwareVersion": "2.0.0"
+  },
+  "payload": {
+    "name": "none",
+    "length": 31,
+    "step": 0.10000000149011612,
+    "samplingNoise": 16,
+    "samplingFrequency": 2566,
+    "originalValues": [
+      43082,
+      42511,
+      41798,
+      41181,
+      40744,
+      40160,
+      39692,
+      39201,
+      38660,
+      38289,
+      37935,
+      37613,
+      37306,
+      37051,
+      36863,
+      36694,
+      36471,
+      36273,
+      36077,
+      35905,
+      35722,
+      35579,
+      35437,
+      35304,
+      35176,
+      35056,
+      34952,
+      34831,
+      34627,
+      34531,
+      34476
+    ]
+  }
+}

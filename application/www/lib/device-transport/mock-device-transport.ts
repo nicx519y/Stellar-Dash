@@ -1,3 +1,5 @@
+import { normalizeScreenControl, applyScreenControlPatch } from '../screen-control-config';
+import { resourceFetch,MockResourceDevice } from '../resource-fetch-mock';
 import { JPEG_CAPABILITY, JPEG_FORMAT, validateJpegPayload } from '../../../../common/uimg-jpeg.cjs';
 import { firmwareRuntime as mockFirmwareCatalog } from '../admin/firmware-mock';
 import { mockInstallPackage, mockVerificationKey } from '../admin/firmware-install-mock';
@@ -9,8 +11,6 @@ import {
   ConnectionMode,
   DEFAULT_NUM_HOTKEYS_MAX,
   DEFAULT_SCREEN_CONTROL_CONFIG,
-  normalizeScreenStandbyTimeout,
-  SCREEN_STANDBY_TIMEOUT_OPTIONS,
   GameControllerButton,
   GameProfile,
   GameSocdMode,
@@ -102,6 +102,7 @@ interface PersistedImage extends Omit<MockImage, 'data'> {
 }
 
 interface PersistedMockState {
+  lightingResources?: MockResourceDevice['state'];
   rfBinding?: MockBindingState;
   version: typeof MOCK_STATE_VERSION;
   globalConfig: typeof DEFAULT_GLOBAL_CONFIG;
@@ -244,6 +245,7 @@ export class MockDeviceTransport implements DeviceTransport {
   session: DeviceSession | null = null;
 
   private transactionId = 0;
+  private lightingResources = new MockResourceDevice();
   private profiles = fixedMockProfiles([makeProfile('profile-arcade', 'Profile-01', false), makeProfile('profile-tournament', 'Profile-02', false)]);
   private defaultProfileId = this.profiles[0].id;
   private globalConfig = clone(DEFAULT_GLOBAL_CONFIG);
@@ -251,7 +253,7 @@ export class MockDeviceTransport implements DeviceTransport {
   private screenControl: ScreenControlConfig = {
     ...clone(DEFAULT_SCREEN_CONTROL_CONFIG),
     brightness: 72,
-    standbyDisplay: 'buttonLayout',
+    standbyDisplay: 'screenOff',
   };
   private hotkeys: Hotkey[] = [
     { key: 20, action: HotkeyAction.WebConfigMode, isHold: true, isLocked: true },
@@ -494,6 +496,7 @@ export class MockDeviceTransport implements DeviceTransport {
         ? input.href
         : input.url;
     const url = new URL(rawUrl, 'http://localhost');
+    if (url.pathname.startsWith('/api/resources')) return resourceFetch(input,init);
     if (url.pathname === '/api/firmware-releases/verification-key') return jsonResponse({ success: true, data: await mockVerificationKey() });
     if (url.pathname.startsWith('/api/firmware-releases/')) {
       const [, id, download] = /^\/api\/firmware-releases\/([^/]+)(?:\/(download))?$/.exec(url.pathname) || [];
@@ -763,6 +766,7 @@ export class MockDeviceTransport implements DeviceTransport {
         'monitor-active: stop button monitoring before saving configuration',
       );
     }
+    if(command.startsWith('resources_')){const result=await this.lightingResources.command(command,params,this.profiles,this.defaultProfileId);for(const profile of this.profiles)profile.lightingResources=clone(this.lightingResources.state.profiles[profile.id]);this.persistState();return result;}
     switch (command) {
       case 'get_firmware_inventory':
       case 'get_release_install_status': {
@@ -878,14 +882,7 @@ export class MockDeviceTransport implements DeviceTransport {
       }
       case 'update_screen_control_config': {
         const patch = asObject(params.screenControl);
-        if (patch.standbyTimeoutSeconds !== undefined &&
-            !SCREEN_STANDBY_TIMEOUT_OPTIONS.some(seconds => seconds === patch.standbyTimeoutSeconds)) {
-          throw new DeviceTransportError('protocol', 'Invalid standby timeout');
-        }
-        const candidate = {
-          ...this.screenControl,
-          ...patch,
-        } as ScreenControlConfig;
+        const candidate = applyScreenControlPatch(this.screenControl, patch);
         if (candidate.standbyDisplay === 'backgroundImage' || candidate.backgroundImageId) {
           const valid = candidate.backgroundImageId === 'USER_IMAGE'
               ? this.images.user !== null
@@ -1564,13 +1561,7 @@ export class MockDeviceTransport implements DeviceTransport {
           );
         } else if (part.section === 'screenControl') {
           const screenPatch = asObject(part.data);
-          candidate.screenControl = {
-            ...candidate.screenControl,
-            ...screenPatch,
-            standbyTimeoutSeconds: normalizeScreenStandbyTimeout(
-              screenPatch.standbyTimeoutSeconds ?? candidate.screenControl.standbyTimeoutSeconds,
-            ),
-          } as ScreenControlConfig;
+          candidate.screenControl = applyScreenControlPatch(candidate.screenControl, screenPatch, true);
         } else if (part.section === 'profile') {
           const profile = asObject(part.data) as unknown as GameProfile;
           if (
@@ -1580,6 +1571,10 @@ export class MockDeviceTransport implements DeviceTransport {
             throw new DeviceTransportError('protocol', 'Imported profile is missing id or name');
           }
           importedProfileIds.add(profile.id);
+          const resourceCandidate = new MockResourceDevice();
+          if (candidate.lightingResources) resourceCandidate.state = clone(candidate.lightingResources);
+          resourceCandidate.importProfile(profile);
+          candidate.lightingResources = resourceCandidate.state;
           const index = candidate.profiles.findIndex((item) => item.id === profile.id);
           if (index >= 0) candidate.profiles[index] = { ...clone(profile), slotIndex: index };
         } else if (part.section === 'adcConfig') {
@@ -1806,6 +1801,7 @@ export class MockDeviceTransport implements DeviceTransport {
 
   private captureState(): PersistedMockState {
     return {
+      lightingResources: clone(this.lightingResources.state),
       rfBinding: clone(this.rfBinding.state),
       version: MOCK_STATE_VERSION,
       globalConfig: clone(this.globalConfig),
@@ -1825,6 +1821,7 @@ export class MockDeviceTransport implements DeviceTransport {
   }
 
   private applyState(state: PersistedMockState): void {
+    if(state.lightingResources)this.lightingResources.state=clone(state.lightingResources);
     if (state.rfBinding) this.rfBinding.state = clone(state.rfBinding);
     if (!Array.isArray(state.profiles) || state.profiles.length === 0) {
       throw new DeviceTransportError('protocol', 'Persisted mock state has no profiles');
@@ -1837,10 +1834,7 @@ export class MockDeviceTransport implements DeviceTransport {
       power: mergePower(DEFAULT_GLOBAL_CONFIG.power, state.globalConfig.power, true),
       manualCalibrationActive: false,
     };
-    this.screenControl = {
-      ...clone(state.screenControl),
-      standbyTimeoutSeconds: normalizeScreenStandbyTimeout(state.screenControl.standbyTimeoutSeconds),
-    };
+    this.screenControl = normalizeScreenControl(state.screenControl);
     this.hotkeys = clone(state.hotkeys);
     this.profiles = fixedMockProfiles(clone(state.profiles));
     this.defaultProfileId = this.profiles.some((profile) => profile.id === state.defaultProfileId)
@@ -2241,6 +2235,7 @@ function isLiveMockConfigCommand(command: string): boolean {
 }
 
 function isPersistentMockConfigCommand(command: string): boolean {
+  if(['resources_commit','resources_apply','resources_remove'].includes(command))return true;
   switch (command) {
     case 'push_leds_config':
     case 'clear_leds_preview':

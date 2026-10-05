@@ -1,7 +1,7 @@
 'use client';
 
 import { Flex, Center, Box, Card, Button, HStack, HoverCard, Portal, Text, Icon } from '@chakra-ui/react';
-import React, { useEffect, useRef, useState, ReactNode, createContext, useContext } from 'react';
+import React, { useLayoutEffect, useRef, useState, ReactNode, createContext, useContext } from 'react';
 import { IconType } from 'react-icons/lib';
 
 // 按键选项接口
@@ -227,8 +227,8 @@ export function SettingContentLayout({
     // 使用外部传入的宽度或内部计算的宽度
     const containerWidth = externalContainerWidth || internalContainerWidth;
 
-    // 监听容器宽度变化
-    useEffect(() => {
+    // Measure before paint so route changes never show the initial, unscaled Hitbox.
+    useLayoutEffect(() => {
         if (externalContainerWidth) return; // 如果外部提供了宽度，不需要内部监听
 
         const updateWidth = () => {
@@ -305,6 +305,48 @@ export function SettingContentLayout({
                 height="100%" 
                 padding="18px"
                 className={className}
+                css={{
+                    '&:not(:has(.xora-screen-settings))': {
+                        minHeight:0, overflow:'hidden',
+                        '& > div:nth-of-type(2)':{minWidth:0},
+                        '& > div:nth-of-type(2) > div':{minWidth:0, width:'100%'},
+                        '& > div:last-of-type':{
+                            width:'778px', flexShrink:0, height:'100%', minHeight:0,
+                            overflowY:'auto', overflowX:'hidden', alignItems:'flex-start',
+                            scrollbarGutter:'stable',
+                        },
+                        '& > div:last-of-type > div':{width:'100%', height:'auto', minHeight:'100%'},
+                        '@media (max-width: 800px)': {
+                            display:'grid', gridTemplateColumns:'minmax(0, 1fr)', gridTemplateRows:'150px 260px auto',
+                            alignItems:'start', gap:'20px', padding:'12px', minWidth:0, overflowY:'auto', overflowX:'hidden',
+                            '& > div':{minWidth:0, width:'100%'},
+                            '& > div:first-of-type':{height:'150px'},
+                            '& > div:first-of-type > div':{borderRight:0},
+                            '& > div:nth-of-type(2)':{height:'260px', overflow:'hidden'},
+                            '& > div:nth-of-type(2) > div':{width:'100%', minWidth:0, height:'260px', padding:0},
+                            '& > div:last-of-type':{display:'block', width:'100%', height:'auto', overflow:'visible', scrollbarGutter:'auto'},
+                            '& > div:last-of-type > div':{width:'100%', minWidth:0, paddingLeft:0, borderLeft:0},
+                            '& fieldset':{minWidth:0, width:'100%'},
+                        },
+                    },
+                    '&:has(.xora-screen-settings)': {
+                        '@media (max-width: 1600px)': {
+                            display:'grid',gridTemplateColumns:'220px minmax(0, 1fr)',alignItems:'start',gap:'24px',height:'100%',minHeight:0,maxHeight:'100%',overflowY:'auto',alignSelf:'stretch',gridAutoRows:'max-content',
+                            '& > div':{minWidth:0},
+                            '& > div:nth-of-type(2)':{display:'none'},
+                            '& > div:last-of-type':{width:'100%',alignItems:'start'},
+                            '& .xora-screen-settings':{width:'100%',maxWidth:'778px'},
+                        },
+                        '@media (max-width: 800px)': {
+                            display:'flex',flexDirection:'column',padding:'12px',gap:'20px',
+                            '& > div:first-of-type':{width:'100%',height:'150px',flex:'none'},
+                            '& > div:first-of-type > div':{width:'100%',minWidth:0,borderRight:0,paddingRight:0},
+                            '& > div:last-of-type':{width:'100%',display:'block',flexShrink:0},
+                            '& .xora-screen-settings':{width:'100%',paddingLeft:0,borderLeft:0},
+                            '& fieldset':{minWidth:0,width:'100%'},
+                        },
+                    },
+                }}
             >
                 {/* 左侧边栏 */}
                 <Flex flex={0} justifyContent="flex-start" alignSelf="stretch" minH={0}>

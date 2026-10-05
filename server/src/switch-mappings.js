@@ -294,44 +294,87 @@ class SwitchMappingStore {
             );
         }
 
-        // The catalog no longer has a hidden-draft state. Promote the latest
-        // revision left by older server builds so existing zero-filled maps
-        // remain visible and installable after this migration.
-        const migrationNow = this.now();
-        const latestRevisionSql = `
-            SELECT latest.revision_id
-            FROM switch_mapping_revisions latest
-            WHERE latest.catalog_id = switch_mapping_catalogs.catalog_id
-            ORDER BY latest.revision DESC LIMIT 1
-        `;
-        const migrate = this.database.transaction(() => {
-            this.database.prepare(`
-                UPDATE switch_mapping_revisions
-                SET published_by = COALESCE(published_by, 'catalog-migration'),
-                    published_at = COALESCE(published_at, ?)
-                WHERE revision_id IN (
-                    SELECT revision_id FROM switch_mapping_revisions candidate
-                    WHERE candidate.revision = (
-                        SELECT MAX(latest.revision)
-                        FROM switch_mapping_revisions latest
-                        WHERE latest.catalog_id = candidate.catalog_id
-                    )
-                )
-            `).run(migrationNow);
-            this.database.prepare(`
-                UPDATE switch_mapping_catalogs
-                SET published_revision_id = (${latestRevisionSql}),
-                    updated_at = ?
-                WHERE archived = 0
-                  AND (${latestRevisionSql}) IS NOT NULL
-                  AND COALESCE(published_revision_id, '') <> (${latestRevisionSql})
-            `).run(migrationNow);
-        });
-        migrate();
+        // Publication is explicit. Never promote unfinished calibration records on restart.
+
     }
 
     close() {
         this.database.close();
+    }
+
+    seedDefaultMapping(seed) {
+        if (seed?.schemaVersion !== 1 ||
+            !/^[a-zA-Z0-9_-]{1,15}$/.test(seed.mapping?.id || '') ||
+            !/^[a-zA-Z0-9_-]{1,80}$/.test(seed.catalogId || '') ||
+            typeof seed.published !== 'boolean') {
+            throw new SwitchMappingError('INVALID_DEFAULT_MAPPING', 'Invalid default mapping identity.');
+        }
+        const compatibility = seed.compatibility;
+        if (!compatibility || !['productId', 'pcbRevision', 'hardwareVersion']
+            .every(key => typeof compatibility[key] === 'string' && compatibility[key].length > 0)) {
+            throw new SwitchMappingError('INVALID_DEFAULT_MAPPING', 'Invalid default mapping hardware.');
+        }
+        const metadata = normalizeCatalogMetadata(seed);
+        const revision = finiteInteger(seed.revision, 1, 0xffffffff, 'revision');
+        const mapping = { id: seed.mapping.id,
+            ...normalizeMappingInput(seed.mapping, { allowIncomplete: !seed.published }) };
+        if (mappingSha256(mapping) !== seed.sha256) {
+            throw new SwitchMappingError('INVALID_DEFAULT_MAPPING', 'Default mapping digest mismatch.');
+        }
+        if (seed.published && !this.runnable({original_values:JSON.stringify(mapping.originalValues),
+            sampling_frequency:mapping.samplingFrequency})) {
+            throw new SwitchMappingError('INVALID_DEFAULT_MAPPING', 'Published default mapping is not runnable.');
+        }
+        const cover = normalizeSwitchImage(seed.cover?.mimeType,
+            Buffer.from(seed.cover?.dataBase64 || '', 'base64'));
+        if (crypto.createHash('sha256').update(cover.data).digest('hex') !== seed.cover.sha256) {
+            throw new SwitchMappingError('INVALID_DEFAULT_MAPPING', 'Default cover digest mismatch.');
+        }
+        // This marker survives catalog deletion. Restarts and later releases
+        // must never restore a mapping deliberately removed by an administrator.
+        this.database.exec(`CREATE TABLE IF NOT EXISTS switch_mapping_bootstrap (
+            revision_id TEXT PRIMARY KEY, catalog_id TEXT NOT NULL, seeded_at TEXT NOT NULL
+        )`);
+        return this.database.transaction(() => {
+            if (this.database.prepare('SELECT 1 FROM switch_mapping_bootstrap WHERE revision_id = ?')
+                .get(mapping.id)) return { created: false, reason: 'already-migrated' };
+            const existing = this.catalog(seed.catalogId);
+            const existingRevision = this.revision(mapping.id);
+            if ((existingRevision && existingRevision.catalog_id !== seed.catalogId) ||
+                (existing && (existing.product_id !== compatibility.productId ||
+                    existing.pcb_revision !== compatibility.pcbRevision ||
+                    existing.hardware_version !== compatibility.hardwareVersion))) {
+                throw new SwitchMappingError('DEFAULT_MAPPING_CONFLICT', 'Default mapping identity conflicts with existing data.', 409);
+            }
+            if (!existing) {
+                this.assertDisplayNameAvailable(metadata.displayName, compatibility);
+                const now = this.now();
+                this.database.prepare(`INSERT INTO switch_mapping_catalogs (
+                    catalog_id, display_name, description, product_id, pcb_revision,
+                    hardware_version, published_revision_id, image_mime_type,
+                    image_data, image_updated_at, archived, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`).run(
+                    seed.catalogId, metadata.displayName, metadata.description,
+                    compatibility.productId, compatibility.pcbRevision, compatibility.hardwareVersion,
+                    seed.published ? mapping.id : null, cover.mimeType, cover.data,
+                    seed.cover.updatedAt || now, seed.createdAt || now, seed.updatedAt || now);
+                this.database.prepare(`INSERT INTO switch_mapping_revisions (
+                    revision_id, catalog_id, revision, device_name, length, step,
+                    sampling_noise, sampling_frequency, original_values, sha256,
+                    created_by, created_at, published_by, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    mapping.id, seed.catalogId, revision, mapping.name, mapping.length,
+                    mapping.step, mapping.samplingNoise, mapping.samplingFrequency,
+                    JSON.stringify(mapping.originalValues), seed.sha256, 'default-mapping',
+                    seed.revisionCreatedAt || now, seed.published ? 'default-mapping' : null,
+                    seed.published ? seed.publishedAt || now : null);
+            }
+            // Existing metadata, cover, curve revisions and publication choices
+            // remain authoritative, including edits made before this bootstrap.
+            this.database.prepare('INSERT INTO switch_mapping_bootstrap VALUES (?, ?, ?)')
+                .run(mapping.id, seed.catalogId, this.now());
+            return { created: !existing, catalogId: seed.catalogId, revisionId: mapping.id };
+        })();
     }
 
     catalog(catalogId) {
@@ -381,8 +424,8 @@ class SwitchMappingStore {
         }
     }
 
-    createDraft({ catalogId, metadata, compatibility, mapping, actor, allowBlank = false }) {
-        mapping = normalizeMappingInput(mapping, { allowBlank });
+    createDraft({ catalogId, metadata, compatibility, mapping, actor, allowBlank = false, allowIncomplete = false, resourceIdentity = null }) {
+        mapping = normalizeMappingInput(mapping, { allowBlank, allowIncomplete });
         metadata = normalizeCatalogMetadata(metadata);
         const transaction = this.database.transaction(() => {
             const now = this.now();
@@ -430,11 +473,23 @@ class SwitchMappingStore {
                 `).run(metadata.displayName, metadata.description, now, catalogId);
             }
 
-            const next = this.database.prepare(`
+            let next = this.database.prepare(`
                 SELECT COALESCE(MAX(revision), 0) + 1 AS revision
                 FROM switch_mapping_revisions WHERE catalog_id = ?
             `).get(catalogId).revision;
-            const revisionId = this.uniqueRevisionId();
+            let revisionId = this.uniqueRevisionId();
+            if (resourceIdentity) {
+                if (!/^[a-zA-Z0-9_-]{1,15}$/.test(resourceIdentity.id) ||
+                    !Number.isInteger(resourceIdentity.revision) ||
+                    resourceIdentity.revision < next || resourceIdentity.revision > 0xffffffff) {
+                    throw new SwitchMappingError('INVALID_RESOURCE_REVISION', 'Use a higher mapping revision and a valid resource ID.', 409);
+                }
+                if (this.revision(resourceIdentity.id)) {
+                    throw new SwitchMappingError('MAPPING_REVISION_EXISTS', 'Each axis curve revision needs a distinct resource ID for compatibility with installed mappings.', 409);
+                }
+                revisionId = resourceIdentity.id;
+                next = resourceIdentity.revision;
+            }
             const canonical = { id: revisionId, ...mapping };
             const sha256 = mappingSha256(canonical);
             this.database.prepare(`
@@ -461,6 +516,12 @@ class SwitchMappingStore {
         return decodeCatalog(row, revisionRow ? decodeRevision(revisionRow) : null);
     }
 
+    runnable(revision) {
+        if(!revision)return false;
+        const values=JSON.parse(revision.original_values);
+        return values.length>=2&&values.every((v,i)=>v>0&&(!i||v<=values[i-1]))&&values[0]>values[values.length-1]&&revision.sampling_frequency>0;
+    }
+
     publish(catalogId, revisionId, actor = 'unknown') {
         const catalog = this.catalog(catalogId);
         const revision = this.revision(revisionId);
@@ -477,6 +538,10 @@ class SwitchMappingStore {
                 'Archived switch mappings cannot be published.',
                 409
             );
+        }
+        const values=JSON.parse(revision.original_values);
+        if(values.length<2||values.some((v,i)=>!v||(i&&v>values[i-1]))||values[0]<=values[values.length-1]||!revision.sampling_frequency) {
+            throw new SwitchMappingError('SWITCH_MAPPING_INCOMPLETE','Finish and validate calibration before publishing.',409);
         }
         const now = this.now();
         const transaction = this.database.transaction(() => {
@@ -497,55 +562,23 @@ class SwitchMappingStore {
 
     updatePublishedMapping(catalogId, compatibility, input) {
         const catalog = this.catalog(catalogId);
-        if (!catalog || catalog.archived ||
-            catalog.product_id !== compatibility.productId ||
-            catalog.pcb_revision !== compatibility.pcbRevision ||
-            catalog.hardware_version !== compatibility.hardwareVersion ||
-            !catalog.published_revision_id) {
-            throw new SwitchMappingError(
-                'SWITCH_MAPPING_NOT_FOUND',
-                'Compatible published switch mapping was not found.',
-                404
-            );
+        if (!catalog || catalog.archived || catalog.product_id !== compatibility.productId ||
+            catalog.pcb_revision !== compatibility.pcbRevision || catalog.hardware_version !== compatibility.hardwareVersion) {
+            throw new SwitchMappingError('SWITCH_MAPPING_NOT_FOUND', 'Compatible mapping not found.', 404);
         }
-        const revision = this.revision(catalog.published_revision_id);
-        if (!revision || String(input?.id || '') !== revision.revision_id ||
-            Math.fround(Number(input?.step)) !== Math.fround(revision.step)) {
-            throw new SwitchMappingError(
-                'SWITCH_MAPPING_IDENTITY_MISMATCH',
-                'Recorded mapping identity or step does not match the published mapping.',
-                409
-            );
+        const latest = this.database.prepare('SELECT * FROM switch_mapping_revisions WHERE catalog_id=? ORDER BY revision DESC LIMIT 1').get(catalogId);
+        const original = this.revision(String(input?.id || ''));
+        if (!latest || !original || original.catalog_id !== catalogId || Math.fround(Number(input.step)) !== Math.fround(latest.step)) {
+            throw new SwitchMappingError('SWITCH_MAPPING_IDENTITY_MISMATCH', 'Mapping identity or step does not match.', 409);
         }
-        const mapping = normalizeMappingInput({
-            ...input,
-            name: revision.device_name,
-            step: revision.step,
-        }, { allowIncomplete: true });
-        const canonical = { id: revision.revision_id, ...mapping };
-        const sha256 = mappingSha256(canonical);
-        const now = this.now();
-        const transaction = this.database.transaction(() => {
-            this.database.prepare(`
-                UPDATE switch_mapping_revisions
-                SET length = ?, sampling_noise = ?, sampling_frequency = ?,
-                    original_values = ?, sha256 = ?
-                WHERE revision_id = ?
-            `).run(
-                canonical.length,
-                canonical.samplingNoise,
-                canonical.samplingFrequency,
-                JSON.stringify(canonical.originalValues),
-                sha256,
-                revision.revision_id
-            );
-            this.database.prepare(`
-                UPDATE switch_mapping_catalogs SET updated_at = ?
-                WHERE catalog_id = ?
-            `).run(now, catalogId);
-        });
-        transaction();
-        return this.published(catalogId, compatibility);
+        const mapping = normalizeMappingInput({...input, name:latest.device_name}, {allowIncomplete:true});
+        if (latest.published_at) {
+            return this.createDraft({catalogId,compatibility,mapping,
+                metadata:{displayName:catalog.display_name,description:catalog.description},actor:'calibration',allowIncomplete:true});
+        }
+        const canonical={id:latest.revision_id,...mapping};
+        this.database.prepare(`UPDATE switch_mapping_revisions SET length=?,sampling_noise=?,sampling_frequency=?,original_values=?,sha256=? WHERE revision_id=? AND published_at IS NULL`).run(mapping.length,mapping.samplingNoise,mapping.samplingFrequency,JSON.stringify(mapping.originalValues),mappingSha256(canonical),latest.revision_id);
+        return this.getAdminCatalog(catalogId,latest.revision_id);
     }
 
     unpublish(catalogId) {
@@ -673,7 +706,7 @@ class SwitchMappingStore {
             compatibility.productId,
             compatibility.pcbRevision,
             compatibility.hardwareVersion
-        ).map(row => {
+        ).filter(row=>this.runnable(this.revision(row.revision_id))).map(row => {
             return {
                 catalogId: row.catalog_id,
                 displayName: row.display_name,
@@ -711,7 +744,7 @@ class SwitchMappingStore {
             catalogId, compatibility.productId,
             compatibility.pcbRevision, compatibility.hardwareVersion
         );
-        if (!row) return null;
+        if (!row||!this.runnable(row)) return null;
         return decodeCatalog(row, decodeRevision(row));
     }
 
@@ -919,12 +952,7 @@ function initSwitchMappingRoutes(app, options) {
                 actor: req.authenticatedAdmin.username,
                 allowBlank: true,
             });
-            const published = store.publish(
-                item.catalogId,
-                item.revision.revisionId,
-                req.authenticatedAdmin.username
-            );
-            res.status(201).json({ success: true, data: published });
+            res.status(201).json({ success: true, data: item });
         })
     );
 

@@ -277,7 +277,9 @@ python server/tools/deploy_xora.py check
 python server/tools/deploy_xora.py package
 ```
 
-默认执行 `npm run build:hosted`，600 秒超时。成功后显示 `PACKAGE=...`、`SHA256=...` 和 `RELEASE=...`。发布包保存到 `.hbox/deploy/packages/`，采用白名单，只含前后端代码、共享解析文件和静态文件，不含真实数据、密钥、`.env`、Windows `node_modules`。
+默认执行 `npm run build:hosted`，600 秒超时。成功后显示 `PACKAGE=...`、`SHA256=...` 和 `RELEASE=...`。发布包保存到 `.hbox/deploy/packages/`，采用白名单，包含前后端代码、共享解析文件、静态文件和受控默认资源，不包含运行数据库、账户数据、密钥、`.env`、Windows `node_modules`。
+
+默认轴体映射使用受控资源 `resources/default-switch-mapping.json`，随发布包一起迁移；包含 `xingci-mini` 的原目录 ID、修订 `7E0b8pFI10fy`、曲线、展示名称和封面。服务启动在原 `switch_mappings.sqlite3` 内一次性导入，预检使用隔离数据库，正式激活继续先备份数据再启动。映射和图片摘要均须通过校验；导入与一次性标记在同一事务内提交。既有目录的后台名称、封面、曲线和发布状态优先，后续启动不覆盖；管理员删除后不自动恢复。该资源是产品默认内容，不携带本地账户或其他目录。其他本地 mapping 仍按独立数据迁移流程处理。
 
 已有同一源码对应的有效 Hosted 构建时，可用 `package --skip-build`；脚本不会凭此判断源码与产物是否一致，使用者需确认它是所需版本。构建失败时立即退出，不用旧产物继续打包。
 
@@ -385,6 +387,7 @@ sudo certbot certificates
 
 | 现象 | 排查与处理 |
 | --- | --- |
+| Switch Marking 部署后名称变成 `draft`、封面消失 | 目录展示名称和封面 BLOB 保存在 `HBOX_SERVER_DATA_DIR/switch_mappings.sqlite3`，设备只保存曲线 ID 和内部名称。当前默认映射随 `resources/default-switch-mapping.json` 一次性迁移；代码包不携带本地数据库。其他本地映射迁到远程时，须单独迁移 `switch_mapping_catalogs`、`switch_mapping_revisions`，保留目录 ID、修订 ID、封面和发布状态。先核对两端记录及远程备份，再按数据恢复流程备份、检查冲突并事务合并；不要覆盖整个生产数据库或自动发布草稿 |
 | `check` 报 `server.env` 或 unit 不一致 | 对照本机配置与 `/etc/xora/server.env`、systemd unit；`check` 要求与生成模板一致，人工改环境文件后须同步配置并核对，不能盲目重跑 `setup` 覆盖 |
 | SSH 认证或主机校验失败 | 核对本机 `ssh_key`、SSH 用户及可信主机指纹，保持 `StrictHostKeyChecking=yes`；新机器需先完成可信 SSH 登录 |
 | Node 版本或原生依赖错误 | 核对配置中的 Node/npm 路径与 Node 主版本，Linux 上安装依赖；保留发布阶段日志，不上传 Windows `node_modules` |

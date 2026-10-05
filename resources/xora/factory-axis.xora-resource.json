@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "engineVersion": 1,
+  "resourceId": "factory-axis",
+  "revision": 1,
+  "type": "switch-mapping",
+  "name": "xingci-mini",
+  "description": "XORA factory axis curve extracted from the existing slot resource",
+  "compatibility": {
+    "hardwareVersion": "2.0.0"
+  },
+  "payload": {
+    "name": "xingci-mini",
+    "length": 29,
+    "step": 0.10000000149011612,
+    "samplingNoise": 15,
+    "samplingFrequency": 2565,
+    "originalValues": [
+      51825,
+      50850,
+      49283,
+      47926,
+      46612,
+      45531,
+      44508,
+      43503,
+      42676,
+      41945,
+      41304,
+      40662,
+      40141,
+      39639,
+      39169,
+      38746,
+      38366,
+      38011,
+      37682,
+      37377,
+      37110,
+      36819,
+      36589,
+      36363,
+      36179,
+      35987,
+      35782,
+      35617,
+      35467
+    ]
+  }
+}

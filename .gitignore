@@ -65,3 +65,6 @@ windows-client/ui/tsconfig.tsbuildinfo
 
 
 
+
+# Isolated resource implementation validation output.
+application/build_resources_unlocked/

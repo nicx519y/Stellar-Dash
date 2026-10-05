@@ -7,6 +7,7 @@
 #include "configs/rf_binding_command_handler.hpp"
 #include "configs/config_sync.hpp"
 #include <map>
+#include "configs/resource_command_handler.hpp"
 
 // ============================================================================
 // DeviceCommandHandler 静态成员变量定义
@@ -61,6 +62,15 @@ DeviceCommandResponse DeviceCommandDispatcher::processCommand(const DeviceComman
 }
 
 void DeviceCommandDispatcher::initializeHandlers() {
+    registerHandler("resources_list",&ResourceCommandHandler::instance());
+    registerHandler("resources_status",&ResourceCommandHandler::instance());
+    registerHandler("resources_get",&ResourceCommandHandler::instance());
+    registerHandler("resources_begin",&ResourceCommandHandler::instance());
+    registerHandler("resources_chunk",&ResourceCommandHandler::instance());
+    registerHandler("resources_commit",&ResourceCommandHandler::instance());
+    registerHandler("resources_abort",&ResourceCommandHandler::instance());
+    registerHandler("resources_apply",&ResourceCommandHandler::instance());
+    registerHandler("resources_remove",&ResourceCommandHandler::instance());
     auto &binding=RfBindingCommandHandler::getInstance();
     registerHandler("get_rf_binding", &binding);
     registerHandler("prepare_rf_binding", &binding);

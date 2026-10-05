@@ -14,6 +14,7 @@
 extern "C" uint32_t HAL_GetTick(void);
 
 static uint8_t g_display = 0;
+static bool g_enabled = false;
 static uint32_t g_timeout_ms = 10000u;
 static char g_bg_image_id[32] = {0};
 static uint32_t g_bg = 0;
@@ -224,9 +225,14 @@ void ScreenStandby_Init(uint32_t nowMs, uint32_t inputMask)
     reset_image_runtime();
 }
 
-void ScreenStandby_Configure(uint8_t standbyDisplay, uint16_t timeoutSeconds, const char* backgroundImageId, uint32_t bgRgb888, uint32_t fgRgb888)
+void ScreenStandby_Configure(uint8_t standbyDisplay, uint16_t timeoutSeconds, const char* backgroundImageId, uint32_t bgRgb888, uint32_t fgRgb888, bool enabled)
 {
-    g_timeout_ms = (uint32_t)normalizeScreenStandbyTimeoutSeconds(timeoutSeconds) * 1000u;
+    const uint32_t timeout = (uint32_t)normalizeScreenStandbyTimeoutSeconds(timeoutSeconds) * 1000u;
+    if (enabled != g_enabled || timeout != g_timeout_ms || standbyDisplay != g_display) {
+        ScreenStandby_Wake(HAL_GetTick(), g_last_input_mask);
+    }
+    g_enabled = enabled;
+    g_timeout_ms = timeout;
     if (g_display != standbyDisplay) {
         g_display = standbyDisplay;
         g_need_redraw = true;
@@ -278,7 +284,7 @@ void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool screenIn
 void ScreenStandby_Tick(uint32_t nowMs)
 {
     if (g_active) return;
-    if (g_display == 0u) return;
+    if (!g_enabled) return;
     if ((uint32_t)(nowMs - g_last_activity_ms) < g_timeout_ms) return;
     if (g_display == 1u) {
         ensure_image_source();
@@ -314,7 +320,7 @@ void ScreenStandby_Wake(uint32_t nowMs, uint32_t inputMask)
 
 void ScreenStandby_Render(ST7789_Handle* lcd, uint32_t inputMask)
 {
-    if (!lcd || !g_active) return;
+    if (!lcd || !g_active || g_display == 0u) return; // Screen-off never draws or decodes.
     if (g_display == 1u) {
         ensure_image_source();
         if (g_image_source_valid && g_jpeg) {

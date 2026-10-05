@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { ResourceStore, initResourceRoutes } = require('./resources');
 // -*- coding: utf-8 -*-
 
 /**
@@ -200,6 +201,9 @@ app.locals.legacyDownloadTickets = legacyDownloadTickets;
 const switchMappingStore = new SwitchMappingStore({
     databasePath: storagePaths.switchMappingDatabase
 });
+switchMappingStore.seedDefaultMapping(fs.readJsonSync(
+    path.join(__dirname, '../../resources/default-switch-mapping.json')
+));
 app.locals.switchMappingStore = switchMappingStore;
 
 const imageGalleryStore = new ImageGalleryStore({
@@ -253,6 +257,7 @@ initSwitchMappingRoutes(app, {
     deviceAuth: deviceAccess,
     adminAccess
 });
+initResourceRoutes(app, {store: new ResourceStore(switchMappingStore), adminAccess, deviceAuth:deviceAccess});
 initImageGalleryRoutes(app, {
     store: imageGalleryStore,
     storage: imageGalleryStorage,

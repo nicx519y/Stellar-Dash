@@ -1,43 +1,43 @@
+#include "leds/lighting_resources.hpp"
 #include "screen_control/spi_screen_detail_entries.hpp"
-
-#include "storagemanager.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
+#include "storagemanager.hpp"
+namespace {
+XoraResource::Ref refs[32];
+const char *labels[32];
+unsigned entries() { return LightingResources::list(false, refs, labels, 32); }
+} // namespace
+uint8_t ScreenDetailLightEffect_InitIndex() {
+  auto *p = STORAGE_MANAGER.getDefaultGamepadProfile();
+  if (!p)
+    return 0;
 
-static const char* kLightEffectLabels[] = {
-    "Static",
-    "Breathing",
-    "Star",
-    "Flowing",
-    "Ripple",
-    "Transform",
-};
-
-static GamepadProfile* default_profile(void) {
-    return STORAGE_MANAGER.getDefaultGamepadProfile();
+  unsigned n = entries();
+  auto current = LightingResources::reference(p, false);
+  for (unsigned i = 0; i < n; i++)
+    if (!memcmp(&refs[i], &current, sizeof(current)))
+      return i;
+  return 0;
 }
-
-uint8_t ScreenDetailLightEffect_InitIndex(void) {
-    GamepadProfile* p = default_profile();
-    if (!p) return 0;
-    uint8_t v = (uint8_t)p->ledsConfigs.ledEffect;
-    if (v >= (uint8_t)NUM_EFFECTS) v = 0;
-    return v;
+void ScreenDetailLightEffect_Rotate(uint8_t *index, int8_t det) {
+  if (!index)
+    return;
+  int n = entries(), v = int(*index) + det;
+  *index = v < 0 ? 0 : v >= n ? n - 1 : v;
 }
-
-void ScreenDetailLightEffect_Rotate(uint8_t* ioIndex, int8_t det) {
-    if (!ioIndex) return;
-    int32_t idx = (int32_t)(*ioIndex) + det;
-    if (idx < 0) idx = 0;
-    if (idx >= (int32_t)NUM_EFFECTS) idx = (int32_t)NUM_EFFECTS - 1;
-    *ioIndex = (uint8_t)idx;
+void ScreenDetailLightEffect_Render(ST7789_Handle *lcd, uint8_t index,
+                                    const ScreenUiStyle &style) {
+  unsigned n = entries();
+  uint8_t selected = ScreenDetailLightEffect_InitIndex();
+  ScreenDetailRender_List(lcd, "Light Effect", labels, n, index, selected,
+                          style);
 }
-
-void ScreenDetailLightEffect_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
-    uint8_t selected = ScreenDetailLightEffect_InitIndex();
-    ScreenDetailRender_List(lcd, "Light Effect", kLightEffectLabels, (uint8_t)(sizeof(kLightEffectLabels) / sizeof(kLightEffectLabels[0])), index, selected, style);
-}
-
 void ScreenDetailLightEffect_OnConfirm(uint8_t index) {
-    GamepadProfile* p = default_profile();
-    if (p && index < (uint8_t)NUM_EFFECTS) p->ledsConfigs.ledEffect = (LEDEffect)index;
+  auto *p = STORAGE_MANAGER.getDefaultGamepadProfile();
+  unsigned n = entries();
+  if (!p || index >= n)
+    return;
+
+  if (LightingResources::select(p, false, refs[index], false))
+    ScreenUI_RequestDeferredSave(2000u);
 }

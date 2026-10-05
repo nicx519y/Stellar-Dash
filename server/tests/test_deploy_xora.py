@@ -28,7 +28,9 @@ class DeploymentTests(unittest.TestCase):
     def fixture(self):
         repo = self.root / 'repo'
         for name in ('server/src/server.js', 'server/scripts/account-role.js', 'server/package.json',
-                     'server/package-lock.json', 'common/uimg-jpeg.cjs'):
+                     'server/package-lock.json', 'common/uimg-jpeg.cjs',
+                     'common/xora-resource-codec.cjs', 'resources/xora/key-static.xora-resource.json',
+                     'resources/default-switch-mapping.json'):
             file = repo / name
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_text('{}')
@@ -64,6 +66,9 @@ class DeploymentTests(unittest.TestCase):
         destination.mkdir()
         manifest = deploy.inspect_bundle(archive, destination)
         self.assertIn('common/uimg-jpeg.cjs', manifest['files'])
+        self.assertIn('common/xora-resource-codec.cjs', manifest['files'])
+        self.assertIn('resources/xora/key-static.xora-resource.json', manifest['files'])
+        self.assertIn('resources/default-switch-mapping.json', manifest['files'])
         self.assertIn('server/scripts/account-role.js', manifest['files'])
         self.assertFalse(any('PRIVATE' in p.read_text() for p in destination.rglob('*') if p.is_file()))
         deploy.verify_export(destination / 'webconfig')
@@ -85,6 +90,22 @@ class DeploymentTests(unittest.TestCase):
             return [(m, b'corrupt' if m.name == 'common/uimg-jpeg.cjs' else data) for m, data in entries]
         with self.assertRaisesRegex(RuntimeError, 'Hash mismatch'):
             deploy.inspect_bundle(self.rewrite(archive, corrupt))
+
+    def test_default_mapping_must_be_present_even_with_a_consistent_manifest(self):
+        archive = self.package()
+        def remove_default(entries):
+            result = []
+            for member, data in entries:
+                if member.name == 'resources/default-switch-mapping.json':
+                    continue
+                if member.name == 'manifest.json':
+                    manifest = json.loads(data)
+                    del manifest['files']['resources/default-switch-mapping.json']
+                    data = json.dumps(manifest).encode()
+                result.append((member, data))
+            return result
+        with self.assertRaisesRegex(RuntimeError, 'Incomplete deployment bundle'):
+            deploy.inspect_bundle(self.rewrite(archive, remove_default))
 
     def test_traversal_symlink_duplicate_and_extra_entries_rejected(self):
         archive = self.package()

@@ -109,11 +109,12 @@ export default function HotkeysField(
     }
 
     return (
-        <Flex padding={"2px"} width={"730px"} gap={1} >
+        <Flex padding={"2px"} width="100%" minW={0} direction={{ base: 'column', md: 'row' }} gap={1} >
             <HStack 
                 pl="2" 
                 pr="2" 
                 flex={1}  
+                minW={0}
                 border={".5px solid"}
                 borderColor={isActive ? "green.500" : colorMode === "dark" ? "gray.800" : "gray.400"} 
                 borderRadius="sm" 
@@ -139,7 +140,8 @@ export default function HotkeysField(
                 collection={hotkeyActionCollection}
                 value={[value.action ?? HotkeyAction.None]}
                 onValueChange={e => onValueChange({ ...value, action: e.value[0] as HotkeyAction })}
-                width="320px"
+                width={{ base: '100%', md: '320px' }}
+                minW={0}
                 disabled={disabled}
             >
 
@@ -161,7 +163,8 @@ export default function HotkeysField(
                 collection={hotkeyTriggerCollection}
                 value={[value.isHold ? "hold" : "click"]}
                 onValueChange={e => onValueChange({ ...value, isHold: e.value[0] === "hold" })}
-                width="150px"
+                width={{ base: '100%', md: '150px' }}
+                minW={0}
                 disabled={disabled}
             >
                 <SelectTrigger bg="bg.muted" opacity={0.75} >

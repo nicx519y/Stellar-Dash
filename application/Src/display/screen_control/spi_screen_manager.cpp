@@ -1,3 +1,5 @@
+#include "screen_control_config.hpp"
+#include "screen_control/screen_deferred_save.hpp"
 #include "release_installer.hpp"
 #include "screen_control/jpeg_player.hpp"
 #include "screen_control/lcd_wake_frame.hpp"
@@ -54,6 +56,8 @@ static uint8_t g_cfgBrightness = 100;
 static uint8_t g_previewBrightness = 100;
 static bool g_brightnessPreviewActive = false;
 static uint8_t g_cfgStandbyDisplay = 0;
+static bool g_cfgStandbyEnabled = false;
+static bool g_screenOffActive = false;
 static uint16_t g_cfgStandbyTimeoutSeconds = 10u;
 static char g_cfgBackgroundImageId[32] = {0};
 static uint32_t g_cfgFeaturesMask = 0;
@@ -64,8 +68,7 @@ static bool g_firstDrawPending = true;
 static bool g_inDetail = false;
 static uint8_t g_detailMenuId = 0;
 static uint8_t g_detailIndex = 0;
-static bool g_deferredSavePending = false;
-static uint32_t g_deferredSaveDueMs = 0;
+static ScreenDeferredSave g_deferredSave;
 static uint32_t g_bl_boot_ms = 0;
 static bool g_bl_ramp_active = false;
 static bool g_wakeBacklightPending = false;
@@ -138,8 +141,7 @@ void ScreenUI_RequestRebootTo(uint8_t menuId, uint8_t index) {
 }
 
 void ScreenUI_RequestDeferredSave(uint32_t delayMs) {
-    g_deferredSavePending = true;
-    g_deferredSaveDueMs = HAL_GetTick() + delayMs;
+    g_deferredSave.request(HAL_GetTick(), delayMs);
 }
 
 static uint8_t clamp_brightness(uint8_t v) {
@@ -349,6 +351,7 @@ static void refresh_screen_cfg_cache(void) {
         g_cfgOkBg = ScreenUI_HighlightFromBg(bg, 64u);
     }
 
+    g_cfgStandbyEnabled = ScreenConfig::enabled(sc);
     g_cfgBrightness = clamp_brightness(sc.brightness);
     uint8_t standby = sc.standbyDisplay;
     if (standby != g_cfgStandbyDisplay) {
@@ -449,7 +452,7 @@ void SPIScreenManager::setup() {
 #endif
     UserImageCommandHandler::initializeStorageMigration();
     ScreenStandby_Init(HAL_GetTick(), get_gamepad_activity_mask());
-    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgStandbyTimeoutSeconds, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
+    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgStandbyTimeoutSeconds, g_cfgBackgroundImageId, g_cfgBg, g_cfgText, g_cfgStandbyEnabled);
     rebuildMenu();
     {
         uint8_t forcedMenuId = 0;
@@ -462,6 +465,7 @@ void SPIScreenManager::setup() {
 
 void SPIScreenManager::shutdown() {
     sleepSuspended = sleepResuming = false;
+    g_screenOffActive = false;
     g_wakeBacklightPending = false;
     g_brightnessPreviewActive = false;
     if (!g_inited && !SPIST7789_IsReady()) {
@@ -477,7 +481,7 @@ void SPIScreenManager::shutdown() {
     animStartMs = 0u;
     animDir = 0;
     g_bl_ramp_active = false;
-    g_deferredSavePending = false;
+    g_deferredSave.reset();
     g_firstDrawPending = true;
     g_menu_full_refresh_pending = false;
 }
@@ -732,10 +736,10 @@ void SPIScreenManager::loop() {
         rebuildMenu();
         g_menuCfgDirty = false;
     }
-    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgStandbyTimeoutSeconds, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
+    bool standbyWasActive = ScreenStandby_IsActive();
+    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgStandbyTimeoutSeconds, g_cfgBackgroundImageId, g_cfgBg, g_cfgText, g_cfgStandbyEnabled);
     bool standbyAllowed = (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_INPUT)
         && ADCManager::getInstance().isDmaSamplingActive();
-    bool standbyWasActive = ScreenStandby_IsActive();
     bool encoderEvent = (det != 0) || clicked || longPressed;
     if (!standbyAllowed) {
         if (ScreenStandby_Deactivate()) {
@@ -747,6 +751,15 @@ void SPIScreenManager::loop() {
     }
     bool standbyNowActive = ScreenStandby_IsActive();
     bool wokeFromStandby = standbyWasActive && !standbyNowActive;
+    const bool screenOff = standbyNowActive && g_cfgStandbyDisplay == 0u;
+    if (g_screenOffActive && !screenOff) {
+        g_wakeBacklightPending = true;
+        sleepResumeStart = nowMs;
+        g_wakeFrame.begin(nowMs);
+        (void)SPIST7789_ConsumeDmaDoneFlag();
+        g_menu_full_refresh_pending = true;
+    }
+    g_screenOffActive = screenOff;
     if (inputMask != 0u) {
         SystemSleep_NotifyButtonActivity(nowMs, inputMask);
     }
@@ -768,11 +781,19 @@ void SPIScreenManager::loop() {
         handleInput(nowMs, det, clicked, longPressed);
     }
 
-    if (g_deferredSavePending && tick_expired(nowMs, g_deferredSaveDueMs)) {
-        STORAGE_MANAGER.saveConfig();
-        g_deferredSavePending = false;
+    const bool saveWasFailed = g_deferredSave.failed();
+    const auto saveResult = g_deferredSave.flush(nowMs, [] { return STORAGE_MANAGER.saveConfig(); });
+    if (saveResult == ScreenDeferredSave::Result::Saved && saveWasFailed) {
+        ScreenTimedPopup_Close(&g_actionPopup);
+    } else if (saveResult == ScreenDeferredSave::Result::Failed && !saveWasFailed) {
+        static const char* lines[] = {"Changes pending", "Retrying save"};
+        show_webconfig_entry_popup("Save Failed", lines, 2);
     }
 
+    if (screenOff) {
+        ST7789_SetBacklight(&g_lcd, 0u);
+        return; // Keep polling input/save timers without submitting LCD frames.
+    }
     const bool firstFrame = g_firstDrawPending;
     if (g_firstDrawPending) {
         ST7789_FillScreen(&g_lcd, g_cfgBg);
@@ -917,7 +938,7 @@ void SPIScreenManager::renderBars() {
 
 bool SPIScreenManager::canAutoSleep() const
 {
-    return g_inited && !g_deferredSavePending && !g_brightnessPreviewActive &&
+    return g_inited && !g_deferredSave.pending() && !g_brightnessPreviewActive &&
            !sleepSuspended && !sleepDisplayFailed && !g_wakeBacklightPending;
 }
 

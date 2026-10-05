@@ -1,3 +1,4 @@
+#include "leds/lighting_resources.hpp"
 #include "configs/device_command_handler.hpp"
 #include "storagemanager.hpp"
 #include "system_logger.h"
@@ -383,6 +384,12 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     // // 组装最终结构
     cJSON_AddItemToObject(profileDetailsJSON, "keysConfig", keysConfigJSON);
     cJSON_AddItemToObject(profileDetailsJSON, "ledsConfigs", ledsConfigJSON);
+    auto* resources=cJSON_AddObjectToObject(profileDetailsJSON,"lightingResources");
+    for(unsigned a=0;a<2;a++) {
+        auto ref=LightingResources::reference(profile,a);
+        auto* entry=cJSON_AddObjectToObject(resources,a?"ambient":"keys");
+        cJSON_AddStringToObject(entry,"resourceId",ref.id);cJSON_AddNumberToObject(entry,"revision",ref.revision);
+    }
     cJSON_AddItemToObject(profileDetailsJSON, "triggerConfigs", triggerConfigsJSON);
 
     return profileDetailsJSON;

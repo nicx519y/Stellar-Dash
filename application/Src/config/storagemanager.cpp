@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "board_cfg.h"
+#include "leds/lighting_resources.hpp"
 
 static Storage::DefaultProfileChangedCallback g_defaultProfileChangedCbs[8] = {0};
 static uint8_t g_defaultProfileChangedCbCount = 0;
@@ -11,6 +12,7 @@ static uint8_t g_defaultProfileChangedCbCount = 0;
 void Storage::initConfig() {
 	APP_DBG("Storage::init begin.");
 	ConfigUtils::load(config);
+    LightingResources::initialize();
 	// APP_DBG("Storage::initConfig - hotkeys: %d", config.hotkeys[0].virtualPin);
 	// ConfigUtils::reset(config);
 }

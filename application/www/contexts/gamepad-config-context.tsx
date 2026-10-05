@@ -1,5 +1,10 @@
 'use client';
 
+import { verifyResource } from '@/lib/resources';
+
+
+import { normalizeScreenControl } from '@/lib/screen-control-config';
+import type { ResourceSender, ResourceInventory } from "@/lib/resources";
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { LedPreviewCoordinator } from '@/lib/led-preview-coordinator';
 import { downloadRelease, installRelease, type FirmwareInventory, type PreparedRelease, type ReleaseProgress } from '@/lib/device-transport/release-install-client';
@@ -146,6 +151,10 @@ interface GamepadConfigContextType {
     deleteDeviceImage: () => Promise<void>;
     fetchDeviceAuthorizedResource: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+    installMappingResource: (bytes:Uint8Array)=>Promise<SwitchMappingPayload>;
+    resourceCommand: ResourceSender;
+    resourceTransaction: <T>(operation: (send: ResourceSender) => Promise<T>) => Promise<T>;
+    syncLightingResourceReferences: (profiles: ResourceInventory['profiles']) => void;
     profileList: GameProfileList;
     defaultProfile: GameProfile;
     hotkeysConfig: Hotkey[];
@@ -1377,7 +1386,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stageDeferredProfileMacros = (id: string, macros: MacroConfig[]): void => editConfig(`macros:${id}`, macros);
     const stageDeferredHotkeysConfig = (hotkeys: Hotkey[]): void => editConfig('hotkeys', hotkeys);
     const stageDeferredGlobalConfig = (global: GlobalConfig): void => editConfig('global', global, true);
-    const stageDeferredScreenControl = (screen: ScreenControlConfig): void => editConfig('screen-control', screen);
+    const stageDeferredScreenControl = (screen: ScreenControlConfig): void => {
+        if (screenControl.standbySupported === false) throw new Error('Update device firmware to change screen settings');
+        editConfig('screen-control', screen);
+    };
     const resolveConfigRecovery = (restore: boolean): void => {
         const backup = recoveryRef.current;
         if (!backup) return;
@@ -1594,7 +1606,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         if (!/^[0-9a-f]{64}$/i.test(sha256) || computed !== sha256.toLowerCase()) {
             throw new Error('服务器映射 SHA-256 校验失败');
         }
-        await sendDeviceRequest('ms_install_mapping', { mapping, sha256 }, true);
+        const installation = await sendDeviceRequest('ms_install_mapping', { mapping, sha256 }, true);
+        if (installation?.runtimeReloaded !== true) throw new Error('映射已写入，但输入运行时未确认加载，请重新连接设备');
         const confirmed = await sendDeviceRequest('ms_get_mapping', { id: mapping.id }, true);
         const installed = confirmed?.mapping as SwitchMappingPayload | undefined;
         if (!installed || installed.id !== mapping.id ||
@@ -1667,9 +1680,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         );
         const created = await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
         const revision = created.revision;
-        if (!revision?.mapping || revision.mapping.id !== revision.revisionId ||
-            created.publishedRevisionId !== revision.revisionId) {
-            throw new Error('服务器未返回已发布的空白映射');
+        if (!revision?.mapping || revision.mapping.id !== revision.revisionId) {
+            throw new Error('服务器未返回标定草稿');
         }
         if (input.image) {
             await uploadSwitchMappingImage(created.catalogId, input.image);
@@ -1711,16 +1723,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             throw new Error('服务器未返回规范化草稿版本');
         }
 
-        // A draft remains hidden unless the normalized immutable revision can
-        // first be installed back onto the calibration sample and read back.
-        await installCanonicalMapping(revision.mapping, revision.sha256);
-        const publishResponse = await deviceClient.authorizedFetch(
-            `/api/admin/switch-mappings/${encodeURIComponent(hiddenDraft.catalogId)}` +
-            `/revisions/${encodeURIComponent(revision.revisionId)}/publish`,
-            { method: 'POST' },
-            ['config.read'],
-        );
-        return readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(publishResponse);
+        // Publication is an explicit operation in the resource administration page.
+        return hiddenDraft;
     };
 
     const previewScreenBrightness = async (brightness: number): Promise<void> => {
@@ -2083,7 +2087,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         if (generation !== configStoreRef.current.generation) return;
         if (!global || !screen) throw new Error('Device returned incomplete configuration');
         configStoreRef.current.refresh('global', global);
-        configStoreRef.current.refresh('screen-control', screen);
+        configStoreRef.current.refresh('screen-control', normalizeScreenControl(screen, true));
         publishConfig();
     };
     const stopLongDeviceActivity = async <T,>(stop: () => Promise<T>): Promise<T> => {
@@ -2798,6 +2802,19 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             deleteDeviceImage: (...args) => runConfigExclusive(() => deleteDeviceImage(...args), true),
             fetchDeviceAuthorizedResource,
 
+            resourceCommand: (command, params = {}) => { if (!["resources_list", "resources_status", "resources_get"].includes(command)) return Promise.reject(new Error("Use resourceTransaction for writes")); return sendDeviceRequest(command, params, true); },
+            resourceTransaction: operation => runConfigExclusive(() => operation((command, params = {}) => sendDeviceRequest(command, params, true)), true),
+            syncLightingResourceReferences: profiles => {
+                const store = configStoreRef.current;
+                let changed = false;
+                for (const {profileId, keys, ambient} of profiles) {
+                    const key = `profile:${profileId}`, confirmed = store.confirmed[key] as GameProfile | undefined;
+                    if (!confirmed || JSON.stringify(confirmed.lightingResources) === JSON.stringify({keys,ambient})) continue;
+                    store.refresh(key, {...confirmed, lightingResources:{keys,ambient}});
+                    changed = true;
+                }
+                if (changed) publishConfig();
+            },
             globalConfig,
             screenControl,
             profileList,
@@ -2863,6 +2880,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             updateSwitchMappingMetadata,
             updateSwitchMappingCurve,
             deleteSwitchMapping,
+            installMappingResource: bytes => runConfigExclusive(async()=>{
+                const source=await verifyResource(bytes);
+                if(source.type!=='switch-mapping')throw new Error('Expected a switch mapping resource');
+                const mapping={...source.payload,id:source.resourceId} as SwitchMappingPayload;
+                return installCanonicalMapping(mapping,await switchMappingSha256(mapping));
+            },true),
             installSwitchMapping: (...args) => runConfigExclusive(() => installSwitchMapping(...args), true),
             clearInstalledSwitchMapping: (...args) => runConfigExclusive(() => clearInstalledSwitchMapping(...args), true),
             createSwitchMappingFromCurrent,

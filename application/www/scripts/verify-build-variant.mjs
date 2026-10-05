@@ -6,7 +6,7 @@ if (variant !== 'hosted' && variant !== 'mock') {
   throw new Error('Usage: node scripts/verify-build-variant.mjs <hosted|mock>');
 }
 
-const buildRoot = path.resolve(process.cwd(), variant === 'mock' ? 'build-mock' : 'build');
+const buildRoot = path.resolve(process.cwd(), process.env.HBOX_WEB_OUTPUT_DIR || (variant === 'mock' ? 'build-mock' : 'build'));
 const mockMarkers = [
   'HBOX-V2-MOCK-0001',
   'mock-session',

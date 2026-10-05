@@ -264,7 +264,9 @@ class LedConfigSafetyTests(unittest.TestCase):
             "AroundLEDEffect::AROUND_METEOR",
         ):
             self.assertIn(effect, manager)
-        self.assertIn("getLedAnimation(opts->ledEffect)", manager)
+        self.assertIn("resourceEngines[0].render", manager)
+        self.assertIn("resourceEngines[1].render", manager)
+        self.assertIn("LightingResources::resolve(ref, light)", manager)
         loop_start = manager.index("void LEDsManager::loop(uint32_t virtualPinMask)")
         loop_end = manager.index(
             "uint8_t LEDsManager::startupRampDriveBrightness"

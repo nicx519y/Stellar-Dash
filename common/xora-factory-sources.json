@@ -1,0 +1,462 @@
+[
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "ambient-breath",
+    "revision": 1,
+    "type": "ambient-lighting",
+    "name": "Ambient breathing",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "ambient-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "sine",
+          "blend": "replace",
+          "mask": 0,
+          "from": 0,
+          "to": 1,
+          "params": [
+            1,
+            50,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "ambient-meteor",
+    "revision": 1,
+    "type": "ambient-lighting",
+    "name": "Ambient meteor",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "ambient-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "ring-tail",
+          "blend": "replace",
+          "mask": 0,
+          "from": 0,
+          "to": 1,
+          "params": [
+            1,
+            50,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "ambient-quake",
+    "revision": 1,
+    "type": "ambient-lighting",
+    "name": "Ambient quake",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "half-ambient-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "center-wave",
+          "blend": "replace",
+          "mask": 0,
+          "from": 0,
+          "to": 1,
+          "params": [
+            1,
+            50,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "ambient-static",
+    "revision": 1,
+    "type": "ambient-lighting",
+    "name": "Ambient static",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "ambient-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "constant",
+          "blend": "replace",
+          "mask": 0,
+          "from": 0,
+          "to": 0,
+          "params": [
+            1,
+            50,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "key-breath",
+    "revision": 1,
+    "type": "key-lighting",
+    "name": "Breathing",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "key-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "sine",
+          "blend": "replace",
+          "mask": 0,
+          "from": 1,
+          "to": 2,
+          "params": [
+            1,
+            50,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "signal": "pressed",
+          "blend": "replace",
+          "mask": 1,
+          "from": 0,
+          "to": 0,
+          "params": [
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "key-flow",
+    "revision": 1,
+    "type": "key-lighting",
+    "name": "Flowing",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "key-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "scan",
+          "blend": "replace",
+          "mask": 0,
+          "from": 1,
+          "to": 2,
+          "params": [
+            1,
+            140,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "signal": "pressed",
+          "blend": "replace",
+          "mask": 1,
+          "from": 0,
+          "to": 0,
+          "params": [
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "key-ripple",
+    "revision": 1,
+    "type": "key-lighting",
+    "name": "Ripple",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "key-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "radial",
+          "blend": "replace",
+          "mask": 0,
+          "from": 1,
+          "to": 2,
+          "params": [
+            1,
+            80,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "signal": "pressed",
+          "blend": "replace",
+          "mask": 1,
+          "from": 0,
+          "to": 0,
+          "params": [
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "key-star",
+    "revision": 1,
+    "type": "key-lighting",
+    "name": "Star",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "key-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "random-set",
+          "blend": "replace",
+          "mask": 0,
+          "from": 1,
+          "to": 2,
+          "params": [
+            1,
+            50,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "signal": "pressed",
+          "blend": "replace",
+          "mask": 1,
+          "from": 0,
+          "to": 0,
+          "params": [
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "key-static",
+    "revision": 1,
+    "type": "key-lighting",
+    "name": "Static",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "key-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "constant",
+          "blend": "replace",
+          "mask": 0,
+          "from": 1,
+          "to": 1,
+          "params": [
+            1,
+            50,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "signal": "pressed",
+          "blend": "replace",
+          "mask": 1,
+          "from": 0,
+          "to": 0,
+          "params": [
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "engineVersion": 1,
+    "resourceId": "key-transform",
+    "revision": 1,
+    "type": "key-lighting",
+    "name": "Transform",
+    "description": "XORA factory lighting resource",
+    "compatibility": {
+      "hardwareVersion": "2.0.0"
+    },
+    "payload": {
+      "clock": "key-cycle",
+      "colors": [
+        65280,
+        255,
+        16711680
+      ],
+      "layers": [
+        {
+          "signal": "scan-latch",
+          "blend": "replace",
+          "mask": 0,
+          "from": 1,
+          "to": 2,
+          "params": [
+            1,
+            140,
+            1.6,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "signal": "pressed",
+          "blend": "replace",
+          "mask": 1,
+          "from": 0,
+          "to": 0,
+          "params": [
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  }
+]

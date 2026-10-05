@@ -104,6 +104,9 @@ SECTIONS
     /* Local mode dispatch/ISP UI is CPU-only. Keep it in spare ITCM so the
        signed hosted build retains AXI RAM for its existing data and buffers.
        Startup already copies this whole span before calling constructors. */
+    *lighting_resources.o(.text .text.* .rodata .rodata.*)
+    *resource_command_handler.o(.text .text.* .rodata .rodata.*)
+    *leds_manager.o(.text .text.* .rodata .rodata.*)
     *main_state_machine.o(.text .text.* .rodata .rodata.*)
     *tx_isp_state.o(.text .text.* .rodata .rodata.*)
     *spi_screen_detail_tx_isp.o(.text .text.* .rodata .rodata.*)

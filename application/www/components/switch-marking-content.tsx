@@ -311,7 +311,7 @@ function AdminSwitchMarkingContent() {
         const generation = ++initializationGenerationRef.current;
         void Promise.allSettled([
             fetchMappingListRef.current(),
-            fetchCatalogRef.current(false),
+            fetchCatalogRef.current(isAdmin),
         ]).then(results => {
             if (generation !== initializationGenerationRef.current) return;
             const catalogResult = results[1];
@@ -365,7 +365,7 @@ function AdminSwitchMarkingContent() {
         let cancelled = false;
         void Promise.all(catalog.filter(item => item.hasImage).map(async item => {
             try {
-                const image = await fetchImageRef.current(item.catalogId, false);
+                const image = await fetchImageRef.current(item.catalogId, isAdmin);
                 return image
                     ? { catalogId: item.catalogId, image: await blobToDataUrl(image) }
                     : null;
@@ -384,7 +384,7 @@ function AdminSwitchMarkingContent() {
         return () => {
             cancelled = true;
         };
-    }, [catalog]);
+    }, [catalog, isAdmin]);
 
     useEffect(() => {
         if (!editor) return;
@@ -413,7 +413,7 @@ function AdminSwitchMarkingContent() {
     );
 
     const refreshCatalog = async () => {
-        const items = await fetchCatalogRef.current(false);
+        const items = await fetchCatalogRef.current(isAdmin);
         setCatalog(items);
         return items;
     };
@@ -429,7 +429,7 @@ function AdminSwitchMarkingContent() {
         if (!item.catalogId || !item.serverItem) return;
         setBusyId(item.catalogId);
         try {
-            const detail = await fetchSwitchMappingDetail(item.catalogId);
+            const detail = await fetchSwitchMappingDetail(item.catalogId, isAdmin);
             setSelectedMapping(detail.revision.mapping);
             if (mappingStorageMode !== "shared-singleton") {
                 showToast({
@@ -838,11 +838,14 @@ function AdminSwitchMarkingContent() {
                             mapping,
                         ),
                     ]);
-                    setSelectedMapping(detail.revision.mapping);
+                    // Recording remains attached to the curve currently on the device.
+                    // The server may have forked a published revision into a new draft.
+                    setSelectedMapping({ ...detail.revision.mapping, id: mapping.id });
                     setCatalog(current => current.map(item =>
                         item.catalogId === detail.catalogId
                             ? {
                                 ...item,
+                                isDraft: true,
                                 sha256: detail.revision.sha256,
                                 updatedAt: detail.updatedAt,
                             }
@@ -987,6 +990,8 @@ function AdminSwitchMarkingContent() {
                 item.catalogId === detail.catalogId
                     ? {
                         ...item,
+                        revisionId: detail.revision.revisionId,
+                        isDraft: true,
                         sha256: detail.revision.sha256,
                         updatedAt: detail.updatedAt,
                     }
@@ -1052,8 +1057,8 @@ function AdminSwitchMarkingContent() {
             gap={4}
             overflow="hidden"
         >
-            <Box width="100%">
-                <HStack justifyContent="space-between" mb={3}>
+            <Box width="100%" flexShrink={0}>
+                <HStack justifyContent="space-between" mb={3} minHeight="24px">
                     <HStack gap={2}>
                         <Text fontWeight="bold">{t.SWITCH_MAPPING_CATALOG_TITLE}</Text>
                         {mappingSource && (
@@ -1067,20 +1072,24 @@ function AdminSwitchMarkingContent() {
                     {busyId && <Spinner size="sm" />}
                 </HStack>
 
-                {!initialized ? (
-                    <Flex height={CARD_HEIGHT} alignItems="center" justifyContent="center">
-                        <Spinner />
-                    </Flex>
-                ) : (
                     <Flex
+                        data-testid="switch-mapping-catalog"
+                        aria-busy={!initialized}
                         width="100%"
                         minWidth={0}
+                        height={`calc(${CARD_HEIGHT} + 24px)`}
+                        flexShrink={0}
                         gap={3}
                         overflowX="auto"
                         overflowY="hidden"
                         paddingBottom={2}
                         alignItems="stretch"
                     >
+                        {!initialized ? (
+                            <Flex width="100%" height={CARD_HEIGHT} alignItems="center" justifyContent="center">
+                                <Spinner />
+                            </Flex>
+                        ) : (<>
                         {axisItems.map(item => {
                             const selected = item.mappingId === selectedMappingId;
                             const installing = item.catalogId !== null && busyId === item.catalogId;
@@ -1273,11 +1282,12 @@ function AdminSwitchMarkingContent() {
                                 </Text>
                             </Box>
                         )}
+                        </>)}
                     </Flex>
-                )}
             </Box>
 
             <Box
+                data-testid="switch-mapping-chart"
                 width="100%"
                 minHeight={0}
                 flex="1 1 0"

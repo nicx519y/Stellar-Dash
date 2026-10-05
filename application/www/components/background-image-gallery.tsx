@@ -323,7 +323,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
           clearDeviceImagePreview(previewIdentity);
           setCurrentPreview(''); setCurrentFingerprint(''); setCurrentGalleryId(null); onAvailabilityChange(false);
           const currentConfig = configRef.current;
-          if (currentConfig.standbyDisplay === 'backgroundImage') stageDeferredScreenControl({ ...currentConfig, standbyDisplay: 'none', backgroundImageId: '' });
+          if (currentConfig.standbyDisplay === 'backgroundImage') stageDeferredScreenControl({ ...currentConfig, standbyDisplay: 'screenOff', standbyEnabled: false, backgroundImageId: '' });
           return;
         }
         const expected = catalog.user.width * catalog.user.height * 2 * catalog.user.frameCount;

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "engineVersion": 1,
+  "resourceId": "pulse-scan",
+  "revision": 1,
+  "type": "key-lighting",
+  "name": "Pulse scan",
+  "description": "A new combination using the unchanged engine: breathing combined with a directional scan.",
+  "compatibility": {
+    "hardwareVersion": "2.0.0"
+  },
+  "payload": {
+    "clock": "key-cycle",
+    "colors": [
+      65280,
+      255,
+      16711680
+    ],
+    "layers": [
+      {
+        "signal": "sine",
+        "blend": "replace",
+        "mask": 0,
+        "from": 1,
+        "to": 2,
+        "params": [
+          1,
+          50,
+          1.6,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "signal": "scan",
+        "from": 0,
+        "to": 1,
+        "blend": "max",
+        "mask": 0,
+        "params": [
+          1,
+          65,
+          1.6,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "signal": "pressed",
+        "blend": "replace",
+        "mask": 1,
+        "from": 0,
+        "to": 0,
+        "params": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  }
+}

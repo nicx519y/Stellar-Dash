@@ -69,6 +69,7 @@ const nextConfig: NextConfig = {
                     ? 'lib/user-auth/runtime-mock.ts'
                     : 'lib/user-auth/runtime-hosted.ts',
             ),
+            '@hbox/resource-api$': path.resolve(process.cwd(), isMockBuild ? 'lib/resource-fetch-mock.ts' : 'lib/resource-fetch-hosted.ts'),
             '@hbox/admin-runtime$': path.resolve(
                 process.cwd(),
                 isMockBuild

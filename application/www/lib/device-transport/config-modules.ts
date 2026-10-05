@@ -1,4 +1,5 @@
-import { DEFAULT_SCREEN_CONTROL_CONFIG, type GameProfile, type GameProfileList } from '../../types/gamepad-config';
+import { normalizeScreenControl } from '../screen-control-config';
+import { type GameProfile, type GameProfileList } from '../../types/gamepad-config';
 import { profileSlots } from '../profile-slots';
 import { compactMacrosToLegacy } from './webhid-config-export';
 
@@ -54,11 +55,7 @@ export function decodeConfigResource(key: string, value: unknown, convert: (prof
   }
   if (key === 'screen-control') {
     if (!isRecord(value) || !['light', 'dark'].includes(value.screenStyle as string)) throw new Error('Invalid screen configuration');
-    const features = isRecord(value.features) ? value.features : {};
-    return { ...DEFAULT_SCREEN_CONTROL_CONFIG, ...value,
-      features: { ...DEFAULT_SCREEN_CONTROL_CONFIG.features, ...features },
-      featuresOrder: [...new Set([...(Array.isArray(value.featuresOrder) ? value.featuresOrder : []), ...DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder])]
-        .filter(key => key in DEFAULT_SCREEN_CONTROL_CONFIG.features) };
+    return normalizeScreenControl(value, true);
   }
   if (key === 'hotkeys') {
     if (!Array.isArray(value)) throw new Error('Invalid hotkeys configuration');

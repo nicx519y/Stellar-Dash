@@ -86,7 +86,8 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
                     </Text>
                     <Slider.Root
                         size="sm"
-                        width="680px"
+                        width="100%"
+                        minW={0}
                         min={0}
                         max={rateOptions.length - 1}
                         step={1}
@@ -141,7 +142,8 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
                 </Text>
                 <Slider.Root
                     size="sm"
-                    width="680px"
+                    width="100%"
+                    minW={0}
                     min={0}
                     max={autoSleepOptions.length - 1}
                     step={1}

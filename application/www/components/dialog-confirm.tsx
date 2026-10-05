@@ -24,7 +24,6 @@ const useConfirmStore = create<ConfirmState>(() => ({
 
 export function DialogConfirm() {
     const { isOpen, title, message, resolve, closable } = useConfirmStore();
-    const { t } = useLanguage();
 
     const handleClose = () => {
         useConfirmStore.setState({ isOpen: false });
@@ -40,35 +39,57 @@ export function DialogConfirm() {
         handleClose();
     };
 
+    return <ConfirmDialog open={isOpen} title={title} message={message}
+        showCancel={!!closable} closable={closable ?? true}
+        onCancel={handleCancel} onConfirm={handleConfirm} />;
+}
+
+/** Shared confirmation presentation for global prompts and feature-owned dialogs. */
+export type ConfirmDialogTone = 'info' | 'success' | 'warning' | 'error' | 'danger';
+
+export function ConfirmDialog({ open, title, message, showCancel = true, closable = true,
+    upperMiddle = false, tone = 'warning', onCancel, onConfirm }: {
+    open: boolean;
+    title?: string;
+    message: string;
+    showCancel?: boolean;
+    closable?: boolean;
+    upperMiddle?: boolean;
+    tone?: ConfirmDialogTone;
+    onCancel: () => void;
+    onConfirm: () => void;
+}) {
+    const { t } = useLanguage();
     return (
         <Portal>
             <ExclusiveDialog priority={OVERLAY_PRIORITY.confirmation}
-                open={isOpen} 
-                onOpenChange={(e) => !e.open && handleCancel()}
-                closeOnInteractOutside={closable ?? true}
-                closeOnEscape={closable ?? true}
+                open={open}
+                onOpenChange={(e) => !e.open && onCancel()}
+                closeOnInteractOutside={closable}
+                closeOnEscape={closable}
             >
                 <Dialog.Backdrop backdropFilter="blur(4px)" />
-                <Dialog.Positioner>
-                    <Dialog.Content>
+                <Dialog.Positioner {...(upperMiddle ? { alignItems: 'flex-start', pt: { base: '12', md: '20' }, px: '4' } : {})}>
+                    <Dialog.Content {...(upperMiddle ? { my: '0', width: 'calc(100vw - 32px)', maxH: 'calc(100dvh - 112px)', overflowY: 'auto' } : {})}>
                         <Dialog.Header>
                             <Dialog.Title fontSize="sm" opacity={0.75} >{title}</Dialog.Title>
                         </Dialog.Header>
                         <Dialog.Body>
-                            <Alert fontSize="sm" colorPalette={"yellow"}>
+                            <Alert fontSize="sm" status={tone === 'danger' ? 'warning' : tone}
+                                colorPalette={{info:'blue', success:'green', warning:'yellow', error:'red', danger:'yellow'}[tone]}>
                                 <Text whiteSpace="pre-wrap" lineHeight="1.5" >
                                     {message}
                                 </Text>
                             </Alert>
                         </Dialog.Body>
                         <Dialog.Footer>
-                            {closable && (
+                            {showCancel && (
                                 <Button
                                     width="100px"
                                     size="sm"
                                     colorPalette="teal"
                                     variant="surface"
-                                    onClick={handleCancel}
+                                    onClick={onCancel}
                                 >
                                     {t.BUTTON_CANCEL}
                                 </Button>
@@ -76,8 +97,8 @@ export function DialogConfirm() {
                             <Button
                                 width="100px"
                                 size="sm"
-                                colorPalette="green"
-                                onClick={handleConfirm}
+                                colorPalette={tone === 'danger' ? 'red' : 'green'}
+                                onClick={onConfirm}
                             >
                                 {t.BUTTON_CONFIRM}
                             </Button>

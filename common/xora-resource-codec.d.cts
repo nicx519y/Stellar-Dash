@@ -1,0 +1,14 @@
+export type ResourceType = 'switch-mapping' | 'key-lighting' | 'ambient-lighting';
+export type ResourceBase = { schemaVersion: 1; engineVersion: 1; resourceId: string; revision: number; name: string; description: string; compatibility: { hardwareVersion: string } };
+export type MappingPayload = { id?: string; name: string; length: number; step: number; samplingNoise: number; samplingFrequency: number; originalValues: number[] };
+export type MappingSource = ResourceBase & { type: 'switch-mapping'; payload: MappingPayload };
+export type LightingLayer = { signal: string; from: number; to: number; blend: string; mask: number; params: number[] };
+export type LightingSource = ResourceBase & { type: 'key-lighting' | 'ambient-lighting'; payload: { clock: string; colors: number[]; layers: LightingLayer[] } };
+export type ResourceSource = MappingSource | LightingSource;
+export const TYPES: readonly ResourceType[];
+export const SIGNALS: readonly string[];
+export const MAX_BYTES: number;
+export function validateSource(source: unknown): asserts source is ResourceSource;
+export function encode(source: unknown): Uint8Array;
+export function decode(bytes: Uint8Array): ResourceSource;
+export function digestInput(bytes: Uint8Array): Uint8Array;
