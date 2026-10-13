@@ -1,6 +1,6 @@
 'use client';
 
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { HStack, Slider, Switch, Text, VStack } from '@chakra-ui/react';
 import { GlobalConfig, WirelessReportRate } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
@@ -35,7 +35,7 @@ function formatAutoSleep(ms: number) {
 }
 
 export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolean }) {
-    const { globalConfig, stageDeferredGlobalConfig } = useGamepadConfig();
+    const { globalConfig, stageDeferredGlobalConfig } = useGamepadFields("globalConfig", "stageDeferredGlobalConfig");
     const { t } = useLanguage();
     const rate = globalConfig.wirelessReportRate ?? WirelessReportRate.RATE_1K;
     const rateIndex = Math.max(rateOptions.indexOf(rate), 0);

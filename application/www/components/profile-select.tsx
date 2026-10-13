@@ -7,13 +7,13 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { LuLayers3, LuPencil } from "react-icons/lu";
 import { FaLock } from "react-icons/fa";
 import { openForm } from '@/components/dialog-form';
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useLanguage } from '@/contexts/language-context';
 import { profileSlots } from '@/lib/profile-slots';
 
 export function ProfileSelect({ disabled = false }: { disabled?: boolean }) {
     const { profileList, switchProfile, stageDeferredProfileDetails, configEditingBlocked,
-        deviceConnected, deviceSession, dataIsReady, isLoading, rfBindingBusy } = useGamepadConfig();
+        deviceConnected, deviceSession, dataIsReady, isLoading, rfBindingBusy } = useGamepadFields("profileList", "switchProfile", "stageDeferredProfileDetails", "configEditingBlocked", "deviceConnected", "deviceSession", "dataIsReady", "isLoading", "rfBindingBusy");
     const { t } = useLanguage();
     const [operation, setOperation] = useState<'dialog' | 'save' | 'switch' | null>(null);
     const [error, setError] = useState('');

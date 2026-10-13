@@ -12,7 +12,7 @@ import {
 } from "@/types/gamepad-config";
 import HotkeysField from "./hotkeys-field";
 import { useLanguage } from "@/contexts/language-context";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { showToast } from "./ui/toaster";
 import { SettingDescription } from "./ui/setting-description";
 
@@ -41,7 +41,7 @@ export function HotkeySettingContent({
     calibrationActive = false,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
-    const { hitboxLayout } = useGamepadConfig();
+    const { hitboxLayout } = useGamepadFields("hitboxLayout");
 
     const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);
 

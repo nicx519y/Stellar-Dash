@@ -1,6 +1,6 @@
 import { Flex, Box, VStack,  Text } from "@chakra-ui/react";
 import DistanceBar from "./distance-bar";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 
 export default function ButtonsPerformanceTestField(
     props: {
@@ -15,7 +15,7 @@ export default function ButtonsPerformanceTestField(
 ) {
 
     const { index, maxDistance, currentDistance, pressStartDistance, pressTriggerDistance, releaseStartDistance, releaseTriggerDistance } = props;
-    const { defaultProfile } = useGamepadConfig();
+    const { defaultProfile } = useGamepadFields("defaultProfile");
 
     const { topDeadzone, bottomDeadzone } = defaultProfile.triggerConfigs?.triggerConfigs?.[index] || { topDeadzone: 0, bottomDeadzone: 0 };
 

@@ -3,7 +3,7 @@
 import { Box, Grid, HStack, Icon, Text, VStack } from "@chakra-ui/react"
 import { LuCpu, LuGamepad2, LuRadioTower, LuUserRound } from "react-icons/lu"
 
-import { useGamepadConfig } from "@/contexts/gamepad-config-context"
+import { useGamepadFields } from "@/contexts/gamepad-config-context"
 import { configuredTransportMode } from "@/lib/device-transport"
 import { PlatformLabelMap, platformForDisplay } from "@/types/gamepad-config"
 import { HudPanel, StatusChip } from "@/components/ui/hud"
@@ -78,7 +78,7 @@ export function StatusDock() {
     defaultProfile,
     globalConfig,
     firmwareInfo,
-  } = useGamepadConfig()
+  } = useGamepadFields("deviceConnected", "dataIsReady", "profileList", "defaultProfile", "globalConfig", "firmwareInfo")
 
   const selectedProfile =
     defaultProfile?.name ||

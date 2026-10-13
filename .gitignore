@@ -68,3 +68,18 @@ windows-client/ui/tsconfig.tsbuildinfo
 
 # Isolated resource implementation validation output.
 application/build_resources_unlocked/
+
+# Archived historical build caches. Existing tracked BIN/HEX images are retained.
+/application/build_rf_recovery_unlocked/
+/application/build_screen_report_rate_unlocked/
+/application/build_tx_backup_dma_unlocked/
+/application/build_size_eval/
+/application/build_size_eval_lto/
+/application/build_size_eval_unlocked/
+/RF_PHY_Hop/TX/build_tx_backup_dma_check/
+/RF_PHY_Hop/HAL/*.o
+/RF_PHY_Hop/HAL/*.d
+/RF_PHY_Hop/LIB/*.o
+/RF_PHY_Hop/LIB/*.d
+/connect-monitor/renderer/tsconfig.tsbuildinfo
+/application/www/playwright-report/

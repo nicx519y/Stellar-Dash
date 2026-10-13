@@ -10,6 +10,8 @@
 
 #include "device_security_boot_context.h"
 #include "webhid_protocol.h"
+#include "webhid_logical_assembler.hpp"
+#include "webhid_telemetry_state.hpp"
 
 class WebHidService
 {
@@ -46,33 +48,13 @@ private:
      * same bounded capacity in static RAM so a large request never attempts
      * to reserve the application's 8 KiB newlib heap.
      */
-    static constexpr size_t kMaximumLogicalBytes = 16u * 1024u;
+    static constexpr size_t kMaximumLogicalBytes = WebHidLogicalAssembler::Capacity;
     static constexpr size_t kMaximumStreamBytes = 8u * 1024u;
     static constexpr size_t kMaximumEventBytes = 8u * 1024u;
     static constexpr size_t kMaximumQueuedEventBytes = 16u * 1024u;
     static constexpr size_t kMaximumEventQueue = 8u;
     static constexpr size_t kMaximumOutboundBytes = 16u * 1024u;
     static constexpr size_t kMaximumOutboundMessages = 8u;
-    static constexpr size_t kEdgeQueueDepth = 64u;
-    static constexpr size_t kButtonStateQueueDepth = 32u;
-    struct LogicalAssembler
-    {
-        bool active = false;
-        uint8_t type = 0u;
-        bool secure = false;
-        bool discardingOversize = false;
-        uint32_t errorTransactionId = 0u;
-        size_t length = 0u;
-        /*
-         * The linker reserves only 8 KiB for the newlib heap. Reserving an
-         * 8 KiB std::vector for the first fragmented bootstrap request also
-         * needs allocator metadata and can fault inside _malloc_r. Keep the
-         * protocol's bounded logical-message workspace in static RAM instead.
-         * The extra byte is the NUL terminator required by cJSON.
-         */
-        std::array<uint8_t, kMaximumLogicalBytes + 1u> bytes = {};
-    };
-
     struct StreamState
     {
         bool active = false;
@@ -107,24 +89,6 @@ private:
         Checkpoint,
         Benchmark,
     };
-
-#pragma pack(push, 1)
-    struct PerfEdge
-    {
-        uint32_t timestampUs;
-        uint32_t edgeSequence;
-        uint8_t buttonIndex;
-        uint8_t pressed;
-        uint16_t rawAdc;
-        uint16_t currentDistanceUm;
-        uint16_t pressTriggerDistanceUm;
-        uint16_t pressStartDistanceUm;
-        uint16_t releaseTriggerDistanceUm;
-        uint16_t releaseStartDistanceUm;
-    };
-#pragma pack(pop)
-    static_assert(sizeof(PerfEdge) == 22u,
-                  "PERF_EDGE ABI must remain 22 bytes");
 
     bool validateBootContext();
     bool handleBenchmarkRpc(uint32_t transactionId, const std::string &command, void *params);
@@ -251,7 +215,7 @@ private:
     volatile uint8_t rxHead = 0u;
     volatile uint8_t rxTail = 0u;
     volatile uint8_t rxCount = 0u;
-    LogicalAssembler assembler;
+    WebHidLogicalAssembler assembler;
     StreamState stream;
     std::deque<OutboundLogical> outboundQueue;
     /*
@@ -270,40 +234,7 @@ private:
     bool captureBinary = false;
     bool captureBinaryInvalid = false;
 
-    /* Ordinary button-state snapshots are native single-report events.  Keep
-     * transitions in a fixed FIFO so a short press/release cannot disappear
-     * merely because the previous physical report is still in flight. */
-    std::array<webhid_button_state_v1_t,
-               kButtonStateQueueDepth> buttonStateQueue = {};
-    size_t buttonStateHead = 0u;
-    size_t buttonStateTail = 0u;
-    size_t buttonStateCount = 0u;
-    uint32_t buttonStateSequence = 0u;
-    uint16_t buttonStateDropped = 0u;
-
-    bool performanceEnabled = false;
-    bool samplePending = false;
-    uint32_t sampleTimestampUs = 0u;
-    uint32_t nextSampleAtMs = 0u;
-    uint32_t nextCheckpointAtMs = 0u;
-    uint32_t edgeSequence = 0u;
-    uint8_t droppedSamples = 0u;
-    uint32_t totalDroppedSamples = 0u;
-    std::array<PerfEdge, kEdgeQueueDepth> edgeQueue = {};
-    size_t edgeHead = 0u;
-    size_t edgeTail = 0u;
-    size_t edgeCount = 0u;
-    bool telemetryOverflow = false;
-    bool checkpointRequested = false;
-    bool checkpointActive = false;
-    uint8_t checkpointId = 0u;
-    uint8_t checkpointChunk = 0u;
-    uint32_t checkpointTimestampUs = 0u;
-    uint32_t checkpointEdgeSequence = 0u;
-    uint16_t checkpointMaximumTravelUm = 0u;
-    uint16_t checkpointDroppedSamples = 0u;
-    std::array<webhid_perf_checkpoint_key_v1_t,
-               WEBHID_PERF_KEY_COUNT> checkpointKeys = {};
+    WebHidTelemetryState telemetry;
     uint32_t lastDwtCycles = 0u;
     uint64_t accumulatedCycles = 0u;
 };

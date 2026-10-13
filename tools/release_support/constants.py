@@ -1,0 +1,37 @@
+"""Release package layout and validation constants; wire values are unchanged."""
+
+import re
+from firmware_metadata import (
+    SLOT_A_APPLICATION_ADDR, SLOT_A_APPLICATION_SIZE,
+    SLOT_A_WEBRESOURCES_ADDR, SLOT_A_WEBRESOURCES_SIZE,
+    SLOT_A_ADC_MAPPING_ADDR, SLOT_A_ADC_MAPPING_SIZE,
+    SLOT_B_APPLICATION_ADDR, SLOT_B_APPLICATION_SIZE,
+    SLOT_B_WEBRESOURCES_ADDR, SLOT_B_WEBRESOURCES_SIZE,
+    SLOT_B_ADC_MAPPING_ADDR, SLOT_B_ADC_MAPPING_SIZE,
+)
+
+STM32_OTA_COMPONENTS = ("application", "webresources", "adc_mapping")
+LATEST_HARDWARE_VERSION = "2.0.0"
+HARDWARE_VERSION_CODE_V2 = 0x00020000
+_SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_P256_SIGNATURE_RE = re.compile(r"^[0-9a-f]{128}$")
+SIGNED_METADATA_FILENAME = "metadata.bin"
+_TRUST_HEADER_MARKERS = (
+    "#define HBOX_MANUFACTURER_CA_KEY_PROVISIONED 1u",
+    "#define HBOX_FIRMWARE_RELEASE_PUBLIC_KEY_PROVISIONED 1u",
+    "#define HBOX_WEBCONFIG_AUTH_KEY_SLOT_COUNT 2u",
+)
+
+STM32_OTA_LAYOUT = {
+    "A": {
+        "application": (SLOT_A_APPLICATION_ADDR, SLOT_A_APPLICATION_SIZE),
+        "webresources": (SLOT_A_WEBRESOURCES_ADDR, SLOT_A_WEBRESOURCES_SIZE),
+        "adc_mapping": (SLOT_A_ADC_MAPPING_ADDR, SLOT_A_ADC_MAPPING_SIZE),
+    },
+    "B": {
+        "application": (SLOT_B_APPLICATION_ADDR, SLOT_B_APPLICATION_SIZE),
+        "webresources": (SLOT_B_WEBRESOURCES_ADDR, SLOT_B_WEBRESOURCES_SIZE),
+        "adc_mapping": (SLOT_B_ADC_MAPPING_ADDR, SLOT_B_ADC_MAPPING_SIZE),
+    },
+}

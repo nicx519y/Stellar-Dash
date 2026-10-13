@@ -43,6 +43,8 @@
 
 ## 当前实现说明
 
+2026-10-14 的职责拆分、命令表生成、缓存归档与验证边界见 [架构整理记录](architecture-optimization.md)。
+
 ### 输入与无线
 
 TIM2 根据输入上报速率触发 ADC 序列，DMA 保持 circular 模式；改速率先停机并重装 ADC/DMA。旧“每 tick 软件 DMA one-shot”说明不能用于修改当前采样路径。

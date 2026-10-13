@@ -1,4 +1,5 @@
 #include "webhid_rpc_dispatcher.hpp"
+#include "webhid_command_policy.generated.h"
 
 #include <array>
 #include <cstring>
@@ -158,102 +159,6 @@ void WebHidRpcDispatcher::clearSerializedResponse()
 
 uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
 {
-    static const char *const configRead[] = {
-        "get_rf_binding",
-        "get_global_config",
-        "get_config_manifest",
-        "get_hotkeys_config",
-        "get_screen_control_config",
-        "export_all_config",
-        "get_profile_list",
-        "get_default_profile",
-        "get_profile_details",
-        "get_macro",
-        "get_profile_macros",
-        "ms_get_list",
-        "ms_get_mark_status",
-        "ms_get_default",
-        "ms_get_mapping",
-        "get_adc_config_backup",
-        "ms_mapping_draft_get",
-        "get_hitbox_layout",
-        "get_firmware_metadata",
-        "get_firmware_inventory",
-        "get_release_install_status",
-        "resources_list", "resources_status", "resources_get",
-    };
-    static const char *const configWrite[] = {
-        "resources_begin", "resources_chunk", "resources_commit", "resources_abort", "resources_apply", "resources_remove",
-        "update_global_config",
-        "update_hotkeys_config",
-        "update_screen_control_config",
-        "preview_screen_brightness",
-        "import_all_config",
-        "import_config_begin",
-        "import_config_part",
-        "import_config_finish",
-        "import_config_abort",
-        "push_leds_config",
-        "clear_leds_preview",
-        "update_profile",
-        "update_macro",
-        "update_profile_macros",
-        "create_profile",
-        "delete_profile",
-        "switch_default_profile",
-        "ms_set_default",
-        "ms_create_mapping",
-        "ms_delete_mapping",
-        "ms_rename_mapping",
-        "clear_manual_calibration_data",
-        "ms_install_mapping",
-        "ms_clear_installed_mapping",
-        "ms_mapping_draft_begin",
-        "ms_mark_mapping_sync",
-    };
-    static const char *const monitorRead[] = {
-        "start_button_monitoring",
-        "stop_button_monitoring",
-        "start_button_performance_monitoring",
-        "stop_button_performance_monitoring",
-        "get_button_states",
-        "get_device_logs_list",
-        "performance.get-checkpoint",
-        "performance.clock-sync",
-    };
-    static const char *const deviceControl[] = {
-        "prepare_rf_binding",
-        "commit_rf_binding",
-        "abort_rf_binding",
-        "reboot",
-        "exit_webconfig",
-        "start_manual_calibration",
-        "stop_manual_calibration",
-        "get_calibration_status",
-        "check_is_manual_calibration_completed",
-        "ms_mark_mapping_start",
-        "ms_mark_mapping_stop",
-        "ms_mark_mapping_step",
-    };
-    static const char *const firmwareUpdate[] = {
-        "begin_release_install",
-        "backup_release_tx",
-        "prepare_release_install",
-        "activate_release_install",
-        "abort_release_install",
-        "retry_release_install",
-        "create_firmware_upgrade_session",
-        "upload_firmware_chunk",
-        "complete_firmware_upgrade_session",
-        "abort_firmware_upgrade_session",
-        "get_firmware_upgrade_status",
-        "cleanup_firmware_upgrade_session",
-        "ch585_update_status",
-        "ch585_update_begin",
-        "ch585_update_chunk",
-        "ch585_update_complete",
-    };
-
     if (command == "ping" || command == "session.end") {
         return HBOX_SCOPE_CONFIG_READ;
     }

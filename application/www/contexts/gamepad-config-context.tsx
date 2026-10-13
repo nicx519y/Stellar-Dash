@@ -1,2945 +1,457 @@
 'use client';
+import { useCalibrationState } from './gamepad-config/calibration-state';
+import { useConfigurationActions } from './gamepad-config/configuration-actions';
+import { useConfigurationState } from './gamepad-config/configuration-state';
+import { createConfigTransactions } from './gamepad-config/configuration-transactions';
+import { GamepadConfigContextType } from './gamepad-config/contract';
+import { useFeedbackActions } from './gamepad-config/feedback-actions';
+import { useFeedbackState } from './gamepad-config/feedback-state';
+import { useFirmwareActions } from './gamepad-config/firmware-actions';
+import { useFirmwareState } from './gamepad-config/firmware-state';
+import { useMappingActions } from './gamepad-config/mapping-actions';
+import { createResourceActions } from './gamepad-config/resource-actions';
+import { createSelectionContext } from './gamepad-config/selection-context';
+import { SelectionStore } from './gamepad-config/selection-store';
+import { useSessionActions } from './gamepad-config/session-actions';
+import { useSessionLifecycle } from './gamepad-config/session-lifecycle';
+import { useSessionReset } from './gamepad-config/session-reset';
+import { useSessionState } from './gamepad-config/session-state';
 
-import { verifyResource } from '@/lib/resources';
-
-
-import { normalizeScreenControl } from '@/lib/screen-control-config';
-import type { ResourceSender, ResourceInventory } from "@/lib/resources";
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { LedPreviewCoordinator } from '@/lib/led-preview-coordinator';
-import { downloadRelease, installRelease, type FirmwareInventory, type PreparedRelease, type ReleaseProgress } from '@/lib/device-transport/release-install-client';
-import { saveReleaseConfigBackup } from '@/lib/device-transport/release-config-backup';
-import {
-    GameProfile,
-    KeyCombination,
-    LedsEffectStyle,
-    AroundLedsEffectStyle,
-    Platform, GameSocdMode,
-    GameControllerButton, Hotkey, GameProfileList, GlobalConfig,
-    XInputButtonMap, PS4ButtonMap, SwitchButtonMap,
-    MacroConfig,
-    MAX_NUM_MACROS,
-    MAX_MACRO_STEPS,
-    ScreenControlConfig,
-    DEFAULT_SCREEN_CONTROL_CONFIG
-} from '@/types/gamepad-config';
-import {
-    StepInfo,
-    ADCValuesMapping,
-    SwitchMappingCatalogDetail,
-    SwitchMappingCatalogItem,
-    SwitchMappingPayload,
-    switchMappingSha256,
-} from '@/types/adc';
-import {
-    ButtonStates,
-    CalibrationStatus,
-    DeviceFirmwareInfo,
-    FirmwareUpgradeConfig,
-    FirmwareUpgradeSession,
-    FirmwarePackage,
-    FirmwareUpdateCheckResponse,
-    LEDsConfig,
-    FirmwarePackageDownloadProgress,
-    FirmwareUpdateCheckRequest
-} from '@/types/types';
-
-export interface HitboxLayoutItem {
-    x: number;
-    y: number;
-    r: number;
-}
+import React, { useLayoutEffect, useMemo, useRef } from 'react';
 
 import {
-    DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE,
-    DEFAULT_FIRMWARE_UPGRADE_TIMEOUT
-} from '@/types/gamepad-config';
-
-import {
-    configuredTransportMode,
-    createDeviceCommandClient,
-    DEFAULT_DEVICE_TRANSPORT_CONFIG,
-    DeviceCommandMessage,
-    DeviceSession,
-    DeviceCommandClient,
-    DeviceConnectionError,
-    DeviceConnectionPhase,
-    DeviceImageCatalog,
-    DeviceImageTarget,
-    DeviceImageUploadRequest,
-    DeviceRequestOptions,
-    DeviceResponse,
-    DeviceTransportConfig,
-    DeviceTransportState,
-    PerformanceTelemetryController,
-    PostReadyRequestScheduler,
-    registerDevicePageLifecycle,
-    registerDeviceVisibilityLifecycle,
-    registerDeviceArrivalReconnect,
-    scheduleInitialDeviceAutoConnect,
-    WebHidTransport,
-    WEBHID_FIRMWARE_CHUNK_DATA_SIZE,
+    DeviceConnectionPhase
 } from '@/lib/device-transport';
-
-// 导入事件总线
-import { eventBus, EVENTS } from '@/lib/event-manager';
-import { BUTTON_STATE_CHANGED_CMD, type ButtonStateBinaryData } from '@/lib/button-binary-parser';
-import {
-    SharedButtonMonitorLease,
-    type SharedButtonMonitorLeaseToken,
-} from '@/lib/button-monitor-lifecycle';
-import {
-    DeferredConfigCoordinator,
-    type ConfigSyncState,
-} from '@/lib/deferred-config-coordinator';
-
-import { SessionConfigStore, cloneConfig, configDifferences, restoredConfigDraft, type ConfigDraftBackup, type ConfigResources } from '@/lib/session-config-store';
-import { writeConfigResource } from '@/lib/device-transport/config-snapshot';
-import { readDeviceConfigSnapshot, type ConfigSyncProgress, type ConfigSyncResult } from '@/lib/device-transport/config-sync';
-
-// 导入固件工具函数
-import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
-
-import { initializeDeviceSession } from '@/lib/device-transport/device-initialization';
-import { createDeviceConnectionWatchdog } from '@/lib/device-transport/device-connection-watchdog';
-import { resolveDefaultFirmwareServerHost } from '@/lib/device-transport/firmware-server-origin';
-import {
-    abortFirmwareSessionIfSafe,
-    FirmwareFinalizationUncertainError,
-    sendFirmwareChunkWithoutAmbiguousRetry,
-} from '@/lib/device-transport/firmware-upgrade-reliability';
-
-// 固件服务器配置
-const FIRMWARE_SERVER_CONFIG = {
-    // Hosted V2 pins API tokens to the page/auth origin.
-    defaultHost: resolveDefaultFirmwareServerHost(
-        configuredTransportMode(),
-        process.env.NEXT_PUBLIC_FIRMWARE_SERVER_HOST,
-    ),
-    // API 端点
-    endpoints: {
-        checkUpdate: '/api/firmware-check-update'
-    }
-};
-
-const EXIT_WEB_CONFIG_TIMEOUT_MS = 8_000;
-
-export type DeviceTransportConfigType = DeviceTransportConfig;
-
-import { BindingArgs, BindingSnapshot, checkBinding } from '@/lib/device-transport/rf-binding';
-
-interface GamepadConfigContextType {
-    rfBindingBusy: boolean;
-    rfBindingRequest: (op: number, args?: BindingArgs) => Promise<BindingSnapshot>;
-    runRfBindingOperation: <T,>(action: () => Promise<T>) => Promise<T>;
-    contextJsReady: boolean;
-    setContextJsReady: (ready: boolean) => void;
-
-    // WebHID 连接状态
-    deviceConnected: boolean;
-    deviceState: DeviceTransportState;
-    devicePhase: DeviceConnectionPhase;
-    showReconnect: boolean;
-    deviceError: DeviceConnectionError | null;
-    deviceSession: DeviceSession | null;
-    connectDevice: () => Promise<void>;
-    reconnectDevice: () => Promise<void>;
-    disconnectDevice: () => void;
-    getDeviceImageCatalog: () => Promise<DeviceImageCatalog>;
-    readDeviceImage: (target: DeviceImageTarget, totalSize: number) => Promise<Uint8Array>;
-    uploadDeviceImage: (request: DeviceImageUploadRequest) => Promise<void>;
-    deleteDeviceImage: () => Promise<void>;
-    fetchDeviceAuthorizedResource: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
-    installMappingResource: (bytes:Uint8Array)=>Promise<SwitchMappingPayload>;
-    resourceCommand: ResourceSender;
-    resourceTransaction: <T>(operation: (send: ResourceSender) => Promise<T>) => Promise<T>;
-    syncLightingResourceReferences: (profiles: ResourceInventory['profiles']) => void;
-    profileList: GameProfileList;
-    defaultProfile: GameProfile;
-    hotkeysConfig: Hotkey[];
-    globalConfig: GlobalConfig;
-    screenControl: ScreenControlConfig;
-    dataIsReady: boolean;
-    setUserRebooting: (rebooting: boolean) => void;
-    deviceBackgroundReadsPaused: boolean;
-    firmwareUpdating: boolean;
-    getReleaseInventory: () => Promise<FirmwareInventory>;
-    downloadSelectedRelease: (id: string, inventory: FirmwareInventory, progress?: (p: ReleaseProgress) => void) => Promise<PreparedRelease>;
-    installSelectedRelease: (release: PreparedRelease, progress: (p: ReleaseProgress) => void) => Promise<void>;
-    releaseInstallAction: (action: 'abort' | 'retry' | 'activate', sessionId: string) => Promise<void>;
-    setFirmwareUpdating: (updating: boolean) => void;
-
-    previewScreenBrightness: (brightness: number) => Promise<void>;
-    getProfileMacros: (profileId: string) => Promise<MacroConfig[]>;
-    switchProfile: (profileId: string) => Promise<void>;
-    stageDeferredProfileDetails: (profileId: string, profileDetails: GameProfile) => void;
-    stageDeferredProfileMacros: (profileId: string, macros: MacroConfig[]) => void;
-    stageDeferredHotkeysConfig: (hotkeysConfig: Hotkey[]) => void;
-    stageDeferredGlobalConfig: (globalConfig: GlobalConfig) => void;
-    stageDeferredScreenControl: (screenControl: ScreenControlConfig) => void;
-    flushDeferredConfig: (
-        afterFlush?: () => void | Promise<void>,
-        resumeMonitoringAfterSuccess?: boolean,
-        beforeFlush?: () => void | Promise<void>,
-    ) => Promise<void>;
-    terminateWebConfigActivities: () => Promise<void>;
-    deferredConfigDirty: boolean;
-    deferredConfigSaving: boolean;
-    configSyncState: ConfigSyncState;
-    configReadProgress: ConfigSyncProgress;
-    configEditingBlocked: boolean;
-    configRecovery: string[];
-    resolveConfigRecovery: (restore: boolean) => void;
-    retrySync: () => void;
-    flushAndWait: () => Promise<void>;
-    isLoading: boolean;
-    error: string | null;
-    setError: (error: string | null) => void;
-    rebootSystem: () => Promise<void>;
-    exitWebConfig: () => Promise<void>;
-    // 校准相关
-    calibrationStatus: CalibrationStatus;
-    fetchCalibrationStatus: () => Promise<CalibrationStatus>;
-    startManualCalibration: () => Promise<CalibrationStatus>;
-    stopManualCalibration: () => Promise<CalibrationStatus>;
-    clearManualCalibrationData: () => Promise<void>;
-    checkIsManualCalibrationCompleted: () => Promise<boolean>;
-    // ADC Mapping 相关
-    defaultMappingId: string;
-    markingStatus: StepInfo;
-    mappingList: { id: string, name: string }[];
-    activeMapping: ADCValuesMapping | null;
-    mappingStorageMode: string | null;
-    mappingSource: 'server-installed' | 'factory-fallback' | null;
-    fetchMappingList: () => Promise<void>;
-    fetchDefaultMapping: () => Promise<void>;
-    fetchActiveMapping: (id: string) => Promise<void>;
-    createMapping: (name: string, length: number, step: number) => Promise<string>;
-    deleteMapping: (id: string) => Promise<void>;
-    updateDefaultMapping: (id: string) => Promise<void>;
-    startMarking: (id: string) => Promise<void>;
-    stopMarking: () => Promise<void>;
-    stepMarking: () => Promise<void>;
-    syncMarkingProgress: () => Promise<void>;
-    fetchMarkingStatus: () => Promise<void>;
-    renameMapping: (id: string, name: string) => Promise<void>;
-    fetchSwitchMappingCatalog: (includeDrafts?: boolean) => Promise<SwitchMappingCatalogItem[]>;
-    fetchSwitchMappingDetail: (catalogId: string, admin?: boolean) => Promise<SwitchMappingCatalogDetail>;
-    fetchSwitchMappingImage: (catalogId: string, admin?: boolean) => Promise<Blob | null>;
-    uploadSwitchMappingImage: (catalogId: string, image: File) => Promise<void>;
-    updateSwitchMappingMetadata: (catalogId: string, displayName: string, description: string) => Promise<void>;
-    updateSwitchMappingCurve: (
-        catalogId: string,
-        mapping: SwitchMappingPayload,
-    ) => Promise<SwitchMappingCatalogDetail>;
-    deleteSwitchMapping: (catalogId: string) => Promise<void>;
-    installSwitchMapping: (
-        catalogId: string,
-        prefetchedDetail?: SwitchMappingCatalogDetail,
-    ) => Promise<SwitchMappingPayload>;
-    clearInstalledSwitchMapping: (mappingId: string) => Promise<ADCValuesMapping>;
-    createSwitchMappingFromCurrent: (input: {
-        displayName: string;
-        description: string;
-        length: number;
-        step: number;
-        image?: File | null;
-    }) => Promise<SwitchMappingCatalogDetail>;
-    beginMappingDraft: (name: string, length: number, step: number) => Promise<void>;
-    publishMappingDraft: (input: {
-        catalogId?: string;
-        displayName: string;
-        description: string;
-    }) => Promise<SwitchMappingCatalogDetail>;
-    // 按键监控相关
-    buttonMonitoringActive: boolean;
-    startButtonMonitoring: () => Promise<SharedButtonMonitorLeaseToken>;
-    stopButtonMonitoring: (lease: SharedButtonMonitorLeaseToken) => Promise<void>;
-    getButtonStates: () => Promise<ButtonStates>;
-    // 按键性能监控相关
-    startButtonPerformanceMonitoring: () => Promise<void>;
-    stopButtonPerformanceMonitoring: () => Promise<void>;
-    // LED 配置相关
-    pushLedsConfig: (ledsConfig: LEDsConfig, immediate?: boolean) => Promise<void>;
-    clearLedsPreview: (immediate?: boolean) => Promise<void>;
-    // 固件元数据相关
-    firmwareInfo: DeviceFirmwareInfo | null;
-    fetchFirmwareMetadata: () => Promise<void>;
-    // 固件更新检查相关
-    firmwareUpdateInfo: FirmwareUpdateCheckResponse | null;
-    checkFirmwareUpdate: (currentVersion: string, customServerHost?: string) => Promise<void>;
-    // 固件升级包下载和传输相关
-    upgradeSession: FirmwareUpgradeSession | null;
-    downloadFirmwarePackage: (downloadUrl: string, onProgress?: (progress: FirmwarePackageDownloadProgress) => void) => Promise<FirmwarePackage>;
-    uploadFirmwareToDevice: (firmwarePackage: FirmwarePackage, onProgress?: (progress: FirmwarePackageDownloadProgress) => void) => Promise<void>;
-    uploadCh585Firmware: (image: Uint8Array, onProgress?: (progress: number) => void) => Promise<void>;
-    setUpgradeConfig: (config: Partial<FirmwareUpgradeConfig>) => void;
-    getUpgradeConfig: () => FirmwareUpgradeConfig;
-    getValidChunkSizes: () => number[];
-    updateMarkingStatus: (status: StepInfo) => void;
-    // 立即发送队列中的特定命令
-    sendPendingCommandImmediately: (command: string) => boolean;
-    // 快速清空队列
-    flushQueue: () => Promise<void>;
-    // WebHID transport timeout configuration
-    getDeviceTransportConfig: () => DeviceTransportConfigType;
-    updateDeviceTransportConfig: (config: Partial<DeviceTransportConfigType>) => void;
-    // 是否禁用完成配置按钮
-    finishConfigDisabled: boolean;
-    setFinishConfigDisabled: (disabled: boolean) => void;
-    // 按键索引映射到游戏控制器按钮或组合键
-    indexMapToGameControllerButtonOrCombination: (
-        keyMapping: { [key in GameControllerButton]?: number[] },
-        keyCombinations: KeyCombination[],
-        inputMode: Platform
-    ) => { [key: number]: GameControllerButton | string };
-    // 设备日志相关（服务端固定返回最近50条）
-    fetchDeviceLogsList: () => Promise<string[]>;
-
-    // 导出所有配置
-
-    // 导入所有配置
-
-    // 获取Hitbox布局
-    getHitboxLayout: () => Promise<HitboxLayoutItem[]>;
-    hitboxLayout: HitboxLayoutItem[];
-}
-
-function makeEmptyMarkingStatus(): StepInfo {
-    return {
-        id: "",
-        mapping_name: "",
-        step: 0,
-        length: 0,
-        index: 0,
-        values: [],
-        sampling_noise: 0,
-        sampling_frequency: 0,
-        is_marking: false,
-        is_sampling: false,
-        is_completed: false
-    };
-}
-
-function makeEmptyCalibrationStatus(): CalibrationStatus {
-    return {
-        isActive: false,
-        uncalibratedCount: 0,
-        activeCalibrationCount: 0,
-        allCalibrated: false,
-        buttons: [],
-    };
-}
-
-function calibrationStatusFrom(value: unknown): CalibrationStatus | null {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    const candidate = value as Partial<CalibrationStatus>;
-    if (!Array.isArray(candidate.buttons)) return null;
-    return {
-        isActive: candidate.isActive === true,
-        uncalibratedCount: Number(candidate.uncalibratedCount ?? 0),
-        activeCalibrationCount: Number(candidate.activeCalibrationCount ?? 0),
-        allCalibrated: candidate.allCalibrated === true,
-        buttons: candidate.buttons,
-    };
-}
-
-const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
-
-/**
- * convert profile details
- * @param profile - GameProfile
- * @returns 
- */
-const converProfileDetails = (profile: any) => {
-    const rawMacros = profile.keysConfig?.macros;
-    const macros: MacroConfig[] = Array.isArray(rawMacros)
-        ? rawMacros.map((m: unknown) => {
-            const obj = (m && typeof m === "object") ? (m as Record<string, unknown>) : {};
-            const index = typeof obj.index === "number" ? obj.index : 0;
-            const triggerKeys = Array.isArray(obj.triggerKeys)
-                ? obj.triggerKeys.filter((x): x is number => typeof x === "number")
-                : [];
-            const steps = Array.isArray(obj.steps)
-                ? obj.steps
-                    .map((s: unknown) => (s && typeof s === "object") ? (s as Record<string, unknown>) : null)
-                    .filter((s): s is Record<string, unknown> => !!s)
-                    .map((s) => ({
-                        timeMs: typeof s.timeMs === "number" ? s.timeMs : 0,
-                        buttonMask: typeof s.buttonMask === "number"
-                            ? s.buttonMask
-                            : (((typeof s.pressButtonMask === "number" ? s.pressButtonMask : 0) & ~((typeof s.releaseButtonMask === "number" ? s.releaseButtonMask : 0))) >>> 0),
-                        dynamicMask: typeof s.dynamicMask === "number" ? s.dynamicMask : 0,
-                    }))
-                : [];
-            return { index, triggerKeys, steps };
-        })
-        : [];
-    const newProfile: GameProfile = {
-        ...profile,
-        isCompetitionProfile: profile.isCompetitionProfile as boolean ?? false,
-        keysConfig: {
-            inputMode: profile.keysConfig?.inputMode as Platform ?? Platform.XINPUT,
-            socdMode: profile.keysConfig?.socdMode as GameSocdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY,
-            invertXAxis: profile.keysConfig?.invertXAxis as boolean ?? false,
-            invertYAxis: profile.keysConfig?.invertYAxis as boolean ?? false,
-            fourWayMode: profile.keysConfig?.fourWayMode as boolean ?? false,
-            keyMapping: profile.keysConfig?.keyMapping as { [key in GameControllerButton]?: number[] } ?? {},
-            keyCombinations: profile.keysConfig?.keyCombinations as KeyCombination[] ?? [],
-            keysEnableTag: profile.keysConfig?.keysEnableTag as boolean[] ?? [],
-            macros,
-        },
-        ledsConfigs: {
-            ledEnabled: profile.ledsConfigs?.ledEnabled as boolean ?? false,
-            ledsEffectStyle: profile.ledsConfigs?.ledsEffectStyle as LedsEffectStyle ?? LedsEffectStyle.STATIC,
-            ledColors: profile.ledsConfigs?.ledColors as string[] ?? ["#000000", "#000000", "#000000"],
-            ledBrightness: profile.ledsConfigs?.ledBrightness as number ?? 100,
-            ledAnimationSpeed: profile.ledsConfigs?.ledAnimationSpeed as number ?? 1,
-            // 环绕灯配置
-            aroundLedEnabled: profile.ledsConfigs?.aroundLedEnabled as boolean ?? false,
-            aroundLedSyncToMainLed: profile.ledsConfigs?.aroundLedSyncToMainLed as boolean ?? false,
-            aroundLedTriggerByButton: profile.ledsConfigs?.aroundLedTriggerByButton as boolean ?? false,
-            aroundLedEffectStyle: profile.ledsConfigs?.aroundLedEffectStyle as AroundLedsEffectStyle ?? AroundLedsEffectStyle.STATIC,
-            aroundLedColors: profile.ledsConfigs?.aroundLedColors as string[] ?? ["#000000", "#000000", "#000000"],
-            aroundLedBrightness: profile.ledsConfigs?.aroundLedBrightness as number ?? 100,
-            aroundLedAnimationSpeed: profile.ledsConfigs?.aroundLedAnimationSpeed as number ?? 1,
-        },
-        hotkeys: profile.hotkeys as Hotkey[] ?? [],
-        triggerConfigs: profile.triggerConfigs ?? {},
-    }
-    return newProfile;
-}
-
-/**
- * process response
- * @param response - Response
- * @returns 
- */
-const processResponse = async (response: Response, setError: (error: string | null) => void) => {
-    if (!response.ok) {
-        setError(response.statusText);
-        return;
-    }
-    const data = await response.json();
-    if (data.errNo) {
-        setError(data.errorMessage);
-        return;
-    }
-    return data.data;
-}
 
 /**
  * GamepadConfigProvider
  * @param children - React.ReactNode
  * @returns 
  */
+const { Context: GamepadConfigContext, useFields } = createSelectionContext<GamepadConfigContextType>();
+export const useGamepadFields = useFields;
+
 export function GamepadConfigProvider({ children }: { children: React.ReactNode }) {
-    const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({ inputMode: Platform.XINPUT });
-    const globalConfigRef = useRef<GlobalConfig>({ inputMode: Platform.XINPUT });
-    const [screenControl, setScreenControl] = useState<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
-    const screenControlRef = useRef<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
-    const [profileList, setProfileList] = useState<GameProfileList>({ defaultId: "", maxNumProfiles: 0, items: [] });
-    const [defaultProfile, setDefaultProfile] = useState<GameProfile>({ id: "", name: "" });
-    const [operationLoading, setIsLoading] = useState(false);
-    const [rfBindingBusy, setRfBindingBusy] = useState(false);
-    const rfBindingBusyRef = useRef(false);
-    const rfBindingConnectionEpoch = useRef(0);
-    const rfBindingOwnerRef = useRef<{ client: DeviceCommandClient; epoch: number } | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [hotkeysConfig, setHotkeysConfig] = useState<Hotkey[]>([]);
-    const [jsReady, setJsReady] = useState(false);
-
-    useEffect(() => {
-        globalConfigRef.current = globalConfig;
-    }, [globalConfig]);
-
-    useEffect(() => {
-        screenControlRef.current = screenControl;
-    }, [screenControl]);
-
-    // WebHID connection lifecycle
-    const [deviceConnected, setDeviceConnected] = useState(false);
-    const [deviceState, setDeviceState] = useState<DeviceTransportState>(DeviceTransportState.DISCONNECTED);
-    const [devicePhase, setDevicePhase] = useState<DeviceConnectionPhase>(DeviceConnectionPhase.IDLE);
-    const [deviceError, setDeviceError] = useState<DeviceConnectionError | null>(null);
-    const [deviceClient, setDeviceClient] = useState<DeviceCommandClient | null>(null);
-    const deviceClientRef = useRef<DeviceCommandClient | null>(null);
-    const [deviceSession, setDeviceSession] = useState<DeviceSession | null>(null);
-    const [showReconnect, setShowReconnect] = useState(false);
-
-    const [defaultMappingId, setDefaultMappingId] = useState<string>("");
-    const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
-    const [mappingStorageMode, setMappingStorageMode] = useState<string | null>(null);
-    const [mappingSource, setMappingSource] = useState<'server-installed' | 'factory-fallback' | null>(null);
-    const [markingStatus, setMarkingStatus] = useState<StepInfo>(makeEmptyMarkingStatus);
-    const [activeMapping, setActiveMapping] = useState<ADCValuesMapping | null>(null);
-    const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>(makeEmptyCalibrationStatus);
-    const [buttonMonitoringActive, setButtonMonitoringActive] = useState<boolean>(false);
-    const [firmwareInfo, setFirmwareInfo] = useState<DeviceFirmwareInfo | null>(null);
-    const [firmwareUpdateInfo, setFirmwareUpdateInfo] = useState<FirmwareUpdateCheckResponse | null>(null);
-    const [firmwareServerHost, _setFirmwareServerHostState] = useState<string>(FIRMWARE_SERVER_CONFIG.defaultHost);
-    const [upgradeSession, setUpgradeSession] = useState<FirmwareUpgradeSession | null>(null);
-    const [upgradeConfig, setUpgradeConfigState] = useState<FirmwareUpgradeConfig>({
-        chunkSize: DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE, // 4KB默认分片大小
-        timeout: DEFAULT_FIRMWARE_UPGRADE_TIMEOUT // 30秒超时
-    });
-
-    const [transportConfig, setTransportConfig] = useState<DeviceTransportConfigType>(DEFAULT_DEVICE_TRANSPORT_CONFIG);
+    const {
+        operationLoading, setIsLoading, rfBindingBusy, setRfBindingBusy, rfBindingBusyRef,
+        rfBindingConnectionEpoch, rfBindingOwnerRef, error, setError, jsReady, setJsReady,
+        deviceConnected, setDeviceConnected, deviceState, setDeviceState, devicePhase, setDevicePhase,
+        deviceError, setDeviceError, deviceClient, setDeviceClient, deviceClientRef, deviceSession,
+        setDeviceSession, showReconnect, setShowReconnect, transportConfig, setTransportConfig,
+        userRebooting, setUserRebooting, connectionWatchdogPausedRef, hitboxLayout, setHitboxLayout,
+        initializationGenerationRef, postReadyRequestSchedulerRef, performanceTelemetryRef,
+        initialAutoConnectClientRef, initialAutoConnectCancelRef, foregroundReconnectCancelRef,
+        pageHiddenRef,
+    } = useSessionState();
+    const {
+        globalConfig, setGlobalConfig, globalConfigRef, screenControl, setScreenControl,
+        screenControlRef, profileList, setProfileList, defaultProfile, setDefaultProfile, hotkeysConfig,
+        setHotkeysConfig, dataIsReady, setDataIsReady, finishConfigDisabled, setFinishConfigDisabled,
+        deferredConfigDirty, setDeferredConfigDirty, deferredConfigSaving, setDeferredConfigSaving,
+        configStoreRef, detachedDraftsRef, configReadyRef, configRecovery, setConfigRecovery,
+        recoveryRef, configReadProgress, setConfigReadProgress, configSyncState, setConfigSyncState,
+        configBoundaryBusy, setConfigBoundaryBusy, boundaryCountRef, autoFlushRef, deferredConfigRef,
+        deferredFlushTailRef,
+    } = useConfigurationState();
+    const {
+        defaultMappingId, setDefaultMappingId, mappingList, setMappingList, mappingStorageMode,
+        setMappingStorageMode, mappingSource, setMappingSource, markingStatus, setMarkingStatus,
+        activeMapping, setActiveMapping, calibrationStatus, setCalibrationStatus,
+        calibrationCompletionRequestRef,
+    } = useCalibrationState();
+    const {
+        firmwareInfo, setFirmwareInfo, firmwareUpdateInfo, setFirmwareUpdateInfo, firmwareServerHost,
+        _setFirmwareServerHostState, upgradeSession, setUpgradeSession, upgradeConfig,
+        setUpgradeConfigState, firmwareUpdating, setFirmwareUpdating, releaseActivityRef,
+        releaseInventoryRequestRef,
+    } = useFirmwareState();
+    const {
+        buttonMonitoringActive, setButtonMonitoringActive, buttonMonitorLeaseRef, ledPreviewRef,
+        screenPreviewRef, feedbackSuspendedRef, longDeviceActivityRef,
+    } = useFeedbackState();
+    const sessionDependencies = {
+        get globalConfigRef() { return globalConfigRef; },
+        get globalConfig() { return globalConfig; },
+        get screenControlRef() { return screenControlRef; },
+        get screenControl() { return screenControl; },
+        get postReadyRequestSchedulerRef() { return postReadyRequestSchedulerRef; },
+        get buttonMonitorLeaseRef() { return buttonMonitorLeaseRef; },
+        get ledPreviewRef() { return ledPreviewRef; },
+        get deferredConfigRef() { return deferredConfigRef; },
+        get configReadyRef() { return configReadyRef; },
+        get configStoreRef() { return configStoreRef; },
+        get detachedDraftsRef() { return detachedDraftsRef; },
+        get recoveryRef() { return recoveryRef; },
+        get setConfigRecovery() { return setConfigRecovery; },
+        get feedbackSuspendedRef() { return feedbackSuspendedRef; },
+        get screenPreviewRef() { return screenPreviewRef; },
+        get longDeviceActivityRef() { return longDeviceActivityRef; },
+        get setDeferredConfigSaving() { return setDeferredConfigSaving; },
+        get calibrationCompletionRequestRef() { return calibrationCompletionRequestRef; },
+        get initializationGenerationRef() { return initializationGenerationRef; },
+        get setDefaultMappingId() { return setDefaultMappingId; },
+        get setMappingList() { return setMappingList; },
+        get setMarkingStatus() { return setMarkingStatus; },
+        get setActiveMapping() { return setActiveMapping; },
+        get setCalibrationStatus() { return setCalibrationStatus; },
+        get setButtonMonitoringActive() { return setButtonMonitoringActive; },
+        get setFirmwareInfo() { return setFirmwareInfo; },
+        get setFirmwareUpdateInfo() { return setFirmwareUpdateInfo; },
+        get setUpgradeSession() { return setUpgradeSession; },
+        get setHitboxLayout() { return setHitboxLayout; },
+        get setDataIsReady() { return setDataIsReady; },
+        get setConfigReadProgress() { return setConfigReadProgress; },
+        get setFinishConfigDisabled() { return setFinishConfigDisabled; },
+        get setDeviceSession() { return setDeviceSession; },
+        get initialAutoConnectCancelRef() { return initialAutoConnectCancelRef; },
+        get foregroundReconnectCancelRef() { return foregroundReconnectCancelRef; },
+        get transportConfig() { return transportConfig; },
+        get deviceClientRef() { return deviceClientRef; },
+        get rfBindingConnectionEpoch() { return rfBindingConnectionEpoch; },
+        get setDeviceState() { return setDeviceState; },
+        get setDeviceConnected() { return setDeviceConnected; },
+        get setDevicePhase() { return setDevicePhase; },
+        get setDeviceError() { return setDeviceError; },
+        get performanceTelemetryRef() { return performanceTelemetryRef; },
+        get pageHiddenRef() { return pageHiddenRef; },
+        get initialAutoConnectClientRef() { return initialAutoConnectClientRef; },
+        get setShowReconnect() { return setShowReconnect; },
+        get setDeviceClient() { return setDeviceClient; },
+        get devicePhase() { return devicePhase; },
+        get deviceClient() { return deviceClient; },
+        get deviceState() { return deviceState; },
+        get userRebooting() { return userRebooting; },
+        get firmwareUpdating() { return firmwareUpdating; },
+        get deferredConfigDirty() { return deferredConfigDirty; },
+        get deferredConfigSaving() { return deferredConfigSaving; },
+        get deviceConnected() { return deviceConnected; },
+        get configRecovery() { return configRecovery; },
+        get dataIsReady() { return dataIsReady; },
+        get fetchFirmwareMetadata() { return fetchFirmwareMetadata; },
+        get sendInitializationDeviceRequest() { return sendInitializationDeviceRequest; },
+        get getHitboxLayout() { return getHitboxLayout; },
+        get publishConfig() { return publishConfig; },
+        get updateSyncPause() { return updateSyncPause; },
+        get setError() { return setError; },
+        get reconnectDevice() { return reconnectDevice; },
+        get connectionWatchdogPausedRef() { return connectionWatchdogPausedRef; },
+        get boundaryCountRef() { return boundaryCountRef; },
+    };
+    const { resetDeviceSessionState, cancelPendingAutomaticConnects } = useSessionReset(sessionDependencies);
 
     const contextJsReady = useMemo(() => jsReady, [jsReady]);
     const connectionLoading = devicePhase !== DeviceConnectionPhase.IDLE
         && devicePhase !== DeviceConnectionPhase.READY
         && devicePhase !== DeviceConnectionPhase.ERROR;
     const isLoading = connectionLoading || operationLoading || rfBindingBusy;
-
-    const [dataIsReady, setDataIsReady] = useState(false);
-    const [userRebooting, setUserRebooting] = useState(false); // 是否是用户手动重启
-    const [firmwareUpdating, setFirmwareUpdating] = useState(false); // 是否正在固件升级
-    const connectionWatchdogPausedRef = useRef(false);
     connectionWatchdogPausedRef.current = firmwareUpdating || userRebooting;
-
-    const [finishConfigDisabled, setFinishConfigDisabled] = useState(false);
-    const [deferredConfigDirty, setDeferredConfigDirty] = useState(false);
-    const [deferredConfigSaving, setDeferredConfigSaving] = useState(false);
-
-    const [hitboxLayout, setHitboxLayout] = useState<HitboxLayoutItem[]>([]);
-    const initializationGenerationRef = useRef(0);
-    const postReadyRequestSchedulerRef = useRef<PostReadyRequestScheduler | null>(null);
-    if (!postReadyRequestSchedulerRef.current) {
-        postReadyRequestSchedulerRef.current = new PostReadyRequestScheduler();
-    }
-    const calibrationCompletionRequestRef = useRef<{
-        generation: number;
-        promise: Promise<boolean>;
-    } | null>(null);
-    const buttonMonitorLeaseRef = useRef<SharedButtonMonitorLease | null>(null);
-    if (!buttonMonitorLeaseRef.current) {
-        buttonMonitorLeaseRef.current = new SharedButtonMonitorLease();
-    }
-    const configStoreRef = useRef(new SessionConfigStore());
-    const detachedDraftsRef = useRef(new Map<string, ConfigDraftBackup>());
-    const configReadyRef = useRef(false);
-    const [configRecovery, setConfigRecovery] = useState<string[]>([]);
-    const recoveryRef = useRef<ConfigDraftBackup | null>(null);
-    const [configReadProgress, setConfigReadProgress] = useState<ConfigSyncProgress>({ completed: 0, total: 0 });
-    const [configSyncState, setConfigSyncState] = useState<ConfigSyncState>({ pendingCount: 0, saving: false, paused: true, error: null });
-    const [configBoundaryBusy, setConfigBoundaryBusy] = useState(false);
-    const boundaryCountRef = useRef(0);
     const configEditingBlocked = !dataIsReady || !deviceConnected || configBoundaryBusy || firmwareUpdating || configRecovery.length > 0;
     const deviceBackgroundReadsPaused = configBoundaryBusy || userRebooting;
-    const autoFlushRef = useRef<() => Promise<void>>(async () => {});
-    const deferredConfigRef = useRef<DeferredConfigCoordinator | null>(null);
-    if (!deferredConfigRef.current) {
-        deferredConfigRef.current = new DeferredConfigCoordinator(setDeferredConfigDirty, {
-            autoFlush: () => autoFlushRef.current(), onState: setConfigSyncState,
-        });
-    }
-    const deferredFlushTailRef = useRef<Promise<void>>(Promise.resolve());
-    const ledPreviewRef = useRef(new LedPreviewCoordinator<LEDsConfig>());
-    const screenPreviewRef = useRef<number | null>(null);
-    const feedbackSuspendedRef = useRef(false);
-    const longDeviceActivityRef = useRef(false);
+    const {
+        publishConfig, updateSyncPause, stageResource, editConfig, stageDeferredProfileDetails,
+        stageDeferredProfileMacros, stageDeferredHotkeysConfig, stageDeferredGlobalConfig,
+        stageDeferredScreenControl, resolveConfigRecovery, refreshDeviceConfig, stopLongDeviceActivity,
+        runConfigExclusive, terminateWebConfigActivities, switchProfile,
+    } = useConfigurationActions({
+        get configStoreRef() { return configStoreRef; },
+        get globalConfigRef() { return globalConfigRef; },
+        get setGlobalConfig() { return setGlobalConfig; },
+        get screenControlRef() { return screenControlRef; },
+        get setScreenControl() { return setScreenControl; },
+        get setHotkeysConfig() { return setHotkeysConfig; },
+        get setProfileList() { return setProfileList; },
+        get setDefaultProfile() { return setDefaultProfile; },
+        get deferredConfigRef() { return deferredConfigRef; },
+        get configReadyRef() { return configReadyRef; },
+        get recoveryRef() { return recoveryRef; },
+        get boundaryCountRef() { return boundaryCountRef; },
+        get longDeviceActivityRef() { return longDeviceActivityRef; },
+        get ledPreviewRef() { return ledPreviewRef; },
+        get sendDeviceRequest() { return sendDeviceRequest; },
+        get screenControl() { return screenControl; },
+        get detachedDraftsRef() { return detachedDraftsRef; },
+        get setConfigRecovery() { return setConfigRecovery; },
+        get queueConfigTransaction() { return queueConfigTransaction; },
+        get setButtonMonitoringActive() { return setButtonMonitoringActive; },
+        get performanceTelemetryRef() { return performanceTelemetryRef; },
+        get setCalibrationStatus() { return setCalibrationStatus; },
+        get setMarkingStatus() { return setMarkingStatus; },
+        get deviceClientRef() { return deviceClientRef; },
+    });
+    const {
+        setContextJsReady, connectDevice, reconnectDevice, disconnectDevice, getDeviceImageCatalog,
+        readDeviceImage, uploadDeviceImage, deleteDeviceImage, rfBindingRequest, runRfBindingOperation,
+        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, sendInitializationDeviceRequest,
+        getHitboxLayout, rebootSystem, exitWebConfig, sendPendingCommandImmediately, flushQueue,
+        getDeviceTransportConfig, updateDeviceTransportConfig,
+        indexMapToGameControllerButtonOrCombination,
+    } = useSessionActions({
+        get setJsReady() { return setJsReady; },
+        get deviceClient() { return deviceClient; },
+        get setUserRebooting() { return setUserRebooting; },
+        get cancelPendingAutomaticConnects() { return cancelPendingAutomaticConnects; },
+        get initialAutoConnectClientRef() { return initialAutoConnectClientRef; },
+        get resetDeviceSessionState() { return resetDeviceSessionState; },
+        get setError() { return setError; },
+        get setDeviceError() { return setDeviceError; },
+        get deviceClientRef() { return deviceClientRef; },
+        get boundaryCountRef() { return boundaryCountRef; },
+        get rfBindingBusyRef() { return rfBindingBusyRef; },
+        get rfBindingOwnerRef() { return rfBindingOwnerRef; },
+        get rfBindingConnectionEpoch() { return rfBindingConnectionEpoch; },
+        get operationLoading() { return operationLoading; },
+        get setRfBindingBusy() { return setRfBindingBusy; },
+        get configStoreRef() { return configStoreRef; },
+        get setIsLoading() { return setIsLoading; },
+        get transportConfig() { return transportConfig; },
+        get setTransportConfig() { return setTransportConfig; },
+    });
+    const {
+        fetchMappingList, fetchDefaultMapping, createMapping, deleteMapping, updateDefaultMapping,
+        startMarking, stopMarking, stepMarking, fetchMarkingStatus, syncMarkingProgress,
+        fetchActiveMapping, renameMapping, readSwitchMappingEnvelope, fetchSwitchMappingResponse,
+        fetchDeviceAuthorizedResource, fetchSwitchMappingCatalog, fetchSwitchMappingDetail,
+        fetchSwitchMappingImage, uploadSwitchMappingImage, updateSwitchMappingMetadata,
+        updateSwitchMappingCurve, deleteSwitchMapping, installCanonicalMapping, installSwitchMapping,
+        clearInstalledSwitchMapping, createSwitchMappingFromCurrent, beginMappingDraft,
+        publishMappingDraft, updateMarkingStatus,
+    } = useMappingActions({
+        get setIsLoading() { return setIsLoading; },
+        get sendDeviceRequest() { return sendDeviceRequest; },
+        get setMappingList() { return setMappingList; },
+        get setDefaultMappingId() { return setDefaultMappingId; },
+        get setMappingStorageMode() { return setMappingStorageMode; },
+        get setMappingSource() { return setMappingSource; },
+        get setError() { return setError; },
+        get activeMapping() { return activeMapping; },
+        get setActiveMapping() { return setActiveMapping; },
+        get longDeviceActivityRef() { return longDeviceActivityRef; },
+        get updateSyncPause() { return updateSyncPause; },
+        get setMarkingStatus() { return setMarkingStatus; },
+        get markingStatus() { return markingStatus; },
+        get deviceClient() { return deviceClient; },
+    });
+    const {
+        previewScreenBrightness, fetchCalibrationStatus, startManualCalibration, stopManualCalibration,
+        clearManualCalibrationData, checkIsManualCalibrationCompleted, startButtonMonitoring,
+        stopButtonMonitoring, getButtonStates, startButtonPerformanceMonitoring,
+        stopButtonPerformanceMonitoring, pushLedsConfig, clearLedsPreview,
+    } = useFeedbackActions({
+        get screenPreviewRef() { return screenPreviewRef; },
+        get feedbackSuspendedRef() { return feedbackSuspendedRef; },
+        get boundaryCountRef() { return boundaryCountRef; },
+        get sendDeviceRequest() { return sendDeviceRequest; },
+        get setCalibrationStatus() { return setCalibrationStatus; },
+        get setError() { return setError; },
+        get longDeviceActivityRef() { return longDeviceActivityRef; },
+        get updateSyncPause() { return updateSyncPause; },
+        get setIsLoading() { return setIsLoading; },
+        get initializationGenerationRef() { return initializationGenerationRef; },
+        get calibrationCompletionRequestRef() { return calibrationCompletionRequestRef; },
+        get postReadyRequestSchedulerRef() { return postReadyRequestSchedulerRef; },
+        get buttonMonitorLeaseRef() { return buttonMonitorLeaseRef; },
+        get setButtonMonitoringActive() { return setButtonMonitoringActive; },
+        get performanceTelemetryRef() { return performanceTelemetryRef; },
+        get ledPreviewRef() { return ledPreviewRef; },
+        get configStoreRef() { return configStoreRef; },
+    });
+
+    const {
+        getReleaseInventory, downloadSelectedRelease, installSelectedRelease, releaseInstallAction,
+        fetchFirmwareMetadata, checkFirmwareUpdate, generateSessionId, downloadFirmwarePackage,
+        uploadFirmwareToDevice, uploadCh585Firmware, setUpgradeConfig, getUpgradeConfig,
+        getValidChunkSizes,
+    } = useFirmwareActions({
+        get deviceClient() { return deviceClient; },
+        get releaseInventoryRequestRef() { return releaseInventoryRequestRef; },
+        get releaseActivityRef() { return releaseActivityRef; },
+        get boundaryCountRef() { return boundaryCountRef; },
+        get setFirmwareUpdating() { return setFirmwareUpdating; },
+        get longDeviceActivityRef() { return longDeviceActivityRef; },
+        get updateSyncPause() { return updateSyncPause; },
+        get queueConfigTransaction() { return queueConfigTransaction; },
+        get terminateWebConfigActivities() { return terminateWebConfigActivities; },
+        get sendDeviceRequest() { return sendDeviceRequest; },
+        get setFirmwareInfo() { return setFirmwareInfo; },
+        get deviceState() { return deviceState; },
+        get firmwareServerHost() { return firmwareServerHost; },
+        get setFirmwareUpdateInfo() { return setFirmwareUpdateInfo; },
+        get setError() { return setError; },
+        get setUpgradeSession() { return setUpgradeSession; },
+        get upgradeConfig() { return upgradeConfig; },
+        get setUpgradeConfigState() { return setUpgradeConfigState; },
+    });
+
+    const { performDeferredConfigFlush, queueConfigTransaction, flushDeferredConfig } = createConfigTransactions({
+        get initializationGenerationRef() { return initializationGenerationRef; },
+        get configReadyRef() { return configReadyRef; },
+        get deferredConfigRef() { return deferredConfigRef; },
+        get configStoreRef() { return configStoreRef; },
+        get setDeferredConfigSaving() { return setDeferredConfigSaving; },
+        get ledPreviewRef() { return ledPreviewRef; },
+        get sendDeviceRequest() { return sendDeviceRequest; },
+        get buttonMonitorLeaseRef() { return buttonMonitorLeaseRef; },
+        get feedbackSuspendedRef() { return feedbackSuspendedRef; },
+        get checkIsManualCalibrationCompleted() { return checkIsManualCalibrationCompleted; },
+        get setButtonMonitoringActive() { return setButtonMonitoringActive; },
+        get postReadyRequestSchedulerRef() { return postReadyRequestSchedulerRef; },
+        get longDeviceActivityRef() { return longDeviceActivityRef; },
+        get deviceClientRef() { return deviceClientRef; },
+        get setError() { return setError; },
+        get screenPreviewRef() { return screenPreviewRef; },
+        get boundaryCountRef() { return boundaryCountRef; },
+        get setConfigBoundaryBusy() { return setConfigBoundaryBusy; },
+        get updateSyncPause() { return updateSyncPause; },
+        get recoveryRef() { return recoveryRef; },
+        get deferredFlushTailRef() { return deferredFlushTailRef; },
+    });
 
-    const publishConfig = () => {
-        const store = configStoreRef.current;
-        const list = store.get<GameProfileList>('profile-list');
-        if (!list) return;
-        const id = store.get<string>('selected-profile');
-        const profile = store.get<GameProfile>(`profile:${id}`);
-        const global = store.get<GlobalConfig>('global');
-        const screen = store.get<ScreenControlConfig>('screen-control');
-        globalConfigRef.current = global; setGlobalConfig(global);
-        screenControlRef.current = screen; setScreenControl(screen);
-        setHotkeysConfig(store.get<Hotkey[]>('hotkeys'));
-        setProfileList({ ...list, defaultId: id, items: list.items.map(item => ({ ...item, ...store.get<GameProfile>(`profile:${item.id}`) })) });
-        setDefaultProfile({ ...profile, keysConfig: { ...profile.keysConfig, macros: store.get<MacroConfig[]>(`macros:${id}`) } });
-    };
-    const updateSyncPause = () => deferredConfigRef.current!.pause(
-        !configReadyRef.current || !!recoveryRef.current || boundaryCountRef.current > 0 || longDeviceActivityRef.current,
-    );
-
-    const resetDeviceSessionState = useCallback(() => {
-        postReadyRequestSchedulerRef.current?.endSession();
-        buttonMonitorLeaseRef.current?.endSession();
-        ledPreviewRef.current.reset();
-        deferredConfigRef.current?.clear();
-        const wasReady = configReadyRef.current;
-        configReadyRef.current = false;
-        const backup = wasReady ? configStoreRef.current.detach() : null;
-        if (backup?.deviceId) detachedDraftsRef.current.set(backup.deviceId, backup);
-        recoveryRef.current = null;
-        setConfigRecovery([]);
-        deferredConfigRef.current?.pause(true);
-        feedbackSuspendedRef.current = false;
-        screenPreviewRef.current = null;
-        longDeviceActivityRef.current = false;
-        setDeferredConfigSaving(false);
-        calibrationCompletionRequestRef.current = null;
-        initializationGenerationRef.current += 1;
-        setDefaultMappingId("");
-        setMappingList([]);
-        setMarkingStatus(makeEmptyMarkingStatus());
-        setActiveMapping(null);
-        setCalibrationStatus(makeEmptyCalibrationStatus());
-        setButtonMonitoringActive(false);
-        setFirmwareInfo(null);
-        setFirmwareUpdateInfo(null);
-        setUpgradeSession(null);
-        setHitboxLayout([]);
-        setDataIsReady(false);
-        setConfigReadProgress({ completed: 0, total: 0 });
-        setFinishConfigDisabled(false);
-        setDeviceSession(null);
-    }, []);
-
-
-    // 处理通知消息
-    const handleNotificationMessage = (message: DeviceCommandMessage): void => {
-        const { command, data } = message;
-
-        switch (command) {
-            case 'calibration_update':
-                {
-                    const status = calibrationStatusFrom(data?.calibrationStatus);
-                    if (status) setCalibrationStatus(status);
-                }
-                eventBus.emit(EVENTS.CALIBRATION_UPDATE, data);
-                break;
-            case 'marking_status_update':
-                if (data?.status) {
-                    setMarkingStatus(data.status as StepInfo);
-                }
-                eventBus.emit(EVENTS.MARKING_STATUS_UPDATE, data);
-                break;
-            case 'button.state': {
-                if (feedbackSuspendedRef.current || configStoreRef.current.get('selected-profile') !== configStoreRef.current.confirmed['selected-profile']) break;
-                const payload = data ?? {};
-                const buttonState: ButtonStateBinaryData = {
-                    command: BUTTON_STATE_CHANGED_CMD,
-                    isActive: payload.isActive === true,
-                    triggerMask: Number(payload.triggerMask ?? 0) >>> 0,
-                    totalButtons: Number(payload.totalButtons ?? 0) & 0xff,
-                    eventSequence: Number(payload.eventSequence ?? 0) >>> 0,
-                    droppedSnapshots: Number(payload.droppedSnapshots ?? 0) & 0xffff,
-                };
-                eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, buttonState);
-                break;
-            }
-            case 'performance.sample':
-            case 'performance.edge':
-            case 'performance.checkpoint':
-            case 'transport.sequence-gap':
-                // PerformanceTelemetryController consumes these typed events.
-                break;
-            default:
-                console.log('收到未知通知消息:', message);
-        }
-    };
-
-    const performanceTelemetryRef = useRef<PerformanceTelemetryController | null>(null);
-    // Refs are tied to the concrete client so StrictMode can dispose its first
-    // instance without suppressing the replacement instance's one auto-open.
-    const initialAutoConnectClientRef = useRef<DeviceCommandClient | null>(null);
-    const initialAutoConnectCancelRef = useRef<(() => void) | null>(null);
-    const foregroundReconnectCancelRef = useRef<(() => void) | null>(null);
-    const pageHiddenRef = useRef(
-        typeof document !== 'undefined' && document.visibilityState === 'hidden',
-    );
-
-    const cancelPendingAutomaticConnects = useCallback(() => {
-        initialAutoConnectCancelRef.current?.();
-        initialAutoConnectCancelRef.current = null;
-        foregroundReconnectCancelRef.current?.();
-        foregroundReconnectCancelRef.current = null;
-    }, []);
-
-    // Hosted builds use WebHID exclusively; mock mode is explicit and offline.
-    useEffect(() => {
-        const client = createDeviceCommandClient({
-            mode: configuredTransportMode(),
-            config: transportConfig,
-        });
-        deviceClientRef.current = client;
-
-        const unsubscribeState = client.onStateChange((state) => {
-            if (state !== DeviceTransportState.CONNECTED) rfBindingConnectionEpoch.current++;
-            setDeviceState(state);
-            setDeviceConnected(state === DeviceTransportState.CONNECTED);
-            setDeviceSession(
-                state === DeviceTransportState.CONNECTED
-                    ? client.transport.session
-                    : null,
-            );
-        });
-        const unsubscribePhase = client.onPhaseChange(setDevicePhase);
-        const unsubscribeError = client.onError((error) => {
-            setDeviceError(error);
-            console.error(
-                '设备传输错误:',
-                `type=${error.type}`,
-                `transport=${error.transportCode ?? 'none'}`,
-                `phase=${error.phase ?? 'none'}`,
-                `command=${error.command ?? 'none'}`,
-                error.message,
-            );
-        });
-        const unsubscribeMessage = client.onMessage(handleNotificationMessage);
-        const unsubscribeDisconnect = client.onDisconnect(() => {
-            console.log('设备传输连接断开，触发全局断开事件');
-            eventBus.emit(EVENTS.DEVICE_DISCONNECTED);
-        });
-
-        const performanceTelemetry = new PerformanceTelemetryController(client.transport, {
-            requester: {
-                request: async <T = Record<string, unknown> | undefined>(
-                    command: string,
-                    params: Record<string, unknown> = {},
-                    options: DeviceRequestOptions = {},
-                ): Promise<DeviceResponse<T>> => {
-                    const data = await postReadyRequestSchedulerRef.current!.schedule(
-                        () => client.request(command, params, options),
-                    );
-                    return {
-                        transactionId: 0,
-                        data: data as T,
-                    };
-                },
-            },
-        });
-        performanceTelemetryRef.current = performanceTelemetry;
-        const unsubscribePerformance = performanceTelemetry.subscribe((snapshot) => {
-            eventBus.emit(EVENTS.BUTTON_PERFORMANCE_MONITORING, snapshot);
-        });
-        const restoreForegroundConnection = () => {
-            pageHiddenRef.current = false;
-            cancelPendingAutomaticConnects();
-            if (client.getState() === DeviceTransportState.CONNECTED) {
-                performanceTelemetry.startClockSync();
-                return;
-            }
-            initialAutoConnectClientRef.current = client;
-            resetDeviceSessionState();
-            setShowReconnect(false);
-            const cancel = scheduleInitialDeviceAutoConnect(
-                client.transport.kind,
-                transportConfig.closeTimeoutMs,
-                () => {
-                    foregroundReconnectCancelRef.current = null;
-                    return client.connect(false);
-                },
-                (error) => {
-                    foregroundReconnectCancelRef.current = null;
-                    console.error('前台 WebHID 自动重连失败:', error);
-                    if (!pageHiddenRef.current) setShowReconnect(true);
-                },
-            );
-            foregroundReconnectCancelRef.current = cancel;
-        };
-        const removeVisibilityLifecycle = registerDeviceVisibilityLifecycle({
-            pauseBackgroundActivity: () => {
-                pageHiddenRef.current = true;
-                cancelPendingAutomaticConnects();
-                setShowReconnect(false);
-                // Do not abort a request that has already reached WebHID. Just
-                // stop the optional 10-second clock probes from creating new
-                // writes while Chromium may throttle or freeze this document.
-                performanceTelemetry.pauseClockSync();
-            },
-            restoreForegroundActivity: restoreForegroundConnection,
-        });
-        const removePageLifecycle = registerDevicePageLifecycle({
-            suspendForBfcache: () => {
-                pageHiddenRef.current = true;
-                cancelPendingAutomaticConnects();
-                // Physical close only. The live JS client is retained so the
-                // same bfcache document can explicitly reconnect on pageshow.
-                client.disconnect();
-            },
-            destroyDocument: () => {
-                pageHiddenRef.current = true;
-                cancelPendingAutomaticConnects();
-                client.dispose();
-            },
-            restoreFromBfcache: () => {
-                restoreForegroundConnection();
-            },
-        });
-        setDeviceClient(client);
-
-        return () => {
-            if (deviceClientRef.current === client) {
-                deviceClientRef.current = null;
-            }
-            cancelPendingAutomaticConnects();
-            removeVisibilityLifecycle();
-            removePageLifecycle();
-            unsubscribeState();
-            unsubscribePhase();
-            unsubscribeError();
-            unsubscribeMessage();
-            unsubscribeDisconnect();
-            unsubscribePerformance();
-            performanceTelemetry.stop();
-            performanceTelemetryRef.current = null;
-            client.dispose();
-        };
-    }, []);
-
-    useEffect(() => {
-        const telemetry = performanceTelemetryRef.current;
-        if (!telemetry) return;
-        if (devicePhase === DeviceConnectionPhase.READY) {
-            telemetry.start({ deferClockSync: true });
-            postReadyRequestSchedulerRef.current?.releaseInitialBatchWhenIdle(
-                () => {
-                    if (!pageHiddenRef.current) telemetry.startClockSync();
-                },
-            );
-        } else {
-            postReadyRequestSchedulerRef.current?.endSession();
-            telemetry.stop();
-        }
-    }, [devicePhase]);
-
-    // Page load only reopens a browser-authorized HID handle; no chooser.
-    useEffect(() => {
-        if (pageHiddenRef.current) return;
-        if (deviceClient && deviceState === DeviceTransportState.DISCONNECTED) {
-            if (initialAutoConnectClientRef.current !== deviceClient) {
-                resetDeviceSessionState();
-                const cancel = scheduleInitialDeviceAutoConnect(
-                    deviceClient.transport.kind,
-                    transportConfig.closeTimeoutMs,
-                    () => {
-                        initialAutoConnectCancelRef.current = null;
-                        initialAutoConnectClientRef.current = deviceClient;
-                        return deviceClient.connect(false);
-                    },
-                    (error) => {
-                        console.error('首次 WebHID 连接失败:', error);
-                        setShowReconnect(true);
-                    },
-                );
-                initialAutoConnectCancelRef.current = cancel;
-                return () => {
-                    if (initialAutoConnectCancelRef.current === cancel) {
-                        initialAutoConnectCancelRef.current = null;
-                    }
-                    cancel();
-                };
-            } else {
-                if (!userRebooting && !firmwareUpdating) {
-                    setShowReconnect(true);
-                }
-            }
-        }
-    }, [
-        deviceClient,
-        deviceState,
-        userRebooting,
-        firmwareUpdating,
-        resetDeviceSessionState,
-        transportConfig.closeTimeoutMs,
-    ]);
-
-    useEffect(() => {
-        if (deviceState === DeviceTransportState.DISCONNECTED || deviceState === DeviceTransportState.ERROR) {
-            resetDeviceSessionState();
-        }
-    }, [deviceState, resetDeviceSessionState]);
-
-    useEffect(() => {
-        if ((!deferredConfigDirty && !deferredConfigSaving && !detachedDraftsRef.current.size) || typeof window === 'undefined') return;
-        const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-            event.preventDefault();
-            event.returnValue = '';
-        };
-        window.addEventListener('beforeunload', warnBeforeUnload);
-        return () => window.removeEventListener('beforeunload', warnBeforeUnload);
-    }, [deferredConfigDirty, deferredConfigSaving, deviceConnected, configRecovery]);
-
-    // Read the six startup resources sequentially under one 30 second deadline.
-    useEffect(() => {
-        // Reconnect clears readiness before the new connect lifecycle settles.
-        // A previous CONNECTED render must not read configuration while the
-        // current client is still discovering/opening its new session.
-        if (deviceClient && deviceConnected && deviceState === DeviceTransportState.CONNECTED && !dataIsReady &&
-            devicePhase === DeviceConnectionPhase.INITIALIZING && deviceClient.getPhase() === DeviceConnectionPhase.INITIALIZING) {
-            const client = deviceClient;
-            const controller = new AbortController();
-            setShowReconnect(false);
-            const generation = initializationGenerationRef.current;
-            let resources: ConfigResources;
-            let syncResult: ConfigSyncResult;
-            void initializeDeviceSession({
-                loaders: {
-                    configuration: async () => {
-                        syncResult = await readDeviceConfigSnapshot(
-                            (command, params) => client.requestInitialization(command, params, { signal: controller.signal }),
-                            converProfileDetails,
-                            (progress) => { if (generation === initializationGenerationRef.current && !controller.signal.aborted) setConfigReadProgress(progress); },
-                            () => generation === initializationGenerationRef.current && !controller.signal.aborted,
-                        );
-                        resources = syncResult.resources;
-                    },
-                    globalConfig: async () => {}, screenControl: async () => {},
-                    profileList: async () => {}, hotkeys: async () => {},
-                    firmwareMetadata: () => fetchFirmwareMetadata(true, sendInitializationDeviceRequest),
-                    hitboxLayout: () => getHitboxLayout(true, sendInitializationDeviceRequest),
-                },
-                isCurrent: () => generation === initializationGenerationRef.current,
-                signal: controller.signal,
-                timeoutMs: transportConfig.startupTimeoutMs,
-                deadlineAtMs: client.getStartupDeadlineMs() ?? undefined,
-                onStage: (stage, status) => {
-                    if (status === 'started') client.setInitializationStage(stage);
-                },
-                onReady: (layout) => {
-                    if (!client.markReady()) return;
-                    postReadyRequestSchedulerRef.current?.beginSession();
-                    buttonMonitorLeaseRef.current?.beginSession();
-                    const identity = syncResult.manifest
-                        ? `${client.transport.kind}:${syncResult.manifest.deviceCacheKey}`
-                        : client.transport.session?.deviceId ?? (configuredTransportMode() === 'mock' ? 'mock' : '');
-                    configStoreRef.current.hydrate(identity, resources);
-                    publishConfig();
-                    const backup = identity ? detachedDraftsRef.current.get(identity) : undefined;
-                    if (backup) {
-                        recoveryRef.current = backup;
-                        setConfigRecovery(configDifferences(resources, restoredConfigDraft(backup, resources)));
-                        // An uncertain in-flight write still requires a decision even if values match.
-                        if (!configDifferences(resources, restoredConfigDraft(backup, resources)).length) setConfigRecovery(['Device confirmation / 设备写入结果确认']);
-                    }
-                    configReadyRef.current = true;
-                    updateSyncPause();
-                    setHitboxLayout(layout);
-                    setDataIsReady(true);
-                },
-                onFailure: (initializationError) => {
-                    const message = initializationError instanceof Error
-                        ? initializationError.message
-                        : String(initializationError);
-                    setError(`设备数据初始化失败: ${message}`);
-                    setShowReconnect(true);
-                    client.disconnect();
-                },
-            });
-            return () => controller.abort();
-        }
-    }, [deviceConnected, deviceState, devicePhase, dataIsReady, deviceClient]);
-
-    // useEffect(() => {
-    //     if (profileList.defaultId !== "") {
-    //         fetchDefaultProfile();
-    //     }
-    // }, [profileList]);
-
-    const setContextJsReady = (ready: boolean) => {
-        setJsReady(ready);
-    };
-
-    const connectDevice = useCallback(async (): Promise<void> => {
-        if (deviceClient) {
-            // 该入口由用户点击连接按钮触发，允许打开 WebHID chooser。
-            setUserRebooting(false);
-            cancelPendingAutomaticConnects();
-            initialAutoConnectClientRef.current = deviceClient;
-            resetDeviceSessionState();
-            setError(null);
-            setDeviceError(null);
-            return deviceClient.connect(true);
-        }
-        throw new Error('设备传输层未初始化');
-    }, [deviceClient, resetDeviceSessionState, cancelPendingAutomaticConnects]);
-
-    const reconnectDevice = useCallback(async (): Promise<void> => {
-        if (deviceClient) {
-            // 程序化重连只能使用浏览器已授权的设备，不能打开 chooser。
-            setUserRebooting(false);
-            cancelPendingAutomaticConnects();
-            initialAutoConnectClientRef.current = deviceClient;
-            resetDeviceSessionState();
-            setError(null);
-            setDeviceError(null);
-            return deviceClient.connect(false);
-        }
-        throw new Error('设备传输层未初始化');
-    }, [deviceClient, resetDeviceSessionState, cancelPendingAutomaticConnects]);
-
-    useEffect(() => {
-        if (!deviceClient || firmwareUpdating || !(deviceClient.transport instanceof WebHidTransport)) return;
-        const transport = deviceClient.transport;
-        return registerDeviceArrivalReconnect(
-            handler => transport.onAvailable(handler),
-            () => !pageHiddenRef.current && (
-                deviceClient.getState() === DeviceTransportState.DISCONNECTED ||
-                deviceClient.getState() === DeviceTransportState.ERROR
-            ),
-            reconnectDevice,
-            error => {
-                console.error('设备重新出现后自动重连失败:', error);
-                setShowReconnect(true);
-            },
-            transportConfig.closeTimeoutMs,
-        );
-    }, [deviceClient, firmwareUpdating, reconnectDevice, transportConfig.closeTimeoutMs]);
-
-    useEffect(() => {
-        if (!deviceClient || !(deviceClient.transport instanceof WebHidTransport)) return;
-        let sampleId = 0;
-        return createDeviceConnectionWatchdog({
-            enabled: () => !pageHiddenRef.current && !connectionWatchdogPausedRef.current &&
-                configReadyRef.current && !boundaryCountRef.current && !longDeviceActivityRef.current &&
-                deviceClient.getPhase() === DeviceConnectionPhase.READY &&
-                deviceClient.getState() === DeviceTransportState.CONNECTED,
-            generation: () => initializationGenerationRef.current,
-            probe: () => deviceClient.request('performance.clock-sync', { sampleId: ++sampleId }, { timeoutMs: 2000 }),
-            unavailable: () => deviceClient.disconnect(),
-        });
-    }, [deviceClient]);
-
-    const disconnectDevice = (): void => {
-        if (deviceClient) {
-            deviceClient.disconnect();
-        }
-    };
-
-    const getDeviceImageCatalog = useCallback(async (): Promise<DeviceImageCatalog> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        return deviceClient.getImageCatalog();
-    }, [deviceClient]);
-
-    const readDeviceImage = useCallback(async (
-        target: DeviceImageTarget,
-        totalSize: number,
-    ): Promise<Uint8Array> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        return deviceClient.readImage(target, totalSize);
-    }, [deviceClient]);
-
-    const uploadDeviceImage = useCallback(async (
-        request: DeviceImageUploadRequest,
-    ): Promise<void> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        const result = await deviceClient.uploadImage(request);
-        if (!result.success) {
-            throw new Error(`Device rejected image upload: ${result.error || 'Unknown error'}`);
-        }
-    }, [deviceClient]);
-
-    const deleteDeviceImage = useCallback(async (): Promise<void> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        const result = await deviceClient.deleteImage();
-        if (!result.success) {
-            throw new Error(`Device rejected image deletion: ${result.error || 'Unknown error'}`);
-        }
-    }, [deviceClient]);
-
-    /**
-     * Send a device RPC. Only explicit preview writes use the debounce queue.
-     * @param command 命令
-     * @param params 参数
-     * @param immediate 是否立即发送，忽略延迟 true: 立即发送 false: 延迟发送
-     * @returns 
-     */
-    type DeviceRequestSender = (
-        command: string,
-        params?: Record<string, unknown>,
-        immediate?: boolean,
-        options?: DeviceRequestOptions,
-    ) => Promise<any>;
-
-    const rfBindingRequest = useCallback(async (op: number, args: BindingArgs = {}): Promise<BindingSnapshot> => {
-        const client = deviceClientRef.current;
-        if (!client || client.getState() !== DeviceTransportState.CONNECTED) throw new Error('BINDING_DISCONNECTED');
-        if (boundaryCountRef.current > 0 && !rfBindingBusyRef.current) throw new Error('BINDING_BUSY');
-        const owner = rfBindingOwnerRef.current;
-        if (owner && (owner.client !== client || owner.epoch !== rfBindingConnectionEpoch.current)) throw new Error('BINDING_DISCONNECTED');
-        const commands = ['', 'get_rf_binding', 'get_rf_binding', 'prepare_rf_binding', 'commit_rf_binding', 'abort_rf_binding'];
-        if (!commands[op]) throw new Error('BINDING_INVALID');
-        const reply = await client.enqueue(commands[op], { ...args, pending: op === 2 }, true);
-        return checkBinding(reply);
-    }, []);
-    const runRfBindingOperation = async <T,>(action: () => Promise<T>): Promise<T> => {
-        if (rfBindingBusyRef.current || operationLoading) throw new Error('BINDING_BUSY');
-        const client = deviceClientRef.current;
-        if (!client || client.getState() !== DeviceTransportState.CONNECTED) throw new Error('BINDING_DISCONNECTED');
-        rfBindingOwnerRef.current = { client, epoch: rfBindingConnectionEpoch.current };
-        rfBindingBusyRef.current = true; setRfBindingBusy(true);
-        try { return await action(); }
-        finally { rfBindingOwnerRef.current = null; rfBindingBusyRef.current = false; setRfBindingBusy(false); }
-    };
-
-    const sendDeviceRequest: DeviceRequestSender = async (command, params = {}, immediate = false, options = {}) => {
-        if (rfBindingBusyRef.current && !command.startsWith('get_')) throw new Error('BINDING_BUSY');
-        if (!deviceClient) {
-            return Promise.reject(new Error('设备命令客户端未初始化'));
-        }
-        // Read the concrete client's synchronous state. React state is only a
-        // rendering projection and can remain CONNECTED for one render after a
-        // physical disconnect or failed native write.
-        if (deviceClient.getState() !== DeviceTransportState.CONNECTED) {
-            throw new Error('设备尚未连接');
-        }
-
-        try {
-            // DeviceCommandClient owns the only RPC lane and the centralized
-            // command policy decides whether this operation is coalesced.
-            return await deviceClient.enqueue(command, params, immediate, options);
-        } catch (error) {
-            if (error instanceof Error) {
-                throw error;
-            }
-            throw new Error(`设备请求失败: ${error}`);
-        }
-    };
-
-    const getProfileMacros = useCallback(async (profileId: string): Promise<MacroConfig[]> => {
-        return cloneConfig(configStoreRef.current.get<MacroConfig[]>(`macros:${profileId}`) ?? []);
-    }, []);
-
-    // Device logs are fetched through the authenticated HID command session.
-    const fetchDeviceLogsList = async (): Promise<string[]> => {
-        try {
-            const data = await sendDeviceRequest('get_device_logs_list', {}, true);
-            const items = (data?.items as string[]) || [];
-            return items;
-        } catch (err) {
-            // 不在上下文里打断 UI，只将错误向上抛出即可
-            throw err instanceof Error ? err : new Error('获取设备日志失败');
-        }
-    };
-
-    const sendInitializationDeviceRequest: DeviceRequestSender = async (
-        command,
-        params = {},
-    ) => {
-        if (!deviceClient) {
-            throw new Error('设备命令客户端未初始化');
-        }
-        return deviceClient.requestInitialization(command, params);
-    };
-
-    const getHitboxLayout = async (
-        immediate: boolean = true,
-        requester: DeviceRequestSender = sendDeviceRequest,
-    ): Promise<HitboxLayoutItem[]> => {
-        try {
-            const data = await requester('get_hitbox_layout', {}, immediate);
-            return Promise.resolve(data as HitboxLayoutItem[]);
-        } catch (err) {
-            // setError(err instanceof Error ? err.message : '获取Hitbox布局失败');
-            return Promise.reject(new Error("Failed to get XORA layout"));
-        }
-    };
-
-    const switchProfile = async (profileId: string): Promise<void> => {
-        editConfig('selected-profile', profileId);
-        const profile = configStoreRef.current.get<GameProfile>(`profile:${profileId}`);
-        if (profile?.ledsConfigs) ledPreviewRef.current.replaceIfActive(profile.ledsConfigs);
-    };
-
-    const rebootSystem = async (immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            await sendDeviceRequest('reboot', {}, immediate);
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to reboot system"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const fetchMappingList = async (immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_get_list', {}, immediate);
-            if (data && 'mappingList' in data && 'defaultMappingId' in data) {
-                setMappingList(data.mappingList as { id: string, name: string }[]);
-                setDefaultMappingId(data.defaultMappingId as string);
-                setMappingStorageMode(
-                    typeof data.storageMode === 'string' ? data.storageMode : null,
-                );
-                setMappingSource(
-                    data.source === 'server-installed' || data.source === 'factory-fallback'
-                        ? data.source
-                        : null,
-                );
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch mapping list"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const fetchDefaultMapping = async (immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_get_default', {}, immediate);
-            if (data && 'id' in data) {
-                setDefaultMappingId(data.id as string ?? "");
-            }
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch default mapping"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const createMapping = async (name: string, length: number, step: number, immediate: boolean = true): Promise<string> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_create_mapping', { name, length, step }, immediate);
-            if (data && 'mappingList' in data && 'defaultMappingId' in data) {
-                setMappingList(data.mappingList as { id: string, name: string }[]);
-                setDefaultMappingId(data.defaultMappingId as string);
-                setMappingStorageMode(typeof data.storageMode === 'string' ? data.storageMode : null);
-                setMappingSource(
-                    data.source === 'server-installed' || data.source === 'factory-fallback'
-                        ? data.source
-                        : null,
-                );
-            }
-            const createdMappingId = typeof data?.createdMappingId === 'string'
-                ? data.createdMappingId
-                : '';
-            if (!createdMappingId) {
-                throw new Error('Device did not return the created mapping id');
-            }
-            setError(null);
-            return createdMappingId;
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to create mapping"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const deleteMapping = async (id: string, immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_delete_mapping', { id }, immediate);
-            if (data && 'mappingList' in data && 'defaultMappingId' in data) {
-                setMappingList(data.mappingList as { id: string, name: string }[]);
-                setDefaultMappingId(data.defaultMappingId as string);
-            }
-            if (activeMapping?.id === id) {
-                setActiveMapping(null);
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to delete mapping"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const updateDefaultMapping = async (id: string, immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_set_default', { id }, immediate);
-            setDefaultMappingId(data.id);
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to set default mapping"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const startMarking = async (id: string, immediate: boolean = true): Promise<void> => {
-        longDeviceActivityRef.current = true; updateSyncPause();
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_mark_mapping_start', { id }, immediate);
-            if (data.status) {
-                setMarkingStatus(data.status);
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            longDeviceActivityRef.current = false; updateSyncPause();
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to start marking"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const stopMarking = async (immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const stoppedMappingId = markingStatus.id;
-            const data = await sendDeviceRequest('ms_mark_mapping_stop', {}, immediate);
-            longDeviceActivityRef.current = false; updateSyncPause();
-            if (data.status) {
-                setMarkingStatus(data.status);
-            }
-            if (stoppedMappingId && stoppedMappingId !== 'draft') {
-                await fetchActiveMapping(stoppedMappingId, immediate);
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to stop marking"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const stepMarking = async (immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_mark_mapping_step', {}, immediate);
-            if (data.status) {
-                const status = data.status as StepInfo;
-                setMarkingStatus(status);
-                if (status.is_completed && status.id && status.id !== 'draft') {
-                    await fetchActiveMapping(status.id, immediate);
-                }
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to step marking"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const fetchMarkingStatus = async (immediate: boolean = true): Promise<void> => {
-        try {
-            const data = await sendDeviceRequest('ms_get_mark_status', {}, immediate);
-            if (data?.status) {
-                setMarkingStatus(data.status as StepInfo);
-            }
-            setError(null);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            throw new Error("Failed to fetch marking status");
-        }
-    };
-
-    const exitWebConfig = async (): Promise<void> => {
-        try {
-            await sendDeviceRequest('exit_webconfig', {}, true, {
-                timeoutMs: EXIT_WEB_CONFIG_TIMEOUT_MS,
-            });
-            // The TX HID interface can remain enumerated in game mode. End
-            // this configuration session as soon as exit is acknowledged.
-            deviceClientRef.current?.disconnect();
-            setError(null);
-        } catch (err) {
-            const error = err instanceof Error
-                ? err
-                : new Error('Failed to exit WebConfig mode');
-            return Promise.reject(error);
-        }
-    };
-
-    const stageResource = (key: string): void => {
-        const store = configStoreRef.current;
-        if (!store.dirty(key)) { deferredConfigRef.current!.remove(key); return; }
-        const generation = store.generation;
-        deferredConfigRef.current!.stage(key, async () => {
-            if (!configReadyRef.current || generation !== store.generation) throw new Error('Configuration session ended');
-            if (!store.dirty(key)) return;
-            const ticket = store.begin(key);
-            try {
-                const remote = await writeConfigResource(
-                    (command, params) => sendDeviceRequest(command, params, true), key, ticket.sent, converProfileDetails,
-                );
-                store.acknowledge(ticket, remote);
-                if (generation === store.generation) publishConfig();
-            } catch (error) { store.fail(ticket); throw error; }
-        }, key === 'selected-profile' ? 30 : key.startsWith('macros:') ? 20 : 10);
-    };
-    const editConfig = (key: string, value: unknown, patch = false): void => {
-        if (!configReadyRef.current || recoveryRef.current || boundaryCountRef.current) return;
-        const store = configStoreRef.current;
-        const previous = store.get(key);
-        if (patch) store.patch(key, value as object); else store.set(key, value);
-        if (previous === store.get(key)) return;
-        publishConfig(); stageResource(key);
-    };
-    const stageDeferredProfileDetails = (id: string, profile: GameProfile): void => {
-        const details = { ...profile, keysConfig: profile.keysConfig ? { ...profile.keysConfig, macros: undefined } : undefined };
-        editConfig(`profile:${id}`, details, true);
-    };
-    const stageDeferredProfileMacros = (id: string, macros: MacroConfig[]): void => editConfig(`macros:${id}`, macros);
-    const stageDeferredHotkeysConfig = (hotkeys: Hotkey[]): void => editConfig('hotkeys', hotkeys);
-    const stageDeferredGlobalConfig = (global: GlobalConfig): void => editConfig('global', global, true);
-    const stageDeferredScreenControl = (screen: ScreenControlConfig): void => {
-        if (screenControl.standbySupported === false) throw new Error('Update device firmware to change screen settings');
-        editConfig('screen-control', screen);
-    };
-    const resolveConfigRecovery = (restore: boolean): void => {
-        const backup = recoveryRef.current;
-        if (!backup) return;
-        if (restore) configStoreRef.current.restore(backup);
-        detachedDraftsRef.current.delete(backup.deviceId);
-        recoveryRef.current = null; setConfigRecovery([]);
-        publishConfig();
-        configStoreRef.current.dirtyKeys.forEach(stageResource);
-        updateSyncPause();
-    };
-
-    const syncMarkingProgress = async (): Promise<void> => {
-        const data = await sendDeviceRequest('ms_mark_mapping_sync', {}, true);
-        if (data?.status) {
-            setMarkingStatus(data.status as StepInfo);
-        }
-    };
-
-    const fetchActiveMapping = async (id: string, immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_get_mapping', { id }, immediate);
-            setActiveMapping(data.mapping);
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch mapping"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const renameMapping = async (id: string, name: string, immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('ms_rename_mapping', { id, name }, immediate);
-            setMappingList(data.mappingList);
-            setDefaultMappingId(data.defaultMappingId);
-            setActiveMapping({ ...(activeMapping as ADCValuesMapping), name: name });
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to rename mapping"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const readSwitchMappingEnvelope = async <T,>(response: Response): Promise<T> => {
-        const envelope = await response.json() as {
-            success?: boolean;
-            data?: T;
-            message?: string;
-            error?: string;
-        };
-        if (!response.ok || envelope.success !== true || envelope.data === undefined) {
-            throw new Error(envelope.message || envelope.error || `HTTP ${response.status}`);
-        }
-        return envelope.data;
-    };
-
-    const fetchSwitchMappingResponse = async (
-        input: RequestInfo | URL,
-        init: RequestInit = {},
-    ): Promise<Response> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10_000);
-        try {
-            return await deviceClient.authorizedFetch(
-                input,
-                { ...init, signal: controller.signal },
-                ['config.read'],
-            );
-        } catch (error) {
-            if (controller.signal.aborted) {
-                throw new Error('服务器映射请求超时');
-            }
-            throw error;
-        } finally {
-            clearTimeout(timeout);
-        }
-    };
-
-    const fetchDeviceAuthorizedResource = useCallback(async (
-        input: RequestInfo | URL,
-        init: RequestInit = {},
-    ): Promise<Response> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        return deviceClient.authorizedFetch(input, init, ['config.read']);
-    }, [deviceClient]);
-
-    const fetchSwitchMappingCatalog = async (
-        includeDrafts: boolean = false,
-    ): Promise<SwitchMappingCatalogItem[]> => {
-        const response = await fetchSwitchMappingResponse(
-            includeDrafts
-                ? '/api/admin/switch-mappings-compatible'
-                : '/api/switch-mappings',
-            { cache: 'no-store' },
-        );
-        const data = await readSwitchMappingEnvelope<{ items: SwitchMappingCatalogItem[] }>(response);
-        return Array.isArray(data.items) ? data.items : [];
-    };
-
-    const fetchSwitchMappingDetail = async (
-        catalogId: string,
-        admin: boolean = false,
-    ): Promise<SwitchMappingCatalogDetail> => {
-        const response = await fetchSwitchMappingResponse(
-            `${admin ? '/api/admin' : '/api'}/switch-mappings/${encodeURIComponent(catalogId)}`,
-            { cache: 'no-store' },
-        );
-        const detail = await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
-        if (!detail.revision?.mapping || detail.revision.mapping.id !== detail.revision.revisionId ||
-            await switchMappingSha256(detail.revision.mapping) !== detail.revision.sha256?.toLowerCase()) {
-            throw new Error('服务器返回的映射结构或 SHA-256 无效');
-        }
-        return detail;
-    };
-
-    const fetchSwitchMappingImage = async (
-        catalogId: string,
-        admin: boolean = false,
-    ): Promise<Blob | null> => {
-        const response = await fetchSwitchMappingResponse(
-            `${admin ? '/api/admin' : '/api'}/switch-mappings/` +
-            `${encodeURIComponent(catalogId)}/image`,
-            { cache: 'no-store' },
-        );
-        if (response.status === 404) return null;
-        if (!response.ok) {
-            throw new Error(`轴体图片下载失败: HTTP ${response.status}`);
-        }
-        const image = await response.blob();
-        return image.type.startsWith('image/') ? image : null;
-    };
-
-    const uploadSwitchMappingImage = async (
-        catalogId: string,
-        image: File,
-    ): Promise<void> => {
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type) ||
-            image.size < 12 || image.size > 2 * 1024 * 1024) {
-            throw new Error('轴体图片必须是 2 MiB 以内的 JPEG、PNG 或 WebP');
-        }
-        const response = await fetchSwitchMappingResponse(
-            `/api/admin/switch-mappings/${encodeURIComponent(catalogId)}/image`,
-            {
-                method: 'PUT',
-                headers: { 'Content-Type': image.type },
-                body: image,
-            },
-        );
-        await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
-    };
-
-    const updateSwitchMappingMetadata = async (
-        catalogId: string,
-        displayName: string,
-        description: string,
-    ): Promise<void> => {
-        const response = await fetchSwitchMappingResponse(
-            `/api/admin/switch-mappings/${encodeURIComponent(catalogId)}`,
-            {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ displayName, description }),
-            },
-        );
-        await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
-    };
-
-    const updateSwitchMappingCurve = async (
-        catalogId: string,
-        mapping: SwitchMappingPayload,
-    ): Promise<SwitchMappingCatalogDetail> => {
-        const response = await fetchSwitchMappingResponse(
-            `/api/admin/switch-mappings/${encodeURIComponent(catalogId)}/mapping`,
-            {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mapping }),
-            },
-        );
-        return readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
-    };
-
-    const deleteSwitchMapping = async (catalogId: string): Promise<void> => {
-        const response = await fetchSwitchMappingResponse(
-            `/api/admin/switch-mappings/${encodeURIComponent(catalogId)}`,
-            { method: 'DELETE' },
-        );
-        await readSwitchMappingEnvelope<{
-            catalogId: string;
-            deletedRevisionIds: string[];
-            deleted: boolean;
-        }>(response);
-    };
-
-    const installCanonicalMapping = async (
-        mapping: SwitchMappingPayload,
-        sha256: string,
-    ): Promise<SwitchMappingPayload> => {
-        const list = await sendDeviceRequest('ms_get_list', {}, true);
-        if (list?.storageMode !== 'shared-singleton' || list?.installSchemaVersion !== 1) {
-            setMappingStorageMode(typeof list?.storageMode === 'string' ? list.storageMode : null);
-            throw new Error('设备固件不支持共享单映射安装，请先升级设备固件');
-        }
-        setMappingStorageMode('shared-singleton');
-        const computed = await switchMappingSha256(mapping);
-        if (!/^[0-9a-f]{64}$/i.test(sha256) || computed !== sha256.toLowerCase()) {
-            throw new Error('服务器映射 SHA-256 校验失败');
-        }
-        const installation = await sendDeviceRequest('ms_install_mapping', { mapping, sha256 }, true);
-        if (installation?.runtimeReloaded !== true) throw new Error('映射已写入，但输入运行时未确认加载，请重新连接设备');
-        const confirmed = await sendDeviceRequest('ms_get_mapping', { id: mapping.id }, true);
-        const installed = confirmed?.mapping as SwitchMappingPayload | undefined;
-        if (!installed || installed.id !== mapping.id ||
-            await switchMappingSha256(installed) !== computed) {
-            throw new Error('设备映射回读校验失败');
-        }
-        setMappingList([{ id: installed.id, name: installed.name }]);
-        setDefaultMappingId(installed.id);
-        setMappingSource('server-installed');
-        setActiveMapping(installed as ADCValuesMapping);
-        return installed;
-    };
-
-    const installSwitchMapping = async (
-        catalogId: string,
-        prefetchedDetail?: SwitchMappingCatalogDetail,
-    ): Promise<SwitchMappingPayload> => {
-        const detail = prefetchedDetail || await fetchSwitchMappingDetail(catalogId);
-        if (!detail.revision?.mapping || detail.revision.revisionId !== detail.revision.mapping.id) {
-            throw new Error('服务器返回的映射结构无效');
-        }
-        return installCanonicalMapping(detail.revision.mapping, detail.revision.sha256);
-    };
-
-    const clearInstalledSwitchMapping = async (
-        mappingId: string,
-    ): Promise<ADCValuesMapping> => {
-        const data = await sendDeviceRequest(
-            'ms_clear_installed_mapping',
-            { id: mappingId },
-            true,
-        );
-        const fallback = data?.mapping as ADCValuesMapping | undefined;
-        if (!fallback?.id || data?.source !== 'factory-fallback') {
-            throw new Error('设备未能恢复固件兜底映射');
-        }
-        setMappingList(Array.isArray(data.mappingList)
-            ? data.mappingList as { id: string; name: string }[]
-            : [{ id: fallback.id, name: fallback.name }]);
-        setDefaultMappingId(typeof data.defaultMappingId === 'string'
-            ? data.defaultMappingId
-            : fallback.id);
-        setMappingStorageMode('shared-singleton');
-        setMappingSource('factory-fallback');
-        setActiveMapping(fallback);
-        return fallback;
-    };
-
-    const createSwitchMappingFromCurrent = async (input: {
-        displayName: string;
-        description: string;
-        length: number;
-        step: number;
-        image?: File | null;
-    }): Promise<SwitchMappingCatalogDetail> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        const response = await deviceClient.authorizedFetch(
-            '/api/admin/switch-mappings/blank',
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    displayName: input.displayName,
-                    description: input.description,
-                    length: input.length,
-                    step: input.step,
-                }),
-            },
-            ['config.read'],
-        );
-        const created = await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
-        const revision = created.revision;
-        if (!revision?.mapping || revision.mapping.id !== revision.revisionId) {
-            throw new Error('服务器未返回标定草稿');
-        }
-        if (input.image) {
-            await uploadSwitchMappingImage(created.catalogId, input.image);
-        }
-        return created;
-    };
-
-    const beginMappingDraft = async (name: string, length: number, step: number): Promise<void> => {
-        const data = await sendDeviceRequest(
-            'ms_mapping_draft_begin',
-            { name, length, step },
-            true,
-        );
-        if (!data?.status) throw new Error('设备未返回标定草稿状态');
-        setMarkingStatus(data.status as StepInfo);
-    };
-
-    const publishMappingDraft = async (input: {
-        catalogId?: string;
-        displayName: string;
-        description: string;
-    }): Promise<SwitchMappingCatalogDetail> => {
-        if (!deviceClient) throw new Error('设备命令客户端未初始化');
-        const draft = await sendDeviceRequest('ms_mapping_draft_get', {}, true);
-        const mapping = draft?.mapping as Omit<SwitchMappingPayload, 'id'> | undefined;
-        if (!mapping) throw new Error('标定草稿尚未完成');
-        const response = await deviceClient.authorizedFetch(
-            '/api/admin/switch-mappings/drafts',
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...input, catalogId: input.catalogId || undefined, mapping }),
-            },
-            ['config.read'],
-        );
-        const hiddenDraft = await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
-        const revision = hiddenDraft.revision;
-        if (!revision?.mapping || revision.mapping.id !== revision.revisionId) {
-            throw new Error('服务器未返回规范化草稿版本');
-        }
-
-        // Publication is an explicit operation in the resource administration page.
-        return hiddenDraft;
-    };
-
-    const previewScreenBrightness = async (brightness: number): Promise<void> => {
-        const value = Math.max(0, Math.min(100, brightness | 0));
-        screenPreviewRef.current = value;
-        if (!feedbackSuspendedRef.current && !boundaryCountRef.current) await sendDeviceRequest('preview_screen_brightness', { brightness: value }, false);
-    };
-
-    const fetchCalibrationStatus = async (immediate: boolean = true): Promise<CalibrationStatus> => {
-        try {
-            const data = await sendDeviceRequest('get_calibration_status', {}, immediate);
-            const status = calibrationStatusFrom(data?.calibrationStatus);
-            if (!status) throw new Error('Device returned an invalid calibration status');
-            setCalibrationStatus(status);
-            setError(null);
-            return status;
-        } catch (err) {
-            const error = err instanceof Error ? err : new Error('Failed to fetch calibration status');
-            setError(error.message);
-            throw error;
-        }
-    };
-
-    const startManualCalibration = async (immediate: boolean = true): Promise<CalibrationStatus> => {
-        longDeviceActivityRef.current = true; updateSyncPause();
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('start_manual_calibration', {}, immediate);
-            const status = calibrationStatusFrom(data?.calibrationStatus);
-            if (!status) throw new Error('Device returned an invalid calibration status');
-            setCalibrationStatus(status);
-            setError(null);
-            return status;
-        } catch (err) {
-            longDeviceActivityRef.current = false; updateSyncPause();
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to start manual calibration"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const stopManualCalibration = async (immediate: boolean = true): Promise<CalibrationStatus> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('stop_manual_calibration', {}, immediate);
-            const status = calibrationStatusFrom(data?.calibrationStatus);
-            if (!status || status.isActive) throw new Error('Device did not confirm calibration stopped');
-            longDeviceActivityRef.current = false; updateSyncPause();
-            setCalibrationStatus(status);
-            setError(null);
-            return status;
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to stop manual calibration"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const clearManualCalibrationData = async (immediate: boolean = true): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendDeviceRequest('clear_manual_calibration_data', {}, immediate);
-            const status = calibrationStatusFrom(data?.calibrationStatus);
-            if (!status) throw new Error('Device returned an invalid calibration status');
-            setCalibrationStatus(status);
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to clear manual calibration data"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const checkIsManualCalibrationCompleted = (immediate: boolean = true): Promise<boolean> => {
-        const generation = initializationGenerationRef.current;
-        const existing = calibrationCompletionRequestRef.current;
-        if (existing?.generation === generation) {
-            return existing.promise;
-        }
-
-        const promise = postReadyRequestSchedulerRef.current!.schedule(async () => {
-            try {
-                const data = await sendDeviceRequest(
-                    'check_is_manual_calibration_completed',
-                    {},
-                    immediate,
-                );
-                return data.isCompleted === true;
-            } catch {
-                throw new Error("Failed to check if manual calibration is completed");
-            }
-        });
-        calibrationCompletionRequestRef.current = { generation, promise };
-        void promise.finally(() => {
-            if (calibrationCompletionRequestRef.current?.promise === promise) {
-                calibrationCompletionRequestRef.current = null;
-            }
-        }).catch(() => undefined);
-        return promise;
-    };
-
-    const startButtonMonitoring = (
-        immediate: boolean = true,
-    ): Promise<SharedButtonMonitorLeaseToken> => {
-        const promise = buttonMonitorLeaseRef.current!.acquire(async () => {
-            try {
-                const completed = await checkIsManualCalibrationCompleted(immediate);
-                if (!completed) {
-                    setButtonMonitoringActive(false);
-                    throw new Error("Manual calibration not completed");
-                }
-
-                const data = await postReadyRequestSchedulerRef.current!.schedule(
-                    () => sendDeviceRequest('start_button_monitoring', {}, immediate),
-                );
-                setButtonMonitoringActive(data.isActive ?? true);
-                setError(null);
-            } catch {
-                throw new Error("Failed to start button monitoring");
-            }
-        });
-        postReadyRequestSchedulerRef.current!.track(promise);
-        return promise;
-    };
-
-    const stopButtonMonitoring = async (
-        lease: SharedButtonMonitorLeaseToken,
-        immediate: boolean = true,
-    ): Promise<void> => {
-        try {
-            await buttonMonitorLeaseRef.current!.release(
-                lease,
-                async () => {
-                    const data = await postReadyRequestSchedulerRef.current!.schedule(
-                        () => sendDeviceRequest('stop_button_monitoring', {}, immediate),
-                    );
-                    setButtonMonitoringActive(data.isActive ?? false);
-                    setError(null);
-                },
-            );
-        } catch (err) {
-            return Promise.reject(new Error("Failed to stop button monitoring"));
-        }
-    };
-
-    const releaseActivityRef = useRef(false);
-    const releaseInventoryRequestRef = useRef<Promise<FirmwareInventory> | null>(null);
-    const getReleaseInventory = useCallback(async (): Promise<FirmwareInventory> => {
-        if (!deviceClient) throw new Error('Device is not connected');
-        const request = releaseInventoryRequestRef.current ?? deviceClient.request('get_firmware_inventory') as unknown as Promise<FirmwareInventory>;
-        releaseInventoryRequestRef.current = request;
-        let result: FirmwareInventory;
-        try { result = await request; } finally { if (releaseInventoryRequestRef.current === request) releaseInventoryRequestRef.current = null; }
-        if (!result || typeof result.protocol !== 'number' || typeof result.phase !== 'string') throw new Error('Device needs the whole-device installation baseline');
-        const pending = !['idle', 'completed', 'aborted', 'restored'].includes(result.phase) ||
-            (releaseActivityRef.current && boundaryCountRef.current > 0);
-        setFirmwareUpdating(pending);
-        if (pending || releaseActivityRef.current) longDeviceActivityRef.current = pending;
-        releaseActivityRef.current = pending;
-        updateSyncPause();
-        return result;
-    }, [deviceClient]);
-    const downloadSelectedRelease = async (id: string, inventory: FirmwareInventory, progress?: (p: ReleaseProgress) => void) => {
-        if (!deviceClient) throw new Error('Device is not connected');
-        return downloadRelease(deviceClient, id, inventory, progress);
-    };
-    const installSelectedRelease = async (release: PreparedRelease, progress: (p: ReleaseProgress) => void) => {
-        if (!deviceClient) throw new Error('Device is not connected');
-        const client = deviceClient;
-        try { await queueConfigTransaction(async () => {
-            progress({ stage: 'backup' });
-            await saveReleaseConfigBackup(`${release.digest}-${Date.now()}`, await client.exportConfig());
-            releaseActivityRef.current = true;
-            longDeviceActivityRef.current = true; updateSyncPause(); setFirmwareUpdating(true);
-            try {
-                await installRelease(client, release, progress);
-            }
-            catch (error) {
-                // A failed HTTP request or rejected BEGIN can precede device writes.
-                // Only device evidence may release the exclusive operation boundary.
-                try { await getReleaseInventory(); } catch { /* Leave uncertain operation blocked. */ }
-                throw error;
-            }
-        }, false, terminateWebConfigActivities); }
-        finally {
-            // The queue boundary must have ended before clearing the release lock,
-            // including when the confirmation view unmounts before BEGIN.
-            try { await getReleaseInventory(); } catch { /* Keep an uncertain device operation blocked. */ }
-        }
-    };
-    const releaseInstallAction = async (action: 'abort' | 'retry' | 'activate', sessionId: string) => {
-        if (!deviceClient) throw new Error('Device is not connected');
-        await deviceClient.request(`${action}_release_install`, { session_id: sessionId });
-        await getReleaseInventory();
-    };
-
-    const performDeferredConfigFlush = async (
-        afterFlush?: () => void | Promise<void>,
-        resumeMonitoringAfterSuccess: boolean = false,
-        beforeFlush?: () => void | Promise<void>,
-        all = true,
-    ): Promise<void> => {
-        const generation = initializationGenerationRef.current;
-        const current = () => generation === initializationGenerationRef.current && configReadyRef.current;
-        if (!current()) throw new Error("Device configuration is not ready");
-        const hasDeferredWrites = deferredConfigRef.current!.dirty;
-        if (!hasDeferredWrites && !afterFlush) return;
-
-        // Ordinary autosave keeps the device's input workers and LED DMA alive.
-        // Only explicit device operations below own the stop/clear boundary.
-        if (!all) {
-            const previousProfile = configStoreRef.current.confirmed['selected-profile'];
-            setDeferredConfigSaving(true);
-            try {
-                await deferredConfigRef.current!.flush(false);
-                if (!current()) throw new Error('Configuration session ended');
-            } finally {
-                if (current()) {
-                    setDeferredConfigSaving(false);
-                    // Profile previews requested before the switch ACK were
-                    // retained locally. Replay the latest one after confirmation.
-                    if (previousProfile !== configStoreRef.current.confirmed['selected-profile']) {
-                        await ledPreviewRef.current.replay(async config => {
-                            if (configStoreRef.current.get('selected-profile') !== configStoreRef.current.confirmed['selected-profile']) return;
-                            await sendDeviceRequest('push_leds_config', config as unknown as Record<string, unknown>, false);
-                        }).catch(error => console.warn('LED preview refresh failed:', error));
-                    }
-                }
-            }
-            return;
-        }
-
-        const lease = buttonMonitorLeaseRef.current!;
-        const preview = ledPreviewRef.current;
-        // Block new previews synchronously before stopping the workers. A
-        // queued push is drained before stop; later pushes only replace the
-        // snapshot and cannot restart sampling in the middle of a save.
-        const previewSuspension = preview.suspend();
-        feedbackSuspendedRef.current = true;
-        let completed = false;
-        let suspended = false;
-        if (hasDeferredWrites) setDeferredConfigSaving(true);
-        const resumeButtonMonitor = async () => {
-            await lease.resume(async () => {
-                const completed = await checkIsManualCalibrationCompleted(true);
-                if (!completed) { setButtonMonitoringActive(false); throw new Error('Manual calibration not completed'); }
-                const data = await postReadyRequestSchedulerRef.current!.schedule(
-                    () => sendDeviceRequest('start_button_monitoring', {}, true),
-                );
-                setButtonMonitoringActive(data.isActive ?? true);
-            });
-        };
-        try {
-            suspended = await lease.suspend(async () => {
-                const data = await postReadyRequestSchedulerRef.current!.schedule(
-                    () => sendDeviceRequest('stop_button_monitoring', {}, true),
-                );
-                setButtonMonitoringActive(data.isActive ?? false);
-            });
-
-            if (preview.active) {
-                // Preserve the desired snapshot for resume. The public clear
-                // API instead releases preview ownership on page teardown.
-                await sendDeviceRequest('clear_leds_preview', {}, true);
-            }
-
-            await beforeFlush?.();
-            if (longDeviceActivityRef.current) throw new Error("Stop calibration or performance monitoring before this device operation");
-            if (!current()) throw new Error("Configuration session ended");
-            await deferredConfigRef.current!.flush(all);
-            await deviceClientRef.current?.flushQueue();
-            if (!current()) throw new Error("Configuration session ended");
-            await afterFlush?.();
-            if (suspended && current()) {
-                if (resumeMonitoringAfterSuccess && !longDeviceActivityRef.current && configStoreRef.current.get('selected-profile') === configStoreRef.current.confirmed['selected-profile']) {
-                    try { await resumeButtonMonitor(); }
-                    catch (error) { console.warn('Configuration saved; monitoring remains paused:', error); }
-                } else if (!resumeMonitoringAfterSuccess) {
-                    lease.finalizeSuspension();
-                }
-            }
-            completed = true;
-            setError(null);
-        } catch (error) {
-            if (suspended && current() && !longDeviceActivityRef.current && configStoreRef.current.get('selected-profile') === configStoreRef.current.confirmed['selected-profile']) {
-                try {
-                    await resumeButtonMonitor();
-                } catch (resumeError) {
-                    console.error('恢复按键监控失败:', resumeError);
-                }
-            }
-            const normalized = error instanceof Error
-                ? error
-                : new Error('Failed to flush deferred configuration');
-            throw normalized;
-        } finally {
-            const canResume = current() && !longDeviceActivityRef.current && (!completed || resumeMonitoringAfterSuccess)
-                && configStoreRef.current.get('selected-profile') === configStoreRef.current.confirmed['selected-profile'];
-            if (current()) feedbackSuspendedRef.current = !canResume;
-            try {
-                if (current()) await preview.resume(
-                    previewSuspension,
-                    async (config) => {
-                        if (configStoreRef.current.get('selected-profile') !== configStoreRef.current.confirmed['selected-profile']) return;
-                        await sendDeviceRequest('push_leds_config', config as unknown as Record<string, unknown>, true);
-                    },
-                    canResume,
-                );
-            } catch (previewError) {
-                // A preview failure must not turn an acknowledged profile
-                // switch into a reported persistence failure.
-                console.error('恢复灯光预览失败:', previewError);
-                setError(previewError instanceof Error ? previewError.message : 'Failed to restore LED preview');
-            }
-            if (current() && canResume && screenPreviewRef.current !== null) {
-                await sendDeviceRequest('preview_screen_brightness', { brightness: screenPreviewRef.current }, true).catch(() => undefined);
-            }
-            if (current() && hasDeferredWrites) setDeferredConfigSaving(false);
-        }
-    };
-
-    const queueConfigTransaction = (
-        afterFlush?: () => void | Promise<void>,
-        resumeMonitoringAfterSuccess = true,
-        beforeFlush?: () => void | Promise<void>,
-        all = true,
-    ): Promise<void> => {
-        const generation = initializationGenerationRef.current;
-        if (all) { boundaryCountRef.current++; setConfigBoundaryBusy(true); updateSyncPause(); }
-        const run = async () => {
-            if (generation !== initializationGenerationRef.current || !configReadyRef.current || recoveryRef.current) throw new Error('Configuration session is not ready');
-            if (!all && (boundaryCountRef.current || longDeviceActivityRef.current)) return;
-            if (all && longDeviceActivityRef.current && !beforeFlush) throw new Error('Stop calibration or performance monitoring before this device operation');
-            await performDeferredConfigFlush(afterFlush, resumeMonitoringAfterSuccess, beforeFlush, all);
-        };
-        const operation = deferredFlushTailRef.current.then(run, run).finally(() => {
-            if (all) {
-                boundaryCountRef.current--;
-                setConfigBoundaryBusy(boundaryCountRef.current > 0);
-                updateSyncPause();
-            }
-        });
-        deferredFlushTailRef.current = operation.catch(() => undefined);
-        return operation;
-    };
-    const flushDeferredConfig = (
-        afterFlush?: () => void | Promise<void>,
-        resumeMonitoringAfterSuccess = false,
-        beforeFlush?: () => void | Promise<void>,
-    ) => queueConfigTransaction(afterFlush, resumeMonitoringAfterSuccess, beforeFlush);
     autoFlushRef.current = () => queueConfigTransaction(undefined, true, undefined, false);
-    const refreshDeviceConfig = async (): Promise<void> => {
-        const generation = configStoreRef.current.generation;
-        const global = (await sendDeviceRequest('get_global_config', {}, true))?.globalConfig;
-        const screen = (await sendDeviceRequest('get_screen_control_config', {}, true))?.screenControl;
-        if (generation !== configStoreRef.current.generation) return;
-        if (!global || !screen) throw new Error('Device returned incomplete configuration');
-        configStoreRef.current.refresh('global', global);
-        configStoreRef.current.refresh('screen-control', normalizeScreenControl(screen, true));
-        publishConfig();
+
+    useSessionLifecycle(sessionDependencies, { resetDeviceSessionState, cancelPendingAutomaticConnects });
+
+    const { resourceCommand, resourceTransaction, syncLightingResourceReferences, installMappingResource } = createResourceActions({
+        sendDeviceRequest, runConfigExclusive, configStoreRef, publishConfig, installCanonicalMapping,
+    });
+
+    const value: GamepadConfigContextType = {
+        contextJsReady,
+        setContextJsReady,
+
+        // WebHID connection state
+        rfBindingBusy, rfBindingRequest, runRfBindingOperation: (action) => runConfigExclusive(() => runRfBindingOperation(action)),
+        deviceConnected,
+        showReconnect,
+        deviceState,
+        devicePhase,
+        deviceError,
+        deviceSession,
+        connectDevice,
+        reconnectDevice,
+        disconnectDevice,
+        getDeviceImageCatalog,
+        readDeviceImage,
+        uploadDeviceImage: (...args) => runConfigExclusive(() => uploadDeviceImage(...args), true),
+        deleteDeviceImage: (...args) => runConfigExclusive(() => deleteDeviceImage(...args), true),
+        fetchDeviceAuthorizedResource,
+
+        resourceCommand, resourceTransaction, syncLightingResourceReferences,
+        globalConfig,
+        screenControl,
+        profileList,
+        defaultProfile,
+        hotkeysConfig,
+        dataIsReady,
+        setUserRebooting,
+        deviceBackgroundReadsPaused,
+        firmwareUpdating,
+        getReleaseInventory, downloadSelectedRelease, installSelectedRelease, releaseInstallAction,
+        setFirmwareUpdating,
+
+        previewScreenBrightness,
+        getProfileMacros,
+        stageDeferredProfileDetails,
+        stageDeferredProfileMacros,
+        stageDeferredHotkeysConfig,
+        stageDeferredGlobalConfig,
+        stageDeferredScreenControl,
+        flushDeferredConfig,
+        terminateWebConfigActivities,
+        deferredConfigDirty,
+        deferredConfigSaving,
+        configSyncState, configReadProgress, configEditingBlocked, configRecovery, resolveConfigRecovery,
+        retrySync: () => deferredConfigRef.current!.retry(),
+        flushAndWait: () => flushDeferredConfig(undefined, true),
+        switchProfile,
+        isLoading,
+        error,
+        setError,
+        rebootSystem: (...args) => runConfigExclusive(() => rebootSystem(...args)),
+        exitWebConfig,
+        // 校准相关
+        calibrationStatus,
+        fetchCalibrationStatus,
+        startManualCalibration: (...args) => runConfigExclusive(() => startManualCalibration(...args), true),
+        stopManualCalibration: () => stopLongDeviceActivity(stopManualCalibration),
+        clearManualCalibrationData: (...args) => runConfigExclusive(() => clearManualCalibrationData(...args), true),
+        checkIsManualCalibrationCompleted,
+        // ADC Mapping 相关
+        defaultMappingId: defaultMappingId,
+        markingStatus,
+        mappingList,
+        activeMapping,
+        mappingStorageMode,
+        mappingSource,
+        fetchMappingList,
+        fetchMarkingStatus,
+        updateDefaultMapping: (...args) => runConfigExclusive(() => updateDefaultMapping(...args), true),
+        fetchDefaultMapping,
+        fetchActiveMapping,
+        createMapping: (...args) => runConfigExclusive(() => createMapping(...args)),
+        deleteMapping: (...args) => runConfigExclusive(() => deleteMapping(...args)),
+        startMarking: (...args) => runConfigExclusive(() => startMarking(...args)),
+        stopMarking: () => stopLongDeviceActivity(stopMarking),
+        stepMarking,
+        syncMarkingProgress,
+        renameMapping: (...args) => runConfigExclusive(() => renameMapping(...args)),
+        fetchSwitchMappingCatalog,
+        fetchSwitchMappingDetail,
+        fetchSwitchMappingImage,
+        uploadSwitchMappingImage,
+        updateSwitchMappingMetadata,
+        updateSwitchMappingCurve,
+        deleteSwitchMapping,
+        installMappingResource,
+        installSwitchMapping: (...args) => runConfigExclusive(() => installSwitchMapping(...args), true),
+        clearInstalledSwitchMapping: (...args) => runConfigExclusive(() => clearInstalledSwitchMapping(...args), true),
+        createSwitchMappingFromCurrent,
+        beginMappingDraft: (...args) => runConfigExclusive(() => beginMappingDraft(...args)),
+        publishMappingDraft: (...args) => runConfigExclusive(() => publishMappingDraft(...args)),
+        // 按键监控相关
+        buttonMonitoringActive: buttonMonitoringActive,
+        startButtonMonitoring,
+        stopButtonMonitoring,
+        getButtonStates,
+        // 按键性能监控相关
+        startButtonPerformanceMonitoring,
+        stopButtonPerformanceMonitoring: () => stopLongDeviceActivity(stopButtonPerformanceMonitoring),
+        // LED 配置相关
+        pushLedsConfig: pushLedsConfig,
+        clearLedsPreview: clearLedsPreview,
+        // 固件元数据相关
+        firmwareInfo,
+        fetchFirmwareMetadata,
+        // 固件更新检查相关
+        firmwareUpdateInfo,
+        checkFirmwareUpdate,
+        // 固件升级包下载和传输相关
+        upgradeSession: upgradeSession,
+        downloadFirmwarePackage: downloadFirmwarePackage,
+        uploadFirmwareToDevice: (...args) => runConfigExclusive(() => uploadFirmwareToDevice(...args)),
+        uploadCh585Firmware: (...args) => runConfigExclusive(() => uploadCh585Firmware(...args)),
+        setUpgradeConfig: setUpgradeConfig,
+        getUpgradeConfig: getUpgradeConfig,
+        getValidChunkSizes: getValidChunkSizes,
+        updateMarkingStatus: updateMarkingStatus,
+        sendPendingCommandImmediately: sendPendingCommandImmediately,
+        flushQueue: flushQueue,
+        getDeviceTransportConfig: getDeviceTransportConfig,
+        updateDeviceTransportConfig: updateDeviceTransportConfig,
+        // 是否禁用完成配置按钮
+        finishConfigDisabled: finishConfigDisabled,
+        setFinishConfigDisabled: setFinishConfigDisabled,
+        // 按键索引映射到游戏控制器按钮或组合键
+        indexMapToGameControllerButtonOrCombination: indexMapToGameControllerButtonOrCombination,
+        // 设备日志相关
+        fetchDeviceLogsList: fetchDeviceLogsList,
+        getHitboxLayout: getHitboxLayout,
+        hitboxLayout: hitboxLayout,
     };
-    const stopLongDeviceActivity = async <T,>(stop: () => Promise<T>): Promise<T> => {
-        let result!: T;
-        await queueConfigTransaction(async () => {}, true, async () => {
-            result = await stop();
-            await refreshDeviceConfig();
-        });
-        return result;
-    };
-    const runConfigExclusive = async <T,>(operation: () => Promise<T>, refresh = false): Promise<T> => {
-        let result!: T;
-        await queueConfigTransaction(async () => {
-            result = await operation();
-            if (refresh) await refreshDeviceConfig();
-        }, true);
-        return result;
-    };
-
-    /**
-     * Put every volatile WebConfig activity into an idle state before the
-     * final durable commit. The button stop is deliberately unconditional:
-     * it also clears performance-test mode and recovers a device-side worker
-     * left active by an older page or a stale frontend lease.
-     */
-    const terminateWebConfigActivities = async (): Promise<void> => {
-        const buttonData = await sendDeviceRequest(
-            'stop_button_monitoring',
-            {},
-            true,
-        );
-        setButtonMonitoringActive(buttonData?.isActive ?? false);
-        performanceTelemetryRef.current?.resetMonitoringSession();
-
-        const calibrationData = await sendDeviceRequest(
-            'get_calibration_status',
-            {},
-            true,
-        );
-        const currentCalibration = calibrationStatusFrom(
-            calibrationData?.calibrationStatus,
-        );
-        if (!currentCalibration) {
-            throw new Error('Device returned an invalid calibration status while finishing');
-        }
-        setCalibrationStatus(currentCalibration);
-        if (currentCalibration.isActive) {
-            const data = await sendDeviceRequest(
-                'stop_manual_calibration',
-                {},
-                true,
-            );
-            const status = calibrationStatusFrom(data?.calibrationStatus);
-            if (!status) {
-                throw new Error('Device returned an invalid calibration status while finishing');
-            }
-            setCalibrationStatus(status);
-        }
-
-        const markingData = await sendDeviceRequest(
-            'ms_get_mark_status',
-            {},
-            true,
-        );
-        const currentMarking = markingData?.status as StepInfo | undefined;
-        if (currentMarking) setMarkingStatus(currentMarking);
-        if (currentMarking?.is_marking || currentMarking?.is_sampling) {
-            const data = await sendDeviceRequest(
-                'ms_mark_mapping_stop',
-                {},
-                true,
-            );
-            if (data?.status) setMarkingStatus(data.status as StepInfo);
-        }
-
-        // These commands are idempotent and discard only volatile preview or
-        // multipart staging state. Neither command persists configuration.
-        await sendDeviceRequest('clear_leds_preview', {}, true);
-        await sendDeviceRequest('import_config_abort', {}, true);
-        longDeviceActivityRef.current = false;
-        await deviceClientRef.current?.flushQueue();
-    };
-
-    /**
-     * @deprecated 已废弃：现在使用服务器推送模式，请监听 EVENTS.BUTTON_STATE_CHANGED 事件
-     * 保留此方法仅用于兼容性，推荐使用推送模式获取按键状态变化
-     */
-    const getButtonStates = async (): Promise<ButtonStates> => {
-        setError(null);
-        try {
-            const data = await sendDeviceRequest('get_button_states');
-            return Promise.resolve(data as ButtonStates);
-        } catch (error) {
-            console.error('获取按键状态失败:', error);
-            setError(error instanceof Error ? error.message : '获取按键状态失败');
-            throw error;
-        }
-    };
-
-    // 按键性能监控相关
-    const startButtonPerformanceMonitoring = async (immediate: boolean = true): Promise<void> => {
-        performanceTelemetryRef.current?.resetMonitoringSession();
-        longDeviceActivityRef.current = true; updateSyncPause();
-        try {
-            const data = await sendDeviceRequest('start_button_performance_monitoring', {}, immediate);
-            if (data?.isActive !== true || data?.isTestModeEnabled !== true) {
-                throw new Error('Device did not enter button performance monitoring mode');
-            }
-            setButtonMonitoringActive(true);
-            setError(null);
-            return;
-        } catch (err) {
-            longDeviceActivityRef.current = false; updateSyncPause();
-            const error = err instanceof Error
-                ? err
-                : new Error('Failed to start button performance monitoring');
-            setButtonMonitoringActive(false);
-            setError(error.message);
-            throw error;
-        }
-    };
-
-    const stopButtonPerformanceMonitoring = async (immediate: boolean = true): Promise<void> => {
-        try {
-            const data = await sendDeviceRequest('stop_button_performance_monitoring', {}, immediate);
-            if (data?.isActive !== false || data?.isTestModeEnabled !== false) {
-                throw new Error('Device did not leave button performance monitoring mode');
-            }
-            longDeviceActivityRef.current = false; updateSyncPause();
-            setButtonMonitoringActive(false);
-            performanceTelemetryRef.current?.resetMonitoringSession();
-            setError(null);
-            return;
-        } catch (err) {
-            const error = err instanceof Error
-                ? err
-                : new Error('Failed to stop button performance monitoring');
-            setError(error.message);
-            throw error;
-        }
-    };
-
-    // LED 配置相关
-    const pushLedsConfig = async (ledsConfig: LEDsConfig, immediate: boolean = false): Promise<void> => {
-        setError(null);
-        try {
-            await ledPreviewRef.current.push(ledsConfig, async (config) => {
-                if (feedbackSuspendedRef.current || configStoreRef.current.get('selected-profile') !== configStoreRef.current.confirmed['selected-profile']) return;
-                await sendDeviceRequest('push_leds_config', config as unknown as Record<string, unknown>, immediate);
-            });
-            return Promise.resolve();
-        } catch (error) {
-            const normalized = error instanceof Error
-                ? error
-                : new Error("Failed to push LED configuration");
-            setError(normalized.message);
-            return Promise.reject(normalized);
-        }
-    };
-
-    const clearLedsPreview = async (immediate: boolean = true): Promise<void> => {
-        setError(null);
-        try {
-            await ledPreviewRef.current.clear(async () => {
-                await sendDeviceRequest('clear_leds_preview', {}, immediate);
-            });
-            return Promise.resolve();
-        } catch (error) {
-            const normalized = error instanceof Error
-                ? error
-                : new Error("Failed to clear LED preview");
-            setError(normalized.message);
-            return Promise.reject(normalized);
-        }
-    };
-
-    const fetchFirmwareMetadata = async (
-        immediate: boolean = true,
-        requester: DeviceRequestSender = sendDeviceRequest,
-    ): Promise<void> => {
-        try {
-            const data = await requester('get_firmware_metadata', {}, immediate);
-            setFirmwareInfo({
-                firmware: data
-            });
-            return Promise.resolve();
-        } catch (err) {
-            return Promise.reject(new Error("Failed to fetch firmware metadata"));
-        }
-    };
-
-    const checkFirmwareUpdate = async (currentVersion: string, customServerHost?: string): Promise<void> => {
-        try {
-            if (!deviceClient || deviceState !== DeviceTransportState.CONNECTED) {
-                throw new Error('设备传输尚未连接');
-            }
-            const serverHost = customServerHost || firmwareServerHost || FIRMWARE_SERVER_CONFIG.defaultHost;
-            const response = await deviceClient.authorizedFetch(
-                `${serverHost}${FIRMWARE_SERVER_CONFIG.endpoints.checkUpdate}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ currentVersion: currentVersion.trim() } satisfies FirmwareUpdateCheckRequest),
-                },
-                ['config.read'],
-            );
-            if (!response.ok) {
-                throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
-            }
-            const envelope = await response.json();
-            if (envelope.errNo && envelope.errNo !== 0) {
-                throw new Error(envelope.errorMessage || `Server error ${envelope.errNo}`);
-            }
-            setFirmwareUpdateInfo(envelope.data);
-        } catch (cause) {
-            setFirmwareUpdateInfo(null);
-            const message = cause instanceof Error ? cause.message : '固件更新认证失败';
-            setError(message);
-            throw cause;
-        }
-    };
-
-    // 工具函数：生成会话ID
-    const generateSessionId = (): string => {
-        return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    };
-
-    /**
-     * 下载固件包
-     * 解压
-     * 计算总大小
-     * 创建固件包对象
-     * @param downloadUrl 固件包下载地址
-     * @param onProgress 下载进度回调
-     * @returns 固件包对象
-     */
-    const downloadFirmwarePackage = async (downloadUrl: string, onProgress?: (progress: FirmwarePackageDownloadProgress) => void): Promise<FirmwarePackage> => {
-        try {
-            setError(null);
-
-            // 初始化进度
-            const initialProgress: FirmwarePackageDownloadProgress = {
-                stage: 'downloading',
-                progress: 0,
-                message: 'Starting to download firmware package...'
-            };
-            onProgress?.(initialProgress);
-
-            // 1. 下载固件包 (进度 0% - 30%)
-            if (!deviceClient) throw new Error('Device transport is not connected');
-            const response = await deviceClient.authorizedFetch(
-                downloadUrl,
-                undefined,
-                ['firmware.update'],
-            );
-            if (!response.ok) {
-                throw new Error(`Failed to download firmware package: ${response.status} ${response.statusText}`);
-            }
-
-            const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
-            if (contentLength === 0) {
-                throw new Error('Failed to get file size');
-            }
-
-            const reader = response.body?.getReader();
-            if (!reader) {
-                throw new Error('Failed to read response data');
-            }
-
-            const chunks: Uint8Array[] = [];
-            let receivedLength = 0;
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                chunks.push(value);
-                receivedLength += value.length;
-
-                // 下载进度占总进度的80%
-                const downloadProgress = (receivedLength / contentLength) * 80;
-                onProgress?.({
-                    stage: 'downloading',
-                    progress: downloadProgress,
-                    message: `Downloading firmware package... ${Math.round(receivedLength / 1024)}KB/${Math.round(contentLength / 1024)}KB`,
-                    bytes_transferred: receivedLength,
-                    total_bytes: contentLength
-                });
-            }
-
-            // 合并所有数据块
-            const packageData = new Uint8Array(receivedLength);
-            let position = 0;
-            for (const chunk of chunks) {
-                packageData.set(chunk, position);
-                position += chunk.length;
-            }
-
-            onProgress?.({
-                stage: 'extracting',
-                progress: 80,
-                message: 'Extracting firmware package...'
-            });
-
-            // 2. 解压和验证包 (进度 30% - 40%)
-            const { manifest, components } = await extractFirmwarePackage(packageData);
-
-            // 3. 计算总大小
-            onProgress?.({
-                stage: 'extracting',
-                progress: 85,
-                message: 'Preparing firmware package...'
-            });
-
-            let totalSize = 0;
-            for (const component of Object.values(components)) {
-                if (component.data) {
-                    totalSize += component.data.length;
-                }
-            }
-
-            // 4. 创建固件包对象
-            const firmwarePackage: FirmwarePackage = {
-                manifest,
-                components,
-                totalSize
-            };
-
-            onProgress?.({
-                stage: 'downcompleted',
-                progress: 100,
-                message: `Firmware package download completed! Total size: ${Math.round(totalSize / 1024)}KB`
-            });
-
-            setError(null);
-            return Promise.resolve(firmwarePackage);
-
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to download firmware package: unknown error';
-            setError(errorMessage);
-
-            onProgress?.({
-                stage: 'failed',
-                progress: 0,
-                message: 'Download failed',
-                error: errorMessage
-            });
-
-            return Promise.reject(new Error(errorMessage));
-        }
-    };
-
-    // 上传固件到设备
-    const uploadFirmwareToDevice = async (firmwarePackage: FirmwarePackage, onProgress?: (progress: FirmwarePackageDownloadProgress) => void): Promise<void> => {
-        let activeSessionId: string | null = null;
-        let completionIssued = false;
-        let completionSettled = false;
-        try {
-            // 生成会话ID
-            const sessionId = generateSessionId();
-
-            // 创建升级会话
-            const sessionData = await sendDeviceRequest('create_firmware_upgrade_session', {
-                session_id: sessionId,
-                manifest: firmwarePackage.manifest
-            }, true);
-
-            const deviceSessionId = sessionData.session_id || sessionId;
-            activeSessionId = deviceSessionId;
-
-            // 更新升级会话状态
-            setUpgradeSession({
-                sessionId: deviceSessionId,
-                status: 'uploading',
-                progress: 0,
-                currentComponent: null,
-                error: null
-            });
-
-            onProgress?.({
-                stage: 'uploading',
-                progress: 0,
-                message: 'Starting to upload firmware package...'
-            });
-
-            const componentNames = Object.keys(firmwarePackage.components);
-            const totalComponents = componentNames.length;
-
-            // 逐个上传组件
-            for (let i = 0; i < componentNames.length; i++) {
-                const componentName = componentNames[i];
-                const component = firmwarePackage.components[componentName];
-
-                // 更新当前组件状态
-                setUpgradeSession(prev => prev ? {
-                    ...prev,
-                    currentComponent: componentName,
-                    progress: Math.round((i / totalComponents) * 100)
-                } : null);
-
-                onProgress?.({
-                    stage: 'uploading',
-                    progress: Math.round((i / totalComponents) * 100),
-                    message: `Uploading component: ${componentName}`
-                });
-
-                // 分片传输单个组件
-                const componentData = component.data;
-                if (!componentData) {
-                    throw new Error(`Component ${componentName} data is missing`);
-                }
-                const transportChunkSize =
-                    deviceClient?.transport.kind === 'webhid'
-                        ? WEBHID_FIRMWARE_CHUNK_DATA_SIZE
-                        : upgradeConfig.chunkSize;
-                const totalChunks = Math.ceil(componentData.length / transportChunkSize);
-
-                // 解析组件基地址（支持十六进制格式）
-                let baseAddress: number;
-
-                if (component.address.toString().startsWith('0x')) {
-                    baseAddress = parseInt(component.address.toString(), 16);
-                } else if (component.address.toString().startsWith('0X')) {
-                    baseAddress = parseInt(component.address.toString(), 16);
-                } else {
-                    baseAddress = parseInt(component.address.toString(), 10);
-                }
-
-                // 分片传输
-                for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-                    const start = chunkIndex * transportChunkSize;
-                    const end = Math.min(start + transportChunkSize, componentData.length);
-                    const chunkData = componentData.slice(start, end);
-
-                    // 计算当前chunk的精确写入地址和偏移
-                    const chunkOffset = parseInt(start.toString(), 10);
-                    const targetAddress = baseAddress + chunkOffset;
-
-                    // 直接计算二进制数据的校验和（移除Intel HEX相关逻辑）
-                    // 使用异步SHA256计算
-                    const checksum = await calculateSHA256(chunkData);
-
-                    // 添加调试输出
-                    console.log(`Frontend calculated chunk ${chunkIndex} SHA256:`, checksum);
-                    console.log(`Chunk size: ${chunkData.length} bytes`);
-                    console.log(`First 32 bytes of chunk data:`, Array.from(chunkData.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join(' '));
-                    if (chunkData.length > 32) {
-                        console.log(`Last 32 bytes of chunk data:`, Array.from(chunkData.slice(-32)).map(b => b.toString(16).padStart(2, '0')).join(' '));
-                    }
-
-                    if (!deviceClient) throw new Error('Device command client is not available');
-                    await sendFirmwareChunkWithoutAmbiguousRetry(
-                        () => deviceClient.uploadFirmwareChunk({
-                            sessionId: deviceSessionId,
-                            componentName,
-                            chunkIndex,
-                            totalChunks,
-                            chunkOffset,
-                            targetAddress,
-                            checksumSha256: checksum,
-                            data: chunkData,
-                        }, { timeoutMs: upgradeConfig.timeout }),
-                    );
-
-                    // 更新进度
-                    const componentProgress = ((chunkIndex + 1) / totalChunks) * 100;
-                    const overallProgress = ((i + (chunkIndex + 1) / totalChunks) / totalComponents) * 100;
-
-                    onProgress?.({
-                        stage: 'uploading',
-                        progress: Math.round(overallProgress),
-                        message: `Uploading component ${componentName}: ${Math.round(componentProgress)}% (${chunkIndex + 1}/${totalChunks})`
-                    });
-                }
-            }
-
-            // 完成升级会话
-            completionIssued = true;
-            const completeResult = await sendDeviceRequest('complete_firmware_upgrade_session', {
-                session_id: deviceSessionId
-            }, true);
-
-            if (!completeResult || typeof completeResult.success !== 'boolean') {
-                throw new Error('Firmware finalization returned an invalid response');
-            }
-            completionSettled = true;
-
-            if (!completeResult.success) {
-                throw new Error(`Failed to complete upgrade session: ${completeResult.error || 'Unknown error'}`);
-            }
-
-            // 更新最终状态
-            setUpgradeSession(prev => prev ? {
-                ...prev,
-                status: 'completed',
-                progress: 100,
-                currentComponent: null
-            } : null);
-
-            onProgress?.({
-                stage: 'uploadcompleted',
-                progress: 100,
-                message: 'Firmware upload completed!'
-            });
-
-        } catch (error) {
-            const finalizationUncertain = completionIssued && !completionSettled;
-            const reportedError = finalizationUncertain
-                ? new FirmwareFinalizationUncertainError(error)
-                : error;
-            try {
-                await abortFirmwareSessionIfSafe({
-                    sessionId: activeSessionId,
-                    completionIssued,
-                    completionSettled,
-                    abortSession: async (sessionId) => {
-                        await sendDeviceRequest('abort_firmware_upgrade_session', {
-                            session_id: sessionId
-                        }, true);
-                    },
-                });
-            } catch (abortError) {
-                console.error('Failed to abort upgrade session:', abortError);
-            }
-
-            setUpgradeSession(prev => prev ? {
-                ...prev,
-                status: 'failed',
-                error: reportedError instanceof Error ? reportedError.message : 'Unknown error'
-            } : null);
-
-            onProgress?.({
-                stage: 'failed',
-                progress: 0,
-                message: `Upload failed: ${reportedError instanceof Error ? reportedError.message : 'Unknown error'}`
-            });
-
-            throw reportedError;
-        }
-    };
-
-    const uploadCh585Firmware = async (
-        image: Uint8Array,
-        onProgress?: (progress: number) => void,
-    ): Promise<void> => {
-        if (image.length <= 0x1000 || (image.length & 3) !== 0) {
-            throw new Error('CH585 image must be the aligned combined IAP + application BIN');
-        }
-        const sessionId = `ch585-${Date.now().toString(16)}`;
-        const sha256 = await calculateSHA256(image);
-        await sendDeviceRequest('ch585_update_begin', {
-            session_id: sessionId,
-            total_size: image.length,
-            sha256,
-        }, true);
-
-        const chunkSize = 512;
-        for (let offset = 0; offset < image.length; offset += chunkSize) {
-            const chunk = image.slice(offset, Math.min(offset + chunkSize, image.length));
-            const data = btoa(String.fromCharCode(...chunk));
-            await sendDeviceRequest('ch585_update_chunk', {
-                session_id: sessionId,
-                offset,
-                data,
-            }, true);
-            onProgress?.(Math.round(((offset + chunk.length) * 100) / image.length));
-        }
-
-        await sendDeviceRequest('ch585_update_complete', {
-            session_id: sessionId,
-        }, true);
-        onProgress?.(100);
-    };
-
-    // 配置管理函数
-    const setUpgradeConfig = (config: Partial<FirmwareUpgradeConfig>): void => {
-        // 验证分片大小必须是4K或4K的倍数
-        if (config.chunkSize !== undefined) {
-            const CHUNK_SIZE_BASE = 4096; // 4KB基础单位
-
-            if (config.chunkSize <= 0) {
-                throw new Error('Chunk size must be greater than 0');
-            }
-
-            if (config.chunkSize % CHUNK_SIZE_BASE !== 0) {
-                throw new Error(`Chunk size must be a multiple of 4KB (${CHUNK_SIZE_BASE} bytes), current value: ${config.chunkSize}`);
-            }
-
-            // 建议的最大分片大小为16KB，避免超过STM32的HTTP缓冲区限制
-            const MAX_CHUNK_SIZE = 16384; // 16KB
-            if (config.chunkSize > MAX_CHUNK_SIZE) {
-                console.warn(`Chunk size ${config.chunkSize} exceeds the recommended maximum of ${MAX_CHUNK_SIZE}, which may lead to insufficient STM32 memory.`);
-            }
-        }
-
-        setUpgradeConfigState(prevConfig => ({
-            ...prevConfig,
-            ...config
-        }));
-    };
-
-    const getUpgradeConfig = (): FirmwareUpgradeConfig => {
-        return upgradeConfig;
-    };
-
-    const getValidChunkSizes = (): number[] => {
-        const CHUNK_SIZE_BASE = 4096; // 4KB基础单位
-        const MAX_CHUNK_SIZE = 16384; // 16KB
-        const validSizes: number[] = [];
-
-        for (let size = CHUNK_SIZE_BASE; size <= MAX_CHUNK_SIZE; size += CHUNK_SIZE_BASE) {
-            validSizes.push(size);
-        }
-
-        return validSizes;
-    };
-
-    const updateMarkingStatus = (status: StepInfo) => {
-        setMarkingStatus(status);
-    };
-
-    // 立即发送队列中的特定命令
-    const sendPendingCommandImmediately = useCallback((command: string): boolean => {
-        return deviceClientRef.current?.sendPendingCommandImmediately(command) ?? false;
-    }, []);
-
-    // 快速清空队列
-    const flushQueue = async (): Promise<void> => {
-        if (deviceClient) {
-            await deviceClient.flushQueue();
-        }
-    };
-
-    // Device transport timeout configuration
-    const getDeviceTransportConfig = () => {
-        return transportConfig;
-    };
-
-    const updateDeviceTransportConfig = (config: Partial<DeviceTransportConfigType>) => {
-        setTransportConfig(prevConfig => ({
-            ...prevConfig,
-            ...config
-        }));
-        console.log('设备传输配置已更新:', config);
-    };
-
-    // 按键索引映射到游戏控制器按钮或组合键
-    const indexMapToGameControllerButtonOrCombination = (
-        keyMapping: { [key in GameControllerButton]?: number[] },
-        keyCombinations: KeyCombination[],
-        inputMode: Platform
-    ): { [key: number]: GameControllerButton | string } => {
-        let labelMap = new Map<GameControllerButton, string>();
-        switch (inputMode) {
-            case Platform.XINPUT: labelMap = XInputButtonMap;
-                break;
-            case Platform.PS4: labelMap = PS4ButtonMap;
-                break;
-            case Platform.PS5: labelMap = PS4ButtonMap;
-                break;
-            case Platform.XBOX: labelMap = XInputButtonMap;
-                break;
-            case Platform.SWITCH: labelMap = SwitchButtonMap;
-                break;
-            default: labelMap = new Map<GameControllerButton, string>();
-                break;
-        }
-        
-        const map: { [key: number]: GameControllerButton | string } = {};
-        
-        // 处理普通游戏控制器按钮的按键映射
-        if (keyMapping) {
-            for(const [key, value] of Object.entries(keyMapping)) {
-                for(const index of value) {
-                    map[index] = labelMap.get(key as GameControllerButton) as GameControllerButton;
-                }
-            }
-        }
-        
-        // 处理组合键的按键映射
-        if (keyCombinations) {
-            for(let i = 0; i < keyCombinations.length; i++) {
-                const combination = keyCombinations[i];
-                for(const index of combination.keyIndexes) {
-                    map[index] = `COM${i + 1}`;
-                }
-            }
-        }
-        
-        return map;
-    };
-
-    return (
-        <GamepadConfigContext.Provider value={{
-            contextJsReady,
-            setContextJsReady,
-
-            // WebHID connection state
-            rfBindingBusy, rfBindingRequest, runRfBindingOperation: (action) => runConfigExclusive(() => runRfBindingOperation(action)),
-            deviceConnected,
-            showReconnect,
-            deviceState,
-            devicePhase,
-            deviceError,
-            deviceSession,
-            connectDevice,
-            reconnectDevice,
-            disconnectDevice,
-            getDeviceImageCatalog,
-            readDeviceImage,
-            uploadDeviceImage: (...args) => runConfigExclusive(() => uploadDeviceImage(...args), true),
-            deleteDeviceImage: (...args) => runConfigExclusive(() => deleteDeviceImage(...args), true),
-            fetchDeviceAuthorizedResource,
-
-            resourceCommand: (command, params = {}) => { if (!["resources_list", "resources_status", "resources_get"].includes(command)) return Promise.reject(new Error("Use resourceTransaction for writes")); return sendDeviceRequest(command, params, true); },
-            resourceTransaction: operation => runConfigExclusive(() => operation((command, params = {}) => sendDeviceRequest(command, params, true)), true),
-            syncLightingResourceReferences: profiles => {
-                const store = configStoreRef.current;
-                let changed = false;
-                for (const {profileId, keys, ambient} of profiles) {
-                    const key = `profile:${profileId}`, confirmed = store.confirmed[key] as GameProfile | undefined;
-                    if (!confirmed || JSON.stringify(confirmed.lightingResources) === JSON.stringify({keys,ambient})) continue;
-                    store.refresh(key, {...confirmed, lightingResources:{keys,ambient}});
-                    changed = true;
-                }
-                if (changed) publishConfig();
-            },
-            globalConfig,
-            screenControl,
-            profileList,
-            defaultProfile,
-            hotkeysConfig,
-            dataIsReady,
-            setUserRebooting,
-            deviceBackgroundReadsPaused,
-            firmwareUpdating,
-            getReleaseInventory, downloadSelectedRelease, installSelectedRelease, releaseInstallAction,
-            setFirmwareUpdating,
-
-            previewScreenBrightness,
-            getProfileMacros,
-            stageDeferredProfileDetails,
-            stageDeferredProfileMacros,
-            stageDeferredHotkeysConfig,
-            stageDeferredGlobalConfig,
-            stageDeferredScreenControl,
-            flushDeferredConfig,
-            terminateWebConfigActivities,
-            deferredConfigDirty,
-            deferredConfigSaving,
-            configSyncState, configReadProgress, configEditingBlocked, configRecovery, resolveConfigRecovery,
-            retrySync: () => deferredConfigRef.current!.retry(),
-            flushAndWait: () => flushDeferredConfig(undefined, true),
-            switchProfile,
-            isLoading,
-            error,
-            setError,
-            rebootSystem: (...args) => runConfigExclusive(() => rebootSystem(...args)),
-            exitWebConfig,
-            // 校准相关
-            calibrationStatus,
-            fetchCalibrationStatus,
-            startManualCalibration: (...args) => runConfigExclusive(() => startManualCalibration(...args), true),
-            stopManualCalibration: () => stopLongDeviceActivity(stopManualCalibration),
-            clearManualCalibrationData: (...args) => runConfigExclusive(() => clearManualCalibrationData(...args), true),
-            checkIsManualCalibrationCompleted,
-            // ADC Mapping 相关
-            defaultMappingId: defaultMappingId,
-            markingStatus,
-            mappingList,
-            activeMapping,
-            mappingStorageMode,
-            mappingSource,
-            fetchMappingList,
-            fetchMarkingStatus,
-            updateDefaultMapping: (...args) => runConfigExclusive(() => updateDefaultMapping(...args), true),
-            fetchDefaultMapping,
-            fetchActiveMapping,
-            createMapping: (...args) => runConfigExclusive(() => createMapping(...args)),
-            deleteMapping: (...args) => runConfigExclusive(() => deleteMapping(...args)),
-            startMarking: (...args) => runConfigExclusive(() => startMarking(...args)),
-            stopMarking: () => stopLongDeviceActivity(stopMarking),
-            stepMarking,
-            syncMarkingProgress,
-            renameMapping: (...args) => runConfigExclusive(() => renameMapping(...args)),
-            fetchSwitchMappingCatalog,
-            fetchSwitchMappingDetail,
-            fetchSwitchMappingImage,
-            uploadSwitchMappingImage,
-            updateSwitchMappingMetadata,
-            updateSwitchMappingCurve,
-            deleteSwitchMapping,
-            installMappingResource: bytes => runConfigExclusive(async()=>{
-                const source=await verifyResource(bytes);
-                if(source.type!=='switch-mapping')throw new Error('Expected a switch mapping resource');
-                const mapping={...source.payload,id:source.resourceId} as SwitchMappingPayload;
-                return installCanonicalMapping(mapping,await switchMappingSha256(mapping));
-            },true),
-            installSwitchMapping: (...args) => runConfigExclusive(() => installSwitchMapping(...args), true),
-            clearInstalledSwitchMapping: (...args) => runConfigExclusive(() => clearInstalledSwitchMapping(...args), true),
-            createSwitchMappingFromCurrent,
-            beginMappingDraft: (...args) => runConfigExclusive(() => beginMappingDraft(...args)),
-            publishMappingDraft: (...args) => runConfigExclusive(() => publishMappingDraft(...args)),
-            // 按键监控相关
-            buttonMonitoringActive: buttonMonitoringActive,
-            startButtonMonitoring,
-            stopButtonMonitoring,
-            getButtonStates,
-            // 按键性能监控相关
-            startButtonPerformanceMonitoring,
-            stopButtonPerformanceMonitoring: () => stopLongDeviceActivity(stopButtonPerformanceMonitoring),
-            // LED 配置相关
-            pushLedsConfig: pushLedsConfig,
-            clearLedsPreview: clearLedsPreview,
-            // 固件元数据相关
-            firmwareInfo,
-            fetchFirmwareMetadata,
-            // 固件更新检查相关
-            firmwareUpdateInfo,
-            checkFirmwareUpdate,
-            // 固件升级包下载和传输相关
-            upgradeSession: upgradeSession,
-            downloadFirmwarePackage: downloadFirmwarePackage,
-            uploadFirmwareToDevice: (...args) => runConfigExclusive(() => uploadFirmwareToDevice(...args)),
-            uploadCh585Firmware: (...args) => runConfigExclusive(() => uploadCh585Firmware(...args)),
-            setUpgradeConfig: setUpgradeConfig,
-            getUpgradeConfig: getUpgradeConfig,
-            getValidChunkSizes: getValidChunkSizes,
-            updateMarkingStatus: updateMarkingStatus,
-            sendPendingCommandImmediately: sendPendingCommandImmediately,
-            flushQueue: flushQueue,
-            getDeviceTransportConfig: getDeviceTransportConfig,
-            updateDeviceTransportConfig: updateDeviceTransportConfig,
-            // 是否禁用完成配置按钮
-            finishConfigDisabled: finishConfigDisabled,
-            setFinishConfigDisabled: setFinishConfigDisabled,
-            // 按键索引映射到游戏控制器按钮或组合键
-            indexMapToGameControllerButtonOrCombination: indexMapToGameControllerButtonOrCombination,
-            // 设备日志相关
-            fetchDeviceLogsList: fetchDeviceLogsList,
-            getHitboxLayout: getHitboxLayout,
-            hitboxLayout: hitboxLayout,
-        }}>
-            {children}
-        </GamepadConfigContext.Provider>
-    );
+    const storeRef = useRef<SelectionStore<GamepadConfigContextType> | null>(null);
+    if (!storeRef.current) storeRef.current = new SelectionStore(value);
+    const store = storeRef.current;
+    useLayoutEffect(() => { store.publish(value); });
+    return <GamepadConfigContext.Provider value={store}>{children}</GamepadConfigContext.Provider>;
 }
 
-export function useGamepadConfig() {
-    const context = useContext(GamepadConfigContext);
-    if (context === undefined) {
-        throw new Error('useGamepadConfig must be used within a GamepadConfigProvider');
-    }
-    return context;
-}
+export type { DeviceTransportConfigType, HitboxLayoutItem } from "./gamepad-config/contract";

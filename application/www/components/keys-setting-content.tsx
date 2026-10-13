@@ -33,7 +33,7 @@ import {
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
 import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
 import { MdCleaningServices } from "react-icons/md";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useColorMode } from "./ui/color-mode";
 import { ProfileSelect } from "@/components/profile-select";
@@ -63,7 +63,7 @@ export function KeysSettingContent() {
         stageDeferredProfileMacros,
         dataIsReady,
         setFinishConfigDisabled,
-    } = useGamepadConfig();
+    } = useGamepadFields("defaultProfile", "globalConfig", "stageDeferredProfileDetails", "stageDeferredProfileMacros", "dataIsReady", "setFinishConfigDisabled");
     const { t } = useLanguage();
     const { colorMode } = useColorMode();
 
@@ -100,7 +100,7 @@ export function KeysSettingContent() {
     const [debugMacros, setDebugMacros] = useState(false);
 
     // 使用 context 中的 indexMapToGameControllerButtonOrCombination 方法
-    const { indexMapToGameControllerButtonOrCombination } = useGamepadConfig();
+    const { indexMapToGameControllerButtonOrCombination } = useGamepadFields("indexMapToGameControllerButtonOrCombination");
 
     useEffect(() => {
         if (typeof window === "undefined") return;

@@ -12,7 +12,7 @@ import {
   Skeleton,
   Badge,
 } from "@chakra-ui/react";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { ResourcePreview } from "./resource-preview";
 import {
@@ -37,7 +37,7 @@ export function ResourceLibrary({
   onSource?: (source: ResourceSource | null) => void;
   lightingSelector?: boolean;
 }) {
-  const ctx = useGamepadConfig(),
+  const ctx = useGamepadFields("fetchMappingList", "resourceCommand", "fetchDeviceAuthorizedResource", "defaultProfile", "deviceConnected", "dataIsReady", "activeMapping", "defaultMappingId", "installMappingResource", "fetchCalibrationStatus", "resourceTransaction", "calibrationStatus", "startManualCalibration"),
     { currentLanguage } = useLanguage(),
     zh = currentLanguage === "zh",
     axis = type === "switch-mapping";

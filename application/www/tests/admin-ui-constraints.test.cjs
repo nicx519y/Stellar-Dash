@@ -24,14 +24,9 @@ const settingsLayout = fs.readFileSync(
     path.join(webRoot, 'components', 'settings-layout.tsx'),
     'utf8'
 );
-const switchMarking = fs.readFileSync(
-    path.join(webRoot, 'components', 'switch-marking-content.tsx'),
-    'utf8'
-);
-const gamepadConfigContext = fs.readFileSync(
-    path.join(webRoot, 'contexts', 'gamepad-config-context.tsx'),
-    'utf8'
-);
+const { readGamepadImplementation, readSwitchMarkingImplementation } = require('./refactor-source-fixture.cjs');
+const switchMarking = readSwitchMarkingImplementation();
+const gamepadConfigContext = readGamepadImplementation();
 
 test('admin access guard mounts page content only after authenticated administrator access is known', () => {
     let auth = { loading: true, session: { authenticated: false } };
@@ -110,7 +105,7 @@ test('administration page uses Chakra components without custom styling systems'
     assert.doesNotMatch(adminPage, /styled-components/);
     assert.doesNotMatch(adminPage, /tailwind/i);
     assert.doesNotMatch(adminPage, /import\s+['"][^'"]+\.css['"]/);
-    assert.doesNotMatch(adminPage, /GamepadConfigProvider|useGamepadConfig/);
+    assert.doesNotMatch(adminPage, /GamepadConfigProvider|useGamepadFields/);
 });
 
 test('administration route is mounted outside the HID provider', () => {
@@ -122,7 +117,7 @@ test('administration route is mounted outside the HID provider', () => {
 });
 
 test('official gallery admin page does not require a device provider', () => {
-    assert.doesNotMatch(adminImagesPage, /useGamepadConfig|GamepadConfigProvider/);
+    assert.doesNotMatch(adminImagesPage, /useGamepadFields|GamepadConfigProvider/);
     assert.match(adminImagesPage, /ADMIN_GALLERY_LIMITS/);
 });
 

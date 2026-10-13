@@ -14,7 +14,7 @@
  * length so accidental truncation fails the build.  RF headers and RF protocol
  * state are deliberately not included.
  */
-#include "../../../application/Inc/transport/usb/legacy/drivers/switch/SwitchDescriptors.hpp"
+#include "../../../common/usb/SwitchDescriptors.hpp"
 
 #define USB_LEGACY_STRING_BUFFER_BYTES 256u
 

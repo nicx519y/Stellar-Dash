@@ -19,10 +19,9 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
     def assert_source_regex(self, pattern: str) -> None:
         self.assertRegex(self.source, pattern)
 
-    def test_xinput_uses_exact_stm32_descriptor_arrays(self) -> None:
+    def test_xinput_uses_exact_shared_descriptor_arrays(self) -> None:
         self.assertIn(
-            '#include "../../../application/Inc/transport/usb/legacy/drivers/'
-            'xinput/XInputDescriptors.hpp"',
+            '#include "../../../common/usb/XInputDescriptors.hpp"',
             self.source,
         )
         for expression in (

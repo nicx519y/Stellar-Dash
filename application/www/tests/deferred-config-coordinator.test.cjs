@@ -103,13 +103,10 @@ test('navigation does not flush configuration; finish remains a durable boundary
   assert.doesNotMatch(finish, /id: 'finish-config-success'/);
   assert.doesNotMatch(finish, /await rebootSystem\(\)/);
 
-  const context = fs.readFileSync(
-    path.join(__dirname, '../contexts/gamepad-config-context.tsx'),
-    'utf8',
-  );
+  const context = require('./refactor-source-fixture.cjs').readGamepadImplementation();
   const suspend = context.indexOf('suspended = await lease.suspend');
   const terminate = context.indexOf('await beforeFlush?.()', suspend);
-  const persist = context.indexOf('await deferredConfigRef.current!.flush(all)', terminate);
+  const persist = context.indexOf('await dependencies.deferredConfigRef.current!.flush(all)', terminate);
   assert.ok(suspend >= 0 && terminate > suspend && persist > terminate);
   assert.match(context, /const EXIT_WEB_CONFIG_TIMEOUT_MS = 8_000/);
   assert.match(context, /sendDeviceRequest\('exit_webconfig', \{\}, true, \{\s*timeoutMs: EXIT_WEB_CONFIG_TIMEOUT_MS/);

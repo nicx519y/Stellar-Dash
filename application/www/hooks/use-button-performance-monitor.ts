@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { eventBus, EVENTS } from '@/lib/event-manager';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import {
     parseButtonPerformanceMonitoringBinaryData,
     type ButtonPerformanceMonitoringBinaryData,
@@ -31,7 +31,7 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
     const {
         startButtonPerformanceMonitoring,
         stopButtonPerformanceMonitoring,
-    } = useGamepadConfig();
+    } = useGamepadFields("startButtonPerformanceMonitoring", "stopButtonPerformanceMonitoring");
 
     const callbacksRef = useRef({
         onError,

@@ -1002,12 +1002,7 @@ test('production WebHID construction and navigator access remain centralized beh
     'device-transport',
     'device-command-client.ts',
   ), 'utf8');
-  const context = fs.readFileSync(path.join(
-    __dirname,
-    '..',
-    'contexts',
-    'gamepad-config-context.tsx',
-  ), 'utf8');
+  const context = require('./refactor-source-fixture.cjs').readGamepadImplementation();
   const layout = fs.readFileSync(path.join(
     __dirname,
     '..',

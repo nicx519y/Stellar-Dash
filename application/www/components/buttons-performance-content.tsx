@@ -6,7 +6,7 @@ import HitboxPerformance from "@/components/hitbox/hitbox-performance";
 import { ProfileSelect } from "./profile-select";
 import { ButtonsPerformanceSettingContent } from "./buttons-performance-setting-content";
 import { ButtonsPerformenceTestContent } from "./buttons-performence-test-content";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useButtonPerformanceMonitor, type ButtonPerformanceMonitoringData, type ButtonPerformanceData } from '@/hooks/use-button-performance-monitor';
 import HitboxPerformanceTest from "./hitbox/hitbox-performance-test";
@@ -33,7 +33,7 @@ export function ButtonsPerformanceContent() {
         setError,
         deviceConnected,
         indexMapToGameControllerButtonOrCombination,
-    } = useGamepadConfig();
+    } = useGamepadFields("defaultProfile", "flushDeferredConfig", "setFinishConfigDisabled", "globalConfig", "setError", "deviceConnected", "indexMapToGameControllerButtonOrCombination");
     const [selectedButtons, setSelectedButtons] = useState<number[]>([]);
     const initializedSelectionProfileIdRef = useRef<string | null>(null);
 

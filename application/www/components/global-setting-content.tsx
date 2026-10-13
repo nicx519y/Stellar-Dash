@@ -11,7 +11,7 @@ import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
 import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
 import { HotkeySettingContent } from "./hotkey-setting-content";
 import { ProfileSelect } from "./profile-select";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { ConnectionAndPowerBasicSettingContent } from "./connection-mode-content";
 import { ScreenControlSettingContent } from "./screen-control-setting-content";
@@ -49,7 +49,7 @@ export function GlobalSettingContent() {
         stopManualCalibration,
         hitboxLayout,
         // updateGlobalConfig,
-    } = useGamepadConfig();
+    } = useGamepadFields("clearManualCalibrationData", "stageDeferredHotkeysConfig", "globalConfig", "hotkeysConfig", "dataIsReady", "setFinishConfigDisabled", "deviceConnected", "checkIsManualCalibrationCompleted", "startManualCalibration", "stopManualCalibration", "hitboxLayout");
 
     const [isInit, setIsInit] = useState<boolean>(false);
     // 添加本地 hotkeys 状态来存储用户修改

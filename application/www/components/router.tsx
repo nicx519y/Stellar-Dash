@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { useEffect } from 'react';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { GlobalSettingContent } from '@/components/global-setting-content';
 import { KeysSettingContent } from '@/components/keys-setting-content';
 import { LEDsSettingContent } from '@/components/leds-setting-content';
@@ -51,7 +51,7 @@ export const useRouterStore = create<RouterState>((set, get) => ({
 
 export function Router() {
     const { currentRoute, basePath, setRoute, setBasePath } = useRouterStore();
-    const { deviceSession } = useGamepadConfig();
+    const { deviceSession } = useGamepadFields("deviceSession");
 
     useEffect(() => {
         // useEffect 只在客户端运行，所以这里可以安全使用 window

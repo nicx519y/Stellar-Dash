@@ -7,7 +7,7 @@ import { JPEG_FORMAT, JPEG_MAX_FRAMES } from '../../../common/uimg-jpeg.cjs';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Dialog, Flex, Grid, HStack, Image, Spinner, Tabs, Text, VStack } from '@chakra-ui/react';
 import { LuCheck, LuImagePlus, LuPlus, LuTrash2 } from 'react-icons/lu';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { useUserAuth } from '@/contexts/user-auth-context';
 import { useLanguage } from '@/contexts/language-context';
 import { showToast } from './ui/toaster';
@@ -225,7 +225,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   const {
     deviceConnected, dataIsReady, deviceSession, deviceBackgroundReadsPaused, getDeviceImageCatalog,
     uploadDeviceImage, stageDeferredScreenControl, fetchDeviceAuthorizedResource,
-  } = useGamepadConfig();
+  } = useGamepadFields("deviceConnected", "dataIsReady", "deviceSession", "deviceBackgroundReadsPaused", "getDeviceImageCatalog", "uploadDeviceImage", "stageDeferredScreenControl", "fetchDeviceAuthorizedResource");
   const { session } = useUserAuth();
   const { currentLanguage, t } = useLanguage();
   const zh = currentLanguage === 'zh';

@@ -7,13 +7,13 @@ import {
 } from "@chakra-ui/react";
 import { showToast } from "@/components/ui/toaster";
 import { DeviceTransportState } from "@/lib/device-transport";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 
 export function ViewLogsContent() {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const { deviceState, fetchDeviceLogsList } = useGamepadConfig();
+  const { deviceState, fetchDeviceLogsList } = useGamepadFields("deviceState", "fetchDeviceLogsList");
 
   const stateLabel = useMemo(() => {
     switch (deviceState) {

@@ -18,7 +18,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ADCButtonDebounceAlgorithm, RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, ButtonPerformancePresetConfigs, ButtonPerformancePresetName, GameControllerButton } from "@/types/gamepad-config";
 import { useLanguage } from "@/contexts/language-context";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { LuSheet } from "react-icons/lu";
 import { 
     SettingMainContentLayout, 
@@ -50,7 +50,7 @@ export function ButtonsPerformanceSettingContent({
     onSelectedButtonsChange,
 }: ButtonsPerformanceSettingContentProps) {
     const { t } = useLanguage();
-    const { defaultProfile, stageDeferredProfileDetails } = useGamepadConfig();
+    const { defaultProfile, stageDeferredProfileDetails } = useGamepadFields("defaultProfile", "stageDeferredProfileDetails");
     const [triggerConfigs, setTriggerConfigs] = useState<RapidTriggerConfig[]>([]);
     const [isAllBtnsConfiguring, setIsAllBtnsConfiguring] = useState(true);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);

@@ -115,6 +115,6 @@ test('catalog and administration routes remain outside the HID provider', () => 
   assert.match(layout, /isEmailVerification \|\| isAdministration \|\| isFirmwareCatalog/);
   for (const file of ['../components/firmware-release-catalog.tsx', '../app/admin/firmware/page.tsx', '../components/admin/firmware-detail-page.tsx']) {
     const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
-    assert.doesNotMatch(source, /useGamepadConfig|navigator\.hid|uploadFirmwareToDevice|uploadCh585Firmware/);
+    assert.doesNotMatch(source, /useGamepadConfig|useGamepadFields|navigator\.hid|uploadFirmwareToDevice|uploadCh585Firmware/);
   }
 });

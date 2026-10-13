@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { VStack, HStack, Table, Box, Text, RadioCard, RadioGroup } from '@chakra-ui/react';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { DEFAULT_SCREEN_CONTROL_CONFIG, SCREEN_STANDBY_TIMEOUT_OPTIONS, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, ScreenStyle, StandbyDisplay, normalizeScreenStandbyTimeout, withRequiredWebConfigEntry } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
 import { LuGripVertical, LuMoon, LuSun } from "react-icons/lu";
@@ -46,7 +46,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         screenControl,
         stageDeferredScreenControl,
         previewScreenBrightness,
-    } = useGamepadConfig();
+    } = useGamepadFields("screenControl", "stageDeferredScreenControl", "previewScreenBrightness");
     const disabled = externallyDisabled || screenControl.standbySupported === false;
     const [standbyEnabled, setStandbyEnabled] = useState(screenControl.standbyEnabled);
     const [brightness, setBrightness] = useState<number>(screenControl.brightness ?? 100);

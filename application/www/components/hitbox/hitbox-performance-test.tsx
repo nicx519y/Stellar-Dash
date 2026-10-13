@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
 import { GameControllerButton } from "@/types/gamepad-config";
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
@@ -108,7 +108,7 @@ export interface HitboxPerformanceTestProps {
 export default function HitboxPerformanceTest(props: HitboxPerformanceTestProps) {
     const hasText = props.hasText ?? true;
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadFields("contextJsReady", "setContextJsReady", "hitboxLayout");
     
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];

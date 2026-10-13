@@ -2,7 +2,7 @@
 
 import { Box, Button, HStack, Spinner, Text, VStack } from '@chakra-ui/react';
 import { LuCheck, LuCircleAlert, LuClock, LuPause } from 'react-icons/lu';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { useLanguage } from '@/contexts/language-context';
 import { useOverlayVisibility } from './ui/exclusive-dialog';
 import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
@@ -10,7 +10,7 @@ import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 export function useConfigSyncStatus() {
     const { currentLanguage } = useLanguage();
     const zh = currentLanguage === 'zh';
-    const { configSyncState: state, configReadProgress, dataIsReady, deviceConnected, retrySync, configRecovery } = useGamepadConfig();
+    const { configSyncState: state, configReadProgress, dataIsReady, deviceConnected, retrySync, configRecovery } = useGamepadFields("configSyncState", "configReadProgress", "dataIsReady", "deviceConnected", "retrySync", "configRecovery");
     const reading = deviceConnected && !dataIsReady;
     const paused = state.paused || !deviceConnected || configRecovery.length > 0;
     const status = reading ? 'reading' : !deviceConnected ? 'disconnected' : state.error ? 'error'
@@ -55,7 +55,7 @@ export function ConfigSyncStatus() {
 export function ConfigDraftRecovery() {
     const { currentLanguage } = useLanguage();
     const zh = currentLanguage === 'zh';
-    const { configRecovery, resolveConfigRecovery } = useGamepadConfig();
+    const { configRecovery, resolveConfigRecovery } = useGamepadFields("configRecovery", "resolveConfigRecovery");
     const visible = useOverlayVisibility(configRecovery.length > 0, OVERLAY_PRIORITY.recovery);
     if (!configRecovery.length) return null;
     return <Box position="fixed" inset={0} bg="blackAlpha.700" zIndex={9500} display={visible ? 'grid' : 'none'} placeItems="center">

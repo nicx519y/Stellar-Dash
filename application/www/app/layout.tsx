@@ -3,7 +3,7 @@
 import { Provider } from "@/components/ui/provider"
 import StyledComponentsRegistry from '@/lib/registry'
 import { SettingsLayout } from '@/components/settings-layout'
-import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-config-context'
+import { GamepadConfigProvider, useGamepadFields } from '@/contexts/gamepad-config-context'
 import { Flex, HStack } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
@@ -44,10 +44,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
         devicePhase,
         dataIsReady,
         configReadProgress,
-    } = useGamepadConfig();
+    } = useGamepadFields("connectDevice", "deviceError", "deviceConnected", "devicePhase", "dataIsReady", "configReadProgress");
     const [isReconnecting, setIsReconnecting] = useState(false);
     const reconnectInFlightRef = useRef(false);
-    const { error, setError } = useGamepadConfig();
+    const { error, setError } = useGamepadFields("error", "setError");
     const { t, currentLanguage } = useLanguage();
     const connectionPending = !deviceConnected
         || !dataIsReady

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useColorMode } from "../ui/color-mode";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { AiOutlineClose } from "react-icons/ai";
 import { useHitboxButtonMonitor } from '@/hooks/use-hitbox-button-monitor';
 import { shouldStartButtonMonitoring } from '@/lib/button-monitor-lifecycle';
@@ -108,7 +108,7 @@ export default function HitboxKeys({
         deviceConnected,
         dataIsReady,
         hitboxLayout,
-    } = useGamepadConfig();
+    } = useGamepadFields("contextJsReady", "setContextJsReady", "deviceConnected", "dataIsReady", "hitboxLayout");
     
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];

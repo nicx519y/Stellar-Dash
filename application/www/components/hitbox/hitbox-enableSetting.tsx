@@ -5,7 +5,7 @@ import { GameControllerButton } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useColorMode } from "../ui/color-mode";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { AiOutlineClose, AiOutlineCheck } from "react-icons/ai";
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
@@ -90,7 +90,7 @@ export default function HitboxEnableSetting({
     containerWidth,
 }: HitboxEnableSettingProps) {
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadFields("contextJsReady", "setContextJsReady", "hitboxLayout");
     
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];

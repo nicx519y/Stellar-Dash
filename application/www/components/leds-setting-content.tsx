@@ -30,7 +30,7 @@ import {
 } from "@/types/gamepad-config";
 import { LuCheck } from "react-icons/lu";
 import HitboxLeds from "@/components/hitbox/hitbox-leds";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useColorMode } from "./ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
@@ -57,7 +57,7 @@ function LightingSettingsBody() {
     const [keyResource,setKeyResource] = useState<ResourceSource | null>(null);
     const [ambientResource,setAmbientResource] = useState<ResourceSource | null>(null);
 
-    const { defaultProfile, stageDeferredProfileDetails, pushLedsConfig, clearLedsPreview, deviceConnected, dataIsReady } = useGamepadConfig();
+    const { defaultProfile, stageDeferredProfileDetails, pushLedsConfig, clearLedsPreview, deviceConnected, dataIsReady } = useGamepadFields("defaultProfile", "stageDeferredProfileDetails", "pushLedsConfig", "clearLedsPreview", "deviceConnected", "dataIsReady");
     const { colorMode } = useColorMode();
     const defaultFrontColor = useMemo(() => {
         if (colorMode === "dark") {

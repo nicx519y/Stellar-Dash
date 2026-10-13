@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Box, Button, Flex, Heading, HStack, Skeleton, Stack, Text } from '@chakra-ui/react';
 import { useLanguage } from '@/contexts/language-context';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { FirmwareReleaseCatalog } from './firmware-release-catalog';
 import { FirmwareInstallDialog } from './firmware-install-dialog';
 import { normalizeTxIapMode, txIapModeLabel } from '@/lib/device-transport/release-install-transfer';
@@ -62,7 +62,7 @@ function inventoryReadError(error: unknown, zh: boolean): string {
 export function FirmwareContent() {
   const { currentLanguage } = useLanguage(); const zh = currentLanguage === 'zh';
   const { dataIsReady, deviceConnected, firmwareInfo, getReleaseInventory, getDeviceImageCatalog, downloadSelectedRelease,
-    installSelectedRelease, releaseInstallAction, reconnectDevice, connectDevice, firmwareUpdating, setFirmwareUpdating, setFinishConfigDisabled } = useGamepadConfig();
+    installSelectedRelease, releaseInstallAction, reconnectDevice, connectDevice, firmwareUpdating, setFirmwareUpdating, setFinishConfigDisabled } = useGamepadFields("dataIsReady", "deviceConnected", "firmwareInfo", "getReleaseInventory", "getDeviceImageCatalog", "downloadSelectedRelease", "installSelectedRelease", "releaseInstallAction", "reconnectDevice", "connectDevice", "firmwareUpdating", "setFirmwareUpdating", "setFinishConfigDisabled");
   const [inventory, setInventory] = useState<FirmwareInventory | null>(null);
   const [candidate, setCandidate] = useState<PreparedRelease | null>(null);
   const [selectedRelease, setSelectedRelease] = useState<PublicFirmwareRelease | null>(null);

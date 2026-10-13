@@ -15,6 +15,7 @@
 #include "rf_hop_bond.h"
 #include "rf_hop_bond_journal.h"
 #include "rf_binding_store.h"
+#include "rx_binding_mailbox.h"
 #include "rf_hop_score.h"
 #include "rf_monitor_control.h"
 #include "dongle_config.h"
@@ -905,22 +906,9 @@ uint8_t RF_IsTelemetryEnabled(void)
     return (g_monitor_hid_enabled != 0u) ? 1u : 0u;
 }
 
-/* One bounded provisioning mailbox. The ISR only copies requests. */
-static volatile uint8_t binding_mailbox;
-static uint8_t binding_request[RFB_REQUEST_SIZE], binding_response[RFB_RESPONSE_SIZE];
-static uint8_t binding_page;
-static uint32_t binding_reply_at;
-static uint8_t binding_receive(const uint8_t *p, uint16_t len)
-{
-    if(len==33u && p[0]==0u){++p;--len;}
-    if(len!=RFB_REQUEST_SIZE || rfb_u32(p)!=RFB_REQUEST_MAGIC)return 0;
-    if(!binding_mailbox){memcpy(binding_request,p,RFB_REQUEST_SIZE);__asm__ volatile("" ::: "memory");binding_mailbox=1u;}
-    return 1u;
-}
-
 uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
 {
-    if(report && binding_receive(report,len))return 1u;
+    if(report && rx_binding_mailbox_receive(report,len))return 1u;
     uint32_t magic;
     uint32_t flags;
     uint16_t period_ms;
@@ -3521,23 +3509,19 @@ static uint8_t demo_housekeeping_due(uint32_t now)
     return 1u;
 }
 
-static void binding_service(void)
+static void binding_process_request(const uint8_t *request, uint8_t *response)
 {
-    if(binding_mailbox==2u && (!USBHS_DevEnumStatus ||
-       (uint32_t)(RF_LinkClockUs()-binding_reply_at)>3000000u))binding_mailbox=0u;
-    if(binding_mailbox!=1u)return;
-    __asm__ volatile("" ::: "memory");
-    uint8_t mutate=binding_request[5]>=RFB_PREPARE && rfb_request_valid(binding_request);
+    uint8_t mutate=request[5]>=RFB_PREPARE && rfb_request_valid(request);
     if(demo_pair_is_active()) {
-        rfb_response_init(binding_response,binding_request,RFB_BUSY);
-        rfb_response_finish(binding_response);
+        rfb_response_init(response,request,RFB_BUSY);
+        rfb_response_finish(response);
     } else {
         if(mutate) {
             demo_cancel_ack();rfc_radio_cancel();rfc_manager_cancel(&g_channel);
             (void)RFRole_Stop();g_demo_rx_active=0u;g_demo_radio_generation++;
             demo_queue_neutral_xinput_report(1u);
         }
-        rfb_store_request(&g_demo_bond_backend,g_demo_local_id_hash,1u,binding_request,binding_response);
+        rfb_store_request(&g_demo_bond_backend,g_demo_local_id_hash,1u,request,response);
         if(mutate) {
             g_demo_pair_candidate_pending=0u;
             demo_load_bond();
@@ -3545,7 +3529,11 @@ static void binding_service(void)
             demo_enter_rx_unconnected(RF_LinkClockNow());
         }
     }
-    binding_page=0u;binding_reply_at=RF_LinkClockUs();__asm__ volatile("" ::: "memory");binding_mailbox=2u;
+}
+
+static void binding_service(void)
+{
+    rx_binding_mailbox_service(USBHS_DevEnumStatus, RF_LinkClockUs, binding_process_request);
 }
 
 void RF_Service(void)
@@ -4331,14 +4319,7 @@ static uint8_t fast_send_diagnostic(void){
 }
 static uint8_t binding_send_reply(void)
 {
-    uint8_t report[32]={0};
-    if(binding_mailbox!=2u)return 0u;
-    rfb_put(report,RFB_PAGE_MAGIC);report[4]=binding_request[6];report[5]=binding_request[7];
-    report[6]=binding_page;report[7]=RFB_VERSION;
-    memcpy(report+8,binding_response+24u*binding_page,24u);
-    if(!demo_submit_hid_report(report))return 0u;
-    if(++binding_page==2u)binding_mailbox=0u;
-    return 1u;
+    return rx_binding_mailbox_send(demo_submit_hid_report);
 }
 
 uint8_t RF_TrySendTraceReport(void)

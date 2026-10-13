@@ -92,7 +92,6 @@ constexpr uint8_t kKnownFrameFlags =
     WEBHID_REPORT_FLAG_ACK_REQUIRED;
 constexpr uint8_t kStreamCreditWindow = 4u;
 constexpr uint32_t kSampleIntervalMs = 10u;
-constexpr uint32_t kCheckpointIntervalMs = 1000u;
 constexpr uint32_t kPermitInstallTimeoutMs =
     HBOX_SECURITY_CHALLENGE_SECONDS * 1000u;
 constexpr uint32_t kCpuCyclesPerMicrosecond =
@@ -111,54 +110,6 @@ std::array<char, kResponseScratchBytes> g_responseScratch;
 
 bool allZero(const uint8_t *value, size_t length);
 
-bool extractTransactionId(
-    const uint8_t *json,
-    size_t length,
-    uint32_t &transactionId)
-{
-    static constexpr char kKey[] = "\"transactionId\"";
-    if (json == nullptr || length < sizeof(kKey)) {
-        return false;
-    }
-    const uint8_t *const end = json + length;
-    const uint8_t *cursor = std::search(
-        json,
-        end,
-        reinterpret_cast<const uint8_t *>(kKey),
-        reinterpret_cast<const uint8_t *>(kKey) + sizeof(kKey) - 1u);
-    if (cursor == end) {
-        return false;
-    }
-    cursor += sizeof(kKey) - 1u;
-    while (cursor != end &&
-           (*cursor == ' ' || *cursor == '\t' ||
-            *cursor == '\r' || *cursor == '\n')) {
-        ++cursor;
-    }
-    if (cursor == end || *cursor != ':') {
-        return false;
-    }
-    ++cursor;
-    while (cursor != end &&
-           (*cursor == ' ' || *cursor == '\t' ||
-            *cursor == '\r' || *cursor == '\n')) {
-        ++cursor;
-    }
-    uint64_t value = 0u;
-    const uint8_t *const firstDigit = cursor;
-    while (cursor != end && *cursor >= '0' && *cursor <= '9') {
-        value = value * 10u + static_cast<uint64_t>(*cursor - '0');
-        if (value > UINT32_MAX) {
-            return false;
-        }
-        ++cursor;
-    }
-    if (cursor == firstDigit || value == 0u) {
-        return false;
-    }
-    transactionId = static_cast<uint32_t>(value);
-    return true;
-}
 
 #if WEBCONFIG_TEST_FORCE_BOOT
 int developmentIdentityRead(
@@ -1186,14 +1137,7 @@ void WebHidService::resetSession(bool keepBootIdentity,
     if (clearQueuedReports) {
         clearRxQueue();
     }
-    if (assembler.length != 0u) {
-        HBoxCrypto_Zeroize(
-            assembler.bytes.data(), assembler.length + 1u);
-    }
-    assembler.active = false;
-    assembler.discardingOversize = false;
-    assembler.errorTransactionId = 0u;
-    assembler.length = 0u;
+    assembler.reset();
     clearStream();
     HBoxCrypto_Zeroize(
         outboundStorage.data(), outboundStorage.size());
@@ -1209,27 +1153,7 @@ void WebHidService::resetSession(bool keepBootIdentity,
     eventQueuedBytes = 0u;
     droppedEventCount = 0u;
     clearBinaryCapture();
-    clearButtonStateQueue();
-    buttonStateSequence = 0u;
-    buttonStateDropped = 0u;
-    performanceEnabled = false;
-    samplePending = false;
-    sampleTimestampUs = 0u;
-    nextSampleAtMs = 0u;
-    nextCheckpointAtMs = 0u;
-    edgeSequence = 0u;
-    droppedSamples = 0u;
-    totalDroppedSamples = 0u;
-    HBoxCrypto_Zeroize(edgeQueue.data(), sizeof(edgeQueue));
-    edgeHead = 0u;
-    edgeTail = 0u;
-    edgeCount = 0u;
-    telemetryOverflow = false;
-    checkpointRequested = false;
-    checkpointActive = false;
-    checkpointChunk = 0u;
-    HBoxCrypto_Zeroize(
-        checkpointKeys.data(), sizeof(checkpointKeys));
+    telemetry.reset();
     if (!keepBootIdentity) {
         HBoxCrypto_Zeroize(&bootContext, sizeof(bootContext));
         bootContextValid = false;
@@ -1397,52 +1321,9 @@ void WebHidService::enqueueBinaryEvent(const uint8_t *data, size_t length)
     ButtonStateBinaryData snapshot = {};
     memcpy(&snapshot, data, sizeof(snapshot));
 
-    ++buttonStateSequence;
-    if (buttonStateSequence == 0u) {
-        ++buttonStateSequence;
-    }
-
-    /* A partially transferred report owns the queue head.  Under the
-     * extremely unlikely condition that all 32 snapshots fill while that
-     * report is pinned, replace only the newest queued snapshot.  This keeps
-     * completion bookkeeping exact while ensuring the final visible mask is
-     * still the most recent one. */
-    bool replaceNewest = false;
-    if (buttonStateCount >= kButtonStateQueueDepth) {
-        if (buttonStateDropped != UINT16_MAX) {
-            ++buttonStateDropped;
-        }
-        if (pendingFrameSource == OutboundFrameSource::ButtonState) {
-            replaceNewest = true;
-        } else {
-            HBoxCrypto_Zeroize(
-                &buttonStateQueue[buttonStateHead],
-                sizeof(buttonStateQueue[buttonStateHead]));
-            buttonStateHead =
-                (buttonStateHead + 1u) % kButtonStateQueueDepth;
-            --buttonStateCount;
-        }
-    }
-
-    const size_t destination = replaceNewest
-        ? (buttonStateTail + kButtonStateQueueDepth - 1u) %
-              kButtonStateQueueDepth
-        : buttonStateTail;
-    webhid_button_state_v1_t &event =
-        buttonStateQueue[destination];
-    event = {};
-    event.event_sequence_le = buttonStateSequence;
-    event.trigger_mask_le = snapshot.triggerMask;
-    event.total_dropped_snapshots_le = buttonStateDropped;
-    event.total_buttons = snapshot.totalButtons;
-    event.flags = snapshot.isActive != 0u
-        ? WEBHID_BUTTON_STATE_FLAG_ACTIVE
-        : 0u;
-    if (!replaceNewest) {
-        buttonStateTail =
-            (buttonStateTail + 1u) % kButtonStateQueueDepth;
-        ++buttonStateCount;
-    }
+    telemetry.enqueueButton(snapshot.triggerMask, snapshot.totalButtons,
+                            snapshot.isActive != 0u,
+                            pendingFrameSource == OutboundFrameSource::ButtonState);
 }
 
 void WebHidService::process()
@@ -1534,7 +1415,7 @@ void WebHidService::process()
 
 #if HBOX_SECURE_BOOT_REQUIRED == 0
     const uint32_t perfStarted = monotonicMicros();
-    if (performanceEnabled) {
+    if (telemetry.enabled()) {
         auto &d = g_webhid_perf_timing;
         if (d[2] != 0u) {
             const uint32_t gap = perfStarted - d[10];
@@ -1549,7 +1430,7 @@ void WebHidService::process()
 #endif
     pumpOutput();
 #if HBOX_SECURE_BOOT_REQUIRED == 0
-    if (performanceEnabled) {
+    if (telemetry.enabled()) {
         auto &d = g_webhid_perf_timing;
         d[5] += perfOutputStarted - perfStarted;
         d[6] += monotonicMicros() - perfOutputStarted;
@@ -1682,116 +1563,26 @@ bool WebHidService::processReport(
 }
 
 bool WebHidService::acceptLogicalFragment(
-    uint8_t type,
-    bool secure,
-    uint8_t flags,
-    const uint8_t *payload,
-    uint16_t length)
+    uint8_t type, bool secure, uint8_t flags,
+    const uint8_t *payload, uint16_t length)
 {
-    const bool fragmented =
-        (flags & WEBHID_REPORT_FLAG_FRAGMENTED) != 0u;
-    const bool last = (flags & WEBHID_REPORT_FLAG_LAST) != 0u;
-    if (!last && !fragmented) {
-        return false;
+    const auto result = assembler.accept(type, secure, flags, payload, length);
+    using Status = WebHidLogicalAssembler::Status;
+    if (result.status == Status::Invalid) return false;
+    if (result.status == Status::Pending) return true;
+    if (result.status == Status::Oversize) {
+        return result.secure
+            ? sendRpcResult(result.transactionId, 413, nullptr,
+                            "Logical request exceeds the 16 KiB limit")
+            : sendResponse(WEBHID_REPORT_BOOTSTRAP_RESPONSE, false,
+                           result.transactionId, 413, nullptr,
+                           "Bootstrap request exceeds the 16 KiB limit");
     }
-    if (!assembler.active) {
-        assembler.active = true;
-        assembler.type = type;
-        assembler.secure = secure;
-        assembler.discardingOversize = false;
-        assembler.errorTransactionId = 0u;
-        assembler.length = 0u;
-    } else if (!fragmented || assembler.type != type ||
-               assembler.secure != secure) {
-        return false;
-    }
-    if (assembler.discardingOversize) {
-        if (!last) {
-            return true;
-        }
-        const uint32_t transactionId =
-            assembler.errorTransactionId;
-        const bool wasSecure = assembler.secure;
-        if (assembler.length != 0u) {
-            HBoxCrypto_Zeroize(
-                assembler.bytes.data(), assembler.length + 1u);
-        }
-        assembler.active = false;
-        assembler.discardingOversize = false;
-        assembler.errorTransactionId = 0u;
-        assembler.length = 0u;
-        return wasSecure
-            ? sendRpcResult(
-                  transactionId,
-                  413,
-                  nullptr,
-                  "Logical request exceeds the 16 KiB limit")
-            : sendResponse(
-                  WEBHID_REPORT_BOOTSTRAP_RESPONSE,
-                  false,
-                  transactionId,
-                  413,
-                  nullptr,
-                  "Bootstrap request exceeds the 16 KiB limit");
-    }
-    if (length > kMaximumLogicalBytes - assembler.length) {
-        const size_t remaining =
-            kMaximumLogicalBytes - assembler.length;
-        if (remaining != 0u) {
-            memcpy(assembler.bytes.data() + assembler.length,
-                   payload,
-                   remaining);
-            assembler.length += remaining;
-        }
-        assembler.bytes[assembler.length] = 0u;
-        (void)extractTransactionId(
-            assembler.bytes.data(),
-            assembler.length,
-            assembler.errorTransactionId);
-        assembler.discardingOversize = true;
-        if (!last) {
-            return true;
-        }
-        const uint32_t transactionId =
-            assembler.errorTransactionId;
-        const bool wasSecure = assembler.secure;
-        HBoxCrypto_Zeroize(
-            assembler.bytes.data(), assembler.length + 1u);
-        assembler.active = false;
-        assembler.discardingOversize = false;
-        assembler.errorTransactionId = 0u;
-        assembler.length = 0u;
-        return wasSecure
-            ? sendRpcResult(
-                  transactionId,
-                  413,
-                  nullptr,
-                  "Logical request exceeds the 16 KiB limit")
-            : sendResponse(
-                  WEBHID_REPORT_BOOTSTRAP_RESPONSE,
-                  false,
-                  transactionId,
-                  413,
-                  nullptr,
-                  "Bootstrap request exceeds the 16 KiB limit");
-    }
-    memcpy(assembler.bytes.data() + assembler.length,
-           payload,
-           length);
-    assembler.length += length;
-    if (fragmented && !last) {
-        return true;
-    }
-    const size_t completeLength = assembler.length;
-    assembler.bytes[completeLength] = 0u;
-    assembler.active = false;
-    const bool result =
-        secure ? processSecureRpc(assembler.bytes.data(), completeLength)
-               : processBootstrap(assembler.bytes.data(), completeLength);
-    HBoxCrypto_Zeroize(
-        assembler.bytes.data(), completeLength + 1u);
-    assembler.length = 0u;
-    return result;
+    const bool accepted = secure
+        ? processSecureRpc(assembler.data(), assembler.size())
+        : processBootstrap(assembler.data(), assembler.size());
+    assembler.reset();
+    return accepted;
 }
 
 bool WebHidService::processBootstrap(
@@ -2734,34 +2525,14 @@ bool WebHidService::processSecureRpc(
              * use different report schemas.  Do not leak an ordinary snapshot
              * across the mode boundary after the performance ACK. */
             clearButtonStateQueue();
-            performanceEnabled = true;
+            telemetry.start(HAL_GetTick());
 #if HBOX_SECURE_BOOT_REQUIRED == 0
             memset(g_webhid_perf_timing, 0, sizeof(g_webhid_perf_timing));
 #endif
-            nextSampleAtMs = HAL_GetTick();
-            nextCheckpointAtMs = HAL_GetTick();
-            samplePending = false;
-            droppedSamples = 0u;
-            totalDroppedSamples = 0u;
-            edgeHead = 0u;
-            edgeTail = 0u;
-            edgeCount = 0u;
-            telemetryOverflow = false;
-            HBoxCrypto_Zeroize(
-                edgeQueue.data(), sizeof(edgeQueue));
-            requestCheckpoint();
         } else if (
             command ==
             "stop_button_performance_monitoring") {
-            performanceEnabled = false;
-            samplePending = false;
-            checkpointRequested = false;
-            checkpointActive = false;
-            edgeHead = 0u;
-            edgeTail = 0u;
-            edgeCount = 0u;
-            HBoxCrypto_Zeroize(
-                edgeQueue.data(), sizeof(edgeQueue));
+            telemetry.stop();
         }
     }
     cJSON_Delete(root);
@@ -3486,12 +3257,12 @@ bool WebHidService::sendFrame(
     }
 
 #if HBOX_SECURE_BOOT_REQUIRED == 0
-    if (performanceEnabled) ++g_webhid_perf_timing[7];
+    if (telemetry.enabled()) ++g_webhid_perf_timing[7];
 #endif
     if (!UsbBoardLink_WebConfigSendReport(
             reinterpret_cast<const uint8_t *>(&report))) {
 #if HBOX_SECURE_BOOT_REQUIRED == 0
-        if (performanceEnabled) ++g_webhid_perf_timing[8];
+        if (telemetry.enabled()) ++g_webhid_perf_timing[8];
 #endif
         memcpy(g_responseScratch.data(), &report, sizeof(report));
         pendingFrameSource = source;
@@ -3682,35 +3453,17 @@ bool WebHidService::pumpLogicalOutput()
 
 void WebHidService::clearButtonStateQueue()
 {
-    HBoxCrypto_Zeroize(
-        buttonStateQueue.data(), sizeof(buttonStateQueue));
-    buttonStateHead = 0u;
-    buttonStateTail = 0u;
-    buttonStateCount = 0u;
+    telemetry.clearButtons();
 }
 
 bool WebHidService::sendOneButtonState()
 {
-    if (buttonStateCount == 0u) {
-        return true;
-    }
-    const webhid_button_state_v1_t &snapshot =
-        buttonStateQueue[buttonStateHead];
-    if (!sendFrame(
-            WEBHID_REPORT_BUTTON_STATE,
-            WEBHID_REPORT_FLAG_LAST,
-            reinterpret_cast<const uint8_t *>(&snapshot),
-            sizeof(snapshot),
-            true,
-            OutboundFrameSource::ButtonState)) {
-        return false;
-    }
-    HBoxCrypto_Zeroize(
-        &buttonStateQueue[buttonStateHead],
-        sizeof(buttonStateQueue[buttonStateHead]));
-    buttonStateHead =
-        (buttonStateHead + 1u) % kButtonStateQueueDepth;
-    --buttonStateCount;
+    const auto *snapshot = telemetry.frontButton();
+    if (snapshot == nullptr) return true;
+    if (!sendFrame(WEBHID_REPORT_BUTTON_STATE, WEBHID_REPORT_FLAG_LAST,
+                   reinterpret_cast<const uint8_t *>(snapshot), sizeof(*snapshot),
+                   true, OutboundFrameSource::ButtonState)) return false;
+    telemetry.commitButton();
     return true;
 }
 
@@ -3752,7 +3505,7 @@ void WebHidService::onAdcButtonTransition(
     bool pressed)
 {
     if (!initialized || !sessionEstablished ||
-        !performanceEnabled ||
+        !telemetry.enabled() ||
         buttonIndex >= WEBHID_PERF_KEY_COUNT) {
         return;
     }
@@ -3761,42 +3514,11 @@ void WebHidService::onAdcButtonTransition(
     if (button == nullptr) {
         return;
     }
-    if (edgeSequence == UINT32_MAX) {
-        telemetryOverflow = true;
+    if (!telemetry.admitEdge(pendingFrameSource == OutboundFrameSource::Edge)) {
         return;
     }
-    if (edgeCount >= kEdgeQueueDepth) {
-        /* Preserve the newest edge and report the discontinuity in the next
-         * checkpoint instead of invalidating the WebHID session. */
-        if (pendingFrameSource == OutboundFrameSource::Edge) {
-            /* The physical report still owns edgeQueue[edgeHead]. Dropping
-             * that entry would make sendOneEdge() pop a different edge when
-             * the retained report completes, so discard the newest arrival. */
-            telemetryOverflow = true;
-            if (totalDroppedSamples != UINT32_MAX) {
-                ++totalDroppedSamples;
-            }
-            if (droppedSamples != UINT8_MAX) {
-                ++droppedSamples;
-            }
-            return;
-        }
-        HBoxCrypto_Zeroize(&edgeQueue[edgeHead], sizeof(PerfEdge));
-        edgeHead = (edgeHead + 1u) % kEdgeQueueDepth;
-        --edgeCount;
-        telemetryOverflow = true;
-        if (totalDroppedSamples != UINT32_MAX) {
-            ++totalDroppedSamples;
-        }
-        if (droppedSamples != UINT8_MAX) {
-            ++droppedSamples;
-        }
-    }
-
-    PerfEdge &edge = edgeQueue[edgeTail];
-    edge = {};
+    WebHidTelemetryState::PerfEdge edge = {};
     edge.timestampUs = monotonicMicros();
-    edge.edgeSequence = ++edgeSequence;
     edge.buttonIndex = buttonIndex;
     edge.pressed = pressed ? 1u : 0u;
     edge.rawAdc = button->currentValue;
@@ -3814,28 +3536,17 @@ void WebHidService::onAdcButtonTransition(
     edge.releaseStartDistanceUm =
         distanceMicrometres(
             button, button->releaseStartSnapshot);
-    edgeTail = (edgeTail + 1u) % kEdgeQueueDepth;
-    ++edgeCount;
+    telemetry.enqueueAdmittedEdge(edge);
 }
 
 bool WebHidService::sendOneEdge()
 {
-    if (edgeCount == 0u) {
-        return true;
-    }
-    const PerfEdge &edge = edgeQueue[edgeHead];
-    if (!sendFrame(
-            WEBHID_REPORT_PERF_EDGE,
-            WEBHID_REPORT_FLAG_LAST,
-            reinterpret_cast<const uint8_t *>(&edge),
-            sizeof(edge),
-            true,
-            OutboundFrameSource::Edge)) {
-        return false;
-    }
-    HBoxCrypto_Zeroize(&edgeQueue[edgeHead], sizeof(PerfEdge));
-    edgeHead = (edgeHead + 1u) % kEdgeQueueDepth;
-    --edgeCount;
+    const auto *edge = telemetry.frontEdge();
+    if (edge == nullptr) return true;
+    if (!sendFrame(WEBHID_REPORT_PERF_EDGE, WEBHID_REPORT_FLAG_LAST,
+                   reinterpret_cast<const uint8_t *>(edge), sizeof(*edge),
+                   true, OutboundFrameSource::Edge)) return false;
+    telemetry.commitEdge();
     return true;
 }
 
@@ -3843,7 +3554,7 @@ bool WebHidService::sendLatestSample(uint32_t timestampUs)
 {
     webhid_perf_sample_v1_t sample = {};
     sample.device_timestamp_us_le = timestampUs;
-    sample.dropped_samples = droppedSamples;
+    sample.dropped_samples = telemetry.sampleDrops();
     uint32_t mask = 0u;
     for (uint8_t index = 0u;
          index < WEBHID_PERF_KEY_COUNT;
@@ -3875,19 +3586,19 @@ bool WebHidService::sendLatestSample(uint32_t timestampUs)
         OutboundFrameSource::Sample);
     HBoxCrypto_Zeroize(&sample, sizeof(sample));
     if (sent) {
-        droppedSamples = 0u;
+        telemetry.commitSample();
     }
     return sent;
 }
 
 void WebHidService::requestCheckpoint()
 {
-    checkpointRequested = true;
+    telemetry.requestCheckpoint();
 }
 
 bool WebHidService::prepareCheckpoint(uint32_t timestampUs)
 {
-    if (!sessionEstablished || !performanceEnabled ||
+    if (!sessionEstablished || !telemetry.enabled() ||
         !hasScope(HBOX_SCOPE_MONITOR_READ)) {
         return false;
     }
@@ -3905,22 +3616,13 @@ bool WebHidService::prepareCheckpoint(uint32_t timestampUs)
             ? UINT16_MAX
             : static_cast<uint32_t>(value + 0.5);
     }
-    checkpointTimestampUs = timestampUs;
-    checkpointEdgeSequence = edgeSequence;
-    checkpointMaximumTravelUm =
-        static_cast<uint16_t>(maximumTravelUm);
-    checkpointDroppedSamples =
-        static_cast<uint16_t>(
-            std::min<uint32_t>(
-                totalDroppedSamples, UINT16_MAX));
+    telemetry.beginCheckpoint(timestampUs, static_cast<uint16_t>(maximumTravelUm));
     for (uint8_t index = 0u;
          index < WEBHID_PERF_KEY_COUNT;
          ++index) {
         ADCBtn *button =
             ADC_BTNS_WORKER.getButtonState(index);
-        webhid_perf_checkpoint_key_v1_t &key =
-            checkpointKeys[index];
-        key = {};
+        webhid_perf_checkpoint_key_v1_t key = {};
         key.virtual_pin =
             ADC_BTNS_WORKER.getButtonVirtualPin(index);
         if (button != nullptr &&
@@ -3954,69 +3656,22 @@ bool WebHidService::prepareCheckpoint(uint32_t timestampUs)
                 ? 0u
                 : distanceMicrometres(
                       button, button->releaseStartSnapshot);
+        telemetry.setCheckpointKey(index, key);
     }
-    ++checkpointId;
-    if (checkpointId == 0u) {
-        ++checkpointId;
-    }
-    checkpointChunk = 0u;
-    checkpointActive = true;
-    checkpointRequested = false;
+    telemetry.finishCheckpoint();
     return true;
 }
 
 bool WebHidService::sendCheckpointChunk()
 {
-    static constexpr uint8_t kChunkCount =
-        WEBHID_PERF_KEY_COUNT /
-        WEBHID_PERF_CHECKPOINT_KEYS;
-    if (!checkpointActive ||
-        checkpointChunk >= kChunkCount) {
-        return false;
-    }
-
     webhid_perf_checkpoint_v1_t checkpoint = {};
-    checkpoint.device_timestamp_us_le =
-        checkpointTimestampUs;
-    checkpoint.edge_sequence_le =
-        checkpointEdgeSequence;
-    checkpoint.max_travel_distance_um_le =
-        checkpointMaximumTravelUm;
-    checkpoint.total_dropped_samples_le =
-        checkpointDroppedSamples;
-    checkpoint.checkpoint_id = checkpointId;
-    checkpoint.chunk_index = checkpointChunk;
-    checkpoint.chunk_count = kChunkCount;
-    checkpoint.first_button =
-        static_cast<uint8_t>(
-            checkpointChunk *
-            WEBHID_PERF_CHECKPOINT_KEYS);
-    for (uint8_t index = 0u;
-         index < WEBHID_PERF_CHECKPOINT_KEYS;
-         ++index) {
-        checkpoint.keys[index] =
-            checkpointKeys[
-                checkpoint.first_button + index];
-    }
-    const bool sent = sendFrame(
-        WEBHID_REPORT_PERF_CHECKPOINT,
-        WEBHID_REPORT_FLAG_LAST,
-        reinterpret_cast<const uint8_t *>(&checkpoint),
-        sizeof(checkpoint),
-        true,
-        OutboundFrameSource::Checkpoint);
+    if (!telemetry.checkpointReport(checkpoint)) return false;
+    const bool sent = sendFrame(WEBHID_REPORT_PERF_CHECKPOINT,
+        WEBHID_REPORT_FLAG_LAST, reinterpret_cast<const uint8_t *>(&checkpoint),
+        sizeof(checkpoint), true, OutboundFrameSource::Checkpoint);
     HBoxCrypto_Zeroize(&checkpoint, sizeof(checkpoint));
-    if (!sent) {
-        return false;
-    }
-    ++checkpointChunk;
-    if (checkpointChunk >= kChunkCount) {
-        checkpointActive = false;
-        checkpointChunk = 0u;
-        HBoxCrypto_Zeroize(
-            checkpointKeys.data(), sizeof(checkpointKeys));
-    }
-    return true;
+    if (sent) telemetry.commitCheckpoint();
+    return sent;
 }
 
 void WebHidService::serviceConfigSaveFeedback()
@@ -4036,53 +3691,12 @@ void WebHidService::serviceConfigSaveFeedback()
 
 void WebHidService::updateTelemetry()
 {
-    if (!sessionEstablished ||
-        !performanceEnabled ||
-        !hasScope(HBOX_SCOPE_MONITOR_READ)) {
-        return;
-    }
-    if (telemetryOverflow) {
-        telemetryOverflow = false;
-        requestCheckpoint();
-    }
+    if (!sessionEstablished || !telemetry.enabled() ||
+        !hasScope(HBOX_SCOPE_MONITOR_READ)) return;
     const uint32_t timestampUs = monotonicMicros();
-    const uint32_t now = HAL_GetTick();
-    const uint32_t sampleInterval =
-        stream.active ? 40u : kSampleIntervalMs;
-    if (nextSampleAtMs == 0u) {
-        nextSampleAtMs = now;
-    }
-    if (pendingFrameSource != OutboundFrameSource::Sample &&
-        static_cast<int32_t>(now - nextSampleAtMs) >= 0) {
-        const uint32_t due =
-            ((now - nextSampleAtMs) / sampleInterval) + 1u;
-        uint32_t dropped = due - 1u;
-        if (samplePending) {
-            ++dropped;
-        }
-        if (dropped != 0u) {
-            const uint32_t room =
-                UINT32_MAX - totalDroppedSamples;
-            totalDroppedSamples +=
-                dropped > room ? room : dropped;
-            const uint32_t local =
-                static_cast<uint32_t>(droppedSamples) + dropped;
-            droppedSamples = static_cast<uint8_t>(
-                std::min<uint32_t>(local, 255u));
-        }
-        nextSampleAtMs += due * sampleInterval;
-        sampleTimestampUs = timestampUs;
-        samplePending = true;
-    }
-    if (nextCheckpointAtMs == 0u) {
-        nextCheckpointAtMs = now;
-    }
-    if (static_cast<int32_t>(
-            now - nextCheckpointAtMs) >= 0) {
-        nextCheckpointAtMs = now + kCheckpointIntervalMs;
-        requestCheckpoint();
-    }
-    if (checkpointRequested && !checkpointActive) {
+    if (telemetry.schedule(HAL_GetTick(), timestampUs,
+                           stream.active ? 40u : kSampleIntervalMs,
+                           pendingFrameSource == OutboundFrameSource::Sample)) {
         (void)prepareCheckpoint(timestampUs);
     }
 }
@@ -4106,8 +3720,8 @@ void WebHidService::pumpOutput()
         (void)sendOneButtonState();
         return;
     case OutboundFrameSource::Sample:
-        if (sendLatestSample(sampleTimestampUs)) {
-            samplePending = false;
+        if (sendLatestSample(telemetry.sampleTimestamp())) {
+            telemetry.commitSample();
         }
         return;
     case OutboundFrameSource::Checkpoint:
@@ -4130,26 +3744,26 @@ void WebHidService::pumpOutput()
     }
     pumpBenchmark();
     if (pendingFrameSource == OutboundFrameSource::Benchmark) return;
-    if (edgeCount != 0u) {
+    if (telemetry.hasEdges()) {
         (void)sendOneEdge();
         return;
     }
-    if (buttonStateCount != 0u) {
+    if (telemetry.hasButtons()) {
         (void)sendOneButtonState();
         return;
     }
     // A checkpoint consists of nine historical chunks. Keep current travel
     // flowing between them; enqueue at most one sample and one checkpoint per
     // pass, respecting the pinned report and reserved control slot.
-    if (samplePending) {
-        if (sendLatestSample(sampleTimestampUs)) {
-            samplePending = false;
+    if (telemetry.hasSample()) {
+        if (sendLatestSample(telemetry.sampleTimestamp())) {
+            telemetry.commitSample();
         }
         if (pendingFrameSource != OutboundFrameSource::None) return;
-        if (checkpointActive) (void)sendCheckpointChunk();
+        if (telemetry.hasCheckpoint()) (void)sendCheckpointChunk();
         return;
     }
-    if (checkpointActive) {
+    if (telemetry.hasCheckpoint()) {
         (void)sendCheckpointChunk();
         return;
     }

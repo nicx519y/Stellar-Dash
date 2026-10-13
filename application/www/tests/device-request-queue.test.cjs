@@ -47,11 +47,11 @@ test('LED page stages durable writes and unmount only clears ephemeral preview',
 
 test('the page-exit queue flush callback has stable identity and live client ownership', () => {
   const context = fs.readFileSync(
-    path.join(__dirname, '../contexts/gamepad-config-context.tsx'),
+    path.join(__dirname, '../contexts/gamepad-config/session-actions.ts'),
     'utf8',
   );
   const callbackStart = context.indexOf('const sendPendingCommandImmediately = useCallback');
-  const flushStart = context.indexOf('// 快速清空队列', callbackStart);
+  const flushStart = context.indexOf('const flushQueue =', callbackStart);
   assert.ok(callbackStart >= 0 && flushStart > callbackStart);
   const callback = context.slice(callbackStart, flushStart);
 

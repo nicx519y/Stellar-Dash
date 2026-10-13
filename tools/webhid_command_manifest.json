@@ -6,6 +6,10 @@
     {"name": "benchmark.status", "scope": "config.read", "buildGuard": "HBOX_SECURE_BOOT_REQUIRED == 0", "writesFlash": false},
     {"name": "benchmark.stop", "scope": "config.read", "buildGuard": "HBOX_SECURE_BOOT_REQUIRED == 0", "writesFlash": false}
   ],
+  "serviceCommands": [
+    {"name": "performance.get-checkpoint", "scope": "monitor.read"},
+    {"name": "performance.clock-sync", "scope": "monitor.read"}
+  ],
   "legacyCommandCount": 68,
   "commandCount": 92,
   "migrationStatusCounts": {

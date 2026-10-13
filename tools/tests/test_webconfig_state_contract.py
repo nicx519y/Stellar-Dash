@@ -504,28 +504,12 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertIn("kRxProcessBudget = kRxQueueDepth", source)
 
     def test_webhid_logical_assembler_does_not_allocate_the_heap_limit(self) -> None:
-        header = (
-            ROOT / 'application/Inc/webconfig/webhid_service.hpp'
-        ).read_text(encoding="utf-8")
-        source = (
-            ROOT / 'application/Src/webconfig/webhid_service.cpp'
-        ).read_text(encoding="utf-8")
-
-        assembler = header[
-            header.index("struct LogicalAssembler"):
-            header.index("struct StreamState")
-        ]
-        accept = source[
-            source.index("bool WebHidService::acceptLogicalFragment"):
-            source.index("bool WebHidService::processBootstrap")
-        ]
-        self.assertIn(
-            "std::array<uint8_t, kMaximumLogicalBytes + 1u>",
-            assembler,
-        )
-        self.assertNotIn("std::vector<uint8_t> bytes", assembler)
-        self.assertNotIn(".reserve(kMaximumLogicalBytes)", accept)
-        self.assertNotIn("std::vector<uint8_t> complete", accept)
+        header = (ROOT / 'application/Inc/webconfig/webhid_logical_assembler.hpp').read_text(encoding="utf-8")
+        source = (ROOT / 'application/Src/webconfig/webhid_logical_assembler.cpp').read_text(encoding="utf-8")
+        self.assertIn("Capacity = 16u * 1024u", header)
+        self.assertIn("std::array<uint8_t, Capacity + 1u>", header)
+        self.assertNotIn("std::vector", header + source)
+        self.assertNotIn(".reserve(", source)
 
     def test_webhid_stream_staging_is_fixed_and_bounded(self) -> None:
         header = (
@@ -666,9 +650,10 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertNotIn("resetSession", enqueue)
         self.assertIn("droppedEventCount", enqueue)
         self.assertNotIn('"button.state"', enqueue)
-        self.assertIn("webhid_button_state_v1_t", enqueue)
-        self.assertIn("buttonStateQueue", enqueue)
-        self.assertIn("kButtonStateQueueDepth", enqueue)
+        self.assertIn("telemetry.enqueueButton(", enqueue)
+        state = (ROOT / 'application/Src/webconfig/webhid_telemetry_state.cpp').read_text(encoding="utf-8")
+        self.assertIn("webhid_button_state_v1_t", state)
+        self.assertIn("kButtonStateQueueDepth", state)
         self.assertNotIn('"legacy.binary"', enqueue)
 
         telemetry = source[
@@ -676,14 +661,15 @@ class WebConfigStateContractTests(unittest.TestCase):
             source.index("void WebHidService::pumpOutput")
         ]
         self.assertNotIn("resetSession", telemetry)
-        self.assertIn("requestCheckpoint();", telemetry)
+        self.assertIn("telemetry.schedule(", telemetry)
+        self.assertIn("requestCheckpoint();", state)
 
         pump = source[source.index("void WebHidService::pumpOutput"):]
         self.assertIn("OutboundFrameSource::ButtonState", pump)
         self.assertIn("sendOneButtonState()", pump)
         self.assertLess(
-            pump.index("if (buttonStateCount != 0u)"),
-            pump.index("if (checkpointActive)"),
+            pump.index("if (telemetry.hasButtons())"),
+            pump.index("if (telemetry.hasCheckpoint())"),
         )
 
     def test_webhid_session_reset_stops_session_owned_adc_work(self) -> None:

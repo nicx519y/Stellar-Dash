@@ -2,7 +2,7 @@ import { Box, Button, HStack, Spinner, Text } from "@chakra-ui/react";
 import { openConfirm as openFinishConfirmDialog } from "@/components/dialog-confirm";
 import { closeDialog as closeFinishDialog, openDialog as openFinishDialog, updateDialogMessage as updateFinishDialogMessage } from "@/components/dialog-cannot-close";
 import { useLanguage } from "@/contexts/language-context";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { configuredTransportMode } from "@/lib/device-transport";
 import { useLayoutEffect, useRef, useState } from "react";
 import { toaster } from "@/components/ui/toaster";
@@ -21,7 +21,7 @@ export function FinishConfigButton(
         flushDeferredConfig,
         terminateWebConfigActivities,
         setError,
-    } = useGamepadConfig();
+    } = useGamepadFields("exitWebConfig", "setUserRebooting", "flushDeferredConfig", "terminateWebConfigActivities", "setError");
     const [closing, setClosing] = useState(false);
     const [hovered, setHovered] = useState(false);
     const [labelWidth, setLabelWidth] = useState<number | null>(null);

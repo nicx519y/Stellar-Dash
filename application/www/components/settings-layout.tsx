@@ -12,7 +12,7 @@ import {
 import { navigationEvents } from '@/lib/event-manager';
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { FinishConfigButton } from './finish-config-button';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { BuildVariantBadge } from '@hbox/build-variant-badge';
 import { UserAuthControl } from '@/components/user-auth-control';
 import { useUserAuth } from '@/contexts/user-auth-context';
@@ -24,7 +24,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { session, loading: authLoading } = useUserAuth();
     const isAdmin = !authLoading && session.authenticated && session.user?.role === 'admin';
 
-    const { finishConfigDisabled, configEditingBlocked, dataIsReady } = useGamepadConfig();
+    const { finishConfigDisabled, configEditingBlocked, dataIsReady } = useGamepadFields("finishConfigDisabled", "configEditingBlocked", "dataIsReady");
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },

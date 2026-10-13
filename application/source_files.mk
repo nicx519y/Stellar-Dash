@@ -119,6 +119,8 @@ Src/transport/usb/usbdriver.cpp \
 Src/transport/usb/legacy/usbhostmanager.cpp \
 Src/webconfig/webhid_rpc_dispatcher.cpp \
 Src/webconfig/webhid_service.cpp \
+Src/webconfig/webhid_logical_assembler.cpp \
+Src/webconfig/webhid_telemetry_state.cpp \
 Src/webconfig/configs/calibration_command_handler.cpp \
 Src/webconfig/configs/common_command_handler.cpp \
 Src/webconfig/configs/config_sync.cpp \

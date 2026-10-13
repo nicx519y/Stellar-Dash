@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { useHitboxButtonMonitor } from '@/hooks/use-hitbox-button-monitor';
 import { shouldStartButtonMonitoring } from '@/lib/button-monitor-lifecycle';
 import { factoryLightSource, type PreviewOptions } from '@/lib/hitbox-lighting-preview';
@@ -26,7 +26,7 @@ interface HitboxLedsProps {
 }
 
 export default function HitboxLeds(props: HitboxLedsProps) {
-  const { contextJsReady, setContextJsReady, deviceConnected, dataIsReady, hitboxLayout } = useGamepadConfig();
+  const { contextJsReady, setContextJsReady, deviceConnected, dataIsReady, hitboxLayout } = useGamepadFields("contextJsReady", "setContextJsReady", "deviceConnected", "dataIsReady", "hitboxLayout");
   // Match the fixed drawing box, centered transform and margin used by HitboxKeys/Base.
   const scale = calculateHitboxScale(props.containerWidth ?? 0, HITBOX_WIDTH);
   const layout = useMemo(() => (hitboxLayout ?? []).map(item => ({...item, x:item.x * HITBOX_LAYOUT_SCALE, y:item.y * HITBOX_LAYOUT_SCALE})), [hitboxLayout]);

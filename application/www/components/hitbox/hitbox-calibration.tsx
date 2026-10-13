@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
@@ -76,7 +76,7 @@ export default function HitboxCalibration(props: HitboxCalibrationProps) {
         setContextJsReady,
         hitboxLayout,
         calibrationStatus,
-    } = useGamepadConfig();
+    } = useGamepadFields("contextJsReady", "setContextJsReady", "hitboxLayout", "calibrationStatus");
     
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];

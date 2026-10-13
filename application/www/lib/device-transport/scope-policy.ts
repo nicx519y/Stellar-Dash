@@ -1,34 +1,9 @@
 import { DeviceScope, DeviceTransportError } from './types';
 
-const DEVICE_CONTROL_COMMANDS = new Set([
-  'prepare_rf_binding',
-  'commit_rf_binding',
-  'abort_rf_binding',
-  'reboot',
-  'exit_webconfig',
-  'start_manual_calibration',
-  'stop_manual_calibration',
-  'get_calibration_status',
-  'check_is_manual_calibration_completed',
-  'ms_mark_mapping_start',
-  'ms_mark_mapping_stop',
-  'ms_mark_mapping_step',
-]);
+import { DEVICE_CONTROL_COMMANDS as CONTROL_COMMANDS, FIRMWARE_UPDATE_COMMANDS as UPDATE_COMMANDS } from './generated-command-policy';
 
-const FIRMWARE_UPDATE_COMMANDS = new Set([
-  'begin_release_install', 'backup_release_tx', 'prepare_release_install', 'activate_release_install',
-  'abort_release_install', 'retry_release_install',
-  'create_firmware_upgrade_session',
-  'upload_firmware_chunk',
-  'complete_firmware_upgrade_session',
-  'abort_firmware_upgrade_session',
-  'get_firmware_upgrade_status',
-  'cleanup_firmware_upgrade_session',
-  'ch585_update_status',
-  'ch585_update_begin',
-  'ch585_update_chunk',
-  'ch585_update_complete',
-]);
+const DEVICE_CONTROL_COMMANDS = new Set<string>(CONTROL_COMMANDS);
+const FIRMWARE_UPDATE_COMMANDS = new Set<string>(UPDATE_COMMANDS);
 
 export function elevatedScopesForCommand(command: string): readonly DeviceScope[] {
   if (DEVICE_CONTROL_COMMANDS.has(command)) {

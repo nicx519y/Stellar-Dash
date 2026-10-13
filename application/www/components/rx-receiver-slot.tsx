@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Box, Button, Flex, HStack, Image, SimpleGrid, Text, VStack } from '@chakra-ui/react';
 import { LuCheck } from 'react-icons/lu';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { useLanguage } from '@/contexts/language-context';
 import { BindingState, bindingHex, pairReceiver, paired, present, readBinding, canCancelBinding, cancelReceiverPairing } from '@/lib/device-transport/rf-binding';
 import { ReceiverClient, ReceiverDevice, isReceiver, receiverFilters } from '@/lib/device-transport/rx-receiver-client';
@@ -39,7 +39,7 @@ const emptyIdFill = 'repeating-linear-gradient(135deg, transparent 0px, transpar
 
 export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
   const { currentLanguage } = useLanguage(), t = copy[currentLanguage];
-  const { deviceConnected, isLoading, deferredConfigSaving, deviceBackgroundReadsPaused, rfBindingBusy, rfBindingRequest, runRfBindingOperation } = useGamepadConfig();
+  const { deviceConnected, isLoading, deferredConfigSaving, deviceBackgroundReadsPaused, rfBindingBusy, rfBindingRequest, runRfBindingOperation } = useGamepadFields("deviceConnected", "isLoading", "deferredConfigSaving", "deviceBackgroundReadsPaused", "rfBindingBusy", "rfBindingRequest", "runRfBindingOperation");
   const [client, setClient] = useState<ReceiverClient | null>(null);
   const [states, setStates] = useState<{ rx: BindingState; tx: BindingState } | null>(null);
   const [connecting, setConnecting] = useState(false), [reading, setReading] = useState(false), [working, setWorking] = useState(false);

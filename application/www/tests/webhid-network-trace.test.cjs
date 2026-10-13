@@ -162,7 +162,7 @@ test('dedicated trace page receives broadcasts without mounting the HID provider
   assert.match(traceSource, /TRACE_VIEWER_LEASE_MS/);
   assert.match(layoutSource, /if \(isTraceViewer\) \{\s*return <>\{children\}<\/>;/);
   assert.match(viewerSource, /openWebHidTraceViewer\('control'/);
-  assert.doesNotMatch(viewerSource, /useGamepadConfig|createDeviceCommandClient/);
+  assert.doesNotMatch(viewerSource, /useGamepadConfig|useGamepadFields|createDeviceCommandClient/);
 });
 
 test('email verification stays outside HID and account dialog reuses the shared blur placement', () => {
@@ -193,7 +193,7 @@ test('email verification stays outside HID and account dialog reuses the shared 
   const deviceProvider = layoutSource.indexOf('<GamepadConfigProvider>', standaloneBranch);
   assert.ok(standaloneBranch >= 0 && deviceProvider > standaloneBranch);
   assert.match(layoutSource.slice(standaloneBranch, deviceProvider), /<UserAuthProvider>/);
-  assert.doesNotMatch(verifySource, /useGamepadConfig|navigator\.hid|WebHidTransport/);
+  assert.doesNotMatch(verifySource, /useGamepadConfig|useGamepadFields|navigator\.hid|WebHidTransport/);
   assert.match(controlSource, /<Dialog\.Backdrop backdropFilter="blur\(4px\)"/);
   assert.match(controlSource, /<Dialog\.Positioner alignItems="flex-start" pt=\{16\}/);
 });

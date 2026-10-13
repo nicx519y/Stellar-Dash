@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { eventBus, EVENTS } from '@/lib/event-manager';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import {
     BUTTON_STATE_CHANGED_CMD,
     type ButtonStateBinaryData,
@@ -36,7 +36,7 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
     } = options;
 
     // 使用 gamepad-config-context 中的方法
-    const { startButtonMonitoring, stopButtonMonitoring } = useGamepadConfig();
+    const { startButtonMonitoring, stopButtonMonitoring } = useGamepadFields("startButtonMonitoring", "stopButtonMonitoring");
 
     const unsubscribeRef = useRef<(() => void) | null>(null);
     const deviceLeaseRef = useRef<SharedButtonMonitorLeaseToken | null>(null);

@@ -1,7 +1,7 @@
 'use client';
 
 import { PlatformLabelMap, Platform, ConnectionMode, platformForDisplay } from '@/types/gamepad-config';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { Center, Icon, RadioCard, SimpleGrid, Text, VStack } from '@chakra-ui/react';
 import { useEffect } from 'react';
 import { BsXbox } from "react-icons/bs";
@@ -14,7 +14,7 @@ import { TitleLabel } from './ui/title-label';
 export function InputModeSettingContent(props: {
         disabled?: boolean,
     }) {
-    const { globalConfig, stageDeferredGlobalConfig } = useGamepadConfig();
+    const { globalConfig, stageDeferredGlobalConfig } = useGamepadFields("globalConfig", "stageDeferredGlobalConfig");
     const { t } = useLanguage();
     const physicalRf = (globalConfig.physicalConnectionMode ?? globalConfig.connectionMode) === ConnectionMode.RF24G;
     const displayedInputMode = physicalRf

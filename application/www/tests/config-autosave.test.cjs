@@ -5,17 +5,12 @@ const { DeferredConfigCoordinator } = require('../lib/deferred-config-coordinato
 const { readConfigSnapshot, writeConfigResource } = require('../lib/device-transport/config-snapshot.ts');
 const { MockDeviceTransport } = require('../lib/device-transport/mock-device-transport.ts');
 const { DeviceCommandClient } = require('../lib/device-transport/device-command-client.ts');
+const { createConfigTransactions } = require('../contexts/gamepad-config/configuration-transactions.ts');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 function gate() { let resolve; const promise = new Promise(r => resolve = r); return { promise, resolve }; }
 
 test('provider Finish waits behind autosave, drains newer edits, and never exits after a failed save', async () => {
-  const fs = require('node:fs');
-  const { transform } = require('sucrase');
-  const source = fs.readFileSync(require('node:path').join(__dirname, '../contexts/gamepad-config-context.tsx'), 'utf8');
-  const start = source.indexOf('    const performDeferredConfigFlush = async');
-  const end = source.indexOf('    const refreshDeviceConfig =', start);
-  const compiled = transform(source.slice(start, end), { transforms: ['typescript'] }).code;
   for (const failure of [false, true]) {
     const held = gate(); const calls = [];
     const queue = new DeferredConfigCoordinator(undefined, { cooldownMs: 0 });
@@ -30,7 +25,9 @@ test('provider Finish waits behind autosave, drains newer edits, and never exits
       deviceClientRef: { current: { flushQueue: async () => calls.push('drain') } },
       setDeferredConfigSaving: () => {}, setConfigBoundaryBusy: () => {}, updateSyncPause: () => {}, setError: () => {},
     };
-    const finish = Function(...Object.keys(dependencies), compiled + '\nreturn flushDeferredConfig;')(...Object.values(dependencies));
+    const transactions = createConfigTransactions(dependencies);
+    const finish = transactions.flushDeferredConfig;
+    dependencies.autoFlushRef.current = () => transactions.queueConfigTransaction(undefined, true, undefined, false);
     queue.stage('a', async () => { calls.push('save'); await held.promise; if (failure) throw Error('save failed'); calls.push('ack'); });
     const automatic = dependencies.autoFlushRef.current().catch(() => {});
     await tick();
@@ -52,12 +49,6 @@ test('provider Finish waits behind autosave, drains newer edits, and never exits
 });
 
 test('provider autosave keeps live feedback running and does not replay LEDs after ordinary saves', async () => {
-  const fs = require('node:fs');
-  const { transform } = require('sucrase');
-  const source = fs.readFileSync(require('node:path').join(__dirname, '../contexts/gamepad-config-context.tsx'), 'utf8');
-  const start = source.indexOf('    const performDeferredConfigFlush = async');
-  const end = source.indexOf('    const queueConfigTransaction =', start);
-  const compiled = transform(source.slice(start, end), { transforms: ['typescript'] }).code;
   const held = gate(); const statuses = []; const commands = [];
   const generation = { current: 1 };
   const store = { confirmed: { 'selected-profile': 'a' }, get: () => 'a' };
@@ -69,7 +60,7 @@ test('provider autosave keeps live feedback running and does not replay LEDs aft
     ledPreviewRef: { current: { replay: () => { throw new Error('Unexpected animation restart'); } } },
     sendDeviceRequest: async command => commands.push(command),
   };
-  const flush = Function(...Object.keys(dependencies), compiled + '\nreturn performDeferredConfigFlush;')(...Object.values(dependencies));
+  const flush = createConfigTransactions(dependencies).performDeferredConfigFlush;
   const saving = flush(undefined, true, undefined, false);
   await tick();
   assert.deepEqual(statuses, [true]);

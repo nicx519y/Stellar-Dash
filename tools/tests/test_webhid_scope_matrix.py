@@ -22,6 +22,10 @@ FRONTEND_POLICY = (
 )
 
 
+GENERATED_CPP = ROOT / "common/webhid_command_policy.generated.h"
+GENERATED_TS = ROOT / "application/www/lib/device-transport/generated-command-policy.ts"
+
+
 def _quoted_values(body: str) -> set[str]:
     return set(
         value
@@ -45,7 +49,7 @@ def _cpp_scope_arrays(source: str) -> dict[str, set[str]]:
 
 def _typescript_set(source: str, name: str) -> set[str]:
     match = re.search(
-        rf"const {re.escape(name)}\s*=\s*new Set\(\[(.*?)\]\);",
+        rf"export const {re.escape(name)}: readonly string\[\] = \[(.*?)\] as const;",
         source,
         flags=re.DOTALL,
     )
@@ -59,8 +63,8 @@ class WebHidScopeMatrixTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.dispatcher_source = DISPATCHER.read_text(encoding="utf-8")
         cls.command_source = DEVICE_COMMAND_DISPATCHER.read_text(encoding="utf-8")
-        cls.frontend_source = FRONTEND_POLICY.read_text(encoding="utf-8")
-        cls.matrix = _cpp_scope_arrays(cls.dispatcher_source)
+        cls.frontend_source = GENERATED_TS.read_text(encoding="utf-8")
+        cls.matrix = _cpp_scope_arrays(GENERATED_CPP.read_text(encoding="utf-8"))
 
     def test_every_legacy_command_has_exactly_one_webhid_scope(self) -> None:
         expected_groups = {

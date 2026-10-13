@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Box, Button, Text } from '@chakra-ui/react';
-import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { useLanguage } from '@/contexts/language-context';
 import { resourceJSON, resourceKey, fromHex, toHex, verifyResource, installLighting, protectedResource, type ResourceInventory, type ResourceItem, type ResourceSource, type ResourceRef } from '@/lib/resources';
 import { LightingActionPopoverProvider, LightingEffectSelector, type LightingChoice } from './lighting-effect-selector';
@@ -11,7 +11,7 @@ import { ConfirmDialog, type ConfirmDialogTone } from './dialog-confirm';
 type LightType = 'key-lighting' | 'ambient-lighting';
 type Modal = {message:string; confirm:boolean; tone:ConfirmDialogTone; resolve:(value:boolean)=>void};
 function useLibrary() {
-  const ctx = useGamepadConfig(), {currentLanguage} = useLanguage(), zh = currentLanguage === 'zh';
+  const ctx = useGamepadFields("deviceConnected", "resourceCommand", "fetchDeviceAuthorizedResource", "dataIsReady", "syncLightingResourceReferences", "defaultProfile", "resourceTransaction", "profileList", "error"), {currentLanguage} = useLanguage(), zh = currentLanguage === 'zh';
   const api = useRef(ctx); api.current = ctx;
   const [inventory, setInventory] = useState<ResourceInventory|null>(null), [catalog, setCatalog] = useState<ResourceItem[]>([]);
   const [loading, setLoading] = useState(true), [serverError, setServerError] = useState(''), [error, setError] = useState('');
@@ -171,7 +171,7 @@ export function LightingResourceProvider({children}:{children:ReactNode}) {
   </LibraryContext.Provider>;
 }
 export function LightingResourceLibrary({type,onSource,selectionDisabled=false}:{type:LightType;onSource:(source:ResourceSource|null)=>void;selectionDisabled?:boolean}) {
-  const lib = useContext(LibraryContext)!, ctx = useGamepadConfig();
+  const lib = useContext(LibraryContext)!, ctx = useGamepadFields("deviceConnected", "resourceCommand", "fetchDeviceAuthorizedResource", "dataIsReady", "syncLightingResourceReferences", "defaultProfile", "resourceTransaction", "profileList", "error");
   const source = lib.previews[type];
   useEffect(() => {onSource(source || null);}, [source,onSource]);
   const choices = new Map<string,LightingChoice>();

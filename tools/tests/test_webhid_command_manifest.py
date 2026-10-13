@@ -23,6 +23,10 @@ FRONTEND_SCOPE_POLICY = (
 )
 
 
+GENERATED_CPP = ROOT / "common/webhid_command_policy.generated.h"
+GENERATED_TS = ROOT / "application/www/lib/device-transport/generated-command-policy.ts"
+
+
 def _manifest_commands(manifest: dict) -> list[dict]:
     result = []
     for group in manifest["groups"]:
@@ -44,7 +48,7 @@ def _cpp_string_array(source: str, name: str) -> set[str]:
 
 def _typescript_set(source: str, name: str) -> set[str]:
     match = re.search(
-        rf"const {re.escape(name)} = new Set\(\[(.*?)\]\);",
+        rf"export const {re.escape(name)}: readonly string\[\] = \[(.*?)\] as const;",
         source,
         re.DOTALL,
     )
@@ -84,13 +88,13 @@ class WebHidCommandManifestTests(unittest.TestCase):
     def test_config_manifest_is_registered_as_read_only(self) -> None:
         self.assertEqual(self.by_name["get_config_manifest"]["scope"], "config.read")
         registry = COMMAND_REGISTRY.read_text(encoding="utf-8")
-        dispatcher = HID_DISPATCHER.read_text(encoding="utf-8")
+        dispatcher = GENERATED_CPP.read_text(encoding="utf-8")
         self.assertIn('registerHandler("get_config_manifest", &globalHandler)', registry)
         self.assertIn("get_config_manifest", _cpp_string_array(dispatcher, "configRead"))
         self.assertNotIn("get_config_manifest", _cpp_string_array(dispatcher, "configWrite"))
 
     def test_manifest_scopes_match_webhid_dispatcher(self) -> None:
-        source = HID_DISPATCHER.read_text(encoding="utf-8")
+        source = GENERATED_CPP.read_text(encoding="utf-8")
         firmware_scopes = {
             "config.read": _cpp_string_array(source, "configRead")
             | {"ping", "get_device_auth"},
@@ -111,7 +115,7 @@ class WebHidCommandManifestTests(unittest.TestCase):
         self.assertEqual(manifest_scopes, firmware_scopes)
 
     def test_frontend_elevated_scope_policy_matches_manifest(self) -> None:
-        source = FRONTEND_SCOPE_POLICY.read_text(encoding="utf-8")
+        source = GENERATED_TS.read_text(encoding="utf-8")
         self.assertEqual(
             _typescript_set(source, "DEVICE_CONTROL_COMMANDS"),
             {
