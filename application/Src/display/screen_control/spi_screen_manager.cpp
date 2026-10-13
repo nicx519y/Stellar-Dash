@@ -35,6 +35,7 @@
 #include "system_sleep_manager.hpp"
 #include "main_runtime_control.hpp"
 #include "states/input_state.hpp"
+#include "screen_control/firmware_recovery_ui.hpp"
 
 extern "C" {
 #include "qspi-w25q64.h"
@@ -75,6 +76,8 @@ static bool g_wakeBacklightPending = false;
 static LcdWakeFrame g_wakeFrame;
 static bool g_menu_full_refresh_pending = false;
 static ScreenTimedPopup g_actionPopup = {};
+static bool g_firmwareRecoveryVisible = false;
+static FirmwareRecoveryPage g_firmwareRecoveryPage = FirmwareRecoveryPage::Details;
 static uint32_t g_battUiLastSampleMs = 0;
 static uint32_t g_battUiChargeAnimStartMs = 0;
 static uint8_t g_battUiSoc = 0;
@@ -108,14 +111,23 @@ static bool ok_flash_active(void) {
     return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
 }
 
-void SPIScreenManager::showFirmwareRecovery() {
+__attribute__((optimize("Os"))) void SPIScreenManager::showFirmwareRecovery() {
     static const char* lines[4];
+    g_firmwareRecoveryVisible=true;
     const char* code=RELEASE_INSTALLER.recoveryErrorCode();
     if(!code[0])code="JOURNAL_FAILED";
-    lines[0]="TX update failed";
-    lines[1]=(!strcmp(code,"TX_BACKUP_INVALID") || !strcmp(code,"LEGACY_NO_BACKUP"))?"No recovery image":"Recovery failed";
-    lines[2]="Maintenance required";
-    lines[3]=code;
+    if(g_firmwareRecoveryPage==FirmwareRecoveryPage::Confirm){
+        lines[0]="Verify firmware";lines[1]="Click to confirm";
+        lines[2]="Hold to return";lines[3]="No TX rewriting";
+    }else if(g_firmwareRecoveryPage==FirmwareRecoveryPage::Checking){
+        lines[0]="Checking firmware";lines[1]="Please wait";
+        lines[2]="Hold to cancel";lines[3]="Read-only verification";
+    }else{
+        lines[0]="TX update failed";
+        lines[1]="Click: check recovery";
+        lines[2]=code;
+        lines[3]=RELEASE_INSTALLER.error()[0]?RELEASE_INSTALLER.error():"Maintenance required";
+    }
     ScreenTimedPopup_Show(&g_actionPopup,"XORA Firmware",lines,4,0,HAL_GetTick());
 }
 
@@ -159,7 +171,7 @@ static uint8_t map_backlight_percent(uint8_t userPercent) {
 #endif
 
 #ifndef SPI_SCREEN_BL_RAMP_MS
-#define SPI_SCREEN_BL_RAMP_MS 2000u
+#define SPI_SCREEN_BL_RAMP_MS 3000u
 #endif
 
 static uint8_t compute_backlight_percent(uint32_t nowMs) {
@@ -531,6 +543,13 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
 
     ScreenTimedPopup_Update(&g_actionPopup, nowMs);
     if (ScreenTimedPopup_IsVisible(&g_actionPopup)) {
+        if(g_firmwareRecoveryVisible){
+            const auto action=FirmwareRecovery_Input(g_firmwareRecoveryPage,clicked,longPressed);
+            if(action==FirmwareRecoveryAction::Start && !RELEASE_INSTALLER.requestMaintenanceRecovery())
+                g_firmwareRecoveryPage=FirmwareRecoveryPage::Details;
+            if(action==FirmwareRecoveryAction::Cancel)RELEASE_INSTALLER.cancelMaintenanceRecovery();
+            showFirmwareRecovery();
+        }
         if (!g_actionPopup.persistent && (clicked || longPressed)) {
             ScreenTimedPopup_Close(&g_actionPopup);
         }
@@ -813,7 +832,11 @@ void SPIScreenManager::loop() {
     }
 }
 
-void SPIScreenManager::renderFrame() {
+__attribute__((optimize("Os"))) void SPIScreenManager::renderFrame() {
+    if(g_firmwareRecoveryVisible && g_firmwareRecoveryPage==FirmwareRecoveryPage::Checking &&
+       !RELEASE_INSTALLER.maintenanceRecoveryPending()){
+        g_firmwareRecoveryPage=FirmwareRecoveryPage::Details;showFirmwareRecovery();
+    }
     renderBars();
     ScreenUiStyle style = {g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};
     if (ScreenTimedPopup_IsVisible(&g_actionPopup)) {
@@ -886,6 +909,15 @@ void SPIScreenManager::renderBars() {
     }
     render_left_battery_icon(&g_lcd, leftW, battY, textColor, barBg, nowMs);
 
+    if(g_firmwareRecoveryVisible && ScreenTimedPopup_IsVisible(&g_actionPopup)){
+        const bool checking=g_firmwareRecoveryPage==FirmwareRecoveryPage::Checking;
+        if(g_firmwareRecoveryPage!=FirmwareRecoveryPage::Details)
+            ScreenUI_DrawStringCenteredInBox(&g_lcd,rightX,topY,rightW,areaH,checking?"Cancel":"Back",textColor,barBg,1u);
+        ScreenUI_DrawStringCenteredInBox(&g_lcd,rightX,midY,rightW,areaH,
+            checking?"Wait":g_firmwareRecoveryPage==FirmwareRecoveryPage::Confirm?"OK":"Check",
+            textColor,barBg,1u);
+        return;
+    }
     if (g_inDetail) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, "Back", textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     else if (prev && prev->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
 

@@ -27,7 +27,7 @@ export function saveInstallTask(t: InstallTask, storage: Pick<Storage, 'setItem'
 // work to resume when the firmware page is opened again. Also retire old records.
 export function readResumableInstallTask(storage: Storage = localStorage): InstallTask | null {
   const task = readInstallTask(storage);
-  if (task?.result !== 'completed') return task;
+  if (task?.result !== 'completed' && !(task?.result === 'failed' && task.progress?.stage === 'maintenance-recovered')) return task;
   try { forgetInstallTask(task.sessionId, storage); } catch { /* Ignore a completed record even if storage is read-only. */ }
   return null;
 }
@@ -41,12 +41,14 @@ export function reconcileInstallTask(t: InstallTask, i: FirmwareInventory): Inst
   if (!matchesInstallTask(t, i)) return null;
   t = { ...t, txInstallMode: normalizeTxIapMode(i.txInstallMode), txRecoveryMode: normalizeTxIapMode(i.txRecoveryMode) };
   const previous = t.progress || { stage: 'waiting-device', overallPercent: 80, stepIndex: 6 };
+  const maintained = i.phase === 'aborted' && i.errorCode === 'MAINTENANCE_RECOVERED';
   if (i.phase === 'completed' && i.installationState === 'installed' && i.confirmedDigest === t.digest && i.confirmedVersion === t.version)
     t = { ...t, result: 'completed', error: '' };
+  else if (maintained) t = { ...t, result: 'failed', error: '' };
   else if (i.phase === 'restored' && i.recoveryResult === 'restored') t = { ...t, result: 'restored', error: i.installError || i.error };
   else if (i.phase === 'restore-failed' || i.recoveryResult === 'failed') t = { ...t, result: 'restore-failed', error: i.recoveryError || i.error };
   else if (i.phase === 'failed') t = { ...t, result: 'failed', error: i.error };
-  const stage = t.result === 'waiting' ? (i.phase === 'completed' ? 'verifying' : i.phase) : t.result;
+  const stage = maintained ? 'maintenance-recovered' : t.result === 'waiting' ? (i.phase === 'completed' ? 'verifying' : i.phase) : t.result;
   return { ...t, progress: accumulateInstallProgress(previous, { stage }) };
 }
 

@@ -5,6 +5,19 @@ const task=()=>({protocol:2,sessionId:'rel-test',digest:'a'.repeat(64),version:'
   release:{manifest:{version:'2.0.0'}},result:'waiting'});
 const status=(phase='completed')=>({protocol:2,sessionId:'rel-test',targetDigest:'a'.repeat(64),targetVersion:'2.0.0',
   phase,installationState:'installed',confirmedDigest:'a'.repeat(64),confirmedVersion:'2.0.0'});
+
+test('matched maintenance resolution retires the failed update without claiming installation success',()=>{
+ const failed={...task(),result:'restore-failed',error:'old failure',progress:{stage:'restore-failed',overallPercent:90,stepIndex:6}};
+ const inventory={...status('aborted'),installationState:'unknown',errorCode:'MAINTENANCE_RECOVERED',recoveryResult:'none'};
+ const resolved=reconcileInstallTask(failed,inventory);
+ assert.equal(resolved.result,'failed');assert.equal(resolved.error,'');
+ assert.equal(resolved.progress.stage,'maintenance-recovered');assert.equal(resolved.progress.overallPercent,90);
+ assert.equal(reconcileInstallTask(failed,{...inventory,sessionId:'other'}),null);
+ assert.equal(reconcileInstallTask(failed,{...inventory,errorCode:''}).result,'restore-failed');
+ const values=new Map();const storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)};
+ saveInstallTask(resolved,storage);assert.equal(readResumableInstallTask(storage),null);
+ assert.equal(readInstallTask(storage),null);
+});
 test('actual IAP modes reconcile only a matched transaction, survive refresh and late recovery',()=>{
  const values=new Map();const storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)};
  const pending=reconcileInstallTask(task(),{...status('tx-writing'),txInstallMode:'small-packet'});

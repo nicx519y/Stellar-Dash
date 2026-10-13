@@ -17,6 +17,9 @@ public:
     bool activate(const char* session);
     bool abort(const char* session);
     bool retry();
+    bool requestMaintenanceRecovery();
+    void cancelMaintenanceRecovery();
+    bool maintenanceRecoveryPending() const;
     bool runBoot();
     bool protectConfiguration();
     void verifyStartup(bool configurationReadable);

@@ -24,6 +24,9 @@ static xora_release_identity_t oldIdentity(){auto id=self;id.component=2;strcpy(
 static FirmwareSlot runningSlot=FIRMWARE_SLOT_A;
 TestStorage testStorage = {{34}};
 TestLink testLink;
+TestBootstrap testBootstrap;
+static bool currentAvailable=false,appliedAvailable=false,pendingMaintenance=false;
+static uint32_t testTick=1;
 static uint16_t backupChunk=XORA_TX_BULK_READ_BYTES;
 static unsigned backupReads=0;
 bool TestLink::getReleaseIdentity(xora_release_identity_t& id){id=oldIdentity();if(changedIdentity && backupSecondPass)strcpy(id.build_id,"changed");return true;}
@@ -36,21 +39,25 @@ bool TestLink::readTxImage(uint32_t at,uint8_t* p,uint16_t n){
     return true;
 }
 bool TestLink::isCompatible(){return false;}
-uint32_t HAL_GetTick(){return 1;}
+uint32_t HAL_GetTick(){return testTick;}
 void MainRuntime_RequestReset(){resets++;}
 extern "C" bool firmware_release_verify_bytes(const uint8_t*,uint32_t,const uint8_t[64]){return signaturesValid;}
 extern "C" FirmwareValidationResult firmware_metadata_verify_signature(const FirmwareMetadata*){return signaturesValid?FIRMWARE_VALID:FIRMWARE_INVALID_SIGNATURE;}
 FirmwareManager::FirmwareManager():current_metadata{},metadata_loaded(false),current_session(nullptr),session_active(false){}
 FirmwareManager* FirmwareManager::GetInstance(){static FirmwareManager fm;return &fm;}
-const FirmwareMetadata* FirmwareManager::GetCurrentMetadata(){return nullptr;}
+const FirmwareMetadata* FirmwareManager::GetCurrentMetadata(){return currentAvailable?&state.source:nullptr;}
 FirmwareSlot FirmwareManager::GetCurrentSlot(){return runningSlot;}
 bool FirmwareManager::CreateUpgradeSession(const char*,const FirmwareMetadata*){return false;}
 bool FirmwareManager::ProcessFirmwareChunk(const char*,const char*,const ChunkData*){return false;}
 void FirmwareManager::ForceCleanupSession(){}
 bool Ch585FirmwareUpdate::begin(uint32_t,const uint8_t[32]){return false;}
-bool Ch585FirmwareUpdate::isPending()const{return false;}
+bool Ch585FirmwareUpdate::isPending()const{return pendingMaintenance;}
+bool Ch585FirmwareUpdate::appliedApplicationDigest(char digest[65])const{
+    if(!appliedAvailable)return false;
+    return hash(txImage.data(),txImage.size(),digest);
+}
 bool Ch585FirmwareUpdate::write(uint32_t,const uint8_t*,uint32_t){return false;}
-bool Ch585IapClient::validateApplication(xora_release_identity_t* id){
+bool Ch585IapClient::validateApplication(xora_release_identity_t* id,bool){
     verified++;if(oldImage){*id=oldIdentity();return restoreOk;}if(!txHealthy)return false;*id=self;id->component=2;strcpy(id->version,"1.0.0");strcpy(id->build_id,"tx-build");return true;
 }
 bool Ch585IapClient::programCombinedImage(uint32_t at,uint32_t n,TransferCheckpoint checkpoint){assert(at==CH585_FIRMWARE_STAGING_DATA_ADDR && n==8192);if(checkpoint && !checkpoint(installMode))return false;programmed++;oldImage=false;return programOk;}
@@ -78,6 +85,7 @@ int8_t QSPI_W25Qxx_WritePage(uint8_t* p,uint32_t at,uint16_t n){
     for(unsigned i=0;i<n;i++){assert((flash[at+i]&p[i])==p[i]);flash[at+i]&=p[i];}return 0;
 }
 static void fixture(FirmwareSlot target){
+    maintenanceRequested=maintenanceActive=startupConfigurationReadable=false;currentAvailable=appliedAvailable=pendingMaintenance=false;testTick=1;
     backupReads=0;
     installMode=recoveryMode=Ch585IapTransferMode::Dma;
     flash.assign(flash.size(),0xff);memset(&state,0,sizeof(state));loaded=false;storageFault=false;declaring=false;legacyJournal=false;backupActive=false;bank=0;budget=-1;load();
@@ -265,5 +273,62 @@ int main(){
     assert(RELEASE_INSTALLER.upload(state.session,"application",chunk));
     bytes[0]=0;hash(bytes,sizeof(bytes),chunk.checksum);assert(!RELEASE_INSTALLER.upload(state.session,"application",chunk));
     chunk.chunk_offset=48;chunk.target_address+=48;assert(!RELEASE_INSTALLER.upload(state.session,"application",chunk));
+    // Physical maintenance verification never replays a flash attempt, never
+    // resets budgets, and atomically cancels the old installation only after
+    // verifying the current signed controller plus the actual full TX bytes.
+    auto maintenanceFixture=[](){
+        fixture(FIRMWARE_SLOT_B);oldImage=true;currentAvailable=true;
+        state.attempts=1;state.restoreAttempts=2;
+        strcpy(state.installError,"original installation failure");
+        assert(restoreFailure("TX_RESTORE_FAILED","original recovery failure")==false);
+        RELEASE_INSTALLER.verifyStartup(true);
+    };
+    auto completeCheck=[](){for(int i=0;i<1000 && RELEASE_INSTALLER.maintenanceRecoveryPending();++i)RELEASE_INSTALLER.poll();};
+    maintenanceFixture();assert(RELEASE_INSTALLER.requestMaintenanceRecovery());
+    assert(state.phase==RestoreFailed);RELEASE_INSTALLER.poll();assert(maintenanceActive);
+    assert(RELEASE_INSTALLER.requestMaintenanceRecovery()); // idempotent
+    completeCheck();assert(state.phase==Aborted && !RELEASE_INSTALLER.failed() && !RELEASE_INSTALLER.busy());
+    assert(resets==1 && !programmed && !restoredWrites && !metadataWrites);
+    assert(state.attempts==1 && state.restoreAttempts==2);
+    assert(!strcmp(state.errorCode,"MAINTENANCE_RECOVERED") && !strcmp(state.installError,"original installation failure"));
+    assert(!strcmp(state.recoveryError,"original recovery failure"));
+    loaded=false;load();assert(state.phase==Aborted && !RELEASE_INSTALLER.failed());
+    // APPLIED maintenance can establish a new compatible baseline, including
+    // a replaced signed controller. It is not falsely labelled old-version restoration.
+    maintenanceFixture();appliedAvailable=true;state.backupReady=0;
+    txImage[12]^=1;assert(RELEASE_INSTALLER.requestMaintenanceRecovery());completeCheck();
+    assert(state.phase==Aborted && resets==1);txImage[12]^=1;
+    for(int fault=0;fault<9;++fault){
+        maintenanceFixture();
+        if(fault==0)currentAvailable=false;
+        if(fault==1)signaturesValid=false;
+        if(fault==2)testStorage.config.version=33;
+        if(fault==3)flash[state.source.components[0].address-EXTERNAL_FLASH_BASE]^=1;
+        if(fault==4)restoreOk=false;
+        if(fault==5)backupReadOk=false;
+        if(fault==6)txImage[12]^=1;
+        if(fault==7)changedIdentity=true;
+        if(fault==8)RELEASE_INSTALLER.verifyStartup(false); // A matching default version is not proof of a readable configuration.
+        assert(RELEASE_INSTALLER.requestMaintenanceRecovery());completeCheck();
+        assert(state.phase==RestoreFailed && !resets && !programmed && !restoredWrites && !metadataWrites);
+        assert(state.attempts==1 && state.restoreAttempts==2 && !maintenanceActive);
+        if(fault==6)txImage[12]^=1;testStorage.config.version=34;
+    }
+    maintenanceFixture();pendingMaintenance=true;assert(!RELEASE_INSTALLER.requestMaintenanceRecovery());
+    maintenanceFixture();assert(RELEASE_INSTALLER.requestMaintenanceRecovery());RELEASE_INSTALLER.cancelMaintenanceRecovery();
+    RELEASE_INSTALLER.poll();assert(state.phase==RestoreFailed && !resets && !maintenanceActive);
+    maintenanceFixture();assert(RELEASE_INSTALLER.requestMaintenanceRecovery());RELEASE_INSTALLER.poll();
+    RELEASE_INSTALLER.cancelMaintenanceRecovery();assert(!maintenanceActive && state.phase==RestoreFailed && !resets);
+    maintenanceFixture();assert(RELEASE_INSTALLER.requestMaintenanceRecovery());RELEASE_INSTALLER.poll();testTick=120001;
+    RELEASE_INSTALLER.poll();assert(state.phase==RestoreFailed && !resets);
+    // The final journal commit remains power-fail safe at every flash step.
+    for(int stop=0;stop<70;++stop){
+        maintenanceFixture();assert(RELEASE_INSTALLER.requestMaintenanceRecovery());RELEASE_INSTALLER.poll();
+        while(backupOffset+16*XORA_TX_READ_BYTES<XORA_TX_BACKUP_APP_BYTES)RELEASE_INSTALLER.poll();
+        budget=stop;RELEASE_INSTALLER.poll();budget=-1;loaded=false;load();
+        assert(state.phase==RestoreFailed || state.phase==Aborted);
+        assert(state.attempts==1 && state.restoreAttempts==2 && !programmed && !restoredWrites && !metadataWrites);
+        assert(resets==(state.phase==Aborted?1u:0u));
+    }
     puts("release journal interruption tests passed");
 }

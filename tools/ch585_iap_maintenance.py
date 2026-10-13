@@ -85,6 +85,13 @@ def validate_helper(elf: bytes) -> None:
             raise ValueError('Maintenance helper has a load segment outside dedicated RAM')
 
 
+def source_digest_matches(source: bytes, expected: str) -> bool:
+    # Git may convert LF to CRLF on checkout. Accept either representation
+    # of the reviewed source, preserving every byte except CRLF line endings.
+    lf = source.replace(b'\r\n', b'\n')
+    return expected in {sha(source), sha(lf), sha(lf.replace(b'\n', b'\r\n'))}
+
+
 def validate_manifest(manifest: dict, image: bytes, elf: bytes) -> None:
     if (manifest.get('target') != 'CH585-TX-IAP' or manifest.get('address') != 0 or
             manifest.get('size') != IAP_BYTES or
@@ -97,7 +104,9 @@ def validate_manifest(manifest: dict, image: bytes, elf: bytes) -> None:
         raise ValueError('Manifest does not declare the expected DMA IAP capability')
     expected = {'RF_PHY_Hop/TX/IAP/iap_main.c', 'RF_PHY_Hop/TX/Makefile', 'common/ch585_iap_protocol.h'}
     sources = manifest.get('sourceSha256', {})
-    if set(sources) != expected or any(sha((ROOT / name).read_bytes()) != sources[name] for name in expected):
+    if set(sources) != expected or any(
+            not source_digest_matches((ROOT / name).read_bytes(), sources[name])
+            for name in expected):
         raise ValueError('IAP source differs from the reviewed manifest; rebuild and review the IAP artifact')
 
 

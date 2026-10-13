@@ -18,8 +18,19 @@
 默认使用 `RF_PHY_Hop/TX/build_tx/` 中的独立 IAP BIN、ELF 和对应 `.manifest.json`。
 该侧车 manifest 是本次核对产物的本地归档，不由普通编译自动生成；源码或产物
 变化后须重新构建、核对并生成匹配的维护 manifest，不应改摘要绕过校验。
+源码摘要校验兼容 Git checkout 引起的 LF/CRLF 换行转换；其他源码字节变化
+仍拒绝使用旧 manifest，BIN/ELF 摘要始终按原始字节严格校验。
 
-## 接线与命令
+## 新 PCB 的 WCHISPStudio 路径
+
+用户于 2026-10-07 指定新板使用 WCHISPStudio V3.9，操作说明见
+[新 PCB 首次烧录](new-pcb-firmware-flash.md)。离线准备入口为
+`python tools/ch585_isp_prepare.py`，需要重建独立 IAP 时加 `--build`。
+该工具不需要 WCH-Link，核对审核 manifest 后导出独立 4 KiB BIN/HEX。
+V3.9 的配置字写入、实际擦除范围和回读能力仍待核实，产物准备不批准 GUI 下载。
+下方 WCH-Link 维护入口保留用于具备相应下载器的既有独立维护场景。
+
+## WCH-Link 接线与命令
 
 WCH-Link 使用 RISC-V 模式，连接 **TX CH585 的下载接口**，共地并稳定供电；
 接线按板卡与下载器标识核对，不接主控的 ST-LINK 接口。供电只保留一个来源。

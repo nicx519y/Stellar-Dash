@@ -38,7 +38,7 @@ template<typename... Args> void testLog(Args...) {}
 #define APP_STAGE_ERROR(...) testLog(__VA_ARGS__)
 constexpr uint32_t kApplicationCapsWindowMs=1000,kApplicationCapsRetryMs=10;
 constexpr unsigned USB_BOARD_CAP_ROLE_MAINTENANCE=1,USB_BOARD_CAP_PROFILE_WEB_CONFIG=2,USB_BOARD_CAP_FEATURE_WEBHID_V1=4;
-uint32_t ticks=0;int boots=0,mode=0,capsCalls=0,identityCalls=0;bool fault=false;
+uint32_t ticks=0;int boots=0,mode=0,capsCalls=0,identityCalls=0,linkStops=0;bool fault=false;
 uint32_t HAL_GetTick(){return ticks;}
 void HAL_Delay(uint32_t ms){ticks+=ms;}
 bool USBBoardLinkPort_HasReleaseFault(){return fault;}
@@ -58,7 +58,7 @@ struct usb_board_caps_v1_t {
 };
 struct Link {
     usb_board_caps_v1_t caps;
-    void shutdown(){}
+    void shutdown(){++linkStops;}
     bool getCapabilities(){
         ++capsCalls;ticks+=20;
         if(mode==1 && boots==1){fault=true;return false;}
@@ -87,6 +87,13 @@ int main(){
         if(ok)assert(client.stage()==CH585_STAGING_STAGE_COMPLETE && identity.component==2);
         else assert(client.stage()==CH585_STAGING_STAGE_VERIFY_APP && client.status()==Ch585IapClientStatus::DeviceError);
     }
+    mode=0;boots=capsCalls=identityCalls=linkStops=0;fault=false;
+    xora_release_identity_t identity={};
+    assert(client.validateApplication(&identity,true));
+    assert(linkStops==1); // Old session closed; verified session remains available for readback.
+    mode=4;boots=linkStops=0;
+    assert(!client.validateApplication(&identity,true));
+    assert(linkStops>=4); // Failure never keeps a session powered/owned.
 }
 '''
         with tempfile.TemporaryDirectory() as tmp:

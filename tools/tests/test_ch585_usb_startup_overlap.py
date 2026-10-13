@@ -31,6 +31,13 @@ class UsbStartupOverlapTest(unittest.TestCase):
 #define MODE_RF_N_PIN 2u
 #define APP_STAGE(...) ((void)0)
 #define APP_STAGE_ERROR(...) ((void)0)
+#define CH585_SPI_NSS_PIN 4u
+#define CH585_SPI_SCK_PIN 8u
+#define CH585_SPI_MOSI_PIN 16u
+#define CH585_SPI_MISO_PIN 32u
+#define CH585_SPI_GPIO_PORT GPIOI
+#define CH585_IRQ_PIN 64u
+#define CH585_IRQ_GPIO_PORT GPIOI
 ''',
                 "stm32h7xx_hal.h": r'''
 #pragma once
@@ -40,6 +47,8 @@ extern GPIO_TypeDef gpioi;
 #define GPIOI (&gpioi)
 struct GPIO_InitTypeDef { uint32_t Pin, Mode, Pull, Speed; };
 #define GPIO_MODE_INPUT 0
+#define GPIO_MODE_ANALOG 1
+#define GPIO_NOPULL 0
 #define GPIO_PULLUP 0
 #define GPIO_SPEED_FREQ_LOW 0
 #define GPIO_PIN_SET 1
@@ -48,6 +57,8 @@ uint32_t HAL_GetTick();
 void HAL_Delay(uint32_t);
 int HAL_GPIO_ReadPin(GPIO_TypeDef*, uint32_t);
 inline void HAL_GPIO_Init(GPIO_TypeDef*, GPIO_InitTypeDef*) {}
+inline void SCB_CleanDCache_by_Addr(uint32_t*, int32_t) {}
+inline void __DSB() {}
 ''',
                 "board_power.hpp": r'''
 #pragma once
@@ -61,7 +72,8 @@ struct TestPower {
 extern TestPower power;
 #define BOARD_POWER power
 ''',
-                "usb_board_link_port.hpp": "#pragma once\nbool USBBoardLinkPort_Init();\n",
+                "usb_board_link_port.hpp": "#pragma once\nbool USBBoardLinkPort_Init();\nvoid USBBoardLinkPort_Shutdown();\nbool USBBoardLinkPort_RequestApplicationHandoff();\n",
+                "sleep_diagnostics.hpp": "#pragma once\nenum class SleepStage { RadioPowerWait, RadioPowerOn, RadioSelectRole, RadioRoleReady };\ninline void SleepDiagnostics_Record(SleepStage) {}\n",
                 "system_logger.h": "#pragma once\n",
             }
             for name, body in stubs.items():
@@ -78,7 +90,8 @@ extern TestPower power;
 GPIO_TypeDef gpioi;
 TestPower power;
 uint32_t now, powerOnAt, readyAfter=0xFFFFFFFFu;
-unsigned powerOns, selectors, succeedOnPower=1, portInits;
+unsigned powerOns, selectors, succeedOnPower=1, portInits, handoffs;
+bool handoffWorks=true;
 bool portOk=true;
 int rawUsb=0, rawRf=1;
 std::vector<uint32_t> budgets, selectorTimes;
@@ -90,6 +103,13 @@ void TestPower::setCh585Enabled(bool v) {
     if (v) { ++powerOns; powerOnAt=now; }
 }
 bool USBBoardLinkPort_Init() { assert(!power.on); ++portInits; return portOk; }
+void USBBoardLinkPort_Shutdown() {}
+bool USBBoardLinkPort_RequestApplicationHandoff() {
+    ++handoffs;
+    if (!handoffWorks) return false;
+    readyAfter=now-powerOnAt+110;
+    return true;
+}
 namespace RFBootReady {
 void reset() {}
 bool waitForModuleReady(uint32_t timeout) {
@@ -108,6 +128,7 @@ bool selectRole(Ch585Role) {
     ++selectors;
     selectorTimes.push_back(now-powerOnAt);
     assert(power.on && !power.host);
+    assert(readyAfter!=0xFFFFFFFFu && now-powerOnAt>=readyAfter);
     now += 20; // bounded command transaction, including failures
     return powerOns>=succeedOnPower;
 }
@@ -136,10 +157,17 @@ int main(int argc, char** argv) {
         assert(!b.prepareUsbStartup() && !power.on && !b.hasPreparedUsbStartup());
         return 0;
     }
-    if (!std::strcmp(test,"cold")) {
-        assert(b.start(Ch585Role::Usb));
-        assert(powerOns==1 && budgets.size()==1 && budgets[0]==700);
+    if (!std::strcmp(test,"cold") || !std::strcmp(test,"rf_cold")) {
+        assert(b.start(!std::strcmp(test,"rf_cold") ? Ch585Role::Rf : Ch585Role::Usb));
+        assert(powerOns==1 && selectors==1 && handoffs==1 && budgets.size()==2 && budgets[0]==700);
         assert(selectorTimes[0]>=720);
+        return 0;
+    }
+    if (!std::strcmp(test,"no_ready")) {
+        handoffWorks=false;
+        assert(!b.start(Ch585Role::Usb));
+        assert(selectors==0 && powerOns==2 && handoffs==2 && !power.on);
+        assert(b.state()==Ch585BootstrapState::Failed);
         return 0;
     }
     if (!std::strcmp(test,"rollover")) now=0xFFFFFF80u;
@@ -173,10 +201,11 @@ int main(int argc, char** argv) {
     assert(!b.hasPreparedUsbStartup());
     if (!std::strcmp(test,"fail")) {
         assert(!ok && !power.on && !power.host && powerOns==2);
-        assert(b.state()==Ch585BootstrapState::Failed && budgets.size()==2 && budgets[1]==700);
+        assert(b.state()==Ch585BootstrapState::Failed && budgets.size()==4 && budgets[1]==700);
         return 0;
     }
     assert(ok && b.isLocked() && b.role()==role && !power.host);
+    if (!std::strcmp(test,"ready")) assert(handoffs==0 && budgets.size()==1);
     if (!std::strcmp(test,"expired") || !std::strcmp(test,"rail_lost") ||
         !std::strcmp(test,"role_change")) {
         assert(powerOns==2 && budgets[0]==700);
@@ -184,8 +213,8 @@ int main(int argc, char** argv) {
         assert(budgets[0]<=700);
         assert(selectorTimes[0]>=(!std::strcmp(test,"ready") ? 600u : 720u));
         if (std::strcmp(test,"immediate")) assert(budgets[0]==340);
-        if (!std::strcmp(test,"retry")) assert(powerOns==2 && budgets.size()==2 && budgets[1]==700);
-        else assert(powerOns==1);
+        if (!std::strcmp(test,"retry")) assert(powerOns==2 && budgets.size()==4 && budgets[1]==700);
+        else assert(powerOns==1 && selectors==1);
     }
     unsigned before=selectors;
     assert(b.start(role) && selectors==before); // locked start remains idempotent
@@ -195,18 +224,20 @@ int main(int argc, char** argv) {
             exe = folder / "test.exe"
             command = [compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror",
                        "-I"+str(folder), "-I"+str(INC), "-I"+str(ROOT/"common"),
+                       "-I"+str(INC/'transport'), "-I"+str(INC/'system'),
+                       "-I"+str(INC/'transport/rf'),
                        str(ROOT / 'application/Src/transport/ch585_role_bootstrap.cpp'), str(ROOT / 'application/Src/system/board_mode.cpp'),
                        str(folder/"test.cpp"), "-o", str(exe)]
             print("USB startup overlap: compile production bootstrap/mode code", flush=True)
             result = subprocess.run(command, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stderr)
-            for case in ("cold", "overlap", "immediate", "rollover", "ready", "retry", "fail",
+            for case in ("cold", "rf_cold", "no_ready", "overlap", "immediate", "rollover", "ready", "retry", "fail",
                          "expired", "rail_lost", "cancel", "missing_selector", "safe_idle",
                          "role_change", "uninitialized", "port_failure", "mode_switch"):
                 with self.subTest(case=case):
                     result = subprocess.run([str(exe), case], capture_output=True, text=True, timeout=5)
                     self.assertEqual(result.returncode, 0, result.stderr)
-            print("USB startup overlap: 16 scenarios completed", flush=True)
+            print("Application handoff / startup overlap: 18 scenarios completed", flush=True)
 
 
 if __name__ == "__main__":

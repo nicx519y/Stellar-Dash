@@ -310,6 +310,36 @@ bool Ch585FirmwareUpdate::write(uint32_t offset,
     return true;
 }
 
+bool Ch585FirmwareUpdate::appliedApplicationDigest(char digest[65]) const
+{
+    ch585_staging_record_t record;
+    uint8_t actual[32];
+    if (!loadLatestRecord(record) || record.state != CH585_STAGING_STATE_APPLIED ||
+        record.stage != CH585_STAGING_STAGE_COMPLETE ||
+        sha256_calculate_raw(reinterpret_cast<const uint8_t*>(CH585_FIRMWARE_STAGING_DATA_ADDR),
+                            record.image_size, actual) == 0 ||
+        memcmp(actual, record.sha256, sizeof(actual))) return false;
+    sha256_simple_ctx_t ctx;
+    sha256_simple_init(&ctx);
+    const uint32_t size = record.image_size - CH585_IAP_APP_START;
+    sha256_simple_update(&ctx, reinterpret_cast<const uint8_t*>(
+        CH585_FIRMWARE_STAGING_DATA_ADDR + CH585_IAP_APP_START), size);
+    // BEGIN erases the entire Application, including the unused tail.
+    uint8_t erased[256]; memset(erased, 0xff, sizeof(erased));
+    for (uint32_t offset = size; offset < CH585_IAP_APP_CAPACITY;) {
+        const uint32_t n = CH585_IAP_APP_CAPACITY - offset < sizeof(erased)
+            ? CH585_IAP_APP_CAPACITY - offset : sizeof(erased);
+        sha256_simple_update(&ctx, erased, n); offset += n;
+    }
+    sha256_simple_final(&ctx, actual);
+    static const char hex[] = "0123456789abcdef";
+    for (unsigned i = 0; i < 32; ++i) {
+        digest[i*2] = hex[actual[i] >> 4]; digest[i*2+1] = hex[actual[i] & 15];
+    }
+    digest[64] = 0;
+    return true;
+}
+
 bool Ch585FirmwareUpdate::loadAndVerifyStagedImage()
 {
     ch585_staging_record_t record;

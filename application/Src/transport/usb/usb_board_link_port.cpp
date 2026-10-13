@@ -1,6 +1,7 @@
 #include "usb_board_link_port.hpp"
 #include "usb_role_ready_wait.hpp"
 #include "ch585_handshake.h"
+#include "ch585_startup_trace.hpp"
 
 #include <string.h>
 
@@ -216,14 +217,18 @@ static bool readFrame(uint8_t *response,
 
     Ch585ReadGuard read(CH585_LINE_USB);
     if (!read) return false;
+    const bool traceRead = Ch585StartupTrace::readBegin(HAL_GetTick());
     chipSelect(false);
     while (rawLength < sizeof(raw)) {
-        if (HAL_SPI_TransmitReceive(&s_hspi,
+        const auto transferResult = HAL_SPI_TransmitReceive(&s_hspi,
                                     &byte,
                                     &raw[rawLength],
                                     1u,
-                                    kSpiTimeoutMs) != HAL_OK) {
+                                    kSpiTimeoutMs);
+        if (transferResult != HAL_OK) {
             chipSelect(true);
+            if (traceRead) Ch585StartupTrace::readEnd(HAL_GetTick(), raw, rawLength,
+                                                    1u, transferResult, eventLineIsHigh());
             read.finish();
             WebConfig_RecordStartupFrame(raw, rawLength, 1u);
             return false;
@@ -239,6 +244,8 @@ static bool readFrame(uint8_t *response,
                 ok=hsDma(nullptr,s_hsRead+4u,static_cast<uint16_t>(blockSize-4u));
             }
             chipSelect(true); read.finish();
+            if (traceRead) Ch585StartupTrace::readEnd(HAL_GetTick(), raw, rawLength,
+                                                    3u, ok ? HAL_OK : HAL_ERROR, eventLineIsHigh());
             if(!ok) { USBBoardLink_HsTransportFault(); return false; }
             USBBoardLink_HsAcceptBlock(s_hsRead,blockSize);
             /* Preserve the small control-event API while delivering large
@@ -271,15 +278,19 @@ static bool readFrame(uint8_t *response,
         }
     }
     chipSelect(true);
+    const uint32_t readEndMs = traceRead ? HAL_GetTick() : 0u;
+    const bool readEndHigh = traceRead && eventLineIsHigh();
     read.finish();
     (void)waitEventHigh(kEventReleaseTimeoutMs);
 
     if (!found || (rawLength < (uint8_t)(start + total)) ||
         (usb_board_link_checksum(&raw[start], (uint16_t)(total - 1u)) !=
          raw[start + total - 1u])) {
+        if (traceRead) Ch585StartupTrace::readEnd(readEndMs, raw, rawLength, 2u, HAL_OK, readEndHigh);
         WebConfig_RecordStartupFrame(raw, rawLength, 2u);
         return false;
     }
+    if (traceRead) Ch585StartupTrace::readEnd(readEndMs, raw, rawLength, 0u, HAL_OK, readEndHigh);
     WebConfig_RecordStartupFrame(raw, rawLength, 0u);
     memcpy(response, &raw[start], total);
     *responseLength = total;
@@ -618,6 +629,7 @@ bool USBBoardLinkPort_SelectRfRoleOnce()
         HAL_StatusTypeDef ioResult = HAL_OK;
         Ch585ReadGuard read(CH585_LINE_USB);
         if (!read) return false;
+        const bool traceRead = Ch585StartupTrace::readBegin(HAL_GetTick());
         chipSelect(false);
         while (count < sizeof(raw) && HAL_GetTick() - started < budget) {
             uint8_t fill = 0xffu;
@@ -645,6 +657,8 @@ bool USBBoardLinkPort_SelectRfRoleOnce()
         }
         chipSelect(true);
         read.finish();
+        if (traceRead) Ch585StartupTrace::readEnd(HAL_GetTick(), raw, count,
+            ioResult != HAL_OK ? 1u : (valid ? 0u : 2u), ioResult, eventLineIsHigh());
         if (!valid) {
             ++g_rfRoleReplyDiagnostic[1];
             if (g_rfRoleReplyDiagnostic[0] == 0u) {
@@ -675,6 +689,30 @@ bool USBBoardLinkPort_LastMonitorTiming(uint32_t *start,uint32_t *end) {
     *start=monitorSpiStart;*end=monitorSpiEnd;return monitorSpiValid;
 }
 
+bool USBBoardLinkPort_RequestApplicationHandoff()
+{
+    // Existing IAP: a non-magic first byte requests Application entry only if
+    // no interrupted update is present. The role parser ignores this byte.
+    // Release NSS immediately after the single byte: never carry a role frame
+    // across the IAP/C-runtime/SPI reinitialization boundary.
+    constexpr uint8_t handoffByte = 0xffu;
+    constexpr uint8_t iapFirstByte = static_cast<uint8_t>(CH585_IAP_PROTOCOL_MAGIC);
+    uint8_t handoff = handoffByte;
+    static_assert(handoffByte != iapFirstByte &&
+                  handoffByte != USB_BOARD_LINK_SYNC, "handoff must not start a packet");
+    if (!USBBoardLinkPort_Init() || s_roleRequestSent || s_fastApplication ||
+        s_fastWebHid || s_fastIap || !refreshEventRelease() || !eventLineIsHigh()) return false;
+    chipSelect(false);
+    ownershipGuardDelay();
+    if (!eventLineIsHigh()) { chipSelect(true); return false; }
+    Ch585StartupTrace::record(Ch585StartupTrace::Event::HandoffBegin, HAL_GetTick());
+    const auto result = HAL_SPI_Transmit(&s_hspi, &handoff, 1u, kSpiTimeoutMs);
+    chipSelect(true);
+    Ch585StartupTrace::record(Ch585StartupTrace::Event::HandoffEnd,
+                             HAL_GetTick(), result, eventLineIsHigh());
+    return result == HAL_OK;
+}
+
 bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
 {
     monitorSpiValid=false;
@@ -699,11 +737,11 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
     uint8_t paddedCapsFrame[USB_BOARD_LINK_MAX_FRAME_BYTES];
     uint8_t *wireFrame = const_cast<uint8_t *>(frame);
     uint8_t wireLength = frameLength;
-    if (frame[1] == USB_BOARD_CMD_GET_CAPS) {
+    if (frame[1] == USB_BOARD_CMD_GET_CAPS || frame[1] == USB_BOARD_CMD_RELEASE_IDENTITY) {
         /*
-         * Four clocks can remain entirely in the CH585 hardware FIFO on this
+         * Four/five clocks can remain entirely in the CH585 hardware FIFO on this
          * PCB, whose PA12 peripheral-NSS edge is not always retained.  Extend
-         * GET_CAPS to 64 physical bytes so RX DMA advances; CH585 deliberately
+         * GET_CAPS and RELEASE_IDENTITY to 64 physical bytes so RX DMA advances; CH585 deliberately
          * uses a 65-byte DMA count, hence this legal maximum frame still ends
          * by NSS and never races its DMA-full interrupt.  SELECT_ROLE remains
          * its exact five-byte polling-selector transaction.
@@ -713,6 +751,8 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
         wireFrame = paddedCapsFrame;
         wireLength = sizeof(paddedCapsFrame);
     }
+    if (frame[1] == USB_BOARD_CMD_SELECT_ROLE)
+        Ch585StartupTrace::sendBegin(HAL_GetTick(), eventLineIsHigh());
     monitorSpiStart=DWT->CYCCNT;
     const HAL_StatusTypeDef result =
         HAL_SPI_Transmit(&s_hspi, wireFrame, wireLength, kSpiTimeoutMs);
@@ -731,6 +771,8 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
     chipSelect(true);
     if (result == HAL_OK && frame[1] == USB_BOARD_CMD_SELECT_ROLE)
         s_roleRequestSent = true;
+    if (frame[1] == USB_BOARD_CMD_SELECT_ROLE)
+        Ch585StartupTrace::sendEnd(HAL_GetTick(), result, eventLineIsHigh());
     return result == HAL_OK;
 }
 

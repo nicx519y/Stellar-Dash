@@ -14,6 +14,7 @@
 - TX 普通更新仍走 `python tools/hbox.py flash tx`。TX IAP 独立维护更新已获用户于 2026-10-04 解除对应区域写入禁令，范围和门禁按根目录规则。独立入口为 [ch585_iap_maintenance.py](ch585_iap_maintenance.py)，默认只离线核对产物，`--inspect` 备份并检查目标，`--execute` 经 WCH-Link 在 RAM 执行限定 4 KiB 的擦写及回读；空白新 TX 须显式传 `--initialize-new-tx`，电脑与 RAM 程序双重检查空白，不能用于绕过已运行设备身份检查。需匹配已核对的无锁 manifest，主机检查通过但实机安装/启动尚待验收，见 [维护说明](../docs/tx-iap-maintenance.md)。不能把普通 TX 命令当作 IAP 更新命令；保护位、配置字和锁定状态禁令继续有效。
 - [release.py](release.py) 包含构建、刷写、上传、删除等不同子命令；不能把发版或服务端写操作作为编译检查的附带步骤。
 - ROM ISP 维护连接会被主控的 TX 电源重试打断时，可用 `python tools/ch585_isp_hold.py --execute` 经 STM32 ST-LINK 暂停主控、停 SPI 输出并保持 TX 供电；默认不操作设备。只改变运行时寄存器，维护后正常断电重上电恢复；必须在 ISP 写入前执行，不能打断正在进行的下载。该入口不授权 ISP 工具的配置、保护或整片擦除操作，实机保持连接尚待验收。
+- 新 PCB 使用 WCHISPStudio V3.9 的离线产物准备入口是 [ch585_isp_prepare.py](ch585_isp_prepare.py)，加 `--build` 只重建独立 IAP，核对已有审核 manifest 后导出仅覆盖前 4 KiB 的 BIN/HEX。在 V3.9 的配置字写入、实际擦除范围和回读能力核实前不得启动 GUI/CLI 下载，准备包保持下载未批准。接线、电源保持和待验收门禁见 [新板流程](../docs/new-pcb-firmware-flash.md)。
 - 密钥、令牌、设备身份与本地数据库不写进日志或测试 fixtures；修改认证/签名工具时使用测试材料，保留生产与本地环境边界。
 
 ## 验证与诊断

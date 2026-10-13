@@ -38,8 +38,9 @@ int main()
                                   kLcdMaxHardwareDrivePercent) == 60u);
 
     assert(interpolateDrive8(33u, 0u, kStartupRampDurationMs) == 0u);
-    assert(interpolateDrive8(33u, 2500u, kStartupRampDurationMs) == 16u);
-    assert(interpolateDrive8(33u, 4999u, kStartupRampDurationMs) == 32u);
+    assert(kStartupRampDurationMs == 3000u);
+    assert(interpolateDrive8(33u, 1500u, kStartupRampDurationMs) == 16u);
+    assert(interpolateDrive8(33u, 2999u, kStartupRampDurationMs) == 32u);
     assert(interpolateDrive8(33u, kStartupRampDurationMs,
                              kStartupRampDurationMs) == 33u);
     assert(interpolateDrive8(33u, 1u, 0u) == 33u);

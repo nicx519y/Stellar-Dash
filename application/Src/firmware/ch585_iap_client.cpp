@@ -334,7 +334,7 @@ bool Ch585IapClient::programApplicationImage(uint32_t mappedAddress,uint32_t app
     return true;
 }
 
-bool Ch585IapClient::validateApplication(xora_release_identity_t* identity)
+bool Ch585IapClient::validateApplication(xora_release_identity_t* identity, bool keepSession)
 {
     currentStage = CH585_STAGING_STAGE_VERIFY_APP;
     // A completed flash/END is not a failed write when the first Application
@@ -402,8 +402,10 @@ bool Ch585IapClient::validateApplication(xora_release_identity_t* identity)
               static_cast<unsigned int>(caps.profile_flags),
               static_cast<unsigned int>(caps.feature_flags),
               endResponseConfirmed ? 1u : 0u);
-    CH585_ROLE_BOOTSTRAP.shutdown();
-    USB_BOARD_LINK.shutdown();
+    if (!valid || !keepSession) {
+        CH585_ROLE_BOOTSTRAP.shutdown();
+        USB_BOARD_LINK.shutdown();
+    }
     if (!valid) {
         currentStatus = Ch585IapClientStatus::DeviceError;
         continue;

@@ -6,6 +6,7 @@
 #include "ch585_firmware_update.hpp"
 #include "ch585_iap_client.hpp"
 #include "usb_board_link.hpp"
+#include "ch585_role_bootstrap.hpp"
 #include "tx_image_bulk.h"
 #include "storagemanager.hpp"
 #include "board_cfg.h"
@@ -67,6 +68,9 @@ uint8_t declaration[64 + METADATA_STRUCT_SIZE + XORA_RELEASE_MANIFEST_MAX];
 uint32_t declarationSize = 0, declarationReceived = 0, bank = 0, resetAt = 0;
 bool loaded = false, storageFault = false, declaring = false;
 bool legacyJournal=false, backupActive=false;
+bool maintenanceRequested=false, maintenanceActive=false;
+bool startupConfigurationReadable=false;
+uint32_t maintenanceStarted=0;
 uint32_t backupOffset=0, backupEraseOffset=0;
 bool backupSecondPass=false;
 __attribute__((section(".DMA_Section.ReleaseInstall"),aligned(32))) sha256_simple_ctx_t backupHash;
@@ -355,6 +359,67 @@ bool recover(const char* reason){
     if(!persist(RollbackVerifying))return restoreFailure("JOURNAL_FAILED","Cannot confirm recovery checkpoint");
     MainRuntime_RequestReset();return true;
 }
+void stopMaintenance(){
+    USB_BOARD_LINK.shutdown();CH585_ROLE_BOOTSTRAP.shutdown();
+    maintenanceRequested=maintenanceActive=false;
+}
+bool maintenanceFailure(const char* message){stopMaintenance();return fail(message);}
+bool startMaintenance(){
+    maintenanceRequested=false;
+    // A maintained controller may replace the old controller image. Verify its
+    // current signed metadata and full contents, never trust a version label.
+    const auto* current=FirmwareManager::GetInstance()->GetCurrentMetadata();
+    const auto slot=FirmwareManager::GetInstance()->GetCurrentSlot();
+    if(!current || (slot!=FIRMWARE_SLOT_A && slot!=FIRMWARE_SLOT_B) || current->target_slot!=slot ||
+       firmware_metadata_verify_signature(current)!=FIRMWARE_VALID ||
+       !startupConfigurationReadable || CONFIG_VERSION!=state.configVersion || STORAGE_MANAGER.config.version!=state.configVersion)
+        return maintenanceFailure("Controller/config mismatch");
+    bool application=false;
+    for(const auto& c:current->components)if(c.active){
+        if(!flashHash(c.address,c.size,c.sha256))return maintenanceFailure("Controller digest mismatch");
+        if(!strcmp(c.name,"application"))application=c.size &&
+            c.address==(slot==FIRMWARE_SLOT_A?SLOT_A_APPLICATION_ADDR:SLOT_B_APPLICATION_ADDR);
+    }
+    if(!application)return maintenanceFailure("Invalid app metadata");
+    // Use an APPLIED maintenance image only while its staged bytes still match
+    // the committed digest. Otherwise require the intact old backup/identity.
+    const bool applied=CH585_FIRMWARE_UPDATE.appliedApplicationDigest(txHash);
+    if(!applied && !backupValid())return maintenanceFailure("No verified TX image");
+    xora_release_identity_t identity={};
+    if(!CH585_IAP_CLIENT.validateApplication(&identity,true) || identity.protocol!=2 || identity.maintenance!=2)
+        return maintenanceFailure("TX caps/identity failed");
+    if(!applied){
+        if(memcmp(&identity,&state.oldTx,sizeof(identity)))return maintenanceFailure("TX identity mismatch");
+        memcpy(txHash,state.backupSha,sizeof(txHash));
+    }
+    if(!USB_BOARD_LINK.getTxImageInfo())return maintenanceFailure("TX readback unavailable");
+    // Declaration scratch is unused in a terminal transaction; keep the
+    // observed identity without increasing scarce static RAM or changing ABI.
+    memcpy(declaration,&identity,sizeof(identity));
+    backupOffset=0;sha256_simple_init(&backupHash);
+    maintenanceStarted=HAL_GetTick();maintenanceActive=true;return true;
+}
+void maintenanceStep(){
+    if(HAL_GetTick()-maintenanceStarted>=120000u){maintenanceFailure("TX verification timed out");return;}
+    uint8_t bytes[XORA_TX_READ_BYTES];
+    for(unsigned block=0;block<16 && backupOffset<XORA_TX_BACKUP_APP_BYTES;++block){
+        const uint16_t n=XORA_TX_BACKUP_APP_BYTES-backupOffset<sizeof(bytes)?XORA_TX_BACKUP_APP_BYTES-backupOffset:sizeof(bytes);
+        if(!USB_BOARD_LINK.readTxImage(backupOffset,bytes,n)){maintenanceFailure("TX readback failed");return;}
+        sha256_simple_update(&backupHash,bytes,n);backupOffset+=n;
+    }
+    if(backupOffset<XORA_TX_BACKUP_APP_BYTES)return;
+    uint8_t digest[32];char encoded[65];sha256_simple_final(&backupHash,digest);
+    for(unsigned i=0;i<32;i++)snprintf(encoded+i*2,3,"%02x",digest[i]);
+    xora_release_identity_t identity={};
+    if(strcmp(encoded,txHash) || !USB_BOARD_LINK.getReleaseIdentity(identity) ||
+       memcmp(&identity,declaration,sizeof(identity))){maintenanceFailure("TX digest/identity changed");return;}
+    stopMaintenance();
+    // Cancel the failed installation after verified maintenance. Do not claim
+    // that the original versions were restored or erase historical failures.
+    snprintf(state.errorCode,sizeof(state.errorCode),"MAINTENANCE_RECOVERED");
+    if(!persist(Aborted))return;
+    MainRuntime_RequestReset();
+}
 void backupStep(){
     if(backupEraseOffset<XORA_TX_BACKUP_BYTES){
         if(!eraseBackupSector(backupBase()+backupEraseOffset)){terminalFailure("TX backup erase failed");return;}
@@ -488,6 +553,17 @@ bool ReleaseInstaller::backup(const char* session) {
     return persist(BackingUp);
 }
 bool ReleaseInstaller::retry() { return fail("Automatic recovery only; maintenance is required"); }
+bool ReleaseInstaller::requestMaintenanceRecovery(){
+    load();
+    if(storageFault || legacyJournal || !failed() || bootPending() || declaring ||
+       CH585_FIRMWARE_UPDATE.isPending())return fail("Check unavailable");
+    if(maintenanceRequested || maintenanceActive)return true;
+    backupActive=false;lastError[0]=0;maintenanceRequested=true;return true;
+}
+void ReleaseInstaller::cancelMaintenanceRecovery(){
+    if(maintenanceRequested || maintenanceActive){stopMaintenance();fail("Verification cancelled");}
+}
+bool ReleaseInstaller::maintenanceRecoveryPending() const{return maintenanceRequested || maintenanceActive;}
 bool ReleaseInstaller::runBoot() {
     if(!bootPending())return false;
     if(state.phase==Restoring)return recover(state.installError);
@@ -517,12 +593,15 @@ bool ReleaseInstaller::runBoot() {
 }
 void ReleaseInstaller::poll() {
     load();
+    if(maintenanceRequested){(void)startMaintenance();return;}
+    if(maintenanceActive){maintenanceStep();return;}
     if(state.phase==BackingUp && !storageFault && !backupActive && USB_BOARD_LINK.isCompatible())(void)backup(state.session);
     if(state.phase==BackingUp && !storageFault && backupActive)backupStep();
     if(resetAt && static_cast<int32_t>(HAL_GetTick()-resetAt)>=0){resetAt=0;MainRuntime_RequestReset();}
 }
 void ReleaseInstaller::verifyStartup(bool configurationReadable) {
     load();
+    startupConfigurationReadable=configurationReadable;
     if(state.phase==RollbackVerifying){
         if(!configurationReadable || FirmwareManager::GetInstance()->GetCurrentSlot()!=state.source.target_slot ||
            CONFIG_VERSION!=state.configVersion || STORAGE_MANAGER.config.version!=state.configVersion ||

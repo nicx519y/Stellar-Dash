@@ -44,7 +44,7 @@ bool ScreenTimedPopup_IsVisible(const ScreenTimedPopup* popup) {
     return popup ? popup->visible : false;
 }
 
-void ScreenTimedPopup_Render(const ScreenTimedPopup* popup, ST7789_Handle* lcd, const ScreenUiStyle& style) {
+__attribute__((optimize("Os"))) void ScreenTimedPopup_Render(const ScreenTimedPopup* popup, ST7789_Handle* lcd, const ScreenUiStyle& style) {
     if (!popup || !popup->visible) return;
     if (!lcd) return;
 
@@ -70,7 +70,8 @@ void ScreenTimedPopup_Render(const ScreenTimedPopup* popup, ST7789_Handle* lcd, 
     uint16_t y = (uint16_t)(startY + titleH + titleGap);
     for (uint8_t i = 0; i < popup->lineCount; i++) {
         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
-        const uint8_t rowScale = popup->persistent && i + 1u == popup->lineCount ? 1u : textScale;
+        const uint8_t rowScale = popup->persistent &&
+            (i + 1u == popup->lineCount || ScreenUI_TextPxW(line,textScale)>listW) ? 1u : textScale;
         ScreenUI_DrawStringCenteredInBox(lcd, listX, y, listW, lineH, line, mutedText, style.bg, rowScale);
         y = (uint16_t)(y + lineH + lineGap);
     }

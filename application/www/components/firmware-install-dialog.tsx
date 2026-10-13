@@ -95,7 +95,7 @@ export function FirmwareInstallDialog({ release, zh, view, progress, error, busy
   // A pending/failed device-owned transaction keeps its recovery status visible.
   // A completed result or unopened confirmation yields to ordinary disconnect UI.
   const ownsConnection = view === 'progress' && (busy || (canReconnect && progress?.stage !== 'completed'));
-  const exceptional = Boolean(error) || ['completed', 'timeout', 'restored', 'restore-failed', 'failed', 'restoring', 'tx-restoring', 'rollback-verifying', 'rollback-committing'].includes(progress?.stage || '');
+  const exceptional = Boolean(error) || ['completed', 'timeout', 'restored', 'restore-failed', 'failed', 'maintenance-recovered', 'restoring', 'tx-restoring', 'rollback-verifying', 'rollback-committing'].includes(progress?.stage || '');
   const statusLabel = progress?.stage === 'completed' ? (zh ? '升级完成' : 'Update complete') : exceptional ? progressLabel : (zh
     ? INSTALL_DISPLAY_STEPS[installDisplayStep(progress)].zh : INSTALL_DISPLAY_STEPS[installDisplayStep(progress)].en);
   return <Portal><ExclusiveDialog priority={ownsConnection ? OVERLAY_PRIORITY.operation : OVERLAY_PRIORITY.editor} open={Boolean(release)} closeOnEscape={!locked} closeOnInteractOutside={!locked}

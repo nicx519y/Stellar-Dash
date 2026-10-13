@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 bool USBBoardLinkPort_Init();
+// Cold-start IAP-to-Application request; does not select a role or update flash.
+bool USBBoardLinkPort_RequestApplicationHandoff();
 bool USBBoardLinkPort_InitIap();
 // Only after an explicit v1 DMA negotiation ACK; never inferred from timeout.
 bool USBBoardLinkPort_EnableIapDma();

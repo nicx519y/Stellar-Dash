@@ -501,6 +501,13 @@ bool PowerManager::initializeDevices()
             if (adc_valid) {
                 break;
             }
+            // No external input means there is no VBUS conversion to await.
+            // A later cable insertion is handled by refreshSnapshot/stepPoll;
+            // their voltage/profile checks still gate charging independently.
+            if (!detected_input.vbus_good && !detected_input.power_good &&
+                detected_input.vbus_status == 0u) {
+                break;
+            }
             HAL_Delay(kInitialAdcPollMs);
         } while ((uint32_t)(HAL_GetTick() - adc_start_ms) < kInitialAdcTimeoutMs);
     }

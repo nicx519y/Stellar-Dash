@@ -35,7 +35,7 @@ public:
     bool programCombinedImage(uint32_t mappedAddress, uint32_t totalSize, TransferCheckpoint checkpoint = nullptr);
     bool programApplicationImage(uint32_t mappedAddress, uint32_t size, TransferCheckpoint checkpoint = nullptr);
     Ch585IapTransferMode transferMode() const { return currentTransferMode; }
-    bool validateApplication(xora_release_identity_t* identity = nullptr);
+    bool validateApplication(xora_release_identity_t* identity = nullptr, bool keepSession = false);
     Ch585IapClientStatus status() const { return currentStatus; }
     uint8_t progress() const { return currentProgress; }
     uint8_t deviceStatus() const { return lastDeviceStatus; }

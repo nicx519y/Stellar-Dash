@@ -8,6 +8,15 @@
 #include "system_logger.h"
 #include "usb_board_link_port.hpp"
 #include "sleep_diagnostics.hpp"
+#include "ch585_startup_trace.hpp"
+
+static void publishStartupTrace(bool selected)
+{
+    if (!Ch585StartupTrace::finish(HAL_GetTick(), selected)) return;
+    SCB_CleanDCache_by_Addr(reinterpret_cast<uint32_t*>(&g_ch585_startup),
+                          sizeof(g_ch585_startup));
+    __DSB();
+}
 
 void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
 {
@@ -16,6 +25,8 @@ void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
 
 void Ch585RoleBootstrap::shutdown()
 {
+    // Also seal a prepared attempt cancelled before selection (mode/rail change).
+    publishStartupTrace(false);
     // A real peer power cycle starts a new handshake epoch. Keeping the USB
     // port's sticky release fault would block every retry of the new peer.
     USBBoardLinkPort_Shutdown();
@@ -107,6 +118,7 @@ bool Ch585RoleBootstrap::prepareUsbStartup()
     bootstrapState = Ch585BootstrapState::Booting;
     BOARD_POWER.setCh585Enabled(true);
     usbPowerOnAtMs = HAL_GetTick();
+    Ch585StartupTrace::powerOn(usbPowerOnAtMs, static_cast<uint32_t>(Ch585Role::Usb));
     usbStartupPrepared = true;
     return true;
 }
@@ -120,11 +132,16 @@ bool Ch585RoleBootstrap::selectOnce(Ch585Role requestedRole)
         if (selector(requestedRole)) {
             activeRole = requestedRole;
             bootstrapState = Ch585BootstrapState::Locked;
+            publishStartupTrace(true);
             return true;
         }
+        if (Ch585StartupTrace::active())
+            Ch585StartupTrace::line(HAL_GetTick(),
+                HAL_GPIO_ReadPin(CH585_IRQ_GPIO_PORT, CH585_IRQ_PIN) == GPIO_PIN_SET);
         HAL_Delay(CH585_ROLE_SELECT_RETRY_MS);
     } while ((uint32_t)(HAL_GetTick() - startMs) < CH585_ROLE_SELECT_TIMEOUT_MS);
 
+    publishStartupTrace(false);
     return false;
 }
 
@@ -170,6 +187,7 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
             HAL_Delay(CH585_POWER_OFF_MIN_MS);
             bootstrapState = Ch585BootstrapState::Booting;
             BOARD_POWER.setCh585Enabled(true);
+            Ch585StartupTrace::powerOn(HAL_GetTick(), static_cast<uint32_t>(requestedRole));
             /* Do not clock SELECT_ROLE on the power-up edge. The original
              * cold start and power-cycle retry retain their full settle. */
             HAL_Delay(CH585_POWER_ON_SETTLE_MS);
@@ -180,22 +198,31 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
          * leaves SPI0 in an ambiguous hand-off state; the loader's idle boot
          * path reaches the application with a clean bus instead. */
         APP_STAGE("R02", "CH585 waiting for idle IAP-to-application handoff");
-        const bool readyObserved =
+        Ch585StartupTrace::record(Ch585StartupTrace::Event::ReadyBegin,
+                                 HAL_GetTick(), readyTimeoutMs);
+        bool readyObserved =
             BP_APP_CALL(BP_APP_CH585_READY,
                 RFBootReady::waitForModuleReady(readyTimeoutMs));
+        Ch585StartupTrace::record(Ch585StartupTrace::Event::ReadyEnd,
+                                 HAL_GetTick(), readyObserved);
         if (!readyObserved) {
-            /*
-             * PA5 is shared with the steady-state event signal and its short
-             * boot pulse is only a timing hint. Some power cycles do not
-             * expose that pulse to STM32 even though the CH585 polling role
-             * selector is already alive. Continue with the bounded protocol
-             * transaction; ROLE_SELECTED remains the authoritative commit.
-             */
-            APP_STAGE("R02B",
-                      "CH585 ready pulse not observed; probing role selector");
-        } else {
-            APP_STAGE("R02A", "CH585 application-ready pulse observed");
+            // Do not use SELECT_ROLE as an implicit IAP exit request. Its
+            // successful SPI write says nothing about the selector receiving
+            // it, and the following boot pulse is not a role response.
+            APP_STAGE("R02B", "CH585 requesting Application handoff");
+            (void)USBBoardLinkPort_RequestApplicationHandoff();
+            Ch585StartupTrace::record(Ch585StartupTrace::Event::ReadyBegin,
+                                     HAL_GetTick(), CH585_READY_HINT_TIMEOUT_MS);
+            readyObserved = RFBootReady::waitForModuleReady(CH585_READY_HINT_TIMEOUT_MS);
+            Ch585StartupTrace::record(Ch585StartupTrace::Event::ReadyEnd,
+                                     HAL_GetTick(), readyObserved);
+            if (!readyObserved) {
+                APP_STAGE_ERROR("R02E", "CH585 selector readiness not confirmed");
+                publishStartupTrace(false);
+                continue;
+            }
         }
+        APP_STAGE("R02A", "CH585 application-ready pulse observed");
 
         if (BP_APP_CALL(BP_APP_CH585_SELECT, selectOnce(requestedRole))) {
             APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",

@@ -53,6 +53,7 @@ struct UsbBoardLink {
     bool transact(uint8_t,const void*,uint8_t,uint8_t,void*,uint8_t,uint8_t*,uint32_t);
 };
 void USBBoardLinkPort_Shutdown() { ++shutdownCount; roleSent=false; releaseFault=false; }
+void publishStartupTrace(bool) {}
 struct Power {
     bool setUsbHostEnabled(bool) { return true; }
     void setCh585Enabled(bool enabled) { assert(!enabled && shutdownCount>0 && !releaseFault); }

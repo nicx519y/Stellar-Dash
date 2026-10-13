@@ -23,6 +23,7 @@ TX 承接 STM32 的 SPI 输入与控制事务，按主控选择的角色运行 R
 - TX Application 从 `0x1000` 开始；默认 `RF_PHY_Hop_TX.bin` 是独立 4 KiB IAP 与 Application 的合并镜像。Application ELF、合并 BIN/HEX、独立 IAP ELF/BIN 的用途不同，不能互换或据合并镜像推断普通更新会写 IAP。
 - 日常更新固定用 `python tools/hbox.py flash tx`，需要先构建时加 `--build`；状态查询用 `python tools/hbox.py web local-ch585-status`。前者实际执行硬件写入，后者访问设备，不作为编译或文档检查的附带步骤执行。普通更新沿主控/ST-LINK、QSPI 暂存、SPI IAP 路径只更新 Application。
 - IAP 独立维护只按 [TX IAP 维护说明](../../docs/tx-iap-maintenance.md) 和 [工具规则](../../tools/AGENTS.md) 执行。根目录的 IAP 维护授权仅覆盖 TX `0x0000–0x0FFF`，不能擦写相邻 Application、绑定数据或芯片配置字；不得操作保护位或锁定状态。维护入口、匹配 manifest、目标检查、回读与启动验收不可省略，也不能由日常更新或 WebConfig 绕入。
+- 新 PCB 的 WCHISPStudio V3.9 产物准备使用 `python tools/ch585_isp_prepare.py`（重建时加 `--build`），不需要 WCH-Link、不访问设备。实际 ROM ISP 下载尚待配置字、擦除范围和回读能力核实，不能把 4 KiB 文件等同于工具只擦写 4 KiB；见 [新板流程](../../docs/new-pcb-firmware-flash.md)。
 
 ## 构建与验证
 

@@ -1,4 +1,5 @@
 #include "rf_boot_ready.hpp"
+#include "ch585_startup_trace.hpp"
 
 #include <stdio.h>
 
@@ -70,8 +71,9 @@ bool waitForModuleReady(uint32_t timeoutMs) {
     uint32_t assertedSince = 0u;
 
     while ((HAL_GetTick() - start) <= timeoutMs) {
-        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
-            RF_BRIDGE_IRQ_ASSERTED_STATE) {
+        const auto level = HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN);
+        Ch585StartupTrace::line(HAL_GetTick(), level == RF_BRIDGE_IRQ_DEASSERTED_STATE);
+        if (level == RF_BRIDGE_IRQ_ASSERTED_STATE) {
             if (assertedSince == 0u) {
                 assertedSince = HAL_GetTick();
             }
@@ -81,9 +83,10 @@ bool waitForModuleReady(uint32_t timeoutMs) {
                 const uint32_t deassertStart = HAL_GetTick();
                 while ((HAL_GetTick() - deassertStart) <
                        RF_BOOT_READY_DEASSERT_TIMEOUT_MS) {
-                    if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT,
-                                         RF_BRIDGE_IRQ_PIN) ==
-                        RF_BRIDGE_IRQ_DEASSERTED_STATE) {
+                    const auto released = HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT,
+                                                          RF_BRIDGE_IRQ_PIN);
+                    Ch585StartupTrace::line(HAL_GetTick(), released == RF_BRIDGE_IRQ_DEASSERTED_STATE);
+                    if (released == RF_BRIDGE_IRQ_DEASSERTED_STATE) {
                         HAL_Delay(RF_BOOT_READY_SETTLE_MS);
                         s_readySeen = true;
                         return true;

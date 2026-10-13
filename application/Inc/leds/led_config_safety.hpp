@@ -11,7 +11,7 @@ constexpr uint8_t kMaxBrightnessPercent = 100u;
 constexpr uint8_t kKeyMaxHardwareDrivePercent = 25u;
 constexpr uint8_t kAmbientMaxHardwareDrivePercent = 40u;
 constexpr uint8_t kLcdMaxHardwareDrivePercent = 60u;
-constexpr uint32_t kStartupRampDurationMs = 5000u;
+constexpr uint32_t kStartupRampDurationMs = 3000u;
 constexpr uint32_t kRippleBaseDurationMs = 3000u;
 
 static inline uint8_t clampBrightnessPercent(uint8_t value)

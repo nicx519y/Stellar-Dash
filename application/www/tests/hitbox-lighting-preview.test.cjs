@@ -1,12 +1,51 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { HitboxLightingPreview, factoryLightSource, ambientBorderColor } = require('../lib/hitbox-lighting-preview.ts');
+const { lightingColorFields } = require('../lib/lighting-color-fields.ts');
 const options = {
   keyEnabled:true, ambientEnabled:true, sync:false, oneShot:false,
   keyColors:[0xff0000,0x0000ff,0x00ff00], ambientColors:[0x00ff00,0xff0000,0x0000ff],
   keySpeed:3, ambientSpeed:3, keyBrightness:100, ambientBrightness:100, disabledKeys:[],
 };
 const preview = (key=0, ambient=0) => new HitboxLightingPreview(factoryLightSource(false,key),factoryLightSource(true,ambient),0);
+
+test('key static uses pressed and background colors; animated factory effects use all three', () => {
+  assert.deepEqual(lightingColorFields(factoryLightSource(false, 0)), [{index:0,role:'pressed'},{index:1,role:'base'}]);
+  for (let effect = 1; effect < 6; effect++) {
+    assert.deepEqual(lightingColorFields(factoryLightSource(false, effect)), [
+      {index:0,role:'pressed'},{index:1,role:'background1'},{index:2,role:'background2'},
+    ]);
+  }
+});
+
+test('custom key effects use resource indices instead of assuming the factory palette layout', () => {
+  const source = structuredClone(factoryLightSource(false, 0));
+  source.payload.layers[0].from = source.payload.layers[0].to = 2;
+  assert.deepEqual(lightingColorFields(source), [{index:0,role:'pressed'},{index:2,role:'base'}]);
+  source.payload.layers = [{...source.payload.layers[0], signal:'sine', from:0, to:2}];
+  assert.deepEqual(lightingColorFields(source), [{index:0,role:'base'},{index:2,role:'peak'}]);
+  source.payload.layers.push({...source.payload.layers[0], signal:'constant', from:1, to:2});
+  assert.deepEqual(lightingColorFields(source), [0,1,2].map(index=>({index,role:'slot'})));
+});
+
+test('ambient color controls expose only the factory effect colors with their roles', () => {
+  assert.deepEqual(lightingColorFields(factoryLightSource(true, 0)), [{index:0,role:'solid'}]);
+  for (const [effect, role] of [[1,'peak'],[2,'wave'],[3,'meteor']]) {
+    assert.deepEqual(lightingColorFields(factoryLightSource(true, effect)), [{index:0,role:'base'},{index:1,role}]);
+  }
+  assert.deepEqual(lightingColorFields(null), []);
+});
+
+test('custom ambient layers retain original palette indices, including the third slot', () => {
+  const source = structuredClone(factoryLightSource(true, 2));
+  source.payload.layers[0].from = 2;
+  source.payload.layers[0].to = 0;
+  assert.deepEqual(lightingColorFields(source), [{index:0,role:'wave'},{index:2,role:'base'}]);
+  source.payload.layers.push({...source.payload.layers[0], signal:'constant', from:1, to:2});
+  assert.deepEqual(lightingColorFields(source), [0,1,2].map(index=>({index,role:'slot'})));
+  source.payload.layers = [{...source.payload.layers[0], signal:'constant', from:2, to:0}];
+  assert.deepEqual(lightingColorFields(source), [{index:2,role:'solid'}]);
+});
 test('ambient remains animated with key lighting disabled, and disabling ambient clears only the border', () => {
   const engine=preview(0,1);
   const first=engine.render(0,0,0,{...options,keyEnabled:false});

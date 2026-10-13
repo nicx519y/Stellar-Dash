@@ -1,5 +1,6 @@
 #include "ch585_handshake.h"
 #include "ch585_release_state.hpp"
+#include "ch585_startup_trace.hpp"
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h"
 #include "rf_bridge_port_internal.h"
@@ -42,6 +43,8 @@ void poll() {
     const bool lineHigh = high();
     state.poll(lineHigh, HAL_GetTick(), deadlineMs);
     if (state.phase == Ch585ReleaseState::Phase::Fault && before != state.phase) {
+        Ch585StartupTrace::record(Ch585StartupTrace::Event::ReleaseFault,
+                                 HAL_GetTick(), state.since, deadlineMs);
         g_ch585_release_fault[0] = 0x57524c31u;
         ++g_ch585_release_fault[1];
         g_ch585_release_fault[2] = HAL_GetTick();

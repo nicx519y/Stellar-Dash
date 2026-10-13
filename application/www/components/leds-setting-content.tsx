@@ -1,6 +1,7 @@
 "use client";
 
 import type { ResourceSource } from '@/lib/resources';
+import { lightingColorFields, type LightingColorRole } from '@/lib/lighting-color-fields';
 import { LightingResourceLibrary, LightingResourceProvider } from './lighting-resource-library';
 import {
     Stack,
@@ -206,17 +207,25 @@ function LightingSettingsBody() {
         return !aroundLedConfigIsEnabled;
     }
 
-    const colorLabels = [
-        t.SETTINGS_LEDS_FRONT_COLOR,
-        t.SETTINGS_LEDS_BACK_COLOR1,
-        t.SETTINGS_LEDS_BACK_COLOR2
-    ];
+    const colorFields = lightingColorFields(keyResource);
+    const colorLabels: Record<Exclude<LightingColorRole, 'slot'>, string> = currentLanguage === 'zh' ? {
+        solid: '按键灯颜色', base: '背景颜色', peak: '峰值颜色', wave: '震荡颜色', meteor: '流星颜色',
+        pressed: '按下颜色', background1: '背景颜色 1', background2: '背景颜色 2',
+    } : {
+        solid: 'Button LED Color', base: 'Background Color', peak: 'Peak Color', wave: 'Wave Color', meteor: 'Meteor Color',
+        pressed: 'Pressed Color', background1: 'Background Color 1', background2: 'Background Color 2',
+    };
 
-    const aroundColorLabels = [
-        t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR1,
-        t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2,
-        currentLanguage==='zh'?'氛围灯颜色 3':'Ambient Lighting Color 3'
-    ];
+    const aroundColorFields = lightingColorFields(ambientResource);
+    const aroundColorLabels: Record<Exclude<LightingColorRole, 'slot'>, string> = currentLanguage === 'zh' ? {
+        solid: '氛围灯颜色', base: '氛围灯底色', peak: '氛围灯峰值色',
+        wave: '氛围灯震荡色', meteor: '氛围灯流星色',
+        pressed: '氛围灯按下颜色', background1: '氛围灯背景颜色 1', background2: '氛围灯背景颜色 2',
+    } : {
+        solid: 'Ambient Light Color', base: 'Ambient Base Color', peak: 'Ambient Peak Color',
+        wave: 'Ambient Wave Color', meteor: 'Ambient Meteor Color',
+        pressed: 'Ambient Pressed Color', background1: 'Ambient Background Color 1', background2: 'Ambient Background Color 2',
+    };
 
     const currentLedsConfig = () => ({
         ledEnabled: ledEnabled,
@@ -407,8 +416,8 @@ function LightingSettingsBody() {
 
 
                                         {/* LED Colors */}
-                                        <HStack gap={4} alignItems={"flex-start"} wrap="wrap" width="100%">
-                                            {Array.from({ length: 3 }).map((_, index) => (
+                                        <HStack gap={4} alignItems={"flex-start"} wrap="wrap" width="100%" minH="64px">
+                                            {colorFields.map(({ index, role }) => (
                                                 <ColorPicker.Root key={index} size="xs"
                                                     value={
                                                         index === 0 ? color1 :
@@ -434,7 +443,11 @@ function LightingSettingsBody() {
                                                     maxW="200px"
                                                     disabled={colorPickerDisabled(index)}
                                                 >
-                                                    <ColorPicker.Label> {colorLabels[index]} </ColorPicker.Label>
+                                                    <ColorPicker.Label>
+                                                        {role === 'slot'
+                                                            ? (currentLanguage === 'zh' ? `按键灯颜色 ${index + 1}` : `Button LED Color ${index + 1}`)
+                                                            : colorLabels[role]}
+                                                    </ColorPicker.Label>
                                                     <ColorPicker.HiddenInput />
                                                     <ColorPicker.Control>
                                                         <ColorPicker.Input />
@@ -621,9 +634,11 @@ function LightingSettingsBody() {
                                             <LightingResourceLibrary selectionDisabled={!aroundLedConfigIsEnabled} type="ambient-lighting" onSource={setAmbientResource}/>
 
                                         </HStack>
-                                        <HStack gap={4} alignItems={"flex-start"} wrap="wrap" width="100%">
+                                        <HStack gap={4} alignItems={"flex-start"} wrap="wrap" width="100%" minH="64px">
                                             {/* 氛围灯颜色 */}
-                                            {Array.from({ length: 3 }).map((_, index) => (
+                                            {aroundLedSyncIsActive ? <Text color="fg.muted" fontSize="sm">
+                                                {currentLanguage === 'zh' ? '氛围灯正在跟随按键灯的灯效和颜色。' : 'Ambient lighting follows the button LED effect and colors.'}
+                                            </Text> : aroundColorFields.map(({ index, role }) => (
                                                 <ColorPicker.Root key={index} size="xs"
                                                     value={
                                                         index === 0 ? aroundLedColor1 :
@@ -647,7 +662,11 @@ function LightingSettingsBody() {
                                                     maxW="200px"
                                                     disabled={aroundColorPickerDisabled(index)}
                                                 >
-                                                    <ColorPicker.Label> {aroundColorLabels[index]} </ColorPicker.Label>
+                                                    <ColorPicker.Label>
+                                                        {role === 'slot'
+                                                            ? (currentLanguage === 'zh' ? `氛围灯颜色 ${index + 1}` : `Ambient Light Color ${index + 1}`)
+                                                            : aroundColorLabels[role]}
+                                                    </ColorPicker.Label>
                                                     <ColorPicker.HiddenInput />
                                                     <ColorPicker.Control>
                                                         <ColorPicker.Input />

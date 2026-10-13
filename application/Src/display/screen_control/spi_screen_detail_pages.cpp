@@ -77,7 +77,14 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
     if (isGroup(menuId)) {
         if (childPage != 255) ScreenDetail_OnRotate(childPage, &childIndex, det);
-        else { const int count = groupCount(menuId); groupSelection = uint8_t((int(groupSelection) + det % count + count) % count); *ioIndex = groupSelection; }
+        else {
+            const int count = groupCount(menuId);
+            int next = int(groupSelection) + det;
+            if (next < 0) next = 0;
+            if (next >= count) next = count - 1;
+            groupSelection = uint8_t(next);
+            *ioIndex = groupSelection;
+        }
         return;
     }
     if (isTimer(menuId)) {

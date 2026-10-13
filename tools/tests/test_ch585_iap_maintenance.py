@@ -59,6 +59,37 @@ class IapMaintenanceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 maintenance.validate_manifest(dict(manifest, **{field:value}),image,executable)
 
+    def test_manifest_accepts_checkout_line_endings_but_rejects_source_edits(self):
+        names = ['RF_PHY_Hop/TX/IAP/iap_main.c', 'RF_PHY_Hop/TX/Makefile',
+                 'common/ch585_iap_protocol.h']
+        lf = b'#define IAP_PACKET_SIZE 1024u\n#define IAP_ADDRESS 0u\n'
+        crlf = lf.replace(b'\n', b'\r\n')
+        image, executable = b'new', b'elf'
+        with tempfile.TemporaryDirectory() as tmp, patch.object(maintenance, 'ROOT', Path(tmp)):
+            root = Path(tmp)
+            for recorded, checked_out in ((lf, crlf), (crlf, lf)):
+                for name in names:
+                    path = root / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(checked_out)
+                manifest = {
+                    'target': 'CH585-TX-IAP', 'address': 0, 'size': 4096,
+                    'bootSecurityMode': 'unlocked-development',
+                    'requiresManualLifecycleProvisioning': False,
+                    'sha256': maintenance.sha(image), 'elfSha256': maintenance.sha(executable),
+                    'sourceSha256': {name: maintenance.sha(recorded) for name in names},
+                    'iapTransfer': {'version': 2, 'frameBytes': 1024,
+                                    'payloadBytes': 1000, 'spiHz': 7500000},
+                }
+                maintenance.validate_manifest(manifest, image, executable)
+                for name in names:
+                    for changed in (checked_out.replace(b'1024u', b'2048u'),
+                                    checked_out.replace(b' 0u', b'  0u')):
+                        (root / name).write_bytes(changed)
+                        with self.assertRaisesRegex(ValueError, 'IAP source differs'):
+                            maintenance.validate_manifest(manifest, image, executable)
+                    (root / name).write_bytes(checked_out)
+
     def test_production_flash_guards_commit_and_restore_faults(self):
         production = (ROOT / 'tools/ch585_iap_maintenance/ram.c').read_text()
         fixture = (ROOT / 'tools/tests/iap_maintenance_test.cpp').read_text()

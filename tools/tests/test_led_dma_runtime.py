@@ -53,7 +53,8 @@ class LedDmaRuntimeTests(unittest.TestCase):
                          "-I", str(ROOT / "application/Inc/leds/drivers/ws2812b"),
                          str(ROOT / "tools/tests/led_dma_runtime_test.cpp"),
                          "-o", str(executable)])
-            scenarios = ("normal", "delayed", "dual", "error", "boundaries", "encoding", "dma-latency", "start-phase")
+            scenarios = ("normal", "delayed", "dual", "error", "boundaries", "encoding", "dma-latency", "start-phase", "startup-black-frame",
+                         "all-key-pixels", "partial-key-completion", "resource-key-pixels")
             if diagnostic:
                 scenarios += ("diagnostic",)
             for scenario in scenarios:

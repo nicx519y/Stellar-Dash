@@ -31,6 +31,7 @@ const phases: Record<string, [string, string]> = {
   'backing-up-tx': ['备份当前 TX', 'Backing up current TX'], 'staging-controller': ['写入主控备用槽', 'Writing inactive controller slot'], 'staging-tx': ['暂存新 TX', 'Staging new TX'],
   'tx-restoring': ['TX 更新失败，正在恢复原版本', 'TX update failed; restoring previous version'], 'rollback-verifying': ['核验恢复后的原版本', 'Verifying restored firmware'],
   restored: ['升级失败，已恢复原版本', 'Update failed; previous version restored'], 'restore-failed': ['TX 恢复失败：需要维护恢复', 'TX recovery failed: maintenance recovery required'],
+  'maintenance-recovered': ['设备已维护恢复，原升级已取消', 'Device recovered through maintenance; original update cancelled'],
   timeout: ['TX 升级失败（连接超时）', 'TX update failed (connection timeout)'], backup: ['备份配置', 'Backing up configuration'],
   declaring: ['验证签名安装声明', 'Verifying signed declaration'], receiving: ['暂存组件', 'Staging components'],
   prepared: ['组件已验证，可开始安装', 'Components verified; ready to install'], activating: ['提交安装事务', 'Activating installation'],
@@ -300,7 +301,7 @@ export function FirmwareContent() {
       progressLabel={translate(phases, progress?.stage || 'downloading')}
       onClose={() => { if (!busy && task?.result !== 'waiting') {
         setSelectedRelease(null); setCandidate(null); setError('');
-        if (!task || task.result === 'completed') { setTask(null); setProgress(null); setExpectedDigest(null); }
+        if (!task || task.result === 'completed' || task.progress?.stage === 'maintenance-recovered') { setTask(null); setProgress(null); setExpectedDigest(null); }
         setLegacyFirmwareGate(false);
       } }}
       onConfirm={() => void startInstallation()} onRetry={() => void startInstallation()}

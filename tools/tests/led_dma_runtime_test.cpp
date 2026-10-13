@@ -1,7 +1,10 @@
 #include "led_dma_runtime_stubs.hpp"
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <string>
+#include "../../common/xora_light_engine.hpp"
+#include "../../common/xora_factory_resources.hpp"
 // Compile the real driver, not a rewritten model of its state machine.
 #include "../../application/Src/leds/drivers/ws2812b/pwm-ws2812b.c"
 
@@ -481,6 +484,126 @@ static void diagnostic() {
 #endif
 #endif
 
+static uint32_t expectedGrb(unsigned r, unsigned g, unsigned b, unsigned drive) {
+    auto scale = [drive](unsigned value) { return (value * drive + 127u) / 255u; };
+    return (scale(g) << 16) | (scale(r) << 8) | scale(b);
+}
+
+static void allKeyPixels() {
+    begin(WS2812B_STRIP_KEYS);
+    begin(WS2812B_STRIP_AMBIENT, 31, 63, 127);
+    const auto ambient = snapshot(1);
+    drain(0);
+    for (unsigned frame = 0; frame < 3; ++frame) {
+        for (unsigned led = 0; led < 22; ++led) {
+            WS2812B_SetLEDColor(17 + led * 7, 221 - led * 5, 31 + frame * 41 + led, led);
+            WS2812B_SetLEDBrightnessStrip(WS2812B_STRIP_KEYS, 101 + led * 7, led, 1);
+        }
+        assert(WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+        assert(dmas[0].size == 768);
+        for (unsigned led = 0; led < 22; ++led)
+            assert(pixel(0, led) == expectedGrb(17 + led * 7, 221 - led * 5,
+                                              31 + frame * 41 + led, 101 + led * 7));
+        auto frameData = snapshot(0);
+        auto pulses = drain(0);
+        assert(std::equal(frameData.begin(), frameData.end(), pulses.begin() + 1));
+        unchanged(1, ambient);
+    }
+    // A two-key mask must black KEY6 too; restoring the mask restores all 22.
+    for (uint32_t mask : {3u, 0x3fffffu}) {
+        WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 97, 0, 173);
+        WS2812B_SetLEDBrightnessByMask(255, 0, mask);
+        assert(WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+        for (unsigned led = 0; led < 22; ++led)
+            assert(pixel(0, led) == ((mask & (1u << led)) ? 0x0061adu : 0u));
+        drain(0);
+    }
+    drain(1);
+}
+
+static void partialKeyCompletion() {
+    begin(WS2812B_STRIP_KEYS, 17, 33, 65);
+    const auto original = snapshot(0);
+    auto& dma = dmas[0];
+    // Deliver only the first two pixels, then a premature completion callback.
+    for (unsigned bit = 0; bit < 48; ++bit) {
+        fakeTim.active[0] = fakeTim.preload[0];
+        fakeTim.preload[0] = dma.source[dma.size - dma.Instance->NDTR];
+        --dma.Instance->NDTR;
+    }
+    dma.XferCpltCallback(&dma);
+    assert(g_keys_update_phase == WS2812B_UPDATE_TRANSMITTING);
+    WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 193, 0, 29);
+    assert(!WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    unchanged(0, original);
+    auto remainder = drain(0, false);
+    assert(std::equal(original.begin() + 48, original.end(), remainder.begin() + 1));
+    assert(!WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    callback(0);
+    assert(WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    for (unsigned led = 0; led < 22; ++led) assert(pixel(0, led) == 0x00c11du);
+    drain(0);
+}
+
+static void resourceKeyPixels() {
+    XoraResource::Light light = {};
+    bool found = false;
+    for (const auto& entry : XoraResource::factory) {
+        XoraResource::Light candidate = {};
+        assert(XoraResource::parseLight(entry.bytes, entry.size, candidate));
+        if (!std::strcmp(candidate.ref.id, "key-static")) { light = candidate; found = true; }
+    }
+    assert(found);
+    XoraResource::Engine engine;
+    engine.load(light, 0);
+    XoraResource::Point positions[62] = {};
+    begin(WS2812B_STRIP_KEYS);
+    drain(0);
+    // Exercise the production resource parser/renderer and driver together.
+    for (unsigned round = 0; round < 2; ++round) {
+        const uint32_t palette[3] = {0x7b1935u, round ? 0x4d2971u : 0x00000fu, 0};
+        for (unsigned pressed = 0; pressed < 22; ++pressed) {
+            XoraResource::Color colors[62] = {};
+            engine.render(round * 1000 + pressed * 33, 1u << pressed, positions,
+                          62, 22, false, false, 100, palette, colors);
+            for (unsigned led = 0; led < 22; ++led) {
+                const uint32_t expected = palette[led == pressed ? 0 : 1];
+                assert(colors[led].r == (expected >> 16));
+                assert(colors[led].g == ((expected >> 8) & 255));
+                assert(colors[led].b == (expected & 255));
+                WS2812B_SetLEDColor(colors[led].r, colors[led].g, colors[led].b, led);
+            }
+            assert(WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+            for (unsigned led = 0; led < 22; ++led) {
+                const uint32_t expected = palette[led == pressed ? 0 : 1];
+                assert(pixel(0, led) == expectedGrb(expected >> 16, (expected >> 8) & 255,
+                                                   expected & 255, 255));
+            }
+            drain(0);
+        }
+    }
+}
+
+static void startupBlackFrame() {
+    for (auto strip : {WS2812B_STRIP_KEYS, WS2812B_STRIP_AMBIENT}) {
+        const unsigned i = strip;
+        WS2812B_InitStrip(strip);
+        WS2812B_SetAllLEDColorStrip(strip, 255, 127, 63);
+        WS2812B_SetAllLEDBrightnessStrip(strip, 0);
+        auto other = i ? snapshot(0) : std::vector<uint32_t>{};
+        assert(WS2812B_StartStrip(strip) == WS2812B_RUNNING);
+        for (unsigned led = 0; led < strip_led_count(strip); ++led) assert(pixel(i, led) == 0);
+        if (i) unchanged(0, other);
+        assert(fakeTim.CNT == 137 && fakeTim.EGR == 0);
+    }
+    drain(0); drain(1);
+    assert(WS2812B_StopStrip(WS2812B_STRIP_KEYS) == WS2812B_STOP);
+    assert(WS2812B_StartStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING);
+    assert(pixel(0, 0) == 0);
+    drain(0);
+
+}
+
 int main(int argc, char** argv) {
     assert(argc == 2);
     std::string name = argv[1];
@@ -492,6 +615,10 @@ int main(int argc, char** argv) {
     else if (name == "encoding") encoding();
     else if (name == "dma-latency") dmaLatency();
     else if (name == "start-phase") startPhase();
+    else if (name == "startup-black-frame") startupBlackFrame();
+    else if (name == "all-key-pixels") allKeyPixels();
+    else if (name == "partial-key-completion") partialKeyCompletion();
+    else if (name == "resource-key-pixels") resourceKeyPixels();
 #if HBOX_LED_DMA_DIAGNOSTIC
     else if (name == "diagnostic") diagnostic();
 #endif

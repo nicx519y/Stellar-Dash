@@ -34,6 +34,8 @@ public:
     bool requestRetry();
     bool hasReadyStagedImage();
     bool hasAppliedImage() const;
+    // Verified maintenance image, hashed over the complete erased Application range.
+    bool appliedApplicationDigest(char digest[65]) const;
     bool wasClaimed() const { return updateClaimed; }
 
     bool isPending() const;

@@ -79,6 +79,30 @@ int main() {
     }
     assert(!patch(sc, R"({"features":{"webConfigEntry":false},"featuresOrder":["power","power","unknown"],"currentPageId":65535})"));
     assert(sc.featuresMask & SCREEN_FEATURE_WEB_CONFIG_ENTRY); assert(sc.currentPageId == 14);
+    // Both group lists stop at their ends, including accumulated encoder steps.
+    for (const uint8_t menu : {ScreenConfig::kLed, ScreenConfig::kPower}) {
+        const uint8_t last = menu == ScreenConfig::kLed ? 3 : 1;
+        auto cursor = ScreenDetail_InitIndex(menu);
+        ScreenUiStyle groupStyle = {}; ST7789_Handle groupLcd = {};
+        auto expectCursor = [&](uint8_t expected) {
+            assert(cursor == expected);
+            ScreenDetail_Render(&groupLcd, menu, cursor, groupStyle);
+            assert(renderedIndex == expected);
+        };
+        expectCursor(0);
+        ScreenDetail_OnRotate(menu, &cursor, -1); expectCursor(0);
+        ScreenDetail_OnRotate(menu, &cursor, -128); expectCursor(0);
+        for (uint8_t item = 1; item <= last; ++item) {
+            ScreenDetail_OnRotate(menu, &cursor, 1); expectCursor(item);
+        }
+        ScreenDetail_OnRotate(menu, &cursor, 1); expectCursor(last);
+        ScreenDetail_OnRotate(menu, &cursor, 127); expectCursor(last);
+        ScreenDetail_OnRotate(menu, &cursor, 0); expectCursor(last);
+        ScreenDetail_OnRotate(menu, &cursor, -1); expectCursor(last - 1);
+        ScreenDetail_OnRotate(menu, &cursor, -128); expectCursor(0);
+        ScreenDetail_OnRotate(menu, &cursor, 127); expectCursor(last);
+        assert(ScreenDetail_OnBack(menu));
+    }
     // Real detail dispatcher: group -> slider -> parent, switches independent of time.
     STORAGE_MANAGER.config.screenControl = sc;
     init_power_defaults(STORAGE_MANAGER.config.power);
