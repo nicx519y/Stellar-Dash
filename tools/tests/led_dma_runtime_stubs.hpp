@@ -58,6 +58,7 @@ inline struct { uint32_t D2CFGR = 1; } fakeRcc;
 #define WS2812B_KEYS_TIM_CHANNEL TIM_CHANNEL_1
 #define WS2812B_AMBIENT_TIM_CHANNEL TIM_CHANNEL_2
 #define WS2812B_TIM_PERIOD 307u
+#define BOARD_KEY_LED_POWER_SETTLE_MS 5u
 #define NUM_ADC_BUTTONS 18u
 #define NUM_GPIO_BUTTONS 4u
 #define NUM_LED_AROUND 40u
@@ -77,8 +78,26 @@ inline void MX_TIM4_Init() {
 }
 inline bool rail[2] = {};
 inline unsigned railWrites[2] = {};
-inline void BoardPower_SetKeyLedEnabled(bool enabled) { rail[0] = enabled; ++railWrites[0]; }
+inline void BoardPower_SetKeyLedEnabled(bool enabled) {
+    if (enabled) {
+        assert(fakeTim.enabled && (fakeTim.CCER & TIM_CCER_CC1E));
+        assert(fakeTim.active[0] == 0 && fakeTim.preload[0] == 0);
+        assert(!(fakeTim.DIER & TIM_DMA_CC1));
+    }
+    rail[0] = enabled; ++railWrites[0];
+}
 inline void BoardPower_SetAmbientLedEnabled(bool enabled) { rail[1] = enabled; ++railWrites[1]; }
+inline unsigned keyPowerSettleCalls = 0;
+inline std::function<void()> delayHook;
+inline void HAL_Delay(uint32_t ms) {
+    assert(ms == BOARD_KEY_LED_POWER_SETTLE_MS && irqMask == 0);
+    assert(rail[0] && fakeTim.enabled && (fakeTim.CCER & TIM_CCER_CC1E));
+    assert(fakeTim.active[0] == 0 && fakeTim.preload[0] == 0);
+    assert(!(fakeTim.DIER & TIM_DMA_CC1));
+    assert(!(dmas[0].Instance->CR & DMA_SxCR_EN));
+    ++keyPowerSettleCalls;
+    if (delayHook) delayHook();
+}
 struct RGBColor { uint8_t r, g, b; };
 inline uint32_t RGBToHex(uint8_t r, uint8_t g, uint8_t b) {
     return (uint32_t(g) << 16) | (uint32_t(r) << 8) | b;

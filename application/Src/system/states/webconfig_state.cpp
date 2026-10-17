@@ -59,7 +59,7 @@ namespace {
 
 static bool webConfigUsbModeAccepted()
 {
-    return BOARD_MODE.isWebConfigAllowed();
+    return BOARD_MODE.isStable() && BOARD_MODE.current() == BoardMode::Usb;
 }
 
 static void enterWebFailureUiState()
@@ -92,18 +92,18 @@ bool WebConfigState::enter() {
     runtimeStatus = WebConfigRuntimeStatus::Starting;
 
     /*
-     * WebConfig is permitted only in the physical USB switch position and
-     * always uses the independent CH585 maintenance role.
+     * WebConfig temporarily selects USB regardless of the saved input mode,
+     * and always uses the independent CH585 maintenance role.
      */
     if (!webConfigUsbModeAccepted()) {
-        APP_STAGE_ERROR("W02", "physical USB mode gate failed: mode=%u stable=%u",
+        APP_STAGE_ERROR("W02", "USB runtime gate failed: mode=%u stable=%u",
                         static_cast<unsigned>(BOARD_MODE.current()),
                         BOARD_MODE.isStable() ? 1u : 0u);
         enterFailure(WebConfigRuntimeStatus::ErrorUsbMode);
-        LOG_ERROR("WEBCONFIG", "Physical switch is not in USB position");
+        LOG_ERROR("WEBCONFIG", "USB maintenance runtime is not selected");
         return false;
     }
-    APP_STAGE("W02", "physical USB mode gate accepted");
+    APP_STAGE("W02", "USB runtime gate accepted");
 
     /* Paint the starting state before the bounded CH585 capability handshake. */
     BOARD_POWER.releaseSafeState();
@@ -220,7 +220,7 @@ void WebConfigState::tick() {
         if (traceStartupTick) {
             APP_STAGE("WT0", "first WebConfig tick begin");
         }
-        if (BOARD_MODE.consumeChanged() && !webConfigUsbModeAccepted()) {
+        if (!webConfigUsbModeAccepted()) {
             enterFailure(WebConfigRuntimeStatus::ErrorUsbMode);
             return;
         }

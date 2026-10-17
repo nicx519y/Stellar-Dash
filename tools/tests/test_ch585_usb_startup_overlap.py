@@ -1,5 +1,6 @@
 """Host tests of production USB bootstrap/physical-mode code; no device access."""
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import tempfile
@@ -141,10 +142,10 @@ int main(int argc, char** argv) {
         assert(!BOARD_MODE.isUsbStartupSafe());
         BOARD_MODE.setup();
         assert(BOARD_MODE.isUsbStartupSafe());
-        rawUsb=1; // stable cache still says USB; raw check must reject immediately
-        assert(BOARD_MODE.current()==BoardMode::Usb && !BOARD_MODE.isUsbStartupSafe());
-        BOARD_MODE.setup();
-        assert(BOARD_MODE.current()==BoardMode::CenterOff && !BOARD_MODE.isUsbStartupSafe());
+        rawUsb=1; rawRf=0; // NC pins cannot override the latched software selection
+        assert(BOARD_MODE.current()==BoardMode::Usb && BOARD_MODE.isUsbStartupSafe());
+        BOARD_MODE.setup(BoardMode::Rf);
+        assert(BOARD_MODE.current()==BoardMode::Rf && !BOARD_MODE.isUsbStartupSafe());
         return 0;
     }
     if (!std::strcmp(test,"uninitialized")) {
@@ -231,13 +232,16 @@ int main(int argc, char** argv) {
             print("USB startup overlap: compile production bootstrap/mode code", flush=True)
             result = subprocess.run(command, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stderr)
-            for case in ("cold", "rf_cold", "no_ready", "overlap", "immediate", "rollover", "ready", "retry", "fail",
+            cases = ("cold", "rf_cold", "no_ready", "overlap", "immediate", "rollover", "ready", "retry", "fail",
                          "expired", "rail_lost", "cancel", "missing_selector", "safe_idle",
-                         "role_change", "uninitialized", "port_failure", "mode_switch"):
+                         "role_change", "uninitialized", "port_failure", "mode_switch")
+            if os.environ.get("HBOX_USB_STARTUP_ONLY") == "1":
+                cases = tuple(case for case in cases if case != "rf_cold")
+            for case in cases:
                 with self.subTest(case=case):
                     result = subprocess.run([str(exe), case], capture_output=True, text=True, timeout=5)
                     self.assertEqual(result.returncode, 0, result.stderr)
-            print("Application handoff / startup overlap: 18 scenarios completed", flush=True)
+            print(f"Application handoff / startup overlap: {len(cases)} scenarios completed", flush=True)
 
 
 if __name__ == "__main__":

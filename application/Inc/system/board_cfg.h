@@ -208,11 +208,8 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define CH585_EN_PORT                          GPIOI
 #define CH585_EN_PIN                           GPIO_PIN_10
 
-#define MODE_USB_N_PORT                        GPIOI
-#define MODE_USB_N_PIN                         GPIO_PIN_11
-
-#define MODE_RF_N_PORT                         GPIOI
-#define MODE_RF_N_PIN                          GPIO_PIN_12
+// Two-position power-switch PCB only. PI11/PI12 are unconnected.
+#define BOARD_UNUSED_MODE_PINS                (GPIO_PIN_11 | GPIO_PIN_12)
 
 #define USB_HOST_EN_PORT                       GPIOI
 #define USB_HOST_EN_PIN                        GPIO_PIN_13
@@ -221,7 +218,6 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define MAX17048_ALERT_PIN                     GPIO_PIN_13
 #define MAX17048_ALERT_EXTI_IRQn                EXTI15_10_IRQn
 
-#define BOARD_MODE_DEBOUNCE_MS                 20u
 #define CH585_POWER_OFF_MIN_MS                 20u
 #define CH585_POWER_ON_SETTLE_MS                20u
 #define CH585_ROLE_RESPONSE_TIMEOUT_MS          20u
@@ -229,6 +225,8 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define CH585_ROLE_SELECT_RETRY_MS             5u
 #define CH585_ROLE_SELECT_TIMEOUT_MS          1200u
 #define BOARD_LED_5V_STABILIZE_MS              5u
+/* Additional settling after the key LED load switch is actually enabled. */
+#define BOARD_KEY_LED_POWER_SETTLE_MS          5u
 #define BOARD_HALL_STABILIZE_MS                10u
 
 /* Capability enabled; persistent user setting defaults OFF. Set 0 for recovery. */

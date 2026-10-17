@@ -33,7 +33,7 @@ class TxIspStateTests(unittest.TestCase):
                 '#include "tx_isp_runtime_stubs.hpp"\n#include "main_runtime_control.hpp"\n'
                 '#include "screen_control/spi_screen_main_list.hpp"\nbool boot_mode_to_detail_menu'+selector,
                 encoding='utf-8')
-            stubs = ('storagemanager.hpp', 'config.hpp', 'board_cfg.h', 'board_mode.hpp',
+            stubs = ('connection_mode_config.hpp', 'storagemanager.hpp', 'config.hpp', 'board_cfg.h', 'board_mode.hpp',
                      'board_power.hpp', 'ch585_firmware_update.hpp', 'release_installer.hpp',
                      'ch585_role_bootstrap.hpp', 'connection_manager.hpp', 'power_manager.hpp',
                      'system_logger.h', 'system_sleep_manager.hpp', 'boot_profile.h',

@@ -136,6 +136,7 @@ typedef struct
 #define SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET (1u << 11)
 #define SCREEN_FEATURE_LED_SETTING                (1u << 13)
 #define SCREEN_FEATURE_POWER                      (1u << 14)
+#define SCREEN_FEATURE_TRANSPORT_MODE_SWITCH      (1u << 15)
 #define SCREEN_FEATURE_COUNT                      12u
 
 typedef enum

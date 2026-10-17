@@ -53,14 +53,10 @@ bool CalibrationState::enter() {
     LOG_INFO("CALIBRATION", "Starting calibration state setup");
     APP_DBG("CalibrationState::setup");
 
-    if (!BOARD_MODE.isStable()) {
-        BOARD_MODE.update(HAL_GetTick());
-    }
-    (void)BOARD_MODE.consumeChanged();
     if (!calibrationModeIsValid()) {
         exit();
         enterCalibrationSafeState();
-        LOG_ERROR("CALIBRATION", "Physical switch is center/fault; calibration inhibited");
+        LOG_ERROR("CALIBRATION", "Runtime mode is invalid; calibration inhibited");
         return false;
     }
 
@@ -107,18 +103,6 @@ bool CalibrationState::enter() {
 }
 
 void CalibrationState::tick() {
-    if (BOARD_MODE.consumeChanged()) {
-        if (!calibrationModeIsValid()) {
-            exit();
-            enterCalibrationSafeState();
-            return;
-        }
-        if (!isRunning) {
-            (void)enter();
-            return;
-        }
-    }
-
     if (!isRunning && calibrationModeIsValid()) {
         (void)enter();
         return;

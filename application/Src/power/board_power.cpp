@@ -110,8 +110,11 @@ void BoardPower::setup()
     configureInput(IS_FAST_CHARGE_PORT, IS_FAST_CHARGE_PIN, GPIO_PULLUP);
     configureInput(CHARGE_STAT_PORT, CHARGE_STAT_PIN, GPIO_PULLUP);
     configureInput(CHARGE_INT_PORT, CHARGE_INT_PIN, GPIO_PULLUP);
-    configureInput(MODE_USB_N_PORT, MODE_USB_N_PIN, GPIO_PULLUP);
-    configureInput(MODE_RF_N_PORT, MODE_RF_N_PIN, GPIO_PULLUP);
+    GPIO_InitTypeDef unused = {};
+    unused.Pin = BOARD_UNUSED_MODE_PINS;
+    unused.Mode = GPIO_MODE_ANALOG;
+    unused.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOI, &unused);
     configureInput(MAX17048_ALERT_PORT, MAX17048_ALERT_PIN, GPIO_PULLUP);
     configureInput(LCD_CTRL_AUX_PORT, LCD_CTRL_AUX_PIN, GPIO_NOPULL);
 
@@ -226,7 +229,7 @@ void BoardPower::enterSafeState()
     setKeyLedEnabled(false);
     setAmbientLedEnabled(false);
     setLedBoostEnabled(false);
-    /* Keep the local UI available even when CH585 or the physical mode gate
+    /* Keep the local UI available even when CH585 or the runtime mode gate
      * fails. Only prepareForStandby() is allowed to remove LCD power. */
     setLcdEnabled(true);
     setHallEnabled(false);
@@ -259,7 +262,7 @@ void BoardPower::prepareForStandby()
 void BoardPower::releaseSafeState()
 {
     /*
-     * Callers may release the latch only after a physical mode has debounced
+     * Callers may release the latch only after a runtime mode has debounced
      * and the selected CH585 role (when required) has acknowledged.  Optional
      * rails remain off until their owning subsystem explicitly enables them.
      */

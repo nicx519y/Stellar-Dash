@@ -86,7 +86,7 @@ static bool g_battUiFastCharging = false;
 static bool g_battUiLowBattery = false;
 
 static const char* const kWebConfigUsbRequiredLines[] = {
-    "Move the physical switch to USB.",
+    "Re-enter Web Config to retry.",
     "WebConfig was not started."
 };
 static const char* const kWebConfigSaveFailedLines[] = {
@@ -733,7 +733,7 @@ void SPIScreenManager::loop() {
     uint32_t inputMask = get_gamepad_activity_mask();
 
     refresh_screen_cfg_cache();
-    // Apply physical-switch visibility changes before handling this frame's
+    // Apply runtime visibility changes before handling this frame's
     // encoder input, so a stale menu entry cannot be activated.
     if (g_menuCfgDirty) {
         rebuildMenu();

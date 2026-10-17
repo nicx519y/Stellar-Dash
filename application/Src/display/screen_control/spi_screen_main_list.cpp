@@ -5,6 +5,7 @@
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 
 static const ScreenMenuMeta kMenuMeta[] = {
+    {15, SCREEN_FEATURE_TRANSPORT_MODE_SWITCH, "Connection"},
     {0, SCREEN_FEATURE_INPUT_MODE_SWITCH, "Platform"},
     {1, SCREEN_FEATURE_PROFILES_SWITCH, "Profiles"},
     {2, SCREEN_FEATURE_SOCD_MODE_SWITCH, "SOCD"},
@@ -45,18 +46,18 @@ const char* ScreenMain_InputModeAbbrev(InputMode mode) {
 uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds, uint8_t outCap) {
     if (!outIds || outCap == 0) return 0;
     uint8_t count = 0;
-    const uint32_t mask = sc.featuresMask;
+    const uint32_t mask = sc.featuresMask | SCREEN_FEATURE_TRANSPORT_MODE_SWITCH;
     const bool webConfigAllowed = BOARD_MODE.isWebConfigAllowed();
-    bool seen[32] = {false};
+    uint32_t seen = 0;
 
     for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
         uint8_t id = sc.featuresOrder[i];
         const ScreenMenuMeta* meta = ScreenMain_FindMenuMeta(id);
-        if (!meta) continue;
+        if (!meta || id >= 32u) continue;
         if (meta->bit == SCREEN_FEATURE_WEB_CONFIG_ENTRY && !webConfigAllowed) continue;
         if ((mask & meta->bit) == 0) continue;
-        if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
-        if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+        if (seen & (1u << id)) continue;
+        seen |= 1u << id;
         if (count < outCap) outIds[count++] = id;
     }
 
@@ -64,11 +65,12 @@ uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds
         for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
             uint8_t id = kMenuMeta[i].id;
             if (kMenuMeta[i].bit == SCREEN_FEATURE_WEB_CONFIG_ENTRY && !webConfigAllowed) continue;
-            if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0])) && seen[id]) continue;
-            if (id < (uint8_t)(sizeof(seen) / sizeof(seen[0]))) seen[id] = true;
+            if (seen & (1u << id)) continue;
+            seen |= 1u << id;
             if (count < outCap) outIds[count++] = kMenuMeta[i].id;
         }
     }
+    if (!(seen & SCREEN_FEATURE_TRANSPORT_MODE_SWITCH) && count < outCap) outIds[count++] = 15;
     return count;
 }
 

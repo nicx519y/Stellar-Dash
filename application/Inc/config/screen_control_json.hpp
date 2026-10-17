@@ -6,6 +6,7 @@
 namespace ScreenConfig {
 struct Feature { uint8_t id; const char* key; };
 constexpr Feature kFeatures[] = {
+    {15, "transportModeSwitch"},
     {3, "connectionModeSwitch"}, {0, "inputModeSwitch"}, {1, "profilesSwitch"},
     {2, "socdModeSwitch"}, {11, "buttonsPerformanceQuickSet"}, {13, "ledSetting"},
     {8, "screenBrightnessAdjust"}, {14, "power"}, {9, "webConfigEntry"}, {10, "calibrationModeSwitch"}
@@ -93,11 +94,11 @@ inline const char* applyJson(ScreenControlConfig& target, const cJSON* json, boo
     if (order && !cJSON_IsArray(order)) return "Invalid featuresOrder";
     if (order) {
         memset(sc.featuresOrder, 255, sizeof(sc.featuresOrder));
-        bool seen[15] = {}; unsigned pos = 0;
+        bool seen[16] = {}; unsigned pos = 0;
         const cJSON* entry;
         cJSON_ArrayForEach(entry, order) if (cJSON_IsString(entry)) {
             auto id = featureId(entry->valuestring);
-            if (id < 15 && !seen[id] && pos < SCREEN_FEATURE_COUNT) { sc.featuresOrder[pos++] = id; seen[id] = true; }
+            if (id < 16 && !seen[id] && pos < SCREEN_FEATURE_COUNT) { sc.featuresOrder[pos++] = id; seen[id] = true; }
         }
     }
     if (sc.currentPageId >= 4u && sc.currentPageId <= 7u) sc.currentPageId = kLed;

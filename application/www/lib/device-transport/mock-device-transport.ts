@@ -150,13 +150,22 @@ function mergePower(current: typeof DEFAULT_GLOBAL_CONFIG.power, patch: unknown,
   };
 }
 
+function mockConnectionFields(mode: unknown) {
+  return {
+    connectionMode: mode === ConnectionMode.RF24G ? ConnectionMode.RF24G : ConnectionMode.USB,
+    connectionModeReadOnly: true,
+    connectionModeSource: 'SOFTWARE_SETTING' as const,
+    effectiveConnectionMode: ConnectionMode.USB,
+  };
+}
+
 const DEFAULT_GLOBAL_CONFIG = {
   inputMode: Platform.XINPUT,
   defaultProfileId: 'profile-arcade',
   connectionMode: ConnectionMode.USB,
   connectionModeReadOnly: true,
-  connectionModeSource: 'PHYSICAL_SWITCH' as const,
-  physicalConnectionMode: ConnectionMode.USB,
+  connectionModeSource: 'SOFTWARE_SETTING' as const,
+  effectiveConnectionMode: ConnectionMode.USB,
   wirelessReportRate: WirelessReportRate.RATE_8K,
   reportRateStatus: {
     requested: WirelessReportRate.RATE_8K,
@@ -867,6 +876,8 @@ export class MockDeviceTransport implements DeviceTransport {
         this.globalConfig = {
           ...this.globalConfig,
           ...patch,
+          ...mockConnectionFields(this.globalConfig.connectionMode),
+          inputMode: this.globalConfig.connectionMode === ConnectionMode.RF24G ? Platform.XINPUT : (patch.inputMode as Platform ?? this.globalConfig.inputMode),
           power,
           defaultProfileId: this.defaultProfileId,
         };
@@ -1542,6 +1553,8 @@ export class MockDeviceTransport implements DeviceTransport {
           candidate.globalConfig = {
             ...candidate.globalConfig,
             ...globalPart,
+            ...mockConnectionFields(candidate.globalConfig.connectionMode),
+            inputMode: candidate.globalConfig.connectionMode === ConnectionMode.RF24G ? Platform.XINPUT : (globalPart.inputMode as Platform ?? candidate.globalConfig.inputMode),
             power: mergePower(candidate.globalConfig.power, globalPart.power, true),
           } as PersistedMockState['globalConfig'];
           if (typeof globalPart.defaultProfileId === 'string') {
@@ -1831,9 +1844,11 @@ export class MockDeviceTransport implements DeviceTransport {
     }
     this.globalConfig = {
       ...clone(state.globalConfig),
+      ...mockConnectionFields(state.globalConfig.connectionMode),
       power: mergePower(DEFAULT_GLOBAL_CONFIG.power, state.globalConfig.power, true),
       manualCalibrationActive: false,
     };
+    delete (this.globalConfig as Record<string, unknown>).physicalConnectionMode;
     this.screenControl = normalizeScreenControl(state.screenControl);
     this.hotkeys = clone(state.hotkeys);
     this.profiles = fixedMockProfiles(clone(state.profiles));

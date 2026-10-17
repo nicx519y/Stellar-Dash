@@ -84,6 +84,12 @@ python tools/ch585_isp_hold.py --execute
 不能代替 ISP 下载门禁。维护期间不要复位 STM32、另开刷写命令或拔线；不要
 仅按住 STM32 NRST，复位 GPIO 可能同时切断 TX。正在下载时不能再次运行保持工具。
 
+若旧脚本报告 `invalid command name "mrw"`，表示 ST-LINK 已连接且主控已暂停，
+但最小 OpenOCD 目标没有定义该辅助命令，TX 供电保持尚未完成。2026-10-17 已改用
+基于 `read_memory` 的自有单字读取函数，保留目标、引脚和回读检查；更新脚本后，
+确认没有正在下载、PB22 仍接地，再运行相同命令。主机寄存器模拟和本机 OpenOCD
+Tcl 离线验证通过，不表示已完成实机供电保持或 ISP 下载验收。
+
 ## 4. 在 WCHISPStudio V3.9 中准备下载
 
 选择 CH585 与实际 USB 下载接口，搜索并核对连接的是这块新板 TX。

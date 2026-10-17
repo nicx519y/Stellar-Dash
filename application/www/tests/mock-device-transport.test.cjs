@@ -211,6 +211,49 @@ async function createTransport(options = { storage: null }) {
   return transport;
 }
 
+test('software connection selection survives USB maintenance saves and imports', async () => {
+  const storage = new MemoryStorage();
+  const storageKey = 'software-connection-test';
+  const first = await createTransport({ storage, storageKey });
+  await first.request('update_global_config', { globalConfig: { connectionMode: 'RF24G' } });
+  assert.equal((await first.request('get_global_config')).data.globalConfig.connectionMode, 'USB');
+  await first.close();
+  // Simulate the persisted screen selection, not a WebConfig mode-change command.
+  const saved = JSON.parse(storage.getItem(storageKey));
+  saved.globalConfig.connectionMode = 'RF24G';
+  storage.setItem(storageKey, JSON.stringify(saved));
+  const transport = await createTransport({ storage, storageKey });
+  const check = async () => {
+    const config = (await transport.request('get_global_config')).data.globalConfig;
+    assert.equal(config.connectionMode, 'RF24G');
+    assert.equal(config.effectiveConnectionMode, 'USB');
+    assert.equal(config.connectionModeSource, 'SOFTWARE_SETTING');
+    assert.equal(config.ch585.role, 'MAINTENANCE');
+    assert.equal(config.connectionModeReadOnly, true);
+    assert.equal(config.physicalConnectionMode, undefined);
+    const { connectionModeLabel } = require('../lib/connection-mode.ts');
+    assert.match(connectionModeLabel(config, 'zh'), /记忆 RF24G.*当前 USB 配置/);
+  };
+  await check();
+  await transport.request('update_global_config', { globalConfig: { connectionMode: 'USB', inputMode: 'PS5' } });
+  await check();
+  assert.equal((await transport.request('get_global_config')).data.globalConfig.inputMode, 'XINPUT');
+  await transport.request('import_config_begin', {});
+  await transport.request('import_config_part', { section: 'global', data: { connectionMode: 'USB', inputMode: 'SWITCH' } });
+  await transport.request('import_config_finish', {});
+  await check();
+  await transport.request('update_screen_control_config', { screenControl: {
+    features: { transportModeSwitch: false, webConfigEntry: false },
+    featuresOrder: ['connectionModeSwitch', 'transportModeSwitch'],
+  } });
+  const screen = (await transport.request('get_screen_control_config')).data.screenControl;
+  assert.equal(screen.features.transportModeSwitch, true);
+  assert.equal(screen.features.webConfigEntry, true);
+  assert.ok(screen.featuresOrder.includes('connectionModeSwitch'));
+  assert.ok(screen.featuresOrder.includes('transportModeSwitch'));
+  await transport.close();
+});
+
 test('new devices use the factory hotkeys shown on the latest PCB', async () => {
   const transport = await createTransport();
   const result = await transport.request('get_hotkeys_config');
@@ -2435,7 +2478,7 @@ test('screen standby switch and grouped menus persist through Mock save, reload 
     currentPageId: 14, featuresOrder: ['power', 'ledSetting'] });
   const value = await get();
   assert.equal(value.currentPageId, 14);
-  assert.equal(value.featuresOrder.length, 10);
+  assert.equal(value.featuresOrder.length, 11);
   assert.equal(value.features.ledBrightnessAdjust, undefined);
   for (const invalid of [1, 'false', null]) {
     await assert.rejects(update({ standbyEnabled: invalid }), /Invalid standbyEnabled/);

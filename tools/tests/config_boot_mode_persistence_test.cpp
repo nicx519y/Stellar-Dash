@@ -5,7 +5,20 @@
 #include <cassert>
 #include <cstdlib>
 #include <iostream>
+#include <new>
 #include <vector>
+
+static size_t allocations = 0;
+void* operator new(size_t bytes) {
+    ++allocations;
+    if (void* memory = std::malloc(bytes ? bytes : 1)) return memory;
+    throw std::bad_alloc();
+}
+void* operator new[](size_t bytes) { return ::operator new(bytes); }
+void operator delete(void* memory) noexcept { std::free(memory); }
+void operator delete[](void* memory) noexcept { std::free(memory); }
+void operator delete(void* memory, size_t) noexcept { std::free(memory); }
+void operator delete[](void* memory, size_t) noexcept { std::free(memory); }
 
 // Real ConfigUtils and Storage; only the NOR peripheral is simulated.
 static std::vector<uint8_t> flash(8u * 1024u * 1024u, 0xFF);
@@ -82,7 +95,70 @@ static void assertDefaultProfileMappings(const Config &config) {
     }
 }
 
+template<typename Enum>
+struct ProtocolName { Enum value; const char* name; };
+
+template<typename Enum, size_t N>
+static void assertProtocolNames(const ProtocolName<Enum> (&expected)[N],
+    const char* (*format)(Enum), Enum (*parse)(const char*), Enum fallback, const char* fallbackName) {
+    for (const auto& entry : expected) {
+        assert(strcmp(format(entry.value), entry.name) == 0);
+        char copiedName[64];
+        strcpy(copiedName, entry.name);
+        assert(parse(copiedName) == entry.value);
+    }
+    for (const char* invalid : {static_cast<const char*>(nullptr), "", "unknown", "usb", "RF24G-extra"}) {
+        assert(parse(invalid) == fallback);
+    }
+    assert(strcmp(format(static_cast<Enum>(254)), fallbackName) == 0);
+}
+
+static void assertConfigurationProtocolNames() {
+    using namespace ConfigUtils;
+    const ProtocolName<InputMode> platforms[] = {
+        {INPUT_MODE_XINPUT, "XINPUT"}, {INPUT_MODE_PS4, "PS4"},
+        {INPUT_MODE_PS5, "PS5"}, {INPUT_MODE_SWITCH, "SWITCH"}, {INPUT_MODE_XBOX, "XBOX"}
+    };
+    const ProtocolName<ConnectionMode> connections[] = {
+        {CONNECTION_MODE_USB, "USB"}, {CONNECTION_MODE_RF24G, "RF24G"}
+    };
+    const ProtocolName<WirelessReportRate> rates[] = {
+        {RFM_RATE_1K, "1K"}, {RFM_RATE_2K, "2K"}, {RFM_RATE_4K, "4K"}, {RFM_RATE_8K, "8K"}
+    };
+    const ProtocolName<GamepadHotkey> actions[] = {
+        {HOTKEY_INPUT_MODE_WEBCONFIG, "WebConfigMode"},
+        {HOTKEY_INPUT_MODE_SWITCH, "NSwitchMode"},
+        {HOTKEY_INPUT_MODE_XINPUT, "XInputMode"},
+        {HOTKEY_INPUT_MODE_PS4, "PS4Mode"},
+        {HOTKEY_INPUT_MODE_PS5, "PS5Mode"},
+        {HOTKEY_INPUT_MODE_XBOX, "XBoxMode"},
+        {HOTKEY_LEDS_EFFECTSTYLE_NEXT, "LedsEffectStyleNext"},
+        {HOTKEY_LEDS_EFFECTSTYLE_PREV, "LedsEffectStylePrev"},
+        {HOTKEY_LEDS_BRIGHTNESS_UP, "LedsBrightnessUp"},
+        {HOTKEY_LEDS_BRIGHTNESS_DOWN, "LedsBrightnessDown"},
+        {HOTKEY_LEDS_ENABLE_SWITCH, "LedsEnableSwitch"},
+        {HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT, "AmbientLightEffectStyleNext"},
+        {HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV, "AmbientLightEffectStylePrev"},
+        {HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP, "AmbientLightBrightnessUp"},
+        {HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN, "AmbientLightBrightnessDown"},
+        {HOTKEY_AMBIENT_LIGHT_ENABLE_SWITCH, "AmbientLightEnableSwitch"},
+        {HOTKEY_INPUT_MODE_CALIBRATION, "CalibrationMode"},
+        {HOTKEY_SYSTEM_REBOOT, "SystemReboot"}
+    };
+    const size_t before = allocations;
+    assertProtocolNames(platforms, getInputModeString, getInputModeFromString, INPUT_MODE_XINPUT, "XINPUT");
+    assertProtocolNames(connections, getConnectionModeString, getConnectionModeFromString, CONNECTION_MODE_USB, "USB");
+    assertProtocolNames(rates, getWirelessReportRateString, getWirelessReportRateFromString, RFM_RATE_1K, "1K");
+    assertProtocolNames(actions, getGamepadHotkeyString, getGamepadHotkeyFromString, HOTKEY_NONE, "None");
+    for (auto rate : rates) assert(getWirelessReportRateHz(rate.value) == static_cast<uint16_t>(rate.value));
+    assert(getInputModeFromString("XInput") == INPUT_MODE_XINPUT);
+    assert(getGamepadHotkeyFromString("None") == HOTKEY_NONE);
+    assert(getGamepadHotkeyFromString("WebConfigMode ") == HOTKEY_NONE);
+    assert(allocations == before);
+}
+
 int main() {
+    assertConfigurationProtocolNames();
     static_assert(offsetof(ScreenControlConfig,reserved1)==offsetof(ScreenControlConfig,txIspReturnBootMode));
     auto& storage=STORAGE_MANAGER;
     storage.initConfig();

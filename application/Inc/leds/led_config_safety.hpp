@@ -14,6 +14,27 @@ constexpr uint8_t kLcdMaxHardwareDrivePercent = 60u;
 constexpr uint32_t kStartupRampDurationMs = 3000u;
 constexpr uint32_t kRippleBaseDurationMs = 3000u;
 
+// Only a completed frame (including its reset tail) releases the startup
+// black gate. Restart the ramp clock when main-loop service observes it.
+struct StartupFrameGate {
+    uint32_t baseline = 0u;
+    bool waiting = false;
+
+    void arm(uint32_t completedFrames) {
+        baseline = completedFrames;
+        waiting = true;
+    }
+
+    bool ready(uint32_t completedFrames, uint32_t now, uint32_t& rampStart) {
+        if (waiting) {
+            if (completedFrames == baseline) return false;
+            waiting = false;
+            rampStart = now;
+        }
+        return true;
+    }
+};
+
 static inline uint8_t clampBrightnessPercent(uint8_t value)
 {
     return value > kMaxBrightnessPercent ? kMaxBrightnessPercent : value;

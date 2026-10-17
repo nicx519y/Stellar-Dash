@@ -9,7 +9,7 @@ extern "C" {
 
 /*
  * Poll the raw, board-owned confirmation inputs from the WebConfig main loop.
- * The implementation requires the physical USB position, the CH585
+ * The implementation requires the selected USB maintenance runtime, the CH585
  * maintenance role, a released-to-armed transition, and a two-second
  * GPIO1+FN hold before producing one short-lived, one-shot authorization.
  */

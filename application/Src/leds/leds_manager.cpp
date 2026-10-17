@@ -113,7 +113,7 @@ void LEDsManager::setup()
         return;
     }
     runtimeEnabled = true;
-#if HBOX_LED_DMA_DIAGNOSTIC
+#if HBOX_LED_DMA_DIAGNOSTIC == 1 || HBOX_LED_DMA_DIAGNOSTIC == 2
     WS2812B_DiagnosticReset();
     return;
 #endif
@@ -164,6 +164,9 @@ void LEDsManager::setup()
     keyStartupRampActive = false;
     ambientStartupRampActive = false;
     if (opts->ledEnabled) {
+        uint32_t completedFrames = 0u;
+        keyStrip.updateStats(nullptr, &completedFrames);
+        keyStartupFrameGate.arm(completedFrames);
         const WS2812B_StateTypeDef state = keyStrip.start();
         keyStartupRampActive = (state == WS2812B_RUNNING);
         APP_STAGE("L02", "key strip state=%u; nonblocking %lu ms ramp started",
@@ -220,7 +223,7 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     if (!runtimeEnabled || BOARD_POWER.isSafeLatched()) {
         return;
     }
-#if HBOX_LED_DMA_DIAGNOSTIC
+#if HBOX_LED_DMA_DIAGNOSTIC == 1 || HBOX_LED_DMA_DIAGNOSTIC == 2
     WS2812B_DiagnosticService(HAL_GetTick());
     return;
 #endif
@@ -255,10 +258,14 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     const LedStripController& keyStrip = LedStripController::keys();
     const LedStripController& ambientStrip = LedStripController::ambient();
 
-    const uint8_t keyBrightness = startupRampDriveBrightness(
+    uint32_t completedKeyFrames = 0u;
+    keyStrip.updateStats(nullptr, &completedKeyFrames);
+    const bool keyBlackFrameComplete = keyStartupFrameGate.ready(
+        completedKeyFrames, now, keyStartupRampStartTime);
+    const uint8_t keyBrightness = keyBlackFrameComplete ? startupRampDriveBrightness(
         opts->ledBrightness, keyStrip.descriptor().maxDrivePercent,
         keyStartupRampActive,
-        keyStartupRampStartTime, now);
+        keyStartupRampStartTime, now) : 0u;
     setLedsDriveBrightness(opts->ledEnabled ? keyBrightness : 0u);
 
     const uint8_t ambientBrightness = startupRampDriveBrightness(
@@ -469,6 +476,9 @@ void LEDsManager::enableSwitch() {
         updateColorsFromConfig();
         keyStrip.setAllBrightness(0u);
         (void)keyStrip.submitFrame();
+        uint32_t completedFrames = 0u;
+        keyStrip.updateStats(nullptr, &completedFrames);
+        keyStartupFrameGate.arm(completedFrames);
         const WS2812B_StateTypeDef state = keyStrip.start();
         keyStrip.setPowerEnabled(state == WS2812B_RUNNING);
         keyStartupRampStartTime = now;
@@ -571,6 +581,9 @@ void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enab
         keyStrip.setAllBrightness(0u);
         (void)keyStrip.submitFrame();
         if (opts->ledEnabled) {
+            uint32_t completedFrames = 0u;
+            keyStrip.updateStats(nullptr, &completedFrames);
+            keyStartupFrameGate.arm(completedFrames);
             const WS2812B_StateTypeDef state = keyStrip.start();
             keyStrip.setPowerEnabled(state == WS2812B_RUNNING);
             keyStartupRampStartTime = now;

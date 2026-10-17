@@ -16,8 +16,8 @@ export function InputModeSettingContent(props: {
     }) {
     const { globalConfig, stageDeferredGlobalConfig } = useGamepadFields("globalConfig", "stageDeferredGlobalConfig");
     const { t } = useLanguage();
-    const physicalRf = (globalConfig.physicalConnectionMode ?? globalConfig.connectionMode) === ConnectionMode.RF24G;
-    const displayedInputMode = physicalRf
+    const preferredRf = globalConfig.connectionMode === ConnectionMode.RF24G;
+    const displayedInputMode = preferredRf
         ? Platform.XINPUT
         : globalConfig.inputMode
             ? platformForDisplay(globalConfig.inputMode)
@@ -32,13 +32,13 @@ export function InputModeSettingContent(props: {
     ]);
 
     useEffect(() => {
-        if (physicalRf && globalConfig.inputMode !== Platform.XINPUT) {
+        if (preferredRf && globalConfig.inputMode !== Platform.XINPUT) {
             stageDeferredGlobalConfig({ inputMode: Platform.XINPUT });
         }
-    }, [physicalRf, globalConfig.inputMode, stageDeferredGlobalConfig]);
+    }, [preferredRf, globalConfig.inputMode, stageDeferredGlobalConfig]);
 
     const onInputModeChange = (detail: { value: Platform }) => {
-        if (physicalRf && detail.value !== Platform.XINPUT) {
+        if (preferredRf && detail.value !== Platform.XINPUT) {
             stageDeferredGlobalConfig({ ...globalConfig, inputMode: Platform.XINPUT });
             return;
         }
@@ -67,7 +67,7 @@ export function InputModeSettingContent(props: {
                             key={platform}
                             value={platform}
                             w="100%"
-                            disabled={props.disabled || (physicalRf && platform !== Platform.XINPUT)}
+                            disabled={props.disabled || (preferredRf && platform !== Platform.XINPUT)}
                         >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl minH="50px" px={3} py={1} gap={3}>

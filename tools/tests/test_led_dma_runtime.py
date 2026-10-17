@@ -38,6 +38,9 @@ class LedDmaRuntimeTests(unittest.TestCase):
     def test_hold_diagnostic_with_dma_and_timer_stubs(self):
         self.run_variant(2)
 
+    def test_single_frame_hold_with_dma_and_timer_stubs(self):
+        self.run_variant(3)
+
     def run_variant(self, diagnostic):
         compiler = shutil.which("g++")
         self.assertIsNotNone(compiler, "host g++ is required")
@@ -54,8 +57,10 @@ class LedDmaRuntimeTests(unittest.TestCase):
                          str(ROOT / "tools/tests/led_dma_runtime_test.cpp"),
                          "-o", str(executable)])
             scenarios = ("normal", "delayed", "dual", "error", "boundaries", "encoding", "dma-latency", "start-phase", "startup-black-frame",
-                         "all-key-pixels", "partial-key-completion", "resource-key-pixels")
-            if diagnostic:
+                         "all-key-pixels", "partial-key-completion", "resource-key-pixels", "key-power-startup")
+            if diagnostic == 3:
+                scenarios = ("single-frame-hold",)
+            elif diagnostic:
                 scenarios += ("diagnostic",)
             for scenario in scenarios:
                 with self.subTest(scenario=scenario):

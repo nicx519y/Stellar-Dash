@@ -19,7 +19,7 @@ WebConfig 与 admin 的双域名上线、Hosted 打包、更新和回滚统一�
 - 配置状态通过 [gamepad-config-context.tsx](contexts/gamepad-config-context.tsx) 和现有设备队列协调。持久化成功以设备应答为准，断线或拒绝不能显示为已保存。
 - 普通自动保存保留按键监测与 LED 预览；校准、图片、导入和升级等独占操作走各自边界，见 [保存反馈说明](../../docs/webconfig-live-autosave-feedback.md)。
 - Profile 列表依照设备返回的容量和 `slotIndex`，不恢复创建/删除入口；槽位迁移和兼容规则见 [固定 Profile 槽位](../../docs/fixed-profile-slots.md)。
-- USB 网页配对只保存绑定，不启用 TX RF 或改变物理连接模式；部分提交遵守现有续作逻辑，见 [USB 配对说明](../../docs/WEBCONFIG_RX_BINDING_20260923.md)。
+- USB 网页配对只保存绑定，不启用 TX RF 或改变屏幕记忆的连接模式；普通保存和备份导入也保留该选择。`connectionMode` 表示记忆选择，`effectiveConnectionMode` 表示当前链路，平台限制依据前者；见 [两档 PCB 适配](../../docs/two-position-pcb-firmware.md)。配对部分提交遵守现有续作逻辑，见 [USB 配对说明](../../docs/WEBCONFIG_RX_BINDING_20260923.md)。
 - 用户账户登录与管理员操作保持原有会话和来源校验；WebHID 设备直连不替代用户登录。
 
 ## 常用命令与验证

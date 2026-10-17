@@ -22,7 +22,12 @@ class IspHoldTests(unittest.TestCase):
                 odr=address-4
                 registers[odr]=(registers[odr] & ~(value>>16)) | (value&0xffff)
             else: registers[address]=value
-        tcl.createcommand('mrw',lambda addr:str(registers[int(addr,0)]))
+        def read_memory(addr, width, count):
+            self.assertEqual((int(width), int(count)), (32, 1))
+            return (registers[int(addr, 0)],)
+        # Minimal OpenOCD targets expose read_memory, but do not define the
+        # mrw convenience proc from full target scripts.
+        tcl.createcommand('read_memory', read_memory)
         tcl.createcommand('mww',write)
         tcl.createcommand('sleep',lambda ms:events.append(('sleep',int(ms))))
         tcl.createcommand('echo',lambda text:events.append(('echo',text)))
@@ -57,6 +62,13 @@ class IspHoldTests(unittest.TestCase):
                                     hold.RCC_AHB4ENR,hold.GPIO_E,hold.GPIO_E+4,hold.GPIO_E+0xc,hold.GPIO_E+0x18,
                                     hold.GPIO_I,hold.GPIO_I+4,hold.GPIO_I+0xc,hold.GPIO_I+0x18} for addr,_ in writes))
 
+    def test_minimal_target_reads_do_not_depend_on_mrw(self):
+        tcl, _, _, _, events = self.interpreter()
+        self.assertEqual(tcl.eval('info commands mrw'), '')
+        tcl.eval(hold.hold_script())
+        self.assertFalse(any(e[0] == 'echo' and '12345678' in e[1] for e in events))
+        self.assertNotIn('[mrw ', hold.hold_script())
+
     def test_wrong_target_or_uid_stops_before_gpio_writes(self):
         for options,expected in [({'wrong_chip':True},None),({'uid':(0,0,0)},None),
                                  ({'uid':(0xffffffff,)*3},None),({},'1'*24)]:
@@ -81,7 +93,7 @@ class IspHoldTests(unittest.TestCase):
             if address==hold.DBGMCU: return str(0x450)
             if 0x1ff1e800<=address<=0x1ff1e808: return '123'
             return '0'
-        tcl.createcommand('mrw',wrong_gpio)
+        tcl.createcommand('read_memory', lambda addr, width, count: (wrong_gpio(addr),))
         with self.assertRaises(tkinter.TclError): tcl.eval(hold.hold_script())
         self.assertFalse(any(e[0]=='echo' and 'READY:' in e[1] for e in events))
 

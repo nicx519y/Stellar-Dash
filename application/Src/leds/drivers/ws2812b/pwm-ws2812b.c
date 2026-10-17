@@ -55,6 +55,13 @@ enum {
 static bool g_keys_initialized = false;
 static bool g_ambient_initialized = false;
 
+#if HBOX_LED_DMA_DIAGNOSTIC == 3
+/* Temporary key-only experiment: one green frame per rail start. Normal
+ * setters may keep editing RAM, but cannot transmit again until Stop/Start.
+ * The ambient strip and all production timing/ownership remain unchanged. */
+static bool g_keys_single_frame_sent = false;
+#endif
+
 static volatile WS2812B_StateTypeDef g_keys_state = WS2812B_STOP;
 static volatile WS2812B_StateTypeDef g_ambient_state = WS2812B_STOP;
 
@@ -417,7 +424,7 @@ static void complete_strip(WS2812B_Strip strip)
 {
     DMA_HandleTypeDef* hdma = strip_dma_handle(strip);
     volatile WS2812B_UpdatePhase* phase = strip_update_phase(strip);
-#if HBOX_LED_DMA_DIAGNOSTIC
+#if HBOX_LED_DMA_DIAGNOSTIC == 1 || HBOX_LED_DMA_DIAGNOSTIC == 2
     if (hdma != NULL && hdma->Init.Mode == DMA_CIRCULAR &&
         *strip_state(strip) == WS2812B_RUNNING &&
         *phase == WS2812B_UPDATE_TRANSMITTING &&
@@ -578,7 +585,28 @@ WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip)
     *strip_update_phase(strip) = WS2812B_UPDATE_IDLE;
     *strip_dirty_flag(strip) = true;
     *st = WS2812B_RUNNING;
+#if HBOX_LED_DMA_DIAGNOSTIC == 3
+    if (strip == WS2812B_STRIP_KEYS) {
+        g_keys_single_frame_sent = false;
+        /* Do not latch the normal startup black frame or the first dim ramp
+         * step. Give every key the same visible, capped test frame. */
+        WS2812B_SetAllLEDColorStrip(strip, 0u, 255u, 0u);
+        WS2812B_SetAllLEDBrightnessStrip(strip, 32u);
+    }
+#endif
+    if (strip == WS2812B_STRIP_KEYS) {
+        /* Drive DIN low before connecting the LED supply. DMA requests stay
+         * disabled, and both active CCR and preload were cleared above.
+         * Do not reset the shared timer or disturb an active ambient frame. */
+        htim4.Instance->CCER |= TIM_CCER_CC1E;
+        __HAL_TIM_ENABLE(&htim4);
+    }
     strip_power_write(strip, true);
+    if (strip == WS2812B_STRIP_KEYS) {
+        /* The boost delay precedes LED_EN. Allow the switched LED rail to
+         * settle too; keep IRQs enabled and DIN low throughout this interval. */
+        HAL_Delay(BOARD_KEY_LED_POWER_SETTLE_MS);
+    }
     (void)WS2812B_SubmitStrip(strip);
     return *st;
 }
@@ -768,6 +796,14 @@ bool WS2812B_SubmitStrip(WS2812B_Strip strip)
         ++g_tx_diagnostics[strip].busyDeferrals;
         return false;
     }
+#if HBOX_LED_DMA_DIAGNOSTIC == 3
+    if (strip == WS2812B_STRIP_KEYS && g_keys_single_frame_sent &&
+        *strip_state(strip) == WS2812B_RUNNING) {
+        /* complete_strip leaves CCR=0 and power enabled after the reset tail.
+         * No repeated DMA, rail cycling, or GPIO remux during observation. */
+        return true;
+    }
+#endif
     if (!*dirty) {
         return true;
     }
@@ -792,7 +828,13 @@ bool WS2812B_SubmitStrip(WS2812B_Strip strip)
         return true;
     }
 
-    return start_encoded_frame(strip);
+    const bool started = start_encoded_frame(strip);
+#if HBOX_LED_DMA_DIAGNOSTIC == 3
+    if (strip == WS2812B_STRIP_KEYS && started) {
+        g_keys_single_frame_sent = true;
+    }
+#endif
+    return started;
 }
 
 void WS2812B_ServiceStrip(WS2812B_Strip strip)
@@ -953,6 +995,6 @@ void WS2812B_Test(void)
     APP_DBG("Hex: %x", RGBToHex(r, g, b));
 }
 
-#if HBOX_LED_DMA_DIAGNOSTIC
+#if HBOX_LED_DMA_DIAGNOSTIC == 1 || HBOX_LED_DMA_DIAGNOSTIC == 2
 #include "pwm-ws2812b-diagnostic.inc"
 #endif

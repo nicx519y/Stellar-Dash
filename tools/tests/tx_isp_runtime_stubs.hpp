@@ -46,7 +46,7 @@ inline void SystemSleep_Idle() {}
 enum class BoardMode { Usb, Rf, CenterOff };
 struct FakeBoardMode {
     BoardMode mode=BoardMode::Usb; bool allowed=true;
-    void setup() {} void update(uint32_t) {}
+    void setup(BoardMode selected=BoardMode::Usb) { mode=selected; } void update(uint32_t) {}
     BoardMode current() { return mode; } bool isStable() { return true; }
     bool isUsbStartupSafe() { return mode==BoardMode::Usb; }
     bool isWebConfigAllowed() { return allowed; }
@@ -112,7 +112,7 @@ struct FakeStorage {
     uint16_t committedReturnMode=0;
     bool saveOk=true;
     int saves=0;
-    struct { int version=34; ScreenControlConfig screenControl; } config;
+    struct { int version=34; ConnectionMode connectionMode=CONNECTION_MODE_USB; ScreenControlConfig screenControl; } config;
     BootMode getBootMode() { return boot; } InputMode getInputMode() { return INPUT_MODE_XINPUT; }
     void setBootMode(BootMode value) { boot=value; }
     void initConfig() { boot=committedBoot; config.screenControl.txIspReturnBootMode=committedReturnMode; }
@@ -125,6 +125,10 @@ struct FakeStorage {
 };
 inline FakeStorage STORAGE_MANAGER;
 namespace ConfigUtils { template<class T> bool fromStorage(T&) { return true; } }
+namespace ConnectionConfig { template<class T> ConnectionMode selected(const T& config) { return config.connectionMode; } }
+#define SCREEN_FEATURE_TRANSPORT_MODE_SWITCH (1u<<15)
+#define SCREEN_FEATURE_LED_SETTING (1u<<13)
+#define SCREEN_FEATURE_POWER (1u<<14)
 #define SCREEN_FEATURE_COUNT 12
 #define SCREEN_FEATURE_INPUT_MODE_SWITCH (1u<<0)
 #define SCREEN_FEATURE_PROFILES_SWITCH (1u<<1)

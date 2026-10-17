@@ -21,26 +21,21 @@ public:
         return instance;
     }
 
-    void setup();
-    void update(uint32_t nowMs);
+    // Latched at runtime entry; saving a preference does not hot-switch.
+    void setup(BoardMode mode = BoardMode::Usb);
     BoardMode current() const { return stableMode; }
     bool isStable() const { return stable; }
-    bool isWebConfigAllowed() const { return stable && stableMode == BoardMode::Usb; }
-    /* Recheck the pins before reusing power prepared during blocking UI init. */
+    bool isWebConfigAllowed() const { return stable && (stableMode == BoardMode::Usb || stableMode == BoardMode::Rf); }
+    /* Prepared USB power belongs to the selected runtime, not GPIO levels. */
     bool isUsbStartupSafe() const {
-        return stable && stableMode == BoardMode::Usb && readRaw() == BoardMode::Usb;
+        return stable && stableMode == BoardMode::Usb;
     }
-    bool consumeChanged();
 
 private:
     BoardModeManager() = default;
-    BoardMode readRaw() const;
 
     BoardMode stableMode = BoardMode::CenterOff;
-    BoardMode candidateMode = BoardMode::CenterOff;
-    uint32_t candidateSinceMs = 0u;
     bool stable = false;
-    bool changed = false;
 };
 
 #define BOARD_MODE BoardModeManager::getInstance()

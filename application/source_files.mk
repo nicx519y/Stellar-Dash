@@ -159,6 +159,7 @@ Src/display/screen_control/spi_screen_detail_ambient_brightness.cpp \
 Src/display/screen_control/spi_screen_detail_ambient_effect.cpp \
 Src/display/screen_control/spi_screen_detail_buttons_performance.cpp \
 Src/display/screen_control/spi_screen_detail_calibration_mode.cpp \
+Src/display/screen_control/spi_screen_detail_connection.cpp \
 Src/display/screen_control/spi_screen_detail_input_mode.cpp \
 Src/display/screen_control/spi_screen_detail_light_brightness.cpp \
 Src/display/screen_control/spi_screen_detail_light_effect.cpp \

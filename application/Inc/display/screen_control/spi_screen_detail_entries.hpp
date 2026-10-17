@@ -10,6 +10,11 @@ extern "C" {
 #include "st7789.h"
 }
 
+uint8_t ScreenDetailConnection_InitIndex(void);
+void ScreenDetailConnection_Rotate(uint8_t* ioIndex, int8_t det);
+void ScreenDetailConnection_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
+bool ScreenDetailConnection_OnConfirm(uint8_t index);
+
 uint8_t ScreenDetailInputMode_InitIndex(void);
 void ScreenDetailInputMode_Rotate(uint8_t* ioIndex, int8_t det);
 void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);

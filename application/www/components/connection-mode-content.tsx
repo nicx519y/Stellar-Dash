@@ -8,6 +8,7 @@ import { TitleLabel } from './ui/title-label';
 import { SettingDescription } from './ui/setting-description';
 import { RxReceiverSlot } from './rx-receiver-slot';
 import { InputModeSettingContent } from './input-mode-content';
+import { connectionModeLabel } from '@/lib/connection-mode';
 
 const rateOptions: WirelessReportRate[] = [
     WirelessReportRate.RATE_1K,
@@ -36,7 +37,7 @@ function formatAutoSleep(ms: number) {
 
 export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolean }) {
     const { globalConfig, stageDeferredGlobalConfig } = useGamepadFields("globalConfig", "stageDeferredGlobalConfig");
-    const { t } = useLanguage();
+    const { t, currentLanguage } = useLanguage();
     const rate = globalConfig.wirelessReportRate ?? WirelessReportRate.RATE_1K;
     const rateIndex = Math.max(rateOptions.indexOf(rate), 0);
     const power = globalConfig.power ?? defaultPower;
@@ -73,6 +74,14 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
 
             <VStack as="section" aria-label={t.CONNECTION_MODE_TITLE} align="stretch" gap={6}>
                 <TitleLabel title={t.CONNECTION_MODE_TITLE} />
+                <VStack align="stretch" gap={2}>
+                    <Text role="status" fontSize="sm">{connectionModeLabel(globalConfig, currentLanguage)}</Text>
+                    <Text fontSize="xs" color="fg.muted">
+                        {currentLanguage === 'zh'
+                            ? '在设备屏幕的 Connection 菜单选择 USB 或 2.4G RF，保存后重启生效。退出网页配置后恢复记忆的模式。'
+                            : 'Choose USB or 2.4G RF in the device screen’s Connection menu. The device saves and restarts. Exiting WebConfig restores the saved mode.'}
+                    </Text>
+                </VStack>
 
                 <RxReceiverSlot disabled={props.disabled} />
 

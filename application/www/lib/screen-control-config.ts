@@ -1,7 +1,7 @@
 import { DEFAULT_SCREEN_CONTROL_CONFIG, normalizeScreenStandbyTimeout, type ScreenControlConfig, type ScreenControlFeatureKey } from '../types/gamepad-config';
 
 export const SCREEN_FEATURE_IDS: Record<ScreenControlFeatureKey, number> = {
-  inputModeSwitch: 0, profilesSwitch: 1, socdModeSwitch: 2, connectionModeSwitch: 3,
+  inputModeSwitch: 0, profilesSwitch: 1, socdModeSwitch: 2, connectionModeSwitch: 3, transportModeSwitch: 15,
   buttonsPerformanceQuickSet: 11, ledSetting: 13, screenBrightnessAdjust: 8, power: 14,
   webConfigEntry: 9, calibrationModeSwitch: 10,
 };
@@ -19,6 +19,7 @@ export function normalizeScreenControl(value: unknown, live = false): ScreenCont
   }
   if (legacy) features.ledSetting = legacyLedKeys.some(key => oldFeatures[key] === true);
   features.webConfigEntry = true;
+  features.transportModeSwitch = true;
   const order: ScreenControlFeatureKey[] = [];
   const add = (key: unknown) => {
     if (typeof key === 'string' && Object.hasOwn(features, key) && !order.includes(key as ScreenControlFeatureKey)) order.push(key as ScreenControlFeatureKey);

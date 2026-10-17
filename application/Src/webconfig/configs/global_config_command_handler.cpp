@@ -11,6 +11,7 @@
 #include "system_logger.h"
 #include "config.hpp"
 #include "board_mode.hpp"
+#include "connection_mode_config.hpp"
 #include "usb_board_link.hpp"
 #include "usbdriver.hpp"
 #include "config_transport_sink.hpp"
@@ -158,46 +159,24 @@ static cJSON* get_hotkey_key_item(cJSON* hotkeyItem) {
     return cJSON_IsNumber(legacyVirtualPinItem) ? legacyVirtualPinItem : nullptr;
 }
 
-static const char* physical_mode_string() {
-    if (!BOARD_MODE.isStable()) {
-        return "UNKNOWN";
-    }
-
-    switch (BOARD_MODE.current()) {
-        case BoardMode::Usb:
-            return "USB";
-        case BoardMode::Rf:
-            return "RF24G";
-        case BoardMode::CenterOff:
-            return "OFF";
-        case BoardMode::Fault:
-        default:
-            return "FAULT";
+static const char* effective_connection_mode() {
+    if (!USB_BOARD_LINK.isRoleLocked()) return "UNKNOWN";
+    switch (USB_BOARD_LINK.role()) {
+        case USB_BOARD_ROLE_USB:
+        case USB_BOARD_ROLE_MAINTENANCE: return "USB";
+        case USB_BOARD_ROLE_RF: return "RF24G";
+        default: return "UNKNOWN";
     }
 }
 
-static ConnectionMode physical_connection_mode(const Config& config) {
-    if (BOARD_MODE.isStable()) {
-        if (BOARD_MODE.current() == BoardMode::Rf) {
-            return ConnectionMode::CONNECTION_MODE_RF24G;
-        }
-        if (BOARD_MODE.current() == BoardMode::Usb) {
-            return ConnectionMode::CONNECTION_MODE_USB;
-        }
-    }
-
-    /* Compatibility value only while the switch is OFF/faulted/not stable. */
-    return config.connectionMode;
-}
-
-static bool physical_rf_selected() {
-    return BOARD_MODE.isStable() && BOARD_MODE.current() == BoardMode::Rf;
+static bool preferred_rf_selected() {
+    return ConnectionConfig::selected(STORAGE_MANAGER.config) == CONNECTION_MODE_RF24G;
 }
 
 static void add_latest_board_json(cJSON* globalConfigJSON, const Config& config) {
     cJSON_AddBoolToObject(globalConfigJSON, "connectionModeReadOnly", true);
-    cJSON_AddStringToObject(globalConfigJSON, "connectionModeSource", "PHYSICAL_SWITCH");
-    cJSON_AddStringToObject(globalConfigJSON, "physicalConnectionMode", physical_mode_string());
+    cJSON_AddStringToObject(globalConfigJSON, "connectionModeSource", "SOFTWARE_SETTING");
+    cJSON_AddStringToObject(globalConfigJSON, "effectiveConnectionMode", effective_connection_mode());
 
     cJSON* hardwareJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(hardwareJSON, "batteryTopology", "SINGLE_1S2P");
@@ -301,7 +280,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleGetGlobalConfig(const De
     const char* modeStr = ConfigUtils::getInputModeString(config.inputMode);
     cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
     cJSON_AddStringToObject(globalConfigJSON, "connectionMode",
-                            ConfigUtils::getConnectionModeString(physical_connection_mode(config)));
+                            ConfigUtils::getConnectionModeString(ConnectionConfig::selected(config)));
     cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
     cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
     add_latest_board_json(globalConfigJSON, config);
@@ -352,7 +331,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateGlobalConfig(const
             config.wirelessReportRate = ConfigUtils::getWirelessReportRateFromString(reportRateItem->valuestring);
         }
 
-        if (physical_rf_selected()) {
+        if (preferred_rf_selected()) {
             config.inputMode = INPUT_MODE_XINPUT;
         }
         
@@ -538,7 +517,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportAllConfig(const De
          LOG_ERROR("DeviceCommand", "import_all_config: Failed to parse configuration");
          return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to parse configuration");
     }
-    if (physical_rf_selected()) {
+    if (preferred_rf_selected()) {
         candidate.inputMode = INPUT_MODE_XINPUT;
     }
     if (!valid_default_profile(candidate)) {
@@ -620,12 +599,12 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "inputMode")) && cJSON_IsString(item)) {
             config.inputMode = ConfigUtils::getInputModeFromString(item->valuestring);
         }
-        // connectionMode is selected by the physical switch and is never
+        // connectionMode is selected by the local screen and is never
         // restored from a configuration file.
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "wirelessReportRate")) && cJSON_IsString(item)) {
             config.wirelessReportRate = ConfigUtils::getWirelessReportRateFromString(item->valuestring);
         }
-        if (physical_rf_selected()) {
+        if (preferred_rf_selected()) {
             config.inputMode = INPUT_MODE_XINPUT;
         }
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "defaultProfileId")) && cJSON_IsString(item)) {

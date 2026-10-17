@@ -18,6 +18,8 @@ application/build-release-audit-unlocked/
 application/build_auto_sleep_*/
 application/build_wfi_*/
 application/build_screen_idle_unlocked/
+application/build_led_single_frame_unlocked/
+application/build_led_startup_unlocked/
 application/build_stop_unlocked/
 application/build-webhid-direct-check/
 application/build-boot-profile*/

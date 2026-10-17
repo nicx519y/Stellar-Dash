@@ -10,6 +10,7 @@
 #include "leds/gradient_color.hpp"
 #include "leds/led_animation.hpp"
 #include "leds/led_strip_controller.hpp"
+#include "leds/led_config_safety.hpp"
 #include "board_cfg.h"
 
 class LEDsManager {
@@ -61,6 +62,7 @@ class LEDsManager {
         uint32_t keyStartupRampStartTime;
         uint32_t ambientStartupRampStartTime;
         bool keyStartupRampActive;
+        LedConfigSafety::StartupFrameGate keyStartupFrameGate;
         bool ambientStartupRampActive;
         uint32_t lastDmaStatsTime;
         uint32_t lastKeyCompleteCount;

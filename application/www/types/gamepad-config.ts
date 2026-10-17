@@ -92,8 +92,8 @@ export interface GlobalConfig {
     defaultProfileId?: string;
     connectionMode?: ConnectionMode;
     connectionModeReadOnly?: boolean;
-    connectionModeSource?: 'PHYSICAL_SWITCH';
-    physicalConnectionMode?: PhysicalConnectionMode;
+    connectionModeSource?: 'SOFTWARE_SETTING';
+    effectiveConnectionMode?: EffectiveConnectionMode;
     wirelessReportRate?: WirelessReportRate;
     power?: PowerConfig;
     hardware?: HardwareLayout;
@@ -116,7 +116,7 @@ export interface ReportRateStatus {
     limit: 'NONE' | 'USB_PROFILE_LIMIT' | 'USB_NOT_HIGH_SPEED' | 'BOARD_LINK_COMPAT';
 }
 
-export type PhysicalConnectionMode = ConnectionMode | 'OFF' | 'FAULT' | 'UNKNOWN';
+export type EffectiveConnectionMode = ConnectionMode | 'FAULT' | 'UNKNOWN';
 
 export interface HardwareLayout {
     hardwareVersion: '2.0.0' | string;
@@ -149,7 +149,8 @@ export interface ScreenControlFeatures {
     inputModeSwitch: boolean;
     profilesSwitch: boolean;
     socdModeSwitch: boolean;
-    connectionModeSwitch: boolean;
+    connectionModeSwitch: boolean; // Legacy key for Report Rate.
+    transportModeSwitch: boolean;
     buttonsPerformanceQuickSet: boolean;
     ledSetting: boolean;
     power: boolean;
@@ -165,7 +166,7 @@ export type ScreenControlFeatureKey = keyof ScreenControlFeatures;
 export function withRequiredWebConfigEntry(
     features: ScreenControlFeatures,
 ): ScreenControlFeatures {
-    return { ...features, webConfigEntry: true };
+    return { ...features, webConfigEntry: true, transportModeSwitch: true };
 }
 
 export interface ScreenControlConfig {
@@ -199,6 +200,7 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         profilesSwitch: true,
         socdModeSwitch: true,
         connectionModeSwitch: true,
+        transportModeSwitch: true,
         buttonsPerformanceQuickSet: true,
         ledSetting: true,
         power: true,
@@ -207,6 +209,7 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         calibrationModeSwitch: true,
     },
     featuresOrder: [
+        'transportModeSwitch',
         'connectionModeSwitch',
         'inputModeSwitch',
         'profilesSwitch',
@@ -846,6 +849,7 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "Profiles Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH: "Report Rate",
+    SETTINGS_SCREEN_CONTROL_FEATURE_TRANSPORT_MODE_SWITCH: "Connection",
     SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "Tournament Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET: "Buttons Performance",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED Brightness Adjust",
@@ -1400,6 +1404,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "用户配置切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD 模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH: "上报率",
+    SETTINGS_SCREEN_CONTROL_FEATURE_TRANSPORT_MODE_SWITCH: "连接模式",
     SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "正常/比赛模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET: "按键性能预设",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED 亮度调整",

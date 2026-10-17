@@ -6,6 +6,7 @@ class UsbBoardLink {
 public:
     static UsbBoardLink &getInstance();
     usb_board_role_t role() const { return role_; }
+    bool isRoleLocked() const { return role_ != USB_BOARD_ROLE_NONE; }
     bool isCompatible() const { return compatible_; }
     const usb_board_caps_v1_t &capabilities() const { return caps_; }
     void setForContractTest(usb_board_role_t role, bool compatible);

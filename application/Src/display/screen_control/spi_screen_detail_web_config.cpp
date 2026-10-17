@@ -52,8 +52,8 @@ void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const Scree
         "Press Quit or Back to exit."
     };
     static const char* const usbModeErrorLines[] = {
-        "USB switch position is required.",
-        "Move the physical switch to USB.",
+        "USB runtime is unavailable.",
+        "Re-enter Web Config to retry.",
         "Press Quit or hold Back to exit."
     };
     static const char* const maintenanceErrorLines[] = {

@@ -50,7 +50,7 @@ public:
 private:
     InputState() = default;
 
-    bool applyPhysicalMode(BoardMode mode,
+    bool applyConnectionMode(BoardMode mode,
                            bool initial,
                            bool compatibilityRecovery = false);
     void startInputPipeline();

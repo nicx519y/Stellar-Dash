@@ -82,7 +82,7 @@ void InputState::startInputPipeline()
     APP_STAGE("I04", "input pipeline initialization begin");
 
     /*
-     * Center/fault mode powers Hall off.  Re-enable it and honor the board
+     * A failed runtime powers Hall off.  Re-enable it and honor the board
      * settling interval before calibration or DMA sampling resumes.
      */
     BOARD_POWER.setHallEnabled(true);
@@ -267,7 +267,7 @@ void InputState::processReportSample(const AdcSampleFrame& sample)
     lastVirtualPinMask = virtualPinMask;
 }
 
-bool InputState::applyPhysicalMode(BoardMode mode,
+bool InputState::applyConnectionMode(BoardMode mode,
                                    bool initial,
                                    bool compatibilityRecovery)
 {
@@ -279,7 +279,7 @@ bool InputState::applyPhysicalMode(BoardMode mode,
     const WirelessReportRate wirelessRate =
         STORAGE_MANAGER.getWirelessReportRate();
 
-    APP_STAGE("I02", "apply physical mode: mode=%u initial=%u input=%u rate=%u",
+    APP_STAGE("I02", "apply runtime mode: mode=%u initial=%u input=%u rate=%u",
               static_cast<unsigned>(mode), initial ? 1u : 0u,
               static_cast<unsigned>(inputMode),
               static_cast<unsigned>(wirelessRate));
@@ -381,11 +381,11 @@ bool InputState::applyPhysicalMode(BoardMode mode,
     }
 
     /*
-     * Center/off and the impossible 0/0 combination are fail-safe states:
+     * Invalid/uninitialized selections are fail-safe states:
      * CH585, host VBUS and optional high-current rails remain off.
      */
     enterBoardSafeState();
-    APP_STAGE_ERROR("I03", "physical mode is center/fault; input transport remains safe");
+    APP_STAGE_ERROR("I03", "runtime mode is invalid; input transport remains safe");
     return false;
 }
 
@@ -403,16 +403,9 @@ bool InputState::enter()
     }
 
     if (CH585_ROLE_BOOTSTRAP.hasPreparedUsbStartup() && !BOARD_MODE.isUsbStartupSafe()) {
-        // The switch moved while the screen/power probes ran. Drop the
-        // preparation and re-establish the original debounced boot choice.
         CH585_ROLE_BOOTSTRAP.shutdown();
-        BOARD_MODE.setup();
     }
-    if (!BOARD_MODE.isStable()) {
-        BOARD_MODE.update(HAL_GetTick());
-    }
-    (void)BOARD_MODE.consumeChanged();
-    const bool modeReady = applyPhysicalMode(BOARD_MODE.current(), true);
+    const bool modeReady = applyConnectionMode(BOARD_MODE.current(), true);
 
     STORAGE_MANAGER.registerDefaultProfileChangedCallback(
         onDefaultProfileChanged);
@@ -429,10 +422,6 @@ void InputState::tick()
         return;
     }
 
-    if (BOARD_MODE.consumeChanged()) {
-        (void)applyPhysicalMode(BOARD_MODE.current(), false);
-    }
-
     serviceSleepTransport();
 
     if (usbRuntimeInitialized && activeBoardMode == BoardMode::Usb) {
@@ -443,7 +432,7 @@ void InputState::tick()
                 APP_STAGE_ERROR(
                     "I09",
                     "BoardLink control plane recovery: reinitializing CH585 USB role once at 1 kHz");
-                (void)applyPhysicalMode(BoardMode::Usb, false, true);
+                (void)applyConnectionMode(BoardMode::Usb, false, true);
             } else {
                 APP_STAGE_ERROR(
                     "I09",

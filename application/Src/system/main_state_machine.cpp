@@ -4,6 +4,7 @@
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
 #include "board_mode.hpp"
+#include "connection_mode_config.hpp"
 #include "board_power.hpp"
 #include "ch585_firmware_update.hpp"
 #include "release_installer.hpp"
@@ -67,10 +68,7 @@ void MainStateMachine::initializeInteractiveRuntime(bool overlapInputStartup)
     APP_STAGE(logResult == LOG_RESULT_SUCCESS ? "A08" : "A08E",
               "persistent logger initialization result=%d", logResult);
 
-    BOARD_MODE.setup();
-    APP_STAGE("A11", "physical mode sampled: mode=%u stable=%u",
-              static_cast<unsigned>(BOARD_MODE.current()),
-              BOARD_MODE.isStable() ? 1u : 0u);
+    BOARD_POWER.enterRecoveryUiState();
     if (RELEASE_INSTALLER.protectConfiguration()) {
         // Never let the normal default/migration path overwrite configuration
         // while determining the result of an activated installation.
@@ -81,11 +79,14 @@ void MainStateMachine::initializeInteractiveRuntime(bool overlapInputStartup)
     }
     APP_STAGE("A12", "configuration loaded: boot mode=%u",
               static_cast<unsigned>(STORAGE_MANAGER.getBootMode()));
+    const bool maintenance = resolveNormalStartupState() == MainRuntimeState::WebConfig;
+    BOARD_MODE.setup(maintenance || ConnectionConfig::selected(STORAGE_MANAGER.config) == CONNECTION_MODE_USB
+        ? BoardMode::Usb : BoardMode::Rf);
+    APP_STAGE("A11", "software runtime mode selected: mode=%u", static_cast<unsigned>(BOARD_MODE.current()));
 
     /* Every interactive state gets the independent recovery display and
      * power telemetry. BridgeUpdate is deliberately dispatched before this
      * point so writable QSPI can never overlap screen asset reads. */
-    BOARD_POWER.enterRecoveryUiState();
     if (overlapInputStartup && resolveNormalStartupState() == MainRuntimeState::Input &&
         STORAGE_MANAGER.getInputMode() != INPUT_MODE_CONFIG && BOARD_MODE.isUsbStartupSafe()) {
         (void)CH585_ROLE_BOOTSTRAP.prepareUsbStartup();
@@ -139,14 +140,14 @@ bool MainStateMachine::enterState(MainRuntimeState selected)
     // before WebConfig can initialize its USB/maintenance runtime.
     if (selected == MainRuntimeState::WebConfig &&
         !BOARD_MODE.isWebConfigAllowed()) {
-        APP_STAGE("A13", "WebConfig blocked by physical switch; entering Input");
+        APP_STAGE("A13", "WebConfig blocked by invalid runtime selection; entering Input");
         STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
         selected = MainRuntimeState::Input;
     }
     if (selected != MainRuntimeState::Input && CH585_ROLE_BOOTSTRAP.hasPreparedUsbStartup()) {
         CH585_ROLE_BOOTSTRAP.shutdown();
     }
-    /* v4 identifies the effective mode after the physical WebConfig gate.
+    /* v4 identifies the effective mode after the runtime WebConfig gate.
      * The span includes any SafeRecovery fallback performed by this call. */
     BP_APP_SCOPE(selected == MainRuntimeState::TxIsp ? BP_APP_STATE_ENTER :
                  BP_APP_STATE_INPUT + static_cast<unsigned>(selected));
@@ -154,6 +155,9 @@ bool MainStateMachine::enterState(MainRuntimeState selected)
     if (state != nullptr) state->exit();
     state = next;
     currentState = selected;
+    BOARD_MODE.setup(selected == MainRuntimeState::WebConfig ||
+        ConnectionConfig::selected(STORAGE_MANAGER.config) == CONNECTION_MODE_USB
+            ? BoardMode::Usb : BoardMode::Rf);
     APP_STAGE("A13", "entering top-level runtime state=%u",
               static_cast<unsigned>(selected));
     if (state->enter()) return true;
@@ -268,7 +272,6 @@ void MainStateMachine::serviceSharedRuntime()
     if (!interactiveRuntimeInitialized) return;
     static bool traceFirstPass = true;
     if (traceFirstPass) APP_STAGE("RT0", "first shared-runtime pass begin");
-    BOARD_MODE.update(HAL_GetTick());
     if (traceFirstPass) APP_STAGE("RT1", "board-mode service complete");
     if (currentState == MainRuntimeState::Input ||
         currentState == MainRuntimeState::WebConfig) {

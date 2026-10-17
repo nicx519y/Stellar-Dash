@@ -62,16 +62,16 @@ bool ScreenDetailTournament_OnConfirm(uint8_t index) {
         return false;
     }
 
-    const bool physicalRf = BOARD_MODE.current() == BoardMode::Rf;
-    const bool physicalUsb = BOARD_MODE.current() == BoardMode::Usb;
-    if (!physicalRf && !physicalUsb) return false;
+    const bool runtimeRf = BOARD_MODE.current() == BoardMode::Rf;
+    const bool runtimeUsb = BOARD_MODE.current() == BoardMode::Usb;
+    if (!runtimeRf && !runtimeUsb) return false;
 
     /*
-     * Runtime role changes are never initiated from UI. In RF position this
+     * Runtime role changes are never initiated from UI. In RF mode this
      * page applies the existing rate transaction before saving; in USB
-     * position InputState picks up the requested rate under its existing policy.
+     * mode InputState picks up the requested rate under its existing policy.
      */
-    if (physicalRf) {
+    if (runtimeRf) {
         if (CONNECTION_MANAGER.getMode() != CONNECTION_MODE_RF24G ||
             !CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
             APP_ERR("[SCREEN][RATE] runtime rate apply failed:%u",

@@ -1,4 +1,5 @@
 #include "screen_control_json.hpp"
+#include "connection_mode_config.hpp"
 #include "power_config_json.hpp"
 #include "config.hpp"
 #include "qspi-w25q64.h"
@@ -13,8 +14,6 @@
 #include "leds/led_config_safety.hpp"
 #include "fixed_profile_slots.hpp"
 #include "leds/lighting_resources.hpp"
-#include <map>
-#include <string>
 #include "configs/device_command_handler.hpp" // For ProfileCommandHandler
 #include "system_logger.h"
 #include <algorithm>
@@ -81,128 +80,86 @@ static_assert(sizeof(Config) + sizeof(ConfigJournalHeader) <= CONFIG_BANK_SIZE,
 
 namespace ConfigUtils {
 
-static const std::map<InputMode, const char*> INPUT_MODE_STRINGS = {
+// Protocol names are immutable. One bidirectional table per enum avoids
+// heap-backed trees and dynamic initialization in scarce AXI RAM.
+template<typename Enum>
+struct EnumName {
+    Enum value;
+    const char* name;
+};
+
+template<typename Enum, size_t N>
+static const char* enum_name(const EnumName<Enum> (&entries)[N], Enum value, const char* fallback) {
+    for (const auto& entry : entries) if (entry.value == value) return entry.name;
+    return fallback;
+}
+
+template<typename Enum, size_t N>
+static Enum enum_value(const EnumName<Enum> (&entries)[N], const char* name, Enum fallback) {
+    if (name) for (const auto& entry : entries) if (strcmp(entry.name, name) == 0) return entry.value;
+    return fallback;
+}
+
+static constexpr EnumName<InputMode> INPUT_MODE_STRINGS[] = {
     {InputMode::INPUT_MODE_XINPUT, "XINPUT"},
     {InputMode::INPUT_MODE_PS4, "PS4"},
     {InputMode::INPUT_MODE_PS5, "PS5"},
     {InputMode::INPUT_MODE_XBOX, "XBOX"},
     {InputMode::INPUT_MODE_SWITCH, "SWITCH"}
 };
-
-static const std::map<std::string, InputMode> STRING_TO_INPUT_MODE = [](){
-    std::map<std::string, InputMode> reverse_map;
-    for(const auto& pair : INPUT_MODE_STRINGS) {
-        reverse_map[pair.second] = pair.first;
-    }
-    return reverse_map;
-}();
-
-static const std::map<ConnectionMode, const char*> CONNECTION_MODE_STRINGS = {
+static constexpr EnumName<ConnectionMode> CONNECTION_MODE_STRINGS[] = {
     {ConnectionMode::CONNECTION_MODE_USB, "USB"},
     {ConnectionMode::CONNECTION_MODE_RF24G, "RF24G"},
 };
-
-static const std::map<std::string, ConnectionMode> STRING_TO_CONNECTION_MODE = [](){
-    std::map<std::string, ConnectionMode> reverse_map;
-    for(const auto& pair : CONNECTION_MODE_STRINGS) {
-        reverse_map[pair.second] = pair.first;
-    }
-    return reverse_map;
-}();
-
-static const std::map<WirelessReportRate, const char*> WIRELESS_RATE_STRINGS = {
+static constexpr EnumName<WirelessReportRate> WIRELESS_RATE_STRINGS[] = {
     {WirelessReportRate::RFM_RATE_1K, "1K"},
     {WirelessReportRate::RFM_RATE_2K, "2K"},
     {WirelessReportRate::RFM_RATE_4K, "4K"},
     {WirelessReportRate::RFM_RATE_8K, "8K"},
 };
-
-static const std::map<std::string, WirelessReportRate> STRING_TO_WIRELESS_RATE = [](){
-    std::map<std::string, WirelessReportRate> reverse_map;
-    for(const auto& pair : WIRELESS_RATE_STRINGS) {
-        reverse_map[pair.second] = pair.first;
-    }
-    return reverse_map;
-}();
-
-static const std::map<std::string, GamepadHotkey> STRING_TO_GAMEPAD_HOTKEY = {
-    {"WebConfigMode", GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG},
-    {"NSwitchMode", GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH},
-    {"XInputMode", GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT},
-    {"PS4Mode", GamepadHotkey::HOTKEY_INPUT_MODE_PS4},
-    {"PS5Mode", GamepadHotkey::HOTKEY_INPUT_MODE_PS5},
-    {"XBoxMode", GamepadHotkey::HOTKEY_INPUT_MODE_XBOX},
-    {"LedsEffectStyleNext", GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT},
-    {"LedsEffectStylePrev", GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV},
-    {"LedsBrightnessUp", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP},
-    {"LedsBrightnessDown", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN},
-    {"LedsEnableSwitch", GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH},
-    {"AmbientLightEffectStyleNext", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT},
-    {"AmbientLightEffectStylePrev", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV},
-    {"AmbientLightBrightnessUp", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP},
-    {"AmbientLightBrightnessDown", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN},
-    {"AmbientLightEnableSwitch", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_ENABLE_SWITCH},
-    {"CalibrationMode", GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION},
-    {"SystemReboot", GamepadHotkey::HOTKEY_SYSTEM_REBOOT}
+static constexpr EnumName<GamepadHotkey> GAMEPAD_HOTKEY_STRINGS[] = {
+    {GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG, "WebConfigMode"},
+    {GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH, "NSwitchMode"},
+    {GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT, "XInputMode"},
+    {GamepadHotkey::HOTKEY_INPUT_MODE_PS4, "PS4Mode"},
+    {GamepadHotkey::HOTKEY_INPUT_MODE_PS5, "PS5Mode"},
+    {GamepadHotkey::HOTKEY_INPUT_MODE_XBOX, "XBoxMode"},
+    {GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT, "LedsEffectStyleNext"},
+    {GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV, "LedsEffectStylePrev"},
+    {GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP, "LedsBrightnessUp"},
+    {GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN, "LedsBrightnessDown"},
+    {GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH, "LedsEnableSwitch"},
+    {GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT, "AmbientLightEffectStyleNext"},
+    {GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV, "AmbientLightEffectStylePrev"},
+    {GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP, "AmbientLightBrightnessUp"},
+    {GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN, "AmbientLightBrightnessDown"},
+    {GamepadHotkey::HOTKEY_AMBIENT_LIGHT_ENABLE_SWITCH, "AmbientLightEnableSwitch"},
+    {GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION, "CalibrationMode"},
+    {GamepadHotkey::HOTKEY_SYSTEM_REBOOT, "SystemReboot"}
 };
 
-static const std::map<GamepadHotkey, const char*> GAMEPAD_HOTKEY_TO_STRING = [](){
-    std::map<GamepadHotkey, const char*> reverse_map;
-    for(const auto& pair : STRING_TO_GAMEPAD_HOTKEY) {
-        reverse_map[pair.second] = pair.first.c_str();
-    }
-    return reverse_map;
-}();
-
 const char* getInputModeString(InputMode mode) {
-    auto it = INPUT_MODE_STRINGS.find(mode);
-    if (it != INPUT_MODE_STRINGS.end()) {
-        return it->second;
-    }
-    return "XINPUT"; // Default
+    return enum_name(INPUT_MODE_STRINGS, mode, "XINPUT");
 }
 
 InputMode getInputModeFromString(const char* str) {
-    if (!str) return InputMode::INPUT_MODE_XINPUT;
-    auto it = STRING_TO_INPUT_MODE.find(str);
-    if (it != STRING_TO_INPUT_MODE.end()) {
-        return it->second;
-    }
-    return InputMode::INPUT_MODE_XINPUT;
+    return enum_value(INPUT_MODE_STRINGS, str, InputMode::INPUT_MODE_XINPUT);
 }
 
 const char* getConnectionModeString(ConnectionMode mode) {
-    auto it = CONNECTION_MODE_STRINGS.find(mode);
-    if (it != CONNECTION_MODE_STRINGS.end()) {
-        return it->second;
-    }
-    return "USB";
+    return enum_name(CONNECTION_MODE_STRINGS, mode, "USB");
 }
 
 ConnectionMode getConnectionModeFromString(const char* str) {
-    if (!str) return ConnectionMode::CONNECTION_MODE_USB;
-    auto it = STRING_TO_CONNECTION_MODE.find(str);
-    if (it != STRING_TO_CONNECTION_MODE.end()) {
-        return it->second;
-    }
-    return ConnectionMode::CONNECTION_MODE_USB;
+    return enum_value(CONNECTION_MODE_STRINGS, str, ConnectionMode::CONNECTION_MODE_USB);
 }
 
 const char* getWirelessReportRateString(WirelessReportRate rate) {
-    auto it = WIRELESS_RATE_STRINGS.find(rate);
-    if (it != WIRELESS_RATE_STRINGS.end()) {
-        return it->second;
-    }
-    return "1K";
+    return enum_name(WIRELESS_RATE_STRINGS, rate, "1K");
 }
 
 WirelessReportRate getWirelessReportRateFromString(const char* str) {
-    if (!str) return WirelessReportRate::RFM_RATE_1K;
-    auto it = STRING_TO_WIRELESS_RATE.find(str);
-    if (it != STRING_TO_WIRELESS_RATE.end()) {
-        return it->second;
-    }
-    return WirelessReportRate::RFM_RATE_1K;
+    return enum_value(WIRELESS_RATE_STRINGS, str, WirelessReportRate::RFM_RATE_1K);
 }
 
 uint16_t getWirelessReportRateHz(WirelessReportRate rate) {
@@ -318,20 +275,11 @@ static bool sanitize_led_profiles(Config& config) {
 }
 
 const char* getGamepadHotkeyString(GamepadHotkey action) {
-    auto it = GAMEPAD_HOTKEY_TO_STRING.find(action);
-    if (it != GAMEPAD_HOTKEY_TO_STRING.end()) {
-        return it->second;
-    }
-    return "None";
+    return enum_name(GAMEPAD_HOTKEY_STRINGS, action, "None");
 }
 
 GamepadHotkey getGamepadHotkeyFromString(const char* str) {
-    if (!str) return GamepadHotkey::HOTKEY_NONE;
-    auto it = STRING_TO_GAMEPAD_HOTKEY.find(str);
-    if (it != STRING_TO_GAMEPAD_HOTKEY.end()) {
-        return it->second;
-    }
-    return GamepadHotkey::HOTKEY_NONE;
+    return enum_value(GAMEPAD_HOTKEY_STRINGS, str, GamepadHotkey::HOTKEY_NONE);
 }
 
 cJSON* buildHotkeysConfigJSON(Config& config) {
@@ -466,10 +414,7 @@ bool fromJSON(Config& config, cJSON* json) {
             config.inputMode = getInputModeFromString(inputModeItem->valuestring);
         }
 
-        cJSON* connectionModeItem = cJSON_GetObjectItem(globalConfig, "connectionMode");
-        if (connectionModeItem && cJSON_IsString(connectionModeItem)) {
-            config.connectionMode = getConnectionModeFromString(connectionModeItem->valuestring);
-        }
+        // Connection selection belongs to the local screen; imports preserve it.
 
         cJSON* reportRateItem = cJSON_GetObjectItem(globalConfig, "wirelessReportRate");
         if (reportRateItem && cJSON_IsString(reportRateItem)) {
@@ -688,6 +633,7 @@ bool ConfigUtils::load(Config& config)
 {
     bool fjResult;
     fjResult = fromStorage(config);
+    const bool repairedConnection = fjResult && ConnectionConfig::normalize(config);
     if (fjResult && config.version < CONFIG_VERSION) migrate_legacy_power_config(config.power);
 
     /*
@@ -739,7 +685,7 @@ bool ConfigUtils::load(Config& config)
         sanitize_hardware_layout(config.hardware);
         uint32_t ver = config.version;
         APP_DBG("Config Version: %d.%d.%d", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
-        if (repairedLedConfig || repairedProfileSlots || repairedScreenConfig) {
+        if (repairedConnection || repairedLedConfig || repairedProfileSlots || repairedScreenConfig) {
             APP_DBG("ConfigUtils::load - normalized stored configuration");
             return save(config);
         }
@@ -834,8 +780,7 @@ bool ConfigUtils::load(Config& config)
             SCREEN_FEATURE_WEB_CONFIG_ENTRY |
             SCREEN_FEATURE_CALIBRATION_MODE_SWITCH |
             SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET;
-        const uint8_t defaultFeatureOrder[SCREEN_FEATURE_COUNT] = {3, 0, 1, 2, 11, 4, 5, 6, 7, 8, 9, 10};
-        memcpy(config.screenControl.featuresOrder, defaultFeatureOrder, sizeof(config.screenControl.featuresOrder));
+        ScreenConfig::setDefaultOrder(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
         config.screenControl.serviceFlags = 0;
         init_power_defaults(config.power);
@@ -1190,6 +1135,7 @@ static bool write_config_bank(uint32_t bankAddress,
 
 bool ConfigUtils::save(Config& config)
 {
+    ConnectionConfig::normalize(config);
     LightingResources::migrate(config);
     APP_DBG("ConfigUtils::save begin");
     sanitize_led_profiles(config);

@@ -90,6 +90,16 @@ int main() {
     assert(MainRuntime_RequestTxIsp(false)); machine.servicePendingTransition();
     assert(machine.current()==MainRuntimeState::WebConfig && STORAGE_MANAGER.boot==BootMode::BOOT_MODE_WEB_CONFIG);
 
+    STORAGE_MANAGER.config.connectionMode=CONNECTION_MODE_RF24G;
+    assert(machine.requestTransition(MainRuntimeState::Input));
+    assert(BOARD_MODE.current()==BoardMode::Rf);
+    assert(machine.requestTransition(MainRuntimeState::WebConfig));
+    assert(BOARD_MODE.current()==BoardMode::Usb);
+    assert(STORAGE_MANAGER.config.connectionMode==CONNECTION_MODE_RF24G);
+    assert(machine.requestTransition(MainRuntimeState::Input));
+    assert(BOARD_MODE.current()==BoardMode::Rf);
+    STORAGE_MANAGER.config.connectionMode=CONNECTION_MODE_USB;
+
     // Cold boot restores ISP and its return mode before normal TX pre-start.
     for(auto origin:{MainRuntimeState::Input,MainRuntimeState::WebConfig,MainRuntimeState::SafeRecovery}) {
         assert(machine.requestTransition(origin));
@@ -132,13 +142,14 @@ int main() {
     // Maintenance entry is hidden; normal menu order and USB gating stay intact.
     ScreenControlConfig config; for(int i=0;i<12;++i)config.featuresOrder[i]=i;
     uint8_t ids[16]={}; BOARD_MODE.allowed=true;
-    assert(ScreenMain_RebuildMenuIds(config,ids,16)==12);
-    for(unsigned i=0;i<12;++i) assert(ids[i]==i && ids[i]!=SCREEN_MENU_TX_ISP);
+    assert(ScreenMain_RebuildMenuIds(config,ids,16)==9);
+    for(unsigned i=0;i<9;++i) assert(ids[i]!=SCREEN_MENU_TX_ISP);
+    assert(ids[8]==15);
     BOARD_MODE.allowed=false; config.featuresMask=1u<<1;
-    assert(ScreenMain_RebuildMenuIds(config,ids,16)==1 && ids[0]==1);
+    assert(ScreenMain_RebuildMenuIds(config,ids,16)==2 && ids[0]==1 && ids[1]==15);
     config.featuresMask=0;
     const auto count=ScreenMain_RebuildMenuIds(config,ids,16);
-    assert(count==11);
+    assert(count==10);
     for(unsigned i=0;i<count;++i) assert(ids[i]!=9 && ids[i]!=SCREEN_MENU_TX_ISP);
     uint8_t bounded[2]={0,0xA5};
     assert(ScreenMain_RebuildMenuIds(config,bounded,1)==1 && bounded[1]==0xA5);

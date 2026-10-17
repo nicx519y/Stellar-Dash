@@ -5,6 +5,7 @@
 #include <string>
 #include "../../common/xora_light_engine.hpp"
 #include "../../common/xora_factory_resources.hpp"
+#include "../../application/Inc/leds/led_config_safety.hpp"
 // Compile the real driver, not a rewritten model of its state machine.
 #include "../../application/Src/leds/drivers/ws2812b/pwm-ws2812b.c"
 
@@ -327,7 +328,9 @@ static void startPhase() {
                 assert(WS2812B_SubmitStrip(strip));
             }
             setupHook = nullptr;
-            assert(hooks == 2 && fakeTim.EGR == 0);
+            // Key rail starts now drive zero PWM before powering the LEDs.
+            assert(hooks == (channel == 0 && phase % 2 == 0 ? 3u : 2u));
+            assert(fakeTim.EGR == 0);
             auto frame = snapshot(channel);
             auto& dma = dmas[channel];
             bool seenHigh = false;
@@ -359,7 +362,7 @@ static void startPhase() {
     }
     std::puts("Both channels: all 308 start phases preserve first bit, payload and reset tail");
 }
-#if HBOX_LED_DMA_DIAGNOSTIC
+#if HBOX_LED_DMA_DIAGNOSTIC == 1 || HBOX_LED_DMA_DIAGNOSTIC == 2
 #if HBOX_LED_DMA_DIAGNOSTIC == 2
 static void diagnostic() {
     WS2812B_DiagnosticReset();
@@ -604,6 +607,110 @@ static void startupBlackFrame() {
 
 }
 
+#if HBOX_LED_DMA_DIAGNOSTIC == 3
+static void singleFrameHold() {
+    begin(WS2812B_STRIP_AMBIENT, 19, 37, 53);
+    begin(WS2812B_STRIP_KEYS); // Normal startup black must become visible green.
+    assert(dmas[0].size == 768 && dmas[0].Init.Mode == DMA_NORMAL);
+    for (unsigned led = 0; led < 22; ++led)
+        assert(pixel(0, led) == expectedGrb(0, 255, 0, 32));
+    const auto frame = snapshot(0);
+    WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 255, 0, 255);
+    assert(!WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    drain(0, false); // A delayed completion must not unlock retransmission.
+    assert(!WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    callback(0);
+    drain(1);
+    const unsigned powerWrites = railWrites[0];
+    for (unsigned tick = 0; tick < 1000; ++tick) {
+        WS2812B_SetLEDColorStrip(WS2812B_STRIP_KEYS, tick, 17, 93, tick % 22);
+        WS2812B_SetLEDBrightnessByMask(tick, 0, 1u << (tick % 22));
+        WS2812B_ServiceStrip(WS2812B_STRIP_KEYS);
+        WS2812B_RefreshStrip(WS2812B_STRIP_KEYS, 0, 22);
+        LEDDataToDMABuffer(0, 22);
+        assert(WS2812B_StartStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING);
+        WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_AMBIENT, tick, 37, 53);
+        assert(WS2812B_SubmitStrip(WS2812B_STRIP_AMBIENT));
+        drain(1);
+        assert(dmas[0].starts == 1 && g_keys_tc_count == 1);
+        assert(rail[0] && railWrites[0] == powerWrites);
+        assert(fakeTim.active[0] == 0 && fakeTim.preload[0] == 0);
+        assert(!(fakeTim.DIER & TIM_DMA_CC1));
+        assert(fakeTim.CCER & TIM_CCER_CC1E);
+        assert(!(dmas[0].Instance->CR & DMA_SxCR_EN));
+        unchanged(0, frame);
+    }
+    assert(dmas[1].starts == 1001 && dmas[0].aborts == 0);
+    assert(WS2812B_StopStrip(WS2812B_STRIP_KEYS) == WS2812B_STOP);
+    assert(!rail[0] && rail[1]);
+    assert(WS2812B_StartStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING);
+    assert(dmas[0].starts == 2);
+    unchanged(0, frame);
+    drain(0);
+    assert(WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    assert(dmas[0].starts == 2);
+    assert(WS2812B_StopStrip(WS2812B_STRIP_KEYS) == WS2812B_STOP);
+    dmas[0].failStart = true;
+    assert(WS2812B_StartStrip(WS2812B_STRIP_KEYS) == WS2812B_ERROR);
+    const unsigned failedStarts = dmas[0].starts;
+    assert(!rail[0] && rail[1]);
+    assert(!WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    assert(dmas[0].starts == failedStarts);
+}
+#endif
+
+static void keyPowerStartup() {
+    begin(WS2812B_STRIP_AMBIENT, 23, 47, 89);
+    const auto ambient = snapshot(1);
+    WS2812B_InitStrip(WS2812B_STRIP_KEYS);
+    WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 255, 255, 255);
+    WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0);
+    uint32_t completed = 0, rampStart = 100;
+    WS2812B_GetUpdateStats(WS2812B_STRIP_KEYS, nullptr, &completed);
+    LedConfigSafety::StartupFrameGate gate;
+    gate.arm(completed);
+    delayHook = [&] {
+        assert(dmas[0].starts == 0);
+        assert(fakeTim.DIER & TIM_DMA_CC2);
+        unchanged(1, ambient);
+        assert(!gate.ready(completed, 5000, rampStart));
+        assert(rampStart == 100);
+    };
+    assert(WS2812B_StartStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING);
+    delayHook = nullptr;
+    assert(keyPowerSettleCalls == 1 && dmas[0].starts == 1);
+    for (unsigned led = 0; led < 22; ++led) assert(pixel(0, led) == 0);
+    const auto black = snapshot(0);
+    WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 64);
+    assert(!WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    unchanged(0, black);
+    auto pulses = drain(0, false);
+    assert(std::all_of(pulses.begin() + 1 + 22 * 24, pulses.end(),
+                       [](auto v) { return v == 0; }));
+    WS2812B_GetUpdateStats(WS2812B_STRIP_KEYS, nullptr, &completed);
+    assert(!gate.ready(completed, 9000, rampStart)); // Hardware done, ISR delayed.
+    callback(0);
+    WS2812B_GetUpdateStats(WS2812B_STRIP_KEYS, nullptr, &completed);
+    assert(gate.ready(completed, 9001, rampStart) && rampStart == 9001);
+    auto drive = LedConfigSafety::interpolateDrive8(64, 9001 - rampStart, 3000);
+    assert(drive == 0);
+    assert(gate.ready(completed, 10501, rampStart) && rampStart == 9001);
+    drive = LedConfigSafety::interpolateDrive8(64, 10501 - rampStart, 3000);
+    assert(drive == 32);
+    WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, drive);
+    assert(WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));
+    for (unsigned led = 0; led < 22; ++led)
+        assert(pixel(0, led) == expectedGrb(255, 255, 255, 32));
+    unchanged(1, ambient);
+    drain(0); drain(1);
+    // Frame-counter wrap and rearming must not reuse a previous completion.
+    gate.arm(UINT32_MAX);
+    assert(!gate.ready(UINT32_MAX, 17, rampStart));
+    assert(gate.ready(0, 18, rampStart) && rampStart == 18);
+    gate.arm(0);
+    assert(!gate.ready(0, 19, rampStart));
+}
+
 int main(int argc, char** argv) {
     assert(argc == 2);
     std::string name = argv[1];
@@ -619,7 +726,11 @@ int main(int argc, char** argv) {
     else if (name == "all-key-pixels") allKeyPixels();
     else if (name == "partial-key-completion") partialKeyCompletion();
     else if (name == "resource-key-pixels") resourceKeyPixels();
-#if HBOX_LED_DMA_DIAGNOSTIC
+    else if (name == "key-power-startup") keyPowerStartup();
+#if HBOX_LED_DMA_DIAGNOSTIC == 3
+    else if (name == "single-frame-hold") singleFrameHold();
+#endif
+#if HBOX_LED_DMA_DIAGNOSTIC == 1 || HBOX_LED_DMA_DIAGNOSTIC == 2
     else if (name == "diagnostic") diagnostic();
 #endif
     else assert(false);

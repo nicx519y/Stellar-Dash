@@ -42,8 +42,8 @@ HBOX_BOOT_PROFILE ?= 0
 HBOX_AUTO_SLEEP_ENABLED ?= 1
 # Temporary opt-in LED transport comparison. Never enable in product builds.
 HBOX_LED_DMA_DIAGNOSTIC ?= 0
-ifneq ($(filter $(HBOX_LED_DMA_DIAGNOSTIC),0 1 2),$(HBOX_LED_DMA_DIAGNOSTIC))
-$(error HBOX_LED_DMA_DIAGNOSTIC must be 0 (off), 1 (A/B/C), or 2 (repeat/hold))
+ifneq ($(filter $(HBOX_LED_DMA_DIAGNOSTIC),0 1 2 3),$(HBOX_LED_DMA_DIAGNOSTIC))
+$(error HBOX_LED_DMA_DIAGNOSTIC must be 0 (off), 1 (A/B/C), 2 (repeat/hold), or 3 (key single-frame hold))
 endif
 ifneq ($(filter $(HBOX_AUTO_SLEEP_ENABLED),0 1),$(HBOX_AUTO_SLEEP_ENABLED))
 $(error HBOX_AUTO_SLEEP_ENABLED must be exactly 0 or 1)

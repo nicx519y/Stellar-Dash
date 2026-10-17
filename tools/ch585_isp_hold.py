@@ -30,7 +30,7 @@ def mode_mask(pins):
 
 
 def modify(address, clear=0, set_bits=0):
-    return f'mww 0x{address:08X} [expr {{([mrw 0x{address:08X}] & 0x{(~clear & 0xffffffff):08X}) | 0x{set_bits:08X}}}]'
+    return f'mww 0x{address:08X} [expr {{([tx_isp_read32 0x{address:08X}] & 0x{(~clear & 0xffffffff):08X}) | 0x{set_bits:08X}}}]'
 
 
 def tcl_path(path):
@@ -61,6 +61,9 @@ def hold_script(expected_uid=None):
     output_modes = sum(1 << (p*2) for p in pins)
     spi_masks = mode_mask(SPI_ANALOG_PINS)
     lines = [
+        # mrw is supplied by full target scripts, not by our minimal target.
+        # Use OpenOCD's memory-list API without loading Flash/reset hooks.
+        'proc tx_isp_read32 {address} { return [lindex [read_memory $address 32 1] 0] }',
         f'source {tcl_path(ROOT / "bootloader/Openocd_Script/stlink.cfg")}',
         'transport select hla_swd', 'adapter speed 400',
         'gdb_port disabled','tcl_port disabled','telnet_port disabled',
@@ -70,17 +73,17 @@ def hold_script(expected_uid=None):
         'dap create stm32h750.dap -chain-position stm32h750.cpu',
         'target create stm32h750.cpu0 cortex_m -endian little -dap stm32h750.dap -ap-num 0',
         'init','halt','wait_halt 3000',
-        'if {([mrw 0x5C001000] & 0xFFF) != 0x450} {error "Not the qualified STM32H750 target"}',
+        'if {([tx_isp_read32 0x5C001000] & 0xFFF) != 0x450} {error "Not the qualified STM32H750 target"}',
         'set tx_isp_uid {}',
     ]
     for i in range(3):
-        lines += [f'set tx_isp_word_{i} [mrw 0x{0x1ff1e800+i*4:08X}]',
+        lines += [f'set tx_isp_word_{i} [tx_isp_read32 0x{0x1ff1e800+i*4:08X}]',
                   f'append tx_isp_uid [format %08X $tx_isp_word_{i}]']
     lines += ['if {$tx_isp_uid == "000000000000000000000000" || $tx_isp_uid == "FFFFFFFFFFFFFFFFFFFFFFFF"} {error "Invalid STM32 UID"}']
     if expected_uid:
         lines += [f'if {{$tx_isp_uid != "{expected_uid.upper()}"}} {{error "STM32 UID mismatch"}}']
     lines += [
-        'echo "STM32_UID=$tx_isp_uid"',
+        'echo "STM32 target identity verified"',
         # Debug watchdog freezes are volatile and only effective while halted.
         modify(DBGMCU+4,set_bits=0x00600000),
         modify(DBGMCU+0x34,set_bits=0x40), modify(DBGMCU+0x54,set_bits=0x40000),
@@ -98,10 +101,10 @@ def hold_script(expected_uid=None):
         modify(GPIO_I+0xc,clear=masks),
         'sleep 50',
         f'mww 0x{GPIO_I+0x18:08X} 0x{TX:08X}',
-        f'if {{([mrw 0x{GPIO_I+0x14:08X}] & 0x{MAIN|TX|HOST:08X}) != 0x{MAIN|TX:08X}}} {{error "TX power latch verification failed"}}',
-        f'if {{([mrw 0x{GPIO_I:08X}] & 0x{masks:08X}) != 0x{output_modes:08X}}} {{error "TX output-mode verification failed"}}',
-        f'if {{([mrw 0x{GPIO_E:08X}] & 0x{spi_masks|(3<<22):08X}) != 0x{spi_masks|(1<<22):08X}}} {{error "SPI pin park verification failed"}}',
-        f'if {{([mrw 0x{GPIO_E+0x14:08X}] & 0x{NSS:08X}) == 0}} {{error "SPI NSS inactive latch verification failed"}}',
+        f'if {{([tx_isp_read32 0x{GPIO_I+0x14:08X}] & 0x{MAIN|TX|HOST:08X}) != 0x{MAIN|TX:08X}}} {{error "TX power latch verification failed"}}',
+        f'if {{([tx_isp_read32 0x{GPIO_I:08X}] & 0x{masks:08X}) != 0x{output_modes:08X}}} {{error "TX output-mode verification failed"}}',
+        f'if {{([tx_isp_read32 0x{GPIO_E:08X}] & 0x{spi_masks|(3<<22):08X}) != 0x{spi_masks|(1<<22):08X}}} {{error "SPI pin park verification failed"}}',
+        f'if {{([tx_isp_read32 0x{GPIO_E+0x14:08X}] & 0x{NSS:08X}) == 0}} {{error "SPI NSS inactive latch verification failed"}}',
         'wait_halt 1000',
         'echo "TX_ISP_HOLD_READY: STM32 halted, TX powered, SPI parked; keep PB22 low and do not reset STM32"',
         'shutdown',

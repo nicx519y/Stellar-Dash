@@ -137,6 +137,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         profilesSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH,
         socdModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH,
         connectionModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH,
+        transportModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_TRANSPORT_MODE_SWITCH,
         buttonsPerformanceQuickSet: t.SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET,
         ledSetting: t.SETTINGS_SCREEN_CONTROL_FEATURE_LED_SETTING,
         power: t.SETTINGS_SCREEN_CONTROL_FEATURE_POWER,
@@ -427,10 +428,10 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 </Table.Cell>
                                 <Table.Cell py={1} fontSize="11px" textAlign="end">
                                     <Switch
-                                        checked={item.key === 'webConfigEntry' || features[item.key]}
-                                        disabled={disabled || item.key === 'webConfigEntry'}
+                                        checked={(item.key === 'webConfigEntry' || item.key === 'transportModeSwitch') || features[item.key]}
+                                        disabled={disabled || (item.key === 'webConfigEntry' || item.key === 'transportModeSwitch')}
                                         onCheckedChange={async (e: { checked: boolean }) => {
-                                            if (item.key === 'webConfigEntry') return;
+                                            if ((item.key === 'webConfigEntry' || item.key === 'transportModeSwitch')) return;
                                             const nf = { ...features, [item.key]: e.checked } as ScreenControlFeatures;
                                             setFeatures(nf);
                                             await commitUiChange({ ...nextConfig, features: nf });

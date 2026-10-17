@@ -16,7 +16,7 @@ extern "C" {
 #ifndef HBOX_LED_DMA_DIAGNOSTIC
 #define HBOX_LED_DMA_DIAGNOSTIC 0
 #endif
-#if HBOX_LED_DMA_DIAGNOSTIC
+#if HBOX_LED_DMA_DIAGNOSTIC == 1 || HBOX_LED_DMA_DIAGNOSTIC == 2
 /* Temporary lab build: fixed frames, no configuration writes. */
 void WS2812B_DiagnosticReset(void);
 void WS2812B_DiagnosticService(uint32_t now);

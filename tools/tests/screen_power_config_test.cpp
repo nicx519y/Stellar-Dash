@@ -33,6 +33,17 @@ static const char* patch(ScreenControlConfig& sc, const char* json, bool importi
     const char* error = ScreenConfig::applyJson(sc, parsed, importing); cJSON_Delete(parsed); return error;
 }
 int main() {
+    auto defaults = legacy();
+    ScreenConfig::setDefaultOrder(defaults);
+    ScreenConfig::normalize(defaults);
+    const uint8_t defaultOrder[] = {15, 3, 0, 1, 2, 11, 13, 8, 14, 9, 10, 255};
+    assert(!memcmp(defaults.featuresOrder, defaultOrder, sizeof(defaultOrder)));
+    // Explicit user order remains authoritative after normalization.
+    auto custom = defaults;
+    custom.featuresOrder[0] = 3;
+    custom.featuresOrder[1] = 15;
+    ScreenConfig::normalize(custom);
+    assert(custom.featuresOrder[0] == 3 && custom.featuresOrder[1] == 15);
     ScreenDeferredSave pending;
     unsigned attempts = 0;
     pending.request(0xfffffff0u, 2000u);
@@ -48,7 +59,7 @@ int main() {
         assert(ScreenConfig::enabled(sc) == (mode != 0));
         assert(sc.standbyDisplay == mode && sc.standbyTimeoutSeconds == 120);
         assert(sc.currentPageId == 13 && (sc.featuresMask & (1u << 14)));
-        const uint8_t expected[] = {3, 0, 1, 2, 11, 13, 8, 14, 9, 10, 255, 255};
+        const uint8_t expected[] = {3, 0, 1, 2, 11, 13, 8, 14, 9, 10, 15, 255};
         assert(!memcmp(sc.featuresOrder, expected, sizeof(expected)));
         auto copy = sc; ScreenConfig::normalize(sc); assert(!memcmp(&sc, &copy, sizeof(sc)));
         assert(!patch(sc, R"({"standbyEnabled":false})"));
@@ -59,13 +70,13 @@ int main() {
     }
     auto menuConfig = legacy(); ScreenConfig::normalize(menuConfig);
     uint8_t menuIds[12] = {};
-    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 10);
-    for (unsigned i = 0; i < 10; ++i) assert(ScreenConfig::isTopLevel(menuIds[i]));
+    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 11);
+    for (unsigned i = 0; i < 11; ++i) assert(ScreenConfig::isTopLevel(menuIds[i]));
     assert(ScreenMain_FindMenuMeta(12)); // Maintenance remains restorable but never a normal menu.
     menuConfig.featuresMask &= ~(1u << 14);
-    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 9);
+    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 10);
     BOARD_MODE.allowed = false;
-    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 8);
+    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 9);
     BOARD_MODE.allowed = true;
     auto sc = legacy(); sc.featuresMask &= ~0xF0u; ScreenConfig::normalize(sc);
     assert(!(sc.featuresMask & (1u << 13)) && sc.currentPageId == 3);

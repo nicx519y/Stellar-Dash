@@ -1,3 +1,8 @@
+// Menu dispatch/rendering is outside the input hot path. Keep RAM-resident UI compact.
+#if defined(__GNUC__)
+#pragma GCC optimize("Os")
+#endif
+
 #include "screen_control/spi_screen_detail_pages.hpp"
 
 #include "screen_control/spi_screen_detail_entries.hpp"
@@ -9,7 +14,8 @@
 #include <cstdio>
 
 namespace {
-constexpr uint8_t kScreenTimer = 15, kSleepTimer = 16;
+// Internal children must not alias persistent Connection menu ID 15.
+constexpr uint8_t kScreenTimer = 16, kSleepTimer = 17;
 constexpr uint16_t kTimes[] = {10, 30, 60, 120, 300};
 constexpr const char* kTimeLabels[] = {"10s", "30s", "1min", "2min", "5min"};
 uint8_t groupSelection = 0, childPage = 255, childIndex = 0;
@@ -27,6 +33,7 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
     if (isGroup(menuId)) return childPage == 255 ? SCREEN_DETAIL_LIST : ScreenDetail_Kind(childPage);
     if (isTimer(menuId)) return SCREEN_DETAIL_SLIDER;
     switch (menuId) {
+        case ScreenConfig::kConnection:
         case 0:
         case 1:
         case 2:
@@ -56,6 +63,7 @@ uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
         return menuId == kScreenTimer ? 0 : 4;
     }
     switch (menuId) {
+        case ScreenConfig::kConnection: return ScreenDetailConnection_InitIndex();
         case 0: return ScreenDetailInputMode_InitIndex();
         case 1: return ScreenDetailProfiles_InitIndex();
         case 2: return ScreenDetailSocd_InitIndex();
@@ -98,6 +106,7 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
         return;
     }
     switch (menuId) {
+        case ScreenConfig::kConnection: ScreenDetailConnection_Rotate(ioIndex, det); break;
         case 0: ScreenDetailInputMode_Rotate(ioIndex, det); break;
         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
         case 2: ScreenDetailSocd_Rotate(ioIndex, det); break;
@@ -128,6 +137,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         return false;
     }
     switch (menuId) {
+        case ScreenConfig::kConnection: return ScreenDetailConnection_OnConfirm(index);
         case 0: ScreenDetailInputMode_OnConfirm(index); return true;
         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
         case 2: ScreenDetailSocd_OnConfirm(index); return ScreenDetailSocd_ShouldExitAfterConfirm();
@@ -178,6 +188,7 @@ void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, cons
         return;
     }
     switch (menuId) {
+        case ScreenConfig::kConnection: ScreenDetailConnection_Render(lcd, index, style); break;
         case 0: ScreenDetailInputMode_Render(lcd, index, style); break;
         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;
         case 2: ScreenDetailSocd_Render(lcd, index, style); break;

@@ -4,6 +4,8 @@ import { Box, Grid, HStack, Icon, Text, VStack } from "@chakra-ui/react"
 import { LuCpu, LuGamepad2, LuRadioTower, LuUserRound } from "react-icons/lu"
 
 import { useGamepadFields } from "@/contexts/gamepad-config-context"
+import { useLanguage } from "@/contexts/language-context"
+import { connectionModeLabel } from "@/lib/connection-mode"
 import { configuredTransportMode } from "@/lib/device-transport"
 import { PlatformLabelMap, platformForDisplay } from "@/types/gamepad-config"
 import { HudPanel, StatusChip } from "@/components/ui/hud"
@@ -61,7 +63,7 @@ function StatusCell({
               {primary}
             </Text>
           </StatusChip>
-          <Text color="app.textMuted" truncate fontSize="10px" lineHeight="1.25">
+          <Text color="app.textMuted" title={secondary} fontSize="10px" lineHeight="1.25">
             {secondary}
           </Text>
         </VStack>
@@ -71,6 +73,7 @@ function StatusCell({
 }
 
 export function StatusDock() {
+  const { currentLanguage } = useLanguage()
   const {
     deviceConnected,
     dataIsReady,
@@ -90,7 +93,7 @@ export function StatusDock() {
       String(globalConfig.inputMode)
     : "—"
   const connectionMode =
-    globalConfig.physicalConnectionMode ?? globalConfig.connectionMode ?? "—"
+    connectionModeLabel(globalConfig, currentLanguage)
   const reportRate = globalConfig.wirelessReportRate ?? "—"
   const firmwareVersion = firmwareInfo?.firmware?.version ?? "—"
   const hardwareVersion = globalConfig.hardware?.hardwareVersion ?? "—"
