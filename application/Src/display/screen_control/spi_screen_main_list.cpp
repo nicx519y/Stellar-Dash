@@ -91,5 +91,5 @@ void ScreenMain_RenderList(ST7789_Handle* lcd,
         const ScreenMenuMeta* meta = ScreenMain_FindMenuMeta(menuIds[i]);
         labels[i] = (meta && meta->label) ? meta->label : "";
     }
-    ScreenDetailRender_List(lcd, "", labels, renderCount, menuIndex, menuIndex, style, SPI_SCREEN_MENU_ITEM_H, animActive, animDir, animStartMs, nowMs);
+    ScreenDetailRender_List(lcd, "", labels, renderCount, menuIndex, menuIndex, style, SPI_SCREEN_MENU_ITEM_H, animActive, animDir, animStartMs, nowMs, nullptr, false);
 }

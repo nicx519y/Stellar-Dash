@@ -49,20 +49,13 @@ uint8_t ScreenDetailProfiles_InitIndex(void) {
         uint8_t pi = g_enabledProfileIdx[i];
         if (strcmp(STORAGE_MANAGER.config.profiles[pi].id, current) == 0) return i;
     }
-    return 0;
+    return count ? 0 : SCREEN_LIST_BACK;
 }
 
 void ScreenDetailProfiles_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
     uint8_t count = build_enabled_profile_map();
-    if (count == 0) {
-        *ioIndex = 0;
-        return;
-    }
-    int32_t idx = (int32_t)(*ioIndex) + det;
-    if (idx < 0) idx = 0;
-    if (idx >= count) idx = count - 1;
-    *ioIndex = (uint8_t)idx;
+    *ioIndex = ScreenList_Rotate(*ioIndex, det, count);
 }
 
 void ScreenDetailProfiles_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {

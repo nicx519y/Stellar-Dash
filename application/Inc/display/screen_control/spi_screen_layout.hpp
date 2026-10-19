@@ -15,6 +15,17 @@
 #define SPI_SCREEN_SLIDER_STEP 10u
 #define SPI_SCREEN_DETAIL_ITEM_H 28u
 #define SPI_SCREEN_ANIM_MS 160u
+#define SPI_SCREEN_STATUS_ICON_H 32u
+#define SPI_SCREEN_BATTERY_BODY_H 14u
+
+struct ScreenStatusBarLayout {
+    uint16_t profileY;
+    uint16_t platformY;
+    uint16_t connectionY;
+    uint16_t batteryY;
+    uint16_t topArrowY;
+    uint16_t bottomArrowY;
+};
 
 struct ScreenUiStyle {
     uint32_t bg;

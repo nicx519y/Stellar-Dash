@@ -11,6 +11,7 @@
 #include "screen_control_config.hpp"
 #include "storagemanager.hpp"
 #include "board_cfg.h"
+#include "board_mode.hpp"
 #include <cstdio>
 
 namespace {
@@ -31,7 +32,9 @@ bool timerEnabled(uint8_t id) {
 
 ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
     if (isGroup(menuId)) return childPage == 255 ? SCREEN_DETAIL_LIST : ScreenDetail_Kind(childPage);
-    if (isTimer(menuId)) return SCREEN_DETAIL_SLIDER;
+    if (isTimer(menuId)) return timerSupported(menuId) ? SCREEN_DETAIL_SLIDER : SCREEN_DETAIL_INFO;
+    if (menuId == 2 && ScreenDetailSocd_WarningVisible()) return SCREEN_DETAIL_INFO;
+    if (menuId == 11 && ScreenDetailButtonsPerformance_IsEditing()) return SCREEN_DETAIL_SLIDER;
     switch (menuId) {
         case ScreenConfig::kConnection:
         case 0:
@@ -53,6 +56,27 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
         default:
             return SCREEN_DETAIL_NONE;
     }
+}
+
+const char* ScreenDetail_ConfirmLabel(uint8_t menuId, uint8_t index) {
+    if (isGroup(menuId)) {
+        if (childPage != 255) return ScreenDetail_ConfirmLabel(childPage, childIndex);
+        return groupSelection == SCREEN_LIST_BACK ? "Back" : "Open";
+    }
+    if (menuId == 11) return ScreenDetailButtonsPerformance_ConfirmLabel(index);
+    if (menuId == 2 && ScreenDetailSocd_WarningVisible()) return "Close";
+    if (ScreenDetail_Kind(menuId) == SCREEN_DETAIL_LIST && index == SCREEN_LIST_BACK) return "Back";
+    if (isTimer(menuId)) return !timerSupported(menuId) ? "N/A" : timerEnabled(menuId) ? "OFF" : "ON";
+    if (menuId == 9) return ScreenDetailWebConfig_ConfirmLabel();
+    if (menuId == 10) return "Quit";
+    if (menuId == SCREEN_MENU_TX_ISP) return ScreenDetailTxIsp_ConfirmLabel();
+    if (menuId == 0 && (!BOARD_MODE.isStable() || BOARD_MODE.current() != BoardMode::Usb)) return "Back";
+    return "Apply";
+}
+
+const char* ScreenDetail_BackLabel(uint8_t menuId) {
+    if (menuId == SCREEN_MENU_TX_ISP) return ScreenDetailTxIsp_BackLabel();
+    return "Back";
 }
 
 uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
@@ -86,11 +110,7 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
     if (isGroup(menuId)) {
         if (childPage != 255) ScreenDetail_OnRotate(childPage, &childIndex, det);
         else {
-            const int count = groupCount(menuId);
-            int next = int(groupSelection) + det;
-            if (next < 0) next = 0;
-            if (next >= count) next = count - 1;
-            groupSelection = uint8_t(next);
+            groupSelection = ScreenList_Rotate(groupSelection, det, groupCount(menuId));
             *ioIndex = groupSelection;
         }
         return;
@@ -125,10 +145,15 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
 
 bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
     if (isGroup(menuId)) {
-        if (childPage == 255) { childPage = groupChild(menuId, groupSelection); childIndex = ScreenDetail_InitIndex(childPage); }
+        if (childPage == 255) {
+            if (groupSelection == SCREEN_LIST_BACK) return true;
+            childPage = groupChild(menuId, groupSelection); childIndex = ScreenDetail_InitIndex(childPage);
+        }
         else if (ScreenDetail_OnConfirm(childPage, childIndex)) childPage = 255;
         return false;
     }
+    if (menuId != 11 && ScreenDetail_Kind(menuId) == SCREEN_DETAIL_LIST && index == SCREEN_LIST_BACK)
+        return ScreenDetail_OnBack(menuId);
     if (isTimer(menuId)) {
         if (!timerSupported(menuId)) return false;
         if (menuId == kScreenTimer) ScreenConfig::setEnabled(STORAGE_MANAGER.config.screenControl, !timerEnabled(menuId));
@@ -144,9 +169,9 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
-        case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
-        case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
-        case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
+        case 4: ScreenDetailLightBrightness_OnConfirm(index); return true;
+        case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return true;
+        case 8: ScreenDetailScreenBrightness_OnConfirm(index); return true;
         case 9: return ScreenDetailWebConfig_OnConfirm(index);
         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
         case SCREEN_MENU_TX_ISP: return ScreenDetailTxIsp_OnConfirm(index);

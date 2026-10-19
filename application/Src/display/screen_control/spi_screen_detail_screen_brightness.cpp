@@ -28,10 +28,7 @@ void ScreenDetailScreenBrightness_Render(ST7789_Handle* lcd, uint8_t index, cons
 }
 
 void ScreenDetailScreenBrightness_OnConfirm(uint8_t index) {
-    uint8_t current = STORAGE_MANAGER.config.screenControl.brightness;
-    uint8_t restore = index;
-    if (restore == 0) restore = 50;
-    if (current > 0) STORAGE_MANAGER.config.screenControl.brightness = 0;
-    else STORAGE_MANAGER.config.screenControl.brightness = restore;
+    (void)index;
+    // Rotation already applies the value; confirmation preserves it and exits.
     ScreenUI_RequestDeferredSave(2000u);
 }

@@ -58,10 +58,7 @@ uint8_t ScreenDetailSocd_InitIndex(void) {
 void ScreenDetailSocd_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
     if (ScreenTimedPopup_IsVisible(&g_socdWarnPopup)) return;
-    int32_t idx = (int32_t)(*ioIndex) + det;
-    if (idx < 0) idx = 0;
-    if (idx >= (int32_t)NUM_SOCD_MODES) idx = (int32_t)NUM_SOCD_MODES - 1;
-    *ioIndex = (uint8_t)idx;
+    *ioIndex = ScreenList_Rotate(*ioIndex, det, NUM_SOCD_MODES);
 }
 
 void ScreenDetailSocd_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
@@ -92,4 +89,9 @@ void ScreenDetailSocd_OnConfirm(uint8_t index) {
 
 bool ScreenDetailSocd_ShouldExitAfterConfirm(void) {
     return g_socd_should_exit_after_confirm;
+}
+
+bool ScreenDetailSocd_WarningVisible(void) {
+    ScreenTimedPopup_Update(&g_socdWarnPopup, HAL_GetTick());
+    return ScreenTimedPopup_IsVisible(&g_socdWarnPopup);
 }

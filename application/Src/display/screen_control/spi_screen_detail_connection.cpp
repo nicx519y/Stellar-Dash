@@ -24,8 +24,7 @@ uint8_t ScreenDetailConnection_InitIndex()
 void ScreenDetailConnection_Rotate(uint8_t* index, int8_t det)
 {
     if (!index) return;
-    const int next = int(*index) + det;
-    *index = next < 0 ? 0 : next > 1 ? 1 : uint8_t(next);
+    *index = ScreenList_Rotate(*index, det, 2u);
 }
 
 bool ScreenDetailConnection_OnConfirm(uint8_t index)
@@ -59,5 +58,5 @@ void ScreenDetailConnection_Render(ST7789_Handle* lcd, uint8_t index, const Scre
 {
     const uint8_t selected = ConnectionConfig::selected(STORAGE_MANAGER.config) == CONNECTION_MODE_RF24G ? 1u : 0u;
     ScreenDetailRender_List(lcd, saveFailed ? "Save Failed" : "Connection", labels,
-        2u, index > 1u ? 1u : index, selected, style);
+        2u, index, selected, style);
 }

@@ -19,6 +19,8 @@ enum ScreenDetailKind {
 };
 
 ScreenDetailKind ScreenDetail_Kind(uint8_t menuId);
+const char* ScreenDetail_ConfirmLabel(uint8_t menuId, uint8_t index);
+const char* ScreenDetail_BackLabel(uint8_t menuId);
 uint8_t ScreenDetail_InitIndex(uint8_t menuId);
 void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det);
 bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index);

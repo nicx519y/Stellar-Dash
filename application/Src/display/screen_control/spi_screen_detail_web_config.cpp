@@ -49,37 +49,37 @@ void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const Scree
         "Browser authenticated.",
         "WebConfig session is active.",
         "Open the local WebConfig server.",
-        "Press Quit or Back to exit."
+        "Press knob or hold Back to exit."
     };
     static const char* const usbModeErrorLines[] = {
         "USB runtime is unavailable.",
         "Re-enter Web Config to retry.",
-        "Press Quit or hold Back to exit."
+        "Press knob or hold Back to exit."
     };
     static const char* const maintenanceErrorLines[] = {
         "USB maintenance is unavailable.",
         "Check the CH585 firmware and link.",
-        "Press Quit or hold Back to exit.",
+        "Press knob or hold Back to exit.",
         "Re-enter WebConfig to retry."
     };
     static const char* const securityErrorLines[] = {
         "Device security check failed.",
         "Check identity and trust setup.",
-        "Press Quit or hold Back to exit."
+        "Press knob or hold Back to exit."
     };
     static const char* const storageInitErrorLines[] = {
         "QSPI storage is unavailable.",
         "Configuration access is disabled.",
-        "Press Quit or hold Back to exit."
+        "Press knob or hold Back to exit."
     };
     static const char* const adcErrorLines[] = {
         "Input sampling stopped.",
         "The USB session is closed.",
-        "Press Quit or hold Back to exit."
+        "Press knob or hold Back to exit."
     };
     static const char* const storageErrorLines[] = {
         "Configuration save failed.",
-        "Press Retry to save and exit again.",
+        "Press knob to retry saving and exit.",
         "The secure USB session is closed."
     };
 

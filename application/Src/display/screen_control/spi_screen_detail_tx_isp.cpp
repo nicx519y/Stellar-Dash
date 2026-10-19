@@ -17,7 +17,7 @@ void ScreenDetailTxIsp_Render(ST7789_Handle* lcd, uint8_t, const ScreenUiStyle& 
 {
     static const char* const entry[] = {
         "Connect TX PB22 to GND first.",
-        "Press Start to restart TX in ISP.",
+        "Press knob to restart TX in ISP.",
         "USB/RF/WebConfig will pause.",
         "Use WCHISPStudio after entry."
     };
@@ -25,12 +25,12 @@ void ScreenDetailTxIsp_Render(ST7789_Handle* lcd, uint8_t, const ScreenUiStyle& 
         "TX power held on. SPI paused.",
         "Use WCHISPStudio to download.",
         "Keep power on during download.",
-        "Press Finish after it completes."
+        "Press knob after it completes."
     };
     static const char* const leaving[] = {
         "Ensure the download has ended.",
         "Remove PB22 from GND first.",
-        "Press Exit to return to prior mode.",
+        "Press knob to return to prior mode.",
         "Hold Back to keep ISP active."
     };
     static const char* const blocked[] = {
@@ -71,4 +71,9 @@ bool ScreenDetailTxIsp_OnBack()
 const char* ScreenDetailTxIsp_ConfirmLabel()
 {
     return !MainRuntime_IsTxIspActive() ? "Start" : (confirmExit ? "Exit" : "Finish");
+}
+
+const char* ScreenDetailTxIsp_BackLabel()
+{
+    return !MainRuntime_IsTxIspActive() ? "Back" : (confirmExit ? "Cancel" : "Finish");
 }

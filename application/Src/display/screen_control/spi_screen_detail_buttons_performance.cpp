@@ -90,6 +90,7 @@ static const CustomParamMeta kParamMeta[PARAM_COUNT] = {
 static ButtonsPerfMode g_mode = MODE_PRESET_LIST;
 static bool g_customEditing = false;
 static uint8_t g_customCursor = 0u;
+static uint8_t g_presetCursor = 0u;
 static int8_t g_inertiaDir = 0;         // 惯性方向：+1 向上加值，-1 向下减值
 static uint8_t g_inertiaSteps = 0u;     // 惯性剩余“补步”次数：越大惯性越长
 static uint32_t g_inertiaNextMs = 0u;   // 下一次执行惯性补步的时间点（ms）
@@ -245,24 +246,20 @@ uint8_t ScreenDetailButtonsPerformance_InitIndex(void) {
     g_inertiaSteps = 0u;
     g_inertiaDir = 0;
     g_editMul = BTN_PERF_EDIT_MUL_BASE;
-    return (uint8_t)current_matched_preset();
+    g_presetCursor = (uint8_t)current_matched_preset();
+    return g_presetCursor;
 }
 
 void ScreenDetailButtonsPerformance_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
     if (g_mode == MODE_PRESET_LIST) {
-        int32_t idx = (int32_t)(*ioIndex) + det;
-        if (idx < 0) idx = 0;
-        if (idx >= (int32_t)PRESET_COUNT) idx = (int32_t)PRESET_COUNT - 1;
-        *ioIndex = (uint8_t)idx;
+        g_presetCursor = ScreenList_Rotate(g_presetCursor, det, PRESET_COUNT);
+        *ioIndex = g_presetCursor;
         return;
     }
 
     if (!g_customEditing) {
-        int32_t idx = (int32_t)g_customCursor + det;
-        if (idx < 0) idx = 0;
-        if (idx >= (int32_t)PARAM_COUNT) idx = (int32_t)PARAM_COUNT - 1;
-        g_customCursor = (uint8_t)idx;
+        g_customCursor = ScreenList_Rotate(g_customCursor, det, PARAM_COUNT);
         *ioIndex = g_customCursor;
         g_inertiaSteps = 0u;
         g_inertiaDir = 0;
@@ -314,6 +311,8 @@ void ScreenDetailButtonsPerformance_Rotate(uint8_t* ioIndex, int8_t det) {
 }
 
 bool ScreenDetailButtonsPerformance_OnConfirm(uint8_t index) {
+    index = g_mode == MODE_PRESET_LIST ? g_presetCursor : g_customCursor;
+    if (!g_customEditing && index == SCREEN_LIST_BACK) return !ScreenDetailButtonsPerformance_OnBack();
     GamepadProfile* p = default_profile();
     if (!p) return false;
 
@@ -369,10 +368,10 @@ bool ScreenDetailButtonsPerformance_OnBack(void) {
     return false;
 }
 
-void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
+void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t, const ScreenUiStyle& style) {
     if (g_mode == MODE_PRESET_LIST) {
         uint8_t selected = (uint8_t)current_matched_preset();
-        ScreenDetailRender_List(lcd, "Buttons Performance", kPresetLabels, (uint8_t)PRESET_COUNT, index, selected, style);
+        ScreenDetailRender_List(lcd, "Buttons Performance", kPresetLabels, (uint8_t)PRESET_COUNT, g_presetCursor, selected, style);
         return;
     }
 
@@ -399,7 +398,7 @@ void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t index, co
         }
     }
     uint8_t cursor = g_customCursor;
-    if (cursor >= PARAM_COUNT) cursor = 0;
+    if (cursor >= PARAM_COUNT && cursor != SCREEN_LIST_BACK) cursor = 0;
     g_customCursor = cursor;
 
     const uint16_t w = ST7789_WIDTH;
@@ -419,12 +418,25 @@ void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t index, co
     RapidTriggerProfile cfg = {};
     if (p) cfg = p->triggerConfigs.triggerConfigs[0];
 
-    uint8_t page = (uint8_t)(cursor / 2u);
-    uint8_t base = (uint8_t)(page * 2u);
+    // Back is the first logical row; keep the parameter bars and values intact.
+    const uint8_t logicalCursor = cursor == SCREEN_LIST_BACK ? 0u : cursor + 1u;
+    if (!g_customEditing)
+        ScreenUI_DrawListArrows(lcd, logicalCursor > 0u, logicalCursor < PARAM_COUNT, style.text, style.bg);
+    uint8_t base = (logicalCursor / 2u) * 2u;
     for (uint8_t row = 0; row < 2u; row++) {
-        uint8_t param = (uint8_t)(base + row);
-        if (param >= PARAM_COUNT) continue;
+        const uint8_t logicalRow = base + row;
         uint16_t ry = (uint16_t)(y0 + (uint16_t)row * rowH);
+        if (logicalRow == 0u) {
+            const bool selected = cursor == SCREEN_LIST_BACK;
+            const uint32_t bg = selected ? style.selBg : style.bg;
+            ST7789_FillRect(lcd, listX, ry, listW, rowH, bg);
+            const uint16_t textY = ry + (rowH - ScreenUI_CharCellH(2u)) / 2u;
+            ScreenUI_DrawBackIcon(lcd, x, textY + 2u, style.text);
+            ST7789_DrawString(lcd, x + 20u, textY, "Back", style.text, bg, 2u);
+            continue;
+        }
+        uint8_t param = logicalRow - 1u;
+        if (param >= PARAM_COUNT) continue;
         bool selected = (param == cursor);
         uint32_t bg = selected ? selBg : style.bg;
         uint32_t fg = selected ? style.text : muted;
@@ -461,4 +473,12 @@ void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t index, co
         if (valY > maxValY) valY = maxValY;
         ScreenUI_DrawStringCenteredInBox(lcd, listX, valY, listW, valueH, vbuf, fg, bg, valueScale);
     }
+}
+
+bool ScreenDetailButtonsPerformance_IsEditing(void) { return g_customEditing; }
+
+const char* ScreenDetailButtonsPerformance_ConfirmLabel(uint8_t) {
+    if (g_mode == MODE_PRESET_LIST)
+        return g_presetCursor == SCREEN_LIST_BACK ? "Back" : g_presetCursor == PRESET_CUSTOM ? "Open" : "Apply";
+    return g_customEditing ? "Done" : g_customCursor == SCREEN_LIST_BACK ? "Back" : "Edit";
 }

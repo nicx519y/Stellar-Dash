@@ -292,7 +292,7 @@ static bool render_centered_asset_icon(ST7789_Handle* lcd,
 
 static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t bodyY, uint32_t fg, uint32_t bg, uint32_t nowMs) {
     const uint16_t bodyW = 26u;
-    const uint16_t bodyH = 14u;
+    const uint16_t bodyH = SPI_SCREEN_BATTERY_BODY_H;
     const uint16_t headW = 2u;
     const uint16_t headH = 6u;
     const uint16_t totalW = (uint16_t)(bodyW + headW);
@@ -866,28 +866,15 @@ void SPIScreenManager::renderBars() {
     const uint32_t nowMs = HAL_GetTick();
     update_battery_ui_cache(nowMs);
 
-    const ScreenMenuMeta* prev = (menuIndex > 0) ? ScreenMain_FindMenuMeta(menuIds[menuIndex - 1]) : nullptr;
-    const ScreenMenuMeta* next = (menuIndex + 1 < menuCount) ? ScreenMain_FindMenuMeta(menuIds[menuIndex + 1]) : nullptr;
-
     const uint16_t areaH = (uint16_t)(h / 3u);
     const uint16_t topY = 0;
     const uint16_t midY = areaH;
-    const uint16_t botY = (uint16_t)(areaH * 2u);
-    const uint16_t botH = (uint16_t)(h - botY);
 
     const uint8_t tokenScale = SPI_SCREEN_STATUS_BAR_TEXT_SCALE;
     const uint8_t profileScale = SPI_SCREEN_PROFILE_TEXT_SCALE;
     const uint16_t profileH = ScreenUI_CharCellH(profileScale);
-    const uint16_t statusIconH = 32u;
-    const uint16_t battBodyH = 14u;
-    const uint16_t leftTopY = (areaH > profileH) ? (uint16_t)(topY + (areaH - profileH) / 2u) : topY;
-    const uint16_t battY = (botH > battBodyH) ? (uint16_t)(botY + (botH - battBodyH) / 2u) : botY;
-    const uint16_t inputY = (h > statusIconH) ? (uint16_t)((h - statusIconH) / 2u) : 0u;
-    const uint16_t inputCenterY = (uint16_t)(inputY + statusIconH / 2u);
-    const uint16_t battCenterY = (uint16_t)(battY + battBodyH / 2u);
-    int32_t connYCalc = ((int32_t)inputCenterY + (int32_t)battCenterY) / 2 - (int32_t)(statusIconH / 2u);
-    if (connYCalc < 0) connYCalc = 0;
-    const uint16_t connY = (uint16_t)connYCalc;
+    const uint16_t statusIconH = SPI_SCREEN_STATUS_ICON_H;
+    const auto layout = ScreenUI_StatusBarLayout();
 
     uint8_t currentProfileIdx = 0xFF;
     uint8_t count = STORAGE_MANAGER.config.numProfilesMax;
@@ -902,51 +889,41 @@ void SPIScreenManager::renderBars() {
 
     char token[6] = "P??";
     if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%02u", (unsigned)(currentProfileIdx + 1u));
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, leftTopY, leftW, profileH, token, textColor, barBg, profileScale);
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, inputY, leftW, statusIconH, mode, textColor, barBg, tokenScale);
-    if (!render_centered_asset_icon(&g_lcd, 0, connY, leftW, statusIconH, get_connection_mode_icon_name())) {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, connY, leftW, statusIconH, get_connection_mode_label(), textColor, barBg, tokenScale);
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.profileY, leftW, profileH, token, textColor, barBg, profileScale);
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.platformY, leftW, statusIconH, mode, textColor, barBg, tokenScale);
+    if (!render_centered_asset_icon(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_icon_name())) {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_label(), textColor, barBg, tokenScale);
     }
-    render_left_battery_icon(&g_lcd, leftW, battY, textColor, barBg, nowMs);
+    render_left_battery_icon(&g_lcd, leftW, layout.batteryY, textColor, barBg, nowMs);
 
     if(g_firmwareRecoveryVisible && ScreenTimedPopup_IsVisible(&g_actionPopup)){
         const bool checking=g_firmwareRecoveryPage==FirmwareRecoveryPage::Checking;
         if(g_firmwareRecoveryPage!=FirmwareRecoveryPage::Details)
             ScreenUI_DrawStringCenteredInBox(&g_lcd,rightX,topY,rightW,areaH,checking?"Cancel":"Back",textColor,barBg,1u);
-        ScreenUI_DrawStringCenteredInBox(&g_lcd,rightX,midY,rightW,areaH,
-            checking?"Wait":g_firmwareRecoveryPage==FirmwareRecoveryPage::Confirm?"OK":"Check",
-            textColor,barBg,1u);
+        ScreenUI_DrawActionIcon(&g_lcd, rightX + rightW / 2u, midY + areaH / 2u,
+            checking ? ScreenActionIcon::Wait : g_firmwareRecoveryPage == FirmwareRecoveryPage::Confirm ? ScreenActionIcon::Confirm : ScreenActionIcon::Check,
+            textColor, barBg);
         return;
     }
-    if (g_inDetail) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, "Back", textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
-    else if (prev && prev->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
-
-    const uint32_t okBg = ok_flash_active() ? g_cfgOkBg : barBg;
-    if (g_inDetail && g_detailMenuId == 9) {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailWebConfig_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
-    } else if (g_inDetail && g_detailMenuId == SCREEN_MENU_TX_ISP) {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailTxIsp_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
-    } else if (g_inDetail && g_detailMenuId == 10) {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "Quit", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
-    } else if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {
-        bool on = false;
-        if (g_detailMenuId == 4) {
-            const GamepadProfile* p = STORAGE_MANAGER.getDefaultGamepadProfile();
-            on = p ? p->ledsConfigs.ledEnabled : false;
-        } else if (g_detailMenuId == 6) {
-            const GamepadProfile* p = STORAGE_MANAGER.getDefaultGamepadProfile();
-            on = p ? p->ledsConfigs.aroundLedEnabled : false;
-        } else if (g_detailMenuId == 8) {
-            on = STORAGE_MANAGER.config.screenControl.brightness > 0;
-        }
-
-        const char* label = on ? "OFF" : "ON";
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, label, textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
-    } else {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "OK", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    if (ScreenTimedPopup_IsVisible(&g_actionPopup)) {
+        if (!g_actionPopup.persistent)
+            ScreenUI_DrawActionIcon(&g_lcd, rightX + rightW / 2u, midY + areaH / 2u, ScreenActionIcon::Close, textColor, barBg);
+        return;
     }
-
-    if (!g_inDetail && next && next->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, botY, rightW, botH, next->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    const ScreenDetailKind kind = g_inDetail ? ScreenDetail_Kind(g_detailMenuId) : SCREEN_DETAIL_LIST;
+    // Lists draw their own arrows using the same live cursor/count as their rows.
+    if (kind == SCREEN_DETAIL_SLIDER) {
+        ScreenUI_DrawScrollArrow(&g_lcd, rightX + rightW / 2u, layout.topArrowY, true, textColor);
+        ScreenUI_DrawScrollArrow(&g_lcd, rightX + rightW / 2u, layout.bottomArrowY, false, textColor);
+    } else if (g_inDetail && kind != SCREEN_DETAIL_LIST) {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH,
+            ScreenDetail_BackLabel(g_detailMenuId), textColor, barBg, 1u);
+    }
+    const uint32_t okBg = ok_flash_active() ? g_cfgOkBg : barBg;
+    const uint8_t selectedId = menuIndex < menuCount ? menuIds[menuIndex] : 255u;
+    const char* action = g_inDetail ? ScreenDetail_ConfirmLabel(g_detailMenuId, g_detailIndex)
+        : menuCount == 0 ? "" : (selectedId == 9u || selectedId == 10u) ? "Start" : "Open";
+    ScreenUI_DrawActionIcon(&g_lcd, rightX + rightW / 2u, midY + areaH / 2u, ScreenUI_ActionIcon(action), textColor, okBg);
 }
 
 

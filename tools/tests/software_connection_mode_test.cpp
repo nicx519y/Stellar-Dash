@@ -10,8 +10,8 @@
 
 std::string title;
 void ScreenDetailRender_List(ST7789_Handle*, const char* text, const char* const*, uint8_t count,
-    uint8_t index, uint8_t selected, const ScreenUiStyle&, uint16_t, bool, int, uint32_t, uint32_t, const bool*) {
-    assert(count == 2 && index < 2 && selected < 2); title=text;
+    uint8_t index, uint8_t selected, const ScreenUiStyle&, uint16_t, bool, int, uint32_t, uint32_t, const bool*, bool) {
+    assert(count == 2 && (index < 2 || index == SCREEN_LIST_BACK) && selected < 2); title=text;
 }
 extern "C" void MainRuntime_RequestReset() { ++resets; }
 extern "C" bool MainRuntime_IsTxIspActive() { return isp; }
@@ -56,7 +56,11 @@ int main() {
     STORAGE_MANAGER.config=config;
     STORAGE_MANAGER.config.bootMode=BootMode::BOOT_MODE_INPUT;
     uint8_t index=ScreenDetailConnection_InitIndex(); assert(index==0);
-    ScreenDetailConnection_Rotate(&index,-128); assert(index==0);
+    ScreenDetailConnection_Rotate(&index,-128); assert(index==SCREEN_LIST_BACK);
+    ST7789_Handle backLcd={}; ScreenUiStyle backStyle={};
+    ScreenDetailConnection_Render(&backLcd,index,backStyle);
+    assert(!ScreenDetailConnection_OnConfirm(index) && saves==0 && resets==0);
+    ScreenDetailConnection_Rotate(&index,1); assert(index==0);
     ScreenDetailConnection_Rotate(&index,127); assert(index==1);
     saveOk=false;
     assert(!ScreenDetailConnection_OnConfirm(index));

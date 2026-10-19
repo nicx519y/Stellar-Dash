@@ -4,7 +4,7 @@
 
 #include "screen_control/spi_screen_ui_common.hpp"
 
-void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* const* labels, uint8_t count, uint8_t index, uint8_t selectedConfigIndex, const ScreenUiStyle& style, uint16_t itemH, bool animActive, int animDir, uint32_t animStartMs, uint32_t nowMs, const bool* disabledItems) {
+void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* const* labels, uint8_t count, uint8_t index, uint8_t selectedConfigIndex, const ScreenUiStyle& style, uint16_t itemH, bool animActive, int animDir, uint32_t animStartMs, uint32_t nowMs, const bool* disabledItems, bool showBack) {
     (void)title;
     if (!lcd || !labels) return;
 
@@ -27,8 +27,16 @@ void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* 
         offsetPx = -animDir * signedPx;
     }
 
-    for (uint8_t i = 0; i < count; i++) {
-        int dy = (int)((int)i - (int)index) * (int)itemH;
+    const int cursor = index == SCREEN_LIST_BACK ? -1 : int(index);
+    bool canUp = showBack && cursor >= 0, canDown = false;
+    for (int i = 0; i < count; ++i) {
+        if (disabledItems && disabledItems[i]) continue;
+        if (i < cursor) canUp = true;
+        if (i > cursor) canDown = true;
+    }
+    ScreenUI_DrawListArrows(lcd, canUp, canDown, style.text, style.bg);
+    for (int i = showBack ? -1 : 0; i < count; i++) {
+        int dy = (i - cursor) * (int)itemH;
         int y0 = (int)anchorY + dy + offsetPx;
         int y1 = y0 + (int)itemH;
         if (y1 <= 0 || y0 >= (int)h) continue;
@@ -41,17 +49,21 @@ void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* 
         int textY = y0 + (int)((itemH - charH) / 2u);
         bool textVisible = (textY >= 0) && ((textY + (int)charH) <= (int)h);
         uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
-        const char* label = labels[i] ? labels[i] : "";
-        const bool disabled = disabledItems && disabledItems[i];
-        const uint32_t itemText = disabled ? disabledText : ((i == selectedConfigIndex) ? style.text : normalText);
-        if (i == index) {
+        const bool back = i == -1;
+        const char* label = back ? "Back" : (labels[i] ? labels[i] : "");
+        const bool disabled = !back && disabledItems && disabledItems[i];
+        const uint32_t itemText = disabled ? disabledText : ((back || i == selectedConfigIndex) ? style.text : normalText);
+        const uint16_t textX = listX + (back ? 24u : 4u);
+        if (i == cursor) {
             ST7789_FillRect(lcd, listX, yy, listW, hh, style.selBg);
             if (textVisible) {
-                ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.selBg, SPI_SCREEN_MENU_TEXT_SCALE);
+                if (back) ScreenUI_DrawBackIcon(lcd, listX + 5u, ty + (charH - 13u) / 2u, itemText);
+                ST7789_DrawString(lcd, textX, ty, label, itemText, style.selBg, SPI_SCREEN_MENU_TEXT_SCALE);
             }
         } else {
             if (textVisible) {
-                ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
+                if (back) ScreenUI_DrawBackIcon(lcd, listX + 5u, ty + (charH - 13u) / 2u, itemText);
+                ST7789_DrawString(lcd, textX, ty, label, itemText, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
             }
         }
     }

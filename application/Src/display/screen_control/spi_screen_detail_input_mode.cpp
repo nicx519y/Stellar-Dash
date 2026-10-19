@@ -36,15 +36,8 @@ uint8_t ScreenDetailInputMode_InitIndex(void) {
 
 void ScreenDetailInputMode_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
-    if (!BOARD_MODE.isStable() ||
-        BOARD_MODE.current() != BoardMode::Usb) {
-        *ioIndex = 0;
-        return;
-    }
-    int32_t idx = (int32_t)(*ioIndex) + det;
-    if (idx < 0) idx = 0;
-    if (idx >= (int32_t)(sizeof(kInputModes) / sizeof(kInputModes[0]))) idx = (int32_t)(sizeof(kInputModes) / sizeof(kInputModes[0])) - 1;
-    *ioIndex = (uint8_t)idx;
+    const bool usb = BOARD_MODE.isStable() && BOARD_MODE.current() == BoardMode::Usb;
+    *ioIndex = ScreenList_Rotate(*ioIndex, det, usb ? sizeof(kInputModes) / sizeof(kInputModes[0]) : 1u);
 }
 
 void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
@@ -52,7 +45,7 @@ void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const Scree
     bool disabledItems[sizeof(kInputModes) / sizeof(kInputModes[0])] = {false};
     if (!BOARD_MODE.isStable() ||
         BOARD_MODE.current() != BoardMode::Usb) {
-        index = 0;
+        if (index != SCREEN_LIST_BACK) index = 0;
         for (uint8_t i = 1; i < (uint8_t)(sizeof(disabledItems) / sizeof(disabledItems[0])); i++) {
             disabledItems[i] = true;
         }

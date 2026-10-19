@@ -4,6 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+bool ScreenDetailSocd_WarningVisible(void);
+bool ScreenDetailButtonsPerformance_IsEditing(void);
+const char* ScreenDetailButtonsPerformance_ConfirmLabel(uint8_t index);
+const char* ScreenDetailTxIsp_BackLabel(void);
+
 #include "screen_control/spi_screen_layout.hpp"
 
 extern "C" {

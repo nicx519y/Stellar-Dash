@@ -27,6 +27,7 @@ int main() {
     assert(machine.requestTransition(MainRuntimeState::Input));
     // Entry is deferred: the encoder callback cannot tear down the active LCD frame.
     ScreenDetailTxIsp_InitIndex();
+    assert(std::strcmp(ScreenDetailTxIsp_BackLabel(),"Back")==0);
     assert(!ScreenDetailTxIsp_OnConfirm(0));
     assert(!MainRuntime_IsTxIspActive() && INPUT_STATE.exits==0);
     assert(!MainRuntime_RequestTxIsp(true)); // already queued
@@ -47,8 +48,10 @@ int main() {
     machine.requestReset(); assert(!machine.resetPending && resets==0);
     ST7789_Handle lcd; ScreenUiStyle style={};
     ScreenDetailTxIsp_Render(&lcd,0,style); assert(rendered.find("power held on")!=std::string::npos);
+    assert(std::strcmp(ScreenDetailTxIsp_BackLabel(),"Finish")==0);
     // Back/Finish only opens the confirmation, and Back cancels it without power loss.
     assert(!ScreenDetailTxIsp_OnBack()); assert(std::strcmp(ScreenDetailTxIsp_ConfirmLabel(),"Exit")==0);
+    assert(std::strcmp(ScreenDetailTxIsp_BackLabel(),"Cancel")==0);
     assert(!ScreenDetailTxIsp_OnBack()); assert(std::strcmp(ScreenDetailTxIsp_ConfirmLabel(),"Finish")==0);
     assert(BOARD_POWER.tx);
     assert(!ScreenDetailTxIsp_OnConfirm(0));

@@ -22,8 +22,7 @@ uint8_t ScreenDetailLightEffect_InitIndex() {
 void ScreenDetailLightEffect_Rotate(uint8_t *index, int8_t det) {
   if (!index)
     return;
-  int n = entries(), v = int(*index) + det;
-  *index = v < 0 ? 0 : v >= n ? n - 1 : v;
+  *index = ScreenList_Rotate(*index, det, entries());
 }
 void ScreenDetailLightEffect_Render(ST7789_Handle *lcd, uint8_t index,
                                     const ScreenUiStyle &style) {
