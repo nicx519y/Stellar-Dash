@@ -1,0 +1,68 @@
+#include "../../common/fault_log.h"
+#include <assert.h>
+#include <stdio.h>
+static uint8_t flash[8192];
+static int budget = -1, read_fail, erases;
+static int rd(uint32_t a, void *p, uint32_t n) {
+    assert(a + n <= sizeof(flash));
+    if (read_fail) return -1;
+    memcpy(p, flash + a, n); return 0;
+}
+static int wr(uint32_t a, const void *p, uint32_t n) {
+    uint32_t i; const uint8_t *v = p;
+    assert(a + n <= sizeof(flash));
+    for (i=0;i<n;i++) {
+        if (budget == 0) return -1;
+        if (budget > 0) --budget;
+        assert((flash[a+i] & v[i]) == v[i]);
+        flash[a+i] &= v[i];
+    }
+    return 0;
+}
+static int er(uint32_t a) {
+    assert(a % 4096 == 0 && a + 4096 <= sizeof(flash));
+    memset(flash+a, 255, 4096); ++erases; return 0;
+}
+static fl_backend backend = {rd,wr,er,sizeof(flash)};
+static fl_record record(unsigned boot) {
+    fl_record r; memset(&r,0,sizeof(r));
+    r.source=1;r.boot=boot;r.event=FL_EVENT_CPU;r.category=FL_CATEGORY_FAULT;r.severity=FL_ERROR;r.repeat=1;
+    return r;
+}
+int main(void) {
+    unsigned i;
+    for (i=0;i<96;i++) {
+        fl_record a=record(1), b=record(2), got;
+        memset(flash,255,sizeof(flash));budget=-1;
+        assert(fl_append(&backend,&a)==FL_OK);
+        budget=(int)i;assert(fl_append(&backend,&b)==FL_IO);
+        budget=-1;
+        assert(fl_find(&backend,UINT32_MAX,0,0,0,&got)==FL_OK && got.boot==1);
+        assert(fl_append(&backend,&b)==FL_OK);
+        assert(fl_inspect(&backend).count==2);
+    }
+    memset(flash,255,sizeof(flash)); erases=0;
+    for(i=1;i<=100;i++){fl_record r=record(i);assert(fl_append(&backend,&r)==FL_OK);}
+    assert(erases==2);
+    assert(fl_inspect(&backend).newest==100);
+    {fl_record r;assert(fl_find(&backend,90,0,0,0,&r)==FL_OK && r.sequence==90);}
+    /* Corruption is reported, not erased; other records remain readable. */
+    flash[0] = 0; assert(fl_inspect(&backend).status==FL_CORRUPT);
+    {int n=erases;assert(!fl_reclaimable(&backend,0));assert(erases==n);}
+    read_fail=1;{fl_record r=record(4);assert(fl_append(&backend,&r)==FL_IO);}read_fail=0;
+    memset(flash,255,sizeof(flash));
+    {fl_runtime rt;fl_retained retained;uint32_t data=42;
+     memset(&retained,0,sizeof(retained));fl_start(&rt,&retained,&backend,1,123,1);
+     fl_event(&rt,1,4,2,3,&data,1);fl_event(&rt,2,4,2,3,&data,1);
+     assert(rt.count==1 && rt.queue[0].repeat==2);
+     fl_event(&rt,3,5,2,3,0,0);fl_event(&rt,4,6,2,3,0,0);
+     assert(rt.dropped==1 && rt.count==2);
+     fl_service(&rt,&retained,0);assert(fl_inspect(&backend).count==0);
+     fl_capture(&retained,1,123,10,1,&data,1);
+     {fl_retained saved=retained;fl_service(&rt,&retained,1);retained=saved;fl_service(&rt,&retained,1);}
+     assert(fl_inspect(&backend).count==1 && !retained.crash.event);
+     fl_service(&rt,&retained,1);assert(fl_inspect(&backend).count==2);
+     assert(sizeof(rt)+sizeof(retained)<=512);
+    }
+    puts("fault journal: power cuts, wrap, CRC, read failure, queue and crash replay passed");
+}

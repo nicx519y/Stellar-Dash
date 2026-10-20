@@ -161,6 +161,8 @@ _Static_assert(sizeof(FirmwareMetadata) == METADATA_STRUCT_SIZE,
 // 配置/共享区域
 #define USER_CONFIG_ADDR            0x90560000  // 64KB (bootloader侧用户配置)
 #define USER_CONFIG_SIZE            0x10000
+#define FAULT_LOG_STORAGE_ADDR      USER_CONFIG_ADDR
+#define FAULT_LOG_STORAGE_SIZE      USER_CONFIG_SIZE
 
 #define METADATA_ADDR               0x90570000  // 64KB
 #define METADATA_SIZE               0x10000
