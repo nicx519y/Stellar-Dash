@@ -9,6 +9,7 @@
 #include "board_cfg.h"
 #include "monitor_telemetry.hpp"
 #include "system_logger.h"
+#include "fault_log_api.h"
 #include "stm32h7xx_hal.h"
 #include "usb_board_link_codec.h"
 #include "usb_board_link_port.hpp"
@@ -421,6 +422,11 @@ bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
                  sizeof(response),
                  &responseLength,
                  timeoutMs);
+    if (explicitSelection && responseLength==sizeof(response) && response.status==USB_BOARD_STATUS_ROLE_LOCKED) {
+        XoraLog_Event(FL_EVENT_ROLE,FL_CATEGORY_LINK,FL_ERROR,response.status);
+        XoraLog_RequireMaintenance();
+        return false;
+    }
     const bool validExplicitSelection =
         explicitSelection &&
         (responseLength == sizeof(response)) &&
@@ -1087,6 +1093,7 @@ void UsbBoardLink::serviceWebConfigTransportReset()
     if (webConfigResetAttempts >= 3u) return;
     ++webConfigResetAttempts;
     if (sendControl(USB_BOARD_CONTROL_CLEAR_FAULT) && enableWebHidDataPlane()) {
+        XoraLog_Event(FL_EVENT_RECOVERED,FL_CATEGORY_RECOVERY,FL_WARN,FL_EVENT_BOARD_LINK);
         webConfigTransportState = WebConfigTransportState::Ready;
     }
 }
@@ -1319,6 +1326,7 @@ void UsbBoardLink::handleEvent(uint8_t command,
             credits[update.channel] = boundedCredits;
         }
     } else if ((command == USB_BOARD_EVT_FAULT) && (length != 0u)) {
+        XoraLog_Event(FL_EVENT_BOARD_LINK,FL_CATEGORY_LINK,FL_ERROR,payload[0]);
         if(selectedRole == USB_BOARD_ROLE_USB && length == 14u && !g_usb_input_fault[0]) {
             g_usb_input_fault[1]=HAL_GetTick();
             g_usb_input_fault[2]=payload[0]; g_usb_input_fault[3]=payload[1];

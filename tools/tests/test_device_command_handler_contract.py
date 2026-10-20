@@ -51,8 +51,8 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
         }
         case_names = [case["name"] for case in cases["commands"]]
 
-        self.assertEqual(78, len(case_names))
-        self.assertEqual(78, len(set(case_names)))
+        self.assertEqual(79, len(case_names))
+        self.assertEqual(79, len(set(case_names)))
         self.assertEqual(migrated_names, set(case_names))
         self.assertIn("ping", cases)
         for case in cases["commands"]:
@@ -79,6 +79,7 @@ class DeviceCommandHandlerContractTest(unittest.TestCase):
             "application/Src/webconfig/configs/ms_mark_command_handler.cpp",
             "application/Src/webconfig/configs/calibration_command_handler.cpp",
             "application/Src/webconfig/configs/common_command_handler.cpp",
+            "application/Src/webconfig/configs/fault_log_command.cpp",
             "application/Src/webconfig/configs/firmware_command_handler.cpp",
         ]
         for source in production_sources:

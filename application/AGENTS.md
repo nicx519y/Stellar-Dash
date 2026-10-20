@@ -30,4 +30,4 @@
 - `APP_LOG_ENABLE` 控制 `APPLICATION_SERIAL_PRINT` / `APPLICATION_DEBUG_PRINT`；`APP_LOG_VERBOSE` 控制 USB、RF 协议/事务/可靠事件、旋钮等高频诊断。总开关为 `0` 时 verbose 被强制为 `0`。
 - 新增诊断优先接入现有开关，避免无必要的独立 `*_DEBUG_PRINT` / `*_LOG` 开关。
 - `CFG_TUSB_DEBUG` 当前在 [tusb_config.h](Inc/transport/usb/legacy/tusb_config.h) 独立默认 `0`，未由 Makefile 的 `APP_LOG_VERBOSE` 联动设置；不要假设打开 verbose 会打开 TinyUSB 调试。
-- `HardFault_Handler()` 在启用正常日志时通过 `APP_DBG` 输出；[common/system_logger.h](../common/system_logger.h) 的 `Logger_*` / `LOG_*` 为兼容空实现，不持久化到 QSPI。
+- CPU 异常使用独立应急栈和复位保留 RAM，禁止在异常路径格式化输出或擦写 Flash。结构化故障日志独立于串口开关；旧 `LOG_*` 文本 API 保持空实现，`Logger_Flush` 仅申请安全写入。入口、专用分区、互斥窗口和验收边界见 [设备日志](../docs/device-fault-logs.md)。

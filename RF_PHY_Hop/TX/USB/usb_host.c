@@ -1,3 +1,4 @@
+#include "fault_log_api.h"
 #include "usb_host.h"
 
 #include <string.h>
@@ -250,6 +251,8 @@ static uint8_t host_poll_port(void)
 
 static void host_schedule_recovery(uint8_t error)
 {
+    if(error!=ERR_USB_DISCON && error!=ERR_USB_CONNECT)
+        XoraLog_Event(FL_EVENT_USB,FL_CATEGORY_LINK,FL_ERROR,error);
     DisableRootHubPort();
     host_clear_enumeration();
     host_set_fault(error);
@@ -582,6 +585,7 @@ static bool host_parse_configuration(uint16_t length)
 
 static void host_complete_enumeration(void)
 {
+    if(s_enum_attempts>1u) XoraLog_Event(FL_EVENT_RECOVERED,FL_CATEGORY_RECOVERY,FL_WARN,FL_EVENT_USB);
     ThisUsbDev.DeviceStatus = ROOT_DEV_SUCCESS;
     ThisUsbDev.DeviceAddress = s_device_address;
     ThisUsbDev.DeviceSpeed = s_device_speed;

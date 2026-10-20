@@ -8,6 +8,7 @@
 #include "ch585_iap_protocol.h"
 #include "release_install_protocol.h"
 #include "tx_image_bulk.h"
+#include "fault_log_api.h"
 
 static uint8_t s_connected;
 static uint8_t s_last_fault;
@@ -91,6 +92,13 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
     {
         switch((usb_board_control_opcode_t)request.header.opcode)
         {
+        case USB_BOARD_CONTROL_FAULT_LOG:
+            if(s_binding_role!=USB_BOARD_ROLE_MAINTENANCE) status=USB_BOARD_STATUS_BAD_ROLE;
+            else {
+                int result=XoraLog_Control(request.data,request.header.data_length,response.data,&response.header.data_length);
+                status=result==FL_OK ? USB_BOARD_STATUS_OK : result==FL_FULL ? USB_BOARD_STATUS_NOT_READY : USB_BOARD_STATUS_INTERNAL_ERROR;
+            }
+            break;
         case USB_BOARD_CONTROL_TX_IMAGE_BULK_INFO:
             if(s_binding_role!=USB_BOARD_ROLE_MAINTENANCE) status=USB_BOARD_STATUS_BAD_ROLE;
             else if(request.header.data_length!=0u) status=USB_BOARD_STATUS_BAD_LENGTH;

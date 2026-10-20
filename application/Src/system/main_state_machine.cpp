@@ -19,6 +19,8 @@
 #include "states/tx_isp_state.hpp"
 #include "states/battery_protection_state.hpp"
 #include "system_logger.h"
+#include "fault_log_api.h"
+#include "usb_board_link.hpp"
 #include "system_sleep_manager.hpp"
 #include "boot_profile.h"
 #pragma GCC optimize("Os")
@@ -67,6 +69,8 @@ void MainStateMachine::initializeInteractiveRuntime(bool overlapInputStartup)
 {
     if (interactiveRuntimeInitialized) return;
 
+    XoraLog_Init();
+    XoraLog_Service(1); // Before transport, screen or configuration writers start.
     const LogResult logResult = Logger_Init(false, LOG_LEVEL_DEBUG);
     APP_STAGE(logResult == LOG_RESULT_SUCCESS ? "A08" : "A08E",
               "persistent logger initialization result=%d", logResult);
@@ -116,6 +120,7 @@ MainRuntimeState MainStateMachine::resolveNormalStartupState() const
     if (bootMode == BootMode::BOOT_MODE_TX_ISP) {
         return MainRuntimeState::TxIsp;
     }
+    if (XoraLog_Restricted()) return MainRuntimeState::WebConfig;
 #if WEBCONFIG_TEST_FORCE_BOOT
     bootMode = BootMode::BOOT_MODE_WEB_CONFIG;
     APP_STAGE("A12", "temporary WebConfig bring-up override active");
@@ -168,8 +173,11 @@ bool MainStateMachine::enterState(MainRuntimeState selected)
     if (selected == MainRuntimeState::SafeRecovery) return false;
     state->exit();
     if (!interactiveRuntimeInitialized) initializeInteractiveRuntime();
-    state = stateFor(MainRuntimeState::SafeRecovery);
-    currentState = MainRuntimeState::SafeRecovery;
+    const MainRuntimeState fallback = XoraLog_Restricted() && selected != MainRuntimeState::WebConfig
+        ? MainRuntimeState::WebConfig : MainRuntimeState::SafeRecovery;
+    if(fallback==MainRuntimeState::WebConfig) BOARD_MODE.setup(BoardMode::Usb);
+    state = stateFor(fallback);
+    currentState = fallback;
     return state->enter();
 }
 
@@ -318,6 +326,9 @@ void MainStateMachine::serviceSharedRuntime()
     if (traceFirstPass) APP_STAGE("RT2", "connection service complete");
     POWER_MANAGER.loop();
     serviceBatteryProtection();
+    XoraLog_Tick(HAL_GetTick());
+    if (currentState == MainRuntimeState::WebConfig && !USB_BOARD_LINK.isDeviceMounted() && !ispEntryBlocked())
+        XoraLog_Service(1); // Host detached; no user RPC can contend with QSPI.
     SystemSleep_Service(currentState == MainRuntimeState::Input, resetPending);
     if (traceFirstPass) APP_STAGE("RT3", "power service complete");
     SPIScreenManager::getInstance().loop();

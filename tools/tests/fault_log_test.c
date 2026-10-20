@@ -2,10 +2,10 @@
 #include <assert.h>
 #include <stdio.h>
 static uint8_t flash[8192];
-static int budget = -1, read_fail, erases;
+static int budget = -1, read_fail, erases, unreadable_slot = -1, erase_budget = -1;
 static int rd(uint32_t a, void *p, uint32_t n) {
     assert(a + n <= sizeof(flash));
-    if (read_fail) return -1;
+    if (read_fail || (int)a == unreadable_slot) return -1;
     memcpy(p, flash + a, n); return 0;
 }
 static int wr(uint32_t a, const void *p, uint32_t n) {
@@ -21,7 +21,8 @@ static int wr(uint32_t a, const void *p, uint32_t n) {
 }
 static int er(uint32_t a) {
     assert(a % 4096 == 0 && a + 4096 <= sizeof(flash));
-    memset(flash+a, 255, 4096); ++erases; return 0;
+    memset(flash+a, 255, erase_budget<0 ? 4096u : (unsigned)erase_budget);
+    ++erases; return erase_budget<0 ? 0 : -1;
 }
 static fl_backend backend = {rd,wr,er,sizeof(flash)};
 static fl_record record(unsigned boot) {
@@ -41,11 +42,29 @@ int main(void) {
         assert(fl_append(&backend,&b)==FL_OK);
         assert(fl_inspect(&backend).count==2);
     }
+    /* Interrupted sector recycling must not destroy the newer sector. Some
+     * partial erase patterns become unknown format and deliberately stop writes. */
+    for(i=0;i<4096;i+=128) {
+        unsigned n;
+        memset(flash,255,sizeof(flash));
+        for(n=1;n<=64;n++){fl_record r=record(n);assert(fl_append(&backend,&r)==FL_OK);}
+        erase_budget=(int)i;
+        {fl_record r=record(65);assert(fl_append(&backend,&r)==FL_IO);}
+        erase_budget=-1;
+        assert(fl_inspect(&backend).newest==64);
+        for(n=33;n<=64;n++){fl_record r;assert(fl_find(&backend,n,0,0,0,&r)==FL_OK && r.sequence==n);}
+    }
     memset(flash,255,sizeof(flash)); erases=0;
     for(i=1;i<=100;i++){fl_record r=record(i);assert(fl_append(&backend,&r)==FL_OK);}
     assert(erases==2);
     assert(fl_inspect(&backend).newest==100);
     {fl_record r;assert(fl_find(&backend,90,0,0,0,&r)==FL_OK && r.sequence==90);}
+    unreadable_slot=128;
+    assert(fl_inspect(&backend).status==FL_IO);
+    {fl_record r;assert(fl_find(&backend,90,0,0,0,&r)==FL_OK && r.sequence==90);}
+    unreadable_slot=-1;
+    flash[128+offsetof(fl_record,data)] ^= 1;
+    assert(fl_inspect(&backend).status==FL_CORRUPT);
     /* Corruption is reported, not erased; other records remain readable. */
     flash[0] = 0; assert(fl_inspect(&backend).status==FL_CORRUPT);
     {int n=erases;assert(!fl_reclaimable(&backend,0));assert(erases==n);}
@@ -59,10 +78,24 @@ int main(void) {
      assert(rt.dropped==1 && rt.count==2);
      fl_service(&rt,&retained,0);assert(fl_inspect(&backend).count==0);
      fl_capture(&retained,1,123,10,1,&data,1);
+     budget=5;fl_service(&rt,&retained,1);
+     assert(fl_retained_valid(&retained) && retained.crash.event && rt.write_failed);
+     budget=-1;
+     /* A boot retries the retained crash, not an endless same-boot write loop. */
+     rt.write_failed=0;
      {fl_retained saved=retained;fl_service(&rt,&retained,1);retained=saved;fl_service(&rt,&retained,1);}
      assert(fl_inspect(&backend).count==1 && !retained.crash.event);
      fl_service(&rt,&retained,1);assert(fl_inspect(&backend).count==2);
      assert(sizeof(rt)+sizeof(retained)<=512);
     }
+    memset(flash,255,sizeof(flash));flash[0]=0;erases=0;
+    {fl_record r=record(1);assert(fl_append(&backend,&r)==FL_CORRUPT);assert(erases==0);}
+    {fl_runtime rt;fl_retained retained;memset(&retained,0,sizeof(retained));
+     fl_start(&rt,&retained,&backend,1,123,1);
+     fl_event(&rt,1,4,2,FL_ERROR,0,0);
+     fl_event(&rt,2,1,1,FL_FATAL,0,0);
+     fl_event(&rt,3,2,1,FL_FATAL,0,0);
+     assert(rt.count==2 && rt.dropped==1);
+     assert(rt.queue[0].severity==FL_FATAL && rt.queue[1].severity==FL_FATAL);}
     puts("fault journal: power cuts, wrap, CRC, read failure, queue and crash replay passed");
 }

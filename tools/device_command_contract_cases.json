@@ -62,6 +62,7 @@
     {"name":"start_button_performance_monitoring","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["message","status","isActive","isTestModeEnabled"],"invalid":{"kind":"scope","errNo":403},"recordingField":"monitorStarts"},
     {"name":"stop_button_performance_monitoring","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["message","status","isActive","isTestModeEnabled"],"invalid":{"kind":"scope","errNo":403},"recordingField":"monitorStops"},
     {"name":"get_button_states","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["isActive","triggerMask","totalButtons"],"invalid":{"kind":"scope","errNo":403}},
+    {"name":"get_device_logs_page","validParams":{"source":"stm32"},"validErrNo":0,"dataType":"object","requiredDataFields":["version","source","status","items"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"get_device_logs_list","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["items","count"],"invalid":{"kind":"scope","errNo":403}},
 
     {"name":"reboot","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["message"],"invalid":{"kind":"scope","errNo":403},"recordingField":"storageSaves"},

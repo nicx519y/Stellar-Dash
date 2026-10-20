@@ -1,6 +1,6 @@
 /**
  * @file system_logger.h
- * @brief 日志模块已停用：保留兼容 API，全部为空实现。
+ * @brief 旧文本日志 API 保持空实现；Flush 仅申请结构化日志安全写入。
  */
 
 #ifndef SYSTEM_LOGGER_H
@@ -78,7 +78,11 @@ static inline LogResult Logger_LogDelay(LogLevel level, const char* component, c
     return LOG_RESULT_SUCCESS;
 }
 
-static inline LogResult Logger_Flush(void) { return LOG_RESULT_SUCCESS; }
+void XoraLog_RequestFlush(void) __attribute__((weak));
+static inline LogResult Logger_Flush(void) {
+    if (XoraLog_RequestFlush) XoraLog_RequestFlush();
+    return LOG_RESULT_SUCCESS;
+}
 static inline LogResult Logger_AutoFlushCheck(void) { return LOG_RESULT_SUCCESS; }
 static inline LogResult Logger_ClearFlash(void) { return LOG_RESULT_SUCCESS; }
 

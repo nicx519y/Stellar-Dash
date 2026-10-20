@@ -1,4 +1,7 @@
 #include "usb_board_link.h"
+#include "fault_log_api.h"
+extern void XoraLog_TxPoll(void);
+extern void XoraLog_TxClockRebase(void);
 
 #include "CH58x_common.h"
 #include "board_latest_ch585.h"
@@ -111,13 +114,16 @@ int usb_subsystem_run(usb_board_role_t role)
 
     for(;;)
     {
+        XoraLog_TxPoll();
         usb_board_link_process();
         if(!host_initialized && usb_board_link_caps_requested())
         {
             host_initialized = true;
             (void)usb_host_init();
+            XoraLog_TxClockRebase();
         }
         usb_device_process();
+        if(role==USB_BOARD_ROLE_MAINTENANCE && !usb_device_is_mounted()) XoraLog_Service(1);
         if(host_initialized)
         {
             usb_host_process();

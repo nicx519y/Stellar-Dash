@@ -108,6 +108,10 @@ SECTIONS
     *resource_command_handler.o(.text .text.* .rodata .rodata.*)
     *leds_manager.o(.text .text.* .rodata .rodata.*)
     *main_state_machine.o(.text .text.* .rodata .rodata.*)
+    /* Fault capture and journal code must remain executable while QSPI is indirect. */
+    *fault_log_stm32.o(.text .text.* .rodata .rodata.*)
+    *fault_log_command.o(.text .text.* .rodata .rodata.*)
+    *common_command_handler.o(.text .text.* .rodata .rodata.*)
     *tx_isp_state.o(.text .text.* .rodata .rodata.*)
     *spi_screen_detail_tx_isp.o(.text .text.* .rodata .rodata.*)
     . = ALIGN(4);
@@ -223,6 +227,13 @@ SECTIONS
     . = ALIGN(4);
     _ebss = .;         /* define a global symbol at bss end */
     __bss_end__ = _ebss;
+  } >RAM
+
+  /* Crash mailbox survives ordinary reset and lies outside startup BSS/copies. */
+  .xora_fault (NOLOAD) :
+  {
+    . = ALIGN(4);
+    KEEP(*(.noinit.xora_fault))
   } >RAM
 
   /* One-shot STOP recovery marker; ordinary reset only, never persistent Flash. */

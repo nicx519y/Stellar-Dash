@@ -154,6 +154,7 @@ void DeviceCommandDispatcher::initializeHandlers() {
     registerHandler("get_hitbox_layout", &commonHandler);
     // 设备日志相关命令
     registerHandler("get_device_logs_list", &commonHandler);
+    registerHandler("get_device_logs_page", &commonHandler);
     
     // 注册固件相关命令
     registerHandler("get_device_auth", &firmwareHandler);

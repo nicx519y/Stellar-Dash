@@ -70,6 +70,7 @@ export const MONITOR_READ_COMMANDS: readonly string[] = [
   'start_button_performance_monitoring',
   'stop_button_performance_monitoring',
   'get_button_states',
+  'get_device_logs_page',
   'get_device_logs_list',
   'performance.get-checkpoint',
   'performance.clock-sync',

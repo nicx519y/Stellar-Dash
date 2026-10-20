@@ -23,6 +23,7 @@
 #include "board.h"
 #include "qspi-w25q64.h"
 #include "system_logger.h"
+#include "fault_log_api.h"
 #include "system_sleep_manager.hpp"
 #include "board_power.hpp"
 
@@ -45,6 +46,7 @@ int main(void)
 {
     BootProfile_Main();
     const uint32_t resetFlags = RCC->RSR;
+    XoraLog_BootFlags(resetFlags);
     /************************************************ 系统初始化 ************************************************* */
     // 使能中断
     __enable_irq(); 
@@ -96,17 +98,7 @@ int main(void)
   */
 void Error_Handler(void)
 {
-    /* USER CODE BEGIN Error_Handler_Debug */
-    
-    // 记录错误到日志系统
-    LOG_FATAL("SYSTEM", "HAL Error Handler called - system will be halted");
-    
-    APP_ERR("Error_Handler...\r\n");
-    /* User can add his own implementation to report the HAL error return state */
-    __disable_irq();
-    while (1)
-    {
-    }
+    XoraLog_Fatal(0x100u);
 }
 
 void enableFPU(void)
@@ -222,11 +214,7 @@ void floatTest(void)
   */
 void assert_failed(uint8_t *file, uint32_t line)
 {
-    LOG_FATAL("ASSERT", "Assert failed: %s:%lu", file, (unsigned long)line);
-    Logger_Flush();
-    
-    APP_ERR("Wrong parameters value: file %s on line %d\r\n", file, line);
-    while(1);
+    XoraLog_Fatal(0x101u);
 }
 #endif /* USE_FULL_ASSERT */
 

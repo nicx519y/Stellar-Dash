@@ -11,6 +11,7 @@
 #include "storagemanager.hpp"
 #include "usbdriver.hpp"
 #include "system_logger.h"
+#include "fault_log_api.h"
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h"
 
@@ -403,6 +404,7 @@ void ConnectionManager::serviceRfStatusPoll()
 
 void ConnectionManager::recordRfRecoveryStart()
 {
+    XoraLog_Event(FL_EVENT_RF,FL_CATEGORY_LINK,FL_ERROR,RFBridgePort_HasReleaseFault()?1u:2u);
     ++g_rfRuntimeRecoveryDiagnostic[1];
     if (g_rfRuntimeRecoveryDiagnostic[0] == 0u) {
         g_rfRuntimeRecoveryDiagnostic[0] = 0x52465231u;
@@ -435,7 +437,10 @@ bool ConnectionManager::serviceRfRuntimeRecovery()
         !BOARD_MODE.isStable() || BOARD_MODE.current() != BoardMode::Rf) return false;
     if (rfRuntimeRecoveryActive) {
         RF_SLEEP_RECOVERY.service(HAL_GetTick());
-        if (RF_SLEEP_RECOVERY.state() == RfSleepState::Ready) rfRuntimeRecoveryActive = false;
+        if (RF_SLEEP_RECOVERY.state() == RfSleepState::Ready) {
+            rfRuntimeRecoveryActive = false;
+            XoraLog_Event(FL_EVENT_RECOVERED,FL_CATEGORY_RECOVERY,FL_WARN,FL_EVENT_RF);
+        }
         return true; // Failed stays parked; only an explicit mode change retries.
     }
     if (rfSleepRecoveryOwned || rfPairingActive || rfPowerState != RfPowerState::Awake ||

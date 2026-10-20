@@ -82,6 +82,8 @@ Libs/mbedtls/library/sha256.c \
 Libs/mbedtls/library/platform_util.c
 
 CPP_SOURCES := \
+Src/diagnostics/fault_log_stm32.cpp \
+Src/webconfig/configs/fault_log_command.cpp \
 Src/system/board_mode.cpp \
 Src/power/board_power.cpp \
 Src/system/board_security_confirmation.cpp \

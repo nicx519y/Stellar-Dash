@@ -3,6 +3,7 @@
 
 #include "board_cfg.h"
 #include "board_power.hpp"
+#include "fault_log_api.h"
 #include "rf_boot_ready.hpp"
 #include "stm32h7xx_hal.h"
 #include "system_logger.h"
@@ -217,6 +218,7 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
             Ch585StartupTrace::record(Ch585StartupTrace::Event::ReadyEnd,
                                      HAL_GetTick(), readyObserved);
             if (!readyObserved) {
+                XoraLog_Event(FL_EVENT_ROLE,FL_CATEGORY_LINK,FL_ERROR,0x100u|static_cast<uint32_t>(requestedRole));
                 APP_STAGE_ERROR("R02E", "CH585 selector readiness not confirmed");
                 publishStartupTrace(false);
                 continue;
@@ -230,6 +232,8 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
                       static_cast<unsigned int>(requestedRole));
             return true;
         }
+        XoraLog_Event(FL_EVENT_ROLE,FL_CATEGORY_LINK,FL_ERROR,static_cast<uint32_t>(requestedRole));
+        if(XoraLog_Restricted() && requestedRole!=Ch585Role::Maintenance) return false;
         APP_STAGE_ERROR("R03E", "CH585 role select window expired: attempt=%u state=%u",
                         static_cast<unsigned int>(attempt + 1u),
                         static_cast<unsigned int>(bootstrapState));

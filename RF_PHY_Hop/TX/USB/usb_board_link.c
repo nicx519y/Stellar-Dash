@@ -1,4 +1,5 @@
 #include "usb_board_link.h"
+#include "fault_log_api.h"
 
 #include <string.h>
 #include "release_build_identity.h"
@@ -95,6 +96,7 @@ static bool queue_fault(uint8_t fault, uint8_t command)
             length=sizeof(payload);
         }
     }
+    if(s_last_fault != fault) XoraLog_Event(FL_EVENT_BOARD_LINK,FL_CATEGORY_LINK,FL_ERROR,fault);
     s_last_fault = fault;
     usb_high_rate_note_board_link_fault();
     return queue_event(USB_BOARD_EVT_FAULT, payload, length);

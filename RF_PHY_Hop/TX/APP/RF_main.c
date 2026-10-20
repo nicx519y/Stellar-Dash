@@ -17,6 +17,9 @@
 #include "RF_PHY.h"
 #include "rfm_config.h"
 #include "rfm_spi_bridge.h"
+#include "fault_log_api.h"
+extern void XoraLog_TxPoll(void);
+extern void XoraLog_TxClockRebase(void);
 
 /* 1: only run SPI bridge for link bring-up; 0: run normal RF TX flow */
 #ifndef RFM_SPI_ONLY_MODE
@@ -49,6 +52,7 @@ void Main_Circulation()
 #if (RFM_SPI_ONLY_MODE == 0)
         RF_TxMainLoopProcess();
 #endif
+        XoraLog_TxPoll();
         TMOS_SystemProcess();
         rfm_spi_bridge_poll();
     }
@@ -79,7 +83,9 @@ int main(void)
     GPIOA_ModeCfg(GPIO_Pin_14, GPIO_ModeOut_PP_5mA);
     UART0_DefInit();
 #endif
+    XoraLog_TxPoll();
     CH58x_BLEInit();
+    XoraLog_TxClockRebase();
     HAL_Init();
     RF_RoleInit();
 #if (RFM_SPI_ONLY_MODE == 0)

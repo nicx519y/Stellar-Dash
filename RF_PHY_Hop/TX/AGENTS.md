@@ -19,6 +19,7 @@ TX 承接 STM32 的 SPI 输入与控制事务，按主控选择的角色运行 R
 ## TX 特有边界
 
 - 角色选择以板级启动和 STM32 的实际调用为准；USB WebConfig 配对不应隐式启动 RF 或改变物理模式。配对事务规则见 [RF 共同规则](../AGENTS.md) 与 [USB 配对说明](../../docs/WEBCONFIG_RX_BINDING_20260923.md)。
+- 结构化故障日志使用专用 Data-Flash 和复位保留 RAM，不能与同数值的 Application 代码地址混用。总 RAM 预算不超过 512 字节，保持 IAP metadata、绑定区和冻结 Makefile 不变；安全窗口、ELF 检查与验收见 [设备日志](../../docs/device-fault-logs.md)。
 - SPI ready、DMA 缓冲所有权、事务完成与输入代次检查必须保留。改动 SPI 帧、命令或角色握手时，同时核对 [STM32 RF 传输](../../application/Src/transport/rf/rf_transport.cpp) 和 [公共协议规则](../../common/AGENTS.md)；长度和时序以定义及调用路径为准。
 - TX Application 从 `0x1000` 开始；默认 `RF_PHY_Hop_TX.bin` 是独立 4 KiB IAP 与 Application 的合并镜像。Application ELF、合并 BIN/HEX、独立 IAP ELF/BIN 的用途不同，不能互换或据合并镜像推断普通更新会写 IAP。
 - 日常更新固定用 `python tools/hbox.py flash tx`，需要先构建时加 `--build`；状态查询用 `python tools/hbox.py web local-ch585-status`。前者实际执行硬件写入，后者访问设备，不作为编译或文档检查的附带步骤执行。普通更新沿主控/ST-LINK、QSPI 暂存、SPI IAP 路径只更新 Application。

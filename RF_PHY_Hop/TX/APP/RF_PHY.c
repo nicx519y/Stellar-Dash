@@ -1,3 +1,4 @@
+#include "fault_log_api.h"
 #include "rf_ack_policy.h"
 #include "rf_tx_metrics.h"
 #include "rf_short_transport.h"
@@ -878,6 +879,7 @@ static uint8_t demo_discovery_channel(uint8_t side)
 
 static void demo_enter_tx_unconnected(uint32_t now)
 {
+    if(g_demo_reconnecting) XoraLog_Event(FL_EVENT_RF,FL_CATEGORY_LINK,FL_ERROR,0);
     rfc_radio_cancel();rfc_manager_cancel(&g_channel);g_rff_debug.enabled=0;g_rff_debug.need_fault_input=g_rff_debug.need_clear_input=0;
     ++g_channel.wire_session;
     g_channel_quality_tail=g_channel_quality_head;
@@ -930,6 +932,7 @@ static void demo_enter_tx_unconnected(uint32_t now)
 
 static void demo_enter_tx_comm(uint32_t now, uint8_t channel)
 {
+    if(g_demo_reconnecting) XoraLog_Event(FL_EVENT_RECOVERED,FL_CATEGORY_RECOVERY,FL_WARN,FL_EVENT_RF);
     if(demo_channel_index(channel) == 0xFFu)
     {
         channel = g_demo_current_channel;

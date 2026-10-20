@@ -3,6 +3,7 @@
 
 #include "board_latest_ch585.h"
 #include "board_role_selector.h"
+#include "fault_log_api.h"
 
 int RF_FrozenMain(void);
 
@@ -30,6 +31,8 @@ static void board_safe_idle(void)
 int main(void)
 {
     usb_board_role_t role = USB_BOARD_ROLE_NONE;
+    XoraLog_Init();
+    XoraLog_Service(1); // No active transport at this boot boundary.
 
 #if(defined(DCDC_ENABLE)) && (DCDC_ENABLE == TRUE)
     PWR_DCDCCfg(ENABLE);
@@ -42,6 +45,8 @@ int main(void)
 
     if(!rfm_board_role_selector_wait(&role))
     {
+        XoraLog_Event(FL_EVENT_ROLE,FL_CATEGORY_LINK,FL_ERROR,1);
+        XoraLog_Service(1);
         board_safe_idle();
     }
 
@@ -54,7 +59,10 @@ int main(void)
        (role == USB_BOARD_ROLE_MAINTENANCE))
     {
         rfm_board_latest_ch585_set_usb_spi_owner(true);
-        (void)usb_subsystem_run(role);
+        const int result=usb_subsystem_run(role);
+        XoraLog_Event(FL_EVENT_ROLE,FL_CATEGORY_LINK,FL_ERROR,(uint32_t)result);
+        /* The failed subsystem may already own peripherals. Leave this in
+         * RAM; do not assume its failure creates a safe Flash window. */
     }
 
     board_safe_idle();

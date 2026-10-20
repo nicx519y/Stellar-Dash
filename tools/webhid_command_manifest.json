@@ -11,9 +11,9 @@
     {"name": "performance.clock-sync", "scope": "monitor.read"}
   ],
   "legacyCommandCount": 68,
-  "commandCount": 92,
+  "commandCount": 93,
   "migrationStatusCounts": {
-    "direct": 89,
+    "direct": 90,
     "equivalent": 1,
     "retired": 2
   },
@@ -98,6 +98,7 @@
         {"name": "start_button_performance_monitoring", "migration": "direct", "consumers": ["performance-monitor"], "test": "contract"},
         {"name": "stop_button_performance_monitoring", "migration": "direct", "consumers": ["performance-monitor"], "test": "contract"},
         {"name": "get_button_states", "migration": "direct", "consumers": ["device-api"], "test": "contract"},
+        {"name": "get_device_logs_page", "migration": "direct", "consumers": ["logs"], "test": "contract"},
         {"name": "get_device_logs_list", "migration": "direct", "consumers": ["logs"], "test": "contract"}
       ]
     },

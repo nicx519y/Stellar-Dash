@@ -90,16 +90,16 @@ static inline fl_scan fl_inspect(const fl_backend *b) {
     uint32_t off;
     memset(&s, 0, sizeof(s));
     s.next_offset = b->bytes;
-    if (!b->bytes || b->bytes % FL_SECTOR_BYTES) { s.status = FL_IO; return s; }
+    if (b->bytes < 2u*FL_SECTOR_BYTES || b->bytes % FL_SECTOR_BYTES) { s.status = FL_IO; return s; }
     for (off = 0; off < b->bytes; off += FL_SLOT_BYTES) {
-        if (b->read(off, &r, sizeof(r))) { s.status = FL_IO; return s; }
+        if (b->read(off, &r, sizeof(r))) { s.status = FL_IO; continue; }
         if (fl_valid(&r)) {
             if (!s.oldest || r.sequence < s.oldest) s.oldest = r.sequence;
             if (r.sequence > s.newest) { s.newest = r.sequence; s.next_offset = off + FL_SLOT_BYTES; }
             if (r.boot > s.boot) s.boot = r.boot;
             ++s.count;
         } else if (!fl_blank(&r, sizeof(r))) {
-            s.status = FL_CORRUPT;
+            if (s.status != FL_IO) s.status = FL_CORRUPT;
         }
     }
     if (!s.count) s.next_offset = 0;
@@ -166,14 +166,15 @@ static inline uint8_t fl_append(const fl_backend *b, fl_record *r) {
 static inline uint8_t fl_find(const fl_backend *b, uint32_t upper, uint32_t before,
                              uint8_t category, uint8_t severity, fl_record *out) {
     uint32_t off, best = 0;
+    uint8_t read_failed = 0;
     fl_record r;
     for (off = 0; off < b->bytes; off += FL_SLOT_BYTES) {
-        if (b->read(off, &r, sizeof(r))) return FL_IO;
+        if (b->read(off, &r, sizeof(r))) { read_failed = 1; continue; }
         if (!fl_valid(&r) || r.sequence > upper || (before && r.sequence >= before) ||
             (category && r.category != category) || (severity && r.severity != severity)) continue;
         if (r.sequence > best) { *out = r; best = r.sequence; }
     }
-    return best ? FL_OK : FL_FULL;
+    return best ? FL_OK : read_failed ? FL_IO : FL_FULL;
 }
 
 #define FL_RETAIN_MAGIC 0x31524658u
@@ -184,8 +185,8 @@ typedef struct {
 typedef struct {
     fl_backend backend;
     fl_record queue[2];
-    uint32_t boot, firmware, dropped;
-    uint8_t source, count, status, flush_requested;
+    uint32_t boot, firmware, dropped, reported_drops;
+    uint8_t source, count, status, flush_requested, write_failed;
 } fl_runtime;
 
 static inline int fl_retained_valid(const fl_retained *r) {
@@ -221,6 +222,8 @@ static inline void fl_event(fl_runtime *s, uint32_t now, uint16_t event,
     if (s->count == 2u) {
         ++s->dropped;
         if (severity != FL_FATAL) return;
+        if (s->queue[0].severity != FL_FATAL && s->queue[1].severity == FL_FATAL)
+            s->queue[0] = s->queue[1];
         --s->count;
     }
     r = &s->queue[s->count++];
@@ -233,7 +236,7 @@ static inline void fl_event(fl_runtime *s, uint32_t now, uint16_t event,
 }
 /* One record per safe service call. A failed write stays pending. */
 static inline void fl_service(fl_runtime *s, fl_retained *ret, int safe) {
-    if (!safe) return;
+    if (!safe || s->write_failed) return;
     if (fl_retained_valid(ret) && ret->crash.event) {
         fl_record crash = ret->crash;
         s->status = fl_append(&s->backend, &crash);
@@ -241,6 +244,7 @@ static inline void fl_service(fl_runtime *s, fl_retained *ret, int safe) {
             memset(&ret->crash, 0, sizeof(ret->crash));
             fl_retained_seal(ret);
         }
+        else s->write_failed = 1;
         return;
     }
     if (s->count) {
@@ -250,7 +254,12 @@ static inline void fl_service(fl_runtime *s, fl_retained *ret, int safe) {
             s->queue[0] = s->queue[1];
             if (s->count) s->queue[0].flags = FL_PENDING;
         }
-        else s->queue[0].flags = FL_PENDING;
+        else { s->queue[0].flags = FL_PENDING; s->write_failed = 1; }
+    }
+    if (!s->count && s->dropped != s->reported_drops) {
+        const uint32_t dropped = s->dropped;
+        fl_event(s, 0, FL_EVENT_DROPPED, FL_CATEGORY_FAULT, FL_WARN, &dropped, 1);
+        s->reported_drops = dropped;
     }
     s->flush_requested = s->count != 0;
 }

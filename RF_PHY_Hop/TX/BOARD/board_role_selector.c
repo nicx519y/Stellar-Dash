@@ -5,6 +5,7 @@
 #include "CH58x_common.h"
 #include "board_latest_ch585.h"
 #include "usb_board_link_codec.h"
+#include "fault_log_api.h"
 
 #define ROLE_SELECT_TIMEOUT_MS       1000u
 #define ROLE_RESPONSE_TIMEOUT_MS      500u
@@ -181,6 +182,8 @@ bool rfm_board_role_selector_wait(usb_board_role_t *selected_role)
                     }
                 }
 
+                if(status==USB_BOARD_STATUS_OK && XoraLog_Restricted() && role!=USB_BOARD_ROLE_MAINTENANCE)
+                    status=USB_BOARD_STATUS_ROLE_LOCKED;
                 if(selector_send_role_result(role, status) &&
                    (status == USB_BOARD_STATUS_OK))
                 {

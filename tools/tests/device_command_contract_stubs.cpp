@@ -169,3 +169,7 @@ void sanitize_string_control_chars(char *str, size_t maxLength)
         }
     }
 }
+
+#include "fault_log_api.h"
+extern "C" void XoraLog_Info(fl_info *info) { memset(info,0,sizeof(*info)); info->version=1; }
+extern "C" uint8_t XoraLog_Read(uint32_t,uint32_t,uint8_t,uint8_t,uint8_t,fl_record*) { return FL_FULL; }
