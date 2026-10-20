@@ -51,6 +51,7 @@ bool FirmwareManager::CreateUpgradeSession(const char*,const FirmwareMetadata*){
 bool FirmwareManager::ProcessFirmwareChunk(const char*,const char*,const ChunkData*){return false;}
 void FirmwareManager::ForceCleanupSession(){}
 bool Ch585FirmwareUpdate::begin(uint32_t,const uint8_t[32]){return false;}
+void Ch585FirmwareUpdate::cancelReceiving(){}
 bool Ch585FirmwareUpdate::isPending()const{return pendingMaintenance;}
 bool Ch585FirmwareUpdate::appliedApplicationDigest(char digest[65])const{
     if(!appliedAvailable)return false;
@@ -115,6 +116,19 @@ static void fixture(FirmwareSlot target){
     assert(state.phase==Receiving && backupValid());assert(persist(Prepared));
 }
 int main(){
+    // Failed/finished journals do not suppress battery protection forever.
+    // Actual write, backup, commit and maintenance owners retain priority.
+    loaded=true; storageFault=false;
+    for(auto phase:{Receiving, Prepared, Activated, TxWriting, TxVerified, Committing,
+                    Verifying, Declared, BackingUp, Restoring, RollbackVerifying}) {
+        state.phase=phase; assert(RELEASE_INSTALLER.defersBatteryProtection());
+    }
+    for(auto phase:{Empty, Completed, Failed, Aborted, Restored, RestoreFailed}) {
+        state.phase=phase; assert(!RELEASE_INSTALLER.defersBatteryProtection());
+    }
+    maintenanceActive=true; assert(RELEASE_INSTALLER.defersBatteryProtection()); maintenanceActive=false;
+    declaring=true; assert(RELEASE_INSTALLER.defersBatteryProtection()); declaring=false;
+    loaded=false; state={};
     // Full 444 KiB verification keeps all 888 reads but only one QSPI reset,
     // rather than 888 resets / 4440 ms of fixed delay. No extra RAM buffer.
     char imageDigest[65];hash(flash.data(),XORA_TX_BACKUP_APP_BYTES,imageDigest);

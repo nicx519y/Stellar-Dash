@@ -9,6 +9,8 @@
 #include "config_transport_sink.hpp"
 #include "ch585_firmware_update.hpp"
 #include "release_installer.hpp"
+#include "power_manager.hpp"
+#include "battery_access_policy.hpp"
 #pragma GCC optimize("Os")
 
 namespace {
@@ -108,6 +110,8 @@ bool parseUint32(const cJSON* item, uint32_t* output) {
  */
 DeviceCommandResponse FirmwareCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
+    if (POWER_MANAGER.isLowBattery() && batteryStartsUpgrade(command.c_str()))
+        return create_error_response(request.getCid(), command, 409, "Battery low: connect power before starting an update");
     if (command == "get_firmware_inventory" || command == "get_release_install_status")
         return create_success_response(request.getCid(), command, RELEASE_INSTALLER.inventory());
     if (command == "begin_release_install" || command == "backup_release_tx" || command == "prepare_release_install" ||

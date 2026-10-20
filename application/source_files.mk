@@ -136,6 +136,7 @@ Src/webconfig/configs/webconfig_btns_manager.cpp \
 Src/webconfig/configs/webconfig_leds_manager.cpp \
 Src/input/gamepad/GamepadState.cpp \
 Src/system/states/calibration_state.cpp \
+Src/system/states/battery_protection_state.cpp \
 Src/system/states/ch585_bridge_update_state.cpp \
 Src/system/states/input_state.cpp \
 Src/system/states/safe_recovery_state.cpp \

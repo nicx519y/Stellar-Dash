@@ -219,11 +219,14 @@ static const char* get_connection_mode_label(void) {
 }
 
 static void update_battery_ui_cache(uint32_t nowMs) {
-    if (g_battUiLastSampleMs != 0u && (uint32_t)(nowMs - g_battUiLastSampleMs) < 1000u) {
+    const PowerSnapshot power = POWER_MANAGER.getSnapshot();
+    if (g_battUiLastSampleMs != 0u && (uint32_t)(nowMs - g_battUiLastSampleMs) < 1000u &&
+        power.data_quality == g_battUiQuality && power.charge_state == g_battUiChargeState &&
+        power.fast_charge == g_battUiFastCharging &&
+        (power.battery_level != BatteryLevel::Normal) == g_battUiLowBattery) {
         return;
     }
     g_battUiLastSampleMs = nowMs;
-    const PowerSnapshot power = POWER_MANAGER.getSnapshot();
     g_battUiQuality = power.data_quality;
     float soc = static_cast<float>(power.soc_permille) / 10.0f;
     if (soc < 0.0f) soc = 0.0f;
@@ -238,7 +241,7 @@ static void update_battery_ui_cache(uint32_t nowMs) {
     }
     g_battUiChargeState = nextChargeState;
     g_battUiFastCharging = nextFastCharging;
-    g_battUiLowBattery = POWER_MANAGER.isLowBattery();
+    g_battUiLowBattery = power.battery_level != BatteryLevel::Normal;
 }
 
 static uint8_t battery_animated_soc(uint8_t baseSoc, uint32_t nowMs) {
@@ -406,7 +409,7 @@ static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
         *outMenuId = 9u;
         return true;
     }
-    if (mode == BootMode::BOOT_MODE_CALIBRATION) {
+    if (mode == BootMode::BOOT_MODE_CALIBRATION && !MainRuntime_IsInputActive()) {
         *outMenuId = 10u;
         return true;
     }
@@ -665,6 +668,7 @@ void SPIScreenManager::loop() {
     g_batteryNotice.update(HAL_GetTick(), POWER_MANAGER.isLowBattery());
     const bool batteryOverlay = g_batteryNotice.visible();
     if (noticeWasVisible && !batteryOverlay) {
+        ScreenStandby_Repaint();
         g_firstDrawPending = g_menu_full_refresh_pending = true;
     }
     if (batteryOverlay && sleepSuspended && !sleepResuming) {
@@ -673,7 +677,7 @@ void SPIScreenManager::loop() {
     }
     if (!batteryOverlay && (g_batteryNotice.protectedMode() ||
         (g_batteryDisplayOnly && SystemSleep_IsSleeping()))) {
-        if (!sleepSuspended && !sleepDisplayFailed && !suspendForSleep()) return;
+        if ((!sleepSuspended || sleepResuming) && !sleepDisplayFailed && !suspendForSleep()) return;
         g_batteryDisplayOnly = false;
         return;
     }
@@ -718,6 +722,7 @@ void SPIScreenManager::loop() {
     }
     if (!g_inited) return;
     SPIST7789_Service();
+    if (batteryOverlay && ScreenJpeg_Active()) ScreenJpeg_Cancel();
     if (ScreenJpeg_Active()) {
         const int jpeg = ScreenJpeg_Poll();
         if (jpeg > 0) ST7789_FrameEnd(&g_lcd);
@@ -750,6 +755,9 @@ void SPIScreenManager::loop() {
         }
     }
     if (batteryOverlay) {
+        (void)RotEnc_GetDetentDelta();
+        (void)RotEnc_WasButtonClicked();
+        (void)RotEnc_WasButtonLongPressed();
         renderBatteryNotice(HAL_GetTick());
         return;
     }
@@ -779,7 +787,7 @@ void SPIScreenManager::loop() {
     }
     bool standbyWasActive = ScreenStandby_IsActive();
     ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgStandbyTimeoutSeconds, g_cfgBackgroundImageId, g_cfgBg, g_cfgText, g_cfgStandbyEnabled);
-    bool standbyAllowed = (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_INPUT)
+    bool standbyAllowed = MainRuntime_IsInputActive()
         && ADCManager::getInstance().isDmaSamplingActive();
     bool encoderEvent = (det != 0) || clicked || longPressed;
     if (!standbyAllowed) {
@@ -818,12 +826,14 @@ void SPIScreenManager::loop() {
             }
         }
     }
-    if (!standbyNowActive && !wokeFromStandby) {
+    const bool batteryWriteBlocked = POWER_MANAGER.batteryProtectionRequired() && !MainRuntime_IsTxIspActive();
+    if (!standbyNowActive && !wokeFromStandby && !batteryWriteBlocked) {
         handleInput(nowMs, det, clicked, longPressed);
     }
 
     const bool saveWasFailed = g_deferredSave.failed();
-    const auto saveResult = g_deferredSave.flush(nowMs, [] { return STORAGE_MANAGER.saveConfig(); });
+    const auto saveResult = batteryWriteBlocked ? ScreenDeferredSave::Result::Idle :
+        g_deferredSave.flush(nowMs, [] { return STORAGE_MANAGER.saveConfig(); });
     if (saveResult == ScreenDeferredSave::Result::Saved && saveWasFailed) {
         ScreenTimedPopup_Close(&g_actionPopup);
     } else if (saveResult == ScreenDeferredSave::Result::Failed && !saveWasFailed) {
@@ -999,8 +1009,14 @@ void SPIScreenManager::resumeFromSleep()
 
 void SPIScreenManager::setBatteryProtection(bool enabled)
 {
+    (void)RotEnc_GetDetentDelta();
+    (void)RotEnc_WasButtonClicked();
+    (void)RotEnc_WasButtonLongPressed();
     g_batteryNotice.protect(HAL_GetTick(), enabled);
     if (!enabled) {
+        if (g_inDetail && g_detailMenuId == 10u &&
+            STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_CALIBRATION)
+            g_inDetail = false; // cancelled calibration returns to the game UI in RAM
         g_firstDrawPending = g_menu_full_refresh_pending = true;
         resumeFromSleep();
     }

@@ -135,6 +135,12 @@ public:
     // 升级管理
     bool CreateUpgradeSession(const char* session_id, const FirmwareMetadata* manifest);
     bool IsUpgradeActive() const { return session_active; }
+    // Completed/failed session records remain available for idempotent RPCs,
+    // but no longer own a live write transaction.
+    bool HasPendingUpgradeWrites() const {
+        return session_active && current_session &&
+            current_session->status == UPGRADE_STATUS_ACTIVE;
+    }
     
     // 分片处理
     bool ProcessFirmwareChunk(const char* session_id, const char* component_name, 

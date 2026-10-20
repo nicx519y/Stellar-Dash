@@ -263,6 +263,12 @@ void ScreenStandby_InvalidateImageCache(void)
     g_need_redraw = true;
 }
 
+void ScreenStandby_Repaint(void)
+{
+    reset_image_runtime();
+    g_need_redraw = true;
+}
+
 void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool screenInputEvent)
 {
     if (inputMask != g_last_input_mask) {

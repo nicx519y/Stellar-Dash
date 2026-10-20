@@ -10,6 +10,9 @@
 #include "system_sleep_manager.hpp"
 
 #include "stm32h7xx_hal.h"
+// Cooperative telemetry/control, outside the input/ISR timing path. Keep the
+// RAM-resident application within its linker budget as policies grow.
+#pragma GCC optimize("Os")
 
 #ifndef POWER_DEVICE_PROBE_ENABLED
 #define POWER_DEVICE_PROBE_ENABLED 1
@@ -185,6 +188,7 @@ void PowerManager::loop()
     // charging from stale readings. Recovery includes ADC warmup.
     if (poll_phase_ != PollPhase::Publish &&
         (uint32_t)(now - poll_started_ms_) >= (poll_recovery_ ? 2000u : 500u)) {
+        invalidateSample();
         setChargingEnabled(false);
         PowerI2C_DeInit();
         (void)PowerI2C_Init();
@@ -239,6 +243,7 @@ void PowerManager::stepPoll(uint32_t now)
         poll_fault_ |= poll_charger_.fault;
         charge_recovery_.record(poll_charger_.fault, poll_charger_.latched_fault);
         poll_charger_.fault = poll_fault_;
+        if (result == POWER_I2C_FAILED) invalidateSample();
         if (poll_fault_ != 0 || result == POWER_I2C_FAILED) { setChargingEnabled(false); }
         if (result == POWER_I2C_PENDING) { return; }
         poll_charger_ok_ = result == POWER_I2C_DONE;
@@ -262,10 +267,10 @@ void PowerManager::stepPoll(uint32_t now)
         break;
     case PollPhase::ReadGauge:
         result = MAX17048_Step(&gauge_, &gauge_job_, &poll_gauge_);
-        if (result == POWER_I2C_FAILED) { setChargingEnabled(false); }
+        if (result == POWER_I2C_FAILED) { invalidateSample(); }
         if (result == POWER_I2C_PENDING) { return; }
         poll_gauge_ok_ = result == POWER_I2C_DONE;
-        if (poll_gauge_ok_ && !poll_gauge_.valid) { setChargingEnabled(false); }
+        if (poll_gauge_ok_ && !poll_gauge_.valid) { invalidateSample(); }
         if (poll_gauge_ok_ && (poll_clear_gauge_ || poll_gauge_.alert)) {
             beginGaugeJob(MAX17048_JOB_CLEAR_ALERT);
             poll_phase_ = PollPhase::ClearGauge;
@@ -275,7 +280,7 @@ void PowerManager::stepPoll(uint32_t now)
         result = MAX17048_Step(&gauge_, &gauge_job_, &poll_gauge_);
         if (result == POWER_I2C_PENDING) { return; }
         poll_gauge_ok_ = result == POWER_I2C_DONE;
-        if (!poll_gauge_ok_) { setChargingEnabled(false); }
+        if (!poll_gauge_ok_) { invalidateSample(); }
         poll_phase_ = PollPhase::Profile;
         break;
     case PollPhase::Profile: {
@@ -374,8 +379,7 @@ bool PowerManager::isVoltageValid() const
 
 bool PowerManager::isFastCharging() const
 {
-    return snapshot_.fast_charge &&
-           snapshot_.charge_state == PowerChargeState::Charging;
+    return getSnapshot().fast_charge;
 }
 
 bool PowerManager::isLowBattery() const
@@ -523,6 +527,7 @@ bool PowerManager::initializeDevices()
                 charger_ready = false;
                 break;
             }
+            charge_recovery_.record(detected_input.fault, detected_input.latched_fault);
             adc_valid = detected_input.vbus_good && detected_input.vbus_mv >= 3900u;
             if (adc_valid) {
                 break;
@@ -621,7 +626,7 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
 {
     snapshot_.charger_online = charger_ok;
     snapshot_.gauge_online = gauge_ok;
-    snapshot_.valid = gauge_ok && gauge_state.valid;
+    snapshot_.valid = charger_ok && gauge_ok && gauge_state.valid;
 
     if (snapshot_.valid) {
         snapshot_.cell_mv = gauge_state.cell_mv;
@@ -656,7 +661,7 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
     if (!charger_ok) {
         fault_bits |= POWER_FAULT_CHARGER_OFFLINE;
     }
-    if (!snapshot_.valid) {
+    if (!gauge_ok || !gauge_state.valid) {
         fault_bits |= POWER_FAULT_GAUGE_OFFLINE;
     }
     if (!profile_valid_) {
@@ -723,6 +728,15 @@ void PowerManager::processLowVoltageProtection()
         snapshot_.soc_permille, snapshot_.charge_block == PowerChargeBlock::None);
     snapshot_.battery_level = battery_policy_.level();
     snapshot_.battery_confirmation_pending = battery_policy_.needsFrequentSamples();
+}
+
+void PowerManager::invalidateSample()
+{
+    snapshot_.valid = false;
+    snapshot_.fast_charge = false;
+    snapshot_.charge_block = PowerChargeBlock::Telemetry;
+    setChargingEnabled(false);
+    processLowVoltageProtection();
 }
 
 void PowerManager::setChargingEnabled(bool enabled)

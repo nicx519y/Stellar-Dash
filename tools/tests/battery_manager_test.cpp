@@ -188,5 +188,29 @@ int main() {
     policy.sample(1000,true,true,false,0,0);
     policy.sample(5000,true,true,false,0,0);
     assert(policy.latchedFault()==0x08);
+    // Losing either device invalidates the whole sample immediately, before
+    // the asynchronous cycle reaches Publish; no old low-voltage timer survives.
+    gaugeOk=ioOk=true;
+    gaugeState={3100,40,0,false,true};
+    regs[0x11]=regs[0x0b]=0;
+    PowerManager depleted;
+    depleted.setup();
+    for(unsigned i=0;i<3;++i) cycle(depleted);
+    assert(depleted.batteryProtectionRequired());
+    gaugeState={3800,500,0,false,true};
+    for(unsigned i=0;i<20;++i) cycle(depleted);
+    assert(depleted.batteryProtectionRequired() && !depleted.acknowledgeBatteryRecovery());
+    regs[0x11]=0x80|24; regs[0x0b]=0x04|(2<<3);
+    for(unsigned i=0;i<12;++i) cycle(depleted);
+    assert(depleted.getSnapshot().battery_level==BatteryLevel::RecoveryReady);
+    now+=2600; assert(!depleted.acknowledgeBatteryRecovery());
+    cycle(depleted); // freshness gap requires another complete recovery window
+    assert(!depleted.acknowledgeBatteryRecovery());
+    for(unsigned i=0;i<10;++i) cycle(depleted);
+    assert(depleted.acknowledgeBatteryRecovery());
+    ioOk=false; depleted.notifyChargerIrqFromISR(); depleted.loop();
+    assert(!depleted.getSnapshot().valid && !board.charge && !depleted.isFastCharging());
+    while(depleted.isPolling()) { ++now; depleted.loop(); }
+    assert(!depleted.getSnapshot().valid);
     puts("battery manager: full/IRQ/catchup, fault latch, recovery, profiles and stale data passed");
 }

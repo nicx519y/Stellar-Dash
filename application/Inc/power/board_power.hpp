@@ -44,6 +44,10 @@ public:
     void enterRecoveryUiState();
     void prepareForStandby();
     void releaseSafeState();
+    // Inhibit new high-current loads without inhibiting CE or the LCD.
+    // Owners must stop DMA before removing their existing supplies.
+    void setBatteryLoadInhibited(bool inhibited) { batteryLoadInhibited = inhibited; }
+    bool isBatteryLoadInhibited() const { return batteryLoadInhibited; }
 
     void setChargeEnabled(bool enabled);
     void setHallEnabled(bool enabled);
@@ -81,6 +85,7 @@ private:
     bool usbHostEnabled = false;
     bool safeLatched = true;
     bool recoveryUiAllowed = false;
+    bool batteryLoadInhibited = false;
 };
 
 #define BOARD_POWER BoardPower::getInstance()

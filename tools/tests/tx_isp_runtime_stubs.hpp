@@ -5,6 +5,7 @@
 #include "states/base_state.hpp"
 #include "screen_control/spi_screen_layout.hpp"
 #include "enums.hpp"
+#include "battery_policy.hpp"
 
 inline uint32_t nowMs = 0;
 inline bool shutdownOk = true;
@@ -15,6 +16,12 @@ inline bool sleepInput = true;
 inline std::vector<bool> txPower;
 inline std::string rendered;
 inline uint32_t HAL_GetTick() { return nowMs; }
+constexpr int ROTENC_BTN_PORT=0, ROTENC_BTN_PIN=1, GPIO_PIN_RESET=0;
+inline bool knobDown=false;
+inline int HAL_GPIO_ReadPin(int, int) { return knobDown ? GPIO_PIN_RESET : 1; }
+inline int RotEnc_GetDetentDelta() { return 0; }
+inline bool RotEnc_WasButtonClicked() { return false; }
+inline bool RotEnc_WasButtonLongPressed() { return false; }
 inline void HAL_Delay(uint32_t ms) { nowMs += ms; }
 inline void NVIC_SystemReset() { ++resets; }
 struct GPIO_InitTypeDef { uint32_t Pin=0, Mode=0, Pull=0, Speed=0; };
@@ -42,6 +49,23 @@ inline void BootProfile_AppComplete() {}
 inline void SystemSleep_CancelForModeChange() { ++sleepCancels; }
 inline void SystemSleep_Service(bool input, bool) { sleepInput=input; }
 inline void SystemSleep_Idle() {}
+inline bool protectionStopOk=true;
+inline unsigned protectionStops=0, releaseSuppressions=0;
+inline bool SystemSleep_ProtectionStop() { ++protectionStops; return protectionStopOk; }
+inline void SystemSleep_SuppressHeldInputs() { ++releaseSuppressions; }
+struct FakeAdc {
+    bool stopped=true;
+    void forceStopAllSampling() {}
+    bool isSamplingHardwareStopped() { return stopped; }
+};
+inline FakeAdc ADC_MANAGER;
+struct FakeLed {
+    bool stopped=true;
+    bool suspendForSleep() { return stopped; }
+};
+inline FakeLed LEDS_MANAGER;
+struct FakeScheduler { void stop() {} };
+inline FakeScheduler REPORT_SCHEDULER;
 
 enum class BoardMode { Usb, Rf, CenterOff };
 struct FakeBoardMode {
@@ -54,6 +78,11 @@ struct FakeBoardMode {
 inline FakeBoardMode BOARD_MODE;
 struct FakePower {
     bool tx=false, main=true, lcd=true, host=false;
+    bool inhibited=false, hall=false, keys=false, ambient=false, charge=true;
+    void setBatteryLoadInhibited(bool value) { inhibited=value; }
+    void setHallEnabled(bool value) { hall=value; }
+    void setKeyLedEnabled(bool value) { keys=value; }
+    void setAmbientLedEnabled(bool value) { ambient=value; }
     void setCh585Enabled(bool value) { tx=value; txPower.push_back(value); if(!value)host=false; }
     void enterRecoveryUiState() { main=lcd=true; setCh585Enabled(false); }
 };
@@ -65,6 +94,8 @@ struct FakeState : BaseState {
     void exit() override { ++exits; BOARD_POWER.setCh585Enabled(false); }
     void tick() override {}
     void cancelSleepRecovery() {} void serviceLeds() {}
+    int neutrals=0;
+    void prepareBatteryProtection() { ++neutrals; }
     bool suspendInputPipelineForStorage() { suspended=true; return true; }
     bool resumeInputPipelineAfterStorage(bool wasRunning) { if(wasRunning)suspended=false; return true; }
 };
@@ -82,21 +113,43 @@ inline FakeUsb USB_BOARD_LINK;
 inline bool USBBoardLinkPort_TryShutdown() { return shutdownOk; }
 inline void RFBridgePort_Shutdown() { ++rfStops; }
 struct FakeLoop { int loops=0; void setup() {} void loop() { ++loops; } };
-inline FakeLoop POWER_MANAGER, CONNECTION_MANAGER;
+inline FakeLoop CONNECTION_MANAGER;
+struct FakePowerManager : FakeLoop {
+    bool low=false, critical=false, ready=false;
+    bool isLowBattery() { return low || critical; }
+    bool batteryProtectionRequired() { return critical; }
+    bool acknowledgeBatteryRecovery() { if (!ready) return false; critical=ready=false; return true; }
+    struct Snapshot { BatteryLevel battery_level; };
+    Snapshot getSnapshot() { return {ready ? BatteryLevel::RecoveryReady :
+        critical ? BatteryLevel::Critical : BatteryLevel::Normal}; }
+};
+inline FakePowerManager POWER_MANAGER;
 class SPIScreenManager {
 public:
     int loops=0, ispPages=0;
     static SPIScreenManager& getInstance() { static SPIScreenManager s; return s; }
     void setup() {} void loop() { ++loops; }
     void showTxIsp() { ++ispPages; }
+    bool protectedMode=false, displayIdle=false;
+    unsigned inspections=0;
+    void setBatteryProtection(bool value) { protectedMode=value; }
+    void showBatteryProtectionStatus() { ++inspections; }
+    bool batteryProtectionDisplayIdle() { return displayIdle; }
 };
 struct FakeInstaller {
     bool owned=false, failure=false;
     bool busy() { return owned; } bool failed() { return failure; }
+    bool defersBatteryProtection() { return owned; }
     bool protectConfiguration() { return false; } void verifyStartup(bool) {}
     bool bootPending() { return false; } void poll() {}
 };
 inline FakeInstaller RELEASE_INSTALLER;
+class FirmwareManager {
+public:
+    static FirmwareManager* GetInstance() { static FirmwareManager f; return &f; }
+    bool active=false;
+    bool HasPendingUpgradeWrites() { return active; }
+};
 enum class Ch585FirmwareUpdateStatus { Idle, Receiving, Ready, Scheduled, Programming, Completed, Failed };
 struct FakeUpdate {
     bool pending=false;

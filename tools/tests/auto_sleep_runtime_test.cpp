@@ -33,6 +33,28 @@ int main(int argc, char** argv)
     SystemSleep_ConfirmWakeHoldOrReturnStandby();
     SystemSleep_InitializeWakeKeys();
     portC.high = 0xffffu;
+    if (!std::strncmp(scenario, "protection", 10)) {
+        STORAGE_MANAGER.enabled=false;
+#if HBOX_AUTO_SLEEP_ENABLED == 0
+        assert(!SystemSleep_ProtectionStop() && idleCount==0);
+        return 0;
+#else
+        assert(SystemSleep_ProtectionStop() && idleCount==1 && lastStopInterval==1000);
+        debug.DHCSR=1; assert(!SystemSleep_ProtectionStop()); debug.DHCSR=0;
+        POWER_MANAGER.polling=true; assert(!SystemSleep_ProtectionStop()); POWER_MANAGER.polling=false;
+        portC.high &= ~GPIO_BTN1_PIN; assert(!SystemSleep_ProtectionStop()); portC.high=0xffffu;
+        // Both GPIO and Hall wake presses must be released before gameplay.
+        SystemSleep_SuppressHeldInputs();
+        assert(SystemSleep_FilterInput(0x10u)==0u);
+        tick+=30; assert(SystemSleep_FilterInput(0x10u)==0u);
+        assert(SystemSleep_FilterInput(0u)==0u);
+        assert(SystemSleep_FilterInput(0x10u)==0x10u);
+        stopOk=false; assert(!SystemSleep_ProtectionStop());
+        stopOk=true; assert(!SystemSleep_ProtectionStop()); // no boot retry loop
+        assert(INPUT_STATE.running); // protection owner, never this API, manages loads
+        return 0;
+#endif
+    }
     if (!std::strcmp(scenario, "disabled")) {
         step(60000); assert(!SystemSleep_IsBusy() && idleCount == 0);
         STORAGE_MANAGER.enabled = true;
@@ -87,6 +109,7 @@ int main(int argc, char** argv)
     if (!std::strcmp(scenario, "prepare-timeout") || !std::strcmp(scenario, "disable-prepare")) bridgeIdle = false;
     step(200);
     if (!std::strcmp(scenario, "reset") || !std::strcmp(scenario, "fault") || !std::strcmp(scenario, "stop-fault") || !std::strcmp(scenario, "boot-key")) {
+        assert(!SystemSleep_ProtectionStop());
         step(60000);
         assert(!SystemSleep_IsBusy() && INPUT_STATE.neutrals == 0 && idleCount == 0);
         STORAGE_MANAGER.enabled = false; step(2);

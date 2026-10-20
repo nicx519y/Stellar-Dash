@@ -105,9 +105,18 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                              'disabled', 'retime', 'software', 'fault', 'debugger',
                              'disable-prepare', 'disable-sleep', 'disable-restore',
                              'stop-fault', 'stop-failure', 'stop-short-key',
-                             'xinput-idle', 'xinput-neutral-failure', 'xinput-cycles'):
+                             'xinput-idle', 'xinput-neutral-failure', 'xinput-cycles', 'protection'):
                 print(f'auto-sleep runtime: {scenario}', flush=True)
                 run_checked([str(exe), scenario])
+            # Same production STOP gate with the compile-time switch disabled.
+            run_checked([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                         '-DHBOX_AUTO_SLEEP_ENABLED=0', '-I', str(temp),
+                         *application_include_flags(),
+                         '-include', str(ROOT / 'tools/tests/auto_sleep_runtime_stubs.hpp'),
+                         str(ROOT / 'tools/tests/auto_sleep_runtime_test.cpp'),
+                         str(ROOT / 'application/Src/power/system_sleep_manager.cpp'),
+                         '-o', str(exe)])
+            run_checked([str(exe), 'protection'])
             print(f'auto-sleep runtime: passed in {time.monotonic() - started:.2f}s', flush=True)
 
     def test_stop_timer_and_power_maintenance(self):

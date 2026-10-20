@@ -46,6 +46,10 @@ int main() {
     ScreenStandby_Tick(tick + 10000); assert(ScreenStandby_IsActive());
     ScreenStandby_NotifyInput(tick + 10001, 1, false); assert(ScreenStandby_IsActive());
     ScreenStandby_Render(&lcd, 1); assert(draws > 0);
+    const unsigned beforeOverlay = draws;
+    ScreenStandby_Repaint();
+    assert(ScreenStandby_IsActive());
+    ScreenStandby_Render(&lcd, 1); assert(draws > beforeOverlay);
     // Missing images never result in an active blank image saver.
     tick += 12000;
     ScreenStandby_Configure(1, 10, "", 0, 0xffffff, true);

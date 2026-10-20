@@ -7,6 +7,7 @@ class ReleaseInstaller {
 public:
     static ReleaseInstaller& instance();
     bool busy();
+    bool defersBatteryProtection();
     bool owns(const char* session);
     bool bootPending();
     bool failed();

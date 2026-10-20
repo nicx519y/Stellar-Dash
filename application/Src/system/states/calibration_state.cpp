@@ -131,13 +131,13 @@ void CalibrationState::tick() {
 
 void CalibrationState::exit() {
     REPORT_SCHEDULER.stop();
-    (void)ADC_CALIBRATION_MANAGER.stopCalibration();
     ADC_CALIBRATION_MANAGER.clearCallbacks();
+    (void)ADC_CALIBRATION_MANAGER.stopCalibration();
     ADC_MANAGER.forceStopAllSampling();
 #if HAS_LED == 1
     (void)WS2812B_StopStrip(WS2812B_STRIP_KEYS);
 #endif
-    BOARD_POWER.setHallEnabled(false);
+    if (ADC_MANAGER.isSamplingHardwareStopped()) BOARD_POWER.setHallEnabled(false);
     isRunning = false;
     rebootTime = 0;
     

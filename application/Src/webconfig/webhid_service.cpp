@@ -1,4 +1,5 @@
 #include "webhid_service.hpp"
+#include "power_manager.hpp"
 #include "webhid_benchmark.h"
 #include "webhid_fast_link.h"
 
@@ -2700,6 +2701,8 @@ bool WebHidService::handleBinaryExchange(
     }
     const uint32_t requiredScope =
         binaryOpcodeScope(opcode);
+    if (POWER_MANAGER.batteryProtectionRequired() && requiredScope == HBOX_SCOPE_ASSET_WRITE)
+        return sendRpcResult(transactionId,409,nullptr,"Battery protection: writes paused");
     if (RELEASE_INSTALLER.busy() && requiredScope == HBOX_SCOPE_ASSET_WRITE)
         return sendRpcResult(transactionId,409,nullptr,"Whole-device installation is exclusive");
     if (requiredScope == 0u ||
@@ -2799,6 +2802,8 @@ bool WebHidService::handleStreamRpc(
                 ? streamTypeForName(streamItem->valuestring)
                 : 0u;
         const uint32_t required = streamScope(streamType);
+        if (POWER_MANAGER.batteryProtectionRequired() && required != HBOX_SCOPE_FIRMWARE_UPDATE)
+            return sendRpcResult(transactionId,409,nullptr,"Battery protection: writes paused");
         if (RELEASE_INSTALLER.busy() && required == HBOX_SCOPE_ASSET_WRITE)
             return sendRpcResult(transactionId,409,nullptr,"Whole-device installation is exclusive");
         const bool lengthValid = parseU32(lengthItem, expectedLength);

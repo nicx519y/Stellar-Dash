@@ -123,6 +123,7 @@ private:
     void beginChargerJob(BQ25895_JobKind kind, BQ25895_InputProfile profile);
     void beginGaugeJob(MAX17048_JobKind kind);
     void processLowVoltageProtection();
+    void invalidateSample();
     void setChargingEnabled(bool enabled);
     bool isFastChargeDetected() const;
     uint32_t consumeIrqFlags();

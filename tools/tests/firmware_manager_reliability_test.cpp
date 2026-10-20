@@ -113,6 +113,7 @@ void installSession(
     UpgradeSession &session = *value->current_session;
     std::strcpy(session.session_id, "ota-session");
     session.status = UPGRADE_STATUS_ACTIVE;
+    assert(value->HasPendingUpgradeWrites());
     session.manifest = makeManifest(application);
     session.created_at = tickMs;
     session.component_count = FIRMWARE_COMPONENT_COUNT;
@@ -259,6 +260,7 @@ void testCompleteIsIdempotentAndAbortCannotEraseCommitState()
     assert(value->current_session->components[0].completed);
 
     assert(value->CompleteUpgradeSession("ota-session"));
+    assert(value->IsUpgradeActive() && !value->HasPendingUpgradeWrites());
     assert(value->current_session->status == UPGRADE_STATUS_COMPLETED);
     assert(metadataWriteCalls == 1u);
     UpgradeStatus observedStatus = UPGRADE_STATUS_IDLE;

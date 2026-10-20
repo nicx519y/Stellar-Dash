@@ -19,6 +19,7 @@ class TxIspStateTests(unittest.TestCase):
                 ('support/enums.hpp', 'enums.hpp'),
                 ('system/states/base_state.hpp', 'states/base_state.hpp'),
                 ('system/states/tx_isp_state.hpp', 'states/tx_isp_state.hpp'),
+                ('system/states/battery_protection_state.hpp', 'states/battery_protection_state.hpp'),
                 ('display/screen_control/spi_screen_layout.hpp', 'screen_control/spi_screen_layout.hpp'),
                 ('display/screen_control/spi_screen_main_list.hpp', 'screen_control/spi_screen_main_list.hpp'),
                 ('display/screen_control/spi_screen_detail_entries.hpp', 'screen_control/spi_screen_detail_entries.hpp'),
@@ -33,7 +34,9 @@ class TxIspStateTests(unittest.TestCase):
                 '#include "tx_isp_runtime_stubs.hpp"\n#include "main_runtime_control.hpp"\n'
                 '#include "screen_control/spi_screen_main_list.hpp"\nbool boot_mode_to_detail_menu'+selector,
                 encoding='utf-8')
-            stubs = ('connection_mode_config.hpp', 'storagemanager.hpp', 'config.hpp', 'board_cfg.h', 'board_mode.hpp',
+            (temp/'leds').mkdir()
+            stubs = ('report_scheduler.hpp', 'rotary-encoder.h', 'leds/leds_manager.hpp',
+                     'connection_mode_config.hpp', 'storagemanager.hpp', 'config.hpp', 'board_cfg.h', 'board_mode.hpp',
                      'board_power.hpp', 'ch585_firmware_update.hpp', 'release_installer.hpp',
                      'ch585_role_bootstrap.hpp', 'connection_manager.hpp', 'power_manager.hpp',
                      'system_logger.h', 'system_sleep_manager.hpp', 'boot_profile.h',
@@ -55,6 +58,7 @@ class TxIspStateTests(unittest.TestCase):
                         str(ROOT/'tools/tests/tx_isp_runtime_test.cpp'),
                         str(ROOT/'application/Src/system/main_state_machine.cpp'),
                         str(ROOT/'application/Src/system/states/tx_isp_state.cpp'),
+                        str(ROOT/'application/Src/system/states/battery_protection_state.cpp'),
                         str(ROOT/'application/Src/display/screen_control/spi_screen_detail_tx_isp.cpp'),
                         str(ROOT/'application/Src/display/screen_control/spi_screen_main_list.cpp'),
                         str(temp/'screen_boot_selector.cpp'),

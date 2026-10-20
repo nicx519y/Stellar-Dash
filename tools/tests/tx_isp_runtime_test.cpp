@@ -4,6 +4,7 @@
 #undef private
 #include "main_runtime_control.hpp"
 #include "states/tx_isp_state.hpp"
+#include "states/battery_protection_state.hpp"
 #include "screen_control/spi_screen_detail_entries.hpp"
 #include "screen_control/spi_screen_main_list.hpp"
 #include <cassert>
@@ -157,5 +158,59 @@ int main() {
     uint8_t bounded[2]={0,0xA5};
     assert(ScreenMain_RebuildMenuIds(config,bounded,1)==1 && bounded[1]==0xA5);
     assert(ScreenMain_RebuildMenuIds(config,nullptr,16)==0);
+    // Production dispatcher + protection state, with only peripherals faked.
+    BOARD_MODE.allowed=true;
+    for(auto origin:{MainRuntimeState::Input, MainRuntimeState::WebConfig, MainRuntimeState::Calibration}) {
+        assert(machine.requestTransition(origin));
+        const auto boot=STORAGE_MANAGER.boot;
+        const auto saved=STORAGE_MANAGER.saves;
+        POWER_MANAGER.critical=true;
+        // Every accepted transaction retains its owner until completion.
+        RELEASE_INSTALLER.owned=true; machine.serviceBatteryProtection(); assert(machine.current()==origin);
+        RELEASE_INSTALLER.owned=false;
+        FirmwareManager::GetInstance()->active=true; machine.serviceBatteryProtection(); assert(machine.current()==origin);
+        FirmwareManager::GetInstance()->active=false;
+        CH585_FIRMWARE_UPDATE.value=Ch585FirmwareUpdateStatus::Receiving;
+        machine.serviceBatteryProtection(); assert(machine.current()==origin);
+        CH585_FIRMWARE_UPDATE.value=Ch585FirmwareUpdateStatus::Idle;
+        machine.serviceBatteryProtection();
+        assert(machine.current()==MainRuntimeState::BatteryProtection);
+        assert(BOARD_POWER.inhibited && !BOARD_POWER.tx && BOARD_POWER.charge);
+        assert(STORAGE_MANAGER.boot==boot && STORAGE_MANAGER.saves==saved);
+        assert(!machine.requestTransition(MainRuntimeState::Input));
+        machine.requestReset(); assert(!machine.resetPending);
+        auto& screen=SPIScreenManager::getInstance();
+        screen.displayIdle=false;
+        const auto stops=protectionStops;
+        BATTERY_PROTECTION_STATE.idle(); assert(protectionStops==stops);
+        screen.displayIdle=true; BATTERY_PROTECTION_STATE.idle(); assert(protectionStops==stops+1);
+        const auto gesture=[&](bool down) {
+            knobDown=down; BATTERY_PROTECTION_STATE.tick();
+            nowMs+=6; BATTERY_PROTECTION_STATE.tick(); machine.serviceBatteryProtection();
+        };
+        gesture(true); gesture(false); assert(machine.current()==MainRuntimeState::BatteryProtection);
+        // Holding the knob through readiness cannot unlock.
+        gesture(true); POWER_MANAGER.ready=true; gesture(true); gesture(false);
+        assert(machine.current()==MainRuntimeState::BatteryProtection);
+        gesture(true); POWER_MANAGER.ready=false; gesture(false);
+        assert(machine.current()==MainRuntimeState::BatteryProtection);
+        POWER_MANAGER.ready=true; gesture(false); gesture(true); gesture(false);
+        assert(machine.current()==(origin==MainRuntimeState::Calibration ? MainRuntimeState::Input : origin));
+        assert(!BOARD_POWER.inhibited && !screen.protectedMode && STORAGE_MANAGER.saves==saved);
+    }
+    // Teardown failure stays load-inhibited and never attempts CPU STOP.
+    ADC_MANAGER.stopped=false; POWER_MANAGER.critical=true;
+    machine.serviceBatteryProtection();
+    const auto failedStops=protectionStops;
+    BATTERY_PROTECTION_STATE.idle();
+    assert(protectionStops==failedStops && machine.current()==MainRuntimeState::BatteryProtection);
+    POWER_MANAGER.ready=true; machine.requestBatteryRecovery(); machine.serviceBatteryProtection();
+    ADC_MANAGER.stopped=true;
+    // Existing ISP and boot installation are never interrupted.
+    assert(machine.requestTransition(MainRuntimeState::TxIsp));
+    POWER_MANAGER.critical=true; machine.serviceBatteryProtection();
+    assert(machine.current()==MainRuntimeState::TxIsp);
+    assert(machine.requestTransition(MainRuntimeState::Ch585BridgeUpdate));
+    machine.serviceBatteryProtection(); assert(machine.current()==MainRuntimeState::Ch585BridgeUpdate);
     std::cout << "TX ISP runtime/menu tests passed\n";
 }

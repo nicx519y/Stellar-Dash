@@ -21,7 +21,7 @@ class PowerStartupInputWaitTest(unittest.TestCase):
 using I2C_HandleTypeDef = int;
 enum BQ25895_InputProfile { BQ25895_INPUT_PROFILE_5V_1P5A, BQ25895_INPUT_PROFILE_9V_1P5A };
 struct Handle { bool online=true; };
-struct BQ25895_State { bool vbus_good=false, power_good=false; uint8_t vbus_status=0; uint16_t vbus_mv=2600; };
+struct BQ25895_State { bool vbus_good=false, power_good=false; uint8_t vbus_status=0; uint16_t vbus_mv=2600; uint8_t fault=0, latched_fault=0; };
 constexpr uint32_t kInitialAdcTimeoutMs=1200, kInitialAdcPollMs=20;
 constexpr uint16_t kInputProfile9vThresholdMv=7000;
 constexpr uint8_t kGaugeAlertSocPercent=10;
@@ -45,6 +45,7 @@ bool MAX17048_Init(Handle*,I2C_HandleTypeDef*) { return true; }
 bool MAX17048_ConfigureAlert(Handle*,uint8_t) { return true; }
 #define APP_STAGE(...) ((void)0)
 struct PowerManager {
+    struct { uint8_t recorded=0; void record(uint8_t, uint8_t latch) { recorded |= latch; } } charge_recovery_;
     Handle charger_, gauge_;
     bool profile_valid_=false;
     uint32_t last_profile_check_ms_=0;
@@ -74,6 +75,8 @@ int main() {
     reset({nine}); verifyOk=false; assert(!p.initializeDevices());
     assert(!p.profile_valid_ && verified==1 && !chargeEnabled);
     reset({pending}); now=UINT32_MAX-10; assert(p.initializeDevices() && waited==1200);
+    reset({{true,true,3,9000,0x30,0x30}}); assert(p.initializeDevices());
+    assert(p.charge_recovery_.recorded==0x30);
 }
 '''
         with tempfile.TemporaryDirectory() as tmp:

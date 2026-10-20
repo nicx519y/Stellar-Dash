@@ -6,6 +6,7 @@
 class ChargeRecoveryPolicy {
 public:
     void record(uint8_t fault, uint8_t latchedFault) {
+        if ((latchedFault & ~latched_) != 0u) unplugTiming_ = false;
         latched_ |= latchedFault;
         if (fault != 0u) {
             recovering_ = true;

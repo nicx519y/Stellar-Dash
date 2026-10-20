@@ -145,6 +145,7 @@ void BoardPower::setChargeEnabled(bool enabled)
 
 void BoardPower::setHallEnabled(bool enabled)
 {
+    if (enabled && batteryLoadInhibited) return;
     writePin(HALL_VCC_EN_PORT, HALL_VCC_EN_PIN, enabled);
     hallEnabled = enabled;
 }
@@ -171,6 +172,7 @@ void BoardPower::refreshLedBoost()
 
 void BoardPower::setKeyLedEnabled(bool enabled)
 {
+    if (enabled && batteryLoadInhibited) return;
     if (enabled) {
         setLedBoostEnabled(true);
     }
@@ -183,6 +185,7 @@ void BoardPower::setKeyLedEnabled(bool enabled)
 
 void BoardPower::setAmbientLedEnabled(bool enabled)
 {
+    if (enabled && batteryLoadInhibited) return;
     if (enabled) {
         setLedBoostEnabled(true);
     }
@@ -201,6 +204,7 @@ void BoardPower::setLcdEnabled(bool enabled)
 
 void BoardPower::setCh585Enabled(bool enabled)
 {
+    if (enabled && batteryLoadInhibited) return;
     if (!enabled) {
         (void)setUsbHostEnabled(false);
     }
@@ -210,7 +214,7 @@ void BoardPower::setCh585Enabled(bool enabled)
 
 bool BoardPower::setUsbHostEnabled(bool enabled)
 {
-    if (enabled && !ch585Enabled) {
+    if (enabled && (batteryLoadInhibited || !ch585Enabled)) {
         writePin(USB_HOST_EN_PORT, USB_HOST_EN_PIN, false);
         usbHostEnabled = false;
         return false;

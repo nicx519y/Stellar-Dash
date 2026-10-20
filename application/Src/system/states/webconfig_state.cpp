@@ -21,6 +21,7 @@
 #include "webhid_service.hpp"
 #include "ch585_firmware_update.hpp"
 #include "main_runtime_control.hpp"
+#include "power_manager.hpp"
 
 /* Own complete cache lines so SWD sees diagnostics without sharing cache
  * maintenance with unrelated state. Words 0..7: magic, stage, tick, HS stage,
@@ -236,6 +237,12 @@ void WebConfigState::tick() {
          * iteration before that worker can consume runtime budget.
          */
         WEBHID_SERVICE.process();
+        if (POWER_MANAGER.batteryProtectionRequired()) {
+            // An already accepted update may still own the maintenance link.
+            // Do not start another calibration step/preview while it finishes.
+            CH585_FIRMWARE_UPDATE.process();
+            return;
+        }
         if (traceStartupTick) {
             APP_STAGE("WT2", "WebHID process complete");
         }
@@ -290,12 +297,13 @@ void WebConfigState::exit() {
      * material before disconnecting or powering down the CH585 link.
      */
     WEBHID_SERVICE.shutdown();
+    ADC_CALIBRATION_MANAGER.clearCallbacks();
     (void)ADC_CALIBRATION_MANAGER.stopCalibration();
     ADCManager::getInstance().forceStopAllSampling();
 #if HAS_LED == 1
     LEDS_MANAGER.deinit();
 #endif
-    BOARD_POWER.setHallEnabled(false);
+    if (ADC_MANAGER.isSamplingHardwareStopped()) BOARD_POWER.setHallEnabled(false);
     USB_DRIVER.shutdown();
     USB_BOARD_LINK.shutdown();
     CH585_ROLE_BOOTSTRAP.shutdown();

@@ -10,6 +10,8 @@ extern "C" {
 void ScreenStandby_Init(uint32_t nowMs, uint32_t inputMask);
 void ScreenStandby_Configure(uint8_t standbyDisplay, uint16_t timeoutSeconds, const char* backgroundImageId, uint32_t bgRgb888, uint32_t fgRgb888, bool enabled);
 void ScreenStandby_InvalidateImageCache(void);
+// Repaint after a temporary overlay without changing active state/idle time.
+void ScreenStandby_Repaint(void);
 void ScreenStandby_NotifyInput(uint32_t nowMs, uint32_t inputMask, bool screenInputEvent);
 void ScreenStandby_Tick(uint32_t nowMs);
 bool ScreenStandby_IsActive(void);

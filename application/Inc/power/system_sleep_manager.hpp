@@ -16,6 +16,10 @@ void SystemSleep_Idle(void);
 void SystemSleep_CancelForModeChange(void);
 bool SystemSleep_IsBusy(void);
 bool SystemSleep_IsSleeping(void);
+// Independent of the user's ordinary Auto Sleep preference. False means STOP
+// was unavailable/failed; the caller must remain in the load-off runtime.
+bool SystemSleep_ProtectionStop(void);
+void SystemSleep_SuppressHeldInputs(void);
 uint32_t SystemSleep_FilterInput(uint32_t mask);
 void SystemSleep_DisableForBoot(void);
 void SystemSleep_ConfirmWakeHoldOrReturnStandby(void);

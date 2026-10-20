@@ -32,6 +32,7 @@ bool rotarySuppressed = false;
 bool inputPaused = false;
 bool ledsStopped = false;
 bool samplingResumed = false;
+bool protectionReleaseWindow = false;
 uint32_t lastInput = 0u, lastKeys = 0u, lastKeepalive = 0u;
 uint32_t samplingResumeAt = 0u;
 uint32_t lastServiceMs = 0u;
@@ -147,8 +148,38 @@ extern "C" void SystemSleep_RequestStandby(void)
 extern "C" void SystemSleep_DisableForBoot(void) { policy.inhibit(); }
 extern "C" bool SystemSleep_IsBusy(void) { return policy.state() != State::Active; }
 extern "C" bool SystemSleep_IsSleeping(void) { return policy.state() == State::Sleeping; }
+extern "C" void SystemSleep_SuppressHeldInputs(void)
+{
+    // Hall inputs are added by FilterInput during the first debounce window.
+    releaseGate.arm(rawKeys() & ~rotaryMask);
+    rotarySuppressed = true;
+    samplingResumeAt = HAL_GetTick();
+    protectionReleaseWindow = true;
+}
+extern "C" bool SystemSleep_ProtectionStop(void)
+{
+#if HBOX_AUTO_SLEEP_ENABLED == 1
+    if (!policy.enabled() || resetInhibit || rawKeys() != 0u ||
+        __get_PRIMASK() != 0u || POWER_MANAGER.isPolling() ||
+        (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return false;
+    uint32_t pins = 0u;
+    if (SystemStop_Enter(1000u, &pins)) return true;
+    policy.inhibit(); // no repeated STOP attempts after a preparation failure
+#endif
+    return false;
+}
 extern "C" uint32_t SystemSleep_FilterInput(uint32_t mask)
 {
+    if (protectionReleaseWindow) {
+        releaseGate.arm(mask);
+        (void)releaseGate.filter(mask);
+        // Count from the first live input frame, after bounded USB/RF startup.
+        static uint32_t firstSample = 0;
+        if (firstSample == 0u) firstSample = HAL_GetTick();
+        if (HAL_GetTick() - firstSample < 30u) return 0u;
+        firstSample = 0u;
+        protectionReleaseWindow = false;
+    }
     // Collect held Hall keys across the initial debounce samples, not merely
     // the first DMA frame (which can precede a pressed-state transition).
     if (policy.state() == State::RestoringLocal) {

@@ -10,6 +10,8 @@
 #include "configs/webconfig_btns_manager.hpp"
 #include "webhid_config_write_policy.hpp"
 #include "release_installer.hpp"
+#include "power_manager.hpp"
+#include "battery_access_policy.hpp"
 
 namespace {
 
@@ -247,6 +249,9 @@ WebHidRpcResult WebHidRpcDispatcher::dispatch(
         (grantedScopes & scope) != scope) {
         return localError(transactionId, 403, "Command scope denied");
     }
+    if (batteryRejectsCommand(command.c_str(), POWER_MANAGER.isLowBattery(),
+            POWER_MANAGER.batteryProtectionRequired(), scope == HBOX_SCOPE_CONFIG_READ))
+        return localError(transactionId, 409, "Battery protection: connect power before starting this operation");
     if (webhidShouldBlockConfigWrite(
             command,
             scope == HBOX_SCOPE_CONFIG_WRITE,

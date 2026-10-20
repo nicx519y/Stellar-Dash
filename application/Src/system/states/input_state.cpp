@@ -611,6 +611,29 @@ bool InputState::sendSleepNeutral()
     return false;
 }
 
+void InputState::prepareBatteryProtection()
+{
+    // Stop producing game input first. Link loss or a full transmit queue is
+    // not a veto: make one bounded neutral attempt then tear down the owner.
+    REPORT_SCHEDULER.stop();
+    ADC_MANAGER.forceStopAllSampling();
+    (void)sendSleepNeutral();
+    if (activeBoardMode == BoardMode::Usb && usbRuntimeInitialized) {
+        USB_DRIVER.process();
+        HAL_Delay(2u);
+        USB_DRIVER.process();
+    } else if (activeBoardMode == BoardMode::Rf && !rfSleepPoweredOff) {
+        const uint32_t started = HAL_GetTick();
+        while (!RFBridgePort_IsInputIdle() && HAL_GetTick() - started < 20u) {
+            CONNECTION_MANAGER.loop();
+            HAL_Delay(1u);
+        }
+        // On timeout, bounded abort/reset parks SPI/DMA before exit removes
+        // CH585 power. Do not wait forever for a disconnected receiver.
+        RFBridgePort_Shutdown();
+    }
+}
+
 bool InputState::sleepNeedsNeutralKeepalive() const
 {
     // XInput has no HID SET_IDLE requirement. CH585 keeps USB and host auth

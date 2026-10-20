@@ -13,6 +13,7 @@ enum class MainRuntimeState : uint8_t {
     Ch585BridgeUpdate,
     SafeRecovery,
     TxIsp,
+    BatteryProtection, // RAM only; never a persisted BootMode
 };
 
 class MainStateMachine {
@@ -31,6 +32,7 @@ class MainStateMachine {
         void servicePendingTransition();
         MainRuntimeState current() const { return currentState; }
         bool txIspTransitionFailed() const { return ispTransitionFailed; }
+        void requestBatteryRecovery() { batteryRecoveryPending = true; }
 
     private:
         MainStateMachine() = default;
@@ -39,6 +41,7 @@ class MainStateMachine {
         bool enterState(MainRuntimeState selected);
         void initializeInteractiveRuntime(bool overlapInputStartup = false);
         void serviceSharedRuntime();
+        void serviceBatteryProtection();
 
         BaseState* state = nullptr;
         MainRuntimeState currentState = MainRuntimeState::SafeRecovery;
@@ -48,6 +51,8 @@ class MainStateMachine {
         bool ispTransitionFailed = false;
         MainRuntimeState pendingState = MainRuntimeState::Input;
         MainRuntimeState ispReturnState = MainRuntimeState::Input;
+        MainRuntimeState batteryReturnState = MainRuntimeState::Input;
+        bool batteryRecoveryPending = false;
 
 };
 

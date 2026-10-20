@@ -277,7 +277,10 @@ bool verifyTx() {
 bool terminalFailure(const char* error) {
     snprintf(state.installError,sizeof(state.installError),"%s",error);
     snprintf(state.errorCode,sizeof(state.errorCode),"BACKUP_FAILED");
-    backupActive=false;fail(error);return persist(Failed);
+    backupActive=false;
+    FirmwareManager::GetInstance()->ForceCleanupSession();
+    CH585_FIRMWARE_UPDATE.cancelReceiving();
+    fail(error);return persist(Failed);
 }
 uint32_t backupBase(){return state.target.target_slot==FIRMWARE_SLOT_A?SLOT_A_WEBRESOURCES_ADDR:SLOT_B_WEBRESOURCES_ADDR;}
 bool writePages(uint32_t address,const void* source,uint32_t size) {
@@ -463,6 +466,13 @@ ReleaseInstaller& ReleaseInstaller::instance(){static ReleaseInstaller i;return 
 const char* ReleaseInstaller::error() const{load();return lastError;}
 const char* ReleaseInstaller::recoveryErrorCode(){load();return storageFault?"JOURNAL_FAILED":legacyJournal && failed()?"LEGACY_NO_BACKUP":state.errorCode;}
 bool ReleaseInstaller::busy(){load();return storageFault || declaring || (state.phase!=Empty && state.phase!=Completed && state.phase!=Aborted && state.phase!=Restored);}
+bool ReleaseInstaller::defersBatteryProtection(){
+    load();
+    return maintenanceRequested || maintenanceActive || (!storageFault &&
+        (declaring || (state.phase>=Receiving && state.phase<=Verifying) ||
+        state.phase==Declared || state.phase==BackingUp || state.phase==Restoring ||
+        state.phase==RollbackVerifying));
+}
 bool ReleaseInstaller::owns(const char* session){load();return session && !storageFault && strcmp(session,state.session)==0 && busy();}
 bool ReleaseInstaller::failed(){load();return storageFault || (state.phase==Failed && (state.attempts || legacyJournal)) || state.phase==RestoreFailed || (legacyJournal && state.phase>=Activated && state.phase<=Verifying) ||
     (state.phase>=Activated && state.phase<=Committing && lastError[0]);}
@@ -539,7 +549,9 @@ bool ReleaseInstaller::activate(const char* session) {
 }
 bool ReleaseInstaller::abort(const char* session) {
     if(!owns(session) || (!declaring && state.phase!=Receiving && state.phase!=Prepared && state.phase!=Declared && state.phase!=BackingUp && !(state.phase==Failed && !state.attempts && !legacyJournal)))return fail("Installation cannot be cancelled");
-    declaring=false;backupActive=false; FirmwareManager::GetInstance()->ForceCleanupSession();return persist(Aborted);
+    declaring=false;backupActive=false; FirmwareManager::GetInstance()->ForceCleanupSession();
+    CH585_FIRMWARE_UPDATE.cancelReceiving();
+    return persist(Aborted);
 }
 bool ReleaseInstaller::backup(const char* session) {
     if(owns(session) && (state.phase==Receiving || state.phase==Prepared) && state.backupReady)

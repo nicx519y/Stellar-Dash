@@ -273,6 +273,13 @@ uint8_t Ch585FirmwareUpdate::progress() const
     return static_cast<uint8_t>((received * 100u) / imageSize);
 }
 
+void Ch585FirmwareUpdate::cancelReceiving()
+{
+    if (currentStatus != Ch585FirmwareUpdateStatus::Receiving) return;
+    currentStatus = Ch585FirmwareUpdateStatus::Idle;
+    imageSize = received = 0u;
+}
+
 bool Ch585FirmwareUpdate::begin(uint32_t totalSize,
                                 const uint8_t expectedSha256[32])
 {

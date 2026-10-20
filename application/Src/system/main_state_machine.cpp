@@ -17,15 +17,17 @@
 #include "states/ch585_bridge_update_state.hpp"
 #include "states/safe_recovery_state.hpp"
 #include "states/tx_isp_state.hpp"
+#include "states/battery_protection_state.hpp"
 #include "system_logger.h"
 #include "system_sleep_manager.hpp"
 #include "boot_profile.h"
+#pragma GCC optimize("Os")
 
 
 namespace {
 
-static_assert(static_cast<unsigned>(MainRuntimeState::TxIsp) + 1u == 6u,
-              "The STM32 top-level runtime must contain exactly six states");
+static_assert(static_cast<unsigned>(MainRuntimeState::BatteryProtection) + 1u == 7u,
+              "The STM32 top-level runtime must contain exactly seven states");
 
 static bool isValidBootMode(BootMode mode)
 {
@@ -56,6 +58,7 @@ BaseState* MainStateMachine::stateFor(MainRuntimeState selected) const
             return &CH585_BRIDGE_UPDATE_STATE;
         case MainRuntimeState::SafeRecovery: return &SAFE_RECOVERY_STATE;
         case MainRuntimeState::TxIsp: return &TX_ISP_STATE;
+        case MainRuntimeState::BatteryProtection: return &BATTERY_PROTECTION_STATE;
     }
     return &SAFE_RECOVERY_STATE;
 }
@@ -149,7 +152,7 @@ bool MainStateMachine::enterState(MainRuntimeState selected)
     }
     /* v4 identifies the effective mode after the runtime WebConfig gate.
      * The span includes any SafeRecovery fallback performed by this call. */
-    BP_APP_SCOPE(selected == MainRuntimeState::TxIsp ? BP_APP_STATE_ENTER :
+    BP_APP_SCOPE((selected == MainRuntimeState::TxIsp || selected == MainRuntimeState::BatteryProtection) ? BP_APP_STATE_ENTER :
                  BP_APP_STATE_INPUT + static_cast<unsigned>(selected));
     BaseState* next = stateFor(selected);
     if (state != nullptr) state->exit();
@@ -172,6 +175,7 @@ bool MainStateMachine::enterState(MainRuntimeState selected)
 
 bool MainStateMachine::requestTransition(MainRuntimeState next)
 {
+    if (currentState == MainRuntimeState::BatteryProtection) return false;
     if (next == currentState) return true;
     if (next != MainRuntimeState::Ch585BridgeUpdate &&
         !interactiveRuntimeInitialized) {
@@ -183,7 +187,7 @@ bool MainStateMachine::requestTransition(MainRuntimeState next)
 void MainStateMachine::requestReset()
 {
     // ISP writes belong to the external tool. No timed/system reset may interrupt them.
-    if (currentState == MainRuntimeState::TxIsp) return;
+    if (currentState == MainRuntimeState::TxIsp || currentState == MainRuntimeState::BatteryProtection) return;
     INPUT_STATE.cancelSleepRecovery();
     resetPending = true;
 }
@@ -197,7 +201,7 @@ bool MainStateMachine::requestTxIsp(bool enabled)
         if ((currentState != MainRuntimeState::Input &&
              currentState != MainRuntimeState::WebConfig &&
              currentState != MainRuntimeState::SafeRecovery) ||
-            ispEntryBlocked()) return false;
+            ispEntryBlocked() || POWER_MANAGER.isLowBattery()) return false;
         ispReturnState = currentState;
         pendingState = MainRuntimeState::TxIsp;
     } else {
@@ -213,7 +217,7 @@ void MainStateMachine::servicePendingTransition()
     if (!transitionPending) return;
     transitionPending = false;
     // Recheck ownership before stopping the old state or cycling the TX supply.
-    if (pendingState == MainRuntimeState::TxIsp && ispEntryBlocked()) {
+    if (pendingState == MainRuntimeState::TxIsp && (ispEntryBlocked() || POWER_MANAGER.isLowBattery())) {
         ispTransitionFailed = true;
         return;
     }
@@ -255,6 +259,40 @@ extern "C" bool MainRuntime_IsTxIspActive(void)
     return MAIN_STATE_MACHINE.current() == MainRuntimeState::TxIsp;
 }
 
+extern "C" void MainRuntime_RequestBatteryRecovery(void)
+{
+    MAIN_STATE_MACHINE.requestBatteryRecovery();
+}
+
+extern "C" bool MainRuntime_IsInputActive(void)
+{
+    return MAIN_STATE_MACHINE.current() == MainRuntimeState::Input;
+}
+
+void MainStateMachine::serviceBatteryProtection()
+{
+    if (currentState == MainRuntimeState::BatteryProtection) {
+        if (batteryRecoveryPending) {
+            batteryRecoveryPending = false;
+            if (POWER_MANAGER.acknowledgeBatteryRecovery())
+                (void)enterState(batteryReturnState);
+        }
+        return;
+    }
+    if (!interactiveRuntimeInitialized || !POWER_MANAGER.batteryProtectionRequired() ||
+        currentState == MainRuntimeState::TxIsp || currentState == MainRuntimeState::Ch585BridgeUpdate ||
+        RELEASE_INSTALLER.defersBatteryProtection() || FirmwareManager::GetInstance()->HasPendingUpgradeWrites() ||
+        CH585_FIRMWARE_UPDATE.isPending() ||
+        CH585_FIRMWARE_UPDATE.status() == Ch585FirmwareUpdateStatus::Receiving) return;
+    batteryReturnState = currentState == MainRuntimeState::WebConfig ? MainRuntimeState::WebConfig :
+        currentState == MainRuntimeState::SafeRecovery ? MainRuntimeState::SafeRecovery : MainRuntimeState::Input;
+    // All config/flash operations are synchronous on this main thread. This
+    // boundary runs after the current transaction/frame has returned.
+    transitionPending = resetPending = batteryRecoveryPending = false;
+    if (currentState == MainRuntimeState::Input) INPUT_STATE.prepareBatteryProtection();
+    (void)enterState(MainRuntimeState::BatteryProtection);
+}
+
 extern "C" bool MainRuntime_TxIspTransitionFailed(void)
 {
     return MAIN_STATE_MACHINE.txIspTransitionFailed();
@@ -279,6 +317,7 @@ void MainStateMachine::serviceSharedRuntime()
     }
     if (traceFirstPass) APP_STAGE("RT2", "connection service complete");
     POWER_MANAGER.loop();
+    serviceBatteryProtection();
     SystemSleep_Service(currentState == MainRuntimeState::Input, resetPending);
     if (traceFirstPass) APP_STAGE("RT3", "power service complete");
     SPIScreenManager::getInstance().loop();
@@ -308,8 +347,10 @@ void MainStateMachine::setup()
     /* Records dispatcher completion, not USB enumeration/RF link readiness. */
     BootProfile_AppComplete();
     while (true) {
-        if (interactiveRuntimeInitialized && currentState != MainRuntimeState::TxIsp)
+        if (interactiveRuntimeInitialized && currentState != MainRuntimeState::TxIsp &&
+            currentState != MainRuntimeState::BatteryProtection)
             RELEASE_INSTALLER.poll();
+        serviceBatteryProtection();
         if (state != nullptr) state->tick();
         serviceSharedRuntime();
         servicePendingTransition();
@@ -320,6 +361,7 @@ void MainStateMachine::setup()
             if (interactiveRuntimeInitialized) Logger_Flush();
             NVIC_SystemReset();
         }
-        SystemSleep_Idle();
+        if (currentState == MainRuntimeState::BatteryProtection) BATTERY_PROTECTION_STATE.idle();
+        else SystemSleep_Idle();
     }
 }

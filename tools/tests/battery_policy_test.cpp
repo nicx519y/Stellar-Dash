@@ -1,9 +1,18 @@
 #include <cassert>
 #include <cstdio>
 #include "battery_policy.hpp"
+#include "battery_access_policy.hpp"
 #include "screen_control/battery_notice_policy.hpp"
 
 int main() {
+    assert(batteryRejectsCommand("create_firmware_upgrade_session",true,false,false));
+    assert(batteryRejectsCommand("begin_release_install",true,true,false));
+    assert(batteryRejectsCommand("update_profile",true,true,false));
+    assert(!batteryRejectsCommand("update_profile",true,false,false));
+    assert(!batteryRejectsCommand("upload_firmware_chunk",true,true,false));
+    assert(!batteryRejectsCommand("complete_firmware_upgrade_session",true,true,false));
+    assert(!batteryRejectsCommand("abort_release_install",true,true,false));
+    assert(!batteryRejectsCommand("get_config",true,true,true));
     BatteryPolicy p;
     for (unsigned t=0;t<10000;t+=1000) {
         p.sample(t,true,3600,100,false);
@@ -28,6 +37,18 @@ int main() {
     p.sample(92000,false,3550,100,true); assert(p.level()==BatteryLevel::Critical);
     for(unsigned t=93000;t<=103000;t+=1000) p.sample(t,true,3550,100,true);
     assert(p.acknowledgeRecovery() && p.level()!=BatteryLevel::Critical);
+    for(unsigned t=104000;t<=107000;t+=1000) p.sample(t,true,3100,40,false);
+    assert(p.level()==BatteryLevel::Critical); // unplugged and depleted again after recovery
+    BatteryPolicy jitter;
+    for(unsigned t=0;t<=12000;t+=1000) {
+        jitter.sample(t,true,(t/1000)%2 ? 3201 : 3200,200,false);
+        assert(jitter.level()!=BatteryLevel::Critical);
+    }
+    BatteryPolicy voltageOnly;
+    for(unsigned t=0;t<=10000;t+=1000) voltageOnly.sample(t,true,3450,101,false);
+    assert(voltageOnly.level()==BatteryLevel::Normal); // voltage entry is strictly below
+    for(unsigned t=11000;t<=21000;t+=1000) voltageOnly.sample(t,true,3449,101,false);
+    assert(voltageOnly.level()==BatteryLevel::Low);
     // Gap/invalid data restart confirmation, including around tick wrap.
     p = {};
     p.sample(0,true,3100,40,false);

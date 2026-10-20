@@ -27,6 +27,9 @@ public:
     }
 
     bool begin(uint32_t totalSize, const uint8_t expectedSha256[32]);
+    // Release-install cancellation only drops an uncommitted RAM receiver.
+    // Never cancel READY/Scheduled/Programming or write a staging journal here.
+    void cancelReceiving();
     bool write(uint32_t offset, const uint8_t* data, uint32_t length);
     bool finalizeAndSchedule();
     void process();
