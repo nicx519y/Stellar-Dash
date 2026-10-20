@@ -59,6 +59,7 @@ constexpr uint8_t kGaugeAlertSocPercent = 10u;
 
 constexpr uint32_t kIrqCharger = 1u << 0;
 constexpr uint32_t kIrqGauge = 1u << 1;
+constexpr uint32_t kRefresh = 1u << 2;
 
 static_assert(kForceSleepMv < kLowBatteryMv,
               "Low-battery warning must stay above forced sleep");
@@ -153,7 +154,6 @@ void PowerManager::loop()
     const uint32_t now = HAL_GetTick();
     const uint32_t flags = consumeIrqFlags();
     pending_irq_flags_ |= flags;
-    if ((flags & kIrqCharger) != 0u) { setChargingEnabled(false); }
 
     if (poll_phase_ == PollPhase::Idle) {
         const bool recovery = (!snapshot_.charger_online || !snapshot_.gauge_online || !profile_valid_) &&
@@ -244,6 +244,7 @@ void PowerManager::stepPoll(uint32_t now)
     case PollPhase::ReadCharger:
         result = BQ25895_Step(&charger_, &charger_job_, &poll_charger_);
         poll_fault_ |= poll_charger_.fault;
+        charge_recovery_.record(poll_charger_.fault, poll_charger_.latched_fault);
         poll_charger_.fault = poll_fault_;
         if (poll_fault_ != 0 || result == POWER_I2C_FAILED) { setChargingEnabled(false); }
         if (result == POWER_I2C_PENDING) { return; }
@@ -336,7 +337,13 @@ void PowerManager::stepPoll(uint32_t now)
 
 PowerSnapshot PowerManager::getSnapshot() const
 {
-    return snapshot_;
+    PowerSnapshot result = snapshot_;
+    const uint32_t age = HAL_GetTick() - result.sampled_at_ms;
+    result.valid = result.valid && result.has_sample && age <= 6000u;
+    result.data_quality = result.valid ? PowerDataQuality::Fresh :
+        (result.has_sample && age <= 10000u ? PowerDataQuality::Stale : PowerDataQuality::Unknown);
+    if (!result.valid) result.fast_charge = false;
+    return result;
 }
 
 PowerChargeState PowerManager::getChargeState() const
@@ -346,7 +353,9 @@ PowerChargeState PowerManager::getChargeState() const
 
 float PowerManager::getTotalSocPercent() const
 {
-    return static_cast<float>(snapshot_.soc_permille) / 10.0f;
+    const auto sample = getSnapshot();
+    return sample.data_quality == PowerDataQuality::Unknown ? 0.0f :
+        static_cast<float>(sample.soc_permille) / 10.0f;
 }
 
 PowerBatteryVoltages PowerManager::getVoltages() const
@@ -365,7 +374,7 @@ PowerBatteryId PowerManager::getActiveDischargeBattery() const
 
 bool PowerManager::isVoltageValid() const
 {
-    return snapshot_.valid;
+    return getSnapshot().valid;
 }
 
 bool PowerManager::isFastCharging() const
@@ -437,6 +446,14 @@ void PowerManager::notifyGaugeAlertFromISR()
     if (primask == 0u) {
         __enable_irq();
     }
+}
+
+void PowerManager::requestRefreshFromISR()
+{
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    irq_flags_ |= kRefresh;
+    if (primask == 0u) { __enable_irq(); }
 }
 
 void PowerManager::configureSafetyGpios()
@@ -597,13 +614,14 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
     snapshot_.gauge_online = gauge_ok;
     snapshot_.valid = gauge_ok && gauge_state.valid;
 
-    if (gauge_ok) {
+    if (snapshot_.valid) {
         snapshot_.cell_mv = gauge_state.cell_mv;
         snapshot_.soc_permille = gauge_state.soc_permille;
-    } else {
-        snapshot_.cell_mv = 0u;
-        snapshot_.soc_permille = 0u;
+        snapshot_.sampled_at_ms = HAL_GetTick();
+        snapshot_.has_sample = true;
     }
+    snapshot_.data_quality = getSnapshot().data_quality;
+    snapshot_.thermal_regulation = charger_ok && charger_state.thermal_regulation;
 
     if (charger_ok) {
         snapshot_.vbus_mv = charger_state.vbus_mv;
@@ -624,14 +642,12 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
         snapshot_.vbus_present = false;
         profile_valid_ = false;
     }
-    snapshot_.fast_charge =
-        snapshot_.vbus_present && isFastChargeDetected();
 
     uint16_t fault_bits = charger_ok ? charger_state.fault : 0u;
     if (!charger_ok) {
         fault_bits |= POWER_FAULT_CHARGER_OFFLINE;
     }
-    if (!gauge_ok) {
+    if (!snapshot_.valid) {
         fault_bits |= POWER_FAULT_GAUGE_OFFLINE;
     }
     if (!profile_valid_) {
@@ -650,21 +666,34 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
     if (snapshot_.vbus_present && !safe_input) {
         fault_bits |= POWER_FAULT_VBUS_OUT_OF_RANGE;
     }
-    snapshot_.fault_bits = fault_bits;
-
     const bool fatal_charger_fault =
         charger_ok && BQ25895_IsFatalFault(charger_state.fault);
-    const bool safe_to_charge =
+    const bool healthy =
         charger_ok && gauge_ok && gauge_state.valid && profile_valid_ &&
         safe_input && !fatal_charger_fault &&
         !BOARD_POWER.isSafeLatched();
+    charge_recovery_.sample(HAL_GetTick(), charger_ok,
+        !charger_state.power_good && !charger_state.vbus_good && charger_state.vbus_status == 0u,
+        healthy, charger_ok ? charger_state.fault : 0u,
+        charger_ok ? charger_state.latched_fault : 0u);
+    fault_bits |= charge_recovery_.latchedFault();
+    snapshot_.fault_bits = fault_bits;
+    snapshot_.charge_block =
+        !charger_ok || !snapshot_.valid ? PowerChargeBlock::Telemetry :
+        !profile_valid_ ? PowerChargeBlock::Profile :
+        BOARD_POWER.isSafeLatched() ? PowerChargeBlock::BoardFault :
+        fatal_charger_fault || charge_recovery_.latchedFault() ? PowerChargeBlock::ChargerFault :
+        !snapshot_.vbus_present ? PowerChargeBlock::NoInput :
+        !safe_input ? PowerChargeBlock::InputRange :
+        charge_recovery_.blocked() ? PowerChargeBlock::FaultRecovery : PowerChargeBlock::None;
+    const bool safe_to_charge = healthy && !charge_recovery_.blocked();
     setChargingEnabled(safe_to_charge);
 
     if (!charger_ok) {
         snapshot_.charge_state = PowerChargeState::Unknown;
-    } else if (fatal_charger_fault) {
+    } else if (fatal_charger_fault || charge_recovery_.blocked()) {
         snapshot_.charge_state = PowerChargeState::Fault;
-    } else if (charger_state.charge_status == 3u) {
+    } else if (safe_to_charge && charger_state.charge_status == 3u) {
         snapshot_.charge_state = PowerChargeState::Full;
     } else if (charging_enabled_ &&
                (charger_state.charge_status == 1u ||
@@ -673,6 +702,8 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
     } else {
         snapshot_.charge_state = PowerChargeState::Discharging;
     }
+    snapshot_.fast_charge = snapshot_.charge_state == PowerChargeState::Charging &&
+        safe_9v_input && isFastChargeDetected();
 
     processLowVoltageProtection();
 }
@@ -700,10 +731,11 @@ void PowerManager::setChargingEnabled(bool enabled)
 {
     const uint32_t primask = __get_PRIMASK();
     __disable_irq();
-    // An IRQ arriving during a cycle requires a fresh snapshot before CE can
-    // be re-enabled. Keep this check atomic with the physical GPIO write.
-    enabled = enabled && irq_flags_ == 0u && pending_irq_flags_ == 0u;
-    BOARD_POWER.setChargeEnabled(enabled);
+    // Pending hardware events defer a new enable, but must not toggle an
+    // already-enabled CE: a charge-complete IRQ would restart charging.
+    if (enabled && !charging_enabled_ &&
+        ((irq_flags_ | pending_irq_flags_) & (kIrqCharger | kIrqGauge)) != 0u) enabled = false;
+    if (enabled != BOARD_POWER.isChargeEnabled()) BOARD_POWER.setChargeEnabled(enabled);
     charging_enabled_ = enabled;
     if (primask == 0u) { __enable_irq(); }
 }
@@ -738,4 +770,9 @@ extern "C" void PowerManager_NotifyChargerIrqFromISR(void)
 extern "C" void PowerManager_NotifyGaugeAlertFromISR(void)
 {
     POWER_MANAGER.notifyGaugeAlertFromISR();
+}
+
+extern "C" void PowerManager_RequestRefreshFromISR(void)
+{
+    POWER_MANAGER.requestRefreshFromISR();
 }

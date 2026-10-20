@@ -6,6 +6,7 @@
 #include "stm32h7xx_hal.h"
 
 extern "C" void PowerManager_NotifyChargerIrqFromISR(void);
+extern "C" void PowerManager_RequestRefreshFromISR(void);
 
 namespace {
 constexpr uint32_t keyPins = GPIO_BTN1_PIN | GPIO_BTN2_PIN | GPIO_BTN3_PIN | GPIO_BTN4_PIN;
@@ -146,7 +147,7 @@ void disarmKeys(const ExtiSnapshot& saved)
     NVIC_SetPriority(EXTI9_5_IRQn, saved.irqGroupPriority);
     if (capturedPins || !(CHARGE_INT_PORT->IDR & CHARGE_INT_PIN) ||
         HAL_GetTick() - lastChargerCatchup >= 1000u) {
-        PowerManager_NotifyChargerIrqFromISR();
+        PowerManager_RequestRefreshFromISR();
         lastChargerCatchup = HAL_GetTick();
     }
 }

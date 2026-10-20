@@ -27,6 +27,7 @@ typedef struct {
 typedef struct {
     uint8_t system_status;
     uint8_t fault;
+    uint8_t latched_fault; // Timer expiry / battery OVP, decoded before OR'ing REG0C reads.
     uint8_t vbus_status;
     uint8_t charge_status;
     uint16_t battery_mv;

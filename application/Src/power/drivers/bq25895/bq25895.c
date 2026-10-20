@@ -5,6 +5,7 @@
 enum {
     BQ_REG_INPUT_SOURCE_CONTROL = 0x00,
     BQ_REG_ADC_CONTROL = 0x02,
+    BQ_REG_CHARGE_CONTROL = 0x03,
     BQ_REG_CHARGE_CURRENT = 0x04,
     BQ_REG_PRECHARGE_TERM_CURRENT = 0x05,
     BQ_REG_CHARGE_VOLTAGE = 0x06,
@@ -70,7 +71,8 @@ typedef struct {
  *   BAT_COMP/VCLAMP disabled, TREG 80 C
  */
 static const BQ25895_ProfileField k_safe_common_profile[] = {
-    {BQ_REG_ADC_CONTROL, 0x1Du, 0x00u},
+    {BQ_REG_ADC_CONTROL, 0x5Du, 0x40u},
+    {BQ_REG_CHARGE_CONTROL, 0x10u, 0x10u},
     {BQ_REG_CHARGE_CURRENT, 0xFFu, 0x19u},
     {BQ_REG_PRECHARGE_TERM_CURRENT, 0xFFu, 0x30u},
     {BQ_REG_CHARGE_VOLTAGE, 0xFFu, 0x5Au},
@@ -262,6 +264,12 @@ bool BQ25895_EnableContinuousAdc(BQ25895_Handle* handle)
     return update_register(handle, BQ_REG_ADC_CONTROL, 0x40u, 0x40u);
 }
 
+static uint8_t latch_required(uint8_t fault)
+{
+    return (uint8_t)((fault & 0x08u) |
+                    ((fault & 0x30u) == 0x30u ? 0x30u : 0u));
+}
+
 static void decode_state(uint8_t status, uint8_t fault_latched,
                          uint8_t fault_current, uint8_t battery_adc,
                          uint8_t vbus_adc, uint8_t charge_current_adc,
@@ -270,6 +278,7 @@ static void decode_state(uint8_t status, uint8_t fault_latched,
     memset(state, 0, sizeof(*state));
     state->system_status = status;
     state->fault = (uint8_t)(fault_latched | fault_current);
+    state->latched_fault = latch_required(fault_latched) | latch_required(fault_current);
     state->vbus_status = (uint8_t)((status >> 5) & 0x07u);
     state->charge_status = (uint8_t)((status >> 3) & 0x03u);
     state->power_good = (status & 0x04u) != 0u;
@@ -304,9 +313,9 @@ bool BQ25895_ReadState(BQ25895_Handle* handle, BQ25895_State* state)
      * latched and current values ensures that a transient protection event
      * cannot be hidden before the caller has disabled CE.
      */
-    if (!read_register(handle, BQ_REG_SYSTEM_STATUS, &status) ||
-        !read_register(handle, BQ_REG_FAULT, &fault_latched) ||
+    if (!read_register(handle, BQ_REG_FAULT, &fault_latched) ||
         !read_register(handle, BQ_REG_FAULT, &fault_current) ||
+        !read_register(handle, BQ_REG_SYSTEM_STATUS, &status) ||
         !read_register(handle, BQ_REG_BATTERY_ADC, &battery_adc) ||
         !read_register(handle, BQ_REG_VBUS_ADC, &vbus_adc) ||
         !read_register(handle, BQ_REG_CHARGE_CURRENT_ADC, &charge_current_adc) ||
@@ -334,7 +343,7 @@ PowerI2C_Result BQ25895_Step(BQ25895_Handle* handle, BQ25895_Job* job,
                            BQ25895_State* state)
 {
     static const uint8_t state_regs[] = {
-        BQ_REG_SYSTEM_STATUS, BQ_REG_FAULT, BQ_REG_FAULT,
+        BQ_REG_FAULT, BQ_REG_FAULT, BQ_REG_SYSTEM_STATUS,
         BQ_REG_BATTERY_ADC, BQ_REG_VBUS_ADC,
         BQ_REG_CHARGE_CURRENT_ADC, BQ_REG_DPM_STATUS
     };
@@ -387,12 +396,15 @@ PowerI2C_Result BQ25895_Step(BQ25895_Handle* handle, BQ25895_Job* job,
     if (job->kind == BQ25895_JOB_READ) {
         job->values[job->index] = (uint8_t)value;
         /* Publish protection bits immediately, including the first latched read. */
-        if (job->index == 1 || job->index == 2) { state->fault |= (uint8_t)value; }
+        if (job->index < 2) {
+            state->fault |= (uint8_t)value;
+            state->latched_fault |= latch_required((uint8_t)value);
+        }
     }
     if (++job->index < count) { return POWER_I2C_PENDING; }
     if (job->kind == BQ25895_JOB_READ) {
         const uint8_t* v = job->values;
-        decode_state(v[0], v[1], v[2], v[3], v[4], v[5], v[6], state);
+        decode_state(v[2], v[0], v[1], v[3], v[4], v[5], v[6], state);
     } else if (job->kind == BQ25895_JOB_INIT) {
         handle->online = true;
         handle->profile_configured = false;

@@ -2,6 +2,7 @@
 #define POWER_MANAGER_HPP
 
 #include <stdint.h>
+#include "charge_recovery_policy.hpp"
 
 extern "C" {
 #include "bq25895.h"
@@ -14,6 +15,11 @@ enum class PowerChargeState : uint8_t {
     Full = 2,
     Fault = 3,
     Unknown = 4,
+};
+
+enum class PowerDataQuality : uint8_t { Unknown, Fresh, Stale };
+enum class PowerChargeBlock : uint8_t {
+    None, NoInput, Telemetry, Profile, InputRange, ChargerFault, FaultRecovery, BoardFault
 };
 
 /*
@@ -48,6 +54,11 @@ struct PowerSnapshot {
     uint16_t input_current_limit_ma = 0;
     uint16_t fault_bits = POWER_FAULT_CHARGER_OFFLINE | POWER_FAULT_GAUGE_OFFLINE;
     PowerChargeState charge_state = PowerChargeState::Unknown;
+    PowerDataQuality data_quality = PowerDataQuality::Unknown;
+    PowerChargeBlock charge_block = PowerChargeBlock::Telemetry;
+    uint32_t sampled_at_ms = 0;
+    bool has_sample = false;
+    bool thermal_regulation = false;
     bool vbus_present = false;
     bool fast_charge = false;
     bool gauge_online = false;
@@ -91,6 +102,7 @@ public:
 
     void notifyChargerIrqFromISR();
     void notifyGaugeAlertFromISR();
+    void requestRefreshFromISR();
 
 private:
     PowerManager() = default;
@@ -111,6 +123,7 @@ private:
 
     BQ25895_Handle charger_{};
     MAX17048_Handle gauge_{};
+    ChargeRecoveryPolicy charge_recovery_{};
     PowerSnapshot snapshot_{};
 
     enum class PollPhase : uint8_t {
@@ -151,6 +164,7 @@ extern "C" {
 /* Called by the shared EXTI handlers; these functions never access I2C. */
 void PowerManager_NotifyChargerIrqFromISR(void);
 void PowerManager_NotifyGaugeAlertFromISR(void);
+void PowerManager_RequestRefreshFromISR(void);
 
 #ifdef __cplusplus
 }
