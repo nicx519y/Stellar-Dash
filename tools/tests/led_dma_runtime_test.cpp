@@ -6,6 +6,7 @@
 #include "../../common/xora_light_engine.hpp"
 #include "../../common/xora_factory_resources.hpp"
 #include "../../application/Inc/leds/led_config_safety.hpp"
+#include "../../application/Inc/input/adc_btns/calibration_led_refresh.hpp"
 // Compile the real driver, not a rewritten model of its state machine.
 #include "../../application/Src/leds/drivers/ws2812b/pwm-ws2812b.c"
 
@@ -711,6 +712,103 @@ static void keyPowerStartup() {
     assert(!gate.ready(0, 19, rampStart));
 }
 
+static void calibrationRefresh() {
+    begin(WS2812B_STRIP_AMBIENT, 17, 29, 43);
+    const auto ambient = snapshot(1);
+    begin(WS2812B_STRIP_KEYS, 0, 255, 255);
+    drain(0);
+
+    CalibrationLedRefresh refresh;
+    unsigned greenKeys = 0;
+    auto submitLatest = [&]() {
+        for (unsigned i = 0; i < NUM_ADC_BUTTONS; ++i) {
+            const bool off = i == NUM_ADC_BUTTONS - 1;
+            WS2812B_SetLEDColorStrip(WS2812B_STRIP_KEYS, 0,
+                i < greenKeys ? 255 : 0, !off && i >= greenKeys ? 139 : 0, i);
+            WS2812B_SetLEDBrightnessStrip(WS2812B_STRIP_KEYS, off ? 0 : 80, i, 1);
+        }
+        return WS2812B_SubmitStrip(WS2812B_STRIP_KEYS);
+    };
+    auto checkLatest = [&]() {
+        for (unsigned i = 0; i < NUM_ADC_BUTTONS; ++i) {
+            const bool off = i == NUM_ADC_BUTTONS - 1;
+            assert(pixel(0, i) == expectedGrb(0, i < greenKeys ? 255 : 0,
+                !off && i >= greenKeys ? 139 : 0, off ? 0 : 80));
+        }
+        // The complete 22-key frame preserves the non-ADC pixels, too.
+        for (unsigned i = NUM_ADC_BUTTONS; i < 22; ++i)
+            assert(pixel(0, i) == RGBToHex(0, 255, 255));
+        unchanged(1, ambient);
+    };
+
+    unsigned starts = dmas[0].starts;
+    refresh.service(99, submitLatest);
+    assert(dmas[0].starts == starts);
+    refresh.request(100);
+    refresh.service(100, submitLatest);
+    checkLatest();
+    const auto blue = snapshot(0);
+    // A receiver may miss this frame; no key event follows. Delay the DMA
+    // callback as well: busy attempts must not spend the redundancy budget.
+    drain(0, false);
+    refresh.service(130, submitLatest);
+    refresh.service(131, submitLatest);
+    assert(dmas[0].starts == starts + 1);
+    unchanged(0, blue);
+    callback(0);
+    refresh.service(132, submitLatest);
+    assert(dmas[0].starts == starts + 2);
+    assert(snapshot(0) == blue);
+    drain(0);
+    refresh.service(161, submitLatest);
+    assert(dmas[0].starts == starts + 2);
+    refresh.service(162, submitLatest);
+    assert(dmas[0].starts == starts + 3);
+    checkLatest();
+    drain(0);
+    refresh.service(1000, submitLatest);
+    assert(dmas[0].starts == starts + 3); // Bounded, no permanent refresh loop.
+
+    // New colour changes supersede old retries without altering in-flight RAM.
+    greenKeys = 1;
+    refresh.request(1001);
+    refresh.service(1001, submitLatest);
+    const auto oneGreen = snapshot(0);
+    greenKeys = 2;
+    refresh.request(1002);
+    refresh.service(1002, submitLatest);
+    unchanged(0, oneGreen);
+    drain(0);
+    for (uint32_t now : {1003u, 1033u, 1063u}) {
+        refresh.service(now, submitLatest);
+        checkLatest();
+        drain(0);
+    }
+    starts = dmas[0].starts;
+    refresh.service(2000, submitLatest);
+    assert(dmas[0].starts == starts);
+
+    // Tick rollover retains 30 ms spacing.
+    refresh.request(UINT32_MAX - 10u);
+    refresh.service(UINT32_MAX - 10u, submitLatest);
+    drain(0);
+    refresh.service(18u, submitLatest);
+    assert(dmas[0].starts == starts + 1);
+    refresh.service(19u, submitLatest);
+    drain(0);
+    refresh.service(49u, submitLatest);
+    drain(0);
+    assert(dmas[0].starts == starts + 3);
+
+    refresh.request(50u);
+    refresh.cancel();
+    WS2812B_StopStrip(WS2812B_STRIP_KEYS);
+    refresh.service(100u, submitLatest);
+    assert(dmas[0].starts == starts + 3 && !rail[0]);
+    unchanged(1, ambient);
+    drain(1);
+}
+
 int main(int argc, char** argv) {
     assert(argc == 2);
     std::string name = argv[1];
@@ -727,6 +825,7 @@ int main(int argc, char** argv) {
     else if (name == "partial-key-completion") partialKeyCompletion();
     else if (name == "resource-key-pixels") resourceKeyPixels();
     else if (name == "key-power-startup") keyPowerStartup();
+    else if (name == "calibration-refresh") calibrationRefresh();
 #if HBOX_LED_DMA_DIAGNOSTIC == 3
     else if (name == "single-frame-hold") singleFrameHold();
 #endif

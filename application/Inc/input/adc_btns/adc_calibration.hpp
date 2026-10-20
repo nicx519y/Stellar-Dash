@@ -5,6 +5,7 @@
 #include <array>
 #include <functional>
 #include "adc_btns_error.hpp"
+#include "calibration_led_refresh.hpp"
 #include "board_cfg.h"
 #include "storagemanager.hpp"
 
@@ -125,6 +126,7 @@ public:
 private:
     // 校准状态
     bool calibrationActive = false;                        // 校准是否激活
+    CalibrationLedRefresh ledRefresh;
     bool completionCheckExecuted = false;                  // 是否已执行完成检查（防止重复执行）
     uint32_t enabledKeysMask = 0;                          // 启用按键掩码
     std::array<ButtonCalibrationState, NUM_ADC_BUTTONS> buttonStates; // 按键校准状态
@@ -154,6 +156,8 @@ private:
     void checkCalibrationCompletion();                    // 检查校准是否全部完成
     void setButtonPhase(uint8_t buttonIndex, CalibrationPhase phase); // 设置按键阶段
     void setButtonLEDColor(uint8_t buttonIndex, CalibrationLEDColor color); // 设置按键LED颜色
+    void writeButtonLED(uint8_t buttonIndex, CalibrationLEDColor color);
+    void serviceCalibrationLEDs();
     void clearSampleBuffer(uint8_t buttonIndex);          // 清空采样缓冲区
     void startSampling(uint8_t buttonIndex);              // 开始采样（第一个有效样本时调用）
     void addSampleToBuffer(uint8_t buttonIndex, uint16_t adcValue); // 添加样本到缓冲区
@@ -173,4 +177,4 @@ private:
 
 #define ADC_CALIBRATION_MANAGER ADCCalibrationManager::getInstance()
 
-#endif // __ADC_CALIBRATION_HPP__ 
+#endif // __ADC_CALIBRATION_HPP__

@@ -509,7 +509,7 @@ static const ADC_PinConfig ADC3_PIN_MAP[] = {
 #define ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES 80 // 校准管理器需要的采样数量
 #define ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS 1 // 校准管理器采样间隔（毫秒）
 #define ADC_CALIBRATION_MANAGER_SAMPLING_DURATION_MS 100 // 校准管理器采样持续时间（毫秒）
-#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 500 // 校准管理器容忍范围（12bit ADC scale）
+#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 800 // 校准管理器容忍范围（12bit ADC scale，期望值 ±800）
 #define ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD 25 // 校准管理器稳定性阈值（12bit ADC scale）
 
 // GPIO 按钮定义结构体

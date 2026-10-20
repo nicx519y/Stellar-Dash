@@ -287,13 +287,30 @@ class LedConfigSafetyTests(unittest.TestCase):
             calibration.index("void ADCCalibrationManager::printButtonCalibrationCompleted")
         ]
 
-        # SetLEDColor/SetLEDBrightness only dirty the edit frame in the
-        # circular-DMA driver.  Initial colours need one coherent publish,
-        # and the calibration loop must retry while a prior HT/TC update is
-        # still in flight.
-        self.assertIn("WS2812B_ServiceStrip(WS2812B_STRIP_KEYS)", update_all)
-        self.assertIn("WS2812B_GetStateStrip(WS2812B_STRIP_KEYS)", process)
-        self.assertIn("WS2812B_ServiceStrip(WS2812B_STRIP_KEYS)", process)
+        refresh = calibration[
+            calibration.index("void ADCCalibrationManager::serviceCalibrationLEDs()"):
+            calibration.index("void ADCCalibrationManager::printButtonCalibrationCompleted")
+        ]
+        update_one = calibration[
+            calibration.index("void ADCCalibrationManager::updateButtonLED("):
+            calibration.index("void ADCCalibrationManager::writeButtonLED(")
+        ]
+        stop = calibration[
+            calibration.index("ADCBtnsError ADCCalibrationManager::stopCalibration()"):
+            calibration.index("ADCBtnsError ADCCalibrationManager::resetAllCalibration()")
+        ]
+        # Keep both startup and idle-loop submissions wired to the bounded
+        # refresh policy. Actual busy/repeat/latest-frame behaviour is exercised
+        # with the production driver in test_led_dma_runtime.
+        self.assertIn("serviceCalibrationLEDs()", update_all)
+        self.assertIn("serviceCalibrationLEDs()", process)
+        self.assertIn("ledRefresh.request(HAL_GetTick())", update_one)
+        self.assertIn("!calibrationActive", refresh)
+        self.assertIn("WS2812B_GetStateStrip(WS2812B_STRIP_KEYS)", refresh)
+        self.assertIn("writeButtonLED(i, buttonStates[i].ledColor)", refresh)
+        self.assertIn("return WS2812B_SubmitStrip(WS2812B_STRIP_KEYS)", refresh)
+        self.assertIn("ledRefresh.cancel()", stop)
+        self.assertNotIn("WS2812B_STRIP_AMBIENT", refresh)
 
     def test_calibration_uses_public_adc_scale_and_turns_key_strip_off(self) -> None:
         calibration = (

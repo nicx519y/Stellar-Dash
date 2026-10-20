@@ -62,6 +62,8 @@ class LedDmaRuntimeTests(unittest.TestCase):
                 scenarios = ("single-frame-hold",)
             elif diagnostic:
                 scenarios += ("diagnostic",)
+            else:
+                scenarios += ("calibration-refresh",)
             for scenario in scenarios:
                 with self.subTest(scenario=scenario):
                     print(f"LED DMA: {scenario}", flush=True)

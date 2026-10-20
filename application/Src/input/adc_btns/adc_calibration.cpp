@@ -88,6 +88,7 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     loadExistingCalibration();
     
     calibrationActive = true;
+    ledRefresh.cancel();
     completionCheckExecuted = false; // 重置完成检查标志
 
 #if HAS_LED == 1
@@ -162,6 +163,7 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     }
     
     calibrationActive = false;
+    ledRefresh.cancel();
     completionCheckExecuted = false; // 重置完成检查标志
     for (ButtonCalibrationState& state : buttonStates) {
         state.ledColor = CalibrationLEDColor::OFF;
@@ -283,18 +285,7 @@ void ADCCalibrationManager::processCalibration() {
     // 检查是否所有按键都已完成校准
     checkCalibrationCompletion();
 
-#if HAS_LED == 1
-    /*
-     * WS2812B setters only update the edit frame.  The circular-DMA driver
-     * needs an explicit submit before that frame can reach the physical
-     * strip.  Service on every calibration pass so a submit that briefly
-     * lost the asynchronous HT/TC transaction race is retried on the next
-     * pass instead of leaving the last calibration colour stuck.
-     */
-    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
-        WS2812B_ServiceStrip(WS2812B_STRIP_KEYS);
-    }
-#endif
+    serviceCalibrationLEDs();
     
     // 如果本轮循环有状态变更，触发回调
     if (hasStatusChange) {
@@ -879,6 +870,13 @@ ADCBtnsError ADCCalibrationManager::setCalibrationConfig(uint8_t buttonIndex, ui
  * 更新单个按键LED（使用WS2812B驱动）
  */
 void ADCCalibrationManager::updateButtonLED(uint8_t buttonIndex, CalibrationLEDColor color) {
+    writeButtonLED(buttonIndex, color);
+    if (calibrationActive && buttonIndex < NUM_ADC_BUTTONS) {
+        ledRefresh.request(HAL_GetTick());
+    }
+}
+
+void ADCCalibrationManager::writeButtonLED(uint8_t buttonIndex, CalibrationLEDColor color) {
     if (buttonIndex >= NUM_ADC_BUTTONS) {
         APP_ERR("Invalid button index: %d", buttonIndex);
         return;
@@ -942,8 +940,30 @@ void ADCCalibrationManager::updateAllLEDs() {
     }
 
 #if HAS_LED == 1
-    // Publish the complete colour set as one coherent calibration frame.
-    WS2812B_ServiceStrip(WS2812B_STRIP_KEYS);
+    if (calibrationActive) {
+        serviceCalibrationLEDs();
+    } else {
+        WS2812B_ServiceStrip(WS2812B_STRIP_KEYS);
+    }
+#endif
+}
+
+void ADCCalibrationManager::serviceCalibrationLEDs() {
+#if HAS_LED == 1
+    // The completion callback may have stopped calibration in this same pass.
+    if (!calibrationActive ||
+        WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
+        ledRefresh.cancel();
+        return;
+    }
+    ledRefresh.service(HAL_GetTick(), [this]() {
+        // Rebuild from current state, never replay an older cyan/blue frame.
+        // Setters mark the edit frame dirty without touching in-flight DMA.
+        for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
+            writeButtonLED(i, buttonStates[i].ledColor);
+        }
+        return WS2812B_SubmitStrip(WS2812B_STRIP_KEYS);
+    });
 #endif
 }
 
