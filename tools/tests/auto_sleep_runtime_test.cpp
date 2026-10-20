@@ -169,6 +169,15 @@ int main(int argc, char** argv)
         return 0;
     }
     unsigned sent = INPUT_STATE.neutrals;
+    const auto gatedIdle = idleCount;
+    POWER_MANAGER.polling = true;
+    SystemSleep_Idle();
+    assert(idleCount == gatedIdle);
+    POWER_MANAGER.polling = false;
+    SPIScreenManager::getInstance().notice = true;
+    SystemSleep_Idle();
+    assert(idleCount == gatedIdle);
+    SPIScreenManager::getInstance().notice = false;
     step(100);
     assert(xinput ? INPUT_STATE.neutrals == sent : INPUT_STATE.neutrals >= sent + 9);
     SystemSleep_Idle(); assert(idleCount > 0 && irqMask == 0);

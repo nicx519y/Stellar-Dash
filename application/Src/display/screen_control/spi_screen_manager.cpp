@@ -22,6 +22,7 @@
 #include "screen_control/spi_screen_detail_pages.hpp"
 #include "screen_control/spi_screen_standby.hpp"
 #include "screen_control/spi_screen_timed_popup.hpp"
+#include "screen_control/battery_notice_policy.hpp"
 #include "configs/user_image_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
@@ -76,6 +77,9 @@ static bool g_wakeBacklightPending = false;
 static LcdWakeFrame g_wakeFrame;
 static bool g_menu_full_refresh_pending = false;
 static ScreenTimedPopup g_actionPopup = {};
+static BatteryNoticePolicy g_batteryNotice;
+static bool g_batteryDisplayOnly = false;
+static PowerDataQuality g_battUiQuality = PowerDataQuality::Unknown;
 static bool g_firmwareRecoveryVisible = false;
 static FirmwareRecoveryPage g_firmwareRecoveryPage = FirmwareRecoveryPage::Details;
 static uint32_t g_battUiLastSampleMs = 0;
@@ -219,12 +223,14 @@ static void update_battery_ui_cache(uint32_t nowMs) {
         return;
     }
     g_battUiLastSampleMs = nowMs;
-    float soc = POWER_MANAGER.getTotalSocPercent();
+    const PowerSnapshot power = POWER_MANAGER.getSnapshot();
+    g_battUiQuality = power.data_quality;
+    float soc = static_cast<float>(power.soc_permille) / 10.0f;
     if (soc < 0.0f) soc = 0.0f;
     if (soc > 100.0f) soc = 100.0f;
     g_battUiSoc = (uint8_t)(soc + 0.5f);
-    const PowerChargeState nextChargeState = POWER_MANAGER.getChargeState();
-    const bool nextFastCharging = POWER_MANAGER.isFastCharging();
+    const PowerChargeState nextChargeState = power.charge_state;
+    const bool nextFastCharging = power.fast_charge;
     if (nextChargeState == PowerChargeState::Charging &&
         (g_battUiChargeState != PowerChargeState::Charging ||
          nextFastCharging != g_battUiFastCharging)) {
@@ -236,7 +242,8 @@ static void update_battery_ui_cache(uint32_t nowMs) {
 }
 
 static uint8_t battery_animated_soc(uint8_t baseSoc, uint32_t nowMs) {
-    if (baseSoc >= 100u || g_battUiChargeState != PowerChargeState::Charging) {
+    if (baseSoc >= 100u || g_battUiQuality != PowerDataQuality::Fresh ||
+        g_battUiChargeState != PowerChargeState::Charging) {
         return baseSoc;
     }
 
@@ -313,7 +320,8 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     const uint16_t innerH = (uint16_t)(bodyH - 4u);
     ST7789_FillRect(lcd, innerX, innerY, innerW, innerH, bg);
 
-    const uint8_t displaySoc = battery_animated_soc(g_battUiSoc, nowMs);
+    const uint8_t displaySoc = g_battUiQuality == PowerDataQuality::Unknown ? 0u :
+        battery_animated_soc(g_battUiSoc, nowMs);
     uint16_t fillW = (uint16_t)(((uint32_t)innerW * displaySoc + 50u) / 100u);
     if (displaySoc > 0u && fillW == 0u) {
         fillW = 1u;
@@ -324,6 +332,15 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     if (fillW > 0u) {
         ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, fg);
     }
+    char label[8];
+    if (g_battUiQuality == PowerDataQuality::Unknown) snprintf(label, sizeof(label), "?");
+    else if (g_battUiQuality == PowerDataQuality::Stale) snprintf(label, sizeof(label), "~%u%%", g_battUiSoc);
+    else if (g_battUiChargeState == PowerChargeState::Fault) snprintf(label, sizeof(label), "ERR");
+    else if (g_battUiChargeState == PowerChargeState::Full) snprintf(label, sizeof(label), "FULL");
+    else if (g_battUiChargeState == PowerChargeState::Charging) snprintf(label, sizeof(label), "%s", g_battUiFastCharging ? "FAST" : "CHG");
+    else snprintf(label, sizeof(label), "%u%%", g_battUiSoc);
+    ScreenUI_DrawStringCenteredInBox(lcd, 0, bodyY >= 12u ? bodyY - 12u : 0u,
+        leftW, 12u, label, fg, bg, 1u);
 }
 
 static uint32_t get_gamepad_activity_mask() {
@@ -644,6 +661,23 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
 }
 
 void SPIScreenManager::loop() {
+    const bool noticeWasVisible = g_batteryNotice.visible();
+    g_batteryNotice.update(HAL_GetTick(), POWER_MANAGER.isLowBattery());
+    const bool batteryOverlay = g_batteryNotice.visible();
+    if (noticeWasVisible && !batteryOverlay) {
+        g_firstDrawPending = g_menu_full_refresh_pending = true;
+    }
+    if (batteryOverlay && sleepSuspended && !sleepResuming) {
+        g_batteryDisplayOnly = true;
+        resumeFromSleep();
+    }
+    if (!batteryOverlay && (g_batteryNotice.protectedMode() ||
+        (g_batteryDisplayOnly && SystemSleep_IsSleeping()))) {
+        if (!sleepSuspended && !sleepDisplayFailed && !suspendForSleep()) return;
+        g_batteryDisplayOnly = false;
+        return;
+    }
+    if (!batteryOverlay) g_batteryDisplayOnly = false;
     // Do not let the normal !g_inited path repower a sleeping/failed display.
     if (sleepDisplayFailed) return;
     if (sleepSuspended) {
@@ -672,7 +706,7 @@ void SPIScreenManager::loop() {
         (void)SPIST7789_ConsumeDmaDoneFlag();
         // A short wake press may already be released by the time LCD init
         // finishes. Restart the screen's own idle timer explicitly.
-        ScreenStandby_Wake(now, get_gamepad_activity_mask());
+        if (!batteryOverlay) ScreenStandby_Wake(now, get_gamepad_activity_mask());
         APP_STAGE("S95", "LCD resume ready after %lu ms", (unsigned long)(now - sleepResumeStart));
     }
     if (BOARD_POWER.isSafeLatched() && !BOARD_POWER.isRecoveryUiAllowed()) {
@@ -695,7 +729,7 @@ void SPIScreenManager::loop() {
     // owner is still restoring. Otherwise no frame is ever submitted before
     // the timeout powers the panel off again. Rotary actions remain gated
     // below by SystemSleep_ShouldSuppressRotaryLongAction().
-    if (!LcdWakeFrame::refreshAllowed(SystemSleep_IsBusy(), g_wakeBacklightPending)) return;
+    if (!batteryOverlay && !LcdWakeFrame::refreshAllowed(SystemSleep_IsBusy(), g_wakeBacklightPending)) return;
     if (g_wakeBacklightPending) {
         const int frame = g_wakeFrame.poll(HAL_GetTick(), SPIST7789_IsBusy(),
             SPIST7789_ConsumeDmaDoneFlag(), SPIST7789_ConsumeDmaErrFlag());
@@ -714,6 +748,10 @@ void SPIScreenManager::loop() {
             APP_STAGE("S95", "LCD first frame visible after %lu ms",
                       (unsigned long)(HAL_GetTick() - sleepResumeStart));
         }
+    }
+    if (batteryOverlay) {
+        renderBatteryNotice(HAL_GetTick());
+        return;
     }
     /* SysTick captures GPIO state every 1 ms; this call only drains debug flags. */
     RotEnc_Update();
@@ -930,6 +968,7 @@ void SPIScreenManager::renderBars() {
 bool SPIScreenManager::canAutoSleep() const
 {
     return g_inited && !g_deferredSave.pending() && !g_brightnessPreviewActive &&
+           !g_batteryNotice.visible() &&
            !sleepSuspended && !sleepDisplayFailed && !g_wakeBacklightPending;
 }
 
@@ -956,4 +995,61 @@ void SPIScreenManager::resumeFromSleep()
     sleepResumeStart = HAL_GetTick();
     SPIST7789_BeginResume(sleepResumeStart);
     sleepResuming = true;
+}
+
+void SPIScreenManager::setBatteryProtection(bool enabled)
+{
+    g_batteryNotice.protect(HAL_GetTick(), enabled);
+    if (!enabled) {
+        g_firstDrawPending = g_menu_full_refresh_pending = true;
+        resumeFromSleep();
+    }
+}
+
+void SPIScreenManager::showBatteryProtectionStatus()
+{
+    g_batteryNotice.inspect(HAL_GetTick());
+}
+
+bool SPIScreenManager::batteryNoticeActive() const
+{
+    return g_batteryNotice.visible();
+}
+
+bool SPIScreenManager::batteryProtectionDisplayIdle() const
+{
+    return !g_batteryNotice.visible() && (sleepSuspended || sleepDisplayFailed) &&
+        !SPIST7789_IsBusy();
+}
+
+__attribute__((optimize("Os"))) void SPIScreenManager::renderBatteryNotice(uint32_t now)
+{
+    if (!ST7789_FrameBegin(&g_lcd)) return;
+    // Independent layer: no mutation of menu/popup or screen standby timers.
+    ST7789_FillScreen(&g_lcd, g_cfgBg);
+    update_battery_ui_cache(now);
+    render_left_battery_icon(&g_lcd, SPI_SCREEN_LEFT_BAR_W,
+        ScreenUI_StatusBarLayout().batteryY, g_cfgText, g_cfgBg, now);
+    const PowerSnapshot power = POWER_MANAGER.getSnapshot();
+    const char* lines[2] = {"Connect power", "Battery is low"};
+    const char* title = "Low Battery";
+    if (g_batteryNotice.notice() == BatteryNoticePolicy::Notice::Protecting) {
+        title = "Battery Protect";
+        lines[0] = "Entering sleep";
+        lines[1] = "Connect power";
+    } else if (g_batteryNotice.protectedMode()) {
+        title = "Battery Protect";
+        lines[0] = power.battery_level == BatteryLevel::RecoveryReady ?
+            "Press knob" : (power.vbus_present ? "Recovering" : "Connect power");
+        lines[1] = power.battery_level == BatteryLevel::RecoveryReady ? "to resume" :
+            (power.charge_block == PowerChargeBlock::None ? "Charging" :
+             (power.vbus_present ? "Check charger" : "Input paused"));
+    }
+    const ScreenTimedPopup popup{true, true, 0u, title, lines, 2u};
+    const ScreenUiStyle style{g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};
+    ScreenTimedPopup_Render(&popup, &g_lcd, style);
+    ST7789_SetBacklight(&g_lcd, g_wakeBacklightPending ? 0u :
+        map_backlight_percent(g_cfgBrightness == 0u ? 10u : g_cfgBrightness));
+    ST7789_FrameEnd(&g_lcd);
+    if (g_wakeBacklightPending && !g_lcd.dirty_valid) g_wakeFrame.submitted();
 }

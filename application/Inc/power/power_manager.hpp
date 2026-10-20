@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "charge_recovery_policy.hpp"
+#include "battery_policy.hpp"
 
 extern "C" {
 #include "bq25895.h"
@@ -56,6 +57,8 @@ struct PowerSnapshot {
     PowerChargeState charge_state = PowerChargeState::Unknown;
     PowerDataQuality data_quality = PowerDataQuality::Unknown;
     PowerChargeBlock charge_block = PowerChargeBlock::Telemetry;
+    BatteryLevel battery_level = BatteryLevel::Normal;
+    bool battery_confirmation_pending = false;
     uint32_t sampled_at_ms = 0;
     bool has_sample = false;
     bool thermal_regulation = false;
@@ -71,6 +74,7 @@ struct PowerSnapshot {
     // external power and faults retain the normal one-second maintenance rate.
     uint32_t sleepMaintenanceIntervalMs() const {
         return valid && gauge_online && charger_online && fault_bits == 0u &&
+               battery_level == BatteryLevel::Normal && !battery_confirmation_pending &&
                !vbus_present && vbus_mv < 3900u && cell_mv > lowBatteryMv &&
                charge_state == PowerChargeState::Discharging ? 5000u : 1000u;
     }
@@ -103,6 +107,8 @@ public:
     void notifyChargerIrqFromISR();
     void notifyGaugeAlertFromISR();
     void requestRefreshFromISR();
+    bool batteryProtectionRequired() const;
+    bool acknowledgeBatteryRecovery();
 
 private:
     PowerManager() = default;
@@ -124,6 +130,7 @@ private:
     BQ25895_Handle charger_{};
     MAX17048_Handle gauge_{};
     ChargeRecoveryPolicy charge_recovery_{};
+    BatteryPolicy battery_policy_{};
     PowerSnapshot snapshot_{};
 
     enum class PollPhase : uint8_t {
@@ -150,7 +157,6 @@ private:
     uint32_t last_poll_ms_ = 0;
     uint32_t last_profile_check_ms_ = 0;
     uint32_t last_reinitialize_ms_ = 0;
-    uint8_t low_sleep_confirm_count_ = 0;
     bool profile_valid_ = false;
     bool charging_enabled_ = false;
 };

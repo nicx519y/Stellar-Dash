@@ -105,6 +105,8 @@ struct FakePowerSnapshot {
 };
 struct FakePowerManager {
     FakePowerSnapshot snapshot;
+    bool polling = false;
+    bool isPolling() const { return polling; }
     FakePowerSnapshot getSnapshot() const { return snapshot; }
 };
 inline FakePowerManager POWER_MANAGER;
@@ -139,8 +141,10 @@ inline FakeLeds LEDS_MANAGER;
 class SPIScreenManager {
 public:
     bool suspended = false, suspendOk = true;
+    bool notice = false;
     static SPIScreenManager& getInstance() { static SPIScreenManager screen; return screen; }
     bool canAutoSleep() { return !suspended; }
+    bool batteryNoticeActive() const { return notice; }
     bool suspendForSleep() { suspended = suspendOk; return suspendOk; }
     void resumeFromSleep() { suspended = false; }
 };

@@ -9,6 +9,14 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class BatteryManagementTests(unittest.TestCase):
+    def test_battery_and_notice_policies(self):
+        with tempfile.TemporaryDirectory(prefix="xora-battery-policy-") as folder:
+            exe = Path(folder) / "policy.exe"
+            run_native([shutil.which("g++"), "-std=c++17", "-Wall", "-Wextra", "-Werror",
+                        *application_include_flags(),
+                        str(ROOT / "tools/tests/battery_policy_test.cpp"), "-o", str(exe)], check=True)
+            run_native([str(exe)], check=True)
+
     def test_production_power_manager(self):
         with tempfile.TemporaryDirectory(prefix="xora-battery-") as folder:
             temp = Path(folder)

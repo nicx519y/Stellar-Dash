@@ -52,17 +52,11 @@ constexpr uint16_t kCharge5vInputMinimumMv = 4200u;
 constexpr uint16_t kCharge5vInputMaximumMv = 6000u;
 constexpr uint16_t kCharge9vInputMinimumMv = 7500u;
 constexpr uint16_t kCharge9vInputMaximumMv = 10500u;
-constexpr uint16_t kLowBatteryMv = PowerSnapshot::lowBatteryMv;
-constexpr uint16_t kForceSleepMv = 3200u;
-constexpr uint8_t kForceSleepConfirmCount = 3u;
 constexpr uint8_t kGaugeAlertSocPercent = 10u;
 
 constexpr uint32_t kIrqCharger = 1u << 0;
 constexpr uint32_t kIrqGauge = 1u << 1;
 constexpr uint32_t kRefresh = 1u << 2;
-
-static_assert(kForceSleepMv < kLowBatteryMv,
-              "Low-battery warning must stay above forced sleep");
 
 BQ25895_InputProfile inputProfileForVbus(uint16_t vbus_mv)
 {
@@ -103,7 +97,6 @@ void PowerManager::setup()
     last_poll_ms_ = HAL_GetTick();
     last_profile_check_ms_ = last_poll_ms_;
     last_reinitialize_ms_ = last_poll_ms_;
-    low_sleep_confirm_count_ = 0;
 
     APP_STAGE("P03", "power I2C initialization begin");
     if (!PowerI2C_Init()) {
@@ -343,6 +336,8 @@ PowerSnapshot PowerManager::getSnapshot() const
     result.data_quality = result.valid ? PowerDataQuality::Fresh :
         (result.has_sample && age <= 10000u ? PowerDataQuality::Stale : PowerDataQuality::Unknown);
     if (!result.valid) result.fast_charge = false;
+    if ((!result.valid || age > 2500u || result.charge_block != PowerChargeBlock::None) &&
+        result.battery_level == BatteryLevel::RecoveryReady) result.battery_level = BatteryLevel::Critical;
     return result;
 }
 
@@ -385,7 +380,21 @@ bool PowerManager::isFastCharging() const
 
 bool PowerManager::isLowBattery() const
 {
-    return snapshot_.valid && snapshot_.cell_mv < kLowBatteryMv;
+    return getSnapshot().battery_level != BatteryLevel::Normal;
+}
+
+bool PowerManager::batteryProtectionRequired() const
+{
+    return snapshot_.battery_level == BatteryLevel::Critical ||
+           snapshot_.battery_level == BatteryLevel::RecoveryReady;
+}
+
+bool PowerManager::acknowledgeBatteryRecovery()
+{
+    if (getSnapshot().battery_level != BatteryLevel::RecoveryReady ||
+        !battery_policy_.acknowledgeRecovery()) return false;
+    snapshot_.battery_level = battery_policy_.level();
+    return true;
 }
 
 bool PowerManager::isPolling() const
@@ -710,21 +719,10 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
 
 void PowerManager::processLowVoltageProtection()
 {
-    if (!snapshot_.valid || snapshot_.vbus_present) {
-        low_sleep_confirm_count_ = 0;
-        return;
-    }
-
-    if (snapshot_.cell_mv <= kForceSleepMv) {
-        if (low_sleep_confirm_count_ < kForceSleepConfirmCount) {
-            ++low_sleep_confirm_count_;
-        }
-        if (low_sleep_confirm_count_ >= kForceSleepConfirmCount) {
-            SystemSleep_RequestStandby();
-        }
-    } else {
-        low_sleep_confirm_count_ = 0;
-    }
+    battery_policy_.sample(HAL_GetTick(), snapshot_.valid, snapshot_.cell_mv,
+        snapshot_.soc_permille, snapshot_.charge_block == PowerChargeBlock::None);
+    snapshot_.battery_level = battery_policy_.level();
+    snapshot_.battery_confirmation_pending = battery_policy_.needsFrequentSamples();
 }
 
 void PowerManager::setChargingEnabled(bool enabled)

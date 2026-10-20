@@ -146,6 +146,7 @@ extern "C" void SystemSleep_RequestStandby(void)
 }
 extern "C" void SystemSleep_DisableForBoot(void) { policy.inhibit(); }
 extern "C" bool SystemSleep_IsBusy(void) { return policy.state() != State::Active; }
+extern "C" bool SystemSleep_IsSleeping(void) { return policy.state() == State::Sleeping; }
 extern "C" uint32_t SystemSleep_FilterInput(uint32_t mask)
 {
     // Collect held Hall keys across the initial debounce samples, not merely
@@ -304,6 +305,7 @@ extern "C" void SystemSleep_Idle(void)
     if (!idleContextValid || !policy.enabled() || !userEnabled ||
         !STORAGE_MANAGER.getAutoSleepEnabled() || policy.state() != State::Sleeping ||
         !BOARD_MODE.isStable() || POWER_MANAGER.isPolling() ||
+        SPIScreenManager::getInstance().batteryNoticeActive() ||
         rawKeys() != 0u || __get_PRIMASK() != 0u ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return;
     const uint32_t elapsed = HAL_GetTick() - lastKeepalive;

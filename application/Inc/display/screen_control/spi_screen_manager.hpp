@@ -23,6 +23,10 @@ public:
     void clearBrightnessPreview();
     void showFirmwareRecovery();
     void showTxIsp();
+    void setBatteryProtection(bool enabled);
+    void showBatteryProtectionStatus();
+    bool batteryNoticeActive() const;
+    bool batteryProtectionDisplayIdle() const;
 
     bool menuPrev();
     bool menuNext();
@@ -35,6 +39,7 @@ private:
     void renderFrame();
     void renderBars();
     void beginAnimation(int dir);
+    void renderBatteryNotice(uint32_t now);
 
     uint8_t menuCount = 0;
     uint8_t menuIndex = 0;

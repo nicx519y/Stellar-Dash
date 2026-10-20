@@ -15,6 +15,7 @@ void SystemSleep_Service(bool inputMode, bool resetPending);
 void SystemSleep_Idle(void);
 void SystemSleep_CancelForModeChange(void);
 bool SystemSleep_IsBusy(void);
+bool SystemSleep_IsSleeping(void);
 uint32_t SystemSleep_FilterInput(uint32_t mask);
 void SystemSleep_DisableForBoot(void);
 void SystemSleep_ConfirmWakeHoldOrReturnStandby(void);
