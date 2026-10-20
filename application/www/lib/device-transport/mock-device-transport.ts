@@ -1,3 +1,5 @@
+import { mockFaultLogs, type MockLogScenario } from "../mock-fault-logs";
+import type { FaultLogQuery } from "../device-fault-logs";
 import { normalizeScreenControl, applyScreenControlPatch } from '../screen-control-config';
 import { resourceFetch,MockResourceDevice } from '../resource-fetch-mock';
 import { JPEG_CAPABILITY, JPEG_FORMAT, validateJpegPayload } from '../../../../common/uimg-jpeg.cjs';
@@ -970,6 +972,10 @@ export class MockDeviceTransport implements DeviceTransport {
       }
       case 'get_hitbox_layout':
         return HITBOX_LAYOUT;
+      case 'get_device_logs_page': {
+        const scenario = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mockLogs') : null;
+        return mockFaultLogs(params as unknown as FaultLogQuery, (scenario ?? 'normal') as MockLogScenario);
+      }
       case 'get_device_logs_list':
         return {
           items: [

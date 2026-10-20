@@ -1,3 +1,4 @@
+import { FaultLogQuery, parseFaultLogPage } from "@/lib/device-fault-logs";
 import {
     DeviceCommandClient,
     DeviceConnectionError,
@@ -162,6 +163,9 @@ export function useSessionActions(dependencies: SessionActionsDependencies) {
         return cloneConfig(dependencies.configStoreRef.current.get<MacroConfig[]>(`macros:${profileId}`) ?? []);
     }, []);
 
+    const fetchDeviceLogsPage = async (query: FaultLogQuery) => parseFaultLogPage(
+        await sendDeviceRequest("get_device_logs_page", { ...query }, true), query.source);
+
     const fetchDeviceLogsList = async (): Promise<string[]> => {
         try {
             const data = await sendDeviceRequest('get_device_logs_list', {}, true);
@@ -296,7 +300,7 @@ export function useSessionActions(dependencies: SessionActionsDependencies) {
     return {
         setContextJsReady, connectDevice, reconnectDevice, disconnectDevice, getDeviceImageCatalog,
         readDeviceImage, uploadDeviceImage, deleteDeviceImage, rfBindingRequest, runRfBindingOperation,
-        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, sendInitializationDeviceRequest,
+        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, sendInitializationDeviceRequest,
         getHitboxLayout, rebootSystem, exitWebConfig, sendPendingCommandImmediately, flushQueue,
         getDeviceTransportConfig, updateDeviceTransportConfig,
         indexMapToGameControllerButtonOrCombination,

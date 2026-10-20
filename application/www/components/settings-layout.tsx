@@ -6,7 +6,7 @@ import { Flex, Center, Box, Tabs, HStack, Separator, Image } from '@chakra-ui/re
 import { useLanguage } from "@/contexts/language-context";
 import {
     LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad,
-    LuChartSpline,
+    LuChartSpline, LuScrollText,
     //  LuWifi, LuMonitor
 } from 'react-icons/lu';
 import { navigationEvents } from '@/lib/event-manager';
@@ -34,6 +34,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
             { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         ] : []),
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
+        { id: 'view-logs' as Route, label: t.SETTINGS_TAB_VIEW_LOGS, icon: LuScrollText },
         // { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },
     ];
 
@@ -83,6 +84,8 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         variant="plain"
                         colorPalette="green"
                         onValueChange={handleValueChange}
+                        minW={0}
+                        overflowX="auto"
                     >
                         <Tabs.List bg="bg.muted" width="100%"  >
                             {tabs.map((tab, index) => (
@@ -92,6 +95,8 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                                         w="fit-content"
                                         padding="0 18px"
                                         fontWeight={"bold"}
+                                        flexShrink={0}
+                                        whiteSpace="nowrap"
                                         justifyContent="center"
                                     >
                                         <Box as={tab.icon} mr={0} />
@@ -107,7 +112,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         </Tabs.List>
                     </Tabs.Root>
                 </HStack>
-                <HStack justifyContent="flex-end" gap="10px" ml="auto" flexShrink={0}>
+                <HStack justifyContent="flex-end" gap="10px" ml="auto" flexWrap="wrap" maxW="100%">
                     <BuildVariantBadge />
                     {dataIsReady && <FinishConfigButton disabled={finishConfigDisabled || configEditingBlocked} />}
                     <UserAuthControl />
@@ -123,7 +128,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                 <Center
                     flex={1}
                     minHeight={0}
-                    alignItems={currentRoute === 'firmware' ? 'flex-start' : 'center'}
+                    alignItems={currentRoute === 'firmware' || currentRoute === 'view-logs' ? 'flex-start' : 'center'}
                     overflow={currentRoute === 'switch-marking' ? 'hidden' : undefined}
                 >
                     {children}

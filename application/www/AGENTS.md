@@ -21,6 +21,7 @@ WebConfig 与 admin 的双域名上线、Hosted 打包、更新和回滚统一�
 - Profile 列表依照设备返回的容量和 `slotIndex`，不恢复创建/删除入口；槽位迁移和兼容规则见 [固定 Profile 槽位](../../docs/fixed-profile-slots.md)。
 - USB 网页配对只保存绑定，不启用 TX RF 或改变屏幕记忆的连接模式；普通保存和备份导入也保留该选择。`connectionMode` 表示记忆选择，`effectiveConnectionMode` 表示当前链路，平台限制依据前者；见 [两档 PCB 适配](../../docs/two-position-pcb-firmware.md)。配对部分提交遵守现有续作逻辑，见 [USB 配对说明](../../docs/WEBCONFIG_RX_BINDING_20260923.md)。
 - 用户账户登录与管理员操作保持原有会话和来源校验；WebHID 设备直连不替代用户登录。
+- “设备日志”向已连接用户开放，使用现有请求队列和分页接口，按来源独立排序；不持续轮询、强制落盘或清空。待落盘、部分失败及不完整导出须可见，协议和 Mock 场景见 [设备日志](../../docs/device-fault-logs.md)。
 
 ## 常用命令与验证
 
@@ -33,6 +34,7 @@ WebConfig 与 admin 的双域名上线、Hosted 打包、更新和回滚统一�
 | 类型检查 | `npm run typecheck` |
 | 协议/队列/保存流程 | `npm run test:webhid` |
 | Mock / 路由 / 资源 | `npm run test:mock` / `npm run test:router` / `npm run test:resources` |
+| 设备日志分页与导出 | `npm run test:logs` |
 | 接收器绑定 | `npm run test:rf-binding`（不在默认 `npm test` 链中） |
 | 产品构建及变体检查 | `npm run build:hosted` |
 | Mock 构建及变体检查 | `npm run build:mock` |

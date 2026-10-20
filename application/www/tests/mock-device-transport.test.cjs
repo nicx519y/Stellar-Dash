@@ -211,6 +211,24 @@ async function createTransport(options = { storage: null }) {
   return transport;
 }
 
+test('fault log pages use the existing command client and keep the legacy string interface', async () => {
+  const transport = await createTransport();
+  try {
+    const first = (await transport.request('get_device_logs_page', { source: 'stm32' })).data;
+    assert.equal(first.status, 'ok');
+    assert.equal(first.items.length, 8);
+    const next = (await transport.request('get_device_logs_page', {
+      source: 'stm32', upper: first.upper, oldest: first.oldest, before: first.nextBefore,
+    })).data;
+    assert.ok(next.items.every(item => item.sequence < first.nextBefore));
+    assert.equal(next.upper, first.upper);
+    const legacy = (await transport.request('get_device_logs_list')).data;
+    assert.ok(legacy.items.every(item => typeof item === 'string'));
+  } finally {
+    await transport.close();
+  }
+});
+
 test('software connection selection survives USB maintenance saves and imports', async () => {
   const storage = new MemoryStorage();
   const storageKey = 'software-connection-test';
