@@ -53,13 +53,22 @@ __attribute__((optimize("Os"))) void ScreenTimedPopup_Render(const ScreenTimedPo
     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
 
-    const uint8_t titleScale = 2u;
-    const uint8_t textScale = 2u;
+    const uint8_t titleScale = SCREEN_FONT_TITLE;
+    const uint8_t textScale = SCREEN_FONT_BODY;
     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
     const uint16_t lineH = ScreenUI_CharCellH(textScale);
     const uint16_t titleGap = 10u;
     const uint16_t lineGap = 4u;
-    const uint16_t linesH = (popup->lineCount == 0u) ? 0u : (uint16_t)(popup->lineCount * lineH + (popup->lineCount - 1u) * lineGap);
+    char row[32];
+    const uint16_t availableChars = (listW - 16u) / ScreenUI_CharCellW(textScale);
+    const uint16_t maxChars = availableChars < sizeof(row) - 1u ? availableChars : sizeof(row) - 1u;
+    if (maxChars == 0u) return;
+    uint16_t rows = 0;
+    for (uint8_t i = 0; i < popup->lineCount; ++i) {
+        const char* text = popup->lines && popup->lines[i] ? popup->lines[i] : "";
+        do { text = ScreenUI_NextTextRow(text, row, maxChars); ++rows; } while (*text);
+    }
+    const uint16_t linesH = rows ? rows * lineH + (rows - 1u) * lineGap : 0u;
     const uint16_t blockH = (uint16_t)(titleH + titleGap + linesH);
     const uint16_t startY = (blockH < h) ? (uint16_t)((h - blockH) / 2u) : 0u;
     const uint32_t mutedText = ScreenUI_MutedTextForBg(style.text, style.bg, 96u);
@@ -70,9 +79,11 @@ __attribute__((optimize("Os"))) void ScreenTimedPopup_Render(const ScreenTimedPo
     uint16_t y = (uint16_t)(startY + titleH + titleGap);
     for (uint8_t i = 0; i < popup->lineCount; i++) {
         const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
-        const uint8_t rowScale = popup->persistent &&
-            (i + 1u == popup->lineCount || ScreenUI_TextPxW(line,textScale)>listW) ? 1u : textScale;
-        ScreenUI_DrawStringCenteredInBox(lcd, listX, y, listW, lineH, line, mutedText, style.bg, rowScale);
-        y = (uint16_t)(y + lineH + lineGap);
+        do {
+            if (y + lineH > h) return;
+            line = ScreenUI_NextTextRow(line, row, maxChars);
+            ScreenUI_DrawStringCenteredInBox(lcd, listX, y, listW, lineH, row, mutedText, style.bg, textScale);
+            y = (uint16_t)(y + lineH + lineGap);
+        } while (*line);
     }
 }

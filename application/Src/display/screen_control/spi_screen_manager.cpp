@@ -23,6 +23,8 @@
 #include "screen_control/spi_screen_standby.hpp"
 #include "screen_control/spi_screen_timed_popup.hpp"
 #include "screen_control/battery_notice_policy.hpp"
+#include "screen_control/sleep_charge_policy.hpp"
+#include "battery_test_log.h"
 #include "configs/user_image_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
@@ -78,6 +80,9 @@ static LcdWakeFrame g_wakeFrame;
 static bool g_menu_full_refresh_pending = false;
 static ScreenTimedPopup g_actionPopup = {};
 static BatteryNoticePolicy g_batteryNotice;
+static SleepChargePolicy g_sleepCharge;
+static bool g_chargeFramePending = false;
+static uint32_t g_batteryLayerLogged = 0;
 static bool g_batteryDisplayOnly = false;
 static PowerDataQuality g_battUiQuality = PowerDataQuality::Unknown;
 static bool g_firmwareRecoveryVisible = false;
@@ -335,15 +340,6 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     if (fillW > 0u) {
         ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, fg);
     }
-    char label[8];
-    if (g_battUiQuality == PowerDataQuality::Unknown) snprintf(label, sizeof(label), "?");
-    else if (g_battUiQuality == PowerDataQuality::Stale) snprintf(label, sizeof(label), "~%u%%", g_battUiSoc);
-    else if (g_battUiChargeState == PowerChargeState::Fault) snprintf(label, sizeof(label), "ERR");
-    else if (g_battUiChargeState == PowerChargeState::Full) snprintf(label, sizeof(label), "FULL");
-    else if (g_battUiChargeState == PowerChargeState::Charging) snprintf(label, sizeof(label), "%s", g_battUiFastCharging ? "FAST" : "CHG");
-    else snprintf(label, sizeof(label), "%u%%", g_battUiSoc);
-    ScreenUI_DrawStringCenteredInBox(lcd, 0, bodyY >= 12u ? bodyY - 12u : 0u,
-        leftW, 12u, label, fg, bg, 1u);
 }
 
 static uint32_t get_gamepad_activity_mask() {
@@ -480,6 +476,8 @@ void SPIScreenManager::setup() {
 }
 
 void SPIScreenManager::shutdown() {
+    g_sleepCharge = {};
+    g_chargeFramePending = false;
     sleepSuspended = sleepResuming = false;
     g_screenOffActive = false;
     g_wakeBacklightPending = false;
@@ -665,9 +663,24 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
 
 void SPIScreenManager::loop() {
     const bool noticeWasVisible = g_batteryNotice.visible();
+    const bool chargeWasVisible = g_sleepCharge.visible();
     g_batteryNotice.update(HAL_GetTick(), POWER_MANAGER.isLowBattery());
-    const bool batteryOverlay = g_batteryNotice.visible();
-    if (noticeWasVisible && !batteryOverlay) {
+    g_sleepCharge.update(HAL_GetTick(), !g_batteryNotice.visible() &&
+        (SystemSleep_IsSleeping() || g_batteryNotice.protectedMode()), POWER_MANAGER.getSnapshot());
+    const bool chargeVisible = g_sleepCharge.visible();
+    const bool batteryOverlay = g_batteryNotice.visible() || chargeVisible;
+    const uint32_t layer = chargeVisible ? 4u : static_cast<uint32_t>(g_batteryNotice.notice());
+    const uint32_t detail = chargeVisible ? static_cast<uint32_t>(g_sleepCharge.status()) : uint32_t(batteryOverlay);
+    const uint32_t logged = layer | (detail<<8);
+    if(logged!=g_batteryLayerLogged) {
+        BT_EVENT(BAT_NOTICE_CHANGED,layer,detail);
+        g_batteryLayerLogged=logged;
+    }
+    if (chargeWasVisible && !chargeVisible) {
+        ST7789_SetBacklight(&g_lcd, map_backlight_percent(g_cfgBrightness));
+        SPIST7789_SetBacklightStatic(false);
+    }
+    if ((noticeWasVisible || chargeWasVisible) && !batteryOverlay) {
         ScreenStandby_Repaint();
         g_firstDrawPending = g_menu_full_refresh_pending = true;
     }
@@ -707,6 +720,7 @@ void SPIScreenManager::loop() {
         g_bl_ramp_active = false;
         g_wakeBacklightPending = true;
         g_wakeFrame.begin(sleepResumeStart);
+        g_sleepCharge.repaint();
         (void)SPIST7789_ConsumeDmaDoneFlag();
         // A short wake press may already be released by the time LCD init
         // finishes. Restart the screen's own idle timer explicitly.
@@ -722,6 +736,7 @@ void SPIScreenManager::loop() {
     }
     if (!g_inited) return;
     SPIST7789_Service();
+    if (chargeVisible) SPIST7789_SetBacklightStatic(true);
     if (batteryOverlay && ScreenJpeg_Active()) ScreenJpeg_Cancel();
     if (ScreenJpeg_Active()) {
         const int jpeg = ScreenJpeg_Poll();
@@ -734,31 +749,35 @@ void SPIScreenManager::loop() {
     // owner is still restoring. Otherwise no frame is ever submitted before
     // the timeout powers the panel off again. Rotary actions remain gated
     // below by SystemSleep_ShouldSuppressRotaryLongAction().
-    if (!batteryOverlay && !LcdWakeFrame::refreshAllowed(SystemSleep_IsBusy(), g_wakeBacklightPending)) return;
-    if (g_wakeBacklightPending) {
+    if (!batteryOverlay && !LcdWakeFrame::refreshAllowed(SystemSleep_IsBusy(), g_wakeBacklightPending || g_chargeFramePending)) return;
+    if (g_wakeBacklightPending || g_chargeFramePending) {
         const int frame = g_wakeFrame.poll(HAL_GetTick(), SPIST7789_IsBusy(),
             SPIST7789_ConsumeDmaDoneFlag(), SPIST7789_ConsumeDmaErrFlag());
         if (frame < 0) {
             SPIST7789_DeInit();
             sleepDisplayFailed = true;
             g_wakeBacklightPending = false;
+            g_chargeFramePending = false;
             SystemSleep_DisableForBoot();
-            APP_STAGE_ERROR("S95", "LCD first frame failed; input remains available");
+            APP_STAGE_ERROR("S95", "LCD frame failed; input remains available");
             return;
         }
         if (frame > 0) {
+            const bool wasWake = g_wakeBacklightPending;
             g_wakeBacklightPending = false;
+            g_chargeFramePending = false;
             ST7789_SetBacklight(&g_lcd,
-                map_backlight_percent(compute_backlight_percent(HAL_GetTick())));
-            APP_STAGE("S95", "LCD first frame visible after %lu ms",
-                      (unsigned long)(HAL_GetTick() - sleepResumeStart));
+                chargeVisible ? 100u : map_backlight_percent(compute_backlight_percent(HAL_GetTick())));
+            if (wasWake) APP_STAGE("S95", "LCD first frame visible after %lu ms",
+                                  (unsigned long)(HAL_GetTick() - sleepResumeStart));
         }
     }
     if (batteryOverlay) {
         (void)RotEnc_GetDetentDelta();
         (void)RotEnc_WasButtonClicked();
         (void)RotEnc_WasButtonLongPressed();
-        renderBatteryNotice(HAL_GetTick());
+        if (chargeVisible) renderSleepCharge();
+        else renderBatteryNotice(HAL_GetTick());
         return;
     }
     /* SysTick captures GPIO state every 1 ms; this call only drains debug flags. */
@@ -896,6 +915,16 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderFrame() {
     }
 }
 
+static void render_platform_badge(ST7789_Handle* lcd, const char* label, uint32_t fg, uint32_t bg) {
+    const uint8_t font = SCREEN_FONT_BADGE_BOLD;
+    const uint16_t badgeW = 28u; // Battery body (26px) plus terminal (2px).
+    const uint16_t badgeH = SPI_SCREEN_BATTERY_BODY_H;
+    const uint16_t x = (SPI_SCREEN_LEFT_BAR_W - badgeW) / 2u;
+    const uint16_t y = ScreenUI_StatusBarLayout().platformY + (SPI_SCREEN_STATUS_ICON_H - badgeH) / 2u;
+    ST7789_FillRect(lcd, x, y, badgeW, badgeH, fg);
+    ScreenUI_DrawStringCenteredInBox(lcd, x, y, badgeW, badgeH, label, bg, fg, font);
+}
+
 void SPIScreenManager::renderBars() {
     const uint16_t w = ST7789_WIDTH;
     const uint16_t h = ST7789_HEIGHT;
@@ -938,7 +967,7 @@ void SPIScreenManager::renderBars() {
     char token[6] = "P??";
     if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%02u", (unsigned)(currentProfileIdx + 1u));
     ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.profileY, leftW, profileH, token, textColor, barBg, profileScale);
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.platformY, leftW, statusIconH, mode, textColor, barBg, tokenScale);
+    render_platform_badge(&g_lcd, mode, textColor, barBg);
     if (!render_centered_asset_icon(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_icon_name())) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_label(), textColor, barBg, tokenScale);
     }
@@ -985,11 +1014,16 @@ bool SPIScreenManager::canAutoSleep() const
 bool SPIScreenManager::suspendForSleep()
 {
     SPIST7789_Service();
-    if (SPIST7789_IsBusy()) return false;
+    if (SPIST7789_IsBusy()) {
+        if (!g_chargeFramePending || g_wakeFrame.poll(HAL_GetTick(),true,false,false)>=0) return false;
+        // Unplug/notice dismissal must not wait forever for a lost LCD IRQ.
+        sleepDisplayFailed = true;
+    }
     ST7789_SetBacklight(&g_lcd, 0u);
     SPIST7789_DeInit();
     sleepSuspended = true;
     sleepResuming = false;
+    g_chargeFramePending = g_wakeBacklightPending = false;
     animActive = false;
     // Preserve the framebuffer, menu, config and any saved user brightness.
     return true;
@@ -1013,6 +1047,7 @@ void SPIScreenManager::setBatteryProtection(bool enabled)
     (void)RotEnc_WasButtonClicked();
     (void)RotEnc_WasButtonLongPressed();
     g_batteryNotice.protect(HAL_GetTick(), enabled);
+    BT_EVENT(BAT_NOTICE_CHANGED,enabled?2u:0u,enabled);
     if (!enabled) {
         if (g_inDetail && g_detailMenuId == 10u &&
             STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_CALIBRATION)
@@ -1025,6 +1060,7 @@ void SPIScreenManager::setBatteryProtection(bool enabled)
 void SPIScreenManager::showBatteryProtectionStatus()
 {
     g_batteryNotice.inspect(HAL_GetTick());
+    BT_EVENT(BAT_NOTICE_CHANGED,3,1);
 }
 
 bool SPIScreenManager::batteryNoticeActive() const
@@ -1034,8 +1070,65 @@ bool SPIScreenManager::batteryNoticeActive() const
 
 bool SPIScreenManager::batteryProtectionDisplayIdle() const
 {
-    return !g_batteryNotice.visible() && (sleepSuspended || sleepDisplayFailed) &&
-        !SPIST7789_IsBusy();
+    return sleepDisplayReady();
+}
+
+bool SPIScreenManager::sleepDisplayReady() const
+{
+    return !g_batteryNotice.visible() && !sleepResuming && !g_wakeBacklightPending && !g_chargeFramePending &&
+        !SPIST7789_IsBusy() && (sleepSuspended || sleepDisplayFailed ||
+            (g_sleepCharge.visible() && !g_sleepCharge.dirty()));
+}
+
+__attribute__((optimize("Os"))) static void draw_sleep_charge_number(ST7789_Handle* lcd, int soc, uint32_t color)
+{
+    char number[4]="--";
+    if (soc>=0) snprintf(number,sizeof(number),"%u",static_cast<unsigned>(soc>100?100:soc));
+    ScreenUI_DrawStringCenteredInBox(lcd, 126u, 72u, 68u, 28u,
+        number, color, 0u, SCREEN_FONT_LARGE);
+}
+
+__attribute__((optimize("Os"))) static void draw_sleep_charge_page(ST7789_Handle* lcd, const SleepChargePolicy& page)
+{
+    constexpr uint16_t x=122, y=67, w=76, h=38;
+    constexpr uint32_t gray=0x999999u;
+    ST7789_FillScreen(lcd,0);
+    // Two-pixel rounded outline and a filled positive terminal, no image assets.
+    ST7789_FillRect(lcd,x+4,y,w-8,2,gray);
+    ST7789_FillRect(lcd,x+4,y+h-2,w-8,2,gray);
+    ST7789_FillRect(lcd,x,y+4,2,h-8,gray);
+    ST7789_FillRect(lcd,x+w-2,y+4,2,h-8,gray);
+    ST7789_FillRect(lcd,x+2,y+2,2,2,gray);
+    ST7789_FillRect(lcd,x+w-4,y+2,2,2,gray);
+    ST7789_FillRect(lcd,x+2,y+h-4,2,2,gray);
+    ST7789_FillRect(lcd,x+w-4,y+h-4,2,2,gray);
+    ST7789_FillRect(lcd,x+w,y+12,4,14,gray);
+    draw_sleep_charge_number(lcd,page.soc(),gray);
+    ScreenUI_DrawStringCenteredInBox(lcd,x-10,y+h+8,w+20,16,page.label(),page.color(),0,2);
+}
+
+__attribute__((optimize("Os"))) void SPIScreenManager::renderSleepCharge()
+{
+    if (!g_sleepCharge.dirty() || !ST7789_FrameBegin(&g_lcd)) return;
+    if (!g_wakeBacklightPending && !g_chargeFramePending) {
+        g_wakeFrame.begin(HAL_GetTick());
+        (void)SPIST7789_ConsumeDmaDoneFlag();
+        (void)SPIST7789_ConsumeDmaErrFlag();
+    }
+    g_chargeFramePending = true;
+    draw_sleep_charge_page(&g_lcd,g_sleepCharge);
+    ST7789_SetBacklight(&g_lcd,g_wakeBacklightPending?0u:100u);
+    ST7789_FrameEnd(&g_lcd);
+    if (!g_lcd.dirty_valid) {
+        g_sleepCharge.painted();
+        g_wakeFrame.submitted();
+    }
+}
+
+extern "C" int BatteryTest_DisplayReady(void)
+{
+    // Queried only after the synchronous UI service returned.
+    return !SPIST7789_IsBusy();
 }
 
 __attribute__((optimize("Os"))) void SPIScreenManager::renderBatteryNotice(uint32_t now)

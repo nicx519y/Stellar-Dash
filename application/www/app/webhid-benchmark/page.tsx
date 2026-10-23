@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { WebHidTransport } from '@/lib/device-transport/webhid-transport';
 import { DirectDeviceSessionClient } from '@/lib/device-transport/device-session-client';
 import { runWebHidBenchmark, type BenchmarkResult } from '@/lib/device-transport/webhid-benchmark';
+import { PanelActionButton } from '@/components/ui/panel-action-button';
 
 export default function WebHidBenchmarkPage() {
   const transport = useRef<WebHidTransport | null>(null);
@@ -54,13 +55,13 @@ export default function WebHidBenchmarkPage() {
     <p>RAM 通信测试，1024 字节报告、窗口 8。请关闭其他设备配置页面后连接。</p>
     <p role="status">{state}</p>
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBlock: 24 }}>
-      <button disabled={busy || !!transport.current} onClick={connect}>连接设备</button>
-      <button disabled={busy || !transport.current} onClick={() => run('upload')}>上传三轮</button>
-      <button disabled={busy || !transport.current} onClick={() => run('download')}>下载三轮</button>
-      <button disabled={busy || !transport.current} onClick={() => run('upload', true)}>满载 RPC 三轮</button>
-      <button disabled={busy || !transport.current} onClick={() => run('upload', true, true)}>稳定性 10 分钟</button>
-      <button disabled={!busy} onClick={() => cancel.current?.abort()}>取消</button>
-      <button disabled={!results.length} onClick={download}>导出 JSON</button>
+      <PanelActionButton disabled={busy || !!transport.current} onClick={connect}>连接设备</PanelActionButton>
+      <PanelActionButton disabled={busy || !transport.current} onClick={() => run('upload')}>上传三轮</PanelActionButton>
+      <PanelActionButton disabled={busy || !transport.current} onClick={() => run('download')}>下载三轮</PanelActionButton>
+      <PanelActionButton disabled={busy || !transport.current} onClick={() => run('upload', true)}>满载 RPC 三轮</PanelActionButton>
+      <PanelActionButton disabled={busy || !transport.current} onClick={() => run('upload', true, true)}>稳定性 10 分钟</PanelActionButton>
+      <PanelActionButton disabled={!busy} onClick={() => cancel.current?.abort()}>取消</PanelActionButton>
+      <PanelActionButton disabled={!results.length} onClick={download}>导出 JSON</PanelActionButton>
     </div>
     <table style={{ width: '100%', textAlign: 'left' }}><thead><tr><th>Run ID</th><th>方向</th><th>有效 MB/s</th><th>报告/s</th><th>RPC P95</th><th>校验</th></tr></thead>
       <tbody>{results.map(r => <tr key={r.runId}><td>{r.runId}</td><td>{r.direction}</td><td>{(r.bytesPerSecond / 1e6).toFixed(3)}</td><td>{r.reportsPerSecond.toFixed(0)}</td><td>{r.rpcP95Ms?.toFixed(1) ?? '—'} ms</td><td>已确认</td></tr>)}</tbody></table>

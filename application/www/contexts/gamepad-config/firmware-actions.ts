@@ -461,7 +461,7 @@ export function useFirmwareActions(dependencies: FirmwareActionsDependencies) {
         onProgress?: (progress: number) => void,
     ): Promise<void> => {
         if (image.length <= 0x1000 || (image.length & 3) !== 0) {
-            throw new Error('CH585 image must be the aligned combined IAP + application BIN');
+            throw new Error('TX image must be the aligned combined IAP + application BIN');
         }
         const sessionId = `ch585-${Date.now().toString(16)}`;
         const sha256 = await calculateSHA256(image);

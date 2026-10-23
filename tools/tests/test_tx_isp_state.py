@@ -21,6 +21,7 @@ class TxIspStateTests(unittest.TestCase):
                 ('system/states/tx_isp_state.hpp', 'states/tx_isp_state.hpp'),
                 ('system/states/battery_protection_state.hpp', 'states/battery_protection_state.hpp'),
                 ('display/screen_control/spi_screen_layout.hpp', 'screen_control/spi_screen_layout.hpp'),
+                ('display/drivers/st7789/screen_font.h', 'screen_font.h'),
                 ('display/screen_control/spi_screen_main_list.hpp', 'screen_control/spi_screen_main_list.hpp'),
                 ('display/screen_control/spi_screen_detail_entries.hpp', 'screen_control/spi_screen_detail_entries.hpp'),
             ):

@@ -181,7 +181,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const {
         setContextJsReady, connectDevice, reconnectDevice, disconnectDevice, getDeviceImageCatalog,
         readDeviceImage, uploadDeviceImage, deleteDeviceImage, rfBindingRequest, runRfBindingOperation,
-        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, sendInitializationDeviceRequest,
+        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, clearDeviceLogs, sendInitializationDeviceRequest,
         getHitboxLayout, rebootSystem, exitWebConfig, sendPendingCommandImmediately, flushQueue,
         getDeviceTransportConfig, updateDeviceTransportConfig,
         indexMapToGameControllerButtonOrCombination,
@@ -445,6 +445,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         // 设备日志相关
         fetchDeviceLogsList: fetchDeviceLogsList,
         fetchDeviceLogsPage: fetchDeviceLogsPage,
+        clearDeviceLogs,
         getHitboxLayout: getHitboxLayout,
         hitboxLayout: hitboxLayout,
     };

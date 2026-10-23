@@ -3,10 +3,10 @@ import { Box, HStack, Stack, Text } from '@chakra-ui/react';
 import type { PublicFirmwareRelease } from '@/lib/admin/firmware-types';
 
 export const firmwareNotesStyle = {
-  fontFamily: 'system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif',
-  fontSize: '13px',
+  fontFamily: 'body',
+  fontSize: 'sm',
   fontWeight: 'normal',
-  lineHeight: '1.65',
+  lineHeight: '1.5',
   letterSpacing: 'normal',
 } as const;
 
@@ -32,8 +32,8 @@ export function FirmwareReleaseInfo({ release, zh }: { release: PublicFirmwareRe
       </Text>
     </Box>
     <Stack gap="3" pt="4" borderTopWidth="1px">
-      <Text fontSize="16px" fontWeight="semibold">{zh ? '包含组件' : 'Included components'}</Text>
-      {components.map(component => <HStack key={component.key} justify="space-between" align="start" gap="4" fontSize="14px">
+      <Text fontSize="xl" fontWeight="semibold">{zh ? '包含组件' : 'Included components'}</Text>
+      {components.map(component => <HStack key={component.key} justify="space-between" align="start" gap="4" fontSize="sm">
         <Text>{component.label}</Text>
         <Text textAlign="end">{[...new Set(component.artifacts.map(artifact => artifact.version))].join(' / ')}
           <Text as="span" color="fg.muted"> · {(component.artifacts.reduce((size, artifact) => size + artifact.size, 0) / 1024).toFixed(1)} KiB</Text>

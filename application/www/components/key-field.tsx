@@ -46,7 +46,7 @@ export const KeyField = ({
                 position="relative"
             >
                 {showTags && value && value.length > 0 && (
-                    <div style={{ position: 'absolute', top: '2px', left: '2px', display: 'flex', gap: '2px' }}>
+                    <Box position="absolute" top={0} bottom={0} left="2px" display="flex" alignItems="center" gap="2px">
                         {value.slice(0, maxKeys).map((keyValue, index) => (
                             <Fragment key={index}>
                                 <KeyTag 
@@ -68,7 +68,7 @@ export const KeyField = ({
                                 +{value.length - maxKeys}
                             </Text>
                         )}
-                    </div>
+                    </Box>
                 )}
             </Box>
         );
@@ -131,4 +131,4 @@ export const KeyField = ({
     );
 };
 
-KeyField.displayName = 'KeyField'; 
+KeyField.displayName = 'KeyField';

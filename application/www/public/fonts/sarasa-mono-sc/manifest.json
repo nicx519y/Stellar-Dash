@@ -1,0 +1,62 @@
+[
+  {
+    "file": "sarasa-mono-sc-v1.0.42-regular-latin.woff2",
+    "characters": 5208,
+    "bytes": 445004,
+    "sha256": "4d962c6a398c68040c5a7df809b28c8262b68aaf1b5632e4e876d6f355afbdd0"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-regular-cjk-common.woff2",
+    "characters": 3755,
+    "bytes": 785660,
+    "sha256": "e84b80e60f37539a6150f7b057c3111c39200e047061475a0d96e4c1eaabdc6a"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-regular-cjk-other.woff2",
+    "characters": 26262,
+    "bytes": 6208864,
+    "sha256": "1367e32e0d4ebc6a33c26112b561e393608ff744ad405d613c01482c26d502b7"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-regular-punctuation.woff2",
+    "characters": 289,
+    "bytes": 30552,
+    "sha256": "89ebfec1ef17f0190fdee7855590b86404ca91f567cc33b772e7ad63cd750f91"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-regular-symbols.woff2",
+    "characters": 15736,
+    "bytes": 1479844,
+    "sha256": "092adca51024f61054562d5471542abce4ae1390f5174691b427df0d32e3e45e"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-bold-latin.woff2",
+    "characters": 5208,
+    "bytes": 447360,
+    "sha256": "2b04873381632a334b7e9a38ac4066cb481841ffa91d54fe13109452473afe20"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-bold-cjk-common.woff2",
+    "characters": 3755,
+    "bytes": 798200,
+    "sha256": "12a7a7ed14cc9f3629a617a47502504ee4925d4fdf3fb3c5ab97d13939f2049e"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-bold-cjk-other.woff2",
+    "characters": 26262,
+    "bytes": 6437416,
+    "sha256": "392f04dbdb8bb66e1c321b79e62af0dc16353f328a9a3f05824aa5546c6d1955"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-bold-punctuation.woff2",
+    "characters": 289,
+    "bytes": 30748,
+    "sha256": "1216c5245628da0b352418db82d26d4e5651a1e2bf6b7ad218114f3eda206008"
+  },
+  {
+    "file": "sarasa-mono-sc-v1.0.42-bold-symbols.woff2",
+    "characters": 15736,
+    "bytes": 1506296,
+    "sha256": "86ae11d585bee85b1939b1b99cd0279f9539943053cdd5f29597c851af34d4d0"
+  }
+]

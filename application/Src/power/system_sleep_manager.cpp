@@ -16,6 +16,7 @@
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_pwr_ex.h"
 #include "system_logger.h"
+#include "battery_test_log.h"
 
 namespace {
 using State = AutoSleepPolicy::State;
@@ -159,12 +160,20 @@ extern "C" void SystemSleep_SuppressHeldInputs(void)
 extern "C" bool SystemSleep_ProtectionStop(void)
 {
 #if HBOX_AUTO_SLEEP_ENABLED == 1
+    const uint32_t reason=(!policy.enabled()?2u:0u)|(resetInhibit?4u:0u)|
+        (rawKeys()!=0u?8u:0u)|(__get_PRIMASK()!=0u?16u:0u)|
+        (POWER_MANAGER.isPolling()?32u:0u)|
+        ((CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk)!=0u?64u:0u);
+    if(reason && BatteryTest_Sleep) BatteryTest_Sleep(0,1,0,reason);
     if (!policy.enabled() || resetInhibit || rawKeys() != 0u ||
         __get_PRIMASK() != 0u || POWER_MANAGER.isPolling() ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return false;
     uint32_t pins = 0u;
     if (SystemStop_Enter(1000u, &pins)) return true;
+    if(BatteryTest_Sleep) BatteryTest_Sleep(0,1,0,256);
     policy.inhibit(); // no repeated STOP attempts after a preparation failure
+#else
+    if(BatteryTest_Sleep) BatteryTest_Sleep(0,1,0,1);
 #endif
     return false;
 }
@@ -336,7 +345,7 @@ extern "C" void SystemSleep_Idle(void)
     if (!idleContextValid || !policy.enabled() || !userEnabled ||
         !STORAGE_MANAGER.getAutoSleepEnabled() || policy.state() != State::Sleeping ||
         !BOARD_MODE.isStable() || POWER_MANAGER.isPolling() ||
-        SPIScreenManager::getInstance().batteryNoticeActive() ||
+        !SPIScreenManager::getInstance().sleepDisplayReady() ||
         rawKeys() != 0u || __get_PRIMASK() != 0u ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return;
     const uint32_t elapsed = HAL_GetTick() - lastKeepalive;
@@ -345,7 +354,10 @@ extern "C" void SystemSleep_Idle(void)
         : (INPUT_STATE.sleepNeedsNeutralKeepalive()
             ? (elapsed < 10u ? 10u - elapsed : 1u) : 100u);
     uint32_t pins = 0u;
-    if (!SystemStop_Enter(interval, &pins)) { fail(HAL_GetTick(), "STOP preparation failed"); return; }
+    if (!SystemStop_Enter(interval, &pins)) {
+        if(BatteryTest_Sleep) BatteryTest_Sleep(0,0,0,256);
+        fail(HAL_GetTick(), "STOP preparation failed"); return;
+    }
     if (pins & GPIO_BTN1_PIN) stopWakeKeys |= 1u << GPIO_BTN1_VIRTUAL_PIN;
     if (pins & GPIO_BTN2_PIN) stopWakeKeys |= 1u << GPIO_BTN2_VIRTUAL_PIN;
     if (pins & GPIO_BTN3_PIN) stopWakeKeys |= 1u << GPIO_BTN3_VIRTUAL_PIN;

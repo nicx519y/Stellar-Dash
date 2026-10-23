@@ -1,6 +1,7 @@
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "screen_control/spi_screen_ui_common.hpp"
 
@@ -77,7 +78,7 @@ void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t va
     const uint16_t h = ST7789_HEIGHT;
     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
-    const uint8_t titleScale = 2u;
+    const uint8_t titleScale = SCREEN_FONT_TITLE;
     const uint8_t valueScale = 2u;
     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
     const uint16_t valueH = ScreenUI_CharCellH(valueScale);
@@ -107,7 +108,7 @@ void ScreenDetailRender_Info(ST7789_Handle* lcd, const char* title, const char* 
     const uint16_t titleH = 20u;
 
     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
-    ScreenUI_DrawStringCenteredInBox(lcd, listX, 0, listW, titleH, title, style.text, style.bg, 1);
+    ScreenUI_DrawStringCenteredInBox(lcd, listX, 0, listW, titleH, title, style.text, style.bg, SCREEN_FONT_TITLE);
     ScreenUI_DrawStringCenteredInBox(lcd, listX, titleH, listW, (uint16_t)(h - titleH), text, style.text, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
 }
 
@@ -118,13 +119,17 @@ void ScreenDetailRender_TitleLines(ST7789_Handle* lcd, const char* title, const 
     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
     const uint16_t x = (uint16_t)(listX + 8u);
-    const uint8_t titleScale = 2u;
-    const uint8_t textScale = 1u;
-    const uint16_t titleY = 8u;
+    const uint8_t titleScale = SCREEN_FONT_LARGE;
+    // Native 8x14 body glyphs; never resample a smaller strike.
+    const uint8_t textScale = SCREEN_FONT_BODY;
+    const uint16_t titleY = 12u;
     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
-    const uint16_t textStartY = (uint16_t)(titleY + titleH + 10u);
+    const uint16_t textStartY = (uint16_t)(titleY + titleH + 14u);
     const uint16_t lineH = ScreenUI_CharCellH(textScale);
-    const uint16_t gap = 2u;
+    const uint16_t gap = 6u;
+    char row[32];
+    const uint16_t availableChars = (uint16_t)((listW - 16u) / ScreenUI_CharCellW(textScale));
+    const uint16_t maxChars = availableChars < sizeof(row) - 1u ? availableChars : sizeof(row) - 1u;
 
     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
     ST7789_DrawString(lcd, x, titleY, title ? title : "", style.text, style.bg, titleScale);
@@ -132,8 +137,12 @@ void ScreenDetailRender_TitleLines(ST7789_Handle* lcd, const char* title, const 
     uint16_t y = textStartY;
     for (uint8_t i = 0; i < lineCount; i++) {
         if (!lines || !lines[i]) continue;
-        if (y + lineH > h) break;
-        ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
-        y = (uint16_t)(y + lineH + gap);
+        const char* remaining = lines[i];
+        while (*remaining && maxChars > 0u) {
+            if (y + lineH > h) return;
+            remaining = ScreenUI_NextTextRow(remaining, row, maxChars);
+            ST7789_DrawString(lcd, x, y, row, style.text, style.bg, textScale);
+            y = (uint16_t)(y + lineH + gap);
+        }
     }
 }

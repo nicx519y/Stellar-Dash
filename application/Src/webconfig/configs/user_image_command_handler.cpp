@@ -248,6 +248,7 @@ static void send_user_image_binary_response(uint8_t resp_cmd, bool success, uint
 }
 
 static int8_t qspi_write_bytes(uint32_t address, const uint8_t* data, uint32_t length) {
+    if (!xora_image_range(address,length)) return -1;
     uint32_t offset = 0;
     while (offset < length) {
         uint32_t remaining = length - offset;
@@ -259,6 +260,13 @@ static int8_t qspi_write_bytes(uint32_t address, const uint8_t* data, uint32_t l
         offset += to_write;
     }
     return QSPI_W25Qxx_OK;
+}
+
+static int8_t erase_image_bytes(uint32_t address,uint32_t length) {
+    if(!length || (address & 4095u) || !xora_image_range(address,length)) return -1;
+    const uint32_t rounded=(length+4095u)&~4095u;
+    if(!xora_image_range(address,rounded)) return -1;
+    return QSPI_W25Qxx_BufferErase(address,rounded);
 }
 
 static void clear_user_image_upload_session() {
@@ -290,7 +298,7 @@ static bool qspi_read_bytes(uint32_t address, void* destination, uint32_t length
     }
 
     const uint32_t flashOffset = address & 0x00FFFFFFu;
-    if (length > W25Qxx_FlashSize ||
+    if (!xora_image_range(W25Qxx_Mem_Addr+flashOffset,length) || length > W25Qxx_FlashSize ||
         flashOffset > W25Qxx_FlashSize - length) {
         return false;
     }
@@ -321,11 +329,11 @@ using HBoxUserImage::HeaderV4;
 
 static const uint32_t USER_IMAGE_FLASH_GUARD_SIZE = HBoxUserImage::STORAGE_GUARD_SIZE;
 static const uint32_t USER_IMAGE_BASE_ADDR = USER_IMAGE_RESOURCES_ADDR + USER_IMAGE_FLASH_GUARD_SIZE;
-static const uint32_t USER_IMAGE_AREA_SIZE = USER_IMAGE_RESOURCES_SIZE - USER_IMAGE_FLASH_GUARD_SIZE;
+static const uint32_t USER_IMAGE_AREA_SIZE = HBoxUserImage::STORAGE_AREA_SIZE;
 static const uint32_t LEGACY_USER_IMAGE_BASE_ADDR =
     USER_IMAGE_RESOURCES_ADDR + HBoxUserImage::LEGACY_USER_IMAGE_OFFSET;
 static_assert(USER_IMAGE_FLASH_GUARD_SIZE < USER_IMAGE_RESOURCES_SIZE, "User image flash guard exceeds partition");
-static_assert(USER_IMAGE_AREA_SIZE == 0x00180000u, "User image usable area must remain 0x180000 bytes");
+static_assert(USER_IMAGE_BASE_ADDR + USER_IMAGE_AREA_SIZE == BATTERY_TEST_STORAGE_ADDR, "User image overlaps battery journal");
 static_assert(HBoxUserImage::LEGACY_USER_IMAGE_OFFSET == 0x000D8000u, "Legacy user image offset changed");
 static_assert(
     HBoxUserImage::HEADER_SIZE +
@@ -368,10 +376,10 @@ static bool flush_upload_page() {
         HBoxUserImage::HEADER_SIZE + g_user_image_upload_session.persisted;
     const uint16_t length = g_user_image_upload_session.page_used;
     const uint32_t write_started_ms = HAL_GetTick();
-    const int8_t result = QSPI_W25Qxx_WritePage(
+    const int8_t result = xora_image_range(address,length) ? QSPI_W25Qxx_WritePage(
         g_user_image_upload_session.page_buffer,
         address & 0x00FFFFFFu,
-        length);
+        length) : -1;
     g_user_image_upload_session.page_write_ms +=
         static_cast<uint32_t>(HAL_GetTick() - write_started_ms);
     if (result != QSPI_W25Qxx_OK) {
@@ -452,17 +460,18 @@ static void invalidate_legacy_user_image_once() {
     // that address when the current slot already contains a valid image.
     uint8_t currentBytes[sizeof(HeaderV4)] = {0};
     HeaderV4 current = {0};
-    if (qspi_read_bytes(USER_IMAGE_BASE_ADDR, currentBytes, sizeof(currentBytes)) &&
-        HBoxUserImage::decodeHeader(currentBytes, sizeof(currentBytes),
-                                    HBoxUserImage::USER_ID, USER_IMAGE_AREA_SIZE,
-                                    HBoxUserImage::MAX_USER_FRAMES, current)) {
+    if (!qspi_read_bytes(USER_IMAGE_BASE_ADDR,currentBytes,sizeof(currentBytes))) return;
+    memcpy(&current,currentBytes,sizeof(current));
+    // Preserve even a pre-partition oversized image; never erase its interior
+    // by mistaking pixel bytes at the old header location for legacy metadata.
+    if (current.magic==HBoxUserImage::MAGIC && current.valid==1u) {
         g_legacy_image_checked = true;
         return;
     }
     HeaderV3 legacy = {0};
     if (!qspi_read_bytes(LEGACY_USER_IMAGE_BASE_ADDR, &legacy, sizeof(legacy))) return;
     if (legacy.magic == HBoxUserImage::MAGIC && legacy.valid == 1u) {
-        const int8_t result = QSPI_W25Qxx_BufferErase(
+        const int8_t result = erase_image_bytes(
             LEGACY_USER_IMAGE_BASE_ADDR,
             HBoxUserImage::HEADER_SIZE);
         if (result != QSPI_W25Qxx_OK) {
@@ -689,7 +698,7 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
 
             const uint32_t begin_started_ms = HAL_GetTick();
             uint32_t erase_size = HBoxUserImage::HEADER_SIZE + total_size;
-            int8_t er = QSPI_W25Qxx_BufferErase(USER_IMAGE_BASE_ADDR, erase_size);
+            int8_t er = erase_image_bytes(USER_IMAGE_BASE_ADDR, erase_size);
             const uint32_t erase_ms =
                 static_cast<uint32_t>(HAL_GetTick() - begin_started_ms);
             if (er != QSPI_W25Qxx_OK) {
@@ -875,7 +884,7 @@ void UserImageCommandHandler::handleBinaryMessage(const uint8_t* data, size_t le
             }
             const BinaryUserImageDeleteHeader* h = reinterpret_cast<const BinaryUserImageDeleteHeader*>(data);
             clear_user_image_upload_session();
-            int8_t er = QSPI_W25Qxx_BufferErase(USER_IMAGE_BASE_ADDR, USER_IMAGE_AREA_SIZE);
+            int8_t er = erase_image_bytes(USER_IMAGE_BASE_ADDR, USER_IMAGE_AREA_SIZE);
             if (er != QSPI_W25Qxx_OK) {
                 char msg[64];
                 std::snprintf(msg, sizeof(msg), "Erase failed:%d", (int)er);

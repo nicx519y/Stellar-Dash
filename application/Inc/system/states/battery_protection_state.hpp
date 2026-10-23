@@ -9,6 +9,7 @@ public:
     void tick() override;
     void exit() override;
     void idle();
+    bool storageReady() const { return loadsStopped; }
 private:
     BatteryRecoveryButton button;
     uint32_t buttonChangedAt = 0;

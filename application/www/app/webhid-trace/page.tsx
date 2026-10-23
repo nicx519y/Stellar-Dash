@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { WEB_FONT_FAMILY } from '@/lib/ui-typography';
 import {
   Badge,
   Box,
@@ -37,7 +38,7 @@ import {
 
 const MAX_RECORDS = 2_000;
 const SOURCE_ACTIVE_MS = 10_000;
-const MONO_FONT = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+const MONO_FONT = WEB_FONT_FAMILY;
 
 type DirectionFilter = 'all' | 'tx' | 'rx';
 
@@ -185,10 +186,10 @@ export default function WebHidTracePage() {
             <Text color="#26ff76" fontSize="8px" fontWeight="700" letterSpacing="0.16em" lineHeight="1.1">
               LOCAL DIAGNOSTICS
             </Text>
-            <Heading as="h1" mt="2px" color="#effff4" fontSize="17px" fontWeight="700" lineHeight="1.15">
+            <Heading as="h1" mt="2px" color="#effff4" fontSize="xl" fontWeight="700" lineHeight="1.15">
               XORA WebHID Trace
             </Heading>
-            <Text mt="2px" color="#6f917a" fontFamily="system-ui, sans-serif" fontSize="10px" lineHeight="1.25" truncate>
+            <Text mt="2px" color="#6f917a" fontFamily="body" fontSize="10px" lineHeight="1.25" truncate>
               Inspect raw WebHID frames and decoded logical packets from a same-origin WebConfig page in real time.
             </Text>
           </Box>
@@ -232,7 +233,7 @@ export default function WebHidTracePage() {
               ? `${activeSources.length} WebConfig page${activeSources.length === 1 ? '' : 's'} connected`
               : 'Waiting for a same-origin WebConfig page'}
         </Text>
-        <Text ml="auto" color="#506b59" fontFamily="system-ui, sans-serif" fontSize="9px" lineHeight="1" truncate>
+        <Text ml="auto" color="#506b59" fontFamily="body" fontSize="9px" lineHeight="1" truncate>
           Both pages must use the same hostname and port. Do not mix localhost with 127.0.0.1.
         </Text>
       </Flex>
@@ -330,7 +331,7 @@ export default function WebHidTracePage() {
           borderRadius="6px"
           color="yellow.300"
           bg="rgba(62, 48, 13, 0.35)"
-          fontFamily="system-ui, sans-serif"
+          fontFamily="body"
           fontSize="9px"
           lineHeight="1.25"
         >
@@ -416,7 +417,7 @@ export default function WebHidTracePage() {
                 })}
                 {filteredRecords.length === 0 && (
                   <Table.Row>
-                    <Table.Cell colSpan={8} h="160px" color="gray.600" fontFamily="system-ui, sans-serif" fontSize="11px" textAlign="center">
+                    <Table.Cell colSpan={8} h="160px" color="gray.600" fontFamily="body" fontSize="11px" textAlign="center">
                       {activeSources.length > 0
                         ? 'Connected. Use the device from WebConfig to generate WebHID traffic.'
                         : 'Open WebConfig, connect the device, and keep both pages open.'}
@@ -475,12 +476,12 @@ export default function WebHidTracePage() {
                     {formatJson(decodedDetail(selected))}
                   </Box>
                 ) : (
-                  <Text color="gray.600" fontFamily="system-ui, sans-serif" fontSize="11px">
+                  <Text color="gray.600" fontFamily="body" fontSize="11px">
                     No decoded JSON is available for this request.
                   </Text>
                 )
               ) : (
-                <Text color="gray.600" fontFamily="system-ui, sans-serif" fontSize="11px">
+                <Text color="gray.600" fontFamily="body" fontSize="11px">
                   Select a request on the left to inspect its decoded JSON.
                 </Text>
               )}
@@ -496,7 +497,7 @@ export default function WebHidTracePage() {
               {selected ? (
                 <RawFramesDetail frames={selectedFrames} />
               ) : (
-                <Text color="gray.600" fontFamily="system-ui, sans-serif" fontSize="11px">
+                <Text color="gray.600" fontFamily="body" fontSize="11px">
                   Select a request on the left to inspect its HID frames.
                 </Text>
               )}
@@ -505,7 +506,7 @@ export default function WebHidTracePage() {
         </Flex>
       </Grid>
 
-      <Text flex="0 0 auto" color="#35483b" fontFamily="system-ui, sans-serif" fontSize="8px" lineHeight="1" truncate>
+      <Text flex="0 0 auto" color="#35483b" fontFamily="body" fontSize="8px" lineHeight="1" truncate>
         Traces may contain device authorization material and plaintext configuration. Do not share exported JSON or HAR files. Filter DevTools Network by __hbox_webhid_trace__.
       </Text>
     </Box>
@@ -515,7 +516,7 @@ export default function WebHidTracePage() {
 function RawFramesDetail({ frames }: { frames: WebHidTraceRecord[] }) {
   if (frames.length === 0) {
     return (
-      <Text color="gray.600" fontFamily="system-ui, sans-serif" fontSize="11px">
+      <Text color="gray.600" fontFamily="body" fontSize="11px">
         No linked HID frames were captured for this request.
       </Text>
     );
@@ -638,7 +639,7 @@ function HexSection({
           {bytes.length} bytes
         </Text>
       </Flex>
-      <Text mt="2px" color="#405849" fontFamily="system-ui, sans-serif" fontSize="8px" lineHeight="1.25">
+      <Text mt="2px" color="#405849" fontFamily="body" fontSize="8px" lineHeight="1.25">
         {description}
       </Text>
       <Box

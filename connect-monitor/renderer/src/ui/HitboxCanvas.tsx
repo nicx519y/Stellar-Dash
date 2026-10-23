@@ -1,3 +1,4 @@
+import { WEB_FONT_FAMILY, WEB_FONT_SIZES } from "./typography";
 import { useLayoutEffect, useRef } from "react";
 
 import type { ConnectionMode, HitboxSummary, NativeGamepadSnapshot } from "../../../shared/monitor-types";
@@ -15,7 +16,7 @@ const HITBOX_LAYOUT_SCALE = 2.55;
 const COMPACT_CONTENT_SCALE = 1.25;
 const COMPACT_CONTENT_OFFSET_Y = 34;
 const COMPACT_RENDER_SCALE = 0.72;
-const LABEL_FONT_SIZE = 16;
+const LABEL_FONT_SIZE = Number.parseFloat(WEB_FONT_SIZES.sm);
 const BUTTON_FRAME_RADIUS_DISTANCE = 3;
 const SUMMARY_INTERVAL_MS = 100;
 
@@ -124,7 +125,7 @@ function drawHitbox(ctx: CanvasRenderingContext2D, cssWidth: number, cssHeight: 
 
   ctx.restore();
 
-  ctx.font = `700 ${LABEL_FONT_SIZE}px system-ui, sans-serif`;
+  ctx.font = `700 ${LABEL_FONT_SIZE / renderScale}px ${WEB_FONT_FAMILY}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   for (let index = 0; index < scaledHitboxLayout.length; index += 1) {
@@ -233,6 +234,7 @@ export function HitboxCanvas({
       lastSummarySignature = "";
     };
 
+    document.fonts?.addEventListener("loadingdone", forceRefresh);
     window.addEventListener("resize", forceRefresh);
     window.addEventListener("gamepadconnected", forceRefresh);
     window.addEventListener("gamepaddisconnected", forceRefresh);
@@ -241,6 +243,7 @@ export function HitboxCanvas({
     return () => {
       active = false;
       window.cancelAnimationFrame(rafId);
+      document.fonts?.removeEventListener("loadingdone", forceRefresh);
       window.removeEventListener("resize", forceRefresh);
       window.removeEventListener("gamepadconnected", forceRefresh);
       window.removeEventListener("gamepaddisconnected", forceRefresh);

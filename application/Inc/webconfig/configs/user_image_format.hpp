@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CRC32.hpp"
+#include "user_storage_layout.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -14,11 +15,12 @@ constexpr uint16_t LEGACY_VERSION = 3u;
 constexpr uint16_t JPEG_VERSION = 5u;
 constexpr uint8_t FORMAT_JPEG_SEQUENCE = 3u;
 constexpr uint8_t MAX_JPEG_FRAMES = 180u;
-constexpr uint32_t MAX_JPEG_PAYLOAD_BYTES = 0x17f000u;
+constexpr uint32_t MAX_JPEG_PAYLOAD_BYTES = XORA_IMAGE_DATA_BYTES - 4096u;
 constexpr uint8_t FORMAT_RGB565LE_SINGLE = 1u;
 constexpr uint8_t FORMAT_RGB565LE_SEQUENCE = 2u;
 constexpr uint32_t HEADER_SIZE = 4096u;
 constexpr uint32_t STORAGE_GUARD_SIZE = 0x00010000u;
+constexpr uint32_t STORAGE_AREA_SIZE = XORA_IMAGE_DATA_BYTES;
 constexpr uint16_t MAX_WIDTH = 320u;
 constexpr uint16_t MAX_HEIGHT = 172u;
 constexpr uint32_t FULL_FRAME_SIZE =

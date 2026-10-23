@@ -73,6 +73,26 @@ static inline int fl_blank(const void *ptr, uint32_t size) {
     while (size--) if (*p++ != 0xffu) return 0;
     return 1;
 }
+/* Explicit user-confirmed clear only. Bounded backend, sector erase + full
+ * readback; never called by append/recovery or inferred from corrupt data. */
+#ifdef __cplusplus
+// Share one emitted copy between the main and battery journals on C++ targets.
+inline
+#else
+static inline
+#endif
+uint8_t fl_clear(const fl_backend *b, int header_last) {
+    uint8_t check[128];
+    uint32_t sector, off;
+    if (!b || !b->read || !b->erase || !b->bytes || b->bytes % FL_SECTOR_BYTES) return FL_IO;
+    for (sector = 0; sector < b->bytes / FL_SECTOR_BYTES; ++sector) {
+        const uint32_t base = (header_last ? (sector + 1u) % (b->bytes / FL_SECTOR_BYTES) : sector) * FL_SECTOR_BYTES;
+        if (b->erase(base)) return FL_IO;
+        for (off = 0; off < FL_SECTOR_BYTES; off += sizeof(check))
+            if (b->read(base + off, check, sizeof(check)) || !fl_blank(check, sizeof(check))) return FL_IO;
+    }
+    return FL_OK;
+}
 static inline int fl_valid(const fl_record *r) {
     return r->magic == FL_MAGIC && r->commit == FL_COMMIT &&
         r->words <= 14u && r->sequence != 0u &&

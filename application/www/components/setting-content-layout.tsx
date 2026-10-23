@@ -3,6 +3,8 @@
 import { Flex, Center, Box, Card, Button, HStack, HoverCard, Portal, Text, Icon } from '@chakra-ui/react';
 import React, { useLayoutEffect, useRef, useState, ReactNode, createContext, useContext } from 'react';
 import { IconType } from 'react-icons/lib';
+import { SETTINGS_SIDEBAR_WIDTH } from '@/lib/ui-layout';
+import { WEB_CJK_BUTTON_LABEL_OFFSET } from '@/lib/ui-typography';
 
 // 按键选项接口
 interface ButtonOption {
@@ -166,7 +168,10 @@ function renderButtonGroup(
                                 onMouseLeave={button.onMouseLeave}
                             >
                                 {button.icon && <Icon as={button.icon} />}
-                                {button.text}
+                                <Text as="span" lineHeight="inherit" data-button-label
+                                    transform={/[\u3400-\u9fff]/.test(button.text) ? `translateY(${WEB_CJK_BUTTON_LABEL_OFFSET})` : undefined}>
+                                    {button.text}
+                                </Text>
                             </Button>
                         );
 
@@ -393,8 +398,8 @@ export function SideContent({ children }: SideContentProps) {
             direction="column"
             gap={3}
             alignItems="stretch"
-            width="228px"
-            minWidth="228px"
+            width={SETTINGS_SIDEBAR_WIDTH}
+            minWidth={SETTINGS_SIDEBAR_WIDTH}
             flexShrink={0}
             minH={0}
             height="100%"

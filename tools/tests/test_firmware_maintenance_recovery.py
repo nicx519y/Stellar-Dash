@@ -17,6 +17,7 @@ class FirmwareMaintenanceRecoveryTests(unittest.TestCase):
             cpp.write_text(source, encoding='utf-8')
             run_native([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
                         '-Iapplication/Inc/firmware', '-Iapplication/Inc/display', '-Icommon',
+                        '-Iapplication/Inc/display/drivers/st7789',
                         '-Iapplication/Libs/sha256_simple', str(cpp), *libraries,
                         '-o', str(exe)], cwd=ROOT, check=True, timeout=120)
             run_native([str(exe)], check=True, timeout=30)
@@ -100,11 +101,12 @@ int main(){
 #include <cstring>
 #include <vector>
 #include "screen_control/spi_screen_layout.hpp"
-constexpr unsigned ST7789_WIDTH=240,ST7789_HEIGHT=240;
+constexpr unsigned ST7789_WIDTH=320,ST7789_HEIGHT=172;
 struct ST7789_Handle{};
 struct ScreenTimedPopup {bool visible,persistent;const char* title;const char* const* lines;uint8_t lineCount;};
-uint16_t ScreenUI_CharCellH(uint8_t scale){return scale*8;}
-uint16_t ScreenUI_TextPxW(const char* text,uint8_t scale){return strlen(text)*6*scale;}
+uint16_t ScreenUI_CharCellH(uint8_t scale){return ScreenFont_CellH(scale);}
+uint16_t ScreenUI_CharCellW(uint8_t scale){return ScreenFont_CellW(scale);}
+uint16_t ScreenUI_TextPxW(const char* text,uint8_t scale){return strlen(text)*ScreenFont_CellW(scale);}
 uint32_t ScreenUI_MutedTextForBg(uint32_t,uint32_t,uint32_t){return 0;}
 void ST7789_FillRect(ST7789_Handle*,uint16_t,uint16_t,uint16_t,uint16_t,uint32_t){}
 std::vector<uint8_t> scales;
@@ -113,13 +115,16 @@ void ScreenUI_DrawStringCenteredInBox(ST7789_Handle*,uint16_t,uint16_t,uint16_t 
     assert(ScreenUI_TextPxW(text,scale)<=w && ScreenUI_CharCellH(scale)<=h);scales.push_back(scale);
 }
 '''
+        common = (ROOT / 'application/Src/display/screen_control/spi_screen_ui_common.cpp').read_text(encoding='utf-8')
+        source += function(common, 'const char* ScreenUI_NextTextRow(')
         source += function(implementation, 'void ScreenTimedPopup_Render(')
         source += r'''
 int main(){
     const char* lines[]={"Verify firmware","Click to confirm","Hold to return","No TX rewriting"};
     ScreenTimedPopup popup={true,true,"XORA Firmware",lines,4};ST7789_Handle lcd;ScreenUiStyle style={};
     ScreenTimedPopup_Render(&popup,&lcd,style);
-    assert(scales.size()==5 && scales[0]==2 && scales[1]==1 && scales[4]==1);
+    assert(scales.size()==5 && scales[0]==SCREEN_FONT_TITLE);
+    for(unsigned i=1;i<scales.size();++i) assert(scales[i]==SCREEN_FONT_BODY);
 }
 '''
         self.run_cpp(source)

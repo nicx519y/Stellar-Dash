@@ -11,6 +11,11 @@ export interface InstallTask {
   release: PublicFirmwareRelease; result: InstallResult; error?: string; progress?: ReleaseProgress;
   txInstallMode?: TxIapTransferMode; txRecoveryMode?: TxIapTransferMode;
 }
+// Retained results belong in the page's recovery status, not an automatic modal.
+// An expired waiting record will be timed out by the monitor on mount.
+export function shouldResumeInstallDialog(task: InstallTask, now = Date.now()): boolean {
+  return task.result === 'waiting' && now - task.activatedAt < INSTALL_TIMEOUT_MS;
+}
 export function readInstallTask(storage: Pick<Storage, 'getItem'> = localStorage): InstallTask | null {
   try {
     const t = JSON.parse(storage.getItem(INSTALL_TASK_KEY) || 'null') as InstallTask | null;

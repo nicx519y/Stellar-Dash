@@ -1,4 +1,6 @@
 #include "screen_control/spi_screen_ui_common.hpp"
+#include "screen_font.h"
+#include <string.h>
 
 void ScreenUI_DrawScrollArrow(ST7789_Handle* lcd, uint16_t cx, uint16_t cy, bool up, uint32_t color) {
     for (uint16_t row = 0; row < 6; ++row) {
@@ -187,15 +189,11 @@ uint32_t ScreenUI_MutedTextForBg(uint32_t fg, uint32_t bg, uint8_t amount) {
 }
 
 uint16_t ScreenUI_CharCellW(uint8_t scale) {
-    if (scale == 0) scale = 1;
-    if (scale == 3) return 9;
-    return (uint16_t)(6u * scale);
+    return ScreenFont_CellW(scale);
 }
 
 uint16_t ScreenUI_CharCellH(uint8_t scale) {
-    if (scale == 0) scale = 1;
-    if (scale == 3) return 12;
-    return (uint16_t)(8u * scale);
+    return ScreenFont_CellH(scale);
 }
 
 uint16_t ScreenUI_TextPxW(const char* s, uint8_t scale) {
@@ -209,23 +207,37 @@ uint16_t ScreenUI_TextPxH(uint8_t scale) {
     return ScreenUI_CharCellH(scale);
 }
 
-void ScreenUI_DrawStringCenteredInBox(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const char* s, uint32_t fg, uint32_t bg, uint8_t scale) {
-    if (!lcd || !s || scale == 0) return;
-    const uint16_t tw = ScreenUI_TextPxW(s, scale);
-    const uint16_t th = ScreenUI_TextPxH(scale);
+__attribute__((optimize("Os"))) const char* ScreenUI_NextTextRow(const char* text, char* row, uint16_t maxChars) {
+    uint16_t length = 0;
+    while (length < maxChars && text[length] && text[length] != '\n') ++length;
+    if (length == maxChars && text[length] && text[length] != ' ' && text[length] != '\n') {
+        uint16_t wordEnd = length;
+        while (wordEnd > 0 && text[wordEnd - 1] != ' ') --wordEnd;
+        if (wordEnd > 0) length = wordEnd;
+    }
+    memcpy(row, text, length);
+    row[length] = '\0';
+    text += length;
+    while (*text == ' ') ++text;
+    if (*text == '\n') ++text;
+    return text;
+}
 
-    if (w < tw || h < th) {
-        uint16_t maxChars = (uint16_t)(w / ScreenUI_CharCellW(scale));
+__attribute__((optimize("Os"))) void ScreenUI_DrawStringCenteredInBox(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const char* s, uint32_t fg, uint32_t bg, uint8_t scale) {
+    if (!lcd || !s || scale == 0) return;
+    const uint16_t cellW = ScreenUI_CharCellW(scale);
+    uint16_t tw = (uint16_t)(strlen(s) * cellW);
+    const uint16_t th = ScreenUI_CharCellH(scale);
+    char tmp[32];
+    if (h < th) return;
+    if (w < tw) {
+        uint16_t maxChars = (uint16_t)(w / cellW);
         if (maxChars == 0) return;
-        char tmp[32] = {0};
         if (maxChars >= sizeof(tmp)) maxChars = (uint16_t)(sizeof(tmp) - 1);
         memcpy(tmp, s, maxChars);
         tmp[maxChars] = '\0';
-        const uint16_t tw2 = ScreenUI_TextPxW(tmp, scale);
-        const uint16_t cx = (uint16_t)(x + (w - tw2) / 2u);
-        const uint16_t cy = (uint16_t)(y + (h - th) / 2u);
-        ST7789_DrawString(lcd, cx, cy, tmp, fg, bg, scale);
-        return;
+        tw = maxChars * cellW;
+        s = tmp;
     }
 
     const uint16_t cx = (uint16_t)(x + (w - tw) / 2u);

@@ -184,7 +184,7 @@ export class DeviceClockSynchronizer {
     if (candidates.length === 0) {
       throw lastError instanceof Error
         ? lastError
-        : new DeviceTransportError('timeout', 'Unable to synchronize the STM32 clock');
+        : new DeviceTransportError('timeout', 'Unable to synchronize the main controller clock');
     }
     candidates.sort((left, right) => left.roundTripUs - right.roundTripUs);
     this.estimate = candidates[0];

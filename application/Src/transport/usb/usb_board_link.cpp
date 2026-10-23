@@ -954,7 +954,8 @@ bool UsbBoardLink::sendControl(usb_board_control_opcode_t opcode,
                   &response,
                   sizeof(response),
                   &responseLength,
-                  opcode == USB_BOARD_CONTROL_RF_BINDING ? 2000u : kControlTimeoutMs);
+                  opcode == USB_BOARD_CONTROL_RF_BINDING ? 2000u :
+                  opcode == USB_BOARD_CONTROL_FAULT_LOG && length == 4u ? 5000u : kControlTimeoutMs);
     if (opcode == USB_BOARD_CONTROL_CONNECT || opcode == USB_BOARD_CONTROL_HS_PREPARE ||
         opcode == USB_BOARD_CONTROL_HS_CAPS) {
         const uint32_t field = opcode == USB_BOARD_CONTROL_CONNECT ? 4u : 6u;

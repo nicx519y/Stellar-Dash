@@ -13,6 +13,7 @@ import { AdminConfirmDialog } from '@/components/admin/admin-confirm-dialog';
 import { Alert } from '@/components/ui/alert';
 import type { FirmwareRelease, LegacyFirmware } from '@/lib/admin/firmware-types';
 import { loadAllFirmwareReleases } from '@/lib/admin/firmware-list';
+import { deviceDisplayText } from '@/lib/device-display-text';
 
 const api = adminRuntime.firmware;
 export default function AdminFirmwarePage() {
@@ -110,7 +111,7 @@ export default function AdminFirmwarePage() {
       actions={<Button asChild variant="surface" flexShrink={0}><Link href="/firmware/releases/">{zh ? '浏览固件目录' : 'Browse catalog'}<LuArrowUpRight /></Link></Button>} />
     {authLoading ? <Center minH="320px"><Spinner size="lg" colorPalette="green" /></Center> : !isAdmin ? <Alert colorPalette="orange" title={zh ? '请使用管理员账户登录。' : 'Sign in with an administrator account.'} /> : <>
       {process.env.NEXT_PUBLIC_OFFLINE_PREVIEW === 'true' && <Box bg="purple.subtle" color="purple.fg" borderRadius="lg" p="3" fontSize="sm">{zh ? 'MOCK 预览：数据仅存于本标签页，不执行真实签名校验或发布。' : 'MOCK PREVIEW: tab-local data, no real signature verification or publishing.'}</Box>}
-      {error && <Box role="alert" p="3" borderWidth="1px" borderColor="red.500" overflowWrap="anywhere">{error}</Box>}
+      {error && <Box role="alert" p="3" borderWidth="1px" borderColor="red.500" overflowWrap="anywhere">{deviceDisplayText(error, currentLanguage)}</Box>}
       {message && <Text role="status" color="green.600">{message}</Text>}
       <AdminCard><Stack gap="4">
         <HStack><LuUpload /><Heading size="lg">{zh ? '导入发布包' : 'Import release package'}</Heading></HStack>
@@ -143,8 +144,8 @@ export default function AdminFirmwarePage() {
         <Button size="sm" variant="outline" colorPalette="red" disabled={!!busy} loading={busy === `delete:${r.id}`} aria-label={zh ? `删除 XORA ${r.manifest.version}` : `Delete XORA ${r.manifest.version}`} onClick={() => setPendingDelete(r)}><LuTrash2 />{zh ? '删除固件' : 'Delete firmware'}</Button>
       </Flex>)}{!loading && releases.length === 0 && <Text color="fg.muted" py="8" textAlign="center">{zh ? '暂无匹配的发布。' : 'No matching releases.'}</Text>}</Stack>
       </Stack></AdminCard>
-      <AdminCard><Button variant="surface" whiteSpace="normal" height="auto" minH="10" py="2" disabled={!!busy} onClick={() => void act('legacy', async () => { const items = await api.legacy(); setLegacy(items); if (!items.length) setMessage(zh ? '没有历史 STM32 发布。' : 'No historical STM32 releases.'); })}>{zh ? '查看历史 STM32 发布（只读）' : 'Historical STM32 releases (read only)'}</Button>
-        {legacy.map(r => <Text key={r.id} mt="2">STM32 {r.version} · {r.hardwareVersion} · {r.notes}</Text>)}</AdminCard>
+      <AdminCard><Button variant="surface" whiteSpace="normal" height="auto" minH="10" py="2" disabled={!!busy} onClick={() => void act('legacy', async () => { const items = await api.legacy(); setLegacy(items); if (!items.length) setMessage(zh ? '没有历史主控发布。' : 'No historical main controller releases.'); })}>{zh ? '查看历史主控发布（只读）' : 'Historical main controller releases (read only)'}</Button>
+        {legacy.map(r => <Text key={r.id} mt="2">{zh ? '主控' : 'Main controller'} {r.version} · {r.hardwareVersion} · {r.notes}</Text>)}</AdminCard>
     </>}
     <AdminConfirmDialog open={isAdmin && pendingDelete !== null} onClose={() => setPendingDelete(null)} onConfirm={() => void deleteRelease()}
       title={zh ? '确认删除固件' : 'Confirm firmware deletion'}

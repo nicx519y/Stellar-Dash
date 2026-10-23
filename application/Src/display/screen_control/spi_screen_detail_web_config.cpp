@@ -35,52 +35,49 @@ void ScreenDetailWebConfig_Rotate(uint8_t* ioIndex, int8_t det) {
 void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
     (void)index;
     static const char* const startingLines[] = {
-        "Starting secure USB WebConfig.",
+        "Starting USB...",
         "Please wait.",
         "Hold Back to exit."
     };
     static const char* const readyLines[] = {
-        "USB WebConfig is ready.",
-        "Connect this device to your PC.",
-        "Open the local WebConfig server.",
-        "Waiting for browser authentication."
+        "Connect USB to your PC.",
+        "Open WebConfig in browser.",
+        "Waiting for authentication."
     };
     static const char* const authenticatedLines[] = {
         "Browser authenticated.",
-        "WebConfig session is active.",
-        "Open the local WebConfig server.",
-        "Press knob or hold Back to exit."
+        "Press knob to exit."
     };
     static const char* const usbModeErrorLines[] = {
-        "USB runtime is unavailable.",
-        "Re-enter Web Config to retry.",
-        "Press knob or hold Back to exit."
+        "USB unavailable.",
+        "Reopen Web Config to retry.",
+        "Press knob to exit."
     };
     static const char* const maintenanceErrorLines[] = {
-        "USB maintenance is unavailable.",
-        "Check the CH585 firmware and link.",
-        "Press knob or hold Back to exit.",
-        "Re-enter WebConfig to retry."
+        "USB maintenance unavailable.",
+        "Check CH585 firmware/link.",
+        "Reopen Web Config to retry.",
+        "Press knob to exit."
     };
     static const char* const securityErrorLines[] = {
-        "Device security check failed.",
-        "Check identity and trust setup.",
-        "Press knob or hold Back to exit."
+        "Security check failed.",
+        "Check identity/trust setup.",
+        "Press knob to exit."
     };
     static const char* const storageInitErrorLines[] = {
-        "QSPI storage is unavailable.",
-        "Configuration access is disabled.",
-        "Press knob or hold Back to exit."
+        "Storage unavailable.",
+        "Config access disabled.",
+        "Press knob to exit."
     };
     static const char* const adcErrorLines[] = {
         "Input sampling stopped.",
-        "The USB session is closed.",
-        "Press knob or hold Back to exit."
+        "USB session closed.",
+        "Press knob to exit."
     };
     static const char* const storageErrorLines[] = {
-        "Configuration save failed.",
-        "Press knob to retry saving and exit.",
-        "The secure USB session is closed."
+        "Settings could not be saved.",
+        "USB session closed.",
+        "Press knob to save and exit."
     };
 
     const char* const* lines = startingLines;

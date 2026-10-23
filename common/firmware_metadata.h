@@ -185,6 +185,7 @@ _Static_assert(sizeof(FirmwareMetadata) == METADATA_STRUCT_SIZE,
 
 #define USER_IMAGE_RESOURCES_ADDR   0x905F0000  // 1.5625MB
 #define USER_IMAGE_RESOURCES_SIZE   0x190000
+#include "user_storage_layout.h"
 
 /* Dedicated 512KB staging area for the combined CH585 IAP+application BIN.
  * The status journal owns a complete 64 KiB erase sector.  Payload must be

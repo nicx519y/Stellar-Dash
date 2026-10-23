@@ -31,3 +31,4 @@
 - 新增诊断优先接入现有开关，避免无必要的独立 `*_DEBUG_PRINT` / `*_LOG` 开关。
 - `CFG_TUSB_DEBUG` 当前在 [tusb_config.h](Inc/transport/usb/legacy/tusb_config.h) 独立默认 `0`，未由 Makefile 的 `APP_LOG_VERBOSE` 联动设置；不要假设打开 verbose 会打开 TinyUSB 调试。
 - CPU 异常使用独立应急栈和复位保留 RAM，禁止在异常路径格式化输出或擦写 Flash。结构化故障日志独立于串口开关；旧 `LOG_*` 文本 API 保持空实现，`Logger_Flush` 仅申请安全写入。入口、专用分区、互斥窗口和验收边界见 [设备日志](../docs/device-fault-logs.md)。
+- [Battery Test](../docs/battery-test-mode.md) 使用独立 64 KiB 测试区，保留既有故障区全部预算；图片与测试区边界以 [user_storage_layout.h](../common/user_storage_layout.h) 为准，图片上传、删除、迁移和读取不得越界。显式测试使用独立队列及有界输入暂停；不得把此窗口放宽到普通故障日志或 ISR，禁止自动清空历史。旧图片跨界或预留区被占用时拒绝启动。

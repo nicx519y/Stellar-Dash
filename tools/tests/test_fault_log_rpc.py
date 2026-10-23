@@ -12,7 +12,10 @@ class FaultLogRpcTest(unittest.TestCase):
         self.assertTrue(cpp and cc)
         includes = ["tools/tests/fault_log_stubs", "application/Inc/webconfig", "application/Inc/webconfig/configs",
                     "application/Libs/cJSON", "common"]
-        flags = ["-std=c++17", "-Wall", "-Wextra", "-Werror", *[f"-I{ROOT / p}" for p in includes]]
+        # MinGW COFF cannot safely resolve these cross-TU optional weak hooks.
+        # This fixture supplies both battery handlers; exercise strong linkage.
+        flags = ["-std=c++17", "-Wall", "-Wextra", "-Werror", "-Wno-address",
+                 "-DXORA_BATTERY_TEST_REQUIRED=1", *[f"-I{ROOT / p}" for p in includes]]
         with tempfile.TemporaryDirectory(prefix="xora-log-rpc-") as folder:
             obj = Path(folder) / "json.o"
             exe = Path(folder) / "test.exe"

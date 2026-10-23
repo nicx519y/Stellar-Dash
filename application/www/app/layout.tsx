@@ -100,6 +100,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             width="100vw"
             position="relative"
             overflow="auto"
+            scrollbarGutter="stable"
         >
            
 

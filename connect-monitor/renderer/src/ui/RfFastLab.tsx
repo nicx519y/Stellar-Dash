@@ -68,7 +68,7 @@ export function RfFastLab({packets}: {packets: PacketEvent[]}) {
       note:"按 role / testId 分组分析；提交时间不等于首个输入时间。固件时间，不含 Windows 处理；无外部时序验收。"};
     await window.connectMonitorApi.exportFastLog({content:[summary,...events].map(v=>JSON.stringify(v)).join("\n")+"\n"});
   };
-  return <Box p={3} borderTopWidth="1px" borderColor="whiteAlpha.200" fontSize="11px">
+  return <Box p={3} borderTopWidth="1px" borderColor="whiteAlpha.200" fontSize="xs">
     <Text fontWeight="bold">快速恢复实验 · 4K/8K · 默认关闭</Text>
     <label><input type="checkbox" checked={requested} onChange={e=>{
       const enabled=e.target.checked;act(async()=>{await send({operation:1,enabled});setRequested(enabled);setMessage("已请求，等待双方实际状态确认");});

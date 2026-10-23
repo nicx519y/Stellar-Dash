@@ -142,6 +142,7 @@ public:
      * DeviceCommand命令: get_device_logs_list
      */
     DeviceCommandResponse handleGetDeviceLogsPage(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleClearDeviceLogs(const DeviceCommandRequest& request);
     DeviceCommandResponse handleGetDeviceLogsList(const DeviceCommandRequest& request);
 
 }; 

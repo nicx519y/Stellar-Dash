@@ -1,3 +1,4 @@
+import { WEB_FONT_SIZES } from "./typography";
 import { Box, HStack } from "@chakra-ui/react";
 import * as React from "react";
 
@@ -150,7 +151,7 @@ function RegexFilterInput({
         borderColor: invalid ? "rgba(255,96,96,0.72)" : "rgba(92,255,138,0.34)",
         background: "rgba(8,18,16,0.86)",
         color: "rgba(245,255,248,0.92)",
-        fontSize: "12px",
+        fontSize: WEB_FONT_SIZES.sm,
         outline: "none",
       }}
     />
@@ -191,7 +192,7 @@ function PortSelector({
           borderColor: "rgba(92,255,138,0.34)",
           background: "rgba(8,18,16,0.86)",
           color: "rgba(245,255,248,0.92)",
-          fontSize: "12px",
+          fontSize: WEB_FONT_SIZES.sm,
           outline: "none",
           cursor: "pointer",
         }}

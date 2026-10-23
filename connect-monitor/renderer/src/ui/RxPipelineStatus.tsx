@@ -1,3 +1,4 @@
+import { WEB_FONT_SIZES } from "./typography";
 import type {PacketEvent} from "../../../shared/monitor-types";
 import {rxProfileDelta,rxQuantile,rxTimings,type RxTiming} from "../../../shared/rx-profile";
 const labels:Record<typeof rxTimings[number],string>={rearm:"接收重启",parse:"收到→解析",ready:"收到→报告准备",
@@ -8,10 +9,10 @@ const quant=(t:RxTiming,p:number)=>{const n=rxQuantile(t,p);return n===null?"—
 export function RxPipelineStatus({packets,now}:{packets:PacketEvent[];now:number}){
   const list=packets.filter(p=>p.rxProfile).slice(-2),last=list.at(-1);
   const p=last?.rxProfile;
-  if(!p || now-last!.timestampMs>3500)return <div style={{padding:"4px 12px",fontSize:12}}>RX 流水线：不可用或统计过期（需配套诊断固件的完整快照）</div>;
+  if(!p || now-last!.timestampMs>3500)return <div style={{padding:"4px 12px",fontSize:WEB_FONT_SIZES.sm}}>RX 流水线：不可用或统计过期（需配套诊断固件的完整快照）</div>;
   const delta=list.length===2?rxProfileDelta(list[0].rxProfile!,p):null;
   const rate=(key:"received"|"accepted"|"ready"|"submitted"|"completed")=>delta?(delta.delta[key]/delta.seconds).toFixed(0):"—";
-  return <details style={{padding:"4px 12px",fontSize:12}}>
+  return <details style={{padding:"4px 12px",fontSize:WEB_FONT_SIZES.sm}}>
     <summary>RX {p.pipeline?"直通流水线":"计时基线"} · USB {p.speed===2?"HS":p.speed===1?"FS（不满足 8K）":p.speed===3?"挂起":"未配置"} · 接收/准备/完成 {rate("received")}/{rate("ready")}/{rate("completed")} Hz · 队列 {p.depth}/4，峰值 {p.highwater}</summary>
     <div>接纳 {rate("accepted")} Hz · 提交 {rate("submitted")} Hz · 以下耗时与计数为诊断累计；分位数显示直方图桶上界，不能作为实机验收自动结论。</div>
     <div>拥塞丢弃 {p.counters.congestionDropped} · 不同状态覆盖 {p.counters.changedOverwritten} · 同状态合并 {p.counters.sameMerged} · 版本拒绝 {p.counters.rejected} · 复位取消 {p.counters.cancelled} · 提交失败 {p.counters.submitFailed} · 辅助队列丢弃 {p.counters.auxDropped}</div>

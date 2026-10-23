@@ -1,4 +1,4 @@
-import { FaultLogQuery, parseFaultLogPage } from "@/lib/device-fault-logs";
+import { FaultLogQuery, LogSource, parseFaultLogPage } from "@/lib/device-fault-logs";
 import {
     DeviceCommandClient,
     DeviceConnectionError,
@@ -165,6 +165,10 @@ export function useSessionActions(dependencies: SessionActionsDependencies) {
 
     const fetchDeviceLogsPage = async (query: FaultLogQuery) => parseFaultLogPage(
         await sendDeviceRequest("get_device_logs_page", { ...query }, true), query.source);
+    const clearDeviceLogs = async (source: LogSource) => {
+        const reply = await sendDeviceRequest('clear_device_logs', { source, confirm: true }, true, { timeoutMs: 30000 });
+        if (reply?.success !== true || reply?.source !== source) throw new Error('The device did not confirm clearing the logs');
+    };
 
     const fetchDeviceLogsList = async (): Promise<string[]> => {
         try {
@@ -300,7 +304,7 @@ export function useSessionActions(dependencies: SessionActionsDependencies) {
     return {
         setContextJsReady, connectDevice, reconnectDevice, disconnectDevice, getDeviceImageCatalog,
         readDeviceImage, uploadDeviceImage, deleteDeviceImage, rfBindingRequest, runRfBindingOperation,
-        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, sendInitializationDeviceRequest,
+        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, clearDeviceLogs, sendInitializationDeviceRequest,
         getHitboxLayout, rebootSystem, exitWebConfig, sendPendingCommandImmediately, flushQueue,
         getDeviceTransportConfig, updateDeviceTransportConfig,
         indexMapToGameControllerButtonOrCombination,

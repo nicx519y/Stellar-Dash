@@ -142,9 +142,11 @@ class SPIScreenManager {
 public:
     bool suspended = false, suspendOk = true;
     bool notice = false;
+    bool chargeIdle = false, displayBusy = false;
     static SPIScreenManager& getInstance() { static SPIScreenManager screen; return screen; }
     bool canAutoSleep() { return !suspended; }
     bool batteryNoticeActive() const { return notice; }
+    bool sleepDisplayReady() const { return !notice && !displayBusy && (suspended || chargeIdle); }
     bool suspendForSleep() { suspended = suspendOk; return suspendOk; }
     void resumeFromSleep() { suspended = false; }
 };

@@ -1,3 +1,4 @@
+import { WEB_FONT_FAMILY, WEB_FONT_SIZES } from "./typography";
 import { Box } from "@chakra-ui/react";
 import * as echarts from "echarts";
 import * as React from "react";
@@ -10,6 +11,7 @@ export type LossPoint = { tMs: number; value: number };
 type ChartPoint = [number, number | null];
 type EventPoint = [number, number, ChannelSwitchRow];
 
+const chartTextStyle = { fontFamily: WEB_FONT_FAMILY, fontSize: Number.parseFloat(WEB_FONT_SIZES.xs) };
 const CHANNEL_EVENT_LIMIT = 80;
 const DEFAULT_WINDOW_MS = 20_000;
 const MIN_WINDOW_MS = 3000;
@@ -189,10 +191,12 @@ export function TelemetryTrendChart({
     });
 
     const resize = () => chart.resize();
+    document.fonts?.addEventListener("loadingdone", resize);
     const observer = new ResizeObserver(resize);
     observer.observe(rootRef.current);
     window.addEventListener("resize", resize);
     return () => {
+      document.fonts?.removeEventListener("loadingdone", resize);
       window.removeEventListener("resize", resize);
       observer.disconnect();
       chart.dispose();
@@ -232,15 +236,17 @@ export function TelemetryTrendChart({
       {
         backgroundColor: "transparent",
         animation: false,
+        textStyle: chartTextStyle,
         color: ["#62f7ff", "#ff6b6b", "#f6ad55"],
         tooltip: {
           trigger: "axis",
           confine: true,
           backgroundColor: "rgba(5,8,13,0.96)",
           borderColor: "rgba(92,255,138,0.22)",
-          textStyle: { color: "#edf2f7", fontSize: 12 },
+          textStyle: { ...chartTextStyle, color: "#edf2f7", fontSize: Number.parseFloat(WEB_FONT_SIZES.sm) },
           axisPointer: {
             type: "cross",
+            label: chartTextStyle,
             lineStyle: { color: "rgba(92,255,138,0.34)" },
             crossStyle: { color: "rgba(92,255,138,0.22)" },
           },
@@ -249,7 +255,7 @@ export function TelemetryTrendChart({
         legend: {
           top: 0,
           right: 0,
-          textStyle: { color: "#b7c4bd" },
+          textStyle: { ...chartTextStyle, color: "#b7c4bd" },
           data: showRfMetrics ? ["Report Rate", "Input Deficit", "Channel Events"] : ["Report Rate"],
         },
         grid: {
@@ -282,7 +288,7 @@ export function TelemetryTrendChart({
             fillerColor: "rgba(92,255,138,0.16)",
             handleStyle: { color: "#5cff8a" },
             moveHandleStyle: { color: "#5cff8a" },
-            textStyle: { color: "#a0aec0" },
+            textStyle: { ...chartTextStyle, color: "#a0aec0" },
             dataBackground: {
               lineStyle: { color: "rgba(92,255,138,0.35)" },
               areaStyle: { color: "rgba(92,255,138,0.08)" },
@@ -297,7 +303,7 @@ export function TelemetryTrendChart({
           type: "time",
           min: axisMinTime,
           max: chartData.maxTime,
-          axisLabel: {
+          axisLabel: { ...chartTextStyle,
             color: "#a0aec0",
             formatter: (value: number) => formatTime(value),
           },
@@ -310,8 +316,8 @@ export function TelemetryTrendChart({
             name: "Hz",
             min: 0,
             scale: false,
-            axisLabel: { color: "#a0aec0" },
-            nameTextStyle: { color: "#a0aec0" },
+            axisLabel: { ...chartTextStyle, color: "#a0aec0" },
+            nameTextStyle: { ...chartTextStyle, color: "#a0aec0" },
             axisLine: { lineStyle: { color: "rgba(98,247,255,0.5)" } },
             splitLine: { show: true, lineStyle: { color: "rgba(92,255,138,0.08)" } },
           },
@@ -321,8 +327,8 @@ export function TelemetryTrendChart({
             show: showRfMetrics,
             min: 0,
             max: chartData.maxLoss,
-            axisLabel: { color: "#a0aec0", formatter: "{value}%" },
-            nameTextStyle: { color: "#a0aec0" },
+            axisLabel: { ...chartTextStyle, color: "#a0aec0", formatter: "{value}%" },
+            nameTextStyle: { ...chartTextStyle, color: "#a0aec0" },
             axisLine: { lineStyle: { color: "rgba(255,107,107,0.5)" } },
             splitLine: { show: false },
           },
@@ -384,7 +390,8 @@ export function TelemetryTrendChart({
             label: {
               show: true,
               color: "#0b0f16",
-              fontSize: 10,
+              fontFamily: WEB_FONT_FAMILY,
+              fontSize: Number.parseFloat(WEB_FONT_SIZES["2xs"]),
               formatter: (param: { value?: unknown }) => {
                 if (!Array.isArray(param.value)) return "";
                 return formatChannel(param.value[2] as ChannelSwitchRow);

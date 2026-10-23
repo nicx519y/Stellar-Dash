@@ -72,7 +72,7 @@ export function InputModeSettingContent(props: {
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl minH="50px" px={3} py={1} gap={3}>
                                 <Center flexShrink={0} w="32px" h="32px">
-                                    <Icon fontSize="28px" color={displayedInputMode === platform ? "white" : "fg.muted"}>
+                                    <Icon fontSize="4xl" color={displayedInputMode === platform ? "white" : "fg.muted"}>
                                         {platformIcons.get(platform)}
                                     </Icon>
                                 </Center>

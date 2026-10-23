@@ -42,6 +42,20 @@ void XoraLog_Info(fl_info *info) {
     info->status = scan.status ? scan.status : log_runtime.status;
     info->firmware = log_runtime.firmware; info->restricted = XoraLog_Restricted();
 }
+static uint8_t log_clear(void) {
+    if (!log_started) return FL_IO;
+    log_runtime.write_failed = 1;
+    const uint8_t status = fl_clear(&log_runtime.backend, 0);
+    if (status != FL_OK) { log_runtime.status = FL_IO; return status; }
+    memset(log_runtime.queue, 0, sizeof(log_runtime.queue));
+    log_runtime.count = log_runtime.flush_requested = log_runtime.write_failed = log_runtime.status = 0;
+    log_runtime.dropped = log_runtime.reported_drops = 0;
+    /* Clearing evidence must not release diagnostic maintenance or reset the
+     * crash streak/boot identity. Only remove the retained pending record. */
+    memset(&log_retained.crash, 0, sizeof(log_retained.crash));
+    fl_retained_seal(&log_retained);
+    return FL_OK;
+}
 uint8_t XoraLog_Read(uint32_t upper, uint32_t before, uint8_t category,
                      uint8_t severity, uint8_t pending, fl_record *record) {
     if (pending) {
@@ -59,6 +73,10 @@ int XoraLog_Control(const uint8_t *request, uint8_t length, uint8_t *response, u
     fl_record record;
     uint32_t upper, before;
     uint8_t status, bytes;
+    if (length == 4 && request && !memcmp(request, FL_CLEAR_REQUEST, 4)) {
+        status = XoraLog_Clear();
+        response[0] = status; *size = 1; return status;
+    }
     if (!length) {
         fl_info info; XoraLog_Info(&info);
         memcpy(response, &info, sizeof(info)); *size = sizeof(info); return FL_OK;

@@ -167,12 +167,16 @@ def main():
     parser = argparse.ArgumentParser(description="assets 校验/修复工具（RGB565LE/GIF）")
     parser.add_argument("--dir", default="application/assets", help="assets 目录（默认 application/assets）")
     parser.add_argument("--out", default="", help="输出目录（默认原地修改/生成）")
-    parser.add_argument("--inplace", action="store_true", help="原地修复（仅对 rgb565 字节序修复生效）")
+    parser.add_argument("--inplace", action="store_true", help="允许原地处理已有资源；默认保留 RGB565LE 字节序")
+    parser.add_argument("--swap-rgb565-bytes", action="store_true",
+                        help="显式转换已知大端的裸 RGB565；需 --inplace，不作用于本次生成的文件")
     parser.add_argument("--resize", default="", help="把 png/jpg 等图片转换为 rgb565 并缩放到精确 WxH（需要 Pillow），例如 320x170")
     parser.add_argument("--fit", default="320x170", help="把图片按比例缩小以适配最大 WxH（默认 320x170；小图不放大）")
     parser.add_argument("--gif-colors", type=int, default=256, help="GIF 调色板最大颜色数（需要 Pillow）")
     parser.add_argument("--dither", action="store_true", help="颜色量化启用抖动（需要 Pillow）")
     args = parser.parse_args()
+    if args.swap_rgb565_bytes and not args.inplace:
+        parser.error("--swap-rgb565-bytes requires --inplace")
 
     assets_dir = Path(args.dir)
     if not assets_dir.exists():
@@ -187,6 +191,7 @@ def main():
 
     changed = 0
     warnings = 0
+    generated = set()
 
     for p in sorted(assets_dir.rglob("*")):
         if not p.is_file():
@@ -205,7 +210,9 @@ def main():
             if len(data) != expect:
                 warnings += 1
                 continue
-            if args.inplace and ext != ".rgb565le":
+            # .rgb565 outputs from the image converter are already little-endian.
+            # A normal repeated build must never toggle their byte order.
+            if args.swap_rgb565_bytes and ext != ".rgb565le" and p.resolve() not in generated:
                 ok = _fix_rgb565_endianness(p, inplace=True)
                 if ok:
                     changed += 1
@@ -225,7 +232,8 @@ def main():
             if pillow is None:
                 continue
             try:
-                _process_image_with_pillow(p, out_dir, resize, fit, args.dither)
+                converted = _process_image_with_pillow(p, out_dir, resize, fit, args.dither)
+                generated.add(converted.resolve())
                 changed += 1
             except Exception:
                 warnings += 1

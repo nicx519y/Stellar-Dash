@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/*  字体在 provider.tsx 中定义  */
+/* Typography is defined by components/ui/theme.ts. */
 
 [class^="icon-"], [class*=" icon-"] {
   /* use !important to prevent issues with browser extensions that change fonts */

@@ -17,6 +17,7 @@ class ScreenReportRateUiTests(unittest.TestCase):
                          "spi_screen_detail_render_helpers.hpp", "spi_screen_ui_common.hpp"):
                 shutil.copyfile(ROOT / "application/Inc/display/screen_control" / name,
                                 temp / "screen_control" / name)
+            shutil.copyfile(ROOT / "application/Inc/display/drivers/st7789/screen_font.h", temp / "screen_font.h")
             shutil.copyfile(ROOT / "application/Inc/support/enums.hpp", temp / "enums.hpp")
             (temp / "st7789.h").write_text('''
 #pragma once

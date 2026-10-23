@@ -45,7 +45,7 @@ enum : uint8_t {
 
 static const uint32_t USER_IMAGE_FLASH_GUARD_SIZE = HBoxUserImage::STORAGE_GUARD_SIZE;
 static const uint32_t USER_IMAGE_BASE_ADDR = USER_IMAGE_RESOURCES_ADDR + USER_IMAGE_FLASH_GUARD_SIZE;
-static const uint32_t USER_IMAGE_AREA_SIZE = USER_IMAGE_RESOURCES_SIZE - USER_IMAGE_FLASH_GUARD_SIZE;
+static const uint32_t USER_IMAGE_AREA_SIZE = HBoxUserImage::STORAGE_AREA_SIZE;
 
 static bool tick_reached(uint32_t nowMs, uint32_t targetMs)
 {

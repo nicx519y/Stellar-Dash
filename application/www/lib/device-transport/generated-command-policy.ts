@@ -30,6 +30,7 @@ export const CONFIG_READ_COMMANDS: readonly string[] = [
 ] as const;
 
 export const CONFIG_WRITE_COMMANDS: readonly string[] = [
+  'clear_device_logs',
   'update_global_config',
   'update_hotkeys_config',
   'update_screen_control_config',

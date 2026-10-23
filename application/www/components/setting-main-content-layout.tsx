@@ -150,7 +150,7 @@ export function MainContentHeader({
             {title && (
                 <Box mb={description ? 2 : 4}>
                     <Text 
-                        fontSize="24px" 
+                        fontSize="3xl"
                         fontWeight="normal" 
                         color="green.400" 
                         letterSpacing="0.06em" 

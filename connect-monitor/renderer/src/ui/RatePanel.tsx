@@ -70,7 +70,7 @@ export function RatePanel({
         compact={compact}
         borderBottom
       />
-      {protocol && (protocol.rfProtocolVersion!==5 || mismatchGrowing) && <Text px={3} fontSize="11px" color="orange.300">
+      {protocol && (protocol.rfProtocolVersion!==5 || mismatchGrowing) && <Text px={3} fontSize="xs" color="orange.300">
         {mismatchGrowing ? "空口版本不匹配：请匹配更新 TX 与 RX。" : `当前空口 v${protocol.rfProtocolVersion}；新 ACK 优化需要匹配更新 TX/RX 至 v5。`}
       </Text>}
       <Card.Body px={3} pt={compact ? 1 : 0} pb={compact ? 2 : 3} flex="1" minH={0} display="flex">

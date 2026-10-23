@@ -1,4 +1,6 @@
-export type LogSource = 'stm32' | 'tx';
+import { batterySessions, decodeBatteryRecord } from './battery-test-logs';
+import { chargeSessions } from './charge-test-logs';
+export type LogSource = 'stm32' | 'tx' | 'battery';
 export type LogStatus = 'ok' | 'unsupported' | 'unavailable' | 'storage_error';
 export interface FaultRecord {
   sequence: number;
@@ -38,6 +40,11 @@ export interface FaultLogQuery {
   limit?: number;
 }
 export type FaultLogFetcher = (query: FaultLogQuery) => Promise<FaultLogPage>;
+export function logReadPercent(page: FaultLogPage): number {
+  if (!page.more) return page.status === 'ok' || page.status === 'storage_error' ? 100 : 0;
+  const span = page.upper - page.oldest + 1;
+  return span > 0 ? Math.min(99, Math.max(0, Math.floor((page.upper - page.nextBefore + 1) / span * 100))) : 0;
+}
 const uint = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
 
@@ -48,7 +55,7 @@ export function parseFaultLogPage(value: unknown, source: LogSource): FaultLogPa
       !['ok', 'unsupported', 'unavailable', 'storage_error'].includes(p.status) ||
       !['upper', 'oldest', 'nextBefore', 'pending', 'dropped', 'firmware'].every(key => uint(p[key as keyof FaultLogPage])) ||
       !['more', 'overwritten', 'restricted'].every(key => typeof p[key as keyof FaultLogPage] === 'boolean') ||
-      !Array.isArray(p.items) || p.items.length > 11 ||
+      !Array.isArray(p.items) || p.items.length > (source === 'battery' ? 24 : 11) ||
       (p.more && (!p.nextBefore || p.nextBefore > p.upper))) throw new Error('Invalid device log page');
   for (const r of p.items) {
     if (!r || !['sequence', 'boot', 'uptimeMs', 'firmware', 'event', 'severity', 'category', 'repeat']
@@ -63,7 +70,7 @@ export function parseFaultLogPage(value: unknown, source: LogSource): FaultLogPa
 export function failedLogPage(source: LogSource, error: unknown): FaultLogPage {
   const message = error instanceof Error ? error.message : String(error);
   return {
-    version: 1, source, status: /unknown|unsupported|not supported|不支持/i.test(message) ? 'unsupported' : 'unavailable',
+    version: 1, source, status: /unknown|unsupported|not supported|不支持|source must be stm32 or tx/i.test(message) ? 'unsupported' : 'unavailable',
     upper: 0, oldest: 0, nextBefore: 0, more: false, overwritten: false,
     pending: 0, dropped: 0, firmware: 0, restricted: false, items: [], errorMessage: message,
   };
@@ -81,15 +88,20 @@ export function mergeLogPages(first: FaultLogPage, next: FaultLogPage): FaultLog
 }
 
 export async function collectFaultLogs(fetchPage: FaultLogFetcher, query: FaultLogQuery,
-  cancelled: () => boolean = () => false): Promise<FaultLogPage> {
+  cancelled: () => boolean = () => false,
+  onProgress?: (page: FaultLogPage) => void): Promise<FaultLogPage> {
   let result: FaultLogPage;
   try { result = await fetchPage(query); } catch (error) { return failedLogPage(query.source, error); }
+  if (cancelled()) return { ...result, status: 'unavailable' };
+  onProgress?.(result);
   for (let page = 0; result.more && page < 256; page++) {
     if (cancelled()) return { ...result, status: 'unavailable' };
     if (result.status !== 'ok' && result.status !== 'storage_error') break;
     try {
       const next = await fetchPage({ ...query, upper: result.upper, oldest: result.oldest, before: result.nextBefore });
+      if (cancelled()) return { ...result, status: 'unavailable' };
       result = mergeLogPages(result, next);
+      onProgress?.(result);
     } catch {
       return { ...result, status: 'unavailable' };
     }
@@ -105,6 +117,8 @@ export function logExport(pages: FaultLogPage[], filters: { source: string; cate
     timeBasis: 'Per-device boot number and uptime; export time is not event time.',
     volatileWarning: 'Pending records may be lost on power removal.',
     sources: pages,
+    batteryTests: pages.filter(p => p.source === 'battery').flatMap(p => batterySessions(p.items, p)),
+    chargeTests: pages.filter(p => p.source === 'battery').flatMap(p => chargeSessions(p.items, p)),
   };
 }
 export function logExportText(value: ReturnType<typeof logExport>): string {
@@ -112,7 +126,18 @@ export function logExportText(value: ReturnType<typeof logExport>): string {
     `Filters: ${JSON.stringify(value.filters)}`, value.timeBasis, value.volatileWarning];
   for (const p of value.sources) {
     lines.push(`\n${p.source.toUpperCase()} status=${p.status} firmware=${p.firmware} pending=${p.pending} dropped=${p.dropped} overwritten=${p.overwritten} restricted=${p.restricted}`);
-    for (const r of p.items) lines.push(`boot=${r.boot} +${r.uptimeMs}ms seq=${r.sequence} event=${r.event} severity=${r.severity} category=${r.category} repeat=${r.repeat} firmware=${r.firmware} pending=${r.pending} data=${r.data.map(v => `0x${v.toString(16).padStart(8, '0')}`).join(',')}`);
+    for (const r of p.items) {
+      lines.push(`boot=${r.boot} +${r.uptimeMs}ms seq=${r.sequence} event=${r.event} severity=${r.severity} category=${r.category} repeat=${r.repeat} firmware=${r.firmware} pending=${r.pending} data=${r.data.map(v => `0x${v.toString(16).padStart(8, '0')}`).join(',')}`);
+      if (p.source === 'battery') lines.push(JSON.stringify(decodeBatteryRecord(r)));
+    }
+  }
+  for (const session of value.batteryTests) {
+    lines.push(`\nBattery session=${session.id} recordsIncomplete=${session.incomplete}`);
+    for (const cycle of session.cycles) lines.push(JSON.stringify(cycle));
+  }
+  for (const session of value.chargeTests) {
+    lines.push(`\nCharge session=${session.id} recordsIncomplete=${session.incomplete} inputMs=${session.inputMs} chargingMs=${session.chargingMs}`);
+    for (const cycle of session.cycles) lines.push(JSON.stringify(cycle));
   }
   return lines.join('\n');
 }

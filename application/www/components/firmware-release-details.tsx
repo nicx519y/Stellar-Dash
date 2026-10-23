@@ -1,6 +1,7 @@
 'use client';
 import { Box, Flex, Heading, HStack, Stack, Text, Table } from '@chakra-ui/react';
 import type { FirmwareReleaseManifest } from '@/lib/admin/firmware-types';
+import { deviceDisplayText } from '@/lib/device-display-text';
 
 export function FirmwareReleaseDetails({ manifest, zh }: { manifest: FirmwareReleaseManifest; zh: boolean }) {
   return <Stack gap={6} minW="0" fontSize="sm" lineHeight="1.7" color="fg">
@@ -41,8 +42,8 @@ export function FirmwareReleaseDetails({ manifest, zh }: { manifest: FirmwareRel
     <Stack gap={4} bg="bg.subtle" p={{ base: 4, md: 5 }} borderWidth="1px" borderColor="app.border" borderRadius="lg">
       <Heading as="h2" fontSize="md" fontWeight="semibold" lineHeight="1.4">{zh ? '发布包兼容声明' : 'Package compatibility declarations'}</Heading>
       <Stack gap={3}>
-        <Box><Text fontSize="xs" color="fg.muted" mb={1}>{zh ? '主控' : 'Main controller'} ↔ TX</Text><Text whiteSpace="pre-wrap" overflowWrap="anywhere">{manifest.compatibility.stm32Tx}</Text></Box>
-        <Box><Text fontSize="xs" color="fg.muted" mb={1}>TX ↔ RX</Text><Text whiteSpace="pre-wrap" overflowWrap="anywhere">{manifest.compatibility.txRx}</Text></Box>
+        <Box><Text fontSize="xs" color="fg.muted" mb={1}>{zh ? '主控' : 'Main controller'} ↔ TX</Text><Text whiteSpace="pre-wrap" overflowWrap="anywhere">{deviceDisplayText(manifest.compatibility.stm32Tx, zh ? 'zh' : 'en')}</Text></Box>
+        <Box><Text fontSize="xs" color="fg.muted" mb={1}>TX ↔ RX</Text><Text whiteSpace="pre-wrap" overflowWrap="anywhere">{deviceDisplayText(manifest.compatibility.txRx, zh ? 'zh' : 'en')}</Text></Box>
       </Stack>
       <Text fontSize="xs" color="fg.muted" lineHeight="1.7">{zh ? '仅展示版本信息，不代表已验证当前设备的升级路径。' : 'Version information only; this does not verify an update path for your device.'}</Text>
     </Stack>

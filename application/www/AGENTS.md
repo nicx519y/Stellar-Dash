@@ -7,6 +7,9 @@ WebConfig 与 admin 的双域名上线、Hosted 打包、更新和回滚统一�
 ## 产品边界
 
 - 网页产品名统一使用 **XORA**，包括中英文提示、连接浮层、帮助文案、页面标题和无障碍标签；命名与兼容性边界遵守[根目录产品命名规则](../../AGENTS.md#产品命名)。
+- 所有 UI 组件尽量使用 Chakra UI 的组件，优先复用本模块已有的 Chakra UI 封装；选择框、按钮、表单、弹窗等已有对应组件时，不另用裸 HTML 控件或自建样式替代。
+- 全站排版使用紧凑等宽风格：英文、数字沿用系统等宽字体（SFMono-Regular / Consolas / Liberation Mono），中文使用随站点托管的更纱 Mono SC Webfont；字体与字号统一取自 `lib/ui-typography.ts` 和 `components/ui/theme.ts`，字体资源、许可证及更新说明见 `public/fonts/sarasa-mono-sc/README.md`。正文与控件以 12px 为基准，辅助信息 10–11px，标题按主题层级区分；中英文切换不覆盖正文字体，加载期间中文回退到无衬线字体。新增页面、弹窗和图表优先复用主题 token，Canvas 图表在 Webfont 加载后重绘；图标字体及设备屏幕预览的像素尺寸独立保留。
+- 页面中任何面向用户的文案（含中英文、标题、选项、提示、错误信息和无障碍标签）不出现 STM32、CH585 等具体芯片型号，统一使用“主控 / Main controller”“TX”“RX”等功能代称。外部错误或兼容声明中的型号在展示层转换；协议字段、命令、设备匹配值、签名数据及原始诊断导出等技术标识保持兼容，不为文案更名修改原值。
 
 - 产品为服务器托管静态站点，通过 CH585 Maintenance HID / WebHID 与 STM32 通信。Hosted 只用 WebHID，不允许自动回退到 Mock、HTTP 或其他设备通道。
 - Mock 是独立开发变体。保持 `build:hosted` / `build:mock` 的环境与产物隔离，不将模拟设备打入产品。
@@ -21,7 +24,7 @@ WebConfig 与 admin 的双域名上线、Hosted 打包、更新和回滚统一�
 - Profile 列表依照设备返回的容量和 `slotIndex`，不恢复创建/删除入口；槽位迁移和兼容规则见 [固定 Profile 槽位](../../docs/fixed-profile-slots.md)。
 - USB 网页配对只保存绑定，不启用 TX RF 或改变屏幕记忆的连接模式；普通保存和备份导入也保留该选择。`connectionMode` 表示记忆选择，`effectiveConnectionMode` 表示当前链路，平台限制依据前者；见 [两档 PCB 适配](../../docs/two-position-pcb-firmware.md)。配对部分提交遵守现有续作逻辑，见 [USB 配对说明](../../docs/WEBCONFIG_RX_BINDING_20260923.md)。
 - 用户账户登录与管理员操作保持原有会话和来源校验；WebHID 设备直连不替代用户登录。
-- “设备日志”向已连接用户开放，使用现有请求队列和分页接口，按来源独立排序；不持续轮询、强制落盘或清空。待落盘、部分失败及不完整导出须可见，协议和 Mock 场景见 [设备日志](../../docs/device-fault-logs.md)。
+- “设备日志”向已连接用户开放，使用现有请求队列和分页接口。每个来源手动开始读取或刷新；读取期间显示进度并锁定本页操作，离开页面须确认中断，完成后使用虚拟列表展示。清空必须经用户确认、限定所选来源并以设备擦除/回读应答为准，不能自动清空或以本地隐藏代替；电池测试进行中拒绝清空。待落盘、部分失败及不完整导出须可见，不持续轮询或强制落盘，协议和 Mock 场景见 [设备日志](../../docs/device-fault-logs.md)。
 
 ## 常用命令与验证
 

@@ -194,7 +194,7 @@ export const extractFirmwarePackage = async (data: Uint8Array): Promise<{ manife
             uniqueComponentNames.size !== requiredComponentNames.length ||
             requiredComponentNames.some(name => !uniqueComponentNames.has(name))
         ) {
-            throw new Error('STM32 OTA requires exactly application, webresources and adc_mapping');
+            throw new Error('Main controller OTA requires exactly application, webresources and adc_mapping');
         }
 
         const componentFiles = manifest.components.map(component => component.file);

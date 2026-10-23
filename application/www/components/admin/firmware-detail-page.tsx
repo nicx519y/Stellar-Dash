@@ -15,6 +15,7 @@ import { useLanguage } from '@/contexts/language-context';
 import { useUserAuth } from '@/contexts/user-auth-context';
 import type { FirmwareRelease } from '@/lib/admin/firmware-types';
 import { MarkdownImportError, NotesEditor, readMarkdownNotes, type NotesEditorState } from '@/lib/admin/firmware-notes-editor';
+import { deviceDisplayText } from '@/lib/device-display-text';
 
 const api = adminRuntime.firmware;
 type ReleaseAction = 'publish' | 'withdraw' | 'delete';
@@ -165,7 +166,7 @@ export default function AdminFirmwareDetailPage() {
       : !isAdmin ? <Alert colorPalette="orange" title={zh ? '请使用管理员账户登录。' : 'Sign in with an administrator account.'} />
       : !id ? <Alert colorPalette="orange" title={zh ? '缺少固件版本 ID。' : 'Missing firmware release ID.'} /> : <>
         {process.env.NEXT_PUBLIC_OFFLINE_PREVIEW === 'true' && <Box bg="purple.subtle" color="purple.fg" borderRadius="lg" p="3" fontSize="sm">{zh ? 'MOCK 预览：数据仅存于本标签页，不执行真实签名校验或发布。' : 'MOCK PREVIEW: tab-local data, no real signature verification or publishing.'}</Box>}
-        {error && <Box role="alert" p="3" borderWidth="1px" borderColor="red.500" overflowWrap="anywhere">{error}</Box>}
+        {error && <Box role="alert" p="3" borderWidth="1px" borderColor="red.500" overflowWrap="anywhere">{deviceDisplayText(error, currentLanguage)}</Box>}
         {loading && <Center minH="240px"><Spinner colorPalette="green" /></Center>}
         {release && <AdminCard p={{ base: 5, md: 8 }} color="fg" fontSize="sm" lineHeight="1.7" letterSpacing="normal"><Stack gap={7}>
           <Flex justify="space-between" align="center" wrap="wrap" gap={4}>
@@ -175,7 +176,7 @@ export default function AdminFirmwareDetailPage() {
                 <Text role="status" fontSize="xs" color={saveState.status === 'error' ? 'red.500' : 'fg.muted'}>
                   {({ saved: zh ? '已保存' : 'Saved', unsaved: zh ? '未保存' : 'Unsaved', saving: zh ? '保存中…' : 'Saving…', error: zh ? '保存失败' : 'Save failed' })[saveState.status]}
                 </Text>
-                {saveState.status === 'error' && <Text role="alert" fontSize="xs" color="red.500" maxW="260px" overflowWrap="anywhere">{saveState.error}</Text>}
+                {saveState.status === 'error' && <Text role="alert" fontSize="xs" color="red.500" maxW="260px" overflowWrap="anywhere">{deviceDisplayText(saveState.error, currentLanguage)}</Text>}
                 {saveState.status === 'error' && <Button size="xs" variant="ghost" onClick={() => void editor.current?.flush()}>{zh ? '重试' : 'Retry'}</Button>}
               </>}
               <Button size="sm" variant="outline" colorPalette="red" loading={busy === 'delete'} disabled={!!busy || saveState.status === 'saving' || saveState.status === 'unsaved'} onClick={() => requestTransition('delete')}><LuTrash2 />{zh ? '删除固件' : 'Delete firmware'}</Button>
@@ -186,7 +187,7 @@ export default function AdminFirmwareDetailPage() {
           <FirmwareReleaseDetails manifest={release.manifest} zh={zh} />
           <Stack gap={2.5}>
             <HStack gap={2} align="center"><Box color="green.fg" fontSize="lg"><LuCircleCheck /></Box><Heading as="h2" fontSize="md" fontWeight="semibold" lineHeight="1.4">{zh ? '自动校验通过' : 'Automated checks passed'}</Heading></HStack>
-            <Text fontSize="sm" color="fg.muted" lineHeight="1.8" maxW="960px">{zh ? '发布签名、文件摘要、STM32 签名包、硬件与无锁构建声明。兼容声明不等于实机验收。' : 'Release signature, file digests, signed STM32 packages, hardware and unlocked build declarations. Compatibility declarations do not replace hardware acceptance.'}</Text>
+            <Text fontSize="sm" color="fg.muted" lineHeight="1.8" maxW="960px">{zh ? '发布签名、文件摘要、主控签名包、硬件与无锁构建声明。兼容声明不等于实机验收。' : 'Release signature, file digests, signed main controller packages, hardware and unlocked build declarations. Compatibility declarations do not replace hardware acceptance.'}</Text>
           </Stack>
           <Box pt={6} borderTopWidth="1px" borderColor="app.border"><Flex align="center" justify="space-between" wrap="wrap" gap={3} mb={4}><Heading as="h2" fontSize="lg" fontWeight="semibold" lineHeight="1.4"><label htmlFor="release-notes">{zh ? '更新说明（用户可见）' : 'Release notes (public)'}</label></Heading>
             {release.status === 'draft' && <><Button size="sm" variant="surface" disabled={!!busy} onClick={() => mdInput.current?.click()}><LuUpload />{zh ? '导入 .md' : 'Import .md'}</Button>

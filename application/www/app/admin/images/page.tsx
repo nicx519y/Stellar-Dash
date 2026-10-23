@@ -27,7 +27,7 @@ type ItemDrag = { id: string; x: number; y: number; width: number; height: numbe
 // Match the current STM32 JPEG image area and frame limit. Admin pages have no
 // device session, so image preparation cannot query a connected device.
 const ADMIN_GALLERY_LIMITS: GalleryImageLimits = {
-  maxPayloadBytes: 0x17f000,
+  maxPayloadBytes: 0x16f000,
   maxFrames: 180,
   fps: JPEG_FPS,
 };

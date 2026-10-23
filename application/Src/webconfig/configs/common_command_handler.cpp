@@ -229,6 +229,8 @@ DeviceCommandResponse CommonCommandHandler::handle(const DeviceCommandRequest& r
         return handleStartButtonPerformanceMonitoring(request);
     } else if (command == "stop_button_performance_monitoring") {
         return handleStopButtonPerformanceMonitoring(request);
+    } else if (command == "clear_device_logs") {
+        return handleClearDeviceLogs(request);
     } else if (command == "get_device_logs_page") {
         return handleGetDeviceLogsPage(request);
     } else if (command == "get_device_logs_list") {

@@ -114,7 +114,7 @@ function DialogEditCombinationContent({ dialog }: { dialog: DialogEditCombinatio
 
     return (
         <Box>
-            <Text fontSize="14px" color="gray.400" mb="16px">
+            <Text fontSize="sm" color="gray.400" mb="16px">
                 {t?.COMBINATION_DIALOG_MESSAGE}
             </Text>
             <Center >

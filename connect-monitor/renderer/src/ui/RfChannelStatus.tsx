@@ -27,7 +27,7 @@ export function RfChannelStatus({ packets }: { packets: PacketEvent[] }) {
   };
   const scores=[...(fresh(1)?b?.scores??[]:[]),...(fresh(2)?c?.scores??[]:[])];
   return <Box p={3} borderBottomWidth="1px" borderColor="whiteAlpha.200">
-    <VStack align="stretch" gap={1} fontSize="11px" color="gray.300">
+    <VStack align="stretch" gap={1} fontSize="xs" color="gray.300">
       <Text fontWeight="bold" color="green.200">RF · {fresh(0) ? states[a?.state??0]??"Unknown" : "TX status stale"}</Text>
       <Text>Probe: {fresh(0)?disabled[a?.probeDisabled??1]??"Unavailable":"Unavailable status"}</Text>
       <Text>Primary {fresh(0)?a?.primary:"—"} · Candidate {fresh(0)?a?.candidate:"—"} · Backup {fresh(0)?a?.backups?.join(" / "):"—"}</Text>

@@ -16,6 +16,9 @@ int XoraLog_Restricted(void);
 void XoraLog_RequireMaintenance(void);
 void XoraLog_BootFlags(uint32_t flags);
 void XoraLog_Info(fl_info *info);
+uint8_t XoraLog_Clear(void);
+/* Distinct 4-byte management request, rejected by older read-only firmware. */
+#define FL_CLEAR_REQUEST "CLR1"
 uint8_t XoraLog_Read(uint32_t upper, uint32_t before, uint8_t category,
                      uint8_t severity, uint8_t pending, fl_record *record);
 void XoraLog_Fatal(uint32_t reason);

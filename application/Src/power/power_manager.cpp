@@ -1,4 +1,5 @@
 #include "power_manager.hpp"
+#include "battery_test_log.h"
 
 #include "board_cfg.h"
 #include "board_mode.hpp"
@@ -341,7 +342,10 @@ PowerSnapshot PowerManager::getSnapshot() const
     result.data_quality = result.valid ? PowerDataQuality::Fresh :
         (result.has_sample && age <= 10000u ? PowerDataQuality::Stale : PowerDataQuality::Unknown);
     if (!result.valid) result.fast_charge = false;
-    if ((!result.valid || age > 2500u || result.charge_block != PowerChargeBlock::None) &&
+    // REG0C faults are captured before the asynchronous cycle reaches Publish.
+    // Never allow a knob release to use the preceding cycle's recovery-ready state.
+    if ((!result.valid || age > 2500u || charge_recovery_.blocked() ||
+         result.charge_block != PowerChargeBlock::None) &&
         result.battery_level == BatteryLevel::RecoveryReady) result.battery_level = BatteryLevel::Critical;
     return result;
 }
@@ -398,6 +402,8 @@ bool PowerManager::acknowledgeBatteryRecovery()
     if (getSnapshot().battery_level != BatteryLevel::RecoveryReady ||
         !battery_policy_.acknowledgeRecovery()) return false;
     snapshot_.battery_level = battery_policy_.level();
+    BT_EVENT(BAT_LEVEL_CHANGED,static_cast<uint32_t>(snapshot_.battery_level),
+        static_cast<uint32_t>(BatteryLevel::RecoveryReady));
     return true;
 }
 
@@ -724,9 +730,15 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
 
 void PowerManager::processLowVoltageProtection()
 {
+    const auto before=battery_policy_.confirmationMask();
+    const auto oldLevel=battery_policy_.level();
     battery_policy_.sample(HAL_GetTick(), snapshot_.valid, snapshot_.cell_mv,
         snapshot_.soc_permille, snapshot_.charge_block == PowerChargeBlock::None);
+    const auto after=battery_policy_.confirmationMask();
+    if(before!=after) BT_EVENT(BAT_THRESHOLD_CHANGED,after,before);
     snapshot_.battery_level = battery_policy_.level();
+    if(oldLevel!=snapshot_.battery_level)
+        BT_EVENT(BAT_LEVEL_CHANGED,static_cast<uint32_t>(snapshot_.battery_level),static_cast<uint32_t>(oldLevel));
     snapshot_.battery_confirmation_pending = battery_policy_.needsFrequentSamples();
 }
 

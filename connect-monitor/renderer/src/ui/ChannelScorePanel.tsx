@@ -183,7 +183,7 @@ export function ChannelScorePanel({
             display="flex" alignItems="center" gap={2}>
             <Switch.HiddenInput />
             <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Label fontSize="11px" color="gray.200" whiteSpace="nowrap">自动选频</Switch.Label>
+            <Switch.Label fontSize="xs" color="gray.200" whiteSpace="nowrap">自动选频</Switch.Label>
           </Switch.Root>
         } borderBottom compact />
       <VStack align="stretch" gap={2} p={3} minH={fillHeight ? 0 : "530px"}

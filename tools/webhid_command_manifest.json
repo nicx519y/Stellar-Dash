@@ -11,9 +11,9 @@
     {"name": "performance.clock-sync", "scope": "monitor.read"}
   ],
   "legacyCommandCount": 68,
-  "commandCount": 93,
+  "commandCount": 94,
   "migrationStatusCounts": {
-    "direct": 90,
+    "direct": 91,
     "equivalent": 1,
     "retired": 2
   },
@@ -56,6 +56,7 @@
     {
       "scope": "config.write",
       "commands": [
+        {"name": "clear_device_logs", "migration": "direct", "consumers": ["logs"], "test": "stubbed-dangerous"},
         {"name": "update_global_config", "migration": "direct", "consumers": ["global"], "test": "contract"},
         {"name": "update_hotkeys_config", "migration": "direct", "consumers": ["hotkeys"], "test": "contract"},
         {"name": "update_screen_control_config", "migration": "direct", "consumers": ["screen"], "test": "contract"},

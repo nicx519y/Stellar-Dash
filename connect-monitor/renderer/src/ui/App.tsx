@@ -93,7 +93,7 @@ function primaryBatteryMv(powerStatus: PowerStatusEvent | null) {
 
 const VOLTAGE_SAMPLE_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_VOLTAGE_HISTORY_POINTS = 240;
-const VOLTAGE_AXIS_LABEL_FONT_SIZE = "9px";
+const VOLTAGE_AXIS_LABEL_FONT_SIZE = "2xs";
 
 type VoltageHistoryPoint = {
   tMs: number;
@@ -284,14 +284,14 @@ function MetricCard({
           <HStack position="absolute" right={4} bottom={6} gap={5} align="flex-end">
             {cornerPrefixLabel ? (
               <Box textAlign="right">
-                <Text fontSize="10px" color="gray.500" lineHeight="1">
+                <Text fontSize="2xs" color="gray.500" lineHeight="1">
                   {cornerPrefixLabel}
                 </Text>
                 <Text fontSize="lg" color={cornerPrefixAlert ? "red.200" : neonGreen} lineHeight="1.15">
                   {cornerPrefixValue ?? "--"}
                 </Text>
                 {cornerPrefixDetail ? (
-                  <Text fontSize="10px" color="gray.400" lineHeight="1">
+                  <Text fontSize="2xs" color="gray.400" lineHeight="1">
                     {cornerPrefixDetail}
                   </Text>
                 ) : null}
@@ -299,7 +299,7 @@ function MetricCard({
             ) : null}
             {cornerLabel ? (
               <Box textAlign="right">
-                <Text fontSize="10px" color="gray.500" lineHeight="1">
+                <Text fontSize="2xs" color="gray.500" lineHeight="1">
                   {cornerLabel}
                 </Text>
                 <HStack gap={1} justify="flex-end" color={neonGreen} lineHeight="1.15">
@@ -309,7 +309,7 @@ function MetricCard({
                   </Text>
                 </HStack>
                 {cornerDetail ? (
-                  <Text fontSize="10px" color="gray.400" lineHeight="1">
+                  <Text fontSize="2xs" color="gray.400" lineHeight="1">
                     {cornerDetail}
                   </Text>
                 ) : null}
@@ -584,7 +584,7 @@ function DebugSwitch({
       <Switch.Control borderColor={checked ? "rgba(92,255,138,0.7)" : "rgba(148,163,184,0.3)"}>
         <Switch.Thumb />
       </Switch.Control>
-      <Switch.Label fontSize="11px" color={checked ? neonGreen : "gray.300"} whiteSpace="nowrap">
+      <Switch.Label fontSize="xs" color={checked ? neonGreen : "gray.300"} whiteSpace="nowrap">
         {label}
       </Switch.Label>
     </Switch.Root>

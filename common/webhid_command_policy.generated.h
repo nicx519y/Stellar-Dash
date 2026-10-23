@@ -30,6 +30,7 @@ static const char *const configRead[] = {
 };
 
 static const char *const configWrite[] = {
+    "clear_device_logs",
     "update_global_config",
     "update_hotkeys_config",
     "update_screen_control_config",

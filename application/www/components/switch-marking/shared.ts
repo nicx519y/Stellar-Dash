@@ -3,6 +3,8 @@ import {
     SwitchMappingPayload,
 } from "@/types/adc";
 import { keyframes } from "@emotion/react";
+import { WEB_FONT_FAMILY } from '@/lib/ui-typography';
+import { chartWebFont } from '@/lib/chart-web-font';
 import {
     CategoryScale,
     Chart as ChartJS,
@@ -15,6 +17,7 @@ import {
 } from "chart.js";
 
 ChartJS.register(
+    chartWebFont,
     CategoryScale,
     LinearScale,
     PointElement,
@@ -23,6 +26,8 @@ ChartJS.register(
     Tooltip,
     Legend,
 );
+ChartJS.defaults.font.family = WEB_FONT_FAMILY;
+ChartJS.defaults.font.size = 11;
 
 export interface AxisListItem {
     mappingId: string;

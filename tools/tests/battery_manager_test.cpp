@@ -207,6 +207,16 @@ int main() {
     cycle(depleted); // freshness gap requires another complete recovery window
     assert(!depleted.acknowledgeBatteryRecovery());
     for(unsigned i=0;i<10;++i) cycle(depleted);
+    // A fault read must revoke the old ready snapshot before Publish, so a
+    // simultaneous knob release cannot resume loads using the previous cycle.
+    faultHistory=0x10; faultReads=0;
+    depleted.notifyChargerIrqFromISR(); depleted.loop();
+    assert(!board.charge);
+    assert(depleted.getSnapshot().battery_level==BatteryLevel::Critical);
+    assert(!depleted.acknowledgeBatteryRecovery());
+    while(depleted.isPolling()) { ++now; depleted.loop(); }
+    faultHistory=0;
+    for(unsigned i=0;i<24;++i) cycle(depleted);
     assert(depleted.acknowledgeBatteryRecovery());
     ioOk=false; depleted.notifyChargerIrqFromISR(); depleted.loop();
     assert(!depleted.getSnapshot().valid && !board.charge && !depleted.isFastCharging());

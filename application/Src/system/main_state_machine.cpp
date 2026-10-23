@@ -20,6 +20,7 @@
 #include "states/battery_protection_state.hpp"
 #include "system_logger.h"
 #include "fault_log_api.h"
+#include "battery_test_log.h"
 #include "usb_board_link.hpp"
 #include "system_sleep_manager.hpp"
 #include "boot_profile.h"
@@ -71,6 +72,8 @@ void MainStateMachine::initializeInteractiveRuntime(bool overlapInputStartup)
 
     XoraLog_Init();
     XoraLog_Service(1); // Before transport, screen or configuration writers start.
+    if (BatteryTest_Init) BatteryTest_Init();
+    if (BatteryTest_Service) BatteryTest_Service(1);
     const LogResult logResult = Logger_Init(false, LOG_LEVEL_DEBUG);
     APP_STAGE(logResult == LOG_RESULT_SUCCESS ? "A08" : "A08E",
               "persistent logger initialization result=%d", logResult);
@@ -325,13 +328,33 @@ void MainStateMachine::serviceSharedRuntime()
     }
     if (traceFirstPass) APP_STAGE("RT2", "connection service complete");
     POWER_MANAGER.loop();
+    if (BatteryTest_Tick) BatteryTest_Tick();
     serviceBatteryProtection();
     XoraLog_Tick(HAL_GetTick());
     if (currentState == MainRuntimeState::WebConfig && !USB_BOARD_LINK.isDeviceMounted() && !ispEntryBlocked())
         XoraLog_Service(1); // Host detached; no user RPC can contend with QSPI.
     SystemSleep_Service(currentState == MainRuntimeState::Input, resetPending);
+    // Observe sleep entry/exit before the first STOP interval, so that interval
+    // is not charged to the preceding awake state. This adds no I2C sampling.
+    if (BatteryTest_Tick) BatteryTest_Tick();
     if (traceFirstPass) APP_STAGE("RT3", "power service complete");
     SPIScreenManager::getInstance().loop();
+    // The LCD frame has completed. No extra wakeups for logging; only an
+    // explicitly armed battery test is allowed a bounded input storage pause.
+    if (BatteryTest_NeedsStorage && BatteryTest_NeedsStorage() && !ispEntryBlocked() &&
+        !FirmwareManager::GetInstance()->HasPendingUpgradeWrites() &&
+        BatteryTest_DisplayReady && BatteryTest_DisplayReady() &&
+        (currentState == MainRuntimeState::Input ||
+         (currentState == MainRuntimeState::BatteryProtection && BATTERY_PROTECTION_STATE.storageReady()) ||
+         (currentState == MainRuntimeState::WebConfig && !USB_BOARD_LINK.isDeviceMounted()))) {
+        const auto pauseStarted=HAL_GetTick();
+        const bool input = currentState == MainRuntimeState::Input;
+        const bool running = input && INPUT_STATE.suspendInputPipelineForStorage();
+        if (ADC_MANAGER.isSamplingHardwareStopped() && BatteryTest_Service) BatteryTest_Service(1);
+        if (input && !INPUT_STATE.resumeInputPipelineAfterStorage(running))
+            (void)requestTransition(MainRuntimeState::SafeRecovery);
+        if(BatteryTest_StoragePause) BatteryTest_StoragePause(HAL_GetTick()-pauseStarted);
+    }
     if (currentState == MainRuntimeState::Input) {
         INPUT_STATE.serviceLeds();
     }

@@ -16,34 +16,34 @@ uint8_t ScreenDetailTxIsp_InitIndex()
 void ScreenDetailTxIsp_Render(ST7789_Handle* lcd, uint8_t, const ScreenUiStyle& style)
 {
     static const char* const entry[] = {
-        "Connect TX PB22 to GND first.",
-        "Press knob to restart TX in ISP.",
+        "First: TX PB22 to GND.",
+        "Press knob to enter ISP.",
         "USB/RF/WebConfig will pause.",
-        "Use WCHISPStudio after entry."
+        "Then open WCHISPStudio."
     };
     static const char* const active[] = {
-        "TX power held on. SPI paused.",
-        "Use WCHISPStudio to download.",
-        "Keep power on during download.",
-        "Press knob after it completes."
+        "TX powered; SPI paused.",
+        "Flash with WCHISPStudio.",
+        "Keep power on during flash.",
+        "Press knob when complete."
     };
     static const char* const leaving[] = {
-        "Ensure the download has ended.",
-        "Remove PB22 from GND first.",
-        "Press knob to return to prior mode.",
-        "Hold Back to keep ISP active."
+        "Wait for flashing to finish.",
+        "Disconnect PB22 from GND.",
+        "Press knob to exit ISP.",
+        "Hold Back to stay in ISP."
     };
     static const char* const blocked[] = {
-        "Firmware update owns the device.",
-        "ISP was not started.",
-        "Finish the update before retrying.",
+        "Firmware update in progress.",
+        "ISP has not started.",
+        "Finish update, then retry.",
         "Hold Back to return."
     };
     static const char* const failed[] = {
-        "Mode change failed. Try again.",
-        "Current mode has been kept.",
+        "Mode change failed.",
+        "Current mode kept.",
         "Check storage, then retry.",
-        "Confirm again to retry."
+        "Press knob to retry."
     };
     const char* const* lines = MainRuntime_TxIspTransitionFailed() ? failed : !MainRuntime_IsTxIspActive()
         ? (entryRejected ? blocked : entry) : (confirmExit ? leaving : active);

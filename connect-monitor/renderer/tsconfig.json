@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "rootDir": "../..",
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
@@ -11,5 +12,5 @@
     "types": ["vite/client"],
     "composite": true
   },
-  "include": ["src", "../shared/**/*.ts"]
+  "include": ["src", "../shared/**/*.ts", "../../application/www/lib/ui-typography.ts"]
 }

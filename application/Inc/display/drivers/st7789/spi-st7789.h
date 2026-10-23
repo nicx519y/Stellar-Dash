@@ -15,6 +15,8 @@ void SPIST7789_DeInit(void);
 bool SPIST7789_IsReady(void);
 void SPIST7789_SetBacklight100(void);
 void SPIST7789_SetBacklight(uint8_t percent);
+/* Dedicated sleep charge page: GPIO on/off remains stable when TIM PWM stops. */
+void SPIST7789_SetBacklightStatic(bool enabled);
 bool SPIST7789_FillBlueAsync(void);
 bool SPIST7789_FillRectColor565Async(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color565);
 bool SPIST7789_WaitDone(uint32_t timeout_ms);

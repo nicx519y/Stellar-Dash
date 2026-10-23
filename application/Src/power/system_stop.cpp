@@ -188,8 +188,11 @@ extern "C" void LPTIM2_IRQHandler(void)
     }
 }
 
+#include "battery_test_log.h"
 extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
 {
+    const uint32_t batteryStarted=HAL_GetTick();
+    bool batteryWait=false;
     *wakePins = 0u;
     if (__get_PRIMASK() || __get_IPSR() ||
         (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk)) return true;
@@ -248,6 +251,7 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
             ++g_sleepDiagnostics.stopEntries;
             g_sleepDiagnostics.stage = static_cast<uint32_t>(SleepStage::StopEnter);
             __DSB();
+            batteryWait=true;
             __WFI();
             __ISB();
             ++g_sleepDiagnostics.stopReturns;
@@ -296,5 +300,6 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
     __HAL_RCC_LPTIM2_CLK_DISABLE();
     SysTick->CTRL = systick;
     __enable_irq();
+    if(BatteryTest_Sleep) BatteryTest_Sleep(HAL_GetTick()-batteryStarted,-1,batteryWait,0);
     return ready;
 }

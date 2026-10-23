@@ -9,10 +9,13 @@ import { normalizeTxIapMode, txIapModeLabel } from '@/lib/device-transport/relea
 import { accumulateInstallProgress } from '@/lib/device-transport/release-install-progress';
 import { isLegacyPhysicalConfirmationRejection, releaseBlockReason, type FirmwareInventory, type PreparedRelease, type ReleaseProgress } from '@/lib/device-transport/release-install-client';
 import type { PublicFirmwareRelease } from '@/lib/admin/firmware-types';
-import { createInstallMonitor, readInstallTask, readResumableInstallTask, forgetInstallTask, saveInstallTask, type InstallTask } from '@/lib/device-transport/release-install-task';
+import { createInstallMonitor, readInstallTask, readResumableInstallTask, shouldResumeInstallDialog, forgetInstallTask, saveInstallTask, type InstallTask } from '@/lib/device-transport/release-install-task';
 import type { DeviceImageCatalog } from '@/lib/device-transport/device-feature-types';
 import { DeviceTransportError } from '@/lib/device-transport/types';
 import { galleryErrorMessage } from '@/lib/gallery-error-message';
+import { deviceDisplayText } from '@/lib/device-display-text';
+import { PanelActionButton } from '@/components/ui/panel-action-button';
+import { LuRefreshCw } from 'react-icons/lu';
 
 const reasons: Record<string, [string, string]> = {
   'catalog-only': ['仅供浏览：需重新打包并验收', 'Catalog only: repackage and validate before installation'],
@@ -32,7 +35,7 @@ const phases: Record<string, [string, string]> = {
   'tx-restoring': ['TX 更新失败，正在恢复原版本', 'TX update failed; restoring previous version'], 'rollback-verifying': ['核验恢复后的原版本', 'Verifying restored firmware'],
   restored: ['升级失败，已恢复原版本', 'Update failed; previous version restored'], 'restore-failed': ['TX 恢复失败：需要维护恢复', 'TX recovery failed: maintenance recovery required'],
   'maintenance-recovered': ['设备已维护恢复，原升级已取消', 'Device recovered through maintenance; original update cancelled'],
-  timeout: ['TX 升级失败（连接超时）', 'TX update failed (connection timeout)'], backup: ['备份配置', 'Backing up configuration'],
+  timeout: ['等待设备结果超时，升级结果待确认', 'Timed out waiting for device; update result unconfirmed'], backup: ['备份配置', 'Backing up configuration'],
   declaring: ['验证签名安装声明', 'Verifying signed declaration'], receiving: ['暂存组件', 'Staging components'],
   prepared: ['组件已验证，可开始安装', 'Components verified; ready to install'], activating: ['提交安装事务', 'Activating installation'],
   activated: ['设备已接管安装', 'Device owns the installation'], 'tx-writing': ['设备正在更新 TX', 'Device is updating TX'],
@@ -88,8 +91,12 @@ export function FirmwareContent() {
   taskRef.current = task;
   useEffect(() => {
     const saved = readResumableInstallTask();
-    if (saved) { if (['waiting', 'timeout'].includes(saved.result)) setFirmwareUpdating(true); setTask(saved); setSelectedRelease(saved.release); setDialogView('progress'); setExpectedDigest(saved.digest);
-      setProgress(saved.progress || { stage: saved.result === 'waiting' ? 'waiting-device' : saved.result, overallPercent: 80, stepIndex: 6 }); }
+    if (saved) {
+      if (['waiting', 'timeout'].includes(saved.result)) setFirmwareUpdating(true);
+      setTask(saved); setExpectedDigest(saved.digest);
+      if (shouldResumeInstallDialog(saved)) { setSelectedRelease(saved.release); setDialogView('progress'); }
+      setProgress(saved.progress || { stage: saved.result === 'waiting' ? 'waiting-device' : saved.result, overallPercent: 80, stepIndex: 6 });
+    }
   }, [setFirmwareUpdating, setProgress]);
   useEffect(() => {
     if (!task) return;
@@ -218,12 +225,14 @@ export function FirmwareContent() {
   // both reads have settled; a missing TX identity is a result, not a pending read.
   const inventoryLoading = readingInventory || (deviceConnected &&
     (!dataIsReady || (!inventory && !inventoryError)));
-  return <Stack pt="24px" px={{ base: '16px', md: '24px' }} pb="32px" gap="5" w="full" maxW="1120px" mx="auto" minW={0} fontSize="14px">
+  return <Stack pt="24px" px={{ base: '16px', md: '24px' }} pb="32px" gap="5" w="full" maxW="1120px" mx="auto" minW={0} fontSize="sm"
+    h="full" minH={0} overflowY="auto" overflowX="hidden"
+    css={{ scrollbarGutter: 'stable', '& > *': { flexShrink: 0 } }}>
     <Flex justify="space-between" align={{ base: 'start', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="3">
-      <Box><Heading as="h1" fontSize="24px">{zh ? '固件更新' : 'Firmware updates'}</Heading>
-        <Text fontSize="14px" color="fg.muted" mt="1">{zh ? '查看当前固件，选择适合设备的版本。' : 'Review the installed firmware and choose a compatible release.'}</Text></Box>
-      <Button h="36px" fontSize="14px" variant="surface" disabled={busy} loading={readingInventory}
-        onClick={() => void refresh(true)}>{zh ? '刷新设备状态' : 'Refresh device status'}</Button>
+      <Box><Heading as="h1" fontSize="3xl">{zh ? '固件更新' : 'Firmware updates'}</Heading>
+        <Text fontSize="sm" color="fg.muted" mt="1">{zh ? '查看当前固件，选择适合设备的版本。' : 'Review the installed firmware and choose a compatible release.'}</Text></Box>
+      <PanelActionButton disabled={busy} loading={readingInventory}
+        onClick={() => void refresh(true)}><LuRefreshCw />{zh ? '刷新设备状态' : 'Refresh device status'}</PanelActionButton>
     </Flex>
     <Box data-testid="installed-firmware-card" aria-busy={inventoryLoading}
       borderWidth="1px" borderRadius="xl" px={{ base: '4', md: '5' }} py="4" minH="158px">
@@ -241,8 +250,8 @@ export function FirmwareContent() {
         <Box pt="2" borderTopWidth="1px" aria-hidden="true"><Skeleton h="1lh" w="100px" /></Box>
       </Stack> : inventory ? <Stack gap="3">
       <HStack justify="space-between" align="start" wrap="wrap" gap="2">
-        <Stack gap="1"><Heading as="h2" fontSize="18px" lineHeight="24px">{zh ? '当前固件' : 'Installed firmware'}</Heading>
-          <Text fontSize="16px" fontWeight="semibold">{verified ? `XORA ${inventory.confirmedVersion}` : (zh ? '整机版本未确认' : 'Whole-device release unconfirmed')}</Text></Stack>
+        <Stack gap="1"><Heading as="h2" fontSize="2xl" lineHeight="24px">{zh ? '当前固件' : 'Installed firmware'}</Heading>
+          <Text fontSize="xl" fontWeight="semibold">{verified ? `XORA ${inventory.confirmedVersion}` : (zh ? '整机版本未确认' : 'Whole-device release unconfirmed')}</Text></Stack>
         <Badge colorPalette={verified ? 'green' : 'orange'}>{verified ? (zh ? '已核验' : 'Verified') : (inventory?.installationState === 'mixed' ? (zh ? '混合版本' : 'Mixed components') : (zh ? '未确认' : 'Unconfirmed'))}</Badge>
       </HStack>
       <HStack gap="5" wrap="wrap"><Text>{zh ? '主控' : 'Controller'} <Text as="span" fontWeight="semibold">{stm32Version}</Text></Text>
@@ -260,7 +269,7 @@ export function FirmwareContent() {
           </>}
           {inventory?.sessionId && <Text>{zh ? '上次 TX 安装：' : 'Last TX installation: '}{txIapModeLabel(inventory.txInstallMode, zh)}</Text>}
           {inventory && (normalizeTxIapMode(inventory.txRecoveryMode) !== 'unknown' || inventory.recoveryResult === 'restored' || inventory.recoveryResult === 'failed') && <Text>{zh ? '上次 TX 恢复：' : 'Last TX recovery: '}{txIapModeLabel(inventory.txRecoveryMode, zh)}</Text>}
-          {(inventory?.stm32.buildId === 'unidentified' || inventory?.tx?.buildId === 'unidentified') && <Text>{zh ? '开发构建的 0.0.0 / unidentified 只是发布身份占位值；STM32 显示版本优先采用固件元数据。' : 'Development builds use 0.0.0 / unidentified as release identity placeholders. The STM32 version shown above prefers firmware metadata.'}</Text>}
+          {(inventory?.stm32.buildId === 'unidentified' || inventory?.tx?.buildId === 'unidentified') && <Text>{zh ? '开发构建的 0.0.0 / unidentified 只是发布身份占位值；主控显示版本优先采用固件元数据。' : 'Development builds use 0.0.0 / unidentified as release identity placeholders. The main controller version shown above prefers firmware metadata.'}</Text>}
           {inventory?.confirmedVersion && !verified && <Text>{zh ? '上次确认版本' : 'Last confirmed release'}: {inventory.confirmedVersion}</Text>}
           {imageCatalog && <Text>{zh ? '图片能力' : 'Image capability'}: {zh ? `最多 ${imageCatalog.maxUserFrames} 帧，传输版本 ${imageCatalog.imageTransferVersion}` : `up to ${imageCatalog.maxUserFrames} frames, transfer version ${imageCatalog.imageTransferVersion}`}</Text>}
           {imageCatalogError && <Text color="red.500">{zh ? '图片能力读取失败' : 'Image capability read failed'}: {imageCatalogError}</Text>}
@@ -268,22 +277,22 @@ export function FirmwareContent() {
         </Stack>
       </Box>
     </Stack> : <Stack gap="3">
-      <Heading as="h2" fontSize="18px" lineHeight="24px">{zh ? '当前固件' : 'Installed firmware'}</Heading>
+      <Heading as="h2" fontSize="2xl" lineHeight="24px">{zh ? '当前固件' : 'Installed firmware'}</Heading>
       <Text color="fg.muted">{inventoryError
         ? (zh ? '当前固件信息读取失败，请刷新设备状态重试。' : 'Installed firmware could not be read. Refresh device status to try again.')
         : (zh ? '连接设备后查看当前固件。' : 'Connect the device to view installed firmware.')}</Text>
     </Stack>}</Box>
-    {inventoryError && <Text role="alert" color="red.500" overflowWrap="anywhere">{zh ? '设备状态读取失败：' : 'Device status read failed: '}{inventoryError}</Text>}
-    {error && !selectedRelease && <Text role="alert" color="red.500" overflowWrap="anywhere">{error}</Text>}
+    {inventoryError && <Text role="alert" color="red.500" overflowWrap="anywhere">{zh ? '设备状态读取失败：' : 'Device status read failed: '}{deviceDisplayText(inventoryError, currentLanguage)}</Text>}
+    {error && !selectedRelease && <Text role="alert" color="red.500" overflowWrap="anywhere">{deviceDisplayText(error, currentLanguage)}</Text>}
     {progress && !selectedRelease && <Box aria-live="polite" borderWidth="1px" borderRadius="xl" p="5"><Stack gap="3">
-      <Heading as="h2" fontSize="18px">{translate(phases, progress.stage)}</Heading>
+      <Heading as="h2" fontSize="2xl">{translate(phases, progress.stage)}</Heading>
       {progress.component && <Text>{progress.component}: {progress.received} / {progress.total} bytes</Text>}
       {inventory?.targetVersion && <Text>{zh ? '目标版本：' : 'Target: '}{inventory.targetVersion}</Text>}
-      {inventory?.error && <Text color="red.500">{inventory.error}</Text>}
+      {inventory?.error && <Text color="red.500">{deviceDisplayText(inventory.error, currentLanguage)}</Text>}
 
       <HStack wrap="wrap">
-        {inventory?.canAbort && <Button h="36px" fontSize="14px" disabled={busy} onClick={() => void recover('abort')}>{zh ? '取消未激活安装' : 'Cancel staged installation'}</Button>}
-        {task && <Button h="36px" fontSize="14px" onClick={manualReconnect}>{zh ? '重新连接设备' : 'Reconnect device'}</Button>}
+        {inventory?.canAbort && <Button h="36px" fontSize="sm" disabled={busy} onClick={() => void recover('abort')}>{zh ? '取消未激活安装' : 'Cancel staged installation'}</Button>}
+        {task && <Button h="36px" fontSize="sm" onClick={manualReconnect}>{zh ? '重新连接设备' : 'Reconnect device'}</Button>}
       </HStack>
     </Stack></Box>}
     <FirmwareReleaseCatalog getReleaseAction={release => {

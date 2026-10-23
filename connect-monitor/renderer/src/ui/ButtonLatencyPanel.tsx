@@ -112,10 +112,10 @@ export function ButtonLatencyPanel({
       <Card.Body p={0} minH={0} display="flex" flexDirection="column">
         <Box px={3} py={2} borderBottomWidth="1px" borderColor="rgba(92,255,138,0.08)">
           <HStack justify="space-between" gap={2}>
-            <Text fontSize="10px" color="gray.500">
+            <Text fontSize="2xs" color="gray.500">
               {table.statusText}
             </Text>
-            <Text fontSize="10px" color="gray.500">
+            <Text fontSize="2xs" color="gray.500">
               {table.splitLabel}
             </Text>
           </HStack>

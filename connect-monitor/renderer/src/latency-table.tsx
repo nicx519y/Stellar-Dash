@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { ChakraProvider, defaultSystem } from "@chakra-ui/react";
+import { ChakraProvider } from "@chakra-ui/react";
+import { monitorSystem } from "./ui/theme";
 
 import { LatencyTableContentView } from "./ui/LatencyTableContentView";
 
@@ -31,7 +32,7 @@ const el = document.getElementById("root");
 if (el) {
   createRoot(el).render(
     <StrictMode>
-      <ChakraProvider value={defaultSystem}>
+      <ChakraProvider value={monitorSystem}>
         <LatencyTableContentView />
       </ChakraProvider>
     </StrictMode>,

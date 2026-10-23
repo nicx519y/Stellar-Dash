@@ -229,6 +229,19 @@ test('fault log pages use the existing command client and keep the legacy string
   }
 });
 
+test('explicit log clear rejects missing confirmation and isolates the selected source', async () => {
+  const transport = await createTransport({ storage: null });
+  try {
+    await assert.rejects(transport.request('clear_device_logs', { source: 'stm32' }));
+    await transport.request('clear_device_logs', { source: 'stm32', confirm: true });
+    const cleared = (await transport.request('get_device_logs_page', { source: 'stm32' })).data;
+    const other = (await transport.request('get_device_logs_page', { source: 'tx' })).data;
+    assert.equal(cleared.items.length, 0);
+    assert.equal(cleared.pending, 0);
+    assert.equal(other.items.length, 8);
+  } finally { await transport.close(); }
+});
+
 test('software connection selection survives USB maintenance saves and imports', async () => {
   const storage = new MemoryStorage();
   const storageKey = 'software-connection-test';
@@ -2515,4 +2528,15 @@ test('screen standby switch and grouped menus persist through Mock save, reload 
   assert.equal((await get()).standbyEnabled, false);
   assert.equal((await get()).standbyTimeoutSeconds, 300);
   second.dispose(); client.dispose();
+});
+
+
+test('default image catalog reserves the dedicated battery region', async () => {
+  const client = new DeviceCommandClient(new MockDeviceTransport({ storage: null }));
+  try {
+    await client.connect(); client.markReady();
+    const catalog = await client.getImageCatalog();
+    assert.equal(catalog.maxImagePayloadBytes, 0x170000 - 4096);
+    assert.ok(12 * 320 * 172 * 2 <= catalog.maxImagePayloadBytes);
+  } finally { client.dispose(); }
 });

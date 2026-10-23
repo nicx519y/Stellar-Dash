@@ -1,10 +1,27 @@
 const test=require('node:test');const assert=require('node:assert/strict');
 const {createInstallMonitor,readInstallTask,saveInstallTask,reconcileInstallTask,INSTALL_TIMEOUT_MS}=require('../lib/device-transport/release-install-task.ts');
-const {readResumableInstallTask}=require('../lib/device-transport/release-install-task.ts');
+const {readResumableInstallTask,shouldResumeInstallDialog}=require('../lib/device-transport/release-install-task.ts');
 const task=()=>({protocol:2,sessionId:'rel-test',digest:'a'.repeat(64),version:'2.0.0',activatedAt:1000,
   release:{manifest:{version:'2.0.0'}},result:'waiting'});
 const status=(phase='completed')=>({protocol:2,sessionId:'rel-test',targetDigest:'a'.repeat(64),targetVersion:'2.0.0',
   phase,installationState:'installed',confirmedDigest:'a'.repeat(64),confirmedVersion:'2.0.0'});
+
+test('page re-entry restores only a live installation dialog and retains old results for recovery',()=>{
+ const values=new Map();const storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)};
+ for(const result of ['timeout','restored','restore-failed','failed']) {
+  const saved={...task(),result};saveInstallTask(saved,storage);
+  for(let entry=0;entry<2;entry++) {
+   const resumed=readResumableInstallTask(storage);
+   assert.equal(shouldResumeInstallDialog(resumed,1001),false);
+   assert.deepEqual(readInstallTask(storage),saved);
+  }
+ }
+ const pending=task();saveInstallTask(pending,storage);
+ assert.equal(shouldResumeInstallDialog(readResumableInstallTask(storage),pending.activatedAt+INSTALL_TIMEOUT_MS-1),true);
+ for(const elapsed of [INSTALL_TIMEOUT_MS,INSTALL_TIMEOUT_MS+1,86400000])
+  assert.equal(shouldResumeInstallDialog(readResumableInstallTask(storage),pending.activatedAt+elapsed),false);
+ assert.deepEqual(readInstallTask(storage),pending);
+});
 
 test('matched maintenance resolution retires the failed update without claiming installation success',()=>{
  const failed={...task(),result:'restore-failed',error:'old failure',progress:{stage:'restore-failed',overallPercent:90,stepIndex:6}};

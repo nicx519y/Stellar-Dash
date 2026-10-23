@@ -12,7 +12,7 @@ export function parseWebHidCapability(view: DataView): WebHidCapability {
   if (view.byteLength !== 32 || view.getUint32(0, true) !== 0x32485758 ||
       view.getUint16(4, true) !== SECURE_HID_REPORT_VERSION ||
       view.getUint16(6, true) !== SECURE_HID_REPORT_SIZE) {
-    throw new DeviceTransportError('protocol', 'XORA 高速协议版本不匹配，请配套更新网页、STM32 和 TX 固件');
+    throw new DeviceTransportError('protocol', 'XORA 高速协议版本不匹配，请配套更新网页、主控和 TX 固件');
   }
   if (view.getUint8(8) !== 2) {
     throw new DeviceTransportError('unsupported', 'XORA 配置需要 USB High-Speed 连接，请检查 USB 线缆和集线器');

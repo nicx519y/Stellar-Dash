@@ -68,7 +68,7 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
 
     return (
         <VStack align="stretch" gap={7} width="100%">
-            <SettingDescription text={t.SETTINGS_BASIC_HELPER_TEXT} fontSize="14px" />
+            <SettingDescription text={t.SETTINGS_BASIC_HELPER_TEXT} fontSize="sm" />
 
             <InputModeSettingContent disabled={props.disabled} />
 

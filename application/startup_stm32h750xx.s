@@ -96,6 +96,12 @@ bss_loop:
     ldr r2, =_erodata       /* 结束地址 */
     bl  copy_section
 
+    /* Native font tables must be readable without QSPI during saves and STOP. */
+    ldr r0, =_siscreen_fonts
+    ldr r1, =_sscreen_fonts
+    ldr r2, =_escreen_fonts
+    bl  copy_section
+
     BP_EARLY BP_APP_RODATA, 3
     /********** 点亮LED start **********/
     /* 使能 GPIOC 时钟 */

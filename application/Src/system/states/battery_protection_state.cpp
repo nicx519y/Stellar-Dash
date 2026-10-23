@@ -4,6 +4,7 @@
 #include "adc_btns/adc_manager.hpp"
 #include "leds/leds_manager.hpp"
 #include "power_manager.hpp"
+#include "battery_test_log.h"
 #include "report_scheduler.hpp"
 #include "system_sleep_manager.hpp"
 #include "main_runtime_control.hpp"
@@ -33,6 +34,7 @@ bool BatteryProtectionState::enter()
     rawDown = stableDown = HAL_GPIO_ReadPin(ROTENC_BTN_PORT, ROTENC_BTN_PIN) == GPIO_PIN_RESET;
     buttonChangedAt = HAL_GetTick();
     SPIScreenManager::getInstance().setBatteryProtection(true);
+    BT_EVENT(BAT_PROTECTION_ENTER,loadsStopped,0);
     return true; // A failed peripheral stop stays protected, never falls into Input.
 }
 
@@ -43,10 +45,16 @@ void BatteryProtectionState::tick()
     if (down != rawDown) { rawDown = down; buttonChangedAt = now; }
     if (now - buttonChangedAt >= 5u && stableDown != rawDown) {
         stableDown = rawDown;
-        if (stableDown) SPIScreenManager::getInstance().showBatteryProtectionStatus();
+        if (stableDown) {
+            SPIScreenManager::getInstance().showBatteryProtectionStatus();
+            BT_EVENT(BAT_RECOVERY_ACTION,1,POWER_MANAGER.getSnapshot().battery_level==BatteryLevel::RecoveryReady);
+        }
     }
     const bool ready = POWER_MANAGER.getSnapshot().battery_level == BatteryLevel::RecoveryReady;
-    if (button.update(ready, stableDown)) MainRuntime_RequestBatteryRecovery();
+    if (button.update(ready, stableDown)) {
+        BT_EVENT(BAT_RECOVERY_ACTION,2,ready);
+        MainRuntime_RequestBatteryRecovery();
+    }
     // Never replay the inspection/recovery gesture into a menu or long action.
     (void)RotEnc_GetDetentDelta();
     (void)RotEnc_WasButtonClicked();

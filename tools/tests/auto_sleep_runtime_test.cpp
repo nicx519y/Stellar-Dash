@@ -201,6 +201,14 @@ int main(int argc, char** argv)
     SystemSleep_Idle();
     assert(idleCount == gatedIdle);
     SPIScreenManager::getInstance().notice = false;
+    // Charging page keeps only the LCD on; STOP waits for its complete frame.
+    auto& chargeScreen = SPIScreenManager::getInstance();
+    chargeScreen.suspended = false; chargeScreen.chargeIdle = true;
+    chargeScreen.displayBusy = true;
+    SystemSleep_Idle(); assert(idleCount == gatedIdle);
+    chargeScreen.displayBusy = false;
+    SystemSleep_Idle(); assert(idleCount > gatedIdle && !INPUT_STATE.running);
+    chargeScreen.chargeIdle = false; chargeScreen.suspended = true;
     step(100);
     assert(xinput ? INPUT_STATE.neutrals == sent : INPUT_STATE.neutrals >= sent + 9);
     SystemSleep_Idle(); assert(idleCount > 0 && irqMask == 0);

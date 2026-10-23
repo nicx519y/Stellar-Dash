@@ -251,6 +251,7 @@ const MOCK_SERVER_MAPPING: SwitchMappingPayload = {
  * when both NEXT_PUBLIC_DEVICE_TRANSPORT=mock and OFFLINE_PREVIEW=true.
  */
 export class MockDeviceTransport implements DeviceTransport {
+  private clearedLogSources = new Set<string>();
   readonly kind = 'mock' as const;
   state = DeviceTransportState.DISCONNECTED;
   session: DeviceSession | null = null;
@@ -371,7 +372,7 @@ export class MockDeviceTransport implements DeviceTransport {
   private readonly imageCapacityBytes: number;
   private readonly maxJpegFrames: number;
   constructor(options: MockDeviceTransportOptions = {}) {
-    this.imageCapacityBytes = options.imageCapacityBytes ?? 0x17f000;
+    this.imageCapacityBytes = options.imageCapacityBytes ?? 0x16f000;
     this.maxJpegFrames = options.maxJpegFrames ?? 180;
     this.beforeRequest = options.beforeRequest;
     this.storage = options.storage === undefined
@@ -974,7 +975,18 @@ export class MockDeviceTransport implements DeviceTransport {
         return HITBOX_LAYOUT;
       case 'get_device_logs_page': {
         const scenario = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mockLogs') : null;
-        return mockFaultLogs(params as unknown as FaultLogQuery, (scenario ?? 'normal') as MockLogScenario);
+        if (scenario === 'full') await new Promise(resolve => setTimeout(resolve, 60));
+        return mockFaultLogs(params as unknown as FaultLogQuery,
+          this.clearedLogSources.has(String(params.source)) ? 'empty' : (scenario ?? 'normal') as MockLogScenario);
+      }
+      case 'clear_device_logs': {
+        if (params.confirm !== true || !['stm32', 'tx', 'battery'].includes(String(params.source)))
+          throw new Error('Explicit source and confirmation required');
+        const scenario = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mockLogs') : null;
+        if (scenario === 'unsupported') throw new Error('Log clearing is unsupported; update firmware');
+        if (scenario === 'tx-unavailable' && params.source === 'tx') throw new Error('Log clear failed');
+        this.clearedLogSources.add(String(params.source));
+        return { success: true, source: params.source };
       }
       case 'get_device_logs_list':
         return {

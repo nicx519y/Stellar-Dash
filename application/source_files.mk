@@ -104,6 +104,7 @@ Src/system/message_center.cpp \
 Src/support/micro_timer.cpp \
 Src/diagnostics/monitor_telemetry.cpp \
 Src/power/power_manager.cpp \
+Src/power/battery_test.cpp \
 Src/input/report_scheduler.cpp \
 Src/transport/rf/rf_boot_ready.cpp \
 Src/transport/rf/rf_bridge_port.cpp \

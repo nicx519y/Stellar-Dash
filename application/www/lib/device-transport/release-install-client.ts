@@ -133,8 +133,8 @@ export async function downloadRelease(client: DeviceCommandClient, id: string, i
   if (metadata.length !== 807 || await calculateSHA256(metadata) !== stm.metadataSha256) throw new Error('Metadata binding mismatch');
   const view = new DataView(metadata.buffer, metadata.byteOffset, metadata.byteLength);
   const canonical = metadata.slice(); canonical.fill(0, 16, 20); canonical.fill(0, 643, 739);
-  if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, metadata.slice(675, 739), canonical)) throw new Error('STM32 signature rejected');
-  if (view.getUint32(0, true) !== 0x48424f58 || view.getUint32(129, true) !== 3 || metadata[52] !== (targetSlot === 'A' ? 0 : 1) || fixed(metadata, 20, 32) !== stm.version) throw new Error('Invalid STM32 metadata');
+  if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, metadata.slice(675, 739), canonical)) throw new Error('Main controller signature rejected');
+  if (view.getUint32(0, true) !== 0x48424f58 || view.getUint32(129, true) !== 3 || metadata[52] !== (targetSlot === 'A' ? 0 : 1) || fixed(metadata, 20, 32) !== stm.version) throw new Error('Invalid main controller metadata');
   const securityVersion = view.getUint32(743, true);
   if (securityVersion < inventory.securityVersion) throw new Error('Security version downgrade is prohibited');
   const components: PreparedRelease['components'] = [];

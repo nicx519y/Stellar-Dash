@@ -1,5 +1,10 @@
+#pragma GCC push_options
+// Log JSON conversion is infrequent and must fit alongside the diagnostic
+// capture path in development builds too. Favor size for these helpers.
+#pragma GCC optimize ("Os")
 #include "configs/common_command_handler.hpp"
 #include "fault_log_api.h"
+#include "battery_test_log.h"
 #include "usb_board_link.hpp"
 #include <cmath>
 #include <cstdio>
@@ -16,8 +21,9 @@ bool txControl(const uint8_t *request,uint8_t length,void *response,uint8_t capa
     return USB_BOARD_LINK.sendControl(USB_BOARD_CONTROL_FAULT_LOG,request,length,
         static_cast<uint8_t *>(response),capacity,&size,&status);
 }
-uint8_t readRecord(bool tx,uint32_t upper,uint32_t before,uint8_t category,
+uint8_t readRecord(bool tx,bool battery,uint32_t upper,uint32_t before,uint8_t category,
                    uint8_t severity,uint8_t pending,fl_record &record) {
+    if(battery) return BatteryTest_Read?BatteryTest_Read(upper,before,category,severity,pending,&record):FL_UNSUPPORTED;
     if(!tx) return XoraLog_Read(upper,before,category,severity,pending,&record);
     uint8_t request[12]={},reply[49],size=0,status=0;
     memcpy(request,&upper,4);memcpy(request+4,&before,4);
@@ -52,11 +58,38 @@ void addRecord(cJSON *items,const fl_record &r) {
 }
 }
 
+DeviceCommandResponse CommonCommandHandler::handleClearDeviceLogs(const DeviceCommandRequest &request) {
+    cJSON *params=request.getParams();
+    const auto *source=cJSON_GetObjectItemCaseSensitive(params,"source");
+    if (!cJSON_IsString(source) || !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(params,"confirm")))
+        return create_error_response(request.getCid(),request.getCommand(),400,"Explicit source and confirmation required");
+    uint8_t result=FL_UNSUPPORTED;
+    if (!strcmp(source->valuestring,"stm32")) result=XoraLog_Clear();
+    else if (!strcmp(source->valuestring,"battery")) {
+        if (BatteryTest_Clear) result=BatteryTest_Clear();
+    } else if (!strcmp(source->valuestring,"tx")) {
+        uint8_t response=FL_IO,size=0,status=0;
+        if (txControl(reinterpret_cast<const uint8_t *>(FL_CLEAR_REQUEST),4,&response,1,size,status) &&
+            size==1 && status==USB_BOARD_STATUS_OK) result=response;
+        else result=status==USB_BOARD_STATUS_UNSUPPORTED ? FL_UNSUPPORTED : FL_IO;
+    } else return create_error_response(request.getCid(),request.getCommand(),400,"Invalid log source");
+    if (result!=FL_OK) return create_error_response(request.getCid(),request.getCommand(),
+        result==FL_FULL ? 409 : result==FL_UNSUPPORTED ? 501 : 500,
+        result==FL_FULL ? "Stop the battery test before clearing logs" :
+        result==FL_UNSUPPORTED ? "Log clearing is unsupported; update firmware" : "Log clear failed; read again to check remaining records");
+    cJSON *data=cJSON_CreateObject();
+    cJSON_AddBoolToObject(data,"success",true);cJSON_AddStringToObject(data,"source",source->valuestring);
+    return create_success_response(request.getCid(),request.getCommand(),data);
+}
+
+// The paged JSON handler uses the existing executable RAM startup copy,
+// leaving ITCM for capture/storage. AXI RAM remains available during QSPI I/O.
+__attribute__((section(".xora_log_rpc")))
 DeviceCommandResponse CommonCommandHandler::handleGetDeviceLogsPage(const DeviceCommandRequest &request) {
     cJSON *params=request.getParams();
     const cJSON *source=cJSON_GetObjectItemCaseSensitive(params,"source");
-    if(!cJSON_IsString(source) || (strcmp(source->valuestring,"stm32") && strcmp(source->valuestring,"tx")))
-        return create_error_response(request.getCid(),request.getCommand(),400,"source must be stm32 or tx");
+    if(!cJSON_IsString(source) || (strcmp(source->valuestring,"stm32") && strcmp(source->valuestring,"tx") && strcmp(source->valuestring,"battery")))
+        return create_error_response(request.getCid(),request.getCommand(),400,"source must be stm32, tx or battery");
     for(const char *key: {"category","severity","before","upper","oldest","limit"}) {
         const cJSON *v=cJSON_GetObjectItemCaseSensitive(params,key);
         if(v && (!cJSON_IsNumber(v) || !std::isfinite(v->valuedouble) ||
@@ -64,10 +97,11 @@ DeviceCommandResponse CommonCommandHandler::handleGetDeviceLogsPage(const Device
             return create_error_response(request.getCid(),request.getCommand(),400,"log parameters must be unsigned integers");
     }
     const bool tx=!strcmp(source->valuestring,"tx");
+    const bool battery=!strcmp(source->valuestring,"battery");
     const uint32_t category=number(params,"category",0),severity=number(params,"severity",0);
     uint32_t before=number(params,"before",0);
     uint32_t limit=number(params,"limit",8);
-    if(category>3 || (severity && (severity<2 || severity>4)) || !limit || limit>8)
+    if(category>4 || (severity && (severity<(battery?1u:2u) || severity>4)) || !limit || limit>8)
         return create_error_response(request.getCid(),request.getCommand(),400,"invalid log filter or limit");
     fl_info info={};
     const char *state="ok";
@@ -77,6 +111,9 @@ DeviceCommandResponse CommonCommandHandler::handleGetDeviceLogsPage(const Device
             state=status==USB_BOARD_STATUS_UNSUPPORTED ? "unsupported" : "unavailable";
         else if(size!=sizeof(info) || info.version!=1 || info.pending>3 || info.status>FL_UNSUPPORTED) state="unsupported";
         if(strcmp(state,"ok")) memset(&info,0,sizeof(info));
+    } else if(battery) {
+        if(BatteryTest_GetInfo) BatteryTest_GetInfo(&info);
+        else state="unsupported";
     } else XoraLog_Info(&info);
     if(!strcmp(state,"ok") && info.status) state="storage_error";
     const bool initial=cJSON_GetObjectItemCaseSensitive(params,"upper")==nullptr;
@@ -87,20 +124,20 @@ DeviceCommandResponse CommonCommandHandler::handleGetDeviceLogsPage(const Device
     bool more=false;
     if(!strcmp(state,"ok") || !strcmp(state,"storage_error")) {
         if(initial) {
-            for(uint8_t i=1;i<=info.pending && i<=3;i++) {
-                uint8_t status=readRecord(tx,upper,0,0,0,i,record);
+            for(uint8_t i=1;i<=info.pending && i<=(battery?16:3);i++) {
+                uint8_t status=readRecord(tx,battery,upper,0,0,0,i,record);
                 if(status!=FL_OK) {if(strcmp(state,"storage_error")) state="unavailable";break;}
                 if((!category || record.category==category) && (!severity || record.severity==severity))
                     addRecord(items,record);
             }
         }
         for(uint32_t i=0;i<limit;i++) {
-            uint8_t status=readRecord(tx,upper,before,category,severity,0,record);
+            uint8_t status=readRecord(tx,battery,upper,before,category,severity,0,record);
             if(status==FL_FULL) break;
             if(status!=FL_OK) {if(strcmp(state,"storage_error")) state="unavailable";break;}
             addRecord(items,record);before=record.sequence;
             if(i+1==limit) {
-                status=readRecord(tx,upper,before,category,severity,0,record);
+                status=readRecord(tx,battery,upper,before,category,severity,0,record);
                 more=status==FL_OK;
                 if(status!=FL_OK && status!=FL_FULL && strcmp(state,"storage_error")) state="unavailable";
             }
@@ -137,3 +174,4 @@ DeviceCommandResponse CommonCommandHandler::handleGetDeviceLogsList(const Device
     cJSON_AddItemToObject(result,"items",items);cJSON_AddNumberToObject(result,"count",count);
     return create_success_response(request.getCid(),request.getCommand(),result);
 }
+#pragma GCC pop_options

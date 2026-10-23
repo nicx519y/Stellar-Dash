@@ -77,7 +77,7 @@ const StyledFrame = styled.rect`
  */
 const StyledText = styled.text`
   text-align: center;
-  font-family: 'custom_en',system-ui,sans-serif;
+  font-family: var(--chakra-fonts-body);
   cursor: default;
   pointer-events: none;
 `;

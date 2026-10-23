@@ -141,7 +141,7 @@ export function HotkeySettingContent({
 
             <SettingDescription
                 text={t.SETTINGS_HOTKEYS_HELPER_TEXT}
-                fontSize="14px"
+                fontSize="sm"
                 mb="30px"
             />
 

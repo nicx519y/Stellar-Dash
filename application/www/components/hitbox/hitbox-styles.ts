@@ -126,15 +126,15 @@ export const StyledFrame = styled.rect`
 
 export const StyledText = styled.text`
   text-align: center;
-  font-family: 'custom_en', system-ui, sans-serif;
+  font-family: var(--chakra-fonts-body);
   cursor: default;
   pointer-events: none;
 `;
 
 export const StyledCompactText = styled.text`
   text-align: center;
-  font-family: "Helvetica", cursive;
-  font-size: 0.9rem;
+  font-family: var(--chakra-fonts-body);
+  font-size: var(--chakra-font-sizes-sm);
   cursor: default;
   pointer-events: none;
 `;

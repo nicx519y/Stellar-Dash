@@ -348,15 +348,15 @@ export function GlobalSettingContent() {
                             minW={0}
                         >
                             <Tabs.List>
-                                <Tabs.Trigger value="basic" fontSize="16px" fontWeight="extrabold">
+                                <Tabs.Trigger value="basic" fontSize="xl" fontWeight="extrabold">
                                     <LuSettings2 />
                                     {t.SETTINGS_BASIC_TITLE}
                                 </Tabs.Trigger>
-                                <Tabs.Trigger value="screen" fontSize="16px" fontWeight="extrabold" >
+                                <Tabs.Trigger value="screen" fontSize="xl" fontWeight="extrabold" >
                                     <MdOutlineScreenshotMonitor />
                                     {t.SETTINGS_SCREEN_CONTROL_TITLE}
                                 </Tabs.Trigger>
-                                <Tabs.Trigger value="hotkeys" fontSize="16px" fontWeight="extrabold">
+                                <Tabs.Trigger value="hotkeys" fontSize="xl" fontWeight="extrabold">
                                     <FaKeyboard />
                                     {t.SETTINGS_HOTKEYS_TITLE}
                                 </Tabs.Trigger>

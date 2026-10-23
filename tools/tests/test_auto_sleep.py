@@ -93,7 +93,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
             started = time.monotonic()
             print('auto-sleep runtime: compiling production manager with fake peripherals', flush=True)
             run_checked([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                            '-DHBOX_AUTO_SLEEP_ENABLED=1', '-I', str(temp),
+                             '-DHBOX_AUTO_SLEEP_ENABLED=1', '-I', str(temp), '-I', str(ROOT / 'common'),
                             *application_include_flags(),
                             '-include', str(ROOT / 'tools/tests/auto_sleep_runtime_stubs.hpp'),
                             str(ROOT / 'tools/tests/auto_sleep_runtime_test.cpp'),
@@ -110,7 +110,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                 run_checked([str(exe), scenario])
             # Same production STOP gate with the compile-time switch disabled.
             run_checked([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                         '-DHBOX_AUTO_SLEEP_ENABLED=0', '-I', str(temp),
+                          '-DHBOX_AUTO_SLEEP_ENABLED=0', '-I', str(temp), '-I', str(ROOT / 'common'),
                          *application_include_flags(),
                          '-include', str(ROOT / 'tools/tests/auto_sleep_runtime_stubs.hpp'),
                          str(ROOT / 'tools/tests/auto_sleep_runtime_test.cpp'),

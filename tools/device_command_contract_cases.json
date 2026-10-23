@@ -2,6 +2,7 @@
   "version": 1,
   "description": "Host contract cases executed through the real WebHidRpcDispatcher, DeviceCommandDispatcher and production command handlers. Hardware and persistence side effects terminate at recording stubs.",
   "commands": [
+    {"name":"clear_device_logs","validParams":{"source":"stm32","confirm":true},"validErrNo":0,"dataType":"object","requiredDataFields":["success","source"],"invalid":{"kind":"params","params":{"source":"stm32"},"errNo":400}},
     {"name":"get_config_manifest","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["deviceCacheKey","hardwareVersion","schemaVersion","modules"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"get_global_config","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["globalConfig"],"invalid":{"kind":"scope","errNo":403}},
     {"name":"get_hotkeys_config","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["hotkeysConfig"],"invalid":{"kind":"scope","errNo":403}},

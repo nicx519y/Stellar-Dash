@@ -16,10 +16,9 @@ void ScreenDetailCalibration_Rotate(uint8_t* ioIndex, int8_t det) {
 void ScreenDetailCalibration_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
     (void)index;
     const char* lines[] = {
-        "Button calibration data has been cleared.",
-        "Press and hold each button fully",
-        "until its indicator turns green,",
-        "which means that button is calibrated."
+        "Calibration data cleared.",
+        "Press each button fully.",
+        "Hold until its LED is green."
     };
     ScreenDetailRender_TitleLines(lcd, "Calibration Mode", lines, (uint8_t)(sizeof(lines) / sizeof(lines[0])), style);
 }

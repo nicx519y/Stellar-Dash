@@ -39,6 +39,16 @@ void ScreenDetailRender_List(ST7789_Handle*, const char* title, const char* cons
 void ScreenDetailRender_Slider(ST7789_Handle*, const char* title, uint8_t index, const ScreenUiStyle&, uint8_t max, const char* value) {
     assert(max == 4 || max == 100); renderedTitle = title; renderedValue = value ? value : ""; renderedIndex = index;
 }
+void ScreenDetailRender_TitleLines(ST7789_Handle*, const char* title, const char* const* lines, uint8_t count, const ScreenUiStyle&) {
+    renderedTitle=title; renderedValue=count?lines[0]:"";
+}
+static unsigned batteryStarts=0,batteryEnds=0,chargeStarts=0;
+extern "C" void ChargeTest_RequestStart() { ++chargeStarts; }
+extern "C" int BatteryTest_IsCharge() { return chargeStarts>0; }
+extern "C" void BatteryTest_RequestStart() { ++batteryStarts; }
+extern "C" void BatteryTest_RequestEnd() { ++batteryEnds; }
+extern "C" const char *BatteryTest_Status() { return "Recording"; }
+extern "C" uint32_t BatteryTest_Elapsed() { return 123000; }
 static ScreenControlConfig legacy(uint8_t mode = 0) {
     ScreenControlConfig sc = {};
     sc.standbyDisplay = mode; sc.standbyTimeoutSeconds = 120;
@@ -52,6 +62,25 @@ static const char* patch(ScreenControlConfig& sc, const char* json, bool importi
     const char* error = ScreenConfig::applyJson(sc, parsed, importing); cJSON_Delete(parsed); return error;
 }
 int main() {
+    // The new RAM-only child needs an explicit start confirmation and no config save.
+    {
+        ScreenUiStyle style={}; ST7789_Handle lcd={};
+        auto cursor=ScreenDetail_InitIndex(ScreenConfig::kPower);
+        ScreenDetail_OnRotate(ScreenConfig::kPower,&cursor,2);
+        assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor)); // child
+        assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor)); // warning
+        assert(batteryStarts==0);
+        ScreenDetail_Render(&lcd,ScreenConfig::kPower,cursor,style);
+        assert(renderedTitle=="Start Battery Test");
+        assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor));
+        assert(batteryStarts==1 && saves==0);
+        assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor)); // status -> list
+        ScreenDetail_OnRotate(ScreenConfig::kPower,&cursor,2);
+        assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor)); // end
+        assert(batteryEnds==1 && saves==0);
+        assert(!ScreenDetail_OnBack(ScreenConfig::kPower)); // status -> list
+        assert(!ScreenDetail_OnBack(ScreenConfig::kPower)); // group
+    }
     auto defaults = legacy();
     ScreenConfig::setDefaultOrder(defaults);
     ScreenConfig::normalize(defaults);
@@ -111,7 +140,7 @@ int main() {
     assert(sc.featuresMask & SCREEN_FEATURE_WEB_CONFIG_ENTRY); assert(sc.currentPageId == 14);
     // Both group lists stop at their ends, including accumulated encoder steps.
     for (const uint8_t menu : {ScreenConfig::kLed, ScreenConfig::kPower}) {
-        const uint8_t last = menu == ScreenConfig::kLed ? 3 : 1;
+        const uint8_t last = 3; // Power includes the independent Charge Test child.
         auto cursor = ScreenDetail_InitIndex(menu);
         ScreenUiStyle groupStyle = {}; ST7789_Handle groupLcd = {};
         auto expectCursor = [&](uint8_t expected) {
@@ -136,6 +165,23 @@ int main() {
         ScreenDetail_OnRotate(menu, &cursor, 1); expectCursor(0);
         ScreenDetail_OnRotate(menu, &cursor, 127); expectCursor(last);
         assert(ScreenDetail_OnBack(menu));
+    }
+    // Charge entry has its own confirmation and never invokes discharge start.
+    {
+        ScreenUiStyle style={}; ST7789_Handle lcd={};
+        auto cursor=ScreenDetail_InitIndex(ScreenConfig::kPower);
+        ScreenDetail_OnRotate(ScreenConfig::kPower,&cursor,3);
+        assert(cursor==3 && !ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor));
+        ScreenDetail_Render(&lcd,ScreenConfig::kPower,cursor,style);
+        assert(renderedTitle=="Charge Test");
+        assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor));
+        ScreenDetail_Render(&lcd,ScreenConfig::kPower,cursor,style);
+        assert(renderedTitle=="Start Charge Test" && chargeStarts==0);
+        assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor));
+        assert(chargeStarts==1 && batteryStarts==1 && saves==0);
+        assert(!ScreenDetail_OnBack(ScreenConfig::kPower));
+        assert(!ScreenDetail_OnBack(ScreenConfig::kPower));
+        assert(ScreenDetail_OnBack(ScreenConfig::kPower));
     }
     // Real detail dispatcher: group -> slider -> parent, switches independent of time.
     STORAGE_MANAGER.config.screenControl = sc;

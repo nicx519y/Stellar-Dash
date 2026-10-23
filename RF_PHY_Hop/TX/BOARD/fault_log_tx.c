@@ -38,6 +38,7 @@ void XoraLog_Init(void) {
 void XoraLog_Service(int safe) {
     if(log_started) fl_service(&log_runtime,&log_retained,safe);
 }
+uint8_t XoraLog_Clear(void) { return log_clear(); }
 /* Existing RF/USB initializers may reset the hardware counter. Preserve our
  * elapsed time but rebase after those owners initialize it; never program it. */
 void XoraLog_TxClockRebase(void) { log_last_cycles=SysTick->CNTL; }

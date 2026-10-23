@@ -16,9 +16,11 @@ import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { BuildVariantBadge } from '@hbox/build-variant-badge';
 import { UserAuthControl } from '@/components/user-auth-control';
 import { useUserAuth } from '@/contexts/user-auth-context';
+import { useLogOperation } from '@/lib/log-operation';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
+    const logOperation = useLogOperation(state => state.operation);
     const { t } = useLanguage();
     const { currentRoute, setRoute } = useRouterStore();
     const { session, loading: authLoading } = useUserAuth();
@@ -87,10 +89,11 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         minW={0}
                         overflowX="auto"
                     >
-                        <Tabs.List bg="bg.muted" width="100%"  >
+                        <Tabs.List bg="bg.muted" width="100%">
                             {tabs.map((tab, index) => (
                                 <React.Fragment key={tab.id}>
                                     <Tabs.Trigger
+                                        disabled={logOperation === 'clear'}
                                         value={tab.id}
                                         w="fit-content"
                                         padding="0 18px"
@@ -98,6 +101,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                                         flexShrink={0}
                                         whiteSpace="nowrap"
                                         justifyContent="center"
+                                        _selected={{ bg: 'bg', boxShadow: 'xs' }}
                                     >
                                         <Box as={tab.icon} mr={0} />
                                         <span>{tab.label}</span>
@@ -108,11 +112,10 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                                     )}
                                 </React.Fragment>
                             ))}
-                            <Tabs.Indicator rounded="l2" />
                         </Tabs.List>
                     </Tabs.Root>
                 </HStack>
-                <HStack justifyContent="flex-end" gap="10px" ml="auto" flexWrap="wrap" maxW="100%">
+                <HStack inert={logOperation ? true : undefined} opacity={logOperation ? 0.5 : 1} justifyContent="flex-end" gap="10px" ml="auto" flexWrap="wrap" maxW="100%">
                     <BuildVariantBadge />
                     {dataIsReady && <FinishConfigButton disabled={finishConfigDisabled || configEditingBlocked} />}
                     <UserAuthControl />

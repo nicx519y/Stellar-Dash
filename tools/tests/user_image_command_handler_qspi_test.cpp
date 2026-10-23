@@ -20,7 +20,7 @@ namespace {
 constexpr uint32_t kUserBase =
     USER_IMAGE_RESOURCES_ADDR + HBoxUserImage::STORAGE_GUARD_SIZE;
 constexpr uint32_t kUserArea =
-    USER_IMAGE_RESOURCES_SIZE - HBoxUserImage::STORAGE_GUARD_SIZE;
+    HBoxUserImage::STORAGE_AREA_SIZE;
 
 std::vector<uint8_t> flash(W25Qxx_FlashSize, 0xffu);
 std::vector<uint8_t> reply;
@@ -348,6 +348,35 @@ void testHeaderCorruptionAndLegacyVersionsFailClosed()
             "UIMG v1/v2 must be invalid after the strict v3 migration");
 }
 
+void testBatteryPartitionIsolation() {
+    resetFixture();
+    const auto battery=offsetOf(BATTERY_TEST_STORAGE_ADDR);
+    std::fill(flash.begin()+battery,flash.begin()+battery+BATTERY_TEST_STORAGE_SIZE,0x3cu);
+    Begin request;
+    request.cid=100;request.imageType=2;request.width=320;request.height=172;
+    request.total=HBoxUserImage::MAX_JPEG_PAYLOAD_BYTES+1;
+    UserImageCommandHandler::handleBinaryMessage(reinterpret_cast<const uint8_t *>(&request),sizeof(request));
+    require(!replySucceeded(0xb0u) && replyError()=="Size too large", "one byte beyond new JPEG capacity must fail before erase");
+    require(erases.empty() && writes.empty(), "rejected BEGIN must not mutate either partition");
+    request.total=HBoxUserImage::MAX_JPEG_PAYLOAD_BYTES;
+    UserImageCommandHandler::handleBinaryMessage(reinterpret_cast<const uint8_t *>(&request),sizeof(request));
+    require(replySucceeded(0xb0u), "exact new capacity must fit");
+    require(erases.back().first+erases.back().second==battery,"rounded erase must stop exactly before battery region");
+    stream(std::vector<uint8_t>(request.total,0x5a));
+    require(writes.back().first+writes.back().second==battery,"last image page must stop before battery region");
+    mutate(0x33u,101);
+    require(replySucceeded(0xb3u),"delete must succeed without erasing battery data");
+    require(std::all_of(flash.begin()+battery,flash.begin()+battery+BATTERY_TEST_STORAGE_SIZE,
+        [](uint8_t value){return value==0x3cu;}),"upload and clear must preserve all 64 KiB of battery history");
+    // A pre-partition image declares an extent beyond the new ceiling.
+    HBoxUserImage::HeaderV4 old{};old.magic=HBoxUserImage::MAGIC;old.version=5;old.valid=1;
+    old.format=3;old.width=320;old.height=172;old.frame_count=1;old.frames_offset=4096;
+    old.total_size=0x17f000;memcpy(old.id,HBoxUserImage::USER_ID,sizeof(HBoxUserImage::USER_ID));
+    old.header_crc32=HBoxUserImage::calculateHeaderCrc(old);
+    memcpy(flash.data()+offsetOf(kUserBase),&old,sizeof(old));
+    require(!UserImageCommandHandler::isBackgroundImageAvailable(HBoxUserImage::USER_ID),"oversized old image must not be read into battery records");
+}
+
 void testCapacityAndDeleteFailure()
 {
     resetFixture();
@@ -550,6 +579,7 @@ extern "C" int8_t QSPI_W25Qxx_WritePage(
 {
     if (failWrite || !rangeValid(address, length)) return W25Qxx_ERROR_TRANSMIT;
     const uint32_t offset = offsetOf(address);
+    require(xora_image_range(0x90000000u+offset,length),"physical page write escaped image boundary");
     std::memcpy(flash.data() + offset, data, length);
     writes.emplace_back(offset, length);
     return QSPI_W25Qxx_OK;
@@ -566,6 +596,7 @@ extern "C" int8_t QSPI_W25Qxx_ReadBuffer(
 extern "C" int8_t QSPI_W25Qxx_BufferErase(uint32_t address, uint32_t length)
 {
     if (failErase || !rangeValid(address, length)) return W25Qxx_ERROR_Erase;
+    require(xora_image_range(0x90000000u+offsetOf(address),length),"physical erase escaped image boundary");
     std::fill(
         flash.begin() + offsetOf(address),
         flash.begin() + offsetOf(address) + length,
@@ -598,6 +629,7 @@ int main()
     testInterruptedAndCorruptPayloadsStayInvalid();
     testHeaderCorruptionAndLegacyVersionsFailClosed();
     testCapacityAndDeleteFailure();
+    testBatteryPartitionIsolation();
     testPageStreamingTailAndWriteFailure();
     testCatalogThroughRpcValidator();
     testJpegSequenceCommitAndMalformedDirectory();

@@ -26,6 +26,7 @@ public:
     void setBatteryProtection(bool enabled);
     void showBatteryProtectionStatus();
     bool batteryNoticeActive() const;
+    bool sleepDisplayReady() const;
     bool batteryProtectionDisplayIdle() const;
 
     bool menuPrev();
@@ -40,6 +41,7 @@ private:
     void renderBars();
     void beginAnimation(int dir);
     void renderBatteryNotice(uint32_t now);
+    void renderSleepCharge();
 
     uint8_t menuCount = 0;
     uint8_t menuIndex = 0;

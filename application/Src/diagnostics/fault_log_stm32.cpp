@@ -36,9 +36,29 @@ static int eraseLog(uint32_t off) {
     return QSPI_W25Qxx_SectorErase(FAULT_LOG_STORAGE_ADDR+off);
 }
 extern "C" void XoraLog_Init(void) {
-    const fl_backend backend = {readLog,writeLog,eraseLog,FAULT_LOG_STORAGE_SIZE};
+    fl_backend backend = {readLog,writeLog,eraseLog,FAULT_LOG_STORAGE_SIZE};
     if (log_started) return;
     log_start(&backend,FL_SOURCE_STM32,((XORA_RELEASE_VERSION_MAJOR<<16)|(XORA_RELEASE_VERSION_MINOR<<8)|XORA_RELEASE_VERSION_PATCH),coldBoot);
+}
+extern "C" uint32_t XoraLog_CurrentBoot(void) {
+    return log_started ? log_runtime.boot : 0u;
+}
+extern "C" uint8_t XoraLog_Clear(void) {
+    if (__get_IPSR() || !log_started) return FL_IO;
+    const bool mapped = QSPI_W25Qxx_IsMemoryMappedMode();
+    if (mapped && QSPI_W25Qxx_ExitMemoryMappedMode()!=QSPI_W25Qxx_OK) {
+        if (QSPI_W25Qxx_EnterMemoryMappedMode()!=QSPI_W25Qxx_OK) XoraLog_Fatal(0x102u);
+        return FL_IO;
+    }
+    const auto wait = QSPI_W25Qxx_SetWaitCallback(nullptr);
+    const auto status = log_clear();
+    QSPI_W25Qxx_SetWaitCallback(wait);
+    if (SCB->CCR & SCB_CCR_DC_Msk) {
+        SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t *>(FAULT_LOG_STORAGE_ADDR),FAULT_LOG_STORAGE_SIZE);
+        SCB_CleanDCache_by_Addr((uint32_t *)&log_retained,(sizeof(log_retained)+31u)&~31u);
+    }
+    if (mapped && QSPI_W25Qxx_EnterMemoryMappedMode()!=QSPI_W25Qxx_OK) XoraLog_Fatal(0x102u);
+    return status;
 }
 extern "C" void XoraLog_Service(int safe) {
     if (!safe || !log_started || log_runtime.write_failed || __get_IPSR() ||

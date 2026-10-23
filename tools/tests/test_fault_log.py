@@ -21,6 +21,11 @@ class FaultLogTests(unittest.TestCase):
                 f'_Static_assert(FAULT_LOG_STORAGE_SIZE == {layout.FAULT_LOG_STORAGE_SIZE}u, "C/Python size");\n'
                 '_Static_assert(FAULT_LOG_STORAGE_ADDR == 0x90560000u, "reserved partition");\n'
                 '_Static_assert(FAULT_LOG_STORAGE_SIZE == 0x10000u, "reserved size");\n'
+                f'_Static_assert(BATTERY_TEST_STORAGE_ADDR == {layout.BATTERY_TEST_STORAGE_ADDR}u, "battery address");\n'
+                f'_Static_assert(BATTERY_TEST_STORAGE_SIZE == {layout.BATTERY_TEST_STORAGE_SIZE}u, "battery size");\n'
+                f'_Static_assert(XORA_IMAGE_DATA_BYTES == {layout.XORA_IMAGE_DATA_BYTES}u, "image size");\n'
+                '_Static_assert(XORA_IMAGE_DATA_ADDR + XORA_IMAGE_DATA_BYTES == BATTERY_TEST_STORAGE_ADDR, "image boundary");\n'
+                '_Static_assert(BATTERY_TEST_STORAGE_ADDR + BATTERY_TEST_STORAGE_SIZE == CH585_FIRMWARE_STAGING_ADDR, "staging boundary");\n'
                 '_Static_assert(LOG_STORAGE_ADDR == 0x90580000u, "configuration bank unchanged");\n'
                 '_Static_assert(FAULT_LOG_STORAGE_ADDR + FAULT_LOG_STORAGE_SIZE <= LOG_STORAGE_ADDR, "isolation");\n'
                 'int main(void) { return 0; }\n', encoding="utf-8")

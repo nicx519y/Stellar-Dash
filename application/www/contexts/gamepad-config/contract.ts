@@ -1,4 +1,4 @@
-import type { FaultLogFetcher } from "@/lib/device-fault-logs";
+import type { FaultLogFetcher, LogSource } from "@/lib/device-fault-logs";
 import {
     type SharedButtonMonitorLeaseToken
 } from '@/lib/button-monitor-lifecycle';
@@ -246,6 +246,7 @@ export interface GamepadConfigContextType {
     // 设备日志相关（服务端固定返回最近50条）
     fetchDeviceLogsList: () => Promise<string[]>;
     fetchDeviceLogsPage: FaultLogFetcher;
+    clearDeviceLogs: (source: LogSource) => Promise<void>;
 
     // 导出所有配置
 

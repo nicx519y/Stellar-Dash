@@ -3,6 +3,7 @@
 #include <stdio.h>
 static uint8_t flash[8192];
 static int budget = -1, read_fail, erases, unreadable_slot = -1, erase_budget = -1;
+static int erase_lies;
 static int rd(uint32_t a, void *p, uint32_t n) {
     assert(a + n <= sizeof(flash));
     if (read_fail || (int)a == unreadable_slot) return -1;
@@ -22,7 +23,7 @@ static int wr(uint32_t a, const void *p, uint32_t n) {
 static int er(uint32_t a) {
     assert(a % 4096 == 0 && a + 4096 <= sizeof(flash));
     memset(flash+a, 255, erase_budget<0 ? 4096u : (unsigned)erase_budget);
-    ++erases; return erase_budget<0 ? 0 : -1;
+    ++erases; return erase_budget<0 || erase_lies ? 0 : -1;
 }
 static fl_backend backend = {rd,wr,er,sizeof(flash)};
 static fl_record record(unsigned boot) {
@@ -97,5 +98,16 @@ int main(void) {
      fl_event(&rt,3,2,1,FL_FATAL,0,0);
      assert(rt.count==2 && rt.dropped==1);
      assert(rt.queue[0].severity==FL_FATAL && rt.queue[1].severity==FL_FATAL);}
-    puts("fault journal: power cuts, wrap, CRC, read failure, queue and crash replay passed");
+    memset(flash,0,sizeof(flash));erases=0;erase_budget=128;
+    assert(fl_clear(&backend,0)==FL_IO && erases==1 && flash[4096]==0);
+    erase_lies=1;erases=0;
+    assert(fl_clear(&backend,0)==FL_IO && erases==1 && flash[4096]==0);
+    erase_lies=0;
+    erase_budget=-1;read_fail=1;erases=0;
+    assert(fl_clear(&backend,0)==FL_IO && erases==1);
+    read_fail=0;assert(fl_clear(&backend,0)==FL_OK && fl_blank(flash,sizeof(flash)));
+    memset(flash,0,sizeof(flash));erase_budget=128;
+    assert(fl_clear(&backend,1)==FL_IO && flash[0]==0); // header survives interrupted data erase
+    erase_budget=-1;assert(fl_clear(&backend,1)==FL_OK);
+    puts("fault journal: power cuts, wrap, CRC, verified clear, queue and crash replay passed");
 }

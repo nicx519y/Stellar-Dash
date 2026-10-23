@@ -94,10 +94,10 @@ PowerDataQuality g_battUiQuality=PowerDataQuality::Fresh;
 #undef POWER_MANAGER
 struct FakePower { PowerSnapshot sample; PowerSnapshot getSnapshot() { return sample; } } fakePower;
 #define POWER_MANAGER fakePower
-std::string label; unsigned fill=0, borders=0;
+unsigned textCalls=0, fill=0, borders=0;
 void ST7789_DrawRect(ST7789_Handle*,unsigned,unsigned,unsigned,unsigned,unsigned) { ++borders; }
 void ST7789_FillRect(ST7789_Handle*,unsigned,unsigned,unsigned width,unsigned,unsigned color) { if(color) fill=width; }
-void ScreenUI_DrawStringCenteredInBox(ST7789_Handle*,unsigned,unsigned,unsigned,unsigned,const char* text,unsigned,unsigned,unsigned) { label=text; }
+void ScreenUI_DrawStringCenteredInBox(ST7789_Handle*,unsigned,unsigned,unsigned,unsigned,const char*,unsigned,unsigned,unsigned) { ++textCalls; }
 '''
         harness += function(source, "static void update_battery_ui_cache(")
         harness += function(source, "static uint8_t battery_animated_soc(")
@@ -105,17 +105,21 @@ void ScreenUI_DrawStringCenteredInBox(ST7789_Handle*,unsigned,unsigned,unsigned,
         harness += r'''
 int main() {
     ST7789_Handle lcd;
-    const auto render=[&](uint32_t now) { fill=borders=0; render_left_battery_icon(&lcd,36,140,1,0,now); };
-    render(0); assert(label=="50%" && fill==11);
-    g_battUiQuality=PowerDataQuality::Unknown; render(0); assert(label=="?" && fill==0);
-    g_battUiQuality=PowerDataQuality::Stale; render(0); assert(label=="~50%" && fill==11);
+    const auto render=[&](uint32_t now) {
+        fill=borders=textCalls=0;
+        render_left_battery_icon(&lcd,36,140,1,0,now);
+        assert(textCalls==0); // All sidebar battery states are icon-only.
+    };
+    render(0); assert(fill==11);
+    g_battUiQuality=PowerDataQuality::Unknown; render(0); assert(fill==0);
+    g_battUiQuality=PowerDataQuality::Stale; render(0); assert(fill==11);
     g_battUiQuality=PowerDataQuality::Fresh;
-    g_battUiChargeState=PowerChargeState::Full; render(0); assert(label=="FULL" && fill==11);
-    g_battUiChargeState=PowerChargeState::Fault; render(0); assert(label=="ERR");
-    g_battUiChargeState=PowerChargeState::Charging; render(500); assert(label=="CHG" && fill>11);
+    g_battUiChargeState=PowerChargeState::Full; render(0); assert(fill==11);
+    g_battUiChargeState=PowerChargeState::Fault; render(0); assert(fill==11);
+    g_battUiChargeState=PowerChargeState::Charging; render(500); assert(fill>11);
     const auto normalFill=fill;
-    g_battUiFastCharging=true; render(500); assert(label=="FAST" && fill>normalFill);
-    g_battUiQuality=PowerDataQuality::Stale; render(500); assert(label=="~50%" && fill==11);
+    g_battUiFastCharging=true; render(500); assert(fill>normalFill);
+    g_battUiQuality=PowerDataQuality::Stale; render(500); assert(fill==11);
     g_battUiLowBattery=true; render(700); assert(borders==0);
     render(1100); assert(borders==2);
     fakePower.sample.soc_permille=420;
@@ -123,7 +127,7 @@ int main() {
     update_battery_ui_cache(2000); assert(g_battUiSoc==42);
     fakePower.sample.data_quality=PowerDataQuality::Unknown;
     update_battery_ui_cache(2001); render(2001);
-    assert(label=="?"); // validity expiry must bypass the one-second UI cache
+    assert(g_battUiQuality==PowerDataQuality::Unknown && fill==0); // validity expiry must bypass the one-second UI cache
 }
 '''
         with tempfile.TemporaryDirectory(prefix="xora-battery-icon-") as folder:
@@ -204,7 +208,7 @@ int main() {
             exe = temp / "battery.exe"
             run_native([shutil.which("g++"), "-std=c++17", "-Wall", "-Wextra",
                         "-Wno-missing-field-initializers", "-Werror",
-                        "-I", str(temp), *application_include_flags(),
+                        "-I", str(temp), "-I", str(ROOT / "common"), *application_include_flags(),
                         str(ROOT / "tools/tests/battery_manager_test.cpp"), "-o", str(exe)],
                        check=True)
             run_native([str(exe)], check=True)

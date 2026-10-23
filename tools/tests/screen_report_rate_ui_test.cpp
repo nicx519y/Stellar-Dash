@@ -33,8 +33,8 @@ void ST7789_FillRect(ST7789_Handle*, uint16_t x, uint16_t y, uint16_t w, uint16_
         for (unsigned xx = x; xx < x + w; ++xx) pixels[yy][xx] = color;
 }
 void ST7789_DrawString(ST7789_Handle*, uint16_t x, uint16_t y, const char* text, uint32_t, uint32_t, uint8_t scale) {
-    assert(x + std::string(text).size() * 6u * scale <= ST7789_WIDTH);
-    assert(y + 8u * scale <= ST7789_HEIGHT);
+    assert(x + ScreenUI_TextPxW(text, scale) <= ST7789_WIDTH);
+    assert(y + ScreenUI_CharCellH(scale) <= ST7789_HEIGHT);
     labels.emplace_back(text);
 }
 void ScreenUI_RequestDeferredSave(uint32_t) { std::abort(); }
@@ -107,7 +107,8 @@ int main() {
 
     const auto layout = ScreenUI_StatusBarLayout();
     // 320x172: retain the prior platform center, offset profile/battery by exactly 5px.
-    assert(layout.profileY == 17 && layout.batteryY == 141);
+    assert(layout.profileY + ScreenUI_CharCellH(SPI_SCREEN_PROFILE_TEXT_SCALE) / 2u == 23);
+    assert(layout.batteryY == 141);
     assert(layout.platformY + SPI_SCREEN_STATUS_ICON_H / 2u == 86);
     assert(layout.topArrowY == layout.profileY + ScreenUI_CharCellH(SPI_SCREEN_PROFILE_TEXT_SCALE) / 2u);
     assert(layout.bottomArrowY == layout.batteryY + SPI_SCREEN_BATTERY_BODY_H / 2u);

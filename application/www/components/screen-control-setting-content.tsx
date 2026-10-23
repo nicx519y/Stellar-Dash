@@ -173,7 +173,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
             <SettingDescription
                 text={t.SETTINGS_SCREEN_CONTROL_HELPER_TEXT}
-                fontSize="14px"
+                fontSize="sm"
                 mb="30px"
             />
             

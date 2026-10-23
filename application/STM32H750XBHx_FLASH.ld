@@ -110,10 +110,17 @@ SECTIONS
     *main_state_machine.o(.text .text.* .rodata .rodata.*)
     /* Fault capture and journal code must remain executable while QSPI is indirect. */
     *fault_log_stm32.o(.text .text.* .rodata .rodata.*)
+    *battery_test.o(.text .text.* .rodata .rodata.*)
+    /* Battery/charge menu confirmation shares CPU-only ITCM; keep AXI headroom. */
+    *spi_screen_detail_pages.o(.text._Z22ScreenDetail_OnConfirm*)
     *fault_log_command.o(.text .text.* .rodata .rodata.*)
     *common_command_handler.o(.text .text.* .rodata .rodata.*)
     *tx_isp_state.o(.text .text.* .rodata .rodata.*)
     *spi_screen_detail_tx_isp.o(.text .text.* .rodata .rodata.*)
+    /* Shared LCD drawing helpers are CPU-only. Use spare ITCM for their code
+       and constants; framebuffer/DMA data stay in their existing RAM regions.
+       Include them in the existing g_pfnVectors.._evector startup copy span. */
+    *spi_screen_ui_common.o(.text .text.* .rodata .rodata.*)
     . = ALIGN(4);
     _evector = .;           /* 添加向量表结束标记 */
   } >ITCMRAM AT>FLASH
@@ -135,6 +142,7 @@ SECTIONS
     _stext = .;
     *(.text)           
     *(.text.*)         /* 这里不会匹配已经放置的 .text.boot.Reset_Handler */
+    *(.xora_log_rpc)   /* Log JSON handlers share the existing RAM startup copy. */
     *(.glue_7)
     *(.glue_7t)
     *(.eh_frame)
@@ -242,6 +250,18 @@ SECTIONS
     . = ALIGN(4);
     KEEP(*(.sleep_fault))
   } >RAM
+
+  /* Native LCD font strikes stay available when QSPI is indirect. Copy once
+     at reset; DTCM is CPU-only and the font data is never a DMA source. */
+  _siscreen_fonts = LOADADDR(.screen_fonts);
+  .screen_fonts :
+  {
+    . = ALIGN(4);
+    _sscreen_fonts = .;
+    *(.screen_fonts)
+    . = ALIGN(4);
+    _escreen_fonts = .;
+  } >DTCMRAM AT>FLASH
 
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack :

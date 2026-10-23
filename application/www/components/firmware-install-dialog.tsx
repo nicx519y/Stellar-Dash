@@ -8,6 +8,7 @@ import type { ReleaseProgress, TxIapTransferMode } from '@/lib/device-transport/
 import { normalizeTxIapMode, txIapModeLabel } from '@/lib/device-transport/release-install-transfer';
 import { displayedInstallPercent, installUsesEstimate, INSTALL_DISPLAY_STEPS, installDisplayStep } from '@/lib/device-transport/release-install-progress';
 import styles from './firmware-install-dialog.module.css';
+import { deviceDisplayText } from '@/lib/device-display-text';
 
 const circumference = 2 * Math.PI * 110;
 
@@ -38,7 +39,7 @@ function ProgressRing({ progress, percent, label, zh }: {
         style={{ transition: 'stroke-dashoffset 950ms ease', filter: 'drop-shadow(0 0 4px rgba(170, 140, 235, .26))' }} />
     </svg>
     <Flex position="absolute" inset="0" align="center" justify="center" direction="column" pointerEvents="none">
-      <Text fontSize="42px" lineHeight="1.1" fontWeight="semibold" color="#daf4d7" fontVariantNumeric="tabular-nums">
+      <Text fontSize="5xl" lineHeight="1.1" fontWeight="semibold" color="#daf4d7" fontVariantNumeric="tabular-nums">
         {percent}%
       </Text>
       <Box data-testid="install-step-timeline" data-step={step} position="relative" w="160px" h="40px" mt="1.5"
@@ -109,20 +110,20 @@ export function FirmwareInstallDialog({ release, zh, view, progress, error, busy
         transition="width 340ms cubic-bezier(.22,1,.36,1) 140ms, height 340ms cubic-bezier(.22,1,.36,1) 140ms"
         _motionReduce={{ transition: 'none' }}>
         <Dialog.Header flexShrink={0} borderBottomWidth="1px" py="4">
-          <Dialog.Title fontSize="18px">{release ? `${zh ? '安装' : 'Install'} XORA ${release.manifest.version}` : ''}</Dialog.Title>
+          <Dialog.Title fontSize="2xl">{release ? `${zh ? '安装' : 'Install'} XORA ${release.manifest.version}` : ''}</Dialog.Title>
         </Dialog.Header>
         <Dialog.Body p="0" flex="1" minH="0" position="relative">
           <Flex display={view === 'confirm' ? 'flex' : 'none'} direction="column" p="6" gap="6" aria-hidden={view !== 'confirm'} inert={view !== 'confirm'}
             opacity={view === 'confirm' ? 1 : 0} pointerEvents={view === 'confirm' ? 'auto' : 'none'}
             transition={view === 'confirm' ? 'opacity 180ms ease 150ms' : 'opacity 140ms ease'}
             _motionReduce={{ transition: 'none' }}>
-            <Stack gap="3" flex="1" fontSize="14px">
+            <Stack gap="3" flex="1" fontSize="sm">
               <Text>{zh ? '将安装此版本的主控和 TX 固件。RX 固件单独更新。' : 'This installs the controller and TX firmware in this release. RX updates are separate.'}</Text>
               <Text color="fg.muted">{zh ? '确认后会下载并验证发布包、保存配置备份，然后开始安装。TX 更新期间请保持供电。' : 'After confirmation, WebConfig verifies the package, backs up your settings, then starts installation. Keep the device powered during the TX update.'}</Text>
             </Stack>
             <HStack justify="flex-end" gap="2" flexShrink={0}>
-              <Button h="36px" fontSize="14px" variant="surface" onClick={onClose}>{zh ? '取消' : 'Cancel'}</Button>
-              <Button h="36px" fontSize="14px" colorPalette="green" onClick={onConfirm}>{zh ? '确认安装' : 'Confirm installation'}</Button>
+              <Button h="36px" fontSize="sm" variant="surface" onClick={onClose}>{zh ? '取消' : 'Cancel'}</Button>
+              <Button h="36px" fontSize="sm" colorPalette="green" onClick={onConfirm}>{zh ? '确认安装' : 'Confirm installation'}</Button>
             </HStack>
           </Flex>
           <Flex display={view === 'progress' ? 'flex' : 'none'} direction="column" align="center" justify="center" px="6" py="4"
@@ -133,14 +134,14 @@ export function FirmwareInstallDialog({ release, zh, view, progress, error, busy
             _motionReduce={{ transition: 'none' }}>
             <ProgressRing progress={progress} percent={percent} label={statusLabel} zh={zh} />
             <Stack w="full" maxW="320px" gap="1.5" mt="22px" align="center" textAlign="center">
-            <Text fontSize="16px" lineHeight="1.5" fontWeight="semibold" role="status" aria-live="polite">
+            <Text fontSize="xl" lineHeight="1.5" fontWeight="semibold" role="status" aria-live="polite">
               {exceptional ? statusLabel : (zh ? '请保持供电，勿断电或关机' : 'Keep the device powered on')}
             </Text>
             {!deviceConnected && !busy && <Text role="alert" fontSize="13px" lineHeight="1.6" color="orange.300">
               {zh ? '设备连接已断开。本次升级结果已保留；请检查供电、USB 连接及 WebConfig 模式后重新连接。'
                 : 'Device disconnected. The installation result is retained. Check power, USB and WebConfig mode, then reconnect.'}
             </Text>}
-            {error && <Text role="alert" fontSize="13px" color="red.400" lineHeight="1.6" overflowWrap="anywhere">{error}</Text>}
+            {error && <Text role="alert" fontSize="13px" color="red.400" lineHeight="1.6" overflowWrap="anywhere">{deviceDisplayText(error, zh ? 'zh' : 'en')}</Text>}
             {!error && <Text fontSize="13px" color="fg.muted" lineHeight="1.6">
               {busy
                 ? (zh ? '请勿拔掉 USB 或关闭设备。连接会暂时中断，完成后将自动重新连接。' : 'Do not unplug USB or turn off the device. It will reconnect automatically after the update.')
@@ -153,10 +154,10 @@ export function FirmwareInstallDialog({ release, zh, view, progress, error, busy
             </Text>}
             </Stack>
             <HStack w="full" justify="center" gap="2" mt={busy ? '0' : '4'} flexShrink={0} wrap="wrap">
-              {canReconnect && !busy && (!deviceConnected || progress?.stage !== 'completed') && <Button h="36px" fontSize="14px" variant="surface" onClick={onReconnect}>{zh ? '重新连接设备' : 'Reconnect device'}</Button>}
-              {!busy && <Button h="36px" fontSize="14px" variant="surface" onClick={onClose}>{zh ? '关闭' : 'Close'}</Button>}
+              {canReconnect && !busy && (!deviceConnected || progress?.stage !== 'completed') && <Button h="36px" fontSize="sm" variant="surface" onClick={onReconnect}>{zh ? '重新连接设备' : 'Reconnect device'}</Button>}
+              {!busy && <Button h="36px" fontSize="sm" variant="surface" onClick={onClose}>{zh ? '关闭' : 'Close'}</Button>}
               {error && !busy ? <>
-                {retryable && <Button h="36px" fontSize="14px" colorPalette="green" onClick={onRetry}>{zh ? '重试安装' : 'Retry installation'}</Button>}
+                {retryable && <Button h="36px" fontSize="sm" colorPalette="green" onClick={onRetry}>{zh ? '重试安装' : 'Retry installation'}</Button>}
               </> : null}
             </HStack>
           </Flex>

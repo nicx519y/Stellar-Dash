@@ -16,6 +16,10 @@ struct BatteryConditionTimer {
 
 class BatteryPolicy {
 public:
+    uint32_t confirmationMask() const {
+        return uint32_t(warning_.active) | (uint32_t(critical_.active)<<1) |
+               (uint32_t(normal_.active)<<2) | (uint32_t(recovery_.active)<<3);
+    }
     void sample(uint32_t now, bool valid, uint16_t mv, uint16_t soc, bool chargeAllowed) {
         if (!valid || (haveSample_ && now - lastSample_ > 2500u)) resetTimers();
         lastSample_ = now;

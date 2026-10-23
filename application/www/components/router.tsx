@@ -9,6 +9,7 @@ import { LEDsSettingContent } from '@/components/leds-setting-content';
 import { ButtonsPerformanceContent } from '@/components/buttons-performance-content';
 import { FirmwareContent } from '@/components/firmware-content';
 import { ViewLogsContent } from '@/components/view-logs-content';
+import { navigationEvents } from '@/lib/event-manager';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
 import {
     pathnameForRoute,
@@ -20,6 +21,7 @@ import {
 
 export type { Route } from '@/lib/router-path';
 type HistoryMode = 'push' | 'replace' | 'none';
+let historyIndex = 0;
 
 interface RouterState {
     currentRoute: Route;
@@ -37,10 +39,12 @@ export const useRouterStore = create<RouterState>((set, get) => ({
             const pathname = pathnameForRoute(route, get().basePath);
             if (window.location.pathname !== pathname) {
                 if (historyMode === 'replace') {
-                    window.history.replaceState(null, '', pathname);
+                    window.history.replaceState({ ...window.history.state, xoraRouteIndex: historyIndex }, '', pathname);
                 } else {
-                    window.history.pushState(null, '', pathname);
+                    window.history.pushState({ xoraRouteIndex: ++historyIndex }, '', pathname);
                 }
+            } else if (window.history.state?.xoraRouteIndex === undefined) {
+                window.history.replaceState({ ...window.history.state, xoraRouteIndex: historyIndex }, '', window.location.href);
             }
         }
     },
@@ -55,8 +59,23 @@ export function Router() {
 
     useEffect(() => {
         // useEffect 只在客户端运行，所以这里可以安全使用 window
-        const handlePopState = () => {
+        if (typeof window.history.state?.xoraRouteIndex === 'number') historyIndex = window.history.state.xoraRouteIndex;
+        let restoringHistory = false;
+        const handlePopState = async () => {
+            if (restoringHistory) { restoringHistory = false; return; }
             const route = routeFromPathname(window.location.pathname, basePath);
+            const previous = useRouterStore.getState().currentRoute;
+            const targetIndex = window.history.state?.xoraRouteIndex;
+            if (route !== previous && !await navigationEvents.emit(route)) {
+                if (typeof targetIndex === 'number' && targetIndex !== historyIndex) {
+                    restoringHistory = true;
+                    window.history.go(historyIndex - targetIndex);
+                } else {
+                    window.history.replaceState({ ...window.history.state, xoraRouteIndex: historyIndex }, '', pathnameForRoute(previous, basePath));
+                }
+                return;
+            }
+            if (typeof targetIndex === 'number') historyIndex = targetIndex;
             setRoute(
                 route,
                 popstateHistoryMode(window.location.pathname, basePath),
