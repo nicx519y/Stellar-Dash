@@ -5,7 +5,7 @@
 
 #include "screen_control/spi_screen_ui_common.hpp"
 
-void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* const* labels, uint8_t count, uint8_t index, uint8_t selectedConfigIndex, const ScreenUiStyle& style, uint16_t itemH, bool animActive, int animDir, uint32_t animStartMs, uint32_t nowMs, const bool* disabledItems, bool showBack) {
+__attribute__((optimize("Os"))) void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* const* labels, uint8_t count, uint8_t index, uint8_t selectedConfigIndex, const ScreenUiStyle& style, uint16_t itemH, bool animActive, int animDir, uint32_t animStartMs, uint32_t nowMs, const bool* disabledItems, bool showBack) {
     (void)title;
     if (!lcd || !labels) return;
 
@@ -55,6 +55,10 @@ void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* 
         const bool disabled = !back && disabledItems && disabledItems[i];
         const uint32_t itemText = disabled ? disabledText : ((back || i == selectedConfigIndex) ? style.text : normalText);
         const uint16_t textX = listX + (back ? 24u : 4u);
+        char row[64];
+        ScreenUI_NextTextRow(ScreenText_Translate(label), row,
+                            (listX + listW - textX - 4u) / ScreenUI_CharCellW(SPI_SCREEN_MENU_TEXT_SCALE), sizeof(row));
+        label = row;
         if (i == cursor) {
             ST7789_FillRect(lcd, listX, yy, listW, hh, style.selBg);
             if (textVisible) {
@@ -112,7 +116,7 @@ void ScreenDetailRender_Info(ST7789_Handle* lcd, const char* title, const char* 
     ScreenUI_DrawStringCenteredInBox(lcd, listX, titleH, listW, (uint16_t)(h - titleH), text, style.text, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
 }
 
-void ScreenDetailRender_TitleLines(ST7789_Handle* lcd, const char* title, const char* const* lines, uint8_t lineCount, const ScreenUiStyle& style) {
+__attribute__((optimize("Os"))) void ScreenDetailRender_TitleLines(ST7789_Handle* lcd, const char* title, const char* const* lines, uint8_t lineCount, const ScreenUiStyle& style) {
     if (!lcd) return;
     const uint16_t w = ST7789_WIDTH;
     const uint16_t h = ST7789_HEIGHT;
@@ -127,7 +131,7 @@ void ScreenDetailRender_TitleLines(ST7789_Handle* lcd, const char* title, const 
     const uint16_t textStartY = (uint16_t)(titleY + titleH + 14u);
     const uint16_t lineH = ScreenUI_CharCellH(textScale);
     const uint16_t gap = 6u;
-    char row[32];
+    char row[64];
     const uint16_t availableChars = (uint16_t)((listW - 16u) / ScreenUI_CharCellW(textScale));
     const uint16_t maxChars = availableChars < sizeof(row) - 1u ? availableChars : sizeof(row) - 1u;
 
@@ -137,10 +141,10 @@ void ScreenDetailRender_TitleLines(ST7789_Handle* lcd, const char* title, const 
     uint16_t y = textStartY;
     for (uint8_t i = 0; i < lineCount; i++) {
         if (!lines || !lines[i]) continue;
-        const char* remaining = lines[i];
+        const char* remaining = ScreenText_Translate(lines[i]);
         while (*remaining && maxChars > 0u) {
             if (y + lineH > h) return;
-            remaining = ScreenUI_NextTextRow(remaining, row, maxChars);
+            remaining = ScreenUI_NextTextRow(remaining, row, maxChars, sizeof(row));
             ST7789_DrawString(lcd, x, y, row, style.text, style.bg, textScale);
             y = (uint16_t)(y + lineH + gap);
         }

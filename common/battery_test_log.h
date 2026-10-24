@@ -82,6 +82,8 @@ void BatteryTest_RequestStart(void) BT_OPTIONAL;
 void ChargeTest_RequestStart(void) BT_OPTIONAL;
 int BatteryTest_IsCharge(void) BT_OPTIONAL;
 void BatteryTest_RequestEnd(void) BT_OPTIONAL;
+/* Screen confirmation queues a clear for the existing safe storage window. */
+void BatteryTest_RequestClear(void) BT_OPTIONAL;
 int BatteryTest_Active(void) BT_OPTIONAL;
 int BatteryTest_NeedsStorage(void) BT_OPTIONAL;
 const char *BatteryTest_Status(void) BT_OPTIONAL;

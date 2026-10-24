@@ -23,6 +23,7 @@ inline cJSON* toJson(const ScreenControlConfig& value) {
     auto sc = value; normalize(sc);
     auto* json = cJSON_CreateObject();
     cJSON_AddNumberToObject(json, "brightness", sc.brightness);
+    cJSON_AddStringToObject(json, "language", language(sc) ? "zh-CN" : "en");
     cJSON_AddBoolToObject(json, "standbyEnabled", enabled(sc));
     cJSON_AddStringToObject(json, "standbyDisplay", sc.standbyDisplay == 1 ? "backgroundImage" : sc.standbyDisplay == 2 ? "buttonLayout" : "screenOff");
     cJSON_AddNumberToObject(json, "standbyTimeoutSeconds", sc.standbyTimeoutSeconds);
@@ -39,6 +40,12 @@ inline cJSON* toJson(const ScreenControlConfig& value) {
 inline const char* applyJson(ScreenControlConfig& target, const cJSON* json, bool importing = false) {
     if (!cJSON_IsObject(json)) return "Invalid screenControl";
     auto sc = target; normalize(sc);
+    const auto* lang = cJSON_GetObjectItemCaseSensitive(json, "language");
+    if (lang) {
+        if (!cJSON_IsString(lang) || (strcmp(lang->valuestring, "en") && strcmp(lang->valuestring, "zh-CN"))) return "Invalid screen language";
+        setLanguage(sc, !strcmp(lang->valuestring, "zh-CN"));
+    } else if (importing) setLanguage(sc, 0u);
+    const auto languageValue = language(sc);
     auto* item = cJSON_GetObjectItemCaseSensitive(json, "standbyEnabled");
     if (item && !cJSON_IsBool(item)) return "Invalid standbyEnabled";
     const auto* enable = item;
@@ -105,6 +112,7 @@ inline const char* applyJson(ScreenControlConfig& target, const cJSON* json, boo
     const bool switchValue = legacyNone ? false : enable ? cJSON_IsTrue(enable) : enabled(sc);
     if (legacyFeatures) sc.reservedStyle[0] = 0;
     normalize(sc);
+    setLanguage(sc, languageValue);
     setEnabled(sc, switchValue);
     target = sc;
     return nullptr;

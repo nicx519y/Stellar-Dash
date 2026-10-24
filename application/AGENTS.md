@@ -10,7 +10,7 @@
 - 连接与发送路径见 [connection_manager.cpp](Src/transport/connection_manager.cpp)、[rf_transport.cpp](Src/transport/rf/rf_transport.cpp)、[rf_bridge_port.cpp](Src/transport/rf/rf_bridge_port.cpp)。板级 SPI/DMA 已实现，不再存在待接通的 `RF_Bridge_Transfer` weak 接口。引脚以 [board_cfg.h](Inc/system/board_cfg.h) 为准。
 - WebConfig V2 RPC 由 [webhid_service.cpp](Src/webconfig/webhid_service.cpp) 和 [webhid_rpc_dispatcher.cpp](Src/webconfig/webhid_rpc_dispatcher.cpp) 处理；跨端协议见 [common/webhid_protocol.h](../common/webhid_protocol.h)。不要恢复旧 lwIP HTTP 配置路径。
 - 配置读写与迁移核对 [config.cpp](Src/config/config.cpp)、[storagemanager.hpp](Inc/config/storagemanager.hpp) 及具体 command handler。字段变动同时检查网页类型、Mock 和命令契约；保持配置提交与回读语义。
-- 当前固件仅支持两档电源开关 PCB：正常 USB/RF 由屏幕 `Connection` 保存并重启生效，PI11/PI12 不参与模式判断；WebConfig 临时使用 USB Maintenance，退出恢复记忆选择。菜单 ID 15、局部 schema A2 及验证边界见 [两档 PCB 适配](../docs/two-position-pcb-firmware.md)。
+- 当前固件仅支持两档电源开关 PCB：正常 USB/RF 由屏幕 `Connection` 保存并重启生效，PI11/PI12 不参与模式判断；WebConfig 临时使用 USB Maintenance，退出恢复记忆选择。菜单 ID 15 及验证边界见 [两档 PCB 适配](../docs/two-position-pcb-firmware.md)。屏幕局部 schema A3 使用保留字节保存语言，固定语言菜单 ID 20；中文子集生成与容量核对见 [LCD 中文说明](Resources/fonts/chinese/README.md)。
 - 普通保存与校准、导入、升级的互斥边界以 [webhid_config_write_policy.hpp](Inc/webconfig/webhid_config_write_policy.hpp) 为准。QSPI 等待期间的反馈不得递归分发 RPC 或访问其他 QSPI 数据，见 [保存反馈说明](../docs/webconfig-live-autosave-feedback.md)。
 - Profile 存储下标、容量和迁移规则见 [固定槽位说明](../docs/fixed-profile-slots.md)；不要将 UI 顺序或显示编号当作 Profile ID。
 - 双槽/资源地址取自 [firmware_metadata.h](../common/firmware_metadata.h)，升级逻辑见 [firmware_manager.cpp](Src/firmware/firmware_manager.cpp)。不要复制旧地址表或改变冻结烧录流程。

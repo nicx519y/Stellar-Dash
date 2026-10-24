@@ -59,14 +59,14 @@ __attribute__((optimize("Os"))) void ScreenTimedPopup_Render(const ScreenTimedPo
     const uint16_t lineH = ScreenUI_CharCellH(textScale);
     const uint16_t titleGap = 10u;
     const uint16_t lineGap = 4u;
-    char row[32];
+    char row[64];
     const uint16_t availableChars = (listW - 16u) / ScreenUI_CharCellW(textScale);
     const uint16_t maxChars = availableChars < sizeof(row) - 1u ? availableChars : sizeof(row) - 1u;
     if (maxChars == 0u) return;
     uint16_t rows = 0;
     for (uint8_t i = 0; i < popup->lineCount; ++i) {
-        const char* text = popup->lines && popup->lines[i] ? popup->lines[i] : "";
-        do { text = ScreenUI_NextTextRow(text, row, maxChars); ++rows; } while (*text);
+        const char* text = ScreenText_Translate(popup->lines && popup->lines[i] ? popup->lines[i] : "");
+        do { text = ScreenUI_NextTextRow(text, row, maxChars, sizeof(row)); ++rows; } while (*text);
     }
     const uint16_t linesH = rows ? rows * lineH + (rows - 1u) * lineGap : 0u;
     const uint16_t blockH = (uint16_t)(titleH + titleGap + linesH);
@@ -78,10 +78,10 @@ __attribute__((optimize("Os"))) void ScreenTimedPopup_Render(const ScreenTimedPo
 
     uint16_t y = (uint16_t)(startY + titleH + titleGap);
     for (uint8_t i = 0; i < popup->lineCount; i++) {
-        const char* line = (popup->lines && popup->lines[i]) ? popup->lines[i] : "";
+        const char* line = ScreenText_Translate((popup->lines && popup->lines[i]) ? popup->lines[i] : "");
         do {
             if (y + lineH > h) return;
-            line = ScreenUI_NextTextRow(line, row, maxChars);
+            line = ScreenUI_NextTextRow(line, row, maxChars, sizeof(row));
             ScreenUI_DrawStringCenteredInBox(lcd, listX, y, listW, lineH, row, mutedText, style.bg, textScale);
             y = (uint16_t)(y + lineH + lineGap);
         } while (*line);

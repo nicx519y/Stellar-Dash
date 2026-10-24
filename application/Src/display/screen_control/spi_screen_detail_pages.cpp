@@ -12,6 +12,7 @@
 #include "storagemanager.hpp"
 #include "board_cfg.h"
 #include "board_mode.hpp"
+#include "screen_text.h"
 #include "battery_test_log.h"
 #include <cstdio>
 
@@ -20,9 +21,9 @@ namespace {
 constexpr uint8_t kScreenTimer = 16, kSleepTimer = 17;
 constexpr uint8_t kBatteryTest = 18, kChargeTest = 19;
 bool isBatteryTest(uint8_t id) { return id==kBatteryTest || id==kChargeTest; }
-uint8_t batteryPage = 0; // RAM-only: list, start confirmation, status
+uint8_t batteryPage = 0; // RAM-only: list, start confirmation, status, clear confirmation, blocked clear
 constexpr uint16_t kTimes[] = {10, 30, 60, 120, 300};
-constexpr const char* kTimeLabels[] = {"10s", "30s", "1min", "2min", "5min"};
+constexpr const char* kTimeLabels[] = {"OFF", "10s", "30s", "1min", "2min", "5min"};
 uint8_t groupSelection = 0, childPage = 255, childIndex = 0;
 bool isGroup(uint8_t id) { return id == ScreenConfig::kLed || id == ScreenConfig::kPower; }
 bool isTimer(uint8_t id) { return id == kScreenTimer || id == kSleepTimer; }
@@ -35,6 +36,7 @@ bool timerEnabled(uint8_t id) {
 }
 
 ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
+    if (menuId == ScreenConfig::kLanguage) return SCREEN_DETAIL_LIST;
     if(isBatteryTest(menuId)) return batteryPage?SCREEN_DETAIL_INFO:SCREEN_DETAIL_LIST;
     if (isGroup(menuId)) return childPage == 255 ? SCREEN_DETAIL_LIST : ScreenDetail_Kind(childPage);
     if (isTimer(menuId)) return timerSupported(menuId) ? SCREEN_DETAIL_SLIDER : SCREEN_DETAIL_INFO;
@@ -64,7 +66,7 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
 }
 
 const char* ScreenDetail_ConfirmLabel(uint8_t menuId, uint8_t index) {
-    if(isBatteryTest(menuId) && batteryPage) return batteryPage==1?"Start":"Back";
+    if(isBatteryTest(menuId) && batteryPage) return batteryPage==1?"Start":batteryPage==3?"Clear":"Back";
     if (isGroup(menuId)) {
         if (childPage != 255) return ScreenDetail_ConfirmLabel(childPage, childIndex);
         return groupSelection == SCREEN_LIST_BACK ? "Back" : "Open";
@@ -72,7 +74,7 @@ const char* ScreenDetail_ConfirmLabel(uint8_t menuId, uint8_t index) {
     if (menuId == 11) return ScreenDetailButtonsPerformance_ConfirmLabel(index);
     if (menuId == 2 && ScreenDetailSocd_WarningVisible()) return "Close";
     if (ScreenDetail_Kind(menuId) == SCREEN_DETAIL_LIST && index == SCREEN_LIST_BACK) return "Back";
-    if (isTimer(menuId)) return !timerSupported(menuId) ? "N/A" : timerEnabled(menuId) ? "OFF" : "ON";
+    if (isTimer(menuId)) return timerSupported(menuId) ? "Apply" : "N/A";
     if (menuId == 9) return ScreenDetailWebConfig_ConfirmLabel();
     if (menuId == 10) return "Quit";
     if (menuId == SCREEN_MENU_TX_ISP) return ScreenDetailTxIsp_ConfirmLabel();
@@ -86,12 +88,14 @@ const char* ScreenDetail_BackLabel(uint8_t menuId) {
 }
 
 uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
+    if (menuId == ScreenConfig::kLanguage) return ScreenConfig::language(STORAGE_MANAGER.config.screenControl);
     if(isBatteryTest(menuId)) { batteryPage=0; return 0; }
     if (isGroup(menuId)) { groupSelection = 0; childPage = 255; return 0; }
     if (isTimer(menuId)) {
+        if (!timerSupported(menuId) || !timerEnabled(menuId)) return 0;
         const uint32_t seconds = menuId == kScreenTimer ? STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds : STORAGE_MANAGER.config.power.autoStandbyMs / 1000u;
-        for (uint8_t i = 0; i < 5; ++i) if (seconds == kTimes[i]) return i;
-        return menuId == kScreenTimer ? 0 : 4;
+        for (uint8_t i = 0; i < 5; ++i) if (seconds == kTimes[i]) return i + 1u;
+        return menuId == kScreenTimer ? 1 : 5;
     }
     switch (menuId) {
         case ScreenConfig::kConnection: return ScreenDetailConnection_InitIndex();
@@ -114,7 +118,8 @@ uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
 
 void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
-    if(isBatteryTest(menuId)) { if(!batteryPage) *ioIndex=ScreenList_Rotate(*ioIndex,det,3); return; }
+    if (menuId == ScreenConfig::kLanguage) { *ioIndex=ScreenList_Rotate(*ioIndex,det,2); return; }
+    if(isBatteryTest(menuId)) { if(!batteryPage) *ioIndex=ScreenList_Rotate(*ioIndex,det,4); return; }
     if (isGroup(menuId)) {
         if (childPage != 255) ScreenDetail_OnRotate(childPage, &childIndex, det);
         else {
@@ -125,11 +130,17 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
     }
     if (isTimer(menuId)) {
         if (!timerSupported(menuId)) return;
-        int next = int(*ioIndex) + det; next = next < 0 ? 0 : next > 4 ? 4 : next;
+        int next = int(*ioIndex) + det; next = next < 0 ? 0 : next > 5 ? 5 : next;
         if (*ioIndex == next) return;
         *ioIndex = uint8_t(next);
-        if (menuId == kScreenTimer) STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds = kTimes[next];
-        else STORAGE_MANAGER.config.power.autoStandbyMs = uint32_t(kTimes[next]) * 1000u;
+        // OFF changes only the enable bit, preserving the stored timeout.
+        if (menuId == kScreenTimer) {
+            ScreenConfig::setEnabled(STORAGE_MANAGER.config.screenControl, next != 0);
+            if (next) STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds = kTimes[next - 1];
+        } else {
+            STORAGE_MANAGER.config.power.autoSleepEnabled = next ? 1u : 0u;
+            if (next) STORAGE_MANAGER.config.power.autoStandbyMs = uint32_t(kTimes[next - 1]) * 1000u;
+        }
         ScreenUI_RequestDeferredSave(2000u);
         return;
     }
@@ -152,16 +163,30 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
 }
 
 bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
+    if (menuId == ScreenConfig::kLanguage) {
+        if (index == SCREEN_LIST_BACK) return true;
+        if (index > 1u) return false;
+        ScreenConfig::setLanguage(STORAGE_MANAGER.config.screenControl,index);
+        ScreenText_SetLanguage(index);
+        ScreenUI_RequestDeferredSave(2000u);
+        return true;
+    }
     if(isBatteryTest(menuId)) {
         if(batteryPage==1) {
             if(menuId==kChargeTest) { if(ChargeTest_RequestStart) ChargeTest_RequestStart(); }
             else if(BatteryTest_RequestStart) BatteryTest_RequestStart();
             batteryPage=2; return false;
         }
-        if(batteryPage==2) { batteryPage=0; return false; }
+        if(batteryPage==3) {
+            if(BatteryTest_Active && BatteryTest_Active()) batteryPage=4;
+            else { if(BatteryTest_RequestClear) BatteryTest_RequestClear(); batteryPage=2; }
+            return false;
+        }
+        if(batteryPage==2 || batteryPage==4) { batteryPage=0; return false; }
         if(index==SCREEN_LIST_BACK) return true;
         if(index==0) batteryPage=1;
-        else { if(index==2 && BatteryTest_RequestEnd) BatteryTest_RequestEnd(); batteryPage=2; }
+        else if(index==2) batteryPage=BatteryTest_Active && BatteryTest_Active()?4:3;
+        else { if(index==3 && BatteryTest_RequestEnd) BatteryTest_RequestEnd(); batteryPage=2; }
         return false;
     }
     if (isGroup(menuId)) {
@@ -176,10 +201,8 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         return ScreenDetail_OnBack(menuId);
     if (isTimer(menuId)) {
         if (!timerSupported(menuId)) return false;
-        if (menuId == kScreenTimer) ScreenConfig::setEnabled(STORAGE_MANAGER.config.screenControl, !timerEnabled(menuId));
-        else STORAGE_MANAGER.config.power.autoSleepEnabled = timerEnabled(menuId) ? 0u : 1u;
         ScreenUI_RequestDeferredSave(2000u);
-        return false;
+        return true;
     }
     switch (menuId) {
         case ScreenConfig::kConnection: return ScreenDetailConnection_OnConfirm(index);
@@ -217,6 +240,11 @@ bool ScreenDetail_OnBack(uint8_t menuId) {
 }
 
 void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, const ScreenUiStyle& style) {
+    if (menuId == ScreenConfig::kLanguage) {
+        const char* labels[]={"English","简体中文"};
+        ScreenDetailRender_List(lcd,"Language",labels,2,index,ScreenConfig::language(STORAGE_MANAGER.config.screenControl),style);
+        return;
+    }
     if(isBatteryTest(menuId)) {
         if(batteryPage==1) {
             const char *lines[]={"Record for up to 24 hours.","Writes briefly pause input.","Settings and logs are kept."};
@@ -228,9 +256,13 @@ void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, cons
             const bool charging=BatteryTest_Active && BatteryTest_Active()?
                 BatteryTest_IsCharge && BatteryTest_IsCharge():menuId==kChargeTest;
             ScreenDetailRender_TitleLines(lcd,charging?"Charge Test":"Battery Test",lines,3,style);
+        } else if(batteryPage==3 || batteryPage==4) {
+            const char *lines[]={batteryPage==4?"End test before clearing":"Delete all test records?",
+                "Battery and charge logs.","Cannot undo. Export first."};
+            ScreenDetailRender_TitleLines(lcd,"Clear Records",lines,3,style);
         } else {
-            const char *labels[]={"Start Test","View Status","End Test"};
-            ScreenDetailRender_List(lcd,menuId==kChargeTest?"Charge Test":"Battery Test",labels,3,index,index,style);
+            const char *labels[]={"Start Test","View Status","Clear Records","End Test"};
+            ScreenDetailRender_List(lcd,menuId==kChargeTest?"Charge Test":"Battery Test",labels,4,index,index,style);
         }
         return;
     }
@@ -243,11 +275,10 @@ void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, cons
         return;
     }
     if (isTimer(menuId)) {
-        char label[24];
         // Read current values so WebConfig changes do not leave stale labels.
         index = ScreenDetail_InitIndex(menuId); childIndex = index;
-        snprintf(label, sizeof(label), "%s %s", kTimeLabels[index], !timerSupported(menuId) ? "Unavailable" : timerEnabled(menuId) ? "ON" : "OFF");
-        ScreenDetailRender_Slider(lcd, menuId == kScreenTimer ? "Screen Standby" : "Auto Sleep", index, style, 4, label);
+        const char* label = timerSupported(menuId) ? kTimeLabels[index] : "Unavailable";
+        ScreenDetailRender_Slider(lcd, menuId == kScreenTimer ? "Screen Standby" : "Auto Sleep", index, style, 5, label);
         return;
     }
     switch (menuId) {

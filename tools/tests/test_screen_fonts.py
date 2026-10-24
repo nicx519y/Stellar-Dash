@@ -9,8 +9,10 @@ import re
 import shutil
 import tempfile
 import unittest
+from PIL import Image, ImageDraw
 
 from tools.generate_screen_fonts import generate, OUTPUT, SOURCE, STRIKES, read_strike
+from tools import generate_screen_chinese as chinese
 from tools.tests.application_paths import ROOT, run_native
 from tools.tests.test_ch585_usb_handshake import function
 
@@ -42,7 +44,7 @@ void ST7789_DrawPixel(ST7789_Handle*,uint16_t x,uint16_t y,uint32_t c) {
 }
 void save(const char* dir,const char* name) {
     if(!dir) return;
-    std::string path=std::string(dir)+"/"+name+".ppm";
+    std::string path=std::string(dir)+"/"+(ScreenText_GetLanguage()?"zh-":"")+name+".ppm";
     FILE* f=fopen(path.c_str(),"wb");assert(f);fprintf(f,"P6\n320 172\n255\n");
     for(auto& row:pixels) for(auto c:row) {fputc(c>>16,f);fputc(c>>8,f);fputc(c,f);}
     fclose(f);
@@ -69,12 +71,37 @@ def descriptions():
     result.append(("battery-status", "Battery Test", ["Completed / view WebConfig", "Elapsed: 4294967s", "Logs: WebConfig"]))
     result.append(("charge-confirm", "Start Charge Test", result[-2][2]))
     result.append(("charge-status", "Charge Test", ["Battery data unavailable", "Elapsed: 4294967s", "Logs: WebConfig"]))
+    for name, first in (("clear-confirm", "Delete all test records?"), ("clear-blocked", "End test before clearing")):
+        result.append((name, "Clear Records", [first, "Battery and charge logs.", "Cannot undo. Export first."]))
+    for name, status in (("clearing", "Clearing records..."), ("cleared", "Records cleared"),
+                         ("clear-failed", "Clear failed / retry"), ("history", "History exists / clear first")):
+        result.append((name, "Battery Test", [status, "Elapsed: 0s" if name=="cleared" else "Elapsed: 600s", "Logs: WebConfig"]))
     return result
 
 
 class ScreenFontTests(unittest.TestCase):
+    def test_chinese_baselines_preserve_complete_monochrome_glyphs(self):
+        for width, height, weight in chinese.STRIKES:
+            font = chinese.load_font(height, weight)
+            baselines = set()
+            for codepoint in chinese.characters():
+                # Independent, generously padded source rendering. Recover the
+                # pen baseline from actual ink, not the generator's constants.
+                reference = Image.new("1", (128, 128))
+                ImageDraw.Draw(reference).text((48, 48), chr(codepoint), font=font, fill=1, anchor="ls")
+                source_box = reference.getbbox()
+                actual = Image.frombytes("1", (width, height), chinese.raster(font, codepoint, width, height))
+                actual_box = actual.getbbox()
+                self.assertIsNotNone(actual_box)
+                baselines.add(actual_box[1] - (source_box[1] - 48))
+                self.assertEqual(actual.crop(actual_box).tobytes(), reference.crop(source_box).tobytes(),
+                                 f"Missing/distorted pixels: {height}px U+{codepoint:04X}")
+                self.assertEqual(actual.crop(actual_box).size, reference.crop(source_box).size)
+            self.assertEqual(len(baselines), 1, f"Per-glyph vertical shifts in {height}px strike")
+
     def test_generated_strikes(self):
         self.assertEqual(OUTPUT.read_text(encoding="ascii"), generate())
+        self.assertEqual(chinese.OUTPUT.read_text(encoding="ascii"), chinese.generate()[0])
 
     def test_pixels_and_page_layouts(self):
         driver = (DRIVER / "spi-st7789.c").read_text(encoding="utf-8")
@@ -84,9 +111,11 @@ class ScreenFontTests(unittest.TestCase):
             code += function(driver, sig).replace("void ST7789_DrawString(", "void NativeDrawString(")
         code += function((UI / "spi_screen_manager.cpp").read_text(encoding="utf-8"), "static void render_platform_badge(")
         code += function((UI / "spi_screen_main_list.cpp").read_text(encoding="utf-8"), "const char* ScreenMain_InputModeAbbrev(")
+        code += '\nstatic const char* cjk[]={' + ','.join(json.dumps(chr(c)) for c in chinese.characters()) + '};\n'
         code += r'''
 void ST7789_DrawString(ST7789_Handle* l,uint16_t x,uint16_t y,const char* s,uint32_t fg,uint32_t bg,uint8_t font) {
-    assert(x+strlen(s)*ScreenFont_CellW(font)<=320 && y+ScreenFont_CellH(font)<=172);
+    s=ScreenText_Translate(s);
+    assert(x+ScreenText_Width(s,font)<=320 && y+ScreenFont_CellH(font)<=172);
     texts.push_back({x,y,font,s});NativeDrawString(l,x,y,s,fg,bg,font);
 }
 int main(int argc,char** argv) {
@@ -102,6 +131,15 @@ int main(int argc,char** argv) {
             }
         assert(pixels[30][30]==0x55555555); // Never paint outside a glyph cell.
     }
+    for(unsigned font:{1,3,2,4}) for(const char* text:cjk) {
+        memset(pixels,0x55,sizeof(pixels));NativeDrawString(&lcd,0,0,text,0xffffff,0,font);
+        for(unsigned y=0;y<ScreenFont_CellH(font);++y)
+            for(unsigned x=0;x<ScreenFont_CellW(font)*2u;++x) {
+                assert(pixels[y][x]==0 || pixels[y][x]==0xffffff);
+                fputc(pixels[y][x]?1:0,raw);
+            }
+        assert(pixels[30][30]==0x55555555);
+    }
     fclose(raw);
     memset(pixels,0,sizeof(pixels));
     ST7789_DrawChar(&lcd,318,170,'W',0xffffff,0,4); // Bottom/right clipping.
@@ -114,20 +152,31 @@ int main(int argc,char** argv) {
     assert(std::string(row)=="abcde" && std::string(tail)=="fghijk\nnext");
     tail=ScreenUI_NextTextRow("one two three",row,8);
     assert(compact(row)=="onetwo" && std::string(tail)=="three");
+    tail=ScreenUI_NextTextRow("屏幕亮度abc",row,4);
+    assert(std::string(row)=="屏幕" && std::string(tail)=="亮度abc");
+    tail=ScreenUI_NextTextRow("屏幕亮度",row,20,7);
+    assert(std::string(row)=="屏幕" && std::string(tail)=="亮度");
+    assert(ScreenText_Width("屏幕abc",3)==56);
+    const char* invalid="\xe4\xb8";
+    assert(ScreenText_ReadCodepoint(&invalid)=='?' && *invalid);
+    assert(ScreenText_ReadCodepoint(&invalid)=='?' && !*invalid);
+    for(unsigned lang=0;lang<2;++lang) {
+    ScreenText_SetLanguage(lang);
     for(unsigned light=0;light<2;++light) {
-        ScreenUiStyle style{light?0xffffffu:0u,light?0u:0xffffffu,0x444444u,0x888888u};
+        const uint32_t bg=light?0xffffffu:0u;
+        ScreenUiStyle style{bg,light?0u:0xffffffu,ScreenUI_HighlightFromBg(bg,32),ScreenUI_HighlightFromBg(bg,64)};
         auto reset=[&] {ST7789_FillRect(&lcd,0,0,320,172,style.bg);texts.clear();};
         auto page=[&](const char* name,const char* title,std::initializer_list<const char*> lines) {
             reset();std::vector<const char*> v(lines);
             ScreenDetailRender_TitleLines(&lcd,title,v.data(),v.size(),style);
-            std::string expected,actual;for(auto s:v) expected+=compact(s);
+            std::string expected,actual;for(auto s:v) expected+=compact(ScreenText_Translate(s));
             for(unsigned i=1;i<texts.size();++i) {
                 const auto& t=texts[i];actual+=compact(t.value);
-                assert(t.font==SCREEN_FONT_BODY && t.x>=48 && t.x+t.value.size()*8<=272);
+                assert(t.font==SCREEN_FONT_BODY && t.x>=48 && t.x+ScreenText_Width(t.value.c_str(),t.font)<=272);
             }
-            assert(actual==expected);assert(texts[0].value==title);
+            assert(actual==expected);assert(texts[0].value==ScreenText_Translate(title));
             assert(texts[0].font==SCREEN_FONT_LARGE && texts[0].y==12);
-            assert(texts[0].x+texts[0].value.size()*ScreenFont_CellW(texts[0].font)<=272);
+            assert(texts[0].x+ScreenText_Width(texts[0].value.c_str(),texts[0].font)<=272);
             assert(texts.size()<=5); // Concise instructions: at most four complete body rows.
             for(unsigned i=1;i<texts.size();++i) {
                 assert(texts[i].y==50+(i-1)*20 && texts[i].y+14<=172);
@@ -138,19 +187,40 @@ int main(int argc,char** argv) {
         for name, title, lines in descriptions():
             code += f"page({json.dumps(name)},{json.dumps(title)},{{{','.join(map(json.dumps, lines))}}});\n"
         code += r'''
+        reset();const char* languageLabels[]={"English","简体中文"};
+        ScreenDetailRender_List(&lcd,"Language",languageLabels,2,1,lang,style);
+        save(dir,light?"light-language":"dark-language");
+        reset();const char* testLabels[]={"Start Test","View Status","Clear Records","End Test"};
+        ScreenDetailRender_List(&lcd,"Battery Test",testLabels,4,2,2,style);
+        save(dir,light?"light-battery-menu":"dark-battery-menu");
+        for(unsigned icon=0;icon<=unsigned(ScreenActionIcon::Check);++icon) {
+            reset();ScreenUI_DrawActionIcon(&lcd,300,85,ScreenActionIcon(icon),style.text,style.bg);
+            save(dir,(std::string(light?"light-icon-":"dark-icon-")+std::to_string(icon)).c_str());
+        }
+        reset();const char* longLabels[]={"屏幕亮度屏幕亮度屏幕亮度屏幕亮度屏幕亮度"};
+        ScreenDetailRender_List(&lcd,"",longLabels,1,0,0,style);
+        for(const auto& t:texts) assert(t.x+ScreenText_Width(t.value.c_str(),t.font)<=276);
         reset();const char* labels[]={"LED Brightness","Ambient Brightness","Buttons Performance","Screen Standby"};
         ScreenDetailRender_List(&lcd,"Settings",labels,4,1,1,style);
-        for(const auto& t:texts) assert(t.x+t.value.size()*ScreenFont_CellW(t.font)<=280);
+        for(const auto& t:texts) assert(t.x+ScreenText_Width(t.value.c_str(),t.font)<=280);
         save(dir,light?"light-menu":"dark-menu");
         reset();ScreenDetailRender_Slider(&lcd,"Screen Brightness",75,style);
         assert(texts.size()==2 && texts[1].value=="75%");save(dir,light?"light-slider":"dark-slider");
+        const char* timerValues[]={"OFF","10s","30s","1min","2min","5min"};
+        for(const char* timerTitle:{"Screen Standby","Auto Sleep"}) for(unsigned step=0;step<6;++step) {
+            reset();ScreenDetailRender_Slider(&lcd,timerTitle,step,style,5,timerValues[step]);
+            ScreenUI_DrawActionIcon(&lcd,300,85,ScreenUI_ActionIcon("Apply"),style.text,style.bg);
+            assert(texts.size()==2 && texts[1].value==ScreenText_Translate(timerValues[step]));
+            for(const auto& t:texts) assert(t.x>=40 && t.x+ScreenText_Width(t.value.c_str(),t.font)<=280);
+            save(dir,(std::string(light?"light-timer-":"dark-timer-")+timerTitle+"-"+std::to_string(step)).c_str());
+        }
         reset();ScreenDetailRender_Info(&lcd,"Connection","USB",style);
         assert(texts.size()==2 && texts[0].font==SCREEN_FONT_TITLE);
         save(dir,light?"light-info":"dark-info");
         reset();const char* lines[]={"Configuration could not be saved.","Press knob to retry saving and exit.","The secure USB session is closed."};
         ScreenTimedPopup popup{true,true,0,"XORA Firmware",lines,3};
         ScreenTimedPopup_Render(&popup,&lcd,style);
-        std::string actual,expected;for(auto s:lines)expected+=compact(s);
+        std::string actual,expected;for(auto s:lines)expected+=compact(ScreenText_Translate(s));
         for(unsigned i=1;i<texts.size();++i)actual+=compact(texts[i].value);
         assert(actual==expected);save(dir,light?"light-popup":"dark-popup");
         reset();const auto layout=ScreenUI_StatusBarLayout();
@@ -159,8 +229,8 @@ int main(int argc,char** argv) {
         render_platform_badge(&lcd,ScreenMain_InputModeAbbrev(INPUT_MODE_XINPUT),style.text,style.bg);
         ScreenUI_DrawStringCenteredInBox(&lcd,0,layout.connectionY,40,32,"USB",style.text,style.bg,2);
         ScreenUI_DrawStringCenteredInBox(&lcd,280,0,40,57,"Cancel",style.text,style.bg,1);
-        assert(texts.size()==4 && texts.back().value=="Cancel");
-        for(const auto& t:texts) assert(t.x+t.value.size()*ScreenFont_CellW(t.font)<=(t.x<40?40:320));
+        assert(texts.size()==4 && texts.back().value==ScreenText_Translate("Cancel"));
+        for(const auto& t:texts) assert(t.x+ScreenText_Width(t.value.c_str(),t.font)<=(t.x<40?40:320));
         save(dir,light?"light-status":"dark-status");
         const InputMode modes[]={INPUT_MODE_XINPUT,INPUT_MODE_XBOX,INPUT_MODE_PS4,INPUT_MODE_PS5,INPUT_MODE_SWITCH};
         const char* expectedLabels[]={"PC","XB","PS","PS","NS"};
@@ -191,6 +261,7 @@ int main(int argc,char** argv) {
             assert(ink>normalInk); // Every platform gains stroke weight, in both themes.
         }
     }
+    }
 }
 '''
         with tempfile.TemporaryDirectory(prefix="xora-fonts-") as directory:
@@ -210,6 +281,7 @@ void ST7789_DrawString(ST7789_Handle*,uint16_t,uint16_t,const char*,uint32_t,uin
                         f"-I{ROOT / 'application/Inc/display/drivers/st7789'}", str(cpp),
                         f"-I{ROOT / 'application/Inc/support'}",
                         *[str(UI / f) for f in ("spi_screen_ui_common.cpp", "spi_screen_detail_render_helpers.cpp", "spi_screen_timed_popup.cpp")],
+                        str(DRIVER / "screen_text.c"),
                         "-o", str(exe)], check=True, timeout=120)
             preview = Path(os.environ.get("XORA_SCREEN_PREVIEW_DIR", temp / "preview"))
             preview.mkdir(parents=True, exist_ok=True)
@@ -226,8 +298,15 @@ void ST7789_DrawString(ST7789_Handle*,uint16_t,uint16_t,const char*,uint32_t,uin
                     merged = row | (data[y-1] if y else 0)
                     bold = merged | (merged >> 1)
                     expected.extend(bool(bold & (0x80 >> x)) for x in range(8))
+            for width, height, weight in chinese.STRIKES:
+                font = chinese.load_font(height, weight)
+                for c in chinese.characters():
+                    data = chinese.raster(font, c, width, height)
+                    for y in range(height):
+                        for x in range(width):
+                            expected.append(bool(data[y*((width+7)//8)+x//8] & (0x80>>(x%8))))
             self.assertEqual(raw.read_bytes(), bytes(expected))
-            print(f"PASS: 380 native and 95 bold glyphs; {len(descriptions())} description states, menus, sliders, info, popups and sidebars in both themes")
+            print(f"PASS: 380 native, 95 bold, {len(chinese.characters()) * 4} Chinese glyphs; {len(descriptions())} description states, menus, sliders, info, popups and sidebars in both languages/themes")
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ class SleepChargeDisplayTests(unittest.TestCase):
             cpp.write_text(source, encoding='utf-8')
             run_native([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
                         '-Wno-missing-field-initializers', f'-I{path}',
-                        *application_include_flags(), str(cpp), '-o', str(exe)], check=True)
+                        *application_include_flags(), str(cpp), str(DRIVER.parent / 'screen_text.c'), '-o', str(exe)], check=True)
             run_native([str(exe), *args], check=True, timeout=10)
 
     def test_cadence_fault_unplug_notice_and_wrap(self):
@@ -80,14 +80,14 @@ void ST7789_FillRect(ST7789_Handle*, uint16_t x,uint16_t y,uint16_t w,uint16_t h
 void ST7789_DrawPixel(ST7789_Handle* l,uint16_t x,uint16_t y,uint32_t c) { ST7789_FillRect(l,x,y,1,1,c); }
 void ST7789_FillScreen(ST7789_Handle* l,uint32_t c) { ST7789_FillRect(l,0,0,320,172,c); }
 '''
-        harness += '#include "screen_font.h"\n'
+        harness += '#include "screen_font.h"\n#include "screen_text.h"\n'
         harness += (DRIVER.parent / 'screen_font_data.inc').read_text(encoding='ascii')
         for signature in ('static uint16_t st7789_char_cell_w(', 'static uint16_t st7789_char_cell_h(',
                           'void ST7789_DrawChar(', 'void ST7789_DrawString('):
             harness += function(driver, signature)
         for signature in ('uint16_t ScreenUI_CharCellW(', 'uint16_t ScreenUI_CharCellH(',
                           'uint16_t ScreenUI_TextPxW(', 'uint16_t ScreenUI_TextPxH(',
-                          'void ScreenUI_DrawStringCenteredInBox('):
+                          'const char* ScreenUI_NextTextRow(', 'void ScreenUI_DrawStringCenteredInBox('):
             harness += function(ui, signature)
         harness += function(screen, 'static void draw_sleep_charge_number(')
         harness += function(screen, 'static void draw_sleep_charge_page(')

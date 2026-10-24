@@ -1,5 +1,6 @@
 #include "screen_control/spi_screen_main_list.hpp"
 #include "board_mode.hpp"
+#include "screen_control_config.hpp"
 
 #include "screen_control/spi_screen_ui_common.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
@@ -19,8 +20,10 @@ static const ScreenMenuMeta kMenuMeta[] = {
 };
 
 static const ScreenMenuMeta kTxIspMenu = {SCREEN_MENU_TX_ISP, 0u, "TX ISP"};
+static const ScreenMenuMeta kLanguageMenu = {ScreenConfig::kLanguage, 0u, "Language / 语言"};
 
 const ScreenMenuMeta* ScreenMain_FindMenuMeta(uint8_t id) {
+    if (id == ScreenConfig::kLanguage) return &kLanguageMenu;
     if (id == SCREEN_MENU_TX_ISP) return &kTxIspMenu;
     for (size_t i = 0; i < sizeof(kMenuMeta) / sizeof(kMenuMeta[0]); i++) {
         if (kMenuMeta[i].id == id) return &kMenuMeta[i];
@@ -71,6 +74,8 @@ uint8_t ScreenMain_RebuildMenuIds(const ScreenControlConfig& sc, uint8_t* outIds
         }
     }
     if (!(seen & SCREEN_FEATURE_TRANSPORT_MODE_SWITCH) && count < outCap) outIds[count++] = 15;
+    // Always reachable, including when all optional pages are hidden.
+    if (count < outCap) outIds[count++] = ScreenConfig::kLanguage;
     return count;
 }
 

@@ -5,6 +5,7 @@ export const SCREEN_FEATURE_IDS: Record<ScreenControlFeatureKey, number> = {
   buttonsPerformanceQuickSet: 11, ledSetting: 13, screenBrightnessAdjust: 8, power: 14,
   webConfigEntry: 9, calibrationModeSwitch: 10,
 };
+export const SCREEN_LANGUAGE_MENU_ID = 20;
 const legacyLedKeys = ['ledBrightnessAdjust', 'ledEffectSwitch', 'ambientBrightnessAdjust', 'ambientEffectSwitch'];
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
@@ -32,9 +33,10 @@ export function normalizeScreenControl(value: unknown, live = false): ScreenCont
   defaults.featuresOrder.forEach(add);
   let page = typeof raw.currentPageId === 'number' ? raw.currentPageId : defaults.currentPageId;
   if (page >= 4 && page <= 7) page = 13;
-  if (!order.some(key => SCREEN_FEATURE_IDS[key] === page && features[key])) page = SCREEN_FEATURE_IDS[order.find(key => features[key])!];
+  if (page !== SCREEN_LANGUAGE_MENU_ID && !order.some(key => SCREEN_FEATURE_IDS[key] === page && features[key])) page = SCREEN_FEATURE_IDS[order.find(key => features[key])!];
   return {
     ...defaults, ...raw,
+    language: raw.language === 'zh-CN' ? 'zh-CN' : 'en',
     standbyEnabled: raw.standbyDisplay === 'none' ? false : typeof raw.standbyEnabled === 'boolean' ? raw.standbyEnabled : raw.standbyDisplay === 'backgroundImage' || raw.standbyDisplay === 'buttonLayout',
     standbyDisplay: raw.standbyDisplay === 'backgroundImage' || raw.standbyDisplay === 'buttonLayout' ? raw.standbyDisplay : 'screenOff',
     standbyTimeoutSeconds: normalizeScreenStandbyTimeout(raw.standbyTimeoutSeconds),
@@ -44,6 +46,7 @@ export function normalizeScreenControl(value: unknown, live = false): ScreenCont
 }
 
 export function applyScreenControlPatch(current: ScreenControlConfig, patch: Record<string, unknown>, importing = false): ScreenControlConfig {
+  if (patch.language !== undefined && patch.language !== 'en' && patch.language !== 'zh-CN') throw new Error('Invalid screen language');
   if (patch.standbyEnabled !== undefined && typeof patch.standbyEnabled !== 'boolean') throw new Error('Invalid standbyEnabled');
   if (patch.standbyDisplay !== undefined && !['none', 'screenOff', 'backgroundImage', 'buttonLayout'].includes(patch.standbyDisplay as string)) throw new Error('Invalid standby display');
   if (patch.standbyTimeoutSeconds !== undefined && normalizeScreenStandbyTimeout(patch.standbyTimeoutSeconds) !== patch.standbyTimeoutSeconds) throw new Error('Invalid standby timeout');
@@ -52,6 +55,7 @@ export function applyScreenControlPatch(current: ScreenControlConfig, patch: Rec
   for (const key of Object.keys(SCREEN_FEATURE_IDS)) if (key in features && typeof features[key] !== 'boolean') throw new Error('Invalid screen feature');
   const legacyFeatures = legacyLedKeys.some(key => key in features) && !('ledSetting' in features);
   const merged = { ...current, ...patch, features: { ...current.features, ...features } } as Record<string, unknown>;
+  if (importing && patch.language === undefined) merged.language = 'en';
   if (legacyFeatures) delete (merged.features as Record<string, unknown>).ledSetting;
   if (importing && patch.standbyEnabled === undefined && patch.standbyDisplay !== undefined) delete merged.standbyEnabled;
   return normalizeScreenControl(merged);

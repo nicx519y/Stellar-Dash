@@ -4,6 +4,39 @@ const { normalizeScreenControl, applyScreenControlPatch } = require('../lib/scre
 const { DEFAULT_SCREEN_CONTROL_CONFIG } = require('../types/gamepad-config.ts');
 const { decodeConfigResource } = require('../lib/device-transport/config-modules.ts');
 const { writeConfigResource } = require('../lib/device-transport/config-snapshot.ts');
+const fs = require('node:fs');
+const path = require('node:path');
+const { SCREEN_FEATURE_IDS, SCREEN_LANGUAGE_MENU_ID } = require('../lib/screen-control-config.ts');
+const { UI_TEXT, UI_TEXT_ZH } = require('../types/gamepad-config.ts');
+
+test('web menu labels, IDs and default order match the current LCD catalog', () => {
+  const lcd = fs.readFileSync(path.join(__dirname, '../../Src/display/screen_control/spi_screen_main_list.cpp'), 'utf8');
+  const zh = JSON.parse(fs.readFileSync(path.join(__dirname, '../../Resources/fonts/chinese/screen_zh.json'), 'utf8'));
+  const ui = fs.readFileSync(path.join(__dirname, '../components/screen-control-setting-content.tsx'), 'utf8');
+  const labels = Object.fromEntries([...ui.matchAll(/(\w+): t\.(SETTINGS_SCREEN_CONTROL_FEATURE_\w+),/g)].map(m => [m[1], m[2]]));
+  const deviceLabels = new Map([...lcd.matchAll(/\{(\d+), SCREEN_FEATURE_\w+, "([^"]+)"\}/g)].map(m => [Number(m[1]), m[2]]));
+  assert.equal(deviceLabels.size, 11);
+  for (const [key, id] of Object.entries(SCREEN_FEATURE_IDS)) {
+    const english = deviceLabels.get(id);
+    assert.equal(UI_TEXT[labels[key]], english, key);
+    assert.equal(UI_TEXT_ZH[labels[key]], zh[english] ?? english, key);
+  }
+  assert.deepEqual(DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder.map(key => SCREEN_FEATURE_IDS[key]), [15,3,0,1,2,11,13,8,14,9,10]);
+  assert.equal(SCREEN_LANGUAGE_MENU_ID, 20);
+  assert.equal(UI_TEXT_ZH.SETTINGS_SCREEN_CONTROL_FEATURE_LANGUAGE, '语言');
+});
+
+test('LCD language survives live reads and patches, with compatible legacy imports', () => {
+  const chinese = normalizeScreenControl({ ...DEFAULT_SCREEN_CONTROL_CONFIG, language: 'zh-CN', currentPageId: 20 }, true);
+  assert.equal(chinese.language, 'zh-CN');
+  assert.equal(chinese.currentPageId, 20);
+  assert.equal(applyScreenControlPatch(chinese, { brightness: 30 }).language, 'zh-CN');
+  assert.equal(applyScreenControlPatch(chinese, { brightness: 30 }, true).language, 'en');
+  assert.equal(applyScreenControlPatch(chinese, { language: 'zh-CN' }, true).language, 'zh-CN');
+  assert.equal(normalizeScreenControl({}).language, 'en');
+  assert.throws(() => applyScreenControlPatch(chinese, { language: 'xx' }), /Invalid screen language/);
+  assert.equal(chinese.language, 'zh-CN');
+});
 
 test('legacy standby and grouped menu migration preserve selection and order', () => {
   const old = {
@@ -19,7 +52,8 @@ test('legacy standby and grouped menu migration preserve selection and order', (
   assert.equal(migrated.features.ledSetting, true);
   assert.equal(migrated.features.power, true);
   assert.deepEqual(migrated.featuresOrder.slice(0, 5), ['profilesSwitch', 'ledSetting', 'inputModeSwitch', 'screenBrightnessAdjust', 'power']);
-  assert.equal(migrated.featuresOrder.length, 10);
+  assert.equal(migrated.featuresOrder.length, 11);
+  assert.equal(migrated.featuresOrder.filter(key => key === 'transportModeSwitch').length, 1);
   assert.deepEqual(normalizeScreenControl(migrated), migrated);
   for (const mode of ['backgroundImage', 'buttonLayout']) assert.equal(normalizeScreenControl({ ...old, standbyDisplay: mode }).standbyEnabled, true);
   const hidden = normalizeScreenControl({ ...old, features: { ...old.features, ledEffectSwitch: false } });

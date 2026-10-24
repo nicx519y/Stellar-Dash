@@ -14,7 +14,11 @@
 struct FakeScb {uint32_t CCR=0;};
 inline FakeScb scb;
 #define SCB (&scb)
-inline void SCB_InvalidateDCache_by_Addr(uint32_t *,uint32_t) {}
+inline unsigned cacheInvalidations=0;
+inline void SCB_InvalidateDCache_by_Addr(uint32_t *p,uint32_t n) {
+    if(reinterpret_cast<uintptr_t>(p)!=BATTERY_TEST_STORAGE_ADDR || n!=BT_REGION_BYTES)abort();
+    ++cacheInvalidations;
+}
 inline unsigned __get_IPSR() {return 0;}
 inline uint32_t tick;
 inline uint32_t HAL_GetTick() {return tick;}
@@ -33,6 +37,7 @@ struct Sample {
 };
 struct FakePower {
     Sample sample;
+    void loop() {}
     Sample getSnapshot() const {return sample;}
     bool batteryProtectionRequired() const {return sample.battery_level>=BatteryLevel::Critical;}
 };
@@ -56,18 +61,26 @@ namespace ConfigUtils {inline uint32_t getWirelessReportRateHz(uint32_t n){retur
 inline bool ordinarySleep=false;
 inline bool SystemSleep_IsSleeping(){return ordinarySleep;}
 using QSPI_W25Qxx_WaitCallback=void (*)();
-inline QSPI_W25Qxx_WaitCallback QSPI_W25Qxx_SetWaitCallback(QSPI_W25Qxx_WaitCallback w){return w;}
-inline bool QSPI_W25Qxx_IsMemoryMappedMode(){return false;}
-inline int QSPI_W25Qxx_ExitMemoryMappedMode(){return 0;}
-inline int QSPI_W25Qxx_EnterMemoryMappedMode(){return 0;}
+inline QSPI_W25Qxx_WaitCallback waitCallback=nullptr;
+inline QSPI_W25Qxx_WaitCallback QSPI_W25Qxx_SetWaitCallback(QSPI_W25Qxx_WaitCallback w){auto previous=waitCallback;waitCallback=w;return previous;}
+inline bool mappedMode=false, qspiAddressError=false;
+inline unsigned mappingExits=0, mappingEnters=0;
+inline void (*mappingTransition)(bool)=nullptr;
+inline bool QSPI_W25Qxx_IsMemoryMappedMode(){return mappedMode;}
+inline int QSPI_W25Qxx_ExitMemoryMappedMode(){mappedMode=false;++mappingExits;if(mappingTransition)mappingTransition(false);return 0;}
+inline int QSPI_W25Qxx_EnterMemoryMappedMode(){if(qspiAddressError)return -1;mappedMode=true;++mappingEnters;if(mappingTransition)mappingTransition(true);return 0;}
 inline uint8_t flashMemory[0x800000];
 inline int writeFailure=0;
 inline int readFailure=0, readCalls=0;
 inline int eraseFailure=0, eraseCalls=0;
 inline int QSPI_W25Qxx_SectorErase(uint32_t addr) {
-    if(addr<BATTERY_TEST_STORAGE_ADDR || addr>=BATTERY_TEST_STORAGE_ADDR+BT_REGION_BYTES || addr%4096)abort();
+    // Like the production primitive, this accepts a chip offset, not a CPU
+    // memory-mapped address. ReadBuffer alone normalizes mapped addresses.
+    if(addr<BATTERY_TEST_STORAGE_ADDR-EXTERNAL_FLASH_BASE ||
+       addr>=BATTERY_TEST_STORAGE_ADDR-EXTERNAL_FLASH_BASE+BT_REGION_BYTES || addr%4096){qspiAddressError=true;return -1;}
+    if(waitCallback)waitCallback();
     ++eraseCalls;if(eraseFailure)return -1;
-    memset(flashMemory+addr-EXTERNAL_FLASH_BASE,255,4096);return 0;
+    memset(flashMemory+addr,255,4096);return 0;
 }
 inline int QSPI_W25Qxx_ReadBuffer(uint8_t *p,uint32_t addr,uint32_t n){
     ++readCalls;if(readFailure)return -1;
@@ -75,8 +88,8 @@ inline int QSPI_W25Qxx_ReadBuffer(uint8_t *p,uint32_t addr,uint32_t n){
     memcpy(p,flashMemory+addr-EXTERNAL_FLASH_BASE,n);return 0;
 }
 inline int QSPI_W25Qxx_WritePage(uint8_t *p,uint32_t addr,uint32_t n){
-    if(addr<EXTERNAL_FLASH_BASE || addr-EXTERNAL_FLASH_BASE+n>sizeof(flashMemory))abort();
+    if(addr>=sizeof(flashMemory) || n>sizeof(flashMemory)-addr){qspiAddressError=true;return -1;}
     if(writeFailure)return -1;
-    for(uint32_t i=0;i<n;i++)flashMemory[addr-EXTERNAL_FLASH_BASE+i]&=p[i];
+    for(uint32_t i=0;i<n;i++)flashMemory[addr+i]&=p[i];
     return 0;
 }

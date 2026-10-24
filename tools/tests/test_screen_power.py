@@ -5,9 +5,47 @@ import tempfile
 import unittest
 from pathlib import Path
 from .application_paths import ROOT, application_include_flags, run_native
+from .test_ch585_usb_handshake import function
 
 
 class ScreenPowerTests(unittest.TestCase):
+    def test_saved_first_menu_and_live_cursor(self):
+        source = (ROOT / 'application/Src/display/screen_control/spi_screen_manager.cpp').read_text(encoding='utf-8')
+        code = r'''
+#include <cstdint>
+#include <cassert>
+#include <cstring>
+#include <vector>
+struct Config { struct { uint16_t currentPageId; } screenControl; };
+struct { Config config; } STORAGE_MANAGER;
+std::vector<uint8_t> available={15,3,0,20};
+uint8_t ScreenMain_RebuildMenuIds(const decltype(Config::screenControl)&, uint8_t* out, uint8_t cap) {
+    assert(available.size()<=cap); memcpy(out,available.data(),available.size()); return available.size();
+}
+struct MenuBootHarness { uint8_t menuCount=0,menuIndex=0,menuIds[32]={}; void rebuildMenu(); };
+'''
+        code += function(source, 'void SPIScreenManager::rebuildMenu()').replace('SPIScreenManager::', 'MenuBootHarness::')
+        code += r'''
+int main() {
+    for (uint16_t requested : {0,15,20,255}) {
+        STORAGE_MANAGER.config.screenControl.currentPageId=requested;
+        MenuBootHarness menu; menu.rebuildMenu();
+        assert(menu.menuIds[menu.menuIndex]==(requested==255 ? 15 : requested));
+    }
+    STORAGE_MANAGER.config.screenControl.currentPageId=20;
+    MenuBootHarness menu; menu.rebuildMenu(); menu.menuIndex=1; // User navigated to Report Rate.
+    available={3,15,0,20}; menu.rebuildMenu();
+    assert(menu.menuIndex==0 && menu.menuIds[menu.menuIndex]==3); // Reordering retains cursor.
+    available={15,20}; menu.rebuildMenu(); assert(menu.menuIndex==0);
+    available.clear(); menu.rebuildMenu(); assert(menu.menuCount==0 && menu.menuIndex==0);
+}
+'''
+        with tempfile.TemporaryDirectory(prefix='xora-screen-boot-menu-') as directory:
+            cpp, exe = Path(directory) / 'test.cpp', Path(directory) / 'test.exe'
+            cpp.write_text(code, encoding='utf-8')
+            run_native([shutil.which('g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror', str(cpp), '-o', str(exe)], check=True)
+            run_native([str(exe)], check=True)
+
     def test_config_and_group_navigation(self):
         with tempfile.TemporaryDirectory(prefix="xora-screen-power-") as directory:
             temp = Path(directory)
@@ -52,6 +90,7 @@ inline LedStub LEDS_MANAGER;
                             str(ROOT / "application/Src/display/screen_control/spi_screen_main_list.cpp"),
                             *[str(ROOT / "application/Src/display/screen_control" / ("spi_screen_detail_" + name + ".cpp")) for name in real_leaves.values()],
                             str(ROOT / "application/Src/display/screen_control/spi_screen_ui_common.cpp"),
+                            str(ROOT / "application/Src/display/drivers/st7789/screen_text.c"),
                             str(ROOT / "application/Src/display/screen_control/spi_screen_timed_popup.cpp"),
                             str(ROOT / "application/Libs/cJSON/cJSON.c"), "-o", str(exe)], check=True)
                 run_native([str(exe)], check=True)

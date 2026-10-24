@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 StorageStub STORAGE_MANAGER;
 BoardStub BOARD_MODE;
@@ -31,18 +32,23 @@ void ST7789_FillRect(ST7789_Handle*, uint16_t x, uint16_t y, uint16_t w, uint16_
 void ST7789_DrawString(ST7789_Handle*, uint16_t, uint16_t, const char*, uint32_t, uint32_t, uint8_t) {}
 
 std::string renderedTitle, renderedValue;
-uint8_t renderedIndex;
+std::vector<std::string> renderedLabels;
+uint8_t renderedIndex, renderedMax;
 void ScreenUI_RequestDeferredSave(uint32_t delay) { assert(delay == 2000); ++saves; }
-void ScreenDetailRender_List(ST7789_Handle*, const char* title, const char* const*, uint8_t, uint8_t index, uint8_t, const ScreenUiStyle&, uint16_t, bool, int, uint32_t, uint32_t, const bool*, bool) {
+void ScreenDetailRender_List(ST7789_Handle*, const char* title, const char* const* labels, uint8_t count, uint8_t index, uint8_t, const ScreenUiStyle&, uint16_t, bool, int, uint32_t, uint32_t, const bool*, bool) {
     renderedTitle = title; renderedIndex = index;
+    renderedLabels.assign(labels,labels+count);
 }
 void ScreenDetailRender_Slider(ST7789_Handle*, const char* title, uint8_t index, const ScreenUiStyle&, uint8_t max, const char* value) {
-    assert(max == 4 || max == 100); renderedTitle = title; renderedValue = value ? value : ""; renderedIndex = index;
+    assert(max == 5 || max == 100); renderedTitle = title; renderedValue = value ? value : ""; renderedIndex = index; renderedMax = max;
 }
 void ScreenDetailRender_TitleLines(ST7789_Handle*, const char* title, const char* const* lines, uint8_t count, const ScreenUiStyle&) {
     renderedTitle=title; renderedValue=count?lines[0]:"";
 }
-static unsigned batteryStarts=0,batteryEnds=0,chargeStarts=0;
+static unsigned batteryStarts=0,batteryEnds=0,chargeStarts=0,batteryClears=0;
+static bool batteryActive=false;
+extern "C" int BatteryTest_Active() { return batteryActive; }
+extern "C" void BatteryTest_RequestClear() { ++batteryClears; }
 extern "C" void ChargeTest_RequestStart() { ++chargeStarts; }
 extern "C" int BatteryTest_IsCharge() { return chargeStarts>0; }
 extern "C" void BatteryTest_RequestStart() { ++batteryStarts; }
@@ -75,11 +81,48 @@ int main() {
         assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor));
         assert(batteryStarts==1 && saves==0);
         assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor)); // status -> list
-        ScreenDetail_OnRotate(ScreenConfig::kPower,&cursor,2);
+        ScreenDetail_OnRotate(ScreenConfig::kPower,&cursor,3);
         assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower,cursor)); // end
         assert(batteryEnds==1 && saves==0);
         assert(!ScreenDetail_OnBack(ScreenConfig::kPower)); // status -> list
         assert(!ScreenDetail_OnBack(ScreenConfig::kPower)); // group
+    }
+    // Both menus share the journal. Navigation/cancel never requests an erase.
+    for(uint8_t menu : {18,19}) {
+        ScreenUiStyle style={}; ST7789_Handle lcd={};
+        auto cursor=ScreenDetail_InitIndex(menu);
+        ScreenDetail_Render(&lcd,menu,cursor,style);
+        assert((renderedLabels==std::vector<std::string>{"Start Test","View Status","Clear Records","End Test"}));
+        ScreenDetail_OnRotate(menu,&cursor,2); assert(cursor==2);
+        const auto clears=batteryClears;
+        assert(!ScreenDetail_OnConfirm(menu,cursor));
+        assert(std::string(ScreenDetail_ConfirmLabel(menu,cursor))=="Clear");
+        assert(ScreenUI_ActionIcon(ScreenDetail_ConfirmLabel(menu,cursor))==ScreenActionIcon::Confirm);
+        ScreenDetail_Render(&lcd,menu,cursor,style);
+        assert(renderedTitle=="Clear Records" && renderedValue=="Delete all test records?");
+        assert(!ScreenDetail_OnBack(menu) && batteryClears==clears);
+        assert(!ScreenDetail_OnConfirm(menu,cursor));
+        assert(!ScreenDetail_OnConfirm(menu,cursor) && batteryClears==clears+1);
+        assert(!ScreenDetail_OnConfirm(menu,cursor)); // result -> list
+        batteryActive=true;
+        assert(!ScreenDetail_OnConfirm(menu,cursor));
+        assert(std::string(ScreenDetail_ConfirmLabel(menu,cursor))=="Back");
+        ScreenDetail_Render(&lcd,menu,cursor,style);
+        assert(renderedValue=="End test before clearing");
+        assert(!ScreenDetail_OnConfirm(menu,cursor) && batteryClears==clears+1);
+        batteryActive=false;
+        assert(!ScreenDetail_OnConfirm(menu,cursor)); // confirmation
+        batteryActive=true; // another entry started a test meanwhile
+        assert(!ScreenDetail_OnConfirm(menu,cursor) && batteryClears==clears+1);
+        batteryActive=false;
+        assert(!ScreenDetail_OnBack(menu));
+        ScreenDetail_OnRotate(menu,&cursor,1); assert(cursor==3);
+        const auto ends=batteryEnds;
+        assert(!ScreenDetail_OnConfirm(menu,cursor) && batteryEnds==ends+1);
+        assert(!ScreenDetail_OnBack(menu));
+        ScreenDetail_OnRotate(menu,&cursor,-128); assert(cursor==SCREEN_LIST_BACK);
+        assert(ScreenDetail_OnConfirm(menu,cursor));
+        assert(saves==0);
     }
     auto defaults = legacy();
     ScreenConfig::setDefaultOrder(defaults);
@@ -118,14 +161,21 @@ int main() {
     }
     auto menuConfig = legacy(); ScreenConfig::normalize(menuConfig);
     uint8_t menuIds[12] = {};
-    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 11);
-    for (unsigned i = 0; i < 11; ++i) assert(ScreenConfig::isTopLevel(menuIds[i]));
+    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 12);
+    for (unsigned i = 0; i < 12; ++i) assert(ScreenConfig::isTopLevel(menuIds[i]));
+    assert(menuIds[11] == ScreenConfig::kLanguage);
     assert(ScreenMain_FindMenuMeta(12)); // Maintenance remains restorable but never a normal menu.
     menuConfig.featuresMask &= ~(1u << 14);
-    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 10);
+    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 11);
     BOARD_MODE.allowed = false;
-    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 9);
+    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 10);
     BOARD_MODE.allowed = true;
+    menuConfig.featuresMask = 0;
+    assert(ScreenMain_RebuildMenuIds(menuConfig, menuIds, 12) == 2);
+    assert(menuIds[0] == ScreenConfig::kConnection && menuIds[1] == ScreenConfig::kLanguage);
+    menuConfig.currentPageId = ScreenConfig::kLanguage;
+    ScreenConfig::normalize(menuConfig);
+    assert(menuConfig.currentPageId == ScreenConfig::kLanguage);
     auto sc = legacy(); sc.featuresMask &= ~0xF0u; ScreenConfig::normalize(sc);
     assert(!(sc.featuresMask & (1u << 13)) && sc.currentPageId == 3);
     assert(!patch(sc, R"({"features":{"ledBrightnessAdjust":false,"ledEffectSwitch":true,"ambientBrightnessAdjust":false,"ambientEffectSwitch":false},"featuresOrder":["ambientEffectSwitch","screenBrightnessAdjust","inputModeSwitch"],"currentPageId":6,"standbyDisplay":"buttonLayout"})", true));
@@ -183,27 +233,73 @@ int main() {
         assert(!ScreenDetail_OnBack(ScreenConfig::kPower));
         assert(ScreenDetail_OnBack(ScreenConfig::kPower));
     }
-    // Real detail dispatcher: group -> slider -> parent, switches independent of time.
+    // Real dispatcher: OFF + five durations; confirm returns without toggling.
     STORAGE_MANAGER.config.screenControl = sc;
     init_power_defaults(STORAGE_MANAGER.config.power);
-    auto index = ScreenDetail_InitIndex(14); assert(index == 0);
-    assert(!ScreenDetail_OnConfirm(14, index));
-    ScreenDetail_OnRotate(14, &index, 127); assert(STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds == 300);
-    assert(!ScreenConfig::enabled(STORAGE_MANAGER.config.screenControl));
-    assert(!ScreenDetail_OnConfirm(14, index)); assert(ScreenConfig::enabled(STORAGE_MANAGER.config.screenControl));
-    ScreenDetail_OnRotate(14, &index, -127); assert(STORAGE_MANAGER.config.screenControl.standbyTimeoutSeconds == 10);
     ScreenUiStyle style = {}; ST7789_Handle lcd = {};
-    ScreenDetail_Render(&lcd, 14, index, style); assert(renderedTitle == "Screen Standby" && renderedValue == "10s ON");
-    assert(!ScreenDetail_OnBack(14));
-    ScreenDetail_OnRotate(14, &index, 1); assert(index == 1);
-    assert(!ScreenDetail_OnConfirm(14, index));
-    assert(!ScreenDetail_OnConfirm(14, index));
-    assert(STORAGE_MANAGER.config.power.autoSleepEnabled == (HBOX_AUTO_SLEEP_ENABLED != 0));
-    ScreenDetail_OnRotate(14, &index, -4);
-    assert(STORAGE_MANAGER.config.power.autoStandbyMs == (HBOX_AUTO_SLEEP_ENABLED ? 10000u : 300000u));
-    assert(!ScreenDetail_OnBack(14));
-    ScreenDetail_Render(&lcd, 14, index, style); assert(renderedTitle == "Power" && renderedIndex == 1);
-    assert(ScreenDetail_OnBack(14));
+    uint8_t index;
+    for (uint8_t child : {0, 1}) {
+        auto& screen = STORAGE_MANAGER.config.screenControl;
+        auto& power = STORAGE_MANAGER.config.power;
+        ScreenConfig::setEnabled(screen, false); screen.standbyTimeoutSeconds = 120;
+        power.autoSleepEnabled = 0; power.autoStandbyMs = 300000;
+        const auto displayMode = screen.standbyDisplay;
+        const auto seconds = [&]() { return child ? power.autoStandbyMs / 1000u : screen.standbyTimeoutSeconds; };
+        const auto enabled = [&]() { return child ? power.autoSleepEnabled == 1 : ScreenConfig::enabled(screen); };
+        const auto render = [&]() { ScreenDetail_Render(&lcd, 14, index, style); };
+        index = ScreenDetail_InitIndex(14);
+        ScreenDetail_OnRotate(14, &index, child);
+        assert(!ScreenDetail_OnConfirm(14, index));
+        if (child && !HBOX_AUTO_SLEEP_ENABLED) {
+            const auto saved = saves;
+            ScreenDetail_OnRotate(14, &index, 127);
+            assert(!ScreenDetail_OnConfirm(14, index));
+            render(); assert(renderedValue == "Unavailable");
+            assert(std::string(ScreenDetail_ConfirmLabel(14, index)) == "N/A");
+            assert(!enabled() && seconds() == 300 && saves == saved);
+            assert(!ScreenDetail_OnBack(14));
+            continue;
+        }
+        const char* labels[] = {"OFF", "10s", "30s", "1min", "2min", "5min"};
+        const unsigned times[] = {0, 10, 30, 60, 120, 300};
+        for (unsigned step = 0; step <= 5; ++step) {
+            if (step) ScreenDetail_OnRotate(14, &index, 1);
+            render();
+            assert(renderedTitle == (child ? "Auto Sleep" : "Screen Standby"));
+            assert(renderedIndex == step && renderedMax == 5 && renderedValue == labels[step]);
+            assert(enabled() == (step != 0));
+            if (step) assert(seconds() == times[step]);
+            assert(ScreenUI_ActionIcon(ScreenDetail_ConfirmLabel(14, index)) == ScreenActionIcon::Confirm);
+        }
+        auto saved = saves;
+        ScreenDetail_OnRotate(14, &index, 127); render();
+        assert(renderedIndex == 5 && saves == saved);
+        ScreenDetail_OnRotate(14, &index, -128); render();
+        assert(renderedIndex == 0 && !enabled() && seconds() == 300);
+        saved = saves;
+        ScreenDetail_OnRotate(14, &index, -128); assert(saves == saved);
+        assert(!ScreenDetail_OnConfirm(14, index));
+        assert(!enabled() && seconds() == 300 && saves == saved + 1);
+        render(); assert(renderedTitle == "Power" && renderedIndex == child);
+        // Re-entry preserves OFF; selecting a duration enables immediately.
+        assert(!ScreenDetail_OnConfirm(14, index)); render(); assert(renderedValue == "OFF");
+        ScreenDetail_OnRotate(14, &index, 1);
+        assert(enabled() && seconds() == 10);
+        assert(!ScreenDetail_OnConfirm(14, index)); render();
+        assert(enabled() && seconds() == 10 && renderedTitle == "Power");
+        // WebConfig changes are reflected without reopening the slider.
+        assert(!ScreenDetail_OnConfirm(14, index));
+        if (child) power.autoStandbyMs = 120000;
+        else screen.standbyTimeoutSeconds = 120;
+        render(); assert(renderedIndex == 4 && renderedValue == "2min");
+        if (child) power.autoSleepEnabled = 0;
+        else ScreenConfig::setEnabled(screen, false);
+        render(); assert(renderedIndex == 0 && renderedValue == "OFF");
+        assert(screen.standbyDisplay == displayMode);
+        assert(!ScreenDetail_OnBack(14));
+        render(); assert(renderedTitle == "Power" && renderedIndex == child);
+        assert(ScreenDetail_OnBack(14));
+    }
     index = ScreenDetail_InitIndex(13); ScreenDetail_OnRotate(13, &index, 1); assert(index == 1);
     assert(!ScreenDetail_OnConfirm(13, index)); assert(ScreenDetail_Kind(13) == SCREEN_DETAIL_LIST);
     assert(!ScreenDetail_OnConfirm(13, index)); // Effect confirmation returns to group.
@@ -225,20 +321,6 @@ int main() {
     assert(std::string(ScreenDetail_ConfirmLabel(ScreenConfig::kLed, index)) == "Apply");
     leds.aroundLedEnabled = false;
     assert(std::string(ScreenDetail_ConfirmLabel(ScreenConfig::kLed, index)) == "Apply");
-    index = ScreenDetail_InitIndex(ScreenConfig::kPower);
-    assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower, index));
-    ScreenConfig::setEnabled(STORAGE_MANAGER.config.screenControl, true);
-    assert(std::string(ScreenDetail_ConfirmLabel(ScreenConfig::kPower, index)) == "OFF");
-    assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower, index));
-    assert(std::string(ScreenDetail_ConfirmLabel(ScreenConfig::kPower, index)) == "ON");
-    assert(!ScreenDetail_OnBack(ScreenConfig::kPower));
-    ScreenDetail_OnRotate(ScreenConfig::kPower, &index, 1);
-    assert(!ScreenDetail_OnConfirm(ScreenConfig::kPower, index));
-    assert(ScreenDetail_Kind(ScreenConfig::kPower) == (HBOX_AUTO_SLEEP_ENABLED ? SCREEN_DETAIL_SLIDER : SCREEN_DETAIL_INFO));
-    STORAGE_MANAGER.config.power.autoSleepEnabled = 1;
-    assert(std::string(ScreenDetail_ConfirmLabel(ScreenConfig::kPower, index)) == (HBOX_AUTO_SLEEP_ENABLED ? "OFF" : "N/A"));
-    STORAGE_MANAGER.config.power.autoSleepEnabled = 0;
-    assert(std::string(ScreenDetail_ConfirmLabel(ScreenConfig::kPower, index)) == (HBOX_AUTO_SLEEP_ENABLED ? "ON" : "N/A"));
     for (uint8_t menu : {0, 1, 2, 5, 7, 15}) {
         assert(ScreenDetail_OnConfirm(menu, SCREEN_LIST_BACK));
         assert(std::string(ScreenDetail_ConfirmLabel(menu, SCREEN_LIST_BACK)) == "Back");
@@ -340,5 +422,35 @@ int main() {
     ScreenDetail_OnRotate(2, &index, -128); assert(index == SCREEN_LIST_BACK);
     const auto socd = profile.keysConfig.socdMode;
     assert(ScreenDetail_OnConfirm(2, index)); assert(profile.keysConfig.socdMode == socd);
-    puts("screen config migration, JSON atomicity and grouped navigation passed");
+    // Language uses a reserved byte; migration and JSON preserve all other settings.
+    for (uint8_t schema : {0u, 0xA1u, 0xA2u}) {
+        auto old = legacy(2);
+        old.reservedStyle[0]=schema; old.reservedStyle[1]=1; old.reservedStyle[2]=1;
+        ScreenConfig::normalize(old);
+        assert(ScreenConfig::language(old)==0 && ScreenConfig::enabled(old));
+        assert(old.standbyTimeoutSeconds==120 && old.standbyDisplay==2);
+    }
+    auto& localized=STORAGE_MANAGER.config.screenControl;
+    ScreenConfig::normalize(localized);
+    index=ScreenDetail_InitIndex(ScreenConfig::kLanguage); assert(index==0);
+    ScreenDetail_OnRotate(ScreenConfig::kLanguage,&index,1); assert(index==1);
+    const auto savesBeforeLanguage=saves;
+    assert(ScreenDetail_OnConfirm(ScreenConfig::kLanguage,index));
+    assert(ScreenConfig::language(localized)==1 && ScreenText_GetLanguage()==1 && saves==savesBeforeLanguage+1);
+    auto persisted=localized;
+    ScreenConfig::normalize(persisted); assert(ScreenConfig::language(persisted)==1);
+    auto* json=ScreenConfig::toJson(persisted);
+    ScreenControlConfig imported={};
+    assert(!ScreenConfig::applyJson(imported,json,true)); cJSON_Delete(json);
+    assert(ScreenConfig::language(imported)==1);
+    assert(!patch(imported,R"({"brightness":40})") && ScreenConfig::language(imported)==1);
+    auto beforeBadLanguage=imported;
+    assert(patch(imported,R"({"language":"bad","brightness":30})"));
+    assert(!memcmp(&imported,&beforeBadLanguage,sizeof(imported)));
+    assert(!patch(imported,R"({"brightness":40})",true) && ScreenConfig::language(imported)==0);
+    ScreenDetail_OnRotate(ScreenConfig::kLanguage,&index,-128); assert(index==SCREEN_LIST_BACK);
+    assert(ScreenDetail_OnConfirm(ScreenConfig::kLanguage,index) && ScreenText_GetLanguage()==1);
+    index=0; assert(ScreenDetail_OnConfirm(ScreenConfig::kLanguage,index));
+    assert(ScreenText_GetLanguage()==0 && ScreenConfig::language(localized)==0);
+    puts("screen config migration, JSON atomicity, language persistence and grouped navigation passed");
 }

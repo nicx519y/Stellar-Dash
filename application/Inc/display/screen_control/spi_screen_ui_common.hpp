@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "screen_control/spi_screen_layout.hpp"
+#include "screen_text.h"
 
 extern "C" {
 #include "st7789.h"
@@ -18,8 +19,9 @@ uint16_t ScreenUI_CharCellW(uint8_t scale);
 uint16_t ScreenUI_CharCellH(uint8_t scale);
 uint16_t ScreenUI_TextPxW(const char* s, uint8_t scale);
 uint16_t ScreenUI_TextPxH(uint8_t scale);
-// Caller supplies maxChars + 1 bytes. Returns the start of the next row.
-const char* ScreenUI_NextTextRow(const char* text, char* row, uint16_t maxChars);
+// maxChars counts ASCII cells (CJK uses two); capacity includes the UTF-8 NUL.
+// Returns the start of the next row without splitting a codepoint.
+const char* ScreenUI_NextTextRow(const char* text, char* row, uint16_t maxChars, uint16_t capacity = 32u);
 
 void ScreenUI_DrawStringCenteredInBox(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const char* s, uint32_t fg, uint32_t bg, uint8_t scale);
 void ScreenUI_DrawScrollArrow(ST7789_Handle* lcd, uint16_t cx, uint16_t cy, bool up, uint32_t color);

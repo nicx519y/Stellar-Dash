@@ -1066,23 +1066,35 @@ void ST7789_DrawChar(ST7789_Handle* lcd, uint16_t x, uint16_t y, char c, uint32_
     }
 }
 
-void ST7789_DrawString(ST7789_Handle* lcd, uint16_t x, uint16_t y, const char* s, uint32_t fg_rgb888, uint32_t bg_rgb888, uint8_t scale)
+#include "screen_text.h"
+__attribute__((optimize("Os"))) void ST7789_DrawString(ST7789_Handle* lcd, uint16_t x, uint16_t y, const char* s, uint32_t fg_rgb888, uint32_t bg_rgb888, uint8_t scale)
 {
-    if (!s) return;
+    if (!lcd || !s) return;
+    s = ScreenText_Translate(s);
     if (scale == 0u) scale = 1u;
     uint16_t cx = x;
     uint16_t cy = y;
-    uint16_t step_x = st7789_char_cell_w(scale);
     uint16_t step_y = st7789_char_cell_h(scale);
     while (*s)
     {
-        char c = *s++;
+        uint32_t c = ScreenText_ReadCodepoint(&s);
         if (c == '\n') { cx = x; cy = (uint16_t)(cy + step_y); continue; }
         if (c == '\r') continue;
-        if (cx + step_x > ST7789_WIDTH) { cx = x; cy = (uint16_t)(cy + step_y); }
+        const uint16_t advance = ScreenText_CharWidth(c, scale);
+        if (cx + advance > ST7789_WIDTH) { cx = x; cy = (uint16_t)(cy + step_y); }
         if (cy + step_y > ST7789_HEIGHT) break;
-        ST7789_DrawChar(lcd, cx, cy, c, fg_rgb888, bg_rgb888, scale);
-        cx = (uint16_t)(cx + step_x);
+        if (c < 128u) ST7789_DrawChar(lcd, cx, cy, (char)c, fg_rgb888, bg_rgb888, scale);
+        else {
+            const uint8_t* glyph = ScreenText_Glyph(c, scale);
+            ST7789_FillRect(lcd, cx, cy, advance, step_y, bg_rgb888);
+            if (glyph) {
+                const uint16_t stride = (advance + 7u) / 8u;
+                for (uint16_t yy=0; yy<step_y; ++yy) for (uint16_t xx=0; xx<advance; ++xx)
+                    if (glyph[yy*stride+xx/8u] & (0x80u >> (xx%8u)))
+                        ST7789_DrawPixel(lcd, cx+xx, cy+yy, fg_rgb888);
+            } else ST7789_DrawChar(lcd, cx, cy, '?', fg_rgb888, bg_rgb888, scale);
+        }
+        cx = (uint16_t)(cx + advance);
     }
 }
 

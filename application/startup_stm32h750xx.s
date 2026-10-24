@@ -96,6 +96,12 @@ bss_loop:
     ldr r2, =_erodata       /* 结束地址 */
     bl  copy_section
 
+    /* CPU-only screen/test constants must also survive QSPI indirect mode. */
+    ldr r0, =_siui_rodata
+    ldr r1, =_sui_rodata
+    ldr r2, =_eui_rodata
+    bl  copy_section
+
     /* Native font tables must be readable without QSPI during saves and STOP. */
     ldr r0, =_siscreen_fonts
     ldr r1, =_sscreen_fonts

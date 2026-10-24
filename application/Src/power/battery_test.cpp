@@ -17,6 +17,7 @@ bool initialized=false, requested=false, endRequested=false, owned=false, failed
 bool seen=false, wasProtected=false;
 bool batchReadFailed=false;
 bool requestedCharge=false;
+bool clearRequested=false;
 uint32_t written=0, configHash=0, sampleTime=0, lastCheck=0, requestedAt=0;
 uint32_t quality=0, level=0, input=0, charge=0;
 uint32_t sampleSleepMs=0;
@@ -37,7 +38,9 @@ int regionRead(uint32_t off,void *data,uint32_t n) {
 }
 int regionWrite(uint32_t off,const void *data,uint32_t n) {
     if(off>BT_REGION_BYTES || n>BT_REGION_BYTES-off || QSPI_W25Qxx_IsMemoryMappedMode()) return -1;
-    return QSPI_W25Qxx_WritePage((uint8_t *)data,base+off,n);
+    // Page/sector primitives write QUADSPI_AR verbatim; unlike ReadBuffer,
+    // they do not strip the CPU's mapped-aperture base from the address.
+    return QSPI_W25Qxx_WritePage((uint8_t *)data,base-EXTERNAL_FLASH_BASE+off,n);
 }
 int read(uint32_t off,void *data,uint32_t n) {
     if(off>BT_DATA_BYTES || n>BT_DATA_BYTES-off) return -1;
@@ -180,6 +183,7 @@ extern "C" void BatteryTest_Init() {
     batchReadFailed=false;
     recorder={}; initialized=true; requested=endRequested=owned=failed=seen=wasProtected=false;
     requestedCharge=false;
+    clearRequested=false;
     written=configHash=sampleTime=lastCheck=quality=level=input=charge=0;
     sampleSleepMs=0;
     status="Not started";
@@ -218,8 +222,9 @@ extern "C" void BatteryTest_Init() {
     } else status=written ? "Completed / view WebConfig" : "Reserved";
 }
 static void requestStart(bool charging) {
-    if(!initialized || recorder.active || requested) return;
-    if(owned || failed) { status="No capacity / keep history"; return; }
+    if(!initialized || recorder.active || requested || clearRequested) return;
+    if(failed) { status="Storage error / incomplete"; return; }
+    if(owned) { status="History exists / clear first"; return; }
     if(POWER_MANAGER.batteryProtectionRequired() || !POWER_MANAGER.getSnapshot().valid) {
         status="Battery data unavailable"; return;
     }
@@ -237,8 +242,14 @@ extern "C" void BatteryTest_RequestStart() { requestStart(false); }
 extern "C" void ChargeTest_RequestStart() { requestStart(true); }
 extern "C" int BatteryTest_IsCharge() { return requested?requestedCharge:recorder.chargeMode; }
 extern "C" void BatteryTest_RequestEnd() { if(recorder.active) endRequested=true; }
+extern "C" void BatteryTest_RequestClear() {
+    if(!initialized || clearRequested || __get_IPSR()) return;
+    if(BatteryTest_Active()) { status="End test before clearing"; return; }
+    if(POWER_MANAGER.batteryProtectionRequired()) { status="Battery data unavailable"; return; }
+    clearRequested=true; requestedAt=HAL_GetTick(); status="Clearing records...";
+}
 extern "C" uint8_t BatteryTest_Clear() {
-    if (!initialized || BatteryTest_Active() || __get_IPSR()) return FL_FULL;
+    if (!initialized || BatteryTest_Active() || clearRequested || __get_IPSR()) return FL_FULL;
     batchReadFailed=false;
     uint8_t prefix[28];
     const auto readPrefix=[&](uint32_t address) {
@@ -258,7 +269,7 @@ extern "C" uint8_t BatteryTest_Clear() {
     }
     const fl_backend clearBackend={regionRead,regionWrite,[](uint32_t off)->int {
         if (off%FL_SECTOR_BYTES || off>BT_REGION_BYTES-FL_SECTOR_BYTES) return -1;
-        return QSPI_W25Qxx_SectorErase(base+off);
+        return QSPI_W25Qxx_SectorErase(base-EXTERNAL_FLASH_BASE+off);
     },BT_REGION_BYTES};
     const auto result=fl_clear(&clearBackend,1); // Header is erased only after all data sectors verify.
     leaveStorage(mapped,wait);
@@ -267,7 +278,7 @@ extern "C" uint8_t BatteryTest_Clear() {
     return failed ? FL_IO : FL_OK;
 }
 extern "C" int BatteryTest_Active() { return recorder.active || requested; }
-extern "C" int BatteryTest_NeedsStorage() { return !failed && (requested || recorder.count); }
+extern "C" int BatteryTest_NeedsStorage() { return clearRequested || (!failed && (requested || recorder.count)); }
 extern "C" const char *BatteryTest_Status() { return status; }
 extern "C" uint32_t BatteryTest_Elapsed() { return recorder.elapsed; }
 extern "C" void BatteryTest_Event(uint16_t e,uint32_t a,uint32_t b) {
@@ -296,8 +307,8 @@ extern "C" void BatteryTest_StoragePause(uint32_t elapsed) {
     if(owned) recorder.writeMs+=elapsed;
 }
 extern "C" void BatteryTest_Tick() {
-    if(requested && HAL_GetTick()-requestedAt>=10000u) {
-        requested=false; status="Busy / retry in game mode";
+    if((requested || clearRequested) && HAL_GetTick()-requestedAt>=10000u) {
+        requested=clearRequested=false; status="Busy / retry in game mode";
     }
     if(!recorder.active) return;
     const uint32_t now=HAL_GetTick();
@@ -356,7 +367,17 @@ extern "C" void BatteryTest_Tick() {
         l>=2u?"Protection / recovery":"Recording (24h max)";
 }
 extern "C" void BatteryTest_Service(int safe) {
-    if(!safe || !initialized || failed || __get_IPSR() || (!requested && !recorder.count)) return;
+    if(!safe || !initialized || __get_IPSR()) return;
+    if(clearRequested) {
+        clearRequested=false;
+        // Never erase during protection. The main loop has already stopped
+        // input and waited for LCD DMA, and excluded upgrade/ISP transactions.
+        if(POWER_MANAGER.batteryProtectionRequired()) { status="Battery data unavailable"; return; }
+        const auto result=BatteryTest_Clear();
+        status=result==FL_OK?"Records cleared":result==FL_FULL?"End test before clearing":"Clear failed / retry";
+        return;
+    }
+    if(failed || (!requested && !recorder.count)) return;
     batchReadFailed=false;
     const uint32_t began=HAL_GetTick();
     bool mapped=false; QSPI_W25Qxx_WaitCallback wait=nullptr;

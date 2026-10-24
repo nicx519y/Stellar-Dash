@@ -1,6 +1,6 @@
 'use client';
 
-import { normalizeScreenControl, SCREEN_FEATURE_IDS } from '@/lib/screen-control-config';
+import { normalizeScreenControl, SCREEN_FEATURE_IDS, SCREEN_LANGUAGE_MENU_ID } from '@/lib/screen-control-config';
 import React, { useEffect, useMemo, useState } from 'react';
 import { VStack, HStack, Table, Box, Text, RadioCard, RadioGroup } from '@chakra-ui/react';
 import { Slider } from '@/components/ui/slider';
@@ -17,6 +17,7 @@ import { ScreenStandbyPreview } from './screen-standby-preview';
 
 const USER_BG_ID = 'USER_IMAGE';
 const STANDBY_TIMEOUT_LABELS = ['10s', '30s', '1min', '2min', '5min'] as const;
+type ScreenMenuKey = ScreenControlFeatureKey | 'language';
 
 
 type ScreenControlSettingContentProps = {
@@ -93,6 +94,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         const b = Math.max(0, Math.min(100, brightness | 0));
         const pid = Math.max(0, Math.min(65535, parseInt(currentPageId || '0', 10) || 0));
         return {
+            language: screenControl.language,
             brightness: b,
             standbyDisplay,
             standbyEnabled,
@@ -104,7 +106,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             features,
             featuresOrder,
         };
-    }, [brightness, standbyEnabled, screenControl.standbySupported, standbyDisplay, standbyTimeoutSeconds, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
+    }, [brightness, standbyEnabled, screenControl.language, screenControl.standbySupported, standbyDisplay, standbyTimeoutSeconds, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
 
     const commitUiChange = async (next: ScreenControlConfig) => {
         try {
@@ -154,11 +156,13 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         for (const [k, v] of entries) if (v === id) return k;
         return null;
     };
-    const [firstFeatureKey, setFirstFeatureKey] = useState<ScreenControlFeatureKey>(() => {
+    const [firstFeatureKey, setFirstFeatureKey] = useState<ScreenMenuKey>(() => {
+        if (screenControl.currentPageId === SCREEN_LANGUAGE_MENU_ID) return 'language';
         const k = idToFeatureKey(screenControl.currentPageId);
         return k && featuresOrder.includes(k) ? k : featuresOrder[0];
     });
     useEffect(() => {
+        if (screenControl.currentPageId === SCREEN_LANGUAGE_MENU_ID) { setFirstFeatureKey('language'); return; }
         const k = idToFeatureKey(screenControl.currentPageId);
         setFirstFeatureKey(k && featuresOrder.includes(k) ? k : featuresOrder[0]);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -334,14 +338,15 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     variant = "subtle"
                     value={firstFeatureKey}
                     onValueChange={async (d) => {
-                        const v = (d as { value: string }).value as ScreenControlFeatureKey;
+                        const v = (d as { value: string }).value as ScreenMenuKey;
                         if (!v || v === firstFeatureKey) return;
                         setFirstFeatureKey(v);
-                        const pageId = featureKeyToId[v];
+                        const pageId = v === 'language' ? SCREEN_LANGUAGE_MENU_ID : featureKeyToId[v];
+                        setCurrentPageId(String(pageId));
                         await commitUiChange({ ...nextConfig, currentPageId: pageId });
                     }}
                 >
-                <Table.Root size="sm" colorPalette="green" interactive>
+                <Table.Root size="sm" colorPalette="green" interactive aria-label={t.SETTINGS_SCREEN_CONTROL_FEATURES}>
                     <Table.Body>
                         {orderedFeatureItems.map((item) => (
                             <Table.Row
@@ -420,7 +425,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 <Table.Cell py={1} fontSize="11px">
                                     <HStack gap={2}>
                                         <RadioGroup.Item value={item.key} disabled={disabled || !features[item.key]} >
-                                            <RadioGroup.ItemHiddenInput />
+                                            <RadioGroup.ItemHiddenInput aria-label={`${t.SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL}: ${item.label}`} />
                                             <RadioGroup.ItemIndicator />
                                             {firstFeatureKey === item.key && <RadioGroup.ItemText fontSize="11px" color="gray.400" >{t.SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL}</RadioGroup.ItemText>}
                                         </RadioGroup.Item>
@@ -428,6 +433,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 </Table.Cell>
                                 <Table.Cell py={1} fontSize="11px" textAlign="end">
                                     <Switch
+                                        aria-label={item.label}
                                         checked={(item.key === 'webConfigEntry' || item.key === 'transportModeSwitch') || features[item.key]}
                                         disabled={disabled || (item.key === 'webConfigEntry' || item.key === 'transportModeSwitch')}
                                         onCheckedChange={async (e: { checked: boolean }) => {
@@ -440,6 +446,21 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 </Table.Cell>
                             </Table.Row>
                         ))}
+                        <Table.Row height="40px" bg={firstFeatureKey === 'language' ? 'bg.success' : undefined}>
+                            <Table.Cell py={1} fontSize="11px">
+                                <Text pl="22px">{t.SETTINGS_SCREEN_CONTROL_FEATURE_LANGUAGE}</Text>
+                            </Table.Cell>
+                            <Table.Cell py={1} fontSize="11px">
+                                <RadioGroup.Item value="language" disabled={disabled}>
+                                    <RadioGroup.ItemHiddenInput aria-label={`${t.SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL}: ${t.SETTINGS_SCREEN_CONTROL_FEATURE_LANGUAGE}`} />
+                                    <RadioGroup.ItemIndicator />
+                                    {firstFeatureKey === 'language' && <RadioGroup.ItemText fontSize="11px" color="gray.400">{t.SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL}</RadioGroup.ItemText>}
+                                </RadioGroup.Item>
+                            </Table.Cell>
+                            <Table.Cell py={1} fontSize="11px" textAlign="end">
+                                <Text color="fg.muted">{t.SETTINGS_SCREEN_CONTROL_LANGUAGE_FIXED}</Text>
+                            </Table.Cell>
+                        </Table.Row>
                     </Table.Body>
                 </Table.Root>
                 </RadioGroup.Root>

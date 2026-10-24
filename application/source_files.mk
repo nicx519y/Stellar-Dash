@@ -2,6 +2,7 @@
 # New implementation files must be added explicitly; directory moves must not enable legacy code.
 
 C_SOURCES := \
+Src/display/drivers/st7789/screen_text.c \
 Core/Src/bdma.c \
 Src/system/board.c \
 Src/support/delay_timer.c \

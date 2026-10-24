@@ -56,6 +56,7 @@ ScreenActionIcon ScreenUI_ActionIcon(const char* action) {
     static const Mapping mappings[] = {
         {"Open", ScreenActionIcon::Open}, {"Back", ScreenActionIcon::Back},
         {"Apply", ScreenActionIcon::Confirm}, {"OK", ScreenActionIcon::Confirm},
+        {"Clear", ScreenActionIcon::Confirm},
         {"Done", ScreenActionIcon::Confirm}, {"Finish", ScreenActionIcon::Confirm},
         {"ON", ScreenActionIcon::TurnOn}, {"OFF", ScreenActionIcon::TurnOff},
         {"Edit", ScreenActionIcon::Edit}, {"Close", ScreenActionIcon::Close},
@@ -198,8 +199,7 @@ uint16_t ScreenUI_CharCellH(uint8_t scale) {
 
 uint16_t ScreenUI_TextPxW(const char* s, uint8_t scale) {
     if (!s || scale == 0) return 0;
-    uint16_t len = (uint16_t)strlen(s);
-    return (uint16_t)(len * ScreenUI_CharCellW(scale));
+    return ScreenText_Width(ScreenText_Translate(s), scale);
 }
 
 uint16_t ScreenUI_TextPxH(uint8_t scale) {
@@ -207,17 +207,21 @@ uint16_t ScreenUI_TextPxH(uint8_t scale) {
     return ScreenUI_CharCellH(scale);
 }
 
-__attribute__((optimize("Os"))) const char* ScreenUI_NextTextRow(const char* text, char* row, uint16_t maxChars) {
-    uint16_t length = 0;
-    while (length < maxChars && text[length] && text[length] != '\n') ++length;
-    if (length == maxChars && text[length] && text[length] != ' ' && text[length] != '\n') {
-        uint16_t wordEnd = length;
-        while (wordEnd > 0 && text[wordEnd - 1] != ' ') --wordEnd;
-        if (wordEnd > 0) length = wordEnd;
+__attribute__((optimize("Os"))) const char* ScreenUI_NextTextRow(const char* text, char* row, uint16_t maxChars, uint16_t capacity) {
+    const char* end = text;
+    const char* wordEnd = 0;
+    unsigned units=0;
+    // CJK occupies two ASCII cells, but three UTF-8 bytes.
+    while (*end && *end != '\n') {
+        const char* next=end; const uint32_t c=ScreenText_ReadCodepoint(&next);
+        const unsigned advance=c>127u?2u:1u;
+        if (units+advance>maxChars || next-text>=capacity) break;
+        units+=advance; end=next;
+        if (c==' ') wordEnd=end;
     }
-    memcpy(row, text, length);
-    row[length] = '\0';
-    text += length;
+    if (*end && *end!=' ' && *end!='\n' && (uint8_t)*end<128u && wordEnd) end=wordEnd;
+    const unsigned length=(unsigned)(end-text);
+    memcpy(row,text,length); row[length]=0; text=end;
     while (*text == ' ') ++text;
     if (*text == '\n') ++text;
     return text;
@@ -225,18 +229,18 @@ __attribute__((optimize("Os"))) const char* ScreenUI_NextTextRow(const char* tex
 
 __attribute__((optimize("Os"))) void ScreenUI_DrawStringCenteredInBox(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const char* s, uint32_t fg, uint32_t bg, uint8_t scale) {
     if (!lcd || !s || scale == 0) return;
+    s = ScreenText_Translate(s);
     const uint16_t cellW = ScreenUI_CharCellW(scale);
-    uint16_t tw = (uint16_t)(strlen(s) * cellW);
+    uint16_t tw = ScreenText_Width(s, scale);
     const uint16_t th = ScreenUI_CharCellH(scale);
-    char tmp[32];
+    char tmp[64];
     if (h < th) return;
     if (w < tw) {
         uint16_t maxChars = (uint16_t)(w / cellW);
         if (maxChars == 0) return;
         if (maxChars >= sizeof(tmp)) maxChars = (uint16_t)(sizeof(tmp) - 1);
-        memcpy(tmp, s, maxChars);
-        tmp[maxChars] = '\0';
-        tw = maxChars * cellW;
+        ScreenUI_NextTextRow(s, tmp, maxChars, sizeof(tmp));
+        tw = ScreenText_Width(tmp, scale);
         s = tmp;
     }
 

@@ -3,7 +3,7 @@
 #include <cassert>
 #include <cstdio>
 static int readWhole(uint32_t a,void *p,uint32_t n){return QSPI_W25Qxx_ReadBuffer((uint8_t*)p,BATTERY_TEST_STORAGE_ADDR+a,n);}
-static int writeWhole(uint32_t a,const void *p,uint32_t n){return QSPI_W25Qxx_WritePage((uint8_t*)p,BATTERY_TEST_STORAGE_ADDR+a,n);}
+static int writeWhole(uint32_t a,const void *p,uint32_t n){return QSPI_W25Qxx_WritePage((uint8_t*)p,BATTERY_TEST_STORAGE_ADDR-EXTERNAL_FLASH_BASE+a,n);}
 static int noErase(uint32_t){assert(false);return -1;}
 static int reserveFixture() {
     const fl_backend b={readWhole,writeWhole,noErase,65536};
@@ -136,6 +136,44 @@ int main(){
     memcpy(prefix,&legacyMagic,4);memcpy(prefix+4,&version,2);prefix[6]=1;
     memcpy(prefix+20,&legacyOffset,4);memcpy(prefix+24,&oversize,4);
     assert(BatteryTest_Clear()==FL_IO && eraseCalls==0); // declared legacy extent crosses log boundary
+
+    // Screen clear is deferred until the same safe storage window as recording.
+    reset();eraseCalls=0;
+    BatteryTest_RequestStart();drain();sample();
+    BatteryTest_RequestClear();assert(eraseCalls==0 && BatteryTest_Active());
+    BatteryTest_RequestEnd();BatteryTest_Tick();drain();
+    flashMemory[begin-1]=0x12;flashMemory[begin+BT_REGION_BYTES]=0x34;
+    BatteryTest_RequestClear();assert(eraseCalls==0 && BatteryTest_NeedsStorage());
+    BatteryTest_RequestStart();ChargeTest_RequestStart();assert(!BatteryTest_Active());
+    assert(BatteryTest_Clear()==FL_FULL); // competing synchronous clear is rejected
+    BatteryTest_Service(0);assert(eraseCalls==0);
+    BatteryTest_Service(1);
+    assert(eraseCalls==16 && !BatteryTest_NeedsStorage());
+    assert(fl_blank(flashMemory+begin,BT_REGION_BYTES) && BatteryTest_Elapsed()==0);
+    assert(!strcmp(BatteryTest_Status(),"Records cleared"));
+    assert(flashMemory[begin-1]==0x12 && flashMemory[begin+BT_REGION_BYTES]==0x34);
+    BatteryTest_RequestStart();drain();assert(BatteryTest_Active());
+    // Failed clears report failure, retain evidence, and require an explicit retry.
+    BatteryTest_RequestEnd();BatteryTest_Tick();drain();
+    BatteryTest_RequestClear();eraseFailure=1;BatteryTest_Service(1);eraseFailure=0;
+    assert(!strcmp(BatteryTest_Status(),"Clear failed / retry"));
+    const auto failedErases=eraseCalls;drain();assert(eraseCalls==failedErases);
+    BatteryTest_RequestClear();BatteryTest_Service(1);
+    assert(!strcmp(BatteryTest_Status(),"Records cleared"));
+    // Protection at request time or before execution must never erase.
+    reset();eraseCalls=0;fakePower.sample.battery_level=BatteryLevel::Critical;
+    BatteryTest_RequestClear();assert(!BatteryTest_NeedsStorage());
+    fakePower.sample.battery_level=BatteryLevel::Normal;BatteryTest_RequestClear();
+    fakePower.sample.battery_level=BatteryLevel::Critical;BatteryTest_Service(1);
+    assert(eraseCalls==0 && !BatteryTest_NeedsStorage());
+    // No safe window: expire the queued request instead of erasing much later.
+    reset();eraseCalls=0;BatteryTest_RequestClear();tick=10000;BatteryTest_Tick();
+    BatteryTest_Service(1);assert(eraseCalls==0 && !BatteryTest_NeedsStorage());
+    assert(std::strstr(BatteryTest_Status(),"Busy"));
+    // Existing image overlap checks also apply to the screen entry.
+    reset();eraseCalls=0;flashMemory[XORA_IMAGE_DATA_ADDR-EXTERNAL_FLASH_BASE]=0;
+    BatteryTest_RequestClear();BatteryTest_Service(1);
+    assert(eraseCalls==0 && !strcmp(BatteryTest_Status(),"Clear failed / retry"));
 
     // Charge: own entry, no automatic clear, active-mode mutual exclusion.
     reset();fakePower.sample.vbus_present=false;

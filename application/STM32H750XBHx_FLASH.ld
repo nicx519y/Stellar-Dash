@@ -110,17 +110,19 @@ SECTIONS
     *main_state_machine.o(.text .text.* .rodata .rodata.*)
     /* Fault capture and journal code must remain executable while QSPI is indirect. */
     *fault_log_stm32.o(.text .text.* .rodata .rodata.*)
-    *battery_test.o(.text .text.* .rodata .rodata.*)
+    *battery_test.o(.text .text.*)
     /* Battery/charge menu confirmation shares CPU-only ITCM; keep AXI headroom. */
     *spi_screen_detail_pages.o(.text._Z22ScreenDetail_OnConfirm*)
+    /* CPU-only list rendering uses ITCM freed by placing UI constants in DTCM. */
+    *spi_screen_detail_render_helpers.o(.text._Z23ScreenDetailRender_List*)
     *fault_log_command.o(.text .text.* .rodata .rodata.*)
     *common_command_handler.o(.text .text.* .rodata .rodata.*)
     *tx_isp_state.o(.text .text.* .rodata .rodata.*)
     *spi_screen_detail_tx_isp.o(.text .text.* .rodata .rodata.*)
-    /* Shared LCD drawing helpers are CPU-only. Use spare ITCM for their code
-       and constants; framebuffer/DMA data stay in their existing RAM regions.
+    /* Shared LCD drawing helpers are CPU-only. Use spare ITCM for their code;
+       their constants use DTCM below. Framebuffer/DMA data stay in place.
        Include them in the existing g_pfnVectors.._evector startup copy span. */
-    *spi_screen_ui_common.o(.text .text.* .rodata .rodata.*)
+    *spi_screen_ui_common.o(.text .text.*)
     . = ALIGN(4);
     _evector = .;           /* 添加向量表结束标记 */
   } >ITCMRAM AT>FLASH
@@ -133,6 +135,21 @@ SECTIONS
     *(.text.startup)
     . = ALIGN(4);
   } >FLASH
+
+  /* CPU-only menu/status constants stay available while QSPI is indirect.
+     Select them before the generic .rodata rule. Startup copies this separate
+     span; no DMA buffers or executable code are placed in DTCM. */
+  _siui_rodata = LOADADDR(.ui_rodata);
+  .ui_rodata :
+  {
+    . = ALIGN(4);
+    _sui_rodata = .;
+    *battery_test.o(.rodata .rodata.*)
+    *spi_screen_detail_pages.o(.rodata .rodata.*)
+    *spi_screen_ui_common.o(.rodata .rodata.*)
+    . = ALIGN(4);
+    _eui_rodata = .;
+  } >DTCMRAM AT>FLASH
 
   /* 其他代码在 RAM */
   _sitext = LOADADDR(.text);

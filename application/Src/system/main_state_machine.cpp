@@ -338,9 +338,9 @@ void MainStateMachine::serviceSharedRuntime()
     // is not charged to the preceding awake state. This adds no I2C sampling.
     if (BatteryTest_Tick) BatteryTest_Tick();
     if (traceFirstPass) APP_STAGE("RT3", "power service complete");
-    SPIScreenManager::getInstance().loop();
-    // The LCD frame has completed. No extra wakeups for logging; only an
-    // explicitly armed battery test is allowed a bounded input storage pause.
+    // Service the previous LCD transfer before allowing the UI to submit a
+    // new frame. Otherwise continuous rendering can starve a confirmed clear
+    // (or queued records) until its request times out with the old elapsed time.
     if (BatteryTest_NeedsStorage && BatteryTest_NeedsStorage() && !ispEntryBlocked() &&
         !FirmwareManager::GetInstance()->HasPendingUpgradeWrites() &&
         BatteryTest_DisplayReady && BatteryTest_DisplayReady() &&
@@ -355,6 +355,7 @@ void MainStateMachine::serviceSharedRuntime()
             (void)requestTransition(MainRuntimeState::SafeRecovery);
         if(BatteryTest_StoragePause) BatteryTest_StoragePause(HAL_GetTick()-pauseStarted);
     }
+    SPIScreenManager::getInstance().loop();
     if (currentState == MainRuntimeState::Input) {
         INPUT_STATE.serviceLeds();
     }

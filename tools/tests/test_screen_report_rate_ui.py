@@ -70,6 +70,8 @@ extern ConnectionStub CONNECTION_MANAGER;
                         *[str(ROOT / "application/Src/display/screen_control" / name)
                           for name in ("spi_screen_detail_tournament_mode.cpp",
                                        "spi_screen_detail_render_helpers.cpp", "spi_screen_ui_common.cpp")],
+                        str(ROOT / "application/Src/display/drivers/st7789/screen_text.c"),
+                        "-I" + str(ROOT / "application/Inc/display/drivers/st7789"),
                         "-o", str(exe)], check=True)
             run_native([str(exe)], check=True)
 

@@ -348,6 +348,7 @@ static uint32_t get_gamepad_activity_mask() {
 
 static void refresh_screen_cfg_cache(void) {
     const ScreenControlConfig& sc = STORAGE_MANAGER.config.screenControl;
+    ScreenText_SetLanguage(ScreenConfig::language(sc));
     const bool webConfigAllowed = BOARD_MODE.isWebConfigAllowed();
     if (webConfigAllowed != g_cfgWebConfigAllowed) {
         g_cfgWebConfigAllowed = webConfigAllowed;
@@ -514,6 +515,7 @@ void SPIScreenManager::rebuildMenu() {
     uint8_t oldIndex = menuIndex;
     uint8_t oldSelectedId = 0;
     if (oldCount > 0 && oldIndex < oldCount) oldSelectedId = menuIds[oldIndex];
+    else oldSelectedId = STORAGE_MANAGER.config.screenControl.currentPageId;
 
     menuCount = ScreenMain_RebuildMenuIds(STORAGE_MANAGER.config.screenControl, menuIds, (uint8_t)(sizeof(menuIds) / sizeof(menuIds[0])));
     if (menuCount == 0) {
@@ -521,7 +523,7 @@ void SPIScreenManager::rebuildMenu() {
         return;
     }
 
-    if (oldCount > 0) {
+    {
         for (uint8_t i = 0; i < menuCount; i++) {
             if (menuIds[i] == oldSelectedId) {
                 menuIndex = i;
@@ -1127,8 +1129,10 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderSleepCharge()
 
 extern "C" int BatteryTest_DisplayReady(void)
 {
-    // Queried only after the synchronous UI service returned.
-    return !SPIST7789_IsBusy();
+    // Drain completion without submitting another frame. JPEG decoding may
+    // still be using mapped QSPI even while the LCD transfer itself is idle.
+    SPIST7789_Service();
+    return !SPIST7789_IsBusy() && !ScreenJpeg_Active();
 }
 
 __attribute__((optimize("Os"))) void SPIScreenManager::renderBatteryNotice(uint32_t now)
